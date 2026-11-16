@@ -13,6 +13,10 @@ public enum EmptyBlockGetter implements BlockGetter {
     @Override
     public BlockState getBlockState(BlockPos pos) { return Blocks.AIR.defaultBlockState(); }
 
+    /** 바닐라: 블록 엔티티가 없다. */
+    @Override
+    public net.minecraft.world.level.block.entity.BlockEntity getBlockEntity(BlockPos pos) { return null; }
+
     @Override
     public FluidState getFluidState(BlockPos pos) { return Fluids.EMPTY.defaultFluidState(); }
 

@@ -11,7 +11,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.tags.TagNetworkSerialization")
 public final class TagSet {
 
     // 레지스트리 → (태그 id → 엔트리 id 배열). 삽입 순서 유지.

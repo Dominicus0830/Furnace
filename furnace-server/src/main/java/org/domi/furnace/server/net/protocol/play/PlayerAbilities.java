@@ -2,8 +2,10 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundPlayerAbilitiesPacket")
 public record PlayerAbilities(boolean invulnerable, boolean flying, boolean mayFly, boolean instabuild,
                               float flyingSpeed, float walkingSpeed) implements Packet {
 

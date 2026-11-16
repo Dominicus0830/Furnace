@@ -1,6 +1,9 @@
 // NBT 파일 read/write(DataInput/Output) + gzip. 표준 named-root 포맷.
 package org.domi.furnace.server.net.io.nbt;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("net.minecraft.nbt.NbtIo")
 public final class NbtIo {
 
     public static final byte TAG_END = 0;

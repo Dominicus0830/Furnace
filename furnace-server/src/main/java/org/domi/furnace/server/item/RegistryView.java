@@ -2,8 +2,10 @@
 // 전리품·발전 과제는 데이터 팩을 읽을 때 만든 LootRegistries 를 쓴다.
 package org.domi.furnace.server.item;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.data.ResourceId;
 
+@VanillaPort("net.minecraft.core.HolderLookup")
 public interface RegistryView {
 
     /** 그 레지스트리에 id 가 있는가(이 쪽이 모르는 레지스트리면 참 — 검사하지 않음). */

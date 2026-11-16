@@ -11,7 +11,7 @@
 | `IdentityHash` | 모든 해시 | `h = (h ^ v) * FNV_PRIME`. 기존 `NoiseIdentityBench`·O04·O07 도구와 같은 식이라 그 값들과 이어진다 |
 | `Differential` | 순수 함수 차분(옛 함수 vs 새 함수) | 반복마다 (시드, 번호)에서 따로 만든 `SplittableRandom` 입력, 실패 시 시드·번호·입력 요약·재현 명령, 변이 점검 `assertDetects` |
 | `SceneHash` | 장면 상태 해시 | 장면 줄을 쌓고 끝에 `TOTAL`. 한 번 돌려 금 파일과 같으면 끝. 다르거나·없거나·bless 면 **결정성 자기 점검**(한 번 더 돌려 다르면 "결정적이지 않음") 뒤 비교·갱신 |
-| `Golden` | 금 파일 비교 | `src/test/resources/identity/<이름>.txt` 와 줄 단위 비교, 불일치 시 `build/identity/actual/<이름>.txt` 에 지금 결과 |
+| `Golden` | 금 파일 비교 | `src/test/resources/identity/1.21.1/<이름>.txt` 와 줄 단위 비교, 불일치 시 `build/identity/actual/<이름>.txt` 에 지금 결과 |
 | `PacketTape` | 나가는 패킷 대조 | 시험 채널에서 (id, 본문) 열을 모은다. 압축·프레임은 풀어서 비교. `assertSame`·`hash`·`lines` |
 | `Mca` | `.mca` 바이트 대조 | `assertSameBytes(dirA, dirB[, 시각 무시])`, `fixClock(RegionFile, 초)` |
 | `@LegacyOracle` | 옛 구현 사본 | 아래 "옛 구현 보관" 규칙, `LegacyOracleRulesTest` 가 검사 |
@@ -65,7 +65,7 @@ SceneHash.assertGolden("scene-name", rec -> {
 
 ## 금 파일 갱신 (bless)
 
-금 파일은 결과 동일의 기준이다. **최적화 PR 은 금 파일(`src/test/resources/identity/*.txt`)을 바꾸지 않는다.** 금 파일이 바뀌었다는 것은 결과가 달라졌다는 뜻이다.
+금 파일은 결과 동일의 기준이다. **최적화 PR 은 금 파일(`src/test/resources/identity/1.21.1/*.txt`)을 바꾸지 않는다.** 금 파일이 바뀌었다는 것은 결과가 달라졌다는 뜻이다.
 
 갱신이 허용되는 경우:
 1. **의도한 정확성 수정**(바닐라와 달랐던 동작을 바로잡음) — 바닐라 근거가 있어야 한다.
@@ -75,7 +75,7 @@ SceneHash.assertGolden("scene-name", rec -> {
 1. 갱신 명령: `./gradlew :furnace-server:test --tests '<시험>' -Dfurnace.identity.bless=<이름>[,<이름>…]`(bench 소스셋 장면은 `:furnace-server:bench --tests '<벤치>'` 로 돌린다 — `-Dfurnace.identity.bless` 는 그대로 넘어간다). 이름을 하나씩 적는다.
 2. PR 본문에 **"금 파일 갱신"** 절: 바뀐 파일, 바뀐 줄 수, 왜 결과가 달라지는지(위 1·2 중 무엇), 바닐라 근거(정확성 수정이면).
 3. **독립 검토자 스레드가 바뀐 줄을 확인하고 승인**해야 병합한다(기존 병합 규칙: CI `test` + 독립 검토 위에 이 확인을 더한다). 금 파일 변경과 최적화를 한 PR 에 섞지 않는다.
-4. 기계 점검은 아직 없다(이 절차는 사람이 지킨다). **T-O15-05(CI)** 가 넘겨받는다: `src/test/resources/identity/*.txt` 가 바뀐 PR 에서 본문에 "금 파일 갱신" 절이 없으면 실패하는 점검 + Step Summary 알림.
+4. 기계 점검은 아직 없다(이 절차는 사람이 지킨다). **T-O15-05(CI)** 가 넘겨받는다: `src/test/resources/identity/1.21.1/*.txt` 가 바뀐 PR 에서 본문에 "금 파일 갱신" 절이 없으면 실패하는 점검 + Step Summary 알림.
 
 `ChunkSendPacketOrderGoldenTest` 의 기대 열처럼 시험 코드 안에 적은 기대값도 같은 규칙을 따른다.
 

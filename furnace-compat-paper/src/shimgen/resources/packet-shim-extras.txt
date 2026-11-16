@@ -34,6 +34,15 @@ public static final int MAGIC_CRITICAL_HIT = 5;
 
 public ClientboundAnimatePacket(net.minecraft.world.entity.Entity entity, int action) { this(entity.getId(), action); }
 
+@@ net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket
+// 바닐라 create(블록 엔티티, 태그 만들기): 그 블록 엔티티의 칸·종류와 함수가 만든 태그(T-198 — FAWE·WorldEdit 의 가짜 구조 블록 NBT 보내기).
+// 레지스트리는 그 블록 엔티티 레벨의 것(레벨이 없으면 서버 것 — Furnace 는 하나다).
+public static ClientboundBlockEntityDataPacket create(net.minecraft.world.level.block.entity.BlockEntity blockEntity,
+        java.util.function.BiFunction<net.minecraft.world.level.block.entity.BlockEntity, net.minecraft.core.RegistryAccess, net.minecraft.nbt.CompoundTag> tagCreator) {
+    net.minecraft.core.RegistryAccess registries = blockEntity.getLevel() != null ? blockEntity.getLevel().registryAccess() : net.minecraft.core.RegistryAccess.SERVER;
+    return new ClientboundBlockEntityDataPacket(blockEntity.getBlockPos(), blockEntity.getType(), tagCreator.apply(blockEntity, registries));
+}
+
 @@ net.minecraft.network.protocol.game.ClientboundBlockEventPacket
 public ClientboundBlockEventPacket(net.minecraft.core.BlockPos pos, net.minecraft.world.level.block.Block block, int b0, int b1) {
     this(pos, b0, b1, block);

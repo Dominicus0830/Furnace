@@ -4,10 +4,12 @@ package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.map.MapData;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundMapItemDataPacket")
 public record MapItemData(int mapId, byte scale, boolean locked, List<MapData.Decoration> decorations, Patch patch) implements Packet {
 
     public static final int ID = 0x2C; // datagen: play.clientbound.map_item_data (protocol_id 44)

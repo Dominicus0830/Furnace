@@ -1,6 +1,8 @@
 // Xoroshiro RNG가 바닐라 nextLong 시퀀스와 비트일치 검증
 package org.domi.furnace.server.world.gen.noise;
 
+import org.domi.furnace.api.GameVersion;
+
 import static org.junit.jupiter.api.Assertions.*;
 import java.io.*;
 import java.nio.*;
@@ -8,7 +10,7 @@ import org.junit.jupiter.api.Test;
 
 class XoroshiroRandomSourceTest {
     private static long[] readRngFixture(long seed) throws IOException {
-        try (InputStream in = XoroshiroRandomSourceTest.class.getResourceAsStream("/worldgen/fixtures/rng_" + seed + ".bin")) {
+        try (InputStream in = XoroshiroRandomSourceTest.class.getResourceAsStream("/worldgen/fixtures/" + GameVersion.RESOURCE_TAG + "/rng_" + seed + ".bin")) {
             assertNotNull(in, "fixture 없음");
             byte[] b = in.readAllBytes();
             ByteBuffer bb = ByteBuffer.wrap(b).order(ByteOrder.LITTLE_ENDIAN);

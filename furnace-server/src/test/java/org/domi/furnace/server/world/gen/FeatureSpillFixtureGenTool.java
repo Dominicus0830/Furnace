@@ -103,7 +103,7 @@ class FeatureSpillFixtureGenTool {
      * 로직 자체가 틀린 것이므로 이후 전량 재생성은 전부 무의미하다.
      */
     @Test void roundtrip_existingFixtureBytesUnchanged() throws Exception {
-        String fixtureName = "/worldgen/fixtures/featurespill_1234_0_0.bin";
+        String fixtureName = "/worldgen/fixtures/" + GameVersion.RESOURCE_TAG + "/featurespill_1234_0_0.bin";
         byte[] original;
         try (InputStream in = FeatureSpillFixtureGenTool.class.getResourceAsStream(fixtureName)) {
             assertNotNull(in, "fixture not found: " + fixtureName);
@@ -127,7 +127,7 @@ class FeatureSpillFixtureGenTool {
         String coordsProp = System.getProperty("furnace.fixture.gen.coords");
         assertNotNull(coordsProp, "furnace.fixture.gen.coords must be set (cx:cz,cx:cz,...)");
         String outDirProp = System.getProperty("furnace.fixture.gen.outDir",
-            "src/test/resources/worldgen/fixtures");
+            "src/test/resources/worldgen/fixtures/" + GameVersion.RESOURCE_TAG);
 
         Path worldDir = Paths.get(worldDirProp);
         Path outDir = Paths.get(outDirProp);

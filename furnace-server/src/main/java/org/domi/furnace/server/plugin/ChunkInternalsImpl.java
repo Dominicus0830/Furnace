@@ -461,4 +461,166 @@ final class ChunkInternalsImpl implements ChunkInternals {
         return won;
     }
 
+
+    // ------------------------------------------------------------------ 블록 엔티티(T-198)
+
+    /**
+     * 아직 해석하지 않은 생성 블록 엔티티 NBT(서버에 틀이 없는 종류 — 바닐라의 pendingBlockEntities 자리)의 손잡이. 같은 열·같은 칸이면 같은 손잡이다
+     * (호출마다 새 객체라도 equals) — 호환 계층이 같은 칸의 보기를 다시 쓰게. 그 칸의 생성 NBT 가 지워지면 지워진 것이고, 그 뒤에도 마지막 내용을 든다.
+     */
+    static final class GeneratedBlockEntityRef {
+        private final ChunkColumn col;
+        private final int x, y, z;
+        private volatile org.domi.furnace.server.net.io.nbt.NbtCompound last;
+
+        GeneratedBlockEntityRef(ChunkColumn col, int x, int y, int z, org.domi.furnace.server.net.io.nbt.NbtCompound nbt) {
+            this.col = col;
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.last = nbt;
+        }
+
+        int x() { return x; }
+        int y() { return y; }
+        int z() { return z; }
+
+        /** 지금 내용(지워졌으면 마지막으로 본 내용). */
+        org.domi.furnace.server.net.io.nbt.NbtCompound nbt() {
+            var cur = col.generatedBlockEntity(x & 15, y, z & 15);
+            if (cur != null) last = cur;
+            return last;
+        }
+
+        boolean removed() { return col.generatedBlockEntity(x & 15, y, z & 15) == null; }
+
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof GeneratedBlockEntityRef g && g.col == col && g.x == x && g.y == y && g.z == z;
+        }
+
+        @Override
+        public int hashCode() { return System.identityHashCode(col) * 31 + java.util.Objects.hash(x, y, z); }
+    }
+
+    /** 주인 스레드의 로드된 그 칸 레벨(아니면 null — 소유 스레드가 아니면 ThreadOwnershipException). */
+    private static RegionLevel ownedLevel(org.domi.furnace.api.world.World world, int x, int z, String what) {
+        Region r = ownedLoaded(world, x >> 4, z >> 4, what);
+        return r == null || !r.chunkLoaded(new ChunkPos(x >> 4, z >> 4)) ? null : r.level();
+    }
+
+    @Override
+    public Object blockEntityNow(org.domi.furnace.api.world.World world, int x, int y, int z, boolean create) {
+        RegionLevel lv = ownedLevel(world, x, z, "LevelChunk#getBlockEntity");
+        if (lv == null || lv.isOutsideBuildHeight(y)) return null;
+        Pos p = new Pos(x, y, z);
+        Object be = create ? lv.getBlockEntity(p) : lv.getBlockEntityIfPresent(p);
+        if (be != null) return be;
+        ChunkColumn col = column(world, x >> 4, z >> 4, "LevelChunk#getBlockEntity");
+        var nbt = col == null ? null : col.generatedBlockEntity(x & 15, y, z & 15);
+        return nbt == null ? null : new GeneratedBlockEntityRef(col, x, y, z, nbt);
+    }
+
+    @Override
+    public Object removeBlockEntityNow(org.domi.furnace.api.world.World world, int x, int y, int z) {
+        RegionLevel lv = ownedLevel(world, x, z, "LevelChunk#removeBlockEntity");
+        if (lv == null || lv.isOutsideBuildHeight(y)) return null;
+        Pos p = new Pos(x, y, z);
+        ChunkColumn col = column(world, x >> 4, z >> 4, "LevelChunk#removeBlockEntity");
+        Object be = col == null ? null : col.blockEntityAt(x, y, z);
+        if (be == null && col != null) {
+            var nbt = col.generatedBlockEntity(x & 15, y, z & 15);
+            if (nbt != null) be = new GeneratedBlockEntityRef(col, x, y, z, nbt);
+        }
+        lv.removeBlockEntity(p);   // 서버의 바닐라 길: 게임 이벤트 리스너 빼기, 지움 표시(틱 목록은 지움 표시로 빠진다), 생성 NBT 도 지운다
+        return be;
+    }
+
+    @Override
+    public boolean blockEntityRemoved(Object blockEntity) {
+        if (blockEntity instanceof org.domi.furnace.server.block.entity.BlockEntity be) return be.isRemoved();
+        if (blockEntity instanceof GeneratedBlockEntityRef g) return g.removed();
+        throw new IllegalArgumentException("not a block entity handle: " + blockEntity);
+    }
+
+    @Override
+    public org.domi.furnace.api.nbt.NbtCompound blockEntitySaveNow(Object blockEntity) {
+        org.domi.furnace.server.net.io.nbt.NbtCompound tag;
+        if (blockEntity instanceof org.domi.furnace.server.block.entity.BlockEntity be) {
+            tag = be.saveWithFullMetadata();
+        } else if (blockEntity instanceof GeneratedBlockEntityRef g) {
+            tag = (org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.copy(g.nbt());
+            tag.putInt("x", g.x());
+            tag.putInt("y", g.y());
+            tag.putInt("z", g.z());
+        } else {
+            throw new IllegalArgumentException("not a block entity handle: " + blockEntity);
+        }
+        return ApiNbt.toApi((org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.thaw(org.domi.furnace.server.net.io.nbt.NbtTags.copy(tag)));
+    }
+
+    @Override
+    public boolean blockEntityLoadNow(org.domi.furnace.api.world.World world, Object blockEntity, org.domi.furnace.api.nbt.NbtCompound tag) {
+        java.util.Objects.requireNonNull(tag, "tag");
+        if (blockEntity instanceof org.domi.furnace.server.block.entity.BlockEntity be) {
+            RegionLevel lv = ownedLevel(world, be.pos().x(), be.pos().z(), "BlockEntity#loadWithComponents");
+            if (lv == null) return false;
+            be.loadWithComponentsInLevel(lv, (org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.freeze(ApiNbt.toServer(tag)));
+            return true;
+        }
+        if (blockEntity instanceof GeneratedBlockEntityRef g) {
+            // 서버가 해석하지 못하는 종류: 바닐라 loadAdditional 이 아는 키만 읽듯 고를 수 없어 실은 NBT 를 그대로 든다(id 는 그 종류 그대로)
+            column(world, g.x() >> 4, g.z() >> 4, "BlockEntity#loadWithComponents");   // 소유 검사
+            if (g.removed()) return false;
+            var n = ApiNbt.toServer(tag);
+            n.putString("id", (String) g.nbt().tags().get("id"));
+            n.tags().remove("x");
+            n.tags().remove("y");
+            n.tags().remove("z");
+            g.col.putGeneratedBlockEntity(g.x() & 15, g.y(), g.z() & 15, n);
+            g.last = n;
+            return true;
+        }
+        throw new IllegalArgumentException("not a block entity handle: " + blockEntity);
+    }
+
+    @Override
+    public boolean blockEntityChangedNow(org.domi.furnace.api.world.World world, int x, int y, int z) {
+        RegionLevel lv = ownedLevel(world, x, z, "BlockEntity#setChanged");
+        if (lv == null) return false;
+        Pos p = new Pos(x, y, z);
+        lv.blockEntityChanged(p);
+        int state = lv.getBlockState(p);
+        if (!org.domi.furnace.server.block.B.isAir(state)) lv.updateNeighbourForOutputSignal(p, org.domi.furnace.server.block.B.block(state));
+        return true;
+    }
+
+    /** 명령 범위 안에서 넣는다 — 주인이 쉬고 있으면 drain 차례로 곧바로 돈다(CommandDrainGate: 같은 예산·같은 끄기 옵션). */
+    @Override
+    public <T> java.util.concurrent.CompletableFuture<T> submitAwaited(org.domi.furnace.api.world.World world, int x, int y, int z, java.util.function.Supplier<T> task) {
+        org.domi.furnace.server.world.CommandDrainGate.enterScope();
+        try {
+            return world.scheduler(new BlockPos(x, y, z)).submit(task);
+        } finally {
+            org.domi.furnace.server.world.CommandDrainGate.exitScope();
+        }
+    }
+
+    @Override
+    public org.domi.furnace.api.nbt.NbtCompound normalizeBlockEntityNbt(int stateId, org.domi.furnace.api.nbt.NbtCompound tag) {
+        checkState(stateId);
+        var origin = new Pos(0, 0, 0);
+        String name = org.domi.furnace.server.block.Blocks.get().nameOfState(stateId);
+        org.domi.furnace.server.block.entity.BlockEntity be = switch (name) {
+            case "minecraft:chest", "minecraft:trapped_chest" -> org.domi.furnace.server.world.ChestBlockEntity.empty(name, 0, 0, 0);
+            default -> org.domi.furnace.server.block.BlockBehaviors.of(stateId).newBlockEntity(origin, stateId);
+        };
+        if (be == null) return null;
+        var t = (org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.freeze(ApiNbt.toServer(tag));
+        be.loadWithBukkitValues(t);
+        be.loadComponents(t);
+        var out = be.saveWithoutMetadata();
+        out.putString("id", be.type());
+        return ApiNbt.toApi((org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.thaw(org.domi.furnace.server.net.io.nbt.NbtTags.copy(out)));
+    }
 }

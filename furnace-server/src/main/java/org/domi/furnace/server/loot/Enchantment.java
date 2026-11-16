@@ -6,7 +6,9 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.ArrayList;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.item.enchantment.Enchantment")
 public record Enchantment(String id, int weight, int maxLevel, int minBase, int minPer, int maxBase, int maxPer,
                           HolderSet supportedItems, HolderSet primaryItems, HolderSet exclusiveSet, List<String> slots, int anvilCost) {
 

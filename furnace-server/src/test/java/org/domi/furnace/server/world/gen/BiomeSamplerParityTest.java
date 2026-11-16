@@ -24,7 +24,7 @@ class BiomeSamplerParityTest {
         int[] got = sampler.sampleChunk(cx, cz, noiseChunk);
 
         // Load fixture
-        String fixtureName = "/worldgen/fixtures/biome_" + seed + "_" + cx + "_" + cz + ".bin";
+        String fixtureName = "/worldgen/fixtures/" + GameVersion.RESOURCE_TAG + "/biome_" + seed + "_" + cx + "_" + cz + ".bin";
         byte[] fx;
         try (InputStream in = getClass().getResourceAsStream(fixtureName)) {
             assertNotNull(in, "fixture not found: " + fixtureName);

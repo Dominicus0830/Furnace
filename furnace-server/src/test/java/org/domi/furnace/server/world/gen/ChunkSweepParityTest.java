@@ -102,7 +102,7 @@ class ChunkSweepParityTest {
 
     private ChunkResult compareChunk(NoiseWorldSource source, BlockRegistry reg,
             Map<Integer, String> oracleIdToName, long seed, int cx, int cz) throws Exception {
-        String fixtureName = "/worldgen/fixtures/featurespill_" + seed + "_" + cx + "_" + cz + ".bin";
+        String fixtureName = "/worldgen/fixtures/" + GameVersion.RESOURCE_TAG + "/featurespill_" + seed + "_" + cx + "_" + cz + ".bin";
         byte[] fx;
         try (InputStream in = ChunkSweepParityTest.class.getResourceAsStream(fixtureName)) {
             if (in == null) return new ChunkResult(cx, cz, 0, false, List.of());

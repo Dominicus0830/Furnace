@@ -3,10 +3,12 @@
 package org.domi.furnace.server.item;
 
 import io.netty.buffer.Unpooled;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@VanillaPort("net.minecraft.core.component.DataComponentPatch")
 public final class ItemNbt {
     private ItemNbt() {}
 

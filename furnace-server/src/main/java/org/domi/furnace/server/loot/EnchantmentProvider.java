@@ -6,8 +6,14 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.List;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.world.gen.noise.NoiseRandom;
 
+@VanillaPort({
+        "net.minecraft.world.item.enchantment.providers.EnchantmentProvider",
+        "net.minecraft.world.item.enchantment.providers.EnchantmentsByCost",
+        "net.minecraft.world.item.enchantment.providers.EnchantmentsByCostWithDifficulty",
+        "net.minecraft.world.item.enchantment.providers.SingleEnchantment"})
 public sealed interface EnchantmentProvider {
 
     /**

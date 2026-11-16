@@ -2,7 +2,7 @@
 
 성능 최적화 PR 이 "결과(관측 가능한 동작)를 바꾸지 않았다"는 것을 **저장소 안의 시험으로** 남기고, 같은 장면으로 시간을 재기 위한 장면 모음이다. 장면 자체는 입력이라 정답이 아니다 — 금 파일은 "옛 커밋 == 새 커밋"만 증명한다(바닐라 동일성은 oracle fixture·바닐라 jar 대조의 몫, `docs/testing/identitykit.md` 첫머리).
 
-위치: 장면 코드 `furnace-server/src/test/java/org/domi/furnace/server/scene/`(운영 jar 에 안 들어간다, bench 소스셋 클래스패스에도 들어 있다), 벤치 실행기 `src/bench/java/org/domi/furnace/server/scene/SceneLibraryBench.java`, 금 파일 `src/test/resources/identity/scene-<이름>.txt`.
+위치: 장면 코드 `furnace-server/src/test/java/org/domi/furnace/server/scene/`(운영 jar 에 안 들어간다, bench 소스셋 클래스패스에도 들어 있다), 벤치 실행기 `src/bench/java/org/domi/furnace/server/scene/SceneLibraryBench.java`, 금 파일 `src/test/resources/identity/1.21.1/scene-<이름>.txt`.
 
 ## 한 장면 = 두 모드, 같은 코드
 

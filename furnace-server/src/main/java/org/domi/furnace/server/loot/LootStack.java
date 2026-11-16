@@ -3,7 +3,9 @@ package org.domi.furnace.server.loot;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.item.ItemStack")
 public final class LootStack {
 
     public static final String AIR = "minecraft:air";

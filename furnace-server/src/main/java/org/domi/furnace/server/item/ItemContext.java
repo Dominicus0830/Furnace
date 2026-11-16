@@ -5,9 +5,11 @@ import org.domi.furnace.api.GameVersion;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.data.TagRegistries;
 
+@VanillaPort("net.minecraft.core.RegistryAccess")
 public final class ItemContext {
     private ItemContext() {}
 

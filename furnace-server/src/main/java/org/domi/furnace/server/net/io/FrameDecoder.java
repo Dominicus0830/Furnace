@@ -5,8 +5,10 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.protocol.ProtocolException;
 
+@VanillaPort("net.minecraft.network.Varint21FrameDecoder")
 public final class FrameDecoder extends ByteToMessageDecoder {
 
     private static final int MAX_PACKET = 2 * 1024 * 1024; // 2 MiB 안전 상한(바닐라 Varint21FrameDecoder 의 21비트 길이와 같은 규모)

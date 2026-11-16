@@ -3,8 +3,10 @@ package org.domi.furnace.server.loot;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.world.gen.noise.NoiseRandom;
 
+@VanillaPort("net.minecraft.world.level.storage.loot.LootContext")
 public final class LootContext {
 
     private final LootData data;

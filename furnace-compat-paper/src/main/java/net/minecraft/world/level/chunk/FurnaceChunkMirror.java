@@ -48,12 +48,16 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
     private static final Map<LevelChunkSection[], WeakReference<FurnaceChunkMirror>> ARRAYS = Collections.synchronizedMap(new WeakHashMap<>());
 
     private static final int SECTION_SET = 0, CONTAINER_SET = 1, BIOME_SET = 2, CHUNK_SET = 3, HM_RAW = 4, HM_UPDATE = 5, UNSAVED = 6;
+    /** 블록 엔티티 일지(T-198): 지우기·만들기(IMMEDIATE)·싣기(loadWithComponents)·setChanged. target 은 그 보기, extra 는 실을 NBT. */
+    private static final int BE_REMOVE = 7, BE_CREATE = 8, BE_LOAD = 9, BE_CHANGED = 10;
+    /** 블록 엔티티 덧칠의 "지웠다" 표시. */
+    static final Object BE_REMOVED = new Object();
 
     /**
      * 일지 한 줄. target 은 쓴 객체(섹션 쓰기·청크 쓰기 = 그때 그 자리 섹션, 컨테이너·바이옴 쓰기 = 그 컨테이너, 그 밖 null) — 재생 전에 그 객체가 배열에서
      * 빠지면 떼어 내기 직전에 먼저 재생한다(검토 R2). seq 는 덧칠 순번.
      */
-    private record Op(int kind, int slot, int cell, int id, int x, int y, int z, boolean flag, Heightmap.Types type, long[] raw, Object target, long seq) {}
+    private record Op(int kind, int slot, int cell, int id, int x, int y, int z, boolean flag, Heightmap.Types type, long[] raw, Object target, long seq, Object extra) {}
 
     final ChunkAccess chunk;
     final World world;
@@ -80,6 +84,10 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
     private long[][] biomeOverSeq;
     /** 덧칠 칸 수(0 이면 읽기가 잠그지 않는다). */
     private volatile int overlayCount;
+    /** 블록 엔티티 덧칠(T-198): 칸(BlockPos.asLong) → 다른 스레드가 만든 보기 또는 {@link #BE_REMOVED}. 재생돼 공개되면 지운다. */
+    private java.util.HashMap<Long, Object> beOver;
+    private java.util.HashMap<Long, Long> beOverSeq;
+    private volatile int beOverlayCount;
     private long lastCountsVersion = Long.MIN_VALUE;
 
     /** 들여오지 않은 쓰기가 있다(일지·장벽 알림). 세운 쪽이 주인에게 부탁한다. */
@@ -216,11 +224,29 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
                 upTo = seq;
                 plans = plan();
             }
-            for (Op op : ops) replay(op);   // 재생이 먼저 — 그 뒤 들여오는 섹션이 덮는다(교체 전 옛 섹션에 쓴 칸은 남지 않는다)
+            // 재생이 먼저 — 그 뒤 들여오는 섹션이 덮는다(교체 전 옛 섹션에 쓴 칸은 남지 않는다). 블록 엔티티 만들기가 아직 들여오지 않은 섹션의 블록을
+            // 기다리면 그 칸의 블록 엔티티 일지를 들여오기 뒤로 미룬다(T-198 — 플러그인 섹션에 놓인 상자에 IMMEDIATE)
+            ArrayList<Op> deferred = null;
+            java.util.Set<Long> deferredPos = null;
+            for (Op op : ops) {
+                if (op.kind >= BE_REMOVE && deferredPos != null && deferredPos.contains(beKey(op))) {
+                    deferred.add(op);
+                } else if (!replay(op)) {
+                    if (deferred == null) {
+                        deferred = new ArrayList<>();
+                        deferredPos = new java.util.HashSet<>();
+                    }
+                    deferred.add(op);
+                    deferredPos.add(beKey(op));
+                }
+            }
             if (!ops.isEmpty()) replayedSeq = upTo;
             var seam = testAfterPlan;
             if (seam != null) seam.accept(chunk);   // 시험 이음매(O15) — 운영에서는 null
-            if (plans.isEmpty()) return dirty;
+            if (plans.isEmpty()) {
+                replayDeferred(deferred);
+                return dirty;
+            }
             ChunkInternals.ChunkView view = null;
             synchronized (lock) {
                 try {
@@ -242,10 +268,23 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
                     claimed.clear();
                 }
             }
+            replayDeferred(deferred);
+            // 미룬 만들기는 위 판 뒤에 서버에 들었다 — 덧칠을 지우기 전에 그것까지 든 판을 다시 낸다(아니면 틱 끝 공개까지 다른 스레드가 null 을 본다)
+            if (view != null && deferred != null) view = NmsChunks.bridge().publishChunkViewNow(world, cx, cz);
             if (view != null) published(view);
             return dirty;
         } finally {
             syncing = false;
+        }
+    }
+
+    private static long beKey(Op op) { return net.minecraft.core.BlockPos.asLong(op.x, op.y, op.z); }
+
+    /** 주인: 들여오기 뒤로 미룬 블록 엔티티 일지(만들 블록이 들여온 섹션에 있었다). 그래도 블록 엔티티를 만들 수 없으면 그 보기는 지워진 것이 된다. */
+    private void replayDeferred(ArrayList<Op> deferred) {
+        if (deferred == null) return;
+        for (Op op : deferred) {
+            if (!replay(op) && op.target instanceof net.minecraft.world.level.block.entity.BlockEntity v) v.setRemoved();
         }
     }
 
@@ -413,11 +452,37 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
         return out;
     }
 
-    /** 주인: 일지 한 줄 재생(바닐라 원시 의미). 실패는 한 번 경고하고 다음 줄로. */
-    private void replay(Op op) {
+    /**
+     * 주인: 일지 한 줄 재생(바닐라 원시 의미). 실패는 한 번 경고하고 다음 줄로. 블록 엔티티 만들기가 그 칸 블록에 블록 엔티티가 없어 만들지 못했으면 false
+     * (들여오기 뒤에 다시 — {@link #sync}).
+     */
+    private boolean replay(Op op) {
         var b = NmsChunks.bridge();
         try {
             switch (op.kind) {
+                case BE_CREATE -> {
+                    // 그 스레드가 본 블록(자기가 바꾼 섹션 포함)이 아직 서버 칸에 없으면 — 들여오기 전 옛 블록으로 만들지 않는다(검토 R3)
+                    var v = (net.minecraft.world.level.block.entity.BlockEntity) op.target;
+                    int now = b.stateIdNow(world, op.x, op.y, op.z);
+                    if (now < 0 || net.minecraft.world.level.block.Block.stateById(now).getBlock() != v.getBlockState().getBlock()) return false;
+                    Object h = b.blockEntityNow(world, op.x, op.y, op.z, true);
+                    if (h == null) return false;
+                    v.furnaceRebindIfRemoved(h);
+                }
+                case BE_REMOVE -> {
+                    if (op.target instanceof net.minecraft.world.level.block.entity.BlockEntity v) {
+                        // 지우기 전에 묶는다 — 지운 뒤에도 마지막 내용을 저장한다. 그 꼴을 여기서 떠 두면 지운 스레드(FAWE 되돌리기 기록)가 타일마다 주인을
+                        // 기다리지 않는다(검토 위험 1 — 지운 객체는 더 바뀌지 않는다)
+                        Object h = ChunkAccess.furnaceBindNow(world, v);
+                        if (h != null && v.furnaceSnapshot() == null) v.furnaceSnapshot(b.blockEntitySaveNow(h));
+                    }
+                    b.removeBlockEntityNow(world, op.x, op.y, op.z);
+                }
+                case BE_LOAD -> {
+                    Object h = ChunkAccess.furnaceBindNow(world, (net.minecraft.world.level.block.entity.BlockEntity) op.target);
+                    if (h != null) b.blockEntityLoadNow(world, h, (org.domi.furnace.api.nbt.NbtCompound) op.extra);
+                }
+                case BE_CHANGED -> b.blockEntityChangedNow(world, op.x, op.y, op.z);
                 case SECTION_SET -> b.setSectionStateRawNow(world, cx, op.slot, cz, op.cell, op.id, true);
                 case CONTAINER_SET -> b.setSectionStateRawNow(world, cx, op.slot, cz, op.cell, op.id, false);
                 case BIOME_SET -> b.setSectionBiomeRawNow(world, cx, op.slot, cz, op.cell, op.id);
@@ -430,13 +495,25 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
         } catch (RuntimeException e) {
             warnOnce("replay:" + op.kind + ":" + e.getClass().getName(), CompatLang.t("compat.mirror.replay-failed", e));
         }
+        return true;
+    }
+
+    private void bindViews() {
+        try {
+            chunk.furnaceBindViews();
+        } catch (RuntimeException e) {
+            warnOnce("bind:" + e.getClass().getName(), CompatLang.t("compat.mirror.bind-failed", e));
+        }
     }
 
     @Override
     public void published(ChunkInternals.ChunkView view) {
         if (dead || view == null || !owner()) return;
         synchronized (lock) {
-            if (overlayCount > 0 && replayedSeq > 0) clearOverlays(replayedSeq);
+            if ((overlayCount > 0 || beOverlayCount > 0) && replayedSeq > 0) clearOverlays(replayedSeq);
+        }
+        bindViews();   // 다른 스레드가 얻은 보기를 지금 서버 객체에(검토 R2) — 재생하지 않은 일지가 남은 칸은 건너뛴다(R5)
+        synchronized (lock) {
             // 개수 필드: 붙은 섹션의 필드가 기준과 같으면(플러그인 대입 없음) 공개 판의 바닐라 개수로 — 아직 재생하지 않은 일지가 있으면 다음 판에
             if (seq > replayedSeq || view.version() == lastCountsVersion) return;
             lastCountsVersion = view.version();
@@ -453,6 +530,7 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
     @Override
     public void unloaded() {
         if (!owner()) return;
+        if (!dead) bindViews();   // 내린 뒤에도 보기가 그 객체의 내용을 저장하게(검토 R2 — FAWE 게으른 타일 저장)
         synchronized (lock) {
             dead = true;   // 잠금 안에서 — 그 뒤 일지 쓰기는 버려진다
             journal = new ArrayList<>();
@@ -461,6 +539,9 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
             biomeOver = null;
             biomeOverSeq = null;
             overlayCount = 0;
+            beOver = null;
+            beOverSeq = null;
+            beOverlayCount = 0;
             // 붙은 섹션을 그 순간 내용으로 굳혀 떼어 낸다 — 죽은 LevelChunk 처럼 그 뒤 읽기는 그 내용, 쓰기는 월드에 닿지 않는다
             for (int i = 0; i < n; i++) {
                 for (LevelChunkSection s : new LevelChunkSection[] {arr[i], placed[i]}) {
@@ -488,7 +569,7 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
             if (s.furnaceChunk() != chunk || s.furnaceIndex() != slot) return PalettedContainer.FURNACE_DETACHED;
             if (dead) return oldId;   // 내린 청크(떼어 내는 사이에 온 쓰기) — 월드에 닿지 않는다
             long q = ++seq;
-            journal.add(new Op(SECTION_SET, slot, cell, id, 0, 0, 0, false, null, null, s, q));
+            journal.add(new Op(SECTION_SET, slot, cell, id, 0, 0, 0, false, null, null, s, q, null));
             overlayCell(slot, cell, id, q);
             int[] d = LevelChunkSection.furnaceCountDelta(oldId, id);
             s.furnaceAddCountFields(d);
@@ -504,7 +585,7 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
             if (self.furnaceSourceObject() != src) return false;
             if (dead) return true;
             long q = ++seq;
-            journal.add(new Op(CONTAINER_SET, slot, cell, id, 0, 0, 0, false, null, null, self, q));
+            journal.add(new Op(CONTAINER_SET, slot, cell, id, 0, 0, 0, false, null, null, self, q, null));
             overlayCell(slot, cell, id, q);
         }
         noteWrite();
@@ -517,7 +598,7 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
             if (self.furnaceSourceObject() != src) return false;
             if (dead) return true;
             long q = ++seq;
-            journal.add(new Op(BIOME_SET, slot, cell, id, 0, 0, 0, false, null, null, self, q));
+            journal.add(new Op(BIOME_SET, slot, cell, id, 0, 0, 0, false, null, null, self, q, null));
             overlayBiome(slot, cell, id, q);
         }
         noteWrite();
@@ -539,7 +620,7 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
                     : (value instanceof BlockState st ? st.furnaceStateId() : -1);
             if (id < 0) return;
             long q = ++seq;
-            journal.add(new Op(src.biome ? BIOME_SET : CONTAINER_SET, src.index, index, id, 0, 0, 0, false, null, null, c, q));
+            journal.add(new Op(src.biome ? BIOME_SET : CONTAINER_SET, src.index, index, id, 0, 0, 0, false, null, null, c, q, null));
             if (src.biome) overlayBiome(src.index, index, id, q);
             else overlayCell(src.index, index, id, q);
         }
@@ -556,7 +637,7 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
             if (s.furnaceChunk() != chunk || s.furnaceIndex() != slot || !s.getStates().furnaceLiveNow()) return false;
             if (dead) return true;
             long q = ++seq;
-            journal.add(new Op(CHUNK_SET, slot, cell, id, x, y, z, moved, null, null, s, q));
+            journal.add(new Op(CHUNK_SET, slot, cell, id, x, y, z, moved, null, null, s, q, null));
             overlayCell(slot, cell, id, q);
             int[] d = LevelChunkSection.furnaceCountDelta(oldId, id);
             s.furnaceAddCountFields(d);
@@ -569,7 +650,7 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
     void heightmapRaw(Heightmap.Types type, long[] raw) {
         synchronized (lock) {
             if (dead) return;
-            journal.add(new Op(HM_RAW, -1, 0, 0, 0, 0, 0, false, type, raw.clone(), null, 0));
+            journal.add(new Op(HM_RAW, -1, 0, 0, 0, 0, 0, false, type, raw.clone(), null, 0, null));
             seq++;
         }
         noteWrite();
@@ -578,7 +659,7 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
     void heightmapUpdate(Heightmap.Types type, int x, int y, int z, int id) {
         synchronized (lock) {
             if (dead) return;
-            journal.add(new Op(HM_UPDATE, -1, 0, id, x, y, z, false, type, null, null, 0));
+            journal.add(new Op(HM_UPDATE, -1, 0, id, x, y, z, false, type, null, null, 0, null));
             seq++;
         }
         noteWrite();
@@ -587,10 +668,81 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
     void unsaved() {
         synchronized (lock) {
             if (dead) return;
-            journal.add(new Op(UNSAVED, -1, 0, 0, 0, 0, 0, false, null, null, null, 0));
+            journal.add(new Op(UNSAVED, -1, 0, 0, 0, 0, 0, false, null, null, null, 0, null));
             seq++;
         }
         noteWrite();
+    }
+
+    // ------------------------------------------------------------------ 다른 스레드의 블록 엔티티 쓰기(T-198)
+
+    /** LevelChunk#getBlockEntity(IMMEDIATE)·다른 스레드: 주인이 그 칸에 블록 엔티티를 만들고 이 보기를 묶는다. 내린 청크면 false. */
+    boolean blockEntityCreate(int x, int y, int z, net.minecraft.world.level.block.entity.BlockEntity view) {
+        synchronized (lock) {
+            if (dead) return false;
+            long q = ++seq;
+            journal.add(new Op(BE_CREATE, -1, 0, 0, x, y, z, false, null, null, view, q, null));
+            overlayBe(x, y, z, view, q);
+        }
+        noteWrite();
+        return true;
+    }
+
+    /** LevelChunk#removeBlockEntity·다른 스레드: 주인이 그 칸의 블록 엔티티를 지운다(view 는 그때 그 칸의 보기 — 지우기 전에 묶는다). */
+    void blockEntityRemove(int x, int y, int z, net.minecraft.world.level.block.entity.BlockEntity view) {
+        synchronized (lock) {
+            if (dead) return;
+            long q = ++seq;
+            journal.add(new Op(BE_REMOVE, -1, 0, 0, x, y, z, false, null, null, view, q, null));
+            overlayBe(x, y, z, BE_REMOVED, q);
+        }
+        noteWrite();
+    }
+
+    /** BlockEntity#loadWithComponents·다른 스레드: 주인이 그 보기의 블록 엔티티에 tag(사본)를 싣는다. */
+    void blockEntityLoad(net.minecraft.world.level.block.entity.BlockEntity view, org.domi.furnace.api.nbt.NbtCompound tag) {
+        var p = view.getBlockPos();
+        synchronized (lock) {
+            if (dead) return;
+            journal.add(new Op(BE_LOAD, -1, 0, 0, p.getX(), p.getY(), p.getZ(), false, null, null, view, ++seq, tag));
+        }
+        noteWrite();
+    }
+
+    /** BlockEntity#setChanged·다른 스레드: 주인이 그 칸에 바닐라 setChanged(level, pos, state). */
+    void blockEntityChanged(int x, int y, int z) {
+        synchronized (lock) {
+            if (dead) return;
+            journal.add(new Op(BE_CHANGED, -1, 0, 0, x, y, z, false, null, null, null, ++seq, null));
+        }
+        noteWrite();
+    }
+
+    private void overlayBe(int x, int y, int z, Object v, long q) {
+        if (beOver == null) {
+            beOver = new java.util.HashMap<>();
+            beOverSeq = new java.util.HashMap<>();
+        }
+        long k = net.minecraft.core.BlockPos.asLong(x, y, z);
+        beOver.put(k, v);
+        beOverSeq.put(k, q);
+        beOverlayCount = beOver.size();
+    }
+
+    /** 다른 스레드: 그 칸의 블록 엔티티 덧칠(보기·{@link #BE_REMOVED}, 없으면 null). */
+    Object blockEntityOverlayAt(long pos) {
+        if (beOverlayCount == 0) return null;
+        synchronized (lock) {
+            return beOver == null ? null : beOver.get(pos);
+        }
+    }
+
+    /** 다른 스레드: 블록 엔티티 덧칠 전체의 사본. */
+    Map<Long, Object> blockEntityOverlay() {
+        if (beOverlayCount == 0) return Map.of();
+        synchronized (lock) {
+            return beOver == null ? Map.of() : new java.util.HashMap<>(beOver);
+        }
     }
 
     private void overlayCell(int slot, int cell, int id, long s) {
@@ -625,6 +777,11 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
 
     /** lock 안: 재생돼 공개 판에 든 덧칠을 지운다. */
     private void clearOverlays(long upTo) {
+        if (beOver != null) {
+            beOver.entrySet().removeIf(e -> beOverSeq.get(e.getKey()) <= upTo);
+            beOverSeq.keySet().retainAll(beOver.keySet());
+            beOverlayCount = beOver.size();
+        }
         int left = 0;
         for (int i = 0; i < n; i++) {
             if (cellOver != null && cellOver[i] != null) {

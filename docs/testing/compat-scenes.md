@@ -6,7 +6,7 @@ Bukkit·Paper 호환 계층(`furnace-compat-paper`)의 **핫 경로가 지금 �
 
 위치
 - 장면·목록·시험: `furnace-compat-paper/src/test/java/org/domi/furnace/compat/paper/` (`Scene*.java`, `CompatSceneLibrary`, `CompatSceneLibraryTest`) 와 `.../compat/nms/SceneAsmPrefilter.java`(`mayNeed` 가 패키지 비공개라 같은 패키지)
-- 금 파일: `furnace-compat-paper/src/test/resources/identity/scene-compat-<이름>.txt` (서버 시험 소스의 도우미 클래스를 `testImplementation(serverTest)` 로 받는다 — `furnace-compat-paper/build.gradle.kts`)
+- 금 파일: `furnace-compat-paper/src/test/resources/identity/1.21.1/scene-compat-<이름>.txt` (서버 시험 소스의 도우미 클래스를 `testImplementation(serverTest)` 로 받는다 — `furnace-compat-paper/build.gradle.kts`)
 - 벤치: `furnace-compat-paper/src/bench/java/.../CompatSceneBench.java`
 
 ## 장면

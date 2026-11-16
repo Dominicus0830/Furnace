@@ -3,8 +3,10 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort("net.minecraft.network.protocol.ping.ClientboundPongResponsePacket")
 public record PlayPongResponse(long time) implements Packet {
 
     public static final int ID = 0x36;

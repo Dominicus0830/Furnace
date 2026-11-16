@@ -166,7 +166,7 @@ class AnvilBulkDecodeParityTest {
         NbtCompound[] nbts = new NbtCompound[4];
         for (int i = 0; i < nbts.length; i++) nbts[i] = codec.toNbt(randomColumn(r), 0, 0);
         NbtCompound vanilla;
-        try (var in = AnvilBulkDecodeParityTest.class.getResourceAsStream("/storage/vanilla-chunk--25.-4.nbt.gz")) {
+        try (var in = AnvilBulkDecodeParityTest.class.getResourceAsStream("/storage/" + GameVersion.RESOURCE_TAG + "/vanilla-chunk--25.-4.nbt.gz")) {
             vanilla = NbtIo.readGzip(in);
         }
         nbts[0] = vanilla;   // 실제 바닐라 청크 1개 포함

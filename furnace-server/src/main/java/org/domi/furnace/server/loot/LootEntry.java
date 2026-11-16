@@ -5,7 +5,13 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.List;
 import java.util.function.Consumer;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({
+        "net.minecraft.world.level.storage.loot.entries.LootPoolEntryContainer",
+        "net.minecraft.world.level.storage.loot.entries.LootPoolEntry",
+        "net.minecraft.world.level.storage.loot.entries.ComposableEntryContainer",
+        "net.minecraft.world.level.storage.loot.entries.LootPoolSingletonContainer"})
 public interface LootEntry {
 
     /** 바닐라 LootPoolEntry — 풀이 가중치로 고르는 후보. */

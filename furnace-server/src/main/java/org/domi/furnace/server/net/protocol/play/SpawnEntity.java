@@ -3,9 +3,11 @@ package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
 import java.util.UUID;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundAddEntityPacket")
 public record SpawnEntity(int entityId, UUID uuid, double x, double y, double z,
                           float yaw, float pitch) implements Packet {
 

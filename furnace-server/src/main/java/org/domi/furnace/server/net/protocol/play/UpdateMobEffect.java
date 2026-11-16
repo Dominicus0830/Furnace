@@ -2,10 +2,12 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.effect.MobEffectInstance;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundUpdateMobEffectPacket")
 public record UpdateMobEffect(int entityId, int effectId, int amplifier, int duration, byte flags) implements Packet {
 
     public static final int ID = 0x76;

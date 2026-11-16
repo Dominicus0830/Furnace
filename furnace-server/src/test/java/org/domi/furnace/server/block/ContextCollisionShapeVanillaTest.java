@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * 비계·물·용암의 문맥 충돌 모양을 바닐라 1.21.1 결과와 대조한다(T-018 R6).
- * 정답표 `collision/context-shapes-1.21.1.tsv` 는 바닐라 서버 jar 를 직접 돌려 BlockState.getCollisionShape(level, (0,64,0), ctx) 를
+ * 정답표 `collision/1.21.1/context-shapes.tsv` 는 바닐라 서버 jar 를 직접 돌려 BlockState.getCollisionShape(level, (0,64,0), ctx) 를
  * 뽑은 것이다(도구 tools/vanilla-data/ExportContextCollisionShapes.java). 문맥은 EntityCollisionContext 의 5인자 생성자 값(발 높이·웅크림·
  * 물/용암 위에 서기)과 empty, 위 칸 유체는 빈 것·원천·흐름·떨어지는 흐름.
  * 모양은 1/16 격자 칸 채움으로, 걸어 오르기 후보 격자(getCoords(Y))는 Furnace 가 격자를 바닐라와 같게 둔 모양(exactYCoords)일 때 그대로 비교한다.
@@ -40,7 +40,7 @@ class ContextCollisionShapeVanillaTest {
     void matchesVanillaTable() throws Exception {
         Map<Integer, Expected> shapes = new HashMap<>();
         List<String[]> rows = new ArrayList<>();
-        try (var in = getClass().getClassLoader().getResourceAsStream("collision/context-shapes-" + GameVersion.RESOURCE_TAG + ".tsv");
+        try (var in = getClass().getClassLoader().getResourceAsStream("collision/" + GameVersion.RESOURCE_TAG + "/context-shapes.tsv");
              var r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
             for (String line; (line = r.readLine()) != null; ) {
                 if (line.startsWith("#") || line.isBlank()) continue;

@@ -2,8 +2,10 @@
 package org.domi.furnace.server.net.protocol.configuration;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort("net.minecraft.network.protocol.common.ClientboundKeepAlivePacket")
 public record ConfigKeepAlive(long keepAliveId) implements Packet {
 
     public static final int ID = 0x04;

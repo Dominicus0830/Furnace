@@ -3,9 +3,11 @@
 package org.domi.furnace.server.item;
 
 import java.util.concurrent.ConcurrentHashMap;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.net.registry.TagSet;
 
+@VanillaPort("net.minecraft.tags.ItemTags")
 public final class ItemTags {
 
     /** 한 태그 표에서 만든 태그별 멤버 표. */
