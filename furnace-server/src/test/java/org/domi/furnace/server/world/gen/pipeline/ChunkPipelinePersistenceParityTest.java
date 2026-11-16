@@ -66,7 +66,7 @@ class ChunkPipelinePersistenceParityTest {
         NbtCompound nbt = codec.toNbt(generated, cx, cz);
         ChunkColumn persisted = codec.fromNbt(nbt);
 
-        String fixtureName = "/worldgen/fixtures/featurespill_" + seed + "_" + cx + "_" + cz + ".bin";
+        String fixtureName = "/worldgen/fixtures/" + GameVersion.RESOURCE_TAG + "/featurespill_" + seed + "_" + cx + "_" + cz + ".bin";
         byte[] fx;
         try (InputStream in = ChunkPipelinePersistenceParityTest.class.getResourceAsStream(fixtureName)) {
             assertNotNull(in, "fixture not found: " + fixtureName);

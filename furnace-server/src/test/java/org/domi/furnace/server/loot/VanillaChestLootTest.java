@@ -50,7 +50,7 @@ public class VanillaChestLootTest {
         List<String> failures = new ArrayList<>();
         int cases = 0;
         try (BufferedReader r = new BufferedReader(new InputStreamReader(
-                VanillaChestLootTest.class.getResourceAsStream("/loot/chests-" + GameVersion.RESOURCE_TAG + ".txt"), StandardCharsets.UTF_8))) {
+                VanillaChestLootTest.class.getResourceAsStream("/loot/" + GameVersion.RESOURCE_TAG + "/chests.txt"), StandardCharsets.UTF_8))) {
             String line;
             while ((line = r.readLine()) != null) {
                 if (line.startsWith("#") || line.isBlank()) continue;

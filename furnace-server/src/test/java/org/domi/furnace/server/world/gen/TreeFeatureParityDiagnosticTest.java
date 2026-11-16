@@ -38,17 +38,17 @@ class TreeFeatureParityDiagnosticTest {
 
     @Test
     void diagnoseSeed1234SavannaTreeChunk() throws Exception {
-        diagnoseChunk(1234L, 9, -64, "/worldgen/fixtures/featurefull_1234_9_-64.bin");
+        diagnoseChunk(1234L, 9, -64, "/worldgen/fixtures/" + GameVersion.RESOURCE_TAG + "/featurefull_1234_9_-64.bin");
     }
 
     @Test
     void diagnoseSeed1234PureForestChunk() throws Exception {
-        diagnoseChunk(1234L, -49, -30, "/worldgen/fixtures/featurefull_1234_-49_-30.bin");
+        diagnoseChunk(1234L, -49, -30, "/worldgen/fixtures/" + GameVersion.RESOURCE_TAG + "/featurefull_1234_-49_-30.bin");
     }
 
     @Test
     void diagnoseSeed1234BirchTallChunk() throws Exception {
-        diagnoseChunk(1234L, -53, -26, "/worldgen/fixtures/featurefull_1234_-53_-26.bin");
+        diagnoseChunk(1234L, -53, -26, "/worldgen/fixtures/" + GameVersion.RESOURCE_TAG + "/featurefull_1234_-53_-26.bin");
     }
 
     private void diagnoseChunk(long seed, int cx, int cz, String fixturePath) throws Exception {

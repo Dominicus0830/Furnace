@@ -87,8 +87,8 @@ public class OracleMain {
 
         long seed = Long.parseLong(args[0]);
 
-        // Output directory: furnace-server/src/test/resources/worldgen/fixtures/
-        Path outDir = Paths.get("furnace-server", "src", "test", "resources", "worldgen", "fixtures");
+        // Output directory: furnace-server/src/test/resources/worldgen/fixtures/<판>/
+        Path outDir = Paths.get("furnace-server", "src", "test", "resources", "worldgen", "fixtures", RESOURCE_TAG);
         Files.createDirectories(outDir);
 
         // Build vanilla registry lookup (includes all worldgen registries)

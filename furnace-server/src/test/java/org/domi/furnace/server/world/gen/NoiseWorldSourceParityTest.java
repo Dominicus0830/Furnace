@@ -22,7 +22,7 @@ class NoiseWorldSourceParityTest {
         NoiseWorldSource src = NoiseWorldSource.overworld(seed, reg, registries);
         ChunkColumn col = src.generate(cx, cz);
         byte[] fx;
-        try (InputStream in = getClass().getResourceAsStream("/worldgen/fixtures/chunk_"+seed+"_"+cx+"_"+cz+".bin")) {
+        try (InputStream in = getClass().getResourceAsStream("/worldgen/fixtures/" + GameVersion.RESOURCE_TAG + "/chunk_"+seed+"_"+cx+"_"+cz+".bin")) {
             assertNotNull(in, "fixture 없음"); fx = in.readAllBytes();
         }
         int headerLen = 20;

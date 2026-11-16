@@ -58,7 +58,7 @@ class FeatureOrderParityTest {
 
     private static Fixture loadFixture() throws Exception {
         try (InputStream in = FeatureOrderParityTest.class.getResourceAsStream(
-                "/worldgen/fixtures/feature_order.txt")) {
+                "/worldgen/fixtures/" + GameVersion.RESOURCE_TAG + "/feature_order.txt")) {
             assertNotNull(in, "feature_order.txt fixture 없음 — oracle featureorder 실행 필요");
             BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             List<String> biomes = new ArrayList<>();

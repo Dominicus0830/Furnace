@@ -56,7 +56,7 @@ class CarverParityTest {
         NoiseWorldSource source = NoiseWorldSource.overworld(seed, reg11, registries);
         ChunkColumn col = source.generateWithCarvers(cx, cz);
 
-        String fixtureName = "/worldgen/fixtures/carver_" + seed + "_" + cx + "_" + cz + ".bin";
+        String fixtureName = "/worldgen/fixtures/" + GameVersion.RESOURCE_TAG + "/carver_" + seed + "_" + cx + "_" + cz + ".bin";
         byte[] fx;
         try (InputStream in = getClass().getResourceAsStream(fixtureName)) {
             assertNotNull(in, "fixture not found: " + fixtureName);

@@ -75,7 +75,7 @@ class OracleGroundtruthAuditTest {
 
         ChunkColumn vanilla = readVanillaChunk(worldDir, reg, cx, cz);
 
-        String fixtureName = "/worldgen/fixtures/featurespill_" + seed + "_" + cx + "_" + cz + ".bin";
+        String fixtureName = "/worldgen/fixtures/" + GameVersion.RESOURCE_TAG + "/featurespill_" + seed + "_" + cx + "_" + cz + ".bin";
         byte[] fx;
         try (InputStream in = OracleGroundtruthAuditTest.class.getResourceAsStream(fixtureName)) {
             assertNotNull(in, "fixture not found: " + fixtureName);
