@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import java.util.UUID;
@@ -59,9 +60,12 @@ class PlayerProfileSplitTest {
             assertEquals("Bobby", ((CraftPlayer) p).getHandle().getScoreboardName(), "NMS getScoreboardName = 프로필 이름");
             assertEquals(profileId, ((CraftPlayer) p).getHandle().getGameProfile().getId(), "NMS gameProfile = 프로필");
 
-            // 이름 조회는 새 이름(의도한 차이 §8), UUID 조회는 엔티티 UUID
-            assertSame(p, Bukkit.getPlayerExact("Bobby"));
-            assertNull(Bukkit.getPlayerExact("Alex"));
+            // 이름 조회(D2): getPlayerExact 는 접속 때 이름(Paper playersByName), getPlayer(이름)의 앞부분 일치는 현재 이름, UUID 조회는 엔티티 UUID
+            assertSame(p, Bukkit.getPlayerExact("Alex"));
+            assertNull(Bukkit.getPlayerExact("Bobby"));
+            assertSame(p, Bukkit.getPlayer("Alex"), "정확히 일치는 접속 이름");
+            assertSame(p, Bukkit.getPlayer("Bob"), "앞부분 일치는 현재 이름(Paper getPlayer(String) 의 훑기)");
+            assertNull(Bukkit.getPlayer("Ale"), "접속 이름의 앞부분은 훑기 대상이 아니다");
             assertSame(p, Bukkit.getPlayer(entity));
             assertNull(Bukkit.getPlayer(profileId));
         } finally {
@@ -100,6 +104,50 @@ class PlayerProfileSplitTest {
         } finally {
             tp.close();
         }
+    }
+
+    /**
+     * D1: 프로필 id 가 엔티티 UUID 와 달라질 때만, 서버 전체에서 한 번, 콘솔에 경고한다. 패킷(서버 시험 ProfileChangeTest)은 경고와 무관하다.
+     * 같은 UUID(스킨·이름만 바꿈)는 경고하지 않는다.
+     */
+    @Test
+    void changingTheUuidWarnsOnceServerWide() throws Exception {
+        CraftPlayer.resetUuidChangeWarning();
+        var furnace = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger("Furnace");
+        var logs = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        logs.start();
+        furnace.addAppender(logs);
+        TestPlayer tp = server.join("Gus");
+        TestPlayer tp2 = null;
+        try {
+            Player p = Compat.player(tp.player());
+            p.setPlayerProfile(Bukkit.createProfileExact(p.getUniqueId(), "Gus2"));   // 같은 UUID(createProfile 은 접속 중이면 그 플레이어 값을 비춘다)
+            awaitName(p, "Gus2");
+            assertEquals(0, uuidWarnings(logs), "UUID 가 같으면 경고 없음");
+            UUID other = UUID.fromString("00000000-0000-4000-8000-0000000000dd");
+            p.setPlayerProfile(Bukkit.createProfile(other, "Gus3"));
+            awaitName(p, "Gus3");
+            assertEquals(1, uuidWarnings(logs), "UUID 가 바뀌면 경고 한 번");
+            String msg = logs.list.stream().filter(e -> e.getLevel() == ch.qos.logback.classic.Level.WARN)
+                    .map(ch.qos.logback.classic.spi.ILoggingEvent::getFormattedMessage).filter(m -> m.contains("setPlayerProfile")).findFirst().orElseThrow();
+            assertTrue(msg.contains(other.toString()) && msg.contains(p.getUniqueId().toString()) && msg.contains("Paper"), msg);
+            p.setPlayerProfile(Bukkit.createProfile(UUID.fromString("00000000-0000-4000-8000-0000000000ee"), "Gus4"));   // 두 번째 호출
+            awaitName(p, "Gus4");
+            tp2 = server.join("Hal");
+            Player p2 = Compat.player(tp2.player());
+            p2.setPlayerProfile(Bukkit.createProfile(UUID.fromString("00000000-0000-4000-8000-0000000000ff"), "Hal2"));   // 다른 플레이어
+            awaitName(p2, "Hal2");
+            assertEquals(1, uuidWarnings(logs), "서버 전체에서 한 번만");
+        } finally {
+            furnace.detachAppender(logs);
+            tp.close();
+            if (tp2 != null) tp2.close();
+        }
+    }
+
+    private static long uuidWarnings(ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> logs) {
+        return logs.list.stream().filter(e -> e.getLevel() == ch.qos.logback.classic.Level.WARN)
+                .filter(e -> e.getFormattedMessage().contains("setPlayerProfile")).count();
     }
 
     /** 시험 스레드는 소유 스레드가 아니라 다음 틱에 적용된다 — 시험 서버는 손으로 틱을 돌린다. */
