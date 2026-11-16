@@ -416,6 +416,7 @@ public final class FurnaceTestServer implements AutoCloseable {
         step(first, chunkPool::shutdown);
         step(first, scheduler::close);
         step(first, () -> host.pluginsImpl().closeAll());
+        step(first, core::closeProfileFill);   // 전역 머리 프로필 조회 서비스(시험마다 새로 설치된다)
         step(first, host::close);
         if (ownsFurnaceHolder) step(first, () -> TestHolder.release(host));
         if (deleteRoot) deleteQuietly(root);

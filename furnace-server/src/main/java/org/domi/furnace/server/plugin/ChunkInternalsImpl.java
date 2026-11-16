@@ -246,7 +246,8 @@ final class ChunkInternalsImpl implements ChunkInternals {
 
     private static final String[] EFFECT_NAMES = {"Level#sendBlockUpdated", "ServerChunkCache#blockChanged", "Level#updateNeighborsAt",
             "Level#updateNeighbourForOutputSignal", "Level#onBlockStateChange", "BlockState#onPlace", "BlockState#handleNeighborChanged",
-            "BlockState#updateNeighbourShapes", "BlockState#updateIndirectNeighbourShapes", "BlockState#triggerEvent", "Block#updateFromNeighbourShapes"};
+            "BlockState#updateNeighbourShapes", "BlockState#updateIndirectNeighbourShapes", "BlockState#triggerEvent", "Block#updateFromNeighbourShapes",
+            "Level#scheduleTick(Block)", "Level#scheduleTick(Fluid)"};
 
     /** T-204: 쪼갠 Level.setBlock 조각 — 서버 setBlock 과 같은 코드(ChunkLevel·BlockBehavior·B). */
     @Override
@@ -254,6 +255,18 @@ final class ChunkInternalsImpl implements ChunkInternals {
         if (kind < 0 || kind >= EFFECT_NAMES.length) throw new IllegalArgumentException("unknown block effect " + kind);
         RegionLevel lv = ownedLevel(world, x, z, EFFECT_NAMES[kind]);
         if (lv == null) return -1;
+        if (kind == EFFECT_SCHEDULE_FLUID_TICK || kind == EFFECT_SCHEDULE_BLOCK_TICK) {
+            if (c < -3 || c > 3) throw new IllegalArgumentException("tick priority out of range: " + c);
+            Pos p = new Pos(x, y, z);
+            if (kind == EFFECT_SCHEDULE_BLOCK_TICK) {
+                checkState(a);
+                lv.scheduleTick(p, org.domi.furnace.server.block.B.block(a), b, c);
+            } else {
+                if (a < 0 || a > 4) throw new IllegalArgumentException("unknown fluid type " + a);
+                lv.scheduleFluidTick(p, a, b, c);
+            }
+            return 0;
+        }
         if (kind != EFFECT_BLOCK_CHANGED) checkState(a);
         if (kind == EFFECT_SEND_BLOCK_UPDATED || kind == EFFECT_POI || kind == EFFECT_ON_PLACE || kind == EFFECT_NEIGHBOR_CHANGED) checkState(b);
         Pos p = new Pos(x, y, z);
@@ -648,19 +661,49 @@ final class ChunkInternalsImpl implements ChunkInternals {
         }
     }
 
-    @Override
-    public org.domi.furnace.api.nbt.NbtCompound normalizeBlockEntityNbt(int stateId, org.domi.furnace.api.nbt.NbtCompound tag) {
-        checkState(stateId);
-        var origin = new Pos(0, 0, 0);
+    /** 월드에 붙지 않은 서버 블록 엔티티(그 상태의 newBlockEntity + 저장 꼴 싣기). 블록 엔티티가 없는 상태면 null. */
+    static org.domi.furnace.server.block.entity.BlockEntity detachedBlockEntity(int stateId, Pos pos, org.domi.furnace.api.nbt.NbtCompound tag) {
         String name = org.domi.furnace.server.block.Blocks.get().nameOfState(stateId);
         org.domi.furnace.server.block.entity.BlockEntity be = switch (name) {
-            case "minecraft:chest", "minecraft:trapped_chest" -> org.domi.furnace.server.world.ChestBlockEntity.empty(name, 0, 0, 0);
-            default -> org.domi.furnace.server.block.BlockBehaviors.of(stateId).newBlockEntity(origin, stateId);
+            case "minecraft:chest", "minecraft:trapped_chest" -> org.domi.furnace.server.world.ChestBlockEntity.empty(name, pos.x(), pos.y(), pos.z());
+            default -> org.domi.furnace.server.block.BlockBehaviors.of(stateId).newBlockEntity(pos, stateId);
         };
         if (be == null) return null;
         var t = (org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.freeze(ApiNbt.toServer(tag));
         be.loadWithBukkitValues(t);
         be.loadComponents(t);
+        return be;
+    }
+
+    @Override
+    public boolean ultraWarm(org.domi.furnace.api.world.World world) { return handle(world).handle().dimensionType().ultraWarm(); }
+
+    @Override
+    public boolean withinBorder(org.domi.furnace.api.world.World world, double x, double z) { return handle(world).handle().border().isWithinBounds(x, z); }
+
+    @Override
+    public int stateForPlacement(int block, PlacementContext ctx) {
+        checkState(block);
+        return PlacementBridge.stateForPlacement(block, ctx);
+    }
+
+    @Override
+    public boolean canBeReplaced(int state, PlacementContext ctx) {
+        checkState(state);
+        return PlacementBridge.canBeReplaced(state, ctx);
+    }
+
+    @Override
+    public boolean canSurvive(int state, PlacementLevel level, int x, int y, int z) {
+        checkState(state);
+        return PlacementBridge.canSurvive(state, level, x, y, z);
+    }
+
+    @Override
+    public org.domi.furnace.api.nbt.NbtCompound normalizeBlockEntityNbt(int stateId, org.domi.furnace.api.nbt.NbtCompound tag) {
+        checkState(stateId);
+        var be = detachedBlockEntity(stateId, new Pos(0, 0, 0), tag);
+        if (be == null) return null;
         var out = be.saveWithoutMetadata();
         out.putString("id", be.type());
         return ApiNbt.toApi((org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.thaw(org.domi.furnace.server.net.io.nbt.NbtTags.copy(out)));

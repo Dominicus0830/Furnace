@@ -150,6 +150,14 @@ public class Block extends BlockBehaviour implements ItemLike {
                 state.furnaceStateId(), 0, 0, "Block#updateFromNeighbourShapes"));
     }
 
+    /**
+     * 바닐라 getStateForPlacement(ctx): 그 문맥으로 놓을 상태(놓을 수 없으면 null). 서버 블록 동작의 같은 메서드를 문맥·레벨 객체의 가상 메서드로 돌린다
+     * (FAWE 처럼 레벨을 상속해 편집 중인 내용을 답하게 했으면 그 답으로 — {@code NmsPlacement}). 부른 스레드에서 읽는다.
+     */
+    public BlockState getStateForPlacement(net.minecraft.world.item.context.BlockPlaceContext ctx) {
+        return org.domi.furnace.compat.nms.NmsPlacement.stateForPlacement(this, ctx);
+    }
+
     public static Block byItem(Item item) { return org.domi.furnace.compat.nms.NmsBlocks.byItem(item); }
 
     public final BlockState defaultBlockState() { return defaultState; }

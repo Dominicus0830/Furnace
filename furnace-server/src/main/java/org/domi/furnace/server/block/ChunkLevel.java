@@ -241,6 +241,7 @@ public abstract class ChunkLevel implements BlockLevel {
             if (be.isRemoved()) continue;
             addGameEventListener(col, be);
             if (be.ticking()) addTicker(be);
+            be.onAddedToLevel(this);   // 머리 프로필·상자 속 머리 스킨 확인(바닐라 loadAdditional 의 setOwner·ItemStack 생성)
         }
     }
 
@@ -561,11 +562,14 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     @Override
-    public void scheduleFluidTick(Pos pos, int fluidType, int delay) {
+    public void scheduleFluidTick(Pos pos, int fluidType, int delay) { scheduleFluidTick(pos, fluidType, delay, 0); }
+
+    /** 우선순위 판(바닐라 scheduleTick(pos, Fluid, delay, priority) — 플러그인 NMS 호출, T-204). 서버 유체 코드는 늘 NORMAL(0)이다. */
+    public void scheduleFluidTick(Pos pos, int fluidType, int delay, int priority) {
         long order = subTickCount++;
         int cx = pos.x() >> 4, cz = pos.z() >> 4;
         if (chunk(cx, cz) == null) return;
-        fluidTicks.schedule(pos, fluidType, levelTime + delay, 0, order);
+        fluidTicks.schedule(pos, fluidType, levelTime + delay, priority, order);
         markDirty(cx, cz);
     }
 
@@ -940,52 +944,6 @@ public abstract class ChunkLevel implements BlockLevel {
     @FunctionalInterface
     public interface ChunkFilter {
         boolean test(int chunkX, int chunkZ);
-    }
-
-    // ------------------------------------------------------------------ 레드스톤(바닐라 SignalGetter)
-
-    @Override
-    public int getDirectSignal(Pos pos, int dir) {
-        int s = getBlockState(pos);
-        return BlockBehaviors.of(s).getDirectSignal(s, this, pos, dir);
-    }
-
-    @Override
-    public int getDirectSignalTo(Pos pos) {
-        int best = 0;
-        for (int d : Dir.ALL) {
-            best = Math.max(best, getDirectSignal(pos.relative(d), d));
-            if (best >= 15) return best;
-        }
-        return best;
-    }
-
-    @Override
-    public int getSignal(Pos pos, int dir) {
-        int s = getBlockState(pos);
-        BlockBehavior b = BlockBehaviors.of(s);
-        int i = b.getSignal(s, this, pos, dir);
-        return b.isRedstoneConductor(s, this, pos) ? Math.max(i, getDirectSignalTo(pos)) : i;
-    }
-
-    @Override
-    public boolean hasSignal(Pos pos, int dir) { return getSignal(pos, dir) > 0; }
-
-    @Override
-    public boolean hasNeighborSignal(Pos pos) {
-        for (int d : Dir.ALL) if (getSignal(pos.relative(d), d) > 0) return true;
-        return false;
-    }
-
-    @Override
-    public int getBestNeighborSignal(Pos pos) {
-        int best = 0;
-        for (int d : Dir.ALL) {
-            int v = getSignal(pos.relative(d), d);
-            if (v >= 15) return 15;
-            best = Math.max(best, v);
-        }
-        return best;
     }
 
     // ------------------------------------------------------------------ 변경 방송(바닐라 ChunkHolder.blockChanged / broadcastChanges)
@@ -1616,6 +1574,12 @@ public abstract class ChunkLevel implements BlockLevel {
     private static final java.util.concurrent.atomic.AtomicInteger FALLBACK_IDS = new java.util.concurrent.atomic.AtomicInteger(1 << 24);
 
     public EntityStore entities() { return entities; }
+
+    /**
+     * (x, z) 칸의 청크를 가진 region 스레드에서 task 를 돌린다(주인이 없으면 region 을 만든다). task 가 받는 것은 그 region 의 레벨이다 — 엔티티가 그새 다른 region 으로
+     * 넘어갔을 수 있으니 받은 쪽이 {@code entities().contains(e)} 로 확인한다. region 이 없는 레벨(시험용)은 곧바로 이 레벨로 돌린다.
+     */
+    public void runAtEntityOwner(double x, double z, java.util.function.Consumer<ChunkLevel> task) { task.accept(this); }
 
     /** 지금 스레드가 이 레벨을 가진 스레드인가(region 레벨은 region 틱 스레드, 시험용 레벨은 늘 그렇다고 본다). */
     public boolean isOwnerThread() { return true; }

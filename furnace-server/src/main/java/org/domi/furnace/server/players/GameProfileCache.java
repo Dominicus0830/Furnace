@@ -130,6 +130,14 @@ public final class GameProfileCache {
         return Optional.of(e.profile);
     }
 
+    /** {@link #peek} 와 같지만 찾으면 마지막 접근 순서를 올린다(바닐라 get(name) 이 쓴 항목을 usercache.json 의 앞으로 올리는 것과 같다). 조회·생성·저장은 없다. */
+    public Optional<GameProfile> peekAndTouch(String name) {
+        Entry e = profilesByName.get(name.toLowerCase(Locale.ROOT));
+        if (e == null || new Date().getTime() >= e.expires.getTime()) return Optional.empty();
+        e.setLastAccess(nextOperation());
+        return Optional.of(e.profile);
+    }
+
     public Optional<GameProfile> get(UUID id) {
         Entry e = profilesByUuid.get(id);
         if (e == null) return Optional.empty();

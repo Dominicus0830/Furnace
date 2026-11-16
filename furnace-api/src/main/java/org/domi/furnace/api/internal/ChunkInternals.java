@@ -117,11 +117,13 @@ public interface ChunkInternals {
      *   <li>NEIGHBOUR_SHAPES·INDIRECT_SHAPES(a 상태, b 플래그, c 남은 깊이): BlockState.updateNeighbourShapes·updateIndirectNeighbourShapes</li>
      *   <li>TRIGGER_EVENT(a 상태, b 종류, c 값): BlockState.triggerEvent — 1/0</li>
      *   <li>FROM_NEIGHBOUR_SHAPES(a 상태): Block.updateFromNeighbourShapes — 새 상태</li>
+     *   <li>SCHEDULE_BLOCK_TICK(a 블록, b 지연, c 우선순위 -3..3): LevelAccessor.scheduleTick(pos, Block, …) — 그 칸 청크가 없으면 순번만 쓰고 버린다(바닐라)</li>
+     *   <li>SCHEDULE_FLUID_TICK(a 유체 종류 0..4 — 빈 것·흐르는 물·물·흐르는 용암·용암, b 지연, c 우선순위): LevelAccessor.scheduleTick(pos, Fluid, …)</li>
      * </ul>
      */
     int EFFECT_SEND_BLOCK_UPDATED = 0, EFFECT_BLOCK_CHANGED = 1, EFFECT_UPDATE_NEIGHBORS = 2, EFFECT_OUTPUT_SIGNAL = 3, EFFECT_POI = 4,
             EFFECT_ON_PLACE = 5, EFFECT_NEIGHBOR_CHANGED = 6, EFFECT_NEIGHBOUR_SHAPES = 7, EFFECT_INDIRECT_SHAPES = 8, EFFECT_TRIGGER_EVENT = 9,
-            EFFECT_FROM_NEIGHBOUR_SHAPES = 10;
+            EFFECT_FROM_NEIGHBOUR_SHAPES = 10, EFFECT_SCHEDULE_BLOCK_TICK = 11, EFFECT_SCHEDULE_FLUID_TICK = 12;
 
     /**
      * 그 칸의 주인 스레드에서 쪼갠 Level.setBlock 조각 하나를 서버의 같은 코드로 한다(T-204). 원점 칸의 청크가 로드돼 있지 않으면 -1, 값이 있는 종류는
@@ -131,6 +133,89 @@ public interface ChunkInternals {
 
     /** Paper LevelChunk.setBlockState(pos, state, moved, doPlace): doPlace 가 거짓이면 놓기 반응(onPlace)을 건너뛴다. 그 밖은 {@link #setBlockStateNow}. */
     int setBlockStateNow(World world, int x, int y, int z, int stateId, boolean moved, boolean doPlace);
+
+    /** 그 월드 차원의 바닐라 dimensionType().ultraWarm()(네더 참). 고정 값 — 아무 스레드. */
+    boolean ultraWarm(World world);
+
+    /** 바닐라 WorldBorder.isWithinBounds(x, z) — 그 월드의 경계(지금 값). 아무 스레드. */
+    boolean withinBorder(World world, double x, double z);
+
+    // ------------------------------------------------------------------ 놓기 상태 계산(T-204 3단계 — FAWE PlacementStateProcessor 등)
+
+    /**
+     * 놓기 계산이 읽는 레벨. 호환 계층이 NMS 레벨 객체의 가상 메서드로 답한다(플러그인이 재정의했으면 그것 — FAWE 의 편집 중 내용). 부른 스레드에서 읽는다.
+     * {@link #serverWorld()} 가 null 이 아니면 서버 자신의 월드라 서버가 그 월드를 직접 읽는다(나머지 메서드는 쓰지 않는다 — 그 칸의 주인 스레드여야 한다).
+     */
+    interface PlacementLevel {
+        /** 그 칸의 상태 번호. */
+        int blockStateAt(int x, int y, int z);
+
+        /** 그 칸의 유체: 종류(0 빈 것, 1 흐르는 물, 2 물, 3 흐르는 용암, 4 용암) | 양(1..8, 원천 8) &lt;&lt; 3 | 떨어짐 &lt;&lt; 7. */
+        int fluidStateAt(int x, int y, int z);
+
+        /** 그 칸의 블록 엔티티 저장 꼴(saveWithoutMetadata — 없으면 null). 서버는 그 칸 상태로 떨어진 블록 엔티티를 만들어 싣는다(FAWE 프록시와 같다). */
+        org.domi.furnace.api.nbt.NbtCompound blockEntityAt(int x, int y, int z);
+
+        int minBuildHeight();
+
+        /** 상한(제외). */
+        int maxBuildHeight();
+
+        /** getWorldBorder().isWithinBounds(pos). */
+        boolean withinBorder(int x, int y, int z);
+
+        /** 서버 자신의 월드면 그 월드, 아니면 null. */
+        default World serverWorld() { return null; }
+    }
+
+    /**
+     * 바닐라 BlockPlaceContext 의 값(방향은 바닐라 3D 번호: 아래 0, 위 1, 북 2, 남 3, 서 4, 동 5). 가상 메서드로 답하므로 부를 때마다 다시 묻는다.
+     * 놓는 플레이어가 있는 문맥은 아직 없다(호환 계층이 UnsupportedNmsCall).
+     */
+    interface PlacementContext {
+        PlacementLevel level();
+
+        /** getClickedPos — {x, y, z}. */
+        int[] clickedPos();
+
+        int clickedFace();
+
+        /** getClickLocation — {x, y, z}. */
+        double[] clickLocation();
+
+        boolean isInside();
+
+        /** getItemInHand(빈 것은 ItemStack.EMPTY). */
+        org.domi.furnace.api.item.ItemStack itemInHand();
+
+        /** getHand: 0 주 손, 1 보조 손(null 이면 0). */
+        int hand();
+
+        boolean replacingClickedOnBlock();
+
+        boolean canPlace();
+
+        int nearestLookingDirection();
+
+        int nearestLookingVerticalDirection();
+
+        int[] nearestLookingDirections();
+
+        int horizontalDirection();
+
+        boolean isSecondaryUseActive();
+
+        float rotation();
+    }
+
+    /** Block.getStateForPlacement(ctx): 서버 블록 동작의 같은 메서드. block 은 그 블록의 아무 상태 번호. null 이면 -1. 부른 스레드에서. */
+    int stateForPlacement(int block, PlacementContext ctx);
+
+    /** BlockState.canBeReplaced(ctx). */
+    boolean canBeReplaced(int state, PlacementContext ctx);
+
+    /** BlockState.canSurvive(level, pos). */
+    boolean canSurvive(int state, PlacementLevel level, int x, int y, int z);
 
     // ------------------------------------------------------------------ 원시 쓰기(N2b-2): 바닐라처럼 그 값만 바꾸고 부수 효과가 없다
 

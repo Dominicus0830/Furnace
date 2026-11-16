@@ -59,4 +59,67 @@ class MenuUpdateTest {
         for (Thread t : ts) t.join();
         assertEquals(1 + threads * each, menu.item(0).amount(), "읽고-쓰기가 한 번에 돌아 하나도 잃지 않는다");
     }
+
+    @Test
+    void theFunctionRunsOutsideEveryLockSoAnotherThreadCanUseTheMenuMeanwhile() {
+        for (boolean storage : new boolean[] {false, true}) {
+            Menu menu = Menu.chest(Text.text("t"), 1);
+            if (storage) menu.storage(true);   // 보관함 메뉴: 쓰기는 전역 클릭 잠금과 한 줄
+            menu.set(0, stone(1));
+            java.util.concurrent.CountDownLatch inside = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.CountDownLatch otherDone = new java.util.concurrent.CountDownLatch(1);
+            Thread other = new Thread(() -> {
+                try {
+                    inside.await();
+                    menu.item(0);                 // fn 이 도는 동안 읽기·쓰기가 막히지 않아야 한다
+                    menu.set(1, stone(9));
+                    otherDone.countDown();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            other.start();
+            org.junit.jupiter.api.Assertions.assertTimeoutPreemptively(java.time.Duration.ofSeconds(10), () -> {
+                assertTrue(menu.update(0, cur -> {
+                    inside.countDown();
+                    try {
+                        assertTrue(otherDone.await(5, java.util.concurrent.TimeUnit.SECONDS), "fn 이 잠금을 쥐고 있으면 다른 스레드가 막힌다");
+                    } catch (InterruptedException e) {
+                        throw new IllegalStateException(e);
+                    }
+                    return stone(2);
+                }));
+            });
+            assertEquals(2, menu.item(0).amount());
+            assertEquals(9, menu.item(1).amount());
+        }
+    }
+
+    @Test
+    void aWriteThatLandsDuringTheFunctionMakesItRunAgainOnTheNewValue() {
+        Menu menu = Menu.chest(Text.text("t"), 1);
+        menu.set(0, stone(1));
+        List<Integer> seen = new ArrayList<>();
+        boolean[] interfered = {false};
+        assertTrue(menu.update(0, cur -> {
+            seen.add(cur.amount());
+            if (!interfered[0]) {
+                interfered[0] = true;
+                menu.set(0, stone(10));   // fn 안에서 이 메뉴를 다시 건드려도 막히지 않는다
+            }
+            return stone(cur.amount() + 1);
+        }));
+        assertEquals(List.of(1, 10), seen, "읽은 값이 그새 바뀌었으면 버리고 새 값으로 fn 을 다시 부른다");
+        assertEquals(11, menu.item(0).amount());
+    }
+
+    @Test
+    void aFunctionThatKeepsWritingTheSameSlotEndsWithAnErrorInsteadOfSpinning() {
+        Menu menu = Menu.chest(Text.text("t"), 1);
+        menu.set(0, stone(1));
+        assertThrows(IllegalStateException.class, () -> menu.update(0, cur -> {
+            menu.set(0, stone(cur.amount() + 1));   // 읽은 칸을 매번 바꿔 계속 진다
+            return stone(cur.amount() + 100);
+        }));
+    }
 }
