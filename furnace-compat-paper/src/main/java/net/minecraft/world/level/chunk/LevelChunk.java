@@ -72,13 +72,19 @@ public class LevelChunk extends ChunkAccess {
      * 바닐라 LevelChunk.setBlockState 그대로(서버의 바닐라 포팅): 그 칸만 바꾸고 옛 상태를 돌려준다. 이웃·모양 갱신, 클라이언트 알림, POI 갱신은 없다.
      * 같은 상태·공기뿐인 섹션에 공기류·치우기 반응이 칸을 갈아 치움이면 null. 높이 밖이면 바닐라는 섹션 배열 밖 예외지만 여기서는 null.
      */
-    public BlockState setBlockState(BlockPos pos, BlockState state, boolean moved) {
+    public BlockState setBlockState(BlockPos pos, BlockState state, boolean moved) { return setBlockState(pos, state, moved, true); }
+
+    /**
+     * Paper LevelChunk.setBlockState(pos, state, moved, doPlace): doPlace 가 거짓이면 새 블록의 놓기 반응(onPlace)을 건너뛴다(블록 엔티티는 그대로 만든다 —
+     * Paper 와 같다). 그 밖은 3인자 판과 같다(다른 스레드는 거울 일지 — 재생도 놓기 반응을 건너뛴다). 플러그인이 넣은 떨어진 섹션에는 반응이 없다.
+     */
+    public BlockState setBlockState(BlockPos pos, BlockState state, boolean moved, boolean doPlace) {
         int y = pos.getY();
         if (isOutsideBuildHeight(y)) return null;
         int slot = getSectionIndex(y);
         if (!furnaceMirror.dead() && furnaceOwner()) {
             furnaceMirror.ownerSync(slot);
-            int old = NmsChunks.bridge().setBlockStateNow(furnaceWorld, pos.getX(), y, pos.getZ(), state.furnaceStateId(), moved);
+            int old = NmsChunks.bridge().setBlockStateNow(furnaceWorld, pos.getX(), y, pos.getZ(), state.furnaceStateId(), moved, doPlace);
             return old < 0 ? null : NmsChunks.state(old);
         }
         // 다른 스레드(N2b-4, 결정 D1): 바닐라처럼 그 자리 섹션을 본다. 서버 섹션의 보기면 일지에 쌓아 주인이 바닐라 LevelChunk.setBlockState 를 그대로 재생한다
@@ -90,7 +96,7 @@ public class LevelChunk extends ChunkAccess {
         if (!furnaceMirror.dead() && s.furnaceChunk() == this && s.furnaceIndex() == slot && s.getStates().furnaceLiveNow()) {
             BlockState old = s.getBlockState(x & 15, y & 15, z & 15);
             if (old == state) return null;
-            if (furnaceMirror.chunkSet(s, slot, x, y, z, state.furnaceStateId(), old.furnaceStateId(), moved)) return old;
+            if (furnaceMirror.chunkSet(s, slot, x, y, z, state.furnaceStateId(), old.furnaceStateId(), moved, doPlace)) return old;
             // 그 사이 그 섹션이 배열에서 빠져 떼어 내졌다 — 아래 바닐라 길로 그 섹션에(PR #396 검토 R2)
         }
         BlockState old = s.setBlockState(x & 15, y & 15, z & 15, state);

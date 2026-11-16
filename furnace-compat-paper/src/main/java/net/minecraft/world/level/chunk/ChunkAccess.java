@@ -394,6 +394,16 @@ public abstract class ChunkAccess implements BlockGetter {
 
     private int slotOf(int y) { return (y - getMinBuildHeight()) >> 4; }
 
+    /**
+     * 호환 모듈 전용(T-204): 주인 스레드에서 쪼갠 부수 효과 전 맞춤 지점 — 그 높이 섹션 자리가 바뀌었거나 일지가 있으면 거울을 들여온다(높이 밖이면 일지만).
+     * 주인이 아니거나 내린 청크면 아무것도 하지 않는다.
+     */
+    public void furnaceOwnerSyncAt(int y) {
+        if (furnaceMirror.dead() || !furnaceOwner()) return;
+        if (isOutsideBuildHeight(y)) furnaceMirror.ownerSyncIfDirty();
+        else furnaceMirror.ownerSync(slotOf(y));
+    }
+
     /** 월드 좌표의 상태 번호(높이 안). 다른 스레드는 자기 쓰기 덧칠이 먼저. 청크가 로드돼 있지 않으면 IllegalStateException. */
     public int furnaceStateIdAt(int x, int y, int z) {
         var v = furnaceForeignView("getBlockState");

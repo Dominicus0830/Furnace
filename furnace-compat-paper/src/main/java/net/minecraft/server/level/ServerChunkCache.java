@@ -100,6 +100,11 @@ public class ServerChunkCache extends ChunkSource {
     /** Paper: 메모리에 있는 다 만든 청크면 그 청크, 아니면 null(Furnace 는 로드된 청크와 같다). */
     public LevelChunk getChunkAtIfCachedImmediately(int x, int z) { return getChunkNow(x, z); }
 
+    /** 바닐라 ServerChunkCache#blockChanged: 그 칸을 틱 끝 변경 방송에 넣는다(T-204 — 주인이 아닌 스레드는 주인 작업으로, {@code NmsEffects}). */
+    public void blockChanged(net.minecraft.core.BlockPos pos) {
+        org.domi.furnace.compat.nms.NmsEffects.run(level, pos, org.domi.furnace.compat.nms.NmsEffects.BLOCK_CHANGED, 0, 0, 0, 0L, "ServerChunkCache#blockChanged");
+    }
+
     /** 지금 로드돼 있는가(아무 스레드, 기다리지 않음). */
     @Override
     public boolean hasChunk(int x, int z) { return NmsChunks.bridge().isLoaded(level.getWorld().furnaceHandle(), x, z); }

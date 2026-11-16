@@ -141,6 +141,15 @@ public class Block extends BlockBehaviour implements ItemLike {
         return s != null ? s : Blocks.AIR.defaultBlockState();
     }
 
+    /**
+     * 바닐라 Block.updateFromNeighbourShapes(state, level, pos): 서·동·북·남·아래·위 이웃마다 updateShape 를 차례로 건 상태(서버 블록 동작 — updateShape 의
+     * 부수 효과, 예: 물에 잠긴 블록의 유체 틱 예약도 그대로). 그 칸의 주인 region 에서 돈다({@code NmsEffects} 값 호출 규칙). 서버 월드가 아닌 레벨은 UnsupportedNmsCall.
+     */
+    public static BlockState updateFromNeighbourShapes(BlockState state, net.minecraft.world.level.LevelAccessor level, net.minecraft.core.BlockPos pos) {
+        return stateById(org.domi.furnace.compat.nms.NmsEffects.call(level, pos, org.domi.furnace.compat.nms.NmsEffects.FROM_NEIGHBOUR_SHAPES,
+                state.furnaceStateId(), 0, 0, "Block#updateFromNeighbourShapes"));
+    }
+
     public static Block byItem(Item item) { return org.domi.furnace.compat.nms.NmsBlocks.byItem(item); }
 
     public final BlockState defaultBlockState() { return defaultState; }

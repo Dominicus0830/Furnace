@@ -48,6 +48,7 @@ final class BlockStateInternalsImpl implements BlockStateInternals {
             if (attrs.blocksMotion(s)) f |= BLOCKS_MOTION;
             if (BlockBehaviors.of(s).isSignalSource(s)) f |= SIGNAL_SOURCE;
             if (info.hasBlockEntity(s)) f |= HAS_BLOCK_ENTITY;
+            if (BlockBehaviors.of(s).hasAnalogOutputSignal(s)) f |= ANALOG_OUTPUT;
             flags[s] = (short) f;
             destroy[s] = info.destroyTime(b);
             resistance[s] = info.explosionResistance(b);
