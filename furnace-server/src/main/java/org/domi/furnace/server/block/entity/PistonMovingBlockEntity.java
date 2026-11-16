@@ -16,7 +16,7 @@ import org.domi.furnace.server.entity.AABB;
 import org.domi.furnace.server.entity.Entity;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
-@VanillaPort("net.minecraft.world.level.block.entity.PistonMovingBlockEntity")
+@VanillaPort("net.minecraft.world.level.block.piston.PistonMovingBlockEntity")
 public class PistonMovingBlockEntity extends BlockEntity {
 
     private static final int MOVING_PISTON = B.id("moving_piston"), PISTON_HEAD = B.id("piston_head"), STICKY_PISTON = B.id("sticky_piston");
