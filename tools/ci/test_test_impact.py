@@ -195,6 +195,49 @@ class ConstantNamesTest(unittest.TestCase):
         self.assertEqual({"X"}, c("    static final int X=1;", False))
 
 
+class StatementAtTest(unittest.TestCase):
+    def test_joins_lines_of_one_statement(self):
+        lines = ["    int a;", "    public static final int", "        X =", "        5;", "    int b;"]
+        self.assertEqual("public static final int X = 5;", ti.statement_at(lines, 3))
+        self.assertEqual("int a;", ti.statement_at(lines, 0))
+        self.assertEqual({"X"}, ti.constant_names(ti.statement_at(lines, 2), False))
+
+    def test_derived_names_in_same_text(self):
+        text = "class A {\n  static final int LIMIT = 2;\n  static final int DOUBLE = LIMIT * 2, TRIPLE = LIMIT * 3;\n  int f() { return LIMIT; }\n}\n"
+        self.assertEqual({"DOUBLE": False, "TRIPLE": False}, ti.own_derived(text, "LIMIT", False))
+
+
+class CommentsAndPrivateTest(unittest.TestCase):
+    def test_decomment_keeps_lines_and_strings(self):
+        src = "/** not private\n * anymore */\nint a = 1; // private\nString s = \"//x\";\n"
+        out = ti.decomment(src)
+        self.assertEqual(src.count("\n"), out.count("\n"))
+        self.assertNotIn("private", out)
+        self.assertIn('"//x"', out)
+
+    def test_private_declarations_are_reported_as_private(self):
+        self.assertEqual({"BASE": True}, ti.constant_decls("private static final int BASE = 1;", False))
+        self.assertEqual({"A": False, "B": False}, ti.constant_decls("static final int A = 1, B = 2;", False))
+        self.assertEqual(set(), ti.constant_names("private static final int BASE = 1;", False))
+
+    def test_private_to_public_chain(self):
+        text = "class A {\n  private static final int BASE = 1;\n  public static final int PUB = BASE * 2;\n}\n"
+        self.assertEqual({"PUB": False}, ti.own_derived(text, "BASE", False))
+
+    def test_javadoc_words_do_not_hide_a_constant(self):
+        text = "class A {\n  static final int LIMIT = 2;\n  /** not private anymore */\n  public static final int DOUBLE = LIMIT * 2;\n}\n"
+        self.assertEqual({"DOUBLE": False}, ti.own_derived(text, "LIMIT", False))
+
+    def test_derived_constant_in_an_interface_is_found(self):
+        text = "public interface B {\n    int DOUBLE = A.LIMIT * 2;\n}\n"
+        self.assertEqual({"DOUBLE": False}, ti.own_derived(text, "LIMIT", True))
+        self.assertEqual({}, ti.own_derived(text, "LIMIT", False))      # 인터페이스인지 알려 줘야 한다(select 는 is_interface_text 로 넘긴다)
+
+    def test_operator_continuation_line_is_part_of_the_statement(self):
+        lines = ["  static final int DOUBLE = LIMIT", "      * 2;", "  int x;"]
+        self.assertEqual("static final int DOUBLE = LIMIT * 2;", ti.statement_at(lines, 1))
+
+
 class SelectTest(unittest.TestCase):
     def test_small_change_selects_only_executing_tests(self):
         f = Fixture(self)
@@ -296,6 +339,46 @@ class SelectTest(unittest.TestCase):
         f.commit()
         with self.assertRaises(ti.FullRun):      # SECOND 을 쓰는 B → BTest 까지 → 전부
             f.select()
+
+    def _constant_fixture(self, a_before, a_after):
+        f = Fixture(self)
+        f.write(MAIN + "A.java", a_before)
+        f.write(MAIN + "B.java", "package p;\npublic class B {\n    void run() { int x = A.DOUBLE; }\n}\n")
+        git(f.dir, "add", "-A"); git(f.dir, "commit", "-q", "-m", "setup")
+        f.map.commit = head_sha(f.dir)
+        f.write(MAIN + "A.java", a_after)
+        f.commit()
+        return f
+
+    def test_derived_constant_on_an_unchanged_line_reaches_its_users(self):
+        # LIMIT 만 바뀌어도 같은 파일의 `DOUBLE = LIMIT * 2` 값이 바뀌고, 그 값이 B 에 박힌다(DOUBLE 줄은 diff 에 없다)
+        tpl = "package p;\npublic class A {\n    public static final int LIMIT = %d;\n    public static final int DOUBLE = LIMIT * 2;\n    void run() {}\n}\n"
+        f = self._constant_fixture(tpl % 1, tpl % 2)
+        with self.assertRaises(ti.FullRun):      # B → BTest 까지 들어가 전부
+            f.select()
+
+    def test_value_line_of_a_multiline_constant_declaration_counts(self):
+        tpl = "package p;\npublic class A {\n    public static final int\n        DOUBLE =\n        %d;\n    void run() {}\n}\n"
+        f = self._constant_fixture(tpl % 2, tpl % 4)
+        with self.assertRaises(ti.FullRun):
+            f.select()
+
+    def test_changed_private_constant_reaches_users_of_the_public_constant_derived_from_it(self):
+        tpl = "package p;\npublic class A {\n    private static final int BASE = %d;\n    public static final int DOUBLE = BASE * 2;\n    void run() {}\n}\n"
+        f = self._constant_fixture(tpl % 1, tpl % 2)
+        with self.assertRaises(ti.FullRun):
+            f.select()
+
+    def test_chain_public_private_public(self):
+        tpl = "package p;\npublic class A {\n    public static final int LIMIT = %d;\n    private static final int MID = LIMIT + 1;\n    public static final int DOUBLE = MID * 2;\n    void run() {}\n}\n"
+        f = self._constant_fixture(tpl % 1, tpl % 2)
+        with self.assertRaises(ti.FullRun):
+            f.select()
+
+    def test_unrelated_line_next_to_constants_does_not_expand(self):
+        tpl = "package p;\npublic class A {\n    public static final int DOUBLE = 4;\n    void run() { int y = %d; }\n}\n"
+        f = self._constant_fixture(tpl % 1, tpl % 2)
+        self.assertEqual(["p/BTest"], f.select()["skip"])
 
     def test_non_constant_change_does_not_reach_users(self):
         f = Fixture(self)

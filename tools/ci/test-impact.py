@@ -367,29 +367,120 @@ def changed_files(repo, base, head):
     return res
 
 
-def constant_names(line, is_interface):
-    """한 줄의 상수 선언 이름들. `static final int A = 1, B = 2;` 처럼 한 줄에 여럿이면 모두(둘째부터는 초기화 식 안의 쉼표도 이름으로 보는 쪽으로 넉넉히 센다)."""
-    names = set()
+def constant_decls(line, is_interface):
+    """한 줄의 상수 선언 {이름: private 여부}. `static final int A = 1, B = 2;` 처럼 한 줄에 여럿이면 모두(둘째부터는 초기화 식 안의 쉼표도 이름으로 보는 쪽으로 넉넉히 센다)."""
+    decls = {}
     m = FINAL_FIELD.search(line)
-    if m and not re.search(r"\bprivate\b", line):
-        names.add(m.group(1))
-        names.update(re.findall(r",\s*([A-Za-z_$][\w$]*)\s*=(?!=)", line[m.end():]))
+    if m:
+        private = bool(re.search(r"\bprivate\b", line))
+        for n in [m.group(1)] + re.findall(r",\s*([A-Za-z_$][\w$]*)\s*=(?!=)", line[m.end():]):
+            decls[n] = private
     if is_interface:
         m = INTERFACE_FIELD.match(line)
         if m:
-            names.add(m.group(1))
-            names.update(re.findall(r",\s*([A-Z][A-Z0-9_]*)\s*=(?!=)", line[m.end():]))
-    return names
+            for n in [m.group(1)] + re.findall(r",\s*([A-Z][A-Z0-9_]*)\s*=(?!=)", line[m.end():]):
+                decls.setdefault(n, False)
+    return decls
+
+
+def constant_names(line, is_interface):
+    """다른 파일에서 보이는(private 이 아닌) 상수 이름들."""
+    return {n for n, private in constant_decls(line, is_interface).items() if not private}
+
+
+HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
+
+
+COMMENT_OR_STRING = re.compile(r'"(?:\\.|[^"\\\n])*"|\'(?:\\.|[^\'\\\n])*\'|//[^\n]*|/\*.*?\*/', re.S)
+
+
+def decomment(text):
+    """자바 소스에서 주석을 지운다(줄 수는 그대로: 블록 주석은 그 안의 줄바꿈만 남긴다). 문자열 안의 `//` 는 건드리지 않는다."""
+    def repl(m):
+        t = m.group(0)
+        return t if t[0] in "\"'" else " " + "\n" * t.count("\n")
+    return COMMENT_OR_STRING.sub(repl, text)
+
+
+def statement_at(lines, idx, span=12):
+    """줄 idx 가 속한 문장을 한 줄로 이어 붙인다(`;`·`{`·`}` 로 끝나는 줄까지). lines 는 주석을 뗀(decomment) 줄이어야 한다. 선언이 여러 줄이어도 값 줄만 바뀐 경우를 잡는다."""
+    def ends(line):
+        t = line.strip()
+        return not t or t[-1] in ";{}"
+    lo = idx
+    while lo > 0 and idx - lo < span and not ends(lines[lo - 1]):
+        lo -= 1
+    hi = idx
+    while hi < len(lines) - 1 and hi - idx < span and not ends(lines[hi]):
+        hi += 1
+    return " ".join(t for t in (l.strip() for l in lines[lo:hi + 1]) if t)
+
+
+def show_lines(repo, rev, path):
+    try:
+        return decomment(run_git(repo, "show", "%s:%s" % (rev, path)).decode("utf-8", "replace")).splitlines()
+    except subprocess.CalledProcessError:
+        return []
+
+
+def is_interface_text(text):
+    return bool(re.search(r"(?<![\w$])@?interface\s+[A-Za-z_]", text))
+
+
+_DECOMMENTED = {}
+
+
+def decommented_lines(text):
+    key = hash(text)
+    if key not in _DECOMMENTED:
+        _DECOMMENTED[key] = decomment(text).splitlines()
+    return _DECOMMENTED[key]
+
+
+def own_derived(text, name, is_interface):
+    """이 소스 안에서 `name` 을 쓰는 문장이 선언하는 다른 상수들 {이름: private 여부}(`DOUBLE = LIMIT * 2`). 넉넉히 센다. private 중간 상수도 포함한다(공개 상수로 이어질 수 있다)."""
+    lines = decommented_lines(text)
+    pat = re.compile(r"(?<![\w$])" + re.escape(name) + r"(?![\w$])")
+    found = {}
+    for i, line in enumerate(lines):
+        if pat.search(line):
+            for n, private in constant_decls(statement_at(lines, i), is_interface).items():
+                found[n] = found.get(n, True) and private
+    found.pop(name, None)
+    return found
+
+
+def merge_decls(into, decls):
+    for n, private in decls.items():
+        into[n] = into.get(n, True) and private
 
 
 def changed_constants(repo, base, head, path, is_interface):
-    """이 파일의 바뀐 줄(추가·삭제)에서 상수 선언 이름을 모은다. javac 는 컴파일 시간 상수를 쓰는 쪽에 값으로 박아 넣으므로 쓰는 파일이 안 바뀌어도 동작이 바뀐다."""
+    """이 파일의 바뀐 줄(추가·삭제)이 속한 문장에서 상수 선언 {이름: private 여부} 를 모은다. javac 는 컴파일 시간 상수를 쓰는 쪽에 값으로 박아 넣으므로 쓰는 파일이 안 바뀌어도 동작이 바뀐다."""
     diff = run_git(repo, "diff", "-U0", "--no-renames", base, head, "--", path).decode("utf-8", "replace")
-    names = set()
+    old_lines = new_lines = None
+    names = {}
+    old_no = new_no = 0
     for line in diff.splitlines():
+        h = HUNK.match(line)
+        if h:
+            old_no, new_no = int(h.group(1)), int(h.group(3))
+            continue
         if line.startswith(("+++", "---")) or not line or line[0] not in "+-":
             continue
-        names |= constant_names(line[1:], is_interface)
+        merge_decls(names, constant_decls(line[1:], is_interface))
+        if line[0] == "-":
+            if old_lines is None:
+                old_lines = show_lines(repo, base, path)
+            if 0 < old_no <= len(old_lines):
+                merge_decls(names, constant_decls(statement_at(old_lines, old_no - 1), is_interface))
+            old_no += 1
+        else:
+            if new_lines is None:
+                new_lines = show_lines(repo, head, path)
+            if 0 < new_no <= len(new_lines):
+                merge_decls(names, constant_decls(statement_at(new_lines, new_no - 1), is_interface))
+            new_no += 1
     return names
 
 
@@ -477,29 +568,34 @@ def select(repo, impact, rules, head, times, opts):
                 package_dirs.setdefault(pkg, path)
 
     # 컴파일 시간 상수: 값이 쓰는 쪽에 박히므로 이름을 쓰는 파일도 바뀐 것으로 본다(상수끼리 이어지면 끝까지).
-    visited = set()
+    # private 상수는 다른 파일에 박히지 않으므로 사용처 검색은 안 하지만, 같은 파일의 공개 상수로 이어질 수 있어 따라가기에는 쓴다.
+    visited_own = set()
+    visited_refs = set()
     work = []
     for status, path in pending_constants:
-        is_interface = bool(re.search(r"(?<![\w$])@?interface\s+[A-Za-z_]", sources.text.get(path, "")))
-        for n in changed_constants(repo, impact.commit, head, path, is_interface):
-            work.append((n, path))
+        is_interface = is_interface_text(sources.text.get(path, ""))
+        for n, private in changed_constants(repo, impact.commit, head, path, is_interface).items():
+            work.append((n, path, private))
     while work:
-        name, origin = work.pop()
-        if name in visited:
+        name, origin, private = work.pop()
+        origin_text = sources.text.get(origin, "")
+        if (name, origin) not in visited_own:
+            visited_own.add((name, origin))
+            if len(visited_own) > 60:
+                raise FullRun("바뀐 상수 이름이 60 개를 넘는다")
+            # 같은 파일 안에서 이 상수로 계산하는 다른 상수(`DOUBLE = LIMIT * 2`)는 그 줄이 안 바뀌어도 값이 바뀐다.
+            for other, other_private in own_derived(origin_text, name, is_interface_text(origin_text)).items():
+                work.append((other, origin, other_private))
+        if private or (name, origin) in visited_refs:
             continue
-        visited.add(name)
-        if len(visited) > 60:
-            raise FullRun("바뀐 상수 이름이 60 개를 넘는다")
+        visited_refs.add((name, origin))
         refs = sources.referrers(name, origin)
         if len(refs) > opts["max_referrers"]:
             raise FullRun("상수 `%s` 를 쓰는 파일이 %d 개(한도 %d)" % (name, len(refs), opts["max_referrers"]))
         for r in refs:
             eff(r, "상수 `%s` 를 씀(컴파일할 때 값으로 박힘)" % name)
-            for line in sources.text[r].splitlines():
-                if name in line:
-                    for other in constant_names(line, False):
-                        if other != name:
-                            work.append((other, r))
+            for other, other_private in own_derived(sources.text[r], name, is_interface_text(sources.text[r])).items():
+                work.append((other, r, other_private))
 
     # 어떤 시험도 실행하지 않은 소스(상수·인터페이스·기록 클래스 등)는 그 타입을 쓰는 파일로 대신한다.
     executed_by = {}
