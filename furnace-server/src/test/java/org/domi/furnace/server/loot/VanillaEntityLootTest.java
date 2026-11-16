@@ -40,7 +40,7 @@ class VanillaEntityLootTest {
         List<String> failures = new ArrayList<>();
         int cases = 0;
         try (BufferedReader r = new BufferedReader(new InputStreamReader(
-                VanillaEntityLootTest.class.getResourceAsStream("/loot/entities-" + GameVersion.RESOURCE_TAG + ".txt"), StandardCharsets.UTF_8))) {
+                VanillaEntityLootTest.class.getResourceAsStream("/loot/" + GameVersion.RESOURCE_TAG + "/entities.txt"), StandardCharsets.UTF_8))) {
             String line;
             while ((line = r.readLine()) != null) {
                 if (line.startsWith("#") || line.isBlank()) continue;

@@ -6,6 +6,7 @@ package org.domi.furnace.server.block;
 
 import java.util.Map;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.types.BaseFireBlock;
 import org.domi.furnace.server.block.types.BonemealableBlock;
 import org.domi.furnace.server.block.types.BucketPickup;
@@ -20,6 +21,11 @@ import org.domi.furnace.server.item.ComponentPatch;
 import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.item.ItemTools;
 
+@VanillaPort({
+    "net.minecraft.server.level.ServerPlayerGameMode",
+    "net.minecraft.world.item.ItemStack",
+    "net.minecraft.world.item.Item"
+})
 public final class ItemUse {
 
     private ItemUse() {}

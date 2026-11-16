@@ -8,6 +8,7 @@ package org.domi.furnace.server.block.entity;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.Pos;
@@ -19,6 +20,7 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 
+@VanillaPort("net.minecraft.world.level.BaseSpawner")
 public abstract class BaseSpawner {
 
     /** SpawnData: 엔티티 태그 + (선택) 빛 조건 + (선택) 장비 원본. */

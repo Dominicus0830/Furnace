@@ -2,6 +2,7 @@
 // 틱마다 진행도 +0.5, 1 이 된 다음 틱에 옮기던 블록을 이웃 모양에 맞춰 놓는다(finalTick 은 그 자리에서 바로).
 package org.domi.furnace.server.block.entity;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Blocks;
@@ -15,6 +16,7 @@ import org.domi.furnace.server.entity.AABB;
 import org.domi.furnace.server.entity.Entity;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort("net.minecraft.world.level.block.piston.PistonMovingBlockEntity")
 public class PistonMovingBlockEntity extends BlockEntity {
 
     private static final int MOVING_PISTON = B.id("moving_piston"), PISTON_HEAD = B.id("piston_head"), STICKY_PISTON = B.id("sticky_piston");

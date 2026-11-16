@@ -31,7 +31,7 @@ class VanillaSectionOracleTest {
 
     private static synchronized void load() throws Exception {
         if (flags != null) return;
-        try (InputStream in = VanillaSectionOracleTest.class.getResourceAsStream("/n2b/section-oracle-" + GameVersion.RESOURCE_TAG + ".txt.gz")) {
+        try (InputStream in = VanillaSectionOracleTest.class.getResourceAsStream("/n2b/" + GameVersion.RESOURCE_TAG + "/section-oracle.txt.gz")) {
             assertNotNull(in, "정답표 없음");
             BufferedReader r = new BufferedReader(new InputStreamReader(new GZIPInputStream(in), StandardCharsets.UTF_8));
             int[] f = null;

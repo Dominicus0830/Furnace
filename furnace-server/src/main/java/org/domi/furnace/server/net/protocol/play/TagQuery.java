@@ -2,12 +2,14 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtWriter;
 import org.domi.furnace.server.net.protocol.Packet;
 
 /** @param tag 질의 결과(없으면 null) */
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundTagQueryPacket")
 public record TagQuery(int transactionId, NbtCompound tag) implements Packet {
 
     public static final int ID = 0x6E;

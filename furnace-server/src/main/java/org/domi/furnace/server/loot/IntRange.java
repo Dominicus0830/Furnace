@@ -3,7 +3,9 @@ package org.domi.furnace.server.loot;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.level.storage.loot.IntRange")
 public record IntRange(NumberProvider min, NumberProvider max) {
 
     public static IntRange parse(JsonElement e) {

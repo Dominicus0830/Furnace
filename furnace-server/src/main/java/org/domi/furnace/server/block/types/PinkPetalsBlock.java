@@ -1,6 +1,7 @@
 // 바닐라 PinkPetalsBlock: 분홍 꽃잎(1~4장). 같은 꽃잎을 더 놓으면 장 수가 는다. 뼛가루로 늘고, 4장이면 꽃잎 아이템을 떨군다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockItems;
 import org.domi.furnace.server.block.BlockLevel;
@@ -11,6 +12,7 @@ import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.PinkPetalsBlock")
 public class PinkPetalsBlock extends BushBlock implements BonemealableBlock {
 
     private static final Prop FACING = B.prop("facing"), AMOUNT = B.prop("flower_amount");

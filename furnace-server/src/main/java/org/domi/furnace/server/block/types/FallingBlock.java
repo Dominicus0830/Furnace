@@ -1,12 +1,14 @@
 // 바닐라 FallingBlock: 놓이거나 이웃이 바뀌면 2틱 뒤 아래가 비었는지 보고 떨어지는 블록 엔티티가 된다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.FallingBlock")
 public abstract class FallingBlock extends BlockBehavior {
 
     protected FallingBlock(int block) { super(block); }

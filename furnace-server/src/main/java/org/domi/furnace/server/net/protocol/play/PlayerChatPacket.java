@@ -2,6 +2,7 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.chat.ChatType;
 import org.domi.furnace.server.chat.MessageSignatureCache;
 import org.domi.furnace.server.chat.PlayerChatMessage;
@@ -9,6 +10,7 @@ import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.io.nbt.NbtWriter;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundPlayerChatPacket")
 public final class PlayerChatPacket implements Packet {
 
     public static final int ID = 0x39;

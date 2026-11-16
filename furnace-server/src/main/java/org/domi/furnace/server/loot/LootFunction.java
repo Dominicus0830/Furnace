@@ -11,7 +11,11 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({
+        "net.minecraft.world.level.storage.loot.functions.LootItemFunction",
+        "net.minecraft.world.level.storage.loot.functions.LootItemFunctions"})
 public interface LootFunction extends BiFunction<LootStack, LootContext, LootStack> {
 
     Logger LOG = LoggerFactory.getLogger(LootFunction.class);

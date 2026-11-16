@@ -1,6 +1,7 @@
 // 바닐라 LeverBlock: 당길 때마다 켜고 끈다. 붙은 칸에 강한 신호.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.Explosion;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
@@ -11,6 +12,7 @@ import org.domi.furnace.server.block.InteractionResult;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.LeverBlock")
 public class LeverBlock extends FaceAttachedHorizontalDirectionalBlock {
 
     static final Prop POWERED = B.prop("powered");

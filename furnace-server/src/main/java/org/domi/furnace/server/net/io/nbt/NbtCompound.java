@@ -3,7 +3,9 @@ package org.domi.furnace.server.net.io.nbt;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.nbt.CompoundTag")
 public final class NbtCompound {
 
     private final Map<String, Object> tags = new LinkedHashMap<>();

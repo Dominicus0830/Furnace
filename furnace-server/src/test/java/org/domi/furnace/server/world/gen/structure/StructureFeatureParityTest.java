@@ -53,7 +53,7 @@ class StructureFeatureParityTest {
         source.structureEngine().restrictTo(java.util.Set.of("minecraft:desert_pyramid"));
         ChunkColumn col = source.generateWithFeatures(cx, cz);
 
-        String fixtureName = "/worldgen/fixtures/featurestruct_" + seed + "_" + cx + "_" + cz + ".bin";
+        String fixtureName = "/worldgen/fixtures/" + GameVersion.RESOURCE_TAG + "/featurestruct_" + seed + "_" + cx + "_" + cz + ".bin";
         byte[] fx = loadFixture(fixtureName, seed, cx, cz);
 
         int mismatch = countMismatches(col, fx, oracleIdToName, reg11, seed, cx, cz);

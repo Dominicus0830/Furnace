@@ -1,12 +1,14 @@
 // 바닐라 CarvedPumpkinBlock(깎은 호박·잭오랜턴): 바라보는 방향의 반대로 놓인다. 눈·철 골렘 모양 위에 놓이면 골렘이 된다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.CarvedPumpkinBlock")
 public class CarvedPumpkinBlock extends HorizontalDirectionalBlock {
 
     public CarvedPumpkinBlock(int block) { super(block); }

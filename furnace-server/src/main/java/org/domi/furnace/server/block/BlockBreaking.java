@@ -3,9 +3,11 @@
 // (0.7 이상이면 바로, 모자라면 지연 파괴로 틱마다 이어 계산), 금 가는 단계는 다른 플레이어에게 방송한다.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.item.ItemTools;
 
+@VanillaPort("net.minecraft.server.level.ServerPlayerGameMode")
 public final class BlockBreaking {
 
     /** 클라이언트 player_action 의 상태 번호. */

@@ -51,7 +51,7 @@ class TextEncodingTest {
     @Test
     void jsonAndNbtMatchVanilla() throws Exception {
         List<String[]> golden = new ArrayList<>();
-        try (var r = new BufferedReader(new InputStreamReader(getClass().getResourceAsStream("/text/vanilla-" + GameVersion.RESOURCE_TAG + "-golden.tsv"), StandardCharsets.UTF_8))) {
+        try (var r = new BufferedReader(new InputStreamReader(getClass().getResourceAsStream("/text/" + GameVersion.RESOURCE_TAG + "/vanilla-golden.tsv"), StandardCharsets.UTF_8))) {
             String line;
             while ((line = r.readLine()) != null) golden.add(line.split("\t"));
         }

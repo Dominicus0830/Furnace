@@ -2,10 +2,12 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
 /** @param entityId 엔티티를 보게 하면 그 번호, 아니면 -1 */
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundPlayerLookAtPacket")
 public record PlayerLookAt(int anchor, double x, double y, double z, int entityId, int entityAnchor) implements Packet {
 
     public static final int ID = 0x3F;

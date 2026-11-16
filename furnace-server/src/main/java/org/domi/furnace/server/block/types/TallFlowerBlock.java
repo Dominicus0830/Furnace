@@ -1,11 +1,13 @@
 // 바닐라 TallFlowerBlock: 두 칸 꽃. 뼛가루를 쓰면 같은 꽃 아이템 하나를 떨군다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.TallFlowerBlock")
 public class TallFlowerBlock extends DoublePlantBlock implements BonemealableBlock {
 
     public TallFlowerBlock(int block) { super(block); }

@@ -4,11 +4,13 @@
 package org.domi.furnace.server.block.entity;
 
 import java.util.Optional;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.entity.ItemStackNbt;
 import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort("net.minecraft.world.level.block.entity.vault.VaultConfig")
 public record VaultConfig(String lootTable, double activationRange, double deactivationRange, ItemStack keyItem, Optional<String> overrideLootTableToDisplay) {
 
     public static final String DEFAULT_LOOT_TABLE = "minecraft:chests/trial_chambers/reward";

@@ -5,6 +5,7 @@ package org.domi.furnace.server.block.entity;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.ChunkLevel;
@@ -19,6 +20,7 @@ import org.domi.furnace.server.entity.LivingEntity;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort("net.minecraft.world.level.block.entity.ConduitBlockEntity")
 public class ConduitBlockEntity extends BlockEntity {
 
     /** VALID_BLOCKS: 프리즈머린·프리즈머린 벽돌·바다 랜턴·어두운 프리즈머린. */

@@ -1,6 +1,7 @@
 // 바닐라 TrapDoorBlock: 다락문. 옆면 위·아래 반쪽 클릭이나 바라보는 방향으로 놓는다. 손(블록 세트가 허락하면)·신호로 여닫는다. 물에 잠길 수 있다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.Explosion;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
@@ -14,6 +15,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.TrapDoorBlock")
 public class TrapDoorBlock extends HorizontalDirectionalBlock {
 
     static final Prop OPEN = B.prop("open"), HALF = B.prop("half"), POWERED = B.prop("powered");

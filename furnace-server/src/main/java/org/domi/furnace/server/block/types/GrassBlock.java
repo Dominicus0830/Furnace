@@ -1,12 +1,14 @@
 // 바닐라 GrassBlock: 잔디 블록. 퍼지는 흙 + 뼛가루(위가 공기면 둘레에 풀·꽃).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.LevelFeature;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.GrassBlock")
 public class GrassBlock extends SpreadingSnowyDirtBlock implements BonemealableBlock {
 
     private static final int SHORT_GRASS = B.id("short_grass");

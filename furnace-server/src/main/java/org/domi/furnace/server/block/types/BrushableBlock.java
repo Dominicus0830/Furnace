@@ -1,12 +1,14 @@
 // 바닐라 BrushableBlock: 수상한 모래·자갈. 놓이거나 이웃이 바뀌면 2틱 뒤 틱에서 아래가 비었으면 떨어진다(솔질은 블록 엔티티 동작).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Blocks;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.BrushableBlock")
 public class BrushableBlock extends BaseEntityBlock {
 
     private final int turnsInto;

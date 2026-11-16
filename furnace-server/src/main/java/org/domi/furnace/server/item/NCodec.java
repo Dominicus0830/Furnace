@@ -10,9 +10,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import org.domi.furnace.api.text.serializer.JsonTextSerializer;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort("net.minecraft.network.codec.StreamCodec")
 public interface NCodec {
 
     Object read(ByteBuf buf);

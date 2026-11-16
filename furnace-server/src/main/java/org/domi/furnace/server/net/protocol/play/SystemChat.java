@@ -2,10 +2,12 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.nbt.NbtWriter;
 import org.domi.furnace.server.net.protocol.Packet;
 import org.domi.furnace.api.text.Text;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundSystemChatPacket")
 public record SystemChat(Text content, boolean overlay) implements Packet {
 
     public static final int ID = 0x6C;

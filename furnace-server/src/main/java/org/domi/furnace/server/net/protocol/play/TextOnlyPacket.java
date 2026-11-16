@@ -3,8 +3,13 @@ package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort({
+    "net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket",
+    "net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket",
+    "net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket"})
 public record TextOnlyPacket(int id, Text text) implements Packet {
 
     public static final int ACTION_BAR = 0x4C, TITLE = 0x65, SUBTITLE = 0x63;

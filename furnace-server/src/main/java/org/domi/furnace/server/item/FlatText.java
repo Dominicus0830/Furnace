@@ -11,7 +11,11 @@ import java.util.Collections;
 import java.util.List;
 import org.domi.furnace.api.text.Text;
 import org.domi.furnace.api.text.serializer.JsonTextSerializer;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({
+        "net.minecraft.network.chat.ComponentSerialization",
+        "net.minecraft.util.GsonHelper"})
 public final class FlatText {
     private FlatText() {}
 

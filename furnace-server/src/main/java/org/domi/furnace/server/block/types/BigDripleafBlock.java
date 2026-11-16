@@ -1,6 +1,7 @@
 // 바닐라 BigDripleafBlock: 큰 흘림잎 머리. 위에 올라서면 기울어(불안정→일부→완전) 떨어뜨리고, 신호를 받으면 바로 선다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
@@ -10,6 +11,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.BigDripleafBlock")
 public class BigDripleafBlock extends HorizontalDirectionalBlock implements BonemealableBlock {
 
     static final Prop TILT = B.prop("tilt");

@@ -1,6 +1,7 @@
 // 바닐라 DropperBlock: 공급기. 무작위 칸의 아이템 하나를 앞 용기에 넣고(소리 없음), 용기가 없으면 기본 던지기. 빈 공급기는 실패 소리만(게임 이벤트 없음).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.block.Pos;
@@ -10,6 +11,7 @@ import org.domi.furnace.server.block.entity.DropperBlockEntity;
 import org.domi.furnace.server.block.entity.HopperBlockEntity;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.DropperBlock")
 public class DropperBlock extends DispenserBlock {
 
     public DropperBlock(int block) { super(block); }

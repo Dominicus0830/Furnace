@@ -5,9 +5,11 @@ package org.domi.furnace.server.block.entity;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiFunction;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort("net.minecraft.world.level.block.entity.BlockEntityType")
 public final class BlockEntities {
 
     private BlockEntities() {}

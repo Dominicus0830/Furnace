@@ -5,9 +5,11 @@ package org.domi.furnace.server.net.protocol.play;
 import io.netty.buffer.ByteBuf;
 import java.util.List;
 import java.util.UUID;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket")
 public record PlayerInfoUpdate(List<Entry> entries) implements Packet {
 
     public static final int ID = 0x3E;

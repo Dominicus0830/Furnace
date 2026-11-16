@@ -1,6 +1,7 @@
 // 바닐라 CactusBlock: 모래·선인장 위에서, 옆 네 칸이 비어(단단하지 않고 용암 아님) 있을 때만 산다. 무작위 틱으로 3칸까지 자란다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -10,6 +11,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.CactusBlock")
 public class CactusBlock extends BlockBehavior {
 
     private static final Prop AGE = B.prop("age");

@@ -2,6 +2,7 @@
 // 청크를 어디서 얻는지(소유 region 의 로드된 청크)와 변경 방송·저장 표시는 하위 클래스가 정한다.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.world.StateIds;
 import org.domi.furnace.server.i18n.Lang;
 import java.util.TreeMap;
@@ -24,6 +25,10 @@ import org.domi.furnace.server.net.protocol.play.SoundPacket;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.ChunkSection;
 
+@VanillaPort({
+    "net.minecraft.world.level.Level",
+    "net.minecraft.world.level.chunk.LevelChunk"
+})
 public abstract class ChunkLevel implements BlockLevel {
 
     protected final Blocks blocks = Blocks.get();
@@ -1476,10 +1481,33 @@ public abstract class ChunkLevel implements BlockLevel {
         if (hasChunkAt(pos)) markDirty(pos.x() >> 4, pos.z() >> 4);
     }
 
+    /**
+     * 바닐라 Level.getBlockEntity(pos) = LevelChunk.getBlockEntity(pos, IMMEDIATE): 없고 그 칸 블록이 블록 엔티티를 가지는 종류면 블록이 새로 만들어
+     * 청크에 둔다(addAndRegisterBlockEntity — 틱·게임 이벤트 등록, 저장 표시 없음). 보통은 블록을 놓을 때 이미 만들어져 있어 만들 일이 없다 — 플러그인이
+     * 섹션을 통째로 바꿨거나(NMS 들여오기, T-198) 블록 엔티티 없이 저장된 청크에서만 생긴다. 아직 해석하지 않은 생성 NBT 가 있는 칸은 만들지 않는다.
+     */
     @Override
     public Object getBlockEntity(Pos pos) {
         ChunkColumn c = chunkAt(pos);
+        if (c == null) return null;
+        Object be = blockEntity(c, pos);
+        return be != null ? be : createMissingBlockEntity(c, pos);
+    }
+
+    /** 바닐라 LevelChunk.getBlockEntity(pos, CHECK): 있는 것만(생성 상자 NBT 는 바닐라 promotePendingBlockEntity 처럼 상자로 바꾼다). */
+    public Object getBlockEntityIfPresent(Pos pos) {
+        ChunkColumn c = chunkAt(pos);
         return c == null ? null : blockEntity(c, pos);
+    }
+
+    /** LevelChunk.getBlockEntity 의 IMMEDIATE 부분(createBlockEntity + addAndRegisterBlockEntity). */
+    private Object createMissingBlockEntity(ChunkColumn c, Pos pos) {
+        if (isOutsideBuildHeight(pos.y())) return null;
+        int state = c.getBlock(pos.x() & 15, pos.y(), pos.z() & 15);
+        if (!info.hasBlockEntity(state)) return null;
+        if (c.generatedBlockEntity(pos.x() & 15, pos.y(), pos.z() & 15) != null) return null;   // 아직 해석하지 않은 생성 NBT(종류를 모르는 것)
+        createBlockEntity(c, pos, state);
+        return blockEntity(c, pos);
     }
 
     @Override

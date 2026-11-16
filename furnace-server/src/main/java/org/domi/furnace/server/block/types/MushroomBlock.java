@@ -1,11 +1,13 @@
 // 바닐라 MushroomBlock: 버섯. 어두운(밝기 13 미만) 단단한 블록 위나 #mushroom_grow_block 위. 무작위 틱(1/25)에 주변(최대 5)으로 번진다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.MushroomBlock")
 public class MushroomBlock extends BushBlock implements BonemealableBlock {
 
     /** 거대 버섯 configured feature(정의 인자 feature). */

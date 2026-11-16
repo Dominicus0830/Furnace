@@ -1,6 +1,7 @@
 // 바닐라 CocoaBlock: 정글 나무 옆에 붙는 코코아. 무작위 틱(레벨 난수 1/5)마다 나이 0~2 로 자란다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
@@ -9,6 +10,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.CocoaBlock")
 public class CocoaBlock extends HorizontalDirectionalBlock implements BonemealableBlock {
 
     private static final Prop AGE = B.prop("age");

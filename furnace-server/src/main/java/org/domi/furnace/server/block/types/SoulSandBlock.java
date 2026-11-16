@@ -1,6 +1,7 @@
 // 바닐라 SoulSandBlock: 영혼 모래. 놓이거나 위가 물이 되면 20틱 뒤 위로 거품 기둥을 세운다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.CollisionContext;
 
 import org.domi.furnace.server.block.Shape;
@@ -13,6 +14,7 @@ import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.SoulSandBlock")
 public class SoulSandBlock extends BlockBehavior {
 
     private static final int WATER = B.id("water");

@@ -1,6 +1,7 @@
 // 바닐라 BuddingAmethystBlock: 싹트는 자수정. 무작위 틱 1/5 로 무작위 면에 싹을 틔우거나 한 단계 키운다(작은→중간→큰→송이).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.Fluids;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.BuddingAmethystBlock")
 public class BuddingAmethystBlock extends AmethystBlock {
 
     private static final int SMALL = B.id("small_amethyst_bud"), MEDIUM = B.id("medium_amethyst_bud"), LARGE = B.id("large_amethyst_bud"),

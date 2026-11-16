@@ -3,9 +3,11 @@ package org.domi.furnace.server.net.protocol.login;
 
 import io.netty.buffer.ByteBuf;
 import java.util.UUID;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort("net.minecraft.network.protocol.login.ClientboundGameProfilePacket")
 public record LoginSuccess(UUID uuid, String name, java.util.List<org.domi.furnace.server.players.GameProfile.Property> properties,
                            boolean strictErrorHandling) implements Packet {
 

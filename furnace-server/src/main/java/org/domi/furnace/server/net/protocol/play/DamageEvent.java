@@ -2,9 +2,11 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundDamageEventPacket")
 public record DamageEvent(int entityId, int sourceTypeId, int sourceCauseId, int sourceDirectId, double[] sourcePosition) implements Packet {
 
     public static final int ID = 0x1A;

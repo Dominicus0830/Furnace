@@ -1,6 +1,7 @@
 // 바닐라 DaylightDetectorBlock: 햇빛 감지기. 하늘빛·해 각도로 신호(0..15)를 정하고(뒤집으면 15 - 빛), 누르면 뒤집힌다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -10,6 +11,7 @@ import org.domi.furnace.server.block.InteractionResult;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.DaylightDetectorBlock")
 public class DaylightDetectorBlock extends BaseEntityBlock {
 
     static final Prop POWER = B.prop("power"), INVERTED = B.prop("inverted");

@@ -6,8 +6,10 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.world.gen.noise.NoiseRandom;
 
+@VanillaPort("net.minecraft.world.item.enchantment.EnchantmentHelper")
 public final class Enchantments {
     private Enchantments() {}
 

@@ -59,7 +59,7 @@ class FeaturePipelineParityTest {
         NoiseWorldSource source = NoiseWorldSource.overworld(seed, reg11, registries);
         ChunkColumn col = source.generateWithFeatures(cx, cz);
 
-        String fixtureName = "/worldgen/fixtures/featurefull_" + seed + "_" + cx + "_" + cz + ".bin";
+        String fixtureName = "/worldgen/fixtures/" + GameVersion.RESOURCE_TAG + "/featurefull_" + seed + "_" + cx + "_" + cz + ".bin";
         byte[] fx = loadFixture(fixtureName, seed, cx, cz);
 
         int mismatch = countMismatches(col, fx, oracleIdToName, reg11, true, seed, cx, cz);
@@ -300,7 +300,7 @@ class FeaturePipelineParityTest {
 
         // oracle feature_order.txt에서 STEP 6 목록 로드
         java.util.List<String> oracleStep6 = new java.util.ArrayList<>();
-        try (InputStream in = FeaturePipelineParityTest.class.getResourceAsStream("/worldgen/fixtures/feature_order.txt");
+        try (InputStream in = FeaturePipelineParityTest.class.getResourceAsStream("/worldgen/fixtures/" + GameVersion.RESOURCE_TAG + "/feature_order.txt");
              java.io.BufferedReader br = new java.io.BufferedReader(new java.io.InputStreamReader(in))) {
             boolean inStep6 = false;
             String line;
@@ -415,7 +415,7 @@ class FeaturePipelineParityTest {
         }
 
         // Oracle fixture: scan for ALL coal positions in cx=7,cz=-2
-        String fixtureName = "/worldgen/fixtures/featurefull_1234_7_-2.bin";
+        String fixtureName = "/worldgen/fixtures/" + GameVersion.RESOURCE_TAG + "/featurefull_1234_7_-2.bin";
         byte[] fx;
         try (InputStream in = FeaturePipelineParityTest.class.getResourceAsStream(fixtureName)) {
             assertNotNull(in, "fixture not found: " + fixtureName);
@@ -445,7 +445,7 @@ class FeaturePipelineParityTest {
 
     /** oracle binary에서 seagrass 위치 스캔 (seed=1234, cx=0, cz=0). */
     @Test void oracleSeagrassPositions() throws Exception {
-        String fixtureName = "/worldgen/fixtures/featurefull_1234_0_0.bin";
+        String fixtureName = "/worldgen/fixtures/" + GameVersion.RESOURCE_TAG + "/featurefull_1234_0_0.bin";
         byte[] fx;
         try (InputStream in = FeaturePipelineParityTest.class.getResourceAsStream(fixtureName)) {
             assertNotNull(in, "fixture not found: " + fixtureName);

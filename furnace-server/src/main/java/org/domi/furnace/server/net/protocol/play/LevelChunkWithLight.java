@@ -4,8 +4,10 @@ package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket")
 public record LevelChunkWithLight(ByteBuf body, byte[] shared) implements Packet {
 
     public static final int ID = 0x27;

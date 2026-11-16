@@ -1,12 +1,14 @@
 // 바닐라 CopperBulbBlock: 신호가 새로 들어올 때마다 켜짐(lit)을 뒤집는다. 비교기는 켜져 있으면 15.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.CopperBulbBlock")
 public class CopperBulbBlock extends BlockBehavior {
 
     private static final Prop POWERED = B.prop("powered"), LIT = B.prop("lit");

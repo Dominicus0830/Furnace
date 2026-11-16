@@ -7,6 +7,7 @@ package org.domi.furnace.server.block.entity;
 
 import java.util.List;
 import java.util.UUID;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -19,6 +20,7 @@ import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.loot.LootEntity;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort("net.minecraft.world.level.block.entity.vault.VaultBlockEntity")
 public class VaultBlockEntity extends BlockEntity {
 
     static final Prop VAULT_STATE = B.prop("vault_state"), OMINOUS = B.prop("ominous");

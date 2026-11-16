@@ -82,6 +82,15 @@ NESTED = {
         UPDATE_DATA, SAVE_AREA, LOAD_AREA, SCAN_AREA
     }
 """,
+    "BeaconBlockEntity": """
+    /**
+     * 바닐라 BeaconBlockEntity.playSound(level, pos, sound): 그 칸 가운데에서 블록 소리 분류로 크기·높이 1(level.playSound(null, pos, …)) — 그 칸
+     * 근처 플레이어가 듣는다(T-198 — FAWE 가 신호기를 지운 뒤 끄는 소리를 낸다). 그 칸의 주인 스레드(Bukkit 동기 작업 포함)에서 부른다.
+     */
+    public static void playSound(net.minecraft.world.level.Level level, BlockPos pos, net.minecraft.sounds.SoundEvent sound) {
+        level.playSound(null, pos, sound, net.minecraft.sounds.SoundSource.BLOCKS, 1.0F, 1.0F);
+    }
+""",
     "CommandBlockEntity": """
     /** 바닐라 CommandBlockEntity.Mode(명령 블록 종류). */
     public enum Mode {

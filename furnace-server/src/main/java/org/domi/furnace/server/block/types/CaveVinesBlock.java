@@ -1,6 +1,7 @@
 // 바닐라 CaveVinesBlock: 동굴 덩굴 머리(아래로 자람). 자랄 때 11% 확률로 열매. 뼛가루는 열매를 맺게 한다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -9,6 +10,7 @@ import org.domi.furnace.server.block.InteractionResult;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.CaveVinesBlock")
 public class CaveVinesBlock extends GrowingPlantBlock.GrowingPlantHead {
 
     public CaveVinesBlock(int block) { super(block, CAVE_VINES); }

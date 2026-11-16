@@ -3,6 +3,7 @@
 package org.domi.furnace.server.loot;
 
 import com.google.gson.JsonElement;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.item.CodecException;
 import org.domi.furnace.server.item.DataComponents;
 import org.domi.furnace.server.item.ItemPredicates;
@@ -10,6 +11,7 @@ import org.domi.furnace.server.item.ItemPrototypes;
 import org.domi.furnace.server.item.ItemView;
 import org.domi.furnace.server.item.RegistryView;
 
+@VanillaPort("net.minecraft.advancements.critereon.ItemPredicate")
 public final class ItemPredicate {
 
     private final ItemPredicates.Test test;

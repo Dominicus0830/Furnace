@@ -3,12 +3,14 @@
 package org.domi.furnace.server.block.types;
 
 import java.util.Collection;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Fluids;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.SculkBehaviour")
 public interface SculkBehaviour {
 
     SculkBehaviour DEFAULT = new SculkBehaviour() {

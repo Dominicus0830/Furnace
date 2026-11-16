@@ -7,6 +7,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
@@ -15,6 +16,7 @@ import org.domi.furnace.server.net.protocol.play.RecipeBookUpdate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@VanillaPort("net.minecraft.stats.ServerRecipeBook")
 public final class RecipeBook {
 
     private static final Logger log = LoggerFactory.getLogger(RecipeBook.class);

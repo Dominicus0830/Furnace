@@ -12,7 +12,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.core.component.DataComponentPatch")
 public final class Components {
     private Components() {}
 

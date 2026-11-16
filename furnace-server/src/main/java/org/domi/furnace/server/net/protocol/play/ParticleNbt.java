@@ -1,10 +1,12 @@
 // 입자 옵션 → NBT(바닐라 ParticleTypes.CODEC 의 저장 모양): {type, ...옵션 필드}. 읽기는 ParticleArgument.decodeNbt.
 package org.domi.furnace.server.net.protocol.play;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 
+@VanillaPort("net.minecraft.core.particles.ParticleTypes")
 public final class ParticleNbt {
 
     private ParticleNbt() {}

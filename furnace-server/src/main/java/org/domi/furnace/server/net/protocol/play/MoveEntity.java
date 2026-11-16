@@ -3,9 +3,11 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundMoveEntityPacket")
 public record MoveEntity(int kind, int entityId, short dx, short dy, short dz, int yRot, int xRot, boolean onGround) implements Packet {
 
     public static final int POS = 0x2E, POS_ROT = 0x2F, ROT = 0x30;

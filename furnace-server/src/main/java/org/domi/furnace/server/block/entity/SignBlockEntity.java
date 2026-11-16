@@ -10,6 +10,7 @@ import java.util.UUID;
 import java.util.function.UnaryOperator;
 import org.domi.furnace.api.text.ClickEvent;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -17,6 +18,10 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.PlayerActor;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort({
+    "net.minecraft.world.level.block.entity.SignBlockEntity",
+    "net.minecraft.world.level.block.entity.HangingSignBlockEntity"
+})
 public class SignBlockEntity extends BlockEntity {
 
     private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(SignBlockEntity.class);

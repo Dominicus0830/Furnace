@@ -11,8 +11,10 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.item.ItemContext;
 
+@VanillaPort("net.minecraft.world.item.BlockItem")
 public final class BlockItems {
     private BlockItems() {}
 

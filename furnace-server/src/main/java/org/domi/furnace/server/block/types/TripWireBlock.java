@@ -1,6 +1,7 @@
 // 바닐라 TripWireBlock: 덫줄. 이웃 덫줄·마주 보는 덫걸이에 이어지고, 놓이거나 없어지면 양 끝 덫걸이(남·서 쪽으로 41칸까지)를 다시 계산한다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockBehavior;
@@ -12,6 +13,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.TripWireBlock")
 public class TripWireBlock extends BlockBehavior {
 
     static final Prop POWERED = B.prop("powered"), ATTACHED = B.prop("attached"), DISARMED = B.prop("disarmed"),

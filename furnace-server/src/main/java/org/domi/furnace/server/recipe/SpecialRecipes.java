@@ -6,11 +6,27 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.item.CraftRemainders;
 import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.item.ItemTools;
 
+@VanillaPort({
+        "net.minecraft.world.item.crafting.ArmorDyeRecipe",
+        "net.minecraft.world.item.crafting.BannerDuplicateRecipe",
+        "net.minecraft.world.item.crafting.BookCloningRecipe",
+        "net.minecraft.world.item.crafting.DecoratedPotRecipe",
+        "net.minecraft.world.item.crafting.FireworkRocketRecipe",
+        "net.minecraft.world.item.crafting.FireworkStarFadeRecipe",
+        "net.minecraft.world.item.crafting.FireworkStarRecipe",
+        "net.minecraft.world.item.crafting.MapCloningRecipe",
+        "net.minecraft.world.item.crafting.MapExtendingRecipe",
+        "net.minecraft.world.item.crafting.RepairItemRecipe",
+        "net.minecraft.world.item.crafting.ShieldDecorationRecipe",
+        "net.minecraft.world.item.crafting.ShulkerBoxColoring",
+        "net.minecraft.world.item.crafting.SuspiciousStewRecipe",
+        "net.minecraft.world.item.crafting.TippedArrowRecipe"})
 public final class SpecialRecipes {
 
     private SpecialRecipes() { }

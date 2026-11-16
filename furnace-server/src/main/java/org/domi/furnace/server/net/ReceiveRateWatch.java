@@ -2,6 +2,9 @@
 // 평균은 바닐라 Connection.tickSecond 와 같다 — avg = lerp(0.75, 이번 1초의 수, avg). 이벤트루프 전용.
 package org.domi.furnace.server.net;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("net.minecraft.network.RateKickingConnection")
 final class ReceiveRateWatch {
 
     private final int limit;

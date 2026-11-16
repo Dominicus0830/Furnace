@@ -2,6 +2,7 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
@@ -9,6 +10,7 @@ import org.domi.furnace.server.trade.ItemCost;
 import org.domi.furnace.server.trade.MerchantOffer;
 import org.domi.furnace.server.trade.MerchantOffers;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundMerchantOffersPacket")
 public record MerchantOffersPacket(int containerId, MerchantOffers offers, int villagerLevel, int villagerXp, boolean showProgress, boolean canRestock)
         implements Packet {
 

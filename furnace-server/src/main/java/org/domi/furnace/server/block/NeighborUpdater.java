@@ -4,9 +4,11 @@ package org.domi.furnace.server.block;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import org.domi.furnace.server.VanillaPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@VanillaPort("net.minecraft.world.level.redstone.CollectingNeighborUpdater")
 public final class NeighborUpdater {
 
     private static final Logger log = LoggerFactory.getLogger(NeighborUpdater.class);

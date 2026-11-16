@@ -1,6 +1,7 @@
 // 바닐라 SnowLayerBlock: 눈(layers 1..8). 같은 것을 들고 윗면을 누르면 한 겹씩 쌓이고, 블록빛이 11 넘으면 녹는다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.CollisionContext;
 
 import org.domi.furnace.server.block.Shape;
@@ -15,6 +16,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.SnowLayerBlock")
 public class SnowLayerBlock extends BlockBehavior {
 
     static final Prop LAYERS = B.prop("layers");
