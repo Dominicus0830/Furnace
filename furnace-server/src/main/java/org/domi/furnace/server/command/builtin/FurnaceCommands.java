@@ -13,6 +13,7 @@ import java.util.Locale;
 import org.domi.furnace.api.Furnace;
 import org.domi.furnace.api.plugin.FurnacePlugin;
 import org.domi.furnace.api.plugin.PluginManager;
+import org.domi.furnace.api.text.NamedTextColor;
 import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.command.CommandSource;
 import org.domi.furnace.server.command.SharedSuggestions;
@@ -28,7 +29,17 @@ public final class FurnaceCommands {
         d.register(literal("version").executes(c -> {
             c.getSource().sendSuccess(() -> Text.text(versionLine(server)), false);
             return 1;
-        }));
+        })
+                // Paper·Bukkit 의 /version <플러그인>: 이름이 같은 플러그인(없으면 이름에 그 글자가 든 플러그인 전부)의 버전·설명·웹사이트·작성자
+                .then(argument("plugin", Arguments.greedyString())
+                        .suggests((c, b) -> SharedSuggestions.suggest(pluginNames(server), b))
+                        .executes(c -> {
+                            List<org.domi.furnace.api.plugin.PluginDescription> descs = new ArrayList<>();
+                            for (FurnacePlugin p : server.plugins().plugins()) descs.add(p.description());
+                            List<Text> lines = pluginInfo(descs, c.getArgument("plugin", String.class));
+                            for (Text line : lines) c.getSource().sendSuccess(() -> line, false);
+                            return lines.isEmpty() ? 0 : 1;
+                        })));
         d.register(literal("plugins").executes(c -> {
             PluginManager pm = server.plugins();
             List<FurnacePlugin> list = new ArrayList<>(pm.plugins());
@@ -41,6 +52,50 @@ public final class FurnaceCommands {
                         .then(argument("plugin", Arguments.word())
                                 .suggests((c, b) -> SharedSuggestions.suggest(pluginNames(server), b))
                                 .executes(c -> reload(c.getSource(), server, c.getArgument("plugin", String.class))))));
+    }
+
+    /**
+     * Bukkit {@code VersionCommand} 와 같은 찾기·출력: 이름이 정확히(대소문자 무시, 공백은 '_' 로 본다) 같은 플러그인이 있으면 그것만,
+     * 없으면 이름에 입력이 든(소문자) 플러그인 전부, 하나도 없으면 안내 두 줄. 빈 목록이면 안내 줄을 돌려준다.
+     */
+    public static List<Text> pluginInfo(List<org.domi.furnace.api.plugin.PluginDescription> plugins, String query) {
+        String exact = query.replace(' ', '_');
+        List<org.domi.furnace.api.plugin.PluginDescription> found = new ArrayList<>();
+        for (var p : plugins) {
+            if (p.name().replace(' ', '_').equalsIgnoreCase(exact)) {
+                found.add(p);
+                break;
+            }
+        }
+        if (found.isEmpty()) {
+            String lower = query.toLowerCase(Locale.ROOT);
+            for (var p : plugins) if (p.name().toLowerCase(Locale.ROOT).contains(lower)) found.add(p);
+        }
+        List<Text> out = new ArrayList<>();
+        if (found.isEmpty()) {
+            for (String line : Lang.t("cmd.furnace.version-none").split("\n")) out.add(Text.text(line));
+            return out;
+        }
+        for (var p : found) describe(p, out);
+        return out;
+    }
+
+    private static void describe(org.domi.furnace.api.plugin.PluginDescription d, List<Text> out) {
+        out.add(Text.join(Text.text(d.name().replace(' ', '_'), NamedTextColor.GREEN), Text.text(Lang.t("cmd.furnace.version-of"), NamedTextColor.WHITE),
+                Text.text(d.version(), NamedTextColor.GREEN)));
+        if (d.description() != null && !d.description().isEmpty()) out.add(Text.text(d.description()));
+        if (d.website() != null && !d.website().isEmpty())
+            out.add(Text.join(Text.text(Lang.t("cmd.furnace.version-website"), NamedTextColor.WHITE), Text.text(d.website(), NamedTextColor.GREEN)));
+        List<String> authors = d.authors();
+        if (!authors.isEmpty()) {
+            List<Text> parts = new ArrayList<>();
+            parts.add(Text.text(Lang.t(authors.size() == 1 ? "cmd.furnace.version-author" : "cmd.furnace.version-authors"), NamedTextColor.WHITE));
+            for (int i = 0; i < authors.size(); i++) {
+                if (i > 0) parts.add(Text.text(i < authors.size() - 1 ? ", " : Lang.t("cmd.furnace.version-and"), NamedTextColor.WHITE));
+                parts.add(Text.text(authors.get(i), NamedTextColor.GREEN));
+            }
+            out.add(Text.join(parts.toArray(new Text[0])));
+        }
     }
 
     private static List<String> pluginNames(Furnace server) {
