@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.ChunkLevel;
@@ -18,6 +19,7 @@ import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 
+@VanillaPort("net.minecraft.world.level.block.SculkSpreader")
 public final class SculkSpreader {
 
     public static final int MAX_GROWTH_RATE_RADIUS = 24, MAX_CHARGE = 1000, SHRIEKER_PLACEMENT_RATE = 11;

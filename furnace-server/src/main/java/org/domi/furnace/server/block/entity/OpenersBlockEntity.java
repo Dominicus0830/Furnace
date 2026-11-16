@@ -2,9 +2,11 @@
 // 바뀔 때마다 block_event, 열린 동안 5틱마다 실제로 연 플레이어를 다시 센다. startOpen/stopOpen/recheckOpen 은 그 블록의 region 스레드에서.
 package org.domi.furnace.server.block.entity;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.entity.ContainerOpenersCounter")
 public abstract class OpenersBlockEntity extends BlockEntity {
 
     /** 지금 이 용기를 열어 둔 사람 수(ContainerOpenersCounter). 틱 스레드에서만 바꾼다. */

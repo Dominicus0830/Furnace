@@ -1,6 +1,7 @@
 // 바닐라 ObserverBlock: 관측기. 앞쪽(facing) 칸의 모양 갱신을 보면 2틱 뒤 2틱 동안 뒤쪽으로 강한 신호.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
@@ -9,6 +10,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.ObserverBlock")
 public class ObserverBlock extends DirectionalBlock {
 
     private static final Prop POWERED = B.prop("powered");

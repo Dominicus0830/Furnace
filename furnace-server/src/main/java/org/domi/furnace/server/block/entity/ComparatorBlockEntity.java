@@ -1,9 +1,11 @@
 // 바닐라 ComparatorBlockEntity: 비교기 출력 세기(OutputSignal)를 들고 있다.
 package org.domi.furnace.server.block.entity;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort("net.minecraft.world.level.block.entity.ComparatorBlockEntity")
 public class ComparatorBlockEntity extends BlockEntity {
 
     private int output;

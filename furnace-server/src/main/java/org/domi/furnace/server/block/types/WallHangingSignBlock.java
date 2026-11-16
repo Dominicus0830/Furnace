@@ -1,6 +1,7 @@
 // 바닐라 WallHangingSignBlock: 벽에 거는 표지판. 양옆 중 한쪽이 단단한 면이거나 같은 축의 벽걸이 표지판이어야 놓인다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -13,6 +14,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.WallHangingSignBlock")
 public class WallHangingSignBlock extends SignBlock implements BlockPlacement.WallHangingSignPlacement {
 
     static final Prop FACING = B.prop("facing");

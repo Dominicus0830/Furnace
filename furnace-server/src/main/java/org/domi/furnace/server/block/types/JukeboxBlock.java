@@ -1,6 +1,7 @@
 // 바닐라 JukeboxBlock: 음반을 넣으면 재생(has_record). 재생 중이면 신호 15. 꺼내기·재생은 블록 엔티티 동작.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -14,6 +15,7 @@ import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort("net.minecraft.world.level.block.JukeboxBlock")
 public class JukeboxBlock extends BaseEntityBlock {
 
     private static final Prop HAS_RECORD = B.prop("has_record");

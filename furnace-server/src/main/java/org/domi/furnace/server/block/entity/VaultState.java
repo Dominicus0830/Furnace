@@ -2,6 +2,9 @@
 // 전이·진입/이탈 효과는 VaultBlockEntity.Server 가 부른다. 빛 밝기: inactive 6, 그 밖 12. 클라이언트 입자·주변 소리는 클라이언트 몫.
 package org.domi.furnace.server.block.entity;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("net.minecraft.world.level.block.entity.vault.VaultState")
 public enum VaultState {
     INACTIVE("inactive", 6),
     ACTIVE("active", 12),

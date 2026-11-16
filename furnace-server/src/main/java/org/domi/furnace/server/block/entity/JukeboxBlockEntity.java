@@ -4,6 +4,7 @@
 // 재생 중 1초마다 음표 입자 위치용 난수 한 번(level.random.nextInt(4))을 쓴다 — 입자 패킷은 아직 없지만 난수는 바닐라와 같게 소비한다.
 package org.domi.furnace.server.block.entity;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -15,6 +16,10 @@ import org.domi.furnace.server.item.ItemNbt;
 import org.domi.furnace.server.item.JukeboxSongs;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort({
+    "net.minecraft.world.level.block.entity.JukeboxBlockEntity",
+    "net.minecraft.world.item.JukeboxSongPlayer"
+})
 public class JukeboxBlockEntity extends BlockEntity {
 
     private static final Prop HAS_RECORD = B.prop("has_record");

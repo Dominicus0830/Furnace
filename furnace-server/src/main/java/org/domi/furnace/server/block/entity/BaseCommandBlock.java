@@ -9,12 +9,14 @@ import java.time.format.DateTimeFormatter;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockCommandSink;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.item.FlatText;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort("net.minecraft.world.level.BaseCommandBlock")
 public abstract class BaseCommandBlock implements BlockCommandSink {
 
     /** performCommand 의 결과. */

@@ -1,11 +1,13 @@
 // 바닐라 BushBlock: 흙류(#dirt)나 경작지 위에서만 산다. 살 수 없게 되면 모양 갱신에서 공기로.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.BushBlock")
 public abstract class BushBlock extends BlockBehavior {
 
     private static final int FARMLAND = B.id("farmland");

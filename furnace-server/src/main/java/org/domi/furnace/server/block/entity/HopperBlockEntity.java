@@ -8,6 +8,7 @@
 package org.domi.furnace.server.block.entity;
 
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehaviors;
 import org.domi.furnace.server.block.BlockLevel;
@@ -24,6 +25,7 @@ import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.menu.Stacks;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort("net.minecraft.world.level.block.entity.HopperBlockEntity")
 public class HopperBlockEntity extends ContainerBlockEntity implements Hopper {
     public static final int MOVE_ITEM_SPEED = 8;
     public static final int HOPPER_CONTAINER_SIZE = 5;

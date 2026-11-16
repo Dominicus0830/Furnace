@@ -3,7 +3,9 @@
 package org.domi.furnace.server.block;
 
 import java.util.Arrays;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.phys.shapes.VoxelShape")
 public final class Shape {
 
     public static final Shape EMPTY = new Shape(new double[0]);

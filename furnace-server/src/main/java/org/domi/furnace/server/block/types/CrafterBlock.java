@@ -5,6 +5,7 @@
 // 월드에 내놓은 아이템마다 17×17×17 안 플레이어에게 crafter_recipe_crafted(레시피, 만들 때의 재료 칸들).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -19,6 +20,7 @@ import org.domi.furnace.server.block.entity.CrafterBlockEntity;
 import org.domi.furnace.server.block.entity.HopperBlockEntity;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.CrafterBlock")
 public class CrafterBlock extends BaseEntityBlock {
 
     private static final Prop CRAFTING = B.prop("crafting"), TRIGGERED = B.prop("triggered"), ORIENTATION = B.prop("orientation");

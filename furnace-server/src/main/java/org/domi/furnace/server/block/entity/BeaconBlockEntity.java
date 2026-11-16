@@ -5,6 +5,7 @@ package org.domi.furnace.server.block.entity;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
@@ -15,6 +16,7 @@ import org.domi.furnace.server.light.LightTables;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort("net.minecraft.world.level.block.entity.BeaconBlockEntity")
 public class BeaconBlockEntity extends BlockEntity {
 
     /** 고를 수 있는 효과(단계별): 신호기 레벨 1..4. */

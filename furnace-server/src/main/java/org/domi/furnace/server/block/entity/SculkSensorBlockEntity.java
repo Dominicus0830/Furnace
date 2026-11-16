@@ -2,6 +2,7 @@
 // 보정된 조각 감지기(CalibratedSculkSensorBlockEntity)는 반경 16, 뒤쪽 신호가 있으면 그 주파수만 듣는다.
 package org.domi.furnace.server.block.entity;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.ChunkLevel;
@@ -16,6 +17,7 @@ import org.domi.furnace.server.world.gameevent.GameEventListener;
 import org.domi.furnace.server.world.gameevent.PositionSource;
 import org.domi.furnace.server.world.gameevent.VibrationSystem;
 
+@VanillaPort("net.minecraft.world.level.block.entity.SculkSensorBlockEntity")
 public class SculkSensorBlockEntity extends BlockEntity implements VibrationSystem, GameEventListener.Provider {
 
     private static final int SCULK_SENSOR = B.id("sculk_sensor"), CALIBRATED = B.id("calibrated_sculk_sensor");

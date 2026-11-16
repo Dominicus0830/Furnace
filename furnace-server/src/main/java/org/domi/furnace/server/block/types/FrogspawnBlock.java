@@ -1,6 +1,7 @@
 // 바닐라 FrogspawnBlock: 개구리알. 물 원천 위(그 칸은 비어 있음)에서만 산다. 3600~12000틱 뒤 부화(올챙이 2~6마리).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.Fluids;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.FrogspawnBlock")
 public class FrogspawnBlock extends BlockBehavior {
 
     public FrogspawnBlock(int block) { super(block); }

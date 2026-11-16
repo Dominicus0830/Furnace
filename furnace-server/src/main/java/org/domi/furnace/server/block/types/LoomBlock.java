@@ -1,6 +1,7 @@
 // 바닐라 LoomBlock: 베틀. 바라보는 쪽을 향해 놓이고, 누르면 베틀 화면, 통계 interact_with_loom.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
@@ -9,6 +10,7 @@ import org.domi.furnace.server.block.InteractionResult;
 import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.LoomBlock")
 public class LoomBlock extends HorizontalDirectionalBlock {
 
     public LoomBlock(int block) { super(block); }

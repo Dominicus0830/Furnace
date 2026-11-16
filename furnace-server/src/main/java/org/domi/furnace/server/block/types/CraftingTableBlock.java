@@ -1,6 +1,7 @@
 // 바닐라 CraftingTableBlock: 제작대. 누르면 3×3 제작 화면, 통계 interact_with_crafting_table.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.Hit;
 import org.domi.furnace.server.block.InteractionResult;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.CraftingTableBlock")
 public class CraftingTableBlock extends BlockBehavior {
 
     public CraftingTableBlock(int block) { super(block); }

@@ -1,6 +1,7 @@
 // 바닐라 ChestBlock: 상자. 이웃 상자와 이어 붙고(type single/left/right), 위가 막히면 열리지 않는다. 내용물은 블록 엔티티.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -14,6 +15,7 @@ import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.world.ChestBlockEntity;
 
+@VanillaPort("net.minecraft.world.level.block.ChestBlock")
 public class ChestBlock extends AbstractChestBlock {
 
     static final Prop FACING = B.prop("facing"), TYPE = B.prop("type");

@@ -3,11 +3,17 @@
 // 용암이 물을 만나 돌이 되기·물이 부수는 블록 드롭·용암 무작위 틱(불 번지기)까지 바닐라 순서 그대로.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.types.BaseFireBlock;
 import org.domi.furnace.server.block.types.DoorBlock;
 import org.domi.furnace.server.block.types.LiquidBlock;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort({
+    "net.minecraft.world.level.material.FlowingFluid",
+    "net.minecraft.world.level.material.WaterFluid",
+    "net.minecraft.world.level.material.LavaFluid"
+})
 public final class FluidTicker {
 
     private FluidTicker() {}

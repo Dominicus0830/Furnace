@@ -2,6 +2,7 @@
 // 편집 화면은 클라이언트가 블록 엔티티 데이터로 직접 연다(서버는 권한 있는 크리에이티브면 상호작용을 소비만 한다). 저장·불러오기 신호는 neighborChanged 가 처리한다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Hit;
@@ -11,6 +12,7 @@ import org.domi.furnace.server.block.entity.BlockEntity;
 import org.domi.furnace.server.block.entity.StructureBlockEntity;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.StructureBlock")
 public class StructureBlock extends BaseEntityBlock {
 
     public StructureBlock(int block) { super(block); }

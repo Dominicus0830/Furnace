@@ -2,6 +2,7 @@
 // 위가 꽉 찬 면이 아니거나 웅크리면 사슬(attached) — 16방향, 아니면 4방향. 매단 표지판 아래에 이어 달면 그 방향을 따른다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockInfo;
@@ -14,6 +15,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.CeilingHangingSignBlock")
 public class CeilingHangingSignBlock extends SignBlock {
 
     static final Prop ROTATION = B.prop("rotation"), ATTACHED = B.prop("attached");

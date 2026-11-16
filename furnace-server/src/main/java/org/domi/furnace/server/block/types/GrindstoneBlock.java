@@ -1,12 +1,14 @@
 // 바닐라 GrindstoneBlock: 어디에 붙어도 산다. 쓰면 숫돌 화면.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Hit;
 import org.domi.furnace.server.block.InteractionResult;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.GrindstoneBlock")
 public class GrindstoneBlock extends FaceAttachedHorizontalDirectionalBlock {
 
     public GrindstoneBlock(int block) { super(block); }

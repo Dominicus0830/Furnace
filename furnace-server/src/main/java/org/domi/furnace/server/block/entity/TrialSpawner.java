@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.ChunkLevel;
@@ -31,6 +32,11 @@ import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 import org.domi.furnace.server.world.GameMode;
 
+@VanillaPort({
+    "net.minecraft.world.level.block.entity.trialspawner.TrialSpawner",
+    "net.minecraft.world.level.block.entity.trialspawner.TrialSpawnerState",
+    "net.minecraft.world.level.block.entity.trialspawner.PlayerDetector"
+})
 public final class TrialSpawner {
 
     public static final int DETECT_PLAYER_SPAWN_BUFFER = 40;

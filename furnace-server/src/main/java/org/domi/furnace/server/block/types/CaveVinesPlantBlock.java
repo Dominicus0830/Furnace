@@ -1,6 +1,7 @@
 // 바닐라 CaveVinesPlantBlock: 동굴 덩굴 몸통. 열매 따기·뼛가루로 열매.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Hit;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.InteractionResult;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.CaveVinesPlantBlock")
 public class CaveVinesPlantBlock extends GrowingPlantBlock.GrowingPlantBody {
 
     public CaveVinesPlantBlock(int block) { super(block, CAVE_VINES); }

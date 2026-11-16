@@ -1,6 +1,7 @@
 // 바닐라 LadderBlock: 사다리. 바라보는 쪽 벽(단단한 면)에 붙고, 같은 방향 사다리의 앞면을 눌러 그 칸에 또 놓을 수는 없다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -9,6 +10,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.LadderBlock")
 public class LadderBlock extends BlockBehavior {
 
     static final Prop FACING = B.prop("facing");

@@ -1,10 +1,12 @@
 // 바닐라 WitherRoseBlock: 위더 장미. 네더랙·영혼 모래·영혼 흙 위에서도 살고, 닿은 생물에게 시듦(40틱)을 건다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.WitherRoseBlock")
 public class WitherRoseBlock extends FlowerBlock {
 
     private static final int NETHERRACK = B.id("netherrack"), SOUL_SAND = B.id("soul_sand"), SOUL_SOIL = B.id("soul_soil");

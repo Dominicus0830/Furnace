@@ -2,6 +2,7 @@
 // 아래부터 물 원천이 이어지는 동안 위로 기둥을 세운다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -11,6 +12,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.BubbleColumnBlock")
 public class BubbleColumnBlock extends BlockBehavior {
 
     private static final Prop DRAG = B.prop("drag");

@@ -1,6 +1,7 @@
 // 바닐라 SignBlock: 표지판 바탕. 물에 잠길 수 있다. 글 편집·염료·밀랍 칠은 블록 엔티티(SignBlockEntity) 동작.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -13,6 +14,7 @@ import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.block.entity.SignBlockEntity;
 import org.domi.furnace.server.block.entity.SignText;
 
+@VanillaPort("net.minecraft.world.level.block.SignBlock")
 public abstract class SignBlock extends BaseEntityBlock {
 
     protected SignBlock(int block) { super(block); }

@@ -1,9 +1,11 @@
 // 바닐라 DefaultDispenseItemBehavior: 하나를 떼어 앞으로 던진다(속도 6). 실행 → 소리(1000) → 연기(2000, 방향) 순서.
 package org.domi.furnace.server.block.dispenser;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.types.CrafterBlock;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.core.dispenser.DefaultDispenseItemBehavior")
 public class DefaultDispenseItemBehavior implements DispenseItemBehavior {
 
     @Override

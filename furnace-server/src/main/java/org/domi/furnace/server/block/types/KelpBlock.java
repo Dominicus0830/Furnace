@@ -1,10 +1,12 @@
 // 바닐라 KelpBlock: 켈프 머리(위로 자람, 물 원천 안에서만). 마그마 위에는 붙지 않는다. 언제나 물에 잠김.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.Fluids;
 import org.domi.furnace.server.block.PlaceContext;
 
+@VanillaPort("net.minecraft.world.level.block.KelpBlock")
 public class KelpBlock extends GrowingPlantBlock.GrowingPlantHead {
 
     private static final int WATER = B.id("water"), MAGMA_BLOCK = B.id("magma_block");

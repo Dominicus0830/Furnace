@@ -1,6 +1,7 @@
 // 바닐라 SculkShriekerBlock: 스컬크 비명체. 비명(shrieking)이 켜지면 다음 예약 틱에 끈다. 진동 응답·경고 단계는 블록 엔티티 동작.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.PlaceContext;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.SculkShriekerBlock")
 public class SculkShriekerBlock extends BaseEntityBlock {
 
     static final Prop SHRIEKING = B.prop("shrieking"), CAN_SUMMON = B.prop("can_summon");

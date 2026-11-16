@@ -1,6 +1,7 @@
 // 바닐라 WallBlock: 벽. 옆면은 none/low/tall(위 칸 충돌 모양 아랫면이 덮으면 tall), 기둥(up)은 모양·위 칸에 따라 세운다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -10,6 +11,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.Shape;
 
+@VanillaPort("net.minecraft.world.level.block.WallBlock")
 public class WallBlock extends BlockBehavior {
 
     static final Prop UP = B.prop("up"), NORTH = B.prop("north"), EAST = B.prop("east"), SOUTH = B.prop("south"), WEST = B.prop("west");

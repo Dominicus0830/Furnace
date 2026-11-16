@@ -2,6 +2,7 @@
 // 진동은 블록 엔티티(SculkSensorBlockEntity)가 듣는다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
@@ -12,6 +13,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.SculkSensorBlock")
 public class SculkSensorBlock extends BaseEntityBlock {
 
     static final Prop PHASE = B.prop("sculk_sensor_phase"), POWER = B.prop("power");

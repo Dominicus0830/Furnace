@@ -1,6 +1,7 @@
 // 바닐라 CandleBlock: 양초(candles 1..4, lit, waterlogged). 같은 양초를 들고 누르면 늘고, 빈손으로 누르면 끈다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -12,6 +13,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.CandleBlock")
 public class CandleBlock extends AbstractCandleBlock {
 
     static final Prop CANDLES = B.prop("candles");

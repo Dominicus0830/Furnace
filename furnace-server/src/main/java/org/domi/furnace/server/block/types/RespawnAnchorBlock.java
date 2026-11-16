@@ -1,6 +1,7 @@
 // 바닐라 RespawnAnchorBlock: 리스폰 정박기. 발광석으로 충전(0~4). 네더에서만 리스폰 지점, 다른 차원에서 쓰면 터진다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -13,6 +14,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.RespawnAnchorBlock")
 public class RespawnAnchorBlock extends org.domi.furnace.server.block.BlockBehavior {
 
     static final Prop CHARGE = B.prop("charges");

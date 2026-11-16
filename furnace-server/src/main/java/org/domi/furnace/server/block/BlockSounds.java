@@ -11,7 +11,9 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.level.block.SoundType")
 public final class BlockSounds {
 
     /** SoundType: 크기·높이와 다섯 소리(이름은 minecraft: 포함). */
