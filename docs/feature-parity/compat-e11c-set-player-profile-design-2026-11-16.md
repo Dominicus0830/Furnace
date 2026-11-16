@@ -1,48 +1,83 @@
-# T-141 E11c-2 `Player#setPlayerProfile` 설계 (2026-11-16)
+# T-141 E11c-2 `Player#setPlayerProfile` 설계 (2026-11-16, 독립 검토 R1~R7·권장 반영판)
 
-목표: Paper 1.21.1 과 관측 결과가 같은 **완전판**(UUID·이름·skin 모두 교체). "skin 만" 같은 반쪽 구현은 하지 않는다. 이 문서는 구현 전 설계 검토용이며 코드는 없다.
+목표: Paper 1.21.1 과 관측 결과가 같은 **완전판**(UUID·이름·skin 모두 교체). "skin 만" 같은 반쪽 구현은 하지 않는다. 구현 전 설계 문서이며 코드는 없다. 근거 원문: Paper `33ff3dff` 의 `Player.setPlayerProfile-API`·`Adventure`·`Add-sendOpLevel-API`·`Add-Listing-API-for-Player` 패치(검토가 확인한 것. 패치에 없는 CraftBukkit·바닐라 본문은 "추론"으로 표시, 구현 때 Paper 로 실측).
 
-## 1. Paper 가 하는 일 (CraftPlayer.setPlayerProfile, 동작만 비교)
-1. `sentListPacket` 이 false(아직 탭 목록을 안 보냄)면 `gameProfile` 만 바꾸고 끝.
-2. 아니면 (a) 나를 볼 수 있는 모든 플레이어에게서 나를 **등록 해제**(엔티티 제거 + 탭 제거), (b) `gameProfile` 교체, (c) 같은 플레이어 모두에게 **다시 등록**(탭 추가 + 엔티티 재표시; 이때만 엔티티 UUID 를 새 프로필 UUID 로 잠깐 바꿔 보냄), (d) 본인 화면 갱신 `refreshPlayer`.
-3. `refreshPlayer` = 리스폰 패킷(KEEP_ALL_DATA) → 능력치 → 현재 위치 텔레포트 → 권한 레벨 → 월드 정보 → 전체 플레이어 정보 → 경험치 → 활성 효과.
-4. 서버 쪽 의미: **엔티티 UUID(`getUniqueId`)는 안 바뀐다.** 바뀌는 것은 게임 프로필(`getPlayerProfile`·`getName`·탭·op·화이트리스트 조회 키).
+**원칙(코디네이터 결정):** 기본은 Paper 와 같은 동작이다. UUID 를 바꾸는 경우의 관찰자 화면 처리도 Paper 패킷 그대로(§1 R1). Furnace 만 다르게 가는 곳은 이 문서에 근거와 함께 "의도한 차이"로 적고, 도미니코 결정 항목으로 올리지 않는다(§8).
+
+## 1. Paper 가 하는 일 (CraftPlayer.setPlayerProfile)
+1. `sentListPacket` 이 false 면 `gameProfile` 만 바꾸고 끝. (접속 중 **PlayerJoinEvent 뒤에** 접속자 탭을 보내고 true 로 둔다 → 조인 이벤트 안에서 부르면 리스폰 없이 프로필만 바뀌고 탭도 처음부터 새 프로필로 나간다.)
+2. 아니면: (a) `canSee(나)` 인 모든 플레이어(본인 포함)에게 `unregisterEntity` = `RemoveEntities` + `PlayerInfoRemove(**엔티티 UUID**)`, (b) `gameProfile` 교체, (c) 같은 플레이어 모두에게 `trackAndShowEntity(나, 새 프로필 id)`, (d) 본인에게 `refreshPlayer`.
+3. (c) 에서 **새 프로필 id 가 실리는 곳은 재등록의 `PlayerInfoUpdate`(createPlayerInitializing) 한 패킷뿐**이다. 엔티티 UUID 를 새 id 로 바꾸는 것은 그 패킷을 만드는 동안만이고 곧바로 되돌린다. 이어지는 스폰(`AddEntity`)은 **엔티티 UUID** 로 나간다. 재등록 항목의 listed 는 목록 숨김(`unlistPlayer`) 상태를 그대로 따른다(Listing API 패치).
+4. 그 밖의 모든 탭 패킷(접속 때 목록, 핑, 게임 모드, INITIALIZE_CHAT, 퇴장 Remove)은 항상 **엔티티 UUID + 현재 프로필의 이름·속성**이다. 서명 채팅의 디코더·INITIALIZE_CHAT·채팅 패킷 sender 도 엔티티 UUID 다. 프로필 id 를 쓰는 곳은 `handleChatSessionUpdate` 의 키 검증 `data.validate(player.getGameProfile(), …)` 하나뿐.
+5. `refreshPlayer`(§5)와 `PlayerShowEntityEvent`(§1-R3)가 따라온다. `PlayerHideEntityEvent` 는 부르지 않는다(`unregisterEntity` 를 따로 떼어 냈기 때문).
+
+**R1 — UUID 가 바뀔 때 Paper 의 관측(추론, 실서버 미확인):** 그 순간 접속해 있던 관찰자 클라이언트는 `AddEntity` 의 UUID(엔티티 UUID)로 탭 정보를 찾지 못해 플레이어를 만들지 않는다(바닐라 클라 "Server attempted to add player prior to sending player info"). 새 id 로 올라간 탭 항목은 퇴장 뒤에도 유령으로 남고, 채팅 sender 도 엔티티 UUID 라 관찰자가 보낸 사람을 못 찾는다. 나중에 접속한 사람에게는 정상이다. **Furnace 도 같은 패킷을 낸다**(원칙: 관측 동일; 실제 플러그인은 대개 UUID 를 그대로 둔다). **UUID 가 같은 경우(스킨·이름만 바꿈, 가장 흔한 쓰임)는 Paper 와 바이트 단위로 같게** 낸다. 두 경우 모두 구현 때 Paper 로 실측해 다르면 이 절을 고친다.
 
 ## 2. Furnace 의 지금 모양
-- `Player.uuid`/`name` 은 `final` 이고 엔티티 UUID 와 프로필 UUID 를 겸한다(`Player.java` 76~77행). `profileProperties` 만 가변.
-- 접속자 맵은 **entityId 키**(`World.onlinePlayer(eid)`), 탭 기록 `listed` 도 eid→uuid, 시야 규칙 `EntityViewRules.TARGETS` 만 UUID 키. 이름·UUID 조회는 `ServerCore.playerByName/playerByUuid` 가 접속자를 훑는 방식이라 캐시가 없다.
-- 프로필을 읽는 곳: `ServerCore.profileOf(p)`(op·화이트리스트·밴 조회, 명령), `Region.syncTabList`(탭 항목), `ConnectionHandler.tabEntry`, `PlayerChatState(profileId)`(서명 채팅 세션), playerdata·stats·advancements 파일 이름(`<uuid>.dat/.json`), 스코어보드(이름 키), 플러그인 쪽 `PlayerHandle`·`OfflinePlayerImpl`.
+- `Player.uuid`/`name` 은 `final` 이고 엔티티 UUID 와 프로필을 겸한다. `profileProperties` 만 가변.
+- 접속자 맵은 entityId 키(`World.onlinePlayer(eid)`), 탭 기록 `listed` 는 eid→uuid, `EntityViewRules.TARGETS` 만 UUID 키. `ServerCore.playerByName/playerByUuid` 는 접속자를 훑는다.
+- `ConnectionHandler`(1578~1589행)는 바닐라 순서대로 기존 접속자·본인 탭을 먼저 보내고 `world.playerOnline(p)` 을 부르며, **PlayerJoinEvent 는 1675행 `announceJoin` 에서 그 뒤**에 부른다(R7).
+- `Region.java` 1693행 주석대로 "시야가 닿는 플레이어는 모두 같은 region" — 엔티티를 보는 관찰자는 대상과 같은 region 이다(권장 1).
 
 ## 3. 설계: "엔티티 정체성"과 "프로필"을 나눈다 (Paper 와 같은 모양)
-- `Player.uuid()` 는 **엔티티 UUID 로 그대로** 둔다 → playerdata·stats·advancements 파일, 접속자 중복 검사, `EntityViewRules.TARGETS`, 엔티티 맵, 저장은 전혀 안 건드린다.
-- 새 `volatile GameProfile profile`(id·name·properties, 불변 값)을 `Player` 에 둔다. 접속 시 로그인 결과로 채운다. `uuid()`/`name()` 의 **의미를 나누어**, 프로필을 뜻하는 호출처는 `profileId()`/`profileName()`/`profile()` 로 옮긴다(`name()` 호출은 많아 한 번에 기계적으로 치환하지 말고 호출처를 표로 분류한다: 프로필 의미 = 표시 이름·명령 선택자·op/화이트리스트/밴·탭·채팅 서명 / 정체성 의미 = 파일·맵·로그).
-- 프로필을 읽는 곳이 모두 한 접근자를 거치게 한 뒤(먼저 리팩터링 PR, 동작 불변), 설정 길을 붙인다. 순서가 중요: 접근자 분리 PR 이 먼저 병합돼야 한다.
+- `Player.uuid()` 는 **엔티티 UUID**(파일·맵·숨김 규칙·탭의 UUID 칸·채팅 sender/디코더) — 바뀌지 않는다.
+- 새 `GameProfile profile`(id·name·properties, 불변 값). **세대와 함께 불변 묶음 `{profile, gen}` 하나**를 volatile 로 두고 한 번의 쓰기로 바꾼다. 그 **뒤에** `ROSTER_EPOCH` 를 올린다(권장 2: 따로 두면 관찰자가 "옛 프로필 + 새 세대"를 읽어 영영 재등록을 못 한다). `listed` 값은 `(uuid, gen)`. 세대는 같은지만 비교하므로 오버플로는 무관. 짧은 사이에 여러 번 바꾸면 관찰자는 마지막 것만 본다(중간 패킷 생략) — 의도한 동작.
+- 분류표(호출처를 표로 분류한 뒤 접근자 분리, 기계적 치환 금지):
 
-## 4. 스레드 소유·재등록 방식
-- 대상 플레이어의 region 스레드에서 `profile` 을 **한 번에 바꾸고(volatile 참조 교체)** 세대 번호 `profileGen` 을 올린다. 관찰자에게는 직접 패킷을 쓰지 않는다(탭·추적 상태는 관찰자 region 소유: `a.listed()`·`stopTracking` 은 관찰자 스레드 전용).
-- 관찰자 region 은 매 틱 `syncTabList` 에서 `listed` 항목의 `profileGen` 을 비교해 **어긋난 항목을 감지**한다(`rosterEpoch` 처럼 전역 세대 번호를 올려 빠르게 건너뜀): 어긋난 대상 → (a) `RemoveEntities`+`PlayerInfoRemove`(옛 프로필 id), (b) 탭 `PlayerInfoUpdate`(새 프로필) → (c) 다음 추적 틱에 엔티티 스폰. 플러그인이 숨긴 대상은 건너뜀(`EntityViewRules.canSee`). 이렇게 하면 "내 region 이 남의 region 에 작업을 던진다"가 없고 순서도 관찰자 틱 안에서 고정된다.
-- 이벤트·플러그인 스레드에서 호출되면 `Owned` 규칙대로 대상 플레이어 region 으로 작업을 올린다(다른 스레드에서 직접 안 바꿈).
-- 탭 전송 전(`sentListPacket` 에 해당: 로그인 직후)에는 `profile` 만 바꾼다.
+| 곳 | 쓰는 값 | 근거 |
+|---|---|---|
+| playerdata·stats·advancements 파일 이름, 접속자 중복 검사, 엔티티 맵 | 엔티티 UUID | 정체성 |
+| `EntityViewRules.TARGETS`, 탭·핑·게임모드·INITIALIZE_CHAT·퇴장 Remove 의 UUID 칸 | 엔티티 UUID | §1-4 |
+| 탭 항목의 이름·속성, `getName`, 호환 `getPlayerProfile`, 호환 `getScoreboardName` | 프로필 | §1 |
+| op·화이트리스트·밴(`ServerCore.profileOf`) | 프로필 | Paper `getGameProfile()` |
+| 채팅 서명 디코더·sender·INITIALIZE_CHAT(`PlayerChatState`) | 엔티티 UUID | R6 |
+| 채팅 세션 키 검증(`ConnectionHandler` 의 `data.validate(p.uuid(), …)` 한 곳) | **프로필 id** | R6 |
+| 호환 `getUniqueId` | 엔티티 UUID | Paper |
+| 호환 `getPlayerProfile().getId()` | 프로필 id(= `getUniqueId` 와 다를 수 있음) | Paper |
+| 표시 이름 `getDisplayName`·`displayName()`·기본 채팅 렌더러 | **접속 때의 이름을 붙잡아 둔 것**(옛 이름) | R4 |
+| `getPlayerListName`·탭 | listName 이 null 이면 새 이름 | R4 |
 
-## 5. 본인 화면 갱신 패킷 묶음
-Paper 순서 그대로: 리스폰(현재 차원·게임 모드·`KEEP_ALL_DATA`) → 능력치 → 현재 위치로 텔레포트(승인 번호 증가) → 권한 레벨 → 월드 정보(보더·시간·날씨) → 전체 플레이어 정보(탭) → 경험치 → 효과. `ConnectionHandler` 의 리스폰·`finishRespawn` 에서 "차원 이동 없이 다시 보내기" 부분만 함수로 뽑아 쓴다(새 로직을 만들기보다 기존 조각 재사용). 대상 클라이언트가 접속 직후(월드 로딩 중)면 건너뛴다.
+- R6: `PlayerChatState(profileId)` 는 엔티티 UUID 를 받으므로 헷갈리지 않게 이름을 `entityId`/`ownerUuid` 로 바꾼다. 참고: UUID 가 바뀐 뒤 키가 갱신되면 Paper(online-mode)는 검증 실패로 kick 한다 — Furnace 도 같다.
+- R4: `adventure$displayName` 은 ServerPlayer 를 만들 때 접속 이름으로 정해지고 setPlayerProfile 이 바꾸지 않는다. Furnace 는 접속 때 이름을 따로 붙잡아 `customDisplayName` 이 없을 때 쓴다(지금은 `handle.name()` 이라 새 이름이 나옴). `setDisplayName(null)` 은 그 시점의 `getName()`(새 이름)으로 바뀐다.
 
-## 6. 같이 따라가야 하는 곳 (체크리스트)
-| 곳 | 따라가는 방식 |
-|---|---|
-| 탭 목록·엔티티 스폰(UUID 덮어쓰기) | §4. Paper 는 **재등록 때만** 엔티티 UUID 를 새 프로필 id 로 보낸다 — 나중에 시야에 다시 들어올 때의 스폰 UUID 가 어느 쪽인지 Paper 로 확인해 같은 값을 쓴다(미확인 = 가정) |
-| op·화이트리스트·밴 | 프로필 접근자로 조회(§3) |
-| 명령 선택자·`playerByName` | 프로필 이름. 같은 이름 둘이 되면 Paper 와 같게 먼저 찾은 쪽(확인 필요) |
-| 서명 채팅 세션 | `PlayerChatState(profileId)` 는 로그인 시 키와 묶임 — 프로필 교체 뒤 Paper 가 어떻게 되는지 확인, 모르면 동작을 그대로 두고 명시 |
-| 스코어보드 | 항목 이름이 프로필 이름이라 이름 교체 시 항목 이전 여부를 Paper 와 확인 |
-| 호환 `getName`·`getPlayerProfile`·`getDisplayName` | 프로필 이름 |
-| 호환·서버 `getUniqueId` | 엔티티 UUID 유지 |
+## 4. 스레드 소유·재등록 방식 (권장 1·3 반영)
+- 호출은 대상 플레이어의 region 스레드에서 적용한다. 소유 스레드이거나 RegionBorrow 로 빌릴 수 있는 옛 동기 문맥이면 **그 자리에서 적용**해 `setPlayerProfile(x); getName()` 이 바로 새 이름을 내게 한다(Paper 동기 호출과 같게). 진짜 비동기 스레드면 region 이 아니라 **엔티티를 따라가는 스케줄러**에 올려 region 이 넘어가도 작업을 잃지 않게 하고, 접속이 끊겼으면 버린다. "비동기 호출 직후의 `getName` 은 옛 값일 수 있음"을 API 문서에 적는다.
+- **같은 region 관찰자(엔티티를 볼 수 있는 모두, 본인 포함)는 대상 region 작업 안에서 Paper 순서대로 같은 틱에 끝낸다**: 전원 해제(`RemoveEntities`+`PlayerInfoRemove`(엔티티 UUID)) → 프로필 교체 → 전원 재등록(새 프로필 id 로 `PlayerInfoUpdate`, 이어서 엔티티 UUID 로 스폰, 숨김 상태면 listed=false 유지) → 본인 `refreshPlayer`. 그래서 "다음 추적 틱에 스폰"은 없다.
+- **다른 region·다른 월드 관찰자는 탭만** 본다: 관찰자 region 이 `syncTabList` 에서 `listed` 의 `(uuid, gen)` 과 현재 묶음의 세대가 어긋난 항목을 감지해 그 탭 항목을 다시 올린다(`rosterEpoch` 로 빠르게 건너뜀). 눈에 보이지 않는 탭에만 한 틱 지연이 남는다.
+- 접속 직후(Paper 의 `sentListPacket` 이 false 인 구간)에는 프로필만 바꾼다. **R7:** Paper 는 조인 이벤트 **뒤에** 탭을 보내므로, Furnace 의 `ConnectionHandler` 접속 순서를 CraftBukkit 순서(PlayerJoinEvent 가 접속자 탭 전송보다 앞)로 옮긴 뒤 "탭 전송 완료" 시점을 Paper 와 같은 곳으로 정한다. 이 순서 변경은 **2b 앞의 별도 PR**(접속 패킷 순서 시험 포함)로 한다.
 
-## 7. 단계 나누기
-1. **E11c-2a**(동작 불변 리팩터링): `Player.profile` 도입 + 호출처 분류·접근자 분리. 시험: 기존 전체.
-2. **E11c-2b**: 관찰자 쪽 프로필 세대 감지·재등록(`syncTabList`) + 호환 `setPlayerProfile` + 본인 갱신 묶음. 시험(서버): 두 플레이어 시험 서버에서 관찰자가 받은 패킷 순서(제거→탭→스폰)와 본인 패킷 순서, 숨김 플레이어, 로그인 직후 호출.
-3. **E11c-2c**: 위 표의 "Paper 와 확인" 항목 정리(Paper 로 실측 가능한 것은 실서버 대조).
+## 5. 본인 화면 갱신 `refreshPlayer` (R2)
+본인도 `canSee(self)=true` 라 **리스폰보다 먼저** 본인 탭의 Remove·Update 를 받는다(같은 region 이므로 같은 작업 안에서). 그 뒤 순서(Paper, 일부는 CraftBukkit 1.21.1 본문 추론):
+1. `Respawn`(현재 차원, `KEEP_ALL_DATA`) — 같은 차원 리스폰이라 클라이언트가 월드를 그대로 둔다.
+2. 능력치(`onUpdateAbilities`).
+3. `internalTeleport` — 이벤트 없이 승인 번호만 늘린다.
+4. `sendPlayerPermissionLevel(handle, false)` — 엔티티 이벤트(24+레벨)만. **권한 재계산·명령 트리 재전송은 하지 않는다**(Add-sendOpLevel-API 패치): 새 프로필이 op 여도 명령 트리는 예전 그대로.
+5. `sendLevelInfo`(보더·시간·날씨).
+6. `sendAllPlayerInfo`(탭 전송이 아니다): 인벤토리 전체, 들고 있는 칸, scaled health(최대 체력 속성+체력), 엔티티 데이터 refresh, reducedDebugInfo 엔티티 이벤트(22/23), 즉시 리스폰 게임 이벤트.
+7. 경험치, 활성 효과(`blend=false`).
+`finishRespawn` 에서 뽑아 쓸 때 **청크 재전송, 추적 초기화, Respawn·ChangedWorld·Teleport 이벤트, 체력·무적 초기화가 섞이지 않는다**는 것을 시험으로 고정한다.
 
-## 8. 위험
-- `name()` 호출처 분류 실수 → 파일 이름이 바뀌거나 명령이 어긋남. 대응: 2a 에서 분류표를 PR 에 올리고 독립 검토.
-- 재등록 도중 관찰자가 옛 프로필로 한 틱 더 보임: 관찰자 region 이 감지할 때까지 한 틱 지연(Paper 는 같은 틱에 모두 처리). 관측 차이가 문제면 대상 region 이 관찰자 region 에 작업을 보내는 방식으로 바꿀 것 — 검토에서 결정.
+## 6. R3 — `PlayerShowEntityEvent`
+Paper 는 재등록의 `trackAndShowEntity` 를 거치므로 보이는 관찰자마다(본인 포함) `PlayerShowEntityEvent` 를 부른다(`PlayerHideEntityEvent` 는 안 부름). Furnace 서버·호환 계층에 이 이벤트가 아직 없다 → **2b 범위에 넣는다**(furnace-api 취소 불가 이벤트 + 호환 다리 + `EventBridgeTest` fire 목록. 취소 가능하지 않으므로 CancelContractTest 표는 불필요).
+
+## 7. 따라가야 하는 곳 — Paper 원문으로 이미 정해진 답
+- 스코어보드: `getScoreboardName()` 은 gameProfile 이름이고 옮겨 주는 처리가 없다 → 팀 소속·점수는 **새 이름 기준**(옛 이름 팀에서 빠짐). usercache 도 바꾸지 않는다.
+- 채팅: §3 표(R6). 서명 채팅 INITIALIZE_CHAT 은 엔티티 UUID.
+- 표시 이름: §3(R4).
+- 스폰 UUID: §1-3.
+
+## 8. 의도한 차이 — R5 이름 조회
+- Paper(Spigot `PlayerList.playersByName`)는 접속 때 소문자 이름으로 넣고 퇴장 때 그 시점의 이름으로 뺀다. 그래서 Paper 에서는 `getPlayerExact(새 이름)`=null, `getPlayerExact(옛 이름)`=그 플레이어, 바닐라 선택자 `getPlayerByName` 도 옛 이름, `Bukkit.getPlayer(새 이름)` 은 접두어 훑기로 찾고, 퇴장 뒤에도 옛 이름 항목이 남는다(Paper 쪽 누수).
+- Furnace 는 접속자를 훑으므로 **새 이름으로 찾는다. 이것을 의도한 차이로 둔다**: Paper 쪽은 누수 버그에 가깝고 따라 할 가치가 낮으며, 플러그인이 `setPlayerProfile` 로 이름을 바꾼 뒤 새 이름으로 찾는 것이 자연스러운 기대다. `getPlayerExact(옛 이름)` 이 null 이 되는 것이 관측 차이다. API 문서·`context-notes` 에 이 차이를 적는다.
+
+## 9. 단계 나누기 (권장 4·6 반영)
+0. **접속 순서 PR(R7)**: PlayerJoinEvent 를 접속자 탭 전송 앞으로 옮김 + 접속 패킷 순서 시험. 2b 앞.
+1. **E11c-2a**(동작 불변 리팩터링): `Player.profile` 묶음 도입 + §3 표대로 접근자 분리. 2a 에서는 `uuid==profileId`·`name==profileName` 이 늘 참이라 분류 실수가 기존 시험으로는 드러나지 않으므로 **시험 전용 훅**(로그인 때 다른 UUID·이름의 프로필을 주입)을 두고 **표의 한 줄마다 시험 하나**(파일 이름, op·화이트리스트·밴, 선택자, 탭 UUID·이름, 채팅 디코더·키 검증, 스코어보드, 호환 `getName`·`getDisplayName`·`getUniqueId`·`getPlayerProfile().getId()`)를 붙인다. furnace-api·호환 공개 시그니처 `javap` 비교로 공개 API 변화 없음을 확인.
+2. **E11c-2b**: 같은 region 즉시 재등록·본인 갱신·세대 감지·`PlayerShowEntityEvent`·호환 `setPlayerProfile`. 시험: 조인 이벤트 안에서 호출(리스폰 없음), UUID 같음(바이트 단위 Paper 와 같음)·UUID 바뀜(R1), 다른 월드 관찰자(탭만), 목록 숨김·숨김 관찰자, 연속 두 번 호출, 관찰자가 감지하기 전에 대상이 퇴장, region 이동 중 호출, 본인 패킷 전체 순서(§5), 갱신 뒤 플레이어별 시간·날씨 유지.
+3. **E11c-2c**: 실서버 Paper 와 대조해 추론으로 표시한 항목(§1-R1, §5)을 확인·정정.
+
+성능: 바꿀 때마다 관찰자가 한 번씩 다시 훑는 O(P)뿐이고 평소에는 volatile 읽기 하나가 늘 뿐이다.
+
+## 10. 위험
+- 호출처 분류 실수 → 파일 이름이 바뀌거나 명령이 어긋남. 대응: 2a 의 표별 시험·독립 검토.
+- UUID 가 바뀌면 Paper 와 같게 관찰자 화면에 플레이어가 안 보일 수 있다(R1, 의도). 플러그인이 의존하는 쪽이 있으면 2c 실측 뒤 재논의.
