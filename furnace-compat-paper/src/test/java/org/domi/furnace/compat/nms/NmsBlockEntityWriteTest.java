@@ -466,6 +466,35 @@ class NmsBlockEntityWriteTest {
         assertTrue(hasDiamonds(serverSave(p)));
     }
 
+    /**
+     * R5: 다른 스레드가 지우고 → IMMEDIATE 로 새로 만들고 → 실은 뒤, 재생 전에 틱 끝 공개(보기 묶기)가 끼어도 새 내용은 새 서버 상자에 든다
+     * (곧 지워질 옛 객체에 묶지 않는다).
+     */
+    @Test
+    void publishBetweenWritesDoesNotBindTheNewViewToTheOldObject() {
+        BlockPos p = at(2, -2, 3, 12);
+        placeChestWithDiamonds(p);
+        LevelChunk c = level.getChunk(p.getX() >> 4, p.getZ() >> 4);
+        AtomicReference<BlockEntity> created = new AtomicReference<>();
+        onRun(p, () -> {
+            offThreadRun(() -> {
+                c.removeBlockEntity(p);
+                BlockEntity nv = c.getBlockEntity(p, LevelChunk.EntityCreationType.IMMEDIATE);
+                assertNotNull(nv);
+                nv.loadWithComponents(TagParser.parseTag("{Items:[{Slot:0b,id:\"minecraft:emerald\",count:3}]}"), reg);
+                created.set(nv);
+            });
+            c.furnaceBindViews();   // = 맞춤과 공개 사이에 일지가 들어온 뒤의 공개
+            assertNull(created.get().furnaceHandle(), "재생하지 않은 일지가 있는 칸의 보기는 묶지 않는다");
+        });
+        eventually("새 서버 상자에 새 내용", () -> {
+            String saved = serverSave(p);
+            return saved != null && TagParser.parseTag(saved).getList("Items", 10).getCompound(0).getString("id").equals("minecraft:emerald");
+        });
+        assertSame(serverBe(p), created.get().furnaceHandle());
+        assertFalse(created.get().isRemoved());
+    }
+
     // ------------------------------------------------------------------ 신호기(FAWE removeBeacon + 동기 작업 3)
 
     @Test

@@ -78,6 +78,12 @@ public abstract class BlockEntity {
         if (furnaceHandle == null) furnaceHandle = handle;
     }
 
+    /** 호환 모듈 전용(주인 스레드, 만들기 재생): 지워진 옛 객체에 묶여 있으면 새로 만든 객체로 바꿔 묶는다(검토 R5). */
+    public final void furnaceRebindIfRemoved(Object handle) {
+        Object h = furnaceHandle;
+        if (h == null || (h != handle && NmsChunks.bridge().blockEntityRemoved(h))) furnaceHandle = handle;
+    }
+
     public Level getLevel() { return level; }
 
     public void setLevel(Level level) { this.level = level; }

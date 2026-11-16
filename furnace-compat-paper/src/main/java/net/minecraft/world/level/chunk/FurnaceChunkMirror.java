@@ -465,7 +465,7 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
                     if (now < 0 || net.minecraft.world.level.block.Block.stateById(now).getBlock() != v.getBlockState().getBlock()) return false;
                     Object h = b.blockEntityNow(world, op.x, op.y, op.z, true);
                     if (h == null) return false;
-                    v.furnaceBind(h);
+                    v.furnaceRebindIfRemoved(h);
                 }
                 case BE_REMOVE -> {
                     if (op.target instanceof net.minecraft.world.level.block.entity.BlockEntity v) {
@@ -507,9 +507,11 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
     @Override
     public void published(ChunkInternals.ChunkView view) {
         if (dead || view == null || !owner()) return;
-        bindViews();   // 다른 스레드가 얻은 보기를 지금 서버 객체에(검토 R2)
         synchronized (lock) {
             if ((overlayCount > 0 || beOverlayCount > 0) && replayedSeq > 0) clearOverlays(replayedSeq);
+        }
+        bindViews();   // 다른 스레드가 얻은 보기를 지금 서버 객체에(검토 R2) — 재생하지 않은 일지가 남은 칸은 건너뛴다(R5)
+        synchronized (lock) {
             // 개수 필드: 붙은 섹션의 필드가 기준과 같으면(플러그인 대입 없음) 공개 판의 바닐라 개수로 — 아직 재생하지 않은 일지가 있으면 다음 판에
             if (seq > replayedSeq || view.version() == lastCountsVersion) return;
             lastCountsVersion = view.version();

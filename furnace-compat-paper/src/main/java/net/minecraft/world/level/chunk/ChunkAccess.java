@@ -223,13 +223,16 @@ public abstract class ChunkAccess implements BlockGetter {
             if (cur != null && !cur.isRemoved()) return cur;
             var nv = net.minecraft.world.level.block.entity.BlockEntity.furnaceView(this, at.immutable(), getBlockState(at), null);
             if (nv == null) return null;
-            return furnaceBlockEntityViews.compute(k, (kk, old) -> old != null && !old.isRemoved() ? old : nv);
+            var got = furnaceBlockEntityViews.compute(k, (kk, old) -> old != null && !old.isRemoved() ? old : nv);
+            if (got == nv) furnaceUnboundViews.add(nv);
+            return got;
         }
         if (!create) return null;
         // 바닐라 IMMEDIATE: 이 스레드가 보는 블록(플러그인이 넣은 섹션 포함)이 블록 엔티티를 가지는 종류면 만든다
         var nv = net.minecraft.world.level.block.entity.BlockEntity.furnaceView(this, at.immutable(), getBlockState(at), null);
         if (nv == null || !furnaceMirror.blockEntityCreate(x, y, z, nv)) return null;
         furnaceBlockEntityViews.put(k, nv);
+        furnaceUnboundViews.add(nv);
         return nv;
     }
 
@@ -279,11 +282,22 @@ public abstract class ChunkAccess implements BlockGetter {
      * 틱 끝 공개와 내리기 직전에 부른다 — 청크가 내려간 뒤에도 그 객체의 내용을 저장하고, 얻은 뒤 주인이 같은 칸을 갈아 끼운 경쟁 창을 한 틱으로 줄인다.
      */
     public void furnaceBindViews() {
-        if (furnaceBlockEntityViews.isEmpty()) return;
-        for (var v : furnaceBlockEntityViews.values()) {
-            if (v.furnaceHandle() == null && !v.isRemoved()) furnaceBindNow(furnaceWorld, v);
+        if (furnaceUnboundViews.isEmpty()) return;
+        for (var it = furnaceUnboundViews.iterator(); it.hasNext(); ) {
+            var v = it.next();
+            if (v.furnaceHandle() != null || v.isRemoved()) {
+                it.remove();
+                continue;
+            }
+            // 그 칸에 아직 재생하지 않은 블록 엔티티 일지가 있으면 묶지 않는다 — 재생(지우기 → 만들기)이 묶는다. 지금 묶으면 곧 지워질 옛 객체에 묶인다(검토 R5)
+            var p = v.getBlockPos();
+            if (furnaceMirror.blockEntityOverlayAt(BlockPos.asLong(p.getX(), p.getY(), p.getZ())) != null) continue;
+            if (furnaceBindNow(furnaceWorld, v) != null) it.remove();
         }
     }
+
+    /** 다른 스레드가 얻어 아직 서버 객체에 묶이지 않은 보기(틱 끝 공개 때 {@link #furnaceBindViews} 가 훑는 것만 — 묶인 보기는 훑지 않는다). */
+    private final java.util.Set<net.minecraft.world.level.block.entity.BlockEntity> furnaceUnboundViews = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     /** 보기를 기다려 읽을 때의 상한(초) — 다른 region 의 주인이 그 블록 엔티티를 저장해 줄 때까지. */
     private static final long BLOCK_ENTITY_WAIT_SECONDS = 10;
