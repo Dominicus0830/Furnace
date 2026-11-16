@@ -20,3 +20,9 @@
 - **스레드(권장)**: Spigot형·Paper형 `update()` 가 공용 `ProfileExecutor`(고정 4개, 유휴 30초 뒤 정리)를 쓴다.
 - 시험: `dataMergeKeepsTheOwner`(/data merge 가 profile 을 지우지 않음), `BukkitProfileOnlineTest`(오프라인+프록시 조회), SMOKE 보조 방향.
 - 후속 후보: 오프라인 모드 `profileByName` 이 새 이름마다 usercache.json 을 동기 저장(이전부터), 429 debug 로그.
+
+## 다음 조각(E11) 정찰 (병합 후, 같은 날)
+- 호환 계층에 `ItemMeta` 하위 형이 없다: `org/bukkit/inventory/meta/` 에는 `ItemMeta`·`Damageable`·`Repairable` 뿐. `SkullMeta`·`BannerMeta`·`LeatherArmorMeta` 등과 재료별로 메타를 고르는 `ItemFactory` 길도 없다. 아이템 메타는 `CompatItemMeta`·`ItemMetaSerialization`·`SerializableMeta` 가 들고 있다.
+- `SkullMeta`(구성요소 `minecraft:profile`, 프로필은 E10 의 `ProfileValue` 재사용)·`BannerMeta`(`banner_patterns`, E9 `Pattern`·`PatternType` 재사용)는 먼저 "메타 하위 형 기반"(재료별 `getItemMeta`, 구성요소 읽기·쓰기, 직렬화 별칭 `SkullMeta`·`Banner`, `isApplicable`)을 깔아야 한다.
+- `Player#setPlayerProfile` 은 작다(Paper 는 접속 중 플레이어 프로필 속성을 바꾸고 모두에게 다시 보낸다 — 서버 쪽 플레이어 프로필 갱신·재전송 경로가 있는지 먼저 확인).
+- 그 밖의 후속: 오프라인 모드 `profileByName` 이 새 이름마다 usercache.json 동기 저장, 429 debug 로그, 온라인 서버의 이름만 있는 머리 스킨 해석(바닐라 resolve).
