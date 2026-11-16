@@ -349,6 +349,13 @@ public final class PluginGameEvents implements GameEvents {
     }
 
     @Override
+    public boolean playerTeleport(Player p, String dimension, double x, double y, double z, float yaw, float pitch) {
+        if (!wPlayerTeleport.on()) return true;
+        return !bus().call(new PlayerTeleportEvent(host.player(p), new Location(p.dimension(), p.x(), p.y(), p.z(), p.yaw(), p.pitch()),
+                new Location(dimension, x, y, z, yaw, pitch))).isCancelled();
+    }
+
+    @Override
     public boolean wantsBlockLockCheck() { return wBlockLockCheck.on(); }
 
     @Override
