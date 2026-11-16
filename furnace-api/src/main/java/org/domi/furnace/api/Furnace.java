@@ -264,6 +264,38 @@ public interface Furnace {
      */
     default org.domi.furnace.api.entity.OfflinePlayer offlinePlayerCached(String name) { throw new UnsupportedOperationException("offlinePlayerCached"); }
 
+    /**
+     * 이름(대소문자 무시)으로 프로필을 찾는다 — 접속 중인 플레이어(그 플레이어의 속성 포함), 없으면 사용자 캐시(usercache.json, 속성 없음).
+     * 캐시에도 없을 때 서버가 오프라인 모드(인증 안 함)면 바닐라 GameProfileCache.get 처럼 오프라인 UUID 프로필을 만들어 캐시에 넣어 돌려준다.
+     * 인증 모드에서 캐시에 없으면 empty — 인증 서버에는 묻지 않으니 어느 스레드에서 불러도 막히지 않는다({@link #fetchProfileByName} 이 묻는 쪽).
+     */
+    default java.util.Optional<org.domi.furnace.api.entity.ProfileData> profileByName(String name) { throw new UnsupportedOperationException("profileByName"); }
+
+    /** UUID 로 접속 중인 플레이어나 사용자 캐시의 프로필을 찾는다(없으면 empty). 막히지 않는다. */
+    default java.util.Optional<org.domi.furnace.api.entity.ProfileData> profileById(UUID id) { throw new UnsupportedOperationException("profileById"); }
+
+    /**
+     * 접속 중인 플레이어나 사용자 캐시에 있으면 그 프로필을, 없으면 서버 모드와 상관없이 Mojang 에 이름으로 묻는다(결과는 캐시에 넣는다).
+     * 오프라인 프로필을 만들어 넣지 않는다. 네트워크라 비동기이고 실패·없는 이름은 empty. 묻기를 서버 설정에 맡기려면 먼저
+     * {@link #profileLookups()} 를 본다(호환 계층의 기본 플래그가 그것이다).
+     */
+    default java.util.concurrent.CompletableFuture<java.util.Optional<org.domi.furnace.api.entity.ProfileData>> fetchProfileByName(String name) {
+        throw new UnsupportedOperationException("fetchProfileByName");
+    }
+
+    /**
+     * 세션 서버에서 UUID 의 프로필을 서명된 속성(스킨 textures)까지 받아 온다(받은 프로필은 캐시에 넣는다). 서버 모드와 상관없이 부르면 묻는다 —
+     * 묻기를 서버 설정에 맡기려면 먼저 {@link #profileLookups()} 를 본다. 못 찾거나 요청이 막히거나 실패하면 empty. 네트워크라 비동기다.
+     */
+    default java.util.concurrent.CompletableFuture<java.util.Optional<org.domi.furnace.api.entity.ProfileData>> fetchProfile(UUID id) {
+        throw new UnsupportedOperationException("fetchProfile");
+    }
+
+    /**
+     * 프로필 속성의 Mojang 서명이 맞는가(서버가 아는 Mojang 공개키로 확인). 공개키를 아직 못 받았거나 서명이 없으면 false.
+     */
+    default boolean verifyProfileProperty(String name, String value, String signature) { return false; }
+
     /** 플레이어 데이터 파일이 있는 모든 플레이어(디렉터리를 읽으니 비동기). */
     default java.util.concurrent.CompletableFuture<java.util.List<org.domi.furnace.api.entity.OfflinePlayer>> knownPlayers() {
         throw new UnsupportedOperationException("knownPlayers");
@@ -280,6 +312,12 @@ public interface Furnace {
 
     /** server.properties 의 online-mode(접속할 때 Mojang 세션 인증을 하는가). 프록시 뒤라 false 로 둔 서버면 false. */
     default boolean onlineMode() { throw new UnsupportedOperationException("onlineMode"); }
+
+    /**
+     * 프로필 API(스킨 textures·이름→UUID)가 Mojang 에 물어볼 수 있는가(Paper usesAuthentication). 온라인 모드이거나 BungeeCord·Velocity 포워딩이면 참 —
+     * 프록시 뒤 online-mode=false 서버도 스킨은 받아야 한다. 기본은 {@link #onlineMode()}.
+     */
+    default boolean profileLookups() { return onlineMode(); }
 
     /** OP·밴·IP 밴·화이트리스트 목록. */
     default org.domi.furnace.api.access.AccessLists access() { throw new UnsupportedOperationException("access"); }

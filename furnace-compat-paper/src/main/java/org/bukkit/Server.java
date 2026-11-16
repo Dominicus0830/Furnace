@@ -151,6 +151,23 @@ public interface Server extends org.bukkit.plugin.messaging.PluginMessageRecipie
 
     org.bukkit.block.data.BlockData createBlockData(Material material, String data);
 
+    /** 프로필(Bukkit 꼴). UUID 와 이름이 둘 다 없거나 이름이 비었으면 IllegalArgumentException. */
+    org.bukkit.profile.PlayerProfile createPlayerProfile(UUID uniqueId);
+
+    org.bukkit.profile.PlayerProfile createPlayerProfile(String name);
+
+    org.bukkit.profile.PlayerProfile createPlayerProfile(UUID uniqueId, String name);
+
+    /** Paper 프로필. 그 UUID·이름의 플레이어가 접속 중이면 그 플레이어의 속성(스킨)을 복사해 담는다. */
+    com.destroystokyo.paper.profile.PlayerProfile createProfile(UUID uuid);
+
+    com.destroystokyo.paper.profile.PlayerProfile createProfile(String name);
+
+    com.destroystokyo.paper.profile.PlayerProfile createProfile(UUID uuid, String name);
+
+    /** 접속 중인 플레이어와 UUID·이름이 모두 같을 때만 그 플레이어의 프로필(속성 포함)을 담고, 아니면 주어진 값 그대로(속성은 접속 중 플레이어의 것을 복사). */
+    com.destroystokyo.paper.profile.PlayerProfile createProfileExact(UUID uuid, String name);
+
     /**
      * 플러그인 인벤토리(창으로 열 수 있는 가상 보관함). Furnace 보관함 메뉴(org.domi.furnace.api.menu.Menu#storage) 위에 있다.
      * 크기는 9..54 의 9 배수. 종류로 만들 때는 상자·발사기·깔때기 모양만 된다(나머지는 UnsupportedFeature).

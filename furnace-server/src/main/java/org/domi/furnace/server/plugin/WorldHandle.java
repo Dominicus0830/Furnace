@@ -990,7 +990,9 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         Pos p = new Pos(pos.x(), pos.y(), pos.z());
         var level = ownedLevelAt(pos, "setBlockEntityNbtNow(" + pos + ")");
         if (level == null || !(level.getBlockEntity(p) instanceof org.domi.furnace.server.block.entity.BlockEntity be)) return false;
-        org.domi.furnace.server.command.builtin.DataCommands.setBlockEntityData(level, be, p, ApiNbt.toServer(nbt));
+        var tag = ApiNbt.toServer(nbt);
+        be.beforeSnapshotLoad(tag);
+        org.domi.furnace.server.command.builtin.DataCommands.setBlockEntityData(level, be, p, tag);
         level.broadcastChanges();
         return true;
     }
