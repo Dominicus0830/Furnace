@@ -21,6 +21,6 @@ public class EntityLookup {
     /** Paper: 이벤트 없이 엔티티를 월드에 넣는다. Furnace 는 NMS 엔티티 객체로 엔티티를 만드는 길이 아직 없다. */
     public boolean addNewEntity(Entity entity) {
         throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("EntityLookup#addNewEntity",
-                "NMS 엔티티 객체로 엔티티를 넣는 길이 아직 없다 — Bukkit World#spawn 을 쓴다");
+                "adding an entity as an NMS entity object is not supported yet - use Bukkit World#spawn");
     }
 }

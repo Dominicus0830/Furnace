@@ -5,6 +5,7 @@ import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.lighting.LevelLightEngine;
+import org.domi.furnace.compat.i18n.CompatLang;
 import org.slf4j.LoggerFactory;
 
 /**
@@ -26,8 +27,7 @@ public class ThreadedLevelLightEngine extends LevelLightEngine {
     public final int starlight$serverRelightChunks(Collection<ChunkPos> chunks, Consumer<ChunkPos> chunkCallback, IntConsumer onComplete) {
         if (!warned) {
             warned = true;
-            LoggerFactory.getLogger("Furnace").warn("[NMS] 플러그인이 빛 다시 계산(starlight$serverRelightChunks)을 부탁했다 — Furnace 는 아직 하지 않는다"
-                    + "(바꾼 블록의 빛은 옛 값 그대로, N2b-5). 월드 {} 청크 {}개", level.getWorld().getName(), chunks.size());
+            LoggerFactory.getLogger("Furnace").warn(CompatLang.t("compat.nms-relight-unsupported", level.getWorld().getName(), chunks.size()));
         }
         int n = 0;
         for (ChunkPos pos : chunks) {

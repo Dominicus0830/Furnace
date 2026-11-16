@@ -24,7 +24,7 @@ public final class BlockEntityType<T> {
     /** 호환 모듈 전용(N2b-6): 키("minecraft:chest")의 레지스트리 값. 모르는 키면 IllegalArgumentException. */
     public static BlockEntityType<?> furnaceOf(String key) {
         BlockEntityType<?> t = net.minecraft.core.registries.BuiltInRegistries.BLOCK_ENTITY_TYPE.get(ResourceLocation.parse(key));
-        if (t == null) throw new IllegalArgumentException("모르는 블록 엔티티 종류: " + key);
+        if (t == null) throw new IllegalArgumentException("unknown block entity type: " + key);
         return t;
     }
 

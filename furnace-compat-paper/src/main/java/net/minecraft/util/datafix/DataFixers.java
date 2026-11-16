@@ -25,15 +25,14 @@ public class DataFixers {
                     int version, int newVersion) {
                 if (version < newVersion && !warned) {
                     warned = true;
-                    org.slf4j.LoggerFactory.getLogger("Furnace").warn("[NMS] 데이터 고치기({} {} → {}): Furnace 호환 계층에는 옛 판 스키마가 없어 값을 그대로 둔다"
-                            + "(옛 판 스케매틱·NBT 는 올라가지 않는다). 처음 한 번만 알린다.", type.typeName(), version, newVersion);
+                    org.slf4j.LoggerFactory.getLogger("Furnace").warn(org.domi.furnace.compat.i18n.CompatLang.t("compat.nms-datafix-unsupported", type.typeName(), version, newVersion));
                 }
                 return input;
             }
 
             @Override
             public com.mojang.datafixers.schemas.Schema getSchema(int key) {
-                throw new UnsupportedOperationException("Furnace: 데이터 고치기 스키마가 없다(판 " + key + ")");
+                throw new UnsupportedOperationException("Furnace: no data fixer schema for version " + key);
             }
         };
     }

@@ -87,7 +87,7 @@ public final class WorldgenIndex {
             }
             return walk(Path.of(uri));
         } catch (URISyntaxException | IOException ex) {
-            throw new IllegalStateException("월드젠 목록을 읽지 못했다: " + resourceDir, ex);
+            throw new IllegalStateException("could not read the worldgen list: " + resourceDir, ex);
         }
     }
 

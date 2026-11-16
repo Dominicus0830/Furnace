@@ -64,7 +64,7 @@ final class BlockStateInternalsImpl implements BlockStateInternals {
             case "block" -> 2;
             case "ignore" -> 3;
             case "push_only" -> 4;
-            default -> throw new IllegalStateException("모르는 피스톤 반응: " + name);
+            default -> throw new IllegalStateException("unknown piston reaction: " + name);
         };
     }
 

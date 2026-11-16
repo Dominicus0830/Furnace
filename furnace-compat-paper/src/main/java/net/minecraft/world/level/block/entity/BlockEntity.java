@@ -95,7 +95,7 @@ public abstract class BlockEntity {
     private NbtCompound base() {
         if (level == null) {
             NbtCompound n = NmsBlockStates.bridge().defaultBlockEntityNbt(blockState.furnaceStateId());
-            if (n == null) throw new IllegalStateException("블록 엔티티를 만들지 않는 블록 상태: " + blockState);
+            if (n == null) throw new IllegalStateException("block state that has no block entity: " + blockState);
             return n;
         }
         var world = level.getWorld().furnaceHandle();
@@ -108,12 +108,12 @@ public abstract class BlockEntity {
                 nbt = world.blockEntityNbt(pos).get(10, java.util.concurrent.TimeUnit.SECONDS);
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
-                throw new UnsupportedNmsCall("BlockEntity.save*", "다른 region 의 블록 엔티티를 기다리다 중단됐다: " + pos);
+                throw new UnsupportedNmsCall("BlockEntity.save*", "interrupted while waiting for a block entity in another region: " + pos);
             } catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException ex) {
-                throw new UnsupportedNmsCall("BlockEntity.save*", "소유 region 스레드에서 블록 엔티티 NBT 를 읽지 못했다(" + pos + "): " + ex);
+                throw new UnsupportedNmsCall("BlockEntity.save*", "could not read the block entity NBT on the owning region thread (" + pos + "): " + ex);
             }
         }
-        return nbt.orElseThrow(() -> new IllegalStateException("그 칸에 블록 엔티티가 없다(제거됐거나 청크가 내려갔다): " + pos));
+        return nbt.orElseThrow(() -> new IllegalStateException("no block entity at that position (removed, or its chunk was unloaded): " + pos));
     }
 
     @Override
