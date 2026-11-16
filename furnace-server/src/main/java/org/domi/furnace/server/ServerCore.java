@@ -27,6 +27,7 @@ public final class ServerCore {
     private final ServerPropertiesFile settings;
     private final PlayerLists lists;
     private final GameProfileCache profileCache;
+    private final org.domi.furnace.server.item.ProfileFill.Service profileFill;
     private final World world;
     private final LevelData levelData;
     private final FurnaceScheduler scheduler;
@@ -51,30 +52,23 @@ public final class ServerCore {
         this.settings = settings;
         this.lists = lists;
         this.profileCache = profileCache;
-        // 이름·UUID 만 있는 머리의 스킨 확인(PlayerHeadItem.verifyComponentsAfterLoad) — 사용자 캐시·Mojang 이름 조회와 세션 서버
-        org.domi.furnace.server.item.ProfileFill.install(new org.domi.furnace.server.item.ProfileFill.Backend() {
-            @Override
-            public java.util.concurrent.CompletableFuture<java.util.Optional<org.domi.furnace.server.players.GameProfile>> profileByName(String name) {
-                // 접속자·사용자 캐시 → Mojang 이름 조회(온라인이든 아니든 — 바닐라 GameProfileCache.lookupGameProfile 은 늘 묻는다) → 오프라인 모드면 오프라인 프로필.
-                // 못 찾은 이름의 오프라인 프로필은 사용자 캐시에 넣지 않는다(새 이름마다 usercache.json 을 쓰지 않으려고 — 결과 프로필은 같다).
-                Player online = playerByName(name);
-                var cached = online != null ? java.util.Optional.of(profileOf(online)) : profileCache.peek(name);
-                if (cached.isPresent()) return java.util.concurrent.CompletableFuture.completedFuture(cached);
-                return sessionService().lookupByName(name).thenApply(found -> {
-                    if (found.isPresent()) {
-                        profileCache.add(found.get());
-                        return found;
-                    }
-                    return profileCache.usesAuthentication() ? java.util.Optional.<org.domi.furnace.server.players.GameProfile>empty()
-                            : java.util.Optional.of(org.domi.furnace.server.players.GameProfile.offline(name));
-                });
-            }
+        // 이름·UUID 만 있는 머리의 스킨 확인(PlayerHeadItem.verifyComponentsAfterLoad) — 접속자·사용자 캐시·Mojang 이름 조회와 세션 서버. 서버가 멈출 때 closeProfileFill 이 뗀다.
+        this.profileFill = org.domi.furnace.server.item.ProfileFill.install(new org.domi.furnace.server.players.HeadProfileBackend(
+                n -> java.util.Optional.ofNullable(playerByName(n)).map(ServerCore::profileOf), profileCache,
+                new org.domi.furnace.server.players.HeadProfileBackend.Sessions() {
+                    private final java.time.Duration delay = org.domi.furnace.server.players.HeadProfileBackend.RETRY_DELAY;
+                    private final int attempts = org.domi.furnace.server.players.HeadProfileBackend.ATTEMPTS;
 
-            @Override
-            public java.util.concurrent.CompletableFuture<java.util.Optional<org.domi.furnace.server.players.GameProfile>> fetchProfile(java.util.UUID id) {
-                return sessionService().fetchProfile(id);
-            }
-        });
+                    @Override
+                    public java.util.concurrent.CompletableFuture<java.util.Optional<org.domi.furnace.server.players.GameProfile>> lookupByName(String name) {
+                        return sessionService().lookupByNameRetrying(name, attempts, delay);
+                    }
+
+                    @Override
+                    public java.util.concurrent.CompletableFuture<java.util.Optional<org.domi.furnace.server.players.GameProfile>> fetchProfile(java.util.UUID id) {
+                        return sessionService().fetchProfileRetrying(id, attempts, delay);
+                    }
+                }));
         this.world = world;
         this.border = world.border();
         org.domi.furnace.server.map.MapStore.install(world.worldDir());   // 지도 저장 데이터(world/data/map_N.dat) 읽기
@@ -2009,6 +2003,9 @@ public final class ServerCore {
     public void shutdownSequence(ShutdownSequence seq) { this.shutdownSequence = seq; }
 
     public void onSaveAll(SaveAll s) { this.saveAll = s; }
+
+    /** 서버가 멈출 때: 머리 스킨 확인 서비스(전역)를 뗀다 — 멈춘 서버의 조회기가 남아 다음 서버·시험에서 쓰이지 않게. */
+    public void closeProfileFill() { org.domi.furnace.server.item.ProfileFill.uninstall(profileFill); }
 
     /**
      * /stop — 새 "Server Shutdown Thread" 에서 종료 단계(플러그인 끄기·저장)를 다 돈 뒤 JVM 을 끝낸다. Paper 처럼 onDisable 이 JVM 종료 훅보다

@@ -268,6 +268,17 @@ class ProfileFillTest {
     }
 
     @Test
+    void aLookupThatFailedLeavesTheHeadUnresolvedForALaterTry() {
+        // 일시 장애(429 등)로 조회가 실패하면 스킨 없는 결과를 굳히지 않는다 — 머리는 확인 안 됨 그대로
+        backend.names.put("Notch", new GameProfile(NOTCH, "Notch"));
+        var inv = new PlayerInventory();
+        inv.set(36, head("Notch"));
+        backend.sessions.computeIfAbsent(NOTCH, k -> new CompletableFuture<>()).completeExceptionally(new java.io.IOException("429"));
+        assertFalse(hasTextures(profileOf(inv.get(36))));
+        assertNotNull(ProfileFill.unresolvedProfile(inv.get(36)), "아직 확인 안 됨 — 다음에 놓일 때 다시 시도된다");
+    }
+
+    @Test
     void noServiceInstalledMeansNoFillAndNoError() {
         ProfileFill.uninstall(svc);
         var inv = new PlayerInventory();

@@ -112,4 +112,14 @@ class MenuUpdateTest {
         assertEquals(List.of(1, 10), seen, "읽은 값이 그새 바뀌었으면 버리고 새 값으로 fn 을 다시 부른다");
         assertEquals(11, menu.item(0).amount());
     }
+
+    @Test
+    void aFunctionThatKeepsWritingTheSameSlotEndsWithAnErrorInsteadOfSpinning() {
+        Menu menu = Menu.chest(Text.text("t"), 1);
+        menu.set(0, stone(1));
+        assertThrows(IllegalStateException.class, () -> menu.update(0, cur -> {
+            menu.set(0, stone(cur.amount() + 1));   // 읽은 칸을 매번 바꿔 계속 진다
+            return stone(cur.amount() + 100);
+        }));
+    }
 }

@@ -122,12 +122,13 @@ public final class Menu {
      * 칸의 지금 값을 fn 에 넘겨 돌려받은 값으로 바꾼다. fn 은 어떤 잠금도 쥐지 않고 부른다 — 읽은 값이 그새 바뀌었으면(객체 동일성) 버리고 다시 읽어 fn 을 다시 부른다
      * (그래서 fn 은 여러 번 불릴 수 있고, 부작용이 없어야 한다). 쓰기는 보관함 메뉴면 클릭 처리와 한 줄로 선다.
      * fn 이 null 을 돌려주거나 받은 것 그대로를 돌려주거나 같은 값이면 바꾸지 않는다. 바꿨으면 true.
-     * fn 이 이 메뉴를 다시 건드려도 막히지 않는다(칸을 바꾸면 그 호출이 이겨 이번 시도가 다시 돈다).
+     * fn 이 이 메뉴를 다시 건드려도 막히지 않는다(칸을 바꾸면 그 호출이 이겨 이번 시도가 다시 돈다). 단 fn 이 **같은 칸**을 매번 바꾸면 끝나지 않으니, 그 칸은 쓰지 말 것 —
+     * 그래서 1000번 계속 지면 IllegalStateException 을 던진다.
      */
     public boolean update(int slot, java.util.function.UnaryOperator<ItemStack> fn) {
         check(slot);
         Objects.requireNonNull(fn, "fn");
-        while (true) {
+        for (int attempt = 0; attempt < MAX_UPDATE_ATTEMPTS; attempt++) {
             ItemStack cur;
             synchronized (lock) { cur = items[slot]; }
             ItemStack next = fn.apply(cur);   // 잠금 밖 — 느리거나 이 메뉴를 다시 건드려도 클릭 처리를 막지 않는다
@@ -139,12 +140,15 @@ public final class Menu {
             } else {
                 done = commit(slot, cur, now);
             }
-            if (done == null) continue;   // 다른 쓰기가 이겼다 — 계속 지는 일은 계속 쓰는 쪽이 있어야 생긴다
+            if (done == null) continue;   // 다른 쓰기가 이겼다
             if (!done) return false;
             for (Listener l : listeners) l.slotChanged(this, slot, now);
             return true;
         }
+        throw new IllegalStateException("menu slot " + slot + " kept changing (does the update function write the same slot?)");
     }
+
+    private static final int MAX_UPDATE_ATTEMPTS = 1000;
 
     /** 칸이 아직 expect(같은 객체)이면 now 로 쓴다: 썼으면 true, 같은 값이라 안 썼으면 false, 그새 바뀌었으면 null. */
     private Boolean commit(int slot, ItemStack expect, ItemStack now) {

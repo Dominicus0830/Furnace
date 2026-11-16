@@ -174,6 +174,7 @@ public final class ProfileFill {
     public static final class Service {
         private static final int CACHE_SIZE = 256;
         private static final long EXPIRE_NANOS = TimeUnit.MINUTES.toNanos(10);
+        static final long FAILURE_NANOS = TimeUnit.SECONDS.toNanos(30);
 
         private final Backend backend;
         private final Executor pool;
@@ -248,9 +249,12 @@ public final class ProfileFill {
             return byId.get(id, () -> backend.fetchProfile(id));
         }
 
-        /** guava LoadingCache(10 분 동안 안 쓰면 만료, 256 개) 같은 것 — 실패한 Future 도 그대로 둔다(바닐라도 그렇다). */
+        /**
+         * guava LoadingCache(10 분 동안 안 쓰면 만료, 256 개) 같은 것. 바닐라는 실패한 Future 도 10 분 그대로 두지만, 여기서는 조회가 일시 장애로 실패하면
+         * 머리가 확인 안 됨으로 남아 다시 시도되어야 하므로 실패한 Future 는 {@link #FAILURE_NANOS} 만 기억한다(그 사이 같은 머리가 쓰일 때마다 요청이 나가지 않게).
+         */
         private static final class Cache<K, V> {
-            private record Slot<V>(CompletableFuture<V> future, long lastUse) {}
+            private record Slot<V>(CompletableFuture<V> future, long lastUse, long created) {}
 
             private final LinkedHashMap<K, Slot<V>> map = new LinkedHashMap<>(16, 0.75f, true) {
                 @Override
@@ -261,8 +265,8 @@ public final class ProfileFill {
                 long now = System.nanoTime();
                 synchronized (map) {
                     Slot<V> s = map.get(key);
-                    if (s != null && now - s.lastUse() < EXPIRE_NANOS) {
-                        map.put(key, new Slot<>(s.future(), now));
+                    if (s != null && live(s, now)) {
+                        map.put(key, new Slot<>(s.future(), now, s.created()));
                         return s.future();
                     }
                 }
@@ -274,10 +278,15 @@ public final class ProfileFill {
                 }
                 synchronized (map) {
                     Slot<V> s = map.get(key);
-                    if (s != null && now - s.lastUse() < EXPIRE_NANOS) return s.future();   // 다른 스레드가 먼저 시작했다
-                    map.put(key, new Slot<>(f, now));
+                    if (s != null && live(s, now)) return s.future();   // 다른 스레드가 먼저 시작했다
+                    map.put(key, new Slot<>(f, now, now));
                 }
                 return f;
+            }
+
+            private static <V> boolean live(Slot<V> s, long now) {
+                if (s.future().isCompletedExceptionally()) return now - s.created() < FAILURE_NANOS;
+                return now - s.lastUse() < EXPIRE_NANOS;
             }
         }
     }

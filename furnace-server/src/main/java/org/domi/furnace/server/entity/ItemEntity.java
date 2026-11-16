@@ -61,7 +61,7 @@ public final class ItemEntity extends Entity {
     }
 
     /** 확인 안 된 머리의 스킨 채우기(PlayerHeadItem.verifyComponentsAfterLoad)가 끝났을 때: 이 엔티티를 가진 region 스레드에서 지금 아이템에 fn 을 적용한다. */
-    private void fillProfile(java.util.function.UnaryOperator<ItemStack> fn) { fillProfile(fn, 20); }
+    private void fillProfile(java.util.function.UnaryOperator<ItemStack> fn) { fillProfile(fn, 100); }
 
     private void fillProfile(java.util.function.UnaryOperator<ItemStack> fn, int tries) {
         if (isRemoved()) return;
@@ -69,9 +69,10 @@ public final class ItemEntity extends Entity {
         level.runAtEntityOwner(x(), z(), lvl -> {
             if (lvl.entities().contains(this)) {
                 ItemStack next = fn.apply(getItem());
-                if (next != null) setItem(next);
+                if (next != null) entityData.setQuiet(DATA_ITEM, next);   // 바닐라는 스택을 제자리에서 고쳐(dirty 없이) 메타데이터 패킷이 나가지 않는다(shrinkInPlace 와 같다)
             } else if (!isRemoved() && tries > 0) {
-                fillProfile(fn, tries - 1);
+                // 다른 스레드에서 만들어져 조금 늦게 청크에 오르는 엔티티가 시도를 다 쓰지 않게 50ms(한 틱) 간격으로(최대 약 5초)
+                java.util.concurrent.CompletableFuture.delayedExecutor(50, java.util.concurrent.TimeUnit.MILLISECONDS).execute(() -> fillProfile(fn, tries - 1));
             }
         });
     }
