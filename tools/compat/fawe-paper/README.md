@@ -13,3 +13,10 @@
 4. `python -X utf8 ../anvil-diff.py runs/paper-fawe/world runs/furnace-fawe/world --chunks -8 -8 7 7 --ignore sectionKeys`
 
 Furnace 쪽 FAWE 어댑터 실패 원인을 보려면 서버 JVM 에 `-Dworldedit.bukkit.adapter=com.sk89q.worldedit.bukkit.adapter.impl.fawe.v1_21_R1.PaperweightFaweAdapter`.
+
+## T-198 블록 엔티티 장면
+
+`scenario_t198.py` — 상자(내용물)·덫 상자·스포너·화로·신호기 줄 네 개를 `setblock` 으로 놓고 B1 `//set stone`, B2 `//set air` → B3 `//undo`, B4 `//copy`·`//stack 2 east`(콘솔에는 위치가 없어 `//paste` 대신 같은 붙여 넣기 길), B5 `//move 10 up`.
+
+1. `python -X utf8 scenario_t198.py paper paper-t198 25565`, `python -X utf8 scenario_t198.py furnace furnace-t198 25567`
+2. `python -X utf8 ../anvil-diff.py runs/paper-t198/world runs/furnace-t198/world --chunks -5 -5 0 0 --ignore sectionKeys` — 블록과 `block_entities`(내용물·몹 종류) 0차이가 수용 조건. 빛은 T-197 쪽.
