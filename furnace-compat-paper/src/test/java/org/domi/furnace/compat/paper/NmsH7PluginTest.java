@@ -53,8 +53,10 @@ class NmsH7PluginTest {
                     catch (Throwable t) { NmsProbe.put("missing.static", t); }
                     try { Class.forName("net.minecraft.world.level.levelgen.NoiseChunk"); NmsProbe.put("reflect.class", "found"); }
                     catch (Throwable t) { NmsProbe.put("reflect.class", t); }
-                    try { net.minecraft.server.level.ServerPlayer.class.getDeclaredField("nope"); NmsProbe.put("reflect.field", "found"); }
+                    try { net.minecraft.server.level.ServerPlayer.class.getDeclaredField("camera"); NmsProbe.put("reflect.field", "found"); }
                     catch (Throwable t) { NmsProbe.put("reflect.field", t); }
+                    try { net.minecraft.server.level.ServerPlayer.class.getDeclaredField("playerConnection"); NmsProbe.put("reflect.old", "found"); }
+                    catch (Throwable t) { NmsProbe.put("reflect.old", t); }
                     NmsProbe.put("server.class", getServer().getClass().getName());
                     NmsProbe.put("server.package", getServer().getClass().getPackage().getName());
                     NmsProbe.put("enabled", true);
@@ -169,7 +171,10 @@ class NmsH7PluginTest {
             assertTrue(log.stream().anyMatch(m -> m.startsWith("Plugin H7User: ") && m.contains("unsupported NMS symbols") && m.contains("ServerLevel#nopeStatic(0)")), () -> String.join("\n", log));
             assertTrue(log.stream().anyMatch(m -> m.contains("looked up the NMS class net.minecraft.world.level.levelgen.NoiseChunk") && m.contains("Grade C")),
                     () -> String.join("\n", log));
-            assertTrue(log.stream().anyMatch(m -> m.contains("looked up the NMS member net.minecraft.server.level.ServerPlayer#nope")), () -> String.join("\n", log));
+            // Paper 1.21.1 ServerPlayer 에 있는데 shim 에 없는 필드는 구멍이라 경고, Paper 에도 없는 옛 이름(playerConnection)은 같은 예외라 경고하지 않는다
+            assertTrue(log.stream().anyMatch(m -> m.contains("looked up the NMS member net.minecraft.server.level.ServerPlayer#camera")), () -> String.join("\n", log));
+            assertTrue(NmsProbe.get("reflect.old") instanceof NoSuchFieldException, "원래 예외 그대로");
+            assertTrue(log.stream().noneMatch(m -> m.contains("ServerPlayer#playerConnection")), () -> String.join("\n", log));
 
             Plugin plugin = Bukkit.getPluginManager().getPlugin("H7User");
             ClassLoader loader = plugin.getClass().getClassLoader();
