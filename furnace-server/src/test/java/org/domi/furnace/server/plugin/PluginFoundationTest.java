@@ -166,7 +166,7 @@ class PluginFoundationTest {
         var p = host.plugins().plugin("Gamma");
         host.eventsImpl().subscribe(p, OldPing.class, e -> { });
         host.eventsImpl().subscribe(p, OldPing.class, e -> { });
-        assertEquals(1, messages().stream().filter(m -> m.contains("폐기된 이벤트 OldPing")).count());
+        assertEquals(1, messages().stream().filter(m -> m.contains("the deprecated event OldPing")).count());
     }
 
     // ---- 자원 자동 정리 ----
@@ -239,7 +239,7 @@ class PluginFoundationTest {
         host(dir, PluginSettings.DEFAULT);
         host.pluginsImpl().loadAll();
         assertNotNull(host.plugins().plugin("Gamma"));
-        assertTrue(messages().stream().anyMatch(m -> m.contains("api-version 이 없다")));
+        assertTrue(messages().stream().anyMatch(m -> m.contains("has no api-version")));
     }
 
     @Test

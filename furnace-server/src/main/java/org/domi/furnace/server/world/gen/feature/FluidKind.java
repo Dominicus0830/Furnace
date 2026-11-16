@@ -11,7 +11,7 @@ public enum FluidKind {
             case "minecraft:flowing_water" -> FLOWING_WATER;
             case "minecraft:lava" -> LAVA;
             case "minecraft:flowing_lava" -> FLOWING_LAVA;
-            default -> throw new IllegalArgumentException("알 수 없는 유체: " + name);
+            default -> throw new IllegalArgumentException("unknown fluid: " + name);
         };
     }
 

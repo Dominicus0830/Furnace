@@ -160,7 +160,7 @@ class SchemaPacketBridgeTest {
             server.onRegion(region, () -> {
                 var refused = assertThrows(UnsupportedNmsCall.class, () -> conn.send(construct(net.minecraft.network.protocol.game.ClientboundBossEventPacket.class,
                         java.util.UUID.randomUUID(), null)));
-                assertTrue(refused.getMessage().contains("보스바"), refused.getMessage());
+                assertTrue(refused.getMessage().contains("boss bar"), refused.getMessage());
                 var bad = assertThrows(IllegalArgumentException.class, () -> conn.send(new net.minecraft.network.protocol.game.ClientboundBundlePacket(List.of(
                         new net.minecraft.network.protocol.game.ClientboundSetHealthPacket(1f, 77, 0f),
                         new net.minecraft.network.protocol.game.ClientboundOpenSignEditorPacket(null, true)))));
@@ -182,14 +182,14 @@ class SchemaPacketBridgeTest {
         var schema = PacketSchema.protocol767();
         assertTrue(SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.SERVERBOUND, "swing").orElseThrow()).contains("serverbound"));
         assertTrue(SchemaPacketBridge.refusal(schema.packet("configuration", PacketDirection.CLIENTBOUND, "finish_configuration").orElseThrow())
-                .contains("configuration 단계"));
-        assertTrue(SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.CLIENTBOUND, "add_entity").orElseThrow()).contains("타입 레코드"));
+                .contains("a configuration stage packet"));
+        assertTrue(SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.CLIENTBOUND, "add_entity").orElseThrow()).contains("typed record"));
         assertEquals(null, SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.CLIENTBOUND, "set_experience").orElseThrow()));
-        assertTrue(SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.CLIENTBOUND, "boss_event").orElseThrow()).contains("보스바"));
-        assertTrue(SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.CLIENTBOUND, "award_stats").orElseThrow()).contains("통계"));
-        assertTrue(SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.CLIENTBOUND, "player_info_update").orElseThrow()).contains("손 코덱")
-                || SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.CLIENTBOUND, "player_info_update").orElseThrow()).contains("타입 레코드"));
-        assertTrue(SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.CLIENTBOUND, "open_screen").orElseThrow()).contains("빈 껍데기"));
+        assertTrue(SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.CLIENTBOUND, "boss_event").orElseThrow()).contains("boss bar"));
+        assertTrue(SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.CLIENTBOUND, "award_stats").orElseThrow()).contains("stats map"));
+        assertTrue(SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.CLIENTBOUND, "player_info_update").orElseThrow()).contains("hand codec")
+                || SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.CLIENTBOUND, "player_info_update").orElseThrow()).contains("typed record"));
+        assertTrue(SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.CLIENTBOUND, "open_screen").orElseThrow()).contains("empty shell"));
         assertEquals(null, SchemaPacketBridge.refusal(schema.packet("game", PacketDirection.CLIENTBOUND, "set_health").orElseThrow()));
     }
 
@@ -536,7 +536,7 @@ class SchemaPacketBridgeTest {
                 var wide = assertThrows(IllegalArgumentException.class, () -> conn.send(new net.minecraft.network.protocol.game.ClientboundMapItemDataPacket(
                         new net.minecraft.world.level.saveddata.maps.MapId(2), (byte) 0, false, (java.util.Collection) null,
                         new net.minecraft.world.level.saveddata.maps.MapItemSavedData.MapPatch(0, 0, 256, 1, new byte[256]))));
-                assertTrue(wide.getMessage().contains("8비트"), wide.getMessage());
+                assertTrue(wide.getMessage().contains("8 bits"), wide.getMessage());
                 conn.send(new net.minecraft.network.protocol.game.ClientboundSetExperiencePacket(0.25f, 1, 99));
                 return null;
             });

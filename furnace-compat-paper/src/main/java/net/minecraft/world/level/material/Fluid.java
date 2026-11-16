@@ -64,7 +64,7 @@ public abstract class Fluid {
             }
             return s;
         }
-        throw new IllegalStateException("상태 표에 없는 값: " + from + " " + property + "=" + value);
+        throw new IllegalStateException("value missing from the state table: " + from + " " + property + "=" + value);
     }
 
     public StateDefinition<Fluid, FluidState> getStateDefinition() { return stateDefinition; }

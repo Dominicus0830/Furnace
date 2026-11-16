@@ -59,7 +59,7 @@ public final class CompatCommands {
             String a = it.next();
             String n = a == null ? "" : a.toLowerCase(Locale.ROOT).trim();
             if (n.isEmpty() || n.indexOf(' ') >= 0 || n.indexOf(':') >= 0) {
-                owner.logger().log(Level.WARNING, "명령 /" + label + " 의 별칭 '" + a + "' 은(는) Furnace 명령 트리에 올릴 수 없어 건너뛴다");
+                owner.logger().log(Level.WARNING, org.domi.furnace.compat.i18n.CompatLang.t("compat.alias-skipped", label, a));
                 it.remove();
             } else {
                 aliases.add(n);
@@ -104,7 +104,7 @@ public final class CompatCommands {
         BukkitPluginAdapter byLoader = PluginLoaders.of(command.getClass().getClassLoader());
         if (byLoader != null) return byLoader;
         throw new UnsupportedFeature("CommandMap.register(" + command.getClass().getName() + ")",
-                "Furnace 명령 트리의 명령은 주인 플러그인이 있어야 한다 — PluginIdentifiableCommand 로 만들거나 플러그인 jar 안의 클래스여야 한다");
+                "a command on the Furnace command tree needs an owning plugin - make it a PluginIdentifiableCommand or a class inside the plugin jar");
     }
 
     /** 보낸 사람이 대상을 볼 수 있는가(숨은 플레이어는 이름을 새지 않는다). 이 서버가 보이기 규칙을 모르면 보인다고 본다. */

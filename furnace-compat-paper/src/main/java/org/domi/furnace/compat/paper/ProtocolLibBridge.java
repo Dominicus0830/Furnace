@@ -18,6 +18,7 @@
 // 리스너가 다른 종류로 바꾼 패킷·receiveClientPacket 은 PacketService.receive 로 넣고, 리스너 안이라 서버가 그 자리에서 처리한다(뒤 패킷보다 먼저).
 package org.domi.furnace.compat.paper;
 
+import org.domi.furnace.compat.i18n.CompatLang;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -102,7 +103,7 @@ public final class ProtocolLibBridge {
             ProtocolLibBridge b = active;
             if (b != null) b.resyncSoon();
         } catch (RuntimeException | LinkageError e) {
-            a.logger().log(Level.WARNING, "ProtocolLib 다리(서버가 보내는 패킷 보이기)를 켜지 못했다", e);
+            a.logger().log(Level.WARNING, org.domi.furnace.compat.i18n.CompatLang.t("compat.protocollib-bridge-failed"), e);
         }
     }
 
@@ -177,7 +178,7 @@ public final class ProtocolLibBridge {
         try {
             classes = listened.get();
         } catch (RuntimeException | LinkageError e) {
-            if (warned.add("listeners")) owner.logger().log(Level.WARNING, "ProtocolLib 리스너 목록을 읽지 못했다 — 서버가 보내는 패킷은 리스너에 보이지 않는다", e);
+            if (warned.add("listeners")) owner.logger().log(Level.WARNING, org.domi.furnace.compat.i18n.CompatLang.t("compat.protocollib-listeners-failed"), e);
             return;
         }
         Set<PacketType<?>> want = new LinkedHashSet<>();
@@ -191,7 +192,7 @@ public final class ProtocolLibBridge {
             if (in != null) {   // 클라이언트가 보내는 패킷(2b-3)
                 if (!packets.isSupported(in)) continue;
                 String why = ServerboundBridge.refusal(in);
-                if (why == null && !in.typed() && !packets.isReadable(in)) why = "이 서버가 내용을 읽지 못하는 종류";
+                if (why == null && !in.typed() && !packets.isReadable(in)) why = org.domi.furnace.compat.i18n.CompatLang.t("compat.unreadable-kind");
                 if (why != null) missingIn.add(in.name());
                 else wantIn.add(in);
                 continue;
@@ -200,7 +201,7 @@ public final class ProtocolLibBridge {
             if (t == null) continue;   // play 단계 패킷이 아닌 것(로그인·상태·번들 등) — Furnace 패킷 API 범위 밖
             if (!packets.isSupported(t)) continue;
             String why = PacketDelivery.irreversibleReason(t);
-            if (why == null && !t.typed() && !packets.isReadable(t)) why = "이 서버가 내용을 읽지 못하는 종류";
+            if (why == null && !t.typed() && !packets.isReadable(t)) why = org.domi.furnace.compat.i18n.CompatLang.t("compat.unreadable-kind");
             if (why != null) {
                 // 서버 설정으로 풀 수 있는 까닭(authlib 없음 등)은 따로 이름 — 까닭으로 적는다: 운영자가 무엇을 켜면 되는지 알게(PR #390 검토 R2)
                 if (org.domi.furnace.compat.nms.PacketDelivery.fixableBySetting(why)) needsSetting.add(t.name() + " — " + why);
@@ -210,14 +211,13 @@ public final class ProtocolLibBridge {
             want.add(t);
         }
         if (!missing.isEmpty() && warned.add("missing:" + missing)) {
-            owner.logger().info("ProtocolLib 리스너가 듣는 종류 중 Furnace 가 스스로 보내는 패킷을 아직 보여 주지 못하는 것(플러그인이 보낸 것은 보인다): " + missing);
+            owner.logger().info(CompatLang.t("compat.pl-listen-missing-out", missing));
         }
         if (!needsSetting.isEmpty() && warned.add("needsSetting:" + needsSetting)) {
-            owner.logger().info("ProtocolLib 리스너가 듣는 종류 중 서버 설정이 있어야 보여 줄 수 있는 것(그때까지 Furnace 가 보내는 이 종류는 리스너를 거치지 않는다): "
-                    + String.join("; ", needsSetting));
+            owner.logger().info(CompatLang.t("compat.pl-listen-needs-setting", String.join("; ", needsSetting)));
         }
         if (!missingIn.isEmpty() && warned.add("missingIn:" + missingIn)) {
-            owner.logger().info("ProtocolLib 리스너가 듣는 종류 중 클라이언트가 보낸 패킷을 아직 보여 주지 못하는 것(서버는 그대로 처리한다): " + missingIn);
+            owner.logger().info(CompatLang.t("compat.pl-listen-missing-in", missingIn));
         }
         resyncInbound(packets, wantIn);
         synchronized (lock) {
@@ -275,7 +275,7 @@ public final class ProtocolLibBridge {
         try {
             held.put(entity.entityId(), new Held(Compat.entity(entity), entity.location().world(), entity.uniqueId()));
         } catch (RuntimeException ex) {
-            warnOnce("track", "ProtocolLib 다리가 보기 시작한 엔티티를 미리 감싸지 못했다(첫 오류): " + ex);
+            warnOnce("track", "compat.pl-track-failed", ex);
         }
     }
 
@@ -297,8 +297,7 @@ public final class ProtocolLibBridge {
         if (c == null) return;
         String refusal = PacketDelivery.quickRefusal(value);
         if (refusal != null) {   // 예외 없이 건너뛴다(원래 패킷은 그대로 나간다). 경고는 값 종류마다 한 번(검토 R2·R3)
-            warnOnce("from:" + value.type() + ":" + refusal, "Furnace 가 보내는 " + value.type().name() + " 패킷 중 값 종류 '" + refusal
-                    + "' 이(가) 든 것은 ProtocolLib 리스너에 보여 주지 못한다(그대로 내보낸다, 첫 사례)");
+            warnOnce("from:" + value.type() + ":" + refusal, "compat.pl-out-unshowable", value.type().name(), refusal);
             return;
         }
         net.minecraft.network.protocol.Packet<?> shim;
@@ -308,14 +307,14 @@ public final class ProtocolLibBridge {
             // 비교 기준(되돌리기가 값을 조금 바꿔도 리스너가 손대지 않았으면 원래 바이트를 보낸다). 값이 그대로 도는 종류는 원래 값 그대로
             before = PacketDelivery.losslessRoundTrip(value.type()) && value instanceof ClientboundPacket cp ? cp : PacketDelivery.convert(shim);
         } catch (RuntimeException ex) {
-            warnOnce("from:" + value.type(), "Furnace 가 보내는 " + value.type().name() + " 패킷 하나를 ProtocolLib 리스너에 보여 주지 못했다(첫 오류): " + ex.getMessage());
+            warnOnce("from:" + value.type(), "compat.pl-out-show-failed", value.type().name(), ex.getMessage());
             return;
         }
         net.minecraft.network.protocol.Packet<?> after;
         try (PrimaryThread.Scope scope = PrimaryThread.enter()) {
             after = c.compatIntercept(shim);
         } catch (RuntimeException ex) {
-            warnOnce("intercept:" + value.type(), "ProtocolLib 가로채기 중 오류(" + value.type().name() + ", 원래 패킷을 보낸다): " + ex);
+            warnOnce("intercept:" + value.type(), "compat.pl-out-intercept-error", value.type().name(), ex);
             return;
         }
         if (after == null) {
@@ -331,7 +330,7 @@ public final class ProtocolLibBridge {
         try {
             out = PacketDelivery.convert(after);
         } catch (RuntimeException ex) {
-            warnOnce("to:" + value.type(), "ProtocolLib 리스너가 바꾼 " + value.type().name() + " 패킷을 Furnace 패킷으로 되돌리지 못해 리스너가 바꾸기 전 원래 패킷을 보낸다(첫 오류): " + ex.getMessage());
+            warnOnce("to:" + value.type(), "compat.pl-out-convert-back-failed", value.type().name(), ex.getMessage());
             return;
         }
         if (out.equals(before)) return;   // 리스너가 손대지 않았다
@@ -343,7 +342,7 @@ public final class ProtocolLibBridge {
         try {
             e.setPacket(out);
         } catch (RuntimeException ex) {
-            warnOnce("set:" + value.type(), "ProtocolLib 리스너가 바꾼 " + value.type().name() + " 패킷을 쓸 수 없어 원래 패킷을 보낸다(첫 오류): " + ex.getMessage());
+            warnOnce("set:" + value.type(), "compat.pl-out-write-failed", value.type().name(), ex.getMessage());
         }
     }
 
@@ -363,8 +362,7 @@ public final class ProtocolLibBridge {
             shim = ServerboundBridge.fromFurnace((ServerboundPacket) value);
             before = ServerboundBridge.toFurnace(shim);   // 비교 기준
         } catch (RuntimeException ex) {
-            warnOnce("in-from:" + value.type(), "클라이언트가 보낸 " + value.type().name() + " 패킷 하나를 ProtocolLib 리스너에 보여 주지 못했다(서버는 그대로 처리한다, 첫 오류): "
-                    + ex.getMessage());
+            warnOnce("in-from:" + value.type(), "compat.pl-in-show-failed", value.type().name(), ex.getMessage());
             return;
         }
         net.minecraft.network.protocol.Packet<?> after;
@@ -373,7 +371,7 @@ public final class ProtocolLibBridge {
         try {
             after = c.compatReceive(shim);
         } catch (RuntimeException ex) {
-            warnOnce("in-intercept:" + value.type(), "ProtocolLib 받는 쪽 가로채기 중 오류(" + value.type().name() + ", 원래 패킷을 처리한다): " + ex);
+            warnOnce("in-intercept:" + value.type(), "compat.pl-in-intercept-error", value.type().name(), ex);
             return;
         }
         if (after == null) {   // 리스너가 취소했다(또는 라이브러리가 나중으로 미뤘다 — 그때는 나중에 Connection#read 가 넣는다)
@@ -384,8 +382,7 @@ public final class ProtocolLibBridge {
         try {
             out = ServerboundBridge.toFurnace(after);
         } catch (RuntimeException ex) {
-            warnOnce("in-to:" + value.type(), "ProtocolLib 리스너가 바꾼 " + value.type().name() + " 패킷을 Furnace 패킷으로 되돌리지 못해 원래 패킷을 처리한다(첫 오류): "
-                    + ex.getMessage());
+            warnOnce("in-to:" + value.type(), "compat.pl-in-convert-back-failed", value.type().name(), ex.getMessage());
             return;
         }
         if (sameInbound(out, before)) return;   // 리스너가 손대지 않았다
@@ -394,14 +391,14 @@ public final class ProtocolLibBridge {
             try {
                 Furnace.server().packets().receive(e.player(), out);
             } catch (RuntimeException ex) {
-                warnOnce("in-instead:" + out.type(), "ProtocolLib 리스너가 바꾼 패킷(" + out.type().name() + ")을 서버에 넣지 못했다(첫 오류): " + ex.getMessage());
+                warnOnce("in-instead:" + out.type(), "compat.pl-in-inject-failed", out.type().name(), ex.getMessage());
             }
             return;
         }
         try {
             e.setPacket(out);
         } catch (RuntimeException ex) {
-            warnOnce("in-set:" + value.type(), "ProtocolLib 리스너가 바꾼 " + value.type().name() + " 패킷을 쓸 수 없어 원래 패킷을 처리한다(첫 오류): " + ex.getMessage());
+            warnOnce("in-set:" + value.type(), "compat.pl-in-write-failed", value.type().name(), ex.getMessage());
         }
     }
 
@@ -420,7 +417,7 @@ public final class ProtocolLibBridge {
         try {
             PacketDelivery.deliver(e.player(), p);
         } catch (RuntimeException ex) {
-            warnOnce("instead:" + p.getClass().getName(), "ProtocolLib 리스너가 바꾼 패킷(" + p.getClass().getSimpleName() + ")을 보내지 못했다(첫 오류): " + ex.getMessage());
+            warnOnce("instead:" + p.getClass().getName(), "compat.pl-send-failed", p.getClass().getSimpleName(), ex.getMessage());
         }
     }
 
@@ -430,8 +427,8 @@ public final class ProtocolLibBridge {
         return cp.peekHandle() instanceof net.minecraft.server.level.ServerPlayer sp ? sp.connection.compatConnection() : null;
     }
 
-    private void warnOnce(String key, String msg) {
-        if (warned.add(key)) owner.logger().warning(msg);
+    private void warnOnce(String key, String i18nKey, Object... args) {
+        if (warned.add(key)) owner.logger().warning(CompatLang.t(i18nKey, args));
     }
 
     // ------------------------------------------------------------------ 진짜 ProtocolLib
@@ -477,7 +474,7 @@ public final class ProtocolLibBridge {
                 }
             };
         } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("ProtocolLib 공개 API 를 찾지 못했다: " + e, e);
+            throw new IllegalStateException("could not find the ProtocolLib public API: " + e, e);
         }
     }
 }

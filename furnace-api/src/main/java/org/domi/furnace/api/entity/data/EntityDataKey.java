@@ -32,7 +32,7 @@ public final class EntityDataKey<T> {
      */
     public java.util.OptionalInt index() {
         java.util.function.Function<EntityDataKey<?>, java.util.OptionalInt> r = RESOLVER.get();
-        if (r == null) throw new IllegalStateException("서버가 아직 메타데이터 칸 표를 걸지 않았다");
+        if (r == null) throw new IllegalStateException("the server has not installed the metadata slot table yet");
         return r.apply(this);
     }
 
@@ -45,7 +45,7 @@ public final class EntityDataKey<T> {
      */
     public static void installIndexResolver(java.util.function.Function<EntityDataKey<?>, java.util.OptionalInt> r) {
         java.util.Objects.requireNonNull(r, "resolver");
-        if (!RESOLVER.compareAndSet(null, r)) throw new IllegalStateException("메타데이터 칸 표는 이미 걸려 있다");
+        if (!RESOLVER.compareAndSet(null, r)) throw new IllegalStateException("the metadata slot table is already installed");
     }
 
     /** "Display.scale". */

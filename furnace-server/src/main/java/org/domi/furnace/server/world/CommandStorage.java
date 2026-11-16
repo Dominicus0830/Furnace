@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Set;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -58,7 +59,7 @@ public final class CommandStorage {
             for (var e : contents.tags().entrySet()) m.put(e.getKey(), e.getValue() instanceof NbtCompound c ? c : new NbtCompound());
             return m;
         } catch (IOException | RuntimeException e) {
-            LOG.warn("{} 읽기 실패", f, e);
+            LOG.warn(Lang.t("cmdstorage.read-failed", f), e);
             return null;
         }
     }
@@ -119,7 +120,7 @@ public final class CommandStorage {
                 }
                 Files.move(tmp, f, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (IOException ex) {
-                LOG.error("{} 저장 실패", f, ex);
+                LOG.error(Lang.t("cmdstorage.save-failed", f), ex);
             }
         }
     }

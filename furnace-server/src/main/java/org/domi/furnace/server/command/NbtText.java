@@ -59,7 +59,7 @@ public final class NbtText {
             }
             case NbtList l -> list(l);
             case NbtCompound c -> compound(c);
-            default -> throw new IllegalArgumentException("NBT 값이 아님: " + tag);
+            default -> throw new IllegalArgumentException("not an NBT value: " + tag);
         };
     }
 

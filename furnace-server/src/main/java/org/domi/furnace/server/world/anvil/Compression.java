@@ -58,7 +58,7 @@ public final class Compression {
     public static final int LEVEL = level(Integer.getInteger("furnace.region.compressionLevel", java.util.zip.Deflater.DEFAULT_COMPRESSION));
 
     private static int level(int v) {
-        if (v < -1 || v > 9) throw new IllegalArgumentException("furnace.region.compressionLevel 범위 밖: " + v);
+        if (v < -1 || v > 9) throw new IllegalArgumentException("furnace.region.compressionLevel out of range: " + v);
         return v;
     }
 
@@ -94,7 +94,7 @@ public final class Compression {
         java.io.InputStream dec = switch (type) {
             case 1 -> new GZIPInputStream(in);
             case 3 -> in;
-            default -> throw new IOException("미지원 압축타입: " + type);
+            default -> throw new IOException("unsupported compression type: " + type);
         };
         dec.transferTo(out);
         dec.close();
@@ -144,13 +144,13 @@ public final class Compression {
         io.airlift.compress.zstd.ZstdDecompressor d = new io.airlift.compress.zstd.ZstdDecompressor();
         try {
             long size = io.airlift.compress.zstd.ZstdDecompressor.getDecompressedSize(data, 0, data.length);
-            if (size < 0 || size > (1 << 28)) throw new IOException("zstd: 해제 크기 이상: " + size);
+            if (size < 0 || size > (1 << 28)) throw new IOException("zstd: invalid decompressed size: " + size);
             byte[] out = new byte[(int) size];
             int n = d.decompress(data, 0, data.length, out, 0, out.length);
-            if (n != out.length) throw new IOException("zstd: 해제 길이 불일치");
+            if (n != out.length) throw new IOException("zstd: decompressed length mismatch");
             return out;
         } catch (io.airlift.compress.MalformedInputException | IllegalArgumentException | IndexOutOfBoundsException e) {
-            throw new IOException("zstd: 본문이 깨졌다", e);
+            throw new IOException("zstd: the content is corrupt", e);
         }
     }
 }

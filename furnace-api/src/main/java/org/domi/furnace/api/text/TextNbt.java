@@ -193,7 +193,7 @@ final class TextNbt {
         if (v instanceof ListTag l) return l.type() == BYTE_ARRAY || l.type() == INT_ARRAY || l.type() == LONG_ARRAY ? l.type() : LIST;
         if (v instanceof Map) return COMPOUND;
         if (v instanceof int[]) return INT_ARRAY;
-        throw new IllegalArgumentException("NBT 로 쓸 수 없는 값: " + v);
+        throw new IllegalArgumentException("value that cannot be written as NBT: " + v);
     }
 
     private static void writePayload(DataOutputStream out, Object v) throws IOException {
@@ -233,7 +233,7 @@ final class TextNbt {
                 }
                 out.writeByte(END);
             }
-            default -> throw new IllegalArgumentException("NBT 로 쓸 수 없는 값: " + v);
+            default -> throw new IllegalArgumentException("value that cannot be written as NBT: " + v);
         }
     }
 }

@@ -275,7 +275,7 @@ class JavaPluginWiringTest {
                 public boolean execute(CommandSender sender, String commandLabel, String[] args) { return true; }
             };
             var e = assertThrows(UnsupportedFeature.class, () -> map.register("x", foreign));
-            assertTrue(e.getMessage().contains("주인 플러그인"), e.getMessage());
+            assertTrue(e.getMessage().contains("owning plugin"), e.getMessage());
         }
     }
 

@@ -25,7 +25,7 @@ final class TestHolder {
         try {
             holderField().set(null, null);
         } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("Furnace.server() 를 비우지 못했다", e);
+            throw new IllegalStateException("could not clear Furnace.server()", e);
         }
     }
 

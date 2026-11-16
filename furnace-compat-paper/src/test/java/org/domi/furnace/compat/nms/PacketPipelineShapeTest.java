@@ -111,9 +111,9 @@ class PacketPipelineShapeTest {
             Path jar = JarCompiler.jar(tmp.resolve("pipe.jar"), YML, Map.of("pipe.PipePlugin", PLUGIN), Set.of("net.minecraft."));
             try (FurnaceTestServer server = FurnaceTestServer.builder().pluginJar(jar).start()) {
                 List<String> hits = logs.list.stream().map(ILoggingEvent::getFormattedMessage)
-                        .filter(m -> m.contains("PipeUser") && m.contains("패킷 파이프라인")).toList();
+                        .filter(m -> m.contains("PipeUser") && m.contains("packet pipeline")).toList();
                 assertEquals(1, hits.size(), () -> String.join("\n", hits));
-                assertTrue(hits.get(0).contains("동작하지 않는다"));
+                assertTrue(hits.get(0).contains("do not work"));
             }
         } finally {
             root.detachAppender(logs);

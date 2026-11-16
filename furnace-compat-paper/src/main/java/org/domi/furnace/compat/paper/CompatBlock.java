@@ -136,8 +136,8 @@ public final class CompatBlock implements Block {
     @Override
     public void setBlockData(BlockData data, boolean applyPhysics) {
         Objects.requireNonNull(data, "BlockData cannot be null");
-        if (!applyPhysics) throw new UnsupportedFeature("Block#setBlockData(applyPhysics=false)", "Furnace 의 setBlock 은 항상 이웃을 갱신한다");
-        if (!(data instanceof CompatBlockData d)) throw new IllegalArgumentException("Furnace 가 만든 BlockData 가 아니다: " + data.getClass().getName());
+        if (!applyPhysics) throw new UnsupportedFeature("Block#setBlockData(applyPhysics=false)", "Furnace setBlock always updates the neighbours");
+        if (!(data instanceof CompatBlockData d)) throw new IllegalArgumentException("not a BlockData created by Furnace: " + data.getClass().getName());
         var block = furnaceBlock();
         boolean set;
         try {
@@ -147,7 +147,7 @@ public final class CompatBlock implements Block {
             return;
         }
         // 바닐라 setBlock 은 같은 상태면 false 다 — 이미 그 상태면 할 일이 없는 것(Paper 도 조용히 끝난다)
-        if (!set && !sameAsNow(block, d.furnace())) throw new IllegalStateException("블록을 바꾸지 못했다 — 청크가 로드돼 있지 않거나 높이 밖이다(Furnace 는 동기로 청크를 불러오지 않는다): " + pos);
+        if (!set && !sameAsNow(block, d.furnace())) throw new IllegalStateException("could not change the block - the chunk is not loaded or the height is out of range (Furnace does not load chunks synchronously): " + pos);
     }
 
     private static boolean sameAsNow(org.domi.furnace.api.world.Block block, org.domi.furnace.api.world.BlockData want) {

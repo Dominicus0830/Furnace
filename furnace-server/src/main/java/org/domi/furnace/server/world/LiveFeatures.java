@@ -222,7 +222,7 @@ public final class LiveFeatures {
                         "end_gateway", "command_block", "repeating_command_block", "chain_command_block", "structure_block", "jigsaw")
                 .map(n -> {
                     int b = org.domi.furnace.server.block.Blocks.get().block("minecraft:" + n);
-                    if (b < 0) throw new IllegalStateException("블록 없음: " + n);
+                    if (b < 0) throw new IllegalStateException("no such block: " + n);
                     return b;
                 })
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
@@ -276,7 +276,7 @@ public final class LiveFeatures {
         for (int d = 0; d < 6; d++) {
             if (org.domi.furnace.server.block.Dir.DX[d] == dx && org.domi.furnace.server.block.Dir.DY[d] == dy && org.domi.furnace.server.block.Dir.DZ[d] == dz) return d;
         }
-        throw new IllegalArgumentException("방향 아님");
+        throw new IllegalArgumentException("not a direction");
     }
 
     /** 측정·비교용: false 면 예전처럼 청크 기둥 전체를 복사한다. */

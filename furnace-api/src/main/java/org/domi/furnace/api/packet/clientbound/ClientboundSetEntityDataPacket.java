@@ -27,7 +27,7 @@ public record ClientboundSetEntityDataPacket(int entityId, List<Entry> entries) 
 
     public record Entry(int index, Value value) {
         public Entry {
-            if (index < 0 || index > 254) throw new IllegalArgumentException("칸 번호 범위 밖: " + index);
+            if (index < 0 || index > 254) throw new IllegalArgumentException("slot index out of range: " + index);
             Objects.requireNonNull(value, "value");
         }
     }
@@ -119,7 +119,7 @@ public record ClientboundSetEntityDataPacket(int entityId, List<Entry> entries) 
             if (type == EntityDataType.BYTE || type == EntityDataType.INT || type == EntityDataType.LONG || type == EntityDataType.FLOAT
                     || type == EntityDataType.BOOLEAN || type == EntityDataType.STRING || type == EntityDataType.COMPONENT
                     || type == EntityDataType.OPTIONAL_COMPONENT || type == EntityDataType.POSE)
-                throw new IllegalArgumentException(type + " 는 전용 값(ByteValue …)으로 만든다 — Value.of 를 쓸 것");
+                throw new IllegalArgumentException(type + " is created with a dedicated value (ByteValue ...) - use Value.of");
             value = type.check(value);
         }
         @Override public EntityDataType<?> dataType() { return type; }
@@ -189,7 +189,7 @@ public record ClientboundSetEntityDataPacket(int entityId, List<Entry> entries) 
 
     private static int index(EntityDataKey<?> key) {
         OptionalInt i = key.index();
-        if (i.isEmpty()) throw new IllegalArgumentException("이 서버 버전에 없는 메타데이터 칸: " + key);
+        if (i.isEmpty()) throw new IllegalArgumentException("metadata slot that does not exist in this server version: " + key);
         return i.getAsInt();
     }
 

@@ -1,6 +1,7 @@
 // 플레이어 엔티티 상태(region 스레드 소유). 채널로 패킷 전송(eventLoop 마샬).
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.server.i18n.Lang;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import java.util.HashMap;
@@ -2045,6 +2046,28 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     /** PlayerRoster 전용. */
     public void rosterLevel(org.domi.furnace.server.world.PlayerRoster.Level l) { this.rosterLevel = l; }
 
+    /**
+     * 엔티티가 제거돼 차원 레벨 목록에서 빠졌다(죽고 20틱 뒤·엔드 크레딧 중 — 바닐라 {@code level.players()} 에 없다). PlayerRoster 가 잠금 안에서 쓴다.
+     * 리스폰·차원 이동(다시 목록에 들 때)에 거짓이 된다. 판정이 몰린 곳(잠 비율·활성 범위 등)이 잠금 없이 읽는다.
+     */
+    private volatile boolean removedFromLevel;
+    /**
+     * 제거가 파괴(KILLED)여서 ChunkMap 의 플레이어 추적에서도 빠졌다(죽고 20틱 뒤만 — 엔드 크레딧의 CHANGED_DIMENSION 은 아니다). 바닐라
+     * {@code ChunkMap.removeEntity}: 청크 추적·플레이어 티켓·엔티티 추적을 잃는다(그 청크의 블록 변경·엔티티를 더 받지 않고, 청크 불러오기·틱·
+     * 자연 스폰 범위에서 빠진다). PlayerRoster 가 쓴다.
+     */
+    private volatile boolean chunkUntracked;
+
+    public boolean removedFromLevel() { return removedFromLevel; }
+
+    public boolean chunkUntracked() { return chunkUntracked; }
+
+    /** PlayerRoster 전용. */
+    public void levelRemoval(boolean removed, boolean untracked) {
+        this.removedFromLevel = removed;
+        this.chunkUntracked = untracked;
+    }
+
     /** 위치를 쓴 직후: 격자 칸이 바뀌었으면 색인을 맞춘다(같은 스레드의 다음 조회가 새 칸으로 찾게). */
     private void positionWritten(double nx, double nz) {
         var l = rosterLevel;
@@ -2339,7 +2362,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
                 try {
                     adopt.accept(r);
                 } catch (RuntimeException e) {   // 편입 실패가 차원 이동 콜백(되돌리기 판단) 위로 올라가지 않게
-                    org.slf4j.LoggerFactory.getLogger(Player.class).error("[PORTAL] 도착 편입 실패", e);
+                    org.slf4j.LoggerFactory.getLogger(Player.class).error(Lang.t("portal.arrival-failed"), e);
                 }
             } else {
                 w.runAt(x, z, adopt);

@@ -47,9 +47,7 @@ public final class CraftMagicNumbers implements UnsafeValues {
      */
     public static net.minecraft.world.level.block.state.BlockState getBlock(Material material, byte data) {
         if (data != 0) {
-            org.domi.furnace.compat.nms.NmsCaller.warnOnce("legacy-block-data",
-                    "플러그인 {} 가 옛 블록 데이터 값(0 아님)으로 블록 상태를 만들었다 — Furnace 는 옛 데이터 값(평탄화 표)을 지원하지 않아 무시하고 기본 상태를 쓴다."
-                            + " (예: 빨간 양털 WOOL,14 는 흰 양털이 된다) BlockData 를 쓰는 방식으로 바꾼다.");
+            org.domi.furnace.compat.nms.NmsCaller.warnOnce("legacy-block-data", "compat.legacy-block-data");
         }
         Block b = getBlock(material);
         return (b == null ? net.minecraft.world.level.block.Blocks.AIR : b).defaultBlockState();
@@ -69,7 +67,7 @@ public final class CraftMagicNumbers implements UnsafeValues {
     /** 1.21.1 의 SharedConstants 값(바닐라 서버 jar version.json 의 world_version). */
     static int dataVersionOf(String minecraftVersion) {
         if ("1.21.1".equals(minecraftVersion)) return 3955;
-        throw new UnsupportedFeature("UnsafeValues#getDataVersion", "마인크래프트 " + minecraftVersion + " 의 데이터 버전 표가 없다");
+        throw new UnsupportedFeature("UnsafeValues#getDataVersion", "there is no data version table for Minecraft " + minecraftVersion);
     }
 
     @Override
@@ -93,7 +91,7 @@ public final class CraftMagicNumbers implements UnsafeValues {
     @Override
     public String getMainLevelName() {
         for (var w : f().worlds()) if ("minecraft:overworld".equals(w.dimension())) return w.name();
-        throw new IllegalStateException("오버월드가 아직 없다");
+        throw new IllegalStateException("the overworld does not exist yet");
     }
 
     @Override

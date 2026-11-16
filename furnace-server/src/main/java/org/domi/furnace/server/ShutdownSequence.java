@@ -6,6 +6,7 @@ package org.domi.furnace.server;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -109,8 +110,7 @@ public final class ShutdownSequence {
                 // 넘겨받기는 한 스레드만(훅과 두 번째 /stop 이 함께 기다릴 수 있다)
                 if (r != null && r != Thread.currentThread() && inSystemExit(r) && runner.compareAndSet(r, Thread.currentThread())) {
                     int next = current + 1;
-                    log.warn("[STOP] 종료 단계 {} 안에서 System.exit 가 불렸다 — 남은 단계를 이 스레드에서 이어 돈다",
-                            Step.values()[Math.max(0, current)]);
+                    log.warn(Lang.t("stop.step-exit", Step.values()[Math.max(0, current)]));
                     runFrom(next);
                     return;
                 }
@@ -138,7 +138,7 @@ public final class ShutdownSequence {
                 try {
                     r.run();
                 } catch (Throwable t) {
-                    log.error("[STOP] {} 단계 실패", all[i], t);
+                    log.error(Lang.t("stop.step-failed", all[i]), t);
                 }
             }
         } finally {

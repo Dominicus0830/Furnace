@@ -17,6 +17,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.domi.furnace.api.sched.GlobalScheduler;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,7 +39,7 @@ public final class ChatChain {
             new SynchronousQueue<>(), r -> {
                 Thread t = new Thread(r, "Async Chat Thread - #" + THREAD_NO.getAndIncrement());
                 t.setDaemon(true);
-                t.setUncaughtExceptionHandler((th, e) -> log.error("채팅 실행기 예외", e));
+                t.setUncaughtExceptionHandler((th, e) -> log.error(Lang.t("chat.executor-failed"), e));
                 return t;
             });
 
@@ -142,7 +143,7 @@ public final class ChatChain {
             try {
                 wait = s.run();
             } catch (Throwable t) {
-                log.error("채팅 처리 실패", t);
+                log.error(Lang.t("chat.process-failed"), t);
                 wait = null;
             }
             if (wait == null) continue;
@@ -161,7 +162,7 @@ public final class ChatChain {
     }
 
     private static void logFailure(Throwable t) {
-        if (t != null) log.error("채팅 처리 실패(전역)", unwrap(t));
+        if (t != null) log.error(Lang.t("chat.process-failed-global"), unwrap(t));
     }
 
     private static Throwable unwrap(Throwable t) {

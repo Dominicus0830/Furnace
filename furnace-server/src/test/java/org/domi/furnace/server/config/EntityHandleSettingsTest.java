@@ -52,8 +52,9 @@ class EntityHandleSettingsTest {
         List<String> warns = new ArrayList<>();
         EntityHandleSettings.fromProperties(new Properties(), warns::add);
         assertEquals(1, warns.size());
-        assertTrue(warns.get(0).contains("collisions.max-entity-collisions=-1"), warns.get(0));
-        assertTrue(warns.get(0).contains("entity-tracking-range.enabled=false"), warns.get(0));
+        // 어느 언어든 바닐라와 다른 키=값 목록이 들어 있다
+        assertTrue(warns.get(0).contains("collisions.max-entity-collisions=8"), warns.get(0));
+        assertTrue(warns.get(0).contains("entity-tracking-range.enabled=true"), warns.get(0));
         warns.clear();
         Properties v = new Properties();
         v.setProperty("collisions.max-entity-collisions", "-1");

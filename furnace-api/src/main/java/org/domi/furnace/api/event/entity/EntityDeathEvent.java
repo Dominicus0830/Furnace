@@ -47,7 +47,7 @@ public final class EntityDeathEvent extends EntityEvent implements Cancellable {
     /** @throws IllegalArgumentException 0 이하(최대 체력이 0 이 아닐 때)이거나 최대 체력보다 크면(Paper 와 같다) */
     public void reviveHealth(float health) {
         if ((maxHealth != 0 && health <= 0) || health > maxHealth) {
-            throw new IllegalArgumentException("되살릴 체력은 0 초과 " + maxHealth + " 이하여야 한다: " + health);
+            throw new IllegalArgumentException("the health to revive with must be above 0 and at most " + maxHealth + ": " + health);
         }
         this.reviveHealth = health;
     }

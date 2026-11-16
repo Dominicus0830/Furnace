@@ -21,7 +21,7 @@ public class RedStoneWireBlock extends BlockBehavior {
     private static final int UP = 0, SIDE_ = 1, NONE = 2;
     static {
         String[] vs = NORTH.values(B.defaultState("redstone_wire"));
-        if (!"up".equals(vs[UP]) || !"side".equals(vs[SIDE_]) || !"none".equals(vs[NONE])) throw new IllegalStateException("redstone_wire 연결 값 순서가 다르다");
+        if (!"up".equals(vs[UP]) || !"side".equals(vs[SIDE_]) || !"none".equals(vs[NONE])) throw new IllegalStateException("redstone_wire connection values are in a different order");
     }
     private static final int WIRE = B.id("redstone_wire"), HOPPER = B.id("hopper"), REPEATER = B.id("repeater"), OBSERVER = B.id("observer");
     private static final Prop FACING = B.prop("facing");

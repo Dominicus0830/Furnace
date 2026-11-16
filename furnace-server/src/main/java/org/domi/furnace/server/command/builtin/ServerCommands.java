@@ -1,6 +1,7 @@
 // 바닐라 KickCommand·ListPlayersCommand·SayCommand·HelpCommand·StopCommand·SeedCommand·SaveAll/Off/OnCommand·SetPlayerIdleTimeoutCommand.
 package org.domi.furnace.server.command.builtin;
 
+import org.domi.furnace.server.i18n.Lang;
 import static org.domi.furnace.server.command.Commands.argument;
 import static org.domi.furnace.server.command.Commands.literal;
 
@@ -151,7 +152,7 @@ public final class ServerCommands {
                     try {
                         source.sendSuccess(() -> Text.translatable("commands.save.success"), true);
                     } catch (RuntimeException t) {
-                        org.slf4j.LoggerFactory.getLogger(ServerCommands.class).warn("save-all 완료 메시지 실패", t);
+                        org.slf4j.LoggerFactory.getLogger(ServerCommands.class).warn(Lang.t("cmd.save-all-message-failed"), t);
                     }
                 }
             };

@@ -42,28 +42,28 @@ public class CraftProjectile extends CraftEntity implements Projectile {
     }
 
     @Override
-    public void setShooter(ProjectileSource source) { throw new UnsupportedFeature("Projectile#setShooter", "Furnace 핸들은 투사체의 주인을 바꾸는 길이 아직 없다"); }
+    public void setShooter(ProjectileSource source) { throw new UnsupportedFeature("Projectile#setShooter", "the Furnace handle has no way yet to change the owner of a projectile"); }
 
     @Override
-    public boolean hasLeftShooter() { throw new UnsupportedFeature("Projectile#hasLeftShooter", "Furnace 핸들은 투사체가 쏜 쪽을 벗어났는지 알려 주지 않는다"); }
+    public boolean hasLeftShooter() { throw new UnsupportedFeature("Projectile#hasLeftShooter", "the Furnace handle does not report whether the projectile has left its shooter"); }
 
     @Override
-    public void setHasLeftShooter(boolean leftShooter) { throw new UnsupportedFeature("Projectile#setHasLeftShooter", "Furnace 핸들에는 쓰는 길이 아직 없다"); }
+    public void setHasLeftShooter(boolean leftShooter) { throw new UnsupportedFeature("Projectile#setHasLeftShooter", "the Furnace handle has no way to write this yet"); }
 
     @Override
-    public boolean hasBeenShot() { throw new UnsupportedFeature("Projectile#hasBeenShot", "Furnace 핸들은 쏘아졌는지 알려 주지 않는다"); }
+    public boolean hasBeenShot() { throw new UnsupportedFeature("Projectile#hasBeenShot", "the Furnace handle does not report whether it has been shot"); }
 
     @Override
-    public void setHasBeenShot(boolean beenShot) { throw new UnsupportedFeature("Projectile#setHasBeenShot", "Furnace 핸들에는 쓰는 길이 아직 없다"); }
+    public void setHasBeenShot(boolean beenShot) { throw new UnsupportedFeature("Projectile#setHasBeenShot", "the Furnace handle has no way to write this yet"); }
 
     @Override
-    public boolean canHitEntity(org.bukkit.entity.Entity entity) { throw new UnsupportedFeature("Projectile#canHitEntity", "Furnace 핸들에는 맞춤 판정을 묻는 길이 아직 없다"); }
+    public boolean canHitEntity(org.bukkit.entity.Entity entity) { throw new UnsupportedFeature("Projectile#canHitEntity", "the Furnace handle has no way yet to ask whether it can hit"); }
 
     @Override
-    public void hitEntity(org.bukkit.entity.Entity entity) { throw new UnsupportedFeature("Projectile#hitEntity", "Furnace 핸들에는 투사체를 맞추는 길이 아직 없다"); }
+    public void hitEntity(org.bukkit.entity.Entity entity) { throw new UnsupportedFeature("Projectile#hitEntity", "the Furnace handle has no way yet to make a projectile hit"); }
 
     @Override
-    public void hitEntity(org.bukkit.entity.Entity entity, org.bukkit.util.Vector vector) { throw new UnsupportedFeature("Projectile#hitEntity", "Furnace 핸들에는 투사체를 맞추는 길이 아직 없다"); }
+    public void hitEntity(org.bukkit.entity.Entity entity, org.bukkit.util.Vector vector) { throw new UnsupportedFeature("Projectile#hitEntity", "the Furnace handle has no way yet to make a projectile hit"); }
 
     @Override
     @Deprecated

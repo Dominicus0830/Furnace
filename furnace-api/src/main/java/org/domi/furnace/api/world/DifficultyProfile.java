@@ -14,7 +14,7 @@ public record DifficultyProfile(String key, Difficulty base, float playerDamageM
         java.util.Objects.requireNonNull(base, "base");
         if (!(playerDamageMultiplier >= 0) || !(localDifficultyMultiplier >= 0) || Float.isInfinite(playerDamageMultiplier)
                 || Float.isInfinite(localDifficultyMultiplier)) {
-            throw new IllegalArgumentException("배율은 0 이상의 유한한 수: " + playerDamageMultiplier + ", " + localDifficultyMultiplier);
+            throw new IllegalArgumentException("multipliers must be finite numbers of at least 0: " + playerDamageMultiplier + ", " + localDifficultyMultiplier);
         }
     }
 

@@ -46,7 +46,7 @@ public final class EntityDataSerializers {
         EntityDataSerializer<T> s = new EntityDataSerializer<>() {
             @Override
             public StreamCodec<? super RegistryFriendlyByteBuf, T> codec() {
-                throw new UnsupportedNmsCall("EntityDataSerializer#codec(" + name + ")", "메타데이터 값의 바이트 변환은 아직 연결되지 않았다(ProtocolLib 다리 3단계)");
+                throw new UnsupportedNmsCall("EntityDataSerializer#codec(" + name + ")", "byte conversion of metadata values is not connected yet (ProtocolLib bridge stage 3)");
             }
 
             @Override

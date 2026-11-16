@@ -11,6 +11,8 @@ rem      주의: cmd 는 = 를 구분자로 보므로 = 가 든 옵션은 큰따
 rem 참고: -XX:ThreadPriorityPolicy=1 은 리눅스용이다. 윈도 JVM 은 원래 스레드 우선순위를 따르므로 필요 없고, 윈도에서 정책 1 은 우선순위 매핑을 바꿔 검증이 안 됐으니 넣지 않는다.
 rem -Xmx 를 아무 데서도 안 주면 기본 6G (set FURNACE_XMX=4G 로 기본값만 바꿀 수도 있다).
 cd /d "%~dp0"
+rem 콘솔 글자를 UTF-8 로(한국어 윈도 cmd 의 기본 CP949 에서는 서버 메시지가 깨진다)
+chcp 65001 >nul
 set APP=furnace-server\build\install\furnace-server
 if not exist "%APP%\lib" (
   call gradlew.bat -PskipOracle=true :furnace-server:installDist || exit /b 1

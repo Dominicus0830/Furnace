@@ -59,7 +59,7 @@ public final class BlockSounds {
         SoundType[] byBlock = new SoundType[blocks.blockCount()];
         java.util.Map<Integer, StateOverride> overrides = new java.util.HashMap<>();
         try (var in = BlockSounds.class.getClassLoader().getResourceAsStream("blocks/soundtypes_1.21.1.txt")) {
-            if (in == null) throw new IllegalStateException("blocks/soundtypes_1.21.1.txt 없음");
+            if (in == null) throw new IllegalStateException("blocks/soundtypes_1.21.1.txt is missing");
             BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             String line;
             boolean inBlocks = false, inOverrides = false;

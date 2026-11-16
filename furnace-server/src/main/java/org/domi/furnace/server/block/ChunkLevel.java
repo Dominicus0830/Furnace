@@ -2,6 +2,7 @@
 // 청크를 어디서 얻는지(소유 region 의 로드된 청크)와 변경 방송·저장 표시는 하위 클래스가 정한다.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.util.TreeMap;
 import org.domi.furnace.server.block.entity.BlockEntity;
 import org.domi.furnace.server.entity.AABB;
@@ -480,7 +481,7 @@ public abstract class ChunkLevel implements BlockLevel {
     @Override
     public void destroyBlockProgress(int breakerId, Pos pos, int progress) {
         var pkt = new org.domi.furnace.server.net.protocol.play.BlockDestruction(breakerId, pos.x(), pos.y(), pos.z(), progress);
-        services().forEachPlayer(p -> {
+        services().forEachConnectedPlayer(p -> {
             if (p.entityId() == breakerId) return;
             double dx = pos.x() - p.x(), dy = pos.y() - p.y(), dz = pos.z() - p.z();
             if (dx * dx + dy * dy + dz * dz < 1024.0) p.send(pkt);
@@ -1086,7 +1087,7 @@ public abstract class ChunkLevel implements BlockLevel {
         double range = volume > 1.0F ? 16.0 * volume : 16.0;
         SoundPacket pkt = new SoundPacket(id == null ? -1 : id, sound, SoundPacket.source(source), x, y, z, volume, pitch, seed);
         Object skip = except == null ? null : except.handle();
-        services().forEachPlayer(p -> {
+        services().forEachConnectedPlayer(p -> {
             if (p == skip) return;
             double dx = x - p.x(), dy = y - p.y(), dz = z - p.z();
             if (dx * dx + dy * dy + dz * dz < range * range) p.send(pkt);
@@ -1122,7 +1123,7 @@ public abstract class ChunkLevel implements BlockLevel {
         org.domi.furnace.server.net.protocol.play.SoundEntity pkt = new org.domi.furnace.server.net.protocol.play.SoundEntity(
                 id == null ? -1 : id, sound, SoundPacket.source(source), entityId, volume, pitch, seed);
         Object skip = except == null ? null : except.handle();
-        services().forEachPlayer(p -> {
+        services().forEachConnectedPlayer(p -> {
             if (p == skip) return;
             double dx = x - p.x(), dy = y - p.y(), dz = z - p.z();
             if (dx * dx + dy * dy + dz * dz < range * range) p.send(pkt);
@@ -1133,7 +1134,7 @@ public abstract class ChunkLevel implements BlockLevel {
     public void levelEvent(BlockActor except, int type, Pos pos, int data) {
         LevelEventPacket pkt = new LevelEventPacket(type, pos.x(), pos.y(), pos.z(), data, false);
         Object skip = except == null ? null : except.handle();
-        services().forEachPlayer(p -> {
+        services().forEachConnectedPlayer(p -> {
             if (p == skip) return;
             double dx = pos.x() - p.x(), dy = pos.y() - p.y(), dz = pos.z() - p.z();
             if (dx * dx + dy * dy + dz * dz < 64.0 * 64.0) p.send(pkt);
@@ -1147,7 +1148,7 @@ public abstract class ChunkLevel implements BlockLevel {
             return;
         }
         LevelEventPacket pkt = new LevelEventPacket(type, pos.x(), pos.y(), pos.z(), data, true);
-        services().forEachPlayer(p -> p.send(pkt));
+        services().forEachConnectedPlayer(p -> p.send(pkt));
     }
 
     @Override
@@ -1181,7 +1182,7 @@ public abstract class ChunkLevel implements BlockLevel {
             if (blocks.blockOf(s) != e.block()) continue;
             if (BlockBehaviors.of(s).triggerEvent(s, this, pos, e.type(), e.data())) {
                 BlockEventPacket pkt = new BlockEventPacket(e.x(), e.y(), e.z(), e.type(), e.data(), e.block());
-                services().forEachPlayer(p -> {
+                services().forEachConnectedPlayer(p -> {
                     double dx = e.x() - p.x(), dy = e.y() - p.y(), dz = e.z() - p.z();
                     if (dx * dx + dy * dy + dz * dz < 64.0 * 64.0) p.send(pkt);
                 });
@@ -1741,7 +1742,7 @@ public abstract class ChunkLevel implements BlockLevel {
             org.domi.furnace.server.world.gen.carver.WorldgenRandom random, boolean apply) {
         var h = org.domi.furnace.server.world.LiveFeatures.configured(featureData(), id);
         if (h == null) return null;
-        if (!h.supported()) throw new UnsupportedOperationException("아직 구현되지 않은 feature: " + id);
+        if (!h.supported()) throw new UnsupportedOperationException("feature not implemented yet: " + id);
         return org.domi.furnace.server.world.LiveFeatures.placeWith(this, h, pos, random, featureSeed(), apply);
     }
 
@@ -2517,7 +2518,7 @@ public abstract class ChunkLevel implements BlockLevel {
         lightBatchChunks.clear();
         if (failed != null) {
             // 묶음의 사본을 버렸으니 보이는 빛은 넘기기 전 그대로다 — 넘겼던 칸을 다시 걸고 그 자리에서 계산한다(끈 것과 같은 결과)
-            org.slf4j.LoggerFactory.getLogger(ChunkLevel.class).error("[LIGHT] 빛 작업 실패 — 그 묶음을 이 스레드에서 다시 계산한다", failed);
+            org.slf4j.LoggerFactory.getLogger(ChunkLevel.class).error(Lang.t("level.light-task-failed"), failed);
             var engine = lightEngine();
             for (long p : seeds) {
                 engine.blockChanged(org.domi.furnace.server.light.LightEngine.px(p), org.domi.furnace.server.light.LightEngine.py(p),
@@ -2635,7 +2636,7 @@ public abstract class ChunkLevel implements BlockLevel {
     /** 추적 대상 플레이어(이 레벨을 돌리는 region 의 플레이어). 기본은 서비스의 접속자. */
     protected Iterable<Player> trackingPlayers() {
         java.util.List<Player> out = new java.util.ArrayList<>();
-        services().forEachPlayer(out::add);
+        services().forEachConnectedPlayer(out::add);
         return out;
     }
 
@@ -2871,7 +2872,7 @@ public abstract class ChunkLevel implements BlockLevel {
             try {
                 e.checkDespawn();   // 바닐라도 범위 검사 앞에서 부르고, 지워져도 그 틱의 tick 은 그대로 간다
             } catch (RuntimeException ex) {
-                org.slf4j.LoggerFactory.getLogger(ChunkLevel.class).error("[ENTITY] 사라짐 검사 실패 {} — 지운다", e, ex);
+                org.slf4j.LoggerFactory.getLogger(ChunkLevel.class).error(Lang.t("level.entity-check-failed", e), ex);
                 e.discard();
                 continue;
             }
@@ -2890,7 +2891,7 @@ public abstract class ChunkLevel implements BlockLevel {
                 else e.inactiveTick();
                 if (e.isVehicle()) for (var r : e.passengers()) tickPassenger(e, r);
             } catch (RuntimeException ex) {
-                org.slf4j.LoggerFactory.getLogger(ChunkLevel.class).error("[ENTITY] 엔티티 틱 실패 {} — 지운다", e, ex);
+                org.slf4j.LoggerFactory.getLogger(ChunkLevel.class).error(Lang.t("level.entity-tick-failed", e), ex);
                 e.discard();
             }
         }
@@ -2954,7 +2955,7 @@ public abstract class ChunkLevel implements BlockLevel {
      * (a)∪(b) 만 틱 목록 순서로 돈다(T-017). 보내는 패킷·순서·seenBy 는 전체 훑기와 같다(EntityTrackerCandidatesIdentityTest).
      */
     public void playerMoved(Player p) {
-        if (VERIFY_TRACK_CANDIDATES && !seenIndexCovers(p)) throw new AssertionError("추적 역색인에 빠진 엔티티가 있다: " + p);
+        if (VERIFY_TRACK_CANDIDATES && !seenIndexCovers(p)) throw new AssertionError("tracking reverse index is missing an entity: " + p);
         int n = entities.size();
         SeenList seen = seenIndex.get(p);
         // 엔티티가 적거나, p 가 이미 절반 넘게 본다(몰림 — 후보가 거의 전부라 모으고 늘어놓는 값만 더 든다)면 전체 훑기
@@ -3033,7 +3034,7 @@ public abstract class ChunkLevel implements BlockLevel {
             buf = candBuf;
             n = entities.orderAndDedupe(buf, candN);
             candN = 0;
-            if (VERIFY_TRACK_CANDIDATES && !candidatesComplete(p, buf, n)) throw new AssertionError("추적 후보에 빠진 엔티티가 있다: " + p);
+            if (VERIFY_TRACK_CANDIDATES && !candidatesComplete(p, buf, n)) throw new AssertionError("tracking candidates are missing an entity: " + p);
             long mods = entities.modCount();
             for (int i = 0; i < n; i++) {
                 Entity e = buf[i];
@@ -3378,7 +3379,7 @@ public abstract class ChunkLevel implements BlockLevel {
 
     /** 충돌 상태 표를 지금 만든다(서버 시작 때 — 블록 동작 표와 아이템 번호표가 깔린 뒤). */
     public static void warmCollisionTable() {
-        if (CollisionTable.FLAGS.length == 0) throw new IllegalStateException("충돌 상태 표가 비었다");
+        if (CollisionTable.FLAGS.length == 0) throw new IllegalStateException("the collision state table is empty");
     }
 
     /**

@@ -78,7 +78,7 @@ public final class EntityDamageCalculateEvent extends EntityEvent {
 
     /** 시작 값을 바꾼다. 모든 단계가 새 값으로 다시 계산된다(바꾼 단계는 바꾼 대로). 0 이상의 유한한 값. */
     public void setBase(float base) {
-        if (!(base >= 0f) || Float.isInfinite(base)) throw new IllegalArgumentException("base 는 0 이상의 유한한 값: " + base);
+        if (!(base >= 0f) || Float.isInfinite(base)) throw new IllegalArgumentException("base must be a finite value of at least 0: " + base);
         this.base = base;
         dirty = true;
     }
@@ -126,7 +126,7 @@ public final class EntityDamageCalculateEvent extends EntityEvent {
      * ABSORPTION 은 가진 흡수 체력도 넘지 못한다. 적용 안 되는 단계도 정하면 그만큼 줄인다.
      */
     public void setReduction(DamageStage stage, float reduction) {
-        if (!(reduction >= 0f) || Float.isInfinite(reduction)) throw new IllegalArgumentException("reduction 은 0 이상의 유한한 값: " + reduction);
+        if (!(reduction >= 0f) || Float.isInfinite(reduction)) throw new IllegalArgumentException("reduction must be a finite value of at least 0: " + reduction);
         int i = stage.ordinal();
         if (appliedOverride[i] == Boolean.FALSE) appliedOverride[i] = null;   // 건너뛰기 뒤에 양을 정하면 양이 이긴다
         mode[i] = Mode.ABSOLUTE;
@@ -140,7 +140,7 @@ public final class EntityDamageCalculateEvent extends EntityEvent {
      * 예: 방어력을 반만 쳐 주려면 {@code scaleReduction(ARMOR, 0.5f)}. factor 는 0 이상의 유한한 값, 결과는 0..input 으로 잘린다.
      */
     public void scaleReduction(DamageStage stage, float factor) {
-        if (!(factor >= 0f) || Float.isInfinite(factor)) throw new IllegalArgumentException("factor 는 0 이상의 유한한 값: " + factor);
+        if (!(factor >= 0f) || Float.isInfinite(factor)) throw new IllegalArgumentException("factor must be a finite value of at least 0: " + factor);
         int i = stage.ordinal();
         if (appliedOverride[i] == Boolean.FALSE) appliedOverride[i] = null;
         mode[i] = Mode.SCALE;

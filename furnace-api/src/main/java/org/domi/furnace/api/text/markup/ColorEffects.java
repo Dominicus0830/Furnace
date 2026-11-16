@@ -37,15 +37,15 @@ final class ColorEffects {
             } else {
                 OptionalDouble p = a.asDouble();
                 if (p.isPresent() && !args.hasNext()) phase = p.getAsDouble();
-                else throw ctx.newException("'" + a.value() + "' 을(를) 색으로 읽을 수 없다");
+                else throw ctx.newException("'" + a.value() + "' is not a valid color");
             }
         }
         if (colors.isEmpty()) {
             colors.add(NamedTextColor.WHITE);
             colors.add(NamedTextColor.BLACK);
         }
-        if (colors.size() == 1) throw ctx.newException("그라디언트에는 색이 둘 이상 필요하다");
-        if (phase < -1 || phase > 1) throw ctx.newException("그라디언트 phase 는 -1.0 ~ 1.0 이어야 한다: " + phase);
+        if (colors.size() == 1) throw ctx.newException("a gradient needs at least two colors");
+        if (phase < -1 || phase > 1) throw ctx.newException("the gradient phase must be between -1.0 and 1.0: " + phase);
         if (phase < 0) {
             java.util.Collections.reverse(colors);
             phase = 1 + phase;
@@ -78,7 +78,7 @@ final class ColorEffects {
                 try {
                     phase = Integer.parseInt(v.trim());
                 } catch (NumberFormatException e) {
-                    throw ctx.newException("rainbow 인자는 '!' 또는 정수 phase 여야 한다: '" + v + "'");
+                    throw ctx.newException("the rainbow argument must be '!' or an integer phase: '" + v + "'");
                 }
             }
         }
@@ -129,11 +129,11 @@ final class ColorEffects {
             } else {
                 OptionalDouble p = a.asDouble();
                 if (p.isPresent() && !args.hasNext()) phase = p.getAsDouble();
-                else throw ctx.newException("'" + a.value() + "' 을(를) 색으로 읽을 수 없다");
+                else throw ctx.newException("'" + a.value() + "' is not a valid color");
             }
         }
-        if (colors.isEmpty()) throw ctx.newException("transition 에는 색이 하나 이상 필요하다");
-        if (phase < 0 || phase > 1) throw ctx.newException("transition phase 는 0.0 ~ 1.0 이어야 한다: " + phase);
+        if (colors.isEmpty()) throw ctx.newException("transition needs at least one color");
+        if (phase < 0 || phase > 1) throw ctx.newException("the transition phase must be between 0.0 and 1.0: " + phase);
         float position = (float) phase * (colors.size() - 1);
         int low = (int) Math.floor(position);
         int high = (int) Math.ceil(position);
@@ -171,13 +171,13 @@ final class ColorEffects {
                 flag = a.lowerValue();
                 if (args.hasNext()) {
                     OptionalDouble p = args.pop().asDouble();
-                    if (p.isEmpty()) throw ctx.newException("pride phase 는 숫자여야 한다");
+                    if (p.isEmpty()) throw ctx.newException("the pride phase must be a number");
                     phase = (float) p.getAsDouble();
                 }
             }
         }
         int[] rgb = FLAGS.get(flag.toLowerCase(Locale.ROOT));
-        if (rgb == null) throw ctx.newException("알 수 없는 pride 깃발: '" + flag + "'");
+        if (rgb == null) throw ctx.newException("unknown pride flag: '" + flag + "'");
         TextColor[] stripes = new TextColor[rgb.length];
         for (int i = 0; i < rgb.length; i++) stripes[i] = TextColor.color(rgb[i]);
         final float ph = phase;

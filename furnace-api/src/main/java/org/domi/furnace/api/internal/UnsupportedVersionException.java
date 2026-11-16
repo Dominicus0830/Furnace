@@ -9,8 +9,8 @@ public final class UnsupportedVersionException extends IllegalStateException {
     private final String[] supported;
 
     public UnsupportedVersionException(String actual, String... supported) {
-        super("이 서버는 마인크래프트 " + actual + " 이다 — 이 플러그인의 내부 접근은 " + String.join(", ", supported)
-                + " 용으로 만들어졌다(플러그인을 새 버전에 맞춰 다시 빌드해야 한다)");
+        super("This server runs Minecraft " + actual + " - this plugin's internals access was built for " + String.join(", ", supported)
+                + " (rebuild the plugin for the new version)");
         this.actual = actual;
         this.supported = supported.clone();
     }

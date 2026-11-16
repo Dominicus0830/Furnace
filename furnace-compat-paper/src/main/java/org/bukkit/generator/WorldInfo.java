@@ -23,6 +23,6 @@ public interface WorldInfo {
      * 감싸는 것이 아직 없어 UnsupportedFeature.
      */
     default BiomeProvider vanillaBiomeProvider() {
-        throw new org.domi.furnace.compat.paper.UnsupportedFeature("WorldInfo#vanillaBiomeProvider", "Furnace 바이옴 소스를 BiomeProvider 로 감싸는 길이 아직 없다");
+        throw new org.domi.furnace.compat.paper.UnsupportedFeature("WorldInfo#vanillaBiomeProvider", "there is no way yet to wrap a Furnace biome source as a BiomeProvider");
     }
 }

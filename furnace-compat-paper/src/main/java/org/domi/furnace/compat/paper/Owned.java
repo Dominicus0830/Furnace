@@ -31,7 +31,7 @@ final class Owned {
             return;
         }
         f.whenComplete((v, e) -> {
-            if (e != null) LOG.log(System.Logger.Level.WARNING, what + " 예약 작업이 실패했다", e);
+            if (e != null) LOG.log(System.Logger.Level.WARNING, org.domi.furnace.compat.i18n.CompatLang.t("compat.scheduled-task-failed", what), e);
         });
     }
 
@@ -41,8 +41,8 @@ final class Owned {
     }
 
     static ThreadOwnershipException notOwner(String what) {
-        return new ThreadOwnershipException(what + " 는 그 대상을 가진 region 스레드에서만 부를 수 있다 (현재 " + Thread.currentThread().getName()
-                + ") — Furnace 에는 Bukkit 의 단일 주 스레드가 없다. 이벤트 처리기·entityScheduler 작업 안에서 부르거나 Furnace 비동기 API 를 쓴다");
+        return new ThreadOwnershipException(what + " can only be called on the region thread that owns its target (current thread: " + Thread.currentThread().getName()
+                + ") - Furnace has no single Bukkit main thread. Call it from an event handler or an entityScheduler task, or use the Furnace async API");
     }
 
     private static <T> T join(CompletableFuture<T> f) {

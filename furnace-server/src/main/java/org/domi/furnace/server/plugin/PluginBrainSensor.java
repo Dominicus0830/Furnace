@@ -2,6 +2,7 @@
 // 플러그인이 꺼졌거나 예외를 던지면 다시 부르지 않고 스스로 빠진다(예외는 로그 한 번).
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.util.HashSet;
 import java.util.Set;
 import org.domi.furnace.api.entity.ai.brain.BrainSensor;
@@ -47,7 +48,7 @@ final class PluginBrainSensor extends Sensor<Mob> {
             sensor.sense(ai, brain);
         } catch (Throwable t) {
             broken = true;
-            LoggerFactory.getLogger(PluginBrainSensor.class).warn("플러그인 {} 의 두뇌 센서 {} 가 예외를 던져 뗀다", owner, key, t);
+            LoggerFactory.getLogger(PluginBrainSensor.class).warn(Lang.t("plugin.brain-sensor-threw", owner, key), t);
             entity.getBrain().removeSensor(key.toString());
         }
     }

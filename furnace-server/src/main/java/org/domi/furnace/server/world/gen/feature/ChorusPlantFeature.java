@@ -34,13 +34,13 @@ public final class ChorusPlantFeature implements ConfiguredFeature {
             p.put("west", String.valueOf((bits & 32) != 0));
             int id = registry.stateIdOrAir("minecraft:chorus_plant", p);
             if (id == registry.stateIdOrAir("minecraft:air") || !isPlant[id])
-                throw new IllegalStateException("chorus_plant 상태를 찾지 못함: " + p);
+                throw new IllegalStateException("chorus_plant state not found: " + p);
             plantByConnections[bits] = id;
         }
         Map<String, String> flower = new HashMap<>();
         flower.put("age", "5");
         this.flowerAge5 = registry.stateIdOrAir("minecraft:chorus_flower", flower);
-        if (!isFlower[flowerAge5]) throw new IllegalStateException("chorus_flower[age=5] 상태를 찾지 못함");
+        if (!isFlower[flowerAge5]) throw new IllegalStateException("chorus_flower[age=5] state not found");
     }
 
     private static boolean[] flags(BlockRegistry registry, int n, String block) {

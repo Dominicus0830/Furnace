@@ -66,7 +66,7 @@ public final class VanillaGoal {
 
     /** 이 아이템을 든 플레이어 따라가기(TemptGoal). 길찾는 몹. items 는 아이템 키. */
     public static VanillaGoal tempt(double speed, Collection<String> items, boolean canScare) {
-        if (items.isEmpty()) throw new IllegalArgumentException("유혹 아이템이 없다");
+        if (items.isEmpty()) throw new IllegalArgumentException("no tempt items given");
         return new VanillaGoal("tempt", "speed", speed, "items", List.copyOf(items), "can_scare", canScare);
     }
 

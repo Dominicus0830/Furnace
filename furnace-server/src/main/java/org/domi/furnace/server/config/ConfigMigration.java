@@ -7,6 +7,7 @@
 // 그때도 CURRENT 를 올리고 defaults 에 {키, 옛 값, 새 값} 을 더한다 — 주석이 아닌 "키=옛 값" 줄만 새 값으로 바꾼다.
 package org.domi.furnace.server.config;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -64,7 +65,7 @@ public final class ConfigMigration {
             // Properties 와 같은 ISO-8859-1 로 읽고 그대로 쓴다 — 바이트가 달라지지 않는다.
             lines = new ArrayList<>(Files.readAllLines(file, StandardCharsets.ISO_8859_1));
         } catch (IOException e) {
-            throw new RuntimeException("설정 로드 실패: " + file, e);
+            throw new RuntimeException(Lang.t("cfg.load-failed", file), e);
         }
         int versionLine = -1;
         int version = 1;   // 버전 줄이 없는 파일은 1 형식이다
@@ -75,14 +76,13 @@ public final class ConfigMigration {
                 try {
                     version = Integer.parseInt(m.group(1).strip());
                 } catch (NumberFormatException e) {
-                    throw new IllegalArgumentException("설정 '" + KEY + "' 값 '" + m.group(1) + "' 이(가) 잘못됐습니다: 1 이상의 정수");
+                    throw new IllegalArgumentException(Lang.t("cfg.invalid-value", KEY, m.group(1), Lang.t("cfg.expect-int-at-least-1")));
                 }
-                if (version < 1) throw new IllegalArgumentException("설정 '" + KEY + "' 값 " + version + " 이(가) 잘못됐습니다: 1 이상의 정수");
+                if (version < 1) throw new IllegalArgumentException(Lang.t("cfg.invalid-value", KEY, version, Lang.t("cfg.expect-int-at-least-1")));
             }
         }
         if (version > current) {
-            warn.accept(file.getFileName() + " 의 " + KEY + "=" + version + " 이(가) 이 서버가 아는 형식(" + current
-                    + ")보다 새롭습니다: 더 새 서버에서 만든 파일입니다. 모르는 키는 무시됩니다");
+            warn.accept(Lang.t("cfg.format-newer", file.getFileName(), KEY + "=" + version, current));
             return null;
         }
         if (version == current) return null;
@@ -98,7 +98,7 @@ public final class ConfigMigration {
         }
         String versionText = KEY + "=" + current;
         if (versionLine >= 0) lines.set(versionLine, versionText);
-        else lines.add(0, latin("# 설정 형식 버전 — 서버가 키 이름을 바꿀 때 파일을 알아서 옮기는 데 쓴다. 지우지 마세요.") + "\n" + versionText);
+        else lines.add(0, latin("# " + Lang.t("cfg.file.version-comment")) + "\n" + versionText);
         changes.add(KEY + " " + version + " → " + current);
 
         Path backup = backupPath(file, version);
@@ -116,8 +116,7 @@ public final class ConfigMigration {
                     // 지우지 못하면 남긴다
                 }
             }
-            warn.accept(file.getFileName() + " 을(를) 형식 " + version + " → " + current + " 로 옮기지 못했다(" + e
-                    + ") — 파일을 그대로 두고 계속한다. 옮겼을 내용: " + changes);
+            warn.accept(Lang.t("cfg.migration-failed", file.getFileName(), version, current, e, changes));
             return null;
         }
         return new Result(version, current, List.copyOf(changes), backup);
@@ -132,9 +131,9 @@ public final class ConfigMigration {
             if (!m.matches()) continue;
             if (targetExists) {
                 // 새 키를 이미 적어 둔 사람의 값을 덮어쓰지 않는다 — 옛 줄만 주석으로 돌린다.
-                lines.set(i, latin("# (옛 키 " + from + " 는 " + to + " 가 이미 있어 쓰지 않는다) ") + lines.get(i).strip());
-                warn.accept("마이그레이션: '" + from + "' → '" + to + "' — 새 키가 이미 있어 옛 줄을 주석 처리만 했습니다");
-                changes.add(from + " 줄을 주석 처리(새 키 " + to + " 가 이미 있음)");
+                lines.set(i, latin("# " + Lang.t("cfg.file.old-key-unused", from, to) + " ") + lines.get(i).strip());
+                warn.accept(Lang.t("cfg.migration-key-exists", from, to));
+                changes.add(Lang.t("cfg.change-commented-dup", from, to));
             } else {
                 lines.set(i, m.group(1) + to + m.group(2));
                 changes.add(from + " → " + to);
@@ -147,14 +146,14 @@ public final class ConfigMigration {
         Pattern p = keyLine(key);
         for (int i = 0; i < lines.size(); i++) {
             if (p.matcher(lines.get(i)).matches()) {
-                lines.set(i, latin("# (형식 " + fromVersion + " 의 키라 더는 쓰지 않는다) ") + lines.get(i).strip());
-                changes.add(key + " 줄을 주석 처리(없어진 키)");
+                lines.set(i, latin("# " + Lang.t("cfg.file.obsolete-key", fromVersion) + " ") + lines.get(i).strip());
+                changes.add(Lang.t("cfg.change-commented-obsolete", key));
             }
         }
     }
 
     /** 기본값을 옮긴 변경 줄의 머리 — 일부러 옛 값을 적었던 운영자가 알아차리게 기동 로그에서 경고로 올린다. */
-    public static final String DEFAULT_CHANGE_MARK = "[기본값 바뀜] ";
+    public static String defaultChangeMark() { return Lang.t("cfg.default-changed-mark") + " "; }
 
     private static void resetDefault(List<String> lines, DefaultChange d, List<String> changes) {
         Pattern p = Pattern.compile("^(\\s*" + Pattern.quote(d.key()) + "\\s*[=:]\\s*)" + Pattern.quote(d.oldValue()) + "\\s*$");
@@ -162,8 +161,7 @@ public final class ConfigMigration {
             Matcher m = p.matcher(lines.get(i));
             if (!m.matches()) continue;
             lines.set(i, m.group(1) + d.newValue());
-            changes.add(DEFAULT_CHANGE_MARK + d.key() + " 기본값이 " + d.oldValue() + " → " + d.newValue() + " 로 바뀌어 적힌 " + d.oldValue() + " 를 " + d.newValue()
-                    + " 로 옮겼다(그대로 두려면 다시 " + d.oldValue() + " 로 적으라)");
+            changes.add(defaultChangeMark() + Lang.t("cfg.change-default", d.key(), d.oldValue(), d.newValue()));
         }
     }
 

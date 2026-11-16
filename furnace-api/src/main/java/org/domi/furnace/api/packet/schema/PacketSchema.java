@@ -89,7 +89,7 @@ public final class PacketSchema {
 
     private static PacketSchema load(int protocol, String resource) {
         try (InputStream in = PacketSchema.class.getResourceAsStream(resource)) {
-            if (in == null) throw new IllegalStateException("스키마 리소스가 없다: " + resource);
+            if (in == null) throw new IllegalStateException("schema resource is missing: " + resource);
             return parse(protocol, new String(in.readAllBytes(), StandardCharsets.UTF_8));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -134,7 +134,7 @@ public final class PacketSchema {
         if (structsByBinary.containsKey(local) || packetsByBinary.containsKey(local)) return local;
         TypeDecl d = typesBySimple.get(name);
         if (d != null) return d.binaryName();
-        throw new IllegalArgumentException("모르는 타입 이름: " + name + " (패키지 " + javaPackage + ")");
+        throw new IllegalArgumentException("unknown type name: " + name + " (package " + javaPackage + ")");
     }
 
     /** 바깥 타입 선언을 '$' 이름으로. */
@@ -245,7 +245,7 @@ public final class PacketSchema {
                     if (Character.isWhitespace(line.charAt(0))) field(line.strip());
                     else { close(); directive(line); }
                 } catch (IllegalArgumentException e) {
-                    throw new IllegalArgumentException("스키마 " + lineNo + "줄: " + e.getMessage(), e);
+                    throw new IllegalArgumentException("schema line " + lineNo + ": " + e.getMessage(), e);
                 }
             }
             close();
@@ -269,14 +269,14 @@ public final class PacketSchema {
             switch (w.get(0)) {
                 case "state" -> {
                     need(w, 2);
-                    if (!STATE_PACKAGES.containsKey(w.get(1))) throw new IllegalArgumentException("모르는 상태: " + w.get(1));
+                    if (!STATE_PACKAGES.containsKey(w.get(1))) throw new IllegalArgumentException("unknown state: " + w.get(1));
                     state = w.get(1);
                 }
                 case "type" -> typeDecl(w, consts);
                 case "packet" -> packet(w);
                 case "base" -> base(w);
                 case "record", "class", "interface", "enum" -> nested(w, consts);
-                default -> throw new IllegalArgumentException("모르는 지시어: " + w.get(0));
+                default -> throw new IllegalArgumentException("unknown directive: " + w.get(0));
             }
         }
 
@@ -295,32 +295,32 @@ public final class PacketSchema {
                 case "record" -> TypeDecl.Kind.RECORD;
                 case "enum" -> TypeDecl.Kind.ENUM;
                 case "lib" -> TypeDecl.Kind.LIB;
-                default -> throw new IllegalArgumentException("모르는 타입 종류: " + w.get(1));
+                default -> throw new IllegalArgumentException("unknown type kind: " + w.get(1));
             };
             String name = w.get(2);
             List<String> params = List.of();
             int lt = name.indexOf('<');
             if (lt >= 0) {
-                if (!name.endsWith(">")) throw new IllegalArgumentException("타입 변수 괄호: " + name);
+                if (!name.endsWith(">")) throw new IllegalArgumentException("malformed type variable brackets: " + name);
                 params = List.of(name.substring(lt + 1, name.length() - 1).split(","));
                 name = name.substring(0, lt);
             }
             String wire = null;
             for (int i = 3; i < w.size(); i++) {
                 if (w.get(i).startsWith("wire=")) wire = w.get(i).substring(5);
-                else throw new IllegalArgumentException("모르는 type 옵션: " + w.get(i));
+                else throw new IllegalArgumentException("unknown type option: " + w.get(i));
             }
-            if (!consts.isEmpty() && kind != TypeDecl.Kind.ENUM) throw new IllegalArgumentException("상수는 enum 에만: " + name);
+            if (!consts.isEmpty() && kind != TypeDecl.Kind.ENUM) throw new IllegalArgumentException("constants are only allowed in an enum: " + name);
             types.add(new TypeDecl(kind, name, params, wire, consts));
         }
 
         private void packet(List<String> w) {
             need(w, 5);
-            if (state == null) throw new IllegalArgumentException("packet 앞에 state 가 없다");
+            if (state == null) throw new IllegalArgumentException("no state before packet");
             PacketDirection dir = switch (w.get(1)) {
                 case "clientbound" -> PacketDirection.CLIENTBOUND;
                 case "serverbound" -> PacketDirection.SERVERBOUND;
-                default -> throw new IllegalArgumentException("방향은 clientbound|serverbound: " + w.get(1));
+                default -> throw new IllegalArgumentException("the direction must be clientbound|serverbound: " + w.get(1));
             };
             String wire = w.get(2);
             String cls = w.get(3);
@@ -328,7 +328,7 @@ public final class PacketSchema {
                 case "record" -> PacketDef.Kind.RECORD;
                 case "class" -> PacketDef.Kind.CLASS;
                 case "singleton" -> PacketDef.Kind.SINGLETON;
-                default -> throw new IllegalArgumentException("패킷 종류는 record|class|singleton: " + w.get(4));
+                default -> throw new IllegalArgumentException("the packet kind must be record|class|singleton: " + w.get(4));
             };
             boolean ctor = kind == PacketDef.Kind.RECORD;
             boolean custom = false;
@@ -338,7 +338,7 @@ public final class PacketSchema {
                 if (f.equals("new")) ctor = true;
                 else if (f.equals("custom")) custom = true;
                 else if (f.startsWith("extends=")) sup = TypeRef.parse(f.substring(8));
-                else throw new IllegalArgumentException("모르는 패킷 플래그: " + f);
+                else throw new IllegalArgumentException("unknown packet flag: " + f);
             }
             String st = state;
             String pkg = STATE_PACKAGES.get(st);
@@ -347,7 +347,7 @@ public final class PacketSchema {
             int at = lineNo;
             open = new Block(fields -> {
                 if (kind == PacketDef.Kind.SINGLETON && !fields.isEmpty()) {
-                    throw new IllegalArgumentException("스키마 " + at + "줄: singleton 패킷에 필드가 있다: " + cls);
+                    throw new IllegalArgumentException("schema line " + at + ": a singleton packet cannot have fields: " + cls);
                 }
                 PacketDef p = new PacketDef(st, dir, wire, pkg, cls, kind, fCtor, fCustom, fSup, fields);
                 lineOf.put(p, at);
@@ -357,7 +357,7 @@ public final class PacketSchema {
 
         private void base(List<String> w) {
             need(w, 2);
-            if (state == null) throw new IllegalArgumentException("base 앞에 state 가 없다");
+            if (state == null) throw new IllegalArgumentException("no state before base");
             StructDef.Kind kind = StructDef.Kind.CLASS;
             boolean pub = false;
             for (int i = 2; i < w.size(); i++) {
@@ -365,17 +365,17 @@ public final class PacketSchema {
                     case "abstract" -> kind = StructDef.Kind.ABSTRACT;
                     case "record" -> kind = StructDef.Kind.RECORD;
                     case "new" -> pub = true;
-                    default -> throw new IllegalArgumentException("base 옵션은 abstract|record|new: " + w.get(i));
+                    default -> throw new IllegalArgumentException("a base option must be abstract|record|new: " + w.get(i));
                 }
             }
-            if (pub && kind != StructDef.Kind.CLASS) throw new IllegalArgumentException("new 는 class 에만: " + w.get(1));
-            if (w.get(1).contains("$")) throw new IllegalArgumentException("base 는 바깥 클래스만: " + w.get(1));
+            if (pub && kind != StructDef.Kind.CLASS) throw new IllegalArgumentException("new is only allowed on a class: " + w.get(1));
+            if (w.get(1).contains("$")) throw new IllegalArgumentException("base only takes an outer class: " + w.get(1));
             openStruct(w.get(1), kind, false, pub, List.of());
         }
 
         private void nested(List<String> w, List<String> consts) {
             need(w, 2);
-            if (state == null) throw new IllegalArgumentException(w.get(0) + " 앞에 state 가 없다");
+            if (state == null) throw new IllegalArgumentException("no state before " + w.get(0));
             StructDef.Kind kind = switch (w.get(0)) {
                 case "record" -> StructDef.Kind.RECORD;
                 case "class" -> StructDef.Kind.CLASS;
@@ -386,12 +386,12 @@ public final class PacketSchema {
             for (int i = 2; i < w.size(); i++) {
                 if (w.get(i).equals("private")) priv = true;
                 else if (w.get(i).equals("new")) pub = true;
-                else throw new IllegalArgumentException("모르는 옵션: " + w.get(i));
+                else throw new IllegalArgumentException("unknown option: " + w.get(i));
             }
-            if (pub && (kind != StructDef.Kind.CLASS || priv)) throw new IllegalArgumentException("new 는 공개 class 에만: " + w.get(1));
-            if (!w.get(1).contains("$")) throw new IllegalArgumentException("내포 타입은 바깥$안 으로: " + w.get(1));
-            if (kind == StructDef.Kind.ENUM && consts.isEmpty()) throw new IllegalArgumentException("enum 상수가 없다: " + w.get(1));
-            if (kind != StructDef.Kind.ENUM && !consts.isEmpty()) throw new IllegalArgumentException("상수는 enum 에만: " + w.get(1));
+            if (pub && (kind != StructDef.Kind.CLASS || priv)) throw new IllegalArgumentException("new is only allowed on a public class: " + w.get(1));
+            if (!w.get(1).contains("$")) throw new IllegalArgumentException("a nested type must be written as Outer$Inner: " + w.get(1));
+            if (kind == StructDef.Kind.ENUM && consts.isEmpty()) throw new IllegalArgumentException("the enum has no constants: " + w.get(1));
+            if (kind != StructDef.Kind.ENUM && !consts.isEmpty()) throw new IllegalArgumentException("constants are only allowed in an enum: " + w.get(1));
             openStruct(w.get(1), kind, priv, pub, consts);
         }
 
@@ -401,7 +401,7 @@ public final class PacketSchema {
             int at = lineNo;
             open = new Block(fields -> {
                 if ((kind == StructDef.Kind.ENUM || kind == StructDef.Kind.INTERFACE) && !fields.isEmpty()) {
-                    throw new IllegalArgumentException("스키마 " + at + "줄: " + kind + " 에는 필드를 둘 수 없다: " + name);
+                    throw new IllegalArgumentException("schema line " + at + ": " + kind + " cannot have fields: " + name);
                 }
                 StructDef s = new StructDef(st, pkg, name, kind, priv, fields, consts, pub);
                 lineOf.put(s, at);
@@ -410,7 +410,7 @@ public final class PacketSchema {
         }
 
         private void field(String line) {
-            if (open == null) throw new IllegalArgumentException("필드가 블록 밖에 있다");
+            if (open == null) throw new IllegalArgumentException("a field must be inside a packet or type block");
             // 타입 식은 꺾쇠 안의 공백(? extends)을 품을 수 있다 — 깊이 0 의 공백까지가 타입
             int depth = 0, i = 0;
             for (; i < line.length(); i++) {
@@ -419,28 +419,28 @@ public final class PacketSchema {
                 else if (c == '>') depth--;
                 else if (Character.isWhitespace(c) && depth == 0) break;
             }
-            if (depth != 0) throw new IllegalArgumentException("꺾쇠가 맞지 않는다: " + line);
+            if (depth != 0) throw new IllegalArgumentException("unbalanced angle brackets: " + line);
             TypeRef type = TypeRef.parse(line.substring(0, i));
             List<String> rest = List.of(line.substring(i).trim().split("\\s+"));
-            if (rest.isEmpty() || rest.get(0).isEmpty()) throw new IllegalArgumentException("필드 이름이 없다: " + line);
+            if (rest.isEmpty() || rest.get(0).isEmpty()) throw new IllegalArgumentException("missing field name: " + line);
             String name = rest.get(0);
-            if (!isIdentifier(name)) throw new IllegalArgumentException("필드 이름이 식별자가 아니다: " + name);
+            if (!isIdentifier(name)) throw new IllegalArgumentException("the field name is not an identifier: " + name);
             String wire = null, accessor = null;
             boolean nullable = false;
             for (int k = 1; k < rest.size(); k++) {
                 String o = rest.get(k);
                 if (o.equals("nullable")) nullable = true;
                 else if (o.startsWith("get=")) {
-                    if (!open.isClassLike) throw new IllegalArgumentException("get= 은 class 모양에만(record 는 이름이 접근자): " + name);
+                    if (!open.isClassLike) throw new IllegalArgumentException("get= is only allowed on a class shape (a record uses the name as the accessor): " + name);
                     accessor = o.substring(4);
-                    if (!isIdentifier(accessor)) throw new IllegalArgumentException("접근자 이름: " + accessor);
+                    if (!isIdentifier(accessor)) throw new IllegalArgumentException("invalid accessor name: " + accessor);
                 } else if (EXPLICIT_WIRES.contains(o)) {
-                    if (wire != null) throw new IllegalArgumentException("와이어가 두 번: " + name);
+                    if (wire != null) throw new IllegalArgumentException("wire given twice: " + name);
                     wire = o;
-                } else throw new IllegalArgumentException("모르는 필드 옵션: " + o);
+                } else throw new IllegalArgumentException("unknown field option: " + o);
             }
             for (FieldDef f : open.fields) {
-                if (f.name().equals(name)) throw new IllegalArgumentException("필드 이름이 겹친다: " + name);
+                if (f.name().equals(name)) throw new IllegalArgumentException("duplicate field name: " + name);
             }
             open.fields.add(new FieldDef(type, name, wire, nullable, accessor));
         }
@@ -452,22 +452,22 @@ public final class PacketSchema {
         }
 
         private static void need(List<String> w, int n) {
-            if (w.size() < n) throw new IllegalArgumentException("낱말이 모자란다(" + n + "개 필요): " + String.join(" ", w));
+            if (w.size() < n) throw new IllegalArgumentException("not enough words (" + n + " needed): " + String.join(" ", w));
         }
 
         private void validate(PacketSchema s) {
             Map<String, Object> seen = new HashMap<>();
             for (PacketDef p : packets) {
                 if (s.packetsByKey.size() != packets.size()) {
-                    throw new IllegalArgumentException("같은 상태·방향·와이어 이름의 패킷이 겹친다");
+                    throw new IllegalArgumentException("packets with the same state, direction and wire name overlap");
                 }
                 if (seen.put(p.binaryName(), p) != null) {
-                    throw new IllegalArgumentException("스키마 " + lineOf.get(p) + "줄: 패킷 클래스가 겹친다: " + p.binaryName());
+                    throw new IllegalArgumentException("schema line " + lineOf.get(p) + ": duplicate packet class: " + p.binaryName());
                 }
                 if (p.outerName() != null) {
                     String outer = p.javaPackage() + "." + p.outerName();
                     if (!s.structsByBinary.containsKey(outer) && !s.packetsByBinary.containsKey(outer)) {
-                        throw new IllegalArgumentException("스키마 " + lineOf.get(p) + "줄: 바깥 클래스가 스키마에 없다: " + outer);
+                        throw new IllegalArgumentException("schema line " + lineOf.get(p) + ": the outer class is not in the schema: " + outer);
                     }
                 }
                 if (p.superType() != null) checkType(s, p.superType(), p.javaPackage(), lineOf.get(p));
@@ -475,12 +475,12 @@ public final class PacketSchema {
             }
             for (StructDef st : structs) {
                 if (seen.put(st.binaryName(), st) != null) {
-                    throw new IllegalArgumentException("스키마 " + lineOf.get(st) + "줄: 타입 이름이 겹친다: " + st.binaryName());
+                    throw new IllegalArgumentException("schema line " + lineOf.get(st) + ": duplicate type name: " + st.binaryName());
                 }
                 if (st.outerName() != null) {
                     String outer = st.javaPackage() + "." + st.outerName();
                     if (!s.structsByBinary.containsKey(outer) && !s.packetsByBinary.containsKey(outer)) {
-                        throw new IllegalArgumentException("스키마 " + lineOf.get(st) + "줄: 바깥 클래스가 스키마에 없다: " + outer);
+                        throw new IllegalArgumentException("schema line " + lineOf.get(st) + ": the outer class is not in the schema: " + outer);
                     }
                 }
                 for (FieldDef f : st.fields()) checkType(s, f.type(), st.javaPackage(), lineOf.get(st));
@@ -488,11 +488,11 @@ public final class PacketSchema {
             Map<String, TypeDecl> simple = new HashMap<>();
             for (TypeDecl d : types) {
                 if (simple.put(d.simpleName(), d) != null) {
-                    throw new IllegalArgumentException("type 의 짧은 이름이 겹친다: " + d.simpleName());
+                    throw new IllegalArgumentException("duplicate short type name: " + d.simpleName());
                 }
                 int dollar = d.binaryName().lastIndexOf('$');
                 if (dollar > 0 && !s.types.containsKey(d.binaryName().substring(0, dollar))) {
-                    throw new IllegalArgumentException("내포 type 의 바깥 type 선언이 없다: " + d.binaryName());
+                    throw new IllegalArgumentException("the outer type declaration of a nested type is missing: " + d.binaryName());
                 }
             }
         }
@@ -501,7 +501,7 @@ public final class PacketSchema {
             try {
                 s.resolve(t.name(), pkg);
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("스키마 " + line + "줄: " + e.getMessage(), e);
+                throw new IllegalArgumentException("schema line " + line + ": " + e.getMessage(), e);
             }
             for (TypeRef a : t.arguments()) checkType(s, a, pkg, line);
         }

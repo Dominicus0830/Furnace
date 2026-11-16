@@ -14,7 +14,6 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import org.domi.furnace.server.net.registry.RegistrySet;
-import org.domi.furnace.server.net.registry.TagSet;
 
 public final class DamageType {
 
@@ -29,10 +28,6 @@ public final class DamageType {
 
     private static final class Registry {
         static final RegistrySet SET = RegistrySet.load("registries/1.21.1.txt");
-    }
-
-    private static final class Tags {
-        static final TagSet SET = TagSet.load("registries/tags-1.21.1.txt");
     }
 
     private static final Map<String, DamageType> BY_KEY = load();
@@ -78,7 +73,7 @@ public final class DamageType {
     private static Map<String, DamageType> load() {
         Map<String, DamageType> m = new LinkedHashMap<>();
         try (InputStream in = DamageType.class.getClassLoader().getResourceAsStream("registries/damage_types-1.21.1.txt")) {
-            if (in == null) throw new IllegalStateException("registries/damage_types-1.21.1.txt 없음");
+            if (in == null) throw new IllegalStateException("registries/damage_types-1.21.1.txt is missing");
             BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             for (String line; (line = r.readLine()) != null; ) {
                 line = line.strip();
@@ -96,7 +91,7 @@ public final class DamageType {
 
     private static DamageType require(String key) {
         DamageType t = BY_KEY.get(key);
-        if (t == null) throw new IllegalStateException("damage_type 없음: " + key);
+        if (t == null) throw new IllegalStateException("no such damage_type: " + key);
         return t;
     }
 
@@ -172,7 +167,7 @@ public final class DamageType {
     public boolean isPanicCause() { return isInTag("minecraft:panic_causes"); }
 
     public boolean isInTag(String tag) {
-        int[] ids = Tags.SET.ids("minecraft:damage_type", tag.indexOf(':') < 0 ? "minecraft:" + tag : tag);
+        int[] ids = org.domi.furnace.server.item.ItemContext.gameplayTags().ids("minecraft:damage_type", tag.indexOf(':') < 0 ? "minecraft:" + tag : tag);
         if (ids == null) return false;
         int me = registryId();
         for (int i : ids) if (i == me) return true;
@@ -184,7 +179,7 @@ public final class DamageType {
         String full = key.indexOf(':') < 0 ? "minecraft:" + key : key;
         int me = Registry.SET.indexOf("minecraft:damage_type", full);
         if (me < 0) return false;
-        int[] ids = Tags.SET.ids("minecraft:damage_type", tag.indexOf(':') < 0 ? "minecraft:" + tag : tag);
+        int[] ids = org.domi.furnace.server.item.ItemContext.gameplayTags().ids("minecraft:damage_type", tag.indexOf(':') < 0 ? "minecraft:" + tag : tag);
         if (ids == null) return false;
         for (int i : ids) if (i == me) return true;
         return false;

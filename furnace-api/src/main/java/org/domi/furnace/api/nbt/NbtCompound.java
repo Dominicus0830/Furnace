@@ -20,7 +20,7 @@ public final class NbtCompound {
     /** SNBT 한 개를 읽는다. 묶음이 아니거나 문법이 틀리면 {@link SnbtParseException}. */
     public static NbtCompound parse(String snbt) {
         Object v = Snbt.parse(snbt);
-        if (!(v instanceof NbtCompound c)) throw new SnbtParseException("묶음({...})이 아니다: " + snbt, 0);
+        if (!(v instanceof NbtCompound c)) throw new SnbtParseException("not a compound ({...}): " + snbt, 0);
         return c;
     }
 
@@ -56,7 +56,7 @@ public final class NbtCompound {
     public NbtCompound put(String key, Object value) {
         Objects.requireNonNull(key, "key");
         NbtType.of(value);
-        if (value == this) throw new IllegalArgumentException("자기 자신을 넣을 수 없다");
+        if (value == this) throw new IllegalArgumentException("cannot insert itself");
         tags.put(key, value);
         return this;
     }

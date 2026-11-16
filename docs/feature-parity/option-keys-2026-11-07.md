@@ -1,7 +1,7 @@
 # 설정 키 점검과 규칙 (Q1, 2026-11-07)
 
 도미니코 결정 R4(2026-11-07): "새 옵션은 모두 지원하되 사용자가 ON/OFF 또는 수치로 바꿀 수 있게. 기본값은 바닐라와 같게. 위험한 설정은 경고."
-이 문서는 그 규칙과, 지금 있는 `furnace.properties` 키 전부의 표다. 표의 원본은 코드의 `OptionKeys`(`furnace-server/.../config/OptionKeys.java`)이고,
+이 문서는 그 규칙과, 지금 있는 `furnace.properties` 키 전부의 표다. 코드의 `OptionKeys`(`furnace-server/.../config/OptionKeys.java`)는 키·형식·기본값만 갖고(범위·설명 칸은 없앴다 — 설명의 원본은 생성되는 `furnace.properties` 주석, 즉 `furnace-lang` 의 `cfg.help.*`),
 `OptionKeysTest` 가 표 ↔ 코드 기본값 ↔ 이 문서의 어긋남을 잡는다. 키를 더하면 `OptionKeys` 와 이 표에 한 줄씩 넣는다.
 
 ## 1. 규칙
@@ -148,6 +148,7 @@
 | `jvm.check` | ON/OFF | true | true\|false | 기동 때 Java 버전·힙·GC 옵션을 점검해 경고한다 |  |
 | `console.jline` | ON/OFF | true | true\|false | 콘솔 줄 편집·자동완성·기록(터미널이 아니면 자동으로 꺼진다) |  |
 | `console.history-size` | 수 | 500 | 0~100000 | 콘솔 명령 기록 줄 수(0 = 파일에 저장 안 함) |  |
+| `language` | 글자 | auto | auto\|en\|ko | 서버 메시지(콘솔 로그·콘솔 명령 결과) 언어. auto = 실행 환경 언어를 따른다. -Dfurnace.language·환경변수 FURNACE_LANGUAGE 가 있으면 그쪽이 이긴다. 번역이 없으면 영어 |  |
 | `connection.<단계>.packets-per-second` | 수 | 200 | 0~1000000 | 접속 단계(`handshake` `status` `login` `configuration` `play`)별 초당 패킷 평균 상한, 0 = 제한 없음 | 0 이면 경고 |
 | `connection.<단계>.packets-burst` | 수 | 400 | 1~10000000 | 단계별 순간 패킷 상한 | |
 | `connection.<단계>.max-frame-bytes` | 수 | 단계별(play 2097152) | 16~2097152 | 단계별 한 패킷 최대 크기, 넘으면 조정 | 조정 시 경고 |

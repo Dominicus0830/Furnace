@@ -55,7 +55,7 @@ public final class TypedPacketBridge {
     static String refusal(PacketType<?> t) {
         if (SUPPORTED.contains(t)) return null;
         if (t == PacketTypes.Clientbound.PLAYER_INFO_UPDATE) return PlayerInfoBridge.irreversibleReason();
-        return "이 타입 레코드 종류는 아직 shim 으로 되돌리지 못한다(2b-4)";
+        return "this typed record kind cannot be converted back to the shim yet (2b-4)";
     }
 
     /** 스키마 키가 이 다리가 두 방향을 맡는 타입 레코드 종류인가(생성 shim → Furnace). */
@@ -86,7 +86,7 @@ public final class TypedPacketBridge {
             case ClientboundPlayerInfoRemovePacket t -> new net.minecraft.network.protocol.game.ClientboundPlayerInfoRemovePacket(t.uuids());
             case ClientboundDisconnectPacket t -> new net.minecraft.network.protocol.common.ClientboundDisconnectPacket(component(t.reason()));
             case ClientboundAddEntityPacket t -> make(ADD_ENTITY, t.entityId(), t.uuid(), net.minecraft.world.entity.EntityType.byString(t.entityType())
-                            .orElseThrow(() -> new IllegalArgumentException("모르는 엔티티 종류 " + t.entityType())),
+                            .orElseThrow(() -> new IllegalArgumentException("unknown entity type " + t.entityType())),
                     t.x(), t.y(), t.z(), velocity(t.velocityX()), velocity(t.velocityY()), velocity(t.velocityZ()),
                     angle(t.pitch()), angle(t.yaw()), angle(t.headYaw()), t.data());
             case ClientboundRotateHeadPacket t -> make(ROTATE_HEAD, t.entityId(), angle(t.headYaw()));
@@ -104,7 +104,7 @@ public final class TypedPacketBridge {
                     (int) (t.x() * 8.0), (int) (t.y() * 8.0), (int) (t.z() * 8.0), t.volume(), t.pitch(), t.seed());
             case org.domi.furnace.api.packet.clientbound.ClientboundSetEntityDataPacket t -> EntityDataBridge.fromFurnace(t);
             case org.domi.furnace.api.packet.clientbound.ClientboundPlayerInfoUpdatePacket t -> PlayerInfoBridge.fromFurnace(t);
-            default -> throw new UnsupportedNmsCall("fromFurnace(" + p.type() + ")", "이 타입 레코드 종류는 아직 shim 으로 되돌리지 못한다(2b-4)");
+            default -> throw new UnsupportedNmsCall("fromFurnace(" + p.type() + ")", "this typed record kind cannot be converted back to the shim yet (2b-4)");
         };
     }
 
@@ -181,15 +181,15 @@ public final class TypedPacketBridge {
                 case 3 -> ClientboundAnimatePacket.Animation.SWING_OFF_HAND;
                 case 4 -> ClientboundAnimatePacket.Animation.CRITICAL_HIT;
                 case 5 -> ClientboundAnimatePacket.Animation.MAGIC_CRITICAL_HIT;
-                default -> throw new IllegalArgumentException(at + ".action " + v[1] + " 은 바닐라 클라이언트가 모르는 애니메이션이다(1 = 맞음은 1.21.1 에서 hurt_animation 패킷)");
+                default -> throw new IllegalArgumentException(at + ".action " + v[1] + " is an animation the vanilla client does not know (1 = hurt is the hurt_animation packet in 1.21.1)");
             });
             case "game/clientbound/teleport_entity" -> new ClientboundTeleportEntityPacket(i(v[0]), d(v[1]), d(v[2]), d(v[3]), deg(v[4]), deg(v[5]), (Boolean) v[6]);
             case "game/clientbound/block_update" -> new ClientboundBlockUpdatePacket(((net.minecraft.core.BlockPos) need(v[0], at + ".pos")).furnace(),
                     org.domi.furnace.api.Furnace.server().blockTypes().byStateId(((net.minecraft.world.level.block.state.BlockState) need(v[1], at + ".blockState")).furnaceStateId())
-                            .orElseThrow(() -> new IllegalArgumentException(at + ": 모르는 블록 상태")));
+                            .orElseThrow(() -> new IllegalArgumentException(at + ": unknown block state")));
             case "game/clientbound/sound" -> soundToFurnace(v, at);
             case "game/clientbound/set_entity_data" -> EntityDataBridge.toFurnace(v, at);
-            default -> throw new IllegalStateException("타입 레코드 다리가 없는 스키마 키: " + at);
+            default -> throw new IllegalStateException("schema key without a typed record bridge: " + at);
         };
     }
 
@@ -203,7 +203,7 @@ public final class TypedPacketBridge {
             name = e.getLocation().toString();
             range = SchemaPacketBridge.fixedRange(e).orElse(null);
         } else {
-            throw new IllegalArgumentException(at + ".sound 은 SoundEvent Holder 여야 한다: " + h);
+            throw new IllegalArgumentException(at + ".sound must be a SoundEvent Holder: " + h);
         }
         var src = (net.minecraft.sounds.SoundSource) need(v[1], at + ".source");
         return new ClientboundSoundPacket(name, range, SoundCategory.valueOf(src.name()), i(v[2]) / 8.0, i(v[3]) / 8.0, i(v[4]) / 8.0,

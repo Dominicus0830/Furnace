@@ -14,6 +14,7 @@ import org.domi.furnace.api.concurrent.ThreadOwner;
 import org.domi.furnace.api.sched.TaskScheduler;
 import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.command.CommandSource;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -135,7 +136,7 @@ public final class CommandQueue {
                 try {
                     task.run();
                 } catch (Throwable t) {
-                    log.error("명령 완료 처리 실패", t);
+                    log.error(Lang.t("cmdqueue.complete-failed"), t);
                 }
             });
         } catch (RejectedExecutionException ignored) {
@@ -150,7 +151,7 @@ public final class CommandQueue {
         currentTicks++;
         if (currentTicks > SLOW_CONTEXT_TICKS && !slowWarned) {
             slowWarned = true;
-            log.warn("명령 컨텍스트 /{} 이 {} 틱째 실행 중, 대기 {}", currentEntry == null ? "?" : currentEntry.input(), currentTicks, pending.size());
+            log.warn(Lang.t("cmdqueue.context-stuck", currentEntry == null ? "?" : currentEntry.input(), currentTicks, pending.size()));
         }
     }
 
@@ -201,6 +202,6 @@ public final class CommandQueue {
         pending.clear();
         current = null;
         currentEntry = null;
-        if (n > 0) log.warn("종료: 미완료 명령 컨텍스트 {}개 버림", n);
+        if (n > 0) log.warn(Lang.t("cmdqueue.shutdown-dropped", n));
     }
 }

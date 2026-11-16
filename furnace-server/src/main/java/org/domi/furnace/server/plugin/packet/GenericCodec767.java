@@ -124,7 +124,7 @@ public final class GenericCodec767 {
                 if (t.typed()) continue;
                 PacketDef d = find(t);
                 if (d == null) {
-                    unsupported.put(t, "스키마에 없다");
+                    unsupported.put(t, "not in the schema");
                     continue;
                 }
                 try {
@@ -161,17 +161,17 @@ public final class GenericCodec767 {
     @SuppressWarnings("unchecked")
     public GenericPacket decode(PacketType<?> type, ByteBuf b) {
         Compiled c = packets.get(type);
-        if (c == null) throw new IllegalArgumentException("범용 코덱이 다루지 않는 종류: " + type);
+        if (c == null) throw new IllegalArgumentException("type not handled by the generic codec: " + type);
         PacketStruct s = readStruct(c, b);
-        if (b.isReadable()) throw new IllegalArgumentException(type + " 본문이 " + b.readableBytes() + "바이트 남았다(스키마와 와이어가 다르다)");
+        if (b.isReadable()) throw new IllegalArgumentException(type + " has " + b.readableBytes() + " bytes left over (the schema and the wire differ)");
         return GenericPacket.of((PacketType<GenericPacket>) type, s);
     }
 
     /** 패킷 본문을 쓴다(id 는 부르는 쪽이). 필드가 빠졌거나 모르는 필드·종류가 다른 값이면 IllegalArgumentException. */
     public void encode(GenericPacket p, ByteBuf o) {
         Compiled c = packets.get(p.type());
-        if (c == null) throw new IllegalArgumentException("이 서버 버전에서 내용을 쓸 수 없는 패킷: " + p.type() + " (" + unsupported.get(p.type()) + ")");
-        if (!p.readable()) throw new IllegalArgumentException("내용 없는 패킷은 보낼 수 없다: " + p.type());
+        if (c == null) throw new IllegalArgumentException("packet whose content cannot be written by this server version: " + p.type() + " (" + unsupported.get(p.type()) + ")");
+        if (!p.readable()) throw new IllegalArgumentException("a packet without content cannot be sent: " + p.type());
         int start = o.writerIndex();
         try {
             writeStruct(c, p.fields(), o, p.type().toString());
@@ -188,7 +188,7 @@ public final class GenericCodec767 {
         if (c.hand() != null) {
             Map<String, Object> got = new java.util.HashMap<>();
             c.hand().read(b, got);
-            if (!got.keySet().equals(Set.copyOf(c.names()))) throw new IllegalStateException("손 코덱이 읽은 필드 " + got.keySet() + " ≠ " + c.names());
+            if (!got.keySet().equals(Set.copyOf(c.names()))) throw new IllegalStateException("the hand codec read the fields " + got.keySet() + " ≠ " + c.names());
             for (String n : c.names()) m.put(n, got.get(n));
         } else {
             for (int i = 0; i < c.nodes().size(); i++) m.put(c.names().get(i), c.nodes().get(i).read(b));
@@ -224,15 +224,15 @@ public final class GenericCodec767 {
             missing.removeAll(m.keySet());
             List<String> extra = new ArrayList<>(m.keySet());
             extra.removeAll(c.names());
-            throw new IllegalArgumentException(where + ": " + (missing.isEmpty() ? "" : "빠진 필드 " + missing + " ")
-                    + (extra.isEmpty() ? "" : "모르는 필드 " + extra + " ") + "(필드: " + c.fields() + ")");
+            throw new IllegalArgumentException(where + ": " + (missing.isEmpty() ? "" : "missing fields " + missing + " ")
+                    + (extra.isEmpty() ? "" : "unknown fields " + extra + " ") + "(fields: " + c.fields() + ")");
         }
         for (int i = 0; i < c.nodes().size(); i++) {
             String n = c.names().get(i);
             Node node = c.nodes().get(i);
             Object v = m.get(n);
             if (!node.accepts(v)) {
-                throw new IllegalArgumentException(where + "." + n + " 은 " + node.kind().getSimpleName() + " 값이어야 한다: " + v.getClass().getSimpleName());
+                throw new IllegalArgumentException(where + "." + n + " must be a " + node.kind().getSimpleName() + " value: " + v.getClass().getSimpleName());
             }
         }
         return m;
@@ -243,8 +243,8 @@ public final class GenericCodec767 {
     private Compiled compile(PacketDef d) {
         Compiled h = GenericHand767.compile(this, d);   // custom 종류, 그리고 값 타입이 필드 나열로 안 떨어지는 종류(E5: update_tags·merchant_offers)
         if (h != null) return h;
-        if (d.custom()) throw new Unsupported("손으로 다뤄야 하는 와이어(custom) — 손 코덱이 아직 없다");
-        if (d.superType() != null) throw new Unsupported("부모 클래스 필드");
+        if (d.custom()) throw new Unsupported("a wire that needs hand handling (custom) - there is no hand codec yet");
+        if (d.superType() != null) throw new Unsupported("parent class fields");
         return compileFields(d.fields(), d.javaPackage(), d.binaryName());
     }
 
@@ -254,7 +254,7 @@ public final class GenericCodec767 {
         List<PacketField<?>> pf = new ArrayList<>();
         for (FieldDef f : fields) {
             String n = snake(f.name());
-            if (names.contains(n)) throw new IllegalStateException("snake_case 이름이 겹친다: " + n);
+            if (names.contains(n)) throw new IllegalStateException("duplicate snake_case name: " + n);
             Limit limit = FIELD_LIMITS.get(owner + "#" + f.name());
             Node node = limit == null ? node(f.type(), f.wire(), pkg) : limited(f, limit);
             if (f.nullable()) node = node == NBT ? NULLABLE_NBT : optional(node, true);
@@ -286,14 +286,14 @@ public final class GenericCodec767 {
     /** 상한이 있는 문자열·바이트·문자열 목록(list(n))·Optional 문자열 필드(nullable 이면 다시 Optional). */
     private static Node limited(FieldDef f, Limit limit) {
         var t = f.type();
-        if (f.wire() != null) throw new IllegalStateException("상한 표의 필드 모양이 다르다: " + f);
+        if (f.wire() != null) throw new IllegalStateException("the field shape differs from the max table: " + f);
         boolean string = t.name().equals("String") && t.arrayDimensions() == 0 && t.arguments().isEmpty();
         if (limit.count() == 0 && string) return GenericHand767.string(limit.max());
         if (limit.count() == 0 && t.name().equals("byte") && t.arrayDimensions() == 1) return GenericHand767.bytes(limit.max());
         boolean ofString = t.arguments().size() == 1 && t.arguments().get(0).name().equals("String") && t.arrayDimensions() == 0;
         if (limit.count() == 0 && ofString && t.name().equals("Optional")) return optional(GenericHand767.string(limit.max()), false);
         if (limit.count() > 0 && ofString && t.name().equals("List")) return listMax(GenericHand767.string(limit.max()), limit.count());
-        throw new IllegalStateException("상한 표의 필드 타입이 다르다: " + f);
+        throw new IllegalStateException("the field type differs from the max table: " + f);
     }
 
     /** 원소 수 상한이 있는 목록(바닐라 ByteBufCodecs.list(n) — 읽기·쓰기 모두 n 을 넘으면 실패). */
@@ -301,10 +301,10 @@ public final class GenericCodec767 {
         Node l = list(elem, false);
         return node(List.class, b -> {
             int n = Types.readVarInt(b.duplicate());
-            if (n > max) throw new IllegalArgumentException("목록 원소가 너무 많다(" + n + " > " + max + ")");
+            if (n > max) throw new IllegalArgumentException("too many list elements (" + n + " > " + max + ")");
             return l.read(b);
         }, (o, v) -> {
-            if (((List<?>) v).size() > max) throw new IllegalArgumentException("목록 원소가 너무 많다(" + ((List<?>) v).size() + " > " + max + ")");
+            if (((List<?>) v).size() > max) throw new IllegalArgumentException("too many list elements (" + ((List<?>) v).size() + " > " + max + ")");
             l.write(o, v);
         });
     }
@@ -338,14 +338,14 @@ public final class GenericCodec767 {
         TypeDecl decl = bin == null ? null : schema.type(bin).orElse(null);
         StructDef struct = bin == null ? null : schema.struct(bin).orElse(null);
         List<String> c = decl != null ? decl.constants() : struct != null ? struct.constants() : List.of();
-        if (c.isEmpty()) throw new Unsupported("상수 목록이 없다: " + t);
+        if (c.isEmpty()) throw new Unsupported("no constant list: " + t);
         return c;
     }
 
     /** enum 타입(이진 이름)의 상수 목록. */
     List<String> enumConstants(String bin) {
         List<String> c = schema.type(bin).map(TypeDecl::constants).orElse(List.of());
-        if (c.isEmpty()) throw new Unsupported("상수 목록이 없다: " + bin);
+        if (c.isEmpty()) throw new Unsupported("no constant list: " + bin);
         return c;
     }
 
@@ -357,11 +357,11 @@ public final class GenericCodec767 {
 
     private static FieldDef field(PacketDef d, String name) {
         for (FieldDef f : d.fields()) if (f.name().equals(name)) return f;
-        throw new Unsupported(d.wireName() + " 에 필드 " + name + " 이 없다(스키마)");
+        throw new Unsupported(d.wireName() + " has no field " + name + " (schema)");
     }
 
     private Node node(TypeRef t, String wire, String pkg) {
-        if (t.bound() != TypeRef.Bound.NONE) throw new Unsupported("와일드카드 타입 " + t);
+        if (t.bound() != TypeRef.Bound.NONE) throw new Unsupported("wildcard type " + t);
         if (t.arrayDimensions() > 0) {
             if (t.arrayDimensions() == 1 && wire == null) {
                 switch (t.name()) {
@@ -371,7 +371,7 @@ public final class GenericCodec767 {
                     default: break;
                 }
             }
-            throw new Unsupported("배열 " + t);
+            throw new Unsupported("array " + t);
         }
         switch (t.name()) {
             case "int": return integer(wire == null ? "varint" : wire, Integer.class);
@@ -380,17 +380,17 @@ public final class GenericCodec767 {
             case "long":
                 if (wire == null || wire.equals("i64")) return I64;
                 if (wire.equals("varlong")) return VARLONG;
-                throw new Unsupported("long 와이어 " + wire);
+                throw new Unsupported("long wire " + wire);
             case "float": return plain(wire, "f32", F32);
             case "double": return plain(wire, "f64", F64);
             case "boolean": return plain(wire, "bool", BOOL);
             case "String": return plain(wire, "string", STRING);
             case "UUID": return plain(wire, "uuid", UUID_NODE);
             case "List", "Set", "Collection":
-                if (wire != null) throw new Unsupported("목록 명시 와이어 " + wire);
+                if (wire != null) throw new Unsupported("explicit list wire " + wire);
                 return list(node(t.arguments().get(0), null, pkg), t.name().equals("Set"));
             case "Optional":
-                if (wire != null) throw new Unsupported("Optional 명시 와이어 " + wire);
+                if (wire != null) throw new Unsupported("explicit Optional wire " + wire);
                 return optional(node(t.arguments().get(0), null, pkg), false);
             case "Holder": return holder(t.arguments().get(0));
             case "ResourceKey": return plain(wire, "identifier", IDENTIFIER);
@@ -408,7 +408,7 @@ public final class GenericCodec767 {
         } catch (IllegalArgumentException e) {
             throw new Unsupported(e.getMessage());
         }
-        if (bin == null) throw new Unsupported("타입 " + t);
+        if (bin == null) throw new Unsupported("type " + t);
         TypeDecl decl = schema.type(bin).orElse(null);
         StructDef struct = schema.struct(bin).orElse(null);
         boolean isEnum = (decl != null && decl.kind() == TypeDecl.Kind.ENUM) || (struct != null && struct.kind() == StructDef.Kind.ENUM);
@@ -416,7 +416,7 @@ public final class GenericCodec767 {
         if (wire != null) {   // 필드 줄 명시 와이어: 크기만 다른 정수
             if (isEnum) return enumNode(bin, constants, wire);
             if (struct != null || decl != null) return integer(wire, Integer.class);   // 예: game_event 의 Type(u8) — 바닐라 번호를 정수로
-            throw new Unsupported("명시 와이어 " + wire + " on " + t);
+            throw new Unsupported("explicit wire " + wire + " on " + t);
         }
         if (decl != null) {
             if (decl.kind() == TypeDecl.Kind.ENUM) {
@@ -424,7 +424,7 @@ public final class GenericCodec767 {
                 return enumNode(bin, constants, decl.wire() == null ? "varint" : decl.wire());
             }
             String w = decl.wire();
-            if (w == null) throw new Unsupported("와이어 없는 타입 " + bin);
+            if (w == null) throw new Unsupported("type without a wire " + bin);
             return switch (w) {
                 case "component" -> TEXT;
                 case "identifier" -> IDENTIFIER;
@@ -447,24 +447,24 @@ public final class GenericCodec767 {
                 case "varint" -> integer("varint", Integer.class);
                 case "registry_id" -> {
                     String reg = REGISTRY_IDS.get(bin);
-                    if (reg == null) throw new Unsupported("레지스트리 번호 " + bin);
+                    if (reg == null) throw new Unsupported("registry id " + bin);
                     yield registryId(reg);
                 }
-                default -> throw new Unsupported("와이어 " + w + " (" + bin + ")");
+                default -> throw new Unsupported("wire " + w + " (" + bin + ")");
             };
         }
         if (struct != null) {
             return switch (struct.kind()) {
                 case ENUM -> enumNode(bin, constants, "varint");
                 case RECORD, CLASS -> structNode(compileFields(struct.fields(), struct.javaPackage(), bin));
-                default -> throw new Unsupported("내포 " + struct.kind() + " " + bin);
+                default -> throw new Unsupported("nested " + struct.kind() + " " + bin);
             };
         }
-        throw new Unsupported("타입 " + bin);
+        throw new Unsupported("type " + bin);
     }
 
     private static Node plain(String wire, String expected, Node n) {
-        if (wire != null && !wire.equals(expected)) throw new Unsupported(expected + " 자리의 명시 와이어 " + wire);
+        if (wire != null && !wire.equals(expected)) throw new Unsupported("explicit wire " + wire + " on " + expected);
         return n;
     }
 
@@ -492,10 +492,10 @@ public final class GenericCodec767 {
             case "u16" -> { min = 0; max = 0xFFFF; }
             case "i8" -> { min = Byte.MIN_VALUE; max = Byte.MAX_VALUE; }
             case "u8" -> { min = 0; max = 0xFF; }
-            default -> throw new Unsupported("정수 와이어 " + wire);
+            default -> throw new Unsupported("integer wire " + wire);
         }
-        if (box == Byte.class && (min < Byte.MIN_VALUE || max > Byte.MAX_VALUE)) throw new Unsupported("byte 필드의 와이어 " + wire);
-        if (box == Short.class && (min < Short.MIN_VALUE || max > Short.MAX_VALUE)) throw new Unsupported("short 필드의 와이어 " + wire);
+        if (box == Byte.class && (min < Byte.MIN_VALUE || max > Byte.MAX_VALUE)) throw new Unsupported("wire of a byte field " + wire);
+        if (box == Short.class && (min < Short.MIN_VALUE || max > Short.MAX_VALUE)) throw new Unsupported("wire of a short field " + wire);
         return node(box, b -> {
             int v = switch (wire) {
                 case "varint" -> Types.readVarInt(b);
@@ -508,7 +508,7 @@ public final class GenericCodec767 {
             return box == Integer.class ? (Object) v : box == Short.class ? (Object) (short) v : (Object) (byte) v;
         }, (o, x) -> {
             int v = ((Number) x).intValue();
-            if (v < min || v > max) throw new IllegalArgumentException(wire + " 범위(" + min + "~" + max + ") 밖: " + v);
+            if (v < min || v > max) throw new IllegalArgumentException(wire + " out of range (" + min + "~" + max + "): " + v);
             switch (wire) {
                 case "varint" -> Types.writeVarInt(o, v);
                 case "i32" -> o.writeInt(v);
@@ -547,15 +547,15 @@ public final class GenericCodec767 {
         Optional<?> opt = (Optional<?>) v;
         if (opt.isEmpty()) o.writeByte(0);
         else if (opt.get() instanceof NbtCompound c) NBT.write(o, c);
-        else throw new IllegalArgumentException("값은 NbtCompound 이어야 한다: " + opt.get());
+        else throw new IllegalArgumentException("the value must be an NbtCompound: " + opt.get());
     });
 
     /** 바닐라 Vec3(f64 셋) — {x, y, z}. */
     static final Node VEC3 = node(PacketStruct.class, b -> PacketStruct.of(vec3(b.readDouble(), b.readDouble(), b.readDouble())), (o, v) -> {
         PacketStruct s = (PacketStruct) v;
-        if (!s.names().equals(List.of("x", "y", "z"))) throw new IllegalArgumentException("Vec3 는 {x, y, z} 이어야 한다: " + s);
+        if (!s.names().equals(List.of("x", "y", "z"))) throw new IllegalArgumentException("Vec3 must be {x, y, z}: " + s);
         for (String n : List.of("x", "y", "z")) {
-            if (!(s.asMap().get(n) instanceof Double d)) throw new IllegalArgumentException("Vec3." + n + " 은 Double 이어야 한다: " + s);
+            if (!(s.asMap().get(n) instanceof Double d)) throw new IllegalArgumentException("Vec3." + n + " must be a Double: " + s);
             o.writeDouble(d);
         }
     });
@@ -584,22 +584,22 @@ public final class GenericCodec767 {
         return PacketStruct.of(m);
     }, (o, v) -> {
         PacketStruct s = (PacketStruct) v;
-        if (!(s.asMap().get("type") instanceof String t)) throw new IllegalArgumentException("숫자 형식에 type(String) 이 없다: " + s);
+        if (!(s.asMap().get("type") instanceof String t)) throw new IllegalArgumentException("the number format has no type (String): " + s);
         String type = identifier(t);
         List<String> want = switch (type) {
             case "minecraft:blank" -> List.of("type");
             case "minecraft:styled" -> List.of("type", "style");
             case "minecraft:fixed" -> List.of("type", "value");
-            default -> throw new IllegalArgumentException("모르는 숫자 형식: " + t + " (blank·styled·fixed)");
+            default -> throw new IllegalArgumentException("unknown number format: " + t + " (blank·styled·fixed)");
         };
-        if (!Set.copyOf(s.names()).equals(Set.copyOf(want))) throw new IllegalArgumentException(type + " 숫자 형식의 필드는 " + want + ": " + s.names());
+        if (!Set.copyOf(s.names()).equals(Set.copyOf(want))) throw new IllegalArgumentException(type + " number format fields must be " + want + ": " + s.names());
         Types.writeVarInt(o, registryNumber("minecraft:number_format_type", type));
         if (type.equals("minecraft:styled")) {
-            if (!(s.asMap().get("style") instanceof NbtCompound n)) throw new IllegalArgumentException("style 은 NbtCompound 이어야 한다");
+            if (!(s.asMap().get("style") instanceof NbtCompound n)) throw new IllegalArgumentException("style must be an NbtCompound");
             checkStyle(n);
             NBT.write(o, n);
         } else if (type.equals("minecraft:fixed")) {
-            if (!(s.asMap().get("value") instanceof Text x)) throw new IllegalArgumentException("value 는 Text 이어야 한다");
+            if (!(s.asMap().get("value") instanceof Text x)) throw new IllegalArgumentException("value must be a Text");
             TEXT.write(o, x);
         }
     });
@@ -614,26 +614,26 @@ public final class GenericCodec767 {
             Object v = st.get(k);
             switch (k) {
                 case "color" -> {
-                    if (!(v instanceof String c) || !validColor(c)) throw new IllegalArgumentException("style.color 는 16색 이름이나 #RRGGBB 이어야 한다: " + v);
+                    if (!(v instanceof String c) || !validColor(c)) throw new IllegalArgumentException("style.color must be one of the 16 color names or #RRGGBB: " + v);
                 }
                 case "bold", "italic", "underlined", "strikethrough", "obfuscated" -> {
-                    if (!(v instanceof Number)) throw new IllegalArgumentException("style." + k + " 은 숫자(참거짓) 태그여야 한다: " + v);
+                    if (!(v instanceof Number)) throw new IllegalArgumentException("style." + k + " must be a number (boolean) tag: " + v);
                 }
                 case "insertion" -> {
-                    if (!(v instanceof String)) throw new IllegalArgumentException("style.insertion 은 문자열이어야 한다: " + v);
+                    if (!(v instanceof String)) throw new IllegalArgumentException("style.insertion must be a string: " + v);
                 }
                 case "font" -> {
-                    if (!(v instanceof String f)) throw new IllegalArgumentException("style.font 는 이름 문자열이어야 한다: " + v);
+                    if (!(v instanceof String f)) throw new IllegalArgumentException("style.font must be a name string: " + v);
                     identifier(f);
                 }
                 case "clickEvent", "hoverEvent" -> {
-                    if (!(v instanceof NbtCompound)) throw new IllegalArgumentException("style." + k + " 은 compound 이어야 한다: " + v);
+                    if (!(v instanceof NbtCompound)) throw new IllegalArgumentException("style." + k + " must be a compound: " + v);
                 }
                 default -> { }
             }
         }
         if (org.domi.furnace.server.scores.TextTags.tagToStyle(ApiNbt.toServer(st)) == null) {
-            throw new IllegalArgumentException("스타일로 읽을 수 없는 NBT: " + st);
+            throw new IllegalArgumentException("NBT that cannot be read as a style: " + st);
         }
     }
 
@@ -656,7 +656,7 @@ public final class GenericCodec767 {
 
     static final Node BYTES = node(byte[].class, b -> {
         int n = Types.readVarInt(b);
-        if (n < 0 || n > b.readableBytes()) throw new IllegalArgumentException("바이트 길이 오류: " + n);
+        if (n < 0 || n > b.readableBytes()) throw new IllegalArgumentException("invalid byte length: " + n);
         byte[] a = new byte[n];
         b.readBytes(a);
         return a;
@@ -689,7 +689,7 @@ public final class GenericCodec767 {
     /** 원소 수(원소 하나가 적어도 minBytes 라 남은 바이트로 상한을 건다). */
     private static int count(ByteBuf b, int minBytes) {
         int n = Types.readVarInt(b);
-        if (n < 0 || (long) n * minBytes > b.readableBytes()) throw new IllegalArgumentException("원소 수 오류: " + n);
+        if (n < 0 || (long) n * minBytes > b.readableBytes()) throw new IllegalArgumentException("invalid element count: " + n);
         return n;
     }
 
@@ -702,11 +702,11 @@ public final class GenericCodec767 {
             return Collections.unmodifiableList(l);
         }, (o, v) -> {
             List<?> l = (List<?>) v;
-            if (distinct && new java.util.HashSet<>(l).size() != l.size()) throw new IllegalArgumentException("Set 필드에 같은 값이 두 번 있다: " + l);
+            if (distinct && new java.util.HashSet<>(l).size() != l.size()) throw new IllegalArgumentException("the same value appears twice in a Set field: " + l);
             Types.writeVarInt(o, l.size());
             for (int i = 0; i < l.size(); i++) {
                 Object x = l.get(i);
-                if (!elem.accepts(x)) throw new IllegalArgumentException("[" + i + "] 은 " + elem.kind().getSimpleName() + " 값이어야 한다: " + x);
+                if (!elem.accepts(x)) throw new IllegalArgumentException("[" + i + "] must be a " + elem.kind().getSimpleName() + " value: " + x);
                 elem.write(o, x);
             }
         });
@@ -719,7 +719,7 @@ public final class GenericCodec767 {
             o.writeBoolean(opt.isPresent());
             if (opt.isPresent()) {
                 Object x = opt.get();
-                if (!elem.accepts(x)) throw new IllegalArgumentException("값은 " + elem.kind().getSimpleName() + " 이어야 한다: " + x);
+                if (!elem.accepts(x)) throw new IllegalArgumentException("the value must be a " + elem.kind().getSimpleName() + ": " + x);
                 elem.write(o, x);
             }
         });
@@ -734,7 +734,7 @@ public final class GenericCodec767 {
      * Optional&lt;String&gt; 이다(previous_game_type).
      */
     static Node enumNode(String bin, List<String> constants, String wire) {
-        if (constants.isEmpty()) throw new Unsupported("상수 목록 없는 enum " + bin);
+        if (constants.isEmpty()) throw new Unsupported("enum without a constant list " + bin);
         if (wire.equals("i8")) {
             return node(Optional.class, b -> {
                 int i = b.readByte();
@@ -757,13 +757,13 @@ public final class GenericCodec767 {
     }
 
     private static String constantAt(List<String> constants, int i, String bin) {
-        if (i < 0 || i >= constants.size()) throw new IllegalArgumentException(simple(bin) + " 범위 밖: " + i);
+        if (i < 0 || i >= constants.size()) throw new IllegalArgumentException(simple(bin) + " out of range: " + i);
         return constants.get(i);
     }
 
     private static int indexOf(List<String> constants, Object v, String bin) {
         int i = v instanceof String s ? constants.indexOf(s) : -1;
-        if (i < 0) throw new IllegalArgumentException(simple(bin) + " 상수가 아니다: " + v + " (" + constants + ")");
+        if (i < 0) throw new IllegalArgumentException(simple(bin) + " is not a constant: " + v + " (" + constants + ")");
         return i;
     }
 
@@ -801,14 +801,14 @@ public final class GenericCodec767 {
             if (v instanceof PacketStruct s) {
                 String name = identifier((String) need(s, "sound_id", String.class));
                 Optional<?> range = s.has("range") ? (Optional<?>) need(s, "range", Optional.class) : Optional.empty();
-                if (range.isPresent() && !(range.get() instanceof Float)) throw new IllegalArgumentException("range 는 Optional<Float> 이어야 한다: " + range.get());
+                if (range.isPresent() && !(range.get() instanceof Float)) throw new IllegalArgumentException("range must be an Optional<Float>: " + range.get());
                 Types.writeVarInt(o, 0);
                 Types.writeString(o, name);
                 o.writeBoolean(range.isPresent());
                 if (range.isPresent()) o.writeFloat((Float) range.get());
                 return;
             }
-            if (!(v instanceof String str)) throw new IllegalArgumentException("소리는 이름(String) 또는 직접 정의 PacketStruct{sound_id, range} 여야 한다: " + v);
+            if (!(v instanceof String str)) throw new IllegalArgumentException("a sound must be a name (String) or a direct-definition PacketStruct{sound_id, range}: " + v);
             String name = identifier(str);
             Integer id = ItemContext.installed() ? ItemContext.id(h.registry(), name) : null;
             if (id != null) {
@@ -844,18 +844,18 @@ public final class GenericCodec767 {
 
     private static Object need(PacketStruct s, String field, Class<?> kind) {
         Object x = s.get(field);
-        if (!kind.isInstance(x)) throw new IllegalArgumentException("직접 정의 소리의 " + field + " 는 " + kind.getSimpleName() + " 값이어야 한다: " + x);
+        if (!kind.isInstance(x)) throw new IllegalArgumentException("the " + field + " of a direct-definition sound must be a " + kind.getSimpleName() + " value: " + x);
         return x;
     }
 
     static String registryName(String registry, int id) {
         List<String> fixed = FIXED_REGISTRIES.get(registry);
         if (fixed != null) {
-            if (id < 0 || id >= fixed.size()) throw new IllegalArgumentException(registry + " 에 없는 번호: " + id);
+            if (id < 0 || id >= fixed.size()) throw new IllegalArgumentException(registry + " has no id: " + id);
             return fixed.get(id);
         }
         String n = ItemContext.installed() ? ItemContext.name(registry, id) : null;
-        if (n == null) throw new IllegalArgumentException(registry + " 에 없는 번호: " + id);
+        if (n == null) throw new IllegalArgumentException(registry + " has no id: " + id);
         return n;
     }
 
@@ -863,11 +863,11 @@ public final class GenericCodec767 {
         List<String> fixed = FIXED_REGISTRIES.get(registry);
         if (fixed != null) {
             int i = fixed.indexOf(identifier(name));
-            if (i < 0) throw new IllegalArgumentException(registry + " 에 없는 이름: " + name + " " + fixed);
+            if (i < 0) throw new IllegalArgumentException(registry + " has no name: " + name + " " + fixed);
             return i;
         }
         Integer id = ItemContext.installed() ? ItemContext.id(registry, identifier(name)) : null;
-        if (id == null) throw new IllegalArgumentException(registry + " 에 없는 이름: " + name);
+        if (id == null) throw new IllegalArgumentException(registry + " has no name: " + name);
         return id;
     }
 
@@ -881,13 +881,13 @@ public final class GenericCodec767 {
         for (int i = 0; i < ns.length(); i++) {
             char ch = ns.charAt(i);
             if (!(ch >= 'a' && ch <= 'z' || ch >= '0' && ch <= '9' || ch == '_' || ch == '.' || ch == '-')) {
-                throw new IllegalArgumentException("이름공간에 쓸 수 없는 글자(" + ch + "): " + s);
+                throw new IllegalArgumentException("character not allowed in a namespace (" + ch + "): " + s);
             }
         }
         for (int i = 0; i < path.length(); i++) {
             char ch = path.charAt(i);
             if (!(ch >= 'a' && ch <= 'z' || ch >= '0' && ch <= '9' || ch == '_' || ch == '.' || ch == '-' || ch == '/')) {
-                throw new IllegalArgumentException("경로에 쓸 수 없는 글자(" + ch + "): " + s);
+                throw new IllegalArgumentException("character not allowed in a path (" + ch + "): " + s);
             }
         }
         return checkLength(ns + ":" + path);
@@ -895,7 +895,7 @@ public final class GenericCodec767 {
 
     /** 바닐라 writeUtf 기본 상한(32767자). 필드마다 더 작은 상한은 FIELD_LIMITS. */
     private static String checkLength(String s) {
-        if (s.length() > STRING_MAX) throw new IllegalArgumentException("문자열이 너무 길다(" + s.length() + " > " + STRING_MAX + ")");
+        if (s.length() > STRING_MAX) throw new IllegalArgumentException("string too long (" + s.length() + " > " + STRING_MAX + ")");
         return s;
     }
 

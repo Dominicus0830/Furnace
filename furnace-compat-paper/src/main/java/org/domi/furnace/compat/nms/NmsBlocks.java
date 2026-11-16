@@ -47,13 +47,13 @@ public final class NmsBlocks {
             for (int i = 0; i < byBase.length; i++) {
                 Block b = byBase[i];
                 if (b.furnaceBaseStateId() != next) {
-                    throw new IllegalStateException("상태 번호에 틈이 있다: " + b + " 시작=" + b.furnaceBaseStateId() + " 기대=" + next);
+                    throw new IllegalStateException("gap in the state ids: " + b + " start=" + b.furnaceBaseStateId() + " expected=" + next);
                 }
                 baseIds[i] = next;
                 next += b.furnaceStateCount();
                 registry.add(b.furnaceKey(), b);
             }
-            if (next != types.stateCount()) throw new IllegalStateException("상태 수가 다르다: 블록 합=" + next + " 서버=" + types.stateCount());
+            if (next != types.stateCount()) throw new IllegalStateException("state count differs: block sum=" + next + " server=" + types.stateCount());
             stateCount = next;
             // 바닐라 Block.byItem: BlockItem 의 블록. 벽 변형(wall_torch 등)도 같은 아이템을 가리키므로 이름이 같은 블록을 고른다.
             for (Block b : byBase) {

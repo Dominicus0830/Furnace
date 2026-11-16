@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import org.domi.furnace.server.ServerCore;
 import org.domi.furnace.server.TestServers;
 import org.domi.furnace.server.command.builtin.FurnaceCommands;
+import org.domi.furnace.server.i18n.Lang;
 import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -29,7 +30,14 @@ class FurnaceCommandsTest {
             assertNotNull(root.getChild("version"));
             assertNotNull(root.getChild("plugins"));
             assertEquals("Furnace " + core.plugins().version() + " (Minecraft 1.21.1)", FurnaceCommands.versionLine(core.plugins()));
-            assertEquals("플러그인 (0)", FurnaceCommands.pluginsLine(java.util.List.of(), core.plugins().plugins()));
+            assertEquals("Plugins (0)", FurnaceCommands.pluginsLine(java.util.List.of(), core.plugins().plugins()));
+            try {
+                Lang.forceForTest("ko");
+                assertEquals("플러그인 (0)", FurnaceCommands.pluginsLine(java.util.List.of(), core.plugins().plugins()), "the reply follows the server language");
+                assertEquals("다시 읽음: A, B", FurnaceCommands.reloadLine("x", java.util.List.of("A", "B")));
+            } finally {
+                Lang.forceForTest("en");
+            }
         } finally {
             sched.close();
         }

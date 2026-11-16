@@ -88,7 +88,7 @@ public final class Attribute {
 
     /** {@link #find} 인데 모르는 이름이면 IllegalArgumentException. */
     public static Attribute of(String name) {
-        return find(name).orElseThrow(() -> new IllegalArgumentException("모르는 속성: " + name));
+        return find(name).orElseThrow(() -> new IllegalArgumentException("unknown attribute: " + name));
     }
 
     // Paper CraftAttributeMap.legacyNMS 와 같은 목록(옛 Bukkit·NBT 이름 → 1.21.1 이름)

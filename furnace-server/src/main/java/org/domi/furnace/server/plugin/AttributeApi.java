@@ -23,7 +23,7 @@ final class AttributeApi {
     /** API 속성 → 서버 속성(키로 찾는다 — 서버 표와 같은 키여야 한다, AttributeApiTest 가 전부 대조). */
     static org.domi.furnace.server.attribute.Attribute server(Attribute a) {
         var s = org.domi.furnace.server.attribute.Attribute.byName(a.key());
-        if (s == null) throw new IllegalArgumentException("서버에 없는 속성: " + a.key());
+        if (s == null) throw new IllegalArgumentException("attribute unknown to the server: " + a.key());
         return s;
     }
 
@@ -194,7 +194,7 @@ final class AttributeApi {
             var attr = view.attribute();
             return owner.run(map -> {
                 var inst = map.get(attr);
-                if (inst == null) throw new IllegalStateException("그 엔티티에 속성이 없다: " + attr.name());
+                if (inst == null) throw new IllegalStateException("the entity does not have this attribute: " + attr.name());
                 return (T) action.apply(new Live(inst, owner::check));
             });
         }

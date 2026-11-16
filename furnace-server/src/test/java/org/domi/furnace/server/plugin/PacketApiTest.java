@@ -275,7 +275,7 @@ class PacketApiTest {
             over.writeBytes(new byte[len[1]]);
             var ex = assertThrows(IllegalArgumentException.class, () -> codec.decode(PacketTypes.Clientbound.PLAYER_INFO_UPDATE,
                     org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.ID, over));
-            assertTrue(ex.getMessage().contains("상한 " + len[2]), ex.getMessage());
+            assertTrue(ex.getMessage().contains("max " + len[2]), ex.getMessage());
         }
         assertThrows(IllegalArgumentException.class, () -> new ClientboundPlayerInfoUpdatePacket.ChatSession(UUID.randomUUID(), java.time.Instant.EPOCH,
                 new byte[513], new byte[0]));
@@ -510,7 +510,7 @@ class PacketApiTest {
                 ClientboundSetEntityDataPacket.of(1, ClientboundSetEntityDataPacket.entry(19,
                         ClientboundSetEntityDataPacket.Value.of(org.domi.furnace.api.entity.data.EntityDataType.CAT_VARIANT, "minecraft:nope"))))));
         var delim = assertThrows(IllegalArgumentException.class, () -> host.packets().sendBundle(api, List.of(GenericPacket.of(PacketTypes.Clientbound.BUNDLE_DELIMITER))));
-        assertTrue(delim.getMessage().contains("구분자"), delim.getMessage());
+        assertTrue(delim.getMessage().contains("delimiter"), delim.getMessage());
         var many = java.util.Collections.nCopies(org.domi.furnace.api.packet.PacketService.BUNDLE_MAX + 1, (org.domi.furnace.api.packet.ClientboundPacket) new ClientboundSetTitleTextPacket(Text.text("a")));
         assertThrows(IllegalArgumentException.class, () -> host.packets().sendBundle(api, many), "바닐라 클라이언트 상한");
         host.packets().sendBundle(api, List.of());   // 빈 번들은 아무것도 보내지 않는다

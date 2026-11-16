@@ -1,6 +1,7 @@
 // GameEvents 의 플러그인 구현 — 구독자가 없으면 이벤트·핸들을 만들지 않고 바로 허용한다.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.server.i18n.Lang;
 import org.domi.furnace.api.event.entity.DamageRules;
 import org.domi.furnace.api.event.entity.EntityDamageCalculateEvent;
 import org.domi.furnace.api.event.entity.CreatureSpawnEvent;
@@ -528,7 +529,7 @@ public final class PluginGameEvents implements GameEvents {
         try {
             return ApiConvert.item(now, items());
         } catch (IllegalArgumentException e) {
-            org.slf4j.LoggerFactory.getLogger(PluginGameEvents.class).warn("플러그인이 준 아이템을 쓸 수 없어 원래 아이템을 둔다: {}", e.getMessage());
+            org.slf4j.LoggerFactory.getLogger(PluginGameEvents.class).warn(Lang.t("plugin.item-unusable", e.getMessage()));
             return original;
         }
     }

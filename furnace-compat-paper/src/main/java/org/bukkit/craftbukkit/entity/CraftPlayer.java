@@ -25,7 +25,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
 
     @Override
     public void furnaceHandle(org.domi.furnace.api.entity.Entity fresh) {
-        if (fresh != handle) throw new IllegalArgumentException("플레이어 핸들은 접속 동안 바뀌지 않는다");
+        if (fresh != handle) throw new IllegalArgumentException("the player handle does not change while connected");
     }
 
     @Override

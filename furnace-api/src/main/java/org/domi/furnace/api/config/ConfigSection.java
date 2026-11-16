@@ -227,7 +227,7 @@ public final class ConfigSection {
      * 중간 경로에 섹션이 아닌 값이 있으면 새 섹션으로 교체한다.
      */
     public void set(String path, Object value) {
-        if (path.isEmpty()) throw new IllegalArgumentException("빈 경로");
+        if (path.isEmpty()) throw new IllegalArgumentException("empty path");
         setResolved(path, 0, normalize(value));
     }
 
@@ -356,7 +356,7 @@ public final class ConfigSection {
 
     /** 값 저장. 중간 단계는 필요하면 새 섹션으로 만들고, 섹션이 아닌 값이 있으면 새 섹션으로 바꾼다. 단계가 비면 IllegalArgumentException. */
     public void setAt(List<String> segs, Object value) {
-        if (segs.isEmpty()) throw new IllegalArgumentException("빈 경로");
+        if (segs.isEmpty()) throw new IllegalArgumentException("empty path");
         Object v = normalize(value);
         ConfigSection cur = this;
         for (int i = 0; i < segs.size() - 1; i++) {
@@ -386,7 +386,7 @@ public final class ConfigSection {
     /** 키가 존재해야 한다(없으면 IllegalArgumentException). */
     public void setCommentsAt(List<String> segs, List<String> lines) {
         Loc loc = locateSegments(segs);
-        if (loc == null) throw new IllegalArgumentException("존재하지 않는 경로: " + segs);
+        if (loc == null) throw new IllegalArgumentException("path does not exist: " + segs);
         loc.owner.setCommentsRaw(loc.key, lines == null || lines.isEmpty() ? null : new ArrayList<>(lines));
     }
 
@@ -397,7 +397,7 @@ public final class ConfigSection {
 
     public void setInlineCommentAt(List<String> segs, String comment) {
         Loc loc = locateSegments(segs);
-        if (loc == null) throw new IllegalArgumentException("존재하지 않는 경로: " + segs);
+        if (loc == null) throw new IllegalArgumentException("path does not exist: " + segs);
         loc.owner.setInlineRaw(loc.key, comment);
     }
 
@@ -602,7 +602,7 @@ public final class ConfigSection {
 
     private Loc requireLoc(String path) {
         Loc loc = locate(path, 0);
-        if (loc == null) throw new IllegalArgumentException("존재하지 않는 경로: " + path);
+        if (loc == null) throw new IllegalArgumentException("path does not exist: " + path);
         return loc;
     }
 
@@ -749,6 +749,6 @@ public final class ConfigSection {
             for (Object o : arr) out.add(normalize(o));
             return out;
         }
-        throw new IllegalArgumentException("지원하지 않는 설정 값 타입: " + v.getClass().getName());
+        throw new IllegalArgumentException("unsupported config value type: " + v.getClass().getName());
     }
 }

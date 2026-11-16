@@ -64,7 +64,7 @@ public class Connection extends ChannelInboundHandlerAdapter {
     public void send(Packet<?> packet) {
         if (packet == null) return;
         if (!(packetListener instanceof net.minecraft.server.network.ServerCommonPacketListenerImpl l)) {
-            throw new UnsupportedNmsCall("Connection#send", "이 연결에는 보낼 서버 쪽 처리자가 없다");
+            throw new UnsupportedNmsCall("Connection#send", "this connection has no server-side handler to send with");
         }
         if (channel == virtual) {
             PacketDelivery.deliver(l.furnacePlayer(), packet);
@@ -173,16 +173,16 @@ public class Connection extends ChannelInboundHandlerAdapter {
                 } catch (RuntimeException | Error e) {
                     promise.tryFailure(e);
                     if (SENDING.get() == null) {
-                        NmsCaller.warnOnce("channel-write", "{} 가 connection.channel 로 쓴 패킷을 보내지 못했다(첫 오류): " + String.valueOf(e.getMessage()).replace("{", "(").replace("}", ")"));
+                        NmsCaller.warnOnce("channel-write", "compat.channel-write-failed", String.valueOf(e.getMessage()));
                     }
                 }
                 return;
             }
             boolean bytes = msg instanceof io.netty.buffer.ByteBuf;
             io.netty.util.ReferenceCountUtil.release(msg);
-            String what = bytes ? "바이트 와이어 패킷(ProtocolLib sendWirePacket 등)" : "패킷이 아닌 값 " + (msg == null ? "null" : msg.getClass().getName());
-            promise.tryFailure(new UnsupportedNmsCall("Channel#write", what + " 은 아직 지원하지 않는다 — Furnace 패킷 API(docs/api/packets.md)를 쓴다"));
-            NmsCaller.warnOnce(bytes ? "wire-packet" : "channel-write-other", "{} 가 보낸 " + what + " 은 아직 지원하지 않아 버렸다 — Furnace 패킷 API(docs/api/packets.md)를 쓴다");
+            String what = bytes ? "a byte wire packet (ProtocolLib sendWirePacket etc.)" : "a value that is not a packet: " + (msg == null ? "null" : msg.getClass().getName());
+            promise.tryFailure(new UnsupportedNmsCall("Channel#write", what + " is not supported yet - use the Furnace packet API (docs/api/packets.md)"));
+            NmsCaller.warnOnce(bytes ? "wire-packet" : "channel-write-other", bytes ? "compat.channel-write-wire" : "compat.channel-write-other", msg == null ? "null" : msg.getClass().getName());
         }
 
         @Override
@@ -235,7 +235,7 @@ public class Connection extends ChannelInboundHandlerAdapter {
         }
         if (packet == null) return;
         if (!(packetListener instanceof net.minecraft.server.network.ServerCommonPacketListenerImpl l)) {
-            throw new UnsupportedNmsCall("Connection#read", "이 연결에는 받을 서버 쪽 처리자가 없다");
+            throw new UnsupportedNmsCall("Connection#read", "this connection has no server-side handler to read with");
         }
         org.domi.furnace.api.Furnace.server().packets().receive(l.furnacePlayer(), org.domi.furnace.compat.nms.ServerboundBridge.toFurnace(packet));
     }

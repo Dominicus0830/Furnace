@@ -28,7 +28,7 @@
 - 권한 4(콘솔·`/save-all` 과 같은 수준). 명령을 친 차원에서 돈다 — 네더·엔드는 `/execute in minecraft:the_nether run furnace pregen start 2000`.
 - 한 차원에 하나만 돈다. 돌고 있는데 `start` 하면 거절하고, 멈춰 둔 진행이 있는데 `start` 하면 `resume` 이나 `cancel` 을 먼저 하라고 거절한다(모르고 덮지 않게).
 - 진행률은 10초마다 콘솔 로그에, 명령을 친 플레이어에게도 보낸다(`-Dfurnace.pregen.reportSeconds=<초>`, 0 이면 끔).
-  예: `[미리 생성] minecraft:overworld 반경 2000 (가운데 0, 0): 18432/62001 청크 (29.73%), 새로 만든 18000 · 건너뛴 432, 41.3 청크/초, 남은 시간 0:17:35`
+  예(한국어 서버; 영어 서버는 `[Pregen] minecraft:overworld radius 2000 (center 0, 0): 18432/62001 chunks (29.73%), generated 18000 / skipped 432, 41.3 chunks/s, time left 0:17:35`): `[Pregen] minecraft:overworld 반경 2000 (가운데 0, 0): 18432/62001 청크 (29.73%), 새로 만든 18000 · 건너뛴 432, 41.3 청크/초, 남은 시간 0:17:35`
 - 진행 위치는 차원 폴더 `data/furnace_pregen.properties` 에 10초마다·멈출 때 쓴다. 서버를 끄면(`/stop`) 멈춘 것으로 남고, 다시 켠 뒤 저절로 이어 하지는 않는다 — `resume` 을 친다.
 
 ### 플레이어가 있어도 돌려도 되나

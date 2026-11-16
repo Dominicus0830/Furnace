@@ -164,7 +164,7 @@ public enum EntityType implements Keyed {
     /** 키가 없는 UNKNOWN 은 NullPointerException 이 아니라 IllegalArgumentException(Bukkit 과 같다). */
     @Override
     public NamespacedKey getKey() {
-        if (this == UNKNOWN) throw new IllegalArgumentException("UNKNOWN 은 키가 없다");
+        if (this == UNKNOWN) throw new IllegalArgumentException("UNKNOWN has no key");
         return NamespacedKey.minecraft(name().toLowerCase(Locale.ROOT));
     }
 

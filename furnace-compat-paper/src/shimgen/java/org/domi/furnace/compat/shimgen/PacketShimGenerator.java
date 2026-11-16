@@ -105,7 +105,7 @@ public final class PacketShimGenerator {
             Files.createDirectories(p.getParent());
             Files.writeString(p, e.getValue(), StandardCharsets.UTF_8);
         }
-        System.out.println("[shimgen] 패킷 스키마 " + g.schema.packets().size() + "종 → 생성 파일 " + files.size() + "개, 지운 라이브러리 타입 " + g.erased);
+        System.out.println("[shimgen] packet schema: " + g.schema.packets().size() + " packets -> generated files: " + files.size() + ", erased library types: " + g.erased);
     }
 
     // ------------------------------------------------------------------ 덧붙임
@@ -123,7 +123,7 @@ public final class PacketShimGenerator {
             } else if (key != null) {
                 sb.append(line).append('\n');
             } else if (!line.isBlank() && !line.startsWith("//")) {
-                throw new IllegalArgumentException("덧붙임 파일: @@ 앞에 내용이 있다: " + line);
+                throw new IllegalArgumentException("extras file: content before the first @@: " + line);
             }
         }
         if (key != null) put(m, key, sb.toString());
@@ -131,7 +131,7 @@ public final class PacketShimGenerator {
     }
 
     private static void put(Map<String, String> m, String key, String body) {
-        if (m.put(key, body) != null) throw new IllegalArgumentException("덧붙임 파일: 같은 클래스가 두 번: " + key);
+        if (m.put(key, body) != null) throw new IllegalArgumentException("extras file: the same class appears twice: " + key);
     }
 
     // ------------------------------------------------------------------ 있음 판정
@@ -161,7 +161,7 @@ public final class PacketShimGenerator {
         // 1) 바깥 타입: 라이브러리는 지우고, 없는 net.minecraft 타입은 빈 shim
         for (TypeDecl d : schema.types().values()) {
             if (d.kind() == TypeDecl.Kind.LIB) { erased.add(d.binaryName()); continue; }
-            if (!d.binaryName().startsWith("net.minecraft.")) throw new IllegalStateException("net.minecraft 밖 타입은 lib 로: " + d.binaryName());
+            if (!d.binaryName().startsWith("net.minecraft.")) throw new IllegalStateException("types outside net.minecraft must be erased as libraries: " + d.binaryName());
             if (handWritten(d.binaryName())) continue;
             if (!topLevel(d.binaryName()).equals(d.binaryName()) && handWritten(topLevel(d.binaryName()))) {
                 // 바깥이 손으로 쓴 shim 인데 안쪽이 없다 — 손으로 쓴 파일에 끼울 수 없어 지운다
@@ -174,7 +174,7 @@ public final class PacketShimGenerator {
         for (Map.Entry<String, List<String>> e : LISTENER_PARENTS.entrySet()) {
             if (handWritten(e.getKey())) continue;
             StringBuilder sb = new StringBuilder();
-            sb.append("/** 패킷 처리자 표지(Mojang 이름). 패킷 제네릭 인자로만 쓰인다. */\n");
+            sb.append("/** Packet listener marker (Mojang name). Used only as a packet generic argument. */\n");
             sb.append("public interface ").append(simple(e.getKey())).append(" extends ");
             sb.append(String.join(", ", e.getValue().stream().map(PacketShimGenerator::dotted).toList())).append(" {}\n");
             unit(e.getKey()).decls.put(e.getKey(), sb.toString());
@@ -182,20 +182,20 @@ public final class PacketShimGenerator {
         // 3) 보조·내포 타입과 패킷
         for (StructDef s : schema.structs()) {
             if (handWritten(s.binaryName())) {
-                if (extras.containsKey(s.binaryName())) throw new IllegalStateException("손으로 쓴 클래스에 덧붙임이 있다: " + s.binaryName());
+                if (extras.containsKey(s.binaryName())) throw new IllegalStateException("extras given for a hand-written class: " + s.binaryName());
                 continue;
             }
             unit(s.binaryName()).decls.put(s.binaryName(), struct(s));
         }
         for (PacketDef p : schema.packets()) {
             if (handWritten(p.binaryName())) {
-                if (extras.containsKey(p.binaryName())) throw new IllegalStateException("손으로 쓴 클래스에 덧붙임이 있다: " + p.binaryName());
+                if (extras.containsKey(p.binaryName())) throw new IllegalStateException("extras given for a hand-written class: " + p.binaryName());
                 continue;
             }
             unit(p.binaryName()).decls.put(p.binaryName(), packet(p));
         }
         for (String k : extras.keySet()) {
-            if (!usedExtras.contains(k)) throw new IllegalStateException("덧붙임 파일의 클래스가 생성 대상이 아니다: " + k);
+            if (!usedExtras.contains(k)) throw new IllegalStateException("extras file class is not a generated class: " + k);
         }
         // 4) 파일로 조립: 바깥 클래스 선언 안에 '$' 내포 선언을 끼운다
         Map<String, String> files = new TreeMap<>();
@@ -213,7 +213,7 @@ public final class PacketShimGenerator {
 
     private String assemble(String top, Unit u) {
         String topDecl = u.decls.get(top);
-        if (topDecl == null) throw new IllegalStateException("내포 타입의 바깥 클래스가 생성 대상이 아니다: " + top + " ← " + u.decls.keySet());
+        if (topDecl == null) throw new IllegalStateException("the outer class of a nested type is not generated: " + top + " ← " + u.decls.keySet());
         // 깊은 것부터 바깥에 끼운다
         List<String> nested = new ArrayList<>(u.decls.keySet());
         nested.remove(top);
@@ -222,13 +222,13 @@ public final class PacketShimGenerator {
         for (String n : nested) {
             String outer = n.substring(0, n.lastIndexOf('$'));
             String outerDecl = decl.get(outer);
-            if (outerDecl == null) throw new IllegalStateException("바깥 선언이 없다: " + n);
+            if (outerDecl == null) throw new IllegalStateException("missing outer declaration: " + n);
             // 안쪽은 이미 자기 내포를 다 받았다 — 표시를 지우고 바깥 표시 앞에 끼운다
             decl.put(outer, outerDecl.replace(NESTED_MARK, "\n" + indent(decl.get(n).replace(NESTED_MARK, "")) + NESTED_MARK));
         }
         String body = decl.get(top).replace(NESTED_MARK, "");
         String pkg = top.substring(0, top.lastIndexOf('.'));
-        return "// 생성됨: furnace-compat-paper shimgen ← furnace-api packet/schema/protocol-767.schema. 고치지 말 것(스키마·덧붙임 파일을 고친다).\n"
+        return "// Generated by furnace-compat-paper shimgen from furnace-api packet/schema/protocol-767.schema. Do not edit (edit the schema or the extras file).\n"
                 + "package " + pkg + ";\n\n" + body;
     }
 
@@ -283,7 +283,7 @@ public final class PacketShimGenerator {
         String name = simple(d.binaryName());
         String params = d.typeParameters().isEmpty() ? "" : "<" + String.join(", ", d.typeParameters()) + ">";
         String st = isNested(d.binaryName()) ? "static " : "";
-        String doc = "/** 빈 shim(Mojang 이름) — 패킷 shim 의 필드 타입 자리. 멤버는 아직 없다(부르면 UnsupportedNmsLink). */\n";
+        String doc = "/** Empty shim (Mojang name) standing in for a packet shim field type. It has no members yet (calling one throws UnsupportedNmsLink). */\n";
         return switch (d.kind()) {
             case CLASS -> doc + "public " + st + "class " + name + params + " {\n\n    private " + name + "() {}\n" + NESTED_MARK + "}\n";
             case ABSTRACT -> doc + "public " + st + "abstract class " + name + params + " {\n\n    protected " + name + "() {}\n" + NESTED_MARK + "}\n";
@@ -296,7 +296,7 @@ public final class PacketShimGenerator {
 
     private String listener(PacketDef p) {
         String l = LISTENERS.get(p.state())[p.direction() == PacketDirection.CLIENTBOUND ? 0 : 1];
-        if (l == null) throw new IllegalStateException("처리자 없음: " + p.binaryName());
+        if (l == null) throw new IllegalStateException("no listener for: " + p.binaryName());
         return dotted(l);
     }
 
@@ -306,7 +306,7 @@ public final class PacketShimGenerator {
         String st = isNested(s.binaryName()) && s.kind() != StructDef.Kind.ENUM && s.kind() != StructDef.Kind.INTERFACE && s.kind() != StructDef.Kind.RECORD ? "static " : "";
         String extra = takeExtras(s.binaryName());
         StringBuilder sb = new StringBuilder();
-        sb.append("/** 스키마 보조 타입(Mojang 이름). */\n");
+        sb.append("/** Schema helper type (Mojang name). */\n");
         switch (s.kind()) {
             case ENUM -> sb.append(vis).append("enum ").append(name).append(" {\n    ").append(String.join(", ", s.constants())).append(";\n");
             case INTERFACE -> sb.append(vis).append("interface ").append(name).append(" {\n");
@@ -342,7 +342,7 @@ public final class PacketShimGenerator {
         String key = p.state() + "/" + p.direction().name().toLowerCase(java.util.Locale.ROOT) + "/" + p.wireName();
         StringBuilder sb = new StringBuilder();
         sb.append("/** ").append(p.direction() == PacketDirection.CLIENTBOUND ? "clientbound" : "serverbound").append(' ')
-                .append(p.state()).append('/').append(p.wireName()).append(" 패킷 shim(Mojang 이름, 스키마 생성). */\n");
+                .append(p.state()).append('/').append(p.wireName()).append(" packet shim (Mojang name, generated from the schema). */\n");
         String packetItf = "net.minecraft.network.protocol.Packet<" + listener(p) + ">";
         List<FieldDef> values = p.fields();
         if (p.kind() == PacketDef.Kind.RECORD) {

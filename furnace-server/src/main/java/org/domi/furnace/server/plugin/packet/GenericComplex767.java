@@ -105,22 +105,22 @@ final class GenericComplex767 {
     private static Node keyed(String key, String what, List<String> names, Map<String, Compiled> shapes, Compiled fallback) {
         return node(PacketStruct.class, b -> {
             int id = Types.readVarInt(b);
-            if (id < 0 || id >= names.size()) throw bad(what + " 번호가 범위 밖: " + id);
+            if (id < 0 || id >= names.size()) throw bad(what + " id out of range: " + id);
             String name = names.get(id);
             Compiled s = shapes.getOrDefault(name, fallback);
-            if (s == null) throw bad(what + " " + name + " 은 아직 다루지 않는다");
+            if (s == null) throw bad(what + " " + name + " is not handled yet");
             LinkedHashMap<String, Object> m = new LinkedHashMap<>();
             m.put(key, name);
             m.putAll(GenericCodec767.readStruct(s, b).asMap());
             return PacketStruct.of(m);
         }, (o, v) -> {
             PacketStruct p = (PacketStruct) v;
-            if (!(p.asMap().get(key) instanceof String raw)) throw bad(what + " 에 " + key + "(String) 이 없다: " + p);
+            if (!(p.asMap().get(key) instanceof String raw)) throw bad(what + " has no " + key + " (String): " + p);
             String name = GenericCodec767.identifier(raw);
             int id = names.indexOf(name);
-            if (id < 0) throw bad("모르는 " + what + ": " + raw);
+            if (id < 0) throw bad("unknown " + what + ": " + raw);
             Compiled s = shapes.getOrDefault(name, fallback);
-            if (s == null) throw bad(what + " " + name + " 은 아직 다루지 않는다");
+            if (s == null) throw bad(what + " " + name + " is not handled yet");
             LinkedHashMap<String, Object> rest = new LinkedHashMap<>(p.asMap());
             rest.remove(key);
             Types.writeVarInt(o, id);
@@ -142,7 +142,7 @@ final class GenericComplex767 {
             HashSet<Object> seen = new HashSet<>();
             for (Object x : (List<?>) v) {
                 if (x instanceof PacketStruct s && s.has(key) && !seen.add(distinctKey(s.get(key), identifier))) {
-                    throw bad("같은 " + key + " 가 두 번 있다: " + s.get(key));
+                    throw bad("the same " + key + " appears twice: " + s.get(key));
                 }
             }
             l.write(o, v);
@@ -158,10 +158,10 @@ final class GenericComplex767 {
         Node n = c.itemStack();
         return node(ItemStack.class, b -> {
             ItemStack s = (ItemStack) n.read(b);
-            if (s.isEmpty()) throw bad("빈 아이템은 올 수 없다(Empty ItemStack not allowed)");
+            if (s.isEmpty()) throw bad("an empty item cannot appear (Empty ItemStack not allowed)");
             return s;
         }, (o, v) -> {
-            if (((ItemStack) v).isEmpty()) throw bad("빈 아이템은 쓸 수 없다(바닐라 클라이언트가 Empty ItemStack not allowed 로 끊긴다)");
+            if (((ItemStack) v).isEmpty()) throw bad("an empty item cannot be written (the vanilla client disconnects with Empty ItemStack not allowed)");
             n.write(o, v);
         });
     }
@@ -184,7 +184,7 @@ final class GenericComplex767 {
     // ------------------------------------------------------------------ 입자
 
     /** 위치 소스(바닐라 PositionSource.STREAM_CODEC: position_source_type 번호 + 내용) — {type:"minecraft:block", pos} · {type:"minecraft:entity", entity_id, y_offset}. */
-    private static final Node POSITION_SOURCE = keyed("type", "위치 소스", List.of("minecraft:block", "minecraft:entity"), Map.of(
+    private static final Node POSITION_SOURCE = keyed("type", "position source", List.of("minecraft:block", "minecraft:entity"), Map.of(
             "minecraft:block", shape(List.of("pos"), List.of(BLOCK_POS)),
             "minecraft:entity", shape(List.of("entity_id", "y_offset"), List.of(VARINT, F32))), null);
 
@@ -211,7 +211,7 @@ final class GenericComplex767 {
         shapes.put("minecraft:sculk_charge", shape(List.of("roll"), List.of(F32)));
         shapes.put("minecraft:shriek", shape(List.of("delay"), List.of(VARINT)));
         shapes.put("minecraft:vibration", shape(List.of("destination", "arrival_in_ticks"), List.of(POSITION_SOURCE, VARINT)));
-        return keyed("type", "입자", ParticleOptions.Registry.names(), shapes, EMPTY);
+        return keyed("type", "particle", ParticleOptions.Registry.names(), shapes, EMPTY);
     }
 
     // ------------------------------------------------------------------ 폭발
@@ -222,7 +222,7 @@ final class GenericComplex767 {
 
         private static Set<String> load() {
             try (var in = GenericComplex767.class.getClassLoader().getResourceAsStream("registries/client-registries-1.21.1.txt")) {
-                if (in == null) throw new IllegalStateException("registries/client-registries-1.21.1.txt 없음");
+                if (in == null) throw new IllegalStateException("registries/client-registries-1.21.1.txt is missing");
                 Set<String> names = new HashSet<>();
                 for (String line : new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).split("\n")) {
                     line = line.strip();
@@ -238,7 +238,7 @@ final class GenericComplex767 {
     private static void clientRegistry(Object key, String where) {
         if (!(key instanceof String k)) return;   // 값 종류 검사는 코덱이 한다
         String id = GenericCodec767.identifier(k);
-        if (!ClientRegistries.NAMES.contains(id)) throw bad(where + " 는 바닐라 클라이언트에 있는 레지스트리여야 한다(없으면 접속이 끊긴다): " + k);
+        if (!ClientRegistries.NAMES.contains(id)) throw bad(where + " must be a registry the vanilla client has (otherwise the connection drops): " + k);
     }
 
     /** 바닐라 Mth.floor(double). */
@@ -265,7 +265,7 @@ final class GenericComplex767 {
             m.put("power", b.readFloat());
             int fx = floor(x), fy = floor(y), fz = floor(z);
             int n = Types.readVarInt(b);
-            if (n < 0 || (long) n * 3 > b.readableBytes()) throw bad("칸 수 오류: " + n);
+            if (n < 0 || (long) n * 3 > b.readableBytes()) throw bad("invalid cell count: " + n);
             List<Object> l = new ArrayList<>(n);
             for (int i = 0; i < n; i++) l.add(new BlockPos(b.readByte() + fx, b.readByte() + fy, b.readByte() + fz));
             m.put("to_blow", Collections.unmodifiableList(l));
@@ -281,10 +281,10 @@ final class GenericComplex767 {
             long fx = floor(x), fy = floor(y), fz = floor(z);
             List<?> l = (List<?>) m.get("to_blow");
             for (int i = 0; i < l.size(); i++) {
-                if (!(l.get(i) instanceof BlockPos p)) throw bad("to_blow[" + i + "] 은 BlockPos 이어야 한다: " + l.get(i));
+                if (!(l.get(i) instanceof BlockPos p)) throw bad("to_blow[" + i + "] must be a BlockPos: " + l.get(i));
                 long dx = p.x() - fx, dy = p.y() - fy, dz = p.z() - fz;
                 if (dx < -128 || dx > 127 || dy < -128 || dy > 127 || dz < -128 || dz > 127) {
-                    throw bad("to_blow[" + i + "] 이 폭발 중심 칸에서 i8(-128~127) 보다 멀다: " + p);
+                    throw bad("to_blow[" + i + "] is farther than i8 (-128~127) from the explosion center: " + p);
                 }
             }
             o.writeDouble(x);
@@ -313,7 +313,7 @@ final class GenericComplex767 {
     /** 빛 구역 배열(바닐라 byteArray(2048) — 읽기는 2048 까지). 받은 클라이언트 DataLayer 는 꼭 2048 바이트여야 해서 쓸 때는 2048 만 받는다. */
     private static final Node DATA_LAYER = node(byte[].class, b -> GenericHand767.bytes(2048).read(b), (o, v) -> {
         byte[] a = (byte[]) v;
-        if (a.length != 2048) throw bad("빛 배열은 2048 바이트여야 한다(바닐라 DataLayer): " + a.length);
+        if (a.length != 2048) throw bad("a light array must be 2048 bytes (vanilla DataLayer): " + a.length);
         GenericHand767.bytes(2048).write(o, a);
     });
 
@@ -331,7 +331,7 @@ final class GenericComplex767 {
         Map<String, Object> m = GenericCodec767.checked(LIGHT, s, "light_data");
         for (String layer : List.of("sky", "block")) {
             int bits = bitCount(trim((long[]) m.get(layer + "_y_mask"))), arrays = ((List<?>) m.get(layer + "_updates")).size();
-            if (arrays < bits) throw bad("light_data." + layer + "_updates 는 " + layer + "_y_mask 의 비트 수(" + bits + ") 이상 있어야 한다(모자라면 클라이언트가 끊긴다): " + arrays);
+            if (arrays < bits) throw bad("light_data." + layer + "_updates must have at least as many entries as the bits of " + layer + "_y_mask (" + bits + ") (the client disconnects otherwise): " + arrays);
         }
         GenericCodec767.writeStruct(LIGHT, s, o, "light_data");
     });
@@ -368,7 +368,7 @@ final class GenericComplex767 {
             m.put("max", (f & 2) != 0 ? Optional.of(n.read(b)) : Optional.empty());
         }, (o, m) -> {
             Optional<?> min = (Optional<?>) m.get("min"), max = (Optional<?>) m.get("max");
-            for (Optional<?> x : List.of(min, max)) if (x.isPresent() && !n.accepts(x.get())) throw bad("min·max 는 " + n.kind().getSimpleName() + " 이어야 한다: " + x.get());
+            for (Optional<?> x : List.of(min, max)) if (x.isPresent() && !n.accepts(x.get())) throw bad("min and max must be " + n.kind().getSimpleName() + ": " + x.get());
             o.writeByte((min.isPresent() ? 1 : 0) | (max.isPresent() ? 2 : 0));
             if (min.isPresent()) n.write(o, min.get());
             if (max.isPresent()) n.write(o, max.get());
@@ -395,7 +395,7 @@ final class GenericComplex767 {
         s.put("minecraft:time", shape(List.of("min"), List.of(I32)));
         Compiled registry = shape(List.of("registry_key"), List.of(IDENTIFIER));
         for (String r : List.of("minecraft:resource_or_tag", "minecraft:resource_or_tag_key", "minecraft:resource", "minecraft:resource_key")) s.put(r, registry);
-        ARGUMENT_TYPE = keyed("parser", "명령 인자 종류", PARSERS, s, EMPTY);
+        ARGUMENT_TYPE = keyed("parser", "command argument kind", PARSERS, s, EMPTY);
     }
 
     /** 받은 클라이언트가 생성자에서 레지스트리를 찾는 인자 종류(resource_key·resource_or_tag_key 는 찾지 않는다). */
@@ -412,7 +412,7 @@ final class GenericComplex767 {
     private static final Node ENTRY_NODE = node(PacketStruct.class, b -> {
         int flags = b.readByte();
         int type = flags & 3;
-        if (type == 3) throw bad("명령 노드 종류 3 은 없다");
+        if (type == 3) throw bad("there is no command node kind 3");
         LinkedHashMap<String, Object> m = new LinkedHashMap<>();
         m.put("type", NODE_TYPES.get(type));
         m.put("executable", (flags & 4) != 0);
@@ -425,12 +425,12 @@ final class GenericComplex767 {
     }, (o, v) -> {
         Map<String, Object> m = GenericCodec767.checked(ENTRY, (PacketStruct) v, "entry");
         int type = NODE_TYPES.indexOf(m.get("type"));
-        if (type < 0) throw bad("type 은 " + NODE_TYPES + " 가운데 하나: " + m.get("type"));
+        if (type < 0) throw bad("type must be one of " + NODE_TYPES + ": " + m.get("type"));
         Optional<?> redirect = (Optional<?>) m.get("redirect"), name = (Optional<?>) m.get("name"), arg = (Optional<?>) m.get("argument_type"),
                 suggestion = (Optional<?>) m.get("suggestion_id");
-        if (name.isPresent() != (type != 0)) throw bad("name 은 LITERAL·ARGUMENT 노드에만 있어야 한다: " + m.get("type"));
-        if (arg.isPresent() != (type == 2)) throw bad("argument_type 은 ARGUMENT 노드에만 있어야 한다: " + m.get("type"));
-        if (suggestion.isPresent() && type != 2) throw bad("suggestion_id 는 ARGUMENT 노드에만 있을 수 있다: " + m.get("type"));
+        if (name.isPresent() != (type != 0)) throw bad("name is only allowed on LITERAL and ARGUMENT nodes: " + m.get("type"));
+        if (arg.isPresent() != (type == 2)) throw bad("argument_type is only allowed on ARGUMENT nodes: " + m.get("type"));
+        if (suggestion.isPresent() && type != 2) throw bad("suggestion_id is only allowed on ARGUMENT nodes: " + m.get("type"));
         int flags = type | ((Boolean) m.get("executable") ? 4 : 0) | (redirect.isPresent() ? 8 : 0) | (suggestion.isPresent() ? 16 : 0);
         o.writeByte(flags);
         VARINTS.write(o, m.get("children"));
@@ -461,21 +461,21 @@ final class GenericComplex767 {
             int n = l.size(), root = (Integer) m.get("root_index");
             List<Map<String, Object>> es = new ArrayList<>(n);
             for (int i = 0; i < n; i++) {
-                if (!(l.get(i) instanceof PacketStruct s)) throw bad("entries[" + i + "] 은 PacketStruct 이어야 한다: " + l.get(i));
+                if (!(l.get(i) instanceof PacketStruct s)) throw bad("entries[" + i + "] must be a PacketStruct: " + l.get(i));
                 es.add(GenericCodec767.checked(ENTRY, s, "entries[" + i + "]"));
             }
-            if (root < 0 || root >= n) throw bad("root_index 가 목록 밖: " + root + " (노드 " + n + "개)");
-            if (!"ROOT".equals(es.get(root).get("type"))) throw bad("root_index 는 ROOT 노드여야 한다: " + es.get(root).get("type"));
+            if (root < 0 || root >= n) throw bad("root_index is outside the list: " + root + " (" + n + " nodes)");
+            if (!"ROOT".equals(es.get(root).get("type"))) throw bad("root_index must be a ROOT node: " + es.get(root).get("type"));
             for (int i = 0; i < n; i++) {
-                for (int ch : (int[]) es.get(i).get("children")) if (ch < 0 || ch >= n) throw bad("entries[" + i + "].children 의 번호가 목록 밖: " + ch);
+                for (int ch : (int[]) es.get(i).get("children")) if (ch < 0 || ch >= n) throw bad("entries[" + i + "].children has an id outside the list: " + ch);
                 Optional<?> r = (Optional<?>) es.get(i).get("redirect");
-                if (r.isPresent() && (!(r.get() instanceof Integer ri) || ri < 0 || ri >= n)) throw bad("entries[" + i + "].redirect 가 목록 밖: " + r.get());
+                if (r.isPresent() && (!(r.get() instanceof Integer ri) || ri < 0 || ri >= n)) throw bad("entries[" + i + "].redirect is outside the list: " + r.get());
             }
-            settle(es, (e, left) -> ((Optional<?>) e.get("redirect")).map(r -> !left.contains((Integer) r)).orElse(true), "리다이렉트");
+            settle(es, (e, left) -> ((Optional<?>) e.get("redirect")).map(r -> !left.contains((Integer) r)).orElse(true), "redirect");
             settle(es, (e, left) -> {
                 for (int ch : (int[]) e.get("children")) if (left.contains(ch)) return false;
                 return true;
-            }, "자식");
+            }, "children");
             entries.write(o, l);
             VARINT.write(o, root);
         }));
@@ -487,7 +487,7 @@ final class GenericComplex767 {
         for (int i = 0; i < es.size(); i++) left.add(i);
         boolean moved = true;
         while (!left.isEmpty() && moved) moved = left.removeIf(i -> ready.test(es.get(i), left));
-        if (!left.isEmpty()) throw bad("명령 트리의 " + what + " 에 순환이 있다(바닐라 클라이언트가 impossible command tree 로 끊긴다): 노드 " + left);
+        if (!left.isEmpty()) throw bad("the " + what + " of the command tree has a cycle (the vanilla client disconnects with impossible command tree): nodes " + left);
     }
 
     // ------------------------------------------------------------------ 채팅
@@ -504,11 +504,11 @@ final class GenericComplex767 {
     }, (o, v) -> {
         PacketStruct s = (PacketStruct) v;
         if (!s.names().equals(List.of("type", "mask")) || !(s.asMap().get("mask") instanceof Optional<?> mask)) {
-            throw bad("filter_mask 는 {type: String, mask: Optional<long[]>} 이어야 한다: " + s);
+            throw bad("filter_mask must be {type: String, mask: Optional<long[]>}: " + s);
         }
         Object t = s.asMap().get("type");
-        if (mask.isPresent() != "PARTIALLY_FILTERED".equals(t)) throw bad("filter_mask.mask 는 type 이 PARTIALLY_FILTERED 일 때만 있어야 한다: " + t);
-        if (mask.isPresent() && !(mask.get() instanceof long[])) throw bad("filter_mask.mask 는 long[] 이어야 한다");
+        if (mask.isPresent() != "PARTIALLY_FILTERED".equals(t)) throw bad("filter_mask.mask is only allowed when type is PARTIALLY_FILTERED: " + t);
+        if (mask.isPresent() && !(mask.get() instanceof long[])) throw bad("filter_mask.mask must be a long[]");
         FILTER_TYPE.write(o, t);
         if (mask.isPresent()) BIT_SET.write(o, mask.get());
     });
@@ -548,7 +548,7 @@ final class GenericComplex767 {
                     m.put("result", item.read(b));
                 }, (o, m) -> {
                     int n = ((List<?>) m.get("ingredients")).size();
-                    if (n < 1 || n > 9) throw bad("crafting_shapeless 재료는 1~9개: " + n);
+                    if (n < 1 || n > 9) throw bad("crafting_shapeless takes 1 to 9 ingredients: " + n);
                     STRING.write(o, m.get("group"));
                     CRAFTING_CATEGORY.write(o, m.get("category"));
                     ingredients.write(o, m.get("ingredients"));
@@ -562,7 +562,7 @@ final class GenericComplex767 {
         s.put("minecraft:smithing_trim", shape(List.of("template", "base", "addition"), List.of(ingredient, ingredient, ingredient)));
         Compiled special = shape(List.of("category"), List.of(CRAFTING_CATEGORY));
         for (String t : RECIPE_SERIALIZERS) if (t.contains(":crafting_special_") || t.equals("minecraft:crafting_decorated_pot")) s.put(t, special);
-        Node body = keyed("type", "레시피 종류", RECIPE_SERIALIZERS, s, null);
+        Node body = keyed("type", "recipe kind", RECIPE_SERIALIZERS, s, null);
         Node holder = node(PacketStruct.class, b -> {
             LinkedHashMap<String, Object> m = new LinkedHashMap<>();
             m.put("id", IDENTIFIER.read(b));
@@ -570,7 +570,7 @@ final class GenericComplex767 {
             return PacketStruct.of(m);
         }, (o, v) -> {
             PacketStruct p = (PacketStruct) v;
-            if (!(p.asMap().get("id") instanceof String id)) throw bad("레시피에 id(String) 가 없다: " + p);
+            if (!(p.asMap().get("id") instanceof String id)) throw bad("the recipe has no id (String): " + p);
             LinkedHashMap<String, Object> rest = new LinkedHashMap<>(p.asMap());
             rest.remove("id");
             IDENTIFIER.write(o, id);
@@ -581,7 +581,7 @@ final class GenericComplex767 {
             HashSet<String> seen = new HashSet<>();
             for (Object x : (List<?>) v) {
                 if (x instanceof PacketStruct p && p.asMap().get("id") instanceof String id && !seen.add(GenericCodec767.identifier(id))) {
-                    throw bad("같은 레시피 id 가 두 번 있다(바닐라 클라이언트가 끊긴다): " + id);
+                    throw bad("the same recipe id appears twice (the vanilla client disconnects): " + id);
                 }
             }
             list.write(o, v);
@@ -597,7 +597,7 @@ final class GenericComplex767 {
                     m.put("category", CRAFTING_CATEGORY.read(b));
                     int w = Types.readVarInt(b), h = Types.readVarInt(b);
                     long n = (long) w * h;
-                    if (w < 0 || h < 0 || n > b.readableBytes()) throw bad("모양 크기 오류: " + w + "×" + h);
+                    if (w < 0 || h < 0 || n > b.readableBytes()) throw bad("invalid shape size: " + w + "×" + h);
                     m.put("width", w);
                     m.put("height", h);
                     List<Object> l = new ArrayList<>((int) n);
@@ -608,14 +608,14 @@ final class GenericComplex767 {
                 }, (o, m) -> {
                     int w = (Integer) m.get("width"), h = (Integer) m.get("height");
                     List<?> l = (List<?>) m.get("ingredients");
-                    if (w < 1 || w > 3 || h < 1 || h > 3) throw bad("crafting_shaped 가로·세로는 1~3: " + w + "×" + h);
-                    if (l.size() != w * h) throw bad("crafting_shaped 재료 수는 width×height(" + w * h + ")여야 한다: " + l.size());
+                    if (w < 1 || w > 3 || h < 1 || h > 3) throw bad("crafting_shaped width and height must be 1 to 3: " + w + "×" + h);
+                    if (l.size() != w * h) throw bad("the number of crafting_shaped ingredients must be width×height (" + w * h + "): " + l.size());
                     STRING.write(o, m.get("group"));
                     CRAFTING_CATEGORY.write(o, m.get("category"));
                     Types.writeVarInt(o, w);
                     Types.writeVarInt(o, h);
                     for (int i = 0; i < l.size(); i++) {
-                        if (!(l.get(i) instanceof List<?>)) throw bad("ingredients[" + i + "] 은 List<ItemStack> 이어야 한다: " + l.get(i));
+                        if (!(l.get(i) instanceof List<?>)) throw bad("ingredients[" + i + "] must be a List<ItemStack>: " + l.get(i));
                         ingredient.write(o, l.get(i));
                     }
                     item.write(o, m.get("result"));
@@ -648,8 +648,8 @@ final class GenericComplex767 {
                 }, (o, m) -> {
                     Object s = m.get("state");
                     Optional<?> hl = (Optional<?>) m.get("to_highlight");
-                    if (hl.isPresent() != "INIT".equals(s)) throw bad("to_highlight 는 state 가 INIT 일 때만 있어야 한다: " + s);
-                    if (hl.isPresent() && !(hl.get() instanceof List<?>)) throw bad("to_highlight 는 List<String> 이어야 한다");
+                    if (hl.isPresent() != "INIT".equals(s)) throw bad("to_highlight is only allowed when state is INIT: " + s);
+                    if (hl.isPresent() && !(hl.get() instanceof List<?>)) throw bad("to_highlight must be a List<String>");
                     state.write(o, s);
                     settings.write(o, m.get("book_settings"));
                     names.write(o, m.get("recipes"));
@@ -685,7 +685,7 @@ final class GenericComplex767 {
         }, (o, v) -> {
             Map<String, Object> m = GenericCodec767.checked(s, (PacketStruct) v, "display");
             Optional<?> bg = (Optional<?>) m.get("background");
-            if (bg.isPresent() && !(bg.get() instanceof String)) throw bad("display.background 는 String 이어야 한다: " + bg.get());
+            if (bg.isPresent() && !(bg.get() instanceof String)) throw bad("display.background must be a String: " + bg.get());
             TEXT.write(o, m.get("title"));
             TEXT.write(o, m.get("description"));
             icon.write(o, m.get("icon"));
@@ -731,35 +731,35 @@ final class GenericComplex767 {
     private static Node itemCost(GenericCodec767 c) {
         return node(ItemStack.class, b -> {
             int item = Types.readVarInt(b);
-            if (ItemContext.name("minecraft:item", item) == null) throw bad("없는 아이템 번호: " + item);
+            if (ItemContext.name("minecraft:item", item) == null) throw bad("no such item id: " + item);
             int count = Types.readVarInt(b);
-            if (count <= 0) throw bad("거래 값 개수는 1 이상: " + count);
+            if (count <= 0) throw bad("a trade value count must be 1 or more: " + count);
             int n = Types.readVarInt(b);
-            if (n < 0 || n > b.readableBytes()) throw bad("컴포넌트 수 오류: " + n);
+            if (n < 0 || n > b.readableBytes()) throw bad("invalid component count: " + n);
             LinkedHashMap<String, Object> e = new LinkedHashMap<>();
             try {
                 for (int i = 0; i < n; i++) {
                     ComponentType t = DataComponents.byNetworkId(Types.readVarInt(b));
-                    if (e.containsKey(t.name())) throw bad("같은 조건 컴포넌트가 두 번 있다: " + t.name());
+                    if (e.containsKey(t.name())) throw bad("the same condition component appears twice: " + t.name());
                     e.put(t.name(), t.network().read(b));
                 }
             } catch (IllegalArgumentException ex) {
                 throw ex;
             } catch (RuntimeException ex) {
-                throw bad("조건 컴포넌트를 읽지 못했다: " + ex.getMessage());
+                throw bad("could not read a condition component: " + ex.getMessage());
             }
             return ApiConvert.item(new org.domi.furnace.server.entity.ItemStack(item, count, ComponentPatch.ofNormalized(e)), c.itemRegistry());
         }, (o, v) -> {
             ItemStack a = (ItemStack) v;
-            if (a.isEmpty()) throw bad("거래 값은 빈 아이템일 수 없다");
-            if (!a.removedComponents().isEmpty()) throw bad("거래 값에 지운 컴포넌트를 둘 수 없다(바닐라 조건은 '같아야 하는 컴포넌트'뿐): " + a.removedComponents());
+            if (a.isEmpty()) throw bad("a trade value cannot be an empty item");
+            if (!a.removedComponents().isEmpty()) throw bad("a trade value cannot have removed components (vanilla conditions only have components that must match): " + a.removedComponents());
             org.domi.furnace.server.entity.ItemStack s;
             try {
                 s = ApiConvert.item(a, c.itemRegistry());
             } catch (IllegalArgumentException ex) {
                 throw ex;
             } catch (RuntimeException ex) {
-                throw bad("거래 값 컴포넌트를 읽지 못했다: " + ex.getMessage());
+                throw bad("could not read the components of a trade value: " + ex.getMessage());
             }
             Types.writeVarInt(o, s.itemId());
             Types.writeVarInt(o, s.count());

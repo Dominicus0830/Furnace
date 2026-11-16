@@ -150,7 +150,7 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
     private T furnaceSet(FurnaceSource src, int index, T value) {
         checkIndex(index, strategy.size());
         int id = registry.getId(value);
-        if (id < 0) throw new IllegalArgumentException("이 서버 레지스트리에 없는 값이라 로드된 청크에 쓸 수 없다: " + value);
+        if (id < 0) throw new IllegalArgumentException("this value is missing from the server registry and cannot be written to a loaded chunk: " + value);
         int old = src.setId(this, index, id);
         return old == FURNACE_DETACHED ? (T) DETACHED_VALUE : registry.byId(old);
     }
@@ -299,17 +299,17 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
         if (src != null) return src.ids();
         Data<T> d = data;
         if (dataOut != null) dataOut[0] = d;
-        if (d == null) throw new IllegalStateException("data 가 null 이다");
+        if (d == null) throw new IllegalStateException("data is null");
         int size = strategy.size();
-        if (d.storage().getSize() != size) throw new IllegalStateException("저장소 칸 수가 " + d.storage().getSize() + " 이다(바닐라 " + size + ")");
+        if (d.storage().getSize() != size) throw new IllegalStateException("storage size is " + d.storage().getSize() + " (vanilla " + size + ")");
         int[] out = new int[size];
         Palette<T> p = d.palette();
         BitStorage st = d.storage();
         for (int i = 0; i < size; i++) {
             T v = p.valueFor(st.get(i));
-            if (v == null) throw new IllegalStateException("팔레트 항목이 null 이다(칸 " + i + ")");
+            if (v == null) throw new IllegalStateException("palette entry is null (slot " + i + ")");
             int id = toId.applyAsInt(v);
-            if (id < 0) throw new IllegalStateException("서버 레지스트리에 없는 값이다: " + v + " (칸 " + i + ")");
+            if (id < 0) throw new IllegalStateException("value missing from the server registry: " + v + " (slot " + i + ")");
             out[i] = id;
         }
         return out;
@@ -342,7 +342,7 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
             Integer k = local.get(id);
             if (k == null) {
                 T v = registry.byId(id);
-                if (v == null) throw new IllegalStateException("레지스트리에 없는 번호: " + id);
+                if (v == null) throw new IllegalStateException("id missing from the registry: " + id);
                 local.put(id, k = entries.size());
                 entries.add(v);
             }

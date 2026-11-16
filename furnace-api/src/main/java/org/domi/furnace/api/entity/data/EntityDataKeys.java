@@ -41,7 +41,7 @@ public final class EntityDataKeys {
 
     private static <T> EntityDataKey<T> k(String owner, String name, EntityDataType<T> type) {
         EntityDataKey<T> key = new EntityDataKey<>(owner, name, type);
-        if (BY_ID.putIfAbsent(key.id(), key) != null) throw new IllegalStateException("겹치는 칸: " + key.id());
+        if (BY_ID.putIfAbsent(key.id(), key) != null) throw new IllegalStateException("duplicate slot: " + key.id());
         return key;
     }
 

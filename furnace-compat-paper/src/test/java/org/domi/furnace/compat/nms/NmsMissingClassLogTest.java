@@ -68,7 +68,7 @@ class NmsMissingClassLogTest {
         NmsReflect.pluginEnabled(PLUGIN);
         List<String> w = warnings();
         assertEquals(1, w.size(), () -> String.join("\n", w));
-        assertTrue(w.get(0).contains("켜지는 동안") && w.get(0).contains("2개") && w.get(0).contains("EnumProtocol"), w.get(0));
+        assertTrue(w.get(0).contains("while starting") && w.get(0).contains("looked up 2 NMS classes") && w.get(0).contains("EnumProtocol"), w.get(0));
     }
 
     @Test
@@ -81,8 +81,8 @@ class NmsMissingClassLogTest {
         List<String> w = warnings();
         assertEquals(1, w.size(), () -> String.join("\n", w));
         String line = w.get(0);
-        assertTrue(line.startsWith("플러그인 " + PLUGIN + " 이(가) 리플렉션으로 찾은 NMS 클래스 11개"), line);
-        assertTrue(line.contains("net.minecraft.world.level.World") && line.contains("외 6개"), "앞 몇 개만 보여 준다: " + line);
+        assertTrue(line.startsWith("Plugin " + PLUGIN + " looked up 11 NMS classes"), line);
+        assertTrue(line.contains("net.minecraft.world.level.World") && line.contains("and 6 more"), "앞 몇 개만 보여 준다: " + line);
         assertTrue(!line.contains("IChatBaseComponent"), "나머지 이름은 요약 줄에 없다: " + line);
         assertTrue(line.contains(NmsReflect.MISSING_CLASS_LOG_KEY + "=each"), "이름을 모두 보는 설정을 알린다: " + line);
         assertTrue(!line.contains("DEBUG"), "운영자가 켤 수 없는 DEBUG 로그는 안내하지 않는다(검토 R3): " + line);
@@ -93,7 +93,7 @@ class NmsMissingClassLogTest {
         NmsReflect.classMissing(PLUGIN, "net.minecraft.world.level.WorldType");
         NmsReflect.flushNow(PLUGIN);
         assertEquals(2, warnings().size(), "새 이름은 다음 묶음 한 줄로");
-        assertTrue(warnings().get(1).contains("1개") && warnings().get(1).contains("WorldType"), warnings().get(1));
+        assertTrue(warnings().get(1).contains("looked up 1 NMS classes") && warnings().get(1).contains("WorldType"), warnings().get(1));
     }
 
     @Test
@@ -104,7 +104,7 @@ class NmsMissingClassLogTest {
         while (warnings().isEmpty() && System.nanoTime() < deadline) Thread.sleep(50);
         List<String> w = warnings();
         assertEquals(1, w.size(), () -> "묶음이 끝나면 저절로 한 줄: " + w);
-        assertTrue(w.get(0).contains("11개"), w.get(0));
+        assertTrue(w.get(0).contains("looked up 11 NMS classes"), w.get(0));
     }
 
     @Test
@@ -120,7 +120,7 @@ class NmsMissingClassLogTest {
         NmsReflect.classMissing(PLUGIN, "net.minecraft.nbt.NBTBase");
         List<String> w = warnings();
         assertEquals(3, w.size(), () -> String.join("\n", w));
-        assertTrue(w.get(1).contains("NMS 클래스 net.minecraft.nbt.NBTBase 를 리플렉션으로 찾았으나"), w.get(1));
+        assertTrue(w.get(1).contains("looked up the NMS class net.minecraft.nbt.NBTBase by reflection"), w.get(1));
         NmsReflect.missingClassLog(PLUGIN, NmsReflect.MissingClassLog.SUMMARY);
         NmsReflect.classMissing(PLUGIN, "net.minecraft.nbt.NBTTagList");
         assertEquals(3, warnings().size(), "summary 로 돌리면 다시 모은다");
@@ -135,7 +135,7 @@ class NmsMissingClassLogTest {
         NmsReflect.classMissing(PLUGIN, gradeC);
         List<String> w = warnings();
         assertEquals(1, w.size(), "Paper 에는 있는 클래스라 바로 하나씩 경고한다");
-        assertTrue(w.get(0).contains(gradeC) && w.get(0).contains("등급 C"), w.get(0));
+        assertTrue(w.get(0).contains(gradeC) && w.get(0).contains("Grade C"), w.get(0));
     }
 
     @Test
@@ -164,7 +164,7 @@ class NmsMissingClassLogTest {
         NmsReflect.pluginDisabled(PLUGIN);   // onEnable 에서 예외로 켜지지 못하고 꺼졌다
         List<String> w = warnings();
         assertEquals(1, w.size(), () -> String.join("\n", w));
-        assertTrue(w.get(0).contains("켜지는 동안") && w.get(0).contains("EnumProtocol"), w.get(0));
+        assertTrue(w.get(0).contains("while starting") && w.get(0).contains("EnumProtocol"), w.get(0));
     }
 
     /** 검토 S1: 끄고 바로 다시 켜면(핫 리로드) 지난 기간의 예약 알림이 새로 켜는 중의 이름을 "켜지는 동안" 표시 없이 일찍 알리지 않는다. */
@@ -179,7 +179,7 @@ class NmsMissingClassLogTest {
         assertEquals(1, warnings().size(), () -> "지난 예약이 새 기간의 이름을 알렸다: " + warnings());
         NmsReflect.pluginEnabled(PLUGIN);
         assertEquals(2, warnings().size());
-        assertTrue(warnings().get(1).contains("켜지는 동안") && warnings().get(1).contains("EnumProtocol"), warnings().get(1));
+        assertTrue(warnings().get(1).contains("while starting") && warnings().get(1).contains("EnumProtocol"), warnings().get(1));
     }
 
     /** 검토 R1: 모으는 동안 다른 스레드가 알려도(예약 알림·켜기 끝) 이름이 사라지지 않는다. */

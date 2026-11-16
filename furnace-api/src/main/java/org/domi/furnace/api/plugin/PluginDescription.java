@@ -37,14 +37,14 @@ public record PluginDescription(String name, String version, String main, String
         public Library {
             Objects.requireNonNull(coordinate, "coordinate");
             String[] p = coordinate.split(":", -1);
-            if (p.length < 3 || p.length > 4) throw new IllegalArgumentException("라이브러리 좌표는 그룹:아티팩트:버전[:분류자] 이어야 한다: " + coordinate);
+            if (p.length < 3 || p.length > 4) throw new IllegalArgumentException("a library coordinate must be group:artifact:version[:classifier]: " + coordinate);
             for (String x : p) {
                 if (!PART.matcher(x).matches() || x.equals(".") || x.equals("..") || x.contains(".."))
-                    throw new IllegalArgumentException("라이브러리 좌표에 쓸 수 없는 글자가 있다: " + coordinate);
+                    throw new IllegalArgumentException("the library coordinate contains characters that are not allowed: " + coordinate);
             }
             if (sha256 != null) {
                 sha256 = sha256.strip().toLowerCase(java.util.Locale.ROOT);
-                if (!HEX64.matcher(sha256).matches()) throw new IllegalArgumentException("sha256 은 16진수 64자리여야 한다: " + coordinate);
+                if (!HEX64.matcher(sha256).matches()) throw new IllegalArgumentException("sha256 must be 64 hex digits: " + coordinate);
             }
         }
 
@@ -105,7 +105,7 @@ public record PluginDescription(String name, String version, String main, String
     /** 설정 트리에서 읽는다. 필수 키(name, version, main)가 없거나 이름이 잘못되거나 예약어({@link #RESERVED_NAMES})이면 IllegalArgumentException. */
     public static PluginDescription read(ConfigSection s) {
         String name = required(s, "name");
-        if (!name.matches("[A-Za-z0-9 _.-]+")) throw new IllegalArgumentException("플러그인 이름에 쓸 수 없는 글자가 있다: " + name);
+        if (!name.matches("[A-Za-z0-9 _.-]+")) throw new IllegalArgumentException("the plugin name contains characters that are not allowed: " + name);
         if (RESERVED_NAMES.contains(name.toLowerCase(java.util.Locale.ROOT)))
             throw new IllegalArgumentException("Restricted name, cannot use " + name + " as a plugin name.");
         String version = required(s, "version");
@@ -149,11 +149,11 @@ public record PluginDescription(String name, String version, String main, String
             if (o == null) continue;
             if (o instanceof ConfigSection c) {
                 String coord = c.getString("coordinate", c.getString("id", null));
-                if (coord == null) throw new IllegalArgumentException("libraries 항목에 coordinate 가 없다");
+                if (coord == null) throw new IllegalArgumentException("a libraries entry has no coordinate");
                 out.add(new Library(coord.strip(), c.getString("sha256", null)));
             } else if (o instanceof Map<?, ?> m) {
                 Object coord = m.containsKey("coordinate") ? m.get("coordinate") : m.get("id");
-                if (coord == null) throw new IllegalArgumentException("libraries 항목에 coordinate 가 없다");
+                if (coord == null) throw new IllegalArgumentException("a libraries entry has no coordinate");
                 Object sha = m.get("sha256");
                 out.add(new Library(String.valueOf(coord).strip(), sha == null ? null : String.valueOf(sha)));
             } else {
@@ -191,7 +191,7 @@ public record PluginDescription(String name, String version, String main, String
 
     private static String required(ConfigSection s, String key) {
         Object v = s.get(key);
-        if (v == null || String.valueOf(v).isBlank()) throw new IllegalArgumentException("설명 파일에 '" + key + "' 가 없다");
+        if (v == null || String.valueOf(v).isBlank()) throw new IllegalArgumentException("the descriptor has no '" + key + "'");
         return String.valueOf(v);
     }
 

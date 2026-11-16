@@ -336,7 +336,7 @@ public final class Compat {
     public static org.domi.furnace.api.world.Location location(org.bukkit.Location l) {
         if (l == null) return null;
         World w = l.getWorld();
-        if (w == null) throw new IllegalArgumentException("월드가 없는 Location 은 옮길 수 없다: " + l);
+        if (w == null) throw new IllegalArgumentException("a Location without a world cannot be converted: " + l);
         return new org.domi.furnace.api.world.Location(dimension(w), l.getX(), l.getY(), l.getZ(), l.getYaw(), l.getPitch());
     }
 
@@ -344,7 +344,7 @@ public final class Compat {
     public static String dimension(World w) {
         if (w instanceof CraftWorld c) return c.furnaceHandle().dimension();
         org.domi.furnace.api.world.World f = state().furnace.worldNamed(w.getName());
-        if (f == null) throw new IllegalArgumentException("Furnace 에 없는 월드: " + w.getName());
+        if (f == null) throw new IllegalArgumentException("world unknown to Furnace: " + w.getName());
         return f.dimension();
     }
 
@@ -352,11 +352,11 @@ public final class Compat {
 
     /** minecraft:stone → STONE. 모르는 종류(플러그인 블록)는 AIR 가 아니라 null 이 아닌 값을 줄 수 없어 UnsupportedFeature. */
     static Material material(String blockType) {
-        if (blockType == null) throw new UnsupportedFeature("Material null", "블록 종류가 없다");   // 옛 길(matchMaterial(null) == null)과 같은 예외
+        if (blockType == null) throw new UnsupportedFeature("Material null", "no block type");   // 옛 길(matchMaterial(null) == null)과 같은 예외
         Material m = MATERIALS.get(blockType);
         if (m != null) return m;
         m = Material.matchMaterial(blockType);
-        if (m == null) throw new UnsupportedFeature("Material " + blockType, "Bukkit Material 열거형에 없는 블록이다(데이터 팩·플러그인 블록)");
+        if (m == null) throw new UnsupportedFeature("Material " + blockType, "block is not in the Bukkit Material enum (data pack or plugin block)");
         // 정식 키(minecraft:stone)로 찾은 것만 담는다 — 없는 종류는 지금처럼 부를 때마다 예외이고, matchMaterial 이 받아주는 다른 철자("STONE" 등)는 담지 않아
         // 플러그인이 만든 임의 문자열로 표가 자라지 않는다. 서버가 상태 번호별로 같은 BlockData(같은 type 문자열)를 주므로 키 해시가 이미 계산돼 있다.
         if (blockType.equals(m.getKey().toString())) MATERIALS.putIfAbsent(blockType, m);
@@ -415,7 +415,7 @@ public final class Compat {
         java.util.ArrayList<org.domi.furnace.api.entity.Player> creating = CREATING.get();
         if (creating == null) CREATING.set(creating = new java.util.ArrayList<>(2));
         for (var c : creating) {
-            if (c == p) throw new IllegalStateException("CraftPlayer 생성 중에 같은 플레이어를 다시 감쌀 수 없다: " + p.name());
+            if (c == p) throw new IllegalStateException("the same player cannot be wrapped again while a CraftPlayer is being created: " + p.name());
         }
         creating.add(p);
         try {
@@ -631,7 +631,7 @@ public final class Compat {
         if (s instanceof CompatConsole) return state().furnace.console();
         if (s instanceof CompatSender c) return c.handle();
         if (s instanceof CraftEntity e && e.furnaceHandle() instanceof org.domi.furnace.api.command.CommandSender cs) return cs;
-        throw new IllegalArgumentException("Furnace 가 모르는 CommandSender 구현이다: " + s.getClass().getName());
+        throw new IllegalArgumentException("CommandSender implementation unknown to Furnace: " + s.getClass().getName());
     }
 
     // ------------------------------------------------------------------ 글

@@ -67,7 +67,7 @@ public final class NmsChunks {
     public static Holder.Reference<Biome> biome(int id) {
         var hs = biomeTable().holders;
         if (id >= hs.size()) hs = rebuildBiomes().holders;
-        if (id < 0 || id >= hs.size()) throw new IllegalStateException("모르는 바이옴 번호: " + id);
+        if (id < 0 || id >= hs.size()) throw new IllegalStateException("unknown biome id: " + id);
         return hs.get(id);
     }
 
@@ -79,7 +79,7 @@ public final class NmsChunks {
             if (i == null) i = rebuildBiomes().index.get(k);
             if (i != null) return i;
         }
-        throw new IllegalArgumentException("이 서버의 바이옴이 아니다: " + holder);
+        throw new IllegalArgumentException("not a biome of this server: " + holder);
     }
 
     /**
@@ -157,7 +157,7 @@ public final class NmsChunks {
 
     /** 청크가 로드돼 있지 않을 때 — Paper 는 주 스레드에서 동기로 불러오지만 Furnace 는 동기로 불러오지 않는다. */
     public static IllegalStateException notLoaded(World w, int cx, int cz, String what) {
-        return new IllegalStateException(what + ": 청크 " + cx + ", " + cz + " (" + w.dimension() + ") 가 로드돼 있지 않다 — Furnace 는 청크를 동기로 불러오지 않는다"
-                + "(Paper 의 getChunk 는 주 스레드에서 불러온다). getChunkIfLoaded·getChunkAtIfLoadedImmediately 로 확인하거나 Bukkit World#getChunkAtAsync 를 쓴다");
+        return new IllegalStateException(what + ": chunk " + cx + ", " + cz + " (" + w.dimension() + ") is not loaded - Furnace does not load chunks synchronously"
+                + " (Paper's getChunk loads on the main thread). Check with getChunkIfLoaded / getChunkAtIfLoadedImmediately, or use Bukkit World#getChunkAtAsync");
     }
 }

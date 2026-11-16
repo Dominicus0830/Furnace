@@ -20,6 +20,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPOutputStream;
+import org.domi.furnace.server.i18n.Lang;
 
 public class LatestLogAppender extends FileAppender<ILoggingEvent> {
 
@@ -41,7 +42,7 @@ public class LatestLogAppender extends FileAppender<ILoggingEvent> {
                 archive(latest, day);
             }
         } catch (IOException e) {
-            addError("latest.log 보관 실패", e);
+            addError(Lang.t("log.archive-failed"), e);
         }
         setAppend(false);
         currentDay = LocalDate.now();
@@ -59,7 +60,7 @@ public class LatestLogAppender extends FileAppender<ILoggingEvent> {
         if (compressor != null) {
             compressor.shutdown();
             try {
-                if (!compressor.awaitTermination(60, TimeUnit.SECONDS)) addWarn("로그 압축이 60초 안에 끝나지 않음");
+                if (!compressor.awaitTermination(60, TimeUnit.SECONDS)) addWarn(Lang.t("log.compress-timeout"));
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -83,13 +84,13 @@ public class LatestLogAppender extends FileAppender<ILoggingEvent> {
                         compressor.execute(() -> compressQuietly(pending));
                         openFile(getFile());
                     } catch (IOException e) {
-                        addError("날짜 변경 로그 롤링 실패", e);
+                        addError(Lang.t("log.roll-failed"), e);
                         // 이름 바꾸기가 실패했으면 기존 파일에 이어 쓴다(스트림을 못 열면 이후 로그가 전부 사라진다).
                         try {
                             setAppend(true);
                             openFile(getFile());
                         } catch (IOException e2) {
-                            addError("latest.log 다시 열기 실패", e2);
+                            addError(Lang.t("log.reopen-failed"), e2);
                         }
                     }
                 }
@@ -152,11 +153,11 @@ public class LatestLogAppender extends FileAppender<ILoggingEvent> {
                 try {
                     compress(f);
                 } catch (IOException e) { // 하나가 실패해도 latest.log 보관을 막지 않는다
-                    addError("남은 로그 압축 실패: " + f, e);
+                    addError(Lang.t("log.leftover-compress-failed", f), e);
                 }
             }
         } catch (IOException e) {
-            addError("남은 로그 압축 목록 읽기 실패", e);
+            addError(Lang.t("log.leftover-list-failed"), e);
         }
     }
 
@@ -164,7 +165,7 @@ public class LatestLogAppender extends FileAppender<ILoggingEvent> {
         try {
             compress(pending);
         } catch (IOException e) {
-            addError("로그 압축 실패: " + pending, e);
+            addError(Lang.t("log.compress-failed", pending), e);
         }
     }
 }

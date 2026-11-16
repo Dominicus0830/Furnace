@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.logging.Level;
 import org.domi.furnace.server.plugin.library.LibrarySettings;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -121,7 +122,7 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
         logLevels = Map.copyOf(m);
         if (libraries == null) libraries = LibrarySettings.DEFAULT;
         compatOptions = compatOptions == null ? Map.of() : Map.copyOf(compatOptions);
-        if (chunkTicketLimit < 1) throw new IllegalArgumentException("chunkTicketLimit 는 1 이상: " + chunkTicketLimit);
+        if (chunkTicketLimit < 1) throw new IllegalArgumentException(Lang.t("cfg.invalid-value", "chunkTicketLimit", chunkTicketLimit, Lang.t("cfg.expect-at-least", 1)));
     }
 
     /** 이 플러그인에 지정된 로그 수준(없으면 null). */
@@ -145,7 +146,7 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
         if (threads != null) {
             String t = threads.strip().toLowerCase(Locale.ROOT);
             if (!t.equals("platform") && !t.equals("virtual")) {
-                throw new IllegalArgumentException("설정 '" + ASYNC_THREADS_KEY + "' 값 '" + threads.strip() + "' 이(가) 잘못됐습니다: platform 또는 virtual");
+                throw new IllegalArgumentException(Lang.t("cfg.invalid-choice", ASYNC_THREADS_KEY, threads.strip(), "platform, virtual"));
             }
             if (!t.equals("platform")) out.put(ASYNC_THREADS_KEY, t);   // 기본값과 같게 적은 것은 안 적은 것과 같다(DEFAULT 와 같은 설정)
         }
@@ -157,7 +158,7 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
         if (vp != null) {
             String v = vp.strip().toLowerCase(Locale.ROOT);
             if (!v.equals("plain") && !v.equals("versioned")) {
-                throw new IllegalArgumentException("설정 '" + NMS_VERSION_PACKAGE_KEY + "' 값 '" + vp.strip() + "' 이(가) 잘못됐습니다: plain 또는 versioned");
+                throw new IllegalArgumentException(Lang.t("cfg.invalid-choice", NMS_VERSION_PACKAGE_KEY, vp.strip(), "plain, versioned"));
             }
             if (!v.equals("plain")) out.put(NMS_VERSION_PACKAGE_KEY, v);
         }
@@ -166,7 +167,7 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
         if (ml != null) {
             String v = ml.strip().toLowerCase(Locale.ROOT);
             if (!v.equals("summary") && !v.equals("each")) {
-                throw new IllegalArgumentException("설정 '" + NMS_MISSING_CLASS_LOG_KEY + "' 값 '" + ml.strip() + "' 이(가) 잘못됐습니다: summary 또는 each");
+                throw new IllegalArgumentException(Lang.t("cfg.invalid-choice", NMS_MISSING_CLASS_LOG_KEY, ml.strip(), "summary, each"));
             }
             if (!v.equals("summary")) out.put(NMS_MISSING_CLASS_LOG_KEY, v);
         }
@@ -176,11 +177,10 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
         if (sm != null) {
             String v = sm.strip().toLowerCase(Locale.ROOT);
             if (!v.equals("off") && !v.equals("download") && !v.equals("files")) {
-                throw new IllegalArgumentException("설정 '" + SPIGOT_MAPPINGS_KEY + "' 값 '" + sm.strip() + "' 이(가) 잘못됐습니다: off, download 또는 files");
+                throw new IllegalArgumentException(Lang.t("cfg.invalid-choice", SPIGOT_MAPPINGS_KEY, sm.strip(), "off, download, files"));
             }
             if (v.equals("files") && (files.isEmpty() || files.split(java.util.regex.Pattern.quote(java.io.File.pathSeparator), -1).length != 3)) {
-                throw new IllegalArgumentException("설정 '" + SPIGOT_MAPPINGS_KEY + "=files' 는 '" + SPIGOT_MAPPING_FILES_KEY + "' 에 파일 세 개"
-                        + "(Mojang server.txt, Spigot 클래스 csrg, Spigot 멤버 csrg)를 경로 구분자 '" + java.io.File.pathSeparator + "' 로 이어 적어야 합니다");
+                throw new IllegalArgumentException(Lang.t("cfg.spigot-files-needed", SPIGOT_MAPPINGS_KEY, SPIGOT_MAPPING_FILES_KEY, java.io.File.pathSeparator));
             }
             if (!v.equals(SPIGOT_MAPPINGS_DEFAULT)) out.put(SPIGOT_MAPPINGS_KEY, v);
             if (v.equals("files")) out.put(SPIGOT_MAPPING_FILES_KEY, files);
@@ -229,12 +229,12 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
             try {
                 levels.put(k.substring(prefix.length()), Level.parse(v.toUpperCase(Locale.ROOT)));
             } catch (IllegalArgumentException e) {
-                log.warn("furnace.properties 의 '{}' 값 '{}' 은 로그 수준이 아니다 — 무시한다", k, v);
+                log.warn(Lang.t("plugin.settings-log-level", k, v));
             }
         }
         boolean dev = org.domi.furnace.server.config.OptionKeys.strictBool(p, "plugins.dev-mode", false);
         boolean auto = org.domi.furnace.server.config.OptionKeys.strictBool(p, "plugins.dev-mode.auto-reload", false);
-        if (auto && !dev) log.warn("plugins.dev-mode.auto-reload 는 plugins.dev-mode=true 일 때만 쓰인다 — 무시한다");
+        if (auto && !dev) log.warn(Lang.t("plugin.settings-auto-reload"));
         boolean compat = org.domi.furnace.server.config.OptionKeys.strictBool(p, "plugins.compat.bukkit", true);
         boolean nms = org.domi.furnace.server.config.OptionKeys.strictBool(p, "plugins.compat.nms.enabled", true);
         return new PluginSettings(failFast, root.isEmpty() ? null : Path.of(root), levels, dev, dev && auto,
@@ -250,7 +250,7 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
         if (v == null) return false;
         String t = v.strip().toLowerCase(Locale.ROOT);
         if (!t.equals("platform") && !t.equals("virtual")) {
-            throw new IllegalArgumentException("설정 '" + PLUGIN_ASYNC_THREADS_KEY + "' 값 '" + v.strip() + "' 이(가) 잘못됐습니다: platform 또는 virtual");
+            throw new IllegalArgumentException(Lang.t("cfg.invalid-choice", PLUGIN_ASYNC_THREADS_KEY, v.strip(), "platform, virtual"));
         }
         return t.equals("virtual");
     }

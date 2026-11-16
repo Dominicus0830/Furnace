@@ -17,7 +17,7 @@ public record ItemStack(String type, int amount, Map<String, String> components,
     public ItemStack {
         Objects.requireNonNull(type, "type");
         if (type.indexOf(':') < 0) type = "minecraft:" + type;
-        if (amount < 0) throw new IllegalArgumentException("amount 는 0 이상: " + amount);
+        if (amount < 0) throw new IllegalArgumentException("amount must be at least 0: " + amount);
         components = components.isEmpty() ? Map.of() : java.util.Collections.unmodifiableMap(new TreeMap<>(components));
         removedComponents = removedComponents.isEmpty() ? Set.of() : java.util.Collections.unmodifiableSet(new TreeSet<>(removedComponents));
     }
@@ -85,7 +85,7 @@ public record ItemStack(String type, int amount, Map<String, String> components,
 
     /** 값을 넣은 새 스택. 값이 null 이면 IllegalArgumentException(지우려면 without). */
     public <T> ItemStack with(ItemComponent<T> component, T value) {
-        if (value == null) throw new IllegalArgumentException("값이 null — 지우려면 without");
+        if (value == null) throw new IllegalArgumentException("the value is null - use without to remove it");
         return ItemSupport.get().set(this, component, value);
     }
 

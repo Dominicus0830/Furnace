@@ -6,7 +6,7 @@ public record GameRule<T>(String name, Class<T> type) {
 
     public GameRule {
         java.util.Objects.requireNonNull(name, "name");
-        if (type != Boolean.class && type != Integer.class) throw new IllegalArgumentException("규칙 타입은 Boolean·Integer: " + type);
+        if (type != Boolean.class && type != Integer.class) throw new IllegalArgumentException("a rule type must be Boolean or Integer: " + type);
     }
 
     public static GameRule<Boolean> bool(String name) { return new GameRule<>(name, Boolean.class); }

@@ -57,12 +57,12 @@ public final class WorldSpawnPolicy {
 
     private static MobCategory spawning(MobCategory c) {
         if (c == null) throw new NullPointerException("category");
-        if (!SpawnConfig.spawns(c)) throw new IllegalArgumentException("자연 스폰이 없는 종류: " + c.key());
+        if (!SpawnConfig.spawns(c)) throw new IllegalArgumentException("this category has no natural spawning: " + c.key());
         return c;
     }
 
     private static void checkCap(int cap) {
-        if (cap < 0 || cap > SpawnConfig.MAX_CAP) throw new IllegalArgumentException("상한은 0~" + SpawnConfig.MAX_CAP + ": " + cap);
+        if (cap < 0 || cap > SpawnConfig.MAX_CAP) throw new IllegalArgumentException("the cap must be 0.." + SpawnConfig.MAX_CAP + ": " + cap);
     }
 
     public void setCap(MobCategory c, int cap) {

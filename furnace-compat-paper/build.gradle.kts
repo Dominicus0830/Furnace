@@ -153,6 +153,7 @@ tasks.test {
     enableAssertions = true
     maxHeapSize = "2g"
     jvmArgumentProviders.add(RealWorldJars(realWorld))
+    systemProperty("furnace.language", "en")   // 서버 문구를 확인하는 시험이 실행 환경 언어에 흔들리지 않게
     // CompatLinkTest 가 authlib·DataFixerUpper 대역을 뺀 클래스패스로 링크를 본다
     val stubDirs = authlibStub.output.classesDirs + dfuStub.output.classesDirs
     jvmArgumentProviders.add(CommandLineArgumentProvider { listOf("-Dfurnace.test.authlibStub=" + stubDirs.asPath) })

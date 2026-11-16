@@ -1,6 +1,7 @@
 // 생성 조절기(T-172): region 틱이 밀리면 동시 생성 수를 줄인다. 기본 꺼짐(결정 W-2) — 끄면 생성 대기열은 예전과 같다.
 package org.domi.furnace.server.config;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.nio.file.Path;
 import java.util.Properties;
 import java.util.function.Consumer;
@@ -25,7 +26,7 @@ public record WorldgenGuardSettings(boolean tickGuard) {
         if (v != null) on = parse(KEY, v);
         if (sysOverride != null) {
             boolean sys = parse("-Dfurnace.gen.tickGuard", sysOverride);
-            if (v != null && sys != on) warn.accept("-Dfurnace.gen.tickGuard=" + sys + " 가 설정 '" + KEY + "=" + on + "' 보다 우선합니다");
+            if (v != null && sys != on) warn.accept(Lang.t("cfg.sys-overrides-file", "-Dfurnace.gen.tickGuard=" + sys, KEY + "=" + on));
             on = sys;
         }
         return new WorldgenGuardSettings(on);
@@ -34,7 +35,7 @@ public record WorldgenGuardSettings(boolean tickGuard) {
     private static boolean parse(String key, String v) {
         v = v.strip();
         if (!v.equalsIgnoreCase("true") && !v.equalsIgnoreCase("false")) {
-            throw new IllegalArgumentException("설정 '" + key + "' 값 '" + v + "' 이(가) 잘못됐습니다: true 또는 false");
+            throw new IllegalArgumentException(Lang.t("cfg.invalid-bool", key, v));
         }
         return Boolean.parseBoolean(v);
     }

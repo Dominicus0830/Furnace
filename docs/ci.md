@@ -18,12 +18,12 @@
 | `GeneratedVillageProfessionTest`, `DispenserBlockTest.arrowIsShotWithPickupAllowed` | 각 1 | 난수 | CI 재시도로 흡수 |
 
 ## 지금 구조
-- `server-tests (1/4~4/4)`: 서버 시험을 4조각으로 나눠 동시에 돈다(`-PtestShard=i/4`, `furnace-server/build.gradle.kts`). 배정은 클래스별 실측 시간으로 고르게 맞춘다(아래 "조각 균형").
+- `server-tests (1/6~6/6)`: 서버 시험을 6조각으로 나눠 동시에 돈다(`-PtestShard=i/6`, `furnace-server/build.gradle.kts`). 배정은 클래스별 실측 시간으로 고르게 맞춘다(아래 "조각 균형").
   한 조각이 실패하면 **처음에 실패한 시험 클래스만** 한 번 다시 돌린다(전체 재실행 12분 → 1분 안팎). 다시 돌려도 실패하면 진짜 실패다.
   재시도에서 통과한 시험은 "흔들린 시험" 주석(PR 의 Checks 화면)·실행 요약·산출물 `flaky-tests-N`(30일 보관)에 이름이 남는다 — 이 목록이 흔들리는 시험을 고칠 우선순위다(아래 "재시도 정책").
 - `light`: API 시험, 샘플 플러그인 컴파일, 시험 서버 모듈, 호환 계층 모듈, fatJar. 기준 브랜치 실행에서는 `user-todo-combined` 산출물도 올린다.
   시험 단계 셋은 하나가 실패해도 나머지를 돌고(`continue-on-error`), 실패하면 `light-test-reports` 산출물을 올린 뒤 맨 끝 "light 시험 판정"이 작업을 실패시킨다. **재시도는 없다**(아래 "light 작업 (T-160)").
-- `test`: 위 둘을 합친 판정(점검 이름은 예전과 같은 `test`). **병합 판단은 `test` 하나만 본다** — `light` 는 1~2분이면 초록이 되지만 `test` 는 서버 시험 4조각이 모두 끝나야 생긴다.
+- `test`: 위 둘을 합친 판정(점검 이름은 예전과 같은 `test`). **병합 판단은 `test` 하나만 본다** — `light` 는 1~2분이면 초록이 되지만 `test` 는 서버 시험 6조각이 모두 끝나야 생긴다.
 - `push` 는 기준 브랜치(`claude/quirky-wright-lra834`, `main`)에서만 돈다. 작업 브랜치는 PR 을 열면 `pull_request` 로 한 번 돈다.
   충돌이 있는 PR 은 `pull_request` 실행이 만들어지지 않는다 — 기준 브랜치를 합쳐 충돌을 풀면 다시 돈다.
 - Gradle 캐시는 기준 브랜치 실행에서만 저장하고 PR 은 읽기만 한다.
@@ -86,21 +86,32 @@
 
 ## 로컬에서
 - 전체: `./gradlew -PskipOracle=true :furnace-api:test :furnace-server:test` (조각 속성 없음 = 전부).
-- CI 와 같은 조각 하나만: `./gradlew -PskipOracle=true -PtestShard=2/4 :furnace-server:test` (조각 4개가 합쳐서 전체와 같다 — 4코어 로컬 기준 전체 13분).
+- CI 와 같은 조각 하나만: `./gradlew -PskipOracle=true -PtestShard=2/6 :furnace-server:test` (조각 6개가 합쳐서 전체와 같다 — 4코어 로컬 기준 전체 13분).
 - 조각 시간이 한쪽으로 쏠리면 아래 "조각 균형" 대로 시간 파일을 갱신한다.
 - 시험 하나가 흔들리면: `./gradlew -PskipOracle=true :furnace-server:test --tests '패키지.클래스'` 를 여러 번 돌려 재현한다.
 
-## 조각 4개와 문서만 바뀐 PR (2026-11-15)
-- 조각을 3개에서 4개로 늘렸다(근거: `furnace/reviews/ci-time-savings-2026-11-15.md`). 시험 합 2,098초 ÷ 4 ≈ 8.7분 + 러너 준비 1~1.5분이 목표다.
-  시간 파일로 LPT 배정을 4조각으로 돌리면 조각 합이 525초씩으로 같다(표본 안 계산. 다른 날 표본에서는 ±7% 가량). 가장 큰 클래스가 173초라 조각 하나의 하한은 3분 안쪽이라 아직 여유가 있다.
-  **실측 조각 시간은 이 PR 의 CI 실행에서 확인해 PR 본문에 적었다**(작업별 소요는 Actions 실행 화면의 `server-tests (n/4)`).
-- 러너 동시 작업: PR 하나가 `changes` 1 + 조각 4 + `light` 1 + `test` 1 이다(`changes`·`test` 는 몇 초). 동시 PR 이 여럿 겹치면 대기가 생길 수 있다.
-  병합 대기가 CI 때문에 길어지면 여기서 다시 판단한다(조각 수는 `matrix.shard` 와 `-PtestShard=…/4`, `retry` 문구, `shard-balance.py --shards` 기본값).
-- 커버리지(`coverage-tests`)는 3조각 그대로다(기준 브랜치 push 에서만 돌고 판정과 무관. 조각 번호가 `-PtestShard=i/3` 이라 판정용 4조각과 배정이 다르다).
+## 조각 6개와 문서만 바뀐 PR (2026-11-15)
+- 조각을 3개 → 4개(PR #405) → **6개**로 늘렸다(근거: `furnace/reviews/ci-time-savings-2026-11-15.md`, 6조각 실측은 PR #410 본문). 같은 코드로 CI 에서 조각 수만 바꿔 잰 실측(작업 시간, 러너 준비·컴파일 포함):
+
+  | 조각 | 가장 느린 서버 조각 | 시험 합(러너 분) | 비고 |
+  |---|---|---|---|
+  | 3 | 약 15분 | 약 38 | 해시 배정 시절 포함(#403 전) |
+  | 4 | 11.6분 (PR) / 11.3~12.2분 (push) | 약 41 | 시간 파일 배정 |
+  | 6 | 6.5~6.8분(느린 조각은 낡은 시간 파일 탓 8.3분) | 약 41 | 시간 파일 갱신 후 예상 약 7분 |
+  | 8 | 5.0~5.9분(느린 조각 8.1분, 같은 이유) | 약 46 | 예상 약 5.5분 |
+
+  모델: 조각 작업 시간 ≈ 50초(러너 준비·Gradle 시작·컴파일) + 그 조각의 클래스 시간 합. 갱신된 시간 파일(858클래스 합 2,219초)로 LPT 배정을 돌린 예상: 4조각 10.1분, 5조각 8.2분, **6조각 7.0분**,
+  7조각 6.1분, 8조각 5.5분, 10조각 4.5분(가장 큰 클래스 `ContainerLockE2ETest` 223초가 하한이라 10조각 이상은 이득이 없다). 총 러너 분은 조각이 하나 늘 때 약 0.8분씩만 늘어난다(6조각 42분, 4조각 40분).
+  `light` 작업은 3.8~4.3분이라 서버 조각이 6개일 때까지는 PR 전체 시간을 정하지 않고, 8조각부터 조각이 `light` 보다 빨리 끝난다(이득이 줄기 시작).
+- 6조각을 고른 까닭: 4 → 6 에서 PR 한 건당 약 4분(11.6 → 7분대)을 얻고 러너 분은 5% 늘 뿐이다. 6 → 8 은 약 1.5분을 더 얻지만 PR 당 작업이 8+2 개가 되고 `light`(약 4분)가 곧 하한이 된다.
+  동시 실행 한도(무료 20개)에서 PR 하나가 `changes` 1 + 조각 6 + `light` 1 + `test` 1 = 9개라 PR 둘까지는 대기가 없고 셋이 겹치면 일부가 기다린다. 총 러너 분은 거의 같아 처리량은 같고 PR 하나의 대기만 짧아진다.
+  병합 대기가 CI 때문에 길어지면 여기서 다시 판단한다(조각 수는 `matrix.shard` 와 `-PtestShard=…/6`, `retry` 문구, `shard-balance.py --shards` 기본값).
+- 이번 갱신으로 알게 된 것: `ContainerLockE2ETest` 가 82초 → 223초로 느려졌다(시험마다 `setUp` 에서 약 6초, 스택 출력이 있음). 시간 파일을 고치지 않았을 때 그 조각이 혼자 8분대로 튀었다. 이 시험 줄이기가 6 → 8조각보다 먼저다(후속).
+- 커버리지(`coverage-tests`)는 3조각 그대로다(기준 브랜치 push 에서만 돌고 판정과 무관. 조각 번호가 `-PtestShard=i/3` 이라 판정용 6조각과 배정이 다르다).
 - **문서만 바뀐 PR 은 서버 시험·`light` 를 건너뛴다.** 가장 앞의 `changes` 작업이 PR 의 바뀐 파일(`base...head`)을 보고, 전부 `docs/` 아래이거나 저장소 맨 위의 `*.md` 일 때만 `code=false` 로 둔다. 단 **시험이 읽는 문서는 코드로 본다**: `docs/api/`(`CancelContractTest` 가 계약 문서를 읽음), `docs/feature-parity/`(`OptionKeysTest` 키 표, 호환 모듈 `compatReport`·`nmsReport` 입출력). 이름 바꾸기는 풀어서 본다(`--no-renames`).
   이때 `server-tests`·`light` 는 `skipped` 이고 `test` 판정은 "둘 다 skipped" 일 때 초록이다(필수 점검 `test` 는 그대로 생긴다). 하나라도 실패·취소면 빨갛다.
   `.github/`·`tools/`·`*.gradle*`·다른 폴더의 `.md`(예: 모듈 안 README) 는 코드로 본다(안전 쪽). 파일 목록을 못 읽거나 비면 `code=true` 로 시험이 돈다. 기준 브랜치 push 는 항상 돈다.
-- 가장 오래 걸리는 시험 클래스 5개(2026-11-15, 클래스 시간 실측 `test-shard-times.tsv`): `CancelResyncE2ETest` 173초, `GeneratedChunkSaveTest` 124초, `ChunkCornerLoadFollowupTest` 117초, `A04InventoryLineTest` 89초, `ContainerLockE2ETest` 82초(합 585초, 전체의 28%).
+- 가장 오래 걸리는 시험 클래스 5개(2026-11-15, 클래스 시간 실측 `test-shard-times.tsv`): `ContainerLockE2ETest` 223초, `CancelResyncE2ETest` 173초, `GeneratedChunkSaveTest` 124초, `ChunkCornerLoadFollowupTest` 117초, `A04InventoryLineTest` 89초(합 726초, 전체의 33%).
   이 시험들을 건드릴 때만 돌리고, 줄이는 것은 후속 작업이다(각 절반이면 전체 약 5분 감소).
 
 ## 조각 균형 (2026-11-15, T-162)
@@ -113,9 +124,9 @@
   가장 나은 salt 도 1.13배였다. 시간 파일 배정은 **다른 날 표본으로 만든 파일로 재도** 1.07배였다(같은 표본이면 1.004배).
 - 시간 기록: 한 번에 통과한 서버 시험 조각은 산출물 `shard-times-N`(클래스별 시간 TSV, 30일)을 올린다. CI 러너 실측이다.
 - **갱신하는 법**(조각 작업 시간이 눈에 띄게 벌어지거나, 해시로 가는 새 클래스 몫이 커질 때):
-  1. 최근 성공한 기준 브랜치 실행 몇 개에서 `shard-times-1~4` 을 받아 실행마다 한 폴더에 푼다(예: `runs/1617/`, `runs/1620/`).
+  1. 최근 성공한 기준 브랜치 실행 몇 개에서 `shard-times-1~6` 을 받아 실행마다 한 폴더에 푼다(예: `runs/1617/`, `runs/1620/`).
      로컬 전체 시험 결과(`furnace-server/build/test-results/test`)도 표본이 된다.
-     **조각 4개가 다 있는 실행만 쓴다** — 조각이 빠진 표본은 `--write` 가 합을 맞출 때 남은 클래스 시간이 부풀려진다
+     **조각 6개가 다 있는 실행만 쓴다** — 조각이 빠진 표본은 `--write` 가 합을 맞출 때 남은 클래스 시간이 부풀려진다
      (한 조각이 재시도로 실패한 실행은 그 조각 산출물이 없다).
   2. `python3 -I tools/ci/shard-balance.py runs/*` 로 지금 배정의 균형과 "시간 파일에 없는 클래스" 몫을 본다.
   3. `python3 -I tools/ci/shard-balance.py --write runs/*` 로 시간 파일을 새로 쓰고 커밋한다(표본마다 합을 맞춘 뒤 클래스별 평균).

@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,7 +24,7 @@ public final class CrashReport {
     /** 모든 스레드의 처리되지 않은 예외를 리포트 파일로 남기는 핸들러를 건다(서버를 끄지는 않는다). */
     public static void install(Path dir) {
         Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
-            log.error("처리되지 않은 예외 (스레드 {})", t.getName(), e);
+            log.error(Lang.t("crash.unhandled", t.getName()), e);
             write(dir, "Exception in thread \"" + t.getName() + "\"", e, t);
         });
     }
@@ -41,10 +42,10 @@ public final class CrashReport {
             Path file = dir.resolve("crash-" + FILE_TIME.format(now) + "-server.txt");
             for (int i = 1; Files.exists(file); i++) file = dir.resolve("crash-" + FILE_TIME.format(now) + "-server-" + i + ".txt");
             Files.writeString(file, render(now, description, cause, thread, threadDump), StandardCharsets.UTF_8);
-            log.error("이 크래시 리포트를 저장했다: {}", file.toAbsolutePath());
+            log.error(Lang.t("crash.saved", file.toAbsolutePath()));
             return file;
         } catch (IOException | RuntimeException e) {
-            log.error("크래시 리포트를 쓰지 못했다", e);
+            log.error(Lang.t("crash.write-failed"), e);
             return null;
         }
     }
@@ -56,7 +57,7 @@ public final class CrashReport {
     static String render(LocalDateTime now, String description, Throwable cause, Thread thread, String threadDump) {
         StringBuilder sb = new StringBuilder();
         sb.append("---- Minecraft Crash Report ----\n");
-        sb.append("// Furnace 서버가 예기치 않게 실패했다.\n\n");
+        sb.append("// The Furnace server failed unexpectedly.\n\n");
         sb.append("Time: ").append(BODY_TIME.format(now)).append('\n');
         sb.append("Description: ").append(description).append("\n\n");
         StringWriter sw = new StringWriter();

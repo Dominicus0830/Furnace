@@ -17,8 +17,8 @@ public final class Owned<T> {
      */
     public T get() {
         assert owner.isOwnerThread()
-                : "Owned 접근 위반: 소유자=" + owner.ownerName()
-                + ", 현재 스레드=" + Thread.currentThread().getName();
+                : "Owned access violation: owner=" + owner.ownerName()
+                + ", current thread=" + Thread.currentThread().getName();
         return value;
     }
 

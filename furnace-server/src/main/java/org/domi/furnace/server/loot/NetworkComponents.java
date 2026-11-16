@@ -9,6 +9,7 @@ import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.item.CodecException;
 import org.domi.furnace.server.item.ComponentPatch;
 import org.domi.furnace.server.item.ItemContext;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,7 +44,7 @@ public final class NetworkComponents {
                     ComponentPatch.of(java.util.Collections.singletonMap(en.getKey(), en.getValue()));
                     ok.put(en.getKey(), en.getValue());
                 } catch (CodecException ex) {
-                    log.warn("아이템 {} 의 컴포넌트 {} 를 받지 못함: {}", item, en.getKey(), ex.getMessage());
+                    log.warn(Lang.t("loot.component-failed", item, en.getKey(), ex.getMessage()));
                 }
             }
             return ComponentPatch.of(ok).normalizedFor(item);

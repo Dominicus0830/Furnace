@@ -165,11 +165,11 @@ class NmsH7PluginTest {
             assertEquals("org.bukkit.craftbukkit.CraftServer", NmsProbe.get("server.class"));
 
             List<String> log = messages();
-            assertTrue(log.stream().anyMatch(m -> m.startsWith("플러그인 H7User: NMS·CraftBukkit 심볼") && m.contains("이름 체계=Spigot(가정")), () -> String.join("\n", log));
-            assertTrue(log.stream().anyMatch(m -> m.startsWith("플러그인 H7User: 미지원 NMS 심볼") && m.contains("ServerLevel#nopeStatic(0)")), () -> String.join("\n", log));
-            assertTrue(log.stream().anyMatch(m -> m.contains("NMS 클래스 net.minecraft.world.level.levelgen.NoiseChunk") && m.contains("등급 C")),
+            assertTrue(log.stream().anyMatch(m -> m.startsWith("Plugin H7User: of ") && m.contains("Naming scheme=Spigot (assumed")), () -> String.join("\n", log));
+            assertTrue(log.stream().anyMatch(m -> m.startsWith("Plugin H7User: ") && m.contains("unsupported NMS symbols") && m.contains("ServerLevel#nopeStatic(0)")), () -> String.join("\n", log));
+            assertTrue(log.stream().anyMatch(m -> m.contains("looked up the NMS class net.minecraft.world.level.levelgen.NoiseChunk") && m.contains("Grade C")),
                     () -> String.join("\n", log));
-            assertTrue(log.stream().anyMatch(m -> m.contains("NMS 멤버 net.minecraft.server.level.ServerPlayer#nope")), () -> String.join("\n", log));
+            assertTrue(log.stream().anyMatch(m -> m.contains("looked up the NMS member net.minecraft.server.level.ServerPlayer#nope")), () -> String.join("\n", log));
 
             Plugin plugin = Bukkit.getPluginManager().getPlugin("H7User");
             ClassLoader loader = plugin.getClass().getClassLoader();

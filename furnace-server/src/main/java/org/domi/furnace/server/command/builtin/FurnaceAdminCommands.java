@@ -17,6 +17,7 @@ import org.domi.furnace.server.ServerCore;
 import org.domi.furnace.server.command.CommandSource;
 import org.domi.furnace.server.command.brigadier.Arguments;
 import org.domi.furnace.server.command.brigadier.CommandDispatcher;
+import org.domi.furnace.server.i18n.Lang;
 import org.domi.furnace.server.sched.TickTimeRing;
 import org.domi.furnace.server.world.Regionizer;
 import org.domi.furnace.server.world.World;
@@ -88,26 +89,24 @@ public final class FurnaceAdminCommands {
     public static String ms(long nanos) { return String.format(Locale.ROOT, "%.2f", nanos / 1_000_000.0); }
 
     public static String tickLine(TickTimeRing.Stats t) {
-        if (t.samples() == 0) return "틱 표본 없음";
-        return "틱 p50 " + ms(t.p50Nanos()) + " / p95 " + ms(t.p95Nanos()) + " / 최근 최대 " + ms(t.maxRecentNanos()) + " / 가동 후 최대 "
-                + ms(t.maxEverNanos()) + " ms (표본 " + t.samples() + ")";
+        if (t.samples() == 0) return Lang.t("cmd.admin.no-tick-samples");
+        return Lang.t("cmd.admin.tick-line", ms(t.p50Nanos()), ms(t.p95Nanos()), ms(t.maxRecentNanos()), ms(t.maxEverNanos()), t.samples());
     }
 
     public static List<String> threadsReport(GlobalView g, List<DimView> dims) {
         List<String> out = new ArrayList<>();
-        out.add("== 스레드 현황 ==");
-        out.add("전역 " + g.thread() + ": 대기 작업 " + g.queued() + ", " + tickLine(g.tick()));
+        out.add(Lang.t("cmd.admin.threads-header"));
+        out.add(Lang.t("cmd.admin.global-line", g.thread(), g.queued(), tickLine(g.tick())));
         for (DimView d : dims) {
             Regionizer.SchedStats s = d.sched();
-            out.add(d.dimension() + ": region " + d.regionCount() + "개(대기열 " + d.queuedRegions() + "), 워커 " + s.threads() + "개 중 "
-                    + s.activeWorkers() + "개 틱 중(최대 동시 " + s.peakActiveWorkers() + ")");
+            out.add(Lang.t("cmd.admin.dim-line", d.dimension(), d.regionCount(), d.queuedRegions(), s.threads(), s.activeWorkers(), s.peakActiveWorkers()));
             out.add("  " + tickLine(d.tick()));
-            out.add("  큐 지연 p50 " + ms(s.queueDelayP50Nanos()) + " / p95 " + ms(s.queueDelayP95Nanos()) + " / p99 " + ms(s.queueDelayP99Nanos())
-                    + " / 최대 " + ms(s.queueDelayMaxNanos()) + " ms (틱 " + s.ticks() + "회)");
+            out.add("  " + Lang.t("cmd.admin.queue-delay", ms(s.queueDelayP50Nanos()), ms(s.queueDelayP95Nanos()), ms(s.queueDelayP99Nanos()),
+                    ms(s.queueDelayMaxNanos()), s.ticks()));
             for (String[] w : d.workers()) {
                 String running = null;
-                for (Regionizer.RegionInfo r : d.regions()) if (w[0].equals(r.thread())) running = "region #" + r.id() + " (" + ms(r.runningNanos()) + " ms째)";
-                out.add("  워커 " + w[0] + " [" + w[1] + "] " + (running != null ? running : "대기"));
+                for (Regionizer.RegionInfo r : d.regions()) if (w[0].equals(r.thread())) running = Lang.t("cmd.admin.worker-running", r.id(), ms(r.runningNanos()));
+                out.add("  " + Lang.t("cmd.admin.worker", w[0], w[1], running != null ? running : Lang.t("cmd.admin.worker-idle")));
             }
         }
         return out;
@@ -115,20 +114,19 @@ public final class FurnaceAdminCommands {
 
     public static List<String> regionsReport(List<DimView> dims, int limit) {
         List<String> out = new ArrayList<>();
-        out.add("== region 목록 (직전 틱이 긴 순, 차원마다 최대 " + limit + "개) ==");
+        out.add(Lang.t("cmd.admin.regions-header", limit));
         for (DimView d : dims) {
             List<Regionizer.RegionInfo> sorted = new ArrayList<>(d.regions());
             sorted.sort(Comparator.comparingLong(Regionizer.RegionInfo::lastTickNanos).reversed().thenComparingInt(Regionizer.RegionInfo::id));
-            out.add(d.dimension() + ": region " + sorted.size() + "개");
+            out.add(Lang.t("cmd.admin.regions-dim", d.dimension(), sorted.size()));
             int n = 0;
             for (Regionizer.RegionInfo r : sorted) {
                 if (n++ >= limit) {
-                    out.add("  … " + (sorted.size() - limit) + "개 더");
+                    out.add("  " + Lang.t("cmd.admin.regions-more", sorted.size() - limit));
                     break;
                 }
-                out.add("  #" + r.id() + " 청크 " + r.chunks() + " / 구역 " + r.sections() + " / 인박스 " + r.inbox() + " / 범위 청크 ("
-                        + r.minChunkX() + "," + r.minChunkZ() + ")~(" + r.maxChunkX() + "," + r.maxChunkZ() + ") / 직전 " + ms(r.lastTickNanos())
-                        + " 최대 " + ms(r.maxTickNanos()) + " ms / " + (r.thread() == null ? "대기" : "워커 " + r.thread()));
+                out.add("  " + Lang.t("cmd.admin.region-line", r.id(), r.chunks(), r.sections(), r.inbox(), r.minChunkX(), r.minChunkZ(), r.maxChunkX(), r.maxChunkZ(),
+                        ms(r.lastTickNanos()), ms(r.maxTickNanos()), r.thread() == null ? Lang.t("cmd.admin.worker-idle") : Lang.t("cmd.admin.worker-name", r.thread())));
             }
         }
         return out;
@@ -136,20 +134,19 @@ public final class FurnaceAdminCommands {
 
     public static List<String> profileReport(GlobalView g, List<DimView> dims, float rate) {
         List<String> out = new ArrayList<>();
-        out.add("== 틱 프로파일 요약 (목표 " + String.format(Locale.ROOT, "%.1f", rate) + " TPS, 틱 예산 " + ms((long) (1.0E9 / rate)) + " ms) ==");
-        out.add("전역: " + tickLine(g.tick()));
+        out.add(Lang.t("cmd.admin.profile-header", String.format(Locale.ROOT, "%.1f", rate), ms((long) (1.0E9 / rate))));
+        out.add(Lang.t("cmd.admin.profile-global", tickLine(g.tick())));
         for (DimView d : dims) {
-            out.add(d.dimension() + ": " + tickLine(d.tick()) + ", 큐 지연 p95 " + ms(d.sched().queueDelayP95Nanos()) + " ms");
+            out.add(Lang.t("cmd.admin.profile-dim", d.dimension(), tickLine(d.tick()), ms(d.sched().queueDelayP95Nanos())));
             List<Regionizer.RegionInfo> top = new ArrayList<>(d.regions());
             top.sort(Comparator.comparingLong(Regionizer.RegionInfo::maxTickNanos).reversed().thenComparingInt(Regionizer.RegionInfo::id));
             for (int i = 0; i < Math.min(3, top.size()); i++) {
                 Regionizer.RegionInfo r = top.get(i);
                 if (r.maxTickNanos() == 0) break;
-                out.add("  느린 region #" + r.id() + ": 최대 " + ms(r.maxTickNanos()) + " ms, 청크 " + r.chunks() + ", 범위 ("
-                        + r.minChunkX() + "," + r.minChunkZ() + ")~(" + r.maxChunkX() + "," + r.maxChunkZ() + ")");
+                out.add("  " + Lang.t("cmd.admin.profile-slow", r.id(), ms(r.maxTickNanos()), r.chunks(), r.minChunkX(), r.minChunkZ(), r.maxChunkX(), r.maxChunkZ()));
             }
         }
-        out.add("단계별 분해는 -Dfurnace.tickstats=true, 표본 추적은 /jfr start.");
+        out.add(Lang.t("cmd.admin.profile-footer"));
         return out;
     }
 }

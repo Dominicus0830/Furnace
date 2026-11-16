@@ -80,7 +80,7 @@ public final class ChunkReadView implements ChunkInternals.ChunkView {
 
     private SectionView at(int y) {
         int local = y - minY;
-        if (local < 0 || local >= sections.length * 16) throw new IndexOutOfBoundsException("높이 밖: " + y);
+        if (local < 0 || local >= sections.length * 16) throw new IndexOutOfBoundsException("height out of range: " + y);
         return sections[local >> 4];
     }
 
@@ -96,7 +96,7 @@ public final class ChunkReadView implements ChunkInternals.ChunkView {
     }
 
     private SectionView sec(int i) {
-        if (i < 0 || i >= sections.length) throw new IndexOutOfBoundsException("섹션 번호 " + i + " (0.." + (sections.length - 1) + ")");
+        if (i < 0 || i >= sections.length) throw new IndexOutOfBoundsException("section index " + i + " (0.." + (sections.length - 1) + ")");
         return sections[i];
     }
 
@@ -117,7 +117,7 @@ public final class ChunkReadView implements ChunkInternals.ChunkView {
     @Override
     public int firstAvailable(String heightmap, int localX, int localZ) {
         HeightmapType type = HeightmapType.byKey(heightmap.toLowerCase(java.util.Locale.ROOT));
-        if (type == null) throw new IllegalArgumentException("모르는 하이트맵: " + heightmap);
+        if (type == null) throw new IllegalArgumentException("unknown heightmap: " + heightmap);
         return minY + heights[type.ordinal()][(localZ & 15) * 16 + (localX & 15)];
     }
 

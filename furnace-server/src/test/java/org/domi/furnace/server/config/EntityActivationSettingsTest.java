@@ -48,7 +48,7 @@ class EntityActivationSettingsTest {
         List<String> warns = new ArrayList<>();
         EntityActivationSettings.fromProperties(new Properties(), warns::add);
         assertEquals(1, warns.size());
-        assertTrue(warns.get(0).contains("entity-activation-range.enabled=false"));
+        assertTrue(warns.get(0).contains("entity-activation-range.enabled"), warns.get(0));   // 어느 언어든 끄는 키 이름이 들어 있다
         warns.clear();
         Properties off = new Properties();
         off.setProperty("entity-activation-range.enabled", "false");

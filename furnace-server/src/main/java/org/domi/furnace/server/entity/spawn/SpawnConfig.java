@@ -5,6 +5,7 @@
 // 플러그인이 World.spawnPolicy() 로 건 월드별 값이 이 위에 덮인다.
 package org.domi.furnace.server.entity.spawn;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -75,7 +76,7 @@ public final class SpawnConfig {
         }
         for (String k : props.stringPropertyNames()) {
             if ((k.startsWith("spawn.limit.") || k.startsWith("spawn.player-limit.")) && !knownKeys().contains(k)) {
-                warn.accept("알 수 없는 설정 키 '" + k + "' (종류: monster, creature, ambient, axolotls, underground_water_creature, water_creature, water_ambient)");
+                warn.accept(Lang.t("cfg.spawn-unknown-key", k, "monster, creature, ambient, axolotls, underground_water_creature, water_creature, water_ambient"));
             }
         }
         return new SpawnConfig(caps, playerCaps);
@@ -88,12 +89,12 @@ public final class SpawnConfig {
         try {
             n = Integer.parseInt(v.strip());
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("설정 '" + key + "' 가 숫자가 아님: " + v, e);
+            throw new IllegalArgumentException(Lang.t("cfg.not-number", key, v), e);
         }
-        if (n < 0 || n > MAX_CAP) throw new IllegalArgumentException("설정 '" + key + "' 값 " + n + " 이(가) 잘못됐습니다: 0~" + MAX_CAP);
-        if (n == 0) warn.accept("설정 '" + key + "'=0: '" + c.key() + "' 종류는 " + (key.contains("player") ? "플레이어 근처에서" : "") + " 새로 스폰되지 않습니다");
+        if (n < 0 || n > MAX_CAP) throw new IllegalArgumentException(Lang.t("cfg.out-of-range", key, n, 0, MAX_CAP));
+        if (n == 0) warn.accept(Lang.t(key.contains("player") ? "cfg.spawn-zero-player" : "cfg.spawn-zero", key, c.key()));
         if (n > c.max() * WARN_FACTOR) {
-            warn.accept("설정 '" + key + "' 값 " + n + " 은(는) 바닐라(" + c.max() + ")의 " + WARN_FACTOR + "배를 넘습니다 — 스폰·엔티티 틱 비용이 크게 늘 수 있습니다");
+            warn.accept(Lang.t("cfg.spawn-high", key, n, c.max(), WARN_FACTOR));
         }
         return n;
     }

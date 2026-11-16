@@ -2,6 +2,7 @@
 // 합치기·나누기는 Regionizer 가 틱 사이에 하며, 그때 이 region 의 자료를 위치(청크)에 따라 옮긴다(absorbData·splitData).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.server.i18n.Lang;
 import io.netty.buffer.Unpooled;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -263,11 +264,11 @@ public final class Region {
     /** 거울 맞추기가 예외를 냈다 — 처음 몇 번만 쌓임까지 남긴다(그 뒤로는 100번마다 한 줄). */
     private void mirrorFailed(int cx, int cz, Throwable e) {
         int n = MIRROR_FAILURES.incrementAndGet();
-        String where = cx == Integer.MIN_VALUE ? "" : " (청크 " + cx + ", " + cz + ")";
+        String where = cx == Integer.MIN_VALUE ? "" : " " + Lang.t("nms.where-chunk", cx, cz);
         if (n <= 5) {
-            LOG.warn("[NMS] 청크 거울 맞추기가 실패했다{} — 그 거울의 남은 쓰기는 월드에 닿지 않았다. 호환 계층 버그일 수 있으니 이 쌓임을 알려 주세요", where, e);
+            LOG.warn(Lang.t("nms.mirror-failed", where), e);
         } else if (n % 100 == 0) {
-            LOG.warn("[NMS] 청크 거울 맞추기 실패가 {}번째다{}: {}", n, where, e.toString());
+            LOG.warn(Lang.t("nms.mirror-failed-again", n, where, e.toString()));
         }
     }
 
@@ -293,16 +294,12 @@ public final class Region {
         if (col.importedUnsaved() && !col.dirty()) {
             int n = UNSAVED_IMPORT_WARNINGS.incrementAndGet();
             if (n <= 20 || n % 1000 == 0) {
-                String nth = n > 20 ? " [같은 경고 " + n + "번째]" : "";
+                String nth = n > 20 ? " " + Lang.t("nms.nth-warning", n) : "";
                 if (level != null && level.hasChunkTicks(cx, cz)) {
                     // 예약 틱이 남은 청크는 저장 표시가 없어도 저장한다(아래 writeChunkTicks) — 그 변경도 함께 저장된다(PR #396 검토 R5, Paper 와 다를 수 있다)
-                    LOG.warn("[NMS] 청크 {}, {} ({}) 가 저장 표시 없이 플러그인이 바꾼 섹션을 든 채 내려간다 — 예약 틱이 남아 있어 이 청크는 저장되고 그 변경도 함께 저장된다"
-                            + "(저장 표시가 없으면 Paper 에서는 남지 않을 수 있다). 확실히 남기려면 플러그인이 LevelChunk#setUnsaved(true)(또는 markUnsaved)를 불러야 한다{}",
-                            cx, cz, world.dimension(), nth);
+                    LOG.warn(Lang.t("nms.unsaved-section-kept", cx, cz, world.dimension(), nth));
                 } else {
-                    LOG.warn("[NMS] 청크 {}, {} ({}) 가 저장 표시 없이 플러그인이 바꾼 섹션을 든 채 내려간다 — 바닐라·Paper 처럼 그 변경은 저장하지 않는다(다시 불러오면 옛 블록)."
-                            + " 남기려면 플러그인이 LevelChunk#setUnsaved(true)(또는 markUnsaved)를 불러야 한다{}",
-                            cx, cz, world.dimension(), nth);
+                    LOG.warn(Lang.t("nms.unsaved-section-dropped", cx, cz, world.dimension(), nth));
                 }
             }
         }
@@ -427,7 +424,7 @@ public final class Region {
         try {
             task.accept(this);
         } catch (Throwable e) {
-            org.slf4j.LoggerFactory.getLogger(Region.class).error("[TASK] region #{} 작업 실패", id, e);
+            org.slf4j.LoggerFactory.getLogger(Region.class).error(Lang.t("world.task-failed", id), e);
         }
     }
 
@@ -620,7 +617,7 @@ public final class Region {
     private void claim(ChunkPos cp) {
         Region owner = rz().want(cp.x(), cp.z(), this);
         if (owner != this) {
-            throw new IllegalStateException("청크 " + cp + " 는 region #" + owner.id + " 것인데 #" + id + " 에서 접근");
+            throw new IllegalStateException("chunk " + cp + " belongs to region #" + owner.id + " but was accessed from region #" + id + " (wrong region)");
         }
     }
 
@@ -688,7 +685,7 @@ public final class Region {
                 world.worldSource() instanceof org.domi.furnace.server.world.gen.AnvilWorldSource anvil
                         ? anvil.loadChunkAsync(cp.x(), cp.z(), world.ioLane(cp.x(), cp.z()), world.ioDecodeExecutor(), genExec, ticket::tryStart)
                         : CompletableFuture.supplyAsync(() -> {
-                            if (!ticket.tryStart()) throw new java.util.concurrent.CancellationException("시야 밖 생성 요청 취소");
+                            if (!ticket.tryStart()) throw new java.util.concurrent.CancellationException("generation request cancelled: out of view");
                             ChunkColumn made = world.worldSource().generate(cp.x(), cp.z());
                             if (made != null) made.newlyCreated(true);   // 저장소가 없는 월드 소스는 늘 새로 만든다
                             return made;
@@ -719,7 +716,7 @@ public final class Region {
                 try {
                     org.domi.furnace.server.block.ChunkLevel.precomputeLight(col, cp.x(), cp.z(), bedrock, sky);
                 } catch (RuntimeException e) {
-                    org.slf4j.LoggerFactory.getLogger(Region.class).warn("[LIGHT] 미리 계산 실패 {} — 올릴 때 다시 계산", cp, e);
+                    org.slf4j.LoggerFactory.getLogger(Region.class).warn(Lang.t("world.light-precompute-failed", cp), e);
                     col.light(null);
                     col.lightPrecomputed(false);
                     col.lightStored(false);
@@ -754,10 +751,10 @@ public final class Region {
             if (root instanceof org.domi.furnace.server.world.anvil.UnsupportedDataVersionException newer) {
                 // 새 판·옛 판 청크는 올리지도 덮지도 않는다(A05-03·04). 시야 미리 불러오기가 틱마다 다시 걸므로 청크마다 한 번만 크게 남긴다.
                 if (world.warnNewerChunkOnce(key)) {
-                    org.slf4j.LoggerFactory.getLogger(Region.class).error("[CHUNK] {} 를 올리지 않는다: {}", cp, newer.getMessage());
+                    org.slf4j.LoggerFactory.getLogger(Region.class).error(Lang.t("world.chunk-not-loaded-newer", cp, newer.getMessage()));
                 }
             } else if (!(root instanceof java.util.concurrent.CancellationException)) {   // 시야 밖이 돼 취소된 미리 불러오기는 실패가 아니다
-                org.slf4j.LoggerFactory.getLogger(Region.class).warn("[CHUNK] 로드 실패 {} — 다음 요청에서 재시도", cp, err);
+                org.slf4j.LoggerFactory.getLogger(Region.class).warn(Lang.t("world.chunk-load-failed", cp), err);
             }
             rz().release(this, cp.x(), cp.z());
             f.completeExceptionally(err);
@@ -789,7 +786,7 @@ public final class Region {
             try {
                 org.domi.furnace.server.entity.spawn.NaturalSpawner.spawnMobsForChunkGeneration(level(), cp.x(), cp.z(), level().worldSeed());
             } catch (RuntimeException e) {
-                org.slf4j.LoggerFactory.getLogger(Region.class).warn("[SPAWN] 청크 생성 동물 스폰 실패 {}", cp, e);
+                org.slf4j.LoggerFactory.getLogger(Region.class).warn(Lang.t("world.spawn-generated-failed", cp), e);
             }
         }
         if (Regionizer.STATS) {
@@ -894,7 +891,7 @@ public final class Region {
                 try {
                     org.domi.furnace.server.entity.spawn.NaturalSpawner.spawnMobsForChunkGeneration(lv, cx, cz, lv.worldSeed());
                 } catch (RuntimeException e) {
-                    org.slf4j.LoggerFactory.getLogger(Region.class).warn("[SPAWN] 재생성 청크 동물 스폰 실패 {}", cp, e);
+                    org.slf4j.LoggerFactory.getLogger(Region.class).warn(Lang.t("world.spawn-regenerated-failed", cp), e);
                 }
             }
         }
@@ -920,7 +917,7 @@ public final class Region {
                 p.send(LevelChunkWithLight.ofShared(body));
                 world.chunkDelivered(cp, p, sub);
             }).exceptionally(ex -> {
-                org.slf4j.LoggerFactory.getLogger(Region.class).warn("[CHUNK] 청크 재전송 실패 {}", cp, ex);
+                org.slf4j.LoggerFactory.getLogger(Region.class).warn(Lang.t("world.chunk-resend-failed", cp), ex);
                 return null;
             });
         }
@@ -1437,7 +1434,7 @@ public final class Region {
     /** 저장이 끝내 실패했다 — 그 청크가 아직 이 region 에 그대로 있으면 다시 dirty 로(다음 저장에 다시 싣는다). */
     void restoreDirtyAfterFailedSave(ChunkPos cp, ChunkColumn col) {
         if (world.loadedChunk(cp.x(), cp.z()) != col) {
-            org.slf4j.LoggerFactory.getLogger(Region.class).error("[SAVE] 청크 {} 저장 실패 — 이미 내려가 되돌릴 수 없음(유실)", cp);
+            org.slf4j.LoggerFactory.getLogger(Region.class).error(Lang.t("world.chunk-save-lost-unloaded", cp));
             return;
         }
         col.markDirty();
@@ -1678,9 +1675,14 @@ public final class Region {
                 handoff.add(p);
                 continue;
             }
-            updateChunks(p);
-            sendQueuedChunks(p);
-            loadCornerChunks(p);
+            if (p.chunkUntracked()) {
+                // 바닐라 ChunkMap.removeEntity(죽고 20틱 뒤 remove(KILLED) → onDestroyed): 청크 추적에서 빠졌다 — 더 보내지 않고 구독(=플레이어 티켓)을 푼다
+                if (!p.loadedChunks().isEmpty() || p.queuedCenter() != null || !p.pendingChunks().isEmpty()) dropChunkTracking(p);
+            } else {
+                updateChunks(p);
+                sendQueuedChunks(p);
+                loadCornerChunks(p);
+            }
         }
         lap(2);
         if (!players.isEmpty()) {
@@ -1982,6 +1984,7 @@ public final class Region {
         if (players.isEmpty()) return false;
         boolean spectators = world.levelServices().gameRule("spectatorsGenerateChunks");
         for (Player p : players.values()) {
+            if (p.chunkUntracked()) continue;   // 죽고 20틱 뒤 ChunkMap 에서 빠진 플레이어는 티켓을 달지 않는다(DistanceManager.removePlayer)
             if (!spectators && p.gameMode() == GameMode.SPECTATOR) continue;
             int pcx = (int) Math.floor(p.x()) >> 4, pcz = (int) Math.floor(p.z()) >> 4;
             if (Math.max(Math.abs(pcx - cx), Math.abs(pcz - cz)) <= range) return true;
@@ -2025,6 +2028,7 @@ public final class Region {
         long[] keys = spawnCountKeys;
         int k = 0;
         for (Player p : players.values()) {
+            if (p.chunkUntracked()) continue;   // ticketPlayerWithin 과 같다
             if (!spectators && p.gameMode() == GameMode.SPECTATOR) continue;
             keys[k++] = Regionizer.chunkKey((int) Math.floor(p.x()) >> 4, (int) Math.floor(p.z()) >> 4);
         }
@@ -2137,7 +2141,7 @@ public final class Region {
     private boolean closeToPlayer(int cx, int cz, int chunkRange) {
         double mx = cx * 16 + 8, mz = cz * 16 + 8;
         for (Player p : players.values()) {
-            if (p.gameMode() == GameMode.SPECTATOR) continue;
+            if (p.chunkUntracked() || p.gameMode() == GameMode.SPECTATOR) continue;   // anyPlayerCloseEnoughForSpawning 은 playerMap(추적 중인 플레이어)만 본다
             int pcx = (int) Math.floor(p.x()) >> 4, pcz = (int) Math.floor(p.z()) >> 4;
             if (Math.max(Math.abs(pcx - cx), Math.abs(pcz - cz)) > chunkRange) continue;
             double dx = mx - p.x(), dz = mz - p.z();
@@ -2584,7 +2588,10 @@ public final class Region {
         p.onClimbable = s.climbable() != null;
         if (level != null && s.chunkLoaded()) level.raids().tickOmens(p);   // 나쁜 징조·습격 징조(효과 틱 직전)
         if (s.chunkLoaded()) org.domi.furnace.server.entity.PlayerFire.tick(p, level, s.inWater());   // Entity.baseTick 의 불: 물에서 꺼짐·20틱마다 1 피해·용암
+        boolean removedBefore = p.vitals().removedAfterDeath();
         p.vitals().tick(s);
+        // LivingEntity.tickDeath: 죽고 20틱 뒤 remove(KILLED) → 차원 레벨 목록에서 빠진다(잠 비율·사라짐·스폰 판정에서 제외)
+        if (!removedBefore && p.vitals().removedAfterDeath()) world.playerRemovedFromLevel(p, true);
         p.wardenSpawnTracker().tick();   // ServerPlayer.tick
         if (p.stats() != null) {   // 바닐라 Player.tick 의 시간 통계(time_since_rest 는 깨어 있을 때만)
             p.awardStat("minecraft:play_time", 1);
@@ -2734,6 +2741,7 @@ public final class Region {
      */
     private void showEndCredits(Player p) {
         detachForDimensionChange(p);
+        world.playerRemovedFromLevel(p, false);   // removePlayerImmediately: 차원 레벨 목록에서 즉시(20틱 기다리지 않는다)
         if (!p.wonGame) {
             p.wonGame = true;
             p.send(new org.domi.furnace.server.net.protocol.play.GameEvent(org.domi.furnace.server.net.protocol.play.GameEvent.WIN_GAME, 0.0F));
@@ -2979,6 +2987,22 @@ public final class Region {
                 src.runAt(p.x(), p.z(), r -> r.adopt(p));   // 갈 곳이 없다 — 원래 자리로
             }
         });
+    }
+
+    /**
+     * 청크 추적을 잃은 플레이어(죽고 20틱 뒤, {@link Player#chunkUntracked}): 바닐라 {@code ChunkMap.updatePlayerStatus(player, false)} 대로 구독과 시야·대기 목록을 비운다.
+     * 틱마다 이어 받던 청크 전송·블록 변경·빛 방송이 멈추고, 그 구독이 붙들던 청크는 다른 이유(다른 플레이어·티켓)가 없으면 내려간다.
+     * 바닐라는 이때 클라이언트에 청크 잊기(ForgetLevelChunk)를 보내지 않는다(PlayerChunkSender.dropChunk 가 살아 있을 때만) — 죽음 화면 뒤 세계는 그대로 보인다.
+     * 리스폰하면 {@link Player#chunkUntracked} 가 거짓이 되고 새 플레이어처럼 시야 전체를 처음부터 다시 받는다(lastCenter·queuedCenter 가 비어 SetCenterChunk 도 다시 간다).
+     */
+    private void dropChunkTracking(Player p) {
+        for (ChunkPos cp : p.loadedChunks()) world.unsubscribeChunk(cp, p);
+        p.loadedChunks().clear();
+        p.pendingChunks().clear();
+        p.cornerLoads().clear();
+        p.lastCenter(null);
+        p.queuedCenter(null);
+        p.trackedViewDistance(-1);
     }
 
     /**
@@ -3242,7 +3266,7 @@ public final class Region {
         return load.whenComplete((col, ex) -> {
             p.chunkPrefetches().remove(cp);
             if (genSlot && p.genPrefetches().remove(cp)) releaseGenToken();
-            if (ex != null && !isCancellation(ex)) org.slf4j.LoggerFactory.getLogger(Region.class).warn("[CHUNK] 미리 불러오기 실패 {}", cp, ex);
+            if (ex != null && !isCancellation(ex)) org.slf4j.LoggerFactory.getLogger(Region.class).warn(Lang.t("world.chunk-preload-failed", cp), ex);
         });
     }
 
@@ -3443,7 +3467,7 @@ public final class Region {
                     })
                     .exceptionally(ex -> {           // 실패해도 배치 닫아 클라 무한 로딩 방지
                         org.slf4j.LoggerFactory.getLogger(Region.class)
-                                .warn("[CHUNK] 전송 실패 {}", cp, ex);
+                                .warn(Lang.t("region.chunk-send-failed", cp), ex);
                         return null;
                     });
             sends.add(f);
@@ -3543,11 +3567,13 @@ public final class Region {
         int playerRange = org.domi.furnace.server.config.EntityHandleSettings.current().playerRange() * world.levelServices().entityBroadcastRangePercentage() / 100;
         double range = Math.min(world.effectiveEntityChunks() * 16.0, playerRange);
         java.util.Set<Integer> seen = new java.util.HashSet<>();
+        // 바닐라 ChunkMap.removeEntity → TrackedEntity.removePlayer: 죽고 20틱 뒤 추적에서 빠진 관찰자는 보던 플레이어를 모두 잃고 새로 보지 못한다
+        boolean observerUntracked = a.chunkUntracked();
         for (EntityView b : candidates) {
             if (b.entityId() == a.entityId()) continue;
             seen.add(b.entityId());
             if (world.onlinePlayer(b.entityId()) == null) continue;   // 이미 퇴장 처리된 플레이어는 (재)스폰하지 않는다
-            boolean near = !b.removed() && within(a, b, range) && org.domi.furnace.server.entity.view.EntityViewRules.canSee(a, b.uuid());   // 사망 후 제거된 엔티티·플러그인이 숨긴 플레이어는 보이지 않는다
+            boolean near = !observerUntracked && !b.removed() && within(a, b, range) && org.domi.furnace.server.entity.view.EntityViewRules.canSee(a, b.uuid());   // 사망 후 제거된 엔티티·플러그인이 숨긴 플레이어는 보이지 않는다
             boolean tracking = a.tracked().containsKey(b.entityId());
             double[] tr = tracking ? a.tracked().get(b.entityId()) : null;
             if (near && tracking && ((int) tr[5] != b.generation() || (long) tr[7] != org.domi.furnace.server.entity.view.EntityViewRules.epochFor(a, b.uuid()))) {

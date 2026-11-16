@@ -57,7 +57,7 @@ public final class SculkPatchFeature implements ConfiguredFeature {
 
         private static int exact(org.domi.furnace.server.world.BlockRegistry r, String key) {
             int id = r.exactStateId(key);
-            if (id < 0) throw new IllegalStateException("블록 상태 없음: " + key);
+            if (id < 0) throw new IllegalStateException("no such block state: " + key);
             return id;
         }
 

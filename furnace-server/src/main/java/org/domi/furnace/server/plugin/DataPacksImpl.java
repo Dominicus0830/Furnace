@@ -64,7 +64,7 @@ final class DataPacksImpl implements DataPacks {
     @Override
     public CompletableFuture<Void> setEnabled(String id, boolean enabled) {
         var m = manager();
-        if (m == null) throw new UnsupportedOperationException("데이터 팩이 없는 서버");
+        if (m == null) throw new UnsupportedOperationException("this server has no data packs");
         List<org.domi.furnace.server.data.Pack> list;
         var repo = m.repository();
         synchronized (repo) {

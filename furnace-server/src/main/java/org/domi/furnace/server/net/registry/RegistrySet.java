@@ -45,8 +45,8 @@ public final class RegistrySet {
         data.forEach((k, v) -> extraData.put(k, new LinkedHashMap<>(v)));
         for (Extra e : extras) {
             List<String> list = map.get(e.registry());
-            if (list == null) throw new IllegalArgumentException("알 수 없는 레지스트리: " + e.registry());
-            if (list.contains(e.entry())) throw new IllegalArgumentException("이미 있는 항목: " + e.registry() + " " + e.entry());
+            if (list == null) throw new IllegalArgumentException("unknown registry: " + e.registry());
+            if (list.contains(e.entry())) throw new IllegalArgumentException("entry already exists: " + e.registry() + " " + e.entry());
             list.add(e.entry());
             extraData.computeIfAbsent(e.registry(), k -> new LinkedHashMap<>()).put(e.entry(), e.data());
         }
@@ -93,7 +93,7 @@ public final class RegistrySet {
         ClassLoader cl = RegistrySet.class.getClassLoader();
         try (InputStream in = cl.getResourceAsStream(resourcePath)) {
             if (in == null) {
-                throw new IllegalStateException("레지스트리 리소스 없음: " + resourcePath);
+                throw new IllegalStateException("registry resource is missing: " + resourcePath);
             }
             try (BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
                 String line;

@@ -88,12 +88,7 @@ final class GameRegistriesImpl implements GameRegistries {
 
     /** 데이터 팩 관리자가 건 태그, 없으면(시험 서버처럼 데이터 팩을 안 거는 경우) 바닐라 1.21.1 태그 — 다른 서버 부품(ItemTags·EntityTypeTags)과 같은 바탕. */
     private static org.domi.furnace.server.net.registry.TagSet currentTags() {
-        var t = org.domi.furnace.server.item.ItemContext.tagSet();
-        return t != null ? t : VanillaTags.SET;
-    }
-
-    private static final class VanillaTags {
-        static final org.domi.furnace.server.net.registry.TagSet SET = org.domi.furnace.server.net.registry.TagSet.load("registries/tags-1.21.1.txt");
+        return org.domi.furnace.server.item.ItemContext.gameplayTags();
     }
 
     /** 태그 숫자 id 의 이름표: 내장 레지스트리면 내장 목록, 아니면 동기화 레지스트리(태그 번호는 TagRegistries 와 같은 순서). */
@@ -126,7 +121,7 @@ final class GameRegistriesImpl implements GameRegistries {
         private static java.util.Map<String, List<String>> load() {
             var out = new java.util.LinkedHashMap<String, java.util.List<String>>();
             try (var in = GameRegistriesImpl.class.getClassLoader().getResourceAsStream("registries/builtin-1.21.1.txt")) {
-                if (in == null) throw new IllegalStateException("registries/builtin-1.21.1.txt 없음");
+                if (in == null) throw new IllegalStateException("registries/builtin-1.21.1.txt is missing");
                 var r = new java.io.BufferedReader(new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
                 String line;
                 while ((line = r.readLine()) != null) {
@@ -191,7 +186,7 @@ final class GameRegistriesImpl implements GameRegistries {
     public void disableEnchantment(FurnacePlugin owner, String key) {
         java.util.Objects.requireNonNull(owner, "owner");
         String k = normalize(key);
-        if (!contains(ENCHANTMENT, k)) throw new IllegalArgumentException("모르는 마법부여: " + key);
+        if (!contains(ENCHANTMENT, k)) throw new IllegalArgumentException("unknown enchantment: " + key);
         EnchantmentToggles.disable(owner.name(), k);
     }
 

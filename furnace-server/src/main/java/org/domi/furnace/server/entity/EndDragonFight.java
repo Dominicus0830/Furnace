@@ -481,7 +481,7 @@ public final class EndDragonFight {
     }
 
     public void setRespawnStage(RespawnStage stage) {
-        if (respawnStage == null) throw new IllegalStateException("부활 중이 아니다");
+        if (respawnStage == null) throw new IllegalStateException("no respawn is in progress");
         respawnTime = 0;
         if (stage == RespawnStage.END) {
             respawnStage = null;

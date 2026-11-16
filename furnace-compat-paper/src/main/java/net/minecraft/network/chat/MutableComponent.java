@@ -57,8 +57,8 @@ public class MutableComponent implements Component {
             for (Component k : m.siblings) kids.add(toFurnace(k));
             return Text.of(m.contents, m.style.furnace(), kids);
         }
-        throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("Component 구현 " + c.getClass().getName(),
-                "플러그인이 직접 구현한 Component 는 Furnace 글로 바꿀 수 없다 — Component.literal/translatable 로 만든다");
+        throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("Component implementation " + c.getClass().getName(),
+                "a Component implemented by the plugin itself cannot be converted to Furnace text - build it with Component.literal/translatable");
     }
 
     public MutableComponent setStyle(Style s) {

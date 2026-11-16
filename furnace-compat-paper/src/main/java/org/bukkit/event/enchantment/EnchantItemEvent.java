@@ -48,7 +48,7 @@ public class EnchantItemEvent extends InventoryEvent implements Cancellable {
     /** Furnace: 마법을 부여할 아이템을 바꾸는 API 가 없다 — 다른 아이템이면 UnsupportedFeature. */
     public void setItem(ItemStack item) {
         if (java.util.Objects.equals(item, this.item)) return;
-        throw new org.domi.furnace.compat.paper.UnsupportedFeature("EnchantItemEvent#setItem", "Furnace EnchantItemEvent 는 마법을 부여할 아이템을 바꾸지 못한다");
+        throw new org.domi.furnace.compat.paper.UnsupportedFeature("EnchantItemEvent#setItem", "the Furnace EnchantItemEvent cannot change the item to enchant");
     }
 
     public int getExpLevelCost() { return level; }

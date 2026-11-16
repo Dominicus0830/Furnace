@@ -123,7 +123,7 @@ public abstract class Level implements LevelAccessor {
     @Override
     public int getHeight(Heightmap.Types type, int x, int z) {
         if (x < -30_000_000 || z < -30_000_000 || x >= 30_000_000 || z >= 30_000_000) {
-            throw new UnsupportedNmsCall("Level#getHeight(월드 경계 밖)", "경계 밖의 답(해수면 + 1)은 차원의 해수면이 필요해 아직 없다");
+            throw new UnsupportedNmsCall("Level#getHeight(outside the world border)", "the answer outside the border (sea level + 1) needs the sea level of the dimension and is not available yet");
         }
         if (!hasChunk(x >> 4, z >> 4)) return getMinBuildHeight();
         return getChunk(x >> 4, z >> 4).getHeight(type, x & 15, z & 15) + 1;

@@ -1,6 +1,7 @@
 // 운영 옵션(furnace.properties) — 바닐라와 결과가 달라지는 것은 모두 기본이 바닐라 동작이다. 서버 하나에 한 벌, 기동 때 정해진다.
 package org.domi.furnace.server.config;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Properties;
@@ -87,24 +88,24 @@ public record OperatorOptions(boolean strictChatOrder, boolean unsignedChatAsSys
             try {
                 seconds = Integer.parseInt(raw.strip());
             } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("설정 'confirm-interrupt-seconds' 가 숫자가 아님: " + raw, e);
+                throw new IllegalArgumentException(Lang.t("cfg.not-number", "confirm-interrupt-seconds", raw), e);
             }
             if (seconds < 1 || seconds > 60) {
-                throw new IllegalArgumentException("설정 'confirm-interrupt-seconds' 값 " + seconds + " 이(가) 잘못됐습니다: 1~60");
+                throw new IllegalArgumentException(Lang.t("cfg.out-of-range", "confirm-interrupt-seconds", seconds, 1, 60));
             }
         }
         String motdFormat = props.getProperty("motd-format", DEFAULT.motdFormat).strip().toLowerCase(java.util.Locale.ROOT);
         if (!motdFormat.equals("plain") && !motdFormat.equals("legacy") && !motdFormat.equals("markup")) {
-            throw new IllegalArgumentException("설정 'motd-format' 값 '" + motdFormat + "' 이(가) 잘못됐습니다: plain, legacy, markup 중 하나");
+            throw new IllegalArgumentException(Lang.t("cfg.invalid-choice", "motd-format", motdFormat, "plain, legacy, markup"));
         }
         boolean gravityDupe = bool(props, "gravity-block-portal-dupe", DEFAULT.gravityBlockPortalDupe);
         boolean sendNamespaced = bool(props, "commands.send-namespaced", DEFAULT.sendNamespacedCommands);
         boolean regionDrain = bool(props, "commands.region-drain", DEFAULT.commandRegionDrain);
         String tickWhenEmpty = props.getProperty("world.tick-when-empty", DEFAULT.tickWhenEmpty).strip().toLowerCase(java.util.Locale.ROOT);
         if (!tickWhenEmpty.equals(TICK_WHEN_EMPTY_AUTO) && !tickWhenEmpty.equals(TICK_WHEN_EMPTY_VANILLA) && !tickWhenEmpty.equals(TICK_WHEN_EMPTY_ALWAYS)) {
-            throw new IllegalArgumentException("설정 'world.tick-when-empty' 값 '" + tickWhenEmpty + "' 이(가) 잘못됐습니다: auto, vanilla, always 중 하나");
+            throw new IllegalArgumentException(Lang.t("cfg.invalid-choice", "world.tick-when-empty", tickWhenEmpty, "auto, vanilla, always"));
         }
-        if (asSystem) warn.accept("chat.unsigned-as-system=true: 채팅이 서명 없는 시스템 메시지로 나갑니다(채팅 신고 불가, 채팅 서명 검증 없음)");
+        if (asSystem) warn.accept(Lang.t("cfg.unsigned-as-system"));
         return new OperatorOptions(strict, asSystem, brand, announce, confirm, seconds, motdFormat, gravityDupe, sendNamespaced, regionDrain, tickWhenEmpty);
     }
 
@@ -113,7 +114,7 @@ public record OperatorOptions(boolean strictChatOrder, boolean unsignedChatAsSys
         if (v == null) return def;
         v = v.strip();
         if (!v.equalsIgnoreCase("true") && !v.equalsIgnoreCase("false")) {
-            throw new IllegalArgumentException("설정 '" + key + "' 값 '" + v + "' 이(가) 잘못됐습니다: true 또는 false");
+            throw new IllegalArgumentException(Lang.t("cfg.invalid-bool", key, v));
         }
         return Boolean.parseBoolean(v);
     }

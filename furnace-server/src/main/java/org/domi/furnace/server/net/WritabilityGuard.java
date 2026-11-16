@@ -5,6 +5,7 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,8 +63,7 @@ public final class WritabilityGuard extends ChannelInboundHandlerAdapter {
         if (elapsed < timeoutMillis) {
             return false;
         }
-        log.warn("느린 클라이언트 연결 종료: {}ms 동안 쓰기 불가 ({})", elapsed,
-                ConnectionHandler.loggableAddress(logIps, ctx.channel().remoteAddress()));
+        log.warn(Lang.t("net.slow-client", elapsed, ConnectionHandler.loggableAddress(logIps, ctx.channel().remoteAddress())));
         cancelCheck();
         ctx.close();
         return true;

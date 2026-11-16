@@ -21,7 +21,7 @@ public interface PluginManager {
      * <p>다시 켤 때 돌아오는 것은 {@code onEnable} 과 설명 파일의 권한·명령뿐이다. 부트스트랩·{@code onLoad} 에서 한 등록
      * (수명주기 처리기·플러그인 레지스트리 정의·월드젠 훅)은 끌 때 지워져 되살아나지 않는다 — 그런 플러그인은 서버를 다시 켜거나 개발 모드의 {@link #reload} 를 쓴다.
      */
-    default void enable(FurnacePlugin plugin) { throw new UnsupportedOperationException("이 서버는 플러그인을 다시 켜지 못한다"); }
+    default void enable(FurnacePlugin plugin) { throw new UnsupportedOperationException("this server cannot re-enable plugins"); }
 
     /** 플러그인 로거의 수준을 바꾼다(서버 설정 plugins.log-level.<이름> 으로 시작값을 줄 수 있다). */
     void setLogLevel(String pluginName, java.util.logging.Level level);
@@ -36,6 +36,6 @@ public interface PluginManager {
      * 작업은 전역 스레드에서 돌고, 결과는 다시 켠 플러그인 이름(켠 순서). 개발 모드가 아니면 IllegalStateException 으로 끝난다.
      */
     default java.util.concurrent.CompletableFuture<java.util.List<String>> reload(String name) {
-        return java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("핫 리로드는 개발 모드(plugins.dev-mode=true)에서만 된다"));
+        return java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("hot reload only works in development mode (plugins.dev-mode=true)"));
     }
 }

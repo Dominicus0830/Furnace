@@ -163,7 +163,7 @@ class PlayerInfoShimTest {
         Profiles.simulateMissingForTest(true);
         try {
             String why = PacketDelivery.irreversibleReason(PacketTypes.Clientbound.PLAYER_INFO_UPDATE);
-            assertEquals(Profiles.MISSING, why);
+            assertEquals(Profiles.missing(), why);
             assertTrue(why.contains("plugins.compat.libraries.mojang"), why);
             assertTrue(!PacketDelivery.reversible(PacketTypes.Clientbound.PLAYER_INFO_UPDATE));
             var api = new ClientboundPlayerInfoUpdatePacket(EnumSet.of(Action.UPDATE_LISTED), List.of(

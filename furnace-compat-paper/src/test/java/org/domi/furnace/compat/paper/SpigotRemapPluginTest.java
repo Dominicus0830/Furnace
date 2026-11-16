@@ -208,8 +208,8 @@ class SpigotRemapPluginTest {
             assertEquals("connection", NmsProbe.get("reflect.field"));
             assertEquals("getX", NmsProbe.get("reflect.method"));
             List<String> log = messages();
-            assertTrue(log.stream().anyMatch(m -> m.startsWith("플러그인 SpigUser: NMS·CraftBukkit 심볼") && m.contains("대응표로 바꿔 올린다")
-                    && m.contains("아직 없음 0")), () -> String.join("\n", log));
+            assertTrue(log.stream().anyMatch(m -> m.startsWith("Plugin SpigUser: of ") && m.contains("rewritten to Mojang names")
+                    && m.contains("not available yet 0")), () -> String.join("\n", log));
 
             TestPlayer tp = server.join("Spig");
             server.tick(2);
@@ -245,7 +245,7 @@ class SpigotRemapPluginTest {
             assertEquals(Boolean.TRUE, NmsProbe.get("enabled"), "변환이 없어도 플러그인은 켜진다(그 호출만 실패)");
             assertTrue(NmsProbe.get("direct") instanceof LinkageError, String.valueOf(NmsProbe.get("direct")));
             List<String> log = messages();
-            assertTrue(log.stream().anyMatch(m -> m.startsWith("플러그인 SpigUser: NMS·CraftBukkit 심볼") && m.contains("spigot-mappings=download")),
+            assertTrue(log.stream().anyMatch(m -> m.startsWith("Plugin SpigUser: of ") && m.contains("spigot-mappings=download")),
                     () -> String.join("\n", log));
             assertSame(null, org.domi.furnace.compat.nms.SpigotMappings.forPlugin("SpigUser"));
         }

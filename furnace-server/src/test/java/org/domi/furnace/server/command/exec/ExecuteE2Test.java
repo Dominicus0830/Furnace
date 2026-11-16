@@ -95,6 +95,9 @@ class ExecuteE2Test {
         Path vanilla = tmp.resolve("vanilla");
         Files.createDirectories(vanilla.resolve("data/minecraft/tags/item"));
         Files.writeString(vanilla.resolve("data/minecraft/tags/item/x.json"), "{\"values\":[]}");
+        // 가짜 바닐라 팩에는 시험이 묻는 블록 태그만 둔다(태그는 이제 데이터 팩 표를 따르므로 jar 의 바닐라 표로 채워 주지 않는다)
+        Files.createDirectories(vanilla.resolve("data/minecraft/tags/block"));
+        Files.writeString(vanilla.resolve("data/minecraft/tags/block/guarded_by_piglins.json"), "{\"values\":[\"minecraft:chest\"]}");
         Path pack = tmp.resolve("datapacks/mine");
         Files.createDirectories(pack.resolve("data/test/predicate"));
         Files.writeString(pack.resolve("pack.mcmeta"), "{\"pack\":{\"description\":\"t\",\"pack_format\":48}}");

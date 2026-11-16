@@ -9,6 +9,7 @@ import org.domi.furnace.api.entity.ai.GoalSet;
 import org.domi.furnace.api.entity.ai.MobGoal;
 import org.domi.furnace.api.plugin.FurnacePlugin;
 import org.domi.furnace.server.entity.ai.Goal;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,7 +31,7 @@ final class PluginGoal extends Goal {
         this.ai = ai;
         this.set = set;
         this.key = goal.key();
-        if (key == null) throw new IllegalArgumentException("목표 이름표(key)가 null 이다");
+        if (key == null) throw new IllegalArgumentException("the goal key is null");
         this.interruptible = goal.interruptible();
         this.everyTick = goal.tickEveryTick();
         EnumSet<Flag> flags = EnumSet.noneOf(Flag.class);
@@ -49,7 +50,7 @@ final class PluginGoal extends Goal {
 
     private void fail(String where, Throwable t) {
         broken = true;
-        LOG.warn("플러그인 {} 의 몹 목표 {} 가 {} 에서 예외를 던져 멈춘다", owner, key, where, t);
+        LOG.warn(Lang.t("goal.threw", owner, key, where), t);
     }
 
     @Override

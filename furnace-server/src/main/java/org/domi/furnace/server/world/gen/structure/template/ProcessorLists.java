@@ -39,7 +39,7 @@ public final class ProcessorLists {
     private List<Processor> load(String name) {
         String res = "worldgen/1.21.1/worldgen/processor_list/" + name + ".json";
         try (InputStream in = ProcessorLists.class.getClassLoader().getResourceAsStream(res)) {
-            if (in == null) throw new IllegalArgumentException("processor_list 없음: " + name);
+            if (in == null) throw new IllegalArgumentException("no such processor_list: " + name);
             JsonElement root = JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             JsonArray arr = root.isJsonArray() ? root.getAsJsonArray() : root.getAsJsonObject().getAsJsonArray("processors");
             List<Processor> out = new ArrayList<>();
@@ -99,7 +99,7 @@ public final class ProcessorLists {
             case "nop":
                 return new Processors.Nop();
             default:
-                throw new IllegalArgumentException("미지원 processor_type: " + type);
+                throw new IllegalArgumentException("unsupported processor_type: " + type);
         }
     }
 
@@ -121,7 +121,7 @@ public final class ProcessorLists {
             case "tag_match" -> Processors.tagMatch(new HashSet<>(BlockTags.get().blocksOf(ns(o.get("tag").getAsString().replaceFirst("^#", "")))));   // "tag" 는 # 없는 태그 id
             case "random_block_match" -> Processors.randomBlockMatch(ns(o.get("block").getAsString()), o.get("probability").getAsFloat());
             case "random_blockstate_match" -> Processors.randomBlockStateMatch(parseState(o.getAsJsonObject("block_state")), o.get("probability").getAsFloat());
-            default -> throw new IllegalArgumentException("미지원 rule_test: " + t);
+            default -> throw new IllegalArgumentException("unsupported rule_test: " + t);
         };
     }
 
@@ -132,7 +132,7 @@ public final class ProcessorLists {
             case "linear_pos" -> Processors.linearPos(f(o, "min_chance", 0), f(o, "max_chance", 0), i(o, "min_dist", 0), i(o, "max_dist", 0));
             case "axis_aligned_linear_pos" -> Processors.axisAlignedLinearPos(f(o, "min_chance", 0), f(o, "max_chance", 0), i(o, "min_dist", 0), i(o, "max_dist", 0),
                 o.has("axis") ? o.get("axis").getAsString() : "y");
-            default -> throw new IllegalArgumentException("미지원 pos_rule_test: " + t);
+            default -> throw new IllegalArgumentException("unsupported pos_rule_test: " + t);
         };
     }
 
@@ -143,7 +143,7 @@ public final class ProcessorLists {
             case "passthrough" -> Processors.passthrough();
             case "append_loot" -> Processors.appendLoot(o.get("loot_table").getAsString());
             case "append_static" -> Processors.appendStatic(new NbtCompound());   // data는 SNBT — 사용처 없음
-            default -> throw new IllegalArgumentException("미지원 block_entity_modifier: " + t);
+            default -> throw new IllegalArgumentException("unsupported block_entity_modifier: " + t);
         };
     }
 

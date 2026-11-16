@@ -289,7 +289,7 @@ public final class Snbt {
                 }
                 b.append('}');
             }
-            default -> throw new IllegalArgumentException("NBT 값이 아님: " + v);
+            default -> throw new IllegalArgumentException("not an NBT value: " + v);
         }
     }
 

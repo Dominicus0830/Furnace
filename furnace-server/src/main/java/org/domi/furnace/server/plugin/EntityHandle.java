@@ -178,7 +178,7 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     <T> CompletableFuture<T> onEntity(Function<Entity, T> task, T gone, boolean failWhenGone) {
         RegionFuture<T> f = new RegionFuture<>();
         Runnable retired = () -> {
-            if (failWhenGone) f.completeExceptionally(new IllegalStateException("엔티티가 사라졌다: " + uuid));
+            if (failWhenGone) f.completeExceptionally(new IllegalStateException("the entity is gone: " + uuid));
             else f.complete(gone);
         };
         EntityTasks.Entry entry = tasks.schedule(() -> {
@@ -232,8 +232,8 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
         if (org.domi.furnace.server.world.RegionBorrow.claimEntity(e)) cp = ChunkPos.ofBlock(e.x(), e.z());
         Region r = w == null ? null : w.regionizer().ownerOf(cp.x(), cp.z());
         if (r == null || !r.isOwnerThread() || r.level() == null || r.level().entities().get(e.uuid()) != e) {
-            throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("엔티티 " + type() + " 를 가진 region 스레드가 아니다(현재 "
-                    + Thread.currentThread().getName() + ") — entityScheduler() 작업 안에서 부른다");
+            throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("entity " + type() + " is not owned by this region thread (current thread: "
+                    + Thread.currentThread().getName() + ") - call it inside an entityScheduler() task");
         }
         return moveWithin(w, r, e, to);
     }
@@ -295,8 +295,8 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
         if (org.domi.furnace.server.world.RegionBorrow.claimEntity(e)) cp = ChunkPos.ofBlock(e.x(), e.z());
         Region r = w == null ? null : w.regionizer().ownerOf(cp.x(), cp.z());
         if (r == null || !r.isOwnerThread() || r.level() == null || r.level().entities().get(e.uuid()) != e) {
-            throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("엔티티 " + type() + " 를 가진 region 스레드가 아니다(현재 "
-                    + Thread.currentThread().getName() + ") — editPersistentData 나 entityScheduler() 작업 안에서 부른다");
+            throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("entity " + type() + " is not owned by this region thread (current thread: "
+                    + Thread.currentThread().getName() + ") - call it inside editPersistentData or an entityScheduler() task");
         }
         edit.accept(new NbtPersistentData(e.persistentData(true), false));
         return true;
@@ -315,8 +315,8 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
         // 엔티티를 따라가는 대기열이 지금의 엔티티를 쥐고 있다 — 스폰 이벤트처럼 아직 레벨 목록에 오르기 전에도 찾는다(aiNow 와 같다)
         if (!(tasks.owner() instanceof Entity e)) return Optional.empty();
         if (!org.domi.furnace.server.world.RegionBorrow.claimEntity(e) && !e.level().isOwnerThread()) {
-            throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("stateNow() 는 엔티티 " + type() + " 를 가진 region 스레드에서만 부를 수 있다 (현재 "
-                    + Thread.currentThread().getName() + ") — editState 를 쓴다");
+            throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("stateNow() is for entity " + type() + " and can only be called from the region thread that owns it (current thread: "
+                    + Thread.currentThread().getName() + ") - use editState");
         }
         return e.isRemoved() ? Optional.empty() : Optional.of(EntityStateImpl.of(host, e));
     }
@@ -384,7 +384,7 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
                 public void set(int slot, org.domi.furnace.server.entity.ItemStack s) { inv.set(slot, s); }
             };
         }
-        throw new IllegalStateException("칸이 없는 엔티티: " + e.type().name());
+        throw new IllegalStateException("entity without slots: " + e.type().name());
     }
 
     static class Living extends EntityHandle implements org.domi.furnace.api.entity.LivingEntity {
@@ -410,8 +410,8 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
             public void check() {
                 if (!(tasks().owner() instanceof Entity e)) return;
                 if (!org.domi.furnace.server.world.RegionBorrow.claimEntity(e) && !e.level().isOwnerThread()) {
-                    throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("AttributeInstance 는 엔티티 " + type()
-                            + " 를 가진 region 스레드에서만 쓸 수 있다 (현재 " + Thread.currentThread().getName() + ") — AttributeHandle.edit 를 쓴다");
+                    throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("AttributeInstance of entity " + type()
+                            + " can only be used from the region thread that owns it (current thread: " + Thread.currentThread().getName() + ") - use AttributeHandle.edit");
                 }
             }
         };
@@ -449,7 +449,7 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
                 else le.setHealth(h);
                 return Boolean.TRUE;
             }).thenAccept(ok -> {
-                if (ok == null || !ok) throw new IllegalStateException("엔티티를 소유 region 에서 찾지 못했다: " + uniqueId());
+                if (ok == null || !ok) throw new IllegalStateException("could not find the entity in its owning region: " + uniqueId());
             });
         }
     }
@@ -478,8 +478,8 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
             // 엔티티를 따라가는 대기열이 지금의 몹을 쥐고 있다 — 스폰 이벤트처럼 아직 레벨 목록에 오르기 전에도 찾는다
             if (!(tasks().owner() instanceof org.domi.furnace.server.entity.Mob m)) return Optional.empty();
             if (!org.domi.furnace.server.world.RegionBorrow.claimEntity(m) && !m.level().isOwnerThread()) {
-                throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("aiNow() 는 그 몹을 가진 region 스레드에서만 부를 수 있다 (현재 "
-                        + Thread.currentThread().getName() + ") — editAi 를 쓴다");
+                throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("aiNow() can only be called from the region thread that owns the mob (current thread: "
+                        + Thread.currentThread().getName() + ") - use editAi");
             }
             return m.isRemoved() ? Optional.empty() : Optional.of(new MobAiImpl(host, m));
         }
@@ -541,7 +541,7 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
 
         /** 거래 값: 아이템 + 개수 + 컴포넌트 조건(넣은 컴포넌트가 모두 같아야 맞는다 — 바닐라 ItemCost). 지운 컴포넌트는 조건이 되지 않는다. */
         private ItemCost cost(org.domi.furnace.api.item.ItemStack s) {
-            if (items().idOf(s.type()) < 0) throw new IllegalArgumentException("알 수 없는 아이템: " + s.type());
+            if (items().idOf(s.type()) < 0) throw new IllegalArgumentException("unknown item: " + s.type());
             java.util.Map<String, Object> comps = new java.util.LinkedHashMap<>();
             for (var e : s.components().entrySet()) comps.put(e.getKey(), org.domi.furnace.server.item.Snbt.parse(e.getValue()));
             return new ItemCost(s.type(), s.amount(), comps);

@@ -30,7 +30,7 @@ class CompatSender implements CommandSender {
     public boolean isOp() { return handle.isOp(); }
 
     @Override
-    public void setOp(boolean value) { throw new UnsupportedOperationException("이 발신자의 OP 는 바꿀 수 없다"); }
+    public void setOp(boolean value) { throw new UnsupportedOperationException("the operator status of this sender cannot be changed"); }
 
     @Override
     public boolean isPermissionSet(String name) { return handle.isPermissionSet(name); }

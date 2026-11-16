@@ -100,7 +100,7 @@ public final class FirstSeenIndex {
      * 저장 순이 첫 등장 순이고 비트 수가 같으면 원본 배열을 그대로 돌려준다 — 받은 쪽은 고치지 않는다.
      */
     public long[] pack(int bits) {
-        if (n <= 1) throw new IllegalStateException("단일값은 묶을 칸 번호가 없다");
+        if (n <= 1) throw new IllegalStateException("a single value has no slot index to bind");
         if (identity && bits == srcBits) return src;
         int inVpl = 64 / srcBits, outVpl = 64 / bits;
         long inMask = (1L << srcBits) - 1;

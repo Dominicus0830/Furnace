@@ -18,7 +18,7 @@ public record DeleteChat(int cacheId, byte[] signature) implements Packet {
         if (cacheId >= 0) {
             Types.writeVarInt(buf, cacheId + 1);
         } else {
-            if (signature == null || signature.length != 256) throw new IllegalArgumentException("서명은 256바이트");
+            if (signature == null || signature.length != 256) throw new IllegalArgumentException("the signature must be 256 bytes");
             Types.writeVarInt(buf, 0);
             buf.writeBytes(signature);
         }

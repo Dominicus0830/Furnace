@@ -415,7 +415,7 @@ public final class LegacyScheduler {
                 }
             }
         } catch (Throwable e) {
-            SERVER_LOG.error("Craft Async Scheduler 관리 스레드에서 예외", e);
+            SERVER_LOG.error("Exception in the Craft Async Scheduler management thread", e);
         } finally {
             if (!again.isEmpty()) {
                 synchronized (asyncQueue) {

@@ -17,7 +17,7 @@ public final class TickStartRing {
 
     /** size 는 2의 거듭제곱이어야 한다. 창 길이 × 최대 틱 속도보다 커야 창 전체를 덮는다(모자라면 남은 표본만으로 잰다). */
     public TickStartRing(int size) {
-        if (Integer.bitCount(size) != 1) throw new IllegalArgumentException("size 는 2의 거듭제곱: " + size);
+        if (Integer.bitCount(size) != 1) throw new IllegalArgumentException("size must be a power of two: " + size);
         this.ring = new long[size];
         this.mask = size - 1;
     }

@@ -8,6 +8,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.concurrent.Executors;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -58,16 +59,16 @@ public final class PrometheusServer implements AutoCloseable {
                     ex.sendResponseHeaders(200, body.length);
                     ex.getResponseBody().write(body);
                 } catch (RuntimeException e) {
-                    log.warn("[METRICS] 응답 실패", e);
+                    log.warn(Lang.t("metrics.response-failed"), e);
                     try { ex.sendResponseHeaders(500, -1); } catch (IOException | RuntimeException ignored) { }
                 }
             });
             http.setExecutor(executor);
             http.start();
-            log.info("Prometheus 메트릭: http://{}:{}/metrics", bind, http.getAddress().getPort());
+            log.info(Lang.t("metrics.prometheus-url", bind, http.getAddress().getPort()));
             return new PrometheusServer(http, executor);
         } catch (IOException | RuntimeException e) {
-            log.warn("[METRICS] Prometheus 서버를 열지 못했습니다({}:{}): {}", bind, port, e.toString());
+            log.warn(Lang.t("metrics.prometheus-open-failed", bind, port, e.toString()));
             return null;
         }
     }

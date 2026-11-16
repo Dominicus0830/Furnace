@@ -2,6 +2,7 @@
 // 스레드를 새로 만들지 않고 바탕 풀(ioPool) 위에 레인마다 한 번에 하나의 drain 작업만 올린다 — 풀을 닫고 기다리는 종료 경로가 그대로 레인도 비운다.
 package org.domi.furnace.server.world.anvil;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.util.ArrayDeque;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
@@ -115,7 +116,7 @@ public final class IoLanes {
                 try {
                     r.run();
                 } catch (Throwable t) {
-                    org.slf4j.LoggerFactory.getLogger(IoLanes.class).error("[IO] 레인 작업 실패", t);
+                    org.slf4j.LoggerFactory.getLogger(IoLanes.class).error(Lang.t("io.lane-task-failed"), t);
                 }
             }
         }

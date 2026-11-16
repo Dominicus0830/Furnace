@@ -33,7 +33,7 @@ public final class MapColor {
     private static byte[] buildStateIds() {
         Map<Integer, Integer> idByRgb = new HashMap<>();
         try (InputStream in = MapColor.class.getClassLoader().getResourceAsStream("blocks/mapcolors_1.21.1.txt")) {
-            if (in == null) throw new IllegalStateException("지도 색 표 리소스 없음");
+            if (in == null) throw new IllegalStateException("map color table resource is missing");
             BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             String line;
             while ((line = r.readLine()) != null) {
@@ -47,7 +47,7 @@ public final class MapColor {
         byte[] t = new byte[BlockAttrs.get().stateCount()];
         for (int s = 0; s < t.length; s++) {
             Integer id = idByRgb.get(B.INFO.mapColor(s));
-            if (id == null) throw new IllegalStateException("모르는 지도 색 RGB: 상태 " + s);
+            if (id == null) throw new IllegalStateException("unknown map color RGB: state " + s);
             t[s] = (byte) (int) id;
         }
         return t;

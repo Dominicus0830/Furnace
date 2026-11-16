@@ -91,7 +91,7 @@ public final class JigsawPools {
                 return new ListElement(List.copyOf(list), projection);
             }
             default:
-                throw new IllegalArgumentException("미지원 pool element: " + type);
+                throw new IllegalArgumentException("unsupported pool element: " + type);
         }
     }
 

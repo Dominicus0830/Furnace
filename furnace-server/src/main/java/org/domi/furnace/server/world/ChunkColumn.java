@@ -253,9 +253,9 @@ public final class ChunkColumn {
      * null 인 구성 요소는 그대로. counts 가 null 이면 바닐라 개수도 그대로다(바닐라는 컨테이너 데이터를 갈아도 다시 세지 않는다). 주인 스레드.
      */
     public void importSection(int index, int[] states, int[] biomes, int[] counts) {
-        if (states != null && states.length != 4096) throw new IllegalArgumentException("블록 칸은 4096개여야 한다: " + states.length);
-        if (biomes != null && biomes.length != 64) throw new IllegalArgumentException("바이옴 칸은 64개여야 한다: " + biomes.length);
-        if (counts != null && counts.length != 3) throw new IllegalArgumentException("개수는 셋이어야 한다: " + counts.length);
+        if (states != null && states.length != 4096) throw new IllegalArgumentException("there must be 4096 block cells: " + states.length);
+        if (biomes != null && biomes.length != 64) throw new IllegalArgumentException("there must be 64 biome cells: " + biomes.length);
+        if (counts != null && counts.length != 3) throw new IllegalArgumentException("there must be three counts: " + counts.length);
         if (states == null && biomes == null && counts == null) return;
         // 바닐라 하이트맵은 섹션을 갈아도 낡은 값을 든다 — 블록·개수(nonEmpty 0 섹션은 바닐라 하이트맵 갱신이 공기로 훑는다)를 바꾸기 전에 고정
         if (states != null || counts != null) fixHeightmaps();
@@ -1625,7 +1625,7 @@ public final class ChunkColumn {
      */
     public java.util.List<HeightmapType> adoptStoredHeightmaps(long[][] stored) {
         java.util.List<HeightmapType> bad = new java.util.ArrayList<>(0);
-        if (fixedHeights != null) throw new IllegalStateException("이미 고정 하이트맵 — 로드 직후에만 부른다");
+        if (fixedHeights != null) throw new IllegalStateException("the heightmaps are already fixed - call this right after loading only");
         int[][] now = currentHeights();
         int[][] merged = null;
         HeightmapType[] types = HeightmapType.values();

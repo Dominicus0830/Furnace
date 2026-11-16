@@ -47,7 +47,7 @@ final class VanillaGoals {
     private VanillaGoals() {}
 
     static Goal create(Mob mob, VanillaGoal spec) {
-        if (!spec.key().namespace().equals("minecraft")) throw new IllegalArgumentException("바닐라 목표가 아니다: " + spec.key());
+        if (!spec.key().namespace().equals("minecraft")) throw new IllegalArgumentException("not a vanilla goal: " + spec.key());
         Map<String, Object> p = spec.params();
         String name = spec.key().name();
         return switch (name) {
@@ -76,7 +76,7 @@ final class VanillaGoals {
             case "follow_parent" -> new FollowParentGoal(animal(mob, name), d(p, "speed"));
             case "nearest_attackable_target" -> nearestTarget(mob, s(p, "entity_type"), b(p, "must_see"));
             case "hurt_by_target" -> new HurtByTargetGoal(pathfinder(mob, name));
-            default -> throw new IllegalArgumentException("모르는 바닐라 목표: " + spec.key());
+            default -> throw new IllegalArgumentException("unknown vanilla goal: " + spec.key());
         };
     }
 
@@ -92,7 +92,7 @@ final class VanillaGoals {
 
     /** 그 종류 엔티티만(플레이어는 Player 클래스로 따로 받으므로 여기서는 빠진다). */
     private static Predicate<Targetable> ofType(String type) {
-        if (EntityType.byName(type) == null) throw new IllegalArgumentException("모르는 엔티티 종류: " + type);
+        if (EntityType.byName(type) == null) throw new IllegalArgumentException("unknown entity type: " + type);
         return t -> t instanceof Entity e && e.type().name().equals(type);
     }
 
@@ -101,7 +101,7 @@ final class VanillaGoals {
         for (Object o : (List<?>) p.get("items")) {
             String key = o.toString();
             Integer id = ItemContext.id("minecraft:item", key.indexOf(':') < 0 ? "minecraft:" + key : key);
-            if (id == null || id <= 0) throw new IllegalArgumentException("모르는 아이템: " + key);
+            if (id == null || id <= 0) throw new IllegalArgumentException("unknown item: " + key);
             ids.add(id);
         }
         return s -> ids.contains(s.itemId());
@@ -118,7 +118,7 @@ final class VanillaGoals {
     }
 
     private static IllegalArgumentException unsupported(Mob mob, String goal) {
-        return new IllegalArgumentException(mob.type().name() + " 는 minecraft:" + goal + " 목표를 쓸 수 없다");
+        return new IllegalArgumentException(mob.type().name() + " cannot use the minecraft:" + goal + " goal");
     }
 
     private static double d(Map<String, Object> p, String k) { return ((Number) p.get(k)).doubleValue(); }
@@ -132,7 +132,7 @@ final class VanillaGoals {
     private static String s(Map<String, Object> p, String k) { return (String) p.get(k); }
 
     private static int positive(int v, String k) {
-        if (v <= 0) throw new IllegalArgumentException(k + " 는 양수여야 한다: " + v);
+        if (v <= 0) throw new IllegalArgumentException(k + " must be positive: " + v);
         return v;
     }
 }

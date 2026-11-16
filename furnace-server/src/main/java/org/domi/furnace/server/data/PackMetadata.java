@@ -33,7 +33,7 @@ public record PackMetadata(Text description, int packFormat, Optional<FormatRang
             if (e.isJsonPrimitive()) { int v = e.getAsInt(); return new FormatRange(v, v); }
             if (e.isJsonArray()) {
                 JsonArray a = e.getAsJsonArray();
-                if (a.size() != 2) throw new IllegalArgumentException("형식 범위 배열은 두 값이어야 한다");
+                if (a.size() != 2) throw new IllegalArgumentException("a format range array must have exactly two values");
                 return of(a.get(0).getAsInt(), a.get(1).getAsInt());
             }
             JsonObject o = e.getAsJsonObject();

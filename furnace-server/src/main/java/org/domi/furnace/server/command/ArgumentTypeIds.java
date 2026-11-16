@@ -32,7 +32,7 @@ public final class ArgumentTypeIds {
 
     public static int idOf(String name) {
         Integer id = IDS.get(name);
-        if (id == null) throw new IllegalArgumentException("알 수 없는 인자 타입: " + name);
+        if (id == null) throw new IllegalArgumentException("unknown argument type: " + name);
         return id;
     }
 }

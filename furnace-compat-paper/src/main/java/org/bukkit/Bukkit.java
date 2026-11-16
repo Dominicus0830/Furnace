@@ -30,7 +30,7 @@ public final class Bukkit {
 
     private static Server s() {
         Server x = server;
-        if (x == null) throw new IllegalStateException("서버가 아직 준비되지 않았다");
+        if (x == null) throw new IllegalStateException("the server is not ready yet");
         return x;
     }
 

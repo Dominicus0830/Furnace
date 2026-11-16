@@ -1,6 +1,7 @@
 // 플러그인이 보는 플레이어 — 서버 Player 를 감싼다. 상태 변경은 스레드 안전한 PlayerVitals·패킷 전송으로 간다.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.net.InetSocketAddress;
 import java.util.Locale;
 import java.util.UUID;
@@ -157,7 +158,7 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
         synchronized (p.distanceLock) {
             p.apiDistances(p.apiTickDistance(), chunks + 1, p.apiSendDistance());
         }
-        warnAbove("view", chunks, core().viewDistance(), "server.properties 의 view-distance");
+        warnAbove("view", chunks, core().viewDistance(), Lang.t("player.setting-view-distance"));
         core().applyPlayerDistances(p, false);
     }
 
@@ -169,7 +170,7 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
         synchronized (p.distanceLock) {
             p.apiDistances(p.apiTickDistance(), p.apiLoadDistance(), chunks);
         }
-        warnAbove("send", chunks, core().viewDistance(), "server.properties 의 view-distance");
+        warnAbove("send", chunks, core().viewDistance(), Lang.t("player.setting-view-distance"));
         core().applyPlayerDistances(p, false);
     }
 
@@ -183,10 +184,9 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
         }
         int sim = core().simulationDistance();
         if (chunks >= 0 && chunks > sim) {
-            warnAbove("simulation", chunks, sim, "server.properties 의 simulation-distance");
+            warnAbove("simulation", chunks, sim, Lang.t("player.setting-simulation-distance"));
         } else if (chunks >= 0 && chunks < sim && DIST_WARNED.add("simulation-lower")) {
-            DIST_LOG.warn("[Furnace] 플러그인이 플레이어별 시뮬레이션 거리를 {}로 줄였다 — 보내는 거리 계산에는 반영하지만 서버 틱 범위는 아직 서버 값({})이다"
-                    + "(플레이어별 틱 거리는 후속 T-141v, docs/api/view-distance.md). 이 알림은 한 번만 남긴다", chunks, sim);
+            DIST_LOG.warn(Lang.t("player.simulation-lowered", chunks, sim));
         }
         core().applyPlayerDistances(p, false);
     }
@@ -194,8 +194,7 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     /** 서버 값보다 큰 플레이어 거리는 아직 못 한다 — 종류마다 한 번, 무엇을 올리면 되는지와 함께. */
     private static void warnAbove(String kind, int asked, int server, String setting) {
         if (asked > server && DIST_WARNED.add(kind + "-above")) {
-            DIST_LOG.warn("[Furnace] 플러그인이 플레이어별 {} 거리를 {}로 요청했지만 서버 값 {}보다 크게는 아직 못 한다 — {} 로 잘린다. 더 멀리 보이게 하려면 {} 를 올린다"
-                    + "(플레이어별로 서버 값보다 크게는 후속 T-141v, docs/api/view-distance.md). 이 알림은 한 번만 남긴다", kind, asked, server, server, setting);
+            DIST_LOG.warn(Lang.t("player.distance-above", kind, asked, server, server, setting));
         }
     }
 
@@ -227,7 +226,7 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     @Override
     public void deleteChatMessage(byte[] signature) {
         if (signature == null || signature.length != org.domi.furnace.server.chat.MessageSignature.BYTES)
-            throw new IllegalArgumentException("서명은 256바이트여야 한다");
+            throw new IllegalArgumentException("the signature must be 256 bytes");
         var packed = p.chat().pack(new org.domi.furnace.server.chat.MessageSignature(signature.clone()));
         p.send(new org.domi.furnace.server.net.protocol.play.DeleteChat(packed.id(), packed.full() == null ? null : packed.full().bytes()));
     }
@@ -237,7 +236,7 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
 
     @Override
     public void sendPluginMessage(String channel, byte[] data) {
-        if (org.domi.furnace.server.data.ResourceId.tryParse(channel) == null) throw new IllegalArgumentException("잘못된 채널 이름: " + channel);
+        if (org.domi.furnace.server.data.ResourceId.tryParse(channel) == null) throw new IllegalArgumentException("invalid channel name: " + channel);
         p.send(new org.domi.furnace.server.net.protocol.play.CustomPayloadPacket(channel, data.clone(), true));
     }
 
@@ -317,7 +316,7 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     @Override
     public void stopSound(org.domi.furnace.api.audience.Sound.Source source, String key) {
         // 바닐라 클라이언트는 stop_sound 의 이름을 ResourceLocation 으로 읽다 실패하면 접속을 끊는다 — playSound 와 같은 규칙으로 막는다
-        if (key != null && !org.domi.furnace.api.audience.Sound.isValidKey(key)) throw new IllegalArgumentException("잘못된 소리 이름: " + key);
+        if (key != null && !org.domi.furnace.api.audience.Sound.isValidKey(key)) throw new IllegalArgumentException("invalid sound name: " + key);
         p.send(new org.domi.furnace.server.net.protocol.play.StopSound(source == null ? -1 : source.ordinal(), key == null ? null : soundKey(key)));
     }
 
@@ -477,7 +476,7 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     private final AttributeApi.Owner attrOwner = new AttributeApi.Owner() {
         @Override
         public <T> java.util.concurrent.CompletableFuture<T> run(java.util.function.Function<org.domi.furnace.server.attribute.AttributeMap, T> task) {
-            if (p.isDisconnected()) return RegionFuture.wrap(java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("접속이 끊긴 플레이어: " + p.name())));
+            if (p.isDisconnected()) return RegionFuture.wrap(java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("disconnected player: " + p.name())));
             RegionFuture<T> f = new RegionFuture<>();
             p.runOnOwner(() -> {
                 try {
@@ -492,8 +491,8 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
         @Override
         public void check() {
             if (!p.isOnOwnerThread()) {
-                throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("AttributeInstance 는 플레이어 " + p.name()
-                        + " 를 가진 region 스레드에서만 쓸 수 있다 (현재 " + Thread.currentThread().getName() + ") — AttributeHandle.edit 를 쓴다");
+                throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("AttributeInstance of player " + p.name()
+                        + " can only be used from the region thread that owns it (current thread: " + Thread.currentThread().getName() + ") - use AttributeHandle.edit");
             }
         }
     };
@@ -584,7 +583,7 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     /** /data get entity 와 같은 경로 — 플레이어 NBT 스냅샷은 인벤토리 잠금 아래에서 떠서 아무 스레드에서 바로 읽는다(바닐라 /data 와 같다). */
     @Override
     public java.util.concurrent.CompletableFuture<org.domi.furnace.api.nbt.NbtCompound> readNbt() {
-        if (p.isDisconnected()) return RegionFuture.wrap(java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("접속이 끊긴 플레이어: " + p.name())));
+        if (p.isDisconnected()) return RegionFuture.wrap(java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("disconnected player: " + p.name())));
         try {
             return RegionFuture.wrap(java.util.concurrent.CompletableFuture.completedFuture(
                     ApiNbt.toApi(org.domi.furnace.server.command.builtin.DataCommands.entityData(p))));
@@ -597,7 +596,7 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     @Override
     public java.util.concurrent.CompletableFuture<Boolean> editNbt(java.util.function.Consumer<org.domi.furnace.api.nbt.NbtCompound> edit) {
         return RegionFuture.wrap(java.util.concurrent.CompletableFuture.failedFuture(
-                new UnsupportedOperationException("플레이어 NBT 는 쓸 수 없다(바닐라 /data 와 같다) — Player API 나 Internals 를 쓴다")));
+                new UnsupportedOperationException("player NBT cannot be written (same as vanilla /data) - use the Player API or Internals")));
     }
 
     private PlayerInventoryHandle inventory;
@@ -615,8 +614,8 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     /** 선택은 소유 스레드에서 바꾸고(그 스레드면 곧바로) 클라이언트에 SetHeldSlot 을 보낸다. */
     @Override
     public java.util.concurrent.CompletableFuture<Void> setHeldSlot(int slot) {
-        if (slot < 0 || slot > 8) return RegionFuture.wrap(java.util.concurrent.CompletableFuture.failedFuture(new IllegalArgumentException("단축 칸은 0..8: " + slot)));
-        if (p.isDisconnected()) return RegionFuture.wrap(java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("접속 중이 아니다")));
+        if (slot < 0 || slot > 8) return RegionFuture.wrap(java.util.concurrent.CompletableFuture.failedFuture(new IllegalArgumentException("the hotbar slot must be 0..8: " + slot)));
+        if (p.isDisconnected()) return RegionFuture.wrap(java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("not connected")));
         RegionFuture<Void> f = new RegionFuture<>();
         p.runOnOwner(() -> {
             try {

@@ -61,7 +61,7 @@ public final class TextReplacement {
 
         /** 정규식 없이 글자 그대로(빈 문자열은 안 된다). */
         public Builder matchLiteral(String s) {
-            if (s.isEmpty()) throw new IllegalArgumentException("빈 문자열은 찾을 수 없다");
+            if (s.isEmpty()) throw new IllegalArgumentException("an empty string cannot be searched for");
             literal = s;
             pattern = null;
             return this;
@@ -87,8 +87,8 @@ public final class TextReplacement {
         public Builder condition(Condition c) { condition = c; return this; }
 
         public TextReplacement build() {
-            if (pattern == null && literal == null) throw new IllegalStateException("match 가 없다");
-            if (replacement == null) throw new IllegalStateException("replacement 가 없다");
+            if (pattern == null && literal == null) throw new IllegalStateException("no match given");
+            if (replacement == null) throw new IllegalStateException("no replacement given");
             return new TextReplacement(pattern, literal, replacement, limit, condition);
         }
     }

@@ -266,13 +266,13 @@ public final class CommandSource {
      * 명령 실행 하나에 한 번만. 실행 컨텍스트 밖(직접 dispatcher.execute)에서는 쓸 수 없다.
      */
     public void defer(CompletableFuture<Integer> future) {
-        if (execution == null) throw new IllegalStateException("실행 컨텍스트 밖에서 defer — Commands.performCommand 로 실행해야 한다");
+        if (execution == null) throw new IllegalStateException("defer called outside an execution context - run the command through Commands.performCommand");
         execution.defer(future);
     }
 
     /** 대기 한도를 정한 {@link #defer(CompletableFuture)} — 디스크를 기다리는 /save-all 처럼 기본 5초보다 긴 것이 정상인 명령만. */
     public void defer(CompletableFuture<Integer> future, java.time.Duration timeout) {
-        if (execution == null) throw new IllegalStateException("실행 컨텍스트 밖에서 defer — Commands.performCommand 로 실행해야 한다");
+        if (execution == null) throw new IllegalStateException("defer called outside an execution context - run the command through Commands.performCommand");
         execution.defer(future, timeout);
     }
 

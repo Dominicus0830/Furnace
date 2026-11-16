@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import org.domi.furnace.api.plugin.PluginFormat;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,7 +47,7 @@ final class PluginFormats {
         try {
             present = loader.getResources(SERVICES_RESOURCE).hasMoreElements();
         } catch (IOException e) {
-            log.warn("호환 모듈 자원을 찾지 못했다: {}", e.toString());
+            log.warn(Lang.t("plugin.compat-resources-missing", e.toString()));
             present = false;
         }
         return present ? new PluginFormats(true, () -> loader, null) : NONE;
@@ -79,7 +80,7 @@ final class PluginFormats {
                 if (!it.hasNext()) break;
                 out.add(it.next());
             } catch (java.util.ServiceConfigurationError e) {
-                log.error("플러그인 형식 어댑터를 불러오지 못했다", e);
+                log.error(Lang.t("plugin.format-adapter-failed"), e);
             }
         }
         return List.copyOf(out);

@@ -184,7 +184,7 @@ public final class PluginHost implements Furnace {
     public java.util.concurrent.CompletableFuture<org.domi.furnace.api.world.World> createWorld(org.domi.furnace.api.world.WorldCreator creator) {
         if (creator == null) throw new NullPointerException("creator");
         var m = core.worldManager();
-        if (m == null) return java.util.concurrent.CompletableFuture.failedFuture(new UnsupportedOperationException("이 서버는 다중 월드를 켜지 않았다"));
+        if (m == null) return java.util.concurrent.CompletableFuture.failedFuture(new UnsupportedOperationException("multiple worlds are not enabled on this server"));
         return m.create(creator).thenApply(this::handleFor);
     }
 
@@ -192,12 +192,12 @@ public final class PluginHost implements Furnace {
     public org.domi.furnace.api.world.World createWorldNow(org.domi.furnace.api.world.WorldCreator creator) {
         if (creator == null) throw new NullPointerException("creator");
         var m = core.worldManager();
-        if (m == null) throw new UnsupportedOperationException("이 서버는 다중 월드를 켜지 않았다");
+        if (m == null) throw new UnsupportedOperationException("multiple worlds are not enabled on this server");
         try {
             return handleFor(m.createAndWait(creator));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("월드 '" + creator.name() + "' 를 기다리다 끊겼다", e);
+            throw new IllegalStateException("world '" + creator.name() + "' was interrupted while waiting", e);
         }
     }
 
@@ -209,7 +209,7 @@ public final class PluginHost implements Furnace {
         try {
             return m.storedCreator(name);
         } catch (java.io.IOException e) {
-            throw new java.io.UncheckedIOException("월드 '" + name + "' 의 level.dat 를 읽지 못했다", e);
+            throw new java.io.UncheckedIOException("world '" + name + "': could not read level.dat", e);
         }
     }
 
@@ -217,7 +217,7 @@ public final class PluginHost implements Furnace {
     public java.util.concurrent.CompletableFuture<Boolean> unloadWorld(org.domi.furnace.api.world.World world, boolean save) {
         if (world == null) throw new NullPointerException("world");
         var m = core.worldManager();
-        if (m == null) return java.util.concurrent.CompletableFuture.failedFuture(new UnsupportedOperationException("이 서버는 다중 월드를 켜지 않았다"));
+        if (m == null) return java.util.concurrent.CompletableFuture.failedFuture(new UnsupportedOperationException("multiple worlds are not enabled on this server"));
         if (!(world instanceof WorldHandle h) || h.handle().isUnloaded()) return java.util.concurrent.CompletableFuture.completedFuture(false);
         return m.unload(h.handle(), save);
     }
@@ -357,9 +357,9 @@ public final class PluginHost implements Furnace {
 
     private static String checkChannel(String channel) {
         org.domi.furnace.server.data.ResourceId id = org.domi.furnace.server.data.ResourceId.tryParse(channel);
-        if (id == null || !id.toString().equals(channel)) throw new IllegalArgumentException("잘못된 채널 이름: " + channel);
+        if (id == null || !id.toString().equals(channel)) throw new IllegalArgumentException("invalid channel name: " + channel);
         if (channel.equals(org.domi.furnace.server.net.PluginChannels.REGISTER) || channel.equals(org.domi.furnace.server.net.PluginChannels.UNREGISTER)
-                || channel.equals("minecraft:brand")) throw new IllegalArgumentException("예약된 채널: " + channel);
+                || channel.equals("minecraft:brand")) throw new IllegalArgumentException("reserved channel: " + channel);
         return channel;
     }
 

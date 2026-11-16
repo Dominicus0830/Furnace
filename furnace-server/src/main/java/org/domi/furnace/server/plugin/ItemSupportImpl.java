@@ -160,19 +160,19 @@ public final class ItemSupportImpl implements ItemSupport {
 
     private static ComponentType type(ItemComponent<?> c) {
         ComponentType t = DataComponents.byName(c.id());
-        if (t == null) throw new IllegalArgumentException("알 수 없는 컴포넌트: " + c.id());
+        if (t == null) throw new IllegalArgumentException("unknown component: " + c.id());
         return t;
     }
 
     @SuppressWarnings("unchecked")
     private static <T> Adapter<T> adapter(ItemComponent<T> c) {
         Adapter<?> a = ADAPTERS.get(c.id());
-        if (a == null) throw new IllegalArgumentException("타입 있는 값을 지원하지 않는 컴포넌트: " + c.id() + " — ItemComponent.raw 를 쓴다");
+        if (a == null) throw new IllegalArgumentException("this component has no typed value support: " + c.id() + " - use ItemComponent.raw");
         return (Adapter<T>) a;
     }
 
     private static IllegalArgumentException bad(ItemComponent<?> c, RuntimeException e) {
-        return new IllegalArgumentException(c.id() + " 값이 규칙에 맞지 않는다: " + e.getMessage(), e);
+        return new IllegalArgumentException(c.id() + " value does not satisfy the rules: " + e.getMessage(), e);
     }
 
     /** 스택에 붙은 값(정규), 없으면 아이템 기본값, 지워졌으면 null. */
@@ -192,7 +192,7 @@ public final class ItemSupportImpl implements ItemSupport {
             Object v = effective(stack, t);
             if (v == null) return null;
             if (component.isRaw()) {
-                if (t.isTransient()) throw new IllegalArgumentException(t.name() + " 는 저장하지 않는 컴포넌트라 문자열로 읽을 수 없다");
+                if (t.isTransient()) throw new IllegalArgumentException(t.name() + " is a transient component and cannot be read as a string");
                 return (T) Snbt.write(t.persistent().toNbt(v));
             }
             return adapter(component).read().apply(v);
@@ -205,7 +205,7 @@ public final class ItemSupportImpl implements ItemSupport {
     @SuppressWarnings("unchecked")
     public <T> ItemStack set(ItemStack stack, ItemComponent<T> component, T value) {
         ComponentType t = type(component);
-        if (t.isTransient()) throw new IllegalArgumentException(t.name() + " 는 저장하지 않는 컴포넌트다");
+        if (t.isTransient()) throw new IllegalArgumentException(t.name() + " is a transient component");
         Object norm;
         try {
             Object in = component.isRaw() ? Snbt.parse((String) value) : adapter(component).write().apply(value);

@@ -1,5 +1,6 @@
 package org.domi.furnace.compat.nms;
 
+import org.domi.furnace.compat.i18n.CompatLang;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -70,18 +71,27 @@ final class NmsLinker extends ClassVisitor {
         if (superName != null && !own.contains(superName) && NmsSymbols.isNms(superName)
                 && (superName.startsWith("net/minecraft/") || !symbols.hasClass(superName))) {
             String why = superName.startsWith("net/minecraft/") && symbols.hasClass(superName)
-                    ? "등급 C — NMS 클래스 상속은 지원하지 않는다(서버가 그 가상 메서드를 부르지 않는다). 대체: Furnace 엔티티·몹 AI·메뉴 API"
+                    ? CompatLang.t("nms.grade-c", CompatLang.t("nms.grade-c.inherit"))
                     : NmsGrades.reason(superName);
             if (isInterface) throw refusal(name, superName, why);
             husk = refusal(name, superName, why, true);
-            if (!symbols.hasClass(superName)) superName = "java/lang/Object";   // 상위 shim 이 없으면 Object 위에 껍데기를 세운다
+            huskClass = dots(name);
+            huskParent = dots(superName);
+            huskWhy = why;
+            // 상위 shim 이 없거나 final 이면(shim 에는 바닐라와 달리 final 인 클래스가 있다 — 상속하면 IncompatibleClassChangeError) Object 위에 껍데기를 세운다
+            if (!symbols.hasClass(superName) || symbols.isFinal(superName)) superName = "java/lang/Object";
         }
         if (interfaces != null) {
             List<String> kept = new ArrayList<>(interfaces.length);
             for (String itf : interfaces) {
                 if (!own.contains(itf) && NmsSymbols.isNms(itf) && !symbols.hasClass(itf)) {
                     if (isInterface) throw refusal(name, itf, NmsGrades.reason(itf));
-                    if (husk == null) husk = refusal(name, itf, NmsGrades.reason(itf), true);
+                    if (husk == null) {
+                        husk = refusal(name, itf, NmsGrades.reason(itf), true);
+                        huskClass = dots(name);
+                        huskParent = dots(itf);
+                        huskWhy = NmsGrades.reason(itf);
+                    }
                 } else {
                     kept.add(itf);
                 }
@@ -100,29 +110,31 @@ final class NmsLinker extends ClassVisitor {
      * 것을 막는다). 정적 멤버는 그대로다. 인터페이스는 지금처럼 정의를 거부한다.
      */
     private UnsupportedNmsCall husk;
+    private String huskClass;
+    private String huskParent;
+    private String huskWhy;
 
     private static final java.util.Set<String> REFUSAL_WARNED = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     private UnsupportedNmsCall refusal(String cls, String parent, String why) { return refusal(cls, parent, why, false); }
 
     private UnsupportedNmsCall refusal(String cls, String parent, String why, boolean asHusk) {
-        String target = "상속 " + dots(cls) + " → " + dots(parent);
+        String target = "extends " + dots(cls) + " -> " + dots(parent);
         // 정의 거부는 LinkageError 가 아니라 JVM 이 실패를 기억하지 않는다 — 다시 가리킬 때마다 오므로 WARN 은 (플러그인, 클래스)당 한 번
         var log = org.slf4j.LoggerFactory.getLogger("Furnace");
         if (NmsCompatReport.otherVersion(cls)) {
             // 다른 버전용 모듈(예: FAWE 의 v1_21_4·v26_1 어댑터)은 1.21.1 에서 쓰이지 않는다 — 버전 고르기가 차례로 찔러 보는 것이라 경고하지 않는다
             // (Paper 1.21.1 에서도 그 클래스는 링크에 실패한다). 시작 보고서도 이 클래스들을 "다른 버전"으로 빼고 센다.
-            log.debug("플러그인 {}: 다른 버전 모듈 클래스 {} 정의 거부 — {} 상속", plugin, dots(cls), dots(parent));
+            log.debug("Plugin {}: other-version module class {} definition refused - extends {}", plugin, dots(cls), dots(parent));
+        } else if (asHusk) {
+            // 껍데기는 정의할 때 알릴 일이 없다(실패한 것이 없고 가리키기만 하는 코드는 돈다) — 실제로 만들려 할 때 처음 한 번 WARN(NmsTrap.husk)
+            log.debug("Plugin {}: class {} is defined as a husk (extends {})", plugin, dots(cls), dots(parent));
         } else if (REFUSAL_WARNED.add(plugin + '\0' + cls)) {
-            if (asHusk) {
-                log.warn("플러그인 {}: 클래스 {} 는 껍데기로만 정의한다(만들면 UnsupportedNmsCall) — {} 를 상속한다: {}", plugin, dots(cls), dots(parent), why);
-            } else {
-                log.warn("플러그인 {}: 클래스 {} 를 정의하지 않는다 — {} 를 상속한다: {}", plugin, dots(cls), dots(parent), why);
-            }
+            log.warn(CompatLang.t("compat.nms-class-inherits", plugin, dots(cls), dots(parent), why));
         } else {
-            log.debug("플러그인 {}: 클래스 {} 정의 거부(다시)", plugin, dots(cls));
+            log.debug("Plugin {}: class {} definition refused (again)", plugin, dots(cls));
         }
-        return new UnsupportedNmsCall(target, why + " (플러그인=" + plugin + ")");
+        return new UnsupportedNmsCall(target, why + " (plugin=" + plugin + ")");
     }
 
     /** 시험용. */
@@ -135,14 +147,20 @@ final class NmsLinker extends ClassVisitor {
                 MethodVisitor out = super.visitMethod(access, name, descriptor, null, null);
                 if (out == null) return null;
                 String message = husk.getMessage();
+                String hClass = huskClass, hParent = huskParent, hWhy = huskWhy;
                 return new MethodVisitor(Opcodes.ASM9) {
                     @Override
                     public void visitEnd() {
                         out.visitCode();
+                        out.visitLdcInsn(plugin);
+                        out.visitLdcInsn(hClass);
+                        out.visitLdcInsn(hParent);
+                        out.visitLdcInsn(hWhy);
                         out.visitLdcInsn(message);
-                        out.visitMethodInsn(Opcodes.INVOKESTATIC, "org/domi/furnace/compat/nms/NmsTrap", "husk", "(Ljava/lang/String;)Ljava/lang/RuntimeException;", false);
+                        out.visitMethodInsn(Opcodes.INVOKESTATIC, "org/domi/furnace/compat/nms/NmsTrap", "husk",
+                                "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/RuntimeException;", false);
                         out.visitInsn(Opcodes.ATHROW);
-                        out.visitMaxs(1, Type.getArgumentsAndReturnSizes(descriptor) >> 2);
+                        out.visitMaxs(5, Type.getArgumentsAndReturnSizes(descriptor) >> 2);
                         out.visitEnd();
                     }
                 };

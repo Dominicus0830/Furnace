@@ -48,7 +48,7 @@ public record ProfilePublicKey(Data data) {
                 PublicKey key = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(keyBytes));
                 return new Data(expires, key, sig);
             } catch (Exception e) {
-                throw new ProtocolException("잘못된 공개키");
+                throw new ProtocolException("invalid public key");
             }
         }
 
@@ -63,7 +63,7 @@ public record ProfilePublicKey(Data data) {
 
         private static byte[] readBytes(ByteBuf buf, int max) {
             int n = Types.readVarInt(buf);
-            if (n < 0 || n > max || n > buf.readableBytes()) throw new ProtocolException("바이트 배열 길이 오류: " + n);
+            if (n < 0 || n > max || n > buf.readableBytes()) throw new ProtocolException("bad byte array length: " + n);
             byte[] b = new byte[n];
             buf.readBytes(b);
             return b;

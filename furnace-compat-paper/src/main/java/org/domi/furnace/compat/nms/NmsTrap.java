@@ -1,5 +1,6 @@
 package org.domi.furnace.compat.nms;
 
+import org.domi.furnace.compat.i18n.CompatLang;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
@@ -14,6 +15,7 @@ public final class NmsTrap {
 
     private static final Logger LOG = LoggerFactory.getLogger("Furnace");
     private static final Set<String> WARNED = ConcurrentHashMap.newKeySet();
+    private static final Set<String> HUSK_WARNED = ConcurrentHashMap.newKeySet();
 
     private NmsTrap() {}
 
@@ -28,14 +30,14 @@ public final class NmsTrap {
      */
     public static void call(String plugin, String site, String target, String why, int kind) {
         Error e = UnsupportedNmsLink.of(kind, target,
-                "Furnace NMS shim 에 없다: " + target + " — " + why + " (플러그인=" + plugin + ", 호출 위치=" + site + ")");
+                "Not in the Furnace NMS shim: " + target + " - " + why + " (plugin=" + plugin + ", call site=" + site + ")");
         if (otherVersionSite(site)) {
             // 다른 버전용 모듈(버전 고르기가 찔러 보는 v1_21_9·v26_1 어댑터 등) 안의 호출은 1.21.1 몫이 아니다 — 같은 대상의 1.21.1 몫 경고는 남겨 둔다
-            LOG.debug("미지원 NMS 호출(다른 버전 모듈): 플러그인={}, 호출 위치={}, 대상={}", plugin, site, target);
+            LOG.debug("Unsupported NMS call (other version module): plugin={}, call site={}, target={}", plugin, site, target);
         } else if (WARNED.add(plugin + '\0' + target)) {
-            LOG.warn("미지원 NMS 호출: 플러그인={}, 호출 위치={}, 대상={} — {} (같은 대상의 다음 호출은 DEBUG)", plugin, site, target, why);
+            LOG.warn(CompatLang.t("compat.nms-unsupported-call", plugin, site, target, why));
         } else {
-            LOG.debug("미지원 NMS 호출: 플러그인={}, 호출 위치={}, 대상={}", plugin, site, target);
+            LOG.debug("Unsupported NMS call: plugin={}, call site={}, target={}", plugin, site, target);
         }
         throw e;
     }
@@ -47,8 +49,18 @@ public final class NmsTrap {
         return NmsCompatReport.otherVersion((hash < 0 ? site : site.substring(0, hash)).replace('.', '/'));
     }
 
-    /** 껍데기 클래스(NMS 를 상속해 정의만 한 플러그인 클래스 — NmsLinker)의 생성자: 정의 거부 때와 같은 문구의 UnsupportedNmsCall. */
-    public static RuntimeException husk(String message) { return new UnsupportedNmsCall("껍데기 생성", message); }
+    /**
+     * 껍데기 클래스(NMS 를 상속해 정의만 한 플러그인 클래스 — NmsLinker)의 생성자: 정의 거부 때와 같은 문구의 UnsupportedNmsCall.
+     * 실제로 만들려 할 때 (플러그인, 클래스)당 처음 한 번만 WARN 을 남긴다(정의할 때는 실패한 것이 없어 알리지 않는다).
+     */
+    public static RuntimeException husk(String plugin, String cls, String parent, String why, String message) {
+        if (HUSK_WARNED.add(plugin + '\0' + cls)) {
+            LOG.warn(CompatLang.t("compat.nms-class-husk", plugin, cls, parent, why));
+        } else {
+            LOG.debug("Plugin {}: husk class {} constructed again", plugin, cls);
+        }
+        return new UnsupportedNmsCall("husk construction", message);
+    }
 
     /** 없는 클래스로의 {@code checkcast}: JVM 처럼 null 은 클래스를 찾지 않고 통과한다(호출 뒤에 aconst_null 이 결과 자리를 채운다). */
     public static void castNull(Object value, String plugin, String site, String target, String why) {
@@ -62,5 +74,5 @@ public final class NmsTrap {
     }
 
     /** 시험용: 경고 기록을 지운다. */
-    public static void resetWarnings() { WARNED.clear(); }
+    public static void resetWarnings() { WARNED.clear(); HUSK_WARNED.clear(); }
 }

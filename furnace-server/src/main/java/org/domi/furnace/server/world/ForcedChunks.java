@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,7 +51,7 @@ public final class ForcedChunks {
             NbtCompound data = root.contains("data") ? root.getCompound("data") : root;
             if (data.tags().get("Forced") instanceof long[] forced) for (long k : forced) chunks.add(k);
         } catch (IOException | RuntimeException e) {
-            LOG.warn("chunks.dat 읽기 실패 — 강제 로드 청크 없이 시작", e);
+            LOG.warn(Lang.t("forced.read-failed"), e);
         }
     }
 
@@ -91,7 +92,7 @@ public final class ForcedChunks {
                 Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
             } catch (IOException e) {
                 dirty = true;
-                LOG.error("chunks.dat 저장 실패", e);
+                LOG.error(Lang.t("forced.save-failed"), e);
             }
         }
     }
