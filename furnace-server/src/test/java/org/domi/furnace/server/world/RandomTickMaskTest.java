@@ -97,7 +97,7 @@ class RandomTickMaskTest {
             case 1 -> col.setGeneratedBlock(x, y, z, state(r, true));
             case 2 -> {   // 배열을 받아 구역에 직접 쓰는 바깥 경로(얼린 구역에는 운영 코드도 직접 쓰지 않는다 — 단언)
                 ChunkSection cs = col.sections()[r.nextInt(secs)];
-                if (!cs.lightFrozen) cs.setBlock(x, r.nextInt(16), z, state(r, true));
+                if (!cs.lightFrozen()) cs.setBlock(x, r.nextInt(16), z, state(r, true));
             }
             case 3 -> col.loadSectionBlocks(r.nextInt(secs), flat(r));
             case 4 -> {

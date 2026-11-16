@@ -841,6 +841,7 @@ public abstract class ChunkLevel implements BlockLevel {
             other.drainLight();
         }
         if (other.lightEngine != null && other.lightEngine.hasWork()) other.lightEngine.moveChecksTo(lightEngine(), p -> true);
+        if (other.lightEngine != null) other.lightEngine.moveHeldTo(lightEngine(), p -> true);   // 붙잡힌 검사(T-197)도 함께
         for (var e : other.lightChanges.entrySet()) {
             long[] m = lightChanges.computeIfAbsent(e.getKey(), k -> new long[2]);
             m[0] |= e.getValue()[0];
@@ -900,6 +901,10 @@ public abstract class ChunkLevel implements BlockLevel {
         assert lightBatch == null : "빛 작업이 남은 채 나눔";
         if (lightEngine != null && lightEngine.hasWork()) {
             lightEngine.moveChecksTo(target.lightEngine(),
+                    p -> inTarget.test(org.domi.furnace.server.light.LightEngine.px(p) >> 4, org.domi.furnace.server.light.LightEngine.pz(p) >> 4));
+        }
+        if (lightEngine != null) {
+            lightEngine.moveHeldTo(target.lightEngine(),
                     p -> inTarget.test(org.domi.furnace.server.light.LightEngine.px(p) >> 4, org.domi.furnace.server.light.LightEngine.pz(p) >> 4));
         }
         var lit = lightChanges.entrySet().iterator();
@@ -1002,6 +1007,33 @@ public abstract class ChunkLevel implements BlockLevel {
             // 바닐라 ChunkHolder.sectionLightChanged: 빛이 바뀐 청크는 저장 대상(setUnsaved). 디스크 빛을 읽으므로(T-012) 바뀐 빛도 써야 한다
             if (col.markLightDirty()) markDirty(sx, sz);
         }
+    }
+
+    /** 빛 다시 계산(T-197)의 전 섹션 빛 갱신을 그 청크를 받은 플레이어 모두에게(Paper getPlayers(false)). 기본은 버린다. */
+    protected void broadcastFullLightToChunk(int chunkX, int chunkZ, Packet packet) {}
+
+    /** 빛 다시 계산의 검사 붙잡기 판정(세계 단위). 기본은 없음. */
+    protected org.domi.furnace.server.light.LevelLight.Hold relightHold() { return null; }
+
+    /**
+     * 빛 다시 계산(T-197) 결과를 끼운다 — 주인 스레드. fresh 는 얼린 블록으로 그 청크와 둘레 1칸을 빈 빛에서 계산한 그 청크의 빛(다른 데서 안 쓴다).
+     * 층을 갈아 끼우고, 하늘빛 원천은 지금 블록에서 센 값으로 둔다 — 얼린 뒤 그 청크가 바뀌지 않았으면(freezeStamp == 지금 내용 판 번호) 계산한 값을 그대로,
+     * 아니면 다시 센다(얼린 뒤 바뀐 칸의 검사는 붙잡혀 있다가 풀린 뒤 이 위에서 계산된다). 바닐라 sectionLightChanged 처럼 저장 대상으로 두고,
+     * Paper 처럼 그 청크를 받은 모두에게 전 섹션 빛 갱신을 보낸다.
+     */
+    public void installRelight(int cx, int cz, org.domi.furnace.server.light.ChunkLight fresh, long freezeStamp) {
+        ChunkColumn col = chunk(cx, cz);
+        if (col == null || col.light() == null) return;
+        awaitLightIdle();   // 빛 작업 모드: 보이는 빛은 묶음이 쉴 때만 고친다(T-064)
+        col.light().adoptLayersFrom(fresh);
+        if (col.modCount() == freezeStamp) col.light().adoptSourcesFrom(fresh);   // 블록이 계산 때 그대로(빛 작업 게시도 판 번호를 올려 다시 세는 쪽으로 간다)
+        else lightEngine().recomputeSources(cx, cz);
+        col.lightTouched();
+        if (col.markLightDirty()) markDirty(cx, cz);
+        int lightBase = (minBuildHeight() >> 4) - 1 - org.domi.furnace.server.light.ChunkLight.MIN_SECTION;
+        int count = ((maxBuildHeight() - minBuildHeight()) >> 4) + 2;
+        long all = count >= 64 ? -1L : (1L << count) - 1;
+        broadcastFullLightToChunk(cx, cz, org.domi.furnace.server.net.protocol.play.LightUpdate.of(cx, cz, col.light(), hasSkyLight() ? all : 0L, all, lightBase, count));
     }
 
     /** 빛 갱신 패킷을 그 청크를 보는 플레이어 중 시야 가장자리인 사람에게(바닐라 getPlayers(pos, true)). 기본은 버린다. */
@@ -2196,6 +2228,7 @@ public abstract class ChunkLevel implements BlockLevel {
         if (lightEngine == null) {
             lightEngine = new org.domi.furnace.server.light.LevelLight(lightWorld, hasSkyLight());
             if (asyncLight()) lightEngine.deferSources(true);   // 빛 작업 모드: 원천 높이는 빛 작업이 고친다
+            lightEngine.hold(relightHold());   // 빛 다시 계산(T-197) 중인 둘레의 검사는 끼운 뒤로 붙잡는다
         }
         return lightEngine;
     }
@@ -2365,6 +2398,9 @@ public abstract class ChunkLevel implements BlockLevel {
     private final java.util.ArrayList<ChunkColumn.LightBlocks> lightFrozen = new java.util.ArrayList<>();
     private final java.util.HashSet<Long> lightBatchChunks = new java.util.HashSet<>();
 
+    /** 빛 작업 묶음이 아직 계산 중인가(끝났지만 게시 전이면 false — 게시는 기다림 없이 된다). 주인 스레드. */
+    public boolean lightBatchRunning() { return lightBatch != null && !lightBatchDone.isDone(); }
+
     /** 빛 작업 모드인가(빛 계산 풀이 있는가). */
     public boolean asyncLight() { return services().lightExecutor() != null; }
 
@@ -2401,6 +2437,7 @@ public abstract class ChunkLevel implements BlockLevel {
      * 계산한다 — 옛 빛이 디스크에 굳지 않게(바닐라는 기다리지 않아 굳을 수 있다 — 그 결함은 따르지 않는다). 끈 동안은 아무것도 안 한다.
      */
     public void settleLightForSave(int cx, int cz) {
+        markHeldLightStale(cx, cz);
         if (lightBatch == null && (lightEngine == null || !lightEngine.hasWork())) return;
         if (!asyncLight()) return;
         boolean near = lightBatch != null && lightBatchChunks.contains((long) cx << 32 | (cz & 0xFFFFFFFFL));
@@ -2415,6 +2452,39 @@ public abstract class ChunkLevel implements BlockLevel {
         if (near) drainLight();
     }
 
+    /**
+     * 저장 전: 빛 다시 계산(T-197) 때문에 붙잡힌 검사가 그 청크의 체비셰프 1 안에 있으면, 그 검사가 풀릴 때 바뀔 빛(그 청크 또는 이웃이 번진 빛)이
+     * 아직 옛 값이다 — 저장 빛을 믿지 않게 표시해 다음에 올릴 때 다시 계산한다(T-012 안전장치, 검토 R1). 계속 로드돼 있으면 풀린 검사가 고친 빛이
+     * 다음 저장에 써진다.
+     */
+    private void markHeldLightStale(int cx, int cz) {
+        if (lightEngine == null) return;
+        // 통에는 방금 풀렸지만 아직 안 돈 검사도 있다 — 꺼내기 전에 본다(꺼내면 보통 밀린 검사가 되어 빛 작업 끔에서는 저장 전에 안 돈다, 검토 F4)
+        boolean near = lightEngine.heldNear(cx, cz);
+        lightEngine.applyHold();
+        if (near || lightEngine.heldNear(cx, cz)) lightStale().mark(cx, cz);
+    }
+
+    /**
+     * 빛 다시 계산이 새로 붙잡기 전에: 곧 붙잡힐 자리(inArea, 묶은 칸 좌표)에 밀린 검사(앞 relight 가 풀어 둔 것 포함)가 있을 때만 그 검사를 먼저
+     * 돌린다 — 같은 자리를 곧바로 다시 붙잡아 그 근처 빛 갱신이 끝없이 밀리지 않게(검토 R4). 빛 작업 끔이면 틱 끝 일을 당겨 그 자리에서, 켬이면
+     * 빛 작업 한 묶음으로 넘긴다(region 스레드에서 밀린 일 전부를 계산하지 않게, 검토 F2). 넘긴 묶음은 설치 전 {@link #awaitLightIdle} 로 게시된다.
+     * 켬에서 아직 안 끝난 묶음이 돌고 있으면 기다리지 않고 false — 부른 쪽이 다음 틱에 다시 한다(wait 이면 기다린다). 주인 스레드.
+     */
+    public boolean settleChecksBeforeHold(java.util.function.LongPredicate inArea, boolean wait) {
+        if (lightEngine == null) return true;
+        lightEngine.applyHold();
+        if (!lightEngine.anyCheck(inArea)) return true;
+        if (!asyncLight()) {
+            runLightUpdates();
+            return true;
+        }
+        if (!wait && lightBatchRunning()) return false;
+        awaitLightIdle();   // 끝난 묶음 게시(wait 가 아니면 기다림 없음)
+        if (lightEngine.hasWork()) dispatchLight();
+        return true;
+    }
+
     /** 밀린 일을 한 묶음으로 빛 스레드에 넘긴다(도는 묶음이 없을 때만). */
     private void dispatchLight() {
         var executor = services().lightExecutor();
@@ -2422,6 +2492,7 @@ public abstract class ChunkLevel implements BlockLevel {
         long[][] seedPos = {new long[64]};
         int[] seedCount = {0};
         java.util.LinkedHashSet<Long> seeds = new java.util.LinkedHashSet<>();
+        lightEngine.applyHold();   // 빛 다시 계산 중인 둘레의 검사는 넘기지 않는다(T-197)
         lightEngine.forEachPendingPos(p -> {
             if (seedCount[0] == seedPos[0].length) seedPos[0] = java.util.Arrays.copyOf(seedPos[0], seedCount[0] * 2);
             seedPos[0][seedCount[0]++] = p;

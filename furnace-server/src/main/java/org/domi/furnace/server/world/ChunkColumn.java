@@ -435,7 +435,7 @@ public final class ChunkColumn {
         if (sharedSections != null && sharedSections[i]) {
             replaceSection(i, sections[i].copy());
             sharedSections[i] = false;
-        } else if (sections[i].lightFrozen) {
+        } else if (sections[i].lightFrozen()) {
             replaceSection(i, sections[i].copy());   // 빛 작업이 옛 객체를 읽는 중 — 복사본에 쓴다(복사본은 얼지 않았다)
         }
         return sections[i];
@@ -498,7 +498,7 @@ public final class ChunkColumn {
      */
     public LightBlocks freezeForLight() {
         ChunkSection[] secs = sections.clone();
-        for (ChunkSection cs : secs) cs.lightFrozen = true;
+        for (ChunkSection cs : secs) cs.freezeLight();
         return new LightBlocks(secs, minY);
     }
 
@@ -532,8 +532,8 @@ public final class ChunkColumn {
             return i < 0 || i >= secs.length || secs[i].onlyAirExact();   // 월드 높이 밖 구역은 없다(void_air) — computeSources 는 묻지 않는다
         }
 
-        /** 빛 작업이 끝났다 — 넘긴 객체를 녹인다(아직 컬럼에 남아 있는 것은 다시 그 자리에서 고칠 수 있다). 주인 스레드에서. */
-        public void thaw() { for (ChunkSection cs : secs) cs.lightFrozen = false; }
+        /** 빛 계산이 끝났다 — 넘긴 객체를 녹인다(다른 계산이 얼리지 않았고 아직 컬럼에 남아 있으면 다시 그 자리에서 고칠 수 있다). 한 번만, 아무 스레드. */
+        public void thaw() { for (ChunkSection cs : secs) cs.thawLight(); }
     }
 
     private void ownAllSections() {
