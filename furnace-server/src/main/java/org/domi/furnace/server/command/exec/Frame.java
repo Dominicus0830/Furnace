@@ -2,7 +2,9 @@
 package org.domi.furnace.server.command.exec;
 
 import java.util.concurrent.CompletableFuture;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.execution.Frame")
 public record Frame(int depth, ResultCallback returnValueConsumer, FrameControl frameControl) {
 
     @FunctionalInterface

@@ -1,6 +1,7 @@
 // 바닐라 Mth.sin/cos 룩업 테이블 포팅 — carver 경로 계산에 비트정확 삼각함수 사용
 package org.domi.furnace.server.world.gen.carver;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.util.Mth")
 public final class Mth {
 
     private static final float[] SIN;

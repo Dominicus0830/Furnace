@@ -23,7 +23,9 @@ import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 import org.domi.furnace.server.net.protocol.play.ParticleOptions;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.arguments.ParticleArgument")
 public final class ParticleArgument implements ArgumentType<ParticleOptions> {
 
     private static final List<String> EXAMPLES = List.of("foo", "foo:bar", "particle{foo:bar}");

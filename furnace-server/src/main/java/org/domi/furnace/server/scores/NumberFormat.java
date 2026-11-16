@@ -8,7 +8,9 @@ import org.domi.furnace.api.text.Style;
 import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.network.chat.numbers.NumberFormat")
 public sealed interface NumberFormat {
 
     /** 바닐라 format(점수). */

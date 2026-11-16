@@ -9,6 +9,7 @@ import org.domi.furnace.server.world.gen.feature.FeatureWorldView;
 import org.domi.furnace.server.world.gen.feature.TreeConfig;
 import org.domi.furnace.server.world.gen.feature.TreeFeature;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.trunkplacers.ForkingTrunkPlacer")
 public final class ForkingTrunkPlacer extends TrunkPlacer {
     public ForkingTrunkPlacer(int baseHeight, int heightRandA, int heightRandB) {
         super(baseHeight, heightRandA, heightRandB);

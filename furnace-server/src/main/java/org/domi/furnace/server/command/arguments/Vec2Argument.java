@@ -14,7 +14,9 @@ import org.domi.furnace.server.command.brigadier.StringReader;
 import org.domi.furnace.server.command.brigadier.Suggestions;
 import org.domi.furnace.server.command.brigadier.SuggestionsBuilder;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.arguments.coordinates.Vec2Argument")
 public record Vec2Argument(boolean centerCorrect) implements ArgumentType<WorldCoordinates> {
 
     /** 바닐라 net.minecraft.world.phys.Vec2(float 두 개). */

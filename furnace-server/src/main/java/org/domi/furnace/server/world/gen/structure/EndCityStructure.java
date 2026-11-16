@@ -10,6 +10,7 @@ import org.domi.furnace.server.world.gen.structure.template.BlockStateTable;
 import org.domi.furnace.server.world.gen.structure.template.PlaceSettings;
 import org.domi.furnace.server.world.gen.structure.template.Processors;
 
+@org.domi.furnace.server.VanillaPort({"net.minecraft.world.level.levelgen.structure.structures.EndCityStructure", "net.minecraft.world.level.levelgen.structure.structures.EndCityPieces"})
 public final class EndCityStructure extends StructureType {
 
     /** 바닐라 EndCityPieces.MAX_GEN_DEPTH */

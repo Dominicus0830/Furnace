@@ -17,7 +17,9 @@ import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.ContextChain;
 import org.domi.furnace.server.command.brigadier.DynamicCommandExceptionType;
 import org.domi.furnace.server.command.brigadier.RedirectModifier;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.execution.tasks.BuildContexts")
 public class BuildContexts {
 
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(BuildContexts.class);

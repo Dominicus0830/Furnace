@@ -5,7 +5,9 @@ package org.domi.furnace.server.scores;
 import org.domi.furnace.api.text.Text;
 import org.domi.furnace.api.text.serializer.JsonTextSerializer;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.scores.Score")
 public final class Score {
 
     int value;

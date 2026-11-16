@@ -5,6 +5,7 @@ package org.domi.furnace.server.world;
 import java.util.Collection;
 import org.domi.furnace.server.entity.Player;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.server.players.SleepStatus")
 public final class SleepStatus {
 
     private int activePlayers;

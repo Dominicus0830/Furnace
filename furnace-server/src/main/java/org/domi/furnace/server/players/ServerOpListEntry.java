@@ -2,7 +2,9 @@
 package org.domi.furnace.server.players;
 
 import com.google.gson.JsonObject;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.players.ServerOpListEntry")
 public final class ServerOpListEntry extends StoredUserEntry<GameProfile> {
 
     private final int level;

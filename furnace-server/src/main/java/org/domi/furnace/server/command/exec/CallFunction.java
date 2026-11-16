@@ -6,7 +6,9 @@ import java.util.List;
 import org.domi.furnace.api.event.server.FunctionExecuteEvent;
 import org.domi.furnace.server.command.CommandSource;
 import org.domi.furnace.server.function.CommandFunction;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.execution.tasks.CallFunction")
 public final class CallFunction implements UnboundEntryAction {
 
     private final CommandFunction function;

@@ -11,7 +11,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("com.mojang.brigadier.CommandDispatcher")
 public class CommandDispatcher<S> {
 
     public static final String ARGUMENT_SEPARATOR = " ";

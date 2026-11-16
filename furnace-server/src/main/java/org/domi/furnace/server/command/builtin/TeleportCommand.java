@@ -22,7 +22,9 @@ import org.domi.furnace.server.command.brigadier.CommandDispatcher;
 import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
 import org.domi.furnace.server.entity.Rider;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.TeleportCommand")
 public final class TeleportCommand {
     private TeleportCommand() { }
 

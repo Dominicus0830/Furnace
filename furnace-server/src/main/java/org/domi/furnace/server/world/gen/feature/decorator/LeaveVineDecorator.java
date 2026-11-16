@@ -6,6 +6,7 @@ import org.domi.furnace.server.world.gen.feature.TreeFeature;
 // vanilla LeaveVineDecorator 포팅 — 방향 순서는 vanilla 하드코딩 그대로 WEST, EAST, NORTH, SOUTH
 // (RNG draw가 방향별로 소비되므로 순서가 결과에 직결). 매달림 길이도 vanilla와 동일하게 시작 + 최대 4
 // (총 5칸). 이전 구현은 HORIZONTAL_DIRECTIONS(S,W,N,E) 순회 + 최대 4칸이라 어긋났다(mega-tree-placers task 수정).
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.treedecorators.LeaveVineDecorator")
 public record LeaveVineDecorator(float probability) implements TreeDecorator {
     private static final TreeFeature.Direction[] VANILLA_ORDER = {
         TreeFeature.Direction.WEST, TreeFeature.Direction.EAST, TreeFeature.Direction.NORTH, TreeFeature.Direction.SOUTH

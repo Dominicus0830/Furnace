@@ -11,6 +11,7 @@ import org.domi.furnace.server.world.gen.structure.template.BlockStateTable;
 import org.domi.furnace.server.world.gen.structure.template.PlaceSettings;
 import org.domi.furnace.server.world.gen.structure.template.Processors;
 
+@org.domi.furnace.server.VanillaPort({"net.minecraft.world.level.levelgen.structure.structures.WoodlandMansionStructure", "net.minecraft.world.level.levelgen.structure.structures.WoodlandMansionPieces"})
 public final class WoodlandMansionStructure extends StructureType {
 
     public WoodlandMansionStructure(StructureRegistry.Def def) {}

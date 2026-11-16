@@ -1,6 +1,7 @@
 // 바닐라 GameType. id 순서·이름이 프로토콜과 server.properties·level.dat 에 그대로 쓰인다.
 package org.domi.furnace.server.world;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.GameType")
 public enum GameMode {
     SURVIVAL(0, "survival"), CREATIVE(1, "creative"), ADVENTURE(2, "adventure"), SPECTATOR(3, "spectator");
 

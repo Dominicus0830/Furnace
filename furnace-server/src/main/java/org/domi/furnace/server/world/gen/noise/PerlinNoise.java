@@ -10,6 +10,7 @@ import java.util.stream.IntStream;
  * useNewFactory=true: NormalNoise 경로 (forkPositional -> fromHashOf).
  * useNewFactory=false: BlendedNoise 레거시 경로 (순차 new ImprovedNoise(random)).
  */
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.synth.PerlinNoise")
 public final class PerlinNoise {
 
     private final ImprovedNoise[] noiseLevels;

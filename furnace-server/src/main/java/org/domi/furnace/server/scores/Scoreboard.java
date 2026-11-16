@@ -20,7 +20,9 @@ import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.scores.Scoreboard")
 public class Scoreboard {
 
     private static final Logger LOG = LoggerFactory.getLogger("Scoreboard");

@@ -10,6 +10,7 @@ import org.domi.furnace.server.world.gen.feature.BlockPos;
 import org.domi.furnace.server.world.gen.feature.TreeFeature;
 import org.domi.furnace.server.world.gen.feature.TreeIntProvider;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.treedecorators.AttachedToLeavesDecorator")
 public final class AttachedToLeavesDecorator implements TreeDecorator {
     private final float probability;
     private final int exclusionRadiusXZ;

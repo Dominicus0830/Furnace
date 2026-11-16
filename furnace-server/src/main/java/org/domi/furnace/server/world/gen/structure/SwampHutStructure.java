@@ -4,6 +4,7 @@ package org.domi.furnace.server.world.gen.structure;
 import java.util.Optional;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort({"net.minecraft.world.level.levelgen.structure.structures.SwampHutStructure", "net.minecraft.world.level.levelgen.structure.structures.SwampHutPiece"})
 public final class SwampHutStructure extends StructureType {
 
     public SwampHutStructure(StructureRegistry.Def def) {}

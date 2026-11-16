@@ -9,7 +9,9 @@ import java.util.Map;
 import java.util.Set;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtList;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.entity.ai.attributes.AttributeMap")
 public final class AttributeMap {
     private final Map<Attribute, AttributeInstance> instances = new LinkedHashMap<>();
     /** 같은 인스턴스를 속성 번호로(틱마다 많이 부르는 value/get 을 해시 없이). 인스턴스는 빼지 않는다. */

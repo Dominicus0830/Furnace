@@ -5,7 +5,9 @@ import org.domi.furnace.server.block.entity.LecternBlockEntity;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.world.LecternContainer;
 import org.domi.furnace.server.world.MenuBlockContext;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.inventory.LecternMenu")
 public class LecternMenu extends AbstractContainerMenu {
 
     private final int[] blockPos;

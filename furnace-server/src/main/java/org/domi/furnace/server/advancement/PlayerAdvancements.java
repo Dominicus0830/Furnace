@@ -31,7 +31,9 @@ import org.domi.furnace.server.loot.LootContext;
 import org.domi.furnace.server.loot.LootRegistries;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.PlayerAdvancements")
 public final class PlayerAdvancements {
 
     private static final Logger log = LoggerFactory.getLogger(PlayerAdvancements.class);

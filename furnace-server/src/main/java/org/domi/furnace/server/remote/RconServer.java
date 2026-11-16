@@ -17,7 +17,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.server.rcon.thread.RconThread", "net.minecraft.server.rcon.thread.RconClient"})
 public final class RconServer implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(RconServer.class);

@@ -1,6 +1,7 @@
 // Xoroshiro128++ 코어(바닐라 net.minecraft.world.level.levelgen.Xoroshiro128PlusPlus)
 package org.domi.furnace.server.world.gen.noise;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.Xoroshiro128PlusPlus")
 public final class Xoroshiro128PlusPlus {
     private long seedLo, seedHi;
     public Xoroshiro128PlusPlus(long seedLo, long seedHi) {

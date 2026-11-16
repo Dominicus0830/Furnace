@@ -10,6 +10,7 @@ import org.domi.furnace.server.world.gen.structure.template.PlaceSettings;
 import org.domi.furnace.server.world.gen.structure.template.Processors;
 import org.domi.furnace.server.world.gen.structure.template.StructureTemplate;
 
+@org.domi.furnace.server.VanillaPort({"net.minecraft.world.level.levelgen.structure.structures.OceanRuinStructure", "net.minecraft.world.level.levelgen.structure.structures.OceanRuinPieces"})
 public final class OceanRuinStructure extends StructureType {
 
     private final boolean cold;

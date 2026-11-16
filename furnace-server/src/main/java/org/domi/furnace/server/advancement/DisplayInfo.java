@@ -2,7 +2,9 @@
 package org.domi.furnace.server.advancement;
 
 import com.google.gson.JsonElement;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.advancements.DisplayInfo")
 public final class DisplayInfo {
 
     public enum Frame {

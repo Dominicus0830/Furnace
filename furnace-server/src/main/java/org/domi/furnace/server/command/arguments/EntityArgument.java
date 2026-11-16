@@ -13,7 +13,9 @@ import org.domi.furnace.server.command.brigadier.StringReader;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.entity.Rider;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.arguments.EntityArgument")
 public final class EntityArgument implements ArgumentType<EntitySelector> {
 
     public static final SimpleCommandExceptionType ERROR_NOT_SINGLE_ENTITY = new SimpleCommandExceptionType(Text.translatable("argument.entity.toomany"));

@@ -8,7 +8,9 @@ import java.util.Map;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.item.ItemStackCodecs;
 import org.domi.furnace.server.item.ItemTools;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.item.component.BundleContents")
 public final class BundleContents {
 
     public static final String KEY = "minecraft:bundle_contents";

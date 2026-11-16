@@ -21,7 +21,9 @@ import org.domi.furnace.server.data.ResourceManager;
 import org.domi.furnace.server.loot.LootRegistries;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.server.ServerAdvancementManager", "net.minecraft.advancements.AdvancementTree"})
 public final class AdvancementManager {
 
     private static final Logger log = LoggerFactory.getLogger(AdvancementManager.class);

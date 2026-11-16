@@ -4,6 +4,7 @@ import java.util.List;
 import org.domi.furnace.server.world.gen.carver.RandomTrace;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.RandomSelectorFeature")
 public record RandomSelectorFeature(List<Entry> features, PlacedFeature defaultFeature) implements ConfiguredFeature {
     @Override
     public boolean place(FeatureWorldView view, WorldgenRandom random, int x, int y, int z) {

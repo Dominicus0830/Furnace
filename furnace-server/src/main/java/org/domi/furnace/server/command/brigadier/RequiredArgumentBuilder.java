@@ -1,5 +1,8 @@
 package org.domi.furnace.server.command.brigadier;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("com.mojang.brigadier.builder.RequiredArgumentBuilder")
 public class RequiredArgumentBuilder<S, T> extends ArgumentBuilder<S, RequiredArgumentBuilder<S, T>> {
 
     private final String name;

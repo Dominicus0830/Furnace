@@ -1,5 +1,6 @@
 package org.domi.furnace.server.world.gen.feature;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.core.BlockPos")
 public record BlockPos(int x, int y, int z) {
 
     @Override

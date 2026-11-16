@@ -3,6 +3,7 @@ package org.domi.furnace.server.world.gen.feature;
 
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.stateproviders.SimpleStateProvider")
 public final class SimpleStateProvider implements StateProvider {
 
     private final int stateId;

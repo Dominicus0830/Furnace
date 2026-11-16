@@ -1,7 +1,9 @@
 package org.domi.furnace.server.command.brigadier;
 
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("com.mojang.brigadier.exceptions.Dynamic3CommandExceptionType")
 public final class Dynamic3CommandExceptionType {
 
     @FunctionalInterface

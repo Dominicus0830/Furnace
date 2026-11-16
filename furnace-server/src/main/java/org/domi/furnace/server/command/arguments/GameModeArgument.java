@@ -16,7 +16,9 @@ import org.domi.furnace.server.command.brigadier.SuggestionsBuilder;
 import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.command.brigadier.DynamicCommandExceptionType;
 import org.domi.furnace.server.world.GameMode;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.arguments.GameModeArgument")
 public final class GameModeArgument implements ArgumentType<GameMode> {
 
     private static final List<String> EXAMPLES = List.of("survival", "creative");

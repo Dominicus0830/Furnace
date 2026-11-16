@@ -11,7 +11,9 @@ import org.domi.furnace.server.entity.PlayerInventory;
 import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.net.protocol.play.MapItemData;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.world.item.MapItem", "net.minecraft.world.item.EmptyMapItem"})
 public final class MapItems {
     private MapItems() { }
 

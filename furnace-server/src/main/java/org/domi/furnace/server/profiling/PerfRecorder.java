@@ -27,7 +27,9 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.PerfCommand")
 public final class PerfRecorder {
 
     private static final Logger log = LoggerFactory.getLogger(PerfRecorder.class);

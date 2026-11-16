@@ -25,7 +25,9 @@ import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtTags;
 import org.domi.furnace.server.world.RegionLevel;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.server.commands.SetBlockCommand", "net.minecraft.server.commands.FillCommand"})
 public final class BlockCommands {
 
     private BlockCommands() {}

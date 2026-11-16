@@ -22,7 +22,9 @@ import org.domi.furnace.server.world.gen.structure.StructureRegistry;
 import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.LocateCommand")
 public final class LocateCommand {
     private LocateCommand() { }
 

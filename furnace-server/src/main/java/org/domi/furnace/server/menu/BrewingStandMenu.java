@@ -6,7 +6,9 @@ import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.item.PotionBrewing;
 import org.domi.furnace.server.world.BlockEntityContainer;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.inventory.BrewingStandMenu")
 public class BrewingStandMenu extends ContainerBackedMenu {
 
     public static final int BOTTLE_SLOT_START = 0, BOTTLE_SLOT_END = 2, INGREDIENT_SLOT = 3, FUEL_SLOT = 4, SLOT_COUNT = 5,

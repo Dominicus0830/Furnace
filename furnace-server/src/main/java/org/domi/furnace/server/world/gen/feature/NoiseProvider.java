@@ -11,6 +11,7 @@ import org.domi.furnace.server.world.gen.noise.LegacyNormalNoise;
  *   d = clamp((1.0 + noiseValue) / 2.0, 0.0, 0.9999)
  *   return states[(int)(d * states.length)]
  */
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.stateproviders.NoiseProvider")
 public final class NoiseProvider implements StateProvider {
 
     final LegacyNormalNoise noise;

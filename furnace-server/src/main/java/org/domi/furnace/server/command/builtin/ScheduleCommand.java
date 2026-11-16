@@ -19,7 +19,9 @@ import org.domi.furnace.server.command.brigadier.DynamicCommandExceptionType;
 import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
 import org.domi.furnace.server.command.brigadier.SuggestionProvider;
 import org.domi.furnace.server.function.ScheduledEvents;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.ScheduleCommand")
 public final class ScheduleCommand {
     private ScheduleCommand() { }
 

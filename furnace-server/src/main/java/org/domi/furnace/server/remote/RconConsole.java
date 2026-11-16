@@ -7,7 +7,9 @@ import java.util.function.BooleanSupplier;
 import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.block.BlockCommandSink;
 import org.domi.furnace.server.entity.Rider;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.rcon.RconConsoleSource")
 public final class RconConsole implements BlockCommandSink {
 
     private final StringBuffer buffer = new StringBuffer();

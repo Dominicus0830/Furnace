@@ -3,6 +3,7 @@ package org.domi.furnace.server.world.gameevent;
 
 import org.domi.furnace.server.block.BlockActor;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.gameevent.GameEvent")
 public record GameEventContext(Object sourceEntity, int affectedState) {
 
     public static final GameEventContext EMPTY = new GameEventContext(null, -1);

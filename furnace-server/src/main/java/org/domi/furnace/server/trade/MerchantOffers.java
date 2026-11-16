@@ -3,7 +3,9 @@ package org.domi.furnace.server.trade;
 
 import java.util.ArrayList;
 import org.domi.furnace.server.entity.ItemStack;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.item.trading.MerchantOffers")
 public final class MerchantOffers extends ArrayList<MerchantOffer> {
 
     /** getRecipeFor(a, b, index): index 가 1..size-1 이면 그 거래가 맞을 때만, 아니면 처음으로 맞는 거래. */

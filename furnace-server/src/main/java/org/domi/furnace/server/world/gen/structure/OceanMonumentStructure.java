@@ -8,6 +8,7 @@ import java.util.Set;
 import org.domi.furnace.server.world.gen.carver.LegacyRandom;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort({"net.minecraft.world.level.levelgen.structure.structures.OceanMonumentStructure", "net.minecraft.world.level.levelgen.structure.structures.OceanMonumentPieces"})
 public final class OceanMonumentStructure extends StructureType {
 
     /** BiomeTags.REQUIRED_OCEAN_MONUMENT_SURROUNDING 해석 결과. */

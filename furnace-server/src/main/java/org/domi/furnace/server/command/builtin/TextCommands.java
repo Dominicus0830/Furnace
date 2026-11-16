@@ -21,7 +21,9 @@ import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.protocol.play.ClearTitles;
 import org.domi.furnace.server.net.protocol.play.TextOnlyPacket;
 import org.domi.furnace.server.net.protocol.play.TitleTimes;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.server.commands.TellRawCommand", "net.minecraft.server.commands.TitleCommand"})
 public final class TextCommands {
 
     private TextCommands() {}

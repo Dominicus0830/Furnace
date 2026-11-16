@@ -8,6 +8,7 @@ import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.chunk.storage.RegionFile")
 public final class RegionFile implements Closeable {
 
     private static final int SECTOR = 4096;

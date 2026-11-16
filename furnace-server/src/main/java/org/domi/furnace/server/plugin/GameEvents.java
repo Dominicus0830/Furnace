@@ -332,6 +332,9 @@ public interface GameEvents {
     /** 플레이어가 엔티티를 보기 시작한다(스폰 묶음을 보내기 바로 전, Paper PlayerTrackEntityEvent 자리). 엔티티 소유 region 스레드에서. */
     default void playerTrackEntity(Player viewer, Entity e) {}
 
+    /** 관찰자에게 플레이어가 다시 보이게 됐다(Paper trackAndShowEntity 의 PlayerShowEntityEvent — 지금은 프로필 교체의 재등록). 관찰자 region 스레드에서. */
+    default void playerShowPlayer(Player viewer, Player shown) {}
+
     /** 탈것에서 내리기 직전(cancellable 이 false 면 취소해도 소용없다 — 호출한 쪽이 반환값을 무시한다). false 면 취소. */
     default boolean entityDismount(org.domi.furnace.server.entity.Rider rider, Entity vehicle, boolean cancellable) { return true; }
 

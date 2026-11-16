@@ -10,7 +10,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import org.domi.furnace.server.entity.ItemStack;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.inventory.AbstractContainerMenu")
 public abstract class AbstractContainerMenu {
 
     public static final int SLOT_CLICKED_OUTSIDE = -999;

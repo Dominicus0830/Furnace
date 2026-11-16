@@ -5,6 +5,7 @@ package org.domi.furnace.server.world;
  * 시야 16 에서 1021청크(정사각 33×33 = 1089 가 아님). 축 방향으로는 시야 + 1 칸까지 간다(둘레 테두리 포함).
  * 보낼 청크 집합·내릴 청크 집합·전송 직전 시야 확인이 모두 이 판정 하나를 쓴다.
  */
+@org.domi.furnace.server.VanillaPort("net.minecraft.server.level.ChunkTrackingView")
 public final class ChunkTrackingView {
     private ChunkTrackingView() {}
 

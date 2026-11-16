@@ -1,6 +1,9 @@
 // 바닐라 AttributeModifier: id·양·연산(0 add_value, 1 add_multiplied_base, 2 add_multiplied_total).
 package org.domi.furnace.server.attribute;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("net.minecraft.world.entity.ai.attributes.AttributeModifier")
 public record AttributeModifier(String id, double amount, int operation) {
     public static final int ADD_VALUE = 0, ADD_MULTIPLIED_BASE = 1, ADD_MULTIPLIED_TOTAL = 2;
 

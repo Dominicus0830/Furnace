@@ -14,6 +14,7 @@ import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@VanillaPort("net.minecraft.CrashReport")
 public final class CrashReport {
 
     private static final Logger log = LoggerFactory.getLogger("Furnace");

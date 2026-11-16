@@ -5,7 +5,9 @@ package org.domi.furnace.server.light;
 import org.domi.furnace.server.world.StateIds;
 import java.util.ArrayList;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.level.ThreadedLevelLightEngine")
 public final class LightBatch implements LightWorld {
 
     /** 이 묶음이 아는 청크 하나: 블록 읽기 사본, 보이는 빛, 그 쓰기 사본. */

@@ -4,7 +4,9 @@ package org.domi.furnace.server.menu;
 
 import java.util.Optional;
 import org.domi.furnace.server.entity.ItemStack;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.inventory.Slot")
 public class Slot {
 
     public final Container container;

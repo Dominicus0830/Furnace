@@ -7,7 +7,9 @@ import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.io.nbt.NbtWriter;
 import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.net.registry.RegistrySet;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.network.chat.ChatType")
 public enum ChatType {
     CHAT("chat", "chat.type.text", Param.SENDER_CONTENT, false),
     SAY_COMMAND("say_command", "chat.type.announcement", Param.SENDER_CONTENT, false),

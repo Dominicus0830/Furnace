@@ -3,7 +3,9 @@ package org.domi.furnace.server.scores;
 
 import org.domi.furnace.api.text.HoverEvent;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.scores.Objective")
 public final class Objective {
 
     private final Scoreboard scoreboard;

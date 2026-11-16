@@ -6,6 +6,7 @@ package org.domi.furnace.server.world.gen.noise;
  * 두 개의 PerlinNoise (first, second) 를 합산 후 valueFactor 로 스케일.
  * INPUT_FACTOR = 1.0181268882175227, valueFactor = 0.16666... / expectedDeviation(span).
  */
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.synth.NormalNoise")
 public final class NormalNoise {
 
     private static final double INPUT_FACTOR = 1.0181268882175227;

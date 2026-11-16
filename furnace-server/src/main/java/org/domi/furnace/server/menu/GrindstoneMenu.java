@@ -6,7 +6,9 @@ import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.item.EnchantTools;
 import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.item.ItemTools;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.inventory.GrindstoneMenu")
 public class GrindstoneMenu extends AbstractContainerMenu {
 
     public static final int INPUT_SLOT = 0, ADDITIONAL_SLOT = 1, RESULT_SLOT = 2, INV_SLOT_START = 3, INV_SLOT_END = 30,

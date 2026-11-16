@@ -8,6 +8,7 @@ import org.domi.furnace.server.world.gen.feature.TreeConfig;
 
 // vanilla GiantTrunkPlacer 포팅 (거대 가문비나무 등). 2x2 몸통 — origin 아래 2x2에 흙, 각 층마다
 // (0,0)은 항상, 맨 위 층 제외하고 (1,0)/(1,1)/(0,1)도 심어 정사각 단면을 만든다.
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.trunkplacers.GiantTrunkPlacer")
 public class GiantTrunkPlacer extends TrunkPlacer {
     public GiantTrunkPlacer(int baseHeight, int heightRandA, int heightRandB) {
         super(baseHeight, heightRandA, heightRandB);

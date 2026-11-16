@@ -13,7 +13,9 @@ import org.domi.furnace.server.command.brigadier.CommandDispatcher;
 import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
 import org.domi.furnace.server.profiling.PerfRecorder;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.PerfCommand")
 public final class PerfCommand {
     private PerfCommand() { }
 

@@ -20,6 +20,7 @@ import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@VanillaPort({"net.minecraft.server.MinecraftServer", "net.minecraft.server.dedicated.DedicatedServer"})
 public final class ServerCore {
 
     private static final Logger log = LoggerFactory.getLogger("Server");

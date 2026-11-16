@@ -10,6 +10,12 @@ public interface Player extends HumanEntity, org.bukkit.conversations.Conversabl
     @Override
     com.destroystokyo.paper.profile.PlayerProfile getPlayerProfile();
 
+    /**
+     * 프로필을 바꾼다(Paper setPlayerProfile): getUniqueId(엔티티 UUID)는 그대로, getName·탭 이름·스킨이 새 값이 된다. 다른 플레이어에게는
+     * 탭·엔티티를 지웠다 다시 올리고 본인은 같은 차원으로 리스폰해 갱신한다. PlayerJoinEvent 안에서 부르면 프로필만 바뀐다.
+     */
+    void setPlayerProfile(com.destroystokyo.paper.profile.PlayerProfile profile);
+
     /** 채팅 서식 %1$s 에 쓰는 이름 — 정하지 않았으면 플레이어 이름 그대로(Paper·Spigot 과 같다, 바닐라 팀 서식은 붙지 않는다). */
     String getDisplayName();
 

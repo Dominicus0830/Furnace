@@ -5,7 +5,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("com.mojang.brigadier.suggestion.SuggestionsBuilder")
 public class SuggestionsBuilder {
 
     private final String input;

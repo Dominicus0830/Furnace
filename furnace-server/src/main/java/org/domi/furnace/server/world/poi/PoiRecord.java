@@ -3,6 +3,7 @@ package org.domi.furnace.server.world.poi;
 
 import org.domi.furnace.server.block.Pos;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.village.poi.PoiRecord")
 public final class PoiRecord {
     private final Pos pos;
     private final PoiType type;

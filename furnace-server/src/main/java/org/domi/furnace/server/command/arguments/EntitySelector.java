@@ -15,7 +15,9 @@ import org.domi.furnace.server.entity.Entity;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.entity.Rider;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.arguments.selector.EntitySelector")
 public final class EntitySelector {
 
     public static final SimpleCommandExceptionType NO_ENTITIES_FOUND = new SimpleCommandExceptionType(Text.translatable("argument.entity.notfound.entity"));

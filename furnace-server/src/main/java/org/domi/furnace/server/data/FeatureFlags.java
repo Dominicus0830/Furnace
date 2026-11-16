@@ -5,7 +5,9 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.flag.FeatureFlags")
 public final class FeatureFlags {
 
     public static final String VANILLA = "minecraft:vanilla", BUNDLE = "minecraft:bundle", TRADE_REBALANCE = "minecraft:trade_rebalance";

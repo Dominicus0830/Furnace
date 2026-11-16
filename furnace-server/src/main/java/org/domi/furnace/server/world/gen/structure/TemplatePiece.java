@@ -10,6 +10,7 @@ import org.domi.furnace.server.world.gen.structure.template.StructureTemplate;
 import org.domi.furnace.server.world.gen.structure.template.StructureTemplate.BlockInfo;
 import org.domi.furnace.server.world.gen.structure.template.TemplatePlacer;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.structure.TemplateStructurePiece")
 public abstract class TemplatePiece extends StructurePiece {
 
     protected final String templateName;

@@ -24,7 +24,9 @@ import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.api.text.Text;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.Commands")
 public final class Commands {
 
     private static final Logger log = LoggerFactory.getLogger(Commands.class);

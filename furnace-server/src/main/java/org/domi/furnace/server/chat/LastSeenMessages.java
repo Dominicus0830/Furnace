@@ -7,7 +7,9 @@ import java.security.SignatureException;
 import java.util.BitSet;
 import java.util.List;
 import org.domi.furnace.server.net.io.Types;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.network.chat.LastSeenMessages")
 public record LastSeenMessages(List<MessageSignature> entries) {
 
     public static final LastSeenMessages EMPTY = new LastSeenMessages(List.of());

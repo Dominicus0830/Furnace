@@ -6,6 +6,7 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.entity.Vec3;
 import org.domi.furnace.server.world.ChunkColumn;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.gameevent.DynamicGameEventListener")
 public final class DynamicGameEventListener<T extends GameEventListener> {
 
     private final T listener;

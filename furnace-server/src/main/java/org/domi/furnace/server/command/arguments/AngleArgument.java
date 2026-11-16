@@ -14,7 +14,9 @@ import org.domi.furnace.server.command.brigadier.StringReader;
 import org.domi.furnace.server.command.brigadier.Suggestions;
 import org.domi.furnace.server.command.brigadier.SuggestionsBuilder;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.arguments.AngleArgument")
 public final class AngleArgument implements ArgumentType<AngleArgument.SingleAngle> {
 
     private static final List<String> EXAMPLES = List.of("0", "~", "~-5");

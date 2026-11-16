@@ -5,6 +5,7 @@ import org.domi.furnace.server.i18n.Lang;
 import java.io.IOException;
 import java.nio.file.Path;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.chunk.storage.RegionFileStorage")
 public final class RegionFileStore {
 
     private final Path regionDir;

@@ -4,7 +4,9 @@ package org.domi.furnace.server.command;
 import org.domi.furnace.server.command.brigadier.CommandDispatcher;
 import org.domi.furnace.server.command.builtin.PlayerListCommands;
 import org.domi.furnace.server.command.builtin.ServerCommands;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.Commands")
 final class BuiltinCommands {
 
     private BuiltinCommands() {}

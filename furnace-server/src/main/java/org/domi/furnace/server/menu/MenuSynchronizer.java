@@ -3,7 +3,9 @@ package org.domi.furnace.server.menu;
 
 import java.util.List;
 import org.domi.furnace.server.entity.ItemStack;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.inventory.ContainerSynchronizer")
 public interface MenuSynchronizer {
 
     void sendInitialData(AbstractContainerMenu menu, List<ItemStack> items, ItemStack carried, int[] dataSlots);

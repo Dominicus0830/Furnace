@@ -1,6 +1,9 @@
 // 바닐라 Mth.sin/cos — 65536칸 사인 표(명령 로컬 좌표 계산이 바닐라와 같은 값이 나오게).
 package org.domi.furnace.server.command.arguments;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("net.minecraft.util.Mth")
 final class MthTrig {
 
     private static final float[] SIN = new float[65536];

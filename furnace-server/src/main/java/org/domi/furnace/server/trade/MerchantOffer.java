@@ -3,7 +3,9 @@ package org.domi.furnace.server.trade;
 
 import java.util.Optional;
 import org.domi.furnace.server.entity.ItemStack;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.item.trading.MerchantOffer")
 public final class MerchantOffer {
 
     private final ItemCost baseCostA;

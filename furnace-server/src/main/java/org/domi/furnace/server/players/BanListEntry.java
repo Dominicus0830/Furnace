@@ -6,7 +6,9 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.players.BanListEntry")
 public abstract class BanListEntry<T> extends StoredUserEntry<T> {
 
     public static final String EXPIRES_NEVER = "forever";

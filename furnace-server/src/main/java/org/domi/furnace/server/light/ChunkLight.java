@@ -5,7 +5,9 @@
 package org.domi.furnace.server.light;
 
 import java.util.Arrays;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.level.chunk.DataLayer")
 public final class ChunkLight {
     public static final int MIN_SECTION = -5, SECTIONS = 26;
     public static final int MIN_Y = MIN_SECTION * 16;                 // -80

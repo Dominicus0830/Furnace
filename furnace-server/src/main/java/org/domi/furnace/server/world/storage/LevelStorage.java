@@ -14,6 +14,7 @@ import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.storage.LevelStorageSource")
 public final class LevelStorage implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(LevelStorage.class);

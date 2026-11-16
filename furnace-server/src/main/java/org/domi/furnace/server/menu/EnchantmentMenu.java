@@ -11,7 +11,9 @@ import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.loot.Enchantments;
 import org.domi.furnace.server.loot.LegacyNoiseRandom;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.inventory.EnchantmentMenu")
 public class EnchantmentMenu extends AbstractContainerMenu {
 
     public static final int ITEM_SLOT = 0, LAPIS_SLOT = 1;

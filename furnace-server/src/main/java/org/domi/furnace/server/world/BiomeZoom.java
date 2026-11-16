@@ -2,6 +2,7 @@
 // (SurfaceSystem·FeatureWorldView 와 같은 알고리즘. 게임플레이의 바이옴 질의 — 위치 조건 등 — 는 이 값을 쓴다.)
 package org.domi.furnace.server.world;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.biome.BiomeManager")
 public final class BiomeZoom {
     private BiomeZoom() {}
 

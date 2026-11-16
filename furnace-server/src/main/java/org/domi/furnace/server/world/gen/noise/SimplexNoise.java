@@ -3,6 +3,7 @@ package org.domi.furnace.server.world.gen.noise;
 
 import org.domi.furnace.server.world.gen.carver.LegacyRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.synth.SimplexNoise")
 public final class SimplexNoise {
 
     private static final int[][] GRADIENT = {

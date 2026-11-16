@@ -68,7 +68,9 @@ import org.domi.furnace.server.world.gen.structure.template.Processors;
 import org.domi.furnace.server.world.gen.structure.template.StructureTemplate;
 import org.domi.furnace.server.world.gen.structure.template.TemplateManager;
 import org.domi.furnace.server.world.gen.structure.template.TemplatePlacer;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.PlaceCommand")
 public final class PlaceCommand {
 
     private PlaceCommand() {}

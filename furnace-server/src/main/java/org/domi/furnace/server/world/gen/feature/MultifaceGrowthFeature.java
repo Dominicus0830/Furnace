@@ -3,6 +3,7 @@ package org.domi.furnace.server.world.gen.feature;
 
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.MultifaceGrowthFeature")
 public final class MultifaceGrowthFeature implements ConfiguredFeature {
 
     private static final int DOWN = 0, UP = 1, NORTH = 2, SOUTH = 3, WEST = 4, EAST = 5;

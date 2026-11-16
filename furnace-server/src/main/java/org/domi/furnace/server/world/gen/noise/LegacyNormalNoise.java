@@ -13,6 +13,7 @@ import org.domi.furnace.server.world.gen.carver.LegacyRandom;
  * 시드한다 (LegacyRandomSource.java:71-74). Xoroshiro 경로(MD5 기반)와 시드가 완전히 달라 Furnace 기존
  * NormalNoise 는 재사용 불가. noise 산술은 검증된 {@link ImprovedNoise} 를 재사용한다.
  */
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.synth.NormalNoise")
 public final class LegacyNormalNoise {
 
     private static final double INPUT_FACTOR = 1.0181268882175227;

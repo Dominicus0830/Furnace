@@ -16,7 +16,9 @@ import org.domi.furnace.server.command.brigadier.Arguments;
 import org.domi.furnace.server.command.brigadier.CommandDispatcher;
 import org.domi.furnace.server.world.TickState;
 import org.domi.furnace.server.world.World;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.TickCommand")
 public final class TickCommand {
     private TickCommand() { }
 

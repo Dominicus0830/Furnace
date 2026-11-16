@@ -7,7 +7,9 @@ import java.util.Optional;
 import org.domi.furnace.server.block.entity.CrafterBlockEntity;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.world.BlockEntityContainer;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.inventory.CrafterMenu")
 public class CrafterMenu extends ContainerBackedMenu implements MenuListener {
 
     public static final int RESULT_SLOT = 45;

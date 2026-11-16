@@ -32,7 +32,9 @@ import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.world.RegionLevel;
 import org.domi.furnace.server.world.World;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.CloneCommands")
 public final class CloneCommand {
     private CloneCommand() { }
 

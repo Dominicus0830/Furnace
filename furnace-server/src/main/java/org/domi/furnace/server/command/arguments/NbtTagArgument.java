@@ -8,7 +8,9 @@ import org.domi.furnace.server.command.brigadier.ArgumentType;
 import org.domi.furnace.server.command.brigadier.CommandContext;
 import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.StringReader;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.arguments.NbtTagArgument")
 public final class NbtTagArgument implements ArgumentType<NbtTagArgument.Tag> {
 
     /** 파싱된 태그(값 모형이 Object 라 꺼낼 때 종류를 구분하려고 감싼다). */

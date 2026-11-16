@@ -11,6 +11,7 @@ import org.domi.furnace.server.world.gen.noise.LegacyNormalNoise;
  *                     : (nextFloat() < highChance ? highStates[nextInt(size)] : defaultState)
  * Util.getRandom(list, r) = list.get(r.nextInt(list.size())).
  */
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.stateproviders.NoiseThresholdProvider")
 public final class NoiseThresholdProvider implements StateProvider {
 
     private final LegacyNormalNoise noise;

@@ -56,6 +56,7 @@ class ProfileSplitTest {
         core.plugins().close();
         sched.close();
         TestServers.drainIoPools();
+        org.domi.furnace.server.entity.view.EntityViewRules.clearForTest();   // 숨김 시험이 남긴 규칙을 지운다(#454 재검토 참고)
     }
 
     private Player awaitListed(UUID entity) throws InterruptedException {

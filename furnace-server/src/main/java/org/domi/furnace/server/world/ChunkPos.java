@@ -1,6 +1,7 @@
 // 청크 좌표(블록>>4). diff·로드셋 키로 쓰이는 value type.
 package org.domi.furnace.server.world;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.ChunkPos")
 public record ChunkPos(int x, int z) {
 
     /** 블록 절대좌표 → 청크 좌표. */

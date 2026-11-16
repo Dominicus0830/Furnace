@@ -6,6 +6,7 @@ import java.util.OptionalInt;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.UnderwaterMagmaFeature")
 public final class UnderwaterMagmaFeature implements ConfiguredFeature {
 
     private static final int WATER_MIN = StateIds.WATER_FIRST;

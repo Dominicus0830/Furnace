@@ -8,6 +8,7 @@ import org.domi.furnace.server.world.gen.structure.template.BlockStateTable;
 import org.domi.furnace.server.world.gen.structure.template.PlaceSettings;
 import org.domi.furnace.server.world.gen.structure.template.Processors;
 
+@org.domi.furnace.server.VanillaPort({"net.minecraft.world.level.levelgen.structure.structures.NetherFossilStructure", "net.minecraft.world.level.levelgen.structure.structures.NetherFossilPieces"})
 public final class NetherFossilStructure extends StructureType {
 
     /** NetherFossilPieces.FOSSILS — fossil_1..fossil_14 (순서가 난수 인덱스다). */

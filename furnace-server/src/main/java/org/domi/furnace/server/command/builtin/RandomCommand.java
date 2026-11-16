@@ -20,7 +20,9 @@ import org.domi.furnace.server.command.brigadier.RequiredArgumentBuilder;
 import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
 import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.world.gen.noise.NoiseRandom;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.RandomCommand")
 public final class RandomCommand {
     private RandomCommand() { }
 

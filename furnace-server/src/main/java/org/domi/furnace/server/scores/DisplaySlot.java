@@ -1,6 +1,9 @@
 // 바닐라 DisplaySlot — 점수판 표시 자리. id 는 set_display_objective 의 VarInt, key 는 명령·저장(DisplaySlots) 이름.
 package org.domi.furnace.server.scores;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("net.minecraft.world.scores.DisplaySlot")
 public enum DisplaySlot {
     LIST(0, "list"),
     SIDEBAR(1, "sidebar"),

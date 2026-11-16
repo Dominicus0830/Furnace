@@ -6,6 +6,7 @@ import java.util.stream.Stream;
 import org.domi.furnace.server.world.gen.carver.RandomTrace;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.placement.PlacedFeature")
 public record PlacedFeature(ConfiguredFeature feature, List<PlacementModifier> placement) {
 
     public boolean place(FeatureWorldView view, WorldgenRandom random, int blockX, int blockZ) {

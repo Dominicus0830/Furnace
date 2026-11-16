@@ -10,6 +10,7 @@ import org.domi.furnace.server.world.gen.feature.TreeConfig;
 
 // vanilla MegaJungleTrunkPlacer 포팅 (정글 거목). GiantTrunkPlacer의 2x2 몸통 위에 나선형으로
 // 퍼지는 가지를 추가로 심는다. Mth.sin/cos(vanilla 룩업 테이블)로 각도를 비트정확하게 계산.
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.trunkplacers.MegaJungleTrunkPlacer")
 public final class MegaJungleTrunkPlacer extends GiantTrunkPlacer {
     public MegaJungleTrunkPlacer(int baseHeight, int heightRandA, int heightRandB) {
         super(baseHeight, heightRandA, heightRandB);

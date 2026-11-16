@@ -12,7 +12,9 @@ import java.util.UUID;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.ProtocolException;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.entity.player.ProfilePublicKey")
 public record ProfilePublicKey(Data data) {
 
     public static final Text EXPIRED_PROFILE_PUBLIC_KEY = Text.translatable("multiplayer.disconnect.expired_public_key");

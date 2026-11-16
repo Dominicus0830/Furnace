@@ -6,6 +6,7 @@ import java.util.List;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 import org.domi.furnace.server.world.gen.feature.FeatureWorldView;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.structure.StructureStart")
 public final class StructureStart {
 
     private final String structureId;

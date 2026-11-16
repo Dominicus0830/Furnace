@@ -1,6 +1,9 @@
 // 바닐라 ChainModifiers(hn) — bit1 forked(as @e 같은 포크 수정자를 지났다), bit2 isReturn(/return run).
 package org.domi.furnace.server.command.exec;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("net.minecraft.commands.execution.ChainModifiers")
 public record ChainModifiers(byte flags) {
 
     public static final ChainModifiers DEFAULT = new ChainModifiers((byte) 0);

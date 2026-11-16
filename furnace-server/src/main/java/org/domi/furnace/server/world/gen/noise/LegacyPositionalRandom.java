@@ -4,6 +4,7 @@ package org.domi.furnace.server.world.gen.noise;
 import org.domi.furnace.server.world.gen.MathHelper;
 import org.domi.furnace.server.world.gen.carver.LegacyRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.LegacyRandomSource")
 public record LegacyPositionalRandom(long seed) implements PositionalRandom {
     @Override
     public LegacyRandom at(int x, int y, int z) { return new LegacyRandom(MathHelper.getSeed(x, y, z) ^ seed); }

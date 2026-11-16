@@ -18,7 +18,9 @@ import org.domi.furnace.server.loot.LootParams;
 import org.domi.furnace.server.loot.LootRegistries;
 import org.domi.furnace.server.loot.LootStack;
 import org.domi.furnace.server.loot.StateProperties;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.advancements.Criterion")
 public record Criterion(String trigger, Matcher matcher, List<LootCondition> player, InventoryKey inventoryKey) {
 
     /** 색인 키 없이(항상 후보) 만든다. */
