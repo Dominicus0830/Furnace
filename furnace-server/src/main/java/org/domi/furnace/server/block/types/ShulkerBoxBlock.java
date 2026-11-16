@@ -1,6 +1,7 @@
 // 바닐라 ShulkerBoxBlock: 클릭한 면 쪽을 보게 놓인다. 열기(뚜껑이 막히지 않으면)·내용물 보존 드롭은 블록 엔티티 동작.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.entity.ContainerBlockEntity;
 import org.domi.furnace.server.block.entity.BlockEntity;
 import org.domi.furnace.server.block.entity.ShulkerBoxBlockEntity;
@@ -14,6 +15,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.ShulkerBoxBlock")
 public class ShulkerBoxBlock extends BaseEntityBlock {
 
     private static final Prop FACING = B.prop("facing");

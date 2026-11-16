@@ -6,6 +6,7 @@ package org.domi.furnace.server.block.entity;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehaviors;
 import org.domi.furnace.server.block.BlockLevel;
@@ -21,6 +22,7 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 
+@VanillaPort("net.minecraft.world.level.block.entity.BeehiveBlockEntity")
 public class BeehiveBlockEntity extends BlockEntity {
 
     private static final Prop HONEY_LEVEL = B.prop("honey_level"), FACING = B.prop("facing");

@@ -1,11 +1,13 @@
 // 바닐라 CarpetBlock: 양탄자(이끼 양탄자 포함). 아래가 빈칸이 아니면 산다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.CarpetBlock")
 public class CarpetBlock extends BlockBehavior {
 
     public CarpetBlock(int block) { super(block); }

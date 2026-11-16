@@ -1,12 +1,14 @@
 // 바닐라 SporeBlossomBlock: 천장(위 칸 아랫면 가운데)에 매달리고, 물속에서는 못 산다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.SporeBlossomBlock")
 public class SporeBlossomBlock extends BlockBehavior {
 
     public SporeBlossomBlock(int block) { super(block); }

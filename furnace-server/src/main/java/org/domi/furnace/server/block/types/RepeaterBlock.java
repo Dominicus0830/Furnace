@@ -1,6 +1,7 @@
 // 바닐라 RepeaterBlock: 레드스톤 중계기. delay 1..4(틱 2배), 옆에서 켜진 다이오드가 들어오면 잠긴다(locked).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -11,6 +12,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.RepeaterBlock")
 public class RepeaterBlock extends DiodeBlock {
 
     static final Prop LOCKED = B.prop("locked"), DELAY = B.prop("delay");

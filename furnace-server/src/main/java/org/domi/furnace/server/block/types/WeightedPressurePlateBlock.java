@@ -1,11 +1,13 @@
 // 바닐라 WeightedPressurePlateBlock: 무게 압력판. 엔티티 수/최대 무게 비율로 0~15. 눌림 유지 10틱.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.WeightedPressurePlateBlock")
 public class WeightedPressurePlateBlock extends BasePressurePlateBlock {
 
     private static final Prop POWER = B.prop("power");

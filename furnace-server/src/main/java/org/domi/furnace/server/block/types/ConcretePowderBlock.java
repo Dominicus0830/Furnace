@@ -1,6 +1,7 @@
 // 바닐라 ConcretePowderBlock: 물에 닿으면(놓을 때·이웃이 바뀔 때·떨어져 내려앉을 때) 콘크리트가 된다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Blocks;
@@ -9,6 +10,7 @@ import org.domi.furnace.server.block.Fluids;
 import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.ConcretePowderBlock")
 public class ConcretePowderBlock extends FallingBlock {
 
     private final int concrete;

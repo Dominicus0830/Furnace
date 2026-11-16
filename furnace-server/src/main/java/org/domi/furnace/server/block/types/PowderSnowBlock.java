@@ -4,6 +4,7 @@
 // 양동이로 뜨기는 BucketPickup. 블록 동작은 그 밖에 없다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.CollisionContext;
 
 import org.domi.furnace.server.block.Shape;
@@ -20,6 +21,7 @@ import org.domi.furnace.server.entity.LivingEntity;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.entity.Rider;
 
+@VanillaPort("net.minecraft.world.level.block.PowderSnowBlock")
 public class PowderSnowBlock extends BlockBehavior {
 
     private static final Shape FALLING_COLLISION_SHAPE = new Shape(new double[] {0, 0, 0, 1, (double) 0.9F, 1});

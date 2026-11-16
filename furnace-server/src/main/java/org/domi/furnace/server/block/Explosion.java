@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.attribute.Attribute;
 import org.domi.furnace.server.entity.AABB;
 import org.domi.furnace.server.entity.Entity;
@@ -20,6 +21,7 @@ import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.entity.damage.DamageType;
 import org.domi.furnace.server.net.protocol.play.ExplodePacket;
 
+@VanillaPort("net.minecraft.world.level.Explosion")
 public final class Explosion {
     public enum BlockInteraction { KEEP, DESTROY, DESTROY_WITH_DECAY, TRIGGER_BLOCK }
 

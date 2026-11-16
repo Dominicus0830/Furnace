@@ -1,12 +1,14 @@
 // 바닐라 BarrierBlock: 보이지 않는 벽. 물에 잠길 수 있지만 크리에이티브 플레이어만 물을 뜨거나 넣는다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.BarrierBlock")
 public class BarrierBlock extends BlockBehavior {
 
     public BarrierBlock(int block) { super(block); }

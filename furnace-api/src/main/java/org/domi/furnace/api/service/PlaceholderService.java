@@ -1,4 +1,5 @@
-// 표준 서비스: 플레이스홀더 제공자(PlaceholderAPI 식). 확장(PlaceholderExpansion)은 이 서비스에 올리고, 소비자는 resolve 로 문자열을 푼다.
+// 표준 서비스인 플레이스홀더 제공자(PlaceholderAPI 식).
+// 확장(PlaceholderExpansion)은 이 서비스에 올리고, 소비자는 resolve 로 문자열을 푼다.
 package org.domi.furnace.api.service;
 
 import java.util.Set;

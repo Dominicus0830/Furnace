@@ -1,12 +1,14 @@
 // 바닐라 BaseTorchBlock: 아래 칸 윗면 가운데가 받쳐 줘야 산다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.BaseTorchBlock")
 public abstract class BaseTorchBlock extends BlockBehavior {
 
     protected BaseTorchBlock(int block) { super(block); }

@@ -1,6 +1,7 @@
 // 바닐라 SeaPickleBlock: 바다 피클. 같은 것을 들고 누르면 1→4 개로 늘고, 산호 블록 위 물속에서 뼛가루를 쓰면 둘레에 번진다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
@@ -9,6 +10,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.SeaPickleBlock")
 public class SeaPickleBlock extends BushBlock implements BonemealableBlock {
 
     static final Prop PICKLES = B.prop("pickles");

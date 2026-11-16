@@ -1,12 +1,14 @@
 // 바닐라 FungusBlock: 진홍·뒤틀린 균. 나일리움·균사체·영혼 흙·흙류 위. 자라는 땅(grows_on) 위에서 뼛가루 40% 로 거대 균.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Blocks;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.FungusBlock")
 public class FungusBlock extends BushBlock implements BonemealableBlock {
 
     private static final int MYCELIUM = B.id("mycelium"), SOUL_SOIL = B.id("soul_soil");

@@ -1,6 +1,7 @@
 // 바닐라 ChorusPlantBlock: 후렴 식물 줄기. 같은 줄기·후렴 꽃(아래는 엔드 돌도)으로 여섯 방향 연결. 받침이 없으면 다음 틱에 부서진다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -10,6 +11,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.ChorusPlantBlock")
 public class ChorusPlantBlock extends BlockBehavior {
 
     /** PipeBlock.PROPERTY_BY_DIRECTION. */

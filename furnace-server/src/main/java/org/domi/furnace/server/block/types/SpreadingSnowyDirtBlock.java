@@ -1,6 +1,7 @@
 // 바닐라 SpreadingSnowyDirtBlock: 퍼지는 흙(잔디·균사체). 위가 빛을 막으면 흙으로 돌아가고, 밝으면 둘레 흙으로 번진다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
@@ -9,6 +10,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.light.LightTables;
 
+@VanillaPort("net.minecraft.world.level.block.SpreadingSnowyDirtBlock")
 public abstract class SpreadingSnowyDirtBlock extends SnowyDirtBlock {
 
     private static final int SNOW = B.id("snow"), DIRT = B.id("dirt");

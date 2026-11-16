@@ -1,12 +1,14 @@
 // 바닐라 SculkCatalystBlock: 스컬크 촉매(bloom). 근처에서 몹이 죽으면 블록 엔티티가 스컬크를 퍼뜨리고 bloom 을 켠다(다음 예약 틱에 끔).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.SculkCatalystBlock")
 public class SculkCatalystBlock extends BaseEntityBlock {
 
     static final Prop PULSE = B.prop("bloom");

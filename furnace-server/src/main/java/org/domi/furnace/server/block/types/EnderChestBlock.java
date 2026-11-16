@@ -1,6 +1,7 @@
 // 바닐라 EnderChestBlock: 엔더 상자. 플레이어마다 따로인 엔더 인벤토리를 연다(위가 막히면 열지 않음).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -12,6 +13,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.EnderChestBlock")
 public class EnderChestBlock extends AbstractChestBlock {
 
     static final Prop FACING = B.prop("facing");

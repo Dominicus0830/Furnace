@@ -3,12 +3,14 @@
 // 용 머리 입 움직임 틱은 클라이언트 전용이라 없다.
 package org.domi.furnace.server.block.entity;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockBehaviors;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.types.AbstractSkullBlock;
 import org.domi.furnace.server.item.DataComponents;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort("net.minecraft.world.level.block.entity.SkullBlockEntity")
 public class SkullBlockEntity extends BlockEntity {
 
     /** ResolvableProfile 정규 값(없으면 null). */

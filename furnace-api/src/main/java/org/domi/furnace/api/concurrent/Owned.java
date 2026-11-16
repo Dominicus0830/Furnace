@@ -1,4 +1,4 @@
-// 특정 스레드가 소유한 값을 감싸 비소유 스레드의 직접 접근을 막는 래퍼
+// 특정 스레드가 소유한 값을 감싸서, 소유하지 않은 스레드의 직접 접근을 막는 래퍼.
 package org.domi.furnace.api.concurrent;
 
 public final class Owned<T> {
@@ -12,8 +12,9 @@ public final class Owned<T> {
     }
 
     /**
-     * 소유 스레드에서만 값 반환. 비소유 스레드 접근은 assertion 활성 빌드에서 AssertionError.
-     * (운영 빌드에서 assertion 비활성 시 가드는 비용 0으로 사라진다 — 디버그 전용 불변식.)
+     * 소유 스레드에서만 값을 돌려준다. 소유하지 않은 스레드가 접근하면 assertion 이 켜진 빌드에서 AssertionError 가 난다.
+     * <p>
+     * 운영 빌드에서 assertion 이 꺼지면 가드는 비용 0으로 사라진다. 디버그 전용 불변식이다.
      */
     public T get() {
         assert owner.isOwnerThread()

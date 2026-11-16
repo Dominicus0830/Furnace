@@ -1,20 +1,17 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// 이 Furnace 클래스가 이식한 바닐라 클래스 표시. 소스 전용(클래스 파일에 남지 않아 실행·크기 영향 0).
+// 버전업 때 "바뀐 바닐라 클래스 → 고칠 Furnace 파일"을 찾는 대응표의 원본이다. 대응표 생성: tools/vanilla-port/vanilla-port-map.py
 package org.domi.furnace.server;
 
+import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-/**
- * 이 Furnace 클래스가 옮겨 온 바닐라(Mojang 이름) 클래스. 버전업 때 "바뀐 바닐라 클래스 → 고칠 Furnace 파일" 을 찾는 대응표(V-06)의 원본이다.
- * 소스에서만 읽고(SOURCE) 클래스 파일에는 남지 않아 실행·크기에 영향이 없다. 값은 바닐라 클래스의 전체 이름이고, 안쪽 클래스는 {@code $} 로 잇는다.
- * 여러 바닐라 클래스를 합쳐 옮겼으면 값을 여러 개 쓴다. 바닐라에 없는 Furnace 전용 클래스에는 붙이지 않는다.
- * 대응표는 {@code python3 tools/ci/vanilla-port-map.py} 가 소스를 훑어 만든다(docs/roadmap/vanilla-port-map.md).
- */
+@Documented
 @Retention(RetentionPolicy.SOURCE)
-@Target({ElementType.TYPE})
+@Target(ElementType.TYPE)
 public @interface VanillaPort {
-    /** 바닐라 클래스 전체 이름(예: {@code net.minecraft.world.entity.animal.Fox}). */
+    /** 바닐라(Mojang 이름) 클래스의 전체 이름. 바깥 클래스 하나가 아니라 합친 경우 여러 개. 안쪽 클래스는 {@code Outer$Inner}. */
     String[] value();
 }

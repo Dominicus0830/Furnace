@@ -1,4 +1,4 @@
-// 레시피 재료 하나가 받아들이는 아이템 — 아이템 키 목록 또는 아이템 태그. 개수·컴포넌트는 보지 않는다(바닐라 1.21.1 Ingredient 와 같다).
+// 레시피 재료 하나가 받아들이는 아이템으로, 아이템 키 목록 또는 아이템 태그다. 개수·컴포넌트는 보지 않는다(바닐라 1.21.1 Ingredient 와 같다).
 package org.domi.furnace.api.recipe;
 
 import java.util.List;
@@ -24,7 +24,7 @@ public sealed interface RecipeChoice {
     }
 
     /**
-     * 여러 갈래 중 하나(아이템과 태그를 섞은 재료). 비어 있으면 "아무것도 없음" — 대장장이 작업대의 비워 둘 수 있는 칸에만 쓴다.
+     * 여러 갈래 중 하나(아이템과 태그를 섞은 재료). 비어 있으면 "아무것도 없음"이다. 대장장이 작업대의 비워 둘 수 있는 칸에만 쓴다.
      */
     record Any(List<RecipeChoice> choices) implements RecipeChoice {
         public Any {

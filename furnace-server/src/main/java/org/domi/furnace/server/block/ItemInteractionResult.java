@@ -1,6 +1,9 @@
 // 바닐라 ItemInteractionResult(블록에 아이템을 쓴 결과).
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("net.minecraft.world.ItemInteractionResult")
 public enum ItemInteractionResult {
     SUCCESS, CONSUME, CONSUME_PARTIAL, PASS_TO_DEFAULT_BLOCK_INTERACTION, SKIP_DEFAULT_BLOCK_INTERACTION, FAIL;
 

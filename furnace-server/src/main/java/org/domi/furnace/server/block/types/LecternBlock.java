@@ -1,6 +1,7 @@
 // 바닐라 LecternBlock: 책을 올려 두는 독서대. 책장을 넘기면 2틱 동안 신호(powered). 비교기는 쪽 번호에 따른 세기.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -15,6 +16,7 @@ import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort("net.minecraft.world.level.block.LecternBlock")
 public class LecternBlock extends BaseEntityBlock {
 
     static final Prop FACING = B.prop("facing"), POWERED = B.prop("powered"), HAS_BOOK = B.prop("has_book");

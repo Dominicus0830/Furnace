@@ -1,4 +1,11 @@
-// 권한을 가질 수 있는 대상(플레이어·콘솔). 확인 순서: 직접 부여(첨부) → 등록된 기본값 → 미등록이면 OP 만.
+// 권한을 가질 수 있는 대상(플레이어·콘솔).
+//
+// 확인 순서는 다음과 같다.
+//
+//   - 직접 부여(첨부)
+//   - 등록된 기본값
+//   - 미등록이면 OP 만
+//
 package org.domi.furnace.api.permission;
 
 import org.domi.furnace.api.plugin.FurnacePlugin;

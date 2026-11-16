@@ -1,12 +1,14 @@
 // 바닐라 WebBlock: 거미줄. 안에 든 엔티티를 느리게 한다(엔티티 동작뿐).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 
 import org.domi.furnace.server.block.BlockBehavior;
 
+@VanillaPort("net.minecraft.world.level.block.WebBlock")
 public class WebBlock extends BlockBehavior {
 
     public WebBlock(int block) { super(block); }

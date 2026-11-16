@@ -1,6 +1,7 @@
 // 바닐라 SweetBerryBushBlock: 나이 0~3. 다 자라면(2 이상) 따서 열매를 떨구고 나이 1로. 뼛가루로 자란다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -12,6 +13,7 @@ import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.SweetBerryBushBlock")
 public class SweetBerryBushBlock extends BushBlock implements BonemealableBlock {
 
     private static final Prop AGE = B.prop("age");

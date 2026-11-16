@@ -3,6 +3,7 @@
 // Furnace 차이: 생성은 이 칸 region 의 로드된 청크와 노이즈 월드 생성기(구조물 엔진)가 있는 월드에서만 한다.
 package org.domi.furnace.server.block.entity;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
@@ -15,6 +16,7 @@ import org.domi.furnace.server.world.RegionLevel;
 import org.domi.furnace.server.world.gen.NoiseWorldSource;
 import org.domi.furnace.server.world.gen.structure.JigsawGenerate;
 
+@VanillaPort("net.minecraft.world.level.block.entity.JigsawBlockEntity")
 public class JigsawBlockEntity extends BlockEntity {
 
     /** JigsawBlockEntity.JointType — 패킷에는 이름 문자열로 실린다. */

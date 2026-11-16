@@ -1,6 +1,7 @@
 // 바닐라 BellBlock: 종. 바닥·천장·한쪽 벽·양쪽 벽에 붙는다. 알맞은 면을 치거나 신호가 새로 들어오면 울린다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.Explosion;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
@@ -12,6 +13,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.BellBlock")
 public class BellBlock extends BaseEntityBlock {
 
     private static final Prop FACING = B.prop("facing"), ATTACHMENT = B.prop("attachment"), POWERED = B.prop("powered");
