@@ -300,9 +300,6 @@ public abstract class ChunkAccess implements BlockGetter {
     /** 다른 스레드가 얻어 아직 서버 객체에 묶이지 않은 보기(틱 끝 공개 때 {@link #furnaceBindViews} 가 훑는 것만 — 묶인 보기는 훑지 않는다). */
     private final java.util.Set<net.minecraft.world.level.block.entity.BlockEntity> furnaceUnboundViews = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
-    /** 보기를 기다려 읽을 때의 상한(초) — 다른 region 의 주인이 그 블록 엔티티를 저장해 줄 때까지. */
-    private static final long BLOCK_ENTITY_WAIT_SECONDS = 10;
-
     /**
      * 호환 모듈 전용 — 보기의 저장 꼴(saveWithFullMetadata, 새 트리). 주인 스레드면 바로(맞춘 뒤), 틱 스레드가 아닌 다른 스레드는 주인 region 에 부탁해 기다린다
      * (최대 10초). 다른 region·전역 스레드는 서로 기다리는 교착을 피하려고 ThreadOwnershipException(엔티티 찾기와 같은 규칙). 묶인 블록 엔티티가 지워졌으면
@@ -318,31 +315,16 @@ public abstract class ChunkAccess implements BlockGetter {
             if (h == null) throw new IllegalStateException("the chunk of this block entity was unloaded: " + p);
             return b.blockEntitySaveNow(h);
         }
-        if (furnaceOwner()) return furnaceSaveOwned(view);
-        if (org.domi.furnace.compat.thread.PrimaryThread.isPrimary() || org.domi.furnace.api.Furnace.server().scheduler().isTickThread()) {
-            throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("BlockEntity.save*: the block entity at " + p + " belongs to another region - a region or global"
-                    + " thread cannot wait for another region (deadlock); read it on its owning region (current thread: " + Thread.currentThread().getName() + ")");
-        }
-        // 기다리는 왕복 — 주인이 쉬고 있으면 다음 틱을 기다리지 않는다(T-198 실측: 타일마다 한 틱이면 상자 512개 //set 이 12초)
-        var f = b.submitAwaited(furnaceWorld, p.getX(), p.getY(), p.getZ(), () -> {
-            if (furnaceMirror.dead() || !furnaceOwner()) {
+        // 주인이면 바로, 틱 스레드가 아니면 기다리는 왕복(주인이 쉬고 있으면 다음 틱을 기다리지 않는다 — T-198 실측: 타일마다 한 틱이면 상자 512개 //set 이 12초),
+        // region·전역 스레드는 ThreadOwnershipException(NmsOwner — T-204 와 같은 문·예산)
+        return org.domi.furnace.compat.nms.NmsOwner.call(furnaceWorld, p.getX(), p.getY(), p.getZ(), "BlockEntity.save*", () -> {
+            if (furnaceMirror.dead() || !furnaceOwner()) {   // 보낸 사이 내렸거나 주인이 바뀌었다 — 묶인 객체의 내용
                 Object h = view.furnaceHandle();
                 if (h == null) throw new IllegalStateException("the chunk of this block entity was unloaded: " + p);
                 return b.blockEntitySaveNow(h);
             }
             return furnaceSaveOwned(view);
-        });
-        try {
-            return f.get(BLOCK_ENTITY_WAIT_SECONDS, java.util.concurrent.TimeUnit.SECONDS);
-        } catch (InterruptedException ie) {
-            Thread.currentThread().interrupt();
-            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("BlockEntity.save*", "interrupted while waiting for a block entity in another region: " + p);
-        } catch (java.util.concurrent.ExecutionException ex) {
-            if (ex.getCause() instanceof RuntimeException re) throw re;
-            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("BlockEntity.save*", "could not read the block entity on the owning region thread (" + p + "): " + ex.getCause());
-        } catch (java.util.concurrent.TimeoutException ex) {
-            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("BlockEntity.save*", "the owning region did not read the block entity within " + BLOCK_ENTITY_WAIT_SECONDS + " seconds (" + p + ")");
-        }
+        }, false);
     }
 
     private org.domi.furnace.api.nbt.NbtCompound furnaceSaveOwned(net.minecraft.world.level.block.entity.BlockEntity view) {

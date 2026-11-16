@@ -2143,6 +2143,34 @@ public final class Region {
         return col != null && col.entitiesLoaded() && naturalSpawningAllowed(cx, cz);   // 바닐라 amt: getFullStatus() == ENTITY_TICKING(시야 거리)
     }
 
+    /**
+     * 바닐라 ChunkHolder 의 FullChunkStatus(LevelChunk.getFullStatus): 티켓 레벨(가운데 레벨 + 체비셰프 거리) ≤ 31 이면 ENTITY_TICKING(3), 32 BLOCK_TICKING(2),
+     * 33 FULL(1), 그 밖 INACCESSIBLE(0). 티켓: 플레이어 시야(시야 안 모든 청크에 31), /forceload·플러그인 ticking(31), 플러그인 붙잡기(33),
+     * 포털·드래곤·순간 이동(33 − 거리), 스폰 청크. Paper(Moonrise)는 플레이어 티켓을 시뮬레이션 거리로 걸어 값이 다르다 — Furnace 는 실제로 청크를 돌리는
+     * 바닐라 값을 낸다(T-204 설계 4장). 이 region 스레드에서만.
+     */
+    public int fullChunkStatus(int cx, int cz) {
+        world.assertOwns(this);
+        if (naturalSpawningAllowed(cx, cz)) return 3;   // 레벨 ≤ 31: 강제·플러그인 ticking·포털 티켓 가운데, 시야 안 플레이어
+        int view = Math.clamp(world.viewDistance(), 2, 32);
+        if (ticking31Within(cx, cz, 1) || world.blockTicketed(cx, cz) || ticketPlayerWithin(cx, cz, view + 1)) return 2;
+        if (ticking31Within(cx, cz, 2) || world.pluginHeld(cx, cz) || world.timedTicketAlive(Regionizer.chunkKey(cx, cz))
+                || world.spawnTicketWithin(cx, cz, 0) || ticketPlayerWithin(cx, cz, view + 2)) return 1;
+        return 0;
+    }
+
+    /** 레벨 31 티켓(/forceload·플러그인 ticking)이 체비셰프 r 안에 있는가. */
+    private boolean ticking31Within(int cx, int cz, int r) {
+        var forced = world.forcedChunksOrNull();
+        boolean anyForced = forced != null && forced.size() > 0;
+        for (int dz = -r; dz <= r; dz++) {
+            for (int dx = -r; dx <= r; dx++) {
+                if (anyForced && forced.contains(cx + dx, cz + dz) || world.pluginTicking(cx + dx, cz + dz)) return true;
+            }
+        }
+        return false;
+    }
+
     private boolean closeToPlayer(int cx, int cz, int chunkRange) {
         double mx = cx * 16 + 8, mz = cz * 16 + 8;
         for (Player p : players.values()) {

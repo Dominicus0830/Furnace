@@ -10,8 +10,8 @@ import org.domi.furnace.compat.nms.NmsChunks;
 /**
  * 로드된 청크 shim(Mojang 이름, N2a): 서버 청크의 <b>보기</b>({@link ChunkAccess} 참고). {@code ServerLevel#getChunk} 등이 돌려준다.
  * 블록 쓰기 {@link #setBlockState} 는 바닐라처럼 그 칸만 바꾼다(이웃·모양 갱신, 클라이언트 알림, POI 없음 — 블록 자체의 놓기·치우기 반응, 블록 엔티티,
- * 빛, 하이트맵, 저장 표시는 바닐라대로). 블록 엔티티는 읽기·만들기(IMMEDIATE)·지우기가 있고(T-198 — 보기는 서버 블록 엔티티에 묶인다), 엔티티·틱 상태
- * (getFullStatus)는 아직 없다. 다른 스레드에서 읽으면 공개 스냅샷과 자기 쓰기(N2b-3·4), 다른 스레드의 쓰기는 거울 일지로 주인이 재생한다(N2b-4,
+ * 빛, 하이트맵, 저장 표시는 바닐라대로). 블록 엔티티는 읽기·만들기(IMMEDIATE)·지우기가 있고(T-198 — 보기는 서버 블록 엔티티에 묶인다), 틱 상태
+ * (getFullStatus)는 바닐라 티켓 값(T-204), 엔티티는 아직 없다. 다른 스레드에서 읽으면 공개 스냅샷과 자기 쓰기(N2b-3·4), 다른 스레드의 쓰기는 거울 일지로 주인이 재생한다(N2b-4,
  * {@link ChunkAccess} 참고). 청크가 내려가면 이 shim 의 섹션은 그 순간 내용으로 굳는다(바닐라: 떨어진 LevelChunk).
  */
 public class LevelChunk extends ChunkAccess {
@@ -95,6 +95,19 @@ public class LevelChunk extends ChunkAccess {
         }
         BlockState old = s.setBlockState(x & 15, y & 15, z & 15, state);
         return old == state ? null : old;
+    }
+
+    /**
+     * 바닐라 LevelChunk.getFullStatus: 청크 홀더의 단계(바닐라 티켓 레벨 — Paper 는 플레이어 티켓을 시뮬레이션 거리로 걸어 다를 수 있다, T-204 설계 4장).
+     * 내린 청크(이 로드가 끝난 보기)는 INACCESSIBLE. 주인 스레드면 바로, 틱 스레드가 아닌 스레드는 주인을 기다리고(최대 10초), 다른 region·전역 스레드는
+     * ThreadOwnershipException({@link org.domi.furnace.compat.nms.NmsOwner}).
+     */
+    public net.minecraft.server.level.FullChunkStatus getFullStatus() {
+        if (furnaceMirror.dead()) return net.minecraft.server.level.FullChunkStatus.INACCESSIBLE;
+        var p = getPos();
+        int s = org.domi.furnace.compat.nms.NmsOwner.call(furnaceWorld, p.getMinBlockX(), org.domi.furnace.compat.nms.NmsOwner.CHUNK_LEVEL, p.getMinBlockZ(), "LevelChunk#getFullStatus",
+                () -> NmsChunks.bridge().fullChunkStatusNow(furnaceWorld, p.x, p.z));
+        return net.minecraft.server.level.FullChunkStatus.furnaceOf(s);
     }
 
     // ------------------------------------------------------------------ 블록 엔티티(N2b-6 읽기, T-198 쓰기)
