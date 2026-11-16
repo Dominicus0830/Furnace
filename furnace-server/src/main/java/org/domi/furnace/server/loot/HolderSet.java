@@ -4,7 +4,9 @@ package org.domi.furnace.server.loot;
 import com.google.gson.JsonElement;
 import java.util.ArrayList;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.core.HolderSet")
 public record HolderSet(String registry, String tag, List<String> direct) {
 
     public static HolderSet parse(String registry, JsonElement e, LootRegistries regs) {

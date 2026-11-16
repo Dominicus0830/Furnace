@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.command.arguments.NbtPathArgument;
 import org.domi.furnace.server.command.arguments.TagParser;
 import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
@@ -20,6 +21,21 @@ import org.domi.furnace.server.net.io.nbt.NbtTags;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@VanillaPort({
+        "net.minecraft.world.level.storage.loot.functions.SetCustomDataFunction",
+        "net.minecraft.world.level.storage.loot.functions.CopyCustomDataFunction",
+        "net.minecraft.world.level.storage.loot.functions.SetAttributesFunction",
+        "net.minecraft.world.level.storage.loot.functions.SetContainerContents",
+        "net.minecraft.world.level.storage.loot.functions.ModifyContainerContents",
+        "net.minecraft.world.level.storage.loot.functions.SetContainerLootTable",
+        "net.minecraft.world.level.storage.loot.functions.SetLoreFunction",
+        "net.minecraft.world.level.storage.loot.functions.FillPlayerHead",
+        "net.minecraft.world.level.storage.loot.functions.SetBannerPatternFunction",
+        "net.minecraft.world.level.storage.loot.functions.SetFireworksFunction",
+        "net.minecraft.world.level.storage.loot.functions.SetFireworkExplosionFunction",
+        "net.minecraft.world.level.storage.loot.functions.SetBookCoverFunction",
+        "net.minecraft.world.level.storage.loot.functions.SetWrittenBookPagesFunction",
+        "net.minecraft.world.level.storage.loot.functions.SetWritableBookPagesFunction"})
 final class ItemFunctions {
     private ItemFunctions() {}
 

@@ -5,7 +5,11 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.List;
 import java.util.function.Predicate;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({
+        "net.minecraft.world.level.storage.loot.predicates.LootItemCondition",
+        "net.minecraft.world.level.storage.loot.predicates.LootItemConditions"})
 public interface LootCondition extends Predicate<LootContext> {
 
     static boolean allOf(List<LootCondition> conditions, LootContext ctx) {

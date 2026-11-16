@@ -7,9 +7,11 @@ import com.google.gson.JsonObject;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Arrays;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.item.crafting.Ingredient")
 public final class Ingredient {
 
     public static final Ingredient EMPTY = new Ingredient(List.of());

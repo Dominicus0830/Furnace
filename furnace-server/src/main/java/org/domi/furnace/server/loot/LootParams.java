@@ -4,7 +4,9 @@ package org.domi.furnace.server.loot;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.level.storage.loot.LootParams")
 public final class LootParams {
 
     /** 매개변수 키(바닐라 LootContextParams). 값의 자바 타입이 키마다 정해져 있다. */

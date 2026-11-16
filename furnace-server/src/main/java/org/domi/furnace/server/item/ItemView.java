@@ -3,8 +3,10 @@
 package org.domi.furnace.server.item;
 
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.item.ItemStack")
 public interface ItemView {
 
     /** 아이템 이름. 빈 스택이면 minecraft:air. */

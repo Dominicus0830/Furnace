@@ -6,10 +6,15 @@ import org.domi.furnace.api.GameVersion;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.loot.ItemData;
 
+@VanillaPort({
+        "net.minecraft.world.item.ItemStack",
+        "net.minecraft.world.item.component.Tool",
+        "net.minecraft.world.item.enchantment.EnchantmentHelper"})
 public final class ItemTools {
     private ItemTools() {}
 

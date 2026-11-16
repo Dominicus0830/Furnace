@@ -5,7 +5,9 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.ArrayList;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.advancements.critereon.DamageSourcePredicate")
 public record DamageSourcePredicate(List<String[]> tags, EntityPredicate source, EntityPredicate direct, Boolean isDirect) {
 
     public static DamageSourcePredicate parse(JsonElement e, LootRegistries regs) {
