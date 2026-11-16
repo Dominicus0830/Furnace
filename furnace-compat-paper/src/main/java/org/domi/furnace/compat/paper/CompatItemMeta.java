@@ -1,4 +1,5 @@
 // Bukkit ItemMeta — 아이템의 컴포넌트를 사본으로 들고 있다가 ItemStack#setItemMeta 때 돌려놓는다(Bukkit 과 같은 "사본" 규칙).
+// 종류별 하위 형(가죽 방어구·머리·현수막 …, MetaKind)은 이 클래스를 이어받아 같은 컴포넌트 사본 위에서 자기 값을 읽고 쓴다.
 package org.domi.furnace.compat.paper;
 
 import java.util.ArrayList;
@@ -26,20 +27,29 @@ import org.domi.furnace.api.text.Text;
 
 // Paper 의 CraftMetaItem 처럼 {@code ==: ItemMeta} 로 저장되고 SerializableMeta 가 되읽는다(ItemMetaSerialization)
 @DelegateDeserialization(SerializableMeta.class)
-public final class CompatItemMeta implements ItemMeta, Damageable, Repairable {
+public class CompatItemMeta implements ItemMeta, Damageable, Repairable {
 
-    private ItemStack work;
-    private final EnumSet<ItemFlag> flags;
-    private final ItemPdc pdc;
+    ItemStack work;
+    final EnumSet<ItemFlag> flags;
+    final ItemPdc pdc;
 
-    private CompatItemMeta(ItemStack work, EnumSet<ItemFlag> flags, ItemPdc pdc) {
+    CompatItemMeta(ItemStack work, EnumSet<ItemFlag> flags, ItemPdc pdc) {
         this.work = work;
         this.flags = flags;
         this.pdc = pdc;
     }
 
-    /** 스택의 지금 컴포넌트에서 사본을 만든다. */
+    /** 이 메타의 종류(하위 형이 덮어쓴다). */
+    MetaKind kind() { return MetaKind.UNSPECIFIC; }
+
+    /** 스택 종류에 맞는 하위 형으로, 스택의 지금 컴포넌트에서 사본을 만든다. 공기는 null(Paper 와 같다). */
     public static CompatItemMeta of(ItemStack stack) {
+        if (stack.type().equals("minecraft:air")) return null;
+        return of(MetaKind.of(stack.type()), stack);
+    }
+
+    /** 종류를 정해서 만든다(되읽기는 아이템 종류를 몰라 임시 종류 위에서 만든다). */
+    public static CompatItemMeta of(MetaKind kind, ItemStack stack) {
         ItemStack w = new ItemStack(stack.type(), 1, stack.components(), stack.removedComponents());
         EnumSet<ItemFlag> flags = EnumSet.noneOf(ItemFlag.class);
         ItemEnchantments ench = w.get(ItemComponents.ENCHANTMENTS);
@@ -51,7 +61,7 @@ public final class CompatItemMeta implements ItemMeta, Damageable, Repairable {
         if (w.has(ItemComponents.HIDE_ADDITIONAL_TOOLTIP)) flags.add(ItemFlag.HIDE_ADDITIONAL_TOOLTIP);
         DyedColor dye = w.get(ItemComponents.DYED_COLOR);
         if (dye != null && !dye.showInTooltip()) flags.add(ItemFlag.HIDE_DYE);
-        return new CompatItemMeta(w, flags, new ItemPdc(stack.persistentData()));
+        return kind.create(w, flags, new ItemPdc(stack.persistentData()));
     }
 
     /** 이 메타를 stack 에 적용한 새 스택(종류·개수는 stack 그대로). */
@@ -316,11 +326,46 @@ public final class CompatItemMeta implements ItemMeta, Damageable, Repairable {
     public PersistentDataContainer getPersistentDataContainer() { return pdc; }
 
     @Override
-    public CompatItemMeta clone() { return new CompatItemMeta(work, EnumSet.copyOf(flags), pdc.copy()); }
+    public CompatItemMeta clone() { return kind().create(work, EnumSet.copyOf(flags), pdc.copy()); }
+
+    /**
+     * 다른 종류의 메타로 옮긴다(Paper CraftItemFactory#asMetaFor). 같은 종류면 자기 자신. 일반 메타로 옮길 때는 지금 종류가 맡던 값을 버리고,
+     * 일반 메타에서 옮길 때는 컴포넌트가 모두 따라간다(Paper 의 unhandled 가 그 컴포넌트를 들고 다닌다).
+     */
+    public CompatItemMeta asKind(MetaKind target) {
+        if (target == kind() && target != MetaKind.UNSPECIFIC) return this;
+        ItemStack w = work;
+        if (kind() != MetaKind.UNSPECIFIC && kind() != target) {
+            // 목적지 종류도 맡는 컴포넌트(가죽 말 갑옷 ↔ 가죽 방어구의 염색 색)는 남긴다 — Paper 는 이 옮김에서 색을 잃지만 같은 컴포넌트라 잃을 이유가 없다
+            Map<String, String> comps = new java.util.TreeMap<>(w.components());
+            comps.keySet().removeAll(kind().handledComponents());
+            for (String id : target.handledComponents()) if (work.components().containsKey(id)) comps.put(id, work.components().get(id));
+            w = new ItemStack(w.type(), w.amount(), comps, w.removedComponents());
+        }
+        return target.create(w, EnumSet.copyOf(flags), pdc.copy());
+    }
+
+    /** 아무것도 정하지 않은 메타인가(Paper CraftMetaItem#isEmpty). 비어 있으면 setItemMeta 가 아이템의 컴포넌트를 모두 지운다. */
+    public boolean isEmpty() { return work.components().isEmpty() && work.removedComponents().isEmpty() && flags.isEmpty() && pdc.isEmpty(); }
+
+    /** 이 메타를 붙일 수 있는 아이템 종류인가(Paper CraftMetaItem#applicableTo). 공기와 아이템이 아닌 것은 안 된다. */
+    public boolean applicableTo(String itemType) {
+        if (itemType.equals("minecraft:air")) return false;
+        org.bukkit.Material m = org.bukkit.Material.matchMaterial(itemType);
+        if (m != null && !m.isItem()) return false;
+        return kind() == MetaKind.UNSPECIFIC || kind().accepts(MetaKind.of(itemType));
+    }
+
+    /** 직렬화 전용: 종류별 키를 맵에 적는다. */
+    void serializeKind(Map<String, Object> out) {}
+
+    /** 직렬화 전용: 맵의 종류별 키를 읽어 들인다. */
+    void deserializeKind(Map<String, Object> map) {}
 
     @Override
     public boolean equals(Object o) {
-        // 종류는 보지 않는다(Bukkit 메타도 그렇다): 설정·스트림에서 되읽은 메타는 아직 어느 아이템 종류에도 붙지 않았다
+        // 종류는 보지 않는다(Paper 도 한쪽의 종류별 값이 비어 있으면 종류가 달라도 같다): 컴포넌트가 같으면 아이템에 적용한 결과가 같다.
+        // 설정·스트림에서 되읽은 메타는 아직 어느 아이템 종류에도 붙지 않았다
         return o instanceof CompatItemMeta m && m.work.components().equals(work.components()) && m.work.removedComponents().equals(work.removedComponents())
                 && m.flags.equals(flags) && m.pdc.equals(pdc);
     }
