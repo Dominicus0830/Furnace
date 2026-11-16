@@ -28,6 +28,8 @@ import org.domi.furnace.server.config.LightSettings;
 import org.domi.furnace.server.data.TagRegistries;
 import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.light.ChunkLight;
+import org.domi.furnace.server.light.LevelLight;
+import org.domi.furnace.server.light.LightEngine;
 import org.domi.furnace.server.light.RelightCompute;
 import org.domi.furnace.server.net.ChunkWorkerPool;
 import org.domi.furnace.server.net.registry.RegistrySet;
@@ -339,6 +341,120 @@ class RelightTest {
         }
     }
 
+    // ------------------------------------------------------------------ 계산 중 region 합치기·나누기(재검토 N1)
+
+    /**
+     * 일꾼을 잡은 동안 붙잡힌 검사를 든 region 이 다른 region 과 합쳐지고(다리 구역을 넣음), 다음 relight 동안에는 다시 나뉜다(다리를 뺌).
+     * 붙잡힌 검사 통이 합치기·나누기를 따라 옮겨져 사라지지 않고, 끝난 뒤 대상의 빛 = 새로 켠 값, 붙잡혔던 발광석 빛이 반영된다.
+     */
+    @Test
+    void mergeAndSplitWhileChecksAreHeld() throws Exception {
+        LightSettings.install(new LightSettings(false, 1));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
+        FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(10_000_000L, 3);
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        ExecutorService io = Executors.newSingleThreadExecutor(), gen = Executors.newSingleThreadExecutor();
+        try {
+            World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(2), sched, 3, 4, 1, 2, 2, reg.directBits(), 7, io, gen);
+            Regionizer rz = w.regionizer();
+            int z = 0;
+            int[] anchors = {8, 40};   // 구역 0 과 구역 2 — 다리(구역 1, 청크 24)를 넣으면 합쳐진다. 어느 쪽이 흡수돼도 한쪽 통은 옮겨져야 한다
+            for (int a : anchors) rz.want(a, z, null);
+            for (int a : anchors) {
+                onChunk(w, a, z, r -> {
+                    for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++) r.chunkAtBlocking(new ChunkPos(a + dx, z + dz));
+                    ChunkColumn col = r.ownedChunk(a, z);
+                    for (int x = 1; x <= 5; x++) for (int zz = 1; zz <= 5; zz++) rawWrite(col, a * 16 + x, -50, z * 16 + zz, B.defaultState("stone"));
+                });
+            }
+            assertTrue(rz.ownerOf(anchors[0], z) != rz.ownerOf(anchors[1], z), "처음에는 두 region");
+            ConcurrentLinkedQueue<Runnable> jobs = new ConcurrentLinkedQueue<>();
+            w.relight().useExecutor(jobs::add);
+            long[] keys = {Regionizer.chunkKey(anchors[0], z), Regionizer.chunkKey(anchors[1], z)};
+
+            // 1) 합치기: 두 region 모두 붙잡힌 검사를 든 채 다리를 넣어 합친다
+            heldRound(w, jobs, keys, anchors, z, a -> new Pos((a + 1) * 16, -58, z * 16 + 7), () -> {
+                rz.want(24, z, null);
+                long until = System.currentTimeMillis() + 10_000;
+                while (rz.ownerOf(anchors[0], z) != rz.ownerOf(anchors[1], z) && System.currentTimeMillis() < until) Thread.sleep(10);
+                assertTrue(rz.ownerOf(anchors[0], z) == rz.ownerOf(anchors[1], z), "합쳐졌다");
+            });
+            // 2) 나누기: 다시 붙잡은 채 다리를 빼 나눈다 — 새 region 으로 가는 쪽의 통이 옮겨져야 한다
+            heldRound(w, jobs, keys, anchors, z, a -> new Pos(a * 16 - 1, -58, z * 16 + 3), () -> {
+                for (int tries = 0; tries < 10; tries++) {
+                    Region o = rz.ownerOf(24, z);
+                    if (o == null) break;
+                    rz.release(o, 24, z);
+                    if (!o.present.contains(Regionizer.chunkKey(24, z))) break;
+                }
+                long until = System.currentTimeMillis() + 15_000;
+                while (rz.ownerOf(anchors[0], z) == rz.ownerOf(anchors[1], z) && System.currentTimeMillis() < until) Thread.sleep(10);
+                assertTrue(rz.ownerOf(anchors[0], z) != rz.ownerOf(anchors[1], z), "나뉘었다");
+            });
+            assertEquals(0, w.relight().holdCount());
+        } finally {
+            io.shutdown();
+            gen.shutdown();
+            sched.close();
+        }
+    }
+
+    private interface Step {
+        void run() throws Exception;
+    }
+
+    /** 두 대상을 relight 하고, 일꾼을 잡은 동안 대상마다 이웃 경계에 발광석(붙잡힘)을 놓은 뒤 change(합치기·나누기)를 일으키고 계산을 끝낸다. */
+    private static void heldRound(World w, ConcurrentLinkedQueue<Runnable> jobs, long[] keys, int[] anchors, int z,
+                                  java.util.function.IntFunction<Pos> glowAt, Step change) throws Exception {
+        CompletableFuture<Integer> done = new CompletableFuture<>();
+        w.relight().relight(keys, null, done::complete);
+        long until = System.currentTimeMillis() + 10_000;
+        while (jobs.size() < keys.length && System.currentTimeMillis() < until) Thread.sleep(5);
+        assertEquals(keys.length, jobs.size(), "두 타일 모두 계산 대기");
+        for (int a : anchors) {
+            Pos g = glowAt.apply(a);
+            onChunk(w, a, z, r -> {
+                r.level().setBlock(g, B.defaultState("glowstone"), 2);
+                r.level().drainLight();
+                assertEquals(0, r.level().getBlockLight(g), "붙잡혀 있다 " + g);
+                assertTrue(r.level().lightEngine().heldCount() > 0, "통에 검사가 있다");
+            });
+        }
+        change.run();
+        Runnable j;
+        while ((j = jobs.poll()) != null) j.run();
+        assertEquals(keys.length, done.get(30, TimeUnit.SECONDS));
+        for (int a : anchors) {
+            Pos g = glowAt.apply(a);
+            onChunk(w, a, z, r -> {
+                r.level().drainLight();
+                assertEquals(15, r.level().getBlockLight(g), "합치기·나누기를 따라 옮겨진 검사가 풀려 계산됐다 " + g);
+                assertEquals(0, r.level().lightEngine().heldCount());
+            });
+            assertArrayEquals(RelightTest.<int[]>onChunkCall(w, a, z, r -> freshLight(r, a, z, 1)[4]),
+                    RelightTest.<int[]>onChunkCall(w, a, z, r -> lightOf(r.ownedChunk(a, z))), "대상 " + a + " = 새로 켠 값");
+        }
+    }
+
+    private static void onChunk(World w, int cx, int cz, Consumer<Region> task) throws Exception {
+        onChunkCall(w, cx, cz, r -> {
+            task.accept(r);
+            return null;
+        });
+    }
+
+    private static <T> T onChunkCall(World w, int cx, int cz, Function<Region, T> task) throws Exception {
+        var f = new CompletableFuture<T>();
+        w.runAtChunk(new ChunkPos(cx, cz), r -> {
+            try {
+                f.complete(task.apply(r));
+            } catch (Throwable t) {
+                f.completeExceptionally(t);
+            }
+        });
+        return f.get(30, TimeUnit.SECONDS);
+    }
+
     // ------------------------------------------------------------------ 되풀이 relight(검토 R4)
 
     /** 플러그인이 같은 청크를 쉬지 않고 relight 해도 그 옆 빛 갱신(발광석 놓기)은 정해진 시간 안에 반영된다. */
@@ -371,6 +487,72 @@ class RelightTest {
                 spam.join();
             }
             assertTrue(finished.get() > 1, "relight 가 실제로 되풀이됐다: " + finished.get());
+        }
+    }
+
+    /** 겹치는 다른 요청의 타일은 앞 요청이 붙잡는 동안 미뤘다가, 앞 설치로 풀리면 깨어 끝난다. 겹치지 않는 요청은 기다리지 않는다(검토 F3). */
+    @Test
+    void overlappingRequestWaitsForHoldsThenRuns() throws Exception {
+        try (Env env = new Env(false)) {
+            ConcurrentLinkedQueue<Runnable> jobs = new ConcurrentLinkedQueue<>();
+            env.world.relight().useExecutor(jobs::add);
+            CompletableFuture<Integer> a = new CompletableFuture<>(), b = new CompletableFuture<>(), far = new CompletableFuture<>();
+            env.world.relight().relight(new long[] {C}, null, a::complete);
+            awaitJob(jobs);
+            Runnable jobA = jobs.poll();
+            env.world.relight().relight(new long[] {Regionizer.chunkKey(CX + 2, CZ)}, null, b::complete);   // 3×3 가 C 의 3×3 과 겹친다
+            env.world.relight().relight(new long[] {Regionizer.chunkKey(CX - 3, CZ)}, null, far::complete);   // 겹치지 않는다
+            awaitJob(jobs);
+            Thread.sleep(100);
+            assertEquals(1, jobs.size(), "겹치는 요청은 미뤄졌다");
+            jobs.poll().run();
+            assertEquals(1, far.get(30, TimeUnit.SECONDS));
+            assertFalse(b.isDone());
+            jobA.run();
+            assertEquals(1, a.get(30, TimeUnit.SECONDS));
+            awaitJob(jobs);
+            jobs.poll().run();
+            assertEquals(1, b.get(30, TimeUnit.SECONDS), "앞 요청이 풀자 깨어났다");
+            assertEquals(0, env.world.relight().holdCount());
+        }
+    }
+
+    /** 저장 직전 붙잡기가 풀렸지만 통에서 아직 꺼내지 않은 검사도 그 둘레를 stale 로 표시한다 — 빛 작업 끔에서는 저장 전에 돌지 않는다(검토 F4). */
+    @Test
+    void savingRightAfterReleaseStillMarksStale() throws Exception {
+        try (Env env = new Env(false)) {
+            long[] gen = {1};
+            boolean[] on = {true};
+            LevelLight.Hold east = new LevelLight.Hold() {
+                @Override public boolean active() { return on[0]; }
+
+                @Override public long generation() { return gen[0]; }
+
+                @Override public boolean held(long p) {
+                    return on[0] && LightEngine.px(p) >> 4 == CX + 1 && LightEngine.pz(p) >> 4 == CZ;
+                }
+            };
+            Pos glow = new Pos((CX + 1) * 16 + 7, -58, CZ * 16 + 7);
+            env.at(r -> {
+                LevelLight le = r.level().lightEngine();
+                le.hold(east);
+                try {
+                    r.level().setBlock(glow, B.defaultState("glowstone"), 2);
+                    le.applyHold();
+                    assertTrue(le.heldCount() > 0, "검사가 붙잡혔다");
+                    on[0] = false;   // 다른 region 의 설치가 풀었다 — 이 region 은 아직 통을 안 훑었다
+                    gen[0]++;
+                    r.level().settleLightForSave(CX + 1, CZ);
+                    assertEquals(0, le.heldCount(), "통에서 꺼냈다");
+                } finally {
+                    le.hold(env.world.relight().hold);
+                }
+            });
+            assertTrue(env.world.lightStale().contains(CX + 1, CZ), "풀렸지만 아직 안 돈 검사 — 저장 빛을 믿지 않는다");
+            env.at(r -> {
+                r.level().drainLight();
+                assertEquals(15, r.level().getBlockLight(glow));
+            });
         }
     }
 

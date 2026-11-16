@@ -2456,16 +2456,28 @@ public abstract class ChunkLevel implements BlockLevel {
      */
     private void markHeldLightStale(int cx, int cz) {
         if (lightEngine == null) return;
+        // 통에는 방금 풀렸지만 아직 안 돈 검사도 있다 — 꺼내기 전에 본다(꺼내면 보통 밀린 검사가 되어 빛 작업 끔에서는 저장 전에 안 돈다, 검토 F4)
+        boolean near = lightEngine.heldNear(cx, cz);
         lightEngine.applyHold();
-        if (lightEngine.heldNear(cx, cz)) lightStale().mark(cx, cz);
+        if (near || lightEngine.heldNear(cx, cz)) lightStale().mark(cx, cz);
     }
 
     /**
-     * 빛 다시 계산이 새로 붙잡기 전에: 밀린 검사(앞 relight 가 풀어 둔 것 포함)가 있으면 지금 계산한다 — 같은 자리를 곧바로 다시 붙잡아 그 근처 빛
-     * 갱신이 끝없이 밀리지 않게(검토 R4). 틱 끝에 할 일을 당겨 할 뿐이다. 주인 스레드.
+     * 빛 다시 계산이 새로 붙잡기 전에: 곧 붙잡힐 자리(inArea, 묶은 칸 좌표)에 밀린 검사(앞 relight 가 풀어 둔 것 포함)가 있을 때만 그 검사를 먼저
+     * 돌린다 — 같은 자리를 곧바로 다시 붙잡아 그 근처 빛 갱신이 끝없이 밀리지 않게(검토 R4). 빛 작업 끔이면 틱 끝 일을 당겨 그 자리에서, 켬이면
+     * 빛 작업 한 묶음으로 넘긴다(도는 묶음이 있으면 그것을 기다린 뒤 — region 스레드에서 밀린 일 전부를 계산하지 않게, 검토 F2). 넘긴 묶음은 설치 전
+     * {@link #awaitLightIdle} 로 게시된다. 주인 스레드.
      */
-    public void settleReleasedHeldLight() {
-        if (lightEngine != null && lightEngine.hasWork()) runLightUpdates();
+    public void settleChecksBeforeHold(java.util.function.LongPredicate inArea) {
+        if (lightEngine == null) return;
+        lightEngine.applyHold();
+        if (!lightEngine.anyCheck(inArea)) return;
+        if (!asyncLight()) {
+            runLightUpdates();
+            return;
+        }
+        awaitLightIdle();
+        if (lightEngine.hasWork()) dispatchLight();
     }
 
     /** 밀린 일을 한 묶음으로 빛 스레드에 넘긴다(도는 묶음이 없을 때만). */

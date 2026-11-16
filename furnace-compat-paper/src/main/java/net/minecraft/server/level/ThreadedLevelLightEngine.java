@@ -13,7 +13,7 @@ import org.domi.furnace.compat.nms.NmsChunks;
  *
  * <p>T-197: 서버가 실제로 빛을 다시 계산한다(설계 docs/feature-parity/compat-nms-n2b5-relight-2026-11-16.md). Paper 와 같이 로드된 청크만 받고,
  * 청크마다 그 청크와 둘레를 지금 블록으로 처음부터 계산해 그 청크에만 끼운 뒤 보는 플레이어에게 빛 패킷을 보내고, 청크마다 {@code chunkCallback},
- * 끝에 {@code onComplete}(받은 수)를 부른다. 콜백 스레드는 Paper 는 빛 일꾼, Furnace 는 그 청크의 region 스레드다(받은 것이 없으면 일꾼).
+ * 끝에 {@code onComplete}(받은 수)를 부른다. 콜백 스레드는 Paper 는 빛 일꾼 한 스레드, Furnace 는 요청마다 콜백 전용 스레드 한 줄이다(차례대로).
  */
 public class ThreadedLevelLightEngine extends LevelLightEngine {
 

@@ -197,8 +197,8 @@ public interface ChunkInternals {
     /**
      * 아무 스레드, 기다리지 않음: Paper(Starlight) {@code ThreadedLevelLightEngine#starlight$serverRelightChunks} 의 서버 몫. chunkX[i]·chunkZ[i] 중
      * 지금 로드된 청크만 받아(순서 유지, 같은 청크는 한 번) 빛을 지금 블록으로 처음부터 다시 계산하고 그 청크에만 끼운다(둘레 청크의 빛은 그대로 — Paper 와 같다).
-     * 끼운 청크는 저장 대상이 되고, 그 청크를 보는 모든 플레이어에게 전 섹션 빛 갱신 패킷이 간다. 청크마다 끝나면 chunkDone(그 청크의 주인 region 스레드),
-     * 모두 끝나면 allDone(받은 수). 돌려주는 값 = 받은 수. 받은 청크는 끝날 때까지 내려가지 않는다. 콜백은 null 이어도 된다.
+     * 끼운 청크는 저장 대상이 되고, 그 청크를 보는 모든 플레이어에게 전 섹션 빛 갱신 패킷이 간다. 청크마다 끝나면 chunkDone, 모두 끝나면
+     * allDone(받은 수) — 요청마다 콜백 전용 스레드 한 줄에서 끝난 차례대로 부른다(Paper 는 빛 일꾼 한 스레드). 돌려주는 값 = 받은 수. 받은 청크는 끝날 때까지 내려가지 않는다. 콜백은 null 이어도 된다.
      */
     int relightChunks(World world, int[] chunkX, int[] chunkZ, ChunkCallback chunkDone, java.util.function.IntConsumer allDone);
 

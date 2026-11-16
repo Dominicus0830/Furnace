@@ -4,6 +4,7 @@
 // 구역 얼리기 → 일꾼: 타일 + 둘레 1칸을 빈 빛에서 계산(RelightCompute) → 녹이기 → 청크마다 설치(그 청크의 주인 region): 층 끼우기·원천 다시 세기·
 // 저장 표시·빛 패킷, 붙잡기 풀기 → 요청마다 한 줄 실행기에서 콜백(설치 순서), 마지막에 done. 붙잡힌 검사는 붙잡기가 0 이 된 뒤 그 region 의
 // 다음 빛 계산에서 풀린다. 다른 요청이 붙잡은 3×3 과 겹치는 타일은 그 설치 뒤로 미룬다(같은 자리를 되풀이해 relight 해도 빛 갱신이 굶지 않게).
+// 붙잡기를 건 뒤 준비·설치가 실패하면 얼린 것을 녹이고 붙잡기·핀을 풀고 끝으로 센다(검토 F1).
 package org.domi.furnace.server.world;
 
 import java.util.ArrayList;
@@ -12,6 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -197,9 +199,10 @@ public final class Relight {
     }
 
     private void releaseHolds(int cx, int cz) {
-        boolean freed;
+        boolean woke = false;
         synchronized (holdLock) {
             if (closed || !holdsEnabled) return;
+            boolean freed = false;
             for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++) {
                 long nk = Regionizer.chunkKey(cx + dx, cz + dz);
                 int[] c = holdCounts.get(nk);
@@ -207,16 +210,37 @@ public final class Relight {
                 if (--c[0] == 0) {
                     holdCounts.remove(nk);
                     holdOwner.remove(nk);
+                    freed = true;
                 }
             }
             publishHolds();
-            freed = !waiting.isEmpty();
-            if (freed) {
-                Tile t;
-                while ((t = waiting.poll()) != null) queue.add(t);
+            // 풀린 칸(cx±1, cz±1)에 3×3 이 닿고 이제 막는 붙잡기가 없는 미룬 타일만 깨워 대기열 맨 앞에 둔다(미룬 차례 유지 — 새 요청보다 먼저, 검토 F3)
+            if (freed && !waiting.isEmpty()) {
+                List<Tile> wake = new ArrayList<>();
+                for (var it = waiting.iterator(); it.hasNext(); ) {
+                    Tile t = it.next();
+                    if (t.touches(cx, cz) && !blocked(t)) {
+                        it.remove();
+                        wake.add(t);
+                    }
+                }
+                for (int i = wake.size() - 1; i >= 0; i--) queue.addFirst(wake.get(i));
+                woke = !wake.isEmpty();
             }
         }
-        if (freed) pump();
+        if (woke) pump();
+    }
+
+    /** holdLock 안에서: 타일의 3×3 중 다른 요청이 붙잡은 칸이 있는가. */
+    private boolean blocked(Tile t) {
+        for (long k : t.chunks) {
+            int cx = Regionizer.chunkX(k), cz = Regionizer.chunkZ(k);
+            for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++) {
+                Request o = holdOwner.get(Regionizer.chunkKey(cx + dx, cz + dz));
+                if (o != null && o != t.req) return true;
+            }
+        }
+        return false;
     }
 
     /** 시험용: 지금 붙잡기가 걸린 청크 수. */
@@ -246,17 +270,34 @@ public final class Relight {
         final Request req;
         final long[] chunks;
         final boolean preHeld;
+        /** 청크 범위(최소·최대 x·z). */
+        final int minX, maxX, minZ, maxZ;
 
         Tile(Request req, long[] chunks, boolean preHeld) {
             this.req = req;
             this.chunks = chunks;
             this.preHeld = preHeld;
+            int x0 = Integer.MAX_VALUE, x1 = Integer.MIN_VALUE, z0 = Integer.MAX_VALUE, z1 = Integer.MIN_VALUE;
+            for (long k : chunks) {
+                int x = Regionizer.chunkX(k), z = Regionizer.chunkZ(k);
+                x0 = Math.min(x0, x);
+                x1 = Math.max(x1, x);
+                z0 = Math.min(z0, z);
+                z1 = Math.max(z1, z);
+            }
+            minX = x0;
+            maxX = x1;
+            minZ = z0;
+            maxZ = z1;
         }
+
+        /** 청크 (cx, cz)의 3×3 과 이 타일 청크들의 3×3 이 겹칠 수 있는가(범위로 거름 — 체비셰프 2). */
+        boolean touches(int cx, int cz) { return cx >= minX - 2 && cx <= maxX + 2 && cz >= minZ - 2 && cz <= maxZ + 2; }
     }
 
-    private final ConcurrentLinkedQueue<Tile> queue = new ConcurrentLinkedQueue<>();
-    /** 다른 요청의 붙잡기와 겹쳐 미룬 타일 — 붙잡기가 풀릴 때 대기열로 돌린다. */
-    private final ConcurrentLinkedQueue<Tile> waiting = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedDeque<Tile> queue = new ConcurrentLinkedDeque<>();
+    /** 다른 요청의 붙잡기와 겹쳐 미룬 타일(미룬 차례) — 막던 붙잡기가 풀릴 때 대기열 앞으로 돌린다. holdLock 안에서만. */
+    private final ArrayList<Tile> waiting = new ArrayList<>();
     private final AtomicInteger inFlight = new AtomicInteger();
 
     /**
@@ -315,6 +356,8 @@ public final class Relight {
         /** 타일 청크의 얼릴 때 내용 판 번호 — 설치 때 그대로면 계산한 원천 높이를 쓴다. */
         final Map<Long, Long> stamps = new HashMap<>();
         final List<ChunkColumn.LightBlocks> frozen = new ArrayList<>();
+        /** 일꾼 또는 준비 실패 정리 중 먼저 집은 쪽이 이 계산의 끝을 맡는다. */
+        final AtomicBoolean claimed = new AtomicBoolean();
 
         Job(Request req, long[] chunks, RelightCompute compute) {
             this.req = req;
@@ -344,42 +387,61 @@ public final class Relight {
             if (!elsewhere.isEmpty()) queue.add(new Tile(t.req, elsewhere.stream().mapToLong(Long::longValue).toArray(), t.preHeld));
             if (mine.isEmpty()) return;
             long[] chunks = mine.stream().mapToLong(Long::longValue).toArray();
-            if (!t.preHeld) {
-                // 앞 relight 가 풀어 둔 검사를 먼저 계산한다 — 같은 자리를 곧바로 다시 붙잡아 빛 갱신이 굶지 않게(검토 R4)
-                level.settleReleasedHeldLight();
-                int added = tryAddHolds(t.req, chunks);
-                if (added == CLOSED) for (long k : chunks) skip(t.req, k, false);
-                if (added != ADDED) return;
-            }
-            RelightCompute compute = new RelightCompute(level.minBuildHeight(), level.maxBuildHeight(), level.lightBedrockState(), level.hasSkyLight(),
-                    world.virtualLights());
-            Job job = new Job(t.req, chunks, compute);
-            // U = 요청 청크마다 3×3 의 합집합 중 이 region 이 가진·빛 있는 청크. 거울(플러그인이 쓴 섹션)을 먼저 들여온다
-            List<int[]> pos = new ArrayList<>();
-            for (long k : chunks) {
-                int cx = Regionizer.chunkX(k), cz = Regionizer.chunkZ(k);
-                for (int dz = -1; dz <= 1; dz++) for (int dx = -1; dx <= 1; dx++) {
-                    long nk = Regionizer.chunkKey(cx + dx, cz + dz);
-                    if (job.members.containsKey(nk)) continue;
-                    ChunkColumn n = r.ownedChunk(cx + dx, cz + dz);
-                    if (n == null || n.light() == null) continue;
-                    job.members.put(nk, n);
-                    pos.add(new int[] {cx + dx, cz + dz});
+            boolean held = t.preHeld;
+            Job job = null;
+            try {
+                if (!held) {
+                    // 곧 붙잡을 자리에 밀린 검사(앞 relight 가 풀어 둔 것 포함)가 있으면 먼저 돌린다 — 같은 자리를 곧바로 다시 붙잡아 빛 갱신이
+                    // 굶지 않게(검토 R4). 자리 밖 일은 틱 끝 그대로(검토 F2)
+                    long[] area = area(chunks);
+                    level.settleChecksBeforeHold(p -> java.util.Arrays.binarySearch(area,
+                            Regionizer.chunkKey(LightEngine.px(p) >> 4, LightEngine.pz(p) >> 4)) >= 0);
+                    int added = tryAddHolds(t.req, chunks);
+                    if (added == CLOSED) for (long k : chunks) skip(t.req, k, false);
+                    if (added != ADDED) return;
+                    held = true;
                 }
+                RelightCompute compute = new RelightCompute(level.minBuildHeight(), level.maxBuildHeight(), level.lightBedrockState(),
+                        level.hasSkyLight(), world.virtualLights());
+                job = new Job(t.req, chunks, compute);
+                // U = 요청 청크마다 3×3 의 합집합 중 이 region 이 가진·빛 있는 청크. 거울(플러그인이 쓴 섹션)을 먼저 들여온다
+                List<int[]> pos = new ArrayList<>();
+                for (long k : chunks) {
+                    int cx = Regionizer.chunkX(k), cz = Regionizer.chunkZ(k);
+                    for (int dz = -1; dz <= 1; dz++) for (int dx = -1; dx <= 1; dx++) {
+                        long nk = Regionizer.chunkKey(cx + dx, cz + dz);
+                        if (job.members.containsKey(nk)) continue;
+                        ChunkColumn n = r.ownedChunk(cx + dx, cz + dz);
+                        if (n == null || n.light() == null) continue;
+                        job.members.put(nk, n);
+                        pos.add(new int[] {cx + dx, cz + dz});
+                    }
+                }
+                for (ChunkColumn c : job.members.values()) if (c.mirrorPending()) r.syncMirror(c);
+                // 얼리기는 붙잡기 뒤 — 얼린 블록(B0) 이후의 빛 바뀜은 모두 붙잡힌다
+                for (long k : chunks) job.stamps.put(k, job.members.get(k).modCount());
+                for (int[] p : pos) {
+                    ChunkColumn.LightBlocks lb = job.members.get(Regionizer.chunkKey(p[0], p[1])).freezeForLight();
+                    job.frozen.add(lb);
+                    compute.addColumn(p[0], p[1], lb);
+                }
+                prepareNanos.add(System.nanoTime() - t0);
+                prepares.increment();
+                computedColumns.add(pos.size());
+                Job j = job;
+                executor().execute(() -> runJob(j));
+                dispatched = true;
+            } catch (RuntimeException | Error e) {
+                // 붙잡기·핀·얼림을 남기면 그 둘레 빛 검사가 영영 안 돌고 done 도 오지 않는다 — 정리하고 끝으로 센다(검토 F1).
+                // 일꾼이 이미 집었으면(같은 스레드에서 돈 실행기) 정리는 일꾼 몫이다
+                if (job != null && !job.claimed.compareAndSet(false, true)) {
+                    dispatched = true;
+                    throw e;
+                }
+                if (job != null) thaw(job);
+                LOG.error(Lang.t("relight.prepare-failed", world.dimension(), chunks.length), e);
+                for (long k : chunks) skip(t.req, k, held);
             }
-            for (ChunkColumn c : job.members.values()) if (c.mirrorPending()) r.syncMirror(c);
-            // 얼리기는 붙잡기 뒤 — 얼린 블록(B0) 이후의 빛 바뀜은 모두 붙잡힌다
-            for (long k : chunks) job.stamps.put(k, job.members.get(k).modCount());
-            for (int[] p : pos) {
-                ChunkColumn.LightBlocks lb = job.members.get(Regionizer.chunkKey(p[0], p[1])).freezeForLight();
-                job.frozen.add(lb);
-                compute.addColumn(p[0], p[1], lb);
-            }
-            dispatched = true;
-            prepareNanos.add(System.nanoTime() - t0);
-            prepares.increment();
-            computedColumns.add(pos.size());
-            executor().execute(() -> runJob(job));
         } finally {
             if (!dispatched) {
                 inFlight.decrementAndGet();
@@ -388,9 +450,27 @@ public final class Relight {
         }
     }
 
+    /** 타일 청크들의 3×3 합집합(정렬한 청크 키). */
+    private static long[] area(long[] chunks) {
+        java.util.HashSet<Long> s = new java.util.HashSet<>();
+        for (long k : chunks) {
+            int cx = Regionizer.chunkX(k), cz = Regionizer.chunkZ(k);
+            for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++) s.add(Regionizer.chunkKey(cx + dx, cz + dz));
+        }
+        long[] a = s.stream().mapToLong(Long::longValue).toArray();
+        java.util.Arrays.sort(a);
+        return a;
+    }
+
+    private static void thaw(Job job) {
+        for (ChunkColumn.LightBlocks b : job.frozen) b.thaw();   // 아무 스레드에서 녹여도 된다(원자 수)
+        job.frozen.clear();
+    }
+
     // ------------------------------------------------------------------ 계산(일꾼)
 
     private void runJob(Job job) {
+        if (!job.claimed.compareAndSet(false, true)) return;   // 준비 쪽이 실패로 이미 정리했다
         boolean ok = false;
         long t0 = System.nanoTime();
         try {
@@ -400,8 +480,7 @@ public final class Relight {
         } catch (RuntimeException | Error e) {
             LOG.error(Lang.t("relight.compute-failed", world.dimension(), job.chunks.length), e);
         } finally {
-            for (ChunkColumn.LightBlocks b : job.frozen) b.thaw();   // 일꾼이 다 읽었다 — 아무 스레드에서 녹여도 된다(원자 수)
-            job.frozen.clear();
+            thaw(job);   // 일꾼이 다 읽었다
             inFlight.decrementAndGet();
         }
         boolean computed = ok;
@@ -430,18 +509,25 @@ public final class Relight {
         for (int dz = -1; dz <= 1; dz++) for (int dx = -1; dx <= 1; dx++) {
             ChunkColumn n = r.ownedChunk(cx + dx, cz + dz);
             if (n != null && n.light() != null && job.members.get(Regionizer.chunkKey(cx + dx, cz + dz)) != n) {
-                queue.add(new Tile(job.req, new long[] {k}, true));
+                queue.addFirst(new Tile(job.req, new long[] {k}, true));   // 붙잡기를 쥐고 있다 — 먼저
                 pump();
                 return;
             }
         }
         long t0 = System.nanoTime();
-        r.level().installRelight(cx, cz, fresh, job.stamps.get(k));
-        installNanos.add(System.nanoTime() - t0);
-        installs.increment();
-        releaseHolds(cx, cz);
-        unpin(k);
-        finish(job.req, k);
+        try {
+            r.level().installRelight(cx, cz, fresh, job.stamps.get(k));
+            installNanos.add(System.nanoTime() - t0);
+            installs.increment();
+        } catch (RuntimeException | Error e) {
+            // 반쯤 끼웠을 수 있다 — 저장 빛을 믿지 않게 표시하고(다음에 올릴 때 다시 계산) 붙잡기·핀은 아래에서 푼다(검토 F1)
+            world.lightStale().mark(cx, cz);
+            LOG.error(Lang.t("relight.install-failed", world.dimension(), cx, cz), e);
+        } finally {
+            releaseHolds(cx, cz);
+            unpin(k);
+            finish(job.req, k);
+        }
     }
 
     /** 계산 없이 끝냄(내려감·빛 없음·실패·종료). held 면 그 청크의 붙잡기를 푼다. */

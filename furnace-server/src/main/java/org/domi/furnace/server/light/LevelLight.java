@@ -269,6 +269,14 @@ public final class LevelLight {
         return any[0];
     }
 
+    /** 붙잡히지 않은 칸 검사 중 sel(묶은 칸 좌표)에 맞는 것이 있는가 — 빛 다시 계산이 새로 붙잡기 전 판단(검토 F2). applyHold 뒤에 부른다. */
+    public boolean anyCheck(java.util.function.LongPredicate sel) {
+        if (!hasChecks()) return false;
+        boolean[] any = {false};
+        forEachCheckUntil(p -> any[0] = sel.test(p));
+        return any[0];
+    }
+
     /** 붙잡힌 검사 수(시험용). */
     public int heldCount() { return held == null ? 0 : held.checkCount(); }
 

@@ -1,6 +1,6 @@
 # T-197(N2b-5) 편집 뒤 빛 다시 계산 — 설계 (2026-11-16)
 
-상태: **독립 검토 조건부 승인(`furnace/reviews/t197-relight-design-review-2026-11-16.md`) → 필수 R1~R6 반영, 구현됨**. 반영 내역은 11장, 바뀐 절은 4.1·4.3·4.4·4.6·4.8·5·7·9.
+상태: **독립 검토 조건부 승인(`furnace/reviews/t197-relight-design-review-2026-11-16.md`) → 필수 R1~R6 반영, 구현됨, 코드 검토(조건부 승인) F1~F5 반영**. 반영 내역은 11장, 바뀐 절은 4.1·4.3·4.4·4.6·4.8·5·7·9.
 관련: `compat-nms-n2b-design-2026-11-14.md` 3.8·6장(N2b-5), 결정 D2, `compat-real-plugin-gaps-2026-11-16.md` 3장(호출 모양), `compat-nms-n2b6-2026-11-16.md`(실측),
 `optimization-tasks.md` 12절 T-197, 빛 작업 모드 `context-notes/2026-11-13-t064-light-pool.md`, 저장 빛 T-012.
 
@@ -64,9 +64,11 @@ Paper 1.21.1 의 빛은 Moonrise(Starlight) 패치다. 같은 코드를 `Tuinity
        타일(8×8 청크)로 나눠 world 대기열에 넣음. 동시에 도는 타일은 일꾼 수 × 2 까지.
 타일 준비 — 타일 기준 청크의 주인 region 스레드(작업):
   ① 타일 청크 중 이 region 것이 아닌 것은 떼어 그 주인에게 새 타일로
-  ② 밀린 빛 검사(앞 relight 가 풀어 둔 것 포함)가 있으면 지금 계산(R4 — 틱 끝 일을 당겨 할 뿐)
+  ② 곧 붙잡을 3×3 합집합 안에 밀린 빛 검사(앞 relight 가 풀어 둔 것 포함)가 있을 때만 먼저 돌린다(R4). 빛 작업 끔은 그 자리 계산(틱 끝 일을 당겨 할 뿐),
+     켬은 빛 작업 한 묶음으로 넘긴다(도는 묶음이 있으면 그것만 기다림 — region 스레드가 밀린 일 전부를 계산하지 않게, 코드 검토 F2). 넘긴 묶음은 ⑥ 에서 게시된다
   ③ 붙잡기 걸기: 타일 청크 C 마다 3×3 청크에 세계 단위 붙잡기 수 +1. 그 3×3 에 **다른 요청**의 붙잡기가 있으면 걸지 않고 타일을 미룬 줄에 넣는다
-     (그 붙잡기가 풀릴 때 대기열로 돌아온다 — R4). 같은 요청의 타일끼리는 겹쳐도 된다
+     (막던 붙잡기가 풀려 더는 막히지 않을 때만, 미룬 차례대로 대기열 **맨 앞**으로 돌아온다 — R4, 코드 검토 F3). 같은 요청의 타일끼리는 겹쳐도 된다
+  ③ 뒤 ④⑤ 에서 예외가 나면(거울 맞추기·얼리기·일꾼 풀 거절) 얼린 것을 녹이고 붙잡기·핀을 풀어 끝으로 센다(코드 검토 F1). 설치 ⑧⑨ 예외도 같이 풀고 C 를 stale 표시
   ④ U = 요청 청크마다 3×3 의 합집합 중 이 region 이 가진·빛 있는 청크(S4). U 의 거울 맞추기(대기 있으면), 구역 얼리기(freezeForLight),
      U 의 멤버십을 **키 → 이번 로드의 컬럼 객체**로 기억(R3)
   ⑤ 일꾼 풀에 계산 작업
@@ -77,7 +79,7 @@ Paper 1.21.1 의 빛은 Moonrise(Starlight) 패치다. 같은 코드를 `Tuinity
      → C 만 다시 준비(③의 붙잡기는 그대로 넘긴다)
   ⑧ C 의 하늘빛·블록빛 층을 결과로 갈아 끼우고, 하늘빛 원천은 지금 블록에서 다시 센다(computeSources)
   ⑨ 저장 표시(markLightDirty → markDirty), 캐시 버림(lightTouched), C 를 가진 모든 플레이어에게 전 섹션 LightUpdate
-  ⑩ 3×3(C) 붙잡기 수 −1(0 이 되면 미룬 타일을 대기열로), 핀 −1. 얼린 구역은 일꾼이 계산을 끝낸 자리에서 녹인다(원자 수)
+  ⑩ 3×3(C) 붙잡기 수 −1(0 이 된 칸에 닿고 더는 막히지 않는 미룬 타일을 대기열 앞으로), 핀 −1. 얼린 구역은 일꾼이 계산을 끝낸 자리에서 녹인다(원자 수)
   ⑪ 콜백: C 를 요청의 콜백 줄에 넣는다 — 요청마다 한 콜백 스레드에서 설치 순서대로 cb(C), 받은 수를 다 세면 그 줄 끝에서 done(n)(R5)
 붙잡힌 빛 검사는 붙잡기 수가 0 이 된 뒤 그 region 의 다음 runUpdates 에서 풀려 계산된다.
 ```
@@ -142,7 +144,7 @@ N 의 붙잡힌 칸 둘레는 아직 B0 쪽 빛. B0→B1 사이에 바뀐 칸은
 
 T-012 는 저장 빛을 믿으므로 "새 블록 + 옛 빛"을 디스크에 남기면 영구로 굳는다(PR #304 R2). 붙잡힌 검사가 있는 청크를 저장하면 그런 상태가 된다.
 - `settleLightForSave(cx, cz)`(저장 스냅샷 전, 내리기 포함)에서 **그 청크의 체비셰프 1 안에 붙잡힌 검사가 있으면 `lightStale().mark(cx, cz)`**(R1 a — 붙잡힌 검사는 이웃 청크의 빛도
-  바꾼다: N 의 경계 횃불을 부순 검사가 붙잡힌 동안 그 옆 K 를 저장하면 K 는 아직 횃불 빛을 든다). 메서드의 조기 반환보다 먼저 본다. 다음에 올릴 때 다시 계산한다(T-012 안전장치 그대로).
+  바꾼다: N 의 경계 횃불을 부순 검사가 붙잡힌 동안 그 옆 K 를 저장하면 K 는 아직 횃불 빛을 든다). 메서드의 조기 반환보다 먼저 본다. 통에는 방금 풀렸지만 아직 안 돈 검사도 있으므로 통에서 꺼내기(`applyHold`) **전**과 후에 모두 본다(코드 검토 F4). 다음에 올릴 때 다시 계산한다(T-012 안전장치 그대로).
   청크가 계속 로드돼 있으면 풀린 검사가 빛을 고치고 다시 dirty 가 되어 다음 저장에 맞는 값이 써진다(표시는 그 다음 올릴 때 다시 계산하며 지워진다 — 한 번 더 계산할 뿐 결과는 같다).
 - relight 대상 청크는 끝날 때까지 내리지 않는다(핀, 4.8). 둘레 청크는 내릴 수 있다 — 위 표시로 덮인다.
 - 종료·월드 내리기(R1 b): 저장 전에 `Relight.shutdown()` — 새 요청을 받지 않고(받은 수 0, done(0)), **붙잡기를 모두 풀어** 마지막 저장의 빛 계산(`saveDirtyChunks` 의
@@ -182,6 +184,8 @@ T-012 는 저장 빛을 믿으므로 "새 블록 + 옛 빛"을 디스크에 남�
    M5·V6 대조에서 차이로 보지 않는다. 고치는 경계 검사는 Paper 와 달라지므로 넣지 않는다(기본 끔 옵션 후보로만, S8).
 6. Paper 는 relight 중 새 청크 빛 켜기도 멈추지만 Furnace 는 계속한다. 계산 중 3×3 안에서 켜진 새 이웃 X 는 그때의 C 빛을 받아 든다 — ⑦ 이 C 는 다시 계산하지만 X 쪽에 남은
    옛 빛은 5 와 같은 종류로 남는다(S7, 드묾). 고친다면 설치 뒤 C–X 경계 칸 검사(Starlight `checkChunkEdges` 꼴) — T-205 후보.
+7. R4 의 "준비 전 밀린 검사 먼저 계산"은 준비하는 region 의 통만 계산한다. 3×3 이 다른 region 청크에 걸치는 짧은 틈(합쳐지기 전 1~2틱)에는 그쪽의 풀린 검사가
+   다음 relight 붙잡기 전에 계산된다는 보장이 없다 — 틈이 짧고 다음 틱 끝에 계산되므로 받아들인다(재검토 N2).
 
 ## 6. 성능
 
@@ -222,7 +226,7 @@ relight 가 없을 때 바뀌는 것은 `runUpdates`·`dispatchLight`·`hasWork`
 
 ## 7. 시험 계획
 
-구현된 시험(`furnace-server` `world/RelightTest` 13개, `furnace-compat-paper` `NmsFaweSurfaceTest#relightRequestRecomputesAndRunsCallbacks`):
+구현된 시험(`furnace-server` `world/RelightTest` 16개·`world/RelightRegionTest` 8개, `furnace-compat-paper` `NmsFaweSurfaceTest#relightRequestRecomputesAndRunsCallbacks`):
 
 | 시험 | 본 것 |
 |---|---|
@@ -234,7 +238,13 @@ relight 가 없을 때 바뀌는 것은 `runUpdates`·`dispatchLight`·`hasWork`
 | `shutdownReleasesHoldsAndMarksUninstalledTargets` | R1 b: 종료가 붙잡기를 풀어 저장 전 빛 계산이 마저 함, 끼우지 못한 대상 stale, 늦게 끝난 계산은 안 끼움·콜백 없음, 새 요청 0 |
 | `replacedNeighbourColumnTriggersRecompute` | R3: 계산 중 둘레 재생성(같은 키, 다른 컬럼) → C = 새로 켠 값 |
 | `newlyLoadedNeighbourTriggersRecompute` | ⑦: 계산 중 새 이웃 로드(지붕 밑으로 하늘빛을 민다) → 다시 계산, 대상 = 새로 켠 값. ⑦ 을 끄면 실패(변이 확인) |
+| `mergeAndSplitWhileChecksAreHeld` | 재검토 N1: 붙잡힌 검사를 든 채 region 합치기, 다음 relight 동안 나누기 → 통이 옮겨져 풀린 뒤 계산, 대상 = 새로 켠 값 |
 | `repeatedRelightDoesNotStarveNearbyLight` | R4: 같은 청크를 쉬지 않고 relight 해도 옆 발광석 빛이 5초 안에 반영. 미루기·먼저 계산을 빼면 실패(변이 확인) |
+| `RelightRegionTest#mergeDuringCompute`·`splitDuringCompute`(끔·켬) | 코드 검토 재현에서 옮김: 일꾼을 잡은 동안 region 합치기·나누기 → 통이 따라가 끼운 뒤 풀림, 3×3 = 5×5 새로 켠 값 |
+| `RelightRegionTest#tileAcrossTwoRegions`(끔·켬) | 구역 2청크·반경 1 에서 한 8×8 타일이 두 region 에 걸침 → region 마다 따로 준비(2번), 받은 수·콜백·빛 15·붙잡기·핀 0 |
+| `RelightRegionTest#prepareFailureReleasesHolds`(끔·켬) | 코드 검토 F1 회귀: 일꾼 풀이 거절해도 done·콜백이 오고 붙잡기·핀·얼림 0, 옆 발광석 빛 15. 정리를 빼면 실패(변이 확인) |
+| `overlappingRequestWaitsForHoldsThenRuns` | F3: 겹치는 다른 요청은 미뤄졌다가 앞 설치로 풀리면 깨어 끝남, 겹치지 않는 요청은 안 기다림. 깨우기를 빼면 실패(변이 확인) |
+| `savingRightAfterReleaseStillMarksStale` | F4: 붙잡기가 풀렸지만 통에서 아직 안 꺼낸 검사 옆 청크를 저장 → stale. 꺼낸 뒤에만 보면 실패(변이 확인) |
 
 기존 시험: 빛 패키지 전부·`AsyncLightTest`·`AsyncLightRegionTest`(합치기·나누기 포함)·`RandomTickMaskTest`·`ChunkFieldCensusTest`(얼림 수 손잡이 분류) 등 140개 통과.
 아래는 처음 계획(참고).
@@ -300,5 +310,16 @@ FAWE 의 `//fixlighting` 이외 빛 명령(`//removelighting`·`//getlighting`·
 | S6 박싱 없는 판정 | 열린 주소법 `long[]` 사본 + 세대 | 4.3 |
 | S7·S8 | 5장 5·6 에 적고 넘김(경계 검사는 T-205 후보, 기본 끔 옵션 후보) | 5장 |
 | S9 얼림 중 `-ea` 단언 | 시험이 모두 `-ea` 로 돈다. 퍼즈 시험이 얼림이 걸린 채 C·둘레를 쓴다 | 7장 |
+
+코드 검토(`furnace/reviews/pr439-t197-relight-code-review.md`, 조건부 승인):
+
+| 항목 | 반영 | 어디 |
+|---|---|---|
+| F1 준비·설치 예외 때 붙잡기·핀·얼림·done 정리 | 붙잡기 뒤 준비를 try/catch — 녹이고 `skip(held)`, `dispatched` 는 `execute` 가 돌아온 뒤. 일꾼과 정리 중 먼저 집은 쪽이 끝을 맡는다(`Job.claimed`). 설치는 try/finally + stale 표시. 언어 키 `relight.prepare-failed`·`install-failed` | 4.1 ③, `RelightRegionTest#prepareFailureReleasesHolds` |
+| F2 준비마다 region 밀린 빛 전부 계산 | 곧 붙잡을 3×3 합집합 안에 밀린 검사가 있을 때만. 빛 작업 켬은 묶음으로 넘김(`ChunkLevel.settleChecksBeforeHold`) | 4.1 ② |
+| F3 설치마다 미룬 타일 전부 재큐 | 풀린 칸에 닿고 더는 막히지 않는 타일만 깨워 대기열 맨 앞에(미룬 차례 유지). 다시 준비로 돌리는 설치 청크도 앞에 | 4.1 ③⑩ |
+| F4 저장 직전 풀린 검사 stale 누락 | `applyHold` 전후 모두 `heldNear` | 4.6 |
+| F5 콜백 스레드 javadoc | `ChunkInternals.relightChunks`, `ThreadedLevelLightEngine` | — |
+| 시험 보강 | 합치기·나누기·두 region 타일·F1 회귀를 `RelightRegionTest` 로 옮김 | 7장 |
 
 남은 것: M3(헤드리스 서버 MSPT), M4(`lamps400Bench` 회귀 — 0 비용 경로는 volatile 읽기 두 번), M5(데스크탑 실측 + 둘레 한 줄)는 코드 검토와 함께 따로 잰다.
