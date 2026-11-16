@@ -1,5 +1,6 @@
 package org.domi.furnace.server.world.gen.feature;
 
+import org.domi.furnace.server.world.StateIds;
 import org.domi.furnace.api.GameVersion;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -19,10 +20,8 @@ public final class TreeFeature implements ConfiguredFeature {
 
     private static final Direction[] ALL_DIRECTIONS = Direction.values();
     private static final int AIR = 0;
-    private static final int CAVE_AIR = 12958;
-    private static final int VOID_AIR = 12959;
-    private static final int WATER_MIN_STATE = 80;
-    private static final int WATER_MAX_STATE = 95;
+    private static final int WATER_MIN_STATE = StateIds.WATER_FIRST;
+    private static final int WATER_MAX_STATE = StateIds.WATER_LAST;
 
     private final TreeConfig config;
 
@@ -267,16 +266,15 @@ public final class TreeFeature implements ConfiguredFeature {
     }
 
     // Reads DISTANCE property from any leaf block state ID.
-    // All leaf types span 28 states: base, base+28, ... Distance = (offset/4)+1.
-    // Bases: oak=237, spruce=265, birch=293, jungle=321, acacia=349,
-    //        cherry=377, dark_oak=405, mangrove=433, azalea=461, flower_azalea=489.
+    // 잎 열 종류는 블록마다 LEAVES_STATES_PER_BLOCK 칸씩 이어 있고(oak 부터 flowering_azalea 까지), 그 안에서 distance 는 LEAVES_DISTANCE_STEP 칸 보폭이다.
+    // Distance = (offset / LEAVES_DISTANCE_STEP) + 1. 값은 state-ids.spec 이 블록 정의 표에서 푼다(StateIds).
     private static int anyLeafDistance(int stateId) {
-        if (stateId < 237 || stateId > 516) return 7;
-        return (stateId - 237) % 28 / 4 + 1;
+        if (stateId < StateIds.LEAVES_FIRST || stateId > StateIds.LEAVES_LAST) return 7;
+        return (stateId - StateIds.LEAVES_FIRST) % StateIds.LEAVES_STATES_PER_BLOCK / StateIds.LEAVES_DISTANCE_STEP + 1;
     }
 
     private static int withLeafDistance(int stateId, int distance) {
-        return stateId - ((stateId - 237) % 28 / 4) * 4 + (distance - 1) * 4;
+        return stateId - ((stateId - StateIds.LEAVES_FIRST) % StateIds.LEAVES_STATES_PER_BLOCK / StateIds.LEAVES_DISTANCE_STEP) * StateIds.LEAVES_DISTANCE_STEP + (distance - 1) * StateIds.LEAVES_DISTANCE_STEP;
     }
 
     private record Bounds(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
@@ -376,19 +374,19 @@ public final class TreeFeature implements ConfiguredFeature {
     }
 
     private static boolean isReplaceableByTreesPlant(int stateId) {
-        return stateId == 2005 // short_grass
-            || stateId == 2006 // fern
-            || stateId == 2007 // dead_bush
-            || stateId == 2008 // seagrass
-            || (stateId >= 2009 && stateId <= 2010) // tall_seagrass
-            || (stateId >= 6837 && stateId <= 6868) // vine
-            || (stateId >= 6869 && stateId <= 6996) // glow_lichen
-            || (stateId >= 10747 && stateId <= 10758) // sunflower·lilac·rose_bush·peony·tall_grass·large_fern
-            || (stateId >= 12507 && stateId <= 12508) // pitcher_plant
-            || stateId == 18594 // warped_roots
-            || stateId == 18595 // nether_sprouts
-            || stateId == 18665 // crimson_roots
-            || (stateId >= 24900 && stateId <= 24901); // hanging_roots
+        return stateId == StateIds.SHORT_GRASS
+            || stateId == StateIds.FERN
+            || stateId == StateIds.DEAD_BUSH
+            || stateId == StateIds.SEAGRASS
+            || (stateId >= StateIds.TALL_SEAGRASS_FIRST && stateId <= StateIds.TALL_SEAGRASS_LAST)
+            || (stateId >= StateIds.VINE_FIRST && stateId <= StateIds.VINE_LAST)
+            || (stateId >= StateIds.GLOW_LICHEN_FIRST && stateId <= StateIds.GLOW_LICHEN_LAST)
+            || (stateId >= StateIds.TALL_FLOWERS_FIRST && stateId <= StateIds.TALL_FLOWERS_LAST) // sunflower·lilac·rose_bush·peony·tall_grass·large_fern
+            || (stateId >= StateIds.PITCHER_PLANT_FIRST && stateId <= StateIds.PITCHER_PLANT_LAST)
+            || stateId == StateIds.WARPED_ROOTS
+            || stateId == StateIds.NETHER_SPROUTS
+            || stateId == StateIds.CRIMSON_ROOTS
+            || (stateId >= StateIds.HANGING_ROOTS_FIRST && stateId <= StateIds.HANGING_ROOTS_LAST);
     }
 
     public static boolean isWater(int stateId) {
@@ -412,7 +410,7 @@ public final class TreeFeature implements ConfiguredFeature {
     }
 
     public static boolean isLeaves(int stateId) {
-        return stateId >= 237 && stateId <= 516;
+        return stateId >= StateIds.LEAVES_FIRST && stateId <= StateIds.LEAVES_LAST;
     }
 
     public static boolean isDirt(int stateId, TreeConfig config) {
@@ -420,18 +418,17 @@ public final class TreeFeature implements ConfiguredFeature {
     }
 
     public static boolean isLog(int stateId, TreeConfig config) {
-        return stateId >= 130 && stateId <= 150 && stateId != 145 && stateId != 146 && stateId != 147;
+        return stateId >= StateIds.LOG_FIRST && stateId <= StateIds.LOG_LAST && (stateId < StateIds.CHERRY_LOG_FIRST || stateId > StateIds.CHERRY_LOG_LAST);
     }
 
-    // 기존 4933-4964는 실제로는 spruce/birch_hanging_sign 상태 id 범위였음(blockstates_1.21.1.txt
-    // 대조로 확인) — vine의 실제 범위(6837-6868)로 수정. isFree/ignoreVines 판정과 무관하게(vine이
-    // fixture에서 거의 등장하지 않아) mismatch 카운트엔 영향 없었으나, 의미상 확실한 버그라 고침.
+    // 예전에는 손으로 쓴 숫자 범위가 vine 이 아닌 hanging_sign 상태 범위였던 적이 있다(숫자 직접 쓰기 때문에 생긴 버그) —
+    // 이제 StateIds.VINE_FIRST/LAST 가 블록 정의 표에서 풀린다.
     private static boolean isVine(int stateId) {
-        return stateId >= 6837 && stateId <= 6868;
+        return stateId >= StateIds.VINE_FIRST && stateId <= StateIds.VINE_LAST;
     }
 
     public static boolean isAir(int stateId) {
-        return stateId == AIR || stateId == CAVE_AIR || stateId == VOID_AIR;
+        return stateId == AIR || stateId == StateIds.VOID_AIR || stateId == StateIds.CAVE_AIR;
     }
 
     // vanilla net.minecraft.core.Direction.values() 순서(DOWN,UP,NORTH,SOUTH,WEST,EAST)와 일치시킨다 —

@@ -25,7 +25,7 @@ Java 21로 바닥부터 만드는 멀티스레드 Minecraft **1.21.1** 서버. �
 3. **parity를 거짓으로 만들지 않는다.** 구현하지 못한 feature는 `NoopFeature` placeholder로 둔다. RNG 소비가 다른 근사 구현을 활성화하지 않는다.
 4. **스레드 소유권을 지킨다.** region/global 스레드 소유 상태는 해당 owner 스레드에서만 건드린다. 상세는 `.claude/rules/scheduler.md`.
 5. **테스트를 스킵·비활성화해서 초록을 만들지 않는다.** 실패는 원인을 고친다.
-6. **raw block state id 숫자 리터럴을 새로 늘리지 않는다.** 이름 기반 조회(`BlockRegistry`, `BlockStateKey`)를 쓴다. 기존 78곳은 버전업 부채다(`LLM-Wiki/output/furnace-version-upgrade-design.md`).
+6. **raw block state id 숫자 리터럴을 쓰지 않는다.** 이름 기반 조회(`BlockRegistry`, `BlockStateKey`)를 쓰거나, 코드가 이름으로 부르는 번호는 `StateIds`(`gradle/state-ids.spec` 에 한 줄 더하면 `blocks/definitions_<판>.txt` 에서 풀려 생성된다)를 쓴다. `tools/ci/check-raw-state-ids.py` 가 CI light 단계에서 강제한다(V-02).
 7. **바닐라 jar·생성 결과물은 커밋하지 않는다**(Mojang EULA). 커밋 대상은 추출된 리소스와 도구뿐이다(`tools/vanilla-data/README.md`).
 
 ## 영역별 상세 규칙

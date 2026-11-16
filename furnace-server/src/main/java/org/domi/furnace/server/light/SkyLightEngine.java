@@ -1,6 +1,7 @@
 // 바닐라 SkyLightEngine: 하늘빛. 열마다 "가장 낮은 원천 y"(ChunkSkyLightSources) 이상은 15, 그 아래는 옆·아래로 퍼지며 줄어든다.
 package org.domi.furnace.server.light;
 
+import org.domi.furnace.server.world.StateIds;
 import org.domi.furnace.server.world.ChunkSection;
 
 public final class SkyLightEngine extends LightEngine {
@@ -24,7 +25,7 @@ public final class SkyLightEngine extends LightEngine {
     }
 
     private int state(int x, int y, int z) {
-        if (y < world.minY() || y >= world.maxY()) return 12958;   // void_air
+        if (y < world.minY() || y >= world.maxY()) return StateIds.VOID_AIR;
         return world.state(x, y, z);
     }
 

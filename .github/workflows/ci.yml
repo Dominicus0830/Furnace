@@ -178,6 +178,12 @@ jobs:
         id: compat-test
         continue-on-error: true
         run: ./gradlew -PskipOracle=true :furnace-compat-paper:test
+      # V-02: 서버 코드에 블록 상태 번호가 숫자로 박히지 않았는지(StateIds 를 써야 한다, AGENTS.md 규칙 6)
+      - name: raw 상태 번호 검사
+        run: |
+          python3 -I tools/ci/check-raw-state-ids.py --self-test
+          ./gradlew -PskipOracle=true :furnace-server:generateStateIds
+          python3 -I tools/ci/check-raw-state-ids.py
       # 단일 실행 jar 가 만들어지는지(실행 검사는 아님). 러너·캐시·브랜치 정책은 사용자 결정 전이라 바꾸지 않았다.
       - name: fatJar 빌드
         run: ./gradlew -PskipOracle=true :furnace-server:fatJar

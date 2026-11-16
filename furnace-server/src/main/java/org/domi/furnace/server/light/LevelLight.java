@@ -1,6 +1,8 @@
 // 한 차원의 빛 엔진 묶음(바닐라 LevelLightEngine): 블록빛 + (하늘이 있으면) 하늘빛. 청크 켜기·블록 변경·갱신 실행.
 package org.domi.furnace.server.light;
 
+import org.domi.furnace.server.world.StateIds;
+
 public final class LevelLight {
     private final LightWorld world;
     private final BlockLightEngine block;
@@ -71,7 +73,7 @@ public final class LevelLight {
         ChunkLight own = new ChunkLight();
         LightWorld w = new LightWorld() {
             public ChunkLight light(int x, int z) { return x == cx && z == cz ? own : null; }
-            public int state(int x, int y, int z) { return y < minY || y >= maxY ? 12958 : blocks.state(x, y, z); }
+            public int state(int x, int y, int z) { return y < minY || y >= maxY ? StateIds.VOID_AIR : blocks.state(x, y, z); }
             public int unloadedState() { return bedrockState; }
             public int uniformSectionState(int x, int sy, int z) { return x == cx && z == cz ? blocks.uniformSectionState(sy) : -1; }
             public boolean sectionMayEmit(int x, int sy, int z) { return x != cx || z != cz || blocks.sectionMayEmit(sy); }
@@ -92,7 +94,7 @@ public final class LevelLight {
         if (!hasSkyLight) return;
         LightWorld w = new LightWorld() {
             public ChunkLight light(int x, int z) { return x == cx && z == cz ? own : null; }
-            public int state(int x, int y, int z) { return y < minY || y >= maxY ? 12958 : blocks.state(x, y, z); }
+            public int state(int x, int y, int z) { return y < minY || y >= maxY ? StateIds.VOID_AIR : blocks.state(x, y, z); }
             public int unloadedState() { return 0; }
             public int uniformSectionState(int x, int sy, int z) { return x == cx && z == cz ? blocks.uniformSectionState(sy) : -1; }
             public boolean sectionHasOnlyAir(int x, int sy, int z) { return x == cx && z == cz ? blocks.sectionHasOnlyAir(x, sy, z) : LightWorld.super.sectionHasOnlyAir(x, sy, z); }

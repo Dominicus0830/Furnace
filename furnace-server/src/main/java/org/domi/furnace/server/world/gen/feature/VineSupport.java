@@ -1,13 +1,14 @@
 package org.domi.furnace.server.world.gen.feature;
 
+import org.domi.furnace.server.world.StateIds;
 import java.util.Set;
 
 // vanilla VineBlock의 지지(support) 판정 — TreeFeature.updateShapeAtEdge가 가장자리 vine을 갱신할 때 쓴다.
 // 부착 가능 여부는 VinesFeature와 같은 "부착 불가 블록 블랙리스트"(BiomeFeatureData.parseVines가 채운다) 근사.
-// vine 상태 id는 east/north/south/up/west(알파벳 순, true가 먼저) 5비트 조합 — 6837 + (east?0:16)+(north?0:8)+(south?0:4)+(up?0:2)+(west?0:1).
+// vine 상태 id는 east/north/south/up/west(알파벳 순, true가 먼저) 5비트 조합 — VINE_FIRST + (east?0:16)+(north?0:8)+(south?0:4)+(up?0:2)+(west?0:1).
 public final class VineSupport {
-    static final int FIRST = 6837;
-    static final int LAST = 6868;
+    static final int FIRST = StateIds.VINE_FIRST;
+    static final int LAST = StateIds.VINE_LAST;
     private static volatile Set<Integer> nonAttachable = Set.of();
 
     private VineSupport() {}

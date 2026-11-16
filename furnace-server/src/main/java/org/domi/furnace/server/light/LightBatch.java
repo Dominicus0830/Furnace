@@ -2,6 +2,7 @@
 // 보이는 빛의 쓰기 사본 위에서 빛 스레드가 계산한다. 결과(복사해 고친 층·원천 높이·바뀐 섹션 표시)는 region 스레드가 넣는다.
 package org.domi.furnace.server.light;
 
+import org.domi.furnace.server.world.StateIds;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -100,7 +101,7 @@ public final class LightBatch implements LightWorld {
     }
 
     @Override public int state(int x, int y, int z) {
-        if (y < minY || y >= maxY) return 12958;   // void_air
+        if (y < minY || y >= maxY) return StateIds.VOID_AIR;
         return col(x >> 4, z >> 4).blocks.state(x, y, z);
     }
 

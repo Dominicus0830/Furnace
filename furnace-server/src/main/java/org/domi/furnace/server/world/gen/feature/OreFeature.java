@@ -1,5 +1,6 @@
 package org.domi.furnace.server.world.gen.feature;
 
+import org.domi.furnace.server.world.StateIds;
 import java.util.BitSet;
 import java.util.List;
 import org.domi.furnace.server.world.ChunkColumn;
@@ -217,7 +218,7 @@ public final class OreFeature implements ConfiguredFeature {
 
     // vanilla BlockState.isAir() — air(0), cave_air, void_air 모두 공기로 처리
     private static boolean isAirBlock(int stateId) {
-        return stateId == 0 || stateId == 12958 || stateId == 12959;
+        return stateId == StateIds.AIR || stateId == StateIds.VOID_AIR || stateId == StateIds.CAVE_AIR;
     }
 
     private static boolean inWorldY(FeatureWorldView view, int y) {
