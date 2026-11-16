@@ -314,6 +314,27 @@ class RelightRegionTest {
         });
     }
 
+    /** 수동 시계(헤드리스 시험 서버 — 틱을 내지 않으면 지연 작업이 안 돈다)에서도 틱 예산 때문에 멈추지 않는다: 틱이 없는 차례는 미루지 않는다. */
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void manualClockDoesNotStallRelight(boolean async) throws Exception {
+        withWorld(async, (w, rz) -> {
+            rz.enableManualClock();
+            w.relight().tickBudgetForTest(1);
+            try {
+                long[] keys = new long[25];
+                int i = 0;
+                for (int dz = -2; dz <= 2; dz++) for (int dx = -2; dx <= 2; dx++) keys[i++] = Regionizer.chunkKey(CX + dx, CZ + dz);
+                CompletableFuture<Integer> done = new CompletableFuture<>();
+                assertEquals(25, w.relight().relight(keys, null, done::complete));
+                assertEquals(25, done.get(30, TimeUnit.SECONDS), "틱 없이도 끝난다");
+                assertEquals(0, w.relight().holdCount());
+            } finally {
+                w.relight().tickBudgetForTest(Relight.TICK_BUDGET);
+            }
+        });
+    }
+
     /** 한 타일(8×8)이 두 region 에 걸침: 구역 2청크(shift 1)·반경 1 — 청크 0 과 6 은 같은 타일, 다른 region. */
     @ParameterizedTest
     @ValueSource(booleans = {false, true})

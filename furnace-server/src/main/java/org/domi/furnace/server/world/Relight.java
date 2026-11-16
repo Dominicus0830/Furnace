@@ -59,6 +59,7 @@ public final class Relight {
 
     /** region 스레드: 이번 틱 relight 예산을 다 썼는가. */
     private boolean overBudget(Region r) {
+        if (r.relightHeldRun) return false;   // 틱이 안 가는 차례(수동 시계 등) — 미루면 영영 안 돈다. 틱도 없으니 MSPT 걱정도 없다
         long t = r.tickCount();
         if (r.relightTick != t) {
             r.relightTick = t;
@@ -436,7 +437,7 @@ public final class Relight {
                     long[] area = area(chunks);
                     long s0 = System.nanoTime();
                     boolean settled = level.settleChecksBeforeHold(p -> java.util.Arrays.binarySearch(area,
-                            Regionizer.chunkKey(LightEngine.px(p) >> 4, LightEngine.pz(p) >> 4)) >= 0, t.batchDefers >= MAX_BATCH_DEFERS);
+                            Regionizer.chunkKey(LightEngine.px(p) >> 4, LightEngine.pz(p) >> 4)) >= 0, t.batchDefers >= MAX_BATCH_DEFERS || r.relightHeldRun);
                     moved = System.nanoTime() - s0;   // 틱 끝 빛 일을 당겨 한 몫 — 그 틱 끝이 그만큼 덜 하므로 예산에 넣지 않는다
                     if (!settled) {   // 빛 작업 묶음이 그 자리 검사를 아직 계산 중 — 기다리지 않고 다음 틱에
                         t.batchDefers++;
@@ -553,7 +554,7 @@ public final class Relight {
 
     private void install(Region r, Job job, long k, ChunkLight fresh, int batchDefers) {
         // 이번 틱 몫을 다 썼거나, 빛 작업 묶음이 아직 도는 중이다(끼우기는 묶음 게시를 기다려야 한다) — 기다리지 않고 다음 틱에
-        if (overBudget(r) || batchDefers < MAX_BATCH_DEFERS && r.level().lightBatchRunning()) {
+        if (overBudget(r) || !r.relightHeldRun && batchDefers < MAX_BATCH_DEFERS && r.level().lightBatchRunning()) {
             int d = r.level().lightBatchRunning() ? batchDefers + 1 : batchDefers;
             r.schedule(k, rr -> install(rr, job, k, fresh, d), 1);
             return;
