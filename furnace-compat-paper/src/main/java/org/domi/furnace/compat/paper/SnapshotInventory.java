@@ -109,6 +109,25 @@ class SnapshotInventory extends CompatInventory {
         }
 
         @Override
+        public CompletableFuture<Boolean> update(int slot, java.util.function.UnaryOperator<org.domi.furnace.api.item.ItemStack> fn) {
+            if (!known) return CompletableFuture.failedFuture(unknown());
+            if (slot < 0 || slot >= size) return CompletableFuture.failedFuture(new IndexOutOfBoundsException("Index " + slot + " out of bounds for length " + size));
+            if (!writable.test(slot)) {
+                return CompletableFuture.failedFuture(new UnsupportedFeature("Inventory#setItem(" + type + ")",
+                        "the Furnace inventory event does not expose the block or entity of that window, so this slot cannot be written - cancel the event or write with the Furnace block API"));
+            }
+            synchronized (this) {
+                org.domi.furnace.api.item.ItemStack cur = slot < items.size() ? items.get(slot) : org.domi.furnace.api.item.ItemStack.EMPTY;
+                org.domi.furnace.api.item.ItemStack next = fn.apply(cur);
+                if (next == null || next == cur) return CompletableFuture.completedFuture(false);
+                var w = writableItems();
+                while (w.size() <= slot) w.add(org.domi.furnace.api.item.ItemStack.EMPTY);
+                w.set(slot, next);
+            }
+            return CompletableFuture.completedFuture(true);
+        }
+
+        @Override
         public CompletableFuture<List<org.domi.furnace.api.item.ItemStack>> contents() {
             if (!known) return CompletableFuture.failedFuture(unknown());
             List<org.domi.furnace.api.item.ItemStack> out = new ArrayList<>(size);

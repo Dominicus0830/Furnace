@@ -66,6 +66,18 @@ final class OwnedInventory implements org.domi.furnace.api.inventory.Inventory {
     }
 
     @Override
+    public CompletableFuture<Boolean> update(int slot, java.util.function.UnaryOperator<ItemStack> fn) {
+        if (slot < 0 || slot >= size) return RegionFuture.wrap(CompletableFuture.failedFuture(new IndexOutOfBoundsException("slot " + slot)));
+        return RegionFuture.wrap(runner.run(s -> {
+            ItemStack cur = ApiConvert.item(s.get(slot), items());
+            ItemStack next = fn.apply(cur);
+            if (next == null || next == cur) return false;
+            s.set(slot, ApiConvert.item(next, items()));
+            return true;
+        }));
+    }
+
+    @Override
     public CompletableFuture<List<ItemStack>> contents() {
         return RegionFuture.wrap(runner.run(s -> {
             List<ItemStack> out = new ArrayList<>(s.size());

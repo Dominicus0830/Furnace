@@ -59,6 +59,30 @@ final class PlayerInventoryHandle implements org.domi.furnace.api.inventory.Inve
         return f;
     }
 
+    /** 읽기·비교·쓰기를 플레이어 소유 스레드의 한 작업에서 한다. */
+    @Override
+    public CompletableFuture<Boolean> update(int slot, java.util.function.UnaryOperator<ItemStack> fn) {
+        if (slot < 0 || slot >= SIZE) return RegionFuture.wrap(CompletableFuture.failedFuture(new IndexOutOfBoundsException("slot " + slot)));
+        if (p.isDisconnected()) return RegionFuture.wrap(CompletableFuture.failedFuture(new IllegalStateException("not connected")));
+        RegionFuture<Boolean> f = new RegionFuture<>();
+        p.runOnOwner(() -> {
+            try {
+                int w = PlayerInventory.windowSlot(slot);
+                ItemStack cur = ApiConvert.item(p.inventory().get(w), items());
+                ItemStack next = fn.apply(cur);
+                if (next == null || next == cur) {
+                    f.complete(false);
+                    return;
+                }
+                p.inventory().set(w, ApiConvert.item(next, items()));
+                f.complete(true);
+            } catch (Throwable t) {
+                f.completeExceptionally(t);
+            }
+        });
+        return f;
+    }
+
     @Override
     public CompletableFuture<List<ItemStack>> contents() {
         List<ItemStack> out = new ArrayList<>(SIZE);

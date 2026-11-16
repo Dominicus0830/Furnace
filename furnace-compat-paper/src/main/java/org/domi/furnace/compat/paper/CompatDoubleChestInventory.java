@@ -67,6 +67,12 @@ public final class CompatDoubleChestInventory extends CompatInventory implements
         }
 
         @Override
+        public CompletableFuture<Boolean> update(int slot, java.util.function.UnaryOperator<org.domi.furnace.api.item.ItemStack> fn) {
+            if (slot < 0 || slot >= size()) return CompletableFuture.failedFuture(new IndexOutOfBoundsException("Index " + slot + " out of bounds for length " + size()));
+            return slot < left.size() ? left.update(slot, fn) : right.update(slot - left.size(), fn);
+        }
+
+        @Override
         public CompletableFuture<List<org.domi.furnace.api.item.ItemStack>> contents() {
             return left.contents().thenCombine(right.contents(), (a, b) -> {
                 List<org.domi.furnace.api.item.ItemStack> out = new ArrayList<>(a.size() + b.size());

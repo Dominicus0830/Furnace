@@ -133,6 +133,15 @@ public final class CompatMenuInventory extends CompatInventory {
         }
 
         @Override
+        public CompletableFuture<Boolean> update(int slot, java.util.function.UnaryOperator<org.domi.furnace.api.item.ItemStack> fn) {
+            try {
+                return CompletableFuture.completedFuture(menu.update(slot, fn));
+            } catch (RuntimeException e) {
+                return CompletableFuture.failedFuture(e);
+            }
+        }
+
+        @Override
         public CompletableFuture<List<org.domi.furnace.api.item.ItemStack>> contents() { return CompletableFuture.completedFuture(menu.items()); }
     }
 }

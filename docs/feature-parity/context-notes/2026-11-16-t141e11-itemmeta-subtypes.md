@@ -42,3 +42,10 @@
   (`/give` 나 아이템 로드 때 불완전한 프로필을 비동기로 확인해 같은 스택에 다시 쓰는 것)에 해당하는 서버 기능도 아직 없다 — 메타 안에서 흉내 내면 플러그인이 만든 스택이 인벤토리에 들어갈 때 복사돼 결과가 어디로 가는지 알 수 없다. 서버 쪽 규칙(아이템이 칸에 들어간 뒤 그 칸에 다시 쓰기)으로 한 번에 풀 일이라 후속(결정 항목 1).
 - `Player#setPlayerProfile` 은 이 PR 에 없다: Paper 는 게임 프로필을 바꾸고 모든 플레이어에게 엔티티를 지웠다 다시 보여 주며(탭 목록 포함) 본인 화면을 새로 고치는 서버 기능이다(E11c).
 - **알려진 차이(독립 검토):** 메타 목록은 제한 없이 들고(`setPatterns` 25겹 → `numberOfPatterns` 25, `addPattern` 도 안 잃음) 아이템에서 읽는 길만 20겹으로 자른다. 그런데 YAML 로 21겹 이상을 읽으면 마지막 단계(만든 메타를 아이템으로 적용한 뒤 다시 읽을 때)에 20겹으로 잘린다 — Paper 는 전부 적용한다. 바닐라 베틀은 6겹이라 실제로는 드물어 문서로만 둔다.
+
+## PR3 (E11c-1) — 머리 스킨 자동 채우기 (구현됨)
+- Paper(SPIGOT-6558)는 `CraftMetaSkull#applyToItem`(메타를 NMS 아이템에 적용할 때)에서 텍스처가 없으면 `PlayerProfile#update()` 를 돌려 결과를 그 NMS 스택에 다시 쓴다. 그 NMS 스택이 곧 인벤토리 칸에 들어가는 것이라 "머리가 칸에 들어간 뒤 스킨이 채워진다" 로 보인다. 인벤토리에 붙지 않은 평범한 `ItemStack` 은 NMS 로 옮겨지지 않으므로 Paper 도 채우지 않는다.
+- Furnace: 칸 쓰기가 모두 지나는 `CompatInventory#writeSlot`(setItem·addItem·거울 `setItemMeta`)이 머리(`MetaKind.SKULL`)에 프로필이 있고 텍스처가 없으면 `SkullProfileFill` 이 E10 의 `CraftPlayerProfile#update()`(조회 풀 4개)를 돌리고, 끝나면 `Inventory#update(slot, fn)` 으로 **그 칸이 아직 같은 프로필을 든 머리일 때만** 채운 프로필로 바꾼다. 칸이 그새 바뀌었으면(다른 아이템·다른 프로필) 건드리지 않는다.
+- **새 API `Inventory#update(slot, UnaryOperator<ItemStack>)`**: 칸의 지금 값을 소유 스레드에서 읽어 fn 에 넘기고 돌려준 값을 같은 소유 스레드 작업 안에서 쓴다(읽기-쓰기 사이에 다른 쓰기가 끼지 않는다). 불변 `ItemStack` 과 여러 region 스레드에서 "비동기로 얻은 값을 아직 그대로일 때만 반영" 하는 데 필요하다. 플레이어(`PlayerInventoryHandle`)·블록 엔티티/엔티티(`OwnedInventory`)·메뉴(`Menu#update`, 보관함 메뉴는 클릭과 한 줄)·이벤트 스냅샷·큰 상자 구현을 채웠다.
+- **함정:** 이름만 있는 머리(`setOwner(name)`)는 UUID 0 + 이름으로 저장되는데, `CraftPlayerProfile.complete()` 는 UUID 가 null 이 아니면 이름 조회를 건너뛴다. 조회용 프로필은 UUID 0 을 null("모른다")로 바꿔 만든다(Paper CraftPlayerProfile 의 빈 UUID). 비동기 결과가 스킨 주소가 없는 속성이면 한 번 채운 뒤 같은 칸을 다시 쓰기 전까지는 다시 조회하지 않는다(채우기는 `writeSlot` 에서만 시작).
+- Paper 와 다른 점: (1) 서버 쪽 읽기 경로(`/give`·아이템 로드의 `PlayerHeadItem.verifyComponentsAfterLoad`)와 바닥에 떨어진 아이템은 채우지 않는다 → 도미니코 결정 항목 1(E11d). (2) 조회 실패는 로그 없이(DEBUG) 넘어간다.
