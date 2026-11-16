@@ -97,6 +97,19 @@ public class LevelChunk extends ChunkAccess {
         return old == state ? null : old;
     }
 
+    /**
+     * 바닐라 LevelChunk.getFullStatus: 청크 홀더의 단계(바닐라 티켓 레벨 — Paper 는 플레이어 티켓을 시뮬레이션 거리로 걸어 다를 수 있다, T-204 설계 4장).
+     * 내린 청크(이 로드가 끝난 보기)는 INACCESSIBLE. 주인 스레드면 바로, 틱 스레드가 아닌 스레드는 주인을 기다리고(최대 10초), 다른 region·전역 스레드는
+     * ThreadOwnershipException({@link org.domi.furnace.compat.nms.NmsOwner}).
+     */
+    public net.minecraft.server.level.FullChunkStatus getFullStatus() {
+        if (furnaceMirror.dead()) return net.minecraft.server.level.FullChunkStatus.INACCESSIBLE;
+        var p = getPos();
+        int s = org.domi.furnace.compat.nms.NmsOwner.call(furnaceWorld, p.getMinBlockX(), 0, p.getMinBlockZ(), "LevelChunk#getFullStatus",
+                () -> NmsChunks.bridge().fullChunkStatusNow(furnaceWorld, p.x, p.z));
+        return net.minecraft.server.level.FullChunkStatus.furnaceOf(s);
+    }
+
     // ------------------------------------------------------------------ 블록 엔티티(N2b-6 읽기, T-198 쓰기)
 
     /** 바닐라 LevelChunk.EntityCreationType: IMMEDIATE 는 없으면 만들고, QUEUED·CHECK 는 있는 것만(1.21.1 서버에서 둘은 같다). */

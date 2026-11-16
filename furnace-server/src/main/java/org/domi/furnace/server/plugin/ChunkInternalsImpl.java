@@ -144,6 +144,12 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     @Override
+    public int fullChunkStatusNow(org.domi.furnace.api.world.World world, int chunkX, int chunkZ) {
+        Region r = ownedLoaded(world, chunkX, chunkZ, "LevelChunk#getFullStatus");
+        return r == null || !r.chunkLoaded(new ChunkPos(chunkX, chunkZ)) ? -1 : r.fullChunkStatus(chunkX, chunkZ);
+    }
+
+    @Override
     public boolean setBlockNow(org.domi.furnace.api.world.World world, int x, int y, int z, int stateId, int flags, int maxUpdateDepth) {
         Region r = ownedLoaded(world, x >> 4, z >> 4, "Level#setBlock");
         RegionLevel lv = r == null || !r.chunkLoaded(new ChunkPos(x >> 4, z >> 4)) ? null : r.level();

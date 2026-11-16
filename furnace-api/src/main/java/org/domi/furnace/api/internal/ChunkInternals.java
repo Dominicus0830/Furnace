@@ -80,6 +80,12 @@ public interface ChunkInternals {
      */
     int firstAvailableNow(World world, String heightmap, int x, int z);
 
+    /**
+     * 청크 홀더의 단계(바닐라 LevelChunk.getFullStatus — 티켓 레벨): 0 INACCESSIBLE, 1 FULL, 2 BLOCK_TICKING, 3 ENTITY_TICKING. 로드돼 있지 않으면 -1.
+     * 바닐라 티켓 규칙의 값이다(Paper 는 플레이어 티켓을 시뮬레이션 거리로 걸어 다를 수 있다 — T-204 설계 4장).
+     */
+    int fullChunkStatusNow(World world, int chunkX, int chunkZ);
+
     /** 청크를 저장 대상으로 표시한다(바닐라 setUnsaved(true)). 로드돼 있지 않으면 false. */
     boolean markUnsavedNow(World world, int chunkX, int chunkZ);
 

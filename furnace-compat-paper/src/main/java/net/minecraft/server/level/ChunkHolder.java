@@ -29,6 +29,14 @@ public class ChunkHolder {
 
     public LevelChunk getFullChunkNowUnchecked() { return getFullChunkNow(); }
 
+    /** 바닐라 ChunkHolder.getFullStatus: 로드된 청크면 그 단계({@link LevelChunk#getFullStatus} 와 같은 규칙), 아니면 INACCESSIBLE. */
+    public FullChunkStatus getFullStatus() {
+        var w = level.getWorld().furnaceHandle();
+        int s = org.domi.furnace.compat.nms.NmsOwner.call(w, pos.getMinBlockX(), 0, pos.getMinBlockZ(), "ChunkHolder#getFullStatus",
+                () -> org.domi.furnace.compat.nms.NmsChunks.bridge().fullChunkStatusNow(w, pos.x, pos.z));
+        return FullChunkStatus.furnaceOf(s);
+    }
+
     private CompletableFuture<ChunkResult<LevelChunk>> loadedFuture() {
         LevelChunk c = getFullChunkNow();
         return c == null ? UNLOADED_LEVEL_CHUNK_FUTURE : CompletableFuture.completedFuture(ChunkResult.of(c));
