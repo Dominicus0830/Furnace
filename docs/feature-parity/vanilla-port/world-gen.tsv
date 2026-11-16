@@ -1,4 +1,3 @@
-vanilla	furnace	path
 net.minecraft.core.BlockPos	org.domi.furnace.server.world.gen.feature.BlockPos	furnace-server/src/main/java/org/domi/furnace/server/world/gen/feature/BlockPos.java
 net.minecraft.core.Direction	org.domi.furnace.server.world.gen.structure.Direction	furnace-server/src/main/java/org/domi/furnace/server/world/gen/structure/Direction.java
 net.minecraft.data.worldgen.Carvers	org.domi.furnace.server.world.gen.carver.OverworldCarvers	furnace-server/src/main/java/org/domi/furnace/server/world/gen/carver/OverworldCarvers.java

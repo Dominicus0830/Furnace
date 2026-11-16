@@ -1,7 +1,7 @@
 # @VanillaPort 대응표 — world·gen 조각 (V-06)
 
-- 주석: `org.domi.furnace.server.VanillaPort` (`@Retention(SOURCE)`, 클래스 파일에 안 남음). 클래스 선언 바로 위 한 줄. 여러 바닐라 클래스를 합친 클래스는 `{"a", "b"}`.
-- 표 만들기: `python3 tools/ci/vanilla-port-map.py [--prefix server/world/]` → `build/vanilla-port-map.tsv`. 이 폴더의 `world-gen.tsv` 는 world·gen 조각의 사본이다(다른 조각은 각자 `<조각>.tsv`).
+- 주석: `org.domi.furnace.server.VanillaPort`(#459, `@Retention(SOURCE)`). 클래스 선언 바로 위 한 줄. 여러 바닐라 클래스를 합친 클래스는 `{"a", "b"}`.
+- 표 만들기: `python3 tools/vanilla-port/vanilla-port-map.py`(#459 의 생성기). 이 폴더의 `world-gen.tsv` 는 그 출력에서 `world/` 경로만 뽑은 사본이다.
 - 이름은 Mojang 이름 1.21.1 기준, 중첩 클래스는 바깥 클래스까지만. 소스 머리말·바닐라 포팅 주석에 적힌 이름과 알려진 클래스 배치로 적었고 **바닐라 jar 로 하나하나 확인하지는 않았다**(가정). 바닐라 소스 차이 도구(U-03)가 처음 돌 때 없는 클래스가 나오면 그 자리에서 고친다.
 - 바닐라에 대응이 없는 Furnace 고유 클래스(리전·스케줄러·생성 대기열·캐시 등)와 대응이 불분명한 클래스는 일부러 붙이지 않았다. 아래가 그 목록이다.
 
