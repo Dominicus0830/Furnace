@@ -5,10 +5,13 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FluidState;
 
 /**
- * 블록 읽기(Mojang 이름, N2a). 블록 엔티티 읽기(getBlockEntity)는 아직 없다 — BlockEntity shim 이 없다.
+ * 블록 읽기(Mojang 이름, N2a). 블록 엔티티 읽기 {@link #getBlockEntity}(T-198 — 월드·청크는 서버 블록 엔티티 보기, 빈 판은 null).
  * Paper 가 더한 {@link #getBlockStateIfLoaded}: 청크가 로드돼 있지 않으면 null(불러오지 않는다).
  */
 public interface BlockGetter extends LevelHeightAccessor {
+
+    /** 바닐라: 그 칸의 블록 엔티티(없으면 null). 월드(Level)는 IMMEDIATE, 청크는 CHECK 다(바닐라 그대로). */
+    net.minecraft.world.level.block.entity.BlockEntity getBlockEntity(BlockPos pos);
 
     BlockState getBlockState(BlockPos pos);
 

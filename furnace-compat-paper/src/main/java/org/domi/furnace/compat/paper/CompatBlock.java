@@ -11,7 +11,7 @@ import org.bukkit.block.data.BlockData;
 import org.domi.furnace.api.concurrent.ThreadOwnershipException;
 import org.domi.furnace.api.world.BlockPos;
 
-public final class CompatBlock implements Block {
+public class CompatBlock implements Block {
 
     private final String dimension;
     private final BlockPos pos;
