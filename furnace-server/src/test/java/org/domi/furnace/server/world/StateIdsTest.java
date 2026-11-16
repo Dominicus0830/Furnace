@@ -127,14 +127,4 @@ class StateIdsTest {
             assertEquals(oldLeaves, TreeFeature.isLeaves(s), "state " + s);
         }
     }
-
-    @Test
-    void 해초_바닥_어긋남은_지금_동작을_그대로_둔_것이다() {
-        // 알려진 어긋남(gradle/state-ids.spec 주석, user-todo 항목): 숫자가 바뀌면 이 시험이 알린다.
-        assertEquals(2013, StateIds.SEAGRASS_FLOOR_NONSOLID_LAST);
-        assertEquals("minecraft:piston", BLOCK_OF.get(StateIds.TALL_SEAGRASS_LAST + 1));
-        assertEquals("minecraft:piston", BLOCK_OF.get(StateIds.SEAGRASS_FLOOR_NONSOLID_LAST));
-        assertEquals("minecraft:kelp;age=22", KEY_OF.get(StateIds.KELP_FLOOR_NONSOLID_FIRST));
-        assertEquals("minecraft:kelp_plant", KEY_OF.get(StateIds.KELP_FLOOR_NONSOLID_LAST));
-    }
 }

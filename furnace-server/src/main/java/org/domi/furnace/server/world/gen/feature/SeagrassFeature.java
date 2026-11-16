@@ -1,6 +1,7 @@
 package org.domi.furnace.server.world.gen.feature;
 
 import org.domi.furnace.server.world.StateIds;
+import org.domi.furnace.server.world.BlockAttrs;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
 public final class SeagrassFeature implements ConfiguredFeature {
@@ -54,16 +55,10 @@ public final class SeagrassFeature implements ConfiguredFeature {
         return true;
     }
 
-    // BushBlock.mayPlaceOn: 블록이 solid face를 위로 제공해야 함.
-    // 물, 공기, 식물류는 face-sturdy 아님. 모든 solid full-cube 블록은 face-sturdy.
+    // SeagrassBlock.mayPlaceOn: 위쪽 면이 단단한(isFaceSturdy UP, SupportType.FULL) 블록이어야 한다. 바닐라 export 표(BlockAttrs)로 그대로 판정 —
+    // BlockSurvival 의 SEAGRASS 와 같은 규칙이다(마그마 블록 제외는 place 가 따로 본다).
     private static boolean isSolidFloor(int stateId) {
-        if (stateId == StateIds.AIR || stateId == StateIds.VOID_AIR || stateId == StateIds.CAVE_AIR) return false; // air
-        if (stateId >= StateIds.WATER_FIRST && stateId <= StateIds.WATER_LAST) return false;   // water
-        // seagrass / tall_seagrass: not solid
-        if (stateId >= StateIds.SEAGRASS && stateId <= StateIds.SEAGRASS_FLOOR_NONSOLID_LAST) return false;
-        // kelp_plant, kelp: not solid
-        if (stateId >= StateIds.KELP_FLOOR_NONSOLID_FIRST && stateId <= StateIds.KELP_FLOOR_NONSOLID_LAST) return false;
-        return true;
+        return BlockAttrs.get().isFaceSturdy(stateId, BlockAttrs.UP);
     }
 
     private static boolean isWater(int stateId) {

@@ -56,11 +56,3 @@ NETHER_SPROUTS       first  minecraft:nether_sprouts
 CRIMSON_ROOTS        first  minecraft:crimson_roots
 HANGING_ROOTS_FIRST  first  minecraft:hanging_roots
 HANGING_ROOTS_LAST   last   minecraft:hanging_roots
-
-# 해초 심을 자리(SeagrassFeature.isSolidFloor)가 "딱딱하지 않은 바닥"으로 치는 범위.
-# 알려진 어긋남(지금 동작 유지, docs/user-todo/entries/2026-11-16-v02-state-ids.md):
-#  - 해초~키다리 해초 범위가 뒤로 3칸 더 늘어 piston(extended=true,facing=north·east·south 앞 3칸)까지 "딱딱하지 않음"으로 친다.
-#  - 켈프 범위가 age=22~25 + kelp_plant 뿐이라 켈프 age 0~21 은 "딱딱함"으로 친다(블록 전체는 kelp ~ kelp_plant).
-SEAGRASS_FLOOR_NONSOLID_LAST   last   minecraft:tall_seagrass +3
-KELP_FLOOR_NONSOLID_FIRST      first  minecraft:kelp +22
-KELP_FLOOR_NONSOLID_LAST       last   minecraft:kelp_plant
