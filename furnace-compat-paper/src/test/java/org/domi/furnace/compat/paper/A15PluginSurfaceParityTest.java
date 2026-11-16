@@ -55,8 +55,8 @@ class A15PluginSurfaceParityTest {
                 @Override public void onEnable() {
                     try {
                         WiringProbe.LOG.add("own=" + read(getResource("lang/en_us.json")));
-                        WiringProbe.LOG.add("server=" + (getResource("registries/builtin-" + GameVersion.RESOURCE_TAG + ".txt") == null ? "null" : "found"));
-                        WiringProbe.LOG.add("loader=" + (getClassLoader().getResource("registries/builtin-" + GameVersion.RESOURCE_TAG + ".txt") == null ? "null" : "found"));
+                        WiringProbe.LOG.add("server=" + (getResource("registries/builtin-" + org.domi.furnace.api.GameVersion.RESOURCE_TAG + ".txt") == null ? "null" : "found"));
+                        WiringProbe.LOG.add("loader=" + (getClassLoader().getResource("registries/builtin-" + org.domi.furnace.api.GameVersion.RESOURCE_TAG + ".txt") == null ? "null" : "found"));
                     } catch (IOException e) { WiringProbe.failure = e; }
                     getServer().getPluginManager().registerEvents(new Listener() {
                         @EventHandler public void a1(PlayerToggleSneakEvent e) { WiringProbe.LOG.add("A1"); }
