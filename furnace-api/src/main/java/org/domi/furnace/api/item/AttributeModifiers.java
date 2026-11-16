@@ -1,4 +1,4 @@
-// minecraft:attribute_modifiers — 아이템을 쓸 때 붙는 속성 변경치 목록. 불변.
+// minecraft:attribute_modifiers. 아이템을 쓸 때 붙는 속성 변경치 목록이며 불변이다.
 // Entry.id 는 변경치를 가리키는 키(minecraft:base_attack_damage 꼴)이고 같은 속성에서 겹치지 않아야 한다.
 package org.domi.furnace.api.item;
 

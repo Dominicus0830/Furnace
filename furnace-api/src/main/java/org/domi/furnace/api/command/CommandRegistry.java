@@ -21,13 +21,13 @@ public interface CommandRegistry {
 
     /**
      * 명령 문자열을 실행 큐에 넣는다(앞의 '/' 는 있어도 없어도 된다). 어느 스레드에서 불러도 되며 전역 스레드로 넘어가 실행된다.
-     * 돌려주는 값은 접수 여부(true)다 — 명령 결과는 실행이 끝난 뒤 정해지므로 여기서 알 수 없다.
+     * 돌려주는 값은 접수 여부(true)다. 명령 결과는 실행이 끝난 뒤 정해지므로 여기서 알 수 없다.
      */
     boolean dispatch(CommandSender sender, String commandLine);
 
     /**
      * 명령 트리의 루트에 그 이름의 명령이 있는가(바닐라·플러그인·"플러그인:이름" 모두, 대소문자 구분). 어느 스레드에서 불러도 된다.
-     * 없는 이름을 {@link #dispatch} 하면 바닐라 오류 문장만 나온다 — Bukkit.dispatchCommand 가 false 를 돌려줄지 가릴 때 쓴다.
+     * 없는 이름을 {@link #dispatch} 하면 바닐라 오류 문장만 나온다. Bukkit.dispatchCommand 가 false 를 돌려줄지 가릴 때 쓴다.
      */
     boolean hasCommand(String name);
 

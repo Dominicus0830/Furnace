@@ -1,4 +1,4 @@
-// 권한 기본값(Bukkit PermissionDefault 와 같은 의미): 누구나·아무도·OP·OP 아닌 사람.
+// 권한 기본값(Bukkit PermissionDefault 와 같은 의미). 누구나, 아무도, OP, OP 아닌 사람 중 하나다.
 package org.domi.furnace.api.permission;
 
 public enum PermissionDefault {
