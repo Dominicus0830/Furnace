@@ -336,8 +336,10 @@ public class CompatItemMeta implements ItemMeta, Damageable, Repairable {
         if (target == kind() && target != MetaKind.UNSPECIFIC) return this;
         ItemStack w = work;
         if (kind() != MetaKind.UNSPECIFIC && kind() != target) {
+            // 목적지 종류도 맡는 컴포넌트(가죽 말 갑옷 ↔ 가죽 방어구의 염색 색)는 남긴다 — Paper 는 이 옮김에서 색을 잃지만 같은 컴포넌트라 잃을 이유가 없다
             Map<String, String> comps = new java.util.TreeMap<>(w.components());
             comps.keySet().removeAll(kind().handledComponents());
+            for (String id : target.handledComponents()) if (work.components().containsKey(id)) comps.put(id, work.components().get(id));
             w = new ItemStack(w.type(), w.amount(), comps, w.removedComponents());
         }
         return target.create(w, EnumSet.copyOf(flags), pdc.copy());
@@ -351,7 +353,7 @@ public class CompatItemMeta implements ItemMeta, Damageable, Repairable {
         if (itemType.equals("minecraft:air")) return false;
         org.bukkit.Material m = org.bukkit.Material.matchMaterial(itemType);
         if (m != null && !m.isItem()) return false;
-        return kind() == MetaKind.UNSPECIFIC || kind().appliesTo(itemType);
+        return kind() == MetaKind.UNSPECIFIC || kind().accepts(MetaKind.of(itemType));
     }
 
     /** 직렬화 전용: 종류별 키를 맵에 적는다. */

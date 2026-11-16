@@ -154,7 +154,14 @@ class ItemMetaKindsTest {
         ItemStack stone = new ItemStack(Material.STONE);
         assertFalse(stone.setItemMeta(meta), "가죽 메타는 돌에 붙지 않는다");
         assertFalse(stone.hasItemMeta());
-        assertTrue(new ItemStack(Material.LEATHER_HORSE_ARMOR).setItemMeta(meta));
+        assertFalse(new ItemStack(Material.LEATHER_HORSE_ARMOR).setItemMeta(meta),
+                "투구의 메타(Paper ColorableArmorMeta)는 말 갑옷에 붙지 않는다");
+        LeatherArmorMeta horse = (LeatherArmorMeta) FACTORY.getItemMeta(Material.LEATHER_HORSE_ARMOR);
+        horse.setColor(Color.RED);
+        ItemStack helmet = new ItemStack(Material.LEATHER_HELMET);
+        assertTrue(helmet.setItemMeta(horse), "말 갑옷의 메타(Paper LeatherArmorMeta)는 가죽 방어구에도 붙는다");
+        assertEquals(Color.RED, ((LeatherArmorMeta) helmet.getItemMeta()).getColor(), "같은 컴포넌트라 색이 따라온다");
+        assertEquals("COLORABLE_ARMOR", helmet.getItemMeta().serialize().get("meta-type"));
     }
 
     @Test
@@ -194,11 +201,13 @@ class ItemMetaKindsTest {
         ItemMeta leather = FACTORY.getItemMeta(Material.LEATHER_HELMET);
         ItemMeta plain = FACTORY.getItemMeta(Material.STONE);
         assertTrue(FACTORY.isApplicable(leather, Material.LEATHER_BOOTS));
+        assertFalse(FACTORY.isApplicable(leather, Material.LEATHER_HORSE_ARMOR), "방어구용(ColorableArmor) 메타는 말 갑옷에 붙지 않는다");
+        assertTrue(FACTORY.isApplicable(FACTORY.getItemMeta(Material.LEATHER_HORSE_ARMOR), Material.LEATHER_BOOTS));
         assertFalse(FACTORY.isApplicable(leather, Material.STONE));
         assertTrue(FACTORY.isApplicable(plain, Material.LEATHER_BOOTS), "일반 메타는 어떤 아이템에도 붙는다");
         assertFalse(FACTORY.isApplicable(plain, (ItemStack) null));
         assertFalse(FACTORY.isApplicable(null, Material.STONE));
-        assertTrue(FACTORY.isApplicable(leather, new ItemStack(Material.LEATHER_HORSE_ARMOR)));
+        assertTrue(FACTORY.isApplicable(leather, new ItemStack(Material.LEATHER_CHESTPLATE)));
 
         assertTrue(FACTORY.equals(null, null));
         assertTrue(FACTORY.equals(plain, null), "빈 메타는 null 과 같다");
@@ -215,6 +224,7 @@ class ItemMetaKindsTest {
         leather.setColor(Color.RED);
         leather.setDisplayName("n");
         assertSame(leather, FACTORY.asMetaFor(leather, Material.LEATHER_BOOTS), "같은 종류면 같은 객체");
+        assertNotSame(leather, FACTORY.asMetaFor(leather, Material.LEATHER_HORSE_ARMOR), "종류가 다르면 새 메타");
         ItemMeta plain = FACTORY.asMetaFor(leather, Material.STONE);
         assertFalse(plain instanceof LeatherArmorMeta);
         assertEquals("n", plain.getDisplayName(), "공통 값은 따라온다");
@@ -256,7 +266,7 @@ class ItemMetaKindsTest {
         boots.setItemMeta(meta);
 
         Map<String, Object> map = boots.getItemMeta().serialize();
-        assertEquals("LEATHER_ARMOR", map.get("meta-type"));
+        assertEquals("COLORABLE_ARMOR", map.get("meta-type"));
         assertEquals("meta-type", map.keySet().iterator().next());
         assertEquals(Color.fromRGB(0x112233), map.get("color"));
         assertFalse(map.containsKey("unhandled"), "염색 색은 전용 키로만(unhandled 에 또 넣지 않는다)");
@@ -274,7 +284,7 @@ class ItemMetaKindsTest {
     @Test
     void leatherMetaReadsAPaperMap() throws Throwable {
         Map<String, Object> paper = new LinkedHashMap<>();
-        paper.put("meta-type", "LEATHER_ARMOR");
+        paper.put("meta-type", "COLORABLE_ARMOR");
         paper.put("color", Color.fromRGB(0xAA0011));
         paper.put("ItemFlags", java.util.List.of("HIDE_DYE"));
         ItemMeta meta = SerializableMeta.deserialize(paper);
@@ -299,7 +309,7 @@ class ItemMetaKindsTest {
         YamlConfiguration yaml = new YamlConfiguration();
         yaml.set("item", chest);
         String text = yaml.saveToString();
-        assertTrue(text.contains("meta-type: LEATHER_ARMOR"), text);
+        assertTrue(text.contains("meta-type: COLORABLE_ARMOR"), text);
 
         YamlConfiguration read = new YamlConfiguration();
         try {
@@ -321,5 +331,64 @@ class ItemMetaKindsTest {
         ItemMeta meta = SerializableMeta.deserialize(m);
         assertFalse(meta instanceof LeatherArmorMeta);
         assertEquals("Book", meta.getDisplayName());
+    }
+
+    // ------------------------------------------------------------------ COLORABLE_ARMOR(방어구) 와 LEATHER_ARMOR(말 갑옷)
+
+    static final Material[] COLORABLE = {Material.LEATHER_HELMET, Material.LEATHER_CHESTPLATE, Material.LEATHER_LEGGINGS, Material.LEATHER_BOOTS, Material.WOLF_ARMOR};
+
+    @Test
+    void metaTypeNamesFollowPaper() {
+        for (Material m : COLORABLE) {
+            assertEquals("COLORABLE_ARMOR", dyed(m).getItemMeta().serialize().get("meta-type"), m.name());
+        }
+        assertEquals("LEATHER_ARMOR", dyed(Material.LEATHER_HORSE_ARMOR).getItemMeta().serialize().get("meta-type"));
+    }
+
+    static ItemStack dyed(Material m) {
+        ItemStack s = new ItemStack(m);
+        LeatherArmorMeta meta = (LeatherArmorMeta) s.getItemMeta();
+        meta.setColor(Color.fromRGB(0x123456));
+        s.setItemMeta(meta);
+        return s;
+    }
+
+    @Test
+    void paperColorableArmorMapKeepsTheColor() throws Throwable {
+        Map<String, Object> paper = new LinkedHashMap<>();
+        paper.put("meta-type", "COLORABLE_ARMOR");
+        paper.put("color", Color.fromRGB(0xAA0011));
+        for (Material m : COLORABLE) {
+            ItemMeta meta = SerializableMeta.deserialize(paper);
+            LeatherArmorMeta leather = assertInstanceOf(LeatherArmorMeta.class, meta);
+            assertEquals(Color.fromRGB(0xAA0011), leather.getColor());
+            ItemStack stack = new ItemStack(m);
+            assertTrue(stack.setItemMeta(meta), m.name());
+            assertEquals(new DyedColor(0xAA0011, true), stack.asFurnace().get(ItemComponents.DYED_COLOR), m.name());
+        }
+        // 말 갑옷에는 방어구용 메타가 붙지 않는다(Paper)
+        assertFalse(new ItemStack(Material.LEATHER_HORSE_ARMOR).setItemMeta(SerializableMeta.deserialize(paper)));
+        Map<String, Object> horse = new LinkedHashMap<>(paper);
+        horse.put("meta-type", "LEATHER_ARMOR");
+        ItemStack horseArmor = new ItemStack(Material.LEATHER_HORSE_ARMOR);
+        assertTrue(horseArmor.setItemMeta(SerializableMeta.deserialize(horse)));
+        assertEquals(Color.fromRGB(0xAA0011), ((LeatherArmorMeta) horseArmor.getItemMeta()).getColor());
+    }
+
+    @Test
+    void everyDyeableItemRoundTripsThroughYaml() throws Exception {
+        for (Material m : new Material[] {Material.LEATHER_HELMET, Material.LEATHER_CHESTPLATE, Material.LEATHER_LEGGINGS, Material.LEATHER_BOOTS,
+                Material.WOLF_ARMOR, Material.LEATHER_HORSE_ARMOR}) {
+            ItemStack stack = dyed(m);
+            YamlConfiguration yaml = new YamlConfiguration();
+            yaml.set("item", stack);
+            String text = yaml.saveToString();
+            assertTrue(text.contains("meta-type: " + (m == Material.LEATHER_HORSE_ARMOR ? "LEATHER_ARMOR" : "COLORABLE_ARMOR")), text);
+            YamlConfiguration read = new YamlConfiguration();
+            read.loadFromString(text);
+            ItemStack back = read.getItemStack("item");
+            assertEquals(stack, back, m.name());
+            assertEquals(Color.fromRGB(0x123456), ((LeatherArmorMeta) back.getItemMeta()).getColor(), m.name());
+        }
     }
 }

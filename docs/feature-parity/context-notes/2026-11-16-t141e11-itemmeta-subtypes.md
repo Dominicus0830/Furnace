@@ -24,8 +24,10 @@
 
 **일부러 다른 점**
 - Paper 는 메타 구현 클래스가 `CraftMeta*`(패키지 전용)지만 Furnace 는 `CompatItemMeta` 하위 클래스다. 플러그인이 구현 클래스 이름에 기대면 어긋난다(그런 코드는 거의 없다).
-- 가죽 투구·갑옷·바지·신발·늑대 갑옷의 Paper 형은 `ColorableArmorMeta`(= `ArmorMeta` + `LeatherArmorMeta`)인데 방어구 장식(`ArmorTrim`·`TrimMaterial`·`TrimPattern`)이 아직 없어 `LeatherArmorMeta` 하나로 준다. `(LeatherArmorMeta)` 캐스트·색 읽기/쓰기는 그대로 되고,
-  `ArmorMeta`(장식) 를 넣을 때 `MetaKind.COLORABLE_ARMOR` 와 금속 방어구용 `ARMOR` 를 더한다. 그전엔 금속 방어구의 `trim` 컴포넌트는 일반 메타의 `unhandled` 로 산다.
+- 가죽 방어구는 Paper 와 같이 둘로 나눈다: 투구·갑옷·바지·신발·늑대 갑옷 = `COLORABLE_ARMOR`(Paper `ColorableArmorMeta`), 가죽 말 갑옷 = `LEATHER_ARMOR`(Paper `LeatherArmorMeta`, 이 메타는 가죽 방어구에도 붙고 반대는 안 붙는다). 둘 다 `LeatherArmorMeta` 구현 하나(`CompatMetaLeatherArmor`)다.
+  `ColorableArmorMeta` 의 `ArmorMeta` 쪽(방어구 장식 `ArmorTrim`·`TrimMaterial`·`TrimPattern`)이 아직 없어 `ArmorMeta`·`ColorableArmorMeta` 인터페이스는 없다 — 색 읽기·쓰기·직렬화 이름은 Paper 와 같다. 장식을 넣을 때 `MetaKind.ARMOR`(금속 방어구)를 더하고 `COLORABLE_ARMOR` 에 `ArmorMeta` 를 붙인다.
+  그전엔 금속 방어구의 `trim` 컴포넌트는 일반 메타의 `unhandled` 로 산다.
+  Paper 는 말 갑옷 메타를 방어구에 옮길 때(`asMetaFor`) 색을 잃는데, 같은 `dyed_color` 컴포넌트라 Furnace 는 색을 남긴다(잃을 이유가 없는 차이 하나).
 - `ItemFactory`: `getItemMeta`·`isApplicable`×2·`equals`·`asMetaFor`×2·`getDefaultLeatherColor`·`getSpawnEgg`·`ensureServerConversions` 는 동작한다.
   `createItemStack(String)`·`enchantItem`×3·`enchantWithLevels`·`getI18NDisplayName` 은 `UnsupportedFeature`(이 계층에 아이템 문자열 파서·서버 마법 부여·번역표가 없다). Adventure·Bungee 내용물을 쓰는 메서드(`asHoverEvent` 등)와 `RegistryKeySet` 판은 해당 형이 없어 인터페이스에 없다.
 - 이전에는 `ItemStack(Material.AIR).getItemMeta()` 가 빈 메타였지만 Paper 는 `null` 이다(위).

@@ -17,16 +17,27 @@ public enum MetaKind {
         boolean appliesTo(String itemType) { return true; }
     },
 
-    /** 가죽 방어구·가죽 말 갑옷·늑대 갑옷: 염색 색(Paper LEATHER_ARMOR·COLORABLE_ARMOR). */
+    /** 가죽 말 갑옷: 염색 색(Paper LEATHER_ARMOR — 이 종류의 메타는 가죽 방어구에도 붙는다). */
     LEATHER_ARMOR("LEATHER_ARMOR", Set.of("minecraft:dyed_color")) {
         @Override
-        CompatItemMeta create(ItemStack work, EnumSet<org.bukkit.inventory.ItemFlag> flags, ItemPdc pdc) { return new CompatMetaLeatherArmor(work, flags, pdc); }
+        CompatItemMeta create(ItemStack work, EnumSet<org.bukkit.inventory.ItemFlag> flags, ItemPdc pdc) { return new CompatMetaLeatherArmor(MetaKind.LEATHER_ARMOR, work, flags, pdc); }
+
+        @Override
+        boolean appliesTo(String itemType) { return itemType.equals("minecraft:leather_horse_armor"); }
+
+        @Override
+        boolean accepts(MetaKind itemKind) { return itemKind == LEATHER_ARMOR || itemKind == COLORABLE_ARMOR; }
+    },
+
+    /** 가죽 투구·갑옷·바지·신발·늑대 갑옷: 염색 색(Paper COLORABLE_ARMOR, ArmorMeta 의 장식은 아직 없다). */
+    COLORABLE_ARMOR("COLORABLE_ARMOR", Set.of("minecraft:dyed_color")) {
+        @Override
+        CompatItemMeta create(ItemStack work, EnumSet<org.bukkit.inventory.ItemFlag> flags, ItemPdc pdc) { return new CompatMetaLeatherArmor(MetaKind.COLORABLE_ARMOR, work, flags, pdc); }
 
         @Override
         boolean appliesTo(String itemType) {
             return switch (itemType) {
-                case "minecraft:leather_helmet", "minecraft:leather_chestplate", "minecraft:leather_leggings", "minecraft:leather_boots",
-                        "minecraft:leather_horse_armor", "minecraft:wolf_armor" -> true;
+                case "minecraft:leather_helmet", "minecraft:leather_chestplate", "minecraft:leather_leggings", "minecraft:leather_boots", "minecraft:wolf_armor" -> true;
                 default -> false;
             };
         }
@@ -48,8 +59,11 @@ public enum MetaKind {
 
     abstract CompatItemMeta create(ItemStack work, EnumSet<org.bukkit.inventory.ItemFlag> flags, ItemPdc pdc);
 
-    /** 이 종류의 메타를 붙일 수 있는 아이템 종류(UNSPECIFIC 은 따로 본다). */
+    /** 이 종류가 쓰는 아이템 종류인가(UNSPECIFIC 은 따로 본다). */
     abstract boolean appliesTo(String itemType);
+
+    /** 이 종류의 메타를 itemKind 를 쓰는 아이템에 붙일 수 있는가(Paper: 기본은 같은 종류만, 가죽 말 갑옷 메타는 가죽 방어구에도). */
+    boolean accepts(MetaKind itemKind) { return itemKind == this; }
 
     /** 아이템 종류(예: minecraft:leather_helmet)가 쓰는 메타 종류. 데이터 팩·플러그인 아이템은 UNSPECIFIC. */
     public static MetaKind of(String itemType) {

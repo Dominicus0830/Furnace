@@ -18,10 +18,15 @@ public final class CompatMetaLeatherArmor extends CompatItemMeta implements Leat
     /** 기본 가죽 색 — Paper CraftItemFactory.DEFAULT_LEATHER_COLOR. */
     public static final Color DEFAULT_LEATHER_COLOR = Color.fromRGB(0xA06540);
 
-    CompatMetaLeatherArmor(ItemStack work, EnumSet<ItemFlag> flags, ItemPdc pdc) { super(work, flags, pdc); }
+    private final MetaKind kind;
+
+    CompatMetaLeatherArmor(MetaKind kind, ItemStack work, EnumSet<ItemFlag> flags, ItemPdc pdc) {
+        super(work, flags, pdc);
+        this.kind = kind;
+    }
 
     @Override
-    MetaKind kind() { return MetaKind.LEATHER_ARMOR; }
+    MetaKind kind() { return kind; }
 
     @Override
     public Color getColor() {
