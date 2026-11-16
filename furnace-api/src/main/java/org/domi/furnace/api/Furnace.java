@@ -275,16 +275,17 @@ public interface Furnace {
     default java.util.Optional<org.domi.furnace.api.entity.ProfileData> profileById(UUID id) { throw new UnsupportedOperationException("profileById"); }
 
     /**
-     * {@link #profileByName} 과 같되 캐시에 없고 인증 모드면 Mojang 에 이름으로 묻는다(결과는 캐시에 넣는다). 네트워크라 비동기이고 실패·없는 이름은 empty.
-     * 오프라인 모드면 묻지 않고 바로 {@link #profileByName} 의 값.
+     * 접속 중인 플레이어나 사용자 캐시에 있으면 그 프로필을, 없으면 서버 모드와 상관없이 Mojang 에 이름으로 묻는다(결과는 캐시에 넣는다).
+     * 오프라인 프로필을 만들어 넣지 않는다. 네트워크라 비동기이고 실패·없는 이름은 empty. 묻기를 서버 설정에 맡기려면 먼저
+     * {@link #profileLookups()} 를 본다(호환 계층의 기본 플래그가 그것이다).
      */
     default java.util.concurrent.CompletableFuture<java.util.Optional<org.domi.furnace.api.entity.ProfileData>> fetchProfileByName(String name) {
         throw new UnsupportedOperationException("fetchProfileByName");
     }
 
     /**
-     * 세션 서버에서 UUID 의 프로필을 서명된 속성(스킨 textures)까지 받아 온다(받은 프로필은 캐시에 넣는다). 오프라인 모드거나 못 찾거나 실패하면 empty.
-     * 네트워크라 비동기다.
+     * 세션 서버에서 UUID 의 프로필을 서명된 속성(스킨 textures)까지 받아 온다(받은 프로필은 캐시에 넣는다). 서버 모드와 상관없이 부르면 묻는다 —
+     * 묻기를 서버 설정에 맡기려면 먼저 {@link #profileLookups()} 를 본다. 못 찾거나 요청이 막히거나 실패하면 empty. 네트워크라 비동기다.
      */
     default java.util.concurrent.CompletableFuture<java.util.Optional<org.domi.furnace.api.entity.ProfileData>> fetchProfile(UUID id) {
         throw new UnsupportedOperationException("fetchProfile");
