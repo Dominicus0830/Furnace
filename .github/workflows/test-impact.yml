@@ -7,15 +7,25 @@ name: Test impact map
 #  - 시험 클래스마다 새 JVM 에서 JaCoCo 에이전트를 붙여 돈다(-PtestImpact). 느리므로(전체 시험의 수 배) 기준 브랜치 push 마다 돌리지 않고,
 #    가장 최근 표가 MAP_MIN_AGE_HOURS 보다 새것이면 건너뛴다. 동시에 하나만 돌고(대기는 최신 push 하나), 돌던 것은 취소하지 않는다.
 #  - 조각 수·동시 JVM 수는 처음 실행의 실측으로 맞춘다(docs/ci.md). 조각이 하나라도 표를 못 올리면 합치지 않는다 — 이전 표가 그대로 쓰인다.
+#  - 표 만드는 도구(이 파일·test-impact.py·TestImpactListener·시험 선택 규칙)를 바꾸는 PR 은 표 만들기를 직접 돌려 본다(pull_request, 아래 paths).
+#    그 실행이 올린 표는 기준 브랜치가 아니어서 PR 의 select 작업이 쓰지 않는다(ci.yml 은 기준 브랜치에서 만든 표만 받는다). 도구가 깨졌는지 병합 전에 보려는 것이다.
 #  - 기준 브랜치가 바뀌면 아래 on.push.branches 와 BASE_BRANCH 를 같이 바꾼다(ci.yml 과 같다).
 on:
   push:
     branches:
       - claude/quirky-wright-lra834
+  pull_request:
+    paths:
+      - .github/workflows/test-impact.yml
+      - tools/ci/test-impact.py
+      - tools/ci/test-selection-rules.txt
+      - furnace-server/src/test/java/org/domi/furnace/server/TestImpactListener.java
+      - furnace-server/src/test/resources/META-INF/services/org.junit.platform.launcher.TestExecutionListener
   workflow_dispatch:
 
 concurrency:
-  group: test-impact-map
+  # 기준 브랜치 실행끼리만 하나로 줄 세운다. 도구를 고친 PR 의 시험 실행이 기준 브랜치 표 만들기를 밀어내지 않게 PR 마다 따로 둔다.
+  group: test-impact-map-${{ github.event_name == 'pull_request' && github.ref || 'base' }}
   cancel-in-progress: false
 
 env:
