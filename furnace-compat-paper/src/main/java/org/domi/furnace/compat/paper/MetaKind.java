@@ -17,6 +17,32 @@ public enum MetaKind {
         boolean appliesTo(String itemType) { return true; }
     },
 
+    /** 머리 아이템: 소유자 프로필·음표 소리(Paper SKULL). */
+    SKULL("SKULL", Set.of("minecraft:profile", "minecraft:note_block_sound")) {
+        @Override
+        CompatItemMeta create(ItemStack work, EnumSet<org.bukkit.inventory.ItemFlag> flags, ItemPdc pdc) { return new CompatMetaSkull(work, flags, pdc); }
+
+        @Override
+        boolean appliesTo(String itemType) {
+            return switch (itemType) {
+                case "minecraft:player_head", "minecraft:creeper_head", "minecraft:dragon_head", "minecraft:piglin_head", "minecraft:skeleton_skull",
+                        "minecraft:wither_skeleton_skull", "minecraft:zombie_head" -> true;
+                default -> false;
+            };
+        }
+    },
+
+    /** 현수막 아이템(16색): 무늬 겹(Paper BANNER). */
+    BANNER("BANNER", Set.of("minecraft:banner_patterns")) {
+        @Override
+        CompatItemMeta create(ItemStack work, EnumSet<org.bukkit.inventory.ItemFlag> flags, ItemPdc pdc) { return new CompatMetaBanner(work, flags, pdc); }
+
+        @Override
+        boolean appliesTo(String itemType) {
+            return itemType.startsWith("minecraft:") && itemType.endsWith("_banner") && BANNER_COLORS.contains(itemType.substring(10, itemType.length() - 7));
+        }
+    },
+
     /** 가죽 말 갑옷: 염색 색(Paper LEATHER_ARMOR — 이 종류의 메타는 가죽 방어구에도 붙는다). */
     LEATHER_ARMOR("LEATHER_ARMOR", Set.of("minecraft:dyed_color")) {
         @Override
@@ -42,6 +68,9 @@ public enum MetaKind {
             };
         }
     };
+
+    private static final Set<String> BANNER_COLORS = Set.of("white", "orange", "magenta", "light_blue", "yellow", "lime", "pink", "gray", "light_gray",
+            "cyan", "purple", "blue", "brown", "green", "red", "black");
 
     private final String serialName;
     private final Set<String> handled;

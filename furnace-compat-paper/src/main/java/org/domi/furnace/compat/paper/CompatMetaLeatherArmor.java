@@ -36,8 +36,8 @@ public final class CompatMetaLeatherArmor extends CompatItemMeta implements Leat
 
     @Override
     public void setColor(Color color) {
-        work = color == null ? work.without(ItemComponents.DYED_COLOR)
-                : work.with(ItemComponents.DYED_COLOR, new DyedColor(color.asRGB(), !flags.contains(ItemFlag.HIDE_DYE)));
+        if (color == null) clearComponent("minecraft:dyed_color");
+        else work = work.with(ItemComponents.DYED_COLOR, new DyedColor(color.asRGB(), !flags.contains(ItemFlag.HIDE_DYE)));
     }
 
     @Override
