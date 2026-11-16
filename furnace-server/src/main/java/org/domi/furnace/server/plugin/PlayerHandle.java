@@ -536,7 +536,7 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
      */
     @Override
     public java.util.concurrent.CompletableFuture<Boolean> teleport(Location to) {
-        if (to.world().equals(p.dimension())) return java.util.concurrent.CompletableFuture.completedFuture(teleportNow(to));
+        if (to.world().equals(p.dimension()) && !p.worldTeleportBusy()) return java.util.concurrent.CompletableFuture.completedFuture(teleportNow(to));
         var f = new java.util.concurrent.CompletableFuture<Boolean>();
         if (!teleportToWorld(to, f::complete)) f.complete(false);
         return f;
@@ -544,11 +544,12 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
 
     /**
      * 이벤트가 결과를 정하므로 어느 스레드에서나 곧바로(탈것 내리기·깨우기만 소유 스레드로 넘어간다). 끊긴 접속·없는 월드·이벤트 취소는 false.
-     * 다른 월드면 Paper 처럼 리스폰 순서로 옮긴다 — 조인 이벤트 안이면 그 자리에서, 아니면 소유 region 이 다음 틱에.
+     * 다른 월드면 Paper 처럼 리스폰 순서로 옮긴다 — 조인 이벤트 안이면 그 자리에서, 아니면 소유 region 이 다음 틱에. 다른 월드 텔레포트가
+     * 걸려 있거나 가는 중이면 같은 월드 텔레포트도 그 뒤에 건다 — Paper 는 둘 다 그 자리에서 해 마지막 호출의 자리가 남는다.
      */
     @Override
     public boolean teleportNow(Location to) {
-        if (!to.world().equals(p.dimension())) return teleportToWorld(to, ok -> { });
+        if (!to.world().equals(p.dimension()) || p.worldTeleportBusy()) return teleportToWorld(to, ok -> { });
         return p.pluginTeleport(to.x(), to.y(), to.z(), to.yaw(), to.pitch());
     }
 

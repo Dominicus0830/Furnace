@@ -2265,29 +2265,56 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         return true;
     }
 
-    /** 소유 region 이 다음 틱에 꺼내 보낼 다른 월드 텔레포트(소유 스레드 전용). */
-    private WorldTeleport pendingWorldTeleport;
+    /** 소유 region 이 다음 틱에 꺼내 보낼 텔레포트(아무 스레드나 건다, 소유 region 이 꺼낸다). */
+    private final java.util.concurrent.atomic.AtomicReference<WorldTeleport> pendingWorldTeleport = new java.util.concurrent.atomic.AtomicReference<>();
+    /** 꺼낸 다른 월드 텔레포트가 아직 도착·되돌림으로 끝나지 않았다(떼어 보내는 중). */
+    private volatile boolean worldTeleportInFlight;
 
     /**
-     * 다른 월드 텔레포트를 소유 region 에 맡긴다: 소유 스레드에서 탈것에서 내리고 깨운 뒤(CraftPlayer#teleport 의 stopRiding·wakeup) 요청을
-     * 걸어 둔다. region 은 틱의 플레이어 작업 뒤에 꺼내 이 region 에서 떼어 목적 월드로 보낸다. 앞선 요청이 아직 남았으면 새 것이 이긴다
-     * (Paper 는 둘을 차례로 해 마지막 자리가 남는다 — 앞선 것은 참으로 끝낸다).
+     * 다른 월드 텔레포트가 걸려 있거나 가는 중이다. 이때 오는 같은 월드 텔레포트도 같은 자리에 걸어 차례를 지킨다 — Paper 는 둘 다 그
+     * 자리에서 해 마지막 호출의 자리가 남는다({@link org.domi.furnace.server.plugin.PlayerHandle#teleportNow}).
+     */
+    public boolean worldTeleportBusy() { return worldTeleportInFlight || pendingWorldTeleport.get() != null; }
+
+    /**
+     * 텔레포트를 소유 region 에 맡긴다. region 은 틱의 플레이어 작업 뒤에 꺼내 탈것에서 내리고 깨운 뒤(CraftPlayer#teleport 의
+     * stopRiding·wakeup) 다른 월드면 이 region 에서 떼어 목적 월드로, 같은 월드면 그 자리에서 옮긴다. 앞선 요청이 아직 남았으면 새 것이
+     * 이긴다(Paper 는 둘을 차례로 해 마지막 자리가 남는다 — 앞선 것은 참으로 끝낸다). 그새 접속이 끊겼으면 거짓으로 끝낸다.
      */
     public void requestWorldTeleport(WorldTeleport req) {
-        runOnOwner(() -> {
-            if (vehicle != null) stopRiding();
-            if (sleepingPos != null) PlayerSleeping.stopSleepInBed(this, currentLevel, true, true);
-            WorldTeleport old = pendingWorldTeleport;
-            pendingWorldTeleport = req;
-            if (old != null) old.done().accept(true);
-        });
+        WorldTeleport old = pendingWorldTeleport.getAndSet(req);
+        if (old != null) old.done().accept(true);
+        if (isDisconnected()) cancelWorldTeleport();   // 퇴장 정리가 먼저 지나갔다 — 꺼낼 region 이 없다
     }
 
-    /** 걸어 둔 다른 월드 텔레포트를 꺼내고 지운다(소유 region 스레드, 없으면 null). */
+    /**
+     * 걸어 둔 텔레포트를 꺼내고 지운다(소유 region 스레드, 없으면 null). 꺼냈으면 끝날 때까지 가는 중으로 친다 —
+     * 끝내는 쪽이 {@link #finishWorldTeleport} 를 부른다.
+     */
     public WorldTeleport takeWorldTeleport() {
-        WorldTeleport r = pendingWorldTeleport;
-        pendingWorldTeleport = null;
+        if (pendingWorldTeleport.get() == null) return null;
+        worldTeleportInFlight = true;   // 꺼내는 사이에 오는 같은 월드 텔레포트가 앞지르지 않게 먼저 켠다
+        WorldTeleport r = pendingWorldTeleport.getAndSet(null);
+        if (r == null) worldTeleportInFlight = false;
         return r;
+    }
+
+    /** 꺼낸 텔레포트를 끝낸다(도착 참·되돌림 거짓). */
+    public void finishWorldTeleport(WorldTeleport wt, boolean ok) {
+        worldTeleportInFlight = false;
+        wt.done().accept(ok);
+    }
+
+    /** 퇴장: 걸어 둔 텔레포트를 거짓으로 끝낸다(Paper 는 연결이 없으면 teleport 가 거짓이다). */
+    public void cancelWorldTeleport() {
+        WorldTeleport r = pendingWorldTeleport.getAndSet(null);
+        if (r != null) r.done().accept(false);
+    }
+
+    /** CraftPlayer#teleport 의 탈것 내리기·깨우기(소유 region 스레드). */
+    public void leaveSeatsForTeleport() {
+        if (vehicle != null) stopRiding();
+        if (sleepingPos != null) PlayerSleeping.stopSleepInBed(this, currentLevel, true, true);
     }
 
     /**

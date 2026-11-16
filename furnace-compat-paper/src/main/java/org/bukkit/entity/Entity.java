@@ -77,7 +77,8 @@ public interface Entity extends Metadatable, CommandSender, PersistentDataHolder
     /**
      * Bukkit 의 teleport(Paper 와 같은 결과 규칙). 엔티티를 가진 region 스레드(플레이어는 어느 스레드나)에서는 곧바로 옮기고 진짜 결과를
      * 돌려준다 — 사라졌거나 승객이 타고 있거나 PlayerTeleportEvent 가 취소됐거나 (플레이어가 아닌 엔티티의) 다른 차원·region 이면 false,
-     * 탈것은 먼저 내린다. 플레이어는 Paper 처럼 다른 월드로도 보낸다(조인 이벤트 안 포함).
+     * 탈것은 먼저 내린다. 플레이어는 Paper 처럼 다른 월드로도 보낸다(조인 이벤트 안 포함). 조인 이벤트 밖의 다른 월드 이동은 다음 region
+     * 틱에 일어나 돌아온 직후 getLocation()·getWorld() 는 아직 떠나온 월드다(Paper 는 곧바로 목적지) — 도착을 기다리려면 teleportAsync.
      * 소유 스레드가 아니면 옮기기를 맡기고 핸들이 살아 있으면 true(결과는 알 수 없다). 결과가 필요하면 teleportAsync.
      */
     boolean teleport(Location location);

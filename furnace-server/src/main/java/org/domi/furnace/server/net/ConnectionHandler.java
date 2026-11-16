@@ -1628,6 +1628,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         // CraftBukkit: 조인 이벤트에서 내보냈으면(isAcceptingMessages 거짓) 접속 알림·탭·레벨 정보 없이 끝낸다 — 다른 접속자의 탭에도 올라가지 않는다.
         // 남은 정리(퇴장 이벤트·저장·접속자 목록에서 빼기)는 연결이 닫힐 때 channelInactive 가 한다.
         if (p.kickReason() != null || !ctx.channel().isActive()) return;
+        if (world != loginWorld) effVd = effectiveViewDistance();   // 이벤트에서 다른 월드로 옮겼다 — 스폰 청크도 목적 월드 시야 모양으로
         if (joinMessage != null) login.core.broadcastSystemMessage(joinMessage, false);   // 접속 알림은 내보내기를 확인한 뒤(Paper)
         // 접속 탭: 본인 항목 먼저, 그다음 이 플레이어가 볼 수 있는 기존 접속자를 한 패킷으로(없으면 보내지 않는다 — Paper
         // Use-single-player-info-update-packet-on-join). 조인 이벤트에서 숨긴 접속자는 처음부터 빠진다. 아직 adopt 전이라 p.listed()는 이 스레드 전용.
@@ -4055,6 +4056,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         send(ctx, new org.domi.furnace.server.net.protocol.play.SetSimulationDistance(
                 core != null ? core.simulationDistance() : target.viewDistance()));
         world = target;
+        p.viewDistance(effectiveViewDistance());   // 목적 월드 시야로 스트리밍(위 SetChunkCacheRadius 와 맞게) — 어느 region 에도 없는 동안
         p.dimension(target.dimension());
         target.playerRespawned(p);   // PlayerList.respawn: players 에서 빼고 끝에 다시
         p.clearMoves();
@@ -4744,6 +4746,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 ig = true;
             }
             p.markDisconnected(); // 소유 region이 다음 틱에 정리(라우팅 불필요). 이제부터 인벤토리 줄에서 꺼낸 패킷 작업은 버려진다
+            p.cancelWorldTeleport();   // 걸어 둔 플러그인 텔레포트는 거짓으로(편입 전에 끊겨 꺼낼 region 이 없을 수도 있다)
             saveOnLine(p);
             world.playerOffline(p.entityId());   // adopt 전에 끊긴 경우에도 접속자 집합에서 즉시 제거(누수 방지, 관찰자는 다음 틱에 탭 제거)
         }

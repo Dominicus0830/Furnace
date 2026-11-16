@@ -298,4 +298,73 @@ class JoinWorldTeleportTest {
             assertTrue(hasChunk(fs2, -188, 93), "접속 뒤 먼 텔레포트 목적지 청크");
         }
     }
+    /** 그 플레이어의 region 스레드를 붙잡는다(풀 때까지 틱이 돌지 않아 걸어 둔 텔레포트가 꺼내지지 않는다). */
+    private java.util.concurrent.CountDownLatch holdRegion(Player p) throws InterruptedException {
+        var held = new java.util.concurrent.CountDownLatch(1);
+        var release = new java.util.concurrent.CountDownLatch(1);
+        core.world().runAt(p.x(), p.z(), r -> {
+            held.countDown();
+            try { release.await(10, java.util.concurrent.TimeUnit.SECONDS); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+        });
+        assertTrue(held.await(5, java.util.concurrent.TimeUnit.SECONDS), "region 스레드를 붙잡지 못했다");
+        return release;
+    }
+
+    private Player joinedAndAdopted(TestClient c) throws Exception {
+        read(c, 10_000, l -> l.stream().anyMatch(f -> f.id() == LevelChunkWithLight.ID));
+        Player p = core.playerByUuid(c.uuid);
+        for (int i = 0; i < 500 && p.ownerRegion == null; i++) Thread.sleep(10);
+        assertNotNull(p.ownerRegion);
+        return p;
+    }
+
+    /** 걸어 둔 다른 월드 텔레포트는 그 사이 접속이 끊기면 거짓으로 끝난다(Paper: 연결이 없으면 teleport 가 거짓) — 결과가 매달리지 않는다. */
+    @Test
+    void pendingTeleportToAnotherWorldEndsFalseOnQuit() throws Exception {
+        java.util.concurrent.CompletableFuture<Boolean> f;
+        java.util.concurrent.CountDownLatch release;
+        TestClient c = TestClient.join(port, "Alex");
+        try {
+            Player p = joinedAndAdopted(c);
+            release = holdRegion(p);
+            f = core.plugins().player(p).teleport(netherDest());
+            assertFalse(f.isDone(), "region 이 꺼내기 전이라 걸려 있다");
+        } finally {
+            c.close();
+        }
+        try {
+            assertFalse(f.get(5, java.util.concurrent.TimeUnit.SECONDS), "퇴장하면 걸어 둔 텔레포트는 거짓");
+        } finally {
+            release.countDown();
+        }
+        Thread.sleep(300);
+        assertTrue(changedFrom.isEmpty(), "옮겨지지 않았다");
+    }
+
+    /**
+     * 같은 틱에 다른 월드 → 같은 월드 차례로 부르면 마지막 자리가 남는다(Paper 는 둘 다 그 자리에서 해 같은 월드 목적지에서 끝난다).
+     * 둘 다 참이고, 앞선 다른 월드 이동은 뒤 것에 밀려 리스폰 없이 끝난다.
+     */
+    @Test
+    void laterSameWorldTeleportWinsOverPendingWorldChange() throws Exception {
+        try (TestClient c = TestClient.join(port, "Alex")) {
+            Player p = joinedAndAdopted(c);
+            var h = core.plugins().player(p);
+            var release = holdRegion(p);
+            java.util.concurrent.CompletableFuture<Boolean> f1, f2;
+            try {
+                f1 = h.teleport(netherDest());
+                f2 = h.teleport(new Location(OVERWORLD, 40.5, -60, 24.5, 0f, 0f));
+            } finally {
+                release.countDown();
+            }
+            List<Frame> fs = read(c, 1_500, l -> false);
+            assertTrue(f1.get(5, java.util.concurrent.TimeUnit.SECONDS), "앞선 것도 참(Paper 는 둘 다 해낸다)");
+            assertTrue(f2.get(5, java.util.concurrent.TimeUnit.SECONDS));
+            assertEquals(-1, indexOf(fs, Respawn.ID, 0), "네더로 가지 않았다: " + fs);
+            awaitIn(c, OVERWORLD, 40.5, 24.5);
+            assertTrue(changedFrom.isEmpty());
+            assertEquals(OVERWORLD, h.location().world());
+        }
+    }
 }

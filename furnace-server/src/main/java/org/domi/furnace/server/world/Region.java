@@ -1611,6 +1611,7 @@ public final class Region {
                 // ServerPlayer.disconnect: 자고 있었으면 깨운다(목록 갱신은 빠진 뒤 — onTrackingEnd)
                 if (p.isSleeping() && level != null) org.domi.furnace.server.entity.PlayerSleeping.stopSleepInBed(p, level, true, false);
                 org.domi.furnace.server.entity.PlayerVehicleSave.onDisconnect(p, world.playerIo(), world.worldDir());   // PlayerList.remove 의 탈것
+                p.cancelWorldTeleport();   // 걸어 둔 플러그인 텔레포트는 거짓으로 끝난다
                 it.remove();
                 for (ChunkPos cp : p.loadedChunks()) world.unsubscribeChunk(cp, p);
                 for (Integer eid : p.tracked().keySet()) world.removeTracker(eid, p);
@@ -1650,7 +1651,7 @@ public final class Region {
             p.currentLevel = level;
             p.ownerRegion = this;
             p.drainOwnerTasks();   // 다른 스레드가 맡긴 플레이어 작업(발전 과제·통계·점수) — 주인 스레드에서
-            // 플러그인 다른 월드 텔레포트(내리기·깨우기는 위 작업이 했다) — 이 region 에서 떼어 목적 월드로 보낸다
+            // 플러그인 다른 월드 텔레포트(와 그 뒤에 걸린 같은 월드 텔레포트) — 다른 월드면 이 region 에서 떼어 목적 월드로 보낸다
             var worldTp = p.takeWorldTeleport();
             if (worldTp != null && sendAcrossForPlugin(p, worldTp)) { it.remove(); continue; }
             if (level != null) org.domi.furnace.server.entity.PlayerSleeping.tick(p, level);   // Player.tick 머리의 잠 카운터·침대 확인
@@ -2876,19 +2877,25 @@ public final class Region {
 
     /**
      * 플러그인 다른 월드 텔레포트(Paper CraftPlayer#teleport 의 다른 월드 가지: portalProcess = null → PlayerList.respawn(위치)). 플레이어 틱
-     * 순회 안에서 부른다 — 보냈으면 참(호출자가 순회에서 뺀다). 그새 그 월드에 와 있으면 같은 월드 텔레포트로, 목적 월드를 쓸 수 없으면
-     * 그 자리에 둔 채 done(거짓). 목적 청크를 올린 뒤 목적 region 스레드에서 연결이 Paper 순서로 패킷을 보내고 편입한다.
+     * 순회 안에서 부른다 — 보냈으면 참(호출자가 순회에서 뺀다). 그새 죽었으면 done(거짓). 탈것에서 내리고 깨운 뒤, 목적이 지금 월드면
+     * (그 월드에 와 있거나 다른 월드 요청 뒤에 걸린 같은 월드 요청) 같은 월드 텔레포트로, 목적 월드를 쓸 수 없으면 그 자리에 둔 채
+     * done(거짓). 목적 청크를 올린 뒤 목적 region 스레드에서 연결이 Paper 순서로 패킷을 보내고 편입한다.
      */
     private boolean sendAcrossForPlugin(Player p, Player.WorldTeleport wt) {
+        if (p.vitals().isDeadOrDying()) {   // 걸어 둔 사이에 죽었다(CraftPlayer#teleport: isDead 면 거짓)
+            p.finishWorldTeleport(wt, false);
+            return false;
+        }
+        p.leaveSeatsForTeleport();
         World target = wt.target();
         if (target == world || target.dimension().equals(world.dimension())) {
             p.correctTo(wt.x(), wt.y(), wt.z(), wt.yaw(), wt.pitch());
-            wt.done().accept(true);
+            p.finishWorldTeleport(wt, true);
             return false;
         }
         var travel = world.travelService();
         if (target.isUnloaded() || !travel.isLevelEnabled(target.dimension())) {
-            wt.done().accept(false);
+            p.finishWorldTeleport(wt, false);
             return false;
         }
         double x = wt.x(), y = wt.y(), z = wt.z();
@@ -2899,10 +2906,11 @@ public final class Region {
         p.portalProcess(null);
         detachForDimensionChange(p);
         World src = world;
+        java.util.function.Consumer<Boolean> fin = ok -> p.finishWorldTeleport(wt, ok);
         travel.travel(plan, (lvl, t) -> {
-            if (lvl instanceof RegionLevel rl && t != null && p.changeWorldForPlugin(rl.world(), t, wt.done())) return;
+            if (lvl instanceof RegionLevel rl && t != null && p.changeWorldForPlugin(rl.world(), t, fin)) return;
             src.runAt(p.x(), p.z(), r -> r.adopt(p));   // 갈 곳이 없다 — 원래 자리로
-            wt.done().accept(false);
+            fin.accept(false);
         });
         return true;
     }
