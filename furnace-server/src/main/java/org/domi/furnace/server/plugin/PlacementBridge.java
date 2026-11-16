@@ -110,7 +110,15 @@ final class PlacementBridge {
 
         ReadLevel(PlacementLevel l) { this.l = l; }
 
-        private static UnsupportedOperationException no(String what) {
+        /**
+         * 읽기 밖의 요청. 플러그인 레벨이면 UnsupportedOperationException(호환 계층이 UnsupportedNmsCall 로). 서버 자신의 월드인데 이 길로 왔으면 그 칸의
+         * 주인 스레드가 아니거나 클릭한 칸 청크가 로드돼 있지 않은 것이다 — 주인 region 에서 부르라는 ThreadOwnershipException(검토 #474).
+         */
+        private RuntimeException no(String what) {
+            if (l.serverWorld() != null) {
+                return new org.domi.furnace.api.concurrent.ThreadOwnershipException(what + " during placement on the server's own level needs the owning region"
+                        + " thread of the clicked block with its chunk loaded (current thread: " + Thread.currentThread().getName() + ")");
+            }
             return new UnsupportedOperationException(what + " on a plugin level during placement");
         }
 

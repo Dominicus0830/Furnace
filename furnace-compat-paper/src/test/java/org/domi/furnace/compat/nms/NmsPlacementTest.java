@@ -224,17 +224,25 @@ class NmsPlacementTest {
             f.setAccessible(true);
             ProxyLevel p = (ProxyLevel) ((sun.misc.Unsafe) f.get(null)).allocateInstance(ProxyLevel.class);
             p.real = real;
+            p.edits = new java.util.HashMap<>(); // allocateInstance 는 필드 초기화를 돌리지 않는다
             return p;
         }
 
         /** 실제 월드 없이 늘 공기(높이 -64..320). */
         static ProxyLevel ofAir() throws Exception { return of(null); }
 
+        /** 편집 중인 내용(FAWE 꼴) — 여기 적힌 칸은 실제 월드 대신 이 상태. */
+        java.util.Map<BlockPos, BlockState> edits;
+
         @Override
         public BlockEntity getBlockEntity(BlockPos pos) { return pos.getX() == MAX || real == null ? null : real.getBlockEntity(pos); }
 
         @Override
-        public BlockState getBlockState(BlockPos pos) { return pos.getX() == MAX || real == null ? Blocks.AIR.defaultBlockState() : real.getBlockState(pos); }
+        public BlockState getBlockState(BlockPos pos) {
+            BlockState e = edits.get(pos);
+            if (e != null) return e;
+            return pos.getX() == MAX || real == null ? Blocks.AIR.defaultBlockState() : real.getBlockState(pos);
+        }
 
         @Override
         public FluidState getFluidState(BlockPos pos) { return pos.getX() == MAX ? Fluids.EMPTY.defaultFluidState() : getBlockState(pos).getFluidState(); }
@@ -496,10 +504,27 @@ class NmsPlacementTest {
         assertEquals(Blocks.TORCH.defaultBlockState(), Blocks.TORCH.getStateForPlacement(airCtx));
         assertFalse(Blocks.TORCH.defaultBlockState().canSurvive(ProxyLevel.ofAir(), c), "공기 위 횃불");
 
+        // 프록시 내용이 실제 월드와 다르면 프록시 내용으로 계산한다(FAWE 의 편집 중 내용 — 검토 #474)
+        ProxyLevel edited = ProxyLevel.of(level);
+        edited.edits.put(c.below(), Blocks.STONE.defaultBlockState());
+        assertTrue(on(c, () -> Blocks.TORCH.defaultBlockState().canSurvive(edited, c)), "프록시는 받침 돌 — 월드는 공기");
+        assertFalse(on(c, () -> Blocks.TORCH.defaultBlockState().canSurvive(level, c)), "실제 월드는 공기");
+        FaweContext editedCtx = new FaweContext(edited).withSetting(new BlockHitResult(Vec3.atCenterOf(c), Direction.UP, c.below(), false), Direction.DOWN);
+        assertEquals(Blocks.TORCH.defaultBlockState(), on(c, () -> Blocks.TORCH.getStateForPlacement(editedCtx)));
+
         quiet(c.below(), Blocks.STONE.defaultBlockState());
         server.tick(2);
         assertTrue(Blocks.TORCH.defaultBlockState().canSurvive(level, c), "다른 스레드 — 공개 스냅샷");
         assertTrue(on(c, () -> Blocks.TORCH.defaultBlockState().canSurvive(level, c)), "주인 — 서버 레벨");
+        edited.edits.put(c.below(), Blocks.AIR.defaultBlockState());
+        assertFalse(on(c, () -> Blocks.TORCH.defaultBlockState().canSurvive(edited, c)), "프록시는 공기 — 월드는 돌");
+
+        // 서버 월드인데 클릭 칸 청크가 로드돼 있지 않으면 서버 레벨을 쓰지 않고 shim 읽기로 — 로드 안 된 칸 읽기는 IllegalStateException(불러오지 않는다)
+        BlockPos unloaded = new BlockPos(baseX + 90_000, Y, baseZ);
+        assertThrows(IllegalStateException.class, () -> on(c, () -> Blocks.TORCH.defaultBlockState().canSurvive(level, unloaded)));
+        // 서버 월드를 주인이 아닌 스레드에서 난수가 필요한 놓기 계산에 쓰면 주인 region 에서 부르라는 예외
+        FaweContext vineCtx = new FaweContext(level).withSetting(new BlockHitResult(Vec3.atCenterOf(c), Direction.DOWN, c, false), Direction.UP);
+        assertThrows(org.domi.furnace.api.concurrent.ThreadOwnershipException.class, () -> Blocks.WEEPING_VINES.getStateForPlacement(vineCtx));
 
         Player player = ((org.bukkit.craftbukkit.entity.CraftPlayer) Compat.player(tp.player())).getHandle();
         assertThrows(UnsupportedNmsCall.class, () -> on(c, () -> new BlockPlaceContext(level, player, InteractionHand.MAIN_HAND, ItemStack.EMPTY,
