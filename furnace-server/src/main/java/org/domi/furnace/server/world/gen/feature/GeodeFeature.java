@@ -10,6 +10,7 @@ import org.domi.furnace.server.world.gen.MathHelper;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 import org.domi.furnace.server.world.gen.noise.LegacyNormalNoise;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.GeodeFeature")
 public final class GeodeFeature implements ConfiguredFeature {
 
     private static final Direction[] DIRECTIONS = Direction.values();

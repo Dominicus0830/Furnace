@@ -6,6 +6,7 @@ import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.BlockPileFeature")
 public final class BlockPileFeature implements ConfiguredFeature {
 
     private final StateProvider provider;

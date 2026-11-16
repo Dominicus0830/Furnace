@@ -4,6 +4,7 @@ package org.domi.furnace.server.world.gen.feature;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.VoidStartPlatformFeature")
 public final class VoidStartPlatformFeature implements ConfiguredFeature {
 
     // PLATFORM_ORIGIN = (8, 3, 8), PLATFORM_ORIGIN_CHUNK = 청크 (0, 0)

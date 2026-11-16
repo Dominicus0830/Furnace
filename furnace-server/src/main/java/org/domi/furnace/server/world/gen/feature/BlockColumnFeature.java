@@ -4,6 +4,7 @@ package org.domi.furnace.server.world.gen.feature;
 import java.util.List;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.BlockColumnFeature")
 public final class BlockColumnFeature implements ConfiguredFeature {
 
     public record Layer(TreeIntProvider height, StateProvider provider) {}

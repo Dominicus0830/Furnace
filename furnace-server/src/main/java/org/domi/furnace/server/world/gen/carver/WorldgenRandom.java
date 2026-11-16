@@ -1,6 +1,7 @@
 // 바닐라 WorldgenRandom 포팅 — carver origin chunk별 시드 초기화
 package org.domi.furnace.server.world.gen.carver;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.WorldgenRandom")
 public class WorldgenRandom extends LegacyRandom {
 
     public WorldgenRandom() {

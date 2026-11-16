@@ -10,6 +10,7 @@ import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.LakeFeature")
 public final class LakeFeature implements ConfiguredFeature {
 
     private final BlockAttrs attrs = BlockAttrs.get();

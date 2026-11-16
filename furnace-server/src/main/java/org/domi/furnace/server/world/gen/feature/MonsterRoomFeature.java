@@ -10,6 +10,7 @@ import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.MonsterRoomFeature")
 public final class MonsterRoomFeature implements ConfiguredFeature {
 
     // Direction.Plane.HORIZONTAL 순서(NORTH, EAST, SOUTH, WEST)와 이름

@@ -8,6 +8,7 @@ import org.domi.furnace.server.world.gen.feature.FeatureWorldView;
 import org.domi.furnace.server.world.gen.feature.TreeConfig;
 import org.domi.furnace.server.world.gen.feature.TreeFeature;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.trunkplacers.DarkOakTrunkPlacer")
 public final class DarkOakTrunkPlacer extends TrunkPlacer {
     public DarkOakTrunkPlacer(int baseHeight, int heightRandA, int heightRandB) {
         super(baseHeight, heightRandA, heightRandB);

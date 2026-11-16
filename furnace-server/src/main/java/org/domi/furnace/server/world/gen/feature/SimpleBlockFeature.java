@@ -4,6 +4,7 @@ package org.domi.furnace.server.world.gen.feature;
 import java.util.Set;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.SimpleBlockFeature")
 public final class SimpleBlockFeature implements ConfiguredFeature {
 
     private final StateProvider provider;

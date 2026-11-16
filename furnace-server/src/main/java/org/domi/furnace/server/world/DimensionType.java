@@ -13,6 +13,7 @@ import org.domi.furnace.server.world.gen.NoiseWorldSource;
  * @param infiniburn     영원히 타는 블록 태그(# 없이)
  * @param monsterSpawnLightMin monster_spawn_light_level 균등 범위의 아래(같으면 고정값 — 난수를 쓰지 않는다)
  */
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.dimension.DimensionType")
 public record DimensionType(String levelKey, String typeKey, int minY, int height, int logicalHeight, boolean hasSkyLight,
                             boolean hasCeiling, boolean ultraWarm, boolean natural, double coordinateScale, long fixedTime,
                             boolean bedWorks, boolean respawnAnchorWorks, boolean piglinSafe, NoiseWorldSource.Dimension gen,

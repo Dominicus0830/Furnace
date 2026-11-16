@@ -4,6 +4,7 @@ import org.domi.furnace.server.world.StateIds;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.KelpFeature")
 public final class KelpFeature implements ConfiguredFeature {
 
     private static final int WATER_MIN_STATE = StateIds.WATER_FIRST;

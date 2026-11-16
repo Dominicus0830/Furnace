@@ -9,6 +9,7 @@ import org.domi.furnace.server.world.gen.feature.TreeIntProvider;
 import org.domi.furnace.server.world.gen.feature.trunk.TrunkPlacer;
 
 // vanilla MegaJungleFoliagePlacer 포팅 (registry id: jungle_foliage_placer, 정글 거목 — mega_jungle_trunk_placer와 짝).
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.foliageplacers.MegaJungleFoliagePlacer")
 public final class JungleFoliagePlacer extends FoliagePlacer {
     private final int height;
 

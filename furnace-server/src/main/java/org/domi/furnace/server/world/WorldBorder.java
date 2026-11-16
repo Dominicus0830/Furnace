@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.function.LongSupplier;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.border.WorldBorder")
 public final class WorldBorder {
 
     /** 바닐라 MAX_SIZE = 5.999997E7F (float 리터럴이 double 로 확장된 값 59999968). */

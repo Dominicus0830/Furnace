@@ -10,6 +10,7 @@ import org.domi.furnace.server.world.gen.feature.trunk.TrunkPlacer;
 
 // vanilla CherryFoliagePlacer 포팅 (cherry_grove). 위에서 좁게 시작해 아래로 넓어지는 층을 쌓고,
 // 맨 아래 두 층은 placeLeavesRowWithHangingLeavesBelow로 매달린 잎을 덧붙인다.
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.foliageplacers.CherryFoliagePlacer")
 public final class CherryFoliagePlacer extends FoliagePlacer {
     private final TreeIntProvider heightProvider;
     private final float wideBottomLayerHoleChance;

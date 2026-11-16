@@ -6,6 +6,7 @@ import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 import org.domi.furnace.server.world.gen.feature.FeatureWorldView;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.structure.StructurePiece")
 public abstract class StructurePiece {
 
     protected BoundingBox boundingBox;

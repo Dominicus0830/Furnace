@@ -5,6 +5,7 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.EndGatewayFeature")
 public final class EndGatewayFeature implements ConfiguredFeature {
 
     private final int gateway, bedrock, air;

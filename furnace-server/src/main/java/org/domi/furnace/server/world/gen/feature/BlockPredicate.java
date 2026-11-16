@@ -12,6 +12,7 @@ import org.domi.furnace.server.world.BlockAttrs;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ChunkColumn;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.blockpredicates.BlockPredicate")
 public interface BlockPredicate {
 
     boolean test(FeatureWorldView view, int x, int y, int z);

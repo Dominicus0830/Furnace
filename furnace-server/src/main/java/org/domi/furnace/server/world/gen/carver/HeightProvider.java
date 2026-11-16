@@ -3,6 +3,7 @@ package org.domi.furnace.server.world.gen.carver;
 
 import com.google.gson.JsonObject;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.heightproviders.HeightProvider")
 public interface HeightProvider {
 
     int sample(LegacyRandom random, int minY, int height);

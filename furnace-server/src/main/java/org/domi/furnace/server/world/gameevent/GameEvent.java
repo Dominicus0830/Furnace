@@ -5,6 +5,7 @@ package org.domi.furnace.server.world.gameevent;
 import java.util.HashMap;
 import java.util.Map;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.gameevent.GameEvent")
 public final class GameEvent {
 
     /** 레지스트리 순서(builtin-1.21.1.txt 와 같다). */

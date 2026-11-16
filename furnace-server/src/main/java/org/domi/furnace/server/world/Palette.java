@@ -4,6 +4,7 @@ package org.domi.furnace.server.world;
 import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.net.io.Types;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.chunk.PalettedContainer")
 public final class Palette {
 
     private Palette() {}

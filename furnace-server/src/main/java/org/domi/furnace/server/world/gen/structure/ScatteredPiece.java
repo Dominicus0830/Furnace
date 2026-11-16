@@ -1,6 +1,7 @@
 // 바닐라 ScatteredFeaturePiece — 폭/높이/깊이 상자 + 지면 높이 보정(최초 1회).
 package org.domi.furnace.server.world.gen.structure;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.structure.ScatteredFeaturePiece")
 public abstract class ScatteredPiece extends StructurePiece {
     protected final int width, height, depth;
     protected int heightPosition = -1;

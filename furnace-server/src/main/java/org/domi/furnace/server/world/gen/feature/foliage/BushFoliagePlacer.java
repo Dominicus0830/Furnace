@@ -11,6 +11,7 @@ import org.domi.furnace.server.world.gen.feature.trunk.TrunkPlacer;
 // vanilla BushFoliagePlacer 포팅 (사바나 아카시아 덤불 변종 등). vanilla는 BlobFoliagePlacer를 상속하지만
 // Furnace의 BlobFoliagePlacer는 final이라(FancyFoliagePlacer와 동일 사유) FoliagePlacer를 직접 확장하고
 // Blob의 foliageHeight(상수 height 반환)을 그대로 복제한다.
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.foliageplacers.BushFoliagePlacer")
 public final class BushFoliagePlacer extends FoliagePlacer {
     private final int height;
 

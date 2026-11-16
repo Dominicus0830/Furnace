@@ -10,6 +10,7 @@ import org.domi.furnace.server.world.gen.NoiseSettings;
 import org.domi.furnace.server.world.gen.df.DensityFunction;
 import org.domi.furnace.server.world.gen.surface.SurfaceSystem;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.carver.WorldCarver")
 public abstract class WorldCarver {
 
     private static final Set<String> REPLACEABLE_NAMES = Set.of(

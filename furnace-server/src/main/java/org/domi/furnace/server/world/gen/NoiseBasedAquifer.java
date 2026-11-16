@@ -6,6 +6,7 @@ import java.util.Arrays;
 import org.domi.furnace.server.world.gen.df.DensityFunction;
 import org.domi.furnace.server.world.gen.noise.PositionalRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.Aquifer")
 public final class NoiseBasedAquifer implements Aquifer {
 
     private static final int WAY_BELOW_MIN_Y = -2048;

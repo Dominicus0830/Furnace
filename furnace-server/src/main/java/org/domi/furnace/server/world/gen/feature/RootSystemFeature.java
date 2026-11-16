@@ -6,6 +6,7 @@ import org.domi.furnace.server.world.BlockAttrs;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.RootSystemFeature")
 public final class RootSystemFeature implements ConfiguredFeature {
 
     private final PlacedFeature tree;

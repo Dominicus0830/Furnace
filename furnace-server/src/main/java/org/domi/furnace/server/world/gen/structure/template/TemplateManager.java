@@ -30,6 +30,7 @@ import org.domi.furnace.server.world.BlockRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager")
 public final class TemplateManager {
 
     private static final Logger log = LoggerFactory.getLogger(TemplateManager.class);

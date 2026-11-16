@@ -9,6 +9,7 @@ import org.domi.furnace.server.world.gen.carver.LegacyRandom;
  * 생성자 RNG 소비 순서: xo(nextDouble), yo(nextDouble), zo(nextDouble), 그 다음 Fisher-Yates 셔플 256회.
  * GRADIENT 테이블은 SimplexNoise.GRADIENT(16엔트리) 인라인.
  */
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.synth.ImprovedNoise")
 public final class ImprovedNoise {
 
     // SimplexNoise.GRADIENT(16 entries) - int[][3]

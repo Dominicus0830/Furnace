@@ -8,6 +8,7 @@ import org.domi.furnace.server.world.gen.NoiseChunk;
 import org.domi.furnace.server.world.gen.NoiseSettings;
 import org.domi.furnace.server.world.gen.surface.SurfaceSystem;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.carver.CaveWorldCarver")
 public final class CaveWorldCarver extends WorldCarver {
 
     /** NetherWorldCarver(nether_cave): caveBound 10, 굵기 (f*2+f)*2, 터널 yScale 5.0, 블록은 y<=minY+31 용암·그 위 cave_air(대수층·표면 승격 없음). */

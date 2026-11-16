@@ -6,6 +6,7 @@ import java.util.Set;
 import java.util.function.IntPredicate;
 import java.util.stream.IntStream;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.biome.BiomeSource")
 public final class BiomeLocator {
     private BiomeLocator() { }
 

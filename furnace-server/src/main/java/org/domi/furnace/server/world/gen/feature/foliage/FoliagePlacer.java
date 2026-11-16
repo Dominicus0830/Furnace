@@ -8,6 +8,7 @@ import org.domi.furnace.server.world.gen.feature.TreeFeature;
 import org.domi.furnace.server.world.gen.feature.TreeIntProvider;
 import org.domi.furnace.server.world.gen.feature.trunk.TrunkPlacer;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.foliageplacers.FoliagePlacer")
 public abstract class FoliagePlacer {
 
     protected final TreeIntProvider radius;

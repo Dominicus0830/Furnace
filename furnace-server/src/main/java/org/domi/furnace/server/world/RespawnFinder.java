@@ -17,6 +17,7 @@ import org.domi.furnace.server.entity.PortalTravel;
 import org.domi.furnace.server.entity.Vec3;
 import org.domi.furnace.server.entity.ai.control.Mth;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.server.level.ServerPlayer")
 public final class RespawnFinder {
 
     private RespawnFinder() {}

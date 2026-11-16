@@ -14,6 +14,7 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.village.poi.PoiSection")
 public final class PoiSection {
     private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(PoiSection.class);
 
