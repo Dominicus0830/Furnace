@@ -56,12 +56,12 @@ case "$cmd" in
     kind=$(kind_of "$tag") || { echo "형식 오류: $tag" >&2; exit 1; }
     mc=$(mc_of "$tag")
     sha=$(git rev-parse --verify "$commit^{commit}")
-    # 찍을 수 있는 곳: 기준 브랜치, release/<마크판>, (release 종류만) main — 원격에 있는 커밋이어야 한다
+    # 찍을 수 있는 곳: 기준 브랜치, ver/<마크판>, (release 종류만) main — 원격에 있는 커밋이어야 한다
     ok=0
-    for br in "origin/$BASE_BRANCH" "origin/release/$mc" $([[ $kind == release ]] && echo origin/main); do
+    for br in "origin/$BASE_BRANCH" "origin/ver/$mc" $([[ $kind == release ]] && echo origin/main); do
       if git rev-parse --verify -q "$br" >/dev/null && git merge-base --is-ancestor "$sha" "$br"; then ok=1; break; fi
     done
-    [[ $ok -eq 1 ]] || { echo "거부: $sha 는 origin/$BASE_BRANCH, origin/release/$mc$([[ $kind == release ]] && echo ', origin/main') 어디에도 없다(git fetch 후 다시)." >&2; exit 1; }
+    [[ $ok -eq 1 ]] || { echo "거부: $sha 는 origin/$BASE_BRANCH, origin/ver/$mc$([[ $kind == release ]] && echo ', origin/main') 어디에도 없다(git fetch 후 다시)." >&2; exit 1; }
     git rev-parse -q --verify "refs/tags/$tag" >/dev/null && { echo "거부: 태그가 이미 있다: $tag (태그는 옮기지 않는다)" >&2; exit 1; }
     git tag -a "$tag" "$sha" -m "${msg:-$tag}"
     echo "만듦: $tag -> $sha"
