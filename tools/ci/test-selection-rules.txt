@@ -24,6 +24,8 @@ full **/*.gradle
 full gradle.properties
 full **/gradle.properties
 full **/*.toml
+# 표를 만드는 도구: 표 이후에 이 파일들이 바뀌었으면 옛 도구로 만든 표를 믿지 않는다(tools/ci/** · .github/** 는 위에서 이미 전체).
+full furnace-server/src/test/java/org/domi/furnace/server/TestImpactListener.java
 # ---- 전체 시험 대상: 리소스(클래스 커버리지에 안 잡힌다. 금 파일·정답표·언어 파일·서비스 목록 포함) ----
 full **/src/*/resources/**
 # ---- 전체 시험 대상: 동시성 핵심(어디서 쓰이든 영향이 번지는 곳) ----
@@ -82,3 +84,11 @@ always org/domi/furnace/server/entity/EntityCollisionSceneGoldenTest
 always org/domi/furnace/server/identity/IdentityKitTest
 always org/domi/furnace/server/light/LightSceneIdentityTest
 always org/domi/furnace/server/scene/SceneLibraryTest
+# (2) 다른 파일의 "내용"을 읽어 검사하는 시험: 검사 대상은 이 시험이 실행하는 코드가 아니라 파일이라서, 그 파일이 바뀌어도 영향 표에 안 잡힌다.
+#     LangBundlesTest: 모든 모듈 src/main/java 의 한글 문자열 직접 사용·Lang 키 존재(CLAUDE.md 콘솔 메시지 규칙). 몇 초.
+#     CompatIsolationStaticTest: 서버·API 클래스 파일 전부에 금지 이름(org/bukkit 등)이 있는지.
+#     CancelContractTest: API 의 Cancellable 이벤트 클래스를 클래스 파일에서 찾아 표와 대조(새 이벤트가 생기면 표를 채우게 한다).
+#     새 시험이 src/main/java·../furnace-·getCodeSource() 로 다른 파일을 읽으면 여기에 넣는다(test_test_impact.py 의 SourceScanTestsLintTest 가 확인한다).
+always org/domi/furnace/server/i18n/LangBundlesTest
+always org/domi/furnace/server/plugin/CompatIsolationStaticTest
+always org/domi/furnace/server/plugin/CancelContractTest

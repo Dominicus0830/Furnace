@@ -171,6 +171,11 @@ PR 은 서버 시험 약 3,900개 중 **이 변경이 실제로 실행되는 시
 - 에이전트가 느려서 제한시간·시간 의존 단언으로 실패한 시험은 `unreliable` 이라 항상 돈다. 이런 시험이 많으면 선택 효과가 줄어든다(표 생성 요약의 "믿을 수 없는 시험 n 개").
 - **다른 JVM 에서 서버 코드를 돌리는 시험은 에이전트가 못 본다**(장면 해시·IdentityKit 금 파일 시험이 자식 JVM 을 띄운다). 그래서 이런 시험 7개는 규칙 파일의 `always` 로 서버 코드가 바뀔 때마다 돈다(합쳐 1분 안팎). 새 시험이 `ProcessBuilder`·`SceneHash`·`ForkMain` 을 쓰면 `always` 에 넣어야 하고, 빠뜨리면 `test_test_impact.py` 가 실패한다.
 - 인터페이스의 소문자 이름 상수 선언은 상수로 인식하지 못한다(자바 관례상 대문자).
+- 상수 선언이 여러 줄에 걸치고 값이 있는 줄만 바뀐 경우는 인라인 상수로 못 잡는다(드물다).
+- **다른 파일의 내용을 읽어 검사하는 시험은 `always`**: 소스·클래스 파일을 훑는 시험(`LangBundlesTest` 한글·Lang 키 검사, `CompatIsolationStaticTest` 금지 이름 검사, `CancelContractTest` 취소 가능 이벤트 대조)은 검사 대상 파일을 "실행"하지 않아 영향 표에 안 잡힌다. 규칙 파일 `always` 로 서버 코드가 바뀔 때마다 돌고(합쳐 몇 초),
+  새 시험이 `src/main/java`·`../furnace-`·`getCodeSource()` 로 다른 파일을 읽으면 `test_test_impact.py` 의 `SourceScanTestsLintTest` 가 실패해 알려 준다(`Path.of(base, …)` 처럼 변수로 경로를 만드는 것은 점검이 못 본다).
+- **표 만드는 도구를 고친 PR**: 병합되면 표(옛 도구로 만든 것)는 최대 4시간 남는다. 그 사이 PR 은 안전하게 전체로 돈다 — `tools/ci/**`·`.github/**`·`*.kts`·`TestImpactListener.java` 는 `full` 규칙이라 "표 이후 바뀐 파일"에 들어가면 전체다. 그리고 `test-impact.yml` 의 `gate` 가 도구 파일(`test-impact.py`·규칙 파일·`test-impact.yml`·`furnace-server/build.gradle.kts`·`TestImpactListener.java`)이 바뀐 push 에서는 나이와 상관없이 표를 다시 만들어 그 "전체" 기간을 줄인다.
+  `furnace-server/build.gradle.kts` 만 바꾸는 PR 은 표 만들기를 PR 에서 돌지 않는다(조각 8개 × 최대 90분이라 빌드 파일 PR 마다 돌리기엔 비싸다) — 병합 뒤 기준 브랜치 push 에서 만들어 보고, 실패하면 표가 갱신되지 않을 뿐 PR 은 계속 안전하게(전체로) 돈다.
 - 표 생성 비용: 기준 브랜치 push 가 있을 때 4시간에 한 번 조각 8개 × (시험 클래스당 JVM + 에이전트) — 처음 실행의 실측으로 조각 수·동시 JVM 수·제한시간을 조정한다(아래 "실측" 절에 기록).
 
 ### 실측 (2026-11-16, 로컬 4코어 15GB 컨테이너, 같은 코드)

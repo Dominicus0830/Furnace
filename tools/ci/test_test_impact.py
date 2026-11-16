@@ -489,11 +489,14 @@ class RepoAuditTest(unittest.TestCase):
         rules = ti.Rules.read(os.path.join(HERE, "test-selection-rules.txt"))
         self.assertTrue(rules.paths)
 
-    def test_every_external_folder_a_test_mentions_has_a_reads_rule(self):
-        """자바 소스(시험·도우미)에 저장소 밖 폴더 이름(docs·tools·LLM-Wiki·licenses)이 경로 꼴 문자열로 나오면, 그 폴더에 reads/full 규칙이 있어야 한다.
-        없으면 시험이 읽는 파일이 바뀌어도 'ignore' 로 넘어가 시험이 안 돈다. 주석 줄은 건너뛴다(문구 안 설명)."""
+    def test_every_external_path_a_test_mentions_is_covered_by_a_reads_or_full_rule(self):
+        """자바 소스(시험·도우미)에 저장소 밖 파일 경로(docs·tools·LLM-Wiki·licenses·graphify-out 아래)가 나오면, 그 경로를 **실제로 맞는 규칙**이 reads/full 이어야 한다.
+        폴더 맨 위에 규칙이 하나만 있어도 통과하던 점검을 고쳤다: `Path.of("..", "docs", "ops", ...)` 가 `ignore docs/**` 로 넘어가면 그 파일이 바뀌어도 시험이 안 돈다.
+        문자열 뒤에 변수가 붙는 경로("../tools/vanilla-data/server-" + 버전)는 앞부분 아래 가상의 파일로 규칙을 시험한다. 주석 줄은 건너뛴다."""
         rules = ti.Rules.read(os.path.join(HERE, "test-selection-rules.txt"))
-        pat = re.compile(r'"(?:\.\./)?(docs|tools|LLM-Wiki|licenses|graphify-out)(?:/[^"]*)?"')
+        tops = "docs|tools|LLM-Wiki|licenses|graphify-out"
+        single = re.compile(r'"(?:\.\./)?((?:%s)(?:/[^"]*)?)"' % tops)
+        joined = re.compile(r'(?:Path\.of|Paths\.get)\(\s*"\.\."\s*,\s*((?:"[^"]+"\s*,?\s*)+)\)')
         found = {}
         for module in os.listdir(REPO):
             src = os.path.join(REPO, module, "src")
@@ -507,11 +510,65 @@ class RepoAuditTest(unittest.TestCase):
                         for line in fh:
                             if line.lstrip().startswith(("//", "*", "/*")):
                                 continue
-                            for m in pat.finditer(line):
-                                found.setdefault(m.group(1), os.path.join(module, fn))
-        for top, where in sorted(found.items()):
-            covered = any(kind in ("reads", "full") and glob.startswith(top + "/") for kind, _rx, glob, _arg in rules.paths)
-            self.assertTrue(covered, "%s 폴더를 경로로 쓰는 시험·소스(%s)가 있는데 test-selection-rules.txt 에 %s/ 아래 reads/full 규칙이 없다" % (top, where, top))
+                            # 폴더 이름만 있는 문자열("docs")은 뒤에 붙는 경로를 알 수 없어 건너뛴다(Path.of(base, "feature-parity", ...) 꼴은 못 본다 — 한계)
+                            paths = [m.group(1) for m in single.finditer(line) if "/" in m.group(1)]
+                            for m in joined.finditer(line):
+                                parts = re.findall(r'"([^"]+)"', m.group(1))
+                                if re.match(r"(%s)$" % tops, parts[0]):
+                                    paths.append("/".join(parts))
+                            for pth in paths:
+                                found.setdefault(pth, os.path.join(module, fn))
+        self.assertTrue(found, "저장소 밖 경로를 하나도 못 찾았다 — 점검 정규식이 낡았다")
+        for pth, where in sorted(found.items()):
+            probe = pth.rstrip("/") + "/probe-file" if not re.search(r"\.\w+$", pth) else pth
+            rule = rules.match(probe)
+            ok = rule is not None and rule[0] in ("reads", "full")
+            self.assertTrue(ok, "`%s` 를 경로로 쓰는 시험·소스(%s)가 있는데 규칙은 %s — test-selection-rules.txt 에 reads/full 규칙을 넣는다"
+                            % (pth, where, "없다(기본 전체라 안전하지만 규칙을 적는다)" if rule is None else "`%s %s`" % (rule[0], rule[2])))
+
+
+class SourceScanTestsLintTest(unittest.TestCase):
+    """다른 파일의 내용을 읽어 검사하는 시험(소스 훑기·클래스 파일 훑기)은 그 파일이 바뀌어도 영향 표에 안 잡힌다 — 항상 돌려야 한다(규칙 파일 always).
+    시험 소스에 아래 흔적이 코드로 나오면 always 에 있거나, 읽지만 검사하지 않는 이유가 적힌 아래 목록에 있어야 한다."""
+
+    # 시험 소스 → 항상 돌리지 않아도 되는 이유
+    NOT_SCANNERS = {
+        "org/domi/furnace/server/log/ConsoleFormatTest": "src/main/resources 를 읽는다 — 리소스가 바뀌면 `full **/src/*/resources/**` 로 전체",
+        "org/domi/furnace/server/plugin/HotReloadTest": "getCodeSource 는 시험용 플러그인 클래스경로를 만들 뿐(내용 검사 아님)",
+        "org/domi/furnace/server/plugin/A14PluginLifecycleReproTest": "getCodeSource 는 시험용 플러그인 클래스경로를 만들 뿐(내용 검사 아님)",
+        "org/domi/furnace/server/plugin/A14PluginLifecycleReviewTest": "getCodeSource 는 시험용 플러그인 클래스경로를 만들 뿐(내용 검사 아님)",
+    }
+
+    def test_tests_that_scan_other_files_are_always_run(self):
+        rules = ti.Rules.read(os.path.join(HERE, "test-selection-rules.txt"))
+        root = os.path.join(REPO, "furnace-server", "src", "test", "java")
+        pat = re.compile(r'src/main/(?:java|resources)|"\.\./furnace-|getCodeSource\(\)|Path\.of\("\.\.", "furnace-')
+        missing = []
+        for dirpath, _d, files in os.walk(root):
+            for fn in files:
+                if not fn.endswith(".java"):
+                    continue
+                with open(os.path.join(dirpath, fn), encoding="utf-8", errors="replace") as fh:
+                    code = [l for l in fh if not l.lstrip().startswith(("//", "*", "/*"))]
+                if not pat.search("".join(code)):
+                    continue
+                name = os.path.relpath(os.path.join(dirpath, fn), root)[:-5].replace(os.sep, "/")
+                if name not in rules.always and name not in self.NOT_SCANNERS and not name.endswith(("TestRecipes",)):
+                    missing.append(name)
+        self.assertEqual([], missing, "다른 파일(소스·클래스·리소스)을 읽는 시험은 always 에 넣거나, 내용을 검사하지 않는 이유와 함께 NOT_SCANNERS 에 적는다")
+
+    def test_not_scanners_names_exist(self):
+        root = os.path.join(REPO, "furnace-server", "src", "test", "java")
+        for name in self.NOT_SCANNERS:
+            self.assertTrue(os.path.isfile(os.path.join(root, name + ".java")), name + " 시험 소스가 없다")
+
+    def test_tool_files_are_full(self):
+        """표를 만드는 도구가 표 이후 바뀌었으면 옛 도구의 표를 믿지 않는다(전체)."""
+        rules = ti.Rules.read(os.path.join(HERE, "test-selection-rules.txt"))
+        for path in ("tools/ci/test-impact.py", "tools/ci/test-selection-rules.txt", ".github/workflows/test-impact.yml",
+                     "furnace-server/build.gradle.kts", "furnace-server/src/test/java/org/domi/furnace/server/TestImpactListener.java"):
+            rule = rules.match(path)
+            self.assertTrue(rule is not None and rule[0] == "full", path + " 가 전체 규칙이 아니다")
 
 
 class SubprocessTestsLintTest(unittest.TestCase):
