@@ -304,6 +304,54 @@ public final class PluginHost implements Furnace {
         return core.profileCache().peek(name).map(p -> (org.domi.furnace.api.entity.OfflinePlayer) new OfflinePlayerImpl(this, p.id())).orElse(null);
     }
 
+    // ------------------------------------------------------------------ 프로필 조회(사용자 캐시·세션 서버)
+
+    private static org.domi.furnace.api.entity.ProfileData profileData(org.domi.furnace.server.players.GameProfile p) {
+        return new org.domi.furnace.api.entity.ProfileData(p.id(), p.name(), p.properties().stream()
+                .map(x -> new org.domi.furnace.api.entity.ProfileProperty(x.name(), x.value(), x.signature())).toList());
+    }
+
+    @Override
+    public java.util.Optional<org.domi.furnace.api.entity.ProfileData> profileByName(String name) {
+        Player online = core.playerByName(name);
+        if (online != null) return java.util.Optional.of(profileData(ServerCore.profileOf(online)));
+        // GameProfileCache.get: 캐시, 없으면 오프라인 모드에서만 오프라인 프로필을 만들어 넣는다(조회기는 NONE 이라 인증 서버에 묻지 않는다)
+        return core.profileCache().get(name).map(PluginHost::profileData);
+    }
+
+    @Override
+    public java.util.Optional<org.domi.furnace.api.entity.ProfileData> profileById(UUID id) {
+        Player online = core.playerByUuid(id);
+        if (online != null) return java.util.Optional.of(profileData(ServerCore.profileOf(online)));
+        return core.profileCache().get(id).map(PluginHost::profileData);
+    }
+
+    @Override
+    public java.util.concurrent.CompletableFuture<java.util.Optional<org.domi.furnace.api.entity.ProfileData>> fetchProfileByName(String name) {
+        var cached = profileByName(name);
+        if (cached.isPresent() || !core.profileCache().usesAuthentication() || !org.domi.furnace.server.players.GameProfile.isValidPlayerName(name)) {
+            return java.util.concurrent.CompletableFuture.completedFuture(cached);
+        }
+        return core.sessionService().lookupByName(name).thenApply(found -> {
+            found.ifPresent(core.profileCache()::add);
+            return found.map(PluginHost::profileData);
+        });
+    }
+
+    @Override
+    public java.util.concurrent.CompletableFuture<java.util.Optional<org.domi.furnace.api.entity.ProfileData>> fetchProfile(UUID id) {
+        if (!core.profileCache().usesAuthentication()) return java.util.concurrent.CompletableFuture.completedFuture(java.util.Optional.empty());
+        return core.sessionService().fetchProfile(id).thenApply(found -> {
+            found.ifPresent(core.profileCache()::add);
+            return found.map(PluginHost::profileData);
+        });
+    }
+
+    @Override
+    public boolean verifyProfileProperty(String name, String value, String signature) {
+        return core.servicesKeys().validProfileProperty(value, signature);
+    }
+
     @Override
     public java.util.concurrent.CompletableFuture<List<org.domi.furnace.api.entity.OfflinePlayer>> knownPlayers() {
         RegionFuture<List<org.domi.furnace.api.entity.OfflinePlayer>> out = new RegionFuture<>();

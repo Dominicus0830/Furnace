@@ -61,12 +61,12 @@ public final class CraftEffect {
                 };
             }
             case SMOKE -> datavalue = switch ((BlockFace) data) {
-                case DOWN, SELF -> 0;   // SPIGOT-6318: 옛 방향(대각선·SELF)은 0
                 case UP -> 1;
                 case NORTH -> 2;
                 case SOUTH -> 3;
                 case WEST -> 4;
                 case EAST -> 5;
+                default -> 0;   // SPIGOT-6318: DOWN·SELF 와 옛 방향(대각선)은 0
             };
             case STEP_SOUND, PARTICLES_AND_SOUND_BRUSH_BLOCK_COMPLETE -> {
                 if (effect == Effect.STEP_SOUND && data instanceof Material m) {

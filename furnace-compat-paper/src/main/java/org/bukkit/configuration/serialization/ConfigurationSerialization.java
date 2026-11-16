@@ -44,6 +44,8 @@ public class ConfigurationSerialization {
         registerClass(org.bukkit.util.BoundingBox.class);
         registerClass(org.bukkit.block.spawner.SpawnRule.class);
         registerClass(org.bukkit.craftbukkit.CraftOfflinePlayer.class);   // 별칭 Player
+        registerClass(org.bukkit.craftbukkit.profile.CraftPlayerProfile.class);   // 별칭 PlayerProfile
+        registerClass(com.destroystokyo.paper.profile.CraftPlayerProfile.class);   // 같은 별칭 — 나중 것(Paper)이 별칭을 가진다
     }
 
     private final Class<? extends ConfigurationSerializable> clazz;

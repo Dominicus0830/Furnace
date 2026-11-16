@@ -272,6 +272,13 @@ public abstract class BlockEntity {
         loadComponents(tag);
     }
 
+    /**
+     * 플러그인 API 가 블록 엔티티 사본을 통째로 실을 때({@code World.setBlockEntityNbtNow}) 읽기 직전에 부른다. 바닐라 load 는 NBT 에 없는 값을 옛 값 그대로 두지만,
+     * Paper 의 블록 상태 적용(CraftBlockEntityState.applyTo)은 종류에 따라 사본에 없는 값을 비운다(머리의 소유자) — 그런 종류만 재정의한다.
+     * /data 쓰기에는 부르지 않는다(바닐라 그대로).
+     */
+    public void beforeSnapshotLoad(NbtCompound tag) {}
+
     /** BlockEntityType.isValid(state): 이 종류가 그 블록 상태에 붙을 수 있는가. */
     public boolean isValid(int state) { return true; }
 }

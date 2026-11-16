@@ -58,6 +58,8 @@ public final class GameProfileCache {
     /** 온라인 모드면 참: 조회 실패 시 오프라인 프로필을 만들지 않는다. */
     public void setUsesAuthentication(boolean v) { usesAuthentication = v; }
 
+    public boolean usesAuthentication() { return usesAuthentication; }
+
     private void safeAdd(Entry e) {
         e.setLastAccess(nextOperation());
         profilesByName.put(e.profile.name().toLowerCase(Locale.ROOT), e);

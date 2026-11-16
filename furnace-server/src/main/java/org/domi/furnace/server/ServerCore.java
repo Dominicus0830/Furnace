@@ -829,6 +829,20 @@ public final class ServerCore {
 
     public org.domi.furnace.server.chat.ServicesKeys servicesKeys() { return servicesKeys; }
 
+    private volatile org.domi.furnace.server.net.auth.SessionService sessionService;
+
+    /** 프로필 조회용 세션 서버 클라이언트(플러그인 API 의 fetchProfile 등) — 처음 쓸 때 만든다(HTTP 클라이언트가 스레드를 띄우므로). */
+    public org.domi.furnace.server.net.auth.SessionService sessionService() {
+        var s = sessionService;
+        if (s == null) {
+            synchronized (this) {
+                s = sessionService;
+                if (s == null) sessionService = s = new org.domi.furnace.server.net.auth.SessionService();
+            }
+        }
+        return s;
+    }
+
     public org.domi.furnace.server.world.GameRules gameRules() { return gameRules; }
 
     public org.domi.furnace.server.world.WorldClock clock() { return clock; }

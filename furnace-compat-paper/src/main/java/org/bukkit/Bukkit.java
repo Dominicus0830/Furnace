@@ -133,6 +133,20 @@ public final class Bukkit {
 
     public static org.bukkit.block.data.BlockData createBlockData(Material material, String data) { return s().createBlockData(material, data); }
 
+    public static org.bukkit.profile.PlayerProfile createPlayerProfile(UUID uniqueId) { return s().createPlayerProfile(uniqueId); }
+
+    public static org.bukkit.profile.PlayerProfile createPlayerProfile(String name) { return s().createPlayerProfile(name); }
+
+    public static org.bukkit.profile.PlayerProfile createPlayerProfile(UUID uniqueId, String name) { return s().createPlayerProfile(uniqueId, name); }
+
+    public static com.destroystokyo.paper.profile.PlayerProfile createProfile(UUID uuid) { return s().createProfile(uuid); }
+
+    public static com.destroystokyo.paper.profile.PlayerProfile createProfile(String name) { return s().createProfile(name); }
+
+    public static com.destroystokyo.paper.profile.PlayerProfile createProfile(UUID uuid, String name) { return s().createProfile(uuid, name); }
+
+    public static com.destroystokyo.paper.profile.PlayerProfile createProfileExact(UUID uuid, String name) { return s().createProfileExact(uuid, name); }
+
     public static org.bukkit.inventory.Inventory createInventory(org.bukkit.inventory.InventoryHolder owner, int size) { return s().createInventory(owner, size); }
 
     public static org.bukkit.inventory.Inventory createInventory(org.bukkit.inventory.InventoryHolder owner, int size, String title) { return s().createInventory(owner, size, title); }
