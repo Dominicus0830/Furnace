@@ -2028,7 +2028,8 @@ public final class ServerCore {
         return null;
     }
 
-    public static GameProfile profileOf(Player p) { return new GameProfile(p.uuid(), p.name(), p.profileProperties()); }
+    /** 플레이어의 지금 게임 프로필(Paper getGameProfile) — op·화이트리스트·밴·권한은 엔티티 UUID 가 아니라 이것으로 본다. */
+    public static GameProfile profileOf(Player p) { return p.profile(); }
 
     private final java.util.List<java.util.function.Consumer<Text>> consoleListeners = new java.util.concurrent.CopyOnWriteArrayList<>();
 
