@@ -269,6 +269,8 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
                 }
             }
             replayDeferred(deferred);
+            // 미룬 만들기는 위 판 뒤에 서버에 들었다 — 덧칠을 지우기 전에 그것까지 든 판을 다시 낸다(아니면 틱 끝 공개까지 다른 스레드가 null 을 본다)
+            if (view != null && deferred != null) view = NmsChunks.bridge().publishChunkViewNow(world, cx, cz);
             if (view != null) published(view);
             return dirty;
         } finally {

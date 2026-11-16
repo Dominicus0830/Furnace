@@ -332,6 +332,31 @@ class NmsBlockEntityWriteTest {
         assertTrue(hasDiamonds(offThread(() -> view.saveWithId(reg))));
     }
 
+    /**
+     * 미룬 만들기(섹션 들여오기 뒤 IMMEDIATE)를 재생한 맞춤이 공개한 판에는 그 블록 엔티티가 들어 있어야 한다 — 덧칠을 지운 뒤 틱 끝 공개 전까지
+     * 다른 스레드가 null 을 보면 안 된다(시험 중 가끔 나던 실패). 주인 작업 안에서 맞추고 틱을 돌리지 않은 채 다른 스레드가 읽는다.
+     */
+    @Test
+    void deferredCreateIsInTheViewPublishedBySync() {
+        BlockPos p = at(-1, 2, 4, 12);
+        LevelChunk c = level.getChunk(p.getX() >> 4, p.getZ() >> 4);
+        int si = si(p);
+        // 주인 작업 안에서 다른 스레드가 쓴다 — 쓰기 셋(섹션 CAS·만들기·싣기)이 한 맞춤에 들어가 만들기가 들여오기 뒤로 미뤄진다(검토 R3 시험과 같은 방법)
+        onRun(p, () -> {
+            offThreadRun(() -> {
+                LevelChunkSection existing = c.getSections()[si];
+                var fresh = freshWith(existing, p.getX() & 15, p.getY() & 15, p.getZ() & 15, Blocks.CHEST.defaultBlockState());
+                assertTrue(NmsArrays.compareAndSet(OBJ, c.getSections(), si, existing, fresh));
+                BlockEntity be = c.getBlockEntity(p, LevelChunk.EntityCreationType.IMMEDIATE);
+                be.loadWithComponents(TagParser.parseTag(ITEMS), reg);
+            });
+            assertNotNull(c.getBlockEntity(p), "주인: 맞춘 뒤 상자");   // 주인 맞춤(들여오기 → 미룬 만들기·싣기), 틱 끝 공개는 없다
+        });
+        BlockEntity seen = offThread(() -> c.getBlockEntity(p));
+        assertTrue(seen instanceof ChestBlockEntity, "다른 스레드: 맞춤이 낸 판에 상자가 있다");
+        assertTrue(hasDiamonds(offThread(() -> seen.saveWithId(reg))));
+    }
+
     /** 스포너도 같은 길: //set 이 지운 스포너의 몹 종류가 되돌리기 기록에 남고, //paste 가 실은 몹 종류가 서버 스포너에 들어간다. */
     @Test
     void spawnerSetAndPaste() {
@@ -579,9 +604,12 @@ class NmsBlockEntityWriteTest {
         assertFalse(org.domi.furnace.server.world.CommandDrainGate.inScope(), "부른 스레드의 범위는 닫혔다");
     }
 
-    /** 상자 여러 개를 다른 스레드가 하나씩 지우고 저장(FAWE //set 의 되돌리기 기록) — 주인이 틱을 돌지 않아도 끝난다(drain 차례가 왕복을 받는다). */
+    /**
+     * 상자 여러 개를 다른 스레드가 하나씩 지우고 저장(FAWE //set 의 되돌리기 기록) — 모든 내용이 나온다. 걸린 시간은 출력만 한다(시험 서버는 수동 시계라
+     * 실서버보다 큐를 자주 비워 시간 단언이 수정 유무를 가르지 못한다 — 실서버 시간은 데스크탑 실측).
+     */
     @Test
-    void manyOffThreadSavesDoNotWaitForTicks() {
+    void manyOffThreadRemoveThenSaveRoundTrips() {
         int n = 24;
         BlockPos[] ps = new BlockPos[n];
         for (int i = 0; i < n; i++) {
@@ -602,5 +630,20 @@ class NmsBlockEntityWriteTest {
         long ms = (System.nanoTime() - t0) / 1_000_000L;
         System.out.println("T-198 왕복 " + n + "개: " + ms + " ms");
         assertEquals(n, ok, "모든 지운 타일의 내용");
+    }
+    /** 명령 큐 문 예산을 다 쓴 틱에도 왕복은 끝난다 — drain 차례 없이 예전처럼 다음 틱 머리에서(결과는 같다). */
+    @Test
+    void awaitedSaveCompletesWhenDrainBudgetIsSpent() {
+        BlockPos p = at(-2, -2, 9, 9);
+        placeChestWithDiamonds(p);
+        org.domi.furnace.server.world.CommandDrainGate.charge(org.domi.furnace.server.world.CommandDrainGate.budgetNanos());   // 이번 전역 틱 문 닫힘
+        CompoundTag stored = offThread(() -> {
+            LevelChunk c = level.getChunk(p.getX() >> 4, p.getZ() >> 4);
+            BlockEntity tile = c.getBlockEntity(p);
+            c.removeBlockEntity(p);
+            return tile.saveWithId(reg);
+        });
+        assertTrue(hasDiamonds(stored), "문이 닫혀도 지운 타일의 내용");
+        eventually("주인이 지움을 재생", () -> serverBe(p) == null);
     }
 }
