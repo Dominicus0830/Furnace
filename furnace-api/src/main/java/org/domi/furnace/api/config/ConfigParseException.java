@@ -1,4 +1,4 @@
-// 설정 파일 구문 오류 — 줄/열 위치와 문제 줄 미리보기를 포함한다
+// 설정 파일 구문 오류다. 줄/열 위치와 문제 줄 미리보기를 담는다
 package org.domi.furnace.api.config;
 
 public class ConfigParseException extends RuntimeException {

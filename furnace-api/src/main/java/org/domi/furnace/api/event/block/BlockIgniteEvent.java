@@ -1,4 +1,4 @@
-// 칸에 불이 붙기 직전 — 그 칸의 region 스레드에서 불린다. 취소하면 불이 생기지 않는다(부싯돌은 그래도 닳고, 화염구는 그래도 쓴다).
+// 칸에 불이 붙기 직전에 그 칸의 region 스레드에서 불린다. 취소하면 불이 생기지 않는다. 부싯돌은 그래도 닳고, 화염구도 그래도 쓴다.
 // 이미 불인 칸으로 번질 때는 부르지 않는다.
 package org.domi.furnace.api.event.block;
 
@@ -9,13 +9,13 @@ import org.domi.furnace.api.world.BlockPos;
 public final class BlockIgniteEvent extends BlockEvent implements Cancellable, org.domi.furnace.api.event.cause.Caused {
 
     public enum Cause {
-        /** 불이 번짐(ignitingPos = 번지는 불). */
+        /** 불이 번졌다(ignitingPos 는 번지는 불). */
         SPREAD,
-        /** 용암 무작위 틱(ignitingPos = 용암). */
+        /** 용암 무작위 틱이다(ignitingPos 는 용암). */
         LAVA,
         /** 부싯돌과 부시(player). */
         FLINT_AND_STEEL,
-        /** 화염구 아이템을 블록에 씀(player). */
+        /** 화염구 아이템을 블록에 썼다(player). */
         FIREBALL
     }
 

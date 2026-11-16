@@ -1,4 +1,4 @@
-// 플러그인 번역 서비스(Furnace.translations()) — 번역 저장소를 "플러그인 몫"으로 올린다. 플러그인이 꺼지면 서버가 자동으로 내린다(핫 리로드 안전).
+// 플러그인 번역 서비스(Furnace.translations())다. 번역 저장소를 "플러그인 몫"으로 올리며, 플러그인이 꺼지면 서버가 자동으로 내린다(핫 리로드에 안전하다).
 package org.domi.furnace.api.text.translation;
 
 import java.util.List;
@@ -18,8 +18,8 @@ public interface TranslationService {
 
     /**
      * 번역 파일(UTF-8 {@code .properties}, 한 줄에 {@code 키=문구})을 읽어 저장소를 만들고 올린다.
-     * {@code pattern} 의 {@code {locale}} 자리에 마인크래프트식 언어 코드({@code en_us}, {@code ko_kr})를 넣은 경로를 locales 마다 찾는다:
-     * 플러그인 데이터 폴더에 있으면 그 파일(관리자가 고친 것), 없으면 jar 안 리소스. 둘 다 없는 언어는 건너뛴다.
+     * {@code pattern} 의 {@code {locale}} 자리에 마인크래프트식 언어 코드({@code en_us}, {@code ko_kr})를 넣은 경로를 locales 마다 찾는다.
+     * 플러그인 데이터 폴더에 있으면 그 파일(관리자가 고친 것)을, 없으면 jar 안 리소스를 쓴다. 둘 다 없는 언어는 건너뛴다.
      * 예: {@code load(this, "lang/{locale}.properties", Locale.US, Locale.US, Locale.KOREAN)}.
      *
      * @throws IllegalArgumentException 읽을 수 있는 파일이 하나도 없거나 기본 언어 파일이 없을 때

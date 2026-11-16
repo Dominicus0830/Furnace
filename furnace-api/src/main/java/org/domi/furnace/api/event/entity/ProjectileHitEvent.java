@@ -1,5 +1,5 @@
-// 투사체가 블록이나 엔티티에 맞기 직전 — 투사체를 가진 region 스레드에서 불린다. 취소하면 이번 적중을 무시하고 계속 날아간다(Paper 와 같다).
-// 엔티티에 맞았으면 hitEntity, 블록이면 hitBlock·hitFace 가 채워진다.
+// 투사체가 블록이나 엔티티에 맞기 직전에 투사체를 가진 region 스레드에서 불린다. 취소하면 이번 적중을 무시하고 계속 날아간다(Paper 와 같다).
+// 엔티티에 맞았으면 hitEntity 가, 블록에 맞았으면 hitBlock 과 hitFace 가 채워진다.
 package org.domi.furnace.api.event.entity;
 
 import org.domi.furnace.api.entity.Entity;
@@ -30,6 +30,6 @@ public final class ProjectileHitEvent extends EntityEvent implements Cancellable
 
     public BlockSnapshot hitBlock() { return hitBlock; }
 
-    /** 맞은 면(down, up, north, south, west, east) — 블록 적중이 아니면 null. */
+    /** 맞은 면(down, up, north, south, west, east). 블록 적중이 아니면 null. */
     public String hitFace() { return hitFace; }
 }

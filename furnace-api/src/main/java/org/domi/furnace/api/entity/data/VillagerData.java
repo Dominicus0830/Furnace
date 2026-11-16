@@ -1,4 +1,4 @@
-// 주민·좀비 주민 겉모습(바닐라 VillagerData): 종류(바이옴 옷), 직업, 레벨(1~5). 이름은 "minecraft:plains"·"minecraft:librarian" 꼴.
+// 주민과 좀비 주민의 겉모습(바닐라 VillagerData). 종류(바이옴 옷), 직업, 레벨(1~5)을 가진다. 이름은 "minecraft:plains"·"minecraft:librarian" 꼴이다.
 package org.domi.furnace.api.entity.data;
 
 import java.util.Objects;

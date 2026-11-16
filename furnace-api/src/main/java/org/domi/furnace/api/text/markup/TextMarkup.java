@@ -1,4 +1,4 @@
-// Furnace 텍스트 마크업 — MiniMessage 4.17 문법과 호환되는 해석기/직렬화기. TextMarkup.markup().deserialize("<red>안녕 <bold>세상") 처럼 쓴다.
+// Furnace 텍스트 마크업. MiniMessage 4.17 문법과 호환되는 해석기/직렬화기다. 예: TextMarkup.markup().deserialize("<red>안녕 <bold>세상").
 // 한 번 훑는 수제 파서(정규식 없음)이며, 인스턴스는 불변이라 스레드 안전하다.
 package org.domi.furnace.api.text.markup;
 
@@ -132,7 +132,7 @@ public final class TextMarkup {
 
     // ------------------------------------------------------------------ 템플릿
 
-    /** 슬롯 이름들을 정해 템플릿으로 컴파일한다: 이후 fill 은 다시 해석하지 않는다. */
+    /** 슬롯 이름들을 정해 템플릿으로 컴파일한다. 이후 fill 은 다시 해석하지 않는다. */
     public TextTemplate template(String markup, String... slots) {
         TextTemplate.Builder b = TextTemplate.builder(this);
         for (String s : slots) b.slot(s);

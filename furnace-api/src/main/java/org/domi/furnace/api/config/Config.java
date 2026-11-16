@@ -1,4 +1,4 @@
-// 파일에 연결된 설정 — UTF-8 로드, 원자적 저장(임시 파일 후 이동), reload, 기본값 병합
+// 파일에 연결된 설정이다. UTF-8 로드, 원자적 저장(임시 파일에 쓴 뒤 이동), reload, 기본값 병합을 한다.
 package org.domi.furnace.api.config;
 
 import java.io.IOException;
@@ -94,7 +94,7 @@ public final class Config {
         Path abs = target.toAbsolutePath();
         Path dir = abs.getParent();
         if (dir != null) Files.createDirectories(dir);
-        // 임시 파일은 기본 권한(umask)으로 만든다 — createTempFile 은 600 권한이라 저장 후 파일 권한이 바뀐다
+        // 임시 파일은 기본 권한(umask)으로 만든다. createTempFile 은 600 권한이라 저장 후 파일 권한이 바뀐다
         Path tmp = abs.resolveSibling(abs.getFileName() + ".tmp");
         try {
             try (FileChannel ch = FileChannel.open(tmp, StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING)) {

@@ -1,6 +1,6 @@
 // 패킷 클래스에 딸린 보조 타입. 다음 두 가지가 있다.
-//   - 패킷 안에 내포된 타입(record·class·interface·enum). 이름에 '$' 가 들어간다.
-//   - 같은 패키지의 부모 클래스나 보조 클래스(base 줄). 예: ClientboundMoveEntityPacket, CommonPlayerSpawnInfo
+//   패킷 안에 내포된 타입(record·class·interface·enum). 이름에 '$' 가 들어간다.
+//   같은 패키지의 부모 클래스나 보조 클래스(base 줄). 예: ClientboundMoveEntityPacket, CommonPlayerSpawnInfo
 package org.domi.furnace.api.packet.schema;
 
 import java.util.List;

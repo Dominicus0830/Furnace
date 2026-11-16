@@ -16,7 +16,7 @@ public record SaveResult(Status status, StructureTemplateInfo info) {
         INVALID_SIZE,
         /** 영역이 월드 높이 밖으로 나가거나 좌표가 ±30,000,000 밖이다. */
         OUT_OF_WORLD,
-        /** 영역의 청크가 모두 한 region 에 올라와 있지 못했다 — 아무것도 저장하지 않았다. */
+        /** 영역의 청크가 모두 한 region 에 올라와 있지 못했다. 아무것도 저장하지 않았다. */
         NOT_LOADED,
         /** 메모리 저장소는 갈아 끼웠지만 파일을 쓰지 못했다(로그에 이유). */
         WRITE_FAILED

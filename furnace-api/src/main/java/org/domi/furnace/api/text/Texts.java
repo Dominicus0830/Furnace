@@ -1,4 +1,4 @@
-// 텍스트 트리 도구 모음 — 평탄화(글자 조각 + 실제 적용 스타일), 치환, 압축(compact), 잇기. Text 의 같은 이름 메서드가 여기로 위임한다.
+// 텍스트 트리 도구 모음. 평탄화(글자 조각과 실제 적용 스타일), 치환, 압축(compact), 잇기를 한다. Text 의 같은 이름 메서드가 여기로 위임한다.
 package org.domi.furnace.api.text;
 
 import java.util.ArrayDeque;
@@ -14,7 +14,7 @@ public final class Texts {
 
     private Texts() {}
 
-    /** 평탄화 조각: 텍스트 마디 하나와 부모 상속을 모두 반영한 실제 스타일. */
+    /** 평탄화 조각. 텍스트 마디 하나와, 부모 상속을 모두 반영한 실제 스타일이다. */
     public record Segment(Text text, Style style) {}
 
     /** 조각 방문자(할당 없는 순회용). */
@@ -25,7 +25,7 @@ public final class Texts {
 
     // ------------------------------------------------------------------ 평탄화
 
-    /** 선위 순서(마디 → 자식들)로 모든 마디를 방문한다. effective 는 부모 스타일을 상속한 값. 렌더러에 알맞다. */
+    /** 선위 순서(마디, 그다음 자식들)로 모든 마디를 방문한다. effective 는 부모 스타일을 상속한 값이다. 렌더러에 알맞다. */
     public static void forEachSegment(Text root, SegmentVisitor v) { walk(root, Style.empty(), v); }
 
     private static void walk(Text t, Style parent, SegmentVisitor v) {
@@ -77,7 +77,7 @@ public final class Texts {
         }
     }
 
-    /** 마디 자신의 내용만 평문으로(자식 제외): 글자·번역(인자 포함)·키 바인딩(번역). 점수·선택자·NBT 는 빈 문자열. */
+    /** 마디 자신의 내용만 평문으로 돌려준다(자식 제외). 글자, 번역(인자 포함), 키 바인딩(번역)이 해당한다. 점수·선택자·NBT 는 빈 문자열이다. */
     public static String plainContent(Text node, Locale locale) {
         return switch (node.content()) {
             case Content.Literal l -> l.text();
@@ -93,7 +93,7 @@ public final class Texts {
 
     // ------------------------------------------------------------------ 잇기
 
-    /** 부품들을 그대로 이어 붙인 하나(빈 그릇 + 자식들). */
+    /** 부품들을 그대로 이어 붙인 하나(빈 그릇에 자식들을 담는다). */
     public static Text textOfChildren(Text... parts) { return Text.empty().append(parts); }
 
     public static Text join(JoinConfiguration config, Iterable<? extends Text> parts) { return config.join(parts); }
@@ -121,8 +121,9 @@ public final class Texts {
     }
 
     /**
-     * 트리 안의 모든 글자 마디(번역 인자·호버 텍스트·구분자 포함)에서 일치를 찾아 바꾼다. 마디 경계를 가로지르는 일치는 찾지 않는다.
-     * 바뀐 곳이 없으면 같은 인스턴스를 돌려준다. 바뀐 마디는 [앞 글자] 마디 + 자식 [치환·사이 글자…, 원래 자식들] 로 나뉘어 스타일이 그대로 상속된다.
+     * 트리 안의 모든 글자 마디(번역 인자, 호버 텍스트, 구분자 포함)에서 일치를 찾아 바꾼다. 마디 경계를 가로지르는 일치는 찾지 않는다.
+     * 바뀐 곳이 없으면 같은 인스턴스를 돌려준다.
+     * 바뀐 마디는 [앞 글자] 마디와 자식 [치환·사이 글자…, 원래 자식들] 로 나뉘며, 스타일은 그대로 상속된다.
      */
     public static Text replaceText(Text root, TextReplacement r) { return rep(root, new State(r)); }
 
@@ -250,8 +251,10 @@ public final class Texts {
     // ------------------------------------------------------------------ 압축
 
     /**
-     * 같은 모습으로 그려지는 더 작은 트리로 줄인다: 빈 마디 제거, 스타일 없는 글자 마디 흡수, 부모와 같은 값의 중복 스타일 제거,
-     * 자식 하나뿐인 빈 그릇 합치기, 이웃한 같은 스타일 글자 합치기. 글자 순서와 글자별 실제 스타일은 바뀌지 않는다.
+     * 같은 모습으로 그려지는 더 작은 트리로 줄인다.
+     * 빈 마디를 없애고, 스타일 없는 글자 마디를 흡수하고, 부모와 같은 값의 중복 스타일을 없애고,
+     * 자식 하나뿐인 빈 그릇을 합치고, 이웃한 같은 스타일 글자를 합친다.
+     * 글자 순서와 글자별 실제 스타일은 바뀌지 않는다.
      */
     public static Text compact(Text root) {
         List<Text> out = new ArrayList<>();
@@ -335,7 +338,7 @@ public final class Texts {
         return out;
     }
 
-    /** s 에서 inherited 가 이미 정해 둔 값과 같은 항목을 뺀다(값이 정해진 것끼리 같을 때만 — FALSE 와 미정은 다르다). */
+    /** s 에서 inherited 가 이미 정해 둔 값과 같은 항목을 뺀다. 값이 정해진 것끼리 같을 때만 뺀다(FALSE 와 미정은 다르다). */
     private static Style dedupe(Style s, Style inh) {
         if (s.isEmpty() || inh.isEmpty()) return s;
         Style r = s;

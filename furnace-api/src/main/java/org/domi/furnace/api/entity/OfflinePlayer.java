@@ -1,6 +1,6 @@
-// 접속 중이 아닐 수도 있는 플레이어(UUID 로 가리킨다). 저장 데이터(playerdata) 읽기·영속 데이터 편집과 OP 레벨·밴·화이트리스트를 한 곳에서 다룬다.
-// 접속 중이면 데이터 편집은 플레이어를 가진 스레드로 넘어가고(접속자 메모리가 정본이라 파일을 고쳐도 퇴장 때 덮이므로), 아니면 파일을 고친다.
-// OP·밴·화이트리스트 목록은 서버 목록 파일(ops.json·banned-players.json·whitelist.json)을 바로 고치며 어느 스레드에서 불러도 된다.
+// 접속 중이 아닐 수도 있는 플레이어(UUID 로 가리킨다). 저장 데이터(playerdata) 읽기, 영속 데이터 편집, OP 레벨, 밴, 화이트리스트를 한 곳에서 다룬다.
+// 접속 중이면 데이터 편집은 플레이어를 가진 스레드로 넘어간다. 접속자 메모리가 정본이라 파일을 고쳐도 퇴장 때 덮이기 때문이다. 접속 중이 아니면 파일을 고친다.
+// OP·밴·화이트리스트 목록은 서버 목록 파일(ops.json, banned-players.json, whitelist.json)을 바로 고치며 어느 스레드에서 불러도 된다.
 package org.domi.furnace.api.entity;
 
 import java.time.Instant;
@@ -31,8 +31,8 @@ public interface OfflinePlayer {
     CompletableFuture<Boolean> hasPlayedBefore();
 
     /**
-     * 저장된 플레이어 NBT 의 사본(읽기 전용 취급). 데이터가 없으면 null 로 끝난다. 접속 중이면 지금 상태의 스냅샷이다.
-     * 파일 읽기는 서버 밖 스레드(플레이어 데이터 IO)에서 한다.
+     * 저장된 플레이어 NBT 의 사본(읽기 전용으로 다룬다). 데이터가 없으면 null 로 끝난다. 접속 중이면 지금 상태의 스냅샷이다.
+     * 파일은 서버 밖 스레드(플레이어 데이터 IO)에서 읽는다.
      */
     CompletableFuture<NbtCompound> readNbt();
 
@@ -40,29 +40,34 @@ public interface OfflinePlayer {
     CompletableFuture<PersistentDataView> persistentData();
 
     /**
-     * {@link #persistentData()} 의 동기판 — 이 스레드에서 곧바로 돌려준다(접속 중이면 지금 값, 아니면 저장 파일을 **이 스레드에서 읽는다 — 블로킹 IO**).
-     * 서버 스레드에서 부르면 읽는 동안 틱이 멈추므로 드물게만(Bukkit/Paper 의 OfflinePlayer PDC 보기가 이렇게 동작한다). 데이터가 없으면 null.
+     * {@link #persistentData()} 의 동기판. 이 스레드에서 곧바로 돌려준다.
+     * 접속 중이면 지금 값을 주고, 아니면 저장 파일을 **이 스레드에서 읽는다(블로킹 IO)**.
+     *
+     * <p>서버 스레드에서 부르면 읽는 동안 틱이 멈추므로 드물게만 쓴다(Bukkit/Paper 의 OfflinePlayer PDC 보기도 이렇게 동작한다). 데이터가 없으면 null.
      */
     default PersistentDataView persistentDataNow() { throw new UnsupportedOperationException("persistentDataNow"); }
 
     /**
-     * 영속 데이터를 고친다. 접속 중이면 그 플레이어를 가진 스레드에서, 아니면 파일을 읽고 고쳐 써서(이전 파일은 .dat_old) 바꾼다.
-     * 데이터 파일이 없는 플레이어는 만들지 않고 false 로 끝난다(손상 파일이 되기 때문). edit 가 예외를 던지면 아무것도 쓰지 않고 그 예외로 끝난다.
-     * 편집 도중 그 플레이어가 접속하면 접속 쪽으로 넘겨 고친다(편집이 사라지지 않는다).
+     * 영속 데이터를 고친다. 접속 중이면 그 플레이어를 가진 스레드에서 고치고, 아니면 파일을 읽고 고쳐 쓴다(이전 파일은 .dat_old).
+     *
+     * <p>데이터 파일이 없는 플레이어는 파일을 만들면 손상 파일이 되므로 만들지 않고 false 로 끝난다.
+     * <p>edit 가 예외를 던지면 아무것도 쓰지 않고 그 예외로 끝난다.
+     * <p>편집 도중 그 플레이어가 접속하면 접속 쪽으로 넘겨 고친다. 그래서 편집이 사라지지 않는다.
      */
     CompletableFuture<Boolean> editPersistentData(Consumer<PersistentDataContainer> edit);
 
     // ------------------------------------------------------------------ OP
 
-    /** ops.json 의 OP 레벨(1~4), OP 가 아니면 0. */
+    /** ops.json 의 OP 레벨(1~4). OP 가 아니면 0. */
     int opLevel();
 
     default boolean isOp() { return opLevel() > 0; }
 
     /**
      * OP 레벨을 정한다. 0 이면 OP 를 푼다(/deop). 1~4 는 /op 와 같지만 레벨을 직접 정한다.
-     * 접속 중이면 권한 레벨 패킷과 명령 트리를 다시 보내고, 푼 경우 enforce-whitelist 규칙대로 화이트리스트에 없으면 내보낸다.
-     * 이름을 모르는 플레이어는 IllegalStateException.
+     *
+     * <p>접속 중이면 권한 레벨 패킷과 명령 트리를 다시 보낸다. OP 를 푼 경우에는 enforce-whitelist 규칙대로 화이트리스트에 없으면 내보낸다.
+     * <p>이름을 모르는 플레이어는 IllegalStateException 을 던진다.
      */
     void setOpLevel(int level);
 
@@ -70,7 +75,7 @@ public interface OfflinePlayer {
 
     boolean isBanned();
 
-    /** 밴 항목, 밴이 아니면 null. */
+    /** 밴 항목. 밴이 아니면 null. */
     BanEntry banEntry();
 
     /**

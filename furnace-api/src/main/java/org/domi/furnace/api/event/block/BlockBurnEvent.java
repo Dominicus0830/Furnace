@@ -1,4 +1,4 @@
-// 불이 옆 블록을 태워 없애기(또는 불로 바꾸기) 직전 — 불의 region 스레드에서 불린다. 취소하면 그 블록은 타지 않는다(TNT 도 점화되지 않는다).
+// 불이 옆 블록을 태워 없애거나 불로 바꾸기 직전에 불의 region 스레드에서 불린다. 취소하면 그 블록은 타지 않는다(TNT 도 점화되지 않는다).
 package org.domi.furnace.api.event.block;
 
 import org.domi.furnace.api.event.Cancellable;
