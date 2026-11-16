@@ -52,7 +52,10 @@ public interface Furnace {
 
     Player player(UUID id);
 
-    /** 이름(대소문자 무시)으로, 접속 중이 아니면 null. */
+    /**
+     * 이름(대소문자 무시)으로, 접속 중이 아니면 null. 접속 중인 플레이어는 **접속 때의 이름**으로 찾는다 — {@code setPlayerProfile} 로 프로필 이름을
+     * 바꿔도 따라가지 않는다(Paper {@code getPlayerExact} 와 같다). 현재 이름이 필요하면 {@link Player#name()} 으로 훑는다.
+     */
     Player player(String name);
 
     int maxPlayers();
@@ -266,7 +269,8 @@ public interface Furnace {
     default org.domi.furnace.api.entity.OfflinePlayer offlinePlayerCached(String name) { throw new UnsupportedOperationException("offlinePlayerCached"); }
 
     /**
-     * 이름(대소문자 무시)으로 프로필을 찾는다. 접속 중인 플레이어(그 플레이어의 속성 포함), 없으면 사용자 캐시(usercache.json, 속성 없음).
+     * 이름(대소문자 무시)으로 프로필을 찾는다. 접속 중인 플레이어(접속 때의 이름으로 찾고, 돌려주는 것은 지금 프로필이라 이름이 다를 수 있다.
+     * 그 플레이어의 속성 포함), 없으면 사용자 캐시(usercache.json, 속성 없음).
      * 캐시에도 없을 때 서버가 오프라인 모드(인증 안 함)면 바닐라 GameProfileCache.get 처럼 오프라인 UUID 프로필을 만들어 캐시에 넣어 돌려준다.
      * 인증 모드에서 캐시에 없으면 empty. 인증 서버에는 묻지 않으니 어느 스레드에서 불러도 막히지 않는다({@link #fetchProfileByName} 이 묻는 쪽).
      */
