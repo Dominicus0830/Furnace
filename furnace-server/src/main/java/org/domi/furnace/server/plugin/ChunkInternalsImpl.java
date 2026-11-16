@@ -386,7 +386,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
         var cl = col == null ? null : col.light();
         if (cl == null) return -1;
         int i = org.domi.furnace.server.light.ChunkLight.sectionIndex(y);
-        if (i < 0 || i >= org.domi.furnace.server.light.ChunkLight.SECTIONS) throw new IndexOutOfBoundsException("light height out of range: " + y);
+        if (i < 0 || i >= org.domi.furnace.server.light.ChunkLight.SECTIONS) return -1;   // 서버 빛 배열 밖(오버월드보다 넓은 차원) — 자료 없음
         return sky ? cl.skyAt(x, y, z) : cl.blockAt(x, y, z);
     }
 

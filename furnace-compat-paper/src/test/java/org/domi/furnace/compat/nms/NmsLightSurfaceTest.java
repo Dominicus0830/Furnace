@@ -219,6 +219,38 @@ class NmsLightSurfaceTest {
         setNormally(g, Blocks.AIR);
     }
 
+    /**
+     * FAWE NativeAccess 순서 그대로: 다른 스레드가 shim 섹션에 원시 쓰기를 하고 틱 없이 곧바로 checkBlock. 주인은 그 청크의 거울 쓰기를 먼저 들여온 뒤
+     * 검사를 걸어야 한다(거울 맞추기 → 검사) — 다음 틱에 빛이 보인다.
+     */
+    @Test
+    void checkBlockRightAfterAForeignShimWriteSeesThatWrite() throws Exception {
+        BlockPos g = air(-6, 3, 6);
+        LevelChunk c = onRegion(() -> level.getChunkSource().getChunkNow(g.getX() >> 4, g.getZ() >> 4));
+        assertNotNull(c);
+        int idx = (g.getY() >> 4) - (level.getMinBuildHeight() >> 4);
+        Throwable[] err = new Throwable[1];
+        Thread t = new Thread(() -> {
+            try {
+                c.getSection(idx).setBlockState(g.getX() & 15, g.getY() & 15, g.getZ() & 15, Blocks.GLOWSTONE.defaultBlockState());
+                engine().checkBlock(g);
+            } catch (Throwable e) {
+                err[0] = e;
+            }
+        }, "native-access-like");
+        t.start();
+        t.join();
+        assertNull(err[0], () -> "다른 스레드 쓰기·검사: " + err[0]);
+        server.tick(1);
+        onRegion(() -> {
+            var block = engine().getLayerListener(LightLayer.BLOCK);
+            assertEquals(15, block.getLightValue(g), "검사가 방금 쓴 발광석을 봤다");
+            assertEquals(14, block.getLightValue(g.east()));
+            return null;
+        });
+        setNormally(g, Blocks.AIR);
+    }
+
     /** Paper 가 아무 일도 안 하는 것은 아무 일도 안 하고, 세계 전체 빛 대기열을 묻거나 돌리는 것은 값을 지어내지 않고 던진다. */
     @Test
     void paperNoOpsAndUnsupportedParts() {

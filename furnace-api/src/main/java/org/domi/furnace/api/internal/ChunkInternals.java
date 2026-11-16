@@ -212,8 +212,8 @@ public interface ChunkInternals {
     boolean lightReadyNow(World world, int chunkX, int chunkZ);
 
     /**
-     * 주인 스레드: 그 칸의 저장된 빛 값(sky = 하늘빛, 아니면 블록빛, 0~15). 로드돼 있지 않거나 빛 자료가 없으면 -1. y 는 빛 섹션 범위 안
-     * (최저 빛 섹션 ×16 ~ 최고 빛 섹션 ×16 + 15) — 밖은 IndexOutOfBoundsException(범위 밖 규칙은 부르는 쪽이 정한다).
+     * 주인 스레드: 그 칸의 저장된 빛 값(sky = 하늘빛, 아니면 블록빛, 0~15). 로드돼 있지 않거나 빛 자료가 없거나 서버 빛 배열 높이 밖이면 -1
+     * (빛 섹션 범위 밖 규칙은 부르는 쪽이 정한다 — 서버 빛 배열은 오버월드 빛 섹션 범위만 가진다).
      */
     int lightNow(World world, int x, int y, int z, boolean sky);
 

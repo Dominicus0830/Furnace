@@ -97,6 +97,9 @@ Starlight 규칙(15·0·범위·isLightCorrect·어둠 식)은 호환 계층 `Nm
    `IllegalStateException`(블록 읽기와 같은 교착 방지 규칙). shim 을 쥔 청크(FAWE)는 스냅샷이 늘 있어 해당하지 않는다.
 3. 다른 스레드 읽기는 최대 한 틱 옛 값(주인이 틱 끝에 낸 판). Paper 도 다른 스레드에서는 빛 일꾼과 경쟁 중의 보이는 값을 읽는다.
 4. `hasLightWork`·`runLightUpdates`·`updateSectionStatus` 는 던진다(1장).
+5. **오버월드보다 높이가 넓은 데이터 팩 차원**: 서버 빛 배열(`ChunkLight`)은 오버월드 빛 섹션 범위(−5~20)만 가진다(기존 한계 — 그 밖은 서버가 빛을 계산하지 않는다).
+   그 밖의 칸은 "빛 자료 없음"으로 보고 Starlight 가장자리 규칙대로 하늘빛 15·블록빛 0, `getDataLayerData` 는 null 을 준다(예외를 던지지 않는다).
+   Paper 는 그 높이에도 실제 빛이 있다. 바닐라 차원(오버월드·네더·엔드)은 모두 범위 안이다.
 
 ## 5. 성능
 

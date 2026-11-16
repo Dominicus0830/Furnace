@@ -89,6 +89,7 @@ class LightSurfaceTest {
                 copy[0] = 0x77;
                 assertEquals(ChunkLight.get(live.block(sy - ChunkLight.MIN_SECTION), 0, 0, 0), v2.light(false, CX * 16, sy << 4, CZ * 16), "준 사본을 고쳐도 판은 그대로");
                 assertNull(v2.lightLayer(false, ChunkLight.MIN_SECTION - 1), "빛 섹션 범위 밖");
+                assertEquals(-1, v2.light(false, glow.x(), ChunkLight.MIN_SECTION * 16 - 1, glow.z()), "서버 빛 배열 밖은 자료 없음(던지지 않음)");
 
                 // 빛만 바뀌어도(블록 그대로) 새 판 — 가짜 광원은 블록을 바꾸지 않는다
                 Pos far = new Pos(CX * 16 + 15, 20, CZ * 16 + 15);   // 발광석에서 15칸 넘게 떨어진 공중
@@ -97,6 +98,14 @@ class LightSurfaceTest {
                 assertNotSame(v2, v3);
                 assertEquals(9, v3.light(false, far.x(), far.y(), far.z()));
                 assertEquals(0, v2.light(false, far.x(), far.y(), far.z()));
+
+                // v2·v3 가 나눠 쥔 층은 이미 이 청크 몫(공유 상수 아님) — 한 번 더 써도 낸 판은 그대로여야 한다(쓰기 시 복사의 표시 비트)
+                r.level().setBlock(glow, B.defaultState("air"), 2);
+                r.level().drainLight();
+                assertEquals(0, r.level().getBlockLight(glow));
+                assertEquals(15, v2.light(false, glow.x(), glow.y(), glow.z()), "낸 판은 다음 쓰기에도 그대로");
+                assertEquals(15, v3.light(false, glow.x(), glow.y(), glow.z()), "낸 판은 다음 쓰기에도 그대로");
+                assertEquals(0, r.publishReadViewNow(CX, CZ).light(false, glow.x(), glow.y(), glow.z()));
             });
         }
     }

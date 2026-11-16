@@ -142,7 +142,7 @@ public final class ChunkReadView implements ChunkInternals.ChunkView {
     public int light(boolean sky, int x, int y, int z) {
         if (skyLayers == null) return -1;
         int i = org.domi.furnace.server.light.ChunkLight.sectionIndex(y);
-        if (i < 0 || i >= org.domi.furnace.server.light.ChunkLight.SECTIONS) throw new IndexOutOfBoundsException("light height out of range: " + y);
+        if (i < 0 || i >= org.domi.furnace.server.light.ChunkLight.SECTIONS) return -1;   // 서버 빛 배열 밖 — 자료 없음
         return org.domi.furnace.server.light.ChunkLight.get(sky ? skyLayers[i] : blockLayers[i], x, y, z);
     }
 
