@@ -8,11 +8,12 @@ import org.domi.furnace.server.attribute.AttributeInstance;
 import org.domi.furnace.server.attribute.AttributeModifier;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 @VanillaPort("net.minecraft.network.protocol.game.ClientboundUpdateAttributesPacket")
 public record UpdateAttributes(int entityId, List<AttributeInstance> attributes) implements Packet {
 
-    public static final int ID = 0x75;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_UPDATE_ATTRIBUTES;
 
     /** 보낼 때까지 값이 바뀌지 않도록 속성(기본값·수정자)을 복사한 패킷 — 소유 스레드가 만들고 다른 스레드(netty)가 쓴다. */
     public static UpdateAttributes snapshot(int entityId, List<AttributeInstance> src) {

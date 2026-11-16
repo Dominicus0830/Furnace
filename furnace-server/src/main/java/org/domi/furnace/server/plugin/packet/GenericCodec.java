@@ -1,5 +1,5 @@
-// 1.21.1 범용 패킷 코덱(E4): 중립 스키마(PacketSchema.protocol767)의 필드 목록으로 타입 레코드가 없는 종류를 GenericPacket 으로 읽고 쓴다.
-// 스키마에서 와이어가 필드 나열로 떨어지는 종류는 필드 목록으로, custom 종류는 GenericHand767 의 손 코덱(E4b)으로 다룬다. 둘 다 아닌 것은
+// 1.21.1 범용 패킷 코덱(E4): 중립 스키마(PacketSchema.current)의 필드 목록으로 타입 레코드가 없는 종류를 GenericPacket 으로 읽고 쓴다.
+// 스키마에서 와이어가 필드 나열로 떨어지는 종류는 필드 목록으로, custom 종류는 GenericHand 의 손 코덱(E4b)으로 다룬다. 둘 다 아닌 것은
 // readable=false(리스너는 내용 없는 GenericPacket 을 받는다). 읽을 때 본문을 끝까지 다 읽지 못하면 실패로 본다(모양이 어긋난 것).
 // 값 종류는 api GenericPacket 머리말 표. 바닐라 와이어 근거는 docs/feature-parity/context-notes/2026-11-12-easy-nms-e4a.md.
 package org.domi.furnace.server.plugin.packet;
@@ -43,7 +43,7 @@ import org.domi.furnace.server.plugin.ApiNbt;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ItemRegistry;
 
-public final class GenericCodec767 {
+public final class GenericCodec {
 
     /** play 종류를 찾을 스키마 상태(앞쪽 우선). */
     private static final List<String> PLAY_STATES = List.of("game", "common", "cookie", "ping");
@@ -110,13 +110,13 @@ public final class GenericCodec767 {
         return new Compiled(List.copyOf(names), List.copyOf(nodes), List.copyOf(pf), hand);
     }
 
-    private final PacketSchema schema = PacketSchema.protocol767();
+    private final PacketSchema schema = PacketSchema.current();
     private final Supplier<BlockRegistry> blocks;
     private final Supplier<ItemRegistry> items;
     private final Map<PacketType<?>, Compiled> packets = new IdentityHashMap<>();
     private final Map<PacketType<?>, String> unsupported = new IdentityHashMap<>();
 
-    GenericCodec767(Supplier<BlockRegistry> blocks, Supplier<ItemRegistry> items) {
+    GenericCodec(Supplier<BlockRegistry> blocks, Supplier<ItemRegistry> items) {
         this.blocks = blocks;
         this.items = items;
         for (PacketDirection dir : PacketDirection.values()) {
@@ -241,7 +241,7 @@ public final class GenericCodec767 {
     // ------------------------------------------------------------------ 컴파일
 
     private Compiled compile(PacketDef d) {
-        Compiled h = GenericHand767.compile(this, d);   // custom 종류, 그리고 값 타입이 필드 나열로 안 떨어지는 종류(E5: update_tags·merchant_offers)
+        Compiled h = GenericHand.compile(this, d);   // custom 종류, 그리고 값 타입이 필드 나열로 안 떨어지는 종류(E5: update_tags·merchant_offers)
         if (h != null) return h;
         if (d.custom()) throw new Unsupported("a wire that needs hand handling (custom) - there is no hand codec yet");
         if (d.superType() != null) throw new Unsupported("parent class fields");
@@ -288,11 +288,11 @@ public final class GenericCodec767 {
         var t = f.type();
         if (f.wire() != null) throw new IllegalStateException("the field shape differs from the max table: " + f);
         boolean string = t.name().equals("String") && t.arrayDimensions() == 0 && t.arguments().isEmpty();
-        if (limit.count() == 0 && string) return GenericHand767.string(limit.max());
-        if (limit.count() == 0 && t.name().equals("byte") && t.arrayDimensions() == 1) return GenericHand767.bytes(limit.max());
+        if (limit.count() == 0 && string) return GenericHand.string(limit.max());
+        if (limit.count() == 0 && t.name().equals("byte") && t.arrayDimensions() == 1) return GenericHand.bytes(limit.max());
         boolean ofString = t.arguments().size() == 1 && t.arguments().get(0).name().equals("String") && t.arrayDimensions() == 0;
-        if (limit.count() == 0 && ofString && t.name().equals("Optional")) return optional(GenericHand767.string(limit.max()), false);
-        if (limit.count() > 0 && ofString && t.name().equals("List")) return listMax(GenericHand767.string(limit.max()), limit.count());
+        if (limit.count() == 0 && ofString && t.name().equals("Optional")) return optional(GenericHand.string(limit.max()), false);
+        if (limit.count() > 0 && ofString && t.name().equals("List")) return listMax(GenericHand.string(limit.max()), limit.count());
         throw new IllegalStateException("the field type differs from the max table: " + f);
     }
 
@@ -397,7 +397,7 @@ public final class GenericCodec767 {
             case "Instant": return plain(wire, "i64", I64);   // 바닐라 FriendlyByteBuf.writeInstant = epoch 밀리초 i64
             case "Map":
                 if (wire == null && t.arguments().size() == 2 && t.arguments().get(0).name().equals("String") && t.arguments().get(1).name().equals("String")) {
-                    return GenericHand767.REPORT_DETAILS;   // Map<String,String> 은 custom_report_details 하나뿐
+                    return GenericHand.REPORT_DETAILS;   // Map<String,String> 은 custom_report_details 하나뿐
                 }
                 throw new Unsupported("Map " + t);
             default: break;
@@ -436,14 +436,14 @@ public final class GenericCodec767 {
                 case "i64" -> I64;
                 case "vec3" -> VEC3;
                 case "number_format" -> NUMBER_FORMAT;
-                case "message_signature_packed" -> GenericHand767.MESSAGE_SIGNATURE_PACKED;
-                case "chat_type_bound" -> GenericHand767.CHAT_TYPE_BOUND;
-                case "map_decoration" -> GenericHand767.MAP_DECORATION;
-                case "chat_session" -> GenericHand767.CHAT_SESSION;
-                case "attribute_modifier" -> GenericHand767.ATTRIBUTE_MODIFIER;
-                case "argument_signatures" -> GenericHand767.ARGUMENT_SIGNATURES;
-                case "last_seen_update" -> GenericHand767.LAST_SEEN_UPDATE;
-                case "server_link" -> GenericHand767.SERVER_LINK;
+                case "message_signature_packed" -> GenericHand.MESSAGE_SIGNATURE_PACKED;
+                case "chat_type_bound" -> GenericHand.CHAT_TYPE_BOUND;
+                case "map_decoration" -> GenericHand.MAP_DECORATION;
+                case "chat_session" -> GenericHand.CHAT_SESSION;
+                case "attribute_modifier" -> GenericHand.ATTRIBUTE_MODIFIER;
+                case "argument_signatures" -> GenericHand.ARGUMENT_SIGNATURES;
+                case "last_seen_update" -> GenericHand.LAST_SEEN_UPDATE;
+                case "server_link" -> GenericHand.SERVER_LINK;
                 case "varint" -> integer("varint", Integer.class);
                 case "registry_id" -> {
                     String reg = REGISTRY_IDS.get(bin);
@@ -527,7 +527,7 @@ public final class GenericCodec767 {
     static final Node UUID_NODE = node(UUID.class, Types::readUuid, (o, v) -> Types.writeUuid(o, (UUID) v));
     static final Node IDENTIFIER = node(String.class, b -> Types.readString(b, STRING_MAX), (o, v) -> Types.writeString(o, identifier((String) v)));
     static final Node TEXT = node(Text.class, NetworkText::read, (o, v) -> NetworkText.write(o, (Text) v));
-    static final Node BLOCK_POS = node(BlockPos.class, GenericCodec767::readPos, (o, v) -> writePos(o, (BlockPos) v));
+    static final Node BLOCK_POS = node(BlockPos.class, GenericCodec::readPos, (o, v) -> writePos(o, (BlockPos) v));
     static final Node GLOBAL_POS = node(GlobalPos.class, b -> new GlobalPos(Types.readString(b, STRING_MAX), readPos(b)), (o, v) -> {
         GlobalPos g = (GlobalPos) v;
         Types.writeString(o, identifier(g.dimension()));

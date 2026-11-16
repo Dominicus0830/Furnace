@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test;
 class StatusPingTest {
 
     @Test
-    void handshakeThenStatusRequest_returnsJsonWithProtocol767() throws Exception {
+    void handshakeThenStatusRequest_returnsJsonWithTheProtocolNumber() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L);
         BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         World world = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1),

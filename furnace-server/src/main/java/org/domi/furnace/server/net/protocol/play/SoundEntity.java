@@ -5,13 +5,14 @@ import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 /** @param soundId 레지스트리 번호(직접 값이면 -1)  @param directSound 직접 값일 때의 소리 이름 */
 @VanillaPort("net.minecraft.network.protocol.game.ClientboundSoundEntityPacket")
 public record SoundEntity(int soundId, String directSound, int source, int entityId, float volume, float pitch, long seed)
         implements Packet {
 
-    public static final int ID = 0x67;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_SOUND_ENTITY;
 
     @Override
     public int id() { return ID; }

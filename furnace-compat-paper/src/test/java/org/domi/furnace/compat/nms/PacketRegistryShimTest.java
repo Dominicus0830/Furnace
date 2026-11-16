@@ -37,8 +37,8 @@ import org.junit.jupiter.api.Test;
 
 class PacketRegistryShimTest {
 
-    private static final ProtocolIds IDS = ProtocolIds.protocol767();
-    private static final PacketSchema SCHEMA = PacketSchema.protocol767();
+    private static final ProtocolIds IDS = ProtocolIds.current();
+    private static final PacketSchema SCHEMA = PacketSchema.current();
     private static final String PKG = "net.minecraft.network.protocol.";
 
     private static String cap(String s) { return Character.toUpperCase(s.charAt(0)) + s.substring(1); }

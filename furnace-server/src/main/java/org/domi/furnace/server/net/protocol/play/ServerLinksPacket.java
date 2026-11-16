@@ -7,13 +7,14 @@ import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 /** @param inPlay play 단계(0x7B)면 true, 구성 단계(0x10)면 false */
 @VanillaPort("net.minecraft.network.protocol.common.ClientboundServerLinksPacket")
 public record ServerLinksPacket(List<Entry> links, boolean inPlay) implements Packet {
 
-    public static final int ID_PLAY = 0x7B;
-    public static final int ID_CONFIG = 0x10;
+    public static final int ID_PLAY = PacketIds.PLAY_CLIENTBOUND_SERVER_LINKS;
+    public static final int ID_CONFIG = PacketIds.CONFIGURATION_CLIENTBOUND_SERVER_LINKS;
 
     /** 바닐라 ServerLinks.KnownLinkType 순서: 0 report_bug … 9 announcements. */
     public static final int KNOWN_REPORT_BUG = 0;

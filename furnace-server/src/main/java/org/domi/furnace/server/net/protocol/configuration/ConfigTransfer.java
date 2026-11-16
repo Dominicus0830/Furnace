@@ -5,11 +5,12 @@ import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 @VanillaPort("net.minecraft.network.protocol.common.ClientboundTransferPacket")
 public record ConfigTransfer(String host, int port) implements Packet {
 
-    public static final int ID = 0x0B;
+    public static final int ID = PacketIds.CONFIGURATION_CLIENTBOUND_TRANSFER;
 
     @Override
     public int id() { return ID; }

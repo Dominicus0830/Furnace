@@ -97,7 +97,7 @@ public final class PacketShimGenerator {
         Path out = Path.of(args[0]);
         Path src = Path.of(args[1]);
         Map<String, String> extras = readExtras(Files.readString(Path.of(args[2]), StandardCharsets.UTF_8));
-        PacketShimGenerator g = new PacketShimGenerator(PacketSchema.protocol767(), src, extras);
+        PacketShimGenerator g = new PacketShimGenerator(PacketSchema.current(), src, extras);
         Map<String, String> files = g.generate();
         deleteTree(out);
         for (Map.Entry<String, String> e : files.entrySet()) {

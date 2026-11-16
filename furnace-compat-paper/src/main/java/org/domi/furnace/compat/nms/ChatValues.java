@@ -18,7 +18,7 @@ import net.minecraft.world.entity.player.ProfilePublicKey;
 import org.domi.furnace.api.packet.PacketStruct;
 
 /**
- * 채팅 서명 값 shim ↔ Furnace 범용 값(서버 GenericHand767 의 모양). 명령 인자 서명(argument_signatures), 채팅 세션(chat_session),
+ * 채팅 서명 값 shim ↔ Furnace 범용 값(서버 GenericHand 의 모양). 명령 인자 서명(argument_signatures), 채팅 세션(chat_session),
  * 본 메시지 확인(last_seen_update). 바닐라 모양이 아닌 값(null 필드, 21칸 이상 비트)은 IllegalArgumentException.
  */
 final class ChatValues {

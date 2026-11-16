@@ -8,12 +8,13 @@ import java.util.List;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 import org.domi.furnace.server.world.Palette;
 
 @VanillaPort("net.minecraft.network.protocol.game.ClientboundChunksBiomesPacket")
 public record ChunksBiomes(List<Entry> chunks, int biomeDirectBits) implements Packet {
 
-    public static final int ID = 0x0E;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_CHUNKS_BIOMES;
 
     /** 한 청크: 위치와 섹션별 바이옴 id 64개(quart 4×4×4). */
     public record Entry(int chunkX, int chunkZ, int[][] sectionBiomes) { }

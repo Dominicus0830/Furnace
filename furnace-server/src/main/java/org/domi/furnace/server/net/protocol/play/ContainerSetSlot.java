@@ -6,11 +6,12 @@ import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 @VanillaPort("net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket")
 public record ContainerSetSlot(int containerId, int stateId, int slot, ItemStack item) implements Packet {
 
-    public static final int ID = 0x15;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_CONTAINER_SET_SLOT;
 
     @Override
     public int id() { return ID; }

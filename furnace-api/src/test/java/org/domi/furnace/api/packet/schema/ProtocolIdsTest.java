@@ -10,8 +10,8 @@ import org.junit.jupiter.api.Test;
 
 class ProtocolIdsTest {
 
-    private static final ProtocolIds IDS = ProtocolIds.protocol767();
-    private static final PacketSchema SCHEMA = PacketSchema.protocol767();
+    private static final ProtocolIds IDS = ProtocolIds.current();
+    private static final PacketSchema SCHEMA = PacketSchema.current();
 
     @Test
     void entryCountsMatchVanilla1211() {

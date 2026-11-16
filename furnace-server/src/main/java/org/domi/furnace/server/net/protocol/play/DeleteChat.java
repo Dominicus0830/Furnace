@@ -5,12 +5,13 @@ import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 /** @param cacheId 서명 캐시 번호(없으면 -1)  @param signature cacheId 가 -1 일 때의 256바이트 서명 */
 @VanillaPort("net.minecraft.network.protocol.game.ClientboundDeleteChatPacket")
 public record DeleteChat(int cacheId, byte[] signature) implements Packet {
 
-    public static final int ID = 0x1C;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_DELETE_CHAT;
 
     @Override
     public int id() { return ID; }

@@ -4,11 +4,12 @@ package org.domi.furnace.server.net.protocol.play;
 import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 @VanillaPort("net.minecraft.network.protocol.common.ClientboundKeepAlivePacket")
 public record KeepAliveClientbound(long keepAliveId) implements Packet {
 
-    public static final int ID = 0x26;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_KEEP_ALIVE;
 
     @Override
     public int id() {
