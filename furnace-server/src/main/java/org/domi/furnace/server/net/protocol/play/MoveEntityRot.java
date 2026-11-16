@@ -6,7 +6,11 @@ import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
+<<<<<<< Updated upstream
 @VanillaPort("net.minecraft.network.protocol.game.ClientboundMoveEntityPacket.Rot")
+=======
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundMoveEntityPacket$Rot")
+>>>>>>> Stashed changes
 public record MoveEntityRot(int entityId, float yaw, float pitch, boolean onGround)
         implements Packet {
 

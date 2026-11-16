@@ -6,7 +6,11 @@ import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
+<<<<<<< Updated upstream
 @VanillaPort("net.minecraft.network.protocol.game.ClientboundMoveEntityPacket.Pos")
+=======
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundMoveEntityPacket$Pos")
+>>>>>>> Stashed changes
 public record MoveEntityPos(int entityId, short dx, short dy, short dz, boolean onGround)
         implements Packet {
 
