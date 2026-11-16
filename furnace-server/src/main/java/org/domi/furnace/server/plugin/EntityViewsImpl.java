@@ -67,7 +67,9 @@ public final class EntityViewsImpl implements EntityViews {
         var v = viewer(viewer);
         Target t = target(target);
         if (t.uuid.equals(v.uuid())) return;
+        boolean before = EntityViewRules.canSee(v, t.uuid);
         refresh(EntityViewRules.hide(plugin, v, t.uuid, t.tasks, t.player != null), v, false);
+        if (before && !EntityViewRules.canSee(v, t.uuid)) fireHide(viewer, target);   // Bukkit untrackAndHideEntity
     }
 
     @Override
@@ -76,7 +78,27 @@ public final class EntityViewsImpl implements EntityViews {
         var v = viewer(viewer);
         Target t = target(target);
         if (t.uuid.equals(v.uuid())) return;
+        boolean before = EntityViewRules.canSee(v, t.uuid);
         refresh(EntityViewRules.show(plugin, v, t.uuid, t.tasks, t.player != null), v, false);
+        if (!before && EntityViewRules.canSee(v, t.uuid)) fireShow(viewer, target);   // Bukkit trackAndShowEntity
+    }
+
+    /**
+     * Bukkit hideEntity/showEntity·setVisibleByDefault(reset 후 숨김·보임): 그 관찰자에게 실제로 보이다가 숨겨졌을 때 PlayerHideEntityEvent,
+     * 숨겨졌다가 보이게 됐을 때 PlayerShowEntityEvent(호출 스레드에서, 취소 불가).
+     */
+    private void fireHide(Player viewer, Entity target) {
+        var bus = host.eventsImpl();
+        if (bus.hasSubscribers(org.domi.furnace.api.event.player.PlayerHideEntityEvent.class)) {
+            bus.call(new org.domi.furnace.api.event.player.PlayerHideEntityEvent(viewer, target));
+        }
+    }
+
+    private void fireShow(Player viewer, Entity target) {
+        var bus = host.eventsImpl();
+        if (bus.hasSubscribers(org.domi.furnace.api.event.player.PlayerShowEntityEvent.class)) {
+            bus.call(new org.domi.furnace.api.event.player.PlayerShowEntityEvent(viewer, target));
+        }
     }
 
     @Override
@@ -89,7 +111,20 @@ public final class EntityViewsImpl implements EntityViews {
     public void setVisibleByDefault(FurnacePlugin plugin, Entity target, boolean visible) {
         Objects.requireNonNull(plugin, "plugin");
         Target t = target(target);
+        var bus = host.eventsImpl();
+        boolean listen = bus.hasSubscribers(org.domi.furnace.api.event.player.PlayerHideEntityEvent.class)
+                || bus.hasSubscribers(org.domi.furnace.api.event.player.PlayerShowEntityEvent.class);
+        List<org.domi.furnace.server.entity.Player> online = listen ? host.core().players() : List.of();
+        boolean[] before = new boolean[online.size()];
+        for (int i = 0; i < before.length; i++) before[i] = EntityViewRules.canSee(online.get(i), t.uuid);
         refresh(EntityViewRules.setHiddenByDefault(plugin, t.uuid, !visible, t.tasks, t.player != null), null, false);
+        for (int i = 0; i < before.length; i++) {   // CraftEntity.setVisibleByDefault: 접속자마다 resetAndHide/resetAndShow
+            var v = online.get(i);
+            if (v.uuid().equals(t.uuid) || v.isDisconnected()) continue;
+            boolean after = EntityViewRules.canSee(v, t.uuid);
+            if (before[i] && !after) fireHide(host.player(v), target);
+            else if (!before[i] && after) fireShow(host.player(v), target);
+        }
     }
 
     @Override

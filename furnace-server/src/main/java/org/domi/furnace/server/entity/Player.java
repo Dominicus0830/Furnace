@@ -89,9 +89,12 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     private final Set<ChunkPos> pendingChunks = new LinkedHashSet<>(); // 시야 진입했으나 아직 전송 안 한 청크(순서 보존). region 스레드 전용.
     private final Map<Integer, double[]> tracked = new HashMap<>(); // 관찰중 엔티티 → 마지막 전송 {x,y,z}
     private final Map<Integer, Integer> missingTicks = new HashMap<>(); // 추적중인데 후보서 사라진 틱 수(grace despawn)
-    // 이 플레이어의 탭 목록에 올려둔 엔티티 → uuid. 시야 밖으로 나가 엔티티가 디스폰돼도 접속 중이면 탭엔 남기고,
-    // 후보에서 완전히 사라졌을 때(퇴장 등)만 PlayerInfoRemove로 뺀다. region 스레드 전용.
-    private final Map<Integer, UUID> listed = new HashMap<>();
+    // 이 플레이어의 탭 목록에 올려둔 엔티티 → (엔티티 uuid, 올릴 때의 프로필 세대). 시야 밖으로 나가 엔티티가 디스폰돼도 접속 중이면 탭엔 남기고,
+    // 후보에서 완전히 사라졌을 때(퇴장 등)만 PlayerInfoRemove로 뺀다. 세대가 대상의 지금 세대와 다르면 프로필이 바뀐 것(다시 올린다). region 스레드 전용.
+    private final Map<Integer, Listed> listed = new HashMap<>();
+
+    /** 탭 목록 기록 한 칸: 그 항목을 뺄 때 쓰는 엔티티 UUID 와 올릴 때의 프로필 세대(T-141 E11c-2 설계 §3). */
+    public record Listed(UUID uuid, int generation) {}
 
     private volatile double[] pending;            // {x,y,z,yaw,pitch,onGround} IO→region 발행
     private volatile boolean disconnected;
@@ -239,12 +242,74 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public String joinName() { return joinName; }
 
     /**
-     * 시험 전용: 프로필을 바꿔 둔다(엔티티 UUID 와 다른 프로필로 호출처 분류를 검사). 패킷·이벤트·관찰자 갱신은 없다 —
-     * 실제 바꾸기는 Player#setPlayerProfile(E11c-2b) 이 한다.
+     * 시험 전용: 프로필을 바꿔 둔다(엔티티 UUID 와 다른 프로필로 호출처 분류를 검사). 패킷·이벤트·관찰자 갱신은 없다(세대도 그대로라
+     * 관찰자 탭이 다시 올리지 않는다) — 실제 바꾸기는 {@link #changeProfile}.
      */
     public void profileForTest(org.domi.furnace.server.players.GameProfile profile) {
         ProfileState cur = profileState;
-        profileState = new ProfileState(java.util.Objects.requireNonNull(profile, "profile"), cur.generation() + 1);
+        profileState = new ProfileState(java.util.Objects.requireNonNull(profile, "profile"), cur.generation());
+    }
+
+    /**
+     * 프로필 묶음을 새 세대로 바꾸고 접속자 번호를 올린다(다른 region 관찰자가 다음 틱에 세대가 어긋난 탭 항목을 다시 올린다).
+     * 묶음 한 번 쓰기 → 번호 올리기 순서라 관찰자가 "옛 프로필 + 새 세대"를 읽는 일이 없다(설계 §3 권장 2). 소유 스레드 또는 접속 처리.
+     */
+    public ProfileState swapProfile(org.domi.furnace.server.players.GameProfile profile) {
+        ProfileState cur = profileState;
+        ProfileState next = new ProfileState(java.util.Objects.requireNonNull(profile, "profile"), cur.generation() + 1);
+        profileState = next;
+        bumpRoster();
+        return next;
+    }
+
+    /**
+     * Paper CraftPlayer.setPlayerProfile. 접속 탭을 보내기 전(조인 이벤트 안, Paper {@code !sentListPacket})이면 프로필만 바꾼다 —
+     * 탭이 처음부터 새 프로필로 나간다. 아니면 소유 region 스레드에서(빌릴 수 있는 전역 동기 문맥이면 그 자리에서, 아니면 이 플레이어를 따라가는
+     * 작업 대기열로) {@link org.domi.furnace.server.world.Region#applyProfileChange} 가 관찰자 탭·엔티티를 다시 올리고 본인 화면을 갱신한다.
+     * 비동기 스레드에서 부르면 바로 뒤의 {@link #name()} 은 옛 값일 수 있다. 접속이 끊겼으면 버린다.
+     */
+    public void changeProfile(org.domi.furnace.server.players.GameProfile profile) {
+        java.util.Objects.requireNonNull(profile, "profile");
+        if (isDisconnected()) return;
+        if (tabListingHeld) {
+            swapProfile(profile);
+            return;
+        }
+        org.domi.furnace.server.world.RegionBorrow.claim(() -> ownerRegion);   // 전역 빌림 구간이면 이 플레이어의 region 을 빌려 그 자리에서
+        runOnOwner(() -> {
+            if (isDisconnected()) return;
+            var r = ownerRegion;
+            if (r != null && r.ownsPlayer(this)) r.applyProfileChange(this, profile);
+            else swapProfile(profile);   // region 에 붙지 않은 플레이어(시험·단독 레벨) — 보는 사람이 없다
+        });
+    }
+
+    /**
+     * 본인 화면 갱신(Paper refreshPlayer)에 쓸, 소유 스레드에서 뜬 값: 관문 대기, 엔티티 데이터 전부(refreshEntityData),
+     * 속성(updateScaledHealth: syncable 속성에서 최대 체력을 빼고 수정자 없는 최대 체력 값을 끝에 붙인 것). 위치는 연결 쪽의 서버 확정 위치를 쓴다
+     * (막 보낸 텔레포트가 region 에 아직 안 닿았어도 그 목적지 — Paper 는 텔레포트가 엔티티 위치를 바로 바꾼다).
+     */
+    public record ProfileRefresh(int portalCooldown,
+                                 org.domi.furnace.server.net.protocol.play.UpdateAttributes attributes,
+                                 org.domi.furnace.server.net.protocol.play.SetEntityData entityData) {}
+
+    /** 연결 처리기가 걸어 둔다: 연결 스레드 작업으로 올려 앞서 이 플레이어에게 보낸 탭 패킷 뒤에 나간다. */
+    private volatile java.util.function.Consumer<ProfileRefresh> profileRefresher;
+
+    public void profileRefresher(java.util.function.Consumer<ProfileRefresh> r) { this.profileRefresher = r; }
+
+    /** region 이 프로필 교체·관찰자 재등록을 끝낸 뒤 부른다(소유 스레드). */
+    public void refreshAfterProfileChange() {
+        var r = profileRefresher;
+        if (r == null) return;
+        var attrs = new java.util.ArrayList<org.domi.furnace.server.attribute.AttributeInstance>(
+                org.domi.furnace.server.net.protocol.play.UpdateAttributes.snapshot(entityId, attributes().syncable()).attributes());
+        attrs.removeIf(i -> i.attribute() == org.domi.furnace.server.attribute.Attribute.MAX_HEALTH);
+        var maxHealth = new org.domi.furnace.server.attribute.AttributeInstance(org.domi.furnace.server.attribute.Attribute.MAX_HEALTH, () -> {});
+        maxHealth.setBaseValue(vitals.maxHealth());   // CraftPlayer.injectScaledMaxHealth(체력 비율 끔): getMaxHealth, 수정자 없음
+        attrs.add(maxHealth);
+        r.accept(new ProfileRefresh(portalCooldown,
+                new org.domi.furnace.server.net.protocol.play.UpdateAttributes(entityId, java.util.List.copyOf(attrs)), allEntityData()));
     }
 
     /** ServerPlayer.wardenSpawnTracker(저장 키 warden_spawn_tracker — PlayerVitals 가 읽고 쓴다). */
@@ -1737,6 +1802,43 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         return items.isEmpty() ? null : new org.domi.furnace.server.net.protocol.play.SetEntityData(entityId, java.util.List.copyOf(items));
     }
 
+    /**
+     * CraftBukkit refreshEntityData(SPIGOT-7218, Paper "Update EVERYTHING"): 이 플레이어 엔티티 데이터 전부(0..20, 번호 순, 지금 값) — 프로필을 바꾼 뒤
+     * 본인 화면 갱신용. Furnace 가 플레이어에게 쓰지 않는 칸(이름표 2·3, 조용함 4, 중력 없음 5, 벌침 13, 점수 16)은 바닐라 기본값. 소유 스레드 전용.
+     */
+    public org.domi.furnace.server.net.protocol.play.SetEntityData allEntityData() {
+        var items = new java.util.ArrayList<org.domi.furnace.server.net.protocol.play.SetEntityData.Item>(21);
+        Boolean amb = vitals.effectsAmbient();
+        items.add(flagItem(0, sharedFlags()));
+        items.add(new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(org.domi.furnace.server.net.protocol.play.SetEntityData.AIR_SUPPLY,
+                org.domi.furnace.server.net.protocol.play.SetEntityData.SERIALIZER_INT, vitals.air()));
+        items.add(new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(2, org.domi.furnace.server.net.protocol.play.SetEntityData.SERIALIZER_OPTIONAL_COMPONENT, null));
+        items.add(new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(3, org.domi.furnace.server.net.protocol.play.SetEntityData.SERIALIZER_BOOLEAN, false));
+        items.add(new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(4, org.domi.furnace.server.net.protocol.play.SetEntityData.SERIALIZER_BOOLEAN, false));
+        items.add(new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(5, org.domi.furnace.server.net.protocol.play.SetEntityData.SERIALIZER_BOOLEAN, false));
+        items.add(poseItem(pose()));
+        items.add(ticksFrozenItem(vitals.ticksFrozen()));
+        items.add(flagItem(LivingEntity.DATA_LIVING_FLAGS, livingFlags()));
+        items.add(new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(LivingEntity.DATA_HEALTH,
+                org.domi.furnace.server.net.protocol.play.SetEntityData.SERIALIZER_FLOAT, vitals.health()));
+        items.add(effectParticlesItem(vitals.effectParticles()));
+        items.add(effectAmbientItem(amb == null ? sentEffectAmbient : amb));
+        items.add(new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(LivingEntity.DATA_ARROW_COUNT,
+                org.domi.furnace.server.net.protocol.play.SetEntityData.SERIALIZER_INT, arrowCount));
+        items.add(new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(LivingEntity.DATA_STINGER_COUNT,
+                org.domi.furnace.server.net.protocol.play.SetEntityData.SERIALIZER_INT, 0));
+        items.add(sleepingPosItem(sleepingPos));
+        items.add(new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(org.domi.furnace.server.net.protocol.play.SetEntityData.PLAYER_ABSORPTION,
+                org.domi.furnace.server.net.protocol.play.SetEntityData.SERIALIZER_FLOAT, vitals.absorption()));
+        items.add(new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(org.domi.furnace.server.net.protocol.play.SetEntityData.SCORE,
+                org.domi.furnace.server.net.protocol.play.SetEntityData.SERIALIZER_INT, 0));
+        items.add(flagItem(DATA_PLAYER_MODE_CUSTOMISATION, skinParts));
+        items.add(flagItem(DATA_PLAYER_MAIN_HAND, mainArm));
+        items.add(shoulderItem(DATA_SHOULDER_LEFT, shoulderLeft()));
+        items.add(shoulderItem(DATA_SHOULDER_RIGHT, shoulderRight()));
+        return new org.domi.furnace.server.net.protocol.play.SetEntityData(entityId, java.util.List.copyOf(items));
+    }
+
     /** 플레이어끼리 때릴 때 방패 내구 난수를 꺼낼 레벨(region 이 공격 직전에 넣는다). */
     org.domi.furnace.server.block.BlockLevel shieldLevel;
 
@@ -2536,7 +2638,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public void resetLastActionTime() { this.lastActionTime = System.currentTimeMillis(); }
     public Map<Integer, double[]> tracked() { return tracked; }
     public Map<Integer, Integer> missingTicks() { return missingTicks; }
-    public Map<Integer, UUID> listed() { return listed; }
+    public Map<Integer, Listed> listed() { return listed; }
 
     private volatile int latencyMs;
     /** 탭 목록에 표시되는 핑(ms). KeepAlive 왕복으로 갱신. */
