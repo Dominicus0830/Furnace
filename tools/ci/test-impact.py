@@ -382,14 +382,72 @@ def constant_names(line, is_interface):
     return names
 
 
-def changed_constants(repo, base, head, path, is_interface):
-    """이 파일의 바뀐 줄(추가·삭제)에서 상수 선언 이름을 모은다. javac 는 컴파일 시간 상수를 쓰는 쪽에 값으로 박아 넣으므로 쓰는 파일이 안 바뀌어도 동작이 바뀐다."""
-    diff = run_git(repo, "diff", "-U0", "--no-renames", base, head, "--", path).decode("utf-8", "replace")
+HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
+
+
+def statement_at(lines, idx, span=12):
+    """줄 idx 가 속한 문장을 한 줄로 이어 붙인다(`;`·`{`·`}` 로 끝나는 줄까지). 선언이 여러 줄이어도 값 줄만 바뀐 경우를 잡는다."""
+    def ends(line):
+        t = re.sub(r"//.*$", "", line).strip()
+        return not t or t[-1] in ";{}"
+    lo = idx
+    while lo > 0 and idx - lo < span and not ends(lines[lo - 1]):
+        lo -= 1
+    hi = idx
+    while hi < len(lines) - 1 and hi - idx < span and not ends(lines[hi]):
+        hi += 1
+    return " ".join(l.strip() for l in lines[lo:hi + 1])
+
+
+def show_lines(repo, rev, path):
+    try:
+        return run_git(repo, "show", "%s:%s" % (rev, path)).decode("utf-8", "replace").splitlines()
+    except subprocess.CalledProcessError:
+        return []
+
+
+def is_interface_text(text):
+    return bool(re.search(r"(?<![\w$])@?interface\s+[A-Za-z_]", text))
+
+
+def own_derived(text, name, is_interface):
+    """이 소스 안에서 `name` 을 쓰는 문장이 선언하는 다른 상수 이름들(`DOUBLE = LIMIT * 2`). 넉넉히 센다."""
+    lines = text.splitlines()
+    pat = re.compile(r"(?<![\w$])" + re.escape(name) + r"(?![\w$])")
     names = set()
+    for i, line in enumerate(lines):
+        if pat.search(line):
+            names |= constant_names(statement_at(lines, i), is_interface)
+    names.discard(name)
+    return names
+
+
+def changed_constants(repo, base, head, path, is_interface):
+    """이 파일의 바뀐 줄(추가·삭제)이 속한 문장에서 상수 선언 이름을 모은다. javac 는 컴파일 시간 상수를 쓰는 쪽에 값으로 박아 넣으므로 쓰는 파일이 안 바뀌어도 동작이 바뀐다."""
+    diff = run_git(repo, "diff", "-U0", "--no-renames", base, head, "--", path).decode("utf-8", "replace")
+    old_lines = new_lines = None
+    names = set()
+    old_no = new_no = 0
     for line in diff.splitlines():
+        h = HUNK.match(line)
+        if h:
+            old_no, new_no = int(h.group(1)), int(h.group(3))
+            continue
         if line.startswith(("+++", "---")) or not line or line[0] not in "+-":
             continue
         names |= constant_names(line[1:], is_interface)
+        if line[0] == "-":
+            if old_lines is None:
+                old_lines = show_lines(repo, base, path)
+            if 0 < old_no <= len(old_lines):
+                names |= constant_names(statement_at(old_lines, old_no - 1), is_interface)
+            old_no += 1
+        else:
+            if new_lines is None:
+                new_lines = show_lines(repo, head, path)
+            if 0 < new_no <= len(new_lines):
+                names |= constant_names(statement_at(new_lines, new_no - 1), is_interface)
+            new_no += 1
     return names
 
 
@@ -480,7 +538,7 @@ def select(repo, impact, rules, head, times, opts):
     visited = set()
     work = []
     for status, path in pending_constants:
-        is_interface = bool(re.search(r"(?<![\w$])@?interface\s+[A-Za-z_]", sources.text.get(path, "")))
+        is_interface = is_interface_text(sources.text.get(path, ""))
         for n in changed_constants(repo, impact.commit, head, path, is_interface):
             work.append((n, path))
     while work:
@@ -490,16 +548,16 @@ def select(repo, impact, rules, head, times, opts):
         visited.add(name)
         if len(visited) > 60:
             raise FullRun("바뀐 상수 이름이 60 개를 넘는다")
+        # 같은 파일 안에서 이 상수로 계산하는 다른 상수(`DOUBLE = LIMIT * 2`)는 그 줄이 안 바뀌어도 값이 바뀐다.
+        for other in own_derived(sources.text.get(origin, ""), name, is_interface_text(sources.text.get(origin, ""))):
+            work.append((other, origin))
         refs = sources.referrers(name, origin)
         if len(refs) > opts["max_referrers"]:
             raise FullRun("상수 `%s` 를 쓰는 파일이 %d 개(한도 %d)" % (name, len(refs), opts["max_referrers"]))
         for r in refs:
             eff(r, "상수 `%s` 를 씀(컴파일할 때 값으로 박힘)" % name)
-            for line in sources.text[r].splitlines():
-                if name in line:
-                    for other in constant_names(line, False):
-                        if other != name:
-                            work.append((other, r))
+            for other in own_derived(sources.text[r], name, False):
+                work.append((other, r))
 
     # 어떤 시험도 실행하지 않은 소스(상수·인터페이스·기록 클래스 등)는 그 타입을 쓰는 파일로 대신한다.
     executed_by = {}
