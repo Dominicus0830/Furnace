@@ -2,6 +2,7 @@
 // 자원: items/itemblocks_1.21.1.txt (tools/vanilla-data/ExportItemBlocks.java).
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -30,8 +31,8 @@ public final class BlockItems {
         synchronized (BlockItems.class) {
             if (loaded) return;
             Blocks b = Blocks.get();
-            try (InputStream in = BlockItems.class.getClassLoader().getResourceAsStream("items/itemblocks_1.21.1.txt")) {
-                if (in == null) throw new IllegalStateException("items/itemblocks_1.21.1.txt 없음");
+            try (InputStream in = BlockItems.class.getClassLoader().getResourceAsStream("items/itemblocks_" + GameVersion.RESOURCE_TAG + ".txt")) {
+                if (in == null) throw new IllegalStateException("items/itemblocks_" + GameVersion.RESOURCE_TAG + ".txt is missing");
                 BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
                 String line;
                 while ((line = r.readLine()) != null) {

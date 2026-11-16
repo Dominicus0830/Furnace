@@ -1,6 +1,7 @@
 // 핸드오프 시 같은 region 관찰자가 플레이어를 despawn하지 않는지(깜빡임 없음) 검증
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.domi.furnace.server.ConcurrentEmbeddedChannel;
@@ -17,7 +18,7 @@ class HandoffVisibilityTest {
     @Test
     void watcher_keepsTracking_whenPeerHandsOffToNeighbor() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 4);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         // regionSize 1 → 16블록 셀. A·B 처음 같은 region(0,0).
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1),
                 sched, sched.regionThreadCount(), 1, 8, 8, reg.directBits(), 7, java.util.concurrent.Executors.newSingleThreadExecutor());

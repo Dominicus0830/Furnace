@@ -1,5 +1,6 @@
 package org.domi.furnace.compat.paper;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -37,7 +38,7 @@ class RegistryValueTypesTest {
 
     @Test
     void entityTypeMatchesTheRegistry() throws Exception {
-        Set<String> reg = keys("/registries/entity_types-1.21.1.txt", null);
+        Set<String> reg = keys("/registries/entity_types-" + GameVersion.RESOURCE_TAG + ".txt", null);
         Set<String> have = new TreeSet<>();
         for (EntityType t : EntityType.values()) {
             if (t == EntityType.UNKNOWN) continue;
@@ -53,7 +54,7 @@ class RegistryValueTypesTest {
 
     @Test
     void enchantmentMatchesTheRegistry() throws Exception {
-        Set<String> reg = keys("/registries/1.21.1.txt", "minecraft:enchantment");
+        Set<String> reg = keys("/registries/" + GameVersion.RESOURCE_TAG + ".txt", "minecraft:enchantment");
         Set<String> have = new TreeSet<>();
         for (Enchantment e : Enchantment.all()) have.add(e.getKey().getKey());
         assertEquals(reg, have);

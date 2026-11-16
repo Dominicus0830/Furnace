@@ -5,6 +5,7 @@
 // 탈출구(-Dfurnace.ignoreOlderWorldDataVersion=true)는 그 손실을 알고 쓰는 사람용이다.
 package org.domi.furnace.server.world.anvil;
 
+import org.domi.furnace.server.i18n.Lang;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
 public final class OlderDataVersionException extends UnsupportedDataVersionException {
@@ -18,9 +19,7 @@ public final class OlderDataVersionException extends UnsupportedDataVersionExcep
     public static final String IGNORE_PROPERTY = "furnace.ignoreOlderWorldDataVersion";
 
     public OlderDataVersionException(String what, int dataVersion) {
-        super(what + " 의 데이터 버전 " + dataVersion + " 이 이 서버가 변환 없이 읽는 최소 판(" + MIN_READABLE + ", 1.21)보다 옛것이다 — 옛 판 데이터를 올리는 픽서가 아직 없어"
-                + " 열지 않는다(아이템 개수·마법 부여·블록이 사라진다). 바닐라 1.21.1 로 한 번 열어 저장한 월드를 가져오거나, 손실을 알고 강제로 열려면 -D"
-                + IGNORE_PROPERTY + "=true", dataVersion);
+        super(Lang.t("anvil.older-data-version", what, dataVersion, MIN_READABLE, IGNORE_PROPERTY), dataVersion);
     }
 
     public static boolean ignored() {

@@ -15,6 +15,7 @@
 //   wait <틱>                         기다림(틱 = 50ms)
 package org.domi.furnace.server.oracle;
 
+import org.domi.furnace.api.GameVersion;
 import io.netty.buffer.ByteBuf;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -35,7 +36,7 @@ class ScenarioBot {
         String port = System.getProperty("furnace.scn.port");
         String script = System.getProperty("furnace.scn.script");
         Assumptions.assumeTrue(port != null && script != null);
-        ItemRegistry items = ItemRegistry.load("items/1.21.1.txt");
+        ItemRegistry items = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
         TestClient c = TestClient.join(Integer.parseInt(port), System.getProperty("furnace.scn.name", "Oracle"));
         AtomicInteger seq = new AtomicInteger(1);
         double[] pos = new double[3];

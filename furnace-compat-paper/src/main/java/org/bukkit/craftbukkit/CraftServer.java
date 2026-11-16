@@ -1,5 +1,6 @@
 package org.bukkit.craftbukkit;
 
+import org.domi.furnace.compat.i18n.CompatLang;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -34,6 +35,47 @@ public final class CraftServer implements Server {
 
     private static final Logger LOG = Logger.getLogger("Minecraft");
 
+    /**
+     * CraftBukkit 의 월드 표(이름 소문자 → 월드, N2b-6). 서버가 들고 있는 월드 목록을 그대로 비추는 읽기 보기라 리플렉션으로 읽는 플러그인에게도
+     * Paper 처럼 지금 월드가 보인다. 월드 만들기는 {@link #createWorld}, 내리기는 Furnace API {@code unloadWorld} 로 하므로 표에 직접 넣거나 지우는 것은 길이 없다
+     * (이미 없는 이름을 지우는 것은 아무 일도 없다 — 월드를 내린 뒤 표를 정리하는 코드가 그렇게 부른다).
+     */
+    private final java.util.Map<String, org.bukkit.World> worlds = new WorldsView();
+
+    private final class WorldsView extends java.util.AbstractMap<String, org.bukkit.World> {
+        /** 지금 월드(서버 순서)를 이름 소문자로 묶은 새 표. */
+        private java.util.Map<String, org.bukkit.World> snapshot() {
+            java.util.Map<String, org.bukkit.World> out = new java.util.LinkedHashMap<>();
+            for (World w : getWorlds()) out.put(w.getName().toLowerCase(Locale.ROOT), w);
+            return out;
+        }
+
+        @Override
+        public java.util.Set<Entry<String, org.bukkit.World>> entrySet() { return java.util.Collections.unmodifiableMap(snapshot()).entrySet(); }
+
+        @Override
+        public org.bukkit.World get(Object key) { return key instanceof String s ? snapshot().get(s) : null; }
+
+        @Override
+        public boolean containsKey(Object key) { return get(key) != null; }
+
+        @Override
+        public org.bukkit.World put(String key, org.bukkit.World value) {
+            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("CraftServer#worlds.put", "worlds are created with Server#createWorld, not by putting them into the table");
+        }
+
+        @Override
+        public org.bukkit.World remove(Object key) {
+            if (get(key) == null) return null;
+            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("CraftServer#worlds.remove", "worlds are unloaded with the Furnace API (Furnace#unloadWorld), not by removing them from the table");
+        }
+
+        @Override
+        public void clear() {
+            if (!snapshot().isEmpty()) throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("CraftServer#worlds.clear", "worlds are unloaded with the Furnace API (Furnace#unloadWorld), not by clearing the table");
+        }
+    }
+
     private CraftServer() {}
 
     /** NMS 서버 shim(Paper·CraftBukkit 의 {@code getServer()} 처럼 DedicatedServer). 늘 같은 객체다. */
@@ -42,10 +84,47 @@ public final class CraftServer implements Server {
     private static Furnace f() { return Compat.furnace(); }
 
     @Override
+    public org.bukkit.inventory.ItemFactory getItemFactory() { return org.bukkit.craftbukkit.inventory.CraftItemFactory.instance(); }
+
+    @Override
     public org.bukkit.block.data.BlockData createBlockData(org.bukkit.Material material) { return CompatBlockData.create(material); }
 
     @Override
     public org.bukkit.block.data.BlockData createBlockData(String data) { return CompatBlockData.create(data); }
+
+    @Override
+    public org.bukkit.profile.PlayerProfile createPlayerProfile(java.util.UUID uniqueId) { return new org.bukkit.craftbukkit.profile.CraftPlayerProfile(uniqueId, null); }
+
+    @Override
+    public org.bukkit.profile.PlayerProfile createPlayerProfile(String name) { return new org.bukkit.craftbukkit.profile.CraftPlayerProfile(null, name); }
+
+    @Override
+    public org.bukkit.profile.PlayerProfile createPlayerProfile(java.util.UUID uniqueId, String name) { return new org.bukkit.craftbukkit.profile.CraftPlayerProfile(uniqueId, name); }
+
+    @Override
+    public com.destroystokyo.paper.profile.PlayerProfile createProfile(java.util.UUID uuid) { return createProfile(uuid, null); }
+
+    @Override
+    public com.destroystokyo.paper.profile.PlayerProfile createProfile(String name) { return createProfile(null, name); }
+
+    @Override
+    public com.destroystokyo.paper.profile.PlayerProfile createProfile(java.util.UUID uuid, String name) {
+        Player player = uuid != null ? getPlayer(uuid) : (name != null ? getPlayerExact(name) : null);
+        if (player != null) return new com.destroystokyo.paper.profile.CraftPlayerProfile((org.bukkit.craftbukkit.entity.CraftPlayer) player);
+        return new com.destroystokyo.paper.profile.CraftPlayerProfile(uuid, name);
+    }
+
+    @Override
+    public com.destroystokyo.paper.profile.PlayerProfile createProfileExact(java.util.UUID uuid, String name) {
+        Player player = uuid != null ? getPlayer(uuid) : (name != null ? getPlayerExact(name) : null);
+        if (player == null) return new com.destroystokyo.paper.profile.CraftPlayerProfile(uuid, name);
+        if (java.util.Objects.equals(uuid, player.getUniqueId()) && java.util.Objects.equals(name, player.getName())) {
+            return new com.destroystokyo.paper.profile.CraftPlayerProfile((org.bukkit.craftbukkit.entity.CraftPlayer) player);
+        }
+        com.destroystokyo.paper.profile.PlayerProfile profile = new com.destroystokyo.paper.profile.CraftPlayerProfile(uuid, name);
+        profile.setProperties(new com.destroystokyo.paper.profile.CraftPlayerProfile((org.bukkit.craftbukkit.entity.CraftPlayer) player).getProperties());
+        return profile;
+    }
 
     @Override
     public org.bukkit.block.data.BlockData createBlockData(org.bukkit.Material material, String data) { return CompatBlockData.create(material, data); }
@@ -297,11 +376,11 @@ public final class CraftServer implements Server {
         }
         if (creator.generator() != null) {
             throw new org.domi.furnace.compat.paper.UnsupportedFeature("WorldCreator#generator(" + creator.generator().getClass().getName() + ")",
-                    "Bukkit ChunkGenerator 로 월드를 만드는 길이 아직 없다 — Furnace WorldCreator.Builder#generationHooks 를 쓴다(docs/api/worlds.md)");
+                    "there is no way yet to create a world with a Bukkit ChunkGenerator - use Furnace WorldCreator.Builder#generationHooks (docs/api/worlds.md)");
         }
         if (creator.biomeProvider() != null) {
             throw new org.domi.furnace.compat.paper.UnsupportedFeature("WorldCreator#biomeProvider(" + creator.biomeProvider().getClass().getName() + ")",
-                    "Bukkit BiomeProvider 로 월드를 만드는 길이 아직 없다 — Furnace WorldCreator.Builder#generationHooks 를 쓴다(docs/api/worlds.md)");
+                    "there is no way yet to create a world with a Bukkit BiomeProvider - use Furnace WorldCreator.Builder#generationHooks (docs/api/worlds.md)");
         }
         var env = switch (creator.environment()) {
             case NORMAL -> org.domi.furnace.api.world.WorldEnvironment.NORMAL;
@@ -335,7 +414,7 @@ public final class CraftServer implements Server {
 
     private void warnHardcore(org.bukkit.WorldCreator creator, String name) {
         if (creator.hardcore() && !f().worlds().get(0).isHardcore() && WARNED_CREATE.add(name + "|hardcore")) {
-            LOG.warning("[Furnace] createWorld('" + name + "'): hardcore(true) 는 무시한다 — Furnace 추가 월드는 주 월드의 하드코어 값(server.properties hardcore)을 따른다");
+            LOG.warning(CompatLang.t("compat.create-world-hardcore", name));
         }
     }
 
@@ -352,10 +431,10 @@ public final class CraftServer implements Server {
         try {
             c = org.domi.furnace.api.config.ConfigFormat.JSON.parse(json);
         } catch (RuntimeException e) {
-            throw new IllegalArgumentException("createWorld('" + name + "'): generatorSettings 가 JSON 객체가 아니다 — " + e.getMessage(), e);
+            throw new IllegalArgumentException("createWorld('" + name + "'): generatorSettings is not a JSON object - " + e.getMessage(), e);
         }
         if (!c.isList("layers")) {
-            if (!c.isEmpty()) LOG.warning("[Furnace] createWorld('" + name + "'): 평지 generatorSettings 에 layers 가 없다 — 기본 평지로 만든다(Paper 와 같다)");
+            if (!c.isEmpty()) LOG.warning(CompatLang.t("compat.create-world-flat-no-layers", name));
             return;
         }
         java.util.List<org.domi.furnace.api.world.WorldCreator.FlatLayer> layers = new ArrayList<>();
@@ -363,7 +442,7 @@ public final class CraftServer implements Server {
         b.flatLayers(layers);
         if (c.isString("biome")) b.flatBiome(c.getString("biome"));
         if ((c.getBoolean("features") || c.getBoolean("lakes")) && WARNED_CREATE.add(name + "|flat-features")) {
-            LOG.warning("[Furnace] createWorld('" + name + "'): 평지 features·lakes 는 아직 만들지 않는다 — 층만 깐다");
+            LOG.warning(CompatLang.t("compat.create-world-flat-partial", name));
         }
     }
 

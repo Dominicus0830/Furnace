@@ -1,6 +1,7 @@
 // D-14: PlayerData.load 를 IO 풀로 옮긴 뒤에도 접속 순서(읽기 → onEnterPlay → 그 사이 도착한 play 패킷)와 실패·끊김 처리가 유지되는지.
 package org.domi.furnace.server.net;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -56,7 +57,7 @@ class EnterPlayAsyncLoadTest {
 
     private World world(ManualPool pool) {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2, reg.directBits(), 7, new ManualPool());
         w.worldDir(tmp);
         if (pool != null) w.playerIo(pool);   // null 이면 운영 기본(PlayerData 전용 직렬 실행기)

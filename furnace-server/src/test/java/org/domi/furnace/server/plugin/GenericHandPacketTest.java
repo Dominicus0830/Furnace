@@ -186,7 +186,7 @@ class GenericHandPacketTest {
         var click = g(Serverbound.CONTAINER_CLICK, "container_id", 0, "state_id", 1, "slot_num", 36, "button_num", 0, "click_type", "PICKUP",
                 "changed_slots", List.of(s("slot", 1, "item", dia), s("slot", 1, "item", dia)), "carried_item", dia);
         e = assertThrows(IllegalArgumentException.class, () -> body(click));
-        assertTrue(e.getMessage().contains("두 번"), e.getMessage());
+        assertTrue(e.getMessage().contains("twice"), e.getMessage());
 
         var dmg = g(Clientbound.DAMAGE_EVENT, "entity_id", 1, "source_type", "minecraft:fall", "source_cause_id", -2, "source_direct_id", -1,
                 "source_position", Optional.empty());

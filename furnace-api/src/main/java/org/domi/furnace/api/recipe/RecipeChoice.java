@@ -10,7 +10,7 @@ public sealed interface RecipeChoice {
     record Items(List<String> items) implements RecipeChoice {
         public Items {
             Objects.requireNonNull(items, "items");
-            if (items.isEmpty()) throw new IllegalArgumentException("재료 아이템 목록이 비었다");
+            if (items.isEmpty()) throw new IllegalArgumentException("the ingredient item list is empty");
             items = items.stream().map(RecipeChoice::normalize).toList();
         }
     }

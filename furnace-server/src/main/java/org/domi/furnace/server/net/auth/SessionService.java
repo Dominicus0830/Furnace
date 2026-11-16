@@ -66,6 +66,37 @@ public class SessionService {
                 });
     }
 
+    /**
+     * 세션 서버의 profile/&lt;uuid&gt;?unsigned=false — 서명된 속성(스킨 textures)까지 든 프로필(authlib fetchProfile(id, true)).
+     * 못 찾거나(204·404) 요청이 막히거나(429)·실패하면 empty(authlib 처럼 null 로 끝나는 경우). 네트워크 스레드를 막지 않게 비동기.
+     */
+    public CompletableFuture<Optional<GameProfile>> fetchProfile(UUID id) {
+        String hex = id.toString().replace("-", "");
+        HttpRequest req = HttpRequest.newBuilder(URI.create(host + "/session/minecraft/profile/" + hex + "?unsigned=false"))
+                .timeout(Duration.ofSeconds(10)).GET().build();
+        return client.sendAsync(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+                .handle((resp, err) -> {
+                    if (err != null || resp.statusCode() != 200 || resp.body() == null || resp.body().isBlank()) return Optional.<GameProfile>empty();
+                    return parseProfile(resp.body());
+                });
+    }
+
+    /**
+     * 서비스 서버({@code minecraft.api.services.host}, 기본 api.minecraftservices.com)의 이름 → 프로필(UUID·이름만) 조회.
+     * 없는 이름(404)·요청 막힘(429)·실패는 empty.
+     */
+    public CompletableFuture<Optional<GameProfile>> lookupByName(String name) {
+        String servicesHost = System.getProperty("minecraft.api.services.host", "https://api.minecraftservices.com");
+        if (servicesHost.endsWith("/")) servicesHost = servicesHost.substring(0, servicesHost.length() - 1);
+        HttpRequest req = HttpRequest.newBuilder(URI.create(servicesHost + "/minecraft/profile/lookup/name/" + enc(name)))
+                .timeout(Duration.ofSeconds(10)).GET().build();
+        return client.sendAsync(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+                .handle((resp, err) -> {
+                    if (err != null || resp.statusCode() != 200 || resp.body() == null || resp.body().isBlank()) return Optional.<GameProfile>empty();
+                    return parseProfile(resp.body());
+                });
+    }
+
     static Optional<GameProfile> parseProfile(String body) {
         try {
             JsonObject o = JsonParser.parseString(body).getAsJsonObject();

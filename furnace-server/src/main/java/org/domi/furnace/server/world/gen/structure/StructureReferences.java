@@ -4,6 +4,7 @@
 // 청크를 저장할 때 그 값을 시작점 NBT 에 쓴다. 아직 만들어지지 않은 시작 청크의 값은 data/furnace_structure_references.dat 에 남긴다.
 package org.domi.furnace.server.world.gen.structure;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -15,12 +16,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.net.io.nbt.NbtList;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public final class StructureReferences {
     private static final Logger LOG = LoggerFactory.getLogger(StructureReferences.class);
-    private static final int DATA_VERSION = 3955;
+    private static final int DATA_VERSION = GameVersion.DATA_VERSION;
 
     /** 바닐라 StructureStart.getMaxReferences(): 1. canBeReferenced = references < 1. */
     public static final int MAX_REFERENCES = 1;
@@ -104,7 +106,7 @@ public final class StructureReferences {
                 }
             }
         } catch (IOException | RuntimeException e) {
-            LOG.warn("{} 읽기 실패 — 탐험 지도 표시 없이 시작", f.getFileName(), e);
+            LOG.warn(Lang.t("structref.read-failed", f.getFileName()), e);
         }
     }
 
@@ -137,7 +139,7 @@ public final class StructureReferences {
                 Files.move(tmp, f, StandardCopyOption.REPLACE_EXISTING);
             } catch (IOException e) {
                 dirty = true;
-                LOG.error("{} 저장 실패", f.getFileName(), e);
+                LOG.error(Lang.t("structref.save-failed", f.getFileName()), e);
             }
         }
     }

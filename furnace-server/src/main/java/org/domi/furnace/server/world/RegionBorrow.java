@@ -6,6 +6,7 @@
 // 한 구간에서 못 빌린 region 은 다시 기다리지 않고, 구간 전체의 기다림도 한도 하나를 넘지 않는다. 닫지 않은 구간은 전역 작업이 끝날 때 서버가 닫는다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -54,8 +55,7 @@ public final class RegionBorrow {
         if (OPEN.get() == 0) return;
         Scope s = CURRENT.get();
         if (s == null) return;
-        org.slf4j.LoggerFactory.getLogger(RegionBorrow.class).warn(
-                "[BORROW] 전역 작업이 region 빌림 구간을 닫지 않고 끝났다(빌린 region {}개) — 서버가 닫는다. openRegionAccess() 는 try-with-resources 로 닫는다", s.held.size());
+        org.slf4j.LoggerFactory.getLogger(RegionBorrow.class).warn(Lang.t("borrow.unclosed", s.held.size()));
         s.depth = 0;
         s.close();
     }
@@ -128,8 +128,8 @@ public final class RegionBorrow {
         }
         if (LAST_WARN.size() > 64) LAST_WARN.clear();   // 원인 문구가 끝없이 늘지 않게(스택 맨 위 프레임 등)
         var log = org.slf4j.LoggerFactory.getLogger(RegionBorrow.class);
-        if (skipped == 0) log.warn("[BORROW] region #{} 을 빌리지 못했다 — {}", r.id(), why);
-        else log.warn("[BORROW] region #{} 을 빌리지 못했다 — {} (같은 원인 {}건 생략)", r.id(), why, skipped);
+        if (skipped == 0) log.warn(Lang.t("borrow.failed", r.id(), why));
+        else log.warn(Lang.t("borrow.failed-skipped", r.id(), why, skipped));
     }
 
     private static Scope scope() {
@@ -161,7 +161,7 @@ public final class RegionBorrow {
             WAIT_SUM.addAndGet(took);
             if (got == null) {
                 failed.add(r);
-                if (budget == 0 && why[0] != null) why[0] = "이번 구간의 기다림 한도(" + WAIT_NANOS / 1_000_000L + "ms)를 이미 다 썼다";
+                if (budget == 0 && why[0] != null) why[0] = Lang.t("borrow.wait-budget-spent", WAIT_NANOS / 1_000_000L);
                 if (why[0] != null) {
                     TIMEOUTS.incrementAndGet();
                     warnThrottled(r, why[0]);

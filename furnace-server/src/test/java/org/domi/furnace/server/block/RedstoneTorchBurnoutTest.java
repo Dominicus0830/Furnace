@@ -2,6 +2,7 @@
 // 바닐라는 레벨(차원) 하나에 기록 하나다. Furnace 는 region 레벨마다 기록을 두고(region 스레드끼리 겹치지 않게) 합치기·나누기 때 칸을 따라 옮긴다.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -22,7 +23,7 @@ class RedstoneTorchBurnoutTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static final Blocks BL = Blocks.get();
@@ -126,7 +127,7 @@ class RedstoneTorchBurnoutTest {
      */
     @Test
     void concurrentRegionsDoNotShareTheRecord() throws Exception {
-        var gen = new SuperflatWorldSource(BlockRegistry.load("blocks/1.21.1.txt"), 0);
+        var gen = new SuperflatWorldSource(BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), 0);
         int threads = 8, perThread = 3000;
         List<List<ChunkLevel>> made = new ArrayList<>();
         AtomicReference<Throwable> err = new AtomicReference<>();

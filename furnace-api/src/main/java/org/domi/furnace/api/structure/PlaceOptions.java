@@ -18,8 +18,8 @@ public record PlaceOptions(StructureRotation rotation, StructureMirror mirror, b
     public PlaceOptions {
         Objects.requireNonNull(rotation, "rotation");
         Objects.requireNonNull(mirror, "mirror");
-        if (!(integrity >= 0.0F && integrity <= 1.0F)) throw new IllegalArgumentException("integrity 는 0..1: " + integrity);
-        if (palette < -1) throw new IllegalArgumentException("palette 는 -1 이상: " + palette);
+        if (!(integrity >= 0.0F && integrity <= 1.0F)) throw new IllegalArgumentException("integrity must be 0..1: " + integrity);
+        if (palette < -1) throw new IllegalArgumentException("palette must be at least -1: " + palette);
     }
 
     public PlaceOptions withRotation(StructureRotation r) { return new PlaceOptions(r, mirror, includeEntities, integrity, seed, palette); }

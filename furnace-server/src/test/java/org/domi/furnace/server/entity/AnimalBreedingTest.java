@@ -1,6 +1,7 @@
 // 동물: 둘 다 사랑 모드면 붙어서 새끼를 낳고(부모 나이 6000), 새끼는 아기이며 시간이 가면 자란다. 아기 나이는 저장된다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.block.BlockPlacementTest;
@@ -12,7 +13,7 @@ class AnimalBreedingTest {
     @org.junit.jupiter.api.BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static void run(BlockPlacementTest.TestLevel level, Cow... cows) {

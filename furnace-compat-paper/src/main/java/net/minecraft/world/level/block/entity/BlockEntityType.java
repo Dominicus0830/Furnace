@@ -21,6 +21,18 @@ public final class BlockEntityType<T> {
     /** 이 모듈 전용: 이름("minecraft:chest"). */
     public ResourceLocation furnaceId() { return id; }
 
+    /** 호환 모듈 전용(N2b-6): 키("minecraft:chest")의 레지스트리 값. 모르는 키면 IllegalArgumentException. */
+    public static BlockEntityType<?> furnaceOf(String key) {
+        BlockEntityType<?> t = net.minecraft.core.registries.BuiltInRegistries.BLOCK_ENTITY_TYPE.get(ResourceLocation.parse(key));
+        if (t == null) throw new IllegalArgumentException("unknown block entity type: " + key);
+        return t;
+    }
+
+    /** 바닐라 isValid: 그 블록 상태의 블록이 이 종류의 블록인가(서버 표 기준, N2b-6). */
+    public boolean isValid(net.minecraft.world.level.block.state.BlockState state) {
+        return id.toString().equals(org.domi.furnace.compat.nms.NmsBlockStates.bridge().blockEntityType(state.furnaceStateId()));
+    }
+
     @Override
     public String toString() { return "BlockEntityType[" + id + "]"; }
 }

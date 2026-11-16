@@ -22,18 +22,18 @@ final class GameRegistryCodec {
     static void validate(BiomeDefinition def) {
         var p = def.ambientParticle();
         if (p != null) {
-            if (!ParticleOptions.Registry.has(p.type())) throw new IllegalArgumentException("알 수 없는 입자 종류: " + p.type());
-            if (PARTICLES_NEEDING_OPTIONS.contains(p.type())) throw new IllegalArgumentException("옵션이 필요한 입자는 바이옴 주변 입자로 쓸 수 없다: " + p.type());
+            if (!ParticleOptions.Registry.has(p.type())) throw new IllegalArgumentException("unknown particle type: " + p.type());
+            if (PARTICLES_NEEDING_OPTIONS.contains(p.type())) throw new IllegalArgumentException("a particle that needs options cannot be a biome ambient particle: " + p.type());
         }
         for (var e : def.spawners().entrySet()) {
             for (var s : e.getValue()) {
                 if (!org.domi.furnace.server.command.arguments.EntityTypes.isKnown(s.entityType())) {
-                    throw new IllegalArgumentException("알 수 없는 몹 종류: " + s.entityType());
+                    throw new IllegalArgumentException("unknown mob type: " + s.entityType());
                 }
             }
         }
         for (String type : def.spawnCosts().keySet()) {
-            if (!org.domi.furnace.server.command.arguments.EntityTypes.isKnown(type)) throw new IllegalArgumentException("알 수 없는 몹 종류: " + type);
+            if (!org.domi.furnace.server.command.arguments.EntityTypes.isKnown(type)) throw new IllegalArgumentException("unknown mob type: " + type);
         }
     }
 

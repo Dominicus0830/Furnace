@@ -1,5 +1,6 @@
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -22,14 +23,14 @@ public class BlockPlacementTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     /** 슈퍼플랫(지면 y=-61 잔디) 몇 청크를 가진 레벨. */
     public static class TestLevel extends ChunkLevel {
         final Map<Long, ChunkColumn> chunks = new HashMap<>();
         final List<Packet> broadcasts = new ArrayList<>();
-        final SuperflatWorldSource gen = new SuperflatWorldSource(BlockRegistry.load("blocks/1.21.1.txt"), 0);
+        final SuperflatWorldSource gen = new SuperflatWorldSource(BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), 0);
 
         public TestLevel() { super(1000000); }
 

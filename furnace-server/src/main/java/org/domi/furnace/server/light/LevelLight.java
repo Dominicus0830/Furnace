@@ -1,6 +1,8 @@
 // 한 차원의 빛 엔진 묶음(바닐라 LevelLightEngine): 블록빛 + (하늘이 있으면) 하늘빛. 청크 켜기·블록 변경·갱신 실행.
 package org.domi.furnace.server.light;
 
+import org.domi.furnace.server.world.StateIds;
+
 public final class LevelLight {
     private final LightWorld world;
     private final BlockLightEngine block;
@@ -71,7 +73,7 @@ public final class LevelLight {
         ChunkLight own = new ChunkLight();
         LightWorld w = new LightWorld() {
             public ChunkLight light(int x, int z) { return x == cx && z == cz ? own : null; }
-            public int state(int x, int y, int z) { return y < minY || y >= maxY ? 12958 : blocks.state(x, y, z); }
+            public int state(int x, int y, int z) { return y < minY || y >= maxY ? StateIds.VOID_AIR : blocks.state(x, y, z); }
             public int unloadedState() { return bedrockState; }
             public int uniformSectionState(int x, int sy, int z) { return x == cx && z == cz ? blocks.uniformSectionState(sy) : -1; }
             public boolean sectionMayEmit(int x, int sy, int z) { return x != cx || z != cz || blocks.sectionMayEmit(sy); }
@@ -92,7 +94,7 @@ public final class LevelLight {
         if (!hasSkyLight) return;
         LightWorld w = new LightWorld() {
             public ChunkLight light(int x, int z) { return x == cx && z == cz ? own : null; }
-            public int state(int x, int y, int z) { return y < minY || y >= maxY ? 12958 : blocks.state(x, y, z); }
+            public int state(int x, int y, int z) { return y < minY || y >= maxY ? StateIds.VOID_AIR : blocks.state(x, y, z); }
             public int unloadedState() { return 0; }
             public int uniformSectionState(int x, int sy, int z) { return x == cx && z == cz ? blocks.uniformSectionState(sy) : -1; }
             public boolean sectionHasOnlyAir(int x, int sy, int z) { return x == cx && z == cz ? blocks.sectionHasOnlyAir(x, sy, z) : LightWorld.super.sectionHasOnlyAir(x, sy, z); }
@@ -100,6 +102,20 @@ public final class LevelLight {
             public int maxY() { return maxY; }
         };
         new SkyLightEngine(w).computeSources(cx, cz);
+    }
+
+    /**
+     * 그 청크의 하늘빛 원천 높이만 지금 블록에서 다시 센다(빛 값은 그대로). 빛 다시 계산(T-197)을 끼운 뒤 — 바닐라에서 원천은 블록을 바꿀 때 그 자리에서
+     * 고쳐지므로 늘 지금 블록과 맞고, 빛은 검사가 따라간다. 하늘이 없으면 아무것도 안 한다.
+     */
+    public void recomputeSources(int cx, int cz) {
+        if (sky == null) return;
+        world.begin();
+        try {
+            sky.computeSources(cx, cz);
+        } finally {
+            world.end();
+        }
     }
 
     /** 미리 계산한 빛이 올라온 청크를 이웃과 잇는다: 양쪽 가장자리를 서로 민다(이미 켜진 이웃만). */
@@ -163,7 +179,106 @@ public final class LevelLight {
         if (sky != null && target.sky != null) sky.moveChecksTo(target.sky, sel);
     }
 
-    public boolean hasWork() { return pendingSourceCount > 0 || block.hasWork() || sky != null && sky.hasWork(); }
+    /** 붙잡힌 검사 중 sel 에 맞는 것을 target 의 통으로 — region 합치기·나누기(붙잡기 수는 세계에 있어 그대로다). */
+    public void moveHeldTo(LevelLight target, java.util.function.LongPredicate sel) {
+        if (held == null || !held.hasChecks()) return;
+        if (target.held == null) target.held = new LevelLight(target.world, target.sky != null);
+        held.moveChecksTo(target.held, sel);
+        target.heldGen = -1;   // 옮겨 온 검사는 다음에 다시 훑는다(보내는 쪽이 본 세대가 더 옛것일 수 있다)
+    }
+
+    /** 지금 돌릴 일이 있는가(붙잡힌 검사는 빼고 — 먼저 붙잡기를 맞춘다). 주인 스레드. */
+    public boolean hasWork() {
+        applyHold();
+        return pendingSourceCount > 0 || block.hasWork() || sky != null && sky.hasWork();
+    }
+
+    // ------------------------------------------------------------------ 검사 붙잡기(T-197 relight)
+    // 일꾼이 청크를 새 빛으로 계산하는 동안 그 둘레 3×3 청크의 칸 검사는 계산하지 않고 통에 붙잡아 둔다 — 결과를 끼운 뒤 풀어 그 위에서 계산해야
+    // 그 사이의 빛 갱신을 잃지 않는다(Paper 는 relight 동안 빛 대기열 전체를 미룬다). 붙잡는 것은 검사뿐이고 하늘빛 원천 고치기는 그대로 한다.
+
+    /**
+     * 붙잡기 판정(세계 단위, 아무 스레드가 바꾼다). active 가 거짓이면 아무것도 붙잡지 않는다. generation 은 붙잡는 자리가 바뀔 때마다 오른다 —
+     * 그대로면 통을 다시 훑지 않는다. held 는 칸(묶은 좌표)이 지금 붙잡힐 자리인가.
+     */
+    public interface Hold {
+        boolean active();
+
+        long generation();
+
+        boolean held(long packedPos);
+    }
+
+    private Hold hold;
+    /** 붙잡힌 검사 통(엔진은 검사 집합만 쓴다 — 넣은 순서 유지·중복 없음). 처음 붙잡을 때 만든다. */
+    private LevelLight held;
+    /** 통의 검사가 모두 이 세대에서 붙잡힐 자리였다(-1 = 모름). */
+    private long heldGen = -1;
+
+    /** 붙잡기 판정을 단다(region 레벨이 세계의 붙잡기 판정을 넘긴다). */
+    public void hold(Hold h) { this.hold = h; }
+
+    private boolean hasChecks() { return block.hasChecks() || sky != null && sky.hasChecks(); }
+
+    private void forEachCheckUntil(java.util.function.LongPredicate stop) {
+        if (block.forEachCheckUntil(stop)) return;
+        if (sky != null) sky.forEachCheckUntil(stop);
+    }
+
+    /**
+     * 붙잡기를 맞춘다: 풀린 검사는 통에서 꺼내 다시 걸고(세대가 바뀌었을 때만 훑는다), 붙잡힐 검사는 통으로 옮긴다(넣은 순서 유지). 계산·빛 작업
+     * 넘기기·일 있음 판정 전에 부른다. 붙잡기가 없으면 읽기 몇 번. 통에서 풀려 나온 검사가 있으면 true.
+     */
+    public boolean applyHold() {
+        Hold h = hold;
+        if (h == null) return false;
+        long g = h.generation();   // 먼저 읽는다 — 훑는 사이 바뀌면 다음에 다시 훑는다
+        boolean active = h.active();
+        boolean released = false;
+        if (held != null && g != heldGen && held.hasChecks()) {
+            int before = held.checkCount();
+            if (!active) held.moveChecksTo(this, p -> true);
+            else held.moveChecksTo(this, p -> !h.held(p));
+            released = held.checkCount() != before;
+        }
+        if (active && hasChecks()) {
+            if (held == null) held = new LevelLight(world, sky != null);
+            moveChecksTo(held, h::held);
+        }
+        heldGen = g;
+        return released;
+    }
+
+    private int checkCount() {
+        int[] n = {0};
+        forEachCheckUntil(p -> {
+            n[0]++;
+            return false;
+        });
+        return n[0];
+    }
+
+    /** 붙잡힌 검사가 그 청크의 체비셰프 1 안에 있는가 — 그 검사가 풀리면 이 청크의 빛도 바뀔 수 있다(저장 전 stale 표시 판단, 검토 R1). */
+    public boolean heldNear(int cx, int cz) {
+        if (held == null || !held.hasChecks()) return false;
+        boolean[] any = {false};
+        held.forEachCheckUntil(p -> {
+            if (Math.abs((LightEngine.px(p) >> 4) - cx) <= 1 && Math.abs((LightEngine.pz(p) >> 4) - cz) <= 1) any[0] = true;
+            return any[0];
+        });
+        return any[0];
+    }
+
+    /** 붙잡히지 않은 칸 검사 중 sel(묶은 칸 좌표)에 맞는 것이 있는가 — 빛 다시 계산이 새로 붙잡기 전 판단(검토 F2). applyHold 뒤에 부른다. */
+    public boolean anyCheck(java.util.function.LongPredicate sel) {
+        if (!hasChecks()) return false;
+        boolean[] any = {false};
+        forEachCheckUntil(p -> any[0] = sel.test(p));
+        return any[0];
+    }
+
+    /** 붙잡힌 검사 수(시험용). */
+    public int heldCount() { return held == null ? 0 : held.checkCount(); }
 
     /** 미뤄 둔 하늘빛 원천 고치기를 넣은 순서대로 한다(블록 상태는 지금 것). */
     private void applyPendingSources0() {
@@ -177,6 +292,7 @@ public final class LevelLight {
 
     /** 미처리 일(미룬 원천 고치기·칸 검사)을 순서를 지켜 통째로 target 으로 넘긴다 — 빛 작업에 한 묶음을 넘길 때. */
     public void moveWorkTo(LevelLight target) {
+        applyHold();
         for (int i = 0; i < pendingSourceCount; i++) {
             if (target.pendingSourceCount == target.pendingSources.length) {
                 target.pendingSources = java.util.Arrays.copyOf(target.pendingSources, target.pendingSourceCount * 2);
@@ -204,6 +320,7 @@ public final class LevelLight {
     }
 
     private void runUpdates0() {
+        applyHold();
         if (pendingSourceCount > 0) applyPendingSources0();
         if (sky != null) sky.runUpdates();
         block.runUpdates();

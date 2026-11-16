@@ -157,7 +157,7 @@ public interface BlockPredicate {
                     int dir = switch (o.get("direction").getAsString()) {
                         case "down" -> BlockAttrs.DOWN; case "up" -> BlockAttrs.UP; case "north" -> BlockAttrs.NORTH;
                         case "south" -> BlockAttrs.SOUTH; case "west" -> BlockAttrs.WEST; case "east" -> BlockAttrs.EAST;
-                        default -> throw new IllegalArgumentException("방향: " + o);
+                        default -> throw new IllegalArgumentException("unknown direction: " + o);
                     };
                     return new HasSturdyFace(off[0], off[1], off[2], dir);
                 }
@@ -172,7 +172,7 @@ public interface BlockPredicate {
                     survival.requireSupported(id);
                     return new WouldSurvive(id, off[0], off[1], off[2], survival);
                 }
-                default: throw new IllegalArgumentException("지원하지 않는 block predicate: " + type);
+                default: throw new IllegalArgumentException("unsupported block predicate: " + type);
             }
         }
     }

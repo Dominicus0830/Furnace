@@ -162,7 +162,7 @@ class GenericComplexPacketTest {
                 "explosion_sound", "minecraft:entity.generic.explode")).contains("i8"));
         PacketStruct light = s("sky_y_mask", new long[]{3}, "block_y_mask", new long[0], "empty_sky_y_mask", new long[0], "empty_block_y_mask", new long[0],
                 "sky_updates", List.of(new byte[2048]), "block_updates", List.of());
-        assertTrue(rejected(g(Clientbound.LIGHT_UPDATE, "x", 0, "z", 0, "light_data", light)).contains("비트 수"));
+        assertTrue(rejected(g(Clientbound.LIGHT_UPDATE, "x", 0, "z", 0, "light_data", light)).contains("bits of"));
         // 남는 배열은 클라이언트가 읽고 버린다 — 바닐라·Paper 처럼 쓴다(PR #399 검토 S1)
         PacketStruct extra = s("sky_y_mask", new long[]{1}, "block_y_mask", new long[0], "empty_sky_y_mask", new long[0], "empty_block_y_mask", new long[0],
                 "sky_updates", List.of(new byte[2048], new byte[2048]), "block_updates", List.of());
@@ -172,7 +172,7 @@ class GenericComplexPacketTest {
                 "sky_updates", List.of(new byte[10]), "block_updates", List.of());
         assertTrue(rejected(g(Clientbound.LIGHT_UPDATE, "x", 0, "z", 0, "light_data", light)).contains("2048"));
         assertTrue(rejected(g(Clientbound.LEVEL_PARTICLES, "override_limiter", false, "x", 0.0, "y", 0.0, "z", 0.0, "x_dist", 0f, "y_dist", 0f, "z_dist", 0f,
-                "max_speed", 0f, "count", 1, "particle", s("type", "minecraft:item", "item_stack", ItemStack.EMPTY))).contains("빈 아이템"));
+                "max_speed", 0f, "count", 1, "particle", s("type", "minecraft:item", "item_stack", ItemStack.EMPTY))).contains("empty item"));
         rejected(g(Clientbound.LEVEL_PARTICLES, "override_limiter", false, "x", 0.0, "y", 0.0, "z", 0.0, "x_dist", 0f, "y_dist", 0f, "z_dist", 0f,
                 "max_speed", 0f, "count", 1, "particle", s("type", "minecraft:flame", "scale", 1f)));   // 모르는 필드
         rejected(g(Clientbound.LEVEL_PARTICLES, "override_limiter", false, "x", 0.0, "y", 0.0, "z", 0.0, "x_dist", 0f, "y_dist", 0f, "z_dist", 0f,
@@ -198,17 +198,17 @@ class GenericComplexPacketTest {
         assertEquals(ok, decode(Clientbound.COMMANDS, hex(ok)));
         // 자식 순환(1 → 3 → 1)·리다이렉트 순환(2 ↔ 4)은 바닐라 validateEntries 가 막는다
         PacketStruct loop = node("ARGUMENT", new int[]{1}, Optional.empty(), "n", s("parser", "brigadier:bool"));
-        assertTrue(rejected(g(Clientbound.COMMANDS, "entries", List.of(root, tp, alias, loop), "root_index", 0)).contains("순환"));
+        assertTrue(rejected(g(Clientbound.COMMANDS, "entries", List.of(root, tp, alias, loop), "root_index", 0)).contains("has a cycle"));
         PacketStruct r2 = node("LITERAL", new int[0], Optional.of(3), "a", null), r3 = node("LITERAL", new int[0], Optional.of(2), "b", null);
-        assertTrue(rejected(g(Clientbound.COMMANDS, "entries", List.of(node("ROOT", new int[]{2, 3}, Optional.empty(), null, null), tp, r2, r3), "root_index", 0)).contains("리다이렉트"));
+        assertTrue(rejected(g(Clientbound.COMMANDS, "entries", List.of(node("ROOT", new int[]{2, 3}, Optional.empty(), null, null), tp, r2, r3), "root_index", 0)).contains("redirect"));
         assertTrue(rejected(g(Clientbound.COMMANDS, "entries", List.of(root, tp, alias, arg), "root_index", 1)).contains("ROOT"));
-        assertTrue(rejected(g(Clientbound.COMMANDS, "entries", List.of(root, tp, alias, node("LITERAL", new int[]{9}, Optional.empty(), "x", null)), "root_index", 0)).contains("목록 밖"));
+        assertTrue(rejected(g(Clientbound.COMMANDS, "entries", List.of(root, tp, alias, node("LITERAL", new int[]{9}, Optional.empty(), "x", null)), "root_index", 0)).contains("outside the list"));
         rejected(g(Clientbound.COMMANDS, "entries", List.of(root, tp, alias, node("LITERAL", new int[0], Optional.empty(), null, null)), "root_index", 0));   // 이름 없는 리터럴
         rejected(g(Clientbound.COMMANDS, "entries", List.of(root, tp, alias, node("ARGUMENT", new int[0], Optional.empty(), "n", s("parser", "brigadier:string", "type", "WORDS"))), "root_index", 0));
         // resource·resource_or_tag 는 받은 클라이언트가 레지스트리를 찾는다 — 클라이언트에 없는 레지스트리면 끊긴다. *_key 는 찾지 않는다
         for (String parser : List.of("minecraft:resource", "resource_or_tag")) {
             PacketStruct bad = node("ARGUMENT", new int[0], Optional.empty(), "n", s("parser", parser, "registry_key", "x:nope"));
-            assertTrue(rejected(g(Clientbound.COMMANDS, "entries", List.of(root, tp, alias, bad), "root_index", 0)).contains("레지스트리"), parser);
+            assertTrue(rejected(g(Clientbound.COMMANDS, "entries", List.of(root, tp, alias, bad), "root_index", 0)).contains("registry"), parser);
             for (String reg : List.of("minecraft:enchantment", "entity_type", "worldgen/structure_type")) {
                 PacketStruct good = node("ARGUMENT", new int[0], Optional.empty(), "n", s("parser", parser, "registry_key", reg));
                 hex(g(Clientbound.COMMANDS, "entries", List.of(root, tp, alias, good), "root_index", 0));
@@ -225,28 +225,28 @@ class GenericComplexPacketTest {
                 "ingredients", List.of(List.of(stone), List.of()), "result", stone, "show_notification", true);
         GenericPacket ok = g(Clientbound.UPDATE_RECIPES, "recipes", List.of(shaped));
         assertEquals(ok, decode(Clientbound.UPDATE_RECIPES, hex(ok)));
-        assertTrue(rejected(g(Clientbound.UPDATE_RECIPES, "recipes", List.of(shaped, shaped))).contains("두 번"));
+        assertTrue(rejected(g(Clientbound.UPDATE_RECIPES, "recipes", List.of(shaped, shaped))).contains("twice"));
         assertTrue(rejected(g(Clientbound.UPDATE_RECIPES, "recipes", List.of(shaped.with("width", 3)))).contains("width×height"));
-        assertTrue(rejected(g(Clientbound.UPDATE_RECIPES, "recipes", List.of(shaped.with("result", ItemStack.EMPTY)))).contains("빈 아이템"));
+        assertTrue(rejected(g(Clientbound.UPDATE_RECIPES, "recipes", List.of(shaped.with("result", ItemStack.EMPTY)))).contains("empty item"));
         rejected(g(Clientbound.UPDATE_RECIPES, "recipes", List.of(s("id", "x:b", "type", "minecraft:stonecutting", "group", "", "ingredient", List.of(ItemStack.EMPTY), "result", stone))));
         assertTrue(rejected(g(Clientbound.RECIPE, "state", "ADD", "book_settings", s("crafting_open", true, "crafting_filtering", false, "furnace_open", false,
                 "furnace_filtering", true, "blast_furnace_open", true, "blast_furnace_filtering", true, "smoker_open", false, "smoker_filtering", true),
                 "recipes", List.of(), "to_highlight", Optional.of(List.of()))).contains("INIT"));
         PacketStruct crit = s("name", "a", "obtained", Optional.empty());
         assertTrue(rejected(g(Clientbound.UPDATE_ADVANCEMENTS, "reset", false, "added", List.of(), "removed", List.of(),
-                "progress", List.of(s("id", "x:a", "criteria", List.of(crit, crit))))).contains("두 번"));
+                "progress", List.of(s("id", "x:a", "criteria", List.of(crit, crit))))).contains("twice"));
         rejected(g(Clientbound.UPDATE_ADVANCEMENTS, "reset", false, "added", List.of(), "removed", List.of("x:a", "x:a"), "progress", List.of()));
         rejected(g(Clientbound.UPDATE_TAGS, "tags", List.of(s("registry", "minecraft:item", "tags", List.of()), s("registry", "item", "tags", List.of()))));
         // 서명 캐시 번호는 127 까지(클라이언트 MessageSignatureCache 128칸) — delete_chat 과 player_chat 의 last_seen 이 같은 노드
         assertTrue(rejected(g(Clientbound.DELETE_CHAT, "message_signature", s("id", 128, "full_signature", Optional.empty()))).contains("127"));
         hex(g(Clientbound.DELETE_CHAT, "message_signature", s("id", 127, "full_signature", Optional.empty())));
         // 클라이언트에 없는 레지스트리는 빈 태그 목록이라도 TagCollector 가 끊는다
-        assertTrue(rejected(g(Clientbound.UPDATE_TAGS, "tags", List.of(s("registry", "x:nope", "tags", List.of())))).contains("레지스트리"));
+        assertTrue(rejected(g(Clientbound.UPDATE_TAGS, "tags", List.of(s("registry", "x:nope", "tags", List.of())))).contains("registry"));
         hex(g(Clientbound.UPDATE_TAGS, "tags", List.of(s("registry", "worldgen/biome", "tags", List.of()), s("registry", "minecraft:enchantment", "tags", List.of()))));
         assertTrue(rejected(g(Clientbound.MERCHANT_OFFERS, "container_id", 1, "offers", List.of(s("base_cost_a",
                 new ItemStack("minecraft:emerald", 1, Map.of(), Set.of("minecraft:max_stack_size")), "result", stone, "cost_b", Optional.empty(), "out_of_stock", false,
                 "uses", 0, "max_uses", 1, "xp", 0, "special_price_diff", 0, "price_multiplier", 0f, "demand", 0)),
-                "villager_level", 1, "villager_xp", 0, "show_progress", false, "can_restock", false)).contains("지운 컴포넌트"));
+                "villager_level", 1, "villager_xp", 0, "show_progress", false, "can_restock", false)).contains("removed components"));
     }
 
     // ------------------------------------------------------------------ 번들 구분자·서버 패킷

@@ -61,7 +61,7 @@ public final class EntityDamageEvent extends EntityEvent implements Cancellable,
     public float damage() { return damage; }
 
     public void setDamage(float damage) {
-        if (!(damage >= 0f)) throw new IllegalArgumentException("damage 는 0 이상: " + damage);
+        if (!(damage >= 0f)) throw new IllegalArgumentException("damage must be at least 0: " + damage);
         this.damage = damage;
     }
 }

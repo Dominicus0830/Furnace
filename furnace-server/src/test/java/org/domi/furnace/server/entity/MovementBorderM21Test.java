@@ -2,6 +2,7 @@
 // 포털을 지나는 수레·낙하 블록(엔드가 낀 이동은 옛 낙하 블록이 마저 돌아 복제).
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.block.B;
@@ -17,7 +18,7 @@ class MovementBorderM21Test {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static Entity only(DimensionTestLevel level, Class<?> c) {

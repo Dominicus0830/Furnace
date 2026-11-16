@@ -6,6 +6,7 @@
 //  blocks/hardness_1.21.1.txt        블록별 destroyTime
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -73,12 +74,12 @@ public final class BlockInfo {
 
     private static BufferedReader open(String path, boolean gz) throws IOException {
         InputStream in = BlockInfo.class.getClassLoader().getResourceAsStream(path);
-        if (in == null) throw new IllegalStateException(path + " 없음");
+        if (in == null) throw new IllegalStateException(path + " is missing");
         return new BufferedReader(new InputStreamReader(gz ? new GZIPInputStream(in) : in, StandardCharsets.UTF_8));
     }
 
     private void loadProps() {
-        try (BufferedReader r = open("blocks/blockprops_1.21.1.txt", false)) {
+        try (BufferedReader r = open("blocks/blockprops_" + GameVersion.RESOURCE_TAG + ".txt", false)) {
             String line;
             while ((line = r.readLine()) != null) {
                 if (line.isEmpty() || line.charAt(0) == '#') continue;
@@ -109,7 +110,7 @@ public final class BlockInfo {
     }
 
     private void loadFlags() {
-        try (BufferedReader r = open("blocks/stateflags_1.21.1.txt.gz", true)) {
+        try (BufferedReader r = open("blocks/stateflags_" + GameVersion.RESOURCE_TAG + ".txt.gz", true)) {
             String line;
             while ((line = r.readLine()) != null) {
                 if (line.isEmpty() || line.charAt(0) == '#') continue;
@@ -134,7 +135,7 @@ public final class BlockInfo {
 
     private void loadShapes() {
         List<Shape> dict = new ArrayList<>();
-        try (BufferedReader r = open("blocks/blockshapes_1.21.1.txt.gz", true)) {
+        try (BufferedReader r = open("blocks/blockshapes_" + GameVersion.RESOURCE_TAG + ".txt.gz", true)) {
             String line;
             while ((line = r.readLine()) != null) {
                 if (line.isEmpty() || line.charAt(0) == '#') continue;

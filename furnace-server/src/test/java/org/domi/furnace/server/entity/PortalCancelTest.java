@@ -2,6 +2,7 @@
 // 서버 차원 이동 경로는 대역(DimensionTravel)으로 갈아 끼워 "넘어가려 했는가"만 센다. 구독자가 없을 때(허용)와 짝으로 본다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -23,7 +24,7 @@ class PortalCancelTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     /** 넘어가려는 횟수만 센다. */

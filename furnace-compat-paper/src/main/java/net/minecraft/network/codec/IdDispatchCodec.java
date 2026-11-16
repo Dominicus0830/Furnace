@@ -47,7 +47,7 @@ public class IdDispatchCodec<B extends io.netty.buffer.ByteBuf, V, T> implements
 
     /** 이 단계의 코덱은 등록부 모양만 있다(패킷 바이트 변환은 다음 단계). */
     static final class Unsupported extends org.domi.furnace.compat.nms.UnsupportedNmsCall {
-        Unsupported(String what) { super("net.minecraft.network.codec.IdDispatchCodec#" + what, "패킷 바이트 변환은 아직 연결되지 않았다(ProtocolLib 다리 3단계)"); }
+        Unsupported(String what) { super("net.minecraft.network.codec.IdDispatchCodec#" + what, "packet byte conversion is not connected yet (ProtocolLib bridge stage 3)"); }
     }
 
     record Entry<B, V, T>(StreamCodec<? super B, ? extends V> serializer, T type) {}

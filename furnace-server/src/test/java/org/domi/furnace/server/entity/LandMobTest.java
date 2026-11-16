@@ -1,6 +1,7 @@
 // 땅 위 몹(여우 등): 스폰·저장·AI 틱이 예외 없이 돌고 핵심 행동이 나온다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.block.B;
@@ -14,7 +15,7 @@ class LandMobTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     /** 확률 시험의 난수 시드(한 곳). 몹 난수는 서버에서는 시드 없이(nanoTime) 만들어지지만 시험에서는 고정해 흔들림을 없앤다. */
@@ -409,7 +410,7 @@ class LandMobTest {
 
     @Test
     void goatRamsAndDropsHorn() {
-        org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+        org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         var level = new SkeletonCombatTest.ArenaLevel();
         level.dayTime = 6000;
         var goat = new Goat(level, level.nextEntityId());
@@ -484,7 +485,7 @@ class LandMobTest {
 
     @Test
     void snifferStatesAndSaves() {
-        org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+        org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         var level = new SkeletonCombatTest.ArenaLevel();
         level.dayTime = 6000;
         var sniffer = new Sniffer(level, level.nextEntityId());
@@ -505,7 +506,7 @@ class LandMobTest {
 
     @Test
     void allayFetchesMatchingItemAndSaves() {
-        org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+        org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         var level = new SkeletonCombatTest.ArenaLevel();
         level.dayTime = 6000;
         var allay = new Allay(level, level.nextEntityId());
@@ -526,7 +527,7 @@ class LandMobTest {
 
     @Test
     void hoglinFamilyConvertsAndPiglinAdmiresGold() {
-        org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+        org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         var level = new SkeletonCombatTest.ArenaLevel();
         level.dayTime = 6000;
         var hoglin = new Hoglin(level, level.nextEntityId());

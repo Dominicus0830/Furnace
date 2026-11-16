@@ -1,5 +1,6 @@
 package org.domi.furnace.compat.paper;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
@@ -131,7 +132,7 @@ class BukkitBlockStateKindsTest {
             if (t != null) serverTypes.add(t);
         }
         var tableTypes = new java.util.TreeSet<String>();
-        for (String line : Files.readAllLines(Path.of("../tools/compat/bukkit-block-state-hierarchy-1.21.1.txt"))) {
+        for (String line : Files.readAllLines(Path.of("../tools/compat/bukkit-block-state-hierarchy-" + GameVersion.RESOURCE_TAG + ".txt"))) {
             if (line.startsWith("T ")) tableTypes.add("minecraft:" + line.split(" ")[1]);
         }
         assertEquals(serverTypes, tableTypes);

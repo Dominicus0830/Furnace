@@ -1,6 +1,7 @@
 // N-09: 디스크 로드 벌크 디코드가 예전 블록별 setBlock 경로와 같은 청크 상태(블록·비공기 수·높이맵·dirty·재저장 NBT)를 만드는지 대조.
 package org.domi.furnace.server.world.anvil;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -33,10 +34,10 @@ class AnvilBulkDecodeParityTest {
 
     @BeforeAll
     static void load() throws Exception {
-        reg = BlockRegistry.load("blocks/1.21.1.txt");
-        var biomes = RegistrySet.load("registries/1.21.1.txt").entries("minecraft:worldgen/biome");
+        reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        var biomes = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt").entries("minecraft:worldgen/biome");
         plains = biomes.indexOf("minecraft:plains");
-        codec = new AnvilChunkCodec(reg, ItemRegistry.load("items/1.21.1.txt"), biomes, plains,
+        codec = new AnvilChunkCodec(reg, ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"), biomes, plains,
                 ChunkColumn.MIN_Y, ChunkColumn.SECTION_COUNT);
         List<Integer> ids = new ArrayList<>(List.of(0, 0, 0, 12958, 12959));
         Random r = new Random(5);

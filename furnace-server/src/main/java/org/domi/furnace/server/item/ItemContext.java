@@ -1,6 +1,7 @@
 // 아이템 코덱이 쓰는 레지스트리(이름 ↔ 숫자 id). 서버 시작 때 데이터 팩 매니저가 설치한다(바닐라 RegistryAccess 대응).
 package org.domi.furnace.server.item;
 
+import org.domi.furnace.api.GameVersion;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -36,7 +37,7 @@ public final class ItemContext {
 
     public static TagRegistries regs() {
         TagRegistries r = regs;
-        if (r == null) throw new IllegalStateException("아이템 레지스트리가 설치되지 않음");
+        if (r == null) throw new IllegalStateException("the item registry is not installed");
         return r;
     }
 
@@ -51,7 +52,7 @@ public final class ItemContext {
     public static org.domi.furnace.server.net.registry.TagSet tagSet() { return tags; }
 
     private static final class VanillaTags {
-        static final org.domi.furnace.server.net.registry.TagSet SET = org.domi.furnace.server.net.registry.TagSet.load("registries/tags-1.21.1.txt");
+        static final org.domi.furnace.server.net.registry.TagSet SET = org.domi.furnace.server.net.registry.TagSet.load("registries/tags-" + GameVersion.RESOURCE_TAG + ".txt");
     }
 
     /**

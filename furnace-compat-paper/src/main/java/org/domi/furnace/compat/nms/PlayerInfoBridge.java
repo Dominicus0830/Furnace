@@ -28,10 +28,10 @@ public final class PlayerInfoBridge {
     private PlayerInfoBridge() {}
 
     /** 되돌리지 못하는 까닭(되면 null). */
-    static String irreversibleReason() { return Profiles.available() ? null : Profiles.MISSING; }
+    static String irreversibleReason() { return Profiles.available() ? null : Profiles.missing(); }
 
     public static net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket fromFurnace(ClientboundPlayerInfoUpdatePacket p) {
-        if (!Profiles.available()) throw new UnsupportedNmsCall("fromFurnace(" + p.type() + ")", Profiles.MISSING);
+        if (!Profiles.available()) throw new UnsupportedNmsCall("fromFurnace(" + p.type() + ")", Profiles.missing());
         EnumSet<net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket.Action> actions =
                 EnumSet.noneOf(net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket.Action.class);
         for (ClientboundPlayerInfoUpdatePacket.Action a : p.actions()) {
@@ -116,7 +116,7 @@ public final class PlayerInfoBridge {
             return new RemoteChatSession.Data(s.sessionId(), new ProfilePublicKey.Data(s.expiresAt(),
                     KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(s.publicKey())), s.keySignature()));
         } catch (GeneralSecurityException e) {
-            throw new IllegalArgumentException("player_info_update 채팅 세션 공개 키가 RSA 공개 키(X.509)가 아니다: " + e.getMessage(), e);
+            throw new IllegalArgumentException("the player_info_update chat session public key is not an RSA public key (X.509): " + e.getMessage(), e);
         }
     }
 
@@ -128,7 +128,7 @@ public final class PlayerInfoBridge {
     }
 
     private static <T> T need(T v, String at) {
-        if (v == null) throw new IllegalArgumentException(at + " 가 null 이다(바닐라도 쓰다 실패한다)");
+        if (v == null) throw new IllegalArgumentException(at + " is null (vanilla also fails to write it)");
         return v;
     }
 }

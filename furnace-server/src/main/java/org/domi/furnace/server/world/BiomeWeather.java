@@ -2,6 +2,7 @@
 // shouldFreeze·shouldSnow 의 온도 부분)을 한곳에 둔다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import com.google.gson.JsonObject;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -49,7 +50,7 @@ public final class BiomeWeather {
     private static Climate load(String biome) {
         try {
             WorldgenData d = data;
-            if (d == null) data = d = WorldgenData.load("worldgen/1.21.1");
+            if (d == null) data = d = WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG);
             JsonObject b = d.biome(biome);
             float t = b.has("temperature") ? b.get("temperature").getAsFloat() : 0.5F;
             boolean frozen = b.has("temperature_modifier") && "frozen".equals(b.get("temperature_modifier").getAsString());

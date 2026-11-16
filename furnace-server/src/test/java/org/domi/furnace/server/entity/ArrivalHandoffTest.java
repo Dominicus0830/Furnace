@@ -2,6 +2,7 @@
 // 바닐라처럼 넘어간 그 틱에 새 차원에 있다. 기다림을 넘기면 연결이 편입 작업을 보낸다. 어느 쪽이든 편입은 정확히 한 번.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
@@ -31,7 +32,7 @@ class ArrivalHandoffTest {
 
     private World world() throws Exception {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2, reg.directBits(), 7, TestServers.ioPool());
         w.worldDir(tmp);
         w.startTicking();

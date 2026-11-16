@@ -66,7 +66,7 @@ public final class ListenerFallback {
             try {
                 methods = scan(c);
             } catch (IOException | RuntimeException cannotRead) {
-                if (c == listener) throw new IllegalStateException("리스너 클래스 바이트를 읽을 수 없다: " + c.getName(), cannotRead);
+                if (c == listener) throw new IllegalStateException("cannot read the listener class bytes: " + c.getName(), cannotRead);
                 break;   // 부모 쪽은 읽을 수 없으면(라이브러리·JDK) 거기서 멈춘다
             }
             addAll(out, c, methods, c != listener, false);
@@ -164,7 +164,7 @@ public final class ListenerFallback {
     private static List<Found> scan(Class<?> c) throws IOException {
         byte[] bytes;
         try (InputStream in = c.getResourceAsStream("/" + c.getName().replace('.', '/') + ".class")) {
-            if (in == null) throw new IOException("클래스 파일을 찾을 수 없다: " + c.getName());
+            if (in == null) throw new IOException("class file not found: " + c.getName());
             bytes = in.readAllBytes();
         }
         List<Found> out = new ArrayList<>();

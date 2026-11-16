@@ -1,6 +1,7 @@
 // 청크 다시 보내기의 재구독은 지금 구독 중인 플레이어만 바꾼다 — 그 사이 구독을 푼 플레이어를 되살리지 않는다(PR #273 검토 R1).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.UUID;
@@ -18,7 +19,7 @@ class ResubscribeIfPresentTest {
     void onlyReplacesLiveSubscriptions() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         try {
-            BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+            BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
             World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2, reg.directBits(), 7,
                     Executors.newSingleThreadExecutor());
             ChunkPos cp = new ChunkPos(3, 4);

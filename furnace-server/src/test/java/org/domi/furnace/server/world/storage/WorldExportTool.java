@@ -2,6 +2,7 @@
 // -Dfurnace.exportWorld=<폴더> 일 때만 실행(평소 테스트에서는 건너뜀). 스폰 청크 (0,0)의 (0, 200, 0) 에 다이아 블록 표식을 둔다.
 package org.domi.furnace.server.world.storage;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.ByteArrayOutputStream;
@@ -29,10 +30,10 @@ class WorldExportTool {
         long seed = Long.getLong("furnace.exportSeed", 1234L);
         int radius = Integer.getInteger("furnace.exportRadius", 4);
         Path dir = Path.of(out);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         List<String> biomes = registries.entries("minecraft:worldgen/biome");
-        AnvilChunkCodec codec = new AnvilChunkCodec(reg, ItemRegistry.load("items/1.21.1.txt"), biomes,
+        AnvilChunkCodec codec = new AnvilChunkCodec(reg, ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"), biomes,
                 biomes.indexOf("minecraft:plains"), ChunkColumn.MIN_Y, ChunkColumn.SECTION_COUNT);
         NoiseWorldSource source = NoiseWorldSource.overworld(seed, reg, registries);
         try (LevelStorage storage = LevelStorage.open(dir)) {

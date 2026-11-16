@@ -18,7 +18,7 @@ public record ResourcePack(UUID id, String url, String hash, boolean required, T
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(url, "url");
         hash = hash == null ? "" : hash;
-        if (hash.length() > 40) throw new IllegalArgumentException("hash 는 40자 이하여야 한다: " + hash.length());
+        if (hash.length() > 40) throw new IllegalArgumentException("hash must be at most 40 characters: " + hash.length());
     }
 
     public ResourcePack(UUID id, String url, String hash, boolean required) {

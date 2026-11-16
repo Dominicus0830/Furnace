@@ -3,6 +3,7 @@
 // 보내는 것(ChunkTrackingView)만 둥근 모양이다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -52,7 +53,7 @@ class ChunkCornerLoadTest {
     @Test
     void squareCorners_areLoadedAndTicking_butNotSentNorSubscribed() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 2);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         int vd = 6;
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(2), sched, 2, 16, vd, vd,
                 reg.directBits(), 7, Executors.newSingleThreadExecutor());

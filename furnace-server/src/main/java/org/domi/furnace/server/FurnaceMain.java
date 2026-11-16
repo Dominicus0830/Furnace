@@ -1,6 +1,7 @@
 // Furnace 서버 진입점. 설정 로드 → 스케줄러 기동 → 셧다운 훅 배선.
 package org.domi.furnace.server;
 
+import org.domi.furnace.api.GameVersion;
 import org.domi.furnace.server.config.Config;
 import org.domi.furnace.server.config.ConfigLoader;
 import org.domi.furnace.server.config.Eula;
@@ -111,7 +112,7 @@ public final class FurnaceMain {
         if (migration != null) {
             log.info(Lang.t("config.migrated", migration.from(), migration.to(), migration.backup()));
             for (String c : migration.changes()) {
-                if (c.startsWith(org.domi.furnace.server.config.ConfigMigration.DEFAULT_CHANGE_MARK)) log.warn("  {}", c);
+                if (c.startsWith(org.domi.furnace.server.config.ConfigMigration.defaultChangeMark())) log.warn("  {}", c);
                 else log.info("  {}", c);
             }
         }
@@ -191,10 +192,10 @@ public final class FurnaceMain {
         Config config = ConfigLoader.load(furnaceProps)
                 .withServerProperties(props, options.port(), options.world(), seed);
         long startNanos = System.nanoTime();
-        log.info("Starting minecraft server version 1.21.1");
+        log.info("Starting minecraft server version " + GameVersion.MINECRAFT);
         log.info("Loading properties");
         String furnaceVersion = FurnaceMain.class.getPackage().getImplementationVersion();
-        log.info("This server is running {} {} (Minecraft 1.21.1)", SERVER_BRAND, furnaceVersion != null ? furnaceVersion : "dev");
+        log.info("This server is running {} {} (Minecraft " + GameVersion.MINECRAFT + ")", SERVER_BRAND, furnaceVersion != null ? furnaceVersion : "dev");
         log.info("Default game type: {}", props.gameMode.name());
         log.info("Generating keypair");
         java.security.KeyPair serverKeys = org.domi.furnace.server.net.auth.Crypt.generateKeyPair();
@@ -218,6 +219,7 @@ public final class FurnaceMain {
         log.info("Preparing level \"{}\"", config.levelName());
         var playerLists = new PlayerLists(Path.of("."), settings);
         profileCache.save();
+        profileCache.setProfileLookups(props.onlineMode || config.bungeecord() || !config.velocitySecret().isEmpty());
         var loginContext = org.domi.furnace.server.net.ServerLoginContext.fromProperties(props, serverKeys, playerLists,
                 profileCache, Path.of("server-icon.png")).velocitySecret(config.velocitySecret()).bungeecord(config.bungeecord())
                 .limits(org.domi.furnace.server.net.ConnectionLimits.load(furnaceProps, log::warn)
@@ -245,11 +247,11 @@ public final class FurnaceMain {
         org.domi.furnace.server.plugin.PluginSettings pluginSettings = org.domi.furnace.server.plugin.PluginSettings.load(furnaceProps);
         org.domi.furnace.server.plugin.PluginBootstrapper pluginBoot =
                 org.domi.furnace.server.plugin.PluginBootstrapper.bootstrap(Path.of("plugins"), pluginSettings);
-        BlockRegistry blockRegistry = BlockRegistry.load("blocks/1.21.1.txt");
-        ItemRegistry itemRegistry = ItemRegistry.load("items/1.21.1.txt");
+        BlockRegistry blockRegistry = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        ItemRegistry itemRegistry = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
         org.domi.furnace.server.entity.PlayerData.itemRegistry(itemRegistry);
         // 게임 레지스트리 훅: 플러그인 바이옴·차원 타입을 바닐라 항목 뒤에 붙인 세트(바닐라 인덱스는 그대로)
-        RegistrySet registries = pluginBoot.collectGameRegistries(RegistrySet.load("registries/1.21.1.txt"));
+        RegistrySet registries = pluginBoot.collectGameRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"));
         RegistrySet.install(registries);   // 데이터 팩을 읽으면 그쪽(동기화 레지스트리를 다시 만든 것)으로 바뀐다
         pluginBoot.collectGenerationHooks();   // 월드젠 단계 훅(W3) — 월드를 만들기 전에
         var worldSettings = org.domi.furnace.server.world.WorldSettings.load(furnaceProps);
@@ -467,7 +469,10 @@ public final class FurnaceMain {
         // 플러그인: 불러오기(onLoad) — 월드 준비 뒤·접속을 받기 전에 켠다(Bukkit POSTWORLD 와 같은 시점).
         org.domi.furnace.api.Furnace.setServer(core.plugins());
         core.plugins().pluginsImpl().settings(pluginSettings);
-        core.plugins().pluginsImpl().loadAll(pluginBoot);
+        // onLoad·onEnable 은 전역 스레드에서 부른다(N2b-6): Bukkit 의 주 스레드에 가장 가까운 곳이 전역 스레드이고(동기 작업·Bukkit 스케줄러가 도는 곳),
+        // Paper 처럼 켜는 스레드 = 동기 작업 스레드여야 켤 때 Thread.currentThread() 를 주 스레드로 적어 두는 플러그인(FAWE 등)이 맞게 돈다.
+        // 개발 모드 다시 읽기(reloadNow)도 이미 전역 스레드에서 켠다. 틱 박동은 아직 시작 전이라 전역 스레드는 비어 있다.
+        onGlobal(scheduler, () -> core.plugins().pluginsImpl().loadAll(pluginBoot));
         // 추가 월드 자동 불러오기(furnace.properties worlds.autoload, 기본 없음) — 플러그인 onLoad 뒤·onEnable 앞(onLoad 에서 단 WorldLoadEvent 처리기가 받는다)
         for (String name : worldSettings.autoload()) {
             try {
@@ -559,6 +564,7 @@ public final class FurnaceMain {
                     } catch (InterruptedException e) {
                         log.error(Lang.t("stop.barrier-interrupted"), e);
                     }
+                    for (World w : dimensions.all()) w.relight().shutdown();   // 빛 다시 계산의 붙잡기를 풀어 저장 전 빛 계산이 마저 하게(T-197 검토 R1)
                     for (World w : dimensions.all()) {
                         try {
                             int left = w.flushAllDrained(Math.max(1, flushDeadline - System.nanoTime()));
@@ -615,7 +621,7 @@ public final class FurnaceMain {
         // 바닐라 prepareLevels → overworld.setDefaultSpawnPos: 게임 규칙 spawnChunkRadius 의 START 티켓 — 플레이어가 없어도 스폰 청크가 올라와 돈다
         world.enableSpawnChunks();
         prepareSpawnArea(world, defaultSpawn, config.spawnChunkRadius());
-        core.plugins().pluginsImpl().enableAll();
+        onGlobal(scheduler, () -> core.plugins().pluginsImpl().enableAll());   // 위 loadAll 과 같은 까닭으로 전역 스레드에서
         core.plugins().pluginsImpl().startWatcher();   // plugins.dev-mode.auto-reload 일 때만
         core.loadFunctions();   // 플러그인(onLoad·onEnable)·Furnace 명령이 모두 등록된 뒤 함수를 파싱한다 — 그 명령을 쓰는 함수가 시작 때 빠지지 않게
         network.start();
@@ -643,6 +649,21 @@ public final class FurnaceMain {
                 String.format(java.util.Locale.ROOT, "%.3fs", (System.nanoTime() - startNanos) / 1.0E9));
         core.events().call(new org.domi.furnace.api.event.server.ServerLoadEvent());
         shutdown.await();
+    }
+
+    /** 전역 스레드에서 돌리고 끝날 때까지 기다린다. 던진 예외는 감싸지 않고 그대로 다시 던진다. */
+    private static void onGlobal(FurnaceSchedulerImpl scheduler, Runnable task) {
+        try {
+            scheduler.global().submit(() -> {
+                task.run();
+                return null;
+            }).join();
+        } catch (java.util.concurrent.CompletionException e) {
+            Throwable c = e.getCause();
+            if (c instanceof RuntimeException r) throw r;
+            if (c instanceof Error err) throw err;
+            throw e;
+        }
     }
 
     /** 빈 서버 일시정지와 주기 백업을 건다. 닫으면 유지보수 스레드를 멈춘다(종료 훅). */
@@ -768,7 +789,7 @@ public final class FurnaceMain {
                     : props.motd;
         }
         @Override public String levelName() { return config.levelName(); }
-        @Override public String version() { return "1.21.1"; }
+        @Override public String version() { return GameVersion.MINECRAFT; }
         @Override public String plugins() { return ""; }
         @Override public int playerCount() { return core.players().size(); }
         @Override public int maxPlayers() { return props.maxPlayers; }
@@ -784,7 +805,7 @@ public final class FurnaceMain {
             try {
                 task.run();
             } catch (Throwable t) {
-                GLOBAL_ERRORS.report("자동 저장(level.dat)", t);
+                GLOBAL_ERRORS.report(Lang.t("error.label.autosave-level-dat"), t);
             } finally {
                 scheduler.global().executeDelayed(this, period);
             }
@@ -858,7 +879,7 @@ public final class FurnaceMain {
                 next += period;
                 task.run();
             } catch (Throwable t) {
-                errors.report("전역 박동", t);   // 예전엔 future 에 담겨 사라졌다
+                errors.report(Lang.t("error.label.global-tick"), t);   // 예전엔 future 에 담겨 사라졌다
             } finally {
                 schedule();
             }

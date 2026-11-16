@@ -15,7 +15,7 @@ public record ItemEnchantments(Map<String, Integer> levels, boolean showInToolti
         for (var e : levels.entrySet()) {
             String key = e.getKey().indexOf(':') < 0 ? "minecraft:" + e.getKey() : e.getKey();
             int lv = e.getValue();
-            if (lv > 255) throw new IllegalArgumentException("마법 부여 레벨은 255 이하: " + key + "=" + lv);
+            if (lv > 255) throw new IllegalArgumentException("an enchantment level must be at most 255: " + key + "=" + lv);
             if (lv > 0) m.put(key, lv);
         }
         levels = m.isEmpty() ? Map.of() : Collections.unmodifiableMap(m);

@@ -2,6 +2,7 @@
 // 그리고 정박기 블록: 발광석 충전, 네더에서 쓰면 스폰 지점(메시지·소리), 다른 차원이면 터진다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -26,10 +27,10 @@ class RespawnFinderTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
-    static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
+    static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
 
     /** 칸 높이는 오버월드(슈퍼플랫 바닥 -61)로 두고 차원 키와 타입 값(침대·정박기 규칙은 바닐라처럼 타입의 bedWorks·respawnAnchorWorks)만 바꾼다. */
     static final class Lvl extends BlockPlacementTest.TestLevel {

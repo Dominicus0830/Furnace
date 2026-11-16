@@ -1,6 +1,7 @@
 // 바닐라 StructureTemplatePool + StructurePoolElement(single/legacy/feature/list/empty) 이식 — 템플릿 풀 로드와 요소 배치.
 package org.domi.furnace.server.world.gen.structure;
 
+import org.domi.furnace.api.GameVersion;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -50,7 +51,7 @@ public final class JigsawPools {
 
     private Pool load(String id) {
         String path = id.substring(id.indexOf(':') + 1);
-        String res = "worldgen/1.21.1/worldgen/template_pool/" + path + ".json";
+        String res = "worldgen/" + GameVersion.RESOURCE_TAG + "/worldgen/template_pool/" + path + ".json";
         JsonObject root;
         try (InputStream in = JigsawPools.class.getClassLoader().getResourceAsStream(res)) {
             if (in == null) return null;
@@ -91,7 +92,7 @@ public final class JigsawPools {
                 return new ListElement(List.copyOf(list), projection);
             }
             default:
-                throw new IllegalArgumentException("미지원 pool element: " + type);
+                throw new IllegalArgumentException("unsupported pool element: " + type);
         }
     }
 

@@ -24,7 +24,9 @@ helper 5.6.14 의 `InventorySerialization.encodeItemStackToString`·`decodeItemS
 
 ## Paper 1.21.1 과 관측되는 차이
 
-1. **`meta-type` 은 항상 `UNSPECIFIC`.** Paper 는 아이템에 따라 `ARMOR`·`COLORABLE_ARMOR`·`POTION`·`SKULL`·`TILE_ENTITY`·`ENCHANTED` 등을 쓰고 종류별 키(`potion-type`, `skull-owner`, `color`, `pages` …)를 쓴다. 우리는 해당 컴포넌트를 `unhandled` 에 넣는다. 읽을 때는 Paper 의 meta-type 이름을 모두 받아들이지만 종류별 키는 무시한다(Paper 가 쓴 포션·머리·책 메타의 그 데이터는 잃는다). 모르는 meta-type 은 `IllegalArgumentException`, 없으면 `NoSuchElementException`(Paper 와 같다).
+1. **`meta-type` 은 가죽 방어구만 종류별.** T-141 E11 부터 가죽 투구·갑옷·바지·신발·늑대 갑옷은 `COLORABLE_ARMOR`, 가죽 말 갑옷은 `LEATHER_ARMOR`(키 `color`)로 Paper 와 같이 쓰고 읽는다(머리 `SKULL`·현수막 `BANNER` 도 E11b 에서 같은 방식).
+   Paper 는 그 밖에도 아이템에 따라 `ARMOR`·`POTION`·`TILE_ENTITY`·`ENCHANTED` 등을 쓰고 종류별 키(`potion-type`, `pages` …)를 쓴다. 아직 없는 종류는 `UNSPECIFIC` 으로 쓰고 해당 컴포넌트를 `unhandled` 에 넣는다.
+   읽을 때는 Paper 의 meta-type 이름을 모두 받아들이지만 아직 없는 종류의 키는 무시한다(Paper 가 쓴 포션·책 메타의 그 데이터는 잃는다). 모르는 meta-type 은 `IllegalArgumentException`, 없으면 `NoSuchElementException`(Paper 와 같다).
 2. **`attribute-modifiers`·`food` 등 모델링하지 않는 키.** Paper 는 `attribute-modifiers` 를 `AttributeModifier` 객체 맵으로 쓰는데 우리는 `AttributeModifier` 클래스·별칭이 없어, Paper 가 쓴 그런 스트림은 `IOException: Failed to deserialize object` 로 실패하고 Paper YAML 의 해당 키는 무시된다. 우리가 쓰는 쪽은 컴포넌트 전체가 `unhandled` 에 산다.
 3. **JSON 글 모양이 다를 수 있다.** `display-name`·`item-name`·`lore` 는 JSON 문자열이지만 `Text#toJson` 이 만든 모양이다. `setDisplayName("§6x")` 한 이름의 JSON 구조가 CraftChatMessage 의 것(`{"extra":[...],"text":""}` 꼴)과 글자 단위로 같지 않을 수 있다. 읽을 때는 JSON·§ 서식 둘 다 받는다. 두 서버가 같은 글을 보여 주는지는 확인하지 못했다(가정).
 4. **키 순서는 근사.** 순서는 Paper 1.21.4 소스를 따라 두었지만 1.21.1 CraftBukkit 원본은 읽지 못했다. 1.21.4 에서 가져온 키 이름(`fire-resistant`·`hide-tool-tip`·`max-stack-size`·`rarity`·`max-damage`·`enchantment-glint-override`)이 1.21.1 에서도 같은지는 **가정**이다. 1.21.2 이후 키(`tooltip-style`·`item-model`·`glider`·`damage-resistant`·`enchantable`·`tool`·`use-cooldown`·`equippable` 등)는 쓰지도 읽지도 않는다.

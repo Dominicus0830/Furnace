@@ -2,6 +2,7 @@
 // 사건은 PlayerAdvancements.trigger* 메서드(게임 쪽 호출 지점이 부르는 것)로 넣는다. 호출 지점 자체는 각 게임 시험이 따로 본다.
 package org.domi.furnace.server.advancement;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
@@ -111,7 +112,7 @@ class AdvancementTriggerWiringTest {
         PackRepository repo = new PackRepository(packDir, null);
         repo.reload();
         repo.setSelected(List.of("vanilla"));
-        TagRegistries tags = new TagRegistries(RegistrySet.load("registries/1.21.1.txt"));
+        TagRegistries tags = new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"));
         try (ResourceManager rm = repo.openResourceManager()) {
             regs = new LootRegistries(tags, tags.loadAll(rm));
             loot = LootData.load(rm, regs);
@@ -509,7 +510,7 @@ class AdvancementTriggerWiringTest {
     }
 
     static org.domi.furnace.server.entity.Player survivalPlayer() {
-        org.domi.furnace.server.item.ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        org.domi.furnace.server.item.ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         var p = new org.domi.furnace.server.entity.Player(7, UUID.randomUUID(), "Steve", new org.domi.furnace.server.ConcurrentEmbeddedChannel());
         p.vitals().loadGameTypes(null, org.domi.furnace.server.world.GameMode.SURVIVAL, false);
         var dry = new org.domi.furnace.server.entity.PlayerVitals.Surroundings(true, false, false, false, null, false, -64);

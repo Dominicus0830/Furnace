@@ -1,6 +1,7 @@
 // 연결 처리에 필요한 서버 전역 설정·상태(온라인 모드 키·세션 서비스·사용자 목록·상태 응답 정보). 모든 연결이 공유한다.
 package org.domi.furnace.server.net;
 
+import org.domi.furnace.api.GameVersion;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
@@ -62,6 +63,17 @@ public final class ServerLoginContext {
     }
 
     /** 접속 방어 설정(단계별 패킷 속도·크기·시간 초과, 길이 상한, PROXY 프로토콜). 기본은 지금까지의 동작. */
+    /**
+     * 시험 전용: 플레이 진입 때 플레이어의 게임 프로필을 바꿔 넣는다(엔티티 UUID·접속 이름은 그대로). 엔티티 UUID 와 프로필을 나눈 호출처
+     * 분류(T-141 E11c-2a)를 검사한다. null 이면 하지 않는다(운영 서버는 늘 null).
+     */
+    volatile java.util.function.UnaryOperator<GameProfile> profileForTest;
+
+    public ServerLoginContext profileForTest(java.util.function.UnaryOperator<GameProfile> hook) {
+        this.profileForTest = hook;
+        return this;
+    }
+
     volatile ConnectionLimits limits = ConnectionLimits.DEFAULT;
 
     public ServerLoginContext limits(ConnectionLimits limits) {
@@ -97,7 +109,7 @@ public final class ServerLoginContext {
 
     /** Velocity 모던 포워딩 비밀(빈 값이면 끔). */
     public ServerLoginContext velocitySecret(String secret) {
-        if (bungeecord && secret != null && !secret.isEmpty()) throw new IllegalStateException("BungeeCord 포워딩과 Velocity 포워딩은 함께 켤 수 없다");
+        if (bungeecord && secret != null && !secret.isEmpty()) throw new IllegalStateException("BungeeCord forwarding and Velocity forwarding cannot both be enabled");
         this.velocity = secret == null || secret.isEmpty() ? null : new org.domi.furnace.server.net.auth.VelocityForwarding(secret);
         return this;
     }
@@ -106,7 +118,7 @@ public final class ServerLoginContext {
     volatile boolean bungeecord;
 
     public ServerLoginContext bungeecord(boolean enabled) {
-        if (enabled && velocity != null) throw new IllegalStateException("BungeeCord 포워딩과 Velocity 포워딩은 함께 켤 수 없다");
+        if (enabled && velocity != null) throw new IllegalStateException("BungeeCord forwarding and Velocity forwarding cannot both be enabled");
         this.bungeecord = enabled;
         return this;
     }
@@ -185,8 +197,8 @@ public final class ServerLoginContext {
         }
         o.add("players", players);
         JsonObject version = new JsonObject();
-        version.addProperty("name", "1.21.1");
-        version.addProperty("protocol", 767);
+        version.addProperty("name", GameVersion.MINECRAFT);
+        version.addProperty("protocol", GameVersion.PROTOCOL);
         o.add("version", version);
         if (favicon != null) o.addProperty("favicon", favicon);
         o.addProperty("enforcesSecureChat", core != null ? core.enforceSecureProfile() : enforceSecureChat);

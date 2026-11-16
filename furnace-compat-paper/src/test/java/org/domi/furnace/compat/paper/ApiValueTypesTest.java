@@ -1,5 +1,6 @@
 package org.domi.furnace.compat.paper;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -63,8 +64,8 @@ class ApiValueTypesTest {
     /** Material 은 블록·아이템 레지스트리의 합집합과 같아야 한다(생성기를 다시 돌리지 않고 버전만 올리는 실수를 막는다). */
     @Test
     void materialMatchesTheRegistries() throws Exception {
-        Set<String> blocks = lines("/blocks/1.21.1.txt");
-        Set<String> items = lines("/items/1.21.1.txt");
+        Set<String> blocks = lines("/blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        Set<String> items = lines("/items/" + GameVersion.RESOURCE_TAG + ".txt");
         Set<String> union = new TreeSet<>(blocks);
         union.addAll(items);
         Set<String> mats = new TreeSet<>();

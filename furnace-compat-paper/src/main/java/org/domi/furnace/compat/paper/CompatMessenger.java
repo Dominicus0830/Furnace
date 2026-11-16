@@ -99,7 +99,7 @@ public final class CompatMessenger extends StandardMessenger {
         try {
             furnace.registerPluginChannel(a, channel);
         } catch (IllegalArgumentException e) {
-            a.logger().log(Level.FINE, "채널 " + channel + " 은 클라이언트에 알리지 않는다: " + e.getMessage());
+            a.logger().log(Level.FINE, "channel " + channel + " is not announced to the client: " + e.getMessage());
         }
     }
 

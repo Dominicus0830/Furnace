@@ -14,6 +14,7 @@ import org.domi.furnace.api.registry.PluginRegistries;
 import org.domi.furnace.api.registry.PluginRegistry;
 import org.domi.furnace.api.registry.RegistryListener;
 import org.domi.furnace.server.data.ResourceId;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,11 +45,11 @@ public final class PluginRegistryStore {
 
     /** "ns:path" 꼴(namespace 생략 불가)인지, namespace 가 expected 인지 검사한다. */
     static String checkKey(String key, String expectedNamespace, String what) {
-        if (key == null || key.indexOf(':') <= 0) throw new IllegalArgumentException(what + " 키는 namespace:path 꼴이어야 한다: " + key);
+        if (key == null || key.indexOf(':') <= 0) throw new IllegalArgumentException("the " + what + " key must look like namespace:path: " + key);
         ResourceId id = ResourceId.tryParse(key);
-        if (id == null || id.path().isEmpty()) throw new IllegalArgumentException("잘못된 " + what + " 키: " + key);
+        if (id == null || id.path().isEmpty()) throw new IllegalArgumentException("invalid " + what + " key: " + key);
         if (!id.namespace().equals(expectedNamespace)) {
-            throw new IllegalArgumentException(what + " 키의 namespace 는 '" + expectedNamespace + "' 여야 한다: " + key);
+            throw new IllegalArgumentException("the " + what + " key namespace must be '" + expectedNamespace + "': " + key);
         }
         return key;
     }
@@ -76,12 +77,12 @@ public final class PluginRegistryStore {
 
         T register(String who, String k, Object value) {
             if (value == null) throw new NullPointerException("value");
-            if (!type.isInstance(value)) throw new IllegalArgumentException(key + " 의 값은 " + type.getName() + " 이어야 한다: " + value.getClass().getName());
+            if (!type.isInstance(value)) throw new IllegalArgumentException(key + " value must be a " + type.getName() + ": " + value.getClass().getName());
             T v = type.cast(value);
             synchronized (this) {
-                if (removed) throw new IllegalStateException("사라진 레지스트리(만든 플러그인이 꺼졌다): " + key);
-                if (frozen) throw new IllegalStateException("고정된 레지스트리: " + key);
-                if (entries.containsKey(k)) throw new IllegalArgumentException(key + " 에 이미 있는 항목: " + k + " (" + entries.get(k).owner() + ")");
+                if (removed) throw new IllegalStateException("registry is gone (the plugin that created it was disabled): " + key);
+                if (frozen) throw new IllegalStateException("frozen registry: " + key);
+                if (entries.containsKey(k)) throw new IllegalArgumentException(key + " already has the entry: " + k + " (" + entries.get(k).owner() + ")");
                 Map<String, Entry<T>> next = new LinkedHashMap<>(entries);
                 next.put(k, new Entry<>(v, who));
                 entries = Collections.unmodifiableMap(next);
@@ -93,11 +94,11 @@ public final class PluginRegistryStore {
         boolean unregister(String who, String k) {
             Entry<T> e;
             synchronized (this) {
-                if (removed) throw new IllegalStateException("사라진 레지스트리(만든 플러그인이 꺼졌다): " + key);
+                if (removed) throw new IllegalStateException("registry is gone (the plugin that created it was disabled): " + key);
                 e = entries.get(k);
                 if (e == null) return false;
-                if (!e.owner().equals(who)) throw new IllegalArgumentException(k + " 는 " + e.owner() + " 의 항목이다");
-                if (frozen) throw new IllegalStateException("고정된 레지스트리: " + key);
+                if (!e.owner().equals(who)) throw new IllegalArgumentException(k + " belongs to " + e.owner());
+                if (frozen) throw new IllegalStateException("frozen registry: " + key);
                 Map<String, Entry<T>> next = new LinkedHashMap<>(entries);
                 next.remove(k);
                 entries = Collections.unmodifiableMap(next);
@@ -142,7 +143,7 @@ public final class PluginRegistryStore {
                 try {
                     call.accept(l.listener(), k, v);
                 } catch (Throwable t) {
-                    log.error("플러그인 레지스트리 {} 알림 처리 중 예외 ({})", key, l.owner(), t);
+                    log.error(Lang.t("registry.notify-failed", key, l.owner()), t);
                 }
             }
         }
@@ -168,11 +169,11 @@ public final class PluginRegistryStore {
 
         @Override
         public <T> PluginRegistry<T> create(String key, Class<T> type) {
-            checkKey(key, namespace, "레지스트리");
+            checkKey(key, namespace, "registry");
             if (type == null) throw new NullPointerException("type");
             Reg<T> r = new Reg<>(key, type, owner);
             synchronized (PluginRegistryStore.this) {
-                if (registries.containsKey(key)) throw new IllegalArgumentException("이미 있는 레지스트리: " + key);
+                if (registries.containsKey(key)) throw new IllegalArgumentException("registry already exists: " + key);
                 Map<String, Reg<?>> next = new LinkedHashMap<>(registries);
                 next.put(key, r);
                 registries = Collections.unmodifiableMap(next);
@@ -186,7 +187,7 @@ public final class PluginRegistryStore {
             Reg<?> r = registries.get(key);
             if (r == null) return null;
             if (!type.isAssignableFrom(r.type)) {
-                throw new IllegalArgumentException(key + " 의 값 타입은 " + r.type.getName() + " 이다(요청: " + type.getName() + ")");
+                throw new IllegalArgumentException(key + " has value type " + r.type.getName() + " (requested: " + type.getName() + ")");
             }
             return new RegView<>((Reg<T>) r, owner, namespace);
         }
@@ -214,7 +215,7 @@ public final class PluginRegistryStore {
 
         @Override
         public T register(String key, T value) {
-            checkKey(key, namespace, "항목");
+            checkKey(key, namespace, "entry");
             return reg.register(viewer, key, value);
         }
 
@@ -258,7 +259,7 @@ public final class PluginRegistryStore {
 
         @Override
         public void freeze() {
-            if (!reg.owner.equals(viewer)) throw new IllegalStateException(reg.key + " 는 " + reg.owner + " 만 고정할 수 있다");
+            if (!reg.owner.equals(viewer)) throw new IllegalStateException(reg.key + " can only be frozen by " + reg.owner);
             synchronized (reg) {
                 reg.frozen = true;
             }
@@ -273,7 +274,7 @@ public final class PluginRegistryStore {
         @Override
         public void addListener(RegistryListener<? super T> listener) {
             if (listener == null) throw new NullPointerException("listener");
-            if (reg.removed) throw new IllegalStateException("사라진 레지스트리(만든 플러그인이 꺼졌다): " + reg.key);
+            if (reg.removed) throw new IllegalStateException("registry is gone (the plugin that created it was disabled): " + reg.key);
             reg.listeners.add(new Listener<>(listener, viewer));
         }
 

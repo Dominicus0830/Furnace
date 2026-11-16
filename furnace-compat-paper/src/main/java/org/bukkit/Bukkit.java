@@ -30,7 +30,7 @@ public final class Bukkit {
 
     private static Server s() {
         Server x = server;
-        if (x == null) throw new IllegalStateException("서버가 아직 준비되지 않았다");
+        if (x == null) throw new IllegalStateException("the server is not ready yet");
         return x;
     }
 
@@ -44,6 +44,8 @@ public final class Bukkit {
 
     @Deprecated
     public static UnsafeValues getUnsafe() { return s().getUnsafe(); }
+
+    public static org.bukkit.inventory.ItemFactory getItemFactory() { return s().getItemFactory(); }
 
     /** 서버가 없어도(시험·정적 초기화) 답한다 — 값이 고정 목록이라서. */
     public static <T extends Keyed> Registry<T> getRegistry(Class<T> tClass) { return org.domi.furnace.compat.paper.CompatRegistries.forType(tClass); }
@@ -132,6 +134,20 @@ public final class Bukkit {
     public static org.bukkit.block.data.BlockData createBlockData(String data) { return s().createBlockData(data); }
 
     public static org.bukkit.block.data.BlockData createBlockData(Material material, String data) { return s().createBlockData(material, data); }
+
+    public static org.bukkit.profile.PlayerProfile createPlayerProfile(UUID uniqueId) { return s().createPlayerProfile(uniqueId); }
+
+    public static org.bukkit.profile.PlayerProfile createPlayerProfile(String name) { return s().createPlayerProfile(name); }
+
+    public static org.bukkit.profile.PlayerProfile createPlayerProfile(UUID uniqueId, String name) { return s().createPlayerProfile(uniqueId, name); }
+
+    public static com.destroystokyo.paper.profile.PlayerProfile createProfile(UUID uuid) { return s().createProfile(uuid); }
+
+    public static com.destroystokyo.paper.profile.PlayerProfile createProfile(String name) { return s().createProfile(name); }
+
+    public static com.destroystokyo.paper.profile.PlayerProfile createProfile(UUID uuid, String name) { return s().createProfile(uuid, name); }
+
+    public static com.destroystokyo.paper.profile.PlayerProfile createProfileExact(UUID uuid, String name) { return s().createProfileExact(uuid, name); }
 
     public static org.bukkit.inventory.Inventory createInventory(org.bukkit.inventory.InventoryHolder owner, int size) { return s().createInventory(owner, size); }
 

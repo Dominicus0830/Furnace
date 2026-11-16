@@ -127,7 +127,7 @@ public final class PluginTasks {
             try {
                 task.run();
             } catch (Throwable t) {
-                plugin.logger().log(java.util.logging.Level.SEVERE, "작업 실행 중 예외", t);
+                plugin.logger().log(java.util.logging.Level.SEVERE, "Exception while running a task", t);
             } finally {
                 timing.stop(t0);
             }

@@ -10,8 +10,8 @@ public record GoalKey(String namespace, String name) {
     private static final Pattern PART = Pattern.compile("[a-z0-9_.\\-/]+");
 
     public GoalKey {
-        if (namespace == null || !PART.matcher(namespace).matches()) throw new IllegalArgumentException("이름공간이 잘못됐다: " + namespace);
-        if (name == null || !PART.matcher(name).matches()) throw new IllegalArgumentException("이름이 잘못됐다: " + name);
+        if (namespace == null || !PART.matcher(namespace).matches()) throw new IllegalArgumentException("invalid namespace: " + namespace);
+        if (name == null || !PART.matcher(name).matches()) throw new IllegalArgumentException("invalid name: " + name);
     }
 
     public static GoalKey of(String namespace, String name) { return new GoalKey(namespace.toLowerCase(Locale.ROOT), name.toLowerCase(Locale.ROOT)); }

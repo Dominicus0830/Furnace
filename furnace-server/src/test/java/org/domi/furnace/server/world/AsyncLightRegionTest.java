@@ -2,6 +2,7 @@
 // -Dfurnace.bench=true 면 lamps400(발광석 400개를 4틱마다 켜고 끔) region 틱을 끔·켬 교대로 잰다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -61,9 +62,9 @@ class AsyncLightRegionTest {
     @Test
     void mergeAndSplitWithLightInFlight() throws Exception {
         LightSettings.install(new LightSettings(true, 1));
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(10_000_000L, 3);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         var ioPool = Executors.newSingleThreadExecutor();
         var gen = Executors.newSingleThreadExecutor();
         try {
@@ -146,16 +147,16 @@ class AsyncLightRegionTest {
 
     private static Result run(boolean async, int ticks, int view) throws Exception {
         LightSettings.install(new LightSettings(async, 1));
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         var ioPool = Executors.newSingleThreadExecutor();
         var gen = Executors.newFixedThreadPool(2);
         try {
             double sx = 8.5, sy = -60, sz = 8.5;
             World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(2), sched, sched.regionThreadCount(), 16, view, view,
                     reg.directBits(), 7, ioPool, gen);
-            w.setRegistries(reg, ItemRegistry.load("items/1.21.1.txt"));
+            w.setRegistries(reg, ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
             RegionPos rp = new RegionPos(0, 0);
             var ch = new ConcurrentEmbeddedChannel();
             Player p = new Player(w.entityIds().next(), UUID.randomUUID(), "A", ch);

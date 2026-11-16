@@ -1,6 +1,7 @@
 // 문 목표: 좀비(어려움)가 길을 막는 나무문을 240틱 걸려 부수고, 보통 난이도·mobGriefing 끔이면 건드리지 않는다. 열기 목표는 문을 열고 닫는다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.block.B;
@@ -18,7 +19,7 @@ class DoorGoalsTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static final class Arena extends BlockPlacementTest.TestLevel {
@@ -34,7 +35,7 @@ class DoorGoalsTest {
         }
     }
 
-    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
 
     private static Arena wallWithDoor(boolean open) {
         var level = new Arena();

@@ -3,6 +3,7 @@
 // (장식 항아리는 BlockState.getSoundType 을 덮어 금 간 상태만 break 소리가 다르다 — 표의 [state-overrides] 구역).
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -58,8 +59,8 @@ public final class BlockSounds {
         List<SoundType> types = new ArrayList<>();
         SoundType[] byBlock = new SoundType[blocks.blockCount()];
         java.util.Map<Integer, StateOverride> overrides = new java.util.HashMap<>();
-        try (var in = BlockSounds.class.getClassLoader().getResourceAsStream("blocks/soundtypes_1.21.1.txt")) {
-            if (in == null) throw new IllegalStateException("blocks/soundtypes_1.21.1.txt 없음");
+        try (var in = BlockSounds.class.getClassLoader().getResourceAsStream("blocks/soundtypes_" + GameVersion.RESOURCE_TAG + ".txt")) {
+            if (in == null) throw new IllegalStateException("blocks/soundtypes_" + GameVersion.RESOURCE_TAG + ".txt is missing");
             BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             String line;
             boolean inBlocks = false, inOverrides = false;

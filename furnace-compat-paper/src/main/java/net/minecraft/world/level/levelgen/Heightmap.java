@@ -62,7 +62,7 @@ public class Heightmap {
 
     private RuntimeException wgWrite(String what) {
         return new org.domi.furnace.compat.nms.UnsupportedNmsCall("Heightmap#" + what + " (" + type.getSerializationKey() + ")",
-                "로드된 청크의 월드젠 하이트맵(*_WG)은 바닐라에서도 생성이 끝나면 남지 않는다 — 살아 있는 네 종류는 된다");
+                "the worldgen heightmaps (*_WG) of a loaded chunk are not kept after generation in vanilla either - the four live kinds work");
     }
 
     /**

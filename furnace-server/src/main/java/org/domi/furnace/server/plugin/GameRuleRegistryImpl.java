@@ -42,7 +42,7 @@ final class GameRuleRegistryImpl implements GameRuleRegistry {
         java.util.Objects.requireNonNull(owner, "owner");
         String ns = owner.description().namespace();
         if (name.indexOf(':') < 0) return ns + ":" + name;
-        if (!name.startsWith(ns + ":")) throw new IllegalArgumentException("규칙 이름의 namespace 는 자기 플러그인 namespace(" + ns + ")여야 한다: " + name);
+        if (!name.startsWith(ns + ":")) throw new IllegalArgumentException("the rule name namespace must be your own plugin namespace (" + ns + "): " + name);
         return name;
     }
 
@@ -66,8 +66,8 @@ final class GameRuleRegistryImpl implements GameRuleRegistry {
 
     private GameRules.Rule require(GameRule<?> rule) {
         GameRules.Rule r = rules().rule(rule.name());
-        if (r == null) throw new IllegalArgumentException("없는 게임 규칙: " + rule.name());
-        if (r.isBoolean() != (rule.type() == Boolean.class)) throw new IllegalArgumentException("규칙 타입이 다르다: " + rule);
+        if (r == null) throw new IllegalArgumentException("no such game rule: " + rule.name());
+        if (r.isBoolean() != (rule.type() == Boolean.class)) throw new IllegalArgumentException("game rule type mismatch: " + rule);
         return r;
     }
 

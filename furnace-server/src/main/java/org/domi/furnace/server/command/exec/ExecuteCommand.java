@@ -10,6 +10,7 @@ import org.domi.furnace.server.command.EntityOps;
 import org.domi.furnace.server.command.brigadier.CommandContext;
 import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.ContextChain;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -89,7 +90,7 @@ public final class ExecuteCommand implements UnboundEntryAction {
                 if (!d.forked()) source.sendFailure(cse.getRawMessage());
             } else if (t instanceof TimeoutException) {
                 cb = source.callback().onFailure();
-                log.warn("명령 결과 대기 시간 초과: /{}", d.input());
+                log.warn(Lang.t("cmd.result-timeout", d.input()));
                 if (!d.forked()) source.sendFailure(Text.translatable("command.failed"));
             } else {
                 EntityOps.reportFailure(source, t);
@@ -127,6 +128,6 @@ public final class ExecuteCommand implements UnboundEntryAction {
     private static RuntimeException asRuntime(Throwable t) {
         if (t instanceof RuntimeException re) return re;
         if (t instanceof Error err) throw err;
-        return new RuntimeException("명령 결과 콜백 실패", t);
+        return new RuntimeException("command result callback failed", t);
     }
 }

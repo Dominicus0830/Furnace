@@ -1,6 +1,7 @@
 // A10 회귀(2차 점검 A10-06·07·08·10): 자연 스폰 위치·높이·바이옴 예산·거리 경계를 바닐라 1.21.1 바이트코드(ddh)와 맞춘다.
 package org.domi.furnace.server.entity.spawn;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
@@ -19,7 +20,7 @@ class A10NaturalSpawnerParityTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     /**

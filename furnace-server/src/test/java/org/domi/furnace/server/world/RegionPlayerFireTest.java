@@ -1,6 +1,7 @@
 // M20: region 틱 배선 — 불 블록 안에 서면 불 틱이 오르고(checkInsideBlocks), 용암 속이면 15초 불(baseTick), 이동 끝에서 불·용암이 없으면 면역 틱.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.UUID;
@@ -23,8 +24,8 @@ class RegionPlayerFireTest {
     @Test
     void fireBlockLavaAndLeavingFireWireThroughRegionTick() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        ItemRegistry items = ItemRegistry.load("items/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        ItemRegistry items = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
         var io = Executors.newSingleThreadExecutor();
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, sched.regionThreadCount(), 16, 5, 5, reg.directBits(), 7, io);
         w.setRegistries(reg, items);

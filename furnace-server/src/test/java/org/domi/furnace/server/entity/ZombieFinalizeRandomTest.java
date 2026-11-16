@@ -1,6 +1,7 @@
 // Zombie.finalizeSpawn 난수 순서: 바닐라 1.21.1 은 ZombieGroupData(getSpawnAsBabyOdds(r), true) 라 기수 여부에 난수를 쓰지 않는다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.lang.reflect.Proxy;
@@ -16,7 +17,7 @@ class ZombieFinalizeRandomTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static List<String> record(long seed) {

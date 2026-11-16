@@ -1,6 +1,7 @@
 // 엔티티·아이템 쪽 게임 이벤트(진동) 누락분: 바닐라 호출 지점과 같은 종류·출처·자리로 level.gameEvent 가 불리는가.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -17,7 +18,7 @@ class EntityGameEventsTest {
     @BeforeAll
     static void install() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static <T extends Entity> T spawn(RecLevel level, String type, double x, double z) {

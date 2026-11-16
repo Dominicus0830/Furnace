@@ -49,7 +49,7 @@ public final class EventSlot<T> {
     public <E extends Event> T computeIfAbsent(E event, Function<? super E, ? extends T> make) {
         T have = get(event);
         if (have != null) return have;
-        T made = Objects.requireNonNull(make.apply(event), "EventSlot 값은 null 일 수 없다");
+        T made = Objects.requireNonNull(make.apply(event), "an EventSlot value cannot be null");
         while (true) {
             Object[] a = (Object[]) Event.SLOTS.getVolatile(event);
             int n = 0;

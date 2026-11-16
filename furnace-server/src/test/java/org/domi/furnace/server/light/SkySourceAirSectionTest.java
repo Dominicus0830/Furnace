@@ -3,6 +3,7 @@
 // 바닐라 서버 jar 대조(평지 기반암1·공기47·반 블록): 반 블록이 섹션 맨 아래 줄(y=-16)이면 그 아래 y=-17..-63 이 모두 15, 맨 위 줄(y=-17)이면 0.
 package org.domi.furnace.server.light;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -15,7 +16,7 @@ import org.junit.jupiter.api.Test;
 
 class SkySourceAirSectionTest {
 
-    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
     private static final int AIR = REG.defaultStateId("minecraft:air");
     private static final int CAVE_AIR = REG.defaultStateId("minecraft:cave_air");
     private static final int BEDROCK = REG.defaultStateId("minecraft:bedrock");

@@ -1,5 +1,6 @@
 package org.domi.furnace.compat.nms;
 
+import org.domi.furnace.compat.i18n.CompatLang;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.domi.furnace.compat.paper.PluginLoaders;
@@ -23,11 +24,14 @@ public final class NmsCaller {
                 .orElse(null));
     }
 
-    /** 부른 플러그인마다 주제당 한 번만 WARN. 메시지의 {} 자리에 플러그인 이름이 들어간다. 플러그인을 못 찾으면 안 낸다. */
-    public static void warnOnce(String topic, String message) {
+    /** 부른 플러그인마다 주제당 한 번만 WARN. 문구는 호환 번들의 키이고, 첫 자리({0})에 플러그인 이름이, 이어서 args 가 들어간다. 플러그인을 못 찾으면 안 낸다. */
+    public static void warnOnce(String topic, String key, Object... args) {
         String who = pluginName();
         if (who == null || !WARNED.add(topic + "|" + who)) return;
-        LoggerFactory.getLogger("Furnace").warn(message, who);
+        Object[] all = new Object[args.length + 1];
+        all[0] = who;
+        System.arraycopy(args, 0, all, 1, args.length);
+        LoggerFactory.getLogger("Furnace").warn(CompatLang.t(key, all));
     }
 
     /** 시험에서 한 번 기록을 비운다. */

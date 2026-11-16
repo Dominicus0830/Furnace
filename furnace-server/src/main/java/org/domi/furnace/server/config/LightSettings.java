@@ -1,6 +1,7 @@
 // 빛 계산 풀(T-064): region 스레드 대신 따로 도는 빛 작업이 빛을 계산한다(바닐라 ThreadedLevelLightEngine 방식). 기본 꺼짐.
 package org.domi.furnace.server.config;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.nio.file.Path;
 import java.util.Properties;
 import java.util.concurrent.Executor;
@@ -35,7 +36,7 @@ public record LightSettings(boolean async, int threads) {
         if (v != null) {
             v = v.strip();
             if (!v.equalsIgnoreCase("true") && !v.equalsIgnoreCase("false")) {
-                throw new IllegalArgumentException("설정 'light.async' 값 '" + v + "' 이(가) 잘못됐습니다: true 또는 false");
+                throw new IllegalArgumentException(Lang.t("cfg.invalid-bool", "light.async", v));
             }
             async = Boolean.parseBoolean(v);
         }
@@ -45,9 +46,9 @@ public record LightSettings(boolean async, int threads) {
             try {
                 threads = Integer.parseInt(t.strip());
             } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("설정 'light.async-threads' 가 숫자가 아님: " + t, e);
+                throw new IllegalArgumentException(Lang.t("cfg.not-number", "light.async-threads", t), e);
             }
-            if (threads < 1) throw new IllegalArgumentException("설정 'light.async-threads' 값 " + threads + " 이(가) 잘못됐습니다: 1 이상");
+            if (threads < 1) throw new IllegalArgumentException(Lang.t("cfg.invalid-value", "light.async-threads", threads, Lang.t("cfg.expect-at-least", 1)));
             if (!async) warn.accept(org.domi.furnace.server.i18n.Lang.t("config.light-threads-unused"));
         }
         return new LightSettings(async, threads);

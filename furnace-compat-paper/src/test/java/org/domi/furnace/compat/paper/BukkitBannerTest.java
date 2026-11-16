@@ -177,7 +177,7 @@ class BukkitBannerTest {
             Banner b = (Banner) Compat.block(dim, pos).getState();
             b.addPattern(new Pattern(DyeColor.RED, PatternType.CROSS));
             b.addPattern(new Pattern(null, PatternType.CROSS));
-            assertEquals("Banner 무늬 1번째의 색(DyeColor)이 null 이다", assertThrows(IllegalArgumentException.class, b::update).getMessage());
+            assertEquals("Banner pattern 1 has a null DyeColor", assertThrows(IllegalArgumentException.class, b::update).getMessage());
             return null;
         });
     }

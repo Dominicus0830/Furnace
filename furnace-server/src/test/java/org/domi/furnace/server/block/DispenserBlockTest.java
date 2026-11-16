@@ -1,6 +1,7 @@
 // 발사기·공급기: 신호 → 4틱 예약, 무작위 칸, 기본 던지기(1000·2000), 빈 발사기 1001, 공급기의 용기 넣기, 아이템별 동작(화살·양동이·TNT·부싯돌·뼛가루·배·생성 알·골렘 바탕).
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -23,7 +24,7 @@ class DispenserBlockTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static final class Lvl extends BlockPlacementTest.TestLevel {

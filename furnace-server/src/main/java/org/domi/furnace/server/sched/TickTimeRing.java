@@ -21,7 +21,7 @@ public final class TickTimeRing {
 
     /** size 는 2의 거듭제곱이어야 한다. */
     public TickTimeRing(int size) {
-        if (Integer.bitCount(size) != 1) throw new IllegalArgumentException("size 는 2의 거듭제곱: " + size);
+        if (Integer.bitCount(size) != 1) throw new IllegalArgumentException("size must be a power of two: " + size);
         this.ring = new AtomicLongArray(size);
         this.mask = size - 1;
     }

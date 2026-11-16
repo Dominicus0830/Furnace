@@ -1,6 +1,7 @@
 // dirty 청크 저장 → 디스크서 재로드 시 편집 유지 검증
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import java.nio.file.Path;
 import java.util.concurrent.Executors;
@@ -18,7 +19,7 @@ class ChunkSaveTest {
 
     @Test
     void saveDirty_thenReload_keepsEdit(@TempDir Path dir) throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         RegionFileStore store = new RegionFileStore(dir);
         AnvilChunkCodec codec = new AnvilChunkCodec(reg, 0);
         AnvilWorldSource src = new AnvilWorldSource(dir, store, codec, new SuperflatWorldSource(reg, 0));

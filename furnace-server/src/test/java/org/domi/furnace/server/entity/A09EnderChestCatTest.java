@@ -1,6 +1,7 @@
 // PR #190 검토 재현: 앉은 고양이가 엔더 상자를 막는가. 바닐라 EnderChestBlock(dip).useWithoutItem 은 위 칸 레드스톤 전도체만 보고 isChestBlockedAt(dhb.a)을 부르지 않는다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.lang.reflect.Proxy;
@@ -18,7 +19,7 @@ class A09EnderChestCatTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static BlockActor actor(List<String> log) {

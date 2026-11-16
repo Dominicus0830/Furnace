@@ -2,6 +2,7 @@
 // 바닐라 1.21.1 바이트코드 근거: btn.m_ 오프셋 678~807(냉각), btn.e(FF)I·bsr.b(낙하 면역), bsa.c·btn.aw 오프셋 270~541(호흡).
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.UUID;
@@ -20,7 +21,7 @@ class A11HazardTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static void tick(SkeletonCombatTest.ArenaLevel level, int n) {

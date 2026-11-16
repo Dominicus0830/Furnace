@@ -1,5 +1,6 @@
 package org.domi.furnace.server.world.gen.feature;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.Map;
 import org.domi.furnace.server.world.BlockRegistry;
@@ -9,7 +10,7 @@ import org.junit.jupiter.api.Test;
 
 class BlockSurvivalTest {
 
-    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
     private static final BlockSurvival SURVIVAL = new BlockSurvival(REG, new FluidKinds(REG));
 
     private FeatureWorldView view(ChunkColumn col) {

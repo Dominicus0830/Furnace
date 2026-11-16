@@ -7,7 +7,7 @@ import java.util.Locale;
 public record PathNodeType(String key) {
 
     public PathNodeType {
-        if (key == null || key.isEmpty()) throw new IllegalArgumentException("빈 길 종류");
+        if (key == null || key.isEmpty()) throw new IllegalArgumentException("empty path node type");
         key = key.toLowerCase(Locale.ROOT);
     }
 

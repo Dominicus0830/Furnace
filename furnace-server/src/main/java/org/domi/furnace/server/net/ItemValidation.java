@@ -20,7 +20,7 @@ final class ItemValidation {
     }
 
     private static void components(Map<String, Object> comps, ConnectionLimits l, int depth) {
-        if (depth > MAX_DEPTH) throw new CodecException("item-validation: 아이템이 너무 깊게 중첩됨");
+        if (depth > MAX_DEPTH) throw new CodecException("item-validation: the item is nested too deeply");
         for (var e : comps.entrySet()) {
             Object v = e.getValue();
             if (v == null) continue;
@@ -67,13 +67,13 @@ final class ItemValidation {
                 if (child instanceof Map<?, ?> || child instanceof List<?>) nested(child, l, depth + 1);
             }
         }
-        if (depth > MAX_DEPTH) throw new CodecException("item-validation: 아이템이 너무 깊게 중첩됨");
+        if (depth > MAX_DEPTH) throw new CodecException("item-validation: the item is nested too deeply");
     }
 
     private static void text(Object v, int max, String what) {
         if (max <= 0 || !(v instanceof String s)) return;
         if (s.length() > max) {
-            throw new CodecException("item-validation: " + what + " 길이 " + s.length() + " 가 상한 " + max + " 를 넘음");
+            throw new CodecException("item-validation: the length of " + what + " (" + s.length() + ") exceeds the limit " + max);
         }
     }
 }

@@ -20,6 +20,12 @@ public interface OfflinePlayer extends ServerOperator, org.bukkit.entity.AnimalT
     Player getPlayer();
 
     /**
+     * 이 플레이어의 프로필(UUID·이름·속성). 접속 중이면 접속 때 받은 속성(스킨)이 들어 있고, 아니면 서버가 아는 이름과 UUID 만 든다.
+     * 값 복사본이다. (Paper 구현은 {@code com.destroystokyo.paper.profile.PlayerProfile} 을 준다.)
+     */
+    org.bukkit.profile.PlayerProfile getPlayerProfile();
+
+    /**
      * 이 플레이어의 영속 데이터 읽기 전용 보기(Paper 와 같다). 접속 중이면 지금 값, 아니면 읽을 때마다 디스크의 저장 데이터(없으면 빈 데이터)를
      * 읽는다 — **읽기 호출이 블로킹 IO** 다(Paper 도 같다). 서버 스레드에서 부르면 틱이 그만큼 멈춘다.
      */

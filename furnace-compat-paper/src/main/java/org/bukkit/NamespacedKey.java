@@ -19,8 +19,8 @@ public final class NamespacedKey {
     public NamespacedKey(String namespace, String key) {
         Objects.requireNonNull(namespace, "namespace");
         Objects.requireNonNull(key, "key");
-        if (!NAMESPACE.matcher(namespace).matches()) throw new IllegalArgumentException("잘못된 네임스페이스: " + namespace);
-        if (!KEY.matcher(key).matches()) throw new IllegalArgumentException("잘못된 키: " + key);
+        if (!NAMESPACE.matcher(namespace).matches()) throw new IllegalArgumentException("invalid namespace: " + namespace);
+        if (!KEY.matcher(key).matches()) throw new IllegalArgumentException("invalid key: " + key);
         this.namespace = namespace;
         this.key = key;
     }

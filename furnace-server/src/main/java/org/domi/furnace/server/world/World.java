@@ -1,6 +1,7 @@
 // 월드: 공유 자원(청크 저장소·구독·접속자) + 동적 region(Regionizer). 월드 작업은 청크 주인 region 으로 보낸다(runAtChunk).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.server.i18n.Lang;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import java.util.ArrayList;
@@ -203,6 +204,7 @@ public final class World {
      * 이 뒤 이 월드에 넣는 작업은 받아들여지지 않는다.
      */
     public void closeForUnload() {
+        relight.shutdown();
         unloaded = true;
         regionizer.gameTicks(false);
         if (scheduler instanceof org.domi.furnace.server.sched.FurnaceSchedulerImpl impl) impl.removeCloseHook(closeHook);
@@ -398,7 +400,7 @@ public final class World {
 
     /** 그 청크 주인 region 에서 task 실행(주인이 없으면 그 구역의 region 을 만든다). 실패는 로그로 남긴다. */
     public void runAtChunk(ChunkPos cp, java.util.function.Consumer<Region> task) {
-        if (unloaded) throw new java.util.concurrent.RejectedExecutionException("내린 월드: " + dimension());
+        if (unloaded) throw new java.util.concurrent.RejectedExecutionException("unloaded world: " + dimension());
         regionizer.enqueue(Regionizer.chunkKey(cp.x(), cp.z()), task);
     }
 
@@ -419,7 +421,7 @@ public final class World {
 
     /** runAtChunk 의 결과판. */
     public <T> CompletableFuture<T> submitAtChunk(ChunkPos cp, java.util.function.Function<Region, T> task) {
-        if (unloaded) return CompletableFuture.failedFuture(new java.util.concurrent.RejectedExecutionException("내린 월드: " + dimension()));
+        if (unloaded) return CompletableFuture.failedFuture(new java.util.concurrent.RejectedExecutionException("unloaded world: " + dimension()));
         CompletableFuture<T> f = new CompletableFuture<>();
         runAtChunk(cp, r -> {
             try { f.complete(task.apply(r)); } catch (Throwable t) { f.completeExceptionally(t); }
@@ -429,7 +431,7 @@ public final class World {
 
     /** submitAtChunk 의 조회판: 그 청크에 주인 region 이 없으면 region 을 만들지 않고 null. */
     public <T> CompletableFuture<T> submitAtOwnedChunk(ChunkPos cp, java.util.function.Function<Region, T> task) {
-        if (unloaded) return CompletableFuture.failedFuture(new java.util.concurrent.RejectedExecutionException("내린 월드: " + dimension()));
+        if (unloaded) return CompletableFuture.failedFuture(new java.util.concurrent.RejectedExecutionException("unloaded world: " + dimension()));
         CompletableFuture<T> f = new CompletableFuture<>();
         boolean sent = regionizer.enqueueIfOwned(Regionizer.chunkKey(cp.x(), cp.z()), r -> {
             try { f.complete(task.apply(r)); } catch (Throwable t) { f.completeExceptionally(t); }
@@ -535,15 +537,15 @@ public final class World {
             java.util.concurrent.atomic.AtomicInteger deferred = new java.util.concurrent.atomic.AtomicInteger();
             // 첫 회차는 전부(엔티티·지도·습격 포함), 다음 회차는 레인을 비운 뒤 미룬 청크만 — 적어도 하나는 넣어 회차마다 진행한다
             boolean done = round == 0
-                    ? awaitQuietly(flushAll(deferred), deadline, "저장")
-                    : awaitQuietly(forEachRegion(r -> deferred.addAndGet(r.saveDirtyChunks(false, true))), deadline, "저장");
+                    ? awaitQuietly(flushAll(deferred), deadline, Lang.t("world.what-save"))
+                    : awaitQuietly(forEachRegion(r -> deferred.addAndGet(r.saveDirtyChunks(false, true))), deadline, Lang.t("world.what-save"));
             left = deferred.get();
             if (!done) return -1;   // 마감 안에 region 이 답하지 않았다 — 남은 수를 모른다
             if (left == 0 || System.nanoTime() >= deadline) break;
             if (round > 0 && round % 10 == 0) {
-                org.slf4j.LoggerFactory.getLogger(World.class).info("[SAVE] {} 레인이 밀려 나눠 저장 중 — 남은 청크 {}", dimension(), left);
+                org.slf4j.LoggerFactory.getLogger(World.class).info(Lang.t("world.save-split", dimension(), left));
             }
-            awaitQuietly(java.util.List.of(ioBarrier()), deadline, "IO 레인 비우기");
+            awaitQuietly(java.util.List.of(ioBarrier()), deadline, Lang.t("world.what-io-drain"));
         }
         return left;
     }
@@ -556,9 +558,9 @@ public final class World {
                 f.get(Math.max(1, deadline - System.nanoTime()), java.util.concurrent.TimeUnit.NANOSECONDS);
             } catch (java.util.concurrent.TimeoutException e) {
                 all = false;
-                org.slf4j.LoggerFactory.getLogger(World.class).error("[SAVE] {} 지연(마감 초과)", what, e);
+                org.slf4j.LoggerFactory.getLogger(World.class).error(Lang.t("world.save-deadline", what), e);
             } catch (java.util.concurrent.ExecutionException e) {
-                org.slf4j.LoggerFactory.getLogger(World.class).error("[SAVE] {} 실패", what, e);
+                org.slf4j.LoggerFactory.getLogger(World.class).error(Lang.t("world.save-step-failed", what), e);
             }
         }
         return all;
@@ -589,9 +591,9 @@ public final class World {
             boolean ok;
             try {
                 byte[] bytes = NbtIo.toBytes(anvil.codec().toNbt(snapF), "");
-                ok = runWithRetry(() -> anvil.store().writeChunk(cx, cz, bytes), "청크 " + cx + "," + cz + " 저장");
+                ok = runWithRetry(() -> anvil.store().writeChunk(cx, cz, bytes), Lang.t("world.what-chunk-save", cx, cz));
             } catch (Exception e) {
-                org.slf4j.LoggerFactory.getLogger(World.class).error("[SAVE] 청크 {},{} 직렬화 실패", cx, cz, e);
+                org.slf4j.LoggerFactory.getLogger(World.class).error(Lang.t("world.chunk-serialize-failed", cx, cz), e);
                 ok = false;
             }
             if (!ok) onChunkSaveFailed(new ChunkPos(cx, cz), col);
@@ -605,7 +607,7 @@ public final class World {
         try {
             runAtChunk(cp, r -> r.restoreDirtyAfterFailedSave(cp, col));
         } catch (RuntimeException e) {
-            org.slf4j.LoggerFactory.getLogger(World.class).error("[SAVE] 청크 {} 저장 실패 — 되돌릴 region 없음(유실)", cp, e);
+            org.slf4j.LoggerFactory.getLogger(World.class).error(Lang.t("world.chunk-save-lost-no-region", cp), e);
         }
     }
 
@@ -679,14 +681,14 @@ public final class World {
         List<CompletableFuture<Void>> quiet = new ArrayList<>();
         if (quiesceGlobal != null) quiet.add(quiesceGlobal.get());
         for (World w : worlds) quiet.add(w.quiesce());
-        boolean ok = awaitQuietly(quiet, deadlineNanos, "종료 틱 멈춤");
+        boolean ok = awaitQuietly(quiet, deadlineNanos, Lang.t("world.what-tick-stop"));
         // 붙잡기 전 마지막 틱에 떠난 이동(차원·같은 레벨 관문): 목적 청크를 읽거나 출구를 만드는 중이면 도착 작업이 아직 없다 — 다 도착할 때까지
         while (true) {
             int flying = 0;
             for (World w : worlds) flying += w.incomingTravels() + w.outgoingTravels();
             if (flying == 0) break;
             if (System.nanoTime() - deadlineNanos >= 0) {
-                org.slf4j.LoggerFactory.getLogger(World.class).error("[STOP] 차원 이동 {}건이 마감 안에 도착하지 않았다", flying);
+                org.slf4j.LoggerFactory.getLogger(World.class).error(Lang.t("world.portals-in-flight", flying));
                 ok = false;
                 break;
             }
@@ -695,7 +697,7 @@ public final class World {
         // 도착(그리고 같은 차원 region 넘겨주기)이 남긴 작업까지 — 저장 작업은 그 뒤 차례에 선다
         quiet.clear();
         for (World w : worlds) quiet.add(w.quiesce());
-        return awaitQuietly(quiet, deadlineNanos, "종료 큐 비우기") && ok;
+        return awaitQuietly(quiet, deadlineNanos, Lang.t("world.what-queue-drain")) && ok;
     }
 
     /** 켜면 저장 역압을 무시한다(백업 기준점 저장 — 레인이 밀려 미루면 기준점 상태가 빠진다). 횟수로 센다. */
@@ -762,9 +764,9 @@ public final class World {
                 log.debug("[SAVE] 저장소 크기 확인 실패 {}", dir, e);
                 return;
             }
-            String msg = String.format("[SAVE] %s: region 파일 %d개 %.1f MB, 여유 %.1f GB, IO 레인 최대 대기열 %d · 최대 대기 %.1f ms",
-                    dir, files, bytes / 1048576.0, usable / 1073741824.0, lane[0], lane[1] / 1e6);
-            if (usable < 1L << 30) log.warn("{} — 디스크 여유 1GB 미만", msg); else log.info(msg);
+            String msg = Lang.t("world.disk-stats", dir, files, String.format(java.util.Locale.ROOT, "%.1f", bytes / 1048576.0),
+                    String.format(java.util.Locale.ROOT, "%.1f", usable / 1073741824.0), lane[0], String.format(java.util.Locale.ROOT, "%.1f", lane[1] / 1e6));
+            if (usable < 1L << 30) log.warn(Lang.t("world.disk-low", msg)); else log.info(msg);
         });
     }
 
@@ -786,15 +788,15 @@ public final class World {
             } catch (Exception e) {
                 var log = org.slf4j.LoggerFactory.getLogger(World.class);
                 if (attempt >= backoff.length) {
-                    log.error("[SAVE] {} 실패({}회 시도) — 포기", what, attempt + 1, e);
+                    log.error(Lang.t("world.save-gave-up", what, attempt + 1), e);
                     return false;
                 }
-                log.warn("[SAVE] {} 실패({}회째) — {}ms 뒤 재시도: {}", what, attempt + 1, backoff[attempt], e.toString());
+                log.warn(Lang.t("world.save-retry", what, attempt + 1, backoff[attempt], e.toString()));
                 try {
                     Thread.sleep(backoff[attempt]);
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
-                    log.error("[SAVE] {} 재시도 중 인터럽트 — 포기", what);
+                    log.error(Lang.t("world.save-retry-interrupted", what));
                     return false;
                 }
             }
@@ -810,7 +812,7 @@ public final class World {
                     return anvil.readEntities(chunkX, chunkZ);
                 }
             } catch (Exception e) {
-                org.slf4j.LoggerFactory.getLogger(World.class).error("[SAVE] 엔티티 {},{} 읽기 실패", chunkX, chunkZ, e);
+                org.slf4j.LoggerFactory.getLogger(World.class).error(Lang.t("world.entity-read-failed", chunkX, chunkZ), e);
                 return null;
             }
         }, ioLane(chunkX, chunkZ));
@@ -824,7 +826,7 @@ public final class World {
                 synchronized (anvil.entityLock(chunkX, chunkZ)) {   // 덧붙이기(읽고·쓰기)와 엇갈리지 않게
                     anvil.writeEntities(chunkX, chunkZ, root);
                 }
-            }, "엔티티 " + chunkX + "," + chunkZ + " 저장");
+            }, Lang.t("world.what-entity-save", chunkX, chunkZ));
             if (!ok) saveFailures.incrementAndGet();
         });
     }
@@ -833,7 +835,7 @@ public final class World {
     public void savePoiAsync(int chunkX, int chunkZ, NbtCompound root) {
         if (!(worldSource instanceof AnvilWorldSource anvil) || anvil.poiStore() == null) return;
         ioLane(chunkX, chunkZ).execute(() -> {
-            boolean ok = runWithRetry(() -> anvil.writePoi(chunkX, chunkZ, root), "POI " + chunkX + "," + chunkZ + " 저장");
+            boolean ok = runWithRetry(() -> anvil.writePoi(chunkX, chunkZ, root), Lang.t("world.what-poi-save", chunkX, chunkZ));
             if (!ok) saveFailures.incrementAndGet();
         });
     }
@@ -846,7 +848,7 @@ public final class World {
                 try {
                     anvil.appendEntities(chunkX, chunkZ, tags);
                 } catch (Exception e) {
-                    org.slf4j.LoggerFactory.getLogger(World.class).error("[SAVE] 엔티티 {},{} 덧붙이기 실패", chunkX, chunkZ, e);
+                    org.slf4j.LoggerFactory.getLogger(World.class).error(Lang.t("world.entity-append-failed", chunkX, chunkZ), e);
                 }
             }
         });
@@ -904,6 +906,12 @@ public final class World {
     public java.nio.file.Path levelRoot() { var r = levelRoot; return r != null ? r : worldDir; }
 
     private final org.domi.furnace.server.light.VirtualLights virtualLights = new org.domi.furnace.server.light.VirtualLights();
+
+    // 청크 빛 다시 계산(T-197 — 플러그인의 Starlight relight 부탁)
+    private final Relight relight = new Relight(this);
+
+    /** 이 월드의 빛 다시 계산(붙잡기 판정·시험 이음매). */
+    public Relight relight() { return relight; }
 
     /** 이 차원의 가짜 광원(플러그인 빛 API). region 레벨들이 함께 쓴다. */
     public org.domi.furnace.server.light.VirtualLights virtualLights() { return virtualLights; }
@@ -1066,6 +1074,9 @@ public final class World {
         public void forEachPlayer(java.util.function.Consumer<Player> c) { World.this.forEachPlayerHere(c); }
 
         @Override
+        public void forEachConnectedPlayer(java.util.function.Consumer<Player> c) { World.this.forEachConnectedPlayerHere(c); }
+
+        @Override
         public PlayerRoster.Level playerIndex() { return World.this.playerIndex(); }
 
         @Override
@@ -1150,6 +1161,20 @@ public final class World {
      */
     public void forEachPlayerHere(java.util.function.Consumer<Player> c) { playerIndex().forEach(c); }
 
+    /**
+     * 이 차원에 접속한 플레이어 전원(엔티티가 제거된 죽음 화면·크레딧 중 플레이어 포함 — 바닐라 PlayerList.broadcast). 소리·이벤트 방송용.
+     */
+    public void forEachConnectedPlayerHere(java.util.function.Consumer<Player> c) { playerIndex().forEachConnected(c); }
+
+    /**
+     * 플레이어 엔티티가 제거됐다(바닐라 Entity.remove(KILLED)·removePlayerImmediately → ServerLevel EntityCallbacks.onTrackingEnd): 죽고 20틱 뒤나
+     * 엔드 크레딧을 띄울 때. 이 차원 레벨 목록에서 빼고 잠 목록을 다시 센다. destroyed(죽음의 KILLED)면 청크 추적도 잃는다({@link Player#chunkUntracked}). 접속은 그대로다 — 리스폰하면 {@link #playerRespawned} 가 끝에 다시 올린다.
+     * 어느 스레드에서나 부를 수 있다(목록 쓰기는 잠금 안).
+     */
+    public void playerRemovedFromLevel(Player p, boolean destroyed) {
+        if (online.removeFromLevel(p, destroyed)) updateSleepingPlayerList();
+    }
+
     /** 리스폰(바닐라 PlayerList.respawn → addRespawnedPlayer): 이 플레이어를 지금 차원 목록 끝으로 옮긴다. */
     public void playerRespawned(Player p) { online.relist(p); }
 
@@ -1228,7 +1253,7 @@ public final class World {
      */
     public ChunkColumn awaitChunk(ChunkPos cp) {
         // 어느 region 워커든(다른 region·다른 차원 포함) 막으면 규칙 6 위반이고, 워커가 하나면 영구 교착이다
-        if (Regionizer.isRegionWorkerThread()) throw new IllegalStateException("region 스레드에서 awaitChunk 금지: " + cp);
+        if (Regionizer.isRegionWorkerThread()) throw new IllegalStateException("awaitChunk is not allowed on a region thread: " + cp);
         return submitAtChunk(cp, r -> r.loadChunk(cp)).thenCompose(f -> f).join();
     }
 
@@ -1467,7 +1492,7 @@ public final class World {
                 col.cachedSerializedBody(serializeChunkBody(ChunkSnapshot.of(cp.x(), cp.z(), col)));
             } catch (RuntimeException e) {
                 // 실패하면 캐시 없이 보낸다 — 배치 안의 예전 경로(serializedChunkBody)가 다시 해 보고 실패를 기록한다
-                org.slf4j.LoggerFactory.getLogger(World.class).warn("[CHUNK] 본문 직렬화 실패 {}", cp, e);
+                org.slf4j.LoggerFactory.getLogger(World.class).warn(Lang.t("world.chunk-body-serialize-failed", cp), e);
             }
             return BODY_SYNC;
         }
@@ -1554,7 +1579,7 @@ public final class World {
     public Region regionAt(RegionPos chunk) {
         Region r = regionizer.ownerOf(chunk.x(), chunk.z());
         if (r == null || !r.isOwnerThread()) {
-            throw new IllegalStateException("청크 " + chunk + " 의 주인 region 스레드가 아니다: " + Thread.currentThread().getName());
+            throw new IllegalStateException("not on the owning region thread of chunk " + chunk + ": " + Thread.currentThread().getName());
         }
         return r;
     }
@@ -1659,6 +1684,18 @@ public final class World {
         if (s == null) return;
         for (Map.Entry<Player, Subscription> e : s.entrySet()) {
             if (e.getValue().ready && onTrackedBorder(cp, e.getKey())) e.getKey().send(pkt);
+        }
+    }
+
+    /**
+     * 빛 다시 계산 뒤(Paper starlight$serverRelightChunks): 그 청크를 받은 플레이어 모두에게 전 섹션 빛 갱신. 아직 청크를 못 받은 구독자는
+     * 건너뛴다(그 빛은 청크 패킷에 들어간다).
+     */
+    public void broadcastFullLightUpdate(ChunkPos cp, Packet pkt) {
+        ConcurrentHashMap<Player, Subscription> s = chunkSubscribers.get(cp);
+        if (s == null) return;
+        for (Map.Entry<Player, Subscription> e : s.entrySet()) {
+            if (e.getValue().ready) e.getKey().send(pkt);
         }
     }
 
@@ -1833,6 +1870,7 @@ public final class World {
         var forced = forcedChunks;
         if (forced != null && forced.size() > 0 && forced.contains(Regionizer.chunkX(chunkKey), Regionizer.chunkZ(chunkKey))) return true;
         if (!pluginHolds.isEmpty() && pluginHolds.containsKey(chunkKey)) return true;   // 플러그인 티켓
+        if (relight.pinned(chunkKey)) return true;   // 빛 다시 계산 중(Paper 의 CHUNK_RELIGHT 티켓)
         if (spawnTicketWithin(Regionizer.chunkX(chunkKey), Regionizer.chunkZ(chunkKey), 0)) return true;   // 스폰 청크(START)
         Long until = tickets.get(chunkKey);
         if (until == null) return false;
@@ -1871,7 +1909,7 @@ public final class World {
                 if (ticking) pluginTicking.merge(key, 1, Integer::sum);
             }
         }
-        if (unloaded) return CompletableFuture.failedFuture(new java.util.concurrent.RejectedExecutionException("내린 월드: " + dimension()));
+        if (unloaded) return CompletableFuture.failedFuture(new java.util.concurrent.RejectedExecutionException("unloaded world: " + dimension()));
         List<CompletableFuture<?>> loads = new ArrayList<>();
         for (int cz = minCz; cz <= maxCz; cz++) {
             for (int cx = minCx; cx <= maxCx; cx++) {
@@ -2122,7 +2160,7 @@ public final class World {
             try {
                 t = plan.complete().apply(lvl);
             } catch (RuntimeException e) {
-                log.error("[PORTAL] 목적지 계산 실패 {}", plan.targetDimension(), e);
+                log.error(Lang.t("world.portal-destination-failed", plan.targetDimension()), e);
                 t = null;
             }
             arrive.accept(t == null ? null : lvl, t);
@@ -2143,7 +2181,7 @@ public final class World {
         }
         loadTravelChunks(plan).whenComplete((list, err) -> {
             if (err != null) {
-                log.warn("[PORTAL] 목적 청크 준비 실패 {}", plan.targetDimension(), err);
+                log.warn(Lang.t("world.portal-chunk-failed", plan.targetDimension()), err);
                 task.accept(null);
                 return;
             }

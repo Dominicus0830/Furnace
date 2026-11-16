@@ -16,6 +16,7 @@ import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -106,7 +107,7 @@ public final class Regionizer {
         this.shift = shift;
         this.radius = radius;
         this.tickNanos = tickNanos;
-        if (STATS) log.info("[TICKSTATS] 틱 계측 켜짐 — region 틱 100번마다 간격/소요 시간을 기록합니다");
+        if (STATS) log.info(Lang.t("world.tickstats-on"));
         // 차원마다 작업 스레드가 따로다(오버월드 furnace-region-N, 네더 furnace-region-the_nether-N …)
         String dim = world.dimensionType() == DimensionType.OVERWORLD ? "" : world.dimension().substring(world.dimension().indexOf(':') + 1) + "-";
         this.pool = new SharedScheduler(threads, "furnace-region-" + dim);
@@ -122,7 +123,7 @@ public final class Regionizer {
         this.shift = shift;
         this.radius = radius;
         this.tickNanos = tickNanos;
-        if (STATS) log.info("[TICKSTATS] 틱 계측 켜짐 — region 틱 100번마다 간격/소요 시간을 기록합니다");
+        if (STATS) log.info(Lang.t("world.tickstats-on"));
         this.pool = pool;
         this.ownsPool = false;
         pool.register(this);
@@ -533,7 +534,7 @@ public final class Regionizer {
         try {
             r.runUrgentDrain();
         } catch (Throwable t) {
-            log.error("[TICK] region #{} 급한 작업 처리 실패", r.id, t);
+            log.error(Lang.t("world.urgent-failed", r.id), t);
         }
         lock.lock();
         try {
@@ -549,7 +550,7 @@ public final class Regionizer {
             // 과 drain 중이라 urgentArrived 가 건너뛴 다른 스레드의 작업)은 다음 틱까지 미루지 않는다(틱 뒤와 같다, T-150)
             if (r.alive && !r.yielded && r.drainWanted()) urgentArrived(r, true);
         } catch (Throwable t) {
-            log.error("[REGION] region #{} drain 뒤 정리 실패", r.id, t);
+            log.error(Lang.t("world.drain-cleanup-failed", r.id), t);
         } finally {
             releaseSlot();   // helpDrainAny 로 남의 스레드가 돌렸으면 다시 고를 워커가 없다 — 상한 때문에 자던 워커를 깨운다
             if (borrowWaiters > 0) borrowable.signalAll();
@@ -629,26 +630,23 @@ public final class Regionizer {
             }
             java.util.Arrays.sort(gap);
             java.util.Arrays.sort(dur);
-            log.info("[TICKSTATS] region {}#{} 간격 p50={}ms p95={}ms max={}ms / 소요 p50={}ms p95={}ms max={}ms", world.dimension(), r.id,
-                    gap[n / 2] / 1_000_000, gap[n * 95 / 100] / 1_000_000, gap[n - 1] / 1_000_000,
-                    dur[n / 2] / 1_000_000, dur[n * 95 / 100] / 1_000_000, dur[n - 1] / 1_000_000);
+            log.info(Lang.t("world.tickstats-region", world.dimension(), r.id, gap[n / 2] / 1_000_000, gap[n * 95 / 100] / 1_000_000, gap[n - 1] / 1_000_000, dur[n / 2] / 1_000_000, dur[n * 95 / 100] / 1_000_000, dur[n - 1] / 1_000_000));
             st[1] = 0;
-            String[] names = {"블록틱", "조명", "플레이어", "보임", "정리·저장"};
+            String[] names = {Lang.t("world.phase.block-tick"), Lang.t("world.phase.light"), Lang.t("world.phase.players"), Lang.t("world.phase.visible"), Lang.t("world.phase.cleanup-save")};
             StringBuilder b = new StringBuilder();
             for (int i = 0; i < names.length; i++) {
-                b.append(String.format(" %s 평균 %.1f/최대 %.0fms", names[i], r.phaseSum[i] / 1e8, r.phaseMax[i] / 1e6));
+                b.append(Lang.t("world.phase-line", names[i], String.format(java.util.Locale.ROOT, "%.1f", r.phaseSum[i] / 1e8), String.format(java.util.Locale.ROOT, "%.0f", r.phaseMax[i] / 1e6)));
                 r.phaseSum[i] = 0;
                 r.phaseMax[i] = 0;
             }
-            log.info("[TICKSTATS]   단계별:{}", b);
+            log.info(Lang.t("world.tickstats-phases", b));
             long[] d = new long[4];
             for (int i = 0; i < 4; i++) {   // 누적값과 지난 출력 사본의 차이 — installStats 는 리셋하지 않는다
                 d[i] = r.installStats[i] - r.installStatsLogged[i];
                 r.installStatsLogged[i] = r.installStats[i];
             }
             if (d[0] > 0) {
-                log.info("[TICKSTATS]   청크 설치 {}개: 넣기 {}ms 빛 {}ms 엔티티·예약틱 {}ms (개당 평균 {}µs)", d[0], d[1] / 1_000_000, d[2] / 1_000_000,
-                        d[3] / 1_000_000, (d[1] + d[2] + d[3]) / d[0] / 1000);
+                log.info(Lang.t("world.tickstats-install", d[0], d[1] / 1_000_000, d[2] / 1_000_000, d[3] / 1_000_000, (d[1] + d[2] + d[3]) / d[0] / 1000));
             }
         }
     }
@@ -742,7 +740,7 @@ public final class Regionizer {
                 noteTickTime(r, tickStart, took);
             }
         } catch (Throwable t) {
-            log.error("[TICK] region #{} 실패", r.id, t);
+            log.error(Lang.t("world.region-tick-failed", r.id), t);
         }
         if (STATS) recordTick(r, t0, System.nanoTime());
         finishTick(r);
@@ -769,7 +767,7 @@ public final class Regionizer {
             // 틱 중에 들어온 급한 작업(다른 region 의 명령 블록이 기다린다)은 다음 틱까지 미루지 않는다
             if (r.alive && r.drainWanted()) urgentArrived(r, true);
         } catch (Throwable t) {
-            log.error("[REGION] region #{} 틱 뒤 정리 실패", r.id, t);
+            log.error(Lang.t("world.post-tick-cleanup-failed", r.id), t);
         } finally {
             // 끝낸 워커는 곧바로 다시 고르지만 자리가 둘 열릴 수도 있다(차원별 상한 + 서버 전체 몫) — 상한 때문에 자던 워커 하나를 깨운다
             releaseSlot();
@@ -1225,20 +1223,20 @@ public final class Regionizer {
                 if (cur.yielded && absorbIntoBorrowed(me)) continue;
                 Thread other = cur.tickThread;
                 if (other != null && org.domi.furnace.api.concurrent.GlobalWait.isWaiting(other)) {
-                    why[0] = "그 region 스레드(" + other.getName() + ")가 전역 스레드의 결과를 막고 기다린다(서로 기다림)";
+                    why[0] = Lang.t("watchdog.wait-global", other.getName());
                     return null;
                 }
                 long now = System.nanoTime();
                 if (other != null && now - nextLockCheck >= 0) {   // 잠금 주인 확인은 비싸서 가끔만
                     nextLockCheck = now + LOCK_CHECK_NANOS;
                     if (waitsOnLockOf(other, me)) {
-                        why[0] = "그 region 스레드(" + other.getName() + ")가 이 스레드가 쥔 잠금을 기다린다(서로 기다림)";
+                        why[0] = Lang.t("watchdog.wait-lock", other.getName());
                         return null;
                     }
                 }
                 long left = deadline - now;
                 if (left <= 0) {
-                    why[0] = (waitNanos / 1_000_000L) + "ms 안에 틱이 끝나지 않았다" + (other == null ? "" : " — " + other.getName() + " 위치 " + topFrame(other));
+                    why[0] = Lang.t(other == null ? "watchdog.tick-timeout" : "watchdog.tick-timeout-at", waitNanos / 1_000_000L, other == null ? "" : other.getName(), other == null ? "" : topFrame(other));
                     return null;
                 }
                 try {
@@ -1318,7 +1316,7 @@ public final class Regionizer {
             if (r.alive && !r.yielded) schedule(r);
             if (r.alive && r.drainWanted()) urgentArrived(r, true);
         } catch (Throwable t) {
-            log.error("[REGION] region #{} 빌림 반납 실패", r.id, t);
+            log.error(Lang.t("world.borrow-return-failed", r.id), t);
         } finally {
             if (borrowWaiters > 0) borrowable.signalAll();
             lock.unlock();
@@ -1368,6 +1366,9 @@ public final class Regionizer {
 
     /** 틱 소요 시간 분포(최근 표본 최대 512개 + 가동 이후 최대). */
     public org.domi.furnace.server.sched.TickTimeRing.Stats tickTimes() { return tickRing.stats(); }
+
+    /** 벤치용: 틱 소요 시간 고리(틱 번호로 구간을 잘라 본다). */
+    org.domi.furnace.server.sched.TickTimeRing tickRing() { return tickRing; }
 
     /** region 한 개의 관측 사본. thread 는 지금 틱 중인 워커 이름(쉬면 null), runningNanos 는 그 틱이 돈 시간. */
     public record RegionInfo(int id, int sections, int chunks, int inbox, String thread, long runningNanos,

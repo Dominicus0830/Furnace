@@ -1,6 +1,7 @@
 // 블록을 바꿔 가며 증분 갱신한 빛이 처음부터 다시 계산한 빛과 칸마다 같은지 확인한다.
 package org.domi.furnace.server.light;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.Random;
@@ -44,7 +45,7 @@ class IncrementalLightTest {
 
     @Test
     void incrementalMatchesFromScratch() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         int stone = reg.defaultStateId("minecraft:stone"), air = reg.defaultStateId("minecraft:air");
         int glow = reg.defaultStateId("minecraft:glowstone");
         W w = new W(reg, stone, air);

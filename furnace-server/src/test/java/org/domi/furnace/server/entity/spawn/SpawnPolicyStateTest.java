@@ -200,8 +200,8 @@ class SpawnPolicyStateTest {
         List<String> warns = new ArrayList<>();
         SpawnConfig.from(props("spawn.limit.monster", "500", "spawn.limit.monsterz", "5"), warns::add);
         assertEquals(2, warns.size(), warns.toString());
-        assertTrue(warns.stream().anyMatch(w -> w.contains("3배") && w.contains("spawn.limit.monster")), warns.toString());
-        assertTrue(warns.stream().anyMatch(w -> w.contains("알 수 없는") && w.contains("monsterz")), warns.toString());
+        assertTrue(warns.stream().anyMatch(w -> w.contains("3 times") && w.contains("spawn.limit.monster")), warns.toString());
+        assertTrue(warns.stream().anyMatch(w -> w.contains("Unknown setting key") && w.contains("monsterz")), warns.toString());
         assertThrows(IllegalArgumentException.class, () -> SpawnConfig.from(props("spawn.limit.monster", "-1"), w -> {}));
         assertThrows(IllegalArgumentException.class, () -> SpawnConfig.from(props("spawn.limit.monster", "abc"), w -> {}));
         assertThrows(IllegalArgumentException.class, () -> SpawnConfig.from(props("spawn.player-limit.creature", "10001"), w -> {}));

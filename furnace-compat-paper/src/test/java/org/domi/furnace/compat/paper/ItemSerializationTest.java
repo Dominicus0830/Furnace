@@ -277,7 +277,8 @@ class ItemSerializationTest {
 
     @Test
     void componentsTheMetaDoesNotModelSurviveInUnhandled() throws Exception {
-        var f = new org.domi.furnace.api.item.ItemStack("minecraft:leather_helmet", 2)
+        // 염색 색은 가죽 방어구가 전용 키로 다루므로(MetaKind.LEATHER_ARMOR) 다루지 않는 종류(금속 투구 — ArmorMeta 는 아직 없다)로 시험한다
+        var f = new org.domi.furnace.api.item.ItemStack("minecraft:diamond_helmet", 2)
                 .with(ItemComponents.DYED_COLOR, new DyedColor(0xAA3300, true))
                 .with(ItemComponents.MAP_COLOR, 77)
                 .withComponent("minecraft:custom_data", "{bar:\"x\",foo:1b}")
@@ -297,7 +298,7 @@ class ItemSerializationTest {
 
         ItemStack back = roundTrip(s);
         var bf = back.asFurnace();
-        assertEquals("minecraft:leather_helmet", bf.type());
+        assertEquals("minecraft:diamond_helmet", bf.type());
         assertEquals(2, back.getAmount());
         assertEquals(new DyedColor(0xAA3300, true), bf.get(ItemComponents.DYED_COLOR));
         assertEquals(77, bf.get(ItemComponents.MAP_COLOR));

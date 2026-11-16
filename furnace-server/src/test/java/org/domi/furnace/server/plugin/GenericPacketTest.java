@@ -248,9 +248,9 @@ class GenericPacketTest {
     @Test
     void encodingChecksFieldsKindsAndRanges() {
         var e = assertThrows(IllegalArgumentException.class, () -> body(GenericPacket.of(Clientbound.SET_CAMERA)));
-        assertTrue(e.getMessage().contains("빠진 필드 [camera_id]"), e.getMessage());
+        assertTrue(e.getMessage().contains("missing fields [camera_id]"), e.getMessage());
         e = assertThrows(IllegalArgumentException.class, () -> body(GenericPacket.of(Clientbound.SET_CAMERA).with("camera_id", 1).with("cameraId", 1)));
-        assertTrue(e.getMessage().contains("모르는 필드 [cameraId]"), e.getMessage());
+        assertTrue(e.getMessage().contains("unknown fields [cameraId]"), e.getMessage());
         e = assertThrows(IllegalArgumentException.class, () -> body(GenericPacket.of(Clientbound.SET_CAMERA).with("camera_id", 1L)));
         assertTrue(e.getMessage().contains("Integer"), e.getMessage());
         e = assertThrows(IllegalArgumentException.class, () -> body(GenericPacket.of(Clientbound.CONTAINER_CLOSE).with("container_id", 256)));

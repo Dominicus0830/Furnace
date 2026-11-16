@@ -54,6 +54,10 @@ public class CompatInventory implements Inventory {
     final void writeSlot(int index, org.domi.furnace.api.item.ItemStack stack, String what) {
         org.domi.furnace.api.item.ItemStack value = stack.isEmpty() ? org.domi.furnace.api.item.ItemStack.EMPTY : stack;
         CompletableFuture<Void> f = handle.set(index, value);
+        // 머리면 스킨을 비동기로 채운다(Paper SPIGOT-6558 — 칸이 아직 그대로일 때만 바꾼다). 쓰기가 성공한 뒤에만 시작한다(접속 끊긴 플레이어 등에는 조회를 안 보낸다).
+        f.whenComplete((v, e) -> {
+            if (e == null) SkullProfileFill.afterWrite(handle, index, value);
+        });
         if (f.isDone()) {
             Owned.write(f, what);
             return;
@@ -68,7 +72,7 @@ public class CompatInventory implements Inventory {
                 Pending cur = pending.get(index);
                 if (cur != null && cur.seq() == mine) pending.remove(index);
             }
-            if (e != null) System.getLogger("FurnaceCompat").log(System.Logger.Level.WARNING, what + " 예약 작업이 실패했다", e);
+            if (e != null) System.getLogger("FurnaceCompat").log(System.Logger.Level.WARNING, org.domi.furnace.compat.i18n.CompatLang.t("compat.scheduled-task-failed", what), e);
         });
     }
 
@@ -102,7 +106,7 @@ public class CompatInventory implements Inventory {
         public void set(org.domi.furnace.api.item.ItemStack stack) {
             PlainSlot d = epoch.get();
             if (d != null) d.set(stack);
-            else writeSlot(index, stack, "ItemStack(Inventory slot " + index + ") 쓰기");
+            else writeSlot(index, stack, "writing ItemStack(Inventory slot " + index + ")");
         }
 
         @Override

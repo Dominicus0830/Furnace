@@ -8,6 +8,7 @@
 // (DataVersion 없음·1452 미만·3955 초과)은 경고를 남기고 그대로 읽는다.
 package org.domi.furnace.server.world.gen.structure.template;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -96,13 +97,13 @@ public final class TemplateManager {
         StructureTemplate t;
         try {
             if (!root.contains("size") || !root.contains("blocks") || !(root.contains("palette") || root.contains("palettes"))) {
-                throw new IllegalArgumentException("구조물 NBT 에 size·blocks·palette 가 없다");
+                throw new IllegalArgumentException("the structure NBT has no size, blocks or palette");
             }
             t = read(id, root, "plugin");
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (RuntimeException e) {
-            throw new IllegalArgumentException("구조물 NBT 를 읽을 수 없다: " + e, e);
+            throw new IllegalArgumentException("cannot read the structure NBT: " + e, e);
         }
         repository.put(id, Optional.of(t));
         return t;
@@ -186,7 +187,7 @@ public final class TemplateManager {
 
     private Optional<StructureTemplate> loadBuiltin(ResourceId id) {
         if (!"minecraft".equals(id.namespace())) return Optional.empty();
-        String res = "worldgen/1.21.1/structure/" + id.path() + EXT;
+        String res = "worldgen/" + GameVersion.RESOURCE_TAG + "/structure/" + id.path() + EXT;
         try (InputStream in = TemplateManager.class.getClassLoader().getResourceAsStream(res)) {
             if (in == null) return Optional.empty();
             return Optional.of(read(id, NbtIo.readGzip(in), "builtin"));

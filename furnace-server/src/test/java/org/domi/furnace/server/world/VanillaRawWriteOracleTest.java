@@ -2,6 +2,7 @@
 // Furnace ChunkColumn 의 하이트맵 넷(고정 하이트맵 모드)과 섹션의 바닐라 개수 셋이 바닐라 jar 결과(tools/vanilla-data/ExportRawWriteOracle)와 같은가.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.BufferedReader;
@@ -26,7 +27,7 @@ class VanillaRawWriteOracleTest {
     private static synchronized List<String[]> load() throws Exception {
         if (cases != null) return cases;
         List<String[]> out = new ArrayList<>();
-        try (InputStream in = VanillaRawWriteOracleTest.class.getResourceAsStream("/n2b/rawwrite-oracle-1.21.1.txt.gz")) {
+        try (InputStream in = VanillaRawWriteOracleTest.class.getResourceAsStream("/n2b/rawwrite-oracle-" + GameVersion.RESOURCE_TAG + ".txt.gz")) {
             assertNotNull(in, "정답표 없음");
             BufferedReader r = new BufferedReader(new InputStreamReader(new GZIPInputStream(in), StandardCharsets.UTF_8));
             for (String line; (line = r.readLine()) != null; ) {

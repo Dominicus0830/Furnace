@@ -1,6 +1,7 @@
 // 던지는 아이템(눈덩이·알·엔더 진주·경험치 병·물약·바람 구슬): 시선 방향으로 쏘고, 소모·재사용 대기·크리에이티브 규칙을 따른다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.block.BlockPlacementTest;
@@ -15,7 +16,7 @@ class ThrowItemsTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static Player player(GameMode mode) {

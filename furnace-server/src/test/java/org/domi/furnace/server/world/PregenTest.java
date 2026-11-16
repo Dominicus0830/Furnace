@@ -1,6 +1,7 @@
 // T-175 미리 생성: 고리 순서·영역, 생성 대기열 맨 뒤(다른 요청이 먼저), 붙은 요청은 맨 뒤에서 내려옴, 멈춤·이어 하기, 디스크 청크 건너뜀.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
@@ -23,13 +24,14 @@ import org.domi.furnace.server.world.gen.AnvilWorldSource;
 import org.domi.furnace.server.world.gen.SuperflatWorldSource;
 import org.domi.furnace.server.world.gen.WorldSource;
 import org.junit.jupiter.api.AfterEach;
+import org.domi.furnace.server.i18n.Lang;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class PregenTest {
 
-    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
-    private static final List<String> BIOMES = RegistrySet.load("registries/1.21.1.txt").entries("minecraft:worldgen/biome");
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+    private static final List<String> BIOMES = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt").entries("minecraft:worldgen/biome");
 
     // ------------------------------------------------------------------ 고리 순서·영역
 
@@ -159,10 +161,10 @@ class PregenTest {
         io = Executors.newFixedThreadPool(2);
         q = new GenQueue(1, new GenQueue.Settings(true, 4, 0, 16, 0, 0, TimeUnit.SECONDS.toNanos(3), false));
         AnvilWorldSource src = new AnvilWorldSource(dir, new RegionFileStore(dir),
-                new AnvilChunkCodec(REG, ItemRegistry.load("items/1.21.1.txt"), BIOMES, 0, ChunkColumn.MIN_Y, ChunkColumn.SECTION_COUNT), base);
+                new AnvilChunkCodec(REG, ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"), BIOMES, 0, ChunkColumn.MIN_Y, ChunkColumn.SECTION_COUNT), base);
         src.entityStore(new RegionFileStore(dir, "entities"));
         World w = new World(src, new ChunkWorkerPool(1), sched, 1, 16, 2, 2, REG.directBits(), 7, io, q);
-        w.setRegistries(REG, ItemRegistry.load("items/1.21.1.txt"));
+        w.setRegistries(REG, ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         w.configurePersistence(1_000_000, 1_000_000);
         w.worldDir(dir);
         pregen = new Pregen();
@@ -262,6 +264,94 @@ class PregenTest {
         assertEquals(Set.of(Regionizer.chunkKey(10, 10), Regionizer.chunkKey(-1, -1)), Set.of(gen.order.get(0), gen.order.get(1)));
         assertEquals(Regionizer.chunkKey(0, 0), gen.order.get(2), "미리 생성은 그 뒤 넣은 순");
         assertEquals(10, gen.order.size());
+    }
+
+    @Test
+    void savedLabelKeepsKindAndNumbers_andReadsInTheServerLanguage(@TempDir Path dir) throws Exception {
+        OrderGen gen = new OrderGen();
+        World w = world(dir, gen);
+        CountDownLatch gate = block();
+        Pregen.Area area = Pregen.Area.ofRadius(0, 0, 40, Pregen.Label.radius(40, 0, 0));
+        pregen.start(w, area, null);
+        awaitTicket(w, new ChunkPos(0, 0));
+        assertTrue(pregen.stop(w));
+        Pregen.Saved saved = Pregen.loadSaved(w);
+        assertNotNull(saved);
+        assertEquals(area, saved.area(), "kind and numbers come back, not a sentence");
+        try {
+            assertEquals("radius 40 (center 0, 0)", saved.area().label().text());
+            Lang.forceForTest("ko");
+            assertEquals("반경 40 (가운데 0, 0)", saved.area().label().text(), "a file saved under one language reads in the other");
+        } finally {
+            Lang.forceForTest("en");
+            gate.countDown();
+        }
+    }
+
+    @Test
+    void borderLabelRoundTripsAsKindAndNumbers(@TempDir Path dir) throws Exception {
+        OrderGen gen = new OrderGen();
+        World w = world(dir, gen);
+        CountDownLatch gate = block();
+        Pregen.Area area = Pregen.Area.ofRadius(0, 0, 512, Pregen.Label.border(1024, 0, 0));
+        pregen.start(w, area, null);
+        awaitTicket(w, new ChunkPos(0, 0));
+        assertTrue(pregen.stop(w));
+        try {
+            Pregen.Saved saved = Pregen.loadSaved(w);
+            assertNotNull(saved);
+            assertEquals(area, saved.area());
+            assertEquals("world border (center 0, 0, size 1024)", saved.area().label().text());
+            Lang.forceForTest("ko");
+            assertEquals("월드 경계 (가운데 0, 0, 크기 1024)", saved.area().label().text());
+        } finally {
+            Lang.forceForTest("en");
+            gate.countDown();
+        }
+    }
+
+    /** 이름표를 문장으로 적던 옛 진행 파일(label=…, 종류 칸 없음)도 읽고 이어 하며, 알아볼 수 있는 문장은 종류+숫자로 올려 읽는다. */
+    @Test
+    void legacySentenceLabelFileIsReadResumedAndUpgraded(@TempDir Path dir) throws Exception {
+        OrderGen gen = new OrderGen();
+        World w = world(dir, gen);
+        Path file = Pregen.file(w);
+        Files.createDirectories(file.getParent());
+        writeLegacy(file, "반경 40 (가운데 0, 0)");
+        Pregen.Saved saved = Pregen.loadSaved(w);
+        assertNotNull(saved);
+        assertEquals(Pregen.Label.radius(40, 0, 0), saved.area().label(), "a recognisable old sentence is upgraded");
+        writeLegacy(file, "월드 경계 (가운데 10, -20, 크기 2000)");
+        assertEquals(Pregen.Label.border(2000, 10, -20), Pregen.loadSaved(w).area().label());
+        writeLegacy(file, "내 마음대로 적은 이름");
+        assertEquals(Pregen.Label.literal("내 마음대로 적은 이름"), Pregen.loadSaved(w).area().label(), "anything else is shown as written");
+
+        var r = pregen.resume(w, null);
+        assertNotNull(r.job(), r.refused());
+        Pregen.Progress p = awaitEnd(r.job());
+        assertEquals(Pregen.State.DONE, p.state());
+        assertEquals(25, p.processed());
+    }
+
+    @Test
+    void unknownLabelKindIsShownAsTextNotNull() {
+        assertEquals("weird", new Pregen.Label("weird", 0, 0, 0, null).text());
+        assertEquals("kept", new Pregen.Label("weird", 0, 0, 0, "kept").text());
+    }
+
+    private static void writeLegacy(Path file, String label) throws java.io.IOException {
+        java.util.Properties p = new java.util.Properties();
+        p.setProperty("centerX", "0");
+        p.setProperty("centerZ", "0");
+        p.setProperty("minX", "-2");
+        p.setProperty("minZ", "-2");
+        p.setProperty("maxX", "2");
+        p.setProperty("maxZ", "2");
+        p.setProperty("label", label);
+        p.setProperty("next", "0");
+        try (var out = Files.newOutputStream(file)) {
+            p.store(out, "legacy");
+        }
     }
 
     @Test

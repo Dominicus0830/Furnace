@@ -5,6 +5,7 @@
 // 전체(seed 2개 × 이웃 순서 5종, 약 110~220 s)는 -Dfurnace.slowTests=true 일 때만.
 package org.domi.furnace.server.world.gen.structure;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
@@ -25,8 +26,8 @@ class StructurePieceStateIsolationTest {
 
     @Test
     void quick() throws Exception {
-        BlockRegistry blocks = BlockRegistry.load("blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry blocks = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         int chests = check(blocks, registries, 1234L, -154, 402, new int[][][] {{{1, 0}}});
         assertTrue(chests > 0, "시작 청크에 상자가 없다 — 시나리오가 상자 경로를 검증하지 못한다");
     }
@@ -34,8 +35,8 @@ class StructurePieceStateIsolationTest {
     @Test
     @EnabledIfSystemProperty(named = "furnace.slowTests", matches = "true")
     void full() throws Exception {
-        BlockRegistry blocks = BlockRegistry.load("blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry blocks = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         int checked = 0, totalChests = 0;
         for (long seed : new long[] {1234L, 12345L}) {
             NoiseWorldSource probe = NoiseWorldSource.overworld(seed, blocks, registries);

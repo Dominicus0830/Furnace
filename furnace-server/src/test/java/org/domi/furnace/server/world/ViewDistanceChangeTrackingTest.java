@@ -1,6 +1,7 @@
 // 시야 거리만 바뀌고 플레이어가 청크 경계를 넘지 않아도 다음 틱에 추적 범위를 다시 잡는지(바닐라 ChunkMap.updateChunkTracking).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import io.netty.buffer.ByteBuf;
@@ -59,7 +60,7 @@ class ViewDistanceChangeTrackingTest {
     @Test
     void viewDistanceChangeWithoutMoving_reTracksNextTick() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 4, 4,
                 reg.directBits(), 7, Executors.newSingleThreadExecutor());
         try {

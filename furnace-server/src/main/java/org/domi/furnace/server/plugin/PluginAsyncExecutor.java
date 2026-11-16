@@ -17,6 +17,7 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,7 +47,7 @@ public final class PluginAsyncExecutor extends AbstractExecutorService {
 
     @Override
     public void execute(Runnable command) {
-        if (command == null) throw new NullPointerException("작업이 null 이다");
+        if (command == null) throw new NullPointerException("the task is null");
         ExecutorService p = virtual ? virtualPool : platformPool;   // 빠른 길: 잠금 없이(닫힌 풀은 스스로 거부한다)
         if (p == null) p = create();
         try {
@@ -57,7 +58,7 @@ public final class PluginAsyncExecutor extends AbstractExecutorService {
     }
 
     private static RejectedExecutionException closed() {
-        return new RejectedExecutionException("플러그인 비동기 실행기가 닫혔다(서버 종료 중)");
+        return new RejectedExecutionException("the plugin async executor is closed (the server is shutting down)");
     }
 
     private synchronized ExecutorService create() {
@@ -91,7 +92,7 @@ public final class PluginAsyncExecutor extends AbstractExecutorService {
             try {
                 task.run();
             } catch (Throwable e) {   // Paper CraftAsyncTask 처럼 Error(NoClassDefFoundError·StackOverflowError 등)까지 — 일꾼이 죽고 크래시 리포트가 쌓이지 않게
-                log.error("플러그인 비동기 작업에서 잡히지 않은 예외(스레드 {})", name, e);
+                log.error(Lang.t("async.uncaught", name), e);
             } finally {
                 Thread.interrupted();
                 if (!t.getName().equals(name)) t.setName(name);

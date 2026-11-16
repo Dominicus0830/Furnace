@@ -1,6 +1,7 @@
 // 구조물 찾기: 찾은 청크에 실제로 시작점이 생기고, 더 안쪽 격자 테두리에는 없다(findNearestMapStructure 와 같은 나선 순서).
 package org.domi.furnace.server.world.gen.structure;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
@@ -14,7 +15,7 @@ class StructureLocatorTest {
 
     @Test
     void nearestVillage_isGeneratedAndNoCloserRingHasOne() {
-        NoiseWorldSource gen = NoiseWorldSource.overworld(0L, BlockRegistry.load("blocks/1.21.1.txt"), RegistrySet.load("registries/1.21.1.txt"));
+        NoiseWorldSource gen = NoiseWorldSource.overworld(0L, BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"));
         List<String> ids = StructureRegistry.structureTag("minecraft:village");
         assertNotNull(ids);
         assertTrue(ids.contains("minecraft:village_plains"));
@@ -46,7 +47,7 @@ class StructureLocatorTest {
 
     @Test
     void buriedTreasure_usesLocateOffset() {
-        NoiseWorldSource gen = NoiseWorldSource.overworld(0L, BlockRegistry.load("blocks/1.21.1.txt"), RegistrySet.load("registries/1.21.1.txt"));
+        NoiseWorldSource gen = NoiseWorldSource.overworld(0L, BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"));
         StructureLocator.Found f = gen.structureLocator().findNearest(List.of("minecraft:buried_treasure"), 0, 64, 0, 100);
         assertNotNull(f);
         assertEquals(9, f.x() & 15);   // locate_offset [9, 0, 9]

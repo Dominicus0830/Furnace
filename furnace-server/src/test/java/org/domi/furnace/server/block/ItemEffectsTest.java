@@ -2,6 +2,7 @@
 // 기대값은 디컴파일 손계산(Instruments 140틱/256, handleEditBook 변환, CauldronInteraction 3종, OminousBottleItem 120000틱).
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.Unpooled;
@@ -29,7 +30,7 @@ import org.junit.jupiter.api.Test;
 class ItemEffectsTest {
 
     @BeforeAll
-    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt"))); }
+    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"))); }
 
     static ItemStack item(String name, int n) { return new ItemStack(ItemContext.id("minecraft:item", "minecraft:" + name), n); }
 

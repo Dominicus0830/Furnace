@@ -46,7 +46,7 @@ public final class Sidebar {
     /** 모든 줄을 한 번에 바꾼다(15줄 넘으면 IllegalArgumentException). 보는 사람에게는 바뀐 줄만 간다. */
     public synchronized Sidebar lines(List<Text> lines) {
         List<Text> copy = List.copyOf(lines);
-        if (copy.size() > MAX_LINES) throw new IllegalArgumentException("사이드바는 최대 " + MAX_LINES + "줄: " + copy.size());
+        if (copy.size() > MAX_LINES) throw new IllegalArgumentException("a sidebar has at most " + MAX_LINES + " lines: " + copy.size());
         if (copy.equals(this.lines)) return this;
         this.lines = copy;
         fire();

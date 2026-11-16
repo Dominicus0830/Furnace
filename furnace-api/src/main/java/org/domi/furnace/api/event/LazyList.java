@@ -78,7 +78,7 @@ public final class LazyList<T> implements List<T>, RandomAccess, Serializable {
     private T slot(int i) {
         Object v = SLOT.getVolatile(done, i);
         if (v == null) {
-            T made = Objects.requireNonNull(convert.apply(sources[i]), "LazyList 변환 결과가 null");
+            T made = Objects.requireNonNull(convert.apply(sources[i]), "a LazyList conversion result is null");
             Object witness = SLOT.compareAndExchange(done, i, null, made);
             v = witness == null ? made : witness;
         }

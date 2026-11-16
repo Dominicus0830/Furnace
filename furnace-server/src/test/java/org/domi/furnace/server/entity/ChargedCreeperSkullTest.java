@@ -1,6 +1,7 @@
 // 충전 크리퍼 폭발에 죽은 몹의 머리 드롭: 크리퍼당 한 번, 종류별 아이템, 충전 안 된 크리퍼는 없음.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.item.ItemContext;
@@ -13,7 +14,7 @@ class ChargedCreeperSkullTest {
     @BeforeAll
     static void install() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static final Entity.Damage BOOM = new Entity.Damage("explosion", false, true, false);

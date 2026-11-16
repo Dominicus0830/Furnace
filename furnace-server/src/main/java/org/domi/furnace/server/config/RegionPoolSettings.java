@@ -1,6 +1,7 @@
 // region 워커 풀 모양: 모든 차원이 풀 하나를 공유(S4, 기본)하거나 차원마다 따로(이전 방식). furnace.properties 로 바꾼다.
 package org.domi.furnace.server.config;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -34,17 +35,17 @@ public record RegionPoolSettings(boolean shared, int dimCap, int starveTicks) {
         if (jvmOverride != null && !jvmOverride.isBlank()) {
             boolean o = Boolean.parseBoolean(jvmOverride.strip());
             if (o != shared && p.getProperty("shared-region-pool") != null) {
-                warn.accept("JVM 인자 -Dfurnace.sharedRegionPool=" + o + " 가 furnace.properties 의 'shared-region-pool=" + shared + "' 보다 우선합니다");
+                warn.accept(Lang.t("cfg.sys-overrides-file", "-Dfurnace.sharedRegionPool=" + o, "shared-region-pool=" + shared));
             }
             shared = o;
         }
         // 기본값은 SharedScheduler 와 같게: -Dfurnace.sched.* 가 있으면 그것, 없으면 0(=워커 수−1)·2
         int dimCap = parseInt(p, "region-pool-dim-cap", Integer.getInteger("furnace.sched.dimCap", DEFAULT.dimCap()));
         int starve = parseInt(p, "region-pool-starve-ticks", Integer.getInteger("furnace.sched.starveTicks", DEFAULT.starveTicks()));
-        if (dimCap < 0) throw new IllegalArgumentException("설정 'region-pool-dim-cap' 값 " + dimCap + " 이(가) 잘못됐습니다: 0(자동) 이상");
-        if (starve < 1) throw new IllegalArgumentException("설정 'region-pool-starve-ticks' 값 " + starve + " 이(가) 잘못됐습니다: 1 이상");
+        if (dimCap < 0) throw new IllegalArgumentException(Lang.t("cfg.invalid-value", "region-pool-dim-cap", dimCap, Lang.t("cfg.expect-0-auto")));
+        if (starve < 1) throw new IllegalArgumentException(Lang.t("cfg.invalid-value", "region-pool-starve-ticks", starve, Lang.t("cfg.expect-at-least", 1)));
         if (!shared && (p.getProperty("region-pool-dim-cap") != null || p.getProperty("region-pool-starve-ticks") != null)) {
-            warn.accept("설정 'region-pool-dim-cap'·'region-pool-starve-ticks' 는 'shared-region-pool=true' 일 때만 쓰입니다");
+            warn.accept(Lang.t("cfg.pool-keys-need-shared"));
         }
         return new RegionPoolSettings(shared, dimCap, starve);
     }
@@ -57,9 +58,8 @@ public record RegionPoolSettings(boolean shared, int dimCap, int starveTicks) {
         int total = shared ? regionThreads : regionThreads * Math.max(1, dims);
         if (total > 2 * cores) {
             warn.accept(shared
-                    ? "region-threads=" + regionThreads + " 는 서버 전체 워커 수입니다(공유 풀). 코어 " + cores + " 개의 두 배를 넘어 틱 간격이 흔들릴 수 있습니다"
-                    : "차원별 region 풀: 워커 " + regionThreads + "×차원 " + dims + " = " + total + " 개가 코어 " + cores
-                            + " 개를 다툽니다. 'shared-region-pool=true' 를 권장합니다");
+                    ? Lang.t("cfg.oversub-shared", regionThreads, cores)
+                    : Lang.t("cfg.oversub-per-dim", regionThreads, dims, total, cores));
         }
     }
 
@@ -69,7 +69,7 @@ public record RegionPoolSettings(boolean shared, int dimCap, int starveTicks) {
         v = v.strip();
         if (v.equalsIgnoreCase("true")) return true;
         if (v.equalsIgnoreCase("false")) return false;
-        throw new IllegalArgumentException("설정 '" + key + "' 값 '" + v + "' 이(가) 잘못됐습니다: true 또는 false");
+        throw new IllegalArgumentException(Lang.t("cfg.invalid-bool", key, v));
     }
 
     private static int parseInt(Properties p, String key, int def) {
@@ -78,7 +78,7 @@ public record RegionPoolSettings(boolean shared, int dimCap, int starveTicks) {
         try {
             return Integer.parseInt(v.strip());
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("설정 '" + key + "' 값 '" + v + "' 이(가) 숫자가 아닙니다", e);
+            throw new IllegalArgumentException(Lang.t("cfg.not-number", key, v), e);
         }
     }
 }

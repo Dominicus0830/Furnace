@@ -6,6 +6,7 @@
 //  - 이벤트 시점: 처리기가 칸을 이벤트 뒤에(용기가 바뀐 뒤에) 읽어도 이벤트 시점의 내용이다. 읽지 않은 칸은 변환하지 않는다.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -45,8 +46,8 @@ class LazySnapshotIdentityTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
-        items = ItemRegistry.load("items/1.21.1.txt");
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
+        items = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
     }
 
     // ------------------------------------------------------------------ 입력: 순수 데이터 명세 → 매번 새 서버 스택(새 패치 = 차가운 캐시)

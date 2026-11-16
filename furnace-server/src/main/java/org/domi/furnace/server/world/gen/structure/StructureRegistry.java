@@ -1,6 +1,7 @@
 // worldgen/structure, structure_set JSON + 바이옴 태그 로더 — 바닐라 레지스트리 순서(id 사전순)로 step별 구조물 그룹을 제공한다.
 package org.domi.furnace.server.world.gen.structure;
 
+import org.domi.furnace.api.GameVersion;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -73,7 +74,7 @@ public final class StructureRegistry {
                 rings = new ConcentricRings(pj.get("distance").getAsInt(), pj.get("spread").getAsInt(), pj.get("count").getAsInt(),
                     resolveBiomes(pj.get("preferred_biomes")), pj.get("salt").getAsInt());
             } else {
-                throw new IllegalArgumentException("미지원 placement: " + ptype);
+                throw new IllegalArgumentException("unsupported placement: " + ptype);
             }
             ExclusionZone ez = null;
             if (pj.has("exclusion_zone")) {
@@ -110,7 +111,7 @@ public final class StructureRegistry {
         String ns = tag.contains(":") ? tag.substring(0, tag.indexOf(':')) : "minecraft";
         String path = tag.contains(":") ? tag.substring(tag.indexOf(':') + 1) : tag;
         if (!ns.equals("minecraft")) return null;
-        String res = "worldgen/1.21.1/tags/worldgen/structure/" + path + ".json";
+        String res = "worldgen/" + GameVersion.RESOURCE_TAG + "/tags/worldgen/structure/" + path + ".json";
         if (StructureRegistry.class.getClassLoader().getResource(res) == null) return null;
         java.util.LinkedHashSet<String> out = new java.util.LinkedHashSet<>();
         for (JsonElement v : readResource(res).getAsJsonArray("values")) {
@@ -146,7 +147,7 @@ public final class StructureRegistry {
     private static void addBiomeRef(Set<String> out, String ref) {
         if (!ref.startsWith("#")) { out.add(ref); return; }
         String tag = ref.substring(1);
-        String path = "worldgen/1.21.1/tags/worldgen/biome/" + tag.substring("minecraft:".length()) + ".json";
+        String path = "worldgen/" + GameVersion.RESOURCE_TAG + "/tags/worldgen/biome/" + tag.substring("minecraft:".length()) + ".json";
         JsonObject j = readResource(path);
         for (JsonElement v : j.getAsJsonArray("values")) {
             String s = v.isJsonObject() ? v.getAsJsonObject().get("id").getAsString() : v.getAsString();
@@ -172,11 +173,11 @@ public final class StructureRegistry {
         }
     }
 
-    private static JsonObject readJson(String rel) { return readResource("worldgen/1.21.1/" + rel); }
+    private static JsonObject readJson(String rel) { return readResource("worldgen/" + GameVersion.RESOURCE_TAG + "/" + rel); }
 
     private static JsonObject readResource(String path) {
         try (InputStream in = StructureRegistry.class.getClassLoader().getResourceAsStream(path)) {
-            if (in == null) throw new IllegalArgumentException("리소스 없음: " + path);
+            if (in == null) throw new IllegalArgumentException("resource is missing: " + path);
             return JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject();
         } catch (IOException e) {
             throw new UncheckedIOException(e);

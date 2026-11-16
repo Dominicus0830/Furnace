@@ -1,5 +1,6 @@
 package org.domi.furnace.compat.nms;
 
+import org.domi.furnace.compat.i18n.CompatLang;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -111,7 +112,7 @@ public final class NmsClassTransformer implements ClassTransformer {
             }
             report = NmsCompatReport.analyze(plugin, read, NmsSymbols.RUNTIME, options.spigot());
         } catch (IOException e) {
-            LOG.warn("플러그인 {}: NMS 호환 보고를 만들지 못했다({}) — 변환은 그대로 한다", plugin, e.toString());
+            LOG.warn(CompatLang.t("compat.nms-report-failed", plugin, e.toString()));
             SpigotMappings.register(plugin, null);
             return new NmsClassTransformer(plugin, Set.of(), new Options(options.strict(), options.versionedPackage()), NmsSymbols.RUNTIME);
         }
@@ -120,9 +121,8 @@ public final class NmsClassTransformer implements ClassTransformer {
         SpigotMappings.register(plugin, options.spigot());
         report.log();
         if (options.strict() && report.unsupported() > 0) {
-            throw new UnsupportedNmsCall("플러그인 " + plugin + " 로드",
-                    "plugins.compat.nms.strict=true 이고 미지원 NMS 심볼이 " + report.unsupported() + "개 있다(처음 것: "
-                            + report.missing().subList(0, Math.min(5, report.missing().size())) + "). strict 를 끄면 그 기능만 실패하고 나머지는 돈다");
+            throw new UnsupportedNmsCall("loading plugin " + plugin,
+                    CompatLang.t("nms.strict-refused", report.unsupported(), report.missing().subList(0, Math.min(5, report.missing().size()))));
         }
         return new NmsClassTransformer(plugin, report.ownClasses(), options, NmsSymbols.RUNTIME);
     }
@@ -178,7 +178,7 @@ public final class NmsClassTransformer implements ClassTransformer {
         reader.accept(new ClassRemapper(chain, remapper), 0);
         if (!changed[0] && !changed[1] && !changed[2] && !changed[3]) return null;
         if (changed[0] && announced.compareAndSet(false, true)) {
-            LOG.info("플러그인 {}: CraftBukkit 버전 접미사 이름({}) 을 이 서버의 접미사 없는 이름으로 바꿔 올린다", plugin, CraftNames.VERSION);
+            LOG.info(CompatLang.t("compat.nms-version-suffix", plugin, CraftNames.VERSION));
         }
         return writer.toByteArray();
     }

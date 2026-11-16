@@ -2,6 +2,7 @@
 // 기대값은 바닐라 1.21.1 바이트코드(SpawnParticlesEffect·PlaySoundEffect·LivingEntity.checkFallDamage·Camel.handleStartJump)를 손으로 계산한 것이다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -26,7 +27,7 @@ class ParticleSoundEventsTest {
     @BeforeAll
     static void install() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     record Particle(ParticleOptions options, boolean force, double x, double y, double z, int count, double dx, double dy, double dz, double speed) {}

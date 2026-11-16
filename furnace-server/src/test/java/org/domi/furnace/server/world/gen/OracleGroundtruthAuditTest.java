@@ -4,6 +4,7 @@
 // 판정용 일회성 도구 — CI 상시 assert 아님(vanilla 실행 없이는 재현 불가하므로 assumeTrue로 skip).
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -69,8 +70,8 @@ class OracleGroundtruthAuditTest {
         assumeTrue(worldDirProp != null, "furnace.oracle.audit.worldDir not set - skipping ground-truth audit");
         Path worldDir = Paths.get(worldDirProp);
 
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        Map<Integer, String> oracleIdToName = loadIdToName("/blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        Map<Integer, String> oracleIdToName = loadIdToName("/blocks/" + GameVersion.RESOURCE_TAG + ".txt");
 
         ChunkColumn vanilla = readVanillaChunk(worldDir, reg, cx, cz);
 

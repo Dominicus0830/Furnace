@@ -2,6 +2,7 @@
 // /locate·엔더의 눈(false)은 영향받지 않는다. 값은 청크 NBT 와 data 파일로 남고, 디스크의 바닐라 청크 값도 읽는다.
 package org.domi.furnace.server.world.gen.structure;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.ByteArrayOutputStream;
@@ -26,8 +27,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class StructureReferencesTest {
-    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
-    private static final RegistrySet REGS = RegistrySet.load("registries/1.21.1.txt");
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+    private static final RegistrySet REGS = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
 
     @TempDir Path tmp;
 

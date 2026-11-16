@@ -75,7 +75,7 @@ public final class NbtBinary {
                 for (Object o : l.values()) writePayload(out, o);
             }
             case NbtCompound c -> writeCompound(out, c);
-            default -> throw new IllegalArgumentException("NBT 값이 아니다: " + v);
+            default -> throw new IllegalArgumentException("not an NBT value: " + v);
         }
     }
 
@@ -87,10 +87,10 @@ public final class NbtBinary {
         try (GZIPInputStream in = new GZIPInputStream(new ByteArrayInputStream(gzip))) {
             raw = in.readNBytes(MAX_BYTES + 1);
         }
-        if (raw.length > MAX_BYTES) throw new IOException("NBT 가 너무 크다");
+        if (raw.length > MAX_BYTES) throw new IOException("NBT is too large");
         DataInputStream in = new DataInputStream(new ByteArrayInputStream(raw));
         int type = in.readUnsignedByte();
-        if (type != NbtType.COMPOUND.id()) throw new IOException("루트가 묶음이 아니다: 태그 " + type);
+        if (type != NbtType.COMPOUND.id()) throw new IOException("the root is not a compound: tag " + type);
         in.readUTF();
         return readCompound(in, 0);
     }
@@ -101,20 +101,20 @@ public final class NbtBinary {
      */
     public static NbtCompound readNetwork(byte[] bytes) {
         try {
-            if (bytes.length > MAX_BYTES) throw new IOException("NBT 가 너무 크다");
+            if (bytes.length > MAX_BYTES) throw new IOException("NBT is too large");
             DataInputStream in = new DataInputStream(new ByteArrayInputStream(bytes));
             int type = in.readUnsignedByte();
-            if (type != NbtType.COMPOUND.id()) throw new IOException("루트가 묶음이 아니다: 태그 " + type);
+            if (type != NbtType.COMPOUND.id()) throw new IOException("the root is not a compound: tag " + type);
             NbtCompound c = readCompound(in, 0);
-            if (in.available() != 0) throw new IOException("남는 바이트 " + in.available());
+            if (in.available() != 0) throw new IOException("trailing bytes: " + in.available());
             return c;
         } catch (IOException e) {
-            throw new IllegalArgumentException("네트워크 NBT 를 읽지 못했다: " + e.getMessage(), e);
+            throw new IllegalArgumentException("could not read the network NBT: " + e.getMessage(), e);
         }
     }
 
     private static NbtCompound readCompound(DataInputStream in, int depth) throws IOException {
-        if (depth > MAX_DEPTH) throw new IOException("NBT 가 너무 깊다");
+        if (depth > MAX_DEPTH) throw new IOException("NBT is too deep");
         NbtCompound c = new NbtCompound();
         while (true) {
             int type = in.readUnsignedByte();
@@ -125,7 +125,7 @@ public final class NbtBinary {
     }
 
     private static Object readPayload(DataInputStream in, int type, int depth) throws IOException {
-        if (depth > MAX_DEPTH) throw new IOException("NBT 가 너무 깊다");
+        if (depth > MAX_DEPTH) throw new IOException("NBT is too deep");
         switch (type) {
             case 1: return in.readByte();
             case 2: return in.readShort();
@@ -142,8 +142,8 @@ public final class NbtBinary {
             case 9: {
                 int elem = in.readUnsignedByte();
                 int n = in.readInt();
-                if (n < 0) throw new IOException("음수 길이");
-                if (elem == 0 && n > 0) throw new IOException("종류 없는 리스트");
+                if (n < 0) throw new IOException("negative length");
+                if (elem == 0 && n > 0) throw new IOException("list without an element type");
                 NbtList l = new NbtList();
                 for (int i = 0; i < n; i++) l.add(readPayload(in, elem, depth + 1));
                 return l;
@@ -159,14 +159,14 @@ public final class NbtBinary {
                 for (int i = 0; i < a.length; i++) a[i] = in.readLong();
                 return a;
             }
-            default: throw new IOException("알 수 없는 NBT 태그: " + type);
+            default: throw new IOException("unknown NBT tag: " + type);
         }
     }
 
     /** 배열 길이 — 남은 바이트보다 큰 길이는 거절한다(큰 배열부터 잡는 것을 막는다). */
     private static int length(DataInputStream in, int elementBytes) throws IOException {
         int n = in.readInt();
-        if (n < 0 || (long) n * elementBytes > in.available()) throw new IOException("잘못된 배열 길이: " + n);
+        if (n < 0 || (long) n * elementBytes > in.available()) throw new IOException("invalid array length: " + n);
         return n;
     }
 }

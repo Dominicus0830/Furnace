@@ -5,6 +5,7 @@
 // WanderingTraderSpawner·VillageSiege, 청크 생성 동물은 spawnMobsForChunkGeneration.
 package org.domi.furnace.server.entity.spawn;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -109,7 +110,7 @@ public final class NaturalSpawner {
                 try {
                     ok = f.fn().allow(cat, type, level.dimension(), pos.x(), pos.y(), pos.z(), biome, nearest == null ? null : nearest.uuid());
                 } catch (Throwable t) {
-                    org.slf4j.LoggerFactory.getLogger(NaturalSpawner.class).warn("플러그인 {} 의 스폰 필터가 예외를 던져 뗀다", f.owner(), t);
+                    org.slf4j.LoggerFactory.getLogger(NaturalSpawner.class).warn(Lang.t("plugin.spawn-filter-threw", f.owner()), t);
                     dropFilter(f);
                     continue;
                 }

@@ -1,6 +1,7 @@
 // 플러그인이 보는 서버(Furnace 파사드) — 이벤트·명령·권한·플러그인 관리자·스케줄러를 한데 묶는다.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.GameVersion;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -136,6 +137,11 @@ public final class PluginHost implements Furnace {
     @Override
     public org.domi.furnace.api.structure.Structures structures() { return structures; }
 
+    private final org.domi.furnace.api.nbt.NbtDataFixer dataFixer = new NbtDataFixerImpl();
+
+    @Override
+    public org.domi.furnace.api.nbt.NbtDataFixer dataFixer() { return dataFixer; }
+
     private final EntityViewsImpl entityViews = new EntityViewsImpl(this);
 
     /** 보이기·숨기기·변장 구현(플러그인이 꺼질 때 정리를 부르는 쪽). */
@@ -184,7 +190,7 @@ public final class PluginHost implements Furnace {
     public java.util.concurrent.CompletableFuture<org.domi.furnace.api.world.World> createWorld(org.domi.furnace.api.world.WorldCreator creator) {
         if (creator == null) throw new NullPointerException("creator");
         var m = core.worldManager();
-        if (m == null) return java.util.concurrent.CompletableFuture.failedFuture(new UnsupportedOperationException("이 서버는 다중 월드를 켜지 않았다"));
+        if (m == null) return java.util.concurrent.CompletableFuture.failedFuture(new UnsupportedOperationException("multiple worlds are not enabled on this server"));
         return m.create(creator).thenApply(this::handleFor);
     }
 
@@ -192,12 +198,12 @@ public final class PluginHost implements Furnace {
     public org.domi.furnace.api.world.World createWorldNow(org.domi.furnace.api.world.WorldCreator creator) {
         if (creator == null) throw new NullPointerException("creator");
         var m = core.worldManager();
-        if (m == null) throw new UnsupportedOperationException("이 서버는 다중 월드를 켜지 않았다");
+        if (m == null) throw new UnsupportedOperationException("multiple worlds are not enabled on this server");
         try {
             return handleFor(m.createAndWait(creator));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("월드 '" + creator.name() + "' 를 기다리다 끊겼다", e);
+            throw new IllegalStateException("world '" + creator.name() + "' was interrupted while waiting", e);
         }
     }
 
@@ -209,7 +215,7 @@ public final class PluginHost implements Furnace {
         try {
             return m.storedCreator(name);
         } catch (java.io.IOException e) {
-            throw new java.io.UncheckedIOException("월드 '" + name + "' 의 level.dat 를 읽지 못했다", e);
+            throw new java.io.UncheckedIOException("world '" + name + "': could not read level.dat", e);
         }
     }
 
@@ -217,7 +223,7 @@ public final class PluginHost implements Furnace {
     public java.util.concurrent.CompletableFuture<Boolean> unloadWorld(org.domi.furnace.api.world.World world, boolean save) {
         if (world == null) throw new NullPointerException("world");
         var m = core.worldManager();
-        if (m == null) return java.util.concurrent.CompletableFuture.failedFuture(new UnsupportedOperationException("이 서버는 다중 월드를 켜지 않았다"));
+        if (m == null) return java.util.concurrent.CompletableFuture.failedFuture(new UnsupportedOperationException("multiple worlds are not enabled on this server"));
         if (!(world instanceof WorldHandle h) || h.handle().isUnloaded()) return java.util.concurrent.CompletableFuture.completedFuture(false);
         return m.unload(h.handle(), save);
     }
@@ -298,6 +304,57 @@ public final class PluginHost implements Furnace {
         return core.profileCache().peek(name).map(p -> (org.domi.furnace.api.entity.OfflinePlayer) new OfflinePlayerImpl(this, p.id())).orElse(null);
     }
 
+    // ------------------------------------------------------------------ 프로필 조회(사용자 캐시·세션 서버)
+
+    private static org.domi.furnace.api.entity.ProfileData profileData(org.domi.furnace.server.players.GameProfile p) {
+        return new org.domi.furnace.api.entity.ProfileData(p.id(), p.name(), p.properties().stream()
+                .map(x -> new org.domi.furnace.api.entity.ProfileProperty(x.name(), x.value(), x.signature())).toList());
+    }
+
+    @Override
+    public java.util.Optional<org.domi.furnace.api.entity.ProfileData> profileByName(String name) {
+        Player online = core.playerByName(name);
+        if (online != null) return java.util.Optional.of(profileData(ServerCore.profileOf(online)));
+        // GameProfileCache.get: 캐시, 없으면 오프라인 모드에서만 오프라인 프로필을 만들어 넣는다(조회기는 NONE 이라 인증 서버에 묻지 않는다)
+        return core.profileCache().get(name).map(PluginHost::profileData);
+    }
+
+    @Override
+    public java.util.Optional<org.domi.furnace.api.entity.ProfileData> profileById(UUID id) {
+        Player online = core.playerByUuid(id);
+        if (online != null) return java.util.Optional.of(profileData(ServerCore.profileOf(online)));
+        return core.profileCache().get(id).map(PluginHost::profileData);
+    }
+
+    @Override
+    public java.util.concurrent.CompletableFuture<java.util.Optional<org.domi.furnace.api.entity.ProfileData>> fetchProfileByName(String name) {
+        // 접속자·사용자 캐시에 있으면 그것(오프라인 프로필을 만들어 넣지 않는다 — 프록시 뒤 오프라인 서버도 모르는 이름은 Mojang 에 물어야 한다)
+        Player online = core.playerByName(name);
+        var cached = online != null ? java.util.Optional.of(profileData(ServerCore.profileOf(online)))
+                : core.profileCache().peek(name).map(PluginHost::profileData);
+        if (cached.isPresent()) return java.util.concurrent.CompletableFuture.completedFuture(cached);
+        if (!org.domi.furnace.server.players.GameProfile.isValidPlayerName(name)) {
+            return java.util.concurrent.CompletableFuture.completedFuture(java.util.Optional.empty());
+        }
+        return core.sessionService().lookupByName(name).thenApply(found -> {
+            found.ifPresent(core.profileCache()::add);
+            return found.map(PluginHost::profileData);
+        });
+    }
+
+    @Override
+    public java.util.concurrent.CompletableFuture<java.util.Optional<org.domi.furnace.api.entity.ProfileData>> fetchProfile(UUID id) {
+        return core.sessionService().fetchProfile(id).thenApply(found -> {
+            found.ifPresent(core.profileCache()::add);
+            return found.map(PluginHost::profileData);
+        });
+    }
+
+    @Override
+    public boolean verifyProfileProperty(String name, String value, String signature) {
+        return core.servicesKeys().validProfileProperty(value, signature);
+    }
+
     @Override
     public java.util.concurrent.CompletableFuture<List<org.domi.furnace.api.entity.OfflinePlayer>> knownPlayers() {
         RegionFuture<List<org.domi.furnace.api.entity.OfflinePlayer>> out = new RegionFuture<>();
@@ -357,9 +414,9 @@ public final class PluginHost implements Furnace {
 
     private static String checkChannel(String channel) {
         org.domi.furnace.server.data.ResourceId id = org.domi.furnace.server.data.ResourceId.tryParse(channel);
-        if (id == null || !id.toString().equals(channel)) throw new IllegalArgumentException("잘못된 채널 이름: " + channel);
+        if (id == null || !id.toString().equals(channel)) throw new IllegalArgumentException("invalid channel name: " + channel);
         if (channel.equals(org.domi.furnace.server.net.PluginChannels.REGISTER) || channel.equals(org.domi.furnace.server.net.PluginChannels.UNREGISTER)
-                || channel.equals("minecraft:brand")) throw new IllegalArgumentException("예약된 채널: " + channel);
+                || channel.equals("minecraft:brand")) throw new IllegalArgumentException("reserved channel: " + channel);
         return channel;
     }
 
@@ -440,7 +497,7 @@ public final class PluginHost implements Furnace {
     }
 
     @Override
-    public String minecraftVersion() { return "1.21.1"; }
+    public String minecraftVersion() { return GameVersion.MINECRAFT; }
 
     /** 접속자 목록 캐시 한 칸: 만든 때의 서버 접속자 배열(동일성)·roster 번호와 그 결과(고칠 수 없는 목록). */
     private record OnlineSnapshot(Player[] source, long epoch, List<PlayerHandle> handles) {}
@@ -516,6 +573,9 @@ public final class PluginHost implements Furnace {
 
     @Override
     public void consoleInputHandler(java.util.function.Consumer<String> handler) { core.consoleInputHandler(handler); }
+
+    @Override
+    public boolean profileLookups() { return core.profileCache().profileLookups(); }
 
     @Override
     public boolean onlineMode() {

@@ -1,6 +1,7 @@
 // 플레이어 엔티티 상태(region 스레드 소유). 채널로 패킷 전송(eventLoop 마샬).
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.server.i18n.Lang;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import java.util.HashMap;
@@ -73,7 +74,8 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     private final int entityId;
     private final UUID uuid;
-    private final String name;
+    /** 접속 때의 이름(바뀌지 않는다) — Paper adventure$displayName 의 처음 값. 채팅 기본 표시 이름에 쓴다(설계 §3 R4). */
+    private final String joinName;
     private final Channel channel;
 
     private volatile double x, y, z; // volatile — region 외 스레드(청크 전송 완료 콜백)서 chunkPos 읽음
@@ -213,8 +215,36 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         this.random = new org.domi.furnace.server.block.LegacyRandomSource(
                 org.domi.furnace.server.block.RandomSeeds.seed(entityId, org.domi.furnace.server.block.RandomSeeds.Purpose.PLAYER));
         this.uuid = uuid;
-        this.name = name;
+        this.joinName = name;
+        this.profileState = new ProfileState(new org.domi.furnace.server.players.GameProfile(uuid, name), 0);
         this.channel = channel;
+    }
+
+    /**
+     * 게임 프로필과 그 세대를 한 번에 바꾸는 불변 묶음(T-141 E11c-2 설계 §3). 엔티티 UUID({@link #uuid()})와 따로 간다 —
+     * 파일·접속자 맵·숨김 규칙·탭의 UUID 칸·채팅 서명은 엔티티 UUID, 이름·스킨 속성·op·화이트리스트·밴·스코어보드는 프로필이다.
+     * 세대는 같은지만 비교한다(관찰자 탭이 바뀐 프로필을 알아채는 데 쓴다).
+     */
+    public record ProfileState(org.domi.furnace.server.players.GameProfile profile, int generation) {}
+
+    private volatile ProfileState profileState;
+
+    /** 지금의 프로필 묶음(한 번 읽어 프로필·세대를 함께 쓴다). 아무 스레드. */
+    public ProfileState profileState() { return profileState; }
+
+    /** 지금의 게임 프로필(Paper getGameProfile). 처음에는 접속 때의 UUID·이름. 아무 스레드. */
+    public org.domi.furnace.server.players.GameProfile profile() { return profileState.profile(); }
+
+    /** 접속 때의 이름(프로필을 바꿔도 그대로). */
+    public String joinName() { return joinName; }
+
+    /**
+     * 시험 전용: 프로필을 바꿔 둔다(엔티티 UUID 와 다른 프로필로 호출처 분류를 검사). 패킷·이벤트·관찰자 갱신은 없다 —
+     * 실제 바꾸기는 Player#setPlayerProfile(E11c-2b) 이 한다.
+     */
+    public void profileForTest(org.domi.furnace.server.players.GameProfile profile) {
+        ProfileState cur = profileState;
+        profileState = new ProfileState(java.util.Objects.requireNonNull(profile, "profile"), cur.generation() + 1);
     }
 
     /** ServerPlayer.wardenSpawnTracker(저장 키 warden_spawn_tracker — PlayerVitals 가 읽고 쓴다). */
@@ -314,7 +344,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     @Override public String typeName() { return "minecraft:player"; }
 
-    @Override public String selectorName() { return name; }
+    @Override public String selectorName() { return name(); }
 
     /** 바닐라 Entity.tags — 명령 스레드가 바꾸고 IO 스레드가 저장하므로 동기화한다. */
     private final java.util.Set<String> commandTags = java.util.Collections.synchronizedSet(new java.util.HashSet<>());
@@ -565,6 +595,24 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     /** 이 플레이어의 탭 목록을 마지막으로 맞춘 번호(-1 = 다시 훑어야 함). 소유 region 스레드 전용. */
     public long tabEpoch = -1;
+
+    /**
+     * 접속 중 탭 보류(CraftBukkit {@code sentListPacket} 의 반대): 접속자 목록에는 들어갔지만 PlayerJoinEvent 가 끝나 접속 탭을 보내기 전이다.
+     * 이 동안 다른 플레이어의 탭·엔티티에 올리지 않는다 — 조인 이벤트에서 숨긴 플레이어가 잠깐이라도 새지 않고, 이벤트에서 바꾼 상태로 처음 올라간다.
+     * 연결 처리기가 접속자 목록에 넣기 전에 걸고({@link #holdTabListing}), 접속 탭을 보낸 뒤 푼다({@link #releaseTabListing}). 아무 스레드.
+     */
+    private volatile boolean tabListingHeld;
+
+    public void holdTabListing() { tabListingHeld = true; }
+
+    /** 보류를 풀고 접속자 번호를 올린다 — 그 사이 이 플레이어를 건너뛴 관찰자 region 이 다음 틱에 다시 훑는다. */
+    public void releaseTabListing() {
+        tabListingHeld = false;
+        bumpRoster();
+    }
+
+    /** 접속 탭을 아직 보내지 않았나(Paper {@code !sentListPacket}). */
+    public boolean tabListingHeld() { return tabListingHeld; }
     public boolean isDisconnected() { return disconnected; }
     /** 실제 보내는 거리 = max(2, min(바탕 거리, 플러그인 상한)) — 읽을 때 계산해 두 값을 따로 쓰는 스레드끼리 갱신이 사라지지 않는다. */
     public int viewDistance() { return Math.max(Config.MIN_VIEW_DISTANCE, Math.min(baseViewDistance, sendCap)); }
@@ -785,12 +833,11 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public boolean isSpectator() { return gameMode() == org.domi.furnace.server.world.GameMode.SPECTATOR; }
 
     public UUID uuid() { return uuid; }
-    public String name() { return name; }
+    /** 프로필 이름(Paper getName·getScoreboardName = gameProfile 이름). */
+    public String name() { return profileState.profile().name(); }
 
-    // 세션 서버가 준 프로필 속성(textures 등) — 탭 목록 add_player 로 다른 클라에 전달돼 스킨이 보인다.
-    private volatile java.util.List<org.domi.furnace.server.players.GameProfile.Property> profileProperties = java.util.List.of();
-
-    public java.util.List<org.domi.furnace.server.players.GameProfile.Property> profileProperties() { return profileProperties; }
+    /** 프로필 속성(세션 서버가 준 textures 등) — 탭 목록 add_player 로 다른 클라에 전달돼 스킨이 보인다. */
+    public java.util.List<org.domi.furnace.server.players.GameProfile.Property> profileProperties() { return profileState.profile().properties(); }
 
     // 생존 상태(게임 모드·체력·허기·경험치·사망). 스레드 안전.
     private final PlayerVitals vitals = new PlayerVitals(this);
@@ -1804,7 +1851,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     /** 바닐라 getTeam: 점수판 이름(접속 이름)이 든 팀(없으면 null). */
     public org.domi.furnace.server.scores.PlayerTeam team() {
         var b = scoreboard;
-        return b == null || !b.hasTeams() ? null : b.getPlayersTeam(name);
+        return b == null || !b.hasTeams() ? null : b.getPlayersTeam(name());
     }
 
     /**
@@ -1822,7 +1869,9 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
      * 바닐라 Player.getDisplayName(decorateDisplayNameComponent): 팀 서식(접두사·이름·접미사·색) + "/tell 이름 " 제안 클릭 + 엔티티 호버(show_entity:
      * minecraft:player, UUID, 이름) + 삽입 텍스트(이름).
      */
-    public org.domi.furnace.api.text.Text displayName() {
+    public org.domi.furnace.api.text.Text displayName() { return decoratedName(name()); }
+
+    private org.domi.furnace.api.text.Text decoratedName(String name) {
         org.domi.furnace.api.text.Text n = org.domi.furnace.api.text.Text.text(name);
         return org.domi.furnace.server.scores.PlayerTeam.formatNameForTeam(team(), n)
                 .clickEvent(new org.domi.furnace.api.text.ClickEvent(org.domi.furnace.api.text.ClickEvent.Action.SUGGEST_COMMAND, "/tell " + name + " "))
@@ -1840,7 +1889,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     /** 채팅·말하기에 쓰는 이름: 플러그인이 정했으면 그것, 아니면 바닐라 getDisplayName. */
     public org.domi.furnace.api.text.Text chatDisplayName() {
         org.domi.furnace.api.text.Text c = customDisplayName;
-        return c != null ? c : displayName();
+        return c != null ? c : decoratedName(joinName);   // Paper adventure$displayName: 접속 때 이름 그대로(프로필을 바꿔도 — 설계 R4)
     }
 
     // 플러그인 PlayerKickEvent 가 정한 퇴장 알림(없으면 평소대로). 끊긴 뒤 퇴장 처리에서 한 번 쓴다.
@@ -2010,8 +2059,11 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     public void allowsListing(boolean v) { this.allowsListing = v; }
 
+    /** 접속 처리 전용: 로그인 때 받은 속성을 프로필에 넣는다(접속자 목록에 오르기 전, 세대는 그대로). */
     public void profileProperties(java.util.List<org.domi.furnace.server.players.GameProfile.Property> props) {
-        this.profileProperties = java.util.List.copyOf(props);
+        ProfileState cur = profileState;
+        var g = cur.profile();
+        profileState = new ProfileState(new org.domi.furnace.server.players.GameProfile(g.id(), g.name(), java.util.List.copyOf(props)), cur.generation());
     }
     public double x() { return x; }
     public double y() { return y; }
@@ -2044,6 +2096,28 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     /** PlayerRoster 전용. */
     public void rosterLevel(org.domi.furnace.server.world.PlayerRoster.Level l) { this.rosterLevel = l; }
+
+    /**
+     * 엔티티가 제거돼 차원 레벨 목록에서 빠졌다(죽고 20틱 뒤·엔드 크레딧 중 — 바닐라 {@code level.players()} 에 없다). PlayerRoster 가 잠금 안에서 쓴다.
+     * 리스폰·차원 이동(다시 목록에 들 때)에 거짓이 된다. 판정이 몰린 곳(잠 비율·활성 범위 등)이 잠금 없이 읽는다.
+     */
+    private volatile boolean removedFromLevel;
+    /**
+     * 제거가 파괴(KILLED)여서 ChunkMap 의 플레이어 추적에서도 빠졌다(죽고 20틱 뒤만 — 엔드 크레딧의 CHANGED_DIMENSION 은 아니다). 바닐라
+     * {@code ChunkMap.removeEntity}: 청크 추적·플레이어 티켓·엔티티 추적을 잃는다(그 청크의 블록 변경·엔티티를 더 받지 않고, 청크 불러오기·틱·
+     * 자연 스폰 범위에서 빠진다). PlayerRoster 가 쓴다.
+     */
+    private volatile boolean chunkUntracked;
+
+    public boolean removedFromLevel() { return removedFromLevel; }
+
+    public boolean chunkUntracked() { return chunkUntracked; }
+
+    /** PlayerRoster 전용. */
+    public void levelRemoval(boolean removed, boolean untracked) {
+        this.removedFromLevel = removed;
+        this.chunkUntracked = untracked;
+    }
 
     /** 위치를 쓴 직후: 격자 칸이 바뀌었으면 색인을 맞춘다(같은 스레드의 다음 조회가 새 칸으로 찾게). */
     private void positionWritten(double nx, double nz) {
@@ -2339,7 +2413,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
                 try {
                     adopt.accept(r);
                 } catch (RuntimeException e) {   // 편입 실패가 차원 이동 콜백(되돌리기 판단) 위로 올라가지 않게
-                    org.slf4j.LoggerFactory.getLogger(Player.class).error("[PORTAL] 도착 편입 실패", e);
+                    org.slf4j.LoggerFactory.getLogger(Player.class).error(Lang.t("portal.arrival-failed"), e);
                 }
             } else {
                 w.runAt(x, z, adopt);

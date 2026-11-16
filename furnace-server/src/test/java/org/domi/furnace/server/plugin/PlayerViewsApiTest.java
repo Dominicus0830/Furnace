@@ -1,6 +1,7 @@
 // 플레이어별 화면 덮어쓰기 플러그인 API: 가상 블록·바이옴 층, 개인 보더, 장비 덮어쓰기 — 검증, 보내는 패킷, 소유권, 플러그인이 꺼질 때 정리.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -37,8 +38,8 @@ class PlayerViewsApiTest {
     void setUp() {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         core = TestServers.core(tmp, sched);
-        core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt"), org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
-        core.registries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt"));
+        core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), org.domi.furnace.server.world.ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
+        core.registries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"));
         host = core.plugins();
     }
 

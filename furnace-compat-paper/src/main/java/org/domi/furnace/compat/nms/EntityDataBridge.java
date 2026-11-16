@@ -56,9 +56,9 @@ final class EntityDataBridge {
         for (Object o : items) {
             var dv = (SynchedEntityData.DataValue<?>) SchemaPacketReverse.need(o, at + ".packedItems[]");
             String name = dv.serializer() == null ? null : NAMES.get(dv.serializer());
-            if (name == null) throw new IllegalArgumentException(at + ": 칸 " + dv.id() + " 의 값 종류가 바닐라 직렬화 표에 없다: " + dv.serializer());
+            if (name == null) throw new IllegalArgumentException(at + ": slot " + dv.id() + " has a value type missing from the vanilla serializer table: " + dv.serializer());
             EntityDataType<?> type = EntityDataType.byName(name);
-            if (type == null) throw new UnsupportedNmsCall("set_entity_data(" + name + ")", "Furnace 에 없는 메타데이터 값 종류");
+            if (type == null) throw new UnsupportedNmsCall("set_entity_data(" + name + ")", "metadata value kind that Furnace does not have");
             String vat = at + "[" + dv.id() + "]";
             out.add(new ClientboundSetEntityDataPacket.Entry(dv.id(), value(type, toApi(name, dv.value(), vat))));
         }
@@ -90,14 +90,14 @@ final class EntityDataBridge {
             case "pose" -> org.domi.furnace.api.entity.Pose.byId(((net.minecraft.world.entity.Pose) v).id());
             case "sniffer_state" -> ((net.minecraft.world.entity.animal.sniffer.Sniffer.State) v).name().toLowerCase(Locale.ROOT);
             case "armadillo_state" -> ((net.minecraft.world.entity.animal.armadillo.Armadillo.ArmadilloState) v).name().toLowerCase(Locale.ROOT);
-            default -> throw new UnsupportedNmsCall("set_entity_data(" + name + ")", "이 메타데이터 값 종류는 아직 shim 에서 Furnace 로 바꾸지 못한다");
+            default -> throw new UnsupportedNmsCall("set_entity_data(" + name + ")", "this metadata value kind cannot be converted from the shim to Furnace yet");
         };
     }
 
     private static org.domi.furnace.api.world.BlockData blockData(Object s, String at) {
         int id = ((net.minecraft.world.level.block.state.BlockState) s).furnaceStateId();
         return org.domi.furnace.api.Furnace.server().blockTypes().byStateId(id)
-                .orElseThrow(() -> new IllegalArgumentException(at + ": 모르는 블록 상태 번호 " + id));
+                .orElseThrow(() -> new IllegalArgumentException(at + ": unknown block state id " + id));
     }
 
     // ------------------------------------------------------------------ Furnace → shim
@@ -107,9 +107,9 @@ final class EntityDataBridge {
         List<SynchedEntityData.DataValue<?>> items = new ArrayList<>(p.entries().size());
         for (ClientboundSetEntityDataPacket.Entry e : p.entries()) {
             EntityDataType<?> type = e.value().dataType();
-            if (type == null) throw new UnsupportedNmsCall("fromFurnace(set_entity_data)", "이 서버 버전이 읽지 못한 값이 있다(칸 " + e.index() + ")");
+            if (type == null) throw new UnsupportedNmsCall("fromFurnace(set_entity_data)", "a value this server version could not read (index " + e.index() + ")");
             EntityDataSerializer s = BY_NAME.get(type.name());
-            if (s == null) throw new UnsupportedNmsCall("fromFurnace(set_entity_data." + type.name() + ")", "shim 에 이 메타데이터 값 종류가 없다");
+            if (s == null) throw new UnsupportedNmsCall("fromFurnace(set_entity_data." + type.name() + ")", "the shim has no such metadata value kind");
             items.add(new SynchedEntityData.DataValue(e.index(), s, toShim(type.name(), e.value().asObject(), "set_entity_data[" + e.index() + "]")));
         }
         return new net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket(p.entityId(), items);
@@ -134,7 +134,7 @@ final class EntityDataBridge {
             case "pose" -> net.minecraft.world.entity.Pose.byId(((org.domi.furnace.api.entity.Pose) v).id());
             case "sniffer_state" -> net.minecraft.world.entity.animal.sniffer.Sniffer.State.valueOf(((String) v).toUpperCase(Locale.ROOT));
             case "armadillo_state" -> net.minecraft.world.entity.animal.armadillo.Armadillo.ArmadilloState.valueOf(((String) v).toUpperCase(Locale.ROOT));
-            default -> throw new UnsupportedNmsCall("fromFurnace(set_entity_data." + name + ")", "이 메타데이터 값 종류는 아직 shim 으로 되돌리지 못한다");
+            default -> throw new UnsupportedNmsCall("fromFurnace(set_entity_data." + name + ")", "this metadata value kind cannot be converted back to the shim yet");
         };
     }
 

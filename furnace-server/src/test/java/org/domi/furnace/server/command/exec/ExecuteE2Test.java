@@ -2,6 +2,7 @@
 // 포크와의 상호작용(as 뒤에서 소스가 걸러지는지), 조회성 조건이 region 을 만들지 않는지.
 package org.domi.furnace.server.command.exec;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.IOException;
@@ -52,7 +53,7 @@ class ExecuteE2Test {
         column = core.world().awaitChunk(new ChunkPos(0, 0));
         cows = DeferredResultTest.spawnCows(core, 2);
         core.addConsoleListener(t -> messages.add(t.getString()));
-        var reg = org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt");
+        var reg = org.domi.furnace.server.world.BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         World nether = new World(NETHER, new SuperflatWorldSource(reg, 0), new org.domi.furnace.server.net.ChunkWorkerPool(1), sched, 1, 4, 1, 2, 2,
                 reg.directBits(), 7, TestServers.ioPool(), TestServers.ioPool());
         Dimensions dims = new Dimensions();
@@ -107,7 +108,7 @@ class ExecuteE2Test {
                 + "\"functions\":[{\"function\":\"minecraft:set_count\",\"count\":5}]}]}]}");
         packs = DataPackManager.start(vanilla, tmp, org.domi.furnace.server.world.storage.LevelData.create("world", 1L, true, false,
                 org.domi.furnace.server.world.GameMode.SURVIVAL, false, org.domi.furnace.server.world.Difficulty.EASY, List.of("vanilla"), List.of()),
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt"), true, List.of("vanilla"), List.of());
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"), true, List.of("vanilla"), List.of());
         core.dataPacks(packs);
     }
 

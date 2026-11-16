@@ -1,6 +1,7 @@
 // 한 커넥션의 프로토콜 상태머신. 프레임을 받아 단계별로 해석하고 응답 패킷을 보낸다.
 package org.domi.furnace.server.net;
 
+import org.domi.furnace.api.GameVersion;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
@@ -70,6 +71,7 @@ import org.domi.furnace.server.world.ChunkTrackingView;
 import org.domi.furnace.server.world.SpawnPoint;
 import org.domi.furnace.server.world.World;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -86,7 +88,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         return r != null ? r : RegistrySet.current();
     }
     private static final org.domi.furnace.server.net.registry.TagSet TAGS =
-            org.domi.furnace.server.net.registry.TagSet.load("registries/tags-1.21.1.txt");
+            org.domi.furnace.server.net.registry.TagSet.load("registries/tags-" + GameVersion.RESOURCE_TAG + ".txt");
 
     private final ServerLoginContext login;
     private final String serverName;
@@ -105,8 +107,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private final ConnectionInfo info = new ConnectionInfo(this);
     private boolean configureEventFired;    // AsyncPlayerConfigureEvent 는 처음 구성 때 한 번
     private volatile boolean awaitingConfigure;   // 플러그인 구성 이벤트가 끝나기를 기다리는 중(구성 keep-alive 를 보낸다)
-    private static final int PROTOCOL_VERSION = 767;                 // 1.21.1
-    private static final String VERSION_NAME = "1.21.1";
+    private static final int PROTOCOL_VERSION = GameVersion.PROTOCOL;
+    private static final String VERSION_NAME = GameVersion.MINECRAFT;
     // 패킷 속도 제한(Paper packet-limiter 대응): 단계마다 토큰 버킷(기본 버스트 400개, 초당 200개 회복, ConnectionLimits). 초과 시 킥.
     // 단계가 바뀔 때 그 단계의 버킷으로 바꾼다. null 이면 이 단계는 제한 없음.
     private TokenBucket packetBucket;
@@ -188,7 +190,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         // 속도 제한은 모든 단계에 건다 — 로그인 전 단계에서 무제한으로 패킷을 처리하지 않게(바닐라 클라는 이 단계에 몇 개만 보낸다)
         if (rateWatch != null) rateWatch.onPacket();
         if (packetBucket != null && !packetBucket.tryAcquire(1)) {
-            log.warn("{} 패킷 속도 초과({} 단계), 연결 종료", loggableAddress(ctx), state);
+            log.warn(Lang.t("net.rate-exceeded", loggableAddress(ctx), state));
             kick(ctx, Text.text("Too many packets"), org.domi.furnace.api.net.QuitReason.ERRONEOUS_STATE);
             return;
         }
@@ -255,7 +257,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 if (silent) handlePlay(c, id, frame);
                 else dispatchPlay(c, id, frame, true);
             } catch (RuntimeException e) {
-                log.warn("플러그인이 넣은 패킷 처리 실패: {}", e.toString());
+                log.warn(Lang.t("net.plugin-packet-failed", e.toString()));
             } finally {
                 frame.release();
             }
@@ -418,7 +420,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 java.util.List<Boolean> listing = new java.util.ArrayList<>();
                 for (Player p : world.onlinePlayers()) {
                     if (p.isDisconnected()) continue;
-                    online.add(new org.domi.furnace.server.players.GameProfile(p.uuid(), p.name()));
+                    online.add(new org.domi.furnace.server.players.GameProfile(p.profile().id(), p.name()));   // 바닐라 상태 sample: getGameProfile
                     listing.add(p.allowsListing());
                 }
                 java.net.InetAddress addr = clientAddress(ctx) instanceof java.net.InetSocketAddress isa ? isa.getAddress() : null;
@@ -508,7 +510,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private void chatChainOverflow(Player p) {
         if (chatChainOverflowKicked) return;
         chatChainOverflowKicked = true;
-        log.warn("{} 의 채팅·명령이 처리되지 않은 채 {}개 넘게 쌓였다 — 연결을 끊는다", p.name(), org.domi.furnace.server.chat.ChatChain.MAX_PENDING);
+        log.warn(Lang.t("net.chat-backlog", p.name(), org.domi.furnace.server.chat.ChatChain.MAX_PENDING));
         login.core.kickOnGlobal(p, Text.translatable("disconnect.spam"));
     }
 
@@ -584,7 +586,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     try {
                         capture.accept(message);
                     } catch (Throwable t) {
-                        log.error("채팅 입력 처리기 실패({})", p.name(), t);
+                        log.error(Lang.t("net.chat-input-failed", p.name()), t);
                     }
                     detectRateSpam();
                 });
@@ -641,7 +643,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             return;
         }
         try {
-            var session = data.validate(p.uuid(), validator);
+            var session = data.validate(p.profile().id(), validator);   // 키 검증만 프로필 id(Paper handleChatSessionUpdate) — 디코더·INITIALIZE_CHAT 는 엔티티 UUID
             // 채팅 사슬에서(전역 스레드) — 앞서 온 채팅은 옛 세션으로, 뒤에 온 채팅은 새 세션으로 풀린다(T-035)
             boolean queued = p.chat().chain().appendGlobal(core.scheduler().global(), () -> {
                 p.chat().resetSession(session);
@@ -700,7 +702,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         java.time.Instant timeStamp = java.time.Instant.ofEpochMilli(frame.readLong());
         long salt = frame.readLong();
         int n = Types.readVarInt(frame);
-        if (n < 0 || n > 8) throw new org.domi.furnace.server.net.protocol.ProtocolException("인자 서명 개수 오류: " + n);
+        if (n < 0 || n > 8) throw new org.domi.furnace.server.net.protocol.ProtocolException("invalid argument signature count: " + n);
         java.util.LinkedHashMap<String, org.domi.furnace.server.chat.MessageSignature> sigs = new java.util.LinkedHashMap<>();
         for (int i = 0; i < n; i++) sigs.put(Types.readString(frame, 16), org.domi.furnace.server.chat.MessageSignature.read(frame));
         var update = org.domi.furnace.server.chat.LastSeenMessages.Update.read(frame);
@@ -791,7 +793,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     p.send(new org.domi.furnace.server.net.protocol.play.CommandSuggestionsResponse(transactionId, eventSuggestions(text, ev.completions())));
                 }
             } catch (RuntimeException e) {
-                log.warn("자동완성 이벤트 처리 중 예외: {}", e.toString());
+                log.warn(Lang.t("net.tab-complete-failed", e.toString()));
             }
         });
     }
@@ -1098,7 +1100,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                         try {
                             ev = core.events().call(new org.domi.furnace.api.event.player.AsyncPlayerConfigureEvent(info));
                         } catch (Throwable t) {
-                            if (ctx.channel().isActive()) log.error("AsyncPlayerConfigureEvent 처리 실패: {}", playerName, t);
+                            if (ctx.channel().isActive()) log.error(Lang.t("net.configure-event-failed", playerName), t);
                         } finally {
                             synchronized (configureLock) {
                                 configureThread = null;
@@ -1215,7 +1217,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                         try {
                             ctx.executor().schedule(() -> {
                                 if (!once.compareAndSet(false, true)) return;
-                                log.warn("첫 스폰 자리 계산이 {}ms 안에 끝나지 않아 월드 스폰으로 들어간다: {}", FIRST_SPAWN_TIMEOUT_MS, playerName);
+                                log.warn(Lang.t("net.first-spawn-timeout", FIRST_SPAWN_TIMEOUT_MS, playerName));
                                 firstSpawn = plain;
                                 finishEnterPlay(ctx, null, null);
                             }, FIRST_SPAWN_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS);
@@ -1324,6 +1326,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
         dimIndex = Math.max(0, registries().indexOf("minecraft:dimension_type", world.dimensionType().typeKey()));
         Player p = new Player(eid, playerUuid, playerName, ctx.channel());
+        var profileHook = login.profileForTest;
+        if (profileHook != null) p.profileForTest(profileHook.apply(p.profile()));   // 시험 전용: 엔티티 UUID 와 다른 프로필(E11c-2a)
         this.joining = p;
         if (login.core != null) login.core.plugins().packetsImpl().attach(p);   // 플러그인 패킷 리스너 — 첫 play 패킷(login)부터
         p.clientBrand(clientBrand);   // 바닐라 클라이언트는 brand 를 구성 단계에서 보낸다 — Player 가 생기기 전이라 여기서 넘긴다
@@ -1462,7 +1466,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             org.domi.furnace.api.world.Location l = ev.spawnLocation();
             World target = coreJ.world(l.world());
             if (target == null) {
-                log.warn("PlayerSpawnLocationEvent: 없는 차원 {} — 기본 위치로 들어간다: {}", l.world(), playerName);
+                log.warn(Lang.t("net.spawn-location-unknown-dimension", l.world(), playerName));
             } else if (Double.isFinite(l.x()) && Double.isFinite(l.y()) && Double.isFinite(l.z())) {
                 if (target != world) {
                     world = target;
@@ -1499,7 +1503,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (recipes != null) send(ctx, new org.domi.furnace.server.net.protocol.play.UpdateRecipes(recipes.networkBody()));
         if (core != null) {
             // 바닐라 placeNewPlayer → sendPlayerPermissionLevel: 권한 레벨 이벤트 + 쓸 수 있는 명령 트리
-            int level = core.profilePermissions(new org.domi.furnace.server.players.GameProfile(playerUuid, playerName));
+            int level = core.profilePermissions(org.domi.furnace.server.ServerCore.profileOf(p));
             send(ctx, org.domi.furnace.server.net.protocol.play.EntityEvent.permissionLevel(eid, level));
             // 바닐라 sendCommands 처럼 플레이어 소스로 거른다 — 플러그인 명령의 권한(PlayerCreateEvent 에서 붙인 첨부 포함)이 첫 트리부터 맞다.
             // PlayerCommandSendEvent 구독자가 있으면 Paper 처럼 PlayerJoinEvent 뒤에 보낸다(Paper 는 트리를 비동기로 만들어 메인에서 이벤트·전송 — Join 뒤).
@@ -1534,7 +1538,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         p.chat().visibility(chatVisibility);
         p.locale(clientLocale);
         p.clientOptions(clientSkinParts, clientMainArm);
-        log.info("{}[{}] logged in with entity id {} at ({}, {}, {})", playerName, loggableAddress(ctx), eid, sx, sy, sz);
+        log.info("{}[{}] logged in with entity id {} at ({}, {}, {})", p.name(), loggableAddress(ctx), eid, sx, sy, sz);
         p.publishPosition(sx, sy, sz, syaw, spitch, true);
         p.pushTeleport(sx, sy, sz);
         p.clientViewDistance(clientViewDistance);
@@ -1568,23 +1572,48 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             p.loadShoulders(saved.root());
             p.loadFire(saved.root());
         }
-        // 바닐라 placeNewPlayer: 위치 → server_data → 탭 목록(기존 접속자, 그다음 본인) → sendLevelInfo → 청크 중심 → 인벤토리
+        // Paper placeNewPlayer(Fire-PlayerJoinEvent-when-Player-is-actually-ready): 위치 → server_data → 접속자 목록에 넣기(탭·추적 보류)
+        // → 보스바 → PlayerJoinEvent·접속 알림 → 탭(본인, 그다음 기존 접속자) → sendLevelInfo → 청크 중심 → 인벤토리
         send(ctx, new SyncPlayerPosition(sx, sy, sz, syaw, spitch, 1));
         pendingTeleportId = 1; // 스폰 청크 도착(타이머)까지 클라 이동 무시
         if (coreJ != null) send(ctx, new org.domi.furnace.server.net.protocol.play.ServerData(
                 Motd.parse(login.motd), login.faviconBytes()));
-        // 기존 접속자 목록(없으면 빈 패킷 — 바닐라와 같다). 아직 adopt 전이라 p.listed()는 이 스레드 전용.
+        // 조인 이벤트 안에서 getOnlinePlayers·명령·방송이 이 플레이어를 본다(Paper 는 이벤트 전에 players 에 넣는다). 다른 접속자의 탭·엔티티에는
+        // 이벤트가 끝나 접속 탭을 보낸 뒤에 올라간다(Paper supressTrackerForLogin·sentListPacket) — 그때까지 관찰자 region 이 건너뛴다.
+        p.holdTabListing();
+        world.playerOnline(p);   // 해제는 소유 region이 disconnect 처리 때
+        world.updateSleepingPlayerList();   // ServerLevel EntityCallbacks.onTrackingStart
+        // 조인 이벤트 처리기가 읽는 상태(발전 과제·통계·스코어보드)는 이벤트 전에 붙인다 — Paper 는 ServerPlayer 를 만들 때 이미 있다.
+        var advancements = coreJ != null ? coreJ.attachAdvancements(p) : null;
+        if (p.stats() == null && org.domi.furnace.server.item.ItemContext.installed()) {   // 통계(world/stats/<uuid>.json) — 바닐라 placeNewPlayer 가 markAllDirty
+            var st = new org.domi.furnace.server.stats.PlayerStats(world.worldDir(), p.uuid());
+            st.markAllDirty();
+            p.stats(st);
+        }
+        if (coreJ != null) p.scoreboard(coreJ.scoreboard());
+        if (login.core != null) login.core.scoreboard().sendTo(p);   // 바닐라 placeNewPlayer: updateEntireScoreboard 뒤 접속 알림
+        if (login.core != null) login.core.plugins().sendRegisteredChannels(p);   // CraftBukkit sendSupportedChannels: 서버 플러그인이 받는 채널을 알린다
+        // CraftBukkit 은 구성 단계의 REGISTER 마다 PlayerRegisterChannelEvent 를 부른다 — 그때 알린 채널을 접속 알림 직전에 한꺼번에
+        if (login.core != null) fireChannelEvents(p, java.util.List.copyOf(pluginChannels.snapshot()), org.domi.furnace.api.event.player.PlayerChannelEvent.Action.REGISTER);
+        if (login.core != null) login.core.customBossEvents().onPlayerConnect(p);   // Paper: 조인 이벤트 전(addNewPlayer 와 함께)
+        Text joinMessage = login.core != null ? callJoinEvent(login.core, p) : null;
+        // CraftBukkit: 조인 이벤트에서 내보냈으면(isAcceptingMessages 거짓) 접속 알림·탭·레벨 정보 없이 끝낸다 — 다른 접속자의 탭에도 올라가지 않는다.
+        // 남은 정리(퇴장 이벤트·저장·접속자 목록에서 빼기)는 연결이 닫힐 때 channelInactive 가 한다.
+        if (p.kickReason() != null || !ctx.channel().isActive()) return;
+        if (joinMessage != null) login.core.broadcastSystemMessage(joinMessage, false);   // 접속 알림은 내보내기를 확인한 뒤(Paper)
+        // 접속 탭: 본인 항목 먼저, 그다음 이 플레이어가 볼 수 있는 기존 접속자를 한 패킷으로(없으면 보내지 않는다 — Paper
+        // Use-single-player-info-update-packet-on-join). 조인 이벤트에서 숨긴 접속자는 처음부터 빠진다. 아직 adopt 전이라 p.listed()는 이 스레드 전용.
+        send(ctx, new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate(java.util.List.of(tabEntry(p))));
+        p.listed().put(p.entityId(), p.uuid());
         java.util.List<org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.Entry> existing = new java.util.ArrayList<>();
         for (Player b : world.onlinePlayers()) {
-            if (b == p || b.isDisconnected()) continue;
+            // 아직 조인 이벤트 중인 다른 접속자는 그쪽이 보류를 풀 때 이 플레이어의 region 이 올린다
+            if (b == p || b.isDisconnected() || b.tabListingHeld() || !org.domi.furnace.server.entity.view.EntityViewRules.canSee(p, b.uuid())) continue;
             existing.add(tabEntry(b));
             p.listed().put(b.entityId(), b.uuid());
         }
-        send(ctx, new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate(existing));
-        world.playerOnline(p);   // 탭 목록 대상(해제는 소유 region이 disconnect 처리 때). 다른 접속자에게는 그쪽 region 틱이 올린다.
-        world.updateSleepingPlayerList();   // ServerLevel EntityCallbacks.onTrackingStart
-        send(ctx, new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate(java.util.List.of(tabEntry(p))));
-        p.listed().put(p.entityId(), p.uuid());
+        if (!existing.isEmpty()) send(ctx, new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate(existing));
+        p.releaseTabListing();   // 이제 다른 접속자의 region 이 다음 틱에 이 플레이어를 탭·엔티티에 올린다(Paper sentListPacket = true)
         // 바닐라 sendLevelInfo: 보더 → 시간 → 월드 공유 스폰(나침반) → 비 → 청크 대기 → 틱 상태
         send(ctx, coreJ != null ? InitializeBorder.of(coreJ.border()) : InitializeBorder.vanillaDefault());
         if (coreJ != null) {
@@ -1609,13 +1638,6 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         synchronized (p.menuLock()) { p.inventoryMenu().setSynchronizer(menus); }   // 첫 container_set_content(상태 번호 1)
         // 바닐라 첫 틱: 엔티티 데이터 → (ServerPlayer.tick 끝) 발전 과제 tick 트리거·flushDirty → (doTick) 체력·허기·경험치.
         // 발전 과제 쪽 패킷(레시피 ADD 등)은 Player.send 로 이벤트 루프 대기열에 들어가므로 뒤 패킷도 같은 대기열로 보낸다.
-        var advancements = coreJ != null ? coreJ.attachAdvancements(p) : null;
-        if (p.stats() == null && org.domi.furnace.server.item.ItemContext.installed()) {   // 통계(world/stats/<uuid>.json) — 바닐라 placeNewPlayer 가 markAllDirty
-            var st = new org.domi.furnace.server.stats.PlayerStats(world.worldDir(), p.uuid());
-            st.markAllDirty();
-            p.stats(st);
-        }
-        if (coreJ != null) p.scoreboard(coreJ.scoreboard());
         java.util.List<Packet> firstTick = vitals.joinPackets();
         int ft = 0;
         while (ft < firstTick.size() && firstTick.get(ft) instanceof org.domi.furnace.server.net.protocol.play.SetEntityData) send(ctx, firstTick.get(ft++));
@@ -1666,16 +1688,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         });
         if (login.core == null) scheduleTimeUpdate(ctx); // 서버 핸들이 있으면 전역 틱이 20틱마다 동기화한다
         scheduleSpawnGateRelease();
-        if (login.core != null) login.core.scoreboard().sendTo(p);   // 바닐라 placeNewPlayer: updateEntireScoreboard 뒤 접속 알림
-        if (login.core != null) login.core.plugins().sendRegisteredChannels(p);   // CraftBukkit sendSupportedChannels: 서버 플러그인이 받는 채널을 알린다
-        // CraftBukkit 은 구성 단계의 REGISTER 마다 PlayerRegisterChannelEvent 를 부른다 — 그때 알린 채널을 접속 알림 직전에 한꺼번에
-        if (login.core != null) fireChannelEvents(p, java.util.List.copyOf(pluginChannels.snapshot()), org.domi.furnace.api.event.player.PlayerChannelEvent.Action.REGISTER);
-        if (login.core != null) announceJoin(login.core, p);
         // 구독자가 있어 접속 순서의 트리 전송을 건너뛰었다면 PlayerJoinEvent 뒤에 한 번 보낸다(PlayerCommandSendEvent 가 이때 불린다).
         if (login.core != null && deferCommandTree) {
             login.core.commands().sendCommands(p);
         }
-        if (login.core != null) login.core.customBossEvents().onPlayerConnect(p);
     }
 
     /** 스폰 청크를 비동기로 수거 후 event loop에서 batch 전송 — Netty 스레드 블로킹(future.get) 제거.
@@ -1759,7 +1775,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                                 sent++;
                             } catch (Exception e) {
                                 world.unsubscribeChunk(cp, p);
-                                log.warn("스폰 청크 전송 실패 {}", cp, e);
+                                log.warn(Lang.t("net.spawn-chunk-send-failed", cp), e);
                             }
                         }
                         send(ctx, new ChunkBatchFinished(sent));
@@ -2767,7 +2783,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 out = title == null ? org.domi.furnace.server.entity.BookEditing.write(cur, pages)
                         : org.domi.furnace.server.entity.BookEditing.sign(cur, title, pages, p.name());
             } catch (RuntimeException e) {   // 코덱 한도 초과 등: 연결을 끊지 않고 무시
-                log.warn("edit_book 무시 ({}): {}", p.name(), e.toString());
+                log.warn(Lang.t("net.edit-book-ignored", p.name(), e.toString()));
                 return;
             }
             if (out == null) return;
@@ -2990,7 +3006,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             }
         } catch (RuntimeException e) {
             menu.resumeRemoteUpdates();
-            log.warn("컨테이너 클릭 처리 중 오류({}), 연결 종료: {}", menu, e.toString());
+            log.warn(Lang.t("net.container-click-failed", menu, e.toString()));
             closeFlushed(ctx);
         }
     }
@@ -3462,8 +3478,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     /** 접속 때 PlayerCommandSendEvent 구독자가 있어 명령 트리 전송을 PlayerJoinEvent 뒤로 미뤘는가(접속 순서에서 한 번만 정한다). */
     private boolean deferCommandTree;
 
-    /** 바닐라 placeNewPlayer 의 접속 알림(PlayerJoinEvent 로 바꿀 수 있다). 접속자 본인도 받는다(Paper 와 같다). */
-    private void announceJoin(org.domi.furnace.server.ServerCore core, Player p) {
+    /**
+     * 바닐라 placeNewPlayer 의 접속 알림을 만들고 PlayerJoinEvent 를 불러 방송할 알림을 돌려준다(없으면 null).
+     * 방송은 부른 쪽이 내보내기를 확인한 뒤에 한다(Paper). 접속자 본인도 받는다.
+     */
+    private Text callJoinEvent(org.domi.furnace.server.ServerCore core, Player p) {
         Text msg = previousName == null || previousName.equalsIgnoreCase(p.name())
                 ? Text.translatable("multiplayer.player.joined", p.displayName())
                 : Text.translatable("multiplayer.player.joined.renamed", p.displayName(), previousName);
@@ -3471,7 +3490,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (core.events().hasSubscribers(org.domi.furnace.api.event.player.PlayerJoinEvent.class)) {
             msg = core.events().call(new org.domi.furnace.api.event.player.PlayerJoinEvent(core.plugins().player(p), msg)).joinMessage();
         }
-        if (msg != null) core.broadcastSystemMessage(msg, false);
+        return msg;
     }
 
     /**
@@ -3633,7 +3652,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 try {
                     wait = t.run(region);
                 } catch (Throwable e) {   // Error 도 잡는다 — 놓치면 scheduled 가 참으로 남아 이 연결의 줄이 영원히 멈춘다
-                    log.warn("인벤토리 줄 작업 실패({})", owner == null ? "?" : owner.name(), e);
+                    log.warn(Lang.t("net.inventory-row-failed", owner == null ? "?" : owner.name()), e);
                 }
                 if (wait != null && !wait.isDone()) {
                     wait.whenComplete((v, e) -> { scheduled.set(false); schedule(); });
@@ -3861,7 +3880,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         org.domi.furnace.server.ServerCore core = login.core;
         if (worldGone(core, target)) {
             // 오는 사이 그 추가 월드를 내렸다(다중 월드) — 없는 차원으로 접속할 때처럼 오버월드로, 위치는 월드 스폰
-            log.warn("{} 의 목적 월드 {} 를 내렸다 — 오버월드 스폰으로 보낸다", p.name(), target.dimension());
+            log.warn(Lang.t("net.target-world-unloaded", p.name(), target.dimension()));
             target = core.world();
             t = spawnTransition(target);
         }
@@ -4593,7 +4612,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         });
         java.util.concurrent.CompletableFuture.delayedExecutor(QUIT_SAVE_LINE_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS).execute(() -> {
             if (done.get()) return;
-            log.warn("퇴장 저장이 {}ms 안에 플레이어 region 에서 돌지 않아 지금 뜬다: {}", QUIT_SAVE_LINE_TIMEOUT_MS, p.name());
+            log.warn(Lang.t("net.quit-save-timeout", QUIT_SAVE_LINE_TIMEOUT_MS, p.name()));
             save.run();
         });
     }
@@ -4635,11 +4654,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     if (statsToSave != null) statsToSave.save();
                     if (advancements != null) advancements.save();   // 바닐라 savePlayerData: 플레이어 NBT·통계·발전 과제
                 } catch (RuntimeException e) {
-                    log.error("플레이어 저장 실패 {}", p.name(), e);
+                    log.error(Lang.t("net.player-save-failed", p.name()), e);
                 }
             });
         } catch (java.util.concurrent.RejectedExecutionException e) {
-            log.error("플레이어 저장 거부(종료 중): {}", p.name());
+            log.error(Lang.t("net.player-save-refused", p.name()));
         }
     }
 
@@ -4683,7 +4702,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     private void sendKeepAlive() {
         if (awaitingKeepAlive.get()) {
-            log.info("KeepAlive 응답 없음, 종료: {}", playerName);
+            log.info(Lang.t("net.keepalive-timeout", playerName));
             kick(ctx, Text.translatable("disconnect.timeout"), org.domi.furnace.api.net.QuitReason.TIMED_OUT);
             return;
         }
@@ -4800,7 +4819,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /** 연결이 끊겼다: 기다리던 Future 를 ConnectionClosedException 으로 끝내고, 구성 이벤트 처리기가 블로킹 중이면 인터럽트로 깨운다. */
     private void releaseWaiters() {
-        var closed = new org.domi.furnace.api.net.ConnectionClosedException("연결이 끊겼다");
+        var closed = new org.domi.furnace.api.net.ConnectionClosedException("the connection is closed");
         for (var e : pluginPacks.entrySet()) {
             if (pluginPacks.remove(e.getKey(), e.getValue())) completeAsync(e.getValue().future(), null, closed);
         }
@@ -4846,9 +4865,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     java.util.concurrent.CompletableFuture<org.domi.furnace.api.net.ResourcePackStatus> apiSendResourcePack(org.domi.furnace.api.net.ResourcePack pack) {
         java.util.Objects.requireNonNull(pack, "pack");
         ChannelHandlerContext c = this.ctx;
-        if (c == null || !c.channel().isActive()) return java.util.concurrent.CompletableFuture.failedFuture(new org.domi.furnace.api.net.ConnectionClosedException("연결이 끊겼다"));
+        if (c == null || !c.channel().isActive()) return java.util.concurrent.CompletableFuture.failedFuture(new org.domi.furnace.api.net.ConnectionClosedException("the connection is closed"));
         ConnectionState st = state;
-        if (st != ConnectionState.CONFIGURATION && st != ConnectionState.PLAY) return notAllowed("리소스 팩은 구성·플레이 단계에서만 보낼 수 있다: " + st);
+        if (st != ConnectionState.CONFIGURATION && st != ConnectionState.PLAY) return notAllowed("A resource pack can only be sent in the configuration or play stage: " + st);
         var fresh = new PendingPack(new java.util.concurrent.CompletableFuture<>(), pack.required());
         PendingPack prev = pluginPacks.putIfAbsent(pack.id(), fresh);
         if (prev != null) return prev.future();
@@ -4856,15 +4875,15 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             if (!c.channel().isActive() || !canSendDuringConfigurationOrPlay()) {
                 pluginPacks.remove(pack.id(), fresh);
                 fresh.future().completeExceptionally(c.channel().isActive()
-                        ? new IllegalStateException("리소스 팩을 보낼 수 없는 단계다: " + state)
-                        : new org.domi.furnace.api.net.ConnectionClosedException("연결이 끊겼다"));
+                        ? new IllegalStateException("resource packs cannot be sent in this state: " + state)
+                        : new org.domi.furnace.api.net.ConnectionClosedException("the connection is closed"));
                 return;
             }
             send(c, new org.domi.furnace.server.net.protocol.play.ResourcePackPush(pack.id(), pack.url(), pack.hash(), pack.required(), pack.prompt(), state == ConnectionState.PLAY));
         };
         if (!eventLoopRun(c, send)) {
             pluginPacks.remove(pack.id(), fresh);
-            fresh.future().completeExceptionally(new org.domi.furnace.api.net.ConnectionClosedException("연결이 끊겼다"));
+            fresh.future().completeExceptionally(new org.domi.furnace.api.net.ConnectionClosedException("the connection is closed"));
         }
         return fresh.future();
     }
@@ -4889,38 +4908,38 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     private void requireConfigurationOrPlay() {
         ConnectionState st = state;
-        if (st != ConnectionState.CONFIGURATION && st != ConnectionState.PLAY) throw new IllegalStateException("구성·플레이 단계에서만 쓸 수 있다: " + st);
+        if (st != ConnectionState.CONFIGURATION && st != ConnectionState.PLAY) throw new IllegalStateException("only usable in the configuration and play states: " + st);
     }
 
     private void requireConfiguration(String what) {
-        if (state != ConnectionState.CONFIGURATION) throw new IllegalStateException(what + " 은(는) 구성 단계에서만 쓸 수 있다: " + state);
+        if (state != ConnectionState.CONFIGURATION) throw new IllegalStateException(what + " is only usable in the configuration state: " + state);
     }
 
     private static String checkCookieKey(String key) {
         java.util.Objects.requireNonNull(key, "key");
-        if (key.length() > 32767 || !COOKIE_KEY.matcher(key).matches()) throw new IllegalArgumentException("쿠키 키는 namespace:path 꼴이어야 한다: " + key);
+        if (key.length() > 32767 || !COOKIE_KEY.matcher(key).matches()) throw new IllegalArgumentException("a cookie key must look like namespace:path: " + key);
         return key;
     }
 
     java.util.concurrent.CompletableFuture<byte[]> apiRequestCookie(String key) {
         checkCookieKey(key);
         ChannelHandlerContext c = this.ctx;
-        if (c == null || !c.channel().isActive()) return java.util.concurrent.CompletableFuture.failedFuture(new org.domi.furnace.api.net.ConnectionClosedException("연결이 끊겼다"));
-        if (state != ConnectionState.CONFIGURATION) return notAllowed("쿠키 요청은 구성 단계에서만 쓸 수 있다: " + state);
+        if (c == null || !c.channel().isActive()) return java.util.concurrent.CompletableFuture.failedFuture(new org.domi.furnace.api.net.ConnectionClosedException("the connection is closed"));
+        if (state != ConnectionState.CONFIGURATION) return notAllowed("A cookie request can only be used in the configuration stage: " + state);
         var fresh = new java.util.concurrent.CompletableFuture<byte[]>();
         var prev = pendingCookies.putIfAbsent(key, fresh);
         if (prev != null) return prev;
         if (!eventLoopRun(c, () -> {
             if (!c.channel().isActive() || state != ConnectionState.CONFIGURATION || finishConfigSent) {
                 pendingCookies.remove(key, fresh);
-                fresh.completeExceptionally(c.channel().isActive() ? new IllegalStateException("쿠키를 요청할 수 없는 단계다: " + state)
-                        : new org.domi.furnace.api.net.ConnectionClosedException("연결이 끊겼다"));
+                fresh.completeExceptionally(c.channel().isActive() ? new IllegalStateException("cookies cannot be requested in this state: " + state)
+                        : new org.domi.furnace.api.net.ConnectionClosedException("the connection is closed"));
                 return;
             }
             send(c, new CookieRequest(key));
         })) {
             pendingCookies.remove(key, fresh);
-            fresh.completeExceptionally(new org.domi.furnace.api.net.ConnectionClosedException("연결이 끊겼다"));
+            fresh.completeExceptionally(new org.domi.furnace.api.net.ConnectionClosedException("the connection is closed"));
         }
         return fresh;
     }
@@ -4930,7 +4949,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         var pkt = new StoreCookie(key, java.util.Objects.requireNonNull(value, "value").clone());
         ChannelHandlerContext c = this.ctx;
         if (c == null || !c.channel().isActive()) return;
-        requireConfiguration("쿠키 저장");
+        requireConfiguration("storing a cookie");
         eventLoopRun(c, () -> {
             if (c.channel().isActive() && state == ConnectionState.CONFIGURATION && !finishConfigSent) send(c, pkt);
         });
@@ -5067,7 +5086,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             kick(ctx, Text.translatable("disconnect.timeout"), org.domi.furnace.api.net.QuitReason.TIMED_OUT);
             return;
         }
-        log.warn("커넥션 오류, 종료: {}", cause.toString());
+        log.warn(Lang.t("net.connection-error", cause.toString()));
         if (!ctx.channel().isActive()) { closeFlushed(ctx); return; }
         // 바닐라 Connection.exceptionCaught: 그 밖의 예외는 "Internal Exception: …" 사유를 단계에 맞는 Disconnect 로 보내고 닫는다.
         internalException(ctx, cause);
@@ -5102,7 +5121,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
 
     /** 바닐라처럼 패킷 디코드 실패는 연결을 끊는다(클라이언트 화면: 네트워크 프로토콜 오류). */
     private void protocolError(ChannelHandlerContext ctx, String packet, RuntimeException e) {
-        log.warn("{} 패킷 디코드 실패, 연결 종료: {}", packet, e.toString());
+        log.warn(Lang.t("net.packet-decode-failed", packet, e.toString()));
         internalException(ctx, e);
     }
 

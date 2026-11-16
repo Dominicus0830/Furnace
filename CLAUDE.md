@@ -15,7 +15,8 @@ Furnace 는 처음부터 새로 쓰는 멀티스레드 Minecraft 1.21.1 서버(J
 - 포팅은 직접 한다(포팅 서브에이전트 금지). 바닐라 코드는 난수 호출 순서까지 그대로 이식한다.
 - Mojang 바닐라 데이터·디컴파일 소스는 커밋하지 않는다. Mojang/papermc 호스트 접근을 우회하지 않는다.
 - 커밋 메시지·코드·PR 에 모델 ID 를 넣지 않는다.
-- **콘솔 메시지(2026-11-16):** 운영자가 콘솔에서 보는 `log.info/warn/error` 문장은 한글·영어를 코드에 직접 적지 않고 `furnace-lang/en.properties`·`ko.properties` 에 키를 넣어 `Lang.t("키", 인자…)` 로 쓴다(바닐라·Paper 와 문구가 같은 줄, 예외 메시지, DEBUG 는 영어 그대로 코드에 둔다). 아직 안 옮긴 파일은 `furnace-server/src/test/resources/lang-migration-pending.txt` 에 있고, 옮기면 그 줄을 지운다(`LangBundlesTest`).
+- **콘솔 메시지(2026-11-16):** 운영자가 콘솔에서 보는 `log.info/warn/error` 문장은 한글·영어를 코드에 직접 적지 않고 `furnace-lang/en.properties`·`ko.properties` 에 키를 넣어 `Lang.t("키", 인자…)` 로 쓴다(바닐라·Paper 와 문구가 같은 줄, 예외 메시지, DEBUG 는 영어 그대로 코드에 둔다). 호환 계층(`furnace-compat-paper`)은 서버 `Lang` 을 볼 수 없어 `CompatLang.t("키", 인자…)` 와 `furnace-compat-lang/{en,ko}.properties` 를 쓴다(`CompatLangTest`). `warnOnce(…)` 같은 보조 메서드도 한글 문구를 직접 받지 않고 키를 받는다. 아직 안 옮긴 파일(모듈/경로)은 `furnace-server/src/test/resources/lang-migration-pending.txt` 에 있고, 옮기면 그 줄을 지운다(`LangBundlesTest` 가 `HangulTextScanner` 로 server·compat·api 전체를 본다 — 로그뿐 아니라 명령 응답·보고서·메트릭 설명 등 예외·assert·DEBUG 밖의 한글 문자열 전부).
+- **태그(2026-11-16):** 병합 묶음·마일스톤에는 깃 태그를 단다(`base/<MC>/<UTC 날짜>-<N>`, `ms/<MC>/<슬러그>`). 판 완성 태그 `<MC>`(예: `1.21.1`)는 도미니코의 판단 때만. 한 판에는 계속 갱신되는 빌드 하나만 둔다(Furnace 자체 버전 번호·판 안의 여러 출시 없음). 만들기·이름 검사는 `tools/release/furnace-tag.sh`, 규칙 전문은 `docs/ops/version-tags.md`. 태그는 옮기거나 지우지 않고, 기준 브랜치 `test` 가 초록인 커밋에만 찍는다.
 - **문서 충돌 방지(2026-11-07):** 사용자 확인·결정 항목은 `docs/user-todo.md` 를 고치지 말고 `docs/user-todo/entries/<날짜>-<묶음 id>.md` 새 파일로, 바닐라 대조·함정 기록은 `docs/feature-parity/context-notes.md` 끝에 붙이지 말고 `docs/feature-parity/context-notes/<날짜>-<묶음 id>.md` 새 파일로 쓴다(`README.md` 참고). 새 절을 같은 파일 같은 자리에 붙이면 PR 마다 병합 충돌이 난다.
 
 ## graphify (코드 구조 지도)

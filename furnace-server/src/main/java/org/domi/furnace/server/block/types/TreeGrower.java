@@ -35,7 +35,7 @@ public final class TreeGrower {
 
     public static Spec of(String name) {
         Spec s = GROWERS.get(name);
-        if (s == null) throw new IllegalArgumentException("모르는 TreeGrower: " + name);
+        if (s == null) throw new IllegalArgumentException("unknown TreeGrower: " + name);
         return s;
     }
 

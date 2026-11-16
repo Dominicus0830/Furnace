@@ -1,6 +1,7 @@
 // 청크 전송 뒤 블록 변경으로 빛이 바뀌면 바뀐 섹션만 담은 빛 갱신(0x2A)을 보낸다.
 package org.domi.furnace.server.light;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -22,7 +23,7 @@ class LightUpdateBroadcastTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new org.domi.furnace.server.data.TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new org.domi.furnace.server.data.TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static final class Level extends BlockPlacementTest.TestLevel {
@@ -37,7 +38,7 @@ class LightUpdateBroadcastTest {
         level.broadcastChanges();
         level.light.clear();
 
-        int glow = BlockRegistry.load("blocks/1.21.1.txt").defaultStateId("minecraft:glowstone");
+        int glow = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt").defaultStateId("minecraft:glowstone");
         level.setBlock(new Pos(8, -40, 8), glow, 3);
         level.runLightUpdates();
         level.broadcastChanges();

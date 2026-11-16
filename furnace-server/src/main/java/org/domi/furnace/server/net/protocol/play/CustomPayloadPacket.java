@@ -20,7 +20,7 @@ public record CustomPayloadPacket(String channel, byte[] data, boolean inPlay) i
 
     @Override
     public void write(ByteBuf buf) {
-        if (data.length > MAX_CLIENTBOUND) throw new IllegalArgumentException("페이로드가 너무 크다: " + data.length);
+        if (data.length > MAX_CLIENTBOUND) throw new IllegalArgumentException("payload too large: " + data.length);
         Types.writeString(buf, channel);
         buf.writeBytes(data);
     }

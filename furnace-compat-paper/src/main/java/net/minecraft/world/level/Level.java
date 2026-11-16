@@ -66,7 +66,25 @@ public abstract class Level implements LevelAccessor {
     @Override
     public abstract ChunkSource getChunkSource();
 
+    /** 바닐라 Level#getLightEngine: 청크 공급원의 빛 엔진(T-205). */
+    public net.minecraft.world.level.lighting.LevelLightEngine getLightEngine() { return getChunkSource().getLightEngine(); }
+
+    /** 바닐라 BlockAndTintGetter#getBrightness: 그 층 듣기의 칸 값(Paper 규칙 — {@link net.minecraft.world.level.lighting.LevelLightEngine}). */
+    public int getBrightness(LightLayer layer, BlockPos pos) { return getLightEngine().getLayerListener(layer).getLightValue(pos); }
+
+    /** 바닐라 BlockAndTintGetter#getRawBrightness: 빛 엔진의 getRawBrightness(T-205). */
+    public int getRawBrightness(BlockPos pos, int ambientDarkness) { return getLightEngine().getRawBrightness(pos, ambientDarkness); }
+
     /** 로드된 청크의 보기. 로드돼 있지 않으면 IllegalStateException(Paper 는 동기로 불러온다). */
+    private volatile ca.spottedleaf.moonrise.patches.chunk_system.level.entity.EntityLookup furnaceEntityLookup;
+
+    /** Paper(Moonrise): 이 월드의 엔티티 찾기(N2b-6 — 청크별 엔티티 묶음만). FAWE 가 이 메서드가 Level 에 있는지로 Paper 엔티티 길을 고른다. */
+    public final ca.spottedleaf.moonrise.patches.chunk_system.level.entity.EntityLookup moonrise$getEntityLookup() {
+        var l = furnaceEntityLookup;
+        if (l == null) furnaceEntityLookup = l = new ca.spottedleaf.moonrise.patches.chunk_system.level.entity.EntityLookup((net.minecraft.server.level.ServerLevel) this);
+        return l;
+    }
+
     public LevelChunk getChunk(int x, int z) { return (LevelChunk) getChunk(x, z, ChunkStatus.FULL, true); }
 
     public LevelChunk getChunkAt(BlockPos pos) { return getChunk(pos.getX() >> 4, pos.getZ() >> 4); }
@@ -114,7 +132,7 @@ public abstract class Level implements LevelAccessor {
     @Override
     public int getHeight(Heightmap.Types type, int x, int z) {
         if (x < -30_000_000 || z < -30_000_000 || x >= 30_000_000 || z >= 30_000_000) {
-            throw new UnsupportedNmsCall("Level#getHeight(월드 경계 밖)", "경계 밖의 답(해수면 + 1)은 차원의 해수면이 필요해 아직 없다");
+            throw new UnsupportedNmsCall("Level#getHeight(outside the world border)", "the answer outside the border (sea level + 1) needs the sea level of the dimension and is not available yet");
         }
         if (!hasChunk(x >> 4, z >> 4)) return getMinBuildHeight();
         return getChunk(x >> 4, z >> 4).getHeight(type, x & 15, z & 15) + 1;

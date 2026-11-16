@@ -43,6 +43,20 @@ public class SkullBlockEntity extends BlockEntity {
         customName = tag.tags().get("custom_name") instanceof String s ? s : null;
     }
 
+    /**
+     * Paper CraftSkull.applyTo: 플레이어 머리면 사본의 소유자를 그대로 적용한다 — 사본에 소유자가 없으면 지운다(바닐라 load 는 없는 profile 을 옛 값 그대로 둔다).
+     * 소리 블록 소리는 Paper 도 이 길로는 지우지 못한다(저장 → 읽기라 없는 값은 그대로) — 그대로 따른다.
+     */
+    @Override
+    public void beforeSnapshotLoad(NbtCompound tag) {
+        if (!tag.contains("profile") && isPlayerHead()) profile = null;
+    }
+
+    private boolean isPlayerHead() {
+        var b = BlockBehaviors.of(blockState());
+        return b instanceof org.domi.furnace.server.block.types.PlayerHeadBlock || b instanceof org.domi.furnace.server.block.types.PlayerWallHeadBlock;
+    }
+
     @Override
     protected void saveAdditional(NbtCompound tag) {
         if (profile != null) tag.put("profile", DataComponents.PROFILE_TYPE.persistent().toNbt(profile));

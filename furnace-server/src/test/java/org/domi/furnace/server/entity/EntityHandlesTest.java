@@ -3,6 +3,7 @@
 // Paper ver/1.21.4 소스(TrackingRange·ItemEntity·CraftEventFactory 경험치 합치기 — 1.21.1 패치와 같은 줄).
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -21,7 +22,7 @@ class EntityHandlesTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @AfterEach

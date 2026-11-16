@@ -13,17 +13,17 @@ final class ResourceKeys {
     static String reference(String what, String id) {
         if (id == null) throw new NullPointerException(what);
         String full = id.indexOf(':') < 0 ? "minecraft:" + id : id;
-        if (!FULL.matcher(full).matches()) throw new IllegalArgumentException(what + " 형식이 잘못됐다(namespace:path): " + id);
+        if (!FULL.matcher(full).matches()) throw new IllegalArgumentException(what + " has an invalid format (namespace:path): " + id);
         return full;
     }
 
     static float finite(String what, float v) {
-        if (!Float.isFinite(v)) throw new IllegalArgumentException(what + " 는 유한한 수여야 한다: " + v);
+        if (!Float.isFinite(v)) throw new IllegalArgumentException(what + " must be a finite number: " + v);
         return v;
     }
 
     static double finite(String what, double v) {
-        if (!Double.isFinite(v)) throw new IllegalArgumentException(what + " 는 유한한 수여야 한다: " + v);
+        if (!Double.isFinite(v)) throw new IllegalArgumentException(what + " must be a finite number: " + v);
         return v;
     }
 }

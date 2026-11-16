@@ -2,6 +2,7 @@
 // 기대값은 바닐라 1.21.1 바이트코드 기준.
 package org.domi.furnace.server.item;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.google.gson.JsonParser;
@@ -29,14 +30,14 @@ class ItemSubPredicatesReviewTest {
     static void load() throws Exception {
         PackRepository repo = new PackRepository(null, null);
         repo.reload();
-        TagRegistries tags = new TagRegistries(RegistrySet.load("registries/1.21.1.txt"));
+        TagRegistries tags = new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"));
         try (var rm = repo.openResourceManager()) { regs = new LootRegistries(tags, tags.loadAll(rm)); }
     }
 
     @BeforeEach
     void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
-        ItemContext.installTags(TagSet.load("registries/tags-1.21.1.txt"));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
+        ItemContext.installTags(TagSet.load("registries/tags-" + GameVersion.RESOURCE_TAG + ".txt"));
     }
 
     static ItemStack stack(String s) throws Exception { return ItemArgument.item().parse(new StringReader(s)).createItemStack(1, false); }

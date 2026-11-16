@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -75,8 +76,7 @@ final class HotReload {
                 System.gc();   // 개발 모드에서만 오는 길 — 회수 기회를 한 번 준다
                 Thread.sleep(1000);
                 if (ref.get() != null) {
-                    log.warn("[핫 리로드] {} 의 옛 클래스로더가 아직 회수되지 않았다 — 다른 플러그인의 static 필드, 끝나지 않은 스레드, "
-                            + "ThreadLocal, 서버에 맡기고 풀지 않은 콜백이 옛 클래스를 붙잡고 있을 수 있다. 다시 읽을수록 메모리가 는다", plugin);
+                    log.warn(Lang.t("hotreload.classloader-leak", plugin));
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -96,7 +96,7 @@ final class HotReload {
     private static void warnLiveThreads(String plugin, ClassLoader loader) {
         List<String> threads = liveThreads(loader);
         if (!threads.isEmpty()) {
-            log.warn("[핫 리로드] {} 가 만든 스레드가 꺼진 뒤에도 돌고 있다: {} — onDisable 에서 끝내야 한다", plugin, threads);
+            log.warn(Lang.t("hotreload.threads-alive", plugin, threads));
         }
     }
 
@@ -169,7 +169,7 @@ final class HotReload {
                 try {
                     changed.accept(p);
                 } catch (Throwable t) {
-                    log.error("[핫 리로드] {} 변경 처리 실패", p, t);
+                    log.error(Lang.t("hotreload.change-failed", p), t);
                 }
             }
         }

@@ -91,7 +91,7 @@ public final class Menu {
     public int size() { return items.length; }
 
     private void check(int slot) {
-        if (slot < 0 || slot >= items.length) throw new IndexOutOfBoundsException("칸 " + slot + " (0.." + (items.length - 1) + ")");
+        if (slot < 0 || slot >= items.length) throw new IndexOutOfBoundsException("slot " + slot + " (0.." + (items.length - 1) + ")");
     }
 
     public ItemStack item(int slot) {
@@ -114,6 +114,37 @@ public final class Menu {
             synchronized (STORAGE_LOCK) { return set0(slot, item); }   // 보는 사람의 클릭과 한 줄로
         }
         return set0(slot, item);
+    }
+
+    /**
+     * 칸의 지금 값을 fn 에 넘겨 돌려받은 값으로 바꾼다 — 읽기와 쓰기가 다른 쓰기에 끼이지 않는다(보관함 메뉴는 클릭 처리와 한 줄로).
+     * fn 이 null 이거나 받은 것 그대로를 돌려주면 바꾸지 않는다. 바꿨으면 true. fn 은 짧게, 이 메뉴를 다시 건드리지 말 것.
+     */
+    public boolean update(int slot, java.util.function.UnaryOperator<ItemStack> fn) {
+        check(slot);
+        Objects.requireNonNull(fn, "fn");
+        ItemStack now;
+        if (storage) {
+            synchronized (STORAGE_LOCK) { now = update0(slot, fn); }
+        } else {
+            now = update0(slot, fn);
+        }
+        if (now == null) return false;
+        for (Listener l : listeners) l.slotChanged(this, slot, now);
+        return true;
+    }
+
+    /** 바꿨으면 새 값, 아니면 null. */
+    private ItemStack update0(int slot, java.util.function.UnaryOperator<ItemStack> fn) {
+        synchronized (lock) {
+            ItemStack cur = items[slot];
+            ItemStack next = fn.apply(cur);
+            if (next == null || next == cur) return null;
+            ItemStack now = next.isEmpty() ? ItemStack.EMPTY : next;
+            if (items[slot].equals(now)) return null;
+            items[slot] = now;
+            return now;
+        }
     }
 
     private Menu set0(int slot, ItemStack item) {
@@ -246,7 +277,7 @@ public final class Menu {
             if (any != null) any.accept(click);
         } catch (Throwable t) {
             click.deny();
-            LOG.log(System.Logger.Level.ERROR, "메뉴 클릭 처리기 오류", t);
+            LOG.log(System.Logger.Level.ERROR, "Menu click handler failed", t);
         }
     }
 
@@ -255,7 +286,7 @@ public final class Menu {
         try {
             h.accept(p);
         } catch (Throwable t) {
-            LOG.log(System.Logger.Level.ERROR, "메뉴 열기/닫기 처리기 오류", t);
+            LOG.log(System.Logger.Level.ERROR, "Menu open/close handler failed", t);
         }
     }
 }

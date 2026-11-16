@@ -1,6 +1,7 @@
 // ChunkColumn→NBT→ChunkColumn 블록 보존 + 편집 보존 검증
 package org.domi.furnace.server.world.anvil;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
@@ -18,7 +19,7 @@ class AnvilChunkCodecTest {
 
     @Test
     void roundTrip_preservesBlocks() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         AnvilChunkCodec codec = new AnvilChunkCodec(reg, 0);
         ChunkColumn col = new SuperflatWorldSource(reg, 0).generate(2, -3);
         int grass = reg.defaultStateId("minecraft:grass_block");
@@ -34,7 +35,7 @@ class AnvilChunkCodecTest {
 
     @Test
     void roundTrip_recomputesHeightmap() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         AnvilChunkCodec codec = new AnvilChunkCodec(reg, 0);
         ChunkColumn fresh = new SuperflatWorldSource(reg, 0).generate(2, -3);
         ChunkColumn back = codec.fromNbt(codec.toNbt(fresh, 2, -3));
@@ -44,7 +45,7 @@ class AnvilChunkCodecTest {
 
     @Test
     void roundTrip_noBlockEntities_producesEmptyList() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         AnvilChunkCodec codec = new AnvilChunkCodec(reg, 0);
         ChunkColumn col = new SuperflatWorldSource(reg, 0).generate(0, 0);
 
@@ -55,7 +56,7 @@ class AnvilChunkCodecTest {
 
     @Test
     void roundTrip_preservesChestBlockEntity() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         AnvilChunkCodec codec = new AnvilChunkCodec(reg, 0);
         ChunkColumn col = new SuperflatWorldSource(reg, 0).generate(1, 2);
         ItemStack[] items = new ItemStack[27];
@@ -81,8 +82,8 @@ class AnvilChunkCodecTest {
     /** 바닐라 월드의 블록 엔티티(아이템 든 상자, 화로, 표지판 등)가 있어도 청크 로드가 예외 없이 되어야 한다. */
     @Test
     void fromNbt_vanillaBlockEntities_doNotThrow() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        ItemRegistry items = ItemRegistry.load("items/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        ItemRegistry items = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
         AnvilChunkCodec codec = new AnvilChunkCodec(reg, 0, items);
         var base = new SuperflatWorldSource(reg, 0).generate(0, 0);
         base.setBlock(4, -60, 4, reg.defaultStateId("minecraft:furnace"));   // 블록 엔티티는 맞는 블록 위에서만 읽힌다(isValid)
@@ -131,8 +132,8 @@ class AnvilChunkCodecTest {
      */
     @Test
     void roundTrip_preservesChestNameLockAndBukkitValues() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        ItemRegistry items = ItemRegistry.load("items/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        ItemRegistry items = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
         AnvilChunkCodec codec = new AnvilChunkCodec(reg, 0, items);
         ChunkColumn col = new SuperflatWorldSource(reg, 0).generate(0, 0);
         col.setBlock(1, -60, 2, reg.defaultStateId("minecraft:chest"));
@@ -167,8 +168,8 @@ class AnvilChunkCodecTest {
     /** 디스크의 빈 Lock("")은 잠금이 아니다(바닐라 LockCode.fromTag — 빈 열쇠는 NO_LOCK, 다시 쓰지 않는다). */
     @Test
     void emptyChestLockOnDiskIsNoLock() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        ItemRegistry items = ItemRegistry.load("items/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        ItemRegistry items = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
         AnvilChunkCodec codec = new AnvilChunkCodec(reg, 0, items);
         ChunkColumn col = new SuperflatWorldSource(reg, 0).generate(0, 0);
         col.setBlock(1, -60, 2, reg.defaultStateId("minecraft:chest"));
@@ -191,7 +192,7 @@ class AnvilChunkCodecTest {
     /** 갱신 태그가 saveCustomOnly 인 종류(표지판)도 클라이언트로는 영속 데이터를 보내지 않는다(Paper Sanitize-sent-BlockEntity-NBT). */
     @Test
     void sentUpdateTagDropsBukkitValues() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         NbtCompound pdc = new NbtCompound();
         pdc.putString("demo:owner", "Dana");
         NbtCompound tag = new NbtCompound();

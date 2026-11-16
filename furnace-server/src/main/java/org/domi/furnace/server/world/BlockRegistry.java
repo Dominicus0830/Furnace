@@ -36,7 +36,7 @@ public final class BlockRegistry {
         ClassLoader cl = BlockRegistry.class.getClassLoader();
         try (InputStream in = cl.getResourceAsStream(resourcePath)) {
             if (in == null) {
-                throw new IllegalStateException("블록 리소스 없음: " + resourcePath);
+                throw new IllegalStateException("block resource is missing: " + resourcePath);
             }
             BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             String line;
@@ -92,7 +92,7 @@ public final class BlockRegistry {
 
     public int defaultStateId(String blockId) {
         Integer id = defaultStateIds.get(blockId);
-        if (id == null) throw new IllegalArgumentException("미지원 블록: " + blockId);
+        if (id == null) throw new IllegalArgumentException("unsupported block: " + blockId);
         return id;
     }
 

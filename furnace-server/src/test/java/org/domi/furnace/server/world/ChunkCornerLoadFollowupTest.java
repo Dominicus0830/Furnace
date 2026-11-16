@@ -2,6 +2,7 @@
 // 클라 시야가 서버 시야보다 작아도 서버 시야 정사각을 올린다(S4 — 바닐라 플레이어 티켓은 서버 시야 정사각).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -44,7 +45,7 @@ class ChunkCornerLoadFollowupTest {
     static Rig rig(GameMode mode, int serverVd, int clientVd, boolean failFirstCorner) throws Exception {
         Rig r = new Rig();
         r.sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         r.io = Executors.newSingleThreadExecutor();
         WorldSource flat = new SuperflatWorldSource(reg, 0);
         AtomicInteger failures = new AtomicInteger();

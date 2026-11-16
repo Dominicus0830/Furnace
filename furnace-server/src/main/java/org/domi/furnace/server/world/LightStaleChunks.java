@@ -17,6 +17,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,8 +57,7 @@ public final class LightStaleChunks {
             if (data.tags().get("TrustNone") instanceof Byte b && b != 0) trustNone = true;
         } catch (IOException | RuntimeException e) {
             // 표시를 잃으면 그 청크들이 지운 빛이 남은 저장 빛을 믿게 된다 — 대신 이 차원은 저장 빛을 하나도 믿지 않는다(예전처럼 다시 계산)
-            LOG.error("{} 읽기 실패 — 이 차원은 저장된 빛을 믿지 않고 모두 다시 계산한다(파일을 지우면 다시 믿는다: 그 전에 지운 빛이 남은 청크가 있을 수 있다)",
-                    file, e);
+            LOG.error(Lang.t("light.stale-read-failed", file), e);
             chunks.clear();
             trustNone = true;
             dirty = true;
@@ -112,7 +112,7 @@ public final class LightStaleChunks {
                 Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
             } catch (IOException e) {
                 dirty = true;
-                LOG.error("{} 저장 실패", file, e);
+                LOG.error(Lang.t("light.stale-save-failed", file), e);
             }
         }
     }

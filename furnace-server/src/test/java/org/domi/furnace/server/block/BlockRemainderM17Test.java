@@ -2,6 +2,7 @@
 // TNT 부싯돌·화염구와 호박 가위의 내구도·통계, 낙하 블록 TileEntityData, 가루눈 충돌 모양(엔티티별).
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -35,7 +36,7 @@ class BlockRemainderM17Test {
     @BeforeAll
     static void install() {
         BlockPlacementTest.install();
-        ItemContext.installTags(org.domi.furnace.server.net.registry.TagSet.load("registries/tags-1.21.1.txt"));   // breaks_decorated_pots·powder_snow_walkable_mobs·인챈트 태그
+        ItemContext.installTags(org.domi.furnace.server.net.registry.TagSet.load("registries/tags-" + GameVersion.RESOURCE_TAG + ".txt"));   // breaks_decorated_pots·powder_snow_walkable_mobs·인챈트 태그
     }
 
     static final class Lvl extends BlockPlacementTest.TestLevel {

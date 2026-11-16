@@ -4,6 +4,7 @@
 // 소유권: 복사본은 이 region 이 가진 청크만 담는다. 다른 region·미로드 청크에 닿으면 아무것도 옮기지 않는다(성장 실패로 본다).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -49,8 +50,8 @@ public final class LiveFeatures {
             synchronized (LiveFeatures.class) {
                 d = fallback;
                 if (d == null) {
-                    fallback = d = BiomeFeatureData.load(WorldgenData.load("worldgen/1.21.1"), List.of(),
-                            BlockRegistry.load("blocks/1.21.1.txt"));
+                    fallback = d = BiomeFeatureData.load(WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG), List.of(),
+                            BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"));
                 }
             }
         }
@@ -222,7 +223,7 @@ public final class LiveFeatures {
                         "end_gateway", "command_block", "repeating_command_block", "chain_command_block", "structure_block", "jigsaw")
                 .map(n -> {
                     int b = org.domi.furnace.server.block.Blocks.get().block("minecraft:" + n);
-                    if (b < 0) throw new IllegalStateException("블록 없음: " + n);
+                    if (b < 0) throw new IllegalStateException("no such block: " + n);
                     return b;
                 })
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
@@ -276,7 +277,7 @@ public final class LiveFeatures {
         for (int d = 0; d < 6; d++) {
             if (org.domi.furnace.server.block.Dir.DX[d] == dx && org.domi.furnace.server.block.Dir.DY[d] == dy && org.domi.furnace.server.block.Dir.DZ[d] == dz) return d;
         }
-        throw new IllegalArgumentException("방향 아님");
+        throw new IllegalArgumentException("not a direction");
     }
 
     /** 측정·비교용: false 면 예전처럼 청크 기둥 전체를 복사한다. */

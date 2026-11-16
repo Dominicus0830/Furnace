@@ -3,6 +3,7 @@
 // (3) 기다리는 요청이 붙은 일은 건너뛰지 않는다(예전 결과 그대로).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -70,7 +71,7 @@ class ChunkBodyLightDeferTest {
 
     private World world(WorldSource src, boolean auto) {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         io = Executors.newSingleThreadExecutor();
         pool = new ChunkWorkerPool(1);
@@ -112,7 +113,7 @@ class ChunkBodyLightDeferTest {
     /** 이웃 빛이 번지는 장면: 보낸 본문 = 보낼 때 청크 상태, 시야 청크가 모두 온다. 예전 구현에서도 같은 단언이 성립한다(이 PR 은 시점만 바꾼다). */
     @Test
     void sentBodyEqualsChunkStateAtSendTime_withNeighbourLightSpreading() throws Exception {
-        reg = BlockRegistry.load("blocks/1.21.1.txt");
+        reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         world(litTunnels(), true);
         List<String> mismatches = java.util.Collections.synchronizedList(new ArrayList<>());
         int[] checked = {0};
@@ -147,7 +148,7 @@ class ChunkBodyLightDeferTest {
     /** 이웃(대각선 포함)이 올라오는 중이면 미리 직렬화도, 보내려는 청크의 직렬화도 걸지 않는다. 다 올라오면 건다. */
     @Test
     void neighbourLoading_defersSerialization_untilLoaded() throws Exception {
-        reg = BlockRegistry.load("blocks/1.21.1.txt");
+        reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         world(new SuperflatWorldSource(reg, 0), true);
         onOwner(() -> w.regionAt(R00).chunkAtBlocking(C00));
         long diag = Regionizer.chunkKey(1, -1);
@@ -166,7 +167,7 @@ class ChunkBodyLightDeferTest {
     /** 플레이어가 곧 받을 청크(대기열) 안의 이웃이 아직 안 올라왔으면 올라오는 중과 같이 미룬다. 시야 밖 이웃(대기열에 없음)은 기다리지 않는다. */
     @Test
     void upcomingNeighbourNotYetLoaded_defers_outsideViewDoesNot() throws Exception {
-        reg = BlockRegistry.load("blocks/1.21.1.txt");
+        reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         world(new SuperflatWorldSource(reg, 0), true);
         onOwner(() -> w.regionAt(R00).chunkAtBlocking(C00));
         int snaps0 = w.bodySnapshots.get();
@@ -181,7 +182,7 @@ class ChunkBodyLightDeferTest {
     /** 이웃 로드가 끝나지 않아도 보내려는 청크는 MAX_LIGHT_WAITS 번만 미루고 그 뒤에는 예전처럼 직렬화한다(영영 못 보내지 않게). */
     @Test
     void neighbourLoading_sendDeferralIsBounded() throws Exception {
-        reg = BlockRegistry.load("blocks/1.21.1.txt");
+        reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         world(new SuperflatWorldSource(reg, 0), true);
         onOwner(() -> w.regionAt(R00).chunkAtBlocking(C00));
         CompletableFuture<ChunkColumn> fake = new CompletableFuture<>();
@@ -197,7 +198,7 @@ class ChunkBodyLightDeferTest {
     /** 기다리는 요청 없는 미리 직렬화가 풀에서 시작하기 전에 청크가 바뀌면 건너뛴다 — 캐시에도 안 들어가고 다음 요청은 새 상태를 받는다. */
     @Test
     void speculativeJob_staleBeforeStart_isSkipped() throws Exception {
-        reg = BlockRegistry.load("blocks/1.21.1.txt");
+        reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         world(new SuperflatWorldSource(reg, 0), true);
         onOwner(() -> w.regionAt(R00).chunkAtBlocking(C00));
         CountDownLatch gate = new CountDownLatch(1);
@@ -216,7 +217,7 @@ class ChunkBodyLightDeferTest {
     /** 미리 직렬화에 기다리는 요청이 붙으면 낡아도 건너뛰지 않고 예전처럼 그 결과(스냅샷 때 상태)를 준다. */
     @Test
     void speculativeJob_withWaiter_isNotSkipped() throws Exception {
-        reg = BlockRegistry.load("blocks/1.21.1.txt");
+        reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         world(new SuperflatWorldSource(reg, 0), true);
         onOwner(() -> w.regionAt(R00).chunkAtBlocking(C00));
         byte[] before = onOwner(() -> freshBodyOnOwner(C00));
@@ -239,7 +240,7 @@ class ChunkBodyLightDeferTest {
     /** 이웃 기다림은 틱당 한 번만 센다(여럿이 같은 청크를 기다려도 상한 20틱 그대로), 한 틱이라도 끊기면 1 부터 다시 센다(PR #301 검토 R1). */
     @Test
     void lightWaits_countOncePerTick_andRestartAfterGap() throws Exception {
-        reg = BlockRegistry.load("blocks/1.21.1.txt");
+        reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         world(new SuperflatWorldSource(reg, 0), true);
         onOwner(() -> w.regionAt(R00).chunkAtBlocking(C00));
         CompletableFuture<ChunkColumn> fake = new CompletableFuture<>();
@@ -268,7 +269,7 @@ class ChunkBodyLightDeferTest {
      */
     @Test
     void realRace_waitersNeverGetNull() throws Exception {
-        reg = BlockRegistry.load("blocks/1.21.1.txt");
+        reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         world(new SuperflatWorldSource(reg, 0), true);
         onOwner(() -> w.regionAt(R00).chunkAtBlocking(C00));
         java.util.Random rnd = new java.util.Random(301);

@@ -57,7 +57,7 @@ public class CraftEntity implements Entity {
      */
     public synchronized void furnaceHandle(org.domi.furnace.api.entity.Entity fresh) {
         org.domi.furnace.api.entity.Entity cur = handle;
-        if (!fresh.uniqueId().equals(cur.uniqueId())) throw new IllegalArgumentException("다른 엔티티의 핸들: " + fresh.uniqueId() + " != " + cur.uniqueId());
+        if (!fresh.uniqueId().equals(cur.uniqueId())) throw new IllegalArgumentException("handle of another entity: " + fresh.uniqueId() + " != " + cur.uniqueId());
         long f = fresh.snapshotStamp(), c = cur.snapshotStamp();
         if (f != 0 && c != 0 && f < c) return;
         handle = fresh;
@@ -214,7 +214,7 @@ public class CraftEntity implements Entity {
         if (t != null) return t;
         String key = handle.type();
         t = org.bukkit.entity.EntityType.fromKey(key);
-        if (t == null) throw new UnsupportedFeature("Entity#getType(" + key + ")", "Bukkit EntityType 열거형에 없는 종류다(플러그인이 더한 엔티티)");
+        if (t == null) throw new UnsupportedFeature("Entity#getType(" + key + ")", "kind is not in the Bukkit EntityType enum (an entity added by a plugin)");
         return kind = t;
     }
 
@@ -332,7 +332,7 @@ public class CraftEntity implements Entity {
 
     private static org.domi.furnace.api.entity.Entity furnace(org.bukkit.entity.Entity e) {
         if (e instanceof CraftEntity c) return c.furnaceHandle();
-        throw new IllegalArgumentException("Furnace 가 모르는 Entity 구현이다: " + e.getClass().getName());
+        throw new IllegalArgumentException("Entity implementation unknown to Furnace: " + e.getClass().getName());
     }
 
     // ---- 메타데이터(메모리에만 — Paper 처럼 엔티티는 UUID, 플레이어는 이름으로 가른다)
@@ -411,7 +411,7 @@ public class CraftEntity implements Entity {
     public boolean isOp() { return false; }
 
     @Override
-    public void setOp(boolean value) { throw new UnsupportedOperationException("엔티티는 OP 가 될 수 없다"); }
+    public void setOp(boolean value) { throw new UnsupportedOperationException("an entity cannot be an operator"); }
 
     @Override
     public boolean isPermissionSet(String name) { return false; }

@@ -1,6 +1,7 @@
 // 바닐라 비트일치 노이즈 지형 WorldSource. generateBlockIds + Aquifer 기반 블록 결정
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -179,10 +180,10 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
      */
     public static NoiseWorldSource overworld(long seed, BlockRegistry reg, RegistrySet registries, String noiseSettings, String fixedBiome) {
         if (!OVERWORLD_NOISE_SETTINGS.contains(noiseSettings)) {
-            throw new IllegalArgumentException("지원하지 않는 오버월드 노이즈 설정: " + noiseSettings);
+            throw new IllegalArgumentException("unsupported overworld noise settings: " + noiseSettings);
         }
         if (fixedBiome != null && registries.indexOf("minecraft:worldgen/biome", fixedBiome) < 0) {
-            throw new IllegalArgumentException("모르는 바이옴: " + fixedBiome);
+            throw new IllegalArgumentException("unknown biome: " + fixedBiome);
         }
         return create(Dimension.OVERWORLD, noiseSettings, seed, reg, registries, fixedBiome);
     }
@@ -198,7 +199,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
      * 생성 문맥은 FlatLevelSource 값: getMinY 0, getGenDepth 384, getSeaLevel -63.
      */
     public static NoiseWorldSource flat(long seed, BlockRegistry reg, RegistrySet registries, FlatSpec spec) {
-        if (registries.indexOf("minecraft:worldgen/biome", spec.biome()) < 0) throw new IllegalArgumentException("모르는 바이옴: " + spec.biome());
+        if (registries.indexOf("minecraft:worldgen/biome", spec.biome()) < 0) throw new IllegalArgumentException("unknown biome: " + spec.biome());
         return create(Dimension.OVERWORLD, "minecraft:overworld", seed, reg, registries, spec.biome(), spec);
     }
 
@@ -243,7 +244,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
 
     private static NoiseWorldSource create(Dimension dim, String noiseSettingsId, long seed, BlockRegistry reg, RegistrySet registries, String fixedBiome,
                                            FlatSpec flat) {
-        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
+        WorldgenData data = WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG);
         JsonObject settingsJson = data.noiseSettings(noiseSettingsId);
         NoiseSettings settings = NoiseSettings.fromJson(noiseSettingsId, settingsJson);
         NoiseRouter router = NoiseRouter.build(data, settings, seed);

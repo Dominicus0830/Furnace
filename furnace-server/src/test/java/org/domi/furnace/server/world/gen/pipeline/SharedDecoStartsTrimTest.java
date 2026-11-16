@@ -2,6 +2,7 @@
 // 새 객체로 다시 만들어지지 않는지. 상한 0(완성마다 정리)과 기본 상한으로 같은 순서를 만들어 블록·상자 개수가 같아야 한다.
 package org.domi.furnace.server.world.gen.pipeline;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Set;
@@ -19,8 +20,8 @@ class SharedDecoStartsTrimTest {
 
     @Test
     void trimKeepsInProgressMutableStarts() throws Exception {
-        BlockRegistry blocks = BlockRegistry.load("blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry blocks = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         Set<Integer> chest = blocks.stateIdsForBlock("minecraft:chest");
         NoiseWorldSource ref = NoiseWorldSource.overworld(SEED, blocks, registries);
         NoiseWorldSource tight = NoiseWorldSource.overworld(SEED, blocks, registries);

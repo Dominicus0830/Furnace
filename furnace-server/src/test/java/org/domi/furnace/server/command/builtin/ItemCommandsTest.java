@@ -1,6 +1,7 @@
 // 아이템 인자(item_stack·item_predicate·item_slot(s)) 파싱·오류 키, /give 나눠 넣기·가득 참 떨굼, /clear 세기·지우기, 메시지 분기.
 package org.domi.furnace.server.command.builtin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -27,8 +28,8 @@ class ItemCommandsTest {
     @BeforeEach
     void install() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
-        ItemContext.installTags(org.domi.furnace.server.net.registry.TagSet.load("registries/tags-1.21.1.txt"));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
+        ItemContext.installTags(org.domi.furnace.server.net.registry.TagSet.load("registries/tags-" + GameVersion.RESOURCE_TAG + ".txt"));
     }
 
     private static int id(String item) { return ItemContext.id("minecraft:item", item); }

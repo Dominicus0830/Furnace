@@ -1,5 +1,6 @@
 package org.domi.furnace.compat.paper;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -54,8 +55,8 @@ class A15PluginSurfaceParityTest {
                 @Override public void onEnable() {
                     try {
                         WiringProbe.LOG.add("own=" + read(getResource("lang/en_us.json")));
-                        WiringProbe.LOG.add("server=" + (getResource("registries/builtin-1.21.1.txt") == null ? "null" : "found"));
-                        WiringProbe.LOG.add("loader=" + (getClassLoader().getResource("registries/builtin-1.21.1.txt") == null ? "null" : "found"));
+                        WiringProbe.LOG.add("server=" + (getResource("registries/builtin-" + org.domi.furnace.api.GameVersion.RESOURCE_TAG + ".txt") == null ? "null" : "found"));
+                        WiringProbe.LOG.add("loader=" + (getClassLoader().getResource("registries/builtin-" + org.domi.furnace.api.GameVersion.RESOURCE_TAG + ".txt") == null ? "null" : "found"));
                     } catch (IOException e) { WiringProbe.failure = e; }
                     getServer().getPluginManager().registerEvents(new Listener() {
                         @EventHandler public void a1(PlayerToggleSneakEvent e) { WiringProbe.LOG.add("A1"); }

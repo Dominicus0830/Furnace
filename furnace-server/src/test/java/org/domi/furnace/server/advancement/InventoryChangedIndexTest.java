@@ -5,6 +5,7 @@
 //    달성 순서(advancementDone·awardRecipes 호출 열)와 저장 파일이 같은지 대조.
 package org.domi.furnace.server.advancement;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.google.gson.JsonElement;
@@ -347,12 +348,12 @@ class InventoryChangedIndexTest {
     /** 리뷰 R2: 호스트의 레지스트리 객체가 매니저가 읽을 때 쓴 것과 달라도(리로드 사이) 색인이 전부 훑기와 같다. */
     @Test
     void indexUsesManagerRegistriesNotHostRegistries(@TempDir Path dir) throws Exception {
-        java.nio.file.Path root = Path.of("../tools/vanilla-data/server-1.21.1");
+        java.nio.file.Path root = Path.of("../tools/vanilla-data/server-" + GameVersion.MINECRAFT);
         org.junit.jupiter.api.Assumptions.assumeTrue(Files.isDirectory(root.resolve("data/minecraft/advancement")), "로컬 바닐라 데이터 없음");
         var repo = new org.domi.furnace.server.data.PackRepository(root, null);
         repo.reload();
         repo.setSelected(List.of("vanilla"));
-        var tags = new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt"));
+        var tags = new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"));
         AdvancementManager m;
         LootRegistries regs2;
         try (var rm = repo.openResourceManager()) {

@@ -1,6 +1,7 @@
 // 다른 플레이어에게 보이는 외형: 든 아이템·방어구(set_equipment)와 스킨 부위·주 손(엔티티 데이터 17·18)의 실제 패킷 바이트.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -21,7 +22,7 @@ class PlayerAppearanceSyncTest {
     @BeforeAll
     static void install() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static byte[] bytes(Packet p) {

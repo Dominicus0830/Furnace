@@ -23,34 +23,34 @@ public final class ServerMetrics implements MetricsSource {
     public List<Sample> collect() {
         List<Sample> out = new ArrayList<>();
         long now = System.nanoTime();
-        out.add(Sample.gauge("furnace_players_online", "접속 중인 플레이어 수", core.players().size()));
-        out.add(Sample.gauge("furnace_tick_rate_target", "목표 틱 속도(/tick rate)", core.tickState().rate()));
+        out.add(Sample.gauge("furnace_players_online", "Players currently online", core.players().size()));
+        out.add(Sample.gauge("furnace_tick_rate_target", "Target tick rate (/tick rate)", core.tickState().rate()));
         for (int i = 0; i < TpsCommands.TPS_WINDOWS.length; i++) {
-            out.add(Sample.gauge("furnace_tps_global", "전역 박동의 초당 횟수(잴 수 없으면 생략)",
+            out.add(Sample.gauge("furnace_tps_global", "Global heartbeats per second (omitted when it cannot be measured)",
                     core.globalTickStarts().rate(now, TpsCommands.TPS_WINDOWS[i], TpsCommands.GLOBAL_MIN_HISTORY), "window", TPS_WINDOW_NAMES[i]));
         }
         for (int i = 0; i < TpsCommands.MSPT_WINDOWS.length; i++) {
             TickWindows.Window w = core.globalTickWindows().window(now, TpsCommands.MSPT_WINDOWS[i]);
-            if (w.ticks() > 0) out.add(Sample.gauge("furnace_mspt_global_seconds", "전역 박동 평균 소요 시간(초)", w.avgNanos() / 1.0E9, "window", MSPT_WINDOW_NAMES[i]));
+            if (w.ticks() > 0) out.add(Sample.gauge("furnace_mspt_global_seconds", "Average global heartbeat duration in seconds", w.avgNanos() / 1.0E9, "window", MSPT_WINDOW_NAMES[i]));
         }
         for (World w : core.worlds()) {
             Regionizer rz = w.regionizer();
             if (rz == null) continue;
             String dim = rz.dimension();
-            out.add(Sample.gauge("furnace_loaded_chunks", "로드된 청크 수", w.loadedChunkCount(), "dimension", dim));
-            out.add(Sample.gauge("furnace_regions", "region 수", rz.regionCount(), "dimension", dim));
+            out.add(Sample.gauge("furnace_loaded_chunks", "Loaded chunk count", w.loadedChunkCount(), "dimension", dim));
+            out.add(Sample.gauge("furnace_regions", "Region count", rz.regionCount(), "dimension", dim));
             Regionizer.RegionRate slow = rz.slowestRegion(now, TpsCommands.REGION_WINDOW, TpsCommands.REGION_MIN_HISTORY);
-            if (slow != null) out.add(Sample.gauge("furnace_tps_slowest_region", "차원에서 가장 느린 region 의 최근 5초 틱 속도", slow.tps(), "dimension", dim));
+            if (slow != null) out.add(Sample.gauge("furnace_tps_slowest_region", "Tick rate of the slowest region in the dimension over the last 5 seconds", slow.tps(), "dimension", dim));
             for (int i = 0; i < TpsCommands.MSPT_WINDOWS.length; i++) {
                 TickWindows.Window tw = rz.tickWindows().window(now, TpsCommands.MSPT_WINDOWS[i]);
-                if (tw.ticks() > 0) out.add(Sample.gauge("furnace_mspt_region_seconds", "차원 region 틱 평균 소요 시간(초)", tw.avgNanos() / 1.0E9,
+                if (tw.ticks() > 0) out.add(Sample.gauge("furnace_mspt_region_seconds", "Average region tick duration in the dimension in seconds", tw.avgNanos() / 1.0E9,
                         "dimension", dim, "window", MSPT_WINDOW_NAMES[i]));
             }
         }
         var mem = ManagementFactory.getMemoryMXBean().getHeapMemoryUsage();
-        out.add(Sample.gauge("furnace_jvm_heap_used_bytes", "JVM 힙 사용량", mem.getUsed()));
-        out.add(Sample.gauge("furnace_jvm_heap_max_bytes", "JVM 힙 최대", mem.getMax()));
-        out.add(Sample.gauge("furnace_jvm_threads", "JVM 스레드 수", ManagementFactory.getThreadMXBean().getThreadCount()));
+        out.add(Sample.gauge("furnace_jvm_heap_used_bytes", "JVM heap used", mem.getUsed()));
+        out.add(Sample.gauge("furnace_jvm_heap_max_bytes", "JVM heap max", mem.getMax()));
+        out.add(Sample.gauge("furnace_jvm_threads", "JVM thread count", ManagementFactory.getThreadMXBean().getThreadCount()));
         return out;
     }
 }

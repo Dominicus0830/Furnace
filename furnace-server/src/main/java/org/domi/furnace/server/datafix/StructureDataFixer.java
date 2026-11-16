@@ -7,6 +7,7 @@
 // 3955 보다 새 판은 고치지 않고 그대로 읽는다(호출하는 쪽이 경고를 남긴다).
 package org.domi.furnace.server.datafix;
 
+import org.domi.furnace.api.GameVersion;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -19,7 +20,7 @@ public final class StructureDataFixer {
     private StructureDataFixer() {}
 
     /** 1.21.1 SharedConstants.WORLD_VERSION. */
-    public static final int CURRENT_VERSION = 3955;
+    public static final int CURRENT_VERSION = GameVersion.DATA_VERSION;
     /** 이 판부터 고칠 수 있다(1451 하위 버전들의 평탄화는 옮기지 않았다). */
     public static final int MIN_SUPPORTED_VERSION = 1452;
 
@@ -42,6 +43,63 @@ public final class StructureDataFixer {
         }
         root.putInt("DataVersion", CURRENT_VERSION);
         return true;
+    }
+
+    // ---- 조각 단위 고치기(플러그인 호환 계층의 DataFixers 가 쓴다): 같은 고침 표를 블록 상태·이름·아이템·블록 엔티티·엔티티 하나에 적용한다.
+
+    private static Visitor visitorOf(FixStep s) {
+        return new Visitor() {
+            @Override public NbtCompound blockState(NbtCompound st) { return s.blockState != null ? s.blockState.apply(st) : st; }
+            @Override public NbtCompound blockEntity(NbtCompound be) { return s.blockEntity != null ? s.blockEntity.apply(be) : be; }
+            @Override public NbtCompound entity(NbtCompound e) { return s.entity != null ? s.entity.apply(e) : e; }
+            @Override public NbtCompound item(NbtCompound it) { return s.item != null ? s.item.apply(it) : it; }
+        };
+    }
+
+    /** 블록 상태 {Name, Properties} 하나를 제자리에서 고친다(지원 밖의 판이면 그대로). */
+    public static NbtCompound fixBlockState(NbtCompound state, int dataVersion) {
+        if (!supports(dataVersion) || dataVersion == CURRENT_VERSION) return state;
+        NbtCompound cur = state;
+        for (FixStep s : FixTable.STEPS) if (s.key > dataVersion * 10 && s.blockState != null) cur = s.blockState.apply(cur);
+        return cur;
+    }
+
+    /** 블록 이름 하나. */
+    public static String fixBlockName(String name, int dataVersion) {
+        NbtCompound st = new NbtCompound();
+        st.putString("Name", FixUtil.ns(name));
+        String out = FixUtil.str(fixBlockState(st, dataVersion), "Name");
+        return out == null ? name : out;
+    }
+
+    /** 아이템 이름 하나(아이템 칸 {id, Count} 로 고침을 돌려 id 를 읽는다). */
+    public static String fixItemName(String name, int dataVersion) {
+        if (!supports(dataVersion) || dataVersion == CURRENT_VERSION) return name;
+        NbtCompound it = new NbtCompound();
+        it.putString("id", FixUtil.ns(name));
+        it.putByte("Count", (byte) 1);
+        String out = FixUtil.str(fixItem(it, dataVersion), "id");
+        return out == null ? name : out;
+    }
+
+    public static NbtCompound fixItem(NbtCompound item, int dataVersion) {
+        return fixPiece(item, dataVersion, StructureDataFixer::visitItem);
+    }
+
+    public static NbtCompound fixBlockEntityPiece(NbtCompound be, int dataVersion) {
+        return fixPiece(be, dataVersion, StructureDataFixer::visitBlockEntity);
+    }
+
+    public static NbtCompound fixEntityPiece(NbtCompound entity, int dataVersion) {
+        return fixPiece(entity, dataVersion, StructureDataFixer::visitEntity);
+    }
+
+    private static NbtCompound fixPiece(NbtCompound root, int dataVersion, java.util.function.BiFunction<NbtCompound, Visitor, NbtCompound> walker) {
+        if (!supports(dataVersion) || dataVersion == CURRENT_VERSION) return root;
+        NbtCompound cur = root;
+        nsId(cur);
+        for (FixStep s : FixTable.STEPS) if (s.key > dataVersion * 10) cur = walker.apply(cur, visitorOf(s));
+        return cur;
     }
 
     /** 바닐라 STRUCTURE 스키마로 한 번 읽고 쓰면 엔티티·블록 엔티티·아이템 id(NamespacedString)는 이름공간이 붙는다. */

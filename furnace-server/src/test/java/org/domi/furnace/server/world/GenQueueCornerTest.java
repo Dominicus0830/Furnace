@@ -1,6 +1,7 @@
 // T-170 회귀(PR #371 검토 R1): 클라 시야 < 서버 시야면 모서리(서버 시야 정사각 ∖ 클라 둥근 모양) 미리 불러오기가 시야 밖 취소에 걸린다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.netty.buffer.ByteBuf;
@@ -23,7 +24,7 @@ class GenQueueCornerTest {
 
     private void run(int serverVd, int clientVd, boolean genQueue) throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         ExecutorService io = Executors.newSingleThreadExecutor();
         // 서버 기본값과 같은 설정(fromSystem: 차례 켬)
         GenQueue q = new GenQueue(2, GenQueue.Settings.fromSystem(2, World.defaultMaxChunkSendsInFlight()));

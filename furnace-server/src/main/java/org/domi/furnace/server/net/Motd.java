@@ -6,6 +6,7 @@ import org.domi.furnace.api.text.Text;
 import org.domi.furnace.api.text.markup.TextMarkup;
 import org.domi.furnace.api.text.serializer.LegacyTextSerializer;
 import org.domi.furnace.server.config.OperatorOptions;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,7 +30,7 @@ public final class Motd {
                 } catch (RuntimeException e) {
                     if (!raw.equals(warned)) {
                         warned = raw;
-                        log.warn("motd 마크업을 읽을 수 없어 글자 그대로 보냅니다: {}", e.getMessage());
+                        log.warn(Lang.t("motd.markup-unreadable", e.getMessage()));
                     }
                     return Text.text(raw);
                 }

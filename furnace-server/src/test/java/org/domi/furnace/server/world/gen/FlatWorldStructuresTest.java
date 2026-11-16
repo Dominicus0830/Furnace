@@ -2,6 +2,7 @@
 // 높이는 FlatLevelSource.getBaseHeight(층), 지그소 경계는 차원 높이(-64..320) 기준이라 평지 지표(-60) 마을이 선다.
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
@@ -14,8 +15,8 @@ import org.domi.furnace.server.world.gen.structure.TerrainAccess;
 import org.junit.jupiter.api.Test;
 
 class FlatWorldStructuresTest {
-    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
-    private static final RegistrySet REGS = RegistrySet.load("registries/1.21.1.txt");
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+    private static final RegistrySet REGS = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
 
     private static NoiseWorldSource flat(List<String> overrides) {
         return NoiseWorldSource.flat(1234L, REG, REGS,

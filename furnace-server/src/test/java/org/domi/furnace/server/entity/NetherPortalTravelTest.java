@@ -2,6 +2,7 @@
 // 도착 위치는 원천 포털 사각형 안의 상대 위치를 출구 사각형에 옮긴 것(바닐라 NetherPortalBlock.createDimensionTransition).
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.block.B;
@@ -23,7 +24,7 @@ class NetherPortalTravelTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static DimensionTestLevel[] levels() {

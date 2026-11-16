@@ -1,6 +1,7 @@
 // 같은 청크를 여러 스레드(region/Netty)가 동시에 구독·해제해도 구독이 고아 맵에 들어가 사라지지 않는지 스트레스 검증
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.domi.furnace.server.ConcurrentEmbeddedChannel;
@@ -20,7 +21,7 @@ class ChunkSubscriptionRaceTest {
     @Test
     void concurrentSubscribeUnsubscribe_neverLosesALiveSubscription() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         var io = Executors.newSingleThreadExecutor();
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2,
                 reg.directBits(), 7, io);

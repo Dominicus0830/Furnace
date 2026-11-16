@@ -1,6 +1,7 @@
 // 1.21 효과 4종 발동(wind_charged·weaving·oozing·infested): 죽어서 빠질 때·맞을 때 바닐라처럼 돌풍·거미줄·슬라임·좀벌레가 나온다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -21,7 +22,7 @@ class MobEffectTriggersTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static final Entity.Damage GENERIC = new Entity.Damage("generic", false, false, false);

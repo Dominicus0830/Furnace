@@ -4,6 +4,7 @@
 // 꼭짓점 표(생략·지터 메모)와 블록마다 지터 경로, 이웃 배열 캐시가 찬 경우·빈 경우(quart 검색 + 동률이면 이웃 청크 계산)를 모두 대조한다.
 package org.domi.furnace.server.world.gen.surface;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.security.MessageDigest;
@@ -24,8 +25,8 @@ import org.junit.jupiter.api.Test;
 
 class SurfaceZoomTableTest {
 
-    static final BlockRegistry BLOCKS = BlockRegistry.load("blocks/1.21.1.txt");
-    static final RegistrySet REGISTRIES = RegistrySet.load("registries/1.21.1.txt");
+    static final BlockRegistry BLOCKS = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+    static final RegistrySet REGISTRIES = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
 
     /** 원점 근처, 흩어진 곳, 음수, 먼 곳, 월드 경계(청크 ±1874999) 바로 안·바깥, 오버월드 시드 3 의 R-트리 동률 이웃(5,1)·(6,2). */
     static final int[][] CHUNKS = {

@@ -4,6 +4,7 @@
 // 그 틱에 못 돌림) 이 차분이 잡아야 한다.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,7 +23,7 @@ class RandomTickMaskParityTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static final Blocks B = Blocks.get();

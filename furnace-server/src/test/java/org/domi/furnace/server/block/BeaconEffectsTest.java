@@ -1,6 +1,7 @@
 // 신호기 효과 시험: 단수별 범위·지속·증폭, 4단 secondary, 범위 밖 제외.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -20,7 +21,7 @@ class BeaconEffectsTest {
     @org.junit.jupiter.api.BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static final class Lvl extends BlockPlacementTest.TestLevel {

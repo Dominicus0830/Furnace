@@ -2,6 +2,7 @@
 // 키는 바닐라 ChunkPos.asLong(x 가 아래 32비트, z 가 위 32비트)이라 파일과 목록 정렬 순서가 바닐라와 같다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -12,12 +13,13 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public final class ForcedChunks {
     private static final Logger LOG = LoggerFactory.getLogger(ForcedChunks.class);
-    private static final int DATA_VERSION = 3955;
+    private static final int DATA_VERSION = GameVersion.DATA_VERSION;
 
     private final Path file;
     private final Set<Long> chunks = ConcurrentHashMap.newKeySet();
@@ -50,7 +52,7 @@ public final class ForcedChunks {
             NbtCompound data = root.contains("data") ? root.getCompound("data") : root;
             if (data.tags().get("Forced") instanceof long[] forced) for (long k : forced) chunks.add(k);
         } catch (IOException | RuntimeException e) {
-            LOG.warn("chunks.dat 읽기 실패 — 강제 로드 청크 없이 시작", e);
+            LOG.warn(Lang.t("forced.read-failed"), e);
         }
     }
 
@@ -91,7 +93,7 @@ public final class ForcedChunks {
                 Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
             } catch (IOException e) {
                 dirty = true;
-                LOG.error("chunks.dat 저장 실패", e);
+                LOG.error(Lang.t("forced.save-failed"), e);
             }
         }
     }

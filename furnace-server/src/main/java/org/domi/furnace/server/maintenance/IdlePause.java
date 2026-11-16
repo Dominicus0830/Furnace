@@ -3,6 +3,7 @@
 // 판단은 전역 틱(전역 스레드)에서만 한다. 저장·정리는 유지보수 스레드에서 — 전역 스레드가 region 저장을 기다리지 않게.
 package org.domi.furnace.server.maintenance;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.util.concurrent.Executor;
 
 public final class IdlePause {
@@ -69,18 +70,18 @@ public final class IdlePause {
                     hooks.saveAll();
                     if (flush && paused) hooks.flushCaches();
                 } catch (RuntimeException e) {
-                    log.error("[PAUSE] 일시정지 저장 실패", e);
+                    log.error(Lang.t("pause.save-failed"), e);
                 }
             });
         } catch (java.util.concurrent.RejectedExecutionException e) {
-            log.warn("[PAUSE] 유지보수 스레드가 닫혀 일시정지 저장을 건너뛴다");
+            log.warn(Lang.t("pause.maintenance-closed"));
         }
     }
 
     private void leave() {
         paused = false;
         hooks.holdWorlds(false);
-        log.info("[PAUSE] 접속자가 생겨 틱을 다시 돌린다");
+        log.info(Lang.t("pause.resumed"));
     }
 
     public boolean paused() { return paused; }

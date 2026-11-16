@@ -1,6 +1,7 @@
 // BiomeSampler multi-noise 바이옴 배치 바닐라 fixture 일치 검증
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.InputStream;
@@ -13,8 +14,8 @@ import org.domi.furnace.server.net.registry.RegistrySet;
 class BiomeSamplerParityTest {
 
     private void assertBiomeParity(long seed, int cx, int cz) throws Exception {
-        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        WorldgenData data = WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG);
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         NoiseSettings settings = NoiseSettings.fromJson(data.noiseSettings("minecraft:overworld"));
         NoiseRouter router = NoiseRouter.build(data, settings, seed);
         BiomeSampler sampler = BiomeSampler.load(data, registries);

@@ -1,5 +1,6 @@
 package org.domi.furnace.server.plugin.library;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -27,7 +28,7 @@ class SpigotMappingFilesTest {
     private static final byte[] MOJANG = "net.minecraft.core.BlockPos -> jh:\n".getBytes(StandardCharsets.UTF_8);
     private static final String MOJANG_SHA1 = SpigotMappingFiles.hash("SHA-1", MOJANG);
     private static final URI MOJANG_URI = URI.create("https://mojang.test/v1/objects/" + MOJANG_SHA1 + "/server.txt");
-    private static final URI VERSION_URI = URI.create("https://spigot.test/versions/1.21.1.json");
+    private static final URI VERSION_URI = URI.create("https://spigot.test/versions/" + GameVersion.RESOURCE_TAG + ".json");
     private static final URI RAW = URI.create("https://spigot.test/raw/");
 
     @TempDir
@@ -39,10 +40,10 @@ class SpigotMappingFilesTest {
     private void standardRepo(String classes, String members) {
         repo.put(MOJANG_URI.toString(), MOJANG);
         repo.put(VERSION_URI.toString(), ("{\"name\":\"4300\",\"refs\":{\"BuildData\":\"" + COMMIT + "\",\"Bukkit\":\"x\"}}").getBytes(StandardCharsets.UTF_8));
-        repo.put(RAW + "info.json?at=" + COMMIT, ("{\"minecraftVersion\":\"1.21.1\",\"mappingsUrl\":\"https://piston-data.mojang.com/v1/objects/" + MOJANG_SHA1
-                + "/server.txt\",\"classMappings\":\"bukkit-1.21.1-cl.csrg\",\"memberMappings\":\"bukkit-1.21.1-members.csrg\"}").getBytes(StandardCharsets.UTF_8));
-        repo.put(RAW + "mappings/bukkit-1.21.1-cl.csrg?at=" + COMMIT, classes.getBytes(StandardCharsets.UTF_8));
-        repo.put(RAW + "mappings/bukkit-1.21.1-members.csrg?at=" + COMMIT, members.getBytes(StandardCharsets.UTF_8));
+        repo.put(RAW + "info.json?at=" + COMMIT, ("{\"minecraftVersion\":\"" + GameVersion.MINECRAFT + "\",\"mappingsUrl\":\"https://piston-data.mojang.com/v1/objects/" + MOJANG_SHA1
+                + "/server.txt\",\"classMappings\":\"bukkit-" + GameVersion.RESOURCE_TAG + "-cl.csrg\",\"memberMappings\":\"bukkit-" + GameVersion.RESOURCE_TAG + "-members.csrg\"}").getBytes(StandardCharsets.UTF_8));
+        repo.put(RAW + "mappings/bukkit-" + GameVersion.RESOURCE_TAG + "-cl.csrg?at=" + COMMIT, classes.getBytes(StandardCharsets.UTF_8));
+        repo.put(RAW + "mappings/bukkit-" + GameVersion.RESOURCE_TAG + "-members.csrg?at=" + COMMIT, members.getBytes(StandardCharsets.UTF_8));
     }
 
     private SpigotMappingFiles files(LibrarySettings s) {
@@ -77,8 +78,8 @@ class SpigotMappingFilesTest {
         standardRepo("jh a/B\n", "");
         repo.put(MOJANG_URI.toString(), "tampered".getBytes(StandardCharsets.UTF_8));
         var e = assertThrows(LibraryResolver.LibraryException.class, () -> files(online()).ensure());
-        assertTrue(e.getMessage().contains("고정값과 다르다"), e.getMessage());
-        assertFalse(Files.exists(tmp.resolve("cache/spigot-mappings/1.21.1/server.txt")), "틀린 바이트는 캐시에 남기지 않는다");
+        assertTrue(e.getMessage().contains("differ from the pinned value"), e.getMessage());
+        assertFalse(Files.exists(tmp.resolve("cache/spigot-mappings/" + GameVersion.RESOURCE_TAG + "/server.txt")), "틀린 바이트는 캐시에 남기지 않는다");
     }
 
     @Test
@@ -87,11 +88,11 @@ class SpigotMappingFilesTest {
         repo.put(RAW + "info.json?at=" + COMMIT, ("{\"mappingsUrl\":\"https://piston-data.mojang.com/v1/objects/ffff/server.txt\","
                 + "\"classMappings\":\"c.csrg\",\"memberMappings\":\"m.csrg\"}").getBytes(StandardCharsets.UTF_8));
         var e = assertThrows(LibraryResolver.LibraryException.class, () -> files(online()).ensure());
-        assertTrue(e.getMessage().contains("1.21.1 서버 매핑"), e.getMessage());
+        assertTrue(e.getMessage().contains("1.21.1 server mappings"), e.getMessage());
         // mappingsUrl 이 빠져 있어도 어느 Mojang 매핑용인지 모르므로 거부(검토 3)
         repo.put(RAW + "info.json?at=" + COMMIT, "{\"classMappings\":\"c.csrg\",\"memberMappings\":\"m.csrg\"}".getBytes(StandardCharsets.UTF_8));
         e = assertThrows(LibraryResolver.LibraryException.class, () -> files(online()).ensure());
-        assertTrue(e.getMessage().contains("1.21.1 서버 매핑"), e.getMessage());
+        assertTrue(e.getMessage().contains("1.21.1 server mappings"), e.getMessage());
     }
 
     @Test
@@ -102,11 +103,11 @@ class SpigotMappingFilesTest {
         Files.delete(f.classes());
         standardRepo("jh net/minecraft/core/Evil\n", "");
         var e = assertThrows(LibraryResolver.LibraryException.class, () -> files(online()).ensure());
-        assertTrue(e.getMessage().contains("잠금 파일"), e.getMessage());
+        assertTrue(e.getMessage().contains("lock file"), e.getMessage());
         // 커밋이 바뀌어도 거부
         repo.put(VERSION_URI.toString(), "{\"refs\":{\"BuildData\":\"ffffffffffffffffffffffffffffffffffffffff\"}}".getBytes(StandardCharsets.UTF_8));
         e = assertThrows(LibraryResolver.LibraryException.class, () -> files(online()).ensure());
-        assertTrue(e.getMessage().contains("커밋이 잠금 파일"), e.getMessage());
+        assertTrue(e.getMessage().contains("BuildData commit differs from the record in the lock file"), e.getMessage());
     }
 
     @Test
@@ -115,14 +116,14 @@ class SpigotMappingFilesTest {
         assertTrue(e.getMessage().contains("offline") && e.getMessage().contains("server.txt"), e.getMessage());
         assertTrue(asked.isEmpty());
 
-        Path dir = tmp.resolve("cache/spigot-mappings/1.21.1");
+        Path dir = tmp.resolve("cache/spigot-mappings/" + GameVersion.RESOURCE_TAG);
         Files.createDirectories(dir);
         Files.write(dir.resolve(SpigotMappingFiles.MOJANG_FILE), MOJANG);
         Files.writeString(dir.resolve(SpigotMappingFiles.CLASSES_FILE), "jh x/Y\n");
         Files.writeString(dir.resolve(SpigotMappingFiles.MEMBERS_FILE), "");
         SpigotMappingFiles.Files3 f = files(online().withOffline(true)).ensure();
         assertEquals(dir.resolve(SpigotMappingFiles.CLASSES_FILE), f.classes());
-        assertTrue(Files.readString(dir.resolve(SpigotMappingFiles.LOCK)).contains("buildData=수동"));
+        assertTrue(Files.readString(dir.resolve(SpigotMappingFiles.LOCK)).contains("buildData=manual"));
         assertTrue(asked.isEmpty());
     }
 
@@ -147,13 +148,13 @@ class SpigotMappingFilesTest {
         java.time.Instant t0 = java.time.Instant.parse("2026-11-12T00:00:00Z");
         assertThrows(LibraryResolver.LibraryException.class, () -> blocked(t0).ensure());
         assertEquals(1, networkCalls.get(), "첫 시작은 시도한다");
-        Path record = tmp.resolve("cache/spigot-mappings/1.21.1").resolve(SpigotMappingFiles.FAILED);
+        Path record = tmp.resolve("cache/spigot-mappings/" + GameVersion.RESOURCE_TAG).resolve(SpigotMappingFiles.FAILED);
         assertTrue(Files.isRegularFile(record));
 
         // 5분 뒤 다음 시작 — 아직 10분 안이라 네트워크에 나가지 않고 한 줄 안내(Backoff)만
         var e = assertThrows(SpigotMappingFiles.Backoff.class, () -> blocked(t0.plusSeconds(5 * 60)).ensure());
         assertEquals(1, networkCalls.get(), "기다림 안에는 나가지 않는다");
-        assertTrue(e.getMessage().contains("1번 연속") && e.getMessage().contains("다음 시도는 약 5분 뒤") && e.getMessage().contains(record.toString()), e.getMessage());
+        assertTrue(e.getMessage().contains("1 times in a row") && e.getMessage().contains("the next attempt is in about 5 minutes") && e.getMessage().contains(record.toString()), e.getMessage());
         assertFalse(e.getMessage().contains("\n"), "한 줄");
 
         // 10분이 지나면 다시 시도(순간 실패는 오래 잠그지 않는다), 또 실패하면 1시간 → 6시간 → 24시간으로 늘어난다
@@ -166,7 +167,7 @@ class SpigotMappingFilesTest {
         assertThrows(LibraryResolver.LibraryException.class, () -> blocked(t2).ensure());
         assertEquals(3, networkCalls.get());
         var six = assertThrows(SpigotMappingFiles.Backoff.class, () -> blocked(t2.plusSeconds(3 * 3600)).ensure());
-        assertTrue(six.getMessage().contains("약 3시간 뒤"), "2시간이 넘으면 시간 단위로: " + six.getMessage());
+        assertTrue(six.getMessage().contains("about 3 hours"), "2시간이 넘으면 시간 단위로: " + six.getMessage());
         assertThrows(SpigotMappingFiles.Backoff.class, () -> blocked(t2.plusSeconds(5 * 3600)).ensure());
         java.time.Instant t3 = t2.plusSeconds(6 * 3600 + 60);
         assertThrows(LibraryResolver.LibraryException.class, () -> blocked(t3).ensure());
@@ -194,7 +195,7 @@ class SpigotMappingFilesTest {
             throw new LibraryResolver.RetriesExhausted("HTTP 503 (" + uri + ")");
         }, MOJANG_URI, MOJANG_SHA1, MOJANG.length, VERSION_URI, RAW, LOG).withClock(java.time.Clock.fixed(t0, java.time.ZoneOffset.UTC));
         assertThrows(LibraryResolver.LibraryException.class, down::ensure);
-        assertTrue(Files.isRegularFile(tmp.resolve("cache/spigot-mappings/1.21.1").resolve(SpigotMappingFiles.FAILED)));
+        assertTrue(Files.isRegularFile(tmp.resolve("cache/spigot-mappings/" + GameVersion.RESOURCE_TAG).resolve(SpigotMappingFiles.FAILED)));
         assertThrows(SpigotMappingFiles.Backoff.class, () -> blocked(t0.plusSeconds(60)).ensure());
         assertEquals(1, networkCalls.get(), "재시도 끝에 포기한 서버를 시작마다 몇 초씩 다시 기다리지 않는다");
     }
@@ -203,7 +204,7 @@ class SpigotMappingFilesTest {
     void successOrHandPlacedFilesClearTheFailureRecord() throws Exception {
         java.time.Instant t0 = java.time.Instant.parse("2026-11-12T00:00:00Z");
         assertThrows(LibraryResolver.LibraryException.class, () -> blocked(t0).ensure());
-        Path dir = tmp.resolve("cache/spigot-mappings/1.21.1");
+        Path dir = tmp.resolve("cache/spigot-mappings/" + GameVersion.RESOURCE_TAG);
         Path record = dir.resolve(SpigotMappingFiles.FAILED);
         assertTrue(Files.isRegularFile(record));
 
@@ -235,7 +236,7 @@ class SpigotMappingFilesTest {
     @Test
     void onlyConnectionFailuresAreRemembered_httpAndIntegrityFailuresAreNot() throws Exception {
         java.time.Instant t0 = java.time.Instant.parse("2026-11-12T00:00:00Z");
-        Path record = tmp.resolve("cache/spigot-mappings/1.21.1").resolve(SpigotMappingFiles.FAILED);
+        Path record = tmp.resolve("cache/spigot-mappings/" + GameVersion.RESOURCE_TAG).resolve(SpigotMappingFiles.FAILED);
         // 404(없음) — 바로 알 수 있는 실패라 기록하지 않는다
         assertThrows(LibraryResolver.LibraryException.class, () -> healthy(t0).ensure());
         assertFalse(Files.exists(record));
@@ -258,7 +259,7 @@ class SpigotMappingFilesTest {
     @Test
     void unreadableOrUnwritableRecordNeverBlocksStartup() throws Exception {
         java.time.Instant t0 = java.time.Instant.parse("2026-11-12T00:00:00Z");
-        Path dir = tmp.resolve("cache/spigot-mappings/1.21.1");
+        Path dir = tmp.resolve("cache/spigot-mappings/" + GameVersion.RESOURCE_TAG);
         Files.createDirectories(dir);
         Files.writeString(dir.resolve(SpigotMappingFiles.FAILED), "failures=abc\nlast-failure-epoch-ms=zzz\n");   // 깨진 기록은 없는 것으로 본다
         standardRepo("jh net/minecraft/core/BlockPosition\n", "");

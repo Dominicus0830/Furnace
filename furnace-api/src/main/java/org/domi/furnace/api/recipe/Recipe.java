@@ -80,8 +80,8 @@ public sealed interface Recipe {
             Objects.requireNonNull(category, "category");
             Objects.requireNonNull(ingredient, "ingredient");
             requireResult(result);
-            if (!(experience >= 0f)) throw new IllegalArgumentException("experience 는 0 이상: " + experience);
-            if (cookingTime < 1) throw new IllegalArgumentException("cookingTime 은 1틱 이상: " + cookingTime);
+            if (!(experience >= 0f)) throw new IllegalArgumentException("experience must be at least 0: " + experience);
+            if (cookingTime < 1) throw new IllegalArgumentException("cookingTime must be at least 1 tick: " + cookingTime);
         }
 
         public Cooking(CookingKind kind, RecipeChoice ingredient, ItemStack result, float experience) {
@@ -132,6 +132,6 @@ public sealed interface Recipe {
     }
 
     private static void requireResult(ItemStack result) {
-        if (result == null || result.isEmpty()) throw new IllegalArgumentException("결과 아이템이 비었다");
+        if (result == null || result.isEmpty()) throw new IllegalArgumentException("the result item is empty");
     }
 }

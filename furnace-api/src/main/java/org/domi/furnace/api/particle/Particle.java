@@ -21,7 +21,7 @@ public sealed interface Particle {
     /** 옵션 없는 종류. 옵션이 필요한 종류 이름이면 IllegalArgumentException. */
     static Particle of(String type) {
         String t = ns(type);
-        if (Kind.of(t) != Kind.SIMPLE) throw new IllegalArgumentException(t + " 는 옵션이 필요한 입자다 — Particle." + Kind.of(t).factory + " 로 만든다");
+        if (Kind.of(t) != Kind.SIMPLE) throw new IllegalArgumentException(t + " is a particle that needs options - create it with Particle." + Kind.of(t).factory);
         return new Simple(t);
     }
 
@@ -46,7 +46,7 @@ public sealed interface Particle {
     record Simple(String type) implements Particle {
         public Simple {
             type = ns(type);
-            if (Kind.of(type) != Kind.SIMPLE) throw new IllegalArgumentException(type + " 는 옵션이 필요한 입자다");
+            if (Kind.of(type) != Kind.SIMPLE) throw new IllegalArgumentException(type + " is a particle that needs options");
         }
     }
 
@@ -54,7 +54,7 @@ public sealed interface Particle {
     record Block(String type, BlockData block) implements Particle {
         public Block {
             type = ns(type);
-            if (!BLOCK_TYPES.contains(type)) throw new IllegalArgumentException(type + " 는 블록 입자가 아니다");
+            if (!BLOCK_TYPES.contains(type)) throw new IllegalArgumentException(type + " is not a block particle");
             Objects.requireNonNull(block, "block");
         }
     }
@@ -77,7 +77,7 @@ public sealed interface Particle {
     record Color(String type, int argb) implements Particle {
         public Color {
             type = ns(type);
-            if (Kind.of(type) != Kind.COLOR) throw new IllegalArgumentException(type + " 는 색 입자가 아니다");
+            if (Kind.of(type) != Kind.COLOR) throw new IllegalArgumentException(type + " is not a color particle");
         }
     }
 
@@ -85,7 +85,7 @@ public sealed interface Particle {
     record Item(ItemStack item) implements Particle {
         public Item {
             Objects.requireNonNull(item, "item");
-            if (item.isEmpty()) throw new IllegalArgumentException("빈 아이템 입자는 안 된다");
+            if (item.isEmpty()) throw new IllegalArgumentException("an empty item particle is not allowed");
         }
 
         @Override public String type() { return "minecraft:item"; }

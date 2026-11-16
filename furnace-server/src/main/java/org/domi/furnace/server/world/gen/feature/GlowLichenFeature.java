@@ -1,14 +1,15 @@
 package org.domi.furnace.server.world.gen.feature;
 
+import org.domi.furnace.server.world.StateIds;
 import java.util.Arrays;
 import java.util.Set;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
 public final class GlowLichenFeature implements ConfiguredFeature {
 
-    private static final int WATER_MIN_STATE = 80;
-    private static final int WATER_MAX_STATE = 95;
-    private static final int WATER_SOURCE_STATE = 80;
+    private static final int WATER_MIN_STATE = StateIds.WATER_FIRST;
+    private static final int WATER_MAX_STATE = StateIds.WATER_LAST;
+    private static final int WATER_SOURCE_STATE = StateIds.WATER_SOURCE;
 
     private static final int DOWN = 0;
     private static final int UP = 1;
@@ -194,7 +195,7 @@ public final class GlowLichenFeature implements ConfiguredFeature {
 
     private boolean canSpreadInto(FeatureWorldView view, int x, int y, int z, int faceDir) {
         int targetState = view.getBlock(x, y, z);
-        boolean canReplace = targetState == 0 || targetState == 12958 || targetState == 12959
+        boolean canReplace = targetState == StateIds.AIR || targetState == StateIds.VOID_AIR || targetState == StateIds.CAVE_AIR
                 || targetState == WATER_SOURCE_STATE || isGlowLichen(targetState);
         return canReplace && isValidStateForPlacement(view, targetState, x, y, z, faceDir);
     }
@@ -263,7 +264,7 @@ public final class GlowLichenFeature implements ConfiguredFeature {
     }
 
     private boolean isGlowLichen(int stateId) {
-        return stateId <= glowLichenBaseStateId && stateId >= glowLichenBaseStateId - 127;
+        return stateId <= glowLichenBaseStateId && stateId >= glowLichenBaseStateId - (StateIds.GLOW_LICHEN_LAST - StateIds.GLOW_LICHEN_FIRST);
     }
 
     private boolean hasFace(int stateId, int dir) {
@@ -271,7 +272,7 @@ public final class GlowLichenFeature implements ConfiguredFeature {
     }
 
     private static boolean isAirOrWater(int stateId) {
-        return stateId == 0 || stateId == 12958 || stateId == 12959 || isWater(stateId);
+        return stateId == StateIds.AIR || stateId == StateIds.VOID_AIR || stateId == StateIds.CAVE_AIR || isWater(stateId);
     }
 
     private static boolean isWater(int stateId) {

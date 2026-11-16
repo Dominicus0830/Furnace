@@ -17,6 +17,7 @@
 //   (다른 seed/중심/반경: -Dfurnace.sweep.seed=<seed> -Dfurnace.sweep.cx=<cx> -Dfurnace.sweep.cz=<cz> -Dfurnace.sweep.radius=<r>)
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -54,9 +55,9 @@ class ChunkSweepParityTest {
         int centerZ = Integer.getInteger("furnace.sweep.cz", 0);
         int radius  = Integer.getInteger("furnace.sweep.radius", 8);
 
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        Map<Integer, String> oracleIdToName = loadIdToName("/blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        Map<Integer, String> oracleIdToName = loadIdToName("/blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         NoiseWorldSource source = NoiseWorldSource.overworld(seed, reg, registries);
 
         int size = 2 * radius + 1;

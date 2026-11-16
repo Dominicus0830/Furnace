@@ -2,6 +2,7 @@
 // 기본값은 전부 지금까지의 동작(= 바닐라와 같은 결과)이다. 바닐라보다 조이는 값은 furnace.properties 에서 직접 켠다.
 package org.domi.furnace.server.net;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
@@ -142,7 +143,7 @@ public final class ConnectionLimits {
             int burst = intKey(p, "connection." + s + ".packets-burst", d.packetsBurst, 1, 10_000_000);
             int frame = intKey(p, "connection." + s + ".max-frame-bytes", d.maxFrameBytes, 16, Integer.MAX_VALUE);
             if (frame > HARD_FRAME_MAX) {
-                warn.accept("설정 'connection." + s + ".max-frame-bytes' 값 " + frame + " 는 프로토콜 최대 " + HARD_FRAME_MAX + " 를 넘어 조정합니다");
+                warn.accept(Lang.t("cfg.frame-capped", "connection." + s + ".max-frame-bytes", frame, HARD_FRAME_MAX));
                 frame = HARD_FRAME_MAX;
             }
             int timeout = s.equals("play") ? 0 : intKey(p, "connection." + s + ".timeout-seconds", d.timeoutSeconds, 0, 86_400);
@@ -166,7 +167,7 @@ public final class ConnectionLimits {
             c.proxyTrusted = List.copyOf(list);
         }
         if (!c.proxyProtocol && p.containsKey("proxy-protocol.trusted")) {
-            warn.accept("설정 'proxy-protocol.trusted' 는 'proxy-protocol=true' 일 때만 쓰입니다");
+            warn.accept(Lang.t("cfg.trusted-needs-proxy"));
         }
         return c;
     }
@@ -178,10 +179,10 @@ public final class ConnectionLimits {
         try {
             n = Long.parseLong(v.strip());
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("설정 '" + key + "' 가 숫자가 아님: " + v, e);
+            throw new IllegalArgumentException(Lang.t("cfg.not-number", key, v), e);
         }
         if (n < min || n > max) {
-            throw new IllegalArgumentException("설정 '" + key + "' 값 " + n + " 잘못됨(" + min + "~" + max + ")");
+            throw new IllegalArgumentException(Lang.t("cfg.out-of-range", key, n, min, max));
         }
         return (int) n;
     }
@@ -192,7 +193,7 @@ public final class ConnectionLimits {
         String t = v.strip().toLowerCase(Locale.ROOT);
         if (t.equals("true")) return true;
         if (t.equals("false")) return false;
-        throw new IllegalArgumentException("설정 '" + key + "' 값 '" + v + "' 이(가) 잘못됐습니다: true 또는 false");
+        throw new IllegalArgumentException(Lang.t("cfg.invalid-bool", key, v));
     }
 
     /** IP 대역(CIDR). 접두 길이를 생략하면 그 주소 하나. */
@@ -207,23 +208,23 @@ public final class ConnectionLimits {
                 try {
                     prefix = Integer.parseInt(text.substring(slash + 1).strip());
                 } catch (NumberFormatException e) {
-                    throw new IllegalArgumentException("설정 'proxy-protocol.trusted' 의 접두 길이가 숫자가 아님: " + text, e);
+                    throw new IllegalArgumentException(Lang.t("cfg.trusted-prefix-nan", text), e);
                 }
             }
             // 이름 조회를 피한다: 숫자 주소만 받는다(DNS 가 기동을 막거나 바뀌지 않게).
             if (!addr.strip().matches("[0-9a-fA-F:.]+")) {
-                throw new IllegalArgumentException("설정 'proxy-protocol.trusted' 는 IP 주소나 CIDR 만 받습니다: " + text);
+                throw new IllegalArgumentException(Lang.t("cfg.trusted-ip-only", text));
             }
             byte[] bytes;
             try {
                 bytes = InetAddress.getByName(addr.strip()).getAddress();
             } catch (UnknownHostException e) {
-                throw new IllegalArgumentException("설정 'proxy-protocol.trusted' 주소가 잘못됨: " + text, e);
+                throw new IllegalArgumentException(Lang.t("cfg.trusted-bad-address", text), e);
             }
             int max = bytes.length * 8;
             int pre = prefix == null ? max : prefix;
             if (pre < 0 || pre > max) {
-                throw new IllegalArgumentException("설정 'proxy-protocol.trusted' 접두 길이 범위 0~" + max + ": " + text);
+                throw new IllegalArgumentException(Lang.t("cfg.trusted-prefix-range", max, text));
             }
             return new Cidr(bytes, pre);
         }

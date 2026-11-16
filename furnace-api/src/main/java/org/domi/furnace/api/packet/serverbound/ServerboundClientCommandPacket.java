@@ -1,4 +1,4 @@
-// 리스폰 요청·통계 요청.
+// 리스폰 요청과 통계 요청.
 package org.domi.furnace.api.packet.serverbound;
 
 import java.util.Objects;

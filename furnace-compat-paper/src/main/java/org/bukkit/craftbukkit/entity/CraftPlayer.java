@@ -19,13 +19,16 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
         this.handle = handle;
     }
 
+    @Override
+    public com.destroystokyo.paper.profile.PlayerProfile getPlayerProfile() { return new com.destroystokyo.paper.profile.CraftPlayerProfile(this); }
+
     /** 호환 모듈 전용 — 이 플레이어의 Furnace 핸들(접속 동안 같다). */
     @Override
     public org.domi.furnace.api.entity.Player furnaceHandle() { return handle; }
 
     @Override
     public void furnaceHandle(org.domi.furnace.api.entity.Entity fresh) {
-        if (fresh != handle) throw new IllegalArgumentException("플레이어 핸들은 접속 동안 바뀌지 않는다");
+        if (fresh != handle) throw new IllegalArgumentException("the player handle does not change while connected");
     }
 
     @Override
@@ -70,7 +73,10 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
     @Override
     public String getDisplayName() {
         org.domi.furnace.api.text.Text custom = handle.customDisplayName();
-        return custom != null ? Compat.legacy(custom) : handle.name();
+        if (custom != null) return Compat.legacy(custom);
+        // Paper adventure$displayName: 접속 때의 이름 — setPlayerProfile 로 이름이 바뀌어도 그대로다(설계 R4)
+        var c = handle.connection();
+        return c != null && c.name() != null ? c.name() : handle.name();
     }
 
     @Override

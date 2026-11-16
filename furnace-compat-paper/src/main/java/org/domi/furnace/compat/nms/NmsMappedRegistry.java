@@ -22,7 +22,7 @@ import net.minecraft.resources.ResourceLocation;
  * 기본값 없는 것(소리·효과): 모르는 이름·번호·값이면 {@code get}·{@code byId}·{@code getKey} 는 null, {@code getId} 는 -1.
  * 기본값 있는 것은 {@link NmsDefaultedRegistry} — 그 기본값 쪽을 돌려준다. {@code getOptional} 류는 둘 다 비어 있다.
  */
-public class NmsMappedRegistry<T> implements Registry<T> {
+public class NmsMappedRegistry<T> implements net.minecraft.core.WritableRegistry<T> {
 
     private final ResourceKey<? extends Registry<T>> key;
     private final ResourceLocation defaultKey;
@@ -52,6 +52,30 @@ public class NmsMappedRegistry<T> implements Registry<T> {
         if (location.equals(defaultKey)) defaultValue = h;
         return h;
     }
+
+    /**
+     * 만들 때만 — 이미 만든 손잡이를 다음 번호로 넣는다(바이옴처럼 다른 shim 이 같은 손잡이 객체를 쥐고 있어야 할 때, 정체성 비교가 맞게).
+     * 손잡이의 키는 이 레지스트리 키여야 한다.
+     */
+    public Holder.Reference<T> addHolder(Holder.Reference<T> h) {
+        idOf.put(h.value(), byId.size());
+        byId.add(h);
+        byLocation.put(h.key().location(), h);
+        holderOf.put(h.value(), h);
+        return h;
+    }
+
+    /** 바닐라 얼린 레지스트리처럼 거절한다(Furnace 레지스트리는 서버 시작 때 얼어 있다). */
+    @Override
+    public Holder.Reference<T> register(ResourceKey<T> k, T value, net.minecraft.core.RegistrationInfo info) {
+        throw new IllegalStateException("Registry is already frozen (trying to add key " + k + ")");
+    }
+
+    @Override
+    public boolean isEmpty() { return byId.isEmpty(); }
+
+    @Override
+    public net.minecraft.core.HolderGetter<T> createRegistrationLookup() { return asLookup(); }
 
     private T defaultValue() { return defaultValue == null ? null : defaultValue.value(); }
 

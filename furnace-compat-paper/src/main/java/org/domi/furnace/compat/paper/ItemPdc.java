@@ -60,7 +60,7 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
         if (o instanceof long[] a) return a.clone();
         if (o instanceof List<?> l) {
             List<Object> out = new ArrayList<>(l.size());
-            for (Object e : l) out.add(copyPrim(Objects.requireNonNull(e, "목록에 null 을 넣을 수 없다")));
+            for (Object e : l) out.add(copyPrim(Objects.requireNonNull(e, "a list cannot contain null")));
             return out;
         }
         return o;
@@ -79,7 +79,7 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
         if (primitive == PersistentDataContainer[].class) {
             return org.domi.furnace.api.persistence.PersistentDataType.list(org.domi.furnace.api.persistence.PersistentDataType.TAG_CONTAINER);
         }
-        if (List.class.isAssignableFrom(primitive)) throw new IllegalArgumentException("목록 종류는 PersistentDataType.LIST 로 만든 것만 쓸 수 있다: " + type);
+        if (List.class.isAssignableFrom(primitive)) throw new IllegalArgumentException("list types must be created with PersistentDataType.LIST: " + type);
         return furnaceType(primitive);
     }
 
@@ -95,7 +95,7 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
         if (primitive == int[].class) return org.domi.furnace.api.persistence.PersistentDataType.INTEGER_ARRAY;
         if (primitive == long[].class) return org.domi.furnace.api.persistence.PersistentDataType.LONG_ARRAY;
         if (PersistentDataContainer.class.isAssignableFrom(primitive)) return org.domi.furnace.api.persistence.PersistentDataType.TAG_CONTAINER;
-        throw new IllegalArgumentException("기본 종류로 저장할 수 없다: " + primitive.getName());
+        throw new IllegalArgumentException("cannot be stored as a primitive type: " + primitive.getName());
     }
 
     private static PersistentDataType<?, ?> bukkitType(org.domi.furnace.api.persistence.PersistentDataType<?> t) {
@@ -207,7 +207,7 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
         var ft = furnaceType(type);
         P prim = type.toPrimitive(value, context);
         Object stored = prim instanceof PersistentDataContainer[] arr ? java.util.Arrays.asList(arr) : prim;
-        return new Prepared(ft, copyPrim(Objects.requireNonNull(stored, "toPrimitive 가 null")));
+        return new Prepared(ft, copyPrim(Objects.requireNonNull(stored, "toPrimitive returned null")));
     }
 
     void put(String key, Prepared p) { changes.put(key, new Value(p.type(), p.stored())); }
@@ -289,7 +289,7 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
             for (String k : rawKeys()) {
                 if (!replace && o.exists(k)) continue;
                 Value v = lookup(k);
-                if (v == null) throw new org.domi.furnace.compat.paper.UnsupportedFeature("PersistentDataContainer#copyTo(" + k + ")", "이 키의 값 종류(목록의 목록 등)를 호환 계층이 읽지 못한다");
+                if (v == null) throw new org.domi.furnace.compat.paper.UnsupportedFeature("PersistentDataContainer#copyTo(" + k + ")", "the compat layer cannot read the value kind of this key (list of lists, etc.)");
                 o.changes.put(k, copyValue(v));
             }
             return;
@@ -297,7 +297,7 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
         for (NamespacedKey k : getKeys()) {
             if (!replace && other.has(k)) continue;
             Value v = lookup(k.toString());
-            if (v == null) throw new org.domi.furnace.compat.paper.UnsupportedFeature("PersistentDataContainer#copyTo(" + k + ")", "이 키의 값 종류(목록의 목록 등)를 호환 계층이 읽지 못한다");
+            if (v == null) throw new org.domi.furnace.compat.paper.UnsupportedFeature("PersistentDataContainer#copyTo(" + k + ")", "the compat layer cannot read the value kind of this key (list of lists, etc.)");
             other.set(k, (PersistentDataType) bukkitType(v.type()), v.value());
         }
     }
@@ -402,7 +402,7 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
     private static int tagId(org.domi.furnace.api.persistence.PersistentDataType<?> t) {
         if (t.elementType() != null) return TAG_LIST;
         for (int i = 0; i < SCALARS.length; i++) if (SCALARS[i] == t) return SCALAR_TAGS[i];
-        throw new IllegalArgumentException("알 수 없는 종류: " + t);
+        throw new IllegalArgumentException("unknown type: " + t);
     }
 
     /** 값 하나의 NBT 태그 번호(값의 모양으로 — 목록의 안쪽 목록은 저마다 자기 원소 종류를 가진다). */
@@ -440,11 +440,11 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
     }
 
     private void writeCompound(DataOutputStream out, int depth) throws IOException {
-        if (depth > MAX_DEPTH) throw new IOException("컨테이너가 너무 깊게 중첩됐다");
+        if (depth > MAX_DEPTH) throw new IOException("the container is nested too deeply");
         Map<String, Value> ordered = new HashMap<>();
         for (String k : rawKeys()) {
             Value v = lookup(k);
-            if (v == null) throw new IOException("호환 계층이 읽지 못하는 값 종류라 내보낼 수 없다: " + k);
+            if (v == null) throw new IOException("cannot be exported because the compat layer cannot read this value type: " + k);
             ordered.put(k, v);
         }
         // Paper: customDataTags(java.util.HashMap) 순회 순서로 new CompoundTag()(fastutil Object2ObjectOpenHashMap(8, 0.8f))에 put → 그 keySet 순서로 쓴다
@@ -502,7 +502,7 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
     }
 
     private static ItemPdc readCompound(DataInputStream in, int depth) throws IOException {
-        if (depth > MAX_DEPTH) throw new IOException("NBT 중첩이 너무 깊다");
+        if (depth > MAX_DEPTH) throw new IOException("NBT is nested too deeply");
         ItemPdc out = new ItemPdc(null);
         while (true) {
             int id = in.readByte();
@@ -519,12 +519,12 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
 
     /** 목록: 원소는 단일 값이거나 또 목록이다(목록의 목록 — 바깥 원소 종류만 하나면 되고 안쪽 목록의 원소 종류는 서로 달라도 된다, 바닐라 ListTag 와 같다). */
     private static List<Object> readList(DataInputStream in, int depth) throws IOException {
-        if (depth > MAX_DEPTH) throw new IOException("NBT 중첩이 너무 깊다");
+        if (depth > MAX_DEPTH) throw new IOException("NBT is nested too deeply");
         int elemId = in.readByte();
         int n = in.readInt();
-        if (n < 0) throw new IOException("NBT 길이가 음수다");
+        if (n < 0) throw new IOException("NBT length is negative");
         if (n == 0) return new ArrayList<>();
-        if (elemId == TAG_END) throw new IOException("원소가 있는 목록의 종류가 END 다");
+        if (elemId == TAG_END) throw new IOException("a non-empty list has element type END");
         if (elemId == TAG_LIST) {
             checkLength(in, n, 5);
             List<Object> items = new ArrayList<>(n);
@@ -541,11 +541,11 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
     /** 단일 값 태그 번호 → 종류. 목록(9)은 따로 읽는다. */
     private static org.domi.furnace.api.persistence.PersistentDataType<?> scalarType(int id) throws IOException {
         for (int i = 0; i < SCALARS.length; i++) if (SCALAR_TAGS[i] == id) return SCALARS[i];
-        throw new IOException("알 수 없는 NBT 태그 종류: " + id);
+        throw new IOException("unknown NBT tag type: " + id);
     }
 
     private static void checkLength(DataInputStream in, int length, int unit) throws IOException {
-        if (length < 0 || (long) length * unit > in.available()) throw new IOException("NBT 길이가 남은 바이트보다 크다: " + length);
+        if (length < 0 || (long) length * unit > in.available()) throw new IOException("NBT length exceeds the remaining bytes: " + length);
     }
 
     private static Object readPayload(DataInputStream in, int id, int depth) throws IOException {

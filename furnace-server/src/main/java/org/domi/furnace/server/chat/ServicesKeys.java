@@ -26,9 +26,36 @@ public final class ServicesKeys {
     private static final Logger log = LoggerFactory.getLogger("Yggdrasil Key Fetcher");
 
     private volatile List<PublicKey> profileKeys = List.of();
+    /** 프로필 속성(스킨 textures 등) 서명 공개키 — authlib ServicesKeyType.PROFILE_PROPERTY(profilePropertyKeys). */
+    private volatile List<PublicKey> propertyKeys = List.of();
 
     /** 테스트·사설 인증용: 키를 직접 넣는다. */
     public void setProfileKeys(List<PublicKey> keys) { this.profileKeys = List.copyOf(keys); }
+
+    /** 테스트·사설 인증용: 프로필 속성 서명 공개키를 직접 넣는다. */
+    public void setPropertyKeys(List<PublicKey> keys) { this.propertyKeys = List.copyOf(keys); }
+
+    /** 프로필 속성의 서명(Base64, SHA1withRSA 로 값 글자에 대한 서명)이 알려진 공개키 중 하나로 맞는가. 키를 모르거나 서명이 없으면 거짓. */
+    public boolean validProfileProperty(String value, String signature) {
+        if (signature == null || value == null) return false;
+        byte[] sig;
+        try {
+            sig = Base64.getDecoder().decode(signature);
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+        for (PublicKey key : propertyKeys) {
+            try {
+                java.security.Signature s = java.security.Signature.getInstance("SHA1withRSA");
+                s.initVerify(key);
+                s.update(value.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                if (s.verify(sig)) return true;
+            } catch (java.security.GeneralSecurityException ignored) {
+                // 이 키로는 확인하지 못함 — 다음 키
+            }
+        }
+        return false;
+    }
 
     public boolean canValidateProfileKeys() { return !profileKeys.isEmpty(); }
 
@@ -49,6 +76,7 @@ public final class ServicesKeys {
                         .timeout(Duration.ofSeconds(10)).GET().build(), HttpResponse.BodyHandlers.ofString());
                 if (resp.statusCode() != 200) throw new IllegalStateException("HTTP " + resp.statusCode());
                 profileKeys = parse(resp.body());
+                propertyKeys = parseKeys(resp.body(), "profilePropertyKeys");
             } catch (Exception e) {
                 log.warn(Lang.t("services.keys-failed", e.toString(), host));
                 log.debug("Failed to request yggdrasil public key", e);
@@ -58,10 +86,12 @@ public final class ServicesKeys {
         t.start();
     }
 
-    static List<PublicKey> parse(String body) throws Exception {
+    static List<PublicKey> parse(String body) throws Exception { return parseKeys(body, "playerCertificateKeys"); }
+
+    static List<PublicKey> parseKeys(String body, String field) throws Exception {
         JsonObject o = JsonParser.parseString(body).getAsJsonObject();
         List<PublicKey> out = new ArrayList<>();
-        JsonArray arr = o.has("playerCertificateKeys") ? o.getAsJsonArray("playerCertificateKeys") : new JsonArray();
+        JsonArray arr = o.has(field) ? o.getAsJsonArray(field) : new JsonArray();
         KeyFactory kf = KeyFactory.getInstance("RSA");
         for (JsonElement e : arr) {
             byte[] der = Base64.getDecoder().decode(e.getAsJsonObject().get("publicKey").getAsString());

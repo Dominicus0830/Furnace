@@ -3,7 +3,7 @@
 // 어떤 언어로 찍을지는 이 순서로 정한다:
 //   1) JVM 속성 -Dfurnace.language=ko  2) 환경변수 FURNACE_LANGUAGE  3) furnace.properties 의 language 키
 //   4) 위가 없거나 auto 면 JVM 기본 로케일(user.language — 리눅스는 LANG, 윈도는 지역 설정)  5) 그 언어 파일이 없으면 영어.
-// 번역하지 않는 것: 바닐라·Paper 문구 그대로인 줄(호스팅 패널·플러그인이 읽는다), 스택 트레이스·예외 메시지, DEBUG 로그, 설정 키·명령 이름.
+// 번역하지 않는 것: 바닐라·Paper 문구 그대로인 줄(호스팅 패널·플러그인이 읽는다), 스택 트레이스, DEBUG 로그, 설정 키·명령 이름. 운영자가 로그에서 읽는 실패 이유(예외 메시지)는 던지는 자리에서 Lang.t 로 번역한다.
 // 문장 속 자리는 {} (왼쪽부터 차례로) 또는 {0} {1} (번호 — 언어마다 어순이 달라 필요할 때). 예: Lang.t("pause.close-failed", dir)
 package org.domi.furnace.server.i18n;
 
@@ -32,11 +32,16 @@ public final class Lang {
     public static final String ENV = "FURNACE_LANGUAGE";
     /** furnace.properties 의 키. */
     public static final String KEY = "language";
+    /**
+     * 서버가 지금 고른 언어 코드를 시스템 속성으로 알린다. 서버 클래스를 볼 수 없는 호환 계층(furnace-compat-paper)이 같은 언어로 찍게 하는 약속이다
+     * (속성 이름·뜻은 호환 쪽 CompatLang 과 같아야 한다 — 호환 시험이 짝을 본다). 고르는 우선순위용 {@link #PROPERTY} 와는 일부러 다른 이름이다.
+     */
+    public static final String ACTIVE_PROPERTY = "furnace.language.active";
 
     private static final Map<String, Properties> BUNDLES = new ConcurrentHashMap<>();
     private static final Set<String> REPORTED = ConcurrentHashMap.newKeySet();
 
-    private static volatile String active = detect();
+    private static volatile String active = publish(detect());
 
     private Lang() {}
 
@@ -51,22 +56,27 @@ public final class Lang {
         String requested = override() != null ? override() : fileSetting;
         String c = code(requested);
         if (c == null) {
-            active = detect();
+            active = publish(detect());
             return null;
         }
         if (SUPPORTED.contains(c)) {
-            active = c;
+            active = publish(c);
             return null;
         }
-        active = FALLBACK;
+        active = publish(FALLBACK);
         return requested.strip();
     }
 
     /** 시험·재설정용: 로케일 감지로 되돌린다. */
-    public static void reset() { active = detect(); }
+    public static void reset() { active = publish(detect()); }
 
     /** 시험용: 언어를 직접 정한다(null 이면 감지로 되돌림). */
-    public static void forceForTest(String code) { active = code == null ? detect() : code; }
+    public static void forceForTest(String code) { active = publish(code == null ? detect() : code); }
+
+    private static String publish(String code) {
+        System.setProperty(ACTIVE_PROPERTY, code);
+        return code;
+    }
 
     private static String override() {
         String p = System.getProperty(PROPERTY);

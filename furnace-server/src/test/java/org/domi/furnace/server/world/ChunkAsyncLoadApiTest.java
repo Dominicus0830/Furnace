@@ -1,5 +1,6 @@
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
@@ -34,10 +35,10 @@ class ChunkAsyncLoadApiTest {
         var dims = new Dimensions();
         dims.register(core.world());
         core.dimensions(dims);
-        var reg = BlockRegistry.load("blocks/1.21.1.txt");
-        var registries = RegistrySet.load("registries/1.21.1.txt");
+        var reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        var registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         var io = TestServers.ioPool();
-        manager = new WorldManager(new WorldManager.Parts(tmp, reg, ItemRegistry.load("items/1.21.1.txt"), registries,
+        manager = new WorldManager(new WorldManager.Parts(tmp, reg, ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"), registries,
                 registries.indexOf("minecraft:worldgen/biome", "minecraft:plains"), 7, new ChunkWorkerPool(1), sched, null,
                 Config.DEFAULT, false, io, io), dims, core.levelData(), "world");
         core.worldManager(manager);

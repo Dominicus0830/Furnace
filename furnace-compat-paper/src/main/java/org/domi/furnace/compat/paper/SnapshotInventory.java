@@ -76,7 +76,7 @@ class SnapshotInventory extends CompatInventory {
         }
 
         private UnsupportedFeature unknown() {
-            return new UnsupportedFeature("Inventory 읽기(" + type + ")", "이벤트 밖에서는 플러그인 메뉴가 아닌 창의 내용을 알 수 없다 — 인벤토리 이벤트 안에서 읽는다");
+            return new UnsupportedFeature("reading Inventory (" + type + ")", "outside an event the content of a window that is not a plugin menu is unknown - read it inside an inventory event");
         }
 
         @Override
@@ -105,7 +105,29 @@ class SnapshotInventory extends CompatInventory {
                 return CompletableFuture.completedFuture(null);
             }
             return CompletableFuture.failedFuture(new UnsupportedFeature("Inventory#setItem(" + type + ")",
-                    "Furnace 인벤토리 이벤트는 그 창의 블록·엔티티를 알리지 않아 이 칸에 쓸 수 없다 — 이벤트를 취소하거나 Furnace 블록 API 로 쓴다"));
+                    "the Furnace inventory event does not expose the block or entity of that window, so this slot cannot be written - cancel the event or write with the Furnace block API"));
+        }
+
+        @Override
+        public CompletableFuture<Boolean> update(int slot, java.util.function.UnaryOperator<org.domi.furnace.api.item.ItemStack> fn) {
+            // 칸을 쓸 수 없는 경우의 결과는 set 과 같다(모르는 내용·범위 밖·못 쓰는 칸 모두 UnsupportedFeature)
+            if (known && slot >= 0 && slot < size && writable.test(slot)) {
+                try {
+                    synchronized (this) {
+                        org.domi.furnace.api.item.ItemStack cur = slot < items.size() ? items.get(slot) : org.domi.furnace.api.item.ItemStack.EMPTY;
+                        org.domi.furnace.api.item.ItemStack next = fn.apply(cur);
+                        if (next == null || next == cur || next.equals(cur)) return CompletableFuture.completedFuture(false);
+                        var w = writableItems();
+                        while (w.size() <= slot) w.add(org.domi.furnace.api.item.ItemStack.EMPTY);
+                        w.set(slot, next);
+                    }
+                    return CompletableFuture.completedFuture(true);
+                } catch (RuntimeException e) {
+                    return CompletableFuture.failedFuture(e);
+                }
+            }
+            return CompletableFuture.failedFuture(new UnsupportedFeature("Inventory#setItem(" + type + ")",
+                    "the Furnace inventory event does not expose the block or entity of that window, so this slot cannot be written - cancel the event or write with the Furnace block API"));
         }
 
         @Override

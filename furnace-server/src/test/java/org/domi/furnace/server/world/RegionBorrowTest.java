@@ -3,6 +3,7 @@
 // 실패 모양(PR #144 독립 검토 R1~R4·S1): 서로 기다림은 곧바로 포기, 멈춘 region 은 구간에서 한 번만 기다림, 닫지 않은 구간은 작업 끝에 닫힘.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -31,7 +32,7 @@ class RegionBorrowTest {
     @BeforeEach
     void setUp() {
         sched = new FurnaceSchedulerImpl(10_000_000L, 3);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(2), sched, 3, 4, 1, 2, 2,
                 reg.directBits(), 7, java.util.concurrent.Executors.newSingleThreadExecutor(),
                 java.util.concurrent.Executors.newSingleThreadExecutor());

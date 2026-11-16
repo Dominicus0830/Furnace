@@ -1,6 +1,7 @@
 // 해골: 활을 들고 플레이어를 겨냥해 화살을 쏘고, 화살이 날아가 플레이어를 맞춘다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -18,7 +19,7 @@ class SkeletonCombatTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static class ArenaLevel extends BlockPlacementTest.TestLevel {

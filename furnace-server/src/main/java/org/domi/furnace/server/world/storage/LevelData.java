@@ -2,6 +2,7 @@
 // 저장 시 모르는 필드(다른 서버·모드·향후 기능이 쓴 값)를 그대로 되돌려 쓴다.
 package org.domi.furnace.server.world.storage;
 
+import org.domi.furnace.api.GameVersion;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,8 +16,8 @@ import org.domi.furnace.server.world.gen.carver.LegacyRandom;
 
 public final class LevelData {
 
-    public static final int DATA_VERSION = 3955;
-    public static final String VERSION_NAME = "1.21.1";
+    public static final int DATA_VERSION = GameVersion.DATA_VERSION;
+    public static final String VERSION_NAME = GameVersion.MINECRAFT;
     /** 바닐라 ANVIL_VERSION_ID. */
     public static final int ANVIL_VERSION = 19133;
 

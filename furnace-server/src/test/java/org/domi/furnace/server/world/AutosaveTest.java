@@ -1,6 +1,7 @@
 // region 틱이 autosaveTicks마다 dirty 청크를 디스크에 저장하는지(공유 플래그 경쟁 없이) 검증
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import java.nio.file.Path;
 import java.util.concurrent.Executors;
@@ -43,7 +44,7 @@ class AutosaveTest {
 
     @Test
     void region_tracksOnlyDirtyChunks(@TempDir Path dir) throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         RegionFileStore store = new RegionFileStore(dir);
         AnvilChunkCodec codec = new AnvilChunkCodec(reg, 0);
         AnvilWorldSource src = new AnvilWorldSource(dir, store, codec, new SuperflatWorldSource(reg, 0));
@@ -71,7 +72,7 @@ class AutosaveTest {
 
     @Test
     void autosave_savesDirtyChunk_afterInterval(@TempDir Path dir) throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         RegionFileStore store = new RegionFileStore(dir);
         AnvilChunkCodec codec = new AnvilChunkCodec(reg, 0);
         AnvilWorldSource src = new AnvilWorldSource(dir, store, codec, new SuperflatWorldSource(reg, 0));

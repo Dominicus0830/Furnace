@@ -1,6 +1,7 @@
 // Bukkit·Paper 플러그인 형식(plugin.yml, paper-plugin.yml) 어댑터. 서버의 PluginBootstrapper 가 ServiceLoader 로 찾아 쓴다.
 package org.domi.furnace.compat.paper;
 
+import org.domi.furnace.compat.i18n.CompatLang;
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -76,7 +77,7 @@ public final class CompatFormat implements PluginFormat {
         try {
             map = ConfigFormat.YAML.parse(text).toMap();
         } catch (RuntimeException e) {
-            throw new IllegalArgumentException(fileName + " 을 읽을 수 없다: " + e.getMessage(), e);
+            throw new IllegalArgumentException(fileName + " cannot be read: " + e.getMessage(), e);
         }
         if (fileName.equals("paper-plugin.yml")) map = fromPaper(map);
         PluginDescriptionFile pdf;
@@ -106,7 +107,7 @@ public final class CompatFormat implements PluginFormat {
     static void checkApiVersion(PluginDescriptionFile pdf) {
         String v = pdf.getAPIVersion();
         if (v == null) return;
-        if (isNewerThanServerApi(v)) throw new IllegalArgumentException("Unsupported API version " + v + " (이 서버는 Bukkit API 1." + SUPPORTED_MINOR + "." + SUPPORTED_PATCH + " 까지 받는다)");
+        if (isNewerThanServerApi(v)) throw new IllegalArgumentException("Unsupported API version " + v + " (this server accepts up to Bukkit API 1." + SUPPORTED_MINOR + "." + SUPPORTED_PATCH + ")");
     }
 
     /** api-version 문자열("1.21", "1.20.6")이 이 서버의 Bukkit API(1.21.1)보다 새로운가. 읽을 수 없으면 IllegalArgumentException. */
@@ -118,7 +119,7 @@ public final class CompatFormat implements PluginFormat {
             int patch = p.length > 2 ? Integer.parseInt(p[2]) : 0;
             return major > 1 || (major == 1 && (minor > SUPPORTED_MINOR || (minor == SUPPORTED_MINOR && patch > SUPPORTED_PATCH)));
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("api-version '" + v + "' 을 읽을 수 없다");
+            throw new IllegalArgumentException("api-version '" + v + "' cannot be parsed");
         }
     }
 
@@ -147,12 +148,12 @@ public final class CompatFormat implements PluginFormat {
                 }
             }
             if (dm.get("bootstrap") instanceof Map<?, ?> b && !b.isEmpty()) {
-                LOG.warn("paper-plugin.yml 의 dependencies.bootstrap 은 읽지 않는다(Furnace 호환 어댑터 1차 범위 밖): {}", b.keySet());
+                LOG.warn(CompatLang.t("compat.paper-bootstrap-ignored", b.keySet()));
             }
         }
         for (String key : List.of("bootstrapper", "loader")) {
             if (paper.get(key) != null) {
-                LOG.warn("paper-plugin.yml 의 '{}' 는 Furnace 호환 어댑터가 실행하지 않는다 — 이 플러그인은 그것에 기대면 제대로 안 돈다", key);
+                LOG.warn(CompatLang.t("compat.paper-key-not-run", key));
             }
         }
         out.remove("dependencies");
@@ -211,13 +212,13 @@ public final class CompatFormat implements PluginFormat {
         if (files == null || files.isBlank()) return null;
         String[] p = files.split(java.util.regex.Pattern.quote(java.io.File.pathSeparator));
         if (p.length != 3) {
-            LOG.warn("플러그인 {}: {} 값은 파일 세 개(Mojang server.txt, Spigot 클래스 csrg, 멤버 csrg)여야 한다 — Spigot 이름을 바꾸지 않는다", plugin, SPIGOT_MAPPING_FILES);
+            LOG.warn(CompatLang.t("compat.spigot-files-count", plugin, SPIGOT_MAPPING_FILES));
             return null;
         }
         try {
             return org.domi.furnace.compat.nms.SpigotMappings.load(java.nio.file.Path.of(p[0].strip()), java.nio.file.Path.of(p[1].strip()), java.nio.file.Path.of(p[2].strip()));
         } catch (java.io.IOException | RuntimeException e) {
-            LOG.warn("플러그인 {}: Spigot 이름 대응표를 읽지 못했다({}) — Spigot 이름을 바꾸지 않는다(그 NMS 호출은 실패한다)", plugin, e.toString());
+            LOG.warn(CompatLang.t("compat.spigot-mappings-unreadable", plugin, e.toString()));
             return null;
         }
     }
@@ -225,7 +226,7 @@ public final class CompatFormat implements PluginFormat {
     @Override
     public FurnacePlugin create(PluginContext context, Class<?> main) throws ReflectiveOperationException {
         if (!JavaPlugin.class.isAssignableFrom(main)) {
-            throw new IllegalArgumentException("main 클래스가 org.bukkit.plugin.java.JavaPlugin 을 상속하지 않는다: " + main.getName());
+            throw new IllegalArgumentException("the main class does not extend org.bukkit.plugin.java.JavaPlugin: " + main.getName());
         }
         createdPlugin = true;
         Bukkit.setServer(org.bukkit.craftbukkit.CraftServer.INSTANCE);

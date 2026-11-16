@@ -1,6 +1,7 @@
 // full blockstate(Name+Properties) → exact global id 해석 검증(oracle blockstates fixture 의존)
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -10,7 +11,7 @@ class BlockRegistryStateTest {
 
     @Test
     void resolvesPropertiedState_exactGlobalId() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         int lower = reg.stateIdOrAir("minecraft:tall_grass", Map.of("half", "lower"));
         int upper = reg.stateIdOrAir("minecraft:tall_grass", Map.of("half", "upper"));
         assertNotEquals(0, lower);
@@ -23,7 +24,7 @@ class BlockRegistryStateTest {
 
     @Test
     void nonDefaultPropertiedState_differsFromBase() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         int base = reg.stateIdOrAir("minecraft:pink_petals");
         int specific = reg.stateIdOrAir("minecraft:pink_petals",
             Map.of("facing", "east", "flower_amount", "3"));
@@ -33,7 +34,7 @@ class BlockRegistryStateTest {
 
     @Test
     void propertyOrderIrrelevant() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         Map<String, String> a = new LinkedHashMap<>();
         a.put("facing", "north"); a.put("flower_amount", "2");
         Map<String, String> b = new LinkedHashMap<>();
@@ -44,7 +45,7 @@ class BlockRegistryStateTest {
 
     @Test
     void noProps_matchesDefaultPath() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         assertEquals(reg.stateIdOrAir("minecraft:dirt"),
             reg.stateIdOrAir("minecraft:dirt", Map.of()));
     }

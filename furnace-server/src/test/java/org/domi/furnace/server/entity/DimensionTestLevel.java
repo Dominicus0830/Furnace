@@ -1,6 +1,7 @@
 // 차원 이름을 고를 수 있고 다른 차원 레벨을 이어 줄 수 있는 슈퍼플랫 시험 레벨(청크 ±8).
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -12,7 +13,7 @@ import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.gen.SuperflatWorldSource;
 
 public class DimensionTestLevel extends ChunkLevel {
-    private static final SuperflatWorldSource GEN = new SuperflatWorldSource(BlockRegistry.load("blocks/1.21.1.txt"), 0);
+    private static final SuperflatWorldSource GEN = new SuperflatWorldSource(BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), 0);
     final Map<Long, ChunkColumn> chunks = new HashMap<>();
     final Map<String, ChunkLevel> others = new HashMap<>();
     final String dimension;

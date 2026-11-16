@@ -24,15 +24,7 @@ public class CraftBanner extends CraftBlockEntityState implements org.bukkit.blo
     public CraftBanner(String dimension, org.domi.furnace.api.world.BlockPos pos, org.bukkit.block.data.BlockData data) {
         super(dimension, pos, data);
         base = colorOfBlock(((org.domi.furnace.compat.paper.CompatBlockData) data).furnace().type());
-        patterns = new ArrayList<>();
-        for (Object o : snapshotNbt().getList("patterns").values()) {
-            if (!(o instanceof NbtCompound layer) || !(layer.get("pattern") instanceof String id)) continue;   // 인라인 무늬
-            NamespacedKey key = NamespacedKey.fromString(id);
-            PatternType type = key == null ? null : Registry.BANNER_PATTERN.get(key);
-            DyeColor color = dye(layer.getString("color"));
-            if (type == null || color == null) continue;
-            patterns.add(new Pattern(color, type));
-        }
+        patterns = org.domi.furnace.compat.paper.BannerLayers.read(snapshotNbt().getList("patterns"), Integer.MAX_VALUE);
     }
 
     /** minecraft:light_gray_wall_banner → LIGHT_GRAY. */
@@ -44,13 +36,7 @@ public class CraftBanner extends CraftBlockEntityState implements org.bukkit.blo
         return c == null ? DyeColor.WHITE : c;
     }
 
-    private static DyeColor dye(String vanillaName) {
-        try {
-            return DyeColor.valueOf(vanillaName.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException unknown) {
-            return null;
-        }
-    }
+    private static DyeColor dye(String vanillaName) { return org.domi.furnace.compat.paper.BannerLayers.dye(vanillaName); }
 
     @Override
     public DyeColor getBaseColor() { return base; }
@@ -86,22 +72,7 @@ public class CraftBanner extends CraftBlockEntityState implements org.bukkit.blo
     @Override
     protected void applyToSnapshot() {
         super.applyToSnapshot();
-        NbtList out = new NbtList();
-        for (int i = 0; i < patterns.size(); i++) {
-            Pattern p = patterns.get(i);
-            if (p == null) throw new IllegalArgumentException("Banner 무늬 " + i + "번째가 null 이다");
-            if (p.getPattern() == null) throw new IllegalArgumentException("Banner 무늬 " + i + "번째의 무늬 종류(PatternType)가 null 이다");
-            if (p.getColor() == null) throw new IllegalArgumentException("Banner 무늬 " + i + "번째의 색(DyeColor)이 null 이다");
-            NamespacedKey key = p.getPattern().getKey();
-            if (Registry.BANNER_PATTERN.get(key) == null) {
-                throw new IllegalArgumentException("No Reference holder found for " + p.getPattern()
-                        + ", this can happen if a plugin creates its own banner pattern without properly registering it.");
-            }
-            NbtCompound layer = new NbtCompound();
-            layer.putString("pattern", key.toString());
-            layer.putString("color", p.getColor().name().toLowerCase(Locale.ROOT));
-            out.add(layer);
-        }
+        NbtList out = org.domi.furnace.compat.paper.BannerLayers.write(patterns);
         // 빈 목록도 적는다: 블록 엔티티 load 는 바닐라처럼 patterns 가 없으면 옛 무늬를 그대로 두므로(Paper applyTo 는 setPatterns 로 직접 비운다)
         snapshotNbt().putList("patterns", out);
     }

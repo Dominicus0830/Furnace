@@ -2,6 +2,7 @@
 // 블록별 악기는 바닐라 BlockState.instrument() 를 뽑은 표(blocks/instruments_1.21.1.txt).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -60,7 +61,7 @@ public class NoteBlock extends BlockBehavior {
     private static final Instrument[] BY_BLOCK = new Instrument[B.BLOCKS.blockCount()];
     static {
         java.util.Arrays.fill(BY_BLOCK, Instrument.HARP);
-        try (var in = NoteBlock.class.getClassLoader().getResourceAsStream("blocks/instruments_1.21.1.txt");
+        try (var in = NoteBlock.class.getClassLoader().getResourceAsStream("blocks/instruments_" + GameVersion.RESOURCE_TAG + ".txt");
              var r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
             String line;
             while ((line = r.readLine()) != null) {

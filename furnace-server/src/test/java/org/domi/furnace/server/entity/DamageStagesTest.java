@@ -2,6 +2,7 @@
 // 단계를 바꾸면 뒤 단계가 새 값으로 계산된다. 플레이어(PlayerVitals)와 몹(LivingEntity) 두 경로 모두.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -29,7 +30,7 @@ class DamageStagesTest {
     @BeforeAll
     static void install() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     /** 단계 이벤트만 구독하는 GameEvents. 이벤트를 만들어 handler 에 보여 주고 돌려준다. */

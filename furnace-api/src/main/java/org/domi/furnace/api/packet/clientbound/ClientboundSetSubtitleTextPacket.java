@@ -1,4 +1,4 @@
-// 제목 아래 부제.
+// 제목 아래에 나오는 부제.
 package org.domi.furnace.api.packet.clientbound;
 
 import java.util.Objects;

@@ -2,6 +2,7 @@
 // 달콤한 열매 덤불, 수련잎·보트, 개구리알·떨어지는 블록, 레드스톤 광석, 거북 알, 화살 버튼과 그 플레이어 쪽.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.UUID;
@@ -21,7 +22,7 @@ class EntityBlockHookTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     /** mobGriefing 을 바꿀 수 있는 시험 레벨. */

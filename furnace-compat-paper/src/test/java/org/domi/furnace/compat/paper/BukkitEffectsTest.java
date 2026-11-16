@@ -252,6 +252,17 @@ class BukkitEffectsTest {
         assertThrows(IllegalArgumentException.class, () -> w.playEffect(here(0), org.bukkit.Effect.SMOKE, (Object) null));       // Wrong kind of data
         assertThrows(IllegalArgumentException.class, () -> w.playEffect(here(0), org.bukkit.Effect.CLICK1, Color.RED));         // does not have a valid Data
         assertThrows(IllegalArgumentException.class, () -> w.playEffect(here(0), org.bukkit.Effect.SMOKE, Color.RED));          // cannot be used
+        for (org.bukkit.block.BlockFace face : org.bukkit.block.BlockFace.values()) {   // SMOKE: 보조 16방위 8개만 "Bad smoke direction!"
+            boolean aux = switch (face) {
+                case WEST_NORTH_WEST, NORTH_NORTH_WEST, NORTH_NORTH_EAST, EAST_NORTH_EAST, EAST_SOUTH_EAST, SOUTH_SOUTH_EAST,
+                        SOUTH_SOUTH_WEST, WEST_SOUTH_WEST -> true;
+                default -> false;
+            };
+            if (aux) {
+                assertEquals("Bad smoke direction!", assertThrows(IllegalArgumentException.class,
+                        () -> w.playEffect(here(0), org.bukkit.Effect.SMOKE, face)).getMessage(), face.toString());
+            }
+        }
         assertThrows(IllegalArgumentException.class, () -> w.playEffect(here(0), org.bukkit.Effect.RECORD_PLAY, org.bukkit.Material.STONE));
     }
 

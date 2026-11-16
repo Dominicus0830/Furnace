@@ -19,6 +19,12 @@ public interface Player extends CommandSender, LivingEntity {
     /** 게임 프로필 속성(세션 서버가 준 스킨 "textures" 등, 오프라인 서버면 빈 목록) — 탭 목록 패킷의 ADD_PLAYER 와 같은 값. */
     default java.util.List<ProfileProperty> profileProperties() { return java.util.List.of(); }
 
+    /**
+     * 지금의 게임 프로필(Paper {@code getPlayerProfile}·{@code getGameProfile}): 이름·속성은 {@link #name()}·{@link #profileProperties()} 와 같고,
+     * id 는 엔티티 UUID({@link #uniqueId()} — 파일·접속자 조회·탭 UUID 칸)와 다를 수 있다. op·화이트리스트·밴은 이 id 로 본다.
+     */
+    default ProfileData profile() { return new ProfileData(uniqueId(), name(), profileProperties()); }
+
     /** 바닐라 Player.getDisplayName: 이름 + "/tell 이름" 제안 클릭 + 삽입. */
     Text displayName();
 
@@ -180,7 +186,7 @@ public interface Player extends CommandSender, LivingEntity {
      * 메뉴 화면을 연다(열린 다른 화면은 닫힌다). 어느 스레드에서 불러도 되며 연결 스레드에서 이뤄진다.
      * InventoryOpenEvent 가 취소되면 열리지 않는다.
      */
-    default void openMenu(org.domi.furnace.api.menu.Menu menu) { throw new UnsupportedOperationException("메뉴를 열 수 없는 플레이어"); }
+    default void openMenu(org.domi.furnace.api.menu.Menu menu) { throw new UnsupportedOperationException("this player cannot open menus"); }
 
     /** 열린 메뉴 화면이 이 플레이어의 것이면 닫는다(다른 화면이면 건드리지 않는다). */
     default void closeMenu() {}
@@ -259,7 +265,7 @@ public interface Player extends CommandSender, LivingEntity {
 
     @Override
     default CompletableFuture<Boolean> remove() {
-        return CompletableFuture.failedFuture(new UnsupportedOperationException("플레이어는 remove 할 수 없다 — kick 을 쓴다"));
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("a player cannot be removed - use kick"));
     }
 
     // ------------------------------------------------------------------ 레시피 북

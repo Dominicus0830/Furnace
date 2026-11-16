@@ -3,6 +3,7 @@
 // 속성 읽기·바꾸기가 나눗셈·덧셈 한 번이다.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.io.BufferedReader;
@@ -49,8 +50,8 @@ public final class Blocks {
 
     private static Blocks load() {
         List<Line> lines = new ArrayList<>();
-        try (InputStream in = Blocks.class.getClassLoader().getResourceAsStream("blocks/definitions_1.21.1.txt")) {
-            if (in == null) throw new IllegalStateException("blocks/definitions_1.21.1.txt 없음");
+        try (InputStream in = Blocks.class.getClassLoader().getResourceAsStream("blocks/definitions_" + GameVersion.RESOURCE_TAG + ".txt")) {
+            if (in == null) throw new IllegalStateException("blocks/definitions_" + GameVersion.RESOURCE_TAG + ".txt is missing");
             BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             String line;
             while ((line = r.readLine()) != null) {

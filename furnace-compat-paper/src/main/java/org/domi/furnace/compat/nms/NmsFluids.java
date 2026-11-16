@@ -29,7 +29,7 @@ public final class NmsFluids {
                     r = new NmsDefaultedRegistry<>(Registries.FLUID, ResourceLocation.withDefaultNamespace("empty"));
                     List<String> ids = Furnace.server().gameRegistries().builtIn("minecraft:fluid");
                     List<String> want = List.of("minecraft:empty", "minecraft:flowing_water", "minecraft:water", "minecraft:flowing_lava", "minecraft:lava");
-                    if (!ids.equals(want)) throw new IllegalStateException("유체 레지스트리가 바닐라 1.21.1 과 다르다: " + ids);
+                    if (!ids.equals(want)) throw new IllegalStateException("the fluid registry differs from vanilla 1.21.1: " + ids);
                     for (String id : ids) r.add(ResourceLocation.parse(id), byKey(id));
                     registry = r;
                 }

@@ -2,6 +2,7 @@
 // 동작은 바꾸지 않는다 — 경고만 한다. 판단은 순수 함수({@link #check})라 시험이 합성 값으로 돌린다.
 package org.domi.furnace.server.config;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,12 +28,12 @@ public final class JvmCheck {
     public static List<String> check(int javaFeature, long maxHeapBytes, List<String> jvmArgs, int cpus) {
         List<String> w = new ArrayList<>();
         if (javaFeature < 21) {
-            w.add("Java " + javaFeature + " 로 실행 중입니다: Furnace 는 Java 21 이상을 요구합니다");
+            w.add(Lang.t("warn.java-too-old", javaFeature));
         } else if (!LTS.contains(javaFeature)) {
-            w.add("Java " + javaFeature + " 는 장기 지원(LTS)이 아닙니다: 보안 패치가 일찍 끊깁니다. 운영 서버는 Java 21 또는 25 를 쓰세요");
+            w.add(Lang.t("warn.java-not-lts", javaFeature));
         }
         if (maxHeapBytes < MIN_HEAP_BYTES) {
-            w.add("최대 힙이 " + (maxHeapBytes >> 20) + "MB 입니다: 월드와 청크 캐시에 모자랄 수 있습니다. -Xmx 로 늘리세요(예: java -Xms4G -Xmx4G -jar furnace-server.jar)");
+            w.add(Lang.t("warn.heap-small", maxHeapBytes >> 20));
         }
         String xms = null;
         String xmx = null;
@@ -48,19 +49,19 @@ public final class JvmCheck {
             else if (t.equals("-XX:+UseEpsilonGC")) epsilon = true;
         }
         if (serial) {
-            w.add("-XX:+UseSerialGC: 단일 스레드 GC 라 힙이 큰 서버에서 틱이 끊깁니다. G1(기본) 또는 ZGC(-XX:+UseZGC)를 쓰세요");
+            w.add(Lang.t("warn.gc-serial"));
         }
         if (parallel) {
-            w.add("-XX:+UseParallelGC: 처리량 위주 GC 라 정지 시간이 길어 틱이 끊길 수 있습니다. G1(기본) 또는 ZGC(-XX:+UseZGC)를 쓰세요");
+            w.add(Lang.t("warn.gc-parallel"));
         }
         if (epsilon) {
-            w.add("-XX:+UseEpsilonGC: 메모리를 회수하지 않아 힙이 차면 서버가 죽습니다. 시험용이 아니면 G1 이나 ZGC 를 쓰세요");
+            w.add(Lang.t("warn.gc-epsilon"));
         }
         if (!serial && cpus < 2) {
-            w.add("CPU 가 " + cpus + "개라 JVM 이 단일 스레드 GC(Serial)를 고릅니다. Furnace 는 region 별로 스레드를 쓰므로 코어를 더 주는 편이 좋습니다");
+            w.add(Lang.t("warn.cpu-few", cpus));
         }
         if (xms != null && xmx != null && !xms.equalsIgnoreCase(xmx) && sizeOf(xms) > 0 && sizeOf(xmx) > 0 && sizeOf(xms) < sizeOf(xmx)) {
-            w.add("-Xms" + xms + " 가 -Xmx" + xmx + " 보다 작습니다: 힙이 자라는 동안 GC 가 잦아 틱이 끊깁니다. 둘을 같게 하세요");
+            w.add(Lang.t("warn.xms-lt-xmx", xms, xmx));
         }
         return w;
     }

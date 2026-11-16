@@ -1,6 +1,7 @@
 // region 틱의 이동 검증 배선: 연결이 넣은 검증 대기 패킷을 소유 region 스레드가 순서대로 검증해 위치를 정하고, 되돌릴 땐 연결에 텔레포트를 시킨다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -19,7 +20,7 @@ import org.junit.jupiter.api.Test;
 class RegionMoveValidationTest {
 
     private static World world(FurnaceSchedulerImpl sched) {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         return new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(2),
                 sched, sched.regionThreadCount(), 16, 1, 1, reg.directBits(), 7, java.util.concurrent.Executors.newSingleThreadExecutor());
     }

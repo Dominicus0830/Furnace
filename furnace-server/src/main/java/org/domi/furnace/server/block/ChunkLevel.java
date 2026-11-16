@@ -2,6 +2,8 @@
 // 청크를 어디서 얻는지(소유 region 의 로드된 청크)와 변경 방송·저장 표시는 하위 클래스가 정한다.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.server.world.StateIds;
+import org.domi.furnace.server.i18n.Lang;
 import java.util.TreeMap;
 import org.domi.furnace.server.block.entity.BlockEntity;
 import org.domi.furnace.server.entity.AABB;
@@ -480,7 +482,7 @@ public abstract class ChunkLevel implements BlockLevel {
     @Override
     public void destroyBlockProgress(int breakerId, Pos pos, int progress) {
         var pkt = new org.domi.furnace.server.net.protocol.play.BlockDestruction(breakerId, pos.x(), pos.y(), pos.z(), progress);
-        services().forEachPlayer(p -> {
+        services().forEachConnectedPlayer(p -> {
             if (p.entityId() == breakerId) return;
             double dx = pos.x() - p.x(), dy = pos.y() - p.y(), dz = pos.z() - p.z();
             if (dx * dx + dy * dy + dz * dz < 1024.0) p.send(pkt);
@@ -839,6 +841,7 @@ public abstract class ChunkLevel implements BlockLevel {
             other.drainLight();
         }
         if (other.lightEngine != null && other.lightEngine.hasWork()) other.lightEngine.moveChecksTo(lightEngine(), p -> true);
+        if (other.lightEngine != null) other.lightEngine.moveHeldTo(lightEngine(), p -> true);   // 붙잡힌 검사(T-197)도 함께
         for (var e : other.lightChanges.entrySet()) {
             long[] m = lightChanges.computeIfAbsent(e.getKey(), k -> new long[2]);
             m[0] |= e.getValue()[0];
@@ -898,6 +901,10 @@ public abstract class ChunkLevel implements BlockLevel {
         assert lightBatch == null : "빛 작업이 남은 채 나눔";
         if (lightEngine != null && lightEngine.hasWork()) {
             lightEngine.moveChecksTo(target.lightEngine(),
+                    p -> inTarget.test(org.domi.furnace.server.light.LightEngine.px(p) >> 4, org.domi.furnace.server.light.LightEngine.pz(p) >> 4));
+        }
+        if (lightEngine != null) {
+            lightEngine.moveHeldTo(target.lightEngine(),
                     p -> inTarget.test(org.domi.furnace.server.light.LightEngine.px(p) >> 4, org.domi.furnace.server.light.LightEngine.pz(p) >> 4));
         }
         var lit = lightChanges.entrySet().iterator();
@@ -1002,6 +1009,33 @@ public abstract class ChunkLevel implements BlockLevel {
         }
     }
 
+    /** 빛 다시 계산(T-197)의 전 섹션 빛 갱신을 그 청크를 받은 플레이어 모두에게(Paper getPlayers(false)). 기본은 버린다. */
+    protected void broadcastFullLightToChunk(int chunkX, int chunkZ, Packet packet) {}
+
+    /** 빛 다시 계산의 검사 붙잡기 판정(세계 단위). 기본은 없음. */
+    protected org.domi.furnace.server.light.LevelLight.Hold relightHold() { return null; }
+
+    /**
+     * 빛 다시 계산(T-197) 결과를 끼운다 — 주인 스레드. fresh 는 얼린 블록으로 그 청크와 둘레 1칸을 빈 빛에서 계산한 그 청크의 빛(다른 데서 안 쓴다).
+     * 층을 갈아 끼우고, 하늘빛 원천은 지금 블록에서 센 값으로 둔다 — 얼린 뒤 그 청크가 바뀌지 않았으면(freezeStamp == 지금 내용 판 번호) 계산한 값을 그대로,
+     * 아니면 다시 센다(얼린 뒤 바뀐 칸의 검사는 붙잡혀 있다가 풀린 뒤 이 위에서 계산된다). 바닐라 sectionLightChanged 처럼 저장 대상으로 두고,
+     * Paper 처럼 그 청크를 받은 모두에게 전 섹션 빛 갱신을 보낸다.
+     */
+    public void installRelight(int cx, int cz, org.domi.furnace.server.light.ChunkLight fresh, long freezeStamp) {
+        ChunkColumn col = chunk(cx, cz);
+        if (col == null || col.light() == null) return;
+        awaitLightIdle();   // 빛 작업 모드: 보이는 빛은 묶음이 쉴 때만 고친다(T-064)
+        col.light().adoptLayersFrom(fresh);
+        if (col.modCount() == freezeStamp) col.light().adoptSourcesFrom(fresh);   // 블록이 계산 때 그대로(빛 작업 게시도 판 번호를 올려 다시 세는 쪽으로 간다)
+        else lightEngine().recomputeSources(cx, cz);
+        col.lightTouched();
+        if (col.markLightDirty()) markDirty(cx, cz);
+        int lightBase = (minBuildHeight() >> 4) - 1 - org.domi.furnace.server.light.ChunkLight.MIN_SECTION;
+        int count = ((maxBuildHeight() - minBuildHeight()) >> 4) + 2;
+        long all = count >= 64 ? -1L : (1L << count) - 1;
+        broadcastFullLightToChunk(cx, cz, org.domi.furnace.server.net.protocol.play.LightUpdate.of(cx, cz, col.light(), hasSkyLight() ? all : 0L, all, lightBase, count));
+    }
+
     /** 빛 갱신 패킷을 그 청크를 보는 플레이어 중 시야 가장자리인 사람에게(바닐라 getPlayers(pos, true)). 기본은 버린다. */
     protected void broadcastLightToChunk(int chunkX, int chunkZ, Packet packet) {}
 
@@ -1086,7 +1120,7 @@ public abstract class ChunkLevel implements BlockLevel {
         double range = volume > 1.0F ? 16.0 * volume : 16.0;
         SoundPacket pkt = new SoundPacket(id == null ? -1 : id, sound, SoundPacket.source(source), x, y, z, volume, pitch, seed);
         Object skip = except == null ? null : except.handle();
-        services().forEachPlayer(p -> {
+        services().forEachConnectedPlayer(p -> {
             if (p == skip) return;
             double dx = x - p.x(), dy = y - p.y(), dz = z - p.z();
             if (dx * dx + dy * dy + dz * dz < range * range) p.send(pkt);
@@ -1122,7 +1156,7 @@ public abstract class ChunkLevel implements BlockLevel {
         org.domi.furnace.server.net.protocol.play.SoundEntity pkt = new org.domi.furnace.server.net.protocol.play.SoundEntity(
                 id == null ? -1 : id, sound, SoundPacket.source(source), entityId, volume, pitch, seed);
         Object skip = except == null ? null : except.handle();
-        services().forEachPlayer(p -> {
+        services().forEachConnectedPlayer(p -> {
             if (p == skip) return;
             double dx = x - p.x(), dy = y - p.y(), dz = z - p.z();
             if (dx * dx + dy * dy + dz * dz < range * range) p.send(pkt);
@@ -1133,7 +1167,7 @@ public abstract class ChunkLevel implements BlockLevel {
     public void levelEvent(BlockActor except, int type, Pos pos, int data) {
         LevelEventPacket pkt = new LevelEventPacket(type, pos.x(), pos.y(), pos.z(), data, false);
         Object skip = except == null ? null : except.handle();
-        services().forEachPlayer(p -> {
+        services().forEachConnectedPlayer(p -> {
             if (p == skip) return;
             double dx = pos.x() - p.x(), dy = pos.y() - p.y(), dz = pos.z() - p.z();
             if (dx * dx + dy * dy + dz * dz < 64.0 * 64.0) p.send(pkt);
@@ -1147,7 +1181,7 @@ public abstract class ChunkLevel implements BlockLevel {
             return;
         }
         LevelEventPacket pkt = new LevelEventPacket(type, pos.x(), pos.y(), pos.z(), data, true);
-        services().forEachPlayer(p -> p.send(pkt));
+        services().forEachConnectedPlayer(p -> p.send(pkt));
     }
 
     @Override
@@ -1181,7 +1215,7 @@ public abstract class ChunkLevel implements BlockLevel {
             if (blocks.blockOf(s) != e.block()) continue;
             if (BlockBehaviors.of(s).triggerEvent(s, this, pos, e.type(), e.data())) {
                 BlockEventPacket pkt = new BlockEventPacket(e.x(), e.y(), e.z(), e.type(), e.data(), e.block());
-                services().forEachPlayer(p -> {
+                services().forEachConnectedPlayer(p -> {
                     double dx = e.x() - p.x(), dy = e.y() - p.y(), dz = e.z() - p.z();
                     if (dx * dx + dy * dy + dz * dz < 64.0 * 64.0) p.send(pkt);
                 });
@@ -1741,7 +1775,7 @@ public abstract class ChunkLevel implements BlockLevel {
             org.domi.furnace.server.world.gen.carver.WorldgenRandom random, boolean apply) {
         var h = org.domi.furnace.server.world.LiveFeatures.configured(featureData(), id);
         if (h == null) return null;
-        if (!h.supported()) throw new UnsupportedOperationException("아직 구현되지 않은 feature: " + id);
+        if (!h.supported()) throw new UnsupportedOperationException("feature not implemented yet: " + id);
         return org.domi.furnace.server.world.LiveFeatures.placeWith(this, h, pos, random, featureSeed(), apply);
     }
 
@@ -2110,7 +2144,7 @@ public abstract class ChunkLevel implements BlockLevel {
         }
 
         public int state(int x, int y, int z) {
-            if (y < minBuildHeight() || y >= maxBuildHeight()) return 12958;   // void_air
+            if (y < minBuildHeight() || y >= maxBuildHeight()) return StateIds.VOID_AIR;
             return col(x >> 4, z >> 4).getBlock(x & 15, y, z & 15);
         }
 
@@ -2194,6 +2228,7 @@ public abstract class ChunkLevel implements BlockLevel {
         if (lightEngine == null) {
             lightEngine = new org.domi.furnace.server.light.LevelLight(lightWorld, hasSkyLight());
             if (asyncLight()) lightEngine.deferSources(true);   // 빛 작업 모드: 원천 높이는 빛 작업이 고친다
+            lightEngine.hold(relightHold());   // 빛 다시 계산(T-197) 중인 둘레의 검사는 끼운 뒤로 붙잡는다
         }
         return lightEngine;
     }
@@ -2304,6 +2339,19 @@ public abstract class ChunkLevel implements BlockLevel {
 
     public int lightBedrockState() { return bedrockState; }
 
+    /**
+     * 그 칸의 빛 검사를 건다(Paper LevelLightEngine#checkBlock, T-205): 하늘빛 원천을 지금 블록으로 고치고 두 빛에 검사를 건다(Starlight 의 검사는 원천까지
+     * 다시 본다). 계산은 다음 runLightUpdates(틱 끝) — 빛 다시 계산이 둘레를 계산하는 동안이면 끼운 뒤로 붙잡힌다. 소유 스레드에서. 높이 밖이거나 청크가
+     * 없거나 빛이 켜지지 않았으면 false(Paper 처럼 버린다).
+     */
+    public boolean checkLightAt(int x, int y, int z) {
+        if (y < minBuildHeight() || y >= maxBuildHeight()) return false;
+        ChunkColumn col = chunk(x >> 4, z >> 4);
+        if (col == null || col.light() == null || !col.light().lightEnabled) return false;
+        lightEngine().blockChanged(x, y, z);
+        return true;
+    }
+
     /** 그 청크가 로드돼 있고 빛이 만들어져 있는가. */
     public boolean hasLight(int cx, int cz) {
         ChunkColumn col = chunk(cx, cz);
@@ -2363,6 +2411,9 @@ public abstract class ChunkLevel implements BlockLevel {
     private final java.util.ArrayList<ChunkColumn.LightBlocks> lightFrozen = new java.util.ArrayList<>();
     private final java.util.HashSet<Long> lightBatchChunks = new java.util.HashSet<>();
 
+    /** 빛 작업 묶음이 아직 계산 중인가(끝났지만 게시 전이면 false — 게시는 기다림 없이 된다). 주인 스레드. */
+    public boolean lightBatchRunning() { return lightBatch != null && !lightBatchDone.isDone(); }
+
     /** 빛 작업 모드인가(빛 계산 풀이 있는가). */
     public boolean asyncLight() { return services().lightExecutor() != null; }
 
@@ -2399,6 +2450,7 @@ public abstract class ChunkLevel implements BlockLevel {
      * 계산한다 — 옛 빛이 디스크에 굳지 않게(바닐라는 기다리지 않아 굳을 수 있다 — 그 결함은 따르지 않는다). 끈 동안은 아무것도 안 한다.
      */
     public void settleLightForSave(int cx, int cz) {
+        markHeldLightStale(cx, cz);
         if (lightBatch == null && (lightEngine == null || !lightEngine.hasWork())) return;
         if (!asyncLight()) return;
         boolean near = lightBatch != null && lightBatchChunks.contains((long) cx << 32 | (cz & 0xFFFFFFFFL));
@@ -2413,6 +2465,39 @@ public abstract class ChunkLevel implements BlockLevel {
         if (near) drainLight();
     }
 
+    /**
+     * 저장 전: 빛 다시 계산(T-197) 때문에 붙잡힌 검사가 그 청크의 체비셰프 1 안에 있으면, 그 검사가 풀릴 때 바뀔 빛(그 청크 또는 이웃이 번진 빛)이
+     * 아직 옛 값이다 — 저장 빛을 믿지 않게 표시해 다음에 올릴 때 다시 계산한다(T-012 안전장치, 검토 R1). 계속 로드돼 있으면 풀린 검사가 고친 빛이
+     * 다음 저장에 써진다.
+     */
+    private void markHeldLightStale(int cx, int cz) {
+        if (lightEngine == null) return;
+        // 통에는 방금 풀렸지만 아직 안 돈 검사도 있다 — 꺼내기 전에 본다(꺼내면 보통 밀린 검사가 되어 빛 작업 끔에서는 저장 전에 안 돈다, 검토 F4)
+        boolean near = lightEngine.heldNear(cx, cz);
+        lightEngine.applyHold();
+        if (near || lightEngine.heldNear(cx, cz)) lightStale().mark(cx, cz);
+    }
+
+    /**
+     * 빛 다시 계산이 새로 붙잡기 전에: 곧 붙잡힐 자리(inArea, 묶은 칸 좌표)에 밀린 검사(앞 relight 가 풀어 둔 것 포함)가 있을 때만 그 검사를 먼저
+     * 돌린다 — 같은 자리를 곧바로 다시 붙잡아 그 근처 빛 갱신이 끝없이 밀리지 않게(검토 R4). 빛 작업 끔이면 틱 끝 일을 당겨 그 자리에서, 켬이면
+     * 빛 작업 한 묶음으로 넘긴다(region 스레드에서 밀린 일 전부를 계산하지 않게, 검토 F2). 넘긴 묶음은 설치 전 {@link #awaitLightIdle} 로 게시된다.
+     * 켬에서 아직 안 끝난 묶음이 돌고 있으면 기다리지 않고 false — 부른 쪽이 다음 틱에 다시 한다(wait 이면 기다린다). 주인 스레드.
+     */
+    public boolean settleChecksBeforeHold(java.util.function.LongPredicate inArea, boolean wait) {
+        if (lightEngine == null) return true;
+        lightEngine.applyHold();
+        if (!lightEngine.anyCheck(inArea)) return true;
+        if (!asyncLight()) {
+            runLightUpdates();
+            return true;
+        }
+        if (!wait && lightBatchRunning()) return false;
+        awaitLightIdle();   // 끝난 묶음 게시(wait 가 아니면 기다림 없음)
+        if (lightEngine.hasWork()) dispatchLight();
+        return true;
+    }
+
     /** 밀린 일을 한 묶음으로 빛 스레드에 넘긴다(도는 묶음이 없을 때만). */
     private void dispatchLight() {
         var executor = services().lightExecutor();
@@ -2420,6 +2505,7 @@ public abstract class ChunkLevel implements BlockLevel {
         long[][] seedPos = {new long[64]};
         int[] seedCount = {0};
         java.util.LinkedHashSet<Long> seeds = new java.util.LinkedHashSet<>();
+        lightEngine.applyHold();   // 빛 다시 계산 중인 둘레의 검사는 넘기지 않는다(T-197)
         lightEngine.forEachPendingPos(p -> {
             if (seedCount[0] == seedPos[0].length) seedPos[0] = java.util.Arrays.copyOf(seedPos[0], seedCount[0] * 2);
             seedPos[0][seedCount[0]++] = p;
@@ -2517,7 +2603,7 @@ public abstract class ChunkLevel implements BlockLevel {
         lightBatchChunks.clear();
         if (failed != null) {
             // 묶음의 사본을 버렸으니 보이는 빛은 넘기기 전 그대로다 — 넘겼던 칸을 다시 걸고 그 자리에서 계산한다(끈 것과 같은 결과)
-            org.slf4j.LoggerFactory.getLogger(ChunkLevel.class).error("[LIGHT] 빛 작업 실패 — 그 묶음을 이 스레드에서 다시 계산한다", failed);
+            org.slf4j.LoggerFactory.getLogger(ChunkLevel.class).error(Lang.t("level.light-task-failed"), failed);
             var engine = lightEngine();
             for (long p : seeds) {
                 engine.blockChanged(org.domi.furnace.server.light.LightEngine.px(p), org.domi.furnace.server.light.LightEngine.py(p),
@@ -2635,7 +2721,7 @@ public abstract class ChunkLevel implements BlockLevel {
     /** 추적 대상 플레이어(이 레벨을 돌리는 region 의 플레이어). 기본은 서비스의 접속자. */
     protected Iterable<Player> trackingPlayers() {
         java.util.List<Player> out = new java.util.ArrayList<>();
-        services().forEachPlayer(out::add);
+        services().forEachConnectedPlayer(out::add);
         return out;
     }
 
@@ -2871,7 +2957,7 @@ public abstract class ChunkLevel implements BlockLevel {
             try {
                 e.checkDespawn();   // 바닐라도 범위 검사 앞에서 부르고, 지워져도 그 틱의 tick 은 그대로 간다
             } catch (RuntimeException ex) {
-                org.slf4j.LoggerFactory.getLogger(ChunkLevel.class).error("[ENTITY] 사라짐 검사 실패 {} — 지운다", e, ex);
+                org.slf4j.LoggerFactory.getLogger(ChunkLevel.class).error(Lang.t("level.entity-check-failed", e), ex);
                 e.discard();
                 continue;
             }
@@ -2890,7 +2976,7 @@ public abstract class ChunkLevel implements BlockLevel {
                 else e.inactiveTick();
                 if (e.isVehicle()) for (var r : e.passengers()) tickPassenger(e, r);
             } catch (RuntimeException ex) {
-                org.slf4j.LoggerFactory.getLogger(ChunkLevel.class).error("[ENTITY] 엔티티 틱 실패 {} — 지운다", e, ex);
+                org.slf4j.LoggerFactory.getLogger(ChunkLevel.class).error(Lang.t("level.entity-tick-failed", e), ex);
                 e.discard();
             }
         }
@@ -2954,7 +3040,7 @@ public abstract class ChunkLevel implements BlockLevel {
      * (a)∪(b) 만 틱 목록 순서로 돈다(T-017). 보내는 패킷·순서·seenBy 는 전체 훑기와 같다(EntityTrackerCandidatesIdentityTest).
      */
     public void playerMoved(Player p) {
-        if (VERIFY_TRACK_CANDIDATES && !seenIndexCovers(p)) throw new AssertionError("추적 역색인에 빠진 엔티티가 있다: " + p);
+        if (VERIFY_TRACK_CANDIDATES && !seenIndexCovers(p)) throw new AssertionError("tracking reverse index is missing an entity: " + p);
         int n = entities.size();
         SeenList seen = seenIndex.get(p);
         // 엔티티가 적거나, p 가 이미 절반 넘게 본다(몰림 — 후보가 거의 전부라 모으고 늘어놓는 값만 더 든다)면 전체 훑기
@@ -3033,7 +3119,7 @@ public abstract class ChunkLevel implements BlockLevel {
             buf = candBuf;
             n = entities.orderAndDedupe(buf, candN);
             candN = 0;
-            if (VERIFY_TRACK_CANDIDATES && !candidatesComplete(p, buf, n)) throw new AssertionError("추적 후보에 빠진 엔티티가 있다: " + p);
+            if (VERIFY_TRACK_CANDIDATES && !candidatesComplete(p, buf, n)) throw new AssertionError("tracking candidates are missing an entity: " + p);
             long mods = entities.modCount();
             for (int i = 0; i < n; i++) {
                 Entity e = buf[i];
@@ -3378,7 +3464,7 @@ public abstract class ChunkLevel implements BlockLevel {
 
     /** 충돌 상태 표를 지금 만든다(서버 시작 때 — 블록 동작 표와 아이템 번호표가 깔린 뒤). */
     public static void warmCollisionTable() {
-        if (CollisionTable.FLAGS.length == 0) throw new IllegalStateException("충돌 상태 표가 비었다");
+        if (CollisionTable.FLAGS.length == 0) throw new IllegalStateException("the collision state table is empty");
     }
 
     /**

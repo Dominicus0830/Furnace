@@ -2,6 +2,7 @@
 // 떠난·닿은 레벨 둘 다 부르고, 명령 teleportTo(레벨, …)·플레이어 경로·목적지 없음은 부르지 않는다(PR #279 검토 R2·R5).
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.block.B;
@@ -15,7 +16,7 @@ class EmptyTimeResetTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static DimensionTestLevel[] overAndEnd() {

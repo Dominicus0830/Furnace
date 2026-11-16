@@ -5,6 +5,7 @@
 //                  멀리 있는 몹이 클라이언트에 안 보이는 등 바닐라와 관측 결과가 조금 달라지므로 켠 사람만 받는다.
 package org.domi.furnace.server.config;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,7 +58,7 @@ public final class ConfigPresets {
         String name = name(props);
         Map<String, String> m = PRESETS.get(name);
         if (m == null) {
-            throw new IllegalArgumentException("설정 '" + KEY + "' 값 '" + name + "' 이(가) 잘못됐습니다: " + String.join(", ", NAMES) + " 중 하나");
+            throw new IllegalArgumentException(Lang.t("cfg.invalid-choice", KEY, name, String.join(", ", NAMES)));
         }
         for (var e : m.entrySet()) {
             String cur = props.getProperty(e.getKey());

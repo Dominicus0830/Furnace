@@ -2,6 +2,7 @@
 // 꺼질 때 구독·예약 작업·명령·권한 첨부를 알아서 정리한다(Bukkit 처리기 목록은 여기서 비운다).
 package org.domi.furnace.compat.paper;
 
+import org.domi.furnace.compat.i18n.CompatLang;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -33,8 +34,7 @@ public final class BukkitPluginAdapter extends FurnacePlugin {
     @Override
     public void onLoad() {
         if (bukkitDescription.getAPIVersion() == null) {
-            logger().warning("plugin.yml 에 api-version 이 없다 — 1.13 이전 레거시 플러그인으로 보이지만 Furnace 는 레거시 Material 변환을 하지 않는다. "
-                    + "api-version: '1.21' 을 적어 다시 빌드하라");
+            logger().warning(CompatLang.t("compat.no-api-version"));
         }
         plugin.onLoad();
     }
@@ -63,6 +63,7 @@ public final class BukkitPluginAdapter extends FurnacePlugin {
             EventBridge.unwatchQuit(this);
             ProtocolLibBridge.pluginDisabled(this);
             org.domi.furnace.compat.nms.NmsReflect.pluginDisabled(bukkitDescription.getName());   // 다시 켜면 다시 켜는 중으로 모은다
+            org.domi.furnace.compat.nms.NmsTickets.pluginDisabled(this);   // NMS 로 건 청크 티켓은 서버가 풀었다 — 표의 항목도 지운다
         }
     }
 }

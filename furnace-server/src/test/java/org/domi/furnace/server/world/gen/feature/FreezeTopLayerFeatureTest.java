@@ -1,5 +1,6 @@
 package org.domi.furnace.server.world.gen.feature;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ChunkColumn;
@@ -8,7 +9,7 @@ import org.junit.jupiter.api.Test;
 
 class FreezeTopLayerFeatureTest {
 
-    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
 
     private FeatureWorldView viewWithWaterAndStone(int water, int stone) {
         ChunkColumn col = new ChunkColumn(0);

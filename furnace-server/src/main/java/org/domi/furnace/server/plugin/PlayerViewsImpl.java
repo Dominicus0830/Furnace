@@ -37,13 +37,13 @@ public final class PlayerViewsImpl implements PlayerViews {
     private static org.domi.furnace.server.entity.Player viewer(Player p) {
         Objects.requireNonNull(p, "viewer");
         if (p instanceof PlayerHandle ph) return ph.handle();
-        throw new IllegalArgumentException("이 서버의 플레이어가 아니다: " + p);
+        throw new IllegalArgumentException("not a player of this server: " + p);
     }
 
     private static WorldHandle world(org.domi.furnace.api.world.World w) {
         Objects.requireNonNull(w, "world");
         if (w instanceof WorldHandle wh) return wh;
-        throw new IllegalArgumentException("이 서버의 월드가 아니다: " + w);
+        throw new IllegalArgumentException("not a world of this server: " + w);
     }
 
     private static BlockLayer.Dim dimOf(WorldHandle w) {
@@ -82,7 +82,7 @@ public final class PlayerViewsImpl implements PlayerViews {
         int y0 = Math.min(min.y(), max.y()), y1 = Math.max(min.y(), max.y());
         int z0 = Math.min(min.z(), max.z()), z1 = Math.max(min.z(), max.z());
         long count = ((long) x1 - x0 + 1) * ((long) y1 - y0 + 1) * ((long) z1 - z0 + 1);
-        if (count > MAX_FILL) throw new IllegalArgumentException("한 번에 덮을 수 있는 칸은 최대 " + MAX_FILL + " 개: " + count);
+        if (count > MAX_FILL) throw new IllegalArgumentException("at most " + MAX_FILL + " slots can be covered at once: " + count);
         int state = ApiConvert.stateId(Objects.requireNonNull(data, "data"), w.handle().blockRegistry());
         List<int[]> cells = new ArrayList<>((int) count);
         for (int y = y0; y <= y1; y++) for (int z = z0; z <= z1; z++) for (int x = x0; x <= x1; x++) cells.add(new int[] {x, y, z, state});
@@ -205,7 +205,7 @@ public final class PlayerViewsImpl implements PlayerViews {
         int y0 = Math.min(min.y(), max.y()) >> 2, y1 = Math.max(min.y(), max.y()) >> 2;
         int z0 = Math.min(min.z(), max.z()) >> 2, z1 = Math.max(min.z(), max.z()) >> 2;
         long count = ((long) x1 - x0 + 1) * ((long) y1 - y0 + 1) * ((long) z1 - z0 + 1);
-        if (count > MAX_FILL / 64) throw new IllegalArgumentException("한 번에 덮을 수 있는 바이옴 칸은 최대 " + MAX_FILL / 64 + " 개: " + count);
+        if (count > MAX_FILL / 64) throw new IllegalArgumentException("at most " + MAX_FILL / 64 + " slots can be covered at once: " + count);
         List<int[]> cells = new ArrayList<>((int) count);
         for (int y = y0; y <= y1; y++) for (int z = z0; z <= z1; z++) for (int x = x0; x <= x1; x++) cells.add(new int[] {x << 2, y << 2, z << 2, id});
         Set<Long> chunks = v.viewLayers().blocks.putBiomes(plugin, w.dimension(), dimOf(w), cells);
@@ -341,11 +341,11 @@ public final class PlayerViewsImpl implements PlayerViews {
         if (e instanceof PlayerHandle ph) return new Target(ph.handle().entityId(), null, ph.handle());
         if (e instanceof EntityHandle eh) {
             if (!(eh.tasks().owner() instanceof org.domi.furnace.server.entity.LivingEntity le)) {
-                throw new IllegalArgumentException("살아 있는 엔티티만 장비를 가진다 (지금 올라와 있지 않거나 장비가 없는 종류): " + e);
+                throw new IllegalArgumentException("only a live entity has equipment (it is not loaded right now, or its type has none): " + e);
             }
             return new Target(le.id(), eh.tasks(), null);
         }
-        throw new IllegalArgumentException("이 서버의 엔티티가 아니다: " + e);
+        throw new IllegalArgumentException("not an entity of this server: " + e);
     }
 
     @Override

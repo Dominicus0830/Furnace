@@ -16,6 +16,7 @@ import org.domi.furnace.server.players.GameProfileCache;
 import org.domi.furnace.server.players.PlayerLists;
 import org.domi.furnace.server.world.World;
 import org.domi.furnace.server.world.storage.LevelData;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -821,12 +822,26 @@ public final class ServerCore {
         var source = org.domi.furnace.server.command.CommandSource.block(this, w, sink).withCallback(
                 org.domi.furnace.server.command.exec.ResultCallback.sync((ok, r) -> { if (ok) success.incrementAndGet(); }));
         commands().performPrefixedCommandAsync(source, command).whenComplete((r, ex) -> {
-            if (ex != null) log.error("[CMDBLOCK] 명령 블록 명령 실행 실패: {}", command, ex);
+            if (ex != null) log.error(Lang.t("core.cmdblock-failed", command), ex);
             done.accept(success.get());
         });
     }
 
     public org.domi.furnace.server.chat.ServicesKeys servicesKeys() { return servicesKeys; }
+
+    private volatile org.domi.furnace.server.net.auth.SessionService sessionService;
+
+    /** 프로필 조회용 세션 서버 클라이언트(플러그인 API 의 fetchProfile 등) — 처음 쓸 때 만든다(HTTP 클라이언트가 스레드를 띄우므로). */
+    public org.domi.furnace.server.net.auth.SessionService sessionService() {
+        var s = sessionService;
+        if (s == null) {
+            synchronized (this) {
+                s = sessionService;
+                if (s == null) sessionService = s = new org.domi.furnace.server.net.auth.SessionService();
+            }
+        }
+        return s;
+    }
 
     public org.domi.furnace.server.world.GameRules gameRules() { return gameRules; }
 
@@ -1099,7 +1114,7 @@ public final class ServerCore {
             try {
                 spawners.tick();
             } catch (RuntimeException e) {
-                log.error("[SPAWN] 포위·상인 스포너 실패", e);
+                log.error(Lang.t("core.raid-spawner-failed"), e);
             }
         }
         tickEmptyTimes();
@@ -1236,7 +1251,7 @@ public final class ServerCore {
     public void setDifficultyProfile(String owner, org.domi.furnace.api.world.DifficultyProfile profile) {
         var base = org.domi.furnace.server.world.Difficulty.valueOf(profile.base().name());
         if (levelData.hardcore && base != org.domi.furnace.server.world.Difficulty.HARD) {
-            throw new IllegalStateException("하드코어 월드의 난이도는 HARD 뿐이다");
+            throw new IllegalStateException("a hardcore world can only use the HARD difficulty");
         }
         synchronized (difficultyLock) {
             levelData.difficulty = base;
@@ -1418,6 +1433,7 @@ public final class ServerCore {
         public boolean ultraWarm() { return false; }
         public int maxChainedNeighborUpdates() { return settings.get().maxChainedNeighborUpdates; }
         public void forEachPlayer(java.util.function.Consumer<Player> c) { world.forEachPlayerHere(c); }
+        public void forEachConnectedPlayer(java.util.function.Consumer<Player> c) { world.forEachConnectedPlayerHere(c); }
         public org.domi.furnace.server.world.PlayerRoster.Level playerIndex() { return world.playerIndex(); }
         public boolean biomeIs(int x, int y, int z, String tag) {
             String b = lootWorld.biomeAt(x, y, z);
@@ -1663,6 +1679,7 @@ public final class ServerCore {
         @Override public float rainLevel() { return sky() ? super.rainLevel() : 0f; }
         @Override public float thunderLevel() { return sky() ? super.thunderLevel() : 0f; }
         @Override public void forEachPlayer(java.util.function.Consumer<Player> c) { w.forEachPlayerHere(c); }
+        @Override public void forEachConnectedPlayer(java.util.function.Consumer<Player> c) { w.forEachConnectedPlayerHere(c); }
         @Override public org.domi.furnace.server.world.PlayerRoster.Level playerIndex() { return w.playerIndex(); }
         @Override public org.domi.furnace.server.block.LevelServices.DimensionTravel dimensionTravel() { return w.travelService(); }
         @Override public String biomeAt(int x, int y, int z) { return lw.biomeAt(x, y, z); }
@@ -1741,7 +1758,7 @@ public final class ServerCore {
             }
             fs.add(f.exceptionally(e -> {
                 Throwable c = e instanceof java.util.concurrent.CompletionException && e.getCause() != null ? e.getCause() : e;
-                if (!(c instanceof org.domi.furnace.server.command.brigadier.CommandSyntaxException)) log.warn("표지판 글 풀기 실패({},{},{})", x, y, z, c);
+                if (!(c instanceof org.domi.furnace.server.command.brigadier.CommandSyntaxException)) log.warn(Lang.t("core.sign-text-failed", x, y, z), c);
                 return line;
             }));
         }
@@ -2011,7 +2028,8 @@ public final class ServerCore {
         return null;
     }
 
-    public static GameProfile profileOf(Player p) { return new GameProfile(p.uuid(), p.name(), p.profileProperties()); }
+    /** 플레이어의 지금 게임 프로필(Paper getGameProfile) — op·화이트리스트·밴·권한은 엔티티 UUID 가 아니라 이것으로 본다. */
+    public static GameProfile profileOf(Player p) { return p.profile(); }
 
     private final java.util.List<java.util.function.Consumer<Text>> consoleListeners = new java.util.concurrent.CopyOnWriteArrayList<>();
 
@@ -2087,7 +2105,7 @@ public final class ServerCore {
         try {
             consoleLine = renderer.render(source, senderName, content, host.console());
         } catch (RuntimeException e) {
-            log.warn("채팅 렌더러 오류(콘솔)", e);
+            log.warn(Lang.t("core.chat-renderer-console"), e);
             consoleLine = org.domi.furnace.api.event.player.ChatRenderer.vanilla().render(source, senderName, content, host.console());
         }
         log.info("{}", consoleLine.getString());
@@ -2099,7 +2117,7 @@ public final class ServerCore {
             try {
                 line = renderer.render(source, senderName, content, host.player(p));
             } catch (RuntimeException e) {
-                log.warn("채팅 렌더러 오류({})", p.name(), e);
+                log.warn(Lang.t("core.chat-renderer-player", p.name()), e);
                 line = org.domi.furnace.api.event.player.ChatRenderer.vanilla().render(source, senderName, content, host.player(p));
             }
             p.sendSystemMessage(line, false);

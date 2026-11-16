@@ -1,6 +1,7 @@
 // 컴파일된 표면 규칙이 예전 해석기와 블록 단위로 같은지 — 여러 바이옴(배드랜드·얼음·산·바다 등)을 거치도록 넓게 흩어진 청크.
 package org.domi.furnace.server.world.gen.surface;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.net.registry.RegistrySet;
@@ -13,8 +14,8 @@ class CompiledSurfaceRuleTest {
 
     @Test
     void compiledRulesMatchInterpreter() throws Exception {
-        BlockRegistry blocks = BlockRegistry.load("blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry blocks = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         NoiseWorldSource compiled = NoiseWorldSource.overworld(42L, blocks, registries);
         System.setProperty("furnace.surfaceInterp", "true");
         NoiseWorldSource interp;

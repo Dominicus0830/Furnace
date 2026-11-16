@@ -1,5 +1,6 @@
 package org.domi.furnace.compat.paper;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.function.Supplier;
@@ -134,7 +135,7 @@ class BukkitEntityKindsTest {
     /** 이름 표의 모든 줄이 컴파일된 계층과 맞는가(손으로 쓴 인터페이스가 표와 어긋나도 잡는다). 서버를 쓰지 않는다. */
     @Test
     void tableMatchesCompiledHierarchy() throws Exception {
-        java.nio.file.Path table = java.nio.file.Path.of("..", "tools", "compat", "bukkit-entity-hierarchy-1.21.1.txt");
+        java.nio.file.Path table = java.nio.file.Path.of("..", "tools", "compat", "bukkit-entity-hierarchy-" + GameVersion.RESOURCE_TAG + ".txt");
         java.util.List<String> bad = new java.util.ArrayList<>();
         int rows = 0;
         for (String l : java.nio.file.Files.readAllLines(table)) {

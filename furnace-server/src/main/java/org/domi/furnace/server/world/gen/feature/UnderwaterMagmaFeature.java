@@ -1,15 +1,16 @@
 // 바닐라 UnderwaterMagmaFeature 포팅 — 해저 마그마 배치
 package org.domi.furnace.server.world.gen.feature;
 
+import org.domi.furnace.server.world.StateIds;
 import java.util.OptionalInt;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
 public final class UnderwaterMagmaFeature implements ConfiguredFeature {
 
-    private static final int WATER_MIN = 80;
-    private static final int WATER_MAX = 95;
-    private static final int MAGMA_BLOCK = 12543;
+    private static final int WATER_MIN = StateIds.WATER_FIRST;
+    private static final int WATER_MAX = StateIds.WATER_LAST;
+    private static final int MAGMA_BLOCK = StateIds.MAGMA_BLOCK;
 
     private final int floorSearchRange;
     private final int placementRadius;
@@ -72,7 +73,7 @@ public final class UnderwaterMagmaFeature implements ConfiguredFeature {
     }
 
     private static boolean isWaterOrAir(int stateId) {
-        return stateId == 0 || stateId == 12958 || stateId == 12959
+        return stateId == StateIds.AIR || stateId == StateIds.VOID_AIR || stateId == StateIds.CAVE_AIR
             || (stateId >= WATER_MIN && stateId <= WATER_MAX);
     }
 

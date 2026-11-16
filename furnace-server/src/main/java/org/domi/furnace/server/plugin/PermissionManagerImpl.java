@@ -37,7 +37,7 @@ public final class PermissionManagerImpl implements PermissionManager {
     @Override
     public void register(Permission permission) {
         if (permissions.putIfAbsent(permission.name(), permission) != null) {
-            throw new IllegalArgumentException("이미 등록된 권한: " + permission.name());
+            throw new IllegalArgumentException("permission already registered: " + permission.name());
         }
         version.incrementAndGet();
     }

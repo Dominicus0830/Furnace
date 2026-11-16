@@ -8,6 +8,10 @@
 - 연결 스레드 이벤트: `PlayerHandshakeEvent`·`PlayerLoginEvent`·`PlayerCreateEvent`·`PlayerSpawnLocationEvent`·`PlayerJoinEvent`·`PlayerQuitEvent`·`PlayerRespawnEvent`·채팅 명령의 `PlayerCommandPreprocessEvent`·`PlayerChannelEvent`·`PluginMessageEvent`·`ServerListPingEvent` 는 그 연결의 네트워크 스레드에서 불린다. Paper 에서 동기라 `isAsync()` 는 false 로 두지만 region/전역 스레드는 아니므로, 월드·엔티티는 비동기 이벤트처럼 스케줄러(`player.scheduler()` 등)로 넘긴다.
 - 우선순위 합성: MONITOR 처리기가 `Cancellable` 의 취소 상태를 바꾸면 처리기마다 한 번 경고한다(다른 우선순위는 검사 비용 없음).
 
+## 켜기·끄기 스레드
+- `onLoad`·`onEnable` 은 **전역 스레드**에서 불린다(Paper 가 주 스레드에서 부르는 것과 같은 자리 — `Bukkit.isPrimaryThread()` 가 켜는 동안 참이다). 끄기(`onDisable`)는 `/stop` 을 부른 스레드나 종료 훅 스레드다.
+- 전역 스레드에서 전역 작업의 결과를 `get()`·`join()` 으로 기다리면(`scheduler().global().submit(..).join()`, Bukkit `callSyncMethod(..).get()`) 그 작업을 돌릴 스레드가 바로 기다리는 쪽이라 영영 끝나지 않는다. 멈추는 대신 곧바로 `IllegalStateException` 을 던진다 — `thenAccept`·`thenCompose` 로 이어 붙이거나 다른 스레드에서 기다린다.
+
 ## 디스패치
 `@Subscribe` 메서드는 `LambdaMetafactory` 호출 지점으로 만든다(비공개·상위 클래스 메서드 포함, 실패하면 `MethodHandle`). 구독자가 없으면 이벤트 객체를 만들지 않는 기존 규칙은 그대로.
 

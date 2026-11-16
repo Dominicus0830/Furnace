@@ -1,6 +1,7 @@
 // 빛 계산에 쓰는 블록 상태 표: getLightBlock(빛 막는 정도)·useShapeForLightOcclusion·canOcclude(바닐라에서 추출) + 면 가림 모양(Shapes.getFaceShape).
 package org.domi.furnace.server.light;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -21,7 +22,7 @@ public final class LightTables {
     private static final boolean[][] FACE_DONE;
 
     static {
-        try (var in = LightTables.class.getClassLoader().getResourceAsStream("blocks/blocklight_1.21.1.txt")) {
+        try (var in = LightTables.class.getClassLoader().getResourceAsStream("blocks/blocklight_" + GameVersion.RESOURCE_TAG + ".txt")) {
             var r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             String lb = r.readLine(), us = r.readLine(), co = r.readLine();
             int n = lb.length();

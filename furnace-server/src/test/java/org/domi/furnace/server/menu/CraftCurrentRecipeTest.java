@@ -2,6 +2,7 @@
 // 예전에는 결과 칸 클릭이 앞서 맞았던 레시피의 id 로 CraftItemEvent 가 됐다. Paper 는 CraftingInventory#getRecipe() 가 격자의 "지금" 레시피(맞는 것 없으면 null)라 보통 InventoryClickEvent 다.
 package org.domi.furnace.server.menu;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
@@ -38,7 +39,7 @@ class CraftCurrentRecipeTest {
         PackRepository repo = new PackRepository(root, null);
         repo.reload();
         repo.setSelected(List.of("vanilla"));
-        regs = new TagRegistries(RegistrySet.load("registries/1.21.1.txt"));
+        regs = new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"));
         org.domi.furnace.server.item.ItemContext.install(regs);
         try (ResourceManager rm = repo.openResourceManager()) {
             TagSet tags = TagSet.of(regs.loadAll(rm));

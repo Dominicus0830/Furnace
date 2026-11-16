@@ -21,7 +21,7 @@
 - `server-tests (1/6~6/6)`: 서버 시험을 6조각으로 나눠 동시에 돈다(`-PtestShard=i/6`, `furnace-server/build.gradle.kts`). 배정은 클래스별 실측 시간으로 고르게 맞춘다(아래 "조각 균형").
   한 조각이 실패하면 **처음에 실패한 시험 클래스만** 한 번 다시 돌린다(전체 재실행 12분 → 1분 안팎). 다시 돌려도 실패하면 진짜 실패다.
   재시도에서 통과한 시험은 "흔들린 시험" 주석(PR 의 Checks 화면)·실행 요약·산출물 `flaky-tests-N`(30일 보관)에 이름이 남는다 — 이 목록이 흔들리는 시험을 고칠 우선순위다(아래 "재시도 정책").
-- `light`: API 시험, 샘플 플러그인 컴파일, 시험 서버 모듈, 호환 계층 모듈, fatJar. 기준 브랜치 실행에서는 `user-todo-combined` 산출물도 올린다.
+- `light`: API 시험, 샘플 플러그인 컴파일, 시험 서버 모듈, 호환 계층 모듈, raw 상태 번호 검사(V-02, `tools/ci/check-raw-state-ids.py` — 코드에 블록 상태 번호를 숫자로 쓰면 실패), fatJar. 기준 브랜치 실행에서는 `user-todo-combined` 산출물도 올린다.
   시험 단계 셋은 하나가 실패해도 나머지를 돌고(`continue-on-error`), 실패하면 `light-test-reports` 산출물을 올린 뒤 맨 끝 "light 시험 판정"이 작업을 실패시킨다. **재시도는 없다**(아래 "light 작업 (T-160)").
 - `select`(코드가 바뀐 PR): 이 PR 에서 **어느 서버 시험을 건너뛸지**와 조각 수를 정한다. 표가 없거나 위험한 변경이면 전체 — 아래 "시험 영향 선택".
 - `test`: 위 둘을 합친 판정(점검 이름은 예전과 같은 `test`). **병합 판단은 `test` 하나만 본다** — `light` 는 1~2분이면 초록이 되지만 `test` 는 서버 시험 6조각이 모두 끝나야 생긴다.
@@ -203,3 +203,7 @@ PR 은 서버 시험 약 3,900개 중 **이 변경이 실제로 실행되는 시
 - 한계: 느려져 제한시간으로 실패한 시험의 줄은 일부 빠질 수 있다. 서버 모듈만 잰다(`furnace-api`·호환·시험 서버 모듈은 아직 아님).
 - 기준 브랜치 이름은 `coverage-tests`·`coverage` 작업의 `if` 에도 들어 있다(env 를 `if` 에서 못 써서 하드코딩). 기준 브랜치를 바꾸면 ci.yml 의 `on.push.branches`·`BASE_BRANCH` 와 이 두 `if` 를 같이 바꾼다.
 - 이 표가 줄 커버리지로 A19-03 의 "이름 참조 근사"를 대체한다. 기준 브랜치 첫 실행 뒤 표를 보고 다음 시험 대상(`block/types`·`entity/ai`·`command/builtin`)을 정한다.
+
+## 태그 (2026-11-16)
+- 태그를 올리면 `.github/workflows/tag-check.yml` 이 이름 형식을 검사한다(`tools/release/furnace-tag.sh check`). 시험 조각은 태그에서 돌지 않는다 — base·ms 태그는 기준 브랜치 `test` 가 이미 초록인 커밋에 찍는다. 규칙: `docs/ops/version-tags.md`.
+- 서버 fatJar 의 `Implementation-Version` 은 가장 가까운 판 태그 `<MC>` 에서 만든다(없으면 `dev+<해시>`). 태그를 읽으려면 `git describe` 가 되어야 하므로 버전이 중요한 빌드(판 완성)는 `fetch-depth: 0` 로 받는다. 얕은 복제 CI 에서는 `dev+<해시>` 가 되어도 시험·빌드에는 영향이 없다.

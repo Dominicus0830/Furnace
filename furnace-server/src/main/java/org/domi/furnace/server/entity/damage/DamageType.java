@@ -2,6 +2,7 @@
 // 성질(방어구 무시·넉백 없음 …)은 damage_type 태그(registries/tags-1.21.1.txt)에서 읽는다. 자주 쓰는 유형은 상수로 둔다.
 package org.domi.furnace.server.entity.damage;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -27,7 +28,7 @@ public final class DamageType {
     public enum DeathMessageType { DEFAULT, FALL_VARIANTS, INTENTIONAL_GAME_DESIGN }
 
     private static final class Registry {
-        static final RegistrySet SET = RegistrySet.load("registries/1.21.1.txt");
+        static final RegistrySet SET = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
     }
 
     private static final Map<String, DamageType> BY_KEY = load();
@@ -72,8 +73,8 @@ public final class DamageType {
 
     private static Map<String, DamageType> load() {
         Map<String, DamageType> m = new LinkedHashMap<>();
-        try (InputStream in = DamageType.class.getClassLoader().getResourceAsStream("registries/damage_types-1.21.1.txt")) {
-            if (in == null) throw new IllegalStateException("registries/damage_types-1.21.1.txt 없음");
+        try (InputStream in = DamageType.class.getClassLoader().getResourceAsStream("registries/damage_types-" + GameVersion.RESOURCE_TAG + ".txt")) {
+            if (in == null) throw new IllegalStateException("registries/damage_types-" + GameVersion.RESOURCE_TAG + ".txt is missing");
             BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             for (String line; (line = r.readLine()) != null; ) {
                 line = line.strip();
@@ -91,7 +92,7 @@ public final class DamageType {
 
     private static DamageType require(String key) {
         DamageType t = BY_KEY.get(key);
-        if (t == null) throw new IllegalStateException("damage_type 없음: " + key);
+        if (t == null) throw new IllegalStateException("no such damage_type: " + key);
         return t;
     }
 

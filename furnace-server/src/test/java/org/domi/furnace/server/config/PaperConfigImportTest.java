@@ -502,7 +502,7 @@ class PaperConfigImportTest {
 
         String text = Files.readString(props, StandardCharsets.UTF_8);
         assertTrue(text.startsWith(original + "\n"), "원래 내용은 그대로 두고 뒤에 덧붙인다");
-        assertTrue(text.contains("# --- Paper/Spigot 설정에서 가져옴"));
+        assertTrue(text.contains("# --- Imported from Paper/Spigot settings"));
         assertTrue(Files.isRegularFile(dir.resolve(PaperConfigImport.REPORT_FILE)));
 
         // 두 로더가 에러 없이 읽고 값이 들어간다
@@ -558,7 +558,7 @@ class PaperConfigImportTest {
         Files.delete(report);
         PaperConfigImport.runIfNeeded(dir, props);
         assertEquals("io-threads=3\n", Files.readString(props));
-        assertTrue(Files.readString(report).contains("이미 furnace.properties 에 있어"));
+        assertTrue(Files.readString(report).contains("furnace.properties already has"));
         // off
         Files.delete(report);
         System.setProperty(PaperConfigImport.MODE_PROPERTY, "off");
@@ -570,7 +570,7 @@ class PaperConfigImportTest {
             assertTrue(Files.exists(report));
             Files.writeString(report, "OLD");
             PaperConfigImport.runIfNeeded(dir, props);   // force 는 보고서가 있어도 다시 한다
-            assertTrue(Files.readString(report).startsWith("Furnace — Paper/Spigot"), "보고서를 다시 썼다");
+            assertTrue(Files.readString(report).startsWith("Furnace - Paper/Spigot"), "보고서를 다시 썼다");
         } finally {
             System.clearProperty(PaperConfigImport.MODE_PROPERTY);
         }
@@ -584,7 +584,7 @@ class PaperConfigImportTest {
         PaperConfigImport.runIfNeeded(dir, props);   // 던지지 않는다
         assertTrue(Files.readString(props).contains("bungeecord=true"), "읽은 파일은 계속 처리한다");
         String report = Files.readString(dir.resolve(PaperConfigImport.REPORT_FILE));
-        assertTrue(report.contains("읽지 못한 파일: bukkit.yml"));
+        assertTrue(report.contains("Files that could not be read: bukkit.yml"));
     }
 
     @Test
@@ -593,7 +593,7 @@ class PaperConfigImportTest {
         Path props = dir.resolve("furnace.properties");
         PaperConfigImport.runIfNeeded(dir, props);
         assertFalse(Files.exists(props));
-        assertTrue(Files.readString(dir.resolve(PaperConfigImport.REPORT_FILE)).contains("1.19 이전 형식"));
+        assertTrue(Files.readString(dir.resolve(PaperConfigImport.REPORT_FILE)).contains("before 1.19"));
     }
 
     @Test

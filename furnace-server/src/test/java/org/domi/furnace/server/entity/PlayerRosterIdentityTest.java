@@ -5,6 +5,7 @@
 // 퇴장·다시 접속·조회 섞음)을 양쪽에 돌려 목록 순서와 조회 결과(고른 플레이어 eid, 상자 안 플레이어 순서)를 한 줄씩 비교한다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -33,7 +34,7 @@ import org.junit.jupiter.api.Test;
 class PlayerRosterIdentityTest {
 
     @BeforeAll
-    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt"))); }
+    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"))); }
 
     static final String[] DIMS = {"minecraft:overworld", "minecraft:the_nether", "minecraft:the_end"};
     static final GameMode[] MODES = {GameMode.SURVIVAL, GameMode.SURVIVAL, GameMode.SURVIVAL, GameMode.CREATIVE, GameMode.SPECTATOR, GameMode.ADVENTURE};

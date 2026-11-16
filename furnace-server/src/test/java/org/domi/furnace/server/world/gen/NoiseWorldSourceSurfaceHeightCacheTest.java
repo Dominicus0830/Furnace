@@ -1,6 +1,7 @@
 // worldSurfaceHeightAt 캐시 유효성 검증 — 동일 청크 반복 조회가 재생성 없이 동일 값을 반환하는지 확인
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import org.domi.furnace.server.net.registry.RegistrySet;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.junit.jupiter.api.Test;
@@ -100,8 +101,8 @@ class NoiseWorldSourceSurfaceHeightCacheTest {
     }
 
     private static NoiseWorldSource source(long seed) throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         return NoiseWorldSource.overworld(seed, reg, registries);
     }
 }

@@ -2,6 +2,7 @@
 // 데이터 팩·플러그인이 더한(또는 덮어쓴) 항목은 네트워크 NBT 데이터를 함께 들고 있다(클라가 아는 팩에 없으니 보내야 한다).
 package org.domi.furnace.server.net.registry;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -45,8 +46,8 @@ public final class RegistrySet {
         data.forEach((k, v) -> extraData.put(k, new LinkedHashMap<>(v)));
         for (Extra e : extras) {
             List<String> list = map.get(e.registry());
-            if (list == null) throw new IllegalArgumentException("알 수 없는 레지스트리: " + e.registry());
-            if (list.contains(e.entry())) throw new IllegalArgumentException("이미 있는 항목: " + e.registry() + " " + e.entry());
+            if (list == null) throw new IllegalArgumentException("unknown registry: " + e.registry());
+            if (list.contains(e.entry())) throw new IllegalArgumentException("entry already exists: " + e.registry() + " " + e.entry());
             list.add(e.entry());
             extraData.computeIfAbsent(e.registry(), k -> new LinkedHashMap<>()).put(e.entry(), e.data());
         }
@@ -59,7 +60,7 @@ public final class RegistrySet {
         return m == null ? null : m.get(entry);
     }
 
-    private static final String DEFAULT_RESOURCE = "registries/1.21.1.txt";
+    private static final String DEFAULT_RESOURCE = "registries/" + GameVersion.RESOURCE_TAG + ".txt";
     private static volatile RegistrySet current;
 
     /**
@@ -93,7 +94,7 @@ public final class RegistrySet {
         ClassLoader cl = RegistrySet.class.getClassLoader();
         try (InputStream in = cl.getResourceAsStream(resourcePath)) {
             if (in == null) {
-                throw new IllegalStateException("레지스트리 리소스 없음: " + resourcePath);
+                throw new IllegalStateException("registry resource is missing: " + resourcePath);
             }
             try (BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
                 String line;

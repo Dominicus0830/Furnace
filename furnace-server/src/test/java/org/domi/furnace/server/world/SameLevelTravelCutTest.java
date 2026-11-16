@@ -3,6 +3,7 @@
 // 원천 월드가 세므로 holdForShutdown 은 출구 청크를 기다리는 이동이 도착한 뒤에 끝난다(그 뒤 저장해도 엔티티가 사라지지 않는다).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
@@ -23,8 +24,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 class SameLevelTravelCutTest {
 
-    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
-    private static final List<String> BIOMES = RegistrySet.load("registries/1.21.1.txt").entries("minecraft:worldgen/biome");
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+    private static final List<String> BIOMES = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt").entries("minecraft:worldgen/biome");
     private static final int PLAINS = BIOMES.indexOf("minecraft:plains");
     private static final ChunkPos CP = new ChunkPos(0, 0);
     private static final ChunkPos FAR = new ChunkPos(40, 40);
@@ -37,11 +38,11 @@ class SameLevelTravelCutTest {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         Path d = DimensionType.END.storageDir(tmp);
         AnvilWorldSource src = new AnvilWorldSource(tmp, new RegionFileStore(d),
-                new AnvilChunkCodec(REG, ItemRegistry.load("items/1.21.1.txt"), BIOMES, PLAINS, ChunkColumn.MIN_Y, ChunkColumn.SECTION_COUNT),
+                new AnvilChunkCodec(REG, ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"), BIOMES, PLAINS, ChunkColumn.MIN_Y, ChunkColumn.SECTION_COUNT),
                 new SuperflatWorldSource(REG, PLAINS));
         src.entityStore(new RegionFileStore(d, "entities"));
         World end = new World(DimensionType.END, src, new ChunkWorkerPool(1), sched, 1, 4, 1, 2, 2, REG.directBits(), 7, io, io);
-        end.setRegistries(REG, ItemRegistry.load("items/1.21.1.txt"));
+        end.setRegistries(REG, ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         end.worldDir(tmp);
         Dimensions dims = new Dimensions();
         dims.register(end);

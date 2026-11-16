@@ -2,6 +2,7 @@
 // 실제 region 의 엔티티·블록을 대상으로 바닐라와 같은 소스·결과를 내는지, 조회성 하위 명령이 region 을 만들지 않는지.
 package org.domi.furnace.server.command.exec;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
@@ -55,7 +56,7 @@ class ExecuteE1Test {
         core = TestServers.core(tmp, sched);
         column = core.world().awaitChunk(new ChunkPos(0, 0));
         cows = DeferredResultTest.spawnCows(core, 2);
-        var reg = org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt");
+        var reg = org.domi.furnace.server.world.BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         nether = new World(NETHER, new SuperflatWorldSource(reg, 0), new org.domi.furnace.server.net.ChunkWorkerPool(1), sched, 1, 4, 1, 2, 2,
                 reg.directBits(), 7, TestServers.ioPool(), TestServers.ioPool());
         Dimensions dims = new Dimensions();

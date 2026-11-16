@@ -3,6 +3,7 @@
 // 끄면(entity-activation-range.enabled=false) 엔티티 틱은 바닐라와 바이트까지 같다(EntityActivationIdentityTest·장면 금 파일).
 package org.domi.furnace.server.config;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.nio.file.Path;
 import java.util.Properties;
 import java.util.function.Consumer;
@@ -53,33 +54,33 @@ public record EntityActivationSettings(boolean enabled,
 
     /** 키 이름(접두 뒤)과 기본값 — OptionKeys 키 표·설명이 쓴다. */
     public static final String[][] INT_KEYS = {
-            {"animals", "32", "동물(PathfinderMob·박쥐 등)"},
-            {"monsters", "32", "적대 몹(Enemy)"},
-            {"raiders", "64", "습격 몹(Raider)"},
-            {"misc", "16", "그 밖(아이템·경험치 구슬·화살·구름 등)"},
-            {"water", "16", "물 동물(WaterAnimal)"},
-            {"villagers", "32", "주민"},
-            {"flying-monsters", "32", "나는 적대 몹(가스트·팬텀)"},
-            {"wake-up-inactive.animals-max-per-tick", "4", "비활성 동물을 깨우는 수(틱마다 1씩 차오르는 상한)"},
-            {"wake-up-inactive.animals-every", "1200", "동물이 이 틱보다 오래 비활성이면 깨울 후보"},
-            {"wake-up-inactive.animals-for", "100", "깨운 동물이 활성인 틱"},
-            {"wake-up-inactive.monsters-max-per-tick", "8", "비활성 적대 몹(습격 몹 포함)을 깨우는 수 상한"},
-            {"wake-up-inactive.monsters-every", "400", "적대 몹 깨우기 간격(틱)"},
-            {"wake-up-inactive.monsters-for", "100", "깨운 적대 몹이 활성인 틱"},
-            {"wake-up-inactive.villagers-max-per-tick", "4", "비활성 주민을 깨우는 수 상한"},
-            {"wake-up-inactive.villagers-every", "600", "주민 깨우기 간격(틱)"},
-            {"wake-up-inactive.villagers-for", "100", "깨운 주민이 활성인 틱"},
-            {"wake-up-inactive.flying-monsters-max-per-tick", "8", "비활성 나는 적대 몹을 깨우는 수 상한"},
-            {"wake-up-inactive.flying-monsters-every", "200", "나는 적대 몹 깨우기 간격(틱)"},
-            {"wake-up-inactive.flying-monsters-for", "100", "깨운 나는 적대 몹이 활성인 틱"},
-            {"villagers-work-immunity-after", "100", "주민이 이 틱 넘게 비활성이고 일하는 중이면 잠깐 활성(0 이하 = 끔)"},
-            {"villagers-work-immunity-for", "20", "일하는 주민 활성 틱"},
+            {"animals", "32", "cfg.help.activation.animals"},
+            {"monsters", "32", "cfg.help.activation.monsters"},
+            {"raiders", "64", "cfg.help.activation.raiders"},
+            {"misc", "16", "cfg.help.activation.misc"},
+            {"water", "16", "cfg.help.activation.water"},
+            {"villagers", "32", "cfg.help.activation.villagers"},
+            {"flying-monsters", "32", "cfg.help.activation.flying-monsters"},
+            {"wake-up-inactive.animals-max-per-tick", "4", "cfg.help.activation.wake-up-inactive.animals-max-per-tick"},
+            {"wake-up-inactive.animals-every", "1200", "cfg.help.activation.wake-up-inactive.animals-every"},
+            {"wake-up-inactive.animals-for", "100", "cfg.help.activation.wake-up-inactive.animals-for"},
+            {"wake-up-inactive.monsters-max-per-tick", "8", "cfg.help.activation.wake-up-inactive.monsters-max-per-tick"},
+            {"wake-up-inactive.monsters-every", "400", "cfg.help.activation.wake-up-inactive.monsters-every"},
+            {"wake-up-inactive.monsters-for", "100", "cfg.help.activation.wake-up-inactive.monsters-for"},
+            {"wake-up-inactive.villagers-max-per-tick", "4", "cfg.help.activation.wake-up-inactive.villagers-max-per-tick"},
+            {"wake-up-inactive.villagers-every", "600", "cfg.help.activation.wake-up-inactive.villagers-every"},
+            {"wake-up-inactive.villagers-for", "100", "cfg.help.activation.wake-up-inactive.villagers-for"},
+            {"wake-up-inactive.flying-monsters-max-per-tick", "8", "cfg.help.activation.wake-up-inactive.flying-monsters-max-per-tick"},
+            {"wake-up-inactive.flying-monsters-every", "200", "cfg.help.activation.wake-up-inactive.flying-monsters-every"},
+            {"wake-up-inactive.flying-monsters-for", "100", "cfg.help.activation.wake-up-inactive.flying-monsters-for"},
+            {"villagers-work-immunity-after", "100", "cfg.help.activation.villagers-work-immunity-after"},
+            {"villagers-work-immunity-for", "20", "cfg.help.activation.villagers-work-immunity-for"},
     };
 
     public static final String[][] BOOL_KEYS = {
-            {"tick-inactive-villagers", "true", "비활성 주민도 두뇌(일정·기억)를 돌린다. false 면 두뇌 없이 거래 타이머 등만"},
-            {"ignore-spectators", "false", "관전자 주변은 활성으로 만들지 않는다"},
-            {"villagers-active-for-panic", "true", "숨기·습격 전·습격·공황 중인 주민은 5초 활성"},
+            {"tick-inactive-villagers", "true", "cfg.help.activation.tick-inactive-villagers"},
+            {"ignore-spectators", "false", "cfg.help.activation.ignore-spectators"},
+            {"villagers-active-for-panic", "true", "cfg.help.activation.villagers-active-for-panic"},
     };
 
     public static EntityActivationSettings load(Path file, Consumer<String> warn) { return fromProperties(FurnaceProps.read(file), warn); }
@@ -114,7 +115,7 @@ public record EntityActivationSettings(boolean enabled,
         try {
             return Integer.parseInt(v.strip());
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("설정 '" + PREFIX + key + "' 가 정수가 아님: " + v, e);
+            throw new IllegalArgumentException(Lang.t("cfg.not-number", PREFIX + key, v), e);
         }
     }
 
@@ -123,7 +124,7 @@ public record EntityActivationSettings(boolean enabled,
         if (v == null) return def;
         v = v.strip();
         if (!v.equalsIgnoreCase("true") && !v.equalsIgnoreCase("false")) {
-            throw new IllegalArgumentException("설정 '" + PREFIX + key + "' 값 '" + v + "' 이(가) 잘못됐습니다: true 또는 false");
+            throw new IllegalArgumentException(Lang.t("cfg.invalid-bool", PREFIX + key, v));
         }
         return Boolean.parseBoolean(v);
     }

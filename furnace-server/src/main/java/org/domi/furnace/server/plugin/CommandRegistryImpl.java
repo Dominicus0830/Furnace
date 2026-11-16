@@ -32,6 +32,7 @@ import org.domi.furnace.server.command.brigadier.LiteralArgumentBuilder;
 import org.domi.furnace.server.command.brigadier.Suggestions;
 import org.domi.furnace.server.command.brigadier.SuggestionsBuilder;
 import org.domi.furnace.server.entity.Player;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,7 +61,7 @@ final class CommandRegistryImpl implements CommandRegistry {
 
     @Override
     public synchronized Collection<String> register(FurnacePlugin plugin, CommandBuilder root, String description, List<String> aliases) {
-        if (!root.isLiteral()) throw new IllegalArgumentException("명령 트리의 루트는 literal 이어야 한다");
+        if (!root.isLiteral()) throw new IllegalArgumentException("the root of a command tree must be a literal");
         String name = normalize(root.name());
         return registerNames(plugin, name, aliases, (n, ns) -> treeNode(plugin, ns, n, root));
     }
@@ -87,10 +88,10 @@ final class CommandRegistryImpl implements CommandRegistry {
                 dispatcher().register(build.apply(n, n));
                 registered.add(n);
             } else if (nsFree) {
-                log.warn("[{}] 명령 '{}' 은(는) 이미 있어 '{}' 로만 등록한다", plugin.name(), n, ns);
+                log.warn(Lang.t("cmd.only-namespaced", plugin.name(), n, ns));
             } else {
                 // 플러그인 이름이 minecraft 이면 '플러그인:이름' 이 바닐라 별칭(minecraft:give)과 겹쳐 둘 다 못 쓴다
-                log.warn("[{}] 명령 '{}' 과(와) '{}' 이(가) 둘 다 이미 있어 등록하지 않는다", plugin.name(), n, ns);
+                log.warn(Lang.t("cmd.not-registered", plugin.name(), n, ns));
             }
         }
         owned.computeIfAbsent(plugin, k -> ConcurrentHashMap.newKeySet()).addAll(registered);
@@ -102,7 +103,7 @@ final class CommandRegistryImpl implements CommandRegistry {
 
     private LiteralArgumentBuilder<CommandSource> treeNode(FurnacePlugin plugin, String name, String label, CommandBuilder spec) {
         Timing exec = host.profiler().timing(plugin, PluginProfiler.Kind.COMMAND, "/" + label);
-        Timing tab = host.profiler().timing(plugin, PluginProfiler.Kind.COMMAND, "/" + label + " (자동완성)");
+        Timing tab = host.profiler().timing(plugin, PluginProfiler.Kind.COMMAND, "/" + label + " " + Lang.t("plugin.tab-completion-timing"));
         LiteralArgumentBuilder<CommandSource> b = literal(name);
         fill(plugin, b, spec, exec, tab);
         return b;
@@ -127,7 +128,7 @@ final class CommandRegistryImpl implements CommandRegistry {
                                 if (c.toLowerCase(Locale.ROOT).startsWith(sb.getRemainingLowerCase())) sb.suggest(c);
                             }
                         } catch (Throwable t) {
-                            log.error("자동완성 실패: /{}", ctx.getInput(), t);
+                            log.error(Lang.t("cmd.complete-failed", ctx.getInput()), t);
                         } finally {
                             tab.stop(t0);
                         }
@@ -224,14 +225,14 @@ final class CommandRegistryImpl implements CommandRegistry {
 
     private static String normalize(String label) {
         String n = label.toLowerCase(Locale.ROOT).trim();
-        if (n.isEmpty() || n.indexOf(' ') >= 0 || n.indexOf(':') >= 0) throw new IllegalArgumentException("명령 이름이 잘못됐다: '" + label + "'");
+        if (n.isEmpty() || n.indexOf(' ') >= 0 || n.indexOf(':') >= 0) throw new IllegalArgumentException("invalid command name: '" + label + "'");
         return n;
     }
 
     /** name 은 트리에 붙는 이름, label 은 /timings 에 보일 이름(플러그인: 접두어 없이 — 두 이름의 시간을 한 줄로 모은다). */
     private LiteralArgumentBuilder<CommandSource> node(FurnacePlugin plugin, String name, String label, BasicCommand cmd) {
         Timing exec = host.profiler().timing(plugin, PluginProfiler.Kind.COMMAND, "/" + label);
-        Timing tab = host.profiler().timing(plugin, PluginProfiler.Kind.COMMAND, "/" + label + " (자동완성)");
+        Timing tab = host.profiler().timing(plugin, PluginProfiler.Kind.COMMAND, "/" + label + " " + Lang.t("plugin.tab-completion-timing"));
         return literal(name)
                 .requires(src -> cmd.canUse(host.sender(src)))
                 .executes(ctx -> run(plugin, cmd, name, exec, ctx, new String[0]))
@@ -265,7 +266,7 @@ final class CommandRegistryImpl implements CommandRegistry {
         try {
             candidates = cmd.suggest(host.sender(ctx.getSource()), label, args);
         } catch (Throwable t) {
-            log.error("자동완성 실패: /{}", ctx.getInput(), t);
+            log.error(Lang.t("cmd.complete-failed", ctx.getInput()), t);
             return Suggestions.empty();
         } finally {
             timing.stop(t0);

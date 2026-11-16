@@ -7,6 +7,7 @@
 // 처리한 뒤에 돌아온다. 그래서 바로 다음 줄에서 결과(메시지·블록·플러그인 상태)를 확인해도 된다. 틱은 진행하지 않는다.
 package org.domi.furnace.test;
 
+import org.domi.furnace.api.GameVersion;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import java.io.DataInputStream;
@@ -32,7 +33,7 @@ import org.domi.furnace.server.net.io.Types;
 public final class TestPlayer implements AutoCloseable {
 
     /** 1.21.1 프로토콜 번호. */
-    static final int PROTOCOL = 767;
+    static final int PROTOCOL = GameVersion.PROTOCOL;
     /** 동기화 장벽에 쓰는 플러그인 채널(서버 쪽 구독이 가로채 버린다 — 플러그인에는 가지 않는다). */
     static final String SYNC_CHANNEL = "furnace-test:sync";
 
@@ -93,7 +94,7 @@ public final class TestPlayer implements AutoCloseable {
             try {
                 s.close();
             } catch (IOException ignored) { }
-            throw new IllegalStateException("가짜 플레이어 " + name + " 접속 실패", e);
+            throw new IllegalStateException("fake player " + name + " failed to connect", e);
         }
     }
 
@@ -158,8 +159,8 @@ public final class TestPlayer implements AutoCloseable {
     private void awaitOnline() {
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(server.timeoutMillis());
         while (server.internals().playerByName(name) == null) {
-            if (!connected) throw new IllegalStateException("접속이 끊겼다: " + disconnectReason);
-            if (System.nanoTime() - deadline > 0) throw new IllegalStateException("접속자 목록에 들지 않았다");
+            if (!connected) throw new IllegalStateException("the connection is closed: " + disconnectReason);
+            if (System.nanoTime() - deadline > 0) throw new IllegalStateException("did not enter the player list");
             java.util.concurrent.locks.LockSupport.parkNanos(1_000_000L);
         }
     }
@@ -331,7 +332,7 @@ public final class TestPlayer implements AutoCloseable {
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(server.timeoutMillis());
         while (syncSeen.get() < n) {
             if (!connected) return;   // 끊겼다(명령이 쫓아냈을 수 있다) — 시험이 isConnected 로 본다
-            if (System.nanoTime() - deadline > 0) throw new IllegalStateException("서버가 패킷을 처리하지 않았다(장벽 " + n + ")");
+            if (System.nanoTime() - deadline > 0) throw new IllegalStateException("the server did not process the packet (barrier " + n + ")");
             java.util.concurrent.locks.LockSupport.parkNanos(200_000L);
         }
         var p = server.internals().playerByName(name);
@@ -349,7 +350,7 @@ public final class TestPlayer implements AutoCloseable {
                 } catch (java.util.concurrent.RejectedExecutionException | java.util.concurrent.ExecutionException e) {
                     // 끊기는 중
                 } catch (java.util.concurrent.TimeoutException e) {
-                    throw new IllegalStateException("이벤트 루프가 응답하지 않는다", e);
+                    throw new IllegalStateException("the event loop is not responding", e);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
@@ -358,7 +359,7 @@ public final class TestPlayer implements AutoCloseable {
     }
 
     private void send(int id, Consumer<ByteBuf> body) {
-        if (!connected) throw new IllegalStateException(name + " 은 접속해 있지 않다(" + disconnectReason + ")");
+        if (!connected) throw new IllegalStateException(name + " is not connected (" + disconnectReason + ")");
         try {
             write(id, body);
         } catch (IOException e) {
@@ -405,7 +406,7 @@ public final class TestPlayer implements AutoCloseable {
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(server.timeoutMillis());
         while (true) {
             for (Text t : messages) if (match.test(t.plainText())) return t;
-            if (System.nanoTime() - deadline > 0) throw new IllegalStateException(name + ": 맞는 메시지가 오지 않았다. 받은 것: " + messageLines());
+            if (System.nanoTime() - deadline > 0) throw new IllegalStateException(name + ": no matching message arrived. Received: " + messageLines());
             java.util.concurrent.locks.LockSupport.parkNanos(1_000_000L);
         }
     }
@@ -418,7 +419,7 @@ public final class TestPlayer implements AutoCloseable {
      */
     public <P extends org.domi.furnace.api.packet.Packet> List<P> received(org.domi.furnace.api.packet.PacketType<P> type) {
         java.util.Objects.requireNonNull(type, "type");
-        if (!codec.readable(type)) throw new IllegalArgumentException(type + " 는 이 서버 버전에서 내용을 읽을 수 없어 모으지 않는다");
+        if (!codec.readable(type)) throw new IllegalArgumentException(type + " has content that cannot be read in this server version, so it is not collected");
         flushReceived();
         List<P> out = new java.util.ArrayList<>();
         synchronized (received) {
@@ -449,7 +450,7 @@ public final class TestPlayer implements AutoCloseable {
      */
     public <P extends org.domi.furnace.api.packet.Packet> P awaitPacket(org.domi.furnace.api.packet.PacketType<P> type, Predicate<? super P> match) {
         java.util.Objects.requireNonNull(match, "match");
-        if (!codec.readable(type)) throw new IllegalArgumentException(type + " 는 이 서버 버전에서 내용을 읽을 수 없어 모으지 않는다");
+        if (!codec.readable(type)) throw new IllegalArgumentException(type + " has content that cannot be read in this server version, so it is not collected");
         flushReceived();   // 서버가 이미 보낸 것은 먼저 다 읽는다
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(server.timeoutMillis());
         while (true) {
@@ -466,7 +467,7 @@ public final class TestPlayer implements AutoCloseable {
                 sameType.add(cast);
             }
             long left = deadline - System.nanoTime();
-            if (left <= 0 || !connected) throw new IllegalStateException(name + ": 맞는 " + type + " 가 오지 않았다" + (connected ? "" : "(접속 끊김)")
+            if (left <= 0 || !connected) throw new IllegalStateException(name + ": no matching " + type + " arrived" + (connected ? "" : " (connection lost)")
                     + ". " + summary(sameType));
             synchronized (received) {
                 if (received.size() == snap.size() && (snap.isEmpty() || received.peekLast() == snap.get(snap.size() - 1))) {
@@ -483,9 +484,9 @@ public final class TestPlayer implements AutoCloseable {
 
     /** 실패 메시지용: 그 종류 받은 수, 마지막 10개(각각 300자까지), 풀지 못한 패킷 수. */
     private String summary(List<? extends org.domi.furnace.api.packet.Packet> sameType) {
-        StringBuilder b = new StringBuilder("받은 그 종류 ").append(sameType.size()).append("개");
+        StringBuilder b = new StringBuilder("packets of that type received: ").append(sameType.size());
         if (!sameType.isEmpty()) {
-            b.append(sameType.size() > 10 ? ", 마지막 10개: [" : ": [");
+            b.append(sameType.size() > 10 ? ", last 10: [" : ": [");
             List<? extends org.domi.furnace.api.packet.Packet> tail = sameType.subList(Math.max(0, sameType.size() - 10), sameType.size());
             for (int i = 0; i < tail.size(); i++) {
                 String one = String.valueOf(tail.get(i));
@@ -494,7 +495,7 @@ public final class TestPlayer implements AutoCloseable {
             b.append(']');
         }
         long bad = decodeFailures.get();
-        if (bad > 0) b.append(". 풀지 못한 패킷 ").append(bad).append("개 ").append(recentDecodeFailures());
+        if (bad > 0) b.append(". Undecodable packets: ").append(bad).append(" ").append(recentDecodeFailures());
         return b.toString();
     }
 
@@ -537,7 +538,7 @@ public final class TestPlayer implements AutoCloseable {
                 awaitReaderEnd();
                 return;
             }
-            if (System.nanoTime() - deadline > 0) throw new IllegalStateException(name + ": 받은 패킷 장벽이 돌아오지 않았다");
+            if (System.nanoTime() - deadline > 0) throw new IllegalStateException(name + ": the received-packet barrier did not come back");
             java.util.concurrent.locks.LockSupport.parkNanos(200_000L);
         }
     }
@@ -550,9 +551,9 @@ public final class TestPlayer implements AutoCloseable {
             r.join(server.timeoutMillis());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException(name + ": 받은 패킷을 다 읽기 전에 기다리다 중단되었다", e);
+            throw new IllegalStateException(name + ": interrupted while waiting before reading all received packets", e);
         }
-        if (r.isAlive()) throw new IllegalStateException(name + ": 서버 접속자 목록에서 빠졌는데 연결이 닫히지 않아 받은 패킷을 다 읽었는지 알 수 없다");
+        if (r.isAlive()) throw new IllegalStateException(name + ": removed from the server player list but the connection is not closed, so it is unknown whether all received packets were read");
     }
 
     // ------------------------------------------------------------------ 나가기
@@ -629,7 +630,7 @@ public final class TestPlayer implements AutoCloseable {
             ByteBuf f = read();
             int got = Types.readVarInt(f);
             if (got == id) return f.slice();
-            if (got == disconnectId) throw new IOException("서버가 접속을 거절했다(패킷 0x" + Integer.toHexString(got) + ")");
+            if (got == disconnectId) throw new IOException("the server refused the connection (packet 0x" + Integer.toHexString(got) + ")");
         }
     }
 }

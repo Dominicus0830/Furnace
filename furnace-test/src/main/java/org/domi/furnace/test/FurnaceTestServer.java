@@ -7,6 +7,7 @@
 // 쓰는 법은 docs/api/testing.md.
 package org.domi.furnace.test;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -108,10 +109,10 @@ public final class FurnaceTestServer implements AutoCloseable {
             PluginSettings pluginSettings = new PluginSettings(b.failFast, null, java.util.Map.of(), b.devMode, false).withCompatNms(b.compatNms).withLibraries(b.libraries)
                     .withExposeCompatToNative(b.exposeCompatToNative).withCompatOptions(b.compatOptions);
             PluginBootstrapper boot = PluginBootstrapper.bootstrap(pluginsDir, pluginSettings);
-            BlockRegistry blocks = BlockRegistry.load("blocks/1.21.1.txt");
-            ItemRegistry items = ItemRegistry.load("items/1.21.1.txt");
+            BlockRegistry blocks = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+            ItemRegistry items = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
             org.domi.furnace.server.entity.PlayerData.itemRegistry(items);
-            RegistrySet registries = boot.collectGameRegistries(RegistrySet.load("registries/1.21.1.txt"));
+            RegistrySet registries = boot.collectGameRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"));
             RegistrySet.install(registries);
             ItemContext.install(new TagRegistries(registries));
             int plains = Math.max(0, registries.indexOf("minecraft:worldgen/biome", "minecraft:plains"));
@@ -170,7 +171,7 @@ public final class FurnaceTestServer implements AutoCloseable {
                 try {
                     worldManager.create(c).get(5, java.util.concurrent.TimeUnit.MINUTES);
                 } catch (Exception e) {
-                    throw new IllegalStateException("자동 불러오기 월드 '" + c.name() + "' 실패", e);
+                    throw new IllegalStateException("auto-load world '" + c.name() + "' failed", e);
                 }
             }
             var dispatcher = core.commands().getDispatcher();
@@ -215,13 +216,13 @@ public final class FurnaceTestServer implements AutoCloseable {
     /** n 틱을 차례로 돈다. */
     public void tick(int n) {
         checkOpen();
-        if (n < 0) throw new IllegalArgumentException("음수 틱: " + n);
+        if (n < 0) throw new IllegalArgumentException("negative ticks: " + n);
         for (int i = 0; i < n; i++) tickOnce();
     }
 
     private void tickOnce() {
         if (global.isOwnerThread() || org.domi.furnace.server.world.Regionizer.isRegionWorkerThread()) {
-            throw new IllegalStateException("tick() 은 시험 스레드에서 부른다(서버 스레드 안에서는 기다릴 수 없다)");
+            throw new IllegalStateException("call tick() from the test thread (it cannot wait inside a server thread)");
         }
         // 틱 전에 모든 region 이 앞서 받은 작업(시험 스레드가 건 지연 작업 등)을 비우게 한다 — 그 작업은 "지난 틱 뒤"로 세어져,
         // 몇 번째 틱에 붙을지가 벽시계와 상관없이 정해진다
@@ -234,7 +235,7 @@ public final class FurnaceTestServer implements AutoCloseable {
         long target = world.advanceManualTick();
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(options.timeoutMillis);
         while (!world.manualTickDone(target)) {
-            if (System.nanoTime() - deadline > 0) throw new IllegalStateException("region 틱 " + target + " 이 " + options.timeoutMillis + "ms 안에 끝나지 않았다");
+            if (System.nanoTime() - deadline > 0) throw new IllegalStateException("region tick " + target + " did not finish within " + options.timeoutMillis + "ms");
             LockSupport.parkNanos(20_000L);
         }
         ticks++;
@@ -261,7 +262,7 @@ public final class FurnaceTestServer implements AutoCloseable {
             if (c instanceof Error er) throw er;
             throw new IllegalStateException(c);
         } catch (TimeoutException e) {
-            throw new IllegalStateException(options.timeoutMillis + "ms 안에 끝나지 않았다", e);
+            throw new IllegalStateException("did not finish within " + options.timeoutMillis + "ms", e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(e);
@@ -356,7 +357,7 @@ public final class FurnaceTestServer implements AutoCloseable {
     /** 불러온 플러그인을 메인 클래스로 찾는다. 클래스패스 플러그인은 시험 코드와 같은 클래스라 그대로 캐스트할 수 있다. */
     public <P extends FurnacePlugin> P plugin(Class<P> type) {
         for (FurnacePlugin p : host.pluginsImpl().plugins()) if (type.isInstance(p)) return type.cast(p);
-        throw new IllegalArgumentException("불러온 플러그인 중 " + type.getName() + " 이 없다");
+        throw new IllegalArgumentException("none of the loaded plugins is a " + type.getName());
     }
 
     /** 이 서버의 임시 폴더(설정·플레이어 데이터·plugins). */
@@ -370,7 +371,7 @@ public final class FurnaceTestServer implements AutoCloseable {
     void playerLeft(TestPlayer p) { players.remove(p); }
 
     private void checkOpen() {
-        if (closed) throw new IllegalStateException("이미 닫힌 서버");
+        if (closed) throw new IllegalStateException("the server is already closed");
     }
 
     // ------------------------------------------------------------------ 닫기

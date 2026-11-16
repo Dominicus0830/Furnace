@@ -5,6 +5,7 @@
 // 소리는 isClientSide 에서만(서버는 ClientboundExplodePacket 에 실어 보냄), 불은 폭발 자신의 난수(Explosion.random)를 쓴다.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -21,7 +22,7 @@ class ExplosionVanillaRandomTest {
     @BeforeAll
     static void install() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     /** 레벨 난수 씨앗을 정하고 서버 소리 재생을 기록하는 시험 레벨. */

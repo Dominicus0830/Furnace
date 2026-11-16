@@ -1,4 +1,4 @@
-// 스키마 필드 타입 식(Java 모양): 이름·타입 인자·배열 차원·와일드카드. 이름은 스키마에 적힌 그대로(단순 이름·Outer.Inner)다.
+// 스키마 필드 타입 식(Java 모양). 이름, 타입 인자, 배열 차원, 와일드카드를 담는다. 이름은 스키마에 적힌 그대로다(단순 이름이나 Outer.Inner).
 package org.domi.furnace.api.packet.schema;
 
 import java.util.ArrayList;
@@ -7,7 +7,7 @@ import java.util.Objects;
 
 public record TypeRef(String name, List<TypeRef> arguments, int arrayDimensions, Bound bound) {
 
-    /** 와일드카드 경계. NONE 이면 보통 타입, 나머지는 {@code ?}·{@code ? extends T}·{@code ? super T}(이때 name 은 경계 타입). */
+    /** 와일드카드 경계. NONE 이면 보통 타입이다. 나머지는 {@code ?}, {@code ? extends T}, {@code ? super T} 이며, 이때 name 은 경계 타입이다. */
     public enum Bound { NONE, WILDCARD, EXTENDS, SUPER }
 
     public TypeRef {
@@ -17,7 +17,7 @@ public record TypeRef(String name, List<TypeRef> arguments, int arrayDimensions,
         if (arrayDimensions < 0) throw new IllegalArgumentException("arrayDimensions < 0");
     }
 
-    /** 기본형(int·long·…·boolean)인가 — 배열이면 원소 기준. */
+    /** 기본형(int·long·…·boolean)인가. 배열이면 원소 기준으로 따진다. */
     public boolean isPrimitive() {
         return switch (name) {
             case "int", "long", "short", "byte", "float", "double", "boolean", "char" -> bound == Bound.NONE;
@@ -27,7 +27,7 @@ public record TypeRef(String name, List<TypeRef> arguments, int arrayDimensions,
 
     /** 배열 한 겹을 벗긴 원소 타입. */
     public TypeRef component() {
-        if (arrayDimensions == 0) throw new IllegalStateException("배열이 아니다: " + this);
+        if (arrayDimensions == 0) throw new IllegalStateException("not an array: " + this);
         return new TypeRef(name, arguments, arrayDimensions - 1, bound);
     }
 
@@ -54,11 +54,11 @@ public record TypeRef(String name, List<TypeRef> arguments, int arrayDimensions,
         return sb.toString();
     }
 
-    /** 타입 식 하나를 읽는다. 예: {@code Map<ResourceKey<? extends Registry<?>>,TagNetworkSerialization.NetworkPayload>}, {@code byte[]}. */
+    /** 타입 식 하나를 읽는다. 예: {@code Map<ResourceKey<? extends Registry<?>>,TagNetworkSerialization.NetworkPayload>}, {@code byte[]} */
     public static TypeRef parse(String text) {
         Parser p = new Parser(text.replace(" ", ""));
         TypeRef t = p.type();
-        if (p.pos != p.s.length()) throw new IllegalArgumentException("타입 식 끝에 남은 글자: " + text);
+        if (p.pos != p.s.length()) throw new IllegalArgumentException("leftover characters at the end of the type expression: " + text);
         return t;
     }
 
@@ -77,7 +77,7 @@ public record TypeRef(String name, List<TypeRef> arguments, int arrayDimensions,
             }
             int start = pos;
             while (pos < s.length() && (Character.isJavaIdentifierPart(s.charAt(pos)) || s.charAt(pos) == '.')) pos++;
-            if (start == pos) throw new IllegalArgumentException("타입 이름이 없다(" + pos + "): " + s);
+            if (start == pos) throw new IllegalArgumentException("missing type name (" + pos + "): " + s);
             String name = s.substring(start, pos);
             List<TypeRef> args = new ArrayList<>();
             if (peek('<')) {
@@ -96,7 +96,7 @@ public record TypeRef(String name, List<TypeRef> arguments, int arrayDimensions,
         boolean peek(char c) { return pos < s.length() && s.charAt(pos) == c; }
 
         void expect(char c) {
-            if (!peek(c)) throw new IllegalArgumentException("'" + c + "' 가 와야 한다(" + pos + "): " + s);
+            if (!peek(c)) throw new IllegalArgumentException("'" + c + "' expected (" + pos + "): " + s);
             pos++;
         }
     }

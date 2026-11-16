@@ -57,14 +57,14 @@ public final class PersistentDataType<T> {
 
     /** 키 형식 검사: namespace:path (소문자·숫자·._- , path 는 / 도). Bukkit NamespacedKey 와 같은 규칙. 어기면 IllegalArgumentException. */
     public static String checkKey(String key) {
-        if (key == null) throw new IllegalArgumentException("키가 null");
+        if (key == null) throw new IllegalArgumentException("the key is null");
         int c = key.indexOf(':');
-        if (c <= 0 || c == key.length() - 1 || key.length() > 256) throw new IllegalArgumentException("키는 namespace:path 형식: " + key);
+        if (c <= 0 || c == key.length() - 1 || key.length() > 256) throw new IllegalArgumentException("the key must look like namespace:path: " + key);
         for (int i = 0; i < key.length(); i++) {
             char ch = key.charAt(i);
             if (i == c) continue;
             boolean ok = ch >= 'a' && ch <= 'z' || ch >= '0' && ch <= '9' || ch == '.' || ch == '_' || ch == '-' || ch == '/' && i > c;
-            if (!ok) throw new IllegalArgumentException("키에 쓸 수 없는 문자 '" + ch + "': " + key);
+            if (!ok) throw new IllegalArgumentException("character not allowed in a key '" + ch + "': " + key);
         }
         return key;
     }

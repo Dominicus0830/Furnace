@@ -1,6 +1,7 @@
 // 구성 단계 리소스 팩: push → (대기 중 keep-alive) → 끝 상태 응답 → Finish. 필수 팩 거절은 킥. 팩이 없으면 순서가 그대로다.
 package org.domi.furnace.server.net;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -39,7 +40,7 @@ class ConfigResourcePackFlowTest {
 
     private EmbeddedChannel connect(ServerProperties.ResourcePackInfo pack) {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         world = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2,
                 reg.directBits(), 7, org.domi.furnace.server.TestServers.ioPool());
         world.worldDir(tmp);

@@ -2,6 +2,7 @@
 // 촉매의 entity_die 구독(경험치 → 커서, bloom 8틱), 커서 저장 왕복.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.block.B;
@@ -21,7 +22,7 @@ class SculkSpreaderTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static final class Lvl extends BlockPlacementTest.TestLevel {

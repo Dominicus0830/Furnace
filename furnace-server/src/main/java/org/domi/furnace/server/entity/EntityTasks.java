@@ -3,6 +3,7 @@
 // 넣기·취소·retire 는 아무 스레드에서(이 객체의 모니터로 보호), 작업 실행은 tick() 을 부른 소유 스레드에서 모니터 밖에서 한다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -89,7 +90,7 @@ public final class EntityTasks {
             try {
                 e.task.run();
             } catch (Throwable t) {
-                org.slf4j.LoggerFactory.getLogger(EntityTasks.class).error("[PLUGIN] 엔티티 작업 실패", t);
+                org.slf4j.LoggerFactory.getLogger(EntityTasks.class).error(Lang.t("plugin.entity-task-failed"), t);
             }
             if (e.period > 0 && !e.cancelled) {
                 boolean again;
@@ -131,7 +132,7 @@ public final class EntityTasks {
         try {
             e.retired.run();
         } catch (Throwable t) {
-            org.slf4j.LoggerFactory.getLogger(EntityTasks.class).error("[PLUGIN] 엔티티 작업 retired 콜백 실패", t);
+            org.slf4j.LoggerFactory.getLogger(EntityTasks.class).error(Lang.t("plugin.entity-task-retired-failed"), t);
         }
     }
 }

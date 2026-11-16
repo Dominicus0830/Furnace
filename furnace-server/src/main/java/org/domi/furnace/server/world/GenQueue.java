@@ -17,6 +17,7 @@
 //  위치 없는 작업(빛 미리 계산 등 이어 하기)은 세지 않는다. 끄면 이 갈래는 아무것도 하지 않는다(예전과 같다).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
@@ -244,7 +245,7 @@ public final class GenQueue extends AbstractExecutorService {
             try {
                 adjustLimit(worstTps(System.nanoTime()));
             } catch (RuntimeException e) {   // 조절기가 죽어 상한이 낮은 채로 굳지 않게 — 이번만 건너뛴다
-                LOG.warn("[GEN] 생성 조절기 확인 실패", e);
+                LOG.warn(Lang.t("gen.throttle-check-failed"), e);
             }
         }
     }
@@ -282,8 +283,7 @@ public final class GenQueue extends AbstractExecutorService {
                 long now = System.nanoTime();
                 if (now - lastLimitLog >= LIMIT_LOG_NANOS) {   // 오르내림이 잦아도 10초에 한 줄
                     lastLimitLog = now;
-                    LOG.info("[GEN] 생성 조절기: 동시 생성 상한 {} → {} (가장 느린 region {} TPS)", up ? p - 1 : p + 1, p,
-                            String.format("%.1f", worstTps));
+                    LOG.info(Lang.t("gen.throttle-changed", up ? p - 1 : p + 1, p, String.format("%.1f", worstTps)));
                 }
             }
             return p;
@@ -402,7 +402,7 @@ public final class GenQueue extends AbstractExecutorService {
         try {
             return t.keepAlive.getAsBoolean();
         } catch (RuntimeException e) {
-            LOG.warn("[GEN] 시간 티켓 확인 실패", e);
+            LOG.warn(Lang.t("gen.time-ticket-failed"), e);
             return false;
         }
     }
@@ -458,7 +458,7 @@ public final class GenQueue extends AbstractExecutorService {
     public void execute(Runnable command) {
         lock.lock();
         try {
-            if (shutdown) throw new RejectedExecutionException("생성 대기열이 닫혔다");
+            if (shutdown) throw new RejectedExecutionException("the generation queue is closed");
             plain.add(new Task(command, null, 0, 0, null, false, seq++, System.nanoTime()));
             ready.signal();
         } finally {
@@ -471,7 +471,7 @@ public final class GenQueue extends AbstractExecutorService {
         int prio = background ? PRIO_BACKGROUND : settings.distanceOrder() ? nearestNow(w, cx, cz) : 0;
         lock.lock();
         try {
-            if (shutdown) throw new RejectedExecutionException("생성 대기열이 닫혔다");
+            if (shutdown) throw new RejectedExecutionException("the generation queue is closed");
             Task t = new Task(r, w, cx, cz, ticket, background, seq++, now);
             t.prio = prio;
             gen.add(t);
@@ -676,7 +676,7 @@ public final class GenQueue extends AbstractExecutorService {
                         // (도는 생성이 끝나야 다시 재면 상한 1 일 때 플레이어 자리가 생성 한 개 시간만큼 묶인다)
                         try { ready.awaitNanos(REPRIO_NANOS); } catch (InterruptedException ignored) { }   // 다른 대기처럼 끼어들기는 무시(다시 세우면 바쁜 대기)
                         if (!shutdown && plain.isEmpty() && !gen.isEmpty() && genBlockedLocked()) {
-                            try { reprioLocked(System.nanoTime()); } catch (RuntimeException e) { LOG.warn("[GEN] 생성 대기열 정리 실패", e); }
+                            try { reprioLocked(System.nanoTime()); } catch (RuntimeException e) { LOG.warn(Lang.t("gen.queue-cleanup-failed"), e); }
                             if (!turnCancelled.isEmpty()) break;   // 취소분은 아래에서 잠금 밖으로 정리한다
                         }
                     }
@@ -687,7 +687,7 @@ public final class GenQueue extends AbstractExecutorService {
                         reprioLocked(now);
                         t = pickLocked(now);
                     } catch (RuntimeException e) {   // 일꾼이 죽으면 대기열이 영영 멈춘다 — 이번 차례만 버리고 계속
-                        LOG.warn("[GEN] 생성 대기열 정리 실패", e);
+                        LOG.warn(Lang.t("gen.queue-cleanup-failed"), e);
                     }
                     cancelled = drainTurnCancelledLocked(null);
                 } finally {
@@ -720,7 +720,7 @@ public final class GenQueue extends AbstractExecutorService {
         try {
             c.r.run();
         } catch (Throwable e) {
-            LOG.warn("[GEN] 취소한 생성 요청 정리 실패 {},{}", c.cx, c.cz, e);
+            LOG.warn(Lang.t("gen.cancelled-cleanup-failed", c.cx, c.cz), e);
         }
     }
 
@@ -731,7 +731,7 @@ public final class GenQueue extends AbstractExecutorService {
         try {
             t.r.run();
         } catch (Throwable e) {
-            LOG.warn("[GEN] 생성 작업 실패 {},{}", t.cx, t.cz, e);
+            LOG.warn(Lang.t("gen.task-failed", t.cx, t.cz), e);
         }
         if (ChunkTrace.ON && genTask && (t.ticket == null || !t.ticket.cancelled())) ChunkTrace.nanos("gen.run", System.nanoTime() - t1);
     }

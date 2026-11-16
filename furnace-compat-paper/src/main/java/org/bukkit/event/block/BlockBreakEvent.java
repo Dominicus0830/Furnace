@@ -24,15 +24,15 @@ public class BlockBreakEvent extends BlockEvent implements Cancellable {
     public boolean isDropItems() { return true; }
 
     public void setDropItems(boolean dropItems) {
-        throw new org.domi.furnace.compat.paper.UnsupportedFeature("BlockBreakEvent#setDropItems", "블록 파괴 이벤트가 드롭 제어를 노출하지 않는다");
+        throw new org.domi.furnace.compat.paper.UnsupportedFeature("BlockBreakEvent#setDropItems", "the block break event does not expose drop control");
     }
 
     public int getExpToDrop() {
-        throw new org.domi.furnace.compat.paper.UnsupportedFeature("BlockBreakEvent#getExpToDrop", "블록 파괴 이벤트가 경험치 제어를 노출하지 않는다");
+        throw new org.domi.furnace.compat.paper.UnsupportedFeature("BlockBreakEvent#getExpToDrop", "the block break event does not expose experience control");
     }
 
     public void setExpToDrop(int exp) {
-        throw new org.domi.furnace.compat.paper.UnsupportedFeature("BlockBreakEvent#setExpToDrop", "블록 파괴 이벤트가 경험치 제어를 노출하지 않는다");
+        throw new org.domi.furnace.compat.paper.UnsupportedFeature("BlockBreakEvent#setExpToDrop", "the block break event does not expose experience control");
     }
 
     @Override

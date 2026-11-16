@@ -3,6 +3,7 @@
 // 예전에는 null 이 나와 늑대 finalizeSpawn 이 NPE 로 죽고(청크 생성 동물 스폰 통째 실패), 청크 생성 스폰이 y=319 조회에서 건너뛰어졌다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
@@ -43,7 +44,7 @@ class BiomeAtChunkEdgeTest {
         Files.writeString(vanilla.resolve("data/minecraft/tags/item/x.json"), "{\"values\":[]}");
         packs = DataPackManager.start(vanilla, tmp, org.domi.furnace.server.world.storage.LevelData.create("world", 1L, true, false,
                         GameMode.SURVIVAL, false, Difficulty.EASY, List.of("vanilla"), List.of()),
-                RegistrySet.load("registries/1.21.1.txt"), true, List.of("vanilla"), List.of());
+                RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"), true, List.of("vanilla"), List.of());
         core.dataPacks(packs);
         core.world().awaitChunk(new ChunkPos(0, 0));
     }
@@ -68,7 +69,7 @@ class BiomeAtChunkEdgeTest {
 
     @Test
     void neighbourChunkNotLoadedUsesGeneratorBiome_andWolfVariantFollowsIt() throws Exception {
-        int forest = RegistrySet.load("registries/1.21.1.txt").indexOf("minecraft:worldgen/biome", "minecraft:forest");
+        int forest = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt").indexOf("minecraft:worldgen/biome", "minecraft:forest");
         start(reg -> new SuperflatWorldSource(reg, forest));
         int[] p = edgeBlock(-60);
         assertEquals("minecraft:forest", inRegion(r -> r.level().biomeAt(p[0], p[1], p[2])), "이웃 청크가 없으면 생성기 바이옴(평지=forest)");
@@ -84,7 +85,7 @@ class BiomeAtChunkEdgeTest {
 
     @Test
     void quartAboveTheWorldIsClampedToTheTopSection() throws Exception {
-        int forest = RegistrySet.load("registries/1.21.1.txt").indexOf("minecraft:worldgen/biome", "minecraft:forest");
+        int forest = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt").indexOf("minecraft:worldgen/biome", "minecraft:forest");
         start(reg -> new SuperflatWorldSource(reg, forest));
         long seed = core.biomeZoomSeed(core.world());
         // 청크 생성 스폰은 (minX, 319, minZ) 바이옴을 본다 — 지터가 quart y 80(= y 320, 세계 밖)을 고르는 칸
@@ -96,7 +97,7 @@ class BiomeAtChunkEdgeTest {
         int[] f = found;
         int[] q = BiomeZoom.quart(seed, f[0], 319, f[1]);
         // 저장 바이옴을 맨 위 quart 만 바꿔 두면, 죈 결과는 생성기(forest)가 아니라 저장 값이어야 한다
-        int plains = RegistrySet.load("registries/1.21.1.txt").indexOf("minecraft:worldgen/biome", "minecraft:plains");
+        int plains = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt").indexOf("minecraft:worldgen/biome", "minecraft:plains");
         String got = inRegion(r -> {
             r.setNoiseBiomeAtBlock(q[0] << 2, 319, q[2] << 2, plains);
             return r.level().biomeAt(f[0], 319, f[1]);
@@ -108,7 +109,7 @@ class BiomeAtChunkEdgeTest {
 
     @Test
     void noiseWorldEdgeMatchesTheFreshChunkStoredBiome() throws Exception {
-        start(reg -> NoiseWorldSource.overworld(0L, reg, RegistrySet.load("registries/1.21.1.txt")));
+        start(reg -> NoiseWorldSource.overworld(0L, reg, RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         var src = NoiseWorldSource.of(core.world().worldSource());
         long seed = core.biomeZoomSeed(core.world());
         for (int y : new int[] {-60, 64, 200}) {
@@ -130,8 +131,8 @@ class BiomeAtChunkEdgeTest {
     @Test
     void fallbackIsTheStoredBiomeOfAFreshChunkEvenOnRTreeTies() {
         long seed = -8273459608338939987L;
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        RegistrySet regs = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet regs = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         var names = regs.entries("minecraft:worldgen/biome");
         NoiseWorldSource src = NoiseWorldSource.overworld(seed, reg, regs);
         ChunkColumn col = src.generateIsolated(2, -3);

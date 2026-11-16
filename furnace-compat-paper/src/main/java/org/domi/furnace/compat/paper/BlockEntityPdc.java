@@ -45,8 +45,7 @@ public final class BlockEntityPdc extends LivePdc {
     @Override
     protected <T> T whenGone(Function<ItemPdc, T> op, boolean write) {
         if (write) {
-            org.domi.furnace.compat.nms.NmsCaller.warnOnce("TileState.pdc.gone",
-                    "플러그인 {} 이(가) 블록 엔티티가 사라진 칸의 getState(false) 영속 데이터를 고쳤다 — 블록에는 남지 않는다(Paper 와 같다).");
+            org.domi.furnace.compat.nms.NmsCaller.warnOnce("TileState.pdc.gone", "compat.tilestate-pdc-gone");
         }
         if (detached == null) detached = new ItemPdc(null);
         return op.apply(detached);

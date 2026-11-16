@@ -29,7 +29,7 @@ PR #305(T-018) 검토 R6 에서 나눈 정확성 수정. 바닐라 1.21.1 에서
 
 ### 검증
 - `ContextCollisionShapeVanillaTest`: 바닐라 jar 를 직접 돌린 정답표 3100건(비계 32 상태 × 발 높이 17 × 웅크림, 물·용암 5 수준 × 위 칸 유체 6 × 발 높이 8 × 유체 술어 4,
-  문맥 없음 포함 — `tools/vanilla-data/ExportContextCollisionShapes.java`). 1/16 칸 채움과, Furnace 가 정확한 격자를 둔 모양의 getCoords(Y)까지 불일치 0.
+  문맥 없음 포함 — `ExportContextCollisionShapes` — V-05 로 `tools/vanilla-extract` 로 이사, 옛 원본은 git 기록 `802ccb451`). 1/16 칸 채움과, Furnace 가 정확한 격자를 둔 모양의 getCoords(Y)까지 불일치 0.
 - `ContextCollisionBehaviorTest`: 플레이어가 비계 위에 서고 웅크려 내려가며 안에서 오를 때 되돌리지 않음, 스트라이더가 용암 원천 위(+0.5)에 섬, 화살이 비계 옆을 지나감,
   가죽 장화 플레이어의 가루눈.
 - `CollisionScanParityTest`: 문맥 동작 5개(움직이는 피스톤·가루눈·비계·물·용암)와 FLUID 표시, 생성기에 스트라이더·웅크림·용암 웅덩이를 넣어 옛 사본과 차분 —

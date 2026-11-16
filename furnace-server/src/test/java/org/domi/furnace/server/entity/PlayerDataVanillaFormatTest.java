@@ -1,6 +1,7 @@
 // playerdata 가 바닐라 슬롯 번호·문자열 id 로 저장되고, 서버가 아직 다루지 않는 바닐라 필드는 보존되는지.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
@@ -16,7 +17,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 class PlayerDataVanillaFormatTest {
 
-    private static final ItemRegistry ITEMS = ItemRegistry.load("items/1.21.1.txt");
+    private static final ItemRegistry ITEMS = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
 
     @AfterEach
     void reset() { PlayerData.itemRegistry(null); }

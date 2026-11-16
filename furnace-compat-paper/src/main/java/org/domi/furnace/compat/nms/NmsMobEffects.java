@@ -81,10 +81,10 @@ public final class NmsMobEffects {
                 if (r == null) {
                     r = new NmsMappedRegistry<>(Registries.MOB_EFFECT);
                     var ids = Furnace.server().gameRegistries().builtIn("minecraft:mob_effect");
-                    if (ids.isEmpty()) throw new IllegalStateException("서버가 효과 레지스트리 목록을 주지 않았다");
+                    if (ids.isEmpty()) throw new IllegalStateException("the server did not provide the effect registry list");
                     for (String id : ids) {
                         Row row = ROWS.get(id);
-                        if (row == null) throw new IllegalStateException("효과 정의가 없는 서버 효과: " + id);
+                        if (row == null) throw new IllegalStateException("server effect without a definition: " + id);
                         r.add(ResourceLocation.parse(id), row.instant()
                                 ? new InstantenousMobEffect(row.category(), row.color())
                                 : new MobEffect(row.category(), row.color()) {});
@@ -98,6 +98,6 @@ public final class NmsMobEffects {
 
     /** MobEffects 상수용: 이름의 등록된 손잡이. */
     public static Holder<MobEffect> holder(String id) {
-        return mapped().getHolder(ResourceLocation.parse(id)).orElseThrow(() -> new IllegalStateException("서버 효과 레지스트리에 없는 이름: " + id));
+        return mapped().getHolder(ResourceLocation.parse(id)).orElseThrow(() -> new IllegalStateException("name missing from the server effect registry: " + id));
     }
 }

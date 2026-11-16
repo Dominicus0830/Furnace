@@ -1,6 +1,7 @@
 // NBT 경로 파싱·연산, SNBT 명령 파서 오류 키, /data storage 각 모드, storage 파일 왕복, 엔티티 접근자(플레이어 쓰기 금지).
 package org.domi.furnace.server.command.builtin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -245,8 +246,8 @@ class DataCommandsTest {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         try {
             ServerCore core = TestServers.core(tmp, sched);
-            core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt"),
-                    org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+            core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"),
+                    org.domi.furnace.server.world.ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
             var c00 = new org.domi.furnace.server.world.ChunkPos(0, 0);
             core.world().submitAtChunk(c00, r -> r.chunkAtBlocking(c00)).get(30, java.util.concurrent.TimeUnit.SECONDS);
             var src = CommandSource.console(core).withSilent();
@@ -274,8 +275,8 @@ class DataCommandsTest {
 
     private static void installItems() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
-        org.domi.furnace.server.item.ItemContext.installTags(org.domi.furnace.server.net.registry.TagSet.load("registries/tags-1.21.1.txt"));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
+        org.domi.furnace.server.item.ItemContext.installTags(org.domi.furnace.server.net.registry.TagSet.load("registries/tags-" + GameVersion.RESOURCE_TAG + ".txt"));
     }
 
     @Test

@@ -139,7 +139,11 @@ class PlayerInfoShimTest {
                     case "uniqueId" -> id;
                     case "name" -> "Skin";
                     case "profileProperties" -> props;
-                    default -> throw new UnsupportedOperationException(m.getName());
+                    // profile() 는 기본 메서드(uniqueId·name·profileProperties 로 만든다)
+                    default -> {
+                        if (m.isDefault()) yield java.lang.reflect.InvocationHandler.invokeDefault(o, m, a);
+                        throw new UnsupportedOperationException(m.getName());
+                    }
                 });
         var gp = Profiles.of(player);
         assertEquals(id, gp.getId());
@@ -163,7 +167,7 @@ class PlayerInfoShimTest {
         Profiles.simulateMissingForTest(true);
         try {
             String why = PacketDelivery.irreversibleReason(PacketTypes.Clientbound.PLAYER_INFO_UPDATE);
-            assertEquals(Profiles.MISSING, why);
+            assertEquals(Profiles.missing(), why);
             assertTrue(why.contains("plugins.compat.libraries.mojang"), why);
             assertTrue(!PacketDelivery.reversible(PacketTypes.Clientbound.PLAYER_INFO_UPDATE));
             var api = new ClientboundPlayerInfoUpdatePacket(EnumSet.of(Action.UPDATE_LISTED), List.of(

@@ -2,6 +2,7 @@
 // 기대값은 파이썬 hashlib.sha256(struct.pack('<q', seed))[:8] 을 little-endian long 으로 읽은 독립 계산이다(바닐라 Guava hashLong(seed).asLong() 과 같은 정의).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.ByteBuffer;
@@ -63,7 +64,7 @@ class BiomeZoomSeedCacheTest {
     @Test
     void worldCachesZoomSeedAtSetterAndFollowsReseed() {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, sched.regionThreadCount(),
                 16, 2, 2, reg.directBits(), 7, Executors.newSingleThreadExecutor());
         assertFalse(w.hasSeed());

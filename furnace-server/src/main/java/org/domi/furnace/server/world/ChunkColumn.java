@@ -1,6 +1,8 @@
 // 청크 컬럼: 24섹션(y −64..319) + MOTION_BLOCKING heightmap. minY=−64.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
+
 public final class ChunkColumn {
 
     public static final int SECTION_COUNT = 24;
@@ -9,8 +11,6 @@ public final class ChunkColumn {
     public static final int HEIGHTMAP_BITS = 9; // worldHeight 384 → 0..384
     public static final int DEFAULT_BIOME_DIRECT_BITS = 7;
     private static final int UNSET_HEIGHT = Integer.MIN_VALUE;
-    private static final int CAVE_AIR_STATE = 12958;
-    private static final int VOID_AIR_STATE = 12959;
 
     /** 차원의 최저 블록 y 와 섹션 수(오버월드 -64/24, 네더·엔드 0/16). */
     private final int minY;
@@ -253,9 +253,9 @@ public final class ChunkColumn {
      * null 인 구성 요소는 그대로. counts 가 null 이면 바닐라 개수도 그대로다(바닐라는 컨테이너 데이터를 갈아도 다시 세지 않는다). 주인 스레드.
      */
     public void importSection(int index, int[] states, int[] biomes, int[] counts) {
-        if (states != null && states.length != 4096) throw new IllegalArgumentException("블록 칸은 4096개여야 한다: " + states.length);
-        if (biomes != null && biomes.length != 64) throw new IllegalArgumentException("바이옴 칸은 64개여야 한다: " + biomes.length);
-        if (counts != null && counts.length != 3) throw new IllegalArgumentException("개수는 셋이어야 한다: " + counts.length);
+        if (states != null && states.length != 4096) throw new IllegalArgumentException("there must be 4096 block cells: " + states.length);
+        if (biomes != null && biomes.length != 64) throw new IllegalArgumentException("there must be 64 biome cells: " + biomes.length);
+        if (counts != null && counts.length != 3) throw new IllegalArgumentException("there must be three counts: " + counts.length);
         if (states == null && biomes == null && counts == null) return;
         // 바닐라 하이트맵은 섹션을 갈아도 낡은 값을 든다 — 블록·개수(nonEmpty 0 섹션은 바닐라 하이트맵 갱신이 공기로 훑는다)를 바꾸기 전에 고정
         if (states != null || counts != null) fixHeightmaps();
@@ -309,7 +309,8 @@ public final class ChunkColumn {
         ChunkReadView prev = readView;
         viewRequested = 0;
         ChunkSection[] secs = sections;
-        if (prev != null && prev.modCount == modCount && prev.loadToken() == loadToken && prev.sectionCount() == secs.length) {
+        org.domi.furnace.server.light.ChunkLight cl = light;
+        if (prev != null && prev.modCount == modCount && prev.loadToken() == loadToken && prev.sectionCount() == secs.length && prev.sameLight(cl)) {
             boolean same = true;
             for (int i = 0; i < secs.length && same; i++) same = prev.section(i).reusableFor(secs[i]);
             if (same) return prev;
@@ -321,7 +322,16 @@ public final class ChunkColumn {
         }
         int[][] heights = fixedHeights != null ? copyFixed(fixedHeights) : currentHeights();
         long[] bePos = blockEntityPositions(chunkX, chunkZ);
-        ChunkReadView v = new ChunkReadView(loadToken, ++viewVersion, minY, out, heights, bePos, modCount);
+        // 빛(T-205): 층을 복사하지 않고 넘긴다 — 넘긴 층은 ChunkLight 가 다음 쓰기 때 복사한다(쓰기 시 복사). 빛 작업 묶음(T-064)이 도는 동안에도
+        // 보이는 층은 아무도 고치지 않으므로 지금 값이 그대로 한 순간의 값이다
+        byte[][] skyLayers = null, blockLayers = null;
+        if (cl != null) {
+            skyLayers = new byte[org.domi.furnace.server.light.ChunkLight.SECTIONS][];
+            blockLayers = new byte[org.domi.furnace.server.light.ChunkLight.SECTIONS][];
+            cl.shareLayersWithView(skyLayers, blockLayers);
+        }
+        ChunkReadView v = new ChunkReadView(loadToken, ++viewVersion, minY, out, heights, bePos, modCount,
+                cl != null && cl.lightEnabled, skyLayers, blockLayers);
         readView = v;
         return v;
     }
@@ -435,7 +445,7 @@ public final class ChunkColumn {
         if (sharedSections != null && sharedSections[i]) {
             replaceSection(i, sections[i].copy());
             sharedSections[i] = false;
-        } else if (sections[i].lightFrozen) {
+        } else if (sections[i].lightFrozen()) {
             replaceSection(i, sections[i].copy());   // 빛 작업이 옛 객체를 읽는 중 — 복사본에 쓴다(복사본은 얼지 않았다)
         }
         return sections[i];
@@ -498,7 +508,7 @@ public final class ChunkColumn {
      */
     public LightBlocks freezeForLight() {
         ChunkSection[] secs = sections.clone();
-        for (ChunkSection cs : secs) cs.lightFrozen = true;
+        for (ChunkSection cs : secs) cs.freezeLight();
         return new LightBlocks(secs, minY);
     }
 
@@ -532,8 +542,8 @@ public final class ChunkColumn {
             return i < 0 || i >= secs.length || secs[i].onlyAirExact();   // 월드 높이 밖 구역은 없다(void_air) — computeSources 는 묻지 않는다
         }
 
-        /** 빛 작업이 끝났다 — 넘긴 객체를 녹인다(아직 컬럼에 남아 있는 것은 다시 그 자리에서 고칠 수 있다). 주인 스레드에서. */
-        public void thaw() { for (ChunkSection cs : secs) cs.lightFrozen = false; }
+        /** 빛 계산이 끝났다 — 넘긴 객체를 녹인다(다른 계산이 얼리지 않았고 아직 컬럼에 남아 있으면 다시 그 자리에서 고칠 수 있다). 한 번만, 아무 스레드. */
+        public void thaw() { for (ChunkSection cs : secs) cs.thawLight(); }
     }
 
     private void ownAllSections() {
@@ -1264,13 +1274,13 @@ public final class ChunkColumn {
         // first==0 은 "열 전체가 공기"다 — 바닐라 Heightmap.update 처럼 그대로 갱신한다(공허·스카이블록·파낸 열). 미프라임 열은 이후 rebuild 가 덮어쓴다.
         int y = worldY - minY;
         if (y <= first - 2) return;
-        boolean isAir = stateId == ChunkSection.AIR || stateId == CAVE_AIR_STATE || stateId == VOID_AIR_STATE;
+        boolean isAir = stateId == ChunkSection.AIR || stateId == StateIds.VOID_AIR || stateId == StateIds.CAVE_AIR;
         if (!isAir) {
             if (y >= first) surface[index] = y + 1;
         } else if (first - 1 == y) {
             for (int i = y - 1; i >= 0; i--) {
                 int below = getBlock(x, minY + i, z);
-                if (below != ChunkSection.AIR && below != CAVE_AIR_STATE && below != VOID_AIR_STATE) {
+                if (below != ChunkSection.AIR && below != StateIds.VOID_AIR && below != StateIds.CAVE_AIR) {
                     surface[index] = i + 1;
                     return;
                 }
@@ -1287,13 +1297,13 @@ public final class ChunkColumn {
         // first==0 은 "열 전체가 공기"다 — 바닐라 Heightmap.update 처럼 그대로 갱신한다(공허·스카이블록·파낸 열). 미프라임 열은 이후 rebuild 가 덮어쓴다.
         int y = worldY - minY;
         if (y <= first - 2) return;
-        boolean isAir = stateId == ChunkSection.AIR || stateId == CAVE_AIR_STATE || stateId == VOID_AIR_STATE;
+        boolean isAir = stateId == ChunkSection.AIR || stateId == StateIds.VOID_AIR || stateId == StateIds.CAVE_AIR;
         if (!isAir) {
             if (y >= first) surfaceWg[index] = y + 1;
         } else if (first - 1 == y) {
             for (int i = y - 1; i >= 0; i--) {
                 int below = getBlock(x, minY + i, z);
-                if (below != ChunkSection.AIR && below != CAVE_AIR_STATE && below != VOID_AIR_STATE) {
+                if (below != ChunkSection.AIR && below != StateIds.VOID_AIR && below != StateIds.CAVE_AIR) {
                     surfaceWg[index] = i + 1;
                     return;
                 }
@@ -1625,7 +1635,7 @@ public final class ChunkColumn {
      */
     public java.util.List<HeightmapType> adoptStoredHeightmaps(long[][] stored) {
         java.util.List<HeightmapType> bad = new java.util.ArrayList<>(0);
-        if (fixedHeights != null) throw new IllegalStateException("이미 고정 하이트맵 — 로드 직후에만 부른다");
+        if (fixedHeights != null) throw new IllegalStateException("the heightmaps are already fixed - call this right after loading only");
         int[][] now = currentHeights();
         int[][] merged = null;
         HeightmapType[] types = HeightmapType.values();
@@ -1731,7 +1741,7 @@ public final class ChunkColumn {
     private static BlockRegistry fluidRegistry() {
         BlockRegistry r = fluidRegistry;
         if (r == null) {
-            r = BlockRegistry.load("blocks/1.21.1.txt");
+            r = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
             fluidRegistry = r;
         }
         return r;

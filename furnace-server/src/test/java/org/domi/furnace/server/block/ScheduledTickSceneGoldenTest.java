@@ -5,6 +5,7 @@
 // 틱마다: 블록 상태 해시 + 예약 수. 25틱마다: 모든 청크의 저장 목록(block_ticks·fluid_ticks 순서 그대로). 끝: 레벨 난수 다음 값.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import java.util.function.LongPredicate;
 import org.domi.furnace.server.data.TagRegistries;
 import org.domi.furnace.server.identity.IdentityHash;
@@ -20,7 +21,7 @@ class ScheduledTickSceneGoldenTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static final int Y = -60;

@@ -1,6 +1,7 @@
 // T-122 검토 보강(PR #395 R3): 플레이어끼리 보임(Region.updateVisibility)이 entity-tracking-range.players 를 따르는가. 시야 20청크(320블록) 장면.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -40,7 +41,7 @@ class EntityHandlesPlayerRangeTest {
     @BeforeEach
     void setup() throws Exception {
         sched = new FurnaceSchedulerImpl(50_000_000L, 2);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, sched.regionThreadCount(),
                 16, 20, 20, reg.directBits(), 7, Executors.newSingleThreadExecutor());
         chObs = new ConcurrentEmbeddedChannel();

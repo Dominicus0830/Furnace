@@ -20,5 +20,5 @@ public final class EntityPdc extends LivePdc {
 
     /** 엔티티가 사라졌으면 IllegalStateException. */
     @Override
-    protected <T> T whenGone(Function<ItemPdc, T> op, boolean write) { throw new IllegalStateException("엔티티가 사라졌다: " + entity.uniqueId()); }
+    protected <T> T whenGone(Function<ItemPdc, T> op, boolean write) { throw new IllegalStateException("the entity is gone: " + entity.uniqueId()); }
 }

@@ -31,7 +31,15 @@ public final class NmsBlocks {
 
         Table(BlockTypes types) {
             List<Block> blocks = new ArrayList<>();
-            for (String id : types.ids()) blocks.add(new Block(types.get(id).orElseThrow(), types));
+            var flags = NmsBlockStates.table().flags();
+            for (String id : types.ids()) {
+                var type = types.get(id).orElseThrow();
+                java.util.Map<String, String> first = new java.util.LinkedHashMap<>();
+                for (var info : type.properties()) first.put(info.name(), info.values().get(0));
+                int base = types.stateId(new org.domi.furnace.api.world.BlockData(type.id(), first));
+                boolean entity = (flags[base] & org.domi.furnace.api.internal.BlockStateInternals.HAS_BLOCK_ENTITY) != 0;   // 바닐라 EntityBlock 구현 블록
+                blocks.add(entity ? new net.minecraft.world.level.block.FurnaceEntityBlock(type, types) : new Block(type, types));
+            }
             blocks.sort(Comparator.comparingInt(Block::furnaceBaseStateId));
             byBase = blocks.toArray(Block[]::new);
             baseIds = new int[byBase.length];
@@ -39,13 +47,13 @@ public final class NmsBlocks {
             for (int i = 0; i < byBase.length; i++) {
                 Block b = byBase[i];
                 if (b.furnaceBaseStateId() != next) {
-                    throw new IllegalStateException("상태 번호에 틈이 있다: " + b + " 시작=" + b.furnaceBaseStateId() + " 기대=" + next);
+                    throw new IllegalStateException("gap in the state ids: " + b + " start=" + b.furnaceBaseStateId() + " expected=" + next);
                 }
                 baseIds[i] = next;
                 next += b.furnaceStateCount();
                 registry.add(b.furnaceKey(), b);
             }
-            if (next != types.stateCount()) throw new IllegalStateException("상태 수가 다르다: 블록 합=" + next + " 서버=" + types.stateCount());
+            if (next != types.stateCount()) throw new IllegalStateException("state count differs: block sum=" + next + " server=" + types.stateCount());
             stateCount = next;
             // 바닐라 Block.byItem: BlockItem 의 블록. 벽 변형(wall_torch 등)도 같은 아이템을 가리키므로 이름이 같은 블록을 고른다.
             for (Block b : byBase) {

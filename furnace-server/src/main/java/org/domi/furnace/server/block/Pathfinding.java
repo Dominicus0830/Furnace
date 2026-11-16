@@ -1,6 +1,7 @@
 // BlockState.isPathfindable(PathComputationType) 표(바닐라에서 뽑은 상태별 1글자: 비트 1 땅·2 물·4 공중).
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -15,8 +16,8 @@ public final class Pathfinding {
     private static final byte[] BITS = load();
 
     private static byte[] load() {
-        try (var in = Pathfinding.class.getClassLoader().getResourceAsStream("blocks/pathfindable_1.21.1.txt")) {
-            if (in == null) throw new IllegalStateException("blocks/pathfindable_1.21.1.txt 없음");
+        try (var in = Pathfinding.class.getClassLoader().getResourceAsStream("blocks/pathfindable_" + GameVersion.RESOURCE_TAG + ".txt")) {
+            if (in == null) throw new IllegalStateException("blocks/pathfindable_" + GameVersion.RESOURCE_TAG + ".txt is missing");
             String line = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8)).readLine();
             byte[] out = new byte[line.length()];
             for (int i = 0; i < out.length; i++) out[i] = (byte) (line.charAt(i) - '0');

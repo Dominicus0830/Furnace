@@ -2,6 +2,7 @@
 // 상자 배·상자/깔때기 수레 우클릭으로 창 열기, 엔티티 용기 저장 왕복, 클릭 뒤 변경 동기화.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -35,7 +36,7 @@ class EntityInventoryMenuTest {
     @BeforeEach
     void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static ItemStack item(String name, int count) {

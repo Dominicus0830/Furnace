@@ -9,6 +9,7 @@
 // 우선순위 순서는 Furnace 버스가 지킨다: 같은 이벤트를 Furnace 플러그인이 같은 우선순위로 구독했다면 등록 순이다.
 package org.domi.furnace.compat.paper;
 
+import org.domi.furnace.compat.i18n.CompatLang;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -171,8 +172,7 @@ public final class EventBridge {
     /** 서버가 알리지 않는 이벤트의 처리기를 등록하면 플러그인·이벤트마다 한 번 경고한다. */
     public static void warnIfNotFired(BukkitPluginAdapter owner, Class<? extends org.bukkit.event.Event> owning) {
         if (!BY_BUKKIT.containsKey(owning) && NOT_FIRED.contains(owning.getName()) && owner.markBridged("unfired:" + owning.getName())) {
-            owner.logger().warning(owning.getSimpleName() + " 처리기를 등록했지만 Furnace 서버는 아직 이 이벤트를 알리지 않는다 — 그 처리기는 불리지 않는다"
-                    + " (지원 목록: docs/api/compat-paper.md)");
+            owner.logger().warning(CompatLang.t("compat.event-not-fired", owning.getSimpleName()));
         }
     }
 

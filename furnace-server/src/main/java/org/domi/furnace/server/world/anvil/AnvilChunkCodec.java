@@ -7,6 +7,8 @@
 // (Furnace 가 쓴) 빛만 믿고, 바닐라·다른 서버 청크의 빛은 버리고 다시 계산한다(T-012).
 package org.domi.furnace.server.world.anvil;
 
+import org.domi.furnace.api.GameVersion;
+import org.domi.furnace.server.i18n.Lang;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
@@ -29,7 +31,7 @@ import java.util.function.LongSupplier;
 
 public final class AnvilChunkCodec {
 
-    public static final int DATA_VERSION = 3955; // 1.21.1
+    public static final int DATA_VERSION = GameVersion.DATA_VERSION;
     private static final String LEGACY_CHEST_ID = "furnace:chest"; // 초기 Furnace 자체 형식(읽기 호환)
     /** 바닐라 아이템 NBT 에 실을 수 없는 Furnace 컴포넌트 패치 바이트(네트워크 인코딩) — 바닐라는 모르는 키를 무시한다. */
     private static final String FURNACE_COMPONENTS = "furnace:components";
@@ -407,7 +409,7 @@ public final class AnvilChunkCodec {
                     if (!be.containsNumber("x") || !be.containsNumber("y") || !be.containsNumber("z")
                             || (root.containsNumber("xPos") && (be.getInt("x") >> 4) != root.getInt("xPos"))
                             || (root.containsNumber("zPos") && (be.getInt("z") >> 4) != root.getInt("zPos"))) {
-                        org.slf4j.LoggerFactory.getLogger(AnvilChunkCodec.class).warn("블록 엔티티 좌표가 없거나 이 청크 밖, 건너뜀: {}", be.tags().get("id"));
+                        org.slf4j.LoggerFactory.getLogger(AnvilChunkCodec.class).warn(Lang.t("codec.be-position-missing", be.tags().get("id")));
                         continue;
                     }
                     String id = be.tags().get("id") instanceof String s ? s : null;
@@ -419,7 +421,7 @@ public final class AnvilChunkCodec {
                         if (id.equals(org.domi.furnace.server.block.Blocks.get().nameOfState(col.getBlock(x & 15, y, z & 15)))) {
                             col.putChest(vanillaChestFromNbt(be));
                         } else {
-                            org.slf4j.LoggerFactory.getLogger(AnvilChunkCodec.class).warn("블록 엔티티 {} 가 ({},{},{}) 블록과 맞지 않음, NBT 보존", id, x, y, z);
+                            org.slf4j.LoggerFactory.getLogger(AnvilChunkCodec.class).warn(Lang.t("codec.be-mismatch", id, x, y, z));
                             col.putGeneratedBlockEntity(x & 15, y, z & 15, be);
                         }
                     } else if (id != null && org.domi.furnace.server.block.entity.BlockEntities.known(id)) {
@@ -430,7 +432,7 @@ public final class AnvilChunkCodec {
                             col.putBlockEntity(typed);
                         } else {
                             // 바닐라 promotePendingBlockEntity 는 블록과 맞지 않으면 경고하고 버린다 — 여기서는 NBT 그대로 보존(데이터를 잃지 않게)
-                            org.slf4j.LoggerFactory.getLogger(AnvilChunkCodec.class).warn("블록 엔티티 {} 가 ({},{},{}) 블록과 맞지 않음, NBT 보존", id, x, y, z);
+                            org.slf4j.LoggerFactory.getLogger(AnvilChunkCodec.class).warn(Lang.t("codec.be-mismatch", id, x, y, z));
                             col.putGeneratedBlockEntity(x & 15, y, z & 15, be);
                         }
                     } else if (id != null) {
@@ -439,7 +441,7 @@ public final class AnvilChunkCodec {
                         col.putGeneratedBlockEntity(x & 15, y, z & 15, be);
                     }
                 } catch (RuntimeException e) {
-                    org.slf4j.LoggerFactory.getLogger(AnvilChunkCodec.class).warn("블록 엔티티 읽기 실패, 건너뜀", e);
+                    org.slf4j.LoggerFactory.getLogger(AnvilChunkCodec.class).warn(Lang.t("codec.be-read-failed"), e);
                 }
             }
         }
@@ -453,7 +455,7 @@ public final class AnvilChunkCodec {
                 col.structures(org.domi.furnace.server.world.gen.structure.ChunkStructures.fromNbt(st));
             } catch (RuntimeException e) {
                 // 해석에 실패해도 원본은 그대로 보존한다
-                org.slf4j.LoggerFactory.getLogger(AnvilChunkCodec.class).warn("구조물 정보 읽기 실패, 원본만 보존", e);
+                org.slf4j.LoggerFactory.getLogger(AnvilChunkCodec.class).warn(Lang.t("codec.structures-read-failed"), e);
                 extraStructures = st;
             }
         }
@@ -628,8 +630,7 @@ public final class AnvilChunkCodec {
         }
         if (!any) return;
         for (HeightmapType bad : col.adoptStoredHeightmaps(stored)) {
-            org.slf4j.LoggerFactory.getLogger(AnvilChunkCodec.class).warn("청크 [{}, {}] 하이트맵 {} 길이가 맞지 않아 버리고 다시 계산함(기대 {}, 실제 {})",
-                    root.getInt("xPos"), root.getInt("zPos"), bad.name(), col.heightmapRawLength(), stored[bad.ordinal()].length);
+            org.slf4j.LoggerFactory.getLogger(AnvilChunkCodec.class).warn(Lang.t("codec.heightmap-length", root.getInt("xPos"), root.getInt("zPos"), bad.name(), col.heightmapRawLength(), stored[bad.ordinal()].length));
         }
     }
 

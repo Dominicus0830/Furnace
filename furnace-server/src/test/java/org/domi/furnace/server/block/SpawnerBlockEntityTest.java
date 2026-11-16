@@ -1,6 +1,7 @@
 // 몬스터 생성기 시험: 저장 왕복(짧은 정수·SpawnData·SpawnPotentials)·id 정규화·갱신 태그·플레이어 범위·지연·고정 시드 난수 순서.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -27,7 +28,7 @@ class SpawnerBlockEntityTest {
     }
 
     @BeforeAll
-    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt"))); }
+    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"))); }
 
     static final Pos POS = new Pos(1, -60, 1);
 

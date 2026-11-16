@@ -1,6 +1,7 @@
 // Furnace.gameRegistries(): 시작 때 고정된 동기화 레지스트리 보기 + 마법부여 끄기(EnchantmentToggles, 플러그인 이름 몫).
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.GameVersion;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -17,6 +18,11 @@ final class GameRegistriesImpl implements GameRegistries {
 
     @Override
     public List<String> builtIn(String registry) { return BuiltIn.TABLE.getOrDefault(normalize(registry), List.of()); }
+
+    @Override
+    public java.util.Map<String, String> worldgen(String registry) {
+        return org.domi.furnace.server.world.gen.WorldgenIndex.entries(normalize(registry));
+    }
 
     @Override
     public Set<String> tags(String registry) {
@@ -115,8 +121,8 @@ final class GameRegistriesImpl implements GameRegistries {
 
         private static java.util.Map<String, List<String>> load() {
             var out = new java.util.LinkedHashMap<String, java.util.List<String>>();
-            try (var in = GameRegistriesImpl.class.getClassLoader().getResourceAsStream("registries/builtin-1.21.1.txt")) {
-                if (in == null) throw new IllegalStateException("registries/builtin-1.21.1.txt 없음");
+            try (var in = GameRegistriesImpl.class.getClassLoader().getResourceAsStream("registries/builtin-" + GameVersion.RESOURCE_TAG + ".txt")) {
+                if (in == null) throw new IllegalStateException("registries/builtin-" + GameVersion.RESOURCE_TAG + ".txt is missing");
                 var r = new java.io.BufferedReader(new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
                 String line;
                 while ((line = r.readLine()) != null) {
@@ -181,7 +187,7 @@ final class GameRegistriesImpl implements GameRegistries {
     public void disableEnchantment(FurnacePlugin owner, String key) {
         java.util.Objects.requireNonNull(owner, "owner");
         String k = normalize(key);
-        if (!contains(ENCHANTMENT, k)) throw new IllegalArgumentException("모르는 마법부여: " + key);
+        if (!contains(ENCHANTMENT, k)) throw new IllegalArgumentException("unknown enchantment: " + key);
         EnchantmentToggles.disable(owner.name(), k);
     }
 

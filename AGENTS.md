@@ -25,7 +25,7 @@ Java 21로 바닥부터 만드는 멀티스레드 Minecraft **1.21.1** 서버. �
 3. **parity를 거짓으로 만들지 않는다.** 구현하지 못한 feature는 `NoopFeature` placeholder로 둔다. RNG 소비가 다른 근사 구현을 활성화하지 않는다.
 4. **스레드 소유권을 지킨다.** region/global 스레드 소유 상태는 해당 owner 스레드에서만 건드린다. 상세는 `.claude/rules/scheduler.md`.
 5. **테스트를 스킵·비활성화해서 초록을 만들지 않는다.** 실패는 원인을 고친다.
-6. **raw block state id 숫자 리터럴을 새로 늘리지 않는다.** 이름 기반 조회(`BlockRegistry`, `BlockStateKey`)를 쓴다. 기존 78곳은 버전업 부채다(`LLM-Wiki/output/furnace-version-upgrade-design.md`).
+6. **raw block state id 숫자 리터럴을 쓰지 않는다.** 이름 기반 조회(`BlockRegistry`, `BlockStateKey`)를 쓰거나, 코드가 이름으로 부르는 번호는 `StateIds`(`gradle/state-ids.spec` 에 한 줄 더하면 `blocks/definitions_<판>.txt` 에서 풀려 생성된다)를 쓴다. `tools/ci/check-raw-state-ids.py` 가 CI light 단계에서 강제한다(V-02).
 7. **바닐라 jar·생성 결과물은 커밋하지 않는다**(Mojang EULA). 커밋 대상은 추출된 리소스와 도구뿐이다(`tools/vanilla-data/README.md`).
 
 ## 영역별 상세 규칙
@@ -36,6 +36,7 @@ Java 21로 바닥부터 만드는 멀티스레드 Minecraft **1.21.1** 서버. �
 
 ## 작업 기록 위치
 - `docs/feature-parity/` — parity 계획·체크리스트·컨텍스트 노트·바닐라 대조 감사(2026-10-07). 시작 전에 `vanilla-audit-2026-10-07.md`의 "후속 과제"를 읽는다.
+- `docs/ops/version-tags.md` — 깃 태그·버전 규칙(판 `<MC>`, 마일스톤 `ms/<MC>/<슬러그>`, 병합 묶음 `base/<MC>/<날짜>-<N>`; 한 판에는 계속 갱신되는 빌드 하나). 도구 `tools/release/furnace-tag.sh`.
 - `docs/superpowers/{specs,plans}/` — 마일스톤 설계서와 구현 계획(M0~M4g-d).
 - `LLM-Wiki/wiki/Furnace/` — 작업별 지식 노트. `아키텍처-개요.md`, `레이어-*.md`가 진입점.
 - 새 교훈·함정은 `docs/feature-parity/context-notes.md`에 날짜와 함께 추가한다.

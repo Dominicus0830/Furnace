@@ -3,6 +3,7 @@
 // 설계: docs/feature-parity/shared-scheduler-design-2026-10-28.md §4·§7·§9 S4
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -49,7 +50,7 @@ class SharedPoolS4Test {
     private World world(DimensionType type, long tickNanos, SharedScheduler pool) {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(tickNanos, 1);
         closers.add(sched::close);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         ExecutorService io = Executors.newSingleThreadExecutor(), gen = Executors.newSingleThreadExecutor();
         pools.add(io);
         pools.add(gen);

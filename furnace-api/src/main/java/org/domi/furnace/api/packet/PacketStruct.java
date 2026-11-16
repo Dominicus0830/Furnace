@@ -1,5 +1,5 @@
-// 이름 붙은 필드 묶음(불변, 순서 있음) — GenericPacket 의 내용과 패킷 안 내포 구조(목록 원소 등)의 값.
-// 필드 이름은 Mojang 필드 이름을 snake_case 로 바꾼 것(cameraId → camera_id). 값은 GenericPacket 머리말의 값 표를 따른다.
+// 이름 붙은 필드 묶음(불변, 순서 있음). GenericPacket 의 내용과 패킷 안에 내포된 구조(목록 원소 등)의 값으로 쓴다.
+// 필드 이름은 Mojang 필드 이름을 snake_case 로 바꾼 것이다(cameraId 는 camera_id). 값은 GenericPacket 머리말의 값 종류를 따른다.
 package org.domi.furnace.api.packet;
 
 import java.util.ArrayList;
@@ -21,7 +21,7 @@ import org.domi.furnace.api.world.GlobalPos;
 
 public final class PacketStruct {
 
-    /** 값으로 쓸 수 있는 종류. 값의 "종류"는 이 목록에서 처음 맞는 것이다. */
+    /** 값으로 쓸 수 있는 종류. 값의 "종류"는 이 목록에서 처음 맞는 것으로 정한다. */
     static final List<Class<?>> VALUE_KINDS = List.of(Integer.class, Long.class, Short.class, Byte.class, Float.class, Double.class,
             Boolean.class, String.class, UUID.class, Text.class, BlockPos.class, GlobalPos.class, BlockData.class, ItemStack.class, NbtCompound.class,
             byte[].class, int[].class, long[].class, List.class, Optional.class, PacketStruct.class);
@@ -35,7 +35,7 @@ public final class PacketStruct {
     /** 빈 묶음. */
     public static PacketStruct of() { return EMPTY; }
 
-    /** 이름 → 값(넣은 순서를 지킨다). 값은 복사된다(배열·목록). */
+    /** 이름과 값으로 만든다. 넣은 순서를 지키고, 배열·목록 값은 복사해 둔다. */
     public static PacketStruct of(Map<String, ?> fields) {
         Objects.requireNonNull(fields, "fields");
         LinkedHashMap<String, Object> m = new LinkedHashMap<>();
@@ -48,32 +48,32 @@ public final class PacketStruct {
 
     public boolean has(String name) { return fields.containsKey(name); }
 
-    /** 필드 값. 없는 이름이면 IllegalArgumentException. 배열은 복사본을 준다. */
+    /** 필드 값. 없는 이름이면 IllegalArgumentException 을 던진다. 배열은 복사본을 준다. */
     public Object get(String name) {
         Objects.requireNonNull(name, "name");
-        if (!fields.containsKey(name)) throw new IllegalArgumentException("없는 필드: " + name + " (있는 것: " + fields.keySet() + ")");
+        if (!fields.containsKey(name)) throw new IllegalArgumentException("no such field: " + name + " (available: " + fields.keySet() + ")");
         return copyOut(fields.get(name));
     }
 
-    /** 타입 있는 키로 읽기. 값 종류가 다르면 IllegalArgumentException. */
+    /** 타입 있는 키로 읽는다. 값 종류가 다르면 IllegalArgumentException 을 던진다. */
     public <T> T get(PacketField<T> field) {
         Object v = get(field.name());
         if (!field.valueClass().isInstance(v)) {
-            throw new IllegalArgumentException(field.name() + " 은 " + kindName(v) + " 값이다(" + field.valueClass().getSimpleName() + " 로 읽으려 함)");
+            throw new IllegalArgumentException(field.name() + " is a " + kindName(v) + " value (tried to read it as " + field.valueClass().getSimpleName() + ")");
         }
         return field.valueClass().cast(v);
     }
 
     /**
-     * 그 필드만 바꾼 새 묶음. 이미 있는 필드면 같은 종류의 값이어야 한다(Integer 자리에 Integer). 없는 필드면 끝에 붙는다.
-     * 값이 null 이거나 쓸 수 없는 종류면 IllegalArgumentException.
+     * 그 필드만 바꾼 새 묶음. 이미 있는 필드면 같은 종류의 값이어야 한다(Integer 자리에는 Integer). 없는 필드면 끝에 붙는다.
+     * 값이 null 이거나 쓸 수 없는 종류면 IllegalArgumentException 을 던진다.
      */
     public PacketStruct with(String name, Object value) {
         Objects.requireNonNull(name, "name");
         Object v = copyIn(name, value);
         if (fields.containsKey(name)) {
             Class<?> was = kindOf(fields.get(name)), now = kindOf(v);
-            if (was != now) throw new IllegalArgumentException(name + " 은 " + was.getSimpleName() + " 값이어야 한다: " + now.getSimpleName());
+            if (was != now) throw new IllegalArgumentException(name + " must be a " + was.getSimpleName() + " value: " + now.getSimpleName());
         }
         LinkedHashMap<String, Object> m = new LinkedHashMap<>(fields);
         m.put(name, v);
@@ -82,15 +82,15 @@ public final class PacketStruct {
 
     public <T> PacketStruct with(PacketField<T> field, T value) { return with(field.name(), value); }
 
-    /** 읽기 전용 이름 → 값 보기(배열·NbtCompound 는 원본이니 바꾸지 않는다 — 바꿀 값은 get 으로 복사본을 받는다). */
+    /** 읽기 전용 이름-값 보기. 배열과 NbtCompound 는 원본이므로 바꾸지 않는다. 바꿀 값은 get 으로 복사본을 받아 쓴다. */
     public Map<String, Object> asMap() { return fields; }
 
     // ------------------------------------------------------------------ 값
 
-    /** 값의 종류(VALUE_KINDS 중 하나). 쓸 수 없는 값이면 IllegalArgumentException. */
+    /** 값의 종류(VALUE_KINDS 중 하나). 쓸 수 없는 값이면 IllegalArgumentException 을 던진다. */
     static Class<?> kindOf(Object v) {
         for (Class<?> c : VALUE_KINDS) if (c.isInstance(v)) return c;
-        throw new IllegalArgumentException("패킷 필드 값으로 쓸 수 없는 종류: " + (v == null ? "null" : v.getClass().getName()));
+        throw new IllegalArgumentException("kind that cannot be a packet field value: " + (v == null ? "null" : v.getClass().getName()));
     }
 
     private static String kindName(Object v) {
@@ -102,7 +102,7 @@ public final class PacketStruct {
     }
 
     private static Object copyIn(String name, Object v) {
-        if (v == null) throw new IllegalArgumentException(name + ": null 은 못 쓴다(없을 수 있는 값은 Optional)");
+        if (v == null) throw new IllegalArgumentException(name + ": null is not allowed (use Optional for values that may be absent)");
         try {
             kindOf(v);
         } catch (IllegalArgumentException e) {
@@ -124,7 +124,7 @@ public final class PacketStruct {
         };
     }
 
-    /** 꺼낼 때 가변 값(배열·NbtCompound)은 복사본 — 목록·Optional 안에 있어도. */
+    /** 꺼낼 때 바꿀 수 있는 값(배열·NbtCompound)은 복사본을 준다. 목록이나 Optional 안에 있어도 마찬가지다. */
     private static Object copyOut(Object v) {
         return switch (v) {
             case byte[] a -> a.clone();

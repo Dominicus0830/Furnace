@@ -2,6 +2,7 @@
 // blockStatesFromArray)와 바이트가 같은지. 옛 경로는 운영 코드에 그대로 남아 있다(펼친 배열만 가진 Section 이 탄다) — 그것을 오라클로 쓴다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -30,12 +31,12 @@ class PaletteDirectWriteParityTest {
 
     @BeforeAll
     static void load() throws Exception {
-        reg = BlockRegistry.load("blocks/1.21.1.txt");
-        List<String> biomes = RegistrySet.load("registries/1.21.1.txt").entries("minecraft:worldgen/biome");
+        reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        List<String> biomes = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt").entries("minecraft:worldgen/biome");
         plains = biomes.indexOf("minecraft:plains");
         biomeCount = biomes.size();
         states = reg.totalStateCount();
-        codec = new AnvilChunkCodec(reg, ItemRegistry.load("items/1.21.1.txt"), biomes, plains, ChunkColumn.MIN_Y, ChunkColumn.SECTION_COUNT);
+        codec = new AnvilChunkCodec(reg, ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"), biomes, plains, ChunkColumn.MIN_Y, ChunkColumn.SECTION_COUNT);
     }
 
     /** 섹션을 만드는 길: 펼친 배열 load, NBT 인덱스 load, 빈 섹션에 setBlock 쌓기(팔레트 성장·옛 항목), load 뒤 편집, scratch. */

@@ -36,8 +36,8 @@ class ChunkFieldCensusTest {
     private static final Map<String, Kind> COLUMN = new TreeMap<>(Map.ofEntries(
         // 상수·정적 표
         e("SECTION_COUNT", Kind.FIXED), e("MIN_Y", Kind.FIXED), e("MAX_Y", Kind.FIXED), e("HEIGHTMAP_BITS", Kind.FIXED),
-        e("DEFAULT_BIOME_DIRECT_BITS", Kind.FIXED), e("UNSET_HEIGHT", Kind.FIXED), e("CAVE_AIR_STATE", Kind.FIXED),
-        e("VOID_AIR_STATE", Kind.FIXED), e("HAS_BE", Kind.FIXED), e("TOP_MB_NO_LEAVES", Kind.FIXED), e("TOP_MB", Kind.FIXED),
+        e("DEFAULT_BIOME_DIRECT_BITS", Kind.FIXED), e("UNSET_HEIGHT", Kind.FIXED),
+        e("HAS_BE", Kind.FIXED), e("TOP_MB_NO_LEAVES", Kind.FIXED), e("TOP_MB", Kind.FIXED),
         e("TOP_OCEAN_FLOOR", Kind.FIXED), e("TOP_WORLD_SURFACE", Kind.FIXED),
         e("WS", Kind.FIXED), e("OF", Kind.FIXED), e("MB", Kind.FIXED), e("MBNL", Kind.FIXED), e("leavesTable", Kind.FIXED), e("motionBlockingTable", Kind.FIXED),
         e("blocksMotionTable", Kind.FIXED), e("hasFluidTable", Kind.FIXED), e("fluidRegistry", Kind.FIXED),
@@ -75,7 +75,7 @@ class ChunkFieldCensusTest {
         e("entitiesLoaded", Kind.UNRELATED), e("pendingEntityLoad", Kind.UNRELATED), e("loadToken", Kind.UNRELATED)));
 
     private static final Map<String, Kind> SECTION = new TreeMap<>(Map.ofEntries(
-        e("AIR", Kind.FIXED), e("VOID_AIR", Kind.FIXED), e("CAVE_AIR", Kind.FIXED), e("DEFAULT_DIRECT_BITS", Kind.FIXED),
+        e("AIR", Kind.FIXED), e("DEFAULT_DIRECT_BITS", Kind.FIXED),
         e("DEFAULT_BIOME_DIRECT_BITS", Kind.FIXED), e("randomTicking", Kind.FIXED), e("fluidPresent", Kind.FIXED), e("fluidLava", Kind.FIXED),
         e("blocks", Kind.CONTENT), e("biomes", Kind.CONTENT),
         // 개수·평평한 사본은 블록에서 파생 — 들여오기가 다시 센다(nonAirCount 는 바닐라 개수와 다른 Furnace 정의다, VanillaSectionOracleTest)
@@ -86,7 +86,9 @@ class ChunkFieldCensusTest {
         // 공개 스냅샷의 섹션 재사용 판정(N2b-3) — 들여오기가 섹션 내용을 갈면 반드시 올린다
         e("version", Kind.FURNACE_CACHE),
         // 컬럼 소속·빛 작업 얼림 — 섹션을 갈아 끼울 때 attach/detach·ownSection 규칙을 따라야 한다
-        e("owner", Kind.FURNACE_CACHE), e("ownerIndex", Kind.FURNACE_CACHE), e("lightFrozen", Kind.FURNACE_CACHE)));
+        e("owner", Kind.FURNACE_CACHE), e("ownerIndex", Kind.FURNACE_CACHE), e("lightFrozen", Kind.FURNACE_CACHE),
+        // 얼림 수의 원자 접근 손잡이(T-197 — 다른 스레드가 녹인다)
+        e("LIGHT_FROZEN", Kind.FIXED)));
 
     private static final Map<String, Kind> LIGHT = new TreeMap<>(Map.ofEntries(
         e("MIN_SECTION", Kind.FIXED), e("SECTIONS", Kind.FIXED), e("MIN_Y", Kind.FIXED), e("MAX_Y", Kind.FIXED),
@@ -95,7 +97,9 @@ class ChunkFieldCensusTest {
         e("sky", Kind.VANILLA_DERIVED), e("block", Kind.VANILLA_DERIVED), e("lowestSource", Kind.VANILLA_DERIVED),
         e("lightEnabled", Kind.UNRELATED),
         // 빛 작업 쓰기 사본 관리(T-064)
-        e("base", Kind.UNRELATED), e("ownSky", Kind.UNRELATED), e("ownBlock", Kind.UNRELATED)));
+        e("base", Kind.UNRELATED), e("ownSky", Kind.UNRELATED), e("ownBlock", Kind.UNRELATED),
+        // 공개 스냅샷과 나눠 쓰는 배열 표시(T-205) — 쓸 때 사본을 뜨게 할 뿐, adoptLayersFrom 이 지운다
+        e("viewSky", Kind.UNRELATED), e("viewBlock", Kind.UNRELATED)));
 
     private static Map.Entry<String, Kind> e(String k, Kind v) { return Map.entry(k, v); }
 

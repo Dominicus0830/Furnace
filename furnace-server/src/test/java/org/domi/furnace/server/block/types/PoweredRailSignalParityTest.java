@@ -2,6 +2,7 @@
 // 예전 판은 이 시험 안에 그대로 옮겨 두었다(변경 전 코드).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.HashMap;
@@ -24,7 +25,7 @@ class PoweredRailSignalParityTest {
 
     static class Lvl extends ChunkLevel {
         final Map<Long, ChunkColumn> chunks = new HashMap<>();
-        final SuperflatWorldSource gen = new SuperflatWorldSource(BlockRegistry.load("blocks/1.21.1.txt"), 0);
+        final SuperflatWorldSource gen = new SuperflatWorldSource(BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), 0);
 
         Lvl() { super(1000000); }
 

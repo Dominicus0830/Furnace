@@ -1,5 +1,6 @@
 package org.domi.furnace.compat.nms;
 
+import org.domi.furnace.compat.i18n.CompatLang;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -71,8 +72,7 @@ public final class NmsReflect {
         if (NmsGrades.gradeC(n) != null || missingClassLog(plugin) == MissingClassLog.EACH) {
             // 등급 C(Paper 1.21.1 에 있지만 Furnace 가 일부러 주지 않는 클래스)는 진짜 차이라 하나씩 경고한다. each 설정이면 켜는 중·켠 뒤 모두 하나씩(검토 R2)
             if (WARNED.add(plugin + "\0" + name)) {
-                LOG.warn("플러그인 {} 이(가) NMS 클래스 {} 를 리플렉션으로 찾았으나 이 서버에 없다 — {} (ClassNotFoundException 을 그대로 준다)",
-                        plugin, name, NmsGrades.reason(n));
+                LOG.warn(CompatLang.t("compat.nms-class-not-found", plugin, name, NmsGrades.reason(n)));
             } else {
                 LOG.debug("플러그인 {}: NMS 클래스 {} 없음", plugin, name);
             }
@@ -192,11 +192,8 @@ public final class NmsReflect {
     /** 요약 한 줄. 운영자에게는 "대개 정상", 플러그인 개발자에게는 이름을 모두 보는 설정(each)을 알린다(전체 이름 DEBUG 줄은 운영자가 켤 길이 없어 안내하지 않는다, 검토 R3). */
     static String summary(String plugin, java.util.List<String> names, boolean starting) {
         String shown = names.size() <= SHOWN ? String.join(", ", names)
-                : String.join(", ", names.subList(0, SHOWN)) + " 외 " + (names.size() - SHOWN) + "개";
-        return "플러그인 " + plugin + " 이(가) " + (starting ? "켜지는 동안 " : "") + "리플렉션으로 찾은 NMS 클래스 " + names.size()
-                + "개가 이 서버에 없어 ClassNotFoundException 을 그대로 줬다: " + shown
-                + " — 대개 이름을 차례로 시도하는 기능 감지라 Paper 1.21.1 에서도 없고 정상이다. 그 플러그인 기능이 안 될 때만 furnace.properties 에 "
-                + MISSING_CLASS_LOG_KEY + "=each 로 이름마다 본다";
+                : String.join(", ", names.subList(0, SHOWN)) + " " + CompatLang.t("compat.nms-missing-more", names.size() - SHOWN);
+        return CompatLang.t(starting ? "compat.nms-missing-summary-starting" : "compat.nms-missing-summary", plugin, names.size(), shown, MISSING_CLASS_LOG_KEY);
     }
 
     /** 시험용: 모은 것을 지금 알린다(켠 뒤 예약을 기다리지 않고). */
@@ -216,13 +213,29 @@ public final class NmsReflect {
     }
 
     private static void memberMissing(String plugin, Class<?> owner, String member) {
+        memberMissing(plugin, owner, member, member);
+    }
+
+    /** member=플러그인이 쓴 이름(경고에 보임), looked=Spigot 대응표를 거쳐 실제로 찾은 이름(Paper 표 판정에 씀). */
+    private static void memberMissing(String plugin, Class<?> owner, String member, String looked) {
         if (owner == null || !NmsSymbols.isNms(owner.getName().replace('.', '/'))) return;
         String target = owner.getName() + "#" + member;
-        if (WARNED.add(plugin + "\0" + target)) {
-            LOG.warn("플러그인 {} 이(가) NMS 멤버 {} 를 리플렉션으로 찾았으나 shim 에 없다 — 원래 예외를 그대로 준다", plugin, target);
+        if (absentInPaper(owner, looked)) {
+            // 진짜 Paper 1.21.1 에도 없는 이름(옛 판 이름·기능 감지용 후보)이라 같은 예외가 나는 것이다 — 구멍이 아니므로 경고하지 않는다
+            LOG.debug("Plugin {}: the NMS member {} does not exist in Paper 1.21.1 either", plugin, target);
+        } else if (WARNED.add(plugin + "\0" + target)) {
+            LOG.warn(CompatLang.t("compat.nms-member-not-found", plugin, target));
         } else {
             LOG.debug("플러그인 {}: NMS 멤버 {} 없음", plugin, target);
         }
+    }
+
+    /** 그 멤버 이름이 진짜 Paper 1.21.1 의 그 클래스(와 조상)에도 없다고 확실히 아는가(표가 모르면 false). 생성자·알 수 없는 꼴은 늘 false. */
+    static boolean absentInPaper(Class<?> owner, String member) {
+        if (member.startsWith("<")) return false;
+        int paren = member.indexOf('(');
+        Boolean has = paren < 0 ? NmsPaperMembers.hasField(owner.getName(), member) : NmsPaperMembers.hasMethod(owner.getName(), member.substring(0, paren));
+        return has != null && !has;
     }
 
     // ------------------------------------------------------------------ Spigot 이름 (H7d)
@@ -246,37 +259,41 @@ public final class NmsReflect {
     // ------------------------------------------------------------------ Class#get*
 
     public static Field getDeclaredField(Class<?> c, String name, String plugin) throws NoSuchFieldException {
+        String looked = field(c, name, plugin, true);
         try {
-            return c.getDeclaredField(field(c, name, plugin, true));
+            return c.getDeclaredField(looked);
         } catch (NoSuchFieldException e) {
-            memberMissing(plugin, c, name);
+            memberMissing(plugin, c, name, looked);
             throw e;
         }
     }
 
     public static Field getField(Class<?> c, String name, String plugin) throws NoSuchFieldException {
+        String looked = field(c, name, plugin, false);
         try {
-            return c.getField(field(c, name, plugin, false));
+            return c.getField(looked);
         } catch (NoSuchFieldException e) {
-            memberMissing(plugin, c, name);
+            memberMissing(plugin, c, name, looked);
             throw e;
         }
     }
 
     public static Method getDeclaredMethod(Class<?> c, String name, Class<?>[] params, String plugin) throws NoSuchMethodException {
+        String looked = method(c, name, params, plugin, true);
         try {
-            return c.getDeclaredMethod(method(c, name, params, plugin, true), params);
+            return c.getDeclaredMethod(looked, params);
         } catch (NoSuchMethodException e) {
-            memberMissing(plugin, c, name + "(..)");
+            memberMissing(plugin, c, name + "(..)", looked + "(..)");
             throw e;
         }
     }
 
     public static Method getMethod(Class<?> c, String name, Class<?>[] params, String plugin) throws NoSuchMethodException {
+        String looked = method(c, name, params, plugin, false);
         try {
-            return c.getMethod(method(c, name, params, plugin, false), params);
+            return c.getMethod(looked, params);
         } catch (NoSuchMethodException e) {
-            memberMissing(plugin, c, name + "(..)");
+            memberMissing(plugin, c, name + "(..)", looked + "(..)");
             throw e;
         }
     }
@@ -303,20 +320,22 @@ public final class NmsReflect {
 
     public static MethodHandle findVirtual(MethodHandles.Lookup l, Class<?> c, String name, MethodType t, String plugin)
             throws NoSuchMethodException, IllegalAccessException {
+        String looked = method(c, name, t, plugin);
         try {
-            return l.findVirtual(c, method(c, name, t, plugin), t);
+            return l.findVirtual(c, looked, t);
         } catch (NoSuchMethodException e) {
-            memberMissing(plugin, c, name + t);
+            memberMissing(plugin, c, name + t, looked + t);
             throw e;
         }
     }
 
     public static MethodHandle findStatic(MethodHandles.Lookup l, Class<?> c, String name, MethodType t, String plugin)
             throws NoSuchMethodException, IllegalAccessException {
+        String looked = method(c, name, t, plugin);
         try {
-            return l.findStatic(c, method(c, name, t, plugin), t);
+            return l.findStatic(c, looked, t);
         } catch (NoSuchMethodException e) {
-            memberMissing(plugin, c, name + t);
+            memberMissing(plugin, c, name + t, looked + t);
             throw e;
         }
     }
@@ -333,40 +352,44 @@ public final class NmsReflect {
 
     public static MethodHandle findGetter(MethodHandles.Lookup l, Class<?> c, String name, Class<?> type, String plugin)
             throws NoSuchFieldException, IllegalAccessException {
+        String looked = field(c, name, plugin, false);
         try {
-            return l.findGetter(c, field(c, name, plugin, false), type);
+            return l.findGetter(c, looked, type);
         } catch (NoSuchFieldException e) {
-            memberMissing(plugin, c, name);
+            memberMissing(plugin, c, name, looked);
             throw e;
         }
     }
 
     public static MethodHandle findSetter(MethodHandles.Lookup l, Class<?> c, String name, Class<?> type, String plugin)
             throws NoSuchFieldException, IllegalAccessException {
+        String looked = field(c, name, plugin, false);
         try {
-            return l.findSetter(c, field(c, name, plugin, false), type);
+            return l.findSetter(c, looked, type);
         } catch (NoSuchFieldException e) {
-            memberMissing(plugin, c, name);
+            memberMissing(plugin, c, name, looked);
             throw e;
         }
     }
 
     public static MethodHandle findStaticGetter(MethodHandles.Lookup l, Class<?> c, String name, Class<?> type, String plugin)
             throws NoSuchFieldException, IllegalAccessException {
+        String looked = field(c, name, plugin, false);
         try {
-            return l.findStaticGetter(c, field(c, name, plugin, false), type);
+            return l.findStaticGetter(c, looked, type);
         } catch (NoSuchFieldException e) {
-            memberMissing(plugin, c, name);
+            memberMissing(plugin, c, name, looked);
             throw e;
         }
     }
 
     public static MethodHandle findStaticSetter(MethodHandles.Lookup l, Class<?> c, String name, Class<?> type, String plugin)
             throws NoSuchFieldException, IllegalAccessException {
+        String looked = field(c, name, plugin, false);
         try {
-            return l.findStaticSetter(c, field(c, name, plugin, false), type);
+            return l.findStaticSetter(c, looked, type);
         } catch (NoSuchFieldException e) {
-            memberMissing(plugin, c, name);
+            memberMissing(plugin, c, name, looked);
             throw e;
         }
     }

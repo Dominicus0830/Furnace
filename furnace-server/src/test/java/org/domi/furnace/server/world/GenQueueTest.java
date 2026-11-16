@@ -1,6 +1,7 @@
 // T-170 생성 대기열: 거리 순, 시야 밖 미리 불러오기 취소(고정 요청은 안 함), 플레이어 생성 칸, 취소가 다른 요청자에게 새지 않음.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.ArrayList;
@@ -40,7 +41,7 @@ class GenQueueTest {
 
     private World world(GenQueue.Settings s, int threads) {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         io = Executors.newSingleThreadExecutor();
         q = new GenQueue(threads, s);
         w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, sched.regionThreadCount(), 16, VD, VD,
@@ -312,7 +313,7 @@ class GenQueueTest {
     @Test
     void cornerLoads_respectGenCap() throws Exception {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         io = Executors.newSingleThreadExecutor();
         q = new GenQueue(2, settings(true, 16, 2, 0));
         w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, sched.regionThreadCount(), 16, 8, 8,

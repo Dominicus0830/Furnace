@@ -19,7 +19,7 @@ public class CraftLivingEntity extends CraftEntity implements LivingEntity {
     @Override
     public <T extends org.bukkit.entity.Projectile> T launchProjectile(Class<? extends T> projectile, org.bukkit.util.Vector velocity,
                                                                        java.util.function.Consumer<? super T> function) {
-        throw new UnsupportedFeature("LivingEntity#launchProjectile", "Furnace 핸들에는 투사체를 쏘는 길이 아직 없다");
+        throw new UnsupportedFeature("LivingEntity#launchProjectile", "the Furnace handle has no way yet to launch a projectile");
     }
 
     private org.domi.furnace.api.entity.LivingEntity living() { return (org.domi.furnace.api.entity.LivingEntity) furnaceHandle(); }
@@ -78,7 +78,7 @@ public class CraftLivingEntity extends CraftEntity implements LivingEntity {
 
     static PotionEffect toBukkit(MobEffect e) {
         PotionEffectType t = PotionEffectType.fromKey(e.type());
-        if (t == null) throw new UnsupportedFeature("PotionEffectType " + e.type(), "Bukkit 효과 목록에 없는 종류다(데이터 팩·플러그인 효과)");
+        if (t == null) throw new UnsupportedFeature("PotionEffectType " + e.type(), "kind is not in the Bukkit effect list (data pack or plugin effect)");
         return new PotionEffect(t, e.duration(), e.amplifier(), e.ambient(), e.particles(), e.icon());
     }
 

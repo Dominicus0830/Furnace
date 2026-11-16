@@ -3,6 +3,7 @@
 // ComponentPatch 코덱(바닐라 대조 시험을 거친 것)으로 다시 읽혀야 한다.
 package org.domi.furnace.server.datafix;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.data.TagRegistries;
@@ -19,7 +20,7 @@ class StructureDataFixerTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static NbtCompound nbt(String snbt) { return (NbtCompound) Snbt.parse(snbt); }

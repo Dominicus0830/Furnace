@@ -2,6 +2,7 @@
 // RegistryData 패킷(hasData), 플러그인 API(World.biomeAt/setBiome).
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -112,7 +113,7 @@ class GameRegistryTest {
         return PluginBootstrapper.bootstrap(dir);
     }
 
-    private static RegistrySet vanilla() { return RegistrySet.load("registries/1.21.1.txt"); }
+    private static RegistrySet vanilla() { return RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"); }
 
     // ---------------------------------------------------------------- 시험
 
@@ -287,7 +288,7 @@ class GameRegistryTest {
         core.registries(set);
         host = core.plugins();
         host.pluginsImpl().loadAll(boot);
-        core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt"), org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), org.domi.furnace.server.world.ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         ChunkPos c00 = new ChunkPos(0, 0);
         core.world().submitAtChunk(c00, r -> r.chunkAtBlocking(c00)).get(30, TimeUnit.SECONDS);
         var w = host.world("minecraft:overworld");

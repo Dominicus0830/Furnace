@@ -2,6 +2,7 @@
 // 힌트 없이(모든 칸을 훑는 예전 경로) 계산한 빛과 칸마다, 하늘빛 원천 높이까지 같은지 본다.
 package org.domi.furnace.server.light;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -15,7 +16,7 @@ import org.junit.jupiter.api.Test;
 
 class LightFastPathTest {
 
-    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
     private static final int AIR = REG.defaultStateId("minecraft:air");
     private static final int BEDROCK = REG.defaultStateId("minecraft:bedrock");
     /** 구역을 통째로 채울 후보: 막는 것·안 막는 것·면만 가리는 것·빛을 내는 것을 섞는다. */

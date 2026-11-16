@@ -20,10 +20,11 @@ class LangBundlesTest {
 
     private static final Pattern SLOT = Pattern.compile("\\{(\\d*)}");
     private static final Pattern HANGUL = Pattern.compile("[\\uAC00-\\uD7A3]");
-    private static final Pattern LOG_CALL = Pattern.compile("\\b(?:log|LOG|logger|LOGGER)\\w*\\.(?:info|warn|error|severe|warning)\\(");
-    private static final Pattern LANG_KEY = Pattern.compile("Lang\\.t\\(\\s*\"([^\"]+)\"");
+    private static final Pattern LANG_KEY = Pattern.compile("(?<![A-Za-z])Lang\\.t\\(\\s*\"([^\"]+)\"");
     private static final List<Path> SOURCE_ROOTS = List.of(
-            Path.of("src/main/java"), Path.of("../furnace-compat-paper/src/main/java"), Path.of("../furnace-api/src/main/java"));
+            Path.of("src/main/java"), Path.of("../furnace-compat-paper/src/main/java"), Path.of("../furnace-api/src/main/java"),
+            Path.of("../furnace-test/src/main/java"), Path.of("../furnace-plugin-test/src/main/java"),
+            Path.of("../furnace-compat-paper/src/shimgen/java"));
 
     @Test
     void everySupportedLanguageHasAFileWithTheSameKeysAndSlots() {
@@ -72,15 +73,39 @@ class LangBundlesTest {
     }
 
     @Test
-    void noNewHangulLiteralsInLogCalls() throws IOException {
+    void everyKeyIsUsedByTheCode() throws IOException {
+        StringBuilder all = new StringBuilder();
+        for (Path root : SOURCE_ROOTS) {
+            if (!Files.isDirectory(root)) continue;
+            try (Stream<Path> files = Files.walk(root)) {
+                for (Path f : (Iterable<Path>) files.filter(p -> p.toString().endsWith(".java"))::iterator) all.append(Files.readString(f, StandardCharsets.UTF_8));
+            }
+        }
+        String source = all.toString();
+        List<String> unused = new ArrayList<>();
+        for (String key : Lang.keys("en")) if (!source.contains("\"" + key + "\"")) unused.add(key);
+        assertTrue(unused.isEmpty(), "keys in en.properties that no code uses (typo in a Lang.t call, or leftover): " + unused);
+    }
+
+    /**
+     * 운영자·플러그인 개발자에게 보일 수 있는 문구(로그·명령 응답·콘솔 출력·보고서·메트릭 설명 등)에 한글을 코드에 직접 적지 않는다 —
+     * 예외 메시지·assert·DEBUG 수준 호출·requireNonNull 밖에서 한글 문자열이 나오는 파일을 {@link HangulTextScanner} 로 찾는다(server·compat·api 전체).
+     * 아직 안 옮긴 파일은 lang-migration-pending.txt 에 있고, 옮기면 지운다(남아 있으면 그것도 실패).
+     * 한계: 문자열을 변수·상수에 담았다 나중에 예외로 보내는 흐름은 따라가지 않는다(스캐너 머리말). 예외 메시지 자체의 번역 여부는 이 가드 밖이다.
+     */
+    @Test
+    void noHangulUserTextOutsideExceptions() throws IOException {
         Set<String> pending = new TreeSet<>(Files.readAllLines(Path.of("src/test/resources/lang-migration-pending.txt"), StandardCharsets.UTF_8)
                 .stream().map(String::strip).filter(l -> !l.isEmpty() && !l.startsWith("#")).toList());
         Set<String> found = new TreeSet<>();
         for (Path root : SOURCE_ROOTS) {
             if (!Files.isDirectory(root)) continue;
+            String module = root.toAbsolutePath().normalize().getParent().getParent().getParent().getFileName().toString();
             try (Stream<Path> files = Files.walk(root)) {
                 for (Path f : (Iterable<Path>) files.filter(p -> p.toString().endsWith(".java"))::iterator) {
-                    if (hasHangulLog(Files.readString(f, StandardCharsets.UTF_8))) found.add(f.getFileName().toString());
+                    if (!HangulTextScanner.userTextLines(Files.readString(f, StandardCharsets.UTF_8)).isEmpty()) {
+                        found.add(module + "/" + root.relativize(f).toString().replace('\\', '/'));
+                    }
                 }
             }
         }
@@ -88,13 +113,99 @@ class LangBundlesTest {
         added.removeAll(pending);
         Set<String> stale = new TreeSet<>(pending);
         stale.removeAll(found);
-        assertTrue(added.isEmpty(), "Korean text hard-coded in a log.info/warn/error call - put it in furnace-lang/{en,ko}.properties and use Lang.t(): " + added);
-        assertTrue(stale.isEmpty(), "Already migrated - remove from src/test/resources/lang-migration-pending.txt: " + stale);
+        assertTrue(added.isEmpty(), "Korean text hard-coded outside an exception/assert/debug call - put it in furnace-lang/{en,ko}.properties "
+                + "(server: Lang.t, compat: CompatLang.t) or, if it is an exception message, pass it straight to the exception constructor:\n" + String.join("\n", added));
+        assertTrue(stale.isEmpty(), "Already migrated - remove from src/test/resources/lang-migration-pending.txt:\n" + String.join("\n", stale));
     }
 
-    /** log.info/warn/error( ... ) 호출 안(괄호가 닫힐 때까지)에 한글이 든 문자열이 있는가. */
-    static boolean hasHangulLog(String source) {
-        Matcher m = LOG_CALL.matcher(source);
+    /**
+     * 예외·requireNonNull 안까지 보는 두 번째 가드: 개발자가 스택 트레이스로 보는 진단 문구는 영어를 코드에 직접 적는다.
+     * 아직 한글이 남은 파일은 `파일 줄수` 로 lang-exception-english-pending.txt 에 있다(작업 목록 겸용). 줄 수가 늘면 실패하고(새 한글 진단 금지),
+     * 줄어들었는데 목록을 안 고쳐도 실패한다(옮긴 만큼 낮춘다, 0 이 되면 줄을 지운다).
+     */
+    /** 대기 목록 파싱. 중복 경로·숫자 아닌 값·0 이하는 상한을 몰래 올리거나 목록을 망가뜨리므로 바로 실패시킨다. */
+    static java.util.Map<String, Integer> parseEnglishPending(List<String> lines) {
+        java.util.Map<String, Integer> cap = new java.util.TreeMap<>();
+        int no = 0;
+        for (String raw : lines) {
+            no++;
+            String l = raw.strip();
+            if (l.isEmpty() || l.startsWith("#")) continue;
+            int sp = l.lastIndexOf(' ');
+            if (sp < 0) throw new AssertionError("line " + no + ": expected '<path> <count>': " + raw);
+            String path = l.substring(0, sp).strip();
+            int count;
+            try {
+                count = Integer.parseInt(l.substring(sp + 1));
+            } catch (NumberFormatException e) {
+                throw new AssertionError("line " + no + ": the count is not a number: " + raw);
+            }
+            if (count <= 0) throw new AssertionError("line " + no + ": the count must be positive (delete the line at 0): " + raw);
+            if (cap.put(path, count) != null) throw new AssertionError("line " + no + ": duplicate path (a later line would silently override the earlier one): " + path);
+        }
+        return cap;
+    }
+
+    @Test
+    void englishPendingListRejectsDuplicateNegativeAndNonNumericLines() {
+        assertEquals(java.util.Map.of("m/A.java", 2), parseEnglishPending(List.of("# c", "", "m/A.java 2")));
+        assertThrows(AssertionError.class, () -> parseEnglishPending(List.of("m/A.java 2", "m/A.java 5")));
+        assertThrows(AssertionError.class, () -> parseEnglishPending(List.of("m/A.java -1")));
+        assertThrows(AssertionError.class, () -> parseEnglishPending(List.of("m/A.java 0")));
+        assertThrows(AssertionError.class, () -> parseEnglishPending(List.of("m/A.java many")));
+        assertThrows(AssertionError.class, () -> parseEnglishPending(List.of("m/A.java")));
+    }
+
+    @Test
+    void noNewHangulDeveloperDiagnostics() throws IOException {
+        java.util.Map<String, Integer> cap = parseEnglishPending(
+                Files.readAllLines(Path.of("src/test/resources/lang-exception-english-pending.txt"), StandardCharsets.UTF_8));
+        java.util.Map<String, Integer> found = new java.util.TreeMap<>();
+        for (Path root : SOURCE_ROOTS) {
+            if (!Files.isDirectory(root)) continue;
+            String module = root.toAbsolutePath().normalize().getParent().getParent().getParent().getFileName().toString();
+            try (Stream<Path> files = Files.walk(root)) {
+                for (Path f : (Iterable<Path>) files.filter(p -> p.toString().endsWith(".java"))::iterator) {
+                    int n = HangulTextScanner.developerTextLines(Files.readString(f, StandardCharsets.UTF_8)).size();
+                    if (n > 0) found.put(module + "/" + root.relativize(f).toString().replace('\\', '/'), n);
+                }
+            }
+        }
+        List<String> more = new java.util.ArrayList<>(), fewer = new java.util.ArrayList<>();
+        for (var e : found.entrySet()) {
+            int allowed = cap.getOrDefault(e.getKey(), 0);
+            if (e.getValue() > allowed) more.add(e.getKey() + " " + e.getValue() + " (allowed " + allowed + ")");
+            else if (e.getValue() < allowed) fewer.add(e.getKey() + " " + e.getValue() + " (list says " + allowed + ")");
+        }
+        for (var e : cap.entrySet()) if (!found.containsKey(e.getKey())) fewer.add(e.getKey() + " 0 (list says " + e.getValue() + ")");
+        assertTrue(more.isEmpty(), "Korean text in an exception/diagnostic message - write developer-facing diagnostics in English "
+                + "(or, for operator-facing console text, use Lang.t / CompatLang.t). Do not raise the numbers in lang-exception-english-pending.txt:\n" + String.join("\n", more));
+        assertTrue(fewer.isEmpty(), "Already (partly) English - lower the line count, or delete the line at 0, in src/test/resources/lang-exception-english-pending.txt:\n" + String.join("\n", fewer));
+    }
+
+    /**
+     * 시작 설정 검증 예외(운영자가 기동 때 그대로 보는 문구)는 번역한다 - 설정 읽기 파일에는 한글 예외 문구를 새로 두지 않는다.
+     * 그 밖 파일의 한글 예외 문구(약 200개 파일)는 별도 작업이라 여기서 보지 않는다.
+     */
+    @Test
+    void settingsValidationExceptionsAreNotHardCodedKorean() throws IOException {
+        Pattern thrown = Pattern.compile("new (?:IllegalArgumentException|IllegalStateException)\\(");
+        List<String> bad = new ArrayList<>();
+        for (String rel : List.of("config", "plugin/PluginSettings.java", "net/TransportOptions.java", "net/ConnectionLimits.java",
+                "remote/RconLimits.java", "maintenance/MaintenanceOptions.java", "entity/spawn/SpawnConfig.java", "metrics/MetricsOptions.java")) {
+            Path root = Path.of("src/main/java/org/domi/furnace/server").resolve(rel);
+            if (!Files.exists(root)) continue;
+            try (Stream<Path> files = Files.walk(root)) {
+                for (Path f : (Iterable<Path>) files.filter(p -> p.toString().endsWith(".java"))::iterator) {
+                    if (hasHangulCall(thrown, Files.readString(f, StandardCharsets.UTF_8))) bad.add(f.getFileName().toString());
+                }
+            }
+        }
+        assertTrue(bad.isEmpty(), "Korean text hard-coded in a settings validation exception - use Lang.t(): " + bad);
+    }
+
+    static boolean hasHangulCall(Pattern call, String source) {
+        Matcher m = call.matcher(source);
         while (m.find()) {
             int depth = 1;
             boolean inString = false;

@@ -1,6 +1,7 @@
 // 바닐라 1.21.1 ChunkTrackingView(둥근 시야 모양)와 같은 청크 집합을 보내는지 — 판정 함수·보낼 집합·내릴 집합·실제 접속 전송 수.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -139,7 +140,7 @@ class ChunkTrackingViewTest {
     @Test
     void server_sendsExactlyTheVanillaSet_onJoin_move_andViewChange() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 2);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         int vd = 6;
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(2), sched, 2, 16, vd, vd,
                 reg.directBits(), 7, Executors.newSingleThreadExecutor());

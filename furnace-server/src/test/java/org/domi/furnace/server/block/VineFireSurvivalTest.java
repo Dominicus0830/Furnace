@@ -2,6 +2,7 @@
 // 기대값은 바닐라 클래스를 손으로 따라간 것이다. 무작위 틱(번짐)은 건드리지 않아 결정적이다.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.data.TagRegistries;
@@ -14,7 +15,7 @@ class VineFireSurvivalTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static final Blocks B = Blocks.get();

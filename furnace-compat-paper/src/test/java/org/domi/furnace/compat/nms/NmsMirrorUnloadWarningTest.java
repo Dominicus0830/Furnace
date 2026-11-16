@@ -93,9 +93,9 @@ class NmsMirrorUnloadWarningTest {
     }
 
     List<String> warningsFor(int chunkX, int chunkZ) {
-        String key = "청크 " + chunkX + ", " + chunkZ + " (";
+        String key = "Chunk " + chunkX + ", " + chunkZ + " (";
         synchronized (logs.list) {
-            return logs.list.stream().map(ILoggingEvent::getFormattedMessage).filter(m -> m.contains(key) && m.contains("저장 표시 없이")).toList();
+            return logs.list.stream().map(ILoggingEvent::getFormattedMessage).filter(m -> m.contains(key) && m.contains("without marking them unsaved")).toList();
         }
     }
 
@@ -135,10 +135,10 @@ class NmsMirrorUnloadWarningTest {
 
         List<String> wa = warningsFor(ax, az), wb = warningsFor(bx, bz);
         assertEquals(1, wa.size(), "예약 틱 없는 청크 경고 한 줄: " + wa);
-        assertTrue(wa.get(0).contains("그 변경은 저장하지 않는다") && wa.get(0).contains("setUnsaved(true)"), wa.get(0));
-        assertFalse(wa.get(0).contains("예약 틱"), wa.get(0));
+        assertTrue(wa.get(0).contains("that change is not saved") && wa.get(0).contains("setUnsaved(true)"), wa.get(0));
+        assertFalse(wa.get(0).contains("scheduled ticks"), wa.get(0));
         assertEquals(1, wb.size(), "예약 틱 남은 청크 경고 한 줄: " + wb);
-        assertTrue(wb.get(0).contains("예약 틱이 남아 있어") && wb.get(0).contains("함께 저장된다") && wb.get(0).contains("setUnsaved(true)"), wb.get(0));
+        assertTrue(wb.get(0).contains("scheduled ticks remain") && wb.get(0).contains("saved with it") && wb.get(0).contains("setUnsaved(true)"), wb.get(0));
 
         // 다시 불러 저장 결과: 저장 표시 없는 청크는 옛 블록, 예약 틱 때문에 저장된 청크는 그 변경까지
         server.loadChunk(ax, az);

@@ -73,6 +73,14 @@ public class LevelChunkSection {
         recalcBlockCounts();
     }
 
+    /**
+     * Paper 1.21.1 서술자({@code (PalettedContainer, PalettedContainer)}) — Paper 는 바이옴 인자·필드를 {@code PalettedContainer} 로 바꿨다.
+     * Paper 로 컴파일한 플러그인(FAWE 등)이 이 꼴로 만든다(N2b-6). 뜻은 바닐라 생성자와 같다.
+     */
+    public LevelChunkSection(PalettedContainer<BlockState> states, PalettedContainer<Holder<Biome>> biomes) {
+        this(states, (PalettedContainerRO<Holder<Biome>>) biomes);
+    }
+
     /** 바닐라: 공기로 채운 섹션, 바이옴은 그 레지스트리의 plains. 개수는 0. */
     public LevelChunkSection(Registry<Biome> biomeRegistry) {
         this.states = new PalettedContainer<>(Block.BLOCK_STATE_REGISTRY, Blocks.AIR.defaultBlockState(), PalettedContainer.Strategy.SECTION_STATES);
