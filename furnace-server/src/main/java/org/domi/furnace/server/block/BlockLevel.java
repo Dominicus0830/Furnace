@@ -119,18 +119,46 @@ public interface BlockLevel {
 
     // ------------------------------------------------------------------ 레드스톤(바닐라 SignalGetter)
 
+    /** 바닐라 SignalGetter.getDirectSignal: 그 블록이 dir 쪽으로 내는 직접 신호. */
+    default int getDirectSignal(Pos pos, int dir) {
+        int s = getBlockState(pos);
+        return BlockBehaviors.of(s).getDirectSignal(s, this, pos, dir);
+    }
+
+    /** 바닐라 getDirectSignalTo: 6방향 이웃의 직접 신호 최댓값(15 면 멈춘다). */
+    default int getDirectSignalTo(Pos pos) {
+        int best = 0;
+        for (int d : Dir.ALL) {
+            best = Math.max(best, getDirectSignal(pos.relative(d), d));
+            if (best >= 15) return best;
+        }
+        return best;
+    }
+
     /** getSignal(pos, dir): 그 블록이 dir 쪽(이웃 쪽에서 본 방향)으로 내는 신호 — 전도체면 직접 신호 최댓값. */
-    int getSignal(Pos pos, int dir);
+    default int getSignal(Pos pos, int dir) {
+        int s = getBlockState(pos);
+        BlockBehavior b = BlockBehaviors.of(s);
+        int i = b.getSignal(s, this, pos, dir);
+        return b.isRedstoneConductor(s, this, pos) ? Math.max(i, getDirectSignalTo(pos)) : i;
+    }
 
-    int getDirectSignal(Pos pos, int dir);
+    default boolean hasSignal(Pos pos, int dir) { return getSignal(pos, dir) > 0; }
 
-    int getDirectSignalTo(Pos pos);
+    default boolean hasNeighborSignal(Pos pos) {
+        for (int d : Dir.ALL) if (getSignal(pos.relative(d), d) > 0) return true;
+        return false;
+    }
 
-    boolean hasSignal(Pos pos, int dir);
-
-    boolean hasNeighborSignal(Pos pos);
-
-    int getBestNeighborSignal(Pos pos);
+    default int getBestNeighborSignal(Pos pos) {
+        int best = 0;
+        for (int d : Dir.ALL) {
+            int v = getSignal(pos.relative(d), d);
+            if (v >= 15) return 15;
+            best = Math.max(best, v);
+        }
+        return best;
+    }
 
     // ------------------------------------------------------------------ 효과(소리·레벨 이벤트·블록 이벤트·게임 이벤트)
 

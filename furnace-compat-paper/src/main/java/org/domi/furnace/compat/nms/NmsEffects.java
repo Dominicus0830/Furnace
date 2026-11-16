@@ -93,11 +93,11 @@ public final class NmsEffects {
      * 앞서 거울 일지로 쓴 것이 효과보다 먼저 서버에 든다(검토 #468). 그 쓰기의 맞춤 작업은 주인 대기열에서 효과 작업보다 앞서지만, 주인 스레드가 그 사이에
      * 직접 효과를 부르면(주인 작업 안에서 다른 스레드의 쓰기를 기다린 뒤 등) 아직 돌지 않았다 — 이웃 청크를 읽는 효과(이웃 갱신·모양 갱신)가 그 쓰기를 보게 한다.
      * 맞춤은 바뀐 것이 없으면 비교 몇 개다(검토 #472 — 가장자리 2칸만 보던 것을 둘레 전부로). 효과가 더 먼 청크까지 번지면(레드스톤 선 전파, 깊이 511 모양 갱신)
-     * 그 청크는 맞추지 않는다(설계 3장 한계). 변경 방송·POI 는 원점 칸만 본다 — 원점 청크만 맞춘다.
+     * 그 청크는 맞추지 않는다(설계 3장 한계). 변경 방송·POI·예약 틱은 원점 칸만 본다 — 원점 청크만 맞춘다.
      */
     private static void syncAround(World w, int kind, int x, int y, int z) {
         int cx = x >> 4, cz = z >> 4;
-        int r = kind == SEND_BLOCK_UPDATED || kind == BLOCK_CHANGED || kind == POI ? 0 : 1;
+        int r = kind == SEND_BLOCK_UPDATED || kind == BLOCK_CHANGED || kind == POI || kind == SCHEDULE_BLOCK_TICK || kind == SCHEDULE_FLUID_TICK ? 0 : 1;
         var b = NmsChunks.bridge();
         for (int dz = -r; dz <= r; dz++) {
             for (int dx = -r; dx <= r; dx++) {
@@ -120,5 +120,6 @@ public final class NmsEffects {
             UPDATE_NEIGHBORS = ChunkInternals.EFFECT_UPDATE_NEIGHBORS, OUTPUT_SIGNAL = ChunkInternals.EFFECT_OUTPUT_SIGNAL, POI = ChunkInternals.EFFECT_POI,
             ON_PLACE = ChunkInternals.EFFECT_ON_PLACE, NEIGHBOR_CHANGED = ChunkInternals.EFFECT_NEIGHBOR_CHANGED,
             NEIGHBOUR_SHAPES = ChunkInternals.EFFECT_NEIGHBOUR_SHAPES, INDIRECT_SHAPES = ChunkInternals.EFFECT_INDIRECT_SHAPES,
-            TRIGGER_EVENT = ChunkInternals.EFFECT_TRIGGER_EVENT, FROM_NEIGHBOUR_SHAPES = ChunkInternals.EFFECT_FROM_NEIGHBOUR_SHAPES;
+            TRIGGER_EVENT = ChunkInternals.EFFECT_TRIGGER_EVENT, FROM_NEIGHBOUR_SHAPES = ChunkInternals.EFFECT_FROM_NEIGHBOUR_SHAPES,
+            SCHEDULE_BLOCK_TICK = ChunkInternals.EFFECT_SCHEDULE_BLOCK_TICK, SCHEDULE_FLUID_TICK = ChunkInternals.EFFECT_SCHEDULE_FLUID_TICK;
 }

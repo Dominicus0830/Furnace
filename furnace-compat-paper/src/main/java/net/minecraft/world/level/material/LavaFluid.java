@@ -25,6 +25,13 @@ public abstract class LavaFluid extends FlowingFluid {
     @Override
     protected float getExplosionResistance() { return 100.0F; }
 
+    /** 바닐라: 그 레벨 차원이 초고온(네더)이면 10, 아니면 30. 서버 월드가 아닌 레벨은 UnsupportedNmsCall(차원을 알 수 없다). 아무 스레드. */
+    @Override
+    public int getTickDelay(net.minecraft.world.level.LevelReader level) {
+        var w = org.domi.furnace.compat.nms.NmsEffects.world(level, "LavaFluid#getTickDelay");
+        return org.domi.furnace.compat.nms.NmsChunks.bridge().ultraWarm(w) ? 10 : 30;
+    }
+
     @Override
     protected boolean isRandomlyTicking() { return true; }
 

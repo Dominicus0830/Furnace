@@ -16,7 +16,7 @@ import net.minecraft.world.level.block.state.properties.Property;
 /**
  * 유체 종류(Mojang 이름 shim, N0). 다섯 종류({@link Fluids})뿐이고 플러그인이 새로 만들 수 없다. 상태 표는 바닐라 StateDefinition 순서
  * (속성 이름순, 뒤 속성이 빨리 바뀜)이고 기본 상태는 바닐라처럼 표의 첫 상태({@code stateDefinition.any()})다.
- * 월드가 필요한 메서드(틱·흐름·높이·소리)는 월드 shim 이 없어 두지 않았다 — 부르면 H7 덫.
+ * 월드가 필요한 메서드(틱·흐름·높이·소리)는 월드 shim 이 없어 두지 않았다 — 부르면 H7 덫. 예약 틱 지연(getTickDelay)은 있다(T-204).
  */
 public abstract class Fluid {
 
@@ -74,6 +74,9 @@ public abstract class Fluid {
     public final FluidState defaultFluidState() { return defaultFluidState; }
 
     public abstract Item getBucket();
+
+    /** 바닐라: 예약 틱 지연(빈 것 0, 물 5, 용암 30 — 초고온 차원 10). */
+    public abstract int getTickDelay(net.minecraft.world.level.LevelReader level);
 
     protected boolean isEmpty() { return false; }
 

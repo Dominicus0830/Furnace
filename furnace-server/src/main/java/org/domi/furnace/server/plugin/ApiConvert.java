@@ -33,6 +33,18 @@ public final class ApiConvert {
         if (a.isEmpty()) return ItemStack.EMPTY;
         int id = items.idOf(a.type());
         if (id < 0) throw new IllegalArgumentException("unknown item: " + a.type());
+        return withComponents(id, a);
+    }
+
+    /** 월드 없이 — 깔린 레지스트리 문맥(ItemContext)의 번호로. 알 수 없는 아이템·컴포넌트면 IllegalArgumentException. */
+    public static ItemStack item(org.domi.furnace.api.item.ItemStack a) {
+        if (a.isEmpty()) return ItemStack.EMPTY;
+        Integer id = org.domi.furnace.server.item.ItemContext.installed() ? org.domi.furnace.server.item.ItemContext.id("minecraft:item", a.type()) : null;
+        if (id == null) throw new IllegalArgumentException("unknown item: " + a.type());
+        return withComponents(id, a);
+    }
+
+    private static ItemStack withComponents(int id, org.domi.furnace.api.item.ItemStack a) {
         Map<String, Object> raw = new LinkedHashMap<>();
         for (var e : a.components().entrySet()) raw.put(e.getKey(), Snbt.parse(e.getValue()));
         for (String r : a.removedComponents()) raw.put(r, null);
