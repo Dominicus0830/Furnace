@@ -7,7 +7,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import org.domi.furnace.server.VanillaPort;
 
-@VanillaPort("net.minecraft.advancements.AdvancementVisibilityEvaluator")
+@VanillaPort("net.minecraft.server.advancements.AdvancementVisibilityEvaluator")
 final class VisibilityEvaluator {
     private VisibilityEvaluator() {}
 

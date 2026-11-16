@@ -21,7 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.domi.furnace.server.VanillaPort;
 
-@VanillaPort("net.minecraft.server.jmx.MinecraftServerStatistics")
+@VanillaPort("net.minecraft.util.monitoring.jmx.MinecraftServerStatistics")
 public final class JmxMonitoring implements DynamicMBean, AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(JmxMonitoring.class);
