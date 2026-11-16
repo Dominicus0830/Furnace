@@ -255,6 +255,31 @@ class RelightRegionTest {
         });
     }
 
+    /** 설치가 실패해도 붙잡기·핀을 풀고 끝으로 세며, 반쯤 끼웠을 수 있는 그 청크는 저장 빛을 믿지 않게 표시한다(검토 F1). */
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void installFailureReleasesHolds(boolean async) throws Exception {
+        withWorld(async, (w, rz) -> {
+            w.relight().installHookForTest(() -> { throw new IllegalStateException("시험"); });
+            CompletableFuture<Integer> done = new CompletableFuture<>();
+            List<Long> got = java.util.Collections.synchronizedList(new ArrayList<>());
+            assertEquals(1, w.relight().relight(new long[] {C}, got::add, done::complete));
+            assertEquals(1, done.get(30, TimeUnit.SECONDS), "실패해도 done 은 온다");
+            assertEquals(List.of(C), got);
+            assertEquals(0, w.relight().holdCount(), "붙잡기가 남았다(누수)");
+            assertFalse(w.relight().pinned(C), "핀이 남았다");
+            assertTrue(w.lightStale().contains(CX, CZ), "끼우다 만 청크는 stale");
+            w.relight().installHookForTest(null);
+            int glow = B.defaultState("glowstone");
+            int light = call(w, CX, r -> {
+                r.level().setBlock(GLOW, glow, 2);
+                r.level().drainLight();
+                return r.level().getBlockLight(GLOW);
+            });
+            assertEquals(15, light, "옆 발광석 빛이 계산되지 않는다");
+        });
+    }
+
     /** 한 타일(8×8)이 두 region 에 걸침: 구역 2청크(shift 1)·반경 1 — 청크 0 과 6 은 같은 타일, 다른 region. */
     @ParameterizedTest
     @ValueSource(booleans = {false, true})

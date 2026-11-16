@@ -68,6 +68,11 @@ public final class Relight {
     /** 시험용 변이 스위치. */
     void holdsEnabledForTest(boolean on) { this.holdsEnabled = on; }
 
+    /** 시험용: 설치 직전에 부른다(설치 실패를 흉내 낼 자리, null 이면 없음). */
+    private volatile Runnable installHook;
+
+    void installHookForTest(Runnable hook) { this.installHook = hook; }
+
     private Executor executor() {
         Executor e = executor;
         return e != null ? e : Pool.EXECUTOR;
@@ -485,8 +490,15 @@ public final class Relight {
         }
         boolean computed = ok;
         for (long k : job.chunks) {
-            ChunkLight fresh = computed ? job.compute.result(Regionizer.chunkX(k), Regionizer.chunkZ(k)) : null;
-            if (world.isUnloaded() || !world.regionizer().enqueueIfOwned(k, r -> install(r, job, k, fresh))) skip(job.req, k, true);
+            boolean handed = false;
+            try {
+                ChunkLight fresh = computed ? job.compute.result(Regionizer.chunkX(k), Regionizer.chunkZ(k)) : null;
+                handed = !world.isUnloaded() && world.regionizer().enqueueIfOwned(k, r -> install(r, job, k, fresh));
+            } catch (RuntimeException | Error e) {
+                LOG.error(Lang.t("relight.compute-failed", world.dimension(), 1), e);
+            } finally {
+                if (!handed) skip(job.req, k, true);   // 넘기지 못한 청크도 붙잡기·핀을 풀고 끝으로 센다(검토 F1)
+            }
         }
         pump();
     }
@@ -516,6 +528,7 @@ public final class Relight {
         }
         long t0 = System.nanoTime();
         try {
+            if (installHook != null) installHook.run();
             r.level().installRelight(cx, cz, fresh, job.stamps.get(k));
             installNanos.add(System.nanoTime() - t0);
             installs.increment();

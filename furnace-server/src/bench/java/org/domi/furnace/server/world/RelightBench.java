@@ -2,6 +2,7 @@
 // 실제 지형(시드 20261115) 34×34 청크를 한 region 에 올리고 1·4·8·16·32 변 정사각형을 relight — 끝까지 벽시계, 일꾼 계산 ms/컬럼(둘레 포함),
 // region 몫(타일 준비 ms, 청크 설치 ms — 설치는 층 끼우기·원천·저장 표시·패킷 만들기·보내기), 따로 잰 전 섹션 빛 패킷 만들기 ms/청크.
 // M3(relightUnderEdits): 빛 작업 끔·켬 × {편집만, 편집 + 32×32 relight 를 쉬지 않고, relight 만} 각 8초 — region 틱 평균·최대 ms(작업 큐 포함).
+// 편집량은 -Dfurnace.bench.edits(기본 틱마다 20).
 package org.domi.furnace.server.world;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -98,7 +99,10 @@ class RelightBench {
         }
     }
 
-    /** M3: 편집(틱마다 발광석 켜고 끄기 100번)과 relight 가 겹칠 때 region 틱 시간. */
+    /** M3 편집량: 틱마다 발광석 켜고 끄기(32×32 청크, y 60~99). 100 이면 이 컨테이너에서 편집만으로 틱이 50 ms 를 넘는다. */
+    private static final int EDITS_PER_TICK = Integer.getInteger("furnace.bench.edits", 20);
+
+    /** M3: 편집과 relight 가 겹칠 때 region 틱 시간. */
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
     @org.junit.jupiter.api.Timeout(value = 30, unit = TimeUnit.MINUTES)
@@ -118,13 +122,15 @@ class RelightBench {
                 for (int x = C0 - 1; x <= C0 + 32; x++) for (int z = C0 - 1; z <= C0 + 32; z++) r.chunkAtBlocking(new ChunkPos(x, z));
                 r.level().drainLight();
             });
+            w.addPluginTicket(C0 - 1, C0 - 1, C0 + 32, C0 + 32, false).get(5, TimeUnit.MINUTES);   // 틱을 켜도 내려가지 않게
+            w.regionizer().gameTicks(true);   // 틱 끝 빛 계산·빛 작업 넘기기가 실제로 돈다
             int glow = org.domi.furnace.server.block.B.defaultState("glowstone"), air = org.domi.furnace.server.block.B.defaultState("air");
             java.util.SplittableRandom rnd = new java.util.SplittableRandom(197);
             java.util.concurrent.atomic.AtomicBoolean editing = new java.util.concurrent.atomic.AtomicBoolean();
             java.util.concurrent.atomic.AtomicLong edits = new java.util.concurrent.atomic.AtomicLong();
             ticker.scheduleAtFixedRate(() -> {
                 if (!editing.get()) return;
-                long[] ps = new long[100];
+                long[] ps = new long[EDITS_PER_TICK];
                 synchronized (rnd) {
                     for (int i = 0; i < ps.length; i++) ps[i] = org.domi.furnace.server.light.LightEngine.pack(C0 * 16 + rnd.nextInt(512), 60 + rnd.nextInt(40),
                             C0 * 16 + rnd.nextInt(512));
