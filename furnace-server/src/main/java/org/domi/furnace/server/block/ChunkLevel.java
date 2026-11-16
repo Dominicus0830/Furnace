@@ -561,11 +561,14 @@ public abstract class ChunkLevel implements BlockLevel {
     }
 
     @Override
-    public void scheduleFluidTick(Pos pos, int fluidType, int delay) {
+    public void scheduleFluidTick(Pos pos, int fluidType, int delay) { scheduleFluidTick(pos, fluidType, delay, 0); }
+
+    /** 우선순위 판(바닐라 scheduleTick(pos, Fluid, delay, priority) — 플러그인 NMS 호출, T-204). 서버 유체 코드는 늘 NORMAL(0)이다. */
+    public void scheduleFluidTick(Pos pos, int fluidType, int delay, int priority) {
         long order = subTickCount++;
         int cx = pos.x() >> 4, cz = pos.z() >> 4;
         if (chunk(cx, cz) == null) return;
-        fluidTicks.schedule(pos, fluidType, levelTime + delay, 0, order);
+        fluidTicks.schedule(pos, fluidType, levelTime + delay, priority, order);
         markDirty(cx, cz);
     }
 
@@ -940,52 +943,6 @@ public abstract class ChunkLevel implements BlockLevel {
     @FunctionalInterface
     public interface ChunkFilter {
         boolean test(int chunkX, int chunkZ);
-    }
-
-    // ------------------------------------------------------------------ 레드스톤(바닐라 SignalGetter)
-
-    @Override
-    public int getDirectSignal(Pos pos, int dir) {
-        int s = getBlockState(pos);
-        return BlockBehaviors.of(s).getDirectSignal(s, this, pos, dir);
-    }
-
-    @Override
-    public int getDirectSignalTo(Pos pos) {
-        int best = 0;
-        for (int d : Dir.ALL) {
-            best = Math.max(best, getDirectSignal(pos.relative(d), d));
-            if (best >= 15) return best;
-        }
-        return best;
-    }
-
-    @Override
-    public int getSignal(Pos pos, int dir) {
-        int s = getBlockState(pos);
-        BlockBehavior b = BlockBehaviors.of(s);
-        int i = b.getSignal(s, this, pos, dir);
-        return b.isRedstoneConductor(s, this, pos) ? Math.max(i, getDirectSignalTo(pos)) : i;
-    }
-
-    @Override
-    public boolean hasSignal(Pos pos, int dir) { return getSignal(pos, dir) > 0; }
-
-    @Override
-    public boolean hasNeighborSignal(Pos pos) {
-        for (int d : Dir.ALL) if (getSignal(pos.relative(d), d) > 0) return true;
-        return false;
-    }
-
-    @Override
-    public int getBestNeighborSignal(Pos pos) {
-        int best = 0;
-        for (int d : Dir.ALL) {
-            int v = getSignal(pos.relative(d), d);
-            if (v >= 15) return 15;
-            best = Math.max(best, v);
-        }
-        return best;
     }
 
     // ------------------------------------------------------------------ 변경 방송(바닐라 ChunkHolder.blockChanged / broadcastChanges)

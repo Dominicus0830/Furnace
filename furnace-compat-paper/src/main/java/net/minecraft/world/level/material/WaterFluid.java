@@ -24,6 +24,9 @@ public abstract class WaterFluid extends FlowingFluid {
     protected float getExplosionResistance() { return 100.0F; }
 
     @Override
+    public int getTickDelay(net.minecraft.world.level.LevelReader level) { return 5; }
+
+    @Override
     protected BlockState createLegacyState(FluidState state) { return furnaceLegacyBlock("minecraft:water", state); }
 
     /** 흐르는 water: level(1..8) 속성이 더 있다. */

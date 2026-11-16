@@ -243,6 +243,36 @@ public abstract class Level implements LevelAccessor {
                 0, 0L, "Level#onBlockStateChange");
     }
 
+    // ------------------------------------------------------------------ 예약 틱(T-204 — 바닐라 LevelAccessor 기본 메서드)
+    // 서버 scheduleTick 과 같다(순번은 그 칸 청크가 없어도 하나 쓰고 예약은 버린다). 다른 스레드는 주인 작업으로 — 지연은 주인이 받은 틱부터 센다(최대 한 틱 늦다).
+
+    public void scheduleTick(BlockPos pos, net.minecraft.world.level.block.Block block, int delay, net.minecraft.world.ticks.TickPriority priority) {
+        org.domi.furnace.compat.nms.NmsEffects.run(this, pos, org.domi.furnace.compat.nms.NmsEffects.SCHEDULE_BLOCK_TICK, block.defaultBlockState().furnaceStateId(),
+                delay, priority.getValue(), 0L, "Level#scheduleTick(Block)");
+    }
+
+    public void scheduleTick(BlockPos pos, net.minecraft.world.level.block.Block block, int delay) {
+        scheduleTick(pos, block, delay, net.minecraft.world.ticks.TickPriority.NORMAL);
+    }
+
+    public void scheduleTick(BlockPos pos, net.minecraft.world.level.material.Fluid fluid, int delay, net.minecraft.world.ticks.TickPriority priority) {
+        org.domi.furnace.compat.nms.NmsEffects.run(this, pos, org.domi.furnace.compat.nms.NmsEffects.SCHEDULE_FLUID_TICK,
+                org.domi.furnace.compat.nms.NmsPlacement.fluidType(fluid), delay, priority.getValue(), 0L, "Level#scheduleTick(Fluid)");
+    }
+
+    public void scheduleTick(BlockPos pos, net.minecraft.world.level.material.Fluid fluid, int delay) {
+        scheduleTick(pos, fluid, delay, net.minecraft.world.ticks.TickPriority.NORMAL);
+    }
+
+    private volatile net.minecraft.world.level.border.WorldBorder furnaceBorder;
+
+    /** 바닐라 Level#getWorldBorder: 이 월드의 경계(서버 경계를 비춘다 — 판정만). */
+    public net.minecraft.world.level.border.WorldBorder getWorldBorder() {
+        var b = furnaceBorder;
+        if (b == null) furnaceBorder = b = new net.minecraft.world.level.border.WorldBorder(furnace());
+        return b;
+    }
+
     /** CraftBukkit Level#getCraftServer. */
     public org.bukkit.craftbukkit.CraftServer getCraftServer() { return org.bukkit.craftbukkit.CraftServer.INSTANCE; }
 

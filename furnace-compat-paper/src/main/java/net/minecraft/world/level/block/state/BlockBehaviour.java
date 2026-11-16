@@ -114,6 +114,21 @@ public abstract class BlockBehaviour {
 
         public boolean canBeReplaced() { return (flagBits() & org.domi.furnace.api.internal.BlockStateInternals.REPLACEABLE) != 0; }
 
+        /** 바닐라 canBeReplaced(ctx): 이 문맥으로 이 칸에 놓을 때 덮어쓸 수 있는가(서버 블록 동작 — {@code NmsPlacement}). */
+        public boolean canBeReplaced(net.minecraft.world.item.context.BlockPlaceContext ctx) {
+            return org.domi.furnace.compat.nms.NmsPlacement.canBeReplaced(asState(), ctx);
+        }
+
+        /** 바닐라 canSurvive(level, pos): 그 자리에서 버티는가(받침·벽 …). 레벨 객체의 가상 메서드로 읽는다({@code NmsPlacement}). */
+        public boolean canSurvive(net.minecraft.world.level.LevelReader level, net.minecraft.core.BlockPos pos) {
+            return org.domi.furnace.compat.nms.NmsPlacement.canSurvive(asState(), level, pos);
+        }
+
+        /** 바닐라 hasPostProcess(level, pos): 마그마 블록·갈색·빨간 버섯만 참(Properties.hasPostProcess(Blocks::always) — 위치를 보지 않는다). 고정 표 — 아무 스레드. */
+        public boolean hasPostProcess(net.minecraft.world.level.BlockGetter level, net.minecraft.core.BlockPos pos) {
+            return (flagBits() & org.domi.furnace.api.internal.BlockStateInternals.POST_PROCESS) != 0;
+        }
+
         /** 바닐라: 비교기가 이 블록의 신호를 읽는가(상자·화로·책장 받침대 …). 고정 표 — 아무 스레드. */
         public boolean hasAnalogOutputSignal() { return (flagBits() & org.domi.furnace.api.internal.BlockStateInternals.ANALOG_OUTPUT) != 0; }
 
