@@ -3,6 +3,7 @@
 package org.domi.furnace.server.block.types;
 
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Fluids;
@@ -10,6 +11,7 @@ import org.domi.furnace.server.block.LevelFeature;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.grower.TreeGrower")
 public final class TreeGrower {
 
     /** 이름, 보조 확률, 큰 나무, 보조 큰 나무, 나무, 보조 나무, 꽃 근처 나무, 꽃 근처 보조 나무(없으면 null). */

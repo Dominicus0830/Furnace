@@ -1,12 +1,14 @@
 // 바닐라 DispenserBlockEntity: 9칸 용기. 무작위 칸 고르기(getRandomSlot)와 남은 것 넣기(insertItem).
 package org.domi.furnace.server.block.entity;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.item.ItemStackCodecs;
 import org.domi.furnace.server.menu.Stacks;
 
+@VanillaPort("net.minecraft.world.level.block.entity.DispenserBlockEntity")
 public class DispenserBlockEntity extends ContainerBlockEntity {
 
     public DispenserBlockEntity(Pos pos, int state) { super("minecraft:dispenser", pos, state, 9); }

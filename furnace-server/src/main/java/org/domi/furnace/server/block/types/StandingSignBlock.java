@@ -1,6 +1,7 @@
 // 바닐라 StandingSignBlock: 땅에 세운 표지판. 16방향 rotation, 아래 칸이 단단(isSolid)해야 산다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.StandingSignBlock")
 public class StandingSignBlock extends SignBlock {
 
     static final Prop ROTATION = B.prop("rotation");

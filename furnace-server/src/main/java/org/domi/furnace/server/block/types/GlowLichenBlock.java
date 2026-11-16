@@ -1,6 +1,7 @@
 // 바닐라 GlowLichenBlock: 발광 이끼. 다면 블록 + 물에 잠김 + 뼛가루로 무작위 면에서 무작위 방향으로 번진다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.GlowLichenBlock")
 public class GlowLichenBlock extends MultifaceBlock implements BonemealableBlock {
 
     private final MultifaceSpreader spreader = new MultifaceSpreader(this);

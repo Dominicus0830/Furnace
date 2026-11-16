@@ -2,7 +2,9 @@
 package org.domi.furnace.server.block;
 
 import java.util.function.Predicate;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.util.BlockUtil")
 public final class BlockUtil {
     private BlockUtil() {}
 

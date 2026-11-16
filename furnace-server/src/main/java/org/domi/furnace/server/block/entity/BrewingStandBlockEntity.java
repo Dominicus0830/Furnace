@@ -2,6 +2,7 @@
 package org.domi.furnace.server.block.entity;
 
 import java.util.Arrays;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
@@ -11,6 +12,7 @@ import org.domi.furnace.server.item.CraftRemainders;
 import org.domi.furnace.server.item.PotionBrewing;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort("net.minecraft.world.level.block.entity.BrewingStandBlockEntity")
 public class BrewingStandBlockEntity extends ContainerBlockEntity {
 
     private static final Prop[] HAS_BOTTLE = {B.prop("has_bottle_0"), B.prop("has_bottle_1"), B.prop("has_bottle_2")};

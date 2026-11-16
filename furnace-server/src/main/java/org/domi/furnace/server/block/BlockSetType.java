@@ -3,7 +3,9 @@ package org.domi.furnace.server.block;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.level.block.state.properties.BlockSetType")
 public record BlockSetType(String name, boolean canOpenByHand, boolean canOpenByWindCharge, boolean canButtonBeActivatedByArrows,
                            boolean plateSensitivityEverything, String doorClose, String doorOpen, String trapdoorClose,
                            String trapdoorOpen, String pressurePlateClickOff, String pressurePlateClickOn, String buttonClickOff,

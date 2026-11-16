@@ -6,6 +6,7 @@ import org.domi.furnace.api.GameVersion;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockBehavior;
@@ -19,6 +20,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.NoteBlock")
 public class NoteBlock extends BlockBehavior {
 
     static final Prop INSTRUMENT = B.prop("instrument"), NOTE = B.prop("note"), POWERED = B.prop("powered");

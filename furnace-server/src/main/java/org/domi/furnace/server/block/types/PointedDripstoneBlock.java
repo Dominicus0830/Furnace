@@ -4,6 +4,7 @@ package org.domi.furnace.server.block.types;
 
 import java.util.function.BiPredicate;
 import java.util.function.IntPredicate;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -14,6 +15,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.PointedDripstoneBlock")
 public class PointedDripstoneBlock extends BlockBehavior {
 
     static final Prop TIP_DIRECTION = B.prop("vertical_direction"), THICKNESS = B.prop("thickness");

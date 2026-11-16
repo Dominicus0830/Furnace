@@ -2,6 +2,7 @@
 // 갱신 태그 = TrialSpawnerData.getUpdateTag(상태). 관리자만 NBT 를 붙일 수 있다(onlyOpCanSetNbt).
 package org.domi.furnace.server.block.entity;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.ChunkLevel;
@@ -9,6 +10,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort("net.minecraft.world.level.block.entity.TrialSpawnerBlockEntity")
 public class TrialSpawnerBlockEntity extends BlockEntity implements TrialSpawner.StateAccessor {
 
     private final TrialSpawner trialSpawner = new TrialSpawner(this);

@@ -1,11 +1,13 @@
 // 바닐라 WallSkullBlock: 벽에 붙인 머리. 시선 순서대로 수평 방향 중 그 쪽 칸이 바뀔 수 없는 첫 방향을 등지고 놓인다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.WallSkullBlock")
 public class WallSkullBlock extends AbstractSkullBlock {
 
     private static final Prop FACING = B.prop("facing");

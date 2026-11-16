@@ -1,6 +1,7 @@
 // 바닐라 MagmaBlock: 마그마 블록. 위에 물이 오면 20틱 뒤 아래로 끄는 거품 기둥을 만든다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.MagmaBlock")
 public class MagmaBlock extends BlockBehavior {
 
     private static final int WATER = B.id("water");

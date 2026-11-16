@@ -1,6 +1,7 @@
 // 바닐라 BannerBlock: 서 있는 깃발(rotation 0..15). 아래가 단단한(legacySolid) 블록이어야 산다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.BannerBlock")
 public class BannerBlock extends AbstractBannerBlock {
 
     static final Prop ROTATION = B.prop("rotation");

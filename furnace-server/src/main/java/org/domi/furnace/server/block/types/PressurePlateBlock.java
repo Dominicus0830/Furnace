@@ -1,11 +1,13 @@
 // 바닐라 PressurePlateBlock: 나무·돌 압력판(켜짐/꺼짐). 나무는 모든 엔티티, 돌은 생물만 감지.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.PressurePlateBlock")
 public class PressurePlateBlock extends BasePressurePlateBlock {
 
     private static final Prop POWERED = B.prop("powered");

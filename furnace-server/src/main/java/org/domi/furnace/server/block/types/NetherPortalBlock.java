@@ -2,6 +2,7 @@
 // 안에 든 엔티티를 오버월드 ↔ 네더로 보낸다(좌표 비 = 원천/목적 coordinateScale, 목적에서 가까운 지옥문을 찾거나 만든다).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -21,6 +22,7 @@ import org.domi.furnace.server.entity.PortalTravel;
 import org.domi.furnace.server.entity.Traveler;
 import org.domi.furnace.server.world.DimensionType;
 
+@VanillaPort("net.minecraft.world.level.block.NetherPortalBlock")
 public class NetherPortalBlock extends BlockBehavior implements Portal {
 
     private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(NetherPortalBlock.class);

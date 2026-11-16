@@ -1,6 +1,7 @@
 // 바닐라 LayeredCauldronBlock: 물·가루눈 가마솥(level 1..3). 같은 날씨(비·눈)를 받으면 차오르고, 물은 종유석에서도 받는다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Blocks;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.Fluids;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.LayeredCauldronBlock")
 public class LayeredCauldronBlock extends AbstractCauldronBlock {
 
     static final Prop LEVEL = B.prop("level");

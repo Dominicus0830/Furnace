@@ -1,6 +1,7 @@
 // 바닐라 FenceGateBlock: 열고 닫는 울타리 문. 양옆이 담장이면 내려앉는다(in_wall). 레드스톤 신호로 열린다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.Explosion;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
@@ -13,6 +14,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.FenceGateBlock")
 public class FenceGateBlock extends HorizontalDirectionalBlock {
 
     static final Prop OPEN = B.prop("open"), POWERED = B.prop("powered"), IN_WALL = B.prop("in_wall");

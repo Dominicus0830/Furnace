@@ -1,10 +1,12 @@
 // 바닐라 EnderChestBlockEntity: 내용물이 없는(플레이어마다의 엔더 인벤토리를 연다) 블록 엔티티. 여는 수·소리·뚜껑 block_event 만 가진다.
 package org.domi.furnace.server.block.entity;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.entity.EnderChestBlockEntity")
 public class EnderChestBlockEntity extends OpenersBlockEntity {
 
     public EnderChestBlockEntity(Pos pos, int state) { super("minecraft:ender_chest", pos, state); }

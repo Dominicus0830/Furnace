@@ -1,6 +1,7 @@
 // 바닐라 TntBlock: 신호를 받거나 불·부싯돌로 점화되면 점화된 TNT 엔티티가 된다. unstable 이면 부수기만 해도 점화.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockBehavior;
@@ -11,6 +12,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.TntBlock")
 public class TntBlock extends BlockBehavior {
 
     private static final Prop UNSTABLE = B.prop("unstable");

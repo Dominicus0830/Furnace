@@ -1,6 +1,7 @@
 // 바닐라 AbstractCauldronBlock: 가마솥 바탕. 아이템 쓰기는 종류별 CauldronInteraction 표, 예약 틱은 위 종유석에서 떨어진 유체 받기.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -11,6 +12,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.AbstractCauldronBlock")
 public abstract class AbstractCauldronBlock extends BlockBehavior {
 
     protected final CauldronInteraction.Table interactions;

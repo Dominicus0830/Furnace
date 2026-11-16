@@ -1,8 +1,14 @@
 // 바닐라 UseOnContext + BlockPlaceContext(+ DirectionalPlaceContext). 설치 위치·바라보는 방향 순서를 바닐라 그대로 계산한다.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort({
+    "net.minecraft.world.item.context.UseOnContext",
+    "net.minecraft.world.item.context.BlockPlaceContext",
+    "net.minecraft.world.item.context.DirectionalPlaceContext"
+})
 public class PlaceContext {
 
     protected final BlockLevel level;

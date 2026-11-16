@@ -1,6 +1,7 @@
 // 바닐라 RedStoneOreBlock: 레드스톤 광석. 때리거나·밟거나·쓰면 빛난다(lit). 무작위 틱에 꺼진다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockBehavior;
@@ -14,6 +15,7 @@ import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.RedStoneOreBlock")
 public class RedStoneOreBlock extends BlockBehavior {
 
     private static final Prop LIT = B.prop("lit");

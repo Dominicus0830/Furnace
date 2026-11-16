@@ -1,6 +1,7 @@
 // 바닐라 MultifaceBlock: 여러 면에 붙는 블록(발광 이끼·스컬크 맥) 바탕. 면마다 불리언 속성(down/up/north/south/west/east).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -10,6 +11,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.MultifaceBlock")
 public abstract class MultifaceBlock extends BlockBehavior {
 
     /** 방향 번호 → 면 속성. */

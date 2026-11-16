@@ -1,6 +1,9 @@
 // 바닐라 InteractionResult.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("net.minecraft.world.InteractionResult")
 public enum InteractionResult {
     SUCCESS, SUCCESS_NO_ITEM_USED, CONSUME, CONSUME_PARTIAL, PASS, FAIL;
 

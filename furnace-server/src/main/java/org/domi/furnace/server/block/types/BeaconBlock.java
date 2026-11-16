@@ -1,12 +1,14 @@
 // 바닐라 BeaconBlock: 신호기. 쓰면 신호기 화면. 피라미드·빛줄기는 블록 엔티티 동작.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Hit;
 import org.domi.furnace.server.block.InteractionResult;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.BeaconBlock")
 public class BeaconBlock extends BaseEntityBlock {
 
     public BeaconBlock(int block) { super(block); }

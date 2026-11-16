@@ -9,6 +9,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.bossbar.CustomBossEvents;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.entity.ItemStackNbt;
@@ -16,6 +17,7 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 
+@VanillaPort("net.minecraft.world.level.block.entity.vault.VaultServerData")
 public class VaultServerData {
 
     static final int MAX_REWARD_PLAYERS = 128;

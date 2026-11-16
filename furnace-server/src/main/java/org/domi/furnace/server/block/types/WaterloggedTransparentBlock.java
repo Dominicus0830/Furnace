@@ -1,12 +1,14 @@
 // 바닐라 WaterloggedTransparentBlock: 물에 잠길 수 있는 투명 블록. 잠긴 물은 떨어지는 물 원천이다(getSource(true)).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Fluids;
 import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.WaterloggedTransparentBlock")
 public class WaterloggedTransparentBlock extends TransparentBlock {
 
     public WaterloggedTransparentBlock(int block) { super(block); }

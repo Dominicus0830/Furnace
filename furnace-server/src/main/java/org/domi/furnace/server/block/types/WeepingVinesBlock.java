@@ -1,8 +1,10 @@
 // 바닐라 WeepingVinesBlock: 눈물 덩굴 머리(아래로 자람).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.WeepingVinesBlock")
 public class WeepingVinesBlock extends GrowingPlantBlock.GrowingPlantHead {
 
     public WeepingVinesBlock(int block) { super(block, WEEPING); }

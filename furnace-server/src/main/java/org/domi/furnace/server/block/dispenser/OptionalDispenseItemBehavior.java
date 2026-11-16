@@ -2,6 +2,9 @@
 // 표시를 안 바꾸는 경로는 지난 값을 쓴다). region 스레드가 여럿이라 스레드마다 따로 둔다.
 package org.domi.furnace.server.block.dispenser;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("net.minecraft.core.dispenser.OptionalDispenseItemBehavior")
 public abstract class OptionalDispenseItemBehavior extends DefaultDispenseItemBehavior {
 
     private final ThreadLocal<boolean[]> success = ThreadLocal.withInitial(() -> new boolean[] {true});

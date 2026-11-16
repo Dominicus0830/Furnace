@@ -1,10 +1,12 @@
 // 바닐라 WeatheringCopperDoorBlock: 문 + 아래 반쪽만 무작위 틱 산화.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.WeatheringCopperDoorBlock")
 public class WeatheringCopperDoorBlock extends DoorBlock {
 
     public WeatheringCopperDoorBlock(int block) { super(block); }

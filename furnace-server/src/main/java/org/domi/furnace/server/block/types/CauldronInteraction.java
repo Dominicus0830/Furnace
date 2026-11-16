@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.IntPredicate;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -15,6 +16,7 @@ import org.domi.furnace.server.item.ComponentPatch;
 import org.domi.furnace.server.item.ItemContext;
 
 @FunctionalInterface
+@VanillaPort("net.minecraft.core.cauldron.CauldronInteraction")
 public interface CauldronInteraction {
 
     ItemInteractionResult interact(int state, BlockLevel level, Pos pos, BlockActor player, int hand, ItemStack stack);

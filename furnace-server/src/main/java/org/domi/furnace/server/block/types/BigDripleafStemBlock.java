@@ -1,6 +1,7 @@
 // 바닐라 BigDripleafStemBlock: 큰 흘림잎 줄기. 아래(줄기·놓을 수 있는 땅)와 위(줄기·잎)가 이어져야 산다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.Fluids;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.BigDripleafStemBlock")
 public class BigDripleafStemBlock extends HorizontalDirectionalBlock implements BonemealableBlock {
 
     public BigDripleafStemBlock(int block) { super(block); }

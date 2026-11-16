@@ -1,6 +1,7 @@
 // 바닐라 SlabBlock: 반 블록(위·아래·겹침). 같은 반 블록을 맞는 쪽에 대면 겹친다. 겹친 반 블록은 물에 잠기지 않는다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -9,6 +10,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.SlabBlock")
 public class SlabBlock extends BlockBehavior {
 
     static final Prop TYPE = B.prop("type");

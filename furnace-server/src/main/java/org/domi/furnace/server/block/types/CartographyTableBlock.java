@@ -1,6 +1,7 @@
 // 바닐라 CartographyTableBlock: 쓰면 지도 제작대 화면.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.Hit;
 import org.domi.furnace.server.block.InteractionResult;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.CartographyTableBlock")
 public class CartographyTableBlock extends BlockBehavior {
 
     public CartographyTableBlock(int block) { super(block); }

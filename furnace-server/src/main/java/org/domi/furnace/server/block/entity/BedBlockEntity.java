@@ -1,9 +1,11 @@
 // 바닐라 BedBlockEntity: 저장할 것은 없다(색은 블록이 정한다). 클라이언트는 이 블록 엔티티가 있어야 침대를 그린다(BedRenderer).
 package org.domi.furnace.server.block.entity;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.entity.BedBlockEntity")
 public class BedBlockEntity extends BlockEntity {
 
     public BedBlockEntity(Pos pos, int state) { super("minecraft:bed", pos, state); }

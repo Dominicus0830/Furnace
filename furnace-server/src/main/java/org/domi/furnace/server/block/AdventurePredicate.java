@@ -3,8 +3,10 @@
 package org.domi.furnace.server.block;
 
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.item.Val;
 
+@VanillaPort("net.minecraft.world.item.AdventureModePredicate")
 public final class AdventurePredicate {
     private AdventurePredicate() {}
 
