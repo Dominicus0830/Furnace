@@ -106,7 +106,7 @@ FAWE `PaperweightLevelProxy` 는 `ServerLevel` 을 상속하고 `Unsafe.allocate
 - 문맥 값은 **쓰일 때 묻는다.** FAWE 가변 문맥은 부모 생성자가 `canBeReplaced(this)` 를 부르는 순간 클릭 칸·방향 필드가 아직 null 이다 — 바닐라 블록 코드가 묻지 않는 값(공기의 canBeReplaced 는 손에 든 것만 본다)을 미리 읽으면 Paper 에 없는 NullPointerException 이 난다. 레벨도 처음 쓰일 때 고른다.
 - 블록 엔티티(비교기 신호 등): 그 레벨 `getBlockEntity` 의 저장 꼴로 그 칸 상태의 떨어진 서버 블록 엔티티를 만든다(FAWE 프록시와 같은 방식 — 실행 중 값인 상자 연 수 등은 비어 있다).
 - 월드 경계(침대): 그 레벨의 `getWorldBorder().isWithinBounds(pos)` — FAWE 프록시는 실제 월드 경계를 돌려준다. `WorldBorder` shim(판정만)과 `Level#getWorldBorder` 를 더했다.
-- 읽기 밖으로 나가는 바닐라 놓기 계산은 둘뿐이다(블록 전수 시험으로 확인): 덩굴·켈프 나이 난수(`level.random`)와 산호 블록의 예약 틱(물이 없으면 `scheduleTick` + `getRandom`). 플러그인 레벨에서는 UnsupportedNmsCall — Paper 의 FAWE 프록시는 null 필드라 NullPointerException 이다(둘 다 예외, 4단계 실측에서 FAWE 처리 확인). 진짜 Furnace 레벨은 서버 난수·예약 그대로.
+- 읽기 밖으로 나가는 바닐라 놓기 계산은 둘뿐이다(블록 전수 시험으로 확인): 덩굴·켈프 나이 난수(`level.random`)와 산호 블록의 예약 틱(물이 없으면 `scheduleTick` + `getRandom`). 플러그인 레벨에서는 UnsupportedNmsCall — Paper 의 FAWE 프록시는 null 필드라 NullPointerException 이다(둘 다 예외 — FAWE 가 둘을 같게 처리하는지는 V5 실측 결과 대기). 진짜 Furnace 레벨은 서버 난수·예약 그대로.
 - 놓는 플레이어가 있는 문맥은 아직 없다(UnsupportedNmsCall — 바닐라 생성자가 `canBeReplaced` 를 불러 만들 때 난다). 플레이어 없는 바닐라 문맥은 서버 `PlaceContext` 와 같다(시험 — 플레이어가 필요한 방향 질의는 둘 다 NullPointerException).
 - `hasPostProcess(level, pos)`: 바닐라 `Properties.hasPostProcess(Blocks::always)` 를 거는 블록은 1.21.1 jar 의 `Blocks` 에서 셋뿐이다(마그마 블록·갈색·빨간 버섯 — 람다 `dga.a(dtc,dcc,jd)` = `always`). 서버 블록 표 플래그(`POST_PROCESS`)로 읽는다 — 위치를 보지 않는다.
 
@@ -118,7 +118,7 @@ FAWE `PaperweightLevelProxy` 는 `ServerLevel` 을 상속하고 `Unsafe.allocate
 | V2 | 스레드 규칙 | 비주인 스레드 부수 효과가 같은 청크 앞선 쓰기 뒤에 재생되는지, 값 호출이 기다리는 왕복·region 스레드 예외인지, 내린 청크에 닿지 않는지 |
 | V3 | FullChunkStatus | 플레이어 시야·`/forceload`·플러그인 티켓·포털 티켓 경계 청크에서 바닐라 표(4장) 값 |
 | V4 | 놓기 상태 | 블록 전수 × 면 6 × 클릭 높이 2 × 장면 6(열린 바닥·물 안·이어지는 이웃·신호·천장·비교기 블록 엔티티 신호)에서 FAWE 가변 문맥 꼴(시험용 사본) + 프록시 레벨 길·서버 월드 길 = 서버 블록 동작 직접. canSurvive 는 전 상태. `NmsPlacementTest` — 블록 엔티티·유체·방향·경계 읽기를 일부러 틀리게 한 변이 4종이 모두 실패한다 |
-| V5 | 실제 FAWE | `tools/compat/fawe-paper` 시나리오 확장: `//perf neighbors on` 뒤 문·레드스톤·울타리 `//set`(놓기 상태), WNA 한 칸 쓰기(플러그인 표본이 WorldEdit API `setBlock(…, SideEffectSet.defaults().with(NEIGHBORS))`), `allow-tick-fluids` 로 물 `//set` 뒤 N틱 지나 물 칸 수 — Paper 와 region 대조. 클라우드에서 Paper paperclip·FAWE jar 를 받을 수 있으면 클라우드, 아니면 데스크탑 |
+| V5 | 실제 FAWE | **장면 `tools/compat/fawe-paper/scenario_t204.py`(README "T-204 놓기 상태·부작용 장면"), 결과 대기 — 데스크탑에서 잰다(클라우드에서 PaperMC 를 받을 수 없음).** F1~F4 FAWE `//set` 으로 울타리·계단·레드스톤 가루·판유리·담을 날것으로 쓴 뒤 `//fixblocks`(PlacementStateProcessor), F5~F7 덩굴·켈프·물 없는 산호 블록 `//fixblocks`(읽기 밖 요청 — Paper NPE·Furnace UnsupportedNmsCall 을 FAWE 가 같게 처리하는지), N1 `//perf neighbors on` 뒤 `//set`(WNA 이웃 갱신), N2 `//perf update on`·`neighbors on` 뒤 공중 물 `//set`(예약 유체 틱, 흐름이 끝난 모양). Paper 와 anvil-diff 블록 0차이 + MARK 구간 예외 비교. 처음 계획의 플러그인 표본 한 칸 쓰기는 FAWE `//perf` 편집이 같은 WNA 길을 타므로 뺐다 |
 
 ## 8. 단계(PR)
 
@@ -127,7 +127,7 @@ FAWE `PaperweightLevelProxy` 는 `ServerLevel` 을 상속하고 `Unsafe.allocate
 | 1 | 이 설계 + `FullChunkStatus`·`LevelChunk#getFullStatus`(서버 `Region.fullChunkStatus`) | S |
 | 2 | WNA 부수 효과(2장 위 표 `sendBlockUpdated`~`setBlockState(4)`·`getCraftServer`), 다른 스레드는 3×3 거울을 맞추는 주인 작업, 값 호출 기다리는 왕복, V1·V2 | M |
 | 3 | 예약 틱·`getTickDelay`, 놓기 상태 다리(`BlockPlaceContext`·`getStateForPlacement`·`canBeReplaced`·`canSurvive`·`hasPostProcess`), V4 | M |
-| 4 | V5 실측(시나리오·결과 문서) | S |
+| 4 | V5 실측(시나리오·결과 문서) — 시나리오 올림, 데스크탑 결과 대기 | S |
 
 각 단계는 독립 검토 승인 뒤 병합(동시성 — 2·3).
 

@@ -20,3 +20,11 @@ Furnace 쪽 FAWE 어댑터 실패 원인을 보려면 서버 JVM 에 `-Dworldedi
 
 1. `python -X utf8 scenario_t198.py paper paper-t198 25565`, `python -X utf8 scenario_t198.py furnace furnace-t198 25567`
 2. `python -X utf8 ../anvil-diff.py runs/paper-t198/world runs/furnace-t198/world --chunks -8 -8 7 7 --ignore sectionKeys` — 블록과 `block_entities`(내용물·몹 종류) 0차이가 수용 조건. 빛은 T-197 쪽.
+
+## T-204 놓기 상태·부작용 장면(V5)
+
+`scenario_t204.py` — FAWE `//set` 으로 울타리·계단·레드스톤 가루·판유리·담을 날것(안 이어진 꼴)으로 쓴 뒤 F1~F4 `//fixblocks`(PlacementStateProcessor → `getStateForPlacement`·`canBeReplaced`·`canSurvive`). 바닐라 놓기 계산이 읽기 밖으로 나가는 블록: F5 weeping vines·F6 켈프(나이 난수)·F7 물 없는 산호 블록(예약 틱) — Paper 의 FAWE 프록시는 null 필드라 NullPointerException, Furnace 는 UnsupportedNmsCall 이므로 FAWE 가 둘을 같게 처리하는지(작업 중단 여부·남은 블록)를 본다. N1 `//perf neighbors on` 뒤 `//set`(WNA 이웃 갱신), N2 `//perf update on`·`neighbors on` 뒤 공중 물 `//set`(예약 유체 틱, 흐름이 끝난 모양).
+
+1. `python -X utf8 scenario_t204.py paper paper-t204 25565`, `python -X utf8 scenario_t204.py furnace furnace-t204 25567`
+2. `python -X utf8 ../anvil-diff.py runs/paper-t204/world runs/furnace-t204/world --chunks -8 -8 7 7 --ignore sectionKeys` — 블록 0차이가 수용 조건.
+3. 각 `runs/*/console.log` 에서 `MARK F5`·`F6`·`F7`·`N1` 사이 예외 줄과 FAWE 응답을 비교한다.
