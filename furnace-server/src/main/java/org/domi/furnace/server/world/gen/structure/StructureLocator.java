@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Set;
 import org.domi.furnace.server.world.ChunkPos;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.chunk.ChunkGenerator")
 public final class StructureLocator {
 
     /** 찾은 위치(StructurePlacement.getLocatePos: 시작 청크 모서리 + locate_offset)와 구조물 id. */

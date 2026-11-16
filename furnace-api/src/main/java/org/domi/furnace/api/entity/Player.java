@@ -27,6 +27,18 @@ public interface Player extends CommandSender, LivingEntity {
      */
     default ProfileData profile() { return new ProfileData(uniqueId(), name(), profileProperties()); }
 
+    /**
+     * 게임 프로필(id·이름·속성)을 바꾼다(Paper {@code setPlayerProfile}).
+     *
+     * <p>{@link #uniqueId()}(엔티티 UUID)는 그대로다. {@link #name()}·{@link #profileProperties()}·{@link #profile()} 과 탭 목록의 이름·스킨이 새 값이 된다.
+     * <p>다른 플레이어에게는 탭과 엔티티를 한 번 지웠다가 다시 올린다. 본인 화면은 같은 차원으로 리스폰해 갱신한다(Paper 와 같은 패킷).
+     * id 를 엔티티 UUID 와 다르게 주면, Paper 처럼 그때 접속해 있던 사람의 화면에서 이 플레이어 엔티티가 보이지 않을 수 있다.
+     * <p>접속 처리 중(PlayerJoinEvent 안)에 부르면 프로필만 바꾸고, 탭은 처음부터 새 프로필로 나간다.
+     * <p>소유 스레드나 전역 동기 작업에서 부르면 바로 적용된다. 다른 스레드에서 부르면 이 플레이어의 다음 틱에 적용되므로, 그 직후 {@link #name()} 은 옛 값일 수 있다.
+     * <p>접속자 이름 조회는 새 이름으로 찾는다. Paper 는 옛 이름으로 찾는데, 이것은 의도한 차이다.
+     */
+    default void profile(ProfileData profile) { throw new UnsupportedOperationException("profile"); }
+
     /** 바닐라 Player.getDisplayName. 이름에 "/tell 이름" 제안 클릭과 삽입이 붙은 값이다. */
     Text displayName();
 

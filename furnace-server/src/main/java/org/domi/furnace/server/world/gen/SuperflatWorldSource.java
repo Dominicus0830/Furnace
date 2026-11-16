@@ -14,6 +14,7 @@ import org.domi.furnace.server.net.io.nbt.NbtList;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ChunkColumn;
 
+@org.domi.furnace.server.VanillaPort({"net.minecraft.world.level.levelgen.flat.FlatLevelGeneratorSettings", "net.minecraft.world.level.chunk.ChunkGenerator"})
 public final class SuperflatWorldSource implements WorldSource {
 
     /** 층(블록 상태, 두께). */

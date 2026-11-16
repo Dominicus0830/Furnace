@@ -3,6 +3,7 @@ package org.domi.furnace.server.world.gen.carver;
 
 import com.google.gson.JsonObject;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.util.valueproviders.FloatProvider")
 public interface FloatProvider {
 
     float sample(LegacyRandom random);

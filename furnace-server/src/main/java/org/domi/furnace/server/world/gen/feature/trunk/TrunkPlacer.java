@@ -7,6 +7,7 @@ import org.domi.furnace.server.world.gen.feature.FeatureWorldView;
 import org.domi.furnace.server.world.gen.feature.TreeConfig;
 import org.domi.furnace.server.world.gen.feature.TreeFeature;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.trunkplacers.TrunkPlacer")
 public abstract class TrunkPlacer {
 
     protected final int baseHeight;

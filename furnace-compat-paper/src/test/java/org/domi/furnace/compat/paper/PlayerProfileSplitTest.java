@@ -68,4 +68,46 @@ class PlayerProfileSplitTest {
             tp.close();
         }
     }
+    /** T-141 E11c-2b: setPlayerProfile — 엔티티 UUID·표시 이름은 그대로, 프로필·NMS gameProfile 은 새 값(빈 id 는 NIL, Paper asAuthlibCopy). */
+    @Test
+    void setPlayerProfileSwapsTheProfileOnly() throws Exception {
+        TestPlayer tp = server.join("Carl");
+        try {
+            Player p = Compat.player(tp.player());
+            UUID entity = p.getUniqueId();
+            var nms = ((CraftPlayer) p).getHandle();
+            assertEquals("Carl", nms.getGameProfile().getName());
+            UUID newId = UUID.fromString("00000000-0000-4000-8000-0000000000cc");
+            var next = Bukkit.createProfile(newId, "Dora");
+            next.setProperty(new com.destroystokyo.paper.profile.ProfileProperty("textures", "dGV4", "c2ln"));
+            p.setPlayerProfile(next);
+            awaitName(p, "Dora");
+            next.setName("Edit");   // 넘긴 객체를 나중에 고쳐도 이어지지 않는다(복사)
+            assertEquals("Dora", p.getName());
+            assertEquals(entity, p.getUniqueId(), "엔티티 UUID 는 그대로");
+            assertEquals("Carl", p.getDisplayName(), "표시 이름은 접속 때 이름(adventure$displayName)");
+            var got = p.getPlayerProfile();
+            assertEquals(newId, got.getId());
+            assertEquals("dGV4", got.getProperties().iterator().next().getValue());
+            assertEquals("Dora", nms.getGameProfile().getName(), "NMS gameProfile 도 새 프로필");
+            assertEquals(newId, nms.getGameProfile().getId());
+            assertEquals("Dora", nms.getScoreboardName());
+
+            p.setPlayerProfile(Bukkit.createProfile("Fay"));   // id 없음 → NIL UUID
+            awaitName(p, "Fay");
+            assertEquals(new UUID(0L, 0L), p.getPlayerProfile().getId());
+            assertEquals(entity, p.getUniqueId());
+        } finally {
+            tp.close();
+        }
+    }
+
+    /** 시험 스레드는 소유 스레드가 아니라 다음 틱에 적용된다 — 시험 서버는 손으로 틱을 돌린다. */
+    private void awaitName(Player p, String name) throws InterruptedException {
+        for (int i = 0; i < 100 && !name.equals(p.getName()); i++) {
+            server.tick();
+            Thread.sleep(10);
+        }
+        assertEquals(name, p.getName());
+    }
 }

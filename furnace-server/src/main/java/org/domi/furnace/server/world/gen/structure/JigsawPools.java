@@ -26,6 +26,7 @@ import org.domi.furnace.server.world.gen.structure.template.Processors;
 import org.domi.furnace.server.world.gen.structure.template.StructureTemplate;
 import org.domi.furnace.server.world.gen.structure.template.TemplatePlacer;
 
+@org.domi.furnace.server.VanillaPort({"net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool", "net.minecraft.world.level.levelgen.structure.pools.StructurePoolElement"})
 public final class JigsawPools {
 
     public static final String EMPTY_POOL = "minecraft:empty";

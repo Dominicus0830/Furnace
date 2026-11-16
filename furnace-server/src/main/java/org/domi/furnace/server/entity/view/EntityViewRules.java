@@ -102,15 +102,27 @@ public final class EntityViewRules {
     // ------------------------------------------------------------------ 바꾸기(아무 스레드) — 바뀌었으면 true
 
     /** 결과: 바뀌었는가, 그리고 다시 추적할 때 쓸 대기열·플레이어 대상 여부. */
-    public record Change(UUID target, boolean changed, EntityTasks tasks, boolean player) {}
+    /**
+     * 규칙 하나를 바꾼 결과. before·after 는 같은 원자적 갱신(TARGETS.compute) 안의 앞뒤 묶음이라, 여러 스레드가 같은 대상을 동시에 바꿔도
+     * 관찰자마다 "보임 → 숨김"·"숨김 → 보임" 전이는 정확히 한 갱신에만 잡힌다(CraftBukkit addInvertedVisibility 의 반환값처럼).
+     */
+    public record Change(UUID target, boolean changed, EntityTasks tasks, boolean player, Target before, Target after) {
+        /** 이 갱신으로 viewer 에게 보이던 대상이 숨겨졌다. */
+        public boolean hidFrom(Player viewer) { return canSee(before, viewer) && !canSee(after, viewer); }
+
+        /** 이 갱신으로 viewer 에게 숨겨졌던 대상이 보이게 됐다. */
+        public boolean shownTo(Player viewer) { return !canSee(before, viewer) && canSee(after, viewer); }
+    }
 
     private interface Edit { Target apply(Target t); }
 
     private static Change edit(UUID target, EntityTasks tasks, boolean player, Edit edit) {
         boolean[] changed = new boolean[1];
+        Target[] before = new Target[1];
         Target[] after = new Target[1];
         TARGETS.compute(target, (k, old) -> {
             Target base = old != null ? old : new Target(Set.of(), Map.of(), null, null, 0, null, player);
+            before[0] = base;
             if (tasks != null && base.tasks != tasks) base = withTasks(base, tasks);
             Target next = edit.apply(base);
             changed[0] = next != base;
@@ -119,7 +131,7 @@ public final class EntityViewRules {
         });
         updateActive();
         Target t = after[0];
-        return new Change(target, changed[0], t == null ? tasks : t.tasks, t == null ? player : t.player);
+        return new Change(target, changed[0], t == null ? tasks : t.tasks, t == null ? player : t.player, before[0], t);
     }
 
     private static Target withTasks(Target t, EntityTasks tasks) {

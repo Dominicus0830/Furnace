@@ -7,6 +7,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.zip.GZIPInputStream;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.chunk.storage.RegionFileVersion")
 public final class Compression {
 
     private Compression() {}

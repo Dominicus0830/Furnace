@@ -14,6 +14,7 @@ import org.domi.furnace.server.world.gen.noise.LegacyNormalNoise;
  * fastNoise = 상위 NoiseProvider.noise(seed/noise params, scale). slowNoise = (같은 seed, slow_noise params, slowScale).
  * random 0소비.
  */
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.stateproviders.DualNoiseProvider")
 public final class DualNoiseProvider implements StateProvider {
 
     private final NoiseProvider fast;

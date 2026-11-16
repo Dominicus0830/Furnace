@@ -7,6 +7,7 @@ import org.domi.furnace.server.world.gen.feature.TreeFeature;
 // (RNG draw가 방향별로 소비되므로 순서가 결과에 직결). 이전 구현은 HORIZONTAL_DIRECTIONS(S,W,N,E) 순회에
 // 더해 배치 조건이 반전(vanilla는 nextInt(3)>0일 때 배치=2/3 확률, 이전 구현은 ==0일 때 배치=1/3)돼
 // 있었다(mega-tree-placers task 수정).
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.treedecorators.TrunkVineDecorator")
 public final class TrunkVineDecorator implements TreeDecorator {
     private static final TreeFeature.Direction[] VANILLA_ORDER = {
         TreeFeature.Direction.WEST, TreeFeature.Direction.EAST, TreeFeature.Direction.NORTH, TreeFeature.Direction.SOUTH

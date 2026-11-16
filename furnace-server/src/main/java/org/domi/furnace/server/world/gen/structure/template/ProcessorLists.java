@@ -22,6 +22,7 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.gen.feature.BlockTags;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.structure.templatesystem.StructureProcessorList")
 public final class ProcessorLists {
 
     private final BlockRegistry registry;

@@ -8,6 +8,7 @@ import org.domi.furnace.server.world.gen.feature.FeatureWorldView;
 
 import java.util.Map;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.structure.structures.DesertPyramidPiece")
 public final class DesertPyramidPiece extends StructurePiece {
     @Override
     public String pieceType() { return "tedp"; }

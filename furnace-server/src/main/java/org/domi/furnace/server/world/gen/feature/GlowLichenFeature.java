@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.Set;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.MultifaceGrowthFeature")
 public final class GlowLichenFeature implements ConfiguredFeature {
 
     private static final int WATER_MIN_STATE = StateIds.WATER_FIRST;

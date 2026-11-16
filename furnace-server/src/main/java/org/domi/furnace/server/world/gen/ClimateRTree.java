@@ -9,6 +9,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.biome.Climate")
 final class ClimateRTree {
 
     private static final int DIMS = 7;

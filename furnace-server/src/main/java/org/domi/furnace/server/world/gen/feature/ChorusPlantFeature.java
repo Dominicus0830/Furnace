@@ -7,6 +7,7 @@ import org.domi.furnace.server.world.BlockAttrs;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.ChorusPlantFeature")
 public final class ChorusPlantFeature implements ConfiguredFeature {
 
     // Direction.Plane.HORIZONTAL 순서(NORTH, EAST, SOUTH, WEST) — getRandomDirection 이 nextInt(4) 로 이 배열을 고른다.

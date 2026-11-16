@@ -9,6 +9,7 @@ import java.util.List;
  * I is a ToFloatFunction<C> that extracts a float coordinate from C.
  * Float arithmetic is kept to match vanilla bit-exactly.
  */
+@org.domi.furnace.server.VanillaPort("net.minecraft.util.CubicSpline")
 public interface CubicSpline<C, I extends ToFloatFunction<C>> extends ToFloatFunction<C> {
 
     String parityString();

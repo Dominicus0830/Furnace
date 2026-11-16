@@ -1560,6 +1560,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             teleportPlayer(ctx, t[0], t[1], t[2]);
         }));
         p.connectionTasks(r -> ctx.executor().execute(r));   // 텔레포트 뒤에 이어 할 일(탈것째 관문을 건넌 승객 편입)
+        p.profileRefresher(v -> ctx.executor().execute(() -> refreshAfterProfileChange(ctx, v)));   // setPlayerProfile 뒤 본인 화면(Paper refreshPlayer)
         // 차원 이동 도착(목적 region 스레드에서 부른다): 연결 스레드에서 리스폰 패킷부터 보내고 목적 region 에 넣는다.
         // 패킷을 다 보내면 handoff 로 편입을 넘긴다 — 기다리던 목적 region 이 그 자리에서 편입한다(같은 틱 도착, M10).
         p.dimensionChanger(new Player.DimensionChanger() {
@@ -1618,14 +1619,16 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (joinMessage != null) login.core.broadcastSystemMessage(joinMessage, false);   // 접속 알림은 내보내기를 확인한 뒤(Paper)
         // 접속 탭: 본인 항목 먼저, 그다음 이 플레이어가 볼 수 있는 기존 접속자를 한 패킷으로(없으면 보내지 않는다 — Paper
         // Use-single-player-info-update-packet-on-join). 조인 이벤트에서 숨긴 접속자는 처음부터 빠진다. 아직 adopt 전이라 p.listed()는 이 스레드 전용.
-        send(ctx, new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate(java.util.List.of(tabEntry(p))));
-        p.listed().put(p.entityId(), p.uuid());
+        Player.ProfileState ps = p.profileState();   // 조인 이벤트에서 바꿨으면 새 프로필(Paper: 탭을 보내기 전엔 gameProfile 만 바꾼다)
+        send(ctx, new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate(java.util.List.of(org.domi.furnace.server.world.Region.tabEntry(p, ps, p.uuid()))));
+        p.listed().put(p.entityId(), new Player.Listed(p.uuid(), ps.generation()));
         java.util.List<org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.Entry> existing = new java.util.ArrayList<>();
         for (Player b : world.onlinePlayers()) {
             // 아직 조인 이벤트 중인 다른 접속자는 그쪽이 보류를 풀 때 이 플레이어의 region 이 올린다
             if (b == p || b.isDisconnected() || b.tabListingHeld() || !org.domi.furnace.server.entity.view.EntityViewRules.canSee(p, b.uuid())) continue;
-            existing.add(tabEntry(b));
-            p.listed().put(b.entityId(), b.uuid());
+            Player.ProfileState bs = b.profileState();
+            existing.add(org.domi.furnace.server.world.Region.tabEntry(b, bs, b.uuid()));
+            p.listed().put(b.entityId(), new Player.Listed(b.uuid(), bs.generation()));
         }
         if (!existing.isEmpty()) send(ctx, new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate(existing));
         p.releaseTabListing();   // 이제 다른 접속자의 region 이 다음 틱에 이 플레이어를 탭·엔티티에 올린다(Paper sentListPacket = true)
@@ -1755,13 +1758,6 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         var items = world.itemRegistry();
         if (s == null || s.isEmpty() || items == null) return null;
         return items.nameOf(s.itemId());
-    }
-
-    /** 탭 목록 항목(바닐라 ClientboundPlayerInfoUpdatePacket.createPlayerInitializing 의 한 줄). */
-    private static org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.Entry tabEntry(Player b) {
-        var session = b.chat().session();
-        return new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.Entry(b.uuid(), b.name(), b.profileProperties(),
-                session == null ? null : session.asData(), b.gameMode().id(), b.latencyMs());
     }
 
     private void sendSpawnChunkBatchAsync(ChannelHandlerContext ctx, Player p,
@@ -3946,6 +3942,51 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (t.portalSound()) send(ctx, new org.domi.furnace.server.net.protocol.play.LevelEventPacket(1032, 0, 0, 0, 0, false));
         final var arrived = t;
         handoff.sent(target, t.x(), t.z(), r -> r.adoptAfterDimensionChange(p, arrived, from));
+    }
+
+    /**
+     * Paper CraftPlayer.refreshPlayer(setPlayerProfile 뒤, 본인 탭 Remove·Update 다음): 같은 차원 Respawn(데이터 모두 보존) → 능력 →
+     * internalTeleport(이벤트 없이 지금 위치·회전, 승인 번호만 — 연결이 아는 서버 확정 위치) → 권한 엔티티 이벤트만(명령 트리는 다시 보내지 않는다 — sendPlayerPermissionLevel(…, false)) →
+     * sendLevelInfo → sendAllPlayerInfo(인벤토리 전체, 최대 체력을 바꿔 끼운 속성 + 체력, 엔티티 데이터 전부, 든 칸, reducedDebugInfo 22/23,
+     * 즉시 리스폰 게임 이벤트) → 경험치 → 효과(blend 끔). 청크 재전송·추적 초기화·리스폰 이벤트·체력 초기화는 없다.
+     */
+    private void refreshAfterProfileChange(ChannelHandlerContext ctx, Player.ProfileRefresh v) {
+        Player p = player;
+        if (p == null || p.isDisconnected() || !ctx.channel().isActive()) return;
+        org.domi.furnace.server.ServerCore core = login.core;
+        var vitals = p.vitals();
+        var prev = vitals.previousGameMode();
+        long hashedSeed = core != null ? core.biomeZoomSeed(world) : 0L;
+        send(ctx, new org.domi.furnace.server.net.protocol.play.Respawn(dimensionTypeIndex(world), world.dimension(), hashedSeed,
+                vitals.gameMode().id(), prev == null ? -1 : prev.id(), world.isDebugLevel(), world.isFlatLevel(),
+                vitals.lastDeathDimension(), vitals.lastDeathPos(), v.portalCooldown(),
+                org.domi.furnace.server.net.protocol.play.Respawn.KEEP_ALL));
+        send(ctx, vitals.abilitiesPacket());
+        // internalTeleport(getLocation): 검증을 거친 region 위치·회전. ix 는 보통 region 검증 전의 클라이언트 위치라 쓰지 않는다 — 서버 텔레포트
+        // (스폰 게이트·보정·플러그인 텔레포트)가 확인을 기다리는 동안만 ix 가 서버가 정한 목적지다(막 보낸 텔레포트를 되돌리지 않게).
+        // 확인은 왔지만 region 이 그 텔레포트를 아직 반영하지 않았으면(뜬 위치가 텔레포트 전) 대기열에 남은 그 목적지를 쓴다.
+        Player.MoveSample tp = p.pendingTeleport();
+        if (correctionTpId != -1 || pendingTeleportId != -1) {
+            teleportPlayer(ctx, ix, iy, iz);
+        } else if (tp != null) {
+            teleportPlayer(ctx, tp.x(), tp.y(), tp.z());
+        } else {
+            iyaw = v.yaw();
+            ipitch = v.pitch();
+            teleportPlayer(ctx, v.x(), v.y(), v.z());
+        }
+        if (core != null) send(ctx, org.domi.furnace.server.net.protocol.play.EntityEvent.permissionLevel(p.entityId(), core.profilePermissions(org.domi.furnace.server.ServerCore.profileOf(p))));
+        sendLevelInfo(ctx, world);
+        synchronized (p.menuLock()) { p.inventoryMenu().sendAllDataToRemote(); }
+        send(ctx, v.attributes());   // CraftPlayer.updateScaledHealth: 속성 → 체력
+        send(ctx, vitals.currentHealthPacket());
+        send(ctx, v.entityData());   // refreshEntityData
+        send(ctx, new SetHeldSlot(inv.selected()));
+        var rules = core != null ? core.gameRules() : null;
+        send(ctx, new org.domi.furnace.server.net.protocol.play.EntityEvent(p.entityId(), (byte) (rules != null && rules.getBoolean("reducedDebugInfo") ? 22 : 23)));
+        send(ctx, new GameEvent(GameEvent.IMMEDIATE_RESPAWN, rules != null && rules.getBoolean("doImmediateRespawn") ? 1.0F : 0.0F));
+        send(ctx, vitals.experiencePacket());
+        for (Packet effectPacket : vitals.effectPackets()) send(ctx, effectPacket);
     }
 
     /** 내린 추가 월드인가(목록에서 떼었거나 닫혔다). */

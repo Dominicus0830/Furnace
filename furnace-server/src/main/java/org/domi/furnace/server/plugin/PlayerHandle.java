@@ -75,6 +75,16 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     }
 
     @Override
+    public void profile(org.domi.furnace.api.entity.ProfileData profile) {
+        java.util.Objects.requireNonNull(profile, "profile");
+        // Paper CraftPlayerProfile 도 16자 넘는 이름을 받지 않는다(탭 항목 이름 칸 최대 16자 — 넘으면 클라이언트가 끊긴다)
+        if (profile.name().length() > 16) throw new IllegalArgumentException("Name cannot be longer than 16 characters");
+        java.util.List<org.domi.furnace.server.players.GameProfile.Property> props = new java.util.ArrayList<>();
+        for (var q : profile.properties()) props.add(new org.domi.furnace.server.players.GameProfile.Property(q.name(), q.value(), q.signature()));
+        p.changeProfile(new org.domi.furnace.server.players.GameProfile(profile.id(), profile.name(), java.util.List.copyOf(props)));
+    }
+
+    @Override
     public Text displayName() { return p.displayName(); }
 
     @Override

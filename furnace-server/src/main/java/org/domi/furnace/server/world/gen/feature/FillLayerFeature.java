@@ -5,6 +5,7 @@ package org.domi.furnace.server.world.gen.feature;
 import org.domi.furnace.server.world.ChunkSection;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.FillLayerFeature")
 public final class FillLayerFeature implements ConfiguredFeature {
     private final int height;
     private final int state;

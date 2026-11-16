@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.SurfaceSystem")
 public final class SurfaceSystem {
 
     private final SurfaceRule rule;

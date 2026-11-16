@@ -6,6 +6,7 @@ package org.domi.furnace.server.world.gen.carver;
  * 같은 seed라도 LegacyRandom과 값이 달라지므로 feature 배치가 달라진다.
  * 여기서는 raw XoroshiroRandomSource가 아니라 WorldgenRandom 래퍼의 bit-consumption 규칙까지 맞춘다.
  */
+@org.domi.furnace.server.VanillaPort({"net.minecraft.world.level.levelgen.WorldgenRandom", "net.minecraft.world.level.levelgen.XoroshiroRandomSource"})
 public final class XoroshiroWorldgenRandom extends WorldgenRandom {
 
     private long seedLo;

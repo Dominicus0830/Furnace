@@ -1,6 +1,7 @@
 // 바닐라 Heightmap.Types 중 월드젠 뒤에도 남는 네 종류(keepAfterWorldgen) — /execute positioned over 가 고른다.
 package org.domi.furnace.server.world;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.Heightmap")
 public enum HeightmapType {
     WORLD_SURFACE, OCEAN_FLOOR, MOTION_BLOCKING, MOTION_BLOCKING_NO_LEAVES;
 

@@ -8,6 +8,7 @@ import org.domi.furnace.server.world.gen.feature.FeatureWorldView;
 import org.domi.furnace.server.world.gen.feature.TreeConfig;
 
 // vanilla FancyTrunkPlacer 포팅 (fancy_oak 등 큰 나무 계열).
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.trunkplacers.FancyTrunkPlacer")
 public final class FancyTrunkPlacer extends TrunkPlacer {
     private static final double CLUSTER_DENSITY_MAGIC = 1.382;
     private static final double BRANCH_SLOPE = 0.381;

@@ -10,6 +10,7 @@ package org.domi.furnace.server.world.gen;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ChunkColumn;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.DebugLevelSource")
 public final class DebugWorldSource implements WorldSource {
 
     /** 바닐라 DebugLevelSource 가 층을 두는 높이. */

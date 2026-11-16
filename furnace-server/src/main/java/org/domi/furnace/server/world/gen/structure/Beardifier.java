@@ -4,6 +4,7 @@ package org.domi.furnace.server.world.gen.structure;
 import java.util.ArrayList;
 import java.util.List;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.Beardifier")
 public final class Beardifier {
 
     public static final int NONE = 0, BURY = 1, BEARD_THIN = 2, BEARD_BOX = 3, ENCAPSULATE = 4;

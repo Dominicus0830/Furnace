@@ -6,6 +6,7 @@ import org.domi.furnace.server.world.BlockAttrs;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.SeaPickleFeature")
 public final class SeaPickleFeature implements ConfiguredFeature {
 
     private static final int UP = 1; // BlockAttrs 방향 인덱스 DOWN=0, UP=1

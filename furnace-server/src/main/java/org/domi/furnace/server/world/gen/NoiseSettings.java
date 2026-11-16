@@ -13,6 +13,7 @@ import com.google.gson.JsonObject;
  * defaultBlock / defaultFluid 는 바닐라 Name 문자열 그대로 저장.
  * 블록 상태 ID 해석은 Task 13 의 BlockRegistry 에서 수행.
  */
+@org.domi.furnace.server.VanillaPort({"net.minecraft.world.level.levelgen.NoiseSettings", "net.minecraft.world.level.levelgen.NoiseGeneratorSettings"})
 public record NoiseSettings(
         int minY,
         int height,

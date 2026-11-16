@@ -15,6 +15,7 @@ import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.ChunkSection;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.village.poi.PoiManager")
 public final class PoiManager {
     public static final int MAX_VILLAGE_DISTANCE = 6;
     public static final int VILLAGE_SECTION_SIZE = 1;

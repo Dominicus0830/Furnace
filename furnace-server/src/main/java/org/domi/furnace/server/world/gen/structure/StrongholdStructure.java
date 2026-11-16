@@ -8,6 +8,7 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 import org.domi.furnace.server.world.gen.carver.LegacyRandom;
 
+@org.domi.furnace.server.VanillaPort({"net.minecraft.world.level.levelgen.structure.structures.StrongholdStructure", "net.minecraft.world.level.levelgen.structure.structures.StrongholdPieces"})
 public final class StrongholdStructure extends StructureType {
 
     public StrongholdStructure(StructureRegistry.Def def) {}
