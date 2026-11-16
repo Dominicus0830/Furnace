@@ -90,12 +90,16 @@ NESTED = {
 """,
 }
 
-# 바닐라에서 하위 패키지에 있는 클래스
-SUBPKG = {"VaultBlockEntity": "vault"}
+# 바닐라에서 block.entity 밖 패키지에 있는 클래스(움직이는 피스톤은 block.piston — 검토 N1)
+OTHER_PKG = {"VaultBlockEntity": PKG + ".vault", "PistonMovingBlockEntity": "net.minecraft.world.level.block.piston"}
 
 
 def pkg_of(name):
-    return PKG + ("." + SUBPKG[name] if name in SUBPKG else "")
+    return OTHER_PKG.get(name, PKG)
+
+
+def path_of(name):
+    return "furnace-compat-paper/src/main/java/" + pkg_of(name).replace(".", "/") + "/" + name + ".java"
 
 
 def write(path, text):
@@ -122,10 +126,10 @@ public abstract class {name} extends {parent} {{
 
 CONCRETE_NAMES = {c[1] for c in CONCRETE}
 for tid, name, parent in CONCRETE:
-    sub = SUBPKG.get(name)
-    extra = f"import {PKG}.BlockEntity;\nimport {PKG}.BlockEntityType;\n" if sub else ""
+    other = pkg_of(name) != PKG
+    extra = f"import {PKG}.BlockEntity;\nimport {PKG}.BlockEntityType;\n" if other else ""
     nested = NESTED.get(name, "")
-    write(f"{BASE}/{sub + '/' if sub else ''}{name}.java", f"""{GEN}package {pkg_of(name)};
+    write(path_of(name), f"""{GEN}package {pkg_of(name)};
 
 import net.minecraft.core.BlockPos;
 {extra}import net.minecraft.world.level.block.state.BlockState;
