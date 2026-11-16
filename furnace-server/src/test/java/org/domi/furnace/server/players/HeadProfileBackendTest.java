@@ -137,4 +137,20 @@ class HeadProfileBackendTest {
         assertEquals(0, limiter.runningForTests());
         assertEquals(0, limiter.queuedForTests());
     }
+
+    @Test
+    void aLongQueueOfAlreadyFinishedLookupsDoesNotStackUp() {
+        var limiter = new HeadProfileBackend.Limiter(1);
+        var gate = new CompletableFuture<Optional<GameProfile>>();
+        limiter.submit(() -> gate);
+        AtomicInteger done = new AtomicInteger();
+        int n = 50_000;
+        for (int i = 0; i < n; i++)
+            limiter.submit(() -> CompletableFuture.completedFuture(Optional.<GameProfile>empty())).thenAccept(x -> done.incrementAndGet());
+        assertEquals(n, limiter.queuedForTests());
+        gate.complete(Optional.empty());   // 줄 전체가 이 한 번의 호출 안에서 풀린다 — 재귀였다면 StackOverflowError
+        assertEquals(n, done.get());
+        assertEquals(0, limiter.runningForTests());
+        assertEquals(0, limiter.queuedForTests());
+    }
 }

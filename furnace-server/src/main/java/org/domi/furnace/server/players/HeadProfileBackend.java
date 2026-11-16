@@ -74,11 +74,15 @@ public final class HeadProfileBackend implements ProfileFill.Backend {
         return t instanceof java.util.concurrent.CompletionException && t.getCause() != null ? t.getCause() : t;
     }
 
-    /** 동시에 도는 비동기 작업 수를 max 로 묶는다(넘치면 줄을 선다). */
+    /**
+     * 동시에 도는 비동기 작업 수를 max 로 묶는다(넘치면 줄을 선다).
+     * 이미 끝난 Future(캐시 적중)가 줄을 이어 부르며 호출 깊이가 줄 길이만큼 쌓이지 않도록, 시작은 한 번에 한 스레드가 도는 반복문(pump)이 맡는다.
+     */
     static final class Limiter {
         private final int max;
         private final ArrayDeque<Runnable> queue = new ArrayDeque<>();
         private int running;
+        private boolean pumping;
 
         Limiter(int max) { this.max = max; }
 
@@ -94,29 +98,40 @@ public final class HeadProfileBackend implements ProfileFill.Backend {
                 f.whenComplete((v, e) -> {
                     if (e != null) out.completeExceptionally(unwrap(e));
                     else out.complete(v);
-                    next();
+                    finished();
                 });
             };
-            boolean now;
             synchronized (this) {
-                now = running < max;
-                if (now) running++;
-                else queue.add(start);
+                queue.add(start);
+                if (pumping) return out;
+                pumping = true;
             }
-            if (now) start.run();
+            pump();
             return out;
         }
 
-        private void next() {
-            Runnable r;
+        private void finished() {
             synchronized (this) {
-                r = queue.poll();
-                if (r == null) {
-                    running--;
-                    return;
-                }
+                running--;
+                if (pumping) return;   // 돌고 있는 pump 가 곧 다시 본다(그 확인도 같은 잠금 안이라 놓치지 않는다)
+                pumping = true;
             }
-            r.run();
+            pump();
+        }
+
+        private void pump() {
+            while (true) {
+                Runnable r;
+                synchronized (this) {
+                    if (running >= max || queue.isEmpty()) {
+                        pumping = false;
+                        return;
+                    }
+                    r = queue.poll();
+                    running++;
+                }
+                r.run();
+            }
         }
 
         synchronized int runningForTests() { return running; }

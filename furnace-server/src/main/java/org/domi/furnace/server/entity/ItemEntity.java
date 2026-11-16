@@ -61,18 +61,31 @@ public final class ItemEntity extends Entity {
     }
 
     /** 확인 안 된 머리의 스킨 채우기(PlayerHeadItem.verifyComponentsAfterLoad)가 끝났을 때: 이 엔티티를 가진 region 스레드에서 지금 아이템에 fn 을 적용한다. */
-    private void fillProfile(java.util.function.UnaryOperator<ItemStack> fn) { fillProfile(fn, 100); }
+    private void fillProfile(java.util.function.UnaryOperator<ItemStack> fn) { fillProfileSafely(fn, 100); }
+
+    /** 지연 실행기 스레드에서 도는 재시도가 던져도 아무도 못 받으므로 여기서 삼키고 DEBUG 로만 남긴다. */
+    private void fillProfileSafely(java.util.function.UnaryOperator<ItemStack> fn, int tries) {
+        try {
+            fillProfile(fn, tries);
+        } catch (RuntimeException e) {
+            org.slf4j.LoggerFactory.getLogger(ItemEntity.class).debug("head profile fill on dropped item failed", e);
+        }
+    }
 
     private void fillProfile(java.util.function.UnaryOperator<ItemStack> fn, int tries) {
         if (isRemoved()) return;
         // 읽는 사이 다른 region 으로 넘어갔거나 아직 청크에 올라오기 전일 수 있다 — 도착한 region 이 실제로 이 엔티티를 가졌을 때만 쓰고, 아니면 지금 위치로 다시(EntityOps.runOnOwner 와 같다)
         level.runAtEntityOwner(x(), z(), lvl -> {
-            if (lvl.entities().contains(this)) {
-                ItemStack next = fn.apply(getItem());
-                if (next != null) entityData.setQuiet(DATA_ITEM, next);   // 바닐라는 스택을 제자리에서 고쳐(dirty 없이) 메타데이터 패킷이 나가지 않는다(shrinkInPlace 와 같다)
-            } else if (!isRemoved() && tries > 0) {
-                // 다른 스레드에서 만들어져 조금 늦게 청크에 오르는 엔티티가 시도를 다 쓰지 않게 50ms(한 틱) 간격으로(최대 약 5초)
-                java.util.concurrent.CompletableFuture.delayedExecutor(50, java.util.concurrent.TimeUnit.MILLISECONDS).execute(() -> fillProfile(fn, tries - 1));
+            try {
+                if (lvl.entities().contains(this)) {
+                    ItemStack next = fn.apply(getItem());
+                    if (next != null) entityData.setQuiet(DATA_ITEM, next);   // 바닐라는 스택을 제자리에서 고쳐(dirty 없이) 메타데이터 패킷이 나가지 않는다(shrinkInPlace 와 같다)
+                } else if (!isRemoved() && tries > 0) {
+                    // 다른 스레드에서 만들어져 조금 늦게 청크에 오르는 엔티티가 시도를 다 쓰지 않게 50ms(한 틱) 간격으로(최대 약 5초)
+                    java.util.concurrent.CompletableFuture.delayedExecutor(50, java.util.concurrent.TimeUnit.MILLISECONDS).execute(() -> fillProfileSafely(fn, tries - 1));
+                }
+            } catch (RuntimeException e) {
+                org.slf4j.LoggerFactory.getLogger(ItemEntity.class).debug("head profile fill on dropped item failed", e);
             }
         });
     }
