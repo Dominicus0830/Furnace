@@ -1,4 +1,4 @@
-// 엔티티 머리 방향(yaw, 도).
+// 엔티티 머리 방향. yaw 이며 단위는 도다.
 package org.domi.furnace.api.packet.clientbound;
 
 import org.domi.furnace.api.packet.ClientboundPacket;

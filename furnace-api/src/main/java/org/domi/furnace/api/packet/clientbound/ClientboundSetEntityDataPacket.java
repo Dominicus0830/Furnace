@@ -1,13 +1,15 @@
-// 엔티티 메타데이터(set_entity_data): (칸, 값) 목록. 엔티티의 이름표·투명·발광·자세·디스플레이 엔티티 모양 같은 겉모습을 정한다.
+// 엔티티 메타데이터(set_entity_data). (칸, 값) 목록이다.
+// 엔티티의 이름표, 투명, 발광, 자세, 디스플레이 엔티티 모양 같은 겉모습을 정한다.
 //
-// 칸은 이름 있는 키로 다룬다(EntityDataKeys — 칸 번호는 버전마다 밀리므로 서버가 실행 중인 버전에 맞춘다):
+// 칸은 이름 있는 키(EntityDataKeys)로 다룬다. 칸 번호는 버전마다 밀리므로, 서버가 실행 중인 버전에 맞춰 준다.
 //   ClientboundSetEntityDataPacket.builder(id).set(EntityDataKeys.TextDisplay.TEXT, Text.text("상점")).set(EntityDataKeys.Display.SCALE, new Vector3f(2, 2, 2)).build()
 //   e.packet().get(EntityDataKeys.Entity.SHARED_FLAGS)   // 가로챈 패킷에서 읽기
 //   e.setPacket(e.packet().with(EntityDataKeys.Entity.SHARED_FLAGS, EntityFlags.of(EntityFlags.GLOWING)))
-// 숫자 칸(entry(int, Value))도 남아 있다 — 그 번호는 마인크래프트 버전이 바뀌면 달라진다.
+// 숫자 칸(entry(int, Value))도 쓸 수 있지만, 그 번호는 마인크래프트 버전이 바뀌면 달라진다.
 //
-// 값 종류 31개(EntityDataType) 를 모두 읽고 쓴다. 이 서버 버전이 모르는 직렬화 번호를 만나면 거기서 멈추고 Unsupported 로 남긴다
-// — 그런 패킷은 다시 보낼 수 없고(원본 그대로 전달), 관찰·취소는 된다.
+// 값 종류 31개(EntityDataType)를 모두 읽고 쓴다.
+// 이 서버 버전이 모르는 직렬화 번호를 만나면 거기서 읽기를 멈추고 Unsupported 로 남긴다.
+// 그런 패킷은 다시 보낼 수 없고 원본 그대로 전달된다. 관찰과 취소는 된다.
 package org.domi.furnace.api.packet.clientbound;
 
 import java.util.ArrayList;
@@ -33,17 +35,19 @@ public record ClientboundSetEntityDataPacket(int entityId, List<Entry> entries) 
     }
 
     /**
-     * 값 하나. 종류(dataType)와 자바 값(asObject)을 가진다. 만들 때는 {@link #of(EntityDataType, Object)} 를 쓴다.
-     * 예전 9종 레코드(ByteValue …)는 그대로 쓸 수 있고, 나머지 종류는 {@link Typed} 다.
+     * 값 하나. 종류(dataType)와 자바 값(asObject)을 가진다.
+     * 만들 때는 {@link #of(EntityDataType, Object)} 를 쓴다.
+     *
+     * <p>예전 9종 레코드(ByteValue 등)는 그대로 쓸 수 있다. 나머지 종류는 {@link Typed} 다.
      */
     public sealed interface Value {
-        /** 값 종류. Unsupported 면 null. */
+        /** 값 종류. Unsupported 면 null 이다. */
         EntityDataType<?> dataType();
 
-        /** 자바 값(EntityDataType 이 정한 꼴: Optional·List·Pose …). Unsupported 면 null. */
+        /** 자바 값. 꼴은 EntityDataType 이 정한다(Optional·List·Pose 등). Unsupported 면 null 이다. */
         Object asObject();
 
-        /** 종류에 맞는 값을 만든다(맞지 않으면 IllegalArgumentException). */
+        /** 종류에 맞는 값을 만든다. 맞지 않으면 IllegalArgumentException 을 던진다. */
         @SuppressWarnings("unchecked")
         static <T> Value of(EntityDataType<T> type, T value) {
             Object v = type.check(value);
@@ -66,9 +70,9 @@ public record ClientboundSetEntityDataPacket(int entityId, List<Entry> entries) 
         static Value ofBoolean(boolean v) { return new BooleanValue(v); }
         static Value ofString(String v) { return new StringValue(v); }
         static Value ofText(Text v) { return new TextValue(v); }
-        /** 텍스트 또는 없음(null) — 커스텀 이름 같은 옵션 텍스트 칸. */
+        /** 텍스트 또는 없음(null). 커스텀 이름 같은 옵션 텍스트 칸에 쓴다. */
         static Value ofOptionalText(Text v) { return new OptionalTextValue(v); }
-        /** 자세 번호(Pose.id()): 0 서 있음, 1 겉날개 비행, 2 잠, 3 수영, 4 회전 공격, 5 웅크림, 6 긴 점프, 7 죽음 …(1.21.1 순서). */
+        /** 자세 번호(Pose.id()). 1.21.1 순서로 0 서 있음, 1 겉날개 비행, 2 잠, 3 수영, 4 회전 공격, 5 웅크림, 6 긴 점프, 7 죽음 …이다. */
         static Value ofPose(int pose) { return new PoseValue(pose); }
     }
 
@@ -102,7 +106,7 @@ public record ClientboundSetEntityDataPacket(int entityId, List<Entry> entries) 
         @Override public EntityDataType<?> dataType() { return EntityDataType.COMPONENT; }
         @Override public Object asObject() { return value; }
     }
-    /** value 가 null 이면 "없음". */
+    /** value 가 null 이면 "없음"이다. */
     public record OptionalTextValue(Text value) implements Value {
         @Override public EntityDataType<?> dataType() { return EntityDataType.OPTIONAL_COMPONENT; }
         @Override public Object asObject() { return Optional.ofNullable(value); }
@@ -112,7 +116,7 @@ public record ClientboundSetEntityDataPacket(int entityId, List<Entry> entries) 
         @Override public Object asObject() { return Pose.byId(pose); }
     }
 
-    /** 위 9종 밖의 값(아이템·블록 상태·벡터·쿼터니언·입자·NBT …). Value.of 로 만든다. 위 9종의 값 종류는 받지 않는다(같은 값이 두 꼴이 되지 않게). */
+    /** 위 9종 밖의 값(아이템·블록 상태·벡터·쿼터니언·입자·NBT 등). Value.of 로 만든다. 위 9종의 값 종류는 받지 않는다. 같은 값이 두 꼴이 되지 않게 하려는 것이다. */
     public record Typed<T>(EntityDataType<T> type, T value) implements Value {
         public Typed {
             Objects.requireNonNull(type, "type");
@@ -126,7 +130,7 @@ public record ClientboundSetEntityDataPacket(int entityId, List<Entry> entries) 
         @Override public Object asObject() { return value; }
     }
 
-    /** 이 서버 버전이 모르는 직렬화 종류. serializer 는 이 서버 버전의 번호(진단용). */
+    /** 이 서버 버전이 모르는 직렬화 종류. serializer 는 이 서버 버전의 번호이며 진단용이다. */
     public record Unsupported(int serializer) implements Value {
         @Override public EntityDataType<?> dataType() { return null; }
         @Override public Object asObject() { return null; }
@@ -142,12 +146,12 @@ public record ClientboundSetEntityDataPacket(int entityId, List<Entry> entries) 
 
     public static Entry entry(int index, Value value) { return new Entry(index, value); }
 
-    /** 이름 있는 칸의 항목. 칸 번호는 실행 중인 서버 버전에서 정한다. */
+    /** 이름 있는 칸의 항목. 칸 번호는 실행 중인 서버 버전에 맞춰 정한다. */
     public static <T> Entry entry(EntityDataKey<T> key, T value) { return new Entry(index(key), Value.of(key.type(), value)); }
 
     public static Builder builder(int entityId) { return new Builder(entityId); }
 
-    /** 이 칸의 값(없으면 empty). 같은 칸이 여러 번 있으면 마지막 것. 칸 번호는 같아도 값 종류가 다르면 empty(다른 엔티티 부류의 칸). */
+    /** 이 칸의 값. 없으면 empty 다. 같은 칸이 여러 번 있으면 마지막 것을 준다. 칸 번호가 같아도 값 종류가 다르면 empty 다(다른 엔티티 부류의 칸). */
     @SuppressWarnings("unchecked")
     public <T> Optional<T> get(EntityDataKey<T> key) {
         int i = index(key);
@@ -156,7 +160,7 @@ public record ClientboundSetEntityDataPacket(int entityId, List<Entry> entries) 
         return Optional.ofNullable((T) found);
     }
 
-    /** 이 칸을 value 로 바꾼(없으면 끝에 더한) 새 패킷. */
+    /** 이 칸을 value 로 바꾼 새 패킷. 칸이 없으면 끝에 더한다. */
     public <T> ClientboundSetEntityDataPacket with(EntityDataKey<T> key, T value) {
         Entry n = entry(key, value);
         List<Entry> out = new ArrayList<>(entries.size() + 1);
@@ -173,7 +177,7 @@ public record ClientboundSetEntityDataPacket(int entityId, List<Entry> entries) 
         return new ClientboundSetEntityDataPacket(entityId, out);
     }
 
-    /** 이 칸을 뺀 새 패킷(없으면 그대로). */
+    /** 이 칸을 뺀 새 패킷. 칸이 없으면 그대로다. */
     public ClientboundSetEntityDataPacket without(EntityDataKey<?> key) {
         int i = index(key);
         List<Entry> out = new ArrayList<>(entries.size());
@@ -181,7 +185,7 @@ public record ClientboundSetEntityDataPacket(int entityId, List<Entry> entries) 
         return out.size() == entries.size() ? this : new ClientboundSetEntityDataPacket(entityId, out);
     }
 
-    /** 읽지 못한 값이 있어 다시 보낼 수 없는지. */
+    /** 읽지 못한 값이 있어 다시 보낼 수 없는가. */
     public boolean hasUnsupported() {
         for (Entry e : entries) if (e.value() instanceof Unsupported) return true;
         return false;
@@ -209,7 +213,7 @@ public record ClientboundSetEntityDataPacket(int entityId, List<Entry> entries) 
             return this;
         }
 
-        /** 숫자 칸(버전마다 바뀜). */
+        /** 숫자 칸. 번호는 버전마다 바뀐다. */
         public Builder set(int index, Value value) {
             entries.put(index, new Entry(index, value));
             return this;

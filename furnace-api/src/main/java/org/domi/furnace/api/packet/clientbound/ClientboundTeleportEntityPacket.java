@@ -1,4 +1,4 @@
-// 엔티티 절대 위치·방향(도).
+// 엔티티의 절대 위치와 방향. 각도는 도다.
 package org.domi.furnace.api.packet.clientbound;
 
 import org.domi.furnace.api.packet.ClientboundPacket;

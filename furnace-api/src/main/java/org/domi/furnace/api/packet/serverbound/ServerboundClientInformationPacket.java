@@ -1,4 +1,4 @@
-// 클라이언트 설정(언어·렌더 거리·채팅 표시·스킨 부위 비트·주 팔·글자 거르기·서버 목록 공개).
+// 클라이언트 설정. 언어, 렌더 거리, 채팅 표시, 스킨 부위 비트, 주 팔, 글자 거르기, 서버 목록 공개 여부를 담는다.
 package org.domi.furnace.api.packet.serverbound;
 
 import java.util.Objects;

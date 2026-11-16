@@ -1,5 +1,8 @@
-// 위치에서 나는 소리. sound 는 "minecraft:entity.experience_orb.pickup" 같은 이름 — 레지스트리에 없는 이름(리소스 팩 소리)도 된다.
-// fixedRange 는 레지스트리에 없는 소리를 보낼 때만 쓰는 고정 거리(null 이면 음량으로 정함). seed 는 소리 변형 고르기 씨앗.
+// 위치에서 나는 소리.
+//
+// sound 는 "minecraft:entity.experience_orb.pickup" 같은 이름이다. 레지스트리에 없는 이름(리소스 팩 소리)도 쓸 수 있다.
+// fixedRange 는 레지스트리에 없는 소리를 보낼 때만 쓰는 고정 거리다. null 이면 음량으로 정한다.
+// seed 는 소리 변형을 고를 때 쓰는 씨앗이다.
 package org.domi.furnace.api.packet.clientbound;
 
 import java.util.Objects;

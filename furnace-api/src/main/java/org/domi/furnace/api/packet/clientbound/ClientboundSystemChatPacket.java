@@ -1,4 +1,4 @@
-// 시스템 채팅(명령 결과·공지). actionBar 면 채팅 창이 아니라 핫바 위에 뜬다.
+// 시스템 채팅(명령 결과, 공지). actionBar 가 true 면 채팅 창이 아니라 핫바 위에 나온다.
 package org.domi.furnace.api.packet.clientbound;
 
 import java.util.Objects;

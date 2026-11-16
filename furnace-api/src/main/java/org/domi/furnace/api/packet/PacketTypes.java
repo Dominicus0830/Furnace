@@ -1,7 +1,10 @@
-// 마인크래프트 play 단계 패킷 종류 전체(서버가 아는 모든 패킷). 이름은 바닐라 패킷 이름이고 버전이 바뀌어도 그대로 쓴다.
-// 타입 레코드가 있는 종류는 레코드로, 나머지는 GenericPacket(이름 붙은 필드)으로 읽고 바꾼다. 서버가 그 버전에서 풀지 못하는 종류는 관찰·취소만(PacketService.isReadable).
-// 이 목록에 있지만 실행 중인 서버 버전에 없는 패킷이면 PacketService.isSupported 가 false 다.
-// 이동 패킷(바닐라 move_player_pos·_pos_rot·_rot·_status_only 넷)은 MOVE_PLAYER 하나로 묶었다 — 보낼 때 알맞은 것을 고른다.
+// 마인크래프트 play 단계 패킷 종류 전체(서버가 아는 모든 패킷). 이름은 바닐라 패킷 이름이며 버전이 바뀌어도 그대로 쓴다.
+//
+// 타입 레코드가 있는 종류는 레코드로, 나머지는 GenericPacket(이름 붙은 필드)으로 읽고 바꾼다.
+// 서버가 그 버전에서 풀지 못하는 종류는 관찰과 취소만 된다(PacketService.isReadable).
+// 이 목록에 있어도 실행 중인 서버 버전에 없는 패킷이면 PacketService.isSupported 가 false 다.
+//
+// 바닐라의 이동 패킷 넷(move_player_pos·_pos_rot·_rot·_status_only)은 MOVE_PLAYER 하나로 묶었다. 보낼 때 알맞은 것을 골라 보낸다.
 package org.domi.furnace.api.packet;
 
 import org.domi.furnace.api.packet.clientbound.ClientboundAddEntityPacket;
@@ -51,7 +54,7 @@ public final class PacketTypes {
     private static final Map<String, PacketType<?>> CLIENTBOUND_BY_NAME = new LinkedHashMap<>();
     private static final Map<String, PacketType<?>> SERVERBOUND_BY_NAME = new LinkedHashMap<>();
 
-    /** 서버→클라이언트. */
+    /** 서버에서 클라이언트로 가는 패킷. */
     public static final class Clientbound {
 
         private Clientbound() {}
@@ -186,7 +189,7 @@ public final class PacketTypes {
         public static final PacketType<GenericPacket> SERVER_LINKS = generic("server_links");
     }
 
-    /** 클라이언트→서버. */
+    /** 클라이언트에서 서버로 가는 패킷. */
     public static final class Serverbound {
 
         private Serverbound() {}
@@ -273,7 +276,7 @@ public final class PacketTypes {
         return (direction == PacketDirection.CLIENTBOUND ? CLIENTBOUND_BY_NAME : SERVERBOUND_BY_NAME).get(key);
     }
 
-    /** 그 방향의 모든 종류(바닐라 순서). */
+    /** 그 방향의 모든 종류. 바닐라 순서다. */
     public static List<PacketType<?>> all(PacketDirection direction) {
         init();
         return Collections.unmodifiableList(new ArrayList<>((direction == PacketDirection.CLIENTBOUND ? CLIENTBOUND_BY_NAME : SERVERBOUND_BY_NAME).values()));
