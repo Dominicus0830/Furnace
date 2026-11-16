@@ -1,10 +1,12 @@
 // 바닐라 AmethystBlock: 자수정 블록 바탕. 투사체가 맞으면 소리(서버 동작은 그것뿐).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.AmethystBlock")
 public class AmethystBlock extends BlockBehavior {
 
     public AmethystBlock(int block) { super(block); }

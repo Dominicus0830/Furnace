@@ -27,7 +27,7 @@ public final class NbtVals {
         if (v instanceof NbtCompound) return NbtIo.TAG_COMPOUND;
         if (v instanceof int[]) return NbtIo.TAG_INT_ARRAY;
         if (v instanceof long[]) return NbtIo.TAG_LONG_ARRAY;
-        throw new IllegalArgumentException("NBT 값이 아님: " + (v == null ? "null" : v.getClass()));
+        throw new IllegalArgumentException("not an NBT value: " + (v == null ? "null" : v.getClass()));
     }
 
     /**
@@ -210,7 +210,7 @@ public final class NbtVals {
             }
             case NbtIo.TAG_INT_ARRAY -> { int[] a = (int[]) v; buf.writeInt(a.length); for (int x : a) buf.writeInt(x); }
             case NbtIo.TAG_LONG_ARRAY -> { long[] a = (long[]) v; buf.writeInt(a.length); for (long x : a) buf.writeLong(x); }
-            default -> throw new IllegalArgumentException("미지원 태그: " + type);
+            default -> throw new IllegalArgumentException("unsupported tag: " + type);
         }
     }
 

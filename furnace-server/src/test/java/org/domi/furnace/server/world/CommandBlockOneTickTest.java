@@ -2,6 +2,7 @@
 // 명령이 보낸 왕복을 그 자리에서 돌린다. @e 처럼 모든 region 을 도는 명령도 쉬는 다른 region 이 곧바로 응답해 같은 호출 안에 끝난다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
@@ -36,7 +37,7 @@ class CommandBlockOneTickTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @BeforeEach
@@ -44,7 +45,7 @@ class CommandBlockOneTickTest {
         Files.writeString(tmp.resolve("server.properties"), "enable-command-block=true\n");
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         core = TestServers.core(tmp, sched);
-        core.world().setRegistries(BlockRegistry.load("blocks/1.21.1.txt"), ItemRegistry.load("items/1.21.1.txt"));
+        core.world().setRegistries(BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         core.world().submitAtChunk(C00, r -> r.chunkAtBlocking(C00)).get(30, TimeUnit.SECONDS);
     }
 

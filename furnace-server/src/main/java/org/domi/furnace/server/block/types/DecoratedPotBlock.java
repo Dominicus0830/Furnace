@@ -1,6 +1,7 @@
 // 바닐라 DecoratedPotBlock: 장식 단지(facing·cracked·waterlogged). 아이템 한 종류를 담고(블록 엔티티), 깨는 도구로 부수면 금이 간다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -16,6 +17,7 @@ import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.menu.Stacks;
 
+@VanillaPort("net.minecraft.world.level.block.DecoratedPotBlock")
 public class DecoratedPotBlock extends BaseEntityBlock {
 
     static final Prop FACING = B.prop("facing"), CRACKED = B.prop("cracked");
@@ -105,7 +107,9 @@ public class DecoratedPotBlock extends BaseEntityBlock {
     public void onProjectileHit(BlockLevel level, int state, org.domi.furnace.server.entity.Projectile.Hit hit,
                                 org.domi.furnace.server.entity.Projectile projectile) {
         Pos pos = hit.blockPos();
-        if (projectile.mayInteract(level, pos) && projectile.mayBreak(level)) {
+        // CraftBukkit: EntityChangeBlockEvent 를 막으면 깨지 않는다(새 상태 = 그 칸의 유체)
+        if (projectile.mayInteract(level, pos) && projectile.mayBreak(level)
+                && org.domi.furnace.server.block.B.entityChange(level, projectile, pos, org.domi.furnace.server.block.B.fluidLeftover(state))) {
             level.setBlock(pos, CRACKED.with(state, true), BlockLevel.UPDATE_INVISIBLE);
             level.destroyBlockByEntity(pos, true, projectile);
         }

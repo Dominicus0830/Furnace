@@ -33,7 +33,7 @@ public final class FurnaceTestExtension implements BeforeAllCallback, AfterAllCa
 
     /** 지금 시험의 서버. */
     public FurnaceTestServer server() {
-        if (server == null) throw new IllegalStateException("시험 밖에서는 서버가 없다");
+        if (server == null) throw new IllegalStateException("there is no server outside a test");
         return server;
     }
 

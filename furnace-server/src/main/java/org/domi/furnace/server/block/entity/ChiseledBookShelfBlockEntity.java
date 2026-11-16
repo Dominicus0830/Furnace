@@ -4,6 +4,7 @@
 package org.domi.furnace.server.block.entity;
 
 import java.util.Arrays;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
@@ -11,6 +12,7 @@ import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort("net.minecraft.world.level.block.entity.ChiseledBookShelfBlockEntity")
 public class ChiseledBookShelfBlockEntity extends ContainerBlockEntity {
 
     public static final int MAX_BOOKS_IN_STORAGE = 6;

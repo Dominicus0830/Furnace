@@ -2,6 +2,7 @@
 // 조각 감지기 상태 전이(active 30틱 → cooldown 10틱 → inactive), 신호 세기, 보정 감지기 주파수 거름, 저장 왕복.
 package org.domi.furnace.server.world.gameevent;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Map;
@@ -17,7 +18,7 @@ import org.junit.jupiter.api.Test;
 class SculkSensorVibrationTest {
 
     static final Blocks B = Blocks.get();
-    static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
+    static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
 
     /** 게임 시간이 흐르는 시험 레벨. */
     static final class Lvl extends BlockPlacementTest.TestLevel {

@@ -6,6 +6,7 @@
 //   metrics.jmx.enabled=false          같은 값을 JMX MBean(org.domi.furnace:type=Server)으로 등록한다
 package org.domi.furnace.server.metrics;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -32,15 +33,15 @@ public record MetricsOptions(boolean prometheus, String bind, int port, String t
             try {
                 port = Integer.parseInt(raw.strip());
             } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("설정 'metrics.prometheus.port' 가 숫자가 아님: " + raw, e);
+                throw new IllegalArgumentException(Lang.t("cfg.not-number", "metrics.prometheus.port", raw), e);
             }
             if (port < 0 || port > 65535) {
-                throw new IllegalArgumentException("설정 'metrics.prometheus.port' 값 " + port + " 이(가) 잘못됐습니다: 0~65535");
+                throw new IllegalArgumentException(Lang.t("cfg.out-of-range", "metrics.prometheus.port", port, 0, 65535));
             }
         }
         String token = props.getProperty("metrics.prometheus.token", "").strip();
         if (prom && token.isEmpty() && !isLoopback(bind)) {
-            warn.accept("metrics.prometheus.bind=" + bind + ": 루프백이 아닌데 metrics.prometheus.token 이 비어 있어 누구나 메트릭을 읽을 수 있습니다");
+            warn.accept(Lang.t("cfg.metrics-open", bind));
         }
         return new MetricsOptions(prom, bind, port, token, jmx);
     }
@@ -54,7 +55,7 @@ public record MetricsOptions(boolean prometheus, String bind, int port, String t
         if (v == null) return def;
         v = v.strip();
         if (!v.equalsIgnoreCase("true") && !v.equalsIgnoreCase("false")) {
-            throw new IllegalArgumentException("설정 '" + key + "' 값 '" + v + "' 이(가) 잘못됐습니다: true 또는 false");
+            throw new IllegalArgumentException(Lang.t("cfg.invalid-bool", key, v));
         }
         return Boolean.parseBoolean(v);
     }

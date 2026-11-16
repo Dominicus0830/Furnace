@@ -18,7 +18,7 @@ public class PlayerRespawnEvent extends PlayerEvent {
     public Location getRespawnLocation() { return respawnLocation; }
 
     public void setRespawnLocation(Location respawnLocation) {
-        if (respawnLocation == null || respawnLocation.getWorld() == null) throw new IllegalArgumentException("respawnLocation 에 월드가 있어야 한다");
+        if (respawnLocation == null || respawnLocation.getWorld() == null) throw new IllegalArgumentException("respawnLocation must have a world");
         this.respawnLocation = respawnLocation;
     }
 

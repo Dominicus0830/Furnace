@@ -2,9 +2,11 @@
 // 엔드 관문(TheEndGatewayBlockEntity)의 부모 클래스이기도 해서, 엔더 드래곤 전투의 hasActiveExitPortal 이 이 종류(관문 포함)의 존재로 판정한다.
 package org.domi.furnace.server.block.entity;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.entity.TheEndPortalBlockEntity")
 public class EndPortalBlockEntity extends BlockEntity {
 
     private static final int END_PORTAL = B.id("end_portal");

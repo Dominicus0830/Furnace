@@ -1,6 +1,7 @@
 // I-3: 저장 IO 실패는 백오프 재시도하고, 끝내 실패하면 주인 region 에서 청크를 다시 dirty 로 되돌려 다음 저장에 싣는다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,7 +28,7 @@ class SaveFailureRetryTest {
     @org.junit.jupiter.api.BeforeAll
     static void installItems() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @BeforeEach
@@ -62,7 +63,7 @@ class SaveFailureRetryTest {
 
     @Test
     void failedSave_restoresDirty_andNextSaveSucceeds(@TempDir Path dir) throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         RegionFileStore store = new RegionFileStore(dir);
         AnvilChunkCodec codec = new AnvilChunkCodec(reg, 0);
         AnvilWorldSource src = new AnvilWorldSource(dir, store, codec, new SuperflatWorldSource(reg, 0));

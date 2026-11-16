@@ -83,6 +83,31 @@ public final class TestClient implements AutoCloseable {
         return Unpooled.wrappedBuffer(data);
     }
 
+    /**
+     * millis 안에 프레임이 시작되지 않으면 null. 기다림은 첫 바이트에만 걸어 프레임 중간에서 끊겨 스트림이 어긋나는 일이 없다
+     * (일단 시작한 프레임은 평소 한도로 끝까지 읽는다).
+     */
+    public ByteBuf poll(int millis) throws Exception {
+        int first;
+        socket.setSoTimeout(millis);
+        try {
+            first = in.readUnsignedByte();
+        } catch (java.net.SocketTimeoutException e) {
+            return null;
+        } finally {
+            socket.setSoTimeout(15000);
+        }
+        int len = first & 0x7F, shift = 7, b = first;
+        while ((b & 0x80) != 0) {
+            b = in.readUnsignedByte();
+            len |= (b & 0x7F) << shift;
+            shift += 7;
+        }
+        byte[] data = new byte[len];
+        in.readFully(data);
+        return Unpooled.wrappedBuffer(data);
+    }
+
     /** id 인 패킷을 받을 때까지 읽고, id 를 읽은 뒤의 본문을 돌려준다. */
     public ByteBuf await(int id) throws Exception { return await(id, b -> true); }
 

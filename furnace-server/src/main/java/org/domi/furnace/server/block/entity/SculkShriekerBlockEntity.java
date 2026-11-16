@@ -3,6 +3,7 @@
 package org.domi.furnace.server.block.entity;
 
 import java.util.OptionalInt;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.ChunkLevel;
@@ -21,6 +22,7 @@ import org.domi.furnace.server.world.gameevent.GameEventListener;
 import org.domi.furnace.server.world.gameevent.PositionSource;
 import org.domi.furnace.server.world.gameevent.VibrationSystem;
 
+@VanillaPort("net.minecraft.world.level.block.entity.SculkShriekerBlockEntity")
 public class SculkShriekerBlockEntity extends BlockEntity implements VibrationSystem, GameEventListener.Provider {
 
     private static final int SHRIEKER = B.id("sculk_shrieker");

@@ -10,6 +10,7 @@ import java.util.logging.Level;
 import org.domi.furnace.api.plugin.lifecycle.LifecycleEventHandler;
 import org.domi.furnace.api.plugin.lifecycle.LifecycleEventManager;
 import org.domi.furnace.api.plugin.lifecycle.LifecycleEventType;
+import org.domi.furnace.server.i18n.Lang;
 
 final class LifecycleHooks {
 
@@ -32,7 +33,7 @@ final class LifecycleHooks {
         @Override
         public <R> void register(LifecycleEventType<R> type, LifecycleEventHandler<? super R> handler) {
             if (type == null || handler == null) throw new NullPointerException(type == null ? "type" : "handler");
-            if (!open) throw new IllegalStateException("수명주기 훅은 부트스트랩 단계에서만 등록할 수 있다: " + type);
+            if (!open) throw new IllegalStateException("lifecycle hooks can only be registered in the bootstrap phase: " + type);
             handlers.add(new Handler(owner, logger, type, handler));
         }
 
@@ -52,7 +53,7 @@ final class LifecycleHooks {
             try {
                 ((LifecycleEventHandler<R>) h.handler()).run(registrarFor.apply(h.owner()));
             } catch (Throwable t) {
-                h.logger().log(Level.SEVERE, "수명주기 훅 " + type + " 처리 중 예외", t);
+                h.logger().log(Level.SEVERE, Lang.t("plugin.lifecycle-hook-failed", type), t);
             }
         }
     }
@@ -65,7 +66,7 @@ final class LifecycleHooks {
             try {
                 ((LifecycleEventHandler<R>) h.handler()).run(registrar);
             } catch (Throwable t) {
-                h.logger().log(Level.SEVERE, "수명주기 훅 " + type + " 처리 중 예외", t);
+                h.logger().log(Level.SEVERE, Lang.t("plugin.lifecycle-hook-failed", type), t);
             }
         }
     }

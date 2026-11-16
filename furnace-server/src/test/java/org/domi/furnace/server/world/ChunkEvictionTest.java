@@ -1,6 +1,7 @@
 // 유휴 청크 퇴출: 구독 없는 미편집 청크는 버리고(저장 안 함), 편집된 청크는 저장한 뒤 퇴출하며, 구독 중인 청크는 보관한다
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.domi.furnace.server.ConcurrentEmbeddedChannel;
@@ -24,7 +25,7 @@ class ChunkEvictionTest {
 
     @Test
     void idleChunks_areEvicted_editedOnesSavedFirst_subscribedOnesKept(@TempDir Path dir) throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         RegionFileStore store = new RegionFileStore(dir);
         AnvilWorldSource src = new AnvilWorldSource(dir, store, new AnvilChunkCodec(reg, 0), new SuperflatWorldSource(reg, 0));
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);

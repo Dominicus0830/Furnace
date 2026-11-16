@@ -1,7 +1,8 @@
-// 텍스트 템플릿 — 마크업을 한 번만 해석해 두고 이름 붙은 슬롯만 매번 채운다(다시 해석하지 않음).
-// 채울 때 슬롯이 없는 부분 트리는 그대로 재사용하고, 슬롯이 있는 가지만 새로 만든다 → 플레이어마다 다른 메시지를 싸게 만든다.
+// 텍스트 템플릿이다. 마크업을 한 번만 해석해 두고, 이름 붙은 슬롯만 매번 채운다(다시 해석하지 않는다).
+// 채울 때 슬롯이 없는 부분 트리는 그대로 재사용하고, 슬롯이 있는 가지만 새로 만든다. 그래서 플레이어마다 다른 메시지를 싸게 만들 수 있다.
+//
 // 구현: 슬롯 자리에 표식 마디를 넣어 한 번 해석한 뒤, 표식이 들어 있는 가지만 모은 계획(Plan)을 만든다.
-// 한계: 그라디언트/무지개 안의 슬롯은 글자 하나(1칸)로 취급해 색을 입힌다(채우는 값의 글자 수는 반영하지 못한다).
+// 한계: 그라디언트/무지개 안의 슬롯은 글자 하나(1칸)로 취급해 색을 입힌다. 채우는 값의 글자 수는 반영하지 못한다.
 package org.domi.furnace.api.text.markup;
 
 import java.util.ArrayList;
@@ -160,9 +161,9 @@ public final class TextTemplate {
         List<Text> kids = fillKids(p, v);
         if (p.slot != null) {
             Object val = v.get(p.slot);
-            if (val == null) throw new IllegalArgumentException("슬롯 값이 없다: " + p.slot);
+            if (val == null) throw new IllegalArgumentException("missing slot value: " + p.slot);
             if (p.styleSlot) {
-                if (!(val instanceof Style st)) throw new IllegalArgumentException("스타일 슬롯에는 Style 이 필요하다: " + p.slot);
+                if (!(val instanceof Style st)) throw new IllegalArgumentException("a style slot needs a Style: " + p.slot);
                 return Text.of(new Content.Literal(""), st.applyTo(n.style()), kids);
             }
             Text r = toText(val, p.slot);
@@ -199,7 +200,7 @@ public final class TextTemplate {
     private Text toText(Object val, String slot) {
         if (val instanceof Text t) return t;
         if (val instanceof Parsed pr) return markup.deserialize(pr.markup(), extra);
-        if (val instanceof Style) throw new IllegalArgumentException("Style 은 스타일 슬롯에만 쓸 수 있다: " + slot);
+        if (val instanceof Style) throw new IllegalArgumentException("a Style can only be used in a style slot: " + slot);
         return Text.text(String.valueOf(val));
     }
 
@@ -214,10 +215,10 @@ public final class TextTemplate {
 
         Builder(TextMarkup markup) { this.markup = markup; }
 
-        /** 텍스트/문자열/숫자 등을 채우는 슬롯 — 마크업에서 <이름> 으로 쓴다. */
+        /** 텍스트/문자열/숫자 등을 채우는 슬롯. 마크업에서 <이름> 으로 쓴다. */
         public Builder slot(String name) { slots.add(TagResolver.checkName(name)); return this; }
 
-        /** 스타일을 채우는 슬롯 — 마크업에서 <이름>내용</이름> 으로 쓴다. */
+        /** 스타일을 채우는 슬롯. 마크업에서 <이름>내용</이름> 으로 쓴다. */
         public Builder styleSlot(String name) { styleSlots.add(TagResolver.checkName(name)); return this; }
 
         /** 모든 fill 에 똑같이 적용할 고정 플레이스홀더/태그. */

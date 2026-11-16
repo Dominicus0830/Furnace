@@ -1,6 +1,7 @@
 // 바닐라 AbstractFurnaceBlock: 화로·용광로·훈연기 바탕. 바라보는 쪽을 향해 놓이고, 열면 화면, 굽기·lit 은 블록 엔티티 동작.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -11,6 +12,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.AbstractFurnaceBlock")
 public abstract class AbstractFurnaceBlock extends BaseEntityBlock {
 
     static final Prop FACING = B.prop("facing"), LIT = B.prop("lit");

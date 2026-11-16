@@ -1,0 +1,4 @@
+# IdentityKit 자기 시험용 금 파일(IdentityKitTest). 바꾸지 않는다.
+
+alpha 0000000000000001
+beta 0000000000000002

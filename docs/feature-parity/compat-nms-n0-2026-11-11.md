@@ -84,3 +84,23 @@ shim 은 `furnace-api` 의 블록 종류 표만 본다. 상태 표는 처음 쓸
 - R2: `HolderSet.Direct` equals·hashCode(내용 목록), `HolderSet.empty()` 상수 하나.
 - R3: `getOrCreateTag` 로 만든 묶음이 그 뒤 `getTag`·`getTagNames` 에 나온다(바닐라 MappedRegistry 태그 지도).
 - 성능: 서버는 태그 표마다 이름 목록·번호 BitSet 을 한 번 만들고(리로드로 표가 바뀌면 다시), 같은 표면 같은 목록 객체를 준다. shim 묶음은 그 목록 객체가 바뀔 때만 손잡이 목록을 다시 만든다.
+
+## N0 4부 — 유체 (2026-11-11)
+
+소스 조사: `FluidTags.WATER` 36곳·`LAVA` 10곳, `FluidState` 79곳(Citizens 몹의 `isEyeInFluid`·squaremap·dynmap 의 `getFluidState().isEmpty()`·`Fluids.WATER` 비교), `PushReaction` 600곳 남짓(Citizens 몹 상속 클래스의 `getPistonPushReaction` 재정의 — 타입만 있으면 클래스가 링크된다).
+
+| 클래스 | 내용 |
+|---|---|
+| API `FluidData`·`BlockTypes.fluid(stateId)` | 블록 상태가 품은 유체(바닐라 `BlockState.getFluidState`). 서버 블록 동작의 `getFluidState` 를 그대로 읽는다 — 물·용암 level, 잠긴 블록, 켈프·해초·거품 기둥 규칙이 한곳에 있다 |
+| `Fluid`·`EmptyFluid`·`FlowingFluid`·`WaterFluid`/`LavaFluid`(`Flowing`·`Source`)·`Fluids` | 바닐라 1.21.1 `epd`·`epb`·`epc`·`epk`·`eph`·`epf` 의 계층과 값: 상태 표는 속성 이름순·앞 속성이 바깥 고리, 기본 상태 = 표의 첫 상태(`falling=true`, 흐르는 유체는 `level=1`). 양 원천 8·흐름 level, 높이 양/9, 폭발 저항 물·용암 100·빈 0, 무작위 틱 용암만, `isSame` 원천·흐름 짝, 양동이 아이템 |
+| `FluidState` | `getType`·`getAmount`·`isSource`·`isSourceOfType`·`isEmpty`·`getOwnHeight`·`isRandomlyTicking`·`createLegacyBlock`(바닐라 `getLegacyLevel`: 원천 0, 아니면 8 − min(양, 8), 떨어지면 +8)·`is(TagKey/HolderSet/Fluid)`·`holder`·`getTags`·`getExplosionResistance`. 같은 표의 같은 객체 |
+| `BlockState.getFluidState()` | 처음 물을 때 서버에서 읽어 둔다. 잠긴 블록은 물 원천 `falling=false` 이지만 **구리 격자 8종만 `falling=true`**(바닐라 `dpd` 가 `getSource(true)`) — 고치지 말 것 |
+| `BuiltInRegistries.FLUID`·`Registries.FLUID`(값 타입 `Fluid` 로) | 기본값 minecraft:empty, 서버 내장 목록과 순서가 다르면 실패 |
+| `FluidTags` | `WATER`·`LAVA` |
+| `PushReaction` | 바닐라 `epj` 순서(NORMAL, DESTROY, BLOCK, IGNORE, PUSH_ONLY) |
+
+월드가 있어야 하는 메서드(`getHeight(level,pos)`·`getFlow`·`tick`·`getTickDelay`·소리·입자)와 `Fluid.FLUID_STATE_REGISTRY`, `BlockState.getPistonPushReaction`·`getMapColor`(`MapColor` — squaremap·dynmap)는 아직 없다.
+
+시험: compat `NmsFluidsTest` 5개(레지스트리 순서, 상태 표·값, 레거시 level 변환, 블록 상태의 유체 — level 0..8 왕복·9..15 는 떨어지는 8·잠긴 반 블록·구리 격자·켈프·거품 기둥, 태그).
+
+독립 검토(PR #226, `furnace/reviews/pr226-n0d-review.md`): 승인, 필수 수정 없음. 계층·필드 타입·등록 순서·기본 상태·상태 표 순서·getLegacyLevel·PushReaction 순서가 바이트코드와 같고, 블록 상태 26684개 전부의 getFluidState 를 바닐라 규칙과 대조해 불일치 0. 반영: 구리 격자 시험 한 줄. 남은 주의: 나중에 `BlockStateProperties` shim 을 만들 때 `FALLING`·`LEVEL_FLOWING` 은 `FlowingFluid.FALLING`·`LEVEL` 과 같은 객체여야 한다.

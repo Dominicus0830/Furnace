@@ -1,6 +1,7 @@
 // OfflinePlayer 구현 — 접속 중이면 접속자 핸들로 넘기고, 아니면 playerdata 파일과 서버 목록(ops/banned-players/whitelist)을 직접 다룬다.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.time.Instant;
 import java.util.Date;
 import java.util.UUID;
@@ -69,7 +70,7 @@ final class OfflinePlayerImpl implements OfflinePlayer {
         Player p = online();
         if (p != null) return ServerCore.profileOf(p);
         String n = name();
-        if (n == null) throw new IllegalStateException("이름을 모르는 플레이어는 목록에 쓸 수 없다: " + id);
+        if (n == null) throw new IllegalStateException("a player without a known name cannot be put on a list: " + id);
         return new GameProfile(id, n);
     }
 
@@ -109,6 +110,22 @@ final class OfflinePlayerImpl implements OfflinePlayer {
             if (root == null) return null;
             return (PersistentDataView) NbtPersistentData.snapshot(root.tags().get("BukkitValues") instanceof org.domi.furnace.server.net.io.nbt.NbtCompound c ? c : null);
         });
+    }
+
+    @Override
+    public PersistentDataView persistentDataNow() {
+        Player p = online();
+        if (p != null) return host.player(p).persistentData();
+        org.domi.furnace.server.net.io.nbt.NbtCompound root;
+        try {
+            root = PlayerData.readRoot(core().world().worldDir(), id);
+        } catch (RuntimeException e) {
+            // Paper 처럼 읽지 못하는 파일은 경고만 남기고 빈 보기로 — 한 파일 때문에 플레이어를 훑는 플러그인이 끊기지 않게
+            org.slf4j.LoggerFactory.getLogger(OfflinePlayerImpl.class).warn(Lang.t("plugin.offline-data-unreadable", id, e.toString()));
+            return null;
+        }
+        if (root == null) return null;
+        return NbtPersistentData.snapshot(root.tags().get("BukkitValues") instanceof org.domi.furnace.server.net.io.nbt.NbtCompound c ? c : null);
     }
 
     @Override
@@ -155,7 +172,7 @@ final class OfflinePlayerImpl implements OfflinePlayer {
 
     @Override
     public void setOpLevel(int level) {
-        if (level < 0 || level > 4) throw new IllegalArgumentException("OP 레벨은 0~4: " + level);
+        if (level < 0 || level > 4) throw new IllegalArgumentException("the op level must be 0..4: " + level);
         if (level == 0) {
             if (!lists().isOp(lookupProfile())) return;
             lists().deop(lookupProfile());

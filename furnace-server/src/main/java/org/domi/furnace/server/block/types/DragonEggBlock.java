@@ -1,6 +1,7 @@
 // 바닐라 DragonEggBlock: 쓰거나 때리면 주변(±15, ±7) 빈칸으로 순간 이동한다. 떨어지는 블록(5틱).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -9,6 +10,7 @@ import org.domi.furnace.server.block.InteractionResult;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.DragonEggBlock")
 public class DragonEggBlock extends FallingBlock {
 
     public DragonEggBlock(int block) { super(block); }

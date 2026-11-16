@@ -82,6 +82,21 @@ public class GoalSelector {
         return true;
     }
 
+    /** Paper: 활성 범위 밖 틱 수(Mob.inactiveTick 이 3번에 한 번만 tick 을 부른다). */
+    private int curRate;
+
+    /** Paper GoalSelector.inactiveTick. */
+    public boolean inactiveTick() {
+        curRate++;
+        return curRate % 3 == 0;
+    }
+
+    /** Paper GoalSelector.hasTasks: 돌고 있는 목표가 있는가. */
+    public boolean hasTasks() {
+        for (WrappedGoal w : availableGoals) if (w.isRunning()) return true;
+        return false;
+    }
+
     public void tick() {
         if (ticking) return;   // 목표 콜백 안에서 다시 부르면 무시(바닐라 코드는 그러지 않는다)
         ticking = true;

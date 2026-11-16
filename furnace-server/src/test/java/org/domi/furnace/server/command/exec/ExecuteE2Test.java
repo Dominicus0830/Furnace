@@ -2,6 +2,7 @@
 // 포크와의 상호작용(as 뒤에서 소스가 걸러지는지), 조회성 조건이 region 을 만들지 않는지.
 package org.domi.furnace.server.command.exec;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.IOException;
@@ -52,7 +53,7 @@ class ExecuteE2Test {
         column = core.world().awaitChunk(new ChunkPos(0, 0));
         cows = DeferredResultTest.spawnCows(core, 2);
         core.addConsoleListener(t -> messages.add(t.getString()));
-        var reg = org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt");
+        var reg = org.domi.furnace.server.world.BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         World nether = new World(NETHER, new SuperflatWorldSource(reg, 0), new org.domi.furnace.server.net.ChunkWorkerPool(1), sched, 1, 4, 1, 2, 2,
                 reg.directBits(), 7, TestServers.ioPool(), TestServers.ioPool());
         Dimensions dims = new Dimensions();
@@ -95,6 +96,9 @@ class ExecuteE2Test {
         Path vanilla = tmp.resolve("vanilla");
         Files.createDirectories(vanilla.resolve("data/minecraft/tags/item"));
         Files.writeString(vanilla.resolve("data/minecraft/tags/item/x.json"), "{\"values\":[]}");
+        // 가짜 바닐라 팩에는 시험이 묻는 블록 태그만 둔다(태그는 이제 데이터 팩 표를 따르므로 jar 의 바닐라 표로 채워 주지 않는다)
+        Files.createDirectories(vanilla.resolve("data/minecraft/tags/block"));
+        Files.writeString(vanilla.resolve("data/minecraft/tags/block/guarded_by_piglins.json"), "{\"values\":[\"minecraft:chest\"]}");
         Path pack = tmp.resolve("datapacks/mine");
         Files.createDirectories(pack.resolve("data/test/predicate"));
         Files.writeString(pack.resolve("pack.mcmeta"), "{\"pack\":{\"description\":\"t\",\"pack_format\":48}}");
@@ -104,7 +108,7 @@ class ExecuteE2Test {
                 + "\"functions\":[{\"function\":\"minecraft:set_count\",\"count\":5}]}]}]}");
         packs = DataPackManager.start(vanilla, tmp, org.domi.furnace.server.world.storage.LevelData.create("world", 1L, true, false,
                 org.domi.furnace.server.world.GameMode.SURVIVAL, false, org.domi.furnace.server.world.Difficulty.EASY, List.of("vanilla"), List.of()),
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt"), true, List.of("vanilla"), List.of());
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"), true, List.of("vanilla"), List.of());
         core.dataPacks(packs);
     }
 

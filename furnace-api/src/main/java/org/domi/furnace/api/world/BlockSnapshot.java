@@ -17,7 +17,7 @@ public record BlockSnapshot(String world, BlockPos pos, BlockData data) {
     /** 같은 칸의 살아 있는 손잡이(읽지 않는다). 그 차원이 서버에 없으면 IllegalStateException. */
     public Block live() {
         World w = org.domi.furnace.api.Furnace.server().world(world);
-        if (w == null) throw new IllegalStateException("없는 차원: " + world);
+        if (w == null) throw new IllegalStateException("no such dimension: " + world);
         return w.block(pos);
     }
 }

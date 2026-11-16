@@ -16,12 +16,15 @@ public interface PluginManager {
     void disable(FurnacePlugin plugin);
 
     /**
-     * 불러왔지만 꺼져 있는 플러그인을 켠다(아직 켜지 않았거나 {@link #disable} 로 끈 것). 이미 켜져 있거나 이 서버가 불러온 플러그인이 아니면
-     * 아무 일도 없다. 켜기에 실패하면 서버 로그에 남기고 다시 끈다(시작 때와 같다).
-     * <p>다시 켤 때 돌아오는 것은 {@code onEnable} 과 설명 파일의 권한·명령뿐이다. 부트스트랩·{@code onLoad} 에서 한 등록
-     * (수명주기 처리기·플러그인 레지스트리 정의·월드젠 훅)은 끌 때 지워져 되살아나지 않는다 — 그런 플러그인은 서버를 다시 켜거나 개발 모드의 {@link #reload} 를 쓴다.
+     * 불러왔지만 꺼져 있는 플러그인을 켠다(아직 켜지 않았거나 {@link #disable} 로 끈 것).
+     * 이미 켜져 있거나 이 서버가 불러온 플러그인이 아니면 아무 일도 없다.
+     * 켜기에 실패하면 서버 로그에 남기고 다시 끈다(시작 때와 같다).
+     *
+     * <p>다시 켤 때 돌아오는 것은 {@code onEnable} 과 설명 파일의 권한·명령뿐이다.
+     * 부트스트랩과 {@code onLoad} 에서 한 등록(수명주기 처리기, 플러그인 레지스트리 정의, 월드젠 훅)은 끌 때 지워져 되살아나지 않는다.
+     * 그런 플러그인은 서버를 다시 켜거나 개발 모드의 {@link #reload} 를 쓴다.
      */
-    default void enable(FurnacePlugin plugin) { throw new UnsupportedOperationException("이 서버는 플러그인을 다시 켜지 못한다"); }
+    default void enable(FurnacePlugin plugin) { throw new UnsupportedOperationException("this server cannot re-enable plugins"); }
 
     /** 플러그인 로거의 수준을 바꾼다(서버 설정 plugins.log-level.<이름> 으로 시작값을 줄 수 있다). */
     void setLogLevel(String pluginName, java.util.logging.Level level);
@@ -30,12 +33,12 @@ public interface PluginManager {
     default boolean devMode() { return false; }
 
     /**
-     * 개발 모드 전용 핫 리로드: 그 플러그인을 끄고(자동 정리 포함) jar 를 새 클래스로더로 다시 읽어 켠다.
-     * 그 플러그인에 기대는 플러그인(depend·softdepend·loadbefore, 실제로 그 jar 의 클래스를 가져다 쓴 플러그인)도 함께 다시 읽는다.
+     * 개발 모드 전용 핫 리로드다. 그 플러그인을 끄고(자동 정리 포함) jar 를 새 클래스로더로 다시 읽어 켠다.
+     * 그 플러그인에 기대는 플러그인(depend·softdepend·loadbefore 로 걸렸거나 실제로 그 jar 의 클래스를 가져다 쓴 플러그인)도 함께 다시 읽는다.
      * 불러오지 않은 이름이라도 plugins/ 에 그 이름의 jar 가 있으면 새로 불러오고, jar 가 없어졌으면 내리기만 한다.
-     * 작업은 전역 스레드에서 돌고, 결과는 다시 켠 플러그인 이름(켠 순서). 개발 모드가 아니면 IllegalStateException 으로 끝난다.
+     * 작업은 전역 스레드에서 돌고, 결과는 다시 켠 플러그인 이름이다(켠 순서). 개발 모드가 아니면 IllegalStateException 으로 끝난다.
      */
     default java.util.concurrent.CompletableFuture<java.util.List<String>> reload(String name) {
-        return java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("핫 리로드는 개발 모드(plugins.dev-mode=true)에서만 된다"));
+        return java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("hot reload only works in development mode (plugins.dev-mode=true)"));
     }
 }

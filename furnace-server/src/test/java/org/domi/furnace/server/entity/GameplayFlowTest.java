@@ -2,6 +2,7 @@
 // client_command(리스폰)가 Respawn·체력 회복·경험치 초기화로 이어진다(바닐라 PlayerList.respawn 순서).
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -26,7 +27,7 @@ class GameplayFlowTest {
     @BeforeAll
     static void installItems() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @TempDir Path tmp;

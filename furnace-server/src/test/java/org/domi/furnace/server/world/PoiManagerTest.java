@@ -1,6 +1,7 @@
 // POI: 블록 설치·제거 갱신, 저장 왕복(Sections NBT), 블록에서 복구, 조회 거리, 티켓 점유, 마을 근처 판정.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.ByteArrayInputStream;
@@ -25,7 +26,7 @@ import org.junit.jupiter.api.Test;
 
 class PoiManagerTest {
 
-    private static final SuperflatWorldSource GEN = new SuperflatWorldSource(BlockRegistry.load("blocks/1.21.1.txt"), 0);
+    private static final SuperflatWorldSource GEN = new SuperflatWorldSource(BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), 0);
 
     static class Lvl extends ChunkLevel {
         final Map<Long, ChunkColumn> chunks = new HashMap<>();

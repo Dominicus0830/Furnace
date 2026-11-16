@@ -61,6 +61,9 @@ world.mergeBlockEntityNbt(pos, NbtCompound.parse("{CustomName:'\"Loot\"'}"));
 
 - 그 칸을 가진 region 스레드에서 돈다. 로드되지 않았거나 블록 엔티티가 없으면 `Optional.empty()`/`false`(청크를 만들지 않는다).
 - 쓰기는 `/data` 와 같은 경로(`loadWithComponents → setChanged → 클라이언트 갱신`).
+- 플러그인 영속 데이터만 고칠 때는 `editBlockEntityPersistentData(pos, c -> c.set("myplugin:owner", PersistentDataType.STRING, "Dana"))`
+  (소유 스레드에서는 `editBlockEntityPersistentDataNow`). 저장 위치는 Paper 와 같은 NBT `PublicBukkitValues` 이고, 나머지 블록 엔티티 필드를 다시 싣지 않으며
+  클라이언트로 아무것도 보내지 않는다(영속 데이터는 클라이언트로 가지 않는다). 바뀌었을 때만 청크를 저장 대상으로 표시한다.
 
 **버전 메모**: NBT 의 키 이름·구조는 마인크래프트 데이터 버전을 따른다(1.21.1 = 3955, `Internals.dataVersion()`). 이후 버전 지원 때 API 메서드는 그대로이고, 바닐라가 키를 바꾸면 그 키만 바뀐다 — `/data` 명령을 쓰는 데이터팩과 같은 처지다.
 
@@ -135,10 +138,18 @@ Entity api = in.wrapEntity(internalZombie);
 
 정확한 이름은 서버 소스가 기준이다(난독화 없음). 코드 위치를 찾을 때는 `graphify query "<질문>"` 도 쓸 수 있다.
 
+### 3.4 청크 내부 다리 `ChunkInternals` (호환 계층 전용)
+
+`Internals#chunks()` 는 Bukkit·Paper 호환 계층의 NMS 청크 shim(`LevelChunk`·`LevelChunkSection`·`PalettedContainer`·`Heightmap`)이 쓰는 번호 단위 다리다
+(블록 상태 번호·바이옴 번호 읽기 15개, 바닐라 `Level.setBlock`·`LevelChunk.setBlockState` 그대로인 단일 칸 쓰기 2개 — N2b-1 에서 상태별 무작위 틱·섹션 무작위 틱 판정 나눔·청크 정체성 표시 셋을 더함). **호환 계층 전용이고 버전 중립 보장이 없다** —
+일반 플러그인은 `World`·블록 API 나 위의 `withLevel` 을 쓴다. "Now" 메서드는 그 청크를 가진 region 스레드에서만 되고, 로드되지 않은 청크는 표시값(-1·null·`Integer.MIN_VALUE`)을
+돌려줄 뿐 불러오지 않는다. `relightChunks`(T-197)는 아무 스레드에서 부르는 청크 빛 다시 계산이다(Paper `starlight$serverRelightChunks` 의 서버 몫 — 받은 수 반환, 청크 콜백·끝 콜백은 콜백 전용 스레드에서 차례로). 빛 읽기 `lightReadyNow`·`lightNow`·`lightLayerNow`(주인)와 `ChunkView#lightReady/light/lightLayer`(공개 스냅샷), 검사 걸기 `checkLight`(아무 스레드, 기다리지 않음)는 T-205 의 Paper 빛 엔진 면(`compat-nms-t205-light-surface-2026-11-16.md`)이다. 플러그인이 직접 꺼내면 `Internals` 처럼 로그에 남는다. 상세: `docs/feature-parity/compat-nms-n1-n2a-2026-11-14.md`, `compat-nms-n2b1-2026-11-14.md`.
+
 ## 4. 버전 정책 (D5 와 1.21.1 이후 버전 지원)
 
 - **안정**: `Internals` 인터페이스, NBT 타입, 1단 메서드. semver 를 따르고 폐기는 대체를 먼저 낸 뒤 두 마이너 이상 유지한다.
 - **불안정**: `Internals` 로 꺼낸 내부 클래스·메서드. 마인크래프트 버전이나 Furnace 버전이 바뀌면 이름·동작이 달라질 수 있다. `requireMinecraft(...)` 로 지원 버전을 밝히고, 내부 접근은 플러그인 안 한 클래스에 모아 두면 새 버전 대응이 한 파일로 끝난다.
+- **`org.domi.furnace.api.GameVersion`**(V-01, 생성 클래스): `MINECRAFT`·`PROTOCOL`·`DATA_VERSION` 같은 컴파일 시간 상수로 서버가 따르는 판을 알려 준다. 값은 `gradle/minecraft.properties` 에서 오며 상세는 `docs/testing/game-version.md`.
 - 내부 접근이 자주 필요한 쓰임새는 안정 API(0·1단)로 올린다 — 목표·두뇌 AI, 속성, 스폰 정책 등은 불만 조사 표(17~25번)에 이미 올라 있다.
 
 ## 5. 시험

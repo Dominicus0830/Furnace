@@ -1,0 +1,155 @@
+// 엔티티 손잡이(T-122, 2차 CSP B3-1): 아이템·경험치 합치기 반경, 몹끼리 밀기 상한, 종류별 추적 거리.
+// 기본값은 Paper 1.21.1 과 같다(도미니코 결정 B3-1, 2026-11-14). 그중 합치기 둘은 Paper 기본이 바닐라와 같아 결과가 바닐라 그대로고,
+// 밀기 상한(8)과 추적 거리(플레이어 128·동물/몬스터/기타 96·디스플레이 128·그 밖 64)는 **바닐라와 다르다**(D11 과 같은 예외).
+// 손잡이 옆의 Paper 고정 변경 둘(아이템 합치는 방향, 밀 수 없는 생물 밀기 건너뜀)도 Paper 와 같게 켠다(T122-1, 2026-11-15 위임 결정).
+// 플레이어 cramming 피해도 Paper 기본(false = 안 받음)과 같다(T-122 검토 N1, 2026-11-15 위임 결정).
+// 바닐라와 같게: collisions.max-entity-collisions=-1, entity-tracking-range.enabled=false, item-merge.always-into-ticking=false,
+// collisions.skip-unpushable=false, collisions.allow-player-cramming-damage=true (또는 config.preset=vanilla).
+package org.domi.furnace.server.config;
+
+import org.domi.furnace.server.i18n.Lang;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Properties;
+import java.util.function.Consumer;
+
+/**
+ * 키 이름은 원래 자리의 이름을 따른다: {@code merge-radius.*}·{@code entity-tracking-range.*} 는 spigot.yml {@code world-settings.default.*},
+ * {@code collisions.max-entity-collisions} 는 Paper paper-world-defaults.yml. 그래서 {@link PaperConfigImport} 가 값을 그대로 옮긴다.
+ *
+ * @param itemMerge          아이템 합치기 반경(블록). Spigot 식 상자 inflate(r, r-0.5, r) — 0.5 가 바닐라(inflate(0.5, 0, 0.5))와 같다
+ * @param expMerge           경험치 구슬 합치기 반경(블록). 0 이하면 끔(바닐라). 켜면 새로 생기는 구슬이 반경 안의 같은 count 구슬 값을 흡수한다(Spigot·Paper)
+ * @param maxEntityCollisions 생물 하나가 한 틱에 미는 수 상한(Paper Cap Entity Collisions). {@link #UNLIMITED}(-1)=제한 없음(바닐라), 0=밀지 않음(Paper 와 같다)
+ * @param trackingEnabled    false 면 추적 거리는 바닐라(종류마다 clientTrackingRange × 16)
+ * @param itemMergeIntoTicking Spigot·Paper 고정 변경(설정 없음, ItemEntity.tryToMerge 의 {@code if (true || …)}): 합칠 때 늘 지금 틱을 도는 아이템 쪽으로
+ *                           모은다. false = 바닐라(개수가 적은 쪽을 많은 쪽에, 같으면 상대 쪽에)
+ * @param skipUnpushableCollisions Paper 고정 변경("Don't run entity collision code if not needed"): 밀 수 없는 생물(사다리·덩굴에 매달림·관전자 등,
+ *                           isPushable 거짓)은 남을 밀지 않고 cramming 피해도 안 받는다. false = 바닐라
+ * @param allowPlayerCrammingDamage Paper {@code collisions.allow-player-cramming-damage}(기본 false, "Don't apply cramming damage to players"):
+ *                           false 면 플레이어는 maxEntityCramming 피해를 받지 않는다(1/4 굴림은 그대로). true = 바닐라
+ */
+public record EntityHandleSettings(double itemMerge, double expMerge, int maxEntityCollisions,
+                                   boolean trackingEnabled, int trackPlayers, int trackAnimals, int trackMonsters, int trackMisc,
+                                   int trackDisplay, int trackOther,
+                                   boolean itemMergeIntoTicking, boolean skipUnpushableCollisions,
+                                   boolean allowPlayerCrammingDamage) {
+
+    public static final String ITEM_MERGE = "merge-radius.item";
+    public static final String EXP_MERGE = "merge-radius.exp";
+    public static final String MAX_COLLISIONS = "collisions.max-entity-collisions";
+    public static final String TRACKING = "entity-tracking-range.";
+    public static final String ITEM_MERGE_INTO_TICKING = "item-merge.always-into-ticking";
+    public static final String SKIP_UNPUSHABLE = "collisions.skip-unpushable";
+    public static final String PLAYER_CRAMMING = "collisions.allow-player-cramming-damage";
+
+    /** maxEntityCollisions 의 "제한 없음"(바닐라). Paper 에는 없는 값이다(Paper 는 0 이하 = 밀지 않음). */
+    public static final int UNLIMITED = -1;
+
+    /** 기본: Paper 1.21.1 기본값(SpigotWorldConfig·WorldConfiguration.Collisions, Paper-config-files.patch). */
+    public static final EntityHandleSettings DEFAULT = new EntityHandleSettings(0.5, -1.0, 8, true, 128, 96, 96, 96, 128, 64, true, true, false);
+
+    /** 바닐라: 합치기 반경은 기본과 같고, 밀기 제한 없음·추적 거리 바닐라·Paper 고정 변경 둘 끔·플레이어 cramming 피해 있음. */
+    public static final EntityHandleSettings VANILLA = new EntityHandleSettings(0.5, -1.0, UNLIMITED, false, 128, 96, 96, 96, 128, 64, false, false, true);
+
+    /** 바닐라 Player clientTrackingRange(32) × 16. */
+    public static final int VANILLA_PLAYER_RANGE = 32 * 16;
+
+    private static volatile EntityHandleSettings current = DEFAULT;
+
+    public static EntityHandleSettings current() { return current; }
+
+    public static void install(EntityHandleSettings s) { current = s == null ? DEFAULT : s; }
+
+    /** 추적 거리 키(접두 뒤)·기본값·설명 — OptionKeys 키 표·설정 파일 설명이 쓴다. */
+    public static final String[][] TRACKING_KEYS = {
+            {"players", "128", "cfg.help.tracking.players"},
+            {"animals", "96", "cfg.help.tracking.animals"},
+            {"monsters", "96", "cfg.help.tracking.monsters"},
+            {"misc", "96", "cfg.help.tracking.misc"},
+            {"display", "128", "cfg.help.tracking.display"},
+            {"other", "64", "cfg.help.tracking.other"},
+    };
+
+    /** 블록 단위 추적 거리: 플레이어. 꺼져 있으면 바닐라 512. 방송 비율은 부르는 쪽이 곱한다. */
+    public int playerRange() { return trackingEnabled ? trackPlayers : VANILLA_PLAYER_RANGE; }
+
+    public static EntityHandleSettings load(Path file, Consumer<String> warn) { return fromProperties(FurnaceProps.read(file), warn); }
+
+    public static EntityHandleSettings fromProperties(Properties p, Consumer<String> warn) {
+        EntityHandleSettings d = DEFAULT;
+        double item = dbl(p, ITEM_MERGE, d.itemMerge);
+        if (item < 0) throw bad(ITEM_MERGE, p, "cfg.expect-item-merge");
+        double exp = dbl(p, EXP_MERGE, d.expMerge);
+        int max = num(p, MAX_COLLISIONS, d.maxEntityCollisions);
+        if (max < UNLIMITED) throw bad(MAX_COLLISIONS, p, "cfg.expect-max-collisions");
+        boolean on = bool(p, TRACKING + "enabled", d.trackingEnabled);
+        int[] r = new int[TRACKING_KEYS.length];
+        int[] def = {d.trackPlayers, d.trackAnimals, d.trackMonsters, d.trackMisc, d.trackDisplay, d.trackOther};
+        for (int i = 0; i < r.length; i++) {
+            String key = TRACKING + TRACKING_KEYS[i][0];
+            r[i] = num(p, key, def[i]);
+            if (r[i] < 0) throw bad(key, p, "cfg.expect-tracking");
+        }
+        boolean intoTicking = bool(p, ITEM_MERGE_INTO_TICKING, d.itemMergeIntoTicking);
+        boolean skipUnpushable = bool(p, SKIP_UNPUSHABLE, d.skipUnpushableCollisions);
+        boolean playerCramming = bool(p, PLAYER_CRAMMING, d.allowPlayerCrammingDamage);
+        EntityHandleSettings s = new EntityHandleSettings(item, exp, max, on, r[0], r[1], r[2], r[3], r[4], r[5], intoTicking, skipUnpushable, playerCramming);
+        if (warn != null) {
+            List<String> diff = s.vanillaDifferences();
+            if (!diff.isEmpty()) {
+                warn.accept(org.domi.furnace.server.i18n.Lang.t("config.entity-handles-differ", String.join(", ", diff)));
+            }
+        }
+        return s;
+    }
+
+    /** 바닐라와 결과가 달라지는 "키=값" 목록(기동 알림용 — 언어와 무관한 키 이름). 비었으면 바닐라와 같다. */
+    public List<String> vanillaDifferences() {
+        List<String> out = new ArrayList<>();
+        if (itemMerge != 0.5) out.add(ITEM_MERGE + "=" + itemMerge);
+        if (expMerge > 0) out.add(EXP_MERGE + "=" + expMerge);
+        if (maxEntityCollisions != UNLIMITED) out.add(MAX_COLLISIONS + "=" + maxEntityCollisions);
+        if (trackingEnabled) out.add(TRACKING + "enabled=true");
+        if (itemMergeIntoTicking) out.add(ITEM_MERGE_INTO_TICKING + "=true");
+        if (skipUnpushableCollisions) out.add(SKIP_UNPUSHABLE + "=true");
+        if (!allowPlayerCrammingDamage) out.add(PLAYER_CRAMMING + "=false");
+        return out;
+    }
+
+    private static IllegalArgumentException bad(String key, Properties p, String wantKey) {
+        return new IllegalArgumentException(Lang.t("cfg.invalid-value", key, p.getProperty(key), Lang.t(wantKey)));
+    }
+
+    private static double dbl(Properties p, String key, double def) {
+        String v = p.getProperty(key);
+        if (v == null) return def;
+        try {
+            double x = Double.parseDouble(v.strip());
+            if (Double.isFinite(x)) return x;
+        } catch (NumberFormatException ignored) {
+            // 아래에서 알린다
+        }
+        throw new IllegalArgumentException(Lang.t("cfg.not-number", key, v));
+    }
+
+    private static int num(Properties p, String key, int def) {
+        String v = p.getProperty(key);
+        if (v == null) return def;
+        try {
+            return Integer.parseInt(v.strip());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(Lang.t("cfg.not-number", key, v), e);
+        }
+    }
+
+    private static boolean bool(Properties p, String key, boolean def) {
+        String v = p.getProperty(key);
+        if (v == null) return def;
+        v = v.strip();
+        if (!v.equalsIgnoreCase("true") && !v.equalsIgnoreCase("false")) {
+            throw new IllegalArgumentException(Lang.t("cfg.invalid-bool", key, v));
+        }
+        return Boolean.parseBoolean(v);
+    }
+}

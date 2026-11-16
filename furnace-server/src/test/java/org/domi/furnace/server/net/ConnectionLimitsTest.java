@@ -1,6 +1,7 @@
 // 접속 방어 설정 파싱(기본값 = 지금까지 동작), CIDR, 바닐라 rate-limit 평균, 아이템 글자 수 상한
 package org.domi.furnace.server.net;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import java.net.InetAddress;
 import java.util.ArrayList;
@@ -226,7 +227,7 @@ class ConnectionLimitsTest {
     @Test
     void malformedTextComponents_neverEscapeAsOtherExceptions() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         for (String bad : List.of("{\"text\":", "{\"text\":\"a\",\"extra\":[[[[1]]]]}",
                 "{\"text\":\"a\",\"hoverEvent\":{\"action\":\"show_entity\",\"contents\":{\"type\":\"minecraft:pig\",\"id\":\"not-a-uuid\"}}}",
                 "{\"translate\":5}")) {

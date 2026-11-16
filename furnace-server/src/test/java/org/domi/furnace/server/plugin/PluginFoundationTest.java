@@ -166,7 +166,7 @@ class PluginFoundationTest {
         var p = host.plugins().plugin("Gamma");
         host.eventsImpl().subscribe(p, OldPing.class, e -> { });
         host.eventsImpl().subscribe(p, OldPing.class, e -> { });
-        assertEquals(1, messages().stream().filter(m -> m.contains("폐기된 이벤트 OldPing")).count());
+        assertEquals(1, messages().stream().filter(m -> m.contains("the deprecated event OldPing")).count());
     }
 
     // ---- 자원 자동 정리 ----
@@ -239,7 +239,7 @@ class PluginFoundationTest {
         host(dir, PluginSettings.DEFAULT);
         host.pluginsImpl().loadAll();
         assertNotNull(host.plugins().plugin("Gamma"));
-        assertTrue(messages().stream().anyMatch(m -> m.contains("api-version 이 없다")));
+        assertTrue(messages().stream().anyMatch(m -> m.contains("has no api-version")));
     }
 
     @Test
@@ -346,14 +346,25 @@ class PluginFoundationTest {
         Properties bad = new Properties();
         bad.setProperty("plugins.compat.nms.version-package", "spigot");
         assertThrows(IllegalArgumentException.class, () -> PluginSettings.from(bad, log), "잘못된 값은 기동을 멈춘다");
+        Properties miss = new Properties();
+        miss.setProperty("plugins.compat.nms.missing-class-log", " Each ");
+        assertEquals("each", PluginSettings.from(miss, log).compatOption("plugins.compat.nms.missing-class-log"));
+        miss.setProperty("plugins.compat.nms.missing-class-log", "summary");
+        assertEquals(PluginSettings.DEFAULT, PluginSettings.from(miss, log), "기본값(summary)은 안 적은 것과 같다");
+        miss.setProperty("plugins.compat.nms.missing-class-log", "loud");
+        assertThrows(IllegalArgumentException.class, () -> PluginSettings.from(miss, log), "잘못된 값은 기동을 멈춘다");
         Properties badBool = new Properties();
         badBool.setProperty("plugins.compat.nms.strict", "yes");
         assertThrows(IllegalArgumentException.class, () -> PluginSettings.from(badBool, log));
-        // H7d: Spigot 이름 대응표 — 기본 off, download|files 만, files 는 경로가 있어야 한다
-        assertEquals(null, d.compatOptions().get("plugins.compat.nms.spigot-mappings"), "안 적으면 off(맵에서 빠진다)");
+        // H7d: Spigot 이름 대응표 — 기본 download(2026-11-12 결정), off|download|files 만, files 는 경로가 있어야 한다
+        assertEquals(null, d.compatOptions().get("plugins.compat.nms.spigot-mappings"), "안 적으면 download(맵에서 빠진다)");
+        assertEquals("download", PluginSettings.SPIGOT_MAPPINGS_DEFAULT);
         Properties dl = new Properties();
         dl.setProperty("plugins.compat.nms.spigot-mappings", "Download");
-        assertEquals("download", PluginSettings.from(dl, log).compatOptions().get("plugins.compat.nms.spigot-mappings"));
+        assertEquals(PluginSettings.DEFAULT, PluginSettings.from(dl, log), "기본값과 같게 적은 것은 안 적은 것과 같다");
+        Properties off = new Properties();
+        off.setProperty("plugins.compat.nms.spigot-mappings", "OFF");
+        assertEquals("off", PluginSettings.from(off, log).compatOptions().get("plugins.compat.nms.spigot-mappings"), "끄는 것은 적어야 남는다");
         Properties badMode = new Properties();
         badMode.setProperty("plugins.compat.nms.spigot-mappings", "yes");
         assertThrows(IllegalArgumentException.class, () -> PluginSettings.from(badMode, log));

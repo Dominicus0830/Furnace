@@ -7,12 +7,16 @@
 //   plugins.libraries.*            라이브러리 자동 로딩(기본 꺼짐) — library/LibrarySettings 참고
 //   plugins.compat.bukkit=true     Bukkit·Paper 플러그인 호환 어댑터(클래스패스에 furnace-compat-paper 가 있을 때) — false 면 plugin.yml jar 를 읽지 않는다
 //   plugins.chunk-tickets.max-per-plugin=16384  플러그인 하나가 청크 티켓으로 붙잡을 수 있는 청크 수(겹침 포함, 1 이상)
+//   plugins.async-threads=platform  Furnace 플러그인 비동기 실행기(asyncExecutor·PluginTasks.async)를 이름 붙은 플랫폼 스레드 풀에서 — virtual 이면 가상 스레드(T-034)
 //   plugins.compat.scheduler.async-threads=platform  Bukkit 비동기 작업(runTaskAsynchronously 등)을 이름 붙은 플랫폼 스레드 풀(Paper 모양)에서 돌린다 — virtual 이면 가상 스레드
 //   plugins.compat.nms.enabled=true  호환 플러그인 클래스를 올릴 때 NMS·CraftBukkit 이름 변환(버전 접미사 v1_21_R1 풀기 등)을 한다 — false 면 바이트 그대로 올린다
 //   plugins.compat.nms.strict=false   미지원 NMS 심볼이 있는 플러그인은 불러오지 않는다(기본: 그 호출만 실패)
+//   plugins.compat.nms.missing-class-log=summary  플러그인이 리플렉션으로 찾다 없는 NMS 클래스를 플러그인마다 한 줄로(each = 이름마다 한 줄)
 //   plugins.compat.nms.version-package=plain  플러그인이 읽는 CraftBukkit 패키지 이름(plain = Paper 처럼 접미사 없음, versioned = Spigot 처럼 v1_21_R1)
-//   plugins.compat.nms.spigot-mappings=off    download 면 Spigot 이름 NMS 플러그인이 있을 때만 Mojang·Spigot 매핑을 받아 Spigot → Mojang 이름으로 바꿔 올린다(H7d).
-//                                             files 면 받지 않고 plugins.compat.nms.spigot-mappings.files 의 세 파일(server.txt, 클래스 csrg, 멤버 csrg)을 쓴다
+//   plugins.compat.nms.spigot-mappings=download  Spigot 이름 NMS 플러그인이 있을 때만 Mojang·Spigot 매핑을 받아 Spigot → Mojang 이름으로 바꿔 올린다(H7d,
+//                                             2026-11-12 결정: 폴더에 넣으면 바로 돈다, 없으면 아무것도 안 받는다). files 면 받지 않고
+//                                             plugins.compat.nms.spigot-mappings.files 의 세 파일(server.txt, 클래스 csrg, 멤버 csrg)을 쓴다. off 면 바꾸지 않는다
+//   plugins.compat.config.paper-default-separator=false  Bukkit 설정의 addDefault 기본값 트리를 Paper 처럼 언제나 '.' 로 쪼갠다(꺼짐: 플러그인이 options().pathSeparator 로 정한 구분자로 쪼갬)
 //   scheduler.async-threads·nms.strict·nms.version-package·nms.spigot-mappings(.files) 는 검사해 compatOptions 로(기본값과 같으면 빠진다) — 호환 어댑터·PluginFormat#transformer 가 읽는다
 package org.domi.furnace.server.plugin;
 
@@ -26,12 +30,13 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.logging.Level;
 import org.domi.furnace.server.plugin.library.LibrarySettings;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level> logLevels, boolean devMode, boolean autoReload,
                              LibrarySettings libraries, boolean compat, boolean compatNms, int chunkTicketLimit,
-                             boolean exposeCompatToNative, Map<String, String> compatOptions) {
+                             boolean exposeCompatToNative, Map<String, String> compatOptions, boolean asyncVirtual) {
 
     public static final PluginSettings DEFAULT = new PluginSettings(false, null, Map.of());
 
@@ -76,27 +81,40 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
         this(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, chunkTicketLimit, exposeCompatToNative, Map.of());
     }
 
+    /** 플러그인 비동기 실행기는 플랫폼 스레드 풀(기본, 결정 D1). */
+    public PluginSettings(boolean failFast, Path dataRoot, Map<String, Level> logLevels, boolean devMode, boolean autoReload,
+                          LibrarySettings libraries, boolean compat, boolean compatNms, int chunkTicketLimit, boolean exposeCompatToNative,
+                          Map<String, String> compatOptions) {
+        this(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, chunkTicketLimit, exposeCompatToNative, compatOptions, false);
+    }
+
     /**
      * 시험용 문: true 면 Furnace 네이티브 플러그인에도 호환 클래스(org.bukkit.*·호환 코어 등)가 보인다. 서버 설정(furnace.properties)에는 없다 —
      * 지향점은 네이티브 플러그인이 Furnace API 만 쓰는 것이다. 호환 코어를 네이티브 시험 플러그인으로 직접 부리는 호환 모듈 시험만 켠다.
      */
-    public PluginSettings withExposeCompatToNative(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, chunkTicketLimit, on, compatOptions); }
+    /** 시험 전용. 호환 모듈이 서버 jar 에 jar 째로 실린 경로(N-lib-1)에서는 서버 로더에 호환 클래스가 없어 효과가 없다. */
+    public PluginSettings withExposeCompatToNative(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, chunkTicketLimit, on, compatOptions, asyncVirtual); }
 
-    public PluginSettings withLibraries(LibrarySettings l) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, l, compat, compatNms, chunkTicketLimit, exposeCompatToNative, compatOptions); }
+    public PluginSettings withLibraries(LibrarySettings l) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, l, compat, compatNms, chunkTicketLimit, exposeCompatToNative, compatOptions, asyncVirtual); }
 
-    public PluginSettings withCompat(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, on, compatNms, chunkTicketLimit, exposeCompatToNative, compatOptions); }
+    public PluginSettings withCompat(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, on, compatNms, chunkTicketLimit, exposeCompatToNative, compatOptions, asyncVirtual); }
 
-    public PluginSettings withCompatNms(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, on, chunkTicketLimit, exposeCompatToNative, compatOptions); }
+    public PluginSettings withCompatNms(boolean on) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, on, chunkTicketLimit, exposeCompatToNative, compatOptions, asyncVirtual); }
 
     /** 호환 어댑터가 읽는 plugins.compat.* 값(적힌 글자 그대로, 키는 소문자 그대로). 시험이 직접 정할 때 쓴다. */
     public PluginSettings withCompatOptions(Map<String, String> options) {
-        return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, chunkTicketLimit, exposeCompatToNative, options);
+        return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, chunkTicketLimit, exposeCompatToNative, options, asyncVirtual);
+    }
+
+    /** plugins.async-threads: true 면 플러그인 비동기 실행기가 가상 스레드(시험이 직접 정할 때). */
+    public PluginSettings withAsyncVirtual(boolean on) {
+        return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, chunkTicketLimit, exposeCompatToNative, compatOptions, on);
     }
 
     /** {@code Furnace#compatOption} 의 값: 적힌 글자 그대로, 안 적었으면 null. */
     public String compatOption(String key) { return compatOptions.get(key); }
 
-    public PluginSettings withChunkTicketLimit(int n) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, n, exposeCompatToNative, compatOptions); }
+    public PluginSettings withChunkTicketLimit(int n) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, n, exposeCompatToNative, compatOptions, asyncVirtual); }
 
     public PluginSettings {
         Map<String, Level> m = new HashMap<>();
@@ -104,7 +122,7 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
         logLevels = Map.copyOf(m);
         if (libraries == null) libraries = LibrarySettings.DEFAULT;
         compatOptions = compatOptions == null ? Map.of() : Map.copyOf(compatOptions);
-        if (chunkTicketLimit < 1) throw new IllegalArgumentException("chunkTicketLimit 는 1 이상: " + chunkTicketLimit);
+        if (chunkTicketLimit < 1) throw new IllegalArgumentException(Lang.t("cfg.invalid-value", "chunkTicketLimit", chunkTicketLimit, Lang.t("cfg.expect-at-least", 1)));
     }
 
     /** 이 플러그인에 지정된 로그 수준(없으면 null). */
@@ -128,40 +146,56 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
         if (threads != null) {
             String t = threads.strip().toLowerCase(Locale.ROOT);
             if (!t.equals("platform") && !t.equals("virtual")) {
-                throw new IllegalArgumentException("설정 '" + ASYNC_THREADS_KEY + "' 값 '" + threads.strip() + "' 이(가) 잘못됐습니다: platform 또는 virtual");
+                throw new IllegalArgumentException(Lang.t("cfg.invalid-choice", ASYNC_THREADS_KEY, threads.strip(), "platform, virtual"));
             }
             if (!t.equals("platform")) out.put(ASYNC_THREADS_KEY, t);   // 기본값과 같게 적은 것은 안 적은 것과 같다(DEFAULT 와 같은 설정)
         }
+        // A15-05(R6 "둘 다 지원"): addDefault 기본값 트리의 구분자 — 켠 것만 남는다
+        if (org.domi.furnace.server.config.OptionKeys.strictBool(p, PAPER_DEFAULT_SEPARATOR_KEY, false)) out.put(PAPER_DEFAULT_SEPARATOR_KEY, "true");
         // H7: NMS 변환 옵션(PluginFormat#transformer 의 settings 로도 넘어간다)
         if (org.domi.furnace.server.config.OptionKeys.strictBool(p, NMS_STRICT_KEY, false)) out.put(NMS_STRICT_KEY, "true");
         String vp = p.getProperty(NMS_VERSION_PACKAGE_KEY);
         if (vp != null) {
             String v = vp.strip().toLowerCase(Locale.ROOT);
             if (!v.equals("plain") && !v.equals("versioned")) {
-                throw new IllegalArgumentException("설정 '" + NMS_VERSION_PACKAGE_KEY + "' 값 '" + vp.strip() + "' 이(가) 잘못됐습니다: plain 또는 versioned");
+                throw new IllegalArgumentException(Lang.t("cfg.invalid-choice", NMS_VERSION_PACKAGE_KEY, vp.strip(), "plain, versioned"));
             }
             if (!v.equals("plain")) out.put(NMS_VERSION_PACKAGE_KEY, v);
         }
-        // H7d: Spigot 이름 대응표(off 기본 — 안 적은 것과 같으면 빠진다)
+        // D1(2026-11-15): 리플렉션으로 찾다 없는 NMS 클래스 알림 — summary(기본, 플러그인마다 한 줄) | each(이름마다)
+        String ml = p.getProperty(NMS_MISSING_CLASS_LOG_KEY);
+        if (ml != null) {
+            String v = ml.strip().toLowerCase(Locale.ROOT);
+            if (!v.equals("summary") && !v.equals("each")) {
+                throw new IllegalArgumentException(Lang.t("cfg.invalid-choice", NMS_MISSING_CLASS_LOG_KEY, ml.strip(), "summary, each"));
+            }
+            if (!v.equals("summary")) out.put(NMS_MISSING_CLASS_LOG_KEY, v);
+        }
+        // H7d: Spigot 이름 대응표(download 기본 — 안 적은 것과 같으면 빠진다)
         String sm = p.getProperty(SPIGOT_MAPPINGS_KEY);
         String files = p.getProperty(SPIGOT_MAPPING_FILES_KEY, "").strip();
         if (sm != null) {
             String v = sm.strip().toLowerCase(Locale.ROOT);
             if (!v.equals("off") && !v.equals("download") && !v.equals("files")) {
-                throw new IllegalArgumentException("설정 '" + SPIGOT_MAPPINGS_KEY + "' 값 '" + sm.strip() + "' 이(가) 잘못됐습니다: off, download 또는 files");
+                throw new IllegalArgumentException(Lang.t("cfg.invalid-choice", SPIGOT_MAPPINGS_KEY, sm.strip(), "off, download, files"));
             }
             if (v.equals("files") && (files.isEmpty() || files.split(java.util.regex.Pattern.quote(java.io.File.pathSeparator), -1).length != 3)) {
-                throw new IllegalArgumentException("설정 '" + SPIGOT_MAPPINGS_KEY + "=files' 는 '" + SPIGOT_MAPPING_FILES_KEY + "' 에 파일 세 개"
-                        + "(Mojang server.txt, Spigot 클래스 csrg, Spigot 멤버 csrg)를 경로 구분자 '" + java.io.File.pathSeparator + "' 로 이어 적어야 합니다");
+                throw new IllegalArgumentException(Lang.t("cfg.spigot-files-needed", SPIGOT_MAPPINGS_KEY, SPIGOT_MAPPING_FILES_KEY, java.io.File.pathSeparator));
             }
-            if (!v.equals("off")) out.put(SPIGOT_MAPPINGS_KEY, v);
+            if (!v.equals(SPIGOT_MAPPINGS_DEFAULT)) out.put(SPIGOT_MAPPINGS_KEY, v);
             if (v.equals("files")) out.put(SPIGOT_MAPPING_FILES_KEY, files);
         }
         return out;
     }
 
-    /** Spigot 이름 NMS 플러그인의 대응표: off(기본) | download | files (H7d). */
+    /** Spigot 이름 NMS 플러그인의 대응표: download(기본) | files | off (H7d). */
     public static final String SPIGOT_MAPPINGS_KEY = "plugins.compat.nms.spigot-mappings";
+
+    /**
+     * 대응표 기본값. 2026-11-12 도미니코 결정: Bukkit 플러그인 폴더에 넣으면 바로 돌게 — 그런 플러그인이 있을 때만 처음 한 번 받는다(없으면 네트워크에 나가지 않는다).
+     * 예전 기본(off)으로 자동 기록된 줄은 ConfigMigration 형식 2 가 download 로 옮긴다.
+     */
+    public static final String SPIGOT_MAPPINGS_DEFAULT = "download";
 
     /** files 모드의 세 파일(Mojang server.txt, Spigot 클래스 csrg, 멤버 csrg)을 경로 구분자로 이은 값. */
     public static final String SPIGOT_MAPPING_FILES_KEY = "plugins.compat.nms.spigot-mappings.files";
@@ -171,6 +205,15 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
 
     /** 플러그인이 읽는 CraftBukkit 패키지 이름: plain(기본) | versioned. */
     public static final String NMS_VERSION_PACKAGE_KEY = "plugins.compat.nms.version-package";
+
+    /** 리플렉션으로 찾다 없는 NMS 클래스 알림: summary(기본) | each. */
+    public static final String NMS_MISSING_CLASS_LOG_KEY = "plugins.compat.nms.missing-class-log";
+
+    /** addDefault 기본값 트리를 Paper 처럼 언제나 '.' 로 쪼갠다(기본 false) — 호환 어댑터가 읽는다. */
+    public static final String PAPER_DEFAULT_SEPARATOR_KEY = "plugins.compat.config.paper-default-separator";
+
+    /** Furnace 플러그인 비동기 실행기(asyncExecutor·PluginTasks.async)의 스레드: platform(기본) | virtual. T-034, 결정 D1. */
+    public static final String PLUGIN_ASYNC_THREADS_KEY = "plugins.async-threads";
 
     /** Bukkit 비동기 작업을 돌릴 스레드: platform(기본, 이름 붙은 플랫폼 스레드 풀) | virtual(가상 스레드). */
     public static final String ASYNC_THREADS_KEY = "plugins.compat.scheduler.async-threads";
@@ -186,18 +229,29 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
             try {
                 levels.put(k.substring(prefix.length()), Level.parse(v.toUpperCase(Locale.ROOT)));
             } catch (IllegalArgumentException e) {
-                log.warn("furnace.properties 의 '{}' 값 '{}' 은 로그 수준이 아니다 — 무시한다", k, v);
+                log.warn(Lang.t("plugin.settings-log-level", k, v));
             }
         }
         boolean dev = org.domi.furnace.server.config.OptionKeys.strictBool(p, "plugins.dev-mode", false);
         boolean auto = org.domi.furnace.server.config.OptionKeys.strictBool(p, "plugins.dev-mode.auto-reload", false);
-        if (auto && !dev) log.warn("plugins.dev-mode.auto-reload 는 plugins.dev-mode=true 일 때만 쓰인다 — 무시한다");
+        if (auto && !dev) log.warn(Lang.t("plugin.settings-auto-reload"));
         boolean compat = org.domi.furnace.server.config.OptionKeys.strictBool(p, "plugins.compat.bukkit", true);
         boolean nms = org.domi.furnace.server.config.OptionKeys.strictBool(p, "plugins.compat.nms.enabled", true);
         return new PluginSettings(failFast, root.isEmpty() ? null : Path.of(root), levels, dev, dev && auto,
                 LibrarySettings.from(p, log), compat, nms,
                 org.domi.furnace.server.config.OptionKeys.strictInt(p, "plugins.chunk-tickets.max-per-plugin",
                         org.domi.furnace.api.world.ChunkTickets.MAX_CHUNKS_PER_OWNER, 1, 100_000_000),
-                false, compatOptionsFrom(p));
+                false, compatOptionsFrom(p), asyncVirtualFrom(p));
+    }
+
+    /** plugins.async-threads: platform(기본) | virtual. 모양이 틀리면 기동을 멈춘다(호환 키와 같은 규칙). */
+    private static boolean asyncVirtualFrom(Properties p) {
+        String v = p.getProperty(PLUGIN_ASYNC_THREADS_KEY);
+        if (v == null) return false;
+        String t = v.strip().toLowerCase(Locale.ROOT);
+        if (!t.equals("platform") && !t.equals("virtual")) {
+            throw new IllegalArgumentException(Lang.t("cfg.invalid-choice", PLUGIN_ASYNC_THREADS_KEY, v.strip(), "platform, virtual"));
+        }
+        return t.equals("virtual");
     }
 }

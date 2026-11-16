@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
+import org.domi.furnace.server.i18n.Lang;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.block.BlockShapes;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
@@ -51,6 +52,11 @@ public final class StructureEngine {
     public StructureRegistry registry() { return registry; }
 
     public long seed() { return seed; }
+
+    private final StructureReferences references = new StructureReferences();
+
+    /** 이 차원 구조물 시작점들의 references(탐험 지도 skipKnownStructures). */
+    public StructureReferences references() { return references; }
 
     // FeatureWorldView 가 돌려주는 biome 정수 id → 이름(레지스트리 순서). 구조물 조각의 biome 태그 검사(광산 mineshaft_blocking)에 쓴다.
     private volatile String[] biomeRegistryNames = new String[0];
@@ -96,7 +102,7 @@ public final class StructureEngine {
             if (!name.contains(":")) name = "minecraft:" + name;
             int st = blocks.defaultStateId(name);
             for (Map.Entry<String, String> e : props.entrySet()) {
-                if (!table.has(st, e.getKey())) throw new IllegalArgumentException("속성 없음: " + sp);
+                if (!table.has(st, e.getKey())) throw new IllegalArgumentException("no such property: " + sp);
                 st = table.with(st, e.getKey(), e.getValue());
             }
             return st;
@@ -183,6 +189,12 @@ public final class StructureEngine {
     /** 링 위치 계산에 쓸 바이옴 소스(월드 생성기). */
     public void setRingTerrain(TerrainAccess t) { this.ringTerrain = t; }
 
+    /** ChunkGeneratorStructureState.concentricRingsSeed — createForNormal 은 월드 시드, createForFlat(FlatLevelSource)은 0. */
+    private volatile long concentricRingsSeed;
+    private volatile boolean concentricRingsSeedSet;
+
+    public void setConcentricRingsSeed(long s) { this.concentricRingsSeed = s; this.concentricRingsSeedSet = true; ringCache.clear(); }
+
     /** ChunkGeneratorStructureState.generateRingPositions — 시드로 각도·거리, findBiomeHorizontal 로 선호 바이옴 쪽 보정. */
     public long[] ringPositions(StructureRegistry.SetDef set) {
         return ringCache.computeIfAbsent(set.id(), k -> computeRings(set.rings()));
@@ -192,7 +204,7 @@ public final class StructureEngine {
         TerrainAccess terrain = ringTerrain;
         if (p.count() == 0 || terrain == null) return new long[0];
         int distance = p.distance(), count = p.count(), spread = p.spread();
-        org.domi.furnace.server.world.gen.carver.LegacyRandom random = new org.domi.furnace.server.world.gen.carver.LegacyRandom(seed);
+        org.domi.furnace.server.world.gen.carver.LegacyRandom random = new org.domi.furnace.server.world.gen.carver.LegacyRandom(concentricRingsSeedSet ? concentricRingsSeed : seed);
         double angle = random.nextDouble() * Math.PI * 2.0;
         int inRing = 0, ring = 0;
         long[] out = new long[count];
@@ -227,6 +239,14 @@ public final class StructureEngine {
     /** BiomeSource.findBiomeHorizontal(x, y, z, radius, 1, predicate, random, findClosest=false) → {blockX, blockZ} 또는 null. */
     private static int[] findBiomeHorizontal(TerrainAccess t, int x, int y, int z, int radius, Set<String> biomes,
                                              org.domi.furnace.server.world.gen.carver.LegacyRandom random) {
+        String fixed = t.fixedBiome();
+        if (fixed != null) {
+            // FixedBiomeSource.findBiomeHorizontal(findClosest=false): 맞으면 반경 안 무작위 블록(x 먼저, 그다음 z)
+            if (!biomes.contains(fixed)) return null;
+            int bx = x - radius + random.nextInt(radius * 2 + 1);
+            int bz = z - radius + random.nextInt(radius * 2 + 1);
+            return new int[]{bx, bz};
+        }
         int qx = x >> 2, qz = z >> 2, qr = radius >> 2, qy = y >> 2;
         int[] result = null;
         int found = 0;
@@ -369,7 +389,7 @@ public final class StructureEngine {
         try {
             s.generator().accept(b);
         } catch (StructureTemplate.MissingTemplateException e) {
-            if (warned.add(def.id())) System.err.println("[structures] " + def.id() + " 건너뜀: " + e.getMessage());
+            if (warned.add(def.id())) System.err.println(Lang.t("structures.skipped", def.id(), e.getMessage()));
             return false;
         }
         if (b.isEmpty()) return false;

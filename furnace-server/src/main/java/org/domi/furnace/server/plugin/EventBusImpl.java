@@ -37,6 +37,7 @@ import org.domi.furnace.api.event.Subscribe;
 import org.domi.furnace.api.plugin.FurnacePlugin;
 import org.domi.furnace.api.profiler.PluginProfiler;
 import org.domi.furnace.api.profiler.Timing;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -83,14 +84,14 @@ public final class EventBusImpl implements EventBus {
         for (Method m : methods) {
             Subscribe s = m.getAnnotation(Subscribe.class);
             if (m.getParameterCount() != 1 || !Event.class.isAssignableFrom(m.getParameterTypes()[0]) || Modifier.isStatic(m.getModifiers())) {
-                log.error("[{}] @Subscribe 메서드는 Event 하나를 받는 인스턴스 메서드여야 한다: {}", plugin.name(), m);
+                log.error(Lang.t("event.subscribe-signature", plugin.name(), m));
                 continue;
             }
             Consumer<Event> fn;
             try {
                 fn = dispatcher(m, listener);
             } catch (Throwable t) {
-                log.error("[{}] 리스너 메서드에 접근할 수 없다: {}", plugin.name(), m, t);
+                log.error(Lang.t("event.listener-inaccessible", plugin.name(), m), t);
                 continue;
             }
             warnIfDeprecated(plugin, m.getParameterTypes()[0]);
@@ -136,8 +137,7 @@ public final class EventBusImpl implements EventBus {
     private void warnIfDeprecated(FurnacePlugin plugin, Class<?> type) {
         DeprecatedApi d = type.getAnnotation(DeprecatedApi.class);
         if (d == null || !deprecationWarned.add(type)) return;
-        log.warn("[{}] 폐기된 이벤트 {} 를 받고 있다 (v{} 부터 폐기, v{} 이후 제거{})", plugin.name(), type.getSimpleName(), d.since(), d.removeIn(),
-                d.replacement().isEmpty() ? "" : ", 대체: " + d.replacement());
+        log.warn(Lang.t(d.replacement().isEmpty() ? "event.deprecated" : "event.deprecated-replaced", plugin.name(), type.getSimpleName(), d.since(), d.removeIn(), d.replacement()));
     }
 
     @Override
@@ -160,20 +160,22 @@ public final class EventBusImpl implements EventBus {
             return out;
         });
         baked.clear();
-        wantsCause = computeWantsCause();
+        flagsAdded(h.type());
     }
 
     private void remove(java.util.function.Predicate<Handler> p) {
         boolean any = false;
+        Set<Class<?>> removedTypes = new HashSet<>();
         for (var en : byType.entrySet()) {
             if (!en.getValue().removeIf(p)) continue;
             any = true;
+            removedTypes.add(en.getKey());
             // 빈 목록의 키(이벤트 클래스)를 남기지 않는다 — 플러그인이 정의한 이벤트 클래스가 옛 클래스로더를 붙잡는다(A14-07)
             byType.computeIfPresent(en.getKey(), (k, l) -> l.isEmpty() ? null : l);
         }
         if (any) {
             baked.clear();
-            wantsCause = computeWantsCause();
+            flagsRemoved(removedTypes);
         }
     }
 
@@ -192,6 +194,75 @@ public final class EventBusImpl implements EventBus {
             if (en.getValue().isEmpty()) continue;
             Class<?> t = en.getKey();
             for (Class<?> c : CAUSE_EVENTS) if (t.isAssignableFrom(c) || c.isAssignableFrom(t)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * 이벤트 종류 하나의 구독 여부 — hasSubscribers(type) 와 늘 같은 값을 volatile 필드 하나로 읽는다(맵 조회 없음).
+     * 등록이 바뀔 때만(register·subscribe·해제·핫 리로드) 영향받는 필드만 다시 계산하므로, 그 호출이 돌아온 뒤 처음 읽는 값부터 새 등록을 반영한다.
+     * 서버(PluginGameEvents)가 API 이벤트 클래스에 대해서만 만든다 — 플러그인이 정의한 클래스를 여기 쥐면 옛 클래스로더가 남는다(A14-07).
+     */
+    static final class Flag {
+        private final Class<? extends Event> type;
+        private volatile boolean on;
+
+        private Flag(Class<? extends Event> type) { this.type = type; }
+
+        /** hasSubscribers(type) 와 같은 값. */
+        boolean on() { return on; }
+    }
+
+    // flags 는 flagLock 안에서만 만지고 읽는다 — 동시에 등록이 바뀌어도 마지막 재계산이 모든 등록을 본다
+    private final Object flagLock = new Object();
+    private final Map<Class<?>, Flag> flags = new java.util.HashMap<>();
+
+    /** type 의 구독 여부 필드(API 이벤트 클래스용). 같은 종류는 같은 객체를 돌려준다. */
+    Flag flag(Class<? extends Event> type) {
+        synchronized (flagLock) {
+            Flag f = flags.get(type);
+            if (f == null) {
+                f = new Flag(type);
+                f.on = exists(type);
+                flags.put(type, f);
+            }
+            return f;
+        }
+    }
+
+    /** 처리기 하나가 type 에 더해진 뒤: 그 타입이 상위(같음 포함)이고 꺼져 있던 이벤트 필드만 존재 검사로 켠다(복사·정렬 없이 처리기를 하나 찾으면 끝). */
+    private void flagsAdded(Class<?> type) {
+        synchronized (flagLock) {
+            for (Flag f : flags.values()) if (!f.on && type.isAssignableFrom(f.type)) f.on = exists(f.type);
+            wantsCause = computeWantsCause();
+        }
+    }
+
+    /** 처리기가 빠진 뒤: 빠진 타입의 하위 이벤트 필드만 존재 검사로 다시 계산한다. */
+    private void flagsRemoved(Set<Class<?>> types) {
+        synchronized (flagLock) {
+            for (Flag f : flags.values()) {
+                if (!f.on) continue;
+                for (Class<?> t : types) {
+                    if (t.isAssignableFrom(f.type)) { f.on = exists(f.type); break; }
+                }
+            }
+            wantsCause = computeWantsCause();
+        }
+    }
+
+    /** bake(type).length > 0 과 같은 값 — 처리기를 하나 찾으면 바로 멈춘다(복사·정렬 없음). */
+    private boolean exists(Class<?> type) {
+        Set<Class<?>> seen = new HashSet<>();
+        Deque<Class<?>> todo = new ArrayDeque<>();
+        todo.add(type);
+        while (!todo.isEmpty()) {
+            Class<?> c = todo.poll();
+            if (c == null || !seen.add(c)) continue;
+            List<Handler> l = byType.get(c);
+            if (l != null && !l.isEmpty()) return true;
+            if (c.getSuperclass() != null) todo.add(c.getSuperclass());
+            for (Class<?> i : c.getInterfaces()) todo.add(i);
         }
         return false;
     }
@@ -264,7 +335,7 @@ public final class EventBusImpl implements EventBus {
         invoke(h, event);
         // 꺼진 뒤(unregisterAll 뒤 돌던 발화)에는 기록하지 않는다 — 경고 집합이 옛 처리기를 다시 쥐지 않게
         if (c.isCancelled() != before && h.plugin().isEnabled() && monitorWarned.add(h)) {
-            log.warn("[{}] MONITOR 처리기 {} 가 {} 의 취소 상태를 바꿨다 — MONITOR 는 결과를 바꾸지 말고 관찰만 해야 한다", h.plugin().name(), h.where(), event.eventName());
+            log.warn(Lang.t("event.monitor-changed", h.plugin().name(), h.where(), event.eventName()));
         }
     }
 
@@ -305,8 +376,7 @@ public final class EventBusImpl implements EventBus {
         long total = System.nanoTime() - start;
         stats.record(event.getClass(), total);
         if (total > Stats.SLOW_NS) {
-            log.warn("[tickstats] 이벤트 {} 처리에 {} ms 걸렸다 (가장 느린 리스너: {})", event.eventName(), Stats.ms(total),
-                    slow == null ? "없음" : slow.plugin().name() + " " + slow.where());
+            log.warn(Lang.t("event.slow", event.eventName(), Stats.ms(total), slow == null ? Lang.t("event.none") : slow.plugin().name() + " " + slow.where()));
         }
         return event;
     }
@@ -370,7 +440,7 @@ public final class EventBusImpl implements EventBus {
             try {
                 report();
             } catch (Throwable t) {
-                log.warn("[tickstats] 통계 출력 실패", t);
+                log.warn(Lang.t("event.stats-failed"), t);
             }
         }
 
@@ -379,8 +449,7 @@ public final class EventBusImpl implements EventBus {
             types.entrySet().stream()
                     .sorted(Comparator.comparingLong((Map.Entry<Class<?>, TypeStat> e) -> e.getValue().totalNs.sum()).reversed())
                     .limit(5)
-                    .forEach(e -> log.info("[tickstats] {} 호출 {}회, 누적 {} ms, 최대 {} ms", e.getKey().getSimpleName(),
-                            e.getValue().count.sum(), ms(e.getValue().totalNs.sum()), ms(e.getValue().maxNs.get())));
+                    .forEach(e -> log.info(Lang.t("event.stats-line", e.getKey().getSimpleName(), e.getValue().count.sum(), ms(e.getValue().totalNs.sum()), ms(e.getValue().maxNs.get()))));
         }
     }
 }

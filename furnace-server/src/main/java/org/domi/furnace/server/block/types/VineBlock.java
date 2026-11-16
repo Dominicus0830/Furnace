@@ -1,6 +1,7 @@
 // 바닐라 VineBlock: 덩굴. 옆면·윗면 단단한 곳에 붙고(위 덩굴이 같은 면을 가져도 붙는다), 무작위 틱마다 옆·위·아래로 번진다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -10,6 +11,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.VineBlock")
 public class VineBlock extends BlockBehavior {
 
     static final Prop UP = B.prop("up"), NORTH = B.prop("north"), EAST = B.prop("east"), SOUTH = B.prop("south"), WEST = B.prop("west");
@@ -50,7 +52,7 @@ public class VineBlock extends BlockBehavior {
     /** MultifaceBlock.canAttachTo: 지지 모양이나 충돌 모양의 맞닿는 면이 꽉 찼는가. */
     public static boolean canAttachTo(BlockLevel level, int dir, Pos pos, int state) {
         int o = Dir.opposite(dir);
-        return INFO.supportShape(state).isFaceFull(o) || B.behavior(state).getCollisionShape(state, level, pos, null).isFaceFull(o);
+        return INFO.supportShape(state).isFaceFull(o) || B.behavior(state).getCollisionShape(state, level, pos, org.domi.furnace.server.block.CollisionContext.EMPTY).isFaceFull(o);
     }
 
     private int getUpdatedState(int state, BlockLevel level, Pos pos) {

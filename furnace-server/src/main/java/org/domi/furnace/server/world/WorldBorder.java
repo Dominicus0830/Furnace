@@ -93,6 +93,8 @@ public final class WorldBorder {
     private double centerZ;
     private int absoluteMaxSize = DEFAULT_ABSOLUTE_MAX_SIZE;
     private Extent extent = new StaticExtent(MAX_SIZE);
+    /** 정적 크기일 때의 {minX, minZ, maxX, maxZ} 스냅숏(잠금 없이 읽는다). 중심·크기·최대 크기가 바뀌면 지운다. 보간 중이면 늘 null. */
+    private volatile double[] staticBounds;
     /** 차원 좌표 비(DimensionType.coordinateScale). 1 이 아니면 getCenterX/Z 가 저장된 중심을 이 값으로 나눈다. */
     private final double coordinateScale;
 
@@ -145,6 +147,20 @@ public final class WorldBorder {
     public synchronized double getMaxX() { return clamp(getCenterX() + extent.size() / 2.0, -absoluteMaxSize, absoluteMaxSize); }
 
     public synchronized double getMaxZ() { return clamp(getCenterZ() + extent.size() / 2.0, -absoluteMaxSize, absoluteMaxSize); }
+
+    /**
+     * {minX, minZ, maxX, maxZ}. 정적 크기면 잠금 없이 스냅숏을 돌려준다(충돌 검사가 엔티티 이동마다 부르므로). 보간 중이면 벽시계로 매번
+     * 계산한다(바닐라 getMinX 등과 같은 값). 돌려준 배열은 공유되므로 고치지 않는다.
+     */
+    public double[] bounds() {
+        double[] s = staticBounds;
+        if (s != null) return s;
+        synchronized (this) {
+            double[] b = {getMinX(), getMinZ(), getMaxX(), getMaxZ()};
+            if (extent instanceof StaticExtent) staticBounds = b;
+            return b;
+        }
+    }
 
     // ------------------------------------------------------------------ 범위 판정
 
@@ -200,6 +216,7 @@ public final class WorldBorder {
     public synchronized void setCenter(double x, double z) {
         this.centerX = x;
         this.centerZ = z;
+        staticBounds = null;
         for (Listener l : listeners()) l.onCenterSet(this, x, z);
     }
 
@@ -218,18 +235,23 @@ public final class WorldBorder {
 
     public synchronized void setSize(double size) {
         this.extent = new StaticExtent(size);
+        staticBounds = null;
         for (Listener l : listeners()) l.onSizeSet(this, size);
     }
 
     /** 바닐라 lerpSizeBetween: 같은 크기면 정적, 아니면 지금부터 timeMs 동안 보간. 리스너에는 항상 보간 알림을 보낸다. */
     public synchronized void lerpSizeBetween(double from, double to, long timeMs) {
         this.extent = from == to ? new StaticExtent(to) : new MovingExtent(from, to, timeMs);
+        staticBounds = null;
         for (Listener l : listeners()) l.onSizeLerping(this, from, to, timeMs);
     }
 
     public synchronized int getAbsoluteMaxSize() { return absoluteMaxSize; }
 
-    public synchronized void setAbsoluteMaxSize(int size) { this.absoluteMaxSize = size; }
+    public synchronized void setAbsoluteMaxSize(int size) {
+        this.absoluteMaxSize = size;
+        staticBounds = null;
+    }
 
     // ------------------------------------------------------------------ 경고·피해
 
@@ -264,7 +286,11 @@ public final class WorldBorder {
     // ------------------------------------------------------------------ 틱·저장
 
     /** 매 틱: 보간이 끝났으면 정적 크기로 바꾼다(바닐라 WorldBorder.tick). */
-    public synchronized void tick() { extent = extent.update(); }
+    public synchronized void tick() {
+        Extent next = extent.update();
+        if (next != extent) staticBounds = null;
+        extent = next;
+    }
 
     /** 바닐라 Settings(WorldBorder): 중심은 getCenterX/Z(나눈 값). */
     public synchronized Settings createSettings() {
@@ -331,6 +357,7 @@ public final class WorldBorder {
     /** 원본의 보간을 시작 시각까지 그대로 따른다(Delegate 가 같은 순간 받은 lerpSizeBetween 과 같다). */
     private synchronized void followLerp(MovingExtent m) {
         this.extent = new MovingExtent(m.from, m.to, m.lerpBegin, (long) m.lerpDuration);
+        staticBounds = null;
     }
 
     public synchronized void removeListener(Listener l) { listeners.remove(l); }

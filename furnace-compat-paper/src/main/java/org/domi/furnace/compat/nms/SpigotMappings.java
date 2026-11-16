@@ -21,7 +21,7 @@ import org.objectweb.asm.Type;
  * 이 없는 jar)의 NMS 참조를 이 서버의 Mojang 이름 shim 으로 잇는다 — Paper 가 Spigot 이름 플러그인을 올릴 때 하는 변환과 같은 일이다.
  *
  * <p>표는 저장소·서버 jar 에 싣지 않는다(Mojang·Spigot 에서 뽑은 자료, docs/policy/licensing.md). 서버가 운영자 설정
- * {@code plugins.compat.nms.spigot-mappings=download} 일 때 운영자 컴퓨터에서 받은 세 파일을 읽어 메모리에 만든다:
+ * {@code plugins.compat.nms.spigot-mappings=download}(기본, 그런 플러그인이 있을 때만 받는다) 일 때 운영자 컴퓨터에서 받은 세 파일을 읽어 메모리에 만든다:
  * <ul>
  *   <li>Mojang 공식 매핑 {@code server.txt}(ProGuard 형식, Mojang 이름 → 난독화 이름, 멤버 포함)</li>
  *   <li>Spigot BuildData 클래스 매핑 {@code bukkit-1.21.1-cl.csrg}(난독화 클래스 → Spigot 클래스)</li>
@@ -85,7 +85,7 @@ public final class SpigotMappings {
                 + Files.getLastModifiedTime(spigotClasses) + "|" + spigotMembers.toAbsolutePath() + "|" + Files.getLastModifiedTime(spigotMembers);
         SpigotMappings cached = LOADED.get(key);
         if (cached != null) return cached;
-        if (key.equals(failedKey)) throw new IOException("앞서 읽지 못한 대응표(" + failedError.getMessage() + ")", failedError);
+        if (key.equals(failedKey)) throw new IOException("mapping that failed to load earlier (" + failedError.getMessage() + ")", failedError);
         SpigotMappings m;
         try (Reader a = Files.newBufferedReader(mojang, StandardCharsets.UTF_8);
              Reader b = Files.newBufferedReader(spigotClasses, StandardCharsets.UTF_8);
@@ -110,8 +110,8 @@ public final class SpigotMappings {
         m.readClasses(new BufferedReader(spigotClasses));
         m.indexMojangMembers(raw);
         m.readMembers(new BufferedReader(spigotMembers));
-        if (m.obfToMojang.isEmpty()) throw new IOException("Mojang 매핑에 클래스가 하나도 없다(ProGuard 형식이 아니다)");
-        if (m.spigotToObf.isEmpty()) throw new IOException("Spigot 클래스 매핑에 줄이 하나도 없다(csrg 형식이 아니다)");
+        if (m.obfToMojang.isEmpty()) throw new IOException("the Mojang mappings contain no classes (not in ProGuard format)");
+        if (m.spigotToObf.isEmpty()) throw new IOException("the Spigot class mappings contain no lines (not in csrg format)");
         return m;
     }
 

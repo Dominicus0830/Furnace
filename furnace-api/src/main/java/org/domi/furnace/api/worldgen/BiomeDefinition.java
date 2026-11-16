@@ -1,5 +1,5 @@
 // 플러그인이 등록하는 바이옴 정의. 클라이언트가 받는 기후·색·소리와 서버가 쓰는 몹 스폰 설정을 한 곳에 모은다.
-// 필드 이름은 마인크래프트 버전과 상관없이 유지된다(버전 중립) — 새 버전이 필드를 더하면 빌더에 더하고 기본값은 이전 동작을 지킨다.
+// 필드 이름은 마인크래프트 버전과 상관없이 유지된다(버전 중립). 새 버전이 필드를 더하면 빌더에 더하고, 기본값은 이전 동작을 지킨다.
 // 값 객체라 equals 로 같은 정의인지 비교한다(핫 리로드에서 달라졌는지 알아낼 때 쓴다).
 package org.domi.furnace.api.worldgen;
 
@@ -24,7 +24,7 @@ import java.util.OptionalInt;
  * @param grassColor       풀 색 고정값(없으면 온도·강수량으로 계산)
  * @param grassColorModifier 풀 색 보정
  * @param ambientParticle  주변 입자(없으면 null)
- * @param ambientSound     주변 소리 id(없으면 null) — 리소스 팩의 소리도 된다
+ * @param ambientSound     주변 소리 id(없으면 null). 리소스 팩의 소리도 된다
  * @param moodSound        동굴 소리(없으면 null)
  * @param additionsSound   무작위 추가 소리(없으면 null)
  * @param music            배경 음악(없으면 null)
@@ -62,15 +62,15 @@ public record BiomeDefinition(
     /** 입자 종류(minecraft:ash)와 틱당 확률. 옵션이 필요한 입자(먼지·블록·아이템 등)는 쓸 수 없다. */
     public record AmbientParticle(String type, float probability) {
         public AmbientParticle {
-            type = ResourceKeys.reference("입자 종류", type);
-            if (!(probability >= 0f && probability <= 1f)) throw new IllegalArgumentException("입자 확률은 0..1: " + probability);
+            type = ResourceKeys.reference("particle type", type);
+            if (!(probability >= 0f && probability <= 1f)) throw new IllegalArgumentException("particle probability must be 0..1: " + probability);
         }
     }
 
     /** 동굴 소리: 어두운 곳에서 tickDelay 틱마다 blockSearchExtent 칸 안 어두운 칸을 찾아 offset 만큼 띄운 곳에서 낸다. */
     public record MoodSound(String sound, int tickDelay, int blockSearchExtent, double offset) {
         public MoodSound {
-            sound = ResourceKeys.reference("소리", sound);
+            sound = ResourceKeys.reference("sound", sound);
             ResourceKeys.finite("offset", offset);
         }
 
@@ -81,7 +81,7 @@ public record BiomeDefinition(
     /** 무작위 추가 소리: 틱마다 tickChance 확률. */
     public record AdditionsSound(String sound, double tickChance) {
         public AdditionsSound {
-            sound = ResourceKeys.reference("소리", sound);
+            sound = ResourceKeys.reference("sound", sound);
             ResourceKeys.finite("tickChance", tickChance);
         }
     }
@@ -89,18 +89,18 @@ public record BiomeDefinition(
     /** 배경 음악. 대기 시간은 틱. */
     public record Music(String sound, int minDelay, int maxDelay, boolean replaceCurrentMusic) {
         public Music {
-            sound = ResourceKeys.reference("소리", sound);
-            if (minDelay < 0 || maxDelay < minDelay) throw new IllegalArgumentException("음악 대기 시간은 0 <= min <= max: " + minDelay + ", " + maxDelay);
+            sound = ResourceKeys.reference("sound", sound);
+            if (minDelay < 0 || maxDelay < minDelay) throw new IllegalArgumentException("music delay must satisfy 0 <= min <= max: " + minDelay + ", " + maxDelay);
         }
     }
 
     /** 스폰 목록 한 줄: 몹 종류(minecraft:cow), 가중치, 한 번에 나오는 수. */
     public record Spawner(String entityType, int weight, int minCount, int maxCount) {
         public Spawner {
-            entityType = ResourceKeys.reference("몹 종류", entityType);
-            if (entityType.equals("minecraft:player")) throw new IllegalArgumentException("플레이어는 스폰 목록에 넣을 수 없다");
-            if (weight < 0) throw new IllegalArgumentException("가중치는 0 이상: " + weight);
-            if (minCount < 1 || maxCount < minCount) throw new IllegalArgumentException("수는 1 <= min <= max: " + minCount + ", " + maxCount);
+            entityType = ResourceKeys.reference("mob type", entityType);
+            if (entityType.equals("minecraft:player")) throw new IllegalArgumentException("the player cannot be put in a spawn list");
+            if (weight < 0) throw new IllegalArgumentException("weight must be at least 0: " + weight);
+            if (minCount < 1 || maxCount < minCount) throw new IllegalArgumentException("count must satisfy 1 <= min <= max: " + minCount + ", " + maxCount);
         }
     }
 
@@ -116,15 +116,15 @@ public record BiomeDefinition(
         if (temperatureModifier == null || grassColorModifier == null) throw new NullPointerException("modifier");
         ResourceKeys.finite("temperature", temperature);
         ResourceKeys.finite("downfall", downfall);
-        if (ambientSound != null) ambientSound = ResourceKeys.reference("소리", ambientSound);
+        if (ambientSound != null) ambientSound = ResourceKeys.reference("sound", ambientSound);
         if (!(creatureSpawnProbability >= 0f && creatureSpawnProbability < 1f)) {
-            throw new IllegalArgumentException("동물 생성 확률은 0 이상 1 미만: " + creatureSpawnProbability);
+            throw new IllegalArgumentException("creature spawn probability must be at least 0 and below 1: " + creatureSpawnProbability);
         }
         Map<SpawnCategory, List<Spawner>> sp = new EnumMap<>(SpawnCategory.class);
         for (var e : spawners.entrySet()) sp.put(e.getKey(), List.copyOf(e.getValue()));
         spawners = java.util.Collections.unmodifiableMap(sp);
         Map<String, SpawnCost> costs = new LinkedHashMap<>();
-        for (var e : spawnCosts.entrySet()) costs.put(ResourceKeys.reference("몹 종류", e.getKey()), e.getValue());
+        for (var e : spawnCosts.entrySet()) costs.put(ResourceKeys.reference("mob type", e.getKey()), e.getValue());
         spawnCosts = java.util.Collections.unmodifiableMap(costs);
     }
 

@@ -1,6 +1,7 @@
 // 바닐라 CampfireBlock: 모닥불(lit·signal_fire·waterlogged·facing). 아래가 건초 더미면 신호 연기, 물에 잠기면 꺼진다. 굽기는 블록 엔티티.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -14,6 +15,7 @@ import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.entity.CampfireBlockEntity;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.CampfireBlock")
 public class CampfireBlock extends BaseEntityBlock {
 
     static final Prop LIT = B.prop("lit"), SIGNAL_FIRE = B.prop("signal_fire"), FACING = B.prop("facing");
@@ -122,7 +124,7 @@ public class CampfireBlock extends BaseEntityBlock {
             int s = level.getBlockState(p);
             if (isLitCampfire(s)) return true;
             // 바닐라는 이 칸 모양을 pos(원래 칸) 기준으로 묻는다.
-            boolean blocked = B.behavior(s).getCollisionShape(s, level, pos, null).intersects(6 / 16.0, 0, 6 / 16.0, 10 / 16.0, 1, 10 / 16.0);
+            boolean blocked = B.behavior(s).getCollisionShape(s, level, pos, org.domi.furnace.server.block.CollisionContext.EMPTY).intersects(6 / 16.0, 0, 6 / 16.0, 10 / 16.0, 1, 10 / 16.0);
             if (blocked) return isLitCampfire(level.getBlockState(p.below()));
         }
         return false;

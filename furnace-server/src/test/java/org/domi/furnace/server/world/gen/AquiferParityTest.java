@@ -1,6 +1,7 @@
 // aquifer 비트일치 parity 테스트 (DisabledAquifer 단위 + aquifer-enabled oracle 픽스처 vs NoiseBasedAquifer)
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.BufferedReader;
@@ -61,10 +62,10 @@ class AquiferParityTest {
     }
 
     private void assertAquiferParity(long seed, int cx, int cz) throws Exception {
-        BlockRegistry reg11 = BlockRegistry.load("blocks/1.21.1.txt");
-        Map<Integer, String> oracleIdToName = loadIdToName("/blocks/1.21.1.txt");
+        BlockRegistry reg11 = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        Map<Integer, String> oracleIdToName = loadIdToName("/blocks/" + GameVersion.RESOURCE_TAG + ".txt");
 
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         NoiseWorldSource source = NoiseWorldSource.overworld(seed, reg11, registries);
         ChunkColumn col = source.generate(cx, cz);
 

@@ -1,6 +1,7 @@
 // 접속 흐름: 구성 단계에서 받은 minecraft:brand·minecraft:register 가 play 진입 때 Player 로 넘어가고, play 단계 unregister 도 반영된다.
 package org.domi.furnace.server.net;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -59,7 +60,7 @@ class ClientChannelRegisterFlowTest {
     @Test
     void configurationRegisterAndBrandReachPlayer_playUnregisterApplies() throws Exception {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         io = org.domi.furnace.server.TestServers.ioPool();
         World world = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2, reg.directBits(), 7, io);
         world.configurePersistence(Integer.MAX_VALUE, 100);
@@ -93,7 +94,7 @@ class ClientChannelRegisterFlowTest {
     @Test
     void invalidRegisterBodyDisconnectsLikePaper() throws Exception {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         io = org.domi.furnace.server.TestServers.ioPool();
         World world = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2, reg.directBits(), 7, io);
         world.configurePersistence(Integer.MAX_VALUE, 100);

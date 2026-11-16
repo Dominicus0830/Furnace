@@ -2,6 +2,7 @@
 // 기대값은 바닐라 1.21.1 바이트코드(Entity.playStepSound/walkingStepSound/playAmethystStepSound, Player.playStepSound, 각 몹 playStepSound, dnm=SoundType 표)를 읽은 것이다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.UUID;
@@ -20,7 +21,7 @@ class StepSoundTest {
     @BeforeAll
     static void install() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static final Pos FLOOR = new Pos(0, -61, 0);

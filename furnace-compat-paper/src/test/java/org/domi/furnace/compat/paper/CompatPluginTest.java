@@ -1,5 +1,6 @@
 package org.domi.furnace.compat.paper;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -94,7 +95,7 @@ class CompatPluginTest {
             assertEquals(1, Bukkit.getPluginManager().getPlugins().length);
             assertEquals("Furnace", Bukkit.getName());
             assertTrue(Bukkit.getVersion().contains("(MC: 1.21.1)"), Bukkit.getVersion());
-            assertEquals("1.21.1-R0.1-SNAPSHOT", Bukkit.getBukkitVersion());
+            assertEquals(GameVersion.RESOURCE_TAG + "-R0.1-SNAPSHOT", Bukkit.getBukkitVersion());
             assertEquals(List.of("world"), Bukkit.getWorlds().stream().map(org.bukkit.World::getName).toList());
             assertEquals(server.overworld().name(), Bukkit.getWorld("world").getName());
             assertEquals(server.directory().resolve("plugins").resolve("Recorder").toFile(), jp.getDataFolder());

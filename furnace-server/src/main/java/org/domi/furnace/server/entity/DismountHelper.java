@@ -15,8 +15,13 @@ public final class DismountHelper {
     /** isBlockFloorValid: 바닥 높이가 무한이 아니고 1 보다 낮다. */
     public static boolean isBlockFloorValid(double h) { return !Double.isInfinite(h) && h < 1.0; }
 
-    /** canDismountTo: 그 상자에 블록 충돌이 없고 월드 보더 안이다(getWorldBorder().isWithinBounds(box)). */
-    public static boolean canDismountTo(ChunkLevel level, AABB box) { return level.noCollision(box) && withinBorder(level, box); }
+    /**
+     * canDismountTo(level, passenger, box): 그 상자에 블록 충돌(getBlockCollisions(passenger, …) — 엔티티는 보지 않는다)이 없고 월드 보더
+     * 안이다(getWorldBorder().isWithinBounds(box)). 블록 문맥(비계·가루눈 등)은 승객(플레이어 포함)의 것 — 아직 탄 자리의 발 높이.
+     */
+    public static boolean canDismountTo(ChunkLevel level, Rider passenger, AABB box) {
+        return level.noBlockCollision(passenger, box) && withinBorder(level, box);
+    }
 
     /** WorldBorder.isWithinBounds(AABB): 두 모서리(최대는 1e-5 안쪽)가 모두 보더 안(최소 이상, 최대 미만). */
     public static boolean withinBorder(ChunkLevel level, AABB box) {
@@ -74,7 +79,7 @@ public final class DismountHelper {
                 if (isBlockFloorValid(h)) {
                     double py = by + h, hw = dim[0] / 2.0F;
                     AABB box = new AABB(x - hw, py, z - hw, x + hw, py + dim[1], z + hw);
-                    if (canDismountTo(level, box)) return new Vec3(x, py, z);
+                    if (canDismountTo(level, r, box)) return new Vec3(x, py, z);
                 }
                 by++;
             } while (by < maxY);
@@ -181,7 +186,7 @@ public final class DismountHelper {
         Vec3 v = new Vec3(pos.x() + 0.5, pos.y() + h, pos.z() + 0.5);
         double hw = w / 2.0F;
         AABB box = new AABB(v.x() - hw, v.y(), v.z() - hw, v.x() + hw, v.y() + hgt, v.z() + hw);
-        if (!level.noCollision(box)) return null;
+        if (!level.noBlockCollision(null, box)) return null;   // getBlockCollisions(null, box): 블록만(배·셜커 몸은 보지 않는다)
         if (player && (B.isTag(level.getBlockState(pos), "minecraft:invalid_spawn_inside") || B.isTag(level.getBlockState(pos.above()), "minecraft:invalid_spawn_inside"))) return null;
         return withinBorder(level, box) ? v : null;
     }

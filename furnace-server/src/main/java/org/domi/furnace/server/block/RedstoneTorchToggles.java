@@ -6,7 +6,9 @@ package org.domi.furnace.server.block;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.LongPredicate;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.level.block.RedstoneTorchBlock")
 public final class RedstoneTorchToggles {
 
     /** 꺼진 칸과 그때의 게임 시각(바닐라 RedstoneTorchBlock.Toggle). */

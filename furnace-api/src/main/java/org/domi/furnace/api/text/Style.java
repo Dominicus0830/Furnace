@@ -1,4 +1,4 @@
-// 텍스트 스타일(바닐라 Style) — 색·꾸밈 5종(정하지 않으면 부모 상속)·클릭·호버·삽입 문자열·글꼴. 불변.
+// 텍스트 스타일(바닐라 Style). 색, 꾸밈 5종(정하지 않으면 부모 상속), 클릭, 호버, 삽입 문자열, 글꼴로 이루어진다. 불변이다.
 package org.domi.furnace.api.text;
 
 import java.util.Objects;
@@ -123,7 +123,7 @@ public final class Style {
         return Objects.hash(color, bold, italic, underlined, strikethrough, obfuscated, clickEvent, hoverEvent, insertion, font);
     }
 
-    /** 플레이 단계 NBT(이름 없는 루트 compound) — 바닐라 Style TRUSTED_STREAM_CODEC 과 같은 바이트. */
+    /** 플레이 단계 NBT(이름 없는 루트 compound). 바닐라 Style TRUSTED_STREAM_CODEC 과 같은 바이트다. */
     public byte[] networkNbt() { return TextNbt.encodeStyle(this); }
 
     @Override

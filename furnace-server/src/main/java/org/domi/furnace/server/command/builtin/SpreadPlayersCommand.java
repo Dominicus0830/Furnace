@@ -110,13 +110,13 @@ public final class SpreadPlayersCommand {
                             .get(60, TimeUnit.SECONDS);
                     if (r != null) return r;
                 } catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException e) {
-                    last = new IllegalStateException("청크 " + cp + " 를 불러오지 못했다", e);
+                    last = new IllegalStateException("chunk " + cp + " could not be loaded", e);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     throw new IllegalStateException(e);
                 }
             }
-            throw last != null ? last : new IllegalStateException("청크 " + cp + " 를 읽지 못했다");
+            throw last != null ? last : new IllegalStateException("chunk " + cp + " could not be read");
         }
     }
 
@@ -315,7 +315,7 @@ public final class SpreadPlayersCommand {
         int minY = world.dimensionType().minY();
         if (maxHeight < minY) throw ERROR_INVALID_MAX_HEIGHT.create(maxHeight, minY);
         String dimension = world.dimension();
-        RandomSource random = RandomSource.create();
+        RandomSource random = RandomSource.createFor(org.domi.furnace.server.block.RandomSeeds.world(dimension, world.levelName()), org.domi.furnace.server.block.RandomSeeds.Purpose.SPREAD_PLAYERS);
         double[] avg = new double[1];
         double minX = center.x() - maxRange, minZ = center.y() - maxRange, maxX = center.x() + maxRange, maxZ = center.y() + maxRange;   // float 뺄셈 뒤 double
         Position[] positions = createInitialPositions(random, respectTeams ? teamCount(targets) : targets.size(), minX, minZ, maxX, maxZ);
@@ -333,7 +333,7 @@ public final class SpreadPlayersCommand {
                 throw new java.util.concurrent.CompletionException(new org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType(
                         Text.text("/spreadplayers failed: " + e.getMessage())).create());
             }
-        }, r -> Thread.startVirtualThread(r));
+        }, r -> Thread.startVirtualThread(() -> org.domi.furnace.server.world.CommandDrainGate.inCommandScope(r)));   // 땅 읽기 홉도 명령 범위(T-150)
         return org.domi.furnace.server.command.EntityOps.awaitAsync(source, computed, placements -> {
             List<CompletableFuture<Void>> moves = new java.util.ArrayList<>(placements.size());
             for (Placement p : placements) {

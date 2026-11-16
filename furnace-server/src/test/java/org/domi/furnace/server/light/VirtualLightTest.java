@@ -1,6 +1,7 @@
 // 가짜 광원(W6): 같은 밝기의 빛 블록(minecraft:light)을 둔 것과 칸마다 같은 블록빛, 지우면 원래대로, 다시 올라온 청크·주인별 최댓값·저장 판정.
 package org.domi.furnace.server.light;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -19,7 +20,7 @@ class VirtualLightTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new org.domi.furnace.server.data.TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new org.domi.furnace.server.data.TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static final class Level extends BlockPlacementTest.TestLevel {
@@ -40,7 +41,7 @@ class VirtualLightTest {
         }
     }
 
-    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
 
     private static int lightBlock(int level) { return REG.stateIdOrAir("minecraft:light", java.util.Map.of("level", String.valueOf(level), "waterlogged", "false")); }
 

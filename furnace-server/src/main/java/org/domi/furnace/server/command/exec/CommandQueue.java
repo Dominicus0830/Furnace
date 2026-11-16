@@ -14,6 +14,7 @@ import org.domi.furnace.api.concurrent.ThreadOwner;
 import org.domi.furnace.api.sched.TaskScheduler;
 import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.command.CommandSource;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -98,6 +99,7 @@ public final class CommandQueue {
         boolean handled = false;
         ExecutionContext prevDriving = driving;
         driving = ctx;
+        org.domi.furnace.server.world.CommandDrainGate.enterScope();   // 이 안에서 region 에 넣는 작업은 명령 큐 즉시 처리 문 대상(O11 P-O11-01)
         try {
             if (body != null) body.run();
             ctx.run();
@@ -107,6 +109,7 @@ public final class CommandQueue {
             reportException(p, e);
             ctx.abort();
         } finally {
+            org.domi.furnace.server.world.CommandDrainGate.exitScope();
             driving = prevDriving;
             if (!handled) ctx.abort();   // Error: 컨텍스트를 끝내고 그대로 던진다(큐가 막히지 않게)
             if (ctx.isFinished() && current == ctx) {
@@ -133,7 +136,7 @@ public final class CommandQueue {
                 try {
                     task.run();
                 } catch (Throwable t) {
-                    log.error("명령 완료 처리 실패", t);
+                    log.error(Lang.t("cmdqueue.complete-failed"), t);
                 }
             });
         } catch (RejectedExecutionException ignored) {
@@ -148,7 +151,7 @@ public final class CommandQueue {
         currentTicks++;
         if (currentTicks > SLOW_CONTEXT_TICKS && !slowWarned) {
             slowWarned = true;
-            log.warn("명령 컨텍스트 /{} 이 {} 틱째 실행 중, 대기 {}", currentEntry == null ? "?" : currentEntry.input(), currentTicks, pending.size());
+            log.warn(Lang.t("cmdqueue.context-stuck", currentEntry == null ? "?" : currentEntry.input(), currentTicks, pending.size()));
         }
     }
 
@@ -199,6 +202,6 @@ public final class CommandQueue {
         pending.clear();
         current = null;
         currentEntry = null;
-        if (n > 0) log.warn("종료: 미완료 명령 컨텍스트 {}개 버림", n);
+        if (n > 0) log.warn(Lang.t("cmdqueue.shutdown-dropped", n));
     }
 }

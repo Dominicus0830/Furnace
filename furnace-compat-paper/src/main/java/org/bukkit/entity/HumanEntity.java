@@ -5,7 +5,7 @@ import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 
-public interface HumanEntity extends LivingEntity, InventoryHolder {
+public interface HumanEntity extends LivingEntity, AnimalTamer, InventoryHolder {
 
     @Override
     PlayerInventory getInventory();

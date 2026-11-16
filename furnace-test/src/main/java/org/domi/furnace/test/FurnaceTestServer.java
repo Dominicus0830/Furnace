@@ -7,6 +7,7 @@
 // 쓰는 법은 docs/api/testing.md.
 package org.domi.furnace.test;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -70,6 +71,7 @@ public final class FurnaceTestServer implements AutoCloseable {
     private ExecutorService ioPool;
     private ExecutorService genPool;
     private org.domi.furnace.server.world.World world;
+    private org.domi.furnace.server.world.WorldManager worldManager;
     private ServerCore core;
     private PluginHost host;
     private final List<Text> consoleLog = new ArrayList<>();
@@ -107,10 +109,10 @@ public final class FurnaceTestServer implements AutoCloseable {
             PluginSettings pluginSettings = new PluginSettings(b.failFast, null, java.util.Map.of(), b.devMode, false).withCompatNms(b.compatNms).withLibraries(b.libraries)
                     .withExposeCompatToNative(b.exposeCompatToNative).withCompatOptions(b.compatOptions);
             PluginBootstrapper boot = PluginBootstrapper.bootstrap(pluginsDir, pluginSettings);
-            BlockRegistry blocks = BlockRegistry.load("blocks/1.21.1.txt");
-            ItemRegistry items = ItemRegistry.load("items/1.21.1.txt");
+            BlockRegistry blocks = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+            ItemRegistry items = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
             org.domi.furnace.server.entity.PlayerData.itemRegistry(items);
-            RegistrySet registries = boot.collectGameRegistries(RegistrySet.load("registries/1.21.1.txt"));
+            RegistrySet registries = boot.collectGameRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"));
             RegistrySet.install(registries);
             ItemContext.install(new TagRegistries(registries));
             int plains = Math.max(0, registries.indexOf("minecraft:worldgen/biome", "minecraft:plains"));
@@ -149,17 +151,35 @@ public final class FurnaceTestServer implements AutoCloseable {
             PlayerLists lists = new PlayerLists(root, settings);
             this.core = new ServerCore(settings, lists, new GameProfileCache(ProfileLookup.NONE, root.resolve("usercache.json")), w, level, sched);
             core.registries(registries);   // 바이옴 API(WorldHandle.biomeNames)·접속 레지스트리가 보는 세트(FurnaceMain 은 데이터 팩 판을 건다)
+            if (b.multiWorld) {   // 추가 월드(createWorld) — FurnaceMain 처럼 플러그인을 불러오기 전에 붙인다. 추가 월드 폴더는 시험 폴더 안
+                var dims = new org.domi.furnace.server.world.Dimensions();
+                dims.register(w);
+                core.dimensions(dims);
+                var m = new org.domi.furnace.server.world.WorldManager(new org.domi.furnace.server.world.WorldManager.Parts(root, blocks, items, registries,
+                        plains, biomeBits, chunks, sched, null, org.domi.furnace.server.config.Config.DEFAULT, false, io, gen), dims, level, "world");
+                core.worldManager(m);
+                this.worldManager = m;
+            }
             this.host = core.plugins();
             core.addConsoleListener(t -> { synchronized (consoleLog) { consoleLog.add(t); } });
             this.ownsFurnaceHolder = TestHolder.claim(host);
             host.pluginsImpl().directory(pluginsDir);
             host.pluginsImpl().settings(pluginSettings);
             host.pluginsImpl().loadAll(boot);
+            // FurnaceMain 의 worlds.autoload 처럼 onLoad 뒤·onEnable 앞에 추가 월드를 올린다
+            for (var c : b.autoloadWorlds) {
+                try {
+                    worldManager.create(c).get(5, java.util.concurrent.TimeUnit.MINUTES);
+                } catch (Exception e) {
+                    throw new IllegalStateException("auto-load world '" + c.name() + "' failed", e);
+                }
+            }
             var dispatcher = core.commands().getDispatcher();
             org.domi.furnace.server.command.builtin.FurnaceCommands.register(dispatcher, host);
             org.domi.furnace.server.command.builtin.FurnaceAdminCommands.register(dispatcher);
             org.domi.furnace.server.command.builtin.TpsCommands.register(dispatcher);
             w.startTicking();
+            w.enableSpawnChunks();   // 운영 서버와 같이 게임 규칙 spawnChunkRadius 의 START 티켓(바닐라 prepareLevels)
             // 스폰 청크를 미리 올린다(접속·블록 시험이 곧바로 쓰게)
             for (int dz = -b.spawnChunkRadius; dz <= b.spawnChunkRadius; dz++)
                 for (int dx = -b.spawnChunkRadius; dx <= b.spawnChunkRadius; dx++) loadChunkBlocking(dx, dz);
@@ -196,13 +216,13 @@ public final class FurnaceTestServer implements AutoCloseable {
     /** n 틱을 차례로 돈다. */
     public void tick(int n) {
         checkOpen();
-        if (n < 0) throw new IllegalArgumentException("음수 틱: " + n);
+        if (n < 0) throw new IllegalArgumentException("negative ticks: " + n);
         for (int i = 0; i < n; i++) tickOnce();
     }
 
     private void tickOnce() {
         if (global.isOwnerThread() || org.domi.furnace.server.world.Regionizer.isRegionWorkerThread()) {
-            throw new IllegalStateException("tick() 은 시험 스레드에서 부른다(서버 스레드 안에서는 기다릴 수 없다)");
+            throw new IllegalStateException("call tick() from the test thread (it cannot wait inside a server thread)");
         }
         // 틱 전에 모든 region 이 앞서 받은 작업(시험 스레드가 건 지연 작업 등)을 비우게 한다 — 그 작업은 "지난 틱 뒤"로 세어져,
         // 몇 번째 틱에 붙을지가 벽시계와 상관없이 정해진다
@@ -215,7 +235,7 @@ public final class FurnaceTestServer implements AutoCloseable {
         long target = world.advanceManualTick();
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(options.timeoutMillis);
         while (!world.manualTickDone(target)) {
-            if (System.nanoTime() - deadline > 0) throw new IllegalStateException("region 틱 " + target + " 이 " + options.timeoutMillis + "ms 안에 끝나지 않았다");
+            if (System.nanoTime() - deadline > 0) throw new IllegalStateException("region tick " + target + " did not finish within " + options.timeoutMillis + "ms");
             LockSupport.parkNanos(20_000L);
         }
         ticks++;
@@ -242,7 +262,7 @@ public final class FurnaceTestServer implements AutoCloseable {
             if (c instanceof Error er) throw er;
             throw new IllegalStateException(c);
         } catch (TimeoutException e) {
-            throw new IllegalStateException(options.timeoutMillis + "ms 안에 끝나지 않았다", e);
+            throw new IllegalStateException("did not finish within " + options.timeoutMillis + "ms", e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(e);
@@ -337,7 +357,7 @@ public final class FurnaceTestServer implements AutoCloseable {
     /** 불러온 플러그인을 메인 클래스로 찾는다. 클래스패스 플러그인은 시험 코드와 같은 클래스라 그대로 캐스트할 수 있다. */
     public <P extends FurnacePlugin> P plugin(Class<P> type) {
         for (FurnacePlugin p : host.pluginsImpl().plugins()) if (type.isInstance(p)) return type.cast(p);
-        throw new IllegalArgumentException("불러온 플러그인 중 " + type.getName() + " 이 없다");
+        throw new IllegalArgumentException("none of the loaded plugins is a " + type.getName());
     }
 
     /** 이 서버의 임시 폴더(설정·플레이어 데이터·plugins). */
@@ -351,7 +371,7 @@ public final class FurnaceTestServer implements AutoCloseable {
     void playerLeft(TestPlayer p) { players.remove(p); }
 
     private void checkOpen() {
-        if (closed) throw new IllegalStateException("이미 닫힌 서버");
+        if (closed) throw new IllegalStateException("the server is already closed");
     }
 
     // ------------------------------------------------------------------ 닫기
@@ -392,6 +412,7 @@ public final class FurnaceTestServer implements AutoCloseable {
                 Thread.currentThread().interrupt();
             }
         });
+        step(first, () -> { if (worldManager != null) worldManager.closeAllForShutdown(); });
         step(first, chunkPool::shutdown);
         step(first, scheduler::close);
         step(first, () -> host.pluginsImpl().closeAll());
@@ -446,8 +467,11 @@ public final class FurnaceTestServer implements AutoCloseable {
         private boolean failFast = true;
         private boolean compatNms = true;
         private boolean exposeCompatToNative = false;
+        private boolean multiWorld = false;
         private boolean devMode = false;
-        private final java.util.Map<String, String> compatOptions = new java.util.HashMap<>();
+        /** 시험은 기본으로 네트워크에 나가지 않는다 — Spigot 이름 대응표(실제 서버 기본 download)도 끈다. 켜려면 compatOption 으로 덮어쓴다. */
+        private final java.util.Map<String, String> compatOptions = new java.util.HashMap<>(
+                java.util.Map.of(org.domi.furnace.server.plugin.PluginSettings.SPIGOT_MAPPINGS_KEY, "off"));
         /** 시험은 기본으로 네트워크에 나가지 않는다 — 호환 플러그인용 서버 제공 라이브러리·plugin.yml libraries 도 끈다. */
         private org.domi.furnace.server.plugin.library.LibrarySettings libraries = org.domi.furnace.server.plugin.library.LibrarySettings.DEFAULT
                 .withCompat(org.domi.furnace.server.plugin.library.LibrarySettings.CompatMode.OFF).withCompatDeclared(false);
@@ -522,6 +546,9 @@ public final class FurnaceTestServer implements AutoCloseable {
         /** 미지원 NMS 심볼이 있는 호환 플러그인은 불러오지 않는다(plugins.compat.nms.strict, 기본 거짓). */
         public Builder compatNmsStrict(boolean v) { return compatOption("plugins.compat.nms.strict", String.valueOf(v)); }
 
+        /** 리플렉션으로 찾다 없는 NMS 클래스 알림: summary(기본) 또는 each — plugins.compat.nms.missing-class-log. */
+        public Builder compatNmsMissingClassLog(String v) { return compatOption("plugins.compat.nms.missing-class-log", java.util.Objects.requireNonNull(v)); }
+
         /** 플러그인이 읽는 CraftBukkit 패키지 이름: plain(기본, Paper) 또는 versioned(Spigot, v1_21_R1) — plugins.compat.nms.version-package. */
         public Builder compatNmsVersionPackage(String v) { return compatOption("plugins.compat.nms.version-package", java.util.Objects.requireNonNull(v)); }
 
@@ -530,6 +557,18 @@ public final class FurnaceTestServer implements AutoCloseable {
          * 호환 코어를 네이티브 시험 플러그인으로 직접 부리는 호환 모듈 시험만 켠다.
          */
         public Builder exposeCompatToNative(boolean v) { this.exposeCompatToNative = v; return this; }
+
+        /** 추가 월드(Furnace#createWorld·Bukkit createWorld)를 쓸 수 있게 다중 월드 관리자를 붙인다. 추가 월드는 실제 시계로 돈다. 기본 끔. */
+        public Builder multiWorld(boolean v) { this.multiWorld = v; return this; }
+
+        /** 서버 기동 때(플러그인 onLoad 뒤·onEnable 앞, furnace.properties worlds.autoload 와 같은 때) 함께 올릴 추가 월드. 다중 월드를 켠다. */
+        public Builder autoloadWorld(org.domi.furnace.api.world.WorldCreator c) {
+            this.autoloadWorlds.add(java.util.Objects.requireNonNull(c));
+            this.multiWorld = true;
+            return this;
+        }
+
+        private final List<org.domi.furnace.api.world.WorldCreator> autoloadWorlds = new java.util.ArrayList<>();
 
         /** 호환 어댑터가 읽는 서버 설정(furnace.properties 의 plugins.compat.* 키, 예: plugins.compat.scheduler.async-threads=virtual). */
         public Builder compatOption(String key, String value) { this.compatOptions.put(key, value); return this; }

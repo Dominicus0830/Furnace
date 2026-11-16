@@ -1,6 +1,7 @@
 // Bukkit·Paper 플러그인 형식(plugin.yml, paper-plugin.yml) 어댑터. 서버의 PluginBootstrapper 가 ServiceLoader 로 찾아 쓴다.
 package org.domi.furnace.compat.paper;
 
+import org.domi.furnace.compat.i18n.CompatLang;
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -49,6 +50,21 @@ public final class CompatFormat implements PluginFormat {
 
     private volatile boolean createdPlugin;
 
+    /** Bukkit {@code load: STARTUP} — Paper 는 월드를 만들기 전에 켠다(paper-plugin.yml 의 {@code load} 도 같은 값). */
+    @Override
+    public boolean enablesBeforeWorlds(PluginDescription description) {
+        PluginDescriptionFile pdf = descriptors.get(key(description.name(), description.main()));
+        return pdf != null && pdf.getLoad() == org.bukkit.plugin.PluginLoadOrder.STARTUP;
+    }
+
+    /** 플러그인 onLoad·STARTUP onEnable 동안 Bukkit 에 월드를 감춘다(Paper 는 그때 월드를 아직 만들지 않았다). */
+    @Override
+    public void beforePluginsLoad(org.domi.furnace.api.Furnace server) { Compat.hideWorldsForStartup(server); }
+
+    /** STARTUP 플러그인을 다 켠 뒤 Paper 순서로 월드를 드러내며 WorldInitEvent·WorldLoadEvent 를 보낸다. */
+    @Override
+    public void worldsReady(org.domi.furnace.api.Furnace server) { Compat.revealWorldsAfterStartup(server); }
+
     static final long SHUTDOWN_ASYNC_WAIT_MILLIS = 5_000;
 
     /** paper-plugin.yml 이 있으면 그것을 먼저 읽는다(Paper 와 같다). */
@@ -61,7 +77,7 @@ public final class CompatFormat implements PluginFormat {
         try {
             map = ConfigFormat.YAML.parse(text).toMap();
         } catch (RuntimeException e) {
-            throw new IllegalArgumentException(fileName + " 을 읽을 수 없다: " + e.getMessage(), e);
+            throw new IllegalArgumentException(fileName + " cannot be read: " + e.getMessage(), e);
         }
         if (fileName.equals("paper-plugin.yml")) map = fromPaper(map);
         PluginDescriptionFile pdf;
@@ -91,7 +107,7 @@ public final class CompatFormat implements PluginFormat {
     static void checkApiVersion(PluginDescriptionFile pdf) {
         String v = pdf.getAPIVersion();
         if (v == null) return;
-        if (isNewerThanServerApi(v)) throw new IllegalArgumentException("Unsupported API version " + v + " (이 서버는 Bukkit API 1." + SUPPORTED_MINOR + "." + SUPPORTED_PATCH + " 까지 받는다)");
+        if (isNewerThanServerApi(v)) throw new IllegalArgumentException("Unsupported API version " + v + " (this server accepts up to Bukkit API 1." + SUPPORTED_MINOR + "." + SUPPORTED_PATCH + ")");
     }
 
     /** api-version 문자열("1.21", "1.20.6")이 이 서버의 Bukkit API(1.21.1)보다 새로운가. 읽을 수 없으면 IllegalArgumentException. */
@@ -103,7 +119,7 @@ public final class CompatFormat implements PluginFormat {
             int patch = p.length > 2 ? Integer.parseInt(p[2]) : 0;
             return major > 1 || (major == 1 && (minor > SUPPORTED_MINOR || (minor == SUPPORTED_MINOR && patch > SUPPORTED_PATCH)));
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("api-version '" + v + "' 을 읽을 수 없다");
+            throw new IllegalArgumentException("api-version '" + v + "' cannot be parsed");
         }
     }
 
@@ -132,12 +148,12 @@ public final class CompatFormat implements PluginFormat {
                 }
             }
             if (dm.get("bootstrap") instanceof Map<?, ?> b && !b.isEmpty()) {
-                LOG.warn("paper-plugin.yml 의 dependencies.bootstrap 은 읽지 않는다(Furnace 호환 어댑터 1차 범위 밖): {}", b.keySet());
+                LOG.warn(CompatLang.t("compat.paper-bootstrap-ignored", b.keySet()));
             }
         }
         for (String key : List.of("bootstrapper", "loader")) {
             if (paper.get(key) != null) {
-                LOG.warn("paper-plugin.yml 의 '{}' 는 Furnace 호환 어댑터가 실행하지 않는다 — 이 플러그인은 그것에 기대면 제대로 안 돈다", key);
+                LOG.warn(CompatLang.t("compat.paper-key-not-run", key));
             }
         }
         out.remove("dependencies");
@@ -164,11 +180,26 @@ public final class CompatFormat implements PluginFormat {
      */
     @Override
     public org.domi.furnace.api.plugin.ClassTransformer transformer(PluginDescription description, java.nio.file.Path jar, Map<String, String> settings) {
+        return transformer(description, jar, settings, null);
+    }
+
+    /**
+     * 위와 같고, Spigot 이름 대응표 파일은 서버가 미리 주지 않는다: 이 jar 가 대응표를 필요로 한다고(Spigot 이름 jar 이고 NMS 이름을 담음) jar 를
+     * 훑으면서 확인된 때만 {@code spigotMappingFiles} 로 서버에 물어 세 파일 경로(아래 {@link #SPIGOT_MAPPING_FILES} 형식)를 받는다 — 서버가 필요 여부를
+     * 알아보려고 jar 를 또 읽지 않고, 필요 없는 플러그인에는 대응표를 받지도 않는다. null·빈 값이면 바꾸지 않는다.
+     */
+    @Override
+    public org.domi.furnace.api.plugin.ClassTransformer transformer(PluginDescription description, java.nio.file.Path jar, Map<String, String> settings,
+                                                                     java.util.function.Supplier<String> spigotMappingFiles) {
+        // D1(2026-11-15): 리플렉션으로 찾다 없는 NMS 클래스 알림 방식(summary 기본 | each)
+        org.domi.furnace.compat.nms.NmsReflect.missingClassLog(description.name(),
+                org.domi.furnace.compat.nms.NmsReflect.MissingClassLog.parse(settings.get(org.domi.furnace.compat.nms.NmsReflect.MISSING_CLASS_LOG_KEY)));
         var options = new org.domi.furnace.compat.nms.NmsClassTransformer.Options(
                 Boolean.parseBoolean(settings.getOrDefault("plugins.compat.nms.strict", "false")),
                 "versioned".equalsIgnoreCase(settings.getOrDefault("plugins.compat.nms.version-package", "plain")),
                 spigotMappings(description.name(), settings.get(SPIGOT_MAPPING_FILES)));
-        return org.domi.furnace.compat.nms.NmsClassTransformer.forJar(description.name(), jar, options);
+        return org.domi.furnace.compat.nms.NmsClassTransformer.forJar(description.name(), jar, options,
+                spigotMappingFiles == null ? null : () -> spigotMappings(description.name(), spigotMappingFiles.get()));
     }
 
     /**
@@ -181,13 +212,13 @@ public final class CompatFormat implements PluginFormat {
         if (files == null || files.isBlank()) return null;
         String[] p = files.split(java.util.regex.Pattern.quote(java.io.File.pathSeparator));
         if (p.length != 3) {
-            LOG.warn("플러그인 {}: {} 값은 파일 세 개(Mojang server.txt, Spigot 클래스 csrg, 멤버 csrg)여야 한다 — Spigot 이름을 바꾸지 않는다", plugin, SPIGOT_MAPPING_FILES);
+            LOG.warn(CompatLang.t("compat.spigot-files-count", plugin, SPIGOT_MAPPING_FILES));
             return null;
         }
         try {
             return org.domi.furnace.compat.nms.SpigotMappings.load(java.nio.file.Path.of(p[0].strip()), java.nio.file.Path.of(p[1].strip()), java.nio.file.Path.of(p[2].strip()));
         } catch (java.io.IOException | RuntimeException e) {
-            LOG.warn("플러그인 {}: Spigot 이름 대응표를 읽지 못했다({}) — Spigot 이름을 바꾸지 않는다(그 NMS 호출은 실패한다)", plugin, e.toString());
+            LOG.warn(CompatLang.t("compat.spigot-mappings-unreadable", plugin, e.toString()));
             return null;
         }
     }
@@ -195,7 +226,7 @@ public final class CompatFormat implements PluginFormat {
     @Override
     public FurnacePlugin create(PluginContext context, Class<?> main) throws ReflectiveOperationException {
         if (!JavaPlugin.class.isAssignableFrom(main)) {
-            throw new IllegalArgumentException("main 클래스가 org.bukkit.plugin.java.JavaPlugin 을 상속하지 않는다: " + main.getName());
+            throw new IllegalArgumentException("the main class does not extend org.bukkit.plugin.java.JavaPlugin: " + main.getName());
         }
         createdPlugin = true;
         Bukkit.setServer(org.bukkit.craftbukkit.CraftServer.INSTANCE);

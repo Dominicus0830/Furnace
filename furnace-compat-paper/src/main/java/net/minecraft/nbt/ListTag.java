@@ -11,6 +11,12 @@ import java.util.Locale;
  */
 public final class ListTag extends CollectionTag<Tag> {
 
+    /** 바닐라 {@code ListTag.TYPE}: 이 클래스 안의 익명 종류(이름·표시 이름·isValue 는 바닐라 1.21.1 jar 와 대조). */
+    public static final TagType<ListTag> TYPE = new TagType<>() {
+        @Override public String getName() { return "LIST"; }
+        @Override public String getPrettyName() { return "TAG_List"; }
+    };
+
     private final List<Tag> list;
     private byte type;
 

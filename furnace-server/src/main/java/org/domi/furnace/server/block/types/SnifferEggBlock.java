@@ -1,6 +1,7 @@
 // 바닐라 SnifferEggBlock: 스니퍼 알(hatch 0..2). 놓이면 예약 틱(이끼 블록 위면 절반 시간)마다 금이 가고, 다 되면 아기 스니퍼가 나온다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.SnifferEggBlock")
 public class SnifferEggBlock extends BlockBehavior {
 
     static final Prop HATCH = B.prop("hatch");

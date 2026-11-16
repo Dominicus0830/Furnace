@@ -29,7 +29,10 @@ public final class WanderingTraderSpawner {
     private int spawnDelay = DEFAULT_SPAWN_DELAY;
     private int spawnChance = MIN_SPAWN_CHANCE;
 
-    public WanderingTraderSpawner() { this(RandomSource.create()); }
+    public WanderingTraderSpawner() { this(0L); }
+
+    /** 주인 열쇠(월드)에서 스포너 전용 난수를 만든다. */
+    public WanderingTraderSpawner(long ownerKey) { this(RandomSource.createFor(ownerKey, org.domi.furnace.server.block.RandomSeeds.Purpose.WANDERING_TRADER)); }
 
     /** 난수 주입(시험). 바닐라도 스포너 전용 난수(RandomSource.create())를 따로 쓴다. */
     public WanderingTraderSpawner(RandomSource random) { this.random = random; }

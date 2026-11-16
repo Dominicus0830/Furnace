@@ -12,6 +12,15 @@ public abstract class ScatteredPiece extends StructurePiece {
         this.depth = depth;
     }
 
+    /** 바닐라 ScatteredFeaturePiece: Width·Height·Depth·HPos. */
+    @Override
+    protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+        t.putInt("Width", width);
+        t.putInt("Height", height);
+        t.putInt("Depth", depth);
+        t.putInt("HPos", heightPosition);
+    }
+
     /** updateAverageGroundLevel(level, box, offset) — 쓰기 상자 안 칸들의 MOTION_BLOCKING_NO_LEAVES 평균. */
     protected boolean updateAverageGroundLevel(PostCtx c, BoundingBox box, int offset) {
         if (heightPosition >= 0) return true;

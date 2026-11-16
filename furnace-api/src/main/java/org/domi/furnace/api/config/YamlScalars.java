@@ -1,4 +1,4 @@
-// YAML 평문 스칼라의 타입 해석(null/bool/int/float)과 작성 시 따옴표 필요 여부 판단
+// YAML 평문 스칼라의 타입 해석(null/bool/int/float)과, 쓸 때 따옴표가 필요한지의 판단
 package org.domi.furnace.api.config;
 
 final class YamlScalars {
@@ -6,8 +6,8 @@ final class YamlScalars {
     private YamlScalars() {}
 
     /**
-     * 따옴표 없는 스칼라를 해석한다. null / Boolean / Integer·Long / Double / String.
-     * SnakeYAML(YAML 1.1) 규칙을 따르되 60진법(12:30)과 timestamp 는 해석하지 않고 문자열로 둔다.
+     * 따옴표 없는 스칼라를 해석한다. 결과는 null, Boolean, Integer·Long, Double, String 중 하나다.
+     * SnakeYAML(YAML 1.1) 규칙을 따르되, 60진법(12:30)과 timestamp 는 해석하지 않고 문자열로 둔다.
      */
     static Object resolve(String s) {
         int n = s.length();

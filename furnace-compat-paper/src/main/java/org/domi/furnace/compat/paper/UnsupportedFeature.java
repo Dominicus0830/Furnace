@@ -7,6 +7,6 @@ package org.domi.furnace.compat.paper;
 public class UnsupportedFeature extends UnsupportedOperationException {
 
     public UnsupportedFeature(String feature, String why) {
-        super("Furnace 호환 어댑터가 아직 지원하지 않는다: " + feature + " — " + why);
+        super("Not supported yet by the Furnace compat adapter: " + feature + " - " + why);
     }
 }

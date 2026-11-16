@@ -1,6 +1,7 @@
 // /locate structure: 이름 해석(id·태그·없는 것)과 거리 계산(바닐라 int 곱·float 제곱근·내림).
 package org.domi.furnace.server.command.builtin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
@@ -56,7 +57,7 @@ class LocateCommandTest {
 
     @Test
     void registriesKnowBiomesAndPoi() {
-        var set = org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt");
+        var set = org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         var tags = new org.domi.furnace.server.data.TagRegistries(set);
         // 파싱 검증(ResourceOrTagKeyArgument)이 POI id 를 레지스트리로 거를 수 있다
         var poi = tags.names(LocateCommand.POI_REGISTRY).stream().map(Object::toString).toList();

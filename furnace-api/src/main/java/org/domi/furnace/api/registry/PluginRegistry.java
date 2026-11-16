@@ -29,7 +29,7 @@ public interface PluginRegistry<T> {
     /** 없으면 IllegalArgumentException. */
     default T getOrThrow(String key) {
         T v = get(key);
-        if (v == null) throw new IllegalArgumentException(key() + " 에 없는 항목: " + key);
+        if (v == null) throw new IllegalArgumentException(key() + " has no entry: " + key);
         return v;
     }
 

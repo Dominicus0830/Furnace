@@ -2,6 +2,7 @@
 // 달콤한 열매 덤불, 수련잎·보트, 개구리알·떨어지는 블록, 레드스톤 광석, 거북 알, 화살 버튼과 그 플레이어 쪽.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.UUID;
@@ -21,7 +22,7 @@ class EntityBlockHookTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     /** mobGriefing 을 바꿀 수 있는 시험 레벨. */
@@ -77,10 +78,10 @@ class EntityBlockHookTest {
         level.setBlock(AT, state("big_dripleaf"), 3);
         level.setBlock(AT.east(), state("redstone_block"), 3);
         var leaf = (BigDripleafBlock) B.behavior(level.getBlockState(AT));
-        leaf.entityInsideAt(level.getBlockState(AT), level, AT, true, AT.y() + 0.9375);
+        leaf.entityInsideAt(level.getBlockState(AT), level, AT, true, AT.y() + 0.9375, null);
         assertEquals("none", tilt(level), "신호를 받으면 안 기운다");
         level.setBlock(AT.east(), state("air"), 3);
-        leaf.entityInsideAt(level.getBlockState(AT), level, AT, true, AT.y() + 0.9375);
+        leaf.entityInsideAt(level.getBlockState(AT), level, AT, true, AT.y() + 0.9375, null);
         assertEquals("unstable", tilt(level));
     }
 

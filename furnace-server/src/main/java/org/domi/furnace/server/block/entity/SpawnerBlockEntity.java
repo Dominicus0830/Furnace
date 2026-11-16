@@ -2,12 +2,14 @@
 // 블록 이벤트 1 은 spawner 블록으로. 갱신 태그는 저장 내용에서 SpawnPotentials 를 뺀 것.
 package org.domi.furnace.server.block.entity;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort("net.minecraft.world.level.block.entity.SpawnerBlockEntity")
 public class SpawnerBlockEntity extends BlockEntity {
 
     private final BaseSpawner spawner = new BaseSpawner() {

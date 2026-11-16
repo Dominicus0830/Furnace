@@ -79,6 +79,13 @@ public abstract class MoveToBlockGoal extends Goal {
 
     protected boolean isReachedTarget() { return reachedTarget; }
 
+    /** Paper: 멈추면 향하던 칸을 지운다(활성 범위 면역 검사만 읽는다). Paper 는 blockPos 도 0 으로 되돌리지만 결과가 바뀔 수 있어 따르지 않는다. */
+    @Override
+    public void stop() {
+        super.stop();
+        mob.setMovingTarget(null);
+    }
+
     protected boolean findNearestBlock() {
         int r = searchRange, v = verticalSearchRange;
         Pos origin = mob.blockPosition();
@@ -89,6 +96,7 @@ public abstract class MoveToBlockGoal extends Goal {
                         Pos p = new Pos(origin.x() + i1, origin.y() + k - 1, origin.z() + j1);
                         if (mob.isWithinRestriction(p) && isValidTarget(mob.level(), p)) {
                             blockPos = p;
+                            mob.setMovingTarget(p);   // Paper EAR(활성 범위 면역 검사만 읽는다)
                             return true;
                         }
                     }

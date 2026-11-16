@@ -1,6 +1,7 @@
 // 운영 유지보수 옵션(furnace.properties): 빈 서버 일시정지와 주기 백업. 둘 다 기본 꺼짐(1.21.1 바닐라에 없는 동작).
 package org.domi.furnace.server.maintenance;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Properties;
@@ -42,7 +43,7 @@ public record MaintenanceOptions(int idlePauseSeconds, boolean idlePauseFlush,
         BackupFormat format = switch (fmt) {
             case "zip" -> BackupFormat.ZIP;
             case "folder" -> BackupFormat.FOLDER;
-            default -> throw new IllegalArgumentException("설정 'backup.format' 값 '" + fmt + "' 이(가) 잘못됐습니다: zip 또는 folder");
+            default -> throw new IllegalArgumentException(Lang.t("cfg.invalid-choice", "backup.format", fmt, "zip, folder"));
         };
         boolean skipIdle = bool(props, "backup.skip-if-no-players", DEFAULT.backupSkipIdle);
         int hold = integer(props, "backup.hold-timeout-seconds", DEFAULT.backupHoldTimeoutSeconds, 1, 600);
@@ -54,11 +55,11 @@ public record MaintenanceOptions(int idlePauseSeconds, boolean idlePauseFlush,
     /** 위험하거나 바닐라와 다른 설정이면 시작 로그에 경고한다. */
     void warnings(Consumer<String> warn) {
         if (idlePauseEnabled()) {
-            warn.accept("idle-pause.empty-seconds=" + idlePauseSeconds + ": 접속자가 없으면 게임 틱(시간·작물·강제 로드 청크·명령 블록)이 멈춘다 — 1.21.1 바닐라에는 없는 동작(1.21.2+ pause-when-empty-seconds)");
+            warn.accept(Lang.t("cfg.idle-pause", idlePauseSeconds));
         }
         if (backupEnabled()) {
-            if (backupIntervalMinutes < 5) warn.accept("backup.interval-minutes=" + backupIntervalMinutes + ": 백업이 잦다 — 기준점마다 틱이 잠깐 멈추고 월드 크기만큼 디스크를 읽는다");
-            if (backupKeep == 0) warn.accept("backup.keep=0: 오래된 백업을 지우지 않는다 — 디스크가 찰 수 있다");
+            if (backupIntervalMinutes < 5) warn.accept(Lang.t("cfg.backup-frequent", backupIntervalMinutes));
+            if (backupKeep == 0) warn.accept(Lang.t("cfg.backup-keep-all"));
         }
     }
 
@@ -69,9 +70,9 @@ public record MaintenanceOptions(int idlePauseSeconds, boolean idlePauseFlush,
         try {
             v = Integer.parseInt(raw.strip());
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("설정 '" + key + "' 가 숫자가 아님: " + raw, e);
+            throw new IllegalArgumentException(Lang.t("cfg.not-number", key, raw), e);
         }
-        if (v < min || v > max) throw new IllegalArgumentException("설정 '" + key + "' 값 " + v + " 이(가) 잘못됐습니다: " + min + "~" + max);
+        if (v < min || v > max) throw new IllegalArgumentException(Lang.t("cfg.out-of-range", key, v, min, max));
         return v;
     }
 
@@ -80,7 +81,7 @@ public record MaintenanceOptions(int idlePauseSeconds, boolean idlePauseFlush,
         if (v == null || v.isBlank()) return def;
         v = v.strip();
         if (!v.equalsIgnoreCase("true") && !v.equalsIgnoreCase("false")) {
-            throw new IllegalArgumentException("설정 '" + key + "' 값 '" + v + "' 이(가) 잘못됐습니다: true 또는 false");
+            throw new IllegalArgumentException(Lang.t("cfg.invalid-bool", key, v));
         }
         return Boolean.parseBoolean(v);
     }

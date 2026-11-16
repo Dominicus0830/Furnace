@@ -62,18 +62,18 @@ public interface NumberProvider {
     record EnchantmentLevel(LevelBasedValue amount) implements NumberProvider {
         public float getFloat(LootContext ctx) {
             Integer level = ctx.param(LootParams.ENCHANTMENT_LEVEL);
-            if (level == null) throw new IllegalStateException("enchantment_level 매개변수 없음");
+            if (level == null) throw new IllegalStateException("missing enchantment_level parameter");
             return amount.calculate(level);
         }
     }
 
     static NumberProvider parse(JsonElement e) {
         if (e.isJsonPrimitive()) return new Constant(e.getAsFloat());
-        if (!e.isJsonObject()) throw new LootParseException("수 공급자가 아님: " + e);
+        if (!e.isJsonObject()) throw new LootParseException("not a number provider: " + e);
         JsonObject o = e.getAsJsonObject();
         if (!o.has("type")) {
             if (o.has("min") && o.has("max")) return new Uniform(parse(o.get("min")), parse(o.get("max")));
-            throw new LootParseException("수 공급자 type 없음: " + e);
+            throw new LootParseException("number provider has no type: " + e);
         }
         return switch (LootJson.id(o, "type")) {
             case "minecraft:constant" -> new Constant(LootJson.req(o, "value").getAsFloat());
@@ -88,7 +88,7 @@ public interface NumberProvider {
             }
             case "minecraft:storage" -> new Storage(LootJson.req(o, "storage").getAsString(), LootJson.req(o, "path").getAsString());
             case "minecraft:enchantment_level" -> new EnchantmentLevel(LevelBasedValue.parse(LootJson.req(o, "amount")));
-            default -> throw new LootParseException("모르는 수 공급자: " + o.get("type"));
+            default -> throw new LootParseException("unknown number provider: " + o.get("type"));
         };
     }
 }

@@ -81,6 +81,27 @@ public final class Palette {
         }
     }
 
+    /**
+     * T-015: 첫 등장 순 색인으로 {@link #write} 와 같은 바이트를 쓴다(펼친 배열 없이). 간접 한도를 넘는 값 수면 false —
+     * 아무것도 쓰지 않았으니 호출 측이 펼친 배열로 {@link #write}.
+     */
+    public static boolean writeIndexed(ByteBuf buf, FirstSeenIndex ix, int minIndirectBits, int maxIndirectBits) {
+        int size = ix.size();
+        if (size > 1 << maxIndirectBits) return false;
+        if (size == 1) {
+            buf.writeByte(0);
+            Types.writeVarInt(buf, ix.value(0));
+            Types.writeVarInt(buf, 0);
+            return true;
+        }
+        int bits = Math.max(32 - Integer.numberOfLeadingZeros(size - 1), minIndirectBits);
+        buf.writeByte(bits);
+        Types.writeVarInt(buf, size);
+        for (int p = 0; p < size; p++) Types.writeVarInt(buf, ix.value(p));
+        writeLongs(buf, ix.pack(bits));
+        return true;
+    }
+
     /** 스레드별 작업 배열(N-07). write 는 재진입하지 않는다. */
     private static final ThreadLocal<Scratch> SCRATCH = ThreadLocal.withInitial(Scratch::new);
 

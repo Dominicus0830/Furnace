@@ -1,6 +1,7 @@
 // 탄 채 나간 플레이어의 탈것: 퇴장 때 RootVehicle 저장·탈것 빼기, 접속 때 복원, 본체 저장과의 순서, 청크 저장 제외.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
@@ -20,7 +21,7 @@ class PlayerVehicleSaveTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static Boat boat(BlockPlacementTest.TestLevel level) {

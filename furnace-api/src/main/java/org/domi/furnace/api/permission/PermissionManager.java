@@ -1,4 +1,4 @@
-// 권한 등록소 — 플러그인이 권한 노드와 기본값을 등록한다(설명 파일의 permissions: 도 여기 들어온다).
+// 권한 등록소. 플러그인이 권한 노드와 기본값을 등록한다(설명 파일의 permissions: 도 여기 들어온다).
 package org.domi.furnace.api.permission;
 
 import java.util.Collection;
@@ -10,7 +10,7 @@ public interface PermissionManager {
 
     void unregister(String name);
 
-    /** 같은 이름의 노드를 바꾼다(없으면 올린다). 서버 구현은 한 번에 바꿔 사이에 노드가 빈 순간이 없다 — 이 기본 구현은 지우고 올리는 두 걸음이다. */
+    /** 같은 이름의 노드를 바꾼다(없으면 올린다). 서버 구현은 한 번에 바꿔 사이에 노드가 빈 순간이 없다. 이 기본 구현은 지우고 올리는 두 걸음이다. */
     default void replace(Permission permission) {
         unregister(permission.name());
         register(permission);
@@ -21,12 +21,12 @@ public interface PermissionManager {
     Collection<Permission> permissions();
 
     /**
-     * 판정 공급자를 둔다(null 이면 뗀다). 하나만 — 새로 두면 이전 것을 바꾼다. 이 기본 구현은 지원하지 않는다(서버 구현이 지원한다).
+     * 판정 공급자를 둔다(null 이면 뗀다). 하나만 둘 수 있고, 새로 두면 이전 것을 바꾼다. 이 기본 구현은 지원하지 않는다(서버 구현이 지원한다).
      * Bukkit 호환 계층이 LuckPerms 같은 권한 플러그인의 판정을 Furnace 쪽 확인에도 돌려 주려고 쓴다.
      * <p>칸이 하나뿐이라 Furnace 플러그인이 이것을 부르면 호환 계층의 공급자가 밀려난다(그때부터 바꿔 끼운 Bukkit 권한 객체가 Furnace 판정에
      * 반영되지 않는다). 앞 공급자를 이어 쓰려면 {@link #override()} 로 받아 두었다가 자기 공급자가 null 을 낼 때 넘긴다.
      */
-    default void setOverride(PermissionOverride override) { throw new UnsupportedOperationException("이 권한 등록소는 판정 공급자를 받지 않는다"); }
+    default void setOverride(PermissionOverride override) { throw new UnsupportedOperationException("this permission registry does not accept a verdict provider"); }
 
     /** 지금 둔 판정 공급자, 없으면 null. */
     default PermissionOverride override() { return null; }

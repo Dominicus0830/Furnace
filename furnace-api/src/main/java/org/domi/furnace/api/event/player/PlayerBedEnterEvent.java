@@ -1,4 +1,4 @@
-// 침대에서 잠들기 직전(밤·안전 등 바닐라 검사를 모두 통과한 뒤) — 침대가 있는 region 스레드에서 불린다. 취소하면 잠들지 않는다(리스폰 지점은 이미 정해졌다, 바닐라 순서).
+// 침대에서 잠들기 직전(밤, 안전 등 바닐라 검사를 모두 통과한 뒤)에 침대가 있는 region 스레드에서 불린다. 취소하면 잠들지 않는다. 리스폰 지점은 이미 정해진 뒤이며, 바닐라 순서와 같다.
 package org.domi.furnace.api.event.player;
 
 import org.domi.furnace.api.entity.Player;

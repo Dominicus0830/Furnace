@@ -2,6 +2,7 @@
 // 바닐라 oracle 대조는 아니다(가정: oracle 미검증).
 package org.domi.furnace.server.world.gen.feature;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
@@ -13,7 +14,7 @@ import org.junit.jupiter.api.Test;
 
 class VoidAndBonusFeaturesTest {
 
-    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
 
     /** 3x3 격자(청크 -1..1), y 0..filledTo 는 fill 로 채움. origin 청크는 (ocx, 0). */
     private static FeatureWorldView view(int ocx, String fill, int filledTo) {

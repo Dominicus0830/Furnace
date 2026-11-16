@@ -1,6 +1,6 @@
-// 두뇌 기억 이름표 + 값 모양. "minecraft:이름" 은 바닐라 기억(서버가 아는 모양과 같아야 한다), 다른 이름공간은 플러그인 기억이다.
-// 아래 상수는 주민·피글린·아홀로틀·워든 등이 쓰는 1.21.1 기억 중 자주 쓰는 것이다. 나머지는 MemoryKey.minecraft(이름, 모양)으로 만든다
-// (MobBrain.memories() 가 그 두뇌의 모든 기억 이름과 모양을 알려 준다).
+// 두뇌 기억 이름표와 값 모양. "minecraft:이름" 은 바닐라 기억이며 서버가 아는 모양과 같아야 한다. 다른 이름공간은 플러그인 기억이다.
+// 아래 상수는 주민·피글린·아홀로틀·워든 등이 쓰는 1.21.1 기억 중 자주 쓰는 것이다.
+// 나머지는 MemoryKey.minecraft(이름, 모양)으로 만든다. MobBrain.memories() 가 그 두뇌의 모든 기억 이름과 모양을 알려 준다.
 package org.domi.furnace.api.entity.ai.brain;
 
 import java.util.List;
@@ -14,10 +14,10 @@ public record MemoryKey<T>(String namespace, String name, MemoryValueType<T> typ
     private static final Pattern PART = Pattern.compile("[a-z0-9_.\\-/]+");
 
     public MemoryKey {
-        if (namespace == null || !PART.matcher(namespace).matches()) throw new IllegalArgumentException("이름공간이 잘못됐다: " + namespace);
-        if (name == null || !PART.matcher(name).matches()) throw new IllegalArgumentException("이름이 잘못됐다: " + name);
+        if (namespace == null || !PART.matcher(namespace).matches()) throw new IllegalArgumentException("invalid namespace: " + namespace);
+        if (name == null || !PART.matcher(name).matches()) throw new IllegalArgumentException("invalid name: " + name);
         if (type == null) throw new NullPointerException("type");
-        if (namespace.equals("minecraft") && type.isPluginType()) throw new IllegalArgumentException("바닐라 기억에는 object(…) 모양을 쓸 수 없다: " + name);
+        if (namespace.equals("minecraft") && type.isPluginType()) throw new IllegalArgumentException("a vanilla memory cannot use the object(...) shape: " + name);
     }
 
     public static <T> MemoryKey<T> of(String namespace, String name, MemoryValueType<T> type) {

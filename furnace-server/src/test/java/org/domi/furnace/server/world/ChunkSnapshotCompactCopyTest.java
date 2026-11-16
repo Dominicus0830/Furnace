@@ -1,6 +1,7 @@
 // C-5: 팔레트 원본 사본·공유 빛 층 스냅샷이 예전 즉시 풀기 스냅샷과 같은 본문 바이트를 내는지(무작위 청크 수천 개, 편집 경쟁 포함).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -19,14 +20,14 @@ class ChunkSnapshotCompactCopyTest {
     private static ChunkSnapshot legacyOf(int cx, int cz, ChunkColumn col) {
         ChunkSection[] src = col.sections();
         ChunkSnapshot.Section[] out = new ChunkSnapshot.Section[src.length];
-        for (int i = 0; i < src.length; i++) out[i] = new ChunkSnapshot.Section(src[i].nonAirCount(), src[i].blocks(), src[i].biomes());
+        for (int i = 0; i < src.length; i++) out[i] = new ChunkSnapshot.Section(src[i].nonAirCount(), (short) src[i].packetNonEmptyCount(), src[i].blocks(), src[i].biomes());
         ChunkSnapshot.Light light = null;
         ChunkLight l = col.light();
         if (l != null) {
-            byte[][] sky = new byte[l.sky.length][], block = new byte[l.block.length][];
+            byte[][] sky = new byte[ChunkLight.SECTIONS][], block = new byte[ChunkLight.SECTIONS][];
             for (int i = 0; i < sky.length; i++) {
-                sky[i] = l.sky[i].clone();
-                block[i] = l.block[i].clone();
+                sky[i] = l.sky(i).clone();
+                block[i] = l.block(i).clone();
             }
             light = new ChunkSnapshot.Light(sky, block);
         }
@@ -83,8 +84,8 @@ class ChunkSnapshotCompactCopyTest {
         if (r.nextInt(6) != 0) {
             ChunkLight l = new ChunkLight();
             for (int i = 0; i < ChunkLight.SECTIONS; i++) {
-                randomLayer(r, l.sky[i]);
-                randomLayer(r, l.block[i]);
+                randomLayer(r, l.writableSky(i));
+                randomLayer(r, l.writableBlock(i));
             }
             col.light(l);
         }
@@ -105,6 +106,7 @@ class ChunkSnapshotCompactCopyTest {
                 assertArrayEquals(legacy.sections()[s].blocks(), now.sections()[s].blocks(), "청크 " + n + " 섹션 " + s);
                 assertArrayEquals(legacy.sections()[s].biomes(), now.sections()[s].biomes(), "청크 " + n + " 바이옴 " + s);
                 assertEquals(legacy.sections()[s].nonAirCount(), now.sections()[s].nonAirCount());
+                assertEquals(legacy.sections()[s].packetNonEmpty(), now.sections()[s].packetNonEmpty());
             }
         }
     }
@@ -118,10 +120,10 @@ class ChunkSnapshotCompactCopyTest {
         org.junit.jupiter.api.Assumptions.assumeTrue(Boolean.getBoolean("furnace.bench"));
         var mx = (com.sun.management.ThreadMXBean) java.lang.management.ManagementFactory.getThreadMXBean();
         long tid = Thread.currentThread().threadId();
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         ChunkColumn flat = new org.domi.furnace.server.world.gen.SuperflatWorldSource(reg, 0).generate(0, 0);
         ChunkLight fl = new ChunkLight();
-        for (int i = 0; i < ChunkLight.SECTIONS; i++) if (i >= 6) java.util.Arrays.fill(fl.sky[i], (byte) 0xFF);
+        for (int i = 0; i < ChunkLight.SECTIONS; i++) if (i >= 6) fl.fillSkyFull(i);
         flat.light(fl);
         SplittableRandom r = new SplittableRandom(7);
         ChunkColumn[] rnd = new ChunkColumn[64];
@@ -167,8 +169,8 @@ class ChunkSnapshotCompactCopyTest {
             col.sectionBlocks(r.nextInt(col.sections().length))[0] = 5;
             if (col.light() != null) {
                 for (int i = 0; i < ChunkLight.SECTIONS; i++) {
-                    col.light().sky[i][r.nextInt(2048)] ^= 0x11;
-                    col.light().block[i][r.nextInt(2048)] ^= 0x22;
+                    col.light().writableSky(i)[r.nextInt(2048)] ^= 0x11;
+                    col.light().writableBlock(i)[r.nextInt(2048)] ^= 0x22;
                 }
             }
             assertArrayEquals(expected, bytes(now, true), "청크 " + n);

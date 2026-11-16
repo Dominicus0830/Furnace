@@ -1,4 +1,4 @@
-// 엔티티 제거(클라이언트 화면에서만).
+// 엔티티를 제거한다. 클라이언트 화면에서만 사라진다.
 package org.domi.furnace.api.packet.clientbound;
 
 import java.util.List;

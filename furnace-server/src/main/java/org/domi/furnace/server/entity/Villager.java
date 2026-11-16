@@ -863,8 +863,23 @@ public final class Villager extends AgeableMob implements Merchant, InventoryCar
 
     /** 바닐라 customServerAiStep: 브레인 → 구조물 직업 표시 끄기 → (거래 중 아니면) 레벨업 대기 → 거래 기쁨 표시 → 레이드 중 땀(42) → 무직 거래 중단. */
     @Override
-    protected void customServerAiStep() {
-        villagerBrain().tick(level, this);
+    protected void customServerAiStep() { customServerAiStep(false); }
+
+    /**
+     * Paper Villager.inactiveTick(활성 범위 밖): 불만 카운터 → (AI 가 켜졌으면) tick-inactive-villagers 면 바닐라 AI 단계 그대로, 아니면 두뇌·레이드 땀 없이 →
+     * 소문 감쇠 → 위(나이·목표 3번에 한 번).
+     */
+    @Override
+    public void inactiveTick() {
+        if (getUnhappyCounter() > 0) setUnhappyCounter(getUnhappyCounter() - 1);
+        if (isEffectiveAi()) customServerAiStep(!org.domi.furnace.server.config.EntityActivationSettings.current().tickInactiveVillagers());
+        maybeDecayGossip();
+        super.inactiveTick();
+    }
+
+    /** inactive: Paper customServerAiStep(true) — 두뇌 틱·레이드 땀(난수)을 건너뛰고 끝의 Mob 단계도 부르지 않는다. */
+    private void customServerAiStep(boolean inactive) {
+        if (!inactive) villagerBrain().tick(level, this);
         if (assignProfessionWhenSpawned) assignProfessionWhenSpawned = false;
         if (tradingPlayer == null && updateMerchantTimer > 0) {
             updateMerchantTimer--;
@@ -881,11 +896,12 @@ public final class Villager extends AgeableMob implements Merchant, InventoryCar
             broadcastEntityEvent((byte) 14);
             lastTradedPlayer = null;
         }
-        if (!isNoAi() && random.nextInt(100) == 0) {
+        if (!inactive && !isNoAi() && random.nextInt(100) == 0) {
             var raid = level.raids() == null ? null : level.raids().getRaidAt(blockPosition());
             if (raid != null && raid.isActive() && !raid.isOver()) broadcastEntityEvent((byte) 42);
         }
         if (profession().equals("none") && tradingPlayer != null) setTradingPlayer(null);
+        if (inactive) return;
         super.customServerAiStep();
     }
 }

@@ -14,10 +14,12 @@ public final class Activity {
 
     private final String name;
     private final String key;
+    private final int hash;
 
     private Activity(String name, String key) {
         this.name = name;
         this.key = key;
+        this.hash = name.hashCode();
     }
 
     private static Activity of(String name) {
@@ -38,6 +40,16 @@ public final class Activity {
 
     /** "이름공간:이름". */
     public String key() { return key; }
+
+    /** 바닐라 Activity.equals: 이름이 같으면 같다(바닐라 활동은 하나씩이고 byKey 가 같은 객체를 돌려주므로 실제로는 같은 객체). */
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        return o instanceof Activity a && name.equals(a.name);
+    }
+
+    /** 바닐라 Activity.hashCode = 이름의 hashCode. 식별 해시를 쓰면 두뇌의 HashMap·HashSet 순회 순서(행동 시작 순서·난수 소비)가 실행마다 달라진다. */
+    @Override public int hashCode() { return hash; }
 
     @Override public String toString() { return name; }
 }

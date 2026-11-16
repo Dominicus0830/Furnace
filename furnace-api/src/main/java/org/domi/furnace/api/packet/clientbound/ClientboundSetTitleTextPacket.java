@@ -1,4 +1,4 @@
-// 화면 가운데 큰 제목.
+// 화면 가운데에 나오는 큰 제목.
 package org.domi.furnace.api.packet.clientbound;
 
 import java.util.Objects;

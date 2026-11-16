@@ -3,6 +3,7 @@
 // 주민·피글린·아홀로틀·워든으로 본다. 레벨은 스레드 없는 시험 레벨(늘 소유 스레드).
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -50,7 +51,7 @@ class MobBrainApiTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     /** 시각을 시험이 올리는 레벨(낮). */

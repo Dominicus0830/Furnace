@@ -2,6 +2,7 @@
 // level.dat ScheduledEvents 왕복.
 package org.domi.furnace.server.command.exec;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
@@ -60,7 +61,7 @@ class ScheduleTest {
         Files.writeString(tags.resolve("both.json"), "{\"values\":[\"t:m1\",\"t:m2\"]}");
         packs = DataPackManager.start(vanilla, tmp, org.domi.furnace.server.world.storage.LevelData.create("world", 1L, true, false,
                 org.domi.furnace.server.world.GameMode.SURVIVAL, false, org.domi.furnace.server.world.Difficulty.EASY, List.of("vanilla"), List.of()),
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt"), true, List.of("vanilla"), List.of());
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"), true, List.of("vanilla"), List.of());
         // 예약 함수가 도는 동안 다른 스레드가 clock getter 를 부를 수 있는지 재는 명령(함수 로드 전에 등록)
         core.commands().getDispatcher().register(org.domi.furnace.server.command.brigadier.LiteralArgumentBuilder.<CommandSource>literal("probe").executes(c -> {
             Thread t = new Thread(() -> core.clock().rainLevel());

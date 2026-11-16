@@ -22,6 +22,11 @@ public final class CompatBlockData extends CraftBlockData {
 
     public org.domi.furnace.api.world.BlockData furnace() { return data; }
 
+    @Override
+    public org.bukkit.block.BlockState createBlockState() {
+        return CompatBlockStates.create(null, new org.domi.furnace.api.world.BlockPos(0, 0, 0), of(data));
+    }
+
     /** Material 의 기본 상태. 블록이 아니면 IllegalArgumentException. */
     public static BlockData create(Material material) {
         Objects.requireNonNull(material, "Material cannot be null");
@@ -70,20 +75,20 @@ public final class CompatBlockData extends CraftBlockData {
         return new CompatBlockData(new org.domi.furnace.api.world.BlockData(type, all), Set.copyOf(given.keySet()));
     }
 
-    static BlockData of(org.domi.furnace.api.world.BlockData data) { return new CompatBlockData(data, null); }
+    public static BlockData of(org.domi.furnace.api.world.BlockData data) { return new CompatBlockData(data, null); }
 
     /** NMS 상태 → 모든 속성이 적힌 BlockData. */
     public static CompatBlockData ofState(net.minecraft.world.level.block.state.BlockState state) {
         Objects.requireNonNull(state, "state");
         int id = state.furnaceStateId();
-        var d = Compat.furnace().blockTypes().byStateId(id).orElseThrow(() -> new IllegalStateException("서버가 모르는 상태 번호 " + id));
+        var d = Compat.furnace().blockTypes().byStateId(id).orElseThrow(() -> new IllegalStateException("state id unknown to the server " + id));
         return new CompatBlockData(d, null);
     }
 
     @Override
     public net.minecraft.world.level.block.state.BlockState getState() {
         int id = Compat.furnace().blockTypes().stateId(data);
-        if (id < 0) throw new IllegalStateException("서버가 모르는 상태 " + data);
+        if (id < 0) throw new IllegalStateException("state unknown to the server " + data);
         return net.minecraft.world.level.block.Block.stateById(id);
     }
 

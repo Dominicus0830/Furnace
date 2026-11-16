@@ -1,6 +1,7 @@
 // 몹 낙하 위치(FallLocation): 사다리·덩굴에서 떨어져 죽은 몹의 사망 메시지가 death.fell.accident.<위치> 로 나오는가.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.block.B;
@@ -14,7 +15,7 @@ class MobFallLocationTest {
     @BeforeAll
     static void install() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static int state(String name) { return B.defaultState(name); }

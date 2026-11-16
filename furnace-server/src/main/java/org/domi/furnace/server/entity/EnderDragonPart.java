@@ -61,6 +61,8 @@ public final class EnderDragonPart implements Targetable {
     /** 몹 AI 가 파트를 겨냥하지 않는다(파트는 몹 조회에 나오지 않는다). */
     @Override public boolean canBeSeenAsEnemy() { return false; }
 
+    @Override public boolean canBeSeenByAnyone() { return false; }
+
     @Override public double visibilityPercent(Entity looker) { return 1.0; }
 
     @Override public boolean isPlayer() { return false; }

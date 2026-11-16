@@ -1,6 +1,7 @@
 // M3 컨테이너·수레 보강: 스포너 수레 틱·저장, 라마 카펫(몸통 칸), 열지 않은 전리품 표(부술 때·창 칸 접근), 창 제목(이름표·팀 색).
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -17,7 +18,7 @@ class ContainerEntityParityTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static ItemStack item(String name, int count) {

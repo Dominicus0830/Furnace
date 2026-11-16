@@ -1,5 +1,6 @@
 package org.domi.furnace.server.world.gen.pipeline;
 
+import org.domi.furnace.server.i18n.Lang;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.gen.NoiseWorldSource;
 import org.domi.furnace.server.world.gen.feature.FeatureWorldView;
@@ -45,7 +46,7 @@ public final class ChunkPipeline {
             }
             return m;
         } catch (java.io.IOException e) {
-            throw new IllegalStateException("decorateRanks 읽기 실패: " + path, e);
+            throw new IllegalStateException("failed to read decorateRanks: " + path, e);
         }
     }
 
@@ -250,7 +251,8 @@ public final class ChunkPipeline {
                 List<StructureStart> own = new ArrayList<>();
                 for (StructureStart st : ringStarts) if (st.chunkX() == cx && st.chunkZ() == cz) own.add(st);
                 grid[centerIdx].col.structures(
-                    org.domi.furnace.server.world.gen.structure.ChunkStructures.generated(cx, cz, own, ringStarts));
+                    org.domi.furnace.server.world.gen.structure.ChunkStructures.generated(cx, cz, own, ringStarts)
+                            .attach(source.structureEngine().references()));
                 grid[centerIdx].col.compactSections();
                 grid[centerIdx].col.clearDirty();
                 grid[centerIdx].status = GenStatus.FULL;
@@ -398,6 +400,7 @@ public final class ChunkPipeline {
 
     private CompletableFuture<Proto> sharedPristineFor(int cx, int cz) {
         return sharedPristine.computeIfAbsent(chunkKey(cx, cz), k -> CompletableFuture.supplyAsync(() -> {
+            if (org.domi.furnace.server.world.ChunkTrace.ON) org.domi.furnace.server.world.ChunkTrace.value("gen.pristine", 1);   // 원형/완성 비(T-170 측정)
             NoiseWorldSource.Generated g = source.generateWorldChunk(cx, cz);
             ChunkColumn col = g.col();
             source.applyCarvers(g, cx, cz);
@@ -480,7 +483,8 @@ public final class ChunkPipeline {
                 List<StructureStart> l = decoStarts.get(chunkKey(cx + dx, cz + dz));
                 if (l != null && !l.isEmpty()) nearby.addAll(l);
             }
-        return org.domi.furnace.server.world.gen.structure.ChunkStructures.generated(cx, cz, own, nearby);
+        return org.domi.furnace.server.world.gen.structure.ChunkStructures.generated(cx, cz, own, nearby)
+                .attach(source.structureEngine().references());
     }
 
     private Proto[] gridAround(int ox, int oz) {
@@ -597,7 +601,7 @@ public final class ChunkPipeline {
             }
             if (!warnedLossyEvict) {
                 warnedLossyEvict = true;
-                LOG.warn("[WORLDGEN] 미완성 청크 보관함이 가득 차 오래된 것을 버렸다(그 근처를 다시 만들면 장식이 일부 빠질 수 있다)");
+                LOG.warn(Lang.t("worldgen.pending-store-full"));
             }
         }
         if (decoratedKeys.size() > (1 << 21)) decoratedKeys.clear();
@@ -655,5 +659,6 @@ public final class ChunkPipeline {
         long k = chunkKey(p.cx, p.cz);
         store.remove(k);
         sharedPristine.remove(k);
+        if (org.domi.furnace.server.world.ChunkTrace.ON) org.domi.furnace.server.world.ChunkTrace.value("gen.drop", 1);
     }
 }

@@ -12,7 +12,7 @@ public record StoreCookie(String key, byte[] payload) implements Packet {
     public static final int MAX_PAYLOAD = 5120;
 
     public StoreCookie {
-        if (payload.length > MAX_PAYLOAD) throw new IllegalArgumentException("쿠키 값이 너무 크다(최대 " + MAX_PAYLOAD + "바이트): " + payload.length);
+        if (payload.length > MAX_PAYLOAD) throw new IllegalArgumentException("the cookie value is too large (max " + MAX_PAYLOAD + " bytes): " + payload.length);
     }
 
     @Override

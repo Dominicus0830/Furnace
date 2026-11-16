@@ -4,6 +4,7 @@ package org.domi.furnace.server.command.exec;
 
 import java.util.concurrent.CompletableFuture;
 import org.domi.furnace.server.command.EntityOps;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,14 +20,14 @@ public final class CallbackAwait {
                 try {
                     callback.join();
                 } catch (RuntimeException e) {
-                    log.warn("명령 결과 콜백 실패", EntityOps.unwrap(e));
+                    log.warn(Lang.t("cmd.callback-failed"), EntityOps.unwrap(e));
                 }
             }
             next.run();
             return;
         }
         context.suspend(callback, (v, ex) -> {
-            if (ex != null) log.warn("명령 결과 콜백 실패", EntityOps.unwrap(ex));
+            if (ex != null) log.warn(Lang.t("cmd.callback-failed"), EntityOps.unwrap(ex));
             next.run();
         });
     }

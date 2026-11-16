@@ -28,7 +28,7 @@ public class IronGolem extends AbstractGolem implements NeutralMob {
     @Override
     public boolean checkSpawnObstruction(ChunkLevel level) {
         org.domi.furnace.server.block.Pos p = blockPosition(), below = p.below();
-        if (!org.domi.furnace.server.block.B.isFaceSturdy(level.getBlockState(below), level, below, org.domi.furnace.server.block.Dir.UP)) return false;
+        if (!org.domi.furnace.server.block.B.entityCanStandOn(level.getBlockState(below), level, below, this)) return false;   // entityCanStandOn(골렘 문맥)
         for (int i = 1; i < 3; i++) {
             org.domi.furnace.server.block.Pos q = p.above(i);
             if (!org.domi.furnace.server.entity.spawn.SpawnPlacements.isValidEmptySpawnBlock(level, q, type().name())) return false;
@@ -266,7 +266,7 @@ public class IronGolem extends AbstractGolem implements NeutralMob {
             for (int z = sz - 2; z <= sz + 2; z++)
                 for (int y = sy - 2; y <= sy + 2; y++)
                     for (int x = sx - 2; x <= sx + 2; x++)
-                        if (level.poiManager().sectionsToVillage(x, y, z) == 0) list.add(new int[] {x, y, z});
+                        if (level.poiManager().isVillageCenterSection(x, y, z)) list.add(new int[] {x, y, z});
             return list.isEmpty() ? null : list.get(level.random().nextInt(list.size()));
         }
 

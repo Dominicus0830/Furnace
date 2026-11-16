@@ -1,6 +1,7 @@
 // 바닐라 CakeBlock: 케이크. 먹으면(배고프거나 크리에이티브) 한 조각씩 줄고 허기 2·포화 0.1. 안 먹은 케이크에 양초를 꽂으면 양초 케이크.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockItems;
@@ -13,6 +14,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.CakeBlock")
 public class CakeBlock extends org.domi.furnace.server.block.BlockBehavior {
 
     static final Prop BITES = B.prop("bites");
@@ -24,6 +26,11 @@ public class CakeBlock extends org.domi.furnace.server.block.BlockBehavior {
         if (B.holdsTag(stack, "minecraft:candles") && BITES.intValue(state) == 0) {
             var e = BlockItems.entry(stack.itemId());
             int candleCake = e == null ? -1 : B.id(B.BLOCKS.name(e.block()) + "_cake");
+            // Paper: EntityChangeBlockEvent 를 막으면 초를 쓰지 않고 기본 상호작용(먹기)으로 넘긴다
+            if (candleCake >= 0 && !B.entityChange(level, player, pos, B.defaultState(candleCake))) {
+                player.resyncHands();   // Paper: 막으면 클라이언트가 미리 줄인 초를 다시 보낸다
+                return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
+            }
             if (candleCake >= 0) {
                 if (!player.instabuild()) player.setItemInHand(hand, stack.withCount(stack.count() - 1));
                 level.playSound(null, pos, "minecraft:block.cake.add_candle", "blocks", 1.0F, 1.0F);
@@ -42,9 +49,14 @@ public class CakeBlock extends org.domi.furnace.server.block.BlockBehavior {
     /** eat: 한 조각. 마지막 조각이면 케이크가 사라진다(BLOCK_DESTROY). */
     protected static InteractionResult eat(BlockLevel level, Pos pos, int state, BlockActor player) {
         if (!player.canEat(false)) return InteractionResult.PASS;
+        int bites = BITES.intValue(state);
+        // Paper: 먹기 전에 EntityChangeBlockEvent(다음 조각, 마지막이면 그 칸의 유체) — 막으면 PASS(초 케이크는 초를 떨구지 않는다)
+        if (!B.entityChange(level, player, pos, bites < 6 ? BITES.withInt(state, bites + 1) : org.domi.furnace.server.block.Fluids.createLegacyBlock(level.getFluidState(pos)))) {
+            player.resyncVitals();   // Paper: 막으면 클라이언트가 미리 올린 체력·허기를 다시 보낸다
+            return InteractionResult.PASS;
+        }
         player.awardStat("minecraft:eat_cake_slice");
         player.eat(2, 0.1F);
-        int bites = BITES.intValue(state);
         level.gameEvent("minecraft:eat", pos, player, -1);
         if (bites < 6) {
             level.setBlock(pos, BITES.withInt(state, bites + 1), 3);

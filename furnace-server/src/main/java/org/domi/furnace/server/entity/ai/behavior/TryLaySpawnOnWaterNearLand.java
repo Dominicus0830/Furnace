@@ -22,11 +22,19 @@ public final class TryLaySpawnOnWaterNearLand {
                     for (int d : Dir.HORIZONTAL) {
                         Pos adj = below.relative(d);
                         int state = level.getBlockState(adj);
-                        if (B.behavior(state).getCollisionShape(state, level, adj, null).isFaceEmpty(Dir.UP) && level.isWaterAt(adj)) {
+                        if (B.behavior(state).getCollisionShape(state, level, adj, org.domi.furnace.server.block.CollisionContext.EMPTY).isFaceEmpty(Dir.UP) && org.domi.furnace.server.block.Fluids.isWaterSource(level.getFluidState(adj))) {
                             Pos above = adj.above();
                             if (B.isAir(level.getBlockState(above))) {
-                                level.setBlock(above, Blocks.get().defaultState(block), 3);
-                                level.playSound(null, mob, "entity.frog.lay_spawn", "neutral", 1.0F, 1.0F);
+                                // CraftBukkit: EntityChangeBlockEvent 를 막으면 알을 놓지 않고 임신만 끝낸다
+                                if (!B.entityChange(level, mob, above, Blocks.get().defaultState(block))) {
+                                    mob.getBrain().eraseMemory(MemoryModuleType.IS_PREGNANT);
+                                    return true;
+                                }
+                                int egg = Blocks.get().defaultState(block);
+                                level.setBlock(above, egg, 3);
+                                // 바닐라 1.21.1: setBlock → gameEvent(BLOCK_PLACE, Context.of(mob, state)) → playSound(FROG_LAY_SPAWN, BLOCKS)
+                                level.gameEventFrom("minecraft:block_place", above, mob, egg);
+                                level.playSound(null, mob, "entity.frog.lay_spawn", "blocks", 1.0F, 1.0F);
                                 mob.getBrain().eraseMemory(MemoryModuleType.IS_PREGNANT);
                                 return true;
                             }

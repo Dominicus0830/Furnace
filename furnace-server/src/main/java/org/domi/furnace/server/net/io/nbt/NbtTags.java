@@ -25,7 +25,7 @@ public final class NbtTags {
         if (v instanceof int[]) return NbtIo.TAG_INT_ARRAY;
         if (v instanceof long[]) return NbtIo.TAG_LONG_ARRAY;
         if (v instanceof NbtArray a) return a.type();
-        throw new IllegalArgumentException("NBT 값이 아님: " + (v == null ? "null" : v.getClass()));
+        throw new IllegalArgumentException("not an NBT value: " + (v == null ? "null" : v.getClass()));
     }
 
     /** TagType.getPrettyName. */

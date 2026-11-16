@@ -24,9 +24,11 @@ final class Mappings {
         registerWorld();
         registerOther();
         registerInventory();
+        InventoryResultMappings.register();
         registerEntityInteract();
         registerInteractAndBlocks();
         registerLogin();
+        WorldChangeMappings.register();
     }
 
     private static final java.util.Map<Object, String> FORMAT_BASE = java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
@@ -136,18 +138,39 @@ final class Mappings {
                 f -> f.player() == null ? null : new org.bukkit.event.block.BlockBreakEvent(Compat.block(f.world(), f.pos()), p(f.player())), (f, b) -> {});
         EventBridge.reg(org.domi.furnace.api.event.world.WorldLoadEvent.class, org.bukkit.event.world.WorldLoadEvent.class,
                 f -> {
+                    // 플러그인 onLoad·STARTUP 단계에 올라온 추가 월드는 Bukkit 에 아직 안 보인다 — 드러낼 때 한 번 보낸다(Compat.revealWorldsAfterStartup)
+                    if (!Compat.worldVisible(f.world())) return null;
                     var w = Compat.world(f.world());
                     return w == null ? null : new org.bukkit.event.world.WorldLoadEvent(w);
+                }, (f, b) -> {});
+        // Paper initWorld: 추가 월드가 목록에 들어간 뒤 WorldLoadEvent 바로 앞(서버 시작의 기본 월드 몫은 Compat.revealWorldsAfterStartup)
+        EventBridge.reg(org.domi.furnace.api.event.world.WorldInitEvent.class, org.bukkit.event.world.WorldInitEvent.class,
+                f -> {
+                    if (!Compat.worldVisible(f.world())) return null;
+                    var w = Compat.world(f.world());
+                    return w == null ? null : new org.bukkit.event.world.WorldInitEvent(w);
                 }, (f, b) -> {});
         EventBridge.reg(org.domi.furnace.api.event.world.WorldUnloadEvent.class, org.bukkit.event.world.WorldUnloadEvent.class,
                 f -> {
                     var w = Compat.world(f.world());
                     return w == null ? null : new org.bukkit.event.world.WorldUnloadEvent(w);
                 }, (f, b) -> {});
+        // Paper WorldGameRuleChangeEvent(/gamerule): 바닐라 규칙만 Bukkit 에 보인다(플러그인 규칙 "ns:이름"은 GameRule 상수가 없어 보내지 않는다).
+        EventBridge.reg(org.domi.furnace.api.event.world.GameRuleChangeEvent.class, io.papermc.paper.event.world.WorldGameRuleChangeEvent.class,
+                f -> {
+                    var rule = org.bukkit.GameRule.getByName(f.rule());
+                    var w = rule == null ? null : Compat.world(f.world());
+                    return w == null ? null : new io.papermc.paper.event.world.WorldGameRuleChangeEvent(w, Compat.sender(f.sender()), rule, f.value());
+                },
+                (f, b) -> {
+                    if (!Objects.equals(b.getValue(), f.value())) f.value(b.getValue());
+                }, (f, b) -> {
+                    if (!Objects.equals(b.getValue(), f.value())) b.setValue(f.value());
+                });
         EventBridge.reg(org.domi.furnace.api.event.world.ChunkLoadEvent.class, org.bukkit.event.world.ChunkLoadEvent.class,
-                f -> new org.bukkit.event.world.ChunkLoadEvent(new CompatChunk(f.world(), f.chunkX(), f.chunkZ())), (f, b) -> {});
+                f -> new org.bukkit.event.world.ChunkLoadEvent(new org.bukkit.craftbukkit.CraftChunk(f.world(), f.chunkX(), f.chunkZ()), f.newChunk()), (f, b) -> {});
         EventBridge.reg(org.domi.furnace.api.event.world.ChunkUnloadEvent.class, org.bukkit.event.world.ChunkUnloadEvent.class,
-                f -> new org.bukkit.event.world.ChunkUnloadEvent(new CompatChunk(f.world(), f.chunkX(), f.chunkZ())), (f, b) -> {});
+                f -> new org.bukkit.event.world.ChunkUnloadEvent(new org.bukkit.craftbukkit.CraftChunk(f.world(), f.chunkX(), f.chunkZ())), (f, b) -> {});
     }
 
     private static void registerOther() {
@@ -170,6 +193,41 @@ final class Mappings {
                 });
         EventBridge.reg(org.domi.furnace.api.event.server.ServerLoadEvent.class, org.bukkit.event.server.ServerLoadEvent.class,
                 f -> new org.bukkit.event.server.ServerLoadEvent(org.bukkit.event.server.ServerLoadEvent.LoadType.STARTUP), (f, b) -> {});
+        // Paper 1.21.1: Commands.sendCommands — 이벤트에는 쓸 수 있는 최상위 이름의 사본(LinkedHashSet)이 가고, 처리기가 뺀 이름이 트리에서 빠진다(더한 이름은 무시).
+        EventBridge.reg(org.domi.furnace.api.event.player.PlayerCommandSendEvent.class, org.bukkit.event.player.PlayerCommandSendEvent.class,
+                f -> new org.bukkit.event.player.PlayerCommandSendEvent(p(f.player()), new java.util.LinkedHashSet<>(f.commands())),
+                (f, b) -> f.commands().retainAll(b.getCommands()),
+                (f, b) -> b.getCommands().retainAll(f.commands()));
+        // Paper AsyncTabCompleteEvent: 후보(문자열)·handled 표시를 두 이벤트가 맞춘다. 설명 글(Adventure)은 호환 이벤트에 없어, 처리기가 후보 문자열을 그대로 두면 Furnace 쪽 설명 글을 지키고
+        // 바꾼 후보는 설명 글 없이 올린다(같은 문자열이 이미 있었다면 그 설명 글을 이어 준다).
+        EventBridge.reg(org.domi.furnace.api.event.server.AsyncTabCompleteEvent.class, com.destroystokyo.paper.event.server.AsyncTabCompleteEvent.class,
+                f -> new com.destroystokyo.paper.event.server.AsyncTabCompleteEvent(Compat.sender(f.sender()), f.buffer(), f.isCommand(), null),
+                (f, b) -> {
+                    var current = f.completions();
+                    if (!sameSuggestions(current, b.getCompletions())) {
+                        java.util.Map<String, org.domi.furnace.api.text.Text> tips = new java.util.HashMap<>();
+                        for (var c : current) if (c.tooltip() != null) tips.putIfAbsent(c.suggestion(), c.tooltip());
+                        var next = new java.util.ArrayList<org.domi.furnace.api.event.server.AsyncTabCompleteEvent.Completion>(b.getCompletions().size());
+                        for (String sug : b.getCompletions()) next.add(new org.domi.furnace.api.event.server.AsyncTabCompleteEvent.Completion(sug, tips.get(sug)));
+                        current.clear();
+                        current.addAll(next);
+                    }
+                    if (f.handledFlag() != b.handledFlag()) f.setHandled(b.handledFlag());
+                }, (f, b) -> {
+                    if (!sameSuggestions(f.completions(), b.getCompletions())) {
+                        var strings = new java.util.ArrayList<String>(f.completions().size());
+                        for (var c : f.completions()) strings.add(c.suggestion());
+                        b.getCompletions().clear();
+                        b.getCompletions().addAll(strings);
+                    }
+                    if (f.handledFlag() != b.handledFlag()) b.setHandled(f.handledFlag());
+                });
+    }
+
+    private static boolean sameSuggestions(java.util.List<org.domi.furnace.api.event.server.AsyncTabCompleteEvent.Completion> furnace, java.util.List<String> bukkit) {
+        if (furnace.size() != bukkit.size()) return false;
+        for (int i = 0; i < furnace.size(); i++) if (!furnace.get(i).suggestion().equals(bukkit.get(i))) return false;
+        return true;
     }
 
     /**
@@ -185,12 +243,16 @@ final class Mappings {
     }
 
     private static void registerInventory() {
-        // 클릭: 끌어 나누기(quick_craft)는 InventoryDragEvent 로, 제작 결과 칸 꺼내기(Furnace CraftItemEvent)는 Bukkit 에서 CraftItemEvent 자기
-        // 처리기 목록으로 가므로 InventoryClickEvent 처리기에는 오지 않는다(Bukkit 과 같다 — CraftItemEvent 는 아직 없다)
+        // 클릭: 끌어 나누기(quick_craft)는 InventoryDragEvent 로. 제작 결과 칸 꺼내기(Furnace CraftItemEvent)는 Bukkit CraftItemEvent 인데, Bukkit 에서
+        // CraftItemEvent 는 자기 처리기 목록이 없어 InventoryClickEvent 목록으로 간다 — InventoryClickEvent 처리기도 받는다(Paper 와 같다).
+        // 레시피를 모르면(Furnace recipe()==null) Paper 처럼 보통 InventoryClickEvent 다.
         EventBridge.reg(org.domi.furnace.api.event.inventory.InventoryClickEvent.class, org.bukkit.event.inventory.InventoryClickEvent.class,
                 f -> {
-                    if (f instanceof org.domi.furnace.api.event.inventory.CraftItemEvent || CompatInventories.isDrag(f.clickType())) return null;
-                    CompatInventoryView view = CompatInventories.view(f.player(), f.inventory(), f.menu(), f.cursor());
+                    if (CompatInventories.isDrag(f.clickType())) return null;
+                    EventInventories.CompatRecipe recipe = f instanceof org.domi.furnace.api.event.inventory.CraftItemEvent ce
+                            ? EventInventories.CompatRecipe.of(ce.recipe(), ce.result()) : null;
+                    CompatInventoryView view = CompatInventories.view(f.player(), f.inventory(), f.menu(), f.cursor(),
+                            recipe == null ? CompatInventories.Extras.NONE : new CompatInventories.Extras(recipe, false, null, null, null));
                     int raw = f.slot();
                     var ct = CompatInventories.click(f.clickType(), raw, f.button());
                     org.domi.furnace.api.item.ItemStack hotbar = org.domi.furnace.api.item.ItemStack.EMPTY;
@@ -199,9 +261,16 @@ final class Mappings {
                         hotbar = hr >= 0 ? f.inventory().get(hr) : CompatItems.toFurnace(view.getBottomInventory().getItem(40));
                     }
                     boolean creative = f.player().gameMode() == org.domi.furnace.api.entity.GameMode.CREATIVE;
-                    var action = CompatInventories.action(f.clickType(), raw, f.button(), raw >= 0 ? f.current() : org.domi.furnace.api.item.ItemStack.EMPTY,
-                            f.cursor(), hotbar, creative, f.clickType().equals("pickup_all") && sameTypeIn(f.inventory(), f.cursor()));
+                    var action = recipe != null
+                            ? CompatInventories.resultAction(f.clickType(), raw, f.button(), f.current(), f.cursor(), hotbar, creative)
+                            : CompatInventories.action(f.clickType(), raw, f.button(), raw >= 0 ? f.current() : org.domi.furnace.api.item.ItemStack.EMPTY,
+                                    f.cursor(), hotbar, creative, f.clickType().equals("pickup_all") && sameTypeIn(f.inventory(), f.cursor()));
                     var st = raw < 0 || raw >= view.countSlots() ? org.bukkit.event.inventory.InventoryType.SlotType.OUTSIDE : view.getSlotType(raw);
+                    if (recipe != null) {
+                        return ct == org.bukkit.event.inventory.ClickType.NUMBER_KEY
+                                ? new org.bukkit.event.inventory.CraftItemEvent(recipe, view, st, raw, ct, action, f.button())
+                                : new org.bukkit.event.inventory.CraftItemEvent(recipe, view, st, raw, ct, action);
+                    }
                     return ct == org.bukkit.event.inventory.ClickType.NUMBER_KEY || ct == org.bukkit.event.inventory.ClickType.SWAP_OFFHAND
                             ? new org.bukkit.event.inventory.InventoryClickEvent(view, st, raw, ct, action, f.button())
                             : new org.bukkit.event.inventory.InventoryClickEvent(view, st, raw, ct, action);
@@ -222,7 +291,8 @@ final class Mappings {
                 f -> new org.bukkit.event.inventory.InventoryOpenEvent(CompatInventories.view(f.player(), f.inventory(), f.menu(),
                         org.domi.furnace.api.item.ItemStack.EMPTY)), (f, b) -> {});
         EventBridge.reg(org.domi.furnace.api.event.inventory.InventoryCloseEvent.class, org.bukkit.event.inventory.InventoryCloseEvent.class,
-                f -> new org.bukkit.event.inventory.InventoryCloseEvent(CompatInventories.view(f.player(), f.inventory(), f.menu(), null)), (f, b) -> {});
+                f -> new org.bukkit.event.inventory.InventoryCloseEvent(CompatInventories.view(f.player(), f.inventory(), f.menu(), null),
+                        org.bukkit.event.inventory.InventoryCloseEvent.Reason.valueOf(f.reason().name())), (f, b) -> {});
 
         // 사망: 플레이어는 Furnace PlayerDeathEvent(메시지·유지 여부·드롭·경험치를 되돌려 쓴다), 몹은 Furnace EntityDeathEvent. Bukkit 은 둘 다 EntityDeathEvent 목록이다.
         EventBridge.reg(org.domi.furnace.api.event.player.PlayerDeathEvent.class, org.bukkit.event.entity.EntityDeathEvent.class,
@@ -407,7 +477,7 @@ final class Mappings {
         private static org.domi.furnace.api.entity.Player handle(Player p) {
             Objects.requireNonNull(p, "player");
             if (p instanceof org.bukkit.craftbukkit.entity.CraftPlayer c) return c.furnaceHandle();
-            throw new IllegalArgumentException("Furnace 가 모르는 Player 구현이다: " + p.getClass().getName());
+            throw new IllegalArgumentException("Player implementation unknown to Furnace: " + p.getClass().getName());
         }
     }
 
@@ -436,7 +506,7 @@ final class Mappings {
 
     // ------------------------------------------------------------------ 블록 클릭·단축 칸·블록 갱신·화로 (FAWE 묶음)
 
-    private static org.bukkit.block.BlockFace face(String f) {
+    static org.bukkit.block.BlockFace face(String f) {
         return f == null ? null : org.bukkit.block.BlockFace.valueOf(f.toUpperCase(java.util.Locale.ROOT));
     }
 
@@ -471,6 +541,27 @@ final class Mappings {
         if (b.hasBlock() && b.useInteractedBlock() == deny) b.setUseInteractedBlock(org.bukkit.event.Event.Result.DEFAULT);
     }
 
+    private static void lockCheckToFurnace(org.domi.furnace.api.event.block.BlockLockCheckEvent f, io.papermc.paper.event.block.BlockLockCheckEvent b) {
+        var r = org.domi.furnace.api.event.block.BlockLockCheckEvent.Result.valueOf(b.getResult().name());
+        if (r != f.result()) f.setResult(r);
+        if (b.isUsingCustomKeyItemStack()) {
+            var key = CompatItems.toFurnace(b.getKeyItem());
+            if (!f.isUsingCustomKeyItem() || !Objects.equals(key, f.keyItem())) f.setKeyItem(key);
+        } else if (f.isUsingCustomKeyItem()) {
+            f.resetKeyItem();
+        }
+    }
+
+    private static void lockCheckToBukkit(org.domi.furnace.api.event.block.BlockLockCheckEvent f, io.papermc.paper.event.block.BlockLockCheckEvent b) {
+        var r = org.bukkit.event.Event.Result.valueOf(f.result().name());
+        if (r != b.getResult()) b.setResult(r);
+        if (f.isUsingCustomKeyItem()) {
+            if (!b.isUsingCustomKeyItemStack() || !Objects.equals(f.keyItem(), CompatItems.toFurnace(b.getKeyItem()))) b.setKeyItem(CompatItems.copyOf(f.keyItem()));
+        } else if (b.isUsingCustomKeyItemStack()) {
+            b.resetKeyItem();
+        }
+    }
+
     private static void registerInteractAndBlocks() {
         EventBridge.reg(org.domi.furnace.api.event.player.PlayerInteractEvent.class, org.bukkit.event.player.PlayerInteractEvent.class,
                 f -> {
@@ -486,7 +577,8 @@ final class Mappings {
         EventBridge.reg(org.domi.furnace.api.event.player.PlayerItemHeldEvent.class, org.bukkit.event.player.PlayerItemHeldEvent.class,
                 f -> new org.bukkit.event.player.PlayerItemHeldEvent(p(f.player()), f.previousSlot(), f.newSlot()), (f, b) -> {});
         EventBridge.reg(org.domi.furnace.api.event.block.BlockPhysicsEvent.class, org.bukkit.event.block.BlockPhysicsEvent.class,
-                f -> new org.bukkit.event.block.BlockPhysicsEvent(Compat.block(f.world(), f.pos()), CompatBlockData.of(f.block()),
+                f -> new org.bukkit.event.block.BlockPhysicsEvent(Compat.block(f.world(), f.pos()),
+                        org.domi.furnace.api.event.LazyValue.of(f, e -> CompatBlockData.of(e.block())),
                         Compat.block(f.world(), f.sourcePos())), (f, b) -> {});
         EventBridge.reg(org.domi.furnace.api.event.block.BlockFromToEvent.class, org.bukkit.event.block.BlockFromToEvent.class,
                 // CraftBukkit 흐름처럼 (출발 칸, 방향) — 도착 칸은 출발 칸의 그 방향 이웃이다. 방향이 없으면 (출발, 도착) 꼴(면 SELF)
@@ -509,6 +601,14 @@ final class Mappings {
                 }, (f, b) -> {
                     if (b.getNewCurrent() != f.newCurrent()) b.setNewCurrent(f.newCurrent());
                 });
+        // Paper BlockLockCheckEvent: 결과(ALLOW·DEFAULT·DENY)와 따로 정한 열쇠를 주고받는다. 알림 글·소리(Adventure)는 Furnace 이벤트에서만
+        EventBridge.reg(org.domi.furnace.api.event.block.BlockLockCheckEvent.class, io.papermc.paper.event.block.BlockLockCheckEvent.class,
+                f -> {
+                    var b = new io.papermc.paper.event.block.BlockLockCheckEvent(Compat.block(f.world(), f.pos()), p(f.player()), CompatItems.copyOf(f.heldItem()));
+                    lockCheckToBukkit(f, b);
+                    return b;
+                },
+                Mappings::lockCheckToFurnace, Mappings::lockCheckToBukkit);
         EventBridge.reg(org.domi.furnace.api.event.block.LeavesDecayEvent.class, org.bukkit.event.block.LeavesDecayEvent.class,
                 f -> new org.bukkit.event.block.LeavesDecayEvent(Compat.block(f.world(), f.pos())), (f, b) -> {});
         EventBridge.reg(org.domi.furnace.api.event.inventory.FurnaceBurnEvent.class, org.bukkit.event.inventory.FurnaceBurnEvent.class,

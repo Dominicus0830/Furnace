@@ -62,6 +62,13 @@ public class BreakDoorGoal extends DoorInteractGoal {
             lastBreakProgress = progress;
         }
         if (breakTime == getDoorBreakTime() && validDifficulty.test(level.difficulty())) {
+            // CraftBukkit(+Paper 새 상태): EntityBreakDoorEvent 를 막으면 부수기를 처음부터 다시 센다(start)
+            var events = level.gameEvents();
+            int door = level.getBlockState(doorPos);
+            if (!events.entityBreakDoor(level.dimension(), mob, doorPos, door, org.domi.furnace.server.block.Fluids.createLegacyBlock(level.getFluidState(doorPos)))) {
+                start();
+                return;
+            }
             level.removeBlock(doorPos, false);
             level.levelEvent(null, 1021, doorPos, 0);
             level.levelEvent(null, 2001, doorPos, level.getBlockState(doorPos));

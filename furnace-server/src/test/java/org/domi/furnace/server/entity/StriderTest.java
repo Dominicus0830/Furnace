@@ -1,6 +1,7 @@
 // 스트라이더: 안장·타기, 뒤틀린 균류 막대 조종·가속(내구도 1), 내릴 자리(용암 피함), 스폰 기수(좀비 피글린·새끼 스트라이더), 저장.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -24,7 +25,7 @@ class StriderTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static Strider strider(BlockPlacementTest.TestLevel level) {

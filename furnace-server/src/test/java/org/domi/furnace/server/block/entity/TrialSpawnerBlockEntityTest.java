@@ -2,6 +2,7 @@
 // 기대값은 바닐라 1.21.1 디컴파일(TrialSpawner·TrialSpawnerData·TrialSpawnerState)을 손으로 계산한 것이다.
 package org.domi.furnace.server.block.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -82,7 +83,7 @@ class TrialSpawnerBlockEntityTest {
     }
 
     @BeforeAll
-    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt"))); }
+    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"))); }
 
     static final Pos POS = new Pos(1, -60, 1);
     static final UUID P1 = new UUID(1, 2), P2 = new UUID(3, 4);
@@ -813,7 +814,7 @@ class TrialSpawnerBlockEntityTest {
     @Test
     void templateNbtWithoutIdIsPromotedByBlockKind() {
         // 트라이얼 챔버 템플릿의 trial_spawner NBT 에는 id 가 없다 — 바닐라는 블록이 만든 블록 엔티티에 NBT 를 읽힌다
-        var gen = new org.domi.furnace.server.world.gen.SuperflatWorldSource(org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt"), 0);
+        var gen = new org.domi.furnace.server.world.gen.SuperflatWorldSource(org.domi.furnace.server.world.BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), 0);
         var col = gen.generate(1, 2);
         col.setBlock(3, -59, 4, stateWith("inactive", false));
         NbtCompound nbt = breezeTag();

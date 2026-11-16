@@ -1,6 +1,7 @@
 // API MobAi: 서버 몹을 직접 잡고 소유 region 스레드에서만 다룬다. 호출마다 소유 스레드인지 확인한다(얇은 포장이라 필요할 때마다 만든다).
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -41,8 +42,8 @@ final class MobAiImpl implements MobAi {
 
     private void check() {
         if (!org.domi.furnace.server.world.RegionBorrow.claimEntity(mob) && !mob.level().isOwnerThread()) {
-            throw new ThreadOwnershipException("MobAi(" + mob.uuid() + ") 는 그 몹을 가진 region 스레드에서만 쓸 수 있다 (현재 "
-                    + Thread.currentThread().getName() + ") — Mob.editAi 를 쓴다");
+            throw new ThreadOwnershipException("MobAi(" + mob.uuid() + ") can only be used from the region thread that owns the mob (current thread: "
+                    + Thread.currentThread().getName() + ") - use Mob.editAi");
         }
     }
 
@@ -118,7 +119,7 @@ final class MobAiImpl implements MobAi {
     @Override
     public void addGoal(FurnacePlugin owner, GoalSet set, int priority, MobGoal goal) {
         check();
-        if (owner == null || goal == null || set == null) throw new NullPointerException("owner·set·goal 은 null 일 수 없다");
+        if (owner == null || goal == null || set == null) throw new NullPointerException("owner, set and goal must not be null");
         if (mob.isRemoved()) return;
         selector(set).addGoal(priority, new PluginGoal(owner, goal, this, set));
     }
@@ -231,7 +232,7 @@ final class MobAiImpl implements MobAi {
 
     static PathType toServer(PathNodeType t) {
         PathType s = BY_KEY.get(t.key());
-        if (s == null) throw new IllegalArgumentException("이 판에 없는 길 종류: " + t.key());
+        if (s == null) throw new IllegalArgumentException("no such path type in this version: " + t.key());
         return s;
     }
 
@@ -246,7 +247,7 @@ final class MobAiImpl implements MobAi {
     @Override
     public void setPathCost(PathNodeType type, float cost) {
         check();
-        if (Float.isNaN(cost)) throw new IllegalArgumentException("비용이 NaN");
+        if (Float.isNaN(cost)) throw new IllegalArgumentException("cost is NaN");
         mob.setPathfindingMalus(toServer(type), cost);
     }
 
@@ -273,14 +274,14 @@ final class MobAiImpl implements MobAi {
             try {
                 r = hook.classify(x, y, z, toApi(vanilla));
             } catch (Throwable t) {
-                LoggerFactory.getLogger(MobAiImpl.class).warn("플러그인 {} 의 길찾기 훅이 예외를 던져 뗀다", owner, t);
+                LoggerFactory.getLogger(MobAiImpl.class).warn(Lang.t("plugin.pathfinding-hook-threw", owner), t);
                 detach();
                 return vanilla;
             }
             if (r == null) return vanilla;
             PathType s = BY_KEY.get(r.key());
             if (s == null) {
-                LoggerFactory.getLogger(MobAiImpl.class).warn("플러그인 {} 의 길찾기 훅이 모르는 종류 {} 를 돌려줘 뗀다", owner, r.key());
+                LoggerFactory.getLogger(MobAiImpl.class).warn(Lang.t("plugin.pathfinding-hook-unknown-kind", owner, r.key()));
                 detach();
                 return vanilla;
             }

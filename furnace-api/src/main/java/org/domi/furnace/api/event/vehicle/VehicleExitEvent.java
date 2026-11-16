@@ -1,4 +1,4 @@
-// 살아 있는 것(플레이어 포함)이 보트·광산 수레에서 내리기 직전 — 탈것의 region 스레드에서 불린다.
+// 살아 있는 것(플레이어 포함)이 보트나 광산 수레에서 내리기 직전에 탈것의 region 스레드에서 불린다.
 // 스스로 내리는 경우만 취소할 수 있다(isCancellable). 이 이벤트가 통과하면 이어서 EntityDismountEvent 가 불린다.
 package org.domi.furnace.api.event.vehicle;
 

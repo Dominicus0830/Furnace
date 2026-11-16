@@ -68,7 +68,7 @@ public final class BreezeAi {
     static boolean hasLineOfSight(Breeze breeze, double[] to) {
         double dx = to[0] - breeze.x(), dy = to[1] - breeze.y(), dz = to[2] - breeze.z();
         if (dx * dx + dy * dy + dz * dz > 50.0) return false;
-        return Clip.clipCollider(breeze.level(), breeze.x(), breeze.y(), breeze.z(), to[0], to[1], to[2]).miss();
+        return Clip.clipCollider(breeze.level(), org.domi.furnace.server.block.CollisionContext.of(breeze), breeze.x(), breeze.y(), breeze.z(), to[0], to[1], to[2]).miss();
     }
 
     // ------------------------------------------------------------------ 행동
@@ -214,9 +214,9 @@ public final class BreezeAi {
         }
 
         private static Pos snapToSurface(Breeze b, double[] from) {
-            var down = Clip.clipCollider(b.level(), from[0], from[1], from[2], from[0], from[1] - 10.0, from[2]);
+            var down = Clip.clipCollider(b.level(), org.domi.furnace.server.block.CollisionContext.of(b), from[0], from[1], from[2], from[0], from[1] - 10.0, from[2]);
             if (!down.miss()) return new Pos((int) Math.floor(down.x()), (int) Math.floor(down.y()), (int) Math.floor(down.z())).above();
-            var up = Clip.clipCollider(b.level(), from[0], from[1], from[2], from[0], from[1] + 10.0, from[2]);
+            var up = Clip.clipCollider(b.level(), org.domi.furnace.server.block.CollisionContext.of(b), from[0], from[1], from[2], from[0], from[1] + 10.0, from[2]);
             return up.miss() ? null : new Pos((int) Math.floor(up.x()), (int) Math.floor(up.y()), (int) Math.floor(up.z())).above();
         }
 

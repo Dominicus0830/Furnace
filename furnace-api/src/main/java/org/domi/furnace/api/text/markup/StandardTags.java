@@ -1,4 +1,4 @@
-// MiniMessage 4.17 표준 태그 해석기(패키지 내부) — 색·꾸밈·reset·click·hover·key·lang·insert·font·newline·selector·score·nbt·그라디언트 계열.
+// MiniMessage 4.17 표준 태그 해석기(패키지 내부). 색, 꾸밈, reset, click, hover, key, lang, insert, font, newline, selector, score, nbt, 그라디언트 계열을 다룬다.
 package org.domi.furnace.api.text.markup;
 
 import java.util.ArrayList;
@@ -70,51 +70,51 @@ final class StandardTags implements TagResolver {
             if (args.hasNext()) {
                 ArgumentQueue.Argument a = args.pop();
                 if (a.isFalse()) v = !v;
-                else if (!a.isTrue()) throw ctx.newException("꾸밈 태그 인자는 true/false 여야 한다: '" + a.value() + "'");
+                else if (!a.isTrue()) throw ctx.newException("decoration tag argument must be true/false: '" + a.value() + "'");
             }
             return (v ? DECO_ON : DECO_OFF)[deco.ordinal()];
         }
         if (neg) return null;
         switch (n) {
             case "color", "c", "colour" -> {
-                return Tag.styling(Style.style(color(args.popOr("color 태그에는 색이 필요하다").value(), ctx)));
+                return Tag.styling(Style.style(color(args.popOr("the color tag needs a color").value(), ctx)));
             }
             case "reset" -> { return Tag.RESET; }
             case "click" -> { return click(args, ctx); }
             case "hover" -> { return hover(args, ctx); }
-            case "key" -> { return Tag.selfClosingInserting(Text.keybind(args.popOr("key 태그에는 키 이름이 필요하다").value())); }
+            case "key" -> { return Tag.selfClosingInserting(Text.keybind(args.popOr("the key tag needs a key name").value())); }
             case "lang", "tr", "translate" -> {
-                String key = args.popOr("lang 태그에는 번역 키가 필요하다").value();
+                String key = args.popOr("the lang tag needs a translation key").value();
                 return Tag.selfClosingInserting(Text.translatable(key, textArgs(args, ctx)));
             }
             case "lang_or", "tr_or", "translate_or" -> {
-                String key = args.popOr("lang_or 태그에는 번역 키가 필요하다").value();
-                String fallback = args.popOr("lang_or 태그에는 대체 문장이 필요하다").value();
+                String key = args.popOr("the lang_or tag needs a translation key").value();
+                String fallback = args.popOr("the lang_or tag needs a fallback text").value();
                 return Tag.selfClosingInserting(Text.of(new Content.Translatable(key, fallback, textArgs(args, ctx)), Style.empty(), List.of()));
             }
-            case "insert", "insertion" -> { return Tag.styling(Style.empty().insertion(args.popRestOr("insert 태그에는 삽입할 글자가 필요하다"))); }
+            case "insert", "insertion" -> { return Tag.styling(Style.empty().insertion(args.popRestOr("the insert tag needs the text to insert"))); }
             case "font" -> {
-                String f = args.popRestOr("font 태그에는 글꼴 키가 필요하다");
+                String f = args.popRestOr("the font tag needs a font key");
                 return Tag.styling(Style.empty().font(f.indexOf(':') < 0 ? "minecraft:" + f : f));
             }
             case "newline", "br" -> {
                 int count = 1;
                 if (args.hasNext()) {
                     OptionalInt c = args.pop().asInt();
-                    if (c.isEmpty() || c.getAsInt() < 0) throw ctx.newException("newline 개수가 정수가 아니다");
+                    if (c.isEmpty() || c.getAsInt() < 0) throw ctx.newException("the newline count is not an integer");
                     count = c.getAsInt();
                 }
                 if (count == 1) return Tag.selfClosingInserting(Text.newline());
                 return Tag.selfClosingInserting(Text.text("\n".repeat(count)));
             }
             case "selector", "sel" -> {
-                String pattern = args.popOr("selector 태그에는 선택자가 필요하다").value();
+                String pattern = args.popOr("the selector tag needs a selector").value();
                 Text sep = args.hasNext() ? ctx.deserialize(args.popRestOr("")) : null;
                 return Tag.selfClosingInserting(sep == null ? Text.selector(pattern) : Text.selector(pattern, sep));
             }
             case "score" -> {
-                String sn = args.popOr("score 태그에는 이름이 필요하다").value();
-                String obj = args.popOr("score 태그에는 목표(objective)가 필요하다").value();
+                String sn = args.popOr("the score tag needs a name").value();
+                String obj = args.popOr("the score tag needs an objective").value();
                 return Tag.selfClosingInserting(Text.score(sn, obj));
             }
             case "nbt", "data" -> { return nbt(args, ctx); }
@@ -137,7 +137,7 @@ final class StandardTags implements TagResolver {
 
     static TextColor color(String v, Context ctx) {
         TextColor c = colorOrNull(v);
-        if (c == null) throw ctx.newException("'" + v + "' 을(를) 색으로 읽을 수 없다");
+        if (c == null) throw ctx.newException("'" + v + "' is not a valid color");
         return c;
     }
 
@@ -159,20 +159,20 @@ final class StandardTags implements TagResolver {
     private static String namespaced(String id) { return id.indexOf(':') < 0 ? "minecraft:" + id : id; }
 
     private static Tag click(ArgumentQueue args, Context ctx) {
-        String an = args.popOr("click 태그에는 동작이 필요하다").lowerValue();
+        String an = args.popOr("the click tag needs an action").lowerValue();
         ClickEvent.Action a = ClickEvent.Action.byKey(an);
-        if (a == null) throw ctx.newException("알 수 없는 click 동작: '" + an + "'");
-        String value = args.popRestOr("click 태그에는 값이 필요하다");
+        if (a == null) throw ctx.newException("unknown click action: '" + an + "'");
+        String value = args.popRestOr("the click tag needs a value");
         return Tag.styling(Style.empty().clickEvent(new ClickEvent(a, value)));
     }
 
     private static Tag hover(ArgumentQueue args, Context ctx) {
-        String an = args.popOr("hover 태그에는 동작이 필요하다").lowerValue();
+        String an = args.popOr("the hover tag needs an action").lowerValue();
         HoverEvent ev;
         switch (an) {
-            case "show_text" -> ev = HoverEvent.showText(ctx.deserialize(args.popRestOr("show_text 에는 보여줄 텍스트가 필요하다")));
+            case "show_text" -> ev = HoverEvent.showText(ctx.deserialize(args.popRestOr("show_text needs the text to show")));
             case "show_item" -> {
-                String id = args.popOr("show_item 에는 아이템 id 가 필요하다").value();
+                String id = args.popOr("show_item needs an item id").value();
                 // "minecraft:diamond" 는 ':' 때문에 두 인자로 갈라진다 — 다음 인자가 정수가 아니면 경로 부분이다
                 if (args.hasNext() && args.peek().asInt().isEmpty()) id = id + ":" + args.pop().value();
                 id = namespaced(id);
@@ -180,40 +180,40 @@ final class StandardTags implements TagResolver {
                 String comps = null;
                 if (args.hasNext()) {
                     OptionalInt c = args.pop().asInt();
-                    if (c.isEmpty()) throw ctx.newException("show_item 개수가 정수가 아니다");
+                    if (c.isEmpty()) throw ctx.newException("the show_item count is not an integer");
                     count = c.getAsInt();
                     if (args.hasNext()) comps = args.popRestOr("");
                 }
                 ev = new HoverEvent.ShowItem(id, count, comps);
             }
             case "show_entity" -> {
-                String type = args.popOr("show_entity 에는 엔티티 종류가 필요하다").value();
+                String type = args.popOr("show_entity needs an entity type").value();
                 if (args.remaining() >= 2 && !isUuid(args.peek().value())) type = type + ":" + args.pop().value(); // 네임스페이스가 붙은 종류
                 type = namespaced(type);
-                String uid = args.popOr("show_entity 에는 UUID 가 필요하다").value();
+                String uid = args.popOr("show_entity needs a UUID").value();
                 UUID id;
                 try {
                     id = UUID.fromString(uid);
                 } catch (IllegalArgumentException e) {
-                    throw ctx.newException("UUID 형식이 아니다: '" + uid + "'");
+                    throw ctx.newException("not a valid UUID: '" + uid + "'");
                 }
                 Text name = args.hasNext() ? ctx.deserialize(args.popRestOr("")) : null;
                 ev = new HoverEvent.ShowEntity(type, id, name);
             }
-            default -> throw ctx.newException("알 수 없는 hover 동작: '" + an + "'");
+            default -> throw ctx.newException("unknown hover action: '" + an + "'");
         }
         return Tag.styling(Style.empty().hoverEvent(ev));
     }
 
     private static Tag nbt(ArgumentQueue args, Context ctx) {
-        String type = args.popOr("nbt 태그에는 종류(block/entity/storage)가 필요하다").lowerValue();
-        String id = args.popOr("nbt 태그에는 대상이 필요하다").value();
-        String path = args.popOr("nbt 태그에는 경로가 필요하다").value();
+        String type = args.popOr("the nbt tag needs a type (block/entity/storage)").lowerValue();
+        String id = args.popOr("the nbt tag needs a target").value();
+        String path = args.popOr("the nbt tag needs a path").value();
         Content.NbtSource src = switch (type) {
             case "block" -> new Content.NbtSource.Block(id);
             case "entity" -> new Content.NbtSource.Entity(id);
             case "storage" -> new Content.NbtSource.Storage(id);
-            default -> throw ctx.newException("nbt 종류는 block/entity/storage 중 하나여야 한다: '" + type + "'");
+            default -> throw ctx.newException("the nbt type must be one of block/entity/storage: '" + type + "'");
         };
         boolean interpret = false;
         Text sep = null;

@@ -3,6 +3,7 @@
 // 기존 IncrementalLightTest 는 돌·공기·발광석만 쓴다.
 package org.domi.furnace.server.light;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.Random;
@@ -20,7 +21,7 @@ class A08LightRandomizedTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static int[] palette() {
@@ -50,7 +51,7 @@ class A08LightRandomizedTest {
     }
 
     private void runOnce(long seed, boolean reference) {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         int stone = reg.defaultStateId("minecraft:stone"), air = reg.defaultStateId("minecraft:air");
         IncrementalLightTest.W w = new IncrementalLightTest.W(reg, stone, air);
         LevelLight inc = new LevelLight(w, true);

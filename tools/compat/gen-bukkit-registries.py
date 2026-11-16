@@ -42,7 +42,16 @@ def write(rel, text):
 
 
 entities = keys_of("entity_types-1.21.1.txt")
-lines = ",\n".join("    %s" % n.upper() for n in entities)
+# 살아 있는 종류(바닐라 클래스가 LivingEntity 하위) — 엔티티 데이터 주인 부류 표(바닐라 1.21.1 클래스 계층에서 뽑음)로 정한다.
+living = set()
+with open(os.path.join(repo, "furnace-server", "src", "main", "resources", "entity_data", "owners-1.21.1.txt"), encoding="utf-8") as f:
+    for line in f:
+        p = line.split()
+        if p and not p[0].startswith("#") and "LivingEntity" in p[1:]:
+            living.add(p[0][len("minecraft:"):])
+# Paper EntityType 의 independent=false(isSpawnable 거짓) 종류. UNKNOWN 도 거짓.
+NOT_SPAWNABLE = {"fishing_bobber", "player"}
+lines = ",\n".join("    %s(%s, %s)" % (n.upper(), "true" if n in living else "false", "false" if n in NOT_SPAWNABLE else "true") for n in entities)
 write("org/bukkit/entity/EntityType.java", """// 이 파일은 tools/compat/gen-bukkit-registries.py 가 만든다 — 손으로 고치지 않는다.
 // 엔티티 종류 레지스트리 1.21.1. 상수 이름은 키를 대문자로 한 것이다(Bukkit 의 옛 별칭은 두지 않았다).
 package org.bukkit.entity;
@@ -56,9 +65,22 @@ import org.bukkit.NamespacedKey;
 public enum EntityType implements Keyed {
 %s,
     /** 알 수 없는 종류(Bukkit 과 같은 자리). 키는 없다. */
-    UNKNOWN;
+    UNKNOWN(false, false);
 
     private static final Map<String, EntityType> BY_KEY = new HashMap<>();
+
+    private final boolean living, spawnable;
+
+    EntityType(boolean living, boolean spawnable) {
+        this.living = living;
+        this.spawnable = spawnable;
+    }
+
+    /** 살아 있는 엔티티(LivingEntity) 종류인가. UNKNOWN 은 false. */
+    public boolean isAlive() { return living; }
+
+    /** 서버가 따로 만들어 낼 수 있는 종류인가(Paper: 낚시찌·플레이어·UNKNOWN 만 false). */
+    public boolean isSpawnable() { return spawnable; }
 
     static {
         for (EntityType t : values()) if (t != UNKNOWN) BY_KEY.put(t.name().toLowerCase(Locale.ROOT), t);
@@ -67,9 +89,17 @@ public enum EntityType implements Keyed {
     /** 키가 없는 UNKNOWN 은 NullPointerException 이 아니라 IllegalArgumentException(Bukkit 과 같다). */
     @Override
     public NamespacedKey getKey() {
-        if (this == UNKNOWN) throw new IllegalArgumentException("UNKNOWN 은 키가 없다");
+        if (this == UNKNOWN) throw new IllegalArgumentException("UNKNOWN has no key");
         return NamespacedKey.minecraft(name().toLowerCase(Locale.ROOT));
     }
+
+    /** Bukkit 옛 이름(키의 경로 부분, 예 "zombie"). UNKNOWN 은 null. 패킷 라이브러리가 NMS 종류와 잇는 데 쓴다. */
+    @Deprecated
+    public String getName() { return this == UNKNOWN ? null : name().toLowerCase(Locale.ROOT); }
+
+    /** 옛 이름("zombie")으로 찾는다. 없으면 null. */
+    @Deprecated
+    public static EntityType fromName(String name) { return name == null ? null : BY_KEY.get(name.toLowerCase(Locale.ROOT)); }
 
     /** "minecraft:zombie"·"zombie"·"ZOMBIE" 로 찾는다. 없으면 null. */
     public static EntityType fromKey(String key) {
@@ -123,6 +153,16 @@ public final class Enchantment implements Keyed {
         return BY_KEY.get(key.getKey());
     }
 
+    /**
+     * @deprecated 키 문자열(소문자로 바꿔 읽는다)로 찾는다. null 이면 null. 옛 이름(DAMAGE_ALL)은 Paper 처럼 클래스를 올릴 때 바꾼 다리
+     * (compat.nms.ApiRenames)가 먼저 새 이름으로 바꿔 넘긴다.
+     */
+    @Deprecated
+    public static Enchantment getByName(String name) {
+        if (name == null) return null;
+        return getByKey(NamespacedKey.fromString(name.toLowerCase(Locale.ROOT)));
+    }
+
     /** "minecraft:sharpness"·"sharpness"·"SHARPNESS" 로 찾는다. 없으면 null. */
     public static Enchantment fromKey(String name) {
         if (name == null) return null;
@@ -134,11 +174,11 @@ public final class Enchantment implements Keyed {
     /** 모든 마법 부여(키 순). */
     public static Iterable<Enchantment> all() { return Collections.unmodifiableCollection(BY_KEY.values()); }
 
-    public int getMaxLevel() { throw new org.domi.furnace.compat.paper.UnsupportedFeature("Enchantment#getMaxLevel", "최대 레벨은 서버 데이터에서 오며 API 가 아직 알려 주지 않는다"); }
+    public int getMaxLevel() { throw new org.domi.furnace.compat.paper.UnsupportedFeature("Enchantment#getMaxLevel", "the maximum level comes from server data and the API does not expose it yet"); }
 
-    public int getStartLevel() { throw new org.domi.furnace.compat.paper.UnsupportedFeature("Enchantment#getStartLevel", "시작 레벨은 서버 데이터에서 오며 API 가 아직 알려 주지 않는다"); }
+    public int getStartLevel() { throw new org.domi.furnace.compat.paper.UnsupportedFeature("Enchantment#getStartLevel", "the start level comes from server data and the API does not expose it yet"); }
 
-    public boolean canEnchantItem(org.bukkit.inventory.ItemStack item) { throw new org.domi.furnace.compat.paper.UnsupportedFeature("Enchantment#canEnchantItem", "적용 가능한 아이템은 서버 데이터에서 오며 API 가 아직 알려 주지 않는다"); }
+    public boolean canEnchantItem(org.bukkit.inventory.ItemStack item) { throw new org.domi.furnace.compat.paper.UnsupportedFeature("Enchantment#canEnchantItem", "the applicable items come from server data and the API does not expose them yet"); }
 
     @Override
     public boolean equals(Object o) { return o instanceof Enchantment e && e.key.equals(key); }

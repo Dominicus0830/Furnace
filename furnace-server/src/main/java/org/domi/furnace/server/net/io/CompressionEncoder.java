@@ -14,7 +14,7 @@ public final class CompressionEncoder extends MessageToByteEncoder<ByteBuf> {
     public static final int LEVEL = level(Integer.getInteger("furnace.network.compressionLevel", Deflater.DEFAULT_COMPRESSION));
 
     static int level(int v) {
-        if (v < -1 || v > 9) throw new IllegalArgumentException("furnace.network.compressionLevel 범위 밖: " + v);
+        if (v < -1 || v > 9) throw new IllegalArgumentException("furnace.network.compressionLevel out of range: " + v);
         return v;
     }
 

@@ -1,6 +1,7 @@
 // AnvilWorldSource: 디스크 없으면 base generate, 있으면 .mca 로드 검증
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import java.nio.file.Path;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
@@ -18,7 +19,7 @@ class AnvilWorldSourceTest {
 
     @Test
     void absent_fallsBackToGenerate(@TempDir Path dir) throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         RegionFileStore store = new RegionFileStore(dir);
         AnvilWorldSource src = new AnvilWorldSource(dir, store,
                 new AnvilChunkCodec(reg, 0), new SuperflatWorldSource(reg, 0));
@@ -29,7 +30,7 @@ class AnvilWorldSourceTest {
 
     @Test
     void present_loadsFromDisk(@TempDir Path dir) throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         AnvilChunkCodec codec = new AnvilChunkCodec(reg, 0);
         RegionFileStore store = new RegionFileStore(dir);
         // 편집된 청크를 디스크에 둔다

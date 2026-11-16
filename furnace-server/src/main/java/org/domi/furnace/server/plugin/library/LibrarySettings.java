@@ -9,12 +9,14 @@
 // Paper/Bukkit 호환 플러그인용(H4 묶음 B) — enabled 와 따로 움직인다. offline·cache·timeout-seconds·max-size-mb 는 함께 쓴다:
 //   plugins.compat.libraries=needed          Paper 가 싣는 라이브러리(Guava·Adventure·SnakeYAML·Brigadier 등, ServerLibraries)를
 //                                            needed: plugins/bukkit-plugins/ 의 플러그인 클래스가 쓰는 묶음만 / all: 호환 플러그인이 하나라도 있으면 전부 / off: 안 받는다
+//                                            Guava·SnakeYAML 은 서버 jar 에 실려 있어 받지 않고 꺼낸다(offline 이어도 됨). off 면 그 둘도 주지 않는다
 //   plugins.compat.libraries.mojang=true     Brigadier·authlib·DataFixerUpper 를 Mojang 저장소(libraries.minecraft.net)에서 받는다 — false 면 그 셋은 빼고 경고
 //   plugins.compat.libraries.declared=true   호환 플러그인 plugin.yml 의 libraries 를 Paper·Spigot 처럼 받는다(plugins.libraries.enabled 가 꺼져 있어도)
 package org.domi.furnace.server.plugin.library;
 
 import java.nio.file.Path;
 import java.util.Properties;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 
 public record LibrarySettings(boolean enabled, boolean offline, boolean transitive, boolean requireChecksum, Path cache,
@@ -80,23 +82,22 @@ public record LibrarySettings(boolean enabled, boolean offline, boolean transiti
         boolean mojang = bool(p, "plugins.compat.libraries.mojang", true, log);
         boolean declared = bool(p, "plugins.compat.libraries.declared", true, log);
         if (compat == CompatMode.OFF && p.containsKey("plugins.compat.libraries.mojang")) {
-            log.warn("plugins.compat.libraries.mojang 은 plugins.compat.libraries 가 off 가 아닐 때만 쓰인다 — 무시한다");
+            log.warn(Lang.t("lib.settings-mojang-unused"));
         }
         if (!enabled) {
             // transitive·require-checksum 은 libraries 선언(Furnace 플러그인, 호환 플러그인의 plugin.yml)에 쓰인다
             String[] onlyWhenEnabled = declared ? new String[0] : new String[]{"plugins.libraries.transitive", "plugins.libraries.require-checksum"};
             for (String k : onlyWhenEnabled) {
-                if (p.containsKey(k)) log.warn("{} 는 plugins.libraries.enabled=true(또는 plugins.compat.libraries.declared=true)일 때만 쓰인다 — 무시한다", k);
+                if (p.containsKey(k)) log.warn(Lang.t("lib.settings-key-unused", k));
             }
             if (compat == CompatMode.OFF && !declared && p.containsKey("plugins.libraries.offline")) {
-                log.warn("plugins.libraries.offline 은 라이브러리 내려받기가 하나라도 켜져 있을 때만 쓰인다 — 무시한다");
+                log.warn(Lang.t("lib.settings-offline-unused"));
             }
         } else {
             if (!offline && !require) {
-                log.warn("plugins.libraries.enabled=true — 플러그인이 요구하는 라이브러리를 Maven Central 에서 내려받는다. "
-                        + "처음 받는 jar 는 체크섬을 서버가 기록(libraries.lock)해 두고 이후엔 그 값과 같은지만 확인한다. 엄격히 하려면 plugins.libraries.require-checksum=true");
+                log.warn(Lang.t("lib.settings-download-on"));
             }
-            if (offline && p.containsKey("plugins.libraries.timeout-seconds")) log.warn("plugins.libraries.offline=true 라 timeout-seconds 는 쓰이지 않는다");
+            if (offline && p.containsKey("plugins.libraries.timeout-seconds")) log.warn(Lang.t("lib.settings-timeout-unused"));
         }
         return new LibrarySettings(enabled, offline, transitive, require, cache.isEmpty() ? null : Path.of(cache), timeout, max, compat, mojang, declared);
     }
@@ -109,7 +110,7 @@ public record LibrarySettings(boolean enabled, boolean offline, boolean transiti
             case "all" -> CompatMode.ALL;
             case "off" -> CompatMode.OFF;
             default -> {
-                log.warn("furnace.properties 의 'plugins.compat.libraries' 값 '{}' 은 needed|all|off 가 아니다 — 기본값 needed 를 쓴다", v);
+                log.warn(Lang.t("lib.settings-compat-value", v));
                 yield CompatMode.NEEDED;
             }
         };
@@ -121,7 +122,7 @@ public record LibrarySettings(boolean enabled, boolean offline, boolean transiti
         v = v.strip();
         if (v.equalsIgnoreCase("true")) return true;
         if (v.equalsIgnoreCase("false")) return false;
-        log.warn("furnace.properties 의 '{}' 값 '{}' 은 true/false 가 아니다 — 기본값 {} 을 쓴다", key, v, def);
+        log.warn(Lang.t("lib.settings-bool-value", key, v, def));
         return def;
     }
 
@@ -134,7 +135,7 @@ public record LibrarySettings(boolean enabled, boolean offline, boolean transiti
         } catch (NumberFormatException ignored) {
             // 아래 경고
         }
-        log.warn("furnace.properties 의 '{}' 값 '{}' 은 {}~{} 의 정수가 아니다 — 기본값 {} 을 쓴다", key, v, min, max, def);
+        log.warn(Lang.t("lib.settings-int-value", key, v, min, max, def));
         return def;
     }
 }

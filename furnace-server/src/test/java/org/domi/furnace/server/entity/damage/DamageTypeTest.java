@@ -1,6 +1,7 @@
 // damage_type 47종이 데이터에서 바닐라 값 그대로 올라오는가(속성·태그·레지스트리 순번), 사망 메시지 키가 바닐라 규칙대로인가.
 package org.domi.furnace.server.entity.damage;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.BufferedReader;
@@ -16,7 +17,7 @@ class DamageTypeTest {
 
     private static List<String> registryIds() throws Exception {
         List<String> ids = new ArrayList<>();
-        try (var r = new BufferedReader(new InputStreamReader(DamageTypeTest.class.getClassLoader().getResourceAsStream("registries/1.21.1.txt"), StandardCharsets.UTF_8))) {
+        try (var r = new BufferedReader(new InputStreamReader(DamageTypeTest.class.getClassLoader().getResourceAsStream("registries/" + GameVersion.RESOURCE_TAG + ".txt"), StandardCharsets.UTF_8))) {
             for (String l; (l = r.readLine()) != null; ) if (l.startsWith("minecraft:damage_type ")) ids.add(l.substring(l.indexOf(' ') + 1).strip());
         }
         return ids;

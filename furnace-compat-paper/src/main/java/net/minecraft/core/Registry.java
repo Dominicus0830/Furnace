@@ -67,6 +67,23 @@ public interface Registry<T> extends IdMap<T> {
 
     Stream<Holder.Reference<T>> holders();
 
+    /** 바닐라: 손잡이 ↔ 레지스트리 번호 표(번호는 그 값의 번호, 없는 번호면 null). 팔레트 컨테이너의 바이옴 표로 쓰인다. */
+    default IdMap<Holder<T>> asHolderIdMap() {
+        return new IdMap<>() {
+            @Override
+            public int getId(Holder<T> holder) { return Registry.this.getId(holder.value()); }
+
+            @Override
+            public Holder<T> byId(int id) { return Registry.this.getHolder(id).orElse(null); }
+
+            @Override
+            public int size() { return Registry.this.size(); }
+
+            @Override
+            public java.util.Iterator<Holder<T>> iterator() { return Registry.this.holders().<Holder<T>>map(h -> h).iterator(); }
+        };
+    }
+
     /** 정의된 태그면 그 묶음(같은 TagKey 면 같은 객체), 없거나 다른 레지스트리의 태그면 empty. */
     Optional<HolderSet.Named<T>> getTag(net.minecraft.tags.TagKey<T> tag);
 
@@ -78,4 +95,28 @@ public interface Registry<T> extends IdMap<T> {
     HolderSet.Named<T> getOrCreateTag(net.minecraft.tags.TagKey<T> tag);
 
     Stream<net.minecraft.tags.TagKey<T>> getTagNames();
+
+    /**
+     * 이 레지스트리의 조회기(바닐라 {@code asLookup()}). 목록·키 조회·태그 조회가 이 레지스트리를 그대로 본다 —
+     * 키로 꺼낸 손잡이는 {@link #getHolder(ResourceKey)} 와 같은 객체다.
+     */
+    default HolderLookup.RegistryLookup<T> asLookup() {
+        Registry<T> self = this;
+        return new HolderLookup.RegistryLookup<>() {
+            @Override
+            public ResourceKey<? extends Registry<? extends T>> key() { return self.key(); }
+
+            @Override
+            public Stream<Holder.Reference<T>> listElements() { return self.holders(); }
+
+            @Override
+            public Stream<HolderSet.Named<T>> listTags() { return self.getTagNames().map(self::getOrCreateTag); }
+
+            @Override
+            public Optional<Holder.Reference<T>> get(ResourceKey<T> k) { return self.getHolder(k); }
+
+            @Override
+            public Optional<HolderSet.Named<T>> get(net.minecraft.tags.TagKey<T> tag) { return self.getTag(tag); }
+        };
+    }
 }

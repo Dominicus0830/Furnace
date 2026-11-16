@@ -3,6 +3,7 @@
 // 본체 저장은 RootVehicle 을 건드리지 않으므로 두 저장의 순서가 바뀌어도 결과가 같다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.nio.file.Path;
 import java.util.UUID;
 import java.util.concurrent.Executor;
@@ -69,11 +70,11 @@ public final class PlayerVehicleSave {
                 try {
                     PlayerData.saveRootVehicle(worldDir, id, tag);
                 } catch (RuntimeException e) {
-                    org.slf4j.LoggerFactory.getLogger(PlayerVehicleSave.class).error("탈것 저장 실패 {}", p.name(), e);
+                    org.slf4j.LoggerFactory.getLogger(PlayerVehicleSave.class).error(Lang.t("vehicle.save-failed", p.name()), e);
                 }
             });
         } catch (java.util.concurrent.RejectedExecutionException e) {
-            org.slf4j.LoggerFactory.getLogger(PlayerVehicleSave.class).error("탈것 저장 거부(종료 중): {}", p.name());
+            org.slf4j.LoggerFactory.getLogger(PlayerVehicleSave.class).error(Lang.t("vehicle.save-refused", p.name()));
         }
     }
 

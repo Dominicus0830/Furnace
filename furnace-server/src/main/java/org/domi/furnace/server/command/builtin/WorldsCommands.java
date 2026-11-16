@@ -22,6 +22,7 @@ import org.domi.furnace.server.command.CommandSource;
 import org.domi.furnace.server.command.brigadier.Arguments;
 import org.domi.furnace.server.command.brigadier.CommandContext;
 import org.domi.furnace.server.command.brigadier.CommandDispatcher;
+import org.domi.furnace.server.i18n.Lang;
 import org.domi.furnace.server.world.World;
 import org.domi.furnace.server.world.WorldManager;
 
@@ -69,13 +70,13 @@ public final class WorldsCommands {
         java.util.List<CompletableFuture<Boolean>> all = new java.util.ArrayList<>(n);
         for (int dz = -radius; dz <= radius; dz++)
             for (int dx = -radius; dx <= radius; dx++) all.add(w.regenerateChunk(cx + dx, cz + dz, false, false));
-        s.sendSuccess(() -> Text.text("청크 " + n + "개 다시 생성 중… (" + w.dimension() + " " + cx + "," + cz + ")"), true);
+        s.sendSuccess(() -> Text.text(Lang.t("cmd.worlds.regen-start", n, w.dimension(), cx, cz)), true);
         CompletableFuture<Integer> done = CompletableFuture.allOf(all.toArray(new CompletableFuture[0])).thenApply(v -> {
             int ok = 0;
             for (var f : all) if (Boolean.TRUE.equals(f.join())) ok++;
             return ok;
         });
-        report(s, done, ok -> "청크 " + ok + "/" + n + "개를 다시 생성했다");
+        report(s, done, ok -> Lang.t("cmd.worlds.regen-done", ok, n));
         return n;
     }
 
@@ -83,7 +84,7 @@ public final class WorldsCommands {
 
     private static WorldManager manager(CommandSource s) {
         WorldManager m = s.getServer().worldManager();
-        if (m == null) s.sendFailure(Text.text("이 서버는 다중 월드를 켜지 않았다"));
+        if (m == null) s.sendFailure(Text.text(Lang.t("cmd.worlds.disabled")));
         return m;
     }
 
@@ -91,9 +92,8 @@ public final class WorldsCommands {
         ServerCore core = s.getServer();
         int n = 0;
         for (World w : core.worlds()) {
-            String name = w.levelName() != null ? w.levelName() : "(기본)";
-            String line = String.format(Locale.ROOT, "%s %s — 타입 %s, 청크 %d, 플레이어 %d, 시드 %d", w.dimension(), name,
-                    w.dimensionType().typeKey(), w.loadedChunkCount(), w.playersHere().size(), core.seedOf(w));
+            String name = w.levelName() != null ? w.levelName() : Lang.t("cmd.worlds.default-name");
+            String line = Lang.t("cmd.worlds.list-line", w.dimension(), name, w.dimensionType().typeKey(), w.loadedChunkCount(), w.playersHere().size(), core.seedOf(w));
             s.sendSuccess(() -> Text.text(line), false);
             n++;
         }
@@ -112,11 +112,11 @@ public final class WorldsCommands {
             if (seed != null) b.seed(seed);
             spec = b.build();
         } catch (IllegalArgumentException e) {
-            s.sendFailure(Text.text("잘못된 설명서: " + e.getMessage()));
+            s.sendFailure(Text.text(Lang.t("cmd.worlds.bad-spec", e.getMessage())));
             return 0;
         }
-        s.sendSuccess(() -> Text.text("월드 '" + spec.name() + "' 준비 중…"), true);
-        report(s, m.create(spec), w -> "월드 '" + spec.name() + "' 올림 — /execute in " + w.dimension() + " run tp @s 0 100 0");
+        s.sendSuccess(() -> Text.text(Lang.t("cmd.worlds.creating", spec.name())), true);
+        report(s, m.create(spec), w -> Lang.t("cmd.worlds.created", spec.name(), w.dimension()));
         return 1;
     }
 
@@ -125,14 +125,14 @@ public final class WorldsCommands {
             case "normal", "overworld" -> WorldEnvironment.NORMAL;
             case "nether", "the_nether" -> WorldEnvironment.NETHER;
             case "end", "the_end" -> WorldEnvironment.THE_END;
-            default -> throw new IllegalArgumentException("환경은 normal · nether · the_end: " + raw);
+            default -> throw new IllegalArgumentException(Lang.t("cmd.worlds.bad-environment", raw));
         };
     }
 
     private static int load(CommandSource s, String name) {
         WorldManager m = manager(s);
         if (m == null) return 0;
-        report(s, m.load(name), w -> "월드 '" + name + "' 불러옴 (" + w.dimension() + ")");
+        report(s, m.load(name), w -> Lang.t("cmd.worlds.loaded", name, w.dimension()));
         return 1;
     }
 
@@ -141,10 +141,10 @@ public final class WorldsCommands {
         if (m == null) return 0;
         World w = m.extraWorld(name);
         if (w == null) {
-            s.sendFailure(Text.text("올라와 있는 추가 월드가 아니다: " + name));
+            s.sendFailure(Text.text(Lang.t("cmd.worlds.not-loaded", name)));
             return 0;
         }
-        report(s, m.unload(w, save), ok -> ok ? "월드 '" + name + "' 내림" : null);
+        report(s, m.unload(w, save), ok -> ok ? Lang.t("cmd.worlds.unloaded", name) : null);
         return 1;
     }
 
@@ -153,11 +153,11 @@ public final class WorldsCommands {
         f.whenComplete((v, t) -> s.getServer().scheduler().global().execute(() -> {
             if (t != null) {
                 Throwable cause = t instanceof java.util.concurrent.CompletionException && t.getCause() != null ? t.getCause() : t;
-                s.sendFailure(Text.text("실패: " + cause.getMessage()));
+                s.sendFailure(Text.text(Lang.t("cmd.worlds.failed", cause.getMessage())));
                 return;
             }
             String msg = ok.apply(v);
-            if (msg == null) s.sendFailure(Text.text("내리지 않았다 — 월드 안에 플레이어가 있거나 플러그인이 취소했다"));
+            if (msg == null) s.sendFailure(Text.text(Lang.t("cmd.worlds.unload-refused")));
             else s.sendSuccess(() -> Text.text(msg), true);
         }));
     }

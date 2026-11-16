@@ -2,6 +2,7 @@
 // 바닐라 데이터 생성기 출력으로 만든 registries/tags-1.21.1.txt 와 태그·순서까지 같은지.
 package org.domi.furnace.server.data;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
@@ -16,7 +17,7 @@ import org.junit.jupiter.api.Test;
 class VanillaTagsTest {
 
     static Path vanillaRoot() {
-        Path p = Path.of("../tools/vanilla-data/server-1.21.1");
+        Path p = Path.of("../tools/vanilla-data/server-" + GameVersion.MINECRAFT);
         Assumptions.assumeTrue(Files.isDirectory(p.resolve("data/minecraft/tags")), "로컬 바닐라 데이터 없음");
         return p;
     }
@@ -26,9 +27,9 @@ class VanillaTagsTest {
         PackRepository repo = new PackRepository(vanillaRoot(), null);
         repo.reload();
         repo.setSelected(List.of("vanilla"));
-        TagSet expected = TagSet.load("registries/tags-1.21.1.txt");
+        TagSet expected = TagSet.load("registries/tags-" + GameVersion.RESOURCE_TAG + ".txt");
         try (ResourceManager rm = repo.openResourceManager()) {
-            Map<String, Map<String, int[]>> got = new TagRegistries(RegistrySet.load("registries/1.21.1.txt")).loadAll(rm);
+            Map<String, Map<String, int[]>> got = new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")).loadAll(rm);
             int compared = 0;
             for (String reg : expected.registries()) {
                 Map<String, int[]> exp = expected.tagsOf(reg), act = got.get(reg);

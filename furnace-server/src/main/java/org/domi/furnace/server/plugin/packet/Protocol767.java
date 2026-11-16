@@ -2,6 +2,7 @@
 // 블록 상태는 서버 블록 레지스트리, 엔티티 종류·소리는 데이터 레지스트리(ItemContext)로 이름 ↔ 번호를 바꾼다.
 package org.domi.furnace.server.plugin.packet;
 
+import org.domi.furnace.api.GameVersion;
 import io.netty.buffer.ByteBuf;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
@@ -10,7 +11,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 import org.domi.furnace.api.entity.Hand;
 import org.domi.furnace.api.entity.ProfileProperty;
-import org.domi.furnace.api.packet.OpaquePacket;
+import org.domi.furnace.api.packet.GenericPacket;
 import org.domi.furnace.api.packet.Packet;
 import org.domi.furnace.api.packet.PacketDirection;
 import org.domi.furnace.api.packet.PacketType;
@@ -26,10 +27,11 @@ import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.plugin.ApiConvert;
 import org.domi.furnace.server.world.BlockRegistry;
+import org.domi.furnace.server.world.ItemRegistry;
 
 public final class Protocol767 implements ProtocolCodec {
 
-    public static final int PROTOCOL = 767;
+    public static final int PROTOCOL = GameVersion.PROTOCOL;
 
     /** play 서버→클라이언트, id 순서. */
     static final String[] CLIENTBOUND = {
@@ -85,9 +87,17 @@ public final class Protocol767 implements ProtocolCodec {
     private final Map<PacketType<?>, int[]> ids = new IdentityHashMap<>();
     private final Map<PacketType<?>, Codec<?>> codecs = new IdentityHashMap<>();
     private final Supplier<BlockRegistry> blocks;
+    private final Supplier<ItemRegistry> items;
+    private final EntityData767 entityData;
+    private final GenericCodec767 generic;
 
-    public Protocol767(Supplier<BlockRegistry> blocks) {
+    public Protocol767(Supplier<BlockRegistry> blocks) { this(blocks, () -> null); }
+
+    public Protocol767(Supplier<BlockRegistry> blocks, Supplier<ItemRegistry> items) {
         this.blocks = blocks;
+        this.items = items;
+        this.entityData = new EntityData767(this::blocks, this::items);
+        this.generic = new GenericCodec767(this::blocks, this::items);
         Map<PacketType<?>, List<Integer>> tmp = new IdentityHashMap<>();
         for (int i = 0; i < CLIENTBOUND.length; i++) {
             cbTypes[i] = lookup(PacketDirection.CLIENTBOUND, CLIENTBOUND[i]);
@@ -112,16 +122,41 @@ public final class Protocol767 implements ProtocolCodec {
         r = fallbackBlocks;
         if (r == null) {
             synchronized (Protocol767.class) {
-                if (fallbackBlocks == null) fallbackBlocks = BlockRegistry.load("blocks/1.21.1.txt");
+                if (fallbackBlocks == null) fallbackBlocks = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
                 r = fallbackBlocks;
             }
         }
         return r;
     }
 
+    private static volatile ItemRegistry fallbackItems;
+
+    /** 서버 아이템 레지스트리(없으면 이 버전의 표를 한 번 읽어 쓴다 — 번호는 같다). */
+    private ItemRegistry items() {
+        ItemRegistry r = items.get();
+        if (r != null) return r;
+        r = fallbackItems;
+        if (r == null) {
+            synchronized (Protocol767.class) {
+                if (fallbackItems == null) fallbackItems = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
+                r = fallbackItems;
+            }
+        }
+        return r;
+    }
+
+    @Override
+    public java.util.OptionalInt entityDataIndex(org.domi.furnace.api.entity.data.EntityDataKey<?> key) { return EntityData767.index(key); }
+
+    @Override
+    public boolean hasEntityData(String entityType, org.domi.furnace.api.entity.data.EntityDataKey<?> key) { return EntityData767.has(entityType, key); }
+
+    /** 메타데이터 변환(EntityData767). */
+    public EntityData767 entityData() { return entityData; }
+
     private static PacketType<?> lookup(PacketDirection d, String name) {
         PacketType<?> t = PacketTypes.byName(d, name);
-        if (t == null) throw new IllegalStateException("PacketTypes 에 없는 패킷: " + d + " " + name);
+        if (t == null) throw new IllegalStateException("packet missing from PacketTypes: " + d + " " + name);
         return t;
     }
 
@@ -142,7 +177,7 @@ public final class Protocol767 implements ProtocolCodec {
 
     private int id(PacketType<?> type) {
         int[] a = ids.get(type);
-        if (a == null) throw new IllegalArgumentException("이 서버 버전에 없는 패킷: " + type);
+        if (a == null) throw new IllegalArgumentException("packet does not exist in this server version: " + type);
         return a[0];
     }
 
@@ -150,21 +185,34 @@ public final class Protocol767 implements ProtocolCodec {
     @SuppressWarnings("unchecked")
     public Packet decode(PacketType<?> type, int id, ByteBuf body) {
         Codec<?> c = codecs.get(type);
-        if (c == null) return new OpaquePacket((PacketType<OpaquePacket>) type);
-        return c.dec().decode(id, body);
+        if (c != null) return c.dec().decode(id, body);
+        if (generic.readable(type)) return generic.decode(type, body);
+        return GenericPacket.unreadable((PacketType<GenericPacket>) type);
     }
+
+    @Override
+    public boolean readable(PacketType<?> type) { return codecs.containsKey(type) || generic.readable(type); }
+
+    @Override
+    public java.util.List<org.domi.furnace.api.packet.PacketField<?>> fields(PacketType<?> type) { return generic.fields(type); }
+
+    /** 범용 코덱이 이 종류를 못 읽는 까닭(읽거나 타입 레코드면 null). */
+    public String whyUnreadable(PacketType<?> type) { return generic.whyUnreadable(type); }
 
     @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
     public int encode(Packet packet, ByteBuf out) {
-        if (packet instanceof OpaquePacket) throw new IllegalArgumentException("OpaquePacket 은 보낼 수 없다: " + packet.type());
+        if (packet instanceof GenericPacket g) {
+            generic.encode(g, out);
+            return id(g.type());
+        }
         Codec c = codecs.get(packet.type());
-        if (c == null) throw new IllegalArgumentException("이 서버 버전에서 보낼 수 없는 패킷: " + packet.type());
+        if (c == null) throw new IllegalArgumentException("packet cannot be sent by this server version: " + packet.type());
         return c.enc().encode(packet, out);
     }
 
     private <P extends Packet> void codec(PacketType<P> type, Decoder dec, Encoder<P> enc) {
-        if (!type.typed()) throw new IllegalStateException("타입 래퍼 없는 종류: " + type);
+        if (!type.typed()) throw new IllegalStateException("type without a typed wrapper: " + type);
         codecs.put(type, new Codec<>(dec, enc));
     }
 
@@ -176,7 +224,19 @@ public final class Protocol767 implements ProtocolCodec {
 
     private static double readVelocity(ByteBuf b) { return b.readShort() / 8000.0; }
 
-    private static void writeVelocity(ByteBuf b, double v) { b.writeShort((int) (Math.clamp(v, -3.9, 3.9) * 8000.0)); }
+    /**
+     * 바닐라처럼 ±3.9 로 자르고 1/8000 단위로 버린다. 단, 정수에서 부동소수 오차만큼만 모자란 값(와이어에서 읽은 {@code s / 8000} — 16380 등 374개)은
+     * 그 정수로: 읽고 바꾸지 않은 속도를 다시 쓸 때 1/8000 줄지 않게(리스너가 다른 필드만 바꾼 패킷, ProtocolLib 다리 검토 R4).
+     * 이 코덱은 플러그인 패킷 API 전용이다 — 서버 자신의 물리 속도 패킷(net/protocol/play)은 바닐라 버림 그대로.
+     * compat 의 TypedPacketBridge.velocity 가 같은 식을 쓴다.
+     */
+    static int velocityUnits(double v) {
+        double x = Math.clamp(v, -3.9, 3.9) * 8000.0;
+        double r = Math.rint(x);
+        return (int) (Math.abs(x - r) < 1e-6 ? r : x);
+    }
+
+    private static void writeVelocity(ByteBuf b, double v) { b.writeShort(velocityUnits(v)); }
 
     private static BlockPos readPos(ByteBuf b) {
         int[] p = Types.readBlockPos(b);
@@ -186,11 +246,11 @@ public final class Protocol767 implements ProtocolCodec {
     private static void writePos(ByteBuf b, BlockPos p) { Types.writeBlockPos(b, p.x(), p.y(), p.z()); }
 
     private static <E extends Enum<E>> E enumOf(E[] values, int i, String what) {
-        if (i < 0 || i >= values.length) throw new IllegalArgumentException(what + " 범위 밖: " + i);
+        if (i < 0 || i >= values.length) throw new IllegalArgumentException(what + " out of range: " + i);
         return values[i];
     }
 
-    private static Hand hand(int i) { return enumOf(Hand.values(), i, "손"); }
+    private static Hand hand(int i) { return enumOf(Hand.values(), i, "hand"); }
 
     private static byte[] rest(ByteBuf b) {
         byte[] a = new byte[b.readableBytes()];
@@ -200,13 +260,13 @@ public final class Protocol767 implements ProtocolCodec {
 
     private static String registryName(String registry, int id) {
         String n = ItemContext.installed() ? ItemContext.name(registry, id) : null;
-        if (n == null) throw new IllegalArgumentException(registry + " 에 없는 번호: " + id);
+        if (n == null) throw new IllegalArgumentException(registry + " has no id: " + id);
         return n;
     }
 
     private static int registryId(String registry, String name) {
         Integer id = ItemContext.installed() ? ItemContext.id(registry, name) : null;
-        if (id == null) throw new IllegalArgumentException(registry + " 에 없는 이름: " + name);
+        if (id == null) throw new IllegalArgumentException(registry + " has no name: " + name);
         return id;
     }
 
@@ -265,7 +325,7 @@ public final class Protocol767 implements ProtocolCodec {
         });
         codec(Clientbound.REMOVE_ENTITIES, (id, b) -> {
             int n = Types.readVarInt(b);
-            if (n < 0 || n > b.readableBytes()) throw new IllegalArgumentException("엔티티 수 오류: " + n);
+            if (n < 0 || n > b.readableBytes()) throw new IllegalArgumentException("invalid entity count: " + n);
             List<Integer> l = new ArrayList<>(n);
             for (int i = 0; i < n; i++) l.add(Types.readVarInt(b));
             return new ClientboundRemoveEntitiesPacket(l);
@@ -307,7 +367,7 @@ public final class Protocol767 implements ProtocolCodec {
                 case 3 -> ClientboundAnimatePacket.Animation.SWING_OFF_HAND;
                 case 4 -> ClientboundAnimatePacket.Animation.CRITICAL_HIT;
                 case 5 -> ClientboundAnimatePacket.Animation.MAGIC_CRITICAL_HIT;
-                default -> throw new IllegalArgumentException("모르는 애니메이션");
+                default -> throw new IllegalArgumentException("unknown animation");
             };
             return new ClientboundAnimatePacket(eid, a);
         }, (p, o) -> {
@@ -331,7 +391,7 @@ public final class Protocol767 implements ProtocolCodec {
             } else {
                 sound = registryName(SOUNDS, holder - 1);
             }
-            SoundCategory cat = enumOf(SoundCategory.values(), Types.readVarInt(b), "소리 분류");
+            SoundCategory cat = enumOf(SoundCategory.values(), Types.readVarInt(b), "sound category");
             double x = b.readInt() / 8.0, y = b.readInt() / 8.0, z = b.readInt() / 8.0;
             return new ClientboundSoundPacket(sound, range, cat, x, y, z, b.readFloat(), b.readFloat(), b.readLong());
         }, (p, o) -> {
@@ -356,7 +416,7 @@ public final class Protocol767 implements ProtocolCodec {
         codec(Clientbound.CUSTOM_PAYLOAD, (id, b) -> new ClientboundCustomPayloadPacket(Types.readString(b, STRING_MAX), rest(b)),
                 (p, o) -> {
                     byte[] data = p.data();
-                    if (data.length > 1048576) throw new IllegalArgumentException("페이로드가 너무 크다: " + data.length);
+                    if (data.length > 1048576) throw new IllegalArgumentException("payload too large: " + data.length);
                     Types.writeString(o, p.channel());
                     o.writeBytes(data);
                     return id(Clientbound.CUSTOM_PAYLOAD);
@@ -369,7 +429,7 @@ public final class Protocol767 implements ProtocolCodec {
         });
         codec(Clientbound.PLAYER_INFO_REMOVE, (id, b) -> {
             int n = Types.readVarInt(b);
-            if (n < 0 || n > b.readableBytes()) throw new IllegalArgumentException("항목 수 오류: " + n);
+            if (n < 0 || n > b.readableBytes()) throw new IllegalArgumentException("invalid entry count: " + n);
             List<java.util.UUID> l = new ArrayList<>(n);
             for (int i = 0; i < n; i++) l.add(Types.readUuid(b));
             return new ClientboundPlayerInfoRemovePacket(l);
@@ -381,7 +441,6 @@ public final class Protocol767 implements ProtocolCodec {
         codec(Clientbound.PLAYER_INFO_UPDATE, (id, b) -> decodePlayerInfo(b), (p, o) -> {
             int mask = 0;
             for (ClientboundPlayerInfoUpdatePacket.Action a : p.actions()) mask |= 1 << a.ordinal();
-            if ((mask & 0x02) != 0) throw new IllegalArgumentException("채팅 세션 초기화는 보낼 수 없다");
             o.writeByte(mask);
             Types.writeVarInt(o, p.entries().size());
             for (ClientboundPlayerInfoUpdatePacket.Entry e : p.entries()) {
@@ -396,6 +455,7 @@ public final class Protocol767 implements ProtocolCodec {
                         if (pp.signature() != null) Types.writeString(o, pp.signature());
                     }
                 }
+                if ((mask & 0x02) != 0) writeChatSession(o, e.chatSession());
                 if ((mask & 0x04) != 0) Types.writeVarInt(o, e.gameMode().id());
                 if ((mask & 0x08) != 0) o.writeBoolean(e.listed());
                 if ((mask & 0x10) != 0) Types.writeVarInt(o, e.latencyMs());
@@ -408,62 +468,30 @@ public final class Protocol767 implements ProtocolCodec {
         });
     }
 
-    // 엔티티 데이터 직렬화기 번호(1.21.1 EntityDataSerializers 등록 순서) — 서버 SetEntityData 와 같다.
-    private static final int S_BYTE = 0, S_INT = 1, S_LONG = 2, S_FLOAT = 3, S_STRING = 4, S_COMPONENT = 5, S_OPT_COMPONENT = 6, S_BOOLEAN = 8, S_POSE = 21;
-
-    private static void writeDataEntry(ByteBuf o, ClientboundSetEntityDataPacket.Entry e) {
+    /** 메타데이터 값 하나: 칸 번호, 직렬화 번호, 값(EntityData767). */
+    private void writeDataEntry(ByteBuf o, ClientboundSetEntityDataPacket.Entry e) {
         var v = e.value();
-        int ser = switch (v) {
-            case ClientboundSetEntityDataPacket.ByteValue x -> S_BYTE;
-            case ClientboundSetEntityDataPacket.IntValue x -> S_INT;
-            case ClientboundSetEntityDataPacket.LongValue x -> S_LONG;
-            case ClientboundSetEntityDataPacket.FloatValue x -> S_FLOAT;
-            case ClientboundSetEntityDataPacket.StringValue x -> S_STRING;
-            case ClientboundSetEntityDataPacket.TextValue x -> S_COMPONENT;
-            case ClientboundSetEntityDataPacket.OptionalTextValue x -> S_OPT_COMPONENT;
-            case ClientboundSetEntityDataPacket.BooleanValue x -> S_BOOLEAN;
-            case ClientboundSetEntityDataPacket.PoseValue x -> S_POSE;
-            case ClientboundSetEntityDataPacket.Unsupported x -> throw new IllegalArgumentException("읽지 못한 값 종류는 보낼 수 없다: " + x.serializer());
-        };
+        if (v instanceof ClientboundSetEntityDataPacket.Unsupported x) throw new IllegalArgumentException("a value kind that could not be read cannot be sent: " + x.serializer());
         o.writeByte(e.index());
-        Types.writeVarInt(o, ser);
-        switch (v) {
-            case ClientboundSetEntityDataPacket.ByteValue x -> o.writeByte(x.value());
-            case ClientboundSetEntityDataPacket.IntValue x -> Types.writeVarInt(o, x.value());
-            case ClientboundSetEntityDataPacket.LongValue x -> Types.writeVarLong(o, x.value());
-            case ClientboundSetEntityDataPacket.FloatValue x -> o.writeFloat(x.value());
-            case ClientboundSetEntityDataPacket.StringValue x -> Types.writeString(o, x.value());
-            case ClientboundSetEntityDataPacket.TextValue x -> NetworkText.write(o, x.value());
-            case ClientboundSetEntityDataPacket.OptionalTextValue x -> {
-                o.writeBoolean(x.value() != null);
-                if (x.value() != null) NetworkText.write(o, x.value());
-            }
-            case ClientboundSetEntityDataPacket.BooleanValue x -> o.writeBoolean(x.value());
-            case ClientboundSetEntityDataPacket.PoseValue x -> Types.writeVarInt(o, x.pose());
-            case ClientboundSetEntityDataPacket.Unsupported x -> throw new IllegalStateException();
-        }
+        Types.writeVarInt(o, EntityData767.serializerId(v.dataType()));
+        if (v instanceof ClientboundSetEntityDataPacket.PoseValue x) Types.writeVarInt(o, x.pose());   // 번호 그대로(예전 동작)
+        else entityData.write(o, v);
     }
 
-    private static ClientboundSetEntityDataPacket decodeEntityData(ByteBuf b) {
+    private ClientboundSetEntityDataPacket decodeEntityData(ByteBuf b) {
         int eid = Types.readVarInt(b);
         List<ClientboundSetEntityDataPacket.Entry> out = new ArrayList<>();
         while (true) {
             int index = b.readUnsignedByte();
             if (index == 0xFF) break;
             int ser = Types.readVarInt(b);
-            ClientboundSetEntityDataPacket.Value v = switch (ser) {
-                case S_BYTE -> ClientboundSetEntityDataPacket.Value.ofByte(b.readByte());
-                case S_INT -> ClientboundSetEntityDataPacket.Value.ofInt(Types.readVarInt(b));
-                case S_LONG -> ClientboundSetEntityDataPacket.Value.ofLong(Types.readVarLong(b));
-                case S_FLOAT -> ClientboundSetEntityDataPacket.Value.ofFloat(b.readFloat());
-                case S_STRING -> ClientboundSetEntityDataPacket.Value.ofString(Types.readString(b, STRING_MAX));
-                case S_COMPONENT -> ClientboundSetEntityDataPacket.Value.ofText(NetworkText.read(b));
-                case S_OPT_COMPONENT -> ClientboundSetEntityDataPacket.Value.ofOptionalText(b.readBoolean() ? NetworkText.read(b) : null);
-                case S_BOOLEAN -> ClientboundSetEntityDataPacket.Value.ofBoolean(b.readBoolean());
-                case S_POSE -> ClientboundSetEntityDataPacket.Value.ofPose(Types.readVarInt(b));
-                default -> null;
-            };
-            if (v == null) {   // 길이를 알 수 없는 종류 — 여기서 멈춘다
+            ClientboundSetEntityDataPacket.Value v;
+            try {
+                v = ser == 21 ? ClientboundSetEntityDataPacket.Value.ofPose(Types.readVarInt(b)) : entityData.read(ser, b);
+            } catch (RuntimeException ex) {
+                v = null;   // 값을 읽거나 이름으로 바꾸지 못함(범위 밖 번호, 직접 정의 등) — 패킷 전체를 버리지 않고 여기서 멈춘다(리스너는 관찰·취소 가능)
+            }
+            if (v == null) {   // 이 버전이 모르는 종류이거나 읽지 못한 값 — 남은 길이를 믿을 수 없어 여기서 멈춘다
                 out.add(new ClientboundSetEntityDataPacket.Entry(index, new ClientboundSetEntityDataPacket.Unsupported(ser)));
                 b.skipBytes(b.readableBytes());
                 break;
@@ -475,11 +503,10 @@ public final class Protocol767 implements ProtocolCodec {
 
     private static ClientboundPlayerInfoUpdatePacket decodePlayerInfo(ByteBuf b) {
         int mask = b.readUnsignedByte();
-        if ((mask & 0x02) != 0) throw new IllegalArgumentException("채팅 세션 초기화는 읽지 않는다");
         java.util.EnumSet<ClientboundPlayerInfoUpdatePacket.Action> actions = java.util.EnumSet.noneOf(ClientboundPlayerInfoUpdatePacket.Action.class);
         for (ClientboundPlayerInfoUpdatePacket.Action a : ClientboundPlayerInfoUpdatePacket.Action.values()) if ((mask & (1 << a.ordinal())) != 0) actions.add(a);
         int n = Types.readVarInt(b);
-        if (n < 0 || n > b.readableBytes()) throw new IllegalArgumentException("항목 수 오류: " + n);
+        if (n < 0 || n > b.readableBytes()) throw new IllegalArgumentException("invalid entry count: " + n);
         List<ClientboundPlayerInfoUpdatePacket.Entry> es = new ArrayList<>(n);
         for (int i = 0; i < n; i++) {
             java.util.UUID uuid = Types.readUuid(b);
@@ -489,23 +516,59 @@ public final class Protocol767 implements ProtocolCodec {
             boolean listed = false;
             int latency = 0;
             org.domi.furnace.api.text.Text display = null;
+            ClientboundPlayerInfoUpdatePacket.ChatSession session = null;
             if ((mask & 0x01) != 0) {
                 name = Types.readString(b, 16);
                 int pc = Types.readVarInt(b);
-                if (pc < 0 || pc > 16) throw new IllegalArgumentException("속성 수 오류: " + pc);
+                if (pc < 0 || pc > 16) throw new IllegalArgumentException("invalid attribute count: " + pc);
                 props = new ArrayList<>(pc);
                 for (int k = 0; k < pc; k++) {
                     String pn = Types.readString(b, 64), pv = Types.readString(b, STRING_MAX);
                     props.add(new ProfileProperty(pn, pv, b.readBoolean() ? Types.readString(b, 1024) : null));
                 }
             }
+            if ((mask & 0x02) != 0) session = readChatSession(b);
             if ((mask & 0x04) != 0) mode = org.domi.furnace.api.entity.GameMode.byId(Types.readVarInt(b));
             if ((mask & 0x08) != 0) listed = b.readBoolean();
             if ((mask & 0x10) != 0) latency = Types.readVarInt(b);
             if ((mask & 0x20) != 0 && b.readBoolean()) display = NetworkText.read(b);
-            es.add(new ClientboundPlayerInfoUpdatePacket.Entry(uuid, name, props, mode, listed, latency, display));
+            es.add(new ClientboundPlayerInfoUpdatePacket.Entry(uuid, name, props, mode, listed, latency, display, session));
         }
         return new ClientboundPlayerInfoUpdatePacket(actions, es);
+    }
+
+    /** 채팅 세션(선택): 있음 표시, 세션 번호, 만료(밀리초), 공개 키(512바이트까지), 키 서명(4096바이트까지) — 바닐라 RemoteChatSession.Data. */
+    private static ClientboundPlayerInfoUpdatePacket.ChatSession readChatSession(ByteBuf b) {
+        if (!b.readBoolean()) return null;
+        java.util.UUID id = Types.readUuid(b);
+        java.time.Instant expires = java.time.Instant.ofEpochMilli(b.readLong());
+        return new ClientboundPlayerInfoUpdatePacket.ChatSession(id, expires, sizedBytes(b, 512), sizedBytes(b, 4096));
+    }
+
+    private static void writeChatSession(ByteBuf o, ClientboundPlayerInfoUpdatePacket.ChatSession s) {
+        o.writeBoolean(s != null);
+        if (s == null) return;
+        byte[] key = s.publicKey();
+        try {   // 바닐라 클라이언트는 RSA 가 아니면 읽다 끊는다
+            java.security.KeyFactory.getInstance("RSA").generatePublic(new java.security.spec.X509EncodedKeySpec(key));
+        } catch (java.security.GeneralSecurityException e) {
+            throw new IllegalArgumentException("the chat session public key is not an RSA public key (X.509): " + e.getMessage());
+        }
+        Types.writeUuid(o, s.sessionId());
+        o.writeLong(s.expiresAt().toEpochMilli());
+        Types.writeVarInt(o, key.length);
+        o.writeBytes(key);
+        byte[] sig = s.keySignature();
+        Types.writeVarInt(o, sig.length);
+        o.writeBytes(sig);
+    }
+
+    private static byte[] sizedBytes(ByteBuf b, int max) {
+        int n = Types.readVarInt(b);
+        if (n < 0 || n > max || n > b.readableBytes()) throw new IllegalArgumentException("invalid byte length: " + n + " (max " + max + ")");
+        byte[] a = new byte[n];
+        b.readBytes(a);
+        return a;
     }
 
     // ------------------------------------------------------------------ 클라이언트→서버
@@ -593,7 +656,7 @@ public final class Protocol767 implements ProtocolCodec {
         codec(Serverbound.PLAYER_ACTION, (id, b) -> {
             var action = enumOf(ServerboundPlayerActionPacket.Action.values(), Types.readVarInt(b), "player_action");
             BlockPos pos = readPos(b);
-            BlockFace face = enumOf(BlockFace.values(), b.readUnsignedByte(), "면");
+            BlockFace face = enumOf(BlockFace.values(), b.readUnsignedByte(), "face");
             return new ServerboundPlayerActionPacket(action, pos, face, Types.readVarInt(b));
         }, (p, o) -> {
             Types.writeVarInt(o, p.action().ordinal());
@@ -642,7 +705,7 @@ public final class Protocol767 implements ProtocolCodec {
         codec(Serverbound.USE_ITEM_ON, (id, b) -> {
             Hand h = hand(Types.readVarInt(b));
             BlockPos pos = readPos(b);
-            BlockFace face = enumOf(BlockFace.values(), Types.readVarInt(b), "면");
+            BlockFace face = enumOf(BlockFace.values(), Types.readVarInt(b), "face");
             float cx = b.readFloat(), cy = b.readFloat(), cz = b.readFloat();
             boolean inside = b.readBoolean();
             return new ServerboundUseItemOnPacket(h, pos, face, cx, cy, cz, inside, Types.readVarInt(b));

@@ -11,6 +11,6 @@ public final class SampleBootstrap implements PluginBootstrap {
     @Override
     public void bootstrap(BootstrapContext ctx) {
         ctx.lifecycle().register(LifecycleEvents.DATAPACK_DISCOVERY, packs -> packs.discover("datapack", "main"));
-        ctx.registries().create("sample:greetings", String.class).register("sample:hello", "안녕하세요");
+        ctx.registries().create("sample:greetings", String.class).register("sample:hello", "Hello, Furnace!");
     }
 }

@@ -1,6 +1,7 @@
 // C2(불만 표 67번): 데이터 팩 함수·함수 줄 실행 훅(FunctionExecuteEvent·FunctionCommandEvent) — 호출 경로 구분, 취소, 구독자 없을 때 무영향.
 package org.domi.furnace.server.command.exec;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
@@ -57,7 +58,7 @@ class FunctionHookTest {
         Files.writeString(tags.resolve("load.json"), "{\"values\":[\"t:loader\"]}");
         packs = DataPackManager.start(vanilla, tmp, org.domi.furnace.server.world.storage.LevelData.create("world", 1L, true, false,
                 org.domi.furnace.server.world.GameMode.SURVIVAL, false, org.domi.furnace.server.world.Difficulty.EASY, List.of("vanilla"), List.of()),
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt"), true, List.of("vanilla"), List.of());
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"), true, List.of("vanilla"), List.of());
         core.dataPacks(packs);
         core.loadFunctions();
         onGlobal(() -> { });

@@ -14,7 +14,7 @@ import org.domi.furnace.server.entity.ai.control.Mth;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
-public class Boat extends Entity implements Leashable {
+public class Boat extends Entity implements Leashable, HardCollider {
 
     /** VehicleEntity: 8 맞은 시간, 9 맞은 방향, 10 피해. Boat: 11 종류, 12·13 왼쪽·오른쪽 노, 14 거품 시간. */
     public static final int DATA_ID_HURT = 8, DATA_ID_HURTDIR = 9, DATA_ID_DAMAGE = 10, DATA_ID_TYPE = 11, DATA_ID_PADDLE_LEFT = 12,
@@ -114,7 +114,12 @@ public class Boat extends Entity implements Leashable {
     @Override public boolean isPickable() { return !isRemoved(); }
 
     /** canVehicleCollide(this, e). */
-    public boolean canCollideWith(Entity e) { return (e.canBeCollidedWith() || e.isPushable()) && !isPassengerOfSameVehicle(e); }
+    @Override public boolean canCollideWith(Entity e) { return (e.canBeCollidedWith() || e.isPushable()) && !isPassengerOfSameVehicle(e); }
+
+    /** canVehicleCollide(this, 플레이어): 플레이어는 단단하지 않으니 밀 수 있으면(LivingEntity.isPushable) 부딪힌다. */
+    @Override public boolean canCollideWithPlayer(Player p) { return p.isPushableByEntities() && !isPassengerOfSameVehicle(p); }
+
+    @Override public boolean collidesOnlyWithHardColliders() { return false; }
 
     @Override protected double defaultGravity() { return 0.04; }
 
@@ -402,7 +407,7 @@ public class Boat extends Entity implements Leashable {
         if (oldStatus == Status.IN_AIR && status != Status.IN_AIR && status != Status.ON_LAND) {
             waterLevel = y() + bbHeight() * 1.0;
             double ny = getWaterLevelAbove() - bbHeight() + 0.101;
-            if (level.noCollision(boundingBox().move(0.0, ny - y(), 0.0))) {
+            if (level.noCollision(this, boundingBox().move(0.0, ny - y(), 0.0))) {
                 setPos(x(), ny, z());
                 setDeltaMovement(vx(), 0.0, vz());
                 lastYd = 0.0;
@@ -499,7 +504,7 @@ public class Boat extends Entity implements Leashable {
             for (float[] dim : poses) {
                 for (Vec3 s : spots) {
                     double hw = dim[0] / 2.0F;
-                    if (DismountHelper.canDismountTo(level, new AABB(s.x() - hw, s.y(), s.z() - hw, s.x() + hw, s.y() + dim[1], s.z() + hw))) return s;
+                    if (DismountHelper.canDismountTo(level, r, new AABB(s.x() - hw, s.y(), s.z() - hw, s.x() + hw, s.y() + dim[1], s.z() + hw))) return s;
                 }
             }
         }

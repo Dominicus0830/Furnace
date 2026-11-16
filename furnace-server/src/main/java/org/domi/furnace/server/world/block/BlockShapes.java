@@ -2,6 +2,7 @@
 // 검증: tools/vanilla-data/ShapeVectors(바닐라 코드로 만든 무작위 이웃 구성 → 결과표)와 tools/parity-audit/ShapeDiff로 차분.
 package org.domi.furnace.server.world.block;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -46,10 +47,12 @@ public final class BlockShapes {
 
     public static BlockShapes of(BlockRegistry registry) {
         BlockShapes s = INSTANCE;
-        if (s == null || s.registry != registry) {
+        var tagSrc = org.domi.furnace.server.item.ItemContext.gameplayTags();
+        // 데이터 팩 리로드로 태그 표가 바뀌면(표 객체가 다름) 태그에서 만든 표를 새로 만든다
+        if (s == null || s.registry != registry || s.tagSrc != tagSrc) {
             synchronized (BlockShapes.class) {
                 s = INSTANCE;
-                if (s == null || s.registry != registry) INSTANCE = s = new BlockShapes(registry);
+                if (s == null || s.registry != registry || s.tagSrc != tagSrc) INSTANCE = s = new BlockShapes(registry, tagSrc);
             }
         }
         return s;
@@ -76,8 +79,11 @@ public final class BlockShapes {
     private final byte[] wallTests;
     private final byte[] centerMask, rigidMask, nonEmptyMask;
 
-    private BlockShapes(BlockRegistry registry) {
+    private final org.domi.furnace.server.net.registry.TagSet tagSrc;
+
+    private BlockShapes(BlockRegistry registry, org.domi.furnace.server.net.registry.TagSet tagSrc) {
         this.registry = registry;
+        this.tagSrc = tagSrc;
         this.table = BlockStateTable.of(registry);
         this.attrs = BlockAttrs.get();
         int n = registry.totalStateCount();
@@ -177,8 +183,8 @@ public final class BlockShapes {
 
     private static byte[] loadWallTests(int n) {
         byte[] t = new byte[n];
-        try (InputStream raw = BlockShapes.class.getClassLoader().getResourceAsStream("blocks/blockwalltests_1.21.1.txt.gz")) {
-            if (raw == null) throw new IllegalStateException("담장 테스트 리소스 없음");
+        try (InputStream raw = BlockShapes.class.getClassLoader().getResourceAsStream("blocks/blockwalltests_" + GameVersion.RESOURCE_TAG + ".txt.gz")) {
+            if (raw == null) throw new IllegalStateException("fence test resource is missing");
             BufferedReader r = new BufferedReader(new InputStreamReader(new GZIPInputStream(raw), StandardCharsets.UTF_8));
             String line;
             while ((line = r.readLine()) != null) {
@@ -193,8 +199,8 @@ public final class BlockShapes {
     }
 
     private void loadSupports() {
-        try (InputStream raw = BlockShapes.class.getClassLoader().getResourceAsStream("blocks/blocksupports_1.21.1.txt.gz")) {
-            if (raw == null) throw new IllegalStateException("지지 마스크 리소스 없음");
+        try (InputStream raw = BlockShapes.class.getClassLoader().getResourceAsStream("blocks/blocksupports_" + GameVersion.RESOURCE_TAG + ".txt.gz")) {
+            if (raw == null) throw new IllegalStateException("support mask resource is missing");
             BufferedReader r = new BufferedReader(new InputStreamReader(new GZIPInputStream(raw), StandardCharsets.UTF_8));
             String line;
             while ((line = r.readLine()) != null) {

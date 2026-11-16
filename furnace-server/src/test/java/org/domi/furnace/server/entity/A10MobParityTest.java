@@ -1,6 +1,7 @@
 // A10 회귀(재현 시험 docs/audit/findings/A10-repro/A10ReproTest·A10RegionSpawnerTest 에서). 바닐라 1.21.1 바이트코드에서 읽은 기대값과 비교한다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -26,7 +27,7 @@ class A10MobParityTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static final BlockPlacementTest.TestLevel LEVEL = new BlockPlacementTest.TestLevel();

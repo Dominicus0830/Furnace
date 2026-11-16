@@ -1,4 +1,4 @@
-// 블록 종류 + 속성 — 이름 기반 불변 값. 숫자 state id 는 노출하지 않는다.
+// 블록 종류와 속성. 이름 기반 불변 값이며, 숫자 state id 는 노출하지 않는다.
 // 문자열 형식은 바닐라 명령과 같다: minecraft:oak_stairs[facing=north,half=top]
 package org.domi.furnace.api.world;
 
@@ -23,15 +23,15 @@ public record BlockData(String type, Map<String, String> properties) {
         Objects.requireNonNull(text, "text");
         int b = text.indexOf('[');
         if (b < 0) return of(text.strip());
-        if (!text.endsWith("]")) throw new IllegalArgumentException("닫는 ] 가 없다: " + text);
+        if (!text.endsWith("]")) throw new IllegalArgumentException("missing closing ]: " + text);
         TreeMap<String, String> props = new TreeMap<>();
         String body = text.substring(b + 1, text.length() - 1);
         if (!body.isBlank()) {
             for (String part : body.split(",")) {
                 int eq = part.indexOf('=');
-                if (eq <= 0 || eq == part.length() - 1) throw new IllegalArgumentException("속성 형식 오류: " + part);
+                if (eq <= 0 || eq == part.length() - 1) throw new IllegalArgumentException("invalid property format: " + part);
                 if (props.put(part.substring(0, eq).strip(), part.substring(eq + 1).strip()) != null) {
-                    throw new IllegalArgumentException("속성 중복: " + part);
+                    throw new IllegalArgumentException("duplicate property: " + part);
                 }
             }
         }
@@ -46,7 +46,7 @@ public record BlockData(String type, Map<String, String> properties) {
 
     // ------------------------------------------------------------------ 타입 있는 속성
 
-    /** 이 상태가 그 속성을 적어 두었는가(적지 않은 속성은 기본값이라는 뜻이라 false 일 수 있다 — 정확한 값은 서버가 채운 읽기 결과에서 본다). */
+    /** 이 상태가 그 속성을 적어 두었는가. 적지 않은 속성은 기본값이라는 뜻이라 false 일 수 있다. 정확한 값은 서버가 채운 읽기 결과에서 본다. */
     public boolean has(BlockProperty<?> property) { return properties.containsKey(property.name()); }
 
     /** 속성 값, 적혀 있지 않으면 empty. 값 형식이 속성 종류와 맞지 않으면 IllegalArgumentException. */
@@ -57,7 +57,7 @@ public record BlockData(String type, Map<String, String> properties) {
 
     /** 속성 값. 적혀 있지 않으면 NoSuchElementException. 서버가 읽어 준 상태(World.blockNow …)는 속성을 모두 적고 있다. */
     public <T> T get(BlockProperty<T> property) {
-        return property(property).orElseThrow(() -> new java.util.NoSuchElementException("속성 없음: " + property.name() + " (" + this + ")"));
+        return property(property).orElseThrow(() -> new java.util.NoSuchElementException("no such property: " + property.name() + " (" + this + ")"));
     }
 
     /** 속성을 바꾼 새 상태. 그 블록이 가진 속성인지와 값 범위는 쓸 때(setBlock) 서버가 확인한다. */

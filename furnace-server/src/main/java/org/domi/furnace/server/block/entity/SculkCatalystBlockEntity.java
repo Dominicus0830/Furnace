@@ -4,6 +4,7 @@
 package org.domi.furnace.server.block.entity;
 
 import java.util.Optional;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.ChunkLevel;
@@ -22,6 +23,7 @@ import org.domi.furnace.server.world.gameevent.GameEventContext;
 import org.domi.furnace.server.world.gameevent.GameEventListener;
 import org.domi.furnace.server.world.gameevent.PositionSource;
 
+@VanillaPort("net.minecraft.world.level.block.entity.SculkCatalystBlockEntity")
 public class SculkCatalystBlockEntity extends BlockEntity implements GameEventListener.Provider {
 
     private static final int CATALYST = B.id("sculk_catalyst");

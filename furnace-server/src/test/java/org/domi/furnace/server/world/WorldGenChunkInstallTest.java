@@ -1,6 +1,7 @@
 // 청크 설치(Region): 월드젠 엔티티(마을 주민·골렘·고양이 템플릿 엔티티)를 실제 엔티티로, 상자·침대 블록 엔티티를 청크 패킷에.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.concurrent.Executors;
@@ -30,8 +31,8 @@ class WorldGenChunkInstallTest {
     @Test
     void worldGenEntitiesAndChestsAreInstalled() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        ItemRegistry items = ItemRegistry.load("items/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        ItemRegistry items = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
         var flat = new SuperflatWorldSource(reg, 0);
         WorldSource src = (cx, cz) -> {
             ChunkColumn c = flat.generate(cx, cz);

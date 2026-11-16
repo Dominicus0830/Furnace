@@ -1,6 +1,7 @@
 // 엔티티 종류별 자연 스폰 정보(EntityType 의 category·canSummon·canSpawnFarFromPlayer·fireImmune) — entities/entity_meta-1.21.1.txt 에서 읽는다.
 package org.domi.furnace.server.entity.spawn;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -12,7 +13,7 @@ public final class EntityMeta {
     private static final Map<String, Info> BY_NAME = new HashMap<>();
 
     static {
-        try (var in = EntityMeta.class.getClassLoader().getResourceAsStream("entities/entity_meta-1.21.1.txt")) {
+        try (var in = EntityMeta.class.getClassLoader().getResourceAsStream("entities/entity_meta-" + GameVersion.RESOURCE_TAG + ".txt")) {
             for (String line : new String(in.readAllBytes(), StandardCharsets.UTF_8).split("\n")) {
                 String[] p = line.trim().split(" ");
                 if (p.length != 5) continue;

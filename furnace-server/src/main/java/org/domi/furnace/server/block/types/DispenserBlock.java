@@ -1,6 +1,7 @@
 // 바닐라 DispenserBlock: 발사기. 신호가 새로 들어오면(위 칸 신호 포함) 4틱 뒤 무작위 칸의 아이템을 내보낸다(블록 엔티티·아이템 동작).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.entity.ContainerBlockEntity;
 import org.domi.furnace.server.block.entity.BlockEntity;
 import org.domi.furnace.server.block.B;
@@ -20,6 +21,7 @@ import org.domi.furnace.server.block.entity.DispenserBlockEntity;
 import org.domi.furnace.server.block.entity.DropperBlockEntity;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.DispenserBlock")
 public class DispenserBlock extends BaseEntityBlock {
 
     static final Prop FACING = B.prop("facing"), TRIGGERED = B.prop("triggered");

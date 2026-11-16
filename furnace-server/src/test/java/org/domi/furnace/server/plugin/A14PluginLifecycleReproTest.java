@@ -115,9 +115,12 @@ class A14PluginLifecycleReproTest {
         awaitLog("tick:v2");
         TestPlugins.LOG.clear();
         Thread.sleep(500);
-        assertFalse(TestPlugins.LOG.contains("tick:v1"),
-                "꺼진(옛) 플러그인이 server().scheduler() 로 건 반복 작업은 멈춰야 한다 — Paper 는 disablePlugin 때 그 플러그인의 작업을 모두 취소한다. 기록: "
-                        + TestPlugins.LOG.subList(0, Math.min(10, TestPlugins.LOG.size())));
+        // 새 작업이 계속 LOG 에 붙으므로 사본 하나로 판정·메시지를 만든다(살아 있는 CopyOnWriteArrayList 의 subList 를 메시지로 찍으면
+        // 그사이 붙은 기록 때문에 ConcurrentModificationException 이 난다 — T-161, CI 재시도로 가려진 흔들림)
+        List<String> seen = List.copyOf(TestPlugins.LOG);
+        assertFalse(seen.contains("tick:v1"),
+                () -> "꺼진(옛) 플러그인이 server().scheduler() 로 건 반복 작업은 멈춰야 한다 — Paper 는 disablePlugin 때 그 플러그인의 작업을 모두 취소한다. 기록: "
+                        + seen.subList(0, Math.min(10, seen.size())));
     }
 
     // ------------------------------------------------------------------ A14-01: PluginTasks 가 끝난 한 번짜리 작업을 놓지 않는다
@@ -202,7 +205,12 @@ class A14PluginLifecycleReproTest {
         start();
         host.dispatchCommand(host.console(), "selfoff");
         awaitLog("selfoff:run");
-        assertFalse(host.plugins().isEnabled("Hot"));
+        // 처리기는 기록을 남긴 "뒤에" setEnabled(false) 를 부른다 — 기록이 보였다고 끄기까지 끝난 것은 아니다(T-161, CI 4회 흔들림)
+        long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (host.plugins().isEnabled("Hot")) {
+            if (System.nanoTime() > end) fail("명령 안에서 스스로 끈 플러그인이 꺼지지 않았다");
+            Thread.sleep(5);
+        }
         TestPlugins.LOG.clear();
         host.dispatchCommand(host.console(), "selfoff");
         Thread.sleep(300);

@@ -1,6 +1,7 @@
 // 개구리알 부화(올챙이)·스니퍼 알 부화(아기 스니퍼) 생성과 피글린 분노(금 블록 캐기·상자 열기·상자 탈것) 연결.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -22,7 +23,7 @@ class HatchSpawnAndPiglinAngerTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static SkeletonCombatTest.ArenaLevel level() { return new SkeletonCombatTest.ArenaLevel(); }

@@ -6,6 +6,12 @@ import java.util.List;
 /** byte 배열 태그(가변). 원소는 ByteTag 로 보인다. */
 public final class ByteArrayTag extends CollectionTag<ByteTag> {
 
+    /** 바닐라 {@code ByteArrayTag.TYPE}: 이 클래스 안의 익명 종류(이름·표시 이름·isValue 는 바닐라 1.21.1 jar 와 대조). */
+    public static final TagType<ByteArrayTag> TYPE = new TagType<>() {
+        @Override public String getName() { return "BYTE[]"; }
+        @Override public String getPrettyName() { return "TAG_Byte_Array"; }
+    };
+
     private byte[] data;
 
     public ByteArrayTag(byte[] data) { this.data = data; }

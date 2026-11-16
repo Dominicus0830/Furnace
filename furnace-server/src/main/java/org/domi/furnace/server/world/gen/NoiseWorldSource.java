@@ -1,6 +1,7 @@
 // 바닐라 비트일치 노이즈 지형 WorldSource. generateBlockIds + Aquifer 기반 블록 결정
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -65,10 +66,11 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
     // 키: (cx<<32)^cz, 값: lz*16+lx 인덱스의 (height-1). generate()는 seed+좌표만의 순수 함수라 메모이제이션 안전.
     // bounded LRU(256) — 무제한 ConcurrentHashMap이던 것을 pristine 캐시와 같은 이유로 bounded화.
     private static final int SURFACE_HEIGHT_CACHE_SIZE = 256;
-    private final Map<Long, ChunkColumn> terrainCache = java.util.Collections.synchronizedMap(
+    // baseBlock(getBaseColumn) 캐시 — 청크의 노이즈 단계 블록(noiseBlockIds). 표면 규칙은 넣지 않는다(바닐라 iterateNoiseColumn).
+    private final Map<Long, int[]> terrainCache = java.util.Collections.synchronizedMap(
         new java.util.LinkedHashMap<>(16, 0.75f, true) {
             @Override
-            protected boolean removeEldestEntry(Map.Entry<Long, ChunkColumn> eldest) {
+            protected boolean removeEldestEntry(Map.Entry<Long, int[]> eldest) {
                 return size() > 24;
             }
         });
@@ -178,10 +180,10 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
      */
     public static NoiseWorldSource overworld(long seed, BlockRegistry reg, RegistrySet registries, String noiseSettings, String fixedBiome) {
         if (!OVERWORLD_NOISE_SETTINGS.contains(noiseSettings)) {
-            throw new IllegalArgumentException("지원하지 않는 오버월드 노이즈 설정: " + noiseSettings);
+            throw new IllegalArgumentException("unsupported overworld noise settings: " + noiseSettings);
         }
         if (fixedBiome != null && registries.indexOf("minecraft:worldgen/biome", fixedBiome) < 0) {
-            throw new IllegalArgumentException("모르는 바이옴: " + fixedBiome);
+            throw new IllegalArgumentException("unknown biome: " + fixedBiome);
         }
         return create(Dimension.OVERWORLD, noiseSettings, seed, reg, registries, fixedBiome);
     }
@@ -197,7 +199,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
      * 생성 문맥은 FlatLevelSource 값: getMinY 0, getGenDepth 384, getSeaLevel -63.
      */
     public static NoiseWorldSource flat(long seed, BlockRegistry reg, RegistrySet registries, FlatSpec spec) {
-        if (registries.indexOf("minecraft:worldgen/biome", spec.biome()) < 0) throw new IllegalArgumentException("모르는 바이옴: " + spec.biome());
+        if (registries.indexOf("minecraft:worldgen/biome", spec.biome()) < 0) throw new IllegalArgumentException("unknown biome: " + spec.biome());
         return create(Dimension.OVERWORLD, "minecraft:overworld", seed, reg, registries, spec.biome(), spec);
     }
 
@@ -242,7 +244,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
 
     private static NoiseWorldSource create(Dimension dim, String noiseSettingsId, long seed, BlockRegistry reg, RegistrySet registries, String fixedBiome,
                                            FlatSpec flat) {
-        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
+        WorldgenData data = WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG);
         JsonObject settingsJson = data.noiseSettings(noiseSettingsId);
         NoiseSettings settings = NoiseSettings.fromJson(noiseSettingsId, settingsJson);
         NoiseRouter router = NoiseRouter.build(data, settings, seed);
@@ -286,23 +288,73 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
             new org.domi.furnace.server.world.gen.structure.StructureEngine(reg, seed, new java.util.HashSet<>(possible));
 
         structureEngine.setBiomeRegistryNames(registryBiomeNames);
-        // 평지 구조물(structure_overrides)은 아직 만들지 않는다 — 높이(getBaseHeight)·찾기 연결과 함께 다음 단계(A06-04 뒤쪽)
-        if (flat != null) structureEngine.setAllowedSets(java.util.Set.of());
+        // 평지: FlatLevelSource.createState — structure_overrides 의 세트만(없으면 레지스트리 전부)
+        if (flat != null && flat.structureOverrides() != null) structureEngine.setAllowedSets(new java.util.HashSet<>(flat.structureOverrides()));
+        // ChunkGeneratorStructureState.createForFlat: concentricRingsSeed = 0(요새 링이 시드와 무관)
+        if (flat != null) structureEngine.setConcentricRingsSeed(0L);
         NoiseWorldSource source = new NoiseWorldSource(router, settings, biomeSampler, surfaceSystem,
                                     registryBiomeNames, stoneId, waterId, lavaId,
                                     seed, reg, biomeDirectBits, overworldCarvers,
                                     featurePlacer, structurePlacementCatalog, structureEngine, spawnTargets);
         source.worldgenData = data;
         source.dimension = dim;
+        surfaceSystem.attachChunkBiomes(source.chunkBiomeSource(), dim.minY, dim.sectionCount * 16);
         source.flatLayers = flatLayers;
+        source.fixedBiomeName = fixedBiome;
         if (flatLayers != null) source.flatBiomeId = registries.indexOf("minecraft:worldgen/biome", flat.biome());
         return source;
     }
 
     private Dimension dimension = Dimension.OVERWORLD;
+
+    // 최근 만든 청크의 바이옴 배열(sampleChunk 결과 사본) — 이웃 청크 표면 규칙이 바닐라처럼 "이웃 청크에 저장된 바이옴"을 읽을 때 쓴다.
+    // 순수 함수 결과라 언제 비워도 되고, 없으면 그 quart 만 다시 검색한다(SurfaceSystem.storedBiome).
+    private static final int CHUNK_BIOME_CACHE_SIZE = 512;
+    private final Map<Long, int[]> chunkBiomeCache = java.util.Collections.synchronizedMap(
+        new java.util.LinkedHashMap<>(64, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<Long, int[]> eldest) {
+                return size() > CHUNK_BIOME_CACHE_SIZE;
+            }
+        });
+
+    private SurfaceSystem.ChunkBiomes chunkBiomeSource() {
+        return new SurfaceSystem.ChunkBiomes() {
+            @Override public int[] cached(int chunkX, int chunkZ) { return chunkBiomeCache.get(chunkKey(chunkX, chunkZ)); }
+
+            @Override public int[] compute(int chunkX, int chunkZ) {
+                int[] a = cached(chunkX, chunkZ);
+                if (a != null) return a;
+                a = sampleBiomes(chunkX, chunkZ);
+                int[] prev = chunkBiomeCache.putIfAbsent(chunkKey(chunkX, chunkZ), a);
+                return prev != null ? prev : a;
+            }
+        };
+    }
+    /**
+     * 새로 생성한 청크에 저장될 바이옴(= sampleChunk 결과)의 그 quart — 바닐라가 이웃 청크 바이옴을 읽을 때(WorldGenRegion·로드된 이웃의
+     * ChunkAccess.getNoiseBiome) 보는 값. quart y 는 차원 높이 범위로 죈다. 힌트 없는 R-트리 검색(sampleQuart)은 거리 동률에서 저장값과 다를 수
+     * 있어, 동률이면 그 청크의 sampleChunk 배열을 읽는다(SurfaceSystem.storedBiome 과 같은 방식). 아무 스레드.
+     */
+    public String storedBiomeAtQuart(int qx, int qy, int qz) {
+        int dq0 = dimension.minY >> 2, dqN = dimension.sectionCount * 4;
+        int y = Math.max(dq0, Math.min(dq0 + dqN - 1, qy));
+        int id = biomeSampler.sampleQuartUnique(qx, y, qz, router);
+        if (id == Integer.MIN_VALUE) id = chunkBiomeSource().compute(qx >> 2, qz >> 2)[((y - dq0) * 4 + (qz & 3)) * 4 + (qx & 3)];
+        return id >= 0 && id < registryBiomeNames.length ? registryBiomeNames[id] : null;
+    }
+
     /** 평지 생성기의 층(null 이면 노이즈 생성기). */
     private FlatLayers flatLayers;
     private int flatBiomeId;
+    /** FixedBiomeSource 바이옴(평지·single_biome_surface), multi_noise 면 null. */
+    private String fixedBiomeName;
+
+    @Override public String fixedBiome() { return dimension == Dimension.OVERWORLD ? fixedBiomeName : null; }
+
+    @Override public int levelMinY() { return dimension.minY; }
+
+    @Override public int levelMaxY() { return dimension.minY + dimension.sectionCount * 16; }
 
     /** 평지 생성기(FlatLevelSource)인가. */
     public boolean isFlat() { return flatLayers != null; }
@@ -660,6 +712,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
             terrainCache.clear();
             surfaceHeightCache.clear();
             beardStartCache.clear();
+            chunkBiomeCache.clear();
             sharedStarts.clear();
             pipeline.clearPristineCache();
             hookStamp = now;
@@ -694,6 +747,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         }
 
         int[] biomeIds = biomeSampler.sampleChunk(chunkX, chunkZ, nc);
+        chunkBiomeCache.put(chunkKey(chunkX, chunkZ), biomeIds.clone());
         col.loadGenerated(blockIds, biomeIds);
         if (vanillaNoise) nc.transferFluidMarks(col);   // 대수층 경계 유체 — 청크가 붙을 때 유체 틱(A06-03)
         if (hooks != null) hooks.chunkStage(org.domi.furnace.api.worldgen.GenerationStage.NOISE, col, chunkX, chunkZ);
@@ -906,6 +960,13 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
 
     @Override
     public int firstOccupiedHeight(int heightmap, int blockX, int blockZ) {
+        // 플러그인 baseHeight 훅(Paper CustomChunkGenerator.getBaseHeight) — 정하지 않으면 바닐라. 훅 값은 첫 빈 칸 y 라 하나 뺀다.
+        GenHooks hooks = genHooks;
+        if (hooks != null) {
+            var r = hooks.baseHeight(heightmap == HM_OCEAN_FLOOR_WG ? org.domi.furnace.api.worldgen.GenerationHeightmap.OCEAN_FLOOR_WG
+                : org.domi.furnace.api.worldgen.GenerationHeightmap.WORLD_SURFACE_WG, blockX, blockZ);
+            if (r.isPresent()) return r.getAsInt() - 1;
+        }
         if (flatLayers != null) return flatBaseHeight(heightmap) - 1;
         return heightmap == HM_OCEAN_FLOOR_WG ? oceanFloorWgHeightAt(blockX, blockZ) : worldSurfaceHeightAt(blockX, blockZ);
     }
@@ -935,17 +996,23 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
             int[] filled = flatLayers.filled();
             return i >= 0 && i < filled.length && i < dimension.sectionCount * 16 && filled[i] >= 0 ? filled[i] : ChunkSection.AIR;
         }
+        // 바닐라 NoiseBasedChunkGenerator.getBaseColumn = iterateNoiseColumn: 노이즈·대수층·광맥만, 표면 규칙 없음(높이 질의와 같다).
+        // 예전에는 표면 규칙까지 한 청크를 만들어 읽었다 — 네더 화석은 청크마다 이웃 청크 표면을 몇 번씩 새로 만들었고(네더 생성 CPU 의
+        // 큰 몫), 오버월드는 표면 규칙이 공기·물에 놓는 블록(빙산·악지 기둥)을 바닥으로 보았다.
+        // 높이 질의와 같이 플러그인 NOISE·SURFACE 훅은 보지 않는다(ChunkGenerationHooks 규칙).
+        int i = blockY - dimension.minY;
+        if (i < 0 || i >= dimension.sectionCount * 16) return ChunkSection.AIR;
         int cx = Math.floorDiv(blockX, 16);
         int cz = Math.floorDiv(blockZ, 16);
         long key = chunkKey(cx, cz);
-        // synchronizedMap.computeIfAbsent 는 생성(수십 ms) 동안 맵 전체를 잠근다 — 락 밖에서 계산한다(순수 함수라 중복 계산도 같은 값).
-        ChunkColumn c = terrainCache.get(key);
-        if (c == null) {
-            ChunkColumn fresh = generate(cx, cz);
-            c = terrainCache.putIfAbsent(key, fresh);
-            if (c == null) c = fresh;
+        // synchronizedMap.computeIfAbsent 는 생성 동안 맵 전체를 잠근다 — 락 밖에서 계산한다(순수 함수라 중복 계산도 같은 값).
+        int[] ids = terrainCache.get(key);
+        if (ids == null) {
+            int[] fresh = noiseBlockIds(cx, cz);
+            ids = terrainCache.putIfAbsent(key, fresh);
+            if (ids == null) ids = fresh;
         }
-        return c.getBlock(blockX - cx * 16, blockY, blockZ - cz * 16);
+        return ids[i * 256 + (blockZ - cz * 16) * 16 + (blockX - cx * 16)];
     }
 
     @Override
@@ -1044,6 +1111,9 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
     Map<Long, int[]> surfaceHeightCache() {
         return surfaceHeightCache;
     }
+
+    /** 표면 규칙 실행기(시험·측정용). */
+    public SurfaceSystem surfaceSystem() { return surfaceSystem; }
 
     /** BiomeSource.getNoiseBiome(quart 좌표, climate sampler) 의 레지스트리 id(/locate biome). */
     public int noiseBiomeIdAtQuart(int qx, int qy, int qz) { return biomeSampler.sampleQuart(qx, qy, qz, router); }

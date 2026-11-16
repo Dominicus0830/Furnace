@@ -2,6 +2,7 @@
 // Projectile.mayInteract(쏜 쪽이 몹이면 mobGriefing)·mayBreak(impact_projectiles + projectilesCanBreakBlocks).
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -53,7 +54,7 @@ class ProjectileBlockHitTest {
             try {
                 var loot = org.domi.furnace.server.loot.VanillaChestLootTest.vanillaLoot();
                 var net = new org.domi.furnace.server.loot.NetworkComponents(new org.domi.furnace.server.data.TagRegistries(
-                        org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                        org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
                 var bs = org.domi.furnace.server.ServerCore.lootBlockState(state);
                 return org.domi.furnace.server.loot.TestBlockLoot.drops(loot, net, lootTable, bs.block(), bs.properties(),
                         blockEntity == null ? java.util.Map.of() : blockEntity, org.domi.furnace.server.loot.LootStack.empty());

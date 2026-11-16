@@ -1,6 +1,7 @@
 // 방랑 상인과 스포너: 거래 구성(5+1), 저장/불러오기, 사라짐, 스포너의 지연·확률 갱신(난수 고정)과 스폰 위치.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
@@ -19,7 +20,7 @@ class WanderingTraderTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static WanderingTrader trader(BlockPlacementTest.TestLevel level) {

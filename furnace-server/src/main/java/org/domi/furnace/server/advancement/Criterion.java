@@ -19,7 +19,13 @@ import org.domi.furnace.server.loot.LootRegistries;
 import org.domi.furnace.server.loot.LootStack;
 import org.domi.furnace.server.loot.StateProperties;
 
-public record Criterion(String trigger, Matcher matcher, List<LootCondition> player) {
+public record Criterion(String trigger, Matcher matcher, List<LootCondition> player, InventoryKey inventoryKey) {
+
+    /** 색인 키 없이(항상 후보) 만든다. */
+    public Criterion(String trigger, Matcher matcher, List<LootCondition> player) { this(trigger, matcher, player, null); }
+
+    /** inventory_changed 색인 키: 바뀐 칸 아이템이 items 중 하나이거나 tag 에 들어 있어야만 맞을 수 있다(둘 중 하나만 있다). */
+    public record InventoryKey(Set<String> items, String tag) {}
 
     /** 트리거별 사건과 조건 비교(바닐라 SimpleInstance 의 matches). */
     public interface Matcher { boolean test(Object event, LootRegistries regs); }
@@ -39,8 +45,83 @@ public record Criterion(String trigger, Matcher matcher, List<LootCondition> pla
     private static final Set<String> PLAYER_TRIGGERS = Set.of("minecraft:location", "minecraft:slept_in_bed", "minecraft:tick",
             "minecraft:hero_of_the_village", "minecraft:voluntary_exile", "minecraft:avoid_vibration", "minecraft:started_riding");
 
-    /** inventory_changed 사건: 플레이어 인벤토리 41칸과 막 바뀐 스택. */
-    public record InventoryEvent(LootStack[] inventory, LootStack changed) {}
+    /**
+     * inventory_changed 사건: 플레이어 인벤토리 41칸과 막 바뀐 스택.
+     * 스택 변환(깊은 복사)과 칸 수 세기는 후보가 실제로 필요로 할 때까지 미루고, 한 번 한 것은 이 사건 안에서 다시 하지 않는다.
+     * 한 사건은 한 스레드(PlayerAdvancements 잠금 안)에서만 쓴다.
+     */
+    public static final class InventoryEvent {
+        private LootStack[] inventory;
+        private LootStack changed;
+        private final java.util.function.Supplier<LootStack[]> inventorySource;
+        private final java.util.function.Supplier<LootStack> changedSource;
+        private final String changedItem;
+        private final java.util.function.IntSupplier occupiedSource;
+        private int occupied = -1, slotCount, full = -1;
+
+        public InventoryEvent(LootStack[] inventory, LootStack changed) {
+            this.inventory = inventory;
+            this.changed = changed;
+            this.inventorySource = null;
+            this.changedSource = null;
+            this.occupiedSource = null;
+            this.slotCount = inventory.length;
+            this.changedItem = changed == null || changed.isEmpty() ? null : changed.item();
+        }
+
+        /**
+         * 지연 꼴: changedItem 은 바뀐 칸 아이템 이름(빈 칸이면 null), 나머지는 처음 쓸 때 한 번 만든다.
+         * occupiedCount 는 41칸 중 빈 스택이 아닌 칸 수를 스택 변환 없이 세는 함수(빈/찬 칸 구간 조건용).
+         */
+        public InventoryEvent(String changedItem, java.util.function.Supplier<LootStack> changed,
+                              java.util.function.Supplier<LootStack[]> inventory, java.util.function.IntSupplier occupiedCount) {
+            this.changedItem = changedItem;
+            this.changedSource = changed;
+            this.inventorySource = inventory;
+            this.occupiedSource = occupiedCount;
+            this.slotCount = 41;
+        }
+
+        public LootStack[] inventory() {
+            if (inventory == null) inventory = inventorySource.get();
+            return inventory;
+        }
+
+        public LootStack changed() {
+            if (changed == null && changedSource != null) changed = changedSource.get();
+            return changed;
+        }
+
+        /** 바뀐 칸의 아이템 이름(빈 칸이면 null) — 스택을 만들지 않고 색인을 찾는 용도. */
+        public String changedItem() { return changedItem; }
+
+        // 바닐라 InventoryChangeTrigger.trigger 처럼 사건당 한 번만 센다. 필요한 수만 센다.
+
+        /** 찬 칸(빈 스택이 아닌 칸) 수. */
+        int occupied() {
+            if (occupied < 0) {
+                if (occupiedSource != null) occupied = occupiedSource.getAsInt();
+                else {
+                    int oc = 0;
+                    for (LootStack s : inventory) if (s != null && !s.isEmpty()) oc++;
+                    occupied = oc;
+                }
+            }
+            return occupied;
+        }
+
+        int empty() { return slotCount - occupied(); }
+
+        /** 가득 찬 칸(개수 ≥ 최대 스택) 수 — 스택 변환이 필요하다. */
+        int full() {
+            if (full < 0) {
+                int f = 0;
+                for (LootStack s : inventory()) if (s != null && !s.isEmpty() && s.count() >= s.maxStackSize()) f++;
+                full = f;
+            }
+            return full;
+        }
+    }
 
     /** recipe_crafted 사건: 쓴 레시피 id 와 제작 격자에 있던 스택들. */
     public record RecipeCraftedEvent(ResourceId recipe, List<LootStack> ingredients) {}
@@ -100,7 +181,40 @@ public record Criterion(String trigger, Matcher matcher, List<LootCondition> pla
         }
         JsonObject c = o.has("conditions") && o.get("conditions").isJsonObject() ? o.getAsJsonObject("conditions") : new JsonObject();
         List<LootCondition> player = c.has("player") ? playerPredicate(c.get("player"), regs) : List.of();
-        return new Criterion(trigger, matcher(trigger, c, regs), player);
+        return new Criterion(trigger, matcher(trigger, c, regs), player, inventoryKey(trigger, c));
+    }
+
+    /**
+     * 색인 키: inventory_changed 이고 items 가 술어 하나뿐이며 그 술어가 아이템 id 목록 또는 태그 하나로 제한하면 그 키.
+     * 그 아이템이 아닌 것이 바뀐 사건에는 이 기준이 절대 맞지 않는다(필요 조건). 모르는 모양은 null(항상 후보).
+     */
+    private static InventoryKey inventoryKey(String trigger, JsonObject c) {
+        if (!trigger.equals("minecraft:inventory_changed") || !c.has("items") || !c.get("items").isJsonArray()) return null;
+        var arr = c.getAsJsonArray("items");
+        if (arr.size() != 1 || !arr.get(0).isJsonObject() || !arr.get(0).getAsJsonObject().has("items")) return null;
+        JsonElement it = arr.get(0).getAsJsonObject().get("items");
+        List<String> names = new ArrayList<>();
+        if (it.isJsonPrimitive()) {
+            String n = it.getAsString();
+            if (n.startsWith("#")) {
+                ResourceId tag = ResourceId.tryParse(n.substring(1));
+                return tag == null ? null : new InventoryKey(null, tag.toString());
+            }
+            names.add(n);
+        } else if (it.isJsonArray() && !it.getAsJsonArray().isEmpty()) {
+            for (JsonElement x : it.getAsJsonArray()) {
+                if (!x.isJsonPrimitive()) return null;
+                names.add(x.getAsString());
+            }
+        } else return null;
+        Set<String> out = new java.util.HashSet<>();
+        for (String n : names) {
+            if (n.startsWith("#")) return null;
+            ResourceId id = ResourceId.tryParse(n);
+            if (id == null) return null;
+            out.add(id.toString());
+        }
+        return new InventoryKey(Set.copyOf(out), null);
     }
 
     /** 바닐라 EntityPredicate.ADVANCEMENT_CODEC — 조건 목록이거나, 엔티티 조건 하나(this 대상 entity_properties). */
@@ -151,14 +265,15 @@ public record Criterion(String trigger, Matcher matcher, List<LootCondition> pla
                 if (c.has("items")) for (JsonElement x : c.getAsJsonArray("items")) items.add(ItemPredicate.parse(x, regs));
                 yield (ev, r) -> {
                     InventoryEvent inv = (InventoryEvent) ev;
-                    int f = 0, em = 0, oc = 0;
-                    for (LootStack s : inv.inventory()) {
-                        if (s == null || s.isEmpty()) em++;
-                        else { oc++; if (s.count() >= s.maxStackSize()) f++; }
-                    }
-                    if (!full.matches(f) || !empty.matches(em) || !occupied.matches(oc)) return false;
+                    if (!full.isAny() && !full.matches(inv.full())) return false;
+                    if (!empty.isAny() && !empty.matches(inv.empty())) return false;
+                    if (!occupied.isAny() && !occupied.matches(inv.occupied())) return false;
                     if (items.isEmpty()) return true;
-                    if (items.size() == 1) return inv.changed() != null && !inv.changed().isEmpty() && items.get(0).test(inv.changed(), r);
+                    if (items.size() == 1) {
+                        if (inv.changedItem() == null) return false;
+                        LootStack ch = inv.changed();
+                        return ch != null && !ch.isEmpty() && items.get(0).test(ch, r);
+                    }
                     List<ItemPredicate> remaining = new ArrayList<>(items);
                     for (LootStack s : inv.inventory()) {
                         if (remaining.isEmpty()) return true;

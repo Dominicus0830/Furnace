@@ -19,6 +19,7 @@ import org.domi.furnace.server.command.brigadier.DynamicCommandExceptionType;
 import org.domi.furnace.server.world.gen.NoiseWorldSource;
 import org.domi.furnace.server.world.gen.structure.StructureLocator;
 import org.domi.furnace.server.world.gen.structure.StructureRegistry;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -82,7 +83,7 @@ public final class LocateCommand {
             try {
                 return gen.structureLocator().findNearest(ids, ox, oy, oz, MAX_STRUCTURE_SEARCH_RADIUS);
             } catch (RuntimeException e) {
-                LOG.warn("구조물 찾기 실패", e);
+                LOG.warn(Lang.t("locate.failed"), e);
                 return null;
             }
         }, WORKER);

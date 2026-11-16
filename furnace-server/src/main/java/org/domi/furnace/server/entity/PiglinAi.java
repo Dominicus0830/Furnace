@@ -461,7 +461,7 @@ public final class PiglinAi {
     private static java.util.UUID uuidOf(Targetable target) {
         if (target instanceof Entity e) return e.uuid();
         if (target instanceof Player p) return p.uuid();
-        throw new IllegalArgumentException("UUID 를 모르는 분노 대상: " + target);
+        throw new IllegalArgumentException("anger target without a known UUID: " + target);
     }
 
     private static void setAngerTargetToNearestTargetablePlayerIfFound(AbstractPiglin piglin, Targetable fallback) {

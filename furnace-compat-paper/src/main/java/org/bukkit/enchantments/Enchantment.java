@@ -79,6 +79,16 @@ public final class Enchantment implements Keyed {
         return BY_KEY.get(key.getKey());
     }
 
+    /**
+     * @deprecated 키 문자열(소문자로 바꿔 읽는다)로 찾는다. null 이면 null. 옛 이름(DAMAGE_ALL)은 Paper 처럼 클래스를 올릴 때 바꾼 다리
+     * (compat.nms.ApiRenames)가 먼저 새 이름으로 바꿔 넘긴다.
+     */
+    @Deprecated
+    public static Enchantment getByName(String name) {
+        if (name == null) return null;
+        return getByKey(NamespacedKey.fromString(name.toLowerCase(Locale.ROOT)));
+    }
+
     /** "minecraft:sharpness"·"sharpness"·"SHARPNESS" 로 찾는다. 없으면 null. */
     public static Enchantment fromKey(String name) {
         if (name == null) return null;
@@ -90,11 +100,11 @@ public final class Enchantment implements Keyed {
     /** 모든 마법 부여(키 순). */
     public static Iterable<Enchantment> all() { return Collections.unmodifiableCollection(BY_KEY.values()); }
 
-    public int getMaxLevel() { throw new org.domi.furnace.compat.paper.UnsupportedFeature("Enchantment#getMaxLevel", "최대 레벨은 서버 데이터에서 오며 API 가 아직 알려 주지 않는다"); }
+    public int getMaxLevel() { throw new org.domi.furnace.compat.paper.UnsupportedFeature("Enchantment#getMaxLevel", "the maximum level comes from server data and the API does not expose it yet"); }
 
-    public int getStartLevel() { throw new org.domi.furnace.compat.paper.UnsupportedFeature("Enchantment#getStartLevel", "시작 레벨은 서버 데이터에서 오며 API 가 아직 알려 주지 않는다"); }
+    public int getStartLevel() { throw new org.domi.furnace.compat.paper.UnsupportedFeature("Enchantment#getStartLevel", "the start level comes from server data and the API does not expose it yet"); }
 
-    public boolean canEnchantItem(org.bukkit.inventory.ItemStack item) { throw new org.domi.furnace.compat.paper.UnsupportedFeature("Enchantment#canEnchantItem", "적용 가능한 아이템은 서버 데이터에서 오며 API 가 아직 알려 주지 않는다"); }
+    public boolean canEnchantItem(org.bukkit.inventory.ItemStack item) { throw new org.domi.furnace.compat.paper.UnsupportedFeature("Enchantment#canEnchantItem", "the applicable items come from server data and the API does not expose them yet"); }
 
     @Override
     public boolean equals(Object o) { return o instanceof Enchantment e && e.key.equals(key); }

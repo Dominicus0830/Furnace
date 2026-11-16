@@ -1,5 +1,5 @@
-// 플레이어가 엔티티를 오른쪽 클릭했을 때(interact 패킷의 INTERACT) — 그 엔티티를 가진 region 스레드에서, 바닐라 처리 전에 불린다.
-// 취소하면 상호작용(거래 창·탑승·이름표·양동이 등)이 일어나지 않고 손 아이템을 다시 보낸다. INTERACT_AT(갑옷 거치대 위치 클릭)은 발화하지 않는다.
+// 플레이어가 엔티티를 오른쪽 클릭했을 때(interact 패킷의 INTERACT) 그 엔티티를 가진 region 스레드에서 바닐라 처리 전에 불린다.
+// 취소하면 상호작용(거래 창, 탑승, 이름표, 양동이 등)이 일어나지 않고 손 아이템을 다시 보낸다. INTERACT_AT(갑옷 거치대 위치 클릭)은 발화하지 않는다.
 package org.domi.furnace.api.event.player;
 
 import org.domi.furnace.api.entity.Entity;

@@ -3,7 +3,9 @@ package org.domi.furnace.server.block;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.level.block.Block")
 public final class B {
     private B() {}
 
@@ -61,6 +63,29 @@ public final class B {
         return level.gameEvents().blockFade(level.dimension(), pos, level.getBlockState(pos), newState);
     }
 
+    /**
+     * CraftEventFactory.callEntityChangeBlockEvent(who, pos, newState): 플러그인 EntityChangeBlockEvent 가 허락하는가(바꾸는 일은 부른 쪽이).
+     * 구독자가 없으면 블록을 읽지 않고 곧바로 true.
+     */
+    public static boolean entityChange(BlockLevel level, org.domi.furnace.server.entity.Rider who, Pos pos, int newState) {
+        return entityChange(level, who, pos, newState, false);
+    }
+
+    /** 미리 취소한 채로 묻는 판(Paper 가 게임 규칙 거짓을 cancelled 로 넘기는 자리): 구독자가 없으면 !cancelled. */
+    public static boolean entityChange(BlockLevel level, org.domi.furnace.server.entity.Rider who, Pos pos, int newState, boolean cancelled) {
+        var ev = level.gameEvents();
+        if (!ev.wantsEntityChangeBlock()) return !cancelled;
+        return ev.entityChangeBlock(level.dimension(), who, pos, level.getBlockState(pos), newState, cancelled);
+    }
+
+    /** 블록 행위자(플레이어 손잡이)판 — 행위자가 엔티티·플레이어가 아니면(시험용 가짜 등) 묻지 않고 true. */
+    public static boolean entityChange(BlockLevel level, BlockActor actor, Pos pos, int newState) {
+        return actor == null || !(actor.handle() instanceof org.domi.furnace.server.entity.Rider who) || entityChange(level, who, pos, newState, false);
+    }
+
+    /** Paper 의 "state.getFluidState().createLegacyBlock()" — 블록을 없앨 때 이벤트에 알리는 새 상태(잠긴 블록이면 물, 아니면 공기). */
+    public static int fluidLeftover(int state) { return Fluids.createLegacyBlock(behavior(state).getFluidState(state)); }
+
     public static int defaultState(String name) { return BLOCKS.defaultState(id(name)); }
 
     public static Prop prop(String name) { return BLOCKS.prop(name); }
@@ -71,22 +96,34 @@ public final class B {
 
     // ------------------------------------------------------------------ 태그(바닐라 데이터 팩 블록 태그)
 
-    private static final Map<String, boolean[]> TAGS = new ConcurrentHashMap<>();
+    /** 한 태그 표(데이터 팩 리로드마다 새 객체)에서 만든 태그별 블록 번호 표. 표가 바뀌면 통째로 새로 만든다. */
+    private record TagCache(org.domi.furnace.server.net.registry.TagSet src, Map<String, boolean[]> byTag) {}
 
-    /** state.is(#tag) — 태그 이름은 "minecraft:..."(# 없이). */
+    private static volatile TagCache TAGS = new TagCache(null, new ConcurrentHashMap<>());
+
+    /**
+     * state.is(#tag) — 태그 이름은 "minecraft:..."(# 없이). 데이터 팩이 바꾼 블록 태그가 걸려 있으면 그것을 따른다(바닐라 BlockState.is 와 같다).
+     * 데이터 팩 표가 없으면(데이터 팩 없이 도는 시험) jar 의 바닐라 태그. `/reload` 가 표 객체를 바꾸면 캐시가 다음 물음에서 새로 만들어진다.
+     */
     public static boolean isTag(int state, String tag) {
-        boolean[] t = TAGS.get(tag);
-        if (t != null) return t[BLOCKS.blockOf(state)];
-        t = TAGS.computeIfAbsent(tag.indexOf(':') < 0 ? "minecraft:" + tag : tag, k -> {
-            boolean[] arr = new boolean[BLOCKS.blockCount()];
-            for (String n : org.domi.furnace.server.world.gen.feature.BlockTags.get().blocksOf(k)) {
-                int b = BLOCKS.block(n);
-                if (b >= 0) arr[b] = true;
-            }
-            return arr;
-        });
-        TAGS.putIfAbsent(tag, t);
+        var live = org.domi.furnace.server.item.ItemContext.gameplayTags();
+        TagCache c = TAGS;
+        if (c.src != live) TAGS = c = new TagCache(live, new ConcurrentHashMap<>());
+        boolean[] t = c.byTag.get(tag);
+        if (t == null) {
+            var src = c.src;
+            t = c.byTag.computeIfAbsent(tag, k -> blockTagTable(src, k.indexOf(':') < 0 ? "minecraft:" + k : k));
+        }
         return t[BLOCKS.blockOf(state)];
+    }
+
+    /** 태그 표 하나에서 한 태그의 "블록 번호 → 들어 있나" 표. 태그 표의 블록 숫자 id 는 블록 레지스트리 순서 = Blocks 의 블록 번호다(시험으로 보증). */
+    private static boolean[] blockTagTable(org.domi.furnace.server.net.registry.TagSet src, String tag) {
+        boolean[] arr = new boolean[BLOCKS.blockCount()];
+        int[] ids = src.ids("minecraft:block", tag);
+        if (ids == null) return arr; // 없는 태그 = 빈 태그(바닐라: 필수 참조가 빠진 태그는 로드되지 않아 아무것도 안 든 것과 같다)
+        for (int b : ids) if (b >= 0 && b < arr.length) arr[b] = true;
+        return arr;
     }
 
     // ------------------------------------------------------------------ 갱신(바닐라 Block 정적)
@@ -125,6 +162,19 @@ public final class B {
     }
 
     public static boolean isFaceSturdy(int state, BlockLevel level, Pos pos, int dir) { return isFaceSturdy(state, level, pos, dir, BlockInfo.FULL); }
+
+    /**
+     * BlockState.entityCanStandOnFace(level, pos, entity, dir) = Block.isFaceFull(getCollisionShape(level, pos, CollisionContext.of(entity)), dir).
+     * 지지 모양(isFaceSturdy)이 아니라 그 엔티티 문맥의 충돌 모양을 본다 — 잎(지지 모양 빔)·영혼 모래(충돌 14/16)·비계(위에 없으면 빔)에서 갈린다.
+     */
+    public static boolean entityCanStandOnFace(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Rider entity, int dir) {
+        return behavior(state).getCollisionShape(state, level, pos, CollisionContext.of(entity)).isFaceFull(dir);
+    }
+
+    /** BlockState.entityCanStandOn(level, pos, entity): 윗면(entityCanStandOnFace UP). */
+    public static boolean entityCanStandOn(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Rider entity) {
+        return entityCanStandOnFace(state, level, pos, entity, Dir.UP);
+    }
 
     /** Block.canSupportRigidBlock(level, pos) — 그 칸의 윗면이 RIGID. */
     public static boolean canSupportRigidBlock(BlockLevel level, Pos pos) {
@@ -220,5 +270,15 @@ public final class B {
     public static boolean isSolid(int state) { return INFO.legacySolid(state); }
 
     /** 상태의 유체. */
-    public static int fluid(int state) { return behavior(state).getFluidState(state); }
+    public static int fluid(int state) {
+        int[] t = FLUID_TABLE;
+        if (t == null) {
+            t = new int[BLOCKS.stateCount()];
+            for (int i = 0; i < t.length; i++) t[i] = behavior(i).getFluidState(i);
+            FLUID_TABLE = t;
+        }
+        return t[state];
+    }
+
+    private static volatile int[] FLUID_TABLE;   // 상태별 유체 표 — 모든 getFluidState 가 상태만의 함수라 첫 호출에 한 번 채운다(T-050)
 }

@@ -14,6 +14,7 @@ import org.domi.furnace.server.net.ConnectionLimits;
 import org.domi.furnace.server.plugin.library.LibrarySettings;
 import org.domi.furnace.server.remote.RconLimits;
 import org.junit.jupiter.api.AfterEach;
+import org.domi.furnace.server.i18n.Lang;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -165,8 +166,60 @@ class ConfigToolsTest {
     void noVersionLineMeansVersionOneAndCurrentOneTouchesNothing() throws IOException {
         Path f = write("# 내 설정\nautosave-ticks=100\n");
         String before = Files.readString(f, StandardCharsets.UTF_8);
-        assertNull(ConfigMigration.run(f, warn()));
+        assertNull(ConfigMigration.run(f, 1, List.of(), warn()));
         assertEquals(before, Files.readString(f, StandardCharsets.UTF_8));
+    }
+
+    /** 형식 2(2026-11-12): 옛 기본 off 로 자동 기록된 spigot-mappings 줄은 새 기본 download 로, 다른 값·주석 줄은 그대로. */
+    @Test
+    void version2MovesTheOldSpigotMappingsDefaultOnly() throws IOException {
+        Path f = write("# 내 설정\nplugins.compat.nms.spigot-mappings=off\nautosave-ticks=100\n");
+        ConfigMigration.Result r = ConfigMigration.run(f, warn());
+        assertNotNull(r);
+        assertEquals(1, r.from());
+        assertEquals(ConfigMigration.CURRENT, r.to());
+        Properties p = FurnaceProps.readRaw(f);
+        assertEquals("download", p.getProperty("plugins.compat.nms.spigot-mappings"));
+        assertEquals("100", p.getProperty("autosave-ticks"));
+        assertTrue(r.changes().stream().anyMatch(c -> c.contains("plugins.compat.nms.spigot-mappings")), r.changes().toString());
+        assertTrue(Files.readString(r.backup(), StandardCharsets.UTF_8).contains("spigot-mappings=off"), "백업은 원본");
+        assertNull(ConfigMigration.run(f, warn()), "다시 돌리면 아무 일도 없다");
+
+        Path files = write("plugins.compat.nms.spigot-mappings = files\n#plugins.compat.nms.spigot-mappings=off\n");
+        ConfigMigration.run(files, warn());
+        String after = Files.readString(files, StandardCharsets.UTF_8);
+        assertTrue(after.contains("plugins.compat.nms.spigot-mappings = files"), "옛 기본과 다른 값은 그대로: " + after);
+        assertTrue(after.contains("#plugins.compat.nms.spigot-mappings=off"), "주석 줄은 그대로: " + after);
+    }
+
+    /** 형식 3(2026-11-14, T-101): 옛 기본 4 로 자동 기록된 region-section-shift 줄만 3 으로, 직접 고른 값은 그대로. */
+    @Test
+    void version3MovesTheOldRegionSectionShiftDefaultOnly() throws IOException {
+        Path f = write("config-version=2\nregion-section-shift=4\nregion-merge-radius=1\n");
+        ConfigMigration.Result r = ConfigMigration.run(f, warn());
+        assertNotNull(r);
+        assertEquals(2, r.from());
+        assertEquals("3", FurnaceProps.readRaw(f).getProperty("region-section-shift"));
+        assertEquals("1", FurnaceProps.readRaw(f).getProperty("region-merge-radius"));
+        assertTrue(Files.readString(r.backup(), StandardCharsets.UTF_8).contains("region-section-shift=4"), "백업은 원본");
+
+        Path chosen = write("config-version=2\nregion-section-shift=5\n");
+        ConfigMigration.run(chosen, warn());
+        assertEquals("5", FurnaceProps.readRaw(chosen).getProperty("region-section-shift"), "옛 기본과 다른 값은 그대로");
+
+        Path v1 = write("region-section-shift=4\nplugins.compat.nms.spigot-mappings=off\n");   // 형식 1 → 3 두 단계
+        ConfigMigration.run(v1, warn());
+        assertEquals("3", FurnaceProps.readRaw(v1).getProperty("region-section-shift"));
+        assertEquals("download", FurnaceProps.readRaw(v1).getProperty("plugins.compat.nms.spigot-mappings"));
+    }
+
+    @Test
+    void freshlyCreatedPropertiesFileIsAlreadyCurrent() throws IOException {
+        Path f = dir.resolve("fresh.properties");
+        FurnacePropertiesFile.ensure(f);
+        assertNull(ConfigMigration.run(f, warn()), "새로 만든 파일은 다음 기동에 마이그레이션(백업)이 돌지 않는다");
+        assertEquals("download", FurnaceProps.readRaw(f).getProperty("plugins.compat.nms.spigot-mappings"));
+        assertEquals("3", FurnaceProps.readRaw(f).getProperty("region-section-shift"));
     }
 
     @Test
@@ -182,7 +235,7 @@ class ConfigToolsTest {
         assertTrue(after.contains("new-name = 5"), after);
         assertTrue(after.contains("second-new: 9"), after);
         assertTrue(after.contains("unrelated=1"));
-        assertTrue(after.contains("# (형식 1 의 키라 더는 쓰지 않는다) gone-key=yes"), after);
+        assertTrue(after.contains("# (a key of format 1, no longer used) gone-key=yes"), after);
         assertTrue(after.contains("config-version=3"));
         assertTrue(Files.exists(r.backup()));
         assertTrue(Files.readString(r.backup(), StandardCharsets.UTF_8).contains("old-name = 5"), "백업은 원본");
@@ -234,14 +287,40 @@ class ConfigToolsTest {
         List<String> out = ConfigDump.render(s, null, s.size(), s.modified());
         String all = String.join("\n", out);
         assertTrue(all.contains("autosave-ticks = 100"), all);
-        assertTrue(all.contains("(기본 6000)"), all);
-        assertTrue(all.contains("[파일 2번째 줄]"), all);
-        assertTrue(all.contains("velocity-secret = ****(16자)"), all);
+        assertTrue(all.contains("(default 6000)"), all);
+        assertTrue(all.contains("[file, line 2]"), all);
+        assertTrue(all.contains("velocity-secret = ****(16 characters)"), all);
         assertFalse(all.contains("supersecretvalue"), "비밀값이 덤프에 나오면 안 된다");
-        assertTrue(all.contains("환경 변수에서"), all);
+        assertTrue(all.contains("from an environment variable"), all);
         assertFalse(all.contains("backup.keep"), "기본값과 같은 키는 숨긴다");
-        assertTrue(all.contains("entity-view-distance = 6") && all.contains("프리셋 performance"), all);
-        assertTrue(all.contains("autosve-ticks (5번째 줄) — 'autosave-ticks' 를 말한 건가요?"), all);
+        assertTrue(all.contains("entity-view-distance = 6") && all.contains("preset performance"), all);
+        assertTrue(all.contains("autosve-ticks (line 5) - did you mean 'autosave-ticks'?"), all);
+    }
+
+    @Test
+    void dumpFollowsTheServerLanguage() throws IOException {
+        Path f = write("autosave-ticks=100\nvelocity-secret=0123456789abcdef\nautosve-ticks=5\nregion-threads=3\n");
+        ConfigDump.Snapshot s = ConfigDump.take(f);
+        try {
+            Lang.forceForTest("ko");
+            String all = String.join("\n", ConfigDump.render(s, null, s.size(), s.modified()));
+            assertTrue(all.contains("(기본 6000)") && all.contains("[파일 1번째 줄]"), all);
+            assertTrue(all.contains("velocity-secret = ****(16자)"), all);
+            assertTrue(all.contains("autosve-ticks (3번째 줄) — 'autosave-ticks' 를 말한 건가요?"), all);
+            assertTrue(all.contains("region-threads = 3"), "a key whose default is the CPU count is always shown as set: " + all);
+        } finally {
+            Lang.forceForTest("en");
+        }
+    }
+
+    /** cpu-count·per-stage 표지는 기본값 표시에서만 문구로 바뀐다 — 사용자가 같은 글자를 값으로 적으면 그대로 보인다. */
+    @Test
+    void dumpOnlyReplacesDefaultMarkersNotUserValues() throws IOException {
+        Path f = write("server-brand=per-stage\nregion-threads=cpu-count\n");
+        ConfigDump.Snapshot s = ConfigDump.take(f);
+        String all = String.join("\n", ConfigDump.render(s, "all", s.size(), s.modified()));
+        assertTrue(all.contains("server-brand = per-stage"), all);
+        assertTrue(all.contains("region-threads = cpu-count"), all);
     }
 
     @Test
@@ -258,7 +337,7 @@ class ConfigToolsTest {
         ConfigDump.Snapshot s = ConfigDump.take(f);
         String all = String.join("\n", ConfigDump.render(s, "all", s.size(), s.modified()));
         assertTrue(all.contains("backup.keep"));
-        assertTrue(all.contains("(없음 → 기본값 10)"));
+        assertTrue(all.contains("(not set -> default 10)"));
         String filtered = String.join("\n", ConfigDump.render(s, "BACKUP", s.size(), s.modified()));
         assertTrue(filtered.contains("backup.interval-minutes"));
         assertFalse(filtered.contains("autosave-ticks"));
@@ -269,15 +348,15 @@ class ConfigToolsTest {
         Path f = write("autosave-ticks=100\n");
         ConfigDump.Snapshot s = ConfigDump.take(f);
         String text = String.join("\n", ConfigDump.render(s, null, s.size() + 5, s.modified()));
-        assertTrue(text.contains("시작한 뒤 파일이 바뀌었습니다"));
+        assertTrue(text.contains("the file changed after startup"));
     }
 
     @Test
     void dumpWithoutFile() {
         ConfigDump.Snapshot s = ConfigDump.take(dir.resolve("none.properties"));
         String text = String.join("\n", ConfigDump.render(s, null, 0, 0));
-        assertTrue(text.contains("파일 없음"));
-        assertTrue(text.contains("기본값과 다른 키 0개"));
+        assertTrue(text.contains("no file"));
+        assertTrue(text.contains("0 keys differ from the default"));
     }
 
     @Test
@@ -285,8 +364,8 @@ class ConfigToolsTest {
         Path f = write("tick-nanos=40000000\nfoo=1\n");
         ConfigDump.Snapshot s = ConfigDump.take(f);
         String text = String.join("\n", ConfigDump.render(s, null, s.size(), s.modified()));
-        assertTrue(text.contains("경고 1개"), text);
-        assertTrue(text.contains("모르는 키 1개"), text);
+        assertTrue(text.contains("1 warnings"), text);
+        assertTrue(text.contains("1 unknown keys"), text);
     }
 
     @Test
@@ -333,7 +412,7 @@ class ConfigToolsTest {
         List<String> w = new ArrayList<>();
         OptionKeys.audit(p, Map.of("autosve-ticks", 12), w::add);
         assertEquals(1, w.size());
-        assertTrue(w.get(0).contains("(12번째 줄)"), w.get(0));
+        assertTrue(w.get(0).contains("(line 12)"), w.get(0));
     }
 
     // ------------------------------------------------------------------ JVM 점검
@@ -351,7 +430,7 @@ class ConfigToolsTest {
         assertTrue(JvmCheck.check(21, 4L << 30, List.of("-XX:+UseSerialGC"), 8).get(0).contains("Serial"));
         assertTrue(JvmCheck.check(21, 4L << 30, List.of("-XX:+UseParallelGC"), 8).get(0).contains("Parallel"));
         assertTrue(JvmCheck.check(21, 4L << 30, List.of("-Xms1G", "-Xmx4G"), 8).get(0).contains("-Xms1G"));
-        assertTrue(JvmCheck.check(21, 4L << 30, List.of(), 1).get(0).contains("CPU"));
+        assertTrue(JvmCheck.check(21, 4L << 30, List.of(), 1).get(0).contains("CPUs"));
         assertTrue(JvmCheck.check(17, 4L << 30, List.of(), 8).get(0).contains("Java 21"));
     }
 

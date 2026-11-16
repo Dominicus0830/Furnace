@@ -1,0 +1,22 @@
+# 결과 동일 금 파일 — scene-explosion. 최적화 PR 은 이 파일을 바꾸지 않는다. 갱신 절차: docs/testing/identitykit.md
+explosion tick 0 blocks fdef7d80566d59fb
+explosion tick 0 entities 586588d7590b296a
+explosion tick 0 random 2f8b4735bb560e8e
+explosion tick 0 tnt-blocks=100 entities=28
+explosion tick 30 blocks 07ff776395a4fb89
+explosion tick 30 entities eac1f6b00cbf6ed3
+explosion tick 30 random 9e0b42f4351408e5
+explosion tick 30 tnt-blocks=47 entities=79
+explosion tick 60 blocks 6c3d76e61b680ba5
+explosion tick 60 entities 597b9d691952ceaa
+explosion tick 60 random 27a6442d25bd9c09
+explosion tick 60 tnt-blocks=0 entities=16
+explosion tick 90 blocks e050dbd09a558089
+explosion tick 90 entities 0bd960a11dc5b7ab
+explosion tick 90 random 8ba773badaaaf999
+explosion tick 90 tnt-blocks=0 entities=1
+explosion tick 120 blocks 5f297342735daaee
+explosion tick 120 entities 5ea0bdc6aa56bbde
+explosion tick 120 random 1fceee17d2459c76
+explosion tick 120 tnt-blocks=0 entities=1
+TOTAL 940c3f06cbc19a7b lines=20

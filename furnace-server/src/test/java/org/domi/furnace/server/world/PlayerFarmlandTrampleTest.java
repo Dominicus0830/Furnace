@@ -1,6 +1,7 @@
 // 플레이어 낙하로 경작지 밟기(바닐라 ServerPlayer.doCheckFallDamage → FarmBlock.fallOn). 봇 시험(2026-11-03)에서 5칸 낙하에도 그대로였다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -33,14 +34,14 @@ class PlayerFarmlandTrampleTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @BeforeEach
     void setUp() throws Exception {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         core = TestServers.core(tmp, sched);
-        core.world().setRegistries(BlockRegistry.load("blocks/1.21.1.txt"), ItemRegistry.load("items/1.21.1.txt"));
+        core.world().setRegistries(BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         core.world().submitAtChunk(C00, r -> r.chunkAtBlocking(C00)).get(30, TimeUnit.SECONDS);
     }
 

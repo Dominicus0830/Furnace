@@ -1,6 +1,7 @@
 // 큰 뷰 거리에서 플레이어가 먼 곳으로 이동하면 이미 시야 밖이 된 청크는 대기열/구독에서 정리돼야 한다(>512 대기 분기 버그)
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.domi.furnace.server.ConcurrentEmbeddedChannel;
@@ -18,7 +19,7 @@ class StaleChunkTrimTest {
     @Test
     void teleportFar_dropsOldViewChunks_evenWhenManyPending() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         var io = Executors.newSingleThreadExecutor();
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 20, 20,
                 reg.directBits(), 7, io);

@@ -1,0 +1,30 @@
+# 결과 동일 금 파일 — scene-compat-asm-prefilter. 최적화 PR 은 이 파일을 바꾸지 않는다. 갱신 절차: docs/testing/identitykit.md
+edge needles 14 cases 210 hits 103
+edge-decisions b2441fc3a595a699
+jar IF-0.12.2.jar default classes=1042 prefilter-hit=936 changed=761 refused=0 42bbd2a17687151f
+jar IF-0.12.2.jar versioned classes=1042 prefilter-hit=936 changed=761 refused=0 42bbd2a17687151f
+jar XSeries-14.0.0.jar default classes=332 prefilter-hit=35 changed=20 refused=0 f222809dc714e678
+jar XSeries-14.0.0.jar versioned classes=332 prefilter-hit=35 changed=28 refused=0 2fc8276be9805e7c
+jar adventure-platform-bukkit-4.4.1.jar default classes=65 prefilter-hit=19 changed=4 refused=0 b31c7963c10dd8e9
+jar adventure-platform-bukkit-4.4.1.jar versioned classes=65 prefilter-hit=19 changed=4 refused=0 20572605e41ddbb5
+jar boosted-yaml-1.3.8.jar default classes=292 prefilter-hit=1 changed=0 refused=0 5c0dc1ea4ec8f6bd
+jar boosted-yaml-1.3.8.jar versioned classes=292 prefilter-hit=1 changed=6 refused=0 e9a7dddd8d20a3d1
+jar bstats-base-3.2.1.jar default classes=13 prefilter-hit=0 changed=0 refused=0 446a89aa653970a7
+jar bstats-base-3.2.1.jar versioned classes=13 prefilter-hit=0 changed=1 refused=0 8c6818d404725a32
+jar bstats-bukkit-3.2.1.jar default classes=1 prefilter-hit=1 changed=1 refused=0 26ac3bf21dd9a49e
+jar bstats-bukkit-3.2.1.jar versioned classes=1 prefilter-hit=1 changed=1 refused=0 26ac3bf21dd9a49e
+jar cloud-bukkit-2.0.1.jar default classes=111 prefilter-hit=3 changed=1 refused=0 8f93e01e64dc8569
+jar cloud-bukkit-2.0.1.jar versioned classes=111 prefilter-hit=3 changed=2 refused=0 84b1695b18a7b4d9
+jar cloud-paper-2.0.1.jar default classes=38 prefilter-hit=3 changed=0 refused=0 d7dadcf78f3c0fc9
+jar cloud-paper-2.0.1.jar versioned classes=38 prefilter-hit=3 changed=0 refused=0 d7dadcf78f3c0fc9
+jar commandapi-bukkit-core-12.1.0.jar default classes=155 prefilter-hit=7 changed=1 refused=0 87107c1247cb1a36
+jar commandapi-bukkit-core-12.1.0.jar versioned classes=155 prefilter-hit=7 changed=1 refused=0 7a5a2d1fce5e51d5
+jar commandapi-bukkit-plugin-10.1.2.jar default classes=308 prefilter-hit=37 changed=30 refused=0 073a720d091c6e66
+jar commandapi-bukkit-plugin-10.1.2.jar versioned classes=308 prefilter-hit=37 changed=33 refused=0 82c8a9ca3242ded9
+jar commodore-2.2.jar default classes=12 prefilter-hit=3 changed=3 refused=0 78e094eb1378e5ec
+jar commodore-2.2.jar versioned classes=12 prefilter-hit=3 changed=4 refused=0 cd278be968b827e4
+jar fastboard-2.2.2.jar default classes=8 prefilter-hit=2 changed=2 refused=0 ea19d4600f511d8c
+jar fastboard-2.2.2.jar versioned classes=8 prefilter-hit=2 changed=2 refused=0 6b4c7f3754d7da98
+jar helper-5.6.14.jar default classes=1197 prefilter-hit=19 changed=16 refused=0 b428ae5c32aa0145
+jar helper-5.6.14.jar versioned classes=1197 prefilter-hit=19 changed=30 refused=0 fd90c513c085b5ff
+TOTAL 0beb16beeb0299f9 lines=28

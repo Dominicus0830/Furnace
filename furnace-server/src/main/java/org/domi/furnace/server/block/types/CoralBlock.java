@@ -1,6 +1,7 @@
 // 바닐라 CoralBlock: 산호 블록. 둘레에 물이 없으면 60..99틱 뒤 죽은 산호 블록이 된다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -11,6 +12,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.CoralBlock")
 public class CoralBlock extends BlockBehavior {
 
     private final int dead;

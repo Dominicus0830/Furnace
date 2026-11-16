@@ -1,6 +1,7 @@
 // MinecartItem.useOn: 레일에만 놓는다(칸 가운데, 바닥 + 0.0625, 경사면 + 0.5). 레일이 아니면 실패.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.entity.AbstractMinecart;
@@ -14,7 +15,7 @@ class MinecartItemTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static ItemStack item(String n, int c) { return new ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", n), c); }

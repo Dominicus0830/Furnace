@@ -1,4 +1,4 @@
-// 크리에이티브 등 비행 가능 플레이어가 날기를 켜거나 끌 때(클라이언트 패킷) — 플레이어를 가진 region 스레드에서 불린다. 취소하면 서버 쪽 날기 상태를 바꾸지 않는다.
+// 크리에이티브 등 비행 가능 플레이어가 날기를 켜거나 끌 때(클라이언트 패킷) 플레이어를 가진 region 스레드에서 불린다. 취소하면 서버 쪽 날기 상태를 바꾸지 않는다.
 package org.domi.furnace.api.event.player;
 
 import org.domi.furnace.api.entity.Player;
@@ -20,6 +20,6 @@ public final class PlayerToggleFlightEvent extends PlayerEvent implements Cancel
         this.flying = flying;
     }
 
-    /** 바뀔 상태(true = 켜짐). */
+    /** 바뀔 상태(true 면 켜짐). */
     public boolean isFlying() { return flying; }
 }

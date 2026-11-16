@@ -9,7 +9,9 @@ import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.domi.furnace.api.item.ItemComponents;
 import org.domi.furnace.api.item.ItemEnchantments;
+import org.bukkit.craftbukkit.inventory.CraftItemFactory;
 import org.domi.furnace.compat.paper.CompatItemMeta;
+import org.domi.furnace.compat.paper.MetaKind;
 import org.domi.furnace.compat.paper.CompatItems;
 import org.domi.furnace.compat.paper.ItemMetaSerialization;
 import org.domi.furnace.compat.paper.ItemSlot;
@@ -19,9 +21,10 @@ import org.domi.furnace.compat.paper.ItemSlot;
  * 바꾸면 칸에 곧바로 반영된다(Bukkit 과 같다). 종류·개수·내구도·메타(이름·설명·마법 부여·영속 데이터)를 다룬다.
  * Material 로 나타낼 수 없는 아이템(데이터 팩·플러그인 아이템)의 getType 은 UnsupportedFeature 다.
  */
-public class ItemStack implements Cloneable, ConfigurationSerializable {
+public class ItemStack implements Cloneable, ConfigurationSerializable, io.papermc.paper.persistence.PersistentDataViewHolder {
 
     private final ItemSlot slot;
+    private volatile io.papermc.paper.persistence.PersistentDataContainerView pdcView;
 
     /** 호환 모듈 전용 — 칸에 붙은 스택. */
     public ItemStack(ItemSlot slot) { this.slot = Objects.requireNonNull(slot, "slot"); }
@@ -36,6 +39,12 @@ public class ItemStack implements Cloneable, ConfigurationSerializable {
 
     /** 호환 모듈 전용 — 지금 값(Furnace 쪽 불변 스택). */
     public org.domi.furnace.api.item.ItemStack asFurnace() { return slot.get(); }
+
+    /**
+     * 호환 모듈 전용 — 이 스택의 변경 번호: 값을 바꾸는 모든 메서드(setType·setAmount·setDurability·setItemMeta·마법 부여 추가·제거)가 올린다.
+     * 같은 객체의 번호가 같으면 값이 같다. 칸을 비추는 스택은 추적하지 않아 -1(비교는 값으로).
+     */
+    public long changeStamp() { return slot.changeStamp(); }
 
     public Material getType() { return CompatItems.material(slot.get().type()); }
 
@@ -67,23 +76,42 @@ public class ItemStack implements Cloneable, ConfigurationSerializable {
 
     // ------------------------------------------------------------------ 메타
 
+    /**
+     * 이 스택의 영속 데이터 읽기 전용 보기(Paper 와 같다) — 읽을 때마다 지금 칸의 데이터를 본다(스택을 고친 뒤에도 같은 보기가 새 값을 준다).
+     * 쓰려면 {@link #getItemMeta()} 의 컨테이너를 고쳐 {@link #setItemMeta} 로 돌려놓는다.
+     */
+    @Override
+    public io.papermc.paper.persistence.PersistentDataContainerView getPersistentDataContainer() {
+        var v = pdcView;
+        if (v == null) pdcView = v = org.domi.furnace.compat.paper.PdcViews.live(() -> slot.get().persistentData());
+        return v;
+    }
+
     public boolean hasItemMeta() {
         var s = slot.get();
         return !s.components().isEmpty() || !s.removedComponents().isEmpty();
     }
 
-    /** 메타의 사본. 바꾼 뒤 {@link #setItemMeta} 로 돌려놓아야 반영된다. */
+    /** 메타의 사본(재료에 맞는 종류 — 머리면 SkullMeta 등). 바꾼 뒤 {@link #setItemMeta} 로 돌려놓아야 반영된다. 공기는 null. */
     public ItemMeta getItemMeta() { return CompatItemMeta.of(slot.get()); }
 
-    /** 메타를 넣는다. null 이면 메타(구성 요소)를 모두 없앤다. Furnace 메타가 아니면 IllegalArgumentException. */
+    /**
+     * 메타를 넣는다(Paper CraftItemStack#setItemMeta). null 이거나 비어 있으면 메타(구성 요소)를 모두 없앤다. 이 아이템에 붙일 수 없는 종류의 메타
+     * (예: 머리 메타를 돌에)면 아무것도 바꾸지 않고 false. Furnace 가 만든 메타가 아니면 IllegalArgumentException.
+     */
     public boolean setItemMeta(ItemMeta meta) {
         var cur = slot.get();
         if (meta == null) {
             slot.set(new org.domi.furnace.api.item.ItemStack(cur.type(), cur.amount()));
             return true;
         }
-        if (!(meta instanceof CompatItemMeta cm)) throw new IllegalArgumentException("Furnace 가 만든 ItemMeta 가 아니다: " + meta.getClass().getName());
-        slot.set(cm.applyTo(cur));
+        if (!(meta instanceof CompatItemMeta cm)) throw new IllegalArgumentException("Meta of " + meta.getClass() + " not created by " + CraftItemFactory.class.getName());
+        if (cm.isEmpty()) {
+            slot.set(new org.domi.furnace.api.item.ItemStack(cur.type(), cur.amount()));
+            return true;
+        }
+        if (!cm.applicableTo(cur.type())) return false;
+        slot.set(cm.asKind(MetaKind.of(cur.type())).applyTo(cur));
         return true;
     }
 

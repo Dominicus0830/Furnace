@@ -3,8 +3,12 @@ package org.bukkit.entity;
 import java.net.InetSocketAddress;
 import org.bukkit.OfflinePlayer;
 
-/** 접속 중인 플레이어. 인벤토리·스코어보드·소리 같은 것은 H3. */
-public interface Player extends HumanEntity, OfflinePlayer, org.bukkit.plugin.messaging.PluginMessageRecipient {
+/** 접속 중인 플레이어. 소리·입자는 H4 묶음 C. */
+public interface Player extends HumanEntity, org.bukkit.conversations.Conversable, OfflinePlayer, org.bukkit.plugin.messaging.PluginMessageRecipient {
+
+    /** 이 플레이어의 프로필(Paper 형). 접속 때 받은 속성(스킨)을 복사해 담은 값 복사본이다 — 고쳐도 접속한 플레이어의 프로필은 바뀌지 않는다. */
+    @Override
+    com.destroystokyo.paper.profile.PlayerProfile getPlayerProfile();
 
     /** 채팅 서식 %1$s 에 쓰는 이름 — 정하지 않았으면 플레이어 이름 그대로(Paper·Spigot 과 같다, 바닐라 팀 서식은 붙지 않는다). */
     String getDisplayName();
@@ -35,6 +39,30 @@ public interface Player extends HumanEntity, OfflinePlayer, org.bukkit.plugin.me
 
     String getLocale();
 
+    // ---- 플레이어별 거리(Paper 1.21.1, T-141 E4c). 서버 시야 거리보다 크게는 아직 잘린다 — docs/api/view-distance.md
+
+    /** 클라이언트 렌더 거리. */
+    int getClientViewDistance();
+
+    /** Paper 와 같은 값(불러오는 거리 − 2, 기본은 서버 시야 거리 − 1). */
+    int getViewDistance();
+
+    void setViewDistance(int viewDistance);
+
+    int getSimulationDistance();
+
+    void setSimulationDistance(int simulationDistance);
+
+    @Deprecated
+    default int getNoTickViewDistance() { return getViewDistance(); }
+
+    @Deprecated
+    default void setNoTickViewDistance(int viewDistance) { setViewDistance(viewDistance); }
+
+    int getSendViewDistance();
+
+    void setSendViewDistance(int viewDistance);
+
     /** 클라이언트 언어(Paper). 클라이언트가 아직 알리지 않았으면 en_US. */
     java.util.Locale locale();
 
@@ -46,4 +74,177 @@ public interface Player extends HumanEntity, OfflinePlayer, org.bukkit.plugin.me
      * (그래서 아무 일도 하지 않는다).
      */
     void updateInventory();
+
+    /** 웅크리기 키를 누르고 있는가(Paper CraftPlayer: getHandle().isShiftKeyDown()). */
+    @Override
+    boolean isSneaking();
+
+    /** 달리는 중인가(Paper CraftPlayer: getHandle().isSprinting()). */
+    boolean isSprinting();
+
+    /** 비행 허가. */
+    boolean getAllowFlight();
+
+    /** 비행 허가를 바꾼다. false 면 날고 있던 것도 멈춘다. */
+    void setAllowFlight(boolean flight);
+
+    boolean isFlying();
+
+    /** 허가 없이 true 면 IllegalArgumentException. */
+    void setFlying(boolean value);
+
+    /** 이 플레이어에게만 보이는 블록 변경(서버 세상은 그대로). */
+    void sendBlockChange(org.bukkit.Location loc, org.bukkit.block.data.BlockData block);
+
+    /** 기본 시간(나타남 10, 머묾 70, 사라짐 20 틱)으로 제목을 띄운다. */
+    @Deprecated
+    void sendTitle(String title, String subtitle);
+
+    /** 시간 패킷을 먼저, 그다음 null 이 아닌 제목·부제목을 보낸다. */
+    void sendTitle(String title, String subtitle, int fadeIn, int stay, int fadeOut);
+
+    /** 제목을 지우고 시간을 기본값으로 되돌린다. */
+    void resetTitle();
+
+    /** 이 플레이어에게만 레벨 이벤트(Paper Player#playEffect(Location, Effect, int)). */
+    void playEffect(org.bukkit.Location loc, org.bukkit.Effect effect, int data);
+
+    /** 이 플레이어에게만 레벨 이벤트, 데이터는 효과마다 정해진 종류(Paper Player#playEffect(Location, Effect, T)). */
+    <T> void playEffect(org.bukkit.Location loc, org.bukkit.Effect effect, T data);
+
+    // ---- 소리(H4 묶음 C) — 이 플레이어에게만. 분류를 적지 않으면 MASTER, 씨앗을 적지 않으면 서버 난수.
+
+    default void playSound(org.bukkit.Location location, org.bukkit.Sound sound, float volume, float pitch) { playSound(location, sound, org.bukkit.SoundCategory.MASTER, volume, pitch); }
+
+    default void playSound(org.bukkit.Location location, String sound, float volume, float pitch) { playSound(location, sound, org.bukkit.SoundCategory.MASTER, volume, pitch); }
+
+    default void playSound(org.bukkit.Location location, org.bukkit.Sound sound, org.bukkit.SoundCategory category, float volume, float pitch) {
+        playSound(location, sound, category, volume, pitch, java.util.concurrent.ThreadLocalRandom.current().nextLong());
+    }
+
+    default void playSound(org.bukkit.Location location, String sound, org.bukkit.SoundCategory category, float volume, float pitch) {
+        playSound(location, sound, category, volume, pitch, java.util.concurrent.ThreadLocalRandom.current().nextLong());
+    }
+
+    /** 그 지점에서 나는 소리(거리는 클라이언트가 크기로 줄인다). 인자 중 null 이 있으면 아무 일도 없다. */
+    void playSound(org.bukkit.Location location, org.bukkit.Sound sound, org.bukkit.SoundCategory category, float volume, float pitch, long seed);
+
+    /** 이름(리소스 id)으로. 리소스 id 가 아니면 IllegalArgumentException. */
+    void playSound(org.bukkit.Location location, String sound, org.bukkit.SoundCategory category, float volume, float pitch, long seed);
+
+    default void playSound(Entity entity, org.bukkit.Sound sound, float volume, float pitch) { playSound(entity, sound, org.bukkit.SoundCategory.MASTER, volume, pitch); }
+
+    default void playSound(Entity entity, String sound, float volume, float pitch) { playSound(entity, sound, org.bukkit.SoundCategory.MASTER, volume, pitch); }
+
+    default void playSound(Entity entity, org.bukkit.Sound sound, org.bukkit.SoundCategory category, float volume, float pitch) {
+        playSound(entity, sound, category, volume, pitch, java.util.concurrent.ThreadLocalRandom.current().nextLong());
+    }
+
+    default void playSound(Entity entity, String sound, org.bukkit.SoundCategory category, float volume, float pitch) {
+        playSound(entity, sound, category, volume, pitch, java.util.concurrent.ThreadLocalRandom.current().nextLong());
+    }
+
+    /** 그 엔티티에 붙어 따라가는 소리(이 플레이어에게만). */
+    void playSound(Entity entity, org.bukkit.Sound sound, org.bukkit.SoundCategory category, float volume, float pitch, long seed);
+
+    void playSound(Entity entity, String sound, org.bukkit.SoundCategory category, float volume, float pitch, long seed);
+
+    default void stopSound(org.bukkit.Sound sound) { stopSound(sound, null); }
+
+    default void stopSound(String sound) { stopSound(sound, null); }
+
+    default void stopSound(org.bukkit.Sound sound, org.bukkit.SoundCategory category) { stopSound(sound.getKey().getKey(), category); }
+
+    /** 그 소리를 멈춘다. 분류가 null 이면 MASTER 분류만(CraftBukkit 과 같다). 리소스 id 가 아니면 IllegalArgumentException. */
+    void stopSound(String sound, org.bukkit.SoundCategory category);
+
+    /** 그 분류의 소리를 모두 멈춘다. */
+    void stopSound(org.bukkit.SoundCategory category);
+
+    void stopAllSounds();
+
+    // ---- 입자(H4 묶음 C) — 이 플레이어에게만, 거리와 관계없이. 퍼짐 0·extra 1·force false 가 기본(Bukkit Player 와 같다).
+
+    default void spawnParticle(org.bukkit.Particle particle, org.bukkit.Location location, int count) { spawnParticle(particle, location.getX(), location.getY(), location.getZ(), count); }
+
+    default void spawnParticle(org.bukkit.Particle particle, double x, double y, double z, int count) { spawnParticle(particle, x, y, z, count, null); }
+
+    default <T> void spawnParticle(org.bukkit.Particle particle, org.bukkit.Location location, int count, T data) { spawnParticle(particle, location.getX(), location.getY(), location.getZ(), count, data); }
+
+    default <T> void spawnParticle(org.bukkit.Particle particle, double x, double y, double z, int count, T data) { spawnParticle(particle, x, y, z, count, 0, 0, 0, data); }
+
+    default void spawnParticle(org.bukkit.Particle particle, org.bukkit.Location location, int count, double offsetX, double offsetY, double offsetZ) {
+        spawnParticle(particle, location.getX(), location.getY(), location.getZ(), count, offsetX, offsetY, offsetZ);
+    }
+
+    default void spawnParticle(org.bukkit.Particle particle, double x, double y, double z, int count, double offsetX, double offsetY, double offsetZ) {
+        spawnParticle(particle, x, y, z, count, offsetX, offsetY, offsetZ, null);
+    }
+
+    default <T> void spawnParticle(org.bukkit.Particle particle, org.bukkit.Location location, int count, double offsetX, double offsetY, double offsetZ, T data) {
+        spawnParticle(particle, location.getX(), location.getY(), location.getZ(), count, offsetX, offsetY, offsetZ, data);
+    }
+
+    default <T> void spawnParticle(org.bukkit.Particle particle, double x, double y, double z, int count, double offsetX, double offsetY, double offsetZ, T data) {
+        spawnParticle(particle, x, y, z, count, offsetX, offsetY, offsetZ, 1, data);
+    }
+
+    default void spawnParticle(org.bukkit.Particle particle, org.bukkit.Location location, int count, double offsetX, double offsetY, double offsetZ, double extra) {
+        spawnParticle(particle, location.getX(), location.getY(), location.getZ(), count, offsetX, offsetY, offsetZ, extra);
+    }
+
+    default void spawnParticle(org.bukkit.Particle particle, double x, double y, double z, int count, double offsetX, double offsetY, double offsetZ, double extra) {
+        spawnParticle(particle, x, y, z, count, offsetX, offsetY, offsetZ, extra, null);
+    }
+
+    default <T> void spawnParticle(org.bukkit.Particle particle, org.bukkit.Location location, int count, double offsetX, double offsetY, double offsetZ, double extra, T data) {
+        spawnParticle(particle, location.getX(), location.getY(), location.getZ(), count, offsetX, offsetY, offsetZ, extra, data);
+    }
+
+    default <T> void spawnParticle(org.bukkit.Particle particle, double x, double y, double z, int count, double offsetX, double offsetY, double offsetZ, double extra, T data) {
+        spawnParticle(particle, x, y, z, count, offsetX, offsetY, offsetZ, extra, data, false);
+    }
+
+    default <T> void spawnParticle(org.bukkit.Particle particle, org.bukkit.Location location, int count, double offsetX, double offsetY, double offsetZ, double extra, T data, boolean force) {
+        spawnParticle(particle, location.getX(), location.getY(), location.getZ(), count, offsetX, offsetY, offsetZ, extra, data, force);
+    }
+
+    /** data 형이 {@link org.bukkit.Particle#getDataType()} 과 맞지 않거나 필요한데 null 이면 IllegalArgumentException. */
+    <T> void spawnParticle(org.bukkit.Particle particle, double x, double y, double z, int count, double offsetX, double offsetY, double offsetZ, double extra, T data, boolean force);
+
+    /** Paper 1.21.1 Player.Spigot. 기본 몸은 Paper 처럼 UnsupportedOperationException — CraftPlayer 가 채운다. */
+    class Spigot extends Entity.Spigot {
+
+        public java.net.InetSocketAddress getRawAddress() { throw new UnsupportedOperationException("Not supported yet."); }
+
+        public void respawn() { throw new UnsupportedOperationException("Not supported yet."); }
+
+        public java.util.Set<Player> getHiddenPlayers() { throw new UnsupportedOperationException("Not supported yet."); }
+
+        @Deprecated
+        @Override
+        public void sendMessage(net.md_5.bungee.api.chat.BaseComponent component) { throw new UnsupportedOperationException("Not supported yet."); }
+
+        @Deprecated
+        @Override
+        public void sendMessage(net.md_5.bungee.api.chat.BaseComponent... components) { throw new UnsupportedOperationException("Not supported yet."); }
+
+        @Deprecated
+        public void sendMessage(net.md_5.bungee.api.ChatMessageType position, net.md_5.bungee.api.chat.BaseComponent component) { throw new UnsupportedOperationException("Not supported yet."); }
+
+        @Deprecated
+        public void sendMessage(net.md_5.bungee.api.ChatMessageType position, net.md_5.bungee.api.chat.BaseComponent... components) { throw new UnsupportedOperationException("Not supported yet."); }
+
+        @Deprecated
+        public void sendMessage(net.md_5.bungee.api.ChatMessageType position, java.util.UUID sender, net.md_5.bungee.api.chat.BaseComponent component) { throw new UnsupportedOperationException("Not supported yet."); }
+
+        @Deprecated
+        public void sendMessage(net.md_5.bungee.api.ChatMessageType position, java.util.UUID sender, net.md_5.bungee.api.chat.BaseComponent... components) { throw new UnsupportedOperationException("Not supported yet."); }
+
+        @Deprecated
+        public int getPing() { throw new UnsupportedOperationException("Not supported yet."); }
+    }
+
+    @Override
+    Spigot spigot();
 }

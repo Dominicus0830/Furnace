@@ -5,7 +5,11 @@ public final class BlockLightEngine extends LightEngine {
 
     public BlockLightEngine(LightWorld world) { super(world); }
 
-    @Override protected byte[][] layers(ChunkLight cl) { return cl.block; }
+    @Override protected byte[] layer(ChunkLight cl, int section) { return cl.block(section); }
+
+    @Override protected byte[] writableLayer(ChunkLight cl, int section) { return cl.writableBlock(section); }
+
+    @Override protected boolean isSky() { return false; }
 
     private int emission(long pos, int state) {
         int e = Math.max(LightTables.lightEmission(state), world.extraEmission(px(pos), py(pos), pz(pos)));
@@ -55,7 +59,10 @@ public final class BlockLightEngine extends LightEngine {
         for (int dir = 0; dir < 6; dir++) {
             if (!shouldPropagateInDirection(flags, dir)) continue;
             long np = offset(pos, dir);
-            if (!storing(np)) continue;
+            if (!storing(np)) {
+                decreaseBlocked(np);
+                continue;
+            }
             int nl = level(np);
             if (nl == 0) continue;
             if (nl <= lvl - 1) {

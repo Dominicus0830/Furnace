@@ -1,6 +1,7 @@
 // level.dat·session.lock 이 바닐라와 같은 구조로 읽히고 쓰이며, 모르는 필드를 보존하는지.
 package org.domi.furnace.server.world.storage;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.InputStream;
@@ -18,7 +19,7 @@ class LevelStorageTest {
 
     @Test
     void readsVanillaLevelDat(@TempDir Path dir) throws Exception {
-        try (InputStream in = getClass().getResourceAsStream("/storage/vanilla-1.21.1-level.dat")) {
+        try (InputStream in = getClass().getResourceAsStream("/storage/vanilla-" + GameVersion.RESOURCE_TAG + "-level.dat")) {
             Files.copy(in, dir.resolve("level.dat"));
         }
         try (LevelStorage s = LevelStorage.open(dir)) {

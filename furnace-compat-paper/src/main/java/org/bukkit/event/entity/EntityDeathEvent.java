@@ -72,7 +72,7 @@ public class EntityDeathEvent extends EntityEvent implements Cancellable {
 
     /** Furnace 가 그 값을 알리지 않는 이벤트(드롭 목록 null)에서 쓴다. */
     static org.domi.furnace.compat.paper.UnsupportedFeature unknown(String what) {
-        return new org.domi.furnace.compat.paper.UnsupportedFeature("EntityDeathEvent#" + what, "Furnace 사망 이벤트는 떨어뜨릴 아이템·경험치·취소를 알리지 않는다");
+        return new org.domi.furnace.compat.paper.UnsupportedFeature("EntityDeathEvent#" + what, "the Furnace death event does not expose dropped items, experience or cancelling");
     }
 
     @Override

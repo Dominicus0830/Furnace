@@ -4,6 +4,7 @@
 // (Paper "Do not let the server load chunks from newer versions" — 모르는 블록이 공기로 지워지지 않게, A05-03).
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.server.i18n.Lang;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.net.io.nbt.NbtList;
@@ -32,6 +33,30 @@ public final class AnvilWorldSource implements WorldSource {
         this.store = store;
         this.codec = codec;
         this.base = base;
+        // 탐험 지도 references(A06-06): 차원 data 폴더의 파일과, 아직 불러오지 않은 시작 청크는 디스크 NBT 에서 읽는다
+        if (base instanceof NoiseWorldSource n && store != null) {
+            n.structureEngine().references().bind(store.regionDir().resolveSibling("data").resolve("furnace_structure_references.dat"),
+                    this::storedReferences);
+        }
+    }
+
+    /**
+     * 바닐라 StructureCheck.tryLoadFromStorage 의 references 부분: 디스크 청크 NBT 의 {@code structures.starts.<id>.references}.
+     * 청크가 없거나 그 시작점이 없거나(INVALID 포함) 읽지 못하면 -1.
+     */
+    private int storedReferences(String structureId, int chunkX, int chunkZ) {
+        try {
+            RegionFile.Payload p = store.readPayload(chunkX, chunkZ);
+            if (p == null) return -1;
+            NbtCompound root = NbtIo.read(p.decompress());
+            if (root.tags().get("structures") instanceof NbtCompound s && s.tags().get("starts") instanceof NbtCompound starts
+                    && starts.tags().get(structureId) instanceof NbtCompound st && !"INVALID".equals(st.tags().get("id"))) {
+                return st.getIntOr0("references");
+            }
+            return -1;
+        } catch (IOException | RuntimeException e) {
+            return -1;
+        }
     }
 
     @Override
@@ -55,6 +80,7 @@ public final class AnvilWorldSource implements WorldSource {
         if (col != null) return withPoi(chunkX, chunkZ, col);
         col = generateFallback(chunkX, chunkZ);
         col.markDirty();   // 바닐라처럼 새로 생성한 청크도 디스크에 남긴다(깨진 청크면 다음 저장이 덮는다)
+        col.newlyCreated(true);
         return col;
     }
 
@@ -97,8 +123,7 @@ public final class AnvilWorldSource implements WorldSource {
     /** 바닐라 MinecraftServer.reportChunkLoadFailure 문구로 남기고, 덮어쓰이기 전에 원본을 백업한다. */
     private void corrupt(int chunkX, int chunkZ, Exception cause, RegionFile.Payload payload, byte[] nbtBytes) {
         Path backup = backupCorrupt(chunkX, chunkZ, payload, nbtBytes);
-        LOG.error("Failed to load chunk {},{} — 깨진 청크라 새로 생성한다(다음 저장에서 덮인다). 원본: {}",
-                chunkX, chunkZ, backup != null ? backup : "(백업할 본문 없음)", cause);
+        LOG.error(Lang.t("anvil.chunk-corrupt", chunkX, chunkZ, backup != null ? backup : Lang.t("anvil.no-backup-body")), cause);
     }
 
     /**
@@ -126,7 +151,7 @@ public final class AnvilWorldSource implements WorldSource {
             Files.write(f, out);
             return f;
         } catch (IOException | RuntimeException e) {
-            LOG.warn("깨진 청크 {},{} 원본 백업 실패", chunkX, chunkZ, e);
+            LOG.warn(Lang.t("anvil.backup-failed", chunkX, chunkZ), e);
             return null;
         }
     }
@@ -149,6 +174,15 @@ public final class AnvilWorldSource implements WorldSource {
      */
     public CompletableFuture<ChunkColumn> loadChunkAsync(int chunkX, int chunkZ, Executor ioExecutor, Executor decodeExecutor,
                                                          Executor genExecutor) {
+        return loadChunkAsync(chunkX, chunkZ, ioExecutor, decodeExecutor, genExecutor, null);
+    }
+
+    /**
+     * startGate: 생성 직전에 부른다(디스크에 없을 때만). 거짓이면 만들지 않고 CancellationException 으로 끝난다 —
+     * 생성 대기열이 시야 밖이 된 미리 불러오기를 시작 전에 취소한 경우(T-170). 원형·장식 중간 상태는 건드리지 않는다.
+     */
+    public CompletableFuture<ChunkColumn> loadChunkAsync(int chunkX, int chunkZ, Executor ioExecutor, Executor decodeExecutor,
+                                                         Executor genExecutor, java.util.function.BooleanSupplier startGate) {
         UnsupportedDataVersionException refused = refusedNewer.get(chunkKey(chunkX, chunkZ));
         if (refused != null) return CompletableFuture.failedFuture(refused);   // 시야 미리 불러오기가 틱마다 다시 걸어도 다시 읽지 않는다
         return CompletableFuture.supplyAsync(() -> readPayload(chunkX, chunkZ), ioExecutor).thenCompose(read -> {
@@ -158,8 +192,10 @@ public final class AnvilWorldSource implements WorldSource {
             return decoded.thenCompose(col -> {
                 if (col != null) return CompletableFuture.supplyAsync(() -> withPoi(chunkX, chunkZ, col), ioExecutor);
                 return CompletableFuture.supplyAsync(() -> {
+                    if (startGate != null && !startGate.getAsBoolean()) throw new java.util.concurrent.CancellationException("generation request outside the view was cancelled");
                     ChunkColumn gen = generateFallback(chunkX, chunkZ);
                     gen.markDirty();
+                    gen.newlyCreated(true);
                     // 노이즈 생성기만 청크 생성 때 동물을 놓는다(NoiseBasedChunkGenerator.spawnOriginalMobs — 평지 생성기는 없다)
                     if (base instanceof NoiseWorldSource n && !n.isFlat()) gen.freshlyGenerated(true);
                     return gen;
@@ -178,8 +214,9 @@ public final class AnvilWorldSource implements WorldSource {
     private ChunkColumn decodeChunk(byte[] nbtBytes) throws IOException {
         NbtCompound nbt = NbtIo.read(nbtBytes);
         NewerDataVersionException.check(nbt);
-        OlderDataVersionException.check(nbt, "청크 " + (nbt.tags().get("xPos") instanceof Number x ? x.intValue() : 0) + "," + (nbt.tags().get("zPos") instanceof Number z ? z.intValue() : 0));
+        OlderDataVersionException.check(nbt, Lang.t("anvil.what-chunk", nbt.tags().get("xPos") instanceof Number x ? x.intValue() : 0, nbt.tags().get("zPos") instanceof Number z ? z.intValue() : 0));
         ChunkColumn col = codec.fromNbt(nbt);
+        if (col != null && base instanceof NoiseWorldSource n) col.structures().attach(n.structureEngine().references());
         if (col != null) col.clearDirty();
         return col;
     }
@@ -230,7 +267,7 @@ public final class AnvilWorldSource implements WorldSource {
             }
             if (bytes != null) col.poiNbt(NbtIo.read(bytes));
         } catch (IOException e) {
-            org.slf4j.LoggerFactory.getLogger(AnvilWorldSource.class).warn("[POI] {},{} 읽기 실패 — 블록에서 다시 만든다", chunkX, chunkZ, e);
+            org.slf4j.LoggerFactory.getLogger(AnvilWorldSource.class).warn(Lang.t("anvil.poi-read-failed", chunkX, chunkZ), e);
         }
         return col;
     }

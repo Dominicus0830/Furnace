@@ -7,6 +7,7 @@
 // 이 테스트가 green이어야 실서버 청크 경계의 spill 누락 버그가 실제로 고쳐졌다는 증거가 된다.
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -45,9 +46,9 @@ class FeatureSpillParityTest {
     // maxMismatch>0: 아직 root cause가 안 잡힌 잔여 mismatch를 회귀 없이 상한만 고정(기존
     // spill_seed51532_5_7_improves/borderTree_improves와 동일 패턴).
     private void assertSpillParity(long seed, int cx, int cz, int maxMismatch) throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        Map<Integer, String> oracleIdToName = loadIdToName("/blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        Map<Integer, String> oracleIdToName = loadIdToName("/blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
 
         NoiseWorldSource source = NoiseWorldSource.overworld(seed, reg, registries);
         source.structureEngine().setStructuresEnabled(false);   // 이 fixture 는 generate-structures=false 로 만든 순정 월드 — 구조물(광산 등) 제외

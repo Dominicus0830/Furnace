@@ -1,4 +1,4 @@
-// 추가 월드를 만들거나 이미 있는 폴더를 불러오는 설명서(Bukkit WorldCreator 에 대응). 값 객체 — 빌더로 만든다. 버전 중립.
+// 추가 월드를 만들거나 이미 있는 폴더를 불러오는 설명서(Bukkit WorldCreator 에 대응). 값 객체이며 빌더로 만든다. 버전 중립.
 package org.domi.furnace.api.world;
 
 import java.util.List;
@@ -23,7 +23,7 @@ public record WorldCreator(String name, String key, WorldEnvironment environment
                            OptionalLong seed, boolean generateStructures, List<FlatLayer> flatLayers, String flatBiome,
                            String generationHooks) {
 
-    /** 훅 없는 설명서(이전 판과 같은 모양). */
+    /** 훅 없는 설명서(이전 버전과 같은 모양). */
     public WorldCreator(String name, String key, WorldEnvironment environment, WorldGenerator generator, String dimensionType,
                         OptionalLong seed, boolean generateStructures, List<FlatLayer> flatLayers, String flatBiome) {
         this(name, key, environment, generator, dimensionType, seed, generateStructures, flatLayers, flatBiome, "");
@@ -36,21 +36,26 @@ public record WorldCreator(String name, String key, WorldEnvironment environment
     public record FlatLayer(String block, int height) {
         public FlatLayer {
             block = full("block", block);
-            if (height < 1 || height > 4064) throw new IllegalArgumentException("층 높이는 1..4064: " + height);
+            if (height < 1 || height > 4064) throw new IllegalArgumentException("layer height must be 1..4064: " + height);
         }
+    }
+
+    /** 이름 규칙(영문·숫자·{@code _ . -} 1~64자, "."·".." 는 안 됨)에 맞는가. 예외 문구를 읽지 않고 미리 걸러낼 때 쓴다. */
+    public static boolean isValidName(String name) {
+        return name != null && NAME.matcher(name).matches() && !name.equals(".") && !name.equals("..");
     }
 
     public WorldCreator {
         Objects.requireNonNull(name, "name");
-        if (!NAME.matcher(name).matches() || name.equals(".") || name.equals("..")) {
-            throw new IllegalArgumentException("월드 이름은 영문·숫자·_ . - 1~64자: " + name);
+        if (!isValidName(name)) {
+            throw new IllegalArgumentException("World name must be 1-64 characters of letters, digits, '_', '.' or '-': " + name);
         }
         key = full("key", key == null ? "minecraft:" + name.toLowerCase(Locale.ROOT) : key);
         Objects.requireNonNull(environment, "environment");
         Objects.requireNonNull(generator, "generator");
         if ((generator == WorldGenerator.LARGE_BIOMES || generator == WorldGenerator.AMPLIFIED || generator == WorldGenerator.SINGLE_BIOME_SURFACE
                 || generator == WorldGenerator.DEBUG_ALL_BLOCK_STATES) && environment != WorldEnvironment.NORMAL) {
-            throw new IllegalArgumentException(generator + " 생성기는 NORMAL 환경에서만 쓸 수 있다");
+            throw new IllegalArgumentException("the " + generator + " generator can only be used in the NORMAL environment");
         }
         dimensionType = full("dimensionType", dimensionType == null ? environment.defaultDimensionType() : dimensionType);
         Objects.requireNonNull(seed, "seed");
@@ -62,7 +67,7 @@ public record WorldCreator(String name, String key, WorldEnvironment environment
     private static String full(String what, String id) {
         if (id == null) throw new NullPointerException(what);
         String f = id.indexOf(':') < 0 ? "minecraft:" + id : id;
-        if (!KEY.matcher(f).matches()) throw new IllegalArgumentException(what + " 형식이 잘못됐다(namespace:path): " + id);
+        if (!KEY.matcher(f).matches()) throw new IllegalArgumentException(what + " has an invalid format (namespace:path): " + id);
         return f;
     }
 
@@ -112,7 +117,7 @@ public record WorldCreator(String name, String key, WorldEnvironment environment
 
         /**
          * 월드젠 단계 훅 키({@link org.domi.furnace.api.plugin.lifecycle.LifecycleEvents#WORLD_GENERATION} 에서 등록한 것).
-         * null·빈 문자열이면 없음. level.dat 설명서에 남아 다시 불러올 때도 같은 키를 쓴다 — 그때 키가 등록돼 있지 않으면 바닐라로 생성한다.
+         * null·빈 문자열이면 없음. level.dat 설명서에 남아 다시 불러올 때도 같은 키를 쓴다. 그때 키가 등록돼 있지 않으면 바닐라로 생성한다.
          */
         public Builder generationHooks(String key) { this.generationHooks = key == null ? "" : key; return this; }
 

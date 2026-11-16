@@ -76,14 +76,17 @@ public final class RespawnFinder {
     /**
      * 월드 스폰의 설 자리: ServerPlayer.adjustSpawnLocation(오버월드, 공유 스폰).getBottomCenter(), 회전 0(바닐라 생성자·DimensionTransition 모두 0).
      * 오버월드 region 스레드에서 계산하고 done(자리)는 아무 스레드에서나. 못 정하면 공유 스폰 그대로.
+     * self·(selfX, selfZ) 는 adjustSpawnLocation 을 부르는 플레이어의 그때 충돌 문맥과 위치 — 처음 들어오면 생성자가 놓은 공유 스폰
+     * (x+0.5, y+1, z+0.5) 의 갓 만든 플레이어, 리스폰이면 죽은 플레이어(스냅샷). 블록 충돌 문맥과 보더 충돌 판정에 쓴다.
      */
-    public static void worldSpawn(World over, int spawnRadius, boolean worldAdventure, Consumer<Spot> done) {
+    public static void worldSpawn(World over, int spawnRadius, boolean worldAdventure, org.domi.furnace.server.block.CollisionContext self,
+                                  double selfX, double selfZ, Consumer<Spot> done) {
         SpawnPoint spawn = over.defaultSpawn();
         Spot fallback = new Spot(spawn.playerX(), spawn.playerY(), spawn.playerZ(), 0.0F);
         Spot[] out = new Spot[1];
         int pre = Math.min(Math.max(0, spawnRadius), MAX_SPAWN_PRELOAD);
         over.completeTravel(new PortalTravel(over.dimension(), spawn.x(), spawn.z(), 0, pre, level -> {
-            Pos p = org.domi.furnace.server.block.SpawnLocation.adjust(level, new Pos(spawn.x(), spawn.y(), spawn.z()), spawnRadius, worldAdventure);
+            Pos p = org.domi.furnace.server.block.SpawnLocation.adjust(level, new Pos(spawn.x(), spawn.y(), spawn.z()), spawnRadius, worldAdventure, self, selfX, selfZ);
             Spot s = new Spot(p.x() + 0.5, p.y(), p.z() + 0.5, 0.0F);
             out[0] = s;
             return new DimensionTransition(level, s.x(), s.y(), s.z(), 0, 0, 0, 0.0F, 0.0F);
@@ -95,6 +98,8 @@ public final class RespawnFinder {
      * 못 정하면 arrive(null, null).
      */
     public static void travel(World src, Player p, boolean keepAllPlayerData, BiConsumer<ChunkLevel, DimensionTransition> arrive) {
+        final double selfX = p.x(), selfZ = p.z();   // adjustSpawnLocation 의 보더 판정·블록 문맥은 떠나기 전 플레이어로
+        final var self = org.domi.furnace.server.block.CollisionContext.of(p).snapshot();
         find(src, p, keepAllPlayerData, o -> {
             if (o.transition() != null) {
                 arrive.accept(o.transition().newLevel(), o.transition());
@@ -105,7 +110,7 @@ public final class RespawnFinder {
             int radius = over.levelServices().gameRuleInt("spawnRadius");
             boolean adventure = over.levelServices().worldAdventure();
             over.completeTravel(new PortalTravel(over.dimension(), spawn.x(), spawn.z(), 0, Math.min(Math.max(0, radius), MAX_SPAWN_PRELOAD), level -> {
-                Pos at = org.domi.furnace.server.block.SpawnLocation.adjust(level, new Pos(spawn.x(), spawn.y(), spawn.z()), radius, adventure);
+                Pos at = org.domi.furnace.server.block.SpawnLocation.adjust(level, new Pos(spawn.x(), spawn.y(), spawn.z()), radius, adventure, self, selfX, selfZ);
                 return new DimensionTransition(level, at.x() + 0.5, at.y(), at.z() + 0.5, 0, 0, 0, 0.0F, 0.0F, false, null, o.missing());
             }), arrive);
         });

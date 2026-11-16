@@ -1,6 +1,7 @@
 // 바닐라 SaplingBlock: 묘목(stage 0/1). 밝은 곳에서 무작위 틱 1/7 로 한 단계, 두 번째에 나무(TreeGrower)를 키운다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Blocks;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.SaplingBlock")
 public class SaplingBlock extends BushBlock implements BonemealableBlock {
 
     static final Prop STAGE = B.prop("stage");

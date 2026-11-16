@@ -1,6 +1,7 @@
 // 바닐라 IceBlock: 섬세한 손길 없이 부수면 아래가 막혀 있거나 액체일 때 물이 된다(뜨거운 차원은 그냥 사라짐). 밝으면 녹는다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.IceBlock")
 public class IceBlock extends HalfTransparentBlock {
 
     private static final int WATER = B.id("water");
@@ -21,6 +23,11 @@ public class IceBlock extends HalfTransparentBlock {
     @Override
     public void playerDestroy(BlockLevel level, BlockActor player, Pos pos, int state, Object blockEntity, ItemStack tool) {
         super.playerDestroy(level, player, pos, state, blockEntity, tool);
+        afterDestroy(level, pos, tool);
+    }
+
+    /** playerDestroy 의 뒷부분(Paper 가 Block#breakNaturally 에서 쓰려고 떼어 낸 IceBlock.afterDestroy). */
+    public void afterDestroy(BlockLevel level, Pos pos, ItemStack tool) {
         if (org.domi.furnace.server.item.ItemTools.hasEnchantmentTag(tool, "minecraft:prevents_ice_melting")) return;
         if (level.ultraWarm()) {
             level.removeBlock(pos, false);

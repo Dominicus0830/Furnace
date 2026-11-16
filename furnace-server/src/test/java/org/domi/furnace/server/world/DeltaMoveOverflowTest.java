@@ -1,6 +1,7 @@
 // 상대 이동 패킷(short)으로 못 담는 이동량(특히 8블록 직전 7.9999)이 반대 방향 이동 대신 텔레포트로 나가는지 검증
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -54,7 +55,7 @@ class DeltaMoveOverflowTest {
     /** 관찰자가 보는 대상이 delta만큼 이동한 틱에서 나가는 이동 패킷 종류를 모은다. */
     private static List<Integer> observe(double delta) throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2,
                 reg.directBits(), 7, Executors.newSingleThreadExecutor());
         RegionPos r00 = new RegionPos(0, 0);

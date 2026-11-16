@@ -73,6 +73,8 @@ public class HorseInventoryMenu extends AbstractContainerMenu {
                 && armorContainer.stillValid(player) && horse.isAlive() && player.canInteractWithEntity(horse.boundingBox(), 4.0);
     }
 
+    @Override public org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason invalidCloseReason() { return reasonForEntity(horse); }
+
     /**
      * quickMoveStack: 말 칸 → 플레이어(끝에서부터). 플레이어 → 갑옷(비었으면) → 안장 → 상자 칸, 다 안 되면 주 ↔ 핫바.
      * 바닐라는 주 ↔ 핫바로 옮긴 뒤에도 EMPTY 를 돌려준다(그 자리 스택만 줄어든다).

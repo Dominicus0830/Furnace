@@ -1,6 +1,7 @@
 // A06-07: generate-structures=false 면 바닐라는 STRUCTURE_STARTS 단계가 시작점을 만들지 않아 /locate 가 찾지 못한다.
 package org.domi.furnace.server.world.gen.structure;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.net.registry.RegistrySet;
@@ -11,7 +12,7 @@ import org.junit.jupiter.api.Test;
 class LocateStructuresDisabledTest {
 
     private static NoiseWorldSource overworld() {
-        return NoiseWorldSource.overworld(0L, BlockRegistry.load("blocks/1.21.1.txt"), RegistrySet.load("registries/1.21.1.txt"));
+        return NoiseWorldSource.overworld(0L, BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"));
     }
 
     @Test

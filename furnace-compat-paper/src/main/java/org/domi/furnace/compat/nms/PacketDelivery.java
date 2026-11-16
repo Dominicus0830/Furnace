@@ -1,0 +1,97 @@
+package org.domi.furnace.compat.nms;
+
+import java.util.ArrayList;
+import java.util.List;
+import net.minecraft.network.protocol.BundlePacket;
+import net.minecraft.network.protocol.Packet;
+import org.domi.furnace.api.entity.Player;
+import org.domi.furnace.api.packet.ClientboundPacket;
+
+/**
+ * shim 패킷 → Furnace 패킷으로 바꿔 한 플레이어에게 내보내는 마지막 걸음(ProtocolLib 다리). {@code ServerCommonPacketListenerImpl#send} 가
+ * 연결의 이벤트 루프 작업으로 올리고, 패킷 라이브러리가 그 작업을 보고 난 뒤 이 메서드가 실행된다. 플러그인용이 아니다.
+ *
+ * <p>변환 규칙: 이 모듈의 clientbound 패킷 shim 이 Furnace 패킷으로 바뀌어 나간다 — 손으로 쓴 shim 은 타입 레코드로, 스키마로 생성한 shim 은 범용 패킷
+ * ({@link SchemaPacketBridge})으로. 접속이 끊겼으면 아무 일도 없다.
+ * 묶음(ClientboundBundlePacket)은 바닐라처럼 번들 하나로 보낸다(클라이언트가 한 프레임에 처리). 하나라도 못 바꾸거나 못 쓰면 아무것도 보내지 않는다.
+ * 바닐라와 다른 가장자리(검토 R5): 묶음 안의 묶음·null 은 IllegalArgumentException(바닐라 unbundler 는 한 겹만 풀고 안쪽 묶음은 종류 번호가 없어
+ * 인코딩이 실패해 연결이 끊긴다), 4096개 초과도 IllegalArgumentException(바닐라는 보내고 클라이언트가 끊는다) — 둘 다 플레이어를 끊지 않고
+ * 플러그인에 알린다. 빈 묶음은 아무것도 보내지 않는다(바닐라는 구분자 둘 — 게임 화면 차이 없음, 서버 번들 규칙).
+ * 바꿀 수 없는 패킷(플러그인이 직접 구현한 것, 아직 다리가 없는 종류)은 지어내지 않고 UnsupportedNmsCall 을 던진다.
+ */
+public final class PacketDelivery {
+
+    private PacketDelivery() {}
+
+    public static void deliver(Player p, Packet<?> packet) {
+        if (packet == null) return;   // 바닐라 Connection#send 는 null 을 그대로 내려보내다 인코딩에서 실패한다 — 여기서는 보낼 것이 없다
+        if (packet instanceof BundlePacket<?> bundle) {
+            List<ClientboundPacket> out = new ArrayList<>();
+            for (Packet<?> sub : bundle.subPackets()) {
+                if (sub == null) throw new IllegalArgumentException("a bundle contains a null packet (vanilla also fails to encode it and drops the connection)");
+                if (sub instanceof BundlePacket<?>) {
+                    throw new IllegalArgumentException("a bundle cannot contain a bundle (vanilla also fails to encode the inner bundle and drops the connection)");
+                }
+                out.add(convert(sub));
+            }
+            for (ClientboundPacket c : out) DeliveredPackets.mark(c);
+            p.sendPacketBundle(out.toArray(ClientboundPacket[]::new));
+            return;
+        }
+        if (packet instanceof net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket chunk && ChunkRefreshPackets.isRefresh(chunk)) {
+            // N2b-6: 청크 보기로 만든 청크 패킷 — 서버가 지금 청크를 보고 있는 플레이어에게 다시 보낸다(한 패킷 객체에 한 번)
+            var c = ChunkRefreshPackets.claim(chunk);
+            if (c != null) c.furnaceWorld().refreshChunk(c.getPos().x, c.getPos().z);
+            return;
+        }
+        ClientboundPacket c = convert(packet);
+        DeliveredPackets.mark(c);
+        p.sendPacket(c);
+    }
+
+    /** shim 패킷 하나(묶음 아님) → Furnace 패킷. 바꿀 수 없으면 UnsupportedNmsCall, 값이 바닐라 모양이 아니면 IllegalArgumentException. */
+    public static ClientboundPacket convert(Packet<?> packet) {
+        if (packet instanceof NmsPacket n) return n.toFurnace();
+        if (packet instanceof SchemaPacket s) return TypedPacketBridge.handlesSchema(s.schemaKey()) ? TypedPacketBridge.toFurnace(s) : SchemaPacketBridge.toFurnace(s);
+        throw new UnsupportedNmsCall("ServerCommonPacketListenerImpl#send(" + packet.getClass().getName() + ")",
+                "there is no shim for this packet kind yet - use the Furnace packet API (docs/api/packets.md)");
+    }
+
+    /** Furnace 패킷 → shim(ProtocolLib 다리 2b-2: Furnace 가 스스로 보내는 패킷을 라이브러리에 보여 줄 때). 못 바꾸면 UnsupportedNmsCall·IllegalArgumentException. */
+    public static Packet<?> fromFurnace(org.domi.furnace.api.packet.Packet packet) {
+        if (packet instanceof org.domi.furnace.api.packet.GenericPacket g) return SchemaPacketReverse.fromFurnace(g);
+        if (packet instanceof ClientboundPacket c) return TypedPacketBridge.fromFurnace(c);
+        throw new UnsupportedNmsCall("fromFurnace(" + packet.type() + ")", "not a clientbound packet");
+    }
+
+    /**
+     * 이 값을 되돌리기 전에 값싸게 알 수 있는 거절 까닭(되면 null). 메타데이터는 못 바꾸는 값 종류가 하나라도 있으면 그 종류 이름을 돌려준다 —
+     * 효과가 걸린 생물(particles)·주민·디스플레이 엔티티 패킷마다 예외를 만들지 않으려는 미리 보기(PR #367 검토 R2).
+     */
+    public static String quickRefusal(org.domi.furnace.api.packet.Packet packet) {
+        return packet instanceof org.domi.furnace.api.packet.clientbound.ClientboundSetEntityDataPacket d ? EntityDataBridge.unbridgedKind(d) : null;
+    }
+
+    /** 이 종류를 shim 으로 되돌릴 수 있는가(종류만 본다 — 값에 따라 실패할 수는 있다). */
+    public static boolean reversible(org.domi.furnace.api.packet.PacketType<?> t) {
+        return t.typed() ? TypedPacketBridge.supports(t) : SchemaPacketReverse.supports(t);
+    }
+
+    /**
+     * Furnace → shim → Furnace 가 값을 그대로 돌려주는 종류(청크·빛 — 시험이 지킨다). 다리는 이 종류에서 비교 기준을 다시 변환하지 않고
+     * 원래 값과 바로 비교한다(PR #399 검토 S2: 청크 하나 약 30µs).
+     */
+    public static boolean losslessRoundTrip(org.domi.furnace.api.packet.PacketType<?> t) {
+        String n = t.name();
+        return ChunkPacketBridge.handles(n.substring(n.indexOf(':') + 1));
+    }
+
+    /** 되돌리지 못하는 까닭이 서버 설정으로 풀리는 것인가(로그에 까닭까지 적을 것). 지금은 authlib 없음 하나. */
+    public static boolean fixableBySetting(String why) { return Profiles.missing().equals(why); }
+
+    /** 되돌리지 못하는 까닭(되면 null). */
+    public static String irreversibleReason(org.domi.furnace.api.packet.PacketType<?> t) {
+        if (t.typed()) return TypedPacketBridge.refusal(t);
+        return SchemaPacketReverse.refusal(t);
+    }
+}

@@ -16,24 +16,35 @@
 
 - `CompatFormat` — 설명 파일 해석. `paper-plugin.yml` 의 `dependencies.server.<이름>.load(BEFORE/AFTER/OMIT)·required` 를 Furnace 의 `depend/softdepend/loadbefore` 로 옮긴다. `api-version` 이 1.21.1 보다 새로우면(예 1.21.4) 로드를 거절한다(서버의 `ApiVersion` 검사와 같은 뜻). `api-version` 이 없으면 경고 후 로드(옛 플러그인). 플러그인 이름이 `bukkit`·`minecraft`·`mojang`·`spigot`·`paper`(대소문자 무시)이거나 공백이 들어 있으면 Paper 처럼 불러오지 않는다(`Restricted name, cannot use … as a plugin name.`). 예약 이름은 Furnace 플러그인 설명 파일도 같이 거부한다(`PluginDescription.RESERVED_NAMES` — 이름공간이 바닐라·서버와 겹친다).
 - `BukkitPluginAdapter` — Bukkit `JavaPlugin` 한 개를 감싸는 `FurnacePlugin`. `onLoad/onEnable/onDisable` 를 그대로 잇고, 꺼질 때 `HandlerList.unregisterAll` 을 한다.
-- `EventBridge`·`Mappings` — Furnace 이벤트 ↔ Bukkit 이벤트. Bukkit 처리기가 등록될 때 해당 Furnace 이벤트를 (플러그인, 우선순위)마다 버스에 구독한다. Furnace 이벤트 하나에 Bukkit 이벤트 객체는 하나만 만들어 나눠 쓰고, 처리기가 바꾼 값(취소·메시지·피해량 등)은 Furnace 이벤트에 되돌려 쓴다.
+- `EventBridge`·`Mappings` — Furnace 이벤트 ↔ Bukkit 이벤트. Bukkit 처리기가 등록될 때 해당 Furnace 이벤트를 (플러그인, 우선순위)마다 버스에 구독한다. Furnace 이벤트 하나에 Bukkit 이벤트 객체는 짝마다 하나만 만들어(이벤트의 붙임 칸 `EventSlot` 에 붙인다 — 전역 잠금 없음, T-032) 나눠 쓰고, 처리기가 바꾼 값(취소·메시지·피해량 등)은 Furnace 이벤트에 되돌려 쓴다.
 - `Compat*` — `Player/World/Block/Entity/Server/Chunk/CommandSender` 의 Bukkit 보기. 값은 호출 때마다 Furnace 객체에서 읽는다(복사해 두지 않는다).
 
 우선순위(LOWEST~MONITOR), `ignoreCancelled`, 취소 전달은 Furnace 버스가 지킨다. 같은 우선순위의 Furnace 고유 플러그인과는 등록 순이다.
 
-## 지원하는 이벤트 (35)
+## 지원하는 이벤트 (49)
 
 | Bukkit | Furnace | 되돌려 쓰는 값 |
 |---|---|---|
 | `PlayerJoinEvent` / `PlayerQuitEvent` | 같은 이름 | 입·퇴장 메시지 |
 | `PlayerKickEvent` | `PlayerKickEvent` | 사유, 취소 |
 | `AsyncPlayerChatEvent` | `AsyncChatEvent` | 메시지, 서식(`setFormat`), 취소 |
+| `PlayerCommandSendEvent` | `PlayerCommandSendEvent` | 빼낸 최상위 명령 이름(클라이언트 명령 트리에서 사라진다). 접속(구독자가 있으면 `PlayerJoinEvent` 뒤 — Paper 와 같은 순서, 접속 트리는 걸러서 한 번만)·권한 변경·명령 등록 변경·`updateCommands` 때. 더한 이름은 무시(Paper 와 같다) |
+| `com.destroystokyo.paper.event.server.AsyncTabCompleteEvent` | `AsyncTabCompleteEvent` | 후보 문자열·handled·취소. 플레이어 Tab 과 콘솔 입력줄(콘솔은 Paper 처럼 덮어쓰지 않고 명령 트리 후보 뒤에 handled 후보를 덧붙인다). Adventure 판 `Completion`·`completions()` 는 없다(NoSuchMethodError) |
 | `PlayerMoveEvent` / `PlayerTeleportEvent` | 같은 이름 | 취소. `PlayerMoveEvent` 는 CraftBukkit 간격(거리² > 1/256 또는 회전 합 > 10°, 시선만 돌려도 발화)으로 온다 |
 | `PlayerRespawnEvent` | 같은 이름 | 부활 위치 |
 | `PlayerChangedWorldEvent`, `PlayerGameModeChangeEvent`, `PlayerToggleSneak/Sprint/FlightEvent` | 같은 이름 | 취소 |
 | `PlayerCommandPreprocessEvent` | 같은 이름 | 명령 문자열, 취소 |
 | `PlayerLevelChangeEvent`, `PlayerExpChangeEvent` | 같은 이름 | 경험치 양 |
 | `BlockBreakEvent` | `BlockBreakEvent` | 취소 (플레이어가 깬 것만) |
+| `BlockPlaceEvent` | `BlockPlaceEvent` | 취소 또는 `setBuild(false)`(둘 다 막는다), 플레이어가 놓은 것만. `getBlockPlaced()` 가 놓일 상태를 보인다([아래](#세계-변화·스폰·버리기-이벤트-o12-h1-2026-11-12)) |
+| `BlockGrowEvent` / `BlockFadeEvent` | 같은 이름 | 취소. `getNewState()` 는 바뀐 뒤 스냅숏 |
+| `BlockExplodeEvent` | `BlockExplodeEvent` | 취소, `blockList()` 편집(`yield` 는 읽기만) |
+| `EntityExplodeEvent` | `EntityExplodeEvent` | 취소, `blockList()` 편집(`yield` 는 읽기만) |
+| `BlockPistonExtendEvent` / `BlockPistonRetractEvent` | 같은 이름 | 취소 |
+| `BlockFormEvent` / `BlockSpreadEvent` (처리기 목록은 각각 따로) | 같은 이름 | 취소 |
+| `ProjectileHitEvent` | `ProjectileHitEvent` | 취소 |
+| `EntitySpawnEvent`(`ItemSpawnEvent`·`CreatureSpawnEvent` 같은 처리기 목록) | `EntitySpawnEvent` 와 하위 | 취소 |
+| `PlayerDropItemEvent` | `PlayerDropItemEvent` | 취소(아이템은 인벤토리로 돌아간다) |
 | `EntityDamageEvent` | 같은 이름 | 피해량, 취소 |
 | `PluginEnableEvent` / `PluginDisableEvent` | 같은 이름 | — (Bukkit 플러그인만 알린다) |
 | `ServerCommandEvent` | 같은 이름 | 명령 문자열, 취소 |
@@ -44,8 +55,17 @@
 | `PlayerItemHeldEvent` | 같은 이름 | 취소 |
 | `BlockPhysicsEvent`, `BlockFromToEvent`, `BlockBurnEvent`, `BlockIgniteEvent`, `LeavesDecayEvent` | 같은 이름 | 취소 |
 | `BlockRedstoneEvent` | 같은 이름 | 새 세기 |
+| `io.papermc.paper.event.block.BlockLockCheckEvent` | `BlockLockCheckEvent` | 결과(`ALLOW`·`DEFAULT`·`DENY`), 따로 정한 열쇠(`setKeyItem`·`resetKeyItem`). 용기·신호기를 열 때 잠기지 않았어도 불리고, 큰 상자는 반쪽마다(type=right 부터). 기본 열쇠는 누를 때 주 손. Adventure 판 알림 글·소리(`getLockedMessage`·`setLockedSound`·`denyWithMessageAndSound`)는 없다(NoSuchMethodError) — Furnace 이벤트의 `setLockedMessage`·`setLockedSound` 를 쓴다 |
 | `FurnaceBurnEvent` | 같은 이름 | 태우는 시간, 불붙음, 취소 |
 | `FurnaceSmeltEvent` (처리기 목록은 `BlockCookEvent`) | `FurnaceSmeltEvent` | 결과 아이템, 취소 |
+| `CraftItemEvent` (처리기 목록은 `InventoryClickEvent` — 클릭 처리기도 받는다) | `CraftItemEvent` | 취소. `getRecipe()` 는 키(`Keyed`)와 결과만 아는 레시피 |
+| `PrepareItemCraftEvent` | 같은 이름 | 결과 칸(`getInventory().setResult`) |
+| `PrepareAnvilEvent` (처리기 목록은 `PrepareInventoryResultEvent`) | `PrepareAnvilEvent` | 결과, 비용(`getView().setRepairCost`) |
+| `PrepareItemEnchantEvent` · `EnchantItemEvent` (`org.bukkit.event.enchantment`) | 같은 이름 | 제안 세 칸, 취소 · 부여할 마법·비용, 취소 |
+| `BrewEvent` · `BrewingStandFuelEvent` | 같은 이름 | 결과 목록(`getResults`), 취소 · 연료 횟수·소모 여부, 취소 |
+| `InventoryMoveItemEvent` | 같은 이름 | 옮길 아이템, 취소 |
+
+인벤토리 창 이벤트(클릭·끌기·열기·닫기, 닫힌 까닭 `getReason()`)와 위 결과 이벤트의 상세·Paper 와 다른 점: [`compat-h4d-inventory-events-2026-11-12.md`](../feature-parity/compat-h4d-inventory-events-2026-11-12.md).
 
 **PlayerInteractEvent 의 취소(FAWE 묶음, 2026-11-11).** Bukkit 은 결과가 둘이다: `useInteractedBlock()`(블록이 없으면 처음부터 DENY — 그래서 공기 클릭은 `isCancelled()` 가 처음부터 true)와 `useItemInHand()`. Furnace 서버 이벤트는 취소 하나라 CraftBukkit 이 결과를 읽는 방식대로 합친다: 공기 클릭은 아이템 쓰기만, 왼쪽 블록 클릭은 블록 쓰기 DENY 거나 (창조 모드가 아닐 때) 아이템 쓰기 DENY 면 — CraftBukkit 은 캐기 시작에서 블록 DENY 를 보고, 창조 모드면 바로 부수고, 아니면 아이템 DENY 를 본다 — 막고, 오른쪽 블록 클릭은 둘 중 하나라도 DENY 면 막는다(`PHYSICAL` 은 CraftBukkit 처럼 블록 쓰기만 본다). 마지막은 "블록만 막고 아이템은 쓰기"(예: 보호 구역 상자는 막고 음식은 먹기)를 나눠 하지 못해 더 막는 쪽을 고른 것이다 — Paper 와 다른 점. 빈 손이면 `getItem()` 은 null, 공기 클릭의 면은 `SOUTH`(CraftBukkit 과 같다). 클릭한 점(`getClickedPosition`·`getInteractionPoint`)은 서버 이벤트가 알리지 않아 null, `PHYSICAL`(압력판 밟기)은 아직 오지 않는다.
 
@@ -56,9 +76,38 @@
 | 블록 ALLOW/DEFAULT + 아이템 DENY | 상자·문은 열리고 아이템만 안 쓰임 | 둘 다 안 됨 |
 | 블록 DENY + 아이템 ALLOW | 블록은 안 쓰이고 아이템은 쓰임(보호 구역에서 음식 먹기·진주 던지기 허용) | 둘 다 안 됨 |
 
-**클래스만 있고 아직 알리지 않는 이벤트.** `BlockPlaceEvent`·`BlockFadeEvent`·`BlockGrowEvent`·`BlockExplodeEvent`·`BlockCanBuildEvent`·`BlockDamageEvent`·`BlockDispenseEvent`·`BlockExpEvent`·`NotePlayEvent`·`SignChangeEvent`·`EntityChangeBlockEvent`·`EntitySpawnEvent`(`ItemSpawnEvent`)·`PlayerCommandSendEvent`·`PlayerDropItemEvent`·`WorldInitEvent`. 리스너 클래스 하나에 이 이벤트 처리기가 섞여 있어도 나머지 처리기는 등록되도록 클래스를 두었다(Bukkit 은 리스너 클래스의 모든 처리기 서명을 한꺼번에 읽어서, 클래스 하나가 없으면 리스너 전체가 빠진다). 처리기를 달면 플러그인·이벤트마다 한 번 "이 이벤트는 아직 알리지 않는다" 경고를 남긴다(`EventBridge.isKnownButNotFired`). 앞의 넷과 `PlayerDropItemEvent`·`ItemSpawnEvent` 는 Furnace 서버 이벤트가 있지만 Bukkit 쪽 값(놓은 손·아이템, `BlockState` 새 상태, 폭발 위력, 아이템 엔티티 `Item`)을 아직 만들 수 없어 잇지 않았다.
+**세계 변화·스폰·버리기 이벤트 (O12 H1, 2026-11-12).** 서버가 이미 내던 여섯 이벤트가 목록에서 빠져 있어 Bukkit 보호·기록 플러그인(WorldGuard·GriefPrevention·CoreProtect 류)이 설치·자람·사라짐·폭발·스폰·버리기를 막지도 기록하지도 못했다. 이제 잇는다. 규칙은 CraftBukkit/Paper 1.21.1 기준이다.
+
+- `BlockPlaceEvent`: 막는 것은 `isCancelled()` 이거나 `canBuild()` 가 거짓일 때다(`CraftEventFactory.callBlockPlaceEvent`). 푸는 쪽(Furnace 처리기가 취소를 풀면)은 둘 다 되돌린다. CraftBukkit 은 블록을 놓은 *뒤에* 부르고 Furnace 는 *전에* 부르므로 `getBlockPlaced()` 는 "놓일 블록"(종류·속성)을 보이게 만든 블록이다 — 이벤트가 끝나도 그 상태를 계속 보이므로 취소된 뒤에도 월드의 원래 블록으로 돌아가지 않는다(Paper 는 되돌린 뒤 월드를 읽는다). 이벤트 처리기 안에서 `world.getBlockAt(x, y, z)` 로 그 칸을 다시 읽으면 아직 놓기 전이라 원래 블록이다(CraftBukkit 은 놓인 블록) — 보호 플러그인이 쓰는 이벤트 자신의 블록은 놓일 상태다. `getBlockReplacedState()` 는 그 자리의 원래 상태(소유 스레드에서 읽어 알린다), `getItemInHand()` 는 놓는 손의 아이템 복사본, `getHand()` 는 `HAND`/`OFF_HAND`. 침대·문처럼 두 칸을 놓는 `BlockMultiPlaceEvent` 는 아직 없다(한 칸 이벤트로 온다).
+- `BlockGrowEvent`·`BlockFadeEvent`: `getNewState()` 는 이벤트 시점 스냅숏(`CompatBlockState`). `update()` 는 Paper 처럼 종류가 같을 때만(또는 `force`) 월드에 쓴다. 블록 엔티티 내용은 스냅숏에 담지 않는다.
+- `BlockExplodeEvent`: `blockList()` 는 Paper 처럼 서버 목록의 뒤에서부터·공기를 뺀 목록이다. 고치면 서버가 그 목록 순서로 따른다(Paper 와 같다 — 넣은 칸도 부서진다. 고치지 않았으면 서버는 바닐라 목록 그대로). `getYield()`·`getExplosionResult()` 는 읽을 수 있고(DESTROY_WITH_DECAY 는 1/반지름) `setYield` 는 서버가 적용하지 않는다. `getExplodedBlockState()` 는 터진 블록 종류의 기본 상태다(속성은 서버가 알리지 않는다).
+- `EntitySpawnEvent`: 서버의 하위 이벤트가 같은 처리기 목록으로 온다 — 아이템은 `ItemSpawnEvent`(`getEntity()` 가 `Item`), 살아 있는 것은 `CreatureSpawnEvent`(`getSpawnReason()`), 투사체 등은 `EntitySpawnEvent`. 플레이어는 Bukkit 도 이 이벤트를 내지 않는다.
+- `PlayerDropItemEvent`: CraftBukkit 순서대로 던질 아이템 엔티티(속도·난수까지)를 만든 뒤 이벤트를 부르고, 취소하면 엔티티는 들어가지 않고 아이템은 인벤토리로 돌아간다. 구독자가 없으면 이전과 같이 난수를 쓰지 않는다. `getItemDrop()` 은 `Item`(`CraftItem`)이고 `getItemStack()`·`getPickupDelay()` 는 읽기만 된다 — `setItemStack`·`setPickupDelay` 는 `UnsupportedFeature`(Furnace 핸들에 쓰는 길이 아직 없다).
+
+**보호 이벤트 여섯 (T-040a, 2026-11-13).** 어댑터에 클래스가 없어 보호 플러그인이 폭발·피스톤·퍼짐·투사체를 막지 못했다. 규칙은 Paper 기준이다.
+
+- `EntityExplodeEvent`: `BlockExplodeEvent` 와 같다 — `blockList()` 는 Paper 처럼 서버 목록의 뒤에서부터·공기를 뺀 목록이고(처리기가 고치지 않았으면 서버는 바닐라 목록 그대로), 고치면 서버가 그 목록(순서 포함)으로 부수고, 취소하면 블록·불·패킷이 모두 없다. `getYield()`(DESTROY_WITH_DECAY 는 1/반지름)·`getExplosionResult()` 는 읽기만, `setYield` 는 서버가 적용하지 않는다.
+- `BlockPistonExtendEvent`/`BlockPistonRetractEvent`: `getBlocks()` 는 밀리거나 부서질 블록(바꿀 수 없는 목록). `getDirection()` 은 Paper 가 넘기는 값 그대로 — 확장은 피스톤이 바라보는 쪽, 블록을 끄는 수축은 그 반대(미는 방향), 끌 블록이 없는 수축(일반 피스톤)은 바라보는 쪽이다.
+- `BlockFormEvent`(콘크리트 굳음·흑요석·조약돌·현무암)/`BlockSpreadEvent`(잔디·균사체·버섯·덩굴·불): 둘 다 `BlockGrowEvent` 의 하위 클래스지만 처리기 목록이 각자라 서로의 처리기에는 오지 않는다(Bukkit 과 같다). `getNewState()` 는 이벤트 시점 스냅숏.
+- `ProjectileHitEvent`: `getEntity()` 는 `org.bukkit.entity.Projectile`(새로 둠 — 종류 서브 인터페이스 `Arrow`·`Snowball` 등은 아직 없다). `getShooter()` 는 Furnace 원인 사슬의 SHOOT 항목에서 읽는다 — 플레이어는 늘, 그 밖의 쏜 엔티티는 투사체의 월드에서 UUID 로 찾는다(T-040b, `World#entityByUuidNow`/`entityByUuid` — 틱 스레드에서는 그 엔티티를 가진 region 에서만 보여 서버의 투사체 주인 찾기와 같은 답이고, 그 밖의 스레드는 소유 region 의 답을 최대 `furnace.compat.entityLookupWaitMillis`(기본 1000ms) 기다린다. 실행 이력·캐시와 상관없다. Paper 는 곧바로 돌려주므로, Netty 스레드(ProtocolLib 수신기 등)에서 부르면 부를 때마다 최대 한 틱쯤 막힐 수 있다 — 그런 곳에서는 부르지 말 것), 디스펜서가 쏜 것은 null. `setShooter`·`launchProjectile`(Paper 의 Consumer 판 포함)·`hasLeftShooter`·`hitEntity` 등은 `UnsupportedFeature`.
+- `EntityChangeBlockEvent`(T-040b): 서버가 Paper 1.21.1 과 같은 자리에서 낸다(떨어지는 블록 시작·착지, 엔더맨 들기·놓기, 좀벌레, 양·염소 풀 먹기, 주민 농사·퇴비통, 개구리 알, 벌·벌집, 여우·동굴 덩굴 열매, 토끼, 거북 알, 위더, 파괴수, 번개, 투사체가 맞힌 블록(후렴꽃·장식 단지·뾰족 점적석·TNT), 가루눈, 수련잎, 레드스톤 광석, 큰 흘림잎, 밭 밟기, 도구·꿀벌집 조각·물병·엔더의 눈·케이크·퇴비통 손 쓰기 등 — 표는 `docs/feature-parity/context-notes/2026-11-14-t040b-entity-change-block.md`). 문 부수기는 하위 `EntityBreakDoorEvent`(처리기 목록을 같이 쓴다). 취소만 오간다(바뀔 상태는 Bukkit 에서도 못 고친다). `mobGriefing` 이 막는 자리(양·파괴수 작물·가루눈 불)는 Paper 처럼 취소된 채로 와서 처리기가 풀 수 있다. `getBlockData()` 는 사본.
+- `Bukkit.getEntity(UUID)`·`Server#getEntity(UUID)`·`World#getEntity(UUID)`: 위 getShooter 와 같은 규칙으로 찾는다.
+
+**리스너 통째 탈락 방지 (T-040a).** 리스너 클래스의 메서드 서명을 읽다가 없는 클래스(`NoClassDefFoundError`, 대개 어댑터에 없는 이벤트)를 만나면 Bukkit·Paper 는 그 리스너 클래스를 통째로 버린다(Paper 에서는 그 클래스가 다 있어 일어나지 않는 일). Furnace 는 이때만 클래스 파일을 ASM 으로 읽어 `@EventHandler` 메서드를 하나씩 풀고(`ListenerFallback`), 매개변수 형이 풀리는 것만 `MethodHandles.privateLookupIn(...).findVirtual` 로 등록한다 — 우선순위·`ignoreCancelled`·비공개·정적·부모 클래스의 공개 처리기까지 `getMethods()` 와 같은 가시성이다(자식의 주석 없는 덮어쓰기가 부모 처리기를 가리는 것도 같다). 건너뛴 처리기의 이름과 없는 클래스는 한 줄 경고에 남는다. 정상 경로(서명이 다 풀리는 리스너)는 그대로다. 인터페이스 default 메서드의 `@EventHandler` 도 같은 규칙으로 찾는다.
+
+**클래스만 있고 아직 알리지 않는 이벤트.** `BlockCanBuildEvent`·`BlockDamageEvent`·`BlockDispenseEvent`·`BlockExpEvent`·`NotePlayEvent`·`SignChangeEvent`. (`WorldInitEvent` 는 T-141 E4d 부터 추가 월드에도 `WorldLoadEvent` 바로 앞에 알린다. 기동 때 기본 차원은 아래 "기동 순서" 대로다.) 리스너 클래스 하나에 이 이벤트 처리기가 섞여 있어도 나머지 처리기는 등록되도록 클래스를 두었다(Bukkit 은 리스너 클래스의 모든 처리기 서명을 한꺼번에 읽어서, 클래스 하나가 없으면 리스너 전체가 빠진다). 처리기를 달면 플러그인·이벤트마다 한 번 "이 이벤트는 아직 알리지 않는다" 경고를 남긴다(`EventBridge.isKnownButNotFired`).
 
 플러그인이 만든 자기 이벤트는 `PluginManager#callEvent` 로 그대로 돈다(Furnace 이벤트와 이어지지 않는 순수 Bukkit 이벤트).
+
+## 기동 순서·대화·Spigot 설정 (2026-11-14, 시작 로그 FAWE·ProtocolLib 묶음)
+
+**기동 순서.** Paper 처럼 모든 플러그인의 `onLoad` 와 `load: STARTUP` 플러그인의 `onEnable` 은 월드보다 먼저다. 이 동안 `Bukkit.getWorlds()` 는 빈 목록이고 `Bukkit.getWorld(..)` 는 null 이다. STARTUP 켜기가 끝나면(없으면 나머지 플러그인을 켜기 직전) 기본 차원(overworld·nether·end, 데이터 팩 차원 포함) 하나씩 목록에 넣으며 `WorldInitEvent` 를 알리고, 다 넣은 뒤 차례로 `WorldLoadEvent` 를 알린 다음 `POSTWORLD`(기본) 플러그인을 켠다(Paper `MinecraftServer.loadWorld0` 순서). 받는 것은 그때 처리기를 단 플러그인(onLoad 에서 단 것·STARTUP 플러그인)뿐이다. `worlds.autoload` 추가 월드는 그 뒤 보이게 되며 `WorldInitEvent`·`WorldLoadEvent` 를 한 번씩 받는다. Furnace 의 월드는 이때 이미 올라와 있으므로 순서만 Paper 와 같게 보여 준다. 이 덕에 FAWE·ProtocolLib 등이 "서버 리로드 감지" 오탐을 내지 않는다. 그 밖의 플랫폼(Furnace 플러그인)은 영향이 없다(`PluginFormat#beforePluginsLoad`·`enablesBeforeWorlds`·`worldsReady`).
+
+**대화(`org.bukkit.conversations`).** Bukkit 대화 API 전체(숫자 대답은 Paper 처럼 commons-lang3 3.14.0 `NumberUtils` 규칙)(`Conversation`·`ConversationFactory`·각종 `Prompt`·취소자·접두사)를 둔다. 플레이어가 대화 중이면 채팅 입력은 채팅 이벤트·방송 없이 대화로 가고(Paper `broadcastChatMessage` 와 같은 자리: 빈 메시지 무시, 스팸 계산은 그대로), 모달 대화 중에는 `sendMessage` 가 숨겨진다(`sendRawMessage` 는 보인다). 콘솔도 `ServerCommandEvent` 뒤에 대화가 입력을 가져간다. 대화 처리는 Paper 처럼 전역 스레드(Bukkit 주 스레드)에서 돈다. Furnace API 쪽 다리는 `Player#chatInputHandler`·`Furnace#consoleInputHandler`.
+
+**`org.spigotmc.SpigotConfig`.** 플러그인들이 "Spigot 위에서 도는가" 를 이 클래스의 존재로 판별한다(ProtocolLib 업데이트 확인 등). `bungee` 는 서버 설정 `bungeecord`, `config` 는 그 값만 담은 YAML 이다.
+
+**다른 버전 NMS 탐색 잡음.** 플러그인이 다른 버전 어댑터(`v1_20_R3`, `v26_1` 같은 이름)를 정의·호출하는 것은 버전 고르기라 DEBUG 로 내린다. 플러그인이 켜지는 동안(onLoad·onEnable) 리플렉션으로 찾다가 없는 NMS 클래스(대개 Paper 1.21.1 에도 없는 것)는 켜기가 끝날 때(실패했거나 켜기 전에 꺼졌으면 끌 때) WARN 한 줄로 모아 보인다.
 
 ## 지원하지 않는 것과 실패 방식
 
@@ -78,12 +127,20 @@ Furnace 이벤트가 알리지 않는 값은 지어내지 않는다. 읽기는 �
 - **인벤토리**: `Player#getInventory`(`PlayerInventory`: 핫바·주 칸·갑옷·왼손·`addItem`·`removeItem`·`getItemInMainHand` 등)는 칸을 거울로 비춘다. 소유 스레드가 아닌 곳의 쓰기는 예약되고 읽기에 겹쳐 보인다. `Bukkit#createInventory` 는 `UnsupportedFeature`.
 - **블록**: `Block#setType/getBlockData/setBlockData/getRelative/getFace/getChunk`, `BlockData`(`Material#createBlockData`, 문자열 `matches`).
 - **엔티티·월드**: `Entity#getType`(`EntityType` 130종 생성)·`getNearbyEntities`·`setCustomName`·엔티티 영속 데이터(소유 region 에서만 읽기), `World#spawnEntity/getNearbyEntities/getChunkAt`. 서버 API 에 동기 쌍 `World#spawnEntityNow`·`nearbyEntitiesNow`, `Entity#editPersistentDataNow`, `Player#heldSlot/setHeldSlot` 을 더했다.
+  - region 스레드에서 부르는 동기 조회(`getNearbyEntities`·`entitiesInBoxNow` 같은 엔티티 상자, `rayTraceBlocks`·`rayTraceBlocksNow` 같은 광선, 블록 읽기)는 지금 region 만 본다. 기본 설정(`region-section-shift=3`)에서 다른 region 은 적어도 129블록 떨어져 있으므로, 부르는 위치 둘레 128블록 이내 조회는 Paper 와 결과가 같다. 그보다 긴 광선(총·레이저 플러그인의 100~300블록 등)은 129블록부터 잘린다(`nearbyEntitiesNow` 는 원래 반경 128 까지만 받는다). 그보다 넓게 찾는 플러그인은 전역 스레드의 `openRegionAccess` 빌림 구간에서 부르거나 서버 운영자가 `region-section-shift=4`(256블록)로 둘 수 있다(2026-11-14 전 기본).
+- **플레이어별 거리(T-141 E4c)**: `Player#get/setViewDistance`·`get/setSendViewDistance`·`get/setSimulationDistance`·`getClientViewDistance`, `World` 의 같은 이름들. 서버 값 이하로 낮추기만 Paper 공식대로 되고 넘는 값은 잘린다(경고) — `docs/api/view-distance.md`.
+- **블록 상태 영속 데이터·이름(T-141 E6)**: `TileState#getPersistentDataContainer`(스냅숏 — `update` 때 실림, NBT `PublicBukkitValues`, 저장·`/data` 에는 있고 클라이언트로는 안 감), `isSnapshot`(`getState()` 는 true, `Block#getState(false)` 는 false — 그 상태의 영속 데이터는 살아 있는 블록 엔티티의 것이라 고치는 즉시 반영. 이름·표지판 글 등 다른 값은 Furnace 에서는 여전히 `update` 가 필요해 처음 한 번 경고), `Nameable#getCustomName`·`setCustomName`(용기·현수막·신호기, 엔티티도 Nameable). Adventure `customName(Component)` 은 없음.
+- **잠금(T-141 E7a)**: `Lockable#isLocked`·`getLock`·`setLock`(용기·신호기, `update` 때 실림). 서버가 바닐라처럼 잠긴 용기·신호기를 열쇠 이름 아이템 없이는 열지 않는다(관전자 제외). `BlockLockCheckEvent` 는 없음.
+- **현수막(T-141 E9)**: `Banner`(바탕 색·무늬 겹 읽기·쓰기, `update` 때 실림 — 바탕 색은 블록 종류가 정해 Paper 처럼 저장되지 않음), `org.bukkit.block.banner.Pattern`(설정 직렬화 `Pattern`), `PatternType`(`OldEnum` 인터페이스, 상수 43개, `getIdentifier`·`getByIdentifier`·`valueOf`·`values`), `Registry.BANNER_PATTERN`(데이터 팩 무늬 포함). 아이템 `BannerMeta` 는 아직 없음.
+- **머리(T-141 E10)**: `Skull`(`hasOwner`·`getOwner`·`setOwner`·`getOwningPlayer`·`setOwningPlayer`·`getPlayerProfile`·`setPlayerProfile`·`getOwnerProfile`·`setOwnerProfile`·`get/setNoteBlockSound`·`getRotation`·`setRotation`, `update` 때 실림. 사람 머리(`PLAYER_HEAD`·`PLAYER_WALL_HEAD`)만 `profile` 을 쓰고, 프로필을 비우면 서버가 옛 값을 지우도록 `SkullBlockEntity.beforeSnapshotLoad` 훅이 있다). `PlayerProfile`(Spigot `org.bukkit.profile` 와 Paper `com.destroystokyo.paper.profile` 둘 다, 설정 직렬화 `PlayerProfile`), `PlayerTextures`·`ProfileProperty`, `Bukkit#createPlayerProfile`·`createProfile`·`createProfileExact`, `OfflinePlayer#getPlayerProfile`, `Player#getPlayerProfile`. `BlockFace` 는 Paper 처럼 19개(대각·16방위·`SELF`). 서버 API `Furnace#profileByName`·`profileById`·`fetchProfileByName`·`fetchProfile`·`verifyProfileProperty`. 한계: `setOwner(이름)` 은 서버 사용자 캐시만 읽고(Mojang 에 묻지 않음), `PlayerProfile#update`·`complete` 만 Mojang 에 묻는다 — 기본 플래그는 서버가 온라인 모드이거나 BungeeCord·Velocity 포워딩일 때 참(Paper usesAuthentication, 프록시 뒤 `online-mode=false` 포함)이고 `complete(textures, true)` 로 직접 켤 수도 있다. `complete(...)` 는 부른 스레드를 최대 약 20초 막는다(이름 조회와 세션 조회 각 최대 10초, Paper 도 같음) — region 스레드에서는 `update()` 를 쓴다. 조회는 공용 스레드 4개로 돈다. 호환 계층에 authlib 가 없어 `getGameProfile`·`buildGameProfile` 은 없다. `isSigned` 는 서버가 Mojang 속성 공개키를 받은 뒤에만 참이다. `Player#setPlayerProfile`·`SkullMeta` 는 아직 없음.
+- **사본 인벤토리·큰 상자(T-141 E7b)**: `getSnapshotInventory`(사본 NBT Items 의 메모리 칸, `update` 때 실림, 화로류·양조대는 FurnaceInventory·BrewerInventory, 주인·위치 null), 놓이지 않은 상태의 `getInventory` 도 사본. 큰 상자 `Chest#getInventory` 는 `DoubleChestInventory`(54칸, 왼쪽 = type=right 상자, 주인 `DoubleChest`), 블록 인벤토리 `getLocation` 은 그 칸. Paper 와 다른 점: 큰 상자 짝 칸이 다른 region 이면 `Chest#getInventory` 가 `ThreadOwnershipException`(반쪽은 `getBlockInventory`).
+- **월드 만들기(T-141 E4d)**: `Bukkit#createWorld`·`WorldCreator#createWorld`·`WorldType`. Paper 처럼 돌아올 때 월드가 돌고 있고 `WorldInitEvent`·`WorldLoadEvent` 가 지나갔다(서버 API `Furnace#createWorldNow`). 같은 이름(대소문자 무시)이 있으면 그 월드, 이름·키 중 하나만 겹치면 `IllegalArgumentException`, 폴더에 level.dat 이 있으면 저장된 생성기·구조물·시드(키·환경만 설명서 값), `load: STARTUP` 켜기 중이면 `IllegalStateException`, `CUSTOM` 환경은 `IllegalArgumentException`. `type` 은 오버월드에만 쓰이고 `FLAT` 의 `generatorSettings` 는 바닐라 평지 JSON(`layers`·`biome`). Bukkit `ChunkGenerator`·`BiomeProvider` 로 만드는 것은 아직 없어 `UnsupportedFeature`(Furnace 생성 훅은 `docs/api/worlds.md`). 하드코어·`keepSpawnLoaded`(Adventure TriState, 클래스 없음)는 서버 값을 따른다.
 - 생성 파일(`Material`·`EntityType`·`Enchantment`)은 `tools/compat/gen-bukkit-material.py`·`gen-bukkit-registries.py` 로 다시 만든다.
 - 시험: `InventoryAdapterTest`·`BlockEntityWorldAdapterTest`·`KitPluginTest`(키트 플러그인 jar)·`RegistryValueTypesTest`.
 
 ## Bukkit 비동기 작업의 스레드 (Paper 와 같은 풀)
 
-`runTaskAsynchronously` 등 옛 비동기 작업은 이름 붙은 **플랫폼 스레드 풀**에서 돈다(Paper 1.21.1 `CraftAsyncScheduler` 모양: 코어 4·최대 무제한·30초 놀면 정리·대기열 없음). 스레드 이름은 `Craft Scheduler Thread - N`, 작업이 도는 동안 `… - 플러그인이름`. 서버 옵션 `plugins.compat.scheduler.async-threads=virtual` 이면 서버의 가상 스레드 실행기를 쓴다. 가상 스레드는 JDK 21 에서 `synchronized` 안에서 소켓·파일을 기다리면 운반 스레드를 붙잡는다(옛 JDBC 드라이버·풀 라이브러리가 그런 모양이라 몇 개만 겹쳐도 모든 비동기 작업이 멈출 수 있다). 서버를 끌 때는 모든 `onDisable` 이 끝난 뒤 돌고 있는 비동기 일꾼을 최대 5초 기다리고, 남은 플러그인마다 `Nag author(s)…` 오류를 남긴다(Paper `Wait-for-Async-Tasks-during-shutdown`). `BukkitScheduler#getMainThreadExecutor(Plugin)`(Paper API)도 있다. 설계·남은 차이: `docs/feature-parity/context-notes/2026-11-08-p2.md`. 시험: `LegacySchedulerTest`, `AsyncSchedulerShutdownTest`.
+`runTaskAsynchronously` 등 옛 비동기 작업은 이름 붙은 **플랫폼 스레드 풀**에서 돈다(Paper 1.21.1 `CraftAsyncScheduler` 모양: 코어 4·최대 무제한·30초 놀면 정리·대기열 없음). 스레드 이름은 `Craft Scheduler Thread - N`, 작업이 도는 동안 `… - 플러그인이름`. 서버 옵션 `plugins.compat.scheduler.async-threads=virtual` 이면 가상 스레드(`Craft Scheduler Virtual Thread - N`)를 쓴다(서버의 `asyncExecutor` 는 `plugins.async-threads` 를 따로 따른다, T-034). 가상 스레드는 JDK 21 에서 `synchronized` 안에서 소켓·파일을 기다리면 운반 스레드를 붙잡는다(옛 JDBC 드라이버·풀 라이브러리가 그런 모양이라 몇 개만 겹쳐도 모든 비동기 작업이 멈출 수 있다). 서버를 끌 때는 모든 `onDisable` 이 끝난 뒤 돌고 있는 비동기 일꾼을 최대 5초 기다리고, 남은 플러그인마다 `Nag author(s)…` 오류를 남긴다(Paper `Wait-for-Async-Tasks-during-shutdown`). `BukkitScheduler#getMainThreadExecutor(Plugin)`(Paper API)도 있다. 설계·남은 차이: `docs/feature-parity/context-notes/2026-11-08-p2.md`. 시험: `LegacySchedulerTest`, `AsyncSchedulerShutdownTest`.
 
 ## JavaPlugin 의 명령·스케줄러·서비스 (H4 다음 묶음 A)
 
@@ -97,7 +154,7 @@ Furnace 이벤트가 알리지 않는 값은 지어내지 않는다. 읽기는 �
 
 `PermissibleBase`·`PermissionAttachment`·`PermissionAttachmentInfo`·`PermissionRemovedExecutor` 와 `Permissible` 의 첨부 메서드, `CraftHumanEntity.perm`(정확히 `PermissibleBase`, 권한 플러그인이 리플렉션으로 바꿔 끼운다), `Bukkit.getUnsafe()`(`UnsafeValues`/`CraftMagicNumbers`), `getOnlineMode`·`getOfflinePlayer`·`getOperators`, `Player#locale`·`updateCommands`. Bukkit 첨부는 같은 플러그인의 Furnace 첨부로 옮겨져 Furnace 쪽 판정에도 들어가고, 권한 객체를 바꿔 끼우면(LuckPerms) Furnace 쪽 판정도 그 객체에 맡긴다(서버 API `PermissionOverride`). 정확한 `PermissibleBase` 는 지금 끼워져 있을 때만 Furnace 판정에 묻는다(바꿔 끼운 객체가 옛 객체에 되물어도 재귀 없음). 아직: RCON 으로 친 Bukkit 플러그인 명령의 발신자는 `ConsoleCommandSender` 이고 출력이 콘솔로 간다(Paper 는 RCON 응답).
 
-이벤트 표에 더하는 것: `AsyncPlayerPreLoginEvent`(Furnace `AsyncPlayerPreLoginEvent`, 결과·사유 되돌림, 가상 스레드), `PlayerLoginEvent`(Furnace `PlayerCreateEvent` — Player 가 처음 생기는 때, 거부하면 월드에 넣지 않고 끊음), `RemoteServerCommandEvent`(Furnace `RemoteServerCommandEvent`, RCON 연결 스레드, 취소·명령 바꾸기; 발신자는 `RemoteConsoleCommandSender`). 설계·Paper 와 다른 점: `docs/feature-parity/compat-luckperms-2026-11-11.md`. 시험: `BukkitPermissionsTest`, 봇 `tools/bot-test/round-lp/lp.js`.
+이벤트 표에 더하는 것: `AsyncPlayerPreLoginEvent`(Furnace `AsyncPlayerPreLoginEvent`, 결과·사유 되돌림, 접속 이벤트 전용 스레드 `User Authenticator #N`), `PlayerLoginEvent`(Furnace `PlayerCreateEvent` — Player 가 처음 생기는 때, 거부하면 월드에 넣지 않고 끊음), `RemoteServerCommandEvent`(Furnace `RemoteServerCommandEvent`, RCON 연결 스레드, 취소·명령 바꾸기; 발신자는 `RemoteConsoleCommandSender`). 설계·Paper 와 다른 점: `docs/feature-parity/compat-luckperms-2026-11-11.md`. 시험: `BukkitPermissionsTest`, 봇 `tools/bot-test/round-lp/lp.js`.
 
 ## 스레드 (H2 가 H1 에 넘긴 D1·D2 에 대한 결정)
 
@@ -130,6 +187,8 @@ Bukkit 은 메인 스레드 하나를 가정한다. 이 1차는 Furnace 이벤�
 
 호환 모듈(`org.bukkit.*`·어댑터·ASM, 약 0.6 MB)은 서버 `fatJar` 에 함께 실리지만 서버 핵심과 얽히지 않는다.
 - **모듈 방향:** `furnace-server` 와 `furnace-api` 는 호환 모듈에 의존하지 않는다(호환 모듈 → API 한 방향. 서버 `fatJar` 만 둘을 합친다). `CompatIsolationStaticTest` 가 서버·API 클래스 파일에 `org/bukkit/` 등 호환 패키지 이름이 없음을 확인한다.
+- **넣으면 바로 돈다, 비면 아무것도 안 켠다(2026-11-12 도미니코 결정):** Bukkit·Paper 플러그인 jar 를 `plugins/bukkit-plugins/`(또는 Paper 처럼 `plugins/`)에 넣고 서버를 켜면 따로 설정할 것이 없다. 필요한 것은 그 플러그인이 있을 때만 준비한다 — 호환 어댑터·호환 jar 꺼내기, Paper 가 싣는 라이브러리(`plugins.compat.libraries=needed`), Spigot 이름 NMS 플러그인용 Spigot → Mojang 대응표(`plugins.compat.nms.spigot-mappings=download`, 기본). fat jar(`java -jar furnace-server.jar`)와 `start.sh`·`start.bat`(installDist, `lib/furnace-compat-embedded.jar`) 둘 다 같다. Bukkit 플러그인이 하나도 없으면 이 중 아무것도 하지 않는다(클래스를 올리지 않고, 파일을 꺼내지 않고, 네트워크에 나가지 않는다). 예전 기본 `off` 로 자동 기록된 furnace.properties 줄은 설정 형식 2 마이그레이션이 `download` 로 옮긴다(원본은 `furnace.properties.v1.bak`).
+- **설정 경로 구분자와 addDefault 기본값(2026-11-12 결정 "둘 다 지원"):** 플러그인이 `options().pathSeparator('/')` 처럼 구분자를 바꾸면 Bukkit 설정은 그 문자로 경로를 나눈다. 기본값 트리(`addDefault`)는 Paper 가 언제나 '.' 로 쪼개는데(그래서 `addDefault("groups/default/x", 1)` 를 `copyDefaults` 로 저장하면 `groups/default/x: 1` 한 줄 키가 된다), Furnace 기본은 플러그인이 정한 구분자로 쪼갠다(`groups:` 아래 중첩). `furnace.properties` 의 `plugins.compat.config.paper-default-separator=true` 로 켜면 Paper 와 똑같이 '.' 로 쪼개고 `getDefaults().options().pathSeparator()` 도 '.' 이다. 켜면 저장 파일 모양·`contains`·`getKeys`·`isConfigurationSection` 뿐 아니라 `setDefaults` 와 섞어 쓸 때·저장한 파일을 다시 읽을 때의 값도 Paper 와 같아진다. 예: 파일을 읽고 `addDefault("groups/default/x")` 한 뒤 `copyDefaults` 로 저장하면 한 줄 키가 앞에 쓰이고, 그 파일을 '/' 로 다시 읽을 때 뒤의 `groups:` 트리가 앞 키를 덮어 기본값이 사라질 수 있다(Paper 도 같다). 시험: `A15DefaultSeparatorOptionTest`(기대값은 Paper 설정 클래스 실행 결과).
 - **지연 로딩:** 서버는 시작할 때 호환 어댑터(`PluginFormat`)를 만들지 않는다. `PluginFormats` 가 클래스패스에 `META-INF/services` 자원이 있는지만 보고(클래스를 읽지 않는다), Furnace 설명 파일이 없는 jar(= Bukkit·Paper 플러그인)를 처음 만났을 때 한 번만 `ServiceLoader` 로 만든다. 그 전에는 호환 모듈 클래스가 JVM 에 하나도 올라오지 않는다 — `plugins/` 가 비었거나 Furnace 플러그인뿐이거나 `plugins/bukkit-plugins/` 가 비어 있어도 마찬가지다. 단 설명 파일이 없는 다른 jar(라이브러리 jar 를 잘못 둔 경우 등 — 원래 오류 jar)가 `plugins/` 나 `plugins/bukkit-plugins/` 에 있으면 그 판정을 위해 어댑터가 올라온다. 호환 모듈 자원은 있는데 어댑터를 만들 수 없으면(깨진 호환 모듈) Bukkit jar 는 실패로 세지 않고 경고 후 건너뛴다.
 - **모듈이 없어도 된다:** 호환 모듈이 클래스패스에 아예 없어도(서버를 호환 없이 붙일 때) 서버 관측 결과는 같다. Bukkit jar 가 있으면 "클래스패스에 없어 불러오지 않는다" 경고만 남긴다.
 - **증거:** `CompatIsolationTest` 가 별도 JVM 을 `-Xlog:class+load` 로 띄워 서버 기동·접속·명령·종료 동안 올라온 클래스에 `org.bukkit.`·`org.domi.furnace.compat.`·`org.objectweb.asm.` 등이 없음을 센다(대조군: Bukkit 플러그인을 넣으면 `CompatFormat` 이 올라온다). `PluginFormatsLazyTest` 는 어댑터 생성 횟수를 센다.
@@ -138,3 +197,7 @@ Bukkit 은 메인 스레드 하나를 가정한다. 이 1차는 Furnace 이벤�
 ## 법적 메모
 
 `org.bukkit` 클래스의 공개 이름·서명은 호환을 위해 필요한 만큼만 새로 썼다(Bukkit 소스를 복사하지 않았다). `furnace-compat-paper` 는 GPL-3.0-only (확정, `docs/policy/licensing.md`). 이 문서는 법률 자문이 아니다.
+
+## Tag 와 자동완성 (2026-11-14, FAWE 시작 로그에서)
+- **`org.bukkit.Tag`·`Bukkit.getTag`/`getTags`·`Server.getTag`/`getTags`·`Fluid`·`GameEvent`.** `Tag` 상수는 바닐라 1.21.1 태그마다 하나(블록은 태그 경로 대문자, 아이템 `ITEMS_`·유체 `FLUIDS_`·엔티티 종류 `ENTITY_TYPES_`·게임 이벤트 `GAME_EVENT_`) — `tools/compat/gen-bukkit-tag.py` 가 `tags-1.21.1.txt` 에서 만든다. 구현은 Furnace 게임 레지스트리(`gameRegistries().tag()`)를 그때그때 읽어 데이터 팩 리로드가 잡고 있던 `Tag` 객체에도 보인다. 없는 태그는 `null`, 레지스트리와 클래스가 안 맞으면 `IllegalArgumentException`(CraftServer.getTag 규칙). `Fluid` 는 Paper 처럼 `EMPTY` 가 맨 앞, `Tag`·`GameEvent` 에는 1.21.1 의 옛 이름 별칭(`CARPETS`·`BLOCK_PRESS` 등)이 같은 객체로 있고 `GameEvent#getRange`·`getVibrationLevel` 은 바닐라 표 값이다. `isTagged(null)` 은 블록·아이템 태그에서 `false`(Paper EnumMap 조회), `getValues()` 는 순서 있는 집합(Paper 는 순서 없는 집합 — 관측 영향 없음). `damage_types` 레지스트리는 호환 계층에 `DamageType` 이 없어 `IllegalArgumentException`. `Registry.FLUID`·`Registry.GAME_EVENT` 는 아직 없다.
+- **자동완성.** `AsyncTabCompleteEvent` 는 후보를 채웠거나 handled 면 그 후보만 보내고(Brigadier 규칙: 마지막 공백 뒤가 바뀔 자리·정렬 대소문자 무시·10진 정수 꼴은 정수 후보), 취소면 응답 없음, 아무것도 안 하면 평소처럼 명령 트리로 후보를 만든다. 처리기가 없으면 서버는 이벤트를 만들지 않고 스레드도 건너지 않는다. 동기 `TabCompleteEvent`·Paper `MaterialTags`·`EntityTags` 는 아직 없다.

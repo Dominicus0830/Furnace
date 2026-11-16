@@ -20,6 +20,12 @@ public abstract class Event {
 
     public abstract HandlerList getHandlers();
 
+    /** Paper: 플러그인 관리자로 이 이벤트를 부른다. 취소할 수 있는 이벤트면 취소되지 않았을 때 true, 아니면 늘 true. */
+    public boolean callEvent() {
+        org.bukkit.Bukkit.getPluginManager().callEvent(this);
+        return !(this instanceof Cancellable c) || !c.isCancelled();
+    }
+
     public final boolean isAsynchronous() { return async; }
 
     public enum Result {

@@ -16,6 +16,7 @@ import org.domi.furnace.server.players.GameProfileCache;
 import org.domi.furnace.server.players.PlayerLists;
 import org.domi.furnace.server.world.World;
 import org.domi.furnace.server.world.storage.LevelData;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,8 +36,15 @@ public final class ServerCore {
     private final org.domi.furnace.server.world.WorldClock clock;
     /** 오버월드 보더(바닐라 overworld().getWorldBorder()) — 명령·level.dat·접속자 패킷이 이것을 쓴다. 다른 차원 보더는 이것을 따라간다. */
     private final org.domi.furnace.server.world.WorldBorder border;
-    private volatile Runnable halt = () -> {};
-    private volatile Runnable saveAll = () -> {};
+    /** /stop 의 JVM 끝내기(FurnaceMain 은 System::exit, 시험은 기록). null 이면 /stop 이 아무것도 안 한다(서버 조각 시험). */
+    private volatile java.util.function.IntConsumer haltExit;
+    /** /stop 이 JVM 을 끝내기 전에 도는 종료 단계(아직 없으면 바로 끝낸다). */
+    private volatile ShutdownSequence shutdownSequence;
+    /** /save-all·빈 서버 일시정지 저장(서버가 채운다). 돌려주는 future 는 저장이 끝나면 완료된다 — 부른 스레드를 막지 않는다. */
+    @FunctionalInterface
+    public interface SaveAll { java.util.concurrent.CompletableFuture<Void> save(boolean flush); }
+
+    private volatile SaveAll saveAll = flush -> java.util.concurrent.CompletableFuture.completedFuture(null);
 
     public ServerCore(ServerPropertiesFile settings, PlayerLists lists, GameProfileCache profileCache, World world,
                       LevelData levelData, FurnaceScheduler scheduler) {
@@ -181,16 +189,22 @@ public final class ServerCore {
 
         public boolean isThundering() { return world.dimensionType().hasSkyLight() && clock.thunderLevel() > 0.9f; }
 
-        /** 바닐라 Level.getBiome(pos)(확대 지터 포함). 지금 스레드가 그 region 을 가진 경우에만 — 아니면 null. */
+        /**
+         * 바닐라 Level.getBiome(pos)(확대 지터 포함). 지터로 고른 quart 는 이웃 청크일 수 있다(청크 가장자리 두 칸).
+         * 바닐라 LevelReader.getNoiseBiome 처럼 그 청크가 있으면 저장된 바이옴을 읽는다. 이 스레드가 그 청크를 읽을 수 없으면(다른 region·미로드)
+         * 새로 생성했을 때의 저장 바이옴({@link #generatorBiome}) — 생성 뒤 바이옴이 바뀐 이웃(/fillbiome·setBiome·생성 훅·옛/들여온 청크)만 다르다.
+         */
         public String biomeAt(int x, int y, int z) {
             var dp = dataPacks;
             if (dp == null || dp.loot() == null) return null;
             int[] q = org.domi.furnace.server.world.BiomeZoom.quart(biomeZoomSeed(world), x, y, z);
             int cx = q[0] >> 2, cz = q[2] >> 2;
-            if (!world.ownsChunkOnCurrentThread(cx, cz)) return null;
-            int id = world.regionizer().ownerOf(cx, cz).biomeIdAtQuart(q[0], q[1], q[2]);
             var names = dp.loot().registries().entries("minecraft:worldgen/biome");
-            return id >= 0 && id < names.size() ? names.get(id) : null;
+            if (world.ownsChunkOnCurrentThread(cx, cz)) {
+                int id = world.regionizer().ownerOf(cx, cz).biomeIdAtQuart(q[0], q[1], q[2]);
+                if (id >= 0) return id < names.size() ? names.get(id) : null;
+            }
+            return generatorBiome(world, q[0], q[1], q[2], names);
         }
 
         /** NaturalSpawner.getRoughBiome: 확대 지터 없이 ChunkAccess.getNoiseBiome(x>>2, y>>2, z>>2) — 지금 스레드가 그 region 을 가진 경우에만. */
@@ -277,7 +291,8 @@ public final class ServerCore {
         public int[] findNearestMapStructure(String structureTag, double[] origin, int radius, boolean skipExisting) {
             var b = explorerMapBackend(world);
             if (b == null) return null;
-            return b.findNearestMapStructure(structureTag, (int) Math.floor(origin[0]), (int) Math.floor(origin[1]), (int) Math.floor(origin[2]), radius);
+            return b.findNearestMapStructure(structureTag, (int) Math.floor(origin[0]), (int) Math.floor(origin[1]), (int) Math.floor(origin[2]), radius,
+                    skipExisting);
         }
 
         /**
@@ -320,16 +335,40 @@ public final class ServerCore {
         return out;
     }
 
+    /**
+     * 이 스레드가 읽을 수 없는(다른 region·미로드) 청크의 바이옴 대체값: 그 청크를 새로 생성했을 때 저장될 바이옴(quart y 를 죔).
+     * 바닐라가 이 조회를 하는 자리(청크 생성 스폰의 WorldGenRegion, 틱 도는 청크 옆)에서는 이웃 청크가 거의 늘 있어 그 저장 바이옴을 읽으므로,
+     * 생성기 바이옴 소스를 바로 묻는 getUncachedNoiseBiome 보다 이쪽이 맞다(R-트리 거리 동률에서 둘이 다르다 — PR #364 검토 R1).
+     * 평지·디버그 월드는 한 가지 바이옴. 모르는 생성기면 null.
+     */
+    public static String generatorBiome(World w, int qx, int qy, int qz, java.util.List<String> names) {
+        var src = w.worldSource();
+        if (src instanceof org.domi.furnace.server.world.gen.AnvilWorldSource a) src = a.base();
+        int id;
+        if (src instanceof org.domi.furnace.server.world.gen.NoiseWorldSource n) {
+            String b = n.storedBiomeAtQuart(qx, qy, qz);
+            return b == null || b.isEmpty() ? null : b;
+        } else if (src instanceof org.domi.furnace.server.world.gen.SuperflatWorldSource s) {
+            id = s.biomeId();
+        } else if (src instanceof org.domi.furnace.server.world.gen.DebugWorldSource d) {
+            id = d.biomeId();
+        } else {
+            return null;
+        }
+        return id >= 0 && id < names.size() ? names.get(id) : null;
+    }
+
     /** 바이옴 확대 지터 시드(Level.getBiome — 명령의 biome 조건용). */
     public long biomeZoomSeed() { return biomeZoomSeed; }
 
     /** 그 월드의 바이옴 확대 지터 시드 = 클라이언트가 LoginPlay/Respawn 으로 받는 hashed seed(차원별 시드를 정하지 않았으면 서버 시드 — 바닐라). */
     public long biomeZoomSeed(World w) {
-        return w.hasSeed() ? org.domi.furnace.server.net.protocol.play.LoginPlay.obfuscateSeed(w.seed()) : biomeZoomSeed;
+        // 월드가 시드를 정할 때 한 번 계산해 둔 값을 읽는다(SHA-256 을 부를 때마다 다시 하지 않는다 — O00-01, T-010)
+        return w.zoomSeedOr(biomeZoomSeed);
     }
 
     /** 그 월드의 생성 시드(정하지 않았으면 서버 시드). */
-    public long seedOf(World w) { return w.hasSeed() ? w.seed() : levelData.seed; }
+    public long seedOf(World w) { return w.seedOr(levelData.seed); }
 
     /**
      * /execute if predicate: 명령 문맥(origin, 있으면 this_entity)에서 조건 하나를 평가한다. 난수는 월드 난수(바닐라 level.getRandom).
@@ -382,11 +421,11 @@ public final class ServerCore {
             private final java.util.Set<String> waterBiomes =
                     org.domi.furnace.server.world.gen.structure.StructureRegistry.biomeTag("minecraft:water_on_map_outlines");
 
-            public int[] findNearestMapStructure(String tag, int x, int y, int z, int radius) {
+            public int[] findNearestMapStructure(String tag, int x, int y, int z, int radius, boolean skipKnown) {
                 if (!levelData.generateFeatures) return null;   // ServerLevel.findNearestMapStructure: level.dat 의 generate_features
                 var ids = org.domi.furnace.server.world.gen.structure.StructureRegistry.structureTag(tag);
                 if (ids == null) return null;
-                var f = gen.structureLocator().findNearest(ids, x, y, z, radius);
+                var f = gen.structureLocator().findNearest(ids, x, y, z, radius, skipKnown);
                 return f == null ? null : new int[] {f.x(), f.z()};
             }
 
@@ -717,6 +756,9 @@ public final class ServerCore {
      * RCON 명령: IO 스레드가 부른다. 전역 스레드에서 실행하고(performPrefixedCommandAsync) 컨텍스트가 끝날 때까지 기다려 출력을 돌려준다.
      * 전역/region 스레드에서 부르면 데드락이므로 막는다(CommandFuture 가드).
      */
+    /** RCON 명령 대기 한도. 지연 결과가 가장 긴 /save-all(10분 안전망)보다 길어야 응답이 저장 결과를 담는다(바닐라 RCON 은 끝까지 기다린다). */
+    static final long RCON_COMMAND_WAIT_MINUTES = 11;
+
     public String runRconCommand(String command) throws Exception {
         var spawn = world.defaultSpawn();
         var sink = new org.domi.furnace.server.remote.RconConsole(() -> settings.get().broadcastRconToOps, spawn.x(), spawn.y(), spawn.z());
@@ -728,7 +770,7 @@ public final class ServerCore {
             command = ev.command();
         }
         commands.performPrefixedCommandAsync(org.domi.furnace.server.command.CommandSource.rcon(this, sink), command)
-                .get(5, java.util.concurrent.TimeUnit.MINUTES);
+                .get(RCON_COMMAND_WAIT_MINUTES, java.util.concurrent.TimeUnit.MINUTES);
         return sink.takeOutput();
     }
 
@@ -740,8 +782,19 @@ public final class ServerCore {
             if (ev.isCancelled()) return;
             command = ev.command();
         }
+        // 플러그인이 콘솔 입력을 가로챘다(Bukkit 콘솔 Conversation) — CraftServer.dispatchServerCommand 처럼 ServerCommandEvent 뒤, 명령 실행 대신
+        java.util.function.Consumer<String> capture = consoleInputHandler;
+        if (capture != null) {
+            capture.accept(command);
+            return;
+        }
         commands.performPrefixedCommand(org.domi.furnace.server.command.CommandSource.console(this), command);
     }
+
+    /** 플러그인이 가로챈 콘솔 입력 처리기(API Furnace.consoleInputHandler). 전역 스레드에서 부른다. */
+    private volatile java.util.function.Consumer<String> consoleInputHandler;
+
+    public void consoleInputHandler(java.util.function.Consumer<String> handler) { this.consoleInputHandler = handler; }
 
     public ServerPropertiesFile settings() { return settings; }
 
@@ -769,12 +822,26 @@ public final class ServerCore {
         var source = org.domi.furnace.server.command.CommandSource.block(this, w, sink).withCallback(
                 org.domi.furnace.server.command.exec.ResultCallback.sync((ok, r) -> { if (ok) success.incrementAndGet(); }));
         commands().performPrefixedCommandAsync(source, command).whenComplete((r, ex) -> {
-            if (ex != null) log.error("[CMDBLOCK] 명령 블록 명령 실행 실패: {}", command, ex);
+            if (ex != null) log.error(Lang.t("core.cmdblock-failed", command), ex);
             done.accept(success.get());
         });
     }
 
     public org.domi.furnace.server.chat.ServicesKeys servicesKeys() { return servicesKeys; }
+
+    private volatile org.domi.furnace.server.net.auth.SessionService sessionService;
+
+    /** 프로필 조회용 세션 서버 클라이언트(플러그인 API 의 fetchProfile 등) — 처음 쓸 때 만든다(HTTP 클라이언트가 스레드를 띄우므로). */
+    public org.domi.furnace.server.net.auth.SessionService sessionService() {
+        var s = sessionService;
+        if (s == null) {
+            synchronized (this) {
+                s = sessionService;
+                if (s == null) sessionService = s = new org.domi.furnace.server.net.auth.SessionService();
+            }
+        }
+        return s;
+    }
 
     public org.domi.furnace.server.world.GameRules gameRules() { return gameRules; }
 
@@ -784,7 +851,7 @@ public final class ServerCore {
 
     /** 보더 {minX, minZ, maxX, maxZ}(블록 레벨 서비스 꼴). */
     private static double[] bounds(org.domi.furnace.server.world.WorldBorder b) {
-        synchronized (b) { return new double[] {b.getMinX(), b.getMinZ(), b.getMaxX(), b.getMaxZ()}; }
+        return b.bounds();
     }
 
     /** 그 차원의 보더(바닐라 level.getWorldBorder()). 띄우지 않은 차원이면 오버월드 것. */
@@ -821,6 +888,9 @@ public final class ServerCore {
         tickProfile = null;
         return new long[] {System.nanoTime() - p[0], serverTickCount - p[1]};
     }
+
+    /** 서버 틱 번호(바닐라 tickCount — 틱 머리에서 오른다). 아무 스레드. */
+    public long serverTickCount() { return serverTickCount; }
 
     /** 틱 하나의 머리: 요청이 있으면 프로파일을 시작하고(틱 번호를 올리기 전) 서버 틱 번호를 올린다. */
     private void beginServerTick() {
@@ -881,6 +951,21 @@ public final class ServerCore {
 
     public void backup(org.domi.furnace.server.maintenance.WorldBackup b) { this.backup = b; }
 
+    private volatile org.domi.furnace.server.world.Pregen pregen;
+
+    /** 미리 생성(/furnace pregen, T-175). 처음 부를 때 만든다. */
+    public org.domi.furnace.server.world.Pregen pregen() {
+        var p = pregen;
+        if (p != null) return p;
+        synchronized (this) {
+            if (pregen == null) pregen = new org.domi.furnace.server.world.Pregen();
+            return pregen;
+        }
+    }
+
+    /** 만들어 둔 미리 생성 관리자(없으면 null — 종료 때 새로 만들지 않는다). */
+    public org.domi.furnace.server.world.Pregen pregenIfStarted() { return pregen; }
+
     private volatile org.domi.furnace.server.maintenance.IdlePause idlePause;
 
     /** 빈 서버 일시정지(furnace.properties idle-pause.*). null 이면 끔(기본 — 1.21.1 바닐라에는 없다). */
@@ -925,6 +1010,7 @@ public final class ServerCore {
                 if (ts.globalStepsLeft() == 0) broadcastTickStep(0);
             } else {
                 beginServerTick();   // 바닐라는 정지 중에도 서버 틱 번호가 간다
+                for (int i = 0; i < n; i++) tickEmptyTimes();   // 레벨 tick 은 정지 중에도 /tick rate 대로 불려 emptyTime 이 는다
             }
             return;
         }
@@ -1010,6 +1096,7 @@ public final class ServerCore {
     /** 전역 틱(20TPS): 보더 보간 진행, 시간·날씨 진행과 주기적 시간 동기화. */
     public void tick() {
         beginServerTick();
+        org.domi.furnace.server.world.CommandDrainGate.newGlobalTick();   // 명령 큐 즉시 처리 예산을 되살린다
         functions.tick();   // 바닐라 tickChildren: 함수(#tick, 리로드 뒤 #load)가 레벨 틱보다 먼저
         for (World w : worlds()) w.border().tick();   // 바닐라 ServerLevel.tick: 차원마다 자기 보더(보간이 끝나면 정적 크기로)
         java.util.function.Consumer<org.domi.furnace.server.net.protocol.Packet> all = packet -> { for (Player p : players()) p.send(packet); };
@@ -1027,9 +1114,21 @@ public final class ServerCore {
             try {
                 spawners.tick();
             } catch (RuntimeException e) {
-                log.error("[SPAWN] 포위·상인 스포너 실패", e);
+                log.error(Lang.t("core.raid-spawner-failed"), e);
             }
         }
+        tickEmptyTimes();
+    }
+
+    /** 바닐라 ServerLevel.tick 의 emptyTime(차원마다, 정지 중에도 센다). region 틱보다 먼저 정해 둔다 — 이번 틱 엔티티·블록 엔티티를 돌릴지. */
+    private void tickEmptyTimes() {
+        String mode = org.domi.furnace.server.config.OperatorOptions.current().tickWhenEmpty();
+        boolean always = switch (mode) {
+            case org.domi.furnace.server.config.OperatorOptions.TICK_WHEN_EMPTY_ALWAYS -> true;
+            case org.domi.furnace.server.config.OperatorOptions.TICK_WHEN_EMPTY_VANILLA -> false;
+            default -> pluginHost != null && pluginHost.pluginsImpl().foreignPluginsLoaded();   // auto: Bukkit 플러그인이 있으면 Paper 처럼
+        };
+        for (World w : worlds()) w.tickEmptyTime(always);
     }
 
     /**
@@ -1121,6 +1220,7 @@ public final class ServerCore {
                 for (Player p : players()) p.send(new org.domi.furnace.server.net.protocol.play.GameEvent(
                         org.domi.furnace.server.net.protocol.play.GameEvent.IMMEDIATE_RESPAWN, value != 0 ? 1f : 0f));
             }
+            case "spawnChunkRadius" -> world.refreshSpawnTicket();   // 바닐라 규칙 콜백: overworld.setDefaultSpawnPos(지금 스폰) — 티켓을 새 반경으로
             default -> { }
         }
     }
@@ -1151,7 +1251,7 @@ public final class ServerCore {
     public void setDifficultyProfile(String owner, org.domi.furnace.api.world.DifficultyProfile profile) {
         var base = org.domi.furnace.server.world.Difficulty.valueOf(profile.base().name());
         if (levelData.hardcore && base != org.domi.furnace.server.world.Difficulty.HARD) {
-            throw new IllegalStateException("하드코어 월드의 난이도는 HARD 뿐이다");
+            throw new IllegalStateException("a hardcore world can only use the HARD difficulty");
         }
         synchronized (difficultyLock) {
             levelData.difficulty = base;
@@ -1209,11 +1309,13 @@ public final class ServerCore {
     public void setWorldSpawn(int x, int y, int z, float angle) {
         var old = world.defaultSpawn();
         if (old.x() == x && old.y() == y && old.z() == z && old.yaw() == angle) return;
-        levelData.spawnX = x;
-        levelData.spawnY = y;
-        levelData.spawnZ = z;
-        levelData.spawnAngle = angle;
         var spawn = new org.domi.furnace.server.world.SpawnPoint(x, y, z, angle);
+        synchronized (levelData) {   // level.dat 옮기기·쓰기(synchronized(level))와 엇갈려 네 칸이 찢어지지 않게 — 플러그인은 아무 스레드에서 부른다
+            levelData.spawnX = x;
+            levelData.spawnY = y;
+            levelData.spawnZ = z;
+            levelData.spawnAngle = angle;
+        }
         world.defaultSpawn(spawn);
         // 네더·엔드는 공유 스폰(DerivedLevelData — 오버월드 것)이라 따라간다. 따로 level.dat 을 가진 추가 월드는 자기 스폰을 유지한다.
         for (World w : worlds()) if (w != world && !w.isExtraWorld()) w.defaultSpawn(spawn);
@@ -1331,6 +1433,8 @@ public final class ServerCore {
         public boolean ultraWarm() { return false; }
         public int maxChainedNeighborUpdates() { return settings.get().maxChainedNeighborUpdates; }
         public void forEachPlayer(java.util.function.Consumer<Player> c) { world.forEachPlayerHere(c); }
+        public void forEachConnectedPlayer(java.util.function.Consumer<Player> c) { world.forEachConnectedPlayerHere(c); }
+        public org.domi.furnace.server.world.PlayerRoster.Level playerIndex() { return world.playerIndex(); }
         public boolean biomeIs(int x, int y, int z, String tag) {
             String b = lootWorld.biomeAt(x, y, z);
             var dp = dataPacks;
@@ -1461,10 +1565,51 @@ public final class ServerCore {
     public synchronized void setViewDistance(int vd) {   // 동시 호출이 섞이면 월드 값과 클라이언트에 보낸 값이 어긋난다 — 한 번에 하나
         int v = Math.clamp(vd, org.domi.furnace.server.config.Config.MIN_VIEW_DISTANCE, org.domi.furnace.server.config.Config.MAX_VIEW_DISTANCE);
         for (World w : worlds()) w.viewDistance(v);
-        var pkt = new org.domi.furnace.server.net.protocol.play.SetChunkCacheRadius(v);
         for (Player p : players()) {
             p.viewDistance(Math.min(v, p.clientViewDistance()));
-            p.send(pkt);
+            applyPlayerDistances(p, true);   // 잠금 안에서 상한을 다시 풀고 반경을 보낸다(플러그인 값이 없으면 서버 값 v)
+        }
+    }
+
+    /** Paper RegionizedPlayerChunkLoader 의 세 거리(플러그인 값이 없으면 -1 대신 월드 값). load 는 바닐라 시야 거리 + 1. */
+    public record PlayerDistances(int tick, int load, int send) {}
+
+    /**
+     * Paper PlayerChunkLoaderData.getTickDistance·getLoadViewDistance·getSendViewDistance 를 그대로 푼다(월드 쪽: tick = 시뮬레이션 거리,
+     * load = 시야 거리 + 1, send = 정하지 않음). send 의 클라이언트 몫은 바닐라처럼 렌더 거리 그대로다(Paper 기본 auto-config 의 +1 은 쓰지 않는다 —
+     * 원래 Furnace 가 바닐라 값을 보낸다).
+     */
+    public PlayerDistances playerDistances(Player p) {
+        int worldTick = simulationDistance(), worldLoad = viewDistance() + 1;
+        int pTick = p.apiTickDistance(), pLoad = p.apiLoadDistance(), pSend = p.apiSendDistance();
+        int tick = Math.min(pTick < 0 ? worldTick : pTick, pLoad < 0 ? worldLoad : pLoad);
+        int load = Math.max(tick + 1, pLoad < 0 ? worldLoad : pLoad);
+        int client = p.clientViewDistance();
+        int send = Math.min(load - 1, pSend < 0 ? (client < 0 ? load - 1 : client) : pSend);
+        return new PlayerDistances(tick, load, send);
+    }
+
+    /**
+     * 플러그인이 플레이어 거리를 바꾼 뒤(또는 월드 값이 바뀐 뒤) 보내는 거리 상한을 다시 잡는다. 실제 보내는 거리가 바뀌었거나 force 면
+     * set_chunk_cache_radius(Paper 처럼 보내는 거리)를 보낸다. region 은 다음 틱에 추적 범위를 다시 잡는다. 아무 스레드.
+     */
+    public void applyPlayerDistances(Player p, boolean force) {
+        synchronized (p.distanceLock) {
+            boolean none = p.apiTickDistance() < 0 && p.apiLoadDistance() < 0 && p.apiSendDistance() < 0;
+            int before = p.viewDistance();
+            int cap;
+            if (none) {
+                cap = Integer.MAX_VALUE;
+            } else {
+                var d = playerDistances(p);
+                cap = Math.min(d.load() - 1, p.apiSendDistance() < 0 ? Integer.MAX_VALUE : p.apiSendDistance());
+            }
+            boolean had = p.sendCap() != Integer.MAX_VALUE;
+            p.sendCap(cap);
+            if (force || p.viewDistance() != before || had == none) {
+                int radius = none ? viewDistance() : Math.max(org.domi.furnace.server.config.Config.MIN_VIEW_DISTANCE, Math.min(viewDistance(), cap));
+                p.send(new org.domi.furnace.server.net.protocol.play.SetChunkCacheRadius(radius));
+            }
         }
     }
 
@@ -1473,8 +1618,18 @@ public final class ServerCore {
         int v = Math.clamp(sd, org.domi.furnace.server.config.Config.MIN_VIEW_DISTANCE, org.domi.furnace.server.config.Config.MAX_VIEW_DISTANCE);
         simulationDistanceOverride = v;
         var pkt = new org.domi.furnace.server.net.protocol.play.SetSimulationDistance(v);
-        for (Player p : players()) p.send(pkt);
+        for (Player p : players()) {
+            p.send(pkt);
+            if (p.sendCap() != Integer.MAX_VALUE) applyPlayerDistances(p, false);   // 틱 거리가 load 몫을 바꿀 수 있다
+        }
     }
+
+    /** furnace.properties bungeecord — 플러그인 API 가 알려 준다(Spigot SpigotConfig.bungee). 기동 때 한 번 정한다. */
+    private volatile boolean bungeeCordForwarding;
+
+    public void bungeeCordForwarding(boolean on) { this.bungeeCordForwarding = on; }
+
+    public boolean bungeeCordForwarding() { return bungeeCordForwarding; }
 
     public List<World> worlds() {
         var d = dimensions;
@@ -1524,6 +1679,8 @@ public final class ServerCore {
         @Override public float rainLevel() { return sky() ? super.rainLevel() : 0f; }
         @Override public float thunderLevel() { return sky() ? super.thunderLevel() : 0f; }
         @Override public void forEachPlayer(java.util.function.Consumer<Player> c) { w.forEachPlayerHere(c); }
+        @Override public void forEachConnectedPlayer(java.util.function.Consumer<Player> c) { w.forEachConnectedPlayerHere(c); }
+        @Override public org.domi.furnace.server.world.PlayerRoster.Level playerIndex() { return w.playerIndex(); }
         @Override public org.domi.furnace.server.block.LevelServices.DimensionTravel dimensionTravel() { return w.travelService(); }
         @Override public String biomeAt(int x, int y, int z) { return lw.biomeAt(x, y, z); }
         @Override public boolean biomeIs(int x, int y, int z, String tag) {
@@ -1601,7 +1758,7 @@ public final class ServerCore {
             }
             fs.add(f.exceptionally(e -> {
                 Throwable c = e instanceof java.util.concurrent.CompletionException && e.getCause() != null ? e.getCause() : e;
-                if (!(c instanceof org.domi.furnace.server.command.brigadier.CommandSyntaxException)) log.warn("표지판 글 풀기 실패({},{},{})", x, y, z, c);
+                if (!(c instanceof org.domi.furnace.server.command.brigadier.CommandSyntaxException)) log.warn(Lang.t("core.sign-text-failed", x, y, z), c);
                 return line;
             }));
         }
@@ -1821,14 +1978,33 @@ public final class ServerCore {
         return p.enforceSecureProfile && p.onlineMode && servicesKeys.canValidateProfileKeys();
     }
 
-    public void onHalt(Runnable r) { this.halt = r; }
+    /** /stop 이 단계를 마친 뒤 JVM 을 끝낼 함수. */
+    public void onHalt(java.util.function.IntConsumer exit) { this.haltExit = exit; }
 
-    public void onSaveAll(Runnable r) { this.saveAll = r; }
+    /** /stop 이 JVM 을 끝내기 전에 돌 종료 단계(JVM 종료 훅과 같은 객체 — 한 번만 돈다). */
+    public void shutdownSequence(ShutdownSequence seq) { this.shutdownSequence = seq; }
 
-    /** /stop — 종료 훅을 돈다. */
-    public void halt() { halt.run(); }
+    public void onSaveAll(SaveAll s) { this.saveAll = s; }
 
-    public void saveAll() { saveAll.run(); }
+    /**
+     * /stop — 새 "Server Shutdown Thread" 에서 종료 단계(플러그인 끄기·저장)를 다 돈 뒤 JVM 을 끝낸다. Paper 처럼 onDisable 이 JVM 종료 훅보다
+     * 먼저 돌아야 플러그인이 자기 훅을 뗄 수 있다(H2 OnExitDatabaseCloser — 예전엔 exit 먼저라 LuckPerms 종료 때 NoClassDefFoundError).
+     * 부른 스레드(전역·명령)에서 exit 하면 훅과 교착이라 따로 띄운다.
+     */
+    public void halt() {
+        java.util.function.IntConsumer exit = haltExit;
+        if (exit == null) return;
+        ShutdownSequence.stopThread(() -> shutdownSequence, exit).start();
+    }
+
+    /**
+     * 바닐라 saveEverything(suppressLogs, flush, forced=true) 을 시작한다. 플레이어 저장 요청·level.dat 값은 부른 스레드에서 바로 뜨고,
+     * 기다림은 저장 스레드에서 한다 — /save-all 이 전역 스레드를 막지 않게(P-O14-10). flush 면 디스크 동기화까지 끝난 뒤 완료된다.
+     */
+    public java.util.concurrent.CompletableFuture<Void> saveAllAsync(boolean flush) { return saveAll.save(flush); }
+
+    /** 끝날 때까지 기다리는 판(flush 없음). 유지보수 스레드 전용 — 전역·region 스레드에서 부르지 않는다. */
+    public void saveAll() { saveAllAsync(false).join(); }
 
     public boolean autosaveEnabled() { return world.autosaveEnabled(); }
 
@@ -1852,7 +2028,8 @@ public final class ServerCore {
         return null;
     }
 
-    public static GameProfile profileOf(Player p) { return new GameProfile(p.uuid(), p.name(), p.profileProperties()); }
+    /** 플레이어의 지금 게임 프로필(Paper getGameProfile) — op·화이트리스트·밴·권한은 엔티티 UUID 가 아니라 이것으로 본다. */
+    public static GameProfile profileOf(Player p) { return p.profile(); }
 
     private final java.util.List<java.util.function.Consumer<Text>> consoleListeners = new java.util.concurrent.CopyOnWriteArrayList<>();
 
@@ -1928,7 +2105,7 @@ public final class ServerCore {
         try {
             consoleLine = renderer.render(source, senderName, content, host.console());
         } catch (RuntimeException e) {
-            log.warn("채팅 렌더러 오류(콘솔)", e);
+            log.warn(Lang.t("core.chat-renderer-console"), e);
             consoleLine = org.domi.furnace.api.event.player.ChatRenderer.vanilla().render(source, senderName, content, host.console());
         }
         log.info("{}", consoleLine.getString());
@@ -1940,7 +2117,7 @@ public final class ServerCore {
             try {
                 line = renderer.render(source, senderName, content, host.player(p));
             } catch (RuntimeException e) {
-                log.warn("채팅 렌더러 오류({})", p.name(), e);
+                log.warn(Lang.t("core.chat-renderer-player", p.name()), e);
                 line = org.domi.furnace.api.event.player.ChatRenderer.vanilla().render(source, senderName, content, host.player(p));
             }
             p.sendSystemMessage(line, false);
@@ -1960,8 +2137,30 @@ public final class ServerCore {
             receiver.send(new org.domi.furnace.server.net.protocol.play.PlayerChatPacket(message, cache, bound));
             return null;
         });
-        if (!ok) receiver.kick(new org.domi.furnace.server.net.protocol.play.Disconnect(
-                Text.translatable("multiplayer.disconnect.too_many_pending_chats")));
+        if (!ok) kickOnGlobal(receiver, Text.translatable("multiplayer.disconnect.too_many_pending_chats"));
+    }
+
+    /**
+     * Paper disconnectAsync: PlayerKickEvent 는 주(전역) 스레드에서 낸다. 전역이면 곧바로 킥하고, 아니면(채팅 스레드 등) 그 연결의 읽기를
+     * 멈춘 채 전역에 넘긴다 — 그사이 들어온 패킷이 킥 이벤트를 또 부르지 않게. 플러그인이 취소하면 다시 읽는다.
+     */
+    public void kickOnGlobal(Player p, Text reason) {
+        var global = scheduler().global();
+        if (global instanceof org.domi.furnace.api.concurrent.ThreadOwner o && o.isOwnerThread()) {
+            p.kick(new org.domi.furnace.server.net.protocol.play.Disconnect(reason));
+            return;
+        }
+        io.netty.channel.Channel ch = p.channel();
+        if (ch != null) ch.config().setAutoRead(false);
+        try {
+            global.execute(() -> {
+                if (!p.kick(new org.domi.furnace.server.net.protocol.play.Disconnect(reason)) && ch != null && !p.isDisconnected()) {
+                    ch.config().setAutoRead(true);   // 취소됐다 — Paper 처럼 다시 읽는다
+                }
+            });
+        } catch (java.util.concurrent.RejectedExecutionException closing) {   // 서버가 닫히는 중 — 이벤트 없이 끊는다
+            p.kickForced(new org.domi.furnace.server.net.protocol.play.Disconnect(reason));
+        }
     }
 
     public int operatorUserPermissionLevel() { return settings.get().opPermissionLevel; }

@@ -1,6 +1,7 @@
 // Furnace.gameRegistries(): 시작 때 고정된 동기화 레지스트리 보기 + 마법부여 끄기(EnchantmentToggles, 플러그인 이름 몫).
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.GameVersion;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -17,6 +18,11 @@ final class GameRegistriesImpl implements GameRegistries {
 
     @Override
     public List<String> builtIn(String registry) { return BuiltIn.TABLE.getOrDefault(normalize(registry), List.of()); }
+
+    @Override
+    public java.util.Map<String, String> worldgen(String registry) {
+        return org.domi.furnace.server.world.gen.WorldgenIndex.entries(normalize(registry));
+    }
 
     @Override
     public Set<String> tags(String registry) {
@@ -83,12 +89,7 @@ final class GameRegistriesImpl implements GameRegistries {
 
     /** 데이터 팩 관리자가 건 태그, 없으면(시험 서버처럼 데이터 팩을 안 거는 경우) 바닐라 1.21.1 태그 — 다른 서버 부품(ItemTags·EntityTypeTags)과 같은 바탕. */
     private static org.domi.furnace.server.net.registry.TagSet currentTags() {
-        var t = org.domi.furnace.server.item.ItemContext.tagSet();
-        return t != null ? t : VanillaTags.SET;
-    }
-
-    private static final class VanillaTags {
-        static final org.domi.furnace.server.net.registry.TagSet SET = org.domi.furnace.server.net.registry.TagSet.load("registries/tags-1.21.1.txt");
+        return org.domi.furnace.server.item.ItemContext.gameplayTags();
     }
 
     /** 태그 숫자 id 의 이름표: 내장 레지스트리면 내장 목록, 아니면 동기화 레지스트리(태그 번호는 TagRegistries 와 같은 순서). */
@@ -120,8 +121,8 @@ final class GameRegistriesImpl implements GameRegistries {
 
         private static java.util.Map<String, List<String>> load() {
             var out = new java.util.LinkedHashMap<String, java.util.List<String>>();
-            try (var in = GameRegistriesImpl.class.getClassLoader().getResourceAsStream("registries/builtin-1.21.1.txt")) {
-                if (in == null) throw new IllegalStateException("registries/builtin-1.21.1.txt 없음");
+            try (var in = GameRegistriesImpl.class.getClassLoader().getResourceAsStream("registries/builtin-" + GameVersion.RESOURCE_TAG + ".txt")) {
+                if (in == null) throw new IllegalStateException("registries/builtin-" + GameVersion.RESOURCE_TAG + ".txt is missing");
                 var r = new java.io.BufferedReader(new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
                 String line;
                 while ((line = r.readLine()) != null) {
@@ -132,9 +133,48 @@ final class GameRegistriesImpl implements GameRegistries {
             } catch (java.io.IOException e) {
                 throw new java.io.UncheckedIOException(e);
             }
+            // 블록 엔티티 종류는 reports/registries.json 에 없어 코드 표(1.21.1 등록 순서)를 쓴다 — 패킷 코덱과 같은 표
+            out.putIfAbsent("minecraft:block_entity_type", List.of(org.domi.furnace.server.block.entity.BlockEntity.TYPES));
             out.replaceAll((k, v) -> List.copyOf(v));
             return java.util.Map.copyOf(out);
         }
+    }
+
+    @Override
+    public int fuelBurnTime(String item) {
+        int id = idOf("minecraft:item", normalize(item));
+        if (id <= 0) return 0;   // 없는 아이템·공기
+        return org.domi.furnace.server.item.FuelRegistry.burnTime(new org.domi.furnace.server.entity.ItemStack(id, 1));
+    }
+
+    @Override
+    public String blockEntityType(String block) {
+        var blocks = org.domi.furnace.server.block.Blocks.get();
+        int b = blocks.block(normalize(block));
+        if (b < 0) return null;
+        return blockEntityTypes()[b];
+    }
+
+    /** 블록 번호 → 블록 엔티티 종류(없으면 null). 바닐라 BlockEntityType.getValidBlocks 를 거꾸로 본 표. */
+    private static volatile String[] BE_TYPES;
+
+    private static String[] blockEntityTypes() {
+        String[] t = BE_TYPES;
+        if (t != null) return t;
+        var blocks = org.domi.furnace.server.block.Blocks.get();
+        t = new String[blocks.blockCount()];
+        var origin = new org.domi.furnace.server.block.Pos(0, 0, 0);
+        for (int b = 0; b < t.length; b++) {
+            var be = org.domi.furnace.server.block.BlockBehaviors.ofBlock(b).newBlockEntity(origin, blocks.defaultState(b));
+            if (be != null) t[b] = be.type();
+        }
+        // 상자는 Furnace 에서 자기 틀(ChestBlockEntity)로 만들고, 움직이는 피스톤의 블록 엔티티는 피스톤이 밀 때만 생긴다(바닐라 newBlockEntity 도 null).
+        t[blocks.block("minecraft:chest")] = "minecraft:chest";
+        t[blocks.block("minecraft:trapped_chest")] = "minecraft:trapped_chest";
+        t[blocks.block("minecraft:moving_piston")] = "minecraft:piston";
+        // 마법 부여대: 바닐라는 EnchantingTableBlockEntity(이름·책 돌리기)를 두지만 Furnace 는 아직 만들지 않는다 — 표는 바닐라대로.
+        t[blocks.block("minecraft:enchanting_table")] = "minecraft:enchanting_table";
+        return BE_TYPES = t;
     }
 
     @Override
@@ -147,7 +187,7 @@ final class GameRegistriesImpl implements GameRegistries {
     public void disableEnchantment(FurnacePlugin owner, String key) {
         java.util.Objects.requireNonNull(owner, "owner");
         String k = normalize(key);
-        if (!contains(ENCHANTMENT, k)) throw new IllegalArgumentException("모르는 마법부여: " + key);
+        if (!contains(ENCHANTMENT, k)) throw new IllegalArgumentException("unknown enchantment: " + key);
         EnchantmentToggles.disable(owner.name(), k);
     }
 

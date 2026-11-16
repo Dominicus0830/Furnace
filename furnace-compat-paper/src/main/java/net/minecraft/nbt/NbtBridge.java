@@ -34,7 +34,7 @@ public final class NbtBridge {
                 for (String k : c.getAllKeys()) out.put(k, toFurnace(c.get(k)));
                 yield out;
             }
-            default -> throw new IllegalArgumentException("Furnace NBT 값으로 바꿀 수 없는 태그: " + t.getClass().getName());
+            default -> throw new IllegalArgumentException("tag that cannot be converted to a Furnace NBT value: " + t.getClass().getName());
         };
     }
 
@@ -60,7 +60,7 @@ public final class NbtBridge {
                 for (String k : c.keys()) m.put(k, fromFurnace(c.get(k)));
                 yield new CompoundTag(m);
             }
-            default -> throw new IllegalArgumentException("NBT 값이 아니다: " + v.getClass().getName());
+            default -> throw new IllegalArgumentException("not an NBT value: " + v.getClass().getName());
         };
     }
 }

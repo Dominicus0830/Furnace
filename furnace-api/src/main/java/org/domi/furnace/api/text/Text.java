@@ -1,6 +1,7 @@
-// Furnace 텍스트(바닐라 Component) — 내용 + 스타일 + 자식. 불변이라 어느 스레드에서나 공유할 수 있고,
-// 네트워크 인코딩(NBT)·JSON 을 처음 쓸 때 한 번만 만들어 품는다: 같은 메시지를 여러 명에게 보내도 다시 인코딩하지 않는다.
-// 쓰는 법은 Adventure 와 비슷하다: Text.text("안녕", NamedTextColor.RED).append(Text.translatable("key", name)).
+// Furnace 텍스트(바닐라 Component). 내용, 스타일, 자식으로 이루어진다.
+// 불변이므로 어느 스레드에서나 공유할 수 있다.
+// 네트워크 인코딩(NBT)과 JSON 은 처음 쓸 때 한 번만 만들어 품고 있다. 같은 메시지를 여러 명에게 보내도 다시 인코딩하지 않는다.
+// 쓰는 법은 Adventure 와 비슷하다. 예: Text.text("안녕", NamedTextColor.RED).append(Text.translatable("key", name)).
 package org.domi.furnace.api.text;
 
 import java.util.ArrayList;
@@ -22,7 +23,7 @@ public final class Text {
     private final Content content;
     private final Style style;
     private final List<Text> children;
-    // 인코딩 캐시(불변이므로 경쟁해도 같은 값을 만든다 — 동기화 불필요).
+    // 인코딩 캐시. 불변이므로 경쟁해도 같은 값을 만든다(동기화 불필요).
     private volatile byte[] networkNbt;
     private volatile String json;
     private int hash;
@@ -35,7 +36,7 @@ public final class Text {
 
     // ------------------------------------------------------------------ 만들기
 
-    /** 빈 글자(바닐라 Component.empty) — 자식을 담는 그릇으로 쓴다. */
+    /** 빈 글자(바닐라 Component.empty). 자식을 담는 그릇으로 쓴다. */
     public static Text empty() { return EMPTY; }
 
     public static Text newline() { return NEWLINE; }
@@ -52,10 +53,10 @@ public final class Text {
 
     public static Text text(String content, Style style) { return new Text(new Content.Literal(content), style, List.of()); }
 
-    /** 숫자·불리언 등 — String.valueOf. */
+    /** 숫자, 불리언 등. String.valueOf 로 바꾼다. */
     public static Text text(Object value) { return text(String.valueOf(value)); }
 
-    /** 번역 텍스트. 인자는 Text 또는 String·Number·Boolean(바닐라처럼 원시값 그대로 보낸다). */
+    /** 번역 텍스트. 인자는 Text 또는 String·Number·Boolean 이다(바닐라처럼 원시값 그대로 보낸다). */
     public static Text translatable(String key, Object... args) {
         return new Text(new Content.Translatable(key, null, Arrays.asList(args)), Style.empty(), List.of());
     }
@@ -64,7 +65,7 @@ public final class Text {
         return new Text(new Content.Translatable(key, null, new ArrayList<>(args)), Style.empty(), List.of());
     }
 
-    /** 클라이언트가 키를 모르면 fallback 을 보여 준다(플러그인 고유 키에 유용). */
+    /** 클라이언트가 키를 모르면 fallback 을 보여 준다(플러그인 고유 키에 유용하다). */
     public static Text translatableWithFallback(String key, String fallback, Object... args) {
         return new Text(new Content.Translatable(key, fallback, Arrays.asList(args)), Style.empty(), List.of());
     }
@@ -91,7 +92,7 @@ public final class Text {
 
     public static Builder builder(String content) { return new Builder(new Content.Literal(content)); }
 
-    /** 여러 텍스트를 이어 붙인 하나(빈 그릇 + 자식들). */
+    /** 여러 텍스트를 이어 붙인 하나(빈 그릇에 자식들을 담는다). */
     public static Text join(Text... parts) { return EMPTY.append(parts); }
 
     /** separator 를 사이에 끼워 잇는다. */
@@ -223,15 +224,15 @@ public final class Text {
     /** 같은 모습으로 그려지는 더 작은 트리({@link Texts#compact}). */
     public Text compact() { return Texts.compact(this); }
 
-    /** 선위 순서로 (마디, 상속을 반영한 실제 스타일) 를 돌려주는 반복자. */
+    /** 선위 순서로 (마디, 상속을 반영한 실제 스타일)을 돌려주는 반복자. */
     public Iterator<Texts.Segment> flatten() { return Texts.flatten(this); }
 
-    /** 할당 없이 모든 마디를 (마디, 실제 스타일) 로 방문한다. */
+    /** 할당 없이 모든 마디를 (마디, 실제 스타일)로 방문한다. */
     public void forEachSegment(Texts.SegmentVisitor visitor) { Texts.forEachSegment(this, visitor); }
 
     // ------------------------------------------------------------------ 출력
 
-    /** 바닐라 Component.getString — 서버 언어로 번역해 이은 평문(색·스타일 없음). */
+    /** 바닐라 Component.getString. 서버 언어로 번역해 이은 평문이다(색·스타일 없음). */
     public String plainText() {
         StringBuilder sb = new StringBuilder();
         PlainText.append(this, sb, Translators.SERVER_LOCALE);
@@ -256,8 +257,8 @@ public final class Text {
     }
 
     /**
-     * 플레이 단계 패킷에 들어가는 NBT 인코딩(이름 없는 루트, 1.20.3+). 바닐라 ComponentSerialization + NbtOps 와 같은 바이트다.
-     * 처음 부를 때 한 번 만들어 품는다 — 돌려받은 배열을 고치면 안 된다.
+     * 플레이 단계 패킷에 들어가는 NBT 인코딩이다(이름 없는 루트, 1.20.3 이상). 바닐라 ComponentSerialization + NbtOps 와 같은 바이트다.
+     * 처음 부를 때 한 번 만들어 품고 있으므로, 돌려받은 배열을 고치면 안 된다.
      */
     public byte[] networkNbt() {
         byte[] b = networkNbt;
@@ -283,7 +284,7 @@ public final class Text {
 
     // ------------------------------------------------------------------ 빌더
 
-    /** 가변 빌더 — 자식을 많이 붙일 때 사본을 매번 만들지 않는다. */
+    /** 가변 빌더. 자식을 많이 붙일 때 사본을 매번 만들지 않는다. */
     public static final class Builder {
         private Content content;
         private Style style = Style.empty();

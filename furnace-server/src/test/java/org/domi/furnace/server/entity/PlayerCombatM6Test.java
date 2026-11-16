@@ -2,6 +2,7 @@
 // 기대값은 바닐라 1.21.1 바이트코드(Player.attack = cmx.e, sweepAttack = cmx.fV, MaceItem = cvb, ServerPlayer.checkFallDamage = aqv.a(DDDZ))를 손으로 계산한 것이다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
@@ -22,7 +23,7 @@ class PlayerCombatM6Test {
     @BeforeAll
     static void install() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static final PlayerVitals.Surroundings DRY = new PlayerVitals.Surroundings(true, false, false, false, null, false, -64);

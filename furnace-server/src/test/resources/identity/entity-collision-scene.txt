@@ -1,0 +1,17 @@
+# 결과 동일 금 파일 — entity-collision-scene. 최적화 PR 은 이 파일을 바꾸지 않는다. 갱신 절차: docs/testing/identitykit.md
+tick 20 entities ace7c0bd01b1aaa4
+tick 40 entities ca7488bb02e889a0
+tick 60 entities 5da7ffa515c409a8
+tick 80 entities 2a86dc847b88a2bb
+tick 100 entities a1bc3780bd6aab59
+tick 120 entities d0aa8eb3c66de22c
+tick 140 entities 6257e12ae1664ca9
+tick 160 entities dc7e2cc5844483ba
+tick 180 entities c5575224301e439f
+tick 200 entities 18b3d1e65b204111
+tick 220 entities b37c5c38c6cef327
+tick 240 entities 1d3c924276bc1423
+tick 260 entities e5d9692146195afa
+tick 280 entities 6d2f42d2913cc22d
+tick 300 entities 3105c26e3673ece5
+TOTAL 78785aa5e4e695df lines=15

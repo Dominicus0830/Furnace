@@ -1,4 +1,4 @@
-// 텍스트 치환 설정 — 무엇을(정규식/글자) 무엇으로(텍스트/함수) 몇 번까지, 조건은 무엇인지. Text.replaceText 에 넘긴다. 불변.
+// 텍스트 치환 설정이다. 무엇을(정규식/글자) 무엇으로(텍스트/함수) 몇 번까지 바꿀지, 조건은 무엇인지를 정한다. Text.replaceText 에 넘긴다. 불변이다.
 package org.domi.furnace.api.text;
 
 import java.util.Objects;
@@ -61,7 +61,7 @@ public final class TextReplacement {
 
         /** 정규식 없이 글자 그대로(빈 문자열은 안 된다). */
         public Builder matchLiteral(String s) {
-            if (s.isEmpty()) throw new IllegalArgumentException("빈 문자열은 찾을 수 없다");
+            if (s.isEmpty()) throw new IllegalArgumentException("an empty string cannot be searched for");
             literal = s;
             pattern = null;
             return this;
@@ -87,8 +87,8 @@ public final class TextReplacement {
         public Builder condition(Condition c) { condition = c; return this; }
 
         public TextReplacement build() {
-            if (pattern == null && literal == null) throw new IllegalStateException("match 가 없다");
-            if (replacement == null) throw new IllegalStateException("replacement 가 없다");
+            if (pattern == null && literal == null) throw new IllegalStateException("no match given");
+            if (replacement == null) throw new IllegalStateException("no replacement given");
             return new TextReplacement(pattern, literal, replacement, limit, condition);
         }
     }

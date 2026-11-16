@@ -15,6 +15,7 @@ import java.util.function.Consumer;
 import org.domi.furnace.api.concurrent.ThreadOwner;
 import org.domi.furnace.server.command.CommandSource;
 import org.domi.furnace.server.command.brigadier.ContextChain;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,6 +38,8 @@ public final class ExecutionContext {
 
     // ---- Furnace: 지연 결과·멈춤/재개
     private CompletableFuture<Integer> pendingDefer;
+    /** pendingDefer 의 대기 한도(null = 컨텍스트 기본 deferredTimeout). */
+    private Duration pendingDeferTimeout;
     private boolean running;
     private boolean suspended;
     private boolean finished;
@@ -162,18 +165,32 @@ public final class ExecutionContext {
     // ---------------------------------------------------------------- 지연 결과
 
     /** 명령 본문(CommandSource.defer)이 결과 future 를 맡긴다. 한 실행에 한 번. */
-    public void defer(CompletableFuture<Integer> future) {
+    public void defer(CompletableFuture<Integer> future) { defer(future, null); }
+
+    /**
+     * 대기 한도를 따로 정한 지연 결과(null = 기본 deferredTimeout). region 왕복이 아니라 디스크를 기다리는 명령(/save-all) 처럼
+     * 기본 5초보다 오래 걸리는 것이 정상인 경우에만 쓴다 — 그동안 뒤 명령은 FIFO 로 기다린다(바닐라는 서버 전체가 기다린다).
+     */
+    public void defer(CompletableFuture<Integer> future, Duration timeout) {
         checkThread();
-        if (!running) throw new IllegalStateException("명령 본문 밖에서 defer — 중첩 헬퍼 안쪽은 …Async 판을 써야 한다");
-        if (pendingDefer != null) throw new IllegalStateException("source.defer 는 명령 실행 하나에 한 번만 부를 수 있다");
+        if (!running) throw new IllegalStateException("defer called outside a command body - nested helpers must use the ...Async variant");
+        if (pendingDefer != null) throw new IllegalStateException("source.defer can be called only once per command execution");
         pendingDefer = future;
+        pendingDeferTimeout = timeout;
     }
 
-    /** ExecuteCommand 가 명령 본문 직후 꺼낸다(없으면 null). */
+    /** ExecuteCommand 가 명령 본문 직후 꺼낸다(없으면 null). 한도는 {@link #takeDeferredTimeout} 으로 따로 꺼낸다. */
     public CompletableFuture<Integer> takeDeferred() {
         CompletableFuture<Integer> f = pendingDefer;
         pendingDefer = null;
         return f;
+    }
+
+    /** 방금 꺼낸 지연 결과의 대기 한도(정하지 않았으면 기본값). 꺼내면 지운다. */
+    public Duration takeDeferredTimeout() {
+        Duration t = pendingDeferTimeout;
+        pendingDeferTimeout = null;
+        return t != null ? t : deferredTimeout;
     }
 
     /**
@@ -182,12 +199,17 @@ public final class ExecutionContext {
      * 반환값은 이번 멈춤의 토큰.
      */
     public <T> long suspend(CompletableFuture<T> f, BiConsumer<T, Throwable> onDone) {
+        return suspend(f, deferredTimeout, onDone);
+    }
+
+    /** 대기 한도를 정한 {@link #suspend(CompletableFuture, BiConsumer)}. */
+    public <T> long suspend(CompletableFuture<T> f, Duration timeout, BiConsumer<T, Throwable> onDone) {
         checkThread();
-        if (suspended) throw new IllegalStateException("이미 멈춘 컨텍스트");
+        if (suspended) throw new IllegalStateException("context is already suspended");
         long token = ++generation;
         suspended = true;
         CompletableFuture<T> watched = f.copy();
-        watched.orTimeout(deferredTimeout.toNanos(), TimeUnit.NANOSECONDS);
+        watched.orTimeout(timeout.toNanos(), TimeUnit.NANOSECONDS);
         watched.whenComplete((v, ex) -> globalHop.accept(() -> complete(token, () -> onDone.accept(v, ex))));
         return token;
     }
@@ -220,7 +242,7 @@ public final class ExecutionContext {
             try {
                 tracer.close();
             } catch (RuntimeException e) {
-                log.warn("추적기 닫기 실패", e);
+                log.warn(Lang.t("cmd.tracer-close-failed"), e);
             }
         }
         done.complete(null);
@@ -231,6 +253,7 @@ public final class ExecutionContext {
         newTopCommands.clear();
         commandQueue.clear();
         pendingDefer = null;
+        pendingDeferTimeout = null;
         suspended = false;
         finish();
     }

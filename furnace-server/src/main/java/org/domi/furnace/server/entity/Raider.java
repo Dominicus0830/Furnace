@@ -285,7 +285,7 @@ public abstract class Raider extends Monster {
         private final Raider mob;
         private final float hostileRadiusSqr;
         private final org.domi.furnace.server.entity.ai.targeting.TargetingConditions shoutTargeting =
-                org.domi.furnace.server.entity.ai.targeting.TargetingConditions.forCombat().range(8.0).ignoreLineOfSight().ignoreInvisibilityTesting();
+                org.domi.furnace.server.entity.ai.targeting.TargetingConditions.forNonCombat().range(8.0).ignoreLineOfSight().ignoreInvisibilityTesting();   // 바닐라 shoutTargeting(비전투 — 동맹 검사 없음)
 
         public HoldGroundAttackGoal(Raider mob, float radius) {
             this.mob = mob;

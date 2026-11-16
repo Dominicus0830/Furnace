@@ -3,8 +3,9 @@ package net.minecraft.network.protocol;
 import net.minecraft.network.PacketListener;
 
 /**
- * 패킷 shim(Mojang 이름, H7c). 이 모듈의 clientbound 패킷 shim 은 Furnace 패킷 API 레코드로 바뀌어 나간다
- * ({@link org.domi.furnace.compat.nms.NmsPacket}). 플러그인이 이 인터페이스를 직접 구현한 패킷은 보낼 수 없다(UnsupportedNmsCall).
+ * 패킷 shim(Mojang 이름, H7c). 이 모듈의 clientbound 패킷 shim 은 Furnace 패킷으로 바뀌어 나간다
+ * (손으로 쓴 것은 {@link org.domi.furnace.compat.nms.NmsPacket}, 스키마로 생성한 것은 {@link org.domi.furnace.compat.nms.SchemaPacketBridge}).
+ * 플러그인이 이 인터페이스를 직접 구현한 패킷은 보낼 수 없다(UnsupportedNmsCall).
  */
 public interface Packet<T extends PacketListener> {
 

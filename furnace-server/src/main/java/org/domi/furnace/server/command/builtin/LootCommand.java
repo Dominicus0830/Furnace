@@ -338,7 +338,7 @@ public final class LootCommand {
     private static ItemStack sourceHandItem(CommandSource source, boolean mainhand) throws CommandSyntaxException {
         Player p = source.getPlayer();
         // 바닐라: 실행 주체가 생물이 아니면 commands.drop.no_held_items(콘솔이면 엔티티가 없어 바닐라에서도 예외 → command.failed)
-        if (p == null) throw new IllegalStateException("실행 주체 엔티티 없음");
+        if (p == null) throw new IllegalStateException("no executing entity");
         synchronized (p.menuLock()) {
             return p.inventory().get(mainhand ? p.inventory().heldWindowSlot() : 45);
         }

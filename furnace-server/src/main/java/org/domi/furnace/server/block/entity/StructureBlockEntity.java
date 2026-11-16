@@ -8,6 +8,7 @@ package org.domi.furnace.server.block.entity;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
@@ -30,6 +31,7 @@ import org.domi.furnace.server.world.gen.structure.template.StructureTemplate;
 import org.domi.furnace.server.world.gen.structure.template.StructureTemplate.BlockInfo;
 import org.domi.furnace.server.world.gen.structure.template.TemplateManager;
 
+@VanillaPort("net.minecraft.world.level.block.entity.StructureBlockEntity")
 public class StructureBlockEntity extends BlockEntity {
 
     /** StructureMode — 서버 수신 패킷의 열거 번호 순서(SAVE, LOAD, CORNER, DATA). */

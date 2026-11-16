@@ -1,5 +1,8 @@
-// 엔티티 상호작용(우클릭·공격). 가상 엔티티(NPC) 클릭을 잡을 때 쓴다 — 서버에 없는 번호여도 이 패킷은 온다.
-// hand 는 ATTACK 이면 null. target 좌표(엔티티 기준 상대 위치)는 INTERACT_AT 일 때만 뜻이 있다.
+// 엔티티 상호작용(우클릭, 공격). 가상 엔티티(NPC) 클릭을 잡을 때 쓴다.
+// 서버에 없는 엔티티 번호여도 이 패킷은 온다.
+//
+// hand 는 ATTACK 이면 null 이다.
+// target 좌표(엔티티 기준 상대 위치)는 INTERACT_AT 일 때만 뜻이 있다.
 package org.domi.furnace.api.packet.serverbound;
 
 import java.util.Objects;

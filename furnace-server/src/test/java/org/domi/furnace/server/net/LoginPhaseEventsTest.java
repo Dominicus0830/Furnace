@@ -1,5 +1,5 @@
 // 접속 단계 플러그인 이벤트(실제 소켓): 핸드셰이크 → 사전 로그인 → 로그인 → 구성 → Player 생성 → 첫 위치 → 입장이 한 연결 번호로
-// 순서대로 불리는지, 스레드 계약(비동기 이벤트는 가상 스레드), 핸드셰이크 취소·구성 거부의 끊기 패킷, Player 생성 때 붙인 권한이
+// 순서대로 불리는지, 스레드 계약(비동기 이벤트는 접속 이벤트 전용 플랫폼 스레드 "User Authenticator #N", T-034), 핸드셰이크 취소·구성 거부의 끊기 패킷, Player 생성 때 붙인 권한이
 // 첫 명령 트리부터 반영되는지, 첫 위치 바꾸기. 구독자가 없을 때의 바닐라 흐름은 LoginFlowTest·TagQueryFlowTest 가 지킨다.
 package org.domi.furnace.server.net;
 
@@ -91,6 +91,72 @@ class LoginPhaseEventsTest {
         c.await(LoginPlay.ID);
     }
 
+    /** 비동기 접속 이벤트 스레드: Paper 와 같은 이름의 플랫폼 스레드면 "auth-platform". */
+    private static String threadKind() {
+        Thread t = Thread.currentThread();
+        return t.getName().startsWith(org.domi.furnace.server.plugin.PluginHost.LOGIN_EVENT_THREAD_PREFIX) && !t.isVirtual()
+                ? "auth-platform" : "other:" + t.getName() + ":virtual=" + t.isVirtual();
+    }
+
+    /**
+     * T-034 회귀(B6 1.7): 접속 전 처리기가 synchronized 안에서 기다리는 연결(옛 DB 드라이버 모양)이 코어 수보다 많아도 모두 동시에 처리기에 들어선다.
+     * 예전(가상 스레드 실행기)에는 운반 스레드 수=코어 수만큼만 들어서고 나머지는 줄 섰다(16명 4물결 9.1초). 플러그인 비동기 실행기가 꽉 막혀
+     * 있어도 접속은 따로 간다.
+     */
+    @Test
+    void preLoginHandlersBlockingInsideSynchronizedDoNotQueueLogins() throws Exception {
+        int n = Runtime.getRuntime().availableProcessors() + 2;
+        java.util.concurrent.CountDownLatch inside = new java.util.concurrent.CountDownLatch(n);
+        java.util.concurrent.CountDownLatch pluginAsyncBusy = new java.util.concurrent.CountDownLatch(1);
+        // 플러그인 비동기 실행기를 코어 수 + 2 개의 synchronized 대기로 막아 둔다(그쪽이 막혀도 접속은 영향이 없어야 한다)
+        for (int i = 0; i < n; i++) {
+            Object m = new Object();
+            core.plugins().asyncExecutor().execute(() -> {
+                synchronized (m) {
+                    try { pluginAsyncBusy.await(30, java.util.concurrent.TimeUnit.SECONDS); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                }
+            });
+        }
+        List<String> threads = new CopyOnWriteArrayList<>();
+        on(AsyncPlayerPreLoginEvent.class, e -> {
+            Object m = new Object();
+            synchronized (m) {
+                threads.add(threadKind());
+                inside.countDown();
+                try {
+                    inside.await(20, java.util.concurrent.TimeUnit.SECONDS);   // 모두 들어설 때까지 붙잡고 기다린다
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        });
+        List<java.util.concurrent.CompletableFuture<Void>> logins = new java.util.ArrayList<>();
+        List<TestClient> clients = new CopyOnWriteArrayList<>();
+        try {
+            for (int i = 0; i < n; i++) {
+                String name = "Burst" + i;
+                logins.add(java.util.concurrent.CompletableFuture.runAsync(() -> {
+                    try {
+                        TestClient c = TestClient.open(port);
+                        clients.add(c);
+                        handshake(c, "localhost", port);
+                        login(c, name);
+                    } catch (Exception ex) {
+                        throw new java.util.concurrent.CompletionException(ex);
+                    }
+                }, r -> new Thread(r, "t034-client").start()));
+            }
+            assertTrue(inside.await(15, java.util.concurrent.TimeUnit.SECONDS),
+                    "코어 수 + 2 개의 접속 전 처리기가 동시에 들어선다(남은 수 " + inside.getCount() + "/" + n + ")");
+            java.util.concurrent.CompletableFuture.allOf(logins.toArray(java.util.concurrent.CompletableFuture[]::new)).get(30, java.util.concurrent.TimeUnit.SECONDS);
+            for (String t : threads) assertEquals("auth-platform", t);
+            for (int i = 0; i < n; i++) awaitPlayer("Burst" + i);
+        } finally {
+            pluginAsyncBusy.countDown();
+            for (TestClient c : clients) c.close();
+        }
+    }
+
     private Player awaitPlayer(String name) throws InterruptedException {
         for (int i = 0; i < 500 && core.playerByName(name) == null; i++) Thread.sleep(20);
         Player p = core.playerByName(name);
@@ -108,7 +174,7 @@ class LoginPhaseEventsTest {
             conns.add(e.connection());
         });
         on(AsyncPlayerPreLoginEvent.class, e -> {
-            log.add("prelogin:" + e.name() + ":virtual=" + Thread.currentThread().isVirtual());
+            log.add("prelogin:" + e.name() + ":" + threadKind());
             conns.add(e.connection());
         });
         on(PlayerLoginEvent.class, e -> {
@@ -116,7 +182,7 @@ class LoginPhaseEventsTest {
             conns.add(e.connection());
         });
         on(AsyncPlayerConfigureEvent.class, e -> {
-            log.add("configure:" + e.connection().name() + ":" + e.connection().phase() + ":virtual=" + Thread.currentThread().isVirtual());
+            log.add("configure:" + e.connection().name() + ":" + e.connection().phase() + ":" + threadKind());
             conns.add(e.connection());
         });
         on(PlayerCreateEvent.class, e -> {
@@ -136,9 +202,9 @@ class LoginPhaseEventsTest {
             for (int i = 0; i < 500 && log.stream().noneMatch(s -> s.startsWith("join:")); i++) Thread.sleep(20);
             assertEquals(List.of(
                     "handshake:Play.Example.com:25570:767:LOGIN:virtual=false",
-                    "prelogin:Alex:virtual=true",
+                    "prelogin:Alex:auth-platform",
                     "login:Alex:ALLOWED",
-                    "configure:Alex:CONFIGURATION:virtual=true",
+                    "configure:Alex:CONFIGURATION:auth-platform",
                     "create:Alex:PLAY",
                     "spawn:minecraft:overworld:first=true",
                     "join:Alex"), log);
@@ -172,6 +238,22 @@ class LoginPhaseEventsTest {
             awaitPlayer("Steve");
         }
         assertEquals(List.of("Steve"), later, "취소된 연결은 로그인 단계 이벤트까지 가지 않는다");
+    }
+
+    /** 종료 중(접속 이벤트 실행기가 닫힘)에 사전 로그인까지 온 연결은 "Server closed" 로 끊긴다(#402 검토 O1). */
+    @Test
+    void preLoginAfterLoginEventPoolClosedDisconnectsWithServerClosed() throws Exception {
+        List<String> seen = new CopyOnWriteArrayList<>();
+        on(AsyncPlayerPreLoginEvent.class, e -> seen.add(e.name()));
+        core.plugins().close();   // PluginHost.close 가 접속 이벤트 실행기도 닫는다
+        assertTrue(core.plugins().loginEventExecutor().isShutdown());
+        try (TestClient c = TestClient.open(port)) {
+            handshake(c, "localhost", port);
+            c.write(0x00, b -> { Types.writeString(b, "Late"); Types.writeUuid(b, new UUID(0, 0)); });
+            ByteBuf d = c.await(0x00);   // Login Disconnect
+            assertTrue(Types.readString(d, 262144).contains("multiplayer.disconnect.server_shutdown"));
+        }
+        assertEquals(List.of(), seen, "닫힌 뒤에는 처리기가 불리지 않는다");
     }
 
     @Test

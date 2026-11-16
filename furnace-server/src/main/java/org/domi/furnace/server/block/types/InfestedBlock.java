@@ -3,11 +3,13 @@ package org.domi.furnace.server.block.types;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.Blocks;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.InfestedBlock")
 public class InfestedBlock extends BlockBehavior {
 
     /** host 블록 → 숨은 블록. */

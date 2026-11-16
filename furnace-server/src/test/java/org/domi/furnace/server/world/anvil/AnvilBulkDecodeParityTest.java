@@ -1,6 +1,7 @@
 // N-09: 디스크 로드 벌크 디코드가 예전 블록별 setBlock 경로와 같은 청크 상태(블록·비공기 수·높이맵·dirty·재저장 NBT)를 만드는지 대조.
 package org.domi.furnace.server.world.anvil;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -33,16 +34,18 @@ class AnvilBulkDecodeParityTest {
 
     @BeforeAll
     static void load() throws Exception {
-        reg = BlockRegistry.load("blocks/1.21.1.txt");
-        var biomes = RegistrySet.load("registries/1.21.1.txt").entries("minecraft:worldgen/biome");
+        reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        var biomes = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt").entries("minecraft:worldgen/biome");
         plains = biomes.indexOf("minecraft:plains");
-        codec = new AnvilChunkCodec(reg, ItemRegistry.load("items/1.21.1.txt"), biomes, plains,
+        codec = new AnvilChunkCodec(reg, ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"), biomes, plains,
                 ChunkColumn.MIN_Y, ChunkColumn.SECTION_COUNT);
         List<Integer> ids = new ArrayList<>(List.of(0, 0, 0, 12958, 12959));
         Random r = new Random(5);
         while (ids.size() < 400) {
             int id = r.nextInt(1 << reg.directBits());
-            try { if (reg.nameOf(id) != null) ids.add(id); } catch (RuntimeException ignored) {}
+            // 저장·읽기로 같은 상태가 되는 번호만(nameOf 는 모르는 번호에 air 를 돌려줘 늘 참이었다). 모르는 번호는 읽으면 공기가 되는데
+            // 저장된 하이트맵은 그 블록을 셌으므로, 바닐라처럼 저장값을 쓰는 읽기(N2b-2 고정 하이트맵)와 블록에서 다시 센 기준이 갈린다.
+            if (reg.canonicalKeyOf(id) != null) ids.add(id);
         }
         pool = ids.stream().mapToInt(Integer::intValue).toArray();
     }
@@ -114,7 +117,11 @@ class AnvilBulkDecodeParityTest {
         for (int s = 0; s < ChunkColumn.SECTION_COUNT; s++) {
             assertArrayEquals(a.sections()[s].blocks(), b.sections()[s].blocks(), where + " 섹션 " + s);
             assertEquals(a.sections()[s].nonAirCount(), b.sections()[s].nonAirCount(), where + " nonAir " + s);
-            assertEquals(a.sections()[s].isRandomlyTicking(), b.sections()[s].isRandomlyTicking(), where + " ticking " + s);
+            // 디스크에서 읽은 구역의 무작위 틱 판정은 바닐라 recalcBlockCounts(용암 유체만 셈)다. 옛 디코드는 칸마다 setBlock 이라 물도 세므로
+            // (바닐라 setBlockState 와 같음) 그 구역 객체의 판정이 아니라 블록을 통째로 넣은(재계수) 구역과 비교한다.
+            ChunkSection recounted = new ChunkSection();
+            recounted.replaceBlocks(a.sections()[s].blocks(), 0);
+            assertEquals(recounted.isRandomlyTicking(), b.sections()[s].isRandomlyTicking(), where + " ticking " + s);
         }
         assertArrayEquals(a.worldSurfaceHeightmap(), b.worldSurfaceHeightmap(), where + " WORLD_SURFACE");
         assertArrayEquals(a.motionBlockingHeightmap(), b.motionBlockingHeightmap(), where + " MOTION_BLOCKING");

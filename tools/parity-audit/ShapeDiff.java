@@ -1,4 +1,4 @@
-// tools/vanilla-data/ShapeVectors가 만든 바닐라 updateShape 벡터와 Furnace BlockShapes를 차분한다.
+// tools/vanilla-extract 의 shape-vectors 도구(옛 tools/vanilla-data/ShapeVectors)가 만든 바닐라 updateShape 벡터와 Furnace BlockShapes를 차분한다.
 // 실행: java ShapeDiff <벡터파일> [맨 위 N개 불일치 출력]
 import java.io.*;
 import java.nio.file.*;

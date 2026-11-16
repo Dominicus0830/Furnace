@@ -47,7 +47,7 @@ public final class BlockProperties {
     public static final BlockProperty<Direction> FACING = BlockProperty.of("facing", Direction.class);
     public static final BlockProperty<Axis> AXIS = BlockProperty.of("axis", Axis.class);
 
-    // 값 집합이 블록마다 다른 열거 — 값 이름을 그대로 쓴다(half: top/bottom 또는 upper/lower, shape, part, type, face …)
+    // 값 집합이 블록마다 다른 열거. 값 이름을 그대로 쓴다(half: top/bottom 또는 upper/lower, shape, part, type, face …)
     public static final BlockProperty<String> HALF = BlockProperty.text("half");
     public static final BlockProperty<String> SHAPE = BlockProperty.text("shape");
     public static final BlockProperty<String> PART = BlockProperty.text("part");

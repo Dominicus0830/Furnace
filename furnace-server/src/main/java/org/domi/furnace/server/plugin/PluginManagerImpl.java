@@ -30,6 +30,7 @@ import org.domi.furnace.api.plugin.PluginDescription;
 import org.domi.furnace.api.plugin.PluginManager;
 import org.domi.furnace.api.profiler.PluginProfiler;
 import org.domi.furnace.api.profiler.Timing;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,14 +51,17 @@ public final class PluginManagerImpl implements PluginManager {
     /** 불러오기·켜기에서 실패한 플러그인 이름(plugins.fail-fast 가 켜져 있으면 시작을 멈추는 근거). */
     private final List<String> failures = new CopyOnWriteArrayList<>();
 
-    public void settings(PluginSettings s) { this.settings = s; }
+    public void settings(PluginSettings s) {
+        this.settings = s;
+        host.asyncPool().useVirtualThreads(s.asyncVirtual());
+    }
 
     public PluginSettings settings() { return settings; }
 
     /** plugins.fail-fast=true 이고 실패가 있었으면 던진다 — 서버 시작이 멈춘다. */
     private void failFastCheck(String stage) {
         if (settings.failFast() && !failures.isEmpty()) {
-            throw new IllegalStateException("plugins.fail-fast: 플러그인 " + stage + " 실패 — " + failures);
+            throw new IllegalStateException(Lang.t("plugin.fail-fast", Lang.t(stage), failures));
         }
     }
 
@@ -89,11 +93,18 @@ public final class PluginManagerImpl implements PluginManager {
         return b == null ? null : b.generationHooks();
     }
 
+    /** 다른 서버 소프트웨어 형식(Bukkit 등) 플러그인을 한 번이라도 올렸는가 — world.tick-when-empty=auto 가 Paper 쪽으로 간다. */
+    private volatile boolean foreignLoaded;
+
+    public boolean foreignPluginsLoaded() { return foreignLoaded; }
+
     public void loadAll(PluginBootstrapper boot) {
         this.boot = boot;
         failures.addAll(boot.failures());   // 찾기·순서·api-version·부트스트랩 단계 실패
+        boot.worldsPhase(host, true);       // 형식 어댑터가 onLoad·STARTUP 동안 월드를 감춘다(Paper 는 그때 월드가 없다) — enableAll 이 드러낸다
+        worldsPending = true;
         for (PluginBootstrapper.Prepared p : List.copyOf(boot.prepared())) load(p);
-        failFastCheck("불러오기");
+        failFastCheck("plugin.stage-load");
     }
 
     private Loaded load(PluginBootstrapper.Prepared c) {
@@ -109,10 +120,11 @@ public final class PluginManagerImpl implements PluginManager {
             }
             if (plugin == null) {
                 Class<?> main = Class.forName(d.main(), true, loader);
-                if (!FurnacePlugin.class.isAssignableFrom(main)) throw new IllegalArgumentException("main 클래스가 FurnacePlugin 을 상속하지 않는다: " + d.main());
+                if (!FurnacePlugin.class.isAssignableFrom(main)) throw new IllegalArgumentException("the main class does not extend FurnacePlugin: " + d.main());
                 plugin = (FurnacePlugin) main.getDeclaredConstructor().newInstance();
             }
             loader.plugin = plugin;
+            if (c.format() != null && c.bootstrap() == null) foreignLoaded = true;
         } catch (Throwable t) {
             log.error("Could not load '{}' in folder '{}'", dir.relativize(c.file()), dir.getFileName(), t);
             failures.add(d.name());
@@ -247,10 +259,25 @@ public final class PluginManagerImpl implements PluginManager {
 
     // ------------------------------------------------------------------ 켜기·끄기
 
-    /** 불러온 플러그인을 순서대로 켠다. */
+    /** loadAll 이 형식 어댑터에게 월드를 감추라고 알렸고 아직 드러내라고 알리지 않았다. */
+    private volatile boolean worldsPending;
+
+    /**
+     * 불러온 플러그인을 순서대로 켠다. 형식 어댑터가 "기본 월드 전에 켠다"고 한 플러그인(Bukkit {@code load: STARTUP})을 Bukkit 처럼 먼저
+     * 순서대로 켜고, {@link org.domi.furnace.api.plugin.PluginFormat#worldsReady} 를 알린 뒤 나머지를 켠다.
+     */
     public void enableAll() {
-        for (Loaded l : plugins) enable(l);
-        failFastCheck("켜기");
+        PluginBootstrapper b = boot;
+        try {
+            if (b != null) for (Loaded l : plugins) if (b.enablesBeforeWorlds(l.description())) enable(l);
+        } finally {
+            if (b != null && worldsPending) {
+                worldsPending = false;
+                b.worldsPhase(host, false);
+            }
+        }
+        for (Loaded l : plugins) enable(l);   // 이미 켠 것은 건너뛴다
+        failFastCheck("plugin.stage-enable");
     }
 
     @Override
@@ -329,17 +356,17 @@ public final class PluginManagerImpl implements PluginManager {
         try {
             for (var w : host.core().worlds()) w.spawnPolicy().removeFiltersOf(p);   // 스폰 필터(A14-06)
         } catch (RuntimeException e) {
-            log.warn("{} 의 스폰 필터 정리 실패", l.description().name(), e);
+            log.warn(Lang.t("plugin.cleanup-spawn-filter-failed", l.description().name()), e);
         }
         try {
             host.lightSourcesImpl().removeAll(p);   // 가짜 광원
         } catch (RuntimeException e) {
-            log.warn("{} 의 가짜 광원 정리 실패", l.description().name(), e);
+            log.warn(Lang.t("plugin.cleanup-fake-light-failed", l.description().name()), e);
         }
         try {
             host.chunkTicketsImpl().releaseAll(p);   // 청크 티켓
         } catch (RuntimeException e) {
-            log.warn("{} 의 청크 티켓 정리 실패", l.description().name(), e);
+            log.warn(Lang.t("plugin.cleanup-chunk-tickets-failed", l.description().name()), e);
         }
         // 설명 파일의 그 노드가 아직 올라 있을 때만 지운다 — 다른 플러그인이 같은 이름을 갈아 끼웠으면 그것은 남긴다
         for (Permission perm : l.description().permissions()) host.permissionsImpl().unregister(perm);
@@ -379,7 +406,7 @@ public final class PluginManagerImpl implements PluginManager {
     @Override
     public CompletableFuture<List<String>> reload(String name) {
         if (!settings.devMode()) return PluginManager.super.reload(name);
-        if (name == null || name.isBlank()) return CompletableFuture.failedFuture(new IllegalArgumentException("플러그인 이름이 없다"));
+        if (name == null || name.isBlank()) return CompletableFuture.failedFuture(new IllegalArgumentException("no plugin name given"));
         // 전역 스레드의 다음 차례에 돈다 — 플러그인이 자기 명령 처리기 안에서 자기를 다시 읽게 해도 자기 코드가 스택에 없을 때 바뀐다
         return host.scheduler().global().submit(() -> reloadNow(name));
     }
@@ -392,7 +419,7 @@ public final class PluginManagerImpl implements PluginManager {
         HotReload.Watcher w = new HotReload.Watcher(dir, periodMillis, this::jarChanged);
         watcher = w;
         w.start();
-        log.info("[핫 리로드] plugins/*.jar 변경을 감시한다");
+        log.info(Lang.t("hotreload.watching"));
     }
 
     HotReload.Watcher watcher() { return watcher; }
@@ -409,9 +436,9 @@ public final class PluginManagerImpl implements PluginManager {
         }
         if (name == null) return;
         String n = name;
-        log.info("[핫 리로드] {} 가 바뀌었다 — {} 를 다시 읽는다", dir.relativize(jar), n);
+        log.info(Lang.t("hotreload.changed", dir.relativize(jar), n));
         reload(n).exceptionally(t -> {
-            log.error("[핫 리로드] {} 다시 읽기 실패", n, t);
+            log.error(Lang.t("hotreload.failed", n), t);
             return List.of();
         });
     }
@@ -422,17 +449,17 @@ public final class PluginManagerImpl implements PluginManager {
      * → 옛 클래스로더는 retireDelayTicks 뒤에 닫는다.
      */
     List<String> reloadNow(String name) {
-        if (!settings.devMode()) throw new IllegalStateException("핫 리로드는 개발 모드(plugins.dev-mode=true)에서만 된다");
+        if (!settings.devMode()) throw new IllegalStateException("hot reload only works in development mode (plugins.dev-mode=true)");
         PluginBootstrapper b = boot;
-        if (b == null) throw new IllegalStateException("아직 플러그인을 불러오지 않았다");
+        if (b == null) throw new IllegalStateException("plugins have not been loaded yet");
         synchronized (reloadLock) {
             long t0 = System.nanoTime();
             Loaded target = findLoaded(name);
             PluginBootstrapper.Candidate fresh = b.findOnDisk(name);
-            if (target == null && fresh == null) throw new IllegalArgumentException("그런 플러그인이 없다: " + name);
+            if (target == null && fresh == null) throw new IllegalArgumentException("no such plugin: " + name);
             if (target != null && fresh == null && Files.exists(target.file())) {
                 // 덮어쓰는 도중이거나 깨진 jar — 옛 것을 그대로 둔다
-                throw new IllegalStateException(target.file().getFileName() + " 에서 " + name + " 의 설명 파일을 읽을 수 없다 — 지금 것을 그대로 둔다");
+                throw new IllegalStateException(target.file().getFileName() + ": cannot read the descriptor of " + name + " - keeping the current one");
             }
             // 1. 다시 읽을 묶음: 대상 + 그것에 (연쇄로) 기대는 플러그인, 켠 순서대로
             List<Loaded> group = target == null ? List.of() : dependentsOf(target);
@@ -456,7 +483,7 @@ public final class PluginManagerImpl implements PluginManager {
             for (String n : names) {
                 PluginBootstrapper.Candidate c = n.equalsIgnoreCase(name) ? fresh : b.findOnDisk(n);
                 if (c == null) {
-                    log.warn("[핫 리로드] {} 의 jar 가 plugins/ 에 없다 — 내리기만 한다", n);
+                    log.warn(Lang.t("hotreload.jar-missing", n));
                     continue;
                 }
                 PluginBootstrapper.Prepared prep = b.reprepare(c);
@@ -468,7 +495,7 @@ public final class PluginManagerImpl implements PluginManager {
             }
             // 4. 옛 클래스로더 정리(늦게 — 다른 스레드에서 끝나 가는 옛 작업이 있을 수 있다)
             for (Loaded l : group) retireLater(l);
-            log.info("[핫 리로드] {} 다시 읽음 — 켜짐 {} ({} ms)", names, back, (System.nanoTime() - t0) / 1_000_000);
+            log.info(Lang.t("hotreload.reloaded", names, back, (System.nanoTime() - t0) / 1_000_000));
             return back;
         }
     }
@@ -553,7 +580,7 @@ public final class PluginManagerImpl implements PluginManager {
     @Override
     public void setLogLevel(String pluginName, Level level) {
         FurnacePlugin p = plugin(pluginName);
-        if (p == null) throw new IllegalArgumentException("그런 플러그인이 없다: " + pluginName);
+        if (p == null) throw new IllegalArgumentException("no such plugin: " + pluginName);
         p.logger().setLevel(level);
     }
 
@@ -621,7 +648,19 @@ public final class PluginManagerImpl implements PluginManager {
          */
         PluginClassLoader(Path jar, PluginBootstrapper group, boolean shadowCopy, List<Path> libraries,
                           org.domi.furnace.api.plugin.ClassTransformer transformer, ClassLoader parent, boolean hideCompat) throws MalformedURLException {
+            this(jar, group, shadowCopy, libraries, transformer, parent, hideCompat, false);
+        }
+
+        /**
+         * ownResources: true 면 리소스(getResource·getResources)를 이 jar(+ libraries jar)에서만 찾는다 — Paper PluginClassLoader 처럼 서버 jar 의
+         * 같은 이름 파일(lang/en_us.json, META-INF/MANIFEST.MF 등)이 플러그인 것을 가리거나, 플러그인에 없는 서버 파일이 보이지 않게(A15-02).
+         * 호환(Bukkit) 플러그인만 켠다. 클래스 찾기 순서는 바꾸지 않는다.
+         */
+        PluginClassLoader(Path jar, PluginBootstrapper group, boolean shadowCopy, List<Path> libraries,
+                          org.domi.furnace.api.plugin.ClassTransformer transformer, ClassLoader parent, boolean hideCompat,
+                          boolean ownResources) throws MalformedURLException {
             super(urls(jar, libraries), parent != null ? parent : PluginHost.class.getClassLoader());
+            this.ownResources = ownResources;
             this.hideCompat = hideCompat;
             this.group = group;
             this.shadow = shadowCopy ? jar : null;
@@ -631,6 +670,7 @@ public final class PluginManagerImpl implements PluginManager {
         }
 
         private final boolean hideCompat;
+        private final boolean ownResources;
         private final org.domi.furnace.api.plugin.ClassTransformer transformer;
         private final Path jarPath;
         private final URL jarUrl;
@@ -641,7 +681,7 @@ public final class PluginManagerImpl implements PluginManager {
         private volatile boolean transformWarned;
 
         private synchronized java.util.jar.JarFile jar() throws IOException {
-            if (closed) throw new IOException("닫힌 플러그인 로더: " + jarPath.getFileName());
+            if (closed) throw new IOException("closed plugin loader: " + jarPath.getFileName());
             if (jarFile == null) jarFile = new java.util.jar.JarFile(jarPath.toFile(), true, java.util.zip.ZipFile.OPEN_READ, Runtime.version());
             return jarFile;
         }
@@ -676,9 +716,9 @@ public final class PluginManagerImpl implements PluginManager {
                 // 변환기가 못 읽는 클래스(이상한 바이트코드)는 원래 바이트로 — 그 클래스가 변환이 필요한 이름을 쓰면 그 자리에서 실패한다
                 if (!transformWarned) {
                     transformWarned = true;
-                    log.warn("플러그인 jar {} 의 클래스 {} 를 변환하지 못해 원래 바이트로 올린다(이 jar 의 다음 실패는 DEBUG)", jarPath.getFileName(), name, e);
+                    log.warn(Lang.t("plugin.class-transform-failed", jarPath.getFileName(), name), e);
                 } else {
-                    log.debug("클래스 {} 변환 실패 — 원래 바이트로", name, e);
+                    log.debug("Transforming class {} failed - using the original bytes", name, e);
                 }
             }
             int dot = name.lastIndexOf('.');
@@ -739,6 +779,16 @@ public final class PluginManagerImpl implements PluginManager {
                 }
             }
             return super.loadClass(name, resolve);
+        }
+
+        @Override
+        public URL getResource(String name) {
+            return ownResources ? findResource(name) : super.getResource(name);
+        }
+
+        @Override
+        public java.util.Enumeration<URL> getResources(String name) throws IOException {
+            return ownResources ? findResources(name) : super.getResources(name);
         }
 
         @Override

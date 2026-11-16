@@ -19,9 +19,24 @@ public interface ProtocolCodec {
     /** 그 종류가 이 버전에서 쓰는 id 들(없으면 빈 배열). 이동 패킷처럼 하나의 종류가 여러 id 일 수 있다. */
     int[] ids(PacketType<?> type);
 
-    /** 본문을 읽어 값으로(타입 래퍼가 없는 종류는 OpaquePacket). body 의 읽기 위치는 옮겨진다. */
+    /**
+     * 본문을 읽어 값으로. 타입 레코드가 없는 종류는 GenericPacket(이 버전에서 못 읽는 종류면 내용 없는 것). body 의 읽기 위치는 옮겨진다.
+     * 모양이 어긋난 본문이면 예외.
+     */
     Packet decode(PacketType<?> type, int id, ByteBuf body);
+
+    /** 그 종류의 내용을 읽고 쓸 수 있는가(타입 레코드 또는 범용 코덱). */
+    boolean readable(PacketType<?> type);
+
+    /** GenericPacket 종류의 필드(읽을 수 없거나 타입 레코드면 빈 목록). */
+    java.util.List<org.domi.furnace.api.packet.PacketField<?>> fields(PacketType<?> type);
 
     /** 값을 이 버전의 와이어로: 본문은 out 에 쓰고 id 를 돌려준다. 보낼 수 없는 값이면 IllegalArgumentException. */
     int encode(Packet packet, ByteBuf out);
+
+    /** 이름 있는 메타데이터 칸의 이 버전 칸 번호(없으면 empty). */
+    java.util.OptionalInt entityDataIndex(org.domi.furnace.api.entity.data.EntityDataKey<?> key);
+
+    /** 그 엔티티 종류에 이 칸이 있는가(같은 번호·같은 값 종류). */
+    boolean hasEntityData(String entityType, org.domi.furnace.api.entity.data.EntityDataKey<?> key);
 }

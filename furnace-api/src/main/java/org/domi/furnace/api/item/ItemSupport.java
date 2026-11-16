@@ -31,14 +31,14 @@ public interface ItemSupport {
 
     static ItemSupport get() {
         ItemSupport s = Holder.support;
-        if (s == null) throw new IllegalStateException("서버가 아직 준비되지 않았다 — 아이템 컴포넌트는 서버 안에서만 쓸 수 있다");
+        if (s == null) throw new IllegalStateException("the server is not ready yet - item components can only be used inside the server");
         return s;
     }
 
-    /** 서버 구현 전용 — 한 번만 정할 수 있다(같은 객체를 다시 넣는 것은 괜찮다). */
+    /** 서버 구현 전용. 한 번만 정할 수 있다(같은 객체를 다시 넣는 것은 괜찮다). */
     static void install(ItemSupport support) {
         synchronized (Holder.class) {
-            if (Holder.support != null && Holder.support != support) throw new IllegalStateException("ItemSupport 는 한 번만 정할 수 있다");
+            if (Holder.support != null && Holder.support != support) throw new IllegalStateException("ItemSupport can only be set once");
             Holder.support = support;
         }
     }

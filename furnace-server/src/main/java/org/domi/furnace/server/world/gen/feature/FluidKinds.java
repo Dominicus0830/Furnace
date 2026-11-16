@@ -2,6 +2,7 @@
 // waterlogged=true 이거나 항상 물을 품는 블록(kelp, seagrass, bubble_column 등)은 물 source.
 package org.domi.furnace.server.world.gen.feature;
 
+import org.domi.furnace.api.GameVersion;
 import java.util.Set;
 import org.domi.furnace.server.world.BlockRegistry;
 
@@ -20,7 +21,7 @@ public final class FluidKinds {
         if (k == null) {
             synchronized (FluidKinds.class) {
                 k = shared;
-                if (k == null) shared = k = new FluidKinds(BlockRegistry.load("blocks/1.21.1.txt"));
+                if (k == null) shared = k = new FluidKinds(BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"));
             }
         }
         return k;

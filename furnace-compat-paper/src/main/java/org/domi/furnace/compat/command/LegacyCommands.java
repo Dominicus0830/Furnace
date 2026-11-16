@@ -98,7 +98,7 @@ public final class LegacyCommands {
      * @return 실제로 올라간 이름들(겹친 이름은 네임스페이스 형태만)
      */
     public Collection<String> register(FurnacePlugin plugin, LegacyCommand cmd) {
-        if (cmd.plugin() != plugin) throw new IllegalArgumentException("다른 플러그인의 명령: " + cmd);
+        if (cmd.plugin() != plugin) throw new IllegalArgumentException("command of another plugin: " + cmd);
         Map<String, LegacyCommand> names = byPlugin.computeIfAbsent(plugin, p -> {
             plugin.own(() -> {   // 꺼지면 서버가 트리 쪽은 치우고, 이 지도도 비운다
                 byPlugin.remove(plugin);
@@ -121,7 +121,7 @@ public final class LegacyCommands {
      */
     public Collection<String> registerName(LegacyCommand cmd, String name) {
         Collection<String> live = registered.get(cmd);
-        if (live == null) throw new IllegalStateException("트리에 올라가 있지 않은 명령: " + cmd);
+        if (live == null) throw new IllegalStateException("command that is not on the tree: " + cmd);
         Collection<String> done = server.commands().register(cmd.plugin(), name, cmd.description(), List.of(), new Adapter(cmd));
         live.addAll(done);
         Map<String, LegacyCommand> names = byPlugin.get(cmd.plugin());
@@ -240,11 +240,11 @@ public final class LegacyCommands {
                 if (PrimaryThread.isPrimary()) return complete(sender, label, args);
                 return server.scheduler().global().submit(() -> complete(sender, label, args)).get(tabTimeoutMillis, TimeUnit.MILLISECONDS);
             } catch (TimeoutException e) {
-                cmd.plugin().logger().log(Level.WARNING, "자동완성이 " + tabTimeoutMillis + "ms 안에 끝나지 않아 건너뛴다: /" + label);
+                cmd.plugin().logger().log(Level.WARNING, org.domi.furnace.compat.i18n.CompatLang.t("compat.tab-timeout", tabTimeoutMillis, label));
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             } catch (Exception e) {
-                cmd.plugin().logger().log(Level.WARNING, "자동완성 실패: /" + label, e);
+                cmd.plugin().logger().log(Level.WARNING, org.domi.furnace.compat.i18n.CompatLang.t("compat.tab-failed", label), e);
             }
             return List.of();
         }

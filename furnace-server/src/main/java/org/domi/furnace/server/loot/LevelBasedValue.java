@@ -39,7 +39,7 @@ public interface LevelBasedValue {
                 LevelBasedValue fallback = parse(LootJson.req(o, "fallback"));
                 yield level -> level <= values.size() ? values.get(level - 1) : fallback.calculate(level);
             }
-            default -> throw new LootParseException("모르는 레벨 값: " + o.get("type"));
+            default -> throw new LootParseException("unknown level-based value: " + o.get("type"));
         };
     }
 }

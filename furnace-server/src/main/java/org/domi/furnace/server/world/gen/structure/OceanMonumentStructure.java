@@ -130,12 +130,14 @@ public final class OceanMonumentStructure extends StructureType {
         /** OceanMonumentPiece(type, dir, genDepth, box) */
         protected MonumentPiece(Direction dir, BoundingBox box) {
             super(box, dir);
+            this.genDepth = 1;   // 바닐라: 펜트하우스·날개 방은 1(건물은 생성자에서 0)
         }
 
         /** OceanMonumentPiece(type, genDepth, dir, roomDef, w, h, d) */
         protected MonumentPiece(Direction dir, RoomDef room, int w, int h, int d) {
             super(makeRoomBox(dir, room, w, h, d), dir);
             this.room = room;
+            this.genDepth = 1;
         }
 
         private static BoundingBox makeRoomBox(Direction dir, RoomDef room, int w, int h, int d) {
@@ -232,12 +234,16 @@ public final class OceanMonumentStructure extends StructureType {
     // ------------------------------------------------------------------ 본체 (바닐라 MonumentBuilding)
 
     static final class Building extends MonumentPiece {
+        @Override
+        public String pieceType() { return "omb"; }
+
         private RoomDef sourceRoom;
         private RoomDef coreRoom;
         private final List<MonumentPiece> children = new ArrayList<>();
 
         Building(WorldgenRandom random, int x, int z, Direction dir) {
             super(dir, makeBoundingBox(x, 39, z, dir, 58, 23, 58));
+            this.genDepth = 0;
             List<RoomDef> rooms = generateRoomGraph(random);
             sourceRoom.claimed = true;
             children.add(new EntryRoom(dir, sourceRoom));
@@ -826,6 +832,8 @@ public final class OceanMonumentStructure extends StructureType {
     }
 
     static final class EntryRoom extends MonumentPiece {
+        @Override
+        public String pieceType() { return "omentry"; }
 
         EntryRoom(Direction d, RoomDef r) {
             super(d, r, 1, 1, 1);
@@ -860,6 +868,8 @@ public final class OceanMonumentStructure extends StructureType {
     }
 
     static final class CoreRoom extends MonumentPiece {
+        @Override
+        public String pieceType() { return "omcr"; }
 
         CoreRoom(Direction d, RoomDef r) {
             super(d, r, 2, 2, 2);
@@ -938,6 +948,8 @@ public final class OceanMonumentStructure extends StructureType {
     }
 
     static final class DoubleXRoom extends MonumentPiece {
+        @Override
+        public String pieceType() { return "omdxr"; }
 
         DoubleXRoom(Direction d, RoomDef r) {
             super(d, r, 2, 1, 1);
@@ -1007,6 +1019,8 @@ public final class OceanMonumentStructure extends StructureType {
     }
 
     static final class DoubleXYRoom extends MonumentPiece {
+        @Override
+        public String pieceType() { return "omdxyr"; }
 
         DoubleXYRoom(Direction d, RoomDef r) {
             super(d, r, 2, 2, 1);
@@ -1120,6 +1134,8 @@ public final class OceanMonumentStructure extends StructureType {
     }
 
     static final class DoubleYRoom extends MonumentPiece {
+        @Override
+        public String pieceType() { return "omdyr"; }
 
         DoubleYRoom(Direction d, RoomDef r) {
             super(d, r, 1, 2, 1);
@@ -1200,6 +1216,8 @@ public final class OceanMonumentStructure extends StructureType {
     }
 
     static final class DoubleYZRoom extends MonumentPiece {
+        @Override
+        public String pieceType() { return "omdyzr"; }
 
         DoubleYZRoom(Direction d, RoomDef r) {
             super(d, r, 1, 2, 2);
@@ -1311,6 +1329,8 @@ public final class OceanMonumentStructure extends StructureType {
     }
 
     static final class DoubleZRoom extends MonumentPiece {
+        @Override
+        public String pieceType() { return "omdzr"; }
 
         DoubleZRoom(Direction d, RoomDef r) {
             super(d, r, 1, 1, 2);
@@ -1399,6 +1419,9 @@ public final class OceanMonumentStructure extends StructureType {
     }
 
     static final class SimpleRoom extends MonumentPiece {
+        @Override
+        public String pieceType() { return "omsimple"; }
+
         private final int design;
 
         SimpleRoom(Direction d, RoomDef r, LegacyRandom rnd) {
@@ -1563,6 +1586,8 @@ public final class OceanMonumentStructure extends StructureType {
     }
 
     static final class SimpleTopRoom extends MonumentPiece {
+        @Override
+        public String pieceType() { return "omsimplet"; }
 
         SimpleTopRoom(Direction d, RoomDef r) {
             super(d, r, 1, 1, 1);
@@ -1614,6 +1639,8 @@ public final class OceanMonumentStructure extends StructureType {
     }
 
     static final class Penthouse extends MonumentPiece {
+        @Override
+        public String pieceType() { return "ompenthouse"; }
 
         Penthouse(Direction d, BoundingBox box) {
             super(d, box);
@@ -1669,6 +1696,9 @@ public final class OceanMonumentStructure extends StructureType {
     }
 
     static final class WingRoom extends MonumentPiece {
+        @Override
+        public String pieceType() { return "omwr"; }
+
         private final int design;
 
         WingRoom(Direction d, BoundingBox box, int n) {

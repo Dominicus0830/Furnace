@@ -1,9 +1,11 @@
 // 바닐라 LavaCauldronBlock: 용암 가마솥. 늘 가득 차 있고 비교기 신호 3.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.LavaCauldronBlock")
 public class LavaCauldronBlock extends AbstractCauldronBlock {
 
     public LavaCauldronBlock(int block) { super(block, CauldronInteraction.LAVA); }

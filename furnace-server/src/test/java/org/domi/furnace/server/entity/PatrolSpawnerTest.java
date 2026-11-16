@@ -1,6 +1,7 @@
 // 약탈자 순찰(PatrolSpawner·PatrollingMonster): 스폰 조건, 고정 시드 난수 순서 대조, 순찰 상태 저장 왕복, 지도자 굴림.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.HashMap;
@@ -29,7 +30,7 @@ class PatrolSpawnerTest {
     @BeforeAll
     static void install() throws Exception { TestRecipes.manager(); }
 
-    private static final SuperflatWorldSource GEN = new SuperflatWorldSource(BlockRegistry.load("blocks/1.21.1.txt"), 0);
+    private static final SuperflatWorldSource GEN = new SuperflatWorldSource(BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), 0);
 
     /** 반경 6 청크 슈퍼플랫, 시간·규칙·난수를 정할 수 있는 레벨. */
     static class PatrolLevel extends ChunkLevel {

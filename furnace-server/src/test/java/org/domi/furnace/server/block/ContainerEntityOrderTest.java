@@ -1,6 +1,7 @@
 package org.domi.furnace.server.block;
 
 // X1 검토 보강: 호퍼가 쓰는 getEntitiesOfType(ContainerEntity) 가 옛 방식(전체 조회 + 걸러내기)과 같은 순서·같은 결과인지, 공기 충돌 모양이 비었는지.
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -15,7 +16,7 @@ import org.junit.jupiter.api.Test;
 
 class ContainerEntityOrderTest {
     @BeforeAll
-    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt"))); }
+    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"))); }
 
     @Test
     void containerTypeQueryEqualsFilteredFullQuery() {
@@ -61,8 +62,8 @@ class ContainerEntityOrderTest {
     void airCollisionShapeIsEmpty() {
         var level = new BlockPlacementTest.TestLevel();
         int air = B.defaultState("air");
-        assertTrue(BlockBehaviors.of(air).getCollisionShape(air, level, new Pos(0, 0, 0), null).isEmpty());
+        assertTrue(BlockBehaviors.of(air).getCollisionShape(air, level, new Pos(0, 0, 0), CollisionContext.EMPTY).isEmpty());
         var cow = new Cow(level, level.nextEntityId());
-        assertTrue(BlockBehaviors.of(air).getEntityCollisionShape(air, level, new Pos(0, 0, 0), cow).isEmpty());
+        assertTrue(BlockBehaviors.of(air).getCollisionShape(air, level, new Pos(0, 0, 0), org.domi.furnace.server.block.CollisionContext.of(cow)).isEmpty());
     }
 }

@@ -1,6 +1,7 @@
 // 속성: 수정자 연산 순서·범위 자르기·저장/불러오기·바뀐 것만 동기화·주민 기본값·밀려남 저항.
 package org.domi.furnace.server.attribute;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.block.BlockPlacementTest;
@@ -14,7 +15,7 @@ class AttributeTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @Test

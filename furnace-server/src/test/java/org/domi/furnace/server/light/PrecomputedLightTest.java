@@ -1,6 +1,7 @@
 // 생성 스레드에서 청크 하나씩 미리 계산한 빛 + 올릴 때 가장자리 맞추기가, 청크를 차례로 켠 빛과 칸마다 같은지 확인한다.
 package org.domi.furnace.server.light;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.Random;
@@ -32,7 +33,7 @@ class PrecomputedLightTest {
 
     @Test
     void precomputedThenAttachedEqualsSequential() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         int stone = reg.defaultStateId("minecraft:stone"), air = reg.defaultStateId("minecraft:air");
         for (long seed = 1; seed <= 3; seed++) {
             IncrementalLightTest.W ref = new IncrementalLightTest.W(reg, stone, air);
@@ -67,7 +68,7 @@ class PrecomputedLightTest {
     /** 청크를 올리는 사이사이 블록을 바꿔도(runUpdates 없이 blockChanged 만) 최종 빛이 같은 블록 배치를 차례로 켠 빛과 같다. */
     @Test
     void blockChangesBetweenAttachesStillConverge() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         int stone = reg.defaultStateId("minecraft:stone"), air = reg.defaultStateId("minecraft:air");
         int glow = reg.defaultStateId("minecraft:glowstone");
         int[] pal = {stone, air, glow};

@@ -3,6 +3,7 @@
 // (worldgen-gap-survey task에서 조사한 17종 미구현 타입 — coral_tree/huge_red_mushroom/monster_room 등)
 package org.domi.furnace.server.world.gen.feature;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.google.gson.JsonObject;
@@ -24,7 +25,7 @@ import org.junit.jupiter.api.Test;
 
 class NoopFeatureAuditTest {
 
-    private static final String DIR = "worldgen/1.21.1/worldgen/configured_feature";
+    private static final String DIR = "worldgen/" + GameVersion.RESOURCE_TAG + "/worldgen/configured_feature";
 
     // survey(tasks/worldgen-gap-survey) 확인된 미구현 루트 타입. 이 목록 밖의 새 폴백은 fail.
     // 2026-11-02: bonus_chest·void_start_platform 이식으로 루트 타입 미구현은 없다(빈 목록).
@@ -35,7 +36,7 @@ class NoopFeatureAuditTest {
         List<String> ids = listConfiguredFeatureIds();
         assertFalse(ids.isEmpty(), "configured_feature 디렉토리에서 파일을 찾지 못함: " + DIR);
 
-        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
+        WorldgenData data = WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG);
         Map<String, String> newFallbacks = new TreeMap<>(); // id -> type, 리포트용(허용목록 밖)
         Map<String, String> knownFallbacks = new TreeMap<>(); // id -> type, 리포트용(허용목록 안)
 

@@ -5,7 +5,7 @@ public enum ResourcePackStatus {
     SUCCESSFULLY_LOADED(true),
     DECLINED(true),
     FAILED_DOWNLOAD(true),
-    /** 요청을 받아들여 내려받기 시작함(중간 상태 — 이어서 끝 상태가 온다). */
+    /** 요청을 받아들여 내려받기를 시작했다(중간 상태이며 이어서 끝 상태가 온다). */
     ACCEPTED(false),
     /** 내려받기가 끝나 적용 중(중간 상태). */
     DOWNLOADED(false),

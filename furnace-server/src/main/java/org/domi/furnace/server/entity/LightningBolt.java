@@ -63,7 +63,7 @@ public class LightningBolt extends Entity {
             int diff = level.difficulty();
             if (diff == 2 || diff == 3) spawnFire(4);
             powerLightningRod();
-            clearCopperOnLightningStrike(level, strikePosition());
+            clearCopperOnLightningStrike(level, strikePosition(), this);
         }
         life--;
         if (life < 0) {
@@ -141,7 +141,8 @@ public class LightningBolt extends Entity {
         if (B.behavior(s) instanceof LightningRodBlock rod) rod.onLightningStrike(s, level, p);
     }
 
-    private static void clearCopperOnLightningStrike(ChunkLevel level, Pos pos) {
+    /** lightning: Paper 가 구리를 벗길 때마다 묻는 EntityChangeBlockEvent 의 주체(막은 칸은 그대로 — 난수·입자는 바닐라대로). */
+    private static void clearCopperOnLightningStrike(ChunkLevel level, Pos pos, LightningBolt lightning) {
         int s = level.getBlockState(pos);
         Pos target;
         int state;
@@ -153,13 +154,14 @@ public class LightningBolt extends Entity {
             state = s;
         }
         if (WeatheringCopper.age(B.block(state)) >= 0) {
-            level.setBlockAndUpdate(target, WeatheringCopper.first(level.getBlockState(target)));
+            int first = WeatheringCopper.first(level.getBlockState(target));
+            if (B.entityChange(level, lightning, target, first)) level.setBlockAndUpdate(target, first);
             int n = level.random().nextInt(3) + 3;
             for (int i = 0; i < n; i++) {
                 int steps = level.random().nextInt(8) + 1;
                 Pos cur = target;
                 for (int k = 0; k < steps; k++) {
-                    Pos next = randomWalkCleaningCopper(level, cur);
+                    Pos next = randomWalkCleaningCopper(level, cur, lightning);
                     if (next == null) break;
                     cur = next;
                 }
@@ -167,14 +169,14 @@ public class LightningBolt extends Entity {
         }
     }
 
-    private static Pos randomWalkCleaningCopper(ChunkLevel level, Pos origin) {
+    private static Pos randomWalkCleaningCopper(ChunkLevel level, Pos origin, LightningBolt lightning) {
         for (int i = 0; i < 10; i++) {
             int dx = level.random().nextInt(3) - 1, dy = level.random().nextInt(3) - 1, dz = level.random().nextInt(3) - 1;
             Pos p = origin.offset(dx, dy, dz);
             int s = level.getBlockState(p);
             if (WeatheringCopper.age(B.block(s)) >= 0) {
                 int prev = WeatheringCopper.previous(s);
-                if (prev >= 0) level.setBlockAndUpdate(p, prev);
+                if (prev >= 0 && B.entityChange(level, lightning, p, prev)) level.setBlockAndUpdate(p, prev);
                 level.levelEvent(null, 3002, p, -1);
                 return p;
             }

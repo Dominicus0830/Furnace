@@ -1,9 +1,11 @@
 // 바닐라 Hopper: 깔때기·깔때기 수레 공통 — 기준 좌표(getLevelX/Y/Z), 격자에 맞는가, 빨아들이는 상자, 칸.
 package org.domi.furnace.server.block.entity;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.entity.AABB;
 
+@VanillaPort("net.minecraft.world.level.block.entity.Hopper")
 public interface Hopper {
     double levelX();
 

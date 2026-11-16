@@ -24,3 +24,7 @@ if (skipOracle) {
 } else {
     include("worldgen-oracle")
 }
+
+// V-05: 바닐라 데이터 추출 도구(tools/vanilla-extract). 서버·플러그인 코드와 무관한 개발용 도구 모듈이라 서버 빌드·시험에 들어가지 않는다.
+include("vanilla-extract")
+project(":vanilla-extract").projectDir = file("tools/vanilla-extract")

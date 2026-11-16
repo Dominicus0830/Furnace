@@ -1,0 +1,7 @@
+# 결과 동일 금 파일 — scene-compat-protocollib-order. 최적화 PR 은 이 파일을 바꾸지 않는다. 갱신 절차: docs/testing/identitykit.md
+1-unchanged c:a1 t5001 c:a2 | listener [chat:a1, time5001, chat:a2]
+2-changed t4777 t4343 c:after | listener [time4001, chat:secret, chat:swap, chat:after]
+3-send-inside t4242 c:echo-nest c:nest c:tail | listener [chat:nest, time4242, chat:echo-nest, chat:tail]
+4-bundle t4242 c:echo-b2 c:b1 c:b2 c:b3 | listener [chat:b1, chat:b2, time4242, chat:echo-b2, chat:b3]
+5-cancel-then-bundle c:x1 c:x2 meta | listener-saw-add true
+TOTAL 9a22eda018b0f9bb lines=5

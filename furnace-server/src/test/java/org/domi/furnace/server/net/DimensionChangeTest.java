@@ -2,6 +2,7 @@
 // ServerPlayer.changeDimension 순서로 패킷을 보낸 뒤 네더 region 에 편입된다. 도착 좌표는 1/8, 퇴장하면 Dimension 이 저장된다.
 package org.domi.furnace.server.net;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -47,7 +48,7 @@ class DimensionChangeTest {
     @BeforeAll
     static void items() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @TempDir Path tmp;
@@ -81,7 +82,7 @@ class DimensionChangeTest {
 
     private void start(SpawnPoint spawn) throws Exception {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         io = org.domi.furnace.server.TestServers.ioPool();
         var pool = new ChunkWorkerPool(1);
         over = new World(new SuperflatWorldSource(reg, 0), pool, sched, 1, 16, 2, 2, reg.directBits(), 7, io);

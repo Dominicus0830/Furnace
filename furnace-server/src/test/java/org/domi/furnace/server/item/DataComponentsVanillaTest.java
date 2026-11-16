@@ -2,6 +2,7 @@
 // (scratchpad component-spec-a/b 의 ✅ 예시). 네트워크 바이트, 저장 NBT, 패치 정규화 규칙을 본다.
 package org.domi.furnace.server.item;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -22,7 +23,7 @@ class DataComponentsVanillaTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static Map<String, Object> m(Object... kv) {

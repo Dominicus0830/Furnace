@@ -421,9 +421,38 @@ public final class PlayerVitals {
         abilities.flying = flying && abilities.mayfly;
     }
 
+    /**
+     * 플러그인이 비행 상태를 바꾼다(Paper CraftPlayer.setFlying): 날 수 없는데 true 면 IllegalArgumentException,
+     * 값이 실제로 바뀔 때만 능력 패킷을 보낸다.
+     */
+    public void setFlyingByPlugin(boolean value) {
+        Packet pkt;
+        synchronized (this) {
+            if (!abilities.mayfly && value) throw new IllegalArgumentException("Player is not allowed to fly (check #getAllowFlight())");
+            if (abilities.flying == value) return;
+            abilities.flying = value;
+            pkt = abilities.packet();
+        }
+        player.send(pkt);
+    }
+
+    /** 플러그인이 비행 허가를 바꾼다(Paper CraftPlayer.setAllowFlight): 허가를 끄면 비행도 끝낸다. 값이 같아도 능력 패킷을 보낸다. */
+    public void setMayfly(boolean value) {
+        Packet pkt;
+        synchronized (this) {
+            if (abilities.flying && !value) abilities.flying = false;
+            abilities.mayfly = value;
+            pkt = abilities.packet();
+        }
+        player.send(pkt);
+    }
+
     // ------------------------------------------------------------------ 체력·피해
 
     public synchronized float health() { return health; }
+
+    /** 지금 체력·허기·포화를 그대로 담은 SetHealth(Paper CraftPlayer.sendHealthUpdate — 마지막 보낸 값 기록은 건드리지 않는다). */
+    public synchronized SetHealth currentHealthPacket() { return new SetHealth(health, food.foodLevel(), food.saturationLevel()); }
 
     public boolean isDeadOrDying() { return health <= 0.0f; }
 
@@ -1726,6 +1755,7 @@ public final class PlayerVitals {
         lastHurt = 0;
         spawnInvulnerableTime = SPAWN_INVULNERABLE_TICKS;
         player.clearHurtRecords();
+        player.runOnOwner(player::clearUserModifiersForRespawn);   // 바닐라 restoreFrom: 기본값만 옮기고 수정자는 사라진다
         combat = newCombat();
         inWater = false;
         lastClimbable = null;

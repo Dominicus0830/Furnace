@@ -5,7 +5,7 @@ import org.bukkit.entity.Entity;
 import org.bukkit.event.Cancellable;
 import org.bukkit.event.HandlerList;
 
-/** 엔티티가 월드에 나타나려 한다. Furnace 는 아직 이 Bukkit 이벤트를 알리지 않는다. */
+/** 엔티티가 월드에 나타나려 한다(플레이어 제외). ItemSpawnEvent·CreatureSpawnEvent 도 이 처리기 목록으로 온다. */
 public class EntitySpawnEvent extends EntityEvent implements Cancellable {
 
     private static final HandlerList handlers = new HandlerList();

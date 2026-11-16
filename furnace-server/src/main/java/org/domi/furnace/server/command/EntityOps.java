@@ -2,6 +2,7 @@
 // 주인에게 보낸 일의 결과는 future 로 모으고, 모두 끝났으면(플레이어만 건드렸다면 즉시) 그 자리에서, 아니면 전역 스레드로 돌아와 이어 간다.
 package org.domi.furnace.server.command;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -75,7 +76,17 @@ public final class EntityOps {
 
     /** 주인을 끝내 못 찾았을 때의 실패(명령 오류로 보고된다). */
     public static IllegalStateException ownerNotFound(Rider r) {
-        return new IllegalStateException("대상을 가진 region 을 찾지 못했다: " + describe(r));
+        return new IllegalStateException("could not find the region that owns the target: " + describe(r));
+    }
+
+    /**
+     * 명령 후속 단계를 전역 스레드로 되돌리는 실행기. 그 단계는 **명령 범위**(CommandDrainGate) 안에서 돈다 — 거기서 region 에 넣는
+     * 다음 홉도 명령 큐 즉시 처리 문을 받아, 선택자 명령이 소스·단계마다 한 틱(50ms)씩 밀리지 않는다(T-150).
+     * 실행 순서는 그대로다(전역 스레드에서 넣는 작업은 원래 급한 작업이고, 바뀌는 것은 명령 표시 하나).
+     */
+    public static java.util.concurrent.Executor commandGlobal(CommandSource source) {
+        var global = source.getServer().scheduler().global();
+        return r -> global.execute(() -> org.domi.furnace.server.world.CommandDrainGate.inCommandScope(r));
     }
 
     /** region 작업: 오류를 던질 수 있다. */
@@ -107,7 +118,7 @@ public final class EntityOps {
             } catch (Throwable t) {
                 f.completeExceptionally(t);
             }
-        }, () -> f.completeExceptionally(new IllegalStateException("엔티티를 가진 region 을 찾지 못했다: " + e.typeName())));
+        }, () -> f.completeExceptionally(new IllegalStateException("could not find the region that owns the entity: " + e.typeName())));
         return f;
     }
 
@@ -128,7 +139,7 @@ public final class EntityOps {
                 return CompletableFuture.failedFuture(unwrap(t));
             }
         }
-        java.util.concurrent.Executor global = r -> source.getServer().scheduler().global().execute(r);
+        java.util.concurrent.Executor global = commandGlobal(source);
         return f.thenApplyAsync(v -> {
             try {
                 return fn.apply(v);
@@ -182,7 +193,7 @@ public final class EntityOps {
             }
             return invoke(action, v);
         }
-        java.util.concurrent.Executor global = r -> source.getServer().scheduler().global().execute(r);
+        java.util.concurrent.Executor global = commandGlobal(source);
         return future.thenComposeAsync(v -> invoke(action, v), global);
     }
 
@@ -224,7 +235,7 @@ public final class EntityOps {
 
     /** 명령 도중 예상 못한 실패: 로그를 남기고 사용자에게 알린다. */
     public static void reportFailure(CommandSource source, Throwable t) {
-        org.slf4j.LoggerFactory.getLogger(EntityOps.class).warn("명령 처리 실패", t);
+        org.slf4j.LoggerFactory.getLogger(EntityOps.class).warn(Lang.t("cmd.handling-failed"), t);
         source.sendFailure(org.domi.furnace.api.text.Text.translatable("command.failed"));
     }
 

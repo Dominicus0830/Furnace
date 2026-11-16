@@ -1,6 +1,7 @@
 // NoiseRouter + NoiseSettings 통합 테스트: overworld JSON 파싱 및 final_density 유한값 검증
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
 import org.domi.furnace.server.world.gen.df.DensityFunction;
@@ -9,7 +10,7 @@ class NoiseRouterTest {
 
     @Test
     void settingsAndRouter() {
-        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
+        WorldgenData data = WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG);
         NoiseSettings s = NoiseSettings.fromJson(data.noiseSettings("minecraft:overworld"));
         assertEquals(-64, s.minY());
         assertEquals(384, s.height());
@@ -23,7 +24,7 @@ class NoiseRouterTest {
 
     @Test
     void initialDensityWithoutJaggednessNotNull() {
-        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
+        WorldgenData data = WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG);
         NoiseSettings settings = NoiseSettings.fromJson(data.noiseSettings("minecraft:overworld"));
         NoiseRouter router = NoiseRouter.build(data, settings, 0L);
         DensityFunction.SinglePointContext ctx = new DensityFunction.SinglePointContext(0, 64, 0);
@@ -33,7 +34,7 @@ class NoiseRouterTest {
 
     @Test
     void router_has_climate_dfs() {
-        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
+        WorldgenData data = WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG);
         NoiseSettings settings = NoiseSettings.fromJson(data.noiseSettings("minecraft:overworld"));
         NoiseRouter r = NoiseRouter.build(data, settings, 0L);
 

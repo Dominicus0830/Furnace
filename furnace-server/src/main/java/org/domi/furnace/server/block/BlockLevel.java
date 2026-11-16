@@ -1,8 +1,14 @@
 // 블록 동작이 보는 월드(바닐라 Level/LevelAccessor/LevelReader 중 블록 코드가 쓰는 부분). 서버 쪽만(isClientSide = false).
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort({
+    "net.minecraft.world.level.Level",
+    "net.minecraft.world.level.LevelAccessor",
+    "net.minecraft.world.level.LevelReader"
+})
 public interface BlockLevel {
 
     // ------------------------------------------------------------------ 읽기
@@ -49,9 +55,12 @@ public interface BlockLevel {
     /** EntityGetter.isUnobstructed(null, shape): 건설을 막는 엔티티(관전자 제외)의 상자와 겹치지 않는가. shape 는 월드 좌표. */
     boolean isUnobstructed(Shape worldShape);
 
-    /** CollisionGetter.isUnobstructed(state, pos, ctx): 충돌 모양이 비었거나 엔티티와 겹치지 않으면. */
+    /**
+     * CollisionGetter.isUnobstructed(state, pos, ctx): 충돌 모양이 비었거나 엔티티와 겹치지 않으면. 문맥은 설치하는 행위자
+     * (바닐라 BlockItem.canPlace: player == null ? empty : of(player)) — 비계는 행위자가 위에 없으면 빈 모양이라 몸 자리에도 놓인다.
+     */
     default boolean isUnobstructed(int state, Pos pos, BlockActor collisionEntity) {
-        Shape s = BlockBehaviors.of(state).getCollisionShape(state, this, pos, collisionEntity);
+        Shape s = BlockBehaviors.of(state).getCollisionShape(state, this, pos, CollisionContext.of(collisionEntity));
         return s.isEmpty() || isUnobstructed(s.move(pos.x(), pos.y(), pos.z()));
     }
 
@@ -440,9 +449,14 @@ public interface BlockLevel {
 
     /** Block.dropResources(state, level, pos, blockEntity, entity, tool): 드롭을 하나씩 popResource 한 뒤 spawnAfterBreak(…, true). */
     default void dropResources(int state, Pos pos, Object blockEntity, BlockActor entity, ItemStack tool) {
+        dropResources(state, pos, blockEntity, entity, tool, true);
+    }
+
+    /** Paper Block.dropResources(…, dropExperience): spawnAfterBreak 에 dropExperience 를 그대로 넘긴다. */
+    default void dropResources(int state, Pos pos, Object blockEntity, BlockActor entity, ItemStack tool, boolean dropExperience) {
         BlockBehavior b = BlockBehaviors.of(state);
         for (ItemStack s : b.getDrops(state, this, pos, blockEntity, entity, tool)) popResource(pos, s);
-        b.spawnAfterBreak(state, this, pos, tool, true);
+        b.spawnAfterBreak(state, this, pos, tool, dropExperience);
     }
 
     /** Block.dropResources(state, level, pos). */

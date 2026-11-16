@@ -72,7 +72,7 @@ public class Block extends BlockBehaviour implements ItemLike {
             }
             int id = types.stateId(new org.domi.furnace.api.world.BlockData(type.id(), names));
             if (id != baseStateId + local) {
-                throw new IllegalStateException("상태 번호가 바닐라 순서와 다르다: " + type.id() + names + " 서버=" + id + " 계산=" + (baseStateId + local));
+                throw new IllegalStateException("state ids differ from the vanilla order: " + type.id() + names + " server=" + id + " computed=" + (baseStateId + local));
             }
             states[local] = new BlockState(this, values, id);
             for (int i = n - 1; i >= 0; i--) {
@@ -128,6 +128,10 @@ public class Block extends BlockBehaviour implements ItemLike {
     /** 호환 모듈 전용 — 공기 종류(air·cave_air·void_air)인가. */
     public boolean furnaceIsAir() { return air; }
 
+    /** 바닐라: 블록 상태 번호 표(팔레트 컨테이너의 블록 표). 서버 상태 표를 비추는 고정 표다(더할 수 없다). */
+    public static final net.minecraft.core.IdMapper<BlockState> BLOCK_STATE_REGISTRY = net.minecraft.core.IdMapper.furnaceFixed(
+            BlockState::furnaceStateId, org.domi.furnace.compat.nms.NmsBlocks::state, org.domi.furnace.compat.nms.NmsBlocks::stateCount);
+
     /** 바닐라: null 이면 0. */
     public static int getId(BlockState state) { return state == null ? 0 : state.furnaceStateId(); }
 
@@ -140,6 +144,30 @@ public class Block extends BlockBehaviour implements ItemLike {
     public static Block byItem(Item item) { return org.domi.furnace.compat.nms.NmsBlocks.byItem(item); }
 
     public final BlockState defaultBlockState() { return defaultState; }
+
+    /** 바닐라: 폭발 저항(블록 속성). */
+    public float getExplosionResistance() { return org.domi.furnace.compat.nms.NmsBlockStates.table().explosionResistance()[defaultState.furnaceStateId()]; }
+
+    /** 바닐라: 마찰(블록 속성, 기본 0.6). */
+    public float getFriction() { return org.domi.furnace.compat.nms.NmsBlockStates.table().friction()[defaultState.furnaceStateId()]; }
+
+    /** 바닐라: 기본 상태의 지도 색. */
+    public net.minecraft.world.level.material.MapColor defaultMapColor() {
+        return net.minecraft.world.level.material.MapColor.furnaceByCol(org.domi.furnace.compat.nms.NmsBlockStates.table().mapColor()[defaultState.furnaceStateId()]);
+    }
+
+    /** 바닐라: 모양이 한 칸 블록 전체를 덮는가. */
+    public static boolean isShapeFullBlock(net.minecraft.world.phys.shapes.VoxelShape shape) { return net.minecraft.world.phys.shapes.Shapes.furnaceIsFullBlock(shape); }
+
+    private static final java.util.Set<String> PAPER_INDESTRUCTIBLE = java.util.Set.of("minecraft:barrier", "minecraft:bedrock", "minecraft:end_portal_frame",
+            "minecraft:end_portal", "minecraft:end_gateway", "minecraft:command_block", "minecraft:repeating_command_block", "minecraft:chain_command_block",
+            "minecraft:structure_block", "minecraft:jigsaw");
+
+    /**
+     * Paper: 이 블록을 부술 수 있는가 — 기본 설정(unsupported-settings.allow-permanent-block-break-exploits 꺼짐)의 Paper 1.21.1 목록 그대로(N2b-6).
+     * Furnace 에는 그 설정이 없어 늘 기본값이다.
+     */
+    public final boolean isDestroyable() { return !PAPER_INDESTRUCTIBLE.contains(key.toString()); }
 
     public StateDefinition<Block, BlockState> getStateDefinition() { return stateDefinition; }
 

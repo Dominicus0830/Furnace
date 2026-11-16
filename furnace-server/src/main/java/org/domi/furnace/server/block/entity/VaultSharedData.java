@@ -7,6 +7,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.bossbar.CustomBossEvents;
@@ -16,6 +17,7 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 
+@VanillaPort("net.minecraft.world.level.block.entity.vault.VaultSharedData")
 public class VaultSharedData {
 
     private ItemStack displayItem = ItemStack.EMPTY;

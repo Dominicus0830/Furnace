@@ -1,6 +1,7 @@
 // 바닐라 ShulkerBoxBlock: 클릭한 면 쪽을 보게 놓인다. 열기(뚜껑이 막히지 않으면)·내용물 보존 드롭은 블록 엔티티 동작.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.entity.ContainerBlockEntity;
 import org.domi.furnace.server.block.entity.BlockEntity;
 import org.domi.furnace.server.block.entity.ShulkerBoxBlockEntity;
@@ -14,6 +15,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.ShulkerBoxBlock")
 public class ShulkerBoxBlock extends BaseEntityBlock {
 
     private static final Prop FACING = B.prop("facing");
@@ -37,7 +39,7 @@ public class ShulkerBoxBlock extends BaseEntityBlock {
 
     /**
      * canOpen: 닫혀 있지 않으면 열 수 있다. 닫혀 있으면 Shulker.getProgressDeltaAabb(1, facing, 0, 0.5) — 뚜껑 쪽 반 칸 — 를 옮겨
-     * 1e-6 줄인 상자에 충돌이 없어야 한다. 가정: 충돌 검사는 블록만(엔티티 충돌·월드 보더는 ChunkLevel.noCollision 에 아직 없다).
+     * 1e-6 줄인 상자에 충돌이 없어야 한다. 충돌 검사는 noCollision(null, box) — 블록과 단단한 엔티티(배·셜커), 보더는 보지 않는다.
      */
     public static boolean canOpen(int state, BlockLevel level, Pos pos, ShulkerBoxBlockEntity be) {
         if (be.animationStatus() != ShulkerBoxBlockEntity.AnimationStatus.CLOSED) return true;

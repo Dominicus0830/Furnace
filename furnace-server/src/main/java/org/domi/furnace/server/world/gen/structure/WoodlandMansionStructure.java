@@ -977,6 +977,17 @@ public final class WoodlandMansionStructure extends StructureType {
     // ------------------------------------------------------------------ 조각
 
     static final class Piece extends TemplatePiece {
+        @Override
+        public String pieceType() { return "wmp"; }
+
+        @Override
+        protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+            super.saveAdditional(t);
+            t.putString("Template", shortTemplateName("woodland_mansion"));   // 바닐라 WoodlandMansionPiece: "entrance" 처럼 짧은 이름
+            t.putString("Rot", rotationName(settings.rotation));
+            t.putString("Mi", mirrorName(settings.mirror));
+        }
+
         Piece(StructureEngine e, String name, P pos, int rotation, int mirror) {
             super("minecraft:woodland_mansion/" + name, e.template("minecraft:woodland_mansion/" + name), makeSettings(rotation, mirror),
                 pos.x(), pos.y(), pos.z());

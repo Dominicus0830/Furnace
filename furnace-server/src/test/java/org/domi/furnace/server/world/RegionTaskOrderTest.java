@@ -3,6 +3,7 @@
 // 끝에 청크마다 실행 순서가 보낸 순서와 같은지, 빠지거나 두 번 돈 작업이 없는지, 교착이 없는지 본다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.lang.management.ManagementFactory;
@@ -32,7 +33,7 @@ class RegionTaskOrderTest {
     @Test
     void perChunkFifoSurvivesMergeAndSplit() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(10_000_000L, 3);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(2), sched, 3, 4, 1, 2, 2,
                 reg.directBits(), 7, java.util.concurrent.Executors.newSingleThreadExecutor(),
                 java.util.concurrent.Executors.newSingleThreadExecutor());

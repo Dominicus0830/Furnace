@@ -31,25 +31,94 @@ val nmsSurvey by configurations.creating {
     isTransitive = false
 }
 
+// N3: 중립 패킷 스키마(furnace-api packet/schema/protocol-767.schema)에서 net.minecraft 패킷 shim 소스를 빌드 때 만든다.
+// 결과물은 build/generated 에만 생기고 커밋하지 않는다. 손으로 쓴 shim(src/main/java)이 있는 클래스는 만들지 않는다.
+val shimgen: SourceSet = the<SourceSetContainer>().create("shimgen")
+dependencies { "shimgenImplementation"(project(":furnace-api")) }
+val generateNmsPacketShims by tasks.registering(JavaExec::class) {
+    group = "build"
+    description = "패킷 스키마에서 net.minecraft 패킷 shim 소스를 만든다"
+    val out = layout.buildDirectory.dir("generated/sources/nms-packets/java")
+    val hand = layout.projectDirectory.dir("src/main/java")
+    val extras = layout.projectDirectory.file("src/shimgen/resources/packet-shim-extras.txt")
+    classpath = shimgen.runtimeClasspath
+    mainClass.set("org.domi.furnace.compat.shimgen.PacketShimGenerator")
+    jvmArgs("-Dstdout.encoding=UTF-8")
+    inputs.files(shimgen.runtimeClasspath).withNormalizer(ClasspathNormalizer::class)
+    inputs.dir(hand).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file(extras)
+    outputs.dir(out)
+    argumentProviders.add(CommandLineArgumentProvider {
+        listOf(out.get().asFile.absolutePath, hand.asFile.absolutePath, extras.asFile.absolutePath)
+    })
+}
+the<SourceSetContainer>()["main"].java.srcDir(generateNmsPacketShims)
+
+// N3 1단계: 패킷 번호 표(protocol-767-ids.txt)와 스키마에서 *PacketTypes·*Protocols(패킷 등록부) shim 소스를 만든다.
+val generateNmsProtocolShims by tasks.registering(JavaExec::class) {
+    group = "build"
+    description = "패킷 번호 표에서 net.minecraft 패킷 등록부(*PacketTypes·*Protocols) shim 소스를 만든다"
+    val out = layout.buildDirectory.dir("generated/sources/nms-protocols/java")
+    classpath = shimgen.runtimeClasspath
+    mainClass.set("org.domi.furnace.compat.shimgen.ProtocolShimGenerator")
+    jvmArgs("-Dstdout.encoding=UTF-8")
+    inputs.files(shimgen.runtimeClasspath).withNormalizer(ClasspathNormalizer::class)
+    outputs.dir(out)
+    argumentProviders.add(CommandLineArgumentProvider { listOf(out.get().asFile.absolutePath) })
+}
+the<SourceSetContainer>()["main"].java.srcDir(generateNmsProtocolShims)
+
+// T-181: authlib(GameProfile·Property·PropertyMap) 대역. Mojang 저장소에만 있어 컴파일 경로에 받지 않는다 — 호환 계층이 부르는 멤버만
+// 진짜 authlib 6.0.54 와 같은 서술자로 손으로 쓴 것을 컴파일·시험에만 쓰고 jar 에는 넣지 않는다(서버는 쓰는 플러그인이 있으면 진짜를 받는다).
+// CompatLinkTest 는 이 대역을 뺀 로더로 링크를 본다.
+val authlibStub: SourceSet = the<SourceSetContainer>().create("authlib")
+dependencies {
+    compileOnly(authlibStub.output)
+    testCompileOnly(authlibStub.output)
+    testRuntimeOnly(authlibStub.output)
+}
+
+// N2b-6: DataFixerUpper(Codec·DataResult·DynamicOps) 대역 — authlib 과 같은 방식(Mojang 저장소에만 있어 컴파일 경로에 받지 않는다). NMS shim 의
+// Codec 상수(DataComponentPatch.CODEC 등)가 쓰는 모양만 손으로 썼고 jar 에는 넣지 않는다(서버는 쓰는 플러그인이 있으면 묶음 datafixerupper 를 받는다).
+val dfuStub: SourceSet = the<SourceSetContainer>().create("dfu")
+dependencies {
+    compileOnly(dfuStub.output)
+    testCompileOnly(dfuStub.output)
+    testRuntimeOnly(dfuStub.output)
+}
+
 // 경로 목록은 태스크 실행 때 푼다 — 설정 단계에서 풀면 다른 모듈의 시험(:furnace-server:test)도 jar 13개를 받으려 든다.
 class RealWorldJars(@get:InputFiles @get:PathSensitive(PathSensitivity.NONE) val jars: FileCollection) : CommandLineArgumentProvider {
     override fun asArguments(): Iterable<String> =
         listOf("-Dfurnace.realworld.jars=" + jars.files.joinToString(File.pathSeparator) { it.absolutePath })
 }
 
+// T-075: 서버의 시험 소스(IdentityKit·장면 라이브러리) 클래스 — 호환 기준 장면이 같은 금 파일 장치를 쓴다.
+evaluationDependsOn(":furnace-server")
+val serverSources = project(":furnace-server").extensions.getByType<JavaPluginExtension>().sourceSets
+val serverTest: FileCollection = serverSources["test"].output
+val serverBench: FileCollection = serverSources["bench"].output
+
 dependencies {
     api(project(":furnace-api"))
     // 서버가 slf4j 를 싣고 있다 — 설명 파일 경고를 서버 로그로 보낸다
     compileOnly("org.slf4j:slf4j-api:2.0.16")
+    // N3 1단계: 패킷 등록부 shim 의 형식 인자(ByteBuf)·서버 소켓 채널 목록(ChannelFuture). 서버가 netty 를 싣고 있다.
+    compileOnly("io.netty:netty-codec:4.1.115.Final")   // transport·buffer 를 함께 끌어온다
     // H6: 플러그인 클래스를 올릴 때 CraftBukkit 버전 접미사·리플렉션 이름을 바꾸는 바이트코드 변환(BSD). 서버 fatJar 에 함께 싣는다.
     implementation("org.ow2.asm:asm-commons:9.7.1")
     // H7a: 없는 NMS 심볼 호출을 덫으로 바꿀 때 메서드 하나를 트리로 다룬다(asm-commons 가 이미 끌어오는 것을 명시)
     implementation("org.ow2.asm:asm-tree:9.7.1")
+    // T-141 E: Player.spigot() 의 BungeeCord 채팅 컴포넌트. 서버에 싣지 않는다 — 쓰는 플러그인이 있으면 서버 라이브러리 묶음 bungeecord-chat 으로 받는다
+    compileOnly("net.md-5:bungeecord-chat:1.20-R0.2")
 
     // 시험은 실제 서버(헤드리스)에 플러그인 jar 를 올려 돌린다
     testImplementation(project(":furnace-server"))
+    // T-075: 호환 기준 장면은 서버의 시험 도우미(IdentityKit·장면 라이브러리 인터페이스)를 그대로 쓴다 — docs/testing/compat-scenes.md
+    testImplementation(serverTest)
     testImplementation(project(":furnace-test"))
     testImplementation("org.slf4j:slf4j-api:2.0.16")
+    testImplementation("net.md-5:bungeecord-chat:1.20-R0.2")
     testImplementation("ch.qos.logback:logback-classic:1.5.12")   // H4: 서버 로그의 예외를 모아 플러그인 실패 원인을 읽는다
     testImplementation(platform("org.junit:junit-bom:6.0.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
@@ -84,7 +153,57 @@ tasks.test {
     enableAssertions = true
     maxHeapSize = "2g"
     jvmArgumentProviders.add(RealWorldJars(realWorld))
+    systemProperty("furnace.language", "en")   // 서버 문구를 확인하는 시험이 실행 환경 언어에 흔들리지 않게
+    // CompatLinkTest 가 authlib·DataFixerUpper 대역을 뺀 클래스패스로 링크를 본다
+    val stubDirs = authlibStub.output.classesDirs + dfuStub.output.classesDirs
+    jvmArgumentProviders.add(CommandLineArgumentProvider { listOf("-Dfurnace.test.authlibStub=" + stubDirs.asPath) })
+    // T-075: -Dfurnace.identity.bless=<금 파일 이름> 등 furnace.* 속성을 시험 JVM 에 넘긴다(서버 시험과 같다)
+    System.getProperties().forEach { k, v ->
+        if (k.toString().startsWith("furnace.")) systemProperty(k.toString(), v.toString())
+    }
 }
+
+// ===== 호환 기준 장면 벤치(T-075) =====
+// 서버의 bench 소스셋(furnace-server/build.gradle.kts)과 같은 모양: 벤치는 src/bench 에 두어 평소 `test` 에 안 들어간다(시험 요약에 "건너뜀"이 안 섞인다).
+// 서버 쪽 BenchReport(JSON 출력)·시험 도우미를 클래스패스로 받는다. 수동 실행(O15 결정 — 야간 벤치 미승인):
+//   ./gradlew -PskipOracle=true :furnace-compat-paper:compatSceneBench [--tests '*CompatSceneBench*'] [-Dfurnace.bench.scenes=compat-held-item,...]
+// 결과 JSON: furnace-compat-paper/build/bench/CompatScene-<장면>.json (docs/testing/compat-scenes.md)
+val mainSources = the<SourceSetContainer>()["main"]
+val testSources = the<SourceSetContainer>()["test"]
+val benchSources = the<SourceSetContainer>().create("bench") {
+    java.srcDir("src/bench/java")
+    val main = mainSources
+    val test = testSources
+    compileClasspath += main.output + test.output + test.compileClasspath + serverBench
+    runtimeClasspath += main.output + test.output + test.runtimeClasspath + serverBench
+}
+val benchCommit = providers.exec { commandLine("git", "rev-parse", "--short=12", "HEAD"); isIgnoreExitValue = true }
+    .standardOutput.asText.map { it.trim().ifEmpty { "unknown" } }.orElse("unknown")
+tasks.register<Test>("compatSceneBench") {
+    group = "verification"
+    description = "호환 기준 장면(T-075)을 FULL 크기로 돌려 시간을 잰다(수동 실행). 결과 JSON: build/bench/CompatScene-<장면>.json"
+    val bench = benchSources
+    testClassesDirs = bench.output.classesDirs
+    classpath = bench.runtimeClasspath
+    useJUnitPlatform()
+    enableAssertions = true
+    maxHeapSize = "3g"
+    minHeapSize = "3g"
+    jvmArgs("-XX:+UseG1GC", "-XX:+UnlockDiagnosticVMOptions", "-XX:+DebugNonSafepoints")
+    jvmArgumentProviders.add(RealWorldJars(realWorld))
+    testLogging { showStandardStreams = true }
+    outputs.upToDateWhen { false }
+    val outDir = layout.buildDirectory.dir("bench")
+    systemProperty("furnace.bench", "true")
+    systemProperty("furnace.bench.outDir", outDir.get().asFile.absolutePath)
+    systemProperty("furnace.bench.commit", benchCommit.get())
+    System.getProperties().forEach { k, v ->
+        if (k.toString().startsWith("furnace.")) systemProperty(k.toString(), v.toString())
+    }
+    doFirst { outDir.get().asFile.mkdirs() }
+}
+// 벤치 소스가 컴파일은 되게 한다(시험을 돌리면 같이 확인 — 벤치가 몰래 썩지 않게). 벤치를 돌리지는 않는다.
+tasks.test { dependsOn("compileBenchJava") }
 
 // 저장소에 넣지 않는 추가 jar(라이선스·크기): -PextraJars=<폴더 또는 jar 경로, 경로 구분자로 여러 개>. compatReport·liveProbe 에만 붙는다.
 // 시험(test)에는 붙지 않아 기준표 시험이 사용자 jar 때문에 흔들리지 않는다.

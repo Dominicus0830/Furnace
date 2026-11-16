@@ -27,6 +27,7 @@ import org.domi.furnace.server.command.CommandSource;
 import org.domi.furnace.server.command.SharedSuggestions;
 import org.domi.furnace.server.command.brigadier.Arguments;
 import org.domi.furnace.server.command.brigadier.CommandDispatcher;
+import org.domi.furnace.server.i18n.Lang;
 
 public final class TimingsCommands {
 
@@ -47,16 +48,16 @@ public final class TimingsCommands {
                     PluginProfiler p = profiler(c.getSource());
                     boolean was = p.isRunning();
                     p.start();
-                    return send(c.getSource(), List.of(Text.text(was ? "플러그인 시간 측정이 이미 켜져 있다" : "플러그인 시간 측정을 켰다", NamedTextColor.GOLD)));
+                    return send(c.getSource(), List.of(Text.text(Lang.t(was ? "cmd.timings.already-on" : "cmd.timings.turned-on"), NamedTextColor.GOLD)));
                 }))
                 .then(literal("off").executes(c -> {
                     PluginProfiler p = profiler(c.getSource());
                     p.stop();
-                    return send(c.getSource(), List.of(Text.text("플러그인 시간 측정을 껐다 — 모은 값은 /timings report 로 볼 수 있다", NamedTextColor.GOLD)));
+                    return send(c.getSource(), List.of(Text.text(Lang.t("cmd.timings.turned-off"), NamedTextColor.GOLD)));
                 }))
                 .then(literal("reset").executes(c -> {
                     profiler(c.getSource()).reset();
-                    return send(c.getSource(), List.of(Text.text("모은 플러그인 시간을 지웠다", NamedTextColor.GOLD)));
+                    return send(c.getSource(), List.of(Text.text(Lang.t("cmd.timings.reset"), NamedTextColor.GOLD)));
                 }))
                 .then(literal("report").executes(c -> send(c.getSource(), summary(profiler(c.getSource()).report())))
                         .then(argument("plugin", Arguments.greedyString())
@@ -85,10 +86,10 @@ public final class TimingsCommands {
             Files.createDirectories(EXPORT_DIR);
             Files.writeString(file, String.join("\n", fullText(r)) + "\n", StandardCharsets.UTF_8);
         } catch (IOException e) {
-            source.sendFailure(Text.text("보고서를 쓰지 못했다: " + e.getMessage()));
+            source.sendFailure(Text.text(Lang.t("cmd.timings.export-failed", e.getMessage())));
             return 0;
         }
-        source.sendSuccess(() -> Text.text("보고서를 썼다: " + file.toAbsolutePath(), NamedTextColor.GOLD), false);
+        source.sendSuccess(() -> Text.text(Lang.t("cmd.timings.exported", file.toAbsolutePath()), NamedTextColor.GOLD), false);
         return 1;
     }
 
@@ -106,35 +107,35 @@ public final class TimingsCommands {
 
     static String kindName(PluginProfiler.Kind k) {
         return switch (k) {
-            case LISTENER -> "리스너";
-            case TASK -> "작업";
-            case ASYNC -> "비동기";
-            case COMMAND -> "명령";
-            case LIFECYCLE -> "수명";
-            case CUSTOM -> "사용자";
+            case LISTENER -> Lang.t("cmd.timings.kind.listener");
+            case TASK -> Lang.t("cmd.timings.kind.task");
+            case ASYNC -> Lang.t("cmd.timings.kind.async");
+            case COMMAND -> Lang.t("cmd.timings.kind.command");
+            case LIFECYCLE -> Lang.t("cmd.timings.kind.lifecycle");
+            case CUSTOM -> Lang.t("cmd.timings.kind.custom");
         };
     }
 
     static List<Text> usage(PluginProfiler p) {
-        return List.of(Text.text("플러그인 시간 측정: " + (p.isRunning() ? "켜짐" : "꺼짐"), NamedTextColor.GOLD),
-                Text.text("/timings on | off | reset | report [플러그인] | export", NamedTextColor.GRAY));
+        return List.of(Text.text(Lang.t("cmd.timings.status", Lang.t(p.isRunning() ? "cmd.timings.state-on" : "cmd.timings.state-off")), NamedTextColor.GOLD),
+                Text.text(Lang.t("cmd.timings.usage"), NamedTextColor.GRAY));
     }
 
     static Text header(Report r) {
-        return Text.text("플러그인 시간 (측정 " + String.format(Locale.ROOT, "%.1f", r.measuredNanos() / 1e9) + "초, "
-                + (r.running() ? "측정 중" : "멈춤") + ") — 자기 시간, 틱당 = 50ms 마다 모든 스레드에서 쓴 시간", NamedTextColor.GOLD);
+        return Text.text(Lang.t("cmd.timings.header", String.format(Locale.ROOT, "%.1f", r.measuredNanos() / 1e9),
+                Lang.t(r.running() ? "cmd.timings.measuring" : "cmd.timings.paused")), NamedTextColor.GOLD);
     }
 
     static String pluginLine(int rank, PluginStats p, Report r) {
-        return rank + ". " + p.plugin() + ": " + ms(p.selfNanos()) + " ms (틱당 " + String.format(Locale.ROOT, "%.3f", perTickMs(p.selfNanos(), r))
-                + " ms), 호출 " + p.calls() + " — region " + ms(p.regionNanos()) + " / 전역 " + ms(p.globalNanos()) + " / 그 밖 " + ms(p.otherNanos());
+        return Lang.t("cmd.timings.plugin-line", rank, p.plugin(), ms(p.selfNanos()), String.format(Locale.ROOT, "%.3f", perTickMs(p.selfNanos(), r)),
+                p.calls(), ms(p.regionNanos()), ms(p.globalNanos()), ms(p.otherNanos()));
     }
 
     static String sectionLine(SectionStats s) {
-        String line = kindName(s.kind()) + " " + s.name() + ": 호출 " + s.calls() + ", 자기 " + ms(s.selfNanos()) + " ms";
-        if (s.totalNanos() != s.selfNanos()) line += " (안쪽 포함 " + ms(s.totalNanos()) + ")";
-        line += ", 평균 " + us((double) s.selfNanos() / s.calls()) + " µs, 최대 " + ms(s.maxNanos()) + " ms";
-        if (s.overBudget() > 0) line += ", 50ms 넘음 " + s.overBudget() + "번";
+        String line = Lang.t("cmd.timings.section", kindName(s.kind()), s.name(), s.calls(), ms(s.selfNanos()));
+        if (s.totalNanos() != s.selfNanos()) line += Lang.t("cmd.timings.section-total", ms(s.totalNanos()));
+        line += Lang.t("cmd.timings.section-tail", us((double) s.selfNanos() / s.calls()), ms(s.maxNanos()));
+        if (s.overBudget() > 0) line += Lang.t("cmd.timings.section-over", s.overBudget());
         return line;
     }
 
@@ -143,13 +144,13 @@ public final class TimingsCommands {
         List<Text> out = new ArrayList<>();
         out.add(header(r));
         if (r.plugins().isEmpty()) {
-            out.add(Text.text(r.running() || r.measuredNanos() > 0 ? "아직 잰 플러그인 코드가 없다" : "측정이 꺼져 있다 — /timings on", NamedTextColor.GRAY));
+            out.add(Text.text(Lang.t(r.running() || r.measuredNanos() > 0 ? "cmd.timings.nothing-measured" : "cmd.timings.measuring-off"), NamedTextColor.GRAY));
             return out;
         }
         int rank = 0;
         for (PluginStats p : r.plugins()) {
             if (rank == SUMMARY_PLUGINS) {
-                out.add(Text.text("… 플러그인 " + (r.plugins().size() - rank) + "개 더 (/timings export)", NamedTextColor.GRAY));
+                out.add(Text.text(Lang.t("cmd.timings.more-plugins", r.plugins().size() - rank), NamedTextColor.GRAY));
                 break;
             }
             out.add(Text.text(pluginLine(++rank, p, r), NamedTextColor.YELLOW));
@@ -172,11 +173,11 @@ public final class TimingsCommands {
                 out.add(Text.text("   " + sectionLine(p.sections().get(j)), NamedTextColor.GRAY));
             }
             if (p.sections().size() > DETAIL_SECTIONS) {
-                out.add(Text.text("   … 구간 " + (p.sections().size() - DETAIL_SECTIONS) + "개 더 (/timings export)", NamedTextColor.GRAY));
+                out.add(Text.text("   " + Lang.t("cmd.timings.more-sections", p.sections().size() - DETAIL_SECTIONS), NamedTextColor.GRAY));
             }
             return out;
         }
-        out.add(Text.text("'" + plugin.trim() + "' 의 기록이 없다", NamedTextColor.GRAY));
+        out.add(Text.text(Lang.t("cmd.timings.no-record", plugin.trim()), NamedTextColor.GRAY));
         return out;
     }
 

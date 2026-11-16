@@ -1,12 +1,14 @@
 // 바닐라 AzaleaBlock: 진달래 덤불. 흙류·찰흙 위에서 산다. 뼛가루 45% 확률로 진달래 나무가 된다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Fluids;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.AzaleaBlock")
 public class AzaleaBlock extends BushBlock implements BonemealableBlock {
 
     private static final int CLAY = B.id("clay");

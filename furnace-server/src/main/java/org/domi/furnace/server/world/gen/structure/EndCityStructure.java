@@ -36,11 +36,23 @@ public final class EndCityStructure extends StructureType {
 
     /** 바닐라 EndCityPieces.EndCityPiece */
     static final class Piece extends TemplatePiece {
-        /** 바닐라 StructurePiece.genDepth (생성자 기본 0) */
-        int genDepth;
+        @Override
+        public String pieceType() { return "ecp"; }
+
+        @Override
+        protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+            super.saveAdditional(t);
+            t.putString("Template", shortTemplateName("end_city"));   // 바닐라 EndCityPiece: "base_floor" 처럼 짧은 이름
+            t.putString("Rot", rotationName(settings.rotation));
+            t.putBoolean("OW", overwrite);
+        }
+
+        /** OW: 덮어쓰기(구조물 블록만 무시) 여부. genDepth 는 StructurePiece 의 것(생성자 기본 0). */
+        private final boolean overwrite;
 
         Piece(StructureEngine e, String name, int x, int y, int z, int rotation, boolean overwrite) {
             super("minecraft:end_city/" + name, e.template("minecraft:end_city/" + name), settings(rotation, overwrite), x, y, z);
+            this.overwrite = overwrite;
         }
 
         private static PlaceSettings settings(int rotation, boolean overwrite) {

@@ -1,8 +1,10 @@
-// 게임 규칙(불만 표 37번 "커스텀 게임 규칙") — Furnace.server().gameRules().
-// 플러그인 규칙: 이름은 "<플러그인 namespace>:<이름>"(이름은 영문·숫자·_), 불리언·정수만. /gamerule 로 보고 바꿀 수 있고
-// level.dat 의 GameRules 에 함께 저장된다. 클라 화면에 따로 보이는 것은 없다(명령 자동 완성에만 나온다).
-// 규칙을 등록한 플러그인이 꺼지면 /gamerule 에서 빠지지만, 저장된 값은 남아 다시 등록하면 그 값으로 돌아온다.
-// 바닐라 규칙도 이 보기로 읽고 바꿀 수 있다(바닐라와 같은 효과 — 예: doDaylightCycle). 아무 스레드에서 불러도 된다.
+// 게임 규칙(불만 표 37번 "커스텀 게임 규칙"). Furnace.server().gameRules() 로 얻는다.
+//
+// 플러그인 규칙의 이름은 "<플러그인 namespace>:<이름>" 이다(이름은 영문·숫자·_). 값은 불리언·정수만 쓸 수 있다.
+// /gamerule 로 보고 바꿀 수 있고 level.dat 의 GameRules 에 함께 저장된다. 클라이언트 화면에 따로 보이는 것은 없고, 명령 자동 완성에만 나온다.
+// 규칙을 등록한 플러그인이 꺼지면 /gamerule 에서 빠진다. 저장된 값은 남아서, 다시 등록하면 그 값으로 돌아온다.
+//
+// 바닐라 규칙도 이 보기로 읽고 바꿀 수 있고, 바닐라와 효과가 같다(예: doDaylightCycle). 아무 스레드에서 불러도 된다.
 package org.domi.furnace.api.world;
 
 import java.util.Collection;
@@ -20,12 +22,15 @@ public interface GameRuleRegistry {
     /** 값. 없는 규칙이면 IllegalArgumentException. */
     <T> T get(GameRule<T> rule);
 
+    /** 등록할 때 정한 기본값(바닐라 규칙은 바닐라 기본값). 없는 규칙이면 IllegalArgumentException. */
+    <T> T defaultValue(GameRule<T> rule);
+
     /** 값을 바꾼다(/gamerule 과 같은 효과·알림). 없는 규칙이면 IllegalArgumentException. */
     <T> void set(GameRule<T> rule, T value);
 
     /** 이름으로 찾는다(바닐라·플러그인). */
     Optional<GameRule<?>> find(String name);
 
-    /** 모든 규칙 이름(바닐라 이름 순 → 플러그인 이름 순). */
+    /** 모든 규칙 이름. 바닐라 이름 순으로 먼저, 플러그인 이름 순으로 나중에 나온다. */
     Collection<String> names();
 }

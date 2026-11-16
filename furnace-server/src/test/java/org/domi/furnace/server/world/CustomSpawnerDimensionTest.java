@@ -2,6 +2,7 @@
 // 차원에 하나뿐인 스포너(DimensionSpawners)는 오버월드에만 있고, 네더에는 없다(= 레벨 난수도 쓰지 않는다).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
@@ -43,7 +44,7 @@ class CustomSpawnerDimensionTest {
     @Test
     void customSpawnersRunOnlyInOverworld() throws Exception {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         var io = org.domi.furnace.server.TestServers.ioPool();
         var pool = new ChunkWorkerPool(1);
         World over = new World(new SuperflatWorldSource(reg, 0), pool, sched, 1, 16, 2, 2, reg.directBits(), 7, io);

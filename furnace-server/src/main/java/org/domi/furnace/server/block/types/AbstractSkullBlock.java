@@ -1,12 +1,14 @@
 // 바닐라 AbstractSkullBlock: 머리·해골. 신호를 받으면 powered(용 머리 입 움직임 — 클라).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.AbstractSkullBlock")
 public abstract class AbstractSkullBlock extends BaseEntityBlock {
 
     static final Prop POWERED = B.prop("powered");

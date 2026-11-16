@@ -187,6 +187,19 @@ class PluginFormatSpiTest {
     }
 
     @Test
+    void paperDefaultSeparatorOptionIsPassedOnlyWhenOn() {
+        java.util.Properties pr = new java.util.Properties();
+        org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger("test");
+        assertEquals(null, PluginSettings.from(pr, log).compatOption(PluginSettings.PAPER_DEFAULT_SEPARATOR_KEY), "안 적으면 꺼짐");
+        pr.setProperty(PluginSettings.PAPER_DEFAULT_SEPARATOR_KEY, "false");
+        assertEquals(PluginSettings.DEFAULT, PluginSettings.from(pr, log), "기본값과 같게 적은 것은 안 적은 것과 같다");
+        pr.setProperty(PluginSettings.PAPER_DEFAULT_SEPARATOR_KEY, "true");
+        assertEquals("true", PluginSettings.from(pr, log).compatOption(PluginSettings.PAPER_DEFAULT_SEPARATOR_KEY));
+        pr.setProperty(PluginSettings.PAPER_DEFAULT_SEPARATOR_KEY, "maybe");
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () -> PluginSettings.from(pr, log));
+    }
+
+    @Test
     void compatOptionsAreReadOnlyForPluginsCompatKeysAndStrict() {
         java.util.Properties pr = new java.util.Properties();
         org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger("test");

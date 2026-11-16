@@ -1,6 +1,7 @@
 // 바닐라 EnchantingTableBlock: 마법 부여대. 누르면 마법 부여 화면(둘레 책장 수는 메뉴가 센다).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.Hit;
 import org.domi.furnace.server.block.InteractionResult;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.EnchantingTableBlock")
 public class EnchantingTableBlock extends BaseEntityBlock {
 
     /** BOOKSHELF_OFFSETS: 둘레 5×5 고리(높이 0..1). */

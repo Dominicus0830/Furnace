@@ -2,6 +2,7 @@
 // 일과(2000틱~)에 WORK 활동으로 직업 블록 근처에 머문다. 엔티티는 /forceload 청크에서만 틱한다(바닐라와 같은 조건).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
@@ -46,7 +47,7 @@ class GeneratedVillageProfessionTest {
         var sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         ServerCore core = TestServers.core(tmp, sched, reg -> {
             var src = new AnvilWorldSource(tmp, new RegionFileStore(tmp), new AnvilChunkCodec(reg, 0),
-                    NoiseWorldSource.overworld(0L, reg, RegistrySet.load("registries/1.21.1.txt")));
+                    NoiseWorldSource.overworld(0L, reg, RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
             src.entityStore(new RegionFileStore(tmp.resolve("entities")));
             return src;
         });

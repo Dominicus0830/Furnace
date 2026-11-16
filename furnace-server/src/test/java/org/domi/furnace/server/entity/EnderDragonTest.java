@@ -1,6 +1,7 @@
 // 엔더 드래곤: 단계 전이, 파트 피해 배율, 죽음 경험치(12000/500), 저장 왕복, 고정 시드 재현, 전투(처치 → 출구 포털·알, 수정 회복).
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -19,7 +20,7 @@ class EnderDragonTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static final Entity.Damage PLAYER_HIT = new Entity.Damage("player_attack", false, false, false);

@@ -1,0 +1,17 @@
+# 결과 동일 금 파일 — scene-collisions. 최적화 PR 은 이 파일을 바꾸지 않는다. 갱신 절차: docs/testing/identitykit.md
+collisions tick 0 entities cc9f3634ef8b0a74
+collisions tick 0 random 3c704606e4a66145
+collisions tick 0 count 80
+collisions tick 50 entities 283a536a05e58e09
+collisions tick 50 random a1af11eba7728e39
+collisions tick 50 count 80
+collisions tick 100 entities 6778e9450b6f785a
+collisions tick 100 random 2909fc62a97dc7c9
+collisions tick 100 count 80
+collisions tick 150 entities 735faf09a7386dcd
+collisions tick 150 random 462514931c1d4c4f
+collisions tick 150 count 80
+collisions tick 200 entities 73704ef9476ee464
+collisions tick 200 random c05111d5b5b9ef1e
+collisions tick 200 count 80
+TOTAL a7d5f0d39f434f5a lines=15

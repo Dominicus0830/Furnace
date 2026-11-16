@@ -134,12 +134,17 @@ public final class MineshaftStructure extends StructureType {
 
     abstract static class Base extends StructurePiece {
         final Kind kind;
-        int genDepth;
 
         Base(int genDepth, Kind kind, BoundingBox box, Direction orientation) {
             super(box, orientation);
             this.genDepth = genDepth;
             this.kind = kind;
+        }
+
+        /** 바닐라 MineShaftPiece: MST = 광산 종류 순서(NORMAL 0, MESA 1). */
+        @Override
+        protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+            t.putInt("MST", kind.ordinal());
         }
 
         void addChildren(Base start, PiecesBuilder builder, LegacyRandom random) {}
@@ -221,6 +226,18 @@ public final class MineshaftStructure extends StructureType {
             this.hasRails = random.nextInt(3) == 0;
             this.spiderCorridor = !hasRails && random.nextInt(23) == 0;
             this.numSections = dir.isXAxis() ? (box.maxX() - box.minX() + 1) / 5 : (box.maxZ() - box.minZ() + 1) / 5;
+        }
+
+        @Override
+        public String pieceType() { return "mscorridor"; }
+
+        @Override
+        protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+            super.saveAdditional(t);
+            t.putBoolean("hr", hasRails);
+            t.putBoolean("sc", spiderCorridor);
+            t.putBoolean("hps", hasPlacedSpider);
+            t.putInt("Num", numSections);
         }
 
         static BoundingBox findCorridorSize(PiecesBuilder builder, LegacyRandom random, int x, int y, int z, Direction dir) {
@@ -517,6 +534,16 @@ public final class MineshaftStructure extends StructureType {
             this.isTwoFloored = box.maxY() - box.minY() + 1 > 3;
         }
 
+        @Override
+        public String pieceType() { return "mscrossing"; }
+
+        @Override
+        protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+            super.saveAdditional(t);
+            t.putBoolean("tf", isTwoFloored);
+            t.putInt("D", direction.get2DDataValue());
+        }
+
         static BoundingBox findCrossing(PiecesBuilder builder, LegacyRandom random, int x, int y, int z, Direction dir) {
             int height = random.nextInt(4) == 0 ? 6 : 2;
             BoundingBox bb = switch (dir) {
@@ -615,6 +642,18 @@ public final class MineshaftStructure extends StructureType {
             super(genDepth, kind, makeBox(random, x, z), null);
         }
 
+        @Override
+        public String pieceType() { return "msroom"; }
+
+        /** Entrances: BoundingBox 코덱 목록(상자마다 IntArray 6개). */
+        @Override
+        protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+            super.saveAdditional(t);
+            var list = new org.domi.furnace.server.net.io.nbt.NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_INT_ARRAY);
+            for (BoundingBox b : childEntranceBoxes) list.add(new int[]{b.minX(), b.minY(), b.minZ(), b.maxX(), b.maxY(), b.maxZ()});
+            t.putList("Entrances", list);
+        }
+
         // new BoundingBox(x, 50, z, x + 7 + nextInt(6), 54 + nextInt(6), z + 7 + nextInt(6)) — 인자 평가 순서(x→y→z) 유지
         private static BoundingBox makeBox(LegacyRandom random, int x, int z) {
             int dx = random.nextInt(6);
@@ -710,6 +749,9 @@ public final class MineshaftStructure extends StructureType {
         Stairs(int genDepth, BoundingBox box, Direction dir, Kind kind) {
             super(genDepth, kind, box, dir);
         }
+
+        @Override
+        public String pieceType() { return "msstairs"; }
 
         static BoundingBox findStairs(PiecesBuilder builder, LegacyRandom random, int x, int y, int z, Direction dir) {
             BoundingBox bb = switch (dir) {

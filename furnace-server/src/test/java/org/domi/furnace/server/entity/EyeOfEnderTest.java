@@ -1,6 +1,7 @@
 // 엔더의 눈 비행: 속도 점화식, 물 밖 틱마다 엔티티 난수 두 번(바닐라 입자 인자), 80틱 뒤 소리·드롭/깨짐.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.block.B;
@@ -16,7 +17,7 @@ class EyeOfEnderTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static void tickOnce(EyeOfEnder e) {

@@ -1,4 +1,4 @@
-// 영속 데이터 값의 종류 — NBT 태그 하나에 대응한다(Bukkit PersistentDataType 의 기본 종류와 같은 저장 꼴: BOOLEAN 은 byte 0/1).
+// 영속 데이터 값의 종류. NBT 태그 하나에 대응하며, Bukkit PersistentDataType 의 기본 종류와 저장 꼴이 같다(BOOLEAN 은 byte 0/1).
 package org.domi.furnace.api.persistence;
 
 public final class PersistentDataType<T> {
@@ -32,11 +32,10 @@ public final class PersistentDataType<T> {
 
     /**
      * 같은 종류 값의 목록(NBT 리스트로 저장, Paper 의 PersistentDataType.LIST 와 같은 꼴). 읽은 목록은 고칠 수 없다.
-     * 중첩 목록(목록의 목록)과 서로 다른 종류 섞기는 지원하지 않는다.
+     * 원소가 또 목록인 목록(목록의 목록)도 된다. 서로 다른 종류를 섞을 수는 없다(빈 목록은 어느 목록 종류로도 읽힌다).
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static <E> PersistentDataType<java.util.List<E>> list(PersistentDataType<E> element) {
-        if (element.element != null) throw new IllegalArgumentException("목록의 목록은 지원하지 않는다");
         return new PersistentDataType<>("list<" + element.name + ">", (Class) java.util.List.class, element);
     }
 
@@ -44,7 +43,7 @@ public final class PersistentDataType<T> {
     public PersistentDataType<?> elementType() { return element; }
 
     @Override
-    public boolean equals(Object o) { return o == this || o instanceof PersistentDataType<?> t && element != null && t.element == element; }
+    public boolean equals(Object o) { return o == this || o instanceof PersistentDataType<?> t && element != null && t.element != null && t.element.equals(element); }
 
     @Override
     public int hashCode() { return element == null ? System.identityHashCode(this) : element.hashCode() * 31 + 1; }
@@ -58,14 +57,14 @@ public final class PersistentDataType<T> {
 
     /** 키 형식 검사: namespace:path (소문자·숫자·._- , path 는 / 도). Bukkit NamespacedKey 와 같은 규칙. 어기면 IllegalArgumentException. */
     public static String checkKey(String key) {
-        if (key == null) throw new IllegalArgumentException("키가 null");
+        if (key == null) throw new IllegalArgumentException("the key is null");
         int c = key.indexOf(':');
-        if (c <= 0 || c == key.length() - 1 || key.length() > 256) throw new IllegalArgumentException("키는 namespace:path 형식: " + key);
+        if (c <= 0 || c == key.length() - 1 || key.length() > 256) throw new IllegalArgumentException("the key must look like namespace:path: " + key);
         for (int i = 0; i < key.length(); i++) {
             char ch = key.charAt(i);
             if (i == c) continue;
             boolean ok = ch >= 'a' && ch <= 'z' || ch >= '0' && ch <= '9' || ch == '.' || ch == '_' || ch == '-' || ch == '/' && i > c;
-            if (!ok) throw new IllegalArgumentException("키에 쓸 수 없는 문자 '" + ch + "': " + key);
+            if (!ok) throw new IllegalArgumentException("character not allowed in a key '" + ch + "': " + key);
         }
         return key;
     }

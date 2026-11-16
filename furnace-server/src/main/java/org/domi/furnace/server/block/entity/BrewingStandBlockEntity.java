@@ -2,6 +2,7 @@
 package org.domi.furnace.server.block.entity;
 
 import java.util.Arrays;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
@@ -11,6 +12,7 @@ import org.domi.furnace.server.item.CraftRemainders;
 import org.domi.furnace.server.item.PotionBrewing;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort("net.minecraft.world.level.block.entity.BrewingStandBlockEntity")
 public class BrewingStandBlockEntity extends ContainerBlockEntity {
 
     private static final Prop[] HAS_BOTTLE = {B.prop("has_bottle_0"), B.prop("has_bottle_1"), B.prop("has_bottle_2")};
@@ -57,9 +59,12 @@ public class BrewingStandBlockEntity extends ContainerBlockEntity {
     }
 
     private void doBrew(BlockLevel level) {
-        if (!level.gameEvents().brew(level.dimension(), pos, items, fuel)) return;   // 플러그인 BrewEvent 취소: 병도 재료도 그대로
         ItemStack ing = items[3];
-        for (int i = 0; i < 3; i++) items[i] = PotionBrewing.mix(ing, items[i]);
+        ItemStack[] results = new ItemStack[3];
+        for (int i = 0; i < 3; i++) results[i] = PotionBrewing.mix(ing, items[i]);
+        // 플러그인 BrewEvent: 취소하면 병도 재료도 그대로, 처리기가 고친 결과(Paper getResults)가 병 칸에 들어간다
+        if (!level.gameEvents().brew(level.dimension(), pos, items, results, fuel)) return;
+        System.arraycopy(results, 0, items, 0, 3);
         ItemStack rest = ing.withCount(ing.count() - 1);
         ItemStack remainder = CraftRemainders.of(ing);
         if (remainder != null && !remainder.isEmpty()) {

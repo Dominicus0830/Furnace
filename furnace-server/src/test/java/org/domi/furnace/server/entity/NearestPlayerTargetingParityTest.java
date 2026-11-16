@@ -1,6 +1,7 @@
 // X1: 가까운 플레이어 찾기(getNearestPlayer(조건, …))가 사거리 밖 플레이어의 조건 검사를 건너뛰어도 예전(모두 검사)과 같은 플레이어를 고르는지.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -23,7 +24,7 @@ import org.junit.jupiter.api.Test;
 class NearestPlayerTargetingParityTest {
 
     @BeforeAll
-    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt"))); }
+    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"))); }
 
     static final class PlayersLevel extends BlockPlacementTest.TestLevel {
         final List<Player> players = new ArrayList<>();

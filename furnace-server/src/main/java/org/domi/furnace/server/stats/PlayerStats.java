@@ -2,6 +2,7 @@
 // 값은 int 로 포화 덧셈하고, 바뀐 것만 모아 두었다가 클라이언트가 요청하면(client_command REQUEST_STATS) award_stats 로 보낸다.
 package org.domi.furnace.server.stats;
 
+import org.domi.furnace.api.GameVersion;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.io.IOException;
@@ -142,7 +143,7 @@ public final class PlayerStats {
         for (var e : byType.entrySet()) stats.add(e.getKey(), e.getValue());
         JsonObject root = new JsonObject();
         root.add("stats", stats);
-        root.addProperty("DataVersion", 3955);
+        root.addProperty("DataVersion", GameVersion.DATA_VERSION);
         try {
             Files.createDirectories(file.getParent());
             Files.writeString(file, root.toString(), StandardCharsets.UTF_8);

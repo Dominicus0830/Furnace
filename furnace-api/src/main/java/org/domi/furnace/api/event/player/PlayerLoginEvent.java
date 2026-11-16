@@ -1,4 +1,4 @@
-// 바닐라 접속 검사(밴·화이트리스트·인원) 결과를 플러그인이 보고 바꿀 수 있다 — 연결 스레드에서 불린다.
+// 바닐라 접속 검사(밴, 화이트리스트, 인원) 결과를 플러그인이 보고 바꿀 수 있다. 연결 스레드에서 불린다.
 package org.domi.furnace.api.event.player;
 
 import java.net.InetAddress;

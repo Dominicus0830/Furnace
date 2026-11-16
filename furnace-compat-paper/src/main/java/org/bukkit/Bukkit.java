@@ -30,7 +30,7 @@ public final class Bukkit {
 
     private static Server s() {
         Server x = server;
-        if (x == null) throw new IllegalStateException("서버가 아직 준비되지 않았다");
+        if (x == null) throw new IllegalStateException("the server is not ready yet");
         return x;
     }
 
@@ -45,11 +45,26 @@ public final class Bukkit {
     @Deprecated
     public static UnsafeValues getUnsafe() { return s().getUnsafe(); }
 
+    public static org.bukkit.inventory.ItemFactory getItemFactory() { return s().getItemFactory(); }
+
+    /** 서버가 없어도(시험·정적 초기화) 답한다 — 값이 고정 목록이라서. */
+    public static <T extends Keyed> Registry<T> getRegistry(Class<T> tClass) { return org.domi.furnace.compat.paper.CompatRegistries.forType(tClass); }
+
+    /** 태그(Bukkit.getTag) — 없는 태그면 null. 호환 모듈이 Furnace 서버를 쥐고 있을 때 답한다(Bukkit 서버 객체는 필요 없다). */
+    public static <T extends Keyed> Tag<T> getTag(String registry, NamespacedKey tag, Class<T> clazz) { return org.domi.furnace.compat.paper.CompatTags.get(registry, tag, clazz); }
+
+    /** 그 레지스트리의 태그 전부. */
+    public static <T extends Keyed> Iterable<Tag<T>> getTags(String registry, Class<T> clazz) { return org.domi.furnace.compat.paper.CompatTags.all(registry, clazz); }
+
     public static Logger getLogger() { return s().getLogger(); }
 
     public static PluginManager getPluginManager() { return s().getPluginManager(); }
 
     public static Collection<? extends Player> getOnlinePlayers() { return s().getOnlinePlayers(); }
+
+    public static void shutdown() { s().shutdown(); }
+
+    public static int getCurrentTick() { return s().getCurrentTick(); }
 
     public static int getMaxPlayers() { return s().getMaxPlayers(); }
 
@@ -58,6 +73,8 @@ public final class Bukkit {
     public static Player getPlayer(String name) { return s().getPlayer(name); }
 
     public static Player getPlayer(UUID id) { return s().getPlayer(id); }
+
+    public static org.bukkit.entity.Entity getEntity(UUID uuid) { return s().getEntity(uuid); }
 
     public static OfflinePlayer getOfflinePlayer(UUID id) { return s().getOfflinePlayer(id); }
 
@@ -72,6 +89,8 @@ public final class Bukkit {
 
     public static World getWorld(String name) { return s().getWorld(name); }
 
+    public static World createWorld(WorldCreator creator) { return s().createWorld(creator); }
+
     public static World getWorld(UUID id) { return s().getWorld(id); }
 
     public static int broadcastMessage(String message) { return s().broadcastMessage(message); }
@@ -85,6 +104,8 @@ public final class Bukkit {
     public static String getMotd() { return s().getMotd(); }
 
     public static int getViewDistance() { return s().getViewDistance(); }
+
+    public static io.papermc.paper.datapack.DatapackManager getDatapackManager() { return s().getDatapackManager(); }
 
     public static int getSimulationDistance() { return s().getSimulationDistance(); }
 
@@ -113,6 +134,20 @@ public final class Bukkit {
     public static org.bukkit.block.data.BlockData createBlockData(String data) { return s().createBlockData(data); }
 
     public static org.bukkit.block.data.BlockData createBlockData(Material material, String data) { return s().createBlockData(material, data); }
+
+    public static org.bukkit.profile.PlayerProfile createPlayerProfile(UUID uniqueId) { return s().createPlayerProfile(uniqueId); }
+
+    public static org.bukkit.profile.PlayerProfile createPlayerProfile(String name) { return s().createPlayerProfile(name); }
+
+    public static org.bukkit.profile.PlayerProfile createPlayerProfile(UUID uniqueId, String name) { return s().createPlayerProfile(uniqueId, name); }
+
+    public static com.destroystokyo.paper.profile.PlayerProfile createProfile(UUID uuid) { return s().createProfile(uuid); }
+
+    public static com.destroystokyo.paper.profile.PlayerProfile createProfile(String name) { return s().createProfile(name); }
+
+    public static com.destroystokyo.paper.profile.PlayerProfile createProfile(UUID uuid, String name) { return s().createProfile(uuid, name); }
+
+    public static com.destroystokyo.paper.profile.PlayerProfile createProfileExact(UUID uuid, String name) { return s().createProfileExact(uuid, name); }
 
     public static org.bukkit.inventory.Inventory createInventory(org.bukkit.inventory.InventoryHolder owner, int size) { return s().createInventory(owner, size); }
 

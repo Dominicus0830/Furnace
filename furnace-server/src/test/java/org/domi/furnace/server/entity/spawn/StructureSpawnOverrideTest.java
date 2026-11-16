@@ -1,6 +1,7 @@
 // 구조물 스폰 덮어쓰기: 늪 오두막 조각 안에서만 마녀·고양이, 요새 바닥(네더 벽돌)은 요새 적.
 package org.domi.furnace.server.entity.spawn;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
@@ -23,6 +24,8 @@ class StructureSpawnOverrideTest {
 
     static final class Box extends StructurePiece {
         Box(int x0, int y0, int z0, int x1, int y1, int z1) { super(new BoundingBox(x0, y0, z0, x1, y1, z1), Direction.NORTH); }
+
+        @Override public String pieceType() { return "btp"; }
     }
 
     private static ChunkLevel levelWith(ChunkColumn col) {
@@ -35,7 +38,7 @@ class StructureSpawnOverrideTest {
     }
 
     private static ChunkColumn columnWith(StructureStart s) {
-        ChunkColumn col = new SuperflatWorldSource(BlockRegistry.load("blocks/1.21.1.txt"), 0).generate(0, 0);
+        ChunkColumn col = new SuperflatWorldSource(BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), 0).generate(0, 0);
         col.structures(ChunkStructures.generated(0, 0, List.of(s), List.of(s)));
         return col;
     }
@@ -71,7 +74,7 @@ class StructureSpawnOverrideTest {
         StructureStart fort = new StructureStart("minecraft:fortress", 0, 0,
             List.of(new Box(0, -60, 0, 3, -50, 3), new Box(12, -60, 12, 15, -50, 15)));
         ChunkColumn col = columnWith(fort);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         col.setBlock(8, -61, 8, reg.defaultStateId("minecraft:nether_bricks"));
         ChunkLevel level = levelWith(col);
         String biome = "minecraft:nether_wastes";

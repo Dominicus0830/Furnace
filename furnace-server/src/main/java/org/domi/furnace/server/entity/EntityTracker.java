@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Map;
 import org.domi.furnace.server.net.protocol.Packet;
 import org.domi.furnace.server.net.protocol.play.AddEntity;
-import org.domi.furnace.server.net.protocol.play.BundleDelimiter;
 import org.domi.furnace.server.net.protocol.play.MoveEntity;
 import org.domi.furnace.server.net.protocol.play.RemoveEntities;
 import org.domi.furnace.server.net.protocol.play.RotateHead;
@@ -25,6 +24,9 @@ public final class EntityTracker {
         int viewDistance(Player p);
 
         boolean chunkTracked(Player p, int chunkX, int chunkZ);
+
+        /** p 가 e 를 새로 보기 시작했다(seenBy 에 들어감) — 레벨이 플레이어별 "보는 엔티티" 색인을 고친다(T-017). */
+        default void startedSeeing(Player p, Entity e) {}
     }
 
     private final Entity entity;
@@ -74,16 +76,25 @@ public final class EntityTracker {
 
     public int seenByCount() { return seenBy.size(); }
 
+    /** 추적 거리(블록, 방송 비율 적용). */
+    public int range() { return range; }
+
+    /** 보는 사람마다(엔티티를 다른 레벨로 옮길 때 그 레벨 색인에 올린다). */
+    public void forEachViewer(java.util.function.Consumer<Player> out) {
+        for (Player p : seenBy.keySet()) out.accept(p);
+    }
+
     // ------------------------------------------------------------------ 보임(TrackedEntity.updatePlayer)
 
     public void updatePlayers(Iterable<Player> players, Viewers v) {
         for (Player p : players) updatePlayer(p, v);
     }
 
-    public void updatePlayer(Player p, Viewers v) {
+    /** 보임을 다시 정한다. 끝난 뒤 p 가 이 엔티티를 보는가(seenBy 에 있는가)를 돌려준다. */
+    public boolean updatePlayer(Player p, Viewers v) {
         if (p.isDisconnected()) {
             seenBy.remove(p);
-            return;
+            return false;
         }
         double dx = p.x() - entity.x(), dz = p.z() - entity.z();
         double r = Math.min(range, v.viewDistance(p) * 16);
@@ -92,13 +103,16 @@ public final class EntityTracker {
         if (visible) {
             if (!seenBy.containsKey(p)) {
                 seenBy.put(p, 0);
+                v.startedSeeing(p, entity);
                 addPairing(p);
             } else {
                 seenBy.put(p, 0);
             }
+            return true;
         } else if (seenBy.remove(p) != null) {
             removePairing(p);
         }
+        return false;
     }
 
     /**
@@ -146,6 +160,7 @@ public final class EntityTracker {
 
     /** addPairing: 스폰 묶음(add_entity, 데이터, 속도). */
     private void addPairing(Player p) {
+        if (entity.level() != null) entity.level().gameEvents().playerTrackEntity(p, entity);   // 플러그인 PlayerTrackEntityEvent(구독자가 있을 때만)
         List<Packet> list = new ArrayList<>(4);
         Packet custom = entity.customSpawnPacket(baseX, baseY, baseZ);
         list.add(custom != null ? custom : new AddEntity(entity.id(), entity.uuid(), entity.type().id(), baseX, baseY, baseZ, xRotp, yRotp, yHeadRotp,
@@ -167,9 +182,7 @@ public final class EntityTracker {
         if (entity.isVehicle()) list.add(org.domi.furnace.server.net.protocol.play.SetPassengers.of(entity));
         if (entity.isPassenger()) list.add(org.domi.furnace.server.net.protocol.play.SetPassengers.of(entity.vehicle()));
         if (entity instanceof Leashable m && m.isLeashed()) list.add(new org.domi.furnace.server.net.protocol.play.SetEntityLink(entity.id(), m.getLeashHolder().id()));   // aqt.addPairing
-        p.send(BundleDelimiter.INSTANCE);
-        for (Packet pkt : list) p.send(pkt);
-        p.send(BundleDelimiter.INSTANCE);
+        p.sendBundle(list);   // ServerEntity.addPairing: ClientboundBundlePacket — 한 작업으로 써서 다른 패킷이 끼지 않는다
         entity.onStartSeenBy(p);
     }
 

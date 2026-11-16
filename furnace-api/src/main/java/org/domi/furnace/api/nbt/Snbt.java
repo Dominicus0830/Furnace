@@ -1,4 +1,4 @@
-// SNBT 읽기·쓰기 — 바닐라 TagParser·Tag.toString(1.21.1) 규칙. 서버 내부 item/Snbt 와 같은 결과.
+// SNBT 읽기·쓰기. 바닐라 TagParser·Tag.toString(1.21.1) 규칙을 따르며, 서버 내부 item/Snbt 와 같은 결과를 낸다.
 // 읽기: 따옴표 없는 값은 수 접미사(b s l f d)·소수점·true/false 로 종류를 정하고, 수 모양이 아니거나 범위를 넘으면 문자열.
 // 쓰기: 한 줄, 묶음 키는 정렬, 따옴표는 내용에 덜 걸리는 쪽.
 package org.domi.furnace.api.nbt;
@@ -241,7 +241,7 @@ public final class Snbt {
                 }
                 b.append('}');
             }
-            default -> throw new IllegalArgumentException("NBT 값이 아님: " + v);
+            default -> throw new IllegalArgumentException("not an NBT value: " + v);
         }
     }
 

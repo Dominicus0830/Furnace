@@ -1,4 +1,5 @@
-// 플레이어에게 들려줄 소리 — 소리 이름(리소스 id)·분류·크기·높이. 분류는 클라이언트 음량 슬라이더가 따르는 묶음.
+// 플레이어에게 들려줄 소리. 소리 이름(리소스 id)·분류·크기·높이로 이루어진다.
+// 분류는 클라이언트 음량 슬라이더가 따르는 묶음이다.
 package org.domi.furnace.api.audience;
 
 import java.util.Objects;
@@ -14,9 +15,9 @@ public record Sound(String key, Source source, float volume, float pitch) {
     public Sound {
         Objects.requireNonNull(key, "key");
         Objects.requireNonNull(source, "source");
-        if (!isValidKey(key)) throw new IllegalArgumentException("잘못된 소리 이름: " + key);
-        if (!(volume >= 0.0F) || Float.isInfinite(volume)) throw new IllegalArgumentException("크기는 0 이상: " + volume);
-        if (!(pitch >= 0.0F && pitch <= 2.0F)) throw new IllegalArgumentException("높이는 0~2: " + pitch);
+        if (!isValidKey(key)) throw new IllegalArgumentException("invalid sound name: " + key);
+        if (!(volume >= 0.0F) || Float.isInfinite(volume)) throw new IllegalArgumentException("volume must be at least 0: " + volume);
+        if (!(pitch >= 0.0F && pitch <= 2.0F)) throw new IllegalArgumentException("pitch must be 0~2: " + pitch);
     }
 
     /** 바닐라 클라이언트가 소리 이름을 읽는 길이 상한(readUtf(32767), 생략한 minecraft: 를 붙인 뒤). */

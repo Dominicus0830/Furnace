@@ -1,4 +1,5 @@
-// 플레이어가 창 안을 클릭했을 때(서버가 클릭을 재현하기 전) — 메뉴를 처리하는 스레드에서 불린다. 취소하면 서버가 클릭을 적용하지 않고 창을 다시 보낸다. 제작 결과 칸을 꺼내는 클릭은 하위 CraftItemEvent 로 온다.
+// 플레이어가 창 안을 클릭했을 때(서버가 클릭을 재현하기 전에) 메뉴를 처리하는 스레드에서 불린다.
+// 취소하면 서버가 클릭을 적용하지 않고 창을 다시 보낸다. 제작 결과 칸을 꺼내는 클릭은 하위 이벤트인 CraftItemEvent 로 온다.
 package org.domi.furnace.api.event.inventory;
 
 import org.domi.furnace.api.entity.Player;

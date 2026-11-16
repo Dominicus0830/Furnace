@@ -1,6 +1,7 @@
 // 시험용: 임시 폴더에 구운 철 레시피 하나만 쓴 가짜 데이터 팩으로 레시피 매니저를 만든다 — 로컬 바닐라 데이터가 없는 CI 에서도 화로 시험이 돈다.
 package org.domi.furnace.server.recipe;
 
+import org.domi.furnace.api.GameVersion;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -28,7 +29,7 @@ public final class SyntheticRecipes {
         PackRepository repo = new PackRepository(root, null);
         repo.reload();
         repo.setSelected(List.of("vanilla"));
-        regs = new TagRegistries(RegistrySet.load("registries/1.21.1.txt"));
+        regs = new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"));
         org.domi.furnace.server.item.ItemContext.install(regs);
         try (ResourceManager rm = repo.openResourceManager()) {
             TagSet tags = TagSet.of(regs.loadAll(rm));

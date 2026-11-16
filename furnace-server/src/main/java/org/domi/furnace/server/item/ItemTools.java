@@ -2,6 +2,7 @@
 // 컴포넌트 값은 기본값(아이템 보고서) 위에 스택 패치를 얹은 것. 파싱한 Tool 은 컴포넌트 값마다 캐시한다.
 package org.domi.furnace.server.item;
 
+import org.domi.furnace.api.GameVersion;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -180,7 +181,7 @@ public final class ItemTools {
         var d = defaultAttributes;
         if (d == null) {
             d = new java.util.HashMap<>();
-            try (var in = ItemTools.class.getClassLoader().getResourceAsStream("items/default_attributes_1.21.1.txt")) {
+            try (var in = ItemTools.class.getClassLoader().getResourceAsStream("items/default_attributes_" + GameVersion.RESOURCE_TAG + ".txt")) {
                 if (in != null) {
                     var r = new java.io.BufferedReader(new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
                     String line;

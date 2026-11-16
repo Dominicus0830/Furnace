@@ -1,6 +1,7 @@
 // 청크 구조물 시작점·참조: 참조 청크 계산, NBT 왕복, 바닐라 형식 읽기(원본 보존), 질의 경계.
 package org.domi.furnace.server.world.gen.structure;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.ByteArrayOutputStream;
@@ -24,6 +25,8 @@ class ChunkStructuresTest {
 
     static final class Box extends StructurePiece {
         Box(int x0, int y0, int z0, int x1, int y1, int z1) { super(new BoundingBox(x0, y0, z0, x1, y1, z1), Direction.NORTH); }
+
+        @Override public String pieceType() { return "btp"; }
     }
 
     private static StructureStart start(String id, int cx, int cz, String adaptation, StructurePiece... pieces) {
@@ -72,7 +75,7 @@ class ChunkStructuresTest {
 
     @Test
     void nbtRoundTrip_throughChunkCodec() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         AnvilChunkCodec codec = new AnvilChunkCodec(reg, 0);
         StructureStart s = start("minecraft:swamp_hut", 0, 0, "none", new Box(2, 64, 3, 8, 70, 9));
         ChunkColumn col = new SuperflatWorldSource(reg, 0).generate(0, 0);
@@ -148,7 +151,7 @@ class ChunkStructuresTest {
     @Test
     void chunkLevelQueries() {
         StructureStart s = start("minecraft:swamp_hut", 0, 0, "none", new Box(2, 64, 3, 8, 70, 9));
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         ChunkColumn col = new SuperflatWorldSource(reg, 0).generate(0, 0);
         col.structures(ChunkStructures.generated(0, 0, List.of(s), List.of(s)));
         ChunkLevel level = new ChunkLevel(1000) {

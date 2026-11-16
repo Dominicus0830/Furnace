@@ -196,6 +196,25 @@ public final class BiomeSampler {
     }
 
     /**
+     * sampleQuart 와 같은 기후 값으로 검색하되, R-트리 힌트(sampleChunk 의 직전 결과)에 따라 답이 갈릴 수 있으면(거리 동률) Integer.MIN_VALUE.
+     * 그 밖에는 그 quart 를 담은 청크의 sampleChunk 결과와 같다(기후 값 fillTarget = 직접 계산).
+     */
+    public int sampleQuartUnique(int worldQuartX, int worldQuartY, int worldQuartZ, NoiseRouter router) {
+        if (endBiomes != null) return endBiome(worldQuartX * 4, worldQuartY * 4, worldQuartZ * 4);
+        if (rtree == null) return 0;
+        DensityFunction.SinglePointContext ctx = new DensityFunction.SinglePointContext(worldQuartX * 4, worldQuartY * 4, worldQuartZ * 4);
+        long[] target = {
+            quantize((float) router.temperature().compute(ctx)),
+            quantize((float) router.humidity().compute(ctx)),
+            quantize((float) router.continents().compute(ctx)),
+            quantize((float) router.erosion().compute(ctx)),
+            quantize((float) router.depth().compute(ctx)),
+            quantize((float) router.ridges().compute(ctx))
+        };
+        return rtree.searchUnique(target);
+    }
+
+    /**
      * 청크(cx,cz) 의 모든 1536개 바이옴 ID(96 qy × 4 qz × 4 qx)를 반환한다.
      *
      * 컬럼 최적화: depth(d=4) 제외 5개 차원은 FlatCache 로 Y-불변.

@@ -4,6 +4,7 @@
 // 바닐라 순서 그대로: 가로 사각(|dx|,|dz| ≤ r) → distSqr ≤ r² → Stream.min(먼저 나온 것 우선).
 package org.domi.furnace.server.world.poi;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.util.ArrayList;
@@ -91,7 +92,7 @@ public final class PoiLocator {
             ctx.memory(g, 0);
         }
         return CompletableFuture.allOf(parts.values().toArray(CompletableFuture[]::new)).thenApplyAsync(v -> {
-            if (cancelled.getAsBoolean()) throw new java.util.concurrent.CancellationException("locate poi 취소");
+            if (cancelled.getAsBoolean()) throw new java.util.concurrent.CancellationException("locate poi cancelled");
             Map<ChunkPos, List<Entry>> found = new HashMap<>();
             for (var e : parts.entrySet()) found.put(e.getKey(), e.getValue().join());
             return closest(order, found, origin, radius);
@@ -180,7 +181,7 @@ public final class PoiLocator {
             var nbt = org.domi.furnace.server.net.io.nbt.NbtIo.read(new DataInputStream(new ByteArrayInputStream(bytes)));
             return PoiChunk.load(nbt, minSection, sectionCount);
         } catch (java.io.IOException e) {
-            org.slf4j.LoggerFactory.getLogger(PoiLocator.class).warn("[POI] {},{} 읽기 실패", cp.x(), cp.z(), e);
+            org.slf4j.LoggerFactory.getLogger(PoiLocator.class).warn(Lang.t("poi.read-failed", cp.x(), cp.z()), e);
             return null;
         }
     }

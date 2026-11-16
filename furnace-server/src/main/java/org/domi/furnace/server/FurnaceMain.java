@@ -1,6 +1,7 @@
 // Furnace 서버 진입점. 설정 로드 → 스케줄러 기동 → 셧다운 훅 배선.
 package org.domi.furnace.server;
 
+import org.domi.furnace.api.GameVersion;
 import org.domi.furnace.server.config.Config;
 import org.domi.furnace.server.config.ConfigLoader;
 import org.domi.furnace.server.config.Eula;
@@ -19,6 +20,7 @@ import org.domi.furnace.server.world.ItemRegistry;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.World;
 import org.domi.furnace.server.world.gen.NoiseWorldSource;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,7 +46,7 @@ public final class FurnaceMain {
         } catch (Throwable t) {
             // 기동 실패 시 비데몬 스케줄러/Netty 스레드가 JVM을 붙잡아 좀비 프로세스가 되지 않게 비정상 종료한다.
             // (종료 훅이 이미 등록됐다면 exit가 훅을 돌려 flush한다.)
-            log.error("기동 실패 — 종료합니다", t);
+            log.error(Lang.t("boot.failed"), t);
             CrashReport.write(java.nio.file.Path.of("crash-reports"), "Failed to start server", t, Thread.currentThread());
             System.exit(1);
         }
@@ -78,6 +80,8 @@ public final class FurnaceMain {
             return;
         }
         // 바닐라 Main 순서: server.properties 를 읽어 기본값을 채워 다시 쓰고 → eula.txt 확인.
+        if (org.domi.furnace.server.block.RandomSeeds.SEEDED)
+            log.warn(Lang.t("boot.seeded-test"));
         Path propertiesPath = Path.of("server.properties");
         ServerPropertiesFile settings = new ServerPropertiesFile(propertiesPath);
         settings.forceSave();
@@ -93,6 +97,9 @@ public final class FurnaceMain {
         }
         // 콘솔 편집기 설정(console.jline, console.history-size)은 콘솔을 여는 지금 읽는다 — 틀린 값이면 여기서 멈춘다.
         java.util.Properties consoleProps = org.domi.furnace.server.config.FurnaceProps.read(Path.of("furnace.properties"));
+        // 서버 메시지 언어(language): 이 줄부터 그 언어로 찍는다. 이전 줄은 실행 환경 언어를 따른다.
+        String unknownLanguage = Lang.select(consoleProps.getProperty(Lang.KEY));
+        if (unknownLanguage != null) log.warn(Lang.t("config.language-unknown", unknownLanguage, String.join(", ", Lang.SUPPORTED)));
         ConsoleInput console = ConsoleInput.startEarly(   // 월드를 불러오기 전에 연다 — stop 은 바로, 나머지는 서버가 준비된 뒤 실행
                 org.domi.furnace.server.config.OptionKeys.strictBool(consoleProps, "console.jline", true),
                 org.domi.furnace.server.config.OptionKeys.strictInt(consoleProps, "console.history-size", ConsoleInput.DEFAULT_HISTORY_SIZE, 0, 100_000));
@@ -103,16 +110,19 @@ public final class FurnaceMain {
         // 설정 형식 버전이 옛것이면 키 이름을 옮긴다(원본은 .bak 으로 남는다). 모든 로더보다 먼저여야 한다.
         var migration = org.domi.furnace.server.config.ConfigMigration.run(Path.of("furnace.properties"), log::warn);
         if (migration != null) {
-            log.info("furnace.properties 를 형식 {} → {} 로 옮겼다(원본: {}):", migration.from(), migration.to(), migration.backup());
-            for (String c : migration.changes()) log.info("  {}", c);
+            log.info(Lang.t("config.migrated", migration.from(), migration.to(), migration.backup()));
+            for (String c : migration.changes()) {
+                if (c.startsWith(org.domi.furnace.server.config.ConfigMigration.defaultChangeMark())) log.warn("  {}", c);
+                else log.info("  {}", c);
+            }
         }
         // furnace.properties: Paper 가져오기 뒤에(먼저 만들면 모든 키가 "이미 있음"이 되어 Paper 값을 못 옮긴다). 없으면 모든 옵션(기본값·설명)으로 만들고, 새 버전에서 생긴 옵션만 끝에 덧붙인다
         try {
             var r = org.domi.furnace.server.config.FurnacePropertiesFile.ensure(Path.of("furnace.properties"));
-            if (r == org.domi.furnace.server.config.FurnacePropertiesFile.Result.CREATED) log.info("furnace.properties 를 만들었다(모든 옵션과 설명)");
-            else if (r == org.domi.furnace.server.config.FurnacePropertiesFile.Result.APPENDED) log.info("furnace.properties 에 새 옵션을 덧붙였다(적어 둔 값은 그대로)");
+            if (r == org.domi.furnace.server.config.FurnacePropertiesFile.Result.CREATED) log.info(Lang.t("config.created"));
+            else if (r == org.domi.furnace.server.config.FurnacePropertiesFile.Result.APPENDED) log.info(Lang.t("config.appended"));
         } catch (java.io.IOException e) {
-            log.warn("furnace.properties 를 쓰지 못했다 — 기본값으로 계속한다: {}", e.toString());
+            log.warn(Lang.t("config.write-failed", e.toString()));
         }
         org.domi.furnace.server.config.OperatorOptions.install(org.domi.furnace.server.config.OperatorOptions.load(Path.of("furnace.properties")));
         org.domi.furnace.server.config.ConfigDump.capture(Path.of("furnace.properties"));   // /furnace config 가 보여 줄 '시작 때 적용된 값'
@@ -126,10 +136,10 @@ public final class FurnaceMain {
                     props.regionFileCompression);
         }
         if (org.domi.furnace.server.world.anvil.Compression.writeType() == org.domi.furnace.server.world.anvil.Compression.ZSTD) {
-            log.warn("region-file-compression=zstd: 바닐라·Paper 는 이 월드를 읽지 못한다. 되돌리려면 RegionConvert 도구로 deflate 로 변환한다");
+            log.warn(Lang.t("config.zstd"));
         }
         if (!props.textFilteringConfig.isEmpty()) {
-            log.warn("text-filtering-config 는 지원하지 않는다(원격 채팅 필터 서비스 미구현) — 무시한다");
+            log.warn(Lang.t("config.text-filtering-ignored"));
         }
         Path universe = Path.of(options.universe());
         var profileCache = new GameProfileCache(ProfileLookup.NONE, universe.resolve("usercache.json"));
@@ -169,25 +179,27 @@ public final class FurnaceMain {
             // 못 가져온 것·서버 폴더의 추가 Bukkit 월드를 첫 기동 때 한 번 보고한다(실패해도 기동을 막지 않는다).
             org.domi.furnace.server.world.storage.BukkitWorldReport.runIfNeeded(Path.of("."), universe, levelName, levelData, imported);
         } catch (java.io.IOException e) {
-            log.error("Paper/Spigot 월드 폴더를 가져오지 못했다 — 원본은 그대로다. 디스크 공간·권한을 확인하고 다시 켜라", e);
+            log.error(Lang.t("world.import-failed"), e);
             storage.close();
             return;
         }
         long seed = levelData.seed;
         Path furnaceProps = Path.of("furnace.properties");
         for (String k : ConfigLoader.ignoredVanillaKeys(furnaceProps)) {
-            log.warn("furnace.properties 의 '{}' 는 무시됩니다 — server.properties 값을 씁니다", k);
+            log.warn(Lang.t("config.vanilla-key-ignored", k));
         }
         org.domi.furnace.server.config.OptionKeys.audit(furnaceProps, log::warn);   // 오타 키·위험한 값 경고
         Config config = ConfigLoader.load(furnaceProps)
                 .withServerProperties(props, options.port(), options.world(), seed);
         long startNanos = System.nanoTime();
-        log.info("Starting minecraft server version 1.21.1");
+        log.info("Starting minecraft server version " + GameVersion.MINECRAFT);
         log.info("Loading properties");
+        String furnaceVersion = FurnaceMain.class.getPackage().getImplementationVersion();
+        log.info("This server is running {} {} (Minecraft " + GameVersion.MINECRAFT + ")", SERVER_BRAND, furnaceVersion != null ? furnaceVersion : "dev");
         log.info("Default game type: {}", props.gameMode.name());
         log.info("Generating keypair");
         java.security.KeyPair serverKeys = org.domi.furnace.server.net.auth.Crypt.generateKeyPair();
-        log.info("Furnace 부팅: motd='{}', tickNanos={}", config.serverName(), config.tickNanos());
+        log.debug("Boot settings: motd='{}', tickNanos={}", config.serverName(), config.tickNanos());
         log.info("Starting Minecraft server on {}:{}", props.serverIp.isEmpty() ? "*" : props.serverIp, config.port());
         if (!props.onlineMode) {
             log.warn("**** SERVER IS RUNNING IN OFFLINE/INSECURE MODE!");
@@ -202,11 +214,12 @@ public final class FurnaceMain {
             }
         } else if (config.bungeecord()) {
             // Furnace 안내: BungeeCord 는 서버와 암호화하지 않으므로 online-mode=true 면 모든 접속이 세션 인증에서 막힌다.
-            log.warn("BungeeCord 포워딩이 켜져 있지만 online-mode=true 입니다. BungeeCord 뒤에서는 server.properties 의 online-mode 를 false 로 두세요.");
+            log.warn(Lang.t("config.bungee-online-mode"));
         }
         log.info("Preparing level \"{}\"", config.levelName());
         var playerLists = new PlayerLists(Path.of("."), settings);
         profileCache.save();
+        profileCache.setProfileLookups(props.onlineMode || config.bungeecord() || !config.velocitySecret().isEmpty());
         var loginContext = org.domi.furnace.server.net.ServerLoginContext.fromProperties(props, serverKeys, playerLists,
                 profileCache, Path.of("server-icon.png")).velocitySecret(config.velocitySecret()).bungeecord(config.bungeecord())
                 .limits(org.domi.furnace.server.net.ConnectionLimits.load(furnaceProps, log::warn)
@@ -223,6 +236,10 @@ public final class FurnaceMain {
         // 공유 region 풀(S4, 기본 켬): 모든 차원·추가 월드가 워커 풀 하나를 쓰고 region-threads 는 서버 전체 워커 수다.
         // furnace.properties 'shared-region-pool=false'(또는 -Dfurnace.sharedRegionPool=false)면 차원마다 따로(이전 방식).
         var regionPoolSettings = org.domi.furnace.server.config.RegionPoolSettings.load(furnaceProps, log::warn);
+        // 빛 계산 풀(T-064, 기본 꺼짐): light.async=true 면 빛을 빛 스레드에서 계산한다
+        org.domi.furnace.server.config.LightSettings.install(org.domi.furnace.server.config.LightSettings.load(furnaceProps, log::warn));
+        org.domi.furnace.server.config.EntityActivationSettings.install(org.domi.furnace.server.config.EntityActivationSettings.load(furnaceProps, log::info));   // "바닐라와 다르다" 알림 — 경고가 아니라 한 줄 안내
+        org.domi.furnace.server.config.EntityHandleSettings.install(org.domi.furnace.server.config.EntityHandleSettings.load(furnaceProps, log::info));   // T-122 — 위와 같은 안내
         org.domi.furnace.server.world.SharedScheduler regionPool = regionPoolSettings.shared()
                 ? org.domi.furnace.server.world.SharedScheduler.startShared(config.regionThreads(), "furnace-region-",
                         regionPoolSettings.dimCap(), regionPoolSettings.starveTicks()) : null;
@@ -230,11 +247,11 @@ public final class FurnaceMain {
         org.domi.furnace.server.plugin.PluginSettings pluginSettings = org.domi.furnace.server.plugin.PluginSettings.load(furnaceProps);
         org.domi.furnace.server.plugin.PluginBootstrapper pluginBoot =
                 org.domi.furnace.server.plugin.PluginBootstrapper.bootstrap(Path.of("plugins"), pluginSettings);
-        BlockRegistry blockRegistry = BlockRegistry.load("blocks/1.21.1.txt");
-        ItemRegistry itemRegistry = ItemRegistry.load("items/1.21.1.txt");
+        BlockRegistry blockRegistry = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        ItemRegistry itemRegistry = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
         org.domi.furnace.server.entity.PlayerData.itemRegistry(itemRegistry);
         // 게임 레지스트리 훅: 플러그인 바이옴·차원 타입을 바닐라 항목 뒤에 붙인 세트(바닐라 인덱스는 그대로)
-        RegistrySet registries = pluginBoot.collectGameRegistries(RegistrySet.load("registries/1.21.1.txt"));
+        RegistrySet registries = pluginBoot.collectGameRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"));
         RegistrySet.install(registries);   // 데이터 팩을 읽으면 그쪽(동기화 레지스트리를 다시 만든 것)으로 바뀐다
         pluginBoot.collectGenerationHooks();   // 월드젠 단계 훅(W3) — 월드를 만들기 전에
         var worldSettings = org.domi.furnace.server.world.WorldSettings.load(furnaceProps);
@@ -287,12 +304,15 @@ public final class FurnaceMain {
         // 생성 호출자 스레드 — 실제 계산은 ChunkPipeline 의 ForkJoin 풀(코어 수)에서 하고 여기서는 대부분 기다린다.
         // 동시에 진행하는 청크 수를 코어 수만큼 둬야 장식(청크마다 직렬 구간)이 겹쳐 돌며 풀이 놀지 않는다.
         int genThreads = Math.max(2, Runtime.getRuntime().availableProcessors());
-        java.util.concurrent.ExecutorService genPool = java.util.concurrent.Executors.newFixedThreadPool(genThreads, r -> {
-            Thread t = new Thread(r, "furnace-gen-wait");
-            t.setDaemon(true);
-            t.setPriority(Thread.MIN_PRIORITY);
-            return t;
-        });
+        // 대기열은 넣은 순이 아니라 플레이어와 가까운 순 + 시야 밖 미리 불러오기 취소 + 플레이어당 생성 칸(T-170, GenQueue 머리말)
+        var genSettings = org.domi.furnace.server.world.GenQueue.Settings.fromSystem(genThreads, World.defaultMaxChunkSendsInFlight());
+        // 생성 조절기(T-172, worldgen.tick-guard, 기본 꺼짐 — 결정 W-2): 켜면 region 틱이 밀릴 때 동시 생성 수를 줄인다
+        boolean genTickGuard = org.domi.furnace.server.config.WorldgenGuardSettings.load(furnaceProps, log::warn).tickGuard();
+        java.util.concurrent.ExecutorService genPool = new org.domi.furnace.server.world.GenQueue(genThreads, genSettings, genTickGuard);
+        log.debug("Generation queue: {} (threads {}, global budget {}, player slots {}, tick guard {})", genSettings.distanceOrder() ? "distance order" : "fifo",
+                genThreads, genSettings.budget(), genSettings.fixedPlayerCap() > 0 ? genSettings.fixedPlayerCap() + " (fixed)"
+                        : genSettings.turns() ? "turns " + genSettings.turnOwners() + " x " + genSettings.turnQuota() : "budget / exploring players",
+                genTickGuard ? "on" : "off");
         World world = regionPool != null
                 ? new World(org.domi.furnace.server.world.DimensionType.OVERWORLD, anvilSource, chunkPool, scheduler, regionPool,
                         config.regionSectionShift(), config.regionMergeRadius(), config.viewDistance(),
@@ -302,6 +322,7 @@ public final class FurnaceMain {
                         config.entityViewDistance(), blockRegistry.directBits(), biomeDirectBits, ioPool, genPool);
         world.worldDir(worldDir);
         world.levelKind(levelData.isFlatWorld(), levelData.isDebugWorld());   // 클라이언트 login/respawn 의 is_flat·is_debug
+        world.generatesStructures(levelData.generateFeatures);
         if (!levelData.initialized) {
             // 새 월드: 바닐라 setInitialSpawn 에 해당하는 생성기 기본 스폰을 정해 level.dat 에 남긴다.
             if (debugSource != null) {
@@ -333,7 +354,8 @@ public final class FurnaceMain {
         final java.util.concurrent.atomic.AtomicReference<ServerCore> coreRef = new java.util.concurrent.atomic.AtomicReference<>();
         chunkCodec.gameTime(world::gameTime);
         final LevelData level = levelData;
-        Runnable saveLevelData = () -> {
+        // level.dat: 런타임 값 옮기기(전역 상태를 읽는다 — 전역 스레드에서)와 파일 쓰기를 나눠 둔다(/save-all 은 쓰기만 저장 스레드에서).
+        Runnable snapshotLevelData = () -> {
             synchronized (level) {
                 ServerCore c = coreRef.get();
                 if (c != null) {
@@ -342,11 +364,21 @@ public final class FurnaceMain {
                     level.gameTime = world.gameTime();
                     level.dayTime = world.dayTime();
                 }
+            }
+        };
+        Runnable writeLevelFile = () -> {
+            synchronized (level) {
                 try {
                     storage.saveLevelData(level);
                 } catch (java.io.IOException e) {
-                    log.error("level.dat 저장 실패", e);
+                    log.error(Lang.t("world.level-save-failed"), e);
                 }
+            }
+        };
+        Runnable saveLevelData = () -> {
+            synchronized (level) {
+                snapshotLevelData.run();
+                writeLevelFile.run();
             }
         };
         // 데이터 팩: 바닐라 내장 데이터(첫 실행 때 공식 서버 jar 에서 추출) + 기능 팩 + <월드>/datapacks.
@@ -356,14 +388,25 @@ public final class FurnaceMain {
             dataPacks = org.domi.furnace.server.data.DataPackManager.start(vanillaRoot, worldDir, levelData,
                     registries, newWorld,
                     props.initialEnabledPacks, props.initialDisabledPacks, pluginBoot.dataPackHooks());
-        } catch (Exception e) {
-            log.error("바닐라 데이터를 준비하지 못해 데이터 팩 없이 시작한다 — 태그는 내장 목록을 쓴다", e);
+        } catch (java.io.IOException e) {   // 공식 jar 를 못 구함 — 예상된 실패: 메시지에 원인과 할 일이 다 들어 있다
+            log.error(Lang.t("data.vanilla-failed", e.getMessage()));
+            log.error(Lang.t("data.vanilla-hint", org.domi.furnace.server.data.VanillaData.expectedJar(Path.of("."))));
+            log.debug("Preparing the vanilla data failed", e);
+        } catch (Exception e) {   // 데이터 팩을 읽다가 난 예기치 못한 오류는 스택을 남긴다
+            log.error(Lang.t("data.packs-failed"), e);
         }
+        // 데이터 팩 없이 시작해도 블록 동작 표(가마솥·퇴비통 등 아이템 번호를 읽는 정적 초기화)가 처음 만들어질 때 아이템 번호표가 있어야 한다.
+        // 없으면 첫 청크 로드마다 CauldronInteraction 정적 초기화 실패가 청크 수만큼 찍히고 청크가 하나도 열리지 않는다(진짜 서버는 데이터 팩이 먼저 깔려 해당 없음).
+        if (!org.domi.furnace.server.item.ItemContext.installed()) {
+            org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(registries));
+        }
+        // 엔티티 충돌 상태 표(블록 동작 표 뒤에 만든다)를 시작 때 만들어 둔다 — 첫 충돌 질의가 region 틱 하나에 표 만들기를 떠안지 않게(T-018 R2)
+        org.domi.furnace.server.block.ChunkLevel.warmCollisionTable();
         // 마법부여 끄기(운영 설정, 기본 없음) — 레지스트리를 읽은 뒤라 데이터 팩·플러그인 마법부여도 끌 수 있다
         org.domi.furnace.server.loot.EnchantmentToggles.load(furnaceProps,
                 id -> org.domi.furnace.server.net.registry.RegistrySet.current().indexOf("minecraft:enchantment", id) >= 0, log::warn);
         saveLevelData.run();
-        log.info("월드 시드={}, 기본 스폰=({}, {}, {})",
+        log.debug("World seed={}, default spawn=({}, {}, {})",
                 config.levelSeed(), defaultSpawn.x(), defaultSpawn.y(), defaultSpawn.z());
         world.configurePersistence(config.autosaveTicks(), config.chunkEvictionGraceTicks());
         world.configureStreaming(config.spawnChunkRadius(), config.chunksPerTick());
@@ -384,7 +427,7 @@ public final class FurnaceMain {
         for (var type : java.util.List.of(org.domi.furnace.server.world.DimensionType.NETHER, org.domi.furnace.server.world.DimensionType.END)) {
             // 차원별 시드(furnace.properties dimension-seed.*, 기본 없음 = 주 월드 시드 — 바닐라)
             long dimSeed = worldSettings.seedFor(type.levelKey(), config.levelSeed());
-            if (dimSeed != config.levelSeed()) log.info("{} 시드 {}(dimension-seed 설정 — 바닐라와 다른 지형)", type.levelKey(), dimSeed);
+            if (dimSeed != config.levelSeed()) log.info(Lang.t("world.dimension-seed", type.levelKey(), dimSeed));
             var gen = NoiseWorldSource.create(type.gen(), dimSeed, blockRegistry, registries);
             applyWorldGenOptions(levelData, gen);
             org.domi.furnace.server.world.gen.GenHooks.attach(gen, worldSettings.generationHooks(type.levelKey()),
@@ -393,6 +436,7 @@ public final class FurnaceMain {
             extraStores.addAll(built.stores());
             World w = built.world();
             w.levelKind(levelData.isFlatWorld(), levelData.isDebugWorld());   // 바닐라: 월드 하나의 모든 차원이 같은 값
+            w.generatesStructures(levelData.generateFeatures);
             w.seed(dimSeed);
             w.defaultSpawn(defaultSpawn);
             if (type == org.domi.furnace.server.world.DimensionType.END) {   // ServerLevel: 엔드는 드래곤 전투를 가진다(level.dat DragonFight)
@@ -405,31 +449,36 @@ public final class FurnaceMain {
         for (World w : dimensions.all()) w.startTicking();
         // 종료 훅은 등록 순: 월드들(자기 큐 분리) → 공유 풀 → fallback → global
         if (regionPool != null) scheduler.addCloseHook(regionPool::close);
-        log.info("[SCHED] region 워커 {}개({}, 차원 {}개)", config.regionThreads(),
-                regionPool != null ? "서버 전체 공유" : "차원별", dimensions.all().size());
+        log.info(Lang.t("sched.threads", genThreads, config.regionThreads(),
+                Lang.t(regionPool != null ? "sched.pool-shared" : "sched.pool-per-dimension"), dimensions.all().size()));
         regionPoolSettings.warnOversubscription(config.regionThreads(), dimensions.all().size(),
                 Runtime.getRuntime().availableProcessors(), log::warn);
         // 명령·서버 상태 핸들. /stop 은 종료 훅을 도는 별도 스레드에서 끝낸다(스케줄러 스레드에서 exit 하면 훅과 교착).
         ServerCore core = new ServerCore(settings, playerLists, profileCache, world, levelData, scheduler);
         core.dimensions(dimensions);
         core.worldManager(worldManager);
+        core.bungeeCordForwarding(config.bungeecord());
         // 클라에 보내는 세트: 데이터 팩을 읽었으면 데이터 주도 레지스트리(변종·마법부여 등)를 다시 만든 것, 아니면 플러그인 바이옴·차원 타입까지
         core.registries(dataPacks != null ? dataPacks.dynamicRegistries().registries() : registries);
         if (dataPacks != null) core.dataPacks(dataPacks);
         coreRef.set(core);
         loginContext.core(core);
         core.servicesKeys().fetchAsync();
-        core.onHalt(() -> new Thread(() -> System.exit(0), "Server Shutdown Thread").start());
+        // /stop 은 종료 단계(플러그인 끄기·저장)를 다 돈 뒤에 JVM 을 끝낸다(ServerCore.halt) — Paper 처럼 onDisable 이 JVM 종료 훅보다 먼저 돈다.
+        core.onHalt(System::exit);
         // 플러그인: 불러오기(onLoad) — 월드 준비 뒤·접속을 받기 전에 켠다(Bukkit POSTWORLD 와 같은 시점).
         org.domi.furnace.api.Furnace.setServer(core.plugins());
         core.plugins().pluginsImpl().settings(pluginSettings);
-        core.plugins().pluginsImpl().loadAll(pluginBoot);
+        // onLoad·onEnable 은 전역 스레드에서 부른다(N2b-6): Bukkit 의 주 스레드에 가장 가까운 곳이 전역 스레드이고(동기 작업·Bukkit 스케줄러가 도는 곳),
+        // Paper 처럼 켜는 스레드 = 동기 작업 스레드여야 켤 때 Thread.currentThread() 를 주 스레드로 적어 두는 플러그인(FAWE 등)이 맞게 돈다.
+        // 개발 모드 다시 읽기(reloadNow)도 이미 전역 스레드에서 켠다. 틱 박동은 아직 시작 전이라 전역 스레드는 비어 있다.
+        onGlobal(scheduler, () -> core.plugins().pluginsImpl().loadAll(pluginBoot));
         // 추가 월드 자동 불러오기(furnace.properties worlds.autoload, 기본 없음) — 플러그인 onLoad 뒤·onEnable 앞(onLoad 에서 단 WorldLoadEvent 처리기가 받는다)
         for (String name : worldSettings.autoload()) {
             try {
                 worldManager.load(name).get(5, java.util.concurrent.TimeUnit.MINUTES);
             } catch (Exception e) {
-                log.error("worlds.autoload: 월드 '{}' 를 불러오지 못했다 — 건너뛴다", name, e instanceof java.util.concurrent.ExecutionException ? e.getCause() : e);
+                log.error(Lang.t("world.autoload-failed", name), e instanceof java.util.concurrent.ExecutionException ? e.getCause() : e);
             }
         }
         // 바닐라에 없는 명령 — 바닐라 트리 대조 대상(BuiltinCommands)과 따로 등록한다
@@ -439,29 +488,26 @@ public final class FurnaceMain {
         org.domi.furnace.server.command.builtin.TpsCommands.register(core.commands().getDispatcher());
         org.domi.furnace.server.command.builtin.TimingsCommands.register(core.commands().getDispatcher());
         org.domi.furnace.server.command.builtin.BackupCommands.register(core.commands().getDispatcher());
-        core.onSaveAll(() -> {
-            // 바닐라 saveEverything: 플레이어(PlayerList.saveAll) → 청크 → level.dat. 플레이어 기록은 전용 실행기에서 — 끝날 때까지 기다린다
-            java.util.List<java.util.concurrent.CompletableFuture<Void>> players = new java.util.ArrayList<>();
-            for (var p : core.players()) players.add(p.requestSave());
-            players.add(org.domi.furnace.server.entity.PlayerData.pendingSaves());   // 방금 나가 인벤토리 줄에서 기다리는 퇴장 저장(A04)
-            for (World w : dimensions.all()) {
-                try {
-                    int left = w.flushAllDrained(java.util.concurrent.TimeUnit.SECONDS.toNanos(60));
-                    if (left != 0) log.warn("save-all: {} 청크 {}개는 자동 저장으로 넘어갔다(IO 레인이 60초 안에 비지 않았다, -1 = 수 모름)", w.dimension(), left);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();   // 남은 차원은 건너뛰어도 level.dat 은 아래에서 저장한다
-                    break;
-                }
-            }
-            saveLevelData.run();
-            worldManager.saveLevelData();
-            try {
-                java.util.concurrent.CompletableFuture.allOf(players.toArray(new java.util.concurrent.CompletableFuture[0])).get(30, java.util.concurrent.TimeUnit.SECONDS);
-                java.util.concurrent.CompletableFuture.runAsync(() -> { }, world.playerIo()).get(30, java.util.concurrent.TimeUnit.SECONDS);
-            } catch (Exception e) {
-                log.warn("save-all: 플레이어 데이터 저장이 30초 안에 끝나지 않았다", e);
-            }
-        });
+        org.domi.furnace.server.command.builtin.PregenCommands.register(core.commands().getDispatcher());
+        // /save-all·빈 서버 일시정지 저장(바닐라 saveEverything). 기다림은 전용 저장 스레드에서 — 전역 스레드를 막지 않는다(P-O14-10).
+        org.domi.furnace.server.maintenance.ServerSave serverSave = new org.domi.furnace.server.maintenance.ServerSave(
+                new org.domi.furnace.server.maintenance.ServerSave.Hooks() {
+                    @Override public java.util.List<World> worlds() { return dimensions.all(); }
+                    @Override public java.util.List<java.util.concurrent.CompletableFuture<Void>> requestPlayerSaves() {
+                        java.util.List<java.util.concurrent.CompletableFuture<Void>> out = new java.util.ArrayList<>();
+                        for (var p : core.players()) out.add(p.requestSave());
+                        out.add(org.domi.furnace.server.entity.PlayerData.pendingSaves());   // 방금 나가 인벤토리 줄에서 기다리는 퇴장 저장(A04)
+                        return out;
+                    }
+                    @Override public java.util.concurrent.Executor playerIo() { return world.playerIo(); }
+                    @Override public void snapshotLevelData() { snapshotLevelData.run(); }
+                    @Override public void writeLevelData() {
+                        writeLevelFile.run();
+                        worldManager.saveLevelData();
+                    }
+                });
+        core.onSaveAll(serverSave::save);
+        worldManager.saveBarrier(serverSave::barrier);   // 추가 월드 내리기는 진행 중 save-all 이 끝난 뒤 저장소를 닫는다
         NetworkServer network = new NetworkServer(
                 config.port(), config.compressionThreshold(), loginContext, scheduler,
                 world, idAllocator);
@@ -477,8 +523,10 @@ public final class FurnaceMain {
         // → 원격 서비스 → 네트워크 → region 저장 → 저장소 → 스케줄러 → 플러그인 클래스로더. region 정지는 onDisable 이 다 끝난 뒤다.
         ShutdownSequence stop = new ShutdownSequence()
                 .on(ShutdownSequence.Step.SHUTDOWN_EVENT, () -> {
-                    log.info("종료 중 — dirty 청크/플레이어 flush");
+                    log.info("Stopping server");
                     core.plugins().beginShutdown();
+                    var pregen = core.pregenIfStarted();   // 미리 생성은 진행 위치를 남기고 멈춘다(/furnace pregen resume 으로 이어 함)
+                    if (pregen != null) pregen.shutdown();
                 })
                 // CraftBukkit 처럼 플러그인을 먼저 끈다(플레이어가 아직 접속해 있을 때 onDisable 이 돈다).
                 .on(ShutdownSequence.Step.DISABLE_PLUGINS, () -> core.plugins().pluginsImpl().disableAll())
@@ -487,12 +535,20 @@ public final class FurnaceMain {
                         try {
                             c.close();
                         } catch (Exception e) {
-                            log.warn("[STOP] 원격 서비스 닫기 실패", e);
+                            log.warn(Lang.t("stop.remote-close-failed"), e);
                         }
                     }
                 })
                 .on(ShutdownSequence.Step.STOP_NETWORK, network::stop)
                 .on(ShutdownSequence.Step.FLUSH_WORLDS, () -> {
+                    log.info("Saving players");
+                    log.info("Saving worlds");
+                    // 돌고 있는 /save-all 이 있으면 region·IO 레인이 살아 있을 때 끝낸다(새 저장은 받지 않는다 — 아래 종료 저장이 모두 저장한다)
+                    try {
+                        if (!serverSave.shutdown(30, java.util.concurrent.TimeUnit.SECONDS)) log.warn(Lang.t("stop.save-all-timeout"));
+                    } catch (InterruptedException e) {
+                        log.error(Lang.t("stop.save-all-interrupted"), e);
+                    }
                     // 각 region 스레드서 dirty 청크 + 접속 플레이어 flush(scheduler 살아있을 때). 레인이 밀려도 남은 청크를 다음 틱으로
                     // 넘기지 않고 비울 때까지 되풀이한다(종료 때는 다음 틱이 없다 — 예전엔 그 청크가 사라졌다).
                     // region 스레드가 멈춰 있어도 종료가 영원히 안 끝나지 않게 마감을 둔다. 하나가 실패/지연돼도 나머지 정리는 계속한다.
@@ -503,38 +559,40 @@ public final class FurnaceMain {
                         if (!World.holdForShutdown(dimensions.all(), () -> core.holdGlobalTicks(true), core::quiesceGlobal,
                                 // 짧게: 워치독 종료(멈춘 스레드가 답하지 않는다)는 exit 10초 뒤 halt 한다 — 기준점이 저장 시간을 다 먹지 않게
                                 System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(3))) {
-                            log.error("[STOP] 저장 기준점(틱 멈춤)이 마감 안에 끝나지 않았다 — 그대로 저장한다");
+                            log.error(Lang.t("stop.barrier-timeout"));
                         }
                     } catch (InterruptedException e) {
-                        log.error("[STOP] 저장 기준점 대기 중단", e);
+                        log.error(Lang.t("stop.barrier-interrupted"), e);
                     }
+                    for (World w : dimensions.all()) w.relight().shutdown();   // 빛 다시 계산의 붙잡기를 풀어 저장 전 빛 계산이 마저 하게(T-197 검토 R1)
                     for (World w : dimensions.all()) {
                         try {
                             int left = w.flushAllDrained(Math.max(1, flushDeadline - System.nanoTime()));
-                            if (left != 0) log.error("[STOP] {} 저장 마감을 넘겼다 — 저장하지 못한 청크 {}개(-1 = 수 모름)", w.dimension(), left);
+                            if (left != 0) log.error(Lang.t("stop.flush-deadline", w.dimension(), left));
                         } catch (InterruptedException e) {
-                            log.error("[STOP] region flush 대기 중단", e);   // 인터럽트 표시는 다시 세우지 않는다 — 뒤 단계(저장소 닫기)가 대기를 건너뛰지 않게
+                            log.error(Lang.t("stop.flush-interrupted"), e);   // 인터럽트 표시는 다시 세우지 않는다 — 뒤 단계(저장소 닫기)가 대기를 건너뛰지 않게
                         }
                     }
                     // 플레이어 데이터(퇴장 저장·통계·발전 과제)는 전용 직렬 실행기에서 돈다 — 데몬 스레드라 여기서 비운다
                     try {
                         if (!org.domi.furnace.server.entity.PlayerData.awaitIo(30, java.util.concurrent.TimeUnit.SECONDS)) {
-                            log.error("[STOP] 플레이어 데이터 저장이 30초 안에 끝나지 않았다");
+                            log.error(Lang.t("stop.player-data-timeout"));
                         }
                     } catch (InterruptedException e) {
-                        log.error("[STOP] 플레이어 데이터 저장 대기 중단", e);
+                        log.error(Lang.t("stop.player-data-interrupted"), e);
                     }
                 })
                 .on(ShutdownSequence.Step.CLOSE_STORAGE, () -> {
                     try {
                         ioPool.shutdown();
                         genPool.shutdown();
+                        World.lightPre().shutdown();
                         ioPool.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS);
                         genPool.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS);
+                        World.lightPre().awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS);
                         long failed = 0;
                         for (World w : dimensions.all()) failed += w.saveFailures();
-                        if (failed > 0) log.error("[STOP] 재시도 끝에 실패한 저장 {}건 — 해당 청크/엔티티는 디스크에 최신이 아닐 수 있다", failed);
-                        else log.info("[STOP] 저장 실패 0건");
+                        if (failed > 0) log.error(Lang.t("stop.save-failures", failed));
                         regionStore.closeAll();
                         entityStore.closeAll();
                         poiStore.closeAll();
@@ -542,8 +600,9 @@ public final class FurnaceMain {
                         worldManager.closeAllForShutdown();   // 추가 월드 저장소·level.dat·폴더 잠금
                         saveLevelData.run();
                         storage.close();
+                        if (failed == 0) log.info("All dimensions are saved");   // 저장소를 다 닫은 뒤(Paper 도 저장이 끝난 뒤에 찍는다)
                     } catch (Exception e) {
-                        log.error("[STOP] flush 실패", e);
+                        log.error(Lang.t("stop.flush-failed"), e);
                     }
                 })
                 .on(ShutdownSequence.Step.STOP_SCHEDULER, () -> {
@@ -554,17 +613,15 @@ public final class FurnaceMain {
                     core.plugins().pluginsImpl().closeAll();
                     core.plugins().close();
                 });
-        // start() 전에 훅 등록 — start()가 던져도 non-daemon 스케줄러 스레드가 JVM을 붙잡지 않게.
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            try {
-                stop.run();
-            } finally {
-                shutdown.countDown();
-            }
-        }, "furnace-shutdown"));
+        core.shutdownSequence(stop);
+        // start() 전에 훅 등록 — start()가 던져도 non-daemon 스케줄러 스레드가 JVM을 붙잡지 않게. /stop 이 아닌 JVM 종료(Ctrl+C·kill·
+        // System.exit)도 여기서 단계를 돈다(/stop 이 이미 돌고 있으면 그 끝을 기다린다) — Paper ServerShutdownThread 와 같은 자리.
+        Runtime.getRuntime().addShutdownHook(ShutdownSequence.jvmHook(stop, shutdown::countDown));
 
+        // 바닐라 prepareLevels → overworld.setDefaultSpawnPos: 게임 규칙 spawnChunkRadius 의 START 티켓 — 플레이어가 없어도 스폰 청크가 올라와 돈다
+        world.enableSpawnChunks();
         prepareSpawnArea(world, defaultSpawn, config.spawnChunkRadius());
-        core.plugins().pluginsImpl().enableAll();
+        onGlobal(scheduler, () -> core.plugins().pluginsImpl().enableAll());   // 위 loadAll 과 같은 까닭으로 전역 스레드에서
         core.plugins().pluginsImpl().startWatcher();   // plugins.dev-mode.auto-reload 일 때만
         core.loadFunctions();   // 플러그인(onLoad·onEnable)·Furnace 명령이 모두 등록된 뒤 함수를 파싱한다 — 그 명령을 쓰는 함수가 시작 때 빠지지 않게
         network.start();
@@ -592,6 +649,21 @@ public final class FurnaceMain {
                 String.format(java.util.Locale.ROOT, "%.3fs", (System.nanoTime() - startNanos) / 1.0E9));
         core.events().call(new org.domi.furnace.api.event.server.ServerLoadEvent());
         shutdown.await();
+    }
+
+    /** 전역 스레드에서 돌리고 끝날 때까지 기다린다. 던진 예외는 감싸지 않고 그대로 다시 던진다. */
+    private static void onGlobal(FurnaceSchedulerImpl scheduler, Runnable task) {
+        try {
+            scheduler.global().submit(() -> {
+                task.run();
+                return null;
+            }).join();
+        } catch (java.util.concurrent.CompletionException e) {
+            Throwable c = e.getCause();
+            if (c instanceof RuntimeException r) throw r;
+            if (c instanceof Error err) throw err;
+            throw e;
+        }
     }
 
     /** 빈 서버 일시정지와 주기 백업을 건다. 닫으면 유지보수 스레드를 멈춘다(종료 훅). */
@@ -628,8 +700,8 @@ public final class FurnaceMain {
         if (opts.backupEnabled()) {
             long period = opts.backupIntervalMinutes();
             maintenance.scheduleWithFixedDelay(backup::runScheduled, period, period, java.util.concurrent.TimeUnit.MINUTES);
-            log.info("[BACKUP] 주기 백업 {}분마다 → {} ({}, {}개 보관)", period, opts.backupDirectory().toAbsolutePath(),
-                    opts.backupFormat().name().toLowerCase(java.util.Locale.ROOT), opts.backupKeep() == 0 ? "모두" : opts.backupKeep());
+            log.info(Lang.t("backup.schedule", period, opts.backupDirectory().toAbsolutePath(),
+                    opts.backupFormat().name().toLowerCase(java.util.Locale.ROOT), opts.backupKeep() == 0 ? Lang.t("backup.keep-all") : opts.backupKeep()));
         }
         if (opts.idlePauseEnabled()) {
             core.idlePause(new org.domi.furnace.server.maintenance.IdlePause(opts.idlePauseSeconds(), opts.idlePauseFlush(),
@@ -646,15 +718,15 @@ public final class FurnaceMain {
                                         st.closeAll();
                                         closed++;
                                     } catch (java.io.IOException e) {
-                                        log.warn("[PAUSE] 지역 파일 닫기 실패 {}", st.regionDir(), e);
+                                        log.warn(Lang.t("pause.close-failed", st.regionDir()), e);
                                     }
                                 }
                             }
                             System.gc();
-                            log.info("[PAUSE] 저장 완료, 지역 파일 저장소 {}개를 닫고 GC 를 권했다", closed);
+                            log.info(Lang.t("pause.paused", closed));
                         }
                     }, maintenance));
-            log.info("[PAUSE] 접속자가 없으면 {}초 뒤 틱을 멈춘다(idle-pause.empty-seconds)", opts.idlePauseSeconds());
+            log.info(Lang.t("pause.armed", opts.idlePauseSeconds()));
         }
         return maintenance::shutdownNow;
     }
@@ -717,7 +789,7 @@ public final class FurnaceMain {
                     : props.motd;
         }
         @Override public String levelName() { return config.levelName(); }
-        @Override public String version() { return "1.21.1"; }
+        @Override public String version() { return GameVersion.MINECRAFT; }
         @Override public String plugins() { return ""; }
         @Override public int playerCount() { return core.players().size(); }
         @Override public int maxPlayers() { return props.maxPlayers; }
@@ -733,7 +805,7 @@ public final class FurnaceMain {
             try {
                 task.run();
             } catch (Throwable t) {
-                GLOBAL_ERRORS.report("자동 저장(level.dat)", t);
+                GLOBAL_ERRORS.report(Lang.t("error.label.autosave-level-dat"), t);
             } finally {
                 scheduler.global().executeDelayed(this, period);
             }
@@ -762,8 +834,8 @@ public final class FurnaceMain {
                 st[0] = now;
                 st[1] = 0;
             }
-            if (suppressed > 0) log.error("[TICK] 전역 틱 실패({}) — 지난 10초 동안 {}번 더", where, suppressed, t);
-            else log.error("[TICK] 전역 틱 실패({})", where, t);
+            if (suppressed > 0) log.error(Lang.t("tick.global-failed", where, suppressed), t);
+            else log.error(Lang.t("tick.global-failed-once", where), t);
         }
     }
 
@@ -807,7 +879,7 @@ public final class FurnaceMain {
                 next += period;
                 task.run();
             } catch (Throwable t) {
-                errors.report("전역 박동", t);   // 예전엔 future 에 담겨 사라졌다
+                errors.report(Lang.t("error.label.global-tick"), t);   // 예전엔 future 에 담겨 사라졌다
             } finally {
                 schedule();
             }
@@ -854,15 +926,20 @@ public final class FurnaceMain {
             for (int dx = -radius; dx <= radius; dx++)
                 fs.add(world.serializedChunkBody(new org.domi.furnace.server.world.ChunkPos(c.x() + dx, c.z() + dz)));
         java.util.concurrent.CompletableFuture<Void> all = java.util.concurrent.CompletableFuture.allOf(fs.toArray(new java.util.concurrent.CompletableFuture[0]));
+        long lastShown = -1;   // 퍼센트가 바뀔 때만 찍는다(같은 줄을 0.5초마다 반복하지 않는다)
         while (true) {
             try {
                 all.get(500, java.util.concurrent.TimeUnit.MILLISECONDS);
                 break;
             } catch (java.util.concurrent.TimeoutException e) {
                 long done = fs.stream().filter(java.util.concurrent.CompletableFuture::isDone).count();
-                log.info("Preparing spawn area: {}%", done * 100 / fs.size());
+                long percent = done * 100 / fs.size();
+                if (percent != lastShown) {
+                    lastShown = percent;
+                    log.info("Preparing spawn area: {}%", percent);
+                }
             } catch (Exception e) {
-                log.warn("스폰 청크 준비 실패 — 접속 시 다시 만든다", e);
+                log.warn(Lang.t("world.spawn-prepare-failed"), e);
                 break;
             }
         }
@@ -897,8 +974,7 @@ public final class FurnaceMain {
         boolean flat = gen != null && ("minecraft:flat".equals(gen.tags().get("type")) || "minecraft:debug".equals(gen.tags().get("type")));
         if (id != null && NoiseWorldSource.OVERWORLD_NOISE_SETTINGS.contains(id)) return id;
         if (!flat) {
-            log.warn("level.dat 의 오버월드 생성기({})는 지원하지 않는다 — minecraft:overworld 노이즈 설정으로 생성한다",
-                    id != null ? id : gen != null ? gen.tags().get("type") : "?");
+            log.warn(Lang.t("world.generator-unsupported", id != null ? id : gen != null ? gen.tags().get("type") : "?"));
         }
         return "minecraft:overworld";
     }

@@ -1,11 +1,13 @@
 // 바닐라 WeatheringCopperFullBlock: 구리 블록·깎은 구리 등 — 무작위 틱 산화.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.WeatheringCopperFullBlock")
 public class WeatheringCopperFullBlock extends BlockBehavior {
 
     public WeatheringCopperFullBlock(int block) { super(block); }

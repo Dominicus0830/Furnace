@@ -36,8 +36,11 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
 
     final PluginHost host;
     private final UUID uuid;
+    private final int entityId;
     private final String type;
     private final Location location;
+    /** 머리 방향(살아 있는 몹은 몸과 다를 수 있다, 그 밖은 몸 방향). */
+    private final float headYaw;
     private final Text customName;
     private final boolean valid;
     private final EntityTasks tasks;
@@ -49,6 +52,11 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     private final org.domi.furnace.api.event.cause.CauseChain origin;
     private final org.domi.furnace.api.entity.Pose pose;
     private final boolean noPhysics;
+    /** 충돌 상자(만든 순간 값). */
+    private final org.domi.furnace.api.world.Aabb boundingBox;
+    /** 떨어진 아이템 엔티티의 아이템(불변이라 참조만 복사, API 값은 처음 물을 때 만든다)·줍기 지연. 아이템 엔티티가 아니면 null·0. */
+    private final org.domi.furnace.server.entity.ItemStack droppedStack;
+    private final int pickupDelay;
     /** 스냅샷 순번(서버 전체에서 늘어난다 — 값을 읽기 전에 매긴다). */
     private static final java.util.concurrent.atomic.AtomicLong STAMPS = new java.util.concurrent.atomic.AtomicLong();
     private final long stamp = STAMPS.incrementAndGet();
@@ -56,8 +64,10 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     EntityHandle(PluginHost host, Entity e) {
         this.host = host;
         this.uuid = e.uuid();
+        this.entityId = e.id();
         this.type = e.type().name();
         this.location = new Location(e.dimensionKey(), e.x(), e.y(), e.z(), e.yRot(), e.xRot());
+        this.headYaw = e instanceof LivingEntity le ? le.yHeadRot() : e.yRot();
         this.customName = e.hasCustomName() ? e.getCustomName() : null;
         this.valid = !e.isRemoved();
         this.tasks = e.apiTasks();
@@ -65,6 +75,14 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
         this.origin = e.origin();
         this.pose = org.domi.furnace.api.entity.Pose.byId(e.getPose());
         this.noPhysics = e.noPhysics;
+        this.boundingBox = ApiBoxes.of(e.boundingBox());
+        if (e instanceof org.domi.furnace.server.entity.ItemEntity ie) {
+            droppedStack = ie.getItem();
+            pickupDelay = ie.pickupDelay();
+        } else {
+            droppedStack = null;
+            pickupDelay = 0;
+        }
         if (e instanceof ContainerEntity ce) {
             containerType = type;
             containerSize = ce.chestVehicleItems().length;
@@ -89,7 +107,18 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     public UUID uniqueId() { return uuid; }
 
     @Override
+    public int entityId() { return entityId; }
+
+    @Override
     public long snapshotStamp() { return stamp; }
+
+    @Override
+    public org.domi.furnace.api.item.ItemStack droppedItem() {
+        return droppedStack == null ? null : ApiConvert.item(droppedStack, host.core().world().itemRegistry());
+    }
+
+    @Override
+    public int pickupDelay() { return pickupDelay; }
 
     @Override
     public org.domi.furnace.api.event.cause.CauseChain origin() { return origin; }
@@ -99,6 +128,12 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
 
     @Override
     public Location location() { return location; }
+
+    @Override
+    public float headYaw() { return headYaw; }
+
+    @Override
+    public org.domi.furnace.api.world.Aabb boundingBox() { return boundingBox; }
 
     @Override
     public Text customName() { return customName; }
@@ -143,7 +178,7 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     <T> CompletableFuture<T> onEntity(Function<Entity, T> task, T gone, boolean failWhenGone) {
         RegionFuture<T> f = new RegionFuture<>();
         Runnable retired = () -> {
-            if (failWhenGone) f.completeExceptionally(new IllegalStateException("엔티티가 사라졌다: " + uuid));
+            if (failWhenGone) f.completeExceptionally(new IllegalStateException("the entity is gone: " + uuid));
             else f.complete(gone);
         };
         EntityTasks.Entry entry = tasks.schedule(() -> {
@@ -197,8 +232,8 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
         if (org.domi.furnace.server.world.RegionBorrow.claimEntity(e)) cp = ChunkPos.ofBlock(e.x(), e.z());
         Region r = w == null ? null : w.regionizer().ownerOf(cp.x(), cp.z());
         if (r == null || !r.isOwnerThread() || r.level() == null || r.level().entities().get(e.uuid()) != e) {
-            throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("엔티티 " + type() + " 를 가진 region 스레드가 아니다(현재 "
-                    + Thread.currentThread().getName() + ") — entityScheduler() 작업 안에서 부른다");
+            throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("entity " + type() + " is not owned by this region thread (current thread: "
+                    + Thread.currentThread().getName() + ") - call it inside an entityScheduler() task");
         }
         return moveWithin(w, r, e, to);
     }
@@ -260,8 +295,8 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
         if (org.domi.furnace.server.world.RegionBorrow.claimEntity(e)) cp = ChunkPos.ofBlock(e.x(), e.z());
         Region r = w == null ? null : w.regionizer().ownerOf(cp.x(), cp.z());
         if (r == null || !r.isOwnerThread() || r.level() == null || r.level().entities().get(e.uuid()) != e) {
-            throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("엔티티 " + type() + " 를 가진 region 스레드가 아니다(현재 "
-                    + Thread.currentThread().getName() + ") — editPersistentData 나 entityScheduler() 작업 안에서 부른다");
+            throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("entity " + type() + " is not owned by this region thread (current thread: "
+                    + Thread.currentThread().getName() + ") - call it inside editPersistentData or an entityScheduler() task");
         }
         edit.accept(new NbtPersistentData(e.persistentData(true), false));
         return true;
@@ -270,12 +305,18 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     // ------------------------------------------------------------------ 지금 상태
 
     @Override
+    public boolean isOwnedByCurrentThread() {
+        if (!(tasks.owner() instanceof Entity e)) return true;   // 사라졌다 — stateNow 는 어느 스레드에서나 빈 값
+        return org.domi.furnace.server.world.RegionBorrow.claimEntity(e) || e.level().isOwnerThread();
+    }
+
+    @Override
     public Optional<org.domi.furnace.api.entity.EntityState> stateNow() {
         // 엔티티를 따라가는 대기열이 지금의 엔티티를 쥐고 있다 — 스폰 이벤트처럼 아직 레벨 목록에 오르기 전에도 찾는다(aiNow 와 같다)
         if (!(tasks.owner() instanceof Entity e)) return Optional.empty();
         if (!org.domi.furnace.server.world.RegionBorrow.claimEntity(e) && !e.level().isOwnerThread()) {
-            throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("stateNow() 는 엔티티 " + type() + " 를 가진 region 스레드에서만 부를 수 있다 (현재 "
-                    + Thread.currentThread().getName() + ") — editState 를 쓴다");
+            throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("stateNow() is for entity " + type() + " and can only be called from the region thread that owns it (current thread: "
+                    + Thread.currentThread().getName() + ") - use editState");
         }
         return e.isRemoved() ? Optional.empty() : Optional.of(EntityStateImpl.of(host, e));
     }
@@ -343,17 +384,55 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
                 public void set(int slot, org.domi.furnace.server.entity.ItemStack s) { inv.set(slot, s); }
             };
         }
-        throw new IllegalStateException("칸이 없는 엔티티: " + e.type().name());
+        throw new IllegalStateException("entity without slots: " + e.type().name());
     }
 
     static class Living extends EntityHandle implements org.domi.furnace.api.entity.LivingEntity {
 
         private final float health, maxHealth;
+        /** 속성 스냅샷(만든 순간 — 불변, 맵 버전이 같으면 이전 것을 그대로 받는다). */
+        private final java.util.Map<org.domi.furnace.server.attribute.Attribute, org.domi.furnace.server.attribute.AttributeMap.View> attrs;
 
         Living(PluginHost host, LivingEntity e) {
             super(host, e);
             this.health = e.health();
             this.maxHealth = e.maxHealth();
+            this.attrs = e.attributes().snapshot();
+        }
+
+        private final AttributeApi.Owner attrOwner = new AttributeApi.Owner() {
+            @Override
+            public <T> CompletableFuture<T> run(Function<org.domi.furnace.server.attribute.AttributeMap, T> task) {
+                return onEntity(e -> task.apply(((LivingEntity) e).attributes()), null, true);
+            }
+
+            @Override
+            public void check() {
+                if (!(tasks().owner() instanceof Entity e)) return;
+                if (!org.domi.furnace.server.world.RegionBorrow.claimEntity(e) && !e.level().isOwnerThread()) {
+                    throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("AttributeInstance of entity " + type()
+                            + " can only be used from the region thread that owns it (current thread: " + Thread.currentThread().getName() + ") - use AttributeHandle.edit");
+                }
+            }
+        };
+
+        @Override
+        public Optional<org.domi.furnace.api.entity.attribute.AttributeHandle> attribute(org.domi.furnace.api.entity.attribute.Attribute attribute) {
+            java.util.Objects.requireNonNull(attribute, "attribute");
+            return AttributeApi.handle(attrs, attribute, attrOwner);
+        }
+
+        @Override
+        public List<org.domi.furnace.api.entity.attribute.Attribute> attributes() { return AttributeApi.keys(attrs); }
+
+        @Override
+        public CompletableFuture<Boolean> registerAttribute(org.domi.furnace.api.entity.attribute.Attribute attribute) {
+            var a = AttributeApi.server(java.util.Objects.requireNonNull(attribute, "attribute"));
+            return attrOwner.run(map -> {
+                if (map.has(a)) return false;
+                map.register(a);
+                return true;
+            });
         }
 
         @Override
@@ -366,11 +445,11 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
         public CompletableFuture<Void> updateHealth(float h) {
             return onOwner((r, cur) -> {
                 if (!(cur instanceof LivingEntity le)) return Boolean.FALSE;
-                if (h <= 0f) le.kill();
+                if (h <= 0f) le.dieFromApi();
                 else le.setHealth(h);
                 return Boolean.TRUE;
             }).thenAccept(ok -> {
-                if (ok == null || !ok) throw new IllegalStateException("엔티티를 소유 region 에서 찾지 못했다: " + uniqueId());
+                if (ok == null || !ok) throw new IllegalStateException("could not find the entity in its owning region: " + uniqueId());
             });
         }
     }
@@ -378,7 +457,16 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     /** AI 가 있는 몹. AI 는 소유 스레드에서 MobAi 로 다룬다. */
     static class MobHandle extends Living implements org.domi.furnace.api.entity.Mob {
 
-        MobHandle(PluginHost host, org.domi.furnace.server.entity.Mob e) { super(host, e); }
+        private final boolean tamed;
+
+        MobHandle(PluginHost host, org.domi.furnace.server.entity.Mob e) {
+            super(host, e);
+            tamed = e instanceof org.domi.furnace.server.entity.TamableAnimal t ? t.isTame()
+                    : e instanceof org.domi.furnace.server.entity.AbstractHorse h && h.isTamed();
+        }
+
+        @Override
+        public boolean tamed() { return tamed; }
 
         @Override
         public <T> CompletableFuture<T> editAi(Function<? super org.domi.furnace.api.entity.ai.MobAi, ? extends T> action) {
@@ -390,8 +478,8 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
             // 엔티티를 따라가는 대기열이 지금의 몹을 쥐고 있다 — 스폰 이벤트처럼 아직 레벨 목록에 오르기 전에도 찾는다
             if (!(tasks().owner() instanceof org.domi.furnace.server.entity.Mob m)) return Optional.empty();
             if (!org.domi.furnace.server.world.RegionBorrow.claimEntity(m) && !m.level().isOwnerThread()) {
-                throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("aiNow() 는 그 몹을 가진 region 스레드에서만 부를 수 있다 (현재 "
-                        + Thread.currentThread().getName() + ") — editAi 를 쓴다");
+                throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("aiNow() can only be called from the region thread that owns the mob (current thread: "
+                        + Thread.currentThread().getName() + ") - use editAi");
             }
             return m.isRemoved() ? Optional.empty() : Optional.of(new MobAiImpl(host, m));
         }
@@ -453,7 +541,7 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
 
         /** 거래 값: 아이템 + 개수 + 컴포넌트 조건(넣은 컴포넌트가 모두 같아야 맞는다 — 바닐라 ItemCost). 지운 컴포넌트는 조건이 되지 않는다. */
         private ItemCost cost(org.domi.furnace.api.item.ItemStack s) {
-            if (items().idOf(s.type()) < 0) throw new IllegalArgumentException("알 수 없는 아이템: " + s.type());
+            if (items().idOf(s.type()) < 0) throw new IllegalArgumentException("unknown item: " + s.type());
             java.util.Map<String, Object> comps = new java.util.LinkedHashMap<>();
             for (var e : s.components().entrySet()) comps.put(e.getKey(), org.domi.furnace.server.item.Snbt.parse(e.getValue()));
             return new ItemCost(s.type(), s.amount(), comps);

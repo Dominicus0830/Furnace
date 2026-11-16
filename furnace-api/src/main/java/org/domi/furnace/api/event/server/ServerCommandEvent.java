@@ -1,4 +1,4 @@
-// 콘솔 명령 실행 직전 — 취소하거나 바꿀 수 있다. 콘솔 입력 스레드에서 불린다.
+// 콘솔 명령 실행 직전에 콘솔 입력 스레드에서 불린다. 취소하거나 바꿀 수 있다.
 package org.domi.furnace.api.event.server;
 
 import org.domi.furnace.api.command.CommandSender;

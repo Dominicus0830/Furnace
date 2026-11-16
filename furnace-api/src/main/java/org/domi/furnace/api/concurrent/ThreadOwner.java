@@ -1,4 +1,4 @@
-// 어떤 객체/작업을 소유한 스레드를 나타내는 추상. 소유 스레드에서만 접근 허용.
+// 어떤 객체나 작업을 소유한 스레드를 나타내는 추상. 소유 스레드에서만 접근할 수 있다.
 package org.domi.furnace.api.concurrent;
 
 public interface ThreadOwner {

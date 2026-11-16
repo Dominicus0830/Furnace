@@ -1,0 +1,11 @@
+# 결과 동일 금 파일 — scene-compat-wrapper-cache. 최적화 PR 은 이 파일을 바꾸지 않는다. 갱신 절차: docs/testing/identitykit.md
+spawned 2000
+held 1500 same-object=true cached=true
+held-reads 7da22e372508f2f6
+fresh 300 same-object=true distinct=true
+fresh-reads f80560e2b6b5557a
+removed 400 kept-same-object=true removed-reads-equal=true
+after-remove db3ec904e8dd43fa
+after-gc kept 550 same-object=true rewrapped 550 reads-equal=true
+after-gc-reads 52b31a5ee4b33383
+TOTAL 6d6f6f5ca71bf96a lines=9

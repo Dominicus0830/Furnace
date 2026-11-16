@@ -1,12 +1,14 @@
 // 바닐라 WitherSkullBlock: 위더 해골. 영혼 모래·흙 T자 위에 세 개가 모이면 위더(엔티티).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.WitherSkullBlock")
 public class WitherSkullBlock extends SkullBlock {
 
     public WitherSkullBlock(int block) { super(block); }

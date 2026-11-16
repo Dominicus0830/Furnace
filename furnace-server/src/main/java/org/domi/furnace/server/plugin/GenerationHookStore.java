@@ -57,20 +57,20 @@ public final class GenerationHookStore {
 
         @Override
         public String register(String key, ChunkGenerationHooks hooks) {
-            if (!open) throw new IllegalStateException("월드젠 훅 등록은 WORLD_GENERATION 처리기 안에서만 할 수 있다");
+            if (!open) throw new IllegalStateException("worldgen hooks can only be registered inside a WORLD_GENERATION handler");
             java.util.Objects.requireNonNull(key, "key");
             java.util.Objects.requireNonNull(hooks, "hooks");
             String full = key.indexOf(':') < 0 ? namespace + ":" + key : key;
-            if (!KEY.matcher(full).matches()) throw new IllegalArgumentException("키 형식이 잘못됐다(namespace:path): " + key);
+            if (!KEY.matcher(full).matches()) throw new IllegalArgumentException("invalid key format (namespace:path): " + key);
             if (!full.startsWith(namespace + ":")) {
-                throw new IllegalArgumentException("키의 namespace 는 이 플러그인의 '" + namespace + "' 여야 한다: " + key);
+                throw new IllegalArgumentException("the key namespace must be this plugin's '" + namespace + "': " + key);
             }
             Entry prev = byKey.get(full);
             if (prev != null && !prev.owner().equals(owner)) {
-                throw new IllegalArgumentException("다른 플러그인(" + prev.owner() + ")이 쓰는 월드젠 훅 키: " + full);
+                throw new IllegalArgumentException("worldgen hook key already used by another plugin (" + prev.owner() + "): " + full);
             }
             byKey.put(full, new Entry(owner, hooks));
-            if (logger != null) logger.fine("월드젠 훅 등록: " + full);
+            if (logger != null) logger.fine("worldgen hook registered: " + full);
             return full;
         }
     }

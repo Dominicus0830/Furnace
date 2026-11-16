@@ -1,5 +1,6 @@
 package org.bukkit.command;
 
+import org.domi.furnace.compat.i18n.CompatLang;
 import java.util.AbstractMap;
 import java.util.AbstractSet;
 import java.util.ArrayList;
@@ -51,7 +52,7 @@ public class SimpleCommandMap implements CommandMap {
 
     @Override
     public boolean register(String label, String fallbackPrefix, Command command) {
-        if (label == null || command == null) throw new IllegalArgumentException("label/command 가 null");
+        if (label == null || command == null) throw new IllegalArgumentException("label and command must not be null");
         String lower = label.toLowerCase(Locale.ROOT).trim();
         CompatCommands.Attached at;
         synchronized (this) {
@@ -218,12 +219,12 @@ public class SimpleCommandMap implements CommandMap {
         if (colon >= 0) {
             if (!key.substring(0, colon).equals(ns)) {
                 throw new UnsupportedFeature("SimpleCommandMap#knownCommands.put(" + key + ")",
-                        "Furnace 명령 트리는 다른 플러그인 접두어로 명령을 붙이지 못한다(이 명령의 접두어는 '" + ns + "')");
+                        "the Furnace command tree cannot register a command under the prefix of another plugin (the prefix of this command is '" + ns + "')");
             }
             bare = key.substring(colon + 1);
         }
         if (bare.isEmpty() || bare.indexOf(' ') >= 0 || bare.indexOf(':') >= 0) {
-            throw new IllegalArgumentException("명령 트리에 올릴 수 없는 이름: '" + key + "'");
+            throw new IllegalArgumentException("name that cannot be put on the command tree: '" + key + "'");
         }
         if (current != null) removeName(key);
         CompatCommands.Attached at = attached.get(command);
@@ -239,8 +240,7 @@ public class SimpleCommandMap implements CommandMap {
         for (String n : added) names.putIfAbsent(n, command);
         if (colon < 0 && !added.contains(bare) && names.get(bare) != command) {
             // Paper 는 그 키를 덮어쓴다. Furnace 트리는 바닐라·다른 플러그인 이름을 덮지 않는다(접두어 형태만)
-            CompatCommands.ownerLogger(command).warning("knownCommands.put(\"" + key + "\") — '" + bare
-                    + "' 은(는) 이미 바닐라·다른 플러그인 명령이라 덮어쓰지 않고 '" + ns + ":" + bare + "' 로만 붙였다(Paper 는 덮어쓴다)");
+            CompatCommands.ownerLogger(command).warning(CompatLang.t("compat.known-commands-put", key, bare, ns + ":" + bare));
         }
         return current;
     }
@@ -281,7 +281,7 @@ public class SimpleCommandMap implements CommandMap {
         /** 이름 하나를 그 명령으로 트리에 붙인다(Paper 의 knownCommands 도 넣으면 명령 트리에 붙는다 — helper 가 별칭을 이렇게 올린다). */
         @Override
         public Command put(String key, Command value) {
-            if (key == null || value == null) throw new NullPointerException("knownCommands 에는 null 을 넣을 수 없다");
+            if (key == null || value == null) throw new NullPointerException("knownCommands cannot hold null");
             return putName(key.toLowerCase(Locale.ROOT), value);
         }
 

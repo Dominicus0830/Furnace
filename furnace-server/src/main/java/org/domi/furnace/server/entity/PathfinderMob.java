@@ -6,6 +6,13 @@ import org.domi.furnace.server.block.Pos;
 
 public abstract class PathfinderMob extends Mob {
 
+    /** Paper: MoveToBlockGoal 이 향하는 칸(활성 범위 면역 검사 — 벌). 결과에는 쓰지 않는다. */
+    org.domi.furnace.server.block.Pos movingTarget;
+
+    public org.domi.furnace.server.block.Pos movingTarget() { return movingTarget; }
+
+    public void setMovingTarget(org.domi.furnace.server.block.Pos p) { movingTarget = p; }
+
     protected PathfinderMob(EntityType type, ChunkLevel level, int id) { super(type, level, id); }
 
     /** getWalkTargetValue(pos): 클수록 가고 싶은 칸. 기본 0. */

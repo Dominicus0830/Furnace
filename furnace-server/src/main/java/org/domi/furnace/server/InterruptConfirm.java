@@ -3,6 +3,7 @@ package org.domi.furnace.server;
 
 import java.util.function.LongSupplier;
 import org.domi.furnace.server.config.OperatorOptions;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,13 +44,13 @@ public final class InterruptConfirm {
 
     private static void handle(InterruptConfirm confirm, int seconds) {
         if (confirm == null) {
-            log.info("Ctrl+C — 서버를 종료한다");
+            log.info(Lang.t("interrupt.stopping"));
             Runtime.getRuntime().exit(130);
         } else if (confirm.onInterrupt()) {
-            log.info("Ctrl+C 를 한 번 더 받았다 — 서버를 종료한다");
+            log.info(Lang.t("interrupt.stopping-second"));
             Runtime.getRuntime().exit(130);
         } else {
-            log.warn("Ctrl+C: {}초 안에 한 번 더 누르면 서버를 저장하고 종료한다", seconds);
+            log.warn(Lang.t("interrupt.confirm", seconds));
         }
     }
 
@@ -62,7 +63,7 @@ public final class InterruptConfirm {
         try {
             sun.misc.Signal.handle(new sun.misc.Signal("INT"), sig -> handle(confirm, o.interruptConfirmSeconds()));
         } catch (Throwable t) {
-            log.warn("confirm-interrupt: SIGINT 를 가로챌 수 없어 켜지 않는다: {}", t.toString());
+            log.warn(Lang.t("interrupt.unavailable", t.toString()));
         }
     }
 }

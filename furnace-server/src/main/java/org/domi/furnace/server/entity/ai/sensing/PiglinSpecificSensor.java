@@ -60,7 +60,7 @@ public class PiglinSpecificSensor extends Sensor<Mob> {
             } else if (t instanceof Piglin p) {
                 if (!p.isBaby() && p.isAdult()) visibleAdults.add(p);
             } else if (t instanceof Player pl) {
-                if (notWearingGold.isEmpty() && !PiglinAi.wearsGoldArmor(pl) && owner.canAttackType(pl)) notWearingGold = Optional.of(pl);
+                if (notWearingGold.isEmpty() && !PiglinAi.wearsGoldArmor(pl) && pl.canBeSeenAsEnemy() && owner.canAttackType(pl)) notWearingGold = Optional.of(pl);
                 if (holdingWanted.isEmpty() && pl.gameMode() != GameMode.SPECTATOR && PiglinAi.isPlayerHoldingLovedItem(pl)) holdingWanted = Optional.of(pl);
             } else if (t instanceof Entity e) {
                 if (nemesis.isEmpty() && (e.type() == EntityType.WITHER_SKELETON || e.type() == EntityType.WITHER) && e instanceof Mob m) nemesis = Optional.of(m);

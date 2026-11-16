@@ -1,4 +1,4 @@
-// 플러그인 전용 작업 예약 — 여기서 만든 작업은 플러그인이 꺼질 때 모두 취소된다.
+// 플러그인 전용 작업 예약이다. 여기서 만든 작업은 플러그인이 꺼질 때 모두 취소된다.
 package org.domi.furnace.api.plugin;
 
 import java.util.Set;
@@ -33,14 +33,14 @@ public final class PluginTasks {
         return repeating(scheduler.global().runAtFixedRate(guard(task, PluginProfiler.Kind.TASK), delayTicks, periodTicks));
     }
 
-    /** 그 region 을 소유한 스레드에서 실행 — 그 region 의 블록·엔티티를 안전하게 만질 수 있다. */
+    /** 그 region 을 소유한 스레드에서 실행한다. 그 region 의 블록과 엔티티를 안전하게 만질 수 있다. */
     public ScheduledTask runRegion(RegionPos region, Runnable task, long delayTicks) { return once(scheduler.region(region), task, delayTicks); }
 
     public ScheduledTask runRegionRepeating(RegionPos region, Runnable task, long delayTicks, long periodTicks) {
         return repeating(scheduler.region(region).runAtFixedRate(guard(task, PluginProfiler.Kind.TASK), delayTicks, periodTicks));
     }
 
-    /** 블록킹 작업(파일·DB·HTTP)용 비동기 실행(가상 스레드). */
+    /** 블록킹 작업(파일·DB·HTTP)용 비동기 실행({@link org.domi.furnace.api.Furnace#asyncExecutor()} — 기본 플랫폼 스레드 풀). */
     public void runAsync(Runnable task) { async.execute(guard(task, PluginProfiler.Kind.ASYNC)); }
 
     /** 원하는 스케줄러를 직접 쓸 때. 그렇게 만든 작업도 플러그인이 꺼지면 더 돌지 않지만(서버가 소유자를 보고 건너뛴다) 여기 추적에는 들지 않는다. */
@@ -53,7 +53,8 @@ public final class PluginTasks {
     }
 
     /**
-     * 한 번짜리: 손잡이를 먼저 만들어 추적에 넣고, 돌고 나면(또는 취소하면) 뺀다(A14-01) — 끝난 작업과 그 람다가 꺼질 때까지 쌓이지 않게.
+     * 한 번짜리 작업이다. 손잡이를 먼저 만들어 추적에 넣고, 돌고 나면(또는 취소하면) 뺀다(A14-01).
+     * 끝난 작업과 그 람다가 꺼질 때까지 쌓이지 않게 하려는 것이다.
      * 손잡이가 작업 람다를 직접 쥐지 않으므로 추적 집합이 람다를 붙잡지 않는다.
      */
     private ScheduledTask once(TaskScheduler on, Runnable task, long delayTicks) {
@@ -127,7 +128,7 @@ public final class PluginTasks {
             try {
                 task.run();
             } catch (Throwable t) {
-                plugin.logger().log(java.util.logging.Level.SEVERE, "작업 실행 중 예외", t);
+                plugin.logger().log(java.util.logging.Level.SEVERE, "Exception while running a task", t);
             } finally {
                 timing.stop(t0);
             }

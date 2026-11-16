@@ -9,6 +9,7 @@ import org.domi.furnace.compat.paper.Compat;
  * 접속 중이 아닐 수 있는 플레이어(CraftBukkit CraftOfflinePlayer 와 같은 이름). UUID 와, 알면 이름을 든다.
  * 같음은 UUID 로 가른다(CraftBukkit 처럼 — 접속 중 Player 와도 UUID 가 같으면 같은 플레이어로 본다).
  */
+@org.bukkit.configuration.serialization.SerializableAs("Player")
 public final class CraftOfflinePlayer implements OfflinePlayer {
 
     private final UUID id;
@@ -24,6 +25,18 @@ public final class CraftOfflinePlayer implements OfflinePlayer {
 
     @Override
     public boolean isOnline() { return getPlayer() != null; }
+
+    /** Paper: 접속 중이면 접속 때 받은 속성까지, 아니면 이름(서버가 아는 것)과 UUID. */
+    @Override
+    public com.destroystokyo.paper.profile.PlayerProfile getPlayerProfile() {
+        var online = Compat.furnace().player(id);
+        if (online != null) {
+            com.destroystokyo.paper.profile.PlayerProfile profile = new com.destroystokyo.paper.profile.CraftPlayerProfile(id, online.name());
+            for (var p : online.profileProperties()) profile.setProperty(new com.destroystokyo.paper.profile.ProfileProperty(p.name(), p.value(), p.signature()));
+            return profile;
+        }
+        return new com.destroystokyo.paper.profile.CraftPlayerProfile(id, getName());
+    }
 
     /** CraftBukkit 처럼: 접속 중이면 지금 이름, 아니면 만들 때 받은 이름, 그것도 없으면 서버 기록(usercache·저장 데이터)의 이름, 없으면 null. */
     @Override
@@ -48,6 +61,25 @@ public final class CraftOfflinePlayer implements OfflinePlayer {
     public void setOp(boolean value) {
         if (value == isOp()) return;
         furnace().setOpLevel(value ? 4 : 0);
+    }
+
+    private final io.papermc.paper.persistence.PersistentDataContainerView pdcView = org.domi.furnace.compat.paper.PdcViews.live(() -> furnace().persistentDataNow());
+
+    @Override
+    public io.papermc.paper.persistence.PersistentDataContainerView getPersistentDataContainer() { return pdcView; }
+
+    /** 설정에 쓸 값: {@code UUID} 하나(Paper 와 같다). */
+    @Override
+    public java.util.Map<String, Object> serialize() {
+        java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("UUID", id.toString());
+        return result;
+    }
+
+    /** 옛 형식({@code name} 키)이 있으면 이름으로, 아니면 {@code UUID} 로 찾는다 — Paper 와 같다. */
+    public static OfflinePlayer deserialize(java.util.Map<String, Object> args) {
+        if (args.get("name") != null) return org.bukkit.Bukkit.getServer().getOfflinePlayer((String) args.get("name"));
+        return org.bukkit.Bukkit.getServer().getOfflinePlayer(UUID.fromString((String) args.get("UUID")));
     }
 
     @Override

@@ -73,6 +73,16 @@ public interface GameEvents {
     /** 회전까지 정한 텔레포트(플러그인 teleport) — 이벤트의 도착 회전이 요청한 값이 되게 한다. 기본은 회전 없는 판으로 모은다. */
     default boolean playerTeleport(Player p, double x, double y, double z, float yaw, float pitch) { return playerTeleport(p, x, y, z); }
 
+    /** BlockLockCheckEvent 구독자가 있는가 — 없으면 호출하는 쪽이 알림 글·이벤트를 만들지 않는다. */
+    default boolean wantsBlockLockCheck() { return false; }
+
+    /**
+     * Paper BlockLockCheckEvent — 용기·신호기 잠금 검사 직전, 블록의 region 스레드에서. 구독자가 없으면 null(호출하는 쪽이 바닐라 검사).
+     * 돌려준 이벤트의 결과·열쇠·알림 글·소리로 호출하는 쪽이 검사한다. heldKey 는 누를 때의 주 손, lockedMessage 는 바닐라 알림.
+     */
+    default org.domi.furnace.api.event.block.BlockLockCheckEvent blockLockCheck(Player p, String world, Pos pos, String lock, ItemStack heldKey,
+            org.domi.furnace.api.text.Text lockedMessage, org.domi.furnace.api.audience.Sound lockedSound) { return null; }
+
     /** blockPos 가 null 이면 공중 클릭. false 면 취소. */
     default boolean playerInteract(Player p, int hand, int[] blockPos, int blockState, int face, ItemStack inHand) { return true; }
 
@@ -87,15 +97,33 @@ public interface GameEvents {
 
     default boolean playerDrop(Player p, ItemStack stack) { return true; }
 
+    /** 던질 아이템 엔티티를 이미 만든 뒤의 PlayerDropItemEvent(CraftBukkit 순서). false 면 취소 — 아이템은 인벤토리로 돌아간다. */
+    default boolean playerDrop(Player p, ItemStack stack, org.domi.furnace.server.entity.ItemEntity entity) { return playerDrop(p, stack); }
+
+    /** 이 플레이어 드롭 이벤트 구독자가 있는가(없으면 아이템 엔티티를 이벤트 전에 만들 필요가 없다). */
+    default boolean wantsPlayerDrop() { return false; }
+
+    /** 블록 설치 직전(플러그인 BlockPlaceEvent). 놓일 상태·놓는 손의 아이템·손을 함께 알린다. false 면 취소. */
+    default boolean blockPlace(Player p, org.domi.furnace.server.block.Pos pos, int state, int replacedState, org.domi.furnace.server.block.Pos against, ItemStack inHand, boolean mainHand) { return true; }
+
+    /** 블록 설치 이벤트 구독자가 있는가. */
+    default boolean wantsBlockPlace() { return false; }
+
     default boolean playerPickup(Player p, ItemStack stack) { return true; }
 
     default boolean inventoryClick(Player p, AbstractContainerMenu menu, int slot, int button, ClickType type) { return true; }
 
     default boolean inventoryOpen(Player p, AbstractContainerMenu menu) { return true; }
 
-    default void inventoryClose(Player p, AbstractContainerMenu menu) {}
+    default void inventoryClose(Player p, AbstractContainerMenu menu) { inventoryClose(p, menu, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.UNKNOWN); }
+
+    /** 창이 닫히기 직전 — reason 은 닫힌 까닭(Paper InventoryCloseEvent.Reason). */
+    default void inventoryClose(Player p, AbstractContainerMenu menu, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason reason) {}
 
     default void chunkLoad(String dimension, int cx, int cz) {}
+
+    /** newChunk: 저장된 청크를 읽은 것이 아니라 이번에 생성기가 만든 청크. 기본은 3인자 판을 부른다. */
+    default void chunkLoad(String dimension, int cx, int cz, boolean newChunk) { chunkLoad(dimension, cx, cz); }
 
     default void chunkUnload(String dimension, int cx, int cz) {}
 
@@ -148,6 +176,23 @@ public interface GameEvents {
     /** 투사체 적중 직전(hitEntity 나 hitPlayer, 또는 hitBlock). false 면 무시하고 계속 난다. */
     default boolean projectileHit(Entity projectile, Entity hitEntity, Player hitPlayer, org.domi.furnace.server.block.Pos hitBlock, int blockState, int face) { return true; }
 
+    /**
+     * EntityChangeBlockEvent 를 물어볼 필요가 있는가(구독자가 있을 때만 참) — 거짓이면 {@link org.domi.furnace.server.block.B#entityChange} 가
+     * 지금 블록을 읽지도 않고 바로 답한다(필드 읽기 하나).
+     */
+    default boolean wantsEntityChangeBlock() { return false; }
+
+    /**
+     * 엔티티·플레이어 who 가 pos 의 oldState 를 newState 로 바꾸기 직전(Paper CraftEventFactory.callEntityChangeBlockEvent). cancelled 면 미리 취소한 채로
+     * 묻는다(게임 규칙이 막는 자리). true 면 바꾼다. 블록의 region 스레드에서. 부르는 쪽은 B.entityChange 를 쓴다.
+     */
+    default boolean entityChangeBlock(String dimension, org.domi.furnace.server.entity.Rider who, Pos pos, int oldState, int newState, boolean cancelled) {
+        return !cancelled;
+    }
+
+    /** 좀비류가 문을 부수기 직전(Paper callEntityBreakDoorEvent — EntityChangeBlockEvent 의 하위). false 면 취소. */
+    default boolean entityBreakDoor(String dimension, LivingEntity who, Pos pos, int oldState, int newState) { return true; }
+
     /** 길들이기 직전. false 면 실패. */
     default boolean entityTame(Entity e, Player owner) { return true; }
 
@@ -173,10 +218,19 @@ public interface GameEvents {
     /** 구독자가 있는가 — 함수 줄마다 부르는 길목의 빠른 검사. */
     default boolean wantsFunctionCommands() { return false; }
 
+    /** /gamerule 로 값을 바꾸기 직전(value 는 문자열): 쓸 값을 돌려준다, null 이면 취소(값은 그대로). 명령 스레드에서. */
+    default String gameRuleChange(org.domi.furnace.server.command.CommandSource source, String rule, String value) { return value; }
+
     /** 서버 목록 응답 덮어쓰기(motdJson 이 null 이면 MOTD 는 그대로). */
     record StatusOverride(String motdJson, int online, int max, boolean hidePlayers) {}
 
     // ------------------------------------------------------------------ 3단계 둘째 묶음: 블록(모두 그 블록의 region 스레드)
+
+    /**
+     * BlockPhysicsEvent 를 물어볼 필요가 있는가 — 거짓이면 이웃 갱신 호출 지점이 blockPhysics 와 그 인자(블록 번호 변환)를 건너뛴다(필드 읽기).
+     * 기본은 참(blockPhysics 를 직접 구현한 쪽이 항상 불리게). 서버 구현은 구독자가 있을 때만 참.
+     */
+    default boolean wantsBlockPhysics() { return true; }
 
     /** 이웃·모양 갱신 직전(sourceBlock 은 블록 id, 상태 아님). false 면 이 갱신을 무시한다. 아주 자주 불리므로 구독자가 없으면 곧바로 true. */
     default boolean blockPhysics(String dimension, Pos pos, int state, Pos sourcePos, int sourceBlock) { return true; }
@@ -251,13 +305,13 @@ public interface GameEvents {
     }
 
     /** 모루 결과 값. */
-    record AnvilPrepared(ItemStack result, int repairCost) {}
+    record AnvilPrepared(ItemStack result, int repairCost, int maximumRepairCost) {}
 
     /** 모루 결과를 정한 직후: 바꾼 값, null 이면 그대로(구독자 없음 포함). */
-    default AnvilPrepared prepareAnvil(Player p, AbstractContainerMenu menu, ItemStack result, int repairCost, String renameText) { return null; }
+    default AnvilPrepared prepareAnvil(Player p, AbstractContainerMenu menu, ItemStack result, int repairCost, int maximumRepairCost, String renameText) { return null; }
 
-    /** 양조가 끝나 병을 바꾸기 직전(items 는 양조대 다섯 칸). false 면 취소. */
-    default boolean brew(String dimension, Pos pos, ItemStack[] items, int fuelLevel) { return true; }
+    /** 양조가 끝나 병을 바꾸기 직전(items 는 양조대 다섯 칸, results 는 병 세 칸에 들어갈 결과 — 처리기가 바꾸면 그 자리에서 고친다). false 면 취소. */
+    default boolean brew(String dimension, Pos pos, ItemStack[] items, ItemStack[] results, int fuelLevel) { return true; }
 
     /** 양조대 연료 결과(consuming 이 false 면 블레이즈 가루를 줄이지 않는다). */
     record BrewFuel(int fuelPower, boolean consuming) {}
@@ -269,6 +323,9 @@ public interface GameEvents {
 
     /** 탈것에 타기 직전(탈것의 region 스레드). false 면 취소. */
     default boolean entityMount(org.domi.furnace.server.entity.Rider rider, Entity vehicle) { return true; }
+
+    /** 플레이어가 엔티티를 보기 시작한다(스폰 묶음을 보내기 바로 전, Paper PlayerTrackEntityEvent 자리). 엔티티 소유 region 스레드에서. */
+    default void playerTrackEntity(Player viewer, Entity e) {}
 
     /** 탈것에서 내리기 직전(cancellable 이 false 면 취소해도 소용없다 — 호출한 쪽이 반환값을 무시한다). false 면 취소. */
     default boolean entityDismount(org.domi.furnace.server.entity.Rider rider, Entity vehicle, boolean cancellable) { return true; }

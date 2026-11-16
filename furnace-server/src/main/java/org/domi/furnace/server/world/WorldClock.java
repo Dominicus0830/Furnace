@@ -71,6 +71,15 @@ public final class WorldClock {
         this.thundering = thundering;
     }
 
+    /** 칸 하나씩 바꾸기(플러그인 API — Paper CraftWorld 의 setStorm·setWeatherDuration 등). null 인 칸은 그대로. */
+    public synchronized void setWeather(Boolean raining, Boolean thundering, Integer rainTime, Integer thunderTime, Integer clearWeatherTime) {
+        if (raining != null) this.raining = raining;
+        if (thundering != null) this.thundering = thundering;
+        if (rainTime != null) this.rainTime = rainTime;
+        if (thunderTime != null) this.thunderTime = thunderTime;
+        if (clearWeatherTime != null) this.clearWeatherTime = clearWeatherTime;
+    }
+
     public Random random() { return random; }
 
     /** 한 틱. broadcast 는 모든 플레이어에게 보낼 패킷 수신자. */

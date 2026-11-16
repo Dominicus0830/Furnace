@@ -1,6 +1,7 @@
 // 엔티티 타입 이름 목록(선택자 type= 검증용). 리소스의 1.21.1 엔티티 레지스트리에서 읽는다.
 package org.domi.furnace.server.command.arguments;
 
+import org.domi.furnace.api.GameVersion;
 import java.util.Set;
 
 public final class EntityTypes {
@@ -14,7 +15,7 @@ public final class EntityTypes {
     public static java.util.Set<String> all() { return KNOWN; }
 
     private static Set<String> load() {
-        var in = EntityTypes.class.getClassLoader().getResourceAsStream("registries/entity_types-1.21.1.txt");
+        var in = EntityTypes.class.getClassLoader().getResourceAsStream("registries/entity_types-" + GameVersion.RESOURCE_TAG + ".txt");
         if (in == null) return Set.of("minecraft:player");
         try (var r = new java.io.BufferedReader(new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8))) {
             return Set.copyOf(r.lines().map(String::strip).filter(s -> !s.isEmpty()).toList());

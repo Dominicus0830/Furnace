@@ -11,7 +11,7 @@ Furnace 는 첫 기동 때 이 파일들에서 **Furnace 에 같은 뜻의 키�
 |---|---|
 | 언제 | 기동 때 `server.properties`·EULA 확인 뒤, `furnace.properties` 를 읽는 모든 곳보다 먼저(`FurnaceMain`). 위 네 파일 중 하나라도 서버 폴더에 있고 `furnace-config-import-report.txt` 가 없을 때 |
 | 읽는 곳 | 서버 폴더(현재 작업 폴더). YAML 은 `furnace-api` 의 설정 파서를 쓴다(새 의존성 없음). 원본은 읽기만 한다 |
-| 쓰는 곳 | `furnace.properties` 끝에 `# --- Paper/Spigot 설정에서 가져옴 …` 머리말과 함께 덧붙인다(원래 내용은 바이트 그대로, 임시 파일 후 이동). 파일이 없으면 만든다. **이미 있는 키는 건드리지 않는다**(보고서에 "이미 있어 유지") |
+| 쓰는 곳 | `furnace.properties` 끝에 `# --- Imported from Paper/Spigot settings …` 머리말(서버 언어에 따라 en/ko)과 함께 덧붙인다(원래 내용은 바이트 그대로, 임시 파일 후 이동). 파일이 없으면 만든다. **이미 있는 키는 건드리지 않는다**(보고서에 "이미 있어 유지") |
 | 보고서 | `furnace-config-import-report.txt`. 종류별로 묶는다: 옮김 · 이미 있음 · Paper 기본값 그대로 · 직접 확인 · 대응 없음 · 무시(버전 표지) · 모르는 키. 비밀키는 `****` 로 가린다 |
 | 한 번만 | 보고서가 있으면 다시 하지 않는다. 지우고 켜거나 `-Dfurnace.importConfig=force` 로 켜면 다시 한다(이미 있는 키는 그대로). `-Dfurnace.importConfig=off` 는 끔 |
 | 실패해도 | 파일 하나를 못 읽으면(문법 오류) 보고서에 적고 나머지는 계속한다. 예외가 나도 서버는 켠다(경고만). `furnace.properties` 쓰기에 실패하면 보고서를 쓰지 않아 다음 기동 때 다시 시도한다 |

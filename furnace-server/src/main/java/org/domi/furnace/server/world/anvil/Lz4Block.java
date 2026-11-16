@@ -26,9 +26,9 @@ final class Lz4Block {
         ByteArrayOutputStream out = new ByteArrayOutputStream(in.length * 3);
         int p = 0;
         while (true) {
-            if (p + HEADER > in.length) throw new IOException("lz4: 블록 헤더가 잘림");
+            if (p + HEADER > in.length) throw new IOException("lz4: the block header is truncated");
             for (int i = 0; i < MAGIC.length; i++) {
-                if (in[p + i] != MAGIC[i]) throw new IOException("lz4: 매직 불일치");
+                if (in[p + i] != MAGIC[i]) throw new IOException("lz4: magic number mismatch");
             }
             int token = in[p + 8] & 0xFF;
             int method = token & 0xF0;
@@ -38,10 +38,10 @@ final class Lz4Block {
             if (origLen < 0 || origLen > maxLen || compLen < 0 || (method != METHOD_RAW && method != METHOD_LZ4)
                     || (method == METHOD_RAW && compLen != origLen) || (origLen == 0) != (compLen == 0)
                     || compLen > in.length - p) {
-                throw new IOException("lz4: 블록 헤더 손상");
+                throw new IOException("lz4: the block header is corrupt");
             }
             if (origLen == 0) {
-                if (check != 0) throw new IOException("lz4: 끝 블록 손상");
+                if (check != 0) throw new IOException("lz4: the end block is corrupt");
                 return out.toByteArray();   // stopOnEmptyBlock — 뒤는 읽지 않는다
             }
             byte[] block;
@@ -49,9 +49,9 @@ final class Lz4Block {
                 block = java.util.Arrays.copyOfRange(in, p, p + compLen);
             } else {
                 block = new byte[origLen];
-                if (decodeBlock(in, p, compLen, block) != origLen) throw new IOException("lz4: 해제 길이 불일치");
+                if (decodeBlock(in, p, compLen, block) != origLen) throw new IOException("lz4: decompressed length mismatch");
             }
-            if (checksum(block, 0, origLen) != check) throw new IOException("lz4: 체크섬 불일치");
+            if (checksum(block, 0, origLen) != check) throw new IOException("lz4: checksum mismatch");
             out.write(block, 0, origLen);
             p += compLen;
         }
@@ -68,7 +68,7 @@ final class Lz4Block {
                     int b;
                     do { b = src[sp++] & 0xFF; lit += b; } while (b == 255);
                 }
-                if (lit > end - sp || lit > dst.length - dp) throw new IOException("lz4: 리터럴 범위 밖");
+                if (lit > end - sp || lit > dst.length - dp) throw new IOException("lz4: literal out of range");
                 System.arraycopy(src, sp, dst, dp, lit);
                 sp += lit;
                 dp += lit;
@@ -82,12 +82,12 @@ final class Lz4Block {
                 }
                 m += 4;
                 int from = dp - off;
-                if (off == 0 || from < 0 || m > dst.length - dp) throw new IOException("lz4: 일치 범위 밖");
+                if (off == 0 || from < 0 || m > dst.length - dp) throw new IOException("lz4: match out of range");
                 for (int i = 0; i < m; i++) dst[dp + i] = dst[from + i];   // 겹침 복사는 바이트 단위
                 dp += m;
             }
         } catch (ArrayIndexOutOfBoundsException e) {
-            throw new IOException("lz4: 블록이 잘림", e);
+            throw new IOException("lz4: the block is truncated", e);
         }
     }
 

@@ -1,6 +1,7 @@
 // NoiseChunk 셀 보간이 바닐라 fixture 의 stone mask 와 비트정확하게 일치하는지 검증
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import java.io.*;
 import org.junit.jupiter.api.Test;
@@ -9,7 +10,7 @@ class NoiseChunkTest {
 
     @Test
     void cellInterpolationMatchesFixtureStoneMask() throws Exception {
-        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
+        WorldgenData data = WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG);
         NoiseSettings s = NoiseSettings.fromJson(data.noiseSettings("minecraft:overworld"));
         NoiseRouter r = NoiseRouter.build(data, s, 0L);
 
@@ -54,7 +55,7 @@ class NoiseChunkTest {
 
     @Test
     void preliminarySurfaceLevelInRange() {
-        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
+        WorldgenData data = WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG);
         NoiseSettings settings = NoiseSettings.fromJson(data.noiseSettings("minecraft:overworld"));
         NoiseRouter router = NoiseRouter.build(data, settings, 0L);
         NoiseChunk nc = new NoiseChunk(0, 0, router, settings);

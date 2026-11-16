@@ -1,5 +1,6 @@
 package org.domi.furnace.server.world.gen.feature;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.List;
 import org.domi.furnace.server.world.BlockRegistry;
@@ -11,7 +12,7 @@ class BiomeFeatureDataTest {
     @Test
     void load_parsesBiomePlacedFeatureAndConfiguredOreWithInterning() {
         WorldgenData data = WorldgenData.load("worldgen/test");
-        BlockRegistry registry = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry registry = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
 
         BiomeFeatureData features = BiomeFeatureData.load(
             data, List.of("minecraft:plains"), registry);
@@ -40,8 +41,8 @@ class BiomeFeatureDataTest {
 
     @Test
     void load_vanillaPlainsHasUndergroundOreFeatures() {
-        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
-        BlockRegistry registry = BlockRegistry.load("blocks/1.21.1.txt");
+        WorldgenData data = WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG);
+        BlockRegistry registry = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
 
         BiomeFeatureData features = BiomeFeatureData.load(
             data, List.of("minecraft:plains"), registry);
@@ -69,7 +70,7 @@ class BiomeFeatureDataTest {
     @Test
     void load_parsesUniformCountPlacement() {
         WorldgenData data = WorldgenData.load("worldgen/test");
-        BlockRegistry registry = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry registry = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
 
         BiomeFeatureData features = BiomeFeatureData.load(
             data, List.of("minecraft:uniform_count_biome"), registry);
@@ -83,8 +84,8 @@ class BiomeFeatureDataTest {
 
     @Test
     void load_parsesOakTreeAndSelectorFeatures() {
-        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
-        BlockRegistry registry = BlockRegistry.load("blocks/1.21.1.txt");
+        WorldgenData data = WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG);
+        BlockRegistry registry = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
 
         BiomeFeatureData features = BiomeFeatureData.load(
             data, List.of("minecraft:plains", "minecraft:taiga", "minecraft:savanna"), registry);

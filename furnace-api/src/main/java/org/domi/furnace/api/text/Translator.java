@@ -1,4 +1,4 @@
-// 번역 키 → 문장 패턴 공급자. 서버는 en_us 를 등록하고, 플러그인은 자기 키(사용자 정의 메시지)를 등록할 수 있다.
+// 번역 키에 해당하는 문장 패턴을 공급한다. 서버는 en_us 를 등록하고, 플러그인은 자기 키(사용자 정의 메시지)를 등록할 수 있다.
 package org.domi.furnace.api.text;
 
 import java.util.Locale;

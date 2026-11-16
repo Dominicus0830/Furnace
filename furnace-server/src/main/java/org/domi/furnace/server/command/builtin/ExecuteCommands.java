@@ -225,7 +225,7 @@ public final class ExecuteCommands {
             }
             return ResultCallback.DONE;
         }
-        Executor global = r -> source.getServer().scheduler().global().execute(r);
+        Executor global = EntityOps.commandGlobal(source);
         return write.<Void>handleAsync((v, ex) -> {
             if (ex == null || EntityOps.unwrap(ex) instanceof CommandSyntaxException) return null;
             throw ex instanceof CompletionException ce ? ce : new CompletionException(ex);
@@ -388,7 +388,7 @@ public final class ExecuteCommands {
                 return CompletableFuture.failedFuture(t);
             }
         }
-        Executor global = r -> source.getServer().scheduler().global().execute(r);
+        Executor global = EntityOps.commandGlobal(source);
         return f.thenApplyAsync(v -> {
             try {
                 return fn.apply(v);

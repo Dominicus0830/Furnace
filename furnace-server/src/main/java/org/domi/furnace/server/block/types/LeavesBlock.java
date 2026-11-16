@@ -1,6 +1,7 @@
 // 바닐라 LeavesBlock: 나뭇잎. 가장 가까운 통나무까지 거리(1~7)를 이웃에서 전한다. 거리 7 이고 놓인 것이 아니면 무작위 틱에 썩는다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -10,6 +11,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.LeavesBlock")
 public class LeavesBlock extends BlockBehavior {
 
     static final Prop DISTANCE = B.prop("distance"), PERSISTENT = B.prop("persistent");

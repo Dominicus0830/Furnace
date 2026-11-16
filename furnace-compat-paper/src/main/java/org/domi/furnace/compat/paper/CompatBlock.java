@@ -11,15 +11,28 @@ import org.bukkit.block.data.BlockData;
 import org.domi.furnace.api.concurrent.ThreadOwnershipException;
 import org.domi.furnace.api.world.BlockPos;
 
-public final class CompatBlock implements Block {
+public class CompatBlock implements Block {
 
     private final String dimension;
     private final BlockPos pos;
+    /** 이벤트가 "놓일 블록"처럼 아직 월드에 없는 상태를 보일 때만 값이 있다(없으면 월드의 지금 블록을 읽는다). */
+    private final org.domi.furnace.api.world.BlockData shown;
 
-    public CompatBlock(String dimension, BlockPos pos) {
+    public CompatBlock(String dimension, BlockPos pos) { this(dimension, pos, null); }
+
+    private CompatBlock(String dimension, BlockPos pos, org.domi.furnace.api.world.BlockData shown) {
         this.dimension = dimension;
         this.pos = pos;
+        this.shown = shown;
     }
+
+    /**
+     * 설치 직전 이벤트용 — CraftBukkit 은 블록을 놓은 뒤에 BlockPlaceEvent 를 부르므로 getBlock().getType() 이 놓인 블록이다. Furnace 는 놓기 전에
+     * 부르니 이 칸이 놓일 상태를 보이는 블록을 준다(이벤트가 끝나도 그 상태를 계속 보인다 — 취소돼도 되돌아가지 않는다).
+     */
+    static CompatBlock showing(String dimension, BlockPos pos, org.domi.furnace.api.world.BlockData shown) { return new CompatBlock(dimension, pos, shown); }
+
+    private org.domi.furnace.api.world.BlockData currentData() { return shown != null ? shown : furnaceBlock().data(); }
 
     private org.domi.furnace.api.world.Block furnaceBlock() { return Compat.furnace().world(dimension).block(pos); }
 
@@ -52,13 +65,64 @@ public final class CompatBlock implements Block {
     }
 
     @Override
-    public Chunk getChunk() { return new CompatChunk(dimension, pos.chunkX(), pos.chunkZ()); }
+    public Chunk getChunk() { return new org.bukkit.craftbukkit.CraftChunk(dimension, pos.chunkX(), pos.chunkZ()); }
 
     @Override
-    public Material getType() { return Compat.material(furnaceBlock().type()); }
+    public Material getType() { return Compat.material(shown != null ? shown.type() : furnaceBlock().type()); }
 
     @Override
-    public BlockData getBlockData() { return CompatBlockData.of(furnaceBlock().data()); }
+    public BlockData getBlockData() { return CompatBlockData.of(currentData()); }
+
+    @Override
+    public org.bukkit.block.BlockState getState() { return CompatBlockStates.create(dimension, pos, CompatBlockData.of(currentData())); }
+
+    @Override
+    public org.bukkit.block.BlockState getState(boolean useSnapshot) {
+        org.bukkit.block.BlockState s = getState();
+        // Paper getState(false): 블록 엔티티를 사본 없이 감싼다 — Furnace 는 영속 데이터만 살아 있는 블록 엔티티로 읽고 쓴다
+        if (!useSnapshot && s instanceof org.bukkit.craftbukkit.block.CraftBlockEntityState t) t.makeLive();
+        return s;
+    }
+
+    private org.domi.furnace.api.world.World furnaceWorld() { return Compat.furnace().world(dimension); }
+
+    @Override
+    public byte getLightLevel() { return (byte) furnaceWorld().lightLevelNow(pos); }
+
+    @Override
+    public byte getLightFromSky() { return (byte) furnaceWorld().skyLightNow(pos); }
+
+    @Override
+    public byte getLightFromBlocks() { return (byte) furnaceWorld().blockLightNow(pos); }
+
+    /** null 은 "도구 검사 없음"으로 그대로 넘기고, 공기 등 빈 아이템은 빈손으로(Paper asNMSCopy 와 같다). */
+    private static org.domi.furnace.api.item.ItemStack tool(org.bukkit.inventory.ItemStack item) {
+        return item == null ? null : CompatItems.toFurnace(item);
+    }
+
+    @Override
+    public boolean breakNaturally() { return breakNaturally(null); }
+
+    @Override
+    public boolean breakNaturally(org.bukkit.inventory.ItemStack tool) { return breakNaturally(tool, false); }
+
+    @Override
+    public boolean breakNaturally(boolean triggerEffect, boolean dropExperience) { return breakNaturally(null, triggerEffect, dropExperience); }
+
+    @Override
+    public boolean breakNaturally(org.bukkit.inventory.ItemStack tool, boolean triggerEffect, boolean dropExperience) {
+        return furnaceWorld().breakNaturallyNow(pos, tool(tool), triggerEffect, dropExperience);
+    }
+
+    @Override
+    public java.util.Collection<org.bukkit.inventory.ItemStack> getDrops() { return getDrops(null); }
+
+    @Override
+    public java.util.Collection<org.bukkit.inventory.ItemStack> getDrops(org.bukkit.inventory.ItemStack tool) {
+        java.util.List<org.bukkit.inventory.ItemStack> out = new java.util.ArrayList<>();
+        for (var d : furnaceWorld().dropsNow(pos, tool(tool))) out.add(CompatItems.copyOf(d));
+        return out;
+    }
 
     @Override
     public void setType(Material type) { setBlockData(CompatBlockData.create(type), true); }
@@ -72,8 +136,8 @@ public final class CompatBlock implements Block {
     @Override
     public void setBlockData(BlockData data, boolean applyPhysics) {
         Objects.requireNonNull(data, "BlockData cannot be null");
-        if (!applyPhysics) throw new UnsupportedFeature("Block#setBlockData(applyPhysics=false)", "Furnace 의 setBlock 은 항상 이웃을 갱신한다");
-        if (!(data instanceof CompatBlockData d)) throw new IllegalArgumentException("Furnace 가 만든 BlockData 가 아니다: " + data.getClass().getName());
+        if (!applyPhysics) throw new UnsupportedFeature("Block#setBlockData(applyPhysics=false)", "Furnace setBlock always updates the neighbours");
+        if (!(data instanceof CompatBlockData d)) throw new IllegalArgumentException("not a BlockData created by Furnace: " + data.getClass().getName());
         var block = furnaceBlock();
         boolean set;
         try {
@@ -82,7 +146,16 @@ public final class CompatBlock implements Block {
             Owned.write(block.setAsync(d.furnace()), "Block#setBlockData" + pos);
             return;
         }
-        if (!set) throw new IllegalStateException("블록을 바꾸지 못했다 — 청크가 로드돼 있지 않거나 높이 밖이다(Furnace 는 동기로 청크를 불러오지 않는다): " + pos);
+        // 바닐라 setBlock 은 같은 상태면 false 다 — 이미 그 상태면 할 일이 없는 것(Paper 도 조용히 끝난다)
+        if (!set && !sameAsNow(block, d.furnace())) throw new IllegalStateException("could not change the block - the chunk is not loaded or the height is out of range (Furnace does not load chunks synchronously): " + pos);
+    }
+
+    private static boolean sameAsNow(org.domi.furnace.api.world.Block block, org.domi.furnace.api.world.BlockData want) {
+        try {
+            return block.data().equals(want);
+        } catch (IllegalStateException notLoaded) {
+            return false;
+        }
     }
 
     @Override

@@ -33,7 +33,7 @@ public final class TextTags {
     }
 
     /** compound → 스타일(형식이 틀리면 null). */
-    static Style tagToStyle(NbtCompound tag) {
+    public static Style tagToStyle(NbtCompound tag) {
         try {
             return JsonTextSerializer.json().deserializeStyle(toJson(tag).toString());
         } catch (RuntimeException e) {
@@ -62,6 +62,6 @@ public final class TextTags {
             for (var e : c.tags().entrySet()) obj.add(e.getKey(), toJson(e.getValue()));
             return obj;
         }
-        throw new IllegalArgumentException("텍스트로 옮길 수 없는 NBT: " + o);
+        throw new IllegalArgumentException("NBT that cannot be converted to text: " + o);
     }
 }

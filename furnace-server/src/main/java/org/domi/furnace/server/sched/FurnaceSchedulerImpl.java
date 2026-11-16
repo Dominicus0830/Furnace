@@ -41,6 +41,11 @@ public final class FurnaceSchedulerImpl implements FurnaceScheduler, AutoCloseab
         return global;
     }
 
+    @Override
+    public boolean isTickThread() {
+        return GlobalThread.isGlobalThread() || RegionThread.isRegionThread() || org.domi.furnace.server.world.Regionizer.isRegionWorkerThread();
+    }
+
     /** RegionPos 는 청크 좌표 — 그 청크를 가진 region 에서 돈다. */
     @Override
     public TaskScheduler region(RegionPos pos) {

@@ -41,11 +41,15 @@ public final class BlockBehaviors {
      */
     private static void installRandomTicking(BlockBehavior[] arr) {
         Blocks b = Blocks.get();
-        boolean[] t = new boolean[b.stateCount()];
+        boolean[] t = new boolean[b.stateCount()], present = new boolean[t.length], lava = new boolean[t.length];
         for (int s = 0; s < t.length; s++) {
             BlockBehavior beh = arr[b.blockOf(s)];
-            t[s] = beh.isRandomlyTicking(s) || Fluids.isLava(beh.getFluidState(s));
+            int f = beh.getFluidState(s);
+            t[s] = beh.isRandomlyTicking(s) || Fluids.isLava(f);
+            present[s] = !Fluids.isEmpty(f);
+            lava[s] = Fluids.isLava(f);
         }
+        org.domi.furnace.server.world.ChunkSection.fluidTables(present, lava);
         org.domi.furnace.server.world.ChunkSection.randomTickingTable(t);
     }
 

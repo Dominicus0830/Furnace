@@ -1,6 +1,7 @@
 // Netty ServerBootstrap으로 프로토콜 파이프라인을 세워 접속을 수락하는 네트워크 서버
 package org.domi.furnace.server.net;
 
+import org.domi.furnace.api.GameVersion;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
@@ -14,6 +15,7 @@ import org.domi.furnace.server.net.io.FrameDecoder;
 import org.domi.furnace.server.net.io.FrameEncoder;
 import org.domi.furnace.server.entity.EntityIdAllocator;
 import org.domi.furnace.server.world.World;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -93,7 +95,7 @@ public final class NetworkServer {
     static String ioUringUnavailableReason() {
         try {
             Throwable c = io.netty.incubator.channel.uring.IOUring.unavailabilityCause();
-            return c == null ? "알 수 없음" : String.valueOf(c.getMessage() != null ? c.getMessage() : c);
+            return c == null ? Lang.t("net.unknown") : String.valueOf(c.getMessage() != null ? c.getMessage() : c);
         } catch (Throwable t) {
             return t.toString();
         }
@@ -106,7 +108,7 @@ public final class NetworkServer {
         boolean uring = false;
         if (useIoUring) {
             uring = ioUringAvailable();
-            if (!uring) log.warn("io-uring=true 이지만 이 환경에서 io_uring 을 쓸 수 없습니다({}) — epoll/NIO 로 되돌아갑니다", ioUringUnavailableReason());
+            if (!uring) log.warn(Lang.t("net.io-uring-unavailable", ioUringUnavailableReason()));
         }
         boolean epoll = !uring && useNativeTransport && io.netty.channel.epoll.Epoll.isAvailable();
         Class<? extends io.netty.channel.ServerChannel> channelType;
@@ -130,8 +132,7 @@ public final class NetworkServer {
             log.info("Using default channel type");
         }
         if (loginContext.limits().proxyProtocol()) {
-            log.warn("PROXY 프로토콜이 켜져 있습니다(proxy-protocol=true): 모든 접속이 PROXY 헤더를 보내야 하며, 앞단 밖에서 직접 접속할 수 있으면 주소를 속일 수 있습니다.{}",
-                    loginContext.limits().proxyTrusted().isEmpty() ? " 'proxy-protocol.trusted' 로 앞단 주소를 제한하세요." : "");
+            log.warn(Lang.t(loginContext.limits().proxyTrusted().isEmpty() ? "net.proxy-protocol-on-open" : "net.proxy-protocol-on"));
         }
         ServerBootstrap b = new ServerBootstrap();
         b.group(bossGroup, workerGroup)
@@ -154,7 +155,7 @@ public final class NetworkServer {
                                 .addLast("readTimeout", new io.netty.handler.timeout.ReadTimeoutHandler(
                                         readTimeoutSeconds > 0 ? readTimeoutSeconds : limits.readTimeoutSeconds()))
                                 .addLast("writabilityGuard", new WritabilityGuard(loginContext.logIps))
-                                .addLast("legacyPing", new LegacyPingHandler(loginContext.motd, loginContext.maxPlayers, "1.21.1",
+                                .addLast("legacyPing", new LegacyPingHandler(loginContext.motd, loginContext.maxPlayers, GameVersion.MINECRAFT,
                                         () -> (int) world.onlinePlayers().stream().filter(p -> !p.isDisconnected()).count()))
                                 .addLast("frameDecoder", new FrameDecoder())
                                 .addLast("frameEncoder", new FrameEncoder())
@@ -172,7 +173,7 @@ public final class NetworkServer {
             throw e;
         }
         int boundPort = ((InetSocketAddress) channel.localAddress()).getPort();
-        log.info("네트워크 서버 listen: 포트 {} (압축 임계값 {})", boundPort, compressionThreshold);
+        log.debug("Network server listening on port {} (compression threshold {})", boundPort, compressionThreshold);
         return boundPort;
     }
 
@@ -189,6 +190,6 @@ public final class NetworkServer {
         // 다음 단계(FLUSH_WORLDS 저장 기준점)가 그 작업보다 먼저 서지 않게(A03-01·A04).
         if (workerGroup != null) workerGroup.shutdownGracefully(100, 5_000, java.util.concurrent.TimeUnit.MILLISECONDS).awaitUninterruptibly(6_000);
         if (bossGroup != null) bossGroup.shutdownGracefully();
-        log.info("네트워크 서버 종료");
+        log.debug("Network server stopped");
     }
 }

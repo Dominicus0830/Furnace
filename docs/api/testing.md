@@ -99,6 +99,19 @@ class MyPluginTest {
   내거나 OP 를 준다. 가짜 플레이어는 처음에 OP 가 아니다(`execute("op Steve")`).
 - `messages()` / `messageLines()`: 받은 시스템 메시지(명령 출력·공지·플러그인 `sendMessage`), `actionBars()`. 서버 쪽에서 직렬화 전 `Text` 를 그대로 모은다.
   `awaitMessage(조건)` 은 비동기로 오는 메시지를 기다린다.
+- **받은 패킷**(E3, 2026-11-12): `received(PacketTypes.Clientbound.X)` 는 이 플레이어가 실제로 받은 그 종류의 패킷을 버전 중립 값(타입 래퍼 레코드 또는 `GenericPacket`)으로(받은 순서) 준다.
+  다른 플러그인 리스너가 바꾸거나 취소한 뒤 소켓으로 온 그대로다. 부르면 먼저 **받은 패킷 장벽**(`flushReceived()` — 서버가 ping 을 보내 돌아올 때까지)을 거치므로,
+  보낸 바로 다음 줄에서 확인해도 된다. `received()` 는 전부, `clearReceived()` 는 비우기(그 전에 온 것까지 읽고 버린다).
+  `awaitPacket(type, 조건)` 은 맞는 패킷이 올 때까지(틱 없이, 시간 제한) 기다리고, 오지 않으면 받은 그 종류 목록을 담아 실패한다.
+  내용을 읽을 수 있는 종류(`PacketService.isReadable` — 타입 래퍼와 `GenericPacket` 133종)만 모은다. 오래 도는 시험의 메모리를 위해 최근 20000개만 남긴다.
+  접속 때 받은 것(입장 메시지·엔티티 생성 등)도 들어 있으니 확인할 동작 앞에서 `clearReceived()` 로 시작한다.
+  킥·접속 끊김 뒤에는 장벽 대신 연결 끝까지 다 읽은 것을 돌려준다.
+
+  ```java
+  steve.command("/glow-shop");
+  var data = steve.awaitPacket(PacketTypes.Clientbound.SET_ENTITY_DATA, d -> d.entityId() == shopId);
+  assertTrue(EntityFlags.has(data.get(EntityDataKeys.Entity.SHARED_FLAGS).orElseThrow(), EntityFlags.GLOWING));
+  ```
 - `player()`: 플러그인이 보는 플레이어 핸들. `close()`: 나가고 서버가 목록에서 뺄 때까지 기다린다.
 
 ### 설정 (`FurnaceTestServer.builder()`)

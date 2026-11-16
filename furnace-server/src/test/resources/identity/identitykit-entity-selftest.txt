@@ -1,0 +1,9 @@
+# 결과 동일 금 파일 — identitykit-entity-selftest. 최적화 PR 은 이 파일을 바꾸지 않는다. 갱신 절차: docs/testing/identitykit.md
+zombie 0 uuid 31bcdffa228d47c4
+zombie 0 random 719ac0b403d52a01
+zombie 1 uuid 161adb1f44a8edd4
+zombie 1 random 971590e1c6aa708f
+zombie 2 uuid 39816ba5d7c768da
+zombie 2 random 88ed345857c62ffd
+level random 0a89fb8f6396bcab
+TOTAL 8d5fa13d3f655634 lines=7

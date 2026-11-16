@@ -50,3 +50,5 @@ srv/stop.sh $D
 - 봇은 클라이언트 물리를 흉내 낼 뿐이라 이동 검증·탈것 조종(스트라이더·돼지는 클라이언트가 움직임을 계산)·화면 표시·소리 재생은 확인할 수 없다.
 - mineflayer 는 `declare_recipes` 를 읽지 못한다(PartialReadError, 무시해도 접속은 유지). 서버 쪽 문제인지는 확인하지 않았다.
 - `srv/*.sh` 는 서버를 한 번에 하나만 띄운다고 가정한다(`^java -Xmx3G` 로 찾음).
+
+- `chunkrate/w60.js` 외 `w60-*` — 다인원(60명) 새 땅 탐험 측정 도구(땅 높이 모드·발밑 분포·이동 검증, 클라우드·Windows 공용) — `chunkrate/W60-README.md`.

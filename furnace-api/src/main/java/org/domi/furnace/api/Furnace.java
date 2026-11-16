@@ -1,4 +1,4 @@
-// 서버 파사드 — 플러그인이 서버와 이야기하는 입구. FurnacePlugin.server() 또는 Furnace.server() 로 얻는다.
+// 서버 파사드. 플러그인이 서버와 이야기하는 입구다. FurnacePlugin.server() 또는 Furnace.server() 로 얻는다.
 package org.domi.furnace.api;
 
 import java.util.Collection;
@@ -19,14 +19,17 @@ public interface Furnace {
     /** 실행 중인 서버. 서버가 시작될 때 한 번 정해진다. */
     static Furnace server() {
         Furnace s = Holder.server;
-        if (s == null) throw new IllegalStateException("서버가 아직 준비되지 않았다");
+        if (s == null) throw new IllegalStateException("the server is not ready yet");
         return s;
     }
 
-    /** 서버 구현 전용 — 한 번만 정할 수 있다. */
+    /** 서버가 아직 없으면 null(예외를 만들지 않는다). 서버 없이도 쓰이는 코드(설정만 쓰는 도구·시험)용. */
+    static Furnace serverOrNull() { return Holder.server; }
+
+    /** 서버 구현 전용. 한 번만 정할 수 있다. */
     static void setServer(Furnace server) {
         synchronized (Holder.class) {
-            if (Holder.server != null && Holder.server != server) throw new IllegalStateException("서버는 한 번만 정할 수 있다");
+            if (Holder.server != null && Holder.server != server) throw new IllegalStateException("the server can only be set once");
             Holder.server = server;
         }
     }
@@ -62,20 +65,40 @@ public interface Furnace {
     /** 모든 차원 월드(오버월드 먼저, 그다음 네더·엔드, 추가 월드는 올린 순서). */
     java.util.List<? extends World> worlds();
 
-    /** 월드 이름(폴더 이름 — 주 월드 world, world_nether, world_the_end, 추가 월드는 그 이름)으로, 없으면 null. 대소문자 구분. */
+    /** 월드 이름(폴더 이름. 주 월드는 world, world_nether, world_the_end, 추가 월드는 그 이름)으로, 없으면 null. 대소문자 구분. */
     default World worldNamed(String name) {
         for (World w : worlds()) if (w.name().equals(name)) return w;
         return null;
     }
 
     /**
-     * 추가 월드를 만들거나 이미 있는 {@code <이름>/} 폴더를 불러온다(Bukkit createWorld, 다중 월드 — docs/api/worlds.md).
+     * 추가 월드를 만들거나 이미 있는 {@code <이름>/} 폴더를 불러온다(Bukkit createWorld, 다중 월드. docs/api/worlds.md).
      * 월드 준비(폴더 잠금·level.dat·생성기)는 백그라운드에서 하고, 틱을 켠 뒤 {@link org.domi.furnace.api.event.world.WorldLoadEvent} 를 보내고 완료된다.
+     * <p>
      * 같은 이름이 이미 올라와 있으면 그 월드로 완료된다(같은 설명서일 때). 키가 다른 월드와 겹치거나, 차원 타입을 모르거나 생성기와 높이가 안 맞으면
      * IllegalArgumentException, 서버가 다중 월드를 지원하지 않으면 UnsupportedOperationException 으로 완료된다. 아무 스레드.
      */
     default java.util.concurrent.CompletableFuture<World> createWorld(org.domi.furnace.api.world.WorldCreator creator) {
         return java.util.concurrent.CompletableFuture.failedFuture(new UnsupportedOperationException("createWorld"));
+    }
+
+    /**
+     * {@link #createWorld} 를 끝까지 기다리는 동기판(Bukkit {@code Server#createWorld} 처럼 돌아올 때 월드가 돌고 있다). 반환 전에
+     * {@link org.domi.furnace.api.event.world.WorldInitEvent}·{@link org.domi.furnace.api.event.world.WorldLoadEvent} 를 보낸다(이미 올라온 월드면 보내지 않는다).
+     * 전역 스레드에서 부르면 그 이벤트를 이 스레드에서 바로 보내고(월드 준비 동안 전역 스레드는 멈춘다. Paper 의 주 스레드와 같다), 다른 스레드면
+     * 전역 스레드가 보낼 때까지 기다린다. 실패는 {@link #createWorld} 와 같은 예외를 그대로 던진다(감싸지 않는다). 5분 안에 못 끝내면 IllegalStateException.
+     */
+    default World createWorldNow(org.domi.furnace.api.world.WorldCreator creator) {
+        throw new UnsupportedOperationException("createWorldNow");
+    }
+
+    /**
+     * {@code <이름>/} 폴더의 level.dat 에 남은 월드 설명서(Furnace 가 만든 월드는 저장된 설명서, Paper·Spigot·Multiverse 가 만든 폴더는
+     * level.dat 생성기 설정과 폴더 배치로 추론한 것). 폴더나 level.dat 이 없으면 null, 읽기 실패는 {@link java.io.UncheckedIOException}.
+     * 있는 월드를 다시 불러올 때 생성기·구조물·평지 층을 그대로 쓰려면 이것을 바탕으로 {@link #createWorld} 한다. 아무 스레드.
+     */
+    default org.domi.furnace.api.world.WorldCreator storedWorldCreator(String name) {
+        return null;
     }
 
     /**
@@ -88,7 +111,7 @@ public interface Furnace {
     }
 
     /**
-     * 서버 TPS(Paper getTPS 에 해당). Furnace 는 region 마다 따로 틱하므로 하나의 "서버 TPS"가 없다 —
+     * 서버 TPS(Paper getTPS 에 해당). Furnace 는 region 마다 따로 틱하므로 하나의 "서버 TPS"가 없다.
      * {@link org.domi.furnace.api.world.ServerTps} 가 플레이어가 있는 region 의 평균(플레이어 수 가중)을 기본으로, 가장 느린 region·전역 박동 값을 함께 준다.
      * 정의는 docs/api/tps.md. 아무 스레드. 서버가 주지 않으면 값이 모두 NaN 인 {@link org.domi.furnace.api.world.ServerTps#UNKNOWN}.
      */
@@ -110,7 +133,7 @@ public interface Furnace {
 
     /**
      * 명령을 실행 큐에 넣는다(앞의 '/' 는 없어도 된다). 어느 스레드에서 불러도 되며 전역 스레드에서 실행된다.
-     * 돌려주는 값은 접수 여부(true)다 — 명령 결과는 실행이 끝난 뒤 정해진다. 서버 종료 중이면 조용히 버려진다.
+     * 돌려주는 값은 접수 여부(true)다. 명령 결과는 실행이 끝난 뒤 정해진다. 서버 종료 중이면 조용히 버려진다.
      */
     boolean dispatchCommand(CommandSender sender, String commandLine);
 
@@ -122,12 +145,16 @@ public interface Furnace {
 
     FurnaceScheduler scheduler();
 
-    /** 블로킹 작업용 실행기(가상 스레드). */
+    /**
+     * 블로킹 작업(파일·DB·HTTP)용 실행기. 기본은 이름 붙은 플랫폼 스레드 풀("Furnace Async Thread - N", Paper 비동기 스케줄러와 같은 모양이며
+     * {@code synchronized} 안에서 기다리는 옛 JDBC 드라이버도 다른 작업을 막지 않는다). 서버 설정 {@code plugins.async-threads=virtual} 이면 가상 스레드.
+     * 어느 쪽이든 월드·엔티티는 스케줄러로 넘겨 만진다.
+     */
     Executor asyncExecutor();
 
     /**
-     * <b>호환 어댑터 전용</b>(Bukkit·Paper 어댑터가 서버 설정을 받는 통로) — 플러그인이 기대지 말 것, 예고 없이 바뀐다.
-     * 서버가 어댑터에게 넘기기로 한 {@code plugins.compat.*} 키의 값만 준다(지금은 {@code plugins.compat.scheduler.async-threads} 하나, 소문자로 다듬은 값).
+     * <b>호환 어댑터 전용</b>(Bukkit·Paper 어댑터가 서버 설정을 받는 통로). 플러그인은 기대면 안 된다. 예고 없이 바뀐다.
+     * 서버가 어댑터에게 넘기기로 한 {@code plugins.compat.*} 키의 값만 준다(예: {@code plugins.compat.scheduler.async-threads}·{@code plugins.compat.config.paper-default-separator}, 소문자로 다듬은 값).
      * 안 적었거나 기본값과 같게 적었거나 다른 키면 null(= 어댑터의 기본값).
      */
     default String compatOption(String key) { return null; }
@@ -139,25 +166,28 @@ public interface Furnace {
 
     CommandRegistry commands();
 
-    /** 패킷 API — 보내기·가로채기·수정(버전 중립 타입). */
+    /** 패킷 API. 보내기·가로채기·수정을 다루며 타입은 버전 중립이다. */
     org.domi.furnace.api.packet.PacketService packets();
 
-    /** 가상 엔티티·가짜 플레이어(NPC)·가짜 탭 줄 — 패킷 API 위에 쌓은 서비스. */
+    /** 가상 엔티티·가짜 플레이어(NPC)·가짜 탭 줄. 패킷 API 위에 쌓은 서비스다. */
     default org.domi.furnace.api.virtual.VirtualEntities virtualEntities() { throw new UnsupportedOperationException("virtualEntities"); }
 
-    /** 가짜 광원 — 블록 없이 서버 빛 엔진에 광원을 더하고 뺀다. */
+    /** 가짜 광원. 블록 없이 서버 빛 엔진에 광원을 더하고 뺀다. */
     default org.domi.furnace.api.light.LightSources lightSources() { throw new UnsupportedOperationException("lightSources"); }
 
-    /** 청크 티켓 — 플러그인이 청크를 로드된 채로 붙잡는다(소유 플러그인이 꺼지면 자동으로 풀린다). */
+    /** 청크 티켓. 플러그인이 청크를 로드된 채로 붙잡는다(소유 플러그인이 꺼지면 자동으로 풀린다). */
     default org.domi.furnace.api.world.ChunkTickets chunkTickets() { throw new UnsupportedOperationException("chunkTickets"); }
 
-    /** 구조물 템플릿 — 바닐라 구조물 NBT 로 영역을 저장하고 놓고, 가까운 구조물을 찾는다. */
+    /** 구조물 템플릿. 바닐라 구조물 NBT 로 영역을 저장하고 놓고, 가까운 구조물을 찾는다. */
     default org.domi.furnace.api.structure.Structures structures() { throw new UnsupportedOperationException("structures"); }
+
+    /** 옛 버전 NBT(블록 상태·이름·아이템·블록 엔티티·엔티티)를 이 서버의 버전으로 올리는 데이터 픽서. */
+    default org.domi.furnace.api.nbt.NbtDataFixer dataFixer() { throw new UnsupportedOperationException("dataFixer"); }
 
     /** 실제 엔티티·플레이어의 플레이어별 보이기·숨기기와 변장. */
     default org.domi.furnace.api.entity.EntityViews entityViews() { throw new UnsupportedOperationException("entityViews"); }
 
-    /** 플레이어별 화면 덮어쓰기 — 가상 블록·바이옴 층, 월드 보더, 장비 표시. */
+    /** 플레이어별 화면 덮어쓰기. 가상 블록·바이옴 층, 월드 보더, 장비 표시를 다룬다. */
     default org.domi.furnace.api.view.PlayerViews playerViews() { throw new UnsupportedOperationException("playerViews"); }
 
     PermissionManager permissions();
@@ -194,11 +224,17 @@ public interface Furnace {
      * ({@link org.domi.furnace.api.internal.Internals} 문서, docs/api/internals.md).
      */
     default org.domi.furnace.api.internal.Internals internals() {
-        throw new UnsupportedOperationException("이 서버 구현은 내부 접근을 제공하지 않는다");
+        throw new UnsupportedOperationException("this server implementation does not provide internals access");
     }
 
     /** 서버를 정상 종료한다(/stop 과 같다). */
     void shutdown();
+
+    /**
+     * 서버가 시작한 뒤 센 서버 틱 번호(바닐라 MinecraftServer.tickCount. 틱 머리에서 하나 오르며 0 부터 센다). 저장되지 않고 /tick freeze 중에도 오른다.
+     * 아무 스레드.
+     */
+    default long currentTick() { throw new UnsupportedOperationException("currentTick"); }
 
     /**
      * 종료가 시작됐는가(ServerShutdownEvent 이후 true). onDisable 에서 "리로드인가 종료인가"를 가릴 때 쓴다.
@@ -211,6 +247,9 @@ public interface Furnace {
 
     /** 게임 규칙(바닐라 + 플러그인 규칙). */
     default org.domi.furnace.api.world.GameRuleRegistry gameRules() { throw new UnsupportedOperationException("gameRules"); }
+
+    /** 데이터 팩 목록·켜고 끄기. */
+    default org.domi.furnace.api.datapack.DataPacks dataPacks() { throw new UnsupportedOperationException("dataPacks"); }
 
     /** 난이도·난이도 프로필. */
     default org.domi.furnace.api.world.DifficultySettings difficulty() { throw new UnsupportedOperationException("difficulty"); }
@@ -226,13 +265,63 @@ public interface Furnace {
      */
     default org.domi.furnace.api.entity.OfflinePlayer offlinePlayerCached(String name) { throw new UnsupportedOperationException("offlinePlayerCached"); }
 
+    /**
+     * 이름(대소문자 무시)으로 프로필을 찾는다. 접속 중인 플레이어(그 플레이어의 속성 포함), 없으면 사용자 캐시(usercache.json, 속성 없음).
+     * 캐시에도 없을 때 서버가 오프라인 모드(인증 안 함)면 바닐라 GameProfileCache.get 처럼 오프라인 UUID 프로필을 만들어 캐시에 넣어 돌려준다.
+     * 인증 모드에서 캐시에 없으면 empty. 인증 서버에는 묻지 않으니 어느 스레드에서 불러도 막히지 않는다({@link #fetchProfileByName} 이 묻는 쪽).
+     */
+    default java.util.Optional<org.domi.furnace.api.entity.ProfileData> profileByName(String name) { throw new UnsupportedOperationException("profileByName"); }
+
+    /** UUID 로 접속 중인 플레이어나 사용자 캐시의 프로필을 찾는다(없으면 empty). 막히지 않는다. */
+    default java.util.Optional<org.domi.furnace.api.entity.ProfileData> profileById(UUID id) { throw new UnsupportedOperationException("profileById"); }
+
+    /**
+     * 접속 중인 플레이어나 사용자 캐시에 있으면 그 프로필을, 없으면 서버 모드와 상관없이 Mojang 에 이름으로 묻는다(결과는 캐시에 넣는다).
+     * 오프라인 프로필을 만들어 넣지 않는다. 네트워크라 비동기이고 실패·없는 이름은 empty. 묻기를 서버 설정에 맡기려면 먼저
+     * {@link #profileLookups()} 를 본다(호환 계층의 기본 플래그가 그것이다).
+     */
+    default java.util.concurrent.CompletableFuture<java.util.Optional<org.domi.furnace.api.entity.ProfileData>> fetchProfileByName(String name) {
+        throw new UnsupportedOperationException("fetchProfileByName");
+    }
+
+    /**
+     * 세션 서버에서 UUID 의 프로필을 서명된 속성(스킨 textures)까지 받아 온다(받은 프로필은 캐시에 넣는다). 서버 모드와 상관없이 부르면 묻는다.
+     * 묻기를 서버 설정에 맡기려면 먼저 {@link #profileLookups()} 를 본다. 못 찾거나 요청이 막히거나 실패하면 empty. 네트워크라 비동기다.
+     */
+    default java.util.concurrent.CompletableFuture<java.util.Optional<org.domi.furnace.api.entity.ProfileData>> fetchProfile(UUID id) {
+        throw new UnsupportedOperationException("fetchProfile");
+    }
+
+    /**
+     * 프로필 속성의 Mojang 서명이 맞는가(서버가 아는 Mojang 공개키로 확인). 공개키를 아직 못 받았거나 서명이 없으면 false.
+     */
+    default boolean verifyProfileProperty(String name, String value, String signature) { return false; }
+
     /** 플레이어 데이터 파일이 있는 모든 플레이어(디렉터리를 읽으니 비동기). */
     default java.util.concurrent.CompletableFuture<java.util.List<org.domi.furnace.api.entity.OfflinePlayer>> knownPlayers() {
         throw new UnsupportedOperationException("knownPlayers");
     }
 
+    /**
+     * 콘솔 입력 줄을 가로챈다(Bukkit 콘솔 Conversation).
+     *
+     * <p>handler 가 있으면 콘솔에 친 줄은 명령으로 실행되지 않고 handler 가 받는다.
+     * handler 는 전역 스레드에서 불리며, {@code ServerCommandEvent} 뒤에 취소되지 않은 줄만 받는다. 줄은 이벤트가 바꾼 값이다.
+     * null 을 넘기면 가로채기를 푼다. 마지막에 정한 handler 하나만 쓴다. RCON 은 가로채지 않는다.
+     */
+    default void consoleInputHandler(java.util.function.Consumer<String> handler) { throw new UnsupportedOperationException("consoleInputHandler"); }
+
+    /** furnace.properties 의 bungeecord(BungeeCord 레거시 IP 포워딩, Spigot settings.bungeecord)가 켜졌는가. */
+    default boolean bungeeCordForwarding() { return false; }
+
     /** server.properties 의 online-mode(접속할 때 Mojang 세션 인증을 하는가). 프록시 뒤라 false 로 둔 서버면 false. */
     default boolean onlineMode() { throw new UnsupportedOperationException("onlineMode"); }
+
+    /**
+     * 프로필 API(스킨 textures·이름→UUID)가 Mojang 에 물어볼 수 있는가(Paper usesAuthentication). 온라인 모드이거나 BungeeCord·Velocity 포워딩이면 참이다.
+     * 프록시 뒤 online-mode=false 서버도 스킨은 받아야 한다. 기본은 {@link #onlineMode()}.
+     */
+    default boolean profileLookups() { return onlineMode(); }
 
     /** OP·밴·IP 밴·화이트리스트 목록. */
     default org.domi.furnace.api.access.AccessLists access() { throw new UnsupportedOperationException("access"); }

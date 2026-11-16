@@ -1,6 +1,7 @@
 // state id ↔ (블록 이름, 프로퍼티) 조회·변경 + 바닐라 BlockState.mirror().rotate() 결과표(blocktransforms_1.21.1.txt.gz).
 package org.domi.furnace.server.world.gen.structure.template;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -58,8 +59,8 @@ public final class BlockStateTable {
 
     private static int[][] loadTransforms(int stateCount) {
         int[][] t = new int[stateCount][];
-        try (InputStream raw = BlockStateTable.class.getClassLoader().getResourceAsStream("blocks/blocktransforms_1.21.1.txt.gz")) {
-            if (raw == null) throw new IllegalStateException("블록 변환표 리소스 없음");
+        try (InputStream raw = BlockStateTable.class.getClassLoader().getResourceAsStream("blocks/blocktransforms_" + GameVersion.RESOURCE_TAG + ".txt.gz")) {
+            if (raw == null) throw new IllegalStateException("block conversion table resource is missing");
             BufferedReader r = new BufferedReader(new InputStreamReader(new GZIPInputStream(raw), StandardCharsets.UTF_8));
             String line;
             while ((line = r.readLine()) != null) {

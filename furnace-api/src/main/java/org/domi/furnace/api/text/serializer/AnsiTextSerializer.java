@@ -1,5 +1,5 @@
-// 콘솔용 ANSI 직렬화기 — Text 를 터미널 색 코드(SGR)가 든 문자열로. 트루컬러/256색/16색/없음을 옵션으로 고른다.
-// 꾸밈: 굵게 1, 기울임 3, 밑줄 4, 취소선 9, 난독화 5(깜박임). 이름 있는 16색은 기본적으로 터미널 팔레트 코드(30-37, 90-97)로 쓴다.
+// 콘솔용 ANSI 직렬화기다. Text 를 터미널 색 코드(SGR)가 든 문자열로 바꾼다. 트루컬러/256색/16색/없음을 옵션으로 고른다.
+// 꾸밈 코드는 굵게 1, 기울임 3, 밑줄 4, 취소선 9, 난독화 5(깜박임)다. 이름 있는 16색은 기본적으로 터미널 팔레트 코드(30-37, 90-97)로 쓴다.
 package org.domi.furnace.api.text.serializer;
 
 import java.util.Locale;
@@ -82,7 +82,7 @@ public final class AnsiTextSerializer {
 
     public ColorMode colorMode() { return mode; }
 
-    /** 글자 + SGR 코드. 스타일이 바뀌는 곳에만 코드를 쓰고, 끝에 스타일이 남아 있으면 ESC[0m 으로 닫는다(옵션). */
+    /** 글자와 SGR 코드. 스타일이 바뀌는 곳에만 코드를 쓰고, 끝에 스타일이 남아 있으면 ESC[0m 으로 닫는다(옵션). */
     public String serialize(Text text) {
         if (mode == ColorMode.NONE) return text.plainText(locale);
         StringBuilder sb = new StringBuilder();

@@ -5,6 +5,7 @@
 //  3) data/ 를 cache/vanilla-data-1.21.1/ 로 풀고 완료 표시를 남긴다(다음 실행부터는 바로 쓴다).
 package org.domi.furnace.server.data;
 
+import org.domi.furnace.api.GameVersion;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.io.IOException;
@@ -33,12 +34,17 @@ public final class VanillaData {
 
     private static final Logger log = LoggerFactory.getLogger("Furnace");
 
-    public static final String VERSION = "1.21.1";
+    public static final String VERSION = GameVersion.MINECRAFT;
     /** 공식 1.21.1 서버 jar(번들러) sha1 — 버전 메타데이터의 downloads.server.sha1 과 같다. */
     static final String SERVER_JAR_SHA1 = "59353fb40c36d304f2035d51e7d6e6baa98dc05c";
     private static final String MANIFEST = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
 
     private VanillaData() {}
+
+    /** 직접 받은 바닐라 서버 jar 를 두는 곳(오류 안내용). */
+    public static Path expectedJar(Path serverDir) {
+        return serverDir.toAbsolutePath().normalize().resolve("cache").resolve("mojang_" + VERSION + ".jar");
+    }
 
     /** data/ 를 담은 폴더를 돌려준다(필요하면 jar 를 구해 풀어 둔다). */
     public static Path ensure(Path serverDir) throws IOException {
@@ -55,7 +61,7 @@ public final class VanillaData {
             if (given != null) {
                 Path src = Path.of(given);
                 String h = sha1(src);
-                if (!SERVER_JAR_SHA1.equals(h)) throw new IOException("furnace.vanillaJar 가 바닐라 " + VERSION + " 서버 jar 가 아니다(sha1 " + h + ")");
+                if (!SERVER_JAR_SHA1.equals(h)) throw new IOException("furnace.vanillaJar is not the vanilla " + VERSION + " server jar (sha1 " + h + ")");
                 Files.copy(src, jar, StandardCopyOption.REPLACE_EXISTING);
             } else {
                 download(jar);
@@ -77,24 +83,23 @@ public final class VanillaData {
                 JsonObject o = v.getAsJsonObject();
                 if (VERSION.equals(o.get("id").getAsString())) { versionUrl = o.get("url").getAsString(); break; }
             }
-            if (versionUrl == null) throw new IOException("Mojang 버전 목록에 " + VERSION + " 이 없다");
+            if (versionUrl == null) throw new IOException("Mojang's version list has no " + VERSION);
             JsonObject server = JsonParser.parseString(get(http, versionUrl)).getAsJsonObject()
                 .getAsJsonObject("downloads").getAsJsonObject("server");
             if (!SERVER_JAR_SHA1.equals(server.get("sha1").getAsString()))
-                throw new IOException("Mojang 이 알려 준 서버 jar sha1 이 예상과 다르다: " + server.get("sha1").getAsString());
+                throw new IOException("the server jar sha1 Mojang reported is not the expected one: " + server.get("sha1").getAsString());
             Path tmp = jar.resolveSibling(jar.getFileName() + ".part");
             HttpResponse<Path> r = http.send(HttpRequest.newBuilder(URI.create(server.get("url").getAsString()))
                 .timeout(Duration.ofMinutes(5)).build(), HttpResponse.BodyHandlers.ofFile(tmp));
-            if (r.statusCode() != 200) throw new IOException("서버 jar 다운로드 실패: HTTP " + r.statusCode());
+            if (r.statusCode() != 200) throw new IOException("downloading the server jar failed: HTTP " + r.statusCode());
             String h = sha1(tmp);
-            if (!SERVER_JAR_SHA1.equals(h)) { Files.deleteIfExists(tmp); throw new IOException("받은 서버 jar 의 sha1 이 다르다: " + h); }
+            if (!SERVER_JAR_SHA1.equals(h)) { Files.deleteIfExists(tmp); throw new IOException("the downloaded server jar has the wrong sha1: " + h); }
             Files.move(tmp, jar, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IOException("다운로드 중단", e);
+            throw new IOException("download interrupted", e);
         } catch (IOException e) {
-            throw new IOException("바닐라 " + VERSION + " 서버 jar 를 구하지 못했다 — 직접 받아 " + jar
-                + " 에 두거나 -Dfurnace.vanillaJar=<경로> 로 지정하라 (" + e.getMessage() + ")", e);
+            throw new IOException("could not get the vanilla " + VERSION + " server jar (" + e.getMessage() + ")", e);
         }
     }
 
@@ -114,17 +119,17 @@ public final class VanillaData {
         Path inner = work.resolve("server.jar");
         try (ZipFile zip = new ZipFile(bundler.toFile())) {
             ZipEntry list = zip.getEntry("META-INF/versions.list");
-            if (list == null) throw new IOException("번들러 jar 가 아니다(META-INF/versions.list 없음)");
+            if (list == null) throw new IOException("not a bundler jar (META-INF/versions.list is missing)");
             String line = new String(zip.getInputStream(list).readAllBytes(), StandardCharsets.UTF_8).trim().split("\n")[0];
             String[] parts = line.split("\t");   // sha256 \t id \t path
             ZipEntry e = zip.getEntry("META-INF/versions/" + parts[2]);
-            if (e == null) throw new IOException("번들러 안에 " + parts[2] + " 가 없다");
+            if (e == null) throw new IOException("the bundler has no entry " + parts[2] + " in it");
             MessageDigest sha256 = digest("SHA-256");
             try (InputStream in = new DigestInputStream(zip.getInputStream(e), sha256)) {
                 Files.copy(in, inner);
             }
             String h = HexFormat.of().formatHex(sha256.digest());
-            if (!h.equalsIgnoreCase(parts[0])) throw new IOException("내부 서버 jar sha256 이 다르다: " + h);
+            if (!h.equalsIgnoreCase(parts[0])) throw new IOException("inner server jar sha256 differs: " + h);
         }
         int files = 0;
         try (ZipFile zip = new ZipFile(inner.toFile())) {
@@ -134,7 +139,7 @@ public final class VanillaData {
                 String name = e.getName();
                 if (e.isDirectory() || !(name.startsWith("data/") || name.equals("version.json"))) continue;
                 Path target = work.resolve(name).normalize();
-                if (!target.startsWith(work)) throw new IOException("잘못된 경로: " + name);
+                if (!target.startsWith(work)) throw new IOException("invalid path: " + name);
                 Files.createDirectories(target.getParent());
                 try (InputStream in = zip.getInputStream(e); OutputStream o = Files.newOutputStream(target)) {
                     in.transferTo(o);

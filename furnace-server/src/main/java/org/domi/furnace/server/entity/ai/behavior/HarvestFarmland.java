@@ -84,7 +84,8 @@ public class HarvestFarmland extends Behavior<Villager> {
             int st = level.getBlockState(aboveFarmlandPos);
             var block = B.behavior(st);
             var below = B.behavior(level.getBlockState(aboveFarmlandPos.below()));
-            if (block instanceof CropBlock c && c.isMaxAge(st)) level.destroyBlock(aboveFarmlandPos, true);
+            // CraftBukkit(+Paper 새 상태): 거두기 전에 EntityChangeBlockEvent — 막으면 그대로 둔다
+            if (block instanceof CropBlock c && c.isMaxAge(st) && B.entityChange(level, v, aboveFarmlandPos, B.fluidLeftover(st))) level.destroyBlock(aboveFarmlandPos, true);
             if (B.isAir(st) && below instanceof FarmBlock && v.hasFarmSeeds()) {
                 MobInventory inv = v.getInventory();
                 for (int i = 0; i < inv.size(); i++) {
@@ -94,9 +95,12 @@ public class HarvestFarmland extends Behavior<Villager> {
                     var blockItem = Villager.isPlantableSeed(s) ? org.domi.furnace.server.block.BlockItems.entry(ItemTools.itemName(s)) : null;
                     if (blockItem != null && blockItem.block() >= 0) {
                         int state = B.defaultState(blockItem.block());
-                        level.setBlock(aboveFarmlandPos, state, 3);
-                        level.gameEventFrom("minecraft:block_place", aboveFarmlandPos, v, state);
-                        planted = true;
+                        // CraftBukkit: 심기 전에 EntityChangeBlockEvent — 막으면 이 칸의 씨앗은 쓰지 않고 다음 칸으로 넘어간다
+                        if (B.entityChange(level, v, aboveFarmlandPos, state)) {
+                            level.setBlock(aboveFarmlandPos, state, 3);
+                            level.gameEventFrom("minecraft:block_place", aboveFarmlandPos, v, state);
+                            planted = true;
+                        }
                     }
                     if (planted) {
                         level.playSound(null, aboveFarmlandPos.x(), aboveFarmlandPos.y(), aboveFarmlandPos.z(), "minecraft:item.crop.plant", "blocks", 1.0F, 1.0F);

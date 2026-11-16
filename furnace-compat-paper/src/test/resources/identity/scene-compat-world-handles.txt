@@ -1,0 +1,14 @@
+# 결과 동일 금 파일 — scene-compat-world-handles. 최적화 PR 은 이 파일을 바꾸지 않는다. 갱신 절차: docs/testing/identitykit.md
+dimensions [minecraft:overworld]
+world minecraft:overworld api-same=true loaded=true compat-same=true name=world env=NORMAL min=-64 max=320 by-name=true by-api=true uid=true seed-same=true
+bukkit-worlds world,
+threads 1 distinct-world-objects 1 same-as-main true
+threads 2 distinct-world-objects 1 same-as-main true
+threads 4 distinct-world-objects 1 same-as-main true
+same-world block=true location=true entity=true entity-loc=true player=true player-loc=true relative=true chunk=true
+owner-region stone=STONE stairs=minecraft:oak_stairs[facing=east,half=top,shape=straight,waterlogged=false] world-getBlockAt=STONE pig-loc=-49.0 pig-type=PIG player-loc-world=world player-world=world
+other-region stone=!ThreadOwnershipException stairs=!ThreadOwnershipException world-getBlockAt=!ThreadOwnershipException pig-loc=-49.0 pig-type=PIG player-loc-world=world player-world=world
+global stone=!ThreadOwnershipException stairs=!ThreadOwnershipException world-getBlockAt=!ThreadOwnershipException pig-loc=-49.0 pig-type=PIG player-loc-world=world player-world=world
+test-thread stone=!ThreadOwnershipException stairs=!ThreadOwnershipException world-getBlockAt=!ThreadOwnershipException pig-loc=-49.0 pig-type=PIG player-loc-world=world player-world=world
+async stone=!ThreadOwnershipException stairs=!ThreadOwnershipException world-getBlockAt=!ThreadOwnershipException pig-loc=-49.0 pig-type=PIG player-loc-world=world player-world=world
+TOTAL 7d4ed2d3d868f330 lines=12

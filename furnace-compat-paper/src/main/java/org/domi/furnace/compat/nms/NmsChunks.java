@@ -1,0 +1,163 @@
+package org.domi.furnace.compat.nms;
+
+import java.util.List;
+import net.minecraft.core.Holder;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.level.biome.Biome;
+import org.domi.furnace.api.internal.ChunkInternals;
+import org.domi.furnace.api.world.World;
+
+/**
+ * NMS 청크 shim(N2a)의 서버 다리 — {@link ChunkInternals}(번호 단위 읽기)를 한 번 꺼내 두고, 바이옴 번호 ↔ {@code Holder<Biome>} 표를 만든다.
+ * 블록 쓰기는 다리의 단일 칸 쓰기 두 개(바닐라 Level.setBlock·LevelChunk.setBlockState 그대로)로 간다.
+ */
+public final class NmsChunks {
+
+    private NmsChunks() {}
+
+    /** 서버마다 다리 하나(시험은 한 JVM 에서 서버를 여러 번 띄운다). */
+    private record Cached(org.domi.furnace.api.Furnace server, ChunkInternals bridge) {}
+
+    private static volatile Cached cached;
+    private static volatile BiomeTable biomes;
+
+    /** 서버의 청크 내부 다리(서버마다 처음 한 번 꺼낸다). */
+    public static ChunkInternals bridge() {
+        var server = org.domi.furnace.api.Furnace.server();
+        Cached c = cached;
+        if (c == null || c.server != server) cached = c = new Cached(server, server.internals().chunks());
+        return c.bridge;
+    }
+
+    private record BiomeTable(org.domi.furnace.api.Furnace server, List<String> keys, List<Holder.Reference<Biome>> holders,
+                              java.util.Map<String, Holder.Reference<Biome>> byKey, java.util.Map<String, Integer> index) {}
+
+    private static BiomeTable biomeTable() {
+        BiomeTable t = biomes;
+        return t != null && t.server == org.domi.furnace.api.Furnace.server() ? t : rebuildBiomes();
+    }
+
+    /** 서버 바이옴 목록으로 표를 다시 만든다(처음, 또는 모르는 번호·키가 나왔을 때 — 데이터 팩 바이옴이 늘었을 수 있다). 같은 키는 같은 객체를 잇는다. */
+    private static synchronized BiomeTable rebuildBiomes() {
+        var server = org.domi.furnace.api.Furnace.server();
+        BiomeTable t = biomes;
+        List<String> keys = bridge().biomeKeys();
+        if (t != null && t.server == server && t.keys.equals(keys)) return t;
+        java.util.ArrayList<Holder.Reference<Biome>> hs = new java.util.ArrayList<>(keys.size());
+        java.util.HashMap<String, Holder.Reference<Biome>> by = new java.util.HashMap<>();
+        java.util.HashMap<String, Integer> index = new java.util.HashMap<>();
+        for (int n = 0; n < keys.size(); n++) {
+            String k = keys.get(n);
+            index.putIfAbsent(k, n);
+            Holder.Reference<Biome> old = t == null ? null : t.byKey.get(k);   // 같은 키는 같은 객체(== 비교)
+            if (old == null) {
+                ResourceKey<Biome> key = ResourceKey.create(Registries.BIOME, ResourceLocation.parse(k));
+                old = new Holder.Reference<>(key, new Biome(key));
+            }
+            hs.add(old);
+            by.put(k, old);
+        }
+        biomes = t = new BiomeTable(server, List.copyOf(keys), List.copyOf(hs), java.util.Map.copyOf(by), java.util.Map.copyOf(index));
+        return t;
+    }
+
+    /** 바이옴 레지스트리 번호의 holder. 모르는 번호면 IllegalStateException(서버가 준 번호라 생기지 않아야 한다). */
+    public static Holder.Reference<Biome> biome(int id) {
+        var hs = biomeTable().holders;
+        if (id >= hs.size()) hs = rebuildBiomes().holders;
+        if (id < 0 || id >= hs.size()) throw new IllegalStateException("unknown biome id: " + id);
+        return hs.get(id);
+    }
+
+    /** holder 의 바이옴 레지스트리 번호. 이 서버의 바이옴이 아니면 IllegalArgumentException. */
+    public static int biomeId(Holder<Biome> holder) {
+        if (holder != null && holder.value() instanceof Biome b) {
+            String k = b.furnaceKey().location().toString();
+            Integer i = biomeTable().index.get(k);
+            if (i == null) i = rebuildBiomes().index.get(k);
+            if (i != null) return i;
+        }
+        throw new IllegalArgumentException("not a biome of this server: " + holder);
+    }
+
+    /**
+     * 바이옴 손잡이 ↔ 레지스트리 번호 표(바닐라 {@code registryOrThrow(BIOME).asHolderIdMap()} 와 같은 번호). 없는 값은 -1, 없는 번호는 null.
+     * 데이터 팩 바이옴이 늘면 다음 물음에서 표를 다시 만든다. 하나뿐인 객체라 팔레트 컨테이너가 쥐고 있어도 된다.
+     */
+    public static final net.minecraft.core.IdMap<Holder<Biome>> BIOME_IDS = new net.minecraft.core.IdMap<>() {
+        @Override
+        public int getId(Holder<Biome> holder) {
+            if (holder == null || !(holder.value() instanceof Biome b)) return -1;
+            String k = b.furnaceKey().location().toString();
+            Integer i = biomeTable().index.get(k);
+            if (i == null) i = rebuildBiomes().index.get(k);
+            return i == null ? -1 : i;
+        }
+
+        @Override
+        public Holder<Biome> byId(int id) {
+            var hs = biomeTable().holders;
+            if (id >= hs.size()) hs = rebuildBiomes().holders;
+            return id < 0 || id >= hs.size() ? null : hs.get(id);
+        }
+
+        @Override
+        public int size() { return biomeTable().holders.size(); }
+
+        @Override
+        public java.util.Iterator<Holder<Biome>> iterator() { return biomeTable().holders.stream().<Holder<Biome>>map(h -> h).iterator(); }
+    };
+
+    // ------------------------------------------------------------------ 청크 shim 정체성(N2b-1)
+
+    /**
+     * 로드 한 번 = LevelChunk shim 하나(바닐라처럼). shim 은 서버 컬럼이 약하게 쥔다(아무도 쥐지 않은 shim 은 버려지고 다음에 새로 만든다 — 쥔 동안은
+     * 같은 객체, 붙이기는 CAS 라 먼저 붙은 쪽이 이긴다). 섹션·컨테이너·하이트맵 보기가 청크 shim 을 강하게 쥐므로 플러그인이 섹션 하나만 쥐어도 같은
+     * 섹션 배열이 유지된다(설계 3.2, R14). 전역 잠금·약한 맵이 없다(N2b-3, PR #365 검토 R7).
+     * <p>주인 스레드가 아니면(비동기 작업·다른 region, 결정 D4) 공개 스냅샷이 있을 때만 준다 — 다른 스레드가 받은 shim 은 늘 읽힌다(설계 R16).
+     * 공개본이 아직 없으면 null 을 주고 주인에게 공개를 부탁한다(다음 틱부터 보인다 — Paper getChunkAtIfLoadedImmediately 가 경쟁 중에 null 을 주는 것과 같은 꼴).
+     */
+    public static net.minecraft.world.level.chunk.LevelChunk loadedChunk(net.minecraft.world.level.Level level, int chunkX, int chunkZ) {
+        World w = level.getWorld().furnaceHandle();
+        ChunkInternals b = bridge();
+        boolean owner = b.ownsChunk(w, chunkX, chunkZ);
+        if (!owner && b.chunkView(w, chunkX, chunkZ) == null) return null;   // 로드 안 됨, 또는 공개본 없음(부탁해 둠)
+        if (b.chunkShim(w, chunkX, chunkZ) instanceof net.minecraft.world.level.chunk.LevelChunk c) return c;
+        var made = net.minecraft.world.level.chunk.LevelChunk.furnaceView(level, chunkX, chunkZ);
+        if (!(b.attachChunkShim(w, chunkX, chunkZ, made, made.furnaceMirror()) instanceof net.minecraft.world.level.chunk.LevelChunk c)) return null;
+        // 붙는 사이 주인이 오래 안 읽힌 공개본을 내렸을 수 있다 — 이제 shim 이 붙어 있으니 주인이 다시 낸다(그때까지는 없는 것으로)
+        return owner || b.chunkView(w, chunkX, chunkZ) != null ? c : null;
+    }
+
+    /**
+     * {@link #loadedChunk} 의 기다리는 판(바닐라 ServerChunkCache.getChunk 가 주 스레드가 아닌 곳에서 주 스레드를 기다리는 것과 같은 간선): 로드돼 있는데
+     * 공개본이 없으면 region 이 아닌 스레드는 주인이 공개할 때까지 기다린다. 다른 region 스레드·전역 스레드는 기다리지 않고 IllegalStateException(교착 방지).
+     * 로드돼 있지 않으면 null.
+     */
+    public static net.minecraft.world.level.chunk.LevelChunk awaitLoadedChunk(net.minecraft.world.level.Level level, int chunkX, int chunkZ) {
+        var c = loadedChunk(level, chunkX, chunkZ);
+        if (c != null) return c;
+        World w = level.getWorld().furnaceHandle();
+        if (bridge().awaitChunkView(w, chunkX, chunkZ) == null) return null;
+        return loadedChunk(level, chunkX, chunkZ);
+    }
+
+    /** 바이옴 레지스트리 번호 순 손잡이 전부(서버 바이옴 목록이 바뀌었으면 표를 다시 만든다). 레지스트리 shim 이 같은 손잡이 객체를 쓰게 한다. */
+    public static List<Holder.Reference<Biome>> biomeHolders() { return rebuildBiomes().holders; }
+
+    /** 바이옴 키의 holder(없으면 null). */
+    public static Holder.Reference<Biome> biome(String key) { return biomeTable().byKey.get(key); }
+
+    /** 서버 청크 번호 → BlockState shim. */
+    public static net.minecraft.world.level.block.state.BlockState state(int id) {
+        return net.minecraft.world.level.block.Block.stateById(id);
+    }
+
+    /** 청크가 로드돼 있지 않을 때 — Paper 는 주 스레드에서 동기로 불러오지만 Furnace 는 동기로 불러오지 않는다. */
+    public static IllegalStateException notLoaded(World w, int cx, int cz, String what) {
+        return new IllegalStateException(what + ": chunk " + cx + ", " + cz + " (" + w.dimension() + ") is not loaded - Furnace does not load chunks synchronously"
+                + " (Paper's getChunk loads on the main thread). Check with getChunkIfLoaded / getChunkAtIfLoadedImmediately, or use Bukkit World#getChunkAtAsync");
+    }
+}

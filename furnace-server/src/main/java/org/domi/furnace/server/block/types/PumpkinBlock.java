@@ -1,6 +1,7 @@
 // 바닐라 PumpkinBlock: 가위로 깎으면 깎은 호박(클릭 면 쪽, 위아래 면이면 플레이어 반대쪽)이 되고 씨 4개를 떨군다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockBehavior;
@@ -13,6 +14,7 @@ import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.item.ItemContext;
 
+@VanillaPort("net.minecraft.world.level.block.PumpkinBlock")
 public class PumpkinBlock extends BlockBehavior {
 
     private static final int CARVED_PUMPKIN = B.id("carved_pumpkin");

@@ -1,6 +1,7 @@
 // LivingEntity.hurt 넉백 방향(투사체 속도/원인 위치/원인 없음)과 knockback 의 Math.random 보정.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.block.LegacyRandomSource;
@@ -13,7 +14,7 @@ class HurtKnockbackParityTest {
     @BeforeAll
     static void install() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static final Entity.Damage MOB = new Entity.Damage("mob_attack", false, false, false);

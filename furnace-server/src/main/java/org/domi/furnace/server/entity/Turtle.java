@@ -414,10 +414,15 @@ public class Turtle extends Animal {
                     turtle.setLayingEgg(true);
                 } else if (turtle.layEggCounter > adjustedTickDelay(200)) {
                     ChunkLevel level = turtle.level();
-                    level.playSound(null, pos, "minecraft:entity.turtle.lay_egg", "blocks", 0.3F, 0.9F + level.random().nextFloat() * 0.2F);
                     Pos eggPos = blockPos.above();
+                    // Paper(Turtle API): 알 수(거북 난수)를 먼저 정하고 EntityChangeBlockEvent 를 묻는다 — 막으면 알은 놓지 않고 알 품기만 끝난다.
+                    // 소리 높낮이는 월드 난수라 거북 난수와 순서가 바뀌어도 결과는 바닐라와 같다
                     int state = EGGS.withInt(B.defaultState(B.id("minecraft:turtle_egg")), turtle.random().nextInt(4) + 1);
-                    level.setBlock(eggPos, state, 3);
+                    if (B.entityChange(level, turtle, eggPos, state)) {
+                        level.playSound(null, pos, "minecraft:entity.turtle.lay_egg", "blocks", 0.3F, 0.9F + level.random().nextFloat() * 0.2F);
+                        level.setBlock(eggPos, state, 3);
+                        level.gameEventFrom("minecraft:block_place", eggPos, turtle, state);   // 바닐라 1.21.1 에 있는데 빠져 있던 줄
+                    }
                     turtle.setHasEgg(false);
                     turtle.setLayingEgg(false);
                     turtle.setInLoveTime(600);

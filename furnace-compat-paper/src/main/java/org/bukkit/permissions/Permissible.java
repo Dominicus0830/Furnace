@@ -44,7 +44,7 @@ public interface Permissible extends ServerOperator {
     default Set<PermissionAttachmentInfo> getEffectivePermissions() { throw noAttachments(this); }
 
     private static UnsupportedOperationException noAttachments(Permissible who) {
-        return new org.domi.furnace.compat.paper.UnsupportedFeature("권한 첨부(" + who.getClass().getSimpleName() + ")",
-                "이 대상은 Bukkit 권한 첨부를 받지 않는다 — 플레이어만 받는다");
+        return new org.domi.furnace.compat.paper.UnsupportedFeature("permission attachment (" + who.getClass().getSimpleName() + ")",
+                "this target does not accept Bukkit permission attachments - only players do");
     }
 }

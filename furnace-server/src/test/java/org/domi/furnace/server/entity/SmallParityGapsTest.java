@@ -1,6 +1,7 @@
 // 작은 바닐라 차이 정리: 몹 장비 인챈트 속성(화염 보호), 스폰 알로 새끼 낳기(SpawnEggItem.spawnOffspringFromSpawnEgg), 변환 때 아기 유지.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Map;
@@ -20,7 +21,7 @@ class SmallParityGapsTest {
     @BeforeAll
     static void install() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static ItemStack item(String name) { return new ItemStack(ItemContext.id("minecraft:item", name), 1); }

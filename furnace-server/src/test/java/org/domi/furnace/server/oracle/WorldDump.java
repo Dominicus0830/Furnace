@@ -3,6 +3,7 @@
 // 같은 시나리오를 돌린 순정 서버·Furnace 의 덤프를 diff 해서 블록 동작을 비교한다(tools/block-oracle).
 package org.domi.furnace.server.oracle;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.PrintWriter;
@@ -31,7 +32,7 @@ class WorldDump {
         String[] p = area.split(",");
         int x1 = Integer.parseInt(p[0]), y1 = Integer.parseInt(p[1]), z1 = Integer.parseInt(p[2]);
         int x2 = Integer.parseInt(p[3]), y2 = Integer.parseInt(p[4]), z2 = Integer.parseInt(p[5]);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         AnvilChunkCodec codec = new AnvilChunkCodec(reg, 0);
         RegionFileStore store = new RegionFileStore(Path.of(world));
         Map<Long, ChunkColumn> cache = new HashMap<>();
