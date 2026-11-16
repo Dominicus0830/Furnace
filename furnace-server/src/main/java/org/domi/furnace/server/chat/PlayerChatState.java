@@ -10,7 +10,8 @@ public final class PlayerChatState {
     public static final int VISIBILITY_FULL = 0, VISIBILITY_SYSTEM = 1, VISIBILITY_HIDDEN = 2;
     private static final int MAX_PENDING = 4096;
 
-    private final UUID profileId;
+    /** 엔티티 UUID(바닐라 player.getUUID()) — 서명 디코더·sender 는 프로필 id 가 아니라 이것이다(Paper 도 같다, 설계 R6). */
+    private final UUID ownerUuid;
     private final BooleanSupplier enforcesSecureChat;
     public final LastSeenMessagesValidator lastSeen = new LastSeenMessagesValidator(LastSeenMessages.LAST_SEEN_MESSAGES_MAX_LENGTH);
     private final MessageSignatureCache signatureCache = MessageSignatureCache.createDefault();
@@ -23,10 +24,10 @@ public final class PlayerChatState {
     private int spamTicks;
     private long spamUpdatedNanos = System.nanoTime();
 
-    public PlayerChatState(UUID profileId, BooleanSupplier enforcesSecureChat) {
-        this.profileId = profileId;
+    public PlayerChatState(UUID ownerUuid, BooleanSupplier enforcesSecureChat) {
+        this.ownerUuid = ownerUuid;
         this.enforcesSecureChat = enforcesSecureChat;
-        this.decoder = SignedMessageChain.Decoder.unsigned(profileId, enforcesSecureChat);
+        this.decoder = SignedMessageChain.Decoder.unsigned(ownerUuid, enforcesSecureChat);
     }
 
     public RemoteChatSession session() { return session; }
@@ -38,7 +39,7 @@ public final class PlayerChatState {
     /** 바닐라 resetPlayerChatState. */
     public void resetSession(RemoteChatSession s) {
         this.session = s;
-        this.decoder = s.createMessageDecoder(profileId);
+        this.decoder = s.createMessageDecoder(ownerUuid);
     }
 
     public int visibility() { return visibility; }

@@ -73,7 +73,10 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
     @Override
     public String getDisplayName() {
         org.domi.furnace.api.text.Text custom = handle.customDisplayName();
-        return custom != null ? Compat.legacy(custom) : handle.name();
+        if (custom != null) return Compat.legacy(custom);
+        // Paper adventure$displayName: 접속 때의 이름 — setPlayerProfile 로 이름이 바뀌어도 그대로다(설계 R4)
+        var c = handle.connection();
+        return c != null && c.name() != null ? c.name() : handle.name();
     }
 
     @Override

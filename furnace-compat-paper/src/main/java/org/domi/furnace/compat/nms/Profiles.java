@@ -52,7 +52,8 @@ public final class Profiles {
     /** 접속한 플레이어의 프로필(authlib 이 없으면 null). */
     public static GameProfile of(org.domi.furnace.api.entity.Player player) {
         if (!available()) return null;
-        return of(player.uniqueId(), player.name(), player.profileProperties());
+        var g = player.profile();   // ServerPlayer.gameProfile — 엔티티 UUID 가 아니라 프로필
+        return of(g.id(), g.name(), g.properties());
     }
 
     /** 프로필의 속성(스킨 textures 등). */

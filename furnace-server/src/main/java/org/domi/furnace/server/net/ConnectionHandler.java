@@ -420,7 +420,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 java.util.List<Boolean> listing = new java.util.ArrayList<>();
                 for (Player p : world.onlinePlayers()) {
                     if (p.isDisconnected()) continue;
-                    online.add(new org.domi.furnace.server.players.GameProfile(p.uuid(), p.name()));
+                    online.add(new org.domi.furnace.server.players.GameProfile(p.profile().id(), p.name()));   // 바닐라 상태 sample: getGameProfile
                     listing.add(p.allowsListing());
                 }
                 java.net.InetAddress addr = clientAddress(ctx) instanceof java.net.InetSocketAddress isa ? isa.getAddress() : null;
@@ -643,7 +643,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             return;
         }
         try {
-            var session = data.validate(p.uuid(), validator);
+            var session = data.validate(p.profile().id(), validator);   // 키 검증만 프로필 id(Paper handleChatSessionUpdate) — 디코더·INITIALIZE_CHAT 는 엔티티 UUID
             // 채팅 사슬에서(전역 스레드) — 앞서 온 채팅은 옛 세션으로, 뒤에 온 채팅은 새 세션으로 풀린다(T-035)
             boolean queued = p.chat().chain().appendGlobal(core.scheduler().global(), () -> {
                 p.chat().resetSession(session);
@@ -1326,6 +1326,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
         dimIndex = Math.max(0, registries().indexOf("minecraft:dimension_type", world.dimensionType().typeKey()));
         Player p = new Player(eid, playerUuid, playerName, ctx.channel());
+        var profileHook = login.profileForTest;
+        if (profileHook != null) p.profileForTest(profileHook.apply(p.profile()));   // 시험 전용: 엔티티 UUID 와 다른 프로필(E11c-2a)
         this.joining = p;
         if (login.core != null) login.core.plugins().packetsImpl().attach(p);   // 플러그인 패킷 리스너 — 첫 play 패킷(login)부터
         p.clientBrand(clientBrand);   // 바닐라 클라이언트는 brand 를 구성 단계에서 보낸다 — Player 가 생기기 전이라 여기서 넘긴다
@@ -1501,7 +1503,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (recipes != null) send(ctx, new org.domi.furnace.server.net.protocol.play.UpdateRecipes(recipes.networkBody()));
         if (core != null) {
             // 바닐라 placeNewPlayer → sendPlayerPermissionLevel: 권한 레벨 이벤트 + 쓸 수 있는 명령 트리
-            int level = core.profilePermissions(new org.domi.furnace.server.players.GameProfile(playerUuid, playerName));
+            int level = core.profilePermissions(org.domi.furnace.server.ServerCore.profileOf(p));
             send(ctx, org.domi.furnace.server.net.protocol.play.EntityEvent.permissionLevel(eid, level));
             // 바닐라 sendCommands 처럼 플레이어 소스로 거른다 — 플러그인 명령의 권한(PlayerCreateEvent 에서 붙인 첨부 포함)이 첫 트리부터 맞다.
             // PlayerCommandSendEvent 구독자가 있으면 Paper 처럼 PlayerJoinEvent 뒤에 보낸다(Paper 는 트리를 비동기로 만들어 메인에서 이벤트·전송 — Join 뒤).
@@ -1536,7 +1538,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         p.chat().visibility(chatVisibility);
         p.locale(clientLocale);
         p.clientOptions(clientSkinParts, clientMainArm);
-        log.info("{}[{}] logged in with entity id {} at ({}, {}, {})", playerName, loggableAddress(ctx), eid, sx, sy, sz);
+        log.info("{}[{}] logged in with entity id {} at ({}, {}, {})", p.name(), loggableAddress(ctx), eid, sx, sy, sz);
         p.publishPosition(sx, sy, sz, syaw, spitch, true);
         p.pushTeleport(sx, sy, sz);
         p.clientViewDistance(clientViewDistance);

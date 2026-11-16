@@ -19,6 +19,12 @@ public interface Player extends CommandSender, LivingEntity {
     /** 게임 프로필 속성(세션 서버가 준 스킨 "textures" 등, 오프라인 서버면 빈 목록) — 탭 목록 패킷의 ADD_PLAYER 와 같은 값. */
     default java.util.List<ProfileProperty> profileProperties() { return java.util.List.of(); }
 
+    /**
+     * 지금의 게임 프로필(Paper {@code getPlayerProfile}·{@code getGameProfile}): 이름·속성은 {@link #name()}·{@link #profileProperties()} 와 같고,
+     * id 는 엔티티 UUID({@link #uniqueId()} — 파일·접속자 조회·탭 UUID 칸)와 다를 수 있다. op·화이트리스트·밴은 이 id 로 본다.
+     */
+    default ProfileData profile() { return new ProfileData(uniqueId(), name(), profileProperties()); }
+
     /** 바닐라 Player.getDisplayName: 이름 + "/tell 이름" 제안 클릭 + 삽입. */
     Text displayName();
 

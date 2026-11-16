@@ -63,6 +63,17 @@ public final class ServerLoginContext {
     }
 
     /** 접속 방어 설정(단계별 패킷 속도·크기·시간 초과, 길이 상한, PROXY 프로토콜). 기본은 지금까지의 동작. */
+    /**
+     * 시험 전용: 플레이 진입 때 플레이어의 게임 프로필을 바꿔 넣는다(엔티티 UUID·접속 이름은 그대로). 엔티티 UUID 와 프로필을 나눈 호출처
+     * 분류(T-141 E11c-2a)를 검사한다. null 이면 하지 않는다(운영 서버는 늘 null).
+     */
+    volatile java.util.function.UnaryOperator<GameProfile> profileForTest;
+
+    public ServerLoginContext profileForTest(java.util.function.UnaryOperator<GameProfile> hook) {
+        this.profileForTest = hook;
+        return this;
+    }
+
     volatile ConnectionLimits limits = ConnectionLimits.DEFAULT;
 
     public ServerLoginContext limits(ConnectionLimits limits) {

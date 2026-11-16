@@ -38,10 +38,10 @@ public class CraftPlayerProfile implements PlayerProfile, SharedPlayerProfile {
     private final PropertySet propertySet = new PropertySet();
 
     public CraftPlayerProfile(CraftPlayer player) {
-        var handle = player.furnaceHandle();
-        this.id = handle.uniqueId();
-        this.name = handle.name();
-        for (var p : handle.profileProperties()) properties.add(new ProfileProperty(p.name(), p.value(), p.signature()));
+        var profile = player.furnaceHandle().profile();   // Paper: getGameProfile — id 는 getUniqueId(엔티티)와 다를 수 있다
+        this.id = profile.id();
+        this.name = profile.name();
+        for (var p : profile.properties()) properties.add(new ProfileProperty(p.name(), p.value(), p.signature()));
     }
 
     public CraftPlayerProfile(UUID id, String name) {
