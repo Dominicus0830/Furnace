@@ -1,0 +1,27 @@
+name: tag-check
+
+# 태그 이름 형식 검사(docs/ops/version-tags.md). 태그가 올라오면 이름 규칙을 확인하고,
+# tools/release 가 바뀐 PR 에서는 이름 검사 자체 시험을 돈다.
+on:
+  push:
+    tags:
+      - '**'
+  pull_request:
+    paths:
+      - 'tools/release/**'
+      - '.github/workflows/tag-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  tag-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: 이름 검사 자체 시험
+        run: tools/release/furnace-tag.sh --selftest
+      - name: 태그 이름 형식
+        if: github.ref_type == 'tag'
+        run: tools/release/furnace-tag.sh check "${GITHUB_REF_NAME}"

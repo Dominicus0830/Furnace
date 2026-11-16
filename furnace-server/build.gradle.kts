@@ -251,7 +251,11 @@ val fatJar = tasks.register<Jar>("fatJar") {
     dependsOn(compatIndex)
     description = "서버와 모든 런타임 의존성을 담은 단일 실행 jar"
     archiveFileName = "furnace-server.jar"
-    manifest { attributes["Main-Class"] = "org.domi.furnace.server.FurnaceMain" }
+    // Implementation-Version = Furnace 빌드 버전(루트 build.gradle.kts, 태그 규칙은 docs/ops/version-tags.md). 마크 버전은 별도 상수.
+    manifest {
+        attributes["Main-Class"] = "org.domi.furnace.server.FurnaceMain"
+        attributes["Implementation-Version"] = rootProject.extra["furnaceBuildVersion"] as String
+    }
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     from(sourceSets.main.get().output)
     from({

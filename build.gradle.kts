@@ -5,6 +5,30 @@ import java.util.Properties
 // V-01: 마인크래프트 판은 gradle/minecraft.properties 한 곳에서만 정한다. 서브모듈은 rootProject.extra["mc"] 로 읽는다.
 extra["mc"] = Properties().apply { file("gradle/minecraft.properties").reader(Charsets.UTF_8).use { load(it) } }
 
+// Furnace 빌드 버전 문자열: 가장 가까운 판 태그(`<MC>` 예: 1.21.1, 26.1)에서 읽는다(docs/ops/version-tags.md).
+//   태그 위       → 1.21.1
+//   태그 뒤 n 커밋 → 1.21.1+14.gabc1234
+//   판 태그 없음/git 없음 → dev+abc1234 / dev
+// 서버 fatJar 의 Implementation-Version 이 되어 콘솔 첫 줄·/version·getVersion() 에 나온다. 서브모듈은 `rootProject.extra["furnaceBuildVersion"]`.
+val furnaceBuildVersion: String = run {
+    fun git(vararg a: String): String? = try {
+        val p = ProcessBuilder(listOf("git") + a).directory(rootDir).redirectErrorStream(false).start()
+        val out = p.inputStream.bufferedReader().readText().trim()
+        p.errorStream.readBytes()
+        if (p.waitFor() == 0 && out.isNotEmpty()) out else null
+    } catch (e: Exception) { null }
+    val d = git("describe", "--tags", "--match", "[0-9]*.[0-9]*", "--long", "--dirty")
+    val m = d?.let { Regex("""^([0-9]+(?:\.[0-9]+)+)-([0-9]+)-g([0-9a-f]+)(-dirty)?$""").matchEntire(it) }
+    if (m != null) {
+        val (ver, ahead, sha, dirty) = m.destructured
+        if (ahead == "0" && dirty.isEmpty()) ver else "$ver+$ahead.g$sha$dirty"
+    } else {
+        val sha = git("rev-parse", "--short=7", "HEAD")
+        if (sha != null) "dev+$sha" else "dev"
+    }
+}
+extra["furnaceBuildVersion"] = furnaceBuildVersion
+
 // `./gradlew build` 는 테스트를 돌리지 않는다(테스트는 약 13분). 테스트는 따로 부른다:
 //   ./gradlew -PskipOracle=true :furnace-server:test   (또는 check)
 subprojects {

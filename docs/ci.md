@@ -145,3 +145,7 @@
 - 한계: 느려져 제한시간으로 실패한 시험의 줄은 일부 빠질 수 있다. 서버 모듈만 잰다(`furnace-api`·호환·시험 서버 모듈은 아직 아님).
 - 기준 브랜치 이름은 `coverage-tests`·`coverage` 작업의 `if` 에도 들어 있다(env 를 `if` 에서 못 써서 하드코딩). 기준 브랜치를 바꾸면 ci.yml 의 `on.push.branches`·`BASE_BRANCH` 와 이 두 `if` 를 같이 바꾼다.
 - 이 표가 줄 커버리지로 A19-03 의 "이름 참조 근사"를 대체한다. 기준 브랜치 첫 실행 뒤 표를 보고 다음 시험 대상(`block/types`·`entity/ai`·`command/builtin`)을 정한다.
+
+## 태그 (2026-11-16)
+- 태그를 올리면 `.github/workflows/tag-check.yml` 이 이름 형식을 검사한다(`tools/release/furnace-tag.sh check`). 시험 조각은 태그에서 돌지 않는다 — base·ms 태그는 기준 브랜치 `test` 가 이미 초록인 커밋에 찍는다. 규칙: `docs/ops/version-tags.md`.
+- 서버 fatJar 의 `Implementation-Version` 은 가장 가까운 판 태그 `<MC>` 에서 만든다(없으면 `dev+<해시>`). 태그를 읽으려면 `git describe` 가 되어야 하므로 버전이 중요한 빌드(판 완성)는 `fetch-depth: 0` 로 받는다. 얕은 복제 CI 에서는 `dev+<해시>` 가 되어도 시험·빌드에는 영향이 없다.
