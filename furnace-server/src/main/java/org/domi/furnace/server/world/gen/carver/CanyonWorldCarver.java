@@ -8,6 +8,7 @@ import org.domi.furnace.server.world.gen.NoiseChunk;
 import org.domi.furnace.server.world.gen.NoiseSettings;
 import org.domi.furnace.server.world.gen.surface.SurfaceSystem;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.carver.CanyonWorldCarver")
 public final class CanyonWorldCarver extends WorldCarver {
 
     public static volatile boolean debugCarveParams = false;

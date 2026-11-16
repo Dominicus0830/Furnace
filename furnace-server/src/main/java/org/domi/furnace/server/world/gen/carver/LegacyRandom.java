@@ -1,6 +1,7 @@
 // 바닐라 Java 48-bit LCG — WorldgenRandom(carver 시드)과 createTunnel branchRandom 공용
 package org.domi.furnace.server.world.gen.carver;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.LegacyRandomSource")
 public class LegacyRandom implements org.domi.furnace.server.world.gen.noise.NoiseRandom {
 
     private static final long MULTIPLIER = 0x5DEECE66DL;

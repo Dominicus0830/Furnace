@@ -11,6 +11,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.biome.FeatureSorter")
 public final class FeatureSorter {
 
     private final List<StepFeatureData> featuresPerStep;

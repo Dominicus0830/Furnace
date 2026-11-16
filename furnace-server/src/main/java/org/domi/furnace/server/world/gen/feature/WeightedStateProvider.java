@@ -9,6 +9,7 @@ import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
  *   for entry: r -= entry.weight; if (r < 0) return entry;
  * totalWeight = Σ weight(int). states/weights는 JSON entries 삽입순.
  */
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.stateproviders.WeightedStateProvider")
 public final class WeightedStateProvider implements StateProvider {
 
     private final int[] states;

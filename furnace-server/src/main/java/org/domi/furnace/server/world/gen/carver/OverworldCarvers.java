@@ -7,6 +7,7 @@ import com.google.gson.JsonObject;
 import java.io.InputStreamReader;
 import java.util.List;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.data.worldgen.Carvers")
 public final class OverworldCarvers {
 
     public record Entry(WorldCarver carver, CarverConfig config) {}

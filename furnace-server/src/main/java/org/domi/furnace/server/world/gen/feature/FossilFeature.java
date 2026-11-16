@@ -16,6 +16,7 @@ import org.domi.furnace.server.world.gen.structure.template.ProcessorLists;
 import org.domi.furnace.server.world.gen.structure.template.StructureTemplate;
 import org.domi.furnace.server.world.gen.structure.template.TemplatePlacer;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.FossilFeature")
 public final class FossilFeature implements ConfiguredFeature {
 
     private static final Map<String, StructureTemplate> TEMPLATES = new ConcurrentHashMap<>();

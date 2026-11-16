@@ -11,6 +11,7 @@ import org.domi.furnace.server.world.gen.feature.trunk.TrunkPlacer;
 // vanilla MegaPineFoliagePlacer 포팅 (거대 가문비나무, giant_trunk_placer와 짝). doubleTrunk(large)
 // 분기가 실제로 발동하는 첫 foliage placer — FoliagePlacer.shouldSkipLocationSigned의 giant-trunk abs
 // 이중 적용 버그 수정이 이 모양에 직결된다.
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.foliageplacers.MegaPineFoliagePlacer")
 public final class MegaPineFoliagePlacer extends FoliagePlacer {
     private final TreeIntProvider crownHeight;
 

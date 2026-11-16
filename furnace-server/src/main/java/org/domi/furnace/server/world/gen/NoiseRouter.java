@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import org.domi.furnace.server.world.gen.df.DensityFunction;
 import org.domi.furnace.server.world.gen.df.DensityFunctionParser;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.NoiseRouter")
 public final class NoiseRouter {
 
     private final DensityFunction finalDensity;

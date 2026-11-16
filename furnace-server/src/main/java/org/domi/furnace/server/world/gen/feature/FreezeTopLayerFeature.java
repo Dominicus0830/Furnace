@@ -7,6 +7,7 @@ import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.gen.BiomeClimate;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.FreezeTopLayerFeature")
 public final class FreezeTopLayerFeature implements ConfiguredFeature {
 
     private final BlockRegistry registry;

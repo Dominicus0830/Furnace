@@ -3,6 +3,7 @@ package org.domi.furnace.server.world.gen.structure;
 
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.core.Direction")
 public enum Direction {
     NORTH, EAST, SOUTH, WEST;
 

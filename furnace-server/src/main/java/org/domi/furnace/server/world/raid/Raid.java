@@ -28,6 +28,7 @@ import org.domi.furnace.server.entity.spawn.SpawnPlacements;
 import org.domi.furnace.server.entity.spawn.SpawnReason;
 import org.domi.furnace.server.net.protocol.play.BossEvent;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.raid.Raid")
 public final class Raid {
     public static final int MAX_RAID_OMEN_LEVEL = 5;
     public static final int PRE_RAID_TICKS = 300;

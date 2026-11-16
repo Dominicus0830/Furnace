@@ -6,6 +6,7 @@ import java.util.List;
 import org.domi.furnace.server.world.gen.feature.BlockPos;
 import org.domi.furnace.server.world.gen.feature.TreeFeature;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.treedecorators.AlterGroundDecorator")
 public record AlterGroundDecorator(int groundStateId) implements TreeDecorator {
 
     @Override

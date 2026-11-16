@@ -1,6 +1,7 @@
 // 밀도 함수 인터페이스: 바닐라 DensityFunction 비트정확 포팅 (Codec/registry 제외)
 package org.domi.furnace.server.world.gen.df;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.DensityFunction")
 public interface DensityFunction {
 
     double compute(FunctionContext context);

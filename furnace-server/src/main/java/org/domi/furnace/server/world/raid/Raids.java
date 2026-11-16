@@ -15,6 +15,7 @@ import org.domi.furnace.server.world.poi.PoiManager;
 import org.domi.furnace.server.world.poi.PoiRecord;
 import org.domi.furnace.server.world.poi.PoiTypes;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.raid.Raids")
 public final class Raids {
     private final ChunkLevel level;
     private final Map<Integer, Raid> raids = new LinkedHashMap<>();

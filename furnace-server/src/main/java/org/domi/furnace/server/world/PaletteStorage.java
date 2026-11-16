@@ -3,6 +3,7 @@ package org.domi.furnace.server.world;
 
 import java.util.Arrays;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.chunk.PalettedContainer")
 final class PaletteStorage {
 
     private final int size;

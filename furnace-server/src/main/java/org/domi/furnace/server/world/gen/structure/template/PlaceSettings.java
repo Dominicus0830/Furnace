@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.domi.furnace.server.world.gen.carver.LegacyRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings")
 public final class PlaceSettings {
     public int mirror = BlockStateTable.NONE;
     public int rotation = BlockStateTable.ROT_NONE;

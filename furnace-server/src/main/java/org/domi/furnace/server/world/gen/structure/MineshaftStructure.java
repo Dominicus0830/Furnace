@@ -10,6 +10,7 @@ import org.domi.furnace.server.world.BlockAttrs;
 import org.domi.furnace.server.world.gen.carver.LegacyRandom;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort({"net.minecraft.world.level.levelgen.structure.structures.MineshaftStructure", "net.minecraft.world.level.levelgen.structure.structures.MineshaftPieces"})
 public final class MineshaftStructure extends StructureType {
 
     /** 바닐라 MineshaftStructure.Type — 기둥(log)·판자(planks)·울타리(fence) 블록 이름. */

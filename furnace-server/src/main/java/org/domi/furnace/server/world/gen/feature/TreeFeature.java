@@ -13,6 +13,7 @@ import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 import org.domi.furnace.server.world.gen.feature.decorator.TreeDecorator;
 import org.domi.furnace.server.world.gen.feature.trunk.TrunkPlacer;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.TreeFeature")
 public final class TreeFeature implements ConfiguredFeature {
     public static final Direction[] HORIZONTAL_DIRECTIONS = {
         Direction.SOUTH, Direction.WEST, Direction.NORTH, Direction.EAST

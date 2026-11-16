@@ -16,6 +16,7 @@ import org.domi.furnace.server.world.gen.feature.TreeIntProvider;
 // worldgen-oracle의 OracleMain이 이 태그를 바인딩하지 않아(datagen 모드 미바인딩 태그는 공집합)
 // oracle(ground truth) 기준으로도 이 분기는 항상 false이므로, 표준 validTreePos만으로 oracle과
 // byte-exact 일치한다(result.md Caveats 참조).
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.trunkplacers.UpwardsBranchingTrunkPlacer")
 public final class UpwardsBranchingTrunkPlacer extends TrunkPlacer {
     private final TreeIntProvider extraBranchSteps;
     private final float placeBranchPerLogProbability;

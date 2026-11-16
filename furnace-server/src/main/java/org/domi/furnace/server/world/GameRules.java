@@ -8,6 +8,7 @@ import java.util.function.BiConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.GameRules")
 public final class GameRules {
 
     private static final Logger log = LoggerFactory.getLogger(GameRules.class);

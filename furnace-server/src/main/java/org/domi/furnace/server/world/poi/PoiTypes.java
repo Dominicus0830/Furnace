@@ -12,6 +12,7 @@ import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.Blocks;
 import org.domi.furnace.server.block.Prop;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.village.poi.PoiTypes")
 public final class PoiTypes {
     private static final List<PoiType> ALL = new ArrayList<>();
     private static final Map<String, PoiType> BY_NAME = new java.util.HashMap<>();

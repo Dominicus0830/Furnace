@@ -16,6 +16,7 @@ import org.domi.furnace.server.net.io.nbt.NbtList;
 import org.domi.furnace.server.world.BlockAttrs;
 import org.domi.furnace.server.world.BlockRegistry;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate")
 public final class StructureTemplate {
 
     /** 리소스에 없는 템플릿 — 구조물 생성은 건너뛴다(자료 보충 필요). */

@@ -9,6 +9,7 @@ import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.gen.carver.Mth;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort({"net.minecraft.world.level.levelgen.feature.DripstoneClusterFeature", "net.minecraft.world.level.levelgen.feature.LargeDripstoneFeature", "net.minecraft.world.level.levelgen.feature.PointedDripstoneFeature"})
 public final class DripstoneFeatures {
 
     private DripstoneFeatures() {}

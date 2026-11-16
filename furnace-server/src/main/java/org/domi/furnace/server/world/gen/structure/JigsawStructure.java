@@ -14,6 +14,7 @@ import org.domi.furnace.server.world.gen.structure.JigsawPools.Jig;
 import org.domi.furnace.server.world.gen.structure.JigsawPools.Pool;
 import org.domi.furnace.server.world.gen.structure.template.BlockStateTable;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.structure.structures.JigsawStructure")
 public final class JigsawStructure extends StructureType {
 
     private final String startPool;

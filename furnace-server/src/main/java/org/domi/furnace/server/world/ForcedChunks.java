@@ -17,6 +17,7 @@ import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.ForcedChunksSavedData")
 public final class ForcedChunks {
     private static final Logger LOG = LoggerFactory.getLogger(ForcedChunks.class);
     private static final int DATA_VERSION = GameVersion.DATA_VERSION;

@@ -14,6 +14,7 @@ import org.domi.furnace.server.world.GameMode;
 import org.domi.furnace.server.world.WorldBorder;
 import org.domi.furnace.server.world.gen.carver.LegacyRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.storage.PrimaryLevelData")
 public final class LevelData {
 
     public static final int DATA_VERSION = GameVersion.DATA_VERSION;

@@ -3,6 +3,7 @@ package org.domi.furnace.server.world.gen;
 
 import org.domi.furnace.server.world.gen.df.DensityFunction;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.Aquifer")
 public record DisabledAquifer(int seaLevel, int lavaFloorY, int waterId, int lavaId)
         implements Aquifer {
 

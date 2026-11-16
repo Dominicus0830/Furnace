@@ -1,6 +1,7 @@
 // 시드 128비트 확장 + Stafford13 믹스(바닐라 RandomSupport)
 package org.domi.furnace.server.world.gen.noise;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.RandomSupport")
 public final class RandomSupport {
     private RandomSupport() {}
     public static long mixStafford13(long s) {

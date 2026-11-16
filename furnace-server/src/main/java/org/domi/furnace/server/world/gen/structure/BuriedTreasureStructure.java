@@ -3,6 +3,7 @@ package org.domi.furnace.server.world.gen.structure;
 
 import java.util.Optional;
 
+@org.domi.furnace.server.VanillaPort({"net.minecraft.world.level.levelgen.structure.structures.BuriedTreasureStructure", "net.minecraft.world.level.levelgen.structure.structures.BuriedTreasurePieces"})
 public final class BuriedTreasureStructure extends StructureType {
 
     public BuriedTreasureStructure(StructureRegistry.Def def) {}

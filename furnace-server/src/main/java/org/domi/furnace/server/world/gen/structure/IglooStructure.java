@@ -9,6 +9,7 @@ import org.domi.furnace.server.world.gen.structure.template.PlaceSettings;
 import org.domi.furnace.server.world.gen.structure.template.Processors;
 import org.domi.furnace.server.world.gen.structure.template.StructureTemplate;
 
+@org.domi.furnace.server.VanillaPort({"net.minecraft.world.level.levelgen.structure.structures.IglooStructure", "net.minecraft.world.level.levelgen.structure.structures.IglooPieces"})
 public final class IglooStructure extends StructureType {
 
     static final String TOP = "minecraft:igloo/top";

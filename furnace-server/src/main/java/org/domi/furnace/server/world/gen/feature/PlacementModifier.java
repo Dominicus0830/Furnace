@@ -11,6 +11,7 @@ import org.domi.furnace.server.world.gen.carver.RandomTrace;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 import org.domi.furnace.server.world.gen.noise.SimplexNoise;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.placement.PlacementModifier")
 public sealed interface PlacementModifier
         permits PlacementModifier.CountOnEveryLayerPlacement, PlacementModifier.FixedPlacement, PlacementModifier.CountPlacement,
                 PlacementModifier.RandomOffsetPlacement,

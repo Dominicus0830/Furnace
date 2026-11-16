@@ -1,5 +1,6 @@
 package org.domi.furnace.server.world.gen.pipeline;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.chunk.status.ChunkStatus")
 enum GenStatus {
     EMPTY,
     BIOMES,
