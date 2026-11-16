@@ -18,23 +18,36 @@ final class SkullProfileFill {
 
     private SkullProfileFill() {}
 
-    /** 이 스택이 막 칸에 쓰였다. 채울 것이 있으면 비동기로 채우기를 시작한다(기다리지 않는다). */
+    /**
+     * 이 스택이 막 칸에 **쓰였다**(쓰기가 성공한 뒤에 부른다). 채울 것이 있으면 비동기로 채우기를 시작한다(기다리지 않는다).
+     * 이 메서드는 예외를 던지지 않는다 — 이상한 프로필(이름 16자 초과·속성 과다 등)이나 조회 풀 문제가 칸 쓰기를 망치면 안 된다.
+     */
     static void afterWrite(Inventory handle, int index, ItemStack written) {
-        ProfileValue original = incomplete(written);
-        if (original == null) return;
         try {
-            lookupProfile(original).update().whenComplete((filled, error) -> {
-                if (error != null || filled == null) {
-                    LOG.log(System.Logger.Level.DEBUG, "skull profile lookup failed", error);
-                    return;
+            ProfileValue original = incomplete(written);
+            if (original == null) return;
+            CraftPlayerProfile lookup = lookupProfile(original);
+            ProfileValue normalized = lookup.buildValue();   // 조회에 쓴 꼴(UUID 0 → null) — 못 찾았을 때 "아무것도 안 바뀜" 을 이것과 비교한다
+            lookup.update().whenComplete((filled, error) -> {
+                try {
+                    if (error != null || filled == null) {
+                        LOG.log(System.Logger.Level.DEBUG, "skull profile lookup failed", error);
+                        return;
+                    }
+                    ProfileValue found = ((CraftPlayerProfile) filled).buildValue();
+                    if (found.equals(normalized)) return;   // 못 찾음(404·429·네트워크) — 칸을 다시 쓰지 않는다
+                    handle.update(index, cur -> replaceIfStillTheSame(cur, original, found)).whenComplete((changed, e) -> {
+                        if (e == null) return;
+                        // 칸이 사라짐·접속 끊김·범위 밖은 채울 곳이 없는 것이라 조용히, 그 밖의 예외는 버그일 수 있어 드러낸다
+                        boolean expected = e instanceof IllegalStateException || e instanceof IndexOutOfBoundsException
+                                || e.getCause() instanceof IllegalStateException || e.getCause() instanceof IndexOutOfBoundsException;
+                        LOG.log(expected ? System.Logger.Level.DEBUG : System.Logger.Level.WARNING, "skull profile fill dropped", e);
+                    });
+                } catch (RuntimeException e) {
+                    LOG.log(System.Logger.Level.WARNING, "skull profile fill failed", e);
                 }
-                ProfileValue found = ((CraftPlayerProfile) filled).buildValue();
-                if (found.equals(original)) return;
-                handle.update(index, cur -> replaceIfStillTheSame(cur, original, found)).whenComplete((changed, e) -> {
-                    if (e != null) LOG.log(System.Logger.Level.DEBUG, "skull profile fill dropped", e);   // 칸이 사라짐·접속 끊김 — 채울 곳이 없다
-                });
             });
-        } catch (RuntimeException e) {   // 조회 풀이 막혔거나 닫힘
+        } catch (RuntimeException e) {   // 이상한 프로필·조회 풀이 막혔거나 닫힘
             LOG.log(System.Logger.Level.DEBUG, "skull profile lookup not started", e);
         }
     }

@@ -71,7 +71,7 @@ final class OwnedInventory implements org.domi.furnace.api.inventory.Inventory {
         return RegionFuture.wrap(runner.run(s -> {
             ItemStack cur = ApiConvert.item(s.get(slot), items());
             ItemStack next = fn.apply(cur);
-            if (next == null || next == cur) return false;
+            if (next == null || next == cur || next.equals(cur)) return false;
             s.set(slot, ApiConvert.item(next, items()));
             return true;
         }));

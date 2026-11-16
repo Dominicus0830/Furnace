@@ -23,9 +23,11 @@ public interface Inventory {
     CompletableFuture<List<ItemStack>> contents();
 
     /**
-     * 칸의 지금 값을 소유 스레드에서 읽어 fn 에 넘기고, 돌려준 값이 있으면(null 이거나 받은 것 그대로면 바꾸지 않는다) 같은 소유 스레드 작업 안에서 그 칸에 쓴다 —
-     * 읽기와 쓰기 사이에 다른 쓰기가 끼지 않는다(비동기로 얻은 값을 "그 칸이 아직 그대로일 때만" 반영할 때 쓴다). fn 은 짧게, 칸을 직접 건드리지 말 것.
-     * 바꿨으면 true. 범위 밖이면 IndexOutOfBoundsException 으로 완료.
+     * 칸의 지금 값을 소유 스레드에서 읽어 fn 에 넘기고, 돌려준 값이 있으면 그 칸에 쓴다 — 읽기와 쓰기 사이에 다른 쓰기가 끼지 않는다
+     * (비동기로 얻은 값을 "그 칸이 아직 그대로일 때만" 반영할 때 쓴다. 구현은 한 소유 스레드 작업·잠금·비교-교환 중 알맞은 것으로 이를 지키며,
+     * 비교-교환이면 칸이 그새 바뀌었을 때 **다시 읽어 fn 을 다시 부를 수 있다** — fn 은 부작용 없이 짧게, 칸을 직접 건드리지 말 것).
+     * fn 이 null 이거나 받은 것 그대로(같은 객체)이거나 같은 값(equals)을 돌려주면 바꾸지 않고 false. 바꿨으면 true.
+     * 범위 밖이면 IndexOutOfBoundsException 으로 완료, fn 이 던진 예외로도 완료.
      */
     CompletableFuture<Boolean> update(int slot, java.util.function.UnaryOperator<ItemStack> fn);
 }

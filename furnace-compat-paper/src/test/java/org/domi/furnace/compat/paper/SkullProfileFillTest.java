@@ -39,6 +39,13 @@ class SkullProfileFillTest {
     static final String TEXTURES = java.util.Base64.getEncoder().encodeToString(
             "{\"textures\":{\"SKIN\":{\"url\":\"http://textures.minecraft.net/texture/abc\"}}}".getBytes(StandardCharsets.UTF_8));
 
+    /** 가짜 Mojang 이 아는 이름. 서버의 프로필 캐시는 한 번 찾은 이름을 기억하므로 세션 서버를 붙잡아야 하는 시험은 저마다 다른 이름을 쓴다. */
+    static final java.util.Map<UUID, String> KNOWN = java.util.Map.of(
+            NOTCH, "Notch",
+            UUID.nameUUIDFromBytes("Slow1".getBytes(StandardCharsets.UTF_8)), "Slow1",
+            UUID.nameUUIDFromBytes("Slow2".getBytes(StandardCharsets.UTF_8)), "Slow2",
+            UUID.nameUUIDFromBytes("Slow3".getBytes(StandardCharsets.UTF_8)), "Slow3");
+
     FurnaceTestServer server;
     HttpServer http;
     final AtomicInteger nameCalls = new AtomicInteger();
@@ -51,8 +58,9 @@ class SkullProfileFillTest {
         http.createContext("/minecraft/profile/lookup/name/", ex -> {
             nameCalls.incrementAndGet();
             String name = ex.getRequestURI().getPath().substring("/minecraft/profile/lookup/name/".length());
-            if (name.equalsIgnoreCase("Notch")) {
-                byte[] b = "{\"id\":\"069a79f444e94726a5befca90e38aaf5\",\"name\":\"Notch\"}".getBytes(StandardCharsets.UTF_8);
+            UUID id = KNOWN.entrySet().stream().filter(e -> e.getValue().equalsIgnoreCase(name)).map(java.util.Map.Entry::getKey).findFirst().orElse(null);
+            if (id != null) {
+                byte[] b = ("{\"id\":\"" + id.toString().replace("-", "") + "\",\"name\":\"" + KNOWN.get(id) + "\"}").getBytes(StandardCharsets.UTF_8);
                 ex.sendResponseHeaders(200, b.length);
                 ex.getResponseBody().write(b);
             } else {
@@ -70,10 +78,17 @@ class SkullProfileFillTest {
                     Thread.currentThread().interrupt();
                 }
             }
-            byte[] b = ("{\"id\":\"069a79f444e94726a5befca90e38aaf5\",\"name\":\"Notch\",\"properties\":[{\"name\":\"textures\",\"value\":\"" + TEXTURES + "\",\"signature\":\"c2ln\"}]}")
-                    .getBytes(StandardCharsets.UTF_8);
-            ex.sendResponseHeaders(200, b.length);
-            ex.getResponseBody().write(b);
+            String raw = ex.getRequestURI().getPath().substring("/session/minecraft/profile/".length());
+            UUID id = UUID.fromString(raw.replaceFirst("(\\p{XDigit}{8})(\\p{XDigit}{4})(\\p{XDigit}{4})(\\p{XDigit}{4})(\\p{XDigit}+)", "$1-$2-$3-$4-$5"));
+            String name = KNOWN.get(id);
+            if (name == null) {
+                ex.sendResponseHeaders(404, -1);
+            } else {
+                byte[] b = ("{\"id\":\"" + raw + "\",\"name\":\"" + name + "\",\"properties\":[{\"name\":\"textures\",\"value\":\"" + TEXTURES + "\",\"signature\":\"c2ln\"}]}")
+                        .getBytes(StandardCharsets.UTF_8);
+                ex.sendResponseHeaders(200, b.length);
+                ex.getResponseBody().write(b);
+            }
             ex.close();
         });
         http.start();
@@ -155,7 +170,7 @@ class SkullProfileFillTest {
             Player p = Bukkit.getPlayerExact("Racer");
             gate = new CountDownLatch(1);
             int before = sessionCalls.get();
-            p.getInventory().setItem(5, namedHead("Notch"));
+            p.getInventory().setItem(5, namedHead("Slow1"));
             await(() -> sessionCalls.get() > before, "lookup reached the session server");
             p.getInventory().setItem(5, new ItemStack(Material.DIAMOND, 2));   // 조회가 끝나기 전에 칸을 바꾼다
             gate.countDown();
@@ -205,6 +220,133 @@ class SkullProfileFillTest {
             assertEquals(names, nameCalls.get());
             assertEquals(sessions, sessionCalls.get());
             assertTrue(hasSkin(p.getInventory().getItem(1)));
+        }
+    }
+    // ------------------------------------------------------------------ 독립 검토 R2·R3·S4
+
+    @Test
+    void anUnknownNameLeavesTheSlotUntouched() throws Exception {
+        try (TestPlayer tp = server.join("Unknown")) {
+            server.tick(2);
+            Player p = Bukkit.getPlayerExact("Unknown");
+            int names = nameCalls.get();
+            p.getInventory().setItem(2, namedHead("Nobody"));
+            org.domi.furnace.api.item.ItemStack written = p.getInventory().getItem(2).asFurnace();
+            await(() -> nameCalls.get() > names, "the name lookup ran");
+            for (int i = 0; i < 10; i++) {
+                server.tick(1);
+                Thread.sleep(30);
+            }
+            assertEquals(written, p.getInventory().getItem(2).asFurnace(), "찾지 못했으면(404) 칸은 쓰인 그대로 — 다시 쓰이지 않는다");
+        }
+    }
+
+    @Test
+    void aDifferentHeadSwappedInMeanwhileIsLeftAlone() throws Exception {
+        try (TestPlayer tp = server.join("Swapper")) {
+            server.tick(2);
+            Player p = Bukkit.getPlayerExact("Swapper");
+            gate = new CountDownLatch(1);
+            int before = sessionCalls.get();
+            p.getInventory().setItem(6, namedHead("Slow2"));
+            await(() -> sessionCalls.get() > before, "lookup reached the session server");
+            p.getInventory().setItem(6, namedHead("Other"));   // 같은 종류의 다른 프로필
+            org.domi.furnace.api.item.ItemStack other = p.getInventory().getItem(6).asFurnace();
+            gate.countDown();
+            for (int i = 0; i < 10; i++) {
+                server.tick(1);
+                Thread.sleep(30);
+            }
+            assertEquals(other, p.getInventory().getItem(6).asFurnace(), "다른 프로필의 머리는 Notch 의 결과로 덮이지 않는다");
+        }
+    }
+
+    @Test
+    void aHeadWithOnlyAUuidGetsItsSkin() throws Exception {
+        try (TestPlayer tp = server.join("UuidOnly")) {
+            server.tick(2);
+            Player p = Bukkit.getPlayerExact("UuidOnly");
+            ItemStack head = new ItemStack(Material.PLAYER_HEAD);
+            SkullMeta meta = (SkullMeta) head.getItemMeta();
+            meta.setPlayerProfile(Bukkit.createProfile(NOTCH));   // 이름 없음
+            head.setItemMeta(meta);
+            p.getInventory().setItem(7, head);
+            await(() -> hasSkin(p.getInventory().getItem(7)), "uuid-only head gets textures");
+            SkullMeta filled = (SkullMeta) p.getInventory().getItem(7).getItemMeta();
+            assertEquals(NOTCH, filled.getPlayerProfile().getId());
+        }
+    }
+
+    @Test
+    void withLookupsOffTheOfflineUuidIsFilledLikePaper() throws Exception {
+        var cache = server.internals().profileCache();
+        try (TestPlayer tp = server.join("Offliner")) {
+            server.tick(2);
+            Player p = Bukkit.getPlayerExact("Offliner");
+            cache.setProfileLookups(false);   // 프록시 없는 오프라인 서버 — completeFromCache(onlineMode=false)
+            int sessions = sessionCalls.get();
+            p.getInventory().setItem(8, namedHead("Zed"));
+            UUID offline = org.domi.furnace.server.players.GameProfile.offlineUuid("Zed");
+            await(() -> ((SkullMeta) p.getInventory().getItem(8).getItemMeta()).getPlayerProfile().getId().equals(offline), "offline uuid filled");
+            assertEquals(sessions, sessionCalls.get(), "조회가 꺼져 있으면 세션 서버에 묻지 않는다");
+        } finally {
+            cache.setProfileLookups(true);
+        }
+    }
+
+    @Test
+    void aPlayerWhoLeftBeforeTheAnswerArrivesIsNotAnError() throws Exception {
+        TestPlayer tp = server.join("Leaver");
+        server.tick(2);
+        Player p = Bukkit.getPlayerExact("Leaver");
+        gate = new CountDownLatch(1);
+        int before = sessionCalls.get();
+        p.getInventory().setItem(4, namedHead("Slow3"));
+        await(() -> sessionCalls.get() > before, "lookup reached the session server");
+        tp.close();
+        server.tick(3);
+        gate.countDown();
+        for (int i = 0; i < 6; i++) {
+            server.tick(1);
+            Thread.sleep(30);
+        }
+        assertEquals(null, Bukkit.getPlayerExact("Leaver"));
+    }
+
+    @Test
+    void aStrangeProfileDoesNotBreakSetItem() throws Exception {
+        try (TestPlayer tp = server.join("Strange")) {
+            server.tick(2);
+            Player p = Bukkit.getPlayerExact("Strange");
+            // 속성이 17개(Paper 의 한도 16 초과)인 프로필 — 저장된 아이템에서 올 수 있다. 칸 쓰기가 터지면 안 된다(쓰기는 되고 채우기만 건너뛴다).
+            StringBuilder props = new StringBuilder();
+            for (int i = 0; i < 17; i++) props.append(i == 0 ? "" : ",").append("{name:\"p").append(i).append("\",value:\"v\"}");
+            var odd = new org.domi.furnace.api.item.ItemStack("minecraft:player_head", 1).withComponent("minecraft:profile", "{name:\"Odd\",properties:[" + props + "]}");
+            p.getInventory().setItem(9, CompatItems.copyOf(odd));
+            assertEquals(Material.PLAYER_HEAD, p.getInventory().getItem(9).getType());
+            assertEquals(odd, p.getInventory().getItem(9).asFurnace(), "쓰인 그대로");
+        }
+    }
+
+    // ------------------------------------------------------------------ S4: 블록 엔티티·큰 상자
+
+    @Test
+    void aHeadWrittenToABlockEntityInventoryIsFilled() throws Exception {
+        var pos = new org.domi.furnace.api.world.BlockPos(11, -20, 11);
+        String dim = "minecraft:overworld";
+        server.loadChunk(pos.chunkX(), pos.chunkZ());
+        server.onRegion(pos, () -> {
+            server.api().world(dim).block(pos).set(new org.domi.furnace.api.world.BlockData("minecraft:barrel", java.util.Map.of()));
+            ((org.bukkit.block.Barrel) Compat.block(dim, pos).getState()).getInventory().setItem(2, namedHead("Notch"));
+            return null;
+        });
+        try {
+            await(() -> server.onRegion(pos, () -> hasSkin(((org.bukkit.block.Barrel) Compat.block(dim, pos).getState()).getInventory().getItem(2))), "barrel head gets textures");
+        } finally {
+            server.onRegion(pos, () -> {
+                server.api().world(dim).block(pos).set(org.domi.furnace.api.world.BlockData.AIR);
+                return null;
+            });
         }
     }
 }

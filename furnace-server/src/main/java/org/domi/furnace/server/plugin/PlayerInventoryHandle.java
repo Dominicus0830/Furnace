@@ -59,7 +59,12 @@ final class PlayerInventoryHandle implements org.domi.furnace.api.inventory.Inve
         return f;
     }
 
-    /** 읽기·비교·쓰기를 플레이어 소유 스레드의 한 작업에서 한다. */
+    /**
+     * 읽기·fn·쓰기를 플레이어 소유 스레드의 한 작업에서 하고, 쓰기는 서버 칸의 **객체 동일성 비교-교환**(PlayerInventory.replace)으로 한다.
+     * 서버 PlayerInventory.add(줍기·/give·화살 줍기 …)는 소유 스레드가 아닌 곳에서도 불리고 runOnOwner 로 직렬화되지 않아, 읽기와 쓰기를
+     * 따로 하면 그 사이에 합쳐진 개수를 stale 값으로 덮어 아이템을 잃을 수 있다. 서버 ItemStack 은 불변이라(쓸 때마다 새 객체) 동일성이 바뀌었으면 칸이 바뀐 것이다.
+     * 비교가 실패하면 다시 읽어 fn 을 다시 부른다(그래서 fn 은 여러 번 불릴 수 있다).
+     */
     @Override
     public CompletableFuture<Boolean> update(int slot, java.util.function.UnaryOperator<ItemStack> fn) {
         if (slot < 0 || slot >= SIZE) return RegionFuture.wrap(CompletableFuture.failedFuture(new IndexOutOfBoundsException("slot " + slot)));
@@ -68,14 +73,20 @@ final class PlayerInventoryHandle implements org.domi.furnace.api.inventory.Inve
         p.runOnOwner(() -> {
             try {
                 int w = PlayerInventory.windowSlot(slot);
-                ItemStack cur = ApiConvert.item(p.inventory().get(w), items());
-                ItemStack next = fn.apply(cur);
-                if (next == null || next == cur) {
-                    f.complete(false);
-                    return;
+                for (int attempt = 0; attempt < 64; attempt++) {
+                    org.domi.furnace.server.entity.ItemStack raw = p.inventory().get(w);
+                    ItemStack cur = ApiConvert.item(raw, items());
+                    ItemStack next = fn.apply(cur);
+                    if (next == null || next == cur || next.equals(cur)) {
+                        f.complete(false);
+                        return;
+                    }
+                    if (p.inventory().replace(w, raw, ApiConvert.item(next, items()))) {
+                        f.complete(true);
+                        return;
+                    }
                 }
-                p.inventory().set(w, ApiConvert.item(next, items()));
-                f.complete(true);
+                f.completeExceptionally(new IllegalStateException("inventory slot " + slot + " kept changing"));
             } catch (Throwable t) {
                 f.completeExceptionally(t);
             }

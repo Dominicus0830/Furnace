@@ -74,4 +74,46 @@ class InventoryUpdateApiTest {
             }
         }
     }
+
+    /**
+     * 독립 검토 R1: 서버 PlayerInventory.add(줍기·/give 등)는 소유 스레드가 아닌 곳에서도 불려 읽기와 쓰기 사이에 끼어들 수 있다. update 는 비교-교환이라
+     * 끼어든 쓰기를 덮지 않고 다시 읽어 fn 을 다시 부른다. fn 안에서 그 끼어들기를 결정적으로 흉내 낸다.
+     */
+    @Test
+    void aWriteThatSlipsBetweenReadAndWriteIsNotLost() throws Exception {
+        try (TestPlayer tp = server.join("Slipper")) {
+            server.tick(2);
+            Player p = Bukkit.getPlayerExact("Slipper");
+            Inventory inv = ((org.bukkit.craftbukkit.entity.CraftPlayer) p).furnaceHandle().inventory();
+            p.getInventory().setHeldItemSlot(0);
+            p.getInventory().setItem(0, new ItemStack(Material.STONE, 1));
+            org.domi.furnace.server.entity.Player serverPlayer = ((org.domi.furnace.server.plugin.PlayerHandle) tp.player()).handle();
+            java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+
+            boolean changed = done(inv.update(0, cur -> {
+                if (calls.incrementAndGet() == 1) {   // 첫 호출: 읽은 뒤 쓰기 전에 5개가 같은 칸에 합쳐진다(줍기·/give)
+                    var raw = serverPlayer.inventory().get(org.domi.furnace.server.entity.PlayerInventory.windowSlot(0));
+                    serverPlayer.inventory().add(raw.withCount(5), false, 64, false);
+                }
+                return cur.withComponent("minecraft:custom_name", "\"Marked\"").withAmount(cur.amount());
+            }));
+            assertTrue(changed);
+            assertEquals(2, calls.get(), "칸이 그새 바뀌어 fn 이 다시 불렸다");
+            ItemStack now = p.getInventory().getItem(0);
+            assertEquals(6, now.getAmount(), "합쳐진 5개를 stale 값으로 덮어 잃지 않는다");
+            assertEquals("Marked", now.getItemMeta().getDisplayName());
+        }
+    }
+
+    @Test
+    void anEqualResultIsNotAChangeOnEveryImplementation() throws Exception {
+        try (TestPlayer tp = server.join("Equaler")) {
+            server.tick(2);
+            Player p = Bukkit.getPlayerExact("Equaler");
+            Inventory inv = ((org.bukkit.craftbukkit.entity.CraftPlayer) p).furnaceHandle().inventory();
+            p.getInventory().setItem(3, new ItemStack(Material.STONE, 2));
+            assertFalse(done(inv.update(3, cur -> new org.domi.furnace.api.item.ItemStack(cur.type(), cur.amount(), cur.components(), cur.removedComponents()))),
+                    "같은 값의 새 스택은 바꾼 것이 아니다(불필요한 칸 갱신 패킷 없음)");
+        }
+    }
 }
