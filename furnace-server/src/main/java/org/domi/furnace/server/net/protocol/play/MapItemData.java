@@ -8,11 +8,12 @@ import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.map.MapData;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 @VanillaPort("net.minecraft.network.protocol.game.ClientboundMapItemDataPacket")
 public record MapItemData(int mapId, byte scale, boolean locked, List<MapData.Decoration> decorations, Patch patch) implements Packet {
 
-    public static final int ID = 0x2C; // datagen: play.clientbound.map_item_data (protocol_id 44)
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_MAP_ITEM_DATA; // datagen: play.clientbound.map_item_data (protocol_id 44)
 
     /** MapItemSavedData.MapPatch — 시작 칸·크기·색(너비 x 높이, 가로 먼저). */
     public record Patch(int startX, int startY, int width, int height, byte[] colors) { }

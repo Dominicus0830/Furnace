@@ -6,11 +6,12 @@ import java.util.List;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 @VanillaPort("net.minecraft.network.protocol.configuration.ClientboundUpdateEnabledFeaturesPacket")
 public record FeatureFlags(List<String> flags) implements Packet {
 
-    public static final int ID = 0x0C;
+    public static final int ID = PacketIds.CONFIGURATION_CLIENTBOUND_UPDATE_ENABLED_FEATURES;
 
     public static FeatureFlags vanilla() {
         return new FeatureFlags(List.of("minecraft:vanilla"));

@@ -99,7 +99,7 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
     static boolean sendUnsupported(String internalName) {
         return SEND_UNSUPPORTED.computeIfAbsent(internalName, n -> {
             String bin = n.replace('/', '.');
-            var def = org.domi.furnace.api.packet.schema.PacketSchema.protocol767().packetByClass(bin);
+            var def = org.domi.furnace.api.packet.schema.PacketSchema.current().packetByClass(bin);
             if (def.isEmpty() || def.get().direction() != org.domi.furnace.api.packet.PacketDirection.CLIENTBOUND) return false;
             try {
                 Class<?> c = Class.forName(bin, false, NmsCompatReport.class.getClassLoader());

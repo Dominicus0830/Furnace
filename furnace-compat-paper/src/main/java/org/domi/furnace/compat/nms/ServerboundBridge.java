@@ -51,7 +51,7 @@ public final class ServerboundBridge {
 
     private ServerboundBridge() {}
 
-    private static final PacketSchema SCHEMA = PacketSchema.protocol767();
+    private static final PacketSchema SCHEMA = PacketSchema.current();
 
     /** 서버가 play 연결로 받는 단계. */
     private static final Set<String> PLAY_STATES = Set.of("game", "common", "cookie", "ping");

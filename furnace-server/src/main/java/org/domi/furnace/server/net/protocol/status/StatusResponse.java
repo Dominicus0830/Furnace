@@ -6,11 +6,12 @@ import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 @VanillaPort("net.minecraft.network.protocol.status.ClientboundStatusResponsePacket")
 public record StatusResponse(String json) implements Packet {
 
-    public static final int ID = 0x00;
+    public static final int ID = PacketIds.STATUS_CLIENTBOUND_STATUS_RESPONSE;
 
     /** 1.21.1(767) 상태 JSON 빌드. */
     public static StatusResponse of(String motd) {

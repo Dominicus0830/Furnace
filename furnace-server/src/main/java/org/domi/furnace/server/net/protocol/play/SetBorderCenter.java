@@ -4,12 +4,13 @@ package org.domi.furnace.server.net.protocol.play;
 import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 import org.domi.furnace.server.world.WorldBorder;
 
 @VanillaPort("net.minecraft.network.protocol.game.ClientboundSetBorderCenterPacket")
 public record SetBorderCenter(double centerX, double centerZ) implements Packet {
 
-    public static final int ID = 0x4D;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_SET_BORDER_CENTER;
 
     public static SetBorderCenter of(WorldBorder border) {
         synchronized (border) {

@@ -5,6 +5,7 @@ import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 /** @param lastDeath 마지막 사망 위치 {x,y,z}(차원은 lastDeathDimension), 없으면 null */
 @VanillaPort("net.minecraft.network.protocol.game.ClientboundRespawnPacket")
@@ -17,7 +18,7 @@ public record Respawn(int dimensionType, String dimensionName, long hashedSeed, 
         this(dimensionType, dimensionName, hashedSeed, gameMode, previousGameMode, false, flat, lastDeathDimension, lastDeath, portalCooldown, dataToKeep);
     }
 
-    public static final int ID = 0x47;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_RESPAWN;
     public static final byte KEEP_ATTRIBUTES = 1;
     public static final byte KEEP_ENTITY_DATA = 2;
     public static final byte KEEP_ALL = 3;

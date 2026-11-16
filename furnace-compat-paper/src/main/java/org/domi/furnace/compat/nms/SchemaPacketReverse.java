@@ -36,7 +36,7 @@ final class SchemaPacketReverse {
 
     private SchemaPacketReverse() {}
 
-    private static final PacketSchema SCHEMA = PacketSchema.protocol767();
+    private static final PacketSchema SCHEMA = PacketSchema.current();
 
     /** 서버 범용 코덱이 play 연결로 다루는 단계(SchemaPacketBridge 와 같다). */
     private static final List<String> PLAY_STATES = List.of("game", "common", "cookie", "ping");

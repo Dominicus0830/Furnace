@@ -4,12 +4,13 @@ package org.domi.furnace.server.net.protocol.login;
 import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
+import org.domi.furnace.server.net.protocol.PacketIds;
 import org.domi.furnace.server.net.protocol.ProtocolException;
 
 @VanillaPort("net.minecraft.network.protocol.login.ServerboundKeyPacket")
 public record EncryptionResponse(byte[] sharedSecret, byte[] verifyToken) {
 
-    public static final int ID = 0x01;
+    public static final int ID = PacketIds.LOGIN_SERVERBOUND_KEY;
     private static final int MAX_LENGTH = 256; // RSA-1024 암호문은 128바이트
 
     public static EncryptionResponse read(ByteBuf buf) {

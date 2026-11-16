@@ -23,7 +23,7 @@ public final class ProtocolIds {
     /** 프로토콜 등록부의 번호 하나. holder 와 wireName 은 {@link Type} 과 뜻이 같다. */
     public record Entry(int id, String holder, String wireName) {}
 
-    private static volatile ProtocolIds protocol767;
+    private static volatile ProtocolIds current;
 
     private final List<Type> types;
     private final Map<String, List<Entry>> entries;   // "<프로토콜>/<방향>" -> 번호 순서(0부터 빈틈 없음)
@@ -35,12 +35,12 @@ public final class ProtocolIds {
         this.entries = copy;
     }
 
-    public static ProtocolIds protocol767() {
-        ProtocolIds p = protocol767;
+    public static ProtocolIds current() {
+        ProtocolIds p = current;
         if (p == null) {
             synchronized (ProtocolIds.class) {
-                p = protocol767;
-                if (p == null) protocol767 = p = load("protocol-" + GameVersion.PROTOCOL + "-ids.txt");
+                p = current;
+                if (p == null) current = p = load("protocol-" + GameVersion.PROTOCOL + "-ids.txt");
             }
         }
         return p;

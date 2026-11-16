@@ -23,7 +23,7 @@ public final class ProtocolShimGenerator {
 
     public static void main(String[] args) throws IOException {
         Path out = Path.of(args[0]);
-        ProtocolShimGenerator g = new ProtocolShimGenerator(ProtocolIds.protocol767(), PacketSchema.protocol767());
+        ProtocolShimGenerator g = new ProtocolShimGenerator(ProtocolIds.current(), PacketSchema.current());
         g.generate(out);
     }
 

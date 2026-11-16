@@ -7,12 +7,13 @@ import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 import org.domi.furnace.server.scores.NumberFormat;
 
 @VanillaPort("net.minecraft.network.protocol.game.ClientboundSetScorePacket")
 public record SetScore(String owner, String objectiveName, int score, Text display, NumberFormat numberFormat) implements Packet {
 
-    public static final int ID = 0x61;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_SET_SCORE;
 
     @Override
     public int id() { return ID; }

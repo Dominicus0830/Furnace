@@ -25,7 +25,7 @@ import org.domi.furnace.api.packet.schema.TypeRef;
 /**
  * 스키마로 생성한 clientbound 패킷 shim → Furnace {@link GenericPacket}(easy-nms E4c). 보내기 다리가 쓴다. 플러그인용이 아니다.
  *
- * <p>필드 나열 종류(스키마 custom 이 아닌 것)는 스키마 필드를 차례로 바꾼다 — 이름은 snake_case, 값은 서버 범용 코덱(GenericCodec767)이
+ * <p>필드 나열 종류(스키마 custom 이 아닌 것)는 스키마 필드를 차례로 바꾼다 — 이름은 snake_case, 값은 서버 범용 코덱(GenericCodec)이
  * 같은 스키마 타입에 쓰는 값 종류와 같다(Component → Text, BlockPos → api BlockPos, enum → 상수 이름, Holder·ResourceKey·ResourceLocation → 이름,
  * 내포 record·class → PacketStruct, nullable → Optional). 바닐라 와이어 바이트는 서버 코덱이 만든다.
  * 종류마다 변환 계획을 처음 한 번 만들어 둔다(스키마 해석·필드 반사를 보낼 때마다 하지 않는다).
@@ -36,9 +36,9 @@ public final class SchemaPacketBridge {
 
     private SchemaPacketBridge() {}
 
-    private static final PacketSchema SCHEMA = PacketSchema.protocol767();
+    private static final PacketSchema SCHEMA = PacketSchema.current();
 
-    /** 서버 범용 코덱이 play 연결로 다루는 단계(GenericCodec767.PLAY_STATES 와 같다). */
+    /** 서버 범용 코덱이 play 연결로 다루는 단계(GenericCodec.PLAY_STATES 와 같다). */
     private static final Set<String> PLAY_STATES = Set.of("game", "common", "cookie", "ping");
 
     /** 서버 범용 코덱의 Holder 표와 같다(그 밖의 Holder 는 서버도 못 쓴다). */
@@ -136,7 +136,7 @@ public final class SchemaPacketBridge {
     // ------------------------------------------------------------------ 손 코덱 종류(E4c-2)
 
     /**
-     * 손 코덱 종류(스키마 custom): 서버 손 코덱(GenericHand767)의 필드 이름·순서·모양으로 바꾼다. 범용 변환이 되는 필드는 그것을 쓰고,
+     * 손 코덱 종류(스키마 custom): 서버 손 코덱(GenericHand)의 필드 이름·순서·모양으로 바꾼다. 범용 변환이 되는 필드는 그것을 쓰고,
      * 나머지(라이브러리 Pair·배열·Holder 등)는 종류마다 직접 바꾼다. 바닐라 write 가 보지 않는 필드(팀 method 1 의 parameters 등)는 바닐라처럼 버린다.
      * 대응표가 없는 종류는 까닭과 함께 거절한다(docs/feature-parity/compat-nms-packets-2026-11-12.md).
      */
@@ -224,7 +224,7 @@ public final class SchemaPacketBridge {
 
     private static Custom custom(String key) {
         return switch (key) {
-            // serverbound(받은 패킷, 2b-3) — 서버 손 코덱(GenericHand767)의 필드 순서
+            // serverbound(받은 패킷, 2b-3) — 서버 손 코덱(GenericHand)의 필드 순서
             case "s:player_abilities" -> reorder("is_flying");
             case "s:player_input" -> reorder("xxa", "zza", "is_jumping", "is_shift_key_down");
             case "s:seen_advancements" -> reorder("action", "tab");
@@ -819,7 +819,7 @@ public final class SchemaPacketBridge {
                 .orElseThrow(() -> new IllegalArgumentException("unknown block state id: " + s.furnaceStateId()));
     }
 
-    /** Mojang camelCase → snake_case(서버 GenericCodec767.snake 와 같은 규칙). */
+    /** Mojang camelCase → snake_case(서버 GenericCodec.snake 와 같은 규칙). */
     static String snake(String camel) {
         StringBuilder b = new StringBuilder(camel.length() + 4);
         for (int i = 0; i < camel.length(); i++) {

@@ -5,6 +5,7 @@ import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 @VanillaPort("net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket")
 public record SyncPlayerPosition(double x, double y, double z, float yaw, float pitch, int flags, int teleportId) implements Packet {
@@ -17,7 +18,7 @@ public record SyncPlayerPosition(double x, double y, double z, float yaw, float 
         this(x, y, z, yaw, pitch, 0, teleportId);
     }
 
-    public static final int ID = 0x40;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_PLAYER_POSITION;
 
     @Override
     public int id() {

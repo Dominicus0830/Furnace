@@ -9,13 +9,14 @@ import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 import org.domi.furnace.server.scores.ChatFormatting;
 import org.domi.furnace.server.scores.PlayerTeam;
 
 @VanillaPort("net.minecraft.network.protocol.game.ClientboundSetPlayerTeamPacket")
 public record SetPlayerTeam(String name, int method, Parameters parameters, List<String> players) implements Packet {
 
-    public static final int ID = 0x60;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_SET_PLAYER_TEAM;
     public static final int METHOD_ADD = 0, METHOD_REMOVE = 1, METHOD_CHANGE = 2, METHOD_JOIN = 3, METHOD_LEAVE = 4;
 
     public record Parameters(Text displayName, int options, String nametagVisibility, String collisionRule, ChatFormatting color,

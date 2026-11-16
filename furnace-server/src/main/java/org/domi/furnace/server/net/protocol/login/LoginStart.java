@@ -6,11 +6,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 @VanillaPort("net.minecraft.network.protocol.login.ServerboundHelloPacket")
 public record LoginStart(String name, UUID uuid) {
 
-    public static final int ID = 0x00;
+    public static final int ID = PacketIds.LOGIN_SERVERBOUND_HELLO;
 
     public static LoginStart read(ByteBuf buf) {
         String name = Types.readString(buf, 16);

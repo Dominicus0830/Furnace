@@ -6,12 +6,13 @@ import java.util.UUID;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 @VanillaPort("net.minecraft.network.protocol.game.ClientboundAddEntityPacket")
 public record SpawnEntity(int entityId, UUID uuid, double x, double y, double z,
                           float yaw, float pitch) implements Packet {
 
-    public static final int ID = 0x01;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_ADD_ENTITY;
     private static final int PLAYER_TYPE = 128;
 
     @Override

@@ -6,11 +6,13 @@ import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 @VanillaPort("net.minecraft.network.protocol.game.ClientboundMoveEntityPacket")
 public record MoveEntity(int kind, int entityId, short dx, short dy, short dz, int yRot, int xRot, boolean onGround) implements Packet {
 
-    public static final int POS = 0x2E, POS_ROT = 0x2F, ROT = 0x30;
+    public static final int POS = PacketIds.PLAY_CLIENTBOUND_MOVE_ENTITY_POS, POS_ROT = PacketIds.PLAY_CLIENTBOUND_MOVE_ENTITY_POS_ROT,
+            ROT = PacketIds.PLAY_CLIENTBOUND_MOVE_ENTITY_ROT;
 
     public static MoveEntity pos(int id, short dx, short dy, short dz, boolean onGround) { return new MoveEntity(POS, id, dx, dy, dz, 0, 0, onGround); }
 

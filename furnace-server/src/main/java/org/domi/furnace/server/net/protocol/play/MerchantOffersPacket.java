@@ -6,6 +6,7 @@ import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 import org.domi.furnace.server.trade.ItemCost;
 import org.domi.furnace.server.trade.MerchantOffer;
 import org.domi.furnace.server.trade.MerchantOffers;
@@ -14,7 +15,7 @@ import org.domi.furnace.server.trade.MerchantOffers;
 public record MerchantOffersPacket(int containerId, MerchantOffers offers, int villagerLevel, int villagerXp, boolean showProgress, boolean canRestock)
         implements Packet {
 
-    public static final int ID = 0x2D;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_MERCHANT_OFFERS;
 
     @Override public int id() { return ID; }
 

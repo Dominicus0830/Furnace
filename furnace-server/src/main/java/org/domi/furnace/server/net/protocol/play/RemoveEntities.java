@@ -6,11 +6,12 @@ import java.util.List;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 @VanillaPort("net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket")
 public record RemoveEntities(List<Integer> entityIds) implements Packet {
 
-    public static final int ID = 0x42;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_REMOVE_ENTITIES;
 
     @Override
     public int id() {

@@ -17,12 +17,12 @@ class PacketSchemaTest {
     private static final Set<String> PLAY_STATES = Set.of("game", "common", "cookie", "ping");
 
     @Test
-    void loadsEveryPacketOfProtocol767() {
-        PacketSchema s = PacketSchema.protocol767();
+    void loadsEveryPacketOfTheCurrentProtocol() {
+        PacketSchema s = PacketSchema.current();
         assertEquals(767, s.protocol());
         assertEquals(202, s.packets().size(), "1.21.1 패킷 종류 수(핸드셰이크 1 + 상태 2 + 핑 2 + 쿠키 2 + 로그인 9 + 설정 7 + 공통 16 + 게임 163)");
         assertEquals(163, s.packets().stream().filter(p -> p.state().equals("game")).count());
-        assertSame(s, PacketSchema.protocol767());
+        assertSame(s, PacketSchema.current());
         Set<String> classes = new HashSet<>();
         for (PacketDef p : s.packets()) {
             assertTrue(classes.add(p.binaryName()), "클래스 겹침: " + p.binaryName());
@@ -33,7 +33,7 @@ class PacketSchemaTest {
 
     @Test
     void everyPlayPacketTypeHasASchemaPacketAndBack() {
-        PacketSchema s = PacketSchema.protocol767();
+        PacketSchema s = PacketSchema.current();
         for (PacketDirection d : PacketDirection.values()) {
             Set<String> api = new HashSet<>();
             for (PacketType<?> t : PacketTypes.all(d)) {
@@ -53,7 +53,7 @@ class PacketSchemaTest {
 
     @Test
     void fieldsKeepMojangNamesTypesAndWires() {
-        PacketSchema s = PacketSchema.protocol767();
+        PacketSchema s = PacketSchema.current();
         PacketDef add = s.packet("game", PacketDirection.CLIENTBOUND, "add_entity").orElseThrow();
         assertEquals("ClientboundAddEntityPacket", add.className());
         assertEquals(PacketDef.Kind.CLASS, add.kind());

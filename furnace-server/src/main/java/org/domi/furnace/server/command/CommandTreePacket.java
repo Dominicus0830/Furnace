@@ -15,11 +15,12 @@ import org.domi.furnace.server.command.brigadier.RootCommandNode;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 import org.domi.furnace.server.VanillaPort;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 @VanillaPort({"net.minecraft.network.protocol.game.ClientboundCommandsPacket", "net.minecraft.commands.Commands"})
 public final class CommandTreePacket implements Packet {
 
-    public static final int ID = 0x11;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_COMMANDS;
     private static final int TYPE_ROOT = 0, TYPE_LITERAL = 1, TYPE_ARGUMENT = 2;
     private static final int FLAG_EXECUTABLE = 0x04, FLAG_REDIRECT = 0x08, FLAG_SUGGESTIONS = 0x10;
 

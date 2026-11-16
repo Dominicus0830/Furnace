@@ -96,6 +96,46 @@ val generateStateIds by tasks.registering {
 }
 sourceSets.main { java.srcDir(generateStateIds.map { stateIdsDir.get() }) }
 
+// V-03: protocol-<번호>-ids.txt(바닐라에서 뽑은 번호표) → PacketIds(컴파일 시간 상수). build/generated 에만 생기고 커밋하지 않는다.
+// 서버 패킷 클래스의 ID 와 ConnectionHandler 의 case 가 숫자를 직접 쓰지 않고 이 상수를 쓴다. 상수라 case 라벨로 쓸 수 있고 javac 가 숫자를 그대로 박는다.
+val packetIdsDir = layout.buildDirectory.dir("generated/packetIds")
+val generatePacketIds by tasks.registering {
+    group = "build"
+    description = "프로토콜 번호표로 PacketIds 상수 클래스를 만든다"
+    @Suppress("UNCHECKED_CAST") val mc = rootProject.extra["mc"] as java.util.Properties
+    val proto = mc.getProperty("mc.protocol") ?: error("gradle/minecraft.properties 에 mc.protocol 이 없다")
+    val idsFile = rootProject.file("furnace-api/src/main/resources/org/domi/furnace/api/packet/schema/protocol-$proto-ids.txt")
+    val outDir = packetIdsDir
+    inputs.file(idsFile)
+    outputs.dir(outDir)
+    doLast {
+        // 상태(번호표의 프로토콜 이름) → 상수 이름 앞붙이. 번호표에 없는 상태가 생기면 여기서 멈춘다.
+        // 안쪽 클래스를 쓰지 않는다 — 쓰면 사용하는 클래스마다 InnerClasses 항목이 늘어 javap 동일 증명에 노이즈가 생긴다.
+        val holders = mapOf("handshake" to "HANDSHAKE", "status" to "STATUS", "login" to "LOGIN", "configuration" to "CONFIGURATION", "game" to "PLAY")
+        val body = StringBuilder()
+        val seen = HashSet<String>()
+        idsFile.readLines(Charsets.UTF_8).forEachIndexed { i, raw ->
+            val t = raw.trim().split(Regex("\\s+"))
+            if (t[0] != "id") return@forEachIndexed
+            fun bad(msg: String): Nothing = error("${idsFile.name}:${i + 1}: $msg — $raw")
+            if (t.size != 5) bad("id <프로토콜> <방향> <번호> <종류>:<이름> 꼴이어야 한다")
+            val state = holders[t[1]] ?: bad("모르는 상태(PacketIds 생성기에 추가해야 한다)")
+            val dir = when (t[2]) { "clientbound" -> "CLIENTBOUND"; "serverbound" -> "SERVERBOUND"; else -> bad("모르는 방향") }
+            val name = state + "_" + dir + "_" + t[4].substringAfter(':').uppercase()
+            if (!seen.add(name)) bad("상수 이름이 겹친다")
+            body.append("    public static final int ").append(name).append(" = 0x").append("%02X".format(t[3].toInt())).append(";\n")
+        }
+        val src = "// 자동 생성 — protocol-$proto-ids.txt 에서 만든다(generatePacketIds). 손으로 고치지 않는다.\n" +
+            "package org.domi.furnace.server.net.protocol;\n\n" +
+            "/** 패킷 번호. 이름은 <상태>_<방향>_<와이어 이름>, 모든 칸이 컴파일 시간 상수라 쓰는 자리에 값이 그대로 들어간다. */\n" +
+            "public final class PacketIds {\n    private PacketIds() {}\n\n" + body + "}\n"
+        val f = outDir.get().file("org/domi/furnace/server/net/protocol/PacketIds.java").asFile
+        f.parentFile.mkdirs()
+        f.writeText(src)
+    }
+}
+sourceSets.main { java.srcDir(generatePacketIds.map { packetIdsDir.get() }) }
+
 application {
     mainClass = "org.domi.furnace.server.FurnaceMain"
     applicationDefaultJvmArgs = listOf("-Xmx6G")

@@ -5,12 +5,13 @@ package org.domi.furnace.server.net.protocol.play;
 import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 @VanillaPort("net.minecraft.network.protocol.game.ClientboundLevelParticlesPacket")
 public record LevelParticles(boolean overrideLimiter, double x, double y, double z, float xDist, float yDist, float zDist,
         float maxSpeed, int count, ParticleOptions particle) implements Packet {
 
-    public static final int ID = 0x29;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_LEVEL_PARTICLES;
 
     @Override
     public int id() { return ID; }

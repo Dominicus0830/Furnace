@@ -61,7 +61,7 @@ views.disguise(this, villager, Disguise.player("Guard", List.of(ProfileProperty.
 - 규칙: `server.entity.view.EntityViewRules` — 대상(엔티티 uuid)마다 불변 스냅샷, 바꿀 때 통째로 갈아 끼운다. 추적기·연결 이벤트 루프가 락 없이 읽는다. 규칙이 없으면 `active` 가 거짓이라 volatile 읽기 하나로 끝난다.
 - 보이기: 몹·물건은 `EntityTracker.updatePlayer` 의 보임 조건에, 플레이어끼리는 `Region.updateVisibility`·`syncTabList` 에 규칙을 넣었다. 규칙이 바뀌면 몹은 엔티티 작업 대기열로 다음 틱에 `ChunkLevel.refreshViews`, 플레이어는 region 이 매 틱 다시 보고(탭은 `bumpRoster`) 모습 세대(`epochFor`)가 바뀌면 다시 스폰한다.
 - 변장: `ViewRewriter`(연결마다, 이벤트 루프에서만) 가 스폰 때 그때 규칙으로 모습을 엔티티 번호에 묶고, 지울 때 푼다. 그 사이의 메타데이터·속성·장비는 묶인 모습 기준으로 거른다 — 규칙이 도중에 바뀌어도 클라이언트가 가진 엔티티와 어긋나지 않는다.
-- 버전 중립: API(`Disguise`)는 종류 이름·값만 갖고, 메타데이터·프로필 패킷은 패킷 API 변환 계층(`Protocol767`)이 인코딩한다. 칸 갈래 표(`EntityKinds`)만 버전별이다.
+- 버전 중립: API(`Disguise`)는 종류 이름·값만 갖고, 메타데이터·프로필 패킷은 패킷 API 변환 계층(`ProtocolTable`)이 인코딩한다. 칸 갈래 표(`EntityKinds`)만 버전별이다.
 
 ## 성능 (2026-11-07, 4코어 컨테이너, `EntityViewTrackerBench`)
 

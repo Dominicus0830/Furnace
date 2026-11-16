@@ -17,7 +17,7 @@ import org.domi.furnace.api.packet.PacketTypes;
 
 /**
  * 청크·빛 패킷(level_chunk_with_light·light_update) Furnace 범용 패킷 ↔ shim(T-182, ProtocolLib MAP_CHUNK·LIGHT_UPDATE).
- * 범용 패킷의 모양은 서버 손 코덱(GenericComplex767): chunk_data{heightmaps, buffer, block_entities_data[{packed_xz, y, type, tag}]},
+ * 범용 패킷의 모양은 서버 손 코덱(GenericComplex): chunk_data{heightmaps, buffer, block_entities_data[{packed_xz, y, type, tag}]},
  * light_data{sky_y_mask, block_y_mask, empty_sky_y_mask, empty_block_y_mask(long[]), sky_updates, block_updates(byte[] 목록)}.
  * 구역 데이터 바이트(buffer)는 해석하지 않고 그대로 넘긴다 — 리스너가 바꾼 바이트가 그대로 나간다.
  */

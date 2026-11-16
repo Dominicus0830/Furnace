@@ -6,7 +6,7 @@
 `furnace-api` 의 `org.domi.furnace.api.packet` 에 있고, 입구는 `Furnace.server().packets()` 와 `Player.sendPacket`.
 
 결정 D2(공식 패킷 API)와 "1.21.1 이후 버전도 지원" 계획을 따른다: 숫자 패킷 id·바이트 배치는 API 에 드러나지 않는다.
-값은 이름 기반 불변 레코드(`BlockData`, 엔티티 종류 `"minecraft:zombie"`, 소리 `"minecraft:..."`, `Text`)이고, 서버의 버전별 변환 계층(`ProtocolCodec`, 지금은 `Protocol767` = 1.21.1)이 실제 와이어 형식과 오간다.
+값은 이름 기반 불변 레코드(`BlockData`, 엔티티 종류 `"minecraft:zombie"`, 소리 `"minecraft:..."`, `Text`)이고, 서버의 버전별 변환 계층(`ProtocolCodec`, 지금은 `ProtocolTable` = 1.21.1)이 실제 와이어 형식과 오간다.
 
 ## 빠른 예
 
@@ -280,7 +280,7 @@ packets.sendBundle(player, List.of(
 ## 서버 구현 위치
 
 - API: `furnace-api/.../api/packet/`(+ `entity/Hand`, `world/BlockFace`, `world/SoundCategory`).
-- 구현: `furnace-server/.../plugin/packet/` — `PacketServiceImpl`(등록·연결별 `Tap`), `ProtocolCodec`(버전 계층 인터페이스), `Protocol767`(1.21.1 id 표·코덱; id 순서는 바닐라 `GameProtocols` 등록 순서를 바이트코드로 확인), `NetworkText`(네트워크 NBT ↔ `Text`), `GenericCodec767`(스키마로 `GenericPacket` 읽고 쓰기), `GenericHand767`(custom 종류 손 코덱), `GenericComplex767`(E5 복잡한 종류).
+- 구현: `furnace-server/.../plugin/packet/` — `PacketServiceImpl`(등록·연결별 `Tap`), `ProtocolCodec`(버전 계층 인터페이스), `ProtocolTable`(1.21.1 id 표·코덱; id 순서는 바닐라 `GameProtocols` 등록 순서를 바이트코드로 확인), `NetworkText`(네트워크 NBT ↔ `Text`), `GenericCodec767`(스키마로 `GenericPacket` 읽고 쓰기), `GenericHand767`(custom 종류 손 코덱), `GenericComplex767`(E5 복잡한 종류).
 - 연결 지점: 나가는 쪽은 `SharedChunkFrames.encode`(모든 play 송신이 지나는 곳), 들어오는 쪽은 `ConnectionHandler.dispatchPlay`. 플레이어가 play 에 들어올 때 채널 속성 `PacketTap.KEY` 로 붙는다. `receive` 는 `ConnectionHandler.injectPlay` 로 이벤트 루프에 넣는다.
 - 새 MC 버전 지원: `ProtocolCodec` 구현을 하나 더 만들고 `PluginHost` 에서 고른다. API 타입은 바꾸지 않는다.
 - 시험: `PacketApiTest`(id 표·왕복·가로채기), `PacketApiFlowTest`(실제 연결에서 바꾸기·취소·receive), `GenericPacketTest`(범용 코덱 고정 바이트·검사), `GenericComplexPacketTest`(E5 종류 바닐라 바이트·쓰기 거부), furnace-test `GenericPacketRoundTripTest`(서버가 보낸 바이트 왕복), `furnace-api` 의 `PacketTypesTest`·`GenericPacketApiTest`.

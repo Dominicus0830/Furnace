@@ -6,11 +6,12 @@ import java.util.List;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 @VanillaPort("net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket")
 public record SetEntityData(int entityId, List<Item> items) implements Packet {
 
-    public static final int ID = 0x58;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_SET_ENTITY_DATA;
     /** EntityDataSerializers 순번. */
     public static final int SERIALIZER_BYTE = 0, SERIALIZER_INT = 1, SERIALIZER_LONG = 2, SERIALIZER_FLOAT = 3, SERIALIZER_STRING = 4, SERIALIZER_ITEM = 7, SERIALIZER_BOOLEAN = 8, SERIALIZER_COMPOUND = 16,
             SERIALIZER_DIRECTION = 12, SERIALIZER_FROG_VARIANT = 24, SERIALIZER_WOLF_VARIANT = 23, SERIALIZER_ARMADILLO_STATE = 28, SERIALIZER_SNIFFER_STATE = 27, SERIALIZER_BLOCK_POS = 10, SERIALIZER_OPTIONAL_BLOCK_POS = 11, SERIALIZER_OPTIONAL_UUID = 13, SERIALIZER_BLOCK_STATE = 14, SERIALIZER_OPTIONAL_BLOCK_STATE = 15, SERIALIZER_CAT_VARIANT = 22, SERIALIZER_OPTIONAL_INT = 20, SERIALIZER_VILLAGER_DATA = 19, SERIALIZER_POSE = 21, SERIALIZER_PARTICLE = 17, SERIALIZER_PARTICLES = 18, SERIALIZER_COMPONENT = 5, SERIALIZER_OPTIONAL_COMPONENT = 6, SERIALIZER_PAINTING_VARIANT = 26, SERIALIZER_ROTATIONS = 9, SERIALIZER_VECTOR3 = 29, SERIALIZER_QUATERNION = 30;

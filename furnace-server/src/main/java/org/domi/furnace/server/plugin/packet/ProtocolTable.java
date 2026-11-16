@@ -1,4 +1,4 @@
-// 1.21.1(프로토콜 767) 변환 계층. id 순서는 바닐라 GameProtocols 의 등록 순서(바이트코드로 확인, 2026-11-06)와 같다.
+// 현재 버전(GameVersion)의 패킷 변환 계층. 번호 순서는 번호표(protocol-<번호>-ids.txt, 바닐라 GameProtocols 의 등록 순서)에서 읽는다.
 // 블록 상태는 서버 블록 레지스트리, 엔티티 종류·소리는 데이터 레지스트리(ItemContext)로 이름 ↔ 번호를 바꾼다.
 package org.domi.furnace.server.plugin.packet;
 
@@ -19,59 +19,30 @@ import org.domi.furnace.api.packet.PacketTypes;
 import org.domi.furnace.api.packet.PacketTypes.Clientbound;
 import org.domi.furnace.api.packet.PacketTypes.Serverbound;
 import org.domi.furnace.api.packet.clientbound.*;
+import org.domi.furnace.api.packet.schema.ProtocolIds;
 import org.domi.furnace.api.packet.serverbound.*;
 import org.domi.furnace.api.world.BlockFace;
 import org.domi.furnace.api.world.BlockPos;
 import org.domi.furnace.api.world.SoundCategory;
 import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.net.io.Types;
+import org.domi.furnace.server.net.protocol.PacketIds;
 import org.domi.furnace.server.plugin.ApiConvert;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ItemRegistry;
 
-public final class Protocol767 implements ProtocolCodec {
+public final class ProtocolTable implements ProtocolCodec {
 
     public static final int PROTOCOL = GameVersion.PROTOCOL;
 
-    /** play 서버→클라이언트, id 순서. */
-    static final String[] CLIENTBOUND = {
-            "bundle_delimiter", "add_entity", "add_experience_orb", "animate", "award_stats", "block_changed_ack",
-            "block_destruction", "block_entity_data", "block_event", "block_update", "boss_event", "change_difficulty",
-            "chunk_batch_finished", "chunk_batch_start", "chunks_biomes", "clear_titles", "command_suggestions", "commands",
-            "container_close", "container_set_content", "container_set_data", "container_set_slot", "cookie_request", "cooldown",
-            "custom_chat_completions", "custom_payload", "damage_event", "debug_sample", "delete_chat", "disconnect",
-            "disguised_chat", "entity_event", "explode", "forget_level_chunk", "game_event", "horse_screen_open", "hurt_animation",
-            "initialize_border", "keep_alive", "level_chunk_with_light", "level_event", "level_particles", "light_update", "login",
-            "map_item_data", "merchant_offers", "move_entity_pos", "move_entity_pos_rot", "move_entity_rot", "move_vehicle",
-            "open_book", "open_screen", "open_sign_editor", "ping", "pong_response", "place_ghost_recipe", "player_abilities",
-            "player_chat", "player_combat_end", "player_combat_enter", "player_combat_kill", "player_info_remove",
-            "player_info_update", "player_look_at", "player_position", "recipe", "remove_entities", "remove_mob_effect",
-            "reset_score", "resource_pack_pop", "resource_pack_push", "respawn", "rotate_head", "section_blocks_update",
-            "select_advancements_tab", "server_data", "set_action_bar_text", "set_border_center", "set_border_lerp_size",
-            "set_border_size", "set_border_warning_delay", "set_border_warning_distance", "set_camera", "set_carried_item",
-            "set_chunk_cache_center", "set_chunk_cache_radius", "set_default_spawn_position", "set_display_objective",
-            "set_entity_data", "set_entity_link", "set_entity_motion", "set_equipment", "set_experience", "set_health",
-            "set_objective", "set_passengers", "set_player_team", "set_score", "set_simulation_distance", "set_subtitle_text",
-            "set_time", "set_title_text", "set_titles_animation", "sound_entity", "sound", "start_configuration", "stop_sound",
-            "store_cookie", "system_chat", "tab_list", "tag_query", "take_item_entity", "teleport_entity", "ticking_state",
-            "ticking_step", "transfer", "update_advancements", "update_attributes", "update_mob_effect", "update_recipes",
-            "update_tags", "projectile_power", "custom_report_details", "server_links"
-    };
+    /** play 서버→클라이언트 와이어 이름, 번호 순서. 바닐라에서 뽑은 번호표(ProtocolIds)에서 읽는다. */
+    static final String[] CLIENTBOUND = names(PacketDirection.CLIENTBOUND);
+    /** play 클라이언트→서버 와이어 이름, 번호 순서. */
+    static final String[] SERVERBOUND = names(PacketDirection.SERVERBOUND);
 
-    /** play 클라이언트→서버, id 순서. */
-    static final String[] SERVERBOUND = {
-            "accept_teleportation", "block_entity_tag_query", "change_difficulty", "chat_ack", "chat_command",
-            "chat_command_signed", "chat", "chat_session_update", "chunk_batch_received", "client_command", "client_information",
-            "command_suggestion", "configuration_acknowledged", "container_button_click", "container_click", "container_close",
-            "container_slot_state_changed", "cookie_response", "custom_payload", "debug_sample_subscription", "edit_book",
-            "entity_tag_query", "interact", "jigsaw_generate", "keep_alive", "lock_difficulty", "move_player_pos",
-            "move_player_pos_rot", "move_player_rot", "move_player_status_only", "move_vehicle", "paddle_boat", "pick_item",
-            "ping_request", "place_recipe", "player_abilities", "player_action", "player_command", "player_input", "pong",
-            "recipe_book_change_settings", "recipe_book_seen_recipe", "rename_item", "resource_pack", "seen_advancements",
-            "select_trade", "set_beacon", "set_carried_item", "set_command_block", "set_command_minecart",
-            "set_creative_mode_slot", "set_jigsaw_block", "set_structure_block", "sign_update", "swing", "teleport_to_entity",
-            "use_item_on", "use_item"
-    };
+    private static String[] names(PacketDirection d) {
+        return ProtocolIds.current().entries("game", d).stream().map(ProtocolIds.Entry::wireName).toArray(String[]::new);
+    }
 
     private static final int STRING_MAX = 32767;
     private static final String ENTITY_TYPES = "minecraft:entity_type", SOUNDS = "minecraft:sound_event";
@@ -89,15 +60,15 @@ public final class Protocol767 implements ProtocolCodec {
     private final Supplier<BlockRegistry> blocks;
     private final Supplier<ItemRegistry> items;
     private final EntityData767 entityData;
-    private final GenericCodec767 generic;
+    private final GenericCodec generic;
 
-    public Protocol767(Supplier<BlockRegistry> blocks) { this(blocks, () -> null); }
+    public ProtocolTable(Supplier<BlockRegistry> blocks) { this(blocks, () -> null); }
 
-    public Protocol767(Supplier<BlockRegistry> blocks, Supplier<ItemRegistry> items) {
+    public ProtocolTable(Supplier<BlockRegistry> blocks, Supplier<ItemRegistry> items) {
         this.blocks = blocks;
         this.items = items;
         this.entityData = new EntityData767(this::blocks, this::items);
-        this.generic = new GenericCodec767(this::blocks, this::items);
+        this.generic = new GenericCodec(this::blocks, this::items);
         Map<PacketType<?>, List<Integer>> tmp = new IdentityHashMap<>();
         for (int i = 0; i < CLIENTBOUND.length; i++) {
             cbTypes[i] = lookup(PacketDirection.CLIENTBOUND, CLIENTBOUND[i]);
@@ -121,7 +92,7 @@ public final class Protocol767 implements ProtocolCodec {
         if (r != null) return r;
         r = fallbackBlocks;
         if (r == null) {
-            synchronized (Protocol767.class) {
+            synchronized (ProtocolTable.class) {
                 if (fallbackBlocks == null) fallbackBlocks = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
                 r = fallbackBlocks;
             }
@@ -137,7 +108,7 @@ public final class Protocol767 implements ProtocolCodec {
         if (r != null) return r;
         r = fallbackItems;
         if (r == null) {
-            synchronized (Protocol767.class) {
+            synchronized (ProtocolTable.class) {
                 if (fallbackItems == null) fallbackItems = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
                 r = fallbackItems;
             }
@@ -573,7 +544,8 @@ public final class Protocol767 implements ProtocolCodec {
 
     // ------------------------------------------------------------------ 클라이언트→서버
 
-    private static final int MOVE_POS = 0x1A, MOVE_POS_ROT = 0x1B, MOVE_ROT = 0x1C, MOVE_STATUS = 0x1D;
+    private static final int MOVE_POS = PacketIds.PLAY_SERVERBOUND_MOVE_PLAYER_POS, MOVE_POS_ROT = PacketIds.PLAY_SERVERBOUND_MOVE_PLAYER_POS_ROT,
+            MOVE_ROT = PacketIds.PLAY_SERVERBOUND_MOVE_PLAYER_ROT, MOVE_STATUS = PacketIds.PLAY_SERVERBOUND_MOVE_PLAYER_STATUS_ONLY;
 
     private void registerServerbound() {
         codec(Serverbound.CHAT, (id, b) -> {

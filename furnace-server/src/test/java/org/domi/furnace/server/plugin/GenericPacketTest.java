@@ -32,7 +32,7 @@ import org.domi.furnace.server.TestServers;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.net.io.Types;
-import org.domi.furnace.server.plugin.packet.Protocol767;
+import org.domi.furnace.server.plugin.packet.ProtocolTable;
 import org.domi.furnace.server.plugin.packet.ProtocolCodec;
 import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
 import org.junit.jupiter.api.AfterEach;
@@ -107,7 +107,7 @@ class GenericPacketTest {
 
     @Test
     void everyGenericKindIsReadableOrSaysWhy() {
-        var proto = (Protocol767) codec;
+        var proto = (ProtocolTable) codec;
         int readable = 0;
         for (PacketDirection d : PacketDirection.values()) {
             for (PacketType<?> t : PacketTypes.all(d)) {

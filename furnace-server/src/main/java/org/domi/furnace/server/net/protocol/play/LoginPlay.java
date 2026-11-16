@@ -6,6 +6,7 @@ import java.util.List;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 /**
  * @param levels        서버의 모든 차원 이름(바닐라 levelKeys: overworld, the_nether, the_end)
@@ -18,7 +19,7 @@ public record LoginPlay(int entityId, boolean hardcore, List<String> levels, int
                         int dimensionType, String dimensionName, long hashedSeed, int gameMode, int previousGameMode,
                         boolean debug, boolean flat, String lastDeathDimension, int[] lastDeath, boolean enforcesSecureChat) implements Packet {
 
-    public static final int ID = 0x2B;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_LOGIN;
 
     /** 예전 호출부(테스트)용: 기본값으로 채운다. */
     public LoginPlay(int entityId, String dimensionName, int dimensionType, int viewDistance) {
