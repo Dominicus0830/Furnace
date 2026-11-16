@@ -5,7 +5,7 @@ import java.io.PrintStream;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.effect.MobEffect;
-import net.minecraft.world.food.SuspiciousEffectHolder;
+import net.minecraft.world.level.block.SuspiciousEffectHolder;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.component.SuspiciousStewEffects;
 

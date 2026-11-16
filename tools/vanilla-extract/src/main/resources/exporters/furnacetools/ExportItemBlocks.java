@@ -50,7 +50,9 @@ public class ExportItemBlocks {
                 if (it instanceof StandingAndWallBlockItem sw) {
                     java.lang.reflect.Field f = StandingAndWallBlockItem.class.getDeclaredField("attachmentDirection");
                     f.setAccessible(true);
-                    sb.append(' ').append(blocks.getKey(sw.wallBlock)).append(' ').append(((Enum<?>) f.get(sw)).name().toLowerCase());
+                    java.lang.reflect.Field wf = StandingAndWallBlockItem.class.getDeclaredField("wallBlock");
+                    wf.setAccessible(true);
+                    sb.append(' ').append(blocks.getKey((Block) wf.get(sw))).append(' ').append(((Enum<?>) f.get(sw)).name().toLowerCase());
                 }
                 w.println(sb);
             }

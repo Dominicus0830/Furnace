@@ -26,7 +26,7 @@ import net.minecraft.world.level.block.state.BlockState;
  *          canOcclude ignitedByLava pushReaction replaceableProp dynamicShape offset soundType(volume,pitch,break,step,place,hit,fall) lootTable
  *  <출력2>(gzip) 상태별: id FULL CENTER RIGID(DUNSWE 비트 6자리씩) replaceable legacySolid blocksMotion hasBlockEntity hasAnalogOutput
  *          redstoneConductor suffocating viewBlocking hasPostProcess emissive lightEmission mapColorId
- * BlockBehaviour.Properties 의 필드를 직접 읽는다(접근 제한은 바닐라 jar 에서 열려 있다).
+ * BlockBehaviour.Properties 의 필드를 직접 읽는다(패키지 비공개 필드라 리플렉션으로 읽는다).
  */
 public class ExportBlockProps {
     public static void main(String[] a) throws Exception {
@@ -38,10 +38,10 @@ public class ExportBlockProps {
             s.println("# 자동 생성: " + Vanilla.generator("ExportBlockProps") + ". id FULL CENTER RIGID replaceable legacySolid blocksMotion hasBlockEntity hasAnalogOutput redstoneConductor suffocating viewBlocking hasPostProcess emissive light mapColor");
             for (Block block : reg) {
                 BlockBehaviour.Properties p = block.properties();
-                SoundType st = p.soundType;
+                SoundType st = (SoundType) g(p, "soundType");
                 String[] snd = sounds(st);
-                w.println(reg.getKey(block) + " " + b(p.hasCollision) + " " + p.explosionResistance + " " + b(p.requiresCorrectToolForDrops) + " " + b(p.isRandomlyTicking) + " " + p.friction + " " + p.speedFactor + " " + p.jumpFactor + " " + b(p.canOcclude)
-                        + " " + b(p.ignitedByLava) + " " + p.pushReaction.name().toLowerCase() + " " + b(p.replaceable) + " " + b(p.dynamicShape) + " " + (p.offsetFunction != null ? 1 : 0)
+                w.println(reg.getKey(block) + " " + b((boolean) g(p, "hasCollision")) + " " + g(p, "explosionResistance") + " " + b((boolean) g(p, "requiresCorrectToolForDrops")) + " " + b((boolean) g(p, "isRandomlyTicking")) + " " + g(p, "friction") + " " + g(p, "speedFactor") + " " + g(p, "jumpFactor") + " " + b((boolean) g(p, "canOcclude"))
+                        + " " + b((boolean) g(p, "ignitedByLava")) + " " + ((Enum<?>) g(p, "pushReaction")).name().toLowerCase() + " " + b((boolean) g(p, "replaceable")) + " " + b((boolean) g(p, "dynamicShape")) + " " + (g(p, "offsetFunction") != null ? 1 : 0)
                         + " " + st.getVolume() + " " + st.getPitch() + " " + String.join(" ", snd) + " " + block.getLootTable().location());
                 for (BlockState t : block.getStateDefinition().getPossibleStates()) {
                     StringBuilder sb = new StringBuilder().append(Block.getId(t));
@@ -50,15 +50,22 @@ public class ExportBlockProps {
                         for (Direction d : Direction.values()) sb.append(t.isFaceSturdy(EmptyBlockGetter.INSTANCE, BlockPos.ZERO, d, type) ? '1' : '0');
                     }
                     sb.append(' ').append(b(t.canBeReplaced())).append(b(t.isSolid())).append(b(t.blocksMotion())).append(b(t.hasBlockEntity())).append(b(t.hasAnalogOutputSignal()))
-                      .append(b(p.isRedstoneConductor.test(t, EmptyBlockGetter.INSTANCE, BlockPos.ZERO))).append(b(p.isSuffocating.test(t, EmptyBlockGetter.INSTANCE, BlockPos.ZERO)))
-                      .append(b(p.isViewBlocking.test(t, EmptyBlockGetter.INSTANCE, BlockPos.ZERO)))
-                      .append(b(p.hasPostProcess.test(t, EmptyBlockGetter.INSTANCE, BlockPos.ZERO))).append(b(p.emissiveRendering.test(t, EmptyBlockGetter.INSTANCE, BlockPos.ZERO)))
-                      .append(' ').append(t.getLightEmission()).append(' ').append(mapColor(p.mapColor.apply(t)));
+                      .append(b(((BlockBehaviour.StatePredicate) g(p, "isRedstoneConductor")).test(t, EmptyBlockGetter.INSTANCE, BlockPos.ZERO))).append(b(((BlockBehaviour.StatePredicate) g(p, "isSuffocating")).test(t, EmptyBlockGetter.INSTANCE, BlockPos.ZERO)))
+                      .append(b(((BlockBehaviour.StatePredicate) g(p, "isViewBlocking")).test(t, EmptyBlockGetter.INSTANCE, BlockPos.ZERO)))
+                      .append(b(((BlockBehaviour.StatePredicate) g(p, "hasPostProcess")).test(t, EmptyBlockGetter.INSTANCE, BlockPos.ZERO))).append(b(((BlockBehaviour.StatePredicate) g(p, "emissiveRendering")).test(t, EmptyBlockGetter.INSTANCE, BlockPos.ZERO)))
+                      .append(' ').append(t.getLightEmission()).append(' ').append(mapColor(((java.util.function.Function<BlockState, ?>) g(p, "mapColor")).apply(t)));
                     s.println(sb);
                 }
             }
         }
         System.out.println("done");
+    }
+
+    /** Properties 의 패키지 비공개 필드를 읽는다. */
+    static Object g(Object o, String name) throws Exception {
+        Field f = BlockBehaviour.Properties.class.getDeclaredField(name);
+        f.setAccessible(true);
+        return f.get(o);
     }
 
     static String b(boolean v) { return v ? "1" : "0"; }
