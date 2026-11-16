@@ -44,7 +44,7 @@ Furnace 하이트맵은 평소 지금 블록에서 계산된다(WORLD_SURFACE �
 
 ## 3. 바닐라와 같은지 — 시험
 
-**정답기 V1** `tools/vanilla-data/ExportRawWriteOracle.java` — 바닐라 1.21.1 서버 jar 로 읽은 청크(섹션을 생성자로 만들어 개수를 다시 셈 + `primeHeightmaps`) 60개에 무작위 연산을 섞어 적용한다:
+**정답기 V1** `ExportRawWriteOracle`(V-05 로 `tools/vanilla-extract` 로 이사, 옛 난독화 이름 원본은 git 기록 `802ccb451`) — 바닐라 1.21.1 서버 jar 로 읽은 청크(섹션을 생성자로 만들어 개수를 다시 셈 + `primeHeightmaps`) 60개에 무작위 연산을 섞어 적용한다:
 0 = `LevelChunk.setBlockState` 의 블록·하이트맵 부분, 1 = 섹션 `setBlockState`, 2 = 블록 컨테이너 `set`, 3 = `Heightmap.update` 직접, 4 = `setRawData`(맞는 길이), 5 = `setRawData`(틀린 길이 → prime), 6 = 개수 필드 대입.
 연산 수 41,512개(종류별 16,671 / 9,173 / 8,278 / 3,689 / 1,584 / 829 / 1,288). 끝에 네 하이트맵 raw 와 섹션 24개의 개수 셋을 적는다.
 
@@ -84,11 +84,11 @@ Furnace 하이트맵은 평소 지금 블록에서 계산된다(WORLD_SURFACE �
 
 ## 6. 정답표를 다시 만들 때
 
-`compat-nms-n2b0-survey-2026-11-14.md` 4장과 같다(서명 지운 내부 jar + 라이브러리):
+`compat-nms-n2b0-survey-2026-11-14.md` 4장과 같다(도구가 jar 준비를 한다):
 ```
-javac -d out -cp "$CP" tools/vanilla-data/ExportRawWriteOracle.java && java -cp "$CP:out" ExportRawWriteOracle oracle.txt
-gzip -9 -c oracle.txt > furnace-server/src/test/resources/n2b/rawwrite-oracle-1.21.1.txt.gz
+./gradlew -PskipOracle=true :vanilla-extract:run -Pmc=1.21.1 -Ptools=raw-write-oracle -Pmode=install
 ```
+결과는 `furnace-server/src/test/resources/n2b/rawwrite-oracle-1.21.1.txt.gz`.
 생성기(`RawCase`·`pool`·`pick`·`packHeights`)는 도구와 시험에 같은 글자로 있고 입력 해시로 서로 확인한다.
 
 ## 7. 독립 검토 반영(PR #373, 보고서 `furnace/reviews/n2b2-pr373.md`)

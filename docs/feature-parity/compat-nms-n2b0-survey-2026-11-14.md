@@ -1,7 +1,7 @@
 # NMS 어댑터 N2b-0 조사 — 캐시 전수·플러그인 필드 수준 사용·바닐라 정답기 (2026-11-14)
 
 설계: `compat-nms-n2b-design-2026-11-14.md`(PR #351). 이 문서는 6장 단계표의 **N2b-0**(결정 D1~D4 와 무관한 조사) 결과다.
-산출물: 필드 전수 시험 `ChunkFieldCensusTest`, 바닐라 jar 정답기 도구 `tools/vanilla-data/ExportSectionOracle.java` + 정답표
+산출물: 필드 전수 시험 `ChunkFieldCensusTest`, 바닐라 jar 정답기 도구 `ExportSectionOracle`(V-05 로 `tools/vanilla-extract` 로 이사) + 정답표
 `furnace-server/src/test/resources/n2b/section-oracle-1.21.1.txt.gz` + 대조 시험 `VanillaSectionOracleTest`, 조사 스크립트 `tools/compat/nms-field-survey.py`.
 
 ## 1. 요약
@@ -77,7 +77,7 @@
 
 ## 4. 바닐라 jar 정답기(V1 뼈대)
 
-**도구** `tools/vanilla-data/ExportSectionOracle.java`(다른 Export 도구와 같은 방식, 1.21.1 난독화 이름): 번들러 jar 의 내부 서버 jar(서명 파일 `META-INF/*.SF·*.RSA` 를 지운 사본)와 라이브러리를 클래스패스에 두고 실행한다. 출력은 "이 입력에 바닐라가 낸 숫자"뿐이고, 입력은 시드로 시험이 다시 만든다(생성기를 양쪽에 같은 글자로 두고 입력 해시로 확인).
+**도구** `ExportSectionOracle`(V-05 로 `tools/vanilla-extract/src/main/resources/exporters/furnacetools/`(Mojang 이름) 로 옮겼다. 난독화 이름 원본은 git 기록 `802ccb451` 의 `tools/vanilla-data/`)(다른 Export 도구와 같은 방식): 번들러 jar 의 내부 서버 jar(서명 파일 `META-INF/*.SF·*.RSA` 를 지운 사본)와 라이브러리를 클래스패스에 두고 실행한다. 출력은 "이 입력에 바닐라가 낸 숫자"뿐이고, 입력은 시드로 시험이 다시 만든다(생성기를 양쪽에 같은 글자로 두고 입력 해시로 확인).
 1. **상태별 개수 깃발**(26,684개): 바닐라 섹션에 그 상태 하나를 놓아(하나씩 놓기) 개수 3개가 얼마나 느는지, 그 상태 하나로 새 섹션을 만들어(다시 세기) 얼마나 되는지.
 2. **섹션 300개**: 하나씩 놓은 섹션(A) → 같은 블록으로 새 섹션을 만들어 다시 센 섹션(B, 디스크에서 읽은 섹션과 같음) → B 에 하나씩 바꾸기(C)의 개수 3개.
 3. **열 40개**(24 섹션): 바닐라 `ProtoChunk` + `Heightmap.primeHeightmaps` 뒤 `LevelChunk.setBlockState` 와 같은 순서(섹션 쓰기 → 같은 상태면 건너뜀 → 네 종류 `Heightmap.update`)로 바꾼 뒤 WORLD_SURFACE·OCEAN_FLOOR·MOTION_BLOCKING·MBNL raw.
@@ -100,12 +100,9 @@
 
 **정답표를 다시 만들 때**(생성기를 바꾸면 해시가 달라져 시험이 바로 알려 준다):
 ```
-unzip <번들러 jar> 'META-INF/versions/*' 'META-INF/libraries/*'
-cp META-INF/versions/1.21.1/server-1.21.1.jar s.jar && zip -qd s.jar 'META-INF/*.SF' 'META-INF/*.RSA'
-CP="s.jar:$(find META-INF/libraries -name '*.jar' | tr '\n' ':')"
-javac -d out -cp "$CP" tools/vanilla-data/ExportSectionOracle.java && java -cp "$CP:out" ExportSectionOracle oracle.txt
-gzip -9 -c oracle.txt > furnace-server/src/test/resources/n2b/section-oracle-1.21.1.txt.gz
+./gradlew -PskipOracle=true :vanilla-extract:run -Pmc=1.21.1 -Ptools=section-oracle -Pmode=install
 ```
+(번들러 풀기·서명 제거·이름 풀기·`.gz` 묶기를 도구가 한다. 설명은 `tools/vanilla-extract/README.md`. 결과는 `furnace-server/src/test/resources/n2b/section-oracle-1.21.1.txt.gz`.)
 
 ## 5. 설계에 되먹일 것(N2b-1 이후 단계가 반영)
 

@@ -20,7 +20,7 @@
 
 ## 2. 바닐라와 같게 맞춘 것
 
-**정답기** `tools/vanilla-data/ExportPaletteOracle.java` — 바닐라 1.21.1 서버 jar 의 `PalettedContainer`·`LevelChunkSection` 을 떨어진 객체로 만들어 시드로 만든 같은 입력을 넣고, 직렬화 바이트의 해시(비트 수·팔레트 순서·long 배치가 모두 들어 있다)·크기·`maybeHas`·`count` 합·`copy`/`recreate` 해시·개수 3개를 적는다. 240건(4종 × 60):
+**정답기** `ExportPaletteOracle`(V-05 로 `tools/vanilla-extract` 로 이사, 옛 난독화 이름 원본은 git 기록 `802ccb451`) — 바닐라 1.21.1 서버 jar 의 `PalettedContainer`·`LevelChunkSection` 을 떨어진 객체로 만들어 시드로 만든 같은 입력을 넣고, 직렬화 바이트의 해시(비트 수·팔레트 순서·long 배치가 모두 들어 있다)·크기·`maybeHas`·`count` 합·`copy`/`recreate` 해시·개수 3개를 적는다. 240건(4종 × 60):
 - `DEFAULT` — `(IdMap, T, Strategy)` 생성 후 칸 쓰기(블록 상태·바이옴). 팔레트 크기가 단일 → 선형 → 해시 → 전역으로 넘어가는 경계를 일부러 넘긴다.
 - `CTOR`·`CTOR_MISMATCH` — 5인자 생성자. 일부는 Configuration 의 비트 수와 저장소 비트 수가 다르거나 팔레트에 없는 번호를 담는다(FAWE 가 실제로 만드는 모양). 바닐라는 29건에서 `IllegalArgumentException` — 같은 자리(몇 번째 연산)에서 같은 예외 종류가 나야 통과.
 - `SECTION` — 무작위 블록으로 `LevelChunkSection` 을 만들어(다시 세기) 칸을 바꾸고(하나씩) 개수 3개와 섹션 직렬화 해시.
@@ -97,9 +97,9 @@
 
 ## 8. 정답표를 다시 만들 때
 
-`compat-nms-n2b0-survey-2026-11-14.md` 4장과 같다(서명 지운 내부 jar + 라이브러리). 인자만 다르다:
+`compat-nms-n2b0-survey-2026-11-14.md` 4장과 같다(도구가 jar 준비를 한다):
 ```
-javac -d out -cp "$CP" tools/vanilla-data/ExportPaletteOracle.java && java -cp "$CP:out" ExportPaletteOracle oracle.txt s.jar
-gzip -9 -c oracle.txt > furnace-compat-paper/src/test/resources/n2b/palette-oracle-1.21.1.txt.gz
+./gradlew -PskipOracle=true :vanilla-extract:run -Pmc=1.21.1 -Ptools=palette-oracle -Pmode=install
 ```
+결과는 `furnace-compat-paper/src/test/resources/n2b/palette-oracle-1.21.1.txt.gz`.
 생성기(`Cases`·`SectionCase`)는 도구와 시험에 같은 글자로 있고 입력 해시로 서로 확인한다 — 한쪽만 바꾸면 시험이 해시 불일치로 알려 준다.
