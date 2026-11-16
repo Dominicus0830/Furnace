@@ -312,6 +312,12 @@ public interface Furnace {
     /** server.properties 의 online-mode(접속할 때 Mojang 세션 인증을 하는가). 프록시 뒤라 false 로 둔 서버면 false. */
     default boolean onlineMode() { throw new UnsupportedOperationException("onlineMode"); }
 
+    /**
+     * 프로필 API(스킨 textures·이름→UUID)가 Mojang 에 물어볼 수 있는가(Paper usesAuthentication). 온라인 모드이거나 BungeeCord·Velocity 포워딩이면 참 —
+     * 프록시 뒤 online-mode=false 서버도 스킨은 받아야 한다. 기본은 {@link #onlineMode()}.
+     */
+    default boolean profileLookups() { return onlineMode(); }
+
     /** OP·밴·IP 밴·화이트리스트 목록. */
     default org.domi.furnace.api.access.AccessLists access() { throw new UnsupportedOperationException("access"); }
 

@@ -219,6 +219,7 @@ public final class FurnaceMain {
         log.info("Preparing level \"{}\"", config.levelName());
         var playerLists = new PlayerLists(Path.of("."), settings);
         profileCache.save();
+        profileCache.setProfileLookups(props.onlineMode || config.bungeecord() || !config.velocitySecret().isEmpty());
         var loginContext = org.domi.furnace.server.net.ServerLoginContext.fromProperties(props, serverKeys, playerLists,
                 profileCache, Path.of("server-icon.png")).velocitySecret(config.velocitySecret()).bungeecord(config.bungeecord())
                 .limits(org.domi.furnace.server.net.ConnectionLimits.load(furnaceProps, log::warn)

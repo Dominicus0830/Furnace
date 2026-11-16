@@ -330,6 +330,25 @@ class BukkitSkullTest {
     }
 
     @Test
+    void dataMergeKeepsTheOwner() {
+        server.onRegion(pos, () -> {
+            Skull s = placeHead("minecraft:player_head", Map.of("rotation", "0"));
+            s.setPlayerProfile(Bukkit.createProfile(UUID.randomUUID(), "Steve"));
+            assertTrue(s.update());
+            return null;
+        });
+        // /data merge 는 profile 이 없는 일부 NBT 로 병합한다 — 비우기 훅(beforeSnapshotLoad)이 이 길에 끼어들면 안 된다
+        var out = server.execute("data merge block " + pos.x() + " " + pos.y() + " " + pos.z() + " {note_block_sound:\"minecraft:entity.player.hurt\"}");
+        assertTrue(out.success(), out.messages().toString());
+        server.onRegion(pos, () -> {
+            NbtCompound now = server.api().world(dim).blockEntityNbtNow(pos).orElseThrow();
+            assertEquals("minecraft:entity.player.hurt", now.getString("note_block_sound"), "병합이 실렸다");
+            assertEquals("Steve", now.getCompound("profile").getString("name"), "profile 은 그대로");
+            return null;
+        });
+    }
+
+    @Test
     void otherHeadsNeverGetAnOwner() {
         server.onRegion(pos, () -> {
             var w = server.api().world(dim);
@@ -468,8 +487,8 @@ class BukkitSkullTest {
         assertEquals(UUID.nameUUIDFromBytes("OfflinePlayer:dinnerbone".getBytes(StandardCharsets.UTF_8)), found.id());
         assertEquals(found, f.profileById(found.id()).orElseThrow(), "처음 찾은 오프라인 프로필은 캐시에 들어간다");
         assertTrue(f.profileById(UUID.randomUUID()).isEmpty());
-        assertTrue(f.fetchProfile(found.id()).get().isEmpty(), "오프라인 모드는 세션 서버에 묻지 않는다");
-        assertEquals(found, f.fetchProfileByName("Dinnerbone").get().orElseThrow());
+        assertFalse(f.profileLookups(), "시험 서버는 온라인 모드도 프록시 포워딩도 아니다 — 프로필 API 의 기본값은 Mojang 에 묻지 않는다");
+        assertEquals(found, f.fetchProfileByName("Dinnerbone").get().orElseThrow(), "사용자 캐시에 있으면 묻지 않는다");
         assertFalse(f.verifyProfileProperty("textures", "v", "c2ln"));
     }
 }

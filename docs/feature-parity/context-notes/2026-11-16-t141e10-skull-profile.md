@@ -13,3 +13,10 @@
 - 가정: `setRotation` 이 잘못된 면에 던지는 예외 종류, `validateSkullProfile` 의 조건 해석은 Paper 원문 사본 없이 기억·대조로 맞췄다.
 
 시험: `BukkitSkullTest`·`BukkitProfileOnlineTest`(가짜 Mojang HTTP)·`ProfileFetchTest`·`ServicesKeysPropertyKeysTest`.
+
+## 독립 검토 반영 (같은 날)
+- **프록시 뒤 서버(R1)**: Paper 의 기본 플래그는 `usesAuthentication`(온라인 모드 또는 BungeeCord·Velocity). Furnace 는 `GameProfileCache.profileLookups`(FurnaceMain 에서 `online-mode || bungeecord || velocity-secret`)와 `Furnace#profileLookups()` 로 따로 둔다 — `usesAuthentication` 은 오프라인 프로필 만들기·명령 쪽에 영향이 있어 건드리지 않는다. 서버 쪽 `fetchProfile*` 은 부르면 묻고(게이트 없음), 기본값을 정하는 것은 호환 계층이다. `fetchProfileByName` 은 접속자·캐시(`peek`)만 먼저 보고 오프라인 프로필을 만들어 넣지 않는다(프록시 뒤 오프라인 서버도 모르는 이름은 Mojang 에 묻는다).
+- **SMOKE(R2)**: DOWN·NORTH_EAST·NORTH_WEST·SOUTH_EAST·SOUTH_WEST·SELF 는 0, 보조 16방위 8개(19 − 기본 6 − 대각 4 − SELF 1)는 `Bad smoke direction!`. 검토 글의 "12개"는 8개가 맞다.
+- **스레드(권장)**: Spigot형·Paper형 `update()` 가 공용 `ProfileExecutor`(고정 4개, 유휴 30초 뒤 정리)를 쓴다.
+- 시험: `dataMergeKeepsTheOwner`(/data merge 가 profile 을 지우지 않음), `BukkitProfileOnlineTest`(오프라인+프록시 조회), SMOKE 보조 방향.
+- 후속 후보: 오프라인 모드 `profileByName` 이 새 이름마다 usercache.json 을 동기 저장(이전부터), 429 debug 로그.

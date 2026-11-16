@@ -60,6 +60,16 @@ public final class GameProfileCache {
 
     public boolean usesAuthentication() { return usesAuthentication; }
 
+    private volatile boolean profileLookups;
+
+    /**
+     * 플러그인 프로필 API 가 Mojang 에 물을 수 있는가(Paper MinecraftServer.usesAuthentication: 온라인 모드이거나 BungeeCord·Velocity 포워딩).
+     * 프록시 뒤 online-mode=false 서버도 스킨은 물어야 하므로 {@link #usesAuthentication} 과 따로 둔다 — 이쪽은 오프라인 프로필 만들기에 영향이 없다.
+     */
+    public void setProfileLookups(boolean v) { profileLookups = v; }
+
+    public boolean profileLookups() { return profileLookups; }
+
     private void safeAdd(Entry e) {
         e.setLastAccess(nextOperation());
         profilesByName.put(e.profile.name().toLowerCase(Locale.ROOT), e);

@@ -96,14 +96,8 @@ public final class CraftPlayerProfile implements PlayerProfile, SharedPlayerProf
     /** 이름으로 UUID 를, UUID 로 스킨 같은 속성을 서버가 아는 값(사용자 캐시)과 세션 서버에서 채운 새 프로필. */
     @Override
     public CompletableFuture<PlayerProfile> update() {
-        return CompletableFuture.supplyAsync(this::updated, UPDATE_EXECUTOR);
+        return CompletableFuture.supplyAsync(this::updated, org.domi.furnace.compat.paper.ProfileExecutor.get());
     }
-
-    private static final java.util.concurrent.Executor UPDATE_EXECUTOR = java.util.concurrent.Executors.newCachedThreadPool(r -> {
-        Thread t = new Thread(r, "Profile Lookup Executor");
-        t.setDaemon(true);
-        return t;
-    });
 
     private CraftPlayerProfile updated() {
         Furnace server = Compat.furnace();
@@ -113,12 +107,13 @@ public final class CraftPlayerProfile implements PlayerProfile, SharedPlayerProf
         String currentName = current.name() == null ? "" : current.name();
         ProfileValue result = new ProfileValue(id, currentName, current.properties());
         // 모르는 UUID 는 이름으로 찾는다
+        boolean lookups = server.profileLookups();   // 온라인 모드이거나 BungeeCord·Velocity 포워딩(Paper usesAuthentication)
         if (id.equals(NIL_UUID) && !currentName.isEmpty()) {
-            ProfileData found = server.fetchProfileByName(currentName).join().orElse(null);
+            ProfileData found = lookups ? server.fetchProfileByName(currentName).join().orElse(null) : server.profileByName(currentName).orElse(null);
             if (found != null) result = new ProfileValue(found.id(), found.name(), toProps(found));
         }
-        // 속성(텍스처)은 세션 서버에서 받는다(인증 모드가 아니면 fetchProfile 이 비어 있게 돌려준다)
-        if (!result.id().equals(NIL_UUID)) {
+        // 속성(텍스처)은 세션 서버에서 받는다(조회가 꺼진 서버는 묻지 않는다)
+        if (lookups && !result.id().equals(NIL_UUID)) {
             try {
                 ProfileData fetched = server.fetchProfile(result.id()).join().orElse(null);
                 if (fetched != null) result = new ProfileValue(fetched.id(), fetched.name(), toProps(fetched));

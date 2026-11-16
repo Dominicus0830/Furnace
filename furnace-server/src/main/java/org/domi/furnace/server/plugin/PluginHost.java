@@ -328,9 +328,13 @@ public final class PluginHost implements Furnace {
 
     @Override
     public java.util.concurrent.CompletableFuture<java.util.Optional<org.domi.furnace.api.entity.ProfileData>> fetchProfileByName(String name) {
-        var cached = profileByName(name);
-        if (cached.isPresent() || !core.profileCache().usesAuthentication() || !org.domi.furnace.server.players.GameProfile.isValidPlayerName(name)) {
-            return java.util.concurrent.CompletableFuture.completedFuture(cached);
+        // 접속자·사용자 캐시에 있으면 그것(오프라인 프로필을 만들어 넣지 않는다 — 프록시 뒤 오프라인 서버도 모르는 이름은 Mojang 에 물어야 한다)
+        Player online = core.playerByName(name);
+        var cached = online != null ? java.util.Optional.of(profileData(ServerCore.profileOf(online)))
+                : core.profileCache().peek(name).map(PluginHost::profileData);
+        if (cached.isPresent()) return java.util.concurrent.CompletableFuture.completedFuture(cached);
+        if (!org.domi.furnace.server.players.GameProfile.isValidPlayerName(name)) {
+            return java.util.concurrent.CompletableFuture.completedFuture(java.util.Optional.empty());
         }
         return core.sessionService().lookupByName(name).thenApply(found -> {
             found.ifPresent(core.profileCache()::add);
@@ -340,7 +344,6 @@ public final class PluginHost implements Furnace {
 
     @Override
     public java.util.concurrent.CompletableFuture<java.util.Optional<org.domi.furnace.api.entity.ProfileData>> fetchProfile(UUID id) {
-        if (!core.profileCache().usesAuthentication()) return java.util.concurrent.CompletableFuture.completedFuture(java.util.Optional.empty());
         return core.sessionService().fetchProfile(id).thenApply(found -> {
             found.ifPresent(core.profileCache()::add);
             return found.map(PluginHost::profileData);
@@ -570,6 +573,9 @@ public final class PluginHost implements Furnace {
 
     @Override
     public void consoleInputHandler(java.util.function.Consumer<String> handler) { core.consoleInputHandler(handler); }
+
+    @Override
+    public boolean profileLookups() { return core.profileCache().profileLookups(); }
 
     @Override
     public boolean onlineMode() {

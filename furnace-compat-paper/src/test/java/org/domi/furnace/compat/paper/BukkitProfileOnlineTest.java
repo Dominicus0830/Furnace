@@ -62,7 +62,8 @@ class BukkitProfileOnlineTest {
         System.setProperty("minecraft.api.services.host", host);
         server = FurnaceTestServer.builder().failFast(false).start();
         Bukkit.setServer(org.bukkit.craftbukkit.CraftServer.INSTANCE);
-        server.internals().profileCache().setUsesAuthentication(true);
+        // 프록시 뒤 online-mode=false 서버: 오프라인 프로필 규칙(usesAuthentication)은 그대로 두고 조회만 켠다(Paper usesAuthentication)
+        server.internals().profileCache().setProfileLookups(true);
         server.tick(3);
     }
 
@@ -106,8 +107,12 @@ class BukkitProfileOnlineTest {
     void updateReturnsTexturesAndLeavesTheOriginal() throws Exception {
         PlayerProfile p = Bukkit.createProfile(UUID.randomUUID(), "Notch");
         PlayerProfile updated = p.update().get(10, TimeUnit.SECONDS);
-        assertFalse(updated.hasTextures(), "update() 의 기본 플래그는 서버 online-mode 설정(시험 서버는 설정이 없어 꺼짐) — Paper 도 proxies.online-mode 를 따른다");
-        assertFalse(p.hasTextures());
+        assertTrue(updated.hasTextures(), "프록시 뒤 오프라인 서버도 기본 플래그가 켜져 있어 스킨을 묻는다");
+        assertFalse(p.hasTextures(), "원본은 그대로");
+        assertFalse(server.internals().profileCache().usesAuthentication(), "서버 자신은 오프라인 모드");
+        PlayerProfile viaDefault = Bukkit.createProfile(UUID.randomUUID(), "Steve");
+        assertTrue(viaDefault.complete(true), "기본 플래그(프록시 온라인)로 complete 가 세션 서버에 묻는다");
+        assertTrue(viaDefault.hasTextures());
 
         org.bukkit.profile.PlayerProfile spigot = Bukkit.createPlayerProfile(NOTCH, "Notch");
         org.bukkit.profile.PlayerProfile spigotUpdated = spigot.update().get(10, TimeUnit.SECONDS);
@@ -138,7 +143,13 @@ class BukkitProfileOnlineTest {
     void skullSetOwnerNeverAsksTheNetwork() {
         var s = (org.bukkit.block.Skull) org.bukkit.Material.PLAYER_HEAD.createBlockData().createBlockState();
         int before = nameCalls.get();
-        assertFalse(s.setOwner("Unknown999"), "인증 모드에서 캐시에 없는 이름은 묻지 않고 false");
+        var cache = server.internals().profileCache();
+        cache.setUsesAuthentication(true);   // 온라인 모드 서버: 캐시에 없는 이름은 오프라인 프로필을 만들지 않는다
+        try {
+            assertFalse(s.setOwner("Unknown999"), "인증 모드에서 캐시에 없는 이름은 묻지 않고 false");
+        } finally {
+            cache.setUsesAuthentication(false);
+        }
         assertEquals(before, nameCalls.get());
     }
 }

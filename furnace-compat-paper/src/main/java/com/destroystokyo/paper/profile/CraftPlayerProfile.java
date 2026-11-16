@@ -30,11 +30,7 @@ import org.domi.furnace.compat.paper.ProfileValue;
 public class CraftPlayerProfile implements PlayerProfile, SharedPlayerProfile {
 
     /** 프로필 조회가 서버 스레드를 막지 않게 따로 돌리는 스레드(Paper: Util.PROFILE_EXECUTOR). */
-    private static final java.util.concurrent.Executor PROFILE_EXECUTOR = java.util.concurrent.Executors.newCachedThreadPool(r -> {
-        Thread t = new Thread(r, "Profile Lookup Executor");
-        t.setDaemon(true);
-        return t;
-    });
+    private static final java.util.concurrent.Executor PROFILE_EXECUTOR = org.domi.furnace.compat.paper.ProfileExecutor.get();
 
     private UUID id;       // null: 비어 있음
     private String name;   // null: 비어 있음("" 는 비어 있지 않은 빈 이름)
@@ -163,7 +159,7 @@ public class CraftPlayerProfile implements PlayerProfile, SharedPlayerProfile {
     }
 
     @Override
-    public boolean completeFromCache() { return completeFromCache(false, Compat.furnace().onlineMode()); }
+    public boolean completeFromCache() { return completeFromCache(false, Compat.furnace().profileLookups()); }
 
     @Override
     public boolean completeFromCache(boolean onlineMode) { return completeFromCache(false, onlineMode); }
@@ -220,8 +216,13 @@ public class CraftPlayerProfile implements PlayerProfile, SharedPlayerProfile {
     }
 
     @Override
-    public boolean complete(boolean textures) { return complete(textures, Compat.furnace().onlineMode()); }
+    public boolean complete(boolean textures) { return complete(textures, Compat.furnace().profileLookups()); }
 
+    /**
+     * 온라인(Mojang 조회)이면 이 메서드는 부른 스레드를 막는다 — 이름 조회와 세션 서버 조회가 각각 최대 10초라 최악에 약 20초.
+     * Paper 와 같다(region·서버 스레드에서는 부르지 말고 {@link #update()} 를 쓴다). 기본 플래그 {@code onlineMode} 는 서버가
+     * 온라인 모드이거나 BungeeCord·Velocity 포워딩일 때 참(Paper usesAuthentication).
+     */
     @Override
     public boolean complete(boolean textures, boolean onlineMode) {
         if (isComplete() && (!textures || hasTextures())) return true;   // 이미 다 있으면 묻지 않는다
