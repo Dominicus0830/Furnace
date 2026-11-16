@@ -2,7 +2,9 @@
 
 목표: Paper 1.21.1 과 관측 결과가 같은 **완전판**(UUID·이름·skin 모두 교체). "skin 만" 같은 반쪽 구현은 하지 않는다. 구현 전 설계 문서이며 코드는 없다. 근거 원문: Paper `33ff3dff` 의 `Player.setPlayerProfile-API`·`Adventure`·`Add-sendOpLevel-API`·`Add-Listing-API-for-Player` 패치(검토가 확인한 것. 패치에 없는 CraftBukkit·바닐라 본문은 "추론"으로 표시, 구현 때 Paper 로 실측).
 
-**원칙(코디네이터 결정):** 기본은 Paper 와 같은 동작이다. UUID 를 바꾸는 경우의 관찰자 화면 처리도 Paper 패킷 그대로(§1 R1). Furnace 만 다르게 가는 곳은 이 문서에 근거와 함께 "의도한 차이"로 적고, 도미니코 결정 항목으로 올리지 않는다(§8).
+**원칙(코디네이터 결정):** 기본은 Paper 와 같은 동작이다. UUID 를 바꾸는 경우의 관찰자 화면 처리도 Paper 패킷 그대로(§1 R1). Furnace 만 다르게 가는 곳은 이 문서에 근거와 함께 "의도한 차이"로 적는다(§8: 퇴장 뒤 이름 맵 누수 하나뿐).
+
+**확정된 결정(도미니코 승인 2026-11-16, PR #449 코멘트):** D1 = UUID 를 바꾸면 Paper 와 같은 패킷을 보내고 개발자용 콘솔 경고를 **한 번만** 낸다(§1 R1). D2 = `getPlayerExact`·바닐라 선택자는 **접속 때의 이름**으로, `Bukkit.getPlayer` 앞부분 일치는 현재 이름으로 찾고 퇴장 뒤 누수는 따르지 않는다(§8, 앞선 "새 이름으로 찾는다" 추천은 철회). D3 = 탭 목록을 PlayerJoinEvent 뒤로 옮기는 일은 별도 PR(§4, §9 단계 0).
 
 ## 1. Paper 가 하는 일 (CraftPlayer.setPlayerProfile)
 1. `sentListPacket` 이 false 면 `gameProfile` 만 바꾸고 끝. (접속 중 **PlayerJoinEvent 뒤에** 접속자 탭을 보내고 true 로 둔다 → 조인 이벤트 안에서 부르면 리스폰 없이 프로필만 바뀌고 탭도 처음부터 새 프로필로 나간다.)
@@ -11,7 +13,7 @@
 4. 그 밖의 모든 탭 패킷(접속 때 목록, 핑, 게임 모드, INITIALIZE_CHAT, 퇴장 Remove)은 항상 **엔티티 UUID + 현재 프로필의 이름·속성**이다. 서명 채팅의 디코더·INITIALIZE_CHAT·채팅 패킷 sender 도 엔티티 UUID 다. 프로필 id 를 쓰는 곳은 `handleChatSessionUpdate` 의 키 검증 `data.validate(player.getGameProfile(), …)` 하나뿐.
 5. `refreshPlayer`(§5)와 `PlayerShowEntityEvent`(§1-R3)가 따라온다. `PlayerHideEntityEvent` 는 부르지 않는다(`unregisterEntity` 를 따로 떼어 냈기 때문).
 
-**R1 — UUID 가 바뀔 때 Paper 의 관측(추론, 실서버 미확인):** 그 순간 접속해 있던 관찰자 클라이언트는 `AddEntity` 의 UUID(엔티티 UUID)로 탭 정보를 찾지 못해 플레이어를 만들지 않는다(바닐라 클라 "Server attempted to add player prior to sending player info"). 새 id 로 올라간 탭 항목은 퇴장 뒤에도 유령으로 남고, 채팅 sender 도 엔티티 UUID 라 관찰자가 보낸 사람을 못 찾는다. 나중에 접속한 사람에게는 정상이다. **Furnace 도 같은 패킷을 낸다**(원칙: 관측 동일; 실제 플러그인은 대개 UUID 를 그대로 둔다). **UUID 가 같은 경우(스킨·이름만 바꿈, 가장 흔한 쓰임)는 Paper 와 바이트 단위로 같게** 낸다. 두 경우 모두 구현 때 Paper 로 실측해 다르면 이 절을 고친다.
+**R1 — UUID 가 바뀔 때 Paper 의 관측(추론, 실서버 미확인):** 그 순간 접속해 있던 관찰자 클라이언트는 `AddEntity` 의 UUID(엔티티 UUID)로 탭 정보를 찾지 못해 플레이어를 만들지 않는다(바닐라 클라 "Server attempted to add player prior to sending player info"). 새 id 로 올라간 탭 항목은 퇴장 뒤에도 유령으로 남고, 채팅 sender 도 엔티티 UUID 라 관찰자가 보낸 사람을 못 찾는다. 나중에 접속한 사람에게는 정상이다. **Furnace 도 같은 패킷을 낸다**(원칙: 관측 동일; 실제 플러그인은 대개 UUID 를 그대로 둔다). **D1:** 이 경우(새 프로필 id ≠ 엔티티 UUID)에는 개발자가 원인을 알 수 있게 콘솔에 경고를 **한 번만** 낸다 — 서버 전체에서 한 번(`AtomicBoolean`, 플러그인 이름은 호출한 플러그인이 알려지면 함께). 문구는 `CompatLang` 키(`furnace-compat-lang/{en,ko}.properties`)로 두고 `CompatLangTest` 가 키를 본다. 경고는 패킷 내용을 바꾸지 않는다. **UUID 가 같은 경우(스킨·이름만 바꿈, 가장 흔한 쓰임)는 Paper 와 바이트 단위로 같게** 낸다. 두 경우 모두 구현 때 Paper 로 실측해 다르면 이 절을 고친다.
 
 ## 2. Furnace 의 지금 모양
 - `Player.uuid`/`name` 은 `final` 이고 엔티티 UUID 와 프로필을 겸한다. `profileProperties` 만 가변.
@@ -29,6 +31,8 @@
 | playerdata·stats·advancements 파일 이름, 접속자 중복 검사, 엔티티 맵 | 엔티티 UUID | 정체성 |
 | `EntityViewRules.TARGETS`, 탭·핑·게임모드·INITIALIZE_CHAT·퇴장 Remove 의 UUID 칸 | 엔티티 UUID | §1-4 |
 | 탭 항목의 이름·속성, `getName`, 호환 `getPlayerProfile`, 호환 `getScoreboardName` | 프로필 | §1 |
+| `getPlayerExact`, 바닐라 명령 선택자(`@p` 가 아닌 이름 선택자·`getPlayerByName`) | **접속 때의 이름**(`Player.loginName` 고정 필드) | D2, §8 |
+| `Bukkit.getPlayer(이름)` 앞부분 일치 훑기 | 프로필(현재 이름) | D2, Paper 와 같음 |
 | op·화이트리스트·밴(`ServerCore.profileOf`) | 프로필 | Paper `getGameProfile()` |
 | 채팅 서명 디코더·sender·INITIALIZE_CHAT(`PlayerChatState`) | 엔티티 UUID | R6 |
 | 채팅 세션 키 검증(`ConnectionHandler` 의 `data.validate(p.uuid(), …)` 한 곳) | **프로필 id** | R6 |
@@ -66,18 +70,21 @@ Paper 는 재등록의 `trackAndShowEntity` 를 거치므로 보이는 관찰자
 - 표시 이름: §3(R4).
 - 스폰 UUID: §1-3.
 
-## 8. 의도한 차이 — R5 이름 조회
-- Paper(Spigot `PlayerList.playersByName`)는 접속 때 소문자 이름으로 넣고 퇴장 때 그 시점의 이름으로 뺀다. 그래서 Paper 에서는 `getPlayerExact(새 이름)`=null, `getPlayerExact(옛 이름)`=그 플레이어, 바닐라 선택자 `getPlayerByName` 도 옛 이름, `Bukkit.getPlayer(새 이름)` 은 접두어 훑기로 찾고, 퇴장 뒤에도 옛 이름 항목이 남는다(Paper 쪽 누수).
-- Furnace 는 접속자를 훑으므로 **새 이름으로 찾는다. 이것을 의도한 차이로 둔다**: Paper 쪽은 누수 버그에 가깝고 따라 할 가치가 낮으며, 플러그인이 `setPlayerProfile` 로 이름을 바꾼 뒤 새 이름으로 찾는 것이 자연스러운 기대다. `getPlayerExact(옛 이름)` 이 null 이 되는 것이 관측 차이다. API 문서·`context-notes` 에 이 차이를 적는다.
+## 8. 이름 조회 (R5, D2 확정)
+- Paper(Spigot `PlayerList.playersByName`)는 접속 때 소문자 이름으로 넣고 퇴장 때 그 시점의 이름으로 뺀다. 그래서 Paper 에서는 `getPlayerExact(새 이름)`=null, `getPlayerExact(옛 이름)`=그 플레이어, 바닐라 선택자 `getPlayerByName` 도 옛 이름, `Bukkit.getPlayer(새 이름)` 은 접두어 훑기(현재 `getName`)로 찾는다. 닉네임 플러그인 서버에서 관리자가 `/ban 진짜이름` 으로 명령하는 흐름이 그대로 유지된다.
+- **Furnace 는 Paper 와 같게 한다(D2).** `Player` 에 **접속 때의 이름을 고정 필드**(`loginName`, 로그인 결과로 한 번 채우고 안 바뀐다)로 두고, `ServerCore.playerByName` 계열(`getPlayerExact`·이름 선택자)은 이 필드로 접속자를 훑는다. `Bukkit.getPlayer(이름)` 의 앞부분 일치는 현재 이름(`getName` = 프로필 이름)으로 훑는다. 앞서 문서가 추천했던 "새 이름으로 찾기"는 Paper 와 달라 **철회**했다. R4 에서 접속 때 이름을 붙잡아 두는 것과 같은 값이라 필드를 하나만 둔다(표시 이름 용도와 겸용).
+- **의도한 차이는 하나**: Paper 는 퇴장 뒤에도 옛 이름 항목이 맵에 남는 누수가 있는데 따라 하지 않는다. 우리는 접속자를 훑는 방식이라 별도 맵이 없고, 퇴장하면 항목이 자연히 사라진다. 그래서 관측 차이는 "퇴장한 플레이어의 옛 이름으로 `getPlayerExact` 를 하면 Paper 는 퇴장한 플레이어를 돌려줄 수 있는 누수"뿐이다. API 문서·`context-notes` 에 이 한 줄만 적는다.
+- 같은 접속 이름 둘은 접속 시 중복 검사로 막히므로 모호성은 없다. 프로필 이름이 다른 플레이어의 접속 이름과 겹쳐도(Paper 와 같게) 먼저 훑은 쪽을 돌려준다 — 시험으로 고정한다.
 
 ## 9. 단계 나누기 (권장 4·6 반영)
 0. **접속 순서 PR(R7)**: PlayerJoinEvent 를 접속자 탭 전송 앞으로 옮김 + 접속 패킷 순서 시험. 2b 앞.
-1. **E11c-2a**(동작 불변 리팩터링): `Player.profile` 묶음 도입 + §3 표대로 접근자 분리. 2a 에서는 `uuid==profileId`·`name==profileName` 이 늘 참이라 분류 실수가 기존 시험으로는 드러나지 않으므로 **시험 전용 훅**(로그인 때 다른 UUID·이름의 프로필을 주입)을 두고 **표의 한 줄마다 시험 하나**(파일 이름, op·화이트리스트·밴, 선택자, 탭 UUID·이름, 채팅 디코더·키 검증, 스코어보드, 호환 `getName`·`getDisplayName`·`getUniqueId`·`getPlayerProfile().getId()`)를 붙인다. furnace-api·호환 공개 시그니처 `javap` 비교로 공개 API 변화 없음을 확인.
-2. **E11c-2b**: 같은 region 즉시 재등록·본인 갱신·세대 감지·`PlayerShowEntityEvent`·호환 `setPlayerProfile`. 시험: 조인 이벤트 안에서 호출(리스폰 없음), UUID 같음(바이트 단위 Paper 와 같음)·UUID 바뀜(R1), 다른 월드 관찰자(탭만), 목록 숨김·숨김 관찰자, 연속 두 번 호출, 관찰자가 감지하기 전에 대상이 퇴장, region 이동 중 호출, 본인 패킷 전체 순서(§5), 갱신 뒤 플레이어별 시간·날씨 유지.
+1. **E11c-2a**(동작 불변 리팩터링): `Player.profile` 묶음 도입 + §3 표대로 접근자 분리. 2a 에서는 `uuid==profileId`·`name==profileName` 이 늘 참이라 분류 실수가 기존 시험으로는 드러나지 않으므로 **시험 전용 훅**(로그인 때 다른 UUID·이름의 프로필을 주입)을 두고 **표의 한 줄마다 시험 하나**(파일 이름, op·화이트리스트·밴, 접속 이름 선택자·`getPlayerExact`(D2)와 현재 이름 앞부분 일치, 탭 UUID·이름, 채팅 디코더·키 검증, 스코어보드, 호환 `getName`·`getDisplayName`·`getUniqueId`·`getPlayerProfile().getId()`)를 붙인다. furnace-api·호환 공개 시그니처 `javap` 비교로 공개 API 변화 없음을 확인.
+2. **E11c-2b**: 같은 region 즉시 재등록·본인 갱신·세대 감지·`PlayerShowEntityEvent`·호환 `setPlayerProfile`. 시험: 조인 이벤트 안에서 호출(리스폰 없음), UUID 같음(바이트 단위 Paper 와 같음)·UUID 바뀜(R1; D1 경고가 한 번만 나오고 두 번째 호출에는 안 나옴, 패킷은 경고와 무관하게 같음), 다른 월드 관찰자(탭만), 목록 숨김·숨김 관찰자, 연속 두 번 호출, 관찰자가 감지하기 전에 대상이 퇴장, region 이동 중 호출, 본인 패킷 전체 순서(§5), 갱신 뒤 플레이어별 시간·날씨 유지.
 3. **E11c-2c**: 실서버 Paper 와 대조해 추론으로 표시한 항목(§1-R1, §5)을 확인·정정.
 
 성능: 바꿀 때마다 관찰자가 한 번씩 다시 훑는 O(P)뿐이고 평소에는 volatile 읽기 하나가 늘 뿐이다.
 
 ## 10. 위험
 - 호출처 분류 실수 → 파일 이름이 바뀌거나 명령이 어긋남. 대응: 2a 의 표별 시험·독립 검토.
-- UUID 가 바뀌면 Paper 와 같게 관찰자 화면에 플레이어가 안 보일 수 있다(R1, 의도). 플러그인이 의존하는 쪽이 있으면 2c 실측 뒤 재논의.
+- UUID 가 바뀌면 Paper 와 같게 관찰자 화면에 플레이어가 안 보일 수 있다(R1, 의도, D1 로 콘솔 경고 한 번). 플러그인이 의존하는 쪽이 있으면 2c 실측 뒤 재논의.
+- 이름 조회를 접속 이름으로 하면 `playerByName` 호출처 중 "현재 이름" 의미가 필요한 곳(앞부분 일치)을 빼먹을 수 있다 → 2a 표별 시험에 두 경우를 모두 넣는다.
