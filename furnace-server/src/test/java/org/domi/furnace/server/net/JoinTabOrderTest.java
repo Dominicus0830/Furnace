@@ -24,6 +24,7 @@ import org.domi.furnace.server.net.protocol.play.Disconnect;
 import org.domi.furnace.server.net.protocol.play.InitializeBorder;
 import org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate;
 import org.domi.furnace.server.net.protocol.play.SpawnEntity;
+import org.domi.furnace.server.net.protocol.play.SystemChat;
 import org.domi.furnace.server.plugin.PlayerHandle;
 import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
 import org.junit.jupiter.api.AfterEach;
@@ -149,6 +150,9 @@ class JoinTabOrderTest {
         }
     }
 
+    /** 시스템 채팅 본문(NBT 텍스트)의 글자 — 이름이 들었는지만 본다. */
+    private static String chatText(Frame f) { return new String(f.body(), java.nio.charset.StandardCharsets.UTF_8); }
+
     private static boolean mentions(List<Frame> frames, UUID who) {
         for (Frame f : frames) {
             if (addedUuids(f).contains(who)) return true;
@@ -220,6 +224,70 @@ class JoinTabOrderTest {
         }
     }
 
+    /**
+     * 관찰자 쪽 보류(Region.syncTabList·핑 방송이 보류 중인 접속자를 건너뜀): 조인 이벤트 처리기를 붙잡아 두는 동안 관찰자 region 이 여러 틱을 돌아도
+     * 관찰자는 새 접속자의 탭·엔티티를 받지 않고, 처리기를 놓으면 곧 받는다.
+     */
+    @Test
+    void observerRegionSkipsAPlayerWhileItsJoinEventRuns() throws Exception {
+        try (TestClient bob = TestClient.join(port, "Bob")) {
+            Player bobP = awaitListed("Bob");
+            for (int i = 0; i < 500 && bobP.ownerRegion == null; i++) Thread.sleep(10);   // 밥의 region 이 밥을 받아들일 때까지
+            java.util.concurrent.CountDownLatch inside = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+            onJoin(e -> {
+                if (!e.player().name().equals("Alex")) return;
+                inside.countDown();
+                try {
+                    release.await(10, java.util.concurrent.TimeUnit.SECONDS);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            UUID alexId = org.domi.furnace.server.players.GameProfile.offlineUuid("Alex");
+            // 접속 처리가 끝나야 로그인 패킷이 비워지므로(flush) 처리기를 붙잡는 동안 join 은 다른 스레드에서 기다린다
+            var joining = java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+                try {
+                    return TestClient.join(port, "Alex");
+                } catch (Exception ex) {
+                    throw new java.util.concurrent.CompletionException(ex);
+                }
+            });
+            try {
+                assertTrue(inside.await(10, java.util.concurrent.TimeUnit.SECONDS));
+                Player alexP = core.playerByName("Alex");
+                assertNotNull(alexP, "조인 이벤트 중에도 접속자 목록에 있다");
+                assertTrue(alexP.tabListingHeld());
+                var bobRegion = bobP.ownerRegion;
+                assertNotNull(bobRegion);
+                long tick0 = bobRegion.tickCount();
+                // 처리기를 붙잡은 채 밥이 받는 것을 읽는다 — 그동안 밥의 region 이 여러 번 탭을 맞춘다
+                List<Frame> during = new ArrayList<>();
+                long deadline = System.nanoTime() + 800_000_000L;
+                bob.socketTimeout(100);
+                while (System.nanoTime() < deadline) {
+                    try {
+                        ByteBuf f = bob.read();
+                        int id = Types.readVarInt(f);
+                        byte[] body = new byte[f.readableBytes()];
+                        f.readBytes(body);
+                        during.add(new Frame(id, body));
+                    } catch (java.net.SocketTimeoutException ignored) {
+                        // 계속 읽는다
+                    }
+                }
+                bob.socketTimeout(0);
+                assertTrue(bobRegion.tickCount() - tick0 >= 5, "보류 동안 관찰자 region 이 여러 틱 돌았다: " + (bobRegion.tickCount() - tick0));
+                assertFalse(mentions(during, alexId), "보류 중에는 관찰자 탭·엔티티에 오르지 않는다");
+                release.countDown();
+                awaitTabEntry(bob, alexId);   // 놓으면 다음 틱에 올라간다
+            } finally {
+                release.countDown();
+                joining.get(20, java.util.concurrent.TimeUnit.SECONDS).close();
+            }
+        }
+    }
+
     @Test
     void kickedInTheJoinEventGetsNoTabAndNobodyListsIt() throws Exception {
         try (TestClient bob = TestClient.join(port, "Bob")) {
@@ -237,7 +305,17 @@ class JoinTabOrderTest {
             for (int i = 0; i < 500 && core.playerByName("Alex") != null; i++) Thread.sleep(10);
             assertNull(core.playerByName("Alex"));
             try (TestClient dan = TestClient.join(port, "Dan")) {
-                assertFalse(mentions(awaitTabEntry(bob, dan.uuid), alexId), "내보낸 알렉스는 밥의 탭에 오르지 않는다");
+                List<Frame> bobFrames = awaitTabEntry(bob, dan.uuid);
+                assertFalse(mentions(bobFrames, alexId), "내보낸 알렉스는 밥의 탭에 오르지 않는다");
+                // 댄의 접속 알림까지 읽고, 그 앞에 알렉스의 접속 알림이 없었는지 본다(Paper: 내보내기를 확인한 뒤에 방송)
+                List<Frame> chats = new ArrayList<>(bobFrames);
+                while (chats.stream().noneMatch(f -> f.id() == SystemChat.ID && chatText(f).contains("Dan"))) {
+                    chats.addAll(readUntil(bob, SystemChat.ID));
+                }
+                // 퇴장 알림(multiplayer.player.left)은 Paper 도 보낸다(PlayerList.remove 의 PlayerQuitEvent) — 접속 알림만 본다
+                assertTrue(chats.stream().filter(f -> f.id() == SystemChat.ID)
+                                .noneMatch(f -> chatText(f).contains("multiplayer.player.joined") && chatText(f).contains("Alex")),
+                        "조인 이벤트에서 내보낸 알렉스의 접속 알림은 방송하지 않는다");
             }
         }
     }

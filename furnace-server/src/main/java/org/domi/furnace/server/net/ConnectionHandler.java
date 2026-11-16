@@ -1594,10 +1594,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         // CraftBukkit 은 구성 단계의 REGISTER 마다 PlayerRegisterChannelEvent 를 부른다 — 그때 알린 채널을 접속 알림 직전에 한꺼번에
         if (login.core != null) fireChannelEvents(p, java.util.List.copyOf(pluginChannels.snapshot()), org.domi.furnace.api.event.player.PlayerChannelEvent.Action.REGISTER);
         if (login.core != null) login.core.customBossEvents().onPlayerConnect(p);   // Paper: 조인 이벤트 전(addNewPlayer 와 함께)
-        if (login.core != null) announceJoin(login.core, p);
-        // CraftBukkit: 조인 이벤트에서 내보냈으면(isAcceptingMessages 거짓) 탭·레벨 정보 없이 끝낸다 — 다른 접속자의 탭에도 올라가지 않는다.
+        Text joinMessage = login.core != null ? callJoinEvent(login.core, p) : null;
+        // CraftBukkit: 조인 이벤트에서 내보냈으면(isAcceptingMessages 거짓) 접속 알림·탭·레벨 정보 없이 끝낸다 — 다른 접속자의 탭에도 올라가지 않는다.
         // 남은 정리(퇴장 이벤트·저장·접속자 목록에서 빼기)는 연결이 닫힐 때 channelInactive 가 한다.
         if (p.kickReason() != null || !ctx.channel().isActive()) return;
+        if (joinMessage != null) login.core.broadcastSystemMessage(joinMessage, false);   // 접속 알림은 내보내기를 확인한 뒤(Paper)
         // 접속 탭: 본인 항목 먼저, 그다음 이 플레이어가 볼 수 있는 기존 접속자를 한 패킷으로(없으면 보내지 않는다 — Paper
         // Use-single-player-info-update-packet-on-join). 조인 이벤트에서 숨긴 접속자는 처음부터 빠진다. 아직 adopt 전이라 p.listed()는 이 스레드 전용.
         send(ctx, new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate(java.util.List.of(tabEntry(p))));
@@ -3475,8 +3476,11 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     /** 접속 때 PlayerCommandSendEvent 구독자가 있어 명령 트리 전송을 PlayerJoinEvent 뒤로 미뤘는가(접속 순서에서 한 번만 정한다). */
     private boolean deferCommandTree;
 
-    /** 바닐라 placeNewPlayer 의 접속 알림(PlayerJoinEvent 로 바꿀 수 있다). 접속자 본인도 받는다(Paper 와 같다). */
-    private void announceJoin(org.domi.furnace.server.ServerCore core, Player p) {
+    /**
+     * 바닐라 placeNewPlayer 의 접속 알림을 만들고 PlayerJoinEvent 를 불러 방송할 알림을 돌려준다(없으면 null).
+     * 방송은 부른 쪽이 내보내기를 확인한 뒤에 한다(Paper). 접속자 본인도 받는다.
+     */
+    private Text callJoinEvent(org.domi.furnace.server.ServerCore core, Player p) {
         Text msg = previousName == null || previousName.equalsIgnoreCase(p.name())
                 ? Text.translatable("multiplayer.player.joined", p.displayName())
                 : Text.translatable("multiplayer.player.joined.renamed", p.displayName(), previousName);
@@ -3484,7 +3488,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (core.events().hasSubscribers(org.domi.furnace.api.event.player.PlayerJoinEvent.class)) {
             msg = core.events().call(new org.domi.furnace.api.event.player.PlayerJoinEvent(core.plugins().player(p), msg)).joinMessage();
         }
-        if (msg != null) core.broadcastSystemMessage(msg, false);
+        return msg;
     }
 
     /**
