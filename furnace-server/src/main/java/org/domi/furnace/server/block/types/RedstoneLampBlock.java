@@ -1,6 +1,7 @@
 // 바닐라 RedstoneLampBlock: 레드스톤 조명. 신호를 받으면 바로 켜지고, 끊기면 4틱 뒤 꺼진다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -9,6 +10,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.RedstoneLampBlock")
 public class RedstoneLampBlock extends BlockBehavior {
 
     private static final Prop LIT = B.prop("lit");

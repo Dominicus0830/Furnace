@@ -1,6 +1,7 @@
 // 바닐라 SeagrassBlock: 물속 해초(유체 = 물 원천). 단단한 윗면(마그마 제외) 위. 뼛가루로 위가 물이면 키 큰 해초.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
@@ -9,6 +10,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.SeagrassBlock")
 public class SeagrassBlock extends BushBlock implements BonemealableBlock {
 
     private static final int MAGMA_BLOCK = B.id("magma_block"), TALL_SEAGRASS = B.id("tall_seagrass"), WATER = B.id("water");

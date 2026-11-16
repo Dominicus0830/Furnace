@@ -1,11 +1,13 @@
 // 바닐라 WetSpongeBlock: 젖은 스펀지. 매우 뜨거운 차원(네더)에 놓이면 바로 마른 스펀지가 된다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.WetSpongeBlock")
 public class WetSpongeBlock extends BlockBehavior {
 
     private static final int SPONGE = B.id("sponge");

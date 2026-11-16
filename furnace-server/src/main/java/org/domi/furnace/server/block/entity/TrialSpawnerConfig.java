@@ -5,6 +5,7 @@ package org.domi.furnace.server.block.entity;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.block.entity.BaseSpawner.SpawnData;
 import org.domi.furnace.server.block.entity.BaseSpawner.Weighted;
@@ -12,6 +13,7 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 
+@VanillaPort("net.minecraft.world.level.block.entity.trialspawner.TrialSpawnerConfig")
 public record TrialSpawnerConfig(int spawnRange, float totalMobs, float simultaneousMobs, float totalMobsAddedPerPlayer,
         float simultaneousMobsAddedPerPlayer, int ticksBetweenSpawn, List<Weighted> spawnPotentials, List<WeightedId> lootTablesToEject,
         String itemsToDropWhenOminous) {

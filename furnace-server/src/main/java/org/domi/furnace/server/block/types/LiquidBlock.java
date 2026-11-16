@@ -3,6 +3,7 @@
 // 충돌 모양은 보통 비었지만, 그 유체 위에 설 수 있는 엔티티(스트라이더 — 용암)가 원천 반 칸 높이 위에 있으면 STABLE_SHAPE(아래 반 칸).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -14,6 +15,7 @@ import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.block.Shape;
 
+@VanillaPort("net.minecraft.world.level.block.LiquidBlock")
 public class LiquidBlock extends BlockBehavior {
 
     private static final Prop LEVEL = B.prop("level");

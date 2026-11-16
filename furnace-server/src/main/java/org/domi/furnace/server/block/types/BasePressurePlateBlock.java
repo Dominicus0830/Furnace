@@ -1,6 +1,7 @@
 // 바닐라 BasePressurePlateBlock: 압력판 바탕. 아래가 받쳐야 산다. 엔티티가 올라서면 켜지고, 비면 다음 틱에 꺼진다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockBehavior;
@@ -10,6 +11,7 @@ import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.BasePressurePlateBlock")
 public abstract class BasePressurePlateBlock extends BlockBehavior {
 
     protected final BlockSetType type;

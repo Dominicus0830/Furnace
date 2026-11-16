@@ -1,12 +1,14 @@
 // 바닐라 MossBlock: 이끼 블록. 위가 공기면 뼛가루로 이끼 무리(moss_patch_bonemeal)를 깐다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.MossBlock")
 public class MossBlock extends BlockBehavior implements BonemealableBlock {
 
     public MossBlock(int block) { super(block); }

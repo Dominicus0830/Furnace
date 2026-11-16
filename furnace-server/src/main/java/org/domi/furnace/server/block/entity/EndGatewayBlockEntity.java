@@ -6,6 +6,7 @@ package org.domi.furnace.server.block.entity;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.ChunkLevel;
@@ -13,6 +14,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.world.ChunkColumn;
 
+@VanillaPort("net.minecraft.world.level.block.entity.TheEndGatewayBlockEntity")
 public class EndGatewayBlockEntity extends EndPortalBlockEntity {
 
     public static final String THE_END = "minecraft:the_end";

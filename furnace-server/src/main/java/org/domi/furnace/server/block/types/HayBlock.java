@@ -1,6 +1,9 @@
 // 바닐라 HayBlock: 기둥. 떨어진 엔티티의 낙하 피해를 0.2 배로(fallOn).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("net.minecraft.world.level.block.HayBlock")
 public class HayBlock extends RotatedPillarBlock {
 
     public HayBlock(int block) { super(block); }

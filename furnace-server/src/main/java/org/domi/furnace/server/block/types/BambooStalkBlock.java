@@ -1,6 +1,7 @@
 // 바닐라 BambooStalkBlock: 대나무 줄기. 위로 자라며 꼭대기 쪽 잎(none/small/large)을 옮기고, 높이 16 에서 멈춘다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -11,6 +12,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.BambooStalkBlock")
 public class BambooStalkBlock extends BlockBehavior implements BonemealableBlock {
 
     static final Prop AGE = B.prop("age"), LEAVES = B.prop("leaves"), STAGE = B.prop("stage");

@@ -1,6 +1,7 @@
 // 바닐라 NetherrackBlock: 네더랙. 옆(3×3×3)에 나일리움이 있고 위가 빛을 통하면 뼛가루로 그 나일리움이 된다(둘 다면 무작위).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.Fluids;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.NetherrackBlock")
 public class NetherrackBlock extends BlockBehavior implements BonemealableBlock {
 
     private static final int CRIMSON = B.id("crimson_nylium"), WARPED = B.id("warped_nylium");

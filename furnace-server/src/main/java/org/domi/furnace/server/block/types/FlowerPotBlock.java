@@ -3,6 +3,7 @@ package org.domi.furnace.server.block.types;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockBehavior;
@@ -16,6 +17,7 @@ import org.domi.furnace.server.block.ItemInteractionResult;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.FlowerPotBlock")
 public class FlowerPotBlock extends BlockBehavior {
 
     /** POTTED_BY_CONTENT: 심을 블록 → 심긴 화분 블록. */

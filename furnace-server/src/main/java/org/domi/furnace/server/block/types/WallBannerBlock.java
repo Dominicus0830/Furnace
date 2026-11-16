@@ -1,6 +1,7 @@
 // 바닐라 WallBannerBlock: 벽 깃발. 바라보는 수평 방향의 반대 벽(단단한 블록)에 붙는다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.WallBannerBlock")
 public class WallBannerBlock extends AbstractBannerBlock {
 
     static final Prop FACING = B.prop("facing");

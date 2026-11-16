@@ -3,6 +3,7 @@
 package org.domi.furnace.server.block.entity;
 
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.ChunkLevel;
@@ -12,6 +13,7 @@ import org.domi.furnace.server.entity.LivingEntity;
 import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 
+@VanillaPort("net.minecraft.world.level.block.entity.BellBlockEntity")
 public class BellBlockEntity extends BlockEntity {
 
     private static final int BELL = B.id("bell");

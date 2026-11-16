@@ -1,10 +1,12 @@
 // 바닐라 NetherSproutsBlock: 네더 새싹. 나일리움·영혼 흙·흙류 위.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.NetherSproutsBlock")
 public class NetherSproutsBlock extends BushBlock {
 
     private static final int SOUL_SOIL = B.id("soul_soil");

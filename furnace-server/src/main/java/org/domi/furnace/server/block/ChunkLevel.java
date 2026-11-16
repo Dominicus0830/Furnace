@@ -2,6 +2,7 @@
 // 청크를 어디서 얻는지(소유 region 의 로드된 청크)와 변경 방송·저장 표시는 하위 클래스가 정한다.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.world.StateIds;
 import org.domi.furnace.server.i18n.Lang;
 import java.util.TreeMap;
@@ -24,6 +25,10 @@ import org.domi.furnace.server.net.protocol.play.SoundPacket;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.ChunkSection;
 
+@VanillaPort({
+    "net.minecraft.world.level.Level",
+    "net.minecraft.world.level.chunk.LevelChunk"
+})
 public abstract class ChunkLevel implements BlockLevel {
 
     protected final Blocks blocks = Blocks.get();

@@ -2,6 +2,7 @@
 // 활성이 아니거나 빈 손이면 기본 상호작용으로 넘기고, 서버에서 블록 엔티티가 있으면 열쇠 넣기를 시도한 뒤(성공/실패와 무관하게) SUCCESS 를 돌려준다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -15,6 +16,7 @@ import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.entity.VaultBlockEntity;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.VaultBlock")
 public class VaultBlock extends BaseEntityBlock {
 
     static final Prop FACING = B.prop("facing"), STATE = B.prop("vault_state"), OMINOUS = B.prop("ominous");

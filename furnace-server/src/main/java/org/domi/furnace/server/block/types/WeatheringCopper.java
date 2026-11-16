@@ -3,11 +3,13 @@ package org.domi.furnace.server.block.types;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.WeatheringCopper")
 public final class WeatheringCopper {
     private WeatheringCopper() {}
 

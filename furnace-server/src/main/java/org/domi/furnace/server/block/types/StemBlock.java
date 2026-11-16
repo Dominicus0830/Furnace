@@ -2,6 +2,7 @@
 package org.domi.furnace.server.block.types;
 
 import com.google.gson.JsonObject;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Blocks;
@@ -10,6 +11,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.StemBlock")
 public class StemBlock extends BushBlock implements BonemealableBlock {
 
     private static final Prop AGE = B.prop("age"), FACING = B.prop("facing");

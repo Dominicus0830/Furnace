@@ -1,12 +1,14 @@
 // 바닐라 ConduitBlock: 전달체. 놓을 칸이 가득 찬 물이면 물에 잠긴다(기본은 잠김). 활성화·효과·공격은 ConduitBlockEntity.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Fluids;
 import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.ConduitBlock")
 public class ConduitBlock extends BaseEntityBlock {
 
     public ConduitBlock(int block) { super(block); }

@@ -1,6 +1,7 @@
 // 바닐라 DoorBlock: 두 칸 문. 경첩은 양옆 단단한 블록·이웃 문·클릭 위치로 정한다. 손(블록 세트가 허락하면)이나 레드스톤으로 여닫는다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.Explosion;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
@@ -15,6 +16,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.DoorBlock")
 public class DoorBlock extends BlockBehavior {
 
     static final Prop FACING = B.prop("facing"), OPEN = B.prop("open"), HINGE = B.prop("hinge"), POWERED = B.prop("powered"), HALF = B.prop("half");

@@ -1,6 +1,9 @@
 // 바닐라 Clearable.tryClear: 블록을 바꾸기 전에 담긴 내용물을 비운다(쏟지 않게) — /fill·/setblock·/clone·빠른 블록 쓰기(E7)가 함께 쓴다.
 package org.domi.furnace.server.block.entity;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("net.minecraft.world.Clearable")
 public final class Clearables {
 
     private Clearables() {}

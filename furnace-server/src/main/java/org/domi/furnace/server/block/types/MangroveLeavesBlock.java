@@ -1,11 +1,13 @@
 // 바닐라 MangroveLeavesBlock: 맹그로브 잎. 아래가 비었으면 뼛가루로 매달린 맹그로브 싹을 단다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.MangroveLeavesBlock")
 public class MangroveLeavesBlock extends LeavesBlock implements BonemealableBlock {
 
     private static final int PROPAGULE = B.id("mangrove_propagule");

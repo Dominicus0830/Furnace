@@ -1,11 +1,13 @@
 // 바닐라 HoneyBlock: 옆면에 붙은 엔티티를 천천히 미끄러져 내리게 하고(-0.05), 낙하 피해를 0.2 배로 줄인다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockInfo;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.Entity;
 
+@VanillaPort("net.minecraft.world.level.block.HoneyBlock")
 public class HoneyBlock extends HalfTransparentBlock {
 
     public HoneyBlock(int block) { super(block); }

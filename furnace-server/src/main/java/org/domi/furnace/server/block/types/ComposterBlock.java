@@ -3,6 +3,7 @@ package org.domi.furnace.server.block.types;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockBehavior;
@@ -16,6 +17,7 @@ import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.item.ItemContext;
 
+@VanillaPort("net.minecraft.world.level.block.ComposterBlock")
 public class ComposterBlock extends BlockBehavior {
 
     static final Prop LEVEL = B.prop("level");

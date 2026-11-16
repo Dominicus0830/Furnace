@@ -1,6 +1,7 @@
 // 바닐라 DirtPathBlock: 흙길. 위가 단단한 블록(울타리 문 제외)이면 다음 틱에 흙이 된다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -9,6 +10,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.DirtPathBlock")
 public class DirtPathBlock extends BlockBehavior {
 
     private static final int DIRT = B.id("dirt");

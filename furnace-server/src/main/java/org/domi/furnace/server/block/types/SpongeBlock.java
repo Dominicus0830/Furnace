@@ -1,6 +1,7 @@
 // 바닐라 SpongeBlock: 놓이거나 이웃이 바뀌면 거리 6·최대 64칸의 물을 빨아들이고 젖은 스펀지가 된다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.ItemStack;
 import java.util.ArrayDeque;
 import java.util.HashSet;
@@ -12,6 +13,7 @@ import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.block.Fluids;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.SpongeBlock")
 public class SpongeBlock extends BlockBehavior {
 
     private static final int WET_SPONGE = B.id("wet_sponge"), KELP = B.id("kelp"), KELP_PLANT = B.id("kelp_plant"),

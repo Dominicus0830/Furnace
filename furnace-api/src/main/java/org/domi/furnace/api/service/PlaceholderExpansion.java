@@ -9,7 +9,7 @@ public interface PlaceholderExpansion {
     String identifier();
 
     /**
-     * @param player 값을 묻는 플레이어(없으면 null — 서버 전역 값만 답한다)
+     * @param player 값을 묻는 플레이어(없으면 null. 이때는 서버 전역 값만 답한다)
      * @param params identifier 뒤 "_" 다음 부분(없으면 빈 문자열)
      * @return 값, 모르면 null(원문이 그대로 남는다)
      */

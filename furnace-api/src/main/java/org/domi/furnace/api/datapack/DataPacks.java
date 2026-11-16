@@ -1,4 +1,4 @@
-// 데이터 팩 목록·켜고 끄기(바닐라 PackRepository 보기) — Furnace.dataPacks(). 아무 스레드에서 불러도 된다.
+// 데이터 팩 목록·켜고 끄기(바닐라 PackRepository 보기). Furnace.dataPacks() 가 돌려준다. 아무 스레드에서 불러도 된다.
 // 목록은 부를 때의 사본이다. 켜고 끄면 /datapack enable·disable 과 같이 리소스를 다시 읽는다(비동기, 끝나면 future 완료).
 package org.domi.furnace.api.datapack;
 
@@ -23,7 +23,7 @@ public interface DataPacks {
     record Pack(String id, Text title, Text description, boolean required, Compatibility compatibility,
                 Set<String> requestedFeatures, Source source, boolean enabled, Text displayName) {}
 
-    /** 폴더를 다시 훑어 새 팩·사라진 팩을 반영한다(켜진 목록은 그대로 — 바닐라 PackRepository.reload). */
+    /** 폴더를 다시 훑어 새 팩·사라진 팩을 반영한다(켜진 목록은 그대로다. 바닐라 PackRepository.reload). */
     void refresh();
 
     /** 알려진 모든 팩(이름 순). */

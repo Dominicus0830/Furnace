@@ -1,6 +1,7 @@
 // 바닐라 CakeBlock: 케이크. 먹으면(배고프거나 크리에이티브) 한 조각씩 줄고 허기 2·포화 0.1. 안 먹은 케이크에 양초를 꽂으면 양초 케이크.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockItems;
@@ -13,6 +14,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.CakeBlock")
 public class CakeBlock extends org.domi.furnace.server.block.BlockBehavior {
 
     static final Prop BITES = B.prop("bites");

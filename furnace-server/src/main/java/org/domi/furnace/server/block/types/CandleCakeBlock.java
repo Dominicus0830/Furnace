@@ -3,6 +3,7 @@ package org.domi.furnace.server.block.types;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -14,6 +15,7 @@ import org.domi.furnace.server.block.ItemInteractionResult;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.CandleCakeBlock")
 public class CandleCakeBlock extends AbstractCandleBlock {
 
     private static final Map<Integer, Integer> BY_CANDLE = new ConcurrentHashMap<>();

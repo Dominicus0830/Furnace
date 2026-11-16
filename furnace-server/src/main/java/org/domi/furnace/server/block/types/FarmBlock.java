@@ -1,6 +1,7 @@
 // 바닐라 FarmBlock: 경작지. 위가 단단하면 흙이 된다. 무작위 틱으로 물기(moisture)를 얻고 잃는다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockBehavior;
@@ -12,6 +13,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.FarmBlock")
 public class FarmBlock extends BlockBehavior {
 
     private static final Prop MOISTURE = B.prop("moisture");

@@ -1,9 +1,11 @@
 // 바닐라 NetherVines: 뒤틀린·눈물 덩굴 공통 — 빈칸으로 자라고, 뼛가루는 0.826 배씩 줄어드는 확률로 여러 칸.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.NetherVines")
 final class NetherVines {
     private NetherVines() {}
 

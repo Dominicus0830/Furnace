@@ -1,6 +1,7 @@
 // 바닐라 MudBlock: 진흙. 충돌 모양이 조금 낮다(모양 표에 반영) — 서버 블록 동작 없음.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.CollisionContext;
 
 import org.domi.furnace.server.block.Shape;
@@ -12,6 +13,7 @@ import org.domi.furnace.server.block.BlockLevel;
 
 import org.domi.furnace.server.block.BlockBehavior;
 
+@VanillaPort("net.minecraft.world.level.block.MudBlock")
 public class MudBlock extends BlockBehavior {
 
     public MudBlock(int block) { super(block); }

@@ -1,6 +1,7 @@
 // 바닐라 BaseCoralWallFanBlock: 벽에 붙은 (죽은) 산호 부채. 붙은 면이 단단해야 산다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.BaseCoralWallFanBlock")
 public class BaseCoralWallFanBlock extends BaseCoralFanBlock {
 
     static final Prop FACING = B.prop("facing");

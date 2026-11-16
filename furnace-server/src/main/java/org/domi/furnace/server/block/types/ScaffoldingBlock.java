@@ -3,6 +3,7 @@
 // 바닥 판(높이 2/16), 그 밖에는 빈 모양(안을 타고 오르내린다). 문맥 없음(EMPTY)은 안정 모양 — BlockInfo 표의 모양이 그것이다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -14,6 +15,7 @@ import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.block.Shape;
 
+@VanillaPort("net.minecraft.world.level.block.ScaffoldingBlock")
 public class ScaffoldingBlock extends BlockBehavior {
 
     private static final Prop DISTANCE = B.prop("distance"), BOTTOM = B.prop("bottom");

@@ -1,6 +1,7 @@
 // 바닐라 FrostedIceBlock: 차가운 걸음이 만든 얼음. 놓이면 60~120틱 뒤 틱, 밝거나 이웃이 적으면 단계적으로 녹는다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.FrostedIceBlock")
 public class FrostedIceBlock extends IceBlock {
 
     private static final Prop AGE = B.prop("age");

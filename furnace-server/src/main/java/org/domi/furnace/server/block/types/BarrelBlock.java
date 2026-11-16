@@ -1,6 +1,7 @@
 // 바닐라 BarrelBlock: 통. 바라보는 방향의 반대로 놓인다. 열림(open)·내용물은 블록 엔티티 동작.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.entity.ContainerBlockEntity;
 import org.domi.furnace.server.block.entity.BlockEntity;
 import org.domi.furnace.server.block.B;
@@ -14,6 +15,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.BarrelBlock")
 public class BarrelBlock extends BaseEntityBlock {
 
     private static final Prop FACING = B.prop("facing");

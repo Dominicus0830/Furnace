@@ -1,6 +1,7 @@
 // 바닐라 DecoratedPotBlock: 장식 단지(facing·cracked·waterlogged). 아이템 한 종류를 담고(블록 엔티티), 깨는 도구로 부수면 금이 간다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -16,6 +17,7 @@ import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.menu.Stacks;
 
+@VanillaPort("net.minecraft.world.level.block.DecoratedPotBlock")
 public class DecoratedPotBlock extends BaseEntityBlock {
 
     static final Prop FACING = B.prop("facing"), CRACKED = B.prop("cracked");

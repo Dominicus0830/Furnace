@@ -1,6 +1,7 @@
 // 바닐라 LightningRodBlock: 피뢰침. 벼락을 맞으면 8틱 동안 붙은 칸에 강한 신호. 물에 잠길 수 있다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
@@ -9,6 +10,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.LightningRodBlock")
 public class LightningRodBlock extends DirectionalBlock {
 
     private static final Prop POWERED = B.prop("powered");

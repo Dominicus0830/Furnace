@@ -1,10 +1,12 @@
 // 바닐라 SlimeBlock: 떨어진 엔티티를 튕기고(생물 1, 그 밖 0.8) 낙하 피해가 없다. 천천히 걸으면 미끄러지지 않게 붙잡는다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.Entity;
 
+@VanillaPort("net.minecraft.world.level.block.SlimeBlock")
 public class SlimeBlock extends HalfTransparentBlock {
 
     public SlimeBlock(int block) { super(block); }

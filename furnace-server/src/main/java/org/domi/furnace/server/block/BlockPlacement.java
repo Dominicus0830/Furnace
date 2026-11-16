@@ -3,11 +3,17 @@
 package org.domi.furnace.server.block;
 
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.item.ItemPrototypes;
 import org.domi.furnace.server.item.Val;
 
+@VanillaPort({
+    "net.minecraft.server.level.ServerPlayerGameMode",
+    "net.minecraft.world.item.ItemStack",
+    "net.minecraft.world.item.BlockItem"
+})
 public final class BlockPlacement {
     private BlockPlacement() {}
 
