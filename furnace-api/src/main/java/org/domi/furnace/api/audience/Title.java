@@ -1,4 +1,4 @@
-// 화면 가운데 제목 — 제목·부제·시간(틱 단위, 바닐라 기본 10·70·20).
+// 화면 가운데 제목. 제목·부제·시간으로 이루어진다(시간은 틱 단위, 바닐라 기본 10·70·20).
 package org.domi.furnace.api.audience;
 
 import java.util.Objects;

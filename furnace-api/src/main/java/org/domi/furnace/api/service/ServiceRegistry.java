@@ -1,4 +1,4 @@
-// 서비스 레지스트리 — 플러그인끼리 이름이 아니라 인터페이스로 만난다(Bukkit ServicesManager·Vault 식 연결).
+// 서비스 레지스트리. 플러그인끼리 이름이 아니라 인터페이스로 만난다(Bukkit ServicesManager·Vault 식 연결).
 // 권한·경제·플레이스홀더 같은 공용 인터페이스(PermissionService·EconomyService·PlaceholderService)가 이 위에 놓이고, 플러그인이 자기 인터페이스를 올려도 된다.
 // 서비스 클래스는 보통 소비자와 제공자가 함께 보는 API 클래스로더에 있어야 한다. 제공 플러그인이 꺼지면 그 등록은 자동으로 풀린다.
 // 어느 스레드에서 불러도 된다. 등록·해제는 ServiceRegisterEvent·ServiceUnregisterEvent 로 알린다.
