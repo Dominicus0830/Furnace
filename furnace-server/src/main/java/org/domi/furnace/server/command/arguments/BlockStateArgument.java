@@ -18,7 +18,9 @@ import org.domi.furnace.server.command.brigadier.DynamicCommandExceptionType;
 import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
 import org.domi.furnace.server.command.brigadier.StringReader;
 import org.domi.furnace.server.data.ResourceId;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.commands.arguments.blocks.BlockStateArgument", "net.minecraft.commands.arguments.blocks.BlockStateParser"})
 public final class BlockStateArgument implements ArgumentType<BlockStateArgument.BlockInput> {
 
     private static final List<String> EXAMPLES = List.of("stone", "minecraft:stone", "stone[foo=bar]", "foo{bar=baz}");

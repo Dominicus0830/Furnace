@@ -20,7 +20,9 @@ import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.entity.Rider;
 import org.domi.furnace.server.scores.PlayerTeam;
 import org.domi.furnace.server.scores.ScoreHolder;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.TeamMsgCommand")
 public final class TeamMsgCommand {
 
     private TeamMsgCommand() {}

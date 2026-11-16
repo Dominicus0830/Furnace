@@ -1,6 +1,9 @@
 // 리소스 위치(바닐라 ResourceLocation) — namespace:path. 정렬은 바닐라처럼 path 먼저, 그다음 namespace.
 package org.domi.furnace.server.data;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("net.minecraft.resources.ResourceLocation")
 public record ResourceId(String namespace, String path) implements Comparable<ResourceId> {
 
     public ResourceId {

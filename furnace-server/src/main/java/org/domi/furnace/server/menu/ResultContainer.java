@@ -4,7 +4,9 @@ package org.domi.furnace.server.menu;
 import java.util.List;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.recipe.RecipeManager.CraftingEntry;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.inventory.ResultContainer")
 public class ResultContainer implements Container {
 
     private final Container storage;

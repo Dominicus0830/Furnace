@@ -15,7 +15,9 @@ import org.domi.furnace.server.command.exec.BuildContexts;
 import org.domi.furnace.server.command.exec.UnboundEntryAction;
 import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.commands.functions.CommandFunction", "net.minecraft.commands.functions.PlainTextFunction"})
 public interface CommandFunction {
 
     /** 바닐라 ig.a(CharSequence) 의 상한. */

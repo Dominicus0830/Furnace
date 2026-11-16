@@ -51,7 +51,9 @@ import org.domi.furnace.server.loot.LootParams;
 import org.domi.furnace.server.loot.LootTable;
 import org.domi.furnace.server.menu.Stacks;
 import org.domi.furnace.server.world.RegionLevel;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.LootCommand")
 public final class LootCommand {
     private LootCommand() {}
 

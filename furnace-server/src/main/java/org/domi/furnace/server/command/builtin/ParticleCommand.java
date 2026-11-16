@@ -19,7 +19,9 @@ import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.protocol.play.LevelParticles;
 import org.domi.furnace.server.net.protocol.play.ParticleOptions;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.ParticleCommand")
 public final class ParticleCommand {
     private ParticleCommand() { }
 

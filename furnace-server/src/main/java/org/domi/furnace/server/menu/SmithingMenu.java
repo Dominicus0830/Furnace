@@ -5,7 +5,9 @@ import java.util.List;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.recipe.RecipeManager;
 import org.domi.furnace.server.recipe.RecipeManager.SmithingEntry;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.inventory.SmithingMenu")
 public class SmithingMenu extends ItemCombinerMenu {
 
     public static final int TEMPLATE_SLOT = 0, BASE_SLOT = 1, ADDITIONAL_SLOT = 2, RESULT_SLOT = 3;

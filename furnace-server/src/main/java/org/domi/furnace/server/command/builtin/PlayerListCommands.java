@@ -30,7 +30,9 @@ import org.domi.furnace.server.players.IpBanListEntry;
 import org.domi.furnace.server.players.PlayerLists;
 import org.domi.furnace.server.players.UserBanListEntry;
 import org.domi.furnace.server.players.UserWhiteListEntry;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.server.commands.OpCommand", "net.minecraft.server.commands.DeOpCommands", "net.minecraft.server.commands.WhitelistCommand", "net.minecraft.server.commands.BanPlayerCommands", "net.minecraft.server.commands.BanIpCommands", "net.minecraft.server.commands.BanListCommands", "net.minecraft.server.commands.PardonCommand", "net.minecraft.server.commands.PardonIpCommand"})
 public final class PlayerListCommands {
 
     private static final SimpleCommandExceptionType ERROR_ALREADY_OP = err("commands.op.failed");

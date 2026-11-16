@@ -5,7 +5,9 @@ package org.domi.furnace.server.menu;
 import org.domi.furnace.server.entity.AbstractHorse;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.world.MenuBlockContext;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.inventory.HorseInventoryMenu")
 public class HorseInventoryMenu extends AbstractContainerMenu {
 
     private final Container horseContainer;

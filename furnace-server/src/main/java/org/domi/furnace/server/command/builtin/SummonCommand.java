@@ -23,7 +23,9 @@ import org.domi.furnace.server.entity.Entities;
 import org.domi.furnace.server.entity.Entity;
 import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.SummonCommand")
 public final class SummonCommand {
     private SummonCommand() { }
 

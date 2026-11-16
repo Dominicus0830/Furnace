@@ -10,7 +10,9 @@ import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.item.FuelRegistry;
 import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.world.BlockEntityContainer;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.inventory.AbstractFurnaceMenu")
 public class FurnaceMenu extends ContainerBackedMenu {
 
     public static final int INGREDIENT_SLOT = 0, FUEL_SLOT = 1, RESULT_SLOT = 2, SLOT_COUNT = 3, INV_SLOT_START = 3, INV_SLOT_END = 30,

@@ -1,6 +1,9 @@
 // 바닐라 ChestMenu(generic_9xN) — 위에 용기 rows*9 칸, 아래에 플레이어 주 인벤토리 27칸과 핫바 9칸. 상자·통·더블 상자가 쓴다.
 package org.domi.furnace.server.menu;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("net.minecraft.world.inventory.ChestMenu")
 public class ChestMenu extends ContainerBackedMenu {
 
     private final int rows;

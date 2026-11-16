@@ -2,7 +2,9 @@
 package org.domi.furnace.server.command.brigadier;
 
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("com.mojang.brigadier.exceptions.BuiltInExceptions")
 public final class BuiltInExceptions {
 
     private static final Dynamic2CommandExceptionType DOUBLE_TOO_SMALL = new Dynamic2CommandExceptionType((f, m) -> Text.translatable("argument.double.low", m, f));

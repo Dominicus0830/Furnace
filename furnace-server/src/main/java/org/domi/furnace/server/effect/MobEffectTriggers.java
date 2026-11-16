@@ -18,7 +18,9 @@ import org.domi.furnace.server.entity.EntityType;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.entity.Silverfish;
 import org.domi.furnace.server.entity.Slime;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.world.effect.WindChargedMobEffect", "net.minecraft.world.effect.WeavingMobEffect", "net.minecraft.world.effect.OozingMobEffect", "net.minecraft.world.effect.InfestedMobEffect"})
 public final class MobEffectTriggers {
 
     private MobEffectTriggers() {}

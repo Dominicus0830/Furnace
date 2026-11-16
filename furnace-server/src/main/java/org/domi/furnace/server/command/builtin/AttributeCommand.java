@@ -28,7 +28,9 @@ import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.entity.LivingEntity;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.entity.Rider;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.AttributeCommand")
 public final class AttributeCommand {
     private AttributeCommand() { }
 

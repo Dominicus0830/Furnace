@@ -21,7 +21,9 @@ import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.net.protocol.play.Disconnect;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.server.commands.KickCommand", "net.minecraft.server.commands.ListPlayersCommand", "net.minecraft.server.commands.SayCommand", "net.minecraft.server.commands.HelpCommand", "net.minecraft.server.commands.StopCommand", "net.minecraft.server.commands.SeedCommand", "net.minecraft.server.commands.SaveAllCommand", "net.minecraft.server.commands.SaveOffCommand", "net.minecraft.server.commands.SaveOnCommand", "net.minecraft.server.commands.SetPlayerIdleTimeoutCommand"})
 public final class ServerCommands {
 
     private static final SimpleCommandExceptionType ERROR_HELP_FAILED = new SimpleCommandExceptionType(Text.translatable("commands.help.failed"));

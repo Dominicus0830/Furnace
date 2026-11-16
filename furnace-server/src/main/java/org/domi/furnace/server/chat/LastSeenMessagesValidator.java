@@ -4,7 +4,9 @@ package org.domi.furnace.server.chat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.network.chat.LastSeenMessagesValidator")
 public final class LastSeenMessagesValidator {
 
     private record Entry(MessageSignature signature, boolean pending) {

@@ -4,7 +4,9 @@ package org.domi.furnace.server.menu;
 import java.util.List;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.recipe.CraftingInput;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.inventory.ResultSlot")
 public class ResultSlot extends Slot {
 
     private final CraftingGrid craftSlots;

@@ -8,7 +8,9 @@ import java.util.Set;
 import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundUpdateAdvancementsPacket")
 public record UpdateAdvancements(boolean reset, List<byte[]> added, Set<ResourceId> removed,
                                  Map<ResourceId, AdvancementProgress> progress) implements Packet {
 

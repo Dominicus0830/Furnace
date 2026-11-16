@@ -9,7 +9,9 @@ import org.domi.furnace.server.command.brigadier.CommandContext;
 import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.StringReader;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.arguments.CompoundTagArgument")
 public final class CompoundTagArgument implements ArgumentType<NbtCompound> {
 
     private static final List<String> EXAMPLES = List.of("{}", "{foo=bar}");

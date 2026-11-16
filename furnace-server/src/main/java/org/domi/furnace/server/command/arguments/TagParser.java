@@ -15,7 +15,9 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 import org.domi.furnace.server.net.io.nbt.NbtTags;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.nbt.TagParser")
 public final class TagParser {
 
     public static final SimpleCommandExceptionType ERROR_TRAILING_DATA = new SimpleCommandExceptionType(Text.translatable("argument.nbt.trailing"));

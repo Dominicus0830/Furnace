@@ -16,7 +16,9 @@ import org.domi.furnace.server.command.brigadier.Suggestions;
 import org.domi.furnace.server.command.brigadier.SuggestionsBuilder;
 import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.net.io.Types;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.arguments.ResourceKeyArgument")
 public final class ResourceKeyArgument implements ArgumentType<ResourceId> {
     private static final List<String> EXAMPLES = List.of("foo", "foo:bar", "012");
 

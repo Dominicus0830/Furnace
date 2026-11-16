@@ -7,7 +7,9 @@ import java.security.Signature;
 import java.security.SignatureException;
 import java.time.Instant;
 import org.domi.furnace.server.net.io.Types;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.network.chat.SignedMessageBody")
 public record SignedMessageBody(String content, Instant timeStamp, long salt, LastSeenMessages lastSeen) {
 
     public static SignedMessageBody unsigned(String content) { return new SignedMessageBody(content, Instant.now(), 0L, LastSeenMessages.EMPTY); }

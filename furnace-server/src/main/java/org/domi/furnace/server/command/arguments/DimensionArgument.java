@@ -16,7 +16,9 @@ import org.domi.furnace.server.command.brigadier.Suggestions;
 import org.domi.furnace.server.command.brigadier.SuggestionsBuilder;
 import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.world.World;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.arguments.DimensionArgument")
 public final class DimensionArgument implements ArgumentType<ResourceId> {
 
     private static final List<String> EXAMPLES = List.of("overworld", "the_nether");

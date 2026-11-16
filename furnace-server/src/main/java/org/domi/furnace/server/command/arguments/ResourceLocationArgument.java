@@ -11,7 +11,9 @@ import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
 import org.domi.furnace.server.command.brigadier.StringReader;
 import org.domi.furnace.server.data.ResourceId;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.arguments.ResourceLocationArgument")
 public final class ResourceLocationArgument implements ArgumentType<ResourceId> {
 
     private static final List<String> EXAMPLES = List.of("foo", "foo:bar", "012");

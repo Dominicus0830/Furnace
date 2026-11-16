@@ -3,7 +3,9 @@ package org.domi.furnace.server.menu;
 
 import java.util.function.BooleanSupplier;
 import org.domi.furnace.server.entity.ItemStack;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.inventory.CraftingMenu")
 public class CraftingMenu extends AbstractContainerMenu implements RecipeBookMenu {
 
     public static final int RESULT_SLOT = 0, CRAFT_SLOT_START = 1, CRAFT_SLOT_END = 10, INV_SLOT_START = 10, INV_SLOT_END = 37,

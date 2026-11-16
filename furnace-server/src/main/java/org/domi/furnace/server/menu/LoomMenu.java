@@ -9,7 +9,9 @@ import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.recipe.SpecialRecipes;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.inventory.LoomMenu")
 public class LoomMenu extends AbstractContainerMenu {
 
     public static final int BANNER_SLOT = 0, DYE_SLOT = 1, PATTERN_SLOT = 2, RESULT_SLOT = 3, INV_SLOT_START = 4, INV_SLOT_END = 31,

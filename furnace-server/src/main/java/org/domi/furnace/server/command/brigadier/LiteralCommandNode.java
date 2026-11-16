@@ -5,7 +5,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("com.mojang.brigadier.tree.LiteralCommandNode")
 public class LiteralCommandNode<S> extends CommandNode<S> {
 
     private final String literal;

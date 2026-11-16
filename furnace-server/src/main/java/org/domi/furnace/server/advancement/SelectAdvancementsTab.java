@@ -5,7 +5,9 @@ import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundSelectAdvancementsTabPacket")
 public record SelectAdvancementsTab(ResourceId tab) implements Packet {
 
     public static final int ID = 0x4A;

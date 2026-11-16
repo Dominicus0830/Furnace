@@ -13,7 +13,9 @@ import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
 import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.world.WorldBorder;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.WorldBorderCommand")
 public final class WorldBorderCommand {
 
     private static final SimpleCommandExceptionType ERROR_SAME_CENTER = new SimpleCommandExceptionType(Text.translatable("commands.worldborder.center.failed"));

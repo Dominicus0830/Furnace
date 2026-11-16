@@ -1,5 +1,8 @@
 package org.domi.furnace.server.command.brigadier;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("com.mojang.brigadier.context.StringRange")
 public record StringRange(int start, int end) {
 
     public static StringRange at(int pos) { return new StringRange(pos, pos); }

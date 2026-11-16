@@ -5,7 +5,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.network.chat.PlayerChatMessage")
 public record PlayerChatMessage(SignedMessageLink link, MessageSignature signature, SignedMessageBody signedBody,
                                 Text unsignedContent, boolean fullyFiltered) {
 

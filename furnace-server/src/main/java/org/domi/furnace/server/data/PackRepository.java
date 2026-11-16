@@ -22,7 +22,9 @@ import java.util.zip.ZipFile;
 import org.domi.furnace.api.text.Text;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.server.packs.repository.PackRepository", "net.minecraft.server.packs.repository.ServerPacksSource", "net.minecraft.server.packs.repository.FolderRepositorySource"})
 public final class PackRepository {
 
     private static final Logger log = LoggerFactory.getLogger("Furnace");
