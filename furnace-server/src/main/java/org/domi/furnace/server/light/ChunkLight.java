@@ -67,6 +67,21 @@ public final class ChunkLight {
         visible.lightEnabled = lightEnabled;
     }
 
+    /**
+     * 새로 계산한 빛(T-197 relight — 다른 곳에서 더 쓰지 않는 것)의 하늘빛·블록빛 층을 이 청크 것으로 갈아 끼운다. 원천 높이·켜짐은 그대로다.
+     * 보이는 빛을 가진 스레드에서, 쓰기 사본이 도는 동안이 아닐 때(빛 작업이 쉴 때).
+     */
+    public void adoptLayersFrom(ChunkLight fresh) {
+        assert base == null && fresh.base == null : "쓰기 사본에는 끼우지 않는다";
+        System.arraycopy(fresh.sky, 0, sky, 0, SECTIONS);
+        System.arraycopy(fresh.block, 0, block, 0, SECTIONS);
+    }
+
+    /** 새로 계산한 빛의 하늘빛 원천 높이를 이 청크 것으로 복사한다 — 계산에 쓴 블록이 지금 블록과 같을 때만(T-197 설치의 빠른 길). */
+    public void adoptSourcesFrom(ChunkLight fresh) {
+        System.arraycopy(fresh.lowestSource, 0, lowestSource, 0, lowestSource.length);
+    }
+
     /** 이 사본의 원본(쓰기 사본이 아니면 null). */
     public ChunkLight base() { return base; }
 

@@ -204,6 +204,7 @@ public final class World {
      * 이 뒤 이 월드에 넣는 작업은 받아들여지지 않는다.
      */
     public void closeForUnload() {
+        relight.shutdown();
         unloaded = true;
         regionizer.gameTicks(false);
         if (scheduler instanceof org.domi.furnace.server.sched.FurnaceSchedulerImpl impl) impl.removeCloseHook(closeHook);
@@ -905,6 +906,12 @@ public final class World {
     public java.nio.file.Path levelRoot() { var r = levelRoot; return r != null ? r : worldDir; }
 
     private final org.domi.furnace.server.light.VirtualLights virtualLights = new org.domi.furnace.server.light.VirtualLights();
+
+    // 청크 빛 다시 계산(T-197 — 플러그인의 Starlight relight 부탁)
+    private final Relight relight = new Relight(this);
+
+    /** 이 월드의 빛 다시 계산(붙잡기 판정·시험 이음매). */
+    public Relight relight() { return relight; }
 
     /** 이 차원의 가짜 광원(플러그인 빛 API). region 레벨들이 함께 쓴다. */
     public org.domi.furnace.server.light.VirtualLights virtualLights() { return virtualLights; }
@@ -1680,6 +1687,18 @@ public final class World {
         }
     }
 
+    /**
+     * 빛 다시 계산 뒤(Paper starlight$serverRelightChunks): 그 청크를 받은 플레이어 모두에게 전 섹션 빛 갱신. 아직 청크를 못 받은 구독자는
+     * 건너뛴다(그 빛은 청크 패킷에 들어간다).
+     */
+    public void broadcastFullLightUpdate(ChunkPos cp, Packet pkt) {
+        ConcurrentHashMap<Player, Subscription> s = chunkSubscribers.get(cp);
+        if (s == null) return;
+        for (Map.Entry<Player, Subscription> e : s.entrySet()) {
+            if (e.getValue().ready) e.getKey().send(pkt);
+        }
+    }
+
     /** ChunkMap.isChunkOnTrackedBorder: 둘레 8칸 중 그 플레이어가 받지 않은(구독 없음 또는 전송 전) 청크가 있다. */
     boolean onTrackedBorder(ChunkPos cp, Player p) {
         for (int dx = -1; dx <= 1; dx++) {
@@ -1851,6 +1870,7 @@ public final class World {
         var forced = forcedChunks;
         if (forced != null && forced.size() > 0 && forced.contains(Regionizer.chunkX(chunkKey), Regionizer.chunkZ(chunkKey))) return true;
         if (!pluginHolds.isEmpty() && pluginHolds.containsKey(chunkKey)) return true;   // 플러그인 티켓
+        if (relight.pinned(chunkKey)) return true;   // 빛 다시 계산 중(Paper 의 CHUNK_RELIGHT 티켓)
         if (spawnTicketWithin(Regionizer.chunkX(chunkKey), Regionizer.chunkZ(chunkKey), 0)) return true;   // 스폰 청크(START)
         Long until = tickets.get(chunkKey);
         if (until == null) return false;

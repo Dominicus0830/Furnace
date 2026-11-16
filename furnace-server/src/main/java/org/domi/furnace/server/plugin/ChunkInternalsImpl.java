@@ -359,6 +359,17 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     @Override
+    public int relightChunks(org.domi.furnace.api.world.World world, int[] chunkX, int[] chunkZ, ChunkCallback chunkDone,
+                             java.util.function.IntConsumer allDone) {
+        if (chunkX.length != chunkZ.length) throw new IllegalArgumentException("chunkX/chunkZ length mismatch");
+        long[] keys = new long[chunkX.length];
+        for (int i = 0; i < keys.length; i++) keys[i] = org.domi.furnace.server.world.Regionizer.chunkKey(chunkX[i], chunkZ[i]);
+        java.util.function.LongConsumer each = chunkDone == null ? null
+                : k -> chunkDone.accept(org.domi.furnace.server.world.Regionizer.chunkX(k), org.domi.furnace.server.world.Regionizer.chunkZ(k));
+        return handle(world).handle().relight().relight(keys, each, allDone);
+    }
+
+    @Override
     public long contentStampNow(org.domi.furnace.api.world.World world, int chunkX, int chunkZ) {
         ChunkColumn col = column(world, chunkX, chunkZ, "chunk content revision number");
         return col == null ? -1L : col.modCount();

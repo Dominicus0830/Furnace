@@ -249,10 +249,31 @@ public final class ChunkSection {
     }
 
     /**
-     * 빛 작업(T-064)이 이 객체의 블록을 읽는 중이다. 컬럼은 얼린 구역에 쓰기 전에 복사본으로 갈아 끼운다(ChunkColumn.ownSection) —
-     * 얼린 객체의 블록은 녹일 때까지 바뀌지 않는다. 주인 region 스레드만 읽고 쓴다(빛 작업은 보지 않는다).
+     * 이 객체의 블록을 읽는 빛 계산 수(T-064 빛 작업, T-197 relight). 0 이 아니면 컬럼은 쓰기 전에 복사본으로 갈아 끼운다(ChunkColumn.ownSection) —
+     * 얼린 객체의 블록은 모두 녹일 때까지 바뀌지 않는다. 얼리기는 주인 region 스레드, 녹이기는 계산이 끝난 뒤 아무 스레드(나누기 뒤 새 주인이 아닐 수
+     * 있다)라 원자 수다. 주인이 낡은 0 아닌 값을 보면 복사가 한 번 더 생길 뿐이다.
      */
-    boolean lightFrozen;
+    private volatile int lightFrozen;
+    private static final java.lang.invoke.VarHandle LIGHT_FROZEN;
+    static {
+        try {
+            LIGHT_FROZEN = java.lang.invoke.MethodHandles.lookup().findVarHandle(ChunkSection.class, "lightFrozen", int.class);
+        } catch (ReflectiveOperationException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
+    /** 빛 계산이 읽는 중인가(쓰기 전에 복사해야 하는가). */
+    boolean lightFrozen() { return lightFrozen != 0; }
+
+    /** 빛 계산 하나가 읽기 시작(주인 스레드). */
+    void freezeLight() { LIGHT_FROZEN.getAndAdd(this, 1); }
+
+    /** 빛 계산 하나가 끝남(아무 스레드). */
+    void thawLight() {
+        int before = (int) LIGHT_FROZEN.getAndAdd(this, -1);
+        assert before > 0 : "얼리지 않은 구역을 녹임";
+    }
 
     private static int blockIndex(int x, int y, int z) {
         return y * 256 + z * 16 + x;
@@ -271,7 +292,7 @@ public final class ChunkSection {
      * LevelChunkSection.setBlockState 처럼 개수 셋을 ±1(유체는 비어 있지 않으면 물도), 아니면 바닐라 블록 컨테이너 set 처럼 개수를 그대로 둔다(N2b-2).
      */
     int setBlockAt(int idx, int stateId, boolean vanillaCounts) {
-        assert !lightFrozen : "빛 작업이 읽는 구역을 그 자리에서 고침";
+        assert lightFrozen == 0 : "빛 작업이 읽는 구역을 그 자리에서 고침";
         version++;
         int old = scratch != null ? scratch[idx] : blocks.get(idx);
         boolean wasAir = isAir(old), nowAir = isAir(stateId);
@@ -349,7 +370,7 @@ public final class ChunkSection {
     }
 
     public void replaceBlocks(int[] source, int sourceOffset) {
-        assert !lightFrozen : "빛 작업이 읽는 구역을 그 자리에서 고침";
+        assert lightFrozen == 0 : "빛 작업이 읽는 구역을 그 자리에서 고침";
         version++;
         countsUnknown();
         if (scratch != null) {
@@ -364,7 +385,7 @@ public final class ChunkSection {
 
     /** replaceBlocks(펼친 배열) 과 같은 결과를 팔레트 값 + 칸별 인덱스에서. scratch 가 열려 있으면 펼쳐서 예전 경로. */
     void replaceBlocksIndexed(int[] paletteVals, BitStorage indices) {
-        assert !lightFrozen : "빛 작업이 읽는 구역을 그 자리에서 고침";
+        assert lightFrozen == 0 : "빛 작업이 읽는 구역을 그 자리에서 고침";
         if (scratch != null) {
             int[] flat = new int[4096];
             for (int i = 0; i < 4096; i++) flat[i] = paletteVals[indices.get(i)];
@@ -418,7 +439,7 @@ public final class ChunkSection {
     }
 
     int[] openScratch() {
-        assert !lightFrozen : "빛 작업이 읽는 구역을 그 자리에서 고침";
+        assert lightFrozen == 0 : "빛 작업이 읽는 구역을 그 자리에서 고침";
         version++;
         countsUnknown();   // 바깥에서 scratch 를 직접 고친다
         if (scratch == null) scratch = blocks.unpack();
@@ -427,7 +448,7 @@ public final class ChunkSection {
 
     void compact() {
         if (scratch == null) return;
-        assert !lightFrozen : "빛 작업이 읽는 구역을 그 자리에서 고침";
+        assert lightFrozen == 0 : "빛 작업이 읽는 구역을 그 자리에서 고침";
         version++;
         countsUnknown();
         blocks.load(scratch, 0);

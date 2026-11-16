@@ -563,6 +563,7 @@ public final class FurnaceMain {
                     } catch (InterruptedException e) {
                         log.error(Lang.t("stop.barrier-interrupted"), e);
                     }
+                    for (World w : dimensions.all()) w.relight().shutdown();   // 빛 다시 계산의 붙잡기를 풀어 저장 전 빛 계산이 마저 하게(T-197 검토 R1)
                     for (World w : dimensions.all()) {
                         try {
                             int left = w.flushAllDrained(Math.max(1, flushDeadline - System.nanoTime()));
