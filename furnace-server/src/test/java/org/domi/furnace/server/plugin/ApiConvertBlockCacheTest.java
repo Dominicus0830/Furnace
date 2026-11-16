@@ -1,5 +1,6 @@
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -18,7 +19,7 @@ import org.junit.jupiter.api.Test;
 /** T-072: ApiConvert.block 의 상태 번호별 캐시가 캐시 없는 길과 모든 상태에서 같은 값이고, 같은 번호는 같은 객체이며, 경합해도 깨지지 않는다. */
 class ApiConvertBlockCacheTest {
 
-    private static BlockRegistry registry() { return BlockRegistry.load("blocks/1.21.1.txt"); }
+    private static BlockRegistry registry() { return BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"); }
 
     @Test
     void cachedEqualsUncachedForEveryStateAndIsShared() {

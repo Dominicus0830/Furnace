@@ -1,5 +1,6 @@
 package org.bukkit.craftbukkit.util;
 
+import org.domi.furnace.api.GameVersion;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
 import org.bukkit.Material;
@@ -66,7 +67,7 @@ public final class CraftMagicNumbers implements UnsafeValues {
 
     /** 1.21.1 의 SharedConstants 값(바닐라 서버 jar version.json 의 world_version). */
     static int dataVersionOf(String minecraftVersion) {
-        if ("1.21.1".equals(minecraftVersion)) return 3955;
+        if (GameVersion.MINECRAFT.equals(minecraftVersion)) return GameVersion.DATA_VERSION;
         throw new UnsupportedFeature("UnsafeValues#getDataVersion", "there is no data version table for Minecraft " + minecraftVersion);
     }
 

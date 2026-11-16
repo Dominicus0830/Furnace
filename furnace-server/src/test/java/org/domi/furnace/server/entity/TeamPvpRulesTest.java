@@ -2,6 +2,7 @@
 // 기대값은 바닐라 1.21.1 바이트코드(btn.s=isAlliedTo, cef.a=TargetingConditions.test, cmx.a=canHarmPlayer, cgh.a=Wolf.wantsToAttack, cnd.l=AbstractArrow.tick)에서 읽었다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -25,7 +26,7 @@ class TeamPvpRulesTest {
     @BeforeAll
     static void install() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static final class Arena extends BlockPlacementTest.TestLevel {

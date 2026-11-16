@@ -2,6 +2,7 @@
 // 그리고 새 플레이어 첫 틱의 레시피 ADD → update_advancements 바이트(바닐라 캡처, 진행 맵 순서·시각은 바닐라도 매번 달라 제외).
 package org.domi.furnace.server.advancement;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -33,12 +34,12 @@ class VanillaAdvancementsTest {
             "01022c6d696e6563726166743a726563697065732f6465636f726174696f6e732f6372616674696e675f7461626c6501166d696e6563726166743a726563697065732f726f6f740001020e6861735f7468655f72656369706511756e6c6f636b5f72696768745f6177617900166d696e6563726166743a726563697065732f726f6f74000001010a696d706f737369626c650000";
 
     static AdvancementManager vanilla(LootRegistries[] regsOut) throws Exception {
-        Path root = Path.of("../tools/vanilla-data/server-1.21.1");
+        Path root = Path.of("../tools/vanilla-data/server-" + GameVersion.MINECRAFT);
         Assumptions.assumeTrue(Files.isDirectory(root.resolve("data/minecraft/advancement")), "로컬 바닐라 데이터 없음");
         PackRepository repo = new PackRepository(root, null);
         repo.reload();
         repo.setSelected(List.of("vanilla"));
-        TagRegistries tags = new TagRegistries(RegistrySet.load("registries/1.21.1.txt"));
+        TagRegistries tags = new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"));
         try (ResourceManager rm = repo.openResourceManager()) {
             LootRegistries regs = new LootRegistries(tags, tags.loadAll(rm));
             if (regsOut != null) regsOut[0] = regs;

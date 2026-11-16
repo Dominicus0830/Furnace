@@ -4,6 +4,7 @@
 // 범위 밖 청크의 예약 틱은 꺼내지 않고(LevelTicks), 블록 이벤트는 다음 틱으로 미룬다(runBlockEvents) — 범위에 들면 그때 돈다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -40,7 +41,7 @@ class BlockTickRangeTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @AfterEach
@@ -53,11 +54,11 @@ class BlockTickRangeTest {
 
     private void world(int viewDistance, int simulationDistance, boolean spectatorsGenerateChunks) {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         io = Executors.newSingleThreadExecutor();
         w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, sched.regionThreadCount(), 16, viewDistance, viewDistance,
                 reg.directBits(), 7, io);
-        w.setRegistries(reg, ItemRegistry.load("items/1.21.1.txt"));
+        w.setRegistries(reg, ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         w.configurePersistence(1_000_000, 1_000_000);   // 시험 중 청크가 내려가지 않게(장치 청크는 미리 올린다)
         LevelServices base = w.levelServices();
         w.levelServices(new LevelServices.Delegating(base) {

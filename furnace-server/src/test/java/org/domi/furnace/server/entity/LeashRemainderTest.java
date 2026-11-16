@@ -2,6 +2,7 @@
 // 기대값은 바닐라 1.21.1 디컴파일(btk.b_, cov.b 탄성, chi.a 말, cgv.a 낙타, btn/btp 죽음)을 손으로 계산했다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.block.BlockPlacementTest;
@@ -14,7 +15,7 @@ class LeashRemainderTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static LeashFenceKnotEntity knot(BlockPlacementTest.TestLevel level, int kx) {

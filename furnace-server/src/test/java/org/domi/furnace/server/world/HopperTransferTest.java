@@ -1,6 +1,7 @@
 // 깔때기 아이템 이동: 8틱 주기, 깔때기→깔때기 쿨다운(7/8), 꺼진 깔때기, 화로 면 규칙(위 = 재료, 옆 = 연료, 아래 = 결과·양동이).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.block.B;
@@ -18,7 +19,7 @@ import org.junit.jupiter.api.Test;
 class HopperTransferTest {
 
     @BeforeAll
-    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt"))); }
+    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"))); }
 
     private static ItemStack stack(String name, int n) { return new ItemStack(ItemContext.id("minecraft:item", "minecraft:" + name), n); }
 

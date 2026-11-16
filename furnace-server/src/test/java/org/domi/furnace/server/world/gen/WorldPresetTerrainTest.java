@@ -1,6 +1,7 @@
 // 월드 타입 large_biomes·amplified: 바닐라 noise_settings 라우터로 생성되는지(지형 높이·바이옴 크기) 확인한다.
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.google.gson.JsonParser;
@@ -20,8 +21,8 @@ class WorldPresetTerrainTest {
 
     @BeforeAll
     static void load() {
-        blocks = BlockRegistry.load("blocks/1.21.1.txt");
-        registries = RegistrySet.load("registries/1.21.1.txt");
+        blocks = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
     }
 
     @Test
@@ -103,7 +104,7 @@ class WorldPresetTerrainTest {
 
     private static com.google.gson.JsonObject json(String name) throws Exception {
         try (var in = WorldPresetTerrainTest.class.getClassLoader()
-                .getResourceAsStream("worldgen/1.21.1/noise_settings/" + name + ".json")) {
+                .getResourceAsStream("worldgen/" + GameVersion.RESOURCE_TAG + "/noise_settings/" + name + ".json")) {
             return JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject();
         }
     }

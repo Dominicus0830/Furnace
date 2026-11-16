@@ -3,6 +3,7 @@
 // 모르는 블록을 공기로 지운다. Paper 는 새 판 청크를 만나면 서버를 멈춘다 — Furnace 는 기동 때 level.dat 판으로 같은 결과를 낸다.
 package org.domi.furnace.server.world.storage;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -59,7 +60,7 @@ class A05NewerWorldRefusalTest {
 
     @Test
     void otherSeries_isRefusedLikeVanilla(@TempDir Path dir) throws Exception {
-        writeLevel(dir.resolve("level.dat"), 3955, 3955, "1.21.1-ccpreview", "ccpreview");
+        writeLevel(dir.resolve("level.dat"), 3955, 3955, GameVersion.RESOURCE_TAG + "-ccpreview", "ccpreview");
         try (LevelStorage ls = LevelStorage.open(dir)) {
             assertThrows(LevelStorage.IncompatibleWorldException.class, ls::loadLevelData);
         }

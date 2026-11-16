@@ -1,6 +1,7 @@
 // 지도 색 계산(MapItem.update)과 바이옴 미리보기: 고정 지형 → 손으로 계산한 색 바이트(색 번호 << 2 | 밝기), 한 틱의 일량 상한.
 package org.domi.furnace.server.map;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.function.IntBinaryOperator;
@@ -12,7 +13,7 @@ class MapRendererTest {
     @org.junit.jupiter.api.BeforeAll
     static void installItems() {   // 블록 동작(가마솥 상호작용 등)이 아이템 번호를 쓴다
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static final int GRASS = B.defaultState("grass_block"), SAND = B.defaultState("sand"), WATER = B.defaultState("water");

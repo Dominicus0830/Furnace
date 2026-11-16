@@ -2,6 +2,7 @@
 // + 빛 검사 집합(LongLinkedSet)이 LinkedHashSet 과 같은 순서·중복 제거를 하는가(Long.MIN_VALUE 키 포함).
 package org.domi.furnace.server.light;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -16,7 +17,7 @@ import org.junit.jupiter.api.Test;
 
 class LightLayerSharingTest {
 
-    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
 
     @Test
     void newLight_ownsNoLayers_andWritesCopyOnlyTheTouchedLayer() {

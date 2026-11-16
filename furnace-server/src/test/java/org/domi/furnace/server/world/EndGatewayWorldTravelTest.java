@@ -2,6 +2,7 @@
 // 기록하고, 도착 칸을 출구 region 스레드에서 정한다. 같은 관문을 동시에 두 번 써도 출구는 하나만 생긴다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
@@ -33,7 +34,7 @@ class EndGatewayWorldTravelTest {
     @BeforeAll
     static void items() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @TempDir Path tmp;
@@ -52,7 +53,7 @@ class EndGatewayWorldTravelTest {
 
     private void start() {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         io = org.domi.furnace.server.TestServers.ioPool();
         var src = new AnvilWorldSource(tmp, new RegionFileStore(TEST_END.storageDir(tmp)), new AnvilChunkCodec(reg, 0), new SuperflatWorldSource(reg, 0));
         end = new World(TEST_END, src, new org.domi.furnace.server.net.ChunkWorkerPool(1), sched, 1, 4, 1, 2, 2, reg.directBits(), 7, io, io);

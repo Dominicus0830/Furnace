@@ -2,6 +2,7 @@
 // 바닐라 ListTag.load 는 Lists.newArrayListWithCapacity(음수), 배열은 new T[음수] 에서 할당 없이 실패한다 — 같은 바이트에서 디코드 실패여야 한다.
 package org.domi.furnace.server.item;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -19,7 +20,7 @@ import org.junit.jupiter.api.Test;
 class NbtNetworkQuotaTest {
 
     @BeforeAll
-    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt"))); }
+    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"))); }
 
     private static void utf(ByteBuf b, String s) {
         byte[] x = s.getBytes(StandardCharsets.UTF_8);

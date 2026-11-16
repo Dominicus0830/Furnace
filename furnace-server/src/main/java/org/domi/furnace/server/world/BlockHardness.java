@@ -1,6 +1,7 @@
 // 블록별 destroyTime(바닐라 BlockBehaviour.Properties.destroyTime) — blocks/hardness_1.21.1.txt.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -30,8 +31,8 @@ public final class BlockHardness {
 
     private static BlockHardness load() {
         Map<String, Float> m = new HashMap<>();
-        var in = BlockHardness.class.getClassLoader().getResourceAsStream("blocks/hardness_1.21.1.txt");
-        if (in == null) throw new IllegalStateException("blocks/hardness_1.21.1.txt is missing");
+        var in = BlockHardness.class.getClassLoader().getResourceAsStream("blocks/hardness_" + GameVersion.RESOURCE_TAG + ".txt");
+        if (in == null) throw new IllegalStateException("blocks/hardness_" + GameVersion.RESOURCE_TAG + ".txt is missing");
         try (BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
             String line;
             while ((line = r.readLine()) != null) {

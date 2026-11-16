@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // 멀티모듈 루트. 빌드 로직은 각 서브모듈이 보유한다.
+import java.util.Properties
+
+// V-01: 마인크래프트 판은 gradle/minecraft.properties 한 곳에서만 정한다. 서브모듈은 rootProject.extra["mc"] 로 읽는다.
+extra["mc"] = Properties().apply { file("gradle/minecraft.properties").reader(Charsets.UTF_8).use { load(it) } }
 
 // `./gradlew build` 는 테스트를 돌리지 않는다(테스트는 약 13분). 테스트는 따로 부른다:
 //   ./gradlew -PskipOracle=true :furnace-server:test   (또는 check)

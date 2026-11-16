@@ -1,6 +1,7 @@
 // 표지판 시험: 저장 왕복·앞뒤 판정·편집 화면 열기와 글 바꾸기·염료/발광/밀랍·클릭 명령·편집 허락 해제·패킷 바이트.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -72,7 +73,7 @@ class SignBlockEntityTest {
     }
 
     @BeforeAll
-    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt"))); }
+    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"))); }
 
     static ItemStack item(String name, int n) { return new ItemStack(ItemContext.id("minecraft:item", "minecraft:" + name), n); }
 

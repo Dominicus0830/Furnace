@@ -3,6 +3,7 @@
 // 줄 형식은 금 파일 identity/worldgen-noise-{quick,full}.txt 와 같아야 한다 — 이 파일을 고칠 때는 줄이 그대로인지 두 금 파일로 확인한다.
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import java.util.ArrayList;
 import java.util.List;
 import org.domi.furnace.server.identity.SceneHash;
@@ -14,8 +15,8 @@ import org.domi.furnace.server.world.gen.df.DensityFunction;
 public final class NoiseIdentityScene {
     private NoiseIdentityScene() {}
 
-    public static final BlockRegistry BLOCKS = BlockRegistry.load("blocks/1.21.1.txt");
-    public static final RegistrySet REGISTRIES = RegistrySet.load("registries/1.21.1.txt");
+    public static final BlockRegistry BLOCKS = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+    public static final RegistrySet REGISTRIES = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
 
     public record Config(String name, NoiseWorldSource.Dimension dim, String noiseSettings, long seed) {
         public NoiseWorldSource source() {

@@ -2,6 +2,7 @@
 // 끄면 아무것도 표시하지 않으며, 정지(/tick freeze) 중에는 활성 범위 계산도 건너뛴다(PR #326 검토 R4).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
@@ -34,7 +35,7 @@ class RegionEntityActivationTest {
     void setUp() {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         core = TestServers.core(tmp, sched);
-        core.world().setRegistries(BlockRegistry.load("blocks/1.21.1.txt"), ItemRegistry.load("items/1.21.1.txt"));
+        core.world().setRegistries(BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         core.gameRules().set("doMobSpawning", 0);
         core.setSimulationDistance(10);
         core.world().viewDistance(10);

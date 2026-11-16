@@ -1,6 +1,7 @@
 // 비전투 대상 조건의 첫 검사가 canBeSeenByAnyone(크리에이티브 포함)이 된 뒤, 크리에이티브를 따로 빼야 하는 사용처가 바닐라와 같은지(PR #274 독립 검토 재현 R1·R2·R3·R5).
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.UUID;
@@ -17,7 +18,7 @@ import org.junit.jupiter.api.Test;
 
 class TargetingConditionsUsersTest {
     @BeforeAll
-    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt"))); }
+    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"))); }
 
     private static Player player(LookAtPlayerConditionsTest.PlayersLevel level, int id, GameMode mode, double x, double z) {
         var p = new Player(id, UUID.randomUUID(), "P" + id, new ConcurrentEmbeddedChannel());

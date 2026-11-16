@@ -1,6 +1,7 @@
 // 청크 로드가 한 번 실패해도 loading에 영구 잔류하지 않고 다음 요청에서 재시도되는지, region이 비어 reap 가능한지 검증
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -18,7 +19,7 @@ class ChunkLoadFailureTest {
     @Test
     void failedLoad_isNotCached_andRetries() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         SuperflatWorldSource good = new SuperflatWorldSource(reg, 0);
         AtomicInteger calls = new AtomicInteger();
         WorldSource flaky = (x, z) -> {

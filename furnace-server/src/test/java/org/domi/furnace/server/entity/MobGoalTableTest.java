@@ -1,6 +1,7 @@
 // 몹 목표 표: registerGoals 가 넣은 (우선순위, 목표 종류[대상 종류]) 목록이 바닐라 registerGoals 순서와 같은지 본다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.ArrayList;
@@ -17,7 +18,7 @@ class MobGoalTableTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static List<String> table(GoalSelector sel) {

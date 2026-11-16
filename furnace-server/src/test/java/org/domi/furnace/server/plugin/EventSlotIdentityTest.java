@@ -4,6 +4,7 @@
 //  - 물리 이벤트: 모든 블록 상태에서 게으른 block()·changedType() = 미리 만든 값.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -218,7 +219,7 @@ class EventSlotIdentityTest {
     /** 모든 블록 상태: 게으른 물리 이벤트의 block()·changedType() = 옛 서버가 미리 만들던 값. */
     @Test
     void lazyPhysicsEventEqualsEagerForEveryState() {
-        BlockRegistry blocks = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry blocks = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         int states = B.BLOCKS.stateCount();
         assertEquals(blocks.totalStateCount(), states);
         BlockPos pos = new BlockPos(1, 2, 3), src = new BlockPos(1, 3, 3);

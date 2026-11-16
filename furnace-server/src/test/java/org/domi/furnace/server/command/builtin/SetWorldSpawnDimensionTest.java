@@ -1,6 +1,7 @@
 // /setworldspawn: 바닐라는 오버월드에서만(그 밖은 commands.setworldspawn.failure.not_overworld), 네더·엔드는 공유 스폰이라 오버월드 것을 따른다.
 package org.domi.furnace.server.command.builtin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
@@ -34,7 +35,7 @@ class SetWorldSpawnDimensionTest {
     void setUp() {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         core = TestServers.core(tmp, sched);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         var io = TestServers.ioPool();
         nether = new World(TEST_NETHER, new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 4, 1, 2, 2, reg.directBits(), 7, io, io);
         nether.worldDir(tmp);

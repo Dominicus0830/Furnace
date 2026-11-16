@@ -3,6 +3,7 @@
 // 바닐라 PlayerDataStorage 처럼 이전 파일을 <uuid>.dat_old 로 남기고, <uuid>.dat 이 없거나 깨졌으면 <uuid>.dat_old 를 읽는다(A05-02).
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import org.domi.furnace.server.i18n.Lang;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -31,7 +32,7 @@ public final class PlayerData {
 
     public static void itemRegistry(org.domi.furnace.server.world.ItemRegistry registry) { items = registry; }
 
-    private static final int DATA_VERSION = 3955;
+    private static final int DATA_VERSION = GameVersion.DATA_VERSION;
     private static final String FURNACE_COMPONENTS = "furnace:components";
     /** 바닐라 인벤토리에 자리가 없는 제작 칸(창 슬롯 1..4) 아이템 — 바닐라는 접속 종료 때 인벤토리로 돌려준다. */
     private static final String FURNACE_CRAFTING = "furnace:crafting";

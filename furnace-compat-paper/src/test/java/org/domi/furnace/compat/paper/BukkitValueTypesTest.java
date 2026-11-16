@@ -1,5 +1,6 @@
 package org.domi.furnace.compat.paper;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -59,7 +60,7 @@ class BukkitValueTypesTest {
 
     private static Set<String> builtin(String registry) throws Exception {
         Set<String> out = new TreeSet<>();
-        for (String[] p : lines("/registries/builtin-1.21.1.txt")) if (p[0].equals(registry)) out.add(p[1]);
+        for (String[] p : lines("/registries/builtin-" + GameVersion.RESOURCE_TAG + ".txt")) if (p[0].equals(registry)) out.add(p[1]);
         return out;
     }
 
@@ -82,7 +83,7 @@ class BukkitValueTypesTest {
     @Test
     void particleMatchesTheRegistryWithBukkitDataTypes() throws Exception {
         Set<String> reg = new TreeSet<>();
-        for (String[] p : lines("/registries/particle_types-1.21.1.txt")) reg.add(p[0]);
+        for (String[] p : lines("/registries/particle_types-" + GameVersion.RESOURCE_TAG + ".txt")) reg.add(p[0]);
         assertEquals(reg, keys(List.of(Particle.values())));
         assertEquals(0, Particle.POOF.ordinal());   // 순서는 1.21.1 Bukkit(레지스트리 순서가 아니다)
         assertEquals(Particle.BLOCK_MARKER, Particle.values()[Particle.values().length - 1]);
@@ -105,7 +106,7 @@ class BukkitValueTypesTest {
     @Test
     void biomeMatchesTheRegistryPlusCustom() throws Exception {
         Set<String> reg = new TreeSet<>();
-        for (String[] p : lines("/registries/1.21.1.txt")) if (p[0].equals("minecraft:worldgen/biome")) reg.add(p[1]);
+        for (String[] p : lines("/registries/" + GameVersion.RESOURCE_TAG + ".txt")) if (p[0].equals("minecraft:worldgen/biome")) reg.add(p[1]);
         Set<String> have = keys(Registry.BIOME);
         assertEquals(reg, have);
         assertEquals(reg.size() + 1, Biome.values().length);
@@ -115,7 +116,7 @@ class BukkitValueTypesTest {
 
     @Test
     void artMatchesPaintingVariants() throws Exception {
-        List<String[]> rows = lines("/entities/painting_variants-1.21.1.txt");
+        List<String[]> rows = lines("/entities/painting_variants-" + GameVersion.RESOURCE_TAG + ".txt");
         assertEquals(rows.size(), Art.values().length);
         for (String[] p : rows) {
             Art a = Registry.ART.get(NamespacedKey.minecraft(p[0]));

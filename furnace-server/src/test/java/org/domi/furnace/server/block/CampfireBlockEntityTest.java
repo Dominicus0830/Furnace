@@ -1,6 +1,7 @@
 // 모닥불 블록 엔티티 시험: 올리기·요리 완료 틱·드롭·꺼지면 되감기·가득 차면 못 올림·저장 왕복·블록이 바뀔 때 쏟기.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -29,7 +30,7 @@ class CampfireBlockEntityTest {
     void cooksBeefAfterItsCookingTimeAndDropsResult() throws Exception {
         RecipeManager rm = TestRecipes.manager();
         assumeTrue(rm != null, "로컬 바닐라 데이터 없음");
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         Lvl level = new Lvl(rm);
         Pos pos = new Pos(1, -60, 1);
         int lit = reg.stateIdOrAir("minecraft:campfire", Map.of("facing", "north", "lit", "true", "signal_fire", "false", "waterlogged", "false"));
@@ -62,7 +63,7 @@ class CampfireBlockEntityTest {
     void unlitCampfireRewindsAndFullCampfireRefuses() throws Exception {
         RecipeManager rm = TestRecipes.manager();
         assumeTrue(rm != null, "로컬 바닐라 데이터 없음");
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         Lvl level = new Lvl(rm);
         Pos pos = new Pos(1, -60, 1);
         int off = reg.stateIdOrAir("minecraft:campfire", Map.of("facing", "north", "lit", "false", "signal_fire", "false", "waterlogged", "false"));

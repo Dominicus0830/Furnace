@@ -1,6 +1,7 @@
 // M1: 스폰 알을 물에 쓰기(SpawnEggItem.use) — 물 원천을 맞췄을 때만 몹이 나오고 하나 줄며, 마지막에 entity_place 진동(출처 플레이어, 자리는 몹 위치).
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -19,7 +20,7 @@ class SpawnEggWaterTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static final Blocks B = Blocks.get();

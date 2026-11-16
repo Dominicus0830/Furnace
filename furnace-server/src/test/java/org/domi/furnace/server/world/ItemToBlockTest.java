@@ -1,6 +1,7 @@
 // item id → block default state id 해석(설치용)
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.concurrent.Executors;
 import org.domi.furnace.server.net.ChunkWorkerPool;
@@ -13,8 +14,8 @@ class ItemToBlockTest {
     @Test
     void resolvesItemToBlockState() {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry blocks = BlockRegistry.load("blocks/1.21.1.txt");
-        ItemRegistry items = ItemRegistry.load("items/1.21.1.txt");
+        BlockRegistry blocks = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        ItemRegistry items = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
         var io = Executors.newSingleThreadExecutor();
         World w = new World(new SuperflatWorldSource(blocks, 0), new ChunkWorkerPool(1),
                 sched, sched.regionThreadCount(), 16, 5, 5, blocks.directBits(), 7, io);

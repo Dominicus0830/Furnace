@@ -8,6 +8,7 @@
 // 대조한다 — "생성은 맞는데 저장에서 깨진다" 류의 회귀(heightmap 재계산, block entity 유실 등)를 잡기 위함이다.
 package org.domi.furnace.server.world.gen.pipeline;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.InputStream;
@@ -51,9 +52,9 @@ class ChunkPipelinePersistenceParityTest {
     // maxMismatch: 회귀 감지용 상한(0이면 exact). 현재 모든 호출부는 0(anvil-roundtrip-airloss task에서
     // 왕복 후 air 소실 버그 수정 완료 — BlockRegistry.nameOf).
     private void assertPersistedParity(long seed, int cx, int cz, int maxMismatch) throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        Map<Integer, String> oracleIdToName = loadIdToName("/blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        Map<Integer, String> oracleIdToName = loadIdToName("/blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
 
         NoiseWorldSource source = NoiseWorldSource.overworld(seed, reg, registries);
         source.structureEngine().setStructuresEnabled(false);   // 이 fixture 는 generate-structures=false 로 만든 순정 월드 — 구조물(광산 등) 제외

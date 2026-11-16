@@ -4,6 +4,7 @@
 // 3) Furnace ChunkSection 의 비공기 수·무작위 틱 판정과 ChunkColumn 하이트맵이 같은 입력에서 바닐라와 같은가.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.BufferedReader;
@@ -30,7 +31,7 @@ class VanillaSectionOracleTest {
 
     private static synchronized void load() throws Exception {
         if (flags != null) return;
-        try (InputStream in = VanillaSectionOracleTest.class.getResourceAsStream("/n2b/section-oracle-1.21.1.txt.gz")) {
+        try (InputStream in = VanillaSectionOracleTest.class.getResourceAsStream("/n2b/section-oracle-" + GameVersion.RESOURCE_TAG + ".txt.gz")) {
             assertNotNull(in, "정답표 없음");
             BufferedReader r = new BufferedReader(new InputStreamReader(new GZIPInputStream(in), StandardCharsets.UTF_8));
             int[] f = null;

@@ -1,6 +1,7 @@
 // 벌·벌집: 벌집 들어가기/나오기 틱 조건, 꿀 레벨 전이, 저장 왕복, 쏘기, 목표 선택 조건, 고양이 스포너 난수 순서.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
@@ -23,7 +24,7 @@ class BeeTest {
     @BeforeAll
     static void install() throws Exception { TestRecipes.manager(); }
 
-    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
     private static final Pos HIVE = new Pos(8, -60, 8);
 
     private static int hive(int honey) {

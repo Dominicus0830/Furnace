@@ -1,6 +1,7 @@
 // ConnectionHandler 입력 검증: 비정상 이동은 거르고 한 번만 보정, 임의 좌표 블록 요청은 청크를 생성하지 않고, 임의 스폰 좌표에서도 정상 이동은 수락
 package org.domi.furnace.server.net;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -41,7 +42,7 @@ class ConnectionInputTest {
     @BeforeAll
     static void items() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @TempDir Path tmp;
@@ -70,7 +71,7 @@ class ConnectionInputTest {
     /** spawn 좌표로 접속 → 스폰 청크 전달 완료 → 스폰 텔레포트 confirm → 게이트 해제까지 진행한다. */
     private void join(SpawnPoint spawn) throws Exception {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         world = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2,
                 reg.directBits(), 7, io = org.domi.furnace.server.TestServers.ioPool());
         world.configurePersistence(autosaveTicksForJoin, 100);
@@ -305,10 +306,10 @@ class ConnectionInputTest {
     @Test
     void invalidItems_areRejected_inCreativeSlotAndContainerClick() throws Exception {
         join(new SpawnPoint(0, -60, 0, 0f));
-        world.setRegistries(BlockRegistry.load("blocks/1.21.1.txt"),
-                org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        world.setRegistries(BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"),
+                org.domi.furnace.server.world.ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         // 0x32: 돌 65개 — 최대 스택(64)을 넘으면 바닐라처럼 조용히 무시
         ch.writeInbound(frame(0x32, b -> { b.writeShort(36); Types.writeVarInt(b, 65); Types.writeVarInt(b, 1); Types.writeVarInt(b, 0); Types.writeVarInt(b, 0); }));
         if (ch.isActive()) settle();
@@ -340,8 +341,8 @@ class ConnectionInputTest {
     @Test
     void inventoryClick_isReplayedByServer_andReportsOnlyCorrect() throws Exception {
         join(new SpawnPoint(0, -60, 0, 0f));
-        world.setRegistries(BlockRegistry.load("blocks/1.21.1.txt"),
-                org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        world.setRegistries(BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"),
+                org.domi.furnace.server.world.ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         slotsOf()[36] = new ItemStack(1, 10, null);
         var im = p.inventoryMenu();
         int st = im.getStateId();
@@ -382,8 +383,8 @@ class ConnectionInputTest {
     @Test
     void inventoryClick_withStaleStateId_resendsWholeContent() throws Exception {
         join(new SpawnPoint(0, -60, 0, 0f));
-        world.setRegistries(BlockRegistry.load("blocks/1.21.1.txt"),
-                org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        world.setRegistries(BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"),
+                org.domi.furnace.server.world.ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         slotsOf()[36] = new ItemStack(1, 10, null);
         var im = p.inventoryMenu();
         ch.writeInbound(frame(0x0E, b -> {
@@ -461,8 +462,8 @@ class ConnectionInputTest {
     @Test
     void crafterOpen_buildsMenuOnOwnerRegion_notEventLoop() throws Exception {
         join(new SpawnPoint(0, -60, 0, 0f));
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        world.setRegistries(reg, org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        world.setRegistries(reg, org.domi.furnace.server.world.ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         RegionPos rp = new RegionPos(0, 0);
         org.domi.furnace.server.block.entity.ContainerBlockEntity[] be = new org.domi.furnace.server.block.entity.ContainerBlockEntity[1];
         sched.region(rp).execute(() -> {
@@ -516,8 +517,8 @@ class ConnectionInputTest {
 
     /** 월드에 상자를 놓고(안에 돌 5개) 서버가 플레이어에게 그 상자를 연다 — 실제 openChest 경로. */
     private org.domi.furnace.server.world.ChestBlockEntity openRealChest(int x, int y, int z) throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        world.setRegistries(reg, org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        world.setRegistries(reg, org.domi.furnace.server.world.ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         int chestState = reg.defaultStateId("minecraft:chest");
         RegionPos rp = new RegionPos(Math.floorDiv(x, 16), Math.floorDiv(z, 16));
         org.domi.furnace.server.world.ChestBlockEntity[] chest = new org.domi.furnace.server.world.ChestBlockEntity[1];
@@ -611,8 +612,8 @@ class ConnectionInputTest {
     @Test
     void craftingTable_opensAndClosesWhenBlockIsGone() throws Exception {
         join(new SpawnPoint(0, -60, 0, 0f));
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        world.setRegistries(reg, org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        world.setRegistries(reg, org.domi.furnace.server.world.ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         int tableState = reg.defaultStateId("minecraft:crafting_table");
         RegionPos rp = new RegionPos(0, 0);
         sched.region(rp).execute(() -> world.regionAt(rp).placeBlock(2, -60, 2, tableState)).get();
@@ -639,8 +640,8 @@ class ConnectionInputTest {
     /** 월드에 블록(상태 이름·속성)을 놓고 그 칸 용기를 연다 — 실제 openContainer 경로. 반환: 그 칸의 블록 엔티티. */
     private org.domi.furnace.server.block.entity.ContainerBlockEntity openBlock(int x, int y, int z, String block, Map<String, String> props,
             java.util.function.Consumer<org.domi.furnace.server.block.entity.ContainerBlockEntity> fill) throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        world.setRegistries(reg, org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        world.setRegistries(reg, org.domi.furnace.server.world.ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         RegionPos rp = new RegionPos(Math.floorDiv(x, 16), Math.floorDiv(z, 16));
         org.domi.furnace.server.block.entity.ContainerBlockEntity[] be = new org.domi.furnace.server.block.entity.ContainerBlockEntity[1];
         sched.region(rp).execute(() -> {
@@ -673,8 +674,8 @@ class ConnectionInputTest {
     void enderChest_opensPlayersOwnInventory() throws Exception {
         join(new SpawnPoint(0, -60, 0, 0f));
         p.enderChest().set(4, new ItemStack(1, 9, null));
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        world.setRegistries(reg, org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        world.setRegistries(reg, org.domi.furnace.server.world.ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         RegionPos rp = new RegionPos(0, 0);
         sched.region(rp).execute(() -> world.regionAt(rp).placeBlock(2, -60, 2, reg.stateIdOrAir("minecraft:ender_chest", Map.of("facing", "north", "waterlogged", "false")))).get();
         drainOutbound();
@@ -690,8 +691,8 @@ class ConnectionInputTest {
     @Test
     void stonecutter_opensAndSendsInitialData() throws Exception {
         join(new SpawnPoint(0, -60, 0, 0f));
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        world.setRegistries(reg, org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        world.setRegistries(reg, org.domi.furnace.server.world.ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         RegionPos rp = new RegionPos(0, 0);
         sched.region(rp).execute(() -> world.regionAt(rp).placeBlock(2, -60, 2, reg.stateIdOrAir("minecraft:stonecutter", Map.of("facing", "north")))).get();
         drainOutbound();
@@ -708,8 +709,8 @@ class ConnectionInputTest {
     @Test
     void anvil_renamePacketUpdatesResultAndCost() throws Exception {
         join(new SpawnPoint(0, -60, 0, 0f));
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        world.setRegistries(reg, org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        world.setRegistries(reg, org.domi.furnace.server.world.ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         RegionPos rp = new RegionPos(0, 0);
         sched.region(rp).execute(() -> world.regionAt(rp).placeBlock(2, -60, 2, reg.stateIdOrAir("minecraft:anvil", Map.of("facing", "north")))).get();
         drainOutbound();
@@ -787,8 +788,8 @@ class ConnectionInputTest {
     @Test
     void doubleChest_isOneNineBySixMenu_rightChestFirst() throws Exception {
         join(new SpawnPoint(0, -60, 0, 0f));
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        world.setRegistries(reg, org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        world.setRegistries(reg, org.domi.furnace.server.world.ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         RegionPos rp = new RegionPos(0, 0);
         // facing=north: 왼쪽 상자의 짝은 동쪽(+x), 오른쪽 상자의 짝은 서쪽(-x)
         org.domi.furnace.server.block.entity.ContainerBlockEntity[] chests = new org.domi.furnace.server.block.entity.ContainerBlockEntity[2];
@@ -827,7 +828,7 @@ class ConnectionInputTest {
     @Test
     void openerCounter_chestSendsLidEvent_barrelTogglesOpenProperty() throws Exception {
         join(new SpawnPoint(0, -60, 0, 0f));
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         var chest = openBlock(2, -60, 2, "minecraft:chest", Map.of("facing", "north", "type", "single", "waterlogged", "false"), null);
         await("상자 여는 수 1", () -> chest.openCount == 1);
         RegionPos chestRp = new RegionPos(0, 0);
@@ -868,8 +869,8 @@ class ConnectionInputTest {
     @Test
     void breakingBarrelDropsContentsAsItemEntities() throws Exception {
         join(new SpawnPoint(0, -60, 0, 0f));
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        world.setRegistries(reg, org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        world.setRegistries(reg, org.domi.furnace.server.world.ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         RegionPos rp = new RegionPos(0, 0);
         int[] dropped = new int[1];
         sched.region(rp).execute(() -> {
@@ -907,7 +908,7 @@ class ConnectionInputTest {
     void componentItems_areDecodedAndKept() throws Exception {
         join(new SpawnPoint(0, -60, 0, 0f));
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         ch.writeInbound(frame(0x32, b -> {
             b.writeShort(36); Types.writeVarInt(b, 1); Types.writeVarInt(b, 1);
             Types.writeVarInt(b, 1); Types.writeVarInt(b, 0); Types.writeVarInt(b, 13); Types.writeVarInt(b, 7);   // custom_model_data = 7

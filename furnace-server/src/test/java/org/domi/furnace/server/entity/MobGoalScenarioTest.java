@@ -1,6 +1,7 @@
 // 새로 붙인 몹 목표의 대표 동작: 좀비가 철 골렘을 노리고, 거북 알을 밟아 깨고, 늑대가 라마를 피하고, 철 골렘이 평판 나쁜 플레이어를 노린다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -22,7 +23,7 @@ class MobGoalScenarioTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     /** 밤(햇빛 화상 난수 없음)이고 플레이어 하나를 둘 수 있는 평지. */

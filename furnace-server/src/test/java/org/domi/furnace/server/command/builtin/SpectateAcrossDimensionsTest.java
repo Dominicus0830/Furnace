@@ -2,6 +2,7 @@
 // 카메라는 자기 자신으로 끝나고 메시지는 started.
 package org.domi.furnace.server.command.builtin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -45,7 +46,7 @@ class SpectateAcrossDimensionsTest {
     void setUp() {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         core = TestServers.core(tmp, sched);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         var io = TestServers.ioPool();
         nether = new World(TeleportAcrossDimensionsTest.TEST_NETHER, new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 4, 1, 2, 2,
                 reg.directBits(), 7, io, io);

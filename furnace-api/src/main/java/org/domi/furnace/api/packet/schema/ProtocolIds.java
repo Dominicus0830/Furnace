@@ -3,6 +3,7 @@
 // 시험이 쓴다. 표 파일은 tools/compat/protocol-ids-extract.py 가 바닐라 클래스에서 뽑은 번호·이름만 담는다(바닐라 코드 아님).
 package org.domi.furnace.api.packet.schema;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -38,7 +39,7 @@ public final class ProtocolIds {
         if (p == null) {
             synchronized (ProtocolIds.class) {
                 p = protocol767;
-                if (p == null) protocol767 = p = load("protocol-767-ids.txt");
+                if (p == null) protocol767 = p = load("protocol-" + GameVersion.PROTOCOL + "-ids.txt");
             }
         }
         return p;

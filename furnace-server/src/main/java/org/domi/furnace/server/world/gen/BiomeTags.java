@@ -1,6 +1,7 @@
 // 바이옴 태그(data/minecraft/tags/worldgen/biome/*.json) 조회: 태그 이름과 바이옴 이름으로 소속 여부를 본다(# 참조는 재귀로 푼다).
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -29,7 +30,7 @@ public final class BiomeTags {
     }
 
     private static void add(Set<String> out, String tag) {
-        String path = "worldgen/1.21.1/tags/worldgen/biome/" + tag.substring("minecraft:".length()) + ".json";
+        String path = "worldgen/" + GameVersion.RESOURCE_TAG + "/tags/worldgen/biome/" + tag.substring("minecraft:".length()) + ".json";
         try (InputStream in = BiomeTags.class.getClassLoader().getResourceAsStream(path)) {
             if (in == null) throw new IllegalArgumentException("no such biome tag: " + tag);
             JsonObject j = JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject();

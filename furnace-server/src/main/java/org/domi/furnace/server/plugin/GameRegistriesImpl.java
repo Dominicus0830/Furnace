@@ -1,6 +1,7 @@
 // Furnace.gameRegistries(): 시작 때 고정된 동기화 레지스트리 보기 + 마법부여 끄기(EnchantmentToggles, 플러그인 이름 몫).
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.GameVersion;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -115,8 +116,8 @@ final class GameRegistriesImpl implements GameRegistries {
 
         private static java.util.Map<String, List<String>> load() {
             var out = new java.util.LinkedHashMap<String, java.util.List<String>>();
-            try (var in = GameRegistriesImpl.class.getClassLoader().getResourceAsStream("registries/builtin-1.21.1.txt")) {
-                if (in == null) throw new IllegalStateException("registries/builtin-1.21.1.txt is missing");
+            try (var in = GameRegistriesImpl.class.getClassLoader().getResourceAsStream("registries/builtin-" + GameVersion.RESOURCE_TAG + ".txt")) {
+                if (in == null) throw new IllegalStateException("registries/builtin-" + GameVersion.RESOURCE_TAG + ".txt is missing");
                 var r = new java.io.BufferedReader(new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
                 String line;
                 while ((line = r.readLine()) != null) {

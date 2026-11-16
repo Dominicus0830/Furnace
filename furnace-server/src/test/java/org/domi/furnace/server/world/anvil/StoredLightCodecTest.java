@@ -2,6 +2,7 @@
 // 바닐라·다른 서버 청크(표시 없음)는 isLightOn=1 이어도 읽지 않는다. 차원 밖 빛 섹션은 바닐라처럼 0.
 package org.domi.furnace.server.world.anvil;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.InputStream;
@@ -20,12 +21,12 @@ import org.junit.jupiter.api.Test;
 
 class StoredLightCodecTest {
 
-    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
-    private static final RegistrySet REGISTRIES = RegistrySet.load("registries/1.21.1.txt");
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+    private static final RegistrySet REGISTRIES = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
 
     private static AnvilChunkCodec codec(int minY, int sections) {
         var biomes = REGISTRIES.entries("minecraft:worldgen/biome");
-        return new AnvilChunkCodec(REG, ItemRegistry.load("items/1.21.1.txt"), biomes, biomes.indexOf("minecraft:plains"), minY, sections);
+        return new AnvilChunkCodec(REG, ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"), biomes, biomes.indexOf("minecraft:plains"), minY, sections);
     }
 
     private static ChunkColumn litFlat() {

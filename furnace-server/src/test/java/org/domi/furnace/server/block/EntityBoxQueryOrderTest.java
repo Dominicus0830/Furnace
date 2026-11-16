@@ -1,6 +1,7 @@
 // X1: 엔티티 상자 조회(forEachIn — 구역 순서 배열을 0 을 가로지를 때만 만든다)와 클래스별 조회가 바닐라 순서(구역 x → z·y 마스크 순 → 넣은 순)로 같은 답을 내는지.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -20,7 +21,7 @@ import org.junit.jupiter.api.Test;
 class EntityBoxQueryOrderTest {
 
     @BeforeAll
-    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt"))); }
+    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"))); }
 
     private record Keyed(Entity e, int sx, int sy, int sz, int seq) {}
 

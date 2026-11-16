@@ -1,6 +1,7 @@
 // 고양이(침대 눕기·블록 앉기·주인 곁 쉬기)·돌고래(아이템 놀이·보트 따라가기)·여우(마을 산책)·가루눈 오르기·집행자 문 부수기 목표 시험.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -22,10 +23,10 @@ class CatDolphinFoxGoalsTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
-    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
 
     private static PlayerSleepingTest.Lvl floor() {
         var level = new PlayerSleepingTest.Lvl();

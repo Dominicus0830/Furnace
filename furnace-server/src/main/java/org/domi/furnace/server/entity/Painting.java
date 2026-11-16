@@ -1,6 +1,7 @@
 // 바닐라 Painting: 블록 면에 걸리는 그림. 놓을 때 맞는 크기 중 가장 넓은 것들 가운데서 무작위로 정한다(placeable 태그).
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import java.util.ArrayList;
 import java.util.List;
 import org.domi.furnace.server.block.ChunkLevel;
@@ -18,11 +19,11 @@ public class Painting extends HangingEntity {
     private static final String REGISTRY = "minecraft:painting_variant";
 
     private static final class Variants {
-        static final TagSet TAGS = TagSet.load("registries/tags-1.21.1.txt");
+        static final TagSet TAGS = TagSet.load("registries/tags-" + GameVersion.RESOURCE_TAG + ".txt");
         static final java.util.Map<String, int[]> SIZES = new java.util.HashMap<>();
 
         static {
-            try (var in = Painting.class.getClassLoader().getResourceAsStream("entities/painting_variants-1.21.1.txt")) {
+            try (var in = Painting.class.getClassLoader().getResourceAsStream("entities/painting_variants-" + GameVersion.RESOURCE_TAG + ".txt")) {
                 for (String line : new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).split("\n")) {
                     String[] p = line.trim().split(" ");
                     if (p.length == 3) SIZES.put("minecraft:" + p[0], new int[] {Integer.parseInt(p[1]), Integer.parseInt(p[2])});

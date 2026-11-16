@@ -1,6 +1,7 @@
 // 가상 엔티티·가짜 플레이어·가짜 탭 줄: 범위 추적, 플레이어별 보이기, 월드 이동, 클릭, 정리.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -192,7 +193,7 @@ class VirtualEntitiesTest {
         assertEquals(2, sn.size(), "상태 비트와 자세 둘 다");
         assertEquals(new ClientboundSetEntityDataPacket.PoseValue(5), ((ClientboundSetEntityDataPacket) sn.get(1)).entries().get(0).value());
 
-        core.world().setRegistries(core.world().blockRegistry(), org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        core.world().setRegistries(core.world().blockRegistry(), org.domi.furnace.server.world.ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         npc.setEquipment(EquipmentSlot.MAIN_HAND, ItemStack.of("minecraft:iron_sword"));
         assertEquals(1, sent(p).size());
         npc.setListed(true);
@@ -210,7 +211,7 @@ class VirtualEntitiesTest {
     @Test
     void namedMetadataKeysOnDisplayEntities() {
         Player p = online("Viewer", 0, 0);
-        core.world().setRegistries(core.world().blockRegistry(), org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        core.world().setRegistries(core.world().blockRegistry(), org.domi.furnace.server.world.ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         VirtualEntity text = host.virtualEntities().spawn(a, "text_display", new Location(WORLD, 1, 65, 1));
         VirtualEntity item = host.virtualEntities().spawn(a, "item_display", new Location(WORLD, 2, 65, 1));
         sent(p);

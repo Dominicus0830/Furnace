@@ -2,6 +2,7 @@
 // spawn-animals=false 와 같이 쓰이는 flags(spawnFriendlies=false)도 같은 루프로 확인한다 — 동물 종류는 한 마리도 나지 않는다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
@@ -20,7 +21,7 @@ class SpawnPolicySpawnTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static final class Arena extends BlockPlacementTest.TestLevel {

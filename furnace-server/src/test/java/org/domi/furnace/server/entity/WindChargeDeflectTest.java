@@ -2,6 +2,7 @@
 // 기대값은 바닐라 1.21.1 디컴파일(cnp.a deflect, cnq.b REVERSE·cnq.c AIM, coh.a 5틱, ckz.a 브리즈 튕김, cof 바람 구슬)을 손으로 계산했다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -16,7 +17,7 @@ class WindChargeDeflectTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static Player player(float yaw, float pitch) {

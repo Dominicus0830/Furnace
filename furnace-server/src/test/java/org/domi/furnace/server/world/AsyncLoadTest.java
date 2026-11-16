@@ -1,6 +1,7 @@
 // loadChunk async: 부재 시 generate, in-flight dedup, 재호출 동일 인스턴스
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import java.nio.file.Path;
 import java.util.concurrent.Executors;
@@ -19,7 +20,7 @@ class AsyncLoadTest {
     @Test
     void loadChunk_generatesAndRetains(@TempDir Path dir) throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 2);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         RegionFileStore store = new RegionFileStore(dir);
         AnvilWorldSource src = new AnvilWorldSource(dir, store, new AnvilChunkCodec(reg, 0),
                 new SuperflatWorldSource(reg, 0));

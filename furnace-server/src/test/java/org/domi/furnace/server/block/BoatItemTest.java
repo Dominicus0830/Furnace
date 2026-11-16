@@ -1,6 +1,7 @@
 // BoatItem.use: 시선이 물(유체 포함)에 맞으면 그 지점에 종류별 배를 플레이어 방향으로 놓고 하나 쓴다. 빗나가면 넘긴다.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.entity.Boat;
@@ -14,7 +15,7 @@ class BoatItemTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static ItemStack item(String n, int c) { return new ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", n), c); }

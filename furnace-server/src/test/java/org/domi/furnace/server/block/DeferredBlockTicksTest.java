@@ -2,6 +2,7 @@
 // 블록 이벤트는 처리하지 않고 다음 틱으로 미룬다(바닐라 ServerLevel.runBlockEvents 의 blockEventsToReschedule).
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -17,7 +18,7 @@ class DeferredBlockTicksTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static final LongPredicate ONLY_CHUNK_0_0 = k -> k == ChunkPredicateMemo.chunkKey(0, 0);

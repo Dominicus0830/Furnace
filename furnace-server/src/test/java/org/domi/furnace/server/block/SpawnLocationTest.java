@@ -1,6 +1,7 @@
 // spawnRadius 흩뿌리기(ServerPlayer.adjustSpawnLocation): 난수 시작 칸 → 서로소 보폭 훑기, 반경 0·모험 모드, 위아래 맞춤.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.item.ItemContext;
@@ -11,7 +12,7 @@ class SpawnLocationTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @Test
@@ -54,7 +55,7 @@ class SpawnLocationTest {
     @Test
     void waterColumnIsNotASpawn() {
         var level = new BlockPlacementTest.TestLevel();
-        int water = org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt").defaultStateId("minecraft:water");
+        int water = org.domi.furnace.server.world.BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt").defaultStateId("minecraft:water");
         level.setBlock(new Pos(2, -60, 2), water, 2);
         assertNull(SpawnLocation.overworldRespawnPos(level, 2, 2));
         assertEquals(new Pos(1, -60, 2), SpawnLocation.overworldRespawnPos(level, 1, 2));

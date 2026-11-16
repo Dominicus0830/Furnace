@@ -1,6 +1,7 @@
 // 제도사 탐험 지도 거래(바다 탐험·삼림 탐험·시련 지도): 가짜 구조물 위치로 만든 지도가 구조물 방향 표식·바이옴 바탕·지도 색·이름을 가진다.
 package org.domi.furnace.server.map;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
@@ -24,7 +25,7 @@ class ExplorerMapTradeTest {
     @BeforeEach
     void setUp() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         MapStore.install(dir);
     }
 

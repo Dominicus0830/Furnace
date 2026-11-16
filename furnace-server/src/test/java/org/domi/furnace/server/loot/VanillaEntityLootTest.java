@@ -2,6 +2,7 @@
 // 같은지(공격자 없음, 마법 피해). 엔티티 표도 random_sequence 를 쓰므로 4회 연속으로 시퀀스 이어짐까지 확인된다.
 package org.domi.furnace.server.loot;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.BufferedReader;
@@ -39,7 +40,7 @@ class VanillaEntityLootTest {
         List<String> failures = new ArrayList<>();
         int cases = 0;
         try (BufferedReader r = new BufferedReader(new InputStreamReader(
-                VanillaEntityLootTest.class.getResourceAsStream("/loot/entities-1.21.1.txt"), StandardCharsets.UTF_8))) {
+                VanillaEntityLootTest.class.getResourceAsStream("/loot/entities-" + GameVersion.RESOURCE_TAG + ".txt"), StandardCharsets.UTF_8))) {
             String line;
             while ((line = r.readLine()) != null) {
                 if (line.startsWith("#") || line.isBlank()) continue;

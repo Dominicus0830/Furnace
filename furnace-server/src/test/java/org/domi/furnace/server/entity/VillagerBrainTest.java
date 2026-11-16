@@ -1,6 +1,7 @@
 // 주민 브레인: 시간표 활동 전환(20틱 간격), POI 티켓 점유·반환, 직업 획득·해제, 잠자기, 공황, 철 골렘 소환, 고정 시드 난수 순서, 기억 저장 왕복.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Optional;
@@ -25,7 +26,7 @@ class VillagerBrainTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     /** 시각을 테스트가 정하는 레벨. */

@@ -1,6 +1,8 @@
 // 청크 컬럼: 24섹션(y −64..319) + MOTION_BLOCKING heightmap. minY=−64.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
+
 public final class ChunkColumn {
 
     public static final int SECTION_COUNT = 24;
@@ -1731,7 +1733,7 @@ public final class ChunkColumn {
     private static BlockRegistry fluidRegistry() {
         BlockRegistry r = fluidRegistry;
         if (r == null) {
-            r = BlockRegistry.load("blocks/1.21.1.txt");
+            r = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
             fluidRegistry = r;
         }
         return r;

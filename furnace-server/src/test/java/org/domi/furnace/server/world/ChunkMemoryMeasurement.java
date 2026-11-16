@@ -1,6 +1,7 @@
 // 청크 palette 전환의 실 메모리 절감 측정(보관 retained heap/청크). live-AFK OOM의 정량 프록시.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import org.domi.furnace.server.net.registry.RegistrySet;
 import org.domi.furnace.server.world.gen.NoiseWorldSource;
 import org.junit.jupiter.api.Test;
@@ -14,8 +15,8 @@ class ChunkMemoryMeasurement {
     //   ./gradlew :furnace-server:test --tests *ChunkMemoryMeasurement
     @Test
     void measureRetainedPerColumn() throws Exception {
-        BlockRegistry blocks = BlockRegistry.load("blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry blocks = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         NoiseWorldSource source = NoiseWorldSource.overworld(0L, blocks, registries);
 
         int N = 64; // 대표 표본(전체생성 비용 때문에 축소). bytes/column은 vd로 외삽.

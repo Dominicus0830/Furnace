@@ -1,5 +1,6 @@
 package org.domi.furnace.server.world.gen.feature;
 
+import org.domi.furnace.api.GameVersion;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -400,7 +401,7 @@ public final class TreeFeature implements ConfiguredFeature {
     private static boolean isLog(int stateId) {
         boolean[] t = logTable;
         if (t == null) {
-            org.domi.furnace.server.world.BlockRegistry r = org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt");
+            org.domi.furnace.server.world.BlockRegistry r = org.domi.furnace.server.world.BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
             t = new boolean[r.totalStateCount()];
             for (String b : BlockTags.get().blocksOf("minecraft:logs")) {
                 for (int s : r.stateIdsForBlock(b)) t[s] = true;

@@ -1,6 +1,7 @@
 // 플러그인이 보는 서버(Furnace 파사드) — 이벤트·명령·권한·플러그인 관리자·스케줄러를 한데 묶는다.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.GameVersion;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -440,7 +441,7 @@ public final class PluginHost implements Furnace {
     }
 
     @Override
-    public String minecraftVersion() { return "1.21.1"; }
+    public String minecraftVersion() { return GameVersion.MINECRAFT; }
 
     /** 접속자 목록 캐시 한 칸: 만든 때의 서버 접속자 배열(동일성)·roster 번호와 그 결과(고칠 수 없는 목록). */
     private record OnlineSnapshot(Player[] source, long epoch, List<PlayerHandle> handles) {}

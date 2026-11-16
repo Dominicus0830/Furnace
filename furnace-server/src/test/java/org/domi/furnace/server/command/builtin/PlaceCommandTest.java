@@ -1,6 +1,7 @@
 // /place: 노이즈 오버월드의 실제 region 에서 template(회전 포함)·feature(나무)·structure 를 놓고, 미지원(Noop) feature 는 실패로 알리는지.
 package org.domi.furnace.server.command.builtin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
@@ -36,7 +37,7 @@ class PlaceCommandTest {
     @BeforeAll
     static void setUp() throws Exception {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        core = TestServers.core(tmp, sched, reg -> NoiseWorldSource.overworld(0L, reg, RegistrySet.load("registries/1.21.1.txt")));
+        core = TestServers.core(tmp, sched, reg -> NoiseWorldSource.overworld(0L, reg, RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         core.addConsoleListener(t -> console.add(t.getString()));
         // (0..5, 0..5) 청크를 올려 둔다
         for (int cx = 0; cx <= 5; cx++) {

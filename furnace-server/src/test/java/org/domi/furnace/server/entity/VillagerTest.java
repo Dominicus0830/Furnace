@@ -1,6 +1,7 @@
 // 주민(LivingEntity·Mob·Merchant): 저장/불러오기(거래 목록 포함), 피해·무적 시간·죽음 뒤 제거, 거래 알림(경험치 구슬), 거래 가능 조건.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Optional;
@@ -17,7 +18,7 @@ class VillagerTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static final Entity.Damage HIT = new Entity.Damage("player_attack", false, false, false);

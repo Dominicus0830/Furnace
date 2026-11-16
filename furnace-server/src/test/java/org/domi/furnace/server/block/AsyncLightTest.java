@@ -2,6 +2,7 @@
 // 빛 작업이 도는 동안 region 이 블록을 바꿔도(얼린 구역 → 복사해서 씀) 그 묶음은 넘길 때의 블록만 본다.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -35,7 +36,7 @@ import org.junit.jupiter.api.Test;
 
 class AsyncLightTest {
     private static final int R = 3;   // 청크 -3..3
-    private final SuperflatWorldSource gen = new SuperflatWorldSource(BlockRegistry.load("blocks/1.21.1.txt"), 0);
+    private final SuperflatWorldSource gen = new SuperflatWorldSource(BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), 0);
     private ExecutorService pool;
 
     /** 넣은 작업을 시험이 부를 때 그 자리에서 돌린다(빛 작업이 "도는 중"인 상태를 마음대로 만든다). */
@@ -102,7 +103,7 @@ class AsyncLightTest {
 
     @BeforeEach
     void setUp() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         glow = B.defaultState("glowstone");
         stone = B.defaultState("stone");
         glass = B.defaultState("glass");

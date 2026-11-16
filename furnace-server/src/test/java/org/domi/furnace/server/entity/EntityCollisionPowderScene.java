@@ -3,6 +3,7 @@
 // 움직이는 피스톤 칸(블록 엔티티가 든 모양)에 부딪히는 몹을 만들어 20틱마다 엔티티 상태를 해시한다. 새 JVM(씨앗 켜짐) 전용.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.entity.PistonMovingBlockEntity;
@@ -13,7 +14,7 @@ public final class EntityCollisionPowderScene implements SceneHash.Scene {
     @Override
     public void run(SceneHash.Recorder rec) {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         EntityCollisionScene.Arena level = new EntityCollisionScene.Arena();
         level.wallOffArena();
         java.util.Random r = new java.util.Random(0x7018_5);

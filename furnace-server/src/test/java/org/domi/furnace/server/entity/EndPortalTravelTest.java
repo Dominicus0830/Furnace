@@ -1,6 +1,7 @@
 // 엔드 포털: 엔티티가 모양 안에 들면 엔드 (100.5, 50, 0.5) 로 가고 흑요석 단상이 생긴다. 엔드에서는 오버월드 스폰으로 돌아온다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.block.B;
@@ -14,7 +15,7 @@ class EndPortalTravelTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static Entity only(DimensionTestLevel level, Class<?> c) {

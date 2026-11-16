@@ -1,5 +1,6 @@
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import java.util.Set;
 import org.domi.furnace.server.net.registry.RegistrySet;
 import org.domi.furnace.server.world.BlockRegistry;
@@ -19,8 +20,8 @@ class TreeFeatureScanTest {
 
     @Test
     void scanSeed1234ForTreeBiomes() throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         NoiseWorldSource source = NoiseWorldSource.overworld(1234L, reg, registries);
 
         for (int cz = -64; cz <= 64; cz++) {
@@ -38,8 +39,8 @@ class TreeFeatureScanTest {
 
     @Test
     void scanSeed1234ForPureForestChunks() throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         NoiseWorldSource source = NoiseWorldSource.overworld(1234L, reg, registries);
 
         int found = 0;

@@ -4,6 +4,7 @@
 // (EntityDataKeysTest 가 둘 다 서버 엔티티의 SynchedData 와 대조한다).
 package org.domi.furnace.server.plugin.packet;
 
+import org.domi.furnace.api.GameVersion;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
 import java.io.BufferedReader;
@@ -138,8 +139,8 @@ public final class EntityData767 {
 
     private static Map<String, java.util.Set<String>> loadOwners() {
         Map<String, java.util.Set<String>> m = new HashMap<>();
-        try (var in = EntityData767.class.getClassLoader().getResourceAsStream("entity_data/owners-1.21.1.txt")) {
-            if (in == null) throw new IllegalStateException("entity_data/owners-1.21.1.txt is missing");
+        try (var in = EntityData767.class.getClassLoader().getResourceAsStream("entity_data/owners-" + GameVersion.RESOURCE_TAG + ".txt")) {
+            if (in == null) throw new IllegalStateException("entity_data/owners-" + GameVersion.RESOURCE_TAG + ".txt is missing");
             var r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             for (String line; (line = r.readLine()) != null; ) {
                 line = line.strip();
@@ -155,8 +156,8 @@ public final class EntityData767 {
 
     private static Map<String, EntityDataType<?>[]> loadLayouts() {
         Map<String, EntityDataType<?>[]> m = new HashMap<>();
-        try (var in = EntityData767.class.getClassLoader().getResourceAsStream("entity_data/layouts-1.21.1.txt")) {
-            if (in == null) throw new IllegalStateException("entity_data/layouts-1.21.1.txt is missing");
+        try (var in = EntityData767.class.getClassLoader().getResourceAsStream("entity_data/layouts-" + GameVersion.RESOURCE_TAG + ".txt")) {
+            if (in == null) throw new IllegalStateException("entity_data/layouts-" + GameVersion.RESOURCE_TAG + ".txt is missing");
             var r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             for (String line; (line = r.readLine()) != null; ) {
                 line = line.strip();

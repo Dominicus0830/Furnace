@@ -2,6 +2,7 @@
 //   -Dfurnace.light.world=<월드 폴더>   (순정 서버로 만든 월드. 저장소에 넣지 않는다)
 package org.domi.furnace.server.light;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayInputStream;
@@ -33,7 +34,7 @@ class VanillaLightTest {
     void matchesVanillaSavedLight() throws Exception {
         String world = System.getProperty("furnace.light.world");
         Assumptions.assumeTrue(world != null);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         AnvilChunkCodec codec = new AnvilChunkCodec(reg, 0);
         RegionFileStore store = new RegionFileStore(Path.of(world));
         Map<Long, Loaded> chunks = new HashMap<>();

@@ -7,6 +7,7 @@
 // 시뮬레이션 거리 ≤ 8 이면 스폰된 몹이 사라짐 검사를 영영 못 받는 청크에 생긴다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
@@ -40,14 +41,14 @@ class EntityTickRangeTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @BeforeEach
     void setUp() {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         core = TestServers.core(tmp, sched);
-        core.world().setRegistries(BlockRegistry.load("blocks/1.21.1.txt"), ItemRegistry.load("items/1.21.1.txt"));
+        core.world().setRegistries(BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         core.gameRules().set("doMobSpawning", 0);   // 시험 몹만 본다
     }
 

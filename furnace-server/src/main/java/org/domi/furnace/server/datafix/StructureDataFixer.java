@@ -7,6 +7,7 @@
 // 3955 보다 새 판은 고치지 않고 그대로 읽는다(호출하는 쪽이 경고를 남긴다).
 package org.domi.furnace.server.datafix;
 
+import org.domi.furnace.api.GameVersion;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -19,7 +20,7 @@ public final class StructureDataFixer {
     private StructureDataFixer() {}
 
     /** 1.21.1 SharedConstants.WORLD_VERSION. */
-    public static final int CURRENT_VERSION = 3955;
+    public static final int CURRENT_VERSION = GameVersion.DATA_VERSION;
     /** 이 판부터 고칠 수 있다(1451 하위 버전들의 평탄화는 옮기지 않았다). */
     public static final int MIN_SUPPORTED_VERSION = 1452;
 

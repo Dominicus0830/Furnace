@@ -1,6 +1,7 @@
 // 바닐라 블록 태그(이름 목록) 리소스 로더. 월드젠 JSON의 `#minecraft:...` 참조를 블록 이름으로 푼다.
 package org.domi.furnace.server.world.gen.feature;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -13,7 +14,7 @@ import java.util.Map;
 
 public final class BlockTags {
 
-    private static final String RESOURCE = "worldgen/1.21.1/block_tags.txt";
+    private static final String RESOURCE = "worldgen/" + GameVersion.RESOURCE_TAG + "/block_tags.txt";
     private static volatile BlockTags INSTANCE;
 
     private final Map<String, List<String>> tags;

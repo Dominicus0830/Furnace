@@ -2,6 +2,7 @@
 // 새로 만들어지고(같은 UUID, 원래 것은 CHANGED_DIMENSION), 승객은 원래 차원에 내려놓는다(바닐라 unRide). 플레이어는 차원 변경 경로로.
 package org.domi.furnace.server.command.builtin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -49,7 +50,7 @@ class TeleportAcrossDimensionsTest {
     void setUp() {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         core = TestServers.core(tmp, sched);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         var io = TestServers.ioPool();
         nether = new World(TEST_NETHER, new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 4, 1, 2, 2, reg.directBits(), 7, io, io);
         nether.worldDir(tmp);

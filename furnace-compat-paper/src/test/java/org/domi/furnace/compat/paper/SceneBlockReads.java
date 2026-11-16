@@ -4,6 +4,7 @@
 // 그런 칸은 읽기 해시에서 빼고 개수만 placed-mismatch 줄에 적는다(읽기 경로 시험이 놓기 반응에 묶이지 않게).
 package org.domi.furnace.compat.paper;
 
+import org.domi.furnace.api.GameVersion;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
@@ -31,7 +32,7 @@ public final class SceneBlockReads extends CompatScene {
 
     @Override
     public void play(Size size, SceneHash.Recorder rec, Probe probe) throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         int total = reg.totalStateCount();
         try (FurnaceTestServer s = server()) {
             s.loadChunk(0, 0);

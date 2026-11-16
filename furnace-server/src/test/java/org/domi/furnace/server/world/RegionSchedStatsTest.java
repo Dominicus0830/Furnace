@@ -1,6 +1,7 @@
 // 스케줄 계측(차원·region 별 큐 지연, 기다린 시간, 바쁜 워커 수)이 값으로 보인다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.concurrent.TimeUnit;
@@ -19,7 +20,7 @@ class RegionSchedStatsTest {
     @BeforeEach
     void setUp() {
         sched = new FurnaceSchedulerImpl(10_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 3, 4, 1, 2, 2,
                 reg.directBits(), 7, java.util.concurrent.Executors.newSingleThreadExecutor(),
                 java.util.concurrent.Executors.newSingleThreadExecutor());

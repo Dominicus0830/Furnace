@@ -2,6 +2,7 @@
 // 비전투 조건의 첫 검사는 canBeSeenByAnyone(관전자 아님·살아 있음)이라 크리에이티브도 바라본다. 이어 보기는 살아 있는지·거리·시간만 본다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -27,7 +28,7 @@ import org.junit.jupiter.api.Test;
 class LookAtPlayerConditionsTest {
 
     @BeforeAll
-    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt"))); }
+    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"))); }
 
     static final class PlayersLevel extends BlockPlacementTest.TestLevel {
         final List<Player> players = new ArrayList<>();

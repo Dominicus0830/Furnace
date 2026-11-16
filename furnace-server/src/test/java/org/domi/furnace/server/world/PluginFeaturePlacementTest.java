@@ -1,6 +1,7 @@
 // 플러그인 나무 생성(T-141 E5, Paper generateTree): 주어진 java.util.Random 을 feature 난수로 그대로 쓰기·쓴 칸 기록(반영 안 함)·후렴 식물.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
@@ -35,7 +36,7 @@ class PluginFeaturePlacementTest {
     @BeforeAll
     static void setUp() throws Exception {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        core = TestServers.core(tmp, sched, reg -> NoiseWorldSource.overworld(0L, reg, RegistrySet.load("registries/1.21.1.txt")));
+        core = TestServers.core(tmp, sched, reg -> NoiseWorldSource.overworld(0L, reg, RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         for (int cx = 0; cx <= 5; cx++) {
             for (int cz = 0; cz <= 5; cz++) {
                 var cp = new ChunkPos(cx, cz);

@@ -4,6 +4,7 @@
 // 소유권: 복사본은 이 region 이 가진 청크만 담는다. 다른 region·미로드 청크에 닿으면 아무것도 옮기지 않는다(성장 실패로 본다).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -49,8 +50,8 @@ public final class LiveFeatures {
             synchronized (LiveFeatures.class) {
                 d = fallback;
                 if (d == null) {
-                    fallback = d = BiomeFeatureData.load(WorldgenData.load("worldgen/1.21.1"), List.of(),
-                            BlockRegistry.load("blocks/1.21.1.txt"));
+                    fallback = d = BiomeFeatureData.load(WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG), List.of(),
+                            BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"));
                 }
             }
         }

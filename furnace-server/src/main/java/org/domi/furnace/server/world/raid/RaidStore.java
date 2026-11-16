@@ -7,6 +7,7 @@
 // 번호: 바닐라처럼 NextAvailableID 는 마지막으로 준 번호이고 새 번호는 ++(첫 습격 2).
 package org.domi.furnace.server.world.raid;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -28,7 +29,7 @@ import org.slf4j.LoggerFactory;
 
 public final class RaidStore {
     private static final Logger LOG = LoggerFactory.getLogger(RaidStore.class);
-    private static final int DATA_VERSION = 3955;
+    private static final int DATA_VERSION = GameVersion.DATA_VERSION;
 
     private final Path file;
     private final AtomicInteger nextId = new AtomicInteger(1);

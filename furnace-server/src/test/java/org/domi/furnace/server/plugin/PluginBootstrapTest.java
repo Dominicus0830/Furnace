@@ -2,6 +2,7 @@
 // 수명주기 훅 등록 기간, 플러그인 jar 데이터 팩(월드 팩과 같은 켜기 규칙), 플러그인 레지스트리의 소유·고정·정리.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.IOException;
@@ -164,7 +165,7 @@ class PluginBootstrapTest {
         PluginBootstrapper boot = PluginBootstrapper.bootstrap(coreAndAddon());
         String id = "plugin/core/main";
         LevelData level = LevelData.create("world", 1L, true, false, GameMode.SURVIVAL, false, Difficulty.EASY, List.of(), List.of());
-        try (DataPackManager packs = DataPackManager.start(null, tmp.resolve("world"), level, RegistrySet.load("registries/1.21.1.txt"),
+        try (DataPackManager packs = DataPackManager.start(null, tmp.resolve("world"), level, RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"),
                 true, List.of(), List.of(), boot::discoverPacks)) {
             Pack pack = packs.repository().pack(id);
             assertNotNull(pack, "데이터 팩 찾기 훅이 알린 jar 안 폴더가 팩이 된다");
@@ -177,7 +178,7 @@ class PluginBootstrapTest {
         LevelData old = LevelData.create("world", 1L, true, false, GameMode.SURVIVAL, false, Difficulty.EASY, List.of(), List.of());
         old.enabledPacks = List.of();
         old.disabledPacks = List.of(id);
-        try (DataPackManager packs = DataPackManager.start(null, tmp.resolve("world"), old, RegistrySet.load("registries/1.21.1.txt"),
+        try (DataPackManager packs = DataPackManager.start(null, tmp.resolve("world"), old, RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"),
                 false, List.of(), List.of(), boot::discoverPacks)) {
             assertFalse(packs.repository().selectedIds().contains(id));
             assertNull(packs.tags().ids("minecraft:item", "core:shiny"));

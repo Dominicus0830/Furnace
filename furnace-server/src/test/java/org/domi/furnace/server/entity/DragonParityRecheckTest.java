@@ -1,6 +1,7 @@
 // 드래곤 재대조(2026-10-28)에서 고친 항목별 회귀 시험과 앉은 단계 전이 시나리오.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -17,7 +18,7 @@ class DragonParityRecheckTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static final Entity.Damage PLAYER_HIT = new Entity.Damage("player_attack", false, false, false);

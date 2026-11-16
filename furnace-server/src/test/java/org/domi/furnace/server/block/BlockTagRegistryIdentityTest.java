@@ -2,6 +2,7 @@
 // 그 가정(두 순서가 같다)과, jar 의 옛 블록 태그 표(block_tags.txt)가 같은 태그 표와 같은 내용인지를 지킨다.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -14,7 +15,7 @@ class BlockTagRegistryIdentityTest {
 
     private static List<String> registryBlockNames() throws Exception {
         List<String> names = new ArrayList<>();
-        try (var in = BlockTagRegistryIdentityTest.class.getClassLoader().getResourceAsStream("registries/builtin-1.21.1.txt")) {
+        try (var in = BlockTagRegistryIdentityTest.class.getClassLoader().getResourceAsStream("registries/builtin-" + GameVersion.RESOURCE_TAG + ".txt")) {
             for (String line : new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).split("\n")) {
                 if (line.startsWith("minecraft:block ")) names.add(line.substring("minecraft:block ".length()).strip());
             }
@@ -32,7 +33,7 @@ class BlockTagRegistryIdentityTest {
     @Test
     void jarBlockTagsMatchTheSyncedTagTable() throws Exception {
         List<String> reg = registryBlockNames();
-        TagSet set = TagSet.load("registries/tags-1.21.1.txt");
+        TagSet set = TagSet.load("registries/tags-" + GameVersion.RESOURCE_TAG + ".txt");
         var tags = set.tagsOf("minecraft:block");
         assertFalse(tags.isEmpty());
         for (var e : tags.entrySet()) {

@@ -1,6 +1,7 @@
 // 연결 처리에 필요한 서버 전역 설정·상태(온라인 모드 키·세션 서비스·사용자 목록·상태 응답 정보). 모든 연결이 공유한다.
 package org.domi.furnace.server.net;
 
+import org.domi.furnace.api.GameVersion;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
@@ -185,8 +186,8 @@ public final class ServerLoginContext {
         }
         o.add("players", players);
         JsonObject version = new JsonObject();
-        version.addProperty("name", "1.21.1");
-        version.addProperty("protocol", 767);
+        version.addProperty("name", GameVersion.MINECRAFT);
+        version.addProperty("protocol", GameVersion.PROTOCOL);
         o.add("version", version);
         if (favicon != null) o.addProperty("favicon", favicon);
         o.addProperty("enforcesSecureChat", core != null ? core.enforceSecureProfile() : enforceSecureChat);

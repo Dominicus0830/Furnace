@@ -3,6 +3,7 @@
 // 엔티티 id·난수가 JVM 전역이라 새 JVM(-Dfurnace.test.seeded=true)에서만 결정적이다 — EntityCollisionSceneGoldenTest.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import java.util.ArrayList;
 import java.util.List;
 import org.domi.furnace.server.block.B;
@@ -32,7 +33,7 @@ public final class EntityCollisionScene implements SceneHash.Scene {
     @Override
     public void run(SceneHash.Recorder rec) {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         Arena level = new Arena();
         level.wallOffArena();
         java.util.Random r = new java.util.Random(0x7018);

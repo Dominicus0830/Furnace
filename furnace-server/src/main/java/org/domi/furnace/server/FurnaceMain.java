@@ -1,6 +1,7 @@
 // Furnace 서버 진입점. 설정 로드 → 스케줄러 기동 → 셧다운 훅 배선.
 package org.domi.furnace.server;
 
+import org.domi.furnace.api.GameVersion;
 import org.domi.furnace.server.config.Config;
 import org.domi.furnace.server.config.ConfigLoader;
 import org.domi.furnace.server.config.Eula;
@@ -191,10 +192,10 @@ public final class FurnaceMain {
         Config config = ConfigLoader.load(furnaceProps)
                 .withServerProperties(props, options.port(), options.world(), seed);
         long startNanos = System.nanoTime();
-        log.info("Starting minecraft server version 1.21.1");
+        log.info("Starting minecraft server version " + GameVersion.MINECRAFT);
         log.info("Loading properties");
         String furnaceVersion = FurnaceMain.class.getPackage().getImplementationVersion();
-        log.info("This server is running {} {} (Minecraft 1.21.1)", SERVER_BRAND, furnaceVersion != null ? furnaceVersion : "dev");
+        log.info("This server is running {} {} (Minecraft " + GameVersion.MINECRAFT + ")", SERVER_BRAND, furnaceVersion != null ? furnaceVersion : "dev");
         log.info("Default game type: {}", props.gameMode.name());
         log.info("Generating keypair");
         java.security.KeyPair serverKeys = org.domi.furnace.server.net.auth.Crypt.generateKeyPair();
@@ -245,11 +246,11 @@ public final class FurnaceMain {
         org.domi.furnace.server.plugin.PluginSettings pluginSettings = org.domi.furnace.server.plugin.PluginSettings.load(furnaceProps);
         org.domi.furnace.server.plugin.PluginBootstrapper pluginBoot =
                 org.domi.furnace.server.plugin.PluginBootstrapper.bootstrap(Path.of("plugins"), pluginSettings);
-        BlockRegistry blockRegistry = BlockRegistry.load("blocks/1.21.1.txt");
-        ItemRegistry itemRegistry = ItemRegistry.load("items/1.21.1.txt");
+        BlockRegistry blockRegistry = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        ItemRegistry itemRegistry = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
         org.domi.furnace.server.entity.PlayerData.itemRegistry(itemRegistry);
         // 게임 레지스트리 훅: 플러그인 바이옴·차원 타입을 바닐라 항목 뒤에 붙인 세트(바닐라 인덱스는 그대로)
-        RegistrySet registries = pluginBoot.collectGameRegistries(RegistrySet.load("registries/1.21.1.txt"));
+        RegistrySet registries = pluginBoot.collectGameRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"));
         RegistrySet.install(registries);   // 데이터 팩을 읽으면 그쪽(동기화 레지스트리를 다시 만든 것)으로 바뀐다
         pluginBoot.collectGenerationHooks();   // 월드젠 단계 훅(W3) — 월드를 만들기 전에
         var worldSettings = org.domi.furnace.server.world.WorldSettings.load(furnaceProps);
@@ -768,7 +769,7 @@ public final class FurnaceMain {
                     : props.motd;
         }
         @Override public String levelName() { return config.levelName(); }
-        @Override public String version() { return "1.21.1"; }
+        @Override public String version() { return GameVersion.MINECRAFT; }
         @Override public String plugins() { return ""; }
         @Override public int playerCount() { return core.players().size(); }
         @Override public int maxPlayers() { return props.maxPlayers; }

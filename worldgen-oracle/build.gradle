@@ -9,7 +9,9 @@ tasks.named('run', JavaExec) {
     workingDir = rootProject.projectDir
     classpath = sourceSets.main.output + configurations.compileClasspath
     systemProperties = System.properties.findAll { it.key.toString().startsWith("oracle.") }
+    // V-01: 판 꼬리표는 gradle/minecraft.properties 한 곳에서 온다(OracleMain 이 리소스 경로 이름에 쓴다)
+    systemProperty 'oracle.resourceTag', rootProject.ext.mc.getProperty('mc.resourceTag')
 }
 dependencies {
-    paperweight.paperDevBundle("1.21.1-R0.1-SNAPSHOT")
+    paperweight.paperDevBundle(rootProject.ext.mc.getProperty('mc.paperDevBundle'))
 }

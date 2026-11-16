@@ -1,6 +1,7 @@
 // 빛 갱신 대상(ChunkMap.getPlayers(pos, true)): 받은 청크이면서 둘레 8칸 중 받지 않은(구독 없음·전송 전) 청크가 있는 플레이어만. 전송 전 구독은 건너뛴다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -19,7 +20,7 @@ class LightUpdateTrackingTest {
     @Test
     void borderAndPendingRules() {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2,
                 reg.directBits(), 7, Executors.newSingleThreadExecutor());
         Player p = new Player(1, UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());

@@ -1,6 +1,7 @@
 // 청크가 "이번에 생성기가 만든 것"인지 — 저장 안 된 청크는 새 청크, 디스크에서 읽은 청크는 아니다(ChunkLoadEvent#isNewChunk 의 근거)
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -20,7 +21,7 @@ class ChunkNewlyCreatedTest {
 
     @Test
     void generatedChunkIsNewAndReloadedChunkIsNot(@TempDir Path dir) throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         RegionFileStore store = new RegionFileStore(dir);
         AnvilChunkCodec codec = new AnvilChunkCodec(reg, 0);
         AnvilWorldSource src = new AnvilWorldSource(dir, store, codec, new SuperflatWorldSource(reg, 0));

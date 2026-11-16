@@ -1,6 +1,7 @@
 // 묘목→나무(TreeGrower)·뼛가루 지형 생성 feature 연결: 노이즈 오버월드의 실제 region 에서 결정적 시드로 키운다.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
@@ -31,7 +32,7 @@ class SaplingBonemealGrowthTest {
     @BeforeAll
     static void setUp() throws Exception {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        core = TestServers.core(tmp, sched, reg -> NoiseWorldSource.overworld(0L, reg, RegistrySet.load("registries/1.21.1.txt")));
+        core = TestServers.core(tmp, sched, reg -> NoiseWorldSource.overworld(0L, reg, RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         for (int cx = 0; cx <= 5; cx++) {
             for (int cz = 0; cz <= 5; cz++) {
                 var cp = new org.domi.furnace.server.world.ChunkPos(cx, cz);

@@ -1,6 +1,7 @@
 // A09-01 재현(동작): 신호기 위에 슬래브·계단·카펫·눈 한 겹이 있어도 바닐라는 빛줄기가 이어지고(getLightBlock < 15) 색 없는 틴티드 유리는 빛줄기를 끊는다.
 package org.domi.furnace.server.audit;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -24,7 +25,7 @@ class A09BeaconBeamBehaviorReproTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static final class Lvl extends BlockPlacementTest.TestLevel {

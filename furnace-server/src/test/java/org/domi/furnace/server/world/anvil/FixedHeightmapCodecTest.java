@@ -1,6 +1,7 @@
 // N2b-2 고정 하이트맵 저장·읽기: 바닐라는 저장된 하이트맵을 그대로 쓴다(블록과 어긋난 낡은 값도). 길이가 틀린 종류만 경고 뒤 블록에서 다시 계산.
 package org.domi.furnace.server.world.anvil;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
@@ -13,7 +14,7 @@ import org.junit.jupiter.api.Test;
 
 class FixedHeightmapCodecTest {
 
-    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
 
     private static ChunkColumn flat() { return new SuperflatWorldSource(REG, 0).generate(2, -3); }
 

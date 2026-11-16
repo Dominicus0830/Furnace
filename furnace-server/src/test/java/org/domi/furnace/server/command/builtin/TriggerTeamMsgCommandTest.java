@@ -1,6 +1,7 @@
 // /trigger(잠금·열기·add/set·오류 키·제안)와 /teammsg·/tm(팀원에게만, 팀 없음 오류)·/place 인자(회전·대칭·없는 id·미지원 월드).
 package org.domi.furnace.server.command.builtin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -160,7 +161,7 @@ class TriggerTeamMsgCommandTest {
         // 평지 세계에는 월드젠 엔진이 없다 — 성공으로 위장하지 않는다
         assertEquals(List.of("Placing features in this world type is not supported yet"), consoleAsync("place feature minecraft:oak"));
         // 내장 리소스 목록(제안)
-        assertTrue(PlaceCommand.resourceIds("worldgen/1.21.1/structure", ".nbt").contains("minecraft:igloo/top"));
-        assertTrue(PlaceCommand.resourceIds("worldgen/1.21.1/worldgen/configured_feature", ".json").contains("minecraft:oak"));
+        assertTrue(PlaceCommand.resourceIds("worldgen/" + GameVersion.RESOURCE_TAG + "/structure", ".nbt").contains("minecraft:igloo/top"));
+        assertTrue(PlaceCommand.resourceIds("worldgen/" + GameVersion.RESOURCE_TAG + "/worldgen/configured_feature", ".json").contains("minecraft:oak"));
     }
 }

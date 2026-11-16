@@ -1,6 +1,7 @@
 // 몹·갑옷 거치대 장착 이벤트(LivingEntity.onEquipItem): 칸을 바꾸면(setItemSlot) 장착 소리와 equip/unequip, 제자리 수정(updateItemSlot)은 없음.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -42,7 +43,7 @@ class MobEquipGameEventsTest {
     @BeforeAll
     static void install() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static <T extends Entity> T spawn(Level level, String type) {

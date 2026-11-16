@@ -2,6 +2,7 @@
 // "container.isLocked" 알림(액션 바)과 block.chest.locked 소리가 그 플레이어에게만 간다. 열쇠 이름을 단 아이템을 들면 열린다.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -59,14 +60,14 @@ class ContainerLockE2ETest {
     record Pkt(int id, byte[] body) {}
 
     @BeforeAll
-    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt"))); }
+    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"))); }
 
     @BeforeEach
     void setUp() throws Exception {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         core = TestServers.core(tmp, sched);
         host = core.plugins();
-        core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt"), org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), org.domi.furnace.server.world.ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         plugin.setEnabled(true);
         core.world().submitAtChunk(C00, r -> r.chunkAtBlocking(C00)).get(30, TimeUnit.SECONDS);
         join();
@@ -198,7 +199,7 @@ class ContainerLockE2ETest {
     }
 
     private ContainerBlockEntity[] doubleChest() throws Exception {
-        var reg = org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt");
+        var reg = org.domi.furnace.server.world.BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         Pos left = spot, right = new Pos(spot.x() + 1, spot.y(), spot.z());
         return at(r -> {
             r.placeBlock(left.x(), left.y(), left.z(), reg.stateIdOrAir("minecraft:chest", java.util.Map.of("facing", "north", "type", "left", "waterlogged", "false")));

@@ -2,6 +2,7 @@
 // 엔티티·엔더 진주 순간이동.
 package org.domi.furnace.server.block.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.HashMap;
@@ -28,10 +29,10 @@ class EndGatewayBlockEntityTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
-    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
 
     /** 엔드 높이(0~255)의 빈(공기) 청크가 어디에나 있는 시험 레벨. */
     static final class EndLevel extends ChunkLevel {

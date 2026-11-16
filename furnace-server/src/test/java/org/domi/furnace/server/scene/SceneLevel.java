@@ -7,6 +7,7 @@
 // 그것을 결과에 쓰는 장면(무작위 틱·소리 해시)은 새 JVM 모드(씨앗 켜짐)로 둬야 한다. 같은 JVM 장면(fluid·piston·shared-pipeline)은 쓰지 않는다.
 package org.domi.furnace.server.scene;
 
+import org.domi.furnace.api.GameVersion;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -23,7 +24,7 @@ import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.gen.SuperflatWorldSource;
 
 public class SceneLevel extends ChunkLevel {
-    private static final SuperflatWorldSource GEN = new SuperflatWorldSource(BlockRegistry.load("blocks/1.21.1.txt"), 0);
+    private static final SuperflatWorldSource GEN = new SuperflatWorldSource(BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), 0);
 
     private final Map<Long, ChunkColumn> chunks = new HashMap<>();
     private final int radius;

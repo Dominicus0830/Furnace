@@ -2,6 +2,7 @@
 // 갓 생성된 청크의 fluid_ticks(바닐라 ProtoChunk 저장 형식, t=0)로 남고, 청크가 월드에 붙으면 예약 틱이 돼 흐른다.
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
@@ -29,7 +30,7 @@ class GenerationFluidTicksTest {
     @TempDir Path tmp;
 
     private static NoiseWorldSource overworld() {
-        return NoiseWorldSource.overworld(1234L, BlockRegistry.load("blocks/1.21.1.txt"), RegistrySet.load("registries/1.21.1.txt"));
+        return NoiseWorldSource.overworld(1234L, BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"));
     }
 
     /** 샘 모양(서·동·북·남·아래 중 구멍 하나, 나머지 넷이 고체, 위는 고체) 원천 블록 {x, y, z, 구멍 x, y, z}. */
@@ -167,7 +168,7 @@ class GenerationFluidTicksTest {
         // 서버 경로(AnvilWorldSource → generateWithFeatures): 생성 → 설치 → fluid_ticks 를 예약 틱으로
         ServerCore core = TestServers.core(tmp, new FurnaceSchedulerImpl(50_000_000L, 1), reg -> new AnvilWorldSource(tmp,
             new org.domi.furnace.server.world.anvil.RegionFileStore(tmp), new org.domi.furnace.server.world.anvil.AnvilChunkCodec(reg, 0),
-            NoiseWorldSource.overworld(1234L, reg, RegistrySet.load("registries/1.21.1.txt"))));
+            NoiseWorldSource.overworld(1234L, reg, RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"))));
         for (int x = scx - 2; x <= scx + 2; x++) for (int z = scz - 2; z <= scz + 2; z++) core.world().forcedChunks().set(x, z, true);
         for (int cx = scx - 2; cx <= scx + 2; cx++) for (int cz = scz - 2; cz <= scz + 2; cz++) {
             var cp = new ChunkPos(cx, cz);

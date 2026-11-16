@@ -2,6 +2,7 @@
 // 잠 비율·사라짐·근접 조회는 빠진 목록을 보고, 소리·레벨 이벤트 방송(PlayerList.broadcast)은 죽음 화면 플레이어도 받는다. 리스폰이 끝에 다시 올린다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -37,7 +38,7 @@ class DeadPlayerWorldListTest {
     @BeforeEach
     void setup() throws Exception {
         sched = new FurnaceSchedulerImpl(50_000_000L, 2);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, sched.regionThreadCount(),
                 16, 20, 20, reg.directBits(), 7, Executors.newSingleThreadExecutor());
         chNear = new ConcurrentEmbeddedChannel();

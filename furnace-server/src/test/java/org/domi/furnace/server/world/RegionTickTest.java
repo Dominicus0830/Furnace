@@ -1,6 +1,7 @@
 // region 스레드서 플레이어 편입·틱 시 청크 로드, 비소유 스레드 접근 시 assert 검증
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.domi.furnace.server.ConcurrentEmbeddedChannel;
@@ -15,7 +16,7 @@ import java.util.UUID;
 class RegionTickTest {
 
     private static World world(FurnaceSchedulerImpl sched) {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         return new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(2),
                 sched, sched.regionThreadCount(), 16, 2, 2, reg.directBits(), 7, java.util.concurrent.Executors.newSingleThreadExecutor());
     }

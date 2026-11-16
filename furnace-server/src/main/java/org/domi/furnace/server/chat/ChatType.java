@@ -1,6 +1,7 @@
 // 바닐라 ChatType(1.21.1 기본 데이터팩) — 장식 번역 키·매개변수·스타일, 그리고 Bound(타입 + 보낸이 이름 + 대상 이름).
 package org.domi.furnace.server.chat;
 
+import org.domi.furnace.api.GameVersion;
 import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.io.nbt.NbtWriter;
@@ -18,7 +19,7 @@ public enum ChatType {
 
     enum Param { SENDER_CONTENT, TARGET_CONTENT, TARGET_SENDER_CONTENT }
 
-    private static final RegistrySet REGISTRIES = RegistrySet.load("registries/1.21.1.txt");
+    private static final RegistrySet REGISTRIES = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
 
     private final String id;
     private final String translationKey;

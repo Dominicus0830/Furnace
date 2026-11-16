@@ -4,6 +4,7 @@
 // (context-notes/2026-11-12-entity-border-collision.md) — 아래 VanillaValues 의 기대값은 그 하네스가 낸 바닐라 값이다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
@@ -22,7 +23,7 @@ class EntityCollisionShapeTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     /** 평지(서는 높이 -60). 보더 {minX, minZ, maxX, maxZ} 와 플레이어 목록을 시험에서 정한다. */

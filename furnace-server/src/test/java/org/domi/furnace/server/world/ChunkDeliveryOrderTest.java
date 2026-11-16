@@ -1,6 +1,7 @@
 // 청크 스냅샷 이후·전송 이전의 블록 변경이 청크 "뒤에" 도착하는지(변경 유실 방지), 언로드된 구독은 버려지는지 검증
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -46,7 +47,7 @@ class ChunkDeliveryOrderTest {
     @Test
     void editAfterSnapshot_isDeliveredAfterThatChunk() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         ChunkWorkerPool pool = new ChunkWorkerPool(1);
         World w = world(sched, pool, reg);
         EmbeddedChannel ch = new ConcurrentEmbeddedChannel();
@@ -76,7 +77,7 @@ class ChunkDeliveryOrderTest {
     @Test
     void editAfterDelivery_isSentImmediately() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         World w = world(sched, new ChunkWorkerPool(1), reg);
         EmbeddedChannel ch = new ConcurrentEmbeddedChannel();
         Player p = new Player(1, UUID.randomUUID(), "P", ch);
@@ -96,7 +97,7 @@ class ChunkDeliveryOrderTest {
     @Test
     void unsubscribedBeforeDelivery_dropsPending() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         World w = world(sched, new ChunkWorkerPool(1), reg);
         EmbeddedChannel ch = new ConcurrentEmbeddedChannel();
         Player p = new Player(1, UUID.randomUUID(), "P", ch);

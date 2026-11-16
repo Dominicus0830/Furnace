@@ -3,6 +3,7 @@
 // 번호는 0 부터(idcounts 에 map 이 없으면 -1 에서 시작해 +1). 파일이 없는 번호는 null(바닐라 MapItem.getSavedData 도 같다).
 package org.domi.furnace.server.map;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -22,7 +23,7 @@ import org.slf4j.LoggerFactory;
 public final class MapStore {
 
     private static final Logger LOG = LoggerFactory.getLogger(MapStore.class);
-    private static final int DATA_VERSION = 3955;
+    private static final int DATA_VERSION = GameVersion.DATA_VERSION;
 
     private static volatile Path dataDir;
     private static final Map<Integer, MapData> CACHE = new ConcurrentHashMap<>();

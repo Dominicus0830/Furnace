@@ -1,6 +1,7 @@
 // W3 월드젠 단계 훅: 기본 훅은 바닐라와 같은 블록, 단계 끄기·대체·구조물/지형지물 거르기·장식 영역 쓰기 범위·예외 격리.
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
@@ -27,8 +28,8 @@ class GenHooksTest {
 
     @BeforeAll
     static void load() {
-        blocks = BlockRegistry.load("blocks/1.21.1.txt");
-        registries = RegistrySet.load("registries/1.21.1.txt");
+        blocks = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
     }
 
     static NoiseWorldSource source(ChunkGenerationHooks hooks) {

@@ -1,6 +1,7 @@
 // carver parity 테스트 — LegacyRandom 검증 + carver-enabled oracle 픽스처 비트일치
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import java.io.*;
 import java.nio.ByteBuffer;
@@ -46,11 +47,11 @@ class CarverParityTest {
 
     // maxMismatch>0: root cause는 확정됐으나 아직 수정하지 않은 잔여 mismatch를 회귀 없이 상한만 고정.
     private void assertCarverParity(long seed, int cx, int cz, int maxMismatch) throws Exception {
-        BlockRegistry reg11 = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg11 = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         // worldgen-oracle uses Paper's 1.21.1 dev bundle, so fixture state IDs
         // must be decoded with the 1.21.1 block-state table.
-        Map<Integer, String> oracleIdToName = loadIdToName("/blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        Map<Integer, String> oracleIdToName = loadIdToName("/blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
 
         NoiseWorldSource source = NoiseWorldSource.overworld(seed, reg11, registries);
         ChunkColumn col = source.generateWithCarvers(cx, cz);

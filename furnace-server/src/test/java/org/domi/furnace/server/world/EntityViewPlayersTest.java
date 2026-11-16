@@ -1,6 +1,7 @@
 // 플레이어끼리 추적(Region.updateVisibility)에서 플러그인 숨기기·변장: 숨기면 엔티티와 탭에서 빠지고, 변장하면 다른 종류로 다시 스폰된다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -40,7 +41,7 @@ class EntityViewPlayersTest {
     @BeforeEach
     void setup() throws Exception {
         sched = new FurnaceSchedulerImpl(50_000_000L, 2);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, sched.regionThreadCount(),
                 16, 20, 20, reg.directBits(), 7, Executors.newSingleThreadExecutor());
         chObs = new ConcurrentEmbeddedChannel();

@@ -1,6 +1,7 @@
 // A12-06: 아홀로틀이 주는 재생 효과가 effects_changed 의 source 로 넘어가 "친구와 함께해요"(husbandry/kill_axolotl_target) 조건이 맞는다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
@@ -39,7 +40,7 @@ class A12EffectSourceTest {
         PackRepository repo = new PackRepository(dir.resolve("pack"), null);
         repo.reload();
         repo.setSelected(List.of("vanilla"));
-        TagRegistries tags = new TagRegistries(RegistrySet.load("registries/1.21.1.txt"));
+        TagRegistries tags = new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"));
         LootRegistries regs;
         LootData loot;
         AdvancementManager manager;

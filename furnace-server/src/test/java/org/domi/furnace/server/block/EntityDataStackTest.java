@@ -2,6 +2,7 @@
 // 스폰 알(블록에·물에·발사기), 몹 양동이, 배, 수레(놓기·발사기), 갑옷 거치대.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
@@ -25,7 +26,7 @@ class EntityDataStackTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static final Blocks B = Blocks.get();

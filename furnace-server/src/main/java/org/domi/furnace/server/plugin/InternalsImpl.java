@@ -2,6 +2,7 @@
 // 처음 부른 플러그인 이름을 로그에 한 번 남긴다(운영자가 MC·Furnace 버전을 올릴 때 다시 빌드가 필요한 플러그인을 알 수 있게).
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.GameVersion;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,8 +22,8 @@ import org.slf4j.LoggerFactory;
 public final class InternalsImpl implements Internals {
 
     private static final Logger log = LoggerFactory.getLogger("Furnace");
-    public static final int PROTOCOL_VERSION = 767;
-    public static final int DATA_VERSION = 3955;
+    public static final int PROTOCOL_VERSION = GameVersion.PROTOCOL;
+    public static final int DATA_VERSION = GameVersion.DATA_VERSION;
 
     private final PluginHost host;
     private final Set<String> users = ConcurrentHashMap.newKeySet();

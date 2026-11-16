@@ -1,6 +1,7 @@
 // 바닐라 1.21.1 태그 리소스: 클라이언트 쪽 물/사다리/울타리 연결 등에 필요한 태그가 실제 id로 들어 있는지, 패킷이 와이어 형식을 지키는지 검증
 package org.domi.furnace.server.net.registry;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -15,7 +16,7 @@ class TagSetTest {
 
     @Test
     void fluidWaterTag_containsWaterAndFlowingWater() {
-        TagSet tags = TagSet.load("registries/tags-1.21.1.txt");
+        TagSet tags = TagSet.load("registries/tags-" + GameVersion.RESOURCE_TAG + ".txt");
         int[] water = tags.ids("minecraft:fluid", "minecraft:water");
         assertNotNull(water);
         assertArrayEquals(new int[]{2, 1}, water);      // water=2, flowing_water=1 (바닐라 registries.json)
@@ -23,7 +24,7 @@ class TagSetTest {
 
     @Test
     void climbableTag_containsLadderAndVine() {
-        TagSet tags = TagSet.load("registries/tags-1.21.1.txt");
+        TagSet tags = TagSet.load("registries/tags-" + GameVersion.RESOURCE_TAG + ".txt");
         int[] ids = tags.ids("minecraft:block", "minecraft:climbable");
         assertNotNull(ids);
         // 바닐라 registries.json의 block protocol_id: ladder=LADDER, vine=VINE
@@ -34,7 +35,7 @@ class TagSetTest {
 
     @Test
     void allExpectedRegistriesPresent() {
-        TagSet tags = TagSet.load("registries/tags-1.21.1.txt");
+        TagSet tags = TagSet.load("registries/tags-" + GameVersion.RESOURCE_TAG + ".txt");
         for (String r : new String[]{"minecraft:block", "minecraft:item", "minecraft:fluid", "minecraft:entity_type",
                 "minecraft:game_event", "minecraft:damage_type", "minecraft:enchantment", "minecraft:worldgen/biome"}) {
             assertTrue(tags.registries().contains(r), "누락된 태그 레지스트리: " + r);
@@ -44,7 +45,7 @@ class TagSetTest {
 
     @Test
     void updateTags_wireFormat() {
-        TagSet tags = TagSet.load("registries/tags-1.21.1.txt");
+        TagSet tags = TagSet.load("registries/tags-" + GameVersion.RESOURCE_TAG + ".txt");
         UpdateTags p = new UpdateTags(tags);
         assertEquals(0x0D, p.id());
         ByteBuf buf = Unpooled.buffer();
@@ -73,7 +74,7 @@ class TagSetTest {
 
     @Test
     void enchantmentRegistryHas42Entries() {
-        RegistrySet set = RegistrySet.load("registries/1.21.1.txt");
+        RegistrySet set = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         assertEquals(42, set.entries("minecraft:enchantment").size());
     }
 }

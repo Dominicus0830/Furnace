@@ -1,6 +1,7 @@
 // superflat 생성: 레이어 블록 배치 + 비공기 수 + heightmap 검증
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ChunkColumn;
@@ -9,7 +10,7 @@ import org.junit.jupiter.api.Test;
 class SuperflatWorldSourceTest {
 
     private static SuperflatWorldSource source() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         return new SuperflatWorldSource(reg, 6); // plains 인덱스 6
     }
 

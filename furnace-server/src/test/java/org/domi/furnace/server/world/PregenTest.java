@@ -1,6 +1,7 @@
 // T-175 미리 생성: 고리 순서·영역, 생성 대기열 맨 뒤(다른 요청이 먼저), 붙은 요청은 맨 뒤에서 내려옴, 멈춤·이어 하기, 디스크 청크 건너뜀.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
@@ -29,8 +30,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 class PregenTest {
 
-    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
-    private static final List<String> BIOMES = RegistrySet.load("registries/1.21.1.txt").entries("minecraft:worldgen/biome");
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+    private static final List<String> BIOMES = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt").entries("minecraft:worldgen/biome");
 
     // ------------------------------------------------------------------ 고리 순서·영역
 
@@ -160,10 +161,10 @@ class PregenTest {
         io = Executors.newFixedThreadPool(2);
         q = new GenQueue(1, new GenQueue.Settings(true, 4, 0, 16, 0, 0, TimeUnit.SECONDS.toNanos(3), false));
         AnvilWorldSource src = new AnvilWorldSource(dir, new RegionFileStore(dir),
-                new AnvilChunkCodec(REG, ItemRegistry.load("items/1.21.1.txt"), BIOMES, 0, ChunkColumn.MIN_Y, ChunkColumn.SECTION_COUNT), base);
+                new AnvilChunkCodec(REG, ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"), BIOMES, 0, ChunkColumn.MIN_Y, ChunkColumn.SECTION_COUNT), base);
         src.entityStore(new RegionFileStore(dir, "entities"));
         World w = new World(src, new ChunkWorkerPool(1), sched, 1, 16, 2, 2, REG.directBits(), 7, io, q);
-        w.setRegistries(REG, ItemRegistry.load("items/1.21.1.txt"));
+        w.setRegistries(REG, ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         w.configurePersistence(1_000_000, 1_000_000);
         w.worldDir(dir);
         pregen = new Pregen();

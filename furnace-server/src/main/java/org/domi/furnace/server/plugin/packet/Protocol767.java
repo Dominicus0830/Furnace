@@ -2,6 +2,7 @@
 // 블록 상태는 서버 블록 레지스트리, 엔티티 종류·소리는 데이터 레지스트리(ItemContext)로 이름 ↔ 번호를 바꾼다.
 package org.domi.furnace.server.plugin.packet;
 
+import org.domi.furnace.api.GameVersion;
 import io.netty.buffer.ByteBuf;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
@@ -30,7 +31,7 @@ import org.domi.furnace.server.world.ItemRegistry;
 
 public final class Protocol767 implements ProtocolCodec {
 
-    public static final int PROTOCOL = 767;
+    public static final int PROTOCOL = GameVersion.PROTOCOL;
 
     /** play 서버→클라이언트, id 순서. */
     static final String[] CLIENTBOUND = {
@@ -121,7 +122,7 @@ public final class Protocol767 implements ProtocolCodec {
         r = fallbackBlocks;
         if (r == null) {
             synchronized (Protocol767.class) {
-                if (fallbackBlocks == null) fallbackBlocks = BlockRegistry.load("blocks/1.21.1.txt");
+                if (fallbackBlocks == null) fallbackBlocks = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
                 r = fallbackBlocks;
             }
         }
@@ -137,7 +138,7 @@ public final class Protocol767 implements ProtocolCodec {
         r = fallbackItems;
         if (r == null) {
             synchronized (Protocol767.class) {
-                if (fallbackItems == null) fallbackItems = ItemRegistry.load("items/1.21.1.txt");
+                if (fallbackItems == null) fallbackItems = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
                 r = fallbackItems;
             }
         }

@@ -4,6 +4,7 @@
 // (c) 로드된 이웃 청크는 지금처럼 받는다 (d) 적재 중인 청크의 저장된 예약(loadChunkTicks)은 버리지 않는다.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -22,7 +23,7 @@ class ScheduledTickUnloadedChunkTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     /** 몇 청크를 "내려간" 것으로 볼 수 있는 시험 레벨. */

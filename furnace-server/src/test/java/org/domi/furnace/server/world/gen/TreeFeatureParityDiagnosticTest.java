@@ -1,5 +1,6 @@
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -51,12 +52,12 @@ class TreeFeatureParityDiagnosticTest {
     }
 
     private void diagnoseChunk(long seed, int cx, int cz, String fixturePath) throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         NoiseWorldSource source = NoiseWorldSource.overworld(seed, reg, registries);
         ChunkColumn col = source.generateWithFeatures(cx, cz);
         byte[] fx = loadFixture(fixturePath, seed, cx, cz);
-        Map<Integer, String> oracleIdToName = loadIdToName("/blocks/1.21.1.txt");
+        Map<Integer, String> oracleIdToName = loadIdToName("/blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         BitSet treeMask = collectFurnaceTreeMask(source, seed, cx, cz);
         int mismatch = countMismatches(col, fx, oracleIdToName, reg, seed, cx, cz);
         int treeMismatch = countTreeMismatches(col, fx, oracleIdToName, reg, treeMask, seed, cx, cz);

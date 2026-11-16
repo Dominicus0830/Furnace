@@ -1,6 +1,7 @@
 // A09-04: 상자 위에 앉은 고양이가 있으면 상자가 막힌다(바닐라 ChestBlock.isChestBlockedAt = 전도체 || isCatSittingOnChest).
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.block.B;
@@ -14,7 +15,7 @@ class A09CatChestTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static Cat cat(PlayerSleepingTest.Lvl level, double x, double y, double z, boolean sit) {

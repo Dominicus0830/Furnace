@@ -149,6 +149,7 @@ Entity api = in.wrapEntity(internalZombie);
 
 - **안정**: `Internals` 인터페이스, NBT 타입, 1단 메서드. semver 를 따르고 폐기는 대체를 먼저 낸 뒤 두 마이너 이상 유지한다.
 - **불안정**: `Internals` 로 꺼낸 내부 클래스·메서드. 마인크래프트 버전이나 Furnace 버전이 바뀌면 이름·동작이 달라질 수 있다. `requireMinecraft(...)` 로 지원 버전을 밝히고, 내부 접근은 플러그인 안 한 클래스에 모아 두면 새 버전 대응이 한 파일로 끝난다.
+- **`org.domi.furnace.api.GameVersion`**(V-01, 생성 클래스): `MINECRAFT`·`PROTOCOL`·`DATA_VERSION` 같은 컴파일 시간 상수로 서버가 따르는 판을 알려 준다. 값은 `gradle/minecraft.properties` 에서 오며 상세는 `docs/testing/game-version.md`.
 - 내부 접근이 자주 필요한 쓰임새는 안정 API(0·1단)로 올린다 — 목표·두뇌 AI, 속성, 스폰 정책 등은 불만 조사 표(17~25번)에 이미 올라 있다.
 
 ## 5. 시험

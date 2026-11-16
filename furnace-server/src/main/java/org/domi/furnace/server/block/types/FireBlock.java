@@ -2,6 +2,7 @@
 // 블록별 불붙음(ignite)·타 없어짐(burn) 확률은 bootStrap 표(blocks/fire_1.21.1.txt).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -25,7 +26,7 @@ public class FireBlock extends BaseFireBlock {
 
     static {
         for (int d = Dir.UP; d <= Dir.EAST; d++) SIDE[d] = B.prop(Dir.NAME[d]);
-        try (var in = FireBlock.class.getClassLoader().getResourceAsStream("blocks/fire_1.21.1.txt");
+        try (var in = FireBlock.class.getClassLoader().getResourceAsStream("blocks/fire_" + GameVersion.RESOURCE_TAG + ".txt");
              var r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
             String line;
             while ((line = r.readLine()) != null) {

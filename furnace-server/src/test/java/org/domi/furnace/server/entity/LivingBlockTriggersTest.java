@@ -3,6 +3,7 @@
 // 바닐라 바닥은 y=-62 돌(서는 높이 -61), 여기 시험 레벨은 서는 높이 -60 이라 y 만 +1 옮겼다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.block.B;
@@ -22,7 +23,7 @@ class LivingBlockTriggersTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static void tick(ChunkLevel level, int n) {

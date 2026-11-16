@@ -2,6 +2,7 @@
 // R1: 다른 region 파일 닫기 실패(drainClosed)가 이 청크 읽기 실패로 번져, 멀쩡한 청크가 "깨진 청크"로 새로 생성된다(백업도 없다).
 package org.domi.furnace.server.world.anvil;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,7 +16,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 class ReviewPr179ReproTest {
 
-    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
 
     /** (0,0) 에 평지 + (1,10,1) 금 블록을 저장한다 — 새로 생성한 평지에는 금 블록이 없다. */
     private static int writeMarkedChunk(Path dir) throws Exception {

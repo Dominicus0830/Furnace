@@ -1,6 +1,7 @@
 // 게임룰 spectatorsGenerateChunks: 꺼져 있으면 관전자의 시야가 청크를 새로 만들게 하지 않는다(바닐라 ChunkMap.skipPlayer) — 이미 로드된 청크만 받는다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -31,7 +32,7 @@ class SpectatorsGenerateChunksTest {
     /** auto = chunks-per-tick=auto(서버 기본값, 준비 안 된 청크는 미리 불러오기를 건다). */
     private static Rig rig(GameMode mode, boolean spectatorsGenerate, boolean auto) {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         var io = Executors.newSingleThreadExecutor();
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2, reg.directBits(), 7, io);
         if (auto) w.configureStreaming(w.spawnChunkRadius(), org.domi.furnace.server.config.Config.CHUNKS_PER_TICK_AUTO);

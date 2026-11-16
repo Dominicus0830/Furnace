@@ -3,6 +3,7 @@
 // 바닐라 데이터가 없는 곳에서도 돌도록 "가짜 바닐라" 루트에 시험용 태그 몇 개만 둔다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
@@ -67,7 +68,7 @@ class DatapackTagsDriveGameplayTest {
         write(pack.resolve("data/custom/tags/block/rope.json"), tag(false, "minecraft:dirt"));
         packs = DataPackManager.start(vanilla, tmp, LevelData.create("world", 1L, true, false, org.domi.furnace.server.world.GameMode.SURVIVAL,
                 false, org.domi.furnace.server.world.Difficulty.EASY, List.of("vanilla"), List.of()),
-                RegistrySet.load("registries/1.21.1.txt"), true, List.of("vanilla"), List.of());
+                RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"), true, List.of("vanilla"), List.of());
     }
 
     @AfterEach
@@ -148,7 +149,7 @@ class DatapackTagsDriveGameplayTest {
         assertFalse(wolf.onClimbable(), "팩을 끄고 /reload 하면 더는 안 매달린다");
     }
 
-    static final org.domi.furnace.server.world.BlockRegistry REG = org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt");
+    static final org.domi.furnace.server.world.BlockRegistry REG = org.domi.furnace.server.world.BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
 
     /** 플레이어가 오르는 길(Region.probe.climbable): 팩이 climbable 에 넣은 돌에 오르고, 팩을 끄고 /reload 하면 못 오른다. */
     @Test

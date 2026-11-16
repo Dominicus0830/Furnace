@@ -4,6 +4,7 @@
 // A05-03: 이 서버보다 새 판으로 저장된 청크는 새로 생성하지도 덮지도 않는다(Paper 와 같이 거부).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import java.io.RandomAccessFile;
 import java.nio.file.Path;
@@ -25,7 +26,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 class A05CorruptChunkRegressionTest {
 
-    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
 
     /** 정상 청크 (0,0) 을 디스크에 쓴다. */
     private static void writeGoodChunk(Path dir) throws Exception {

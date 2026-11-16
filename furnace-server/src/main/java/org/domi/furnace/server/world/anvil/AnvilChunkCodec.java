@@ -7,6 +7,7 @@
 // (Furnace 가 쓴) 빛만 믿고, 바닐라·다른 서버 청크의 빛은 버리고 다시 계산한다(T-012).
 package org.domi.furnace.server.world.anvil;
 
+import org.domi.furnace.api.GameVersion;
 import org.domi.furnace.server.i18n.Lang;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
@@ -30,7 +31,7 @@ import java.util.function.LongSupplier;
 
 public final class AnvilChunkCodec {
 
-    public static final int DATA_VERSION = 3955; // 1.21.1
+    public static final int DATA_VERSION = GameVersion.DATA_VERSION;
     private static final String LEGACY_CHEST_ID = "furnace:chest"; // 초기 Furnace 자체 형식(읽기 호환)
     /** 바닐라 아이템 NBT 에 실을 수 없는 Furnace 컴포넌트 패치 바이트(네트워크 인코딩) — 바닐라는 모르는 키를 무시한다. */
     private static final String FURNACE_COMPONENTS = "furnace:components";

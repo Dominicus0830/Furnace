@@ -1,6 +1,7 @@
 // 플레이어의 entityInside: 용암 가마솥(lavaHurt), 물 가마솥(불 끄기 + 한 단계 줄임), 가루눈(불붙은 플레이어가 녹임), 가마솥 밖은 그대로.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.UUID;
@@ -33,8 +34,8 @@ class RegionPlayerCauldronTest {
     /** (8,-60,8) 칸에 놓고 플레이어가 그 칸 가운데에 선 채로 두 틱을 돌린다(첫 틱은 발행된 위치가 틱 끝에서 적용된다). */
     private static Rig rig(String block, Setup after) throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        ItemRegistry items = ItemRegistry.load("items/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        ItemRegistry items = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
         var io = Executors.newSingleThreadExecutor();
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, sched.regionThreadCount(), 16, 5, 5, reg.directBits(), 7, io);
         w.setRegistries(reg, items);

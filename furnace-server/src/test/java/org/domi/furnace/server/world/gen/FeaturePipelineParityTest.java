@@ -7,6 +7,7 @@
 // 이 테스트는 여전히 유효하다 — center 자신의 decoration이 회귀하지 않았는지 보는 용도로 남겨둔다.
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -51,9 +52,9 @@ class FeaturePipelineParityTest {
     }
 
     private void assertFeatureParity(long seed, int cx, int cz, int maxMismatch) throws Exception {
-        BlockRegistry reg11 = BlockRegistry.load("blocks/1.21.1.txt");
-        Map<Integer, String> oracleIdToName = loadIdToName("/blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry reg11 = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        Map<Integer, String> oracleIdToName = loadIdToName("/blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
 
         NoiseWorldSource source = NoiseWorldSource.overworld(seed, reg11, registries);
         ChunkColumn col = source.generateWithFeatures(cx, cz);
@@ -291,8 +292,8 @@ class FeaturePipelineParityTest {
 
     /** Furnace step 6 feature 순서가 oracle feature_order.txt와 일치하는지 검증. */
     @Test void verifyStep6FeatureOrder() throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         NoiseWorldSource source = NoiseWorldSource.overworld(1234L, reg, registries);
         var fp = reflect(source, "featurePlacer", org.domi.furnace.server.world.gen.feature.FeaturePlacer.class);
         var step6 = fp.sorter().featuresPerStep().get(6);
@@ -327,8 +328,8 @@ class FeaturePipelineParityTest {
     }
 
     @Test void dumpStep9Features() throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         NoiseWorldSource source = NoiseWorldSource.overworld(1234L, reg, registries);
         var fp = reflect(source, "featurePlacer", org.domi.furnace.server.world.gen.feature.FeaturePlacer.class);
         var step9 = fp.sorter().featuresPerStep().get(9);
@@ -420,7 +421,7 @@ class FeaturePipelineParityTest {
             assertNotNull(in, "fixture not found: " + fixtureName);
             fx = in.readAllBytes();
         }
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         int coalId = reg.defaultStateId("minecraft:coal_ore");
         int deepslateCoalId = reg.defaultStateId("minecraft:deepslate_coal_ore");
         System.out.printf("coal_ore=%d deepslate_coal_ore=%d%n", coalId, deepslateCoalId);

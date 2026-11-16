@@ -1,6 +1,7 @@
 // 바이옴의 몹 스폰 설정(MobSpawnSettings): 종류별 목록(가중치·묶음 크기)·스폰 비용(에너지 예산·전하)·동물 생성 확률. biome_spawners-1.21.1.json 에서 읽는다.
 package org.domi.furnace.server.entity.spawn;
 
+import org.domi.furnace.api.GameVersion;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -26,7 +27,7 @@ public final class BiomeSpawns {
     private static final Map<String, Settings> CUSTOM = new java.util.concurrent.ConcurrentHashMap<>();
 
     static {
-        try (var in = BiomeSpawns.class.getClassLoader().getResourceAsStream("entities/biome_spawners-1.21.1.json")) {
+        try (var in = BiomeSpawns.class.getClassLoader().getResourceAsStream("entities/biome_spawners-" + GameVersion.RESOURCE_TAG + ".json")) {
             JsonObject root = JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject();
             for (var e : root.entrySet()) {
                 JsonObject b = e.getValue().getAsJsonObject();

@@ -2,6 +2,7 @@
 // 기대값은 디컴파일(BrushableBlockEntity·BrushItem) 손계산: 3·6번째에 dusted 가 오르고, 10번째에 완료, 드롭은 면 옆 칸 가운데 아래.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -25,7 +26,7 @@ import org.junit.jupiter.api.Test;
 class BrushingTest {
 
     @BeforeAll
-    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt"))); }
+    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"))); }
 
     static final Pos POS = new Pos(1, -60, 1);
 
