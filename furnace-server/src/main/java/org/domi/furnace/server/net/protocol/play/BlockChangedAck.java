@@ -2,9 +2,11 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundBlockChangedAckPacket")
 public record BlockChangedAck(int sequence) implements Packet {
 
     public static final int ID = 0x05; // datagen: play.clientbound.block_changed_ack

@@ -11,9 +11,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.net.io.Types;
 
+@VanillaPort("net.minecraft.core.particles.ParticleTypes")
 public sealed interface ParticleOptions {
 
     /** "minecraft:..." 입자 종류 이름. */

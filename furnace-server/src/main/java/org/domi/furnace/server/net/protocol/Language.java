@@ -8,7 +8,9 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.locale.Language")
 public final class Language implements org.domi.furnace.api.text.Translator {
 
     private static volatile Map<String, String> table;

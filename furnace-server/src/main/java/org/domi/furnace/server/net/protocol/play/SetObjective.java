@@ -4,12 +4,14 @@ package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 import org.domi.furnace.server.scores.NumberFormat;
 import org.domi.furnace.server.scores.Objective;
 import org.domi.furnace.server.scores.ObjectiveCriteria;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundSetObjectivePacket")
 public record SetObjective(String name, int method, Text displayName, ObjectiveCriteria.RenderType renderType, NumberFormat numberFormat)
         implements Packet {
 

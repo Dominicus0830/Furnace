@@ -2,10 +2,12 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
 /** @param lastDeath 마지막 사망 위치 {x,y,z}(차원은 lastDeathDimension), 없으면 null */
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundRespawnPacket")
 public record Respawn(int dimensionType, String dimensionName, long hashedSeed, int gameMode, int previousGameMode,
                       boolean debug, boolean flat, String lastDeathDimension, int[] lastDeath, int portalCooldown, byte dataToKeep) implements Packet {
 

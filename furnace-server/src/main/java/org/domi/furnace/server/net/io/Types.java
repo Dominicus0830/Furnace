@@ -4,8 +4,10 @@ package org.domi.furnace.server.net.io;
 import io.netty.buffer.ByteBuf;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.protocol.ProtocolException;
 
+@VanillaPort({"net.minecraft.network.FriendlyByteBuf", "net.minecraft.network.VarInt", "net.minecraft.network.VarLong"})
 public final class Types {
 
     private static final int SEGMENT_BITS = 0x7F;

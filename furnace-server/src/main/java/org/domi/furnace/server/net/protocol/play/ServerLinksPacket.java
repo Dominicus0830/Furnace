@@ -4,10 +4,12 @@ package org.domi.furnace.server.net.protocol.play;
 import io.netty.buffer.ByteBuf;
 import java.util.List;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
 /** @param inPlay play 단계(0x7B)면 true, 구성 단계(0x10)면 false */
+@VanillaPort("net.minecraft.network.protocol.common.ClientboundServerLinksPacket")
 public record ServerLinksPacket(List<Entry> links, boolean inPlay) implements Packet {
 
     public static final int ID_PLAY = 0x7B;

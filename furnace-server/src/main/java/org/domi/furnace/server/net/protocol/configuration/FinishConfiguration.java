@@ -2,8 +2,10 @@
 package org.domi.furnace.server.net.protocol.configuration;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort("net.minecraft.network.protocol.configuration.ClientboundFinishConfigurationPacket")
 public record FinishConfiguration() implements Packet {
 
     public static final int ID = 0x03;

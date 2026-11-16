@@ -5,10 +5,12 @@ package org.domi.furnace.server.net.protocol.play;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 import org.domi.furnace.server.world.Palette;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundChunksBiomesPacket")
 public record ChunksBiomes(List<Entry> chunks, int biomeDirectBits) implements Packet {
 
     public static final int ID = 0x0E;

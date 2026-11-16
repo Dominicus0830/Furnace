@@ -2,10 +2,12 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
 /** @param source SoundSource 번호(없으면 -1)  @param sound 소리 id 문자열(없으면 null) */
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundStopSoundPacket")
 public record StopSound(int source, String sound) implements Packet {
 
     public static final int ID = 0x6A;

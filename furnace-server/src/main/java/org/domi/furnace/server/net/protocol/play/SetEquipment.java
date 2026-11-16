@@ -3,11 +3,13 @@ package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.EquipmentSlot;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundSetEquipmentPacket")
 public record SetEquipment(int entityId, List<Entry> slots) implements Packet {
 
     public static final int ID = 0x5B;
