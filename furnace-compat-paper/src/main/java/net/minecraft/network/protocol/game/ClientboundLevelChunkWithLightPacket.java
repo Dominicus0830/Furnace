@@ -26,28 +26,17 @@ public class ClientboundLevelChunkWithLightPacket implements Packet<ClientGamePa
     // N2b-6: 청크 보기로 만드는 바닐라 생성자. Furnace 는 청크 본문·빛 바이트를 shim 에서 만들지 않고, 이 패킷을 보낼 때 그 청크를 보고 있는 플레이어에게
     // 서버가 지금 상태의 청크를 통째로 다시 보낸다(Paper World#refreshChunk — 같은 패킷 객체를 여러 플레이어에게 보내도 한 번, PacketDelivery). 그래서
     // getChunkData()·getLightData() 는 null 이다. 빛 비트 집합 인자와 Paper 의 엑스레이 막기 인자는 쓰지 않는다(서버가 늘 전부 보낸다).
-    private transient net.minecraft.world.level.chunk.LevelChunk furnaceChunk;
-    private transient boolean furnaceSent;
+    // 그 청크는 패킷 밖 표(ChunkRefreshPackets)에 둔다 — 패킷 필드는 바닐라 모양 그대로여야 패킷 라이브러리의 필드 순번이 맞는다.
 
     public ClientboundLevelChunkWithLightPacket(net.minecraft.world.level.chunk.LevelChunk chunk, net.minecraft.world.level.lighting.LevelLightEngine lightEngine,
             java.util.BitSet skyChangedLightSectionFilter, java.util.BitSet blockChangedLightSectionFilter) {
         this(chunk.getPos().x, chunk.getPos().z, null, null);
-        this.furnaceChunk = chunk;
+        org.domi.furnace.compat.nms.ChunkRefreshPackets.register(this, chunk);
     }
 
     public ClientboundLevelChunkWithLightPacket(net.minecraft.world.level.chunk.LevelChunk chunk, net.minecraft.world.level.lighting.LevelLightEngine lightEngine,
             java.util.BitSet skyChangedLightSectionFilter, java.util.BitSet blockChangedLightSectionFilter, boolean modifyBlocks) {
         this(chunk, lightEngine, skyChangedLightSectionFilter, blockChangedLightSectionFilter);
-    }
-
-    /** 호환 모듈 전용: 청크 보기로 만든 패킷이면 그 청크(보낼 때 다시 보내기로 바꾼다), 아니면 null. */
-    public net.minecraft.world.level.chunk.LevelChunk furnaceRefreshChunk() { return furnaceChunk; }
-
-    /** 호환 모듈 전용: 처음 부를 때만 참(같은 패킷 객체를 여러 플레이어에게 보내도 다시 보내기는 한 번). */
-    public synchronized boolean furnaceClaimRefresh() {
-        if (furnaceSent) return false;
-        furnaceSent = true;
-        return true;
     }
 
     /** 이 모듈 전용. */

@@ -274,6 +274,22 @@ class NmsFaweSurfaceTest {
     }
 
     @Test
+    void chunkViewPacketRefreshesOncePerPacketObject() {
+        int cx = Math.floorDiv(at.x(), 16), cz = Math.floorDiv(at.z(), 16);
+        var packet = server.onRegion(at, () -> new net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket(
+                level.getChunkSource().getChunkNow(cx, cz), level.getChunkSource().getLightEngine(), null, null, false));
+        assertEquals(cx, packet.getX());
+        assertEquals(cz, packet.getZ());
+        assertNull(packet.getChunkData(), "청크 본문은 shim 에서 만들지 않는다 — 보낼 때 서버가 다시 보낸다");
+        assertTrue(ChunkRefreshPackets.isRefresh(packet));
+        LevelChunk c = ChunkRefreshPackets.claim(packet);
+        assertNotNull(c);
+        assertEquals(cx, c.locX);
+        assertNull(ChunkRefreshPackets.claim(packet), "같은 패킷 객체는 한 번만 다시 보낸다");
+        assertTrue(ChunkRefreshPackets.isRefresh(packet), "보낸 뒤에도 보기 패킷으로 안다(바이트로 바꾸지 않는다)");
+    }
+
+    @Test
     void relightRequestRunsCallbacksWithoutTouchingLight() {
         List<ChunkPos> got = new ArrayList<>();
         int[] done = {-1};
