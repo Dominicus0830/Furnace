@@ -62,7 +62,7 @@ class NmsPlacementTest {
 
     @BeforeAll
     void start() {
-        server = FurnaceTestServer.builder().failFast(false).start();
+        server = FurnaceTestServer.builder().failFast(false).multiWorld(true).start();   // 초고온 차원(네더) 용암 지연 시험에 추가 월드
         Bukkit.setServer(CraftServer.INSTANCE);
         tp = server.join("Placer");
         server.tick(3);
@@ -163,6 +163,13 @@ class NmsPlacementTest {
         assertEquals(30, Fluids.LAVA.getTickDelay(level), "초고온이 아닌 차원");
         assertEquals(30, Fluids.FLOWING_LAVA.getTickDelay(level));
         assertFalse(NmsChunks.bridge().ultraWarm(server.overworld()));
+        // 초고온 차원(네더 차원 종류): 용암 10틱(바닐라 LavaFluid#getTickDelay), 물은 그대로
+        var nether = (CraftWorld) org.bukkit.Bukkit.createWorld(new org.bukkit.WorldCreator("t204nether").environment(org.bukkit.World.Environment.NETHER)
+                .type(org.bukkit.WorldType.FLAT));
+        assertTrue(NmsChunks.bridge().ultraWarm(nether.furnaceHandle()));
+        assertEquals(10, Fluids.LAVA.getTickDelay(nether.getHandle()));
+        assertEquals(10, Fluids.FLOWING_LAVA.getTickDelay(nether.getHandle()));
+        assertEquals(5, Fluids.WATER.getTickDelay(nether.getHandle()));
         Set<String> post = new LinkedHashSet<>();
         for (int id = 0; id < NmsBlocks.stateCount(); id++) {
             BlockState s = Block.stateById(id);
