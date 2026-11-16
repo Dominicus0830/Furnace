@@ -36,6 +36,7 @@ Java 21로 바닥부터 만드는 멀티스레드 Minecraft **1.21.1** 서버. �
 
 ## 작업 기록 위치
 - `docs/feature-parity/` — parity 계획·체크리스트·컨텍스트 노트·바닐라 대조 감사(2026-10-07). 시작 전에 `vanilla-audit-2026-10-07.md`의 "후속 과제"를 읽는다.
+- `docs/ops/version-tags.md` — 깃 태그·버전 규칙(릴리스 `v<MC>-<X.Y.Z>`, 홉 `port/<MC>`, 마일스톤 `ms/<MC>/<슬러그>`, 병합 묶음 `base/<MC>/<날짜>-<N>`). 도구 `tools/release/furnace-tag.sh`.
 - `docs/superpowers/{specs,plans}/` — 마일스톤 설계서와 구현 계획(M0~M4g-d).
 - `LLM-Wiki/wiki/Furnace/` — 작업별 지식 노트. `아키텍처-개요.md`, `레이어-*.md`가 진입점.
 - 새 교훈·함정은 `docs/feature-parity/context-notes.md`에 날짜와 함께 추가한다.
