@@ -31,7 +31,13 @@ public abstract class Level implements LevelAccessor {
 
     private final CraftWorld world;
 
-    protected Level(CraftWorld world) { this.world = java.util.Objects.requireNonNull(world, "world"); }
+    /** 바닐라 Level#isClientSide 필드(FAWE removeBeacon 이 필드로 읽는다). 서버 월드라 늘 거짓이다. */
+    public final boolean isClientSide;
+
+    protected Level(CraftWorld world) {
+        this.world = java.util.Objects.requireNonNull(world, "world");
+        this.isClientSide = false;
+    }
 
     /** CraftBukkit 이 더한 메서드: 이 월드의 Bukkit 객체. */
     public CraftWorld getWorld() { return world; }
@@ -41,7 +47,7 @@ public abstract class Level implements LevelAccessor {
     /** 서버 레지스트리 묶음(H7b, {@link net.minecraft.server.MinecraftServer#registryAccess()} 와 같다). */
     public net.minecraft.core.RegistryAccess registryAccess() { return net.minecraft.core.RegistryAccess.SERVER; }
 
-    public boolean isClientSide() { return false; }
+    public boolean isClientSide() { return isClientSide; }
 
     /** 이 월드의 차원 키(minecraft:overworld 등). */
     public ResourceKey<Level> dimension() { return ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(furnace().dimension())); }

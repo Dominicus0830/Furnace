@@ -513,6 +513,9 @@ class NmsBlockEntityWriteTest {
     @Test
     void beaconRemovalPath() throws Exception {
         BlockPos p = at(2, 0, 1, 1);
+        assertFalse(level.isClientSide);   // FAWE removeBeacon 이 필드로 읽는다(실측에서 빠져 있던 것)
+        assertTrue(NmsSymbols.RUNTIME.hasField("net/minecraft/world/level/Level", "isClientSide", "Z"));   // 플러그인 바이트코드의 GETFIELD 이름 해석(ServerLevel 로 불러도 상위 클래스에서 찾는다)
+        assertTrue(NmsSymbols.RUNTIME.hasField("net/minecraft/server/level/ServerLevel", "isClientSide", "Z"));
         onRun(p, () -> level.setBlock(p, Blocks.BEACON.defaultBlockState(), 3));
         server.tick(1);
         Method listener = LevelChunk.class.getDeclaredMethod("removeGameEventListener", BlockEntity.class, ServerLevel.class);
