@@ -486,7 +486,7 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
                 case SECTION_SET -> b.setSectionStateRawNow(world, cx, op.slot, cz, op.cell, op.id, true);
                 case CONTAINER_SET -> b.setSectionStateRawNow(world, cx, op.slot, cz, op.cell, op.id, false);
                 case BIOME_SET -> b.setSectionBiomeRawNow(world, cx, op.slot, cz, op.cell, op.id);
-                case CHUNK_SET -> b.setBlockStateNow(world, op.x, op.y, op.z, op.id, op.flag);
+                case CHUNK_SET -> b.setBlockStateNow(world, op.x, op.y, op.z, op.id, op.flag, op.extra != Boolean.FALSE);
                 case HM_RAW -> b.setHeightmapRawNow(world, cx, cz, op.type.getSerializationKey(), op.raw);
                 case HM_UPDATE -> b.updateHeightmapNow(world, op.type.getSerializationKey(), (cx << 4) + op.x, op.y, (cz << 4) + op.z, op.id);
                 case UNSAVED -> b.markUnsavedNow(world, cx, cz);
@@ -632,12 +632,17 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
      * 저장 표시까지) + 덧칠 + 그 섹션 개수 필드 ±1. 그 사이 그 섹션이 떼어 내졌으면 false(부른 쪽이 그 섹션에 바닐라로 쓴다).
      */
     boolean chunkSet(LevelChunkSection s, int slot, int x, int y, int z, int id, int oldId, boolean moved) {
+        return chunkSet(s, slot, x, y, z, id, oldId, moved, true);
+    }
+
+    /** Paper setBlockState(…, doPlace) 판(T-204) — doPlace 가 거짓이면 재생에서 놓기 반응을 건너뛴다(줄의 extra = FALSE). */
+    boolean chunkSet(LevelChunkSection s, int slot, int x, int y, int z, int id, int oldId, boolean moved, boolean doPlace) {
         int cell = (y & 15) << 8 | (z & 15) << 4 | (x & 15);
         synchronized (lock) {
             if (s.furnaceChunk() != chunk || s.furnaceIndex() != slot || !s.getStates().furnaceLiveNow()) return false;
             if (dead) return true;
             long q = ++seq;
-            journal.add(new Op(CHUNK_SET, slot, cell, id, x, y, z, moved, null, null, s, q, null));
+            journal.add(new Op(CHUNK_SET, slot, cell, id, x, y, z, moved, null, null, s, q, doPlace ? null : Boolean.FALSE));
             overlayCell(slot, cell, id, q);
             int[] d = LevelChunkSection.furnaceCountDelta(oldId, id);
             s.furnaceAddCountFields(d);

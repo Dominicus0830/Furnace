@@ -234,9 +234,45 @@ final class ChunkInternalsImpl implements ChunkInternals {
 
     @Override
     public int setBlockStateNow(org.domi.furnace.api.world.World world, int x, int y, int z, int stateId, boolean moved) {
+        return setBlockStateNow(world, x, y, z, stateId, moved, true);
+    }
+
+    @Override
+    public int setBlockStateNow(org.domi.furnace.api.world.World world, int x, int y, int z, int stateId, boolean moved, boolean doPlace) {
         Region r = ownedLoaded(world, x >> 4, z >> 4, "LevelChunk#setBlockState");
         RegionLevel lv = r == null || !r.chunkLoaded(new ChunkPos(x >> 4, z >> 4)) ? null : r.level();
-        return lv == null ? -1 : lv.setBlockStateInChunkOnly(new Pos(x, y, z), stateId, moved);
+        return lv == null ? -1 : lv.setBlockStateInChunkOnly(new Pos(x, y, z), stateId, moved, doPlace);
+    }
+
+    private static final String[] EFFECT_NAMES = {"Level#sendBlockUpdated", "ServerChunkCache#blockChanged", "Level#updateNeighborsAt",
+            "Level#updateNeighbourForOutputSignal", "Level#onBlockStateChange", "BlockState#onPlace", "BlockState#handleNeighborChanged",
+            "BlockState#updateNeighbourShapes", "BlockState#updateIndirectNeighbourShapes", "BlockState#triggerEvent", "Block#updateFromNeighbourShapes"};
+
+    /** T-204: 쪼갠 Level.setBlock 조각 — 서버 setBlock 과 같은 코드(ChunkLevel·BlockBehavior·B). */
+    @Override
+    public int blockEffectNow(org.domi.furnace.api.world.World world, int kind, int x, int y, int z, int a, int b, int c, long other) {
+        if (kind < 0 || kind >= EFFECT_NAMES.length) throw new IllegalArgumentException("unknown block effect " + kind);
+        RegionLevel lv = ownedLevel(world, x, z, EFFECT_NAMES[kind]);
+        if (lv == null) return -1;
+        if (kind != EFFECT_BLOCK_CHANGED) checkState(a);
+        if (kind == EFFECT_SEND_BLOCK_UPDATED || kind == EFFECT_POI || kind == EFFECT_ON_PLACE || kind == EFFECT_NEIGHBOR_CHANGED) checkState(b);
+        Pos p = new Pos(x, y, z);
+        var beh = org.domi.furnace.server.block.BlockBehaviors.of(kind == EFFECT_BLOCK_CHANGED ? 0 : a);
+        switch (kind) {
+            case EFFECT_SEND_BLOCK_UPDATED -> lv.sendBlockUpdated(p, a, b);
+            case EFFECT_BLOCK_CHANGED -> lv.sendBlockUpdated(p);
+            case EFFECT_UPDATE_NEIGHBORS -> lv.updateNeighborsAt(p, org.domi.furnace.server.block.B.block(a));
+            case EFFECT_OUTPUT_SIGNAL -> lv.updateNeighbourForOutputSignal(p, org.domi.furnace.server.block.B.block(a));
+            case EFFECT_POI -> lv.poiManager().onBlockStateChange(p, a, b);
+            case EFFECT_ON_PLACE -> beh.onPlace(a, lv, p, b, c != 0);
+            case EFFECT_NEIGHBOR_CHANGED -> beh.neighborChanged(a, lv, p, org.domi.furnace.server.block.B.block(b), Pos.of(other), c != 0);
+            case EFFECT_NEIGHBOUR_SHAPES -> org.domi.furnace.server.block.B.updateNeighbourShapes(a, lv, p, b, c);
+            case EFFECT_INDIRECT_SHAPES -> beh.updateIndirectNeighbourShapes(a, lv, p, b, c);
+            case EFFECT_TRIGGER_EVENT -> { return beh.triggerEvent(a, lv, p, b, c) ? 1 : 0; }
+            case EFFECT_FROM_NEIGHBOUR_SHAPES -> { return org.domi.furnace.server.block.B.updateFromNeighbourShapes(a, lv, p); }
+            default -> throw new IllegalStateException();
+        }
+        return 0;
     }
 
     // ------------------------------------------------------------------ 다른 스레드 읽기(N2b-3)

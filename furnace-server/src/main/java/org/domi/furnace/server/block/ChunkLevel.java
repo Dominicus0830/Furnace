@@ -366,10 +366,7 @@ public abstract class ChunkLevel implements BlockLevel {
         if (old < 0) return false;
         int now = getBlockState(pos);
         if (now == state) {
-            if ((flags & UPDATE_CLIENTS) != 0) {
-                markChanged(pos);
-                updateNavigations(pos, old, state);   // ServerLevel.sendBlockUpdated 의 길찾기 부분
-            }
+            if ((flags & UPDATE_CLIENTS) != 0) sendBlockUpdated(pos, old, state);
             if ((flags & UPDATE_NEIGHBORS) != 0) {
                 blockUpdated(pos, blocks.blockOf(old));
                 if (BlockBehaviors.of(state).hasAnalogOutputSignal(state)) updateNeighbourForOutputSignal(pos, blocks.blockOf(state));
@@ -383,6 +380,15 @@ public abstract class ChunkLevel implements BlockLevel {
             poiManager.onBlockStateChange(pos, old, now);   // 바닐라 onBlockStateChange(server.execute 로 미루지 않고 바로)
         }
         return true;
+    }
+
+    /**
+     * ServerLevel.sendBlockUpdated(pos, old, new, flags): 변경 방송(ServerChunkCache.blockChanged — 청크가 없으면 아무것도) + 길찾기 부분.
+     * setBlock 과 호환 계층의 쪼갠 호출(T-204)이 같이 쓴다.
+     */
+    public void sendBlockUpdated(Pos pos, int old, int now) {
+        if (hasChunkAt(pos)) markChanged(pos);
+        updateNavigations(pos, old, now);
     }
 
     /** ServerLevel.isUpdatingNavigations: 길 다시 찾기 도중 다시 들어오면 바닐라는 오류만 남기고 계속한다. */
@@ -426,14 +432,19 @@ public abstract class ChunkLevel implements BlockLevel {
      * 바닐라 LevelChunk.setBlockState 만(이웃·모양 갱신, 클라이언트 알림, POI 없음) — 호환 계층 NMS shim 용. 높이 밖·로드돼 있지 않음·
      * 바뀌지 않음·onRemove 가 갈아 치움이면 -1, 아니면 이전 상태.
      */
-    public int setBlockStateInChunkOnly(Pos pos, int state, boolean moved) {
+    public int setBlockStateInChunkOnly(Pos pos, int state, boolean moved) { return setBlockStateInChunkOnly(pos, state, moved, true); }
+
+    /** Paper LevelChunk.setBlockState(pos, state, moved, doPlace) — doPlace 가 거짓이면 놓기 반응(onPlace)을 건너뛴다(T-204). */
+    public int setBlockStateInChunkOnly(Pos pos, int state, boolean moved, boolean doPlace) {
         if (isOutsideBuildHeight(pos.y())) return -1;
         ChunkColumn col = chunkAt(pos);
-        return col == null ? -1 : setBlockStateInChunk(col, pos, state, moved);
+        return col == null ? -1 : setBlockStateInChunk(col, pos, state, moved, doPlace);
     }
 
+    private int setBlockStateInChunk(ChunkColumn col, Pos pos, int state, boolean moved) { return setBlockStateInChunk(col, pos, state, moved, true); }
+
     /** LevelChunk.setBlockState — 바뀌지 않았거나 onRemove 가 블록을 갈아 치웠으면 -1, 아니면 이전 상태. */
-    private int setBlockStateInChunk(ChunkColumn col, Pos pos, int state, boolean moved) {
+    private int setBlockStateInChunk(ChunkColumn col, Pos pos, int state, boolean moved, boolean doPlace) {
         int lx = pos.x() & 15, lz = pos.z() & 15;
         int old = col.getBlock(lx, pos.y(), lz);
         if (old == state) return -1;
@@ -446,7 +457,7 @@ public abstract class ChunkLevel implements BlockLevel {
         }
         BlockBehaviors.of(old).onRemove(old, this, pos, state, moved);
         if (blocks.blockOf(col.getBlock(lx, pos.y(), lz)) != blocks.blockOf(state)) return -1;
-        BlockBehaviors.of(state).onPlace(state, this, pos, old, moved);
+        if (doPlace) BlockBehaviors.of(state).onPlace(state, this, pos, old, moved);
         if (info.hasBlockEntity(state)) createBlockEntity(col, pos, state);
         return old;
     }

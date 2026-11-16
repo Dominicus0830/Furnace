@@ -6,7 +6,9 @@ package org.domi.furnace.api.internal;
 public interface BlockStateInternals {
 
     /** {@link Table#flags} 비트. */
-    int CAN_OCCLUDE = 1, SOLID_RENDER = 2, REPLACEABLE = 4, BLOCKS_MOTION = 8, SIGNAL_SOURCE = 16, HAS_BLOCK_ENTITY = 32;
+    int CAN_OCCLUDE = 1, SOLID_RENDER = 2, REPLACEABLE = 4, BLOCKS_MOTION = 8, SIGNAL_SOURCE = 16, HAS_BLOCK_ENTITY = 32,
+            /** 바닐라 hasAnalogOutputSignal(비교기가 읽는 블록, T-204). */
+            ANALOG_OUTPUT = 64;
 
     /**
      * 상태 번호를 인덱스로 하는 표다(배열 길이는 상태 수).

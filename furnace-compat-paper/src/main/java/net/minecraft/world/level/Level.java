@@ -213,6 +213,39 @@ public abstract class Level implements LevelAccessor {
         return setBlock(pos, fluid.createLegacyBlock(), 3 | (moved ? UPDATE_MOVE_BY_PISTON : 0));
     }
 
+    // ------------------------------------------------------------------ 쪼갠 setBlock 조각(T-204 — FAWE NativeAccess 등)
+    // 서버 setBlock 과 같은 코드를 부른다. 원점 칸의 주인 region 스레드면 바로, 다른 스레드는 주인 작업으로(최대 한 틱 늦다 — NmsEffects).
+
+    /** 바닐라 ServerLevel#sendBlockUpdated: 변경 방송(틱 끝에 섹션별로 모아 보낸다) + 충돌 모양이 바뀌었으면 길찾기 다시. flags 는 바닐라도 서버에서 보지 않는다. */
+    public void sendBlockUpdated(BlockPos pos, BlockState oldState, BlockState newState, int flags) {
+        org.domi.furnace.compat.nms.NmsEffects.run(this, pos, org.domi.furnace.compat.nms.NmsEffects.SEND_BLOCK_UPDATED, oldState.furnaceStateId(),
+                newState.furnaceStateId(), 0, 0L, "Level#sendBlockUpdated");
+    }
+
+    /** 바닐라 Level#blockUpdated: 6방향 이웃 갱신(updateNeighborsAt — 플러그인 BlockPhysicsEvent 포함). */
+    public void blockUpdated(BlockPos pos, net.minecraft.world.level.block.Block block) { updateNeighborsAt(pos, block); }
+
+    /** 바닐라 Level#updateNeighborsAt: 서쪽·동쪽·아래·위·북쪽·남쪽 이웃의 neighborChanged(서버 갱신기 — 플러그인 BlockPhysicsEvent 포함). */
+    public void updateNeighborsAt(BlockPos pos, net.minecraft.world.level.block.Block block) {
+        org.domi.furnace.compat.nms.NmsEffects.run(this, pos, org.domi.furnace.compat.nms.NmsEffects.UPDATE_NEIGHBORS, block.defaultBlockState().furnaceStateId(),
+                0, 0, 0L, "Level#updateNeighborsAt");
+    }
+
+    /** 바닐라 Level#updateNeighbourForOutputSignal: 옆(또는 단단한 블록 건너) 비교기에 알린다. */
+    public void updateNeighbourForOutputSignal(BlockPos pos, net.minecraft.world.level.block.Block block) {
+        org.domi.furnace.compat.nms.NmsEffects.run(this, pos, org.domi.furnace.compat.nms.NmsEffects.OUTPUT_SIGNAL, block.defaultBlockState().furnaceStateId(),
+                0, 0, 0L, "Level#updateNeighbourForOutputSignal");
+    }
+
+    /** 바닐라 ServerLevel#onBlockStateChange: POI 종류가 바뀌면 POI 를 지우고 더한다(서버 setBlock 과 같이 미루지 않는다). */
+    public void onBlockStateChange(BlockPos pos, BlockState oldState, BlockState newState) {
+        org.domi.furnace.compat.nms.NmsEffects.run(this, pos, org.domi.furnace.compat.nms.NmsEffects.POI, oldState.furnaceStateId(), newState.furnaceStateId(),
+                0, 0L, "Level#onBlockStateChange");
+    }
+
+    /** CraftBukkit Level#getCraftServer. */
+    public org.bukkit.craftbukkit.CraftServer getCraftServer() { return org.bukkit.craftbukkit.CraftServer.INSTANCE; }
+
     @Override
     public String toString() { return getClass().getSimpleName() + "[" + world.getName() + "]"; }
 }

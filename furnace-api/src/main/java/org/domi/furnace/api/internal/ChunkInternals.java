@@ -103,6 +103,35 @@ public interface ChunkInternals {
      */
     int setBlockStateNow(World world, int x, int y, int z, int stateId, boolean moved);
 
+    /**
+     * 쪼갠 Level.setBlock 조각(T-204, 주인 스레드) — {@link #blockEffectNow} 의 종류. a·b·c·other 의 뜻은 종류마다 다르다(상태는 바닐라 상태 번호, 블록은
+     * 그 블록의 아무 상태 번호):
+     * <ul>
+     *   <li>SEND_BLOCK_UPDATED(a 옛 상태, b 새 상태): ServerLevel.sendBlockUpdated — 변경 방송 + 충돌 모양이 바뀌면 길찾기 다시</li>
+     *   <li>BLOCK_CHANGED: ServerChunkCache.blockChanged — 변경 방송만</li>
+     *   <li>UPDATE_NEIGHBORS(a 블록): Level.blockUpdated·updateNeighborsAt — 갱신기(플러그인 BlockPhysicsEvent 포함)</li>
+     *   <li>OUTPUT_SIGNAL(a 블록): Level.updateNeighbourForOutputSignal</li>
+     *   <li>POI(a 옛 상태, b 새 상태): ServerLevel.onBlockStateChange</li>
+     *   <li>ON_PLACE(a 상태, b 옛 상태, c 피스톤 1/0): BlockState.onPlace</li>
+     *   <li>NEIGHBOR_CHANGED(a 상태, b 원천 블록, c 피스톤, other 원천 칸 BlockPos.asLong): BlockState.handleNeighborChanged — 갱신기를 거치지 않는다</li>
+     *   <li>NEIGHBOUR_SHAPES·INDIRECT_SHAPES(a 상태, b 플래그, c 남은 깊이): BlockState.updateNeighbourShapes·updateIndirectNeighbourShapes</li>
+     *   <li>TRIGGER_EVENT(a 상태, b 종류, c 값): BlockState.triggerEvent — 1/0</li>
+     *   <li>FROM_NEIGHBOUR_SHAPES(a 상태): Block.updateFromNeighbourShapes — 새 상태</li>
+     * </ul>
+     */
+    int EFFECT_SEND_BLOCK_UPDATED = 0, EFFECT_BLOCK_CHANGED = 1, EFFECT_UPDATE_NEIGHBORS = 2, EFFECT_OUTPUT_SIGNAL = 3, EFFECT_POI = 4,
+            EFFECT_ON_PLACE = 5, EFFECT_NEIGHBOR_CHANGED = 6, EFFECT_NEIGHBOUR_SHAPES = 7, EFFECT_INDIRECT_SHAPES = 8, EFFECT_TRIGGER_EVENT = 9,
+            EFFECT_FROM_NEIGHBOUR_SHAPES = 10;
+
+    /**
+     * 그 칸의 주인 스레드에서 쪼갠 Level.setBlock 조각 하나를 서버의 같은 코드로 한다(T-204). 원점 칸의 청크가 로드돼 있지 않으면 -1, 값이 있는 종류는
+     * 그 값, 나머지는 0. 소유 스레드가 아니면 ThreadOwnershipException.
+     */
+    int blockEffectNow(World world, int kind, int x, int y, int z, int a, int b, int c, long other);
+
+    /** Paper LevelChunk.setBlockState(pos, state, moved, doPlace): doPlace 가 거짓이면 놓기 반응(onPlace)을 건너뛴다. 그 밖은 {@link #setBlockStateNow}. */
+    int setBlockStateNow(World world, int x, int y, int z, int stateId, boolean moved, boolean doPlace);
+
     // ------------------------------------------------------------------ 원시 쓰기(N2b-2): 바닐라처럼 그 값만 바꾸고 부수 효과가 없다
 
     /**
