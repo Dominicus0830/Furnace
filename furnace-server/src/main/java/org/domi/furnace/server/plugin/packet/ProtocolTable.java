@@ -26,6 +26,7 @@ import org.domi.furnace.api.world.BlockPos;
 import org.domi.furnace.api.world.SoundCategory;
 import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.net.io.Types;
+import org.domi.furnace.server.net.protocol.PacketIds;
 import org.domi.furnace.server.plugin.ApiConvert;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ItemRegistry;
@@ -543,7 +544,8 @@ public final class ProtocolTable implements ProtocolCodec {
 
     // ------------------------------------------------------------------ 클라이언트→서버
 
-    private static final int MOVE_POS = 0x1A, MOVE_POS_ROT = 0x1B, MOVE_ROT = 0x1C, MOVE_STATUS = 0x1D;
+    private static final int MOVE_POS = PacketIds.PLAY_SERVERBOUND_MOVE_PLAYER_POS, MOVE_POS_ROT = PacketIds.PLAY_SERVERBOUND_MOVE_PLAYER_POS_ROT,
+            MOVE_ROT = PacketIds.PLAY_SERVERBOUND_MOVE_PLAYER_ROT, MOVE_STATUS = PacketIds.PLAY_SERVERBOUND_MOVE_PLAYER_STATUS_ONLY;
 
     private void registerServerbound() {
         codec(Serverbound.CHAT, (id, b) -> {

@@ -17,7 +17,7 @@ class PacketSchemaTest {
     private static final Set<String> PLAY_STATES = Set.of("game", "common", "cookie", "ping");
 
     @Test
-    void loadsEveryPacketOfProtocol767() {
+    void loadsEveryPacketOfTheCurrentProtocol() {
         PacketSchema s = PacketSchema.current();
         assertEquals(767, s.protocol());
         assertEquals(202, s.packets().size(), "1.21.1 패킷 종류 수(핸드셰이크 1 + 상태 2 + 핑 2 + 쿠키 2 + 로그인 9 + 설정 7 + 공통 16 + 게임 163)");

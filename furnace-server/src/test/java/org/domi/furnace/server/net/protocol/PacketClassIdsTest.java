@@ -141,6 +141,9 @@ import org.domi.furnace.server.net.protocol.play.UpdateRecipes;
 import org.domi.furnace.server.net.protocol.play.UpdateTagsPlay;
 import org.domi.furnace.server.net.protocol.status.PongResponse;
 import org.domi.furnace.server.net.protocol.status.StatusResponse;
+import org.domi.furnace.server.net.protocol.play.MoveEntity;
+import org.domi.furnace.server.net.protocol.play.TextOnlyPacket;
+import org.domi.furnace.server.plugin.packet.ProtocolTable;
 import org.domi.furnace.api.packet.PacketDirection;
 import org.domi.furnace.api.packet.schema.ProtocolIds;
 import org.junit.jupiter.api.Test;
@@ -299,7 +302,17 @@ class PacketClassIdsTest {
             row(SetCompression.class, "ID", "login", PacketDirection.CLIENTBOUND, "login_compression"),
             row(LoginPluginRequest.class, "ID", "login", PacketDirection.CLIENTBOUND, "custom_query"),
             row(StatusResponse.class, "ID", "status", PacketDirection.CLIENTBOUND, "status_response"),
-            row(PongResponse.class, "ID", "status", PacketDirection.CLIENTBOUND, "pong_response")
+            row(PongResponse.class, "ID", "status", PacketDirection.CLIENTBOUND, "pong_response"),
+            row(TextOnlyPacket.class, "ACTION_BAR", "game", PacketDirection.CLIENTBOUND, "set_action_bar_text"),
+            row(TextOnlyPacket.class, "TITLE", "game", PacketDirection.CLIENTBOUND, "set_title_text"),
+            row(TextOnlyPacket.class, "SUBTITLE", "game", PacketDirection.CLIENTBOUND, "set_subtitle_text"),
+            row(MoveEntity.class, "POS", "game", PacketDirection.CLIENTBOUND, "move_entity_pos"),
+            row(MoveEntity.class, "POS_ROT", "game", PacketDirection.CLIENTBOUND, "move_entity_pos_rot"),
+            row(MoveEntity.class, "ROT", "game", PacketDirection.CLIENTBOUND, "move_entity_rot"),
+            row(ProtocolTable.class, "MOVE_POS", "game", PacketDirection.SERVERBOUND, "move_player_pos"),
+            row(ProtocolTable.class, "MOVE_POS_ROT", "game", PacketDirection.SERVERBOUND, "move_player_pos_rot"),
+            row(ProtocolTable.class, "MOVE_ROT", "game", PacketDirection.SERVERBOUND, "move_player_rot"),
+            row(ProtocolTable.class, "MOVE_STATUS", "game", PacketDirection.SERVERBOUND, "move_player_status_only")
     );
 
     private static int tableId(Row r) {
@@ -312,7 +325,8 @@ class PacketClassIdsTest {
     @Test
     void everyPacketClassIdEqualsTheTableNumberOfItsWireName() throws Exception {
         for (Row r : ROWS) {
-            Field f = r.type().getField(r.field());
+            Field f = r.type().getDeclaredField(r.field());
+            f.setAccessible(true);
             assertEquals(tableId(r), f.getInt(null), r.type().getSimpleName() + "." + r.field() + " = " + r.protocol() + "/" + r.direction() + "/" + r.wireName());
         }
     }
