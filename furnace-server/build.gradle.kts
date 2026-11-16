@@ -34,6 +34,68 @@ dependencies {
     testImplementation("org.junit.platform:junit-platform-launcher")   // NoRetryFailureListener(TestExecutionListener)가 컴파일에 쓴다
 }
 
+// V-02: gradle/state-ids.spec + blocks/definitions_<tag>.txt → StateIds(컴파일 시간 상수). build/generated 에만 생기고 커밋하지 않는다.
+// 블록 상태 번호는 판마다 밀리므로 서버 코드는 숫자를 직접 쓰지 않고 이 상수를 쓴다(tools/ci/check-raw-state-ids.py 가 강제).
+val stateIdsDir = layout.buildDirectory.dir("generated/stateIds")
+val generateStateIds by tasks.registering {
+    group = "build"
+    description = "gradle/state-ids.spec 과 blocks 정의 표로 StateIds 상수 클래스를 만든다"
+    @Suppress("UNCHECKED_CAST") val mc = rootProject.extra["mc"] as java.util.Properties
+    val tag = mc.getProperty("mc.resourceTag") ?: error("gradle/minecraft.properties 에 mc.resourceTag 가 없다")
+    val specFile = rootProject.file("gradle/state-ids.spec")
+    val defsFile = file("src/main/resources/blocks/definitions_$tag.txt")
+    val outDir = stateIdsDir
+    inputs.file(specFile)
+    inputs.file(defsFile)
+    outputs.dir(outDir)
+    doLast {
+        class Def(val first: Int, val count: Int, val props: List<Pair<String, Int>>)
+        val defs = HashMap<String, Def>()
+        defsFile.readLines(Charsets.UTF_8).forEach { line ->
+            if (line.isBlank() || line.startsWith("#")) return@forEach
+            val p = line.split(" ", limit = 6)
+            val props = if (p[4] == "-") emptyList() else p[4].split(";").map { it.substringBefore('=') to it.substringAfter('=').split("|").size }
+            defs[p[0]] = Def(p[2].toInt(), props.fold(1) { a, b -> a * b.second }, props)
+        }
+        val body = StringBuilder()
+        val seen = HashSet<String>()
+        specFile.readLines(Charsets.UTF_8).forEachIndexed { i, raw ->
+            val line = raw.substringBefore('#').trim()
+            if (line.isEmpty()) return@forEachIndexed
+            val t = line.split(Regex("\\s+"))
+            fun bad(msg: String): Nothing = error("state-ids.spec:${i + 1}: $msg — $raw")
+            if (t.size < 3) bad("이름 종류 블록 이 필요하다")
+            val name = t[0]
+            if (!seen.add(name)) bad("이름이 겹친다")
+            val d = defs[t[2]] ?: bad("정의 표에 없는 블록")
+            var rest = t.drop(3)
+            var delta = 0
+            if (rest.isNotEmpty() && Regex("[+-]\\d+").matches(rest.last())) { delta = rest.last().toInt(); rest = rest.dropLast(1) }
+            val base = when (t[1]) {
+                "first" -> d.first
+                "last" -> d.first + d.count - 1
+                "count" -> d.count
+                "stride" -> {
+                    val prop = rest.singleOrNull() ?: bad("stride 는 속성 이름 하나가 필요하다")
+                    val at = d.props.indexOfFirst { it.first == prop }
+                    if (at < 0) bad("그 블록에 없는 속성")
+                    d.props.drop(at + 1).fold(1) { a, b -> a * b.second }
+                }
+                else -> bad("알 수 없는 종류")
+            }
+            body.append("    public static final int ").append(name).append(" = ").append(base + delta).append(";\n")
+        }
+        val src = "// 자동 생성 — gradle/state-ids.spec 과 blocks/definitions_$tag.txt 에서 만든다(generateStateIds). 손으로 고치지 않는다.\n" +
+            "package org.domi.furnace.server.world;\n\n" +
+            "/** 코드가 이름으로 부르는 블록 상태 번호. 모든 칸이 컴파일 시간 상수라 쓰는 자리에 값이 그대로 들어간다. */\n" +
+            "public final class StateIds {\n    private StateIds() {}\n\n" + body + "}\n"
+        val f = outDir.get().file("org/domi/furnace/server/world/StateIds.java").asFile
+        f.parentFile.mkdirs()
+        f.writeText(src)
+    }
+}
+sourceSets.main { java.srcDir(generateStateIds.map { stateIdsDir.get() }) }
+
 application {
     mainClass = "org.domi.furnace.server.FurnaceMain"
     applicationDefaultJvmArgs = listOf("-Xmx6G")

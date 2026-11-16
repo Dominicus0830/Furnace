@@ -36,8 +36,8 @@ class ChunkFieldCensusTest {
     private static final Map<String, Kind> COLUMN = new TreeMap<>(Map.ofEntries(
         // 상수·정적 표
         e("SECTION_COUNT", Kind.FIXED), e("MIN_Y", Kind.FIXED), e("MAX_Y", Kind.FIXED), e("HEIGHTMAP_BITS", Kind.FIXED),
-        e("DEFAULT_BIOME_DIRECT_BITS", Kind.FIXED), e("UNSET_HEIGHT", Kind.FIXED), e("CAVE_AIR_STATE", Kind.FIXED),
-        e("VOID_AIR_STATE", Kind.FIXED), e("HAS_BE", Kind.FIXED), e("TOP_MB_NO_LEAVES", Kind.FIXED), e("TOP_MB", Kind.FIXED),
+        e("DEFAULT_BIOME_DIRECT_BITS", Kind.FIXED), e("UNSET_HEIGHT", Kind.FIXED),
+        e("HAS_BE", Kind.FIXED), e("TOP_MB_NO_LEAVES", Kind.FIXED), e("TOP_MB", Kind.FIXED),
         e("TOP_OCEAN_FLOOR", Kind.FIXED), e("TOP_WORLD_SURFACE", Kind.FIXED),
         e("WS", Kind.FIXED), e("OF", Kind.FIXED), e("MB", Kind.FIXED), e("MBNL", Kind.FIXED), e("leavesTable", Kind.FIXED), e("motionBlockingTable", Kind.FIXED),
         e("blocksMotionTable", Kind.FIXED), e("hasFluidTable", Kind.FIXED), e("fluidRegistry", Kind.FIXED),
@@ -75,7 +75,7 @@ class ChunkFieldCensusTest {
         e("entitiesLoaded", Kind.UNRELATED), e("pendingEntityLoad", Kind.UNRELATED), e("loadToken", Kind.UNRELATED)));
 
     private static final Map<String, Kind> SECTION = new TreeMap<>(Map.ofEntries(
-        e("AIR", Kind.FIXED), e("VOID_AIR", Kind.FIXED), e("CAVE_AIR", Kind.FIXED), e("DEFAULT_DIRECT_BITS", Kind.FIXED),
+        e("AIR", Kind.FIXED), e("DEFAULT_DIRECT_BITS", Kind.FIXED),
         e("DEFAULT_BIOME_DIRECT_BITS", Kind.FIXED), e("randomTicking", Kind.FIXED), e("fluidPresent", Kind.FIXED), e("fluidLava", Kind.FIXED),
         e("blocks", Kind.CONTENT), e("biomes", Kind.CONTENT),
         // 개수·평평한 사본은 블록에서 파생 — 들여오기가 다시 센다(nonAirCount 는 바닐라 개수와 다른 Furnace 정의다, VanillaSectionOracleTest)

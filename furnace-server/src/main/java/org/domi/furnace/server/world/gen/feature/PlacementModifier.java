@@ -1,5 +1,6 @@
 package org.domi.furnace.server.world.gen.feature;
 
+import org.domi.furnace.server.world.StateIds;
 import java.util.Set;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -49,7 +50,7 @@ public sealed interface PlacementModifier
      * 아래로 i 번째 "빈칸 위 바닥"(공기·물·용암 아래의 비어있지 않은·기반암 아닌 블록) 을 찾는다. 한 층에서 하나도 못 찾으면 끝. 목록은 즉시 만든다.
      */
     record CountOnEveryLayerPlacement(TreeIntProvider count) implements PlacementModifier {
-        private static final int WATER_MIN = 80, WATER_MAX = 95, LAVA_MIN = 96, LAVA_MAX = 111, BEDROCK = 79;   // 1.21.1 state id
+        private static final int WATER_MIN = StateIds.WATER_FIRST, WATER_MAX = StateIds.WATER_LAST, LAVA_MIN = StateIds.LAVA_FIRST, LAVA_MAX = StateIds.LAVA_LAST, BEDROCK = StateIds.BEDROCK;
         @Override
         public Stream<BlockPos> filter(FeatureWorldView view, WorldgenRandom random, BlockPos pos) {
             java.util.List<BlockPos> out = new java.util.ArrayList<>();

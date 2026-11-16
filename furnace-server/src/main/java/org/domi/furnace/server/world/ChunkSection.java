@@ -3,11 +3,10 @@ package org.domi.furnace.server.world;
 
 public final class ChunkSection {
 
-    public static final int AIR = 0;
+    public static final int AIR = StateIds.AIR;
     /** 1.21.1 의 공기 상태(air·void_air·cave_air) — 바닐라 nonEmptyBlockCount 는 isAir 가 아닌 칸만 센다. */
-    private static final int VOID_AIR = 12958, CAVE_AIR = 12959;
 
-    public static boolean isAir(int stateId) { return stateId == AIR || stateId == VOID_AIR || stateId == CAVE_AIR; }
+    public static boolean isAir(int stateId) { return stateId == AIR || stateId == StateIds.VOID_AIR || stateId == StateIds.CAVE_AIR; }
     private static final int DEFAULT_DIRECT_BITS = 15;
     private static final int DEFAULT_BIOME_DIRECT_BITS = 7;
 

@@ -2,6 +2,7 @@
 // 청크를 어디서 얻는지(소유 region 의 로드된 청크)와 변경 방송·저장 표시는 하위 클래스가 정한다.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.server.world.StateIds;
 import org.domi.furnace.server.i18n.Lang;
 import java.util.TreeMap;
 import org.domi.furnace.server.block.entity.BlockEntity;
@@ -2111,7 +2112,7 @@ public abstract class ChunkLevel implements BlockLevel {
         }
 
         public int state(int x, int y, int z) {
-            if (y < minBuildHeight() || y >= maxBuildHeight()) return 12958;   // void_air
+            if (y < minBuildHeight() || y >= maxBuildHeight()) return StateIds.VOID_AIR;
             return col(x >> 4, z >> 4).getBlock(x & 15, y, z & 15);
         }
 

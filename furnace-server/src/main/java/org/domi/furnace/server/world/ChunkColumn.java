@@ -11,8 +11,6 @@ public final class ChunkColumn {
     public static final int HEIGHTMAP_BITS = 9; // worldHeight 384 → 0..384
     public static final int DEFAULT_BIOME_DIRECT_BITS = 7;
     private static final int UNSET_HEIGHT = Integer.MIN_VALUE;
-    private static final int CAVE_AIR_STATE = 12958;
-    private static final int VOID_AIR_STATE = 12959;
 
     /** 차원의 최저 블록 y 와 섹션 수(오버월드 -64/24, 네더·엔드 0/16). */
     private final int minY;
@@ -1266,13 +1264,13 @@ public final class ChunkColumn {
         // first==0 은 "열 전체가 공기"다 — 바닐라 Heightmap.update 처럼 그대로 갱신한다(공허·스카이블록·파낸 열). 미프라임 열은 이후 rebuild 가 덮어쓴다.
         int y = worldY - minY;
         if (y <= first - 2) return;
-        boolean isAir = stateId == ChunkSection.AIR || stateId == CAVE_AIR_STATE || stateId == VOID_AIR_STATE;
+        boolean isAir = stateId == ChunkSection.AIR || stateId == StateIds.VOID_AIR || stateId == StateIds.CAVE_AIR;
         if (!isAir) {
             if (y >= first) surface[index] = y + 1;
         } else if (first - 1 == y) {
             for (int i = y - 1; i >= 0; i--) {
                 int below = getBlock(x, minY + i, z);
-                if (below != ChunkSection.AIR && below != CAVE_AIR_STATE && below != VOID_AIR_STATE) {
+                if (below != ChunkSection.AIR && below != StateIds.VOID_AIR && below != StateIds.CAVE_AIR) {
                     surface[index] = i + 1;
                     return;
                 }
@@ -1289,13 +1287,13 @@ public final class ChunkColumn {
         // first==0 은 "열 전체가 공기"다 — 바닐라 Heightmap.update 처럼 그대로 갱신한다(공허·스카이블록·파낸 열). 미프라임 열은 이후 rebuild 가 덮어쓴다.
         int y = worldY - minY;
         if (y <= first - 2) return;
-        boolean isAir = stateId == ChunkSection.AIR || stateId == CAVE_AIR_STATE || stateId == VOID_AIR_STATE;
+        boolean isAir = stateId == ChunkSection.AIR || stateId == StateIds.VOID_AIR || stateId == StateIds.CAVE_AIR;
         if (!isAir) {
             if (y >= first) surfaceWg[index] = y + 1;
         } else if (first - 1 == y) {
             for (int i = y - 1; i >= 0; i--) {
                 int below = getBlock(x, minY + i, z);
-                if (below != ChunkSection.AIR && below != CAVE_AIR_STATE && below != VOID_AIR_STATE) {
+                if (below != ChunkSection.AIR && below != StateIds.VOID_AIR && below != StateIds.CAVE_AIR) {
                     surfaceWg[index] = i + 1;
                     return;
                 }
