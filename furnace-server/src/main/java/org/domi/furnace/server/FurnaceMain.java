@@ -610,6 +610,7 @@ public final class FurnaceMain {
                     scheduler.close();
                 })
                 .on(ShutdownSequence.Step.CLOSE_PLUGINS, () -> {
+                    core.closeProfileFill();
                     core.plugins().pluginsImpl().closeAll();
                     core.plugins().close();
                 });

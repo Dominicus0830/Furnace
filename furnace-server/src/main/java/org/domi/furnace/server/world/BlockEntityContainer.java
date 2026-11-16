@@ -43,6 +43,7 @@ public class BlockEntityContainer extends OpenableContainer {
         be.items[index] = stack == null ? ItemStack.EMPTY : stack;
         be.onItemSet(index, old == null ? ItemStack.EMPTY : old, be.items[index], writer().level());
         setChanged();
+        if (org.domi.furnace.server.item.ProfileFill.needsFill(be.items[index])) be.startProfileFill(writer().level());   // 확인 중인 머리를 옮겨 넣었다
     }
 
     @Override public ItemStack remove(int index, int amount) {

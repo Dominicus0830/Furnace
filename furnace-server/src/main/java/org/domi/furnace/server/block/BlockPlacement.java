@@ -177,6 +177,7 @@ public final class BlockPlacement {
     public static void updateBlockEntityComponents(BlockLevel level, Pos pos, ItemStack stack) {
         if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.BlockEntity be) {
             be.applyComponentsFromItemStack(stack);
+            be.onAddedToLevel(level);   // 이름만 있는 머리 아이템을 놓으면 블록 엔티티가 스킨을 확인한다(SkullBlockEntity.setOwner)
             be.setChanged(level);
         }
     }
