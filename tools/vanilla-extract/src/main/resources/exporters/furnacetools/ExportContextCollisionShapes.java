@@ -29,7 +29,7 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 
 /**
  * 비계·물·용암의 문맥별 충돌 모양(BlockState.getCollisionShape(level, pos, ctx))을 바닐라 서버 jar 를 직접 돌려 뽑는다.
- * 결과는 ContextCollisionShapeVanillaTest 의 정답표(furnace-server/src/test/resources/collision/context-shapes-<판>.tsv). 인자: <출력>.
+ * 결과는 ContextCollisionShapeVanillaTest 의 정답표(furnace-server/src/test/resources/collision/<판>/context-shapes.tsv). 인자: <출력>.
  */
 public class ExportContextCollisionShapes {
     static FluidState fluidAbove;

@@ -83,7 +83,7 @@ class StoredLightCodecTest {
     @Test
     void vanillaChunk_withLightOn_isRecomputed() throws Exception {
         NbtCompound vanilla;
-        try (InputStream in = StoredLightCodecTest.class.getResourceAsStream("/storage/vanilla-chunk--25.-4.nbt.gz")) {
+        try (InputStream in = StoredLightCodecTest.class.getResourceAsStream("/storage/" + GameVersion.RESOURCE_TAG + "/vanilla-chunk--25.-4.nbt.gz")) {
             vanilla = NbtIo.readGzip(in);
         }
         assertFalse(vanilla.contains(AnvilChunkCodec.LIGHT_VERSION_KEY));

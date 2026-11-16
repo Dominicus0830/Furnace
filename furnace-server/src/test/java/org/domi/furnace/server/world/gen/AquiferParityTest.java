@@ -69,7 +69,7 @@ class AquiferParityTest {
         NoiseWorldSource source = NoiseWorldSource.overworld(seed, reg11, registries);
         ChunkColumn col = source.generate(cx, cz);
 
-        String fixtureName = "/worldgen/fixtures/aquifer_" + seed + "_" + cx + "_" + cz + ".bin";
+        String fixtureName = "/worldgen/fixtures/" + GameVersion.RESOURCE_TAG + "/aquifer_" + seed + "_" + cx + "_" + cz + ".bin";
         byte[] fx;
         try (InputStream in = getClass().getResourceAsStream(fixtureName)) {
             assertNotNull(in, "fixture not found: " + fixtureName);

@@ -35,7 +35,7 @@ class SectionTickingVanillaParityTest {
 
     private static List<Line> golden(int[][] poolOut) throws Exception {
         List<Line> out = new ArrayList<>();
-        try (var in = SectionTickingVanillaParityTest.class.getResourceAsStream("/vanilla/section-ticking-golden.txt")) {
+        try (var in = SectionTickingVanillaParityTest.class.getResourceAsStream("/vanilla/" + GameVersion.RESOURCE_TAG + "/section-ticking-golden.txt")) {
             assertNotNull(in, "정답 열 없음");
             var br = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             for (String l; (l = br.readLine()) != null; ) {

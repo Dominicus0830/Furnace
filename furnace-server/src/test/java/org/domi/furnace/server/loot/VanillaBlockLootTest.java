@@ -64,7 +64,7 @@ class VanillaBlockLootTest {
         List<String> failures = new ArrayList<>();
         int cases = 0;
         try (BufferedReader r = new BufferedReader(new InputStreamReader(
-                VanillaBlockLootTest.class.getResourceAsStream("/loot/blocks-" + GameVersion.RESOURCE_TAG + ".txt"), StandardCharsets.UTF_8))) {
+                VanillaBlockLootTest.class.getResourceAsStream("/loot/" + GameVersion.RESOURCE_TAG + "/blocks.txt"), StandardCharsets.UTF_8))) {
             String line;
             while ((line = r.readLine()) != null) {
                 if (line.startsWith("#") || line.isBlank()) continue;
