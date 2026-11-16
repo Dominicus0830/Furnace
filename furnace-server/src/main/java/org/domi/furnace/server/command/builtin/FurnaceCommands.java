@@ -73,7 +73,7 @@ public final class FurnaceCommands {
         }
         List<Text> out = new ArrayList<>();
         if (found.isEmpty()) {
-            for (String line : Lang.t("cmd.furnace.version-none").split("\n")) out.add(Text.text(line));
+            for (String line : Lang.t("cmd.furnace.version-none").split("\n")) out.add(Text.text(line, NamedTextColor.RED));
             return out;
         }
         for (var p : found) describe(p, out);

@@ -29,6 +29,10 @@ class FurnaceCommandsTest {
             FurnaceCommands.register(core.commands().getDispatcher(), core.plugins());
             assertNotNull(root.getChild("version"));
             assertNotNull(root.getChild("plugins"));
+            // /version <플러그인> 도 /version 처럼 권한 0(누구나)로 쓸 수 있다 — Paper bukkit.command.version 기본값과 같다
+            CommandSource nobody = CommandSource.forProfile(core, "Nobody", 0);
+            assertEquals(true, root.getChild("version").canUse(nobody));
+            assertEquals(true, root.getChild("version").getChild("plugin").canUse(nobody));
             assertEquals("Furnace " + core.plugins().version() + " (Minecraft 1.21.1)", FurnaceCommands.versionLine(core.plugins()));
             assertEquals("Plugins (0)", FurnaceCommands.pluginsLine(java.util.List.of(), core.plugins().plugins()));
             try {
@@ -67,7 +71,9 @@ class FurnaceCommandsTest {
                 "WorldEditX version 1"), plain(FurnaceCommands.pluginInfo(all, "worldedit")));
         // 정확한 이름이 있으면 부분 일치는 건너뛴다
         assertEquals(java.util.List.of("WorldEditX version 1"), plain(FurnaceCommands.pluginInfo(all, "WorldEditX")));
-        assertEquals(java.util.List.of("This server is not running any plugin by that name.", "Use /plugins to get a list of plugins."),
-                plain(FurnaceCommands.pluginInfo(all, "nope")));
+        var none = FurnaceCommands.pluginInfo(all, "nope");
+        assertEquals(java.util.List.of("This server is not running any plugin by that name.", "Use /plugins to get a list of plugins."), plain(none));
+        // Bukkit 은 이 안내를 빨간색으로 보낸다
+        for (var line : none) assertEquals(org.domi.furnace.api.text.NamedTextColor.RED, line.color());
     }
 }
