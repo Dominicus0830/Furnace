@@ -30,6 +30,7 @@ class ProfileSplitTest {
     private static final String PROFILE_NAME = "Bobby";
 
     @TempDir Path tmp;
+    private final org.domi.furnace.api.plugin.FurnacePlugin plugin = new org.domi.furnace.api.plugin.FurnacePlugin() {};
     private FurnaceSchedulerImpl sched;
     private ServerCore core;
     private NetworkServer server;
@@ -40,6 +41,8 @@ class ProfileSplitTest {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         core = TestServers.core(tmp, sched);
         core.world().startTicking();
+        org.domi.furnace.server.TestPluginContexts.init(plugin, core.plugins(), "psplit", tmp);
+        plugin.setEnabled(true);
         ServerLoginContext login = new ServerLoginContext(false, false, false, true, false, false, true, 20, "t",
                 null, null, core.lists(), null, null).core(core)
                 .profileForTest(g -> g.name().equals("Alex") ? new GameProfile(PROFILE_ID, PROFILE_NAME, g.properties()) : g);
@@ -91,9 +94,7 @@ class ProfileSplitTest {
             try (TestClient obs = TestClient.join(port, "Obs")) {
                 ByteBuf seen = obs.await(PlayerInfoUpdate.ID, b -> {
                     b.readUnsignedByte();
-                    int n = Types.readVarInt(b);
-                    for (int i = 0; i < n; i++) if (Types.readUuid(b).equals(entity)) return true; else return false;
-                    return false;
+                    return Types.readVarInt(b) > 0 && Types.readUuid(b).equals(entity);   // 첫 항목이 알렉스인 add_player
                 });
                 assertEquals(PROFILE_NAME, firstEntry(seen)[1], "다른 사람 탭에도 엔티티 UUID + 프로필 이름");
             }
@@ -143,6 +144,60 @@ class ProfileSplitTest {
             var names = files.map(f -> f.getFileName().toString()).toList();
             assertTrue(names.stream().noneMatch(n -> n.startsWith(PROFILE_ID.toString())), "프로필 id 로 파일을 쓰지 않는다: " + names);
         }
+        // 통계 파일도 엔티티 UUID(PlayerStats(worldDir, uuid))
+        Path stats = core.world().worldDir().resolve("stats");
+        for (int i = 0; i < 1000 && !Files.exists(stats.resolve(entity + ".json")); i++) Thread.sleep(10);
+        assertTrue(Files.exists(stats.resolve(entity + ".json")), "통계는 엔티티 UUID 파일");
+        assertFalse(Files.exists(stats.resolve(PROFILE_ID + ".json")), "프로필 id 로 통계 파일을 쓰지 않는다");
+    }
+
+    /** 숨김 규칙(EntityViewRules.TARGETS)은 엔티티 UUID 키 — 숨기면 관찰자 탭에서 엔티티 UUID 로 빠지고, 프로필 id 로는 규칙이 없다. */
+    @Test
+    void hidingIsKeyedByTheEntityUuid() throws Exception {
+        try (TestClient obs = TestClient.join(port, "Obs")) {
+            Player obsP = awaitListed(obs.uuid);
+            try (TestClient alex = TestClient.join(port, "Alex")) {
+                UUID entity = alex.uuid;
+                Player alexP = awaitListed(entity);
+                obs.await(PlayerInfoUpdate.ID, b -> {
+                    b.readUnsignedByte();
+                    return Types.readVarInt(b) > 0 && Types.readUuid(b).equals(entity);
+                });
+                core.plugins().entityViews().hide(plugin, core.plugins().player(obsP), core.plugins().player(alexP));
+                assertFalse(org.domi.furnace.server.entity.view.EntityViewRules.canSee(obsP, entity));
+                assertTrue(org.domi.furnace.server.entity.view.EntityViewRules.canSee(obsP, PROFILE_ID), "프로필 id 에는 규칙이 없다");
+                ByteBuf removed = obs.await(org.domi.furnace.server.net.protocol.play.PlayerInfoRemove.ID);
+                assertEquals(1, Types.readVarInt(removed));
+                assertEquals(entity, Types.readUuid(removed), "관찰자 탭에서 엔티티 UUID 로 뺀다");
+            }
+        }
+    }
+
+    /** 접속 때 권한 레벨 이벤트(placeNewPlayer → sendPlayerPermissionLevel)는 프로필로 본다 — 엔티티 UUID 로 건 op 는 세지 않는다. */
+    @Test
+    void loginPermissionLevelReadsTheProfile() throws Exception {
+        UUID entity = GameProfile.offlineUuid("Alex");
+        core.lists().op(new GameProfile(entity, "Alex"), 4);
+        try (TestClient alex = TestClient.join(port, "Alex")) {
+            assertEquals(24, permissionEvent(alex), "엔티티 UUID 로만 op 하면 레벨 0");
+        }
+        core.lists().deop(new GameProfile(entity, "Alex"));
+        core.lists().op(new GameProfile(PROFILE_ID, PROFILE_NAME), 4);
+        for (int i = 0; i < 500 && core.playerByUuid(entity) != null; i++) Thread.sleep(10);
+        try (TestClient alex = TestClient.join(port, "Alex")) {
+            assertEquals(28, permissionEvent(alex), "프로필 id 로 op 하면 레벨 4");
+        }
+    }
+
+    /** 본인 엔티티에 온 권한 레벨 엔티티 이벤트(24..28) 값. */
+    private static int permissionEvent(TestClient c) throws Exception {
+        ByteBuf e = c.await(org.domi.furnace.server.net.protocol.play.EntityEvent.ID, b -> {
+            b.readInt();
+            int ev = b.readByte();
+            return ev >= 24 && ev <= 28;
+        });
+        e.readInt();
+        return e.readByte();
     }
 
     /** 클라이언트 흉내: 서비스 키로 서명한 프로필 공개키(서명 대상 = 프로필 UUID + 만료 + 공개키 DER). */
