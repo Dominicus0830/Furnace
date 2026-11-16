@@ -8,7 +8,7 @@ import org.domi.furnace.server.world.gen.feature.root.MangroveRootPlacer;
 import org.domi.furnace.server.world.gen.feature.size.FeatureSize;
 import org.domi.furnace.server.world.gen.feature.trunk.TrunkPlacer;
 
-@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.TreeConfiguration")
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.configurations.TreeConfiguration")
 public record TreeConfig(
     int trunkStateId,
     int dirtStateId,

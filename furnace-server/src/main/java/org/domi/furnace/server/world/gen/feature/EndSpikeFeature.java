@@ -10,7 +10,7 @@ import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.gen.carver.LegacyRandom;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
-@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.EndSpikeFeature")
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.SpikeFeature")
 public final class EndSpikeFeature implements ConfiguredFeature {
 
     /** EndSpikeFeature.EndSpike(centerX, centerZ, radius, height, guarded). */
