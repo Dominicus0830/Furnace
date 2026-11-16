@@ -370,4 +370,82 @@ class NmsFaweSurfaceTest {
         assertEquals("@item_stack", net.minecraft.util.datafix.fixes.References.ITEM_STACK.toString());
         assertEquals("saved_data/chunks", net.minecraft.util.datafix.fixes.References.SAVED_DATA_FORCED_CHUNKS.typeName());
     }
+
+    /** T-199: FAWE LegacyMapper 가 1631 → 3955 로 올리는 길(DataFixers.update). 서버 데이터 픽서로 이름·상태·아이템이 바닐라 결과로 올라간다. */
+    @Test
+    void dataFixerUpgradesLegacyNames() {
+        var fixer = net.minecraft.util.datafix.DataFixers.getDataFixer();
+        // NbtOps shim 은 DynamicOps 가 아니다(상수만, T-191) — FAWE 는 그 상수를 그대로 Dynamic 에 넣고, 고치기는 ops 를 건드리지 않고 돌려준다. 시험은 대역 Dynamic 이라 null.
+        com.mojang.serialization.DynamicOps<net.minecraft.nbt.Tag> ops = null;
+        var grass = fixer.update(net.minecraft.util.datafix.fixes.References.BLOCK_NAME,
+                new com.mojang.serialization.Dynamic<net.minecraft.nbt.Tag>(ops, net.minecraft.nbt.StringTag.valueOf("minecraft:grass")), 1631, 3955);
+        assertEquals("minecraft:short_grass", ((net.minecraft.nbt.StringTag) grass.getValue()).getAsString());
+        var dye = fixer.update(net.minecraft.util.datafix.fixes.References.ITEM_NAME,
+                new com.mojang.serialization.Dynamic<net.minecraft.nbt.Tag>(ops, net.minecraft.nbt.StringTag.valueOf("minecraft:rose_red")), 1631, 3955);
+        assertEquals("minecraft:red_dye", ((net.minecraft.nbt.StringTag) dye.getValue()).getAsString());
+        var state = new net.minecraft.nbt.CompoundTag();
+        state.putString("Name", "minecraft:sign");
+        var props = new net.minecraft.nbt.CompoundTag();
+        props.putString("rotation", "7");
+        state.put("Properties", props);
+        var fixed = fixer.update(net.minecraft.util.datafix.fixes.References.BLOCK_STATE,
+                new com.mojang.serialization.Dynamic<net.minecraft.nbt.Tag>(ops, state), 1631, 3955);
+        var out = (net.minecraft.nbt.CompoundTag) fixed.getValue();
+        assertEquals("minecraft:oak_sign", out.getString("Name"));
+        assertEquals("7", out.getCompound("Properties").getString("rotation"));
+        // 같은 판이거나 새 판은 그대로, 못 다루는 종류는 그대로(경고만)
+        var same = new com.mojang.serialization.Dynamic<net.minecraft.nbt.Tag>(ops, net.minecraft.nbt.StringTag.valueOf("minecraft:grass"));
+        assertSame(same, fixer.update(net.minecraft.util.datafix.fixes.References.BLOCK_NAME, same, 3955, 3955));
+        assertSame(same, fixer.update(net.minecraft.util.datafix.fixes.References.CHUNK, same, 1631, 3955));
+    }
+
+    /** 배선 시험(#436 검토): 종류마다 올바른 서버 픽서 조각에 이어졌는지 — 아이템 칸·블록 엔티티·엔티티가 서로 바뀌어 이어지면 결과가 달라진다. */
+    @Test
+    void dataFixerWiresEachTypeToItsOwnFixer() {
+        var fixer = net.minecraft.util.datafix.DataFixers.getDataFixer();
+        com.mojang.serialization.DynamicOps<net.minecraft.nbt.Tag> ops = null;
+        // 아이템 칸(1631): id 가 바뀌고 Count 가 count 로
+        var item = new net.minecraft.nbt.CompoundTag();
+        item.putString("id", "minecraft:rose_red");
+        item.putByte("Count", (byte) 3);
+        var itemOut = (net.minecraft.nbt.CompoundTag) fixer.update(net.minecraft.util.datafix.fixes.References.ITEM_STACK,
+                new com.mojang.serialization.Dynamic<net.minecraft.nbt.Tag>(ops, item), 1631, 3955).getValue();
+        assertEquals("minecraft:red_dye", itemOut.getString("id"));
+        assertEquals(3, itemOut.getInt("count"));
+        // 블록 엔티티(1631): 표지판 글이 앞뒤 글(front_text)로
+        var sign = new net.minecraft.nbt.CompoundTag();
+        sign.putString("id", "minecraft:sign");
+        sign.putString("Text1", "{\"text\":\"a\"}");
+        sign.putString("Text2", "");
+        sign.putString("Text3", "");
+        sign.putString("Text4", "");
+        sign.putInt("x", 1);
+        sign.putInt("y", 2);
+        sign.putInt("z", 3);
+        var signOut = (net.minecraft.nbt.CompoundTag) fixer.update(net.minecraft.util.datafix.fixes.References.BLOCK_ENTITY,
+                new com.mojang.serialization.Dynamic<net.minecraft.nbt.Tag>(ops, sign), 1631, 3955).getValue();
+        assertTrue(signOut.contains("front_text"), "block_entity 는 블록 엔티티 픽서로: " + signOut);
+        assertFalse(signOut.contains("Text1"));
+        // 엔티티(2230): id 가 바뀐다
+        var pig = new net.minecraft.nbt.CompoundTag();
+        pig.putString("id", "minecraft:zombie_pigman");
+        var pigOut = (net.minecraft.nbt.CompoundTag) fixer.update(net.minecraft.util.datafix.fixes.References.ENTITY,
+                new com.mojang.serialization.Dynamic<net.minecraft.nbt.Tag>(ops, pig), 2230, 3955).getValue();
+        assertEquals("minecraft:zombified_piglin", pigOut.getString("id"));
+        // 종류가 바뀌어 이어졌다면 같은 입력의 결과가 달라진다 — 아이템 모양을 블록 엔티티로 올려도 id 는 그대로(블록 엔티티 표에 rose_red 가 없다)
+        var itemAsBe = (net.minecraft.nbt.CompoundTag) fixer.update(net.minecraft.util.datafix.fixes.References.BLOCK_ENTITY,
+                new com.mojang.serialization.Dynamic<net.minecraft.nbt.Tag>(ops, item), 1631, 3955).getValue();
+        assertEquals("minecraft:rose_red", itemAsBe.getString("id"));
+    }
+
+    /** 서버는 자기 판(3955)까지만 올린다 — 다른 목표 판으로 부르면 3955 로 올린 값을 주지 않고 그대로. */
+    @Test
+    void dataFixerOnlyUpgradesToTheServerVersion() {
+        var fixer = net.minecraft.util.datafix.DataFixers.getDataFixer();
+        com.mojang.serialization.DynamicOps<net.minecraft.nbt.Tag> ops = null;
+        var in = new com.mojang.serialization.Dynamic<net.minecraft.nbt.Tag>(ops, net.minecraft.nbt.StringTag.valueOf("minecraft:grass"));
+        assertSame(in, fixer.update(net.minecraft.util.datafix.fixes.References.BLOCK_NAME, in, 1631, 2000));
+        assertSame(in, fixer.update(net.minecraft.util.datafix.fixes.References.BLOCK_NAME, in, 1631, 4000));
+        assertEquals("minecraft:short_grass", ((net.minecraft.nbt.StringTag) fixer.update(net.minecraft.util.datafix.fixes.References.BLOCK_NAME, in, 1631, 3955).getValue()).getAsString());
+    }
 }

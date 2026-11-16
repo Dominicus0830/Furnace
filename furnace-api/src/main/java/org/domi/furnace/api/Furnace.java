@@ -180,6 +180,9 @@ public interface Furnace {
     /** 구조물 템플릿 — 바닐라 구조물 NBT 로 영역을 저장하고 놓고, 가까운 구조물을 찾는다. */
     default org.domi.furnace.api.structure.Structures structures() { throw new UnsupportedOperationException("structures"); }
 
+    /** 옛 판 NBT(블록 상태·이름·아이템·블록 엔티티·엔티티)를 이 서버의 판으로 올리는 데이터 픽서. */
+    default org.domi.furnace.api.nbt.NbtDataFixer dataFixer() { throw new UnsupportedOperationException("dataFixer"); }
+
     /** 실제 엔티티·플레이어의 플레이어별 보이기·숨기기와 변장. */
     default org.domi.furnace.api.entity.EntityViews entityViews() { throw new UnsupportedOperationException("entityViews"); }
 
