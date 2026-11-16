@@ -1559,8 +1559,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             if (t.length >= 5) { iyaw = (float) t[3]; ipitch = (float) t[4]; }
             teleportPlayer(ctx, t[0], t[1], t[2]);
         }));
-        p.connectionTasks(r -> ctx.executor().execute(r));
-        p.profileRefresher(v -> ctx.executor().execute(() -> refreshAfterProfileChange(ctx, v)));   // setPlayerProfile 뒤 본인 화면(Paper refreshPlayer)   // 텔레포트 뒤에 이어 할 일(탈것째 관문을 건넌 승객 편입)
+        p.connectionTasks(r -> ctx.executor().execute(r));   // 텔레포트 뒤에 이어 할 일(탈것째 관문을 건넌 승객 편입)
+        p.profileRefresher(v -> ctx.executor().execute(() -> refreshAfterProfileChange(ctx, v)));   // setPlayerProfile 뒤 본인 화면(Paper refreshPlayer)
         // 차원 이동 도착(목적 region 스레드에서 부른다): 연결 스레드에서 리스폰 패킷부터 보내고 목적 region 에 넣는다.
         // 패킷을 다 보내면 handoff 로 편입을 넘긴다 — 기다리던 목적 region 이 그 자리에서 편입한다(같은 틱 도착, M10).
         p.dimensionChanger(new Player.DimensionChanger() {
@@ -3962,7 +3962,15 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                 vitals.lastDeathDimension(), vitals.lastDeathPos(), v.portalCooldown(),
                 org.domi.furnace.server.net.protocol.play.Respawn.KEEP_ALL));
         send(ctx, vitals.abilitiesPacket());
-        teleportPlayer(ctx, ix, iy, iz);   // internalTeleport(지금 위치·회전): 서버가 확정한 위치(막 보낸 텔레포트면 그 목적지)
+        // internalTeleport(getLocation): 검증을 거친 region 위치·회전. ix 는 보통 region 검증 전의 클라이언트 위치라 쓰지 않는다 — 서버 텔레포트
+        // (스폰 게이트·보정·플러그인 텔레포트)가 확인을 기다리는 동안만 ix 가 서버가 정한 목적지다(막 보낸 텔레포트를 되돌리지 않게).
+        if (correctionTpId == -1 && pendingTeleportId == -1) {
+            iyaw = v.yaw();
+            ipitch = v.pitch();
+            teleportPlayer(ctx, v.x(), v.y(), v.z());
+        } else {
+            teleportPlayer(ctx, ix, iy, iz);
+        }
         if (core != null) send(ctx, org.domi.furnace.server.net.protocol.play.EntityEvent.permissionLevel(p.entityId(), core.profilePermissions(org.domi.furnace.server.ServerCore.profileOf(p))));
         sendLevelInfo(ctx, world);
         synchronized (p.menuLock()) { p.inventoryMenu().sendAllDataToRemote(); }

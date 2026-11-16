@@ -3569,6 +3569,7 @@ public final class Region {
         int eid = t.entityId();
         List<Player> viewers = new ArrayList<>();
         for (Player v : players.values()) {
+            // 접속 탭을 아직 안 받은 관찰자는 빼 둔다(그 접속 탭이 새 프로필로 올린다). 지금은 보류가 region 편입 전에 풀려 닿지 않는 지킴이다.
             if (v.isDisconnected() || v.tabListingHeld()) continue;
             if (v == t || org.domi.furnace.server.entity.view.EntityViewRules.canSee(v, t.uuid())) viewers.add(v);
         }

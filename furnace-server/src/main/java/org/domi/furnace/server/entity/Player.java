@@ -276,20 +276,24 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
             return;
         }
         org.domi.furnace.server.world.RegionBorrow.claim(() -> ownerRegion);   // 전역 빌림 구간이면 이 플레이어의 region 을 빌려 그 자리에서
-        runOnOwner(() -> {
-            if (isDisconnected()) return;
-            var r = ownerRegion;
-            if (r != null && r.ownsPlayer(this)) r.applyProfileChange(this, profile);
-            else swapProfile(profile);   // region 에 붙지 않은 플레이어(시험·단독 레벨) — 보는 사람이 없다
-        });
+        runOnOwner(() -> applyProfileOnOwner(profile));
+    }
+
+    private void applyProfileOnOwner(org.domi.furnace.server.players.GameProfile profile) {
+        if (isDisconnected()) return;
+        var r = ownerRegion;
+        if (r != null && r.ownsPlayer(this)) r.applyProfileChange(this, profile);
+        // 같은 드레인 안에서 앞선 작업이 옮겼다(차원 이동 등): 다음 틱 새 소유 region 에서(ownerTasks 에 다시 넣으면 같은 드레인이 곧바로 또 꺼낸다)
+        else if (r != null) apiTasks.schedule(() -> applyProfileOnOwner(profile), null, 1, 0);
+        else swapProfile(profile);   // region 에 붙지 않은 플레이어(시험·단독 레벨) — 보는 사람이 없다
     }
 
     /**
      * 본인 화면 갱신(Paper refreshPlayer)에 쓸, 소유 스레드에서 뜬 값: 관문 대기, 엔티티 데이터 전부(refreshEntityData),
-     * 속성(updateScaledHealth: syncable 속성에서 최대 체력을 빼고 수정자 없는 최대 체력 값을 끝에 붙인 것). 위치는 연결 쪽의 서버 확정 위치를 쓴다
-     * (막 보낸 텔레포트가 region 에 아직 안 닿았어도 그 목적지 — Paper 는 텔레포트가 엔티티 위치를 바로 바꾼다).
+     * 속성(updateScaledHealth: syncable 속성에서 최대 체력을 빼고 수정자 없는 최대 체력 값을 끝에 붙인 것), 위치·회전(검증을 거친 region 위치 —
+     * Paper internalTeleport 의 getLocation). 연결 쪽은 서버 텔레포트가 확인을 기다리는 중이면 그 목적지를 대신 쓴다.
      */
-    public record ProfileRefresh(int portalCooldown,
+    public record ProfileRefresh(double x, double y, double z, float yaw, float pitch, int portalCooldown,
                                  org.domi.furnace.server.net.protocol.play.UpdateAttributes attributes,
                                  org.domi.furnace.server.net.protocol.play.SetEntityData entityData) {}
 
@@ -308,7 +312,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         var maxHealth = new org.domi.furnace.server.attribute.AttributeInstance(org.domi.furnace.server.attribute.Attribute.MAX_HEALTH, () -> {});
         maxHealth.setBaseValue(vitals.maxHealth());   // CraftPlayer.injectScaledMaxHealth(체력 비율 끔): getMaxHealth, 수정자 없음
         attrs.add(maxHealth);
-        r.accept(new ProfileRefresh(portalCooldown,
+        r.accept(new ProfileRefresh(x, y, z, yaw, pitch, portalCooldown,
                 new org.domi.furnace.server.net.protocol.play.UpdateAttributes(entityId, java.util.List.copyOf(attrs)), allEntityData()));
     }
 
@@ -2065,6 +2069,9 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public void moveAnchor(MoveSample m) { moveAnchor = m; }
 
     public MoveSample pollMove() { return moves.poll(); }
+
+    /** 연결이 넣었지만 region 이 아직 처리하지 않은 이동 샘플이 있는가(어느 스레드에서나, 시험·진단용). */
+    public boolean movesPending() { return !moves.isEmpty(); }
 
     /** 이동 대기열을 비운다. 서버가 위치를 정하는 텔레포트의 첫 단계라, 검증이 정한 되돌림 대기(moveRejectHold)도 여기서 푼다. */
     public void clearMoves() {

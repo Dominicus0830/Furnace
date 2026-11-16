@@ -67,7 +67,7 @@ class ProfileChangeTest {
     @BeforeEach
     void setUp() throws Exception {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        core = TestServers.core(tmp, sched);
+        core = TestServers.core(tmp, sched, 2);   // region 작업 스레드 둘 — 한 region 을 붙잡아도 다른 region 이 돈다(퇴장 경합 시험)
         core.world().startTicking();
         org.domi.furnace.server.TestPluginContexts.init(plugin, core.plugins(), "pchange", tmp);
         plugin.setEnabled(true);
@@ -215,6 +215,15 @@ class ProfileChangeTest {
             Player alexP = awaitListed(alex.uuid);
             int eid = alexP.entityId();
             awaitSpawned(bob, eid);
+            // 최대 체력에 수정자를 걸어 둔다 — updateScaledHealth 가 그것을 수정자 없는 값으로 바꿔 끝에 붙이는지 가른다. op 4 는 권한 이벤트 값
+            var maxHealthAttr = org.domi.furnace.server.attribute.Attribute.MAX_HEALTH;
+            java.util.concurrent.CompletableFuture<Void> buffed = new java.util.concurrent.CompletableFuture<>();
+            alexP.runOnOwner(() -> {
+                alexP.attributes().get(maxHealthAttr).addOrReplaceModifier(new org.domi.furnace.server.attribute.AttributeModifier("furnace:profile_test", 4.0, 0));
+                buffed.complete(null);
+            });
+            buffed.get(5, java.util.concurrent.TimeUnit.SECONDS);
+            core.lists().op(new org.domi.furnace.server.players.GameProfile(alex.uuid, "Alex"), 4);
             readWhile(alex, fr -> false, 300);   // 접속 직후 몰린 것을 비운다
             float health = alexP.vitals().health();
 
@@ -240,10 +249,38 @@ class ProfileChangeTest {
                     SetExperience.ID), ids, "Paper refreshPlayer 순서");
             Frame respawn = af.get(start);
             assertEquals(3, respawn.body()[respawn.body().length - 1], "KEEP_ALL_DATA");
+            ByteBuf perm = af.get(start + 3).buf();
+            assertEquals(eid, perm.readInt());
+            assertEquals(24 + 4, perm.readByte(), "권한 레벨 엔티티 이벤트(24+레벨, 프로필 op 4)");
+            // updateScaledHealth: syncable 속성 가운데 최대 체력은 한 번, 맨 끝에, 수정자 없이 수정자 반영 값으로
+            ByteBuf at = af.get(start + 11).buf();
+            assertEquals(eid, Types.readVarInt(at));
+            int n = Types.readVarInt(at);
+            List<int[]> rows = new ArrayList<>();   // {속성 id, 수정자 수}
+            double lastBase = Double.NaN;
+            for (int i = 0; i < n; i++) {
+                int id = Types.readVarInt(at);
+                lastBase = at.readDouble();
+                int mods = Types.readVarInt(at);
+                for (int k = 0; k < mods; k++) { Types.readString(at, 32767); at.readDouble(); at.readByte(); }
+                rows.add(new int[] {id, mods});
+            }
+            assertEquals(1, rows.stream().filter(r -> r[0] == maxHealthAttr.id()).count(), "최대 체력은 한 번");
+            assertEquals(maxHealthAttr.id(), rows.get(n - 1)[0], "최대 체력은 맨 끝");
+            assertEquals(0, rows.get(n - 1)[1], "수정자 없이");
+            assertEquals(24.0, lastBase, 1e-9, "값은 수정자를 반영한 최대 체력(20+4)");
             Frame data = af.get(start + 13);
             ByteBuf d = data.buf();
             assertEquals(eid, Types.readVarInt(d));
             assertEquals(0, d.readUnsignedByte(), "엔티티 데이터 전부(0번부터)");
+            assertEquals(java.util.stream.IntStream.rangeClosed(0, 20).boxed().toList(),
+                    alexP.allEntityData().items().stream().map(SetEntityData.Item::index).toList(), "refreshEntityData 는 0..20 의 21 항목(packAll)");
+            ByteBuf expected = io.netty.buffer.Unpooled.buffer();
+            alexP.allEntityData().write(expected);
+            byte[] exp = new byte[expected.readableBytes()];
+            expected.readBytes(exp);
+            // 값(체력 회복 등)은 그사이 바뀔 수 있어 길이만 대조한다 — 항목이 빠지거나 늘면 길이가 달라진다
+            assertEquals(exp.length, data.body().length, "보낸 엔티티 데이터가 그 21 항목");
             assertEquals(alexP.vitals().health(), health, "체력은 그대로(리스폰 초기화 없음)");
             assertTrue(respawns.isEmpty(), "PlayerRespawnEvent 를 부르지 않는다");
             assertEquals("Alex2", alexP.name());
@@ -402,7 +439,10 @@ class ProfileChangeTest {
         return fr.size();
     }
 
-    /** 바꾸자마자 나가면: 다른 region 관찰자가 세대 차이를 보기 전에 퇴장해도 남는 항목 없이 엔티티 UUID 로 빠진다. */
+    /**
+     * 바꾸자마자 나가면: 다른 region 관찰자(Bob)의 region 을 붙잡아 두어 세대 차이를 보기 전에 Alex 가 바꾸고 퇴장까지 끝낸다. 풀린 Bob 은
+     * 새 프로필 항목을 한 번도 올리지 않고 엔티티 UUID 로 한 번만 뺀다.
+     */
     @Test
     void quittingRightAfterTheChangeLeavesNoEntryBehind() throws Exception {
         try (TestClient bob = TestClient.join(port, "Bob")) {
@@ -411,30 +451,88 @@ class ProfileChangeTest {
             bobP.runOnOwner(() -> bobP.teleportTo(4000.5, 120, 4000.5));
             UUID entity;
             int eid;
-            try (TestClient alex = TestClient.join(port, "Alex")) {
-                entity = alex.uuid;
-                Player alexP = awaitListed(alex.uuid);
-                awaitApart(bobP, alexP);
-                eid = alexP.entityId();
-                change(alexP, entity, "Gone", List.of());
+            java.util.concurrent.CountDownLatch held = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+            try {
+                try (TestClient alex = TestClient.join(port, "Alex")) {
+                    entity = alex.uuid;
+                    Player alexP = awaitListed(alex.uuid);
+                    awaitApart(bobP, alexP);
+                    eid = alexP.entityId();
+                    readWhile(bob, fr -> fr.stream().anyMatch(f -> added(f).stream().anyMatch(x -> x.uuid().equals(entity))), 5_000);
+                    bobP.runOnOwner(() -> {
+                        held.countDown();
+                        try {
+                            release.await(10, java.util.concurrent.TimeUnit.SECONDS);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                    });
+                    assertTrue(held.await(5, java.util.concurrent.TimeUnit.SECONDS), "Bob 의 region 을 붙잡았다");
+                    change(alexP, entity, "Gone", List.of());
+                    for (int i = 0; i < 500 && !"Gone".equals(alexP.name()); i++) Thread.sleep(10);
+                    assertEquals("Gone", alexP.name(), "Alex 의 region 에서 바뀌었다");
+                }
+                for (int i = 0; i < 1000 && core.playerByUuid(entity) != null; i++) Thread.sleep(10);
+                assertNull(core.playerByUuid(entity), "Bob 이 보기 전에 퇴장까지 끝났다");
+            } finally {
+                release.countDown();
             }
-            List<Frame> bf = readWhile(bob, fr -> fr.stream().anyMatch(f -> removedUuids(f).contains(entity))
-                    && fr.subList(lastRemove(fr, entity), fr.size()).stream().noneMatch(f -> added(f).stream().anyMatch(a -> a.uuid().equals(entity))), 5_000);
+            List<Frame> bf = readWhile(bob, fr -> fr.stream().anyMatch(f -> removedUuids(f).contains(entity)), 5_000);
             bf.addAll(readWhile(bob, fr -> false, 500));
             List<String> seen = about(bf, eid, entity);
-            assertEquals("info_remove " + entity, seen.get(seen.size() - 1), "마지막은 퇴장 Remove — 그 뒤에 다시 올리지 않는다: " + seen);
-            assertNull(core.playerByUuid(entity));
+            assertEquals(List.of("info_remove " + entity), seen, "새 프로필로 다시 올리지 않고 엔티티 UUID 로 한 번만 뺀다");
         }
     }
 
-    private static int lastRemove(List<Frame> fr, UUID who) {
-        for (int i = fr.size() - 1; i >= 0; i--) if (removedUuids(fr.get(i)).contains(who)) return i;
-        return fr.size();
+    /**
+     * 본인 갱신의 위치(internalTeleport)는 region 이 검증한 위치다: 확인을 마친 상태에서 연결이 받아 두고 region 이 아직 검증하지 않은
+     * 이동 패킷이 있어도 그 자리로 확정하지 않는다(Paper getLocation, 네트워크 규칙 3).
+     */
+    @Test
+    void theRefreshTeleportUsesTheValidatedPositionNotAPendingMove() throws Exception {
+        try (TestClient alex = TestClient.join(port, "Alex")) {
+            Player alexP = awaitListed(alex.uuid);
+            awaitSpawnGate(alex);
+            readWhile(alex, fr -> false, 300);
+            double x0 = alexP.x(), y0 = alexP.y(), z0 = alexP.z();
+            java.util.concurrent.CountDownLatch held = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.CountDownLatch moveSent = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.CompletableFuture<Boolean> sawPending = new java.util.concurrent.CompletableFuture<>();
+            alexP.runOnOwner(() -> {   // 이번 틱의 이동 처리는 끝났다 — 이 안에서 받은 이동은 다음 틱까지 검증 대기
+                held.countDown();
+                try {
+                    moveSent.await(5, java.util.concurrent.TimeUnit.SECONDS);
+                    boolean pending = false;
+                    for (int i = 0; i < 200 && !(pending = alexP.movesPending()); i++) Thread.sleep(10);
+                    sawPending.complete(pending);
+                    change(alexP, alex.uuid, "Alex2", List.of());   // 소유 스레드 — 그 자리에서 적용
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            assertTrue(held.await(5, java.util.concurrent.TimeUnit.SECONDS));
+            alex.write(0x1A, b -> { b.writeDouble(x0 + 0.3); b.writeDouble(y0); b.writeDouble(z0); b.writeBoolean(true); });   // move_player_pos
+            moveSent.countDown();
+            assertTrue(sawPending.get(5, java.util.concurrent.TimeUnit.SECONDS), "연결이 받은 이동이 검증 대기 중이었다");
+            List<Frame> af = readWhile(alex, fr -> fr.stream().anyMatch(f -> f.id() == SetExperience.ID)
+                    && fr.stream().anyMatch(f -> f.id() == Respawn.ID), 5_000);
+            int respawn = -1;
+            for (int i = 0; i < af.size(); i++) if (af.get(i).id() == Respawn.ID) respawn = i;
+            assertTrue(respawn >= 0, "본인 갱신을 받았다");
+            ByteBuf pos = af.stream().skip(respawn).filter(f -> f.id() == SyncPlayerPosition.ID).findFirst().orElseThrow().buf();
+            assertEquals(x0, pos.readDouble(), 1e-9, "검증 전 이동(x0+0.3)이 아니라 region 위치");
+            assertEquals(y0, pos.readDouble(), 1e-9);
+            assertEquals(z0, pos.readDouble(), 1e-9);
+        }
     }
 
-    /** region 을 옮기는 사이에 부르면: 작업이 플레이어를 따라가 새 region 에서 한 번 적용된다. */
+    /**
+     * 막 보낸 텔레포트(확인 전)가 있을 때 바꾸면: 본인 갱신 위치는 그 목적지(되돌리지 않는다). 프로필 작업은 옛 region 에서 돌고, 플레이어는
+     * 그 뒤 새 region 으로 옮겨 간다.
+     */
     @Test
-    void aChangeDuringARegionMoveFollowsThePlayer() throws Exception {
+    void aChangeRightAfterATeleportKeepsTheTeleportDestination() throws Exception {
         try (TestClient alex = TestClient.join(port, "Alex")) {
             Player alexP = awaitListed(alex.uuid);
             var before = alexP.ownerRegion;

@@ -67,9 +67,9 @@ public final class EntityViewsImpl implements EntityViews {
         var v = viewer(viewer);
         Target t = target(target);
         if (t.uuid.equals(v.uuid())) return;
-        boolean before = EntityViewRules.canSee(v, t.uuid);
-        refresh(EntityViewRules.hide(plugin, v, t.uuid, t.tasks, t.player != null), v, false);
-        if (before && !EntityViewRules.canSee(v, t.uuid)) fireHide(viewer, target);   // Bukkit untrackAndHideEntity
+        Change c = EntityViewRules.hide(plugin, v, t.uuid, t.tasks, t.player != null);
+        refresh(c, v, false);
+        if (c.hidFrom(v)) fireHide(viewer, target);   // Bukkit untrackAndHideEntity
     }
 
     @Override
@@ -78,9 +78,9 @@ public final class EntityViewsImpl implements EntityViews {
         var v = viewer(viewer);
         Target t = target(target);
         if (t.uuid.equals(v.uuid())) return;
-        boolean before = EntityViewRules.canSee(v, t.uuid);
-        refresh(EntityViewRules.show(plugin, v, t.uuid, t.tasks, t.player != null), v, false);
-        if (!before && EntityViewRules.canSee(v, t.uuid)) fireShow(viewer, target);   // Bukkit trackAndShowEntity
+        Change c = EntityViewRules.show(plugin, v, t.uuid, t.tasks, t.player != null);
+        refresh(c, v, false);
+        if (c.shownTo(v)) fireShow(viewer, target);   // Bukkit trackAndShowEntity
     }
 
     /**
@@ -114,16 +114,13 @@ public final class EntityViewsImpl implements EntityViews {
         var bus = host.eventsImpl();
         boolean listen = bus.hasSubscribers(org.domi.furnace.api.event.player.PlayerHideEntityEvent.class)
                 || bus.hasSubscribers(org.domi.furnace.api.event.player.PlayerShowEntityEvent.class);
-        List<org.domi.furnace.server.entity.Player> online = listen ? host.core().players() : List.of();
-        boolean[] before = new boolean[online.size()];
-        for (int i = 0; i < before.length; i++) before[i] = EntityViewRules.canSee(online.get(i), t.uuid);
-        refresh(EntityViewRules.setHiddenByDefault(plugin, t.uuid, !visible, t.tasks, t.player != null), null, false);
-        for (int i = 0; i < before.length; i++) {   // CraftEntity.setVisibleByDefault: 접속자마다 resetAndHide/resetAndShow
-            var v = online.get(i);
+        Change c = EntityViewRules.setHiddenByDefault(plugin, t.uuid, !visible, t.tasks, t.player != null);
+        refresh(c, null, false);
+        if (!listen || !c.changed()) return;
+        for (var v : host.core().players()) {   // CraftEntity.setVisibleByDefault: 접속자마다 resetAndHide/resetAndShow
             if (v.uuid().equals(t.uuid) || v.isDisconnected()) continue;
-            boolean after = EntityViewRules.canSee(v, t.uuid);
-            if (before[i] && !after) fireHide(host.player(v), target);
-            else if (!before[i] && after) fireShow(host.player(v), target);
+            if (c.hidFrom(v)) fireHide(host.player(v), target);
+            else if (c.shownTo(v)) fireShow(host.player(v), target);
         }
     }
 
