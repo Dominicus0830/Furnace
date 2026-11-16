@@ -280,6 +280,40 @@ class RelightRegionTest {
         });
     }
 
+    /** 틱 예산을 1 ns 로 — 틱마다 첫 일 하나만 하고 나머지는 모두 다음 틱으로 미뤄도 끝나고, 3×3 빛 = 새로 켠 값(틱 예산 미루기 길). */
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void tinyTickBudgetStillCompletes(boolean async) throws Exception {
+        withWorld(async, (w, rz) -> {
+            w.relight().tickBudgetForTest(1);
+            try {
+                int glow = B.defaultState("glowstone");
+                at(w, CX, r -> {   // 빛 갱신 없이 쓴 발광석 둘(C 가운데, 동쪽 이웃 서쪽 끝)
+                    for (int[] p : new int[][] {{CX * 16 + 8, CZ * 16 + 8}, {(CX + 1) * 16, CZ * 16 + 5}}) {
+                        ChunkColumn col = r.ownedChunk(p[0] >> 4, p[1] >> 4);
+                        int local = -58 - (-64);
+                        col.setSectionStateRaw(local >> 4, (local & 15) << 8 | (p[1] & 15) << 4 | (p[0] & 15), glow, true);
+                    }
+                });
+                long[] keys = new long[25];
+                int i = 0;
+                for (int dz = -2; dz <= 2; dz++) for (int dx = -2; dx <= 2; dx++) keys[i++] = Regionizer.chunkKey(CX + dx, CZ + dz);
+                CompletableFuture<Integer> done = new CompletableFuture<>();
+                assertEquals(25, w.relight().relight(keys, null, done::complete));
+                assertEquals(25, done.get(60, TimeUnit.SECONDS));
+                assertEquals(0, w.relight().holdCount());
+                int bad = call(w, CX, r -> {
+                    r.level().drainLight();
+                    assertEquals(15, r.level().getBlockLight(new Pos(CX * 16 + 8, -58, CZ * 16 + 8)));
+                    return badAround(r);
+                });
+                assertEquals(0, bad, "3×3 중 새로 켠 값과 다른 청크");
+            } finally {
+                w.relight().tickBudgetForTest(Relight.TICK_BUDGET);
+            }
+        });
+    }
+
     /** 한 타일(8×8)이 두 region 에 걸침: 구역 2청크(shift 1)·반경 1 — 청크 0 과 6 은 같은 타일, 다른 region. */
     @ParameterizedTest
     @ValueSource(booleans = {false, true})

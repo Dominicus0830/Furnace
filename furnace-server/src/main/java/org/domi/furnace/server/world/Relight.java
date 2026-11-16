@@ -58,13 +58,13 @@ public final class Relight {
     }
 
     /** region 스레드: 이번 틱 relight 예산을 다 썼는가. */
-    private static boolean overBudget(Region r) {
+    private boolean overBudget(Region r) {
         long t = r.tickCount();
         if (r.relightTick != t) {
             r.relightTick = t;
             r.relightSpent = 0;
         }
-        return r.relightSpent >= TICK_BUDGET;
+        return r.relightSpent >= tickBudget;
     }
 
     /** region 스레드: 이번 틱 relight 몫으로 쓴 시간을 더한다(overBudget 이 틱을 맞춘 뒤). */
@@ -91,6 +91,11 @@ public final class Relight {
 
     /** 시험용 변이 스위치. */
     void holdsEnabledForTest(boolean on) { this.holdsEnabled = on; }
+
+    /** 틱 예산(ns, 기본 TICK_BUDGET). 시험이 아주 작게 해 거의 모든 일이 다음 틱으로 미뤄지는 길을 돈다. */
+    private volatile long tickBudget = TICK_BUDGET;
+
+    void tickBudgetForTest(long nanos) { this.tickBudget = nanos; }
 
     /** 시험용: 설치 직전에 부른다(설치 실패를 흉내 낼 자리, null 이면 없음). */
     private volatile Runnable installHook;
