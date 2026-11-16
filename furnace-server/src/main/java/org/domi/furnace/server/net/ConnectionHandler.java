@@ -3964,12 +3964,16 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         send(ctx, vitals.abilitiesPacket());
         // internalTeleport(getLocation): 검증을 거친 region 위치·회전. ix 는 보통 region 검증 전의 클라이언트 위치라 쓰지 않는다 — 서버 텔레포트
         // (스폰 게이트·보정·플러그인 텔레포트)가 확인을 기다리는 동안만 ix 가 서버가 정한 목적지다(막 보낸 텔레포트를 되돌리지 않게).
-        if (correctionTpId == -1 && pendingTeleportId == -1) {
+        // 확인은 왔지만 region 이 그 텔레포트를 아직 반영하지 않았으면(뜬 위치가 텔레포트 전) 대기열에 남은 그 목적지를 쓴다.
+        Player.MoveSample tp = p.pendingTeleport();
+        if (correctionTpId != -1 || pendingTeleportId != -1) {
+            teleportPlayer(ctx, ix, iy, iz);
+        } else if (tp != null) {
+            teleportPlayer(ctx, tp.x(), tp.y(), tp.z());
+        } else {
             iyaw = v.yaw();
             ipitch = v.pitch();
             teleportPlayer(ctx, v.x(), v.y(), v.z());
-        } else {
-            teleportPlayer(ctx, ix, iy, iz);
         }
         if (core != null) send(ctx, org.domi.furnace.server.net.protocol.play.EntityEvent.permissionLevel(p.entityId(), core.profilePermissions(org.domi.furnace.server.ServerCore.profileOf(p))));
         sendLevelInfo(ctx, world);

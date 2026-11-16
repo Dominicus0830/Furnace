@@ -528,6 +528,48 @@ class ProfileChangeTest {
     }
 
     /**
+     * 클라이언트가 서버 텔레포트를 이미 확인했지만 region 이 그 자리를 아직 반영하지 않았을 때 바꾸면: 본인 갱신 위치는 대기열에 남은
+     * 그 텔레포트 목적지(뜬 region 위치는 텔레포트 전이라 쓰면 텔레포트를 되돌린다).
+     */
+    @Test
+    void aConfirmedButUnappliedTeleportIsKept() throws Exception {
+        try (TestClient alex = TestClient.join(port, "Alex")) {
+            Player alexP = awaitListed(alex.uuid);
+            awaitSpawnGate(alex);
+            readWhile(alex, fr -> false, 300);
+            double x0 = alexP.x();
+            java.util.concurrent.CountDownLatch held = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.CountDownLatch confirmed = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.CompletableFuture<Double> sampledX = new java.util.concurrent.CompletableFuture<>();
+            alexP.runOnOwner(() -> {   // region 을 붙잡아 텔레포트 샘플을 처리하지 못하게 한다
+                held.countDown();
+                try {
+                    confirmed.await(5, java.util.concurrent.TimeUnit.SECONDS);
+                    sampledX.complete(alexP.x());
+                    change(alexP, alex.uuid, "Alex2", List.of());
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            assertTrue(held.await(5, java.util.concurrent.TimeUnit.SECONDS));
+            alexP.teleportTo(x0 + 3.0, alexP.y(), alexP.z());   // 연결이 보내고 대기열에 텔레포트 샘플을 넣는다
+            List<Frame> tpf = readWhile(alex, fr -> fr.stream().anyMatch(f -> f.id() == SyncPlayerPosition.ID), 5_000);
+            int id = teleportId(tpf.stream().filter(f -> f.id() == SyncPlayerPosition.ID).findFirst().orElseThrow());
+            alex.write(0x00, b -> Types.writeVarInt(b, id));   // accept_teleportation
+            Thread.sleep(300);   // 연결이 확인을 처리할 때까지(보정 대기 해제)
+            confirmed.countDown();
+            assertEquals(x0, sampledX.get(5, java.util.concurrent.TimeUnit.SECONDS), 1e-9, "갱신 때 region 은 아직 텔레포트 전 위치였다");
+            List<Frame> af = readWhile(alex, fr -> fr.stream().anyMatch(f -> f.id() == SetExperience.ID)
+                    && fr.stream().anyMatch(f -> f.id() == Respawn.ID), 5_000);
+            int respawn = -1;
+            for (int i = 0; i < af.size(); i++) if (af.get(i).id() == Respawn.ID) respawn = i;
+            assertTrue(respawn >= 0, "본인 갱신을 받았다");
+            ByteBuf pos = af.stream().skip(respawn).filter(f -> f.id() == SyncPlayerPosition.ID).findFirst().orElseThrow().buf();
+            assertEquals(x0 + 3.0, pos.readDouble(), 1e-9, "확인된 텔레포트 목적지(되돌리지 않는다)");
+        }
+    }
+
+    /**
      * 막 보낸 텔레포트(확인 전)가 있을 때 바꾸면: 본인 갱신 위치는 그 목적지(되돌리지 않는다). 프로필 작업은 옛 region 에서 돌고, 플레이어는
      * 그 뒤 새 region 으로 옮겨 간다.
      */

@@ -2071,6 +2071,16 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     public MoveSample pollMove() { return moves.poll(); }
 
+    /**
+     * 연결이 넣었지만 region 이 아직 처리하지 않은 서버 텔레포트 가운데 마지막 것(없으면 null). 어느 스레드에서나 — 클라이언트가 이미
+     * 확인했어도 region 이 그 자리를 아직 반영하지 않은 동안 연결 쪽이 서버가 정한 위치를 알 수 있게.
+     */
+    public MoveSample pendingTeleport() {
+        MoveSample last = null;
+        for (MoveSample m : moves) if (m.teleport()) last = m;
+        return last;
+    }
+
     /** 연결이 넣었지만 region 이 아직 처리하지 않은 이동 샘플이 있는가(어느 스레드에서나, 시험·진단용). */
     public boolean movesPending() { return !moves.isEmpty(); }
 
