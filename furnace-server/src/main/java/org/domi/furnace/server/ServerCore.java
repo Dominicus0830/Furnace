@@ -2017,9 +2017,14 @@ public final class ServerCore {
         return out;
     }
 
-    /** 바닐라 PlayerList.getPlayerByName: 대소문자 무시. */
+    /**
+     * 바닐라 PlayerList.getPlayerByName: 대소문자 무시. **접속 때의 이름**으로 찾는다(Paper/Spigot {@code playersByName} 은 접속 때 이름을 넣어 두고
+     * 프로필 이름을 바꿔도 따라가지 않는다 — D2). 그래서 {@code getPlayerExact}·이름 선택자·{@code /ban 진짜이름} 이 닉네임·스킨 플러그인 뒤에도 그대로 된다.
+     * Paper 의 퇴장 뒤 옛 이름 항목 누수는 따르지 않는다(접속자를 훑으므로 퇴장하면 사라진다).
+     * 현재(프로필) 이름 앞부분 일치는 호환의 {@code Bukkit.getPlayer(이름)} 이 {@code Player.name()} 으로 따로 훑는다.
+     */
     public Player playerByName(String name) {
-        for (Player p : players()) if (p.name().equalsIgnoreCase(name)) return p;
+        for (Player p : players()) if (p.joinName().equalsIgnoreCase(name)) return p;
         return null;
     }
 

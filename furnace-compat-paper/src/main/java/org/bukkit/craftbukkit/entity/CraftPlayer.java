@@ -33,8 +33,26 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
         String name = profile.getName() != null ? profile.getName() : "";
         java.util.List<org.domi.furnace.api.entity.ProfileProperty> props = new java.util.ArrayList<>();
         for (var q : profile.getProperties()) props.add(new org.domi.furnace.api.entity.ProfileProperty(q.getName(), q.getValue(), q.getSignature()));
+        if (!id.equals(handle.uniqueId())) warnUuidChangeOnce(id);
         handle.profile(new org.domi.furnace.api.entity.ProfileData(id, name, props));
     }
+
+    private static final java.util.concurrent.atomic.AtomicBoolean UUID_CHANGE_WARNED = new java.util.concurrent.atomic.AtomicBoolean();
+
+    /**
+     * D1: 프로필 id 를 엔티티 UUID 와 다르게 두면 Paper 와 같은 패킷이 나가 관찰자 화면에 플레이어가 안 보일 수 있다 — 개발자가 원인을 알 수 있게
+     * 서버 전체에서 한 번만 콘솔에 알린다(패킷은 이 경고와 무관하게 같다). 호출한 플러그인을 알면 이름을 함께 적는다.
+     */
+    private void warnUuidChangeOnce(java.util.UUID profileId) {
+        if (!UUID_CHANGE_WARNED.compareAndSet(false, true)) return;
+        String plugin = org.domi.furnace.compat.nms.NmsCaller.pluginName();
+        var log = org.slf4j.LoggerFactory.getLogger("Furnace");
+        if (plugin != null) log.warn(org.domi.furnace.compat.i18n.CompatLang.t("compat.profile-uuid-changed", plugin, handle.name(), profileId, handle.uniqueId()));
+        else log.warn(org.domi.furnace.compat.i18n.CompatLang.t("compat.profile-uuid-changed-unknown", handle.name(), profileId, handle.uniqueId()));
+    }
+
+    /** 시험용: "한 번만" 기록을 비운다. */
+    public static void resetUuidChangeWarning() { UUID_CHANGE_WARNED.set(false); }
 
     /** 호환 모듈 전용 — 이 플레이어의 Furnace 핸들(접속 동안 같다). */
     @Override
