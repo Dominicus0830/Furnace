@@ -116,6 +116,37 @@ public final class Menu {
         return set0(slot, item);
     }
 
+    /**
+     * 칸의 지금 값을 fn 에 넘겨 돌려받은 값으로 바꾼다 — 읽기와 쓰기가 다른 쓰기에 끼이지 않는다(보관함 메뉴는 클릭 처리와 한 줄로).
+     * fn 이 null 이거나 받은 것 그대로를 돌려주면 바꾸지 않는다. 바꿨으면 true. fn 은 짧게, 이 메뉴를 다시 건드리지 말 것.
+     */
+    public boolean update(int slot, java.util.function.UnaryOperator<ItemStack> fn) {
+        check(slot);
+        Objects.requireNonNull(fn, "fn");
+        ItemStack now;
+        if (storage) {
+            synchronized (STORAGE_LOCK) { now = update0(slot, fn); }
+        } else {
+            now = update0(slot, fn);
+        }
+        if (now == null) return false;
+        for (Listener l : listeners) l.slotChanged(this, slot, now);
+        return true;
+    }
+
+    /** 바꿨으면 새 값, 아니면 null. */
+    private ItemStack update0(int slot, java.util.function.UnaryOperator<ItemStack> fn) {
+        synchronized (lock) {
+            ItemStack cur = items[slot];
+            ItemStack next = fn.apply(cur);
+            if (next == null || next == cur) return null;
+            ItemStack now = next.isEmpty() ? ItemStack.EMPTY : next;
+            if (items[slot].equals(now)) return null;
+            items[slot] = now;
+            return now;
+        }
+    }
+
     private Menu set0(int slot, ItemStack item) {
         ItemStack now = item.isEmpty() ? ItemStack.EMPTY : item;
         synchronized (lock) {
