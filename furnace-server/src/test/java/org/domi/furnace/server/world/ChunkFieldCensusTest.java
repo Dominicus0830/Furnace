@@ -97,7 +97,9 @@ class ChunkFieldCensusTest {
         e("sky", Kind.VANILLA_DERIVED), e("block", Kind.VANILLA_DERIVED), e("lowestSource", Kind.VANILLA_DERIVED),
         e("lightEnabled", Kind.UNRELATED),
         // 빛 작업 쓰기 사본 관리(T-064)
-        e("base", Kind.UNRELATED), e("ownSky", Kind.UNRELATED), e("ownBlock", Kind.UNRELATED)));
+        e("base", Kind.UNRELATED), e("ownSky", Kind.UNRELATED), e("ownBlock", Kind.UNRELATED),
+        // 공개 스냅샷과 나눠 쓰는 배열 표시(T-205) — 쓸 때 사본을 뜨게 할 뿐, adoptLayersFrom 이 지운다
+        e("viewSky", Kind.UNRELATED), e("viewBlock", Kind.UNRELATED)));
 
     private static Map.Entry<String, Kind> e(String k, Kind v) { return Map.entry(k, v); }
 

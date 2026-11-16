@@ -2339,6 +2339,19 @@ public abstract class ChunkLevel implements BlockLevel {
 
     public int lightBedrockState() { return bedrockState; }
 
+    /**
+     * 그 칸의 빛 검사를 건다(Paper LevelLightEngine#checkBlock, T-205): 하늘빛 원천을 지금 블록으로 고치고 두 빛에 검사를 건다(Starlight 의 검사는 원천까지
+     * 다시 본다). 계산은 다음 runLightUpdates(틱 끝) — 빛 다시 계산이 둘레를 계산하는 동안이면 끼운 뒤로 붙잡힌다. 소유 스레드에서. 높이 밖이거나 청크가
+     * 없거나 빛이 켜지지 않았으면 false(Paper 처럼 버린다).
+     */
+    public boolean checkLightAt(int x, int y, int z) {
+        if (y < minBuildHeight() || y >= maxBuildHeight()) return false;
+        ChunkColumn col = chunk(x >> 4, z >> 4);
+        if (col == null || col.light() == null || !col.light().lightEnabled) return false;
+        lightEngine().blockChanged(x, y, z);
+        return true;
+    }
+
     /** 그 청크가 로드돼 있고 빛이 만들어져 있는가. */
     public boolean hasLight(int cx, int cz) {
         ChunkColumn col = chunk(cx, cz);

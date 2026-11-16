@@ -309,7 +309,8 @@ public final class ChunkColumn {
         ChunkReadView prev = readView;
         viewRequested = 0;
         ChunkSection[] secs = sections;
-        if (prev != null && prev.modCount == modCount && prev.loadToken() == loadToken && prev.sectionCount() == secs.length) {
+        org.domi.furnace.server.light.ChunkLight cl = light;
+        if (prev != null && prev.modCount == modCount && prev.loadToken() == loadToken && prev.sectionCount() == secs.length && prev.sameLight(cl)) {
             boolean same = true;
             for (int i = 0; i < secs.length && same; i++) same = prev.section(i).reusableFor(secs[i]);
             if (same) return prev;
@@ -321,7 +322,16 @@ public final class ChunkColumn {
         }
         int[][] heights = fixedHeights != null ? copyFixed(fixedHeights) : currentHeights();
         long[] bePos = blockEntityPositions(chunkX, chunkZ);
-        ChunkReadView v = new ChunkReadView(loadToken, ++viewVersion, minY, out, heights, bePos, modCount);
+        // 빛(T-205): 층을 복사하지 않고 넘긴다 — 넘긴 층은 ChunkLight 가 다음 쓰기 때 복사한다(쓰기 시 복사). 빛 작업 묶음(T-064)이 도는 동안에도
+        // 보이는 층은 아무도 고치지 않으므로 지금 값이 그대로 한 순간의 값이다
+        byte[][] skyLayers = null, blockLayers = null;
+        if (cl != null) {
+            skyLayers = new byte[org.domi.furnace.server.light.ChunkLight.SECTIONS][];
+            blockLayers = new byte[org.domi.furnace.server.light.ChunkLight.SECTIONS][];
+            cl.shareLayersWithView(skyLayers, blockLayers);
+        }
+        ChunkReadView v = new ChunkReadView(loadToken, ++viewVersion, minY, out, heights, bePos, modCount,
+                cl != null && cl.lightEnabled, skyLayers, blockLayers);
         readView = v;
         return v;
     }
