@@ -3529,7 +3529,8 @@ public final class Region {
         if (!gone.isEmpty()) a.send(new PlayerInfoRemove(gone));
         List<PlayerInfoUpdate.Entry> add = null;
         for (Player b : world.onlinePlayers()) {
-            if (b.isDisconnected() || b != a && !org.domi.furnace.server.entity.view.EntityViewRules.canSee(a, b.uuid())) continue;
+            if (b.isDisconnected() || b.tabListingHeld()   // 조인 이벤트가 끝나기 전 — 보류를 풀 때 번호가 올라 다음 틱에 올린다
+                    || b != a && !org.domi.furnace.server.entity.view.EntityViewRules.canSee(a, b.uuid())) continue;
             if (a.listed().putIfAbsent(b.entityId(), b.uuid()) == null) {
                 if (add == null) add = new ArrayList<>();
                 var session = b.chat().session();
@@ -3545,7 +3546,7 @@ public final class Region {
     private void broadcastLatencies() {
         List<PlayerInfoLatency.Entry> all = new ArrayList<>();
         for (Player b : world.onlinePlayers()) {
-            if (!b.isDisconnected()) all.add(new PlayerInfoLatency.Entry(b.uuid(), b.latencyMs()));
+            if (!b.isDisconnected() && !b.tabListingHeld()) all.add(new PlayerInfoLatency.Entry(b.uuid(), b.latencyMs()));   // 아직 아무 탭에도 없는 접속자는 뺀다
         }
         if (all.isEmpty()) return;
         PlayerInfoLatency pkt = new PlayerInfoLatency(all);
