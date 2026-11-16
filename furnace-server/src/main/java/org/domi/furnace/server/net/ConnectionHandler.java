@@ -1570,23 +1570,47 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             p.loadShoulders(saved.root());
             p.loadFire(saved.root());
         }
-        // 바닐라 placeNewPlayer: 위치 → server_data → 탭 목록(기존 접속자, 그다음 본인) → sendLevelInfo → 청크 중심 → 인벤토리
+        // Paper placeNewPlayer(Fire-PlayerJoinEvent-when-Player-is-actually-ready): 위치 → server_data → 접속자 목록에 넣기(탭·추적 보류)
+        // → 보스바 → PlayerJoinEvent·접속 알림 → 탭(본인, 그다음 기존 접속자) → sendLevelInfo → 청크 중심 → 인벤토리
         send(ctx, new SyncPlayerPosition(sx, sy, sz, syaw, spitch, 1));
         pendingTeleportId = 1; // 스폰 청크 도착(타이머)까지 클라 이동 무시
         if (coreJ != null) send(ctx, new org.domi.furnace.server.net.protocol.play.ServerData(
                 Motd.parse(login.motd), login.faviconBytes()));
-        // 기존 접속자 목록(없으면 빈 패킷 — 바닐라와 같다). 아직 adopt 전이라 p.listed()는 이 스레드 전용.
+        // 조인 이벤트 안에서 getOnlinePlayers·명령·방송이 이 플레이어를 본다(Paper 는 이벤트 전에 players 에 넣는다). 다른 접속자의 탭·엔티티에는
+        // 이벤트가 끝나 접속 탭을 보낸 뒤에 올라간다(Paper supressTrackerForLogin·sentListPacket) — 그때까지 관찰자 region 이 건너뛴다.
+        p.holdTabListing();
+        world.playerOnline(p);   // 해제는 소유 region이 disconnect 처리 때
+        world.updateSleepingPlayerList();   // ServerLevel EntityCallbacks.onTrackingStart
+        // 조인 이벤트 처리기가 읽는 상태(발전 과제·통계·스코어보드)는 이벤트 전에 붙인다 — Paper 는 ServerPlayer 를 만들 때 이미 있다.
+        var advancements = coreJ != null ? coreJ.attachAdvancements(p) : null;
+        if (p.stats() == null && org.domi.furnace.server.item.ItemContext.installed()) {   // 통계(world/stats/<uuid>.json) — 바닐라 placeNewPlayer 가 markAllDirty
+            var st = new org.domi.furnace.server.stats.PlayerStats(world.worldDir(), p.uuid());
+            st.markAllDirty();
+            p.stats(st);
+        }
+        if (coreJ != null) p.scoreboard(coreJ.scoreboard());
+        if (login.core != null) login.core.scoreboard().sendTo(p);   // 바닐라 placeNewPlayer: updateEntireScoreboard 뒤 접속 알림
+        if (login.core != null) login.core.plugins().sendRegisteredChannels(p);   // CraftBukkit sendSupportedChannels: 서버 플러그인이 받는 채널을 알린다
+        // CraftBukkit 은 구성 단계의 REGISTER 마다 PlayerRegisterChannelEvent 를 부른다 — 그때 알린 채널을 접속 알림 직전에 한꺼번에
+        if (login.core != null) fireChannelEvents(p, java.util.List.copyOf(pluginChannels.snapshot()), org.domi.furnace.api.event.player.PlayerChannelEvent.Action.REGISTER);
+        if (login.core != null) login.core.customBossEvents().onPlayerConnect(p);   // Paper: 조인 이벤트 전(addNewPlayer 와 함께)
+        if (login.core != null) announceJoin(login.core, p);
+        // CraftBukkit: 조인 이벤트에서 내보냈으면(isAcceptingMessages 거짓) 탭·레벨 정보 없이 끝낸다 — 다른 접속자의 탭에도 올라가지 않는다.
+        // 남은 정리(퇴장 이벤트·저장·접속자 목록에서 빼기)는 연결이 닫힐 때 channelInactive 가 한다.
+        if (p.kickReason() != null || !ctx.channel().isActive()) return;
+        // 접속 탭: 본인 항목 먼저, 그다음 이 플레이어가 볼 수 있는 기존 접속자를 한 패킷으로(없으면 보내지 않는다 — Paper
+        // Use-single-player-info-update-packet-on-join). 조인 이벤트에서 숨긴 접속자는 처음부터 빠진다. 아직 adopt 전이라 p.listed()는 이 스레드 전용.
+        send(ctx, new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate(java.util.List.of(tabEntry(p))));
+        p.listed().put(p.entityId(), p.uuid());
         java.util.List<org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.Entry> existing = new java.util.ArrayList<>();
         for (Player b : world.onlinePlayers()) {
-            if (b == p || b.isDisconnected()) continue;
+            // 아직 조인 이벤트 중인 다른 접속자는 그쪽이 보류를 풀 때 이 플레이어의 region 이 올린다
+            if (b == p || b.isDisconnected() || b.tabListingHeld() || !org.domi.furnace.server.entity.view.EntityViewRules.canSee(p, b.uuid())) continue;
             existing.add(tabEntry(b));
             p.listed().put(b.entityId(), b.uuid());
         }
-        send(ctx, new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate(existing));
-        world.playerOnline(p);   // 탭 목록 대상(해제는 소유 region이 disconnect 처리 때). 다른 접속자에게는 그쪽 region 틱이 올린다.
-        world.updateSleepingPlayerList();   // ServerLevel EntityCallbacks.onTrackingStart
-        send(ctx, new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate(java.util.List.of(tabEntry(p))));
-        p.listed().put(p.entityId(), p.uuid());
+        if (!existing.isEmpty()) send(ctx, new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate(existing));
+        p.releaseTabListing();   // 이제 다른 접속자의 region 이 다음 틱에 이 플레이어를 탭·엔티티에 올린다(Paper sentListPacket = true)
         // 바닐라 sendLevelInfo: 보더 → 시간 → 월드 공유 스폰(나침반) → 비 → 청크 대기 → 틱 상태
         send(ctx, coreJ != null ? InitializeBorder.of(coreJ.border()) : InitializeBorder.vanillaDefault());
         if (coreJ != null) {
@@ -1611,13 +1635,6 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         synchronized (p.menuLock()) { p.inventoryMenu().setSynchronizer(menus); }   // 첫 container_set_content(상태 번호 1)
         // 바닐라 첫 틱: 엔티티 데이터 → (ServerPlayer.tick 끝) 발전 과제 tick 트리거·flushDirty → (doTick) 체력·허기·경험치.
         // 발전 과제 쪽 패킷(레시피 ADD 등)은 Player.send 로 이벤트 루프 대기열에 들어가므로 뒤 패킷도 같은 대기열로 보낸다.
-        var advancements = coreJ != null ? coreJ.attachAdvancements(p) : null;
-        if (p.stats() == null && org.domi.furnace.server.item.ItemContext.installed()) {   // 통계(world/stats/<uuid>.json) — 바닐라 placeNewPlayer 가 markAllDirty
-            var st = new org.domi.furnace.server.stats.PlayerStats(world.worldDir(), p.uuid());
-            st.markAllDirty();
-            p.stats(st);
-        }
-        if (coreJ != null) p.scoreboard(coreJ.scoreboard());
         java.util.List<Packet> firstTick = vitals.joinPackets();
         int ft = 0;
         while (ft < firstTick.size() && firstTick.get(ft) instanceof org.domi.furnace.server.net.protocol.play.SetEntityData) send(ctx, firstTick.get(ft++));
@@ -1668,16 +1685,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         });
         if (login.core == null) scheduleTimeUpdate(ctx); // 서버 핸들이 있으면 전역 틱이 20틱마다 동기화한다
         scheduleSpawnGateRelease();
-        if (login.core != null) login.core.scoreboard().sendTo(p);   // 바닐라 placeNewPlayer: updateEntireScoreboard 뒤 접속 알림
-        if (login.core != null) login.core.plugins().sendRegisteredChannels(p);   // CraftBukkit sendSupportedChannels: 서버 플러그인이 받는 채널을 알린다
-        // CraftBukkit 은 구성 단계의 REGISTER 마다 PlayerRegisterChannelEvent 를 부른다 — 그때 알린 채널을 접속 알림 직전에 한꺼번에
-        if (login.core != null) fireChannelEvents(p, java.util.List.copyOf(pluginChannels.snapshot()), org.domi.furnace.api.event.player.PlayerChannelEvent.Action.REGISTER);
-        if (login.core != null) announceJoin(login.core, p);
         // 구독자가 있어 접속 순서의 트리 전송을 건너뛰었다면 PlayerJoinEvent 뒤에 한 번 보낸다(PlayerCommandSendEvent 가 이때 불린다).
         if (login.core != null && deferCommandTree) {
             login.core.commands().sendCommands(p);
         }
-        if (login.core != null) login.core.customBossEvents().onPlayerConnect(p);
     }
 
     /** 스폰 청크를 비동기로 수거 후 event loop에서 batch 전송 — Netty 스레드 블로킹(future.get) 제거.

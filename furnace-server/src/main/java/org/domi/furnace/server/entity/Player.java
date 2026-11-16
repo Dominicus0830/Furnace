@@ -566,6 +566,24 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     /** 이 플레이어의 탭 목록을 마지막으로 맞춘 번호(-1 = 다시 훑어야 함). 소유 region 스레드 전용. */
     public long tabEpoch = -1;
+
+    /**
+     * 접속 중 탭 보류(CraftBukkit {@code sentListPacket} 의 반대): 접속자 목록에는 들어갔지만 PlayerJoinEvent 가 끝나 접속 탭을 보내기 전이다.
+     * 이 동안 다른 플레이어의 탭·엔티티에 올리지 않는다 — 조인 이벤트에서 숨긴 플레이어가 잠깐이라도 새지 않고, 이벤트에서 바꾼 상태로 처음 올라간다.
+     * 연결 처리기가 접속자 목록에 넣기 전에 걸고({@link #holdTabListing}), 접속 탭을 보낸 뒤 푼다({@link #releaseTabListing}). 아무 스레드.
+     */
+    private volatile boolean tabListingHeld;
+
+    public void holdTabListing() { tabListingHeld = true; }
+
+    /** 보류를 풀고 접속자 번호를 올린다 — 그 사이 이 플레이어를 건너뛴 관찰자 region 이 다음 틱에 다시 훑는다. */
+    public void releaseTabListing() {
+        tabListingHeld = false;
+        bumpRoster();
+    }
+
+    /** 접속 탭을 아직 보내지 않았나(Paper {@code !sentListPacket}). */
+    public boolean tabListingHeld() { return tabListingHeld; }
     public boolean isDisconnected() { return disconnected; }
     /** 실제 보내는 거리 = max(2, min(바탕 거리, 플러그인 상한)) — 읽을 때 계산해 두 값을 따로 쓰는 스레드끼리 갱신이 사라지지 않는다. */
     public int viewDistance() { return Math.max(Config.MIN_VIEW_DISTANCE, Math.min(baseViewDistance, sendCap)); }
