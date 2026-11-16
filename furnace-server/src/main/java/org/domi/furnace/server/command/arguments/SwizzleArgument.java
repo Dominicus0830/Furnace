@@ -11,7 +11,9 @@ import org.domi.furnace.server.command.brigadier.CommandContext;
 import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
 import org.domi.furnace.server.command.brigadier.StringReader;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.arguments.coordinates.SwizzleArgument")
 public final class SwizzleArgument implements ArgumentType<EnumSet<SwizzleArgument.Axis>> {
 
     public enum Axis { X, Y, Z }

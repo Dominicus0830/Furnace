@@ -15,7 +15,9 @@ import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.world.Difficulty;
 import org.domi.furnace.server.world.GameRules;
 import org.domi.furnace.server.world.WorldClock;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.server.commands.TimeCommand", "net.minecraft.server.commands.WeatherCommand", "net.minecraft.server.commands.DifficultyCommand", "net.minecraft.server.commands.GameRuleCommand"})
 public final class WorldCommands {
 
     private static final DynamicCommandExceptionType ERROR_ALREADY_DIFFICULT =

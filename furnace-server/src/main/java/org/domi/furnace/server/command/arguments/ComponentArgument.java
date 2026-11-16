@@ -11,7 +11,9 @@ import org.domi.furnace.server.command.brigadier.CommandContext;
 import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.DynamicCommandExceptionType;
 import org.domi.furnace.server.command.brigadier.StringReader;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.arguments.ComponentArgument")
 public final class ComponentArgument implements ArgumentType<Text> {
 
     private static final List<String> EXAMPLES = List.of("\"hello world\"", "\"\"", "{\"text\":\"hello world\"}", "[\"\"]");

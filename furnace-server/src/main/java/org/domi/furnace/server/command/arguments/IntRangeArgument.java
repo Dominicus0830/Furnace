@@ -8,7 +8,9 @@ import org.domi.furnace.server.command.brigadier.ArgumentType;
 import org.domi.furnace.server.command.brigadier.CommandContext;
 import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.StringReader;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.arguments.RangeArgument$Ints")
 public final class IntRangeArgument implements ArgumentType<MinMaxBounds> {
 
     private static final List<String> EXAMPLES = List.of("0..5", "0", "-5", "-100..", "..100");

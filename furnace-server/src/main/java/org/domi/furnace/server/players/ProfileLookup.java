@@ -2,7 +2,9 @@
 package org.domi.furnace.server.players;
 
 import java.util.Optional;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("com.mojang.authlib.GameProfileRepository")
 @FunctionalInterface
 public interface ProfileLookup {
 

@@ -19,7 +19,9 @@ import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.net.protocol.play.AwardStats;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.stats.ServerStatsCounter")
 public final class PlayerStats {
 
     private static final Logger log = LoggerFactory.getLogger("Furnace");

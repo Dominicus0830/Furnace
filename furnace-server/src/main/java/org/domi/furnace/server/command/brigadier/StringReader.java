@@ -1,6 +1,9 @@
 // Brigadier StringReader 와 같은 규칙의 커서 리더(클라이언트가 같은 트리를 Brigadier 로 해석하므로 토큰 규칙이 같아야 한다).
 package org.domi.furnace.server.command.brigadier;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("com.mojang.brigadier.StringReader")
 public final class StringReader {
 
     private static final char SYNTAX_ESCAPE = '\\';

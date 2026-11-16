@@ -3,7 +3,9 @@ package org.domi.furnace.server.menu;
 
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.inventory.DataSlot")
 public abstract class DataSlot {
 
     private int prevValue;

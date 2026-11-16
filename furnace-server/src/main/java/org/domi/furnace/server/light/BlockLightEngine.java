@@ -1,6 +1,9 @@
 // 바닐라 BlockLightEngine: 발광 블록에서 퍼지는 빛. 이웃 = 자기 값 − max(1, 이웃의 빛 막는 정도), 면이 가리면 못 지나간다.
 package org.domi.furnace.server.light;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("net.minecraft.world.level.lighting.BlockLightEngine")
 public final class BlockLightEngine extends LightEngine {
 
     public BlockLightEngine(LightWorld world) { super(world); }

@@ -4,7 +4,9 @@ package org.domi.furnace.server.players;
 import com.google.gson.JsonObject;
 import java.net.SocketAddress;
 import java.nio.file.Path;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.players.IpBanList")
 public final class IpBanList extends StoredUserList<String, IpBanListEntry> {
 
     public IpBanList(Path file) { super(file); }

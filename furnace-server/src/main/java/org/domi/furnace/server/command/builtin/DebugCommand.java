@@ -38,7 +38,9 @@ import org.domi.furnace.server.function.CommandFunction;
 import org.domi.furnace.server.function.FunctionInstantiationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.DebugCommand")
 public final class DebugCommand {
     private DebugCommand() { }
 

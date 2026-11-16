@@ -4,7 +4,9 @@ package org.domi.furnace.server.chat;
 import io.netty.buffer.ByteBuf;
 import java.util.UUID;
 import org.domi.furnace.server.net.io.Types;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.network.chat.RemoteChatSession")
 public record RemoteChatSession(UUID sessionId, ProfilePublicKey profilePublicKey) {
 
     public SignedMessageChain.Decoder createMessageDecoder(UUID profileId) {

@@ -6,7 +6,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("com.mojang.brigadier.suggestion.Suggestions")
 public class Suggestions {
 
     private static final Suggestions EMPTY = new Suggestions(StringRange.at(0), new ArrayList<>());

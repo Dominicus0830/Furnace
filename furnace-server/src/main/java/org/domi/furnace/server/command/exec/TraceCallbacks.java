@@ -3,7 +3,9 @@
 package org.domi.furnace.server.command.exec;
 
 import org.domi.furnace.server.data.ResourceId;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.execution.TraceCallbacks")
 public interface TraceCallbacks extends AutoCloseable {
 
     /** 명령(수정자 단계를 포함한 입력 전체)을 시작한다. depth 는 함수 호출 깊이. */

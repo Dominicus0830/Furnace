@@ -2,7 +2,9 @@
 package org.domi.furnace.server.light;
 
 import org.domi.furnace.server.world.StateIds;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.level.lighting.LevelLightEngine")
 public final class LevelLight {
     private final LightWorld world;
     private final BlockLightEngine block;

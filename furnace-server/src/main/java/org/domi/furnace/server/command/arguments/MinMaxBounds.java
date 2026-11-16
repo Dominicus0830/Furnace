@@ -5,7 +5,9 @@ import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
 import org.domi.furnace.server.command.brigadier.StringReader;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.advancements.critereon.MinMaxBounds")
 public record MinMaxBounds(Double min, Double max) {
 
     public static final SimpleCommandExceptionType ERROR_EMPTY = new SimpleCommandExceptionType(Text.translatable("argument.range.empty"));

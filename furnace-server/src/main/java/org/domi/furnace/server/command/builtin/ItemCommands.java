@@ -37,7 +37,9 @@ import org.domi.furnace.server.item.FlatText;
 import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.loot.Enchantment;
 import org.domi.furnace.server.loot.LootRegistries;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.server.commands.GiveCommand", "net.minecraft.server.commands.ClearInventoryCommands", "net.minecraft.server.commands.EnchantCommand"})
 public final class ItemCommands {
     private ItemCommands() { }
 

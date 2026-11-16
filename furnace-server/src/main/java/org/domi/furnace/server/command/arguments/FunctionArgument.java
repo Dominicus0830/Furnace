@@ -15,7 +15,9 @@ import org.domi.furnace.server.command.brigadier.StringReader;
 import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.function.CommandFunction;
 import org.domi.furnace.server.function.FunctionLibrary;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.arguments.item.FunctionArgument")
 public final class FunctionArgument implements ArgumentType<FunctionArgument.Ref> {
 
     private static final List<String> EXAMPLES = List.of("foo", "foo:bar", "#foo");

@@ -3,7 +3,9 @@ package org.domi.furnace.server.trade;
 
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.menu.MenuPlayer;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.item.trading.Merchant")
 public interface Merchant {
 
     void setTradingPlayer(MenuPlayer player);

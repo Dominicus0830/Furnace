@@ -14,7 +14,9 @@ import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
 import org.domi.furnace.server.command.brigadier.StringReader;
 import org.domi.furnace.server.command.brigadier.Suggestions;
 import org.domi.furnace.server.command.brigadier.SuggestionsBuilder;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.arguments.coordinates.ColumnPosArgument")
 public final class ColumnPosArgument implements ArgumentType<WorldCoordinates> {
 
     private static final List<String> EXAMPLES = List.of("0 0", "~ ~", "~1 ~-2", "^ ^", "^-1 ^0");

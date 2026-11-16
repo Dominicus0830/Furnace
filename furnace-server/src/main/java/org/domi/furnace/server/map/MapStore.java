@@ -19,7 +19,9 @@ import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.level.storage.DimensionDataStorage")
 public final class MapStore {
 
     private static final Logger LOG = LoggerFactory.getLogger(MapStore.class);

@@ -8,7 +8,9 @@ import java.util.Set;
 import org.domi.furnace.api.text.HoverEvent;
 import org.domi.furnace.api.text.Style;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.world.scores.PlayerTeam", "net.minecraft.world.scores.Team"})
 public final class PlayerTeam {
 
     /** 바닐라 Team.Visibility(이름표·사망 메시지). */

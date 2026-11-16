@@ -17,7 +17,9 @@ import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.ServerFunctionManager")
 public final class FunctionManager {
 
     private static final Logger log = LoggerFactory.getLogger(FunctionManager.class);

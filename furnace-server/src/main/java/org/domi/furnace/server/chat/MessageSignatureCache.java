@@ -5,7 +5,9 @@ import java.util.ArrayDeque;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.network.chat.MessageSignatureCache")
 public final class MessageSignatureCache {
 
     private final MessageSignature[] entries;

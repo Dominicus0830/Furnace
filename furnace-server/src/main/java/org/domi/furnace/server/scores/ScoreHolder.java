@@ -6,7 +6,9 @@ import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.entity.Entity;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.entity.Rider;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.scores.ScoreHolder")
 public interface ScoreHolder {
 
     String WILDCARD_NAME = "*";

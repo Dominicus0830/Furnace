@@ -2,7 +2,9 @@ package org.domi.furnace.server.command.brigadier;
 
 import java.util.Objects;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("com.mojang.brigadier.suggestion.Suggestion")
 public class Suggestion implements Comparable<Suggestion> {
 
     private final StringRange range;

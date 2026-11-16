@@ -5,7 +5,9 @@ import io.netty.buffer.ByteBuf;
 import java.util.Arrays;
 import java.util.Base64;
 import org.domi.furnace.server.net.io.Types;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.network.chat.MessageSignature")
 public final class MessageSignature {
 
     public static final int BYTES = 256;

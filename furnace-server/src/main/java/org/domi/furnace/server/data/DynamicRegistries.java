@@ -23,7 +23,9 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.registry.RegistrySet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.resources.RegistryDataLoader")
 public final class DynamicRegistries {
 
     private static final Logger log = LoggerFactory.getLogger("Furnace");

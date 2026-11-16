@@ -8,7 +8,9 @@ import java.nio.file.Path;
 import org.domi.furnace.server.config.ServerPropertiesFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.dedicated.DedicatedPlayerList")
 public final class PlayerLists {
 
     private static final Logger log = LoggerFactory.getLogger(PlayerLists.class);

@@ -2,7 +2,9 @@
 package org.domi.furnace.server.menu;
 
 import org.domi.furnace.server.entity.ItemStack;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.inventory.ContainerListener")
 public interface MenuListener {
 
     void slotChanged(AbstractContainerMenu menu, int slotIndex, ItemStack stack);

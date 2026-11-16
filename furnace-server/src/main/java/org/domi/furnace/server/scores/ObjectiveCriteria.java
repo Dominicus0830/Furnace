@@ -7,7 +7,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.domi.furnace.server.stats.PlayerStats;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.scores.criteria.ObjectiveCriteria")
 public final class ObjectiveCriteria {
 
     /** 바닐라 RenderType. */

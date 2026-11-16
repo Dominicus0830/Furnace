@@ -13,7 +13,9 @@ import org.domi.furnace.server.net.io.nbt.NbtArray;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.net.io.nbt.NbtList;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.nbt.NbtUtils", "net.minecraft.nbt.TextComponentTagVisitor"})
 public final class NbtText {
     private NbtText() {}
 

@@ -16,7 +16,9 @@ import org.domi.furnace.server.command.brigadier.StringReader;
 import org.domi.furnace.server.command.brigadier.Suggestions;
 import org.domi.furnace.server.command.brigadier.SuggestionsBuilder;
 import org.domi.furnace.server.world.gen.structure.template.BlockStateTable;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.commands.arguments.TemplateRotationArgument", "net.minecraft.commands.arguments.TemplateMirrorArgument"})
 public final class TemplateArguments implements ArgumentType<Integer> {
     private static final DynamicCommandExceptionType ERROR_INVALID_VALUE =
             new DynamicCommandExceptionType(v -> Text.translatable("argument.enum.invalid", v));

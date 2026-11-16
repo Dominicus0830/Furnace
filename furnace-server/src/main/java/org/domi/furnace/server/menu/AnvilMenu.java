@@ -7,7 +7,9 @@ import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.item.EnchantTools;
 import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.item.RepairMaterials;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.inventory.AnvilMenu")
 public class AnvilMenu extends ItemCombinerMenu {
 
     public static final int INPUT_SLOT = 0, ADDITIONAL_SLOT = 1, RESULT_SLOT = 2, MAX_NAME_LENGTH = 50;

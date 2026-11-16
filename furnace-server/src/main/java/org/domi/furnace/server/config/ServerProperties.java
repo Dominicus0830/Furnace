@@ -21,7 +21,9 @@ import org.domi.furnace.server.world.Difficulty;
 import org.domi.furnace.server.world.GameMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.dedicated.DedicatedServerProperties")
 public final class ServerProperties extends VanillaSettings {
 
     private static final Logger log = LoggerFactory.getLogger(ServerProperties.class);

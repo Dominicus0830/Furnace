@@ -13,7 +13,9 @@ import java.util.HashMap;
 import java.util.Map;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.world.BlockAttrs;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.level.material.MapColor")
 public final class MapColor {
     private MapColor() { }
 

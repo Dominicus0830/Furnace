@@ -22,7 +22,9 @@ import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.Dynamic2CommandExceptionType;
 import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.loot.LootRegistries;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.FillBiomeCommand")
 public final class FillBiomeCommand {
     private FillBiomeCommand() { }
 

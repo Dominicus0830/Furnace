@@ -5,7 +5,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.world.entity.ai.attributes.Attributes", "net.minecraft.world.entity.ai.attributes.Attribute"})
 public final class Attribute {
     private static final List<Attribute> ALL = new ArrayList<>();
     private static final Map<String, Attribute> BY_NAME = new HashMap<>();

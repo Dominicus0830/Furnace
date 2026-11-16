@@ -19,7 +19,9 @@ import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.world.level.timers.TimerQueue", "net.minecraft.world.level.timers.FunctionCallback", "net.minecraft.world.level.timers.FunctionTagCallback"})
 public final class ScheduledEvents {
 
     private static final Logger log = LoggerFactory.getLogger(ScheduledEvents.class);

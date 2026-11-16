@@ -19,7 +19,9 @@ import org.domi.furnace.server.command.brigadier.Dynamic2CommandExceptionType;
 import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
 import org.domi.furnace.server.world.ForcedChunks;
 import org.domi.furnace.server.world.World;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.ForceLoadCommand")
 public final class ForceLoadCommand {
     private ForceLoadCommand() { }
 

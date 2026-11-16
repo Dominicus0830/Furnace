@@ -25,7 +25,9 @@ import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.protocol.play.SoundPacket;
 import org.domi.furnace.server.net.protocol.play.StopSound;
 import org.domi.furnace.server.sound.SoundSource;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.server.commands.PlaySoundCommand", "net.minecraft.server.commands.StopSoundCommand"})
 public final class SoundCommands {
 
     private SoundCommands() {}

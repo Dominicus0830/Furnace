@@ -24,7 +24,9 @@ import org.domi.furnace.server.command.brigadier.DynamicCommandExceptionType;
 import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
 import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.entity.Player;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.BossBarCommands")
 public final class BossBarCommands {
 
     private BossBarCommands() {}

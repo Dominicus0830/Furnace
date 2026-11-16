@@ -2,7 +2,9 @@
 package org.domi.furnace.server.effect;
 
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.effect.MobEffectInstance")
 public final class MobEffectInstance implements Comparable<MobEffectInstance> {
 
     public static final int INFINITE_DURATION = -1;

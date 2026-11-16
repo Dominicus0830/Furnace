@@ -7,7 +7,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("com.mojang.brigadier.tree.CommandNode")
 public abstract class CommandNode<S> implements Comparable<CommandNode<S>> {
 
     // copy-on-write: 플러그인이 실행 중 명령을 등록·해제해도 다른 스레드의 파싱·자동완성이 안전하게 옛/새 목록 중 하나를 본다.

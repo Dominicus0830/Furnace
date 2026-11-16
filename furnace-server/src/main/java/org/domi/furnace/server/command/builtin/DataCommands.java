@@ -53,7 +53,9 @@ import org.domi.furnace.server.net.io.nbt.NbtList;
 import org.domi.furnace.server.net.io.nbt.NbtTags;
 import org.domi.furnace.server.world.ChunkPos;
 import org.domi.furnace.server.world.World;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.data.DataCommands")
 public final class DataCommands {
     private DataCommands() {}
 

@@ -2,7 +2,9 @@
 package org.domi.furnace.server.menu;
 
 import org.domi.furnace.server.entity.ItemStack;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.Container")
 public interface Container {
 
     int size();

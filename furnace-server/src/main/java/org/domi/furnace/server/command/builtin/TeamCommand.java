@@ -22,7 +22,9 @@ import org.domi.furnace.server.scores.ChatFormatting;
 import org.domi.furnace.server.scores.PlayerTeam;
 import org.domi.furnace.server.scores.ScoreHolder;
 import org.domi.furnace.server.scores.ServerScoreboard;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.TeamCommand")
 public final class TeamCommand {
 
     private TeamCommand() {}

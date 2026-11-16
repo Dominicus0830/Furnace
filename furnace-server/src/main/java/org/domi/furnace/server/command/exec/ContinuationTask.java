@@ -2,7 +2,9 @@
 package org.domi.furnace.server.command.exec;
 
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.execution.tasks.ContinuationTask")
 public final class ContinuationTask<P> implements EntryAction {
 
     @FunctionalInterface

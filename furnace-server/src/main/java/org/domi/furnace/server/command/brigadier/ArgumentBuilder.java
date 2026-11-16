@@ -3,7 +3,9 @@ package org.domi.furnace.server.command.brigadier;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Predicate;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("com.mojang.brigadier.builder.ArgumentBuilder")
 public abstract class ArgumentBuilder<S, T extends ArgumentBuilder<S, T>> {
 
     private final RootCommandNode<S> arguments = new RootCommandNode<>();

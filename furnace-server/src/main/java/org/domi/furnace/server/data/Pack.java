@@ -6,7 +6,9 @@ import java.util.Set;
 import java.util.function.Function;
 import org.domi.furnace.api.text.NamedTextColor;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.server.packs.repository.Pack", "net.minecraft.server.packs.PackLocationInfo", "net.minecraft.server.packs.PackSelectionConfig"})
 public final class Pack {
 
     /** 바닐라 Pack.Position — 목록에 넣을 때 기본 자리. */

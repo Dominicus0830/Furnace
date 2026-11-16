@@ -24,7 +24,9 @@ import org.domi.furnace.server.item.ComponentType;
 import org.domi.furnace.server.item.DataComponents;
 import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.item.ItemPrototypes;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.commands.arguments.item.ItemArgument", "net.minecraft.commands.arguments.item.ItemParser"})
 public final class ItemArgument implements ArgumentType<ItemArgument.ItemInput> {
 
     private static final List<String> EXAMPLES = List.of("stick", "minecraft:stick", "stick{foo=bar}");

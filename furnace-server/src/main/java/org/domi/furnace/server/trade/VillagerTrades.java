@@ -23,7 +23,9 @@ import org.domi.furnace.server.loot.LootStack;
 import org.domi.furnace.server.map.ExplorerMaps;
 import org.domi.furnace.server.map.MapDecorationType;
 import org.domi.furnace.server.recipe.SpecialRecipes;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.entity.npc.VillagerTrades")
 public final class VillagerTrades {
     private VillagerTrades() { }
 

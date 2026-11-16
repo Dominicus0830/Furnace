@@ -3,7 +3,9 @@ package org.domi.furnace.server.command.brigadier;
 
 import java.util.List;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("com.mojang.brigadier.context.CommandContext")
 public class CommandContext<S> {
 
     private final S source;

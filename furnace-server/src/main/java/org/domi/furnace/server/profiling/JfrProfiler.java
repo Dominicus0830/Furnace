@@ -20,7 +20,9 @@ import jdk.jfr.FlightRecorder;
 import jdk.jfr.Recording;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.util.profiling.jfr.JvmProfiler")
 public final class JfrProfiler {
 
     private static final Logger log = LoggerFactory.getLogger(JfrProfiler.class);
