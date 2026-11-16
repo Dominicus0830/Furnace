@@ -1,6 +1,6 @@
 # T-197(N2b-5) 편집 뒤 빛 다시 계산 — 설계 (2026-11-16)
 
-상태: **독립 검토 조건부 승인(`furnace/reviews/t197-relight-design-review-2026-11-16.md`) → 필수 R1~R6 반영, 구현됨, 코드 검토(조건부 승인) F1~F5 반영**. 반영 내역은 11장, 바뀐 절은 4.1·4.3·4.4·4.6·4.8·5·7·9.
+상태: **병합됨(PR #439, 2026-11-16 `5a52b5db9`)** — 설계 독립 검토 조건부 승인(`furnace/reviews/t197-relight-design-review-2026-11-16.md`) → R1~R6 반영, 코드 검토 F1~F5 반영, 틱 예산(0.25 ms)·수동 시계 hold 처리 추가, M1·M3·M4 측정 끝. 남은 것은 M5 데스크탑 실측. 후속 TASK T-205~T-208. 반영 내역은 11장, 바뀐 절은 4.1·4.3·4.4·4.6·4.8·5·7·9.
 관련: `compat-nms-n2b-design-2026-11-14.md` 3.8·6장(N2b-5), 결정 D2, `compat-real-plugin-gaps-2026-11-16.md` 3장(호출 모양), `compat-nms-n2b6-2026-11-16.md`(실측),
 `optimization-tasks.md` 12절 T-197, 빛 작업 모드 `context-notes/2026-11-13-t064-light-pool.md`, 저장 빛 T-012.
 
@@ -356,4 +356,4 @@ FAWE 의 `//fixlighting` 이외 빛 명령(`//removelighting`·`//getlighting`·
 | M3 첫 측정 p95 +7 ms | 틱 예산 0.25 ms + 빛 작업 묶음 기다리지 않기 | 6장 M3 |
 | 시험 보강 | 합치기·나누기·두 region 타일·F1 회귀를 `RelightRegionTest` 로 옮김 | 7장 |
 
-남은 것: M3(헤드리스 서버 MSPT), M4(`lamps400Bench` 회귀 — 0 비용 경로는 volatile 읽기 두 번), M5(데스크탑 실측 + 둘레 한 줄)는 코드 검토와 함께 따로 잰다.
+M3·M4 는 6장에 결과를 적었다. 병합 직전 CI 에서 `NmsFaweSurfaceTest` 가 시간 초과했다 — 수동 시계(헤드리스 시험 서버)는 region 을 hold 차례로 돌려 지연 작업이 안 돌아, 틱 예산으로 다음 틱에 미룬 준비·설치가 멈췄다. hold 차례에서는 예산·묶음 대기 미루기를 끈다(`Region.relightHeldRun`, 시험 `RelightRegionTest#manualClockDoesNotStallRelight`). 다듬을 점 두 가지는 T-208. 남은 것은 M5(데스크탑 실측 + 둘레 한 줄).
