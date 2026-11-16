@@ -1,4 +1,4 @@
-// 꾸밈 값의 세 상태 — 정하지 않음(부모 스타일 상속)·끔·켬.
+// 꾸밈 값의 세 상태다. 정하지 않음(부모 스타일 상속), 끔, 켬이 있다.
 package org.domi.furnace.api.text;
 
 public enum TriState {

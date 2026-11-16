@@ -1,4 +1,4 @@
-// ConfigSection 을 TOML 로 직렬화 — 하위 섹션은 [테이블], 섹션 리스트는 [[테이블 배열]], 주석 보존, null 은 생략
+// ConfigSection 을 TOML 로 직렬화한다. 하위 섹션은 [테이블], 섹션 리스트는 [[테이블 배열]] 로 쓰고, 주석은 보존하며, null 은 생략한다
 package org.domi.furnace.api.config;
 
 import java.time.LocalDate;

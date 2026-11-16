@@ -1,12 +1,14 @@
-// 게으른 불변 목록 — 이벤트 시점에 원소 원본 참조 배열만 복사해 두고, API 형태로 바꾸는 일은 칸마다 처음 읽을 때 한 번 한다(T-033, O09-01 (b)).
+// 게으른 불변 목록. 이벤트 시점에는 원소 원본 참조 배열만 복사해 두고, API 형태로 바꾸는 일은 칸마다 처음 읽을 때 한 번 한다(T-033, O09-01 (b)).
 //
-// List.copyOf 로 만든 목록과 관측 결과가 같도록 만든다:
-//   - 범위 안 get(i)·size()·isEmpty() 만 게으르다(그 칸만 변환).
-//   - 그 밖의 모든 것(반복·equals·hashCode·toString·contains·subList·stream·바꾸기 시도·범위 밖 get 의 예외 …)은
-//     칸을 모두 변환한 List.of(…) 사본에 맡긴다 — 예외 종류·메시지까지 List.copyOf 결과와 같다.
-//   - get(i) 로 받은 객체와 반복으로 받은 객체는 같은 객체다(칸마다 처음 고정한 값을 사본도 쓴다).
+// List.copyOf 로 만든 목록과 관측 결과가 같도록 만든다.
+//   범위 안 get(i), size(), isEmpty() 만 게으르다(그 칸만 변환한다).
+//   그 밖의 모든 것은 칸을 모두 변환한 List.of(…) 사본에 맡긴다.
+//     반복, equals, hashCode, toString, contains, subList, stream, 바꾸기 시도, 범위 밖 get 의 예외가 여기에 해당한다.
+//     예외 종류와 메시지까지 List.copyOf 결과와 같다.
+//   get(i) 로 받은 객체와 반복으로 받은 객체는 같은 객체다. 칸마다 처음 고정한 값을 사본도 쓰기 때문이다.
+//
 // 원소 원본은 불변이어야 한다(서버 ItemStack 처럼). 배열은 받을 때 복사하므로 부른 쪽이 그 뒤에 배열을 고쳐도 상관없다.
-// 변환 결과가 null 이면 NullPointerException(List.copyOf 가 null 원소를 거부하는 것과 같은 계약 — 다만 읽을 때 난다).
+// 변환 결과가 null 이면 NullPointerException 이 난다. List.copyOf 가 null 원소를 거부하는 것과 같은 계약이지만, 읽을 때 난다는 점이 다르다.
 package org.domi.furnace.api.event;
 
 import java.io.Serial;
@@ -66,14 +68,14 @@ public final class LazyList<T> implements List<T>, RandomAccess, Serializable {
     /**
      * 원본 배열(복사함)과 칸 변환 함수. 변환은 그 칸을 처음 읽을 때 한다.
      *
-     * @param sources 원소 원본 — 불변 값이어야 한다
-     * @param convert 원본 → 원소. 원본만 보고 같은 결과를 내야 하며 null 을 돌려주면 안 된다
+     * @param sources 원소 원본. 불변 값이어야 한다
+     * @param convert 원본을 원소로 바꾸는 함수. 원본만 보고 같은 결과를 내야 하고 null 을 돌려주면 안 된다
      */
     public static <S, T> LazyList<T> of(S[] sources, Function<? super S, ? extends T> convert) {
         return new LazyList<>(sources.clone(), Objects.requireNonNull(convert, "convert"));
     }
 
-    /** 칸 i 의 값 — 처음이면 변환하고 고정한다. */
+    /** 칸 i 의 값. 처음이면 변환하고 고정한다. */
     @SuppressWarnings("unchecked")
     private T slot(int i) {
         Object v = SLOT.getVolatile(done, i);
@@ -117,7 +119,7 @@ public final class LazyList<T> implements List<T>, RandomAccess, Serializable {
     @Override
     public T get(int index) {
         if (index >= 0 && index < sources.length) return slot(index);
-        return full().get(index);   // 범위 밖 — List.copyOf 결과와 같은 예외
+        return full().get(index);   // 범위 밖이므로 List.copyOf 결과와 같은 예외가 난다
     }
 
     // ------------------------------------------------------------------ 나머지는 사본에 맡긴다
@@ -166,7 +168,7 @@ public final class LazyList<T> implements List<T>, RandomAccess, Serializable {
     @Serial
     private Object writeReplace() { return full(); }
 
-    /** 스트림에 이 클래스가 직접 나올 일은 없다(writeReplace) — 손으로 만든 스트림은 JDK 불변 목록처럼 거부한다(PR #323 검토 R1). */
+    /** 스트림에 이 클래스가 직접 나올 일은 없다(writeReplace). 손으로 만든 스트림은 JDK 불변 목록처럼 거부한다(PR #323 검토 R1). */
     @Serial
     private void readObject(java.io.ObjectInputStream in) throws java.io.InvalidObjectException {
         throw new java.io.InvalidObjectException("not serial proxy");

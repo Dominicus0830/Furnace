@@ -1,4 +1,4 @@
-// 플레이어가 다른 차원(월드)으로 옮겨 간 뒤 — 도착한 region 스레드에서 불린다(포털·명령·다른 차원 리스폰 모두).
+// 플레이어가 다른 차원(월드)으로 옮겨 간 뒤 도착한 region 스레드에서 불린다. 포털, 명령, 다른 차원 리스폰 모두 해당한다.
 package org.domi.furnace.api.event.player;
 
 import org.domi.furnace.api.entity.Player;

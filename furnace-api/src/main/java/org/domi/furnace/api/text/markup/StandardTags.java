@@ -1,4 +1,4 @@
-// MiniMessage 4.17 표준 태그 해석기(패키지 내부) — 색·꾸밈·reset·click·hover·key·lang·insert·font·newline·selector·score·nbt·그라디언트 계열.
+// MiniMessage 4.17 표준 태그 해석기(패키지 내부). 색, 꾸밈, reset, click, hover, key, lang, insert, font, newline, selector, score, nbt, 그라디언트 계열을 다룬다.
 package org.domi.furnace.api.text.markup;
 
 import java.util.ArrayList;

@@ -14,7 +14,7 @@ public interface PluginContext {
     /** "[플러그인] 메시지" 형식으로 서버 로그에 쓰는 로거. */
     Logger logger();
 
-    /** 관리자가 고치는 설정 파일 폴더 — plugins/<이름>/. 처음 쓸 때 만들어진다. */
+    /** 관리자가 고치는 설정 파일 폴더(plugins/<이름>/). 처음 쓸 때 만들어진다. */
     Path configFolder();
 
     /**
@@ -32,9 +32,9 @@ public interface PluginContext {
     org.domi.furnace.api.registry.PluginRegistries registries();
 
     /**
-     * 로더 전용: 지금 {@link FurnacePlugin#setEnabled} 호출이 로더(플러그인 관리자)에서 온 것인가. 거짓이면 setEnabled 는
-     * 플러그인 관리자의 enable/disable 로 넘어가 자동 정리까지 모두 돈다(Bukkit 은 setEnabled 를 다른 플러그인이 부를 수 없다).
-     * 기본은 참(관리자 없이 만든 시험용 문맥은 예전처럼 바로 켜고 끈다).
+     * 로더 전용. 지금 {@link FurnacePlugin#setEnabled} 호출이 로더(플러그인 관리자)에서 온 것인가.
+     * 거짓이면 setEnabled 는 플러그인 관리자의 enable/disable 로 넘어가 자동 정리까지 모두 돈다(Bukkit 은 다른 플러그인이 setEnabled 를 부를 수 없다).
+     * 기본은 참이다(관리자 없이 만든 시험용 문맥은 예전처럼 바로 켜고 끈다).
      */
     default boolean lifecycleCall() { return true; }
 }

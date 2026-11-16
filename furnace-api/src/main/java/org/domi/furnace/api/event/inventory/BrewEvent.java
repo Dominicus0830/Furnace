@@ -1,6 +1,8 @@
-// 양조대가 재료 하나로 병을 바꾸기 직전(양조 시간이 끝났을 때) — 양조대의 region 스레드에서 불린다. 취소하면 병도 재료도 그대로이고 양조는 멈춘다(연료는 이미 썼다).
-// contents() 는 양조대 다섯 칸 스냅샷(0~2 병, 3 재료, 4 연료). results() 는 양조 뒤 병 세 칸에 들어갈 아이템(바꿀 수 있다 — 그대로 칸에 들어간다,
-// 세 개보다 짧으면 남는 칸은 비고 EMPTY 는 빈 칸).
+// 양조대가 재료 하나로 병을 바꾸기 직전(양조 시간이 끝났을 때)에 양조대의 region 스레드에서 불린다.
+// 취소하면 병도 재료도 그대로이고 양조는 멈춘다(연료는 이미 썼다).
+// contents() 는 양조대 다섯 칸의 스냅샷이다(0~2 병, 3 재료, 4 연료).
+// results() 는 양조 뒤 병 세 칸에 들어갈 아이템이다. 바꿀 수 있으며 바꾼 값이 그대로 칸에 들어간다.
+// 세 개보다 짧으면 남는 칸은 비고, EMPTY 는 빈 칸이다.
 package org.domi.furnace.api.event.inventory;
 
 import java.util.ArrayList;
@@ -36,7 +38,7 @@ public final class BrewEvent extends BlockEvent implements Cancellable {
         this.fuelLevel = fuelLevel;
     }
 
-    /** 양조 뒤 병 칸 0~2 에 들어갈 아이템 — 고칠 수 있는 목록. */
+    /** 양조 뒤 병 칸 0~2 에 들어갈 아이템. 고칠 수 있는 목록이다. */
     public List<ItemStack> results() { return results; }
 
     public InventorySnapshot contents() { return contents; }

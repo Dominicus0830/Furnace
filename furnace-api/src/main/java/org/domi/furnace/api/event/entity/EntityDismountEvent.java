@@ -1,6 +1,7 @@
-// 엔티티(플레이어 포함)가 탈것에서 내리기 직전 — 탈것의 region 스레드에서 불린다. entity() 가 내리는 쪽이다.
-// 스스로 내리는 경우(웅크림·AI·명령)만 취소할 수 있다. 탈것이 사라지거나 죽어 내려야 하거나, 순간이동·차원 이동·접속 종료로 내릴 때는 isCancellable() 이 false 이고
-// 취소해도 무시된다. 보트·광산 수레에서 살아 있는 것이 내릴 때는 먼저 VehicleExitEvent 가 불리고, 그것이 취소되면 이 이벤트는 불리지 않는다.
+// 엔티티(플레이어 포함)가 탈것에서 내리기 직전에 탈것의 region 스레드에서 불린다. entity() 가 내리는 쪽이다.
+// 스스로 내리는 경우(웅크림, AI, 명령)만 취소할 수 있다.
+// 탈것이 사라지거나 죽어서 내려야 하는 경우, 순간이동·차원 이동·접속 종료로 내리는 경우에는 isCancellable() 이 false 이고 취소해도 무시된다.
+// 보트나 광산 수레에서 살아 있는 것이 내릴 때는 먼저 VehicleExitEvent 가 불린다. 그것이 취소되면 이 이벤트는 불리지 않는다.
 package org.domi.furnace.api.event.entity;
 
 import org.domi.furnace.api.entity.Entity;

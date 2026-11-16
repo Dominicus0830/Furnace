@@ -1,9 +1,12 @@
-// 변경 원인 사슬 — "누가·무엇이 이 변경을 일으켰나". 맨 앞(direct)이 가장 가까운 원인, 맨 뒤(root)가 가장 근본 원인이다.
-// 예: 플레이어가 부싯돌로 TNT 를 켜고 그 TNT 가 다른 TNT 를 터뜨려 블록이 부서지면 EntityExplodeEvent 의 사슬은
+// 변경 원인 사슬. "누가 또는 무엇이 이 변경을 일으켰나"를 나타낸다. 맨 앞(direct)이 가장 가까운 원인이고, 맨 뒤(root)가 가장 근본 원인이다.
+//
+// 예: 플레이어가 부싯돌로 TNT 를 켜고 그 TNT 가 다른 TNT 를 터뜨려 블록이 부서지면 EntityExplodeEvent 의 사슬은 이렇다.
 //     [minecraft:tnt explode] ← [minecraft:tnt explode] ← [minecraft:player ignite name=Steve].
-// 불변이고 고리는 스냅샷이라 어느 스레드에서 읽어도, 비동기 로그로 넘겨도 안전하다. 모르는 원인은 빈 사슬(NONE)이지 null 이 아니다.
-// 꼬리를 나눠 쓰는 연결 목록이라 사슬을 한 단계 늘리는 비용은 고리 하나다. 길이는 MAX_LENGTH 로 묶인다(TNT 대포 같은 긴 연쇄) —
-// 넘치면 가까운 쪽 절반과 root 만 남기고 truncated() 가 참이 된다.
+//
+// 사슬은 불변이고 고리는 스냅샷이므로 어느 스레드에서 읽어도, 비동기 로그로 넘겨도 안전하다.
+// 모르는 원인은 null 이 아니라 빈 사슬(NONE)이다.
+// 꼬리를 나눠 쓰는 연결 목록이라 사슬을 한 단계 늘리는 비용은 고리 하나다.
+// 길이는 MAX_LENGTH 로 제한한다(TNT 대포 같은 긴 연쇄). 넘치면 가까운 쪽 절반과 root 만 남기고 truncated() 가 참이 된다.
 package org.domi.furnace.api.event.cause;
 
 import java.util.ArrayList;
@@ -103,10 +106,10 @@ public final class CauseChain implements Iterable<CauseEntry> {
     /** 가까운 쪽부터 처음 나오는 이 종류 고리. */
     public Optional<CauseEntry> first(CauseEntry.Kind kind) { return first(e -> e.kind() == kind); }
 
-    /** 가장 가까운 플레이어(책임자를 찾을 때 — 화살을 쏜 플레이어, TNT 를 켠 플레이어). */
+    /** 가장 가까운 플레이어. 책임자를 찾을 때 쓴다(화살을 쏜 플레이어, TNT 를 켠 플레이어). */
     public Optional<CauseEntry> player() { return first(CauseEntry.Kind.PLAYER); }
 
-    /** 가까운 쪽부터 모든 고리(새 목록, 고칠 수 없음). */
+    /** 가까운 쪽부터 모든 고리. 새 목록이며 고칠 수 없다. */
     public List<CauseEntry> entries() {
         List<CauseEntry> out = new ArrayList<>(size);
         for (CauseEntry e : this) out.add(e);

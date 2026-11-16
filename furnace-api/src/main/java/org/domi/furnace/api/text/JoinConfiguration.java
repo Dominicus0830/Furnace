@@ -1,4 +1,4 @@
-// 텍스트 목록을 이을 때의 모양(구분자·마지막 구분자·접두/접미·원소 변환) — Adventure JoinConfiguration 과 같은 사용법. 불변.
+// 텍스트 목록을 이을 때의 모양(구분자, 마지막 구분자, 접두/접미, 원소 변환)이다. Adventure JoinConfiguration 과 같은 사용법이며 불변이다.
 package org.domi.furnace.api.text;
 
 import java.util.ArrayList;
@@ -61,7 +61,8 @@ public final class JoinConfiguration {
     public Function<Text, Text> convertor() { return convertor; }
 
     /**
-     * 목록을 이은 텍스트. 원소가 둘이면 lastSeparator, 셋 이상이면 마지막 틈에 lastSeparatorIfSerial(없으면 lastSeparator, 그것도 없으면 separator).
+     * 목록을 이은 텍스트. 원소가 둘이면 lastSeparator 를 쓴다.
+     * 셋 이상이면 마지막 틈에 lastSeparatorIfSerial 을 쓴다(없으면 lastSeparator, 그것도 없으면 separator).
      * 원소가 없으면 빈 텍스트다(접두/접미도 붙이지 않는다).
      */
     public Text join(Iterable<? extends Text> parts) {

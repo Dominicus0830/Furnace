@@ -1,5 +1,6 @@
-// 레거시 서식 코드(§ 또는 &) ↔ Text 변환기 — Adventure LegacyComponentSerializer 와 같은 동작.
-// 색 코드는 꾸밈을 초기화하고(바닐라와 같다), r 은 전부 초기화한다. 16진 색은 &#RRGGBB 와 &x&R&R&G&G&B&B 두 형식을 모두 읽는다.
+// 레거시 서식 코드(§ 또는 &)와 Text 사이의 변환기다. Adventure LegacyComponentSerializer 와 같게 동작한다.
+// 색 코드는 꾸밈을 초기화하고(바닐라와 같다), r 은 전부 초기화한다.
+// 16진 색은 &#RRGGBB 와 &x&R&R&G&G&B&B 두 형식을 모두 읽는다.
 package org.domi.furnace.api.text.serializer;
 
 import java.util.ArrayList;
