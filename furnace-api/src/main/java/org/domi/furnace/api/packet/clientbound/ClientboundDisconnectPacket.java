@@ -1,4 +1,5 @@
-// 연결 종료 사유 — 보내면 클라이언트가 그 사유를 보이며 나간다(서버 쪽 연결은 따로 끊어야 한다. 보통은 Player.kick 을 쓴다).
+// 연결 종료 사유. 보내면 클라이언트가 그 사유를 보여 주며 나간다.
+// 서버 쪽 연결은 따로 끊어야 한다. 보통은 Player.kick 을 쓴다.
 package org.domi.furnace.api.packet.clientbound;
 
 import java.util.Objects;

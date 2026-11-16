@@ -1,4 +1,6 @@
-// 플러그인 채널 메시지(클라이언트→서버). 본문은 최대 32767바이트. 배열은 만들 때 복사하고 data() 도 사본을 준다.
+// 플러그인 채널 메시지(클라이언트에서 서버로).
+// 본문은 최대 32767바이트다.
+// 배열은 만들 때 복사하고, data() 도 사본을 준다.
 package org.domi.furnace.api.packet.serverbound;
 
 import java.util.Arrays;

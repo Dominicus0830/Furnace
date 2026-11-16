@@ -1,4 +1,5 @@
-// 블록에 대고 우클릭. cursor 는 클릭한 칸 안의 위치(0~1), insideBlock 은 머리가 블록 안에 있을 때.
+// 블록에 대고 우클릭.
+// cursor 는 클릭한 칸 안의 위치(0~1)이고, insideBlock 은 머리가 블록 안에 있을 때 true 다.
 package org.domi.furnace.api.packet.serverbound;
 
 import java.util.Objects;

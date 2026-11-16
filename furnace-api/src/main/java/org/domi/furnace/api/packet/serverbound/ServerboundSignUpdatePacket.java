@@ -1,4 +1,4 @@
-// 표지판 글 편집 완료: 위치, 앞면인가, 네 줄(줄마다 최대 384자).
+// 표지판 글 편집 완료. 위치, 앞면인지 여부, 네 줄을 담는다. 한 줄은 최대 384자다.
 package org.domi.furnace.api.packet.serverbound;
 
 import java.util.List;

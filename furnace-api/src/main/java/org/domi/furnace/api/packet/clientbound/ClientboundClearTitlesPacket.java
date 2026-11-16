@@ -1,4 +1,4 @@
-// 제목 지우기. resetTimes 면 제목 시간도 기본값으로 되돌린다.
+// 제목을 지운다. resetTimes 가 true 면 제목 시간도 기본값으로 되돌린다.
 package org.domi.furnace.api.packet.clientbound;
 
 import org.domi.furnace.api.packet.ClientboundPacket;

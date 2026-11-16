@@ -1,6 +1,10 @@
-// 버전별 패킷 모양 표(중립 스키마). 손으로 쓴 텍스트 파일(protocol-767.schema)을 읽어 패킷마다 Mojang 클래스 이름·필드 이름·
-// 필드 타입·와이어 종류를 준다. 바닐라 코드나 생성 결과물이 아니라 이름과 타입 목록뿐이다.
-// 쓰는 곳: 호환 계층이 빌드 때 net.minecraft 패킷 shim 을 만들고, 서버 범용 코덱이 와이어를 읽고 쓸 때.
+// 버전별 패킷 모양 표(중립 스키마). 손으로 쓴 텍스트 파일(protocol-767.schema)을 읽어 패킷마다 Mojang 클래스 이름, 필드 이름, 필드 타입, 와이어 종류를 준다.
+// 바닐라 코드나 생성 결과물이 아니라 이름과 타입 목록뿐이다.
+//
+// 쓰는 곳은 두 군데다.
+//   - 호환 계층이 빌드 때 net.minecraft 패킷 shim 을 만들 때
+//   - 서버 범용 코덱이 와이어를 읽고 쓸 때
+//
 // 문법은 스키마 파일 머리말에 있다.
 package org.domi.furnace.api.packet.schema;
 
@@ -21,7 +25,7 @@ import org.domi.furnace.api.packet.PacketDirection;
 
 public final class PacketSchema {
 
-    /** 상태 이름 → Mojang 패킷 패키지. */
+    /** 상태 이름에 대응하는 Mojang 패킷 패키지. */
     public static final Map<String, String> STATE_PACKAGES;
 
     static {
@@ -32,7 +36,7 @@ public final class PacketSchema {
         STATE_PACKAGES = Collections.unmodifiableMap(m);
     }
 
-    /** 필드 타입에 쓰는 JDK 이름(단순 이름 → 전체 이름). */
+    /** 필드 타입에 쓰는 JDK 이름. 단순 이름을 전체 이름에 대응시킨다. */
     public static final Map<String, String> BUILTIN_TYPES = Map.ofEntries(
             Map.entry("String", "java.lang.String"), Map.entry("Object", "java.lang.Object"),
             Map.entry("UUID", "java.util.UUID"), Map.entry("List", "java.util.List"), Map.entry("Set", "java.util.Set"),
@@ -40,7 +44,7 @@ public final class PacketSchema {
             Map.entry("Collection", "java.util.Collection"), Map.entry("EnumSet", "java.util.EnumSet"),
             Map.entry("BitSet", "java.util.BitSet"), Map.entry("Instant", "java.time.Instant"));
 
-    /** 필드 줄에 직접 적을 수 있는 와이어 이름(크기·부호만 다른 경우). */
+    /** 필드 줄에 직접 적을 수 있는 와이어 이름. 크기나 부호만 다른 경우에 쓴다. */
     public static final Set<String> EXPLICIT_WIRES = Set.of(
             "varint", "varlong", "i8", "u8", "i16", "u16", "i32", "i64", "f32", "f64", "bool", "string", "uuid", "bytes");
 
@@ -99,10 +103,10 @@ public final class PacketSchema {
 
     public int protocol() { return protocol; }
 
-    /** 모든 패킷(파일 순서). */
+    /** 모든 패킷. 파일 순서를 따른다. */
     public List<PacketDef> packets() { return packets; }
 
-    /** 한 상태·방향의 패킷(파일 순서). */
+    /** 한 상태와 방향의 패킷. 파일 순서를 따른다. */
     public List<PacketDef> packets(String state, PacketDirection direction) {
         return packets.stream().filter(p -> p.state().equals(state) && p.direction() == direction).toList();
     }
@@ -111,20 +115,20 @@ public final class PacketSchema {
         return Optional.ofNullable(packetsByKey.get(key(state, direction, wireName)));
     }
 
-    /** '$' 이름으로 패킷 찾기(net.minecraft.network.protocol.game.ClientboundMoveEntityPacket$Pos). */
+    /** '$' 이름으로 패킷을 찾는다(net.minecraft.network.protocol.game.ClientboundMoveEntityPacket$Pos). */
     public Optional<PacketDef> packetByClass(String binaryName) { return Optional.ofNullable(packetsByBinary.get(binaryName)); }
 
-    /** 바깥 타입 선언(binaryName → 선언, 파일 순서). */
+    /** 바깥 타입 선언. binaryName 에 대응하는 선언이며 파일 순서를 따른다. */
     public Map<String, TypeDecl> types() { return types; }
 
-    /** 패킷에 딸린 내포·보조 타입(파일 순서). */
+    /** 패킷에 딸린 내포 타입과 보조 타입. 파일 순서를 따른다. */
     public List<StructDef> structs() { return structs; }
 
     public Optional<StructDef> struct(String binaryName) { return Optional.ofNullable(structsByBinary.get(binaryName)); }
 
     /**
-     * 필드 타입 식의 이름 하나를 '$' 전체 이름으로 푼다. 기본형은 그대로, 와일드카드 '?' 는 null.
-     * 풀 수 없으면 IllegalArgumentException.
+     * 필드 타입 식의 이름 하나를 '$' 전체 이름으로 푼다. 기본형은 그대로 돌려주고, 와일드카드 '?' 는 null 을 준다.
+     * 풀 수 없으면 IllegalArgumentException 을 던진다.
      */
     public String resolve(String name, String javaPackage) {
         if (name.equals("?")) return null;
@@ -138,15 +142,22 @@ public final class PacketSchema {
         throw new IllegalArgumentException("unknown type name: " + name + " (package " + javaPackage + ")");
     }
 
-    /** 바깥 타입 선언을 '$' 이름으로. */
+    /** '$' 이름으로 바깥 타입 선언을 찾는다. */
     public Optional<TypeDecl> type(String binaryName) { return Optional.ofNullable(types.get(binaryName)); }
 
     /**
-     * 필드의 와이어 종류. 명시 와이어가 있으면 그것, 없으면 Java 타입에서 정한다:
-     * 기본형(int=varint 등), String=string, UUID=uuid, byte[]=bytes, long[]=longs, int[]=varints, BitSet=bitset, Instant=instant,
-     * List·Set·Collection=list&lt;원소&gt;, Optional=optional&lt;값&gt;, Map=map&lt;키,값&gt;, Holder=holder, ResourceKey=identifier,
-     * 선언 타입은 그 wire=(없으면 enum=varint, 나머지 custom), 스키마 안 record·class 는 struct:&lt;이름&gt;.
-     * nullable 은 여기에 반영하지 않는다(FieldDef.nullable).
+     * 필드의 와이어 종류. 명시 와이어가 있으면 그것을 쓰고, 없으면 Java 타입에서 정한다.
+     *
+     * <ul>
+     * <li>기본형은 int=varint 처럼 정한다.
+     * <li>String=string, UUID=uuid, byte[]=bytes, long[]=longs, int[]=varints, BitSet=bitset, Instant=instant
+     * <li>List·Set·Collection=list&lt;원소&gt;, Optional=optional&lt;값&gt;, Map=map&lt;키,값&gt;
+     * <li>Holder=holder, ResourceKey=identifier
+     * <li>선언 타입은 그 wire= 값을 쓴다. 없으면 enum 은 varint, 나머지는 custom 이다.
+     * <li>스키마 안의 record·class 는 struct:&lt;이름&gt; 이다.
+     * </ul>
+     *
+     * <p>nullable 은 여기에 반영하지 않는다(FieldDef.nullable).
      */
     public String wireOf(FieldDef field, String javaPackage) {
         if (field.wire() != null) return field.wire();
@@ -205,7 +216,7 @@ public final class PacketSchema {
 
     // ------------------------------------------------------------------ 읽기
 
-    /** 스키마 글을 읽는다. 문법 오류·모르는 타입 이름·겹치는 패킷이면 IllegalArgumentException(줄 번호 포함). */
+    /** 스키마 글을 읽는다. 문법 오류, 모르는 타입 이름, 겹치는 패킷이면 줄 번호를 붙여 IllegalArgumentException 을 던진다. */
     public static PacketSchema parse(int protocol, String text) {
         return new Reader(text).read(protocol);
     }

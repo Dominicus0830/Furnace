@@ -1,4 +1,4 @@
-// 제목 시간(틱): 나타남·유지·사라짐.
+// 제목 시간(틱). 나타나는 시간, 유지하는 시간, 사라지는 시간을 정한다.
 package org.domi.furnace.api.packet.clientbound;
 
 import org.domi.furnace.api.packet.ClientboundPacket;

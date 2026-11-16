@@ -1,4 +1,4 @@
-// 엔티티 속도(블록/틱). 축마다 ±3.9 로 잘리고 1/8000 단위로 보내진다.
+// 엔티티 속도(블록/틱). 축마다 ±3.9 로 잘리고, 1/8000 단위로 보낸다.
 package org.domi.furnace.api.packet.clientbound;
 
 import org.domi.furnace.api.packet.ClientboundPacket;
