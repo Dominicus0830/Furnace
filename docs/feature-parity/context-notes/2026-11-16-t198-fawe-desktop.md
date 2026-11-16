@@ -17,4 +17,7 @@ PR #447 브랜치로 만든 Furnace 서버에 FAWE 2.16.2 를 올려 `tools/comp
 
 - **`keepPacked`**: 바닐라 서버 jar 에 이 키를 쓰는 클래스가 있고(문자열 확인 — 정확한 메서드는 미확인) Paper 는 저장하는 모든 블록 엔티티에 `keepPacked:0b` 를 넣는다. Furnace 는 자기가 저장한 타일에 넣지 않는다(FAWE 와 무관 — `setblock` 상자도 같음). Furnace 에 있는 11개는 Paper 가 만든 기준 월드에서 읽어 와 그대로 되쓴 던전·광산 타일이다. 바닐라 대조 항목.
 - `Paper.Range`(신호기)·`Paper.CookSpeedMultiplier`(화로)는 Paper 전용 필드라 Furnace 에 없는 게 맞다.
-- **FAWE 편집 시간**: 상자 512개 `//set` 이 Paper 는 약 0.2 s 인데 Furnace 는 FAWE 보고 12.2 s(42 blocks/s), `//stack` 512개는 약 26 s. `//undo` 는 둘 다 약 0.2 s. 틱에는 영향이 없다. 원인: FAWE 는 타일마다 지우기 → 저장(되돌리기 기록)을 번갈아 하고, 다른 스레드의 저장은 주인 region 작업 큐를 기다리는데 큐는 틱 머리에서만 비운다 — 타일 하나에 반 틱~한 틱(약 24 ms = 42개/s 와 맞다). 고침(같은 PR): 저장 왕복을 명령 큐 문(`CommandDrainGate`)과 같은 drain 대상으로 넣어 주인이 쉬면 곧바로 돈다(`ChunkInternals.submitAwaited`). 데스크탑 재측정 대기.
+- **FAWE 편집 시간**: 상자 512개 `//set` 이 Paper 는 약 0.2 s 인데 Furnace 는 FAWE 보고 12.2 s(42 blocks/s), `//stack` 512개는 약 26 s. `//undo` 는 둘 다 약 0.2 s. 틱에는 영향이 없다.
+  - **원인(스레드 덤프 12번, `jstack -l`)**: FAWE 작업 스레드가 `ChunkAccess.furnaceBlockEntitySave` 의 `CompletableFuture.get` 에서 기다린다 — 타일 하나를 저장할 때마다 주인 region 스케줄러에 작업을 맡기고 끝날 때까지 막는다(Paper 는 메인 스레드라 기다림 없음). `//set` 은 작업 스레드 3개(`FAWE QueueHandler Blocking Executor`)가 각자 기다려 3개/틱 ≈ 최대 60개/초(실측 42), `//stack` 은 스레드 1개(`AsyncNotifyKeyedQueue`)라 1개/틱 = 20개/초 → 512개 25.6 s(실측 25.7 s). "맡긴 작업을 주인이 다음 틱에 처리한다"는 스케줄러 코드로 확인했다 — `Region.runTick` 이 작업 큐를 틱 머리에서만 비운다.
+  - **고침(같은 PR)**: 저장 왕복을 명령 큐 문(`CommandDrainGate`)과 같은 drain 대상으로 넣어(`ChunkInternals.submitAwaited`) 주인이 틱 사이에 쉬면 다음 틱을 기다리지 않고 곧바로 돈다(같은 예산 한 전역 틱 20 ms, 넘으면 예전처럼 다음 틱 머리). 클라우드 시험 서버에서 상자 24개 지우기+저장 73 ms → 8 ms. 데스크탑 재측정 대기.
+- **후속 과제 후보(한 줄)**: NMS shim 전체에서 "바닐라는 필드인데 shim 은 메서드만 있는 곳"(`Level#isClientSide` 같은 꼴)을 일괄 점검한다.
