@@ -370,4 +370,32 @@ class NmsFaweSurfaceTest {
         assertEquals("@item_stack", net.minecraft.util.datafix.fixes.References.ITEM_STACK.toString());
         assertEquals("saved_data/chunks", net.minecraft.util.datafix.fixes.References.SAVED_DATA_FORCED_CHUNKS.typeName());
     }
+
+    /** T-199: FAWE LegacyMapper 가 1631 → 3955 로 올리는 길(DataFixers.update). 서버 데이터 픽서로 이름·상태·아이템이 바닐라 결과로 올라간다. */
+    @Test
+    void dataFixerUpgradesLegacyNames() {
+        var fixer = net.minecraft.util.datafix.DataFixers.getDataFixer();
+        // NbtOps shim 은 DynamicOps 가 아니다(상수만, T-191) — FAWE 는 그 상수를 그대로 Dynamic 에 넣고, 고치기는 ops 를 건드리지 않고 돌려준다. 시험은 대역 Dynamic 이라 null.
+        com.mojang.serialization.DynamicOps<net.minecraft.nbt.Tag> ops = null;
+        var grass = fixer.update(net.minecraft.util.datafix.fixes.References.BLOCK_NAME,
+                new com.mojang.serialization.Dynamic<net.minecraft.nbt.Tag>(ops, net.minecraft.nbt.StringTag.valueOf("minecraft:grass")), 1631, 3955);
+        assertEquals("minecraft:short_grass", ((net.minecraft.nbt.StringTag) grass.getValue()).getAsString());
+        var dye = fixer.update(net.minecraft.util.datafix.fixes.References.ITEM_NAME,
+                new com.mojang.serialization.Dynamic<net.minecraft.nbt.Tag>(ops, net.minecraft.nbt.StringTag.valueOf("minecraft:rose_red")), 1631, 3955);
+        assertEquals("minecraft:red_dye", ((net.minecraft.nbt.StringTag) dye.getValue()).getAsString());
+        var state = new net.minecraft.nbt.CompoundTag();
+        state.putString("Name", "minecraft:sign");
+        var props = new net.minecraft.nbt.CompoundTag();
+        props.putString("rotation", "7");
+        state.put("Properties", props);
+        var fixed = fixer.update(net.minecraft.util.datafix.fixes.References.BLOCK_STATE,
+                new com.mojang.serialization.Dynamic<net.minecraft.nbt.Tag>(ops, state), 1631, 3955);
+        var out = (net.minecraft.nbt.CompoundTag) fixed.getValue();
+        assertEquals("minecraft:oak_sign", out.getString("Name"));
+        assertEquals("7", out.getCompound("Properties").getString("rotation"));
+        // 같은 판이거나 새 판은 그대로, 못 다루는 종류는 그대로(경고만)
+        var same = new com.mojang.serialization.Dynamic<net.minecraft.nbt.Tag>(ops, net.minecraft.nbt.StringTag.valueOf("minecraft:grass"));
+        assertSame(same, fixer.update(net.minecraft.util.datafix.fixes.References.BLOCK_NAME, same, 3955, 3955));
+        assertSame(same, fixer.update(net.minecraft.util.datafix.fixes.References.CHUNK, same, 1631, 3955));
+    }
 }

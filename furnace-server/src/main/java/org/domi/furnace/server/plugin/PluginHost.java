@@ -137,6 +137,11 @@ public final class PluginHost implements Furnace {
     @Override
     public org.domi.furnace.api.structure.Structures structures() { return structures; }
 
+    private final org.domi.furnace.api.nbt.NbtDataFixer dataFixer = new NbtDataFixerImpl();
+
+    @Override
+    public org.domi.furnace.api.nbt.NbtDataFixer dataFixer() { return dataFixer; }
+
     private final EntityViewsImpl entityViews = new EntityViewsImpl(this);
 
     /** 보이기·숨기기·변장 구현(플러그인이 꺼질 때 정리를 부르는 쪽). */
