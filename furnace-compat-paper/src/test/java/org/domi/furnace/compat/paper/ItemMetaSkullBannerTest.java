@@ -395,4 +395,45 @@ class ItemMetaSkullBannerTest {
         assertEquals("Banner pattern 0 is null", assertThrows(IllegalArgumentException.class, () -> meta.addPattern(null)).getMessage());
         assertNotNull(meta);
     }
+
+    @Test
+    void onlinePlayerOwnerKeepsTheRealProfile() {
+        try (org.domi.furnace.test.TestPlayer tp = server.join("HeadOwner")) {
+            server.tick(2);
+            org.bukkit.entity.Player online = Bukkit.getPlayerExact("HeadOwner");
+            assertNotNull(online);
+            SkullMeta byName = (SkullMeta) new ItemStack(Material.PLAYER_HEAD).getItemMeta();
+            assertTrue(byName.setOwner("HeadOwner"));
+            assertEquals("HeadOwner", byName.getOwner());
+            assertEquals(online.getUniqueId(), byName.getPlayerProfile().getId(), "접속 중이면 이름만이 아니라 그 플레이어의 UUID 까지 든다");
+            assertEquals(online.getUniqueId(), byName.getOwningPlayer().getUniqueId());
+
+            SkullMeta byPlayer = (SkullMeta) new ItemStack(Material.PLAYER_HEAD).getItemMeta();
+            assertTrue(byPlayer.setOwningPlayer(online));
+            assertEquals(online.getUniqueId(), byPlayer.getPlayerProfile().getId());
+            assertEquals("HeadOwner", byPlayer.getPlayerProfile().getName());
+
+            ItemStack head = new ItemStack(Material.PLAYER_HEAD);
+            head.setItemMeta(byPlayer);
+            assertEquals(online.getUniqueId(), ((SkullMeta) head.getItemMeta()).getPlayerProfile().getId());
+        }
+    }
+
+    @Test
+    void bannerKeepsEverythingTheMetaHoldsButReadsOnly20FromAnItem() {
+        BannerMeta meta = (BannerMeta) new ItemStack(Material.WHITE_BANNER).getItemMeta();
+        List<Pattern> many = new ArrayList<>();
+        for (int i = 0; i < 25; i++) many.add(stripe(i % 2 == 0 ? DyeColor.RED : DyeColor.BLUE));
+        meta.setPatterns(many);
+        assertEquals(25, meta.numberOfPatterns(), "메타에 넣은 것은 제한 없이 든다");
+        meta.addPattern(stripe(DyeColor.GREEN));
+        assertEquals(26, meta.numberOfPatterns(), "addPattern 이 21~25번째를 잃지 않는다");
+        assertEquals(26, meta.clone().numberOfPatterns(), "복제도 그대로");
+        assertEquals(DyeColor.RED, meta.getPattern(24).getColor());
+        assertEquals(DyeColor.GREEN, meta.getPattern(25).getColor());
+
+        ItemStack banner = new ItemStack(Material.WHITE_BANNER);
+        banner.setItemMeta(meta);
+        assertEquals(20, ((BannerMeta) banner.getItemMeta()).numberOfPatterns(), "아이템에서 다시 읽을 때만 앞의 20겹");
+    }
 }

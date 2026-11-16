@@ -20,8 +20,13 @@ public final class CompatMetaBanner extends CompatItemMeta implements BannerMeta
     static final String PATTERNS = "minecraft:banner_patterns";
 
     CompatMetaBanner(ItemStack work, EnumSet<ItemFlag> flags, ItemPdc pdc) {
+        this(work, flags, pdc, true);
+    }
+
+    /** normalize=false 는 복제 — 이미 메타가 든 겹(20 겹이 넘어도)을 그대로 옮긴다. */
+    private CompatMetaBanner(ItemStack work, EnumSet<ItemFlag> flags, ItemPdc pdc, boolean normalize) {
         super(work, flags, pdc);
-        normalizePatterns();
+        if (normalize) normalizePatterns();
     }
 
     @Override
@@ -47,10 +52,11 @@ public final class CompatMetaBanner extends CompatItemMeta implements BannerMeta
         if (!snbt.equals(work.components().get(PATTERNS))) setComponent(PATTERNS, snbt);
     }
 
+    /** 메타가 든 겹 전부 — 20 겹 제한은 아이템에서 읽을 때({@link #normalizePatterns})만 걸린다(Paper 는 메타에 넣은 것을 제한 없이 들고 적용한다). */
     private List<Pattern> load() {
         String raw = work.components().get(PATTERNS);
         if (raw == null || !(Snbt.parse(raw) instanceof NbtList l)) return new ArrayList<>();
-        return BannerLayers.read(l, BannerLayers.ITEM_LIMIT);
+        return BannerLayers.read(l, Integer.MAX_VALUE);
     }
 
     @Override
@@ -88,7 +94,7 @@ public final class CompatMetaBanner extends CompatItemMeta implements BannerMeta
     public int numberOfPatterns() { return load().size(); }
 
     @Override
-    public CompatMetaBanner clone() { return (CompatMetaBanner) super.clone(); }
+    public CompatMetaBanner clone() { return new CompatMetaBanner(work, EnumSet.copyOf(flags), pdc.copy(), false); }
 
     @Override
     void serializeKind(Map<String, Object> out) {
