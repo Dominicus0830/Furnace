@@ -1,7 +1,8 @@
-// 명령 자동완성 요청 — 비동기 이벤트(Paper AsyncTabCompleteEvent). 플레이어가 Tab 을 눌러 서버에 후보를 물으면, 서버가 명령 트리를 보기 전에 불린다.
-// 처리기가 후보를 채우거나 handled 로 표시하면 서버는 그 후보만 보낸다(명령 트리·접속자 이름 기본 후보는 묻지 않는다). 취소하거나 후보가 없고 handled 도 아니면:
-// 취소는 아무 응답도 보내지 않고, 취소가 아니면 서버가 평소처럼 후보를 만든다. 처리기가 하나도 없으면 서버는 이 이벤트를 만들지 않는다.
-// 불리는 스레드: 서버의 자동완성 전용 스레드(플레이어) 또는 콘솔 입력 스레드 — 월드·엔티티 상태를 바로 만지지 말고 스케줄러로 넘긴다.
+// 명령 자동완성 요청. 비동기 이벤트다(Paper AsyncTabCompleteEvent). 플레이어가 Tab 을 눌러 서버에 후보를 물으면, 서버가 명령 트리를 보기 전에 불린다.
+// 처리기가 후보를 채우거나 handled 로 표시하면 서버는 그 후보만 보낸다. 명령 트리와 접속자 이름 기본 후보는 묻지 않는다.
+// 취소했거나, 후보가 없고 handled 도 아니면 이렇게 된다. 취소는 아무 응답도 보내지 않고, 취소가 아니면 서버가 평소처럼 후보를 만든다.
+// 처리기가 하나도 없으면 서버는 이 이벤트를 만들지 않는다.
+// 불리는 스레드: 서버의 자동완성 전용 스레드(플레이어) 또는 콘솔 입력 스레드다. 월드·엔티티 상태를 바로 만지지 말고 스케줄러로 넘긴다.
 package org.domi.furnace.api.event.server;
 
 import java.util.ArrayList;
@@ -52,7 +53,7 @@ public final class AsyncTabCompleteEvent extends Event implements Cancellable {
     /** 서버가 보낼 후보(바꿀 수 있는 목록, 보낼 순서). 비어 있지 않으면 서버는 명령 트리로 후보를 만들지 않는다. */
     public List<Completion> completions() { return completions; }
 
-    /** handled 로 표시했는가 — 후보가 하나라도 있으면 늘 true. */
+    /** handled 로 표시했는가. 후보가 하나라도 있으면 늘 true 다. */
     public boolean isHandled() { return !completions.isEmpty() || handled; }
 
     /** 후보와 따로 정한 handled 표시(후보가 없어도 서버가 후보를 만들지 않게 할 때). */

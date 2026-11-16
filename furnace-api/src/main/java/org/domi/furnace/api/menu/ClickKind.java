@@ -1,4 +1,4 @@
-// 메뉴 클릭의 종류 — 클라이언트 입력을 버전과 무관한 이름으로.
+// 메뉴 클릭의 종류. 클라이언트 입력을 버전과 무관한 이름으로 나타낸다.
 package org.domi.furnace.api.menu;
 
 public enum ClickKind {

@@ -1,4 +1,4 @@
-// 장식 단계 훅이 받는 영역 — 바닐라 WorldGenRegion 과 같은 범위다: 중심(origin) 청크 둘레 5×5 청크를 읽고, 둘레 3×3 청크에 쓴다.
+// 장식 단계 훅이 받는 영역. 바닐라 WorldGenRegion 과 같은 범위로, 중심(origin) 청크 둘레 5×5 청크를 읽고 둘레 3×3 청크에 쓴다.
 // 좌표는 월드 블록 좌표. 생성 스레드에서 불리고, 훅이 끝나면 더 쓸 수 없다.
 package org.domi.furnace.api.worldgen;
 

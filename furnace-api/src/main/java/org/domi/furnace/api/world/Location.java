@@ -1,4 +1,4 @@
-// 위치 — 차원(minecraft:overworld 등) + 좌표 + 시선. 불변.
+// 위치. 차원(minecraft:overworld 등)과 좌표, 시선을 담는다. 불변.
 package org.domi.furnace.api.world;
 
 import java.util.Objects;

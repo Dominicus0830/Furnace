@@ -1,5 +1,6 @@
-// 살아 있는 것(플레이어 제외)이 월드에 들어가기 직전 — 넣는 레벨의 region 스레드에서 불린다. EntitySpawnEvent 의 하위라 그 이벤트로 받아도 온다.
-// reason() 은 스폰 이유로, 서버가 모르는 경로(위 목록에 없는 곳에서 넣은 것)는 DEFAULT 다. 취소하면 넣지 않는다.
+// 살아 있는 것(플레이어 제외)이 월드에 들어가기 직전에 넣는 레벨의 region 스레드에서 불린다.
+// EntitySpawnEvent 의 하위 이벤트라 그 이벤트로 받아도 온다.
+// reason() 은 스폰 이유다. 서버가 모르는 경로(위 목록에 없는 곳에서 넣은 것)는 DEFAULT 다. 취소하면 넣지 않는다.
 package org.domi.furnace.api.event.entity;
 
 import org.domi.furnace.api.entity.Entity;
@@ -7,7 +8,7 @@ import org.domi.furnace.api.entity.Entity;
 public final class CreatureSpawnEvent extends EntitySpawnEvent {
 
     public enum SpawnReason {
-        /** 자연 스폰(몹 상한 안에서 주기적으로, 고양이·팬텀·떠돌이 상인 포함). */
+        /** 자연 스폰(몹 상한 안에서 주기적으로 일어나며 고양이, 팬텀, 떠돌이 상인을 포함한다). */
         NATURAL,
         /** 닭 기수·거미 기수처럼 다른 몹을 타고 나타남. */
         JOCKEY,
@@ -36,7 +37,7 @@ public final class CreatureSpawnEvent extends EntitySpawnEvent {
         REINFORCEMENTS,
         /** 발사기가 스폰 알을 사용함. */
         DISPENSE_EGG,
-        /** 좀비에게 감염됨(주민→좀비 주민), 벌레 들끓음 효과로 나온 슬라임·좀벌레. */
+        /** 좀비에게 감염됐다(주민이 좀비 주민으로 변한다). 벌레 들끓음 효과로 나온 슬라임과 좀벌레도 여기에 해당한다. */
         INFECTION,
         /** 좀비 주민이 치료됨. */
         CURED,
@@ -48,7 +49,7 @@ public final class CreatureSpawnEvent extends EntitySpawnEvent {
         SHEARED,
         RAID,
         PATROL,
-        /** 호글린→조글린, 피글린→좀비 피글린. */
+        /** 호글린이 조글린으로, 피글린이 좀비 피글린으로 변했다. */
         PIGLIN_ZOMBIFIED,
         /** 스켈레톤이 가루눈에 얼어 스트레이로 변함. */
         FROZEN,

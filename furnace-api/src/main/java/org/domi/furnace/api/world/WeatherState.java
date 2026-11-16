@@ -2,7 +2,7 @@
 package org.domi.furnace.api.world;
 
 /**
- * @param raining 비 깃발(바닐라 LevelData.isRaining — 비 세기가 아니라 깃발)
+ * @param raining 비 깃발(바닐라 LevelData.isRaining. 비 세기가 아니라 깃발이다)
  * @param thundering 천둥 깃발
  * @param rainTime 비 깃발이 바뀔 때까지 남은 틱
  * @param thunderTime 천둥 깃발이 바뀔 때까지 남은 틱

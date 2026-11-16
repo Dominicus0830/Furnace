@@ -1,4 +1,4 @@
-// 바닐라 16색(ChatFormatting) — 이름·RGB·§ 코드. 이 값과 같은 RGB 는 항상 이 인스턴스로 정규화된다.
+// 바닐라 16색(ChatFormatting). 이름, RGB, § 코드를 가진다. 이 값과 같은 RGB 는 항상 이 인스턴스로 정규화된다.
 package org.domi.furnace.api.text;
 
 import java.util.HashMap;

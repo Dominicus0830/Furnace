@@ -1,4 +1,4 @@
-// 플레이어가 아이템을 떨구기 직전 — 플레이어를 가진 region 스레드에서 불린다. 취소하면 인벤토리로 돌려준다.
+// 플레이어가 아이템을 떨구기 직전에 플레이어를 가진 region 스레드에서 불린다. 취소하면 인벤토리로 돌려준다.
 package org.domi.furnace.api.event.player;
 
 import org.domi.furnace.api.entity.Entity;

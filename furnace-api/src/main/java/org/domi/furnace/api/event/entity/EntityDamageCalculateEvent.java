@@ -1,14 +1,14 @@
-// 엔티티가 받을 피해를 단계별로 줄여 가는 계산 — 맞는 엔티티를 가진 region 스레드에서, 체력을 깎기 직전에 불린다.
-// 기본 값은 바닐라와 같다: 아무것도 바꾸지 않으면 결과가 바닐라와 비트 단위로 같다.
+// 엔티티가 받을 피해를 단계별로 줄여 가는 계산. 맞는 엔티티를 가진 region 스레드에서, 체력을 깎기 직전에 불린다.
+// 기본 값은 바닐라와 같다. 아무것도 바꾸지 않으면 결과가 바닐라와 비트 단위로 같다.
 //
 //   base ─ARMOR→ ─RESISTANCE→ ─ENCHANTMENT→ ─ENTITY→ ─ABSORPTION→ finalDamage (체력에서 깎이는 값)
 //
-// 단계마다 input(들어온 값)·output(나간 값)·reduction(= input - output)을 읽을 수 있고, 줄이는 양을 바꾸면
-// 뒤 단계는 새 input 으로 바닐라 식을 다시 계산한다(그 단계도 바꿨으면 바꾼 대로). 이벤트는 취소할 수 없다 —
-// 피해를 아예 막으려면 EntityDamageEvent 를 취소하거나 base 를 0 으로 한다.
+// 단계마다 input(들어온 값), output(나간 값), reduction(= input - output)을 읽을 수 있다.
+// 줄이는 양을 바꾸면 뒤 단계는 새 input 으로 바닐라 식을 다시 계산한다(그 단계도 바꿨으면 바꾼 대로).
+// 이 이벤트는 취소할 수 없다. 피해를 아예 막으려면 EntityDamageEvent 를 취소하거나 base 를 0 으로 한다.
 //
-// 이 이벤트가 불리지 않는 경우: 방패가 전부 막아 피해가 0 인 경우, 늑대 갑옷이 피해를 대신 받는 경우(체력을 깎지 않는다).
-// 방어구 내구도는 이 이벤트가 불리기 전에 이미 닳았다(바닐라와 같은 순서 — 방어력은 닳은 뒤의 값). base 를 바꿔도 내구도는 되돌지 않는다.
+// 이 이벤트가 불리지 않는 경우는 방패가 전부 막아 피해가 0 인 경우, 늑대 갑옷이 피해를 대신 받는 경우(체력을 깎지 않는다)다.
+// 방어구 내구도는 이 이벤트가 불리기 전에 이미 닳았다. 바닐라와 같은 순서이며 방어력은 닳은 뒤의 값이다. base 를 바꿔도 내구도는 되돌지 않는다.
 package org.domi.furnace.api.event.entity;
 
 import java.util.Objects;
@@ -42,7 +42,7 @@ public final class EntityDamageCalculateEvent extends EntityEvent {
      *
      * @param attacker     피해의 책임자(화살이면 쏜 쪽). 없으면 null
      * @param directEntity 직접 맞힌 엔티티(화살 자체). 없으면 null
-     * @param base         계산을 시작하는 값(방어 전, 난이도 배율·방패 뒤)
+     * @param base         계산을 시작하는 값(방어 전, 난이도 배율과 방패를 거친 뒤)
      * @param absorption   지금 가진 흡수 체력
      */
     public EntityDamageCalculateEvent(Entity entity, String cause, Entity attacker, Entity directEntity, float base, float absorption, DamageRules rules) {
@@ -59,7 +59,7 @@ public final class EntityDamageCalculateEvent extends EntityEvent {
 
     // ------------------------------------------------------------------ 맥락
 
-    /** 피해 종류 키(minecraft:fall, minecraft:player_attack …). */
+    /** 피해 종류 키(minecraft:fall, minecraft:player_attack 등). */
     public String cause() { return cause; }
 
     /** 피해의 책임자(화살이면 쏜 쪽). 없으면 null. */
@@ -76,7 +76,7 @@ public final class EntityDamageCalculateEvent extends EntityEvent {
     /** 계산을 시작하는 값(방어 전). */
     public float base() { return base; }
 
-    /** 시작 값을 바꾼다. 모든 단계가 새 값으로 다시 계산된다(바꾼 단계는 바꾼 대로). 0 이상의 유한한 값. */
+    /** 시작 값을 바꾼다. 모든 단계가 새 값으로 다시 계산된다(바꾼 단계는 바꾼 대로). 0 이상의 유한한 값이어야 한다. */
     public void setBase(float base) {
         if (!(base >= 0f) || Float.isInfinite(base)) throw new IllegalArgumentException("base must be a finite value of at least 0: " + base);
         this.base = base;
@@ -122,8 +122,8 @@ public final class EntityDamageCalculateEvent extends EntityEvent {
     // ------------------------------------------------------------------ 단계 바꾸기
 
     /**
-     * 그 단계가 줄이는 양을 정한다(input 이 바뀌어도 이 양을 그대로 줄인다). 0..input 으로 잘리고,
-     * ABSORPTION 은 가진 흡수 체력도 넘지 못한다. 적용 안 되는 단계도 정하면 그만큼 줄인다.
+     * 그 단계가 줄이는 양을 정한다. input 이 바뀌어도 이 양을 그대로 줄인다.
+     * 0..input 으로 잘리고, ABSORPTION 은 가진 흡수 체력도 넘지 못한다. 적용 안 되는 단계도 정하면 그만큼 줄인다.
      */
     public void setReduction(DamageStage stage, float reduction) {
         if (!(reduction >= 0f) || Float.isInfinite(reduction)) throw new IllegalArgumentException("reduction must be a finite value of at least 0: " + reduction);
@@ -137,7 +137,7 @@ public final class EntityDamageCalculateEvent extends EntityEvent {
     /**
      * 바닐라 기본 계산이 줄이는 양에 factor 를 곱한다(input 이 바뀌면 바닐라 양도 새로 계산해 곱한다).
      * 바닐라에서 적용되지 않는 단계는 곱할 양이 0 이라 그대로다(먼저 {@link #setApplied} 로 켠다).
-     * 예: 방어력을 반만 쳐 주려면 {@code scaleReduction(ARMOR, 0.5f)}. factor 는 0 이상의 유한한 값, 결과는 0..input 으로 잘린다.
+     * 예: 방어력을 반만 쳐 주려면 {@code scaleReduction(ARMOR, 0.5f)}. factor 는 0 이상의 유한한 값이어야 하고, 결과는 0..input 으로 잘린다.
      */
     public void scaleReduction(DamageStage stage, float factor) {
         if (!(factor >= 0f) || Float.isInfinite(factor)) throw new IllegalArgumentException("factor must be a finite value of at least 0: " + factor);
@@ -149,8 +149,14 @@ public final class EntityDamageCalculateEvent extends EntityEvent {
     }
 
     /**
-     * 적용 여부를 강제한다. false 면 그 단계를 건너뛰고(= reduction 0), true 면 피해 유형 조건이 건너뛰게 해도 바닐라 식을 적용한다
-     * (예: bypasses_armor 인 피해에도 방어력을 쳐 준다). false 로 건너뛴 단계는 이어서 {@link #setReduction} 으로 양을 정하면 다시 켜진다.
+     * 적용 여부를 강제한다.
+     *
+     * <ul>
+     * <li>false 면 그 단계를 건너뛴다(= reduction 0).
+     * <li>true 면 피해 유형 조건이 건너뛰게 해도 바닐라 식을 적용한다(예: bypasses_armor 인 피해에도 방어력을 쳐 준다).
+     * </ul>
+     *
+     * <p>false 로 건너뛴 단계는 이어서 {@link #setReduction} 으로 양을 정하면 다시 켜진다.
      */
     public void setApplied(DamageStage stage, boolean applied) {
         appliedOverride[stage.ordinal()] = applied;

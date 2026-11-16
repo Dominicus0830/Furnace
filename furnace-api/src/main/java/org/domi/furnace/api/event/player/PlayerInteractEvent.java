@@ -1,6 +1,7 @@
-// 플레이어가 손에 든 것을 쓰거나 블록을 눌렀을 때 — 클릭한 칸(또는 플레이어)을 가진 region 스레드에서 불린다. 취소하면 아무 일도 일어나지 않는다.
-// 왼쪽 클릭: LEFT_CLICK_BLOCK 은 부수기 시작(player_action START) 때, 취소하면 부수기가 시작되지 않고 블록을 다시 보낸다.
-// LEFT_CLICK_AIR 는 팔 휘두르기(swing) 때 시선 4.5칸(크리에이티브 5칸) 안에 블록이 없으면 — Paper 처럼 엔티티를 때리며 휘둘러도 발화한다. 취소해도 휘두르기 모션은 그대로 보인다.
+// 플레이어가 손에 든 것을 쓰거나 블록을 눌렀을 때 클릭한 칸(또는 플레이어)을 가진 region 스레드에서 불린다. 취소하면 아무 일도 일어나지 않는다.
+// 왼쪽 클릭의 LEFT_CLICK_BLOCK 은 부수기 시작(player_action START) 때 불린다. 취소하면 부수기가 시작되지 않고 블록을 다시 보낸다.
+// LEFT_CLICK_AIR 는 팔 휘두르기(swing) 때 시선 4.5칸(크리에이티브 5칸) 안에 블록이 없으면 불린다.
+// Paper 처럼 엔티티를 때리며 휘둘러도 발화한다. 취소해도 휘두르기 모션은 그대로 보인다.
 package org.domi.furnace.api.event.player;
 
 import org.domi.furnace.api.entity.Player;

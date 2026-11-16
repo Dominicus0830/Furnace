@@ -1,4 +1,4 @@
-// 추가 월드를 만들거나 이미 있는 폴더를 불러오는 설명서(Bukkit WorldCreator 에 대응). 값 객체 — 빌더로 만든다. 버전 중립.
+// 추가 월드를 만들거나 이미 있는 폴더를 불러오는 설명서(Bukkit WorldCreator 에 대응). 값 객체이며 빌더로 만든다. 버전 중립.
 package org.domi.furnace.api.world;
 
 import java.util.List;
@@ -23,7 +23,7 @@ public record WorldCreator(String name, String key, WorldEnvironment environment
                            OptionalLong seed, boolean generateStructures, List<FlatLayer> flatLayers, String flatBiome,
                            String generationHooks) {
 
-    /** 훅 없는 설명서(이전 판과 같은 모양). */
+    /** 훅 없는 설명서(이전 버전과 같은 모양). */
     public WorldCreator(String name, String key, WorldEnvironment environment, WorldGenerator generator, String dimensionType,
                         OptionalLong seed, boolean generateStructures, List<FlatLayer> flatLayers, String flatBiome) {
         this(name, key, environment, generator, dimensionType, seed, generateStructures, flatLayers, flatBiome, "");
@@ -117,7 +117,7 @@ public record WorldCreator(String name, String key, WorldEnvironment environment
 
         /**
          * 월드젠 단계 훅 키({@link org.domi.furnace.api.plugin.lifecycle.LifecycleEvents#WORLD_GENERATION} 에서 등록한 것).
-         * null·빈 문자열이면 없음. level.dat 설명서에 남아 다시 불러올 때도 같은 키를 쓴다 — 그때 키가 등록돼 있지 않으면 바닐라로 생성한다.
+         * null·빈 문자열이면 없음. level.dat 설명서에 남아 다시 불러올 때도 같은 키를 쓴다. 그때 키가 등록돼 있지 않으면 바닐라로 생성한다.
          */
         public Builder generationHooks(String key) { this.generationHooks = key == null ? "" : key; return this; }
 

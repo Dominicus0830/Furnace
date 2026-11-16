@@ -1,4 +1,4 @@
-// 음식·물약·우유 등을 다 먹기(마시기) 직전 — 플레이어를 가진 region 스레드에서 불린다. 취소하면 효과도 소비도 없고 손 칸을 다시 보낸다.
+// 음식, 물약, 우유 등을 다 먹기(마시기) 직전에 플레이어를 가진 region 스레드에서 불린다. 취소하면 효과도 소비도 없고 손 칸을 다시 보낸다.
 package org.domi.furnace.api.event.player;
 
 import org.domi.furnace.api.entity.Player;

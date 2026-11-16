@@ -1,4 +1,4 @@
-// 해석된 태그 — 무엇을 하는지만 담는다: 텍스트 끼우기·자식에 스타일 입히기·자식 변형·원문 치환·초기화.
+// 해석된 태그다. 무엇을 하는지만 담는다. 텍스트 끼우기, 자식에 스타일 입히기, 자식 변형, 원문 치환, 초기화가 있다.
 package org.domi.furnace.api.text.markup;
 
 import java.util.List;
@@ -19,7 +19,7 @@ public sealed interface Tag {
         public Styling { Objects.requireNonNull(style, "style"); }
     }
 
-    /** 원문 문자열 치환 — 값을 마크업으로 다시 해석한다(Placeholder.parsed). */
+    /** 원문 문자열 치환. 값을 마크업으로 다시 해석한다(Placeholder.parsed). */
     record PreProcess(String value) implements Tag {
         public PreProcess { Objects.requireNonNull(value, "value"); }
     }

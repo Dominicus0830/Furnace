@@ -1,5 +1,5 @@
-// 플레이어가 용기·신호기를 열려 할 때 잠금 검사 직전(Paper BlockLockCheckEvent) — 그 블록을 소유한 region 스레드에서 불린다.
-// 잠기지 않은 블록·관전자에게도 불린다. 큰 상자는 반쪽마다 한 번씩(첫째 = type=right 상자부터, 막히면 둘째는 안 불린다).
+// 플레이어가 용기나 신호기를 열려 할 때 잠금 검사 직전에(Paper BlockLockCheckEvent) 그 블록을 소유한 region 스레드에서 불린다.
+// 잠기지 않은 블록이나 관전자에게도 불린다. 큰 상자는 반쪽마다 한 번씩 불린다. 첫째는 type=right 상자이고, 막히면 둘째는 불리지 않는다.
 package org.domi.furnace.api.event.block;
 
 import java.util.Objects;
@@ -39,7 +39,7 @@ public final class BlockLockCheckEvent extends BlockEvent {
     /** 블록을 누를 때 주 손에 든 것(빈 손이면 빈 아이템). */
     public ItemStack heldItem() { return heldKey; }
 
-    /** 검사에 쓸 열쇠 — 따로 정하지 않았으면 블록을 누를 때 주 손에 든 것. */
+    /** 검사에 쓸 열쇠. 따로 정하지 않았으면 블록을 누를 때 주 손에 든 것이다. */
     public ItemStack keyItem() { return customKey != null ? customKey : heldKey; }
 
     public void setKeyItem(ItemStack key) { this.customKey = Objects.requireNonNull(key, "key"); }

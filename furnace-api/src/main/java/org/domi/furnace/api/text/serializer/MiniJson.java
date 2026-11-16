@@ -1,4 +1,4 @@
-// 아주 작은 JSON 읽기(패키지 내부) — 텍스트 JSON 해석에만 쓴다. 객체는 LinkedHashMap, 배열은 ArrayList, 숫자는 Integer/Long/Double.
+// 아주 작은 JSON 읽기(패키지 내부)다. 텍스트 JSON 해석에만 쓴다. 객체는 LinkedHashMap, 배열은 ArrayList, 숫자는 Integer/Long/Double 로 읽는다.
 package org.domi.furnace.api.text.serializer;
 
 import java.util.ArrayList;
@@ -16,7 +16,7 @@ final class MiniJson {
 
     private MiniJson(String s) { this.s = s; }
 
-    /** 앞부분의 값 하나를 lenient 로 읽는다(명령 인자용) — 값과 읽은 뒤 위치. 뒤 글자는 검사하지 않는다. */
+    /** 앞부분의 값 하나를 lenient 로 읽는다(명령 인자용). 값과 읽은 뒤 위치를 돌려준다. 뒤 글자는 검사하지 않는다. */
     record Prefix(Object value, int end) {}
 
     static Prefix parsePrefix(String text, int start) {

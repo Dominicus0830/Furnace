@@ -1,6 +1,6 @@
-// 몹 하나의 AI 를 그 자리에서 다루는 손잡이. 그 몹을 가진 region 스레드에서만 쓴다 — 다른 스레드에서 부르면 ThreadOwnershipException.
-// 얻는 곳: Mob.editAi(다음 틱 소유 스레드에서), Mob.aiNow(지금 소유 스레드일 때), MobGoal 콜백 인자.
-// 붙잡아 두었다가 나중에 써도 되지만 그때도 소유 스레드여야 하고, 몹이 사라졌으면(isValid false) 바꾸는 호출은 아무 일도 하지 않는다.
+// 몹 하나의 AI 를 그 자리에서 다루는 손잡이. 그 몹을 가진 region 스레드에서만 쓴다. 다른 스레드에서 부르면 ThreadOwnershipException 을 던진다.
+// 얻는 곳은 Mob.editAi(다음 틱 소유 스레드에서), Mob.aiNow(지금 소유 스레드일 때), MobGoal 콜백 인자다.
+// 붙잡아 두었다가 나중에 써도 되지만 그때도 소유 스레드여야 한다. 몹이 사라졌으면(isValid false) 바꾸는 호출은 아무 일도 하지 않는다.
 package org.domi.furnace.api.entity.ai;
 
 import java.util.List;
@@ -26,7 +26,7 @@ public interface MobAi {
     /** NoAI 표시가 붙었는가(붙으면 목표가 돌지 않는다). */
     boolean isNoAi();
 
-    /** NoAI 표시를 바꾼다(바닐라 Mob.setNoAi — 켜면 목표·두뇌·이동이 서고 저장된다). */
+    /** NoAI 표시를 바꾼다(바닐라 Mob.setNoAi). 켜면 목표, 두뇌, 이동이 서고 저장된다. */
     default void setNoAi(boolean noAi) { throw new UnsupportedOperationException("setNoAi"); }
 
     /** 두뇌(Brain)로 움직이는 몹인가(주민·피글린 등). 목표도 함께 돌지만 두뇌가 같은 일을 하면 서로 다툰다. */
@@ -48,19 +48,19 @@ public interface MobAi {
 
     boolean hasGoal(GoalSet set, GoalKey key);
 
-    /** 플러그인 목표를 넣는다. priority 가 작을수록 먼저. owner 가 꺼지면 목표는 스스로 빠진다. 같은 목표 객체를 두 번 넣으면 한 번만 걸린다. */
+    /** 플러그인 목표를 넣는다. priority 가 작을수록 먼저 돈다. owner 가 꺼지면 목표는 스스로 빠진다. 같은 목표 객체를 두 번 넣어도 한 번만 걸린다. */
     void addGoal(FurnacePlugin owner, GoalSet set, int priority, MobGoal goal);
 
     /** 바닐라 목표를 넣는다. 이 몹 종류가 쓸 수 없는 목표면 IllegalArgumentException. */
     void addGoal(GoalSet set, int priority, VanillaGoal goal);
 
-    /** 그 이름표 목표를 모두 뺀다(돌고 있으면 멈춘 뒤). 뺀 개수. 바닐라가 처음부터 넣은 목표도 빠진다. */
+    /** 그 이름표 목표를 모두 뺀다(돌고 있으면 멈춘 뒤). 뺀 개수를 돌려준다. 바닐라가 처음부터 넣은 목표도 빠진다. */
     int removeGoals(GoalSet set, GoalKey key);
 
     /** 넣었던 그 플러그인 목표 객체를 뺀다. */
     boolean removeGoal(GoalSet set, MobGoal goal);
 
-    /** 그 묶음 목표를 모두 뺀다. 뺀 개수. */
+    /** 그 묶음 목표를 모두 뺀다. 뺀 개수를 돌려준다. */
     int removeAllGoals(GoalSet set);
 
     // ------------------------------------------------------------------ 움직임
@@ -87,7 +87,7 @@ public interface MobAi {
 
     Optional<UUID> target();
 
-    /** 같은 region 에 있는 그 엔티티(플레이어 포함)를 공격 대상으로. null 이면 대상을 지운다. 못 찾았거나 EntityTargetEvent 가 취소하면 false. */
+    /** 같은 region 에 있는 그 엔티티(플레이어 포함)를 공격 대상으로 정한다. null 이면 대상을 지운다. 못 찾았거나 EntityTargetEvent 가 취소하면 false. */
     boolean setTarget(UUID entity);
 
     // ------------------------------------------------------------------ 길찾기
@@ -95,9 +95,9 @@ public interface MobAi {
     /** 그 칸 종류의 이 몹 비용(음수면 못 감). */
     float pathCost(PathNodeType type);
 
-    /** 그 칸 종류의 이 몹 비용을 바꾼다. 바닐라 몹도 종류별로 바꾸는 값이다(예: 불 몹은 용암 비용 0). */
+    /** 그 칸 종류의 이 몹 비용을 바꾼다. 바닐라 몹도 종류별로 바꾸는 값이다(예: 불 몹은 용암 비용이 0). */
     void setPathCost(PathNodeType type, float cost);
 
-    /** 칸 판정 훅을 건다(hook 이 null 이면 뗀다, 몹 하나에 하나). 다음에 찾는 길부터 쓴다. owner 가 꺼지면 훅은 스스로 떨어진다. */
+    /** 칸 판정 훅을 건다. 몹 하나에 하나만 걸리며 hook 이 null 이면 뗀다. 다음에 찾는 길부터 쓴다. owner 가 꺼지면 훅은 스스로 떨어진다. */
     void setPathTypeHook(FurnacePlugin owner, PathTypeHook hook);
 }

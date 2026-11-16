@@ -5,7 +5,7 @@ package org.domi.furnace.api.world;
 /**
  * 모든 TPS 는 초당 틱 수이고, 잴 수 없으면(가동 직후 등) NaN 이다. 목표는 {@code /tick rate}(기본 20)지만 서버 전역 값은 늘 20 기준이다.
  *
- * @param active5s      활성 region(플레이어가 있는 region)의 평균 TPS, 최근 5초. 플레이어 수로 가중한다 — "플레이어 한 명이 겪는 평균 틱 속도".
+ * @param active5s      활성 region(플레이어가 있는 region)의 평균 TPS, 최근 5초. 플레이어 수로 가중하므로 "플레이어 한 명이 겪는 평균 틱 속도" 와 같다.
  *                      활성 region 이 없으면(접속자 없음) 전역 박동 값으로 대신한다.
  * @param active1m      같은 값의 최근 1분 평균(1초마다 잰 값의 평균). 아래 5m·15m 도 같다.
  * @param active5m      5분
@@ -27,9 +27,9 @@ public record ServerTps(double active5s, double active1m, double active5m, doubl
     public static final ServerTps UNKNOWN = new ServerTps(Double.NaN, Double.NaN, Double.NaN, Double.NaN, 0, 0,
             Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN);
 
-    /** 지금 값: 활성 region 평균 최근 5초. */
+    /** 지금 값. 활성 region 평균 최근 5초다. */
     public double current() { return active5s; }
 
-    /** Paper {@code Bukkit.getTPS()} 모양: {1분, 5분, 15분} 활성 region 평균. */
+    /** Paper {@code Bukkit.getTPS()} 모양이다. {1분, 5분, 15분} 활성 region 평균을 담는다. */
     public double[] oneFiveFifteen() { return new double[] {active1m, active5m, active15m}; }
 }

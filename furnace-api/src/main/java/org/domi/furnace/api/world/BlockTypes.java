@@ -14,7 +14,7 @@ public interface BlockTypes {
 
     /**
      * 바닐라 블록 상태 번호(1.21.1 의 {@code Block.getId}, 프로토콜이 쓰는 번호와 같다). 적지 않은 속성은 기본 상태 값을 쓴다.
-     * 모르는 블록·속성·값이면 -1. 번호는 마인크래프트 버전마다 바뀌므로 저장하지 말 것(NMS 호환용).
+     * 모르는 블록·속성·값이면 -1. 번호는 마인크래프트 버전마다 바뀌므로 저장하지 않는다(NMS 호환용).
      */
     default int stateId(BlockData data) { throw new UnsupportedOperationException("stateId"); }
 

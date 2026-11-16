@@ -1,4 +1,4 @@
-// 플레이어가 블록을 놓기 직전 — 놓을 자리를 소유한 region 스레드에서 불린다. 취소하면 놓지 않는다.
+// 플레이어가 블록을 놓기 직전에 놓을 자리를 소유한 region 스레드에서 불린다. 취소하면 놓지 않는다.
 package org.domi.furnace.api.event.block;
 
 import org.domi.furnace.api.entity.Player;
@@ -22,7 +22,7 @@ public final class BlockPlaceEvent extends BlockEvent implements Cancellable, or
         this(world, pos, BlockData.of(placedType), null, against, player, ItemStack.EMPTY, true);
     }
 
-    /** 놓일 블록의 전체 상태·그 자리의 원래 블록(교체될 블록, 모르면 null)·놓는 아이템·손까지 아는 서버 경로. */
+    /** 놓일 블록의 전체 상태, 그 자리의 원래 블록(교체될 블록, 모르면 null), 놓는 아이템, 손까지 아는 서버 경로. */
     public BlockPlaceEvent(String world, BlockPos pos, BlockData placedData, BlockData replacedData, BlockPos against, Player player, ItemStack item,
                            boolean mainHand) {
         super(world, pos);
@@ -44,10 +44,10 @@ public final class BlockPlaceEvent extends BlockEvent implements Cancellable, or
     /** 놓일 블록(minecraft:oak_planks 등). */
     public String placedType() { return placedType; }
 
-    /** 놓일 블록의 전체 상태(속성 포함). 상태를 모르는 옛 생성자로 만들었으면 종류의 기본 속성 없는 값. */
+    /** 놓일 블록의 전체 상태(속성 포함). 상태를 모르는 옛 생성자로 만들었으면 속성이 없는 종류의 기본값이다. */
     public BlockData placedData() { return placedData; }
 
-    /** 그 자리에 원래 있던(놓으면 교체될) 블록 상태. 서버가 알리지 않은 경로면 null. */
+    /** 그 자리에 원래 있던(놓으면 교체될) 블록 상태. 서버가 알리지 않은 경로면 null 이다. */
     public BlockData replacedData() { return replacedData; }
 
     /** 놓는 손의 아이템(이벤트 시점 복사본, 모르면 빈 아이템). */

@@ -1,7 +1,7 @@
 // 두뇌(Brain)로 움직이는 몹(주민·피글린·아홀로틀·워든·염소·개구리 등)의 기억·센서·활동·행동 손잡이. MobAi.brain() 으로 얻는다.
-// 그 몹을 가진 region 스레드에서만 쓴다 — 다른 스레드에서 부르면 ThreadOwnershipException. 몹이 사라졌으면 바꾸는 호출은 아무 일도 하지 않는다.
-// 내부 구조(기억 종류 객체·행동 클래스)는 드러내지 않고 이름표 문자열 + 버전 중립 값(MemoryValueType)으로 다룬다.
-// 몹이 두뇌를 새로 만들어도(주민 직업·나이 변화) 플러그인 센서·행동·플러그인 기억·고정 활동은 새 두뇌로 옮겨 간다.
+// 그 몹을 가진 region 스레드에서만 쓴다. 다른 스레드에서 부르면 ThreadOwnershipException 을 던진다. 몹이 사라졌으면 바꾸는 호출은 아무 일도 하지 않는다.
+// 내부 구조(기억 종류 객체, 행동 클래스)는 드러내지 않고 이름표 문자열과 버전 중립 값(MemoryValueType)으로 다룬다.
+// 몹이 두뇌를 새로 만들어도(주민 직업이나 나이가 바뀔 때) 플러그인 센서, 행동, 플러그인 기억, 고정 활동은 새 두뇌로 옮겨 간다.
 package org.domi.furnace.api.entity.ai.brain;
 
 import java.util.List;
@@ -27,8 +27,8 @@ public interface MobBrain {
     OptionalLong memoryExpiry(MemoryKey<?> key);
 
     /**
-     * 영구 값으로 쓴다. 등록되지 않은 기억이면 false(바닐라처럼 무시 — registerMemory 로 먼저 등록). value 가 null 이거나 빈 목록이면 지운다.
-     * 엔티티 모양은 같은 region 에서 살아 있는 그 엔티티를 찾아 쓴다(못 찾거나 그 기억이 받는 종류가 아니면 false).
+     * 영구 값으로 쓴다. 등록되지 않은 기억이면 false 다(바닐라처럼 무시하므로 registerMemory 로 먼저 등록한다). value 가 null 이거나 빈 목록이면 지운다.
+     * 엔티티 모양은 같은 region 에서 살아 있는 그 엔티티를 찾아 쓴다. 못 찾거나 그 기억이 받는 종류가 아니면 false 다.
      */
     <T> boolean setMemory(MemoryKey<T> key, T value);
 
@@ -39,8 +39,11 @@ public interface MobBrain {
     boolean eraseMemory(MemoryKey<?> key);
 
     /**
-     * 이 두뇌에 기억을 등록한다(이미 있으면 아무 일도 없다). 바닐라 기억을 원래 쓰지 않는 몹에 등록하면 바닐라 행동은 그 값을 보지 않지만
-     * 저장 방식이 있는 기억이면 저장은 된다(다시 불러올 때는 그 몹이 원래 쓰는 기억만 읽는다 — 바닐라 규칙). 플러그인 기억은 저장되지 않는다.
+     * 이 두뇌에 기억을 등록한다. 이미 있으면 아무 일도 없다.
+     *
+     * <p>바닐라 기억을 원래 쓰지 않는 몹에 등록하면 바닐라 행동은 그 값을 보지 않는다. 저장 방식이 있는 기억이면 저장은 된다.
+     * 다시 불러올 때는 그 몹이 원래 쓰는 기억만 읽는다(바닐라 규칙).
+     * <p>플러그인 기억은 저장되지 않는다.
      */
     void registerMemory(MemoryKey<?> key);
 
@@ -52,7 +55,7 @@ public interface MobBrain {
     /** 플러그인 센서를 넣는다. 같은 이름표 센서가 이미 있으면 IllegalArgumentException. owner 가 꺼지면 스스로 빠진다. */
     void addSensor(FurnacePlugin owner, BrainSensor sensor);
 
-    /** 그 이름표 센서를 뺀다(바닐라 센서도 — 그 센서가 채우던 기억은 등록된 채 남고, 더는 갱신되지 않는다). */
+    /** 그 이름표 센서를 뺀다. 바닐라 센서도 뺄 수 있으며, 그 센서가 채우던 기억은 등록된 채 남고 더는 갱신되지 않는다. */
     boolean removeSensor(SensorKey key);
 
     // ------------------------------------------------------------------ 활동
@@ -70,14 +73,16 @@ public interface MobBrain {
     ActivityKey defaultActivity();
 
     /**
-     * 그 활동의 조건(바닐라가 활동마다 거는 기억 조건)이 맞으면 바로 그 활동으로 바꾸고 true. 안 맞으면 바꾸지 않고 false.
-     * 몹은 매 틱 스스로 활동을 다시 고르므로(주민 시간표, 피글린 상황 판단 등) 다음 틱에 되돌아갈 수 있다 — 붙잡아 두려면 forceActivity.
+     * 그 활동의 조건(바닐라가 활동마다 거는 기억 조건)이 맞으면 바로 그 활동으로 바꾸고 true 를 돌려준다. 안 맞으면 바꾸지 않고 false 다.
+     * 몹은 매 틱 스스로 활동을 다시 고르므로(주민 시간표, 피글린 상황 판단 등) 다음 틱에 되돌아갈 수 있다. 붙잡아 두려면 forceActivity 를 쓴다.
      */
     boolean trySetActivity(ActivityKey activity);
 
     /**
-     * 그 활동을 조건 없이 켜고 붙잡아 둔다: releaseActivity 까지 몹이 스스로 다른 활동으로 바꾸려 하면 이 활동으로 머문다(핵심 활동은 계속 돈다).
-     * 바꿀 때 바닐라처럼 꺼지는 활동이 지우는 기억은 지운다. 행동이 없는 활동(플러그인 활동 등)도 된다. 저장되지 않는다.
+     * 그 활동을 조건 없이 켜고 붙잡아 둔다. releaseActivity 를 부를 때까지는 몹이 스스로 다른 활동으로 바꾸려 해도 이 활동에 머문다(핵심 활동은 계속 돈다).
+     *
+     * <p>바꿀 때 바닐라처럼, 꺼지는 활동이 지우는 기억은 지운다.
+     * <p>행동이 없는 활동(플러그인 활동 등)도 붙잡을 수 있다. 저장되지 않는다.
      */
     void forceActivity(ActivityKey activity);
 
@@ -91,12 +96,12 @@ public interface MobBrain {
     /** 붙은 행동 전부(우선순위 순서). */
     List<BehaviorInfo> behaviors();
 
-    /** 그 활동에 플러그인 행동을 붙인다. 없던 활동이면 조건 없는 새 활동이 된다. 같은 행동 객체를 두 번 넣으면 한 번만 붙는다. owner 가 꺼지면 스스로 빠진다. */
+    /** 그 활동에 플러그인 행동을 붙인다. 없던 활동이면 조건 없는 새 활동이 된다. 같은 행동 객체를 두 번 넣어도 한 번만 붙는다. owner 가 꺼지면 스스로 빠진다. */
     void addBehavior(FurnacePlugin owner, ActivityKey activity, int priority, BrainBehavior behavior);
 
     /** 넣었던 그 플러그인 행동을 뺀다(돌고 있으면 멈춘 뒤). */
     boolean removeBehavior(BrainBehavior behavior);
 
-    /** 그 활동의 행동을 바닐라 것까지 모두 뺀다(돌고 있으면 멈춘 뒤). 뺀 개수. 활동 자체와 그 조건은 남는다. */
+    /** 그 활동의 행동을 바닐라 것까지 모두 뺀다(돌고 있으면 멈춘 뒤). 뺀 개수를 돌려준다. 활동 자체와 그 조건은 남는다. */
     int clearBehaviors(ActivityKey activity);
 }

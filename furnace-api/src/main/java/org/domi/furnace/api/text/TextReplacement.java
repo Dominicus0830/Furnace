@@ -1,4 +1,4 @@
-// 텍스트 치환 설정 — 무엇을(정규식/글자) 무엇으로(텍스트/함수) 몇 번까지, 조건은 무엇인지. Text.replaceText 에 넘긴다. 불변.
+// 텍스트 치환 설정이다. 무엇을(정규식/글자) 무엇으로(텍스트/함수) 몇 번까지 바꿀지, 조건은 무엇인지를 정한다. Text.replaceText 에 넘긴다. 불변이다.
 package org.domi.furnace.api.text;
 
 import java.util.Objects;

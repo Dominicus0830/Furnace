@@ -1,4 +1,4 @@
-// 추가 월드의 환경 — 저장 폴더 배치(Paper·CraftBukkit 과 같다)와 기본 차원 타입·생성기를 정한다. 버전 중립.
+// 추가 월드의 환경. 저장 폴더 배치(Paper·CraftBukkit 과 같다)와 기본 차원 타입·생성기를 정한다. 버전 중립.
 package org.domi.furnace.api.world;
 
 public enum WorldEnvironment {
