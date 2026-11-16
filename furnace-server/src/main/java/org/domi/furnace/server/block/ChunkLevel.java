@@ -2398,6 +2398,9 @@ public abstract class ChunkLevel implements BlockLevel {
     private final java.util.ArrayList<ChunkColumn.LightBlocks> lightFrozen = new java.util.ArrayList<>();
     private final java.util.HashSet<Long> lightBatchChunks = new java.util.HashSet<>();
 
+    /** 빛 작업 묶음이 아직 계산 중인가(끝났지만 게시 전이면 false — 게시는 기다림 없이 된다). 주인 스레드. */
+    public boolean lightBatchRunning() { return lightBatch != null && !lightBatchDone.isDone(); }
+
     /** 빛 작업 모드인가(빛 계산 풀이 있는가). */
     public boolean asyncLight() { return services().lightExecutor() != null; }
 
@@ -2465,19 +2468,21 @@ public abstract class ChunkLevel implements BlockLevel {
     /**
      * 빛 다시 계산이 새로 붙잡기 전에: 곧 붙잡힐 자리(inArea, 묶은 칸 좌표)에 밀린 검사(앞 relight 가 풀어 둔 것 포함)가 있을 때만 그 검사를 먼저
      * 돌린다 — 같은 자리를 곧바로 다시 붙잡아 그 근처 빛 갱신이 끝없이 밀리지 않게(검토 R4). 빛 작업 끔이면 틱 끝 일을 당겨 그 자리에서, 켬이면
-     * 빛 작업 한 묶음으로 넘긴다(도는 묶음이 있으면 그것을 기다린 뒤 — region 스레드에서 밀린 일 전부를 계산하지 않게, 검토 F2). 넘긴 묶음은 설치 전
-     * {@link #awaitLightIdle} 로 게시된다. 주인 스레드.
+     * 빛 작업 한 묶음으로 넘긴다(region 스레드에서 밀린 일 전부를 계산하지 않게, 검토 F2). 넘긴 묶음은 설치 전 {@link #awaitLightIdle} 로 게시된다.
+     * 켬에서 아직 안 끝난 묶음이 돌고 있으면 기다리지 않고 false — 부른 쪽이 다음 틱에 다시 한다(wait 이면 기다린다). 주인 스레드.
      */
-    public void settleChecksBeforeHold(java.util.function.LongPredicate inArea) {
-        if (lightEngine == null) return;
+    public boolean settleChecksBeforeHold(java.util.function.LongPredicate inArea, boolean wait) {
+        if (lightEngine == null) return true;
         lightEngine.applyHold();
-        if (!lightEngine.anyCheck(inArea)) return;
+        if (!lightEngine.anyCheck(inArea)) return true;
         if (!asyncLight()) {
             runLightUpdates();
-            return;
+            return true;
         }
-        awaitLightIdle();
+        if (!wait && lightBatchRunning()) return false;
+        awaitLightIdle();   // 끝난 묶음 게시(wait 가 아니면 기다림 없음)
         if (lightEngine.hasWork()) dispatchLight();
+        return true;
     }
 
     /** 밀린 일을 한 묶음으로 빛 스레드에 넘긴다(도는 묶음이 없을 때만). */

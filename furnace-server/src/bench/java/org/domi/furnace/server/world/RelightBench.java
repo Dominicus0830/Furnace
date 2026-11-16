@@ -1,7 +1,7 @@
 // T-197 빛 다시 계산 벤치(설계 6장 M1·M2). ./gradlew -PskipOracle=true :furnace-server:bench --tests '*RelightBench*'
 // 실제 지형(시드 20261115) 34×34 청크를 한 region 에 올리고 1·4·8·16·32 변 정사각형을 relight — 끝까지 벽시계, 일꾼 계산 ms/컬럼(둘레 포함),
 // region 몫(타일 준비 ms, 청크 설치 ms — 설치는 층 끼우기·원천·저장 표시·패킷 만들기·보내기), 따로 잰 전 섹션 빛 패킷 만들기 ms/청크.
-// M3(relightUnderEdits): 빛 작업 끔·켬 × {편집만, 편집 + 32×32 relight 를 쉬지 않고, relight 만} 각 8초 — region 틱 평균·최대 ms(작업 큐 포함).
+// M3(relightUnderEdits): 빛 작업 끔·켬 × {쉼, 편집만, 편집 + 32×32 relight 를 쉬지 않고, relight 만} 각 8초 — region 틱 평균·최대 ms(작업 큐 포함).
 // 편집량은 -Dfurnace.bench.edits(기본 틱마다 20).
 package org.domi.furnace.server.world;
 
@@ -147,11 +147,25 @@ class RelightBench {
             long[] keys = new long[32 * 32];
             int i = 0;
             for (int x = 0; x < 32; x++) for (int z = 0; z < 32; z++) keys[i++] = Regionizer.chunkKey(C0 + x, C0 + z);
-            for (int round = 0; round < 2; round++) {
-                for (String phase : new String[] {"편집만", "편집+relight", "relight만"}) {
-                    editing.set(!phase.equals("relight만"));
-                    boolean relighting = !phase.equals("편집만");
+            for (int round = 0; round < 3; round++) {
+                for (String phase : new String[] {"쉼", "일꾼 흉내", "편집만", "편집+relight", "relight만"}) {
+                    editing.set(phase.contains("편집"));
+                    boolean relighting = phase.contains("relight");
+                    // 일꾼 흉내: relight 없이 다른 스레드 하나가 빛 배열 크기 메모리를 쉬지 않고 쓴다 — 틱이 CPU·메모리 다툼만으로 얼마나 늘어나는지
+                    java.util.concurrent.atomic.AtomicBoolean busy = new java.util.concurrent.atomic.AtomicBoolean(phase.equals("일꾼 흉내"));
+                    Thread hog = new Thread(() -> {
+                        long sink = 0;
+                        while (busy.get()) {
+                            byte[][] a = new byte[48][2048];
+                            for (byte[] b : a) for (int j = 0; j < b.length; j++) b[j] = (byte) (j * 31 + sink);
+                            sink += a[7][100];
+                        }
+                        if (sink == 42) System.out.print("");
+                    });
+                    if (busy.get()) hog.start();
                     long[] before = w.relight().stats();
+                    long ring0 = w.regionizer().tickRing().count();
+                    long[] gc0 = gc();
                     long e0 = edits.get(), t0 = System.nanoTime(), ticks0 = w.regionizer().tickWindows().totalTicks(),
                             nanos0 = w.regionizer().tickWindows().totalNanos();
                     int requests = 0;
@@ -165,14 +179,25 @@ class RelightBench {
                             Thread.sleep(100);
                         }
                     }
+                    busy.set(false);
+                    if (hog.isAlive()) hog.join();
                     long span = System.nanoTime() - t0;
                     var win = w.regionizer().tickWindows().window(System.nanoTime(), span - 500_000_000L);
                     long ticks = w.regionizer().tickWindows().totalTicks() - ticks0, nanos = w.regionizer().tickWindows().totalNanos() - nanos0;
                     long[] after = w.relight().stats();
                     long tiles = after[5] - before[5], installs = after[4] - before[4];
-                    System.out.printf("T197 M3 async=%s round %d %-12s: 틱 %d개 평균 %.2f ms 최대(창) %.2f ms | 편집 %d | relight %d번 | 준비 %.3f ms/타일(%d) 설치 %.3f ms/청크%n",
-                            async, round, phase, ticks, nanos / 1e6 / Math.max(1, ticks), win.maxNanos() / 1e6, edits.get() - e0, requests,
-                            (after[0] - before[0]) / 1e6 / Math.max(1, tiles), tiles, (after[2] - before[2]) / 1e6 / Math.max(1, installs));
+                    // 이 구간 틱만(고리 512칸 — 구간은 8초 = 약 160~250틱)
+                    long ring1 = w.regionizer().tickRing().count();
+                    long[] byNo = w.regionizer().tickRing().recentByTickNumber(512);
+                    long[] seg = new long[(int) Math.min(512, ring1 - ring0)];
+                    for (int j = 0; j < seg.length; j++) seg[j] = byNo[(int) ((ring1 - seg.length + j) % 512)];
+                    java.util.Arrays.sort(seg);
+                    long[] gc1 = gc();
+                    double p50 = seg.length == 0 ? 0 : seg[seg.length / 2] / 1e6, p95 = seg.length == 0 ? 0 : seg[(int) (seg.length * 0.95)] / 1e6;
+                    System.out.printf("T197 M3 async=%s round %d %-12s: 틱 %d개 평균 %.2f ms p50 %.2f p95 %.2f 최대(창) %.2f ms | 편집 %d | relight %d번 | 준비 %.3f ms/타일(%d) 설치 %.3f ms/청크 | relight region 몫 %.3f ms/틱 | GC %d번 %d ms%n",
+                            async, round, phase, ticks, nanos / 1e6 / Math.max(1, ticks), p50, p95, win.maxNanos() / 1e6, edits.get() - e0, requests,
+                            (after[0] - before[0]) / 1e6 / Math.max(1, tiles), tiles, (after[2] - before[2]) / 1e6 / Math.max(1, installs),
+                            (after[0] - before[0] + after[2] - before[2]) / 1e6 / Math.max(1, ticks), gc1[0] - gc0[0], gc1[1] - gc0[1]);
                 }
             }
             editing.set(false);
@@ -182,6 +207,16 @@ class RelightBench {
             gen.shutdown();
             sched.close();
         }
+    }
+
+    /** {GC 횟수, GC 시간 ms} 누계. */
+    private static long[] gc() {
+        long n = 0, ms = 0;
+        for (var b : java.lang.management.ManagementFactory.getGarbageCollectorMXBeans()) {
+            n += Math.max(0, b.getCollectionCount());
+            ms += Math.max(0, b.getCollectionTime());
+        }
+        return new long[] {n, ms};
     }
 
     private static void at(World w, java.util.function.Consumer<Region> task) throws Exception {

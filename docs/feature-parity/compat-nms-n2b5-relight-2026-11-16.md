@@ -72,6 +72,7 @@ Paper 1.21.1 의 빛은 Moonrise(Starlight) 패치다. 같은 코드를 `Tuinity
   ④ U = 요청 청크마다 3×3 의 합집합 중 이 region 이 가진·빛 있는 청크(S4). U 의 거울 맞추기(대기 있으면), 구역 얼리기(freezeForLight),
      U 의 멤버십을 **키 → 이번 로드의 컬럼 객체**로 기억(R3)
   ⑤ 일꾼 풀에 계산 작업
+  (준비·설치는 region 마다 한 틱에 0.25 ms 까지 — 넘으면 다음 틱. 빛 작업 켬에서 묶음이 아직 도는 중이면 기다리지 않고 다음 틱 — 6장 M3)
 일꾼: U 를 새 ChunkLight 로 처음부터 계산(LevelLight.lightChunk 를 U 전부에) → 타일 청크의 빛만 결과로(compact)
 설치 — 타일 청크 C 의 지금 주인 region 스레드(작업, C 마다):
   ⑥ awaitLightIdle(빛 작업 모드), C 가 로드·빛 있음 확인(종료됐으면 끼우지 않음)
@@ -213,20 +214,47 @@ relight 가 없을 때 바뀌는 것은 `runUpdates`·`dispatchLight`·`hasWork`
   같으므로 일꾼이 센 원천을 그대로 쓰게 바꿔 0.01 ms/청크가 됐다(바뀌었으면 지금처럼 다시 센다 — 빛 작업 게시도 판 번호를 올려 다시 세는 쪽으로 간다).
 - 판정: **M1** 41청크급(16청크 149 ms, 64청크 200~251 ms) ≤ 0.5 s, 1024청크 1스레드 1.6~1.7 s ≤ 4 s — 합격. 작은 요청의 벽시계는 대부분 region 틱 두 번(준비·설치 작업이 다음 틱에
   돈다)이다. **M2** 준비는 타일당 0.65~0.85 ms(한 판 2.7 ms — GC 로 보임), 설치는 8×8 타일당 약 0.6 ms — 합격(≤ 2 ms). 큰 요청에서 설치는 타일마다 다른 틱에 흩어진다.
-- **M3**(헤드리스 서버 MSPT)·**M4**(`lamps400Bench` 회귀)·**M5**(실측)는 아직이다 — 11장.
+- 위 표는 틱 예산(아래 M3) 전 값이다. 예산 0.25 ms 를 넣은 뒤 같은 벤치: 1·4청크 그대로(100·150 ms), 64청크 350 ms, 256청크 800 ms, **1024청크 2.8 s**
+  (설치가 틱마다 약 20청크로 나뉜다) — M1 합격선(≤ 4 s) 안.
+
+### M3 — region 틱 (`RelightBench#relightUnderEdits`, 이 컨테이너 4코어, 일꾼 1, 34×34 실제 지형 한 region, 게임 틱 켬)
+장면마다 8초(셋째·넷째 판 = 둘째·셋째 회). 편집 = 틱마다 32×32 청크 안 무작위 20칸 발광석 켜고 끄기. relight = 32×32(1024청크)를 끝나는 대로 다시.
+"일꾼 흉내"는 relight 없이 다른 스레드가 빛 배열만큼 메모리를 쉬지 않고 쓴다 — CPU·메모리 다툼만으로는 틱이 늘지 않음을 확인(p95 0.42→0.42, 0.57→0.54).
+
+| 빛 작업 | 장면 | 처음 구현(예산 없음) p95 | 예산 0.25 ms p95 | 기준(같은 판) |
+|---|---|---|---|---|
+| 끔 | relight 만 | 2.7~3.0 ms | 1.49~1.51 ms | 쉼 0.44~0.55 → **+0.94~1.07** |
+| 끔 | 편집 + relight | 13.1~16.2 ms | 4.91~7.07 ms | 편집만 4.90~7.59 → **−0.5~+0.01** |
+| 켬 | relight 만 | 2.5~2.8 ms | 1.28~1.47 ms | 쉼 0.51~0.59 → **+0.69~0.96** |
+| 켬 | 편집 + relight | 10.0~10.4 ms | 3.57~3.62 ms | 편집만 3.13~4.60 → **−1.0~+0.44** |
+
+- 처음 구현은 편집과 겹치면 p95 가 +7 ms 였다. 타일 하나(64청크)의 설치가 한 틱에 몰리고(편집으로 블록이 바뀌면 원천을 다시 세어 청크당 0.08 ms), 빛 작업 켬에서는
+  준비·설치가 도는 묶음을 기다렸다(묶음이 오래 걸리면 그만큼).
+- 고친 것: **region 마다 한 틱에 relight 준비·설치에 0.25 ms**(`Relight.TICK_BUDGET`) — 넘으면 다음 틱으로(`Region.schedule`, 첫 일은 늘 한다). 틱 끝에 할 빛 일을
+  당겨 한 몫(준비 전 밀린 검사 계산·끝난 묶음 게시)은 그 틱 끝이 그만큼 덜 하므로 예산에 넣지 않는다. 빛 작업 켬에서 묶음이 아직 계산 중이면 준비·설치는 기다리지 않고
+  다음 틱에(20틱 넘게 밀리면 기다린다 — 빛 풀이 막혀도 끝나게).
+- 예산 값 근거: 1 ms 에서는 예산 + 준비 하나(약 0.5 ms)가 한 틱에 얹혀 relight 만 돌 때 p95 +2.2~2.5 ms 였다. 0.25 ms 에서 +0.7~1.1 ms — 합격선(+1 ms) 경계이며 남는
+  몫은 준비 하나(타일 100컬럼 얼리기·계산 세계 만들기)다. 대가는 큰 요청의 벽시계(1024청크 1.7 → 2.8 s, 편집이 겹치면 설치가 0.08 ms/청크라 더 길다 — 이 장면에서
+  1024청크 한 번에 14~17 s). 41청크급(FAWE 보통 편집)은 몇 틱이다.
+
+### M4 — 회귀 (`AsyncLightRegionTest#lamps400Bench`, relight 없음)
+기준 `b23cf1b5e`(구현 전)와 이 브랜치를 번갈아 두 판씩(판마다 3회, 해시 같음 `b4d8ed881e55d4e7`). 빛 작업 켬 평균 기준 1.233/1.085/1.005·1.232/1.092/1.025 ms,
+이 브랜치 1.216/1.124/1.051·1.173/0.990/0.981 ms, p95 기준 1.67~2.11 · 이 브랜치 1.65~2.05 ms. 끔 평균 13.66~14.67 · 11.94~13.85 ms — 소음 안, 합격.
+
+- **M5**(데스크탑 실측)는 병합 뒤 따로 — 11장.
 
 ### 측정 계획과 합격선
 | 측정 | 방법 | 합격선 |
 |---|---|---|
 | M1 계산 | 벤치 시험(`-Dfurnace.bench=true`): 1·4·8·16·32 변 정사각형 relight, 일꾼 시간/청크, 끝까지 걸린 벽시계 | 기록(41청크 ≤ 0.5 s, 1024청크 2스레드 ≤ 4 s 목표) |
 | M2 region 몫 | 같은 벤치에서 준비·설치의 region 스레드 시간 | 8×8 타일당 ≤ 2 ms |
-| M3 틱 | 헤드리스 서버 장면: 플레이어 근처 41청크·1024청크 relight 중 region MSPT p50/p95 | relight 없는 같은 장면 대비 p95 +1 ms 이내 |
+| M3 틱 | 헤드리스 서버 장면: 플레이어 근처 41청크·1024청크 relight 중 region MSPT p50/p95(구현: 벤치 `relightUnderEdits` — 위 결과) | relight 없는 같은 장면 대비 p95 +1 ms 이내 |
 | M4 회귀 | 기존 `lamps400Bench`(T-064)·`light-batch-scene`, relight 없음 | 이전과 소음 안 |
 | M5 실측 | 데스크탑 또는 노트북: N2b-6 시나리오(FAWE 2.16.2) 다시, `tools/compat/anvil-diff.py` | 편집 41청크의 빛 차이 = 대조군 꼴(T-202)만 |
 
 ## 7. 시험 계획
 
-구현된 시험(`furnace-server` `world/RelightTest` 16개·`world/RelightRegionTest` 8개, `furnace-compat-paper` `NmsFaweSurfaceTest#relightRequestRecomputesAndRunsCallbacks`):
+구현된 시험(`furnace-server` `world/RelightTest` 16개·`world/RelightRegionTest` 10개, `furnace-compat-paper` `NmsFaweSurfaceTest#relightRequestRecomputesAndRunsCallbacks`):
 
 | 시험 | 본 것 |
 |---|---|
@@ -243,6 +271,7 @@ relight 가 없을 때 바뀌는 것은 `runUpdates`·`dispatchLight`·`hasWork`
 | `RelightRegionTest#mergeDuringCompute`·`splitDuringCompute`(끔·켬) | 코드 검토 재현에서 옮김: 일꾼을 잡은 동안 region 합치기·나누기 → 통이 따라가 끼운 뒤 풀림, 3×3 = 5×5 새로 켠 값 |
 | `RelightRegionTest#tileAcrossTwoRegions`(끔·켬) | 구역 2청크·반경 1 에서 한 8×8 타일이 두 region 에 걸침 → region 마다 따로 준비(2번), 받은 수·콜백·빛 15·붙잡기·핀 0 |
 | `RelightRegionTest#prepareFailureReleasesHolds`(끔·켬) | 코드 검토 F1 회귀: 일꾼 풀이 거절해도 done·콜백이 오고 붙잡기·핀·얼림 0, 옆 발광석 빛 15. 정리를 빼면 실패(변이 확인) |
+| `RelightRegionTest#installFailureReleasesHolds`(끔·켬) | 설치가 던져도 done·콜백, 붙잡기·핀 0, 그 청크 stale, 옆 발광석 빛 15 |
 | `overlappingRequestWaitsForHoldsThenRuns` | F3: 겹치는 다른 요청은 미뤄졌다가 앞 설치로 풀리면 깨어 끝남, 겹치지 않는 요청은 안 기다림. 깨우기를 빼면 실패(변이 확인) |
 | `savingRightAfterReleaseStillMarksStale` | F4: 붙잡기가 풀렸지만 통에서 아직 안 꺼낸 검사 옆 청크를 저장 → stale. 꺼낸 뒤에만 보면 실패(변이 확인) |
 
@@ -320,6 +349,8 @@ FAWE 의 `//fixlighting` 이외 빛 명령(`//removelighting`·`//getlighting`·
 | F3 설치마다 미룬 타일 전부 재큐 | 풀린 칸에 닿고 더는 막히지 않는 타일만 깨워 대기열 맨 앞에(미룬 차례 유지). 다시 준비로 돌리는 설치 청크도 앞에 | 4.1 ③⑩ |
 | F4 저장 직전 풀린 검사 stale 누락 | `applyHold` 전후 모두 `heldNear` | 4.6 |
 | F5 콜백 스레드 javadoc | `ChunkInternals.relightChunks`, `ThreadedLevelLightEngine` | — |
+| 재확인 뒤 사소한 것 | 계산 뒤 설치 넘기기(`result`·`enqueueIfOwned`) 예외 보호, 설치 실패 시험 `RelightRegionTest#installFailureReleasesHolds` | — |
+| M3 첫 측정 p95 +7 ms | 틱 예산 0.25 ms + 빛 작업 묶음 기다리지 않기 | 6장 M3 |
 | 시험 보강 | 합치기·나누기·두 region 타일·F1 회귀를 `RelightRegionTest` 로 옮김 | 7장 |
 
 남은 것: M3(헤드리스 서버 MSPT), M4(`lamps400Bench` 회귀 — 0 비용 경로는 volatile 읽기 두 번), M5(데스크탑 실측 + 둘레 한 줄)는 코드 검토와 함께 따로 잰다.

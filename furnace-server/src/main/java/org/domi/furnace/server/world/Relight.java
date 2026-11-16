@@ -4,7 +4,8 @@
 // 구역 얼리기 → 일꾼: 타일 + 둘레 1칸을 빈 빛에서 계산(RelightCompute) → 녹이기 → 청크마다 설치(그 청크의 주인 region): 층 끼우기·원천 다시 세기·
 // 저장 표시·빛 패킷, 붙잡기 풀기 → 요청마다 한 줄 실행기에서 콜백(설치 순서), 마지막에 done. 붙잡힌 검사는 붙잡기가 0 이 된 뒤 그 region 의
 // 다음 빛 계산에서 풀린다. 다른 요청이 붙잡은 3×3 과 겹치는 타일은 그 설치 뒤로 미룬다(같은 자리를 되풀이해 relight 해도 빛 갱신이 굶지 않게).
-// 붙잡기를 건 뒤 준비·설치가 실패하면 얼린 것을 녹이고 붙잡기·핀을 풀고 끝으로 센다(검토 F1).
+// 붙잡기를 건 뒤 준비·설치가 실패하면 얼린 것을 녹이고 붙잡기·핀을 풀고 끝으로 센다(검토 F1). region 마다 한 틱에 준비·설치에 쓰는 시간은
+// TICK_BUDGET 까지 — 넘으면 다음 틱으로 미룬다(타일 하나의 설치 64청크가 한 틱에 몰려 MSPT 가 튀지 않게, M3).
 package org.domi.furnace.server.world;
 
 import java.util.ArrayList;
@@ -34,6 +35,14 @@ public final class Relight {
 
     /** 타일 한 변(청크). 둘레 1칸까지 많아야 10×10 청크를 한 일꾼이 계산한다. */
     static final int TILE = 8;
+    /**
+     * region 한 틱에 relight 준비·설치에 쓰는 시간(ns). 첫 일은 늘 한다(넘는 만큼은 그 일 하나 — 준비 하나가 약 0.5 ms). 설계 6장 M3 합격선(relight 없는
+     * 같은 장면 대비 틱 p95 +1 ms 이내)에 맞춘 값이다: 1 ms 면 예산 + 준비 하나가 얹혀 +2 ms 를 넘었고, 0.25 ms 에서 +0.7~1.0 ms. 대신 1024청크가
+     * 1.7 s 에서 2.8 s 로 늘었다(설치 0.012 ms/청크 → 틱마다 약 20청크).
+     */
+    static final long TICK_BUDGET = 250_000L;
+    /** 도는 빛 작업 묶음 때문에 준비를 미루는 최대 틱 — 넘으면 기다린다(빛 풀이 막혀도 relight 가 끝나게). */
+    static final int MAX_BATCH_DEFERS = 20;
 
     private final World world;
 
@@ -46,6 +55,21 @@ public final class Relight {
         static final Executor EXECUTOR = java.util.concurrent.Executors.newFixedThreadPool(THREADS, daemon("furnace-relight-"));
         /** 플러그인 콜백(요청마다 한 줄). 콜백이 막혀도 계산 일꾼은 돈다. */
         static final Executor CALLBACKS = java.util.concurrent.Executors.newCachedThreadPool(daemon("furnace-relight-callback-"));
+    }
+
+    /** region 스레드: 이번 틱 relight 예산을 다 썼는가. */
+    private static boolean overBudget(Region r) {
+        long t = r.tickCount();
+        if (r.relightTick != t) {
+            r.relightTick = t;
+            r.relightSpent = 0;
+        }
+        return r.relightSpent >= TICK_BUDGET;
+    }
+
+    /** region 스레드: 이번 틱 relight 몫으로 쓴 시간을 더한다(overBudget 이 틱을 맞춘 뒤). */
+    private static void spend(Region r, long nanos) {
+        if (r.relightTick == r.tickCount()) r.relightSpent += nanos;
     }
 
     private static java.util.concurrent.ThreadFactory daemon(String prefix) {
@@ -277,6 +301,8 @@ public final class Relight {
         final boolean preHeld;
         /** 청크 범위(최소·최대 x·z). */
         final int minX, maxX, minZ, maxZ;
+        /** 도는 빛 작업 묶음 때문에 미룬 틱 수(주인 region 스레드만). */
+        int batchDefers;
 
         Tile(Request req, long[] chunks, boolean preHeld) {
             this.req = req;
@@ -372,8 +398,12 @@ public final class Relight {
     }
 
     private void prepare(Region r, Tile t) {
-        boolean dispatched = false;
-        long t0 = System.nanoTime();
+        if (overBudget(r)) {   // 이번 틱 몫을 다 썼다 — 다음 틱에(자리는 그대로 쥔다)
+            r.schedule(t.chunks[0], rr -> prepare(rr, t), 1);
+            return;
+        }
+        boolean dispatched = false, deferred = false;
+        long t0 = System.nanoTime(), moved = 0;
         try {
             RegionLevel level = r.level();
             List<Long> mine = new ArrayList<>(), elsewhere = new ArrayList<>();
@@ -399,8 +429,18 @@ public final class Relight {
                     // 곧 붙잡을 자리에 밀린 검사(앞 relight 가 풀어 둔 것 포함)가 있으면 먼저 돌린다 — 같은 자리를 곧바로 다시 붙잡아 빛 갱신이
                     // 굶지 않게(검토 R4). 자리 밖 일은 틱 끝 그대로(검토 F2)
                     long[] area = area(chunks);
-                    level.settleChecksBeforeHold(p -> java.util.Arrays.binarySearch(area,
-                            Regionizer.chunkKey(LightEngine.px(p) >> 4, LightEngine.pz(p) >> 4)) >= 0);
+                    long s0 = System.nanoTime();
+                    boolean settled = level.settleChecksBeforeHold(p -> java.util.Arrays.binarySearch(area,
+                            Regionizer.chunkKey(LightEngine.px(p) >> 4, LightEngine.pz(p) >> 4)) >= 0, t.batchDefers >= MAX_BATCH_DEFERS);
+                    moved = System.nanoTime() - s0;   // 틱 끝 빛 일을 당겨 한 몫 — 그 틱 끝이 그만큼 덜 하므로 예산에 넣지 않는다
+                    if (!settled) {   // 빛 작업 묶음이 그 자리 검사를 아직 계산 중 — 기다리지 않고 다음 틱에
+                        t.batchDefers++;
+                        Tile again = new Tile(t.req, chunks, false);
+                        again.batchDefers = t.batchDefers;
+                        r.schedule(chunks[0], rr -> prepare(rr, again), 1);
+                        deferred = true;
+                        return;
+                    }
                     int added = tryAddHolds(t.req, chunks);
                     if (added == CLOSED) for (long k : chunks) skip(t.req, k, false);
                     if (added != ADDED) return;
@@ -448,7 +488,8 @@ public final class Relight {
                 for (long k : chunks) skip(t.req, k, held);
             }
         } finally {
-            if (!dispatched) {
+            spend(r, System.nanoTime() - t0 - moved);
+            if (!dispatched && !deferred) {
                 inFlight.decrementAndGet();
                 pump();
             }
@@ -493,7 +534,7 @@ public final class Relight {
             boolean handed = false;
             try {
                 ChunkLight fresh = computed ? job.compute.result(Regionizer.chunkX(k), Regionizer.chunkZ(k)) : null;
-                handed = !world.isUnloaded() && world.regionizer().enqueueIfOwned(k, r -> install(r, job, k, fresh));
+                handed = !world.isUnloaded() && world.regionizer().enqueueIfOwned(k, r -> install(r, job, k, fresh, 0));
             } catch (RuntimeException | Error e) {
                 LOG.error(Lang.t("relight.compute-failed", world.dimension(), 1), e);
             } finally {
@@ -505,7 +546,13 @@ public final class Relight {
 
     // ------------------------------------------------------------------ 설치(그 청크의 주인 region)
 
-    private void install(Region r, Job job, long k, ChunkLight fresh) {
+    private void install(Region r, Job job, long k, ChunkLight fresh, int batchDefers) {
+        // 이번 틱 몫을 다 썼거나, 빛 작업 묶음이 아직 도는 중이다(끼우기는 묶음 게시를 기다려야 한다) — 기다리지 않고 다음 틱에
+        if (overBudget(r) || batchDefers < MAX_BATCH_DEFERS && r.level().lightBatchRunning()) {
+            int d = r.level().lightBatchRunning() ? batchDefers + 1 : batchDefers;
+            r.schedule(k, rr -> install(rr, job, k, fresh, d), 1);
+            return;
+        }
         int cx = Regionizer.chunkX(k), cz = Regionizer.chunkZ(k);
         ChunkColumn col = r.ownedChunk(cx, cz);
         boolean isClosed;
@@ -526,7 +573,8 @@ public final class Relight {
                 return;
             }
         }
-        long t0 = System.nanoTime();
+        r.level().awaitLightIdle();   // 끝난 빛 작업 묶음 게시 — 이 틱의 pollLight 가 할 일을 당긴 것이라 예산에 넣지 않는다
+        long t0 = System.nanoTime();   // 예산은 끼우기·패킷만 센다(위 확인은 싸다)
         try {
             if (installHook != null) installHook.run();
             r.level().installRelight(cx, cz, fresh, job.stamps.get(k));
@@ -537,6 +585,7 @@ public final class Relight {
             world.lightStale().mark(cx, cz);
             LOG.error(Lang.t("relight.install-failed", world.dimension(), cx, cz), e);
         } finally {
+            spend(r, System.nanoTime() - t0);
             releaseHolds(cx, cz);
             unpin(k);
             finish(job.req, k);

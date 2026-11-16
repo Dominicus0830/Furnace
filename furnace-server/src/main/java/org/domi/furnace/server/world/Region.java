@@ -108,6 +108,8 @@ public final class Region {
     // ---- 이 region 스레드만 다루는 상태
     private final PriorityQueue<Delayed> delayed = new PriorityQueue<>((a, b) -> a.dueTick != b.dueTick ? Long.compare(a.dueTick, b.dueTick) : Long.compare(a.seq, b.seq));
     private long tickCount;
+    /** 빛 다시 계산(T-197): relightSpent 를 센 틱과 그 틱에 준비·설치에 쓴 시간(ns). */
+    long relightTick = -1, relightSpent;
     private int latencyCounter;
     private final Map<Integer, Player> players = new HashMap<>();
     private final Map<ChunkPos, Integer> evictGrace = new HashMap<>();
