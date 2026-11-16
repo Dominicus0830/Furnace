@@ -225,6 +225,48 @@ public interface ChunkInternals {
      */
     org.domi.furnace.api.nbt.NbtCompound normalizeBlockEntityNbt(int stateId, org.domi.furnace.api.nbt.NbtCompound tag);
 
+    // ------------------------------------------------------------------ 빛 다시 계산(T-197)
+
+    /** 청크 좌표 콜백. */
+    @FunctionalInterface
+    interface ChunkCallback {
+        void accept(int chunkX, int chunkZ);
+    }
+
+    /**
+     * 아무 스레드, 기다리지 않음: Paper(Starlight) {@code ThreadedLevelLightEngine#starlight$serverRelightChunks} 의 서버 몫. chunkX[i]·chunkZ[i] 중
+     * 지금 로드된 청크만 받아(순서 유지, 같은 청크는 한 번) 빛을 지금 블록으로 처음부터 다시 계산하고 그 청크에만 끼운다(둘레 청크의 빛은 그대로 — Paper 와 같다).
+     * 끼운 청크는 저장 대상이 되고, 그 청크를 보는 모든 플레이어에게 전 섹션 빛 갱신 패킷이 간다. 청크마다 끝나면 chunkDone, 모두 끝나면
+     * allDone(받은 수) — 요청마다 콜백 전용 스레드 한 줄에서 끝난 차례대로 부른다(Paper 는 빛 일꾼 한 스레드). 돌려주는 값 = 받은 수. 받은 청크는 끝날 때까지 내려가지 않는다. 콜백은 null 이어도 된다.
+     */
+    int relightChunks(World world, int[] chunkX, int[] chunkZ, ChunkCallback chunkDone, java.util.function.IntConsumer allDone);
+
+    // ------------------------------------------------------------------ 빛 읽기·검사(T-205) — Paper 빛 엔진 표면(층 듣기·checkBlock·getRawBrightness)의 서버 몫
+    // 빛 섹션 번호는 바닐라 SectionPos.y(절대값)다. 빛 섹션은 블록 섹션 아래위로 하나씩 더 있다(바닐라 getMinLightSection = 최저 섹션 − 1).
+
+    /** 그 차원에 하늘빛이 있는가(바닐라 DimensionType.hasSkyLight). 아무 스레드. */
+    boolean hasSkyLight(World world);
+
+    /** 주인 스레드: 그 청크가 로드돼 있고 빛이 켜져 있는가(바닐라·Paper isLightCorrect 이고 LIGHT 단계 이상). 로드돼 있지 않으면 false. */
+    boolean lightReadyNow(World world, int chunkX, int chunkZ);
+
+    /**
+     * 주인 스레드: 그 칸의 저장된 빛 값(sky = 하늘빛, 아니면 블록빛, 0~15). 로드돼 있지 않거나 빛 자료가 없거나 서버 빛 배열 높이 밖이면 -1
+     * (빛 섹션 범위 밖 규칙은 부르는 쪽이 정한다 — 서버 빛 배열은 오버월드 빛 섹션 범위만 가진다).
+     */
+    int lightNow(World world, int x, int y, int z, boolean sky);
+
+    /** 주인 스레드: 빛 섹션 하나의 니블 배열 사본(2048 바이트, 바닐라 DataLayer 순서 YZX). 로드돼 있지 않거나 빛 자료가 없거나 빛 섹션 범위 밖이면 null. */
+    byte[] lightLayerNow(World world, int chunkX, int sectionY, int chunkZ, boolean sky);
+
+    /**
+     * 아무 스레드, 기다리지 않음: 그 칸의 빛 검사를 건다(Paper {@code LevelLightEngine#checkBlock} — 그 칸의 블록이 바뀌었을 수 있으니 하늘빛 원천과
+     * 두 빛을 지금 블록으로 다시 본다). 계산은 그 청크 주인 region 의 다음 빛 계산(틱 끝)에서 하고, 바뀐 빛은 저장 대상이 되며 보는 플레이어에게 간다.
+     * 다른 스레드면 주인에게 보내고(주인이 그 청크의 거울 쓰기를 먼저 들여온다), 빛 다시 계산(relight)이 그 둘레를 계산하는 동안에는 끼운 뒤로 미룬다.
+     * 높이 밖·로드되지 않았거나 빛이 켜지지 않은 청크는 버린다(Paper 와 같다). 받았으면 true(다른 스레드는 주인에게 보냈으면 true).
+     */
+    boolean checkLight(World world, int x, int y, int z);
+
     /**
      * 청크 shim 의 거울(호환 계층이 만든다, 플러그인이 볼 수 없는 내부 객체). 서버는 그 청크의 주인 region 스레드에서만 부르고, 이 객체의 모니터를 쓰지 않는다.
      */
@@ -281,5 +323,14 @@ public interface ChunkInternals {
 
         /** {@link #blockEntityPositionsNow} 와 같은 값(새 배열). */
         long[] blockEntityPositions();
+
+        /** {@link #lightReadyNow} 와 같은 판정(이 판을 낸 순간). */
+        boolean lightReady();
+
+        /** {@link #lightNow} 와 같은 값(이 판을 낸 순간). 빛 자료가 없으면 -1. */
+        int light(boolean sky, int x, int y, int z);
+
+        /** {@link #lightLayerNow} 와 같은 값(새 배열, 이 판을 낸 순간). */
+        byte[] lightLayer(boolean sky, int sectionY);
     }
 }

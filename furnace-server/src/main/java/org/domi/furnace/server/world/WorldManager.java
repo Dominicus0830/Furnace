@@ -638,6 +638,7 @@ public final class WorldManager {
             log.warn(Lang.t("world.unload-notify-failed", e.name()), t);
         }
         w.stopTicking();
+        w.relight().shutdown();   // 빛 다시 계산의 붙잡기를 풀어 저장 전 빛 계산이 마저 하게(T-197 검토 R1)
         // 떼기 직전에 이 월드로 떠난 이동(목적 청크 준비 중)이 있으면 도착한 뒤 저장한다 — 저장 뒤에 도착해 사라지지 않게(A03-01)
         w.freezeTravel();
         long arriveBy = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);

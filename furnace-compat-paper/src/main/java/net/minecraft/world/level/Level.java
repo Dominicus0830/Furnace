@@ -66,6 +66,15 @@ public abstract class Level implements LevelAccessor {
     @Override
     public abstract ChunkSource getChunkSource();
 
+    /** 바닐라 Level#getLightEngine: 청크 공급원의 빛 엔진(T-205). */
+    public net.minecraft.world.level.lighting.LevelLightEngine getLightEngine() { return getChunkSource().getLightEngine(); }
+
+    /** 바닐라 BlockAndTintGetter#getBrightness: 그 층 듣기의 칸 값(Paper 규칙 — {@link net.minecraft.world.level.lighting.LevelLightEngine}). */
+    public int getBrightness(LightLayer layer, BlockPos pos) { return getLightEngine().getLayerListener(layer).getLightValue(pos); }
+
+    /** 바닐라 BlockAndTintGetter#getRawBrightness: 빛 엔진의 getRawBrightness(T-205). */
+    public int getRawBrightness(BlockPos pos, int ambientDarkness) { return getLightEngine().getRawBrightness(pos, ambientDarkness); }
+
     /** 로드된 청크의 보기. 로드돼 있지 않으면 IllegalStateException(Paper 는 동기로 불러온다). */
     private volatile ca.spottedleaf.moonrise.patches.chunk_system.level.entity.EntityLookup furnaceEntityLookup;
 

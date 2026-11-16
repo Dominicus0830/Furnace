@@ -87,6 +87,12 @@ public final class RegionLevel extends ChunkLevel {
     protected void broadcastLightToChunk(int chunkX, int chunkZ, Packet packet) { world.broadcastLightUpdate(new ChunkPos(chunkX, chunkZ), packet); }
 
     @Override
+    protected void broadcastFullLightToChunk(int chunkX, int chunkZ, Packet packet) { world.broadcastFullLightUpdate(new ChunkPos(chunkX, chunkZ), packet); }
+
+    @Override
+    protected org.domi.furnace.server.light.LevelLight.Hold relightHold() { return world.relight().hold; }
+
+    @Override
     protected LevelServices services() { return world.levelServices(); }
 
     @Override

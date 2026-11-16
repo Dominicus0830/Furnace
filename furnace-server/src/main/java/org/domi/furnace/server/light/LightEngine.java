@@ -141,6 +141,17 @@ public abstract class LightEngine {
 
     void forEachCheck(java.util.function.LongConsumer c) { checks.forEach(c); }
 
+    boolean hasChecks() { return !checks.isEmpty(); }
+
+    /** 검사를 넣은 순서로 보다가 stop 이 참이면 멈춘다. 멈췄으면 true. */
+    boolean forEachCheckUntil(java.util.function.LongPredicate stop) {
+        boolean[] hit = {false};
+        checks.forEach(p -> {
+            if (!hit[0] && stop.test(p)) hit[0] = true;
+        });
+        return hit[0];
+    }
+
     public boolean hasWork() { return !checks.isEmpty() || !increase.isEmpty() || !decrease.isEmpty(); }
 
     /** runLightUpdates: 검사 → 감소 전파 → 증가 전파. */

@@ -10,7 +10,7 @@ import org.bukkit.craftbukkit.util.CraftMagicNumbers;
 
 /**
  * Paper 1.21.1 CraftEffect: 효과 데이터(재료·색·방향 등) → level_event 의 정수 데이터. 분기·예외 문구는 Paper 와 같다.
- * Furnace 의 BlockFace 는 여섯 면과 SELF 뿐이라 SMOKE 의 대각선(옛 방향) 분기는 SELF 로만 닿는다.
+ * SMOKE 의 옛 방향 값: DOWN·대각 네 개·SELF 는 0, 보조 16방위 8개는 "Bad smoke direction!".
  */
 public final class CraftEffect {
 
@@ -61,12 +61,13 @@ public final class CraftEffect {
                 };
             }
             case SMOKE -> datavalue = switch ((BlockFace) data) {
-                case DOWN, SELF -> 0;   // SPIGOT-6318: 옛 방향(대각선·SELF)은 0
+                case DOWN, NORTH_EAST, NORTH_WEST, SOUTH_EAST, SOUTH_WEST, SELF -> 0;   // SPIGOT-6318: 옛 방향 값은 0
                 case UP -> 1;
                 case NORTH -> 2;
                 case SOUTH -> 3;
                 case WEST -> 4;
                 case EAST -> 5;
+                default -> throw new IllegalArgumentException("Bad smoke direction!");   // 보조 16방위 8개
             };
             case STEP_SOUND, PARTICLES_AND_SOUND_BRUSH_BLOCK_COMPLETE -> {
                 if (effect == Effect.STEP_SOUND && data instanceof Material m) {

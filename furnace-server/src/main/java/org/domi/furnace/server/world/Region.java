@@ -108,6 +108,10 @@ public final class Region {
     // ---- 이 region 스레드만 다루는 상태
     private final PriorityQueue<Delayed> delayed = new PriorityQueue<>((a, b) -> a.dueTick != b.dueTick ? Long.compare(a.dueTick, b.dueTick) : Long.compare(a.seq, b.seq));
     private long tickCount;
+    /** 빛 다시 계산(T-197): relightSpent 를 센 틱과 그 틱에 준비·설치에 쓴 시간(ns). */
+    long relightTick = -1, relightSpent;
+    /** 이번 차례가 틱을 세지 않는 차례(수동 시계·sprint 붙잡기)인가 — 그러면 틱 단위로 미룬 일이 돌지 않으므로 relight 는 미루지 않는다. */
+    boolean relightHeldRun;
     private int latencyCounter;
     private final Map<Integer, Player> players = new HashMap<>();
     private final Map<ChunkPos, Integer> evictGrace = new HashMap<>();
@@ -163,6 +167,7 @@ public final class Region {
         sprintHeld = !manualHold && gameTick && sprintHoldsNow();
         boolean hold = sprintHeld || manualHold;
         if (!hold) tickCount++;
+        relightHeldRun = hold;
         urgentWaitUsed = 0L;
         long deadline = System.nanoTime() + DRAIN_BUDGET_NANOS;
         Task t;

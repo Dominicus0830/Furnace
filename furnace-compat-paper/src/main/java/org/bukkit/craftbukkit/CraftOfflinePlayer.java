@@ -26,6 +26,18 @@ public final class CraftOfflinePlayer implements OfflinePlayer {
     @Override
     public boolean isOnline() { return getPlayer() != null; }
 
+    /** Paper: 접속 중이면 접속 때 받은 속성까지, 아니면 이름(서버가 아는 것)과 UUID. */
+    @Override
+    public com.destroystokyo.paper.profile.PlayerProfile getPlayerProfile() {
+        var online = Compat.furnace().player(id);
+        if (online != null) {
+            com.destroystokyo.paper.profile.PlayerProfile profile = new com.destroystokyo.paper.profile.CraftPlayerProfile(id, online.name());
+            for (var p : online.profileProperties()) profile.setProperty(new com.destroystokyo.paper.profile.ProfileProperty(p.name(), p.value(), p.signature()));
+            return profile;
+        }
+        return new com.destroystokyo.paper.profile.CraftPlayerProfile(id, getName());
+    }
+
     /** CraftBukkit 처럼: 접속 중이면 지금 이름, 아니면 만들 때 받은 이름, 그것도 없으면 서버 기록(usercache·저장 데이터)의 이름, 없으면 null. */
     @Override
     public String getName() {

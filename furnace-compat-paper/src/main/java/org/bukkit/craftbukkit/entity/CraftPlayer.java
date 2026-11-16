@@ -19,6 +19,9 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
         this.handle = handle;
     }
 
+    @Override
+    public com.destroystokyo.paper.profile.PlayerProfile getPlayerProfile() { return new com.destroystokyo.paper.profile.CraftPlayerProfile(this); }
+
     /** 호환 모듈 전용 — 이 플레이어의 Furnace 핸들(접속 동안 같다). */
     @Override
     public org.domi.furnace.api.entity.Player furnaceHandle() { return handle; }

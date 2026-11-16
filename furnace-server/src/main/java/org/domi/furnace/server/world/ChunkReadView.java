@@ -1,5 +1,5 @@
 // 공개 스냅샷(N2b-3, 설계 3.6): 주인 region 이 틱 끝에 내는 청크의 불변 사본. 다른 스레드(비동기 작업·FAWE 일꾼·다른 region)가 기다리지 않고 읽는다.
-// 바뀌지 않은 섹션은 앞 판의 사본을 그대로 쓴다(섹션 객체·바뀜 표가 같으면). 빛은 담지 않는다(N2b-5).
+// 바뀌지 않은 섹션은 앞 판의 사본을 그대로 쓴다(섹션 객체·바뀜 표가 같으면). 빛은 층 참조를 그대로 쥔다(T-205 — 넘긴 층은 서버가 쓰기 전에 복사한다).
 package org.domi.furnace.server.world;
 
 import org.domi.furnace.api.internal.ChunkInternals;
@@ -57,8 +57,12 @@ public final class ChunkReadView implements ChunkInternals.ChunkView {
     private final long[] blockEntities;
     /** 이 판을 낸 때의 컬럼 수정 카운터(재사용 판정용). */
     final long modCount;
+    /** 빛이 켜져 있었나, 빛 층(ChunkLight 순서 — 0 = 빛 섹션 MIN_SECTION, 서버가 더 고치지 않는 배열). 빛 자료가 없으면 층은 null. */
+    private final boolean lightReady;
+    private final byte[][] skyLayers, blockLayers;
 
-    ChunkReadView(Object loadToken, long version, int minY, SectionView[] sections, int[][] heights, long[] blockEntities, long modCount) {
+    ChunkReadView(Object loadToken, long version, int minY, SectionView[] sections, int[][] heights, long[] blockEntities, long modCount,
+                  boolean lightReady, byte[][] skyLayers, byte[][] blockLayers) {
         this.loadToken = loadToken;
         this.version = version;
         this.minY = minY;
@@ -66,6 +70,15 @@ public final class ChunkReadView implements ChunkInternals.ChunkView {
         this.heights = heights;
         this.blockEntities = blockEntities;
         this.modCount = modCount;
+        this.lightReady = lightReady;
+        this.skyLayers = skyLayers;
+        this.blockLayers = blockLayers;
+    }
+
+    /** 이 판의 빛이 지금 빛과 같은가(같은 ChunkLight 의 같은 층 참조·켜짐). 재사용 판정용, 주인 스레드. */
+    boolean sameLight(org.domi.furnace.server.light.ChunkLight cl) {
+        if (cl == null) return skyLayers == null;
+        return skyLayers != null && lightReady == cl.lightEnabled && cl.sameLayers(skyLayers, blockLayers);
     }
 
     SectionView section(int i) { return sections[i]; }
@@ -122,6 +135,24 @@ public final class ChunkReadView implements ChunkInternals.ChunkView {
     }
 
     @Override public long[] blockEntityPositions() { return blockEntities.clone(); }
+
+    @Override public boolean lightReady() { return lightReady; }
+
+    @Override
+    public int light(boolean sky, int x, int y, int z) {
+        if (skyLayers == null) return -1;
+        int i = org.domi.furnace.server.light.ChunkLight.sectionIndex(y);
+        if (i < 0 || i >= org.domi.furnace.server.light.ChunkLight.SECTIONS) return -1;   // 서버 빛 배열 밖 — 자료 없음
+        return org.domi.furnace.server.light.ChunkLight.get(sky ? skyLayers[i] : blockLayers[i], x, y, z);
+    }
+
+    @Override
+    public byte[] lightLayer(boolean sky, int sectionY) {
+        if (skyLayers == null) return null;
+        int i = sectionY - org.domi.furnace.server.light.ChunkLight.MIN_SECTION;
+        if (i < 0 || i >= org.domi.furnace.server.light.ChunkLight.SECTIONS) return null;
+        return (sky ? skyLayers[i] : blockLayers[i]).clone();
+    }
 
     /** 바닐라 BlockPos.asLong. */
     static long packPos(int x, int y, int z) {

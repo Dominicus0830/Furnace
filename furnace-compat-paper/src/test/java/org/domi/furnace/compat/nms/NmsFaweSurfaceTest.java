@@ -289,14 +289,29 @@ class NmsFaweSurfaceTest {
         assertTrue(ChunkRefreshPackets.isRefresh(packet), "보낸 뒤에도 보기 패킷으로 안다(바이트로 바꾸지 않는다)");
     }
 
+    /**
+     * T-197: Paper 처럼 로드된 청크만 받아(같은 청크는 한 번) 서버가 빛을 다시 계산하고, 청크마다 콜백(받은 순서와 무관한 집합) 뒤 onComplete(받은 수).
+     * 돌려주는 값 = 받은 수. 콜백은 한 줄 콜백 스레드에서(region 스레드 아님).
+     */
     @Test
-    void relightRequestRunsCallbacksWithoutTouchingLight() {
-        List<ChunkPos> got = new ArrayList<>();
-        int[] done = {-1};
-        int n = level.getChunkSource().getLightEngine().starlight$serverRelightChunks(List.of(new ChunkPos(0, 0), new ChunkPos(1, 0)), got::add, i -> done[0] = i);
-        assertEquals(2, n);
-        assertEquals(List.of(new ChunkPos(0, 0), new ChunkPos(1, 0)), got);
-        assertEquals(2, done[0]);
+    void relightRequestRecomputesAndRunsCallbacks() throws Exception {
+        int cx = Math.floorDiv(at.x(), 16), cz = Math.floorDiv(at.z(), 16);
+        ChunkPos here = new ChunkPos(cx, cz), far = new ChunkPos(cx + 100_000, cz);
+        List<ChunkPos> got = java.util.Collections.synchronizedList(new ArrayList<>());
+        List<String> threads = java.util.Collections.synchronizedList(new ArrayList<>());
+        var done = new java.util.concurrent.CompletableFuture<Integer>();
+        int n = level.getChunkSource().getLightEngine().starlight$serverRelightChunks(List.of(here, here, far), p -> {
+            got.add(p);
+            threads.add(Thread.currentThread().getName());
+        }, done::complete);
+        assertEquals(1, n, "로드된 청크만, 한 번");
+        assertEquals(1, done.get(30, java.util.concurrent.TimeUnit.SECONDS));
+        assertEquals(List.of(here), got);
+        assertTrue(threads.stream().allMatch(t -> t.startsWith("furnace-relight-callback-")), threads.toString());
+        var none = new java.util.concurrent.CompletableFuture<Integer>();
+        assertEquals(0, level.getChunkSource().getLightEngine().starlight$serverRelightChunks(List.of(far), p -> { throw new AssertionError(); },
+                none::complete));
+        assertEquals(0, none.get(10, java.util.concurrent.TimeUnit.SECONDS), "받은 것이 없어도 onComplete(0)");
     }
 
     @Test

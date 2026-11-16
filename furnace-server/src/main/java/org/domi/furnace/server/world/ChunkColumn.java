@@ -309,7 +309,8 @@ public final class ChunkColumn {
         ChunkReadView prev = readView;
         viewRequested = 0;
         ChunkSection[] secs = sections;
-        if (prev != null && prev.modCount == modCount && prev.loadToken() == loadToken && prev.sectionCount() == secs.length) {
+        org.domi.furnace.server.light.ChunkLight cl = light;
+        if (prev != null && prev.modCount == modCount && prev.loadToken() == loadToken && prev.sectionCount() == secs.length && prev.sameLight(cl)) {
             boolean same = true;
             for (int i = 0; i < secs.length && same; i++) same = prev.section(i).reusableFor(secs[i]);
             if (same) return prev;
@@ -321,7 +322,16 @@ public final class ChunkColumn {
         }
         int[][] heights = fixedHeights != null ? copyFixed(fixedHeights) : currentHeights();
         long[] bePos = blockEntityPositions(chunkX, chunkZ);
-        ChunkReadView v = new ChunkReadView(loadToken, ++viewVersion, minY, out, heights, bePos, modCount);
+        // 빛(T-205): 층을 복사하지 않고 넘긴다 — 넘긴 층은 ChunkLight 가 다음 쓰기 때 복사한다(쓰기 시 복사). 빛 작업 묶음(T-064)이 도는 동안에도
+        // 보이는 층은 아무도 고치지 않으므로 지금 값이 그대로 한 순간의 값이다
+        byte[][] skyLayers = null, blockLayers = null;
+        if (cl != null) {
+            skyLayers = new byte[org.domi.furnace.server.light.ChunkLight.SECTIONS][];
+            blockLayers = new byte[org.domi.furnace.server.light.ChunkLight.SECTIONS][];
+            cl.shareLayersWithView(skyLayers, blockLayers);
+        }
+        ChunkReadView v = new ChunkReadView(loadToken, ++viewVersion, minY, out, heights, bePos, modCount,
+                cl != null && cl.lightEnabled, skyLayers, blockLayers);
         readView = v;
         return v;
     }
@@ -435,7 +445,7 @@ public final class ChunkColumn {
         if (sharedSections != null && sharedSections[i]) {
             replaceSection(i, sections[i].copy());
             sharedSections[i] = false;
-        } else if (sections[i].lightFrozen) {
+        } else if (sections[i].lightFrozen()) {
             replaceSection(i, sections[i].copy());   // 빛 작업이 옛 객체를 읽는 중 — 복사본에 쓴다(복사본은 얼지 않았다)
         }
         return sections[i];
@@ -498,7 +508,7 @@ public final class ChunkColumn {
      */
     public LightBlocks freezeForLight() {
         ChunkSection[] secs = sections.clone();
-        for (ChunkSection cs : secs) cs.lightFrozen = true;
+        for (ChunkSection cs : secs) cs.freezeLight();
         return new LightBlocks(secs, minY);
     }
 
@@ -532,8 +542,8 @@ public final class ChunkColumn {
             return i < 0 || i >= secs.length || secs[i].onlyAirExact();   // 월드 높이 밖 구역은 없다(void_air) — computeSources 는 묻지 않는다
         }
 
-        /** 빛 작업이 끝났다 — 넘긴 객체를 녹인다(아직 컬럼에 남아 있는 것은 다시 그 자리에서 고칠 수 있다). 주인 스레드에서. */
-        public void thaw() { for (ChunkSection cs : secs) cs.lightFrozen = false; }
+        /** 빛 계산이 끝났다 — 넘긴 객체를 녹인다(다른 계산이 얼리지 않았고 아직 컬럼에 남아 있으면 다시 그 자리에서 고칠 수 있다). 한 번만, 아무 스레드. */
+        public void thaw() { for (ChunkSection cs : secs) cs.thawLight(); }
     }
 
     private void ownAllSections() {

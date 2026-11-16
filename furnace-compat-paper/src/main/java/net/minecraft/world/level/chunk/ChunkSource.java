@@ -18,4 +18,7 @@ public abstract class ChunkSource {
 
     /** 로드된 청크 수. */
     public abstract int getLoadedChunksCount();
+
+    /** 바닐라 ChunkSource#getLightEngine — 서버 빛 엔진({@link net.minecraft.server.level.ServerChunkCache} 가 {@code ThreadedLevelLightEngine} 으로 좁힌다). */
+    public abstract net.minecraft.world.level.lighting.LevelLightEngine getLightEngine();
 }

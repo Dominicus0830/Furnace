@@ -6,6 +6,10 @@ import org.bukkit.OfflinePlayer;
 /** 접속 중인 플레이어. 소리·입자는 H4 묶음 C. */
 public interface Player extends HumanEntity, org.bukkit.conversations.Conversable, OfflinePlayer, org.bukkit.plugin.messaging.PluginMessageRecipient {
 
+    /** 이 플레이어의 프로필(Paper 형). 접속 때 받은 속성(스킨)을 복사해 담은 값 복사본이다 — 고쳐도 접속한 플레이어의 프로필은 바뀌지 않는다. */
+    @Override
+    com.destroystokyo.paper.profile.PlayerProfile getPlayerProfile();
+
     /** 채팅 서식 %1$s 에 쓰는 이름 — 정하지 않았으면 플레이어 이름 그대로(Paper·Spigot 과 같다, 바닐라 팀 서식은 붙지 않는다). */
     String getDisplayName();
 

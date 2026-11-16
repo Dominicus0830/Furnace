@@ -2,6 +2,10 @@
 
 바닐라 마인크래프트(1.21.1)와 같은 결과를 내는 Java 서버. 플러그인 API(`furnace-api`)와 Bukkit·Paper 호환 계층(`furnace-compat-paper`)을 갖는다.
 
+Bukkit·Paper·Spigot 플러그인 호환은 해당 개발팀 또는 권리자가 Furnace 에서의 사용을 금하면 언제든 중단될 수 있다. 자세한 내용은 `docs/policy/plugin-compatibility.md`.
+
+Bukkit, Paper, and Spigot plugin compatibility may be withdrawn at any time if the plugin's developer team or rights holder prohibits its use in Furnace. See `docs/policy/plugin-compatibility.md` (Korean and English).
+
 ## 라이선스
 
 | 모듈 | 라이선스 |

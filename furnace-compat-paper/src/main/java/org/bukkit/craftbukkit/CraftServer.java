@@ -90,6 +90,40 @@ public final class CraftServer implements Server {
     public org.bukkit.block.data.BlockData createBlockData(String data) { return CompatBlockData.create(data); }
 
     @Override
+    public org.bukkit.profile.PlayerProfile createPlayerProfile(java.util.UUID uniqueId) { return new org.bukkit.craftbukkit.profile.CraftPlayerProfile(uniqueId, null); }
+
+    @Override
+    public org.bukkit.profile.PlayerProfile createPlayerProfile(String name) { return new org.bukkit.craftbukkit.profile.CraftPlayerProfile(null, name); }
+
+    @Override
+    public org.bukkit.profile.PlayerProfile createPlayerProfile(java.util.UUID uniqueId, String name) { return new org.bukkit.craftbukkit.profile.CraftPlayerProfile(uniqueId, name); }
+
+    @Override
+    public com.destroystokyo.paper.profile.PlayerProfile createProfile(java.util.UUID uuid) { return createProfile(uuid, null); }
+
+    @Override
+    public com.destroystokyo.paper.profile.PlayerProfile createProfile(String name) { return createProfile(null, name); }
+
+    @Override
+    public com.destroystokyo.paper.profile.PlayerProfile createProfile(java.util.UUID uuid, String name) {
+        Player player = uuid != null ? getPlayer(uuid) : (name != null ? getPlayerExact(name) : null);
+        if (player != null) return new com.destroystokyo.paper.profile.CraftPlayerProfile((org.bukkit.craftbukkit.entity.CraftPlayer) player);
+        return new com.destroystokyo.paper.profile.CraftPlayerProfile(uuid, name);
+    }
+
+    @Override
+    public com.destroystokyo.paper.profile.PlayerProfile createProfileExact(java.util.UUID uuid, String name) {
+        Player player = uuid != null ? getPlayer(uuid) : (name != null ? getPlayerExact(name) : null);
+        if (player == null) return new com.destroystokyo.paper.profile.CraftPlayerProfile(uuid, name);
+        if (java.util.Objects.equals(uuid, player.getUniqueId()) && java.util.Objects.equals(name, player.getName())) {
+            return new com.destroystokyo.paper.profile.CraftPlayerProfile((org.bukkit.craftbukkit.entity.CraftPlayer) player);
+        }
+        com.destroystokyo.paper.profile.PlayerProfile profile = new com.destroystokyo.paper.profile.CraftPlayerProfile(uuid, name);
+        profile.setProperties(new com.destroystokyo.paper.profile.CraftPlayerProfile((org.bukkit.craftbukkit.entity.CraftPlayer) player).getProperties());
+        return profile;
+    }
+
+    @Override
     public org.bukkit.block.data.BlockData createBlockData(org.bukkit.Material material, String data) { return CompatBlockData.create(material, data); }
 
     @Override

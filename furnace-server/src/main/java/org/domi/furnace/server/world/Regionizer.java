@@ -1367,6 +1367,9 @@ public final class Regionizer {
     /** 틱 소요 시간 분포(최근 표본 최대 512개 + 가동 이후 최대). */
     public org.domi.furnace.server.sched.TickTimeRing.Stats tickTimes() { return tickRing.stats(); }
 
+    /** 벤치용: 틱 소요 시간 고리(틱 번호로 구간을 잘라 본다). */
+    org.domi.furnace.server.sched.TickTimeRing tickRing() { return tickRing; }
+
     /** region 한 개의 관측 사본. thread 는 지금 틱 중인 워커 이름(쉬면 null), runningNanos 는 그 틱이 돈 시간. */
     public record RegionInfo(int id, int sections, int chunks, int inbox, String thread, long runningNanos,
                              long lastTickNanos, long maxTickNanos, int minChunkX, int minChunkZ, int maxChunkX, int maxChunkZ,

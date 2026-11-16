@@ -219,6 +219,7 @@ public final class FurnaceMain {
         log.info("Preparing level \"{}\"", config.levelName());
         var playerLists = new PlayerLists(Path.of("."), settings);
         profileCache.save();
+        profileCache.setProfileLookups(props.onlineMode || config.bungeecord() || !config.velocitySecret().isEmpty());
         var loginContext = org.domi.furnace.server.net.ServerLoginContext.fromProperties(props, serverKeys, playerLists,
                 profileCache, Path.of("server-icon.png")).velocitySecret(config.velocitySecret()).bungeecord(config.bungeecord())
                 .limits(org.domi.furnace.server.net.ConnectionLimits.load(furnaceProps, log::warn)
@@ -563,6 +564,7 @@ public final class FurnaceMain {
                     } catch (InterruptedException e) {
                         log.error(Lang.t("stop.barrier-interrupted"), e);
                     }
+                    for (World w : dimensions.all()) w.relight().shutdown();   // 빛 다시 계산의 붙잡기를 풀어 저장 전 빛 계산이 마저 하게(T-197 검토 R1)
                     for (World w : dimensions.all()) {
                         try {
                             int left = w.flushAllDrained(Math.max(1, flushDeadline - System.nanoTime()));
