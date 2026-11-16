@@ -24,6 +24,9 @@ public final class FluidState extends StateHolder<Fluid, FluidState> {
     @Override
     protected FluidState withValue(Property<?> property, Comparable<?> value) { return owner.furnaceStateWith(this, property, value); }
 
+    @Override
+    public FluidState furnaceDefaultState() { return owner.defaultFluidState(); }
+
     public Fluid getType() { return owner; }
 
     public boolean isSource() { return owner.isSource(this); }

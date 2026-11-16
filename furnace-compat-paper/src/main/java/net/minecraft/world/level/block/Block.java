@@ -145,6 +145,30 @@ public class Block extends BlockBehaviour implements ItemLike {
 
     public final BlockState defaultBlockState() { return defaultState; }
 
+    /** 바닐라: 폭발 저항(블록 속성). */
+    public float getExplosionResistance() { return org.domi.furnace.compat.nms.NmsBlockStates.table().explosionResistance()[defaultState.furnaceStateId()]; }
+
+    /** 바닐라: 마찰(블록 속성, 기본 0.6). */
+    public float getFriction() { return org.domi.furnace.compat.nms.NmsBlockStates.table().friction()[defaultState.furnaceStateId()]; }
+
+    /** 바닐라: 기본 상태의 지도 색. */
+    public net.minecraft.world.level.material.MapColor defaultMapColor() {
+        return net.minecraft.world.level.material.MapColor.furnaceByCol(org.domi.furnace.compat.nms.NmsBlockStates.table().mapColor()[defaultState.furnaceStateId()]);
+    }
+
+    /** 바닐라: 모양이 한 칸 블록 전체를 덮는가. */
+    public static boolean isShapeFullBlock(net.minecraft.world.phys.shapes.VoxelShape shape) { return net.minecraft.world.phys.shapes.Shapes.furnaceIsFullBlock(shape); }
+
+    private static final java.util.Set<String> PAPER_INDESTRUCTIBLE = java.util.Set.of("minecraft:barrier", "minecraft:bedrock", "minecraft:end_portal_frame",
+            "minecraft:end_portal", "minecraft:end_gateway", "minecraft:command_block", "minecraft:repeating_command_block", "minecraft:chain_command_block",
+            "minecraft:structure_block", "minecraft:jigsaw");
+
+    /**
+     * Paper: 이 블록을 부술 수 있는가 — 기본 설정(unsupported-settings.allow-permanent-block-break-exploits 꺼짐)의 Paper 1.21.1 목록 그대로(N2b-6).
+     * Furnace 에는 그 설정이 없어 늘 기본값이다.
+     */
+    public final boolean isDestroyable() { return !PAPER_INDESTRUCTIBLE.contains(key.toString()); }
+
     public StateDefinition<Block, BlockState> getStateDefinition() { return stateDefinition; }
 
     @Override

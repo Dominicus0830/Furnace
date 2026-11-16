@@ -38,6 +38,12 @@ public final class PacketDelivery {
             p.sendPacketBundle(out.toArray(ClientboundPacket[]::new));
             return;
         }
+        if (packet instanceof net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket chunk && ChunkRefreshPackets.isRefresh(chunk)) {
+            // N2b-6: 청크 보기로 만든 청크 패킷 — 서버가 지금 청크를 보고 있는 플레이어에게 다시 보낸다(한 패킷 객체에 한 번)
+            var c = ChunkRefreshPackets.claim(chunk);
+            if (c != null) c.furnaceWorld().refreshChunk(c.getPos().x, c.getPos().z);
+            return;
+        }
         ClientboundPacket c = convert(packet);
         DeliveredPackets.mark(c);
         p.sendPacket(c);

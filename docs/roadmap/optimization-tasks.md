@@ -295,3 +295,17 @@ T-150(①+②)·T-151 은 PR #362 로 끝났다(명령 59종 0.1~17ms, `CommandS
 | T-196 | P1 | ADD(호환) | 다른 region·다른 차원으로의 엔티티 `teleport()`: API 는 지금처럼 동기처럼 보이게 두고(Paper 처럼 `true`/`false` 와 `teleportAsync` Future), 안에서 현재 소유 region 이 엔티티를 떼어 도착지를 소유한 region 스레드에 넘긴다(핸드오프). **도미니코 승인 11-15** | `docs/user-todo/entries/2026-11-08-movement.md` 결정 | 플러그인이 `/tp`·`/warp`·`teleport(otherWorldLocation)` 를 먼 곳으로 불러도 Paper 처럼 성공하고 `true`. 증명: 같은 region·다른 region·다른 차원·탈것·승객 조합에서 이동 뒤 엔티티 수·NBT·이벤트 순서가 Paper 규칙과 같고, 핸드오프 도중 청크 언로드·접속 종료·사망에도 엔티티 복제·소실 없음(경합 시험) | M~L | Opus high | T-141 | Entity, Region, CraftEntity |
 
 여는 순서(D2 확정 11-15: P0 먼저, T-141 병행): T-180 과 T-181 을 먼저 병렬로(파일이 다름), T-184 는 T-181 과 shimgen 이 겹치므로 같은 스레드나 바로 뒤. T-182 는 T-180 뒤. T-193 은 PR #364 로 끝났다. 나머지 P1 은 파일이 안 겹치게 둘씩.
+
+## 12. FAWE 통합·Paper 대조 — N2b-6 후속 (2026-11-16)
+
+노트북 실측(`docs/feature-parity/compat-nms-n2b6-2026-11-16.md`)에서 FAWE 2.16.2 대표 편집 7가지가 Paper 와 블록·바이옴·하이트맵 0칸 차이로 끝났다. 남은 차이·구멍:
+
+| 번호 | 우선 | 종류 | 할 일 | 근거 | 수용 조건 | 크기 | 모델 | 선행 | 파일 |
+|---|---|---|---|---|---|---|---|---|---|
+| T-197 | **P0** | FIX(호환) | N2b-5 빛 다시 계산: `ThreadedLevelLightEngine#starlight$serverRelightChunks` 를 주인 region 에서 대기를 맞춘 뒤 Furnace 빛 엔진으로 그 청크들을 처음부터 다시 계산(하늘빛 원천 포함·가장자리), 바뀐 빛은 저장 표시·빛 갱신 패킷 대상. 지금은 콜백만 부르고 빛은 그대로(D2) | N2b-6 보고서 1·3장(편집 41청크 하늘빛 126,006칸 다름) | 같은 노트북 시나리오에서 편집한 청크의 빛이 Paper 와 같다(대조군의 엔진 차이는 T-202 로 뺀다) | L | Opus high | — | ThreadedLevelLightEngine, LevelLight, ChunkInternals |
+| T-198 | **P0** | FIX(호환) | NMS 블록 엔티티 쓰기: `LevelChunk#removeBlockEntity`(다른 스레드 = 거울 일지 — N2b-4 4장 2), `Level#getBlockEntity`(없으면 블록에 맞게 만듦, 바닐라 IMMEDIATE), `BlockEntity#loadWithComponents`·`setChanged`, `Level#removeBlockEntity`. 지금은 블록 엔티티가 든 섹션을 FAWE 가 바꾸면 그 청크 편집이 실패한다 | N2b-6 보고서 5장 2 | 상자·스포너가 있는 곳 `//set`, 상자 `//copy`·`//paste`(내용물 포함)가 Paper 와 같은 region 결과 | M~L | Opus high | — | LevelChunk, BlockEntity, FurnaceChunkMirror, ChunkInternals |
+| T-199 | P2 | FIX(호환) | 옛 판 데이터 고치기: `DataFixers#getDataFixer` 가 판을 올리지 않는다 — FAWE 켤 때 `LegacyMapper` "Unknown block" 30줄, 옛 스케매틱이 안 올라감. Furnace 서버 datafix 로 블록 상태·아이템 이름 단계만이라도 | 보고서 5장 3 | 켤 때 오류 0줄, 1.12 스케매틱 붙여 넣기 결과가 Paper 와 같다 | M | Sonnet high | — | DataFixers, 서버 datafix |
+| T-200 | P1 | FIX(호환) | 아이템 구성 요소 코덱: `DataComponentPatch.CODEC`(지금 오류 결과)·`ItemStack#getComponentsPatch`·`applyComponents`·`RegistryAccess.Frozen#createSerializationContext` — `NbtOps`(T-191)와 함께 | 보고서 5장 4 | FAWE `//wand`·브러시 아이템, 아이템 NBT 왕복이 Paper 와 같다 | M | Sonnet high | T-191 | DataComponentPatch, ItemStack, NbtOps |
+| T-201 | P2 | 확인 | 콘솔 앞 `/`: Paper 콘솔은 떼지 않아 `/pos1`(= `//pos1`), Furnace 는 바닐라처럼 하나 뗀다. Paper 의 정확한 규칙 확인 뒤 Bukkit 명령에만 맞출지 | 보고서 3장 | 같은 콘솔 입력이 같은 명령으로 간다 | S | Sonnet medium | — | ConsoleInput, Commands |
+| T-202 | P2 | 측정 | Paper 로 만든 월드를 Furnace 가 열 때 편집 안 한 청크의 빛 값 차이(블록빛 2,668칸·하늘빛 110칸, 대조군에도 있음) 원인 — Starlight 대 Furnace 엔진, 생성 때 가장자리 빛 | 보고서 3장 | 원인 분류와 고칠 것 TASK | S | Sonnet high | — | light |
+| T-203 | P2 | ADD(호환) | FAWE 나머지 기능의 NMS 표면: `//regen`(ServerLevel 상속 — 등급 C, 대체 경로 필요), `//forest`·`//feature`(Feature#place), 엔티티 복사(`Entity#save`·`load`·`EntityType#create`·`EntityLookup#addNewEntity`), `simulateItemUse`(가짜 플레이어). 시작 보고서의 없는 기호 목록으로 범위를 정한다 | 보고서 5장 6 | 기능별 Paper 대조 | L(기능별로 쪼갬) | Opus high | T-198 | nms shim |

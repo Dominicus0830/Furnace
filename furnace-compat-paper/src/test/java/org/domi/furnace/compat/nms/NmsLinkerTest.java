@@ -63,7 +63,7 @@ class NmsLinkerTest {
                     package net.minecraft.server;
                     public abstract class MinecraftServer {
                         public static MinecraftServer getServer() { return null; }
-                        public static int currentTick;
+                        public static int tickCount;
                         public String getServerVersion() { return null; }
                     }
                     """);
@@ -82,7 +82,7 @@ class NmsLinkerTest {
                 public static boolean missingInstanceof(Object o) { return o instanceof ProtoChunk; }
                 public static Object missingCast(Object o) { return (ProtoChunk) o; }
                 public static Object missingLdc() { return ProtoChunk.class; }
-                public static int missingStaticField() { return net.minecraft.server.MinecraftServer.currentTick; }
+                public static int missingStaticField() { return net.minecraft.server.MinecraftServer.tickCount; }
                 public static void missingPutStatic() { ServerLevel.staticCounter = 3; }
                 public static int missingField(ServerLevel l) { return l.instanceCounter; }
                 public static void missingPutField(ServerLevel l) { l.instanceCounter = 4; }
@@ -114,6 +114,21 @@ class NmsLinkerTest {
             }
             """;
 
+    /** shim 의 상위 클래스가 final 인 경우(바닐라는 상속 가능 — H1): 껍데기는 Object 위에 서야 정의가 깨지지 않는다. */
+    private static final String SUB_FINAL = """
+            package linky;
+            public class MyFinalParent extends net.minecraft.world.entity.animal.sniffer.Sniffer {
+                public MyFinalParent() { super(); }
+                public static String marker() { return "static-ok"; }
+            }
+            """;
+
+    /** 컴파일용 스텁: 바닐라의 Sniffer 는 상속할 수 있지만 shim 은 final 이다(플러그인은 바닐라 모양으로 컴파일한다). */
+    private static final String SNIFFER_STUB = """
+            package net.minecraft.world.entity.animal.sniffer;
+            public class Sniffer { public Sniffer() {} }
+            """;
+
     @TempDir
     static Path tmp;
 
@@ -127,6 +142,8 @@ class NmsLinkerTest {
         src.put("linky.User", USER);
         src.put("linky.MyEntity", SUB);
         src.put("linky.MyChunk", SUB_MISSING);
+        src.put("linky.MyFinalParent", SUB_FINAL);
+        src.put("net.minecraft.world.entity.animal.sniffer.Sniffer", SNIFFER_STUB);
         Path jar = JarCompiler.jar(tmp.resolve("linky.jar"), "name: Linky\nversion: '1'\nmain: linky.User\n", src, Set.of("net.minecraft."));
         classes = read(jar);
     }
@@ -218,7 +235,7 @@ class NmsLinkerTest {
         assertTrue(trapped(c, "missingWide", level()).getMessage().contains("#mixed(long, double, int)"));
         Error f = trapped(c, "missingStaticField");
         assertInstanceOf(NoSuchFieldError.class, f);
-        assertTrue(f.getMessage().contains("MinecraftServer#currentTick"));
+        assertTrue(f.getMessage().contains("MinecraftServer#tickCount"));
         trapped(c, "missingPutStatic");
         trapped(c, "missingField", level());
         trapped(c, "missingPutField", level());
@@ -276,13 +293,34 @@ class NmsLinkerTest {
     }
 
     @Test
-    void subclassingNmsIsRefusedAtDefinitionWithTheRealException() {
+    void subclassingNmsDefinesAHuskThatRefusesConstruction() throws Throwable {
+        // N2b-6: 예전에는 정의를 거부했다. 이제 껍데기로 정의하고(가리키는 코드 — 람다·메서드 참조·instanceof — 는 된다) 만들 때 같은 문구로 거부한다
         NmsClassTransformer t = new NmsClassTransformer("Linky", Set.of(), NmsClassTransformer.Options.DEFAULT, NmsSymbols.RUNTIME);
         Loader loader = new Loader(classes, t);
-        UnsupportedNmsCall present = assertThrows(UnsupportedNmsCall.class, () -> loader.loadClass("linky.MyEntity"));
-        assertTrue(present.getMessage().contains("extends") && present.getMessage().contains("Grade C"), present.getMessage());
-        UnsupportedNmsCall missing = assertThrows(UnsupportedNmsCall.class, () -> loader.loadClass("linky.MyChunk"));
-        assertTrue(missing.getMessage().contains("ProtoChunk"), missing.getMessage());
+        Class<?> present = loader.loadClass("linky.MyEntity");
+        assertEquals(net.minecraft.world.entity.LivingEntity.class, present.getSuperclass(), "defined on top of the shim parent");
+        assertEquals(0, java.util.Arrays.stream(present.getDeclaredMethods()).filter(m -> !java.lang.reflect.Modifier.isStatic(m.getModifiers())).count(),
+                "instance methods are removed");
+        var e = assertThrows(java.lang.reflect.InvocationTargetException.class, () -> present.getDeclaredConstructors()[0].newInstance(new Object[present.getDeclaredConstructors()[0].getParameterCount()]));
+        assertInstanceOf(UnsupportedNmsCall.class, e.getCause());
+        assertTrue(e.getCause().getMessage().contains("extends") && e.getCause().getMessage().contains("Grade C"), e.getCause().getMessage());
+        Class<?> missing = loader.loadClass("linky.MyChunk");
+        assertEquals(Object.class, missing.getSuperclass(), "on Object when there is no parent shim");
+        var e2 = assertThrows(java.lang.reflect.InvocationTargetException.class, () -> missing.getDeclaredConstructor().newInstance());
+        assertTrue(e2.getCause().getMessage().contains("ProtoChunk"), e2.getCause().getMessage());
+    }
+
+    @Test
+    void huskOnAFinalShimParentIsDefinedOnObjectAndKeepsItsStaticMembers() throws Throwable {
+        // H1: 상위 shim 이 final 이면 그 위에 정의하면 IncompatibleClassChangeError — Object 위에 세우고 정적 멤버는 그대로 쓴다
+        assertTrue(java.lang.reflect.Modifier.isFinal(net.minecraft.world.entity.animal.sniffer.Sniffer.class.getModifiers()), "premise: the shim parent is final");
+        NmsClassTransformer t = new NmsClassTransformer("Linky", Set.of(), NmsClassTransformer.Options.DEFAULT, NmsSymbols.RUNTIME);
+        Loader loader = new Loader(classes, t);
+        Class<?> c = loader.loadClass("linky.MyFinalParent");
+        assertEquals(Object.class, c.getSuperclass());
+        assertEquals("static-ok", c.getMethod("marker").invoke(null));
+        var e = assertThrows(java.lang.reflect.InvocationTargetException.class, () -> c.getDeclaredConstructor().newInstance());
+        assertInstanceOf(UnsupportedNmsCall.class, e.getCause());
     }
 
     @Test

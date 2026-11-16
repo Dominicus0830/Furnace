@@ -16,11 +16,34 @@ import org.domi.furnace.compat.nms.NmsChunks;
  */
 public class LevelChunk extends ChunkAccess {
 
-    private final Level level;
+    /** 이 청크의 월드(Paper 는 공개 필드 — 어댑터가 바로 읽는다). */
+    public final net.minecraft.server.level.ServerLevel level;
+    /** Paper 가 더한 청크 좌표 필드(N2b-6). */
+    public final int locX;
+    public final int locZ;
+    /**
+     * Paper: 청크 시스템이 올려 둔 동안 참. Furnace 는 이 보기를 로드된 청크로만 만들므로 참으로 시작한다(내린 뒤 옛 보기도 참으로 남는다 —
+     * 내림 여부는 {@code getLevel().hasChunk} 로 본다).
+     */
+    public boolean loaded = true;
+    /** 바닐라: 참이면 저장하지 않는다. Furnace 는 이 필드를 보지 않는다(받기만 한다 — 설계 3.8). */
+    public boolean mustNotSave;
+    private volatile boolean lightCorrect = true;
 
     private LevelChunk(Level level, int chunkX, int chunkZ) {
         super(level.getWorld().furnaceHandle(), chunkX, chunkZ);
-        this.level = level;
+        this.level = (net.minecraft.server.level.ServerLevel) level;
+        this.locX = chunkX;
+        this.locZ = chunkZ;
+    }
+
+    /** 바닐라 ChunkAccess.isLightCorrect: 마지막으로 setLightCorrect 한 값(Furnace 빛은 늘 계산돼 있어 처음은 참). */
+    public boolean isLightCorrect() { return lightCorrect; }
+
+    /** 바닐라 ChunkAccess.setLightCorrect: 표시를 바꾸고 저장 표시를 세운다(설계 R5c — 바닐라처럼). 빛을 다시 계산하지는 않는다. */
+    public void setLightCorrect(boolean correct) {
+        this.lightCorrect = correct;
+        setUnsaved(true);
     }
 
     /** 호환 모듈 전용: 로드된 청크의 새 보기(로드 여부는 부르는 쪽이 확인한다). 정체성 캐시({@code NmsChunks.loadedChunk})만 부른다. */
@@ -72,5 +95,60 @@ public class LevelChunk extends ChunkAccess {
         }
         BlockState old = s.setBlockState(x & 15, y & 15, z & 15, state);
         return old == state ? null : old;
+    }
+
+    // ------------------------------------------------------------------ 블록 엔티티(N2b-6 — 읽기 보기만)
+
+    /**
+     * Paper: 청크의 블록 엔티티 표(공개 필드). Furnace: 부를 때마다 서버의 블록 엔티티 칸으로 만드는 읽기 보기({@link #getBlockEntities()} 와 같다).
+     * 지우기·넣기는 아직 없다(UnsupportedNmsCall — 블록 엔티티 일지는 TASK).
+     */
+    public final java.util.Map<net.minecraft.core.BlockPos, net.minecraft.world.level.block.entity.BlockEntity> blockEntities = new java.util.AbstractMap<>() {
+        @Override
+        public java.util.Set<Entry<net.minecraft.core.BlockPos, net.minecraft.world.level.block.entity.BlockEntity>> entrySet() {
+            return java.util.Collections.unmodifiableMap(getBlockEntities()).entrySet();
+        }
+
+        @Override
+        public net.minecraft.world.level.block.entity.BlockEntity remove(Object key) {
+            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LevelChunk#blockEntities.remove", "editing the chunk block entity table directly does not exist yet");
+        }
+    };
+
+    /**
+     * 바닐라 getBlockEntities: 이 청크의 블록 엔티티(칸 → 블록 엔티티). Furnace: 서버의 블록 엔티티 칸마다 살아 있는 블록 엔티티 보기({@code BlockEntity#furnaceInWorld})
+     * 로 만든 새 표 — 고쳐도 청크에 닿지 않는다. 아무 스레드(다른 스레드는 공개 스냅샷의 칸 목록과 그 칸의 블록).
+     */
+    public java.util.Map<net.minecraft.core.BlockPos, net.minecraft.world.level.block.entity.BlockEntity> getBlockEntities() {
+        java.util.Map<net.minecraft.core.BlockPos, net.minecraft.world.level.block.entity.BlockEntity> out = new java.util.HashMap<>();
+        for (net.minecraft.core.BlockPos p : getBlockEntitiesPos()) {
+            var be = net.minecraft.world.level.block.entity.BlockEntity.furnaceInWorld(level, p, getBlockState(p).furnaceStateId());
+            if (be != null) out.put(p, be);
+        }
+        return out;
+    }
+
+    /** 바닐라 getBlockEntity(pos): 그 칸의 블록 엔티티 보기, 없으면 null(만들지 않는다 — 바닐라 CHECK 와 같다). */
+    public net.minecraft.world.level.block.entity.BlockEntity getBlockEntity(net.minecraft.core.BlockPos pos) {
+        if (!getBlockEntitiesPos().contains(pos)) return null;
+        return net.minecraft.world.level.block.entity.BlockEntity.furnaceInWorld(level, pos, getBlockState(pos).furnaceStateId());
+    }
+
+    /** 바닐라 removeBlockEntity: 아직 없다 — 다른 스레드의 블록 엔티티 지우기는 거울 일지에 블록 엔티티가 들어가야 한다(N2b-4 4장 2, TASK). */
+    public void removeBlockEntity(net.minecraft.core.BlockPos pos) {
+        throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LevelChunk#removeBlockEntity", "removing block entities through NMS does not exist yet (block entity journal)");
+    }
+
+    /**
+     * 바닐라 private 도우미(Paper 와 같은 이름·서명 — 어댑터가 리플렉션으로 찾아 부른다): 블록 엔티티의 게임 이벤트 청취를 청크에서 뗀다.
+     * 블록 엔티티를 이 청크에서 떼는 길 자체가 아직 없다({@link #removeBlockEntity} 와 같은 블록 엔티티 일지 — TASK)라 {@code removeBlockEntity} 처럼 던진다.
+     */
+    private <T extends net.minecraft.world.level.block.entity.BlockEntity> void removeGameEventListener(T blockEntity, net.minecraft.server.level.ServerLevel level) {
+        throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LevelChunk#removeGameEventListener", "detaching a block entity's game event listener needs the block entity journal, which does not exist yet");
+    }
+
+    /** 바닐라 private 도우미(위와 같은 규칙): 그 칸의 블록 엔티티 틱터를 청크에서 뗀다. 블록 엔티티 일지가 생길 때까지 던진다. */
+    private void removeBlockEntityTicker(net.minecraft.core.BlockPos pos) {
+        throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LevelChunk#removeBlockEntityTicker", "detaching a block entity ticker needs the block entity journal, which does not exist yet");
     }
 }

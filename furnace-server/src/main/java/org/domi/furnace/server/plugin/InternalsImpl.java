@@ -30,6 +30,7 @@ public final class InternalsImpl implements Internals {
     private static final StackWalker WALKER = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE);
 
     private final ChunkInternalsImpl chunks;
+    private final BlockStateInternalsImpl blockStates = new BlockStateInternalsImpl();
 
     InternalsImpl(PluginHost host) {
         this.host = host;
@@ -204,6 +205,9 @@ public final class InternalsImpl implements Internals {
         noteCaller();   // 플러그인이 다리를 직접 꺼내 쓰면 남긴다(호환 계층이 꺼낼 때는 남기지 않는다)
         return chunks;
     }
+
+    @Override
+    public org.domi.furnace.api.internal.BlockStateInternals blockStates() { return blockStates; }
 
     @Override
     public org.domi.furnace.api.world.World wrapWorld(Object internalWorld) {

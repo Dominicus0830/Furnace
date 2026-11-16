@@ -192,7 +192,7 @@ public final class LegacyScheduler {
      */
     public <T> Future<T> callSyncMethod(FurnacePlugin plugin, Callable<T> call) {
         if (call == null) throw new IllegalArgumentException("Task cannot be null");
-        SyncFuture<T> future = new SyncFuture<>();
+        SyncFuture<T> future = new SyncFuture<>(server);
         future.task = (Task) schedule(plugin, () -> {
             try {
                 future.complete(call.call());
@@ -206,6 +206,17 @@ public final class LegacyScheduler {
     /** CraftFuture 처럼: 아직 안 돈 callable 은 cancel 하면 돌지 않는다. 이미 돌기 시작했으면 false. */
     private static final class SyncFuture<T> extends CompletableFuture<T> {
         volatile Task task;
+        /** 이 결과를 채우는 전역 스레드 — 거기서 기다리면 영영 끝나지 않는다(Bukkit 주 스레드가 callSyncMethod 결과를 기다리는 것과 같다). */
+        private final org.domi.furnace.api.Furnace server;
+
+        SyncFuture(org.domi.furnace.api.Furnace server) { this.server = server; }
+
+        private void checkNotSelfWait() {
+            if (org.domi.furnace.compat.thread.PrimaryThread.isGlobalThread(server) && !isDone()) {
+                throw new IllegalStateException("Waiting on the global (primary) thread for the result of a sync task would block forever, because that thread has to run it. "
+                        + "Run the task asynchronously and wait from another thread, or do the work directly");
+            }
+        }
 
         @Override
         public boolean cancel(boolean mayInterrupt) {
@@ -219,6 +230,7 @@ public final class LegacyScheduler {
         @Override
         public T get() throws InterruptedException, java.util.concurrent.ExecutionException {
             if (isDone()) return super.get();
+            checkNotSelfWait();
             try (var m = org.domi.furnace.api.concurrent.GlobalWait.begin()) {
                 return super.get();
             }
@@ -228,6 +240,7 @@ public final class LegacyScheduler {
         public T get(long timeout, java.util.concurrent.TimeUnit unit)
                 throws InterruptedException, java.util.concurrent.ExecutionException, java.util.concurrent.TimeoutException {
             if (isDone()) return super.get(timeout, unit);
+            checkNotSelfWait();
             try (var m = org.domi.furnace.api.concurrent.GlobalWait.begin()) {
                 return super.get(timeout, unit);
             }
@@ -236,6 +249,7 @@ public final class LegacyScheduler {
         @Override
         public T join() {
             if (isDone()) return super.join();
+            checkNotSelfWait();
             try (var m = org.domi.furnace.api.concurrent.GlobalWait.begin()) {
                 return super.join();
             }

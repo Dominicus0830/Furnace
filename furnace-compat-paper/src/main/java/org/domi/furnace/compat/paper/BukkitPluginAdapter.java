@@ -63,6 +63,7 @@ public final class BukkitPluginAdapter extends FurnacePlugin {
             EventBridge.unwatchQuit(this);
             ProtocolLibBridge.pluginDisabled(this);
             org.domi.furnace.compat.nms.NmsReflect.pluginDisabled(bukkitDescription.getName());   // 다시 켜면 다시 켜는 중으로 모은다
+            org.domi.furnace.compat.nms.NmsTickets.pluginDisabled(this);   // NMS 로 건 청크 티켓은 서버가 풀었다 — 표의 항목도 지운다
         }
     }
 }

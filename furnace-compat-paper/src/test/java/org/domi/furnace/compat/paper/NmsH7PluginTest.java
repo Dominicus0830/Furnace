@@ -1,6 +1,7 @@
 package org.domi.furnace.compat.paper;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -31,7 +32,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * H7: 실제 플러그인 클래스로더를 거쳐 — 미지원 NMS 호출이 그 호출 위치에서만 링크 오류(UnsupportedNmsLink)가 되고 나머지는 도는지, 로드 보고·strict·
- * version-package 옵션, NMS 클래스 상속 거부, {@code player.connection.send(packet)} 와 데이터 컴포넌트 shim.
+ * version-package 옵션, NMS 클래스 상속 껍데기(만들 때 거부), {@code player.connection.send(packet)} 와 데이터 컴포넌트 shim.
  */
 class NmsH7PluginTest {
 
@@ -106,7 +107,7 @@ class NmsH7PluginTest {
             }
             """;
 
-    /** NMS 클래스를 상속한 플러그인 클래스 — 정의 때 거부돼야 한다. */
+    /** NMS 클래스를 상속한 플러그인 클래스 — 껍데기로 정의되고 만들 때 거부돼야 한다(N2b-6). */
     private static final String SUB = """
             package nmsh7;
             public class Sub extends net.minecraft.world.entity.LivingEntity {
@@ -172,9 +173,16 @@ class NmsH7PluginTest {
 
             Plugin plugin = Bukkit.getPluginManager().getPlugin("H7User");
             ClassLoader loader = plugin.getClass().getClassLoader();
-            var refused = assertThrows(UnsupportedNmsCall.class, () -> loader.loadClass("nmsh7.Sub"),
-                    "NMS 클래스 상속은 정의 때 거부(원래 바이트로 올리지 않는다)");
-            assertTrue(refused.getMessage().contains("LivingEntity"), refused.getMessage());
+            // N2b-6: NMS 클래스 상속은 껍데기로 정의한다 — 가리키기만 하는 코드(람다·instanceof)는 되고, 만들면 거부 문구로 실패한다(원래 바이트로 올리지 않는다)
+            Class<?> sub = loader.loadClass("nmsh7.Sub");
+            assertEquals(net.minecraft.world.entity.LivingEntity.class, sub.getSuperclass(), "상위 shim 이 있으면 그 위에 정의한다");
+            // H2: 껍데기를 정의할 때는 경고하지 않는다(실패한 것이 없다) — 만들려 할 때 처음 한 번만 WARN
+            assertTrue(messages().stream().noneMatch(m -> m.contains("nmsh7.Sub") && m.contains("cannot be created")), () -> String.join("\n", messages()));
+            var refused = assertThrows(java.lang.reflect.InvocationTargetException.class, () -> sub.getConstructor().newInstance());
+            assertInstanceOf(UnsupportedNmsCall.class, refused.getCause());
+            assertTrue(refused.getCause().getMessage().contains("LivingEntity") && refused.getCause().getMessage().contains("Grade C"), refused.getCause().getMessage());
+            assertThrows(java.lang.reflect.InvocationTargetException.class, () -> sub.getConstructor().newInstance());
+            assertEquals(1, messages().stream().filter(m -> m.contains("nmsh7.Sub") && m.contains("cannot be created")).count(), () -> String.join("\n", messages()));
         }
     }
 

@@ -67,6 +67,15 @@ public abstract class Level implements LevelAccessor {
     public abstract ChunkSource getChunkSource();
 
     /** 로드된 청크의 보기. 로드돼 있지 않으면 IllegalStateException(Paper 는 동기로 불러온다). */
+    private volatile ca.spottedleaf.moonrise.patches.chunk_system.level.entity.EntityLookup furnaceEntityLookup;
+
+    /** Paper(Moonrise): 이 월드의 엔티티 찾기(N2b-6 — 청크별 엔티티 묶음만). FAWE 가 이 메서드가 Level 에 있는지로 Paper 엔티티 길을 고른다. */
+    public final ca.spottedleaf.moonrise.patches.chunk_system.level.entity.EntityLookup moonrise$getEntityLookup() {
+        var l = furnaceEntityLookup;
+        if (l == null) furnaceEntityLookup = l = new ca.spottedleaf.moonrise.patches.chunk_system.level.entity.EntityLookup((net.minecraft.server.level.ServerLevel) this);
+        return l;
+    }
+
     public LevelChunk getChunk(int x, int z) { return (LevelChunk) getChunk(x, z, ChunkStatus.FULL, true); }
 
     public LevelChunk getChunkAt(BlockPos pos) { return getChunk(pos.getX() >> 4, pos.getZ() >> 4); }

@@ -46,6 +46,7 @@ class CompatLinkTest {
         int linked = 0;
         for (String n : names) {
             if (n.endsWith("$Lib") || n.contains("$Lib$")) continue;
+            if (n.equals("org.domi.furnace.compat.nms.NmsStateCodec")) continue;   // DataFixerUpper 의 MapCodec 을 상속 — NmsDfu.visible() 일 때만 올린다
             try {
                 Class<?> c = Class.forName(n, false, loader);   // 상위 타입이 라이브러리면 여기서 실패한다
                 // 없는 이름을 찾으면 대상 클래스를 링크(검증)한 뒤 NoSuchMethodException 이 난다 — 초기화는 하지 않는다.

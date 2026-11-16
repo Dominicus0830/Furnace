@@ -36,7 +36,8 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
     private static final int MIN_PALETTE_BITS = 0;
 
     private final PaletteResize<T> dummyPaletteResize = (bits, value) -> 0;
-    private final IdMap<T> registry;
+    /** Paper 는 공개 필드(FAWE 가 바로 읽는다). */
+    public final IdMap<T> registry;
     private volatile Data<T> data;
     private final Strategy strategy;
     /**
@@ -424,7 +425,8 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
     @Override
     public T get(int x, int y, int z) { return get(strategy.getIndex(x, y, z)); }
 
-    protected T get(int index) {
+    /** Paper 는 공개(바닐라는 protected) — FAWE 가 바로 부른다. */
+    public T get(int index) {
         FurnaceSource src = liveSource();
         if (src != null) {
             checkIndex(index, strategy.size());

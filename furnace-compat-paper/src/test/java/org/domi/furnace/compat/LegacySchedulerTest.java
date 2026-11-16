@@ -298,6 +298,26 @@ class LegacySchedulerTest {
     }
 
     @Test
+    void waitingForACallSyncMethodResultOnThePrimaryThreadFailsFast() {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            // 전역(주) 스레드에서 sync 작업 결과를 기다리면 그 스레드가 돌려야 할 작업이라 영영 끝나지 않는다 — 곧바로 알린다(G1)
+            String msg = server.onGlobal(() -> {
+                Future<String> f = p.legacy.callSyncMethod(p, () -> "x");
+                try {
+                    f.get();
+                    return "returned";
+                } catch (IllegalStateException e) {
+                    return e.getMessage();
+                } catch (Exception e) {
+                    return e.toString();
+                }
+            });
+            assertTrue(msg.contains("would block forever"), msg);
+        }
+    }
+
+    @Test
     void callSyncMethodFutureCancelStopsCallable() throws Exception {
         try (var server = start()) {
             var p = server.plugin(CompatTestPlugin.class);

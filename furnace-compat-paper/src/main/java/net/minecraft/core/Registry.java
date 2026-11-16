@@ -95,4 +95,28 @@ public interface Registry<T> extends IdMap<T> {
     HolderSet.Named<T> getOrCreateTag(net.minecraft.tags.TagKey<T> tag);
 
     Stream<net.minecraft.tags.TagKey<T>> getTagNames();
+
+    /**
+     * 이 레지스트리의 조회기(바닐라 {@code asLookup()}). 목록·키 조회·태그 조회가 이 레지스트리를 그대로 본다 —
+     * 키로 꺼낸 손잡이는 {@link #getHolder(ResourceKey)} 와 같은 객체다.
+     */
+    default HolderLookup.RegistryLookup<T> asLookup() {
+        Registry<T> self = this;
+        return new HolderLookup.RegistryLookup<>() {
+            @Override
+            public ResourceKey<? extends Registry<? extends T>> key() { return self.key(); }
+
+            @Override
+            public Stream<Holder.Reference<T>> listElements() { return self.holders(); }
+
+            @Override
+            public Stream<HolderSet.Named<T>> listTags() { return self.getTagNames().map(self::getOrCreateTag); }
+
+            @Override
+            public Optional<Holder.Reference<T>> get(ResourceKey<T> k) { return self.getHolder(k); }
+
+            @Override
+            public Optional<HolderSet.Named<T>> get(net.minecraft.tags.TagKey<T> tag) { return self.getTag(tag); }
+        };
+    }
 }

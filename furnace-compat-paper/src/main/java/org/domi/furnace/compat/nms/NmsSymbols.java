@@ -24,7 +24,7 @@ public final class NmsSymbols {
     /** 모든 플러그인이 같이 쓰는 색인(호환 모듈의 클래스로더 기준 — 플러그인 로더의 부모). */
     public static final NmsSymbols RUNTIME = new NmsSymbols(NmsSymbols.class.getClassLoader());
 
-    private static final Info MISSING = new Info(null, List.of(), false, Set.of(), Set.of());
+    private static final Info MISSING = new Info(null, List.of(), false, false, Set.of(), Set.of());
 
     private final ClassLoader loader;
     private final ConcurrentHashMap<String, Info> cache = new ConcurrentHashMap<>();
@@ -98,6 +98,9 @@ public final class NmsSymbols {
 
     boolean isInterface(String internalName) { return info(internalName).isInterface; }
 
+    /** 이 클래스가 final 인가(shim 은 바닐라와 달리 final 인 클래스가 있어 상속 정의가 깨진다 — 껍데기는 그 위에 세우지 않는다). 없으면 false. */
+    boolean isFinal(String internalName) { return info(internalName).isFinal; }
+
     /** 이 클래스가 바로 구현하는 인터페이스(없거나 모르면 빈 목록). */
     List<String> interfacesOf(String internalName) { return info(internalName).interfaces; }
 
@@ -116,13 +119,14 @@ public final class NmsSymbols {
             ClassReader r = new ClassReader(in.readAllBytes());
             Set<String> fields = new HashSet<>();
             Set<String> methods = new HashSet<>();
-            Object[] head = new Object[3];
+            Object[] head = new Object[4];
             r.accept(new ClassVisitor(Opcodes.ASM9) {
                 @Override
                 public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
                     head[0] = superName;
                     head[1] = interfaces == null ? List.of() : List.of(interfaces);
                     head[2] = (access & Opcodes.ACC_INTERFACE) != 0;
+                    head[3] = (access & Opcodes.ACC_FINAL) != 0;
                 }
 
                 @Override
@@ -139,11 +143,11 @@ public final class NmsSymbols {
                 }
             }, ClassReader.SKIP_CODE | ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
             @SuppressWarnings("unchecked") List<String> itfs = (List<String>) head[1];
-            return new Info((String) head[0], itfs, (Boolean) head[2], Set.copyOf(fields), Set.copyOf(methods));
+            return new Info((String) head[0], itfs, (Boolean) head[2], (Boolean) head[3], Set.copyOf(fields), Set.copyOf(methods));
         } catch (IOException | RuntimeException e) {
             return MISSING;
         }
     }
 
-    private record Info(String superName, List<String> interfaces, boolean isInterface, Set<String> fields, Set<String> methods) {}
+    private record Info(String superName, List<String> interfaces, boolean isInterface, boolean isFinal, Set<String> fields, Set<String> methods) {}
 }

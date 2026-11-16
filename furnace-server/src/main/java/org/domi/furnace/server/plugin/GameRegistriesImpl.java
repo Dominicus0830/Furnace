@@ -20,6 +20,11 @@ final class GameRegistriesImpl implements GameRegistries {
     public List<String> builtIn(String registry) { return BuiltIn.TABLE.getOrDefault(normalize(registry), List.of()); }
 
     @Override
+    public java.util.Map<String, String> worldgen(String registry) {
+        return org.domi.furnace.server.world.gen.WorldgenIndex.entries(normalize(registry));
+    }
+
+    @Override
     public Set<String> tags(String registry) {
         var byTag = TagView.current().names.get(normalize(registry));
         return byTag == null ? Set.of() : byTag.keySet();

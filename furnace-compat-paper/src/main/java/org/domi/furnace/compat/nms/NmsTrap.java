@@ -15,6 +15,7 @@ public final class NmsTrap {
 
     private static final Logger LOG = LoggerFactory.getLogger("Furnace");
     private static final Set<String> WARNED = ConcurrentHashMap.newKeySet();
+    private static final Set<String> HUSK_WARNED = ConcurrentHashMap.newKeySet();
 
     private NmsTrap() {}
 
@@ -48,6 +49,19 @@ public final class NmsTrap {
         return NmsCompatReport.otherVersion((hash < 0 ? site : site.substring(0, hash)).replace('.', '/'));
     }
 
+    /**
+     * 껍데기 클래스(NMS 를 상속해 정의만 한 플러그인 클래스 — NmsLinker)의 생성자: 정의 거부 때와 같은 문구의 UnsupportedNmsCall.
+     * 실제로 만들려 할 때 (플러그인, 클래스)당 처음 한 번만 WARN 을 남긴다(정의할 때는 실패한 것이 없어 알리지 않는다).
+     */
+    public static RuntimeException husk(String plugin, String cls, String parent, String why, String message) {
+        if (HUSK_WARNED.add(plugin + '\0' + cls)) {
+            LOG.warn(CompatLang.t("compat.nms-class-husk", plugin, cls, parent, why));
+        } else {
+            LOG.debug("Plugin {}: husk class {} constructed again", plugin, cls);
+        }
+        return new UnsupportedNmsCall("husk construction", message);
+    }
+
     /** 없는 클래스로의 {@code checkcast}: JVM 처럼 null 은 클래스를 찾지 않고 통과한다(호출 뒤에 aconst_null 이 결과 자리를 채운다). */
     public static void castNull(Object value, String plugin, String site, String target, String why) {
         if (value != null) call(plugin, site, target, why, UnsupportedNmsLink.CLASS);
@@ -60,5 +74,5 @@ public final class NmsTrap {
     }
 
     /** 시험용: 경고 기록을 지운다. */
-    public static void resetWarnings() { WARNED.clear(); }
+    public static void resetWarnings() { WARNED.clear(); HUSK_WARNED.clear(); }
 }
