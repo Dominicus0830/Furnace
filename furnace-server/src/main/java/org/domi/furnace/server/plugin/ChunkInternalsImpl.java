@@ -595,6 +595,17 @@ final class ChunkInternalsImpl implements ChunkInternals {
         return true;
     }
 
+    /** 명령 범위 안에서 넣는다 — 주인이 쉬고 있으면 drain 차례로 곧바로 돈다(CommandDrainGate: 같은 예산·같은 끄기 옵션). */
+    @Override
+    public <T> java.util.concurrent.CompletableFuture<T> submitAwaited(org.domi.furnace.api.world.World world, int x, int y, int z, java.util.function.Supplier<T> task) {
+        org.domi.furnace.server.world.CommandDrainGate.enterScope();
+        try {
+            return world.scheduler(new BlockPos(x, y, z)).submit(task);
+        } finally {
+            org.domi.furnace.server.world.CommandDrainGate.exitScope();
+        }
+    }
+
     @Override
     public org.domi.furnace.api.nbt.NbtCompound normalizeBlockEntityNbt(int stateId, org.domi.furnace.api.nbt.NbtCompound tag) {
         checkState(stateId);

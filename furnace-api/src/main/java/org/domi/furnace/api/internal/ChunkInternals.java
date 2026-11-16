@@ -220,6 +220,15 @@ public interface ChunkInternals {
     boolean blockEntityChangedNow(World world, int x, int y, int z);
 
     /**
+     * 틱 스레드가 아닌 스레드가 결과를 막고 기다릴 짧은 작업을 그 칸의 주인 region 에 보낸다(블록 엔티티 저장 왕복). 결과·실행 스레드는
+     * {@code world.scheduler(pos).submit(task)} 와 같고, 주인이 틱 사이에 쉬고 있으면 다음 틱 머리를 기다리지 않고 곧바로 돈다(명령 큐 문과 같은
+     * drain 차례·예산 — 예산을 넘으면 예전처럼 다음 틱 머리). 작업 하나가 한 틱(50ms)씩 걸려 FAWE 가 상자 512개를 12초에 지우던 것(T-198 실측)을 푼다.
+     */
+    default <T> java.util.concurrent.CompletableFuture<T> submitAwaited(World world, int x, int y, int z, java.util.function.Supplier<T> task) {
+        return world.scheduler(new org.domi.furnace.api.world.BlockPos(x, y, z)).submit(task);
+    }
+
+    /**
      * 아무 스레드: 레벨에 놓이지 않은 블록 엔티티에 tag 를 실었다가 다시 저장한 꼴(바닐라 loadWithComponents → saveWithoutMetadata, id 포함). 그 상태가
      * 블록 엔티티를 만들지 않으면 null.
      */

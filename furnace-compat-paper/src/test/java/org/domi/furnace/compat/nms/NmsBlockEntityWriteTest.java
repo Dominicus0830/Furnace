@@ -565,4 +565,42 @@ class NmsBlockEntityWriteTest {
         assertEquals(p, pkt.getPos());
         assertTrue(hasDiamonds(pkt.getTag()));
     }
+    // ------------------------------------------------------------------ 기다리는 왕복의 빠르기(T-198 데스크탑 실측: 타일마다 한 틱 → 상자 512개 //set 12초)
+
+    /** 다른 스레드의 저장 왕복은 명령 큐 문과 같은 drain 대상으로 넣는다(주인이 쉬면 다음 틱을 기다리지 않는다). 대조: 보통 region 작업은 범위 밖. */
+    @Test
+    void awaitedRoundTripIsDrainEligible() throws Exception {
+        BlockPos p = at(-2, 2, 1, 1);
+        var w = level.getChunk(p.getX() >> 4, p.getZ() >> 4).furnaceWorld();
+        var awaited = NmsChunks.bridge().submitAwaited(w, p.getX(), p.getY(), p.getZ(), org.domi.furnace.server.world.CommandDrainGate::inScope);
+        var plain = w.scheduler(new org.domi.furnace.api.world.BlockPos(p.getX(), p.getY(), p.getZ())).submit(org.domi.furnace.server.world.CommandDrainGate::inScope);
+        assertTrue(awaited.get(10, java.util.concurrent.TimeUnit.SECONDS), "기다리는 왕복은 명령 범위에서 돈다(drain 차례)");
+        assertFalse(plain.get(10, java.util.concurrent.TimeUnit.SECONDS), "대조: 보통 작업은 다음 틱 머리");
+        assertFalse(org.domi.furnace.server.world.CommandDrainGate.inScope(), "부른 스레드의 범위는 닫혔다");
+    }
+
+    /** 상자 여러 개를 다른 스레드가 하나씩 지우고 저장(FAWE //set 의 되돌리기 기록) — 주인이 틱을 돌지 않아도 끝난다(drain 차례가 왕복을 받는다). */
+    @Test
+    void manyOffThreadSavesDoNotWaitForTicks() {
+        int n = 24;
+        BlockPos[] ps = new BlockPos[n];
+        for (int i = 0; i < n; i++) {
+            ps[i] = at(-2, -1, i % 16, 2 + i / 16 * 2);
+            placeChestWithDiamonds(ps[i]);
+        }
+        long t0 = System.nanoTime();
+        int ok = offThread(() -> {
+            int c = 0;
+            for (BlockPos p : ps) {
+                LevelChunk ch = level.getChunk(p.getX() >> 4, p.getZ() >> 4);
+                BlockEntity tile = ch.getBlockEntity(p);
+                ch.removeBlockEntity(p);
+                if (hasDiamonds(tile.saveWithId(reg))) c++;
+            }
+            return c;
+        });
+        long ms = (System.nanoTime() - t0) / 1_000_000L;
+        System.out.println("T-198 왕복 " + n + "개: " + ms + " ms");
+        assertEquals(n, ok, "모든 지운 타일의 내용");
+    }
 }

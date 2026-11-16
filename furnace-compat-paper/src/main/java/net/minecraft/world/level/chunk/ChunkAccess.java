@@ -323,7 +323,8 @@ public abstract class ChunkAccess implements BlockGetter {
             throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("BlockEntity.save*: the block entity at " + p + " belongs to another region - a region or global"
                     + " thread cannot wait for another region (deadlock); read it on its owning region (current thread: " + Thread.currentThread().getName() + ")");
         }
-        var f = furnaceWorld.scheduler(new org.domi.furnace.api.world.BlockPos(p.getX(), p.getY(), p.getZ())).submit(() -> {
+        // 기다리는 왕복 — 주인이 쉬고 있으면 다음 틱을 기다리지 않는다(T-198 실측: 타일마다 한 틱이면 상자 512개 //set 이 12초)
+        var f = b.submitAwaited(furnaceWorld, p.getX(), p.getY(), p.getZ(), () -> {
             if (furnaceMirror.dead() || !furnaceOwner()) {
                 Object h = view.furnaceHandle();
                 if (h == null) throw new IllegalStateException("the chunk of this block entity was unloaded: " + p);
