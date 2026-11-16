@@ -83,8 +83,8 @@ public final class GlobalThread implements GlobalScheduler, ThreadOwner, AutoClo
     public <T> CompletableFuture<T> submit(Supplier<T> task) { return run(task, exec); }
 
     /** supplyAsync 와 같은 완료(실패는 CompletionException 으로 싼다)지만, 기다리는 쪽에 GlobalWait 표시를 다는 Future 를 돌려준다. */
-    private static <T> GlobalFuture<T> run(Supplier<T> task, Executor on) {
-        GlobalFuture<T> f = new GlobalFuture<>();
+    private <T> GlobalFuture<T> run(Supplier<T> task, Executor on) {
+        GlobalFuture<T> f = new GlobalFuture<>(this);
         on.execute(() -> {
             if (f.isDone()) return;
             try {
@@ -99,11 +99,29 @@ public final class GlobalThread implements GlobalScheduler, ThreadOwner, AutoClo
     /**
      * 전역 작업의 결과. 끝나지 않은 채 get/join 으로 기다리는 동안 그 스레드에 GlobalWait 표시를 단다 — 전역이 그 스레드의 region 을
      * 빌리려고 기다리면 서로 기다리는 것이라 전역이 곧바로 포기한다(RegionBorrow).
+     *
+     * <p>전역 스레드가 자기 스레드에서 돌 작업의 결과를 get/join 으로 기다리면(끝나지 않았다면) 그 작업을 돌릴 스레드가 바로 기다리는 쪽이라 영영 끝나지 않는다 —
+     * 플러그인 onLoad·onEnable 도 전역 스레드에서 불리므로 흔한 실수다. 아무 로그 없이 멈추는 대신 곧바로 IllegalStateException 으로 알린다.
      */
     static final class GlobalFuture<T> extends CompletableFuture<T> {
+        /** 이 결과를 채울 전역 스레드(직접 만든 것만 — 이어 붙인 결과(thenApply 등)는 모른다). */
+        private final GlobalThread owner;
+
+        GlobalFuture() { this(null); }
+
+        GlobalFuture(GlobalThread owner) { this.owner = owner; }
+
+        private void checkNotSelfWait() {
+            if (owner != null && owner.isOwnerThread() && !isDone()) {
+                throw new IllegalStateException("Waiting on the global thread for the result of a global task would block forever, because the global thread is the thread that has to run it. "
+                        + "Chain with thenAccept/thenCompose instead of get()/join(), or wait from another thread (plugin onLoad/onEnable run on the global thread)");
+            }
+        }
+
         @Override
         public T get() throws InterruptedException, java.util.concurrent.ExecutionException {
             if (isDone()) return super.get();
+            checkNotSelfWait();
             try (var m = org.domi.furnace.api.concurrent.GlobalWait.begin()) {
                 return super.get();
             }
@@ -112,6 +130,7 @@ public final class GlobalThread implements GlobalScheduler, ThreadOwner, AutoClo
         @Override
         public T get(long timeout, TimeUnit unit) throws InterruptedException, java.util.concurrent.ExecutionException, java.util.concurrent.TimeoutException {
             if (isDone()) return super.get(timeout, unit);
+            checkNotSelfWait();
             try (var m = org.domi.furnace.api.concurrent.GlobalWait.begin()) {
                 return super.get(timeout, unit);
             }
@@ -120,6 +139,7 @@ public final class GlobalThread implements GlobalScheduler, ThreadOwner, AutoClo
         @Override
         public T join() {
             if (isDone()) return super.join();
+            checkNotSelfWait();
             try (var m = org.domi.furnace.api.concurrent.GlobalWait.begin()) {
                 return super.join();
             }
@@ -175,7 +195,7 @@ public final class GlobalThread implements GlobalScheduler, ThreadOwner, AutoClo
 
     @Override
     public CompletableFuture<Void> executeDelayed(Runnable task, long delayTicks) {
-        CompletableFuture<Void> f = new GlobalFuture<>();
+        CompletableFuture<Void> f = new GlobalFuture<>(this);
         synchronized (delayLock) {
             delayedQueue.add(new Delayed0(tick + Math.max(1, delayTicks), seq++, task, f));
         }
@@ -265,7 +285,7 @@ public final class GlobalThread implements GlobalScheduler, ThreadOwner, AutoClo
     /** {@link #executeAfterMillis} 의 나노초판. */
     public CompletableFuture<Void> executeAfterNanos(Runnable task, long nanos) {
         if (manual) return executeDelayed(task, Math.max(1, (nanos + BEAT_NANOS - 1) / BEAT_NANOS));
-        GlobalFuture<Void> f = new GlobalFuture<>();
+        GlobalFuture<Void> f = new GlobalFuture<>(this);
         Runnable r = () -> {
             if (f.isDone()) return;
             try {
