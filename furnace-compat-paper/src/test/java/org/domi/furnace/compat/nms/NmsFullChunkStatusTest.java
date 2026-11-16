@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * T-204 1단계: {@code LevelChunk#getFullStatus}·{@code ChunkHolder#getFullStatus} = 바닐라 청크 홀더 단계(티켓 레벨 ≤31 ENTITY_TICKING, 32 BLOCK_TICKING,
- * 33 FULL, 그 밖 INACCESSIBLE — 설계 docs/feature-parity/compat-nms-t204-side-effects-design-2026-11-16.md 4장). FAWE NativeAccess 의
+ * 33 FULL, 그 밖 INACCESSIBLE — 플레이어 시야·/forceload·포털·플러그인·스폰 티켓, 설계 docs/feature-parity/compat-nms-t204-side-effects-design-2026-11-16.md 4장). FAWE NativeAccess 의
  * {@code isChunkTicking}(= {@code isOrAfter(BLOCK_TICKING)})이 이 값으로 블록 변경을 보낼지 고른다.
  */
 class NmsFullChunkStatusTest {
@@ -79,6 +79,55 @@ class NmsFullChunkStatusTest {
         assertEquals(FullChunkStatus.INACCESSIBLE, statusOnOwner(fx + 3, fz));
         server.execute("forceload remove " + (fx << 4) + " " + (fz << 4));
         server.tick(2);
+    }
+
+    /** 포털 티켓(addTicket 거리 3 = 가운데 레벨 30): 거리 ≤1 ENTITY_TICKING, 2 BLOCK_TICKING, 3 FULL, 4 INACCESSIBLE. */
+    @Test
+    void portalTicketLevels() {
+        int fx = 60, fz = -60;
+        server.internals().world().addTicket(fx, fz, 3, 6000);
+        server.tick(2);
+        assertEquals(FullChunkStatus.ENTITY_TICKING, statusOnOwner(fx, fz));
+        assertEquals(FullChunkStatus.ENTITY_TICKING, statusOnOwner(fx + 1, fz - 1));
+        assertEquals(FullChunkStatus.BLOCK_TICKING, statusOnOwner(fx - 2, fz));
+        assertEquals(FullChunkStatus.FULL, statusOnOwner(fx + 3, fz + 3));
+        assertEquals(FullChunkStatus.INACCESSIBLE, statusOnOwner(fx, fz + 4));
+    }
+
+    /** 플러그인 티켓: 틱 없는 것은 그 청크만 FULL, 틱 있는 것(레벨 31)은 가운데 ENTITY_TICKING·둘레 1 BLOCK_TICKING·둘레 2 FULL. */
+    @Test
+    void pluginTicketLevels() {
+        var w = server.internals().world();
+        int hx = -60, hz = -60;
+        server.await(w.addPluginTicket(hx, hz, hx, hz, false));
+        server.tick(2);
+        assertEquals(FullChunkStatus.FULL, statusOnOwner(hx, hz));
+        assertEquals(FullChunkStatus.INACCESSIBLE, statusOnOwner(hx + 1, hz));
+        int tx = -60, tz = 60;
+        server.await(w.addPluginTicket(tx, tz, tx, tz, true));
+        server.tick(2);
+        assertEquals(FullChunkStatus.ENTITY_TICKING, statusOnOwner(tx, tz));
+        assertEquals(FullChunkStatus.BLOCK_TICKING, statusOnOwner(tx - 1, tz + 1));
+        assertEquals(FullChunkStatus.FULL, statusOnOwner(tx, tz - 2));
+        assertEquals(FullChunkStatus.INACCESSIBLE, statusOnOwner(tx + 3, tz));
+        w.removePluginTicket(hx, hz, hx, hz, false);
+        w.removePluginTicket(tx, tz, tx, tz, true);
+        server.tick(2);
+    }
+
+    /** 스폰 청크(START, 게임 규칙 spawnChunkRadius 2 → 거리 3): 거리 ≤1 ENTITY_TICKING, 2 BLOCK_TICKING, 3 FULL, 4 INACCESSIBLE. 플레이어 시야 밖으로 스폰을 옮겨 본다. */
+    @Test
+    void spawnChunkLevels() {
+        var w = server.internals().world();
+        int sx = 200, sz = 200;
+        server.execute("setworldspawn " + (sx << 4) + " 64 " + (sz << 4));
+        server.tick(2);
+        assertEquals(sx, Math.floorDiv(w.defaultSpawn().x(), 16), "스폰이 옮겨졌다");
+        assertEquals(FullChunkStatus.ENTITY_TICKING, statusOnOwner(sx, sz));
+        assertEquals(FullChunkStatus.ENTITY_TICKING, statusOnOwner(sx - 1, sz + 1));
+        assertEquals(FullChunkStatus.BLOCK_TICKING, statusOnOwner(sx + 2, sz));
+        assertEquals(FullChunkStatus.FULL, statusOnOwner(sx, sz - 3));
+        assertEquals(FullChunkStatus.INACCESSIBLE, statusOnOwner(sx + 4, sz));
     }
 
     /** 틱 스레드가 아닌 스레드(FAWE 일꾼)는 주인을 기다려 같은 값, 다른 region 스레드는 교착을 피해 ThreadOwnershipException. */

@@ -61,12 +61,16 @@ N2b 결정 D1·D4(다른 스레드의 쓰기는 거울 일지로 주인이 재�
 
 | 부르는 스레드 | 값이 없는 부수 효과(`sendBlockUpdated`·`blockChanged`·`blockUpdated`·`updateNeighborsAt`·`updateNeighbourForOutputSignal`·`onBlockStateChange`·`onPlace`·`handleNeighborChanged`·`updateNeighbourShapes`·`updateIndirectNeighbourShapes`·`scheduleTick`) | 값을 돌려주는 부수 효과(`triggerEvent`·`updateFromNeighbourShapes`)와 주인 상태 읽기(`getFullStatus`) | 읽기만 하는 계산(`getStateForPlacement`·`canBeReplaced`·`canSurvive`·`hasPostProcess`) |
 |---|---|---|---|
-| 그 칸의 주인 region(전역 빌림 포함) | 그 청크 거울을 먼저 맞추고 서버에 바로 | 바로 | 서버 레벨에서 바로 |
-| 그 밖 | **거울 일지 한 줄**(`EFFECT`) — 같은 청크의 앞선 쓰기 뒤에 주인이 재생(보통 같은 틱, 늦어도 틱 끝). 그 청크 거울이 없으면(다른 스레드가 그 청크 shim 을 가진 적이 없으면 앞선 일지도 없다) 주인 region 작업으로 보낸다 | 틱 스레드가 아닌 스레드: 기다리는 왕복(`submitAwaited`, 최대 10초 — T-198 과 같은 문·예산). region·전역 스레드: `ThreadOwnershipException`(교착) | 그 NMS 레벨의 읽기(다른 스레드면 공개 스냅샷 + 자기 쓰기, N2b-3)로 서버 계산을 돌린다 — 기다리지 않는다 |
+| 그 칸의 주인 region(전역 빌림 포함) | 원점 둘레 3×3 청크 중 들여오지 않은 쓰기가 있는 거울을 먼저 맞추고(이 스레드가 가진 청크만) 서버에 바로 | 바로 | 서버 레벨에서 바로 |
+| 그 밖 | **주인 region 작업**(기다리지 않음) — 주인이 먼저 원점 둘레 3×3 청크 중 들여오지 않은 쓰기가 있는 거울을 맞추고(간접 모양 갱신이 닿는 범위 — 그 스레드가 이웃 청크에 앞서 쓴 것도 효과보다 먼저, 검토 #468) 서버에 한다(보통 같은 틱, 늦어도 다음 틱) | 틱 스레드가 아닌 스레드: 기다리는 왕복(`submitAwaited`, 최대 10초 — T-198 과 같은 문·예산). region·전역 스레드: `ThreadOwnershipException`(교착) | 그 NMS 레벨의 읽기(다른 스레드면 공개 스냅샷 + 자기 쓰기, N2b-3)로 서버 계산을 돌린다 — 기다리지 않는다 |
 
-- 값이 없는 부수 효과를 일지에 넣으면 바닐라·Paper 보다 최대 한 틱 늦게 일어난다. Paper 에서 이 호출을 비주 스레드에서 하는 것은 경쟁 쓰기(서버를 깰 수 있다)이고, 순서(같은 청크의 앞선 쓰기 뒤)는 지킨다 — N2b D1 과 같은 성질로 가정에 적는다. FAWE 의 실제 흐름은 1.1 대로 주 스레드라 이 길을 타지 않는다.
+- 값이 없는 부수 효과를 주인 작업으로 넘기면 바닐라·Paper 보다 최대 한 틱 늦게 일어난다. Paper 에서 이 호출을 비주 스레드에서 하는 것은 경쟁 쓰기(서버를 깰 수 있다)이고, 순서(그 스레드의 앞선 쓰기 뒤)는 지킨다 — 다만 맞추기가 그 스레드가 효과 **뒤에** 쓴 것까지 들여올 수 있다(경쟁 호출이라 Paper 에서도 정해지지 않은 순서). N2b D1 과 같은 성질로 가정에 적는다. FAWE 의 실제 흐름은 1.1 대로 주 스레드라 이 길을 타지 않는다.
+- 처음 안은 거울 일지 한 줄(`EFFECT`)이었으나, 일지 재생은 섹션 교체(훑기) 들여오기보다 먼저라 "쓰기 뒤 효과" 순서가 깨질 수 있고 이웃 청크 거울도 따로 맞춰야 해서, 맞추기를 끝낸 뒤 효과를 하는 주인 작업으로 정했다(2단계).
+- 원점 청크가 로드돼 있지 않으면: 값이 있는 조각은 **부르는 순간** 부른 스레드에서 `IllegalStateException`(`Level#setBlock` 과 같은 문구 — 동기로 불러오지 않는다). 값이 없는 조각은 아무것도 하지 않는다(바닐라도 `sendBlockUpdated`·`blockChanged` 는 청크가 없으면 아무것도 안 한다. 내려간 원점의 로드된 이웃에 알리는 `updateNeighborsAt` 만 다르다 — 가정). 주인 작업이 도는 순간 내려가 있으면 조용히 버린다.
+- `getFullStatus` 는 상태(정수 하나)를 공개 스냅샷에 얹어 기다리지 않게 할 수도 있으나(최대 1틱 낡음), FAWE 는 주 스레드에서만 부르고(1.1) 다른 스레드에서 부를 일이 드물어 값 호출 규칙(기다리는 왕복)으로 둔다 — 낡은 값으로 블록 변경을 보낼지 고르는 일을 피한다.
+- 보낸 사이 그 칸의 주인이 바뀌면(region 나뉨) 받은 스레드에서 다시 확인해 한 번 다시 보낸다(`NmsOwner` — T-198 블록 엔티티 저장도 이 문을 쓴다).
 - 이웃 갱신은 다른 청크로 번진다. 주인 region 이 서버 `setBlock` 과 똑같이 처리한다(region 경계 처리도 서버 그대로).
-- 부수 효과의 원점 청크가 로드돼 있지 않으면: 주인 스레드에서는 바닐라처럼 그 칸을 읽는 순간 결과가 정해진다 — 서버 `setBlock` 과 같이 로드되지 않은 칸은 건드리지 않고(이웃 쪽 `hasChunkAt` 검사), 원점이 로드돼 있지 않으면 `Level#setBlock` 과 같은 `IllegalStateException`(N1 — 동기로 불러오지 않는 차이, 기존 가정).
+- 이웃 쪽 칸은 서버 `setBlock` 과 같이 로드되지 않은 칸을 건드리지 않는다(`hasChunkAt` 검사).
 
 ## 4. FullChunkStatus — 바닐라 티켓 레벨
 
@@ -80,7 +84,9 @@ N2b 결정 D1·D4(다른 스레드의 쓰기는 거울 일지로 주인이 재�
 | 포털·드래곤·순간 이동 티켓(`addTicket`, 레벨 33 − 거리) | 33 − 거리 | 거리 − 2 안(`entityTicketed`) | 거리 − 1 안(`blockTicketed`) | 거리 안(`tickets`) |
 | 스폰 청크 | 바닐라 START | `spawnTicketWithin(…, 2)` | `(…, 1)` | `(…, 0)` |
 
-가장 높은 단계를 준다. 서버에서 `Region.fullChunkStatus(cx, cz)` 로 계산한다(그 region 의 플레이어 목록을 읽으므로 주인 스레드 — 3장 규칙).
+가장 높은 단계를 준다.
+
+알려진 어긋남(검토 #468): NMS `addRegionTicket`·`addTicketAtLevel` 의 레벨 32 티켓은 Furnace 에서 "붙잡기"(`pluginHeld` — `NmsTickets` 참고)라 FULL 로 보인다(바닐라 BLOCK_TICKING). 레벨 ≤31 은 tick 티켓으로 옮겨져 맞다. Paper `CHUNK_RELIGHT`(서버 `relight.pinned`)는 Paper 에서도 레벨이 FULL 이 되지 않는 내부 티켓이라 상태 계산에 넣지 않는다(의도). 서버에서 `Region.fullChunkStatus(cx, cz)` 로 계산한다(그 region 의 플레이어 목록을 읽으므로 주인 스레드 — 3장 규칙).
 
 **Paper 와 다른 점(위임 결정, `docs/user-todo/entries/2026-11-16-t204-side-effects.md`)**: Paper 1.21.1(Moonrise `RegionizedPlayerChunkLoader`)은 플레이어 티켓을 시뮬레이션 거리 안 31(ENTITY_TICKING), 불러오기 거리 안 33(FULL)으로 건다 — 시뮬레이션 거리 + 1 만 BLOCK_TICKING 이고 그 밖 시야 안은 FULL 이다. Furnace 는 바닐라 티켓 규칙으로 실제로 청크를 돌리므로(엔티티·블록 틱 판정이 바닐라), **서버가 실제로 쓰는 바닐라 값**을 낸다. FAWE 에서 보이는 차이: 주 스레드 WNA 편집이 시뮬레이션 거리 + 2 ~ 시야 + 1 사이 청크에서 Paper 는 블록 변경 패킷을 보내지 않고(클라이언트가 다시 받을 때까지 옛 블록을 본다), Furnace 는 보낸다(바닐라와 같다). 월드 결과(블록·틱)는 같다.
 
@@ -113,7 +119,7 @@ FAWE `PaperweightLevelProxy` 는 `ServerLevel` 을 상속하고 `Unsafe.allocate
 | 단계 | 내용 | 크기 |
 |---|---|---|
 | 1 | 이 설계 + `FullChunkStatus`·`LevelChunk#getFullStatus`(서버 `Region.fullChunkStatus`) | S |
-| 2 | WNA 부수 효과(2장 위 표 `sendBlockUpdated`~`setBlockState(4)`·`getCraftServer`), 거울 일지 `EFFECT`, 값 호출 기다리는 왕복, V1·V2 | M |
+| 2 | WNA 부수 효과(2장 위 표 `sendBlockUpdated`~`setBlockState(4)`·`getCraftServer`), 다른 스레드는 3×3 거울을 맞추는 주인 작업, 값 호출 기다리는 왕복, V1·V2 | M |
 | 3 | 예약 틱·`getTickDelay`, 놓기 상태 다리(`BlockPlaceContext`·`getStateForPlacement`·`canBeReplaced`·`canSurvive`·`hasPostProcess`), V4 | M |
 | 4 | V5 실측(시나리오·결과 문서) | S |
 
@@ -122,5 +128,7 @@ FAWE `PaperweightLevelProxy` 는 `ServerLevel` 을 상속하고 `Unsafe.allocate
 ## 9. 가정·한계
 - 부수 효과 조각은 서버의 `Level.setBlock` 포팅과 같은 코드를 부르므로, 그 포팅이 바닐라와 다른 곳(예: `onBlockStateChange` 를 `server.execute` 로 미루지 않음, `sendBlockUpdated` 의 BLOCK_TICKING 조건을 보지 않음)은 그대로 이어진다(기존 가정).
 - 비주인 스레드 부수 효과는 최대 한 틱 늦다(3장). Paper 에서는 경쟁 호출이다.
-- FullChunkStatus 는 바닐라 값(4장 — Paper 와 다른 것은 위임 결정).
+- FullChunkStatus 는 바닐라 값(4장 — Paper 와 다른 것은 위임 결정). NMS 레벨 32 티켓은 FULL 로 보인다(4장 알려진 어긋남).
+- `ChunkHolder#getFullStatus` 는 로드가 끝난 청크만 단계를 준다(바닐라는 홀더 레벨이라 불러오는 중에도 FULL 일 수 있다).
+- 다른 스레드의 값 없는 부수 효과에서 원점이 내려가 있으면 아무것도 하지 않는다 — 바닐라는 내려간 원점의 로드된 이웃에도 `updateNeighborsAt` 을 알린다(드묾).
 - `destroyBlock`·`setBiome(4)`·`rangeClosed` 는 T-203.
