@@ -50,7 +50,8 @@ public class ServerChunkCache extends ChunkSource {
         });
     }
 
-    /** 서버 빛 엔진(N2b-6 — 빛 다시 계산 부탁만 받는다, {@link ThreadedLevelLightEngine}). */
+    /** 서버 빛 엔진({@link ThreadedLevelLightEngine} — 빛 다시 계산(T-197), 층 듣기·checkBlock(T-205)). */
+    @Override
     public ThreadedLevelLightEngine getLightEngine() { return lightEngine; }
 
     /** 바닐라 addRegionTicket: 반경 r 티켓 = 수준 33−r. Furnace 청크 티켓으로 옮긴다({@code NmsTickets}). 아무 스레드. */

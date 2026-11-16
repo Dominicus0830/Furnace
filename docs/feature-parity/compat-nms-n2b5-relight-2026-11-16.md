@@ -301,6 +301,8 @@ FAWE 의 `//fixlighting` 이외 빛 명령(`//removelighting`·`//getlighting`·
 다른 스레드 읽기에는 공개 스냅샷에 빛 사본을 넣어야 하고, `queueSectionData` 는 거울 일지 쓰기라 설계가 따로 필요하다. **새 TASK(가칭 T-205, Opus high, 선행 T-197)로 나눌 것을 제안**한다.
 이 문서의 붙잡기·설치 규칙을 `checkBlock`(주인에게 보내 검사 걸기)에 그대로 쓸 수 있다.
 
+→ **T-205 로 구현됨**: `compat-nms-t205-light-surface-2026-11-16.md`(Paper 원문 대조로 `queueSectionData` 는 무시, `getDataLayerData` 는 사본).
+
 ## 9. 고른 것과 버린 것
 
 | 안 | 내용 | 버린 이유 |

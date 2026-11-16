@@ -3,7 +3,7 @@ package net.minecraft.world.level.chunk;
 /**
  * 섹션 하나의 빛 값 16×16×16 니블 배열(Mojang 이름 shim, N2b-6). 바닐라 1.21.1 그대로 — 배열이 없으면(아직 안 씀) 모든 칸이 기본값이고,
  * 처음 쓸 때 기본값으로 채운 2048바이트를 만든다. 칸 순서는 YZX, 짝수 칸이 아래 니블.
- * 서버 빛과는 이어지지 않은 떨어진 값이다 — 서버 빛을 읽고 쓰는 길(빛 엔진의 층 듣기·queueSectionData)은 N2b-5.
+ * 서버 빛과는 이어지지 않은 떨어진 값이다 — 빛 엔진의 층 듣기(getDataLayerData)는 Paper 처럼 서버 빛의 사본을 담아 주고, 고쳐도 서버 빛은 바뀌지 않는다(T-205).
  */
 public class DataLayer {
 

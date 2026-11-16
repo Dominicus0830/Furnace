@@ -369,6 +369,63 @@ final class ChunkInternalsImpl implements ChunkInternals {
         return handle(world).handle().relight().relight(keys, each, allDone);
     }
 
+    // ------------------------------------------------------------------ 빛 읽기·검사(T-205)
+
+    @Override
+    public boolean hasSkyLight(org.domi.furnace.api.world.World world) { return handle(world).handle().dimensionType().hasSkyLight(); }
+
+    @Override
+    public boolean lightReadyNow(org.domi.furnace.api.world.World world, int chunkX, int chunkZ) {
+        ChunkColumn col = column(world, chunkX, chunkZ, "chunk light");
+        return col != null && col.light() != null && col.light().lightEnabled;
+    }
+
+    @Override
+    public int lightNow(org.domi.furnace.api.world.World world, int x, int y, int z, boolean sky) {
+        ChunkColumn col = column(world, x >> 4, z >> 4, "LayerLightEventListener#getLightValue");
+        var cl = col == null ? null : col.light();
+        if (cl == null) return -1;
+        int i = org.domi.furnace.server.light.ChunkLight.sectionIndex(y);
+        if (i < 0 || i >= org.domi.furnace.server.light.ChunkLight.SECTIONS) return -1;   // 서버 빛 배열 밖(오버월드보다 넓은 차원) — 자료 없음
+        return sky ? cl.skyAt(x, y, z) : cl.blockAt(x, y, z);
+    }
+
+    @Override
+    public byte[] lightLayerNow(org.domi.furnace.api.world.World world, int chunkX, int sectionY, int chunkZ, boolean sky) {
+        ChunkColumn col = column(world, chunkX, chunkZ, "LayerLightEventListener#getDataLayerData");
+        var cl = col == null ? null : col.light();
+        int i = sectionY - org.domi.furnace.server.light.ChunkLight.MIN_SECTION;
+        if (cl == null || i < 0 || i >= org.domi.furnace.server.light.ChunkLight.SECTIONS) return null;
+        return (sky ? cl.sky(i) : cl.block(i)).clone();
+    }
+
+    @Override
+    public boolean checkLight(org.domi.furnace.api.world.World world, int x, int y, int z) {
+        WorldHandle h = handle(world);
+        var w = h.handle();
+        var t = w.dimensionType();
+        if (y < t.minY() || y >= t.maxY()) return false;
+        int cx = x >> 4, cz = z >> 4;
+        if (!w.isChunkLoaded(cx, cz)) return false;
+        if (org.domi.furnace.server.world.RegionBorrow.claimChunk(w, cx, cz)) {
+            Region r = h.ownedRegion(new BlockPos(x, y, z), "LevelLightEngine#checkBlock");   // 거울 대기가 있으면 먼저 들여온다(맞춤 지점)
+            return r != null && r.chunkLoaded(new ChunkPos(cx, cz)) && r.level().checkLightAt(x, y, z);
+        }
+        // 다른 스레드: 주인에게 보낸다(기다리지 않음). 주인은 그 청크의 거울 쓰기를 먼저 들여온 뒤 검사를 건다 — 검사가 플러그인이 방금 쓴 블록을 보게
+        ChunkPos cp = new ChunkPos(cx, cz);
+        java.util.concurrent.CompletableFuture<Boolean> f;
+        try {
+            f = w.submitAtOwnedChunk(cp, r -> {
+                if (!r.chunkLoaded(cp)) return false;
+                w.syncMirrorIfPending(r, cx, cz);
+                return r.level().checkLightAt(x, y, z);
+            });
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            return false;   // 내린 월드
+        }
+        return f != null && !f.isCompletedExceptionally();
+    }
+
     @Override
     public long contentStampNow(org.domi.furnace.api.world.World world, int chunkX, int chunkZ) {
         ChunkColumn col = column(world, chunkX, chunkZ, "chunk content revision number");

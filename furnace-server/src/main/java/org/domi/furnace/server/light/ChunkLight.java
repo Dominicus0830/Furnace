@@ -35,6 +35,11 @@ public final class ChunkLight {
      */
     private final ChunkLight base;
     private long ownSky, ownBlock;   // 사본이 바꿔 가진 층(비트 = 층 번호) — 복사했거나 FULL 로 바꿔 끼운 층
+    /**
+     * 공개 스냅샷(T-205)이 그대로 쥔 층(비트 = 층 번호, 보이는 쪽만). 이 층은 더 고치지 않는다 — 처음 쓸 때 복사한다(쓰기 시 복사). 스냅샷을 내지 않는
+     * 청크는 늘 0 이라 쓰기 길은 비트 검사 하나만 는다.
+     */
+    private long viewSky, viewBlock;
 
     public ChunkLight() {
         sky = new byte[SECTIONS][];
@@ -63,6 +68,8 @@ public final class ChunkLight {
             if ((ownSky & 1L << i) != 0) visible.sky[i] = sky[i];
             if ((ownBlock & 1L << i) != 0) visible.block[i] = block[i];
         }
+        visible.viewSky &= ~ownSky;   // 바꿔 끼운 층은 스냅샷이 쥔 것이 아니다
+        visible.viewBlock &= ~ownBlock;
         System.arraycopy(lowestSource, 0, visible.lowestSource, 0, 256);
         visible.lightEnabled = lightEnabled;
     }
@@ -75,6 +82,7 @@ public final class ChunkLight {
         assert base == null && fresh.base == null : "쓰기 사본에는 끼우지 않는다";
         System.arraycopy(fresh.sky, 0, sky, 0, SECTIONS);
         System.arraycopy(fresh.block, 0, block, 0, SECTIONS);
+        viewSky = viewBlock = 0;
     }
 
     /** 새로 계산한 빛의 하늘빛 원천 높이를 이 청크 것으로 복사한다 — 계산에 쓴 블록이 지금 블록과 같을 때만(T-197 설치의 빠른 길). */
@@ -84,6 +92,29 @@ public final class ChunkLight {
 
     /** 이 사본의 원본(쓰기 사본이 아니면 null). */
     public ChunkLight base() { return base; }
+
+    /**
+     * 공개 스냅샷(T-205)에 지금 층을 복사 없이 넘긴다: sky·block(길이 SECTIONS)에 층 참조를 채우고, 넘긴 층은 이 청크가 더 고치지 않게 표시한다
+     * (다음 쓰기가 복사한다). 이 청크를 가진 스레드에서, 보이는 빛에만(쓰기 사본 아님).
+     */
+    public void shareLayersWithView(byte[][] skyOut, byte[][] blockOut) {
+        assert base == null : "쓰기 사본은 공개하지 않는다";
+        System.arraycopy(sky, 0, skyOut, 0, SECTIONS);
+        System.arraycopy(block, 0, blockOut, 0, SECTIONS);
+        long s = 0, b = 0;
+        for (int i = 0; i < SECTIONS; i++) {
+            if (!isShared(sky[i])) s |= 1L << i;
+            if (!isShared(block[i])) b |= 1L << i;
+        }
+        viewSky = s;
+        viewBlock = b;
+    }
+
+    /** 지금 층이 그 참조들과 모두 같은가(바뀐 층은 쓰기 때 복사돼 참조가 달라진다 — 같으면 내용도 같다). */
+    public boolean sameLayers(byte[][] skyRefs, byte[][] blockRefs) {
+        for (int i = 0; i < SECTIONS; i++) if (sky[i] != skyRefs[i] || block[i] != blockRefs[i]) return false;
+        return true;
+    }
 
     /**
      * 저장된 층으로 만든다(디스크 빛). null 이거나 길이가 2048 이 아닌 층은 0. 균일 층(모두 0·모두 15)은 공유 상수로 바꾸고, 나머지 배열은
@@ -135,9 +166,10 @@ public final class ChunkLight {
     public byte[] writableSky(int section) {
         byte[] l = sky[section];
         long bit = 1L << section;
-        if (isShared(l) || base != null && (ownSky & bit) == 0) {
+        if (isShared(l) || base != null && (ownSky & bit) == 0 || (viewSky & bit) != 0) {
             sky[section] = l = l.clone();
             ownSky |= bit;
+            viewSky &= ~bit;
         }
         return l;
     }
@@ -146,9 +178,10 @@ public final class ChunkLight {
     public byte[] writableBlock(int section) {
         byte[] l = block[section];
         long bit = 1L << section;
-        if (isShared(l) || base != null && (ownBlock & bit) == 0) {
+        if (isShared(l) || base != null && (ownBlock & bit) == 0 || (viewBlock & bit) != 0) {
             block[section] = l = l.clone();
             ownBlock |= bit;
+            viewBlock &= ~bit;
         }
         return l;
     }
@@ -157,6 +190,7 @@ public final class ChunkLight {
     public void fillSkyFull(int section) {
         sky[section] = FULL;
         ownSky |= 1L << section;
+        viewSky &= ~(1L << section);
     }
 
     /** 균일해진 층을 공유 상수로 되돌린다(내용은 그대로). 생성 풀의 미리 계산 끝에 부른다. */
@@ -164,8 +198,14 @@ public final class ChunkLight {
         assert base == null : "쓰기 사본은 되돌리지 않는다(게시할 층 표시를 잃는다)";
         for (int i = 0; i < SECTIONS; i++) {
             byte[] s = uniform(sky[i]), b = uniform(block[i]);
-            if (s != null) sky[i] = s;
-            if (b != null) block[i] = b;
+            if (s != null) {
+                sky[i] = s;
+                viewSky &= ~(1L << i);
+            }
+            if (b != null) {
+                block[i] = b;
+                viewBlock &= ~(1L << i);
+            }
         }
         assert sharedIntact() : "공유 빛 층이 바뀌었다";
     }
