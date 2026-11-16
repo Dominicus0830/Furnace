@@ -264,19 +264,14 @@ class JoinTabOrderTest {
                 // 처리기를 붙잡은 채 밥이 받는 것을 읽는다 — 그동안 밥의 region 이 여러 번 탭을 맞춘다
                 List<Frame> during = new ArrayList<>();
                 long deadline = System.nanoTime() + 800_000_000L;
-                bob.socketTimeout(100);
                 while (System.nanoTime() < deadline) {
-                    try {
-                        ByteBuf f = bob.read();
-                        int id = Types.readVarInt(f);
-                        byte[] body = new byte[f.readableBytes()];
-                        f.readBytes(body);
-                        during.add(new Frame(id, body));
-                    } catch (java.net.SocketTimeoutException ignored) {
-                        // 계속 읽는다
-                    }
+                    ByteBuf f = bob.poll(100);   // 프레임 단위로(중간에서 끊지 않는다)
+                    if (f == null) continue;
+                    int id = Types.readVarInt(f);
+                    byte[] body = new byte[f.readableBytes()];
+                    f.readBytes(body);
+                    during.add(new Frame(id, body));
                 }
-                bob.socketTimeout(0);
                 assertTrue(bobRegion.tickCount() - tick0 >= 5, "보류 동안 관찰자 region 이 여러 틱 돌았다: " + (bobRegion.tickCount() - tick0));
                 assertFalse(mentions(during, alexId), "보류 중에는 관찰자 탭·엔티티에 오르지 않는다");
                 release.countDown();
