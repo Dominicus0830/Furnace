@@ -7,6 +7,7 @@ import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 import org.domi.furnace.server.scores.NumberFormat;
 import org.domi.furnace.server.scores.Objective;
 import org.domi.furnace.server.scores.ObjectiveCriteria;
@@ -15,7 +16,7 @@ import org.domi.furnace.server.scores.ObjectiveCriteria;
 public record SetObjective(String name, int method, Text displayName, ObjectiveCriteria.RenderType renderType, NumberFormat numberFormat)
         implements Packet {
 
-    public static final int ID = 0x5E;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_SET_OBJECTIVE;
     public static final int METHOD_ADD = 0, METHOD_REMOVE = 1, METHOD_CHANGE = 2;
 
     public static SetObjective of(Objective o, int method) {

@@ -4,12 +4,13 @@ package org.domi.furnace.server.net.protocol.play;
 import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 @VanillaPort("net.minecraft.network.protocol.game.ClientboundPlayerAbilitiesPacket")
 public record PlayerAbilities(boolean invulnerable, boolean flying, boolean mayFly, boolean instabuild,
                               float flyingSpeed, float walkingSpeed) implements Packet {
 
-    public static final int ID = 0x38;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_PLAYER_ABILITIES;
 
     /** 크리에이티브 기본값(바닐라 Abilities: flySpeed 0.05, walkSpeed 0.1). */
     public static PlayerAbilities creative() {

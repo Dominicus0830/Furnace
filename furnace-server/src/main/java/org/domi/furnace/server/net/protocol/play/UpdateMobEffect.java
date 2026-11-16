@@ -6,11 +6,12 @@ import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.effect.MobEffectInstance;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 @VanillaPort("net.minecraft.network.protocol.game.ClientboundUpdateMobEffectPacket")
 public record UpdateMobEffect(int entityId, int effectId, int amplifier, int duration, byte flags) implements Packet {
 
-    public static final int ID = 0x76;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_UPDATE_MOB_EFFECT;
 
     public static UpdateMobEffect of(int entityId, MobEffectInstance e, boolean blend) {
         int f = (e.ambient() ? 1 : 0) | (e.visible() ? 2 : 0) | (e.showIcon() ? 4 : 0) | (blend ? 8 : 0);

@@ -6,12 +6,13 @@ import java.util.Map;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 import org.domi.furnace.server.net.registry.TagSet;
 
 @VanillaPort("net.minecraft.network.protocol.common.ClientboundUpdateTagsPacket")
 public record UpdateTags(TagSet tags) implements Packet {
 
-    public static final int ID = 0x0D;
+    public static final int ID = PacketIds.CONFIGURATION_CLIENTBOUND_UPDATE_TAGS;
 
     @Override
     public int id() {

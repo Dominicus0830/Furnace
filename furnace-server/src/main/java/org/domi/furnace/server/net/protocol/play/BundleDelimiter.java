@@ -4,11 +4,12 @@ package org.domi.furnace.server.net.protocol.play;
 import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 @VanillaPort("net.minecraft.network.protocol.game.ClientboundBundleDelimiterPacket")
 public record BundleDelimiter() implements Packet {
 
-    public static final int ID = 0x00;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_BUNDLE_DELIMITER;
     public static final BundleDelimiter INSTANCE = new BundleDelimiter();
 
     @Override

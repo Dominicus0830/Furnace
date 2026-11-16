@@ -4,11 +4,12 @@ package org.domi.furnace.server.net.protocol.play;
 import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 @VanillaPort("net.minecraft.network.protocol.game.ClientboundForgetLevelChunkPacket")
 public record UnloadChunk(int chunkX, int chunkZ) implements Packet {
 
-    public static final int ID = 0x21;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_FORGET_LEVEL_CHUNK;
 
     @Override
     public int id() { return ID; }

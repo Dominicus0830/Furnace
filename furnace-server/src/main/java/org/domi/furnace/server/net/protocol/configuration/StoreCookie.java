@@ -5,11 +5,12 @@ import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 @VanillaPort("net.minecraft.network.protocol.common.ClientboundStoreCookiePacket")
 public record StoreCookie(String key, byte[] payload) implements Packet {
 
-    public static final int ID = 0x0A;
+    public static final int ID = PacketIds.CONFIGURATION_CLIENTBOUND_STORE_COOKIE;
     /** 바닐라 ClientboundStoreCookiePacket.MAX_PAYLOAD_SIZE. */
     public static final int MAX_PAYLOAD = 5120;
 

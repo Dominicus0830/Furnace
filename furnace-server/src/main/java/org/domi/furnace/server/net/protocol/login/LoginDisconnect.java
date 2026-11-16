@@ -5,6 +5,7 @@ import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 @VanillaPort("net.minecraft.network.protocol.login.ClientboundLoginDisconnectPacket")
 public record LoginDisconnect(org.domi.furnace.api.text.Text reason) implements Packet {
@@ -13,7 +14,7 @@ public record LoginDisconnect(org.domi.furnace.api.text.Text reason) implements 
         this(org.domi.furnace.api.text.Text.text(literal));
     }
 
-    public static final int ID = 0x00;
+    public static final int ID = PacketIds.LOGIN_CLIENTBOUND_LOGIN_DISCONNECT;
 
     @Override
     public int id() {

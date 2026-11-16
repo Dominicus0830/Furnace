@@ -9,12 +9,13 @@ import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 import org.domi.furnace.server.VanillaPort;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 @VanillaPort("net.minecraft.network.protocol.game.ClientboundUpdateAdvancementsPacket")
 public record UpdateAdvancements(boolean reset, List<byte[]> added, Set<ResourceId> removed,
                                  Map<ResourceId, AdvancementProgress> progress) implements Packet {
 
-    public static final int ID = 0x74;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_UPDATE_ADVANCEMENTS;
 
     @Override public int id() { return ID; }
 

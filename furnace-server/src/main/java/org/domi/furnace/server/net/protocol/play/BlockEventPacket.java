@@ -5,11 +5,12 @@ import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 @VanillaPort("net.minecraft.network.protocol.game.ClientboundBlockEventPacket")
 public record BlockEventPacket(int x, int y, int z, int type, int data, int blockId) implements Packet {
 
-    public static final int ID = 0x08;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_BLOCK_EVENT;
 
     @Override
     public int id() { return ID; }

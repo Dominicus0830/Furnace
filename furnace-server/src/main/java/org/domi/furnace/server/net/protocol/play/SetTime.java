@@ -4,11 +4,12 @@ package org.domi.furnace.server.net.protocol.play;
 import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 @VanillaPort("net.minecraft.network.protocol.game.ClientboundSetTimePacket")
 public record SetTime(long gameTime, long dayTime) implements Packet {
 
-    public static final int ID = 0x64;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_SET_TIME;
 
     /** 바닐라 ClientboundSetTimePacket(gameTime, dayTime, tickDayTime): 하루 시간이 멈췄으면 음수(0 이면 -1)로 보낸다. */
     public static SetTime of(long gameTime, long dayTime, boolean tickDayTime) {
