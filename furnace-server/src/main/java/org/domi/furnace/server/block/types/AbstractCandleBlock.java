@@ -1,6 +1,7 @@
 // 바닐라 AbstractCandleBlock: 양초·양초 케이크 바탕(lit). 끄면 소리와 BLOCK_CHANGE, 불붙은 투사체가 닿으면 켜진다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.Explosion;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
@@ -9,6 +10,7 @@ import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.AbstractCandleBlock")
 public abstract class AbstractCandleBlock extends BlockBehavior {
 
     static final Prop LIT = B.prop("lit");

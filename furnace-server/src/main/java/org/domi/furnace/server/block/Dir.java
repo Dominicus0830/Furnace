@@ -2,6 +2,9 @@
 // 이웃 갱신·모양 갱신·수평 순회 순서가 서로 다르니 상수 배열을 그대로 쓴다(바닐라와 같은 순서).
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("net.minecraft.core.Direction")
 public final class Dir {
     private Dir() {}
 

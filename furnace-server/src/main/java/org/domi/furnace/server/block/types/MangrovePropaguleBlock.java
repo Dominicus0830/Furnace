@@ -1,6 +1,7 @@
 // 바닐라 MangrovePropaguleBlock: 맹그로브 번식체. 바닥에 심으면 묘목처럼 자라고, 맹그로브 잎에 매달리면(hanging) age 0..4 로 자란다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
@@ -9,6 +10,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.MangrovePropaguleBlock")
 public class MangrovePropaguleBlock extends SaplingBlock {
 
     static final Prop AGE = B.prop("age"), HANGING = B.prop("hanging");

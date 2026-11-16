@@ -1,11 +1,13 @@
 // 바닐라 CauldronBlock: 빈 가마솥. 비(5%)·눈(10%)을 받거나 종유석에서 물·용암이 떨어지면 그 가마솥으로 바뀐다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Fluids;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.CauldronBlock")
 public class CauldronBlock extends AbstractCauldronBlock {
 
     private static final int WATER_CAULDRON = B.id("water_cauldron"), LAVA_CAULDRON = B.id("lava_cauldron"),

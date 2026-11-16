@@ -2,12 +2,14 @@
 package org.domi.furnace.server.block.entity;
 
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockBehaviors;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.types.AbstractBannerBlock;
 import org.domi.furnace.server.item.DataComponents;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort("net.minecraft.world.level.block.entity.BannerBlockEntity")
 public class BannerBlockEntity extends BlockEntity {
 
     public String customName;

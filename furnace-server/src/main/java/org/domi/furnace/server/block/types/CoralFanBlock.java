@@ -1,6 +1,7 @@
 // 바닐라 CoralFanBlock: 살아 있는 산호 부채. 놓이거나 이웃이 바뀔 때 물이 없으면 죽을 틱을 걸고, 틱에 여전히 없으면 죽은 산호가 된다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Blocks;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.CoralFanBlock")
 public class CoralFanBlock extends BaseCoralFanBlock {
 
     private final int dead;

@@ -1,6 +1,7 @@
 // 바닐라 SnowyDirtBlock: 눈 덮일 수 있는 흙(회백토·잔디·균사체 바탕). 위가 #snow 면 snowy.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -9,6 +10,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.SnowyDirtBlock")
 public class SnowyDirtBlock extends BlockBehavior {
 
     static final Prop SNOWY = B.prop("snowy");

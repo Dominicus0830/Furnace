@@ -1,6 +1,7 @@
 // 바닐라 HopperBlock: 깔때기. 클릭한 면 쪽으로 내보낸다(위면을 눌렀으면 아래로). 신호를 받으면 꺼진다(enabled=false).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.entity.ContainerBlockEntity;
 import org.domi.furnace.server.block.entity.BlockEntity;
 import org.domi.furnace.server.block.B;
@@ -13,6 +14,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.HopperBlock")
 public class HopperBlock extends BaseEntityBlock {
 
     private static final Prop FACING = B.prop("facing"), ENABLED = B.prop("enabled");

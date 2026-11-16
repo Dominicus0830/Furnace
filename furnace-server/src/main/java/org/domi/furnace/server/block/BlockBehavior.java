@@ -2,8 +2,13 @@
 // 상태는 int(전역 상태 id), 블록은 블록 번호(Blocks), 위치는 Pos, 유체는 Fluids 인코딩. "null 상태"는 -1.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort({
+    "net.minecraft.world.level.block.state.BlockBehaviour",
+    "net.minecraft.world.level.block.Block"
+})
 public class BlockBehavior {
 
     protected static final Blocks BLOCKS = Blocks.get();

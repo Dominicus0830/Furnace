@@ -16,8 +16,13 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.GZIPInputStream;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.world.BlockHardness;
 
+@VanillaPort({
+    "net.minecraft.world.level.block.state.BlockBehaviour",
+    "net.minecraft.world.level.block.state.BlockState"
+})
 public final class BlockInfo {
 
     public static final int FULL = 0, CENTER = 1, RIGID = 2;

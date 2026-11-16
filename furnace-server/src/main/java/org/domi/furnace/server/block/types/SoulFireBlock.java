@@ -1,10 +1,12 @@
 // 바닐라 SoulFireBlock: 영혼 흙·영혼 모래(#soul_fire_base_blocks) 위에서만 사는 불. 번지지 않는다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.SoulFireBlock")
 public class SoulFireBlock extends BaseFireBlock {
 
     public SoulFireBlock(int block) { super(block); }

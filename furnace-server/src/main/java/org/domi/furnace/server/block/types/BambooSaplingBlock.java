@@ -1,6 +1,7 @@
 // 바닐라 BambooSaplingBlock: 죽순. 위에 대나무가 생기면 대나무가 된다. 무작위 틱·뼛가루로 위에 작은 잎 대나무를 올린다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -9,6 +10,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.BambooSaplingBlock")
 public class BambooSaplingBlock extends BlockBehavior implements BonemealableBlock {
 
     private static final int BAMBOO = B.id("bamboo");

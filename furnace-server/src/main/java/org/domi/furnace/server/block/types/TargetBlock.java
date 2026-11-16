@@ -1,6 +1,7 @@
 // 바닐라 TargetBlock: 과녁. 투사체가 맞은 자리가 가운데에 가까울수록 센 신호(1–15)를 내고, 화살 20틱·그 밖 8틱 뒤 끈다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -9,6 +10,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.TargetBlock")
 public class TargetBlock extends BlockBehavior {
 
     static final Prop POWER = B.prop("power");

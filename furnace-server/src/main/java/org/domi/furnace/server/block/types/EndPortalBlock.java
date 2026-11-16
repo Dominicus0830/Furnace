@@ -3,6 +3,7 @@
 // 플레이어가 엔드에서 나갈 때: 크레딧을 본 적 없으면 크레딧(Region), 있으면 리스폰 위치(findRespawnPositionAndUseSpawnBlock)로 — 둘 다 Region 이 맡는다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.Pos;
@@ -14,6 +15,7 @@ import org.domi.furnace.server.entity.PortalTravel;
 import org.domi.furnace.server.entity.Traveler;
 import org.domi.furnace.server.world.gen.feature.EndPlatformFeature;
 
+@VanillaPort("net.minecraft.world.level.block.EndPortalBlock")
 public class EndPortalBlock extends BaseEntityBlock implements Portal {
 
     public static final String OVERWORLD = "minecraft:overworld", THE_END = "minecraft:the_end";

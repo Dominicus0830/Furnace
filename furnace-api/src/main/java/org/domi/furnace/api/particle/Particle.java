@@ -1,4 +1,4 @@
-// 입자 한 개(종류 + 종류별 옵션) — 바닐라 ParticleOptions 와 같은 뜻. 엔티티 메타데이터(구름 입자·효과 입자)와 입자 패킷에 쓴다.
+// 입자 한 개(종류 + 종류별 옵션). 바닐라 ParticleOptions 와 같은 뜻이다. 엔티티 메타데이터(구름 입자·효과 입자)와 입자 패킷에 쓴다.
 // 종류 이름은 "minecraft:flame" 꼴. 옵션이 필요한 종류(블록·먼지·아이템 …)는 그 레코드로만 만들 수 있다.
 //
 // 예) Particle.of("minecraft:flame"), Particle.dust(0xFF0000, 1.5f), Particle.block("minecraft:falling_dust", BlockData.of("minecraft:sand"))
@@ -66,7 +66,7 @@ public sealed interface Particle {
         @Override public String type() { return "minecraft:dust"; }
     }
 
-    /** dust_color_transition: 시작색 → 끝색, 크기(0.01~4). */
+    /** dust_color_transition: 시작색과 끝색, 크기(0.01~4). */
     record DustTransition(float fromRed, float fromGreen, float fromBlue, float toRed, float toGreen, float toBlue, float scale) implements Particle {
         public DustTransition { scale = clampScale(scale); }
 
@@ -128,7 +128,7 @@ public sealed interface Particle {
         return s.indexOf(':') < 0 ? "minecraft:" + s : s;
     }
 
-    /** 종류 이름 → 옵션 모양. */
+    /** 종류 이름별 옵션 모양. */
     enum Kind {
         SIMPLE("of"), BLOCK("block"), DUST("dust"), DUST_TRANSITION("dustTransition"), COLOR("entityEffect"), ITEM("item"),
         SCULK_CHARGE("SculkCharge"), SHRIEK("Shriek"), VIBRATION("Vibration");

@@ -1,6 +1,7 @@
 // 바닐라 SugarCaneBlock: 사탕수수 위나, 옆에 물(또는 살얼음)이 닿은 흙·모래 위에서만 산다. 무작위 틱으로 3칸까지 자란다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -10,6 +11,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.SugarCaneBlock")
 public class SugarCaneBlock extends BlockBehavior {
 
     private static final Prop AGE = B.prop("age");

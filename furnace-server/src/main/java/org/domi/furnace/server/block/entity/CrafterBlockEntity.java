@@ -5,6 +5,7 @@ package org.domi.furnace.server.block.entity;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
@@ -15,6 +16,7 @@ import org.domi.furnace.server.menu.Stacks;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.recipe.CraftingInput;
 
+@VanillaPort("net.minecraft.world.level.block.entity.CrafterBlockEntity")
 public class CrafterBlockEntity extends ContainerBlockEntity {
 
     public static final int CONTAINER_SIZE = 9;

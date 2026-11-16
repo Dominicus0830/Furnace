@@ -3,7 +3,9 @@ package org.domi.furnace.server.block;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.level.block.Block")
 public final class B {
     private B() {}
 

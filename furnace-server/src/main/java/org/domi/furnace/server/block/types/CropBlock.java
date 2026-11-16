@@ -1,12 +1,14 @@
 // 바닐라 CropBlock: 경작지 위 작물. 밝으면(9 이상) 무작위 틱마다 주변 경작지·같은 작물 배치에 따른 확률로 자란다. 뼛가루는 2~5 단계.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.CropBlock")
 public class CropBlock extends BushBlock implements BonemealableBlock {
 
     protected static final Prop AGE = B.prop("age");

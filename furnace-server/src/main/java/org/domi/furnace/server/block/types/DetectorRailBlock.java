@@ -1,6 +1,7 @@
 // 바닐라 DetectorRailBlock: 감지 레일. 칸 안(0.2 안쪽 상자)에 광산 수레가 있으면 신호, 20 틱마다 다시 본다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.DetectorRailBlock")
 public class DetectorRailBlock extends BaseRailBlock {
 
     private static final Prop POWERED = B.prop("powered");

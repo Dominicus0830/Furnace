@@ -1,12 +1,14 @@
 // 바닐라 PortalShape: 흑요석 틀 안 지옥문 모양 찾기(불 붙이기로 만들기, 틀이 깨지면 무너뜨리기).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.portal.PortalShape")
 public final class PortalShape {
 
     private static final int MAX = 21;

@@ -12,7 +12,12 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.PriorityQueue;
 import java.util.function.LongPredicate;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({
+    "net.minecraft.world.ticks.LevelTicks",
+    "net.minecraft.world.ticks.LevelChunkTicks"
+})
 public final class BlockTicks {
 
     /** 예약 틱 하나(저장·조회용 보기). */

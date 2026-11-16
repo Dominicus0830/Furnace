@@ -1,4 +1,5 @@
-// 회전 쿼터니언(x, y, z, w) — 디스플레이 엔티티의 왼쪽·오른쪽 회전. 불변. 정규화는 클라이언트가 한다(바닐라와 같다).
+// 회전 쿼터니언(x, y, z, w). 디스플레이 엔티티의 왼쪽·오른쪽 회전에 쓰며 불변이다.
+// 정규화는 클라이언트가 한다(바닐라와 같다).
 package org.domi.furnace.api.math;
 
 public record Quaternionf(float x, float y, float z, float w) {

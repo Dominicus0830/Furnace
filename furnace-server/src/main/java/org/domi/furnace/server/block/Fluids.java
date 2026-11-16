@@ -2,6 +2,9 @@
 // 원천은 양 8. 레거시 블록(물·용암 블록의 level 속성)과의 변환은 바닐라 LiquidBlock / FlowingFluid.createLegacyState 와 같다.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("net.minecraft.world.level.material.FluidState")
 public final class Fluids {
     private Fluids() {}
 

@@ -1,6 +1,7 @@
 // 바닐라 BucketPickup.pickupBlock 구현들(LiquidBlock·SimpleWaterloggedBlock·BubbleColumnBlock·PowderSnowBlock): 양동이로 뜨는 동작.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.Fluids;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.BucketPickup")
 public final class BucketPickup {
     private BucketPickup() {}
 

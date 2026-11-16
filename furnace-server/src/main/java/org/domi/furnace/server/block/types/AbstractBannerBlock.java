@@ -1,8 +1,10 @@
 // 바닐라 AbstractBannerBlock: 깃발 바탕(색은 생성 인자 color, 무늬는 블록 엔티티).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.Blocks;
 
+@VanillaPort("net.minecraft.world.level.block.AbstractBannerBlock")
 public abstract class AbstractBannerBlock extends BaseEntityBlock {
 
     protected final String color;

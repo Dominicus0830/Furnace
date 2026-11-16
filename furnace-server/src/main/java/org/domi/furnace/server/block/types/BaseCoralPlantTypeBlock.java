@@ -1,6 +1,7 @@
 // 바닐라 BaseCoralPlantTypeBlock: 산호(죽은 것 포함) 바탕. 아래 윗면이 단단해야 산다. 물에 잠김(기본). 주변에 물이 없으면 죽을 틱을 건다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -9,6 +10,7 @@ import org.domi.furnace.server.block.Fluids;
 import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.BaseCoralPlantTypeBlock")
 public abstract class BaseCoralPlantTypeBlock extends BlockBehavior {
 
     protected BaseCoralPlantTypeBlock(int block) { super(block); }

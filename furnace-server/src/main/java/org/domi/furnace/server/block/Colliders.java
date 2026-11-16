@@ -3,8 +3,10 @@
 package org.domi.furnace.server.block;
 
 import java.util.Arrays;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.AABB;
 
+@VanillaPort("net.minecraft.world.entity.Entity")
 public final class Colliders implements ChunkLevel.CollisionSink {
 
     private Shape[] shapes;

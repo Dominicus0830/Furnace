@@ -2,6 +2,7 @@
 // isStraight(전동·감지 레일)는 꺾이지 않고, 놓이거나 신호가 바뀌면 자기 자리에 이웃 알림을 한 번 더 낸다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -10,6 +11,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.BaseRailBlock")
 public abstract class BaseRailBlock extends BlockBehavior {
 
     static final Prop SHAPE = B.prop("shape");

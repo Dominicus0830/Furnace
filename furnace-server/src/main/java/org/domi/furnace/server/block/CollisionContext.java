@@ -5,6 +5,7 @@
 // 다른 스레드에서 쓸 문맥(포털 출구 자리 찾기)은 snapshot() 으로 엔티티에서 늦게 읽던 값(가루눈: 낙하 거리·걸을 수 있음)까지 미리 떠 둔다.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.types.PowderSnowBlock;
 import org.domi.furnace.server.entity.Entity;
 import org.domi.furnace.server.entity.FallingBlockEntity;
@@ -12,6 +13,10 @@ import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.entity.Rider;
 
+@VanillaPort({
+    "net.minecraft.world.phys.shapes.CollisionContext",
+    "net.minecraft.world.phys.shapes.EntityCollisionContext"
+})
 public final class CollisionContext {
 
     /** CollisionContext.empty(): 엔티티 없음. isAbove(…, d) = d, 웅크림 아님, 유체 위에 서지 못함, 발 높이 -Double.MAX_VALUE. */

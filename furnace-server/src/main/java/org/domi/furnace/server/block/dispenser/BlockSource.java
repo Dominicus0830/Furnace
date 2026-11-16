@@ -1,6 +1,7 @@
 // 바닐라 BlockSource(level, pos, state, blockEntity): 발사기 동작이 받는 발사 원천. slot 은 지금 쏘는 칸(불변 스택이라 남은 것 넣기 전에 칸을 먼저 갱신한다).
 package org.domi.furnace.server.block.dispenser;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.entity.DispenserBlockEntity;
 
+@VanillaPort("net.minecraft.core.dispenser.BlockSource")
 public record BlockSource(BlockLevel level, Pos pos, int state, DispenserBlockEntity blockEntity, int slot) {
 
     private static final Prop FACING = B.prop("facing");

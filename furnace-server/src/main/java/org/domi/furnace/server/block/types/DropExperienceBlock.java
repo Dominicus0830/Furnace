@@ -2,8 +2,10 @@
 package org.domi.furnace.server.block.types;
 
 import com.google.gson.JsonElement;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.Blocks;
 
+@VanillaPort("net.minecraft.world.level.block.DropExperienceBlock")
 public class DropExperienceBlock extends org.domi.furnace.server.block.BlockBehavior {
 
     /** IntProvider(상수 또는 uniform min..max) — 경험치. */

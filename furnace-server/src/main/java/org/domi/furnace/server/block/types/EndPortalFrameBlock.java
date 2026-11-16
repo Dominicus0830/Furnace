@@ -1,6 +1,7 @@
 // 바닐라 EndPortalFrameBlock: 엔드 차원문 틀. 바라보는 쪽을 향해 놓이고, 엔더의 눈이 끼면 비교기 신호 15.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -9,6 +10,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.EndPortalFrameBlock")
 public class EndPortalFrameBlock extends BlockBehavior {
 
     static final Prop FACING = B.prop("facing"), EYE = B.prop("eye");

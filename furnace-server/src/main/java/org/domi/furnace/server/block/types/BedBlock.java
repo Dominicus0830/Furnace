@@ -1,6 +1,7 @@
 // 바닐라 BedBlock: 두 칸 침대(발·머리). 쓰면 잠자기·스폰 지점(오버월드), 잠잘 수 없는 차원이면 두 칸을 지우고 터진다(불, 5.0).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -12,6 +13,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.BedBlock")
 public class BedBlock extends HorizontalDirectionalBlock {
 
     static final Prop PART = B.prop("part"), OCCUPIED = B.prop("occupied");

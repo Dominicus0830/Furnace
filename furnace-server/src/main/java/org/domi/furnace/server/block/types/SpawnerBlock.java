@@ -1,10 +1,12 @@
 // 바닐라 SpawnerBlock: 몬스터 생성기. 생성은 블록 엔티티(SpawnerBlockEntity). 부수면 경험치 15 + nextInt(15) + nextInt(15).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.SpawnerBlock")
 public class SpawnerBlock extends BaseEntityBlock {
 
     public SpawnerBlock(int block) { super(block); }

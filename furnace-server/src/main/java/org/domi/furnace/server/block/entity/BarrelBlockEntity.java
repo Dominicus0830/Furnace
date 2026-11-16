@@ -1,11 +1,13 @@
 // 바닐라 Barrel: 27칸 용기.
 package org.domi.furnace.server.block.entity;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.entity.BarrelBlockEntity")
 public class BarrelBlockEntity extends ContainerBlockEntity {
 
     public BarrelBlockEntity(Pos pos, int state) { super("minecraft:barrel", pos, state, 27); }

@@ -2,6 +2,7 @@
 // 연기 입자(clientTick)는 클라이언트 몫이라 서버에는 없다.
 package org.domi.furnace.server.block.entity;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -11,6 +12,7 @@ import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.recipe.RecipeManager;
 
+@VanillaPort("net.minecraft.world.level.block.entity.CampfireBlockEntity")
 public class CampfireBlockEntity extends ContainerBlockEntity {
 
     private static final Prop LIT = B.prop("lit");
