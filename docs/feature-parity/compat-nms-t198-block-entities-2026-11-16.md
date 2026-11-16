@@ -1,0 +1,48 @@
+# T-198 NMS 블록 엔티티 쓰기 (2026-11-16)
+
+앞 단계: N2b-6(`compat-nms-n2b6-2026-11-16.md` 5장 2), 거울 일지 N2b-4(`compat-nms-n2b4-2026-11-15.md`). 과제 정의: `docs/roadmap/optimization-tasks.md` T-198.
+
+## 1. 무엇이 문제였나
+
+FAWE 2.16.2 는 블록 엔티티가 든 섹션을 바꿀 때 아래 순서로 NMS 를 부른다(`PaperweightGetBlocks.internalCall`, `PaperweightPlatformAdapter.removeBeacon`, `NativeAccess.updateTileEntity`).
+
+| 단계 | 스레드 | 부르는 것 |
+|---|---|---|
+| 지울 타일 기록(`//set`·`//paste` 가 덮는 칸) | FAWE 작업 스레드 | `LevelChunk#getBlockEntity(pos)` → `removeBlockEntity(pos)` → 지운 타일의 `saveWithId`(되돌리기 기록) |
+| 신호기 | 작업 스레드 | `blockEntities.remove(pos)`, 리플렉션 `removeGameEventListener`·`removeBlockEntityTicker`, `remove` 필드 |
+| 섹션 바꾸기 | 작업 스레드 | 섹션 CAS(N2b-4 거울) |
+| 새 타일 싣기 | 동기 작업(주 스레드 = Furnace 전역 스레드의 region 빌림) | `Level#getBlockEntity(pos)`(바닐라 IMMEDIATE — 없으면 만든다), 없거나 지워졌으면 `removeBlockEntity`, `loadWithComponents(tag, registryAccess)` |
+| 신호기 끄기 | 동기 작업 | `BeaconBlockEntity.playSound(level, pos, BEACON_DEACTIVATE)`, `new BeaconDeactivatedEvent(CraftBlock.at(level, pos)).callEvent()` |
+
+이 가운데 쓰기 쪽(지우기·만들기·싣기·setChanged)이 하나도 없어 그 청크 편집이 통째로 실패했다. 또 서버의 `getBlockEntity` 는 블록 엔티티가 빠진 칸에 새로 만들지 않았다(바닐라는 만든다).
+
+## 2. 한 것
+
+### 서버
+- `ChunkLevel#getBlockEntity` = 바닐라 `Level#getBlockEntity`(IMMEDIATE): 그 칸 블록이 블록 엔티티를 가지는 종류인데 없으면 `createBlockEntity` 로 만들어 등록한다. 아직 해석하지 않은 생성 NBT(서버 틀이 없는 종류)가 있는 칸은 덮지 않는다(바닐라는 pendingBlockEntities 를 먼저 쓴다). `getBlockEntityIfPresent` = CHECK.
+- `ChunkInternals` 다리 7개: `blockEntityNow`(CHECK/IMMEDIATE), `removeBlockEntityNow`, `blockEntityRemoved`, `blockEntitySaveNow`, `blockEntityLoadNow`, `blockEntityChangedNow`(저장 표시 + 공기가 아니면 비교기 알림 — 바닐라 정적 setChanged), `normalizeBlockEntityNbt`(떨어진 블록 엔티티가 서버처럼 읽고 다시 쓴 꼴). 생성 NBT 는 같은 열·같은 칸이면 같은 손잡이(`GeneratedBlockEntityRef`).
+
+### 호환 shim
+- `BlockEntity` 두 갈래: **월드의 보기**(서버 블록 엔티티 객체 하나에 묶임, 같은 청크 shim·같은 칸·같은 서버 객체면 같은 보기 — 바닐라는 그 객체 자체)와 **떨어진 것**(플러그인이 만든 것, 자기 NBT 를 든다). 지워진 보기도 그 객체의 마지막 내용을 저장한다(FAWE 되돌리기 기록).
+- `LevelChunk#getBlockEntity(pos, EntityCreationType)`·`removeBlockEntity`·`blockEntities`(읽기·`remove` 되는 표, `put` 은 아직 없음 → `UnsupportedNmsCall`)·private `removeGameEventListener`·`removeBlockEntityTicker`(떨어진 것이면 할 일 없음 — `remove` 가 이미 뗐다).
+- `Level#getBlockEntity`(주인 스레드 IMMEDIATE, 아니면 null — Paper 가 틱 스레드 밖에서 null 인 것과 같다), `Level#removeBlockEntity`, `Level#playSound(null, pos, …)`.
+- 다른 스레드의 쓰기는 **거울 일지**(N2b-4)에 넣고 주인이 맞춤 지점에서 재생한다: `BE_REMOVE`·`BE_CREATE`·`BE_LOAD`·`BE_CHANGED`. 쓴 스레드는 자기 쓰기를 바로 본다(블록 엔티티 덧칠). 블록이 아직 들어오지 않아 만들 수 없는 `BE_CREATE` 는 그 맞춤의 섹션 들여오기 뒤로 미루고, 같은 칸의 뒤 작업도 함께 미룬다(FAWE: 섹션 CAS 직후 IMMEDIATE).
+- 다른 스레드의 저장(`saveWithId`)은 주인 region 에 넘겨 최대 10초 기다린다. region·전역 스레드는 기다리지 않고 `ThreadOwnershipException`(교착 규칙 — PR #382 R1).
+- `BeaconBlockEntity.playSound`(생성기 `tools/compat/gen-nms-block-entities.py`), Paper `BeaconDeactivatedEvent`, `CraftBlock.at`, `CraftBlockEntityState#getTileEntity`, `ClientboundBlockEntityDataPacket` 공개 생성자·`create(BlockEntity, BiFunction)`.
+
+## 3. 시험
+
+- 새 `NmsBlockEntityWriteTest`(호환, 실서버): 주인 보기 = 서버 객체·지운 뒤 마지막 내용·IMMEDIATE 다시 만들기, 다른 스레드 `Level#getBlockEntity` null, setChanged(주인·다른 스레드), **`//set` 순서**(작업 스레드 지우기 → 저장에 내용물), **`//paste` 순서**(섹션 CAS → 동기 작업 IMMEDIATE + 싣기 → 서버 상자에 내용물), 다른 스레드 IMMEDIATE 가 블록 들여오기를 기다림, 스포너 `//set`·`//paste`, 신호기 지우기 길 전체, 떨어진 블록 엔티티·패킷.
+- 새 `BlockEntityImmediateTest`(서버): 빠진 블록 엔티티 다시 만들기, 블록 엔티티 없는 블록, 생성 NBT 를 덮지 않음.
+- 바꾼 시험: `NmsLiveBlockEntityTest`(옛 `furnaceInWorld` → `Level#getBlockEntity`·청크 `getBlockEntity`).
+
+## 4. 성능
+
+바뀐 서버 경로는 `getBlockEntity` 가 빈 칸에서 그 칸 블록을 한 번 더 읽고 "블록 엔티티 종류인가" 표를 보는 것뿐이다(바닐라도 같은 일을 한다). 클라우드에서 임시 측정(시험 레벨, 흙·공기 칸 4,096개 × 2,000번, 7판, 측정 코드는 커밋하지 않음): 빈 칸 한 번에 옛 CHECK 24~38 ns, 새 IMMEDIATE 25~35 ns — 판마다 +1~6 ns. 블록 엔티티가 있는 칸은 그대로다. 호환 쪽은 새 길(블록 엔티티 쓰기)만 더했고 기존 블록 읽기·쓰기 길은 바꾸지 않았다(거울 맞춤의 추가 비용은 블록 엔티티 덧칠이 있을 때만).
+
+## 5. 남은 것·가정
+
+1. **수용 조건 실측은 아직** — "상자·스포너가 있는 곳 `//set`, 상자 `//copy`·`//paste`(내용물 포함)가 Paper 와 같은 region 결과"는 FAWE 실제 jar 로 데스크탑에서 잰다(N2b-6 시나리오에 블록 엔티티 장면 추가). 이 PR 의 시험은 FAWE 가 부르는 순서를 그대로 흉내 낸 것이다.
+2. `blockEntities.put`·`setBlockEntity`(블록 엔티티 객체를 청크에 바로 넣기)는 없다 — FAWE 2.16.2 는 부르지 않는다. 부르면 `UnsupportedNmsCall` 로 알린다.
+3. 가정: 다른 스레드가 읽는 블록 엔티티 목록은 주인이 틱 끝에 낸 공개 판 + 자기 쓰기(N2b-3 과 같은 규칙). 주인이 같은 틱에 놓은 블록 엔티티는 다음 틱부터 보인다.
+4. 종류별 필드·메서드(컨테이너 `getItem` 등)는 여전히 없다 — 내용은 NBT 로만 오간다.

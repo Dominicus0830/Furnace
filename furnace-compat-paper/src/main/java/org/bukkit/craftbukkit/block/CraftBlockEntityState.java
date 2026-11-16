@@ -25,6 +25,20 @@ public abstract class CraftBlockEntityState extends org.domi.furnace.compat.pape
         this.snapshot = n;
     }
 
+    /**
+     * Paper getTileEntity: 이 상태의 블록 엔티티 스냅숏(레벨에 놓이지 않은 NMS 블록 엔티티 — 종류는 이 상태의 블록, 내용은 지금 사본을 바닐라처럼 실은 것).
+     * 부를 때마다 새 객체이고 고쳐도 이 상태·월드에 닿지 않는다(Paper 는 상태가 쥔 스냅숏 객체 자체 — 고치면 update 때 실린다). 블록 엔티티를 만들지 않는
+     * 블록이면 null(T-198 — FAWE 는 종류만 읽는다).
+     */
+    public net.minecraft.world.level.block.entity.BlockEntity getTileEntity() {
+        var state = ((org.bukkit.craftbukkit.block.data.CraftBlockData) getBlockData()).getState();
+        var pos = position();
+        if (!(state.getBlock() instanceof net.minecraft.world.level.block.EntityBlock eb)) return null;
+        var be = eb.newBlockEntity(new net.minecraft.core.BlockPos(pos.x(), pos.y(), pos.z()), state);
+        if (be != null) be.loadWithComponents((net.minecraft.nbt.CompoundTag) net.minecraft.nbt.NbtBridge.fromFurnace(getSnapshotNBT()), null);
+        return be;
+    }
+
     /** 블록 엔티티 NBT 사본(바꾸면 update 때 싣는다). */
     protected final NbtCompound snapshotNbt() { return snapshot; }
 

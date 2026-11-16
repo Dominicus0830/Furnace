@@ -141,13 +141,209 @@ public abstract class ChunkAccess implements BlockGetter {
      * (바닐라는 두 맵의 키를 합친 새 집합).
      */
     public java.util.Set<BlockPos> getBlockEntitiesPos() {
-        var v = furnaceForeignView("ChunkAccess#getBlockEntitiesPos");
-        if (v == null) furnaceMirror.ownerSyncIfDirty();
-        long[] packed = v != null ? v.blockEntityPositions() : NmsChunks.bridge().blockEntityPositionsNow(furnaceWorld, pos.x, pos.z);
-        if (packed == null) throw notLoaded("ChunkAccess#getBlockEntitiesPos");
-        java.util.Set<BlockPos> out = new java.util.HashSet<>(packed.length * 2);
-        for (long p : packed) out.add(BlockPos.of(p));
+        java.util.Set<BlockPos> out = new java.util.HashSet<>();
+        for (long p : furnaceBlockEntityPositions("ChunkAccess#getBlockEntitiesPos")) out.add(BlockPos.of(p));
         return out;
+    }
+
+    // ------------------------------------------------------------------ 블록 엔티티(T-198)
+
+    /**
+     * 블록 엔티티 보기의 정체성 표: 칸 → 보기. 같은 칸·같은 서버 블록 엔티티면 같은 보기를 준다(바닐라: 청크 블록 엔티티 표의 그 객체). 지워졌거나 다른 서버
+     * 객체로 갈린 보기는 다음 찾기 때 새 보기로 바뀐다.
+     */
+    private final java.util.concurrent.ConcurrentHashMap<Long, net.minecraft.world.level.block.entity.BlockEntity> furnaceBlockEntityViews =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    /** 다른 스레드: 공개 판 하나의 블록 엔티티 칸 집합({판, 집합}). */
+    private volatile Object[] furnaceBlockEntityPositionCache;
+
+    /** 블록 엔티티가 있는 칸(BlockPos.asLong). 주인은 살아 있는 값, 다른 스레드는 공개 판 + 자기 블록 엔티티 쓰기 덧칠. */
+    private java.util.Set<Long> furnaceBlockEntityPositions(String what) {
+        var v = furnaceForeignView(what);
+        if (v == null) {
+            furnaceMirror.ownerSyncIfDirty();
+            long[] packed = NmsChunks.bridge().blockEntityPositionsNow(furnaceWorld, pos.x, pos.z);
+            if (packed == null) throw notLoaded(what);
+            java.util.Set<Long> out = new java.util.HashSet<>(packed.length * 2);
+            for (long p : packed) out.add(p);
+            return out;
+        }
+        java.util.Set<Long> base = furnacePublishedPositions(v);
+        var over = furnaceMirror.blockEntityOverlay();
+        if (over.isEmpty()) return new java.util.HashSet<>(base);
+        java.util.Set<Long> out = new java.util.HashSet<>(base);
+        for (var e : over.entrySet()) {
+            if (e.getValue() == FurnaceChunkMirror.BE_REMOVED) out.remove(e.getKey());
+            else out.add(e.getKey());
+        }
+        return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    private java.util.Set<Long> furnacePublishedPositions(ChunkInternals.ChunkView v) {
+        Object[] c = furnaceBlockEntityPositionCache;
+        if (c != null && c[0] == v) return (java.util.Set<Long>) c[1];
+        long[] packed = v.blockEntityPositions();
+        java.util.Set<Long> s = new java.util.HashSet<>(packed.length * 2);
+        for (long p : packed) s.add(p);
+        furnaceBlockEntityPositionCache = new Object[] {v, s};
+        return s;
+    }
+
+    /** 바닐라 BlockGetter/ChunkAccess getBlockEntity(pos): 그 칸의 블록 엔티티(만들지 않는다 — LevelChunk 의 CHECK 와 같다), 없으면 null. */
+    public net.minecraft.world.level.block.entity.BlockEntity getBlockEntity(BlockPos pos) { return furnaceBlockEntity(pos, false); }
+
+    /**
+     * 호환 모듈 전용 — 바닐라 LevelChunk.getBlockEntity(pos, 종류): 그 칸의 블록 엔티티 보기. create(IMMEDIATE)면 없고 그 칸 블록이 블록 엔티티를 가지는
+     * 종류일 때 만든다(주인은 바로, 다른 스레드는 보기를 먼저 주고 주인이 만들어 묶는다 — 거울 일지). 주인은 살아 있는 값, 다른 스레드는 공개 판 + 자기 쓰기.
+     */
+    public net.minecraft.world.level.block.entity.BlockEntity furnaceBlockEntity(BlockPos at, boolean create) {
+        int x = at.getX(), y = at.getY(), z = at.getZ();
+        if (isOutsideBuildHeight(y) || (x >> 4) != pos.x || (z >> 4) != pos.z) return null;   // 바닐라: 이 청크의 표에 없는 칸
+        long k = BlockPos.asLong(x, y, z);
+        var v = furnaceForeignView("LevelChunk#getBlockEntity");
+        if (v == null) {
+            furnaceMirror.ownerSync(slotOf(y));
+            Object h = NmsChunks.bridge().blockEntityNow(furnaceWorld, x, y, z, create);
+            if (h == null) return null;
+            var cur = furnaceBlockEntityViews.get(k);
+            if (cur != null && java.util.Objects.equals(cur.furnaceHandle(), h)) return cur;
+            if (cur != null && cur.furnaceHandle() == null && !cur.isRemoved()) {   // 다른 스레드가 만든 보기 — 처음 보는 주인이 묶는다
+                cur.furnaceBind(h);
+                if (java.util.Objects.equals(cur.furnaceHandle(), h)) return cur;
+            }
+            var nv = net.minecraft.world.level.block.entity.BlockEntity.furnaceView(this, at.immutable(), getBlockState(at), h);
+            if (nv != null) furnaceBlockEntityViews.put(k, nv);
+            return nv;
+        }
+        Object o = furnaceMirror.blockEntityOverlayAt(k);
+        if (o instanceof net.minecraft.world.level.block.entity.BlockEntity be) return be;
+        if (o == null && furnacePublishedPositions(v).contains(k)) {
+            var cur = furnaceBlockEntityViews.get(k);
+            if (cur != null && !cur.isRemoved()) return cur;
+            var nv = net.minecraft.world.level.block.entity.BlockEntity.furnaceView(this, at.immutable(), getBlockState(at), null);
+            if (nv == null) return null;
+            return furnaceBlockEntityViews.compute(k, (kk, old) -> old != null && !old.isRemoved() ? old : nv);
+        }
+        if (!create) return null;
+        // 바닐라 IMMEDIATE: 이 스레드가 보는 블록(플러그인이 넣은 섹션 포함)이 블록 엔티티를 가지는 종류면 만든다
+        var nv = net.minecraft.world.level.block.entity.BlockEntity.furnaceView(this, at.immutable(), getBlockState(at), null);
+        if (nv == null || !furnaceMirror.blockEntityCreate(x, y, z, nv)) return null;
+        furnaceBlockEntityViews.put(k, nv);
+        return nv;
+    }
+
+    /**
+     * 호환 모듈 전용 — 바닐라 LevelChunk.removeBlockEntity: 그 칸의 블록 엔티티를 청크에서 떼고 지움 표시(블록은 그대로). 뗀 보기(없으면 null — 다른 스레드는
+     * 그 스레드가 보는 판 기준). 다른 스레드는 거울 일지로 주인이 지우고, 그 사이 이 스레드의 찾기는 없는 것으로 본다. 내린 청크는 아무것도 하지 않는다.
+     */
+    public net.minecraft.world.level.block.entity.BlockEntity furnaceRemoveBlockEntity(BlockPos at) {
+        int x = at.getX(), y = at.getY(), z = at.getZ();
+        if (isOutsideBuildHeight(y) || (x >> 4) != pos.x || (z >> 4) != pos.z || furnaceMirror.dead()) return null;
+        long k = BlockPos.asLong(x, y, z);
+        var cur = furnaceBlockEntity(at, false);   // 주인은 맞춘 뒤 묶인 보기, 다른 스레드는 그 스레드의 판
+        if (furnaceOwner()) NmsChunks.bridge().removeBlockEntityNow(furnaceWorld, x, y, z);
+        else furnaceMirror.blockEntityRemove(x, y, z, cur);
+        if (cur != null) {
+            cur.setRemoved();
+            furnaceBlockEntityViews.remove(k, cur);
+        }
+        return cur;
+    }
+
+    /** 호환 모듈 전용 — 이 청크의 블록 엔티티 표(칸 → 보기, 새 표 — 고쳐도 청크에 닿지 않는다). */
+    public java.util.Map<BlockPos, net.minecraft.world.level.block.entity.BlockEntity> furnaceBlockEntities() {
+        java.util.Map<BlockPos, net.minecraft.world.level.block.entity.BlockEntity> out = new java.util.HashMap<>();
+        for (long p : furnaceBlockEntityPositions("LevelChunk#getBlockEntities")) {
+            BlockPos bp = BlockPos.of(p);
+            var be = furnaceBlockEntity(bp, false);
+            if (be != null) out.put(bp, be);
+        }
+        return out;
+    }
+
+    /**
+     * 호환 모듈 전용(거울·주인 스레드): 보기가 아직 묶이지 않았으면 그 칸의 지금 서버 블록 엔티티에 묶는다. 묶인 손잡이(없으면 null).
+     */
+    public static Object furnaceBindNow(World world, net.minecraft.world.level.block.entity.BlockEntity view) {
+        Object h = view.furnaceHandle();
+        if (h != null) return h;
+        var p = view.getBlockPos();
+        h = NmsChunks.bridge().blockEntityNow(world, p.getX(), p.getY(), p.getZ(), false);
+        if (h != null) view.furnaceBind(h);
+        return view.furnaceHandle();
+    }
+
+    /** 보기를 기다려 읽을 때의 상한(초) — 다른 region 의 주인이 그 블록 엔티티를 저장해 줄 때까지. */
+    private static final long BLOCK_ENTITY_WAIT_SECONDS = 10;
+
+    /**
+     * 호환 모듈 전용 — 보기의 저장 꼴(saveWithFullMetadata, 새 트리). 주인 스레드면 바로(맞춘 뒤), 틱 스레드가 아닌 다른 스레드는 주인 region 에 부탁해 기다린다
+     * (최대 10초). 다른 region·전역 스레드는 서로 기다리는 교착을 피하려고 ThreadOwnershipException(엔티티 찾기와 같은 규칙). 묶인 블록 엔티티가 지워졌으면
+     * 그 마지막 내용, 그 칸에 블록 엔티티가 없으면 IllegalStateException.
+     */
+    public org.domi.furnace.api.nbt.NbtCompound furnaceBlockEntitySave(net.minecraft.world.level.block.entity.BlockEntity view) {
+        var b = NmsChunks.bridge();
+        var p = view.getBlockPos();
+        if (furnaceMirror.dead()) {   // 내린 청크: 묶인 객체는 월드에서 떨어졌다 — 그 내용 그대로
+            Object h = view.furnaceHandle();
+            if (h == null) throw new IllegalStateException("the chunk of this block entity was unloaded: " + p);
+            return b.blockEntitySaveNow(h);
+        }
+        if (furnaceOwner()) return furnaceSaveOwned(view);
+        if (org.domi.furnace.compat.thread.PrimaryThread.isPrimary() || org.domi.furnace.api.Furnace.server().scheduler().isTickThread()) {
+            throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("BlockEntity.save*: the block entity at " + p + " belongs to another region - a region or global"
+                    + " thread cannot wait for another region (deadlock); read it on its owning region (current thread: " + Thread.currentThread().getName() + ")");
+        }
+        var f = furnaceWorld.scheduler(new org.domi.furnace.api.world.BlockPos(p.getX(), p.getY(), p.getZ())).submit(() -> {
+            if (furnaceMirror.dead() || !furnaceOwner()) {
+                Object h = view.furnaceHandle();
+                if (h == null) throw new IllegalStateException("the chunk of this block entity was unloaded: " + p);
+                return b.blockEntitySaveNow(h);
+            }
+            return furnaceSaveOwned(view);
+        });
+        try {
+            return f.get(BLOCK_ENTITY_WAIT_SECONDS, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("BlockEntity.save*", "interrupted while waiting for a block entity in another region: " + p);
+        } catch (java.util.concurrent.ExecutionException ex) {
+            if (ex.getCause() instanceof RuntimeException re) throw re;
+            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("BlockEntity.save*", "could not read the block entity on the owning region thread (" + p + "): " + ex.getCause());
+        } catch (java.util.concurrent.TimeoutException ex) {
+            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("BlockEntity.save*", "the owning region did not read the block entity within " + BLOCK_ENTITY_WAIT_SECONDS + " seconds (" + p + ")");
+        }
+    }
+
+    private org.domi.furnace.api.nbt.NbtCompound furnaceSaveOwned(net.minecraft.world.level.block.entity.BlockEntity view) {
+        furnaceMirror.ownerSyncIfDirty();   // 이 스레드·다른 스레드의 앞선 블록 엔티티 일지(지우기·싣기)를 먼저
+        Object h = furnaceBindNow(furnaceWorld, view);
+        if (h == null) throw new IllegalStateException("no block entity at that position (removed, or its chunk was unloaded): " + view.getBlockPos());
+        return NmsChunks.bridge().blockEntitySaveNow(h);
+    }
+
+    /** 호환 모듈 전용 — 보기에 tag 를 싣는다(바닐라 loadWithComponents). 주인은 바로, 다른 스레드는 거울 일지. 내린 청크는 월드에 닿지 않는다. */
+    public void furnaceBlockEntityLoad(net.minecraft.world.level.block.entity.BlockEntity view, org.domi.furnace.api.nbt.NbtCompound tag) {
+        if (furnaceMirror.dead()) return;
+        if (!furnaceOwner()) {
+            furnaceMirror.blockEntityLoad(view, tag.copy());
+            return;
+        }
+        furnaceMirror.ownerSyncIfDirty();
+        Object h = furnaceBindNow(furnaceWorld, view);
+        if (h != null) NmsChunks.bridge().blockEntityLoadNow(furnaceWorld, h, tag);
+    }
+
+    /** 호환 모듈 전용 — 바닐라 정적 BlockEntity.setChanged(level, pos, state) 의 이 청크 부분. 주인은 바로, 다른 스레드는 거울 일지. */
+    public void furnaceBlockEntityChanged(BlockPos at) {
+        if (furnaceMirror.dead()) return;
+        if (!furnaceOwner()) {
+            furnaceMirror.blockEntityChanged(at.getX(), at.getY(), at.getZ());
+            return;
+        }
+        furnaceMirror.ownerSyncIfDirty();
+        NmsChunks.bridge().blockEntityChangedNow(furnaceWorld, at.getX(), at.getY(), at.getZ());
     }
 
     // ------------------------------------------------------------------ 서버 다리(호환 모듈 전용)

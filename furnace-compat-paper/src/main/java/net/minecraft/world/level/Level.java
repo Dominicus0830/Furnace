@@ -129,6 +129,46 @@ public abstract class Level implements LevelAccessor {
         return getChunk(x >> 4, z >> 4).getHeight(type, x & 15, z & 15) + 1;
     }
 
+    // ------------------------------------------------------------------ 블록 엔티티(T-198)
+
+    /**
+     * Paper Level#getBlockEntity(pos): 그 칸의 블록 엔티티 보기 — 없고 블록이 블록 엔티티를 가지는 종류면 만든다(바닐라 IMMEDIATE). 높이 밖이면 null.
+     * Paper 는 틱 스레드가 아니면 null 을 준다 — Furnace 는 그 칸의 주인 region 스레드(이벤트 처리기·entityScheduler·Bukkit 동기 작업의 빌림 구간)가 아니면 null.
+     * 로드돼 있지 않은 청크는 Paper 처럼 불러오지 않고 null.
+     */
+    public net.minecraft.world.level.block.entity.BlockEntity getBlockEntity(BlockPos pos) {
+        if (isOutsideBuildHeight(pos)) return null;
+        int cx = pos.getX() >> 4, cz = pos.getZ() >> 4;
+        if (!hasChunk(cx, cz) || !NmsChunks.bridge().ownsChunk(furnace(), cx, cz)) return null;
+        return getChunk(cx, cz).getBlockEntity(pos, LevelChunk.EntityCreationType.IMMEDIATE);
+    }
+
+    /** 바닐라 Level#removeBlockEntity: 그 칸 청크의 removeBlockEntity(높이 밖은 아무것도 안 함). 주인이 아닌 스레드는 거울 일지(LevelChunk 참고). */
+    public void removeBlockEntity(BlockPos pos) {
+        if (isOutsideBuildHeight(pos)) return;
+        getChunkAt(pos).removeBlockEntity(pos);
+    }
+
+    /**
+     * 호환 모듈 전용 — 바닐라 Level#blockEntityChanged + 정적 BlockEntity.setChanged 의 나머지(그 칸 블록이 공기가 아니면 updateNeighbourForOutputSignal).
+     * 청크가 로드돼 있지 않으면 아무것도 하지 않는다. 주인이 아닌 스레드는 그 청크의 거울 일지로.
+     */
+    public void furnaceBlockEntityChanged(BlockPos pos) {
+        LevelChunk c = getChunkIfLoaded(pos.getX() >> 4, pos.getZ() >> 4);
+        if (c != null) c.furnaceBlockEntityChanged(pos);
+    }
+
+    /**
+     * 바닐라 Level#playSound(제외할 플레이어, 칸, 소리, 분류, 크기, 높이): 칸 가운데(+0.5)에서 그 소리 — 근처 플레이어가 듣는다(바닐라 ServerLevel 처럼 난수 씨앗은
+     * 스레드 안전 난수). 특정 플레이어를 빼는 것(except 가 null 이 아님)은 아직 없다(UnsupportedNmsCall).
+     */
+    public void playSound(net.minecraft.world.entity.player.Player except, BlockPos pos, net.minecraft.sounds.SoundEvent sound,
+                          net.minecraft.sounds.SoundSource source, float volume, float pitch) {
+        if (except != null) throw new UnsupportedNmsCall("Level#playSound(except a player)", "playing a sound to everyone except one player does not exist yet");
+        world.playSound(new org.bukkit.Location(world, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5), sound.getLocation().toString(),
+                org.bukkit.SoundCategory.valueOf(source.name()), volume, pitch, java.util.concurrent.ThreadLocalRandom.current().nextLong());
+    }
+
     // ------------------------------------------------------------------ 블록 쓰기(N1)
 
     /** 바닐라 Block.UPDATE_MOVE_BY_PISTON. */

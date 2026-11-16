@@ -6,15 +6,20 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtBridge;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.ChunkAccess;
 import org.domi.furnace.api.nbt.NbtCompound;
 import org.domi.furnace.compat.nms.NmsBlockStates;
-import org.domi.furnace.compat.nms.UnsupportedNmsCall;
+import org.domi.furnace.compat.nms.NmsChunks;
 
 /**
- * 블록 엔티티(Mojang 이름 shim, N2b-6). 두 가지로 쓴다.
+ * 블록 엔티티(Mojang 이름 shim, N2b-6·T-198). 두 가지가 있다.
  * <ul>
- * <li>레벨 없이({@code level == null}, {@code EntityBlock.newBlockEntity}) - 저장하면 갓 만든 바닐라 블록 엔티티와 같은 NBT(서버가 같은 종류를 만들어 저장한 것).</li>
- * <li>월드의 살아 있는 블록 엔티티 보기({@link #furnaceInWorld}) - 저장하면 서버의 지금 블록 엔티티 NBT.</li>
+ * <li><b>떨어진</b> 블록 엔티티 — 플러그인이 만든 것({@code EntityBlock.newBlockEntity}·생성자). 자기 내용을 스스로 든다: 처음엔 그 상태의 갓 만든 바닐라
+ *     블록 엔티티와 같은 NBT, {@link #loadWithComponents} 하면 서버가 바닐라처럼 읽고 다시 쓴 꼴. {@link #setLevel} 해도 월드의 것이 되지 않는다(바닐라 그대로).</li>
+ * <li><b>월드의</b> 블록 엔티티 보기 — 청크 shim 이 준 것({@code LevelChunk#getBlockEntity}·{@code getBlockEntities}·{@code Level#getBlockEntity}).
+ *     서버 블록 엔티티 객체 하나에 묶이고(바닐라: 그 객체 자체), 같은 청크 shim 에서는 같은 칸·같은 서버 객체면 같은 보기다. 저장·싣기·setChanged 는 그 칸의
+ *     주인 region 스레드에서 서버 객체에 하고, 다른 스레드의 싣기·setChanged 는 거울 일지로 주인이 재생한다(N2b-4). 지워진 뒤에도 그 객체의 마지막 내용을 저장한다
+ *     (FAWE 가 지운 상자를 되돌리기 기록에 남긴다).</li>
  * </ul>
  * 종류별 필드·메서드(컨테이너·틱·컴포넌트 등)는 두지 않았다.
  */
@@ -23,8 +28,17 @@ public abstract class BlockEntity {
     private final BlockEntityType<?> type;
     protected Level level;
     protected final BlockPos worldPosition;
+    /** 바닐라 필드(지움 표시) — FAWE 는 리플렉션으로 직접 세운다. */
     protected boolean remove;
     private BlockState blockState;
+
+    // ---- 월드의 보기(T-198)
+    /** 이 보기를 준 청크 shim(떨어진 블록 엔티티는 null). */
+    private ChunkAccess furnaceChunk;
+    /** 묶인 서버 블록 엔티티 손잡이(ChunkInternals). 다른 스레드가 만든 보기는 주인이 처음 볼 때 묶는다. */
+    private volatile Object furnaceHandle;
+    /** 떨어진 블록 엔티티의 내용(saveWithoutMetadata 꼴, id 포함). null 이면 그 상태의 갓 만든 모습. */
+    private volatile NbtCompound furnaceData;
 
     public BlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
         this.type = type;
@@ -33,16 +47,27 @@ public abstract class BlockEntity {
     }
 
     /**
-     * 호환 모듈 전용 - 월드의 (stateId 인) 칸에 있는 블록 엔티티의 보기. 이 칸의 블록이 블록 엔티티를 만드는 종류가 아니면 null.
-     * saveWithId 등은 서버의 살아 있는 블록 엔티티를 읽는다: 그 칸을 가진 region 스레드면 바로, 아니면 서버 future 로 기다린다(최대 10초, 넘기면 UnsupportedNmsCall).
-     * 청크 이동·제거는 따라가지 않는다(저장 때 그 칸에 블록 엔티티가 없으면 IllegalStateException).
+     * 호환 모듈 전용 - 청크 shim 의 블록 엔티티 보기(그 상태의 블록이 블록 엔티티를 만들지 않으면 null). handle 이 null 이면 주인이 처음 볼 때 묶는다.
      */
-    public static BlockEntity furnaceInWorld(Level level, BlockPos pos, int stateId) {
-        BlockState state = net.minecraft.world.level.block.Block.stateById(stateId);
+    public static BlockEntity furnaceView(ChunkAccess chunk, BlockPos pos, BlockState state, Object handle) {
         if (state == null || !(state.getBlock() instanceof net.minecraft.world.level.block.EntityBlock eb)) return null;
         BlockEntity be = eb.newBlockEntity(pos, state);
-        if (be != null) be.level = level;
+        if (be == null) return null;
+        be.level = chunk instanceof net.minecraft.world.level.chunk.LevelChunk lc ? lc.getLevel() : null;
+        be.furnaceChunk = chunk;
+        be.furnaceHandle = handle;
         return be;
+    }
+
+    /** 호환 모듈 전용: 월드의 보기인가(청크 shim 이 준 것). */
+    public final boolean furnaceIsView() { return furnaceChunk != null; }
+
+    /** 호환 모듈 전용: 묶인 서버 손잡이(없으면 null). */
+    public final Object furnaceHandle() { return furnaceHandle; }
+
+    /** 호환 모듈 전용(주인 스레드): 아직 묶이지 않았으면 묶는다. */
+    public final void furnaceBind(Object handle) {
+        if (furnaceHandle == null) furnaceHandle = handle;
     }
 
     public Level getLevel() { return level; }
@@ -59,11 +84,44 @@ public abstract class BlockEntity {
 
     public BlockEntityType<?> getType() { return type; }
 
-    public boolean isRemoved() { return remove; }
+    /** 바닐라 isRemoved. 월드의 보기는 묶인 서버 블록 엔티티가 지워졌어도 참(게임이 부순 상자 등). */
+    public boolean isRemoved() {
+        if (remove) return true;
+        Object h = furnaceHandle;
+        return h != null && NmsChunks.bridge().blockEntityRemoved(h);
+    }
 
     public void setRemoved() { remove = true; }
 
     public void clearRemoved() { remove = false; }
+
+    /**
+     * 바닐라 loadWithComponents: 종류별 필드·영속 데이터·컴포넌트를 싣는다(저장 표시·패킷·이웃 알림 없음 — 바닐라 그대로). 월드의 보기는 서버 블록 엔티티에
+     * (다른 스레드면 거울 일지로 주인이 재생), 떨어진 것은 자기 내용에.
+     */
+    public final void loadWithComponents(CompoundTag tag, HolderLookup.Provider registries) {
+        NbtCompound n = (NbtCompound) NbtBridge.toFurnace(tag);
+        if (furnaceChunk != null) {
+            furnaceChunk.furnaceBlockEntityLoad(this, n);
+            return;
+        }
+        NbtCompound out = NmsChunks.bridge().normalizeBlockEntityNbt(blockState.furnaceStateId(), n);
+        if (out == null) throw new IllegalStateException("block state that has no block entity: " + blockState);
+        furnaceData = out;
+    }
+
+    /** 바닐라 setChanged: 레벨이 있으면 {@link #setChanged(Level, BlockPos, BlockState)}. */
+    public void setChanged() {
+        if (level != null) setChanged(level, worldPosition, blockState);
+    }
+
+    /**
+     * 바닐라 정적 setChanged: 그 칸 청크 저장 표시, 블록이 공기가 아니면 비교기 쪽 알림(updateNeighbourForOutputSignal). 그 칸의 주인 스레드면 바로, 다른
+     * 스레드면 거울 일지로 주인이 재생한다. 청크가 로드돼 있지 않으면 아무것도 하지 않는다(바닐라 blockEntityChanged 와 같다).
+     */
+    protected static void setChanged(Level level, BlockPos pos, BlockState state) {
+        level.furnaceBlockEntityChanged(pos);
+    }
 
     /** 바닐라 saveWithoutMetadata: 종류별 필드(+ 남은 컴포넌트)만, id·좌표 없음. */
     public final CompoundTag saveWithoutMetadata(HolderLookup.Provider registries) {
@@ -91,29 +149,14 @@ public abstract class BlockEntity {
         return tag;
     }
 
-    /** 서버에서 읽은 저장 꼴(복사본). 레벨이 없으면 이 상태의 갓 만든 모습, 있으면 살아 있는 블록 엔티티. */
+    /** 저장 꼴(복사본). 월드의 보기는 묶인 서버 블록 엔티티(지워졌으면 그 마지막 내용), 떨어진 것은 자기 내용. */
     private NbtCompound base() {
-        if (level == null) {
-            NbtCompound n = NmsBlockStates.bridge().defaultBlockEntityNbt(blockState.furnaceStateId());
-            if (n == null) throw new IllegalStateException("block state that has no block entity: " + blockState);
-            return n;
-        }
-        var world = level.getWorld().furnaceHandle();
-        var pos = new org.domi.furnace.api.world.BlockPos(worldPosition.getX(), worldPosition.getY(), worldPosition.getZ());
-        java.util.Optional<NbtCompound> nbt;
-        try {
-            nbt = world.blockEntityNbtNow(pos);
-        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException e) {
-            try {
-                nbt = world.blockEntityNbt(pos).get(10, java.util.concurrent.TimeUnit.SECONDS);
-            } catch (InterruptedException ie) {
-                Thread.currentThread().interrupt();
-                throw new UnsupportedNmsCall("BlockEntity.save*", "interrupted while waiting for a block entity in another region: " + pos);
-            } catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException ex) {
-                throw new UnsupportedNmsCall("BlockEntity.save*", "could not read the block entity NBT on the owning region thread (" + pos + "): " + ex);
-            }
-        }
-        return nbt.orElseThrow(() -> new IllegalStateException("no block entity at that position (removed, or its chunk was unloaded): " + pos));
+        if (furnaceChunk != null) return furnaceChunk.furnaceBlockEntitySave(this);
+        NbtCompound d = furnaceData;
+        if (d != null) return d.copy();
+        NbtCompound n = NmsBlockStates.bridge().defaultBlockEntityNbt(blockState.furnaceStateId());
+        if (n == null) throw new IllegalStateException("block state that has no block entity: " + blockState);
+        return n;
     }
 
     @Override

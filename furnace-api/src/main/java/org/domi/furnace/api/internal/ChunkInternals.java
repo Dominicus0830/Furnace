@@ -186,6 +186,45 @@ public interface ChunkInternals {
      */
     ChunkView publishChunkViewNow(World world, int chunkX, int chunkZ);
 
+    // ------------------------------------------------------------------ 블록 엔티티(T-198) — 서버 블록 엔티티 객체를 불투명 손잡이(Object)로 주고받는다
+
+    /**
+     * 주인 스레드: 그 칸의 블록 엔티티 손잡이(바닐라 LevelChunk.getBlockEntity(pos, 종류)). create 면 IMMEDIATE — 없고 블록이 블록 엔티티를 가지는 종류면
+     * 블록이 새로 만들어 청크에 둔다(틱·게임 이벤트 등록 포함, 저장 표시 없음). 아직 해석하지 않은 생성 NBT 만 있는 칸은 그 NBT 의 손잡이를 준다.
+     * 없으면(또는 로드돼 있지 않으면) null.
+     */
+    Object blockEntityNow(World world, int x, int y, int z, boolean create);
+
+    /**
+     * 주인 스레드: 바닐라 LevelChunk.removeBlockEntity — 그 칸의 블록 엔티티(생성 NBT 포함)를 청크에서 떼고 지움 표시, 틱·게임 이벤트에서 뺀다. 블록은 그대로,
+     * 저장 표시 없음. 뗀 손잡이(없으면 null).
+     */
+    Object removeBlockEntityNow(World world, int x, int y, int z);
+
+    /** 손잡이의 블록 엔티티가 지워졌는가(청크에서 떨어졌거나 갈렸다). 아무 스레드(경쟁 읽기 — Paper 의 isRemoved 와 같은 성질). */
+    boolean blockEntityRemoved(Object blockEntity);
+
+    /** 손잡이의 저장 꼴(바닐라 saveWithFullMetadata — id·x·y·z 포함, 새 트리). 살아 있는 것은 그 칸의 주인 스레드에서, 떨어진 것은 아무 스레드. */
+    org.domi.furnace.api.nbt.NbtCompound blockEntitySaveNow(Object blockEntity);
+
+    /**
+     * 주인 스레드: 바닐라 BlockEntity.loadWithComponents(tag) — 종류별 필드·영속 데이터·컴포넌트를 싣는다. 저장 표시·패킷·이웃 알림은 없다(바닐라 그대로 —
+     * 부르는 쪽이 setChanged 등을 고른다). 지워진(떨어진) 블록 엔티티에도 싣는다(그 객체에만 남는다). 싣지 못하면 false.
+     */
+    boolean blockEntityLoadNow(World world, Object blockEntity, org.domi.furnace.api.nbt.NbtCompound tag);
+
+    /**
+     * 주인 스레드: 바닐라 정적 BlockEntity.setChanged(level, pos, state) — 그 청크 저장 표시(로드돼 있을 때), 그 칸 블록이 공기가 아니면 비교기 쪽 알림
+     * (updateNeighbourForOutputSignal). 로드돼 있지 않으면 false.
+     */
+    boolean blockEntityChangedNow(World world, int x, int y, int z);
+
+    /**
+     * 아무 스레드: 레벨에 놓이지 않은 블록 엔티티에 tag 를 실었다가 다시 저장한 꼴(바닐라 loadWithComponents → saveWithoutMetadata, id 포함). 그 상태가
+     * 블록 엔티티를 만들지 않으면 null.
+     */
+    org.domi.furnace.api.nbt.NbtCompound normalizeBlockEntityNbt(int stateId, org.domi.furnace.api.nbt.NbtCompound tag);
+
     /**
      * 청크 shim 의 거울(호환 계층이 만든다, 플러그인이 볼 수 없는 내부 객체). 서버는 그 청크의 주인 region 스레드에서만 부르고, 이 객체의 모니터를 쓰지 않는다.
      */

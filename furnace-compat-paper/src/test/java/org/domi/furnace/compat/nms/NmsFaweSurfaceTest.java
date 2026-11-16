@@ -337,17 +337,24 @@ class NmsFaweSurfaceTest {
     }
 
     @Test
-    void privateBlockEntityHelpersExistWithPaperSignaturesAndFailLikeRemoveBlockEntity() throws Exception {
+    void privateBlockEntityHelpersExistWithPaperSignatures() throws Exception {
         LevelChunk chunk = level.getChunkAt(new BlockPos(at.x(), at.y(), at.z()));
         Method listener = LevelChunk.class.getDeclaredMethod("removeGameEventListener", net.minecraft.world.level.block.entity.BlockEntity.class, ServerLevel.class);
         Method ticker = LevelChunk.class.getDeclaredMethod("removeBlockEntityTicker", BlockPos.class);
         listener.setAccessible(true);
         ticker.setAccessible(true);
+        // 바닐라: null 블록 엔티티는 NPE, 블록 엔티티가 없는 칸(이 청크 밖 포함)의 틱터 떼기·지우기는 할 일이 없다(T-198 — 쓰기 길은 NmsBlockEntityWriteTest)
         var e1 = org.junit.jupiter.api.Assertions.assertThrows(java.lang.reflect.InvocationTargetException.class, () -> listener.invoke(chunk, null, level));
-        assertTrue(e1.getCause() instanceof UnsupportedNmsCall, String.valueOf(e1.getCause()));
-        var e2 = org.junit.jupiter.api.Assertions.assertThrows(java.lang.reflect.InvocationTargetException.class, () -> ticker.invoke(chunk, BlockPos.ZERO));
-        assertTrue(e2.getCause() instanceof UnsupportedNmsCall, String.valueOf(e2.getCause()));
-        assertTrue(org.junit.jupiter.api.Assertions.assertThrows(UnsupportedNmsCall.class, () -> chunk.removeBlockEntity(BlockPos.ZERO)).getMessage().contains("block entit"));
+        assertTrue(e1.getCause() instanceof NullPointerException, String.valueOf(e1.getCause()));
+        server.onRegion(at, () -> {
+            try {
+                ticker.invoke(chunk, BlockPos.ZERO);
+            } catch (ReflectiveOperationException e) {
+                throw new AssertionError(e);
+            }
+            chunk.removeBlockEntity(BlockPos.ZERO);
+            return null;
+        });
     }
 
     @Test
