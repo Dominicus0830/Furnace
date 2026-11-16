@@ -146,6 +146,14 @@ public final class RegionLevel extends ChunkLevel {
     }
 
     @Override
+    public void runAtEntityOwner(double x, double z, java.util.function.Consumer<org.domi.furnace.server.block.ChunkLevel> task) {
+        world.runAt(x, z, region -> {
+            var lvl = region.level();
+            if (lvl != null) task.accept(lvl);
+        });
+    }
+
+    @Override
     public boolean awaitCommand(java.util.function.BooleanSupplier done) { return region.awaitUrgent(done); }
 
     @Override

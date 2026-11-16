@@ -38,19 +38,50 @@ public final class PlayerInventory {
         return s == null ? ItemStack.EMPTY : s;
     }
 
-    public synchronized void set(int windowSlot, ItemStack stack) { slots[windowSlot] = stack == null ? ItemStack.EMPTY : stack; }
+    public synchronized void set(int windowSlot, ItemStack stack) {
+        slots[windowSlot] = stack == null ? ItemStack.EMPTY : stack;
+        stored(windowSlot);
+    }
 
     /** 그 칸이 아직 expect 이면 now 로 바꾼다. */
     public synchronized boolean replace(int windowSlot, ItemStack expect, ItemStack now) {
         if (get(windowSlot) != expect) return false;
         slots[windowSlot] = now == null ? ItemStack.EMPTY : now;
+        stored(windowSlot);
         return true;
+    }
+
+    /**
+     * 칸에 스택이 놓였다 — 이름·UUID 만 있는 머리면 스킨 확인을 시작한다(바닐라 PlayerHeadItem.verifyComponentsAfterLoad, 스택 생성 때 하는 일을 불변 스택이라
+     * 놓이는 칸에서 한다). 조회는 조회 풀에서 돌고 칸 갱신도 거기서 {@link #updateSlots} 으로 들어오므로 이 잠금 안에서 부르는 것이 안전하다.
+     */
+    private void stored(int windowSlot) {
+        ItemStack s = slots[windowSlot];
+        if (!org.domi.furnace.server.item.ProfileFill.needsFill(s)) return;
+        org.domi.furnace.server.item.ProfileFill.onStore(s, this::updateSlots);
+    }
+
+    /**
+     * 모든 칸에 fn 을 적용한다: 칸의 지금 값을 fn 에 넘겨 null 이 아닌 값을 돌려주면 객체 동일성 비교-교환으로 쓴다(그새 바뀌었으면 다시 읽어 fn 을 다시 부른다).
+     * 머리가 확인되는 동안 칸 사이로 옮겨지거나 다른 스택과 합쳐져도 같은 프로필을 든 칸이 모두 채워진다.
+     */
+    public void updateSlots(java.util.function.UnaryOperator<ItemStack> fn) {
+        for (int ws = 0; ws < SIZE; ws++) {
+            for (int attempt = 0; attempt < 16; attempt++) {
+                ItemStack cur = get(ws);
+                ItemStack next = fn.apply(cur);
+                if (next == null || replace(ws, cur, next)) break;
+            }
+        }
     }
 
     public synchronized ItemStack[] snapshot() { return slots.clone(); }
 
     public synchronized void load(ItemStack[] saved) {
-        for (int i = 0; i < SIZE; i++) slots[i] = i < saved.length && saved[i] != null ? saved[i] : ItemStack.EMPTY;
+        for (int i = 0; i < SIZE; i++) {
+            slots[i] = i < saved.length && saved[i] != null ? saved[i] : ItemStack.EMPTY;
+            stored(i);
+        }
     }
 
     public synchronized void clear() { Arrays.fill(slots, ItemStack.EMPTY); }
@@ -94,6 +125,7 @@ public final class PlayerInventory {
             int free = freeSlot();
             if (free >= 0) {
                 slots[windowSlot(free)] = stack;
+                stored(windowSlot(free));
                 return ItemStack.EMPTY;
             }
             return infinite ? ItemStack.EMPTY : stack;
@@ -113,6 +145,7 @@ public final class PlayerInventory {
             int put = Math.min(left, room);
             if (put <= 0) break;
             slots[ws] = new ItemStack(stack.itemId(), have + put, stack.patch());
+            stored(ws);
             left -= put;
         } while (left > 0 && left < prev);
         if (left == start && infinite) return ItemStack.EMPTY;

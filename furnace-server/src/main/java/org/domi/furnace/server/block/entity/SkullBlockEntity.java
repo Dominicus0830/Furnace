@@ -54,6 +54,25 @@ public class SkullBlockEntity extends BlockEntity {
         if (!tag.contains("profile") && isPlayerHead()) profile = null;
     }
 
+    /**
+     * SkullBlockEntity.setOwner → updateOwnerProfile: 이름·UUID 만 있는 프로필이면 세션 서버로 확인해, 끝나면 이 블록의 region 스레드에서 소유자를 바꾸고
+     * setChanged 한다(그 사이 소유자가 바뀌었으면 건드리지 않는다). 클라이언트에는 따로 보내지 않는다(바닐라도 setChanged 뿐).
+     */
+    @Override
+    @SuppressWarnings("unchecked")
+    public void onAddedToLevel(org.domi.furnace.server.block.BlockLevel level) {
+        var service = org.domi.furnace.server.item.ProfileFill.service();
+        if (service == null || !(profile instanceof java.util.Map<?, ?> m)) return;
+        java.util.Map<String, Object> original = (java.util.Map<String, Object>) m;
+        if (org.domi.furnace.server.item.ProfileFill.isResolved(original)) return;
+        service.resolved(original, found -> level.runOnOwner(pos(), lv -> {
+            if (isRemoved() || lv.getBlockEntity(pos()) != this) return;
+            if (!org.domi.furnace.server.item.ProfileFill.sameProfile(original, profile)) return;
+            profile = found;
+            setChanged(lv);
+        }));
+    }
+
     private boolean isPlayerHead() {
         var b = BlockBehaviors.of(blockState());
         return b instanceof org.domi.furnace.server.block.types.PlayerHeadBlock || b instanceof org.domi.furnace.server.block.types.PlayerWallHeadBlock;

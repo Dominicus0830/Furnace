@@ -254,6 +254,7 @@ public abstract class BlockEntity {
         if (org.domi.furnace.server.net.io.nbt.NbtTags.equal(saved, before)) return false;
         loadWithBukkitValues(saved);
         afterLoad(level);
+        onAddedToLevel(level);
         setChanged(level);
         return true;
     }
@@ -265,6 +266,12 @@ public abstract class BlockEntity {
     public void afterLoad(BlockLevel level) {}
 
     /**
+     * 이 블록 엔티티가 레벨에 놓였다 — 청크와 함께 불러와졌거나, 놓여서 NBT·아이템 컴포넌트를 읽은 뒤. 레벨이 있어야 시작할 수 있는 일(머리 프로필·든 머리 아이템의 스킨 확인,
+     * 바닐라가 SkullBlockEntity.setOwner·ItemStack 생성 때 하는 일)을 여기서 시작한다. 기본은 없다. region 스레드.
+     */
+    public void onAddedToLevel(BlockLevel level) {}
+
+    /**
      * 레벨에 놓인 블록 엔티티의 loadWithComponents(/data merge block, /setblock·/fill 의 NBT, /clone): load → afterLoad → 컴포넌트.
      * setChanged·블록 갱신 방송은 부르는 쪽이 정한다.
      */
@@ -272,6 +279,7 @@ public abstract class BlockEntity {
         loadWithBukkitValues(tag);
         afterLoad(level);
         loadComponents(tag);
+        onAddedToLevel(level);
     }
 
     /**

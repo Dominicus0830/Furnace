@@ -111,6 +111,30 @@ public abstract class ContainerBlockEntity extends OpenersBlockEntity {
     }
 
     @Override
+    public void onAddedToLevel(org.domi.furnace.server.block.BlockLevel level) { startProfileFill(level); }
+
+    /**
+     * 칸에 든 이름·UUID 만 있는 머리의 스킨 확인을 시작한다(바닐라: 스택이 만들어질 때 PlayerHeadItem.verifyComponentsAfterLoad). 끝나면 이 블록의 region 스레드에서
+     * 그 머리가 아직 같은 프로필로 든 칸을 채운다 — 그 사이 꺼냈으면 건드리지 않는다.
+     */
+    public final void startProfileFill(org.domi.furnace.server.block.BlockLevel level) {
+        for (ItemStack s : items) {
+            if (!org.domi.furnace.server.item.ProfileFill.needsFill(s)) continue;
+            org.domi.furnace.server.item.ProfileFill.onStore(s, fn -> level.runOnOwner(pos(), lv -> {
+                if (isRemoved() || lv.getBlockEntity(pos()) != this) return;
+                boolean changed = false;
+                for (int i = 0; i < items.length; i++) {
+                    ItemStack next = fn.apply(items[i]);
+                    if (next == null) continue;
+                    items[i] = next;
+                    changed = true;
+                }
+                if (changed) setChanged(lv);
+            }));
+        }
+    }
+
+    @Override
     protected void saveAdditional(NbtCompound tag) {
         if (customName != null) tag.putString("CustomName", customName);
         if (lock != null) tag.putString("Lock", lock);

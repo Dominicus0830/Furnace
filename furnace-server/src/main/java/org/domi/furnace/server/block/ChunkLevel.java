@@ -241,6 +241,7 @@ public abstract class ChunkLevel implements BlockLevel {
             if (be.isRemoved()) continue;
             addGameEventListener(col, be);
             if (be.ticking()) addTicker(be);
+            be.onAddedToLevel(this);   // 머리 프로필·상자 속 머리 스킨 확인(바닐라 loadAdditional 의 setOwner·ItemStack 생성)
         }
     }
 
@@ -1605,6 +1606,12 @@ public abstract class ChunkLevel implements BlockLevel {
     private static final java.util.concurrent.atomic.AtomicInteger FALLBACK_IDS = new java.util.concurrent.atomic.AtomicInteger(1 << 24);
 
     public EntityStore entities() { return entities; }
+
+    /**
+     * (x, z) 칸의 청크를 가진 region 스레드에서 task 를 돌린다(주인이 없으면 region 을 만든다). task 가 받는 것은 그 region 의 레벨이다 — 엔티티가 그새 다른 region 으로
+     * 넘어갔을 수 있으니 받은 쪽이 {@code entities().contains(e)} 로 확인한다. region 이 없는 레벨(시험용)은 곧바로 이 레벨로 돌린다.
+     */
+    public void runAtEntityOwner(double x, double z, java.util.function.Consumer<ChunkLevel> task) { task.accept(this); }
 
     /** 지금 스레드가 이 레벨을 가진 스레드인가(region 레벨은 region 틱 스레드, 시험용 레벨은 늘 그렇다고 본다). */
     public boolean isOwnerThread() { return true; }

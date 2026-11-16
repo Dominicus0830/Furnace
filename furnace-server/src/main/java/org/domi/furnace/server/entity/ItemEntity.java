@@ -55,7 +55,26 @@ public final class ItemEntity extends Entity {
     @Override
     public boolean dampensVibrations() { return org.domi.furnace.server.item.ItemTags.is(getItem(), "minecraft:dampens_vibrations"); }
 
-    public void setItem(ItemStack stack) { entityData.set(DATA_ITEM, stack); }
+    public void setItem(ItemStack stack) {
+        entityData.set(DATA_ITEM, stack);
+        if (org.domi.furnace.server.item.ProfileFill.needsFill(stack)) org.domi.furnace.server.item.ProfileFill.onStore(stack, this::fillProfile);
+    }
+
+    /** 확인 안 된 머리의 스킨 채우기(PlayerHeadItem.verifyComponentsAfterLoad)가 끝났을 때: 이 엔티티를 가진 region 스레드에서 지금 아이템에 fn 을 적용한다. */
+    private void fillProfile(java.util.function.UnaryOperator<ItemStack> fn) { fillProfile(fn, 20); }
+
+    private void fillProfile(java.util.function.UnaryOperator<ItemStack> fn, int tries) {
+        if (isRemoved()) return;
+        // 읽는 사이 다른 region 으로 넘어갔거나 아직 청크에 올라오기 전일 수 있다 — 도착한 region 이 실제로 이 엔티티를 가졌을 때만 쓰고, 아니면 지금 위치로 다시(EntityOps.runOnOwner 와 같다)
+        level.runAtEntityOwner(x(), z(), lvl -> {
+            if (lvl.entities().contains(this)) {
+                ItemStack next = fn.apply(getItem());
+                if (next != null) setItem(next);
+            } else if (!isRemoved() && tries > 0) {
+                fillProfile(fn, tries - 1);
+            }
+        });
+    }
 
     /** 바닐라는 스택을 제자리에서 줄인다(dirty 없이) — 클라이언트는 다음 갱신 전까지 옛 개수를 본다. */
     private void shrinkInPlace(ItemStack now) { entityData.setQuiet(DATA_ITEM, now); }
