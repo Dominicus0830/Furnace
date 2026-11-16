@@ -283,7 +283,8 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         if (isDisconnected()) return;
         var r = ownerRegion;
         if (r != null && r.ownsPlayer(this)) r.applyProfileChange(this, profile);
-        // 같은 드레인 안에서 앞선 작업이 옮겼다(차원 이동 등): 다음 틱 새 소유 region 에서(ownerTasks 에 다시 넣으면 같은 드레인이 곧바로 또 꺼낸다)
+        // 같은 드레인 안에서 앞선 작업이 옮겼다(차원 이동 등): 엔티티 작업 대기열로 넘겨 소유 region 에서 다시 본다 — 이 드레인 끝의 apiTasks.tick 에서
+        // 한 번, 그때도 아니면 다음 틱 새 region 에서(ownerTasks 에 다시 넣으면 같은 드레인이 곧바로 또 꺼내 끝없이 돈다)
         else if (r != null) apiTasks.schedule(() -> applyProfileOnOwner(profile), null, 1, 0);
         else swapProfile(profile);   // region 에 붙지 않은 플레이어(시험·단독 레벨) — 보는 사람이 없다
     }
