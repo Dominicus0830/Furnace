@@ -1650,6 +1650,9 @@ public final class Region {
             p.currentLevel = level;
             p.ownerRegion = this;
             p.drainOwnerTasks();   // 다른 스레드가 맡긴 플레이어 작업(발전 과제·통계·점수) — 주인 스레드에서
+            // 플러그인 다른 월드 텔레포트(내리기·깨우기는 위 작업이 했다) — 이 region 에서 떼어 목적 월드로 보낸다
+            var worldTp = p.takeWorldTeleport();
+            if (worldTp != null && sendAcrossForPlugin(p, worldTp)) { it.remove(); continue; }
             if (level != null) org.domi.furnace.server.entity.PlayerSleeping.tick(p, level);   // Player.tick 머리의 잠 카운터·침대 확인
             tickVitals(p);
             org.domi.furnace.server.entity.PlayerShoulders.tick(p);   // 어깨 몹 울음·내려놓기 조건(aiStep 끝)
@@ -2871,6 +2874,39 @@ public final class Region {
         return true;
     }
 
+    /**
+     * 플러그인 다른 월드 텔레포트(Paper CraftPlayer#teleport 의 다른 월드 가지: portalProcess = null → PlayerList.respawn(위치)). 플레이어 틱
+     * 순회 안에서 부른다 — 보냈으면 참(호출자가 순회에서 뺀다). 그새 그 월드에 와 있으면 같은 월드 텔레포트로, 목적 월드를 쓸 수 없으면
+     * 그 자리에 둔 채 done(거짓). 목적 청크를 올린 뒤 목적 region 스레드에서 연결이 Paper 순서로 패킷을 보내고 편입한다.
+     */
+    private boolean sendAcrossForPlugin(Player p, Player.WorldTeleport wt) {
+        World target = wt.target();
+        if (target == world || target.dimension().equals(world.dimension())) {
+            p.correctTo(wt.x(), wt.y(), wt.z(), wt.yaw(), wt.pitch());
+            wt.done().accept(true);
+            return false;
+        }
+        var travel = world.travelService();
+        if (target.isUnloaded() || !travel.isLevelEnabled(target.dimension())) {
+            wt.done().accept(false);
+            return false;
+        }
+        double x = wt.x(), y = wt.y(), z = wt.z();
+        float yaw = wt.yaw(), pitch = wt.pitch();
+        var plan = new org.domi.furnace.server.entity.PortalTravel(target.dimension(), org.domi.furnace.server.entity.Entity.floor(x),
+                org.domi.furnace.server.entity.Entity.floor(z), 0, 0,
+                lvl -> new org.domi.furnace.server.entity.DimensionTransition(lvl, x, y, z, 0, 0, 0, yaw, pitch));
+        p.portalProcess(null);
+        detachForDimensionChange(p);
+        World src = world;
+        travel.travel(plan, (lvl, t) -> {
+            if (lvl instanceof RegionLevel rl && t != null && p.changeWorldForPlugin(rl.world(), t, wt.done())) return;
+            src.runAt(p.x(), p.z(), r -> r.adopt(p));   // 갈 곳이 없다 — 원래 자리로
+            wt.done().accept(false);
+        });
+        return true;
+    }
+
     // ------------------------------------------------------------------ 관전 시점(바닐라 ServerPlayer.setCamera / tick 의 카메라 동기)
 
     /**
@@ -3097,19 +3133,25 @@ public final class Region {
             for (World other : dims.all()) if (other != world) other.updateSleepingPlayerList();
         }
         if (level != null) level.afterDimensionTransition(t);
-        var adv = p.advancements();
-        if (adv != null && fromDimension != null) {
-            adv.trigger("minecraft:changed_dimension", new String[] {fromDimension, world.dimension()});
-            // 바닐라 triggerDimensionChangeTriggers: 네더 → 오버월드면 nether_travel(들어갈 때 오버월드 위치 → 지금), 네더가 아니면 기록을 지운다
-            var entered = p.enteredNetherPosition;
-            if ("minecraft:the_nether".equals(fromDimension) && "minecraft:overworld".equals(world.dimension()) && entered != null) {
-                adv.triggerMoved("minecraft:nether_travel", entered, new double[] {p.x(), p.y(), p.z()}, 0, null);
-            }
-            if (!"minecraft:the_nether".equals(world.dimension())) p.enteredNetherPosition = null;
-        }
+        if (fromDimension != null) triggerDimensionChange(p, fromDimension, world.dimension());
         if (changedFrom != null && !changedFrom.equals(world.dimension())) world.levelServices().gameEvents().playerChangedWorld(p, changedFrom);
         // 탈것째 포털을 건넌 승객이면 건너간 새 탈것에 다시 탄다 — 바닐라는 승객의 changeDimension(발전 과제 포함)이 끝난 뒤 탈것 쪽이 태운다
         remountCarried(p, p.takeCarriedVehicle());
+    }
+
+    /**
+     * 바닐라 ServerPlayer.triggerDimensionChangeTriggers(origin): changed_dimension(origin → 지금), 네더 → 오버월드면 nether_travel(들어갈 때
+     * 오버월드 위치 → 지금), 지금이 네더가 아니면 그 기록을 지운다. 플레이어 소유 스레드에서(발전 과제가 없으면 아무것도 안 한다).
+     */
+    public static void triggerDimensionChange(Player p, String fromDimension, String toDimension) {
+        var adv = p.advancements();
+        if (adv == null) return;
+        adv.trigger("minecraft:changed_dimension", new String[] {fromDimension, toDimension});
+        var entered = p.enteredNetherPosition;
+        if ("minecraft:the_nether".equals(fromDimension) && "minecraft:overworld".equals(toDimension) && entered != null) {
+            adv.triggerMoved("minecraft:nether_travel", entered, new double[] {p.x(), p.y(), p.z()}, 0, null);
+        }
+        if (!"minecraft:the_nether".equals(toDimension)) p.enteredNetherPosition = null;
     }
 
     /** 이 region의 타 플레이어들에게서 eid를 디스폰(추적 중이면)하고 탭 목록에서도 뺀다(퇴장). */

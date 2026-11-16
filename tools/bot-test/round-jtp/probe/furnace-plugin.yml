@@ -1,0 +1,4 @@
+name: JoinTpProbe
+version: 1.0.0
+main: probe.JoinTpProbe
+description: 조인 이벤트·접속 직후 텔레포트(다른 월드·먼 곳) 봇 시험

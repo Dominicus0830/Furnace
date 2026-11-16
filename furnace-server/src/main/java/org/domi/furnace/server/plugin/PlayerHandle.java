@@ -530,17 +530,32 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
         return host.profiled().wrap(w.handle().chunkScheduler(Math.floorDiv((int) Math.floor(p.x()), 16), Math.floorDiv((int) Math.floor(p.z()), 16)));
     }
 
-    /** 같은 차원 안만. 서버 텔레포트는 연결 스레드가 보정 패킷을 보내는 스레드 안전 경로다. 결과는 PlayerTeleportEvent 취소까지 반영한 진짜 값. */
+    /**
+     * 서버 텔레포트는 연결 스레드가 보정 패킷을 보내는 스레드 안전 경로다. 결과는 PlayerTeleportEvent 취소까지 반영한 진짜 값. 다른 월드로
+     * 가면 도착(목적 월드 region 에 들어간 뒤)에 참으로, 갈 수 없어 되돌리면 거짓으로 끝난다(Paper teleportAsync 처럼).
+     */
     @Override
     public java.util.concurrent.CompletableFuture<Boolean> teleport(Location to) {
-        return java.util.concurrent.CompletableFuture.completedFuture(teleportNow(to));
+        if (to.world().equals(p.dimension())) return java.util.concurrent.CompletableFuture.completedFuture(teleportNow(to));
+        var f = new java.util.concurrent.CompletableFuture<Boolean>();
+        if (!teleportToWorld(to, f::complete)) f.complete(false);
+        return f;
     }
 
-    /** 이벤트가 결과를 정하므로 어느 스레드에서나 곧바로(탈것 내리기·깨우기만 소유 스레드로 넘어간다). 다른 차원·끊긴 접속·이벤트 취소는 false. */
+    /**
+     * 이벤트가 결과를 정하므로 어느 스레드에서나 곧바로(탈것 내리기·깨우기만 소유 스레드로 넘어간다). 끊긴 접속·없는 월드·이벤트 취소는 false.
+     * 다른 월드면 Paper 처럼 리스폰 순서로 옮긴다 — 조인 이벤트 안이면 그 자리에서, 아니면 소유 region 이 다음 틱에.
+     */
     @Override
     public boolean teleportNow(Location to) {
-        if (!to.world().equals(p.dimension())) return false;
+        if (!to.world().equals(p.dimension())) return teleportToWorld(to, ok -> { });
         return p.pluginTeleport(to.x(), to.y(), to.z(), to.yaw(), to.pitch());
+    }
+
+    private boolean teleportToWorld(Location to, java.util.function.Consumer<Boolean> done) {
+        var target = host.core().world(to.world());
+        if (target == null || target.isUnloaded()) return false;   // Paper: 월드가 없으면 Location 을 만들 수 없다
+        return p.pluginTeleportToWorld(target, to.x(), to.y(), to.z(), to.yaw(), to.pitch(), done);
     }
 
     private volatile EntitySchedulerImpl entityScheduler;

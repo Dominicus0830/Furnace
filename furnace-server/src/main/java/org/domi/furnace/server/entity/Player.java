@@ -2236,6 +2236,76 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         return true;
     }
 
+    // ------------------------------------------------------------------ 플러그인 다른 월드 텔레포트(Paper CraftPlayer#teleport 의 다른 월드 가지)
+
+    /** 플러그인이 다른 월드로 보내는 요청. done 은 도착(참)·되돌림(거짓) 때 한 번 불린다. */
+    public record WorldTeleport(org.domi.furnace.server.world.World target, double x, double y, double z, float yaw, float pitch,
+                                java.util.function.Consumer<Boolean> done) {}
+
+    private volatile java.util.function.Consumer<WorldTeleport> worldTeleporter;
+
+    /** 연결이 다른 월드 텔레포트를 받는 곳(조인 이벤트 안이면 그 자리에서, 아니면 {@link #requestWorldTeleport}). */
+    public void worldTeleporter(java.util.function.Consumer<WorldTeleport> t) { this.worldTeleporter = t; }
+
+    /**
+     * 플러그인 teleport 의 다른 월드 가지(Paper CraftPlayer#teleport → PlayerList.respawn(플레이어, true, CHANGED_DIMENSION, null, 목적지)).
+     * 결과 규칙은 {@link #pluginTeleport} 와 같다 — 연결이 없거나 끊겼거나 죽었으면, PlayerTeleportEvent(도착이 다른 월드)가 취소됐으면 false.
+     * 그 밖에는 열린 창을 TELEPORT 사유로 닫고 옮기기를 맡겨 true. 옮기기는 조인 이벤트 안이면 연결이 그 자리에서, 아니면 소유 region 이
+     * 다음 틱에 떼어 보낸다(탈것 내리기·깨우기 뒤). done 은 도착하면 참.
+     */
+    public boolean pluginTeleportToWorld(org.domi.furnace.server.world.World target, double x, double y, double z, float yaw, float pitch,
+                                         java.util.function.Consumer<Boolean> done) {
+        var wt = worldTeleporter;
+        if (isDisconnected() || wt == null || vitals().health() <= 0.0F) return false;
+        if (!vitals().env().gameEvents().playerTeleport(this, target.dimension(), x, y, z, yaw, pitch)) return false;
+        var ih = inventoryHost();
+        var open = containerMenu;
+        if (ih != null && hasOpenContainer()) ih.closeContainerFromAnyThread(open, org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason.TELEPORT);
+        wt.accept(new WorldTeleport(target, x, y, z, yaw, pitch, done));
+        return true;
+    }
+
+    /** 소유 region 이 다음 틱에 꺼내 보낼 다른 월드 텔레포트(소유 스레드 전용). */
+    private WorldTeleport pendingWorldTeleport;
+
+    /**
+     * 다른 월드 텔레포트를 소유 region 에 맡긴다: 소유 스레드에서 탈것에서 내리고 깨운 뒤(CraftPlayer#teleport 의 stopRiding·wakeup) 요청을
+     * 걸어 둔다. region 은 틱의 플레이어 작업 뒤에 꺼내 이 region 에서 떼어 목적 월드로 보낸다. 앞선 요청이 아직 남았으면 새 것이 이긴다
+     * (Paper 는 둘을 차례로 해 마지막 자리가 남는다 — 앞선 것은 참으로 끝낸다).
+     */
+    public void requestWorldTeleport(WorldTeleport req) {
+        runOnOwner(() -> {
+            if (vehicle != null) stopRiding();
+            if (sleepingPos != null) PlayerSleeping.stopSleepInBed(this, currentLevel, true, true);
+            WorldTeleport old = pendingWorldTeleport;
+            pendingWorldTeleport = req;
+            if (old != null) old.done().accept(true);
+        });
+    }
+
+    /** 걸어 둔 다른 월드 텔레포트를 꺼내고 지운다(소유 region 스레드, 없으면 null). */
+    public WorldTeleport takeWorldTeleport() {
+        WorldTeleport r = pendingWorldTeleport;
+        pendingWorldTeleport = null;
+        return r;
+    }
+
+    /**
+     * 목적 region 스레드에서: 플러그인 다른 월드 텔레포트의 도착을 연결에 넘긴다(연결이 없으면 거짓). {@link #changeDimension} 과 같은 넘기기판을
+     * 쓰되 연결은 바닐라 changeDimension 이 아니라 Paper PlayerList.respawn(위치) 순서로 보낸다. done 은 편입한 뒤 참.
+     */
+    public boolean changeWorldForPlugin(org.domi.furnace.server.world.World target, DimensionTransition t, java.util.function.Consumer<Boolean> done) {
+        var c = dimensionChanger;
+        if (c == null) return false;
+        ArrivalHandoff h = new ArrivalHandoff();
+        c.changeForPlugin(target, t, h, done);
+        h.awaitInline(ARRIVAL_WAIT_NANOS);
+        return true;
+    }
+
+    /** CraftPlayer#refreshEntityData(본인): 다음 동기화에서 기본값과 다른 엔티티 데이터를 본인에게 모두 다시 보낸다(같은 엔티티 그대로). */
+    public void resendOwnEntityData() { resendEntityData = true; }
+
     // PlayerMoveEvent 용 "마지막으로 알린 자리"(CraftBukkit lastPosX·lastYaw 등) — 소유 region 스레드 전용(Region.processMoves).
     private boolean moveEventBaseSet;
     private double moveEventX, moveEventY, moveEventZ;
@@ -2336,6 +2406,13 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         default void change(org.domi.furnace.server.world.World target, DimensionTransition t, int portalCooldown, ArrivalHandoff handoff) {
             handoff.detach();
             change(target, t, portalCooldown);
+        }
+
+        /** 플러그인 다른 월드 텔레포트 도착(Paper PlayerList.respawn(위치) 순서). 기본은 차원 이동과 같게(시험용 기록기). */
+        default void changeForPlugin(org.domi.furnace.server.world.World target, DimensionTransition t, ArrivalHandoff handoff,
+                                     java.util.function.Consumer<Boolean> done) {
+            change(target, t, 0, handoff);
+            done.accept(true);
         }
     }
 
