@@ -292,7 +292,8 @@ public abstract class ChunkAccess implements BlockGetter {
             // 그 칸에 아직 재생하지 않은 블록 엔티티 일지가 있으면 묶지 않는다 — 재생(지우기 → 만들기)이 묶는다. 지금 묶으면 곧 지워질 옛 객체에 묶인다(검토 R5)
             var p = v.getBlockPos();
             if (furnaceMirror.blockEntityOverlayAt(BlockPos.asLong(p.getX(), p.getY(), p.getZ())) != null) continue;
-            if (furnaceBindNow(furnaceWorld, v) != null) it.remove();
+            if (furnaceBindNow(furnaceWorld, v) == null) v.setRemoved();   // 얻은 뒤 게임이 지운 것 — Paper 라면 그 객체는 isRemoved(재검토 선택 사항)
+            it.remove();
         }
     }
 

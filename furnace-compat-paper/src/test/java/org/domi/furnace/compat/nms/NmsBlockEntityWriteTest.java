@@ -440,6 +440,19 @@ class NmsBlockEntityWriteTest {
         assertSame(serverBe(p), view.furnaceHandle());
     }
 
+    /** 다른 스레드가 얻은 보기의 객체를 그 뒤 게임이 지웠으면 다음 공개 때 그 보기는 지워진 것이 된다(Paper: 그 객체의 isRemoved) — 나중 상자에 묶지 않는다. */
+    @Test
+    void unboundViewWhoseObjectVanishedBecomesRemoved() {
+        BlockPos p = at(0, 2, 12, 12);
+        placeChestWithDiamonds(p);
+        BlockEntity view = offThread(() -> level.getChunkAt(p).getBlockEntity(p));
+        assertNull(view.furnaceHandle());
+        onRun(p, () -> region(p).level().removeBlockEntity(new org.domi.furnace.server.block.Pos(p.getX(), p.getY(), p.getZ())));   // 게임 길
+        server.tick(1);
+        assertTrue(view.isRemoved());
+        assertNull(view.furnaceHandle());
+    }
+
     /** R3: 다른 스레드의 IMMEDIATE 는 들여오기 전 옛 블록(다른 블록 엔티티 종류)으로 만들지 않는다 — 그 스레드가 넣은 상자로. */
     @Test
     void offThreadImmediateDoesNotUseTheStaleOldBlock() {
