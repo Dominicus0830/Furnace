@@ -7,10 +7,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 
+@VanillaPort({
+        "net.minecraft.nbt.NbtOps",
+        "net.minecraft.nbt.NbtIo"})
 public final class NbtVals {
     private NbtVals() {}
 

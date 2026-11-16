@@ -10,11 +10,15 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Function;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.data.ResourceManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@VanillaPort({
+        "net.minecraft.server.ReloadableServerRegistries",
+        "net.minecraft.world.level.storage.loot.LootDataType"})
 public final class LootData {
 
     private static final Logger log = LoggerFactory.getLogger(LootData.class);

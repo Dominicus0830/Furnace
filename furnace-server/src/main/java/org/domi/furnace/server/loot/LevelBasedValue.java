@@ -5,7 +5,9 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.ArrayList;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.item.enchantment.LevelBasedValue")
 public interface LevelBasedValue {
 
     float calculate(int level);

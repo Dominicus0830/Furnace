@@ -3,8 +3,10 @@
 package org.domi.furnace.server.item;
 
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity")
 public final class FuelRegistry {
     private FuelRegistry() { }
 

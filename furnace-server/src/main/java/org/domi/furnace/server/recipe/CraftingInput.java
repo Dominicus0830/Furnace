@@ -3,8 +3,10 @@ package org.domi.furnace.server.recipe;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.item.crafting.CraftingInput")
 public final class CraftingInput {
 
     public static final CraftingInput EMPTY = new CraftingInput(0, 0, List.of());

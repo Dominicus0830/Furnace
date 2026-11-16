@@ -1,8 +1,12 @@
 // 바닐라 Mth 중 전리품이 쓰는 것 — 난수 호출 유무까지 같아야 한다(min >= max 면 난수를 쓰지 않는다).
 package org.domi.furnace.server.loot;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.world.gen.noise.NoiseRandom;
 
+@VanillaPort({
+        "net.minecraft.util.Mth",
+        "net.minecraft.Util"})
 final class Mth {
     private Mth() {}
 

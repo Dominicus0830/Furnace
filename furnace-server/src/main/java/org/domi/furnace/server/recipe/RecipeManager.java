@@ -16,12 +16,14 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.data.ResourceManager;
 import org.domi.furnace.server.net.io.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@VanillaPort("net.minecraft.world.item.crafting.RecipeManager")
 public final class RecipeManager {
 
     private static final Logger log = LoggerFactory.getLogger("Furnace");

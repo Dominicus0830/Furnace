@@ -4,7 +4,9 @@ package org.domi.furnace.server.loot;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.advancements.critereon.StatePropertiesPredicate")
 public final class StateProperties {
     private StateProperties() {}
 
