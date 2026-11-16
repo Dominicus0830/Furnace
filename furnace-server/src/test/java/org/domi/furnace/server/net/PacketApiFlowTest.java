@@ -1,6 +1,7 @@
 // 패킷 API 를 실제 연결 흐름에서: 클라이언트 패킷이 리스너를 거쳐 바뀌거나 버려지고, receive 로 넣은 패킷이 진짜처럼 처리된다.
 package org.domi.furnace.server.net;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -63,7 +64,7 @@ class PacketApiFlowTest {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         ServerCore core = TestServers.core(tmp.resolve("core"), sched);
         PluginHost host = core.plugins();
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         io = TestServers.ioPool();
         World world = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2, reg.directBits(), 7, io);
         world.configurePersistence(Integer.MAX_VALUE, 100);

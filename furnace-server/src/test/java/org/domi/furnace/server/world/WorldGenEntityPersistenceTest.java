@@ -1,6 +1,7 @@
 // 월드젠 엔티티는 한 번만 들어간다: Anvil 저장 → 퇴출 → 재로드를 되풀이해도 늘지 않는다(청크 파일의 "entities" 를 지우고 다시 쓴다).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.ByteArrayOutputStream;
@@ -67,14 +68,14 @@ class WorldGenEntityPersistenceTest {
         AnvilWorldSource src = new AnvilWorldSource(dir, new RegionFileStore(dir), new AnvilChunkCodec(reg, 0), base);
         src.entityStore(new RegionFileStore(dir.resolve("entities")));
         World w = new World(src, new ChunkWorkerPool(1), sched, 1, 16, 2, 2, reg.directBits(), 7, io);
-        w.setRegistries(reg, ItemRegistry.load("items/1.21.1.txt"));
+        w.setRegistries(reg, ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         w.configurePersistence(1_000_000, 3);
         return w;
     }
 
     @Test
     void freshVillageChunkSpawnsOnceAcrossReloads(@TempDir Path dir) throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         var flat = new SuperflatWorldSource(reg, 0);
         WorldSource base = (cx, cz) -> {
             ChunkColumn c = flat.generate(cx, cz);
@@ -91,7 +92,7 @@ class WorldGenEntityPersistenceTest {
 
     @Test
     void legacyDiskChunkWithLeftoverEntitiesSpawnsOnce(@TempDir Path dir) throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         var flat = new SuperflatWorldSource(reg, 0);
         // 이 수정 이전에 저장돼 청크 파일에 월드젠 엔티티("entities")가 남은 청크
         ChunkColumn old = flat.generate(CP.x(), CP.z());

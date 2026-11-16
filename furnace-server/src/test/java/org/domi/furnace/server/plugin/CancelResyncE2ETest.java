@@ -3,6 +3,7 @@
 // 클라이언트는 평소 칸 개수·블록·능력·위치를 먼저 바꿔 보므로(예측), "되돌려 보내는 패킷"이 나가야 화면이 어긋나지 않는다.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -87,7 +88,7 @@ class CancelResyncE2ETest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @BeforeEach
@@ -95,7 +96,7 @@ class CancelResyncE2ETest {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         core = TestServers.core(tmp, sched);
         host = core.plugins();
-        core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt"), org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), org.domi.furnace.server.world.ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         plugin.setEnabled(true);
         core.world().submitAtChunk(C00, r -> r.chunkAtBlocking(C00)).get(30, TimeUnit.SECONDS);
         join();

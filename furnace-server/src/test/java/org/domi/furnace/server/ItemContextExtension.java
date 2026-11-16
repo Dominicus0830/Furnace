@@ -4,6 +4,7 @@
 // 레시피 하나뿐인 팩의 빈 태그 표가 남으면 뒤에 도는 GameRegistriesBuiltInTest 가 "바닐라 태그" 대신 빈 표를 보고 실패했다.
 package org.domi.furnace.server;
 
+import org.domi.furnace.api.GameVersion;
 import org.domi.furnace.server.data.TagRegistries;
 import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.net.registry.RegistrySet;
@@ -22,7 +23,7 @@ public final class ItemContextExtension implements BeforeAllCallback, AfterAllCa
 
     @Override
     public void beforeAll(ExtensionContext context) {
-        if (!ItemContext.installed()) ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        if (!ItemContext.installed()) ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         context.getStore(NS).put(TAGS_BEFORE, new Saved(ItemContext.tagSet()));
     }
 

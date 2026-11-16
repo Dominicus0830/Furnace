@@ -1,6 +1,7 @@
 // 선택자 nbt=·level=·advancements=·predicate= 의 참/거짓·반전·범위·오류 키(바닐라 EntitySelectorOptions).
 package org.domi.furnace.server.command.exec;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -109,7 +110,7 @@ class SelectorOptionsTest {
         assertEquals(0, count("@e[type=cow,nbt={Tags:[\"a\",\"c\"]}]"));
         assertEquals(0, count("@e[type=cow,nbt={Tags:[]}]"));
         // 플레이어는 SelectedItem 을 포함한다
-        var items = org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt");
+        var items = org.domi.furnace.server.world.ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
         org.domi.furnace.server.entity.PlayerData.itemRegistry(items);
         try {
             assertFalse(selfHit("@s[nbt={SelectedItem:{}}]"), "빈손이면 SelectedItem 없음");
@@ -154,7 +155,7 @@ class SelectorOptionsTest {
                 "{\"criteria\":{\"x\":{\"trigger\":\"minecraft:impossible\"},\"y\":{\"trigger\":\"minecraft:impossible\"}}}");
         packs = DataPackManager.start(vanilla, tmp, org.domi.furnace.server.world.storage.LevelData.create("world", 1L, true, false,
                 org.domi.furnace.server.world.GameMode.SURVIVAL, false, org.domi.furnace.server.world.Difficulty.EASY, List.of("vanilla"), List.of()),
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt"), true, List.of("vanilla"), List.of());
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"), true, List.of("vanilla"), List.of());
         core.dataPacks(packs);
     }
 

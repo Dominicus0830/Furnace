@@ -2,6 +2,7 @@
 // 데이터 팩·플러그인이 더한(또는 덮어쓴) 항목은 네트워크 NBT 데이터를 함께 들고 있다(클라가 아는 팩에 없으니 보내야 한다).
 package org.domi.furnace.server.net.registry;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -59,7 +60,7 @@ public final class RegistrySet {
         return m == null ? null : m.get(entry);
     }
 
-    private static final String DEFAULT_RESOURCE = "registries/1.21.1.txt";
+    private static final String DEFAULT_RESOURCE = "registries/" + GameVersion.RESOURCE_TAG + ".txt";
     private static volatile RegistrySet current;
 
     /**

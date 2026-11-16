@@ -2,6 +2,7 @@
 // 틱을 나눠도 다 적용되는지, 로드 안 된 청크를 만들지 않는지, 청크째 다시 보내기·동기판 소유권 규칙을 확인한다.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -55,7 +56,7 @@ class BlockEditApiTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @BeforeEach
@@ -63,8 +64,8 @@ class BlockEditApiTest {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         core = TestServers.core(tmp, sched);
         host = core.plugins();
-        core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt"),
-                org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"),
+                org.domi.furnace.server.world.ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         for (int off : new int[] {A, B_OFF}) {
             for (int dx = -1; dx <= 2; dx++) {
                 for (int dz = -1; dz <= 1; dz++) {

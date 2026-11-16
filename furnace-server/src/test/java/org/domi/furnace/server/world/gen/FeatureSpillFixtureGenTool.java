@@ -3,6 +3,7 @@
 // y(-64..319)/lz/lx 순 u16 LE stateId) — OracleGroundtruthAuditTest.readVanillaChunk과 동일 경로로 읽는다.
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -132,7 +133,7 @@ class FeatureSpillFixtureGenTool {
         Path outDir = Paths.get(outDirProp);
         Files.createDirectories(outDir);
 
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
 
         for (String spec : coordsProp.split(",")) {
             String[] p = spec.trim().split(":");

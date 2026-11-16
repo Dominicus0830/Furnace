@@ -1,6 +1,7 @@
 // chunks-per-tick=auto: 준비된 청크만 배치로, 클라이언트 속도(최대 64/틱)만큼 보내고, 없는 청크는 동시 상한 안에서 미리 불러온다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -34,7 +35,7 @@ class ChunkSendAutoTest {
 
     private World world(boolean auto) {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         io = Executors.newSingleThreadExecutor();
         w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, sched.regionThreadCount(), 16, VD, VD,
                 reg.directBits(), 7, io);

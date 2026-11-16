@@ -1,6 +1,7 @@
 // 폭죽 소유자: 주민이 쏜 축하 폭죽은 소유자(주민)에게 맞지 않아 몸통에서 터지지 않고, 소유자 없는 폭죽은 첫 틱에 맞고 터진다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.block.BlockPlacementTest;
@@ -13,7 +14,7 @@ class FireworkOwnerTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static Villager villager(BlockPlacementTest.TestLevel level) {

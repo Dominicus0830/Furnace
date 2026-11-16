@@ -1,6 +1,7 @@
 // 플레이어 잠 시험: 잘 수 있는 시각, 침대 쓰기(거리·막힘·괴물·낮), 잠 카운터와 깨기, 침대가 부서지면 깨기, 침대 폭발.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -27,10 +28,10 @@ class PlayerSleepingTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
-    static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
+    static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
 
     static final class Lvl extends BlockPlacementTest.TestLevel {
         long dayTime;

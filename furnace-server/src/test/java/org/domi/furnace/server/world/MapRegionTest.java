@@ -1,6 +1,7 @@
 // region 틱에서 지도를 든 플레이어: 로드된 청크 둘레가 칠해지고, 갱신 패킷(map_item_data 0x2C)은 바뀔 때만 나간다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -33,7 +34,7 @@ class MapRegionTest {
     @TempDir Path dir;
 
     @BeforeAll
-    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt"))); }
+    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"))); }
 
     @AfterEach
     void tearDown() { MapStore.uninstall(); }
@@ -71,7 +72,7 @@ class MapRegionTest {
     void playerHoldingAMapPaintsLoadedChunksAndGetsPacketsOnlyOnChange() throws Exception {
         MapStore.install(dir);
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         var io = Executors.newSingleThreadExecutor();
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1),
                 sched, sched.regionThreadCount(), 16, 5, 5, reg.directBits(), 7, io);

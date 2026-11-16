@@ -1,6 +1,7 @@
 // NoiseChunk.climateAt() — cell corner 캐시값이 직접 router 평가와 일치하는지 검증
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import org.domi.furnace.server.world.gen.df.DensityFunction;
 import org.junit.jupiter.api.Test;
@@ -9,7 +10,7 @@ class NoiseChunkClimateTest {
 
     @Test
     void climateAtCellCorner_matchesDirectEval() throws Exception {
-        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
+        WorldgenData data = WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG);
         NoiseSettings settings = NoiseSettings.fromJson(data.noiseSettings("minecraft:overworld"));
         NoiseRouter router = NoiseRouter.build(data, settings, 0L);
         NoiseChunk chunk = new NoiseChunk(0, 0, router, settings);

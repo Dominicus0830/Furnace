@@ -2,6 +2,7 @@
 // 저장은 <월드>/data/scoreboard.dat(gzip {data:{Objectives, PlayerScores, Teams, DisplaySlots}, DataVersion}).
 package org.domi.furnace.server.scores;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -31,7 +32,7 @@ import org.slf4j.LoggerFactory;
 public final class ServerScoreboard extends Scoreboard {
 
     private static final Logger LOG = LoggerFactory.getLogger("Scoreboard");
-    private static final int DATA_VERSION = 3955;
+    private static final int DATA_VERSION = GameVersion.DATA_VERSION;
 
     private final Set<Objective> trackedObjectives = new HashSet<>();
     private final Supplier<Collection<Player>> players;

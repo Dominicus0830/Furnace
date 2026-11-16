@@ -1,6 +1,7 @@
 // A06-02: 전리품 exploration_map(난파선 지도 상자·바다 폐허 상자의 묻힌 보물 지도)이 빈 지도가 아니라 구조물을 가리키는 지도를 준다.
 package org.domi.furnace.server.map;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.lang.reflect.Method;
@@ -35,7 +36,7 @@ class ExplorationMapLootTest {
 
     private ServerCore noiseCore() {
         return TestServers.core(tmp, new FurnaceSchedulerImpl(50_000_000L, 1),
-            reg -> NoiseWorldSource.overworld(1234L, reg, RegistrySet.load("registries/1.21.1.txt")));
+            reg -> NoiseWorldSource.overworld(1234L, reg, RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static LootWorld lootWorld(ServerCore core) throws Exception {
@@ -67,13 +68,13 @@ class ExplorationMapLootTest {
     /** 상자를 여는 길(unpackLoot)은 상자가 있는 월드의 생성기로 지도를 만든다 — 추가 월드 상자가 주 월드 구조물을 가리키지 않게. */
     @Test
     void chestMapPointsAtStructureOfItsOwnWorld() throws Exception {
-        Path vanilla = Path.of("../tools/vanilla-data/server-1.21.1");
+        Path vanilla = Path.of("../tools/vanilla-data/server-" + GameVersion.MINECRAFT);
         Assumptions.assumeTrue(Files.isDirectory(vanilla.resolve("data/minecraft/loot_table")), "로컬 바닐라 데이터 없음");
         ServerCore core = noiseCore();
         var ld = LevelData.create("world", 1234L, true, false, GameMode.SURVIVAL, false, Difficulty.EASY, List.of("vanilla"), List.of());
-        core.dataPacks(DataPackManager.start(vanilla, tmp, ld, RegistrySet.load("registries/1.21.1.txt"), true, List.of("vanilla"), List.of()));
-        var reg = BlockRegistry.load("blocks/1.21.1.txt");
-        World extra = new World(NoiseWorldSource.overworld(777L, reg, RegistrySet.load("registries/1.21.1.txt")),
+        core.dataPacks(DataPackManager.start(vanilla, tmp, ld, RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"), true, List.of("vanilla"), List.of()));
+        var reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        World extra = new World(NoiseWorldSource.overworld(777L, reg, RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")),
                 new ChunkWorkerPool(1), new FurnaceSchedulerImpl(50_000_000L, 1), 1, 16, 2, 2, reg.directBits(), 7, TestServers.ioPool());
         extra.worldDir(tmp.resolve("extra"));
         double[] o = {0.5, 100.5, 0.5};

@@ -1,6 +1,7 @@
 // worldgen/processor_list/*.json 로더 — 바닐라 StructureProcessorList 코덱 해석.
 package org.domi.furnace.server.world.gen.structure.template;
 
+import org.domi.furnace.api.GameVersion;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -37,7 +38,7 @@ public final class ProcessorLists {
     }
 
     private List<Processor> load(String name) {
-        String res = "worldgen/1.21.1/worldgen/processor_list/" + name + ".json";
+        String res = "worldgen/" + GameVersion.RESOURCE_TAG + "/worldgen/processor_list/" + name + ".json";
         try (InputStream in = ProcessorLists.class.getClassLoader().getResourceAsStream(res)) {
             if (in == null) throw new IllegalArgumentException("no such processor_list: " + name);
             JsonElement root = JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8));

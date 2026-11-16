@@ -5,6 +5,7 @@
 //  3) data/ 를 cache/vanilla-data-1.21.1/ 로 풀고 완료 표시를 남긴다(다음 실행부터는 바로 쓴다).
 package org.domi.furnace.server.data;
 
+import org.domi.furnace.api.GameVersion;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.io.IOException;
@@ -33,7 +34,7 @@ public final class VanillaData {
 
     private static final Logger log = LoggerFactory.getLogger("Furnace");
 
-    public static final String VERSION = "1.21.1";
+    public static final String VERSION = GameVersion.MINECRAFT;
     /** 공식 1.21.1 서버 jar(번들러) sha1 — 버전 메타데이터의 downloads.server.sha1 과 같다. */
     static final String SERVER_JAR_SHA1 = "59353fb40c36d304f2035d51e7d6e6baa98dc05c";
     private static final String MANIFEST = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";

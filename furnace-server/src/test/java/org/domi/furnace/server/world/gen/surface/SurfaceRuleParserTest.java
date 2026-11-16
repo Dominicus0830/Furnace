@@ -1,6 +1,7 @@
 // SurfaceRuleParser 단위 테스트 — overworld surface_rule JSON 파싱 검증
 package org.domi.furnace.server.world.gen.surface;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
 import org.domi.furnace.server.world.gen.WorldgenData;
@@ -10,8 +11,8 @@ class SurfaceRuleParserTest {
 
     @Test
     void parsesOverworldSurfaceRule() {
-        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        WorldgenData data = WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG);
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         SurfaceRuleParser parser = new SurfaceRuleParser(reg);
         var noiseSettingsJson = data.noiseSettings("minecraft:overworld");
         SurfaceRule rule = parser.parse(noiseSettingsJson.get("surface_rule").getAsJsonObject());
@@ -22,8 +23,8 @@ class SurfaceRuleParserTest {
 
     @Test
     void parsesBedrockCondition() {
-        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        WorldgenData data = WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG);
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         var parser = new SurfaceRuleParser(reg);
         var noiseSettingsJson = data.noiseSettings("minecraft:overworld");
         SurfaceRule rule = parser.parse(noiseSettingsJson.get("surface_rule").getAsJsonObject());

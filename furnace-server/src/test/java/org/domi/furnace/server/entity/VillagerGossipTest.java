@@ -1,6 +1,7 @@
 // 주민 소문·평판: 값 더하기(최댓값)·감쇠·전달, 평판 사건, 특별 가격 공식, 저장 왕복, 레이드·숨기 활동 전환.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -31,7 +32,7 @@ class VillagerGossipTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static int value(GossipContainer g, UUID u, GossipType t) { return g.getGossipEntries().getOrDefault(u, java.util.Map.of()).getOrDefault(t, 0); }

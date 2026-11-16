@@ -1,6 +1,7 @@
 // 처리되지 않은 예외를 crash-reports/crash-yyyy-MM-dd_HH.mm.ss-server.txt 로 남긴다(바닐라 CrashReport 형식에 가깝게).
 package org.domi.furnace.server;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -66,7 +67,7 @@ public final class CrashReport {
         sb.append("\nA detailed walkthrough of the error, its code path and all known details is as follows:\n");
         sb.append("---------------------------------------------------------------------------------------\n\n");
         sb.append("-- System Details --\nDetails:\n");
-        sb.append("\tMinecraft Version: 1.21.1\n");
+        sb.append("\tMinecraft Version: " + GameVersion.MINECRAFT + "\n");
         sb.append("\tServer Type: Furnace\n");
         String v = CrashReport.class.getPackage().getImplementationVersion();
         sb.append("\tFurnace Version: ").append(v != null ? v : "dev").append('\n');

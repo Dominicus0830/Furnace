@@ -7,6 +7,7 @@
 // 쓰는 법은 docs/api/testing.md.
 package org.domi.furnace.test;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -108,10 +109,10 @@ public final class FurnaceTestServer implements AutoCloseable {
             PluginSettings pluginSettings = new PluginSettings(b.failFast, null, java.util.Map.of(), b.devMode, false).withCompatNms(b.compatNms).withLibraries(b.libraries)
                     .withExposeCompatToNative(b.exposeCompatToNative).withCompatOptions(b.compatOptions);
             PluginBootstrapper boot = PluginBootstrapper.bootstrap(pluginsDir, pluginSettings);
-            BlockRegistry blocks = BlockRegistry.load("blocks/1.21.1.txt");
-            ItemRegistry items = ItemRegistry.load("items/1.21.1.txt");
+            BlockRegistry blocks = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+            ItemRegistry items = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
             org.domi.furnace.server.entity.PlayerData.itemRegistry(items);
-            RegistrySet registries = boot.collectGameRegistries(RegistrySet.load("registries/1.21.1.txt"));
+            RegistrySet registries = boot.collectGameRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"));
             RegistrySet.install(registries);
             ItemContext.install(new TagRegistries(registries));
             int plains = Math.max(0, registries.indexOf("minecraft:worldgen/biome", "minecraft:plains"));

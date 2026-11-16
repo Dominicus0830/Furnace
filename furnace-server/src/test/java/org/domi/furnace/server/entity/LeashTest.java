@@ -2,6 +2,7 @@
 // 기대값은 바닐라 1.21.1 디컴파일(btk.b_ 와 btk.a 정적 메서드)을 손으로 계산했다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.Unpooled;
@@ -17,7 +18,7 @@ class LeashTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     /** 매듭은 (kx+0.5, -59.625, 0.5) 에 놓인다(칸 위 0.375). 소는 같은 높이 x=0.5. */

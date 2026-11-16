@@ -1,6 +1,7 @@
 // 장면 공용 도우미: 시험 환경 설치, 상태 해시(엔티티·블록 상자), 줄 적기.
 package org.domi.furnace.server.scene;
 
+import org.domi.furnace.api.GameVersion;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.data.TagRegistries;
@@ -14,7 +15,7 @@ public final class SceneKit {
 
     /** 태그·레지스트리 설치(장면이 블록·아이템 이름을 쓰기 전에). 여러 번 불러도 된다. */
     public static void install() {
-        if (!ItemContext.installed()) ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        if (!ItemContext.installed()) ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     /**

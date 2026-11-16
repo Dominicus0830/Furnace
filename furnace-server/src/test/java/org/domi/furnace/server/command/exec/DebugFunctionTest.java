@@ -2,6 +2,7 @@
 // 오류·재귀·return run·권한, 성공 메시지(single/multiple)와 추적 소스의 출력 규칙(채팅이 아니라 파일), 컨텍스트 종료 때 파일 닫기.
 package org.domi.furnace.server.command.exec;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.IOException;
@@ -64,7 +65,7 @@ class DebugFunctionTest {
         tag("t", "both", "t:inner", "t:empty");
         packs = DataPackManager.start(vanilla, tmp, org.domi.furnace.server.world.storage.LevelData.create("world", 1L, true, false,
                 org.domi.furnace.server.world.GameMode.SURVIVAL, false, org.domi.furnace.server.world.Difficulty.EASY, List.of("vanilla"), List.of()),
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt"), true, List.of("vanilla"), List.of());
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"), true, List.of("vanilla"), List.of());
         core.dataPacks(packs);
         core.loadFunctions();
         sched.global().execute(() -> { }).get(10, TimeUnit.SECONDS);   // replaceLibrary 홉이 끝나기를 기다린다

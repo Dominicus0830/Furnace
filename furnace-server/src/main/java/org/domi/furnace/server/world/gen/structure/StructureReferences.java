@@ -4,6 +4,7 @@
 // 청크를 저장할 때 그 값을 시작점 NBT 에 쓴다. 아직 만들어지지 않은 시작 청크의 값은 data/furnace_structure_references.dat 에 남긴다.
 package org.domi.furnace.server.world.gen.structure;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -21,7 +22,7 @@ import org.slf4j.LoggerFactory;
 
 public final class StructureReferences {
     private static final Logger LOG = LoggerFactory.getLogger(StructureReferences.class);
-    private static final int DATA_VERSION = 3955;
+    private static final int DATA_VERSION = GameVersion.DATA_VERSION;
 
     /** 바닐라 StructureStart.getMaxReferences(): 1. canBeReferenced = references < 1. */
     public static final int MAX_REFERENCES = 1;

@@ -2,6 +2,7 @@
 // 기대값: 바닐라 서버 콘솔 /item replace 로 같은 아이템을 준 뒤 캡처한 container_set_slot 의 아이템 부분.
 package org.domi.furnace.server.loot;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.HexFormat;
@@ -15,7 +16,7 @@ import org.junit.jupiter.api.Test;
 
 class NetworkComponentsTest {
 
-    private static final NetworkComponents NET = new NetworkComponents(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+    private static final NetworkComponents NET = new NetworkComponents(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
 
     private static Map<String, Object> m(Object... kv) {
         Map<String, Object> out = new LinkedHashMap<>();

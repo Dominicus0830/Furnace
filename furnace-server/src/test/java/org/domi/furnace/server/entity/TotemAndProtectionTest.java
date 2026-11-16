@@ -1,6 +1,7 @@
 // 불사의 토템(checkTotemDeathProtection)과 플레이어 피해 경감(CombatRules·보호 인챈트) — 바닐라 1.21.1 식으로 계산한 기댓값.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -25,7 +26,7 @@ class TotemAndProtectionTest {
     @BeforeAll
     static void install() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private final Player player = new Player(7, UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());

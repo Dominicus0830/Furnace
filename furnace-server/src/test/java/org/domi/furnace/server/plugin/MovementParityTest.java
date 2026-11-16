@@ -1,6 +1,7 @@
 // 이동·텔레포트 정합(PR: Paper 1.21.1 관측 동작): PlayerMoveEvent 간격(CraftBukkit 규칙)과 Entity#teleport 의 진짜 결과.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
@@ -43,7 +44,7 @@ class MovementParityTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @BeforeEach
@@ -51,7 +52,7 @@ class MovementParityTest {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         core = TestServers.core(tmp, sched);
         host = core.plugins();
-        core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt"), org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), org.domi.furnace.server.world.ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         plugin.setEnabled(true);
         core.world().submitAtChunk(C00, r -> r.chunkAtBlocking(C00)).get(30, TimeUnit.SECONDS);
     }

@@ -1,6 +1,7 @@
 // 한 커넥션의 프로토콜 상태머신. 프레임을 받아 단계별로 해석하고 응답 패킷을 보낸다.
 package org.domi.furnace.server.net;
 
+import org.domi.furnace.api.GameVersion;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
@@ -87,7 +88,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         return r != null ? r : RegistrySet.current();
     }
     private static final org.domi.furnace.server.net.registry.TagSet TAGS =
-            org.domi.furnace.server.net.registry.TagSet.load("registries/tags-1.21.1.txt");
+            org.domi.furnace.server.net.registry.TagSet.load("registries/tags-" + GameVersion.RESOURCE_TAG + ".txt");
 
     private final ServerLoginContext login;
     private final String serverName;
@@ -106,8 +107,8 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private final ConnectionInfo info = new ConnectionInfo(this);
     private boolean configureEventFired;    // AsyncPlayerConfigureEvent 는 처음 구성 때 한 번
     private volatile boolean awaitingConfigure;   // 플러그인 구성 이벤트가 끝나기를 기다리는 중(구성 keep-alive 를 보낸다)
-    private static final int PROTOCOL_VERSION = 767;                 // 1.21.1
-    private static final String VERSION_NAME = "1.21.1";
+    private static final int PROTOCOL_VERSION = GameVersion.PROTOCOL;
+    private static final String VERSION_NAME = GameVersion.MINECRAFT;
     // 패킷 속도 제한(Paper packet-limiter 대응): 단계마다 토큰 버킷(기본 버스트 400개, 초당 200개 회복, ConnectionLimits). 초과 시 킥.
     // 단계가 바뀔 때 그 단계의 버킷으로 바꾼다. null 이면 이 단계는 제한 없음.
     private TokenBucket packetBucket;

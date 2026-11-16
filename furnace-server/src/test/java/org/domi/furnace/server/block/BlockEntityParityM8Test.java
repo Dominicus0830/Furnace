@@ -2,6 +2,7 @@
 // 표지판 면 색 기본값(fieldOf.orElse), 벌집 크리에이티브 파괴 드롭(playerWillDestroy).
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -35,7 +36,7 @@ import org.junit.jupiter.api.Test;
 class BlockEntityParityM8Test {
 
     @BeforeAll
-    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt"))); }
+    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"))); }
 
     static final Pos POS = new Pos(1, -60, 1);
 

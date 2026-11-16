@@ -1,6 +1,7 @@
 // T-175 검토(PR #380) 시험: 멈춘 미리 생성의 취소된 요청에 붙은 요청자가 대기열 맨 뒤까지 기다리지 않는다(R1), 플레이어 미리 불러오기도 promote, 멈추고 바로 이어 하기(R2).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
@@ -26,8 +27,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 class PregenStopJoinTest {
 
-    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
-    private static final List<String> BIOMES = RegistrySet.load("registries/1.21.1.txt").entries("minecraft:worldgen/biome");
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+    private static final List<String> BIOMES = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt").entries("minecraft:worldgen/biome");
 
     private static final class OrderGen implements WorldSource {
         final List<Long> order = Collections.synchronizedList(new ArrayList<>());
@@ -59,10 +60,10 @@ class PregenStopJoinTest {
         io = Executors.newFixedThreadPool(2);
         q = new GenQueue(1, new GenQueue.Settings(true, 4, 0, 16, 0, 0, TimeUnit.SECONDS.toNanos(3), false));
         AnvilWorldSource src = new AnvilWorldSource(dir, new RegionFileStore(dir),
-                new AnvilChunkCodec(REG, ItemRegistry.load("items/1.21.1.txt"), BIOMES, 0, ChunkColumn.MIN_Y, ChunkColumn.SECTION_COUNT), base);
+                new AnvilChunkCodec(REG, ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"), BIOMES, 0, ChunkColumn.MIN_Y, ChunkColumn.SECTION_COUNT), base);
         src.entityStore(new RegionFileStore(dir, "entities"));
         World w = new World(src, new ChunkWorkerPool(1), sched, 1, 16, 2, 2, REG.directBits(), 7, io, q);
-        w.setRegistries(REG, ItemRegistry.load("items/1.21.1.txt"));
+        w.setRegistries(REG, ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         w.configurePersistence(1_000_000, 1_000_000);
         w.worldDir(dir);
         pregen = new Pregen();

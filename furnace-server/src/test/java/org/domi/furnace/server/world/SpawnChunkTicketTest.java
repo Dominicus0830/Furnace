@@ -5,6 +5,7 @@
 //    다른 곳에 /forceload 를 걸면 바로 다시 돈다(호퍼가 거리 ≤ 2 에서 움직이고, 떨어지는 아이템은 거리 ≤ 1 에서만 떨어진다).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.LinkedHashMap;
@@ -44,7 +45,7 @@ class SpawnChunkTicketTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @AfterEach
@@ -55,11 +56,11 @@ class SpawnChunkTicketTest {
 
     private void world() {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         io = Executors.newSingleThreadExecutor();
         // 시야·시뮬레이션 거리 4 — 플레이어가 없으니 상관없다
         w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, sched.regionThreadCount(), 16, 4, 4, reg.directBits(), 7, io);
-        w.setRegistries(reg, ItemRegistry.load("items/1.21.1.txt"));
+        w.setRegistries(reg, ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         w.configurePersistence(1_000_000, 1);   // 퇴출 유예 1틱: 티켓 없는 청크는 곧 내려간다
         LevelServices base = w.levelServices();
         w.levelServices(new LevelServices.Delegating(base) {

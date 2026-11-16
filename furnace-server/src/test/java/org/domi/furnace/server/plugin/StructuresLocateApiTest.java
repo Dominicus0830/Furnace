@@ -1,6 +1,7 @@
 // 플러그인 구조물 찾기(W4/43번): /locate structure 와 같은 답, 태그·오류 처리, 구조물이 없는 월드.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
@@ -28,7 +29,7 @@ class StructuresLocateApiTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @AfterEach
@@ -43,10 +44,10 @@ class StructuresLocateApiTest {
     private void boot(boolean noiseWorld) {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         ServerCore core = noiseWorld
-                ? TestServers.core(tmp, sched, reg -> noise = NoiseWorldSource.overworld(0L, reg, RegistrySet.load("registries/1.21.1.txt")))
+                ? TestServers.core(tmp, sched, reg -> noise = NoiseWorldSource.overworld(0L, reg, RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")))
                 : TestServers.core(tmp, sched);
         host = core.plugins();
-        core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt"), org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), org.domi.furnace.server.world.ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
     }
 
     private org.domi.furnace.api.world.World api() { return host.world("minecraft:overworld"); }

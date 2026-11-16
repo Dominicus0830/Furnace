@@ -6,6 +6,7 @@
 // 부동소수점·문자열·NBT 바이트만 해시한다(정체 해시 없음).
 package org.domi.furnace.server.scene;
 
+import org.domi.furnace.api.GameVersion;
 import org.domi.furnace.server.identity.IdentityHash;
 import org.domi.furnace.server.identity.SceneHash;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
@@ -25,8 +26,8 @@ public final class SharedPipelineScene implements LibraryScene {
 
     @Override
     public void play(Size size, SceneHash.Recorder rec, Probe probe) throws java.io.IOException {
-        BlockRegistry blocks = BlockRegistry.load("blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry blocks = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         java.util.List<Case> cases = new java.util.ArrayList<>();
         if (size.full()) {   // 옛 벤치와 같은 범위: 세 차원 × 시드 셋 × 두 곳 × 6×6
             for (String dim : new String[]{"overworld", "nether", "end"}) for (long seed : new long[]{12345L, 0L, -7L}) cases.add(new Case(dim, seed));

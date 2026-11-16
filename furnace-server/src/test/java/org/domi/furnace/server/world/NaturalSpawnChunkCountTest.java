@@ -5,6 +5,7 @@
 // 예전 Furnace 는 "무작위 틱 받을 청크"(체비셰프 min(sim-1,8), 128 블록 원) 수를 써서 195 칸 → 몬스터 상한 47 이었다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -36,14 +37,14 @@ class NaturalSpawnChunkCountTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @BeforeEach
     void setUp() {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         core = TestServers.core(tmp, sched);
-        core.world().setRegistries(BlockRegistry.load("blocks/1.21.1.txt"), ItemRegistry.load("items/1.21.1.txt"));
+        core.world().setRegistries(BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
     }
 
     @AfterEach

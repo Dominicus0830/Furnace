@@ -1,6 +1,7 @@
 // baseBlock(바닐라 getBaseColumn = iterateNoiseColumn) 은 노이즈 단계 블록만 — 표면 규칙이 바꾼 블록(영혼 모래·현무암·잔디·심층암)은 보이지 않는다.
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Set;
@@ -12,8 +13,8 @@ import org.junit.jupiter.api.Test;
 
 class NoiseWorldSourceBaseColumnTest {
 
-    static final BlockRegistry BLOCKS = BlockRegistry.load("blocks/1.21.1.txt");
-    static final RegistrySet REGISTRIES = RegistrySet.load("registries/1.21.1.txt");
+    static final BlockRegistry BLOCKS = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+    static final RegistrySet REGISTRIES = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
 
     static int id(String name) { return BLOCKS.defaultStateId(name); }
 

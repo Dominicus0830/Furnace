@@ -1,6 +1,7 @@
 // 시험용: 로컬 바닐라 데이터로 레시피 매니저를 한 번 만들어 공유한다(없으면 null → 시험은 건너뛴다).
 package org.domi.furnace.server.recipe;
 
+import org.domi.furnace.api.GameVersion;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -28,12 +29,12 @@ public final class TestRecipes {
             return manager;
         }
         tried = true;
-        Path root = Path.of("../tools/vanilla-data/server-1.21.1");
+        Path root = Path.of("../tools/vanilla-data/server-" + GameVersion.MINECRAFT);
         if (!Files.isDirectory(root.resolve("data/minecraft/recipe"))) return null;
         PackRepository repo = new PackRepository(root, null);
         repo.reload();
         repo.setSelected(List.of("vanilla"));
-        regs = new TagRegistries(RegistrySet.load("registries/1.21.1.txt"));
+        regs = new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"));
         org.domi.furnace.server.item.ItemContext.install(regs);
         try (ResourceManager rm = repo.openResourceManager()) {
             TagSet tags = TagSet.of(regs.loadAll(rm));

@@ -1,6 +1,7 @@
 // 셀 꼭짓점 기둥 공유 캐시: 이웃 청크가 먼저 채운 꼭짓점을 써도 지형 블록이 캐시 없이(처음 계산) 만든 것과 같아야 한다.
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -9,8 +10,8 @@ import org.junit.jupiter.api.Test;
 
 class SliceColumnCacheTest {
 
-    static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
-    static final WorldgenData DATA = WorldgenData.load("worldgen/1.21.1");
+    static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+    static final WorldgenData DATA = WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG);
 
     private static int[] blocks(NoiseRouter router, NoiseSettings settings, int cx, int cz, BlockRegistry reg) {
         NoiseChunk nc = new NoiseChunk(cx, cz, router, settings, reg);

@@ -1,6 +1,7 @@
 // NoiseWorldSource 청크 형태(solid/water/lava/air) 픽스처 일치 검증. 표층 블록 종류는 SurfaceParityTest가 담당.
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.*;
@@ -13,8 +14,8 @@ import org.domi.furnace.server.world.ChunkSection;
 class NoiseWorldSourceParityTest {
 
     private void assertChunkParity(long seed, int cx, int cz) throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         int stoneId = reg.defaultStateId("minecraft:stone");
         int waterId = reg.defaultStateId("minecraft:water");
         int lavaId  = reg.defaultStateId("minecraft:lava");

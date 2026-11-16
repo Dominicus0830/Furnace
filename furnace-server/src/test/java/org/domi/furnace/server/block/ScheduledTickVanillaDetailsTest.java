@@ -3,6 +3,7 @@
 // 이미 돈 것·남은 것도 모음), 저장 예약이 같은 (칸, 종류) 새 예약보다 먼저 자리를 잡음.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -20,7 +21,7 @@ class ScheduledTickVanillaDetailsTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static final int STONE = B.id("minecraft:stone");

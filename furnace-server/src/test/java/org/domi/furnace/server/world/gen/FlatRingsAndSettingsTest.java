@@ -1,6 +1,7 @@
 // A06-04 뒤쪽 검토(PR #225): 평지 요새 링 시드(createForFlat = 0), generator-settings 코덱의 resultOrPartial·lenient overrides.
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Arrays;
@@ -12,8 +13,8 @@ import org.domi.furnace.server.world.gen.structure.StructureRegistry;
 import org.junit.jupiter.api.Test;
 
 class FlatRingsAndSettingsTest {
-    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
-    private static final RegistrySet REGS = RegistrySet.load("registries/1.21.1.txt");
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+    private static final RegistrySet REGS = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
 
     private static NoiseWorldSource flat(long seed) {
         return NoiseWorldSource.flat(seed, REG, REGS,

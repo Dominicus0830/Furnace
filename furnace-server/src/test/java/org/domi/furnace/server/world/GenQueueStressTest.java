@@ -1,6 +1,7 @@
 // T-170 (PR #371 검토에서 옮김): 생성 대기열 스트레스(교착·누수) + 빠진 시험 3개(차례 한 바퀴, 시간 티켓 keepAlive, 오래 기다린 고정 요청).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.util.ReferenceCountUtil;
@@ -83,7 +84,7 @@ class GenQueueStressTest {
         int threadsBefore = genWaitThreadsAlive();
         if (ChunkTrace.ON) for (Thread t : Thread.getAllStackTraces().keySet()) if (t.getName().equals("furnace-chunktrace")) t.interrupt();   // 수를 지우지 않게
         sched = new FurnaceSchedulerImpl(10_000_000L, 3);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         io = Executors.newFixedThreadPool(2);
         // 차례 2명 × 칸 4, 고정 요청 0.2초 뒤 먼저, 차례 최대 0.3초 — 짧게 잡아 회전·취소를 자주 일으킨다
         q = new GenQueue(3, new GenQueue.Settings(true, 8, 0, 16, 0, 0, TimeUnit.MILLISECONDS.toNanos(200), false, 2, 4,
@@ -199,7 +200,7 @@ class GenQueueStressTest {
 
     private World single(GenQueue.Settings s) {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         io = Executors.newSingleThreadExecutor();
         q = new GenQueue(1, s);
         w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, sched.regionThreadCount(), 16, VD, VD,

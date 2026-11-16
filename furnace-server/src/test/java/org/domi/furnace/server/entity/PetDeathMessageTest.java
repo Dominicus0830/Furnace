@@ -1,6 +1,7 @@
 // 길들인 펫 사망 메시지의 재료: 몹 전투 기록(CombatTracker)이 원인 엔티티 이름과 함께 쌓이는가.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.api.text.Text;
@@ -14,7 +15,7 @@ class PetDeathMessageTest {
     @BeforeAll
     static void install() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static final Entity.Damage MOB = new Entity.Damage("mob_attack", false, false, false);

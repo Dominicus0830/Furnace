@@ -1,5 +1,6 @@
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.net.registry.RegistrySet;
@@ -14,8 +15,8 @@ class WorldSpawnTest {
 
     @Test
     void defaultSpawn_isDeterministicAndSafe() {
-        BlockRegistry blocks = BlockRegistry.load("blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry blocks = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
 
         NoiseWorldSource a = NoiseWorldSource.overworld(0L, blocks, registries);
         NoiseWorldSource b = NoiseWorldSource.overworld(0L, blocks, registries);

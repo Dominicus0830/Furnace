@@ -2,6 +2,7 @@
 // flush 면 레인 기록이 다 끝나고 지역 파일을 force(true) 한 뒤 완료된다. 스냅샷은 부른 스레드에서, 파일 쓰기는 저장 스레드에서.
 package org.domi.furnace.server.maintenance;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
@@ -31,9 +32,9 @@ import org.junit.jupiter.api.io.TempDir;
 
 class ServerSaveTest {
 
-    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
-    private static final ItemRegistry ITEMS = ItemRegistry.load("items/1.21.1.txt");
-    private static final List<String> BIOMES = RegistrySet.load("registries/1.21.1.txt").entries("minecraft:worldgen/biome");
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+    private static final ItemRegistry ITEMS = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
+    private static final List<String> BIOMES = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt").entries("minecraft:worldgen/biome");
     private static final int PLAINS = BIOMES.indexOf("minecraft:plains");
     private static final int N = 4;
 

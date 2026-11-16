@@ -2,6 +2,7 @@
 // 변경 모아 보내기(flushDirty). 모음 종류(LinkedHashMap/HashSet)가 바닐라와 같아야 패킷·파일 순서가 같다.
 package org.domi.furnace.server.advancement;
 
+import org.domi.furnace.api.GameVersion;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
@@ -36,7 +37,7 @@ public final class PlayerAdvancements {
     private static final Logger log = LoggerFactory.getLogger(PlayerAdvancements.class);
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss Z", java.util.Locale.ROOT);
-    private static final int DATA_VERSION = 3955;
+    private static final int DATA_VERSION = GameVersion.DATA_VERSION;
 
     /** 진행이 바깥 세상에 닿는 곳(패킷·레시피·경험치·채팅·전리품). */
     public interface Host {

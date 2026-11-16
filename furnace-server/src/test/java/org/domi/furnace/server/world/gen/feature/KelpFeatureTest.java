@@ -1,5 +1,6 @@
 package org.domi.furnace.server.world.gen.feature;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Map;
@@ -12,7 +13,7 @@ class KelpFeatureTest {
 
     @Test
     void kelpFeature_placesPlantAndTopStatesInWater() {
-        BlockRegistry registry = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry registry = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         ChunkColumn col = new ChunkColumn(0);
         int[] blockIds = new int[ChunkColumn.SECTION_COUNT * 16 * 16 * 16];
         int[] biomeIds = new int[ChunkColumn.SECTION_COUNT * 64];

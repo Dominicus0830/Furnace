@@ -2,6 +2,7 @@
 // 끈 아이템을 든 주민 우클릭은 끈 맺기가 아니라 거래로 가야 한다(interactLeash 가 거절).
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -17,7 +18,7 @@ class LeashRulesTest {
     @BeforeAll
     static void install() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @Test

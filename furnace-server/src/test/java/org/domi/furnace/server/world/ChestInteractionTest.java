@@ -1,6 +1,7 @@
 // 체스트 설치/클릭(setChestItem)/파괴 연동 + 저장 왕복 검증(M4c-3 슬라이스 B)
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -27,8 +28,8 @@ class ChestInteractionTest {
     @Test
     void placeBlock_chestStateId_createsEmptyBlockEntity() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        ItemRegistry items = ItemRegistry.load("items/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        ItemRegistry items = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
         var io = Executors.newSingleThreadExecutor();
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1),
                 sched, sched.regionThreadCount(), 16, 5, 5, reg.directBits(), 7, io);
@@ -49,8 +50,8 @@ class ChestInteractionTest {
     @Test
     void setChestItem_updatesSlot_marksDirty() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        ItemRegistry items = ItemRegistry.load("items/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        ItemRegistry items = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
         var io = Executors.newSingleThreadExecutor();
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1),
                 sched, sched.regionThreadCount(), 16, 5, 5, reg.directBits(), 7, io);
@@ -76,7 +77,7 @@ class ChestInteractionTest {
     @Test
     void setChestItem_noSuchChest_isNoop() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         var io = Executors.newSingleThreadExecutor();
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1),
                 sched, sched.regionThreadCount(), 16, 5, 5, reg.directBits(), 7, io);
@@ -93,8 +94,8 @@ class ChestInteractionTest {
     @Test
     void breakBlock_removesChestAndForceClosesOpenSession() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        ItemRegistry items = ItemRegistry.load("items/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        ItemRegistry items = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
         var io = Executors.newSingleThreadExecutor();
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1),
                 sched, sched.regionThreadCount(), 16, 5, 5, reg.directBits(), 7, io);
@@ -149,8 +150,8 @@ class ChestInteractionTest {
 
     @Test
     void saveDirty_thenReload_keepsChestItems(@TempDir Path dir) throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        ItemRegistry items = ItemRegistry.load("items/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        ItemRegistry items = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
         RegionFileStore store = new RegionFileStore(dir);
         AnvilChunkCodec codec = new AnvilChunkCodec(reg, 0);
         AnvilWorldSource src = new AnvilWorldSource(dir, store, codec, new SuperflatWorldSource(reg, 0));

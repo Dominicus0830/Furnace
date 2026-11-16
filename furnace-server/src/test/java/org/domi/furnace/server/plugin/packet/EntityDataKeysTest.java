@@ -1,6 +1,7 @@
 // 이름 있는 메타데이터 칸(EntityDataKeys)·값 종류 31개(EntityDataType)가 서버 엔티티 정의와 맞는지, 와이어 왕복·서버 직렬화와 같은 바이트인지.
 package org.domi.furnace.server.plugin.packet;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -56,13 +57,13 @@ import org.junit.jupiter.api.Test;
 
 class EntityDataKeysTest {
 
-    private static final BlockRegistry BLOCKS = BlockRegistry.load("blocks/1.21.1.txt");
-    private static final ItemRegistry ITEMS = ItemRegistry.load("items/1.21.1.txt");
+    private static final BlockRegistry BLOCKS = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+    private static final ItemRegistry ITEMS = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
     private static Protocol767 codec;
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         codec = new Protocol767(() -> BLOCKS, () -> ITEMS);
     }
 
@@ -108,9 +109,9 @@ class EntityDataKeysTest {
             if (!e.getValue().equals(got)) ok = false;
         }
         if (!ok) {
-            Path p = Path.of("build/entity-data-layouts-1.21.1.txt");
+            Path p = Path.of("build/entity-data-layouts-" + GameVersion.RESOURCE_TAG + ".txt");
             Files.writeString(p, file, StandardCharsets.UTF_8);
-            fail("resources/entity_data/layouts-1.21.1.txt(바닐라 대조 완료) 가 서버 엔티티와 다르다 — 먼저 서버 엔티티의 defineSynchedData 를 바닐라와 대조할 것. 서버가 맞다고 확인된 경우에만 새 표로 바꾼다: " + p.toAbsolutePath());
+            fail("resources/entity_data/layouts-" + GameVersion.RESOURCE_TAG + ".txt(바닐라 대조 완료) 가 서버 엔티티와 다르다 — 먼저 서버 엔티티의 defineSynchedData 를 바닐라와 대조할 것. 서버가 맞다고 확인된 경우에만 새 표로 바꾼다: " + p.toAbsolutePath());
         }
     }
 

@@ -2,6 +2,7 @@
 // 블록 상태별 색은 blocks/stateflags 표(BlockInfo.mapColor)에 RGB 로 있다 — 번호 표(blocks/mapcolors, tools/vanilla-data/ExportMapColors)로 번호를 되찾는다.
 package org.domi.furnace.server.map;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,7 +33,7 @@ public final class MapColor {
 
     private static byte[] buildStateIds() {
         Map<Integer, Integer> idByRgb = new HashMap<>();
-        try (InputStream in = MapColor.class.getClassLoader().getResourceAsStream("blocks/mapcolors_1.21.1.txt")) {
+        try (InputStream in = MapColor.class.getClassLoader().getResourceAsStream("blocks/mapcolors_" + GameVersion.RESOURCE_TAG + ".txt")) {
             if (in == null) throw new IllegalStateException("map color table resource is missing");
             BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             String line;

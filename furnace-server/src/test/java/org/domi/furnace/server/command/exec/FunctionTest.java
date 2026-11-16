@@ -2,6 +2,7 @@
 // 함수 안 줄 순서(앞 줄의 region 작업이 끝난 뒤 다음 줄), #minecraft:load·#minecraft:tick, /reload 뒤 라이브러리 교체, 체인 예산.
 package org.domi.furnace.server.command.exec;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.IOException;
@@ -80,7 +81,7 @@ class FunctionTest {
         tag("minecraft", "tick", "t:ontick");
         packs = DataPackManager.start(vanilla, tmp, org.domi.furnace.server.world.storage.LevelData.create("world", 1L, true, false,
                 org.domi.furnace.server.world.GameMode.SURVIVAL, false, org.domi.furnace.server.world.Difficulty.EASY, List.of("vanilla"), List.of()),
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt"), true, List.of("vanilla"), List.of());
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"), true, List.of("vanilla"), List.of());
         // 플러그인 명령 흉내: 함수 로드(loadFunctions) 전에 등록돼 있으면 그 명령을 쓰는 함수가 시작 때부터 실린다
         var d = core.commands().getDispatcher();
         d.register(org.domi.furnace.server.command.brigadier.LiteralArgumentBuilder.<CommandSource>literal("plugincmd").executes(c -> 9));

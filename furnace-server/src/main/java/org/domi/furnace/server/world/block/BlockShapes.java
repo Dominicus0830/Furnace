@@ -2,6 +2,7 @@
 // 검증: tools/vanilla-data/ShapeVectors(바닐라 코드로 만든 무작위 이웃 구성 → 결과표)와 tools/parity-audit/ShapeDiff로 차분.
 package org.domi.furnace.server.world.block;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -182,7 +183,7 @@ public final class BlockShapes {
 
     private static byte[] loadWallTests(int n) {
         byte[] t = new byte[n];
-        try (InputStream raw = BlockShapes.class.getClassLoader().getResourceAsStream("blocks/blockwalltests_1.21.1.txt.gz")) {
+        try (InputStream raw = BlockShapes.class.getClassLoader().getResourceAsStream("blocks/blockwalltests_" + GameVersion.RESOURCE_TAG + ".txt.gz")) {
             if (raw == null) throw new IllegalStateException("fence test resource is missing");
             BufferedReader r = new BufferedReader(new InputStreamReader(new GZIPInputStream(raw), StandardCharsets.UTF_8));
             String line;
@@ -198,7 +199,7 @@ public final class BlockShapes {
     }
 
     private void loadSupports() {
-        try (InputStream raw = BlockShapes.class.getClassLoader().getResourceAsStream("blocks/blocksupports_1.21.1.txt.gz")) {
+        try (InputStream raw = BlockShapes.class.getClassLoader().getResourceAsStream("blocks/blocksupports_" + GameVersion.RESOURCE_TAG + ".txt.gz")) {
             if (raw == null) throw new IllegalStateException("support mask resource is missing");
             BufferedReader r = new BufferedReader(new InputStreamReader(new GZIPInputStream(raw), StandardCharsets.UTF_8));
             String line;

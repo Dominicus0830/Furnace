@@ -1,5 +1,6 @@
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.BufferedReader;
@@ -39,7 +40,7 @@ class ContextCollisionShapeVanillaTest {
     void matchesVanillaTable() throws Exception {
         Map<Integer, Expected> shapes = new HashMap<>();
         List<String[]> rows = new ArrayList<>();
-        try (var in = getClass().getClassLoader().getResourceAsStream("collision/context-shapes-1.21.1.tsv");
+        try (var in = getClass().getClassLoader().getResourceAsStream("collision/context-shapes-" + GameVersion.RESOURCE_TAG + ".tsv");
              var r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
             for (String line; (line = r.readLine()) != null; ) {
                 if (line.startsWith("#") || line.isBlank()) continue;

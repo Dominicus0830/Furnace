@@ -12,6 +12,7 @@
 //  - plugins.libraries.offline=true 면 네트워크에 나가지 않는다 — 파일을 손으로 캐시에 두면(아래 경로) 그것을 쓴다(Mojang 파일은 sha1 이 맞아야 한다).
 package org.domi.furnace.server.plugin.library;
 
+import org.domi.furnace.api.GameVersion;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -36,7 +37,7 @@ import org.slf4j.Logger;
 
 public final class SpigotMappingFiles {
 
-    public static final String MINECRAFT = "1.21.1";
+    public static final String MINECRAFT = GameVersion.MINECRAFT;
     /** Mojang 공식 서버 매핑(ProGuard). 주소의 경로가 곧 sha1 이다. */
     public static final String MOJANG_SHA1 = "03f8985492bda0afc0898465341eb0acef35f570";
     public static final long MOJANG_SIZE = 7_456_063L;

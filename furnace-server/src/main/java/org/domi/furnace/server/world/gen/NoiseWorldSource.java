@@ -1,6 +1,7 @@
 // 바닐라 비트일치 노이즈 지형 WorldSource. generateBlockIds + Aquifer 기반 블록 결정
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -243,7 +244,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
 
     private static NoiseWorldSource create(Dimension dim, String noiseSettingsId, long seed, BlockRegistry reg, RegistrySet registries, String fixedBiome,
                                            FlatSpec flat) {
-        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
+        WorldgenData data = WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG);
         JsonObject settingsJson = data.noiseSettings(noiseSettingsId);
         NoiseSettings settings = NoiseSettings.fromJson(noiseSettingsId, settingsJson);
         NoiseRouter router = NoiseRouter.build(data, settings, seed);

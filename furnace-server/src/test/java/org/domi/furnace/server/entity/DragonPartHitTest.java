@@ -1,6 +1,7 @@
 // 드래곤 파트 판정: 투사체가 파트에 맞고(본체는 isPickable=false), 머리는 배율 없음·그 밖은 /4+1, 앉은 단계 화살 무시, 폭발은 본체+파트 다중 피해.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -16,7 +17,7 @@ class DragonPartHitTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static Player player(DimensionTestLevel level, double x, double y, double z) {

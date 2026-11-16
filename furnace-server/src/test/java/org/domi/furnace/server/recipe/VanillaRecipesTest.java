@@ -2,6 +2,7 @@
 // 바이트 단위로 같은지(순서·인코딩 전부). 기대값은 바닐라 서버에 접속해 캡처한 본문의 SHA-256.
 package org.domi.furnace.server.recipe;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
@@ -24,12 +25,12 @@ class VanillaRecipesTest {
 
     @Test
     void updateRecipesMatchesVanillaServerBytes() throws Exception {
-        Path root = Path.of("../tools/vanilla-data/server-1.21.1");
+        Path root = Path.of("../tools/vanilla-data/server-" + GameVersion.MINECRAFT);
         Assumptions.assumeTrue(Files.isDirectory(root.resolve("data/minecraft/recipe")), "로컬 바닐라 데이터 없음");
         PackRepository repo = new PackRepository(root, null);
         repo.reload();
         repo.setSelected(List.of("vanilla"));
-        TagRegistries regs = new TagRegistries(RegistrySet.load("registries/1.21.1.txt"));
+        TagRegistries regs = new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"));
         try (ResourceManager rm = repo.openResourceManager()) {
             TagSet tags = TagSet.of(regs.loadAll(rm));
             RecipeManager m = RecipeManager.load(rm, new RecipeContext() {

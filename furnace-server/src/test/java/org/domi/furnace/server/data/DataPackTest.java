@@ -1,6 +1,7 @@
 // 데이터 팩: 덮어쓰기·filter·오버레이·zip·태그 replace·새 팩 자동 켜기·level.dat 반영.
 package org.domi.furnace.server.data;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.IOException;
@@ -124,7 +125,7 @@ class DataPackTest {
         LevelData ld = LevelData.create("world", 1L, true, false, org.domi.furnace.server.world.GameMode.SURVIVAL, false,
             org.domi.furnace.server.world.Difficulty.EASY, List.of("vanilla"), List.of());
         try (DataPackManager m = DataPackManager.start(vanilla, worldDir, ld,
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt"), true, List.of("vanilla"), List.of())) {
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"), true, List.of("vanilla"), List.of())) {
             assertEquals(List.of("vanilla", "file/mine"), m.repository().selectedIds());
             assertEquals(List.of("vanilla", "file/mine"), ld.enabledPacks);
             assertEquals(List.of("bundle"), ld.disabledPacks);
@@ -141,7 +142,7 @@ class DataPackTest {
 
     @Test
     void vanillaDataExtractsFromLocalJar() throws IOException {
-        Path jar = Path.of("../tools/vanilla-data/minecraft_server.1.21.1.jar");
+        Path jar = Path.of("../tools/vanilla-data/minecraft_server." + GameVersion.MINECRAFT + ".jar");
         org.junit.jupiter.api.Assumptions.assumeTrue(Files.isRegularFile(jar), "로컬 바닐라 jar 없음");
         System.setProperty("furnace.vanillaJar", jar.toString());
         try {

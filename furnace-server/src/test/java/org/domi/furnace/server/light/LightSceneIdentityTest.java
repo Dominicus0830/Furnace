@@ -6,6 +6,7 @@
 // 그 순간은 옛 경로(고립 계산: 내려간 이웃 몫이 빠짐)와 저장 빛 경로(이웃 몫이 들어 있음, 바닐라와 같음)가 다르게 보이는 것이 맞다.
 package org.domi.furnace.server.light;
 
+import org.domi.furnace.api.GameVersion;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -31,7 +32,7 @@ import org.junit.jupiter.api.Test;
 
 class LightSceneIdentityTest {
 
-    static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
+    static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
 
     /** 올라온 청크만 보는 레벨. 내리기는 Region.evictIdleChunks 와 같이 dirty 면 저장하고, 다시 올리기는 Region.loadChunk 순서를 흉내 낸다. */
     static class SceneLevel extends ChunkLevel {

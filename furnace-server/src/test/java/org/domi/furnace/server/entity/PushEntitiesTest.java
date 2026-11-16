@@ -2,6 +2,7 @@
 // 기대값은 바닐라 1.21.1 디컴파일(btn.r, bsr.h, bsw.a)을 손으로 계산했다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Random;
@@ -19,7 +20,7 @@ class PushEntitiesTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static final class Arena extends BlockPlacementTest.TestLevel {

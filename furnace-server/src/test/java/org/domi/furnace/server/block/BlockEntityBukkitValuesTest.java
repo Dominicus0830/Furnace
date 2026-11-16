@@ -2,6 +2,7 @@
 // block_entity_data 로 놓을 때 읽히는지, 영속 데이터만 고치는 길이 비면 키를 떼는지(Paper Sanitize-sent-BlockEntity-NBT·CraftBukkit loadAdditional).
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.block.entity.BlockEntity;
@@ -19,7 +20,7 @@ class BlockEntityBukkitValuesTest {
     static final Pos POS = new Pos(1, -60, 1);
 
     @BeforeAll
-    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt"))); }
+    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"))); }
 
     private static NbtCompound secret() {
         NbtCompound pdc = new NbtCompound();

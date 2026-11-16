@@ -1,6 +1,7 @@
 // 섹션 블록 set/get, 비공기 카운트, heightmap 패킹 검증
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
 
@@ -225,7 +226,7 @@ class ChunkColumnTest {
 
     @Test
     void heightmap_followsEdits() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         int bedrock = reg.defaultStateId("minecraft:bedrock");
         int dirt = reg.defaultStateId("minecraft:dirt");
         int grass = reg.defaultStateId("minecraft:grass_block");

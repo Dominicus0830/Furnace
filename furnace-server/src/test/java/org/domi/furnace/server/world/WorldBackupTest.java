@@ -2,6 +2,7 @@
 // 들어간다. 틱 붙잡기 동안 region 은 게임 틱을 돌지 않는다. zip 보관 수(keep)를 넘으면 오래된 것부터 지운다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
@@ -30,8 +31,8 @@ class WorldBackupTest {
 
     private static final RegionPos R00 = new RegionPos(0, 0);
     private static final ChunkPos CP = new ChunkPos(1, 1);
-    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
-    private static final List<String> BIOMES = RegistrySet.load("registries/1.21.1.txt").entries("minecraft:worldgen/biome");
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+    private static final List<String> BIOMES = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt").entries("minecraft:worldgen/biome");
     private static final int PLAINS = BIOMES.indexOf("minecraft:plains");
 
     private final List<AutoCloseable> closers = new java.util.ArrayList<>();
@@ -46,11 +47,11 @@ class WorldBackupTest {
         ExecutorService io = Executors.newFixedThreadPool(2);
         closers.add(sched::close);
         closers.add(io::shutdownNow);
-        AnvilChunkCodec codec = new AnvilChunkCodec(REG, ItemRegistry.load("items/1.21.1.txt"), BIOMES, PLAINS, ChunkColumn.MIN_Y, ChunkColumn.SECTION_COUNT);
+        AnvilChunkCodec codec = new AnvilChunkCodec(REG, ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"), BIOMES, PLAINS, ChunkColumn.MIN_Y, ChunkColumn.SECTION_COUNT);
         AnvilWorldSource src = new AnvilWorldSource(dir, new RegionFileStore(dir), codec, new SuperflatWorldSource(REG, PLAINS));
         src.entityStore(new RegionFileStore(dir, "entities"));
         World w = new World(src, new ChunkWorkerPool(1), sched, 1, 16, 2, 2, REG.directBits(), 7, io);
-        w.setRegistries(REG, ItemRegistry.load("items/1.21.1.txt"));
+        w.setRegistries(REG, ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         w.configurePersistence(1_000_000, 1_000_000);
         w.worldDir(dir);
         closers.add(() -> {

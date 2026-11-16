@@ -1,6 +1,7 @@
 // C-5: 팔레트 원본 사본·공유 빛 층 스냅샷이 예전 즉시 풀기 스냅샷과 같은 본문 바이트를 내는지(무작위 청크 수천 개, 편집 경쟁 포함).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -119,7 +120,7 @@ class ChunkSnapshotCompactCopyTest {
         org.junit.jupiter.api.Assumptions.assumeTrue(Boolean.getBoolean("furnace.bench"));
         var mx = (com.sun.management.ThreadMXBean) java.lang.management.ManagementFactory.getThreadMXBean();
         long tid = Thread.currentThread().threadId();
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         ChunkColumn flat = new org.domi.furnace.server.world.gen.SuperflatWorldSource(reg, 0).generate(0, 0);
         ChunkLight fl = new ChunkLight();
         for (int i = 0; i < ChunkLight.SECTIONS; i++) if (i >= 6) fl.fillSkyFull(i);

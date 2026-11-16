@@ -1,6 +1,7 @@
 // 좀비 지원군: 어려움에서 맞으면 7~40칸 밖에 새 좀비가 나고 부른 쪽 확률이 0.05 줄어든다. 보통 난이도·확률 0 이면 안 난다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -17,7 +18,7 @@ class ZombieReinforcementsTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static final class Dark extends BlockPlacementTest.TestLevel {

@@ -3,6 +3,7 @@
 // 디코드를 레인 밖에서 해도 같은 파일의 저장 → 로드 순서가 지켜지는지.
 package org.domi.furnace.server.world.anvil;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.ByteArrayInputStream;
@@ -40,10 +41,10 @@ class ChunkIoFastPathCodecTest {
 
     @BeforeAll
     static void load() throws Exception {
-        reg = BlockRegistry.load("blocks/1.21.1.txt");
-        biomes = RegistrySet.load("registries/1.21.1.txt").entries("minecraft:worldgen/biome");
+        reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        biomes = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt").entries("minecraft:worldgen/biome");
         plains = biomes.indexOf("minecraft:plains");
-        codec = new AnvilChunkCodec(reg, ItemRegistry.load("items/1.21.1.txt"), biomes, plains,
+        codec = new AnvilChunkCodec(reg, ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"), biomes, plains,
                 ChunkColumn.MIN_Y, ChunkColumn.SECTION_COUNT);
         List<Integer> ok = new ArrayList<>();
         for (int id = 0; id < reg.totalStateCount(); id += 3) {

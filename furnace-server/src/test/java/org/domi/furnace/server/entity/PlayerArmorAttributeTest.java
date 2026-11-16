@@ -1,6 +1,7 @@
 // 플레이어 방어/방어 인성 속성: 입장 때 syncable 전부 한 번, 장비가 바뀔 때마다 바뀐 속성만 update_attributes 로 본인과 보는 사람에게(방어구 아이콘의 근거).
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -18,7 +19,7 @@ class PlayerArmorAttributeTest {
     @BeforeAll
     static void install() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static ItemStack item(String name) { return new ItemStack(ItemContext.id("minecraft:item", name), 1); }

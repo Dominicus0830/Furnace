@@ -2,6 +2,7 @@
 // 각 조각 생성자(ub)가 읽는 키가 모두 있어야 한다(없으면 바닐라·Paper 로 옮길 때 시작점이 빈 것이 된다).
 package org.domi.furnace.server.world.gen.structure;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.HashMap;
@@ -17,8 +18,8 @@ import org.domi.furnace.server.world.gen.NoiseWorldSource;
 import org.junit.jupiter.api.Test;
 
 class StructurePieceSaveTest {
-    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
-    private static final RegistrySet REGS = RegistrySet.load("registries/1.21.1.txt");
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+    private static final RegistrySet REGS = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
 
     /** 바닐라 조각 종류별로 load 생성자가 읽는 키(공통 id·BB·O·GD 제외). eki·각 조각 클래스 디컴파일 대조. */
     private static final Map<String, List<String>> KEYS = new HashMap<>();

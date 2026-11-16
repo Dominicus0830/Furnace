@@ -1,6 +1,7 @@
 // 네더 5개 바이옴의 모든 placed feature 가 NoopFeature 폴백 없이 구현체로 파싱되는지 확인
 package org.domi.furnace.server.world.gen.feature;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -13,8 +14,8 @@ class NetherFeatureParseTest {
 
     @Test
     void netherBiomeFeaturesAreAllImplemented() {
-        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
-        BlockRegistry registry = BlockRegistry.load("blocks/1.21.1.txt");
+        WorldgenData data = WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG);
+        BlockRegistry registry = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         List<String> biomes = List.of("minecraft:nether_wastes", "minecraft:soul_sand_valley", "minecraft:crimson_forest",
             "minecraft:warped_forest", "minecraft:basalt_deltas");
 

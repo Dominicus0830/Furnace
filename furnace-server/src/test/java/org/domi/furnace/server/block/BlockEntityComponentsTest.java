@@ -2,6 +2,7 @@
 // 종류별 주고받는 컴포넌트, 갱신 태그(getUpdateTag = saveCustomOnly — "components" 없음).
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
@@ -26,7 +27,7 @@ import org.junit.jupiter.api.Test;
 class BlockEntityComponentsTest {
 
     @BeforeAll
-    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt"))); }
+    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"))); }
 
     static int item(String n) { return ItemContext.id("minecraft:item", n); }
 

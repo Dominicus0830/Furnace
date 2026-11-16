@@ -1,6 +1,7 @@
 // 아무것도 없는 곳으로 보낸 작업이 만든 region 은 곧 사라지고, 플레이어가 있는 region 은 남는지 검증
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -16,7 +17,7 @@ import org.junit.jupiter.api.Test;
 class EmptyRegionEvictionTest {
 
     private static World world(FurnaceSchedulerImpl sched) {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         return new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(2),
                 sched, sched.regionThreadCount(), 16, 1, 1, reg.directBits(), 7,
                 java.util.concurrent.Executors.newSingleThreadExecutor());

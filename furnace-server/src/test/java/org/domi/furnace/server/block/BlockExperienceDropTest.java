@@ -2,6 +2,7 @@
 // Paper dropResources(…, dropExperience=false) 는 경험치도 난수도 쓰지 않는지.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -20,7 +21,7 @@ class BlockExperienceDropTest {
     @BeforeAll
     static void install() {
         BlockPlacementTest.install();
-        ItemContext.installTags(org.domi.furnace.server.net.registry.TagSet.load("registries/tags-1.21.1.txt"));
+        ItemContext.installTags(org.domi.furnace.server.net.registry.TagSet.load("registries/tags-" + GameVersion.RESOURCE_TAG + ".txt"));
     }
 
     /** 난수를 고정하고 popExperience 를 기록한다. */

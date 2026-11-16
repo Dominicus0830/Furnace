@@ -4,6 +4,7 @@
 // 금 파일과 같은 규칙: 최적화 PR 은 기대 열을 바꾸지 않고, 바꾸려면 docs/testing/identitykit.md "금 파일 갱신" 절차를 따른다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -81,7 +82,7 @@ class ChunkSendPacketOrderGoldenTest {
     @org.junit.jupiter.api.RepeatedTest(10)
     void sameTickBlockChangeMoveAndChunkSend_packetSequenceIsFixed() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2,
                 reg.directBits(), 7, Executors.newSingleThreadExecutor());
         try {

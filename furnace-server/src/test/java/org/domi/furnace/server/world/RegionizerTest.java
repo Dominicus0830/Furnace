@@ -2,6 +2,7 @@
 // 구역 크기 shift 3(기본)·4(예전 기본) 둘 다로 돈다(T-004).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -34,7 +35,7 @@ class RegionizerTest {
     @BeforeEach
     void setUp() {
         sched = new FurnaceSchedulerImpl(10_000_000L, 3);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(2), sched, 3, shift, 1, 2, 2,
                 reg.directBits(), 7, java.util.concurrent.Executors.newSingleThreadExecutor(),
                 java.util.concurrent.Executors.newSingleThreadExecutor());

@@ -1,6 +1,7 @@
 // 화로 굽기 속도 배율(Paper Implement-furnace-cook-speed-multiplier-API) 대조 — PR #381 독립 검토 시험을 옮겼다.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -21,7 +22,7 @@ class FurnaceCookSpeedMultiplierTest {
     private static Rig rig(String block) throws Exception {
         RecipeManager rm = TestRecipes.manager();
         assumeTrue(rm != null, "로컬 바닐라 데이터 없음");
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         var level = new BlockPlacementTest.TestLevel() {
             @Override public Object recipes() { return rm; }
         };

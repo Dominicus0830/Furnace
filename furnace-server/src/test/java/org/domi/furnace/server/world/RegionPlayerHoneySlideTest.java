@@ -1,6 +1,7 @@
 // 꿀 블록 옆면을 미끄러지는 플레이어: 바닐라 HoneyBlock.maybeDoSlideEffects(플레이어는 생물) — 레벨 난수 1/5 로 엔티티 이벤트 53(자기 포함).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -21,11 +22,11 @@ class RegionPlayerHoneySlideTest {
     /** x=8 에 꿀 기둥(y -60..-50), 플레이어는 x 에 서서 매 틱 0.1 씩 내려간다(공중). 받은 이벤트 53 수. */
     private static int slideEvents(double x) throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         var io = Executors.newSingleThreadExecutor();
         try {
             World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, sched.regionThreadCount(), 16, 5, 5, reg.directBits(), 7, io);
-            w.setRegistries(reg, ItemRegistry.load("items/1.21.1.txt"));
+            w.setRegistries(reg, ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
             RegionPos rp = new RegionPos(0, 0);
             var ch = new ConcurrentEmbeddedChannel();
             Player p = new Player(1, UUID.randomUUID(), "Honey", ch);

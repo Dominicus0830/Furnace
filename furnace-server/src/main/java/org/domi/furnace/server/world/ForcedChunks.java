@@ -2,6 +2,7 @@
 // 키는 바닐라 ChunkPos.asLong(x 가 아래 32비트, z 가 위 32비트)이라 파일과 목록 정렬 순서가 바닐라와 같다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -18,7 +19,7 @@ import org.slf4j.LoggerFactory;
 
 public final class ForcedChunks {
     private static final Logger LOG = LoggerFactory.getLogger(ForcedChunks.class);
-    private static final int DATA_VERSION = 3955;
+    private static final int DATA_VERSION = GameVersion.DATA_VERSION;
 
     private final Path file;
     private final Set<Long> chunks = ConcurrentHashMap.newKeySet();

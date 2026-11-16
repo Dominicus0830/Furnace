@@ -1,6 +1,7 @@
 // 돌고래 보물 찾기(DolphinSwimToTreasureGoal)와 플레이어와 헤엄(DolphinSwimWithPlayerGoal) 시험.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.block.B;
@@ -15,7 +16,7 @@ class DolphinTreasurePlayerTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static PlayerSleepingTest.Lvl pool() {

@@ -1,5 +1,6 @@
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.UUID;
@@ -28,7 +29,7 @@ class ContextCollisionBehaviorTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         scaffolding = B.prop("distance").withInt(B.defaultState("minecraft:scaffolding"), 0);
         lavaSource = B.defaultState("minecraft:lava");
         lavaFlowing = B.prop("level").withInt(lavaSource, 3);

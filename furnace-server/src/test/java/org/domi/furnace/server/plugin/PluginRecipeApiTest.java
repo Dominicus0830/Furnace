@@ -1,6 +1,7 @@
 // 플러그인 API 레시피 레지스트리: 등록·검증·제거·복원, 제작/굽기/석재 절단/대장장이 공통 표, /reload 뒤 유지, 플러그인 꺼짐 정리, 접속자 재전송.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -39,7 +40,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 class PluginRecipeApiTest {
 
-    private static final Path VANILLA = Path.of("../tools/vanilla-data/server-1.21.1");
+    private static final Path VANILLA = Path.of("../tools/vanilla-data/server-" + GameVersion.MINECRAFT);
 
     @TempDir Path tmp;
     private FurnaceSchedulerImpl sched;
@@ -51,7 +52,7 @@ class PluginRecipeApiTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @BeforeEach
@@ -60,10 +61,10 @@ class PluginRecipeApiTest {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         core = TestServers.core(tmp, sched);
         host = core.plugins();
-        core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt"), org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), org.domi.furnace.server.world.ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         packs = DataPackManager.start(VANILLA, tmp, org.domi.furnace.server.world.storage.LevelData.create("world", 1L, true, false,
                 org.domi.furnace.server.world.GameMode.SURVIVAL, false, org.domi.furnace.server.world.Difficulty.EASY, List.of("vanilla"), List.of()),
-                RegistrySet.load("registries/1.21.1.txt"), true, List.of("vanilla"), List.of());
+                RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"), true, List.of("vanilla"), List.of());
         core.dataPacks(packs);
     }
 

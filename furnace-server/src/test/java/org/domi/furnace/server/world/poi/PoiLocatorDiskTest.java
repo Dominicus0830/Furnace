@@ -1,6 +1,7 @@
 // /locate poi: 내릴 때 넣은 POI 저장(savePoiAsync)이 IO 레인에 걸려 있어도, 디스크 읽기는 그 뒤에 돌아 내용을 본다.
 package org.domi.furnace.server.world.poi;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
@@ -46,7 +47,7 @@ class PoiLocatorDiskTest {
 
     @Test
     void pendingSaveIsSeen() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         var anvil = new AnvilWorldSource(tmp, new RegionFileStore(tmp), new AnvilChunkCodec(reg, 0), new SuperflatWorldSource(reg, 0));
         anvil.poiStore(new RegionFileStore(tmp, "poi"));
         ManualPool io = new ManualPool();
@@ -68,7 +69,7 @@ class PoiLocatorDiskTest {
 
     @Test
     void cancelled() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         ManualPool io = new ManualPool();
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), new FurnaceSchedulerImpl(50_000_000L, 1), 1, 16, 2, 2, reg.directBits(), 7, io);
         var f = PoiLocator.findClosest(w, t -> true, new Pos(0, 64, 0), 256, Runnable::run, () -> true);

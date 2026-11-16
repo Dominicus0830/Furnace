@@ -3,6 +3,7 @@
 // 바닐라는 서버 루프가 멈춘 뒤 saveAllChunks 를 하므로 저장 사이에 틱도 이동도 없다. 2차 점검 재현 시험(ReviewA03ShutdownTest)을 고친 순서로 바꿨다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
@@ -27,8 +28,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 class ShutdownConsistentCutTest {
 
-    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
-    private static final List<String> BIOMES = RegistrySet.load("registries/1.21.1.txt").entries("minecraft:worldgen/biome");
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+    private static final List<String> BIOMES = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt").entries("minecraft:worldgen/biome");
     private static final int PLAINS = BIOMES.indexOf("minecraft:plains");
     private static final ChunkPos CP = new ChunkPos(0, 0);
     /** 올라와 있지 않은 네더 청크 — 그리로 가는 이동은 목적 청크를 읽는 동안 날아가는 중이다. */
@@ -39,11 +40,11 @@ class ShutdownConsistentCutTest {
     private static World world(DimensionType type, Path root, FurnaceSchedulerImpl sched, ExecutorService io) {
         Path d = type.storageDir(root);
         AnvilWorldSource src = new AnvilWorldSource(root, new RegionFileStore(d),
-                new AnvilChunkCodec(REG, ItemRegistry.load("items/1.21.1.txt"), BIOMES, PLAINS, ChunkColumn.MIN_Y, ChunkColumn.SECTION_COUNT),
+                new AnvilChunkCodec(REG, ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"), BIOMES, PLAINS, ChunkColumn.MIN_Y, ChunkColumn.SECTION_COUNT),
                 new SuperflatWorldSource(REG, PLAINS));
         src.entityStore(new RegionFileStore(d, "entities"));
         World w = new World(type, src, new ChunkWorkerPool(1), sched, 1, 4, 1, 2, 2, REG.directBits(), 7, io, io);
-        w.setRegistries(REG, ItemRegistry.load("items/1.21.1.txt"));
+        w.setRegistries(REG, ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         w.configurePersistence(1_000_000, 1_000_000);
         w.worldDir(root);
         return w;

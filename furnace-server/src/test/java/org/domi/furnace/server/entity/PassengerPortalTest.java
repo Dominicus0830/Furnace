@@ -3,6 +3,7 @@
 // 단일 스레드 경로(changeDimension)와, 서버 경로(moveAcross)를 같은 스레드에서 끝내는 대역 이동 둘 다 본다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.function.BiConsumer;
@@ -20,7 +21,7 @@ class PassengerPortalTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static <T extends Entity> T only(DimensionTestLevel level, Class<T> c) {

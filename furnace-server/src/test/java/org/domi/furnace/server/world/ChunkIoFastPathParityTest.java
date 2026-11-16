@@ -4,6 +4,7 @@
 // IdentityKit 시범 이관(T-O15-02): 차분은 Differential, 예전 기둥 탐색은 레거시 오라클 LegacyColumnScans(since 7d55ec3a).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.lang.reflect.Field;
@@ -184,7 +185,7 @@ class ChunkIoFastPathParityTest {
     }
 
     private static Differential<ChunkColumn, int[]> scanDiff() {
-        int[] pool = pool(BlockRegistry.load("blocks/1.21.1.txt"));
+        int[] pool = pool(BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"));
         return Differential.<ChunkColumn, int[]>of("column-scans", r -> mixedColumn(r, pool)).seed(0x70B).iterations(200);
     }
 
@@ -206,7 +207,7 @@ class ChunkIoFastPathParityTest {
     }
 
     private static Differential<ChunkColumn, int[][]> rebuildDiff() {
-        int[] pool = pool(BlockRegistry.load("blocks/1.21.1.txt"));
+        int[] pool = pool(BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"));
         return Differential.<ChunkColumn, int[][]>of("rebuild-heightmaps", r -> {
             ChunkColumn col = randomColumn(r, pool);
             col.compactSections();

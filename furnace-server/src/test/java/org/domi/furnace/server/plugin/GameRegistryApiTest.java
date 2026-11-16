@@ -2,6 +2,7 @@
 // 데이터째 실리는지, 그리고 켜질 때 건 게임 규칙·마법부여 끄기·난이도 프로필이 플러그인이 꺼지면 정리되는지.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.IOException;
@@ -65,7 +66,7 @@ class GameRegistryApiTest {
 
     private DataPackManager start(PluginBootstrapper boot) {
         LevelData level = LevelData.create("world", 1L, true, false, GameMode.SURVIVAL, false, Difficulty.EASY, List.of(), List.of());
-        RegistrySet base = boot.collectGameRegistries(RegistrySet.load("registries/1.21.1.txt"));   // FurnaceMain 과 같은 순서
+        RegistrySet base = boot.collectGameRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"));   // FurnaceMain 과 같은 순서
         packs = DataPackManager.start(null, tmp.resolve("world"), level, base,
                 true, List.of(), List.of(), boot.dataPackHooks());
         return packs;
@@ -186,9 +187,9 @@ class GameRegistryApiTest {
 
     @Test
     void dynamicRegistriesFallBackToBuiltinWithoutData() {
-        DynamicRegistries d = DynamicRegistries.load(RegistrySet.load("registries/1.21.1.txt"), null, List.of());
+        DynamicRegistries d = DynamicRegistries.load(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"), null, List.of());
         for (String r : DynamicRegistries.DATA_DRIVEN) {
-            assertEquals(RegistrySet.load("registries/1.21.1.txt").entries(r), d.registries().entries(r), r);
+            assertEquals(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt").entries(r), d.registries().entries(r), r);
             assertFalse(d.registries().hasData(r));
         }
     }

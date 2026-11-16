@@ -1,5 +1,6 @@
 package org.domi.furnace.server.world.gen.pipeline;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.domi.furnace.server.net.registry.RegistrySet;
@@ -17,8 +18,8 @@ class EndOuterIslandSurfaceTest {
 
     @Test
     void worldSurfaceMatchesBlocksOnOuterIslandChunks() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         NoiseWorldSource source = NoiseWorldSource.create(NoiseWorldSource.Dimension.END, 1234L, reg, registries);
         ChunkPipeline pipe = new ChunkPipeline(source);
         int[][] chunks = {{64, -3}, {69, 0}};

@@ -1,6 +1,7 @@
 // DensityFunctionParser 통합 테스트: JSON 파싱 + 노이즈 시딩 검증
 package org.domi.furnace.server.world.gen.df;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
@@ -10,7 +11,7 @@ class DensityFunctionParserTest {
 
     @Test
     void parsesAndResolvesRefs() {
-        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
+        WorldgenData data = WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG);
         DensityFunctionParser p = new DensityFunctionParser(data, 0L);
         DensityFunction f = p.parse("minecraft:overworld/base_3d_noise");
         assertNotNull(f);
@@ -20,7 +21,7 @@ class DensityFunctionParserTest {
 
     @Test
     void parsesShiftAndNoiseRefs() {
-        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
+        WorldgenData data = WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG);
         DensityFunctionParser p = new DensityFunctionParser(data, 0L);
         // overworld/continents: flat_cache > shifted_noise referencing noise params + shift functions
         DensityFunction f = p.parse("minecraft:overworld/continents");
@@ -30,7 +31,7 @@ class DensityFunctionParserTest {
 
     @Test
     void parsesSplineAndOffset() {
-        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
+        WorldgenData data = WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG);
         DensityFunctionParser p = new DensityFunctionParser(data, 0L);
         // overworld/offset: flat_cache > cache_2d > spline tree
         DensityFunction f = p.parse("minecraft:overworld/offset");
@@ -40,7 +41,7 @@ class DensityFunctionParserTest {
 
     @Test
     void cachesReferencedFunctions() {
-        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
+        WorldgenData data = WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG);
         DensityFunctionParser p = new DensityFunctionParser(data, 0L);
         // parse twice — should return same instance (cached)
         DensityFunction f1 = p.parse("minecraft:overworld/factor");

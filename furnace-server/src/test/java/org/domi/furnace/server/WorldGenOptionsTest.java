@@ -1,6 +1,7 @@
 // level.dat 의 generate_features(=generate-structures) 가 생성기 구조물 시작점을 켜고 끈다.
 package org.domi.furnace.server;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
@@ -21,8 +22,8 @@ class WorldGenOptionsTest {
 
     @Test
     void generateFeaturesFalse_noStructureStarts() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        RegistrySet regs = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet regs = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         NoiseWorldSource on = NoiseWorldSource.overworld(0L, reg, regs);
         FurnaceMain.applyWorldGenOptions(level(true), on);
         StructureLocator.Found f = on.structureLocator().findNearest(StructureRegistry.structureTag("minecraft:village"), 0, 70, 0, 100);

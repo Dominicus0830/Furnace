@@ -7,6 +7,7 @@
 // (absorb·splitTo), 플레이어 region 넘김(grace)·접속 끊김·차원 이동, 청크 받음 여부 바뀜, 스폰 이벤트 처리기가 엔티티를 옮김.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -32,7 +33,7 @@ class EntityTrackerCandidatesIdentityTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     /** 장면 입력: 이 씨앗에서 장면 전체(엔티티·플레이어·조작 열)가 결정된다. */

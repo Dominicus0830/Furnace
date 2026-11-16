@@ -1,6 +1,7 @@
 // 바닐라 Level.playSound(except, entity, …) → sound_entity: 엔티티 번호를 실어 범위(16, 크기>1 이면 16×크기) 안 플레이어에게. 털 깎기가 이 길로 간다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -24,7 +25,7 @@ class SoundEntityBroadcastTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static final class Lvl extends BlockPlacementTest.TestLevel {

@@ -3,6 +3,7 @@
 // 기대값은 바닐라 1.21.1 디컴파일(cko·cfq·cmb·ckm·cgq·chq·cmf·cgv·chv·bwp·bvq)을 손으로 옮겼다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Random;
@@ -24,7 +25,7 @@ class MobLeftoversM14Test {
     @BeforeAll
     static void install() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static final class Lvl extends BlockPlacementTest.TestLevel {

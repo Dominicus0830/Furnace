@@ -4,6 +4,7 @@
 // 문법은 스키마 파일 머리말에 있다.
 package org.domi.furnace.api.packet.schema;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -81,7 +82,7 @@ public final class PacketSchema {
         if (s == null) {
             synchronized (PacketSchema.class) {
                 s = protocol767;
-                if (s == null) protocol767 = s = load(767, "protocol-767.schema");
+                if (s == null) protocol767 = s = load(GameVersion.PROTOCOL, "protocol-" + GameVersion.PROTOCOL + ".schema");
             }
         }
         return s;

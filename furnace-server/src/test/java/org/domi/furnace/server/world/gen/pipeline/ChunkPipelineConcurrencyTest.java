@@ -1,5 +1,6 @@
 package org.domi.furnace.server.world.gen.pipeline;
 
+import org.domi.furnace.api.GameVersion;
 import org.domi.furnace.server.net.registry.RegistrySet;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ChunkColumn;
@@ -55,8 +56,8 @@ class ChunkPipelineConcurrencyTest {
     }
 
     private static NoiseWorldSource source(long seed) throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         return NoiseWorldSource.overworld(seed, reg, registries);
     }
 

@@ -1,6 +1,7 @@
 // 바닐라 EntityType 의 서버 쪽 속성: 레지스트리 번호·크기·눈높이·추적 거리(청크)·갱신 주기·속도 추적·불 면역.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -369,8 +370,8 @@ public record EntityType(String name, int id, float width, float height, float e
 
     private static Map<String, Integer> loadIds() {
         Map<String, Integer> ids = new HashMap<>();
-        var in = EntityType.class.getClassLoader().getResourceAsStream("registries/entity_types-1.21.1.txt");
-        if (in == null) throw new IllegalStateException("registries/entity_types-1.21.1.txt is missing");
+        var in = EntityType.class.getClassLoader().getResourceAsStream("registries/entity_types-" + GameVersion.RESOURCE_TAG + ".txt");
+        if (in == null) throw new IllegalStateException("registries/entity_types-" + GameVersion.RESOURCE_TAG + ".txt is missing");
         try (BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
             String line;
             int n = 0;

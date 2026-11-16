@@ -1,6 +1,7 @@
 // /item replace|modify 와 /loot 의 플레이어·생물 칸, 오류 키, 전리품 표 인자(id·인라인) 파싱, give 대상.
 package org.domi.furnace.server.command.builtin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -40,8 +41,8 @@ class LootItemCommandsTest {
     @BeforeEach
     void setUp() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
-        ItemContext.installTags(org.domi.furnace.server.net.registry.TagSet.load("registries/tags-1.21.1.txt"));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
+        ItemContext.installTags(org.domi.furnace.server.net.registry.TagSet.load("registries/tags-" + GameVersion.RESOURCE_TAG + ".txt"));
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         core = TestServers.core(tmp, sched);
         core.addConsoleListener(t -> out.add(t.getString()));

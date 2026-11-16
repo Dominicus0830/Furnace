@@ -2,6 +2,7 @@
 // (cgj.a 변종 데이터 wolf_variant/*.json, cgh.f 의 actuallyHurt, bsp.b 의 Crackiness)을 손으로 계산했다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.block.BlockPlacementTest;
@@ -15,7 +16,7 @@ class WolfVariantArmorTest {
     @BeforeAll
     static void install() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static int idx(String name) {

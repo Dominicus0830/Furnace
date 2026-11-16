@@ -7,6 +7,7 @@
 // 처리한 뒤에 돌아온다. 그래서 바로 다음 줄에서 결과(메시지·블록·플러그인 상태)를 확인해도 된다. 틱은 진행하지 않는다.
 package org.domi.furnace.test;
 
+import org.domi.furnace.api.GameVersion;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import java.io.DataInputStream;
@@ -32,7 +33,7 @@ import org.domi.furnace.server.net.io.Types;
 public final class TestPlayer implements AutoCloseable {
 
     /** 1.21.1 프로토콜 번호. */
-    static final int PROTOCOL = 767;
+    static final int PROTOCOL = GameVersion.PROTOCOL;
     /** 동기화 장벽에 쓰는 플러그인 채널(서버 쪽 구독이 가로채 버린다 — 플러그인에는 가지 않는다). */
     static final String SYNC_CHANNEL = "furnace-test:sync";
 

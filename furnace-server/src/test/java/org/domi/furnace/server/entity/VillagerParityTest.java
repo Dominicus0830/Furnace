@@ -2,6 +2,7 @@
 // 번식 그룹 데이터, villager_plantable_seeds 태그, 번식/AbstractVillager 길찾기 가중치.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
@@ -24,7 +25,7 @@ class VillagerParityTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     /** 어려움 난이도 월드. */

@@ -1,6 +1,7 @@
 // 경험치 구슬: 값 단계 나누기, 같은 값 구슬 합치기(count), 저장/불러오기, 틱하면 떨어진다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
@@ -13,7 +14,7 @@ class ExperienceOrbTest {
     @org.junit.jupiter.api.BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static List<ExperienceOrb> orbs(BlockPlacementTest.TestLevel level) {

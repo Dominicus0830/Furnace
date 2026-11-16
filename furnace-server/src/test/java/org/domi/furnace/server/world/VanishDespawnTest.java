@@ -1,6 +1,7 @@
 // 교차region 관찰자가 사라진 엔티티(퇴장)를 grace 틱 후 despawn 하는지 검증(고스트 방지)
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.domi.furnace.server.ConcurrentEmbeddedChannel;
@@ -17,7 +18,7 @@ class VanishDespawnTest {
     @Test
     void crossRegionWatcher_despawnsDisconnectedPeer_afterGrace() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 4);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         // regionSize 1 → 16블록 셀. A=region(0,0), B=region(1,0). 거리 20<128(view 8청크).
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1),
                 sched, sched.regionThreadCount(), 1, 8, 8, reg.directBits(), 7,

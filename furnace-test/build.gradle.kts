@@ -41,7 +41,7 @@ publishing {
         create<MavenPublication>("maven") {
             groupId = "org.domi.furnace"
             artifactId = "furnace-test"
-            version = (findProperty("furnaceVersion") as String?) ?: "1.21.1-SNAPSHOT"
+            version = (findProperty("furnaceVersion") as String?) ?: ((rootProject.extra["mc"] as java.util.Properties).getProperty("mc.version") + "-SNAPSHOT")
             from(components["java"])
         }
     }

@@ -1,12 +1,13 @@
 // 바닐라에서 export한 블록 속성이 BlockRegistry의 state id와 정렬돼 있고 알려진 사실과 맞는지 검증
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
 
 class BlockAttrsTest {
 
-    private final BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+    private final BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
     private final BlockAttrs attrs = BlockAttrs.get();
 
     @Test

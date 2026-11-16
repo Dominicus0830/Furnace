@@ -1,5 +1,6 @@
 package org.domi.furnace.server.world.gen.feature;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ChunkColumn;
@@ -10,7 +11,7 @@ class SeagrassFeatureTest {
 
     @Test
     void seagrassFeature_placesTallSeagrassInWater() {
-        BlockRegistry registry = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry registry = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         ChunkColumn col = new ChunkColumn(0);
         int[] blockIds = new int[ChunkColumn.SECTION_COUNT * 16 * 16 * 16];
         int[] biomeIds = new int[ChunkColumn.SECTION_COUNT * 64];

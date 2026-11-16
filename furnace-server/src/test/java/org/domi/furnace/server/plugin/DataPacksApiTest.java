@@ -1,6 +1,7 @@
 // T-141 E4b: Furnace.dataPacks() — 목록·켜짐·찾기·켜고 끄기(Paper PaperDatapack.setEnabled: /datapack 기본 자리, 이미 그 상태면 아무것도 안 함, 없는 팩 ISE).
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
@@ -35,7 +36,7 @@ class DataPacksApiTest {
         pack("old", "\"pack\":{\"description\":\"옛 팩\",\"pack_format\":10}");
         packs = DataPackManager.start(vanilla, tmp, org.domi.furnace.server.world.storage.LevelData.create("world", 1L, true, false,
                 org.domi.furnace.server.world.GameMode.SURVIVAL, false, org.domi.furnace.server.world.Difficulty.EASY, List.of("vanilla"), List.of()),
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt"), true, List.of("vanilla"), List.of());
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"), true, List.of("vanilla"), List.of());
         core.dataPacks(packs);
     }
 

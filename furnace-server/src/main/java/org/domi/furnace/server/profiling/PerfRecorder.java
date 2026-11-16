@@ -4,6 +4,7 @@
 // 보고서 내용(바닐라와 다름): system.txt(JVM·OS), profiling.txt(요약), metrics/ticking.csv(표본별 틱 수·소요), metrics/jvm.csv(힙·CPU·GC·스레드).
 package org.domi.furnace.server.profiling;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.management.GarbageCollectorMXBean;
@@ -172,7 +173,7 @@ public final class PerfRecorder {
     Path writeReport(List<Row> rows, Result result, List<DimTicks> startDims, List<DimTicks> endDims) throws IOException {
         Path dir = baseDir.resolve(RESULTS_DIR);
         Files.createDirectories(dir);
-        String base = String.format(Locale.ROOT, "%s-%s-%s", FILE_STAMP.format(LocalDateTime.now()), source.levelName(), "1.21.1");
+        String base = String.format(Locale.ROOT, "%s-%s-%s", FILE_STAMP.format(LocalDateTime.now()), source.levelName(), GameVersion.MINECRAFT);
         Path zip = findAvailable(dir, base);
         try (OutputStream os = Files.newOutputStream(zip); ZipOutputStream out = new ZipOutputStream(os)) {
             put(out, "system.txt", systemReport());
@@ -202,7 +203,7 @@ public final class PerfRecorder {
     private String systemReport() {
         StringBuilder b = new StringBuilder("---- Furnace Performance Report ----\n");
         Runtime rt = Runtime.getRuntime();
-        b.append("Minecraft Version: 1.21.1\n");
+        b.append("Minecraft Version: " + GameVersion.MINECRAFT + "\n");
         b.append("Java Version: ").append(System.getProperty("java.version")).append(", ").append(System.getProperty("java.vendor")).append('\n');
         b.append("JVM: ").append(System.getProperty("java.vm.name")).append(" (").append(System.getProperty("java.vm.info")).append(")\n");
         b.append("Operating System: ").append(System.getProperty("os.name")).append(' ').append(System.getProperty("os.version"))

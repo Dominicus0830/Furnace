@@ -3,6 +3,7 @@
 // 어느 스레드에서든 쓴다(명령 스레드). 저장은 World.flushAll(저장·종료)에서.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -23,7 +24,7 @@ import org.slf4j.LoggerFactory;
 
 public final class CommandStorage {
     private static final Logger LOG = LoggerFactory.getLogger(CommandStorage.class);
-    private static final int DATA_VERSION = 3955;
+    private static final int DATA_VERSION = GameVersion.DATA_VERSION;
 
     private final Path dataDir;
     /** 이름공간 → (경로 → 내용). 읽어 본 이름공간만 들어 있다. */

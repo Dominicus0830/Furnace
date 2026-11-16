@@ -1,6 +1,7 @@
 // 바닐라가 저장한 엔티티 NBT 를 읽고 다시 저장해도 알려진 공통 필드가 그대로인지(Entity/LivingEntity/Mob).
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Map;
@@ -18,7 +19,7 @@ class EntityNbtRoundTripTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static NbtList doubles(double... v) {

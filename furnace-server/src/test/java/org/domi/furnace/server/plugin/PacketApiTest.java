@@ -1,6 +1,7 @@
 // 패킷 API: 1.21.1 id 표가 서버 패킷 클래스와 맞는지, 타입 래퍼 왕복, 보내기·가로채기(바꾸기·취소·관찰)·받은 것처럼 넣기·등록 해제.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -47,7 +48,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 class PacketApiTest {
 
-    private static final org.domi.furnace.server.world.BlockRegistry BLOCKS = org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt");
+    private static final org.domi.furnace.server.world.BlockRegistry BLOCKS = org.domi.furnace.server.world.BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
 
     @TempDir Path tmp;
     private FurnaceSchedulerImpl sched;

@@ -1,6 +1,7 @@
 // 스폰 청크 전송이 ChunkBatchStart…청크…ChunkBatchFinished(count)로 감싸지는지 검증
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -26,7 +27,7 @@ class SpawnBatchTest {
     @Test
     void spawnChunks_wrappedInBatch() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         var io = Executors.newSingleThreadExecutor();
         // viewDistance 2 → 바닐라 둥근 모양 45 청크(정사각 5×5=25 아님), regionSize 16 → 전부 region(0,0) 소유.
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1),

@@ -1,6 +1,7 @@
 // 주크박스 블록 엔티티 시험: 넣기(has_record·1010)·재생 신호 15·비교기 출력·길이+20틱 뒤 자동 정지(1011)·꺼내기(난수 순서)·저장 왕복.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -40,7 +41,7 @@ class JukeboxBlockEntityTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         JukeboxSongs.put("minecraft:13", 178.0F, 1);
     }
 

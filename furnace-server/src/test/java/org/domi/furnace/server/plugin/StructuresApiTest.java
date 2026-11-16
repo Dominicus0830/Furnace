@@ -1,6 +1,7 @@
 // 플러그인 구조물 템플릿 API(W4/43번): 영역 저장 → 파일(.nbt) → 다시 놓기(회전·대칭·팔레트·완전성), 가져오기·내보내기, 내장 템플릿, 오류 상태.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
@@ -39,7 +40,7 @@ class StructuresApiTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @BeforeEach
@@ -47,7 +48,7 @@ class StructuresApiTest {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         core = TestServers.core(tmp, sched);
         host = core.plugins();
-        core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt"), org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), org.domi.furnace.server.world.ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         for (int cz = 0; cz <= 2; cz++) {   // 시험이 직접 블록을 만지는 청크 (0,0..2) — 이웃 (1,0) 은 일부러 안 올린다
             ChunkPos c = new ChunkPos(0, cz);
             core.world().submitAtChunk(c, r -> r.chunkAtBlocking(c)).get(30, TimeUnit.SECONDS);

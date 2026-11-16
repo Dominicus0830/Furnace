@@ -1,5 +1,6 @@
 package org.domi.furnace.compat.paper;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -148,7 +149,7 @@ class TagParityTest {
     @Test
     void dataPackReloadIsVisibleThroughHeldTags() {
         TagSet installed = ItemContext.tagSet();   // 데이터 팩을 안 거는 시험 서버는 null(바닐라 태그를 읽는다)
-        TagSet before = installed != null ? installed : TagSet.load("registries/tags-1.21.1.txt");
+        TagSet before = installed != null ? installed : TagSet.load("registries/tags-" + GameVersion.RESOURCE_TAG + ".txt");
         try {
             List<String> blocks = Furnace.server().gameRegistries().builtIn("minecraft:block");
             int stone = blocks.indexOf("minecraft:stone"), dirt = blocks.indexOf("minecraft:dirt");

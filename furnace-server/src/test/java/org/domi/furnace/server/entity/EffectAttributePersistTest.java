@@ -1,6 +1,7 @@
 // 바닐라 MobEffect.addAttributeModifiers 는 addPermanentModifier 라 효과가 단 속성 수정자는 속성 NBT 에 저장된다(R6).
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.attribute.Attribute;
@@ -18,7 +19,7 @@ import org.junit.jupiter.api.Test;
 class EffectAttributePersistTest {
 
     @BeforeAll
-    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt"))); }
+    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"))); }
 
     @Test
     void effectModifierIsSavedAndNotTransient() {

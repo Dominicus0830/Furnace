@@ -1,6 +1,7 @@
 // 접속 방어(실제 소켓): 단계 시간 초과, 바닐라 rate-limit, PROXY 프로토콜. 시간 초과는 1초 설정으로 시험한다.
 package org.domi.furnace.server.net;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -33,7 +34,7 @@ class ConnectionDefenseSocketTest {
 
     private int start(ConnectionLimits limits) {
         sched = new FurnaceSchedulerImpl(50_000_000L);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         World world = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1),
                 sched, sched.regionThreadCount(), 16, 2, 2, reg.directBits(), 7, java.util.concurrent.Executors.newSingleThreadExecutor());
         server = new NetworkServer(0, -1, ServerLoginContext.offline("Furnace Server").limits(limits), sched, world, new EntityIdAllocator());

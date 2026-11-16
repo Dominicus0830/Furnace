@@ -2,6 +2,7 @@
 // 한 틱 = 예약 틱(지역 시계 +1 후 실행) → 블록 이벤트 → 블록 엔티티. 블록은 틱 사이(플레이어 패킷 처리 자리)에 놓는다.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -16,7 +17,7 @@ class RedstoneDeviceTimingTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static final Blocks BL = Blocks.get();

@@ -1,6 +1,7 @@
 // X1: 아이템 기본 최대 수량 기억이 이름 → 프로토타입 직접 조회와 모든 아이템에서 같고, 패치·재설치 규칙도 그대로인지.
 package org.domi.furnace.server.item;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Map;
@@ -13,7 +14,7 @@ import org.junit.jupiter.api.Test;
 class MaxStackSizeCacheTest {
 
     @BeforeAll
-    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt"))); }
+    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"))); }
 
     private static int direct(int id) {
         String name = ItemContext.name("minecraft:item", id);
@@ -22,7 +23,7 @@ class MaxStackSizeCacheTest {
 
     @Test
     void everyItemMatchesDirectLookupColdAndWarm() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));   // 기억을 비운 상태에서 시작
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));   // 기억을 비운 상태에서 시작
         int n = ItemContext.size("minecraft:item");
         assertTrue(n > 1000);
         for (int pass = 0; pass < 2; pass++) {

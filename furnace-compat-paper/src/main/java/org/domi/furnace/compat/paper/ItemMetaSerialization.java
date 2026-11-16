@@ -5,6 +5,7 @@
 // 다른 점(meta-type 은 항상 UNSPECIFIC, 종류별 키 없음 등)은 docs/feature-parity/compat-item-serialization-2026-11-08.md.
 package org.domi.furnace.compat.paper;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -33,7 +34,7 @@ import org.domi.furnace.api.text.serializer.JsonTextSerializer;
 public final class ItemMetaSerialization {
 
     /** Paper 1.21.1 의 데이터 버전 — ItemStack 맵의 {@code v}. */
-    public static final int DATA_VERSION = 3955;
+    public static final int DATA_VERSION = GameVersion.DATA_VERSION;
     public static final String TYPE_FIELD = "meta-type";
     /** 호환 ItemMeta 는 종류별 하위 메타가 없어 항상 이 값이다(Paper 는 아이템에 따라 ARMOR·POTION·SKULL 등). */
     static final String UNSPECIFIC = "UNSPECIFIC";

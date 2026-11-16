@@ -1,6 +1,7 @@
 // MobEffect 정의가 바닐라 1.21.1 레지스트리(builtin-1.21.1.txt)와 같은 목록·순서인지, 1.21 에 새로 생긴 효과의 색·분류가 바닐라 값인지.
 package org.domi.furnace.server.effect;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.BufferedReader;
@@ -16,7 +17,7 @@ class MobEffectRegistryTest {
     void effectListMatchesVanillaRegistryInOrder() throws Exception {
         List<String> vanilla = new ArrayList<>();
         try (var in = new BufferedReader(new InputStreamReader(
-                MobEffectRegistryTest.class.getClassLoader().getResourceAsStream("registries/builtin-1.21.1.txt"), StandardCharsets.UTF_8))) {
+                MobEffectRegistryTest.class.getClassLoader().getResourceAsStream("registries/builtin-" + GameVersion.RESOURCE_TAG + ".txt"), StandardCharsets.UTF_8))) {
             String line;
             while ((line = in.readLine()) != null) {
                 if (line.startsWith("minecraft:mob_effect ")) vanilla.add(line.substring("minecraft:mob_effect ".length()));

@@ -2,6 +2,7 @@
 // 미리 올린 청크는 퇴출 유예와 무관하게 붙잡힌다(엔티티 틱 표는 건드리지 않는다).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
@@ -28,7 +29,7 @@ class TravelPrewarmTest {
     @Test
     void prewarmMakesTravelResidentAndHoldsChunks() throws Exception {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         var io = TestServers.ioPool();
         var type = DimensionBorderTest.TEST_NETHER;
         var src = new AnvilWorldSource(tmp, new RegionFileStore(type.storageDir(tmp)), new AnvilChunkCodec(reg, 0), new SuperflatWorldSource(reg, 0));

@@ -1,6 +1,7 @@
 // T-172 생성 조절기 검토 시험(PR #377 검토 R1~R4): 생성 조절기 경계·닫기·바쁜 대기·시야 밖 취소 지연·스트레스.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.lang.management.ManagementFactory;
@@ -134,7 +135,7 @@ class GenQueueTickGuardReviewTest {
 
     private void world() throws Exception {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         io = Executors.newSingleThreadExecutor();
         q = new GenQueue(THREADS, new GenQueue.Settings(true, 16, 0, 16, 0, 0, TimeUnit.SECONDS.toNanos(3), false), true, false);
         w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, sched.regionThreadCount(), 16, VD, VD,

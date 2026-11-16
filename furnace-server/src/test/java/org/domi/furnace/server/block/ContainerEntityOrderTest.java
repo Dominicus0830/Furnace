@@ -1,6 +1,7 @@
 package org.domi.furnace.server.block;
 
 // X1 검토 보강: 호퍼가 쓰는 getEntitiesOfType(ContainerEntity) 가 옛 방식(전체 조회 + 걸러내기)과 같은 순서·같은 결과인지, 공기 충돌 모양이 비었는지.
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -15,7 +16,7 @@ import org.junit.jupiter.api.Test;
 
 class ContainerEntityOrderTest {
     @BeforeAll
-    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt"))); }
+    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"))); }
 
     @Test
     void containerTypeQueryEqualsFilteredFullQuery() {

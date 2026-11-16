@@ -1,6 +1,7 @@
 // 사용자 테스트 D1·D2·D3: 침대·종 블록 엔티티(클라이언트가 그리려면 청크 패킷에 있어야 한다), 종소리 기억·습격자 공명.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.block.B;
@@ -42,7 +43,7 @@ class VillageBlockEntityTest {
 
     @Test
     void worldgenBlockEntitiesArePromotedOnLoad() {
-        var gen = new SuperflatWorldSource(BlockRegistry.load("blocks/1.21.1.txt"), 0);
+        var gen = new SuperflatWorldSource(BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), 0);
         ChunkColumn col = gen.generate(1, 2);
         // 템플릿이 남긴 NBT 가 있는 종, NBT 없이 놓인 침대(바닐라 WorldGenRegion 의 DUMMY)
         col.setBlock(3, -59, 4, B.defaultState("bell"));

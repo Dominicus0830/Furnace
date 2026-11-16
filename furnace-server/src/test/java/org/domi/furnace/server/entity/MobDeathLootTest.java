@@ -1,6 +1,7 @@
 // 몹 사망: 플레이어가 때려 죽이면 경험치 구슬과 전리품 표 결과를 떨구고, 환경 피해로 죽으면 떨구지 않는다. 구슬 값은 xpReward.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -18,7 +19,7 @@ class MobDeathLootTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static final class Pig extends Mob {

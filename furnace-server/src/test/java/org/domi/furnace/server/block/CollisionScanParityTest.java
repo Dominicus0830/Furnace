@@ -4,6 +4,7 @@
 // 청크·구역 경계와 로드 안 된 청크 가장자리, 무작위 상자(정수 경계 ±1e-7, 얇은 상자 포함)·이동·문맥 엔티티(가루눈)·배·셜커 몸·월드 보더.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -56,7 +57,7 @@ class CollisionScanParityTest {
     @BeforeAll
     static void build() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         Blocks blocks = Blocks.get();
         for (String n : SHAPED) {
             int b = blocks.block("minecraft:" + n);

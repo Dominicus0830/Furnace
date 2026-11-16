@@ -2,6 +2,7 @@
 // 리로드로 저장소가 비며, 목록(listTemplates)에 보이고, 옛 DataVersion 파일은 데이터 픽서(Q8)를 거쳐 읽힌다.
 package org.domi.furnace.server.world.gen.structure.template;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.IOException;
@@ -22,7 +23,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 class TemplateManagerDataPackTest {
 
-    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
 
     @TempDir Path tmp;
 

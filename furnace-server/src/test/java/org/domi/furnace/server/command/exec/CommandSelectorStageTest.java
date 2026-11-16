@@ -3,6 +3,7 @@
 // 실행률 단언은 문 예산과 무관하다(기준은 1.0/s, 고친 뒤 20/s) — 시험 JVM 예산(500ms)에서도 회귀를 잡는다. 결과는 문을 켜고 끈 두 변형이 같아야 한다.
 package org.domi.furnace.server.command.exec;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.IOException;
@@ -89,7 +90,7 @@ class CommandSelectorStageTest {
         if (packs != null) packs.close();
         packs = DataPackManager.start(vanilla, tmp, org.domi.furnace.server.world.storage.LevelData.create("world", 1L, true, false,
                 org.domi.furnace.server.world.GameMode.SURVIVAL, false, org.domi.furnace.server.world.Difficulty.EASY, List.of("vanilla"), List.of()),
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt"), true, List.of("vanilla"), List.of());
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"), true, List.of("vanilla"), List.of());
         core.dataPacks(packs);
         core.loadFunctions();
         sched.global().execute(() -> { }).get(10, TimeUnit.SECONDS);   // replaceLibrary 홉이 끝나기를 기다린다

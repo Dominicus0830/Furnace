@@ -2,6 +2,7 @@
 // canBeReplaced 등)를 이름 추측 없이 그대로 쓰게 한다. 리소스: blocks/blockattrs_1.21.1.txt (tools/vanilla-data/ExportBlockAttrs.java).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -38,7 +39,7 @@ public final class BlockAttrs {
         if (a == null) {
             synchronized (BlockAttrs.class) {
                 a = INSTANCE;
-                if (a == null) INSTANCE = a = load("blocks/blockattrs_1.21.1.txt");
+                if (a == null) INSTANCE = a = load("blocks/blockattrs_" + GameVersion.RESOURCE_TAG + ".txt");
             }
         }
         return a;

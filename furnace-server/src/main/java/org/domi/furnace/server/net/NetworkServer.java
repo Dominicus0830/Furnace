@@ -1,6 +1,7 @@
 // Netty ServerBootstrap으로 프로토콜 파이프라인을 세워 접속을 수락하는 네트워크 서버
 package org.domi.furnace.server.net;
 
+import org.domi.furnace.api.GameVersion;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
@@ -154,7 +155,7 @@ public final class NetworkServer {
                                 .addLast("readTimeout", new io.netty.handler.timeout.ReadTimeoutHandler(
                                         readTimeoutSeconds > 0 ? readTimeoutSeconds : limits.readTimeoutSeconds()))
                                 .addLast("writabilityGuard", new WritabilityGuard(loginContext.logIps))
-                                .addLast("legacyPing", new LegacyPingHandler(loginContext.motd, loginContext.maxPlayers, "1.21.1",
+                                .addLast("legacyPing", new LegacyPingHandler(loginContext.motd, loginContext.maxPlayers, GameVersion.MINECRAFT,
                                         () -> (int) world.onlinePlayers().stream().filter(p -> !p.isDisconnected()).count()))
                                 .addLast("frameDecoder", new FrameDecoder())
                                 .addLast("frameEncoder", new FrameEncoder())

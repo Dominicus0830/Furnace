@@ -1,6 +1,7 @@
 // 조각된 책장 시험: 칸 맞히기·책 넣기/빼기·점유 상태·비교기(마지막 칸 + 1)·저장 왕복·깔때기 넣기/빼기·퇴비통/주크박스 깔때기 규칙.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -27,8 +28,8 @@ class ChiseledBookShelfTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
-        ItemContext.installTags(org.domi.furnace.server.net.registry.TagSet.load("registries/tags-1.21.1.txt"));   // #bookshelf_books
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
+        ItemContext.installTags(org.domi.furnace.server.net.registry.TagSet.load("registries/tags-" + GameVersion.RESOURCE_TAG + ".txt"));   // #bookshelf_books
     }
 
     @org.junit.jupiter.api.AfterAll

@@ -1,6 +1,7 @@
 // region 스레드의 chunkAt 운영 경로가 미로드 청크를 동기 생성하지 않는지(R2, 규칙 6) 검증
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.concurrent.Executors;
@@ -19,7 +20,7 @@ class ChunkAtNonBlockingTest {
 
     private static Env env() {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         var io = Executors.newSingleThreadExecutor();
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1),
                 sched, sched.regionThreadCount(), 16, 5, 5, reg.directBits(), 7, io);

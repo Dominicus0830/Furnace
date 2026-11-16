@@ -4,6 +4,7 @@
 // 적재(recalc)로 만든 구역은 용암 유체만 세므로 물이 있어도 대상이 아니고, 그 구역의 물을 깨면 센 값이 음수가 되어 다시 놓아도 한동안 대상이 아니다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.BufferedReader;
@@ -23,7 +24,7 @@ class SectionTickingVanillaParityTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         BlockBehaviors.ofBlock(0);   // 무작위 틱·유체 표를 구역에 건다
     }
 

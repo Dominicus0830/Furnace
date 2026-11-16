@@ -2,6 +2,7 @@
 // Paper 는 ServerLevel 엔티티 제거 훅이 merchant.getTrader() 의 창을 UNLOADED 로 닫는다("Fix merchant inventory not closing on entity removal").
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason;
@@ -21,7 +22,7 @@ class ReviewPr243MerchantReproTest {
     @BeforeEach
     void setUp() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         level = new BlockPlacementTest.TestLevel();
         inv = new PlayerInventory();
         mp = new EntityInventoryMenuTest.FakePlayer(inv);

@@ -1,6 +1,7 @@
 // 물고기: 물속에서 헤엄치며 살아 있고, 물 밖에서는 숨이 다해 죽는다. 떼 물고기는 우두머리를 따라간다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.block.B;
@@ -14,7 +15,7 @@ class FishSwimTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static void tick(BlockPlacementTest.TestLevel level, int n) {

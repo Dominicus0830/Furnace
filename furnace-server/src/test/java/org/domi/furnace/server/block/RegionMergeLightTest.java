@@ -2,6 +2,7 @@
 // 바닐라는 차원 하나의 빛 엔진이 하나라 이런 틈이 없다 — 합치기·나누기를 거쳐도 결과는 합치지 않은 것과 같아야 한다.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -23,7 +24,7 @@ import org.junit.jupiter.api.Test;
 
 class RegionMergeLightTest {
     private final Map<Long, ChunkColumn> shared = new HashMap<>();
-    private final SuperflatWorldSource gen = new SuperflatWorldSource(BlockRegistry.load("blocks/1.21.1.txt"), 0);
+    private final SuperflatWorldSource gen = new SuperflatWorldSource(BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), 0);
 
     /** 같은 청크 자료를 함께 보되 owns 로 자기 것만 "올라온" 것으로 치는 레벨 — 합치기 전·나눈 뒤의 region 하나하나를 흉내 낸다. */
     private final class Lvl extends ChunkLevel {
@@ -47,7 +48,7 @@ class RegionMergeLightTest {
 
     @BeforeEach
     void setUp() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         shared.clear();
         glow = B.defaultState("glowstone");
     }

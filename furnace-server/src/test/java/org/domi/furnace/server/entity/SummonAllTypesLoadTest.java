@@ -1,6 +1,7 @@
 // /summon <모든 엔티티 타입> 이 빈 NBT 로 로드·저장·소환 마무리 중 예외를 내지 않는지 확인한다(예외를 삼키지 않는다).
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -16,7 +17,7 @@ class SummonAllTypesLoadTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     /** 소환 가능한 종류만(EntityType.canSummon: 플레이어·낚시찌 제외 — 각각 접속·던지기로만 생긴다). */
