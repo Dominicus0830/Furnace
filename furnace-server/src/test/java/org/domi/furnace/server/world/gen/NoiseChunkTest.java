@@ -15,7 +15,7 @@ class NoiseChunkTest {
         NoiseRouter r = NoiseRouter.build(data, s, 0L);
 
         byte[] fx;
-        try (InputStream in = getClass().getResourceAsStream("/worldgen/fixtures/chunk_0_0_0.bin")) {
+        try (InputStream in = getClass().getResourceAsStream("/worldgen/fixtures/" + GameVersion.RESOURCE_TAG + "/chunk_0_0_0.bin")) {
             assertNotNull(in, "fixture file not found");
             fx = in.readAllBytes();
         }

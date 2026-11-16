@@ -2,10 +2,12 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.protocol.Packet;
 import org.domi.furnace.server.net.protocol.configuration.UpdateTags;
 import org.domi.furnace.server.net.registry.TagSet;
 
+@VanillaPort("net.minecraft.network.protocol.common.ClientboundUpdateTagsPacket")
 public record UpdateTagsPlay(TagSet tags) implements Packet {
 
     public static final int ID = 0x78;

@@ -6,7 +6,9 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import java.util.List;
 import javax.crypto.Cipher;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.network.CipherDecoder")
 public final class CipherDecoder extends MessageToMessageDecoder<ByteBuf> {
 
     private final Cipher cipher;

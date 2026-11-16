@@ -54,7 +54,7 @@ class FeatureSpillParityTest {
         source.structureEngine().setStructuresEnabled(false);   // 이 fixture 는 generate-structures=false 로 만든 순정 월드 — 구조물(광산 등) 제외
         ChunkColumn col = source.generateWithFeatures(cx, cz);
 
-        String fixtureName = "/worldgen/fixtures/featurespill_" + seed + "_" + cx + "_" + cz + ".bin";
+        String fixtureName = "/worldgen/fixtures/" + GameVersion.RESOURCE_TAG + "/featurespill_" + seed + "_" + cx + "_" + cz + ".bin";
         byte[] fx;
         try (InputStream in = FeatureSpillParityTest.class.getResourceAsStream(fixtureName)) {
             assertNotNull(in, "fixture not found: " + fixtureName);

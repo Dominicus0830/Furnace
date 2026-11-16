@@ -1,6 +1,8 @@
 // 바닐라 BlendedNoise 비트정확성을 오라클 fixture로 검증하는 테스트
 package org.domi.furnace.server.world.gen.noise;
 
+import org.domi.furnace.api.GameVersion;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.*;
@@ -11,7 +13,7 @@ import org.junit.jupiter.api.Test;
 class BlendedNoiseTest {
     @Test
     void matchesVanillaSamples() throws Exception {
-        try (InputStream in = getClass().getResourceAsStream("/worldgen/fixtures/noise_blended_0.bin")) {
+        try (InputStream in = getClass().getResourceAsStream("/worldgen/fixtures/" + GameVersion.RESOURCE_TAG + "/noise_blended_0.bin")) {
             assertNotNull(in, "fixture 없음 - 오라클 먼저 실행: ./gradlew :worldgen-oracle:run --args=\"0 blended:0\"");
             ByteBuffer bb = ByteBuffer.wrap(in.readAllBytes()).order(ByteOrder.LITTLE_ENDIAN);
             double xzScale = bb.getDouble();

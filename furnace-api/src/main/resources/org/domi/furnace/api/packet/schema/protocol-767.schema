@@ -295,7 +295,7 @@ packet clientbound block_destruction ClientboundBlockDestructionPacket class new
   int id get=getId
   BlockPos pos get=getPos
   int progress u8 get=getProgress
-packet clientbound block_entity_data ClientboundBlockEntityDataPacket class
+packet clientbound block_entity_data ClientboundBlockEntityDataPacket class new
   BlockPos pos get=getPos
   BlockEntityType<?> type get=getType
   CompoundTag tag get=getTag

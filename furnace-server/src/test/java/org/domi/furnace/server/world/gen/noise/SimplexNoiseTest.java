@@ -1,6 +1,8 @@
 // 바닐라 SimplexNoise(=Biome.BIOME_INFO_NOISE) 비트정확성을 오라클 fixture로 검증
 package org.domi.furnace.server.world.gen.noise;
 
+import org.domi.furnace.api.GameVersion;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.*;
@@ -13,7 +15,7 @@ class SimplexNoiseTest {
 
     @Test
     void biomeInfoNoise_matchesVanilla() throws Exception {
-        try (InputStream in = getClass().getResourceAsStream("/worldgen/fixtures/biome_info_noise.bin")) {
+        try (InputStream in = getClass().getResourceAsStream("/worldgen/fixtures/" + GameVersion.RESOURCE_TAG + "/biome_info_noise.bin")) {
             assertNotNull(in, "fixture 없음 - 오라클 'biomeinfonoise' 먼저 실행");
             ByteBuffer bb = ByteBuffer.wrap(in.readAllBytes()).order(ByteOrder.LITTLE_ENDIAN);
             int n = bb.getInt();

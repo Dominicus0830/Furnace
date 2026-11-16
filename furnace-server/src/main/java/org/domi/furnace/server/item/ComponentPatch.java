@@ -7,9 +7,11 @@ import io.netty.buffer.Unpooled;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort("net.minecraft.core.component.DataComponentPatch")
 public final class ComponentPatch {
 
     public static final ComponentPatch EMPTY = new ComponentPatch(new LinkedHashMap<>());

@@ -2,6 +2,7 @@
 // 월드를 읽는 조건은 그 칸 청크를 가진 스레드에서만 답이 나온다(아니면 거짓 — 바닐라의 isLoaded 검사 자리).
 package org.domi.furnace.server.loot;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.i18n.Lang;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -11,6 +12,7 @@ import java.util.Map;
 import java.util.function.Predicate;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort("net.minecraft.advancements.critereon.LocationPredicate")
 public record LocationPredicate(Bounds x, Bounds y, Bounds z, HolderSet biomes, String dimension,
                                 HolderSet blocks, Map<String, JsonElement> state, boolean unsupported,
                                 Predicate<String> structures, Bounds light, Boolean smokey, Boolean canSeeSky,

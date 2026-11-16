@@ -6,8 +6,10 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.loot.ItemData;
 
+@VanillaPort("net.minecraft.world.item.Item")
 public final class ItemPrototypes {
     private ItemPrototypes() {}
 

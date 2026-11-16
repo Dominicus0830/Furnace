@@ -2,7 +2,9 @@
 package org.domi.furnace.server.net.protocol;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.network.protocol.Packet")
 public interface Packet {
 
     /** 이 패킷의 프로토콜 id(해당 단계 기준). */

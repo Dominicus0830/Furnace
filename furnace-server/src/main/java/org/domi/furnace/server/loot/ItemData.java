@@ -3,6 +3,7 @@
 package org.domi.furnace.server.loot;
 
 import org.domi.furnace.api.GameVersion;
+import org.domi.furnace.server.VanillaPort;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -16,6 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
 
+@VanillaPort("net.minecraft.world.item.Item")
 public final class ItemData {
 
     private static volatile ItemData vanilla;

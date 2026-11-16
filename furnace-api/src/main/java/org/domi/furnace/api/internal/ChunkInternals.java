@@ -207,6 +207,54 @@ public interface ChunkInternals {
      */
     ChunkView publishChunkViewNow(World world, int chunkX, int chunkZ);
 
+    // ------------------------------------------------------------------ 블록 엔티티(T-198) — 서버 블록 엔티티 객체를 불투명 손잡이(Object)로 주고받는다
+
+    /**
+     * 주인 스레드: 그 칸의 블록 엔티티 손잡이(바닐라 LevelChunk.getBlockEntity(pos, 종류)). create 면 IMMEDIATE — 없고 블록이 블록 엔티티를 가지는 종류면
+     * 블록이 새로 만들어 청크에 둔다(틱·게임 이벤트 등록 포함, 저장 표시 없음). 아직 해석하지 않은 생성 NBT 만 있는 칸은 그 NBT 의 손잡이를 준다.
+     * 없으면(또는 로드돼 있지 않으면) null.
+     */
+    Object blockEntityNow(World world, int x, int y, int z, boolean create);
+
+    /**
+     * 주인 스레드: 바닐라 LevelChunk.removeBlockEntity — 그 칸의 블록 엔티티(생성 NBT 포함)를 청크에서 떼고 지움 표시, 틱·게임 이벤트에서 뺀다. 블록은 그대로,
+     * 저장 표시 없음. 뗀 손잡이(없으면 null).
+     */
+    Object removeBlockEntityNow(World world, int x, int y, int z);
+
+    /** 손잡이의 블록 엔티티가 지워졌는가(청크에서 떨어졌거나 갈렸다). 아무 스레드(경쟁 읽기 — Paper 의 isRemoved 와 같은 성질). */
+    boolean blockEntityRemoved(Object blockEntity);
+
+    /** 손잡이의 저장 꼴(바닐라 saveWithFullMetadata — id·x·y·z 포함, 새 트리). 살아 있는 것은 그 칸의 주인 스레드에서, 떨어진 것은 아무 스레드. */
+    org.domi.furnace.api.nbt.NbtCompound blockEntitySaveNow(Object blockEntity);
+
+    /**
+     * 주인 스레드: 바닐라 BlockEntity.loadWithComponents(tag) — 종류별 필드·영속 데이터·컴포넌트를 싣는다. 저장 표시·패킷·이웃 알림은 없다(바닐라 그대로 —
+     * 부르는 쪽이 setChanged 등을 고른다). 지워진(떨어진) 블록 엔티티에도 싣는다(그 객체에만 남는다). 싣지 못하면 false.
+     */
+    boolean blockEntityLoadNow(World world, Object blockEntity, org.domi.furnace.api.nbt.NbtCompound tag);
+
+    /**
+     * 주인 스레드: 바닐라 정적 BlockEntity.setChanged(level, pos, state) — 그 청크 저장 표시(로드돼 있을 때), 그 칸 블록이 공기가 아니면 비교기 쪽 알림
+     * (updateNeighbourForOutputSignal). 로드돼 있지 않으면 false.
+     */
+    boolean blockEntityChangedNow(World world, int x, int y, int z);
+
+    /**
+     * 틱 스레드가 아닌 스레드가 결과를 막고 기다릴 짧은 작업을 그 칸의 주인 region 에 보낸다(블록 엔티티 저장 왕복). 결과·실행 스레드는
+     * {@code world.scheduler(pos).submit(task)} 와 같고, 주인이 틱 사이에 쉬고 있으면 다음 틱 머리를 기다리지 않고 곧바로 돈다(명령 큐 문과 같은
+     * drain 차례·예산 — 예산을 넘으면 예전처럼 다음 틱 머리). 작업 하나가 한 틱(50ms)씩 걸려 FAWE 가 상자 512개를 12초에 지우던 것(T-198 실측)을 푼다.
+     */
+    default <T> java.util.concurrent.CompletableFuture<T> submitAwaited(World world, int x, int y, int z, java.util.function.Supplier<T> task) {
+        return world.scheduler(new org.domi.furnace.api.world.BlockPos(x, y, z)).submit(task);
+    }
+
+    /**
+     * 아무 스레드: 레벨에 놓이지 않은 블록 엔티티에 tag 를 실었다가 다시 저장한 꼴(바닐라 loadWithComponents → saveWithoutMetadata, id 포함). 그 상태가
+     * 블록 엔티티를 만들지 않으면 null.
+     */
+    org.domi.furnace.api.nbt.NbtCompound normalizeBlockEntityNbt(int stateId, org.domi.furnace.api.nbt.NbtCompound tag);
+
     // ------------------------------------------------------------------ 빛 다시 계산(T-197)
 
     /** 청크 좌표 콜백. */

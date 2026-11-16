@@ -4,8 +4,10 @@ package org.domi.furnace.server.item;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.item.enchantment.EnchantmentHelper")
 public final class EnchantTools {
     private EnchantTools() { }
 

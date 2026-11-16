@@ -20,7 +20,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 
-/** N2b-6: BlockEntity.furnaceInWorld — 월드에 놓인 블록 엔티티의 살아 있는 보기(소유 스레드·다른 스레드 모두). */
+/** N2b-6·T-198: 월드에 놓인 블록 엔티티의 보기 — 소유 스레드는 Level#getBlockEntity, 다른 스레드는 청크의 getBlockEntity(서버 객체를 주인에게 물어 저장). */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class NmsLiveBlockEntityTest {
 
@@ -45,10 +45,9 @@ class NmsLiveBlockEntityTest {
     @Test
     void liveViewOnOwnerAndOtherThread() throws Exception {
         BlockPos pos = new BlockPos(at.x(), at.y(), at.z());
-        int id = Blocks.BEACON.defaultBlockState().furnaceStateId();
         String saved = server.onRegion(at, () -> {
             level.setBlock(pos, Blocks.BEACON.defaultBlockState(), 3);
-            BlockEntity be = BlockEntity.furnaceInWorld(level, pos, id);
+            BlockEntity be = level.getBlockEntity(pos);
             assertTrue(be instanceof BeaconBlockEntity);
             assertTrue(be.hasLevel());
             var tag = be.saveWithId(MinecraftServer.getServer().registryAccess());
@@ -58,7 +57,8 @@ class NmsLiveBlockEntityTest {
         // 다른 스레드(시험 스레드)에서: 서버 future 로 읽는다
         var thread = new java.util.concurrent.atomic.AtomicReference<String>();
         var t = new Thread(() -> {
-            BlockEntity be = BlockEntity.furnaceInWorld(level, pos, id);
+            assertEquals(null, level.getBlockEntity(pos));   // Paper: 틱 스레드가 아니면 null
+            BlockEntity be = level.getChunkAt(pos).getBlockEntity(pos);
             thread.set(be.saveWithId(MinecraftServer.getServer().registryAccess()).toString());
         });
         t.start();

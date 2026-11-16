@@ -6,12 +6,14 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Consumer;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.world.gen.carver.LegacyRandom;
 import org.domi.furnace.server.world.gen.noise.NoiseRandom;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@VanillaPort("net.minecraft.world.level.storage.loot.LootTable")
 public final class LootTable {
 
     private static final Logger log = LoggerFactory.getLogger(LootTable.class);

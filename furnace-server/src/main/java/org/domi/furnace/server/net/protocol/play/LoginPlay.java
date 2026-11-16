@@ -3,6 +3,7 @@ package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
@@ -11,6 +12,7 @@ import org.domi.furnace.server.net.protocol.Packet;
  * @param viewDistance  서버 view-distance(클라 렌더 거리 상한)
  * @param hashedSeed    BiomeManager.obfuscateSeed(시드) — 클라 바이옴 블렌딩용
  */
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundLoginPacket")
 public record LoginPlay(int entityId, boolean hardcore, List<String> levels, int maxPlayers, int viewDistance,
                         int simulationDistance, boolean reducedDebugInfo, boolean showDeathScreen, boolean doLimitedCrafting,
                         int dimensionType, String dimensionName, long hashedSeed, int gameMode, int previousGameMode,

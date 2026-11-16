@@ -1,7 +1,7 @@
 // 호환 기준 장면(T-075)의 공통 뼈대. 한 장면 = 증명(PROOF, 금 파일 비교)·벤치(FULL, 시간 측정) 두 모드, 같은 코드(docs/testing/compat-scenes.md).
 // 서버 쪽 장면 라이브러리(LibraryScene·Size·Probe·SceneHash·Golden)를 그대로 쓴다. 장면은 실제 헤드리스 서버(FurnaceTestServer)를 띄워
 // Bukkit 어댑터를 부르므로 엔티티 id 카운터·정적 난수가 JVM 전역이다 → 기본은 새 JVM 모드(freshJvm = true).
-// 금 파일 이름은 scene-compat-*(furnace-compat-paper/src/test/resources/identity/). 줄에는 정체 해시·엔티티 번호·UUID·시각을 넣지 않는다.
+// 금 파일 이름은 scene-compat-*(furnace-compat-paper/src/test/resources/identity/1.21.1/). 줄에는 정체 해시·엔티티 번호·UUID·시각을 넣지 않는다.
 package org.domi.furnace.compat.paper;
 
 import java.util.function.Supplier;

@@ -27,7 +27,7 @@ class VanillaRawWriteOracleTest {
     private static synchronized List<String[]> load() throws Exception {
         if (cases != null) return cases;
         List<String[]> out = new ArrayList<>();
-        try (InputStream in = VanillaRawWriteOracleTest.class.getResourceAsStream("/n2b/rawwrite-oracle-" + GameVersion.RESOURCE_TAG + ".txt.gz")) {
+        try (InputStream in = VanillaRawWriteOracleTest.class.getResourceAsStream("/n2b/" + GameVersion.RESOURCE_TAG + "/rawwrite-oracle.txt.gz")) {
             assertNotNull(in, "정답표 없음");
             BufferedReader r = new BufferedReader(new InputStreamReader(new GZIPInputStream(in), StandardCharsets.UTF_8));
             for (String line; (line = r.readLine()) != null; ) {

@@ -4,9 +4,11 @@ package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
 import java.util.UUID;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundAddEntityPacket")
 public record AddEntity(int entityId, UUID uuid, int type, double x, double y, double z, int xRot, int yRot, int yHeadRot,
                         int data, double vx, double vy, double vz) implements Packet {
 

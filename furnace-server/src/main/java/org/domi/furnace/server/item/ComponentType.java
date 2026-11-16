@@ -3,7 +3,9 @@
 package org.domi.furnace.server.item;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.core.component.DataComponentType")
 public final class ComponentType {
 
     private final String name;

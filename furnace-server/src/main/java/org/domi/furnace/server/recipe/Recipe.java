@@ -10,9 +10,20 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.net.io.Types;
 
+@VanillaPort({
+        "net.minecraft.world.item.crafting.Recipe",
+        "net.minecraft.world.item.crafting.RecipeSerializer",
+        "net.minecraft.world.item.crafting.ShapedRecipe",
+        "net.minecraft.world.item.crafting.ShapelessRecipe",
+        "net.minecraft.world.item.crafting.AbstractCookingRecipe",
+        "net.minecraft.world.item.crafting.SingleItemRecipe",
+        "net.minecraft.world.item.crafting.SmithingTransformRecipe",
+        "net.minecraft.world.item.crafting.SmithingTrimRecipe",
+        "net.minecraft.world.item.crafting.CustomRecipe"})
 public sealed interface Recipe {
 
     /** 직렬화기 이름(minecraft:crafting_shaped …). */

@@ -1,5 +1,7 @@
 package org.domi.furnace.compat.nms;
 
+import org.domi.furnace.api.GameVersion;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -45,7 +47,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * N2b-6: FAWE 2.16.2 의 1.21.1 어댑터가 켜질 때·편집할 때 닿는 NMS 표면. 정답은 Paper 1.21.1 jar 를 부트스트랩해 잰 값이다
- * (시험 자원 {@code n2b/*-1.21.1.tsv} — 만드는 법은 보고서 docs/feature-parity/compat-nms-n2b6-2026-11-16.md 4장).
+ * (시험 자원 {@code n2b/1.21.1/*.tsv} — 만드는 법은 보고서 docs/feature-parity/compat-nms-n2b6-2026-11-16.md 4장).
  */
 class NmsFaweSurfaceTest {
 
@@ -123,7 +125,7 @@ class NmsFaweSurfaceTest {
 
     @Test
     void blockStatePropertiesMatchPaperAndAreTheBlocksOwnObjects() throws Exception {
-        List<String> rows = lines("/n2b/block-state-properties-1.21.1.tsv", false);
+        List<String> rows = lines("/n2b/" + GameVersion.RESOURCE_TAG + "/block-state-properties.tsv", false);
         assertEquals(114, rows.size());
         List<String> seen = new ArrayList<>();
         for (Field f : BlockStateProperties.class.getDeclaredFields()) {
@@ -160,7 +162,7 @@ class NmsFaweSurfaceTest {
         List<String> diffs = new ArrayList<>();
         java.util.Map<String, Integer> cols = new java.util.TreeMap<>();
         int n = 0;
-        for (String row : lines("/n2b/material-oracle-1.21.1.tsv.gz", true)) {
+        for (String row : lines("/n2b/" + GameVersion.RESOURCE_TAG + "/material-oracle.tsv.gz", true)) {
             if (row.startsWith("#")) continue;
             String[] c = row.split("\t");
             int id = Integer.parseInt(c[0]);
@@ -352,17 +354,24 @@ class NmsFaweSurfaceTest {
     }
 
     @Test
-    void privateBlockEntityHelpersExistWithPaperSignaturesAndFailLikeRemoveBlockEntity() throws Exception {
+    void privateBlockEntityHelpersExistWithPaperSignatures() throws Exception {
         LevelChunk chunk = level.getChunkAt(new BlockPos(at.x(), at.y(), at.z()));
         Method listener = LevelChunk.class.getDeclaredMethod("removeGameEventListener", net.minecraft.world.level.block.entity.BlockEntity.class, ServerLevel.class);
         Method ticker = LevelChunk.class.getDeclaredMethod("removeBlockEntityTicker", BlockPos.class);
         listener.setAccessible(true);
         ticker.setAccessible(true);
+        // 바닐라: null 블록 엔티티는 NPE, 블록 엔티티가 없는 칸(이 청크 밖 포함)의 틱터 떼기·지우기는 할 일이 없다(T-198 — 쓰기 길은 NmsBlockEntityWriteTest)
         var e1 = org.junit.jupiter.api.Assertions.assertThrows(java.lang.reflect.InvocationTargetException.class, () -> listener.invoke(chunk, null, level));
-        assertTrue(e1.getCause() instanceof UnsupportedNmsCall, String.valueOf(e1.getCause()));
-        var e2 = org.junit.jupiter.api.Assertions.assertThrows(java.lang.reflect.InvocationTargetException.class, () -> ticker.invoke(chunk, BlockPos.ZERO));
-        assertTrue(e2.getCause() instanceof UnsupportedNmsCall, String.valueOf(e2.getCause()));
-        assertTrue(org.junit.jupiter.api.Assertions.assertThrows(UnsupportedNmsCall.class, () -> chunk.removeBlockEntity(BlockPos.ZERO)).getMessage().contains("block entit"));
+        assertTrue(e1.getCause() instanceof NullPointerException, String.valueOf(e1.getCause()));
+        server.onRegion(at, () -> {
+            try {
+                ticker.invoke(chunk, BlockPos.ZERO);
+            } catch (ReflectiveOperationException e) {
+                throw new AssertionError(e);
+            }
+            chunk.removeBlockEntity(BlockPos.ZERO);
+            return null;
+        });
     }
 
     @Test

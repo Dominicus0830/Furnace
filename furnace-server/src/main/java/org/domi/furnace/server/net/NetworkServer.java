@@ -11,6 +11,7 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import java.net.InetSocketAddress;
 import org.domi.furnace.api.sched.FurnaceScheduler;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.FrameDecoder;
 import org.domi.furnace.server.net.io.FrameEncoder;
 import org.domi.furnace.server.entity.EntityIdAllocator;
@@ -19,6 +20,7 @@ import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@VanillaPort("net.minecraft.server.network.ServerConnectionListener")
 public final class NetworkServer {
 
     private static final Logger log = LoggerFactory.getLogger(NetworkServer.class);

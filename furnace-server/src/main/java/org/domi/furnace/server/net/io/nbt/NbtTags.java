@@ -4,7 +4,9 @@ package org.domi.furnace.server.net.io.nbt;
 
 import java.util.Arrays;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.nbt.Tag", "net.minecraft.nbt.CompoundTag", "net.minecraft.nbt.NbtUtils", "net.minecraft.nbt.NumericTag"})
 public final class NbtTags {
     private NbtTags() {}
 

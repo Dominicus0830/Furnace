@@ -3,8 +3,10 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundLevelParticlesPacket")
 public record LevelParticles(boolean overrideLimiter, double x, double y, double z, float xDist, float yDist, float zDist,
         float maxSpeed, int count, ParticleOptions particle) implements Packet {
 

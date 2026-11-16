@@ -1,13 +1,15 @@
-// 결과 동일 금 파일(golden): src/test/resources/identity/<이름>.txt 에 커밋한 기대 줄과 지금 결과를 줄 단위로 비교한다.
+// 결과 동일 금 파일(golden): src/test/resources/identity/1.21.1/<이름>.txt 에 커밋한 기대 줄과 지금 결과를 줄 단위로 비교한다.
 // '#' 로 시작하는 줄과 빈 줄은 설명이라 비교하지 않는다.
 //
 // 금 파일은 "옛 커밋 == 새 커밋" 의 기준이다. 최적화 PR 은 금 파일을 바꾸지 않는다.
 // 갱신(bless)은 의도한 정확성 수정일 때만, 이름을 하나씩 적어서 한다:
 //   ./gradlew :furnace-server:test --tests '<시험>' -Dfurnace.identity.bless=<이름>[,<이름>...]
-// 그러면 src/test/resources/identity/<이름>.txt 를 지금 결과로 다시 쓰고(머리 '#' 줄은 유지) 시험은 통과한다.
+// 그러면 src/test/resources/identity/1.21.1/<이름>.txt 를 지금 결과로 다시 쓰고(머리 '#' 줄은 유지) 시험은 통과한다.
 // 갱신한 PR 의 절차(사유·검토)는 docs/testing/identitykit.md "금 파일 갱신".
 // 불일치하면 지금 결과를 build/identity/actual/<이름>.txt 에 남긴다 — 금 파일과 diff 해서 어디가 바뀌었는지 본다.
 package org.domi.furnace.server.identity;
+
+import org.domi.furnace.api.GameVersion;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -25,7 +27,7 @@ import java.util.stream.Collectors;
 public final class Golden {
 
     private static final Pattern NAME = Pattern.compile("[a-z0-9][a-z0-9._-]*");
-    static final String RESOURCE_DIR = "identity/";
+    static final String RESOURCE_DIR = "identity/" + GameVersion.RESOURCE_TAG + "/";
 
     private Golden() {}
 
@@ -118,7 +120,7 @@ public final class Golden {
         Path cwd = Path.of(System.getProperty("user.dir")).toAbsolutePath();
         for (Path base : new Path[]{cwd, cwd.resolve("furnace-server")}) {
             Path p = base.resolve("src/test/resources");
-            if (Files.isDirectory(p) && Files.isRegularFile(base.resolve("build.gradle.kts"))) return p.resolve("identity");
+            if (Files.isDirectory(p) && Files.isRegularFile(base.resolve("build.gradle.kts"))) return p.resolve("identity").resolve(GameVersion.RESOURCE_TAG);
         }
         throw new IllegalStateException("src/test/resources 를 못 찾았다(user.dir=" + cwd + ")");
     }

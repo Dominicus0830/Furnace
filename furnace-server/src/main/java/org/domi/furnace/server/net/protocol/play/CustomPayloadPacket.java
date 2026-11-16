@@ -2,10 +2,12 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
 /** @param inPlay play 단계(0x19)면 true, 구성 단계(0x01)면 false */
+@VanillaPort("net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket")
 public record CustomPayloadPacket(String channel, byte[] data, boolean inPlay) implements Packet {
 
     public static final int ID_PLAY = 0x19;

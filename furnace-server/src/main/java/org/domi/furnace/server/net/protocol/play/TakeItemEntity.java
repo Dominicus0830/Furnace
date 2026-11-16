@@ -2,9 +2,11 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundTakeItemEntityPacket")
 public record TakeItemEntity(int itemId, int playerId, int amount) implements Packet {
 
     public static final int ID = 0x6F;

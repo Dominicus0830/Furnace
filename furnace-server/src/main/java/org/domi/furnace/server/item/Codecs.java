@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.domi.furnace.api.text.serializer.JsonTextSerializer;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
 import static org.domi.furnace.server.item.PCodec.opt;
@@ -16,6 +17,11 @@ import static org.domi.furnace.server.item.PCodec.optEmpty;
 import static org.domi.furnace.server.item.PCodec.record;
 import static org.domi.furnace.server.item.PCodec.req;
 
+@VanillaPort({
+        "net.minecraft.util.ExtraCodecs",
+        "net.minecraft.core.UUIDUtil",
+        "net.minecraft.world.item.DyeColor",
+        "net.minecraft.network.chat.ComponentSerialization"})
 public final class Codecs {
     private Codecs() {}
 

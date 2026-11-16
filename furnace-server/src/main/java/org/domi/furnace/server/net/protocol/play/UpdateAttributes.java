@@ -3,11 +3,13 @@ package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.attribute.AttributeInstance;
 import org.domi.furnace.server.attribute.AttributeModifier;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundUpdateAttributesPacket")
 public record UpdateAttributes(int entityId, List<AttributeInstance> attributes) implements Packet {
 
     public static final int ID = 0x75;

@@ -181,7 +181,7 @@ class VanillaCommandTreeTest {
         try {
             ServerCore core = core(tmp, sched);
             JsonObject vanilla;
-            try (var in = new InputStreamReader(new GZIPInputStream(getClass().getResourceAsStream("/commands/vanilla-" + GameVersion.RESOURCE_TAG + "-commands.json.gz")),
+            try (var in = new InputStreamReader(new GZIPInputStream(getClass().getResourceAsStream("/commands/" + GameVersion.RESOURCE_TAG + "/vanilla-commands.json.gz")),
                     StandardCharsets.UTF_8)) {
                 vanilla = JsonParser.parseReader(in).getAsJsonObject().getAsJsonObject("children");
             }

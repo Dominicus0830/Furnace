@@ -4,7 +4,9 @@ package org.domi.furnace.server.net.io;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.network.Varint21LengthFieldPrepender")
 public final class FrameEncoder extends MessageToByteEncoder<ByteBuf> {
 
     @Override

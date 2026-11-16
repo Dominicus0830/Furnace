@@ -4,10 +4,12 @@ package org.domi.furnace.server.net.protocol.play;
 import io.netty.buffer.ByteBuf;
 import java.util.UUID;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 
 /** @param prompt 안내 문구(없으면 null)  @param inPlay play 단계(0x46)면 true, 구성 단계(0x09)면 false */
+@VanillaPort("net.minecraft.network.protocol.common.ClientboundResourcePackPushPacket")
 public record ResourcePackPush(UUID packId, String url, String hash, boolean required, Text prompt, boolean inPlay) implements Packet {
 
     public static final int ID_PLAY = 0x46;
