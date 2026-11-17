@@ -159,6 +159,9 @@ public abstract class ChunkAccess implements BlockGetter {
 
     /** 블록 엔티티가 있는 칸(BlockPos.asLong). 주인은 살아 있는 값, 다른 스레드는 공개 판 + 자기 블록 엔티티 쓰기 덧칠. */
     private java.util.Set<Long> furnaceBlockEntityPositions(String what) {
+        // 덧칠을 판보다 먼저 읽는다 — 주인은 새 판을 낸 *뒤* 덧칠을 지우므로, 덧칠이 이미 없으면 그 뒤에 읽은 판에는 이 스레드의 쓰기가 들어 있다.
+        // 판을 먼저 읽으면 (옛 판 → 주인이 공개하고 덧칠을 지움 → 덧칠 없음) 사이에 자기 쓰기가 안 보이는 틈이 생긴다.
+        var over = furnaceMirror.blockEntityOverlay();
         var v = furnaceForeignView(what);
         if (v == null) {
             furnaceMirror.ownerSyncIfDirty();
@@ -169,7 +172,6 @@ public abstract class ChunkAccess implements BlockGetter {
             return out;
         }
         java.util.Set<Long> base = furnacePublishedPositions(v);
-        var over = furnaceMirror.blockEntityOverlay();
         if (over.isEmpty()) return new java.util.HashSet<>(base);
         java.util.Set<Long> out = new java.util.HashSet<>(base);
         for (var e : over.entrySet()) {
@@ -201,6 +203,7 @@ public abstract class ChunkAccess implements BlockGetter {
         int x = at.getX(), y = at.getY(), z = at.getZ();
         if (isOutsideBuildHeight(y) || (x >> 4) != pos.x || (z >> 4) != pos.z) return null;   // 바닐라: 이 청크의 표에 없는 칸
         long k = BlockPos.asLong(x, y, z);
+        Object o = furnaceMirror.blockEntityOverlayAt(k);   // 판보다 먼저(주인은 새 판을 낸 뒤 덧칠을 지운다 — furnaceBlockEntityPositions 설명)
         var v = furnaceForeignView("LevelChunk#getBlockEntity");
         if (v == null) {
             furnaceMirror.ownerSync(slotOf(y));
@@ -216,7 +219,6 @@ public abstract class ChunkAccess implements BlockGetter {
             if (nv != null) furnaceBlockEntityViews.put(k, nv);
             return nv;
         }
-        Object o = furnaceMirror.blockEntityOverlayAt(k);
         if (o instanceof net.minecraft.world.level.block.entity.BlockEntity be) return be;
         if (o == null && furnacePublishedPositions(v).contains(k)) {
             var cur = furnaceBlockEntityViews.get(k);

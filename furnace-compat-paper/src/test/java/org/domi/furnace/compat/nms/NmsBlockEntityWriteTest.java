@@ -396,7 +396,10 @@ class NmsBlockEntityWriteTest {
                 c.removeBlockEntity(p);
                 out.add(t);
             }
-            assertTrue(hasDiamonds(out.get(0).saveWithId(reg)));   // 첫 저장: 주인이 맞추며 지우기를 재생
+            // 마지막으로 지운 타일의 저장 한 번: 주인이 아직 재생하지 않았으면 이 저장이 기다리며 일지 전체를 재생하고, 이미 재생했으면(주인은 지우는 도중에도 맞추기
+            // 부탁을 돌린다 — 부하에서 자주) 기다리지 않고 뜬 꼴을 쓴다. 일지는 순서대로 재생되므로 어느 쪽이든 앞서 지운 타일도 모두 꼴이 떠 있다.
+            // (첫 타일을 저장하면 그 타일만 이미 재생됐을 때 나머지가 아직이라 아래 단언이 타이밍에 흔들린다.)
+            assertTrue(hasDiamonds(out.get(out.size() - 1).saveWithId(reg)));
             return out;
         });
         for (BlockEntity t : tiles) {
@@ -405,6 +408,53 @@ class NmsBlockEntityWriteTest {
         }
         for (BlockEntity t : tiles) assertTrue(hasDiamonds(offThread(() -> t.saveWithId(reg))));
         for (BlockPos p : ps) assertNull(serverBe(p));
+    }
+
+    /**
+     * 결정적 판(위 시험은 주인의 백그라운드 맞추기 부탁과 경주해 한쪽만 본다): 주인 스레드를 붙잡아 그 부탁이 못 돌게 한 채 다른 스레드가 타일 12개를 지워
+     * 일지를 쌓는다. 주인에서 마지막 타일 하나를 저장하면 그 저장이 일지 전체를 재생해(compat 의 ownerSyncIfDirty, 그리고 서버가 주인의 블록 엔티티 접근 때 대기
+     * 중인 거울을 맞추는 안전망 — 둘 다 빼야 이 시험이 깨진다) 앞서 지운 타일에도 모두 꼴이 떠 있다.
+     */
+    @Test
+    void saveOnTheOwnerReplaysTheWholeRemoveJournalAtOnce() throws Exception {
+        java.util.List<BlockPos> ps = new java.util.ArrayList<>();
+        for (int i = 0; i < 12; i++) ps.add(at(1, 2, i, 3 + (i & 1) * 4));
+        for (BlockPos p : ps) placeChestWithDiamonds(p);
+        LevelChunk c = level.getChunkAt(ps.get(0));   // 주인을 붙잡기 전에 — 다른 스레드의 청크 얻기는 공개 판을 기다린다
+        var holding = new java.util.concurrent.CountDownLatch(1);
+        var journaled = new java.util.concurrent.CountDownLatch(1);
+        AtomicReference<java.util.List<BlockEntity>> tiles = new AtomicReference<>();
+        AtomicReference<Throwable> ownerFailure = new AtomicReference<>();
+        var held = java.util.concurrent.CompletableFuture.runAsync(() -> onRun(ps.get(0), () -> {   // 이 작업이 도는 동안 주인은 다른 일을 못 한다
+            holding.countDown();
+            try {
+                assertTrue(journaled.await(15, java.util.concurrent.TimeUnit.SECONDS), "다른 스레드가 15초 안에 지우기를 끝내지 못했다");
+                java.util.List<BlockEntity> t = tiles.get();
+                for (BlockEntity be : t) assertNull(be.furnaceSnapshot(), "준비: 주인이 아직 아무것도 재생하지 않았다: " + be);
+                assertTrue(hasDiamonds(t.get(t.size() - 1).saveWithId(reg)));
+                for (BlockEntity be : t) assertNotNull(be.furnaceSnapshot(), "저장 한 번이 일지 전체를 재생해 꼴을 떠 둔다: " + be);
+            } catch (Throwable e) {
+                ownerFailure.set(e);
+            }
+        }));
+        assertTrue(holding.await(15, java.util.concurrent.TimeUnit.SECONDS), "주인이 붙잡히지 않았다");
+        try {
+            tiles.set(offThread(() -> {
+                java.util.List<BlockEntity> out = new java.util.ArrayList<>();
+                for (BlockPos p : ps) {
+                    BlockEntity t = c.getBlockEntity(p);
+                    c.removeBlockEntity(p);
+                    out.add(t);
+                }
+                return out;
+            }));
+        } finally {
+            journaled.countDown();
+        }
+        held.get(15, java.util.concurrent.TimeUnit.SECONDS);
+        if (ownerFailure.get() != null) throw new AssertionError("주인 스레드 단언 실패", ownerFailure.get());
+        for (BlockPos p : ps) assertNull(serverBe(p));
+        for (BlockEntity t : tiles.get()) assertTrue(hasDiamonds(offThread(() -> t.saveWithId(reg))));
     }
 
     // ------------------------------------------------------------------ 검토 재현(PR #447)
