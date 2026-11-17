@@ -27,6 +27,8 @@ server.unloadWorld(world, true).thenAccept(ok -> { /* 플레이어가 있거나 
 | 이미 있는 폴더 | 그 level.dat 의 시드가 이긴다(Bukkit 과 같다). 생성기·환경은 넘긴 설명서를 쓴다. 같은 이름이 이미 올라와 있으면 같은 설명서일 때 그 월드를 돌려주고, 다르면 실패 |
 | 차원 타입 | 비우면 환경의 바닐라 타입(`minecraft:overworld`·`the_nether`·`the_end`). `minecraft:overworld_caves` 와 플러그인이 부트스트랩에서 등록한 타입(W2, [bootstrap-registries.md](bootstrap-registries.md) 6장)도 된다. 꺼진 플러그인의 타입은 거절 |
 | 높이 | 노이즈 생성기(DEFAULT·LARGE_BIOMES·AMPLIFIED)는 그 계열 원래 높이(오버월드 -64..320, 네더·엔드 0..256) 타입만 받는다(바닐라와 같은 지형을 지키려고). FLAT·VOID 는 아무 높이나 된다 |
+| 평지 | 오버월드 높이의 FLAT 은 바닐라 평지 생성기(`FlatLevelSource` — 구조물·지형지물·호수·`fill_layer`)이고 설정은 그 월드 level.dat 의 평지 설정이다(Paper 에서 가져온 평지도 그대로). 새 월드는 `flatLayers`·`flatBiome` 에 지형지물·호수·구조물 없음, 또는 `flatGeneratorSettings(JSON)` — 바닐라 `server.properties` `generator-settings` 와 같은 규칙(`layers` 가 없으면 기본 프리셋: 기반암·흙 2·잔디, 평원, 요새·마을. `structure_overrides` 가 없으면 모든 구조물 세트). Bukkit `createWorld(FLAT)` 은 `generatorSettings` 를 Paper 처럼 그대로 넘긴다. 다른 높이의 FLAT·VOID 는 층만 쌓는다 |
+| 바이옴 공급자 | `.biomeProvider(provider)`(T-210, `worldgen.BiomeProvider` — Bukkit `WorldCreator#biomeProvider` 와 같은 자리): 생성기의 바이옴 원천을 바꾼다(지형은 그대로, 바이옴·표면 규칙·지형지물·구조물 후보가 따른다). 노이즈 생성기(모든 환경)와 오버월드 높이의 FLAT 만 받는다(평지는 기후 값 0 으로 불린다 — 바닐라 평지와 같다). 생성 스레드 여러 개에서 동시에 불리므로 상태를 바꾸지 말 것. 생성기를 만들기 직전 `prepare(Context)` 로 이름·키·환경·시드·높이를 받는다. 공급자 객체는 저장되지 않고 이름(`name()`)만 level.dat 에 남아, `worlds.autoload`·`/worlds load`·저장된 설명서 그대로의 `createWorld` 는 공급자를 다시 줄 때까지 열지 않는다(`toBuilder().biomeProvider(p)` 로 다시 붙이거나 `biomeProvider(null)` 로 지운다). `World#biomeProvider()` 로 읽는다 |
 | 월드 타입 | `SINGLE_BIOME_SURFACE` 는 오버월드 노이즈 지형에 바이옴이 `minecraft:plains` 하나(바닐라 `FixedBiomeSource`). `DEBUG_ALL_BLOCK_STATES` 는 바닐라 `DebugLevelSource` 와 같은 격자(y=60 장벽, y=70 모든 블록 상태, 스폰 0,80,0, 바이옴 plains). 둘 다 NORMAL 환경만. `server.properties` 의 `level-type` 도 같은 값(`minecraft:single_biome_surface`·`minecraft:debug_all_block_states`)을 받고, 접속 패킷의 `is_debug`·`is_flat` 도 바닐라처럼 보낸다 |
 | 스레드 | `createWorld`·`unloadWorld` 는 아무 스레드에서 불러도 되고 바로 future 를 돌려준다. 준비(폴더 잠금·level.dat·생성기)는 월드 전용 스레드에서 차례로 돈다. 결과 future 는 전역 스레드에서 끝난다 |
 | 동기판 | `createWorldNow(spec)` 은 월드가 돌고 이벤트가 지나갈 때까지 기다린 뒤 월드를 돌려준다(Bukkit `createWorld` 와 같다 — 호환 어댑터가 쓴다). 전역 스레드에서 부르면 이벤트를 그 스레드에서 바로 보내고, 준비 동안 전역 스레드가 멈춘다. 실패는 원래 예외를 그대로 던진다. 이미 올라온 월드면 이벤트 없이 그 월드. `WorldUnloadEvent` 처리기 안에서는 부를 수 없다(월드 스레드가 그 처리기를 기다린다 — 곧바로 `IllegalStateException`, future 나 다음 틱을 쓴다) |
@@ -71,5 +73,6 @@ server.unloadWorld(world, true).thenAccept(ok -> { /* 플레이어가 있거나 
 ## 4. 아직 없는 것
 
 - ~~플러그인 생성기(청크 생성 단계 훅): W3.~~ → 구현됨: `WorldCreator.Builder.generationHooks(키)`·청크 재생성 `World.regenerateChunk`·`/worlds regen` — [worldgen-hooks.md](worldgen-hooks.md).
-- 평지의 구조물·지형지물, 빈 월드의 시작 발판(바닐라 "The Void" 프리셋의 `void_start_platform`).
+- ~~평지의 구조물·지형지물~~ → 오버월드 높이의 추가 평지는 바닐라 평지 생성기(T-210). 남은 것: 빈 월드(VOID)의 시작 발판(바닐라 "The Void" 프리셋의 `void_start_platform`), 다른 높이 평지의 구조물·지형지물.
+- Bukkit `ChunkGenerator`(`WorldCreator#generator`)로 만드는 월드 — T-211.
 - 월드별 시간·날씨·게임 규칙(Paper 방식) — 필요하면 기본 꺼짐 옵션으로 더한다.

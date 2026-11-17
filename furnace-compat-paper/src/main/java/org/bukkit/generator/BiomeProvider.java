@@ -4,8 +4,8 @@ import java.util.List;
 import org.bukkit.block.Biome;
 
 /**
- * Paper 1.21.1 BiomeProvider(플러그인이 월드 바이옴을 정한다). Furnace 는 아직 플러그인 바이옴 공급자로 월드를 만들지 않으므로
- * World#getBiomeProvider 는 늘 null(Paper 도 만들 때 주지 않았으면 null)이다.
+ * Paper 1.21.1 BiomeProvider(플러그인이 월드 바이옴을 정한다). {@code WorldCreator#biomeProvider} 로 만든 월드(T-210)와 FAWE {@code //regen <바이옴>}
+ * 의 임시 월드(T-203)가 쓴다. World#getBiomeProvider 는 만들 때 준 공급자(주지 않았으면 null — Paper 와 같다).
  */
 public abstract class BiomeProvider {
 

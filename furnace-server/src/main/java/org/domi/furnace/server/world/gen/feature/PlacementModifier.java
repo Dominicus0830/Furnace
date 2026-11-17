@@ -386,6 +386,8 @@ public sealed interface PlacementModifier
     record UniformHeight(int minInclusive, int maxInclusive) implements HeightProvider {
         @Override
         public int sample(WorldgenRandom random) {
+            // 바닐라 UniformHeight: 빈 범위(평지 생성 문맥 minY 0 에서 absolute 음수 위쪽 등)면 경고 뒤 최소값 — 난수를 쓰지 않는다
+            if (minInclusive > maxInclusive) return minInclusive;
             return minInclusive + random.nextInt(maxInclusive - minInclusive + 1);
         }
     }
@@ -414,6 +416,7 @@ public sealed interface PlacementModifier
     record TrapezoidHeight(int minInclusive, int maxInclusive, int plateau) implements HeightProvider {
         @Override
         public int sample(WorldgenRandom random) {
+            if (minInclusive > maxInclusive) return minInclusive;   // 바닐라 TrapezoidHeight: 빈 범위면 경고 뒤 최소값
             int span = maxInclusive - minInclusive;
             if (plateau >= span) return minInclusive + random.nextInt(span + 1);
             int side = (span - plateau) / 2;

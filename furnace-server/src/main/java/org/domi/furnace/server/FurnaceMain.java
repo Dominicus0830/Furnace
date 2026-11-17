@@ -478,7 +478,12 @@ public final class FurnaceMain {
             try {
                 worldManager.load(name).get(5, java.util.concurrent.TimeUnit.MINUTES);
             } catch (Exception e) {
-                log.error(Lang.t("world.autoload-failed", name), e instanceof java.util.concurrent.ExecutionException ? e.getCause() : e);
+                Throwable cause = e instanceof java.util.concurrent.ExecutionException ? e.getCause() : e;
+                if (cause instanceof org.domi.furnace.server.world.WorldManager.NeedsBiomeProviderException n) {
+                    log.warn(Lang.t("world.autoload-needs-provider", name, n.provider()));   // 공급자를 가진 플러그인이 onEnable 에서 다시 만든다(T-210)
+                    continue;
+                }
+                log.error(Lang.t("world.autoload-failed", name), cause);
             }
         }
         // 바닐라에 없는 명령 — 바닐라 트리 대조 대상(BuiltinCommands)과 따로 등록한다
