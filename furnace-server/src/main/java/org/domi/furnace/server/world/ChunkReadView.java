@@ -115,6 +115,9 @@ public final class ChunkReadView implements ChunkInternals.ChunkView {
 
     @Override public int[] sectionStates(int i) { return sec(i).states(); }
 
+    /** T-209: 읽기 사본 그대로(불변 — 펼친 사본이면 null). */
+    @Override public ChunkInternals.PackedStates sectionStatesPacked(int i) { return sec(i).blocks; }
+
     @Override public int sectionNonAir(int i) { return sec(i).nonAir; }
 
     @Override

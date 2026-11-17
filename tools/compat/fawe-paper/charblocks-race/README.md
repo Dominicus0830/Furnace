@@ -16,3 +16,7 @@ java -cp $D/core.jar:$D/log4j.jar:$D/guava.jar:$D RaceHarness 5,20,50,140,300 30
 
 인자: 첫 읽기 시간(µs, 쉼표), 시도 수. FAWE jar 는 커밋하지 않는다. log4j 구현이 없다는 `StatusLogger` 한 줄은 무시해도 된다.
 수치는 최악 장면(읽는 쪽이 1.5 ms 내내 그 칸을 읽음)의 상대 비교이지 실서버 확률이 아니다.
+
+T-209(첫 섹션 읽기 가속) 뒤 Furnace 의 첫 읽기 시간은 `furnace-compat-paper` 벤치 `FirstDataReadBench` 로 잰다(묶음 읽기 섹션당 약 2 µs, 틱 직후 한 섹션 15~29 µs).
+그 값을 이 도구의 첫 인자로 넣어 비율을 본다 — 결과는 `docs/feature-parity/context-notes/2026-11-17-t209-first-section-read.md`. 실서버 확정 실험
+(`2026-11-17-t204-fawe-threads-confirm.md`)에서는 갈림이 FAWE 다중 스레드에서 나오고 Paper 도 같거나 더 자주 갈렸다 — 이 도구의 비율은 상대 비교로만 쓴다.
