@@ -15,7 +15,7 @@ Furnace = 처음부터 새로 쓰는 멀티스레드 Minecraft 1.21.1 서버(Jav
 | 문서 | 크기 | 읽는 법 |
 |---|---|---|
 | `docs/handoff/2026-10-31-session-handoff.md` | 24KB | 4장 "다음 할 일"(96~105줄), 6장 "작업 방식에서 배운 것"(114줄~끝)만. 2~3장은 이력이라 필요할 때 grep |
-| `docs/handoff/2026-10-18-session-handoff.md` | 142KB | **통째로 읽지 않는다.** 아래 색인의 줄 범위만 |
+| `docs/handoff/2026-10-18-session-handoff.md` | 약 90KB(6~10장은 archive/) | **통째로 읽지 않는다.** 아래 색인의 줄 범위만 |
 | `docs/feature-parity/context-notes.md` | 342KB | 절대 통째로 읽지 않는다. `grep -n "<키워드>"` 로 찾은 절만. 새 기록은 `context-notes/` 폴더에 새 파일 |
 | `docs/feature-parity/context-notes/` | 187개 | 이름(날짜-묶음 id)으로 고른 파일만 |
 | `graphify-out/GRAPH_REPORT.md`, `graph.html` | 97KB, 1.3MB | 읽지 않는다. `graphify query/path/explain` 으로 묻는다 |
@@ -35,7 +35,7 @@ Furnace = 처음부터 새로 쓰는 멀티스레드 Minecraft 1.21.1 서버(Jav
 | 블록 오라클 사용 | 399~429 (4.3; 스크립트 전문 430~513 은 필요할 때만) |
 | 난독화 이름·엔티티 데이터 id·패킷 id·메뉴 id 표 | 534~615 (4.6~4.9, 값이 필요할 때 grep) |
 | 아키텍처 요약(패키지·틱 순서·엔티티·블록 엔진) | 616~731 (5장) |
-| 6~9장 | 낡음. 읽지 않는다 |
+| 6~10장 | `archive/2026-10-18-ch6-10-stale.md` 로 옮김(낡음). 읽지 않는다 |
 
 ## 토큰 아끼는 작업 습관
 - 코드 위치는 `graphify query` 먼저, 그다음 `Grep` 으로 좁혀 필요한 줄 범위만 `Read`. 1000줄 넘는 파일 전체 읽기 금지.
