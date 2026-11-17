@@ -9,6 +9,18 @@ import org.domi.furnace.server.world.World;
 final class ScratchWorldsImpl implements ScratchWorlds {
 
     private final Supplier<PluginHost> host;
+    @Override
+    public String generatorKind(org.domi.furnace.api.world.World world) {
+        if (!(world instanceof WorldHandle wh)) throw new IllegalArgumentException("not a world of this server: " + world);
+        var src = wh.handle().worldSource();
+        if (src instanceof org.domi.furnace.server.world.gen.AnvilWorldSource a) src = a.base();
+        if (src instanceof org.domi.furnace.server.world.gen.ScratchWorldSource t) src = t.base();
+        if (src instanceof org.domi.furnace.server.world.gen.NoiseWorldSource n) return n.isFlat() ? "flat" : "noise";
+        if (src instanceof org.domi.furnace.server.world.gen.SuperflatWorldSource) return "flat";
+        if (src instanceof org.domi.furnace.server.world.gen.DebugWorldSource) return "debug";
+        return "other";
+    }
+
     /** 살아 있는 임시 월드의 손잡이(서버 월드 → 손잡이). 닫으면 뺀다. */
     private final ConcurrentHashMap<World, WorldHandle> open = new ConcurrentHashMap<>();
 
@@ -24,6 +36,11 @@ final class ScratchWorldsImpl implements ScratchWorlds {
         WorldHandle wh = new WorldHandle(h, w);
         open.put(w, wh);
         return wh;
+    }
+
+    @Override
+    public String defaultGameType() {
+        return host.get().core().levelData().gameType.name().toLowerCase(java.util.Locale.ROOT);
     }
 
     @Override

@@ -15,6 +15,12 @@ public interface ScratchWorlds {
      */
     World create(World original, long seed, String name);
 
+    /** 월드 생성기 종류: "noise"(노이즈), "flat"(평지·빈 월드), "debug"(모든 상태 격자), 그 밖은 "other". 아무 스레드. */
+    String generatorKind(World world);
+
+    /** 서버 기본 게임 모드 이름(server.properties gamemode: "survival" 등) — 임시 월드의 레벨 설정에 옮긴다. 아무 스레드. */
+    String defaultGameType();
+
     /** 이 다리로 만든 임시 월드인가. */
     boolean isScratch(World world);
 
