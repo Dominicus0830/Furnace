@@ -369,7 +369,7 @@ class PaperConfigImportTest {
         assertEquals(32, s.villagers());
     }
 
-    /** T-219: bukkit.yml worlds.<기본 세 월드>.generator·biome-provider → world-generator.<차원>·world-biome-provider.<차원>. 다른 이름은 대응 없음. */
+    /** T-219: bukkit.yml worlds.<기본 세 월드>.generator·biome-provider → world-generator.<차원>·world-biome-provider.<차원>. 다른 이름은 대응 없음(T-222). */
     @Test
     void importsDefaultWorldGenerators(@TempDir Path dir) throws Exception {
         write(dir, "bukkit.yml", """
@@ -389,7 +389,7 @@ class PaperConfigImportTest {
         assertFalse(r.toWrite().containsKey("world-generator.the_end"));
         assertTrue(has(r, Kind.IMPORTED, "bukkit.yml", "worlds.survival.generator"));
         assertTrue(has(r, Kind.IGNORED, "bukkit.yml", "worlds.survival_the_end.generator"));
-        assertTrue(has(r, Kind.UNSUPPORTED, "bukkit.yml", "worlds.world.generator"), "level-name 이 아닌 월드는 Paper 도 쓰지 않는다");
+        assertTrue(has(r, Kind.UNSUPPORTED, "bukkit.yml", "worlds.world.generator"), "다른 이름(추가 월드)은 이름별 설정이 없어 대응 없음(T-222)");
         assertFalse(r.toWrite().containsValue("Other"));
     }
 

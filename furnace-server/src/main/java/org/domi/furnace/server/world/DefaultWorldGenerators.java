@@ -100,7 +100,7 @@ public final class DefaultWorldGenerators {
                     ChunkDecorators.bind(fresh, t.levelKey(), t.seed(), blocks, registries);
                     next = fresh;
                 } else {
-                    log.error(Lang.t("world.default-generator-too-late", t.worldName()));
+                    log.error(Lang.t("world.default-provider-needs-noise", t.worldName()));   // 디버그 월드 등 — 바이옴 원천을 바꿀 생성기가 아니다
                     continue;
                 }
             }

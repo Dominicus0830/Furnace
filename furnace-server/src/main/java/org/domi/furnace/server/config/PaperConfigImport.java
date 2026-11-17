@@ -592,7 +592,7 @@ public final class PaperConfigImport {
                     Lang.t("paperimport.spigot-missing-key", key, why));
         }
 
-        /** bukkit.yml worlds.<기본 세 월드>.generator·biome-provider → world-generator.<차원>·world-biome-provider.<차원>(T-219). 다른 월드 이름은 Paper 도 쓰지 않는다. */
+        /** bukkit.yml worlds.<기본 세 월드>.generator·biome-provider → world-generator.<차원>·world-biome-provider.<차원>(T-219). 다른 이름은 Paper 가 그 이름의 추가 월드를 생성기 없이 만들 때 쓰지만 Furnace 에 이름별 설정이 없어 대응 없음(T-222). */
         private void defaultWorldGenerators() {
             for (String dim : org.domi.furnace.server.world.WorldSettings.DIMENSIONS) {
                 String world = org.domi.furnace.server.world.DefaultWorldGenerators.worldName(levelName, "minecraft:" + dim);

@@ -305,12 +305,13 @@ public final class PluginManagerImpl implements PluginManager {
         String dim = r.levelKey().substring(r.levelKey().indexOf(':') + 1);
         if (!r.generator().isEmpty() && !a.generatorClaimed()) {
             String name = org.domi.furnace.api.worldgen.DefaultWorldGeneration.Request.pluginOf(r.generator());
-            if (findByName(name) == null) log.error(Lang.t("world.default-generator-missing", r.worldName(), name));
+            // CraftServer#getGenerator 와 같은 줄(영어 그대로)
+            if (findByName(name) == null) log.error("Could not set generator for default world '" + r.worldName() + "': Plugin '" + name + "' does not exist");
             else log.error(Lang.t("world.default-generator-unsupported", r.worldName(), name, dim));
         }
         if (!r.biomeProvider().isEmpty() && !a.providerClaimed()) {
             String name = org.domi.furnace.api.worldgen.DefaultWorldGeneration.Request.pluginOf(r.biomeProvider());
-            if (findByName(name) == null) log.error(Lang.t("world.default-provider-missing", r.worldName(), name));
+            if (findByName(name) == null) log.error("Could not set biome provider for default world '" + r.worldName() + "': Plugin '" + name + "' does not exist");
             else log.error(Lang.t("world.default-provider-unsupported", r.worldName(), name));
         }
         return a;

@@ -195,8 +195,10 @@ public final class FurnaceTestServer implements AutoCloseable {
                 var genSettings = new org.domi.furnace.server.world.WorldSettings(java.util.OptionalLong.empty(), java.util.OptionalLong.empty(), List.of(),
                         java.util.Map.of(), b.defaultGenerator.isEmpty() ? java.util.Map.of() : java.util.Map.of("minecraft:overworld", b.defaultGenerator),
                         b.defaultBiomeProvider.isEmpty() ? java.util.Map.of() : java.util.Map.of("minecraft:overworld", b.defaultBiomeProvider));
+                var noise = org.domi.furnace.server.world.gen.NoiseWorldSource.of(w.worldSource());   // 시드·높이는 생성기 것(시험이 정한 생성기 시드)
+                var dim = org.domi.furnace.server.world.gen.NoiseWorldSource.Dimension.OVERWORLD;
                 var target = new org.domi.furnace.server.world.DefaultWorldGenerators.Target(w, "minecraft:overworld", "world",
-                        org.domi.furnace.api.world.WorldEnvironment.NORMAL, b.seed, -64, 320);
+                        org.domi.furnace.api.world.WorldEnvironment.NORMAL, noise.seed(), dim.minY, dim.minY + dim.sectionCount * 16);
                 var hooks = org.domi.furnace.server.world.DefaultWorldGenerators.attach(List.of(target), genSettings,
                         host.pluginsImpl()::defaultWorldGeneration, blocks, registries);
                 SpawnPoint sp = org.domi.furnace.server.world.DefaultWorldGenerators.initialSpawn(w, "world", hooks.get("minecraft:overworld"));

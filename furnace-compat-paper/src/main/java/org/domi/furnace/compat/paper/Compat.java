@@ -92,7 +92,8 @@ public final class Compat {
         }
 
         synchronized LegacyScheduler scheduler() {
-            if (scheduler == null) scheduler = new LegacyScheduler(furnace);
+            // 월드를 감춘 시작 단계(onLoad·STARTUP·스폰 청크 준비) 동안은 Bukkit 예약 작업이 돌지 않는다(Paper 는 시작이 끝난 첫 틱부터)
+            if (scheduler == null) scheduler = new LegacyScheduler(furnace, () -> visibleWorlds != null);
             return scheduler;
         }
 

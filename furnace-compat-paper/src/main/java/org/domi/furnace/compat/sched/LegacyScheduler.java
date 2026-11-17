@@ -90,10 +90,18 @@ public final class LegacyScheduler {
     });
     /** 마지막으로 돈 박동의 틱(처음은 0). 새 작업의 nextRun = tick + 지연 이라 지연 0·1 은 다음 박동에 돈다. */
     private volatile long tick;
+    private final java.util.function.BooleanSupplier hold;
     private final ScheduledTask heartbeat;
 
-    public LegacyScheduler(Furnace server) {
+    public LegacyScheduler(Furnace server) { this(server, () -> false); }
+
+    /**
+     * hold 가 참인 동안 박동은 틱을 세지도 작업을 돌리지도 않는다 — 서버 시작 중(STARTUP 플러그인을 켠 뒤 스폰 청크를 준비하는 동안)에는
+     * Paper 처럼 BukkitScheduler 가 서지 않고, 시작이 끝난 첫 서버 틱부터 센다(CraftScheduler.mainThreadHeartbeat 는 tickServer 에서만 불린다).
+     */
+    public LegacyScheduler(Furnace server, java.util.function.BooleanSupplier hold) {
         this.server = server;
+        this.hold = hold;
         if ("virtual".equalsIgnoreCase(server.compatOption(ASYNC_THREADS_OPTION))) {
             this.ownedPool = null;
             // 서버의 asyncExecutor 는 plugins.async-threads(기본 platform, T-034)를 따르므로 이 옵션의 가상 스레드는 여기서 따로 만든다
@@ -392,6 +400,7 @@ public final class LegacyScheduler {
 
     /** CraftScheduler.mainThreadHeartbeat: 이번 틱에 차례가 된 작업을 모두 비운다(그 사이 새로 들어온 지연 0 작업도 같은 틱에). */
     private void heartbeat() {
+        if (hold.getAsBoolean()) return;   // 서버 시작 중 — 아직 첫 서버 틱 전이다
         long now = ++tick;
         try {
             management.execute(() -> runAsyncTick(now));   // 동기 대기열보다 먼저(CraftScheduler.mainThreadHeartbeat)

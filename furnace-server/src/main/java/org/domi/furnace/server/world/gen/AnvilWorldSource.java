@@ -218,19 +218,32 @@ public final class AnvilWorldSource implements WorldSource {
                     gen.markDirty();
                     gen.newlyCreated(true);
                     // 노이즈 생성기만 청크 생성 때 동물을 놓는다(NoiseBasedChunkGenerator.spawnOriginalMobs — 평지 생성기는 없다, 훅 MOBS)
-                    if (base instanceof NoiseWorldSource n && n.spawnsOriginalMobs(chunkX, chunkZ)) gen.freshlyGenerated(true);
+                    if (base() instanceof NoiseWorldSource n && n.spawnsOriginalMobs(chunkX, chunkZ)) gen.freshlyGenerated(true);
                     return gen;
                 }, genExecutor);
             });
         });
     }
 
+    /**
+     * 청크를 읽거나 만들기 직전에 바탕을 꺼낸다. 처음 한 번만 {@link #replaceBase} 와 같은 잠금으로 "썼음"을 남겨, 꺼낸 바탕과 바꿔 끼우기가
+     * 엇갈리지 않게 한다(그 뒤로는 volatile 읽기만).
+     */
+    private WorldSource useBase() {
+        if (!baseUsed) {
+            synchronized (this) {
+                baseUsed = true;
+            }
+        }
+        return base;
+    }
+
     private ChunkColumn generateFallback(int chunkX, int chunkZ) {
-        baseUsed = true;
-        if (base instanceof NoiseWorldSource noise) {
+        WorldSource b = useBase();
+        if (b instanceof NoiseWorldSource noise) {
             return noise.generateWithFeatures(chunkX, chunkZ);
         }
-        return base.generate(chunkX, chunkZ);
+        return b.generate(chunkX, chunkZ);
     }
 
     private ChunkColumn decodeChunk(byte[] nbtBytes) throws IOException {
@@ -238,8 +251,8 @@ public final class AnvilWorldSource implements WorldSource {
         NewerDataVersionException.check(nbt);
         OlderDataVersionException.check(nbt, Lang.t("anvil.what-chunk", nbt.tags().get("xPos") instanceof Number x ? x.intValue() : 0, nbt.tags().get("zPos") instanceof Number z ? z.intValue() : 0));
         ChunkColumn col = codec.fromNbt(nbt);
-        baseUsed = true;   // 읽은 청크도 바탕의 구조물 references 에 묶인다
-        if (col != null && base instanceof NoiseWorldSource n) col.structures().attach(n.structureEngine().references());
+        WorldSource b = useBase();   // 읽은 청크도 바탕의 구조물 references 에 묶인다
+        if (col != null && b instanceof NoiseWorldSource n) col.structures().attach(n.structureEngine().references());
         if (col != null) col.clearDirty();
         return col;
     }

@@ -24,7 +24,8 @@ T-217(`compat-t217-chunk-generator-worlds-2026-11-17.md`)·T-210 의 뒤. 결정
 - `furnace.properties`: `world-generator.overworld|the_nether|the_end=플러그인[:id]`, `world-biome-provider.<같은 셋>=플러그인[:id]`(기본 없음 = 바닐라).
   플러그인 이름은 형식과 무관하다 — 그 플러그인을 가진 형식 어댑터(Bukkit 호환 계층)가 답한다.
 - Paper 설정 가져오기(`PaperConfigImport`): `bukkit.yml` `worlds.<level-name>[ _nether | _the_end ].generator|biome-provider` 를 위 키로 옮긴다.
-  다른 이름의 `worlds.*`(추가 월드)는 Paper 도 기본 월드에만 쓰므로 "대응 없음"으로 보고서에 남긴다.
+  다른 이름의 `worlds.*` 는 "대응 없음"으로 보고서에 남긴다 — Paper 는 `CraftServer#createWorld(WorldCreator)` 에서 생성기·공급자가 비면
+  `getGenerator(이름)`·`getBiomeProvider(이름)` 를 불러 **추가 월드에도** 이 설정을 쓰지만(검토에서 바이트코드 확인), Furnace 에는 이름별 설정이 없다(3장, 후속 T-222).
 - 같은 차원에 `worldgen-hooks.<차원>`(Furnace 훅 키)과 함께 적으면 Furnace 훅이 이기고 생성기 설정은 경고 한 줄과 함께 무시한다(둘을 겹쳐 걸 수 없다).
 
 ### 2.2 시작 순서
@@ -33,7 +34,9 @@ Furnace 는 기본 월드를 플러그인보다 먼저 만든다(접속자·명�
 
 1. 월드 조립(바닐라 생성기로). 설정이 있는 차원은 틱 시작(`startTicking` — 강제 로드 청크)을 미루고, 새 오버월드면 스폰 계산도 미룬다(임시 스폰).
 2. 플러그인 `onLoad`(월드는 Bukkit 에 감춰져 있다 — 지금과 같다), `worlds.autoload`.
-3. **`load: STARTUP` 플러그인 `onEnable`**(`PluginManagerImpl#enableBeforeWorlds`).
+3. **`load: STARTUP` 플러그인 `onEnable`**(`PluginManagerImpl#enableBeforeWorlds`). 이때 건 Bukkit 예약 작업은 월드를 드러낼 때까지 돌지도 틱을 세지도
+   않는다(`LegacyScheduler` hold — Paper 의 `CraftScheduler.mainThreadHeartbeat` 는 시작이 끝난 뒤 `tickServer` 에서만 불린다. 검토 뒤 실제 서버에서
+   스폰 청크 준비가 길면 STARTUP 플러그인의 `runTaskLater` 가 감춘 월드를 만나는 것을 찾아 고침).
 4. **기본 월드 생성기 고르기**(전역 스레드): 설정이 있는 차원마다 형식 어댑터에 묻는다(`PluginFormat#defaultWorldGeneration`). 답은 훅 객체(T-217
    `ChunkGenerationHooks`)와 바이옴 공급자(T-210 `BiomeProvider`) — 둘 다 없을 수 있다.
 5. 주 스레드에서 붙이기: 공급자가 있으면 같은 설정·같은 시드의 생성기를 공급자로 다시 만들어(`NoiseWorldSource#freshCopy(시드, 공급자)` — 생성 풀 공유)
@@ -61,6 +64,8 @@ Furnace 는 기본 월드를 플러그인보다 먼저 만든다(접속자·명�
   - WorldInitEvent 가 스폰 결정 뒤에 온다(T-217 3장과 같은 까닭 — Furnace 는 월드를 먼저 만들어 둔다).
   - 플러그인 `onLoad` 에서 Furnace API 로 그 차원의 청크를 미리 만들게 하면(Bukkit 은 그때 월드가 없다) 생성기를 붙이지 못하고 바닐라로 남는다(오류 기록).
   - `allow-nether=false` 여도 네더 생성기를 묻는다(Furnace 는 네더 월드를 늘 만든다 — 묻는 횟수만 다르다).
+  - bukkit.yml `worlds.<추가 월드 이름>.generator·biome-provider`(Paper 는 플러그인이 그 이름으로 생성기 없이 `createWorld` 할 때 쓴다)는
+    아직 없다 — Furnace 설정 키는 기본 세 차원뿐이다. 후속 T-222(이름별 키와 가져오기).
 
 ## 4. 시험
 - 서버: 설정 읽기, `replaceBase`(만든 뒤 거절), 시작 순서(가짜 형식 어댑터 — STARTUP 뒤·스폰 청크 앞에 묻고 스폰이 그 생성기를 따름).
