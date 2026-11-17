@@ -23,4 +23,4 @@
 
 ## 남은 것
 
-- Bukkit `ChunkGenerator`(`WorldCreator#generator`)로 만드는 월드는 아직 안 된다(오류 메시지로 알림) — 로드맵 T-211 로 나눴다.
+- Bukkit `ChunkGenerator`(`WorldCreator#generator`)로 만드는 월드는 아직 안 된다(오류 메시지로 알림) — 로드맵 T-217 로 나눴다.

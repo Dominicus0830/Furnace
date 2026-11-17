@@ -44,6 +44,27 @@ public abstract class Level implements LevelAccessor {
 
     private org.domi.furnace.api.world.World furnace() { return world.furnaceHandle(); }
 
+    /** 바닐라 Level#random: 월드마다 하나인 난수원(씨앗 없는 {@code RandomSource.create()} — 바닐라 1.21.1 생성자와 같다, 2026-11-17 점검에서 {@code javap -c} 로 확인). */
+    public final net.minecraft.util.RandomSource random = net.minecraft.util.RandomSource.create();
+
+    /** 바닐라 Level#getRandom. */
+    public net.minecraft.util.RandomSource getRandom() { return random; }
+
+    /** 바닐라 1.21.1 Level#getSeaLevel — 상수 63(차원마다 다르지 않다. 서버 jar 로 확인). */
+    public int getSeaLevel() { return 63; }
+
+    private volatile net.minecraft.core.Holder<net.minecraft.world.level.dimension.DimensionType> dimensionType;
+
+    /** 바닐라 dimensionTypeRegistration: 이 월드의 차원 타입(같은 레벨은 같은 손잡이). */
+    public net.minecraft.core.Holder<net.minecraft.world.level.dimension.DimensionType> dimensionTypeRegistration() {
+        var h = dimensionType;
+        if (h == null) dimensionType = h = net.minecraft.core.Holder.direct(new net.minecraft.world.level.dimension.DimensionType(furnace()));
+        return h;
+    }
+
+    /** 바닐라 Level#dimensionType: {@code dimensionTypeRegistration().value()}. */
+    public net.minecraft.world.level.dimension.DimensionType dimensionType() { return dimensionTypeRegistration().value(); }
+
     /**
      * 바닐라 Level#getUncachedNoiseBiome(quart 좌표): 월드 생성기가 그 칸에 정하는 바이옴(청크에 저장된 값이 아니다). 아무 스레드.
      * 바이옴 원천이 없는 생성기는 UnsupportedNmsCall.

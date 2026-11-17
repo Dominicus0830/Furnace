@@ -360,7 +360,7 @@ public final class CraftServer implements Server {
      * Paper CraftServer#createWorld 를 Furnace {@code createWorldNow} 위에: 같은 이름이 있으면 그 월드, 환경은 NORMAL·NETHER·THE_END,
      * 생성기 종류(type)는 오버월드에만 쓰인다(Paper 도 네더·엔드는 바닐라 그대로). FLAT 의 generatorSettings 는 바닐라 평지 JSON 을 그대로 넘긴다
      * (Paper DedicatedServerProperties.WorldDimensionData — 비면 기본 프리셋). 바이옴 공급자(T-210)는 CraftBukkit CustomWorldChunkManager 처럼
-     * 생성기의 바이옴 원천을 바꾼다. Bukkit 생성기(ChunkGenerator)는 아직 길이 없어 UnsupportedFeature(T-211). 하드코어 깃발은 서버 값만 쓴다(다르면 경고 한 번).
+     * 생성기의 바이옴 원천을 바꾼다. Bukkit 생성기(ChunkGenerator)는 아직 길이 없어 UnsupportedFeature(T-217). 하드코어 깃발은 서버 값만 쓴다(다르면 경고 한 번).
      */
     @Override
     public World createWorld(org.bukkit.WorldCreator creator) {

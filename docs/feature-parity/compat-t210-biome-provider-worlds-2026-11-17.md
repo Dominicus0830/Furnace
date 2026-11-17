@@ -3,7 +3,7 @@
 로드맵 T-210. 범위는 `WorldCreator#biomeProvider`(Bukkit)·`WorldCreator.Builder#biomeProvider`(Furnace)로 만드는 **저장되는 월드**와,
 T-203 결정 D3(평지 월드 `//regen <바이옴>` 오류)이다. 바이옴 공급자 길 자체(`furnace-api` `worldgen.BiomeProvider`, 서버 `ProvidedBiomes`,
 호환 `BukkitBiomeProviders`)는 T-203 3단계(#487, `compat-nms-t203-regen-design-2026-11-17.md` 2.4)에서 생겼다.
-Bukkit `ChunkGenerator`(`WorldCreator#generator`) 다리는 표면이 따로 커서 T-211 로 나눈다(그때까지 지금처럼 `UnsupportedFeature`).
+Bukkit `ChunkGenerator`(`WorldCreator#generator`) 다리는 표면이 따로 커서 T-217 로 나눈다(그때까지 지금처럼 `UnsupportedFeature`).
 
 ## 1. Paper 1.21.1 이 하는 일
 

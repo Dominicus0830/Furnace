@@ -17,5 +17,5 @@
 ### 받아들인 차이
 - `getBiomes` 를 생성기를 만들 때 한 번 부른다(Paper 는 처음 쓸 때). 공급자 없이 Bukkit `createWorld` 로 다시 열면 Paper 와 같이 열되 콘솔 경고 한 번(Paper 는 없음).
 - Furnace 가 스스로 여는 길(자동 불러오기·`/worlds load`)은 공급자 표시가 있으면 열지 않는다(Paper 에는 이 길이 없다 — 결정 E1).
-- Bukkit `ChunkGenerator` 는 T-211.
+- Bukkit `ChunkGenerator` 는 T-217.
 - **공급자 목록에 평지 바이옴이 없을 때**(검토에서 찾음): 바닐라는 `possibleBiomes` 의 바이옴에만 `adjustGenerationSettings` 를 부르므로, 평지 바이옴이 목록에 없으면 움직임을 막지 않는 층(눈 층·풀·횃불)이 지워지지 않고 채우기에 그대로 남는다. Furnace 는 늘 지웠다 — `FlatLayers.of(…, adjusted)` 로 고침(`ExtraFlatLayersTest`).

@@ -27,7 +27,6 @@ public class ServerLevel extends Level {
     private final boolean scratch;
     private final boolean debug;
     private volatile net.minecraft.world.RandomSequences randomSequences;
-    private volatile net.minecraft.core.Holder<net.minecraft.world.level.dimension.DimensionType> dimensionType;
 
     /** 호환 모듈 전용(CraftWorld 가 만든다). */
     public ServerLevel(CraftWorld world) {
@@ -137,13 +136,6 @@ public class ServerLevel extends Level {
 
     @Override
     public net.minecraft.resources.ResourceKey<Level> dimension() { return stemKey != null ? stemKey : super.dimension(); }
-
-    /** 바닐라 dimensionTypeRegistration: 이 월드의 차원 타입(같은 레벨은 같은 손잡이). */
-    public net.minecraft.core.Holder<net.minecraft.world.level.dimension.DimensionType> dimensionTypeRegistration() {
-        var h = dimensionType;
-        if (h == null) dimensionType = h = net.minecraft.core.Holder.direct(new net.minecraft.world.level.dimension.DimensionType(getWorld().furnaceHandle()));
-        return h;
-    }
 
     /** 바닐라 isDebug: 모든 블록 상태 격자 월드인가. */
     public boolean isDebug() { return scratch ? debug : serverLevelData.isDebugWorld(); }
