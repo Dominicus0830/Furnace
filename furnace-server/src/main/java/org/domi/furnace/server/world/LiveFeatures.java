@@ -154,18 +154,87 @@ public final class LiveFeatures {
         });
     }
 
-    /** 바닐라 TreeFeature: 통나무·잎·장식·잎 거리 모두 flag 19(UPDATE_KNOWN_SHAPE), 가장자리만 따로 모양 갱신. 그 밖은 Feature.setBlock 기본 3. */
-    private static int liveFlags(Handle h) { return h.configured() instanceof TreeFeature ? 19 : 3; }
+    /**
+     * 바닐라 TreeFeature: 통나무·잎·장식·잎 거리 모두 flag 19(UPDATE_KNOWN_SHAPE), 가장자리만 따로 모양 갱신. 그 밖은 Feature.setBlock 기본 3.
+     * placed feature 는 가리키는 configured feature 로 본다.
+     */
+    private static int liveFlags(Handle h) {
+        ConfiguredFeature c = h.configured() != null ? h.configured() : h.placed().feature();
+        return c instanceof TreeFeature ? 19 : 3;
+    }
 
-    private static boolean placeIn(Handle h, FeatureWorldView view, WorldgenRandom wr, Pos pos) {
-        return h.configured() != null
-                ? h.configured().place(view, wr, pos.x(), pos.y(), pos.z())
-                : h.placed().placeAt(view, wr, new BlockPos(pos.x(), pos.y(), pos.z()));
+    // ------------------------------------------------------------------ 플러그인 레벨 통로(T-211)
+
+    /** 통로 모드 사본 범위(청크): 런타임 배치는 월드젠의 3×3 제한이 없다 — 처음 닿을 때만 복사하므로 넓혀도 닿은 만큼만 든다. */
+    static final int SINK_RADIUS = 2;
+
+    /** 플러그인 배치가 닿지 못한 청크(로드 안 됨·다른 region·범위 밖)가 있었다 — 결과가 반쪽이라 성공·실패로 꾸미지 않는다. */
+    public static final class Unreachable extends IllegalStateException {
+        Unreachable(Pos pos) {
+            super("the feature at " + pos.x() + ", " + pos.y() + ", " + pos.z() + " reached a chunk that is not loaded, belongs to another region or is more than "
+                    + SINK_RADIUS + " chunks away");
+        }
+    }
+
+    /**
+     * 플러그인이 부른 바닐라 {@code ConfiguredFeature/PlacedFeature#place(WorldGenLevel, …)}. placed feature 는 top feature 없이 놓는다 —
+     * 바이옴 거르기에서 바닐라처럼 IllegalStateException.
+     * <ul>
+     *   <li>sink 가 null: 서버 레벨 자신에 놓는다(사본에 돌리고 쓴 칸을 flag 대로 실제 월드에 옮긴다 — 블록 엔티티·생성 NBT 포함, 묘목 성장과 같은 길).</li>
+     *   <li>sink 가 있으면 통로 모드: 사본 격자에 지형 생성 코드를 돌리되 쓰기는 차례대로 sink 에 넘긴다({@link FeatureWorldView.WriteSink}).
+     *       실제 월드는 바꾸지 않고, 생성 NBT·엔티티·유체 예약 틱은 버린다(Paper 의 populator·나무 기록과 같다).</li>
+     * </ul>
+     *
+     * @return feature 의 반환값
+     * @throws Unreachable 원점 청크나 닿은 청크가 로드돼 있지 않거나 다른 region·범위 밖이었다(통로 모드는 그 전까지의 쓰기가 이미 sink 에 갔다,
+     *         직접 놓는 길은 아무것도 바꾸지 않았다)
+     */
+    public static boolean placeThrough(ChunkLevel level, Handle h, Pos pos, WorldgenRandom random, long worldSeed, FeatureWorldView.WriteSink sink) {
+        java.util.Objects.requireNonNull(h, "feature");
+        if (!h.supported()) throw new UnsupportedOperationException("feature not implemented yet");
+        Placement r = run(level, pos, worldSeed, sink == null, liveFlags(h), random, SINK_RADIUS, sink, view -> placeIn(h, view, random, pos, true));
+        if (r == UNREACHABLE || r == Placement.NONE) throw new Unreachable(pos);
+        return r.placed();
+    }
+
+    /** 통로 모드에서 닿지 못했다는 표시(Placement.NONE 과 구별). */
+    private static final Placement UNREACHABLE = new Placement(false, List.of());
+
+    /** 통로 모드 나무 가장자리 한 면: StructureTemplate.updateShapeAtEdge(level, 3, …) 의 면 처리 — 쓰기는 flag 2(3 & ~1). */
+    private static void sinkEdge(FeatureWorldView view, SinkShapeLevel level, int x, int y, int z, int dx, int dy, int dz) {
+        Pos pos = new Pos(x, y, z), npos = new Pos(x + dx, y + dy, z + dz);
+        int dir = fromDelta(dx, dy, dz);
+        int s = view.getBlock(x, y, z), n = view.getBlock(npos.x(), npos.y(), npos.z());
+        int saved = view.liveWriteFlags();
+        view.setLiveWriteFlags(2);
+        try {
+            int s2 = org.domi.furnace.server.block.B.behavior(s).updateShape(s, dir, n, level, pos, npos);
+            if (s2 != s) view.trySetBlock(x, y, z, s2);
+            int n2 = org.domi.furnace.server.block.B.behavior(n).updateShape(n, org.domi.furnace.server.block.Dir.opposite(dir), s2, level, npos, pos);
+            if (n2 != n) view.trySetBlock(npos.x(), npos.y(), npos.z(), n2);
+        } finally {
+            view.setLiveWriteFlags(saved);
+        }
+    }
+
+    private static boolean placeIn(Handle h, FeatureWorldView view, WorldgenRandom wr, Pos pos) { return placeIn(h, view, wr, pos, false); }
+
+    private static boolean placeIn(Handle h, FeatureWorldView view, WorldgenRandom wr, Pos pos, boolean noTopFeature) {
+        if (h.configured() != null) return h.configured().place(view, wr, pos.x(), pos.y(), pos.z());
+        BlockPos origin = new BlockPos(pos.x(), pos.y(), pos.z());
+        return noTopFeature ? h.placed().placeWithoutTopFeature(view, wr, origin) : h.placed().placeAt(view, wr, origin);
     }
 
     /** 사본 격자에 body 를 돌리고, 닿지 못한 청크가 없으면 apply 일 때 실제 월드에 옮긴다. */
     static Placement run(ChunkLevel level, Pos pos, long worldSeed, boolean apply, int flags, WorldgenRandom wr,
                          java.util.function.Predicate<FeatureWorldView> body) {
+        return run(level, pos, worldSeed, apply, flags, wr, RADIUS, null, body);
+    }
+
+    /** sink 가 있으면 통로 모드(apply 는 거짓이어야 한다): 닿지 못하면 {@link #UNREACHABLE}, 아니면 placed 와 빈 쓰기 목록. */
+    private static Placement run(ChunkLevel level, Pos pos, long worldSeed, boolean apply, int flags, WorldgenRandom wr, int radius,
+                                 FeatureWorldView.WriteSink sink, java.util.function.Predicate<FeatureWorldView> body) {
+        final int RADIUS = radius;
         int cx = pos.x() >> 4, cz = pos.z() >> 4, size = 2 * RADIUS + 1;
         ChunkColumn[] live = new ChunkColumn[size * size], copy = new ChunkColumn[size * size];
         boolean[] tried = new boolean[size * size];
@@ -186,13 +255,24 @@ public final class LiveFeatures {
         List<int[]> edges = new ArrayList<>();
         FeatureWorldView view = FeatureWorldView.lazyLiveGrid(copy, biomes, cx, cz, RADIUS, worldSeed, fill, writes, edges);
         view.setLiveWriteFlags(flags);
+        if (sink != null) {
+            if (apply) throw new IllegalArgumentException("a write sink does not apply to the world");
+            SinkShapeLevel shapeLevel = new SinkShapeLevel(view, (x, y, z) -> {
+                int i = (Math.floorDiv(z, 16) - cz + RADIUS) * size + (Math.floorDiv(x, 16) - cx + RADIUS);
+                ChunkColumn l = i >= 0 && i < live.length ? live[i] : null;
+                return l == null ? view.getBlock(x, y, z) : l.getBlock(x & 15, y, z & 15);   // 없는 칸은 view 가 공기로 답하고 닿지 못함을 센다
+            });
+            view.useSink(sink, live, (x, y, z, dx, dy, dz) -> sinkEdge(view, shapeLevel, x, y, z, dx, dy, dz));
+            boolean placed = body.test(view);
+            return view.missingAccess() > 0 ? UNREACHABLE : new Placement(placed, List.of());
+        }
         boolean placed = body.test(view);
         if (view.missingAccess() > 0) return Placement.NONE;
         if (apply) {
-            commit(level, cx, cz, size, live, copy, writes);
+            commit(level, cx, cz, size, RADIUS, live, copy, writes);
             updateShapeAtEdge(level, edges, 3);
         }
-        return new Placement(placed, apply ? List.of() : captured(cx, cz, size, live, copy, writes));
+        return new Placement(placed, apply ? List.of() : captured(cx, cz, size, RADIUS, live, copy, writes));
     }
 
     /**
@@ -200,7 +280,7 @@ public final class LiveFeatures {
      * (Protect-Bedrock 패치, allow-permanent-block-break-exploits 기본 false) 칸은 기록하지 않는다 — 나무 feature 는 그 블록을 스스로
      * 놓지 않으므로 쓰기 때 검사와 옛 상태로 거르기는 같다.
      */
-    private static List<long[]> captured(int cx, int cz, int size, ChunkColumn[] live, ChunkColumn[] copy, List<long[]> writes) {
+    private static List<long[]> captured(int cx, int cz, int size, int radius, ChunkColumn[] live, ChunkColumn[] copy, List<long[]> writes) {
         Map<Long, long[]> order = new LinkedHashMap<>();
         for (long[] w : writes) {
             int x = (int) w[0], y = (int) w[1], z = (int) w[2];
@@ -209,7 +289,7 @@ public final class LiveFeatures {
         List<long[]> out = new ArrayList<>(order.size());
         for (long[] w : order.values()) {
             int x = (int) w[0], y = (int) w[1], z = (int) w[2];
-            int i = index(cx, cz, size, x >> 4, z >> 4);
+            int i = index(cx, cz, size, radius, x >> 4, z >> 4);
             if (!isDestroyable(live[i].getBlock(x & 15, y, z & 15))) continue;
             w[3] = copy[i].getBlock(x & 15, y, z & 15);
             out.add(w);
@@ -232,7 +312,7 @@ public final class LiveFeatures {
     private static boolean isDestroyable(int state) { return !Indestructible.BLOCKS.contains(org.domi.furnace.server.block.B.block(state)); }
 
     /** 쓴 칸을 쓴 순서대로(칸마다 처음 쓴 차례) 실제 월드에 놓는다(flag 3 = Feature.setBlock 기본). 생성 NBT·엔티티도 옮긴다. */
-    private static void commit(ChunkLevel level, int cx, int cz, int size, ChunkColumn[] live, ChunkColumn[] copy, List<long[]> writes) {
+    private static void commit(ChunkLevel level, int cx, int cz, int size, int radius, ChunkColumn[] live, ChunkColumn[] copy, List<long[]> writes) {
         Map<Long, Pos> order = new LinkedHashMap<>();
         Map<Long, Integer> flags = new java.util.HashMap<>();
         for (long[] w : writes) {
@@ -241,7 +321,7 @@ public final class LiveFeatures {
             flags.putIfAbsent(p.asLong(), (int) w[3]);
         }
         for (Pos p : order.values()) {
-            int i = index(cx, cz, size, p.x() >> 4, p.z() >> 4);
+            int i = index(cx, cz, size, radius, p.x() >> 4, p.z() >> 4);
             ChunkColumn cp = copy[i];
             if (cp == null) continue;
             int s = cp.getBlock(p.x() & 15, p.y(), p.z() & 15);
@@ -251,7 +331,7 @@ public final class LiveFeatures {
         for (int i = 0; i < copy.length; i++) {
             ChunkColumn l = live[i], cp = copy[i];
             if (l == null) continue;
-            int ox = (cx + (i % size) - RADIUS) * 16, oz = (cz + (i / size) - RADIUS) * 16;
+            int ox = (cx + (i % size) - radius) * 16, oz = (cz + (i / size) - radius) * 16;
             cp.forEachGeneratedBlockEntity((lx, y, lz, nbt) -> adoptBlockEntity(level, l, ox + lx, y, oz + lz, nbt));
             for (NbtCompound e : cp.generatedEntities()) {
                 Entity ent = Entities.load(level, e.copy());
@@ -283,8 +363,8 @@ public final class LiveFeatures {
     /** 측정·비교용: false 면 예전처럼 청크 기둥 전체를 복사한다. */
     public static volatile boolean copyOnWrite = true;
 
-    private static int index(int cx, int cz, int size, int chunkX, int chunkZ) {
-        return (chunkZ - cz + RADIUS) * size + (chunkX - cx + RADIUS);
+    private static int index(int cx, int cz, int size, int radius, int chunkX, int chunkZ) {
+        return (chunkZ - cz + radius) * size + (chunkX - cx + radius);
     }
 
     private static void adoptBlockEntity(ChunkLevel level, ChunkColumn col, int x, int y, int z, NbtCompound nbt) {

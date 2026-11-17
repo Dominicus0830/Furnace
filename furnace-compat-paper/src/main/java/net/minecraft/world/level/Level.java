@@ -44,6 +44,29 @@ public abstract class Level implements LevelAccessor {
 
     private org.domi.furnace.api.world.World furnace() { return world.furnaceHandle(); }
 
+    // ------------------------------------------------------------------ 쓰기 기록(T-211 — Paper 필드 그대로)
+    // Paper 의 나무·구조물 생성 기록: captureTreeGeneration 이 켜져 있으면 setBlock 은 월드에 쓰지 않고 칸마다 CapturedBlockState 에 마지막 쓰기를 싣고
+    // (부술 수 없는 블록 칸은 거짓), getBlockState·getBlockStateIfLoaded 는 기록을 먼저 본다. 표시는 월드마다 하나인 평범한 필드라 누가 켰는지 알 수 없다 —
+    // Furnace 는 region 스레드가 여럿이므로 전역 스레드(Bukkit 동기 작업 — Paper 의 주 스레드 자리)의 호출에만 적용한다(NmsFeatures#captureAppliesHere —
+    // region 스레드의 NMS 쓰기·지형지물 배치는 전역 스레드가 켠 기록에 섞이지 않는다). 기록 표는 동기화된 표다(다른 스레드가 읽을 수 있다).
+
+    public boolean captureBlockStates = false;
+    public boolean captureTreeGeneration = false;
+    public java.util.Map<BlockPos, org.bukkit.craftbukkit.block.CraftBlockState> capturedBlockStates =
+            java.util.Collections.synchronizedMap(new java.util.LinkedHashMap<>());
+    public java.util.Map<BlockPos, net.minecraft.world.level.block.entity.BlockEntity> capturedTileEntities =
+            java.util.Collections.synchronizedMap(new java.util.LinkedHashMap<>());
+
+    /** 이 호출에 나무 기록을 적용하는가. */
+    private boolean treeCapture() { return captureTreeGeneration && org.domi.furnace.compat.nms.NmsFeatures.captureAppliesHere(); }
+
+    /** 기록된 마지막 쓰기(나무 기록 중일 때만), 없으면 null. */
+    private BlockState capturedState(BlockPos pos) {
+        if (!treeCapture()) return null;
+        org.bukkit.craftbukkit.block.CraftBlockState previous = capturedBlockStates.get(pos);
+        return previous == null ? null : previous.getHandle();
+    }
+
     /** 바닐라 Level#random: 월드마다 하나인 난수원(씨앗 없는 {@code RandomSource.create()} — 바닐라 1.21.1 생성자와 같다, 2026-11-17 점검에서 {@code javap -c} 로 확인). */
     public final net.minecraft.util.RandomSource random = net.minecraft.util.RandomSource.create();
 
@@ -147,6 +170,8 @@ public abstract class Level implements LevelAccessor {
     /** 높이 밖은 void_air(바닐라). */
     @Override
     public BlockState getBlockState(BlockPos pos) {
+        BlockState captured = capturedState(pos);
+        if (captured != null) return captured;
         if (isOutsideBuildHeight(pos)) return Blocks.VOID_AIR.defaultBlockState();
         return getChunk(pos.getX() >> 4, pos.getZ() >> 4).getBlockState(pos);
     }
@@ -154,6 +179,8 @@ public abstract class Level implements LevelAccessor {
     /** Paper: 높이 밖은 void_air, 청크가 로드돼 있지 않으면 null. */
     @Override
     public BlockState getBlockStateIfLoaded(BlockPos pos) {
+        BlockState captured = capturedState(pos);
+        if (captured != null) return captured;
         if (isOutsideBuildHeight(pos)) return Blocks.VOID_AIR.defaultBlockState();
         LevelChunk c = getChunkIfLoaded(pos.getX() >> 4, pos.getZ() >> 4);
         return c == null ? null : c.getBlockState(pos);
@@ -187,6 +214,8 @@ public abstract class Level implements LevelAccessor {
      * 로드돼 있지 않은 청크는 null — Paper 1.21.1 은 틱 스레드에서 getChunkAt 으로 불러온다(차이: region 스레드에서 멈춰 서서 불러오는 일은 하지 않는다 — 스케줄러 규칙 6).
      */
     public net.minecraft.world.level.block.entity.BlockEntity getBlockEntity(BlockPos pos) {
+        net.minecraft.world.level.block.entity.BlockEntity captured;
+        if (!capturedTileEntities.isEmpty() && (captured = capturedTileEntities.get(pos)) != null) return captured;   // Paper: 기록된 블록 엔티티가 먼저
         if (isOutsideBuildHeight(pos)) return null;
         int cx = pos.getX() >> 4, cz = pos.getZ() >> 4;
         if (!hasChunk(cx, cz) || !NmsChunks.bridge().ownsChunk(furnace(), cx, cz)) return null;
@@ -231,6 +260,23 @@ public abstract class Level implements LevelAccessor {
      */
     @Override
     public boolean setBlock(BlockPos pos, BlockState state, int flags, int maxUpdateDepth) {
+        if (treeCapture()) {   // Paper: 높이 검사보다 먼저 — 부술 수 없는 블록 칸이면 거짓, 아니면 칸마다 하나인 기록에 마지막 쓰기를 싣는다
+            if (!getBlockState(pos).isDestroyable()) return false;
+            synchronized (capturedBlockStates) {
+                org.bukkit.craftbukkit.block.CraftBlockState blockstate = capturedBlockStates.get(pos);
+                if (blockstate == null) {
+                    blockstate = org.bukkit.craftbukkit.block.CapturedBlockState.getTreeBlockState(this, pos, flags);
+                    capturedBlockStates.put(pos.immutable(), blockstate);
+                }
+                blockstate.setData(state);
+                blockstate.setFlag(flags);
+            }
+            return true;
+        }
+        if (captureBlockStates && org.domi.furnace.compat.nms.NmsFeatures.captureAppliesHere()) {
+            throw new UnsupportedNmsCall("Level#setBlock(captureBlockStates)",
+                    "writing to the world without neighbour updates while recording the old states does not exist on the server yet");
+        }
         if (isOutsideBuildHeight(pos)) return false;
         if (!hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) throw NmsChunks.notLoaded(furnace(), pos.getX() >> 4, pos.getZ() >> 4, "Level#setBlock");
         return NmsChunks.bridge().setBlockNow(furnace(), pos.getX(), pos.getY(), pos.getZ(), state.furnaceStateId(), flags, maxUpdateDepth);

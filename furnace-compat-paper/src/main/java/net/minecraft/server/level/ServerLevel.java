@@ -14,7 +14,7 @@ import org.domi.furnace.compat.paper.Compat;
  * 블록 읽기·쓰기·청크 얻기(N1·N2a)는 {@link Level} 에 있다.
  */
 @org.domi.furnace.compat.nms.NmsInheritable   // 편집 내용을 답하는 레벨 프록시(FAWE PaperweightLevelProxy — Unsafe 로 만들어 필드는 null, 읽기만 재정의), //regen 임시 레벨(PaperweightRegen — 15 인자 생성자, save 재정의)
-public class ServerLevel extends Level {
+public class ServerLevel extends Level implements net.minecraft.world.level.WorldGenLevel {
 
     private final ServerChunkCache chunkSource = new ServerChunkCache(this);
 

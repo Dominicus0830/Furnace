@@ -254,6 +254,10 @@ public final class TreeFeature implements ConfiguredFeature {
         int nx = x + dir.dx();
         int ny = y + dir.dy();
         int nz = z + dir.dz();
+        if (view.edgeUpdater() != null) {   // 통로 모드(T-211): 바닐라처럼 나무 feature 안에서 바로, 실제 블록 동작으로
+            view.edgeUpdater().update(x, y, z, dir.dx(), dir.dy(), dir.dz());
+            return;
+        }
         if (view.recordsLiveEdges()) {
             view.recordLiveEdge(x, y, z, dir.dx(), dir.dy(), dir.dz());
             return;

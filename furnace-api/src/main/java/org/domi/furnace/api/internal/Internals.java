@@ -127,4 +127,7 @@ public interface Internals {
 
     /** 임시 월드 다리(T-203). 호환 계층의 NMS ServerLevel 생성자용이다(불안정). */
     default ScratchWorlds scratchWorlds() { throw new UnsupportedOperationException("scratchWorlds"); }
+
+    /** 지형지물 배치 다리(T-211). 호환 계층의 NMS ConfiguredFeature·PlacedFeature#place 용이다(불안정). */
+    default FeatureInternals features() { throw new UnsupportedOperationException("features"); }
 }
