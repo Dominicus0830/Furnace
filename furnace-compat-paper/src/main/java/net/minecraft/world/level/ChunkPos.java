@@ -33,6 +33,43 @@ public class ChunkPos {
 
     public static ChunkPos maxFromRegion(int rx, int rz) { return new ChunkPos((rx << 5) + 31, (rz << 5) + 31); }
 
+    /**
+     * 두 청크를 모서리로 하는 사각형 안의 청크들(양 끝 포함). 순서·크기·특성은 바닐라 1.21.1(난독화 {@code dcd})을 {@code javap -c} 로 읽어 맞췄다:
+     * 시작점에서 x 가 먼저 끝까지 가고, x 가 끝에 닿으면 z 를 한 칸 옮기며 x 를 시작값으로 되돌린다(뱀 모양이 아니다). 크기 |dx|+1 × |dz|+1, 특성 64(SIZED).
+     */
+    public static java.util.stream.Stream<ChunkPos> rangeClosed(ChunkPos start, ChunkPos end) {
+        int xs = Math.abs(start.x - end.x) + 1;
+        int zs = Math.abs(start.z - end.z) + 1;
+        final int xStep = start.x < end.x ? 1 : -1;
+        final int zStep = start.z < end.z ? 1 : -1;
+        return java.util.stream.StreamSupport.stream(new java.util.Spliterators.AbstractSpliterator<ChunkPos>((long) xs * zs, 64) {
+            private ChunkPos pos;
+
+            @Override
+            public boolean tryAdvance(java.util.function.Consumer<? super ChunkPos> consumer) {
+                if (pos == null) {
+                    pos = start;
+                } else {
+                    int px = pos.x;
+                    int pz = pos.z;
+                    if (px == end.x) {
+                        if (pz == end.z) return false;
+                        pos = new ChunkPos(start.x, pz + zStep);
+                    } else {
+                        pos = new ChunkPos(px + xStep, pz);
+                    }
+                }
+                consumer.accept(pos);
+                return true;
+            }
+        }, false);
+    }
+
+    /** 중심 청크 둘레 {@code radius} 칸 사각형(양 끝 포함). */
+    public static java.util.stream.Stream<ChunkPos> rangeClosed(ChunkPos center, int radius) {
+        return rangeClosed(new ChunkPos(center.x - radius, center.z - radius), new ChunkPos(center.x + radius, center.z + radius));
+    }
+
     public long toLong() { return asLong(x, z); }
 
     public static long asLong(int x, int z) { return (long) x & 4294967295L | ((long) z & 4294967295L) << 32; }
