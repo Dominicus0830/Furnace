@@ -169,7 +169,7 @@ bbox = start.getBoundingBox(); 그 청크 범위(ChunkPos.rangeClosed — x 가 
 |---|---|
 | 조각 쓰기 `placeBlock` 등 | 감싸개 `setBlock(pos, s, 2)` → **레벨의 `setBlock(pos, s, flags, 512)`(인자 4개)**. 감싸개면 유체 예약 틱·`markPosForPostprocessing` 을 하지 않고 끝난다 |
 | 상자·디스펜서 `createChest`/`createDispenser`, 바다 유적 상자 표시 | `random.nextLong()` 을 **늘** 뽑고(Craft 상태 시드), `placeCraftBlockEntity`: 레벨 4인자 `setBlock(flag 2)` → 유체 예약 틱(버려짐) → `getBlockEntity(pos)` 가 있으면 내용 바꿈 |
-| 스포너(요새·요새 성·폐광) `placeCraftSpawner` | `CraftBlockStates.getBlockState(감싸개…)`(`getMinecraftWorld`) → `setSpawnedType` 이 **레벨의 `getRandom()`** 을 부름(새 스포너라 뽑지는 않음) → 위와 같은 `placeCraftBlockEntity` |
+| 스포너(요새·요새 성·폐광) `placeCraftSpawner` | `CraftBlockStates.getBlockState(LevelReader…)` 는 레벨에서 `registryAccess()` 만 묻고 **월드 없는** 상태를 만든다 → `setSpawnedType` 은 `isPlaced()` 가 거짓이라 레벨의 `getRandom()` 이 아니라 `RandomSource.create()`(레벨 난수 안 부름 — 검토 #497 에서 바로잡음) → 위와 같은 `placeCraftBlockEntity` |
 | 표시 상자 `setCraftLootTable`(난파선·이글루·엔드 시티) | `getBlockEntity(pos)` 가 `RandomizableContainerBlockEntity` 일 때만 `nextLong` 과 내용 바꿈 |
 | 템플릿 `StructureTemplate#placeInWorld` | 감싸개를 벗겨 **레벨의 `setBlock` 인자 3개**. NBT 있는 칸은 먼저 방벽을 `flag 20` 으로 쓴다(`WorldGenLevel` 이라 `Clearable` 없음) → 실제 상태를 템플릿 flag(조각 2, 풀 요소 18)로. 쓰기 성공이고 NBT 가 있으면 `getBlockEntity` 가 있을 때만 `LootTableSeed` 뽑기·내용 넣기. 침수는 `placeLiquid`(flag 3). 모양 갱신은 `updateShapeAtEdge(flags)`(쓰기 `flags & ~1`) 뒤 칸마다 `updateFromNeighbourShapes`(쓰기 `flags & ~1 \| 16`)·`blockUpdated` |
 | 템플릿 엔티티 | `EntityType.create(nbt, world.getLevel(), true)` → `finalizeEntities`(풀 요소) 이고 `Mob` 이면 `finalizeSpawn(world, …)` → `addFreshEntityWithPassengers`(populator 는 버림) |
@@ -198,7 +198,7 @@ FAWE populator 는 3·4인자 쓰기 모두 서버 레벨로 넘겨 나무 기�
 - **템플릿(통로)**: NBT 칸 방벽(flag 20) 쓰기, 템플릿 flag, 침수 flag 3, 모양 갱신은 1단계 `SinkShapeLevel` 처럼 실제 블록 동작으로(쓰기 flag 은 위 표), `blockUpdated` 는 통로로.
   NBT 를 넣을 블록 엔티티가 있으면 `UnsupportedOperationException`(1단계와 같은 이유), 없으면 뽑지 않고 건너뛴다.
 - **블록 엔티티 자리**: 상자·디스펜서·바다 유적 상자는 늘 뽑고(서버 코드 그대로), 쓴 뒤 그 칸에 블록 엔티티가 있으면 오류·없으면 건너뜀. 표시 상자(`setCraftLootTable`)와
-  의심스러운 모래는 블록 엔티티가 있을 때만(있으면 오류). 스포너는 쓰기 전에 레벨 난수를 한 번 부른다(뽑지 않음).
+  의심스러운 모래는 블록 엔티티가 있을 때만(있으면 오류). 스포너는 레벨 난수를 부르지 않는다(Paper 는 월드 없는 상태로 `RandomSource.create()` 를 쓴다 — `getRandom()` 이 던지는 평범한 populator 로도 끝난다).
 - **레벨 호출**: `getRandom()`(레벨 난수 — 플러그인 레벨이 주는 원천에서 뽑는다; FAWE 는 배치 난수와 같은 원천이라 섞임까지 같다), `getSeed()`·`getLevel().getSeed()`
   (월드 시드와 다르면 오류), `getLevel()`(엔티티를 만들 때). 플러그인 레벨이 던지면 그대로 나른다.
 - **엔티티**: 몹이 아니면 `getLevel()` 뒤 통로의 `addFreshEntity`(populator 는 버린다 — Paper 와 같다; 그 밖의 레벨은 오류). **몹 `finalizeSpawn`** 은 레벨 난수로
@@ -229,5 +229,10 @@ FAWE populator 는 3·4인자 쓰기 모두 서버 레벨로 넘겨 나무 기�
   서버 레벨의 기록 중 구조물 배치는 템플릿 모양 갱신 뒤 `blockUpdated` 자리에서 이 오류가 난다 — FAWE 는 populator 를 쓰므로 해당하지 않는다.
 - 시험: 서버 `PluginLevelStructureTest`(통로 쓰기 갈래·방벽·세션·몹 오류·바로 놓기·닿지 못한 청크), 호환 `NmsStructureTest`(FAWE generateStructure 흐름 그대로 —
   기록에 방벽·눈 블록, 월드 그대로; 시작 값; 서버 레벨에 바로; 마녀 오두막·다른 시드·생성기 없음·DummyGeneratorAccess 의 정직한 실패).
+- 검토 #497 반영: 스포너 자리의 레벨 `getRandom()` 부르기를 지웠다(위 7.2 표). 아래 (4)~(6)은 검토 권장 사항이다.
 - 알려진 차이·가정: (1) 이글루처럼 놓을 때 높이를 옮기는 조각은 시작의 상자(`getBoundingBox`)가 옮기기 전 값이다 — 바닐라도 같다(시작 상자는 처음 계산값을 둔다).
   (2) 1단계 5장의 유체 읽기 차이(T-220)가 구조물 템플릿의 침수 판정에도 같다. (3) `Structure#generate` 의 `RegistryAccess` 는 서버 것만 받는다(다른 레지스트리의 구조물은 없다).
+  (4) Paper 는 템플릿 NBT 칸마다 방벽 앞·모양 갱신 뒤, 그리고 `setCraftBlock` 에서 쓰기 결과와 상관없이 `getBlockEntity` 를 부른다. Furnace 는 쓰기가 받아들여진
+  뒤에만 묻는다 — FAWE·평범한 populator 는 부작용이 없어 결과가 같고, `getBlockEntity` 가 던지는 레벨이면 Paper 는 방벽을 쓰기 전에 멈춘다(가정: 그런 레벨은 드물다).
+  (5) Paper 는 청크 상자와 겹치는 조각이 있으면 `AsyncStructureGenerateEvent` 를 부른다(`CraftStructureTransformer`). 호환 계층에 그 이벤트가 없어 부르지 않는다.
+  (6) 노이즈 생성기가 없는 월드(평지·빈 월드·Bukkit 생성기 월드)에서는 구조물 생성이 `UnsupportedNmsCall` 이다. Paper 는 이런 월드에서도 `//structure` 가 된다 — 로드맵 T-222.

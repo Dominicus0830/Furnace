@@ -854,7 +854,6 @@ public final class StrongholdStructure extends StructureType {
                 int wx = getWorldX(5, 6), wy = getWorldY(3), wz = getWorldZ(5, 6);
                 if (box.isInside(wx, wy, wz)) {
                     hasPlacedSpawner = true;
-                    c.view.touchLevelRandom();   // Paper placeCraftSpawner: setSpawnedType 이 레벨의 getRandom() 을 부른다(새 스포너라 뽑지 않음)
                     c.view.setBlock(wx, wy, wz, s.SPAWNER);
                     c.view.putGeneratedBlockEntity(wx, wy, wz, spawnerNbt(wx, wy, wz));
                 }

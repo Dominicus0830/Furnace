@@ -372,7 +372,6 @@ public final class MineshaftStructure extends StructureType {
                     int wx = getWorldX(1, sz), wy = getWorldY(0), wz = getWorldZ(1, sz);
                     if (box.isInside(wx, wy, wz) && isInterior(c, 1, 0, sz, box)) {
                         hasPlacedSpider = true;
-                        c.view.touchLevelRandom();   // Paper placeCraftSpawner: setSpawnedType 이 레벨의 getRandom() 을 부른다(새 스포너라 뽑지 않음)
                         c.view.setBlock(wx, wy, wz, s.spawner);
                         putCaveSpiderSpawner(c, wx, wy, wz);
                     }

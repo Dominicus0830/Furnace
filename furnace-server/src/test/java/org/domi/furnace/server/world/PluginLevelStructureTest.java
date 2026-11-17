@@ -73,6 +73,8 @@ class PluginLevelStructureTest {
         final List<String> calls = new ArrayList<>();
         final List<String> entities = new ArrayList<>();
         int blockUpdates;
+        int seedAsks;
+        long seed = core.world().seed();
         /** 참이면 Paper 의 나무 기록처럼 부술 수 없는 블록(방벽)이 이미 든 칸의 쓰기를 거절한다. */
         boolean paperCapture;
 
@@ -96,7 +98,7 @@ class PluginLevelStructureTest {
         }
 
         @Override public String blockEntityType(int x, int y, int z) { return null; }
-        @Override public long levelSeed(boolean throughGetLevel) { return core.world().seed(); }
+        @Override public long levelSeed(boolean throughGetLevel) { seedAsks++; return seed; }
         @Override public void entityLevel() {}
         @Override public void addEntity(String id, double x, double y, double z) { entities.add(id); }
         @Override public void blockUpdated(int x, int y, int z, int state) { blockUpdates++; }
@@ -162,6 +164,55 @@ class PluginLevelStructureTest {
             assertTrue(barriers > 0, "블록 엔티티 칸은 방벽");
             assertEquals(0, plain.count("minecraft:barrier"), "평범한 통로는 방벽 위에 그 블록을 쓴다");
             assertEquals(plain.writes.keySet(), capture.writes.keySet(), "같은 칸에 쓴다");
+            return null;
+        });
+    }
+
+    @Test
+    void desertPyramidAsksTheLevelForRandomAndSeed() throws Exception {
+        // 사막 피라미드: 지하실은 레벨의 getRandom() 에서 뽑고, 의심스러운 모래 자리는 레벨의 getSeed() 로 시드를 만들며, afterPlace 는 감싸지 않은 레벨(인자 3개)
+        onRegion(l -> {
+            StructureStart start = LiveStructures.generate(gen, "minecraft:desert_pyramid", 3, 3, b -> true);
+            assertNotNull(start);
+            BoundingBox b0 = start.boundingBox();
+            BoundingBox box = new BoundingBox(b0.minX() - 2, -64, b0.minZ() - 2, b0.maxX() + 2, 319, b0.maxZ() + 2);
+            List<String> before = dump(l, box);
+            int[] levelRandomAsks = {0};
+            Random levelRandom = new Random(9L);
+            Recorder sink = new Recorder();
+            BoundingBox b = start.boundingBox();
+            for (int cz = b.minZ() >> 4; cz <= b.maxZ() >> 4; cz++)
+                for (int cx = b.minX() >> 4; cx <= b.maxX() >> 4; cx++)
+                    LiveStructures.placeInChunk(l, gen, start, chunkBox(cx, cz), cx, cz, new JavaRandomWorldgen(new Random(5L)),
+                            () -> { levelRandomAsks[0]++; return levelRandom; }, new LiveStructures.Session(), sink);
+            assertEquals(before, dump(l, box), "통로 판은 월드를 바꾸지 않는다");
+            assertTrue(sink.count("minecraft:sandstone") > 50, "피라미드 몸체: " + sink.writes.size());
+            assertTrue(levelRandomAsks[0] > 0, "지하실은 레벨 난수에서 뽑는다");
+            assertTrue(sink.seedAsks > 0, "시드는 레벨에 묻는다");
+            assertTrue(sink.calls.stream().anyMatch(c -> c.startsWith("4:") && c.endsWith(":512")), "조각 쓰기는 인자 4개·깊이 512");
+            assertTrue(sink.calls.stream().anyMatch(c -> c.startsWith("3:")), "afterPlace 는 인자 3개");
+
+            Recorder otherSeed = new Recorder();
+            otherSeed.seed = core.world().seed() + 1;
+            assertThrows(UnsupportedOperationException.class, () -> placeAll(l, start, new Random(5L), new Random(9L), new LiveStructures.Session(), otherSeed),
+                    "레벨 시드가 월드 시드와 다르면 같은 결과를 낼 수 없다");
+            return null;
+        });
+    }
+
+    @Test
+    void spawnersDoNotAskTheLevelRandom() throws Exception {
+        // Paper placeCraftSpawner: 월드 없는 상태라 setSpawnedType 은 RandomSource.create() — 레벨의 getRandom() 이 던져도 끝난다(평범한 populator)
+        onRegion(l -> {
+            StructureStart start = LiveStructures.generate(gen, "minecraft:stronghold", 2, 3, b -> true);
+            assertNotNull(start);
+            BoundingBox room = start.pieces().stream().filter(p -> p.getClass().getSimpleName().equals("PortalRoom")).findFirst().orElseThrow().boundingBox();
+            Recorder sink = new Recorder();
+            for (int cz = room.minZ() >> 4; cz <= room.maxZ() >> 4; cz++)
+                for (int cx = room.minX() >> 4; cx <= room.maxX() >> 4; cx++)
+                    LiveStructures.placeInChunk(l, gen, start, chunkBox(cx, cz), cx, cz, new JavaRandomWorldgen(new Random(3L)),
+                            () -> { throw new UnsupportedOperationException("Not supported yet."); }, new LiveStructures.Session(), sink);
+            assertEquals(1, sink.count("minecraft:spawner"), "차원문 방의 스포너");
             return null;
         });
     }

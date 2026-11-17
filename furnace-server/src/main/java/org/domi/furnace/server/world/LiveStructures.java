@@ -78,14 +78,12 @@ public final class LiveStructures {
         Objects.requireNonNull(levelRandom, "levelRandom");
         StructureEngine engine = gen.structureEngine();
         NoiseRandom lr = new LevelRandom(levelRandom);
-        Runnable touch = levelRandom::get;
         int radius = gridRadius(chunkBox, chunkX, chunkZ);
         if (sink == null) {
             if (!(level instanceof RegionLevel rl)) throw new IllegalStateException("structures are placed into a region level");
             LiveGrid grid = new LiveGrid(rl, chunkX, chunkZ, radius, gen.seed());
             FeatureWorldView view = grid.view;
             view.setPluginPlacement(true);
-            view.setLevelRandomTouch(touch);
             synchronized (start) {
                 start.placeInChunk(engine, view, random, lr, chunkBox, chunkX, chunkZ);
             }
@@ -115,7 +113,6 @@ public final class LiveStructures {
         view.setLiveWriteFlags(2);
         view.setSinkDepth(512);   // Paper TransformerGeneratorAccess: 조각 쓰기는 레벨의 setBlock(pos, state, flags, 512)
         view.setPluginPlacement(true);
-        view.setLevelRandomTouch(touch);
         SinkShapeLevel shapeLevel = new SinkShapeLevel(view, (x, y, z) -> {
             int i = (Math.floorDiv(z, 16) - chunkZ + radius) * size + (Math.floorDiv(x, 16) - chunkX + radius);
             ChunkColumn l = i >= 0 && i < live.length ? live[i] : null;

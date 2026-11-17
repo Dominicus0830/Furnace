@@ -761,15 +761,6 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         return sink != null;
     }
 
-    /** 바닐라 {@code world.getRandom()} 을 부르기만 하는 자리(Paper 스포너 setSpawnedType) — 통로가 있으면 그 레벨에 묻는다. */
-    public void touchLevelRandom() {
-        if (levelRandomTouch != null) levelRandomTouch.run();
-    }
-
-    private Runnable levelRandomTouch;
-
-    public void setLevelRandomTouch(Runnable r) { levelRandomTouch = r; }
-
     /**
      * 바닐라 {@code world.getSeed()}(throughGetLevel 이면 {@code world.getLevel().getSeed()}) 자리: 통로가 있으면 그 레벨에 묻고, 월드 시드와 다르면
      * {@link UnsupportedOperationException}(서버 구조물 코드는 월드 시드로 짜여 있다). 월드 시드를 돌려준다.
