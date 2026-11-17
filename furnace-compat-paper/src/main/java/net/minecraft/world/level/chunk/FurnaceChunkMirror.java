@@ -834,22 +834,30 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
         }
     }
 
-    /** 섹션 칸 번호 배열에 덧칠을 입힌다(제자리). */
-    int[] overlayCells(int slot, int[] ids) {
-        if (overlayCount == 0) return ids;
+    /**
+     * 그 섹션의 칸 덧칠 사본(칸 번호 4096, 덧칠 없는 칸은 -1; 덧칠이 없으면 null). 공개 판을 읽기 **전에** 떠 둔다 — 주인은 새 판을 낸 뒤 덧칠을 지우므로
+     * 덧칠이 이미 없다면 그 뒤에 읽은 판에는 이 스레드의 쓰기가 들어 있다(판을 먼저 읽으면 옛 판 + 이미 지워진 덧칠의 틈이 생긴다).
+     */
+    int[] cellOverlaySnapshot(int slot) {
+        if (overlayCount == 0) return null;
         synchronized (lock) {
             int[] o = cellOver == null || slot < 0 || slot >= n ? null : cellOver[slot];
-            if (o != null) for (int c = 0; c < 4096; c++) if (o[c] >= 0) ids[c] = o[c];
+            return o == null ? null : o.clone();
         }
-        return ids;
     }
 
-    int[] overlayBiomes(int slot, int[] ids) {
-        if (overlayCount == 0) return ids;
+    /** {@link #cellOverlaySnapshot} 의 바이옴 판(칸 64). */
+    int[] biomeOverlaySnapshot(int slot) {
+        if (overlayCount == 0) return null;
         synchronized (lock) {
             int[] o = biomeOver == null || slot < 0 || slot >= n ? null : biomeOver[slot];
-            if (o != null) for (int c = 0; c < 64; c++) if (o[c] >= 0) ids[c] = o[c];
+            return o == null ? null : o.clone();
         }
+    }
+
+    /** 번호 배열에 덧칠 사본을 입힌다(제자리, 사본이 null 이면 그대로). */
+    static int[] applyOverlay(int[] ids, int[] over) {
+        if (over != null) for (int c = 0; c < over.length; c++) if (over[c] >= 0) ids[c] = over[c];
         return ids;
     }
 
