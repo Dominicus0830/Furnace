@@ -59,3 +59,7 @@ FAWE 는 `load: STARTUP` 이다. Paper 는 STARTUP 플러그인을 월드를 불
 ## 5. 시험
 
 `InteractAndBlockEventsTest`(Paper 판별, 공기 클릭 모양, 두 결과 → 취소 합치기, 블록·화로 값 되돌려 쓰기, 안 알리는 이벤트 목록), `EventBridgeTest`(이어진 35종이 처리기에 닿는지).
+
+## 6. FAWE 대조 시험 설정 (2026-11-17)
+
+- FAWE 편집을 Paper 와 맞춰 비교할 때는 `queue.parallel-threads: 1` 로 한다. 기본값(16)에서는 `//fixblocks` 같은 편집의 잇는 블록(레드스톤 가루·판유리·울타리)이 실행마다 한두 칸 갈릴 수 있다(FAWE 다중 스레드 경쟁, 기본 설정 20번 중 6번, 설정 1 은 40번 중 0번). 근거: `context-notes/2026-11-17-t204-fawe-threads-confirm.md`.

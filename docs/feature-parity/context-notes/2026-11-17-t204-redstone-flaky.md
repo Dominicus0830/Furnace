@@ -44,5 +44,4 @@ V5 실측(`2026-11-17-t204-v5-fawe-desktop.md`)에서 Furnace 세 번 중 한 �
 
 - 이 경쟁은 FAWE 안의 것이라 Furnace 가 결과를 늘 Paper 와 같게 고칠 수는 없다(특정 플러그인 저격 금지). 그러나 같은 FAWE 에서 갈림 확률이 Paper 보다 크게 높은
   것은 Furnace 몫이다 — **T-209**(주인 아닌 스레드 첫 섹션 읽기를 Paper 꼴 수준으로, FAWE 큰 편집 읽기도 빨라짐 — 섹션 1만 개면 지금 약 1.4 s).
-- **확정 실험(남음)**: 데스크탑에서 F1~F4 + `//fixblocks` 를 FAWE `queue.parallel-threads: 1`(한 스레드 — 이 경쟁이 없으니 갈림 0 기대)과 기본 설정으로 각각
-  Furnace·Paper 10회 이상 돌려 갈림 수를 센다.
+- **확정 실험(완료, 정정)**: `queue.parallel-threads: 1` 이면 Paper·Furnace 20번 중 갈림 0, 기본 16 이면 20번 중 6번(Paper 5/10, Furnace 1/10). 원인은 FAWE 다중 스레드 경쟁으로 확정. 이 노트의 "Furnace 가 창을 넓힌다 → T-209" 근거는 틀렸다(Paper 가 더 자주 갈림). 자세한 것은 `2026-11-17-t204-fawe-threads-confirm.md`.
