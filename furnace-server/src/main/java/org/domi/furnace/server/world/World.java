@@ -153,6 +153,17 @@ public final class World {
     private volatile SeedInfo seedInfo;
     private volatile boolean extra;
 
+    private volatile boolean scratch;
+
+    /** 임시 월드인가(T-203 {@code WorldManager#createScratch} — 틱·저장 없음, 차원 목록에 없음). */
+    public boolean isScratch() { return scratch; }
+
+    /** 임시 월드 표시와 이름. 만들 때 한 번. */
+    void markScratch(String name) {
+        this.scratch = true;
+        this.levelName = name;
+    }
+
     /** 실행 중에 올린 추가 월드인가(다중 월드 — 내릴 수 있다). */
     public boolean isExtraWorld() { return extra; }
 

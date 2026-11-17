@@ -224,6 +224,10 @@ public final class AnvilWorldSource implements WorldSource {
     public RegionFileStore store() { return store; }
     /** 디스크에 없을 때 쓰는 생성기. */
     public WorldSource base() { return base; }
+
+    /** 디스크 없이 밑 생성기만 복사한다(T-203 임시 월드 — 저장된 청크를 읽지 않는다). */
+    @Override
+    public WorldSource freshCopy(long seed) { return base.freshCopy(seed); }
     public AnvilChunkCodec codec() { return codec; }
 
     // ------------------------------------------------------------------ POI(poi/ 지역 파일 — 바닐라 PoiManager 의 SectionStorage)

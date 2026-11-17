@@ -124,4 +124,7 @@ public interface Internals {
 
     /** 블록 상태 속성 표 다리(N2b-6). 호환 계층의 NMS BlockState shim 용이다(불안정). */
     default BlockStateInternals blockStates() { throw new UnsupportedOperationException("blockStates"); }
+
+    /** 임시 월드 다리(T-203). 호환 계층의 NMS ServerLevel 생성자용이다(불안정). */
+    default ScratchWorlds scratchWorlds() { throw new UnsupportedOperationException("scratchWorlds"); }
 }

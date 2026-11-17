@@ -269,6 +269,8 @@ public final class StructureEngine {
 
     public void setStructuresEnabled(boolean enabled) { this.structuresEnabled = enabled; }
 
+    public boolean structuresEnabled() { return structuresEnabled; }
+
     /** 이 청크가 시작점인 모든 구조물의 StructureStart (ChunkGenerator.createStructures). */
     public List<StructureStart> createStarts(int cx, int cz, TerrainAccess terrain) {
         List<StructureStart> out = new ArrayList<>();

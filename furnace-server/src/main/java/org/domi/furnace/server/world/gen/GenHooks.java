@@ -52,6 +52,7 @@ public final class GenHooks {
                                   BlockRegistry blocks, org.domi.furnace.server.net.registry.RegistrySet registries) {
         if (key == null || key.isEmpty()) return null;
         if (gen instanceof AnvilWorldSource a) gen = a.base();
+        if (gen instanceof ScratchWorldSource t) gen = t.base();
         List<String> biomes = registries.entries("minecraft:worldgen/biome");
         if (gen instanceof NoiseWorldSource n) {
             GenHooks h = new GenHooks(key, lookup, world, n.seed(), blocks, biomes, n.seaLevel());
@@ -65,6 +66,11 @@ public final class GenHooks {
         }
         LOG.warn(Lang.t("genhook.unsupported-generator", world, gen.getClass().getSimpleName(), key));
         return null;
+    }
+
+    /** 같은 등록 키·조회·월드 이름에 시드만 바꾼 새 훅(임시 월드 {@link WorldSource#freshCopy}). 실패 수·상태 캐시는 새로 시작한다. */
+    GenHooks reseeded(long newSeed) {
+        return new GenHooks(key, lookup, world, newSeed, blocks, biomeNames, seaLevel);
     }
 
     public String key() { return key; }

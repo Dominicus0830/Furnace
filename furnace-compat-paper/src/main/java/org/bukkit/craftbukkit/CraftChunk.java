@@ -28,7 +28,7 @@ public final class CraftChunk implements Chunk {
     public World getWorld() { return Compat.world(dimension); }
 
     @Override
-    public boolean isLoaded() { return Compat.furnace().world(dimension).isChunkLoaded(x, z); }
+    public boolean isLoaded() { return Compat.furnaceWorld(dimension).isChunkLoaded(x, z); }
 
     @Override
     public boolean load(boolean generate) { return isLoaded(); }
@@ -38,7 +38,7 @@ public final class CraftChunk implements Chunk {
 
     @Override
     public org.bukkit.entity.Entity[] getEntities() {
-        var w = Compat.furnace().world(dimension);
+        var w = Compat.furnaceWorld(dimension);
         if (!w.isChunkLoaded(x, z)) return new org.bukkit.entity.Entity[0];
         java.util.List<org.bukkit.entity.Entity> out = new java.util.ArrayList<>();
         for (var e : w.entitiesInChunkNow(x, z)) out.add(Compat.entity(e));

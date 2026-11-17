@@ -46,6 +46,8 @@ public final class Compat {
     private static final class State {
         final Furnace furnace;
         final ConcurrentHashMap<String, CraftWorld> worlds = new ConcurrentHashMap<>();
+        /** 살아 있는 임시 월드(T-203 — NMS ServerLevel 생성자가 만든 것, 차원 키 furnace:scratch/n). 서버 월드 목록에 없어 따로 찾는다. */
+        final ConcurrentHashMap<String, CraftWorld> scratch = new ConcurrentHashMap<>();
         final ConcurrentHashMap<UUID, CraftPlayer> players = new ConcurrentHashMap<>();
         /** Bukkit 에 보이는 월드(차원 키). null 이면 모두 보인다 — {@link Compat#hideWorldsForStartup}. 서버마다 따로(시험이 서버를 다시 띄워도 새지 않게). */
         volatile List<String> visibleWorlds;
@@ -231,6 +233,8 @@ public final class Compat {
     public static World world(String dimension) {
         if (dimension == null) return null;
         State s = state();
+        CraftWorld sc = s.scratch.get(dimension);
+        if (sc != null) return sc;
         CraftWorld w = s.worlds.get(dimension);
         org.domi.furnace.api.world.World fw = s.furnace.world(dimension);
         if (fw == null) {
@@ -245,6 +249,20 @@ public final class Compat {
     }
 
     public static World world(org.domi.furnace.api.world.World w) { return w == null ? null : world(w.dimension()); }
+
+    /** 차원 키의 Furnace 월드(임시 월드 포함 — {@link #world(String)} 와 같은 범위). 없으면 null. */
+    public static org.domi.furnace.api.world.World furnaceWorld(String dimension) {
+        if (dimension == null) return null;
+        State s = state();
+        CraftWorld sc = s.scratch.get(dimension);
+        return sc != null ? sc.furnaceHandle() : s.furnace.world(dimension);
+    }
+
+    /** 임시 월드를 차원 키로 찾을 수 있게 한다(T-203). 월드 목록·이름 찾기에는 나오지 않는다. */
+    public static void scratchOpened(CraftWorld w) { state().scratch.put(w.furnaceHandle().dimension(), w); }
+
+    /** 닫은 임시 월드를 뗀다. */
+    public static void scratchClosed(CraftWorld w) { state().scratch.remove(w.furnaceHandle().dimension(), w); }
 
     /**
      * 월드 이름(world, world_nether)으로, 대소문자 무시(Paper CraftServer#getWorld 는 소문자로 찾는다 — 서버는 대소문자만 다른 두 월드를 막는다).
