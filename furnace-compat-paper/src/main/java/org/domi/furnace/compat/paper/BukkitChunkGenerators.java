@@ -632,6 +632,20 @@ public final class BukkitChunkGenerators {
         @Override public int getCenterChunkX() { return centerX; }
         @Override public int getCenterChunkZ() { return centerZ; }
 
+        /** CraftLimitedRegion: 연결(생성 중 영역)을 거쳐 그 월드 — 끊긴 뒤에는 IllegalStateException. */
+        @Override
+        public World getWorld() {
+            h();
+            return world;
+        }
+
+        /** CraftRegionAccessor: 그 월드(차원) 키 — 끊긴 뒤에는 IllegalStateException. */
+        @Override
+        public org.bukkit.NamespacedKey getKey() {
+            h();
+            return world.getKey();
+        }
+
         @Override
         public List<BlockState> getTileEntities() {
             throw new UnsupportedFeature("LimitedRegion#getTileEntities", "block entities of a region being generated are not available yet (T-218)");

@@ -883,18 +883,6 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         return new Generated(col, biomeIds);
     }
 
-    /**
-     * {@link #biomeNamesOf(int[])} 에 생성 중 훅이 바꿔 넣은 바이옴(T-217)을 더한 것 — 바닐라 섹션 팔레트는 덮어쓴 바이옴을 지우지 않는다.
-     */
-    public Set<String> biomeNamesOf(int[] biomeIds, ChunkColumn col) {
-        Set<String> names = biomeNamesOf(biomeIds);
-        var extra = col.hookBiomes();
-        if (extra != null) {
-            for (int id : extra) if (id >= 0 && id < registryBiomeNames.length) names.add(registryBiomeNames[id]);
-        }
-        return names;
-    }
-
     /** 청크 biome id 배열에 등장하는 biome 이름 집합 — FeaturePlacer의 neighborBiomes 구성 단위(청크당 한 번만 계산해 재사용). */
     public Set<String> biomeNamesOf(int[] biomeIds) {
         boolean[] seen = new boolean[registryBiomeNames.length];
@@ -909,14 +897,17 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
     }
 
     private void applyCarvers(ChunkColumn col, int chunkX, int chunkZ, NoiseChunk nc) {
-        applyCarvers(col, chunkX, chunkZ, nc, null);
+        applyCarvers(col, chunkX, chunkZ, nc, null, null);
     }
 
-    private void applyCarvers(ChunkColumn col, int chunkX, int chunkZ, NoiseChunk nc, Aquifer reuse) {
+    /**
+     * biomeIds 는 장식 단계가 읽을 그 청크의 바이옴 배열(생성 결과 {@link Generated#biomeIds()}) — 카버 훅의 setBiome 이 함께 바꾼다.
+     * null 이면(장식이 뒤따르지 않는 길) 섹션만 바뀐다.
+     */
+    private void applyCarvers(ChunkColumn col, int chunkX, int chunkZ, NoiseChunk nc, Aquifer reuse, int[] biomeIds) {
         if (flatLayers != null) {
             // FlatLevelSource.applyCarvers 는 비어 있다
-            GenHooks hooks = genHooks;
-            if (hooks != null) hooks.chunkStage(org.domi.furnace.api.worldgen.GenerationStage.CARVERS, col, chunkX, chunkZ);
+            carverHook(col, chunkX, chunkZ, biomeIds);
             col.freezeWgHeightmaps();
             return;
         }
@@ -947,8 +938,16 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
                 }
             }
         }
-        if (hooks != null) hooks.chunkStage(org.domi.furnace.api.worldgen.GenerationStage.CARVERS, col, chunkX, chunkZ);
+        carverHook(col, chunkX, chunkZ, biomeIds);
         col.freezeWgHeightmaps();
+    }
+
+    private void carverHook(ChunkColumn col, int chunkX, int chunkZ, int[] biomeIds) {
+        GenHooks hooks = genHooks;
+        if (hooks != null && hooks.chunkStage(org.domi.furnace.api.worldgen.GenerationStage.CARVERS, col, chunkX, chunkZ, biomeIds)
+                && biomeIds != null) {
+            chunkBiomeCache.put(chunkKey(chunkX, chunkZ), biomeIds.clone());   // 훅이 바꾼 바이옴(표면 단계와 같게)
+        }
     }
 
     public void applyCarvers(ChunkColumn col, int cx, int cz) {
@@ -958,8 +957,8 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
 
     /** 생성 결과의 NoiseChunk 를 다시 써서 카버를 돌린다(새 NoiseChunk 를 만드는 비용 — 기후 캐시·DF 감싸기 — 을 아낀다). */
     public void applyCarvers(Generated g, int cx, int cz) {
-        if (g.noiseChunk() != null) applyCarvers(g.col(), cx, cz, g.noiseChunk(), g.aquifer());
-        else applyCarvers(g.col(), cx, cz, new NoiseChunk(cx, cz, router, settings, reg));
+        if (g.noiseChunk() != null) applyCarvers(g.col(), cx, cz, g.noiseChunk(), g.aquifer(), g.biomeIds());
+        else applyCarvers(g.col(), cx, cz, new NoiseChunk(cx, cz, router, settings, reg), null, g.biomeIds());
     }
 
     /** 디버그: quart 좌표(월드 quart x, 월드 quart y=블록y/4, 월드 quart z)의 기후 타깃 6개(온도·습도·대륙성·침식·깊이·기이함). */

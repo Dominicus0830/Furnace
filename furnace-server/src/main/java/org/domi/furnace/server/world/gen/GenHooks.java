@@ -365,7 +365,6 @@ public final class GenHooks {
             int sec = ly >> 4, qy = (ly >> 2) & 3;
             col.sections()[sec].setBiome(x >> 2, qy, z >> 2, id);
             if (biomeIds != null) biomeIds[sec * 64 + qy * 16 + (z >> 2) * 4 + (x >> 2)] = id;
-            col.addHookBiome(id);
             biomesChanged = true;
         }
 

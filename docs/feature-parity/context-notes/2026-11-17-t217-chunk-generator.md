@@ -33,3 +33,6 @@
 - 생성기·공급자의 `WorldInfo`(`LateWorldInfo`)는 월드가 생기기 전 `getDefaultBiomeProvider` 에 넘어가므로, 이미 있는 월드면 level.dat 시드로 만들어 둔다
   (CraftBukkit 은 저장된 레벨 데이터로 `CraftWorldInfo` 를 만든다).
 - `CraftWorld` 는 같은 월드 핸들이면 하나라 BlockPopulator 목록을 그 객체에 둔다. 처음 `getPopulators()` 때 서버 월드 장식기 하나로 건다.
+- 장식 단계의 지형지물 후보 바이옴은 **지금 청크에 저장된 바이옴 값**뿐이다. 바닐라 1.21.1 `PalettedContainer#getAll` 은 팔레트가 아니라 저장된 값
+  (`BitStorage#getAll` → `palette.valueFor`)을 모은다(PR #493 검토에서 바닐라 바이트코드로 확인). 그래서 훅이 덮어써 사라진 바이옴은 후보가 아니고,
+  노이즈·표면·카버 훅의 `setBiome` 은 섹션과 함께 장식 단계가 읽는 바이옴 배열(`Generated#biomeIds`)을 바꾸는 것으로 충분하다(따로 모아 두지 않는다).

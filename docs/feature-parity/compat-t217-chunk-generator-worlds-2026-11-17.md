@@ -119,13 +119,22 @@
   - 묻기를 Paper 와 다른 횟수로 할 수 있다(Furnace 는 같은 청크를 여러 번 만들 수 있다 — 답은 같다).
   - 옛 API 섹션 교체 뒤의 `*_WG` 높이맵: Paper 는 섹션을 바꿔 끼워 갱신하지 않고, Furnace 는 표면 단계 뒤 블록에서 다시 만든다. `*_WG` 높이맵으로
     놓는 지형지물(바다 바닥 몇 가지)을 켠 옛 API 월드에서만 갈릴 수 있다.
-  - 아직 없는 것(후속 T-218): 옛 `BlockPopulator#populate(World, Random, Chunk)`·`ChunkPopulateEvent`, `LimitedRegion` 의 엔티티·블록 상태
-    (`getBlockState`·`getTileEntities`)·`setBiome`·`getComputedBiome`·`generateTree`·`scheduleBlockUpdate`(부르면 `UnsupportedFeature` — H5 원칙),
-    Bukkit `World` 가 `RegionAccessor` 를 넓히는 것, `ChunkGenerator#canSpawn` 의 기본 본문(Paper 1.21.1 서버는 부르지 않는다 — 플러그인이
+  - 아직 없는 것(후속 T-218): 옛 `BlockPopulator#populate(World, Random, Chunk)`·`ChunkPopulateEvent`, `LimitedRegion` 의 엔티티
+    (`spawn*`·`createEntity`·`addEntity`·`getEntities*`)·블록 상태(`getBlockState`·`setBlockState`·`getTileEntities`)·유체 상태(`getFluidData`)·
+    `setBiome`·`getComputedBiome`·`generateTree`·`scheduleBlockUpdate`·`scheduleFluidUpdate`·`getMoonPhase`·`lineOfSightExists`·`hasCollisionsIn`
+    (Paper 1.21.1 의 멤버는 모두 있고, 부르면 `UnsupportedFeature` — H5 원칙. `getWorld`·`getKey`·`Vector` 판은 동작한다), `RegionAccessor` 의
+    기능 플래그 몫(`FeatureFlagSetHolder` — 이 호환 계층에 아직 없다), Bukkit `World` 가 `RegionAccessor` 를 넓히는 것(그때 `getFixedSpawnLocation`
+    에서 흔히 부르는 `world.getHighestBlockYAt` 가 월드 만들기 도중 — 틱 전 — 막히지 않는지 시험을 같이 넣는다), `ChunkGenerator#canSpawn` 의 기본 본문(Paper 1.21.1 서버는 부르지 않는다 — 플러그인이
     `super.canSpawn` 을 직접 부를 때만 갈린다), `ChunkData` 의 `MaterialData` 판·`getData`(이 호환 계층에 옛 데이터 표가 없다).
   - 기본 세 월드의 bukkit.yml 생성기: Furnace 는 플러그인보다 먼저 기본 월드를 만들고 bukkit.yml 도 없어 이번에 하지 않는다(결정 G2, 후속 T-219).
   - `getFixedSpawnLocation` 은 WorldInitEvent 보다 먼저 불린다(Paper 는 WorldInitEvent 뒤). Furnace 는 WorldInitEvent 를 월드가 다 올라온 뒤
-    전역 스레드에서 보낸다(T-210 부터 같은 순서).
+    전역 스레드에서 보낸다(T-210 부터 같은 순서). 그래서 **WorldInitEvent 에서 `getPopulators().add` 하는 흔한 패턴**은 그 사이 만들어진 청크
+    (스폰 찾기·스폰 주변 청크)에 그 BlockPopulator 가 돌지 않는다(Paper 는 WorldInitEvent 뒤에 스폰을 정하고 스폰 청크를 만든다). 순서 맞추기는 T-218.
+  - `//regen` 임시 월드(`freshCopy`)는 같은 훅 객체를 쓴다. 다른 시드로 다시 만들면 `shouldGenerate*` 씨앗과 생성기가 받는 `WorldInfo` 는 원래
+    월드 시드다(BlockPopulator·`generateCaves` 난수는 임시 월드 시드). FAWE 는 새 시드로 `CustomChunkGenerator` 를 새로 만든다 — 다른 시드 regen
+    과 Bukkit 생성기를 함께 쓸 때만 갈린다(T-218).
+  - Furnace API 로만 만들 수 있는 `SuperflatWorldSource` 월드(VOID, 또는 오버월드 높이가 아닌 FLAT)의 장식기는 그 청크 하나만 본다(이웃 칸 쓰기는
+    false·무시). Bukkit BlockPopulator 를 이런 월드에 붙이면 Paper 의 3×3 청크 영역과 다르다.
   - `shouldGenerate*` 에서 `nextGaussian` 을 홀수 번 부르면 Paper 는 같은 청크 `generate*` 의 첫 `nextGaussian` 에 남은 값을 주지만 Furnace 는 새 난수다
     (묻기와 만들기가 서로 다른 훅 호출이다).
   - 플러그인 코드가 던진 예외: Paper 는 그 청크 생성이 실패하고, Furnace 는 W3 규칙대로 기록하고 그 단계의 훅만 건너뛴다.

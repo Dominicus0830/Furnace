@@ -21,6 +21,7 @@ import org.bukkit.generator.BiomeProvider;
 import org.bukkit.generator.BlockPopulator;
 import org.bukkit.generator.ChunkGenerator;
 import org.bukkit.generator.LimitedRegion;
+import org.bukkit.util.Vector;
 import org.bukkit.generator.WorldInfo;
 import org.domi.furnace.compat.paper.fixtures.Jars;
 import org.domi.furnace.compat.paper.fixtures.RecorderPlugin;
@@ -262,6 +263,10 @@ class BukkitChunkGeneratorWorldTest {
                         + " " + region.getType(bx, -61, bz) + " " + region.getHighestBlockYAt(bx, bz, HeightMap.WORLD_SURFACE_WG));
                 var e = assertThrows(IllegalArgumentException.class, () -> region.getType(bx + 40, 0, bz));
                 checks.add(e.getMessage());
+                // Paper 1.21.1 LimitedRegion 멤버: getWorld·getKey·Vector 판은 바로, 블록 틱·유체 상태는 UnsupportedFeature(T-218)
+                checks.add((region.getWorld() == w) + " " + region.getKey() + " " + region.getBlockData(new Vector(bx, -61, bz)).getMaterial());
+                assertThrows(UnsupportedFeature.class, () -> region.scheduleBlockUpdate(new Vector(bx, -61, bz)));
+                assertThrows(UnsupportedFeature.class, () -> region.getFluidData(bx, -61, bz));
             }
         }
     }
@@ -274,10 +279,11 @@ class BukkitChunkGeneratorWorldTest {
             assertEquals(List.of(g.marker), w.getPopulators(), "기본 BlockPopulator 가 월드 목록에 든다");
             assertEquals(Material.GOLD_BLOCK, onRegion(w, 8, 8, () -> w.getBlockAt(8, -60, 8).getType()));
             assertEquals(List.of("16 -60 true false true false false STONE -60",
-                    "Coordinates " + 40 + ", 0, 0 are not in the region"), g.marker.checks);
+                    "Coordinates " + 40 + ", 0, 0 are not in the region", "true " + w.getKey() + " STONE"), g.marker.checks);
             assertEquals(new Random(decorationSeed(31L, 0, 0)).nextLong(), g.marker.first.get("0,0"),
                     "WorldgenRandom(seed).setDecorationSeed(seed, 청크 x, 청크 z)");
             assertThrows(IllegalStateException.class, () -> g.marker.kept.getType(0, -61, 0), "populate 가 끝나면 끊긴다");
+            assertThrows(IllegalStateException.class, () -> g.marker.kept.getWorld(), "getWorld 도 연결을 거친다(CraftLimitedRegion)");
 
             // 생성기가 없는 월드도 목록을 돈다(Paper: 모든 월드의 getPopulators)
             World flat = Bukkit.createWorld(new WorldCreator("flatpop").type(WorldType.FLAT));

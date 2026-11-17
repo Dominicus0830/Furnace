@@ -96,6 +96,39 @@ class GenHooksObjectTest {
     }
 
     @Test
+    void biomesSetInCarverStageAreSeenByDecoration() {
+        Set<String> viaCarvers = desertEverywhere(GenerationStage.CARVERS);
+        assertTrue(viaCarvers.contains("minecraft:patch_cactus_desert"), "카버 단계에서 바꾼 바이옴도 장식 목록에 든다: " + viaCarvers);
+        assertEquals(desertEverywhere(GenerationStage.SURFACE), viaCarvers,
+                "후보는 저장된 바이옴 값만으로 정해진다 — 어느 단계에서 덮어썼든 같다");
+    }
+
+    /** 그 단계 훅에서 모든 청크를 사막으로 바꾸고 청크 (0,0) 의 지형지물 후보를 모은다(장식 단계가 사막을 읽는지도 확인). */
+    static Set<String> desertEverywhere(GenerationStage stage) {
+        List<String> seen = new CopyOnWriteArrayList<>();
+        Set<String> features = ConcurrentHashMap.newKeySet();
+        NoiseWorldSource n = source(new ChunkGenerationHooks() {
+            void paint(GenerationChunk c) {
+                for (int x = 0; x < 16; x += 4)
+                    for (int z = 0; z < 16; z += 4)
+                        for (int y = c.minY(); y <= c.maxY(); y += 4) c.setBiome(x, y, z, "minecraft:desert");
+            }
+            @Override public void surface(GenerationChunk c) { if (stage == GenerationStage.SURFACE) paint(c); }
+            @Override public void carvers(GenerationChunk c) { if (stage == GenerationStage.CARVERS) paint(c); }
+            @Override public boolean feature(String id, int x, int z) {
+                if (x == 0 && z == 0) features.add(id);
+                return true;
+            }
+            @Override public void decorate(DecorationRegion r) {
+                if (r.originChunkX() == 0 && r.originChunkZ() == 0) seen.add(r.biome(5, 70, 9));
+            }
+        });
+        n.generateIsolated(0, 0);
+        assertEquals(List.of("minecraft:desert"), seen, stage + " 단계에서 바꾼 바이옴을 장식 단계가 본다");
+        return features;
+    }
+
+    @Test
     void worldDecoratorsRunAfterHooksInOrderWithHeights() {
         List<String> order = new CopyOnWriteArrayList<>();
         NoiseWorldSource n = source(new ChunkGenerationHooks() {
