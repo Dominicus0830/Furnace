@@ -79,6 +79,52 @@ class AnvilChunkCodecTest {
         assertEquals(org.domi.furnace.server.item.ComponentPatch.of(java.util.Map.of("minecraft:custom_model_data", 4)), restored.items[26].patch());
     }
 
+    /**
+     * 바닐라 LevelChunk.getBlockEntityNbtForSaving: 저장하는 블록 엔티티마다 keepPacked=false(byte 0)가 마지막 키로 붙는다.
+     * 상자·종류별(화로)·NBT 그대로 든 것(전달체) 모두, 디스크에서 true 로 읽어 온 것도 false 로 되쓴다.
+     */
+    @Test
+    void savedBlockEntitiesCarryKeepPackedFalse() {
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        ItemRegistry items = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
+        AnvilChunkCodec codec = new AnvilChunkCodec(reg, 0, items);
+        var base = new SuperflatWorldSource(reg, 0).generate(0, 0);
+        base.setBlock(4, -60, 4, reg.defaultStateId("minecraft:furnace"));
+        base.setBlock(1, -60, 2, reg.defaultStateId("minecraft:chest"));
+        base.setBlock(5, -60, 5, reg.defaultStateId("minecraft:conduit"));
+        NbtCompound nbt = codec.toNbt(base, 0, 0);
+
+        NbtList bes = new NbtList(NbtIo.TAG_COMPOUND);
+        NbtCompound chest = new NbtCompound();
+        chest.putString("id", "minecraft:chest");
+        chest.putInt("x", 1); chest.putInt("y", -60); chest.putInt("z", 2);
+        chest.putBoolean("keepPacked", true);
+        bes.add(chest);
+        NbtCompound furnace = new NbtCompound();
+        furnace.putString("id", "minecraft:furnace");
+        furnace.putInt("x", 4); furnace.putInt("y", -60); furnace.putInt("z", 4);
+        bes.add(furnace);
+        NbtCompound conduit = new NbtCompound();
+        conduit.putString("id", "minecraft:conduit");
+        conduit.putInt("x", 5); conduit.putInt("y", -60); conduit.putInt("z", 5);
+        conduit.putBoolean("keepPacked", true);
+        bes.add(conduit);
+        nbt.putList("block_entities", bes);
+
+        // 읽은 뒤 다시 쓴 것과, 서버가 직접 만든 상자(디스크에 keepPacked 가 없던 것) 둘 다
+        ChunkColumn back = codec.fromNbt(nbt);
+        back.putChest(ChestBlockEntity.empty("minecraft:chest", 7, -60, 7));
+        back.setBlock(7, -60, 7, reg.defaultStateId("minecraft:chest"));
+        NbtList out = codec.toNbt(back, 0, 0).getList("block_entities");
+        assertEquals(4, out.size());
+        for (Object o : out.items()) {
+            NbtCompound be = (NbtCompound) o;
+            assertEquals((byte) 0, be.tags().get("keepPacked"), be.tags().get("id") + " 은 keepPacked:0b 로 저장돼야 한다");
+            java.util.List<String> keys = new java.util.ArrayList<>(be.tags().keySet());
+            assertEquals("keepPacked", keys.get(keys.size() - 1), "바닐라는 keepPacked 를 마지막에 붙인다");
+        }
+    }
+
     /** 바닐라 월드의 블록 엔티티(아이템 든 상자, 화로, 표지판 등)가 있어도 청크 로드가 예외 없이 되어야 한다. */
     @Test
     void fromNbt_vanillaBlockEntities_doNotThrow() {

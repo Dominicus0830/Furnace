@@ -136,7 +136,9 @@ public final class AnvilChunkCodec {
             int x = snap.chunkX() * 16 + be.localX();
             int z = snap.chunkZ() * 16 + be.localZ();
             String blockName = blockNameAt(snap, colMinY, be.localX(), be.y(), be.localZ());
-            blockEntities.add(chestNbt(x, be.y(), z, blockName, be.tag()));
+            NbtCompound chest = chestNbt(x, be.y(), z, blockName, be.tag());
+            markUnpacked(chest);
+            blockEntities.add(chest);
         }
         if (save != null) {
             for (ChunkSnapshot.BlockEntitySnapshot be : save.generatedBlockEntities()) {
@@ -145,6 +147,7 @@ public final class AnvilChunkCodec {
                 e.putInt("x", snap.chunkX() * 16 + be.localX());
                 e.putInt("y", be.y());
                 e.putInt("z", snap.chunkZ() * 16 + be.localZ());
+                markUnpacked(e);
                 blockEntities.add(e);
             }
         }
@@ -167,6 +170,17 @@ public final class AnvilChunkCodec {
         for (int i = 0; i < secs.length; i++) postProcessing.add(new NbtList(NbtIo.TAG_END));
         root.putList("PostProcessing", postProcessing);
         return root;
+    }
+
+    /**
+     * 바닐라 LevelChunk.getBlockEntityNbtForSaving: 살아 있는 블록 엔티티는 saveWithFullMetadata 뒤에 keepPacked=false 를 마지막 키로 붙여 저장한다
+     * (true 는 "아직 풀지 않은 대기 NBT" 표시인데, 바닐라는 저장 직전 getBlockEntity 로 대기 NBT 를 승격하므로 완성 청크에는 항상 false 다).
+     * Furnace 가 아직 해석하지 않아 NBT 그대로 들고 있는 생성·보존 블록 엔티티도 바닐라에서는 살아 있는 쪽이라 같은 값을 쓴다 —
+     * 디스크에서 true 로 읽어 온 것도 false 로 되쓴다. 항상 완성(full) 청크만 저장하므로 true 로 쓰는 길은 없다.
+     */
+    private static void markUnpacked(NbtCompound e) {
+        e.tags().remove("keepPacked");   // 이미 있으면 키 순서가 앞에 남지 않게 지우고 마지막에 다시 넣는다
+        e.putBoolean("keepPacked", false);
     }
 
     private String blockNameAt(ChunkSnapshot snap, int colMinY, int lx, int y, int lz) {
