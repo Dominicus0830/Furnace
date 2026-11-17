@@ -48,6 +48,8 @@
 | `Level.getSeaLevel()` | 상수 63 — 바닐라 1.21.1 은 차원마다 다르지 않다(`ServerLevel` 도 재정의 없음) |
 | `Level.dimensionType()` | `dimensionTypeRegistration().value()`. 같은 레벨은 같은 객체가 나오게 `dimensionTypeRegistration` 의 캐시를 `ServerLevel` 에서 `Level` 로 옮겼다(동작 같음) |
 
+주의(검토 지적): `Level.random` 은 바닐라처럼 스레드 안전하지 않은 `LegacyRandomSource` 라 두 스레드가 동시에 쓰면 `IllegalStateException` 이 난다. region 스레드가 여럿인 Furnace 에서는 플러그인이 다른 region 의 `Level.random` 을 동시에 쓰는 일이 없게 해야 하며, 필요하면 후속으로 `threadSafeRandom`(바닐라에도 있는 필드)이나 region 별 난수원을 검토한다(T-211 에 포함). 로드맵 번호 T-211~T-216 은 다른 스레드가 같은 번호를 쓰면 늦게 병합되는 쪽이 조정한다.
+
 효과: FAWE 없는 심볼 61→57, squaremap 52→50. 나머지는 다 아래처럼 서버 쪽 다리나 큰 설계가 필요하다.
 
 고치지 않은 것과 이유: `getSharedSpawnPos`(월드 경계 안 판정 포함 — 서버 월드 데이터 다리 필요), `WorldBorder` 크기·중심(서버 다리 확장), `Entity.discard`·`save`·`load`(엔티티 소유 스레드·NBT 규칙), `BiomeManager`(바이옴 흔들기 난수 규칙), 레지스트리 상수(엔티티 종류 목록 다리). 모두 "값을 지어내면 조용히 틀리는" 종류라 T-211~T-214 에서 Paper 원문 대조와 함께 한다. 멤버를 던지는 빈 껍데기로만 두는 것도 하지 않았다 — 그러면 `catch (NoSuchMethodError)` 기능 감지가 다른 예외를 만나 H5 원칙(없으면 링크 오류)이 깨진다.
