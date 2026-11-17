@@ -27,6 +27,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BeaconBlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
+import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.chunk.PalettedContainer;
@@ -455,6 +456,76 @@ class NmsBlockEntityWriteTest {
         if (ownerFailure.get() != null) throw new AssertionError("주인 스레드 단언 실패", ownerFailure.get());
         for (BlockPos p : ps) assertNull(serverBe(p));
         for (BlockEntity t : tiles.get()) assertTrue(hasDiamonds(offThread(() -> t.saveWithId(reg))));
+    }
+
+    /**
+     * 읽기 순서 규칙(덧칠을 공개 판보다 먼저): 다른 스레드가 판을 얻은 직후 주인이 새 판을 내고 덧칠을 지워도(이음매에서 틱 한 번) 자기 쓰기가 보여야 한다.
+     * 순서가 반대(판 → 덧칠)이면 옛 판 + 이미 지워진 덧칠이라 쓰기 전 값이 보인다. 이음매는 그 읽기 자리(what)에서 한 번만 돈다.
+     */
+    <T> T readWithOwnerPublishingAfterView(java.util.function.Predicate<String> where, Supplier<T> read) {
+        int[] fired = {0};
+        try {
+            ChunkAccess.testAfterForeignView = what -> {
+                if (fired[0] == 0 && where.test(what)) {
+                    fired[0]++;
+                    ChunkAccess.testAfterForeignView = null;
+                    server.tick(1);   // 주인: 일지 재생 → 새 판 공개 → 덧칠 삭제
+                }
+            };
+            T out = read.get();
+            assertEquals(1, fired[0], "이음매가 읽기 자리에서 돌았다");
+            return out;
+        } finally {
+            ChunkAccess.testAfterForeignView = null;
+        }
+    }
+
+    @Test
+    void foreignBlockStateReadSeesOwnWriteAcrossAPublish() {
+        BlockPos p = at(1, -1, 4, 4);
+        LevelChunk c = level.getChunkAt(p);
+        var stone = Blocks.STONE.defaultBlockState();
+        assertFalse(serverBlock(p) == stone.furnaceStateId(), "준비: 돌이 아니다");
+        var got = offThread(() -> {
+            c.setBlockState(p, stone, false);
+            return readWithOwnerPublishingAfterView(w -> w.equals("getBlockState") || w.startsWith("PalettedContainer.data") || w.equals("LevelChunkSection#getStates"),
+                    () -> c.getBlockState(p));
+        });
+        assertSame(stone, got);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void foreignBiomeReadSeesOwnWriteAcrossAPublish() {
+        BlockPos p = at(1, -1, 5, 5);
+        LevelChunk c = level.getChunkAt(p);
+        int si = si(p);
+        var biomes = (PalettedContainer<net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome>>) c.getSections()[si].getBiomes();
+        int bx = (p.getX() & 15) >> 2, by = (p.getY() & 15) >> 2, bz = (p.getZ() & 15) >> 2;
+        var now = offThread(() -> biomes.get(bx, by, bz));
+        var want = java.util.stream.Stream.of("minecraft:desert", "minecraft:plains", "minecraft:ocean").map(NmsChunks::biome).filter(h -> h != now).findFirst().orElseThrow();
+        var got = offThread(() -> {
+            biomes.set(bx, by, bz, want);
+            return readWithOwnerPublishingAfterView(w -> w.equals("LevelChunkSection#getBiomes"), () -> biomes.get(bx, by, bz));
+        });
+        assertSame(want, got);
+    }
+
+    @Test
+    void foreignBlockEntityReadSeesOwnCreateAcrossAPublish() {
+        BlockPos p = at(1, -1, 8, 8);
+        LevelChunk c = level.getChunk(p.getX() >> 4, p.getZ() >> 4);
+        int si = si(p);
+        offThread(() -> {
+            LevelChunkSection existing = c.getSections()[si];
+            var fresh = freshWith(existing, p.getX() & 15, p.getY() & 15, p.getZ() & 15, Blocks.CHEST.defaultBlockState());
+            assertTrue(NmsArrays.compareAndSet(OBJ, c.getSections(), si, existing, fresh));
+            BlockEntity be = c.getBlockEntity(p, LevelChunk.EntityCreationType.IMMEDIATE);
+            assertTrue(be instanceof ChestBlockEntity);
+            BlockEntity again = readWithOwnerPublishingAfterView(w -> w.equals("LevelChunk#getBlockEntity"), () -> c.getBlockEntity(p));
+            assertSame(be, again, "자기 만들기는 주인이 판을 내고 덧칠을 지운 사이에도 보인다");
+            return null;
+        });
     }
 
     // ------------------------------------------------------------------ 검토 재현(PR #447)

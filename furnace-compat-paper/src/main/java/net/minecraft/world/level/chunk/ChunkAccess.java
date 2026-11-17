@@ -372,6 +372,21 @@ public abstract class ChunkAccess implements BlockGetter {
      * ThreadOwnershipException — 다음 틱부터 읽힌다.
      */
     public org.domi.furnace.api.internal.ChunkInternals.ChunkView furnaceForeignView(String what) {
+        var v = furnaceForeignView0(what);
+        if (v != null) {
+            var seam = testAfterForeignView;
+            if (seam != null) seam.accept(what);
+        }
+        return v;
+    }
+
+    /**
+     * 시험 이음매(O15 허용): 다른 스레드가 공개 판을 얻은 직후(what = 읽는 자리 이름) 그 스레드에서 부른다 — 그 틈에 주인이 새 판을 내고 덧칠을 지우는
+     * 경쟁을 결정적으로 만드는 시험용(덧칠은 판보다 먼저 읽어 둔다는 규칙을 본다). 운영에서는 늘 null(읽기 하나).
+     */
+    public static volatile java.util.function.Consumer<String> testAfterForeignView;
+
+    private org.domi.furnace.api.internal.ChunkInternals.ChunkView furnaceForeignView0(String what) {
         var b = NmsChunks.bridge();
         if (b.ownsChunk(furnaceWorld, pos.x, pos.z)) return null;
         var v = b.chunkView(furnaceWorld, pos.x, pos.z);
@@ -408,12 +423,10 @@ public abstract class ChunkAccess implements BlockGetter {
 
     /** 월드 좌표의 상태 번호(높이 안). 다른 스레드는 자기 쓰기 덧칠이 먼저. 청크가 로드돼 있지 않으면 IllegalStateException. */
     public int furnaceStateIdAt(int x, int y, int z) {
-        var v = furnaceForeignView("getBlockState");
         int slot = slotOf(y);
-        if (v != null) {
-            int o = furnaceMirror.overlayCellAt(slot, (y & 15) << 8 | (z & 15) << 4 | (x & 15));
-            return o >= 0 ? o : v.stateId(x, y, z);
-        }
+        int o = furnaceMirror.overlayCellAt(slot, (y & 15) << 8 | (z & 15) << 4 | (x & 15));   // 덧칠을 판보다 먼저(furnaceBlockEntityPositions 설명)
+        var v = furnaceForeignView("getBlockState");
+        if (v != null) return o >= 0 ? o : v.stateId(x, y, z);
         furnaceMirror.ownerSync(slot);
         int id = NmsChunks.bridge().stateIdNow(furnaceWorld, x, y, z);
         if (id < 0) throw notLoaded("getBlockState");
@@ -436,8 +449,9 @@ public abstract class ChunkAccess implements BlockGetter {
     }
 
     public int[] furnaceSectionStates(int index) {
+        int[] over = furnaceMirror.cellOverlaySnapshot(index);   // 덧칠을 판보다 먼저
         var src = furnaceForeignView("LevelChunkSection#getStates");
-        if (src != null) return furnaceMirror.overlayCells(index, src.sectionStates(index));
+        if (src != null) return FurnaceChunkMirror.applyOverlay(src.sectionStates(index), over);
         furnaceMirror.ownerSync(index);
         int[] v = NmsChunks.bridge().sectionStatesNow(furnaceWorld, pos.x, index, pos.z);
         if (v == null) throw notLoaded("LevelChunkSection#getStates");
@@ -446,10 +460,11 @@ public abstract class ChunkAccess implements BlockGetter {
 
     /** 실체화용(N2b-4): 섹션 칸 번호 전부와 그 판 번호(stampOut[0]) — 한 출처에서. 다른 스레드의 덧칠이 있으면 판 번호는 MIN(늘 다시 실체화). */
     int[] furnaceSectionIdsStamped(int index, boolean biome, long[] stampOut) {
+        int[] snap = biome ? furnaceMirror.biomeOverlaySnapshot(index) : furnaceMirror.cellOverlaySnapshot(index);   // 덧칠을 판보다 먼저
         var src = furnaceForeignView(biome ? "PalettedContainer.data (biomes)" : "PalettedContainer.data");
         if (src != null) {
             int[] ids = biome ? src.sectionBiomes(index) : src.sectionStates(index);
-            int[] over = biome ? furnaceMirror.overlayBiomes(index, ids.clone()) : furnaceMirror.overlayCells(index, ids.clone());
+            int[] over = FurnaceChunkMirror.applyOverlay(ids.clone(), snap);
             stampOut[0] = java.util.Arrays.equals(over, ids) ? src.contentStamp() : Long.MIN_VALUE;
             return over;
         }
@@ -483,8 +498,9 @@ public abstract class ChunkAccess implements BlockGetter {
     }
 
     public int[] furnaceSectionBiomes(int index) {
+        int[] over = furnaceMirror.biomeOverlaySnapshot(index);   // 덧칠을 판보다 먼저
         var src = furnaceForeignView("LevelChunkSection#getBiomes");
-        if (src != null) return furnaceMirror.overlayBiomes(index, src.sectionBiomes(index));
+        if (src != null) return FurnaceChunkMirror.applyOverlay(src.sectionBiomes(index), over);
         furnaceMirror.ownerSync(index);
         int[] v = NmsChunks.bridge().sectionBiomesNow(furnaceWorld, pos.x, index, pos.z);
         if (v == null) throw notLoaded("LevelChunkSection#getBiomes");
@@ -493,10 +509,12 @@ public abstract class ChunkAccess implements BlockGetter {
 
     /** 섹션 직렬화용 {개수 셋, 블록 번호 4096, 바이옴 번호 64} — 한 출처(한 판)에서 함께 읽는다(다른 스레드는 자기 쓰기 덧칠을 입혀). */
     public int[][] furnaceSectionData(int index) {
+        int[] cellOver = furnaceMirror.cellOverlaySnapshot(index);   // 덧칠을 판보다 먼저
+        int[] biomeOver = furnaceMirror.biomeOverlaySnapshot(index);
         var src = furnaceForeignView("LevelChunkSection#write");
         if (src != null) {
-            return new int[][] {src.sectionCounts(index), furnaceMirror.overlayCells(index, src.sectionStates(index)),
-                furnaceMirror.overlayBiomes(index, src.sectionBiomes(index))};
+            return new int[][] {src.sectionCounts(index), FurnaceChunkMirror.applyOverlay(src.sectionStates(index), cellOver),
+                FurnaceChunkMirror.applyOverlay(src.sectionBiomes(index), biomeOver)};
         }
         return new int[][] {furnaceSectionCounts(index), furnaceSectionStates(index), furnaceSectionBiomes(index)};
     }
@@ -507,9 +525,8 @@ public abstract class ChunkAccess implements BlockGetter {
 
     // ---- 칸 쓰기: 주인 region 스레드는 서버에 바로(N2b-2 원시 쓰기), 그 밖은 거울 칸 일지(N2b-4, 결정 D1 — 주인이 1틱 안에 그 칸만 재생)
 
-    /** 섹션 칸 쓰기의 옛 번호(다른 스레드: 자기 덧칠 → 공개 스냅샷). */
-    private int foreignCellId(ChunkInternals.ChunkView v, int index, int cell) {
-        int o = furnaceMirror.overlayCellAt(index, cell);
+    /** 섹션 칸 쓰기의 옛 번호(다른 스레드: 자기 덧칠 → 공개 스냅샷). 덧칠 o 는 판을 얻기 전에 읽은 것이다. */
+    private int foreignCellId(ChunkInternals.ChunkView v, int index, int cell, int o) {
         if (o >= 0) return o;
         return v.stateId((pos.x << 4) + (cell & 15), getMinBuildHeight() + (index << 4) + (cell >> 8), (pos.z << 4) + (cell >> 4 & 15));
     }
@@ -519,8 +536,9 @@ public abstract class ChunkAccess implements BlockGetter {
      * 배열에서 빠져 떼어 내졌으면 {@link PalettedContainer#FURNACE_DETACHED}(부른 쪽이 그 섹션에 바닐라로 쓴다 — 월드에 닿지 않는다, PR #396 검토 R2).
      */
     int furnaceSectionSet(LevelChunkSection section, int index, int cell, int stateId) {
+        int o = furnaceMirror.overlayCellAt(index, cell);   // 덧칠을 판보다 먼저
         var v = furnaceForeignView("LevelChunkSection#setBlockState");
-        if (v != null) return furnaceMirror.sectionSet(section, index, cell, stateId, foreignCellId(v, index, cell));
+        if (v != null) return furnaceMirror.sectionSet(section, index, cell, stateId, foreignCellId(v, index, cell, o));
         furnaceMirror.ownerSync(index);
         if (section.furnaceChunk() != this || section.furnaceIndex() != index) return PalettedContainer.FURNACE_DETACHED;   // 맞추는 사이 배열에서 빠졌다
         int old = NmsChunks.bridge().setSectionStateRawNow(furnaceWorld, pos.x, index, pos.z, cell, stateId, true);
@@ -530,9 +548,10 @@ public abstract class ChunkAccess implements BlockGetter {
 
     /** 블록 컨테이너 칸 쓰기(개수 그대로, 붙은 보기 self — 공급원 src). 옛 상태 번호. 그 사이 떼어 내졌으면 FURNACE_DETACHED. */
     int furnaceContainerSet(PalettedContainer<?> self, Object src, int index, int cell, int stateId) {
+        int o = furnaceMirror.overlayCellAt(index, cell);   // 덧칠을 판보다 먼저
         var v = furnaceForeignView("PalettedContainer#set");
         if (v != null) {
-            int old = foreignCellId(v, index, cell);
+            int old = foreignCellId(v, index, cell, o);
             return furnaceMirror.containerSet(self, src, index, cell, stateId) ? old : PalettedContainer.FURNACE_DETACHED;
         }
         furnaceMirror.ownerSync(index);
@@ -556,9 +575,10 @@ public abstract class ChunkAccess implements BlockGetter {
 
     /** 섹션 바이옴 칸 쓰기(칸 = y*16+z*4+x, 붙은 보기 self — 공급원 src). 옛 바이옴 번호. 그 사이 떼어 내졌으면 FURNACE_DETACHED. */
     int furnaceSetSectionBiome(PalettedContainer<?> self, Object src, int index, int cell, int biomeId) {
+        int[] over = furnaceMirror.biomeOverlaySnapshot(index);   // 덧칠을 판보다 먼저
         var v = furnaceForeignView("PalettedContainer#set (biomes)");
         if (v != null) {
-            int old = furnaceMirror.overlayBiomes(index, v.sectionBiomes(index))[cell];
+            int old = FurnaceChunkMirror.applyOverlay(v.sectionBiomes(index), over)[cell];
             return furnaceMirror.biomeSet(self, src, index, cell, biomeId) ? old : PalettedContainer.FURNACE_DETACHED;
         }
         furnaceMirror.ownerSync(index);

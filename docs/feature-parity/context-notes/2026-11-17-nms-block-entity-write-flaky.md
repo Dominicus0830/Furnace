@@ -13,7 +13,8 @@
 - 증상: `assertSame(be, c.getBlockEntity(p), "자기 만들기는 바로 보인다")` 에서 null(부하 4개, 600회 중 3회).
 - 원인: `ChunkAccess#furnaceBlockEntity`(과 `furnaceBlockEntityPositions`)가 다른 스레드에서 **공개 판 → 덧칠** 순서로 읽었다. 주인은 새 판을 낸 *뒤* 덧칠을 지운다. 그래서 (옛 판을 읽음 → 주인이 만들기를 재생·새 판 공개·덧칠 삭제 → 덧칠 없음) 틈에서 이 스레드가 방금 만든 블록 엔티티가 옛 판에도, 덧칠에도 없어 null 이 됐다.
 - 고침: 덧칠을 **먼저** 읽고 판을 그 다음에 읽는다. 덧칠이 이미 없다는 것은 그 덧칠이 든 새 판이 이미 공개됐다는 뜻이라, 그 뒤에 읽은 판에는 이 스레드의 쓰기가 들어 있다. 같은 시험 1500회(부하 4개) 실패 0.
-- 같은 순서(판 → 덧칠)가 `furnaceStateIdAt`·`foreignCellId`·`furnaceSectionStates` 등 블록·바이옴 덧칠 읽기에도 있다. 쓰기 직후 읽기 25,600번(부하 4개)으로는 어긋남을 못 봤다(틈이 매우 좁다). 재현이 없어 이번에는 건드리지 않았다 — 같은 원리라 낡은 값이 보이면 같은 방법(덧칠 먼저)으로 고친다.
+- 같은 순서(판 → 덧칠)가 블록·바이옴 덧칠 읽기·쓰기 옛 값 계산(`furnaceStateIdAt`·`foreignCellId`·`furnaceSectionStates`·`furnaceSectionBiomes`·`furnaceSectionIdsStamped`·`furnaceSectionData`·`furnaceSectionSet`·`furnaceContainerSet`·`furnaceSetSectionBiome`)에도 있어 모두 같은 방법(덧칠 먼저)으로 고쳤다. 쓰기 직후 읽기 25,600번(부하 4개)으로는 어긋남이 안 보였을 만큼 틈이 좁지만, 이음매로 결정적으로 만들면 블록 상태·바이옴 읽기도 옛 순서에서 깨진다.
+- 결정적 회귀 시험: `ChunkAccess.testAfterForeignView`(운영에서는 늘 null) 이음매가 다른 스레드가 판을 얻은 직후 주인을 틱 한 번 돌려(새 판 공개 + 덧칠 삭제) 틈을 만든다. 시험 `foreignBlockStateRead…`·`foreignBiomeRead…`·`foreignBlockEntityRead…`(NmsBlockEntityWriteTest) — 세 읽기를 옛 순서(판 → 덧칠)로 되돌리면 셋 다 실패한다.
 - 함정: "공개 판 + 덧칠" 두 곳을 합쳐 읽는 코드는 쓰는 쪽(주인)의 순서(판 공개 → 덧칠 삭제)와 **반대로** 읽어야 한다.
 
 ## 재현법
