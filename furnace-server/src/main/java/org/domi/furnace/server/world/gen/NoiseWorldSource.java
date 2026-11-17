@@ -90,7 +90,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
                               long seed, BlockRegistry reg, int biomeDirectBits, OverworldCarvers overworldCarvers,
                               FeaturePlacer featurePlacer, StructurePlacementCatalog structurePlacementCatalog,
                               org.domi.furnace.server.world.gen.structure.StructureEngine structureEngine,
-                              List<SpawnTarget> spawnTargets) {
+                              List<SpawnTarget> spawnTargets, ChunkPipeline poolFrom) {
         this.router             = router;
         this.settings           = settings;
         this.biomeSampler       = biomeSampler;
@@ -112,7 +112,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
             structureEngine.setPlacedFeatureSource(id -> featurePlacer.biomeData().placedFeatureById(id));
         }
         this.spawnTargets       = spawnTargets;
-        this.pipeline           = new ChunkPipeline(this);
+        this.pipeline           = new ChunkPipeline(this, poolFrom);
     }
 
     /**
@@ -245,6 +245,11 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
 
     private static NoiseWorldSource create(Dimension dim, String noiseSettingsId, long seed, BlockRegistry reg, RegistrySet registries, String fixedBiome,
                                            FlatSpec flat) {
+        return create(dim, noiseSettingsId, seed, reg, registries, fixedBiome, flat, null);
+    }
+
+    private static NoiseWorldSource create(Dimension dim, String noiseSettingsId, long seed, BlockRegistry reg, RegistrySet registries, String fixedBiome,
+                                           FlatSpec flat, ChunkPipeline poolFrom) {
         WorldgenData data = WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG);
         JsonObject settingsJson = data.noiseSettings(noiseSettingsId);
         NoiseSettings settings = NoiseSettings.fromJson(noiseSettingsId, settingsJson);
@@ -296,8 +301,11 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         NoiseWorldSource source = new NoiseWorldSource(router, settings, biomeSampler, surfaceSystem,
                                     registryBiomeNames, stoneId, waterId, lavaId,
                                     seed, reg, biomeDirectBits, overworldCarvers,
-                                    featurePlacer, structurePlacementCatalog, structureEngine, spawnTargets);
+                                    featurePlacer, structurePlacementCatalog, structureEngine, spawnTargets, poolFrom);
         source.worldgenData = data;
+        source.noiseSettingsId = noiseSettingsId;
+        source.registries = registries;
+        source.flatSpec = flat;
         source.dimension = dim;
         surfaceSystem.attachChunkBiomes(source.chunkBiomeSource(), dim.minY, dim.sectionCount * 16);
         source.flatLayers = flatLayers;
@@ -307,6 +315,23 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
     }
 
     private Dimension dimension = Dimension.OVERWORLD;
+    // 만든 설정(freshCopy 가 같은 것을 다시 만든다)
+    private String noiseSettingsId;
+    private RegistrySet registries;
+    private FlatSpec flatSpec;
+
+    /**
+     * 같은 설정·새 시드의 처음 상태 생성기(T-203 임시 월드). 시드에 매인 부분(노이즈 라우터·표면·지형지물·구조물 배치)은 새로 만들고,
+     * 생성 풀은 이 생성기 것을 같이 쓴다. 구조물 켬/끔과 플러그인 월드젠 훅(새 시드로)을 옮긴다.
+     */
+    @Override
+    public NoiseWorldSource freshCopy(long newSeed) {
+        NoiseWorldSource n = create(dimension, noiseSettingsId, newSeed, reg, registries, fixedBiomeName, flatSpec, pipeline);
+        n.structureEngine().setStructuresEnabled(structureEngine.structuresEnabled());
+        GenHooks h = genHooks;
+        if (h != null) n.generationHooks(h.reseeded(newSeed));
+        return n;
+    }
 
     // 최근 만든 청크의 바이옴 배열(sampleChunk 결과 사본) — 이웃 청크 표면 규칙이 바닐라처럼 "이웃 청크에 저장된 바이옴"을 읽을 때 쓴다.
     // 순수 함수 결과라 언제 비워도 되고, 없으면 그 quart 만 다시 검색한다(SurfaceSystem.storedBiome).
@@ -945,6 +970,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
     /** 월드 생성기에서 노이즈 생성기(디스크 래퍼면 그 안쪽). 없으면 null. */
     public static NoiseWorldSource of(WorldSource s) {
         if (s instanceof AnvilWorldSource a) s = a.base();
+        if (s instanceof ScratchWorldSource t) s = t.base();
         return s instanceof NoiseWorldSource n ? n : null;
     }
 

@@ -50,6 +50,22 @@ public final class SuperflatWorldSource implements WorldSource {
         this.directBits = reg.directBits();
     }
 
+    private SuperflatWorldSource(SuperflatWorldSource from, GenHooks hooks) {
+        this.column = from.column;   // 고치지 않는다
+        this.biomeId = from.biomeId;
+        this.minY = from.minY;
+        this.sectionCount = from.sectionCount;
+        this.directBits = from.directBits;
+        this.genHooks = hooks;
+    }
+
+    /** 층은 시드와 무관하다 — 훅만 새 시드로(T-203). */
+    @Override
+    public SuperflatWorldSource freshCopy(long seed) {
+        GenHooks h = genHooks;
+        return new SuperflatWorldSource(this, h == null ? null : h.reseeded(seed));
+    }
+
     /** 플러그인 월드젠 단계 훅(W3). 평지·빈 월드는 NOISE(층 쌓기)만 바닐라가 있고, 장식 훅은 그 청크 안에만 쓸 수 있다. */
     private volatile GenHooks genHooks;
 
