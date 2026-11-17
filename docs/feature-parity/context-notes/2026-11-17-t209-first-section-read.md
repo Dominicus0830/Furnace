@@ -26,7 +26,7 @@ FAWE 가 편집 범위를 읽을 때 섹션마다 내던 시간(섹션 1만 개�
    비트 수가 그 전략의 바닐라 설정과 맞지 않으면(서버 설정이 바뀌지 않는 한 오지 않음) 예전처럼 디스크 배치로 만든다.
 2. **내용 판이 그대로면 칸을 읽지 않는다.** 공급원이 판 번호를 먼저 보고 앞서 만든 판과 같으면 내용 없이 돌아온다(`FurnaceSource.contentStamped(stamp, known)`).
    판정은 예전처럼 거울 잠금 아래에서 다시 한다 — 힌트를 읽은 뒤 기준이 바뀌었으면 한 번 더 돈다.
-3. **덧칠이 없으면 사본·비교를 하지 않는다**(`FurnaceChunkMirror.hasOverlay`). 덧칠이 있으면 예전 길 그대로(판 번호 MIN).
+3. **그 섹션에 덧칠이 없으면 사본·비교를 하지 않는다**(`FurnaceChunkMirror.cellOverlaySnapshot` 이 null — #485 처럼 판보다 먼저 본다). 덧칠이 있으면 예전 길 그대로(판 번호 MIN).
 4. 펼친 배열로 가는 길(스냅샷이 scratch 사본·자기 쓰기 덧칠·바이옴)은 디스크 배치를 그대로 내되 색인을 박싱 없는 표(`FirstSeenScratch` — 번호로 바로 찾는 표 +
    세대 번호)로 매긴다. 결과는 옛 HashMap 판과 설정·팔레트 항목·묶인 배열까지 같다(`FurnaceDataLayoutTest.blockLayoutMatchesReference`).
 

@@ -112,6 +112,41 @@ public class ServerChunkCache extends ChunkSource {
     @Override
     public int getLoadedChunksCount() { return level.getWorld().furnaceHandle().loadedChunkCount(); }
 
+    private volatile net.minecraft.world.level.chunk.ChunkGenerator generator;
+    private final net.minecraft.world.level.storage.DimensionDataStorage dataStorage = new net.minecraft.world.level.storage.DimensionDataStorage();
+
+    /** 바닐라 getGenerator: 이 월드의 생성기 손잡이(같은 월드는 같은 객체, T-203). */
+    public net.minecraft.world.level.chunk.ChunkGenerator getGenerator() {
+        var g = generator;
+        if (g == null) {
+            synchronized (this) {
+                g = generator;
+                if (g == null) generator = g = net.minecraft.world.level.chunk.ChunkGenerator.of(level.getWorld().furnaceHandle());
+            }
+        }
+        return g;
+    }
+
+    /** 바닐라 getDataStorage(T-203 — {@link net.minecraft.world.level.storage.DimensionDataStorage} 설명: 표는 늘 비어 있다). */
+    public net.minecraft.world.level.storage.DimensionDataStorage getDataStorage() { return dataStorage; }
+
+    /**
+     * 바닐라 pollTask: 주 스레드가 청크 작업 하나를 돌렸으면 참. Furnace 의 청크 작업은 region·생성 스레드가 돌리고 주 스레드가 대신 돌려 줄 것이 없다 — 늘 거짓
+     * (FAWE {@code //regen} 은 거짓이면 그 틱의 펌프를 멈춘다).
+     */
+    public boolean pollTask() { return false; }
+
+    /**
+     * 바닐라 close(save): 청크 공급원을 닫는다. 플러그인이 만든 따로 떨어진 레벨(임시 월드, T-203)이면 그 월드를 버린다(save 와 무관하게 저장하지 않는다 —
+     * 그 레벨은 저장하지 않는다). 서버 월드는 이 길로 닫지 않는다(월드 내리기는 Bukkit unloadWorld).
+     */
+    public void close(boolean save) {
+        if (!level.furnaceScratch()) {
+            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("ServerChunkCache#close", "server worlds are unloaded with Bukkit#unloadWorld, not by closing their chunk source");
+        }
+        level.furnaceCloseScratch();
+    }
+
     @Override
     public String toString() { return "ServerChunkCache: " + getLoadedChunksCount(); }
 }

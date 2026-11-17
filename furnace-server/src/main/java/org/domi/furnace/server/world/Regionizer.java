@@ -389,6 +389,37 @@ public final class Regionizer {
 
     // ------------------------------------------------------------------ 작업 보내기
 
+    /**
+     * 결과를 기다리는 쪽이 있는 작업(World#submitAtChunk 등). region 이 닫혀 돌지 못한 채 버려지면 {@link #reject} 로 그 쪽에 알린다 —
+     * 닫힌 월드(임시 월드 등)의 작업을 기다리다 영영 멈추지 않게.
+     */
+    interface Rejectable {
+        void reject(Throwable why);
+    }
+
+    /** 닫는 중(route 쓰기 잠금 안에서 선다): 이 뒤로 큐에 넣으려는 작업은 넣지 않고 거절한다. */
+    private volatile boolean closing;
+
+    /**
+     * 돌 곳이 없는 작업의 거절을 알린다. 이 차원 잠금을 쥔 채면(닫힌 뒤 합치기·나누기의 작업 옮기기, 틱 끝 정리) 다른 스레드에서 알린다 —
+     * 미래에 걸린 후속 작업(플러그인 thenRun 등)이 잠금을 쥔 채 돌지 않게.
+     */
+    private void rejectDropped(java.util.function.Consumer<Region> task) {
+        if (!(task instanceof Rejectable r)) return;
+        var why = new java.util.concurrent.RejectedExecutionException("the world was closed");
+        if (lock.isHeldByCurrentThread() || route.isWriteLockedByCurrentThread() || route.getReadHoldCount() > 0) {
+            java.util.concurrent.ForkJoinPool.commonPool().execute(() -> r.reject(why));
+        } else {
+            r.reject(why);
+        }
+    }
+
+    /** 닫힌 뒤 틱(차례)을 마친 region 의 지연 작업을 거절한다(잠금 안 — 알림은 다른 스레드에서). */
+    private void dropDelayedIfClosing(Region r) {
+        if (!closing) return;
+        for (var t : r.takeDelayedAfterClose()) rejectDropped(t);
+    }
+
     /** 그 청크의 주인 region 큐에 작업을 넣는다. 구역이 없으면 만든다. */
     void enqueue(long chunkKey, java.util.function.Consumer<Region> task) {
         boolean command = CommandDrainGate.inScope();
@@ -401,6 +432,10 @@ public final class Regionizer {
         int cx = chunkX(chunkKey), cz = chunkZ(chunkKey);
         Region r;
         while ((r = offer(cx, cz, t)) == null) {
+            if (closing) {   // 닫힌 뒤 — 넣지 않는다(구역도 만들지 않는다)
+                rejectDropped(task);
+                return;
+            }
             // 구역이 없거나 주인이 없어졌다 — 잠금 안에서 구역을 만들고(읽기 잠금은 놓은 채) 다시 넣는다
             lock.lock();
             try {
@@ -417,7 +452,10 @@ public final class Regionizer {
         boolean command = CommandDrainGate.inScope();
         boolean urgent = org.domi.furnace.server.sched.GlobalThread.isGlobalThread() || command;
         Region r = offer(chunkX(chunkKey), chunkZ(chunkKey), new Region.Task(chunkKey, task, urgent, command));
-        if (r == null) return false;
+        if (r == null) {
+            if (closing) rejectDropped(task);
+            return false;
+        }
         if (urgent) urgentArrived(r, command);
         return true;
     }
@@ -430,6 +468,7 @@ public final class Regionizer {
         var rl = route.readLock();
         rl.lock();
         try {
+            if (closing) return null;
             Region r = ownerOf(cx, cz);
             if (r == null || !r.alive) return null;
             r.inbox.add(t);
@@ -543,6 +582,7 @@ public final class Regionizer {
             running.remove(r);
             r.drainPass = false;
             PENDING_DRAINS.decrementAndGet();
+            dropDelayedIfClosing(r);
             r.nextTickNanos = r.savedNextTickNanos;
             resolveMerges(r);   // 이 차례 동안 양보하고 기다리는 상대가 있으면 흡수(틱 뒤와 같다)
             if (r.alive && !r.yielded) schedule(r);
@@ -763,6 +803,7 @@ public final class Regionizer {
             r.ticking = false;
             r.tickThread = null;
             running.remove(r);
+            dropDelayedIfClosing(r);
             afterTick(r);
             // 틱 중에 들어온 급한 작업(다른 region 의 명령 블록이 기다린다)은 다음 틱까지 미루지 않는다
             if (r.alive && r.drainWanted()) urgentArrived(r, true);
@@ -1312,6 +1353,7 @@ public final class Regionizer {
             r.borrowed = false;
             r.ticking = false;
             r.tickThread = null;
+            dropDelayedIfClosing(r);
             resolveMerges(r);
             if (r.alive && !r.yielded) schedule(r);
             if (r.alive && r.drainWanted()) urgentArrived(r, true);
@@ -1602,5 +1644,30 @@ public final class Regionizer {
         LIVE.remove(this);
         pool.unregister(this);   // 잠금을 놓은 뒤(R1)
         if (ownsPool) pool.close();
+        // 큐에 남은 작업은 이제 돌 곳이 없다 — 기다리는 쪽에 거절을 알린다(쓰기 잠금: 이 뒤로 넣는 작업은 offer 가 막는다).
+        // 틱 중이 아닌 region 의 지연 작업도 같다(틱 중인 region 은 그 틱을 마칠 때 dropDelayedIfClosing 이 한다).
+        List<java.util.function.Consumer<Region>> dropped = new ArrayList<>();
+        var wl = route.writeLock();
+        lock.lock();   // regions 는 lock 이 지킨다(순서: lock → route, 합치기와 같다)
+        wl.lock();
+        try {
+            closing = true;
+            for (Region r : regions) {
+                Region.Task t;
+                while ((t = r.inbox.poll()) != null) dropped.add(t.run());
+                if (!r.ticking) {
+                    dropped.addAll(r.takeDelayedAfterClose());
+                    // 돌지 못할 drain 차례는 전역 수에서 되돌린다(kill 과 같다 — 남기면 helpDrainAny 가 헛걸음한다)
+                    if (r.drainPass) {
+                        r.drainPass = false;
+                        PENDING_DRAINS.decrementAndGet();
+                    }
+                }
+            }
+        } finally {
+            wl.unlock();
+            lock.unlock();
+        }
+        for (var t : dropped) rejectDropped(t);
     }
 }

@@ -11,11 +11,26 @@ public final class CraftChunk implements Chunk {
 
     private final String dimension;
     private final int x, z;
+    /** 따로 떨어진 레벨(T-203 임시 월드)의 청크면 그 월드 — 닫힌 뒤에도 getWorld 가 그 월드다(Paper CraftChunk 는 레벨을 쥔다). 보통 월드는 null. */
+    private final CraftWorld pinned;
 
     public CraftChunk(String dimension, int x, int z) {
         this.dimension = dimension;
         this.x = x;
         this.z = z;
+        this.pinned = null;
+    }
+
+    /** 호환 모듈 전용: 그 월드를 쥔 청크(임시 월드). */
+    public CraftChunk(CraftWorld world, int x, int z) {
+        this.dimension = world.furnaceHandle().dimension();
+        this.x = x;
+        this.z = z;
+        this.pinned = world;
+    }
+
+    private org.domi.furnace.api.world.World furnace() {
+        return pinned != null ? pinned.furnaceHandle() : Compat.furnaceWorld(dimension);
     }
 
     @Override
@@ -25,10 +40,10 @@ public final class CraftChunk implements Chunk {
     public int getZ() { return z; }
 
     @Override
-    public World getWorld() { return Compat.world(dimension); }
+    public World getWorld() { return pinned != null ? pinned : Compat.world(dimension); }
 
     @Override
-    public boolean isLoaded() { return Compat.furnace().world(dimension).isChunkLoaded(x, z); }
+    public boolean isLoaded() { return furnace().isChunkLoaded(x, z); }
 
     @Override
     public boolean load(boolean generate) { return isLoaded(); }
@@ -38,7 +53,7 @@ public final class CraftChunk implements Chunk {
 
     @Override
     public org.bukkit.entity.Entity[] getEntities() {
-        var w = Compat.furnace().world(dimension);
+        var w = furnace();
         if (!w.isChunkLoaded(x, z)) return new org.bukkit.entity.Entity[0];
         java.util.List<org.bukkit.entity.Entity> out = new java.util.ArrayList<>();
         for (var e : w.entitiesInChunkNow(x, z)) out.add(Compat.entity(e));

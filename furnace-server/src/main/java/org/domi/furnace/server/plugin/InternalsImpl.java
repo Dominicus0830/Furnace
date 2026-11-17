@@ -209,11 +209,20 @@ public final class InternalsImpl implements Internals {
     @Override
     public org.domi.furnace.api.internal.BlockStateInternals blockStates() { return blockStates; }
 
+    private final ScratchWorldsImpl scratchWorlds = new ScratchWorldsImpl(this::hostRef);
+
+    private PluginHost hostRef() { return host; }
+
+    @Override
+    public org.domi.furnace.api.internal.ScratchWorlds scratchWorlds() { return scratchWorlds; }
+
     @Override
     public org.domi.furnace.api.world.World wrapWorld(Object internalWorld) {
         if (internalWorld instanceof World w) {
             WorldHandle h = host.worldHandle(w.dimension());
             if (h != null && h.handle() == w) return h;
+            h = scratchWorlds.handleOf(w);
+            if (h != null) return h;
         }
         throw new IllegalArgumentException("not a world of this server: " + (internalWorld == null ? "null" : internalWorld.getClass().getName()));
     }

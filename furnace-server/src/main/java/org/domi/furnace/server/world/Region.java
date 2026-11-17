@@ -433,6 +433,17 @@ public final class Region {
         }
     }
 
+    /**
+     * 닫힌 차원(Regionizer#close): 다시 돌 일이 없는 지연 작업을 꺼내 비운다. 이 region 이 틱 중이 아닐 때 Regionizer 잠금 안에서만 부른다
+     * (그때는 이 region 스레드가 지연 목록을 만지지 않는다).
+     */
+    List<Consumer<Region>> takeDelayedAfterClose() {
+        List<Consumer<Region>> out = new ArrayList<>(delayed.size());
+        for (Delayed d : delayed) out.add(d.run());
+        delayed.clear();
+        return out;
+    }
+
     /** 이 region 스레드에서: delay 틱 뒤 그 청크 주인에게서 실행(합치기·나누기 때 남은 틱을 지키며 따라간다). */
     void schedule(long chunkKey, Consumer<Region> task, long delay) {
         delayed.add(new Delayed(tickCount + Math.max(0, delay), chunkKey, task));
@@ -682,6 +693,8 @@ public final class Region {
             }
             return inflight;
         }
+        // 닫힌 월드(닫는 순간 돌던 작업이 부른 경우): 생성하지 않고 곧바로 끝낸다
+        if (world.isUnloaded()) return CompletableFuture.failedFuture(new java.util.concurrent.CancellationException("the world was closed"));
         claim(cp);
         final GenQueue.Ticket ticket = background ? GenQueue.Ticket.forBackground() : new GenQueue.Ticket(prefetch, keepAlive, owner);
         world.putGenTicket(key, ticket);
@@ -733,13 +746,30 @@ public final class Region {
         CompletableFuture<ChunkColumn> f = new CompletableFuture<>();
         world.putLoading(key, f);
         // 완료는 그때의 주인 region 에서(그 사이 합쳐지거나 나뉘었을 수 있다). 실패해도 진행 중 표시는 반드시 지운다.
-        sourceFuture.whenComplete((col, err) -> world.runAtChunk(cp, r -> {
-            world.removeGenTicket(key, ticket);   // loading 과 같은 region 스레드에서(고정·취소 판단이 엇갈리지 않게)
-            long ti = ChunkTrace.ON ? System.nanoTime() : 0L;
-            if (ChunkTrace.ON && traceSrc[1] != 0L) ChunkTrace.nanos("hop.load", ti - traceSrc[1]);
-            r.finishLoad(cp, key, col, err, f);
-            if (ChunkTrace.ON) ChunkTrace.nanos("install", System.nanoTime() - ti);
-        }));
+        // 설치 작업은 월드가 닫혀 돌 수 없으면 거절로 끝난다(Regionizer.Rejectable) — 진행 중 표시를 지우고 기다리는 쪽을 놓아 준다
+        final class Install implements java.util.function.Consumer<Region>, Regionizer.Rejectable {
+            private final ChunkColumn col;
+            private final Throwable err;
+
+            Install(ChunkColumn col, Throwable err) { this.col = col; this.err = err; }
+
+            @Override
+            public void accept(Region r) {
+                world.removeGenTicket(key, ticket);   // loading 과 같은 region 스레드에서(고정·취소 판단이 엇갈리지 않게)
+                long ti = ChunkTrace.ON ? System.nanoTime() : 0L;
+                if (ChunkTrace.ON && traceSrc[1] != 0L) ChunkTrace.nanos("hop.load", ti - traceSrc[1]);
+                r.finishLoad(cp, key, col, err, f);
+                if (ChunkTrace.ON) ChunkTrace.nanos("install", System.nanoTime() - ti);
+            }
+
+            @Override
+            public void reject(Throwable why) {
+                world.removeGenTicket(key, ticket);
+                world.removeLoading(key, f);
+                f.completeExceptionally(why);
+            }
+        }
+        sourceFuture.whenComplete((col, err) -> world.runAtChunk(cp, new Install(col, err)));
         return f;
     }
 

@@ -28,3 +28,10 @@ Furnace 쪽 FAWE 어댑터 실패 원인을 보려면 서버 JVM 에 `-Dworldedi
 1. `python -X utf8 scenario_t204.py paper paper-t204 25565`, `python -X utf8 scenario_t204.py furnace furnace-t204 25567`
 2. `python -X utf8 ../anvil-diff.py runs/paper-t204/world runs/furnace-t204/world --chunks -8 -8 7 7 --ignore sectionKeys` — 블록 0차이가 수용 조건.
 3. 각 `runs/*/console.log` 에서 `MARK F5`·`F6`·`F7`·`N1` 사이 예외 줄과 FAWE 응답을 비교한다.
+
+## T-203 `//regen` 장면
+
+`scenario_t203.py` — 기준 월드 가운데를 돌로 채운 뒤 R1 `//regen`(같은 시드)·R2 `//regen 12345`·R3 `//regen -b 777`·R4 `//regen 999 desert`·R5 `//regen -b 20261115 snowy_plains`. 결과 문서 `docs/feature-parity/compat-nms-t203-regen-paper-2026-11-17.md`.
+
+1. `python -X utf8 scenario_t203.py paper paper-t203 25565`, `python -X utf8 scenario_t203.py furnace furnace-t203 25567` — 서버마다 두 번(이름만 바꿔) 돌리면 실행 사이 차이(장식 겹침 순서)를 같이 잴 수 있다.
+2. `python -X utf8 ../anvil-diff.py runs/paper-t203/world runs/furnace-t203/world --chunks -8 -8 7 7 --ignore sectionKeys,light,top` — 바이옴 0차이, 블록은 Paper 끼리의 차이와 같은 꼴(청크 경계 장식 겹침)이 수용 조건.

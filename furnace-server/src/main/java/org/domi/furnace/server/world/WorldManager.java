@@ -146,6 +146,52 @@ public final class WorldManager {
         return new Built(w, List.of(store, ents, pois));
     }
 
+    // ------------------------------------------------------------------ 임시 월드(T-203)
+
+    private final java.util.concurrent.atomic.AtomicLong scratchIds = new java.util.concurrent.atomic.AtomicLong();
+
+    /**
+     * 임시 월드(T-203 — Paper 플러그인이 {@code new ServerLevel(…)} 로 만드는 따로 떨어진 레벨, FAWE {@code //regen}): original 과 같은 차원 타입·생성 설정에
+     * 시드만 seed 인 <b>처음 상태의</b> 생성기로 청크를 만든다. 디스크에 쓰지 않고(Anvil 원천 없음), 게임 틱을 켜지 않으며(region 은 작업 큐·청크 로드·
+     * 공개 스냅샷만 — 무작위·예약 틱·엔티티가 돌지 않는다, Paper 의 임시 레벨도 {@code MinecraftServer#levels} 에 없어 틱을 돌지 않는다),
+     * {@link Dimensions} 에 넣지 않는다(접속자·명령·포털·월드 목록에 안 보인다). 레벨 서비스를 붙이지 않아 플러그인 이벤트도 없다(결정 D1).
+     * 레벨 키는 겹치지 않는 {@code furnace:scratch/<n>}, 이름은 name. 아무 스레드 — 디스크·잠금이 없어 그 자리에서 끝난다. 다 쓰면 {@link #closeScratch}.
+     */
+    public World createScratch(World original, long seed, String name) { return createScratch(original, seed, name, null); }
+
+    /** {@link #createScratch(World, long, String)} 에 바이옴을 biomes 가 정하는 것(null 이면 원래 생성기의 바이옴 원천). 노이즈 생성기만. */
+    public World createScratch(World original, long seed, String name, org.domi.furnace.api.worldgen.BiomeProvider biomes) {
+        if (original == null || original.isUnloaded()) throw new IllegalArgumentException("the original world is not loaded");
+        WorldSource os = original.worldSource();
+        if (os instanceof AnvilWorldSource a) os = a.base();
+        else if (os instanceof org.domi.furnace.server.world.gen.ScratchWorldSource t) os = t.base();
+        WorldSource gen = new org.domi.furnace.server.world.gen.ScratchWorldSource(os.freshCopy(seed, biomes));   // 못 하는 생성기면 UnsupportedOperationException
+        DimensionType ot = original.dimensionType();
+        DimensionType type = ot.forLevel("furnace:scratch/" + scratchIds.incrementAndGet(), ot.gen());
+        Config c = parts.config();
+        World w = parts.regionPool() != null
+                ? new World(type, gen, parts.chunkPool(), parts.scheduler(), parts.regionPool(), c.regionSectionShift(), c.regionMergeRadius(),
+                        c.viewDistance(), c.entityViewDistance(), parts.blocks().directBits(), parts.biomeDirectBits(), parts.ioPool(), parts.genPool())
+                : new World(type, gen, parts.chunkPool(), parts.scheduler(), c.regionThreads(), c.regionSectionShift(), c.regionMergeRadius(),
+                        c.viewDistance(), c.entityViewDistance(), parts.blocks().directBits(), parts.biomeDirectBits(), parts.ioPool(), parts.genPool());
+        w.markScratch(name);
+        w.levelKind(original.isFlatLevel(), original.isDebugLevel());
+        w.seed(seed);
+        w.generatesStructures(original.generatesStructures());
+        w.setRegistries(parts.blocks(), parts.items());
+        w.defaultSpawn(original.defaultSpawn());
+        // 접속자 목록·시계·엔티티 id 는 나누지 않는다 — 틱이 없어 쓰지 않고, 생성 때 생긴 엔티티(버려진다)가 서버 쪽 목록에 닿지 않게
+        return w;
+    }
+
+    /** 임시 월드를 버린다(아무 스레드, 두 번 불러도 된다): 생성 대기열에서 떼고 region 을 닫는다. 청크는 저장하지 않는다. */
+    public void closeScratch(World w) {
+        if (w == null || !w.isScratch() || w.isUnloaded()) return;
+        if (w.genQueue() != null) w.genQueue().removeWorld(w);
+        w.closeForUnload();
+        w.discardAfterClose();   // 진행 중 생성 결과는 닫힌 region 에 못 들어간다 — 기다리는 쪽을 풀고 청크를 놓는다(#486 검토 3)
+    }
+
     // ------------------------------------------------------------------ 만들기
 
     /** 올라와 있는 추가 월드(이름순 아님, 올린 순서는 Dimensions). */

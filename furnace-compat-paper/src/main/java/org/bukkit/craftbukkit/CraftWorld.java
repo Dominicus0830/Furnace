@@ -52,8 +52,23 @@ public final class CraftWorld implements World {
         return l;
     }
 
+    /** 플러그인이 만든 따로 떨어진 레벨(T-203 임시 월드)이면 그 레벨 — 이름은 그 레벨 데이터를 따른다(Paper 와 같다, {@code checkName}). */
+    private volatile ServerLevel scratchLevel;
+
+    /** 호환 모듈 전용: 임시 월드의 CraftWorld 를 그것을 만든 ServerLevel(플러그인의 하위 클래스일 수 있다)에 묶는다. 한 번만. */
+    public void bindScratch(ServerLevel level) {
+        synchronized (this) {
+            if (nms != null) throw new IllegalStateException("this world already has a level");
+            nms = level;
+            scratchLevel = level;
+        }
+    }
+
     @Override
-    public String getName() { return handle.name(); }
+    public String getName() {
+        ServerLevel s = scratchLevel;
+        return s != null ? s.serverLevelData.getLevelName() : handle.name();
+    }
 
     @Override
     public UUID getUID() { return UUID.nameUUIDFromBytes(("furnace-world:" + handle.dimension()).getBytes(StandardCharsets.UTF_8)); }
@@ -89,7 +104,7 @@ public final class CraftWorld implements World {
     public Block getBlockAt(int x, int y, int z) { return new CompatBlock(handle.dimension(), new BlockPos(x, y, z)); }
 
     @Override
-    public Chunk getChunkAt(int x, int z) { return new CraftChunk(handle.dimension(), x, z); }
+    public Chunk getChunkAt(int x, int z) { return scratchLevel != null ? new CraftChunk(this, x, z) : new CraftChunk(handle.dimension(), x, z); }
 
     @Override
     public org.bukkit.entity.Entity spawnEntity(org.bukkit.Location loc, org.bukkit.entity.EntityType type) {

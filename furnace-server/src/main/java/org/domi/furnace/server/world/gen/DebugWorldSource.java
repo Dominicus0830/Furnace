@@ -67,6 +67,13 @@ public final class DebugWorldSource implements WorldSource {
         return air;
     }
 
+    /** 모든 상태를 격자로 늘어놓을 뿐 시드·상태가 없다(T-203). */
+    @Override
+    public DebugWorldSource freshCopy(long seed) { return this; }
+
+    @Override
+    public int noiseBiome(int quartX, int quartY, int quartZ) { return biomeId; }
+
     @Override
     public ChunkColumn generate(int chunkX, int chunkZ) {
         int[] blocks = new int[sectionCount * 4096];
