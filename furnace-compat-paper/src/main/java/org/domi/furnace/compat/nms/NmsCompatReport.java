@@ -200,6 +200,14 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
      * 2단계 — 읽은 결과를 센다. {@code spigot} 이 있고 jar 가 Spigot 이름이면 변환기와 같은 이름 바꾸기를 먼저 건 뒤 센다.
      */
     public static NmsCompatReport analyze(String plugin, Read read, NmsSymbols index, SpigotMappings spigot) {
+        return analyze(plugin, read, index, spigot, null);
+    }
+
+    /**
+     * {@link #analyze(String, Read, NmsSymbols, SpigotMappings)} 와 같되 shim 에 없는 심볼마다 {@code sink} 가 {@code {종류, 소유 클래스(내부 이름), 이름, 서술자}} 를
+     * 받는다(종류 C=클래스, F=필드, M=메서드·생성자, X=상속 거부: 이름=상속한 클래스, 서술자=상위 클래스). 점검 도구(NmsShimAudit)용 — 서버는 쓰지 않는다.
+     */
+    public static NmsCompatReport analyze(String plugin, Read read, NmsSymbols index, SpigotMappings spigot, java.util.function.Consumer<String[]> sink) {
         Set<String> own = read.own();
         List<byte[]> candidates = read.candidates();
         String namespace = read.namespace();
@@ -228,7 +236,7 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
         };
         for (byte[] b : candidates) {
             try {
-                new ClassReader(b).accept(new ClassRemapper(new Collector(index, own, seen, missing, counts), suffix),
+                new ClassReader(b).accept(new ClassRemapper(new Collector(index, own, seen, missing, counts, sink), suffix),
                         ClassReader.SKIP_FRAMES | ClassReader.SKIP_DEBUG);
             } catch (RuntimeException ignored) {
                 // 읽지 못하는 클래스 — 보고에서 뺀다
@@ -269,11 +277,13 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
         private final Set<String> seen;
         private final Set<String> missing;
         private final int[] counts;
+        private final java.util.function.Consumer<String[]> sink;   // 점검 도구용(null 이면 안 쓴다)
 
         private boolean skip;   // 다른 버전용 모듈 클래스
 
-        Collector(NmsSymbols index, Set<String> own, Set<String> seen, Set<String> missing, int[] counts) {
+        Collector(NmsSymbols index, Set<String> own, Set<String> seen, Set<String> missing, int[] counts, java.util.function.Consumer<String[]> sink) {
             super(Opcodes.ASM9);
+            this.sink = sink;
             this.index = index;
             this.own = own;
             this.seen = seen;
@@ -297,7 +307,10 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
             String e = NmsSymbols.element(internalName);
             if (!seen.add("C " + e)) return;
             if (index.hasClass(e)) counts[0]++;
-            else miss(e, NmsLinker.dots(e), false);
+            else {
+                if (sink != null) sink.accept(new String[] {"C", e, "", ""});
+                miss(e, NmsLinker.dots(e), false);
+            }
         }
 
         private void member(String owner, String name, String desc, boolean field) {
@@ -315,6 +328,7 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
                 miss(owner, CompatLang.t("nms.report.packet-ctor", NmsLinker.dots(owner), Type.getArgumentTypes(desc).length), false);
                 return;
             }
+            if (!ok && sink != null) sink.accept(new String[] {field ? "F" : "M", owner, name, desc});
             if (ok) counts[0]++;
             else miss(owner, NmsLinker.dots(owner) + "#" + name + (field ? "" : "(" + Type.getArgumentTypes(desc).length + ")"),
                     name.length() <= 2 && !name.equals("<init>"));
@@ -351,6 +365,7 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
             if (superName != null && superName.startsWith("net/minecraft/") && !own.contains(superName) && !otherVersion(superName)
                     && index.hasClass(superName) && !NmsLinker.inheritable(index, superName)) {
                 if (seen.add("S " + name)) {
+                    if (sink != null) sink.accept(new String[] {"X", name, name, superName});
                     counts[1]++;
                     missing.add(CompatLang.t("nms.report.extends", NmsLinker.dots(name), NmsLinker.dots(superName)));
                 }

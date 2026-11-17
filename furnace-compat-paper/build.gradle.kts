@@ -234,6 +234,27 @@ tasks.register<JavaExec>("compatReport") {
     jvmArgumentProviders.add(RealWorldJars(realWorld + extraJars))
 }
 
+// 2026-11-17: NMS shim 점검 — 실제 플러그인 jar 가 부르는 NMS 심볼 중 shim 에 없는 것을 종류별(서명 다름·진짜 없음·Paper 에도 없음)로 가르고 몇 개 플러그인이
+// 만나는지 센다. jar 는 저장소에 넣지 않는다: -PauditJars=<폴더 또는 jar 경로, 경로 구분자로 여러 개>. 결과 build/nms-shim-audit.md · .tsv (docs/feature-parity/compat-nms-shim-audit-2026-11-17.md)
+val auditJars: FileCollection = providers.gradleProperty("auditJars").map { v ->
+    files(v.split(File.pathSeparator).filter { it.isNotBlank() }.map { p ->
+        val f = file(p)
+        if (f.isDirectory) fileTree(f) { include("**/*.jar") } else f
+    })
+}.orElse(files()).get()
+tasks.register<JavaExec>("nmsShimAudit") {
+    group = "verification"
+    description = "실제 jar 가 부르는 NMS 심볼 중 shim 에 없는 것을 종류별로 센다(-PauditJars=<jar 폴더>)"
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("org.domi.furnace.compat.realworld.NmsShimAudit")
+    jvmArgs("-Dstdout.encoding=UTF-8")
+    args(layout.buildDirectory.file("nms-shim-audit.md").get().asFile.absolutePath, layout.buildDirectory.file("nms-shim-audit.tsv").get().asFile.absolutePath)
+    jvmArgumentProviders.add(RealWorldJars(auditJars))
+    // -PpaperJar=<versions/1.21.1/paper-1.21.1.jar> 를 주면 Paper 의 NMS 클래스 전수와 shim 을 서술자까지 견주는 절이 더해진다(jar 는 읽기만 한다)
+    providers.gradleProperty("paperJar").orNull?.let { systemProperty("furnace.audit.paperJar", it) }
+    doFirst { layout.buildDirectory.get().asFile.mkdirs() }
+}
+
 // 개발용: 실제 플러그인 jar 하나를 헤드리스 서버에 올려 결과를 본다 (-Pjar=<jar 이름 접두>, 추가 jar 는 -PextraJars)
 tasks.register<JavaExec>("liveProbe") {
     group = "verification"
