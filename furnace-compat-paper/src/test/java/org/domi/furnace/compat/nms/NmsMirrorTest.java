@@ -120,6 +120,13 @@ class NmsMirrorTest {
                 public static LevelChunkSection exchangeTyped(LevelChunk chunk, int index, LevelChunkSection expected, LevelChunkSection fresh) {
                     return (LevelChunkSection) TYPED.compareAndExchange(chunk.getSections(), index, expected, fresh);
                 }
+                @SuppressWarnings("unchecked")
+                public static int[] dataStates(PalettedContainer<BlockState> c) throws IllegalAccessException {
+                    PalettedContainer.Data<BlockState> d = (PalettedContainer.Data<BlockState>) DATA.get(c);
+                    int[] out = new int[4096];
+                    for (int i = 0; i < 4096; i++) out[i] = net.minecraft.world.level.block.Block.getId(d.palette().valueFor(d.storage().get(i)));
+                    return out;
+                }
                 public static void setBiomes(LevelChunkSection s, PalettedContainerRO<?> biomes) throws IllegalAccessException {
                     BIOMES.set(s, biomes);
                 }
@@ -510,6 +517,59 @@ class NmsMirrorTest {
         }
         server.tick(1);
         assertArrayEquals(before, countFields(sec));
+    }
+
+    /**
+     * FAWE GET 첫 읽기 꼴(PaperweightGetBlocks.update — 섹션 배열 사본 → getStates → data 리플렉션 → 저장소·팔레트): 주인이 아닌 여러 스레드가 서버가 막 바꾼
+     * 섹션의 data 를 동시에 처음 읽어도 모두 그 판 내용 그대로다(찢김·낡은 판 없음). T-204 후속(//fixblocks 뒤 레드스톤 한 칸이 실행마다 갈림)에서 Furnace 쪽
+     * 읽기를 원인에서 뺀 시험 — 원인은 FAWE CharBlocks 의 겹친 첫 읽기가 배열을 제자리에서 다시 채우는 경쟁이다(context-notes 2026-11-17-t204-redstone-flaky).
+     */
+    @Test
+    void concurrentFirstDataReadsAgree() throws Exception {
+        int qx = cx - 1, qz = cz + 1, si = 18, threads = 6, rounds = 30;
+        LevelChunk c = level.getChunk(qx, qz);
+        int y0 = level.getMinBuildHeight() + si * 16;
+        BlockState[] mix = {Blocks.AIR.defaultBlockState(), Blocks.STONE.defaultBlockState(), Blocks.REDSTONE_WIRE.defaultBlockState(),
+            Blocks.OAK_STAIRS.defaultBlockState(), Blocks.REDSTONE_BLOCK.defaultBlockState(), Blocks.GLASS_PANE.defaultBlockState()};
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(threads);
+        try {
+            for (int r = 0; r < rounds; r++) {
+                int rr = r;
+                int[] expected = on(qx, qz, () -> {
+                    var rnd = new java.util.Random(rr);
+                    for (int k = 0; k < 600; k++) {
+                        int cell = rnd.nextInt(4096);
+                        level.setBlock(new BlockPos(qx * 16 + (cell & 15), y0 + (cell >> 8), qz * 16 + ((cell >> 4) & 15)), mix[rnd.nextInt(mix.length)], 2 | 16);
+                    }
+                    int[] e = new int[4096];
+                    for (int cell = 0; cell < 4096; cell++) {
+                        e[cell] = level.getBlockState(new BlockPos(qx * 16 + (cell & 15), y0 + (cell >> 8), qz * 16 + ((cell >> 4) & 15))).furnaceStateId();
+                    }
+                    return e;
+                });
+                server.tick(1);   // 공개
+                var go = new java.util.concurrent.CountDownLatch(1);
+                List<java.util.concurrent.Future<int[]>> fs = new ArrayList<>();
+                for (int t = 0; t < threads; t++) {
+                    fs.add(pool.submit(() -> {
+                        go.await();
+                        LevelChunkSection[] secs = c.getSections().clone();
+                        return (int[]) call("dataStates", secs[si].getStates());
+                    }));
+                }
+                go.countDown();
+                for (int t = 0; t < threads; t++) assertArrayEquals(expected, fs.get(t).get(30, java.util.concurrent.TimeUnit.SECONDS), "판 " + r + " 스레드 " + t);
+            }
+        } finally {
+            pool.shutdownNow();
+            on(qx, qz, () -> {
+                for (int cell = 0; cell < 4096; cell++) {
+                    level.setBlock(new BlockPos(qx * 16 + (cell & 15), y0 + (cell >> 8), qz * 16 + ((cell >> 4) & 15)), Blocks.AIR.defaultBlockState(), 2 | 16);
+                }
+                return null;
+            });
+            server.tick(1);
+        }
     }
 
     /** 변환기: 이름 힌트 없는 클래스의 Object[] VarHandle 쓰기와, 힌트 있는 클래스의 Field.get·Field.set*·NMS 원소 형 VarHandle 을 장벽으로 돌린다. */

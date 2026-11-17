@@ -27,6 +27,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BeaconBlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
+import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.chunk.PalettedContainer;
@@ -396,7 +397,10 @@ class NmsBlockEntityWriteTest {
                 c.removeBlockEntity(p);
                 out.add(t);
             }
-            assertTrue(hasDiamonds(out.get(0).saveWithId(reg)));   // 첫 저장: 주인이 맞추며 지우기를 재생
+            // 마지막으로 지운 타일의 저장 한 번: 주인이 아직 재생하지 않았으면 이 저장이 기다리며 일지 전체를 재생하고, 이미 재생했으면(주인은 지우는 도중에도 맞추기
+            // 부탁을 돌린다 — 부하에서 자주) 기다리지 않고 뜬 꼴을 쓴다. 일지는 순서대로 재생되므로 어느 쪽이든 앞서 지운 타일도 모두 꼴이 떠 있다.
+            // (첫 타일을 저장하면 그 타일만 이미 재생됐을 때 나머지가 아직이라 아래 단언이 타이밍에 흔들린다.)
+            assertTrue(hasDiamonds(out.get(out.size() - 1).saveWithId(reg)));
             return out;
         });
         for (BlockEntity t : tiles) {
@@ -405,6 +409,123 @@ class NmsBlockEntityWriteTest {
         }
         for (BlockEntity t : tiles) assertTrue(hasDiamonds(offThread(() -> t.saveWithId(reg))));
         for (BlockPos p : ps) assertNull(serverBe(p));
+    }
+
+    /**
+     * 결정적 판(위 시험은 주인의 백그라운드 맞추기 부탁과 경주해 한쪽만 본다): 주인 스레드를 붙잡아 그 부탁이 못 돌게 한 채 다른 스레드가 타일 12개를 지워
+     * 일지를 쌓는다. 주인에서 마지막 타일 하나를 저장하면 그 저장이 일지 전체를 재생해(compat 의 ownerSyncIfDirty, 그리고 서버가 주인의 블록 엔티티 접근 때 대기
+     * 중인 거울을 맞추는 안전망 — 둘 다 빼야 이 시험이 깨진다) 앞서 지운 타일에도 모두 꼴이 떠 있다.
+     */
+    @Test
+    void saveOnTheOwnerReplaysTheWholeRemoveJournalAtOnce() throws Exception {
+        java.util.List<BlockPos> ps = new java.util.ArrayList<>();
+        for (int i = 0; i < 12; i++) ps.add(at(1, 2, i, 3 + (i & 1) * 4));
+        for (BlockPos p : ps) placeChestWithDiamonds(p);
+        LevelChunk c = level.getChunkAt(ps.get(0));   // 주인을 붙잡기 전에 — 다른 스레드의 청크 얻기는 공개 판을 기다린다
+        var holding = new java.util.concurrent.CountDownLatch(1);
+        var journaled = new java.util.concurrent.CountDownLatch(1);
+        AtomicReference<java.util.List<BlockEntity>> tiles = new AtomicReference<>();
+        AtomicReference<Throwable> ownerFailure = new AtomicReference<>();
+        var held = java.util.concurrent.CompletableFuture.runAsync(() -> onRun(ps.get(0), () -> {   // 이 작업이 도는 동안 주인은 다른 일을 못 한다
+            holding.countDown();
+            try {
+                assertTrue(journaled.await(15, java.util.concurrent.TimeUnit.SECONDS), "다른 스레드가 15초 안에 지우기를 끝내지 못했다");
+                java.util.List<BlockEntity> t = tiles.get();
+                for (BlockEntity be : t) assertNull(be.furnaceSnapshot(), "준비: 주인이 아직 아무것도 재생하지 않았다: " + be);
+                assertTrue(hasDiamonds(t.get(t.size() - 1).saveWithId(reg)));
+                for (BlockEntity be : t) assertNotNull(be.furnaceSnapshot(), "저장 한 번이 일지 전체를 재생해 꼴을 떠 둔다: " + be);
+            } catch (Throwable e) {
+                ownerFailure.set(e);
+            }
+        }));
+        assertTrue(holding.await(15, java.util.concurrent.TimeUnit.SECONDS), "주인이 붙잡히지 않았다");
+        try {
+            tiles.set(offThread(() -> {
+                java.util.List<BlockEntity> out = new java.util.ArrayList<>();
+                for (BlockPos p : ps) {
+                    BlockEntity t = c.getBlockEntity(p);
+                    c.removeBlockEntity(p);
+                    out.add(t);
+                }
+                return out;
+            }));
+        } finally {
+            journaled.countDown();
+        }
+        held.get(15, java.util.concurrent.TimeUnit.SECONDS);
+        if (ownerFailure.get() != null) throw new AssertionError("주인 스레드 단언 실패", ownerFailure.get());
+        for (BlockPos p : ps) assertNull(serverBe(p));
+        for (BlockEntity t : tiles.get()) assertTrue(hasDiamonds(offThread(() -> t.saveWithId(reg))));
+    }
+
+    /**
+     * 읽기 순서 규칙(덧칠을 공개 판보다 먼저): 다른 스레드가 판을 얻은 직후 주인이 새 판을 내고 덧칠을 지워도(이음매에서 틱 한 번) 자기 쓰기가 보여야 한다.
+     * 순서가 반대(판 → 덧칠)이면 옛 판 + 이미 지워진 덧칠이라 쓰기 전 값이 보인다. 이음매는 그 읽기 자리(what)에서 한 번만 돈다.
+     */
+    <T> T readWithOwnerPublishingAfterView(java.util.function.Predicate<String> where, Supplier<T> read) {
+        int[] fired = {0};
+        try {
+            ChunkAccess.testAfterForeignView = what -> {
+                if (fired[0] == 0 && where.test(what)) {
+                    fired[0]++;
+                    ChunkAccess.testAfterForeignView = null;
+                    server.tick(1);   // 주인: 일지 재생 → 새 판 공개 → 덧칠 삭제
+                }
+            };
+            T out = read.get();
+            assertEquals(1, fired[0], "이음매가 읽기 자리에서 돌았다");
+            return out;
+        } finally {
+            ChunkAccess.testAfterForeignView = null;
+        }
+    }
+
+    @Test
+    void foreignBlockStateReadSeesOwnWriteAcrossAPublish() {
+        BlockPos p = at(1, -1, 4, 4);
+        LevelChunk c = level.getChunkAt(p);
+        var stone = Blocks.STONE.defaultBlockState();
+        assertFalse(serverBlock(p) == stone.furnaceStateId(), "준비: 돌이 아니다");
+        var got = offThread(() -> {
+            c.setBlockState(p, stone, false);
+            return readWithOwnerPublishingAfterView(w -> w.equals("getBlockState") || w.startsWith("PalettedContainer.data") || w.equals("LevelChunkSection#getStates"),
+                    () -> c.getBlockState(p));
+        });
+        assertSame(stone, got);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void foreignBiomeReadSeesOwnWriteAcrossAPublish() {
+        BlockPos p = at(1, -1, 5, 5);
+        LevelChunk c = level.getChunkAt(p);
+        int si = si(p);
+        var biomes = (PalettedContainer<net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome>>) c.getSections()[si].getBiomes();
+        int bx = (p.getX() & 15) >> 2, by = (p.getY() & 15) >> 2, bz = (p.getZ() & 15) >> 2;
+        var now = offThread(() -> biomes.get(bx, by, bz));
+        var want = java.util.stream.Stream.of("minecraft:desert", "minecraft:plains", "minecraft:ocean").map(NmsChunks::biome).filter(h -> h != now).findFirst().orElseThrow();
+        var got = offThread(() -> {
+            biomes.set(bx, by, bz, want);
+            return readWithOwnerPublishingAfterView(w -> w.equals("LevelChunkSection#getBiomes"), () -> biomes.get(bx, by, bz));
+        });
+        assertSame(want, got);
+    }
+
+    @Test
+    void foreignBlockEntityReadSeesOwnCreateAcrossAPublish() {
+        BlockPos p = at(1, -1, 8, 8);
+        LevelChunk c = level.getChunk(p.getX() >> 4, p.getZ() >> 4);
+        int si = si(p);
+        offThread(() -> {
+            LevelChunkSection existing = c.getSections()[si];
+            var fresh = freshWith(existing, p.getX() & 15, p.getY() & 15, p.getZ() & 15, Blocks.CHEST.defaultBlockState());
+            assertTrue(NmsArrays.compareAndSet(OBJ, c.getSections(), si, existing, fresh));
+            BlockEntity be = c.getBlockEntity(p, LevelChunk.EntityCreationType.IMMEDIATE);
+            assertTrue(be instanceof ChestBlockEntity);
+            BlockEntity again = readWithOwnerPublishingAfterView(w -> w.equals("LevelChunk#getBlockEntity"), () -> c.getBlockEntity(p));
+            assertSame(be, again, "자기 만들기는 주인이 판을 내고 덧칠을 지운 사이에도 보인다");
+            return null;
+        });
     }
 
     // ------------------------------------------------------------------ 검토 재현(PR #447)

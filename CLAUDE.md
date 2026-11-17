@@ -3,13 +3,13 @@
 Furnace 는 처음부터 새로 쓰는 멀티스레드 Minecraft 1.21.1 서버(Java 21 / Gradle)다. 목표는 바닐라/Paper 와 관측 결과가 똑같으면서 더 빠른 서버다.
 
 ## 시작할 때
-1. `docs/handoff/2026-10-31-session-handoff.md` 를 먼저 읽는다(2026-11-04 갱신, 현재 상태·남은 구멍·다음 할 일·작업 방식 교훈). 옛 `docs/handoff/2026-10-18-session-handoff.md` 는 2장(확정된 결정), 3장(규칙), 4~5장(환경·아키텍처)만 유효하다. 그 문서의 1.3·6~8장은 낡았다.
-2. 다음 작업은 인수인계서 4장 "다음 할 일"을 따른다. **4-2 컨테이너 메뉴 프레임워크는 완료됐다.** 사용자 접속 시험 대기 항목은 `docs/user-todo.md` 와 `docs/user-todo/entries/`. 실제 클라이언트 없이 접속 시험을 할 때는 오프라인 서버 + mineflayer 봇(`tools/bot-test/README.md`, 결과 `docs/feature-parity/bot-connection-test-*.md`).
-3. `LLM-Wiki/` 는 개발 지식 베이스다. `wiki/Furnace/` 에 과거 작업 기록이 있다.
+1. `docs/handoff/START.md`(4KB 요약판)만 먼저 읽는다. 큰 문서(옛·새 인수인계서, `context-notes.md` 342KB, `graphify-out/`, `docs/user-todo.md`)는 **통째로 읽지 않는다.** START.md 의 표대로 필요한 절만 줄 범위로 읽거나 `grep -n` 으로 찾는다(통째 읽기는 세션마다 십수만 토큰을 낭비한다).
+2. 다음 작업은 지시받은 것을 따른다. 현황은 `git log`·열린 PR·`docs/user-todo/entries/` 최근 파일에서 본다(문서에 박힌 현황은 낡는다). 접속 시험은 오프라인 서버 + mineflayer 봇(`tools/bot-test/README.md`, 결과 `docs/feature-parity/bot-connection-test-*.md`).
+3. `LLM-Wiki/` 는 개발 지식 베이스다. `wiki/Furnace/` 에 과거 작업 기록이 있다. 찾는 주제가 있을 때만 grep.
 
 ## 규칙 (요약, 상세는 인수인계 문서 3장)
 - 사용자에게는 한국어로 말한다. 커밋 메시지와 코드 주석도 한국어, 간결하게.
-- 커밋 전에 `ORG_GRADLE_PROJECT_skipOracle=true ./gradlew --offline :furnace-api:test :furnace-server:test` 가 통과해야 한다(CI 는 이 외에 샘플 플러그인 컴파일·호환 계층·fatJar 도 돌린다 — `docs/ci.md`). 백그라운드로 돌리고 로그를 기다린다. gradle 은 동시에 두 개 돌리지 않는다.
+- 커밋 전에 `ORG_GRADLE_PROJECT_skipOracle=true ./gradlew --offline :furnace-api:test :furnace-server:test` 가 통과해야 한다(CI 는 이 외에 샘플 플러그인 컴파일·호환 계층·fatJar 도 돌린다 — `docs/ci.md`). 백그라운드로 돌리고 로그를 기다린다(로그는 통째로 출력하지 말고 `tools/ci/log-summary.sh <로그>` 로 결과·실패만 본다). gradle 은 동시에 두 개 돌리지 않는다.
 - 작업 브랜치는 세션에 지정된 브랜치만 쓴다. PR 은 사용자가 요청할 때만 만든다. 푸시 출력은 숨기지 않고 그대로 보여 준다.
 - 병렬 워커로 일할 때는 인수인계서 6장을 따른다: 워커는 격리 worktree 에서 일하고 푸시하지 않으며, 독립 검토는 읽기 전용(`git show`/`git diff`)으로 하고, 병합은 하나씩 `git branch --show-current` 로 브랜치를 확인한 뒤 컴파일과 전체 시험을 거친다.
 - 포팅은 직접 한다(포팅 서브에이전트 금지). 바닐라 코드는 난수 호출 순서까지 그대로 이식한다.
