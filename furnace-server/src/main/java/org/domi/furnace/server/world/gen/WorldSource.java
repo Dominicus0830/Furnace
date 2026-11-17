@@ -28,6 +28,9 @@ public interface WorldSource {
         throw new UnsupportedOperationException("this world generator has no biome source: " + getClass().getName());
     }
 
+    /** 월드 장식 목록(T-217 World#addChunkDecorator) — 장식 단계가 있는 생성기(노이즈·평지)는 장식 끝에 돈다. 없는 원천(시험용)은 null. */
+    default ChunkDecorators chunkDecorators() { return null; }
+
     default WorldSource freshCopy(long seed, org.domi.furnace.api.worldgen.BiomeProvider biomes) {
         if (biomes == null) return freshCopy(seed);
         throw new UnsupportedOperationException("a biome provider needs a noise generator, not " + getClass().getSimpleName());

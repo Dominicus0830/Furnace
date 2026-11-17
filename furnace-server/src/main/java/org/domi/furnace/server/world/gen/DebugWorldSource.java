@@ -67,6 +67,12 @@ public final class DebugWorldSource implements WorldSource {
         return air;
     }
 
+    /** 장식 단계가 없다(바닐라 DebugLevelSource 가 applyBiomeDecoration 을 덮어쓴다) — 달아 둘 수는 있지만 돌지 않는다(T-217). */
+    private final ChunkDecorators chunkDecorators = new ChunkDecorators();
+
+    @Override
+    public ChunkDecorators chunkDecorators() { return chunkDecorators; }
+
     /** 모든 상태를 격자로 늘어놓을 뿐 시드·상태가 없다(T-203). */
     @Override
     public DebugWorldSource freshCopy(long seed) { return this; }

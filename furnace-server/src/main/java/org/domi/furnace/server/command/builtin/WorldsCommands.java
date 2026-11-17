@@ -157,6 +157,10 @@ public final class WorldsCommands {
                     s.sendFailure(Text.text(Lang.t("cmd.worlds.needs-provider", n.world(), n.provider())));   // T-210
                     return;
                 }
+                if (cause instanceof org.domi.furnace.server.world.WorldManager.NeedsGenerationHooksException n) {
+                    s.sendFailure(Text.text(Lang.t("cmd.worlds.needs-generator", n.world(), n.hooks())));   // T-217
+                    return;
+                }
                 s.sendFailure(Text.text(Lang.t("cmd.worlds.failed", cause.getMessage())));
                 return;
             }

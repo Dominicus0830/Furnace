@@ -74,5 +74,5 @@ server.unloadWorld(world, true).thenAccept(ok -> { /* 플레이어가 있거나 
 
 - ~~플러그인 생성기(청크 생성 단계 훅): W3.~~ → 구현됨: `WorldCreator.Builder.generationHooks(키)`·청크 재생성 `World.regenerateChunk`·`/worlds regen` — [worldgen-hooks.md](worldgen-hooks.md).
 - ~~평지의 구조물·지형지물~~ → 오버월드 높이의 추가 평지는 바닐라 평지 생성기(T-210). 남은 것: 빈 월드(VOID)의 시작 발판(바닐라 "The Void" 프리셋의 `void_start_platform`), 다른 높이 평지의 구조물·지형지물.
-- Bukkit `ChunkGenerator`(`WorldCreator#generator`)로 만드는 월드 — T-217.
+- ~~Bukkit `ChunkGenerator`(`WorldCreator#generator`)로 만드는 월드~~ → 구현됨(T-217): Furnace 쪽은 훅 객체 `WorldCreator.Builder.generationHooksObject(…)`·월드 장식기 `World.addChunkDecorator(…)` — [worldgen-hooks.md](worldgen-hooks.md) 5장. 남은 것은 T-218(옛 `populate(World, Random, Chunk)`·`LimitedRegion` 엔티티 등)·T-219(기본 세 월드를 Bukkit 생성기로).
 - 월드별 시간·날씨·게임 규칙(Paper 방식) — 필요하면 기본 꺼짐 옵션으로 더한다.

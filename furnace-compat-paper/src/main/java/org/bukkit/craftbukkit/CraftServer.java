@@ -360,7 +360,8 @@ public final class CraftServer implements Server {
      * Paper CraftServer#createWorld 를 Furnace {@code createWorldNow} 위에: 같은 이름이 있으면 그 월드, 환경은 NORMAL·NETHER·THE_END,
      * 생성기 종류(type)는 오버월드에만 쓰인다(Paper 도 네더·엔드는 바닐라 그대로). FLAT 의 generatorSettings 는 바닐라 평지 JSON 을 그대로 넘긴다
      * (Paper DedicatedServerProperties.WorldDimensionData — 비면 기본 프리셋). 바이옴 공급자(T-210)는 CraftBukkit CustomWorldChunkManager 처럼
-     * 생성기의 바이옴 원천을 바꾼다. Bukkit 생성기(ChunkGenerator)는 아직 길이 없어 UnsupportedFeature(T-217). 하드코어 깃발은 서버 값만 쓴다(다르면 경고 한 번).
+     * 생성기의 바이옴 원천을 바꾸고, Bukkit 생성기(T-217)는 CustomChunkGenerator 처럼 서버 생성 훅 객체로 단다
+     * (bukkit.yml worlds.<이름>.generator 는 Furnace 에 bukkit.yml 이 없어 읽지 않는다). 하드코어 깃발은 서버 값만 쓴다(다르면 경고 한 번).
      */
     @Override
     public World createWorld(org.bukkit.WorldCreator creator) {
@@ -375,10 +376,6 @@ public final class CraftServer implements Server {
             throw new IllegalArgumentException("Cannot create a world with key " + creator.key() + " and name " + name
                     + " one (or both) already match a world that exists");
         }
-        if (creator.generator() != null) {
-            throw new org.domi.furnace.compat.paper.UnsupportedFeature("WorldCreator#generator(" + creator.generator().getClass().getName() + ")",
-                    "there is no way yet to create a world with a Bukkit ChunkGenerator - use Furnace WorldCreator.Builder#generationHooks (docs/api/worlds.md)");
-        }
         var env = switch (creator.environment()) {
             case NORMAL -> org.domi.furnace.api.world.WorldEnvironment.NORMAL;
             case NETHER -> org.domi.furnace.api.world.WorldEnvironment.NETHER;
@@ -386,15 +383,18 @@ public final class CraftServer implements Server {
             default -> throw new IllegalArgumentException("Illegal dimension (" + creator.environment() + ")");
         };
         // Paper: 폴더에 level.dat 이 있으면 저장된 생성기·구조물·시드를 쓴다(설명서의 type·generatorSettings·generateStructures·seed 는 새 월드만)
-        // 바이옴 공급자: WorldInfo 는 서버가 생성기를 만들기 직전에 채운다(BiomeProvider#prepare), 월드가 생기면 그 CraftWorld 를 따른다
-        var info = creator.biomeProvider() == null ? null : new org.domi.furnace.compat.paper.BukkitBiomeProviders.LateWorldInfo(name,
-                creator.environment(), creator.seed(), env == org.domi.furnace.api.world.WorldEnvironment.NORMAL ? -64 : 0,
-                env == org.domi.furnace.api.world.WorldEnvironment.NORMAL ? 320 : 256);
-        var biomes = info == null ? null : org.domi.furnace.compat.paper.BukkitBiomeProviders.adapt(creator.biomeProvider(), info);
-        // Paper: 폴더에 level.dat 이 있으면 저장된 생성기·구조물·시드를 쓴다(설명서의 type·generatorSettings·generateStructures·seed 는 새 월드만)
         var stored = f().storedWorldCreator(name);
+        org.bukkit.generator.ChunkGenerator generator = creator.generator();
+        org.bukkit.generator.BiomeProvider provider = creator.biomeProvider();
+        // 공급자·생성기의 WorldInfo: 서버가 생성기를 만들기 직전에 채우고(prepare — 시드는 level.dat 의 것), 월드가 생기면 그 CraftWorld 를 따른다
+        var info = provider == null && generator == null ? null : new org.domi.furnace.compat.paper.BukkitBiomeProviders.LateWorldInfo(name,
+                creator.environment(), stored != null && stored.seed().isPresent() ? stored.seed().getAsLong() : creator.seed(),
+                env == org.domi.furnace.api.world.WorldEnvironment.NORMAL ? -64 : 0, env == org.domi.furnace.api.world.WorldEnvironment.NORMAL ? 320 : 256);
+        if (provider == null && generator != null) provider = generator.getDefaultBiomeProvider(info);   // CraftServer: 생성기의 기본 공급자
+        var biomes = provider == null ? null : org.domi.furnace.compat.paper.BukkitBiomeProviders.adapt(provider, info);
+        var hooks = generator == null ? null : org.domi.furnace.compat.paper.BukkitChunkGenerators.adapt(generator, info);   // CustomChunkGenerator
         if (stored != null) {
-            var b = stored.toBuilder().key(creator.key().toString()).environment(env).biomeProvider(biomes);
+            var b = stored.toBuilder().key(creator.key().toString()).environment(env).biomeProvider(biomes).generationHooksObject(hooks);
             if (stored.environment() != env) {
                 b.generator(org.domi.furnace.api.world.WorldGenerator.DEFAULT).dimensionType(null).flatLayers(java.util.List.of());   // 그 환경의 바닐라 줄기
             }
@@ -402,11 +402,15 @@ public final class CraftServer implements Server {
                 // Paper 처럼 공급자 없이 연다(새 청크는 바닐라 바이옴) — 경계가 생길 수 있다는 것만 알린다
                 LOG.warning(CompatLang.t("compat.create-world-provider-dropped", name, stored.biomeProviderName()));
             }
+            if (hooks == null && stored.needsGenerationHooksObject() && WARNED_CREATE.add(name + "|generator")) {
+                // Paper 처럼 생성기 없이 연다(새 청크는 바닐라 생성기) — 경계가 생길 수 있다는 것만 알린다
+                LOG.warning(CompatLang.t("compat.create-world-generator-dropped", name, stored.generationHooksObjectName()));
+            }
             warnHardcore(creator, name);
             return bound(Compat.world(f().createWorldNow(b.build())), info);
         }
         var b = org.domi.furnace.api.world.WorldCreator.named(name).key(creator.key().toString()).environment(env)
-                .seed(creator.seed()).generateStructures(creator.generateStructures()).biomeProvider(biomes);
+                .seed(creator.seed()).generateStructures(creator.generateStructures()).biomeProvider(biomes).generationHooksObject(hooks);
         if (env == org.domi.furnace.api.world.WorldEnvironment.NORMAL) {
             switch (creator.type()) {
                 case FLAT -> flatSettings(b, name, creator.generatorSettings());

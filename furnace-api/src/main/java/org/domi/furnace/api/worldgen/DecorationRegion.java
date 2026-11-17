@@ -48,6 +48,12 @@ public interface DecorationRegion {
     /** 그 칸의 바이옴 키. 읽을 수 없으면 null. */
     String biome(int x, int y, int z);
 
+    /**
+     * 그 열의 높이맵 값 — 바닐라 WorldGenRegion#getHeight 처럼 조건에 맞는 맨 위 블록 y + 1(다 비면 minY()). 읽을 수 없는 열이면 minY().
+     * WG 높이맵은 카버 단계 뒤 굳은 값이다(바닐라와 같다).
+     */
+    default int height(GenerationHeightmap heightmap, int x, int z) { throw new UnsupportedOperationException("height"); }
+
     /** 그 열에서 공기가 아닌 가장 높은 블록 y(읽을 수 없거나 다 공기면 minY() - 1). */
     int highestBlockY(int x, int z);
 }

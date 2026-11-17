@@ -461,6 +461,19 @@ public interface World {
     /** 이 월드를 만들 때 준 바이옴 공급자(T-210, {@link WorldCreator.Builder#biomeProvider}). 없으면 null. 불변. */
     default org.domi.furnace.api.worldgen.BiomeProvider biomeProvider() { return null; }
 
+    /** 이 월드를 만들 때 단 월드젠 훅 객체(T-217, {@link WorldCreator.Builder#generationHooksObject}). 없으면 null. 불변. */
+    default org.domi.furnace.api.worldgen.ChunkGenerationHooks generationHooksObject() { return null; }
+
+    /**
+     * 이 월드의 장식 단계 끝(바닐라 장식과 월드젠 훅의 decorate 뒤)에 도는 일을 단다(T-217 — Bukkit World#getPopulators 와 같은 자리).
+     * 생성기와 무관하게 모든 월드에서 돌고, 바닐라 장식을 끈 청크에서도 돈다. 디버그 월드는 장식 단계가 없어 돌지 않는다(바닐라와 같다).
+     * 단 뒤에 처음 생성되는 청크부터 적용되고, 단 순서대로 돈다. 생성 스레드 여러 개에서 동시에 불린다.
+     */
+    default void addChunkDecorator(org.domi.furnace.api.worldgen.ChunkDecorator decorator) { throw new UnsupportedOperationException("addChunkDecorator"); }
+
+    /** {@link #addChunkDecorator} 로 단 것을 뗀다. 달려 있었으면 true. */
+    default boolean removeChunkDecorator(org.domi.furnace.api.worldgen.ChunkDecorator decorator) { return false; }
+
     /** level.dat 의 구조물 생성 깃발(바닐라 WorldOptions.generateStructures). 불변. */
     default boolean generatesStructures() { return true; }
 

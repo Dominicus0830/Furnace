@@ -107,13 +107,9 @@ class BukkitCreateWorldTest {
         try (FurnaceTestServer server = start()) {
             var custom = assertThrows(IllegalArgumentException.class, () -> Bukkit.createWorld(new WorldCreator("c1").environment(World.Environment.CUSTOM)));
             assertEquals("Illegal dimension (CUSTOM)", custom.getMessage());
-            var gen = new org.bukkit.generator.ChunkGenerator() {};
-            var e = assertThrows(UnsupportedFeature.class, () -> Bukkit.createWorld(new WorldCreator("c2").generator(gen)));
-            assertTrue(e.getMessage().contains("generationHooks"), e.getMessage());
             assertThrows(IllegalArgumentException.class, () -> Bukkit.createWorld(new WorldCreator("c3").type(WorldType.FLAT).generatorSettings("{layers")));
             assertThrows(IllegalArgumentException.class, () -> Bukkit.createWorld(null));
             assertNull(Bukkit.getWorld("c1"));
-            assertNull(Bukkit.getWorld("c2"));
             // 없는 플러그인 이름의 생성기는 null(콘솔에 알림) — 그러면 바닐라 생성기로 만든다
             assertNull(new WorldCreator("c4").generator("NoSuchPlugin").generator());
         }

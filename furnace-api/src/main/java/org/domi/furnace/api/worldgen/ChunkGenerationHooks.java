@@ -15,12 +15,42 @@ package org.domi.furnace.api.worldgen;
 public interface ChunkGenerationHooks {
 
     /**
+     * 객체로 단 훅({@code WorldCreator.Builder#generationHooksObject})의 이름 — level.dat 설명서에 남는다(T-217). 기본은 클래스 이름.
+     * 키로 등록한 훅에는 쓰지 않는다.
+     */
+    default String name() { return getClass().getName(); }
+
+    /**
+     * 객체로 단 훅에 그 월드의 정보를 준다 — 서버가 생성기에 훅을 걸기 직전 월드 스레드에서 한 번(월드마다). 이미 있는 월드의 시드는 level.dat 것.
+     * 키로 등록한 훅에는 부르지 않는다(여러 월드가 같은 훅을 쓸 수 있다).
+     */
+    default void prepare(BiomeProvider.Context world) {}
+
+    /**
+     * 객체로 단 훅의 월드가 서버 월드 목록에 오른 직후(틱을 켜고 청크를 만들기 전) 월드 스레드에서 한 번 — 새 월드든 이미 있는 월드든.
+     * 여기서는 서버 API 를 불러도 된다(Bukkit 다리가 기본 BlockPopulator 를 다는 자리, CraftBukkit initWorld).
+     *
+     * @param levelKey 그 월드의 레벨 키
+     */
+    default void attached(String levelKey) {}
+
+    /**
+     * 새 월드의 고정 스폰(Bukkit {@code ChunkGenerator#getFixedSpawnLocation} 과 같은 자리). null 이면 바닐라 스폰 찾기. 새 월드를 처음 만들 때
+     * 한 번, 월드를 목록에 올린 뒤·청크를 만들기 전에 월드 스레드에서 부른다 — 여기서는 서버 API 를 불러도 된다. 다른 월드 이름이면 IllegalStateException.
+     *
+     * @param levelKey 그 월드의 레벨 키
+     */
+    default org.domi.furnace.api.world.Location fixedSpawn(String levelKey) { return null; }
+
+    /**
      * 그 청크에서 바닐라 단계를 돌릴지 정한다. false 면 그 단계의 바닐라 처리를 건너뛴다.
      *
      * <ul>
      * <li>NOISE 를 끄면 빈(공기) 청크에서 시작한다.
      * <li>STRUCTURES 를 끄면 그 청크를 시작점으로 하는 구조물이 없다.
      * <li>FEATURES 를 끄면 지형지물만 빠진다(구조물 조각은 그대로 놓인다).
+     * <li>DECORATION 을 끄면 구조물 조각과 지형지물이 모두 빠진다(Bukkit shouldGenerateDecorations=false). 켰을 때만 FEATURES 를 묻는다.
+     * <li>MOBS 를 끄면 그 청크에 처음 동물을 놓지 않는다.
      * </ul>
      *
      * <p>바닐라를 끈 단계도 아래 훅은 불린다.

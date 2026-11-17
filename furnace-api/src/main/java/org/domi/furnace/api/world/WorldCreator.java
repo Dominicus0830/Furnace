@@ -23,11 +23,25 @@ import java.util.regex.Pattern;
  * @param biomeProvider      바이옴 공급자(T-210). null 이면 생성기 자신의 바이옴
  * @param biomeProviderName  공급자 이름(level.dat 에 남는 표시). biomeProvider 가 있으면 그 {@code name()}. 저장된 설명서에서 읽은 것이면
  *                           공급자 없이 이름만 있다 — 그대로는 열 수 없고 {@link Builder#biomeProvider} 로 공급자를 다시 붙이거나 지운다
+ * @param generationHooksObject     월드젠 단계 훅 객체(T-217 — 키 대신 객체를 직접 단다. Bukkit ChunkGenerator 다리가 쓴다). null 이면 없음.
+ *                                  generationHooks(키)와 함께 쓸 수 없다
+ * @param generationHooksObjectName 훅 객체 이름(level.dat 에 남는 표시). 객체가 있으면 그 {@code name()}. 저장된 설명서에서 읽은 것이면 객체 없이
+ *                                  이름만 있다 — 그대로는 열 수 없고 {@link Builder#generationHooksObject} 로 다시 붙이거나 지운다
  */
 public record WorldCreator(String name, String key, WorldEnvironment environment, WorldGenerator generator, String dimensionType,
                            OptionalLong seed, boolean generateStructures, List<FlatLayer> flatLayers, String flatBiome,
                            String generationHooks, String flatGeneratorSettings, org.domi.furnace.api.worldgen.BiomeProvider biomeProvider,
-                           String biomeProviderName) {
+                           String biomeProviderName, org.domi.furnace.api.worldgen.ChunkGenerationHooks generationHooksObject,
+                           String generationHooksObjectName) {
+
+    /** 훅 객체 없는 설명서(T-210 판과 같은 모양). */
+    public WorldCreator(String name, String key, WorldEnvironment environment, WorldGenerator generator, String dimensionType,
+                        OptionalLong seed, boolean generateStructures, List<FlatLayer> flatLayers, String flatBiome,
+                        String generationHooks, String flatGeneratorSettings, org.domi.furnace.api.worldgen.BiomeProvider biomeProvider,
+                        String biomeProviderName) {
+        this(name, key, environment, generator, dimensionType, seed, generateStructures, flatLayers, flatBiome, generationHooks,
+                flatGeneratorSettings, biomeProvider, biomeProviderName, null, "");
+    }
 
     /** 공급자·평지 JSON 없는 설명서(이전 버전과 같은 모양). */
     public WorldCreator(String name, String key, WorldEnvironment environment, WorldGenerator generator, String dimensionType,
@@ -82,10 +96,23 @@ public record WorldCreator(String name, String key, WorldEnvironment environment
         } else if (biomeProviderName == null) {
             biomeProviderName = "";
         }
+        if (generationHooksObject != null) {
+            String n = generationHooksObject.name();
+            if (n == null || n.isBlank()) throw new IllegalArgumentException("ChunkGenerationHooks#name must not be blank");
+            generationHooksObjectName = n;
+        } else if (generationHooksObjectName == null) {
+            generationHooksObjectName = "";
+        }
+        if (!generationHooks.isEmpty() && !generationHooksObjectName.isEmpty()) {
+            throw new IllegalArgumentException("a world can have generation hooks by key or a hooks object, not both");
+        }
     }
 
     /** level.dat 에 공급자 표시만 있고 공급자가 없다 — 이대로는 열 수 없다(공급자를 다시 붙이거나 지울 것). */
     public boolean needsBiomeProvider() { return biomeProvider == null && !biomeProviderName.isEmpty(); }
+
+    /** level.dat 에 훅 객체 표시만 있고 객체가 없다 — 이대로는 열 수 없다(객체를 다시 붙이거나 지울 것). */
+    public boolean needsGenerationHooksObject() { return generationHooksObject == null && !generationHooksObjectName.isEmpty(); }
 
     private static String full(String what, String id) {
         if (id == null) throw new NullPointerException(what);
@@ -103,6 +130,8 @@ public record WorldCreator(String name, String key, WorldEnvironment environment
                 .flatGeneratorSettings(flatGeneratorSettings);
         b.biomeProvider = biomeProvider;
         b.biomeProviderName = biomeProviderName;
+        b.generationHooksObject = generationHooksObject;
+        b.generationHooksObjectName = generationHooksObjectName;
         if (seed.isPresent()) b.seed(seed.getAsLong());
         return b;
     }
@@ -121,6 +150,8 @@ public record WorldCreator(String name, String key, WorldEnvironment environment
         private String flatGeneratorSettings = "";
         private org.domi.furnace.api.worldgen.BiomeProvider biomeProvider;
         private String biomeProviderName = "";
+        private org.domi.furnace.api.worldgen.ChunkGenerationHooks generationHooksObject;
+        private String generationHooksObjectName = "";
 
         private Builder(String name) { this.name = name; }
 
@@ -175,9 +206,28 @@ public record WorldCreator(String name, String key, WorldEnvironment environment
             return this;
         }
 
+        /**
+         * 월드젠 단계 훅 객체(T-217 — Bukkit ChunkGenerator 다리와 같은 자리). 키 훅({@link #generationHooks(String)})과 함께 쓸 수 없다.
+         * 객체는 저장되지 않고 이름({@link org.domi.furnace.api.worldgen.ChunkGenerationHooks#name()})만 level.dat 에 남아, 서버가 스스로 다시 열 때
+         * (worlds.autoload·/worlds load)는 객체를 다시 줄 때까지 열지 않는다(바이옴 공급자와 같은 규칙). null 이면 객체와 표시를 지운다.
+         * 월드가 사는 동안 서버가 객체를 쥔다.
+         */
+        public Builder generationHooksObject(org.domi.furnace.api.worldgen.ChunkGenerationHooks hooks) {
+            this.generationHooksObject = hooks;
+            this.generationHooksObjectName = "";
+            return this;
+        }
+
+        /** 훅 객체 없이 표시(이름)만 — 저장된 설명서를 읽을 때 서버가 쓴다. */
+        public Builder generationHooksObjectName(String name) {
+            this.generationHooksObject = null;
+            this.generationHooksObjectName = name == null ? "" : name;
+            return this;
+        }
+
         public WorldCreator build() {
             return new WorldCreator(name, key, environment, generator, dimensionType, seed, generateStructures, flatLayers, flatBiome,
-                    generationHooks, flatGeneratorSettings, biomeProvider, biomeProviderName);
+                    generationHooks, flatGeneratorSettings, biomeProvider, biomeProviderName, generationHooksObject, generationHooksObjectName);
         }
     }
 }

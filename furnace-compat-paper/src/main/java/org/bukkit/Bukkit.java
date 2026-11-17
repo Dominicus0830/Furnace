@@ -91,6 +91,9 @@ public final class Bukkit {
 
     public static World createWorld(WorldCreator creator) { return s().createWorld(creator); }
 
+    @Deprecated
+    public static org.bukkit.generator.ChunkGenerator.ChunkData createChunkData(World world) { return s().createChunkData(world); }
+
     public static World getWorld(UUID id) { return s().getWorld(id); }
 
     public static int broadcastMessage(String message) { return s().broadcastMessage(message); }

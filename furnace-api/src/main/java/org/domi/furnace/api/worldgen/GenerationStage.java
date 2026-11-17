@@ -10,6 +10,13 @@ public enum GenerationStage {
     CARVERS,
     /** 구조물(마을·요새·폐광 …) 시작점과 조각 배치. */
     STRUCTURES,
-    /** 장식(지형지물. 나무·광석·꽃·호수 …). */
-    FEATURES
+    /** 장식(지형지물. 나무·광석·꽃·호수 …). 끄면 지형지물만 빠지고 구조물 조각은 놓인다. */
+    FEATURES,
+    /**
+     * 장식 단계 전체(구조물 조각 + 지형지물, 바닐라 ChunkGenerator#applyBiomeDecoration). 끄면 둘 다 없다 — Bukkit
+     * {@code ChunkGenerator#shouldGenerateDecorations} 가 false 인 것과 같다. 끈 청크도 decorate 훅과 월드 장식({@code World#addChunkDecorator})은 돈다.
+     */
+    DECORATION,
+    /** 청크를 처음 만들 때 놓는 동물(바닐라 spawnOriginalMobs — 노이즈 생성기만, 평지에는 없다). 끄면 그 청크에 놓지 않는다. */
+    MOBS
 }

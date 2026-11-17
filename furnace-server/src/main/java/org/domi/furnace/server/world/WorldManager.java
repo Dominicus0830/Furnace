@@ -102,6 +102,26 @@ public final class WorldManager {
         public String provider() { return provider; }
     }
 
+    /**
+     * 월드젠 훅 객체로 만든 월드를 객체 없이 저장된 설명서 그대로 열려고 했다(T-217 — Bukkit ChunkGenerator 월드 등). 객체는 저장되지 않으므로,
+     * 그 객체를 가진 플러그인이 다시 만들 때 열린다. 서버가 스스로 여는 길(worlds.autoload·/worlds load)은 이 예외로 그 월드를 건너뛴다.
+     */
+    public static final class NeedsGenerationHooksException extends IllegalStateException {
+        private final String world;
+        private final String hooks;
+
+        public NeedsGenerationHooksException(String world, String hooks) {
+            super("world '" + world + "' was created with the chunk generator " + hooks
+                    + " - it opens when the plugin that owns the generator creates it again (createWorld with that generator)");
+            this.world = world;
+            this.hooks = hooks;
+        }
+
+        public String world() { return world; }
+
+        public String hooks() { return hooks; }
+    }
+
     /** 실행 중인 추가 월드 하나. */
     private record Extra(String name, World world, LevelStorage storage, LevelData levelData, Built built, WorldCreator creator) {}
 
@@ -391,6 +411,7 @@ public final class WorldManager {
             return existing.world();
         }
         if (spec.needsBiomeProvider()) throw new NeedsBiomeProviderException(spec.name(), spec.biomeProviderName());
+        if (spec.needsGenerationHooksObject()) throw new NeedsGenerationHooksException(spec.name(), spec.generationHooksObjectName());
         World byKey = dimensions.get(spec.key());
         if (byKey != null) throw new IllegalArgumentException("level key already in use: " + spec.key());
         for (Extra e : extras.values()) {
@@ -426,12 +447,21 @@ public final class WorldManager {
                         type.minY(), type.maxY()));
             }
             WorldSource gen = generator(spec, type, family, seed, ld);
+            var hooksObject = spec.generationHooksObject();
             if (!spec.generationHooks().isEmpty()) {
                 // 훅은 키로만 잡는다(플러그인이 꺼지면 저장소에서 빠져 바닐라로) — 첫 청크(스폰 계산) 전에 건다
                 final Hooks h = hooks;
                 org.domi.furnace.server.world.gen.GenHooks.attach(gen, spec.generationHooks(), h::generationHooks, spec.key(), seed,
                         parts.blocks(), parts.registries());
+            } else if (hooksObject != null) {
+                // 훅 객체(T-217): 월드 정보를 먼저 주고(시드는 level.dat 의 것) 월드가 사는 동안 세게 쥔다
+                hooksObject.prepare(new org.domi.furnace.api.worldgen.BiomeProvider.Context(spec.name(), spec.key(), spec.environment(), seed,
+                        type.minY(), type.maxY()));
+                if (org.domi.furnace.server.world.gen.GenHooks.attachObject(gen, hooksObject, spec.key(), seed, parts.blocks(), parts.registries()) == null) {
+                    throw new IllegalArgumentException("a chunk generator cannot be attached to the " + spec.generator() + " generator");
+                }
             }
+            org.domi.furnace.server.world.gen.ChunkDecorators.bind(gen, spec.key(), seed, parts.blocks(), parts.registries());
             Built built = build(type, dir, gen);
             World w = built.world();
             w.levelRoot(dir);                                            // 청크·data 는 <이름>/
@@ -440,7 +470,9 @@ public final class WorldManager {
             w.levelKind(spec.generator() == WorldGenerator.FLAT || spec.generator() == WorldGenerator.VOID, spec.generator() == WorldGenerator.DEBUG_ALL_BLOCK_STATES);
             w.seed(seed);
             w.generatesStructures(spec.generateStructures());   // 생성기도 설명서 값을 쓴다(structures(..))
-            if (!ld.initialized) {
+            // 훅 객체 월드의 새 스폰은 월드를 목록에 올린 뒤 고정 스폰을 먼저 묻는다(CraftBukkit setInitialSpawn — 아래)
+            boolean fixedSpawnPending = !ld.initialized && hooksObject != null;
+            if (!ld.initialized && !fixedSpawnPending) {
                 SpawnPoint sp = initialSpawn(spec, type, gen);
                 ld.spawnX = sp.x();
                 ld.spawnY = sp.y();
@@ -458,7 +490,28 @@ public final class WorldManager {
             storage.saveLevelData(ld);
             dimensions.register(w);
             try {
+                if (hooksObject != null) hooksObject.attached(spec.key());   // Bukkit: 기본 BlockPopulator 넣기(initWorld)
                 hooks.attach(w);
+                if (fixedSpawnPending) {
+                    // CraftBukkit setInitialSpawn: getFixedSpawnLocation 이 있으면 그 칸·yaw 이고 바닐라 스폰 찾기를 하지 않는다
+                    var fixed = hooksObject.fixedSpawn(spec.key());
+                    SpawnPoint sp;
+                    if (fixed != null) {
+                        if (!spec.name().equals(fixed.world())) {
+                            throw new IllegalStateException("Cannot set spawn point for " + spec.name() + " to be in another world (" + fixed.world() + ")");
+                        }
+                        sp = new SpawnPoint((int) Math.floor(fixed.x()), (int) Math.floor(fixed.y()), (int) Math.floor(fixed.z()), fixed.yaw());
+                    } else {
+                        sp = initialSpawn(spec, type, gen);
+                    }
+                    ld.spawnX = sp.x();
+                    ld.spawnY = sp.y();
+                    ld.spawnZ = sp.z();
+                    ld.spawnAngle = sp.yaw();
+                    ld.initialized = true;
+                    w.defaultSpawn(sp);
+                    storage.saveLevelData(ld);
+                }
                 w.startTicking();
             } catch (RuntimeException e) {
                 dimensions.unregister(w);
@@ -484,8 +537,9 @@ public final class WorldManager {
         boolean seedOk = a.seed().isEmpty() || b.seed().isEmpty() || a.seed().equals(b.seed());
         // 공급자를 주지 않은 쪽(저장된 설명서로 다시 부르기 등)은 지금 월드를 받는다. 다른 공급자 객체면 다른 설명서
         boolean providerOk = b.biomeProvider() == null || a.biomeProvider() == b.biomeProvider();
+        boolean hooksOk = b.generationHooksObject() == null || a.generationHooksObject() == b.generationHooksObject();   // 공급자와 같은 규칙(T-217)
         return a.key().equals(b.key()) && a.environment() == b.environment() && a.generator() == b.generator()
-                && a.dimensionType().equals(b.dimensionType()) && a.generationHooks().equals(b.generationHooks()) && seedOk && providerOk;
+                && a.dimensionType().equals(b.dimensionType()) && a.generationHooks().equals(b.generationHooks()) && seedOk && providerOk && hooksOk;
     }
 
     static NoiseWorldSource.Dimension family(WorldEnvironment env) {
@@ -643,6 +697,7 @@ public final class WorldManager {
         c.putString("flat_biome", spec.flatBiome());
         if (!spec.generationHooks().isEmpty()) c.putString("generation_hooks", spec.generationHooks());
         if (!spec.biomeProviderName().isEmpty()) c.putString("biome_provider", spec.biomeProviderName());   // 공급자 객체는 저장할 수 없다(T-210)
+        if (!spec.generationHooksObjectName().isEmpty()) c.putString("generation_hooks_object", spec.generationHooksObjectName());   // T-217
         NbtList layers = new NbtList(NbtIo.TAG_COMPOUND);
         for (var l : spec.flatLayers()) {
             NbtCompound lc = new NbtCompound();
@@ -666,6 +721,7 @@ public final class WorldManager {
         if (c.tags().get("flat_biome") instanceof String fb) b.flatBiome(fb);
         if (c.tags().get("generation_hooks") instanceof String gh) b.generationHooks(gh);
         if (c.tags().get("biome_provider") instanceof String bp) b.biomeProviderName(bp);
+        if (c.tags().get("generation_hooks_object") instanceof String gho) b.generationHooksObjectName(gho);
         if (c.contains("flat_layers")) {
             List<WorldCreator.FlatLayer> layers = new ArrayList<>();
             for (Object o : c.getList("flat_layers").items()) {

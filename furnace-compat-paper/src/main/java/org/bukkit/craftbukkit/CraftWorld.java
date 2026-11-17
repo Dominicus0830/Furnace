@@ -82,6 +82,27 @@ public final class CraftWorld implements World {
         return handle.biomeProvider() instanceof org.domi.furnace.compat.paper.BukkitBiomeProviders.Adapted a ? a.bukkit() : null;
     }
 
+    /** Paper: 만들 때 준 Bukkit 생성기(T-217). */
+    @Override
+    public org.bukkit.generator.ChunkGenerator getGenerator() {
+        return handle.generationHooksObject() instanceof org.domi.furnace.compat.paper.BukkitChunkGenerators.Adapted a ? a.bukkit() : null;
+    }
+
+    private volatile java.util.List<org.bukkit.generator.BlockPopulator> populators;
+
+    /** Paper CraftWorld#getPopulators — 이 월드(이 핸들)에 하나. 처음 부를 때 서버 장식기로 건다(T-217). */
+    @Override
+    public java.util.List<org.bukkit.generator.BlockPopulator> getPopulators() {
+        var p = populators;
+        if (p == null) {
+            synchronized (this) {
+                p = populators;
+                if (p == null) populators = p = org.domi.furnace.compat.paper.BukkitChunkGenerators.populators(this, handle);
+            }
+        }
+        return p;
+    }
+
     @Override
     public NamespacedKey getKey() {
         NamespacedKey k = NamespacedKey.fromString(handle.dimension());

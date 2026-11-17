@@ -100,4 +100,24 @@ world.regenerateChunk(cx, cz, ChunkRegeneration.FRESH);          // 엔티티를
 - 훅이 없으면 바닐라와 같다(시험 `GenHooksTest.defaultHooksGiveVanillaBlocks`: 아무것도 안 하는 훅을 단 청크도 블록이 같다).
 - `/locate` 는 바닐라처럼 구조물 거르기를 보지 않는다(바닐라 `/locate` 가 `generate-structures` 를 보지 않는 것과 같다, Paper 이벤트 취소도 마찬가지).
 - 바닐라에는 청크 재생성이 없다. 결과 기준은 "같은 시드 새 월드의 그 청크"로 잡았다. 서버의 보통 생성 경로는 요청 순서대로 원점을 한 번씩 장식하므로, 겹치는 장식(경계의 나무 두 그루 등)은 원래 청크와 재생성 청크가 다를 수 있다 — 바닐라도 생성 순서에 따라 그렇다.
-- Bukkit `ChunkGenerator`·`BlockPopulator`·`BiomeProvider` 이름은 호환 어댑터(H1~H4)가 이 훅 위에 맞춘다. 바이옴 바꾸기 훅(BiomeProvider)은 이번 묶음에 없다 — 바이옴은 W2 의 등록 바이옴 + `World.setBiome` 으로.
+- Bukkit `ChunkGenerator`·`BlockPopulator`(T-217)·`BiomeProvider`(T-210)는 호환 어댑터가 이 훅·아래 5장·`WorldCreator.Builder.biomeProvider` 위에 맞춘다.
+
+## 5. 훅 객체·월드 장식기 (T-217)
+
+Bukkit `ChunkGenerator` 다리가 쓰는 길이지만 Furnace 플러그인도 그대로 쓸 수 있다.
+
+- **훅 객체**: `WorldCreator.named("islands").generationHooksObject(hooks).build()` — 키로 등록하지 않고 객체를 직접 단다(키 훅과 함께 쓸 수 없다).
+  객체는 월드가 사는 동안 세게 쥔다. level.dat 설명서에는 `name()`(기본 클래스 이름)만 `generation_hooks_object` 로 남아, 서버가 스스로 여는 길
+  (`worlds.autoload`·`/worlds load`)은 그 월드를 열지 않는다(콘솔 한 줄 — 바이옴 공급자 월드와 같은 규칙). 객체를 다시 주면(`toBuilder().generationHooksObject(새 객체)`)
+  열리고, `generationHooksObject(null)` 로 열면 표시가 지워지고 새 청크는 바닐라다.
+- 훅 객체만 받는 메서드: `prepare(BiomeProvider.Context)`(생성기에 걸기 직전, 월드 정보 — 이미 있는 월드는 level.dat 시드), `attached(레벨 키)`
+  (월드가 목록에 오른 직후 한 번, 서버 API 를 불러도 된다), `fixedSpawn(레벨 키)`(새 월드만 — 그 월드 이름의 `Location` 이면 그 칸·yaw 가 스폰,
+  null 이면 바닐라 스폰 찾기, 다른 월드 이름이면 `IllegalStateException`).
+- 단계(`runVanilla`)에 `DECORATION`(구조물 조각 + 지형지물 통째로, Bukkit `shouldGenerateDecorations`)과 `MOBS`(처음 동물)가 있다. `FEATURES` 는
+  지금처럼 지형지물만이다.
+- `GenerationChunk.setBiome(x, y, z, 바이옴)`: 노이즈·표면·카버 훅에서 4칸 단위 바이옴을 바꾼다. 장식 단계(지형지물 목록·`DecorationRegion.biome`)는
+  바뀐 바이옴을 본다(바닐라처럼 청크에 저장된 바이옴). 구조물 후보 판정은 생성기의 바이옴 원천을 본다(바닐라와 같다).
+- `DecorationRegion.height(GenerationHeightmap, x, z)`: 장식 영역의 높이맵(첫 빈 칸 y, 바닐라 `WorldGenRegion#getHeight`). `GenerationHeightmap` 에
+  `WORLD_SURFACE`·`MOTION_BLOCKING`·`MOTION_BLOCKING_NO_LEAVES`·`OCEAN_FLOOR` 가 더해졌다(`baseHeight` 훅에는 `*_WG` 둘만 온다).
+- **월드 장식기**: `world.addChunkDecorator(region -> …)` / `removeChunkDecorator` — 생성기·훅과 무관하게 그 월드의 새 청크마다 장식 단계 끝(바닐라 장식,
+  훅 `decorate` 뒤)에 등록 순서대로 돈다(Bukkit `World#getPopulators`). 생성 스레드에서 불리고, 던지면 기록하고 건너뛴다. 디버그 월드는 돌지 않는다.
