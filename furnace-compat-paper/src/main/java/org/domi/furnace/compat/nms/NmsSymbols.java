@@ -60,6 +60,7 @@ public final class NmsSymbols {
     /** 메서드가 있는가(클래스 사슬 → 상위 인터페이스, JVMS 5.4.3.3/5.4.3.4). 배열의 clone 등 Object 메서드도 된다. */
     public boolean hasMethod(String owner, String name, String desc) {
         String key = name + ' ' + desc;
+        if (name.equals("<init>")) return info(element(owner)).methods.contains(key);   // 생성자는 상속되지 않는다(JVM 은 그 클래스의 것만 링크한다)
         if (owner.charAt(0) == '[') return info("java/lang/Object").methods.contains(key) || name.equals("clone");
         Set<String> seen = new HashSet<>();
         for (String c = owner; c != null; ) {

@@ -400,6 +400,38 @@ class NmsLinkerTest {
     }
 
     @Test
+    void reportLeavesInheritableShimSubclassesOutOfGradeCButCountsAMissingSuperConstructor() throws IOException {
+        // 검토 #480: 변환기와 같은 판정(NmsLinker.inheritable) — 상속해도 되는 shim 의 하위 클래스는 등급 C 가 아니다. 없는 상위 생성자는 "아직 없음"
+        Path jar = JarCompiler.jar(tmp.resolve("inherit.jar"), "name: I\nversion: '1'\nmain: linky.MyEntity\n",
+                Map.of("linky.MyEntity", SUB, "linky.MyLevel", SUB_INHERITABLE,
+                        "net.minecraft.server.level.ServerLevel", STUBS.get("net.minecraft.server.level.ServerLevel"),
+                        "net.minecraft.world.level.chunk.ProtoChunk", STUBS.get("net.minecraft.world.level.chunk.ProtoChunk")),
+                Set.of("net.minecraft."));
+        NmsCompatReport r = NmsCompatReport.scan("I", jar, NmsSymbols.RUNTIME);
+        assertTrue(r.missing().contains("extends linky.MyEntity -> net.minecraft.world.entity.LivingEntity"), r.missing().toString());
+        assertTrue(r.missing().stream().noneMatch(m -> m.contains("extends linky.MyLevel")), r.missing().toString());
+        assertTrue(r.missing().contains("net.minecraft.server.level.ServerLevel#<init>(0)"), "Object 의 생성자로 찾지 않는다: " + r.missing());
+        assertEquals(1, r.gradeC(), "LivingEntity 상속 하나만 등급 C");
+    }
+
+    /** 상속해도 되는 shim(과 그 상위 사슬)의 final 인스턴스 메서드는 바닐라도 final 인 것뿐이어야 한다 — 재정의가 정의를 깨지 않게(검토 #480). */
+    @Test
+    void inheritableShimsKeepVanillaFinality() {
+        Set<String> vanillaFinal = Set.of("UseOnContext#getHitResult", "Level#moonrise$getEntityLookup");
+        for (Class<?> c : List.of(net.minecraft.world.item.context.UseOnContext.class, net.minecraft.world.item.context.BlockPlaceContext.class,
+                net.minecraft.server.level.ServerLevel.class)) {
+            assertTrue(NmsLinker.inheritable(NmsSymbols.RUNTIME, c.getName().replace('.', '/')), c.getName());
+            for (Class<?> k = c; k != null && k.getName().startsWith("net.minecraft."); k = k.getSuperclass()) {
+                for (var m : k.getDeclaredMethods()) {
+                    int mod = m.getModifiers();
+                    if (!java.lang.reflect.Modifier.isFinal(mod) || java.lang.reflect.Modifier.isStatic(mod) || java.lang.reflect.Modifier.isPrivate(mod)) continue;
+                    assertTrue(vanillaFinal.contains(k.getSimpleName() + "#" + m.getName()), "바닐라와 다른 final: " + k.getName() + "#" + m.getName());
+                }
+            }
+        }
+    }
+
+    @Test
     void otherVersionModulesAreLeftOutOfTheReport() {
         // 실제 표본 jar 의 버전 모듈 이름(IF·commandapi·signgui)과 접미사 이름
         for (String n : List.of("com/x/nms/v1_20_1/Inv", "dev/jorel/commandapi/nms/NMS_1_20_R3", "de/rapha149/signgui/version/Wrapper1_8_R3",
