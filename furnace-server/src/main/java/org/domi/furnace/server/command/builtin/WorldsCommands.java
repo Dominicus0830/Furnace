@@ -153,6 +153,10 @@ public final class WorldsCommands {
         f.whenComplete((v, t) -> s.getServer().scheduler().global().execute(() -> {
             if (t != null) {
                 Throwable cause = t instanceof java.util.concurrent.CompletionException && t.getCause() != null ? t.getCause() : t;
+                if (cause instanceof org.domi.furnace.server.world.WorldManager.NeedsBiomeProviderException n) {
+                    s.sendFailure(Text.text(Lang.t("cmd.worlds.needs-provider", n.world(), n.provider())));   // T-210
+                    return;
+                }
                 s.sendFailure(Text.text(Lang.t("cmd.worlds.failed", cause.getMessage())));
                 return;
             }

@@ -96,6 +96,12 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     @Override
+    public ChunkInternals.PackedStates sectionStatesPackedNow(org.domi.furnace.api.world.World world, int chunkX, int sectionIndex, int chunkZ) {
+        ChunkSection s = section(world, chunkX, sectionIndex, chunkZ, "PalettedContainer.data");
+        return s == null ? null : s.blocksPacked();   // 사본(scratch 가 열려 있으면 null)
+    }
+
+    @Override
     public int sectionNonAirNow(org.domi.furnace.api.world.World world, int chunkX, int sectionIndex, int chunkZ) {
         ChunkSection s = section(world, chunkX, sectionIndex, chunkZ, "LevelChunkSection#hasOnlyAir");
         if (s == null) return -1;

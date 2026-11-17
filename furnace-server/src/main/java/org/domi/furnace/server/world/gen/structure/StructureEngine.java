@@ -144,6 +144,9 @@ public final class StructureEngine {
 
     public void setAllowedSets(Set<String> ids) { this.allowedSets = ids == null ? null : Set.copyOf(ids); }
 
+    /** {@link #setAllowedSets} 로 정한 세트(null = 레지스트리 전부). */
+    public Set<String> allowedSets() { return allowedSets; }
+
     /** 이 엔진의 월드(바이옴 소스)가 만들 수 있는 세트인가 — ChunkGeneratorStructureState.hasBiomesForStructureSet. */
     private boolean possibleSet(StructureRegistry.SetDef set) {
         Set<String> allowed = allowedSets;

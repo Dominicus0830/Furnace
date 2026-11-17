@@ -4,7 +4,7 @@ package org.domi.furnace.server.world;
 import java.util.Arrays;
 
 @org.domi.furnace.server.VanillaPort("net.minecraft.world.level.chunk.PalettedContainer")
-final class PaletteStorage {
+final class PaletteStorage implements org.domi.furnace.api.internal.ChunkInternals.PackedStates {
 
     private final int size;
     private final int minIndirect;
@@ -276,6 +276,23 @@ final class PaletteStorage {
         c.storage = storage == null ? null : storage.copy();
         return c;
     }
+
+    // ---- T-209: 읽기 사본을 그대로 내보이는 PackedStates(호환 계층 PalettedContainer.data 실체화). 읽기 사본(readCopy)에서만 부른다.
+
+    @Override
+    public int bits() { return bits; }
+
+    @Override
+    public int paletteSize() { return bits == 0 ? 1 : palette == null ? -1 : paletteSize; }
+
+    @Override
+    public int paletteValue(int i) {
+        if (i < 0 || i >= paletteSize()) throw new IndexOutOfBoundsException(i);
+        return bits == 0 ? singleValue : palette[i];
+    }
+
+    @Override
+    public long[] rawCopy() { return bits == 0 ? new long[0] : storage.data().clone(); }
 
     // 서로 다른 값 수(상한 cap 을 넘으면 cap+1). 해시 집합으로 세고 결과는 예전 선형 탐색과 같다.
     private int countDistinct(int[] src, int offset) {

@@ -18,7 +18,6 @@ import org.domi.furnace.server.net.ChunkWorkerPool;
 import org.domi.furnace.server.net.registry.RegistrySet;
 import org.domi.furnace.server.sched.FurnaceSchedulerImpl;
 import org.domi.furnace.server.world.gen.NoiseWorldSource;
-import org.domi.furnace.server.world.gen.SuperflatWorldSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -125,7 +124,8 @@ class ScratchWorldTest {
         World a = create(WorldCreator.named("flat1").generator(WorldGenerator.FLAT).generateStructures(false).build());
         var keys = dims.levelKeys();
         World s = manager.createScratch(a, a.seed(), "flat1");
-        assertInstanceOf(SuperflatWorldSource.class, ((org.domi.furnace.server.world.gen.ScratchWorldSource) s.worldSource()).base(), "디스크 원천 없이 생성기로");
+        assertInstanceOf(org.domi.furnace.server.world.gen.NoiseWorldSource.class, ((org.domi.furnace.server.world.gen.ScratchWorldSource) s.worldSource()).base(),
+                "디스크 원천 없이 생성기로(오버월드 높이 평지 = 바닐라 평지 생성기, T-210)");
         assertTrue(s.isFlatLevel());
         assertFalse(s.generatesStructures());
         assertEquals(keys, dims.levelKeys(), "차원 목록에 없다");
