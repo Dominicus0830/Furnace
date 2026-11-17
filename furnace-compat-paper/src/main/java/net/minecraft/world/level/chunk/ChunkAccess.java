@@ -458,11 +458,22 @@ public abstract class ChunkAccess implements BlockGetter {
         return v;
     }
 
-    /** 실체화용(N2b-4): 섹션 칸 번호 전부와 그 판 번호(stampOut[0]) — 한 출처에서. 다른 스레드의 덧칠이 있으면 판 번호는 MIN(늘 다시 실체화). */
-    int[] furnaceSectionIdsStamped(int index, boolean biome, long[] stampOut) {
+    /**
+     * 실체화용(N2b-4): 섹션 칸 내용과 그 판 번호(stampOut[0]) — 한 출처에서. 그 섹션에 다른 스레드의 덧칠이 있으면 판 번호는 MIN(늘 다시 실체화).
+     * 블록 내용은 서버 저장소 사본(T-209 — 서버 배치 그대로, 칸을 펼치지 않는다)이고, 저장소가 펼쳐져 있거나 덧칠이 있거나 바이옴이면 칸 번호 배열(새 배열).
+     * 판 번호가 known 과 같으면(MIN 이 아닐 때) 내용을 읽지 않고 null(T-209 — 바뀌지 않은 섹션의 data 다시 읽기).
+     */
+    Object furnaceSectionContentStamped(int index, boolean biome, long[] stampOut, long known) {
         int[] snap = biome ? furnaceMirror.biomeOverlaySnapshot(index) : furnaceMirror.cellOverlaySnapshot(index);   // 덧칠을 판보다 먼저
         var src = furnaceForeignView(biome ? "PalettedContainer.data (biomes)" : "PalettedContainer.data");
         if (src != null) {
+            if (snap == null) {   // T-209: 덧칠이 없었으면(판보다 먼저 봄) 스냅샷 판 그대로 — 펼친 사본·비교 없이
+                stampOut[0] = src.contentStamp();
+                if (known != Long.MIN_VALUE && stampOut[0] == known) return null;
+                if (biome) return src.sectionBiomes(index);
+                var packed = src.sectionStatesPacked(index);
+                return packed != null ? packed : src.sectionStates(index);
+            }
             int[] ids = biome ? src.sectionBiomes(index) : src.sectionStates(index);
             int[] over = FurnaceChunkMirror.applyOverlay(ids.clone(), snap);
             stampOut[0] = java.util.Arrays.equals(over, ids) ? src.contentStamp() : Long.MIN_VALUE;
@@ -471,6 +482,11 @@ public abstract class ChunkAccess implements BlockGetter {
         furnaceMirror.ownerSync(index);
         var b = NmsChunks.bridge();
         stampOut[0] = b.contentStampNow(furnaceWorld, pos.x, pos.z);
+        if (known != Long.MIN_VALUE && stampOut[0] == known) return null;
+        if (!biome) {
+            var packed = b.sectionStatesPackedNow(furnaceWorld, pos.x, index, pos.z);
+            if (packed != null) return packed;
+        }
         int[] v = biome ? b.sectionBiomesNow(furnaceWorld, pos.x, index, pos.z) : b.sectionStatesNow(furnaceWorld, pos.x, index, pos.z);
         if (v == null) throw notLoaded("PalettedContainer.data");
         return v;

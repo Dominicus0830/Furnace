@@ -32,7 +32,7 @@ final class FurnaceSectionSource implements PalettedContainer.FurnaceSource {
     public FurnaceChunkMirror mirror() { return chunk.furnaceMirror; }
 
     @Override
-    public int[] idsStamped(long[] stampOut) { return chunk.furnaceSectionIdsStamped(index, biome, stampOut); }
+    public Object contentStamped(long[] stampOut, long known) { return chunk.furnaceSectionContentStamped(index, biome, stampOut, known); }
 
     @Override
     public Object lock() { return chunk.furnaceMirror.lock; }

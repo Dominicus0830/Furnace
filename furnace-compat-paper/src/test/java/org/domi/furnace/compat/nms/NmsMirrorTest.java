@@ -572,6 +572,135 @@ class NmsMirrorTest {
         }
     }
 
+    /** T-209 이음매(#489 검토): 판이 그대로인 data 를 가진 뒤 자기 쓰기 → 공개 판을 얻은 직후 주인이 새 판을 내고 덧칠을 지워도 data 에 자기 쓰기가 보여야 한다. */
+    @Test
+    void foreignDataReadSeesOwnWriteAcrossAPublish() {
+        int qx = cx - 1, qz = cz + 1;
+        LevelChunk c = level.getChunk(qx, qz);
+        int x = qx * 16 + 5, z = qz * 16 + 7;
+        int y = on(qx, qz, () -> level.getHeight(Heightmap.Types.WORLD_SURFACE, x, z)) + 3;
+        int si = level.getSectionIndex(y);
+        BlockState glass = Blocks.GLASS.defaultBlockState(), air = Blocks.AIR.defaultBlockState();
+        server.tick(1);
+        LevelChunkSection sec = c.getSection(si);
+        @SuppressWarnings("unchecked")
+        PalettedContainer<BlockState> st = sec.getStates();
+        assertSame(air, call("dataStateAt", st, x & 15, y & 15, z & 15), "준비: 공기, 판 번호가 data 에 기록됨");
+        try {
+            assertSame(air, sec.setBlockState(x & 15, y & 15, z & 15, glass));
+            int[] fired = {0};
+            PalettedContainer<BlockState> st2 = st;
+            net.minecraft.world.level.chunk.ChunkAccess.testAfterForeignView = what -> {
+                if (fired[0] == 0 && what.startsWith("PalettedContainer.data")) {
+                    fired[0]++;
+                    net.minecraft.world.level.chunk.ChunkAccess.testAfterForeignView = null;
+                    server.tick(1);   // 주인: 일지 재생 → 새 판 공개 → 덧칠 삭제
+                }
+            };
+            Object got;
+            try {
+                got = call("dataStateAt", st2, x & 15, y & 15, z & 15);
+            } finally {
+                net.minecraft.world.level.chunk.ChunkAccess.testAfterForeignView = null;
+            }
+            assertEquals(1, fired[0], "이음매가 data 읽기 자리에서 돌았다");
+            assertSame(glass, got, "자기 쓰기가 data 에 보인다");
+        } finally {
+            sec.setBlockState(x & 15, y & 15, z & 15, air);
+            server.tick(1);
+        }
+    }
+
+    /**
+     * T-209: {@code data} 실체화가 서버 섹션 저장소 꼴을 그대로 넘긴다(칸을 펼치지 않음) — 서버 섹션이 간접 저장일 때와, 편집이 쌓여 직접 저장으로 커진
+     * 뒤일 때(값은 몇 가지뿐) 모두: 설정 비트·묶인 배열·팔레트 항목 순서가 공개 스냅샷의 저장소와 같고, 칸 값은 서버와 같다. 주인 스레드가 먼저 읽어도
+     * 같은 꼴이다. 내용이 그대로면 다시 읽어도 같은 data 객체, 바뀌면 새 data.
+     */
+    @Test
+    void dataPassesServerSectionLayoutThrough() throws Exception {
+        int qx = cx + 1, qz = cz - 1, si = 17;
+        LevelChunk c = level.getChunk(qx, qz);
+        int y0 = level.getMinBuildHeight() + si * 16;
+        BlockState[] simple = {Blocks.AIR.defaultBlockState(), Blocks.STONE.defaultBlockState(), Blocks.DIRT.defaultBlockState(),
+            Blocks.GLASS.defaultBlockState(), Blocks.REDSTONE_BLOCK.defaultBlockState(), Blocks.COBBLESTONE.defaultBlockState()};
+        int wire = net.minecraft.world.level.block.Block.getId(Blocks.REDSTONE_WIRE.defaultBlockState());
+        try {
+            for (String phase : new String[] {"indirect", "direct", "owner-first"}) {
+                int[] expected = on(qx, qz, () -> {
+                    if (phase.equals("direct")) {   // 서로 다른 상태 수백 개를 지나가게 해 팔레트를 직접 저장으로 키운다(살아 있는 팔레트는 줄지 않는다)
+                        List<BlockState> wires = new ArrayList<>();
+                        for (int id = wire - 1300; id <= wire + 1300; id++) {
+                            BlockState s = net.minecraft.world.level.block.Block.BLOCK_STATE_REGISTRY.byId(id);
+                            if (s != null && s.getBlock() == Blocks.REDSTONE_WIRE) wires.add(s);
+                        }
+                        for (int cell = 0; cell < 4096; cell++) {
+                            level.setBlock(new BlockPos(qx * 16 + (cell & 15), y0 + (cell >> 8), qz * 16 + ((cell >> 4) & 15)), wires.get(cell % wires.size()), 2 | 16);
+                        }
+                    }
+                    var rnd = new java.util.Random(phase.length());
+                    for (int cell = 0; cell < 4096; cell++) {
+                        level.setBlock(new BlockPos(qx * 16 + (cell & 15), y0 + (cell >> 8), qz * 16 + ((cell >> 4) & 15)), simple[rnd.nextInt(simple.length)], 2 | 16);
+                    }
+                    int[] e = new int[4096];
+                    for (int cell = 0; cell < 4096; cell++) {
+                        e[cell] = level.getBlockState(new BlockPos(qx * 16 + (cell & 15), y0 + (cell >> 8), qz * 16 + ((cell >> 4) & 15))).furnaceStateId();
+                    }
+                    return e;
+                });
+                Object ownerData = phase.equals("owner-first")
+                        ? on(qx, qz, () -> {   // 주인 스레드의 읽기(살아 있는 섹션 저장소 사본)
+                            PalettedContainer<BlockState> mine = level.getChunk(qx, qz).getSections()[si].getStates();
+                            assertArrayEquals(expected, (int[]) call("dataStates", mine), "주인 읽기 칸");
+                            return call("data", mine);
+                        })
+                        : null;
+                server.tick(1);   // 공개
+                var packed = c.furnaceForeignView("시험").sectionStatesPacked(si);
+                assertEquals(!phase.equals("indirect"), packed.paletteSize() < 0, phase + ": 시험 전제 — 서버 저장 방식(직접 저장은 줄지 않는다)");
+                PalettedContainer<BlockState> st = c.getSections().clone()[si].getStates();
+                var g = (PalettedContainer.Data<?>) call("data", st);
+                if (ownerData != null) {   // 주인(살아 있는 저장소 사본)과 다른 스레드(공개 스냅샷)가 같은 꼴
+                    var o = (PalettedContainer.Data<?>) ownerData;
+                    assertEquals(o.configuration(), g.configuration());
+                    assertArrayEquals(o.storage().getRaw(), g.storage().getRaw(), "주인 읽기와 같은 묶인 배열");
+                }
+                assertEquals(packed.bits(), g.storage().getBits(), phase);
+                assertArrayEquals(packed.rawCopy(), g.storage().getRaw(), phase);
+                if (packed.paletteSize() > 0) {
+                    assertEquals(packed.paletteSize(), g.palette().getSize(), phase);
+                    for (int i = 0; i < packed.paletteSize(); i++) {
+                        assertEquals(packed.paletteValue(i), net.minecraft.world.level.block.Block.getId((BlockState) g.palette().valueFor(i)), phase + " 팔레트 " + i);
+                    }
+                }
+                assertArrayEquals(expected, (int[]) call("dataStates", st), phase);
+                assertSame(g, call("data", st), phase + ": 판이 그대로면 같은 data");
+            }
+            on(qx, qz, () -> {
+                level.setBlock(new BlockPos(qx * 16, y0, qz * 16), Blocks.GOLD_BLOCK.defaultBlockState(), 2 | 16);
+                return null;
+            });
+            server.tick(1);
+            PalettedContainer<BlockState> st = c.getSections().clone()[si].getStates();
+            Object before = call("data", st);
+            on(qx, qz, () -> {
+                level.setBlock(new BlockPos(qx * 16 + 1, y0, qz * 16), Blocks.GOLD_BLOCK.defaultBlockState(), 2 | 16);
+                return null;
+            });
+            server.tick(1);
+            Object after = call("data", st);
+            assertNotSame(before, after, "판이 바뀌면 새 data");
+            assertEquals(Blocks.GOLD_BLOCK.defaultBlockState(), call("dataStateAt", st, 1, 0, 0));
+        } finally {
+            on(qx, qz, () -> {
+                for (int cell = 0; cell < 4096; cell++) {
+                    level.setBlock(new BlockPos(qx * 16 + (cell & 15), y0 + (cell >> 8), qz * 16 + ((cell >> 4) & 15)), Blocks.AIR.defaultBlockState(), 2 | 16);
+                }
+                return null;
+            });
+            server.tick(1);
+        }
+    }
+
     /** 변환기: 이름 힌트 없는 클래스의 Object[] VarHandle 쓰기와, 힌트 있는 클래스의 Field.get·Field.set*·NMS 원소 형 VarHandle 을 장벽으로 돌린다. */
     @Test
     void transformerInstallsBarriers() {
