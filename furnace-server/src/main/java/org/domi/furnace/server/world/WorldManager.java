@@ -157,12 +157,15 @@ public final class WorldManager {
      * {@link Dimensions} 에 넣지 않는다(접속자·명령·포털·월드 목록에 안 보인다). 레벨 서비스를 붙이지 않아 플러그인 이벤트도 없다(결정 D1).
      * 레벨 키는 겹치지 않는 {@code furnace:scratch/<n>}, 이름은 name. 아무 스레드 — 디스크·잠금이 없어 그 자리에서 끝난다. 다 쓰면 {@link #closeScratch}.
      */
-    public World createScratch(World original, long seed, String name) {
+    public World createScratch(World original, long seed, String name) { return createScratch(original, seed, name, null); }
+
+    /** {@link #createScratch(World, long, String)} 에 바이옴을 biomes 가 정하는 것(null 이면 원래 생성기의 바이옴 원천). 노이즈 생성기만. */
+    public World createScratch(World original, long seed, String name, org.domi.furnace.api.worldgen.BiomeProvider biomes) {
         if (original == null || original.isUnloaded()) throw new IllegalArgumentException("the original world is not loaded");
         WorldSource os = original.worldSource();
         if (os instanceof AnvilWorldSource a) os = a.base();
         else if (os instanceof org.domi.furnace.server.world.gen.ScratchWorldSource t) os = t.base();
-        WorldSource gen = new org.domi.furnace.server.world.gen.ScratchWorldSource(os.freshCopy(seed));   // 못 하는 생성기면 UnsupportedOperationException
+        WorldSource gen = new org.domi.furnace.server.world.gen.ScratchWorldSource(os.freshCopy(seed, biomes));   // 못 하는 생성기면 UnsupportedOperationException
         DimensionType ot = original.dimensionType();
         DimensionType type = ot.forLevel("furnace:scratch/" + scratchIds.incrementAndGet(), ot.gen());
         Config c = parts.config();
@@ -186,6 +189,7 @@ public final class WorldManager {
         if (w == null || !w.isScratch() || w.isUnloaded()) return;
         if (w.genQueue() != null) w.genQueue().removeWorld(w);
         w.closeForUnload();
+        w.discardAfterClose();   // 진행 중 생성 결과는 닫힌 region 에 못 들어간다 — 기다리는 쪽을 풀고 청크를 놓는다(#486 검토 3)
     }
 
     // ------------------------------------------------------------------ 만들기

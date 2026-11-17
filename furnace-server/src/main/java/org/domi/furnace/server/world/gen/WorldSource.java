@@ -15,4 +15,21 @@ public interface WorldSource {
     default WorldSource freshCopy(long seed) {
         throw new UnsupportedOperationException("this world generator cannot be copied: " + getClass().getName());
     }
+
+    /**
+     * {@link #freshCopy(long)} 에 바이옴 원천을 biomes 로 바꾼 것(T-203 3단계, CraftBukkit CustomWorldChunkManager). null 이면 freshCopy(seed).
+     * 바이옴 원천을 바꿀 수 없는 생성기(평지·디버그 등)는 UnsupportedOperationException.
+     */
+    /**
+     * 바닐라 BiomeSource#getNoiseBiome(quart 좌표, 기후 표본): 생성기가 그 칸에 정하는 바이옴 레지스트리 번호(청크에 저장된 것이 아니라 생성기 값 —
+     * Level#getUncachedNoiseBiome). 아무 스레드. 모르는 생성기는 UnsupportedOperationException.
+     */
+    default int noiseBiome(int quartX, int quartY, int quartZ) {
+        throw new UnsupportedOperationException("this world generator has no biome source: " + getClass().getName());
+    }
+
+    default WorldSource freshCopy(long seed, org.domi.furnace.api.worldgen.BiomeProvider biomes) {
+        if (biomes == null) return freshCopy(seed);
+        throw new UnsupportedOperationException("a biome provider needs a noise generator, not " + getClass().getSimpleName());
+    }
 }

@@ -211,6 +211,56 @@ class ScratchWorldTest {
         }
     }
 
+    /** 닫을 때 진행 중이던 청크 불러오기는 기다리는 쪽이 멈추지 않게 끝난다(#486 검토 3). */
+    @Test
+    void closingWithLoadsInFlightReleasesTheWaiters() throws Exception {
+        World a = create(WorldCreator.named("inflight").seed(31L).build());
+        World s = manager.createScratch(a, 31L, "inflight");
+        List<java.util.concurrent.CompletableFuture<ChunkColumn>> loads = new java.util.ArrayList<>();
+        for (int x = 0; x < 6; x++)
+            for (int z = 0; z < 6; z++) {
+                ChunkPos cp = new ChunkPos(40 + x, 40 + z);
+                loads.add(s.submitAtChunk(cp, r -> r.loadChunk(cp)).thenCompose(f -> f));
+            }
+        Thread.sleep(50);   // 몇 개는 생성 중
+        manager.closeScratch(s);
+        int done = 0, cancelled = 0;
+        for (var f : loads) {
+            try {
+                f.get(20, TimeUnit.SECONDS);
+                done++;
+            } catch (java.util.concurrent.ExecutionException | java.util.concurrent.CancellationException e) {
+                cancelled++;
+            }
+        }
+        assertEquals(36, done + cancelled, "모두 끝난다(제한 시간 안)");
+        assertEquals(0, s.pendingChunkLoads());
+    }
+
+    /** 바이옴 공급자가 늘 plains 면 같은 시드의 바닐라 단일 바이옴(plains) 월드와 같은 청크(지형지물·구조물 포함). */
+    @Test
+    void singleBiomeProviderMatchesTheVanillaSingleBiomeWorld() throws Exception {
+        long seed = 4242L;
+        World a = create(WorldCreator.named("pb").seed(seed).build());
+        var plains = new org.domi.furnace.api.worldgen.BiomeProvider() {
+            @Override public String biome(int x, int y, int z, org.domi.furnace.api.worldgen.Climate c) { return "minecraft:plains"; }
+            @Override public List<String> biomes() { return List.of("minecraft:plains"); }
+        };
+        World s = manager.createScratch(a, seed, "pb", plains);
+        try {
+            World b = create(WorldCreator.named("sb").seed(seed).generator(WorldGenerator.SINGLE_BIOME_SURFACE).build());
+            for (int[] c : new int[][] {{0, 0}, {1, 0}, {0, 1}, {-3, 2}}) {
+                assertEquals(chunkHash(b, c[0], c[1]), chunkHash(s, c[0], c[1]), "청크 " + c[0] + "," + c[1]);
+            }
+            assertNotEquals(chunkHash(a, 0, 0), chunkHash(s, 0, 0), "원래(여러 바이옴) 월드와는 다르다");
+            ChunkPos cp = new ChunkPos(0, 0);
+            int plainsId = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt").indexOf("minecraft:worldgen/biome", "minecraft:plains");
+            assertEquals(plainsId, (int) s.submitAtChunk(cp, r -> r.ownedChunk(0, 0).sectionForRead(5).getBiome(1, 2, 3)).join(), "저장된 바이옴");
+        } finally {
+            manager.closeScratch(s);
+        }
+    }
+
     @Test
     void freshCopyKeepsStructureSettingAndSharesTheGenerationPool() throws Exception {
         World a = create(WorldCreator.named("nostruct").seed(9L).generateStructures(false).build());

@@ -228,6 +228,12 @@ public final class AnvilWorldSource implements WorldSource {
     /** 디스크 없이 밑 생성기만 복사한다(T-203 임시 월드 — 저장된 청크를 읽지 않는다). */
     @Override
     public WorldSource freshCopy(long seed) { return base.freshCopy(seed); }
+
+    @Override
+    public int noiseBiome(int quartX, int quartY, int quartZ) { return base.noiseBiome(quartX, quartY, quartZ); }
+
+    @Override
+    public WorldSource freshCopy(long seed, org.domi.furnace.api.worldgen.BiomeProvider biomes) { return base.freshCopy(seed, biomes); }
     public AnvilChunkCodec codec() { return codec; }
 
     // ------------------------------------------------------------------ POI(poi/ 지역 파일 — 바닐라 PoiManager 의 SectionStorage)

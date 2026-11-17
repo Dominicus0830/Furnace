@@ -27,12 +27,13 @@ final class ScratchWorldsImpl implements ScratchWorlds {
     ScratchWorldsImpl(Supplier<PluginHost> host) { this.host = host; }
 
     @Override
-    public org.domi.furnace.api.world.World create(org.domi.furnace.api.world.World original, long seed, String name) {
+    public org.domi.furnace.api.world.World create(org.domi.furnace.api.world.World original, long seed, String name,
+                                                   org.domi.furnace.api.worldgen.BiomeProvider biomes) {
         if (!(original instanceof WorldHandle o)) throw new IllegalArgumentException("not a world of this server: " + original);
         PluginHost h = host.get();
         var m = h.core().worldManager();
         if (m == null) throw new UnsupportedOperationException("multiple worlds are not enabled on this server");
-        World w = m.createScratch(o.handle(), seed, name == null ? o.name() : name);
+        World w = m.createScratch(o.handle(), seed, name == null ? o.name() : name, biomes);
         WorldHandle wh = new WorldHandle(h, w);
         open.put(w, wh);
         return wh;

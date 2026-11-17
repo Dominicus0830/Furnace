@@ -44,6 +44,20 @@ public abstract class Level implements LevelAccessor {
 
     private org.domi.furnace.api.world.World furnace() { return world.furnaceHandle(); }
 
+    /**
+     * 바닐라 Level#getUncachedNoiseBiome(quart 좌표): 월드 생성기가 그 칸에 정하는 바이옴(청크에 저장된 값이 아니다). 아무 스레드.
+     * 바이옴 원천이 없는 생성기는 UnsupportedNmsCall.
+     */
+    public net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome> getUncachedNoiseBiome(int quartX, int quartY, int quartZ) {
+        int id;
+        try {
+            id = org.domi.furnace.api.Furnace.server().internals().chunks().noiseBiome(furnace(), quartX, quartY, quartZ);
+        } catch (UnsupportedOperationException e) {
+            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("Level#getUncachedNoiseBiome", e.getMessage());
+        }
+        return org.domi.furnace.compat.nms.NmsChunks.biomeHolders().get(id);
+    }
+
     /** 서버 레지스트리 묶음(H7b, {@link net.minecraft.server.MinecraftServer#registryAccess()} 와 같다). */
     public net.minecraft.core.RegistryAccess registryAccess() { return net.minecraft.core.RegistryAccess.SERVER; }
 

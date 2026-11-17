@@ -389,6 +389,21 @@ public final class Regionizer {
 
     // ------------------------------------------------------------------ 작업 보내기
 
+    /**
+     * 결과를 기다리는 쪽이 있는 작업(World#submitAtChunk 등). region 이 닫혀 돌지 못한 채 버려지면 {@link #reject} 로 그 쪽에 알린다 —
+     * 닫힌 월드(임시 월드 등)의 작업을 기다리다 영영 멈추지 않게.
+     */
+    interface Rejectable {
+        void reject(Throwable why);
+    }
+
+    /** 닫는 중(route 쓰기 잠금 안에서 선다): 이 뒤로 큐에 넣으려는 작업은 넣지 않고 거절한다. */
+    private volatile boolean closing;
+
+    private static void rejectDropped(java.util.function.Consumer<Region> task) {
+        if (task instanceof Rejectable r) r.reject(new java.util.concurrent.RejectedExecutionException("the world was closed"));
+    }
+
     /** 그 청크의 주인 region 큐에 작업을 넣는다. 구역이 없으면 만든다. */
     void enqueue(long chunkKey, java.util.function.Consumer<Region> task) {
         boolean command = CommandDrainGate.inScope();
@@ -401,6 +416,10 @@ public final class Regionizer {
         int cx = chunkX(chunkKey), cz = chunkZ(chunkKey);
         Region r;
         while ((r = offer(cx, cz, t)) == null) {
+            if (closing) {   // 닫힌 뒤 — 넣지 않는다(구역도 만들지 않는다)
+                rejectDropped(task);
+                return;
+            }
             // 구역이 없거나 주인이 없어졌다 — 잠금 안에서 구역을 만들고(읽기 잠금은 놓은 채) 다시 넣는다
             lock.lock();
             try {
@@ -417,7 +436,10 @@ public final class Regionizer {
         boolean command = CommandDrainGate.inScope();
         boolean urgent = org.domi.furnace.server.sched.GlobalThread.isGlobalThread() || command;
         Region r = offer(chunkX(chunkKey), chunkZ(chunkKey), new Region.Task(chunkKey, task, urgent, command));
-        if (r == null) return false;
+        if (r == null) {
+            if (closing) rejectDropped(task);
+            return false;
+        }
         if (urgent) urgentArrived(r, command);
         return true;
     }
@@ -430,6 +452,7 @@ public final class Regionizer {
         var rl = route.readLock();
         rl.lock();
         try {
+            if (closing) return null;
             Region r = ownerOf(cx, cz);
             if (r == null || !r.alive) return null;
             r.inbox.add(t);
@@ -1602,5 +1625,21 @@ public final class Regionizer {
         LIVE.remove(this);
         pool.unregister(this);   // 잠금을 놓은 뒤(R1)
         if (ownsPool) pool.close();
+        // 큐에 남은 작업은 이제 돌 곳이 없다 — 기다리는 쪽에 거절을 알린다(쓰기 잠금: 이 뒤로 넣는 작업은 offer 가 막는다)
+        List<Region.Task> dropped = new ArrayList<>();
+        var wl = route.writeLock();
+        lock.lock();   // regions 는 lock 이 지킨다(순서: lock → route, 합치기와 같다)
+        wl.lock();
+        try {
+            closing = true;
+            for (Region r : regions) {
+                Region.Task t;
+                while ((t = r.inbox.poll()) != null) dropped.add(t);
+            }
+        } finally {
+            wl.unlock();
+            lock.unlock();
+        }
+        for (Region.Task t : dropped) rejectDropped(t.run());
     }
 }

@@ -28,4 +28,10 @@ public final class ScratchWorldSource implements WorldSource {
 
     @Override
     public WorldSource freshCopy(long seed) { return new ScratchWorldSource(base.freshCopy(seed)); }
+
+    @Override
+    public int noiseBiome(int quartX, int quartY, int quartZ) { return base.noiseBiome(quartX, quartY, quartZ); }
+
+    @Override
+    public WorldSource freshCopy(long seed, org.domi.furnace.api.worldgen.BiomeProvider biomes) { return new ScratchWorldSource(base.freshCopy(seed, biomes)); }
 }

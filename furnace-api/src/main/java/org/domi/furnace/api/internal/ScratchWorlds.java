@@ -13,7 +13,13 @@ public interface ScratchWorlds {
      * @param name 월드 이름({@link World#name()})
      * @throws UnsupportedOperationException 복사할 수 없는 생성기
      */
-    World create(World original, long seed, String name);
+    default World create(World original, long seed, String name) { return create(original, seed, name, null); }
+
+    /**
+     * {@link #create(World, long, String)} 와 같지만 바이옴을 biomes 가 정한다(null 이면 원래 월드의 바이옴 원천). 노이즈 생성기 월드만 —
+     * 평지·디버그 월드에 공급자를 주면 UnsupportedOperationException.
+     */
+    World create(World original, long seed, String name, org.domi.furnace.api.worldgen.BiomeProvider biomes);
 
     /** 월드 생성기 종류: "noise"(노이즈), "flat"(평지·빈 월드), "debug"(모든 상태 격자), 그 밖은 "other". 아무 스레드. */
     String generatorKind(World world);

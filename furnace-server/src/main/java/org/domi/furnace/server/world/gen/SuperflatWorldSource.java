@@ -59,6 +59,9 @@ public final class SuperflatWorldSource implements WorldSource {
         this.genHooks = hooks;
     }
 
+    @Override
+    public int noiseBiome(int quartX, int quartY, int quartZ) { return biomeId; }
+
     /** 층은 시드와 무관하다 — 훅만 새 시드로(T-203). */
     @Override
     public SuperflatWorldSource freshCopy(long seed) {

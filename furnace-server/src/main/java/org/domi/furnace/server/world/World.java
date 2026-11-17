@@ -248,6 +248,19 @@ public final class World {
 
     public int outgoingTravels() { return outgoing.get(); }
 
+    /**
+     * 닫은 임시 월드를 버린다(저장하지 않는다): 진행 중 로드는 그 결과가 이제 region 에 들어갈 수 없어(작업 거절) 기다리는 쪽이 영영 멈추므로
+     * CancellationException 으로 끝내고, 올라온 청크를 놓는다(플러그인이 이 월드 객체를 오래 쥐어도 청크가 남지 않게). 닫은 뒤에만 부른다.
+     */
+    void discardAfterClose() {
+        if (!unloaded) throw new IllegalStateException("the world is still open");
+        for (var e : loading.entrySet()) {
+            if (loading.remove(e.getKey(), e.getValue())) e.getValue().completeExceptionally(new java.util.concurrent.CancellationException("the world was closed"));
+        }
+        genTickets.clear();
+        chunks.clear();
+    }
+
     /** 로드 중인 청크 수(생성·읽기 진행 중). */
     public int pendingChunkLoads() { return loading.size(); }
 
@@ -434,19 +447,27 @@ public final class World {
     public <T> CompletableFuture<T> submitAtChunk(ChunkPos cp, java.util.function.Function<Region, T> task) {
         if (unloaded) return CompletableFuture.failedFuture(new java.util.concurrent.RejectedExecutionException("unloaded world: " + dimension()));
         CompletableFuture<T> f = new CompletableFuture<>();
-        runAtChunk(cp, r -> {
-            try { f.complete(task.apply(r)); } catch (Throwable t) { f.completeExceptionally(t); }
-        });
+        runAtChunk(cp, new Submitted<>(f, task));
         return f;
+    }
+
+    /** 결과를 기다리는 작업 — 월드가 닫혀 돌지 못하면 거절로 끝난다(Regionizer.Rejectable). */
+    private record Submitted<T>(CompletableFuture<T> f, java.util.function.Function<Region, T> task)
+            implements java.util.function.Consumer<Region>, Regionizer.Rejectable {
+        @Override
+        public void accept(Region r) {
+            try { f.complete(task.apply(r)); } catch (Throwable t) { f.completeExceptionally(t); }
+        }
+
+        @Override
+        public void reject(Throwable why) { f.completeExceptionally(why); }
     }
 
     /** submitAtChunk 의 조회판: 그 청크에 주인 region 이 없으면 region 을 만들지 않고 null. */
     public <T> CompletableFuture<T> submitAtOwnedChunk(ChunkPos cp, java.util.function.Function<Region, T> task) {
         if (unloaded) return CompletableFuture.failedFuture(new java.util.concurrent.RejectedExecutionException("unloaded world: " + dimension()));
         CompletableFuture<T> f = new CompletableFuture<>();
-        boolean sent = regionizer.enqueueIfOwned(Regionizer.chunkKey(cp.x(), cp.z()), r -> {
-            try { f.complete(task.apply(r)); } catch (Throwable t) { f.completeExceptionally(t); }
-        });
+        boolean sent = regionizer.enqueueIfOwned(Regionizer.chunkKey(cp.x(), cp.z()), new Submitted<>(f, task));
         return sent ? f : null;
     }
 

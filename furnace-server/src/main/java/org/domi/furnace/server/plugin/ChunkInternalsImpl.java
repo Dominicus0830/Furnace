@@ -25,6 +25,11 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     @Override
+    public int noiseBiome(org.domi.furnace.api.world.World world, int quartX, int quartY, int quartZ) {
+        return handle(world).handle().worldSource().noiseBiome(quartX, quartY, quartZ);
+    }
+
+    @Override
     public int minY(org.domi.furnace.api.world.World world) { return handle(world).handle().dimensionType().minY(); }
 
     @Override
