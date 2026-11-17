@@ -572,6 +572,45 @@ class NmsMirrorTest {
         }
     }
 
+    /** T-209 이음매(#489 검토): 판이 그대로인 data 를 가진 뒤 자기 쓰기 → 공개 판을 얻은 직후 주인이 새 판을 내고 덧칠을 지워도 data 에 자기 쓰기가 보여야 한다. */
+    @Test
+    void foreignDataReadSeesOwnWriteAcrossAPublish() {
+        int qx = cx - 1, qz = cz + 1;
+        LevelChunk c = level.getChunk(qx, qz);
+        int x = qx * 16 + 5, z = qz * 16 + 7;
+        int y = on(qx, qz, () -> level.getHeight(Heightmap.Types.WORLD_SURFACE, x, z)) + 3;
+        int si = level.getSectionIndex(y);
+        BlockState glass = Blocks.GLASS.defaultBlockState(), air = Blocks.AIR.defaultBlockState();
+        server.tick(1);
+        LevelChunkSection sec = c.getSection(si);
+        @SuppressWarnings("unchecked")
+        PalettedContainer<BlockState> st = sec.getStates();
+        assertSame(air, call("dataStateAt", st, x & 15, y & 15, z & 15), "준비: 공기, 판 번호가 data 에 기록됨");
+        try {
+            assertSame(air, sec.setBlockState(x & 15, y & 15, z & 15, glass));
+            int[] fired = {0};
+            PalettedContainer<BlockState> st2 = st;
+            net.minecraft.world.level.chunk.ChunkAccess.testAfterForeignView = what -> {
+                if (fired[0] == 0 && what.startsWith("PalettedContainer.data")) {
+                    fired[0]++;
+                    net.minecraft.world.level.chunk.ChunkAccess.testAfterForeignView = null;
+                    server.tick(1);   // 주인: 일지 재생 → 새 판 공개 → 덧칠 삭제
+                }
+            };
+            Object got;
+            try {
+                got = call("dataStateAt", st2, x & 15, y & 15, z & 15);
+            } finally {
+                net.minecraft.world.level.chunk.ChunkAccess.testAfterForeignView = null;
+            }
+            assertEquals(1, fired[0], "이음매가 data 읽기 자리에서 돌았다");
+            assertSame(glass, got, "자기 쓰기가 data 에 보인다");
+        } finally {
+            sec.setBlockState(x & 15, y & 15, z & 15, air);
+            server.tick(1);
+        }
+    }
+
     /**
      * T-209: {@code data} 실체화가 서버 섹션 저장소 꼴을 그대로 넘긴다(칸을 펼치지 않음) — 서버 섹션이 간접 저장일 때와, 편집이 쌓여 직접 저장으로 커진
      * 뒤일 때(값은 몇 가지뿐) 모두: 설정 비트·묶인 배열·팔레트 항목 순서가 공개 스냅샷의 저장소와 같고, 칸 값은 서버와 같다. 주인 스레드가 먼저 읽어도

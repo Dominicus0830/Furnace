@@ -234,8 +234,8 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
 
     /**
      * 장벽(Field.get 앞, {@code NmsReflect}) — 붙은 보기의 {@code data} 필드를 그 순간 서버 내용(다른 스레드는 공개 스냅샷 + 자기 쓰기)으로 실체화한다.
-     * 바닐라 배치다: 블록은 서버 섹션 저장소 꼴 그대로(팔레트 항목 순서·옛 항목·비트 수 — 서버 저장소가 바닐라 PalettedContainer 포팅이라 바닐라 살아 있는
-     * 섹션과 같은 꼴, 칸을 펼치지 않는다 — T-209), 저장소가 펼쳐져 있거나 자기 쓰기 덧칠이 있거나 바이옴이면 디스크에서 읽은 섹션과 같은 배치(팔레트 = 처음
+     * 바닐라 배치다: 블록은 서버 섹션 저장소 꼴 그대로(팔레트 항목 순서·옛 항목·비트 수 — 서버 저장소가 바닐라 PalettedContainer 포팅이라 바닐라가 읽을
+     * 수 있는 꼴, 칸을 펼치지 않는다 — T-209. 비트가 커질 때 옛 항목을 버리는 바닐라 copyFrom 과 달리 옛 순서·옛 항목이 남는다), 저장소가 펼쳐져 있거나 자기 쓰기 덧칠이 있거나 바이옴이면 디스크에서 읽은 섹션과 같은 배치(팔레트 = 처음
      * 나온 순서, 비트 수 = 직렬화 규칙). 내용 판이 그대로면 앞서 만든 것을 그대로 둔다(칸을 읽지 않는다). 플러그인이 data 를 바꿨으면 손대지 않는다.
      * 바꿔 넣기는 CAS 라 플러그인의 대입을 덮지 않는다(설계 3.2 규칙 2).
      */
@@ -353,7 +353,8 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
 
     /**
      * T-209: 서버 섹션 저장소 사본 → data, 칸을 펼치지 않고 묶인 배열을 그대로(사본) 쓴다. 서버 저장소는 바닐라 PalettedContainer 포팅이라 그 꼴(0 비트 단일 값,
-     * 4 비트 배열 팔레트, 5~8 비트 해시 팔레트, 그 위는 전역 — 팔레트 항목 순서·쓰이지 않는 옛 항목 포함)이 바닐라 살아 있는 섹션의 data 와 같다. 그 비트 수가
+     * 4 비트 배열 팔레트, 5~8 비트 해시 팔레트, 그 위는 전역, 묶는 배치)이 바닐라 data 와 같은 설정이다. 팔레트 항목은 서버 순서·쓰이지 않는 옛 항목 그대로라
+     * 바닐라(비트가 커질 때 copyFrom 으로 칸 순서대로 다시 매겨 옛 항목을 버림)와 다를 수 있지만 칸 값은 같다. 그 비트 수가
      * 이 전략의 바닐라 설정과 맞지 않으면 null(부른 쪽이 칸 번호로 디스크 배치를 만든다 — 서버 설정이 바뀌지 않는 한 오지 않는다).
      */
     private static <T> Data<T> furnaceDataFromPacked(IdMap<T> registry, Strategy strategy, org.domi.furnace.api.internal.ChunkInternals.PackedStates p,
