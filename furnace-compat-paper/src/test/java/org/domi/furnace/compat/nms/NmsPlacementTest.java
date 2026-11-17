@@ -490,6 +490,72 @@ class NmsPlacementTest {
     }
 
     /**
+     * 실측(V5)에서 찾은 것: 플러그인 jar 의 클래스는 NMS 변환기를 거쳐 정의된다 — NMS shim 상속은 등급 C 껍데기라 FAWE 가변 문맥 생성자가
+     * UnsupportedNmsCall 을 던졌다(시험 사본은 변환기를 안 거쳐 몰랐다). 상속해도 되는 shim(NmsInheritable)이면 그대로 정의되어 재정의한 값으로 계산한다.
+     */
+    @Test
+    void pluginSubclassesThroughTheLinker() throws Exception {
+        var t = new NmsClassTransformer("FaweLike", Set.of(), NmsClassTransformer.Options.DEFAULT, NmsSymbols.RUNTIME);
+        Set<String> plugin = Set.of(FaweContext.class.getName(), ProxyLevel.class.getName());
+        ClassLoader loader = new ClassLoader(NmsPlacementTest.class.getClassLoader()) {
+            @Override
+            protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+                synchronized (getClassLoadingLock(name)) {
+                    Class<?> c = findLoadedClass(name);
+                    if (c == null && plugin.contains(name)) {
+                        byte[] b;
+                        try (var in = NmsPlacementTest.class.getClassLoader().getResourceAsStream(name.replace('.', '/') + ".class")) {
+                            b = in.readAllBytes();
+                        } catch (java.io.IOException e) {
+                            throw new ClassNotFoundException(name, e);
+                        }
+                        byte[] x = t.transform(name, b);
+                        c = defineClass(name, x == null ? b : x, 0, (x == null ? b : x).length);
+                    }
+                    return c != null ? c : super.loadClass(name, resolve);
+                }
+            }
+        };
+        Class<?> proxyClass = loader.loadClass(ProxyLevel.class.getName());
+        Class<?> ctxClass = loader.loadClass(FaweContext.class.getName());
+        assertEquals(ServerLevel.class, proxyClass.getSuperclass(), "껍데기가 아니라 shim 위에 그대로");
+        assertEquals(BlockPlaceContext.class, ctxClass.getSuperclass());
+        var of = proxyClass.getDeclaredMethod("of", ServerLevel.class);
+        of.setAccessible(true);
+        var newCtx = ctxClass.getDeclaredConstructor(Level.class);
+        newCtx.setAccessible(true);
+        var with = ctxClass.getDeclaredMethod("withSetting", BlockHitResult.class, Direction.class);
+        with.setAccessible(true);
+        var editsField = proxyClass.getDeclaredField("edits");
+        editsField.setAccessible(true);
+
+        BlockPos c = new BlockPos(baseX + 28, Y, baseZ + 108);
+        ServerLevel loaded = (ServerLevel) of.invoke(null, level);
+        ProxyLevel direct = ProxyLevel.of(level);
+        for (var e : List.of(java.util.Map.entry(c.below(), Blocks.STONE.defaultBlockState()), java.util.Map.entry(c.north(), Blocks.OAK_FENCE.defaultBlockState()),
+                java.util.Map.entry(c.east(), Blocks.STONE.defaultBlockState()))) {
+            @SuppressWarnings("unchecked") var m = (java.util.Map<BlockPos, BlockState>) editsField.get(loaded);
+            m.put(e.getKey(), e.getValue());
+            direct.edits.put(e.getKey(), e.getValue());
+        }
+        int compared = 0;
+        for (Block b : List.of(Blocks.OAK_FENCE, Blocks.OAK_STAIRS, Blocks.REDSTONE_WIRE, Blocks.GLASS_PANE, Blocks.COBBLESTONE_WALL, Blocks.TORCH, Blocks.LADDER, Blocks.CHEST)) {
+            for (Direction face : Direction.values()) {
+                for (Direction look : List.of(Direction.NORTH, Direction.EAST, Direction.DOWN)) {
+                    BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(c), face, c.relative(face.getOpposite()), false);
+                    BlockPlaceContext viaLinker = (BlockPlaceContext) with.invoke(newCtx.newInstance(loaded), hit, look);
+                    BlockPlaceContext viaTest = new FaweContext(direct).withSetting(hit, look);
+                    assertEquals(on(c, () -> b.getStateForPlacement(viaTest)), on(c, () -> b.getStateForPlacement(viaLinker)), b + " " + face + " " + look);
+                    compared++;
+                }
+            }
+        }
+        assertEquals(8 * 6 * 3, compared);
+        var up = (BlockPlaceContext) with.invoke(newCtx.newInstance(loaded), new BlockHitResult(Vec3.atCenterOf(c), Direction.UP, c.below(), false), Direction.NORTH);
+        assertNotEquals(Blocks.OAK_FENCE.defaultBlockState(), on(c, () -> Blocks.OAK_FENCE.getStateForPlacement(up)), "프록시 편집(북쪽 울타리·동쪽 돌)으로 이어진다");
+    }
+
+    /**
      * 실제 월드를 읽지 않는 프록시는 아무 스레드에서나 계산된다(FAWE 는 작업 스레드에서 부른다). 서버 월드는 다른 스레드면 공개 스냅샷으로 읽는다(N2b-3).
      * 놓는 플레이어가 있는 문맥은 아직 없다 — 거짓 parity 대신 UnsupportedNmsCall(바닐라 생성자가 canBeReplaced 를 불러 만들 때 난다).
      */

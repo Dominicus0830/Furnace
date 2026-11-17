@@ -68,7 +68,9 @@ final class NmsLinker extends ClassVisitor {
     public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
         self = name;
         boolean isInterface = (access & Opcodes.ACC_INTERFACE) != 0;
-        if (superName != null && !own.contains(superName) && NmsSymbols.isNms(superName)
+        if (superName != null && !own.contains(superName) && inheritable(symbols, superName)) {
+            inherit = superName;   // 상속해도 되는 shim(T-204 V5) — 그대로 정의하고 shim 에 없는 상위 생성자를 부르는 생성자만 덫
+        } else if (superName != null && !own.contains(superName) && NmsSymbols.isNms(superName)
                 && (superName.startsWith("net/minecraft/") || !symbols.hasClass(superName))) {
             String why = superName.startsWith("net/minecraft/") && symbols.hasClass(superName)
                     ? CompatLang.t("nms.grade-c", CompatLang.t("nms.grade-c.inherit"))
@@ -110,6 +112,8 @@ final class NmsLinker extends ClassVisitor {
      * 것을 막는다). 정적 멤버는 그대로다. 인터페이스는 지금처럼 정의를 거부한다.
      */
     private UnsupportedNmsCall husk;
+    /** 상속해도 되는 shim 상위 클래스({@link NmsInheritable}) — 이 클래스가 그것을 바로 상속하면 그 내부 이름. */
+    private String inherit;
     private String huskClass;
     private String huskParent;
     private String huskWhy;
@@ -135,6 +139,11 @@ final class NmsLinker extends ClassVisitor {
             log.debug("Plugin {}: class {} definition refused (again)", plugin, dots(cls));
         }
         return new UnsupportedNmsCall(target, why + " (plugin=" + plugin + ")");
+    }
+
+    /** 플러그인이 상속해도 되는 NMS shim 인가(있고 {@link NmsInheritable} 표시) — 시작 보고서도 같은 판정으로 등급 C 에서 뺀다. */
+    static boolean inheritable(NmsSymbols symbols, String superName) {
+        return superName.startsWith("net/minecraft/") && symbols.hasClass(superName) && symbols.isInheritable(superName);
     }
 
     /** 시험용. */
@@ -172,10 +181,43 @@ final class NmsLinker extends ClassVisitor {
         return new MethodNode(Opcodes.ASM9, access, name, descriptor, signature, exceptions) {
             @Override
             public void visitEnd() {
+                String missingSuper = inherit != null && name.equals("<init>") ? missingSuperConstructor(this) : null;
+                if (missingSuper != null) {
+                    // 상속한 shim 에 없는 상위 생성자(바닐라 생성자 서술자) — 이 생성자는 JVM 처럼 그 자리에서 링크 오류. 상위 생성자를 못 부르니 몸 전체를 덫으로
+                    changed[changedIndex] = true;
+                    next.visitCode();
+                    InsnList body = new InsnList();
+                    emitTrap(body, dots(self) + "#<init>", missingSuper, NmsGrades.reason(inherit), UnsupportedNmsLink.METHOD);
+                    body.add(new InsnNode(Opcodes.ACONST_NULL));
+                    body.add(new InsnNode(Opcodes.ATHROW));
+                    body.accept(next);
+                    next.visitMaxs(5, Type.getArgumentsAndReturnSizes(descriptor) >> 2);
+                    next.visitEnd();
+                    return;
+                }
                 if (link(this)) changed[changedIndex] = true;
                 accept(next);
             }
         };
+    }
+
+    /** 생성자가 부르는 상속한 shim 의 상위 생성자({@code invokespecial} — 앞선 {@code new} 없는 것)가 shim 에 없으면 그 이름, 아니면 null. */
+    private String missingSuperConstructor(MethodNode mn) {
+        int pendingNews = 0;
+        for (AbstractInsnNode insn = mn.instructions.getFirst(); insn != null; insn = insn.getNext()) {
+            if (insn.getOpcode() == Opcodes.NEW) pendingNews++;
+            if (!(insn instanceof MethodInsnNode m) || m.getOpcode() != Opcodes.INVOKESPECIAL || !m.name.equals("<init>")) continue;
+            if (pendingNews > 0) {
+                pendingNews--;
+                continue;
+            }
+            if (!m.owner.equals(inherit)) return null;   // this(...) 위임 — 그 생성자가 따로 판정된다
+            if (symbols.declaresMethod(inherit, "<init>", m.desc)) return null;
+            StringJoiner args = new StringJoiner(", ", "(", ")");
+            for (Type t : Type.getArgumentTypes(m.desc)) args.add(simple(t.getClassName()));
+            return dots(inherit) + "#<init>" + args;
+        }
+        return null;
     }
 
     // ------------------------------------------------------------------ 한 메서드

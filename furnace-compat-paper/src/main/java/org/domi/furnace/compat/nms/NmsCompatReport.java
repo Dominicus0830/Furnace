@@ -347,9 +347,9 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
                 counts[4]++;
                 return;
             }
-            // 있는 NMS 클래스라도 상속은 정의 때 거부된다(NmsLinker.visit 와 같은 판정) — 등급 C 로 센다
+            // 있는 NMS 클래스라도 상속은 정의 때 거부된다(NmsLinker.visit 와 같은 판정 — 상속해도 되는 shim 은 빼고) — 등급 C 로 센다
             if (superName != null && superName.startsWith("net/minecraft/") && !own.contains(superName) && !otherVersion(superName)
-                    && index.hasClass(superName)) {
+                    && index.hasClass(superName) && !NmsLinker.inheritable(index, superName)) {
                 if (seen.add("S " + name)) {
                     counts[1]++;
                     missing.add(CompatLang.t("nms.report.extends", NmsLinker.dots(name), NmsLinker.dots(superName)));

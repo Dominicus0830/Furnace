@@ -123,6 +123,17 @@ class NmsLinkerTest {
             }
             """;
 
+    /** 상속해도 되는 shim(NmsInheritable) 하위 클래스 — 스텁의 무인자 상위 생성자는 shim 에 없다(FAWE 레벨 프록시의 15인자 생성자 꼴). */
+    private static final String SUB_INHERITABLE = """
+            package linky;
+            public class MyLevel extends net.minecraft.server.level.ServerLevel {
+                public int extra = 3;
+                public MyLevel() { super(); }
+                public MyLevel(int x) { this(); extra = x; }
+                @Override public int getMinBuildHeight() { return 7 + extra; }
+            }
+            """;
+
     /** 컴파일용 스텁: 바닐라의 Sniffer 는 상속할 수 있지만 shim 은 final 이다(플러그인은 바닐라 모양으로 컴파일한다). */
     private static final String SNIFFER_STUB = """
             package net.minecraft.world.entity.animal.sniffer;
@@ -143,6 +154,7 @@ class NmsLinkerTest {
         src.put("linky.MyEntity", SUB);
         src.put("linky.MyChunk", SUB_MISSING);
         src.put("linky.MyFinalParent", SUB_FINAL);
+        src.put("linky.MyLevel", SUB_INHERITABLE);
         src.put("net.minecraft.world.entity.animal.sniffer.Sniffer", SNIFFER_STUB);
         Path jar = JarCompiler.jar(tmp.resolve("linky.jar"), "name: Linky\nversion: '1'\nmain: linky.User\n", src, Set.of("net.minecraft."));
         classes = read(jar);
@@ -308,6 +320,27 @@ class NmsLinkerTest {
         assertEquals(Object.class, missing.getSuperclass(), "on Object when there is no parent shim");
         var e2 = assertThrows(java.lang.reflect.InvocationTargetException.class, () -> missing.getDeclaredConstructor().newInstance());
         assertTrue(e2.getCause().getMessage().contains("ProtoChunk"), e2.getCause().getMessage());
+    }
+
+    @Test
+    void inheritableShimParentKeepsTheSubclassAndTrapsOnlyAMissingSuperConstructor() throws Throwable {
+        // T-204 V5: 상속해도 되는 shim 은 껍데기가 아니다 — 재정의가 남고, shim 에 없는 상위 생성자를 부르는 생성자만 그 자리에서 링크 오류
+        NmsClassTransformer t = new NmsClassTransformer("Linky", Set.of(), NmsClassTransformer.Options.DEFAULT, NmsSymbols.RUNTIME);
+        Class<?> c = new Loader(classes, t).loadClass("linky.MyLevel");
+        assertEquals(net.minecraft.server.level.ServerLevel.class, c.getSuperclass());
+        var e = assertThrows(InvocationTargetException.class, () -> c.getDeclaredConstructor().newInstance());
+        assertInstanceOf(UnsupportedNmsLink.class, e.getCause());
+        assertInstanceOf(NoSuchMethodError.class, e.getCause(), "JVM 이 냈을 종류");
+        assertTrue(e.getCause().getMessage().contains("ServerLevel#<init>()"), e.getCause().getMessage());
+        var e2 = assertThrows(InvocationTargetException.class, () -> c.getDeclaredConstructor(int.class).newInstance(5));
+        assertInstanceOf(UnsupportedNmsLink.class, e2.getCause(), "this(...) 로 그 생성자를 부른다");
+        // 생성자 없이(Unsafe) 만든 객체는 재정의로 답한다 — 필드 초기화는 돌지 않는다(Paper 에서도 같다)
+        var f = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+        f.setAccessible(true);
+        var level = (net.minecraft.server.level.ServerLevel) ((sun.misc.Unsafe) f.get(null)).allocateInstance(c);
+        assertEquals(7, level.getMinBuildHeight());
+        assertTrue(NmsLinker.inheritable(NmsSymbols.RUNTIME, "net/minecraft/world/item/context/BlockPlaceContext"));
+        assertFalse(NmsLinker.inheritable(NmsSymbols.RUNTIME, "net/minecraft/world/entity/LivingEntity"));
     }
 
     @Test

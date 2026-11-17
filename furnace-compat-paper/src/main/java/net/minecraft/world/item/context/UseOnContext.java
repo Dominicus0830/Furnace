@@ -13,6 +13,7 @@ import net.minecraft.world.phys.Vec3;
  * 블록에 대고 쓰기 문맥(Mojang 이름 shim, T-204). 필드·메서드는 바닐라 1.21.1 과 같다. 플레이어를 받는 생성자는 손에 든 것을 플레이어에서 읽어야 해서
  * 아직 없다({@code UnsupportedNmsCall}) — 놓기 계산은 플레이어 없는 문맥만 서버로 이어진다({@link BlockPlaceContext}).
  */
+@org.domi.furnace.compat.nms.NmsInheritable   // 플러그인 문맥(FAWE 가변 문맥)이 상속한다 — 값은 가상 메서드로 읽는다
 public class UseOnContext {
 
     private final Player player;
