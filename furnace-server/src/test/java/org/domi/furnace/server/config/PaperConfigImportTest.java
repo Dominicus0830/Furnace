@@ -369,6 +369,37 @@ class PaperConfigImportTest {
         assertEquals(32, s.villagers());
     }
 
+    /** T-219: bukkit.yml worlds.<기본 세 월드>.generator·biome-provider → world-generator.<차원>·world-biome-provider.<차원>. 다른 이름은 대응 없음. */
+    @Test
+    void importsDefaultWorldGenerators(@TempDir Path dir) throws Exception {
+        write(dir, "bukkit.yml", """
+                worlds:
+                  survival:
+                    generator: Terra:default
+                  survival_nether:
+                    biome-provider: ' Biomes '
+                  survival_the_end:
+                    generator: ''
+                  world:
+                    generator: Other
+                """);
+        Result r = PaperConfigImport.analyze(PaperConfigImport.detect(dir), new Properties(), "survival");
+        assertEquals("Terra:default", r.toWrite().get("world-generator.overworld"));
+        assertEquals("Biomes", r.toWrite().get("world-biome-provider.the_nether"));
+        assertFalse(r.toWrite().containsKey("world-generator.the_end"));
+        assertTrue(has(r, Kind.IMPORTED, "bukkit.yml", "worlds.survival.generator"));
+        assertTrue(has(r, Kind.IGNORED, "bukkit.yml", "worlds.survival_the_end.generator"));
+        assertTrue(has(r, Kind.UNSUPPORTED, "bukkit.yml", "worlds.world.generator"), "level-name 이 아닌 월드는 Paper 도 쓰지 않는다");
+        assertFalse(r.toWrite().containsValue("Other"));
+    }
+
+    @Test
+    void levelNameComesFromServerProperties(@TempDir Path dir) throws Exception {
+        assertEquals("world", PaperConfigImport.levelName(dir));
+        write(dir, "server.properties", "level-name=survival\n");
+        assertEquals("survival", PaperConfigImport.levelName(dir));
+    }
+
     @Test
     void reportsManualUnsupportedAndUnknown(@TempDir Path dir) throws Exception {
         all(dir);

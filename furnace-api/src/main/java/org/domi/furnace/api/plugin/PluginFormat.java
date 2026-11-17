@@ -84,6 +84,17 @@ public interface PluginFormat {
     default void worldsReady(org.domi.furnace.api.Furnace server) {}
 
     /**
+     * 기본 월드 하나의 생성기·바이옴 공급자를 고른다(T-219 — Bukkit {@code bukkit.yml} {@code worlds.<이름>.generator}·{@code biome-provider}).
+     * 서버 시작에서 {@link #enablesBeforeWorlds} 가 참인 플러그인을 다 켠 뒤, {@link #worldsReady} 전에, 설정이 있는 기본 월드마다 전역 스레드에서
+     * 한 번 불린다. 요청에 적힌 플러그인이 이 형식의 것이면 그 몫을 맡아(claimed) 답하고, 실패 이유(플러그인이 아직 꺼져 있다 등)는 이 형식이 알린다.
+     * 이 형식의 플러그인이 아니면 null. 어댑터를 아직 만들지 않았으면 불리지 않는다.
+     */
+    default org.domi.furnace.api.worldgen.DefaultWorldGeneration defaultWorldGeneration(org.domi.furnace.api.Furnace server,
+            org.domi.furnace.api.worldgen.DefaultWorldGeneration.Request request) {
+        return null;
+    }
+
+    /**
      * 서버 종료 중 모든 플러그인의 onDisable 이 끝난 직후에 한 번 불린다(리로드나 플러그인 하나 끄기에서는 불리지 않는다).
      * 어댑터가 자기 형식의 플러그인이 남긴 일(예: Bukkit 비동기 작업)을 마무리할 시간을 주는 자리다. 오래 붙잡지 말 것(종료가 그만큼 늦어진다).
      * 어댑터를 아직 만들지 않았으면(그 형식의 플러그인이 없었으면) 불리지 않는다.

@@ -65,6 +65,13 @@ public final class CompatFormat implements PluginFormat {
     @Override
     public void worldsReady(org.domi.furnace.api.Furnace server) { Compat.revealWorldsAfterStartup(server); }
 
+    /** 기본 월드의 Bukkit 생성기·공급자(T-219, bukkit.yml worlds.<이름>.generator 자리). */
+    @Override
+    public org.domi.furnace.api.worldgen.DefaultWorldGeneration defaultWorldGeneration(org.domi.furnace.api.Furnace server,
+            org.domi.furnace.api.worldgen.DefaultWorldGeneration.Request request) {
+        return createdPlugin ? BukkitDefaultWorlds.resolve(request) : null;
+    }
+
     static final long SHUTDOWN_ASYNC_WAIT_MILLIS = 5_000;
 
     /** paper-plugin.yml 이 있으면 그것을 먼저 읽는다(Paper 와 같다). */

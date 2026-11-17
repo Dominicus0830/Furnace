@@ -74,5 +74,6 @@ server.unloadWorld(world, true).thenAccept(ok -> { /* 플레이어가 있거나 
 
 - ~~플러그인 생성기(청크 생성 단계 훅): W3.~~ → 구현됨: `WorldCreator.Builder.generationHooks(키)`·청크 재생성 `World.regenerateChunk`·`/worlds regen` — [worldgen-hooks.md](worldgen-hooks.md).
 - ~~평지의 구조물·지형지물~~ → 오버월드 높이의 추가 평지는 바닐라 평지 생성기(T-210). 남은 것: 빈 월드(VOID)의 시작 발판(바닐라 "The Void" 프리셋의 `void_start_platform`), 다른 높이 평지의 구조물·지형지물.
-- ~~Bukkit `ChunkGenerator`(`WorldCreator#generator`)로 만드는 월드~~ → 구현됨(T-217): Furnace 쪽은 훅 객체 `WorldCreator.Builder.generationHooksObject(…)`·월드 장식기 `World.addChunkDecorator(…)` — [worldgen-hooks.md](worldgen-hooks.md) 5장. 남은 것은 T-218(옛 `populate(World, Random, Chunk)`·`LimitedRegion` 엔티티 등)·T-219(기본 세 월드를 Bukkit 생성기로).
+- ~~Bukkit `ChunkGenerator`(`WorldCreator#generator`)로 만드는 월드~~ → 구현됨(T-217): Furnace 쪽은 훅 객체 `WorldCreator.Builder.generationHooksObject(…)`·월드 장식기 `World.addChunkDecorator(…)` — [worldgen-hooks.md](worldgen-hooks.md) 5장. 남은 것은 T-218(옛 `populate(World, Random, Chunk)`·`LimitedRegion` 엔티티 등).
+- ~~기본 세 월드를 생성기·바이옴 공급자 플러그인으로~~ → 구현됨(T-219): `furnace.properties` `world-generator.<overworld|the_nether|the_end>`·`world-biome-provider.<같은 셋>` = `플러그인[:id]`(bukkit.yml `worlds.<이름>.generator`·`biome-provider` 와 같은 뜻). 형식 어댑터가 `PluginFormat#defaultWorldGeneration` 으로 답한다. 같은 차원에 `worldgen-hooks.<차원>` 이 있으면 그것이 이긴다 — `docs/feature-parity/compat-t219-default-world-generators-2026-11-17.md`.
 - 월드별 시간·날씨·게임 규칙(Paper 방식) — 필요하면 기본 꺼짐 옵션으로 더한다.

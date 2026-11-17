@@ -26,18 +26,39 @@ public final class AnvilWorldSource implements WorldSource {
     private final Path worldDir;
     private final RegionFileStore store;
     private final AnvilChunkCodec codec;
-    private final WorldSource base; // 디스크 없을 때 폴백 생성
+    private volatile WorldSource base; // 디스크 없을 때 폴백 생성(시작 때 한 번 바꿀 수 있다 — replaceBase)
+    /** 이 소스로 청크를 읽거나 만든 적이 있다(그 뒤로는 바탕 생성기를 바꾸지 않는다). */
+    private volatile boolean baseUsed;
 
     public AnvilWorldSource(Path worldDir, RegionFileStore store, AnvilChunkCodec codec, WorldSource base) {
         this.worldDir = worldDir;
         this.store = store;
         this.codec = codec;
         this.base = base;
+        bindReferences(base);
+    }
+
+    private void bindReferences(WorldSource b) {
         // 탐험 지도 references(A06-06): 차원 data 폴더의 파일과, 아직 불러오지 않은 시작 청크는 디스크 NBT 에서 읽는다
-        if (base instanceof NoiseWorldSource n && store != null) {
+        if (b instanceof NoiseWorldSource n && store != null) {
             n.structureEngine().references().bind(store.regionDir().resolveSibling("data").resolve("furnace_structure_references.dat"),
                     this::storedReferences);
         }
+    }
+
+    /** 이 소스로 청크를 읽거나 만든 적이 있는가(그러면 {@link #replaceBase} 가 거절한다). */
+    public boolean baseUsed() { return baseUsed; }
+
+    /**
+     * 바탕 생성기를 바꾼다(T-219 — 기본 월드의 생성기를 서버 시작 중 플러그인이 정할 때). 이 소스로 아직 청크를 하나도 읽거나 만들지 않았을 때만
+     * 바꾸고 true, 이미 썼으면 그대로 두고 false(옛 바탕으로 만든 청크와 경계가 생기지 않게).
+     */
+    public synchronized boolean replaceBase(WorldSource next) {
+        java.util.Objects.requireNonNull(next, "next");
+        if (baseUsed) return false;
+        base = next;
+        bindReferences(next);
+        return true;
     }
 
     /**
@@ -205,6 +226,7 @@ public final class AnvilWorldSource implements WorldSource {
     }
 
     private ChunkColumn generateFallback(int chunkX, int chunkZ) {
+        baseUsed = true;
         if (base instanceof NoiseWorldSource noise) {
             return noise.generateWithFeatures(chunkX, chunkZ);
         }
@@ -216,6 +238,7 @@ public final class AnvilWorldSource implements WorldSource {
         NewerDataVersionException.check(nbt);
         OlderDataVersionException.check(nbt, Lang.t("anvil.what-chunk", nbt.tags().get("xPos") instanceof Number x ? x.intValue() : 0, nbt.tags().get("zPos") instanceof Number z ? z.intValue() : 0));
         ChunkColumn col = codec.fromNbt(nbt);
+        baseUsed = true;   // 읽은 청크도 바탕의 구조물 references 에 묶인다
         if (col != null && base instanceof NoiseWorldSource n) col.structures().attach(n.structureEngine().references());
         if (col != null) col.clearDirty();
         return col;
