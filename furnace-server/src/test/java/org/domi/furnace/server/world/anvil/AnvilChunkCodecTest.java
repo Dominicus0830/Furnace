@@ -80,7 +80,7 @@ class AnvilChunkCodecTest {
     }
 
     /**
-     * 바닐라 LevelChunk.getBlockEntityNbtForSaving: 저장하는 블록 엔티티마다 keepPacked=false(byte 0)가 마지막 키로 붙는다.
+     * 바닐라 LevelChunk.getBlockEntityNbtForSaving: 저장하는 블록 엔티티마다 keepPacked=false(byte 0)가 붙는다(Furnace 는 마지막 키로 넣는다 — 바닐라 파일 안 키 순서는 해시 맵 순서라 별개).
      * 상자·종류별(화로)·NBT 그대로 든 것(전달체) 모두, 디스크에서 true 로 읽어 온 것도 false 로 되쓴다.
      */
     @Test
@@ -105,9 +105,9 @@ class AnvilChunkCodecTest {
         furnace.putInt("x", 4); furnace.putInt("y", -60); furnace.putInt("z", 4);
         bes.add(furnace);
         NbtCompound conduit = new NbtCompound();
+        conduit.putBoolean("keepPacked", true);   // 맨 앞에 둔다 — 지우고 다시 넣지 않으면 앞에 남는다
         conduit.putString("id", "minecraft:conduit");
         conduit.putInt("x", 5); conduit.putInt("y", -60); conduit.putInt("z", 5);
-        conduit.putBoolean("keepPacked", true);
         bes.add(conduit);
         nbt.putList("block_entities", bes);
 
@@ -121,7 +121,7 @@ class AnvilChunkCodecTest {
             NbtCompound be = (NbtCompound) o;
             assertEquals((byte) 0, be.tags().get("keepPacked"), be.tags().get("id") + " 은 keepPacked:0b 로 저장돼야 한다");
             java.util.List<String> keys = new java.util.ArrayList<>(be.tags().keySet());
-            assertEquals("keepPacked", keys.get(keys.size() - 1), "바닐라는 keepPacked 를 마지막에 붙인다");
+            assertEquals("keepPacked", keys.get(keys.size() - 1), "Furnace 는 keepPacked 를 마지막에 넣는다(되쓴 것도 앞에 남지 않는다)");
         }
     }
 

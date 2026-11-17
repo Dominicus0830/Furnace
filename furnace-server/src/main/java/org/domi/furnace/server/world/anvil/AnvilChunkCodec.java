@@ -173,13 +173,13 @@ public final class AnvilChunkCodec {
     }
 
     /**
-     * 바닐라 LevelChunk.getBlockEntityNbtForSaving: 살아 있는 블록 엔티티는 saveWithFullMetadata 뒤에 keepPacked=false 를 마지막 키로 붙여 저장한다
-     * (true 는 "아직 풀지 않은 대기 NBT" 표시인데, 바닐라는 저장 직전 getBlockEntity 로 대기 NBT 를 승격하므로 완성 청크에는 항상 false 다).
+     * 바닐라 LevelChunk.getBlockEntityNbtForSaving: 살아 있는 블록 엔티티는 saveWithFullMetadata 뒤에 keepPacked=false 를 붙여 저장한다
+     * (같은 메서드 첫머리의 getBlockEntity 가 대기 NBT 를 승격하므로 완성 청크에는 false 만 쓰인다. 승격에 실패한 대기 NBT 는 true 로 저장되지 않고 사라진다).
      * Furnace 가 아직 해석하지 않아 NBT 그대로 들고 있는 생성·보존 블록 엔티티도 바닐라에서는 살아 있는 쪽이라 같은 값을 쓴다 —
      * 디스크에서 true 로 읽어 온 것도 false 로 되쓴다. 항상 완성(full) 청크만 저장하므로 true 로 쓰는 길은 없다.
      */
     private static void markUnpacked(NbtCompound e) {
-        e.tags().remove("keepPacked");   // 이미 있으면 키 순서가 앞에 남지 않게 지우고 마지막에 다시 넣는다
+        e.tags().remove("keepPacked");   // Furnace 는 마지막에 넣는다(바닐라 파일 안 키 순서는 해시 맵 순서라 별개)
         e.putBoolean("keepPacked", false);
     }
 
