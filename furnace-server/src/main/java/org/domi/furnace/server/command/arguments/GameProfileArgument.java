@@ -15,7 +15,9 @@ import org.domi.furnace.server.command.brigadier.StringReader;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.players.GameProfile;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.arguments.GameProfileArgument")
 public final class GameProfileArgument implements ArgumentType<GameProfileArgument.Result> {
 
     public static final SimpleCommandExceptionType ERROR_UNKNOWN_PLAYER = new SimpleCommandExceptionType(Text.translatable("argument.player.unknown"));

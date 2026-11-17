@@ -85,7 +85,11 @@ public class Silverfish extends Monster {
                             Pos p = new Pos(base.x() + j, base.y() + i, base.z() + k);
                             int state = level.getBlockState(p);
                             if (org.domi.furnace.server.block.BlockBehaviors.of(state) instanceof InfestedBlock ib) {
-                                if (level.gameRule("mobGriefing")) level.destroyBlock(p, true, null, 512);
+                                boolean griefing = level.gameRule("mobGriefing");
+                                // CraftBukkit(+Paper 새 상태): EntityChangeBlockEvent 를 막으면 이 칸은 건너뛴다(난수 return 검사도 하지 않는다)
+                                if (!org.domi.furnace.server.block.B.entityChange(level, silverfish, p,
+                                        griefing ? org.domi.furnace.server.block.B.fluidLeftover(state) : ib.hostStateByInfested(state))) continue;
+                                if (griefing) level.destroyBlock(p, true, null, 512);
                                 else level.setBlock(p, ib.hostStateByInfested(state), 3, 512);
                                 if (r.nextBoolean()) return;
                             }
@@ -136,6 +140,8 @@ public class Silverfish extends Monster {
                 Pos p = new Pos((int) Math.floor(silverfish.x()), (int) Math.floor(silverfish.y() + 0.5), (int) Math.floor(silverfish.z())).relative(selectedDirection);
                 int state = level.getBlockState(p);
                 if (InfestedBlock.isCompatibleHostBlock(state)) {
+                    // CraftBukkit: EntityChangeBlockEvent 를 막으면 숨지 않는다
+                    if (!org.domi.furnace.server.block.B.entityChange(level, silverfish, p, InfestedBlock.infestedStateByHost(state))) return;
                     level.setBlock(p, InfestedBlock.infestedStateByHost(state), 3, 512);
                     silverfish.spawnAnim();
                     silverfish.discard();

@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Set;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.DiskFeature")
 public final class DiskFeature implements ConfiguredFeature {
 
     /** rule: 현재 칸에서 if_true 블록 조건(오프셋 포함)이 참이면 thenStateId, 아니면 다음 rule/fallback. */

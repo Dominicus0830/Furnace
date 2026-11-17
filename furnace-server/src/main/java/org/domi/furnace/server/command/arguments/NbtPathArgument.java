@@ -25,7 +25,9 @@ import org.domi.furnace.server.net.io.nbt.NbtArray;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 import org.domi.furnace.server.net.io.nbt.NbtTags;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.arguments.NbtPathArgument")
 public final class NbtPathArgument implements ArgumentType<NbtPathArgument.NbtPath> {
 
     private static final List<String> EXAMPLES = List.of("foo", "foo.bar", "foo[0]", "[0]", "[]", "{foo=bar}");

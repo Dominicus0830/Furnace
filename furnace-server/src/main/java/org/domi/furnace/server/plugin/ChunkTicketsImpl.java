@@ -45,7 +45,7 @@ public final class ChunkTicketsImpl implements ChunkTickets {
 
     private static World server(org.domi.furnace.api.world.World w) {
         if (w instanceof WorldHandle h) return h.handle();
-        throw new IllegalArgumentException("이 서버의 월드가 아니다: " + w);
+        throw new IllegalArgumentException("not a world of this server: " + w);
     }
 
     private boolean rejected(FurnacePlugin owner) {
@@ -60,10 +60,10 @@ public final class ChunkTicketsImpl implements ChunkTickets {
     public ChunkTicket add(FurnacePlugin owner, org.domi.furnace.api.world.World world, int chunkX, int chunkZ, int radius, boolean ticking) {
         Objects.requireNonNull(owner, "owner");
         Objects.requireNonNull(world, "world");
-        if (radius < 0 || radius > MAX_RADIUS) throw new IllegalArgumentException("radius 는 0.." + MAX_RADIUS + ": " + radius);
+        if (radius < 0 || radius > MAX_RADIUS) throw new IllegalArgumentException("radius must be 0.." + MAX_RADIUS + ": " + radius);
         World w = server(world);
-        if (w.isUnloaded()) throw new IllegalStateException("내린 월드: " + world.name());
-        if (rejected(owner)) throw new IllegalStateException("꺼진 플러그인은 청크 티켓을 걸 수 없다: " + owner.name());
+        if (w.isUnloaded()) throw new IllegalStateException("unloaded world: " + world.name());
+        if (rejected(owner)) throw new IllegalStateException("a disabled plugin cannot hold chunk tickets: " + owner.name());
         int n = 2 * radius + 1;
         TicketImpl t = new TicketImpl(this, owner, (WorldHandle) world, w, chunkX, chunkZ, radius, ticking);
         synchronized (this) {
@@ -72,15 +72,15 @@ public final class ChunkTicketsImpl implements ChunkTickets {
             for (TicketImpl o : active) if (o.owner == owner) held += o.chunkCount();
             int limit = maxChunksPerOwner();
             if (held > limit) {
-                throw new IllegalStateException("플러그인 " + owner.name() + " 의 청크 티켓이 " + limit
-                        + " 청크를 넘는다(겹침 포함, 한도는 furnace.properties 의 plugins.chunk-tickets.max-per-plugin)");
+                throw new IllegalStateException("plugin " + owner.name() + " holds chunk tickets covering more than " + limit
+                        + " chunks (overlaps included; the limit is plugins.chunk-tickets.max-per-plugin in furnace.properties)");
             }
             active.add(t);
         }
         t.apply();   // 개수 표에 올리고 청크를 불러온다 — 그 전에 누가 놓았으면(release) 올리지 않는다
         if (rejected(owner)) {   // 거는 사이 꺼졌다 — 이미 정리가 지나갔을 수 있으니 직접 놓는다
             t.release();
-            throw new IllegalStateException("꺼진 플러그인은 청크 티켓을 걸 수 없다: " + owner.name());
+            throw new IllegalStateException("a disabled plugin cannot hold chunk tickets: " + owner.name());
         }
         return t;
     }

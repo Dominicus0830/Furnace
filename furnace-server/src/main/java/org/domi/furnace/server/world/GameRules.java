@@ -8,6 +8,7 @@ import java.util.function.BiConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.GameRules")
 public final class GameRules {
 
     private static final Logger log = LoggerFactory.getLogger(GameRules.class);
@@ -126,9 +127,9 @@ public final class GameRules {
         String n = rule.name();
         int colon = n.indexOf(':');
         if (colon <= 0 || !n.substring(colon + 1).matches("[A-Za-z0-9_]+") || !n.substring(0, colon).matches("[a-z0-9_.-]+")) {
-            throw new IllegalArgumentException("플러그인 규칙 이름은 namespace:이름(영문·숫자·_): " + n);
+            throw new IllegalArgumentException("a plugin rule name must be namespace:name (letters, digits, _): " + n);
         }
-        if (RULES.containsKey(n) || custom.containsKey(n)) throw new IllegalArgumentException("이미 있는 게임 규칙: " + n);
+        if (RULES.containsKey(n) || custom.containsKey(n)) throw new IllegalArgumentException("game rule already exists: " + n);
         String saved = dormant.remove(n);
         values.put(n, saved == null ? rule.defaultValue() : rule.isBoolean() ? (Boolean.parseBoolean(saved) ? 1 : 0) : parseInt(saved));
         custom.put(n, rule);

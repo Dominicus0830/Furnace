@@ -203,6 +203,7 @@ player.sendMessage(Text.translatable("myplugin.welcome", Text.text(player.name()
 
 - 그라디언트 `phase`, 무지개 색 공식, `pride` 깃발 색은 MiniMessage 4.17 의 알고리즘을 기억으로 재현한 것이다. 선형 보간·HSV 순서(무지개 6글자: `#ff0000 #ffff00 #00ff00 #00ffff #0000ff #ff00ff`)는 같지만, 경계 값(음수 phase, 깃발 줄무늬 색)에서 한 단계 어긋날 수 있다.
 - 무지개 HSV→RGB 는 각 채널에 255 를 곱해 내림한다. 이름 있는 16색과 값이 같으면 `NamedTextColor` 로 정규화된다.
+- `TextColor.color(int)` 는 Adventure 처럼 16색과 값이 같으면 이름 있는 색을 준다(직렬화 `"red"`). 바닐라 `TextColor.fromRgb` 처럼 이름 없이 `"#FF5555"` 로 쓰려면 `TextColor.rgb(int)`(2026-11-12). 두 값은 `equals` 가 같다.
 - `<lang>`, `<key>`, `<selector>`, `<score>`, `<nbt>`, `<newline>` 은 자식을 받지 않는 자기 닫는 태그다.
 - 자기 닫는 `/>` 는 태그 이름 바로 뒤(`<br/>`)에서만 인식한다(`<click:open_url:https://x.com/>` 의 `/` 가 URL 로 남도록).
 - `escapeTags` 는 알려진 태그만이 아니라 모든 `<` 를 이스케이프한다(결과를 해석하면 항상 원문이 나온다).

@@ -2,6 +2,7 @@
 // 빈 공간 프리셋(공기 1층, the_void, features)은 청크 (0,0) 둘레에 시작 발판을 놓는다.
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
@@ -12,11 +13,12 @@ import org.domi.furnace.server.world.ChunkSection;
 import org.junit.jupiter.api.Test;
 
 class FlatWorldGenerationTest {
-    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
-    private static final RegistrySet REGS = RegistrySet.load("registries/1.21.1.txt");
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+    private static final RegistrySet REGS = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
 
     private static NoiseWorldSource flat(List<SuperflatWorldSource.Layer> layers, String biome, boolean features, boolean lakes) {
-        return NoiseWorldSource.flat(1234L, REG, REGS, new NoiseWorldSource.FlatSpec(layers, biome, features, lakes, null));
+        // 구조물 없이(structure_overrides 빈 목록) 층·지형지물만 본다
+        return NoiseWorldSource.flat(1234L, REG, REGS, new NoiseWorldSource.FlatSpec(layers, biome, features, lakes, List.of()));
     }
 
     private static int state(String name) { return REG.defaultStateId(name); }

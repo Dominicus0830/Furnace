@@ -1,6 +1,7 @@
 // M20: 탑승 중 비행 킥·낙하 피해·배 회전, 시선 보정(getVisibilityPercent), 플레이어 불(공유 플래그 0)·투명(5)·발광(6), 불 보호/태우는 시간.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.UUID;
@@ -18,7 +19,7 @@ class PlayerPoseFlagsM20Test {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static Player player(int id, GameMode mode) {

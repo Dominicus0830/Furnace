@@ -2,6 +2,7 @@
 // 직소 블록 엔티티 NBT. region 스레드에서 실제 슈퍼플랫 월드로 돌린다.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
@@ -33,7 +34,7 @@ class StructureBlockTest {
     @BeforeAll
     static void items() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @TempDir Path tmp;
@@ -53,7 +54,7 @@ class StructureBlockTest {
 
     private void start() throws Exception {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         io = org.domi.furnace.server.TestServers.ioPool();
         DimensionType ow = DimensionType.OVERWORLD;
         var src = new AnvilWorldSource(tmp, new RegionFileStore(ow.storageDir(tmp)), new AnvilChunkCodec(reg, 0), new SuperflatWorldSource(reg, 0));

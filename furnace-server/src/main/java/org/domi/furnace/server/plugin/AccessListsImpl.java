@@ -84,7 +84,7 @@ final class AccessListsImpl implements AccessLists {
     @Override
     public void banIp(String ip, String reason, Instant expires, String source) {
         java.util.Objects.requireNonNull(ip, "ip");
-        if (!PlayerListCommands.IP_ADDRESS_PATTERN.matcher(ip).matches()) throw new IllegalArgumentException("IP 주소가 아니다: " + ip);
+        if (!PlayerListCommands.IP_ADDRESS_PATTERN.matcher(ip).matches()) throw new IllegalArgumentException("not an IP address: " + ip);
         lists().getIpBans().add(new IpBanListEntry(ip, null, source, expires == null ? null : java.util.Date.from(expires), reason));
         for (Player p : core().players()) {
             if (p.ipAddress().equals(ip)) p.kick(new Disconnect(Text.translatable("multiplayer.disconnect.ip_banned")));

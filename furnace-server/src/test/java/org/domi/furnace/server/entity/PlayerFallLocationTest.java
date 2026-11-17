@@ -2,6 +2,7 @@
 // 열린 다락문 바로 아래가 같은 방향 사다리면 매달리는가(바닐라 LivingEntity.trapdoorUsableAsLadder).
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -20,7 +21,7 @@ class PlayerFallLocationTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static int state(String name) { return B.defaultState(name); }
@@ -45,7 +46,7 @@ class PlayerFallLocationTest {
         public int stateAt(int x, int y, int z) { return blocks.getOrDefault(key(x, y, z), state("minecraft:air")); }
     }
 
-    private static final PlayerProbe PROBE = new PlayerProbe(BlockRegistry.load("blocks/1.21.1.txt"));
+    private static final PlayerProbe PROBE = new PlayerProbe(BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"));
 
     @Test
     void openTrapdoorAboveSameFacingLadderIsClimbable() {

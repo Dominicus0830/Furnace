@@ -3,6 +3,7 @@ package org.domi.furnace.server.world.gen.structure;
 
 import java.util.Optional;
 
+@org.domi.furnace.server.VanillaPort({"net.minecraft.world.level.levelgen.structure.structures.BuriedTreasureStructure", "net.minecraft.world.level.levelgen.structure.structures.BuriedTreasurePieces"})
 public final class BuriedTreasureStructure extends StructureType {
 
     public BuriedTreasureStructure(StructureRegistry.Def def) {}
@@ -16,6 +17,13 @@ public final class BuriedTreasureStructure extends StructureType {
         Piece(int x, int y, int z) {
             super(new BoundingBox(x, y, z, x, y, z), Direction.NORTH);
         }
+
+        @Override
+        public String pieceType() { return "btp"; }
+
+        /** 바닐라 BuriedTreasurePiece 는 방향을 정하지 않는다(O = -1). */
+        @Override
+        protected Direction savedOrientation() { return null; }
 
         @Override
         public void postProcess(PostCtx c) {

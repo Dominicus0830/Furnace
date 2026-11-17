@@ -3,13 +3,16 @@ package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundRecipePacket")
 public record RecipeBookUpdate(int state, boolean[] settings, List<ResourceId> recipes, List<ResourceId> highlight) implements Packet {
 
-    public static final int ID = 0x41;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_RECIPE;
     public static final int INIT = 0, ADD = 1, REMOVE = 2;
 
     @Override public int id() { return ID; }

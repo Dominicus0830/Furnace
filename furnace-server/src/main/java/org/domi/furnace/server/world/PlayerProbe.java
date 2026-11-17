@@ -18,19 +18,33 @@ public final class PlayerProbe {
     public static final double EYE_STANDING = 1.62, EYE_CROUCHING = 1.27;
 
     private final BlockRegistry registry;
-    private final Set<String> climbable, fences, walls, fenceGates;
+    /** 한 태그 표에서 만든 블록 이름 집합(데이터 팩 리로드로 표가 바뀌면 다음 물음에서 다시 만든다). */
+    private record TagSets(org.domi.furnace.server.net.registry.TagSet src, Set<String> climbable, Set<String> fences, Set<String> walls,
+                           Set<String> fenceGates) {}
+
+    private volatile TagSets tagSets;
     /** state id → 물 양(0 = 물 없음, 1..8 = FluidState.getAmount). 처음 볼 때 채운다(-1 = 아직 모름). */
     private final byte[] waterAmount;
 
     public PlayerProbe(BlockRegistry registry) {
         this.registry = registry;
-        BlockTags tags = BlockTags.get();
-        this.climbable = Set.copyOf(tags.blocksOf("minecraft:climbable"));
-        this.fences = Set.copyOf(tags.blocksOf("minecraft:fences"));
-        this.walls = Set.copyOf(tags.blocksOf("minecraft:walls"));
-        this.fenceGates = Set.copyOf(tags.blocksOf("minecraft:fence_gates"));
+        this.tagSets = buildTagSets();
         this.waterAmount = new byte[Math.max(1, registry.totalStateCount())];
         java.util.Arrays.fill(waterAmount, (byte) -1);
+    }
+
+    private static TagSets buildTagSets() {
+        var src = org.domi.furnace.server.item.ItemContext.gameplayTags();
+        BlockTags tags = BlockTags.get();
+        return new TagSets(src, Set.copyOf(tags.blocksOf("minecraft:climbable")), Set.copyOf(tags.blocksOf("minecraft:fences")),
+                Set.copyOf(tags.blocksOf("minecraft:walls")), Set.copyOf(tags.blocksOf("minecraft:fence_gates")));
+    }
+
+    /** 지금 태그 표(데이터 팩이 바꾼 것 포함)로 만든 블록 집합. */
+    private TagSets tags() {
+        TagSets t = tagSets;
+        if (t.src != org.domi.furnace.server.item.ItemContext.gameplayTags()) tagSets = t = buildTagSets();
+        return t;
     }
 
     public String nameOf(int stateId) { return registry.nameOf(stateId); }
@@ -114,7 +128,7 @@ public final class PlayerProbe {
         int bx = floor(x), by = floor(y), bz = floor(z);
         int s = b.stateAt(bx, by, bz);
         if (s < 0) return null;
-        if (climbable.contains(registry.nameOf(s))) return org.domi.furnace.server.entity.LivingEntity.fallLocationOf(s);
+        if (tags().climbable.contains(registry.nameOf(s))) return org.domi.furnace.server.entity.LivingEntity.fallLocationOf(s);
         if (org.domi.furnace.server.block.types.TrapDoorBlock.isTrapDoor(s)
                 && org.domi.furnace.server.block.types.TrapDoorBlock.usableAsLadder(s, b.stateAt(bx, by - 1, bz))) {
             return org.domi.furnace.server.entity.LivingEntity.fallLocationOf(s);
@@ -162,7 +176,8 @@ public final class PlayerProbe {
         if (support != null) {
             int s = b.stateAt(support[0], support[1], support[2]);
             String n = s < 0 ? null : registry.nameOf(s);
-            if (n != null && (fences.contains(n) || walls.contains(n) || fenceGates.contains(n))) return support;
+            TagSets t = tags();
+            if (n != null && (t.fences.contains(n) || t.walls.contains(n) || t.fenceGates.contains(n))) return support;
             return new int[] {support[0], floor(y - 0.2), support[2]};
         }
         return new int[] {floor(x), floor(y - 0.2), floor(z)};
@@ -179,7 +194,8 @@ public final class PlayerProbe {
         if (!(yOffset > 1.0E-5F)) return support;
         int s = b.stateAt(support[0], support[1], support[2]);
         String n = s < 0 ? null : registry.nameOf(s);
-        boolean keep = n != null && ((yOffset <= 0.5 && fences.contains(n)) || walls.contains(n) || fenceGates.contains(n));
+        TagSets t = tags();
+        boolean keep = n != null && ((yOffset <= 0.5 && t.fences.contains(n)) || t.walls.contains(n) || t.fenceGates.contains(n));
         return keep ? support : new int[] {support[0], floor(y - yOffset), support[2]};
     }
 

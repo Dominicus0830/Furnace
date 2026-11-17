@@ -8,7 +8,9 @@ import java.nio.file.Path;
 import java.util.Properties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.Eula")
 public final class Eula {
 
     private static final Logger log = LoggerFactory.getLogger(Eula.class);

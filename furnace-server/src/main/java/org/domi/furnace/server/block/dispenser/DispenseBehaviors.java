@@ -5,6 +5,7 @@ package org.domi.furnace.server.block.dispenser;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockItems;
 import org.domi.furnace.server.block.BlockLevel;
@@ -33,6 +34,10 @@ import org.domi.furnace.server.entity.DispenserEquip;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.item.ItemTools;
 
+@VanillaPort({
+    "net.minecraft.world.level.block.DispenserBlock",
+    "net.minecraft.core.dispenser.DispenseItemBehavior"
+})
 public final class DispenseBehaviors {
 
     private DispenseBehaviors() {}

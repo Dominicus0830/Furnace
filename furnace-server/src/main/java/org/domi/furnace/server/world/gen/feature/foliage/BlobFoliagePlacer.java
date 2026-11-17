@@ -7,6 +7,7 @@ import org.domi.furnace.server.world.gen.feature.TreeConfig;
 import org.domi.furnace.server.world.gen.feature.TreeIntProvider;
 import org.domi.furnace.server.world.gen.feature.trunk.TrunkPlacer;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.foliageplacers.BlobFoliagePlacer")
 public final class BlobFoliagePlacer extends FoliagePlacer {
     private final int height;
 

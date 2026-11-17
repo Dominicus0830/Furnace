@@ -4,15 +4,18 @@ package org.domi.furnace.server.net.protocol.configuration;
 
 import io.netty.buffer.ByteBuf;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtWriter;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 import org.domi.furnace.server.net.registry.RegistrySet;
 
+@VanillaPort("net.minecraft.network.protocol.configuration.ClientboundRegistryDataPacket")
 public record RegistryData(String registryId, List<String> entries, RegistrySet source) implements Packet {
 
-    public static final int ID = 0x07;
+    public static final int ID = PacketIds.CONFIGURATION_CLIENTBOUND_REGISTRY_DATA;
 
     public RegistryData(String registryId, List<String> entries) { this(registryId, entries, null); }
 

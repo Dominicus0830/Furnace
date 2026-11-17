@@ -4,7 +4,9 @@ package org.domi.furnace.server.menu;
 import java.util.List;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.recipe.RecipeManager.CraftingEntry;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.inventory.ResultContainer")
 public class ResultContainer implements Container {
 
     private final Container storage;
@@ -35,6 +37,13 @@ public class ResultContainer implements Container {
     public CraftingEntry recipeUsed() { return recipeUsed; }
 
     public void setRecipeUsed(CraftingEntry e) { recipeUsed = e; }
+
+    /** 격자가 지금 맞는 레시피(맞는 것이 없으면 null) — CraftBukkit CraftingContainer#getCurrentRecipe. recipeUsed 와 달리 격자가 바뀔 때마다 다시 정한다. */
+    private volatile CraftingEntry currentRecipe;
+
+    public CraftingEntry currentRecipe() { return currentRecipe; }
+
+    public void setCurrentRecipe(CraftingEntry e) { currentRecipe = e; }
 
     /**
      * 바닐라 RecipeCraftingHolder.setRecipeUsed(level, player, recipe): 특수가 아닌 레시피는 doLimitedCrafting 이면 아는 것만 쓸 수 있다.

@@ -1,6 +1,9 @@
 // 바닐라 DispenserMenu(generic_3x3) — 발사기·공급기 9칸. 이동 뒤 onTake 를 부르고 개수가 그대로면 EMPTY(다른 용기 메뉴와 다르다).
 package org.domi.furnace.server.menu;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("net.minecraft.world.inventory.DispenserMenu")
 public class DispenserMenu extends ContainerBackedMenu {
 
     public DispenserMenu(int containerId, Container playerInventory, Container container, int[] blockPos, MenuPlayer opener) {

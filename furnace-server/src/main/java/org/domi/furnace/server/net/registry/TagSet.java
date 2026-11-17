@@ -11,7 +11,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.tags.TagNetworkSerialization")
 public final class TagSet {
 
     // 레지스트리 → (태그 id → 엔트리 id 배열). 삽입 순서 유지.
@@ -27,7 +29,7 @@ public final class TagSet {
     public static TagSet load(String resourcePath) {
         Map<String, Map<String, int[]>> map = new LinkedHashMap<>();
         try (InputStream in = TagSet.class.getClassLoader().getResourceAsStream(resourcePath)) {
-            if (in == null) throw new IllegalStateException("태그 리소스 없음: " + resourcePath);
+            if (in == null) throw new IllegalStateException("tag resource is missing: " + resourcePath);
             try (BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
                 String line;
                 while ((line = r.readLine()) != null) {

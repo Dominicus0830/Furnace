@@ -2,6 +2,7 @@
 // 바닐라 데이터 없이 도는 단위 시험이다(빈 리소스 매니저).
 package org.domi.furnace.server.loot;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.google.gson.JsonParser;
@@ -27,7 +28,7 @@ class ItemFunctionsTest {
     static void load() throws Exception {
         PackRepository repo = new PackRepository(null, null);
         repo.reload();
-        TagRegistries tags = new TagRegistries(RegistrySet.load("registries/1.21.1.txt"));
+        TagRegistries tags = new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"));
         try (var rm = repo.openResourceManager()) {
             regs = new LootRegistries(tags, tags.loadAll(rm));
             data = LootData.load(rm, regs);
@@ -318,7 +319,7 @@ class ItemFunctionsTest {
             try {
                 LootFunction.parse(JsonParser.parseString("{\"function\":\"minecraft:" + t + "\"}"), regs);
             } catch (LootParseException e) {
-                assertFalse(e.getMessage().startsWith("아직 지원하지 않는 전리품 함수"), t + " 미지원: " + e.getMessage());
+                assertFalse(e.getMessage().startsWith("loot function not supported yet"), t + " 미지원: " + e.getMessage());
             } catch (RuntimeException ignored) {
                 // 필수 필드 누락 — 함수 종류는 알고 있다
             }
@@ -327,7 +328,7 @@ class ItemFunctionsTest {
 
     @Test
     void resultsConvertToServerItemsWithoutLoss() {
-        NetworkComponents net = new NetworkComponents(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        NetworkComponents net = new NetworkComponents(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         LootEntity victim = new LootEntity() {
             public String type() { return "minecraft:player"; }
             public Map<String, Object> gameProfile() { return Map.of("name", "Steve", "id", List.of(1, 2, 3, 4)); }

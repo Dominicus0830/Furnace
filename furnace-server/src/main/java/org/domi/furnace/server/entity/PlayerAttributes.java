@@ -29,7 +29,7 @@ public final class PlayerAttributes {
     public static double compute(Attribute attr, double base, Collection<AttributeModifier> mods) {
         AttributeInstance inst = new AttributeInstance(attr, () -> {});
         inst.setBaseValue(base);
-        for (AttributeModifier m : mods) inst.addOrReplaceModifier(m);
+        inst.addAllModifiers(mods);
         return inst.value();
     }
 

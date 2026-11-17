@@ -4,6 +4,7 @@
 // 메뉴에 되돌려 쓴다 — 보는 사람마다 용기 사본이 있어도 클릭이 한 줄로 서서 같은 아이템을 둘이 꺼내는 일이 없다.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.util.List;
 import org.domi.furnace.api.menu.ClickKind;
 import org.domi.furnace.api.menu.Menu;
@@ -102,7 +103,7 @@ public final class MenuSession implements Menu.Listener {
             refresh();   // 만든 뒤 열릴 때까지 사이에 바뀐 것
             menu.broadcastChanges();
         } catch (RuntimeException e) {
-            log.warn("메뉴 새로고침 실패: {}", e.toString());
+            log.warn(Lang.t("menu.refresh-failed", e.toString()));
         }
         syncTitle();     // open_screen 을 보낸 뒤 리스너가 붙기 전에 바뀐 제목
         api.viewerOpened(player);
@@ -146,7 +147,7 @@ public final class MenuSession implements Menu.Listener {
         try {
             conv = ApiConvert.item(item, items());
         } catch (IllegalArgumentException e) {
-            log.warn("메뉴 칸 {} 을 보일 수 없다: {}", slot, e.getMessage());
+            log.warn(Lang.t("menu.slot-failed", slot, e.getMessage()));
             return;
         }
         var host0 = player.handle().inventoryHost();

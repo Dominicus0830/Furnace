@@ -1,6 +1,7 @@
-// 글자별 색 태그(패키지 내부): gradient · rainbow · transition · pride.
-// 방식: 태그가 닫힐 때 이미 해석된 자식 목록을 받아, 보이는 글자 단위(코드포인트; 글자가 아닌 내용은 1칸)를 센 뒤 글자마다 색을 입힌다.
-// 이미 색이 정해진 마디(와 그 후손)는 색을 바꾸지 않되 위치는 글자 수만큼 흘려보낸다. 같은 색이 이어지면 한 마디로 합친다.
+// 글자별 색 태그(패키지 내부): gradient, rainbow, transition, pride.
+// 태그가 닫힐 때 이미 해석된 자식 목록을 받는다. 보이는 글자 수를 센 뒤(코드포인트 단위, 글자가 아닌 내용은 1칸) 글자마다 색을 입힌다.
+// 이미 색이 정해진 마디(와 그 후손)는 색을 바꾸지 않되, 위치는 글자 수만큼 흘려보낸다.
+// 같은 색이 이어지면 한 마디로 합친다.
 package org.domi.furnace.api.text.markup;
 
 import java.util.ArrayList;
@@ -37,15 +38,15 @@ final class ColorEffects {
             } else {
                 OptionalDouble p = a.asDouble();
                 if (p.isPresent() && !args.hasNext()) phase = p.getAsDouble();
-                else throw ctx.newException("'" + a.value() + "' 을(를) 색으로 읽을 수 없다");
+                else throw ctx.newException("'" + a.value() + "' is not a valid color");
             }
         }
         if (colors.isEmpty()) {
             colors.add(NamedTextColor.WHITE);
             colors.add(NamedTextColor.BLACK);
         }
-        if (colors.size() == 1) throw ctx.newException("그라디언트에는 색이 둘 이상 필요하다");
-        if (phase < -1 || phase > 1) throw ctx.newException("그라디언트 phase 는 -1.0 ~ 1.0 이어야 한다: " + phase);
+        if (colors.size() == 1) throw ctx.newException("a gradient needs at least two colors");
+        if (phase < -1 || phase > 1) throw ctx.newException("the gradient phase must be between -1.0 and 1.0: " + phase);
         if (phase < 0) {
             java.util.Collections.reverse(colors);
             phase = 1 + phase;
@@ -78,7 +79,7 @@ final class ColorEffects {
                 try {
                     phase = Integer.parseInt(v.trim());
                 } catch (NumberFormatException e) {
-                    throw ctx.newException("rainbow 인자는 '!' 또는 정수 phase 여야 한다: '" + v + "'");
+                    throw ctx.newException("the rainbow argument must be '!' or an integer phase: '" + v + "'");
                 }
             }
         }
@@ -97,7 +98,7 @@ final class ColorEffects {
         };
     }
 
-    /** HSV(s=v=1) → RGB — Adventure TextColor.color(HSVLike) 와 같은 float 식(각 채널은 255 를 곱해 내림). */
+    /** HSV(s=v=1)를 RGB 로 바꾼다. Adventure TextColor.color(HSVLike) 와 같은 float 식이다(각 채널은 255 를 곱해 내린다). */
     static TextColor hsv(float hue) {
         final float s = 1f, v = 1f;
         float h = hue * 6;
@@ -129,11 +130,11 @@ final class ColorEffects {
             } else {
                 OptionalDouble p = a.asDouble();
                 if (p.isPresent() && !args.hasNext()) phase = p.getAsDouble();
-                else throw ctx.newException("'" + a.value() + "' 을(를) 색으로 읽을 수 없다");
+                else throw ctx.newException("'" + a.value() + "' is not a valid color");
             }
         }
-        if (colors.isEmpty()) throw ctx.newException("transition 에는 색이 하나 이상 필요하다");
-        if (phase < 0 || phase > 1) throw ctx.newException("transition phase 는 0.0 ~ 1.0 이어야 한다: " + phase);
+        if (colors.isEmpty()) throw ctx.newException("transition needs at least one color");
+        if (phase < 0 || phase > 1) throw ctx.newException("the transition phase must be between 0.0 and 1.0: " + phase);
         float position = (float) phase * (colors.size() - 1);
         int low = (int) Math.floor(position);
         int high = (int) Math.ceil(position);
@@ -171,13 +172,13 @@ final class ColorEffects {
                 flag = a.lowerValue();
                 if (args.hasNext()) {
                     OptionalDouble p = args.pop().asDouble();
-                    if (p.isEmpty()) throw ctx.newException("pride phase 는 숫자여야 한다");
+                    if (p.isEmpty()) throw ctx.newException("the pride phase must be a number");
                     phase = (float) p.getAsDouble();
                 }
             }
         }
         int[] rgb = FLAGS.get(flag.toLowerCase(Locale.ROOT));
-        if (rgb == null) throw ctx.newException("알 수 없는 pride 깃발: '" + flag + "'");
+        if (rgb == null) throw ctx.newException("unknown pride flag: '" + flag + "'");
         TextColor[] stripes = new TextColor[rgb.length];
         for (int i = 0; i < rgb.length; i++) stripes[i] = TextColor.color(rgb[i]);
         final float ph = phase;

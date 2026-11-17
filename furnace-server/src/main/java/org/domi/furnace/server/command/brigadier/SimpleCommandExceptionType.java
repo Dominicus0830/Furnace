@@ -1,7 +1,9 @@
 package org.domi.furnace.server.command.brigadier;
 
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("com.mojang.brigadier.exceptions.SimpleCommandExceptionType")
 public final class SimpleCommandExceptionType {
 
     private final Text message;

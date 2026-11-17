@@ -1,6 +1,7 @@
 // 돼지 타기: 안장 있어야 탄다, 당근 낚싯대를 들면 조종, 가속(ItemBasedSteering) 총 시간 난수와 종료 시점.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -16,7 +17,7 @@ class PigRidingTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static Pig pig(BlockPlacementTest.TestLevel level) {

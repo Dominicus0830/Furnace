@@ -132,9 +132,9 @@ class ConnectionStateApiTest {
     @Test
     void pluginPackBlocksConfigurationUntilTerminalResponse() throws Exception {
         AtomicReference<CompletableFuture<ResourcePackStatus>> fut = new AtomicReference<>();
-        AtomicReference<Boolean> virtual = new AtomicReference<>();
+        AtomicReference<Thread> thread = new AtomicReference<>();
         on(AsyncPlayerConfigureEvent.class, e -> {
-            virtual.set(Thread.currentThread().isVirtual());
+            thread.set(Thread.currentThread());
             var f = e.connection().sendResourcePack(new ResourcePack(PACK, "https://example.invalid/a.zip", "", false, Text.text("hello")));
             fut.set(f);
             try { f.get(10, TimeUnit.SECONDS); } catch (Exception ex) { throw new RuntimeException(ex); }
@@ -151,7 +151,8 @@ class ConnectionStateApiTest {
             packResponse(c, PACK, 0);                      // SUCCESSFULLY_LOADED
             toPlay(c);
             assertEquals(ResourcePackStatus.SUCCESSFULLY_LOADED, fut.get().get(5, TimeUnit.SECONDS));
-            assertEquals(Boolean.TRUE, virtual.get(), "가상 스레드에서 기다린다(네트워크 스레드를 막지 않는다)");
+            assertTrue(thread.get().getName().startsWith(org.domi.furnace.server.plugin.PluginHost.LOGIN_EVENT_THREAD_PREFIX) && !thread.get().isVirtual(),
+                    "접속 이벤트 전용 플랫폼 스레드에서 기다린다(네트워크 스레드를 막지 않는다, T-034): " + thread.get());
         }
         awaitPlayer("Packer");
     }

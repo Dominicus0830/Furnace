@@ -39,8 +39,8 @@ class EntityStateImpl implements org.domi.furnace.api.entity.EntityState {
 
     final void check() {
         if (!org.domi.furnace.server.world.RegionBorrow.claimEntity(e) && !e.level().isOwnerThread()) {
-            throw new ThreadOwnershipException("EntityState(" + e.uuid() + ") 는 그 엔티티를 가진 region 스레드에서만 쓸 수 있다 (현재 "
-                    + Thread.currentThread().getName() + ") — Entity.editState 를 쓴다");
+            throw new ThreadOwnershipException("EntityState(" + e.uuid() + ") can only be used from the region thread that owns the entity (current thread: "
+                    + Thread.currentThread().getName() + ") - use Entity.editState");
         }
     }
 
@@ -63,6 +63,23 @@ class EntityStateImpl implements org.domi.furnace.api.entity.EntityState {
     }
 
     @Override
+    public void remove() {
+        if (writable()) e.discard();
+    }
+
+    @Override
+    public org.domi.furnace.api.world.Location location() {
+        check();
+        return new org.domi.furnace.api.world.Location(e.dimensionKey(), e.x(), e.y(), e.z(), e.yRot(), e.xRot());
+    }
+
+    @Override
+    public float headYaw() {
+        check();
+        return e instanceof org.domi.furnace.server.entity.LivingEntity le ? le.yHeadRot() : e.yRot();
+    }
+
+    @Override
     public Text customName() {
         check();
         return e.hasCustomName() ? e.getCustomName() : null;
@@ -71,6 +88,12 @@ class EntityStateImpl implements org.domi.furnace.api.entity.EntityState {
     @Override
     public void setCustomName(Text name) {
         if (writable()) e.setCustomName(name);
+    }
+
+    @Override
+    public org.domi.furnace.api.world.Aabb boundingBox() {
+        check();
+        return ApiBoxes.of(e.boundingBox());
     }
 
     @Override
@@ -174,17 +197,17 @@ class EntityStateImpl implements org.domi.furnace.api.entity.EntityState {
             World w = host.core().world(p.dimensionKey());
             ChunkPos cp = ChunkPos.ofBlock(p.x(), p.z());
             Region r = w == null ? null : w.regionizer().ownerOf(cp.x(), cp.z());
-            if (r == null || !r.isOwnerThread()) throw new ThreadOwnershipException("승객 " + p.name() + " 은 이 엔티티와 같은 region 에 있어야 한다");
+            if (r == null || !r.isOwnerThread()) throw new ThreadOwnershipException("passenger " + p.name() + " must be in the same region as this entity");
             return p;
         }
         if (h instanceof EntityHandle eh) {
             if (!(eh.tasks().owner() instanceof Entity pe) || pe.isRemoved()) return null;
             if (!org.domi.furnace.server.world.RegionBorrow.claimEntity(pe) && !pe.level().isOwnerThread()) {
-                throw new ThreadOwnershipException("승객 " + pe.uuid() + " 은 이 엔티티와 같은 region 에 있어야 한다");
+                throw new ThreadOwnershipException("passenger " + pe.uuid() + " must be in the same region as this entity");
             }
             return pe;
         }
-        throw new IllegalArgumentException("Furnace 가 만든 엔티티 핸들이 아니다: " + h.getClass().getName());
+        throw new IllegalArgumentException("not an entity handle created by Furnace: " + h.getClass().getName());
     }
 
     @Override
@@ -231,12 +254,38 @@ class EntityStateImpl implements org.domi.furnace.api.entity.EntityState {
         private static org.domi.furnace.server.effect.MobEffect effectType(String key) {
             String k = key.indexOf(':') < 0 ? "minecraft:" + key : key;
             var t = org.domi.furnace.server.effect.MobEffect.byName(k);
-            if (t == null) throw new IllegalArgumentException("모르는 효과: " + key);
+            if (t == null) throw new IllegalArgumentException("unknown effect: " + key);
             return t;
         }
 
         static MobEffect toApi(MobEffectInstance i) {
             return new MobEffect(i.effect().name(), i.duration(), i.amplifier(), i.ambient(), i.visible(), i.showIcon());
+        }
+
+        @Override
+        public float health() {
+            check();
+            return le.health();
+        }
+
+        @Override
+        public float maxHealth() {
+            check();
+            return le.maxHealth();
+        }
+
+        @Override
+        public boolean tamed() {
+            check();
+            return le instanceof org.domi.furnace.server.entity.TamableAnimal t ? t.isTame()
+                    : le instanceof org.domi.furnace.server.entity.AbstractHorse h && h.isTamed();
+        }
+
+        @Override
+        public void setHealth(float health) {
+            if (!writable()) return;
+            if (health <= 0f) le.dieFromApi();
+            else le.setHealth(Math.min(health, le.maxHealth()));
         }
 
         @Override
@@ -273,6 +322,28 @@ class EntityStateImpl implements org.domi.furnace.api.entity.EntityState {
         public int clearEffects() {
             if (!writable()) return 0;
             return le.removeAllEffects();
+        }
+
+        @Override
+        public Optional<org.domi.furnace.api.entity.attribute.AttributeInstance> attribute(org.domi.furnace.api.entity.attribute.Attribute attribute) {
+            java.util.Objects.requireNonNull(attribute, "attribute");
+            check();
+            var i = le.attributes().get(AttributeApi.server(attribute));
+            return i == null ? Optional.empty() : Optional.of(new AttributeApi.Live(i, this::check));
+        }
+
+        @Override
+        public List<org.domi.furnace.api.entity.attribute.Attribute> attributes() {
+            check();
+            return AttributeApi.keys(le.attributes().snapshot());
+        }
+
+        @Override
+        public boolean registerAttribute(org.domi.furnace.api.entity.attribute.Attribute attribute) {
+            var a = AttributeApi.server(java.util.Objects.requireNonNull(attribute, "attribute"));
+            if (!writable() || le.attributes().has(a)) return false;
+            le.attributes().register(a);
+            return true;
         }
 
         @Override

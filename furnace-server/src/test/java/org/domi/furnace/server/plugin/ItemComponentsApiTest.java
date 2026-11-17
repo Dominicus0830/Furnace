@@ -1,6 +1,7 @@
 // 아이템 컴포넌트 타입 API·아이템 영속 데이터: 코덱 규칙(범위·기본값), 바닐라식 기본값 처리, 저장 왕복, 서버 스택 변환.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
@@ -33,8 +34,8 @@ class ItemComponentsApiTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
-        items = ItemRegistry.load("items/1.21.1.txt");
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
+        items = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
         ItemSupport.install(ItemSupportImpl.INSTANCE);
     }
 
@@ -283,7 +284,10 @@ class ItemComponentsApiTest {
         assertThrows(UnsupportedOperationException.class, () -> view.get("p:nums", ints).add(4), "읽은 목록은 고칠 수 없다");
         assertEquals(strings, PersistentDataType.list(PersistentDataType.STRING));
         assertNotEquals(strings, ints);
-        assertThrows(IllegalArgumentException.class, () -> PersistentDataType.list(strings), "목록의 목록");
+        var nested = PersistentDataType.list(strings);
+        ItemStack n = sword().withPersistentData(c -> c.set("p:nested", nested, List.of(List.of("a"), List.of("b", "c"))));
+        assertEquals(List.of(List.of("a"), List.of("b", "c")), n.persistentData().get("p:nested", nested), "목록의 목록도 된다");
+        assertFalse(n.persistentData().has("p:nested", strings), "바깥 목록의 원소 종류가 다르면 읽을 수 없다");
         assertThrows(IllegalArgumentException.class, () -> sword().withPersistentData(c -> c.set("p:x", strings, (List) List.of("a", 1))), "섞인 종류");
         assertThrows(IllegalArgumentException.class, () -> sword().withPersistentData(c -> c.set("p:x", ints, (List) List.of("a"))));
     }

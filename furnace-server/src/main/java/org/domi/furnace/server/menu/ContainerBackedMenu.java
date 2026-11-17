@@ -28,6 +28,10 @@ public abstract class ContainerBackedMenu extends AbstractContainerMenu {
 
     @Override public boolean stillValid(MenuPlayer player) { return container.stillValid(player); }
 
+    @Override public org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason invalidCloseReason() {
+        return container instanceof org.domi.furnace.server.world.EntityContainer ec ? reasonForEntity(ec.entity().asEntity()) : super.invalidCloseReason();
+    }
+
     /** 바닐라 DispenserMenu 만 이동 뒤 onTake 를 부르고 개수가 그대로면 EMPTY 를 돌려준다. */
     protected boolean notifiesTake() { return false; }
 

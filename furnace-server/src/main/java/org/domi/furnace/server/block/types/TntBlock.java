@@ -1,6 +1,7 @@
 // 바닐라 TntBlock: 신호를 받거나 불·부싯돌로 점화되면 점화된 TNT 엔티티가 된다. unstable 이면 부수기만 해도 점화.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockBehavior;
@@ -11,6 +12,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.TntBlock")
 public class TntBlock extends BlockBehavior {
 
     private static final Prop UNSTABLE = B.prop("unstable");
@@ -90,6 +92,8 @@ public class TntBlock extends BlockBehavior {
         Pos pos = hit.blockPos();
         org.domi.furnace.server.entity.Targetable owner = projectile.getOwner();
         if (projectile.isOnFire() && projectile.mayInteract(level, pos)) {
+            // CraftBukkit(+Paper 새 상태): EntityChangeBlockEvent 를 막으면 점화하지 않는다(TNTPrimeEvent 는 아직 없다)
+            if (!org.domi.furnace.server.block.B.entityChange(level, projectile, pos, org.domi.furnace.server.block.B.fluidLeftover(state))) return;
             boolean living = owner instanceof org.domi.furnace.server.entity.LivingEntity || owner instanceof org.domi.furnace.server.entity.Player;
             org.domi.furnace.server.entity.Targetable igniter = living ? owner : null;
             level.spawnPrimedTntOwned(pos, igniter, -1, org.domi.furnace.server.plugin.Causes.tracking(level) ? org.domi.furnace.server.plugin.Causes.of(projectile, org.domi.furnace.api.event.cause.CauseEntry.HIT) : null);

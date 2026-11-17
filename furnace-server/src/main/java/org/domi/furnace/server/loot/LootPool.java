@@ -5,7 +5,9 @@ import com.google.gson.JsonObject;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.level.storage.loot.LootPool")
 public record LootPool(List<LootEntry> entries, List<LootCondition> conditions, LootFunction functions,
                        NumberProvider rolls, NumberProvider bonusRolls) {
 

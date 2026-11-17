@@ -2,11 +2,14 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundGameEventPacket")
 public record GameEvent(int event, float value) implements Packet {
 
-    public static final int ID = 0x22;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_GAME_EVENT;
 
     /** event 13: 클라에 "이제부터 청크를 받을 때까지 대기하라"고 알림. */
     public static final int START_WAITING_FOR_CHUNKS = 13;

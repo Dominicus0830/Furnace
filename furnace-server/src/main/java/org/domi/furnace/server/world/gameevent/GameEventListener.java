@@ -4,6 +4,7 @@ package org.domi.furnace.server.world.gameevent;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.entity.Vec3;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.gameevent.GameEventListener")
 public interface GameEventListener {
 
     enum DeliveryMode { UNSPECIFIED, BY_DISTANCE }

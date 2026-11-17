@@ -37,11 +37,19 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
      */
     public static final class Section {
         private final short nonAirCount;
+        /** 청크 패킷 섹션 머리의 nonEmptyBlockCount(바닐라 필드 값 — ChunkSection.packetNonEmptyCount). */
+        private final short packetNonEmpty;
         private final PaletteStorage blockSrc, biomeSrc;
         private volatile int[] blocks, biomes;
 
         public Section(short nonAirCount, int[] blocks, int[] biomes) {
+            this(nonAirCount, nonAirCount, blocks, biomes);
+        }
+
+        /** 패킷 개수를 따로 주는 판(시험이 같은 스냅샷을 다른 경로로 다시 만들 때). */
+        public Section(short nonAirCount, short packetNonEmpty, int[] blocks, int[] biomes) {
             this.nonAirCount = nonAirCount;
+            this.packetNonEmpty = packetNonEmpty;
             this.blockSrc = null;
             this.biomeSrc = null;
             this.blocks = blocks;
@@ -50,12 +58,16 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
 
         private Section(ChunkSection s) {
             this.nonAirCount = s.nonAirCount();
+            this.packetNonEmpty = (short) s.packetNonEmptyCount();
             this.blockSrc = s.blocksReadCopy();
             this.biomeSrc = s.biomesReadCopy();
             if (blockSrc == null) this.blocks = s.blocks();   // scratch 가 열려 있으면 예전처럼 즉시 복사
         }
 
         public short nonAirCount() { return nonAirCount; }
+
+        /** 청크 패킷에 쓰는 바닐라 nonEmptyBlockCount(유체 칸 두 번 셈 등 바닐라 그대로, ChunkSection.packetNonEmptyCount). */
+        public short packetNonEmpty() { return packetNonEmpty; }
 
         /** 블록 상태 id 4096개(YZX). 같은 배열을 돌려준다 — 고치지 않는다. */
         public int[] blocks() {
@@ -69,6 +81,31 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
             int[] b = biomes;
             if (b == null) biomes = b = biomeSrc.unpack();
             return b;
+        }
+
+        /** 섹션 로컬 인덱스(y*256+z*16+x)의 블록 하나 — 섹션 전체를 펼치지 않는다. */
+        public int blockAt(int idx) {
+            int[] b = blocks;
+            if (b != null) return b[idx];
+            return blockSrc.get(idx);
+        }
+
+        /**
+         * T-015: 블록의 첫 등장 순 색인(펼치지 않음). 펼친 배열만 가진 섹션(공개 생성자·scratch 사본)이나 직접 저장이면 null —
+         * 그때는 {@link #blocks()} 로 옛 경로. 돌려준 객체는 스레드별(블록용)이라 이 스레드의 다음 blockIndex 호출 전까지만 쓴다.
+         */
+        public FirstSeenIndex blockIndex() {
+            return index(blockSrc, FirstSeenIndex.forBlocks());
+        }
+
+        /** {@link #blockIndex()} 의 바이옴판(따로 된 스레드별 객체 — 블록 색인과 동시에 쥐어도 된다). */
+        public FirstSeenIndex biomeIndex() {
+            return index(biomeSrc, FirstSeenIndex.forBiomes());
+        }
+
+        private static FirstSeenIndex index(PaletteStorage src, FirstSeenIndex out) {
+            if (src == null) return null;
+            return src.indexFirstSeen(out) ? out : null;
         }
     }
 
@@ -90,7 +127,7 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
                 beOut.add(new BlockEntitySnapshot(p.x() & 15, p.y(), p.z() & 15, be.typeId(), null));
             } else {
                 // ClientboundLevelChunkPacketData.BlockEntityInfo: getUpdateTag 가 비면 null
-                NbtCompound tag = be.updateTag();
+                NbtCompound tag = be.sentUpdateTag();
                 beOut.add(new BlockEntitySnapshot(p.x() & 15, p.y(), p.z() & 15, be.typeId(), tag == null || tag.tags().isEmpty() ? null : tag));
             }
         }
@@ -122,6 +159,12 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
                 if (ce.lock != null) tag.putString("Lock", ce.lock);
                 NbtCompound full = ce.saveWithoutMetadata();
                 if (full.tags().get("components") instanceof NbtCompound c) tag.putCompound("components", c);
+            }
+            NbtCompound bukkit = new NbtCompound();
+            ce.writeBukkitValues(bukkit);
+            if (!bukkit.tags().isEmpty()) {   // 플러그인 영속 데이터(Bukkit TileState PDC)
+                if (tag == null) tag = new NbtCompound();
+                tag.putCompound(org.domi.furnace.server.block.entity.BlockEntity.BUKKIT_VALUES, bukkit.getCompound(org.domi.furnace.server.block.entity.BlockEntity.BUKKIT_VALUES));
             }
             chests.add(new BlockEntitySnapshot(ce.x & 15, ce.y, ce.z & 15, CHEST_TYPE_ID, tag));
         }
@@ -167,16 +210,20 @@ public record ChunkSnapshot(int chunkX, int chunkZ, long[] heightmap, long[] wor
     private static Light copyLight(ChunkColumn col) {
         var l = col.light();
         if (l == null) return null;
-        byte[][] sky = new byte[l.sky.length][], block = new byte[l.block.length][];
-        for (int i = 0; i < sky.length; i++) {
-            sky[i] = copyLayer(l.sky[i]);
-            block[i] = copyLayer(l.block[i]);
+        int n = org.domi.furnace.server.light.ChunkLight.SECTIONS;
+        byte[][] sky = new byte[n][], block = new byte[n][];
+        for (int i = 0; i < n; i++) {
+            sky[i] = copyLayer(l.sky(i));
+            block[i] = copyLayer(l.block(i));
         }
         return new Light(sky, block);
     }
 
     /** 균일한 층(0 또는 0xFF)이면 공유 사본, 아니면 복제. 내용은 언제나 원본과 같다. */
     static byte[] copyLayer(byte[] a) {
+        // 살아 있는 청크의 공유 층(T-012)은 훑지 않고 바로 — 내용이 같은 스냅샷 공유 사본으로
+        if (org.domi.furnace.server.light.ChunkLight.isKnownZero(a)) return ZERO_LAYER;
+        if (org.domi.furnace.server.light.ChunkLight.isKnownFull(a)) return FULL_LAYER;
         if (a.length == 2048) {
             byte first = a[0];
             if (first == 0 || first == (byte) 0xFF) {

@@ -30,7 +30,9 @@ import org.domi.furnace.server.item.ItemPredicates;
 import org.domi.furnace.server.item.ItemView;
 import org.domi.furnace.server.item.RegistryView;
 import org.domi.furnace.server.item.Val;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.commands.arguments.item.ItemPredicateArgument", "net.minecraft.commands.arguments.item.ComponentPredicateParser"})
 public final class ItemPredicateArgument implements ArgumentType<ItemPredicateArgument.Result> {
 
     private static final List<String> EXAMPLES = List.of("stick", "minecraft:stick", "#stick", "#stick{foo:'bar'}");

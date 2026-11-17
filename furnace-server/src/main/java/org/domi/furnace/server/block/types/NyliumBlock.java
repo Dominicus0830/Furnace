@@ -1,6 +1,7 @@
 // 바닐라 NyliumBlock: 진홍·뒤틀린 나일리움. 위가 빛을 막으면 무작위 틱에 네더랙이 된다. 뼛가루로 네더 식물(지형 생성 기능).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
@@ -9,6 +10,7 @@ import org.domi.furnace.server.light.LightTables;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.NyliumBlock")
 public class NyliumBlock extends BlockBehavior implements BonemealableBlock {
 
     private static final int NETHERRACK = B.id("netherrack"), CRIMSON = B.id("crimson_nylium"), WARPED = B.id("warped_nylium");

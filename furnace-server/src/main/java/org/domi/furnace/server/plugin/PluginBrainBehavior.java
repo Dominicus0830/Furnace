@@ -2,6 +2,7 @@
 // 플러그인이 꺼졌거나 콜백이 예외를 던졌으면 다시 부르지 않고 스스로 빠진다(예외는 로그 한 번).
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -55,7 +56,7 @@ final class PluginBrainBehavior implements ExternalBehavior {
 
     private void fail(String where, Throwable t) {
         broken = true;
-        LoggerFactory.getLogger(PluginBrainBehavior.class).warn("플러그인 {} 의 두뇌 행동 {} 가 {} 에서 예외를 던져 뗀다", owner, name, where, t);
+        LoggerFactory.getLogger(PluginBrainBehavior.class).warn(Lang.t("plugin.brain-behavior-threw", owner, name, where), t);
     }
 
     private boolean conditionsMet(Mob mob) {

@@ -1,6 +1,7 @@
 // 장식 항아리 시험: 넣기(같은 아이템만·가득 차면 거절)·소리 높이·흔들림 블록 이벤트·비교기 신호·꺼내 쏟기·드롭(금 간 것은 조각)·저장 왕복.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -27,7 +28,7 @@ class DecoratedPotBlockEntityTest {
     }
 
     @BeforeAll
-    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt"))); }
+    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"))); }
 
     static ItemStack item(String name, int n) { return new ItemStack(ItemContext.id("minecraft:item", "minecraft:" + name), n); }
 

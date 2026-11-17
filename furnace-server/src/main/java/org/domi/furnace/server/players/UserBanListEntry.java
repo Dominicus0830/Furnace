@@ -3,7 +3,9 @@ package org.domi.furnace.server.players;
 
 import com.google.gson.JsonObject;
 import java.util.Date;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.players.UserBanListEntry")
 public final class UserBanListEntry extends BanListEntry<GameProfile> {
 
     public UserBanListEntry(GameProfile user) { this(user, null, null, null, null); }

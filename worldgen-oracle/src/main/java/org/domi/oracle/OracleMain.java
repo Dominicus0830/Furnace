@@ -65,6 +65,15 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 public class OracleMain {
+    /** 리소스 파일 이름의 판 꼬리표 — gradle/minecraft.properties 의 mc.resourceTag 를 :worldgen-oracle:run 이 넘겨 준다(V-01). */
+    private static final String RESOURCE_TAG = requiredProperty("oracle.resourceTag");
+
+    private static String requiredProperty(String key) {
+        String v = System.getProperty(key);
+        if (v == null || v.isBlank()) throw new IllegalStateException("-D" + key + " 가 없다 — :worldgen-oracle:run 으로 실행한다(gradle/minecraft.properties 에서 옴)");
+        return v;
+    }
+
     private static final OracleRngTrace ORACLE_RNG_TRACE = new OracleRngTrace();
 
     public static void main(String[] args) throws Exception {
@@ -78,8 +87,8 @@ public class OracleMain {
 
         long seed = Long.parseLong(args[0]);
 
-        // Output directory: furnace-server/src/test/resources/worldgen/fixtures/
-        Path outDir = Paths.get("furnace-server", "src", "test", "resources", "worldgen", "fixtures");
+        // Output directory: furnace-server/src/test/resources/worldgen/fixtures/<판>/
+        Path outDir = Paths.get("furnace-server", "src", "test", "resources", "worldgen", "fixtures", RESOURCE_TAG);
         Files.createDirectories(outDir);
 
         // Build vanilla registry lookup (includes all worldgen registries)
@@ -280,7 +289,7 @@ public class OracleMain {
                 long noiseSeed = Long.parseLong(arg.substring("blended:".length()));
                 dumpBlendedNoise(noiseSeed, outDir);
             } else if (arg.equals("params")) {
-                Path mainResDir = Paths.get("furnace-server", "src", "main", "resources", "worldgen", "1.21.1");
+                Path mainResDir = Paths.get("furnace-server", "src", "main", "resources", "worldgen", RESOURCE_TAG);
                 dumpBiomeParams(mainResDir);
             } else if (arg.startsWith("biome:")) {
                 String[] parts = arg.substring("biome:".length()).split(":");
@@ -704,7 +713,7 @@ public class OracleMain {
                   .append(net.minecraft.world.level.block.Block.BLOCK_STATE_REGISTRY.getId(state)).append('\n');
             }
         }
-        Path out = outDir.resolve("blockstates_1.21.1.txt");
+        Path out = outDir.resolve("blockstates_" + RESOURCE_TAG + ".txt");
         Files.writeString(out, sb.toString());
         System.out.println("Wrote " + out + " (" + totalStates + " total states)");
     }
@@ -2482,7 +2491,7 @@ public class OracleMain {
                 .getId(block.defaultBlockState());
             sb.append(name).append(" ").append(defaultId).append("\n");
         }
-        Path out = outDir.resolve("1.21.1.txt");
+        Path out = outDir.resolve(RESOURCE_TAG + ".txt");
         Files.writeString(out, sb.toString());
         System.out.println("Wrote " + out + " (" + totalStates + " total states)");
     }

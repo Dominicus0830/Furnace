@@ -1,8 +1,14 @@
 // 블록 동작이 보는 월드(바닐라 Level/LevelAccessor/LevelReader 중 블록 코드가 쓰는 부분). 서버 쪽만(isClientSide = false).
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort({
+    "net.minecraft.world.level.Level",
+    "net.minecraft.world.level.LevelAccessor",
+    "net.minecraft.world.level.LevelReader"
+})
 public interface BlockLevel {
 
     // ------------------------------------------------------------------ 읽기
@@ -49,9 +55,12 @@ public interface BlockLevel {
     /** EntityGetter.isUnobstructed(null, shape): 건설을 막는 엔티티(관전자 제외)의 상자와 겹치지 않는가. shape 는 월드 좌표. */
     boolean isUnobstructed(Shape worldShape);
 
-    /** CollisionGetter.isUnobstructed(state, pos, ctx): 충돌 모양이 비었거나 엔티티와 겹치지 않으면. */
+    /**
+     * CollisionGetter.isUnobstructed(state, pos, ctx): 충돌 모양이 비었거나 엔티티와 겹치지 않으면. 문맥은 설치하는 행위자
+     * (바닐라 BlockItem.canPlace: player == null ? empty : of(player)) — 비계는 행위자가 위에 없으면 빈 모양이라 몸 자리에도 놓인다.
+     */
     default boolean isUnobstructed(int state, Pos pos, BlockActor collisionEntity) {
-        Shape s = BlockBehaviors.of(state).getCollisionShape(state, this, pos, collisionEntity);
+        Shape s = BlockBehaviors.of(state).getCollisionShape(state, this, pos, CollisionContext.of(collisionEntity));
         return s.isEmpty() || isUnobstructed(s.move(pos.x(), pos.y(), pos.z()));
     }
 
@@ -110,18 +119,46 @@ public interface BlockLevel {
 
     // ------------------------------------------------------------------ 레드스톤(바닐라 SignalGetter)
 
+    /** 바닐라 SignalGetter.getDirectSignal: 그 블록이 dir 쪽으로 내는 직접 신호. */
+    default int getDirectSignal(Pos pos, int dir) {
+        int s = getBlockState(pos);
+        return BlockBehaviors.of(s).getDirectSignal(s, this, pos, dir);
+    }
+
+    /** 바닐라 getDirectSignalTo: 6방향 이웃의 직접 신호 최댓값(15 면 멈춘다). */
+    default int getDirectSignalTo(Pos pos) {
+        int best = 0;
+        for (int d : Dir.ALL) {
+            best = Math.max(best, getDirectSignal(pos.relative(d), d));
+            if (best >= 15) return best;
+        }
+        return best;
+    }
+
     /** getSignal(pos, dir): 그 블록이 dir 쪽(이웃 쪽에서 본 방향)으로 내는 신호 — 전도체면 직접 신호 최댓값. */
-    int getSignal(Pos pos, int dir);
+    default int getSignal(Pos pos, int dir) {
+        int s = getBlockState(pos);
+        BlockBehavior b = BlockBehaviors.of(s);
+        int i = b.getSignal(s, this, pos, dir);
+        return b.isRedstoneConductor(s, this, pos) ? Math.max(i, getDirectSignalTo(pos)) : i;
+    }
 
-    int getDirectSignal(Pos pos, int dir);
+    default boolean hasSignal(Pos pos, int dir) { return getSignal(pos, dir) > 0; }
 
-    int getDirectSignalTo(Pos pos);
+    default boolean hasNeighborSignal(Pos pos) {
+        for (int d : Dir.ALL) if (getSignal(pos.relative(d), d) > 0) return true;
+        return false;
+    }
 
-    boolean hasSignal(Pos pos, int dir);
-
-    boolean hasNeighborSignal(Pos pos);
-
-    int getBestNeighborSignal(Pos pos);
+    default int getBestNeighborSignal(Pos pos) {
+        int best = 0;
+        for (int d : Dir.ALL) {
+            int v = getSignal(pos.relative(d), d);
+            if (v >= 15) return 15;
+            best = Math.max(best, v);
+        }
+        return best;
+    }
 
     // ------------------------------------------------------------------ 효과(소리·레벨 이벤트·블록 이벤트·게임 이벤트)
 
@@ -440,9 +477,14 @@ public interface BlockLevel {
 
     /** Block.dropResources(state, level, pos, blockEntity, entity, tool): 드롭을 하나씩 popResource 한 뒤 spawnAfterBreak(…, true). */
     default void dropResources(int state, Pos pos, Object blockEntity, BlockActor entity, ItemStack tool) {
+        dropResources(state, pos, blockEntity, entity, tool, true);
+    }
+
+    /** Paper Block.dropResources(…, dropExperience): spawnAfterBreak 에 dropExperience 를 그대로 넘긴다. */
+    default void dropResources(int state, Pos pos, Object blockEntity, BlockActor entity, ItemStack tool, boolean dropExperience) {
         BlockBehavior b = BlockBehaviors.of(state);
         for (ItemStack s : b.getDrops(state, this, pos, blockEntity, entity, tool)) popResource(pos, s);
-        b.spawnAfterBreak(state, this, pos, tool, true);
+        b.spawnAfterBreak(state, this, pos, tool, dropExperience);
     }
 
     /** Block.dropResources(state, level, pos). */

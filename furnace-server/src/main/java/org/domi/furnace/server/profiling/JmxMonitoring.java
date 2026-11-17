@@ -16,9 +16,12 @@ import javax.management.MBeanAttributeInfo;
 import javax.management.MBeanInfo;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.util.monitoring.jmx.MinecraftServerStatistics")
 public final class JmxMonitoring implements DynamicMBean, AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(JmxMonitoring.class);
@@ -61,7 +64,7 @@ public final class JmxMonitoring implements DynamicMBean, AutoCloseable {
         try {
             if (name != null && server.isRegistered(name)) server.unregisterMBean(name);
         } catch (Exception e) {
-            log.warn("JMX 서버 MBean 해제 실패: {}", e.toString());
+            log.warn(Lang.t("jmx.unregister-failed", e.toString()));
         }
     }
 

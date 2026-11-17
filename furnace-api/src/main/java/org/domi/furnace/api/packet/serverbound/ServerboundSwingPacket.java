@@ -1,4 +1,4 @@
-// 팔 휘두르기(좌클릭 동작).
+// 팔 휘두르기. 좌클릭 동작이다.
 package org.domi.furnace.api.packet.serverbound;
 
 import java.util.Objects;

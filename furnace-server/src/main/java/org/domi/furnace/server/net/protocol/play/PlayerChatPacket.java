@@ -2,16 +2,19 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.chat.ChatType;
 import org.domi.furnace.server.chat.MessageSignatureCache;
 import org.domi.furnace.server.chat.PlayerChatMessage;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.io.nbt.NbtWriter;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundPlayerChatPacket")
 public final class PlayerChatPacket implements Packet {
 
-    public static final int ID = 0x39;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_PLAYER_CHAT;
     private final byte[] body;
 
     /** 수신자의 시그니처 캐시로 본문을 압축해 바로 직렬화한다(캐시는 이후 push 로 바뀌므로). */

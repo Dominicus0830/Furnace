@@ -1,5 +1,6 @@
-// 상인 거래 하나(불변). ingredient2 가 없으면 ItemStack.EMPTY. uses/maxUses 는 사용 횟수, xp 는 주민이 얻는 경험치,
-// priceMultiplier 는 수요·평판 가격 배율, rewardExp 는 거래한 플레이어가 경험치 구슬을 받는가.
+// 상인 거래 하나(불변). ingredient2 가 없으면 ItemStack.EMPTY 다.
+// uses 와 maxUses 는 사용 횟수, xp 는 주민이 얻는 경험치다.
+// priceMultiplier 는 수요와 평판에 따른 가격 배율이고, rewardExp 는 거래한 플레이어가 경험치 구슬을 받는지다.
 package org.domi.furnace.api.entity;
 
 import org.domi.furnace.api.item.ItemStack;
@@ -8,8 +9,8 @@ public record MerchantRecipe(ItemStack ingredient1, ItemStack ingredient2, ItemS
                              int uses, int maxUses, int xp, float priceMultiplier, boolean rewardExp) {
 
     public MerchantRecipe {
-        if (ingredient1 == null || ingredient1.isEmpty()) throw new IllegalArgumentException("첫 재료가 비었다");
-        if (result == null || result.isEmpty()) throw new IllegalArgumentException("결과가 비었다");
+        if (ingredient1 == null || ingredient1.isEmpty()) throw new IllegalArgumentException("the first ingredient is empty");
+        if (result == null || result.isEmpty()) throw new IllegalArgumentException("the result is empty");
         if (ingredient2 == null) ingredient2 = ItemStack.EMPTY;
         if (uses < 0 || maxUses < 1) throw new IllegalArgumentException("uses >= 0, maxUses >= 1: " + uses + "/" + maxUses);
     }

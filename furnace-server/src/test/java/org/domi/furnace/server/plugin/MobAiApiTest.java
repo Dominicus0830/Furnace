@@ -2,6 +2,7 @@
 // 길 비용·칸 판정 훅, 소유 스레드 검사. 레벨은 스레드 없는 시험 레벨(늘 소유 스레드).
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -32,7 +33,7 @@ class MobAiApiTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     /** 밤(좀비가 타지 않는다). */

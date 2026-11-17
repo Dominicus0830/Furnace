@@ -1,6 +1,7 @@
-// 바닐라 목표를 다시 쓰기 위한 설명서(이름표 + 값). 서버가 그 몹에 맞는 실제 바닐라 목표로 만든다 — 동작은 바닐라 그 목표와 같다.
-// 몹 종류가 그 목표를 쓸 수 없으면(예: 길찾기 못 하는 몹에 근접 공격, 동물이 아닌 몹에 번식) MobAi.addGoal 이 IllegalArgumentException.
-// 엔티티·아이템 종류는 레지스트리 키 문자열("minecraft:player", "minecraft:wheat")이라 판이 바뀌어도 그대로 쓴다.
+// 바닐라 목표를 다시 쓰기 위한 설명서(이름표와 값). 서버가 그 몹에 맞는 실제 바닐라 목표로 만들며, 동작은 바닐라 목표와 같다.
+// 몹 종류가 그 목표를 쓸 수 없으면 MobAi.addGoal 이 IllegalArgumentException 을 던진다.
+// 예를 들어 길찾기를 못 하는 몹에 근접 공격을, 동물이 아닌 몹에 번식을 주는 경우다.
+// 엔티티와 아이템 종류는 레지스트리 키 문자열("minecraft:player", "minecraft:wheat")이라 버전이 바뀌어도 그대로 쓴다.
 package org.domi.furnace.api.entity.ai;
 
 import java.util.Collection;
@@ -21,10 +22,10 @@ public final class VanillaGoal {
         this.params = java.util.Collections.unmodifiableMap(m);
     }
 
-    /** 이 목표의 이름표 — 몹에 처음부터 걸린 같은 종류 바닐라 목표와 같은 이름표다. */
+    /** 이 목표의 이름표. 몹에 처음부터 걸린 같은 종류 바닐라 목표와 같은 이름표다. */
     public GoalKey key() { return key; }
 
-    /** 넣은 값(이름 → Double·Float·Integer·Boolean·String·List&lt;String&gt;). */
+    /** 넣은 값. 이름으로 찾으며 값은 Double·Float·Integer·Boolean·String·List&lt;String&gt; 중 하나다. */
     public Map<String, Object> params() { return params; }
 
     // ------------------------------------------------------------------ 행동(GOALS)
@@ -66,7 +67,7 @@ public final class VanillaGoal {
 
     /** 이 아이템을 든 플레이어 따라가기(TemptGoal). 길찾는 몹. items 는 아이템 키. */
     public static VanillaGoal tempt(double speed, Collection<String> items, boolean canScare) {
-        if (items.isEmpty()) throw new IllegalArgumentException("유혹 아이템이 없다");
+        if (items.isEmpty()) throw new IllegalArgumentException("no tempt items given");
         return new VanillaGoal("tempt", "speed", speed, "items", List.copyOf(items), "can_scare", canScare);
     }
 
@@ -84,7 +85,7 @@ public final class VanillaGoal {
     /** 묶인 구역 안으로 돌아가기(MoveTowardsRestrictionGoal). 길찾는 몹. */
     public static VanillaGoal moveTowardsRestriction(double speed) { return new VanillaGoal("move_towards_restriction", "speed", speed); }
 
-    /** 문 열기(OpenDoorGoal) — 땅 길찾기 몹. closeDoor 면 지나간 뒤 닫는다. */
+    /** 문 열기(OpenDoorGoal). 땅 길찾기 몹. closeDoor 면 지나간 뒤 닫는다. */
     public static VanillaGoal openDoor(boolean closeDoor) { return new VanillaGoal("open_door", "close_door", closeDoor); }
 
     /** 해가 뜨면 그늘만 다니기(RestrictSunGoal). 길찾는 몹. */

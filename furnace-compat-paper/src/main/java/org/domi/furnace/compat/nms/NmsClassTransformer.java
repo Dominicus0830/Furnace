@@ -1,5 +1,6 @@
 package org.domi.furnace.compat.nms;
 
+import org.domi.furnace.compat.i18n.CompatLang;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -29,6 +30,9 @@ import org.slf4j.LoggerFactory;
  *   <li>Paper 가 옛 플러그인을 위해 바꿔 주는 Bukkit 필드 이름({@link ApiRenames} — 예: {@code ItemFlag.HIDE_POTION_EFFECTS} →
  *       {@code HIDE_ADDITIONAL_TOOLTIP})과 그 {@code valueOf}.</li>
  *   <li>옵션 {@code version-package=versioned} 이면 {@code Class#getName}·{@code getPackageName}·{@code Package#getName} → 접미사를 붙여 읽는 다리.</li>
+ *   <li>NMS 청크 거울 쓰기 장벽(N2b-4): 참조 배열 {@code VarHandle} 쓰기({@link NmsArrays} — NMS 이름 힌트가 없는 클래스에도, FAWE 의 섹션 CAS 는
+ *       worldedit-core 에 있다)와, NMS 이름 힌트가 있는 클래스의 {@code Field.get}(앞)·{@code Field.set*}(뒤, 범주 1 값)({@link NmsReflect#beforeFieldGet}·
+ *       {@link NmsReflect#afterFieldSet}). 원래 호출은 그대로 플러그인 메서드에서 한다(호출자 민감성 유지).</li>
  * </ol>
  * 바꿀 것이 없는 클래스는 null(원래 바이트)이다. 덫·다리는 분기·지역 변수와 프레임 지점의 스택 모양을 바꾸지 않으므로 스택 맵 프레임은 그대로
  * 옮기고 최대 스택만 다시 센다(COMPUTE_FRAMES 의 공통 상위 클래스 계산이 클래스를 로딩하는 문제를 피한다).
@@ -42,6 +46,8 @@ public final class NmsClassTransformer implements ClassTransformer {
 
     static final String BRIDGE = Type.getInternalName(CraftNames.class);
     static final String REFLECT = Type.getInternalName(NmsReflect.class);
+    static final String ARRAYS = Type.getInternalName(NmsArrays.class);
+    static final String VARHANDLE = "java/lang/invoke/VarHandle";
 
     /**
      * 서버 옵션.
@@ -59,8 +65,8 @@ public final class NmsClassTransformer implements ClassTransformer {
     }
 
     /** 이 바이트 조각이 하나도 없으면 바꿀 것이 없다(상수 풀의 UTF-8 이름을 바로 훑는다). */
-    private static final byte[][] NEEDLES = utf8(CraftNames.VERSIONED_INTERNAL, "forName", "loadClass", "findClass", "net/minecraft/", "org/bukkit/craftbukkit/",
-            ApiRenames.ITEM_FLAG);
+    private static final byte[][] NEEDLES = utf8(concat(new String[]{CraftNames.VERSIONED_INTERNAL, "forName", "loadClass", "findClass", "net/minecraft/",
+            "org/bukkit/craftbukkit/", VARHANDLE}, ApiRenames.OWNERS));
     /** 리플렉션 멤버 다리는 NMS 이름(리터럴 조각 포함)을 담은 클래스에만 건다 — 일반 플러그인 코드의 리플렉션은 건드리지 않는다. */
     private static final byte[][] NMS_HINTS = utf8("minecraft", "craftbukkit");
     private static final byte[][] NAME_READS = utf8("getName", "getPackageName");
@@ -90,12 +96,23 @@ public final class NmsClassTransformer implements ClassTransformer {
     /**
      * jar 를 한 번 훑어 호환 보고를 남기고 변환기를 만든다. strict 이고 미지원 심볼이 있으면 {@link UnsupportedNmsCall}(플러그인 로드 거절).
      */
-    public static NmsClassTransformer forJar(String plugin, Path jar, Options options) {
+    public static NmsClassTransformer forJar(String plugin, Path jar, Options options) { return forJar(plugin, jar, options, null); }
+
+    /**
+     * 위와 같고, 대응표를 지금 갖고 있지 않으면({@code options.spigot()} 이 null) jar 가 Spigot 이름 대응표를 필요로 한다고 확인된 뒤에만
+     * {@code lateSpigot} 에 물어 얻는다 — 서버가 jar 를 따로 훑어 필요 여부를 묻지 않아도 되게(jar 를 한 번만 읽는다). null 을 돌려주면 바꾸지 않는다.
+     */
+    public static NmsClassTransformer forJar(String plugin, Path jar, Options options, java.util.function.Supplier<SpigotMappings> lateSpigot) {
         NmsCompatReport report;
         try {
-            report = NmsCompatReport.scan(plugin, jar, NmsSymbols.RUNTIME, options.spigot());
+            NmsCompatReport.Read read = NmsCompatReport.read(jar);
+            if (options.spigot() == null && lateSpigot != null && read.needsSpigotMappings()) {
+                SpigotMappings late = lateSpigot.get();
+                if (late != null) options = new Options(options.strict(), options.versionedPackage(), late);
+            }
+            report = NmsCompatReport.analyze(plugin, read, NmsSymbols.RUNTIME, options.spigot());
         } catch (IOException e) {
-            LOG.warn("플러그인 {}: NMS 호환 보고를 만들지 못했다({}) — 변환은 그대로 한다", plugin, e.toString());
+            LOG.warn(CompatLang.t("compat.nms-report-failed", plugin, e.toString()));
             SpigotMappings.register(plugin, null);
             return new NmsClassTransformer(plugin, Set.of(), new Options(options.strict(), options.versionedPackage()), NmsSymbols.RUNTIME);
         }
@@ -104,9 +121,8 @@ public final class NmsClassTransformer implements ClassTransformer {
         SpigotMappings.register(plugin, options.spigot());
         report.log();
         if (options.strict() && report.unsupported() > 0) {
-            throw new UnsupportedNmsCall("플러그인 " + plugin + " 로드",
-                    "plugins.compat.nms.strict=true 이고 미지원 NMS 심볼이 " + report.unsupported() + "개 있다(처음 것: "
-                            + report.missing().subList(0, Math.min(5, report.missing().size())) + "). strict 를 끄면 그 기능만 실패하고 나머지는 돈다");
+            throw new UnsupportedNmsCall("loading plugin " + plugin,
+                    CompatLang.t("nms.strict-refused", report.unsupported(), report.missing().subList(0, Math.min(5, report.missing().size()))));
         }
         return new NmsClassTransformer(plugin, report.ownClasses(), options, NmsSymbols.RUNTIME);
     }
@@ -162,7 +178,7 @@ public final class NmsClassTransformer implements ClassTransformer {
         reader.accept(new ClassRemapper(chain, remapper), 0);
         if (!changed[0] && !changed[1] && !changed[2] && !changed[3]) return null;
         if (changed[0] && announced.compareAndSet(false, true)) {
-            LOG.info("플러그인 {}: CraftBukkit 버전 접미사 이름({}) 을 이 서버의 접미사 없는 이름으로 바꿔 올린다", plugin, CraftNames.VERSION);
+            LOG.info(CompatLang.t("compat.nms-version-suffix", plugin, CraftNames.VERSION));
         }
         return writer.toByteArray();
     }
@@ -172,6 +188,12 @@ public final class NmsClassTransformer implements ClassTransformer {
     static boolean contains(byte[] bytes, byte[][] needles) {
         for (byte[] n : needles) if (indexOf(bytes, n) >= 0) return true;
         return false;
+    }
+
+    private static String[] concat(String[] a, String[] b) {
+        String[] out = java.util.Arrays.copyOf(a, a.length + b.length);
+        System.arraycopy(b, 0, out, a.length, b.length);
+        return out;
     }
 
     private static byte[][] utf8(String... s) {
@@ -192,6 +214,10 @@ public final class NmsClassTransformer implements ClassTransformer {
     /** 리플렉션·이름 읽기 호출을 다리로 돌린다. 이름은 이미 ClassRemapper 를 거친 것이다. */
     private static final class ReflectionRewriter extends ClassVisitor {
         private static final String S = "Ljava/lang/String;";
+        /** 알림을 다는 Field 쓰기(이름 + 서술자) — 값이 범주 1(참조·int 이하·float)인 것만. */
+        private static final Set<String> FIELD_SETS = Set.of("set(Ljava/lang/Object;Ljava/lang/Object;)V", "setShort(Ljava/lang/Object;S)V",
+                "setInt(Ljava/lang/Object;I)V", "setByte(Ljava/lang/Object;B)V", "setChar(Ljava/lang/Object;C)V", "setBoolean(Ljava/lang/Object;Z)V",
+                "setFloat(Ljava/lang/Object;F)V");
         private final boolean[] changed;
         private final String plugin;
         private final boolean members;
@@ -234,8 +260,45 @@ public final class NmsClassTransformer implements ClassTransformer {
 
                 @Override
                 public void visitMethodInsn(int opcode, String owner, String mname, String desc, boolean itf) {
+                    // 거울 쓰기 장벽(N2b-4): 참조 배열 VarHandle 쓰기 — 힌트 게이트 밖
+                    String arrayDesc = opcode == Opcodes.INVOKEVIRTUAL && owner.equals(VARHANDLE) ? NmsArrays.normalize(desc) : null;
+                    if (arrayDesc != null && NmsArrays.rewrites(mname, arrayDesc)) {
+                        super.visitMethodInsn(Opcodes.INVOKESTATIC, ARRAYS, mname, "(Ljava/lang/invoke/VarHandle;" + arrayDesc.substring(1), false);
+                        Type ret = Type.getReturnType(desc);
+                        if ((ret.getSort() == Type.OBJECT || ret.getSort() == Type.ARRAY) && !ret.getInternalName().equals("java/lang/Object")) {
+                            super.visitTypeInsn(Opcodes.CHECKCAST, ret.getInternalName());   // NMS 원소 형 꼴: 원래 반환 형으로
+                        }
+                        changed[1] = true;
+                        return;
+                    }
+                    if (members && opcode == Opcodes.INVOKEVIRTUAL && owner.equals("java/lang/reflect/Field")) {
+                        if (mname.equals("get") && desc.equals("(Ljava/lang/Object;)Ljava/lang/Object;")) {
+                            super.visitInsn(Opcodes.DUP2);   // [f, t] → [f, t, f, t]
+                            super.visitMethodInsn(Opcodes.INVOKESTATIC, REFLECT, "beforeFieldGet", "(Ljava/lang/reflect/Field;Ljava/lang/Object;)V", false);
+                            super.visitMethodInsn(opcode, owner, mname, desc, itf);
+                            changed[1] = true;
+                            return;
+                        }
+                        if (FIELD_SETS.contains(mname + desc)) {
+                            // [f, t, v] → [f, t, f, t, v] (값은 범주 1) — 원래 set 뒤에 [f, t] 로 알린다
+                            super.visitInsn(Opcodes.DUP_X2);
+                            super.visitInsn(Opcodes.POP);
+                            super.visitInsn(Opcodes.DUP2_X1);
+                            super.visitInsn(Opcodes.DUP2_X1);
+                            super.visitInsn(Opcodes.POP2);
+                            super.visitMethodInsn(opcode, owner, mname, desc, itf);
+                            super.visitMethodInsn(Opcodes.INVOKESTATIC, REFLECT, "afterFieldSet", "(Ljava/lang/reflect/Field;Ljava/lang/Object;)V", false);
+                            changed[1] = true;
+                            return;
+                        }
+                    }
                     if (opcode == Opcodes.INVOKESTATIC && mname.equals("valueOf") && ApiRenames.reroutesValueOf(owner, desc)) {
                         super.visitMethodInsn(Opcodes.INVOKESTATIC, ApiRenames.INTERNAL, ApiRenames.valueOfName(owner), desc, false);
+                        changed[1] = true;
+                        return;
+                    }
+                    if (opcode == Opcodes.INVOKESTATIC && mname.equals("getByName") && ApiRenames.reroutesGetByName(owner, desc)) {
+                        super.visitMethodInsn(Opcodes.INVOKESTATIC, ApiRenames.INTERNAL, ApiRenames.getByNameName(owner), desc, false);
                         changed[1] = true;
                         return;
                     }

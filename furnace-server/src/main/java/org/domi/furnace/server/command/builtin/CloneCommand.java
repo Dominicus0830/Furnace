@@ -17,8 +17,6 @@ import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.entity.BlockEntity;
-import org.domi.furnace.server.block.entity.ChiseledBookShelfBlockEntity;
-import org.domi.furnace.server.block.entity.ContainerBlockEntity;
 import org.domi.furnace.server.command.CommandSource;
 import org.domi.furnace.server.command.EntityOps;
 import org.domi.furnace.server.command.PostMessages;
@@ -34,7 +32,9 @@ import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.world.RegionLevel;
 import org.domi.furnace.server.world.World;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.CloneCommands")
 public final class CloneCommand {
     private CloneCommand() { }
 
@@ -198,10 +198,7 @@ public final class CloneCommand {
     }
 
     /** 바닐라 Clearable.tryClear: 블록을 바꾸기 전에 담긴 내용물을 비운다(쏟지 않게). 주크박스·독서대는 아직 빠졌다. */
-    static void tryClear(Object be) {
-        if (be instanceof ContainerBlockEntity c) java.util.Arrays.fill(c.items, org.domi.furnace.server.entity.ItemStack.EMPTY);
-        else if (be instanceof ChiseledBookShelfBlockEntity c) c.clearContent();
-    }
+    static void tryClear(Object be) { org.domi.furnace.server.block.entity.Clearables.tryClear(be); }
 
     private static void checkLoaded(BlockLevel level, Pos pos) throws Failed {
         if (!level.hasChunkAt(pos)) throw new Failed(BlockPosArgument.ERROR_NOT_LOADED.create());

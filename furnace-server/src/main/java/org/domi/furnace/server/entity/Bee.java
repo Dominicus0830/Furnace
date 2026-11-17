@@ -627,7 +627,8 @@ public class Bee extends Animal implements NeutralMob {
                     } else if (B.is(s, "minecraft:cave_vines") || B.is(s, "minecraft:cave_vines_plant")) {
                         ((org.domi.furnace.server.block.types.BonemealableBlock) b).performBonemeal(level, random, p, s);
                     }
-                    if (grown != -1) {
+                    // CraftBukkit: EntityChangeBlockEvent 를 막으면 자라게 하지 않는다
+                    if (grown != -1 && B.entityChange(level, Bee.this, p, grown)) {
                         level.levelEvent(null, 2011, p, 15);
                         level.setBlockAndUpdate(p, grown);
                         incrementNumCropsGrownSincePollination();

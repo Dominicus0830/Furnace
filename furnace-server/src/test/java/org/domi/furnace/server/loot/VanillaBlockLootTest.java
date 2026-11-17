@@ -3,6 +3,7 @@
 // 같은 블록·도구를 이어서 3번 캐면 시퀀스가 이어지는 것까지 확인된다.
 package org.domi.furnace.server.loot;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.BufferedReader;
@@ -36,7 +37,7 @@ class VanillaBlockLootTest {
         return s;
     }
 
-    private static final org.domi.furnace.server.world.BlockRegistry BLOCKS = org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt");
+    private static final org.domi.furnace.server.world.BlockRegistry BLOCKS = org.domi.furnace.server.world.BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
 
     /** "wheat[age=7]" → 기본 상태 속성 위에 지정한 속성을 덮는다(바닐라 setblock 과 같다). */
     static LootBlockState state(String spec) {
@@ -63,7 +64,7 @@ class VanillaBlockLootTest {
         List<String> failures = new ArrayList<>();
         int cases = 0;
         try (BufferedReader r = new BufferedReader(new InputStreamReader(
-                VanillaBlockLootTest.class.getResourceAsStream("/loot/blocks-1.21.1.txt"), StandardCharsets.UTF_8))) {
+                VanillaBlockLootTest.class.getResourceAsStream("/loot/" + GameVersion.RESOURCE_TAG + "/blocks.txt"), StandardCharsets.UTF_8))) {
             String line;
             while ((line = r.readLine()) != null) {
                 if (line.startsWith("#") || line.isBlank()) continue;

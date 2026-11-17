@@ -1,6 +1,7 @@
 // region이 청크를 1회 로드 후 보관(동일 인스턴스)하는지 검증
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import org.domi.furnace.api.sched.RegionPos;
 import org.domi.furnace.server.net.ChunkWorkerPool;
@@ -13,7 +14,7 @@ class RegionChunkOwnershipTest {
     @Test
     void chunkAt_loadsOnceAndRetains() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1),
                 sched, sched.regionThreadCount(), 16, 5, 5, reg.directBits(), 7, java.util.concurrent.Executors.newSingleThreadExecutor());
         RegionPos rp = new RegionPos(0, 0);

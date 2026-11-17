@@ -61,7 +61,9 @@ import org.domi.furnace.server.entity.Vex;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.world.ChunkPos;
 import org.domi.furnace.server.world.World;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.ExecuteCommand")
 public final class ExecuteCommands {
     private ExecuteCommands() { }
 
@@ -225,7 +227,7 @@ public final class ExecuteCommands {
             }
             return ResultCallback.DONE;
         }
-        Executor global = r -> source.getServer().scheduler().global().execute(r);
+        Executor global = EntityOps.commandGlobal(source);
         return write.<Void>handleAsync((v, ex) -> {
             if (ex == null || EntityOps.unwrap(ex) instanceof CommandSyntaxException) return null;
             throw ex instanceof CompletionException ce ? ce : new CompletionException(ex);
@@ -388,7 +390,7 @@ public final class ExecuteCommands {
                 return CompletableFuture.failedFuture(t);
             }
         }
-        Executor global = r -> source.getServer().scheduler().global().execute(r);
+        Executor global = EntityOps.commandGlobal(source);
         return f.thenApplyAsync(v -> {
             try {
                 return fn.apply(v);

@@ -4,6 +4,7 @@ package org.domi.furnace.server.world.gen.structure;
 import java.util.Optional;
 import java.util.function.Consumer;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.structure.Structure")
 public abstract class StructureType {
 
     /** Structure.GenerationStub: 위치(바이옴 검사용) + 지연 생성되는 조각. */

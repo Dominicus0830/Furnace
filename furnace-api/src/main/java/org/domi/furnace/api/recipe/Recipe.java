@@ -1,4 +1,4 @@
-// 레시피 값(불리언 구조 그대로의 불변 기록). 키는 레지스트리 쪽에서 붙인다({@link RecipeRegistry}) — 같은 레시피를 다른 키로 올려도 된다.
+// 레시피 값(불리언 구조 그대로의 불변 기록). 키는 레지스트리 쪽에서 붙인다({@link RecipeRegistry}). 같은 레시피를 다른 키로 올려도 된다.
 // 아이템은 레지스트리 키 문자열이라 서버 내부 번호에 묶이지 않는다. 결과 아이템에는 컴포넌트를 실을 수 있다.
 package org.domi.furnace.api.recipe;
 
@@ -80,8 +80,8 @@ public sealed interface Recipe {
             Objects.requireNonNull(category, "category");
             Objects.requireNonNull(ingredient, "ingredient");
             requireResult(result);
-            if (!(experience >= 0f)) throw new IllegalArgumentException("experience 는 0 이상: " + experience);
-            if (cookingTime < 1) throw new IllegalArgumentException("cookingTime 은 1틱 이상: " + cookingTime);
+            if (!(experience >= 0f)) throw new IllegalArgumentException("experience must be at least 0: " + experience);
+            if (cookingTime < 1) throw new IllegalArgumentException("cookingTime must be at least 1 tick: " + cookingTime);
         }
 
         public Cooking(CookingKind kind, RecipeChoice ingredient, ItemStack result, float experience) {
@@ -132,6 +132,6 @@ public sealed interface Recipe {
     }
 
     private static void requireResult(ItemStack result) {
-        if (result == null || result.isEmpty()) throw new IllegalArgumentException("결과 아이템이 비었다");
+        if (result == null || result.isEmpty()) throw new IllegalArgumentException("the result item is empty");
     }
 }

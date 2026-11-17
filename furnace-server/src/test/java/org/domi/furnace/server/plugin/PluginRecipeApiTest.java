@@ -1,6 +1,7 @@
 // 플러그인 API 레시피 레지스트리: 등록·검증·제거·복원, 제작/굽기/석재 절단/대장장이 공통 표, /reload 뒤 유지, 플러그인 꺼짐 정리, 접속자 재전송.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -39,7 +40,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 class PluginRecipeApiTest {
 
-    private static final Path VANILLA = Path.of("../tools/vanilla-data/server-1.21.1");
+    private static final Path VANILLA = Path.of("../tools/vanilla-data/server-" + GameVersion.MINECRAFT);
 
     @TempDir Path tmp;
     private FurnaceSchedulerImpl sched;
@@ -51,7 +52,7 @@ class PluginRecipeApiTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @BeforeEach
@@ -60,10 +61,10 @@ class PluginRecipeApiTest {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         core = TestServers.core(tmp, sched);
         host = core.plugins();
-        core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt"), org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), org.domi.furnace.server.world.ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         packs = DataPackManager.start(VANILLA, tmp, org.domi.furnace.server.world.storage.LevelData.create("world", 1L, true, false,
                 org.domi.furnace.server.world.GameMode.SURVIVAL, false, org.domi.furnace.server.world.Difficulty.EASY, List.of("vanilla"), List.of()),
-                RegistrySet.load("registries/1.21.1.txt"), true, List.of("vanilla"), List.of());
+                RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"), true, List.of("vanilla"), List.of());
         core.dataPacks(packs);
     }
 
@@ -136,6 +137,37 @@ class PluginRecipeApiTest {
     }
 
     // ------------------------------------------------------------------ 굽기·석재·대장장이
+
+    /** canCook 은 서버 화로의 조회(findCooking) 그대로 — 바닐라 표(태그 재료 포함)·종류 구분·플러그인 레시피. Bukkit FurnaceInventory#canSmelt 가 쓴다. */
+    @Test
+    void canCookFollowsFurnaceLookup() {
+        var reg = host.recipes();
+        assertTrue(reg.canCook(Recipe.CookingKind.SMELTING, new ItemStack("minecraft:raw_iron", 1)));
+        assertTrue(reg.canCook(Recipe.CookingKind.SMELTING, new ItemStack("minecraft:oak_log", 1)), "#logs_that_burn → 숯");
+        assertTrue(reg.canCook(Recipe.CookingKind.BLASTING, new ItemStack("minecraft:raw_iron", 1)));
+        assertFalse(reg.canCook(Recipe.CookingKind.BLASTING, new ItemStack("minecraft:beef", 1)), "용광로는 고기를 못 굽는다");
+        assertTrue(reg.canCook(Recipe.CookingKind.SMOKING, new ItemStack("minecraft:beef", 1)));
+        assertFalse(reg.canCook(Recipe.CookingKind.SMOKING, new ItemStack("minecraft:raw_iron", 1)));
+        assertFalse(reg.canCook(Recipe.CookingKind.SMELTING, new ItemStack("minecraft:diamond", 1)));
+        assertFalse(reg.canCook(Recipe.CookingKind.SMELTING, new ItemStack("minecraft:air", 1)));
+        assertFalse(reg.canCook(Recipe.CookingKind.SMELTING, new ItemStack("minecraft:gravel", 1)));
+        reg.register(plugin, "myplugin:bake2", new Recipe.Cooking(Recipe.CookingKind.SMELTING, RecipeChoice.item("gravel"), new ItemStack("minecraft:bread", 1), 0f));
+        assertTrue(reg.canCook(Recipe.CookingKind.SMELTING, new ItemStack("minecraft:gravel", 1)), "플러그인 레시피도");
+        assertFalse(reg.canCook(Recipe.CookingKind.SMOKING, new ItemStack("minecraft:gravel", 1)));
+    }
+
+    /** cookingTime 은 찾은 레시피의 시간 — 화로 200·용광로 100·훈연기 100·플러그인 레시피 값·없으면 empty. */
+    @Test
+    void cookingTimeIsFoundRecipeTime() {
+        var reg = host.recipes();
+        assertEquals(java.util.OptionalInt.of(200), reg.cookingTime(Recipe.CookingKind.SMELTING, new ItemStack("minecraft:raw_iron", 1)));
+        assertEquals(java.util.OptionalInt.of(100), reg.cookingTime(Recipe.CookingKind.BLASTING, new ItemStack("minecraft:raw_iron", 1)));
+        assertEquals(java.util.OptionalInt.of(100), reg.cookingTime(Recipe.CookingKind.SMOKING, new ItemStack("minecraft:beef", 1)));
+        assertEquals(java.util.OptionalInt.empty(), reg.cookingTime(Recipe.CookingKind.BLASTING, new ItemStack("minecraft:beef", 1)));
+        reg.register(plugin, "myplugin:bake3", new Recipe.Cooking(Recipe.CookingKind.SMELTING, "", RecipeCategory.MISC, RecipeChoice.item("gravel"),
+                new ItemStack("minecraft:bread", 1), 0f, 37));
+        assertEquals(java.util.OptionalInt.of(37), reg.cookingTime(Recipe.CookingKind.SMELTING, new ItemStack("minecraft:gravel", 1)));
+    }
 
     @Test
     void cookingStonecuttingSmithingShareTheSameTable() {

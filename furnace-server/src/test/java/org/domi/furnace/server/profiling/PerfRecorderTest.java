@@ -1,6 +1,7 @@
 // /perf: 시작·멈춤·zip 보고서(바닐라 PerfCommand 의 흐름).
 package org.domi.furnace.server.profiling;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -44,7 +45,7 @@ class PerfRecorderTest {
         Path zip = report.get();
         assertNotNull(zip);
         assertTrue(zip.startsWith(tmp.resolve("debug/profiling")), zip.toString());
-        assertTrue(zip.getFileName().toString().endsWith("-world-1.21.1.zip"), zip.getFileName().toString());
+        assertTrue(zip.getFileName().toString().endsWith("-world-" + GameVersion.MINECRAFT + ".zip"), zip.getFileName().toString());
         Set<String> names = new HashSet<>();
         try (ZipFile z = new ZipFile(zip.toFile())) {
             for (var en = z.entries(); en.hasMoreElements(); ) names.add(en.nextElement().getName());

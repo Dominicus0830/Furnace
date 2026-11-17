@@ -1,12 +1,14 @@
 // 바닐라 RedstoneWallTorchBlock: 벽에 붙은 레드스톤 횃불. 붙은 벽 칸이 신호를 받으면 꺼진다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.RedstoneWallTorchBlock")
 public class RedstoneWallTorchBlock extends RedstoneTorchBlock {
 
     private static final int WALL_TORCH = B.id("wall_torch");

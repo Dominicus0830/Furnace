@@ -19,7 +19,9 @@ import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.packs.PackResources")
 public interface PackResources extends AutoCloseable {
 
     @FunctionalInterface

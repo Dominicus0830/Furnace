@@ -1,6 +1,7 @@
 // JSON 역직렬화 테스트 — 바닐라 정답 파일의 모든 사례를 읽어 다시 쓰면 같은 JSON·같은 NBT 바이트가 나와야 한다. 옛 형식과 오류 처리도 본다.
 package org.domi.furnace.api.text.serializer;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.BufferedReader;
@@ -25,7 +26,7 @@ class JsonSerializerTest {
     @Test
     void goldenCasesRoundTripExactly() throws Exception {
         List<String[]> golden = new ArrayList<>();
-        try (var r = new BufferedReader(new InputStreamReader(getClass().getResourceAsStream("/text/vanilla-1.21.1-golden.tsv"), StandardCharsets.UTF_8))) {
+        try (var r = new BufferedReader(new InputStreamReader(getClass().getResourceAsStream("/text/" + GameVersion.RESOURCE_TAG + "/vanilla-golden.tsv"), StandardCharsets.UTF_8))) {
             String line;
             while ((line = r.readLine()) != null) golden.add(line.split("\t"));
         }

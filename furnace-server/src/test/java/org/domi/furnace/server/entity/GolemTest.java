@@ -1,6 +1,7 @@
 // 골렘: 호박 머리를 올리면 눈 골렘/철 골렘이 만들어지고, 철 골렘은 적대 몹을, 눈 골렘은 눈덩이로 적대 몹을 공격한다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.block.B;
@@ -14,7 +15,7 @@ class GolemTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static void tick(BlockPlacementTest.TestLevel level, int n) {

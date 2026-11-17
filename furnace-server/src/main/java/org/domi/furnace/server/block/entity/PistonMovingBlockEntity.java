@@ -2,6 +2,7 @@
 // 틱마다 진행도 +0.5, 1 이 된 다음 틱에 옮기던 블록을 이웃 모양에 맞춰 놓는다(finalTick 은 그 자리에서 바로).
 package org.domi.furnace.server.block.entity;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Blocks;
@@ -15,6 +16,7 @@ import org.domi.furnace.server.entity.AABB;
 import org.domi.furnace.server.entity.Entity;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort("net.minecraft.world.level.block.piston.PistonMovingBlockEntity")
 public class PistonMovingBlockEntity extends BlockEntity {
 
     private static final int MOVING_PISTON = B.id("moving_piston"), PISTON_HEAD = B.id("piston_head"), STICKY_PISTON = B.id("sticky_piston");
@@ -170,6 +172,7 @@ public class PistonMovingBlockEntity extends BlockEntity {
                     default -> vz = Dir.DZ[dir];
                 }
                 e.setDeltaMovement(vx, vy, vz);
+                org.domi.furnace.server.entity.EntityActivation.immunize(e, 10);   // Paper EAR: 점액에 튕긴 엔티티는 10틱 활성(꺼져 있으면 아무것도)
             }
             double d1 = 0.0;
             for (int i = 0, n = shape.boxCount(); i < n; i++) {
@@ -264,7 +267,7 @@ public class PistonMovingBlockEntity extends BlockEntity {
 
     private static AABB toAabb(double[] b) { return new AABB(b[0], b[1], b[2], b[3], b[4], b[5]); }
 
-    private static Shape collision(int state, BlockLevel level, Pos at) { return B.behavior(state).getCollisionShape(state, level, at, null); }
+    private static Shape collision(int state, BlockLevel level, Pos at) { return B.behavior(state).getCollisionShape(state, level, at, org.domi.furnace.server.block.CollisionContext.EMPTY); }
 
     @Override
     public void load(NbtCompound tag) {

@@ -1,6 +1,7 @@
 // 테스트용 ServerCore(슈퍼플랫 월드·임시 폴더의 설정/목록 파일).
 package org.domi.furnace.server;
 
+import org.domi.furnace.api.GameVersion;
 import java.nio.file.Path;
 import java.util.List;
 import org.domi.furnace.server.config.ServerPropertiesFile;
@@ -45,8 +46,18 @@ public final class TestServers {
 
     /** 이미 만든(또는 파일에서 읽은) LevelData 로 서버를 띄운다 — 재시작 시험용. */
     public static ServerCore core(Path tmp, FurnaceSchedulerImpl sched, java.util.function.Function<BlockRegistry, org.domi.furnace.server.world.gen.WorldSource> source, LevelData level) {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        World world = new World(source.apply(reg), new ChunkWorkerPool(1), sched, 1, 16, 2, 2,
+        return core(tmp, sched, source, level, 1);
+    }
+
+    /** region 작업 스레드 수를 고른 판(한 region 을 붙잡아 둔 채 다른 region 이 도는 경합 시험). */
+    public static ServerCore core(Path tmp, FurnaceSchedulerImpl sched, int regionThreads) {
+        return core(tmp, sched, reg -> new SuperflatWorldSource(reg, 0),
+                LevelData.create("world", 1234L, true, false, GameMode.SURVIVAL, false, Difficulty.EASY, List.of("vanilla"), List.of()), regionThreads);
+    }
+
+    private static ServerCore core(Path tmp, FurnaceSchedulerImpl sched, java.util.function.Function<BlockRegistry, org.domi.furnace.server.world.gen.WorldSource> source, LevelData level, int regionThreads) {
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        World world = new World(source.apply(reg), new ChunkWorkerPool(1), sched, regionThreads, 16, 2, 2,
                 reg.directBits(), 7, ioPool());
         world.worldDir(tmp);
         ServerPropertiesFile settings = new ServerPropertiesFile(tmp.resolve("server.properties"));

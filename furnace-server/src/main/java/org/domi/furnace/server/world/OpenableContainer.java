@@ -32,9 +32,10 @@ public abstract class OpenableContainer implements Container {
         }
     }
 
-    @Override public void startOpen(MenuPlayer player) { withRegion(r -> opener().startOpen(r.level())); }
+    /** 바닐라 상자·통·셜커 상자·엔더 상자의 startOpen/stopOpen: 관전자는 여는 수에 들지 않는다(뚜껑·소리·게임 이벤트 없음, 그 순간의 게임 모드로 판단). */
+    @Override public void startOpen(MenuPlayer player) { if (player == null || !player.isSpectator()) withRegion(r -> opener().startOpen(r.level())); }
 
-    @Override public void stopOpen(MenuPlayer player) { withRegion(r -> opener().stopOpen(r.level())); }
+    @Override public void stopOpen(MenuPlayer player) { if (player == null || !player.isSpectator()) withRegion(r -> opener().stopOpen(r.level())); }
 
     /** Container.stillValidBlockEntity: 그 블록엔티티가 살아 있고 블록 중심에서 8칸 이내. */
     @Override public boolean stillValid(MenuPlayer player) {

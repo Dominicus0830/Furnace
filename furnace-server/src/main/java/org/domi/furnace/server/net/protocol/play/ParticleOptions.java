@@ -2,6 +2,7 @@
 // 종류 id 는 registries/particle_types-1.21.1.txt(데이터 생성기 registries.json 의 particle_type protocol_id 순서, 1.21.1 전용).
 package org.domi.furnace.server.net.protocol.play;
 
+import org.domi.furnace.api.GameVersion;
 import io.netty.buffer.ByteBuf;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -10,9 +11,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.net.io.Types;
 
+@VanillaPort("net.minecraft.core.particles.ParticleTypes")
 public sealed interface ParticleOptions {
 
     /** "minecraft:..." 입자 종류 이름. */
@@ -110,8 +113,8 @@ public sealed interface ParticleOptions {
         private static final Map<String, Integer> IDS = new HashMap<>();
 
         static {
-            try (var in = Registry.class.getClassLoader().getResourceAsStream("registries/particle_types-1.21.1.txt")) {
-                if (in == null) throw new IllegalStateException("registries/particle_types-1.21.1.txt 없음");
+            try (var in = Registry.class.getClassLoader().getResourceAsStream("registries/particle_types-" + GameVersion.RESOURCE_TAG + ".txt")) {
+                if (in == null) throw new IllegalStateException("registries/particle_types-" + GameVersion.RESOURCE_TAG + ".txt is missing");
                 var r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
                 for (String line; (line = r.readLine()) != null; ) {
                     if (line.isBlank()) continue;
@@ -127,7 +130,7 @@ public sealed interface ParticleOptions {
 
         public static int id(String name) {
             Integer i = IDS.get(name);
-            if (i == null) throw new IllegalArgumentException("알 수 없는 입자 종류: " + name);
+            if (i == null) throw new IllegalArgumentException("unknown particle type: " + name);
             return i;
         }
 

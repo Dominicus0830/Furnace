@@ -1,4 +1,4 @@
-// 전역 번역기 목록과 바닐라 번역 패턴 해석(TranslatableContents.decomposeTemplate 와 같은 규칙).
+// 전역 번역기 목록과 바닐라 번역 패턴 해석이다(TranslatableContents.decomposeTemplate 와 같은 규칙).
 package org.domi.furnace.api.text;
 
 import java.util.List;
@@ -21,8 +21,8 @@ public final class Translators {
 
     private Translators() {}
 
-    /** 번역기 등록 — 먼저 등록한 것이 우선한다. */
-    /** 전역 등록 — 소유자가 없어 플러그인이 꺼져도 남는다(A14-11). 플러그인은 꺼질 때 풀리는 server().translations() 를 쓴다. */
+    /** 번역기 등록. 먼저 등록한 것이 우선한다. */
+    /** 전역 등록. 소유자가 없어서 플러그인이 꺼져도 남는다(A14-11). 플러그인은 꺼질 때 풀리는 server().translations() 를 쓴다. */
     public static void register(Translator t) { TRANSLATORS.add(t); }
 
     public static void unregister(Translator t) { TRANSLATORS.remove(t); }
@@ -37,8 +37,8 @@ public final class Translators {
     }
 
     /**
-     * 바닐라 TranslatableContents.decompose + getString: 패턴(없으면 fallback, 그것도 없으면 키)을 인자로 채운다.
-     * 지원하지 않는 형식·범위 밖 인자·홀로 남은 % 가 있으면 바닐라처럼 패턴 문자열 그대로 돌려준다.
+     * 바닐라 TranslatableContents.decompose + getString 과 같다. 패턴(없으면 fallback, 그것도 없으면 키)을 인자로 채운다.
+     * 지원하지 않는 형식, 범위 밖 인자, 홀로 남은 % 가 있으면 바닐라처럼 패턴 문자열 그대로 돌려준다.
      */
     public static String format(String key, String fallback, List<String> args, Locale locale) {
         String pattern = translate(key, locale);

@@ -1,6 +1,7 @@
 // 바닐라 PitcherCropBlock: 나이 0~4 낭상엽 작물. 3 이상이면 두 칸이 된다. 경작지 위, 밝아야 산다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -10,6 +11,7 @@ import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.PitcherCropBlock")
 public class PitcherCropBlock extends DoublePlantBlock implements BonemealableBlock {
 
     private static final Prop AGE = B.prop("age");

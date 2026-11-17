@@ -5,6 +5,7 @@
 // 전역 스레드(명령)만 부른다.
 package org.domi.furnace.server.profiling;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -19,13 +20,15 @@ import jdk.jfr.FlightRecorder;
 import jdk.jfr.Recording;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.util.profiling.jfr.JvmProfiler")
 public final class JfrProfiler {
 
     private static final Logger log = LoggerFactory.getLogger(JfrProfiler.class);
     private static final DateTimeFormatter STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd-HHmmss", Locale.ROOT).withZone(ZoneId.systemDefault());
     /** 바닐라 JfrProfiler 의 녹화 이름에 들어가는 게임 버전(SharedConstants.getCurrentVersion().getName()). */
-    private static final String VERSION = "1.21.1";
+    private static final String VERSION = GameVersion.MINECRAFT;
 
     private static final JfrProfiler INSTANCE = new JfrProfiler();
 

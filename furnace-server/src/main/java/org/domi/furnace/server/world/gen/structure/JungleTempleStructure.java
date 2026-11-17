@@ -4,6 +4,7 @@ package org.domi.furnace.server.world.gen.structure;
 import org.domi.furnace.server.world.gen.carver.LegacyRandom;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort({"net.minecraft.world.level.levelgen.structure.structures.JungleTempleStructure", "net.minecraft.world.level.levelgen.structure.structures.JungleTemplePiece"})
 public final class JungleTempleStructure {
     private JungleTempleStructure() {}
 
@@ -12,6 +13,18 @@ public final class JungleTempleStructure {
     }
 
     static final class Piece extends ScatteredPiece {
+        @Override
+        public String pieceType() { return "tejp"; }
+
+        @Override
+        protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+            super.saveAdditional(t);
+            t.putBoolean("placedMainChest", placedMainChest);
+            t.putBoolean("placedHiddenChest", placedHiddenChest);
+            t.putBoolean("placedTrap1", placedTrap1);
+            t.putBoolean("placedTrap2", placedTrap2);
+        }
+
         private boolean placedMainChest, placedHiddenChest, placedTrap1, placedTrap2;
 
         Piece(WorldgenRandom random, int x, int z) {

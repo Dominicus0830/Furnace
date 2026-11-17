@@ -9,6 +9,7 @@ import org.domi.furnace.server.world.gen.structure.template.PlaceSettings;
 import org.domi.furnace.server.world.gen.structure.template.Processors;
 import org.domi.furnace.server.world.gen.structure.template.StructureTemplate;
 
+@org.domi.furnace.server.VanillaPort({"net.minecraft.world.level.levelgen.structure.structures.IglooStructure", "net.minecraft.world.level.levelgen.structure.structures.IglooPieces"})
 public final class IglooStructure extends StructureType {
 
     static final String TOP = "minecraft:igloo/top";
@@ -55,6 +56,15 @@ public final class IglooStructure extends StructureType {
     }
 
     static final class Piece extends TemplatePiece {
+        @Override
+        public String pieceType() { return "iglu"; }
+
+        @Override
+        protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+            super.saveAdditional(t);
+            t.putString("Rot", rotationName(settings.rotation));
+        }
+
         Piece(StructureEngine e, String loc, int x, int y, int z, int rotation, int depth) {
             super(loc, e.template(loc), makeSettings(rotation, loc),
                 x + OFFSETS.get(loc)[0], y + OFFSETS.get(loc)[1] - depth, z + OFFSETS.get(loc)[2]);

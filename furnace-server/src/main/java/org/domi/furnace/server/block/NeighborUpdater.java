@@ -4,9 +4,11 @@ package org.domi.furnace.server.block;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import org.domi.furnace.server.VanillaPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@VanillaPort("net.minecraft.world.level.redstone.CollectingNeighborUpdater")
 public final class NeighborUpdater {
 
     private static final Logger log = LoggerFactory.getLogger(NeighborUpdater.class);
@@ -124,14 +126,16 @@ public final class NeighborUpdater {
     /** executeShapeUpdate: 그 칸의 updateShape 결과로 updateOrDestroy. */
     public static void executeShapeUpdate(BlockLevel level, int dir, int neighborState, Pos pos, Pos neighborPos, int flags, int recursionLeft) {
         int state = level.getBlockState(pos);
-        if (!level.gameEvents().blockPhysics(level.dimension(), pos, state, neighborPos, B.block(neighborState))) return;   // 플러그인 BlockPhysicsEvent 취소
+        var events = level.gameEvents();
+        if (events.wantsBlockPhysics() && !events.blockPhysics(level.dimension(), pos, state, neighborPos, B.block(neighborState))) return;   // 플러그인 BlockPhysicsEvent 취소
         int newState = BlockBehaviors.of(state).updateShape(state, dir, neighborState, level, pos, neighborPos);
         B.updateOrDestroy(state, newState, level, pos, flags, recursionLeft);
     }
 
     /** executeUpdate: neighborChanged 호출. */
     public static void executeUpdate(BlockLevel level, int state, Pos pos, int sourceBlock, Pos sourcePos, boolean moved) {
-        if (!level.gameEvents().blockPhysics(level.dimension(), pos, state, sourcePos, sourceBlock)) return;   // 플러그인 BlockPhysicsEvent 취소
+        var events = level.gameEvents();
+        if (events.wantsBlockPhysics() && !events.blockPhysics(level.dimension(), pos, state, sourcePos, sourceBlock)) return;   // 플러그인 BlockPhysicsEvent 취소
         BlockBehaviors.of(state).neighborChanged(state, level, pos, sourceBlock, sourcePos, moved);
     }
 }

@@ -13,6 +13,12 @@ import java.util.UUID;
  */
 public class CompoundTag implements Tag {
 
+    /** 바닐라 {@code CompoundTag.TYPE}: 이 클래스 안의 익명 종류(이름·표시 이름·isValue 는 바닐라 1.21.1 jar 와 대조). */
+    public static final TagType<CompoundTag> TYPE = new TagType<>() {
+        @Override public String getName() { return "COMPOUND"; }
+        @Override public String getPrettyName() { return "TAG_Compound"; }
+    };
+
     private final Map<String, Tag> tags;
 
     public CompoundTag() { this(new HashMap<>()); }

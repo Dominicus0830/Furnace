@@ -4,11 +4,13 @@ package org.domi.furnace.server.block.types;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.piston.PistonStructureResolver")
 public class PistonStructureResolver {
 
     public static final int MAX_PUSH_DEPTH = 12;

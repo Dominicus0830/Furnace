@@ -2,6 +2,7 @@
 // 세기가 바뀌면 자신과 여섯 이웃을 HashSet 순회 순서대로 갱신한다(바닐라와 같은 순서를 재현).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -13,6 +14,7 @@ import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.RedStoneWireBlock")
 public class RedStoneWireBlock extends BlockBehavior {
 
     static final Prop NORTH = B.prop("north"), EAST = B.prop("east"), SOUTH = B.prop("south"), WEST = B.prop("west"), POWER = B.prop("power");
@@ -21,7 +23,7 @@ public class RedStoneWireBlock extends BlockBehavior {
     private static final int UP = 0, SIDE_ = 1, NONE = 2;
     static {
         String[] vs = NORTH.values(B.defaultState("redstone_wire"));
-        if (!"up".equals(vs[UP]) || !"side".equals(vs[SIDE_]) || !"none".equals(vs[NONE])) throw new IllegalStateException("redstone_wire 연결 값 순서가 다르다");
+        if (!"up".equals(vs[UP]) || !"side".equals(vs[SIDE_]) || !"none".equals(vs[NONE])) throw new IllegalStateException("redstone_wire connection values are in a different order");
     }
     private static final int WIRE = B.id("redstone_wire"), HOPPER = B.id("hopper"), REPEATER = B.id("repeater"), OBSERVER = B.id("observer");
     private static final Prop FACING = B.prop("facing");

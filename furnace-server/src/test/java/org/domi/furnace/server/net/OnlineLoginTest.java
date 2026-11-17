@@ -2,6 +2,7 @@
 // → Login Success(프로필 속성 포함). 세션 서버는 로컬 HTTP 가짜를 쓴다.
 package org.domi.furnace.server.net;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.sun.net.httpserver.HttpServer;
@@ -86,7 +87,7 @@ class OnlineLoginTest {
 
     private int startServer(String sessionHost, PlayerLists lists, int maxPlayers, boolean preventProxy) {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         World world = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2,
                 reg.directBits(), 7, org.domi.furnace.server.TestServers.ioPool());
         world.worldDir(tmp);
@@ -223,7 +224,7 @@ class OnlineLoginTest {
 
     private int startVelocityServer(String secret) {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         World world = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2,
                 reg.directBits(), 7, org.domi.furnace.server.TestServers.ioPool());
         world.worldDir(tmp);

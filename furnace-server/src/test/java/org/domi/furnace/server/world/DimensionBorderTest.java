@@ -3,6 +3,7 @@
 // 접속자에게 보내는 보더 패킷(sendLevelInfo·PlayerList 리스너)은 차원과 무관하게 오버월드 보더다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
@@ -104,7 +105,7 @@ class DimensionBorderTest {
     private ServerCore coreWithNether(World[] out) {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         ServerCore core = TestServers.core(tmp, sched);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         var io = TestServers.ioPool();
         World nether = new World(TEST_NETHER, new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 4, 1, 2, 2, reg.directBits(), 7, io, io);
         nether.worldDir(tmp);
@@ -148,7 +149,7 @@ class DimensionBorderTest {
         ServerCore core = TestServers.core(tmp, sched);
         core.border().setCenter(-4000, 4000);
         core.border().setSize(1000);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         var io = TestServers.ioPool();
         World nether = new World(TEST_NETHER, new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 4, 1, 2, 2, reg.directBits(), 7, io, io);
         nether.worldDir(tmp);

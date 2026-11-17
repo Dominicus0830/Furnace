@@ -2,7 +2,9 @@ package org.domi.furnace.server.command.brigadier;
 
 import java.util.function.Function;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("com.mojang.brigadier.exceptions.DynamicCommandExceptionType")
 public final class DynamicCommandExceptionType {
 
     private final Function<Object, Text> function;

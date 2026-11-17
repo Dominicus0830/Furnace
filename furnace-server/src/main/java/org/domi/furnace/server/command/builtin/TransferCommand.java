@@ -15,7 +15,9 @@ import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.protocol.play.Transfer;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.TransferCommand")
 public final class TransferCommand {
 
     private TransferCommand() {}

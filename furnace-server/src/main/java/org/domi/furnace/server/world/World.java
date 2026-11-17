@@ -1,6 +1,7 @@
 // 월드: 공유 자원(청크 저장소·구독·접속자) + 동적 region(Regionizer). 월드 작업은 청크 주인 region 으로 보낸다(runAtChunk).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.server.i18n.Lang;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import java.util.ArrayList;
@@ -54,7 +55,7 @@ public final class World {
     private java.nio.file.Path worldDir = java.nio.file.Path.of("world");
     private BlockRegistry blockRegistry;
     private ItemRegistry itemRegistry;
-    private SpawnPoint defaultSpawn = new SpawnPoint(0, 64, 0, 0.0f);
+    private volatile SpawnPoint defaultSpawn = new SpawnPoint(0, 64, 0, 0.0f);
     // 이 월드의 차원(기본 오버월드 — 단일 차원 테스트·도구 호환). 저장 폴더·높이·하늘빛이 여기서 나온다.
     private volatile DimensionType dimensionType;
     private volatile Dimensions dimensions;
@@ -81,11 +82,12 @@ public final class World {
     // 청크별 구독자(그 청크를 로드한 플레이어)와 구독 상태. 블록 변경 시 이들에게만 전송.
     private final ConcurrentHashMap<ChunkPos, ConcurrentHashMap<Player, Subscription>> chunkSubscribers = new ConcurrentHashMap<>();
 
-    /** 기본 region 설정(구역 16×16 청크, 합치기 반경 1 구역). regionSize 인자는 예전 고정 격자용이라 쓰지 않는다. */
+    /** 기본 region 설정(Config.DEFAULT 의 구역 크기·합치기 반경). regionSize 인자는 예전 고정 격자용이라 쓰지 않는다. */
     public World(WorldSource worldSource, ChunkWorkerPool chunkPool, FurnaceScheduler scheduler,
                  int regionThreads, int regionSize, int viewDistance, int entityViewDistance,
                  int blockDirectBits, int biomeDirectBits, ExecutorService ioPool, ExecutorService genPool) {
-        this(worldSource, chunkPool, scheduler, regionThreads, 4, 1, viewDistance, entityViewDistance,
+        this(worldSource, chunkPool, scheduler, regionThreads, org.domi.furnace.server.config.Config.DEFAULT.regionSectionShift(),
+                org.domi.furnace.server.config.Config.DEFAULT.regionMergeRadius(), viewDistance, entityViewDistance,
                 blockDirectBits, biomeDirectBits, ioPool, genPool);
     }
 
@@ -124,6 +126,7 @@ public final class World {
         this.ioPool = ioPool;
         this.ioLanes = ioPool == null ? null : new org.domi.furnace.server.world.anvil.IoLanes(ioPool, IO_LANES);
         this.genPool = genPool;
+        if (genPool instanceof GenQueue q) q.addWorld(this);
         this.chunkPool = chunkPool;
         this.scheduler = scheduler;
         this.viewDistance = viewDistance;
@@ -145,9 +148,21 @@ public final class World {
     private final Runnable closeHook;
     private volatile boolean unloaded;
     private volatile String levelName;
-    private volatile long seed;
-    private volatile boolean hasSeed;
+    /** (시드, 바이옴 확대 지터 시드) 불변 묶음 — null 이면 시드를 정하지 않은 월드. setter 에서 한 번 계산해 찢어 읽기·SHA-256 재계산이 없다. */
+    private record SeedInfo(long seed, long zoomSeed) {}
+    private volatile SeedInfo seedInfo;
     private volatile boolean extra;
+
+    private volatile boolean scratch;
+
+    /** 임시 월드인가(T-203 {@code WorldManager#createScratch} — 틱·저장 없음, 차원 목록에 없음). */
+    public boolean isScratch() { return scratch; }
+
+    /** 임시 월드 표시와 이름. 만들 때 한 번. */
+    void markScratch(String name) {
+        this.scratch = true;
+        this.levelName = name;
+    }
 
     /** 실행 중에 올린 추가 월드인가(다중 월드 — 내릴 수 있다). */
     public boolean isExtraWorld() { return extra; }
@@ -161,15 +176,35 @@ public final class World {
     /** 월드 이름(폴더 이름). 기본 세 차원은 null — 부르는 쪽이 level-name 으로 만든다(WorldHandle.name). */
     public String levelName() { return levelName; }
 
-    /** 생성 시드(바닐라 BiomeManager 의 해시 시드·LoginPlay/Respawn 의 hashed seed 의 바탕). FurnaceMain/월드 관리자가 정한다. */
-    public long seed() { return seed; }
+    /** 생성 시드(바닐라 BiomeManager 의 해시 시드·LoginPlay/Respawn 의 hashed seed 의 바탕). FurnaceMain/월드 관리자가 정한다. 정하지 않았으면 0. */
+    public long seed() {
+        SeedInfo si = seedInfo;
+        return si == null ? 0L : si.seed();
+    }
 
     /** 시드를 정했는가(시험 월드는 안 정한다 — 그때는 서버 시드를 쓴다). */
-    public boolean hasSeed() { return hasSeed; }
+    public boolean hasSeed() { return seedInfo != null; }
+
+    /** BiomeManager.obfuscateSeed(seed) — 시드를 정할 때 한 번 계산해 둔 값. 시드를 정하지 않았으면 0(부르는 쪽이 hasSeed 로 먼저 가른다). */
+    public long zoomSeed() {
+        SeedInfo si = seedInfo;
+        return si == null ? 0L : si.zoomSeed();
+    }
+
+    /** 시드를 정했으면 그 시드, 아니면 fallback — SeedInfo 를 한 번만 읽는다. */
+    public long seedOr(long fallback) {
+        SeedInfo si = seedInfo;
+        return si == null ? fallback : si.seed();
+    }
+
+    /** 시드를 정했으면 그 시드의 확대 지터 시드, 아니면 fallback — SeedInfo 를 한 번만 읽는다. */
+    public long zoomSeedOr(long fallback) {
+        SeedInfo si = seedInfo;
+        return si == null ? fallback : si.zoomSeed();
+    }
 
     public void seed(long seed) {
-        this.seed = seed;
-        this.hasSeed = true;
+        this.seedInfo = new SeedInfo(seed, BiomeZoom.obfuscateSeed(seed));
     }
 
     /** 내렸는가(다시 쓰지 않는다). */
@@ -180,6 +215,7 @@ public final class World {
      * 이 뒤 이 월드에 넣는 작업은 받아들여지지 않는다.
      */
     public void closeForUnload() {
+        relight.shutdown();
         unloaded = true;
         regionizer.gameTicks(false);
         if (scheduler instanceof org.domi.furnace.server.sched.FurnaceSchedulerImpl impl) impl.removeCloseHook(closeHook);
@@ -211,6 +247,19 @@ public final class World {
     private final java.util.concurrent.atomic.AtomicInteger outgoing = new java.util.concurrent.atomic.AtomicInteger();
 
     public int outgoingTravels() { return outgoing.get(); }
+
+    /**
+     * 닫은 임시 월드를 버린다(저장하지 않는다): 진행 중 로드는 그 결과가 이제 region 에 들어갈 수 없어(작업 거절) 기다리는 쪽이 영영 멈추므로
+     * CancellationException 으로 끝내고, 올라온 청크를 놓는다(플러그인이 이 월드 객체를 오래 쥐어도 청크가 남지 않게). 닫은 뒤에만 부른다.
+     */
+    void discardAfterClose() {
+        if (!unloaded) throw new IllegalStateException("the world is still open");
+        for (var e : loading.entrySet()) {
+            if (loading.remove(e.getKey(), e.getValue())) e.getValue().completeExceptionally(new java.util.concurrent.CancellationException("the world was closed"));
+        }
+        genTickets.clear();
+        chunks.clear();
+    }
 
     /** 로드 중인 청크 수(생성·읽기 진행 중). */
     public int pendingChunkLoads() { return loading.size(); }
@@ -285,15 +334,66 @@ public final class World {
 
     ChunkColumn loadedChunk(int cx, int cz) { return chunks.get(mapKey(Regionizer.chunkKey(cx, cz))); }
 
+    /** 로드된 컬럼(아무 스레드, 최근 값). 주인이 아닌 스레드는 공개 스냅샷·shim 칸(ChunkColumn 의 volatile 칸)만 만진다(N2b-3). */
+    public ChunkColumn loadedChunkColumn(int cx, int cz) { return loadedChunk(cx, cz); }
+
+    /**
+     * 들여오지 않은 NMS 거울 쓰기가 있는 청크 수(N2b-4). Bukkit·World 읽기 진입(맞춤 지점, 설계 3.3-2 R10)이 0 이면 컬럼을 찾지 않고 지나간다 —
+     * 비용은 volatile 읽기 하나. 세우는 쪽(ChunkColumn.markMirrorPending 이 처음 세운 호출)이 올리고 내리는 쪽(맞추기·내리기)이 내린다.
+     */
+    public final java.util.concurrent.atomic.AtomicInteger mirrorPendingChunks = new java.util.concurrent.atomic.AtomicInteger();
+
+    /** 주인 스레드: 대기 중인 거울이 있으면 그 청크를 맞춘다(Bukkit·World 읽기·쓰기 진입의 맞춤 지점). 대기가 없으면 volatile 읽기 하나. */
+    public void syncMirrorIfPending(Region r, int cx, int cz) {
+        if (mirrorPendingChunks.get() == 0 || r == null) return;
+        ChunkColumn c = r.ownedChunk(cx, cz);
+        if (c != null && c.mirrorPending()) r.syncMirror(c);
+    }
+
+    /** 로드된 청크의 이번 로드를 나타내는 불투명 객체(컬럼이 아닌 전용 표시 — 쥐어도 청크 내용을 붙잡지 않는다), 없으면 null. 아무 스레드. */
+    public Object loadedChunkToken(int cx, int cz) {
+        ChunkColumn c = loadedChunk(cx, cz);
+        return c == null ? null : c.loadToken();
+    }
+
     void putChunk(int cx, int cz, ChunkColumn c) { chunks.put(mapKey(Regionizer.chunkKey(cx, cz)), c); }
 
     void removeChunk(int cx, int cz) { chunks.remove(mapKey(Regionizer.chunkKey(cx, cz))); }
 
     CompletableFuture<ChunkColumn> loadingChunk(long key) { return loading.get(mapKey(key)); }
 
-    void putLoading(long key, CompletableFuture<ChunkColumn> f) { loading.put(mapKey(key), f); }
+    void putLoading(long key, CompletableFuture<ChunkColumn> f) {
+        loading.put(mapKey(key), f);
+        // 닫힌 뒤 넣었다 — discardAfterClose 가 이미 훑었을 수 있다(unloaded 는 그 전에 서므로 둘 중 하나는 반드시 본다)
+        if (unloaded && loading.remove(mapKey(key), f)) f.completeExceptionally(new java.util.concurrent.CancellationException("the world was closed"));
+    }
 
     void removeLoading(long key, CompletableFuture<ChunkColumn> f) { loading.remove(mapKey(key), f); }
+
+    /** 진행 중 로드의 생성 요청 표(취소·고정, T-170). loading 과 같이 넣고 뺀다. */
+    private final ConcurrentHashMap<Long, GenQueue.Ticket> genTickets = new ConcurrentHashMap<>();
+
+    GenQueue.Ticket genTicket(long key) { return genTickets.get(mapKey(key)); }
+
+    void putGenTicket(long key, GenQueue.Ticket t) { genTickets.put(mapKey(key), t); }
+
+    void removeGenTicket(long key, GenQueue.Ticket t) { genTickets.remove(mapKey(key), t); }
+
+    /** 생성 실행기: 거리 순 대기열이면 위치를 단 실행기, 아니면(시험의 단순 풀) 그대로. */
+    java.util.concurrent.Executor genExecutor(int cx, int cz, GenQueue.Ticket ticket) {
+        return genPool instanceof GenQueue q ? q.tagged(this, cx, cz, ticket) : genPool;
+    }
+
+    /** 거리 순 생성 대기열(없으면 null — 시험의 단순 풀). */
+    public GenQueue genQueue() { return genPool instanceof GenQueue q ? q : null; }
+
+    /**
+     * IO 없이 짐작한 "이 청크가 디스크에 있다"(이미 열린 region 파일의 위치표). 모르면 거짓 — 생성 칸을 쓰는 쪽으로 센다.
+     * 순서·칸 계산에만 쓰고 정확성에는 쓰지 않는다.
+     */
+    boolean knownOnDisk(int cx, int cz) {
+        return worldSource instanceof AnvilWorldSource a && a.store().peekChunk(cx, cz) == 1;
+    }
 
     /** 새 판(DataVersion) 청크를 이미 알렸는가 — 처음이면 true(A05-03, 로그 한 번만). */
     private final java.util.Set<Long> newerChunksWarned = java.util.concurrent.ConcurrentHashMap.newKeySet();
@@ -317,11 +417,26 @@ public final class World {
         this.debugLevel = debug;
     }
 
+    // 바닐라 WorldOptions.generateStructures(level.dat WorldGenSettings.generate_features) — 플러그인 조회용(Bukkit canGenerateStructures)
+    private volatile boolean generateStructures = true;
+
+    public boolean generatesStructures() { return generateStructures; }
+
+    public void generatesStructures(boolean v) { this.generateStructures = v; }
+
     // ------------------------------------------------------------------ 작업 보내기
 
     /** 그 청크 주인 region 에서 task 실행(주인이 없으면 그 구역의 region 을 만든다). 실패는 로그로 남긴다. */
     public void runAtChunk(ChunkPos cp, java.util.function.Consumer<Region> task) {
-        if (unloaded) throw new java.util.concurrent.RejectedExecutionException("내린 월드: " + dimension());
+        if (unloaded) {
+            var why = new java.util.concurrent.RejectedExecutionException("unloaded world: " + dimension());
+            // 결과를 기다리는 쪽이 있는 작업은 던지지 않고 거절을 알린다(콜백 안에서 던지면 조용히 사라져 기다림이 끝나지 않는다)
+            if (task instanceof Regionizer.Rejectable r) {
+                r.reject(why);
+                return;
+            }
+            throw why;
+        }
         regionizer.enqueue(Regionizer.chunkKey(cp.x(), cp.z()), task);
     }
 
@@ -342,21 +457,39 @@ public final class World {
 
     /** runAtChunk 의 결과판. */
     public <T> CompletableFuture<T> submitAtChunk(ChunkPos cp, java.util.function.Function<Region, T> task) {
-        if (unloaded) return CompletableFuture.failedFuture(new java.util.concurrent.RejectedExecutionException("내린 월드: " + dimension()));
+        if (unloaded) return CompletableFuture.failedFuture(new java.util.concurrent.RejectedExecutionException("unloaded world: " + dimension()));
         CompletableFuture<T> f = new CompletableFuture<>();
-        runAtChunk(cp, r -> {
-            try { f.complete(task.apply(r)); } catch (Throwable t) { f.completeExceptionally(t); }
-        });
+        runAtChunk(cp, new Submitted<>(f, task));
         return f;
+    }
+
+    /** 결과를 기다리는 작업 — 월드가 닫혀 돌지 못하면 거절로 끝난다(Regionizer.Rejectable). */
+    private record Submitted<T>(CompletableFuture<T> f, java.util.function.Function<Region, T> task)
+            implements java.util.function.Consumer<Region>, Regionizer.Rejectable {
+        @Override
+        public void accept(Region r) {
+            try { f.complete(task.apply(r)); } catch (Throwable t) { f.completeExceptionally(t); }
+        }
+
+        @Override
+        public void reject(Throwable why) { f.completeExceptionally(why); }
+    }
+
+    /** 결과 미래를 다른 작업에 넘기는 중간 작업 — 거절되면 그 미래를 거절로 끝낸다. */
+    private record Forward(CompletableFuture<?> f, java.util.function.Consumer<Region> body)
+            implements java.util.function.Consumer<Region>, Regionizer.Rejectable {
+        @Override
+        public void accept(Region r) { body.accept(r); }
+
+        @Override
+        public void reject(Throwable why) { f.completeExceptionally(why); }
     }
 
     /** submitAtChunk 의 조회판: 그 청크에 주인 region 이 없으면 region 을 만들지 않고 null. */
     public <T> CompletableFuture<T> submitAtOwnedChunk(ChunkPos cp, java.util.function.Function<Region, T> task) {
-        if (unloaded) return CompletableFuture.failedFuture(new java.util.concurrent.RejectedExecutionException("내린 월드: " + dimension()));
+        if (unloaded) return CompletableFuture.failedFuture(new java.util.concurrent.RejectedExecutionException("unloaded world: " + dimension()));
         CompletableFuture<T> f = new CompletableFuture<>();
-        boolean sent = regionizer.enqueueIfOwned(Regionizer.chunkKey(cp.x(), cp.z()), r -> {
-            try { f.complete(task.apply(r)); } catch (Throwable t) { f.completeExceptionally(t); }
-        });
+        boolean sent = regionizer.enqueueIfOwned(Regionizer.chunkKey(cp.x(), cp.z()), new Submitted<>(f, task));
         return sent ? f : null;
     }
 
@@ -376,9 +509,7 @@ public final class World {
         @Override
         public CompletableFuture<Void> execute(Runnable task) {
             CompletableFuture<Void> f = new CompletableFuture<>();
-            runAtChunk(cp, r -> {
-                try { task.run(); f.complete(null); } catch (Throwable t) { f.completeExceptionally(t); }
-            });
+            runAtChunk(cp, new Submitted<Void>(f, r -> { task.run(); return null; }));
             return f;
         }
 
@@ -391,15 +522,13 @@ public final class World {
         public CompletableFuture<Void> executeDelayed(Runnable task, long delayTicks) {
             CompletableFuture<Void> f = new CompletableFuture<>();
             long key = Regionizer.chunkKey(cp.x(), cp.z());
-            java.util.function.Consumer<Region> run = r2 -> {
-                try { task.run(); f.complete(null); } catch (Throwable t) { f.completeExceptionally(t); }
-            };
+            java.util.function.Consumer<Region> run = new Submitted<Void>(f, r2 -> { task.run(); return null; });   // 닫힐 때 지연 목록에서 거절된다
             // 그 청크의 region 스레드 안이면 곧바로 건다 — 작업 큐를 한 번 더 거치면 다음 틱 머리에서야 걸려 한 틱 밀린다
             // (반복 작업 runAtFixedRate(…, 1, 1) 이 두 틱마다 돌던 원인). 밖에서 부르면 예전처럼 큐를 거친다.
             Region owner = regionizer.ownerOf(cp.x(), cp.z());
             // 곧바로 걸 때 0 은 1 로 — 지금 돌고 있는 지연 작업 차례에서 다시 꺼내 같은 틱에 돌거나, 자기를 다시 거는 작업이 끝없이 돌지 않게
             if (owner != null && owner.isOwnerThread()) owner.schedule(key, run, Math.max(1, delayTicks));
-            else runAtChunk(cp, r -> r.schedule(key, run, delayTicks));
+            else runAtChunk(cp, new Forward(f, r -> r.schedule(key, run, delayTicks)));
             return f;
         }
 
@@ -435,6 +564,10 @@ public final class World {
             if (storage != null) storage.saveIfDirty();
             var forced = forcedChunks;
             if (forced != null) forced.saveIfDirty();
+            var stale = lightStale;
+            if (stale != null) stale.saveIfDirty();
+            var gen = org.domi.furnace.server.world.gen.NoiseWorldSource.of(worldSource);
+            if (gen != null) gen.structureEngine().references().saveIfDirty();   // 탐험 지도 references(A06-06)
             return null;
         }));
         return fs;
@@ -454,15 +587,15 @@ public final class World {
             java.util.concurrent.atomic.AtomicInteger deferred = new java.util.concurrent.atomic.AtomicInteger();
             // 첫 회차는 전부(엔티티·지도·습격 포함), 다음 회차는 레인을 비운 뒤 미룬 청크만 — 적어도 하나는 넣어 회차마다 진행한다
             boolean done = round == 0
-                    ? awaitQuietly(flushAll(deferred), deadline, "저장")
-                    : awaitQuietly(forEachRegion(r -> deferred.addAndGet(r.saveDirtyChunks(false, true))), deadline, "저장");
+                    ? awaitQuietly(flushAll(deferred), deadline, Lang.t("world.what-save"))
+                    : awaitQuietly(forEachRegion(r -> deferred.addAndGet(r.saveDirtyChunks(false, true))), deadline, Lang.t("world.what-save"));
             left = deferred.get();
             if (!done) return -1;   // 마감 안에 region 이 답하지 않았다 — 남은 수를 모른다
             if (left == 0 || System.nanoTime() >= deadline) break;
             if (round > 0 && round % 10 == 0) {
-                org.slf4j.LoggerFactory.getLogger(World.class).info("[SAVE] {} 레인이 밀려 나눠 저장 중 — 남은 청크 {}", dimension(), left);
+                org.slf4j.LoggerFactory.getLogger(World.class).info(Lang.t("world.save-split", dimension(), left));
             }
-            awaitQuietly(java.util.List.of(ioBarrier()), deadline, "IO 레인 비우기");
+            awaitQuietly(java.util.List.of(ioBarrier()), deadline, Lang.t("world.what-io-drain"));
         }
         return left;
     }
@@ -475,9 +608,9 @@ public final class World {
                 f.get(Math.max(1, deadline - System.nanoTime()), java.util.concurrent.TimeUnit.NANOSECONDS);
             } catch (java.util.concurrent.TimeoutException e) {
                 all = false;
-                org.slf4j.LoggerFactory.getLogger(World.class).error("[SAVE] {} 지연(마감 초과)", what, e);
+                org.slf4j.LoggerFactory.getLogger(World.class).error(Lang.t("world.save-deadline", what), e);
             } catch (java.util.concurrent.ExecutionException e) {
-                org.slf4j.LoggerFactory.getLogger(World.class).error("[SAVE] {} 실패", what, e);
+                org.slf4j.LoggerFactory.getLogger(World.class).error(Lang.t("world.save-step-failed", what), e);
             }
         }
         return all;
@@ -497,16 +630,24 @@ public final class World {
         if (snap.light() != null && virtualLights.affects(snap.chunkX(), snap.chunkZ())) snap = snap.withoutLight();   // 가짜 빛은 디스크에 남기지 않는다
         final ChunkSnapshot snapF = snap;
         int cx = snap.chunkX(), cz = snap.chunkZ();
+        // 저장 빛을 믿지 않는 표시 때문에 다시 계산한 빛을 싣는다 — 디스크에 써진 뒤에 표시를 지운다(그 사이 다시 표시됐으면 그대로)
+        long staleSeq = 0;
+        if (col != null && col.lightStaleSeq() != 0) {
+            staleSeq = col.lightStaleSeq();
+            col.lightStaleSeq(0);
+        }
+        final long staleSeqF = staleSeq;
         ioLane(cx, cz).execute(() -> {
             boolean ok;
             try {
                 byte[] bytes = NbtIo.toBytes(anvil.codec().toNbt(snapF), "");
-                ok = runWithRetry(() -> anvil.store().writeChunk(cx, cz, bytes), "청크 " + cx + "," + cz + " 저장");
+                ok = runWithRetry(() -> anvil.store().writeChunk(cx, cz, bytes), Lang.t("world.what-chunk-save", cx, cz));
             } catch (Exception e) {
-                org.slf4j.LoggerFactory.getLogger(World.class).error("[SAVE] 청크 {},{} 직렬화 실패", cx, cz, e);
+                org.slf4j.LoggerFactory.getLogger(World.class).error(Lang.t("world.chunk-serialize-failed", cx, cz), e);
                 ok = false;
             }
             if (!ok) onChunkSaveFailed(new ChunkPos(cx, cz), col);
+            else if (staleSeqF != 0) lightStale().clearIfSeq(cx, cz, staleSeqF);
         });
     }
 
@@ -516,7 +657,7 @@ public final class World {
         try {
             runAtChunk(cp, r -> r.restoreDirtyAfterFailedSave(cp, col));
         } catch (RuntimeException e) {
-            org.slf4j.LoggerFactory.getLogger(World.class).error("[SAVE] 청크 {} 저장 실패 — 되돌릴 region 없음(유실)", cp, e);
+            org.slf4j.LoggerFactory.getLogger(World.class).error(Lang.t("world.chunk-save-lost-no-region", cp), e);
         }
     }
 
@@ -590,14 +731,14 @@ public final class World {
         List<CompletableFuture<Void>> quiet = new ArrayList<>();
         if (quiesceGlobal != null) quiet.add(quiesceGlobal.get());
         for (World w : worlds) quiet.add(w.quiesce());
-        boolean ok = awaitQuietly(quiet, deadlineNanos, "종료 틱 멈춤");
+        boolean ok = awaitQuietly(quiet, deadlineNanos, Lang.t("world.what-tick-stop"));
         // 붙잡기 전 마지막 틱에 떠난 이동(차원·같은 레벨 관문): 목적 청크를 읽거나 출구를 만드는 중이면 도착 작업이 아직 없다 — 다 도착할 때까지
         while (true) {
             int flying = 0;
             for (World w : worlds) flying += w.incomingTravels() + w.outgoingTravels();
             if (flying == 0) break;
             if (System.nanoTime() - deadlineNanos >= 0) {
-                org.slf4j.LoggerFactory.getLogger(World.class).error("[STOP] 차원 이동 {}건이 마감 안에 도착하지 않았다", flying);
+                org.slf4j.LoggerFactory.getLogger(World.class).error(Lang.t("world.portals-in-flight", flying));
                 ok = false;
                 break;
             }
@@ -606,7 +747,7 @@ public final class World {
         // 도착(그리고 같은 차원 region 넘겨주기)이 남긴 작업까지 — 저장 작업은 그 뒤 차례에 선다
         quiet.clear();
         for (World w : worlds) quiet.add(w.quiesce());
-        return awaitQuietly(quiet, deadlineNanos, "종료 큐 비우기") && ok;
+        return awaitQuietly(quiet, deadlineNanos, Lang.t("world.what-queue-drain")) && ok;
     }
 
     /** 켜면 저장 역압을 무시한다(백업 기준점 저장 — 레인이 밀려 미루면 기준점 상태가 빠진다). 횟수로 센다. */
@@ -673,9 +814,9 @@ public final class World {
                 log.debug("[SAVE] 저장소 크기 확인 실패 {}", dir, e);
                 return;
             }
-            String msg = String.format("[SAVE] %s: region 파일 %d개 %.1f MB, 여유 %.1f GB, IO 레인 최대 대기열 %d · 최대 대기 %.1f ms",
-                    dir, files, bytes / 1048576.0, usable / 1073741824.0, lane[0], lane[1] / 1e6);
-            if (usable < 1L << 30) log.warn("{} — 디스크 여유 1GB 미만", msg); else log.info(msg);
+            String msg = Lang.t("world.disk-stats", dir, files, String.format(java.util.Locale.ROOT, "%.1f", bytes / 1048576.0),
+                    String.format(java.util.Locale.ROOT, "%.1f", usable / 1073741824.0), lane[0], String.format(java.util.Locale.ROOT, "%.1f", lane[1] / 1e6));
+            if (usable < 1L << 30) log.warn(Lang.t("world.disk-low", msg)); else log.info(msg);
         });
     }
 
@@ -697,15 +838,15 @@ public final class World {
             } catch (Exception e) {
                 var log = org.slf4j.LoggerFactory.getLogger(World.class);
                 if (attempt >= backoff.length) {
-                    log.error("[SAVE] {} 실패({}회 시도) — 포기", what, attempt + 1, e);
+                    log.error(Lang.t("world.save-gave-up", what, attempt + 1), e);
                     return false;
                 }
-                log.warn("[SAVE] {} 실패({}회째) — {}ms 뒤 재시도: {}", what, attempt + 1, backoff[attempt], e.toString());
+                log.warn(Lang.t("world.save-retry", what, attempt + 1, backoff[attempt], e.toString()));
                 try {
                     Thread.sleep(backoff[attempt]);
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
-                    log.error("[SAVE] {} 재시도 중 인터럽트 — 포기", what);
+                    log.error(Lang.t("world.save-retry-interrupted", what));
                     return false;
                 }
             }
@@ -721,7 +862,7 @@ public final class World {
                     return anvil.readEntities(chunkX, chunkZ);
                 }
             } catch (Exception e) {
-                org.slf4j.LoggerFactory.getLogger(World.class).error("[SAVE] 엔티티 {},{} 읽기 실패", chunkX, chunkZ, e);
+                org.slf4j.LoggerFactory.getLogger(World.class).error(Lang.t("world.entity-read-failed", chunkX, chunkZ), e);
                 return null;
             }
         }, ioLane(chunkX, chunkZ));
@@ -735,7 +876,7 @@ public final class World {
                 synchronized (anvil.entityLock(chunkX, chunkZ)) {   // 덧붙이기(읽고·쓰기)와 엇갈리지 않게
                     anvil.writeEntities(chunkX, chunkZ, root);
                 }
-            }, "엔티티 " + chunkX + "," + chunkZ + " 저장");
+            }, Lang.t("world.what-entity-save", chunkX, chunkZ));
             if (!ok) saveFailures.incrementAndGet();
         });
     }
@@ -744,7 +885,7 @@ public final class World {
     public void savePoiAsync(int chunkX, int chunkZ, NbtCompound root) {
         if (!(worldSource instanceof AnvilWorldSource anvil) || anvil.poiStore() == null) return;
         ioLane(chunkX, chunkZ).execute(() -> {
-            boolean ok = runWithRetry(() -> anvil.writePoi(chunkX, chunkZ, root), "POI " + chunkX + "," + chunkZ + " 저장");
+            boolean ok = runWithRetry(() -> anvil.writePoi(chunkX, chunkZ, root), Lang.t("world.what-poi-save", chunkX, chunkZ));
             if (!ok) saveFailures.incrementAndGet();
         });
     }
@@ -757,7 +898,7 @@ public final class World {
                 try {
                     anvil.appendEntities(chunkX, chunkZ, tags);
                 } catch (Exception e) {
-                    org.slf4j.LoggerFactory.getLogger(World.class).error("[SAVE] 엔티티 {},{} 덧붙이기 실패", chunkX, chunkZ, e);
+                    org.slf4j.LoggerFactory.getLogger(World.class).error(Lang.t("world.entity-append-failed", chunkX, chunkZ), e);
                 }
             }
         });
@@ -773,6 +914,20 @@ public final class World {
     private volatile org.domi.furnace.server.entity.EntityIdAllocator entityIds = new org.domi.furnace.server.entity.EntityIdAllocator();
 
     public org.domi.furnace.server.entity.EntityIdAllocator entityIds() { return entityIds; }
+
+    /**
+     * 이 월드(차원)에 있는 엔티티의 id → 엔티티 색인(ServerLevel#getEntity(int) 용). 레벨이 엔티티를 넣고 뺄 때 같이 고친다 —
+     * region 사이를 넘어가는 중에도 남는다. 어느 스레드에서나 읽을 수 있지만 엔티티 상태는 소유 region 스레드에서만 만진다.
+     * 플레이어는 들어 있지 않다(엔티티 저장소에 없다).
+     */
+    public java.util.concurrent.ConcurrentMap<Integer, org.domi.furnace.server.entity.Entity> entityIndex() { return entityIndex; }
+
+    private final java.util.concurrent.ConcurrentMap<Integer, org.domi.furnace.server.entity.Entity> entityIndex = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** entityIndex 와 같은 규칙의 UUID → 엔티티 색인(ServerLevel#getEntity(UUID) 용, T-040b). 플레이어는 없다. */
+    public java.util.concurrent.ConcurrentMap<java.util.UUID, org.domi.furnace.server.entity.Entity> entityUuidIndex() { return entityUuidIndex; }
+
+    private final java.util.concurrent.ConcurrentMap<java.util.UUID, org.domi.furnace.server.entity.Entity> entityUuidIndex = new java.util.concurrent.ConcurrentHashMap<>();
 
     public void entityIds(org.domi.furnace.server.entity.EntityIdAllocator a) { this.entityIds = a; }
 
@@ -801,6 +956,12 @@ public final class World {
     public java.nio.file.Path levelRoot() { var r = levelRoot; return r != null ? r : worldDir; }
 
     private final org.domi.furnace.server.light.VirtualLights virtualLights = new org.domi.furnace.server.light.VirtualLights();
+
+    // 청크 빛 다시 계산(T-197 — 플러그인의 Starlight relight 부탁)
+    private final Relight relight = new Relight(this);
+
+    /** 이 월드의 빛 다시 계산(붙잡기 판정·시험 이음매). */
+    public Relight relight() { return relight; }
 
     /** 이 차원의 가짜 광원(플러그인 빛 API). region 레벨들이 함께 쓴다. */
     public org.domi.furnace.server.light.VirtualLights virtualLights() { return virtualLights; }
@@ -836,7 +997,100 @@ public final class World {
         }
     }
     public java.nio.file.Path worldDir() { return worldDir; }
-    public void defaultSpawn(SpawnPoint spawn) { this.defaultSpawn = spawn; }
+    public void defaultSpawn(SpawnPoint spawn) {
+        this.defaultSpawn = spawn;
+        if (spawnChunks) refreshSpawnTicket();   // 바닐라 setDefaultSpawnPos: 옛 START 티켓을 놓고 새 자리에 다시 건다
+    }
+
+    // ------------------------------------------------------------------ 스폰 청크(바닐라 ServerLevel.setDefaultSpawnPos 의 START 티켓)
+
+    /** 스폰 청크 티켓을 쓰는 월드인가(주 오버월드만 — 바닐라 prepareLevels 가 오버월드에만 setDefaultSpawnPos 를 부른다). */
+    private volatile boolean spawnChunks;
+
+    /** 지금 걸린 START 티켓(없으면 null): 가운데 청크와 거리(게임 규칙 spawnChunkRadius + 1, 레벨 33 − 거리). */
+    private volatile SpawnTicket spawnTicket;
+
+    /** 스폰 청크 START 티켓. 거리 d 면 체비셰프 ≤ d 청크가 올라와 있고(FULL), ≤ d − 1 은 블록 틱, ≤ d − 2 는 엔티티 틱(바닐라 레벨 33/32/31). */
+    record SpawnTicket(int cx, int cz, int distance) {
+        int chebyshev(int x, int z) { return Math.max(Math.abs(x - cx), Math.abs(z - cz)); }
+    }
+
+    /**
+     * 이 월드에 스폰 청크를 켠다(운영 서버가 주 오버월드에 한 번, 바닐라 MinecraftServer.prepareLevels). 켜는 즉시 지금 스폰 자리에
+     * 티켓을 걸고 그 청크를 올린다. 이후 {@link #defaultSpawn(SpawnPoint)}·게임 규칙 변경({@link #refreshSpawnTicket()})이 따라 옮긴다.
+     */
+    public void enableSpawnChunks() {
+        spawnChunks = true;
+        refreshSpawnTicket();
+    }
+
+    public boolean spawnChunksEnabled() { return spawnChunks; }
+
+    /**
+     * 바닐라 ServerLevel.setDefaultSpawnPos 의 티켓 부분(바이트코드 aqu.a(jd, float)): 옛 START 티켓(거리 &gt; 1 이었으면)을 놓고
+     * 거리 = spawnChunkRadius + 1 이 1 보다 크면 스폰 청크에 새로 건다. 게임 규칙 spawnChunkRadius 를 바꾸면 바닐라처럼 같은 자리로 다시 부른다.
+     * 켜지 않은 월드는 아무것도 안 한다. 어느 스레드에서 불러도 된다.
+     */
+    public synchronized void refreshSpawnTicket() {
+        if (!spawnChunks) return;
+        SpawnPoint sp = defaultSpawn;
+        int distance = levelServices.gameRuleInt("spawnChunkRadius") + 1;
+        SpawnTicket next = distance > 1 ? new SpawnTicket(Math.floorDiv(sp.x(), 16), Math.floorDiv(sp.z(), 16), distance) : null;
+        spawnTicket = next;   // 옛 티켓은 그냥 없어진다 — 그 청크는 구독자·다른 티켓이 없으면 퇴출 유예 뒤 내려간다
+        if (next == null || unloaded) return;
+        for (int dz = -distance; dz <= distance; dz++) {
+            for (int dx = -distance; dx <= distance; dx++) {
+                ChunkPos cp = new ChunkPos(next.cx() + dx, next.cz() + dz);
+                try {
+                    runAtChunk(cp, r -> r.loadChunk(cp));
+                } catch (RuntimeException e) {   // 닫히는 중
+                    log.debug("스폰 청크 {} 올리기 실패", cp, e);
+                }
+            }
+        }
+    }
+
+    /** 지금 START 티켓(시험·관측용, 없으면 null). */
+    SpawnTicket spawnTicket() { return spawnTicket; }
+
+    boolean spawnTicketWithin(int cx, int cz, int less) {
+        SpawnTicket t = spawnTicket;
+        return t != null && t.chebyshev(cx, cz) <= t.distance() - less;
+    }
+
+    // ------------------------------------------------------------------ 빈 차원(바닐라 ServerLevel.emptyTime)
+
+    /** 바닐라 emptyTime: 플레이어도 /forceload 청크도 없이 지난 틱 수. 전역 틱이 늘리고, 엔티티가 차원을 넘으면 어느 스레드든 0 으로. */
+    private final java.util.concurrent.atomic.AtomicInteger emptyTime = new java.util.concurrent.atomic.AtomicInteger();
+
+    /**
+     * 바닐라 ServerLevel.tick: {@code flag = !players.isEmpty() || !getForcedChunks().isEmpty(); if (flag) resetEmptyTime();
+     * if (flag || emptyTime++ < 300) { 드래곤 전투·엔티티·블록 엔티티 }}. 전역 틱(서버 틱마다, region 틱보다 먼저)에서 차원마다 부른다.
+     * 예약 틱·블록 이벤트·청크 틱은 이와 무관하게 돈다 — 스폰 청크의 중계기·관측기는 계속 돌고 호퍼·움직이는 피스톤은 멈춘다.
+     * keepTicking 이면 비어도 flag 를 참으로 본다(CraftBukkit·Paper 기본 {@code flag1 = true || …}, world.tick-when-empty).
+     */
+    public void tickEmptyTime(boolean keepTicking) {
+        boolean occupied = keepTicking;
+        if (!occupied) {
+            var forced = forcedChunks;
+            occupied = forced != null && forced.size() > 0;
+        }
+        if (!occupied) occupied = !playerIndex().isEmpty();   // 바닐라 !this.players.isEmpty()
+        if (occupied) emptyTime.set(0);
+        else emptyTime.incrementAndGet();
+    }
+
+    /** 바닐라 규칙대로(Bukkit 의 늘 돌기 없이). */
+    public void tickEmptyTime() { tickEmptyTime(false); }
+
+    /** 바닐라 ServerLevel.resetEmptyTime(Entity.changeDimension 이 떠나는·닿는 차원 둘 다 부른다): 다음 300 틱은 다시 엔티티가 돈다. */
+    public void resetEmptyTime() { emptyTime.set(0); }
+
+    /**
+     * 이 차원이 비어 300 틱이 지나 엔티티·블록 엔티티 틱을 쉬는가. 바닐라 {@code emptyTime++ < 300} 의 거짓 = 늘린 뒤 값 &gt; 300.
+     * 값 하나에서 유도하므로 resetEmptyTime 과 전역 틱이 겹쳐도 쉼 표시가 남지 않는다.
+     */
+    public boolean emptyIdle() { return emptyTime.get() > 300; }
 
     // 월드 시계: 모든 region 스레드·연결이 같은 값을 보도록 단조 시계(nanoTime)에서 계산한다(스레드별 tickCount는 비교 불가).
     // 시간·날씨: 전역 틱(ServerCore.tick)이 진행한다.
@@ -849,37 +1103,31 @@ public final class World {
     public long dayTime() { return clock.dayTime(); }
 
     /**
-     * 접속 중 플레이어(eid→Player) — 서버 전체(모든 차원 월드가 같은 것을 쓴다). 탭 목록은 바닐라처럼 거리·차원과 무관하게
-     * 이 집합 전체를 기준으로 한다. array 는 복사본 — 몹마다·스폰 시도마다 부르는 forEachPlayer 가 맵 반복자를 만들지 않게
-     * (접속·퇴장 때만 새로 만든다).
+     * 접속 중 플레이어 — 서버 전체(모든 차원 월드가 같은 것을 쓴다). 탭 목록은 바닐라처럼 거리·차원과 무관하게 이 집합 전체를
+     * 기준으로 한다. 차원별 목록(바닐라 ServerLevel.players, 도착 순)과 그 근접 색인도 여기서 든다({@link PlayerRoster}).
      */
-    static final class Online {
-        final ConcurrentHashMap<Integer, Player> map = new ConcurrentHashMap<>();
-        volatile Player[] array = new Player[0];
+    private volatile PlayerRoster online = new PlayerRoster();
+    /** 이 차원 목록(online 이 바뀌면 다시 받는다). */
+    private volatile PlayerRoster.Level here;
 
-        void put(Player p) {
-            synchronized (map) {
-                map.put(p.entityId(), p);
-                array = map.values().toArray(new Player[0]);
-                Player.bumpRoster();
-            }
-        }
-
-        void remove(int eid) {
-            synchronized (map) {
-                map.remove(eid);
-                array = map.values().toArray(new Player[0]);
-                Player.bumpRoster();
-            }
-        }
+    /** 이 차원 플레이어 목록(바닐라 ServerLevel.players — 도착 순) + 청크 격자 색인. */
+    public PlayerRoster.Level playerIndex() {
+        PlayerRoster.Level h = here;
+        PlayerRoster o = online;
+        if (h == null || h.roster() != o) here = h = o.level(dimensionType.levelKey());
+        return h;
     }
-
-    private volatile Online online = new Online();
     /** 서버 없이(테스트·도구) 쓸 때: 기본값 + 이 월드의 접속자. */
     private volatile org.domi.furnace.server.block.LevelServices levelServices = new org.domi.furnace.server.block.LevelServices.Delegating(
             org.domi.furnace.server.block.LevelServices.DEFAULT) {
         @Override
         public void forEachPlayer(java.util.function.Consumer<Player> c) { World.this.forEachPlayerHere(c); }
+
+        @Override
+        public void forEachConnectedPlayer(java.util.function.Consumer<Player> c) { World.this.forEachConnectedPlayerHere(c); }
+
+        @Override
+        public PlayerRoster.Level playerIndex() { return World.this.playerIndex(); }
 
         @Override
         public long gameTime() { return clock.gameTime(); }
@@ -919,12 +1167,8 @@ public final class World {
 
     public SleepStatus sleepStatus() { return sleepStatus; }
 
-    /** 이 차원 접속자 목록(ServerLevel.players). */
-    public java.util.List<Player> playersHere() {
-        java.util.List<Player> list = new java.util.ArrayList<>();
-        forEachPlayerHere(list::add);
-        return list;
-    }
+    /** 이 차원 접속자 목록(ServerLevel.players, 도착 순). */
+    public java.util.List<Player> playersHere() { return new java.util.ArrayList<>(java.util.Arrays.asList(playerIndex().toArray())); }
 
     /** ServerLevel.canSleepThroughNights: playersSleepingPercentage ≤ 100. */
     public boolean canSleepThroughNights() { return levelServices.gameRuleInt("playersSleepingPercentage") <= 100; }
@@ -961,11 +1205,28 @@ public final class World {
         trackers.remove(eid);
     }
 
-    /** 이 차원에 있는 접속자마다(바닐라 ServerLevel.players — 차원을 옮기는 중인 플레이어는 도착한 쪽). */
-    public void forEachPlayerHere(java.util.function.Consumer<Player> c) {
-        String dim = dimensionType.levelKey();
-        for (Player p : online.array) if (dim.equals(p.dimension())) c.accept(p);
+    /**
+     * 이 차원에 있는 접속자마다(바닐라 ServerLevel.players — 차원을 옮기는 중인 플레이어는 도착한 쪽). 순서도 바닐라처럼 이 차원에
+     * 들어온 순서(접속·차원 이동·리스폰 때 끝에 붙는다).
+     */
+    public void forEachPlayerHere(java.util.function.Consumer<Player> c) { playerIndex().forEach(c); }
+
+    /**
+     * 이 차원에 접속한 플레이어 전원(엔티티가 제거된 죽음 화면·크레딧 중 플레이어 포함 — 바닐라 PlayerList.broadcast). 소리·이벤트 방송용.
+     */
+    public void forEachConnectedPlayerHere(java.util.function.Consumer<Player> c) { playerIndex().forEachConnected(c); }
+
+    /**
+     * 플레이어 엔티티가 제거됐다(바닐라 Entity.remove(KILLED)·removePlayerImmediately → ServerLevel EntityCallbacks.onTrackingEnd): 죽고 20틱 뒤나
+     * 엔드 크레딧을 띄울 때. 이 차원 레벨 목록에서 빼고 잠 목록을 다시 센다. destroyed(죽음의 KILLED)면 청크 추적도 잃는다({@link Player#chunkUntracked}). 접속은 그대로다 — 리스폰하면 {@link #playerRespawned} 가 끝에 다시 올린다.
+     * 어느 스레드에서나 부를 수 있다(목록 쓰기는 잠금 안).
+     */
+    public void playerRemovedFromLevel(Player p, boolean destroyed) {
+        if (online.removeFromLevel(p, destroyed)) updateSleepingPlayerList();
     }
+
+    /** 리스폰(바닐라 PlayerList.respawn → addRespawnedPlayer): 이 플레이어를 지금 차원 목록 끝으로 옮긴다. */
+    public void playerRespawned(Player p) { online.relist(p); }
 
     // 엔티티 → 그 엔티티를 지금 화면에 추적 중인 관찰자들. 관찰자 region 이 추적 시작/끝에 갱신하고,
     // 어느 스레드든 피해·사망 같은 엔티티 이벤트를 보낼 때 읽는다(바닐라 ChunkMap.TrackedEntity.seenBy).
@@ -998,7 +1259,14 @@ public final class World {
         return pr;
     }
     /** 탭 목록 기준 접속자 뷰(읽기 전용 순회용). */
-    public java.util.Collection<Player> onlinePlayers() { return online.map.values(); }
+    /** 서버 전체 접속자(바닐라 PlayerList.players·Paper getOnlinePlayers 순서 — 접속 순, 리스폰 때 끝으로). 고칠 수 없는 그때의 사본. */
+    public java.util.List<Player> onlinePlayers() { return online.onlineInOrder(); }
+    /**
+     * 서버 전체 접속자 배열 그 자체(복사하지 않는다 — {@link #onlinePlayers} 와 같은 순서). 접속·퇴장·리스폰 때마다 <b>다른 배열</b>로 바뀌므로
+     * 부른 쪽은 배열 동일성(==)으로 "접속자 집합이 그대로인가"를 알 수 있다. 읽기 전용: 고치면 안 된다.
+     * (끊김 표시는 배열을 바꾸지 않는다 — {@link Player#rosterEpoch} 가 오른다.)
+     */
+    public Player[] onlineArray() { return online.array; }
     public Player onlinePlayer(int eid) { return online.map.get(eid); }
     public SpawnPoint defaultSpawn() { return defaultSpawn; }
 
@@ -1035,7 +1303,7 @@ public final class World {
      */
     public ChunkColumn awaitChunk(ChunkPos cp) {
         // 어느 region 워커든(다른 region·다른 차원 포함) 막으면 규칙 6 위반이고, 워커가 하나면 영구 교착이다
-        if (Regionizer.isRegionWorkerThread()) throw new IllegalStateException("region 스레드에서 awaitChunk 금지: " + cp);
+        if (Regionizer.isRegionWorkerThread()) throw new IllegalStateException("awaitChunk is not allowed on a region thread: " + cp);
         return submitAtChunk(cp, r -> r.loadChunk(cp)).thenCompose(f -> f).join();
     }
 
@@ -1142,38 +1410,75 @@ public final class World {
                     // 같은 버전이 이미 직렬화 중이면 그 결과를 같이 받는다. 필드 읽기·쓰기·touch 가 모두 주인 region 스레드
                     // 태스크라, 남아 있으면 지금 modCount 와 같은 버전이고 아직 끝나지 않은 것이다.
                     CompletableFuture<byte[]> inflight = col.inflightSerializedBody();
-                    if (inflight != null) return inflight;
-
-                    // 스냅샷(약 390KB)은 본문 직렬화에만 쓰므로 컬럼에 붙들어 두지 않는다 — 본문 캐시가 그 뒤를 대신한다.
-                    ChunkSnapshot snapshot = ChunkSnapshot.of(cp.x(), cp.z(), col);
-                    bodySnapshots.incrementAndGet();
-                    // 스냅샷과 같은 동기 구간에서 수정 카운터를 잡는다 — 풀 직렬화가 도는 동안 편집이 끼면
-                    // 카운터가 달라져 낡은 본문을 캐시에 넣지 않는다.
-                    long version = col.modCount();
-                    ChunkSnapshot finalSnapshot = snapshot;
-                    CompletableFuture<byte[]> f = new CompletableFuture<>();
-                    col.inflightSerializedBody(f);
-                    // 결과(성공·실패)는 주인 스레드 태스크 안에서 진행 표시를 내린 뒤 완료한다 — 그 뒤 요청이 끝난(실패한)
-                    // future 를 물려받지 않는다. 캐시 쓰기도 같은 태스크라 내림과 캐시 사이에 틈이 없다.
-                    final long[] traceSer = ChunkTrace.ON ? new long[2] : null;
-                    if (ChunkTrace.ON) traceSer[0] = System.nanoTime();
-                    chunkPool.submit(() -> {
-                        long ts = ChunkTrace.ON ? System.nanoTime() : 0L;
-                        byte[] out = serializeChunkBody(finalSnapshot);
-                        if (ChunkTrace.ON) { traceSer[1] = System.nanoTime(); ChunkTrace.nanos("ser", traceSer[1] - ts); ChunkTrace.nanos("hop.serpool", ts - traceSer[0]); }
-                        return out;
-                    }).handle((body, ex) -> submitAtChunk(cp, r2 -> {
-                        if (ChunkTrace.ON && traceSer[1] != 0L) ChunkTrace.nanos("hop.ser", System.nanoTime() - traceSer[1]);
-                        if (col.inflightSerializedBody() == f) col.inflightSerializedBody(null);
-                        if (ex == null && col.modCount() == version) col.cachedSerializedBody(body);
-                        return body;
-                    }).whenComplete((body2, ex2) -> {
-                        if (ex != null) f.completeExceptionally(ex);
-                        else if (ex2 != null) f.completeExceptionally(ex2);
-                        else f.complete(body);
-                    }));
-                    return f;
+                    if (inflight != null) {
+                        // 미리 직렬화로 걸린 일에 실제로 기다리는 요청이 붙었다 — 이제 낡아도 건너뛰지 않는다(예전처럼 그 결과를 받는다).
+                        // 진행 표시를 내리기(touch) 전에 이 쓰기가 일어나므로 풀은 "진행 표시가 바뀜"을 본 뒤 이 값을 보면 반드시 본다.
+                        if (inflight instanceof BodyJob job) job.speculative = false;
+                        return inflight;
+                    }
+                    return startBodySerialization(cp, col, false);
                 }).thenCompose(f -> f));
+    }
+
+    /** 본문 직렬화 진행 표시. speculative = auto 전송의 미리 직렬화가 건 일이라 결과를 기다리는 요청이 아직 없다(T-011). */
+    static final class BodyJob extends CompletableFuture<byte[]> {
+        volatile boolean speculative;
+
+        BodyJob(boolean speculative) { this.speculative = speculative; }
+    }
+
+    /** 미리 직렬화 일이 풀에서 시작하기 전에 낡아(청크가 바뀌어) 건너뛴 수 — 결과를 쓸 곳이 없던 일(측정·시험 신호, T-011). */
+    final java.util.concurrent.atomic.AtomicInteger staleBodySkips = new java.util.concurrent.atomic.AtomicInteger();
+    /** auto 전송이 이웃 청크가 올라오는 중이라 본문 직렬화를 미룬 수(측정·시험 신호, T-011). */
+    final java.util.concurrent.atomic.AtomicInteger bodyLightDeferrals = new java.util.concurrent.atomic.AtomicInteger();
+
+    /**
+     * 주인 region 스레드에서: 스냅샷을 뜨고 풀에 직렬화를 건다(캐시·진행 중 본문이 없을 때만 부른다). 결과는 주인 스레드 태스크에서
+     * 진행 표시를 내리고, 그 사이 청크가 안 바뀌었으면 캐시에 넣은 뒤 완료한다.
+     * speculative(미리 직렬화, 기다리는 요청 없음)인 일은 풀에서 시작할 때 이미 낡았으면 직렬화하지 않는다 — 그 결과는 어차피 캐시에 들어가지 않고
+     * 받을 곳도 없다(T-011: 이웃이 올라올 때마다 비워진 본문을 풀이 계속 다시 만들던 낭비).
+     */
+    private CompletableFuture<byte[]> startBodySerialization(ChunkPos cp, ChunkColumn col, boolean speculative) {
+        // 스냅샷(약 390KB)은 본문 직렬화에만 쓰므로 컬럼에 붙들어 두지 않는다 — 본문 캐시가 그 뒤를 대신한다.
+        ChunkSnapshot snapshot = ChunkSnapshot.of(cp.x(), cp.z(), col);
+        bodySnapshots.incrementAndGet();
+        // 스냅샷과 같은 동기 구간에서 수정 카운터를 잡는다 — 풀 직렬화가 도는 동안 편집이 끼면
+        // 카운터가 달라져 낡은 본문을 캐시에 넣지 않는다.
+        long version = col.modCount();
+        BodyJob f = new BodyJob(speculative);
+        col.inflightSerializedBody(f);
+        // 결과(성공·실패)는 주인 스레드 태스크 안에서 진행 표시를 내린 뒤 완료한다 — 그 뒤 요청이 끝난(실패한)
+        // future 를 물려받지 않는다. 캐시 쓰기도 같은 태스크라 내림과 캐시 사이에 틈이 없다.
+        final long[] traceSer = ChunkTrace.ON ? new long[2] : null;
+        if (ChunkTrace.ON) traceSer[0] = System.nanoTime();
+        chunkPool.submit(() -> {
+            // 읽는 순서가 중요하다: 진행 표시 먼저, speculative 나중(BodyJob 주석). 진행 표시가 그대로면 청크가 안 바뀌었다.
+            if (col.inflightSerializedBody() != f && f.speculative) {
+                staleBodySkips.incrementAndGet();
+                if (ChunkTrace.ON) ChunkTrace.value("batch.ser.staleskip", 1);
+                return null;
+            }
+            long ts = ChunkTrace.ON ? System.nanoTime() : 0L;
+            byte[] out = serializeChunkBody(snapshot);
+            if (ChunkTrace.ON) { traceSer[1] = System.nanoTime(); ChunkTrace.nanos("ser", traceSer[1] - ts); ChunkTrace.nanos("hop.serpool", ts - traceSer[0]); }
+            return out;
+        }).handle((body, ex) -> {
+            if (ex == null && body == null) {   // 건너뛴 낡은 미리 직렬화 — 진행 표시는 이미 내려갔고 기다리는 요청이 없다
+                f.complete(null);
+                return null;
+            }
+            return submitAtChunk(cp, r2 -> {
+                if (ChunkTrace.ON && traceSer[1] != 0L) ChunkTrace.nanos("hop.ser", System.nanoTime() - traceSer[1]);
+                if (col.inflightSerializedBody() == f) col.inflightSerializedBody(null);
+                if (ex == null && col.modCount() == version) col.cachedSerializedBody(body);
+                return body;
+            }).whenComplete((body2, ex2) -> {
+                if (ex != null) f.completeExceptionally(ex);
+                else if (ex2 != null) f.completeExceptionally(ex2);
+                else f.complete(body);
+            });
+        });
+        return f;
     }
 
     /** auto 전송이 본문을 기다려 주는 최대 횟수(보내려던 틱 수). 넘으면 바닐라처럼 그 자리에서 직렬화한다. */
@@ -1191,27 +1496,96 @@ public final class World {
      * 틱당 상한으로 준다(이런 청크가 많을 때 한 틱에 몰리지 않게).
      */
     public int chunkBodyReadyOrPrefetch(ChunkPos cp, boolean sendingNow, boolean allowSync) {
+        return chunkBodyReadyOrPrefetch(cp, sendingNow, allowSync, null);
+    }
+
+    /** upcoming: 이 플레이어가 곧 받을(아직 안 올라온 것은 곧 올릴) 청크 — 그 안의 이웃이 아직 없으면 올라오는 중과 같이 본다(T-011). */
+    public int chunkBodyReadyOrPrefetch(ChunkPos cp, boolean sendingNow, boolean allowSync, java.util.Set<ChunkPos> upcoming) {
+        return chunkBodyReadyOrPrefetch(cp, sendingNow, allowSync, upcoming, NO_TICK);
+    }
+
+    /** tick 을 모를 때(시험·도구): 이웃 기다림을 부를 때마다 센다. */
+    static final long NO_TICK = Long.MIN_VALUE;
+
+    /**
+     * tick: 부르는 region 의 틱 번호. 이웃 기다림(lightWaits)은 틱당 한 번만 세고, 앞 틱에 세지 않았으면(대기열에서 빠졌다 돌아옴 등)
+     * 1 부터 다시 센다 — 상한 MAX_LIGHT_WAITS 는 "연속으로 보내려다 미룬 틱 수"다.
+     */
+    int chunkBodyReadyOrPrefetch(ChunkPos cp, boolean sendingNow, boolean allowSync, java.util.Set<ChunkPos> upcoming, long tick) {
         ChunkColumn col = loadedChunk(cp.x(), cp.z());
         if (col == null) return BODY_READY;
         if (col.cachedSerializedBody() != null) {
-            if (sendingNow) col.bodyWaits(0);
+            if (sendingNow) {
+                col.bodyWaits(0);
+                col.lightWaits(0);
+            }
             return BODY_READY;
+        }
+        // T-011: 이웃(8칸)이 올라오는 중이면 아직 직렬화하지 않는다. 이웃이 올라와 빛을 붙이면(LevelLight.attachPrecomputed) 가장자리 빛이 이 청크로
+        // 번져 본문 캐시와 진행 중 직렬화가 버려진다 — 8명 냉 접속에서 버린 원인의 98.8%, 청크당 직렬화 3.6번(O00-05 계수).
+        // 바닐라도 청크를 반경 1 이웃이 모두 FULL 이 된 뒤에야 보낸다(ChunkMap.prepareTickingChunk → onChunkReadyToSend).
+        // 이 플레이어의 대기열에 있어 곧 올릴 이웃(upcoming)도 같이 기다린다. 올라오는 중도 대기열도 아닌 이웃(시야 밖)은 기다리지 않는다.
+        // 보내는 본문은 여전히 보낼 때의 청크 상태다(바뀌면 캐시가 비워진다) — 바뀌는 것은 직렬화·전송 시점뿐이다.
+        // 보내려는 청크는 MAX_LIGHT_WAITS 번까지만 미룬다 — 이웃 생성이 오래 걸리면 예전처럼 보낸다.
+        if ((!sendingNow || col.lightWaits() < MAX_LIGHT_WAITS) && neighborLoading(cp.x(), cp.z(), upcoming)) {
+            if (sendingNow) countLightWait(col, tick);
+            bodyLightDeferrals.incrementAndGet();
+            if (ChunkTrace.ON) ChunkTrace.value(sendingNow ? "batch.lightwait.send" : "batch.lightwait.prefetch", 1);
+            return BODY_PENDING;
         }
         if (sendingNow && allowSync && col.bodyWaits() >= MAX_BODY_WAITS) {
             if (ChunkTrace.ON) ChunkTrace.value("batch.syncser", 1);
             col.bodyWaits(0);
+            col.lightWaits(0);
             try {
                 bodySnapshots.incrementAndGet();
                 col.cachedSerializedBody(serializeChunkBody(ChunkSnapshot.of(cp.x(), cp.z(), col)));
             } catch (RuntimeException e) {
                 // 실패하면 캐시 없이 보낸다 — 배치 안의 예전 경로(serializedChunkBody)가 다시 해 보고 실패를 기록한다
-                org.slf4j.LoggerFactory.getLogger(World.class).warn("[CHUNK] 본문 직렬화 실패 {}", cp, e);
+                org.slf4j.LoggerFactory.getLogger(World.class).warn(Lang.t("world.chunk-body-serialize-failed", cp), e);
             }
             return BODY_SYNC;
         }
         if (sendingNow && col.bodyWaits() < MAX_BODY_WAITS) col.bodyWaits(col.bodyWaits() + 1);
-        if (col.inflightSerializedBody() == null) serializedChunkBody(cp, true);
+        if (col.inflightSerializedBody() == null) {
+            Region owner = regionizer.ownerOf(cp.x(), cp.z());
+            // 미리 직렬화: 결과는 캐시로만 받는다(배치는 다음 틱에 캐시를 본다). 기다리는 요청이 없으니 낡으면 풀이 건너뛴다.
+            if (owner != null && owner.isOwnerThread()) startBodySerialization(cp, col, true);
+            else serializedChunkBody(cp, true);
+        }
         return BODY_PENDING;
+    }
+
+    private static void countLightWait(ChunkColumn col, long tick) {
+        if (tick == NO_TICK) {
+            col.lightWaits(col.lightWaits() + 1);
+            return;
+        }
+        long last = col.lightWaitTick();
+        if (last == tick) return;   // 이 틱에 이미 셌다(같은 청크를 기다리는 다른 플레이어)
+        col.lightWaits(last == tick - 1 ? col.lightWaits() + 1 : 1);
+        col.lightWaitTick(tick);
+    }
+
+    /** 이웃 청크가 올라오는 중이면 보내려는 청크의 직렬화를 미루는 최대 횟수(연속으로 보내려던 틱 수, T-011). 넘으면 예전처럼 직렬화한다. */
+    static final int MAX_LIGHT_WAITS = 20;
+
+    /**
+     * (cx, cz) 를 둘러싼 8칸 중 지금 올라오는(디스크 읽기·생성 중) 청크, 또는 upcoming 에 있는데 아직 안 올라온 청크가 있는가.
+     * 빛은 15칸 안에서만 번지므로 반경 1 밖은 이 청크 빛을 못 바꾼다(바닐라 sectionLightChanged 표시 상자 ±1 칸 포함).
+     */
+    boolean neighborLoading(int cx, int cz, java.util.Set<ChunkPos> upcoming) {
+        if (loading.isEmpty() && (upcoming == null || upcoming.isEmpty())) return false;
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                if ((dx | dz) == 0) continue;
+                long k = mapKey(Regionizer.chunkKey(cx + dx, cz + dz));
+                if (loading.containsKey(k)) return true;
+                // 대기열 조회용 ChunkPos 는 이웃이 아직 안 올라왔을 때만 만든다(대부분은 올라와 있어 할당 없음)
+                if (upcoming != null && !chunks.containsKey(k) && upcoming.contains(new ChunkPos(cx + dx, cz + dz))) return true;
+            }
+        }
+        return false;
     }
 
     /** inline 이고 지금 스레드가 그 청크 주인 region 이면 바로 돌리고, 아니면 submitAtChunk. */
@@ -1231,6 +1605,8 @@ public final class World {
 
     /** 시험용: 본문 직렬화 실패 주입(null 이면 없음). */
     volatile Runnable serializeFaultHook;
+    /** 시험 전용: 청크 본문을 플레이어에게 보내기 직전에 (좌표, 본문)으로 불린다(본문이 준비돼 있으면 주인 region 스레드에서). 운영에서는 null. */
+    volatile java.util.function.BiConsumer<ChunkPos, byte[]> chunkSendTap;
 
     private byte[] serializeChunkBody(ChunkSnapshot snap) {
         Runnable hook = serializeFaultHook;
@@ -1253,7 +1629,7 @@ public final class World {
     public Region regionAt(RegionPos chunk) {
         Region r = regionizer.ownerOf(chunk.x(), chunk.z());
         if (r == null || !r.isOwnerThread()) {
-            throw new IllegalStateException("청크 " + chunk + " 의 주인 region 스레드가 아니다: " + Thread.currentThread().getName());
+            throw new IllegalStateException("not on the owning region thread of chunk " + chunk + ": " + Thread.currentThread().getName());
         }
         return r;
     }
@@ -1283,6 +1659,23 @@ public final class World {
         });
         return sub;
     }
+    /**
+     * 그 플레이어가 지금도 그 청크를 구독하고 있을 때만 새 구독으로 바꾼다(청크 다시 보내기). 그 사이 다른 스레드에서 구독을 풀었으면
+     * 다시 넣지 않고 null — 떠난 플레이어의 구독이 남아 청크가 내려가지 않는 일을 막는다.
+     */
+    public Subscription resubscribeIfPresent(ChunkPos cp, Player p) {
+        Subscription sub = new Subscription();
+        boolean[] done = new boolean[1];
+        chunkSubscribers.computeIfPresent(cp, (k, m) -> {
+            if (m.containsKey(p)) {
+                m.put(p, sub);
+                done[0] = true;
+            }
+            return m;
+        });
+        return done[0] ? sub : null;
+    }
+
     public void unsubscribeChunk(ChunkPos cp, Player p) {
         chunkSubscribers.computeIfPresent(cp, (k, m) -> {
             m.remove(p);
@@ -1344,6 +1737,18 @@ public final class World {
         }
     }
 
+    /**
+     * 빛 다시 계산 뒤(Paper starlight$serverRelightChunks): 그 청크를 받은 플레이어 모두에게 전 섹션 빛 갱신. 아직 청크를 못 받은 구독자는
+     * 건너뛴다(그 빛은 청크 패킷에 들어간다).
+     */
+    public void broadcastFullLightUpdate(ChunkPos cp, Packet pkt) {
+        ConcurrentHashMap<Player, Subscription> s = chunkSubscribers.get(cp);
+        if (s == null) return;
+        for (Map.Entry<Player, Subscription> e : s.entrySet()) {
+            if (e.getValue().ready) e.getKey().send(pkt);
+        }
+    }
+
     /** ChunkMap.isChunkOnTrackedBorder: 둘레 8칸 중 그 플레이어가 받지 않은(구독 없음 또는 전송 전) 청크가 있다. */
     boolean onTrackedBorder(ChunkPos cp, Player p) {
         for (int dx = -1; dx <= 1; dx++) {
@@ -1372,7 +1777,9 @@ public final class World {
             for (int dx = -radius; dx <= radius; dx++) {
                 ChunkPos cp = new ChunkPos(cx + dx, cz + dz);
                 Long prev = tickets.merge(Regionizer.chunkKey(cp.x(), cp.z()), until, Math::max);
-                if (prev != null && prev.longValue() == until) runAtChunk(cp, r -> r.loadChunk(cp));   // 새로 걸렸거나 늘었다 — 올려 둔다(이미 있으면 그대로)
+                // 새로 걸렸거나 늘었다 — 올려 둔다(이미 있으면 그대로). 티켓이 끝난 뒤 시야 밖이면 생성 대기열이 시작 전에 취소할 수 있다(T-170)
+                long key = Regionizer.chunkKey(cp.x(), cp.z());
+                if (prev != null && prev.longValue() == until) runAtChunk(cp, r -> r.loadChunkForTicket(cp, () -> timedTicketAlive(key)));
             }
         }
         markEntityTicking(cx, cz, radius - 2, until);
@@ -1406,6 +1813,7 @@ public final class World {
 
     /** 그 청크에 블록 틱 단계의 티켓이 살아 있는가(지난 것은 지운다). 강제 로드·플러그인 티켓은 따로 본다. */
     boolean blockTicketed(int cx, int cz) {
+        if (spawnTicketWithin(cx, cz, 1)) return true;   // 스폰 청크(START, 레벨 ≤ 32)
         if (blockTickets.isEmpty()) return false;
         long key = Regionizer.chunkKey(cx, cz);
         Long until = blockTickets.get(key);
@@ -1432,6 +1840,7 @@ public final class World {
 
     /** 그 청크에 엔티티 틱 단계의 티켓이 살아 있는가(지난 것은 지운다). 강제 로드는 따로 본다. */
     boolean entityTicketed(int cx, int cz) {
+        if (spawnTicketWithin(cx, cz, 2)) return true;   // 스폰 청크(START, 레벨 ≤ 31)
         if (entityTickets.isEmpty()) return false;
         long key = Regionizer.chunkKey(cx, cz);
         Long until = entityTickets.get(key);
@@ -1454,6 +1863,21 @@ public final class World {
     public void setTickNanos(long nanos) { regionizer.setTickNanos(nanos); }
 
     public long tickNanos() { return regionizer.tickNanos(); }
+
+    private volatile LightStaleChunks lightStale;
+
+    /** 저장 빛을 믿으면 안 되는 청크(T-012, <차원 폴더>/data/furnace_light_stale.dat). 디스크 월드면 처음 쓸 때 읽는다. */
+    public LightStaleChunks lightStale() {
+        var f = lightStale;
+        if (f != null) return f;
+        synchronized (this) {
+            if (lightStale == null) {
+                lightStale = worldSource instanceof AnvilWorldSource && worldDir != null
+                        ? LightStaleChunks.open(dimensionType.storageDir(levelRoot())) : LightStaleChunks.detached();
+            }
+            return lightStale;
+        }
+    }
 
     private volatile ForcedChunks forcedChunks;
 
@@ -1485,11 +1909,19 @@ public final class World {
         return changed;
     }
 
+    /** 시간 티켓(addTicket)이 아직 살아 있나 — 읽기만(생성 스레드에서 부른다). */
+    boolean timedTicketAlive(long chunkKey) {
+        Long until = tickets.get(chunkKey);
+        return until != null && until >= gameTime();
+    }
+
     /** 그 청크에 살아 있는 티켓이 있는가(지난 것은 지운다). 강제 로드 청크는 늘 있다. */
     boolean ticketed(long chunkKey) {
         var forced = forcedChunks;
         if (forced != null && forced.size() > 0 && forced.contains(Regionizer.chunkX(chunkKey), Regionizer.chunkZ(chunkKey))) return true;
         if (!pluginHolds.isEmpty() && pluginHolds.containsKey(chunkKey)) return true;   // 플러그인 티켓
+        if (relight.pinned(chunkKey)) return true;   // 빛 다시 계산 중(Paper 의 CHUNK_RELIGHT 티켓)
+        if (spawnTicketWithin(Regionizer.chunkX(chunkKey), Regionizer.chunkZ(chunkKey), 0)) return true;   // 스폰 청크(START)
         Long until = tickets.get(chunkKey);
         if (until == null) return false;
         if (until < gameTime()) {
@@ -1527,7 +1959,7 @@ public final class World {
                 if (ticking) pluginTicking.merge(key, 1, Integer::sum);
             }
         }
-        if (unloaded) return CompletableFuture.failedFuture(new java.util.concurrent.RejectedExecutionException("내린 월드: " + dimension()));
+        if (unloaded) return CompletableFuture.failedFuture(new java.util.concurrent.RejectedExecutionException("unloaded world: " + dimension()));
         List<CompletableFuture<?>> loads = new ArrayList<>();
         for (int cz = minCz; cz <= maxCz; cz++) {
             for (int cx = minCx; cx <= maxCx; cx++) {
@@ -1778,7 +2210,7 @@ public final class World {
             try {
                 t = plan.complete().apply(lvl);
             } catch (RuntimeException e) {
-                log.error("[PORTAL] 목적지 계산 실패 {}", plan.targetDimension(), e);
+                log.error(Lang.t("world.portal-destination-failed", plan.targetDimension()), e);
                 t = null;
             }
             arrive.accept(t == null ? null : lvl, t);
@@ -1799,7 +2231,7 @@ public final class World {
         }
         loadTravelChunks(plan).whenComplete((list, err) -> {
             if (err != null) {
-                log.warn("[PORTAL] 목적 청크 준비 실패 {}", plan.targetDimension(), err);
+                log.warn(Lang.t("world.portal-chunk-failed", plan.targetDimension()), err);
                 task.accept(null);
                 return;
             }
@@ -2007,6 +2439,22 @@ public final class World {
     /** 테스트용: 플레이어 데이터 실행기 교체. */
     public void playerIo(java.util.concurrent.Executor executor) { this.playerIo = executor; }
     public ExecutorService genPool() { return genPool; }
+
+    /** 빛 미리 계산 전용 풀(T-170a): 생성 대기열(genPool, FIFO) 뒤에 다시 줄서지 않게 분리. 모든 차원이 공유하는 작은 데몬 풀. */
+    private static final class LightPre {
+        static final ExecutorService POOL = java.util.concurrent.Executors.newFixedThreadPool(
+                Math.max(1, Runtime.getRuntime().availableProcessors() / 2), new java.util.concurrent.ThreadFactory() {
+                    private final java.util.concurrent.atomic.AtomicInteger n = new java.util.concurrent.atomic.AtomicInteger();
+                    @Override public Thread newThread(Runnable r) {
+                        Thread t = new Thread(r, "furnace-light-pre-" + n.incrementAndGet());
+                        t.setDaemon(true);
+                        t.setPriority(Thread.NORM_PRIORITY - 1);
+                        return t;
+                    }
+                });
+    }
+    public static ExecutorService lightPre() { return LightPre.POOL; }
+    public ExecutorService lightPreExecutor() { return LightPre.POOL; }
     public FurnaceScheduler scheduler() { return scheduler; }
     public WorldSource worldSource() { return worldSource; }
     public ChunkWorkerPool chunkPool() { return chunkPool; }
@@ -2024,7 +2472,9 @@ public final class World {
     /** 플레이어당 동시에 진행 중인 청크 전송(생성·직렬화) 상한 — 생성 스레드보다 넉넉히(이미 로드된 청크는 금방 끝난다). */
     public int maxChunkSendsInFlight() { return maxChunkSendsInFlight; }
 
-    private int maxChunkSendsInFlight = Math.max(16, 2 * Runtime.getRuntime().availableProcessors());
+    private int maxChunkSendsInFlight = defaultMaxChunkSendsInFlight();
+
+    public static int defaultMaxChunkSendsInFlight() { return Math.max(16, 2 * Runtime.getRuntime().availableProcessors()); }
 
     /** 살아 있는 region 수(테스트·모니터링용). */
     public int regionCount() { return regionizer.regionCount(); }

@@ -73,12 +73,12 @@ Furnace `PlayerDeathEvent` → Bukkit `PlayerDeathEvent`(Bukkit 에서 `EntityDe
 1. `openInventory` 는 연결 스레드에서 이뤄져 `InventoryOpenEvent` 가 취소돼도 창 객체를 돌려준다(Paper 는 null). 연 직후 같은 틱에 `getOpenInventory()` 는 아직 이전 창일 수 있다.
    클릭 처리기 안에서 부른 `closeInventory`·`openInventory` 도 클릭 뒤에 이뤄져, 취소하지 않은 그 클릭은 먼저 적용된다(Paper 는 처리기가 창을 바꾸면 클릭을 적용하지 않고 화면을 다시 보낸다 — 창을 넘기는 메뉴는 클릭을 취소할 것).
 2. 클릭 처리기 안에서 `Inventory#setItem` 으로 바꾼 칸은 클릭이 끝난 뒤에 적용된다(Paper 는 곧바로). 취소하지 않은 클릭이 같은 칸을 바꾸면 클릭 결과가 이긴다.
-3. `InventoryCloseEvent` 가 불릴 때 닫는 사람은 이미 `getViewers()` 에서 빠져 있다(Paper 는 아직 들어 있다). `getReason()` 은 늘 `UNKNOWN`.
+3. ~~`InventoryCloseEvent` 가 불릴 때 닫는 사람은 이미 `getViewers()` 에서 빠져 있다. `getReason()` 은 늘 `UNKNOWN`.~~ 2026-11-12 H4 묶음 D 에서 고침 — 닫는 사람이 이벤트 동안 보는 사람에 남고, 닫힌 까닭이 온다(`compat-h4d-inventory-events-2026-11-12.md`).
 4. 플러그인 인벤토리가 아닌 창(상자·화로 블록 등)의 위쪽 칸은 이벤트 순간의 읽기 전용 사본이다. 쓰기는 `UnsupportedFeature`, `getHolder()` 는 null, 상자 모양 창의 종류는 모두 `CHEST`, 제목은 기본 제목. 이벤트 밖 `getOpenInventory()` 로는 내용을 읽을 수 없다.
 5. 블록·엔티티 보관함을 `openInventory` 로 여는 것은 `UnsupportedFeature`. `Inventory#getViewers()` 는 플러그인 인벤토리만 안다.
 6. `InventoryView#setCursor`·`InventoryDragEvent#setCursor` 는 `UnsupportedFeature`(Furnace 이벤트가 커서를 되쓰지 않는다). `getCursor` 는 열기 이벤트에서 빈 스택, 닫기 이벤트와 이벤트 밖 `getOpenInventory()` 에서 `UnsupportedFeature`.
 7. 칸이 그 아이템을 받거나 내줄 수 있는지(`mayPlace`·`mayPickup`)는 Furnace 이벤트가 알리지 않아 "비었거나 같은 아이템"으로 본다 — 끌어 나누기의 칸 목록과 클릭의 `InventoryAction`(갑옷 칸·결과 칸 등)이 Paper 와 다를 수 있다. `COLLECT_TO_CURSOR` 는 Paper 처럼 위쪽 칸과 플레이어 주 36칸(`getStorageContents`)만 보고 정한다(플레이어 인벤토리 창의 제작·갑옷·왼손 칸은 보지 않는다). 끌어 나누기 도중 다른 종류 클릭의 action 은 Paper 의 `NOTHING` 대신 보통 규칙을 따른다.
-8. 제작 결과 칸 꺼내기(Bukkit `CraftItemEvent`)는 다리가 없다 — 그 클릭은 `InventoryClickEvent` 도 내지 않는다.
+8. ~~제작 결과 칸 꺼내기(Bukkit `CraftItemEvent`)는 다리가 없다.~~ 2026-11-12 H4 묶음 D 에서 이음(`compat-h4d-inventory-events-2026-11-12.md`).
 9. 몹 `EntityDeathEvent` 의 `getDrops`·`getDroppedExp`·`setDroppedExp`·취소는 아직 `UnsupportedFeature`(몹 사망 이벤트가 전리품을 싣지 않음). 플레이어 `PlayerDeathEvent` 의 드롭·경험치·유지·새 경험치는 후속 작업으로 지원한다 — `docs/feature-parity/compat-death-drops-2026-11-08.md`.
 10. 보스바 보는 사람 목록은 접속이 끊겨도 저절로 비지 않는다(Paper 와 같다). 다시 접속한 플레이어는 새 객체라 다시 `addPlayer` 해야 한다.
 11. `ItemFlag` 옛 이름 바꾸기는 NMS 변환기가 켜져 있을 때(`plugins.compat.nms.enabled`, 기본 켜짐)만 된다. `HIDE_STORED_ENCHANTS` 는 아이템 컴포넌트로 옮겨지지 않는다.

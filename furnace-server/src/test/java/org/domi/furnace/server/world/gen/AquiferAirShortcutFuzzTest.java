@@ -3,6 +3,7 @@
 // 기본: seed 1개 × 청크 20개. 전체(seed 10개 × 청크 100개 = 1000청크, 약 37 s)는 -Dfurnace.slowTests=true 일 때만.
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Random;
@@ -25,8 +26,8 @@ class AquiferAirShortcutFuzzTest {
     }
 
     private static void run(int seeds, int chunks, long minHits) throws Exception {
-        BlockRegistry blocks = BlockRegistry.load("blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry blocks = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         Random rng = new Random(0xA9F1L);
         NoiseBasedAquifer.shortcutHits.set(0);
         NoiseBasedAquifer.shortcutMismatches.set(0);

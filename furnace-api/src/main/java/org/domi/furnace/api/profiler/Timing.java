@@ -1,5 +1,9 @@
-// 측정 구간 하나(플러그인·종류·이름). 스레드 안전 — 여러 region 스레드가 같은 구간을 동시에 재도 된다.
-// 쓰는 법: long t = timing.start(); try { ... } finally { timing.stop(t); }
+// 측정 구간 하나(플러그인·종류·이름). 스레드 안전하므로 여러 region 스레드가 같은 구간을 동시에 재도 된다.
+//
+// 쓰는 법은 다음과 같다.
+//
+//   long t = timing.start(); try { ... } finally { timing.stop(t); }
+//
 package org.domi.furnace.api.profiler;
 
 public interface Timing {

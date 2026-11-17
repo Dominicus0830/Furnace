@@ -9,6 +9,7 @@ import org.domi.furnace.server.world.gen.structure.template.PlaceSettings;
 import org.domi.furnace.server.world.gen.structure.template.Processors;
 import org.domi.furnace.server.world.gen.structure.template.StructureTemplate;
 
+@org.domi.furnace.server.VanillaPort({"net.minecraft.world.level.levelgen.structure.structures.ShipwreckStructure", "net.minecraft.world.level.levelgen.structure.structures.ShipwreckPieces"})
 public final class ShipwreckStructure extends StructureType {
 
     private static final String[] BEACHED = {
@@ -43,6 +44,16 @@ public final class ShipwreckStructure extends StructureType {
     }
 
     static final class Piece extends TemplatePiece {
+        @Override
+        public String pieceType() { return "shipwreck"; }
+
+        @Override
+        protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+            super.saveAdditional(t);
+            t.putBoolean("isBeached", beached);
+            t.putString("Rot", rotationName(settings.rotation));
+        }
+
         private final boolean beached;
 
         Piece(StructureEngine e, String name, int x, int y, int z, int rotation, boolean beached) {

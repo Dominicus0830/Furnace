@@ -3,6 +3,7 @@
 package org.domi.furnace.server.block.entity;
 
 import java.util.Arrays;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.ItemStack;
@@ -12,6 +13,10 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 
+@VanillaPort({
+    "net.minecraft.world.level.block.entity.BaseContainerBlockEntity",
+    "net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity"
+})
 public abstract class ContainerBlockEntity extends OpenersBlockEntity {
 
     /** 칸 내용(빈 칸은 ItemStack.EMPTY). 길이는 고정. */
@@ -44,6 +49,33 @@ public abstract class ContainerBlockEntity extends OpenersBlockEntity {
     /** 메뉴/깔때기가 setItem 으로 칸을 바꿀 때의 부수 효과(바닐라 화로 setItem). 기본은 없음. */
     public void onItemSet(int index, ItemStack old, ItemStack now, BlockLevel level) { }
 
+    /** LockCode.unlocksWith: 열쇠가 없으면 늘 열리고, 있으면 든 아이템의 custom_name 글자(getString)가 열쇠와 같아야 한다. */
+    public static boolean unlocksWith(String lock, ItemStack held) {
+        if (lock == null || lock.isEmpty()) return true;
+        if (held == null || held.isEmpty()) return false;
+        if (!(org.domi.furnace.server.item.ItemTools.component(held, "minecraft:custom_name") instanceof String json)) return false;
+        try {
+            return lock.equals(org.domi.furnace.server.item.FlatText.parse(json).getString());
+        } catch (RuntimeException badName) {
+            return false;
+        }
+    }
+
+    /** getDisplayName: 이름이 있으면 그것, 없으면 기본 제목 번역 키. */
+    public org.domi.furnace.api.text.Text displayName() { return displayName(customName, defaultTitleKey()); }
+
+    /** 이름(JSON, 없으면 null) → 화면에 쓰는 이름(읽지 못하면 기본 번역 키). */
+    public static org.domi.furnace.api.text.Text displayName(String customName, String defaultKey) {
+        if (customName != null) {
+            try {
+                return org.domi.furnace.api.text.serializer.JsonTextSerializer.json().deserialize(customName);
+            } catch (RuntimeException badName) {
+                // 이상한 이름은 기본 제목으로
+            }
+        }
+        return org.domi.furnace.api.text.Text.translatable(defaultKey);
+    }
+
     /** 바닐라 containerMenu 의 제목 번역 키(이름이 없을 때). */
     public abstract String defaultTitleKey();
 
@@ -51,7 +83,7 @@ public abstract class ContainerBlockEntity extends OpenersBlockEntity {
     public void load(NbtCompound tag) {
         Arrays.fill(items, ItemStack.EMPTY);
         customName = tag.tags().get("CustomName") instanceof String s ? s : null;
-        lock = tag.tags().get("Lock") instanceof String s ? s : null;
+        lock = tag.tags().get("Lock") instanceof String s && !s.isEmpty() ? s : null;   // LockCode.fromTag: 빈 열쇠 = 잠기지 않음(쓰지도 않는다)
         lootTable = null;
         lootSeed = 0L;
         if (tag.tags().get("LootTable") instanceof String t) {   // 열지 않은 전리품 상자는 아이템 대신 표를 든다
@@ -75,6 +107,30 @@ public abstract class ContainerBlockEntity extends OpenersBlockEntity {
             } catch (RuntimeException ex) {
                 // 이상한 항목은 그 칸만 건너뛴다
             }
+        }
+    }
+
+    @Override
+    public void onAddedToLevel(org.domi.furnace.server.block.BlockLevel level) { startProfileFill(level); }
+
+    /**
+     * 칸에 든 이름·UUID 만 있는 머리의 스킨 확인을 시작한다(바닐라: 스택이 만들어질 때 PlayerHeadItem.verifyComponentsAfterLoad). 끝나면 이 블록의 region 스레드에서
+     * 그 머리가 아직 같은 프로필로 든 칸을 채운다 — 그 사이 꺼냈으면 건드리지 않는다.
+     */
+    public final void startProfileFill(org.domi.furnace.server.block.BlockLevel level) {
+        for (ItemStack s : items) {
+            if (!org.domi.furnace.server.item.ProfileFill.needsFill(s)) continue;
+            org.domi.furnace.server.item.ProfileFill.onStore(s, fn -> level.runOnOwner(pos(), lv -> {
+                if (isRemoved() || lv.getBlockEntity(pos()) != this) return;
+                boolean changed = false;
+                for (int i = 0; i < items.length; i++) {
+                    ItemStack next = fn.apply(items[i]);
+                    if (next == null) continue;
+                    items[i] = next;
+                    changed = true;
+                }
+                if (changed) setChanged(lv);
+            }));
         }
     }
 

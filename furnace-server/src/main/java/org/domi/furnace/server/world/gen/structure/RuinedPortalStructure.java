@@ -13,6 +13,7 @@ import org.domi.furnace.server.world.gen.structure.template.PlaceSettings;
 import org.domi.furnace.server.world.gen.structure.template.Processors;
 import org.domi.furnace.server.world.gen.structure.template.StructureTemplate;
 
+@org.domi.furnace.server.VanillaPort({"net.minecraft.world.level.levelgen.structure.structures.RuinedPortalStructure", "net.minecraft.world.level.levelgen.structure.structures.RuinedPortalPiece"})
 public final class RuinedPortalStructure extends StructureType {
 
     enum VP { ON_LAND_SURFACE, PARTLY_BURIED, ON_OCEAN_FLOOR, IN_MOUNTAIN, UNDERGROUND, IN_NETHER;
@@ -100,7 +101,7 @@ public final class RuinedPortalStructure extends StructureType {
     private static int findBetween(LegacyRandom r, int a, int b) { return a < b ? randomBetween(r, a, b) : b; }
 
     private int findSuitableY(GenContext c, LegacyRandom random, VP vp, boolean airPocket, int surfaceY, int ySpan, int[] bb) {
-        int minY15 = c.terrain.minY() + 15;
+        int minY15 = c.terrain.levelMinY() + 15;   // 바닐라 findSuitableY: heightAccessor.getMinBuildHeight() + 15
         int y;
         if (vp == VP.IN_NETHER) {
             if (airPocket) y = randomBetween(random, 32, 100);
@@ -131,6 +132,25 @@ public final class RuinedPortalStructure extends StructureType {
     }
 
     static final class Piece extends TemplatePiece {
+        @Override
+        public String pieceType() { return "rupo"; }
+
+        @Override
+        protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+            super.saveAdditional(t);
+            t.putString("Rotation", rotationName(settings.rotation));
+            t.putString("Mirror", mirrorName(settings.mirror));
+            t.putString("VerticalPlacement", vp.name().toLowerCase(java.util.Locale.ROOT));
+            var pr = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+            pr.putBoolean("cold", props.cold);
+            pr.putFloat("mossiness", props.mossiness);
+            pr.putBoolean("air_pocket", props.airPocket);
+            pr.putBoolean("overgrown", props.overgrown);
+            pr.putBoolean("vines", props.vines);
+            pr.putBoolean("replace_with_blackstone", props.replaceWithBlackstone);
+            t.putCompound("Properties", pr);
+        }
+
         private final VP vp;
         private final Props props;
 

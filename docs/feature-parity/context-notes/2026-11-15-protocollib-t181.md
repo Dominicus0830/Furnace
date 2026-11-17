@@ -1,0 +1,11 @@
+# ProtocolLib 탭 목록·GameProfile(T-181) 함정 (2026-11-15)
+
+- **javac 는 InnerClasses 를 상수 풀 첫 참조 순서로 적는다**(참조되지 않은 멤버만 선언의 거꾸로 뒤에 붙는다 — 처음엔 "선언의 거꾸로"라고 적었다가 PR #390 검토 R3 에서 바로잡음. 실험: 필드 초기화에서 `Action.class` 를 먼저 참조하면 선언 순서와 상관없이 `[Action, Entry]`). `Class.getClasses()` 는 InnerClasses 순서를 따른다. ProtocolLib 은 `ClientboundPlayerInfoUpdatePacket.getClasses()[0]` 을 항목(Entry), `[1]` 을 동작 enum 으로 쓴다. 이 shim 은 첫 생성자의 `Entry::new` 가 `Action` 보다 먼저 참조돼 `[Entry, Action]`. 다른 shim 에서 안쪽 클래스 순서가 중요하면 선언 순서를 믿지 말고 `getClasses()` 를 시험으로 지킨다.
+- ProtocolLib `InstanceCreator`(빈 패킷 만들기)는 **private 생성자까지**(`getDeclaredConstructors`) 매개변수 가장 적은 것을 null 기본값으로 불러 본다. 예외가 나면 다음 후보. null 을 받아 주는 작은 생성자를 두면 그것이 쓰인다.
+- authlib `GameProfile` 은 shim 생성기가 Object 로 지운다(선택 라이브러리). 손으로 쓴 shim 에서 진짜 형식을 쓰면 authlib 이 없는 서버에서 그 클래스를 **처음 이을 때** NoClassDefFoundError — 필드·메서드 서명에만 두고 만드는 곳은 `Profiles.available()` 뒤에서. `CompatLinkTest` 가 authlib 대역을 뺀 로더로 지킨다.
+- 시험 서버(`FurnaceTestServer`)는 틱을 손으로 돌린다. 새 플레이어가 접속할 때 **다른 플레이어에게 알리는** 탭 목록 패킷은 틱에서 나간다 — `join` 뒤 `server.tick()` 없이 기다리면 오지 않는다(시험이 30초 기다리다 실패, 원인 찾느라 시간을 썼다). 접속하는 플레이어 자신이 받는 것은 접속 처리 안에서 바로 나간다.
+- 접속하는 플레이어 자신에게 가는 접속 탭 목록 패킷: 시험의 흉내 훅(`install`)에서는 Bukkit 플레이어를 감싸기 전이라 안 보였지만, 진짜 ProtocolLib 5.4.0 실측(PR #390 검토)에서는 자기 것도 보였다. 한계로 적었던 것을 지웠다(S6).
+- Paper 는 탭 목록 항목을 늘 `Entry(ServerPlayer)` 로 만들어, 게임 모드·지연만 바꾸는 갱신 패킷에서도 리스너는 그 플레이어의 이름·listed=true·지연을 본다. 패킷 값만 옮기면 이름이 빈 글·listed=false 로 보인다(PR #390 검토 R1) — 접속 중인 uuid 면 그 플레이어 값으로 채우고 동작에 든 칸만 덮는다. 같은 GameProfile 객체라 리스너가 그 프로필을 고치면 NMS 플레이어 프로필도 바뀐다(Paper 와 같음) — 단 Furnace 서버의 실제 이름·스킨은 바뀌지 않는다(S4).
+- **시험용 authlib 대역의 `PropertyMap` 은 Guava Multimap 이 아니다**(PR #390 검토 S3). 대역 sourceSet 의 컴파일 경로에 Guava 를 새로 붙여야 하고(시험 런타임에는 bungeecord-chat 을 따라 guava 32.1.2 가 이미 있다 — 재검토에서 바로잡음) 시험에서만 쓰는 대역이라 이 PR 에서는 미뤘다. 진짜 ProtocolLib jar 로 실측할 때(감사용 탐침 등)는 대역 대신 진짜 authlib 6.0.54(바닐라 서버 jar 의 `META-INF/libraries`)를 시험 런타임 앞에 두어야 한다 — 아니면 `PropertyMap cannot be cast to Multimap`.
+- TASK 후보(PR #390 검토): S1 `PacketContainer.deepClone()` 이 탭 목록에서 실패(Paper 는 바이트 직렬화로 넘어감) — T-189 에서 player_info_update 를 먼저. N1 첫 플레이어 접속 때 항목 0개짜리 ADD_PLAYER 패킷이 나간다(바닐라는 빈 패킷 없음) — 서버 접속 순서 손질.
+- 후속 후보(재검토 P2·P3): `PlayerInfoBridge.online()` 이 패킷 스레드에서 CraftPlayer·shim 을 처음 만들 수 있다 — 이미 감싼 것만 보게(existingPlayer). authlib 이 늦게 붙으면 그 전에 만든 NMS 플레이어의 프로필은 null 로 남는다.

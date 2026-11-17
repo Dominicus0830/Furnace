@@ -1,6 +1,7 @@
 // W-09: 기후 Y-불변 게이트(j=0 1회 평가)가 게이트 없는 전 칸 평가와 비트 단위로 같은지 무작위 청크·시드로 대조.
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -22,7 +23,7 @@ class ClimateYGateParityTest {
 
     @Test
     void gatedCacheMatchesUngatedBits() throws Exception {
-        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
+        WorldgenData data = WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG);
         Random r = new Random(0xC109);
         for (String dim : new String[]{"minecraft:overworld", "minecraft:nether", "minecraft:end"}) {
             NoiseSettings settings = NoiseSettings.fromJson(data.noiseSettings(dim));
@@ -51,7 +52,7 @@ class ClimateYGateParityTest {
     @Test
     void bench() throws Exception {
         Assumptions.assumeTrue(Boolean.getBoolean("furnace.bench"));
-        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
+        WorldgenData data = WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG);
         NoiseSettings settings = NoiseSettings.fromJson(data.noiseSettings("minecraft:overworld"));
         NoiseRouter router = NoiseRouter.build(data, settings, 12345L);
         NoiseChunk[] chunks = new NoiseChunk[300];

@@ -9,7 +9,9 @@ import java.util.function.Predicate;
 import java.util.concurrent.CompletableFuture;
 import org.domi.furnace.server.command.brigadier.Suggestions;
 import org.domi.furnace.server.command.brigadier.SuggestionsBuilder;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.SharedSuggestionProvider")
 public final class SharedSuggestions {
 
     private SharedSuggestions() {}

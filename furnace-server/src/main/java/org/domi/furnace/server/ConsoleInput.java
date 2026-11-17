@@ -13,6 +13,7 @@ import java.util.function.IntConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@VanillaPort("net.minecraft.server.dedicated.DedicatedServer")
 public final class ConsoleInput {
 
     private static final Logger log = LoggerFactory.getLogger(ConsoleInput.class);

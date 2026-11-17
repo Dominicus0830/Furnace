@@ -24,7 +24,7 @@ public final class NmsSymbols {
     /** 모든 플러그인이 같이 쓰는 색인(호환 모듈의 클래스로더 기준 — 플러그인 로더의 부모). */
     public static final NmsSymbols RUNTIME = new NmsSymbols(NmsSymbols.class.getClassLoader());
 
-    private static final Info MISSING = new Info(null, List.of(), false, Set.of(), Set.of());
+    private static final Info MISSING = new Info(null, List.of(), false, false, false, Set.of(), Set.of());
 
     private final ClassLoader loader;
     private final ConcurrentHashMap<String, Info> cache = new ConcurrentHashMap<>();
@@ -60,6 +60,7 @@ public final class NmsSymbols {
     /** 메서드가 있는가(클래스 사슬 → 상위 인터페이스, JVMS 5.4.3.3/5.4.3.4). 배열의 clone 등 Object 메서드도 된다. */
     public boolean hasMethod(String owner, String name, String desc) {
         String key = name + ' ' + desc;
+        if (name.equals("<init>")) return info(element(owner)).methods.contains(key);   // 생성자는 상속되지 않는다(JVM 은 그 클래스의 것만 링크한다)
         if (owner.charAt(0) == '[') return info("java/lang/Object").methods.contains(key) || name.equals("clone");
         Set<String> seen = new HashSet<>();
         for (String c = owner; c != null; ) {
@@ -98,6 +99,15 @@ public final class NmsSymbols {
 
     boolean isInterface(String internalName) { return info(internalName).isInterface; }
 
+    /** 이 클래스가 final 인가(shim 은 바닐라와 달리 final 인 클래스가 있어 상속 정의가 깨진다 — 껍데기는 그 위에 세우지 않는다). 없으면 false. */
+    boolean isFinal(String internalName) { return info(internalName).isFinal; }
+
+    /** 플러그인이 상속해도 되는 shim 인가({@link NmsInheritable} 이 붙었나). 없으면 false. */
+    boolean isInheritable(String internalName) { return info(internalName).inheritable; }
+
+    /** 이 클래스 자신이 선언한 메서드인가(상위를 따라가지 않는다 — 생성자 찾기). */
+    boolean declaresMethod(String owner, String name, String desc) { return info(owner).methods.contains(name + ' ' + desc); }
+
     /** 이 클래스가 바로 구현하는 인터페이스(없거나 모르면 빈 목록). */
     List<String> interfacesOf(String internalName) { return info(internalName).interfaces; }
 
@@ -116,13 +126,21 @@ public final class NmsSymbols {
             ClassReader r = new ClassReader(in.readAllBytes());
             Set<String> fields = new HashSet<>();
             Set<String> methods = new HashSet<>();
-            Object[] head = new Object[3];
+            Object[] head = new Object[5];
+            head[4] = Boolean.FALSE;
             r.accept(new ClassVisitor(Opcodes.ASM9) {
                 @Override
                 public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
                     head[0] = superName;
                     head[1] = interfaces == null ? List.of() : List.of(interfaces);
                     head[2] = (access & Opcodes.ACC_INTERFACE) != 0;
+                    head[3] = (access & Opcodes.ACC_FINAL) != 0;
+                }
+
+                @Override
+                public org.objectweb.asm.AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
+                    if (descriptor.equals(INHERITABLE)) head[4] = Boolean.TRUE;
+                    return null;
                 }
 
                 @Override
@@ -139,11 +157,13 @@ public final class NmsSymbols {
                 }
             }, ClassReader.SKIP_CODE | ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
             @SuppressWarnings("unchecked") List<String> itfs = (List<String>) head[1];
-            return new Info((String) head[0], itfs, (Boolean) head[2], Set.copyOf(fields), Set.copyOf(methods));
+            return new Info((String) head[0], itfs, (Boolean) head[2], (Boolean) head[3], (Boolean) head[4], Set.copyOf(fields), Set.copyOf(methods));
         } catch (IOException | RuntimeException e) {
             return MISSING;
         }
     }
 
-    private record Info(String superName, List<String> interfaces, boolean isInterface, Set<String> fields, Set<String> methods) {}
+    private static final String INHERITABLE = "L" + NmsInheritable.class.getName().replace('.', '/') + ";";
+
+    private record Info(String superName, List<String> interfaces, boolean isInterface, boolean isFinal, boolean inheritable, Set<String> fields, Set<String> methods) {}
 }

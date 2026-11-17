@@ -2,6 +2,7 @@
 // 관전자(noPhysics)는 아니다. in_wall 이면 같은 틱의 월드 보더 피해는 건너뛴다(else if).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.UUID;
@@ -21,10 +22,10 @@ class A11SuffocationTest {
     private static float healthAfterBuriedTicks(GameMode mode, int ticks) throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 2);
         try {
-            BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+            BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
             World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(2),
                     sched, sched.regionThreadCount(), 16, 1, 1, reg.directBits(), 7, java.util.concurrent.Executors.newSingleThreadExecutor());
-            w.setRegistries(reg, ItemRegistry.load("items/1.21.1.txt"));   // world.probe() 가 블록 표를 쓴다
+            w.setRegistries(reg, ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));   // world.probe() 가 블록 표를 쓴다
             w.awaitChunk(new ChunkPos(0, 0));
             Player p = new Player(1, UUID.randomUUID(), "Dom", new ConcurrentEmbeddedChannel());
             p.vitals().loadGameTypes(null, mode, false);

@@ -5,7 +5,9 @@ import io.netty.buffer.ByteBuf;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("com.mojang.brigadier.arguments.ArgumentType")
 public interface ArgumentType<T> {
 
     T parse(StringReader reader) throws CommandSyntaxException;

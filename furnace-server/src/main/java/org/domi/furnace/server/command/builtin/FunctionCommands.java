@@ -49,7 +49,9 @@ import org.domi.furnace.server.command.exec.ResultCallback;
 import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.function.CommandFunction;
 import org.domi.furnace.server.function.FunctionLibrary;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.server.commands.FunctionCommand", "net.minecraft.server.commands.ReturnCommand", "net.minecraft.server.commands.ExecuteCommand"})
 public final class FunctionCommands {
 
     private FunctionCommands() {}

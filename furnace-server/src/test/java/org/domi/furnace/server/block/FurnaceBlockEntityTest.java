@@ -1,6 +1,7 @@
 // 화로 블록 엔티티 시험: 연료 소모·lit 켜짐·굽는 시간 뒤 결과·재료 감소·연료가 떨어지면 꺼짐·진행 되감기·저장 왕복.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -21,7 +22,7 @@ class FurnaceBlockEntityTest {
     void smeltsRawIronConsumingCoalAndRewindsWhenFuelRunsOut() throws Exception {
         RecipeManager rm = TestRecipes.manager();
         assumeTrue(rm != null, "로컬 바닐라 데이터 없음");
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         var level = new BlockPlacementTest.TestLevel() {
             @Override public Object recipes() { return rm; }
         };
@@ -53,6 +54,42 @@ class FurnaceBlockEntityTest {
         assertEquals(be.litTime, back.litTime);
         assertEquals(be.items[2].count(), back.items[2].count());
         assertEquals(0, back.litDuration, "연료 칸이 비어 litDuration 은 0");
+    }
+
+    /** Paper 굽기 속도 배율: 총 시간 = ceil(레시피 시간 / 배율), 진행이 총 시간을 넘으면(배율을 바꾼 뒤) 곧 굽는다. 1.0 이면 NBT 키를 적지 않는다(바닐라와 같은 저장). */
+    @Test
+    void cookSpeedMultiplierFollowsPaper() throws Exception {
+        RecipeManager rm = TestRecipes.manager();
+        assumeTrue(rm != null, "로컬 바닐라 데이터 없음");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        var level = new BlockPlacementTest.TestLevel() {
+            @Override public Object recipes() { return rm; }
+        };
+        Pos pos = new Pos(1, -60, 1);
+        int off = reg.stateIdOrAir("minecraft:furnace", java.util.Map.of("facing", "north", "lit", "false"));
+        level.setBlock(pos, off, 3);
+        FurnaceBlockEntity be = FurnaceBlockEntity.furnace(pos, off);
+        assertFalse(be.saveWithoutMetadata().contains("Paper.CookSpeedMultiplier"), "1.0 이면 바닐라 저장 그대로");
+
+        var tag = be.saveWithoutMetadata();
+        tag.putDouble("Paper.CookSpeedMultiplier", 3.0);
+        be.load(tag);
+        assertEquals(3.0, be.cookSpeedMultiplier);
+        be.items[0] = item("raw_iron", 2);
+        be.onItemSet(0, ItemStack.EMPTY, be.items[0], level);
+        assertEquals(67, be.cookingTotalTime, "ceil(200 / 3)");
+        assertEquals(3.0, be.saveWithoutMetadata().getDouble("Paper.CookSpeedMultiplier"));
+
+        be.items[1] = item("coal", 1);
+        be.cookingProgress = 80;   // 배율을 바꾼 뒤처럼 진행이 총 시간을 넘었다
+        be.tick(level);
+        assertEquals("minecraft:iron_ingot", org.domi.furnace.server.item.ItemTools.itemName(be.items[2]), "Paper 는 >= 로 비교");
+        assertEquals(0, be.cookingProgress);
+
+        be.cookSpeedMultiplier = 0;
+        be.items[0] = item("raw_gold", 1);
+        be.onItemSet(0, ItemStack.EMPTY, be.items[0], level);
+        assertEquals(Integer.MAX_VALUE, be.cookingTotalTime, "배율 0 은 영영 안 구워진다(Paper 와 같다)");
     }
 
     @Test

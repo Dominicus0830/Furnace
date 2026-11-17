@@ -6,7 +6,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.domi.furnace.server.item.ItemContext;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.world.effect.MobEffect", "net.minecraft.world.effect.MobEffects"})
 public final class MobEffect {
 
     public enum Category { BENEFICIAL, HARMFUL, NEUTRAL }

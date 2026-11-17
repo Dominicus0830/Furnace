@@ -3,6 +3,7 @@
 // 기대 목록은 바닐라 클래스 계통(Animal / WaterAnimal / AbstractVillager)을 이름으로 적은 것이라, 서버의 클래스 계통이 어긋나면 여기서 잡힌다.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.HashSet;
@@ -29,7 +30,7 @@ class SpawnDiscardTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @Test

@@ -1,6 +1,7 @@
 // 용기 블록 엔티티(통·셜커 상자·깔때기·발사기·공급기)의 바닐라 저장 꼴: Items[{Slot,id,count,components}], LootTable(있으면 아이템 대신), CustomName, TransferCooldown.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Map;
@@ -26,7 +27,7 @@ import org.junit.jupiter.api.Test;
 class ContainerBlockEntityTest {
 
     @BeforeAll
-    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt"))); }
+    static void install() { ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"))); }
 
     static int id(String name) { return ItemContext.id("minecraft:item", name); }
 
@@ -92,7 +93,7 @@ class ContainerBlockEntityTest {
 
     @Test
     void chunkCodecKeepsNewContainersThroughSaveAndLoad() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         AnvilChunkCodec codec = new AnvilChunkCodec(reg, 0);
         ChunkColumn col = new SuperflatWorldSource(reg, 0).generate(0, 0);
         var barrel = new BarrelBlockEntity(new Pos(2, -60, 3), reg.defaultStateId("minecraft:barrel"));
@@ -107,7 +108,7 @@ class ContainerBlockEntityTest {
 
     @Test
     void isValidMatchesBlock() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         var barrel = new BarrelBlockEntity(new Pos(0, 0, 0), -1);
         assertTrue(barrel.isValid(reg.defaultStateId("minecraft:barrel")));
         assertFalse(barrel.isValid(reg.defaultStateId("minecraft:stone")));

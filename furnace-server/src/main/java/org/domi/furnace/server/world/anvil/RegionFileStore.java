@@ -1,15 +1,19 @@
 // region 디렉토리의 .mca 핸들 캐시(LRU 256개, 바닐라 RegionFileStorage 와 같다) + 파일별 락 직렬화. 여러 region 스레드가 공유 안전.
 package org.domi.furnace.server.world.anvil;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.io.IOException;
 import java.nio.file.Path;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.chunk.storage.RegionFileStorage")
 public final class RegionFileStore {
 
     private final Path regionDir;
     /** 바닐라 RegionFileStorage.MAX_CACHE_SIZE. 넘으면 가장 오래 안 쓴 파일을 닫는다(탐험이 길면 fd 가 끝없이 늘던 것, F-12). */
     static final int MAX_OPEN = 256;
     private final java.util.LinkedHashMap<Long, RegionFile> open = new java.util.LinkedHashMap<>(16, 0.75f, true);
+    /** open 의 잠금 없는 거울(peekChunk 용). open 을 바꾸는 곳(synchronized this)에서만 같이 바꾼다. */
+    private final java.util.concurrent.ConcurrentHashMap<Long, RegionFile> openView = new java.util.concurrent.ConcurrentHashMap<>();
 
     public RegionFileStore(Path worldDir) {
         this(worldDir, "region");
@@ -50,10 +54,12 @@ public final class RegionFileStore {
             if (rf != null) return rf;
             rf = new RegionFile(regionDir.resolve("r." + rx + "." + rz + ".mca"), sync);
             open.put(k, rf);
+            openView.put(k, rf);
             if (open.size() > MAX_OPEN) {
                 var it = open.entrySet().iterator();
                 var eldest = it.next();
                 it.remove();
+                openView.remove(eldest.getKey(), eldest.getValue());
                 toClose.add(java.util.Map.entry(eldest.getKey(), eldest.getValue()));
             }
             return rf;
@@ -102,7 +108,7 @@ public final class RegionFileStore {
             drainClosed();
         } catch (IOException e) {
             // 내보낸 다른 파일 닫기 실패는 이 작업의 실패가 아니다 — 읽기를 "깨진 청크"로 보이게 하면 멀쩡한 청크를 새로 생성해 덮는다
-            org.slf4j.LoggerFactory.getLogger(RegionFileStore.class).warn("[REGION] 내보낸 region 파일 닫기 실패", e);
+            org.slf4j.LoggerFactory.getLogger(RegionFileStore.class).warn(Lang.t("region.export-close-failed"), e);
         }
         return result;
     }
@@ -117,6 +123,15 @@ public final class RegionFileStore {
     /** 압축 본문만(없으면 null). 압축 풀기는 부르는 쪽이 원하는 스레드에서 {@link RegionFile.Payload#decompress()}. */
     public RegionFile.Payload readPayload(int chunkX, int chunkZ) throws IOException {
         return withFile(chunkX, chunkZ, rf -> rf.readPayload(chunkX, chunkZ));
+    }
+
+    /**
+     * IO 없이 짐작: 이미 열린 region 파일의 위치표만 본다. 1 = 있음, 0 = 없음, -1 = 모름(파일이 안 열려 있다).
+     * 생성 대기열이 플레이어 생성 칸을 셀 때 쓴다(디스크 청크는 생성 칸을 안 쓴다, T-170). 정확성에는 쓰지 않는다.
+     */
+    public int peekChunk(int chunkX, int chunkZ) {
+        RegionFile rf = openView.get(key(chunkX >> 5, chunkZ >> 5));
+        return rf == null ? -1 : rf.peekHasChunk(chunkX, chunkZ) ? 1 : 0;
     }
 
     /** 디스크에 그 청크가 있는가(region 파일이 없으면 만들지 않고 거짓). */
@@ -148,7 +163,7 @@ public final class RegionFileStore {
 
     /** 백업 스냅샷을 건다. dest 는 이 저장소 폴더(region/ 등)에 대응하는 백업 쪽 폴더. 이미 걸려 있으면 예외. */
     public synchronized Snapshot beginSnapshot(Path dest, CutPassed cut) {
-        if (snapshot != null) throw new IllegalStateException("이미 백업 스냅샷 중: " + regionDir);
+        if (snapshot != null) throw new IllegalStateException("a backup snapshot is already in progress: " + regionDir);
         Snapshot s = new Snapshot(dest, cut);
         snapshot = s;
         return s;
@@ -294,12 +309,50 @@ public final class RegionFileStore {
     /** 테스트용: 지금 열린 핸들 수. */
     synchronized int openCount() { return open.size(); }
 
+    private final java.util.concurrent.atomic.AtomicLong flushedFiles = new java.util.concurrent.atomic.AtomicLong();
+
+    /**
+     * 바닐라 RegionFileStorage.flush(save-all flush): 열린 지역 파일마다 force(true). 각 파일은 그 키 잠금 안에서 내린다(쓰기와 엇갈리지 않게).
+     * IO 레인의 쓰기가 다 끝난 뒤(World.ioBarrier) 불러야 "지금까지 저장한 것" 이 디스크에 있다. 첫 실패를 던지되 나머지 파일도 내린다.
+     */
+    public void flush() throws IOException {
+        drainClosed();   // LRU 가 내보낸 핸들은 닫으며 force 한다
+        java.util.List<java.util.Map.Entry<Long, RegionFile>> all;
+        synchronized (this) {
+            all = new java.util.ArrayList<>(open.entrySet());
+        }
+        IOException first = null;
+        for (var e : all) {
+            synchronized (lock(e.getKey())) {
+                RegionFile rf;
+                synchronized (this) { rf = open.get(e.getKey()); }
+                if (rf != e.getValue()) continue;   // 그 사이 내보내졌다(아래 drainClosed 의 닫기가 force 한다)
+                try {
+                    rf.flush();
+                    flushedFiles.incrementAndGet();
+                } catch (IOException ex) {
+                    if (first == null) first = ex;
+                }
+            }
+        }
+        try {
+            drainClosed();
+        } catch (IOException ex) {
+            if (first == null) first = ex;
+        }
+        if (first != null) throw first;
+    }
+
+    /** 지표·테스트: {@link #flush} 가 force 한 파일 수 누계. */
+    public long flushedFiles() { return flushedFiles.get(); }
+
     public void closeAll() throws IOException {
         drainClosed();
         java.util.List<java.util.Map.Entry<Long, RegionFile>> all;
         synchronized (this) {
             all = new java.util.ArrayList<>(open.entrySet());
             open.clear();
+            openView.clear();
         }
         for (var e : all) {
             synchronized (lock(e.getKey())) { e.getValue().close(); }

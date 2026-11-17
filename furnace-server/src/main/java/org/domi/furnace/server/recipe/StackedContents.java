@@ -8,10 +8,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.item.ItemStackCodecs;
 import org.domi.furnace.server.item.ItemTools;
 
+@VanillaPort("net.minecraft.world.entity.player.StackedContents")
 public final class StackedContents {
 
     /** 아이템 숫자 id → 개수. */

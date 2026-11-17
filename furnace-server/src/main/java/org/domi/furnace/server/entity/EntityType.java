@@ -1,6 +1,7 @@
 // 바닐라 EntityType 의 서버 쪽 속성: 레지스트리 번호·크기·눈높이·추적 거리(청크)·갱신 주기·속도 추적·불 면역.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -361,7 +362,7 @@ public record EntityType(String name, int id, float width, float height, float e
 
     private static EntityType of(String name, float w, float h, float eye, int range, int interval, boolean deltas, boolean fireImmune) {
         Integer id = IDS.get(name);
-        if (id == null) throw new IllegalStateException("엔티티 종류 없음: " + name);
+        if (id == null) throw new IllegalStateException("no such entity type: " + name);
         EntityType t = new EntityType(name, id, w, h, eye, range, interval, deltas, fireImmune);
         BY_NAME.put(name, t);
         return t;
@@ -369,8 +370,8 @@ public record EntityType(String name, int id, float width, float height, float e
 
     private static Map<String, Integer> loadIds() {
         Map<String, Integer> ids = new HashMap<>();
-        var in = EntityType.class.getClassLoader().getResourceAsStream("registries/entity_types-1.21.1.txt");
-        if (in == null) throw new IllegalStateException("registries/entity_types-1.21.1.txt 없음");
+        var in = EntityType.class.getClassLoader().getResourceAsStream("registries/entity_types-" + GameVersion.RESOURCE_TAG + ".txt");
+        if (in == null) throw new IllegalStateException("registries/entity_types-" + GameVersion.RESOURCE_TAG + ".txt is missing");
         try (BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
             String line;
             int n = 0;
@@ -439,11 +440,9 @@ public record EntityType(String name, int id, float width, float height, float e
     /** WITCH: sized(0.6, 1.95).eyeHeight(1.62).clientTrackingRange(8). */
     public static final EntityType WITCH = of("minecraft:witch", 0.6F, 1.95F, 1.62F, 8, 3, true, false);
 
-    private static final org.domi.furnace.server.net.registry.TagSet TAGS = org.domi.furnace.server.net.registry.TagSet.load("registries/tags-1.21.1.txt");
-
     /** 엔티티 종류 태그(entity_type 태그)에 들어 있나. */
     public boolean is(String tag) {
-        int[] ids = TAGS.ids("minecraft:entity_type", tag);
+        int[] ids = org.domi.furnace.server.item.ItemContext.gameplayTags().ids("minecraft:entity_type", tag);
         if (ids == null) return false;
         for (int i : ids) if (i == this.id) return true;
         return false;

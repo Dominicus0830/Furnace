@@ -2,6 +2,8 @@
 // 인챈트 수치(items/properties_1.21.1.txt — 1.21.1 은 컴포넌트가 아니라 Item.getEnchantmentValue 코드에 있다).
 package org.domi.furnace.server.loot;
 
+import org.domi.furnace.api.GameVersion;
+import org.domi.furnace.server.VanillaPort;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -15,6 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
 
+@VanillaPort("net.minecraft.world.item.Item")
 public final class ItemData {
 
     private static volatile ItemData vanilla;
@@ -36,8 +39,8 @@ public final class ItemData {
     private static ItemData load() {
         ItemData d = new ItemData();
         ClassLoader cl = ItemData.class.getClassLoader();
-        try (InputStream in = cl.getResourceAsStream("items/components_1.21.1.json.gz")) {
-            if (in == null) throw new IllegalStateException("items/components_1.21.1.json.gz 없음");
+        try (InputStream in = cl.getResourceAsStream("items/components_" + GameVersion.RESOURCE_TAG + ".json.gz")) {
+            if (in == null) throw new IllegalStateException("items/components_" + GameVersion.RESOURCE_TAG + ".json.gz is missing");
             JsonObject root = JsonParser.parseReader(new InputStreamReader(new GZIPInputStream(in), StandardCharsets.UTF_8)).getAsJsonObject();
             for (var e : root.entrySet()) {
                 @SuppressWarnings("unchecked")
@@ -47,8 +50,8 @@ public final class ItemData {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        try (InputStream in = cl.getResourceAsStream("items/properties_1.21.1.txt")) {
-            if (in == null) throw new IllegalStateException("items/properties_1.21.1.txt 없음");
+        try (InputStream in = cl.getResourceAsStream("items/properties_" + GameVersion.RESOURCE_TAG + ".txt")) {
+            if (in == null) throw new IllegalStateException("items/properties_" + GameVersion.RESOURCE_TAG + ".txt is missing");
             BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             String line;
             while ((line = r.readLine()) != null) {

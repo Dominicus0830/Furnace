@@ -1,5 +1,5 @@
-// 플레이어 이동. 위치가 있는지(hasPosition)·방향이 있는지(hasRotation)에 따라 바닐라의 네 이동 패킷 가운데 하나가 된다.
-// 없는 쪽 값은 0 이며 무시된다. 각도는 도.
+// 플레이어 이동. 위치가 있는지(hasPosition)와 방향이 있는지(hasRotation)에 따라 바닐라의 네 이동 패킷 가운데 하나가 된다.
+// 없는 쪽 값은 0 이며 무시된다. 각도는 도다.
 package org.domi.furnace.api.packet.serverbound;
 
 import org.domi.furnace.api.packet.PacketType;

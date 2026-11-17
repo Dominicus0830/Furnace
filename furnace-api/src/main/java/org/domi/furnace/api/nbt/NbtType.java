@@ -26,9 +26,9 @@ public enum NbtType {
             case long[] x -> LONG_ARRAY;
             case NbtList x -> LIST;
             case NbtCompound x -> COMPOUND;
-            case null -> throw new IllegalArgumentException("NBT 값은 null 일 수 없다");
-            default -> throw new IllegalArgumentException("NBT 값이 아니다: " + v.getClass().getName()
-                    + " (Byte·Short·Integer·Long·Float·Double·String·byte[]·int[]·long[]·NbtList·NbtCompound 만)");
+            case null -> throw new IllegalArgumentException("an NBT value cannot be null");
+            default -> throw new IllegalArgumentException("not an NBT value: " + v.getClass().getName()
+                    + " (only Byte, Short, Integer, Long, Float, Double, String, byte[], int[], long[], NbtList and NbtCompound)");
         };
     }
 

@@ -2,13 +2,16 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 import org.domi.furnace.server.world.WorldBorder;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundSetBorderLerpSizePacket")
 public record SetBorderLerpSize(double oldSize, double newSize, long lerpMillis) implements Packet {
 
-    public static final int ID = 0x4E;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_SET_BORDER_LERP_SIZE;
 
     public static SetBorderLerpSize of(WorldBorder border) {
         synchronized (border) {

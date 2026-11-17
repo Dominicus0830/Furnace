@@ -15,6 +15,7 @@ import org.domi.furnace.server.world.gen.feature.TreeIntProvider;
 // 이 placer의 유일한 vanilla 소비처는 azalea_tree.json → rooted_azalea_tree.json(root_system feature)
 // 뿐이며, root_system은 별도 미구현 항목(worldgen-gap-survey #17, 이 작업 범위 밖)이라 자연 생성 경로로
 // 도달할 수 없다 — oracle featurespill fixture로 검증 불가. result.md Issues/Caveats 참조.
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.trunkplacers.BendingTrunkPlacer")
 public final class BendingTrunkPlacer extends TrunkPlacer {
     private final int minHeightForLeaves;
     private final TreeIntProvider bendLength;

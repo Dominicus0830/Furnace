@@ -3,12 +3,15 @@ package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket")
 public record SetEntityData(int entityId, List<Item> items) implements Packet {
 
-    public static final int ID = 0x58;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_SET_ENTITY_DATA;
     /** EntityDataSerializers 순번. */
     public static final int SERIALIZER_BYTE = 0, SERIALIZER_INT = 1, SERIALIZER_LONG = 2, SERIALIZER_FLOAT = 3, SERIALIZER_STRING = 4, SERIALIZER_ITEM = 7, SERIALIZER_BOOLEAN = 8, SERIALIZER_COMPOUND = 16,
             SERIALIZER_DIRECTION = 12, SERIALIZER_FROG_VARIANT = 24, SERIALIZER_WOLF_VARIANT = 23, SERIALIZER_ARMADILLO_STATE = 28, SERIALIZER_SNIFFER_STATE = 27, SERIALIZER_BLOCK_POS = 10, SERIALIZER_OPTIONAL_BLOCK_POS = 11, SERIALIZER_OPTIONAL_UUID = 13, SERIALIZER_BLOCK_STATE = 14, SERIALIZER_OPTIONAL_BLOCK_STATE = 15, SERIALIZER_CAT_VARIANT = 22, SERIALIZER_OPTIONAL_INT = 20, SERIALIZER_VILLAGER_DATA = 19, SERIALIZER_POSE = 21, SERIALIZER_PARTICLE = 17, SERIALIZER_PARTICLES = 18, SERIALIZER_COMPONENT = 5, SERIALIZER_OPTIONAL_COMPONENT = 6, SERIALIZER_PAINTING_VARIANT = 26, SERIALIZER_ROTATIONS = 9, SERIALIZER_VECTOR3 = 29, SERIALIZER_QUATERNION = 30;
@@ -32,7 +35,7 @@ public record SetEntityData(int entityId, List<Item> items) implements Packet {
             Types.writeVarInt(buf, it.serializer());
             switch (it.serializer()) {
                 case SERIALIZER_BYTE -> buf.writeByte(((Number) it.value()).byteValue());
-                case SERIALIZER_INT, SERIALIZER_DIRECTION, SERIALIZER_FROG_VARIANT, SERIALIZER_WOLF_VARIANT, SERIALIZER_ARMADILLO_STATE, SERIALIZER_SNIFFER_STATE, SERIALIZER_POSE, SERIALIZER_CAT_VARIANT, SERIALIZER_BLOCK_STATE -> Types.writeVarInt(buf, ((Number) it.value()).intValue());
+                case SERIALIZER_INT, SERIALIZER_DIRECTION, SERIALIZER_FROG_VARIANT, SERIALIZER_ARMADILLO_STATE, SERIALIZER_SNIFFER_STATE, SERIALIZER_POSE, SERIALIZER_CAT_VARIANT, SERIALIZER_BLOCK_STATE -> Types.writeVarInt(buf, ((Number) it.value()).intValue());
                 case SERIALIZER_LONG -> Types.writeVarLong(buf, ((Number) it.value()).longValue());
                 case SERIALIZER_STRING -> Types.writeString(buf, (String) it.value());
                 case SERIALIZER_FLOAT -> buf.writeFloat(((Number) it.value()).floatValue());
@@ -64,6 +67,8 @@ public record SetEntityData(int entityId, List<Item> items) implements Packet {
                     Types.writeVarInt(buf, d[2]);
                 }
                 case SERIALIZER_PAINTING_VARIANT -> Types.writeVarInt(buf, ((Number) it.value()).intValue() + 1);   // 레지스트리 홀더
+                // 늑대 종류도 바닐라 1.21.1 은 ByteBufCodecs.holder(WOLF_VARIANT, 직접 코덱) — 0 은 직접 정의, 등록된 종류는 번호 + 1(그림과 같음)
+                case SERIALIZER_WOLF_VARIANT -> Types.writeVarInt(buf, ((Number) it.value()).intValue() + 1);
                 case SERIALIZER_COMPOUND -> new org.domi.furnace.server.net.io.nbt.NbtWriter(buf).writeCompound((org.domi.furnace.server.net.io.nbt.NbtCompound) it.value());   // CompoundTag: 무명 루트 NBT
                 case SERIALIZER_COMPONENT -> buf.writeBytes(((org.domi.furnace.api.text.Text) it.value()).networkNbt());
                 case SERIALIZER_OPTIONAL_COMPONENT -> {   // Optional<Component>: 있으면 true + 텍스트 NBT. 값은 null 또는 Text

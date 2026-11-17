@@ -2,7 +2,9 @@
 package org.domi.furnace.server.command.exec;
 
 import java.util.function.Consumer;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.execution.tasks.IsolatedCall")
 public final class IsolatedCall implements EntryAction {
 
     private final Consumer<ExecutionControl> taskProducer;

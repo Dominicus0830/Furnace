@@ -1,0 +1,2 @@
+# 운영자·플러그인 개발자에게 보일 수 있는 문구에 한글을 그대로 적은 파일(모듈/경로) — 한 파일씩 번역 파일(server: furnace-lang, compat: furnace-compat-lang)로 옮기면서 지운다.
+# 예외 메시지·assert·DEBUG 호출·requireNonNull 안의 한글은 세지 않는다(HangulTextScanner). 목록에 없는 파일에 새로 쓰면 LangBundlesTest 가 실패하고, 목록에 있는데 이미 옮겼으면 그것도 실패한다.

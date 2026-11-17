@@ -14,10 +14,13 @@ import org.domi.furnace.server.command.brigadier.LiteralCommandNode;
 import org.domi.furnace.server.command.brigadier.RootCommandNode;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.VanillaPort;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
+@VanillaPort({"net.minecraft.network.protocol.game.ClientboundCommandsPacket", "net.minecraft.commands.Commands"})
 public final class CommandTreePacket implements Packet {
 
-    public static final int ID = 0x11;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_COMMANDS;
     private static final int TYPE_ROOT = 0, TYPE_LITERAL = 1, TYPE_ARGUMENT = 2;
     private static final int FLAG_EXECUTABLE = 0x04, FLAG_REDIRECT = 0x08, FLAG_SUGGESTIONS = 0x10;
 
@@ -41,9 +44,26 @@ public final class CommandTreePacket implements Packet {
      * (Paper spigot.yml commands.send-namespaced=false — 서버에서는 계속 실행된다).
      */
     public static CommandTreePacket forSource(RootCommandNode<CommandSource> root, CommandSource source, boolean sendNamespaced) {
+        return forSource(root, source, sendNamespaced, null);
+    }
+
+    /**
+     * rootNames 가 있으면 사용 가능한 최상위 명령 이름(트리 순서)을 변경 가능한 집합으로 넘기고, 돌아온 뒤 집합에 없는 최상위 노드를 루트의 자식에서 뺀다
+     * (CraftBukkit Commands.sendCommands: PlayerCommandSendEvent 뒤 rootcommandnode.removeCommand). 뺀 노드가 다른 노드의 리다이렉트 대상이면 트리에는 그대로 실린다
+     * (바닐라는 루트에서만 지우고 번호 매기기가 리다이렉트를 따라가므로) — 번호는 빼고 난 뒤 너비 우선으로 매긴다.
+     */
+    public static CommandTreePacket forSource(RootCommandNode<CommandSource> root, CommandSource source, boolean sendNamespaced,
+                                              java.util.function.Consumer<java.util.Set<String>> rootNames) {
         // 1) 사용 가능한 자식만 남긴 그림자 트리(원본 노드 → 남은 자식 목록)
         Map<CommandNode<CommandSource>, List<CommandNode<CommandSource>>> usable = new IdentityHashMap<>();
         collect(root, source, usable, sendNamespaced);
+        if (rootNames != null) {
+            List<CommandNode<CommandSource>> top = usable.get(root);
+            java.util.Set<String> names = new java.util.LinkedHashSet<>();
+            for (CommandNode<CommandSource> c : top) names.add(c.getName());
+            rootNames.accept(names);
+            usable.put(root, top.stream().filter(c -> names.contains(c.getName())).toList());
+        }
         // 2) 너비 우선 번호
         Map<CommandNode<CommandSource>, Integer> index = new IdentityHashMap<>();
         List<CommandNode<CommandSource>> order = new ArrayList<>();

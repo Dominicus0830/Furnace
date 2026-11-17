@@ -42,7 +42,7 @@ public final class ApiRecipes {
                     result(s.result(), ctx, items));
             case org.domi.furnace.api.recipe.Recipe.SmithingTransform s -> new Recipe.SmithingTransform(ingredient(s.template(), ctx, true),
                     ingredient(s.base(), ctx, true), ingredient(s.addition(), ctx, true), result(s.result(), ctx, items));
-            case org.domi.furnace.api.recipe.Recipe.Special sp -> throw new IllegalArgumentException("특수 레시피는 등록할 수 없다: " + sp.type());
+            case org.domi.furnace.api.recipe.Recipe.Special sp -> throw new IllegalArgumentException("a special recipe cannot be registered: " + sp.type());
         };
     }
 
@@ -85,7 +85,7 @@ public final class ApiRecipes {
             case REDSTONE -> Recipe.CraftingCategory.REDSTONE;
             case EQUIPMENT -> Recipe.CraftingCategory.EQUIPMENT;
             case MISC -> Recipe.CraftingCategory.MISC;
-            default -> throw new IllegalArgumentException("제작대 레시피의 갈래가 아니다: " + c);
+            default -> throw new IllegalArgumentException("not a crafting recipe kind: " + c);
         };
     }
 
@@ -94,7 +94,7 @@ public final class ApiRecipes {
             case FOOD -> Recipe.CookingCategory.FOOD;
             case BLOCKS -> Recipe.CookingCategory.BLOCKS;
             case MISC -> Recipe.CookingCategory.MISC;
-            default -> throw new IllegalArgumentException("굽기 레시피의 갈래가 아니다: " + c);
+            default -> throw new IllegalArgumentException("not a cooking recipe kind: " + c);
         };
     }
 

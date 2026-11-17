@@ -2,6 +2,7 @@
 // 예산: 수정자 단계마다 1(소스 수와 무관). 포크 한도: 누적 소스 수 + 새 소스 수 >= 한도면 command.forkLimit(실제 최대 한도-1).
 package org.domi.furnace.server.command.exec;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -16,7 +17,9 @@ import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.ContextChain;
 import org.domi.furnace.server.command.brigadier.DynamicCommandExceptionType;
 import org.domi.furnace.server.command.brigadier.RedirectModifier;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.execution.tasks.BuildContexts")
 public class BuildContexts {
 
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(BuildContexts.class);
@@ -190,7 +193,7 @@ public class BuildContexts {
                 }
                 // CSE 가 아닌 실패(타임아웃·예상 못한 예외)는 바닐라처럼 명령 전체를 끝낸다(포크 여부와 무관, applyAsync 의 RuntimeException 과 같다)
                 if (t instanceof TimeoutException) {
-                    log.warn("수정자 결과 대기 시간 초과: /{}", commandInput);
+                    log.warn(Lang.t("cmd.modifier-timeout", commandInput));
                     if (!forkedMode) source.sendFailure(Text.translatable("command.failed"));
                 } else {
                     EntityOps.reportFailure(source, t);

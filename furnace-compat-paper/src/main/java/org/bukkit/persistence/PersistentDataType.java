@@ -2,8 +2,8 @@ package org.bukkit.persistence;
 
 /**
  * 영속 데이터 값의 종류. P 는 저장되는 기본 종류, C 는 플러그인이 다루는 종류다.
- * 기본 종류는 BYTE·SHORT·INTEGER·LONG·FLOAT·DOUBLE·STRING·BYTE_ARRAY·INTEGER_ARRAY·LONG_ARRAY·BOOLEAN·TAG_CONTAINER.
- * 목록(LIST)과 TAG_CONTAINER 배열 종류는 아직 없다.
+ * 기본 종류는 BYTE·SHORT·INTEGER·LONG·FLOAT·DOUBLE·STRING·BYTE_ARRAY·INTEGER_ARRAY·LONG_ARRAY·BOOLEAN·TAG_CONTAINER,
+ * TAG_CONTAINER_ARRAY(옛 종류, NBT 로는 compound 의 목록), 목록 종류({@link #LIST}).
  */
 public interface PersistentDataType<P, C> {
 
@@ -30,6 +30,12 @@ public interface PersistentDataType<P, C> {
             (b, ctx) -> b != 0, (v, ctx) -> (byte) (v ? 1 : 0));
     PersistentDataType<PersistentDataContainer, PersistentDataContainer> TAG_CONTAINER =
             new Primitive<>(PersistentDataContainer.class);
+    /** 중첩 컨테이너의 배열(NBT 로는 compound 목록). Paper 에서도 쓰지 않기를 권하는 종류다. */
+    @Deprecated
+    PersistentDataType<PersistentDataContainer[], PersistentDataContainer[]> TAG_CONTAINER_ARRAY =
+            new Primitive<>(PersistentDataContainer[].class);
+    /** 목록 종류를 만드는 입구: {@code LIST.strings()}, {@code LIST.listTypeFrom(종류)}. */
+    ListPersistentDataTypeProvider LIST = new ListPersistentDataTypeProvider();
 
     /** 기본 종류 그대로 쓰는 종류. */
     final class Primitive<T> implements PersistentDataType<T, T> {

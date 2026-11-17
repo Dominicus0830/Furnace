@@ -1,4 +1,4 @@
-// 청크 또는 월드 안의 엔티티 수 — 종류(minecraft:zombie)별·자연 스폰 종류 묶음별. 잰 순간의 값(불변).
+// 청크 또는 월드 안의 엔티티 수. 종류(minecraft:zombie)별, 자연 스폰 종류 묶음별로 센다. 잰 순간의 값(불변)이다.
 // 플레이어는 byType 에 minecraft:player 로 들어가고 byCategory 에는 들어가지 않는다. 이미 지워진(removed) 엔티티는 세지 않는다.
 package org.domi.furnace.api.world;
 

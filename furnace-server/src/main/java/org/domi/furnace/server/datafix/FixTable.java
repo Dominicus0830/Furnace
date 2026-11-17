@@ -11,7 +11,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.UnaryOperator;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.util.datafix.DataFixers")
 final class FixTable {
     private FixTable() {}
 

@@ -2,6 +2,7 @@
 // 경로: handlePlay 0x0E → readSlot → ItemStackCodecs.readStack → custom_data(PCodec.COMPOUND) → NbtVals.readNetwork. 음수 길이 리스트는 바로 디코드 실패.
 package org.domi.furnace.server.net;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -30,7 +31,7 @@ class ContainerClickNbtBombTest {
     @BeforeAll
     static void items() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @TempDir Path tmp;
@@ -54,13 +55,13 @@ class ContainerClickNbtBombTest {
 
     private void join() throws Exception {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         World world = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2,
                 reg.directBits(), 7, io = org.domi.furnace.server.TestServers.ioPool());
         world.configurePersistence(Integer.MAX_VALUE, 100);
         world.worldDir(tmp);
         world.defaultSpawn(new SpawnPoint(0, -60, 0, 0f));
-        world.setRegistries(reg, org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        world.setRegistries(reg, org.domi.furnace.server.world.ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         handler = new ConnectionHandler("t", -1, sched, world, new EntityIdAllocator());
         ch = new ConcurrentEmbeddedChannel(handler);
         ch.writeInbound(frame(0x00, b -> { Types.writeVarInt(b, 767); Types.writeString(b, "localhost"); b.writeShort(25565); Types.writeVarInt(b, 2); }));

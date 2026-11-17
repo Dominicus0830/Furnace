@@ -1,7 +1,9 @@
 package org.domi.furnace.server.command.brigadier;
 
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("com.mojang.brigadier.ParseResults")
 public class ParseResults<S> {
 
     private final CommandContextBuilder<S> context;

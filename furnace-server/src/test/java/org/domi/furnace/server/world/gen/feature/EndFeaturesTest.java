@@ -1,6 +1,7 @@
 // End 피처(end_spike 시드 파생 목록, 상태 표 구성, 배치 스모크) 단위 테스트 — 기대값은 순정 SpikeCacheLoader 를 직접 돌려 얻은 값
 package org.domi.furnace.server.world.gen.feature;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -56,7 +57,7 @@ class EndFeaturesTest {
 
     @Test
     void endFeaturesPlaceSmokeTest() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         BlockAttrs attrs = BlockAttrs.get();
         WorldgenRandom random = new WorldgenRandom();
         random.setSeed(7L);

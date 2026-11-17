@@ -4,6 +4,8 @@
 // 정직성: 아직 구현하지 않은 feature(NoopFeature)·구조물 타입은 성공으로 위장하지 않고 미지원 오류로 끝낸다.
 package org.domi.furnace.server.command.builtin;
 
+import org.domi.furnace.api.GameVersion;
+import org.domi.furnace.server.i18n.Lang;
 import static org.domi.furnace.server.command.Commands.argument;
 import static org.domi.furnace.server.command.Commands.literal;
 
@@ -66,7 +68,9 @@ import org.domi.furnace.server.world.gen.structure.template.Processors;
 import org.domi.furnace.server.world.gen.structure.template.StructureTemplate;
 import org.domi.furnace.server.world.gen.structure.template.TemplateManager;
 import org.domi.furnace.server.world.gen.structure.template.TemplatePlacer;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.PlaceCommand")
 public final class PlaceCommand {
 
     private PlaceCommand() {}
@@ -88,7 +92,7 @@ public final class PlaceCommand {
     private static final DynamicCommandExceptionType ERROR_UNSUPPORTED =
             new DynamicCommandExceptionType(what -> Text.text("Placing " + what + " is not supported yet"));
 
-    private static final String DATA = "worldgen/1.21.1/";
+    private static final String DATA = "worldgen/" + GameVersion.RESOURCE_TAG + "/";
 
     /** 바닐라 SUGGEST_TEMPLATES: 템플릿 관리자가 아는 모든 id. */
     private static final SuggestionProvider<CommandSource> SUGGEST_TEMPLATES =
@@ -397,7 +401,7 @@ public final class PlaceCommand {
                     collect(Path.of(uri), ext, out);
                 }
             } catch (Exception e) {
-                org.slf4j.LoggerFactory.getLogger(PlaceCommand.class).warn("리소스 목록 읽기 실패: {}", dir, e);
+                org.slf4j.LoggerFactory.getLogger(PlaceCommand.class).warn(Lang.t("place.resource-list-failed", dir), e);
             }
             return List.copyOf(out);
         });

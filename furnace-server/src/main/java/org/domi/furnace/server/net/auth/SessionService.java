@@ -66,6 +66,70 @@ public class SessionService {
                 });
     }
 
+    /**
+     * 세션 서버의 profile/&lt;uuid&gt;?unsigned=false — 서명된 속성(스킨 textures)까지 든 프로필(authlib fetchProfile(id, true)).
+     * 못 찾거나(204·404) 요청이 막히거나(429)·실패하면 empty(authlib 처럼 null 로 끝나는 경우). 네트워크 스레드를 막지 않게 비동기.
+     */
+    public CompletableFuture<Optional<GameProfile>> fetchProfile(UUID id) {
+        String hex = id.toString().replace("-", "");
+        HttpRequest req = HttpRequest.newBuilder(URI.create(host + "/session/minecraft/profile/" + hex + "?unsigned=false"))
+                .timeout(Duration.ofSeconds(10)).GET().build();
+        return client.sendAsync(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+                .handle((resp, err) -> {
+                    if (err != null || resp.statusCode() != 200 || resp.body() == null || resp.body().isBlank()) return Optional.<GameProfile>empty();
+                    return parseProfile(resp.body());
+                });
+    }
+
+    /**
+     * 서비스 서버({@code minecraft.api.services.host}, 기본 api.minecraftservices.com)의 이름 → 프로필(UUID·이름만) 조회.
+     * 없는 이름(404)·요청 막힘(429)·실패는 empty.
+     */
+    public CompletableFuture<Optional<GameProfile>> lookupByName(String name) {
+        String servicesHost = System.getProperty("minecraft.api.services.host", "https://api.minecraftservices.com");
+        if (servicesHost.endsWith("/")) servicesHost = servicesHost.substring(0, servicesHost.length() - 1);
+        HttpRequest req = HttpRequest.newBuilder(URI.create(servicesHost + "/minecraft/profile/lookup/name/" + enc(name)))
+                .timeout(Duration.ofSeconds(10)).GET().build();
+        return client.sendAsync(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+                .handle((resp, err) -> {
+                    if (err != null || resp.statusCode() != 200 || resp.body() == null || resp.body().isBlank()) return Optional.<GameProfile>empty();
+                    return parseProfile(resp.body());
+                });
+    }
+
+    /**
+     * {@link #fetchProfile} 의 확인용 판: 429·5xx·연결 실패는 {@code attempts} 번까지 {@code delay} 간격으로 다시 시도하고, 끝내 안 되면 **실패한 Future**
+     * (없는 프로필 = empty 와 구별한다 — 일시 장애가 "프로필 없음"으로 굳지 않게). 204·404 등 "없음"은 바로 empty.
+     */
+    public CompletableFuture<Optional<GameProfile>> fetchProfileRetrying(UUID id, int attempts, Duration delay) {
+        String hex = id.toString().replace("-", "");
+        return getProfileRetrying(host + "/session/minecraft/profile/" + hex + "?unsigned=false", attempts, delay);
+    }
+
+    /** {@link #lookupByName} 의 확인용 판(재시도는 {@link #fetchProfileRetrying} 과 같다). */
+    public CompletableFuture<Optional<GameProfile>> lookupByNameRetrying(String name, int attempts, Duration delay) {
+        String servicesHost = System.getProperty("minecraft.api.services.host", "https://api.minecraftservices.com");
+        if (servicesHost.endsWith("/")) servicesHost = servicesHost.substring(0, servicesHost.length() - 1);
+        return getProfileRetrying(servicesHost + "/minecraft/profile/lookup/name/" + enc(name), attempts, delay);
+    }
+
+    private CompletableFuture<Optional<GameProfile>> getProfileRetrying(String url, int attemptsLeft, Duration delay) {
+        HttpRequest req = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(10)).GET().build();
+        return client.sendAsync(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)).handle((resp, err) -> {
+            if (err == null) {
+                int code = resp.statusCode();
+                if (code == 200) return CompletableFuture.completedFuture(resp.body() == null || resp.body().isBlank() ? Optional.<GameProfile>empty() : parseProfile(resp.body()));
+                if (code != 429 && code < 500) return CompletableFuture.completedFuture(Optional.<GameProfile>empty());   // 없음
+            }
+            if (attemptsLeft > 1) {
+                return CompletableFuture.supplyAsync(() -> (Void) null, CompletableFuture.delayedExecutor(delay.toMillis(), java.util.concurrent.TimeUnit.MILLISECONDS))
+                        .thenCompose(v -> getProfileRetrying(url, attemptsLeft - 1, delay));
+            }
+            return CompletableFuture.<Optional<GameProfile>>failedFuture(err != null ? err
+                    : new java.io.IOException("profile server answered " + resp.statusCode()));
+        }).thenCompose(f -> f);
+    }
+
     static Optional<GameProfile> parseProfile(String body) {
         try {
             JsonObject o = JsonParser.parseString(body).getAsJsonObject();

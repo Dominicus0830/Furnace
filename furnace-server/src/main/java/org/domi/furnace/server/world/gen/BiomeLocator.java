@@ -6,6 +6,7 @@ import java.util.Set;
 import java.util.function.IntPredicate;
 import java.util.stream.IntStream;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.biome.BiomeSource")
 public final class BiomeLocator {
     private BiomeLocator() { }
 
@@ -46,7 +47,7 @@ public final class BiomeLocator {
         int[] ys = outFromOrigin(oy, minBuildHeight + 1, maxBuildHeight, verticalStep).toArray();
         Found[] out = {null};
         spiralAround(steps, (dx, dz) -> {
-            if (cancelled.getAsBoolean()) throw new java.util.concurrent.CancellationException("locate biome 취소");
+            if (cancelled.getAsBoolean()) throw new java.util.concurrent.CancellationException("locate biome cancelled");
             int x = ox + dx * horizontalStep, z = oz + dz * horizontalStep;
             int qx = x >> 2, qz = z >> 2;
             for (int y : ys) {

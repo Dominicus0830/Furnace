@@ -1,6 +1,7 @@
 // region 스레드서 플레이어 편입·틱 시 청크 로드, 비소유 스레드 접근 시 assert 검증
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.domi.furnace.server.ConcurrentEmbeddedChannel;
@@ -15,9 +16,9 @@ import java.util.UUID;
 class RegionTickTest {
 
     private static World world(FurnaceSchedulerImpl sched) {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         return new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(2),
-                sched, sched.regionThreadCount(), 16, 1, 1, reg.directBits(), 7, java.util.concurrent.Executors.newSingleThreadExecutor());
+                sched, sched.regionThreadCount(), 16, 2, 2, reg.directBits(), 7, java.util.concurrent.Executors.newSingleThreadExecutor());
     }
 
     @Test
@@ -29,7 +30,7 @@ class RegionTickTest {
         RegionPos rp = new RegionPos(0, 0);   // 청크 좌표
         sched.region(rp).execute(() -> w.regionAt(rp).adopt(p)).get();
         sched.region(rp).execute(() -> w.regionAt(rp).tick()).get();
-        assertEquals(9, p.loadedChunks().size()); // viewDistance 1 → 3x3
+        assertEquals(ChunkTrackingViewTest.vanillaCount(2), p.loadedChunks().size()); // viewDistance 2 → 바닐라 둥근 모양 45칸(정사각 5×5 아님)
         sched.close();
     }
 

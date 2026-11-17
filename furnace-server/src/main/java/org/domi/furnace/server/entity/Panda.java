@@ -621,7 +621,7 @@ public class Panda extends Animal {
         @Override
         public boolean canUse() {
             if (panda.random().nextFloat() >= probability) return false;
-            if (lookAt == null) lookAt = panda.level().getNearestPlayer(panda, lookDistance);
+            if (lookAt == null) lookAt = panda.level().getNearestPlayer(lookAtContext, panda, panda.x(), panda.eyeY(), panda.z());
             return panda.canPerformAction() && lookAt != null;
         }
 

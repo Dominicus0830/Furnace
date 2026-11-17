@@ -2,6 +2,7 @@
 // 포털을 지나는 수레·낙하 블록(엔드가 낀 이동은 옛 낙하 블록이 마저 돌아 복제).
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.block.B;
@@ -17,7 +18,7 @@ class MovementBorderM21Test {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static Entity only(DimensionTestLevel level, Class<?> c) {
@@ -83,10 +84,10 @@ class MovementBorderM21Test {
     void dismountBoxOutsideWorldBorderIsRejected() {
         var level = new DimensionTestLevel("minecraft:overworld");
         level.border = new double[] {-10, -10, 10, 10};
-        assertTrue(DismountHelper.canDismountTo(level, new AABB(0.2, -60, 0.2, 0.8, -58.2, 0.8)));
-        assertFalse(DismountHelper.canDismountTo(level, new AABB(9.8, -60, 0.2, 10.4, -58.2, 0.8)), "상자 한쪽이 보더 밖");
-        assertTrue(DismountHelper.canDismountTo(level, new AABB(9.3, -60, 0.2, 9.9, -58.2, 0.8)), "최대 모서리는 1e-5 안쪽까지 본다");
-        assertFalse(DismountHelper.canDismountTo(level, new AABB(-10.4, -60, 0.2, -9.8, -58.2, 0.8)));
+        assertTrue(DismountHelper.canDismountTo(level, null, new AABB(0.2, -60, 0.2, 0.8, -58.2, 0.8)));
+        assertFalse(DismountHelper.canDismountTo(level, null, new AABB(9.8, -60, 0.2, 10.4, -58.2, 0.8)), "상자 한쪽이 보더 밖");
+        assertTrue(DismountHelper.canDismountTo(level, null, new AABB(9.3, -60, 0.2, 9.9, -58.2, 0.8)), "최대 모서리는 1e-5 안쪽까지 본다");
+        assertFalse(DismountHelper.canDismountTo(level, null, new AABB(-10.4, -60, 0.2, -9.8, -58.2, 0.8)));
     }
 
     @Test

@@ -1,6 +1,7 @@
 // 플레이어별 숨기기·변장이 몹·물건 추적기(EntityTracker)와 연결별 패킷 변환(ViewRewriter)에서 어떻게 나가는지.
 package org.domi.furnace.server.entity.view;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -38,7 +39,7 @@ class EntityViewTrackerTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @AfterEach

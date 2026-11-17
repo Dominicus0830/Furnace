@@ -4,12 +4,15 @@ package org.domi.furnace.server.net.protocol.play;
 import io.netty.buffer.ByteBuf;
 import java.util.List;
 import java.util.UUID;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundPlayerInfoRemovePacket")
 public record PlayerInfoRemove(List<UUID> uuids) implements Packet {
 
-    public static final int ID = 0x3D; // 바닐라 datagen play.clientbound.player_info_remove = 61
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_PLAYER_INFO_REMOVE; // 바닐라 datagen play.clientbound.player_info_remove = 61
 
     @Override
     public int id() {

@@ -1,12 +1,14 @@
 // 바닐라 MangroveRootsBlock: 물에 잠길 수 있고, 같은 블록끼리 위아래 면은 가리지 않는다(skipRendering — 클라).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.MangroveRootsBlock")
 public class MangroveRootsBlock extends BlockBehavior {
 
     public MangroveRootsBlock(int block) { super(block); }

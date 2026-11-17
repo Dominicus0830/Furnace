@@ -1,12 +1,14 @@
 // 바닐라 BrewingStandBlock: 양조기(블록 엔티티·화면). 비교기는 그 칸 용기 채움 정도를 읽는다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Hit;
 import org.domi.furnace.server.block.InteractionResult;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.BrewingStandBlock")
 public class BrewingStandBlock extends BaseEntityBlock {
 
     public BrewingStandBlock(int block) { super(block); }

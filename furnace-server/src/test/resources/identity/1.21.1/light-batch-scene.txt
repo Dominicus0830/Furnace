@@ -1,0 +1,152 @@
+# 결과 동일 금 파일 — light-batch-scene. 최적화 PR 은 이 파일을 바꾸지 않는다. 갱신 절차: docs/testing/identitykit.md
+seed 1 P1 load light 92501e69fb4733ff
+seed 1 P1 load packets 8e117c68c2de8fcf
+seed 1 P2 batch 0 packets d6b397732c85031c
+seed 1 P2 batch 0 light e447e79b946bb508
+seed 1 P2 batch 1 packets 8ec6628f0bf4bfa4
+seed 1 P2 batch 1 light 773588293894e79c
+seed 1 P2 batch 2 packets e95abf1e8192b8cb
+seed 1 P2 batch 2 light 88d7120946160ab4
+seed 1 P2 batch 3 packets 65f8415f768593b9
+seed 1 P2 batch 3 light 9718e53a60c1f8b8
+seed 1 P2 batch 4 packets 1e940ceafb9b4fc3
+seed 1 P2 batch 4 light 1fd977f3905e70a6
+seed 1 P3 pre packets f7e3a8c801f4b583
+seed 1 P3 unloaded-edit packets 59d712df4c243398
+seed 1 P3 unloaded-edit light 89d3aea5673e53d6
+seed 1 P3 reload packets 3fcebbf9b4f4da59
+seed 1 P3 reload light 4ca895b1388cedc8
+seed 1 P4 staggered reload light ec9176dda7b8113f
+seed 1 P5 reload packets 02a15bddba6130af
+seed 1 P5 reload light 68f485793b43c426
+seed 1 P6 batch 0 packets acb64122edf33f71
+seed 1 P6 batch 1 packets cddd82162549dd7d
+seed 1 P6 batch 2 packets 10affac336a81944
+seed 1 P7 reload packets 6bb34f5c00d2d5d2
+seed 1 P7 reload light 8261e87d1774e9ba
+seed 1 end chunk -3,0 39bbd4aa22e633dc
+seed 1 end chunk -3,1 adffdf56f57479b8
+seed 1 end chunk -3,2 cb327deb64d07abc
+seed 1 end chunk -3,3 1537ec188a41144d
+seed 1 end chunk -3,-3 ce017b91ad6d91ad
+seed 1 end chunk -3,-2 6e6ccfbb45af5884
+seed 1 end chunk -3,-1 fe81dc9ba1cae584
+seed 1 end chunk -2,0 299ff5fdfd612596
+seed 1 end chunk -2,1 3b40f344ee7770c2
+seed 1 end chunk -2,2 1c86e709378d565d
+seed 1 end chunk -2,3 10e19557d9e2b1b2
+seed 1 end chunk -2,-3 bb5fef8ce88d4af8
+seed 1 end chunk -2,-2 9a5e02f37954daf1
+seed 1 end chunk -2,-1 4b981ee26cc59769
+seed 1 end chunk -1,0 c0b3fce01ad4013a
+seed 1 end chunk -1,1 7457424b671a9c4c
+seed 1 end chunk -1,2 40fde8377746fe3a
+seed 1 end chunk -1,3 190c8b8e021150c5
+seed 1 end chunk -1,-3 35e1a13b7a726b01
+seed 1 end chunk -1,-2 ed51a2b82a25bd96
+seed 1 end chunk -1,-1 070991162f6f4123
+seed 1 end chunk 0,0 db2a8bcb31b09794
+seed 1 end chunk 0,1 132d76819c5d1fbe
+seed 1 end chunk 0,2 f2ae6fc7269ac92f
+seed 1 end chunk 0,3 b454dce6a238a056
+seed 1 end chunk 0,-3 61ca47356e5a00dd
+seed 1 end chunk 0,-2 38f873ce3d55caa9
+seed 1 end chunk 0,-1 baae12850ddfba2f
+seed 1 end chunk 1,0 327c0848c7b207ac
+seed 1 end chunk 1,1 f3fdbda1c5663017
+seed 1 end chunk 1,2 75b546128a59242a
+seed 1 end chunk 1,3 993189aa2f3c1479
+seed 1 end chunk 1,-3 678071b21291d7ca
+seed 1 end chunk 1,-2 7b9da8a74cd0a981
+seed 1 end chunk 1,-1 2c2e88131304a9e9
+seed 1 end chunk 2,0 db52b8f7402d5018
+seed 1 end chunk 2,1 94ff18285b7a497b
+seed 1 end chunk 2,2 f6197188c712c2b8
+seed 1 end chunk 2,3 fdc7c81732d1a587
+seed 1 end chunk 2,-3 7115f2484df0b16c
+seed 1 end chunk 2,-2 0569ad214f49fafc
+seed 1 end chunk 2,-1 41f0e71c2c5932f7
+seed 1 end chunk 3,0 e1ff9037064f3ef9
+seed 1 end chunk 3,1 eb7fe607c11e578d
+seed 1 end chunk 3,2 ed5fa5c07e770d8f
+seed 1 end chunk 3,3 758825e149096504
+seed 1 end chunk 3,-3 e2431dd90326d03c
+seed 1 end chunk 3,-2 2791e15316fa1095
+seed 1 end chunk 3,-1 2d16849a7cfa11aa
+seed 1 end chunk 4,3 1863a054594a7007
+seed 2 P1 load light eee258886c63143c
+seed 2 P1 load packets 4d4592530088f5e6
+seed 2 P2 batch 0 packets 6e8b935304f8aa56
+seed 2 P2 batch 0 light a1448daa83624fe7
+seed 2 P2 batch 1 packets 1adb4a85ee7ce9ab
+seed 2 P2 batch 1 light a3ca090344ecbea6
+seed 2 P2 batch 2 packets 2c6072c35198f061
+seed 2 P2 batch 2 light 47cc4da0b570255d
+seed 2 P2 batch 3 packets 4a1c9c709bf91d97
+seed 2 P2 batch 3 light 5bc8beec1c81ba47
+seed 2 P2 batch 4 packets eed6c68806a0df45
+seed 2 P2 batch 4 light 2cb2e8fe067083bb
+seed 2 P3 pre packets 1f01c6bfcbc94034
+seed 2 P3 unloaded-edit packets 8e4d3f107049a0f3
+seed 2 P3 unloaded-edit light 74ecd76fb814657b
+seed 2 P3 reload packets fbe086d35d757eb4
+seed 2 P3 reload light 97a3a10ae3d87688
+seed 2 P4 staggered reload light e94b1144ac5e62fd
+seed 2 P5 reload packets cee59029e11f0e3b
+seed 2 P5 reload light 15c50139e2afdd12
+seed 2 P6 batch 0 packets 44a29ecc5bb19e19
+seed 2 P6 batch 1 packets ce34496cbdd1f985
+seed 2 P6 batch 2 packets 18a50736cfea2b57
+seed 2 P7 reload packets 18a50736cfea2b57
+seed 2 P7 reload light cf1ed5543f562b89
+seed 2 end chunk -3,0 3890fea89bab7ac3
+seed 2 end chunk -3,1 872cb93f10dfa81f
+seed 2 end chunk -3,2 50ba2738058d37b5
+seed 2 end chunk -3,3 8bd69a409404a3fa
+seed 2 end chunk -3,-3 432c538a551662ed
+seed 2 end chunk -3,-2 a416da3a9828c771
+seed 2 end chunk -3,-1 841fc62d05025a63
+seed 2 end chunk -2,0 166dfb03508e657e
+seed 2 end chunk -2,1 46499232939e65e3
+seed 2 end chunk -2,2 a81fd1cc5d6121e0
+seed 2 end chunk -2,3 0324bf53cfdbf70d
+seed 2 end chunk -2,-3 6a5516f6834b5b88
+seed 2 end chunk -2,-2 d1038e83277bdf87
+seed 2 end chunk -2,-1 d0d999f300469e57
+seed 2 end chunk -1,0 bf72c2499179b254
+seed 2 end chunk -1,1 2ed6695395bd6b67
+seed 2 end chunk -1,2 35142757a580edf7
+seed 2 end chunk -1,3 c0d2adc32cbc269c
+seed 2 end chunk -1,-3 0acdfe3d7cef23be
+seed 2 end chunk -1,-2 a3bda7d3d1be9b0c
+seed 2 end chunk -1,-1 e7b6971bf5ca4b1e
+seed 2 end chunk 0,0 19467f7754ea8afe
+seed 2 end chunk 0,1 03c3a09f03f8d29c
+seed 2 end chunk 0,2 6a1eee92d5351a37
+seed 2 end chunk 0,3 b671a8f65f1a5b20
+seed 2 end chunk 0,-3 adbe10cd5d898e44
+seed 2 end chunk 0,-2 39a4c6c3821512f2
+seed 2 end chunk 0,-1 3d9e6e46fe99ada8
+seed 2 end chunk 1,0 5f47659b81ddd1dd
+seed 2 end chunk 1,1 21c66df9c85f37c7
+seed 2 end chunk 1,2 3eb2767262e37012
+seed 2 end chunk 1,3 de575a8268f3a642
+seed 2 end chunk 1,-3 7dd1d6e6c2a801ea
+seed 2 end chunk 1,-2 db8cdfe24a284b13
+seed 2 end chunk 1,-1 460389d5fd839b33
+seed 2 end chunk 2,0 15ce04228b10f459
+seed 2 end chunk 2,1 bd1a6aba5d340392
+seed 2 end chunk 2,2 741a8235fe4b9b5e
+seed 2 end chunk 2,3 82c985af7fb54ea6
+seed 2 end chunk 2,-3 ed11bf152b8b73d1
+seed 2 end chunk 2,-2 36a36f3b90390e16
+seed 2 end chunk 2,-1 3c1f45e3bb7f979f
+seed 2 end chunk 3,0 ef43898e73a5d9f3
+seed 2 end chunk 3,1 6dc955fb88b8dff3
+seed 2 end chunk 3,2 689f70a5262817e0
+seed 2 end chunk 3,3 bc78befe041deffe
+seed 2 end chunk 3,-3 94486bf7e4af8a7e
+seed 2 end chunk 3,-2 9c6ca0a34b26aa12
+seed 2 end chunk 3,-1 0ad95d8f3ba35b27
+seed 2 end chunk 4,3 12b19f7939c7c672
+TOTAL d00dba0970248b0f lines=150

@@ -2,11 +2,14 @@
 package org.domi.furnace.server.net.protocol.handshake;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
+@VanillaPort("net.minecraft.network.protocol.handshake.ClientIntentionPacket")
 public record Handshake(int protocolVersion, String serverAddress, int serverPort, int nextState) {
 
-    public static final int ID = 0x00;
+    public static final int ID = PacketIds.HANDSHAKE_SERVERBOUND_INTENTION;
 
     /** 바닐라 주소 칸 상한. */
     public static final int MAX_ADDRESS = 255;

@@ -37,7 +37,7 @@ public final class LegacyCommand {
     public LegacyCommand(FurnacePlugin plugin, String name) {
         if (plugin == null) throw new IllegalArgumentException("plugin");
         String n = name == null ? "" : name.toLowerCase(Locale.ROOT).trim();
-        if (n.isEmpty() || n.indexOf(' ') >= 0 || n.indexOf(':') >= 0) throw new IllegalArgumentException("명령 이름이 잘못됐다: '" + name + "'");
+        if (n.isEmpty() || n.indexOf(' ') >= 0 || n.indexOf(':') >= 0) throw new IllegalArgumentException("invalid command name: '" + name + "'");
         this.plugin = plugin;
         this.name = n;
         this.usage = "/" + n;

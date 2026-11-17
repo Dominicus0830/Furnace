@@ -2,6 +2,7 @@
 // 사망 메시지가 death.fell.accident.ladder, 떨어지기 전에 그 칸을 부수면 other_climbable 이다(바닐라 FallLocation).
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -24,7 +25,7 @@ class TrapdoorLadderFallE2ETest {
     @BeforeAll
     static void installItems() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @TempDir Path tmp;
@@ -97,7 +98,7 @@ class TrapdoorLadderFallE2ETest {
         try {
             ServerCore core = TestServers.core(tmp, sched);
             // 실제 서버(FurnaceMain)처럼 블록 레지스트리를 건다 — 플레이어 주변 블록 판정(PlayerProbe)이 이것을 쓴다
-            core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt"), null);
+            core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), null);
             core.world().startTicking();
             ServerLoginContext ctx = ServerLoginContext.offline("t").core(core);
             server = new NetworkServer(0, -1, ctx, sched, core.world(), new EntityIdAllocator());

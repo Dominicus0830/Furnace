@@ -1,8 +1,8 @@
-// 레시피 레지스트리 — Furnace.recipes(). 데이터 팩 레시피와 플러그인 레시피를 한 표로 본다.
-// 제작대·2×2 제작·제작기(크래프터)·화로류·석재 절단기·대장장이 작업대가 모두 같은 표를 읽는다 — 등록하면 그 칸들에서 바로 맞는다.
+// 레시피 레지스트리(Furnace.recipes()). 데이터 팩 레시피와 플러그인 레시피를 한 표로 본다.
+// 제작대·2×2 제작·제작기(크래프터)·화로류·석재 절단기·대장장이 작업대가 모두 같은 표를 읽는다. 등록하면 그 칸들에서 바로 맞는다.
 //
 // 키는 "네임스페이스:이름" 소문자. 플러그인 레시피는 등록한 플러그인이 꺼지면 함께 내려가고, /reload 뒤에도 남는다.
-// 바닐라(데이터 팩) 레시피도 remove 할 수 있다 — 그 제거는 /reload 뒤에도 유지된다(restore 로 되돌린다).
+// 바닐라(데이터 팩) 레시피도 remove 할 수 있다. 그 제거는 /reload 뒤에도 유지된다(restore 로 되돌린다).
 // 등록·제거는 어느 스레드에서 불러도 된다. 접속자에게는 바뀐 레시피 목록을 곧바로 다시 보낸다.
 package org.domi.furnace.api.recipe;
 
@@ -39,4 +39,15 @@ public interface RecipeRegistry {
 
     /** 키가 플러그인 레시피인가(데이터 팩 레시피는 false). */
     boolean isPluginRecipe(String key);
+
+    /**
+     * 그 종류의 화로(화로·용광로·훈연기, 모닥불은 CAMPFIRE)가 이 아이템을 구울 레시피가 있는가. 서버 화로가 쓰는 조회와 같다
+     * (바닐라 RecipeManager.getRecipeFor). 빈 아이템이나 레시피 데이터 없이 뜬 서버면 거짓.
+     */
+    default boolean canCook(Recipe.CookingKind kind, org.domi.furnace.api.item.ItemStack input) { return cookingTime(kind, input).isPresent(); }
+
+    /** {@link #canCook} 와 같은 조회로 찾은 레시피의 굽는 시간(틱). 없으면 empty. */
+    default java.util.OptionalInt cookingTime(Recipe.CookingKind kind, org.domi.furnace.api.item.ItemStack input) {
+        throw new UnsupportedOperationException("cookingTime");
+    }
 }

@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.domi.furnace.api.config.ConfigSection;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,17 +56,20 @@ public final class PaperConfigImport {
     static final long PAPER_DEFAULT_UNLOAD_DELAY_TICKS = 200;   // 10s
 
     public enum Kind {
-        IMPORTED("옮김 — furnace.properties 에 적었다"),
-        KEPT("이미 furnace.properties 에 있어 그대로 둠"),
-        DEFAULT("Paper 기본값 그대로라 옮기지 않음 — 같게 하려면 표시한 줄을 furnace.properties 에 넣는다"),
-        MANUAL("직접 확인 — 비슷한 기능은 있지만 자동으로 옮기지 못함"),
-        UNSUPPORTED("Furnace 에 대응이 없음"),
-        IGNORED("무시 — 버전 표지 등 옮길 값이 아님"),
-        UNKNOWN("Furnace 가 모르는 키");
+        IMPORTED("paperimport.kind-imported"),
+        KEPT("paperimport.kind-kept"),
+        DEFAULT("paperimport.kind-default"),
+        MANUAL("paperimport.kind-manual"),
+        UNSUPPORTED("paperimport.kind-unsupported"),
+        IGNORED("paperimport.kind-ignored"),
+        UNKNOWN("paperimport.kind-unknown");
 
-        public final String title;
+        private final String titleKey;
 
-        Kind(String title) { this.title = title; }
+        Kind(String titleKey) { this.titleKey = titleKey; }
+
+        /** 보고서 구역 제목(서버 언어). */
+        public String title() { return Lang.t(titleKey); }
     }
 
     /** value 는 원본 값(비밀은 가림), target 은 Furnace 쪽 키=값(또는 안내), note 는 이유. */
@@ -91,7 +95,7 @@ public final class PaperConfigImport {
             Result r = analyzeAndApply(serverDir, furnaceProps, report);
             if (r != null) logSummary(r, report);
         } catch (IOException | RuntimeException e) {
-            log.warn("Paper/Spigot 설정을 가져오지 못했다 — 건너뛴다(서버는 그대로 켠다). furnace.properties 를 손으로 맞춰라", e);
+            log.warn(Lang.t("paperimport.import-failed"), e);
         }
     }
 
@@ -108,7 +112,7 @@ public final class PaperConfigImport {
         Result r = analyze(found, existing);
         List<String> extra = new ArrayList<>();
         if (Files.exists(serverDir.resolve(LEGACY_PAPER))) {
-            extra.add("paper.yml 은 Paper 1.19 이전 형식이라 읽지 않았다. 새 Paper 로 한 번 켜면 config/paper-global.yml 로 바뀌니 그 파일을 두고 다시 가져와라(-D" + MODE_PROPERTY + "=force).");
+            extra.add(Lang.t("paperimport.legacy-paper-yml", MODE_PROPERTY));
         }
         // furnace.properties 먼저, 보고서는 나중 — 쓰기에 실패하면 보고서가 없어 다음 기동 때 다시 시도한다.
         if (!r.toWrite().isEmpty()) appendProperties(furnaceProps, r, found.keySet());
@@ -127,9 +131,8 @@ public final class PaperConfigImport {
     }
 
     private static void logSummary(Result r, Path report) {
-        log.info("Paper/Spigot 설정 가져오기: 옮김 {} · 이미 있음 {} · Paper 기본값 {} · 직접 확인 {} · 대응 없음 {} · 모르는 키 {} — 자세한 내용: {}",
-                r.count(Kind.IMPORTED), r.count(Kind.KEPT), r.count(Kind.DEFAULT), r.count(Kind.MANUAL),
-                r.count(Kind.UNSUPPORTED), r.count(Kind.UNKNOWN), report.toAbsolutePath().normalize());
+        log.info(Lang.t("paperimport.summary", r.count(Kind.IMPORTED), r.count(Kind.KEPT), r.count(Kind.DEFAULT), r.count(Kind.MANUAL),
+                r.count(Kind.UNSUPPORTED), r.count(Kind.UNKNOWN), report.toAbsolutePath().normalize()));
         for (Entry e : r.entries()) {
             if (e.kind == Kind.IMPORTED) log.info("  {} {} → {}", e.file, e.key, e.target);
         }
@@ -137,12 +140,12 @@ public final class PaperConfigImport {
         for (Entry e : r.entries()) {
             if (e.kind != Kind.MANUAL) continue;
             if (shown++ >= 8) {
-                log.warn("  … 직접 확인할 항목이 더 있다 — 보고서를 봐라");
+                log.warn("  {}", Lang.t("paperimport.more-manual"));
                 break;
             }
-            log.warn("  직접 확인: {} {} — {}", e.file, e.key, e.note);
+            log.warn("  {}", Lang.t("paperimport.manual-line", e.file, e.key, e.note));
         }
-        for (String f : r.filesFailed().keySet()) log.warn("  {} 을(를) 읽지 못했다: {}", f, r.filesFailed().get(f));
+        for (String f : r.filesFailed().keySet()) log.warn("  {}", Lang.t("paperimport.file-unreadable", f, r.filesFailed().get(f)));
     }
 
     // ------------------------------------------------------------------ 분석 (파일 쓰기 없음)
@@ -173,7 +176,7 @@ public final class PaperConfigImport {
             } catch (IOException | RuntimeException e) {
                 // 문법 오류 메시지는 문제 줄 원문을 담는데 그 줄이 비밀키일 수 있다 — 줄·칸 번호와 설명만 남긴다.
                 filesFailed.put(label, e instanceof org.domi.furnace.api.config.ConfigParseException pe
-                        ? pe.detail() + " (줄 " + pe.line() + ", 칸 " + pe.column() + ")"
+                        ? Lang.t("paperimport.yaml-position", pe.detail(), pe.line(), pe.column())
                         : e.getClass().getSimpleName());
             }
         }
@@ -229,9 +232,9 @@ public final class PaperConfigImport {
         void imp(String file, String key, Object value, String furnaceKey, String furnaceValue, String note) {
             String line = furnaceKey + "=" + (isSecret(furnaceKey) ? "****" : furnaceValue);
             if (existing.containsKey(furnaceKey)) {
-                add(Kind.KEPT, file, key, value, furnaceKey, "furnace.properties 에 " + furnaceKey + " 가 이미 있다 — Paper 값은 쓰지 않는다");
+                add(Kind.KEPT, file, key, value, furnaceKey, Lang.t("paperimport.kept-existing", furnaceKey));
             } else if (toWrite.containsKey(furnaceKey)) {
-                add(Kind.KEPT, file, key, value, furnaceKey, "다른 Paper/Spigot 설정이 먼저 " + furnaceKey + " 를 옮겼다");
+                add(Kind.KEPT, file, key, value, furnaceKey, Lang.t("paperimport.kept-earlier", furnaceKey));
             } else {
                 toWrite.put(furnaceKey, furnaceValue);
                 add(Kind.IMPORTED, file, key, value, line, note);
@@ -261,7 +264,7 @@ public final class PaperConfigImport {
             if (hit.isEmpty()) return;
             for (String k : hit) covered.computeIfAbsent(file, f -> new LinkedHashSet<>()).add(k);
             String key = hit.size() == 1 ? hit.get(0) : prefix + ".*";
-            String value = hit.size() == 1 ? fmt(hit.get(0), d.get(hit.get(0))) : hit.size() + "개";
+            String value = hit.size() == 1 ? fmt(hit.get(0), d.get(hit.get(0))) : Lang.t("paperimport.count-items", hit.size());
             entries.add(new Entry(kind, file, key, value, target, note));
         }
 
@@ -289,6 +292,8 @@ public final class PaperConfigImport {
             chunkUnload();
             ioThreads();
             itemValidation();
+            activationRange();
+            entityHandles();
             manualAndUnsupported();
             versionMarkers();
             unknown();
@@ -308,16 +313,16 @@ public final class PaperConfigImport {
             if (Boolean.TRUE.equals(velEnabled)) {
                 if (!secret.isEmpty() && existingBungee) {
                     manual(PAPER_GLOBAL, "proxies.velocity.secret", secretRaw, "velocity-secret",
-                            "furnace.properties 에 bungeecord=true 가 이미 있다 — Velocity 와 함께 켜면 기동이 실패해 옮기지 않았다. 쓰려면 bungeecord 를 지우고 velocity-secret 을 넣어라");
+                            Lang.t("paperimport.bungee-present-blocks-velocity"));
                 } else if (secret.isEmpty()) {
                     manual(PAPER_GLOBAL, "proxies.velocity.secret", secretRaw, "velocity-secret",
-                            "Velocity 를 켰는데 secret 이 비어 있다 — 프록시의 forwarding.secret 과 같은 값을 velocity-secret 에 넣어라");
+                            Lang.t("paperimport.velocity-secret-empty"));
                 } else {
                     imp(PAPER_GLOBAL, "proxies.velocity.secret", secretRaw, "velocity-secret", secret,
-                            "Velocity 모던 포워딩(enabled=true). 비밀키는 보고서에 적지 않았다");
+                            Lang.t("paperimport.velocity-modern-forwarding"));
                 }
             } else if (velEnabled != null && !secret.isEmpty()) {
-                ignored(PAPER_GLOBAL, "proxies.velocity.secret", secretRaw, "proxies.velocity.enabled=false 라 옮기지 않았다");
+                ignored(PAPER_GLOBAL, "proxies.velocity.secret", secretRaw, Lang.t("paperimport.proxies-velocity-secret"));
             }
 
             if (Boolean.TRUE.equals(bungee)) {
@@ -325,20 +330,20 @@ public final class PaperConfigImport {
                 boolean velocityActive = !curSecret.isEmpty() || toWrite.containsKey("velocity-secret") || velocityWanted;
                 if (velocityActive) {
                     manual(SPIGOT, "settings.bungeecord", true, "bungeecord",
-                            "Velocity 와 BungeeCord 포워딩은 함께 켤 수 없다(켜면 기동 실패) — Velocity 를 남기고 bungeecord 는 옮기지 않았다");
+                            Lang.t("paperimport.velocity-and-bungee-conflict"));
                 } else {
                     imp(SPIGOT, "settings.bungeecord", true, "bungeecord", "true",
-                            "BungeeCord 레거시 포워딩. 프록시 없이 직접 열린 포트가 없도록 방화벽을 확인해라(서명이 없다)");
+                            Lang.t("paperimport.bungee-legacy-forwarding"));
                 }
             } else if (bungee != null) {
-                keptDefault(SPIGOT, "settings.bungeecord", bungee, "bungeecord", "false", "꺼져 있다 — Furnace 기본(false)과 같다");
+                keptDefault(SPIGOT, "settings.bungeecord", bungee, "bungeecord", "false", Lang.t("paperimport.bungee-off-default"));
             }
 
             if (Boolean.TRUE.equals(proxyProtocol)) {
                 imp(PAPER_GLOBAL, "proxies.proxy-protocol", true, "proxy-protocol", "true",
-                        "PROXY 프로토콜(HAProxy 등). 앞단 주소만 믿게 proxy-protocol.trusted=<주소/대역> 을 같이 넣는 것을 권한다(비면 누구나 보낼 수 있다)");
+                        Lang.t("paperimport.proxy-protocol-trusted-hint"));
             } else if (proxyProtocol != null) {
-                keptDefault(PAPER_GLOBAL, "proxies.proxy-protocol", proxyProtocol, "proxy-protocol", "false", "꺼져 있다 — Furnace 기본과 같다");
+                keptDefault(PAPER_GLOBAL, "proxies.proxy-protocol", proxyProtocol, "proxy-protocol", "false", Lang.t("paperimport.proxy-protocol-off-default"));
             }
 
             if (bungeeOnline != null) {
@@ -346,9 +351,9 @@ public final class PaperConfigImport {
                         || !existing.getProperty("velocity-secret", "").isBlank();
                 if (behindProxy) {
                     manual(PAPER_GLOBAL, "proxies.bungee-cord.online-mode", bungeeOnline, "server.properties online-mode",
-                            "프록시 뒤에서는 server.properties 의 online-mode=false 여야 한다(프록시가 인증한다). Furnace 는 server.properties 를 그대로 읽는다");
+                            Lang.t("paperimport.server-properties-online-mode"));
                 } else {
-                    ignored(PAPER_GLOBAL, "proxies.bungee-cord.online-mode", bungeeOnline, "프록시(BungeeCord/Velocity)를 쓰지 않아 해당 없다");
+                    ignored(PAPER_GLOBAL, "proxies.bungee-cord.online-mode", bungeeOnline, Lang.t("paperimport.proxies-bungee-cord-online-mode"));
                 }
             }
         }
@@ -364,21 +369,21 @@ public final class PaperConfigImport {
             long ticks;
             if (p != null && p > 0) {
                 key = "chunks.auto-save-interval"; file = PAPER_WORLD; raw = pv; ticks = p;
-                if (bv != null) ignored(BUKKIT, "ticks-per.autosave", bv, "paper-world-defaults.yml 의 값이 우선이라 쓰이지 않는다");
+                if (bv != null) ignored(BUKKIT, "ticks-per.autosave", bv, Lang.t("paperimport.autosave-world-wins"));
             } else if (b != null && b > 0) {
                 key = "ticks-per.autosave"; file = BUKKIT; raw = bv; ticks = b;
-                if (pv != null && p == null) ignored(PAPER_WORLD, "chunks.auto-save-interval", pv, "default — bukkit.yml 의 ticks-per.autosave 를 따른다");
+                if (pv != null && p == null) ignored(PAPER_WORLD, "chunks.auto-save-interval", pv, Lang.t("paperimport.autosave-follows-bukkit"));
             } else {
-                if (pv != null) ignored(PAPER_WORLD, "chunks.auto-save-interval", pv, "숫자(틱)가 아니거나 0 이하라 옮기지 않았다");
-                if (bv != null) ignored(BUKKIT, "ticks-per.autosave", bv, "숫자(틱)가 아니거나 0 이하라 옮기지 않았다");
+                if (pv != null) ignored(PAPER_WORLD, "chunks.auto-save-interval", pv, Lang.t("paperimport.autosave-bad-world-value"));
+                if (bv != null) ignored(BUKKIT, "ticks-per.autosave", bv, Lang.t("paperimport.autosave-bad-bukkit-value"));
                 return;
             }
             if (ticks > Integer.MAX_VALUE) {
-                ignored(file, key, raw, "너무 커서 옮기지 않았다");
+                ignored(file, key, raw, Lang.t("paperimport.too-large"));
             } else if (ticks == PAPER_DEFAULT_AUTOSAVE_TICKS) {
-                keptDefault(file, key, raw, "autosave-ticks", "6000", "Paper 기본값(6000틱)과 같다 — Furnace 기본도 6000이다");
+                keptDefault(file, key, raw, "autosave-ticks", "6000", Lang.t("paperimport.autosave-same-default"));
             } else {
-                imp(file, key, raw, "autosave-ticks", Long.toString(ticks), "자동 저장 간격(틱)");
+                imp(file, key, raw, "autosave-ticks", Long.toString(ticks), Lang.t("paperimport.autosave-label"));
             }
         }
 
@@ -388,13 +393,13 @@ public final class PaperConfigImport {
             Long ticks = durationTicks(raw);
             if (ticks == null || ticks < 1 || ticks > Integer.MAX_VALUE) {
                 manual(PAPER_WORLD, "chunks.delay-chunk-unloads-by", raw, "chunk-eviction-grace-ticks",
-                        "시간 표기를 읽지 못했다(숫자만 또는 10s·2m·1h·1d 만 읽는다) — 틱 수로 직접 넣어라(1초 = 20틱)");
+                        Lang.t("paperimport.grace-bad-duration"));
             } else if (ticks == PAPER_DEFAULT_UNLOAD_DELAY_TICKS) {
                 keptDefault(PAPER_WORLD, "chunks.delay-chunk-unloads-by", raw, "chunk-eviction-grace-ticks", "200",
-                        "Paper 기본(10s)과 같다 — Furnace 는 기본 100틱(5초)을 쓴다. Paper 와 같게 하려면 이 줄을 넣어라");
+                        Lang.t("paperimport.grace-same-default"));
             } else {
                 imp(PAPER_WORLD, "chunks.delay-chunk-unloads-by", raw, "chunk-eviction-grace-ticks", Long.toString(ticks),
-                        "청크를 내리기 전 유예(틱 = 시간 ÷ 50ms)");
+                        Lang.t("paperimport.grace-label"));
             }
         }
 
@@ -403,24 +408,24 @@ public final class PaperConfigImport {
             if (raw == null) return;
             Long n = asLong(raw);
             if (n == null) {
-                manual(PAPER_GLOBAL, "chunk-system.io-threads", raw, "io-threads", "숫자가 아니라 옮기지 않았다");
+                manual(PAPER_GLOBAL, "chunk-system.io-threads", raw, "io-threads", Lang.t("paperimport.io-threads-not-number"));
             } else if (n <= 0) {
-                keptDefault(PAPER_GLOBAL, "chunk-system.io-threads", raw, "io-threads", "4", "자동(-1) — Furnace 는 기본 4개를 쓴다");
+                keptDefault(PAPER_GLOBAL, "chunk-system.io-threads", raw, "io-threads", "4", Lang.t("paperimport.io-threads-auto"));
             } else if (n > Integer.MAX_VALUE) {
-                ignored(PAPER_GLOBAL, "chunk-system.io-threads", raw, "너무 커서 옮기지 않았다");
+                ignored(PAPER_GLOBAL, "chunk-system.io-threads", raw, Lang.t("paperimport.io-threads-too-large"));
             } else {
-                imp(PAPER_GLOBAL, "chunk-system.io-threads", raw, "io-threads", Long.toString(n), "청크 입출력 스레드 수");
+                imp(PAPER_GLOBAL, "chunk-system.io-threads", raw, "io-threads", Long.toString(n), Lang.t("paperimport.io-threads-label"));
             }
         }
 
         private static final int MAX_ITEM_LIMIT = 1_000_000;
 
         private void itemValidation() {
-            itemLimit("item-validation.display-name", "limits.item.display-name", 8192, "아이템 이름 글자 수 상한");
-            itemLimit("item-validation.loc-name", "limits.item.item-name", 8192, "가장 가까운 대응(item_name 컴포넌트)");
-            itemLimit("item-validation.lore-line", "limits.item.lore-line", 8192, "설명 한 줄 글자 수 상한");
-            itemLimit("item-validation.book.author", "limits.item.book-author", 8192, "책 저자 글자 수 상한");
-            itemLimit("item-validation.book.page", "limits.item.book-page", 16384, "책 한 쪽 글자 수 상한");
+            itemLimit("item-validation.display-name", "limits.item.display-name", 8192, Lang.t("paperimport.limits-item-display-name"));
+            itemLimit("item-validation.loc-name", "limits.item.item-name", 8192, Lang.t("paperimport.limits-item-item-name"));
+            itemLimit("item-validation.lore-line", "limits.item.lore-line", 8192, Lang.t("paperimport.limits-item-lore-line"));
+            itemLimit("item-validation.book.author", "limits.item.book-author", 8192, Lang.t("paperimport.limits-item-book-author"));
+            itemLimit("item-validation.book.page", "limits.item.book-page", 16384, Lang.t("paperimport.limits-item-book-page"));
         }
 
         private void itemLimit(String key, String furnaceKey, long paperDefault, String note) {
@@ -428,15 +433,143 @@ public final class PaperConfigImport {
             if (raw == null) return;
             Long n = asLong(raw);
             if (n == null) {
-                manual(PAPER_GLOBAL, key, raw, furnaceKey, "숫자가 아니라 옮기지 않았다");
+                manual(PAPER_GLOBAL, key, raw, furnaceKey, Lang.t("paperimport.not-a-number"));
             } else if (n == paperDefault) {
                 keptDefault(PAPER_GLOBAL, key, raw, furnaceKey, Long.toString(n),
-                        "Paper 기본값과 같다 — Furnace 는 바닐라 그대로(상한 없음)가 기본이다. Paper 처럼 막으려면 이 줄을 넣어라");
+                        Lang.t("paperimport.item-limit-same-default"));
             } else if (n <= 0 || n > MAX_ITEM_LIMIT) {
-                ignored(PAPER_GLOBAL, key, raw, "Furnace 는 1~" + MAX_ITEM_LIMIT + " 만 받는다(0 = 끔) — 옮기지 않았다");
+                ignored(PAPER_GLOBAL, key, raw, Lang.t("paperimport.item-limit-range", MAX_ITEM_LIMIT));
             } else {
-                imp(PAPER_GLOBAL, key, raw, furnaceKey, Long.toString(n), note + " (바닐라 동작보다 조이는 값)");
+                imp(PAPER_GLOBAL, key, raw, furnaceKey, Long.toString(n), note + " " + Lang.t("paperimport.tighter-than-vanilla"));
             }
+        }
+
+        /**
+         * spigot.yml world-settings.default.entity-activation-range.* → furnace.properties 같은 이름(D11). 기본과 같은 값은 옮기지 않는다.
+         * 다른 월드의 값은 Furnace 에 월드별 키가 없어 수동 안내만.
+         */
+        private void activationRange() {
+            String base = "world-settings.default.entity-activation-range.";
+            String ear = EntityActivationSettings.PREFIX;
+            for (String[] k : EntityActivationSettings.INT_KEYS) {
+                Object v = val(SPIGOT, base + k[0]);
+                if (v == null) continue;
+                Long n = asLong(v);
+                if (n == null || n != (int) (long) n) ignored(SPIGOT, base + k[0], v, Lang.t("paperimport.not-an-integer"));
+                else if (String.valueOf(n).equals(k[1])) keptDefault(SPIGOT, base + k[0], v, ear + k[0], k[1], Lang.t("paperimport.same-as-furnace-default"));
+                else imp(SPIGOT, base + k[0], v, ear + k[0], String.valueOf(n), Lang.t("paperimport.activation-range-label"));
+            }
+            // 순수 Spigot 에는 주민·물 동물·나는 적대 몹 종류(villagers·water·flying-monsters 키)가 없다: 주민·물 동물은 animals 범위(PathfinderMob),
+            // 가스트·팬텀은 misc 범위(Monster 도 PathfinderMob 도 아님)를 쓴다. Paper 가 만든 파일은 세 키를 늘 적어 두므로 위에서 그대로 옮겨진다.
+            Long animals = asLong(val(SPIGOT, base + "animals")), misc = asLong(val(SPIGOT, base + "misc"));
+            if (animals != null || misc != null || val(SPIGOT, base + "monsters") != null) {   // Spigot 활성 범위 절이 있는 파일만
+                long a = animals != null ? animals : 32, m = misc != null ? misc : 16;   // Spigot 기본
+                spigotOnly(base, "villagers", "animals", a, EntityActivationSettings.DEFAULT.villagers(), Lang.t("paperimport.spigot-villagers-by-animals"));
+                spigotOnly(base, "water", "animals", a, EntityActivationSettings.DEFAULT.water(), Lang.t("paperimport.spigot-water-by-animals"));
+                spigotOnly(base, "flying-monsters", "misc", m, EntityActivationSettings.DEFAULT.flyingMonsters(), Lang.t("paperimport.spigot-flying-by-misc"));
+            }
+            for (String[] k : EntityActivationSettings.BOOL_KEYS) {
+                Object v = val(SPIGOT, base + k[0]);
+                if (v == null) continue;
+                Boolean b = asBool(v);
+                if (b == null) ignored(SPIGOT, base + k[0], v, Lang.t("paperimport.not-a-bool"));
+                else if (String.valueOf(b).equals(k[1])) keptDefault(SPIGOT, base + k[0], v, ear + k[0], k[1], Lang.t("paperimport.activation-bool-same-default"));
+                else imp(SPIGOT, base + k[0], v, ear + k[0], String.valueOf(b), Lang.t("paperimport.activation-bool-label"));
+            }
+            ConfigSection ws = docs.get(SPIGOT) == null ? null : docs.get(SPIGOT).getSection("world-settings");
+            if (ws == null) return;
+            for (String world : ws.keys(false)) {
+                if (world.equals("default")) continue;
+                group(Kind.MANUAL, SPIGOT, "world-settings." + world + ".entity-activation-range", ear + "*",
+                        Lang.t("paperimport.entity-activation-range"));
+            }
+        }
+
+        /**
+         * 엔티티 손잡이(T-122): spigot.yml merge-radius.*·entity-tracking-range.*, paper-world-defaults.yml collisions.max-entity-collisions·allow-player-cramming-damage
+         * (없으면 옛 spigot.yml max-entity-collisions — Paper MaxEntityCollisionsInitializer 와 같은 순서) → furnace.properties 같은 이름.
+         * Furnace 기본(= Paper 1.21.1 기본)과 같은 값은 옮기지 않는다. 다른 월드의 값은 월드별 키가 없어 수동 안내만.
+         */
+        private void entityHandles() {
+            String base = "world-settings.default.";
+            for (String k : new String[]{EntityHandleSettings.ITEM_MERGE, EntityHandleSettings.EXP_MERGE}) {
+                Object v = val(SPIGOT, base + k);
+                if (v == null) continue;
+                Double d = asDouble(v);
+                double def = k.equals(EntityHandleSettings.ITEM_MERGE) ? EntityHandleSettings.DEFAULT.itemMerge() : EntityHandleSettings.DEFAULT.expMerge();
+                String defText = k.equals(EntityHandleSettings.ITEM_MERGE) ? "0.5" : "-1";
+                if (d == null || (k.equals(EntityHandleSettings.ITEM_MERGE) && d < 0)) ignored(SPIGOT, base + k, v, Lang.t("paperimport.merge-bad-value"));
+                else if (d == def || (k.equals(EntityHandleSettings.EXP_MERGE) && d <= 0)) keptDefault(SPIGOT, base + k, v, k, defText, Lang.t("paperimport.merge-same-default"));
+                else imp(SPIGOT, base + k, v, k, fmtNum(d), Lang.t("paperimport.merge-label"));
+            }
+            String col = EntityHandleSettings.MAX_COLLISIONS;
+            Object pv = val(PAPER_WORLD, col);
+            Object sv = val(SPIGOT, base + "max-entity-collisions");
+            String file = pv != null ? PAPER_WORLD : SPIGOT;
+            String key = pv != null ? col : base + "max-entity-collisions";
+            Object v = pv != null ? pv : sv;
+            if (pv == null && sv != null && asLong(sv) != null && asLong(sv) < 0) {
+                ignored(SPIGOT, key, sv, Lang.t("paperimport.collisions-old-key-negative"));
+            } else if (pv != null && sv != null) {
+                ignored(SPIGOT, base + "max-entity-collisions", sv, Lang.t("paperimport.world-defaults-wins", col));
+            }
+            if (v != null && !(pv == null && sv != null && asLong(sv) != null && asLong(sv) < 0)) {
+                Long n = asLong(v);
+                if (n == null || n != (int) (long) n) ignored(file, key, v, Lang.t("paperimport.collisions-not-integer"));
+                else if (n == EntityHandleSettings.DEFAULT.maxEntityCollisions()) keptDefault(file, key, v, col, String.valueOf(n), Lang.t("paperimport.collisions-same-default"));
+                else if (n <= 0) imp(file, key, v, col, "0", Lang.t("paperimport.collisions-zero-means-no-push"));
+                else imp(file, key, v, col, String.valueOf(n), Lang.t("paperimport.collisions-label"));
+            }
+            Object cv = val(PAPER_WORLD, EntityHandleSettings.PLAYER_CRAMMING);
+            if (cv != null) {
+                Boolean b = asBool(cv);
+                if (b == null) ignored(PAPER_WORLD, EntityHandleSettings.PLAYER_CRAMMING, cv, Lang.t("paperimport.cramming-not-bool"));
+                else if (!b) keptDefault(PAPER_WORLD, EntityHandleSettings.PLAYER_CRAMMING, cv, EntityHandleSettings.PLAYER_CRAMMING, "false", Lang.t("paperimport.cramming-same-default"));
+                else imp(PAPER_WORLD, EntityHandleSettings.PLAYER_CRAMMING, cv, EntityHandleSettings.PLAYER_CRAMMING, "true", Lang.t("paperimport.cramming-label"));
+            }
+            for (String[] k : EntityHandleSettings.TRACKING_KEYS) {
+                String sk = base + "entity-tracking-range." + k[0];
+                Object tv = val(SPIGOT, sk);
+                if (tv == null) continue;
+                Long n = asLong(tv);
+                if (n == null || n != (int) (long) n || n < 0) ignored(SPIGOT, sk, tv, Lang.t("paperimport.tracking-bad-value"));
+                else if (String.valueOf(n).equals(k[1])) keptDefault(SPIGOT, sk, tv, EntityHandleSettings.TRACKING + k[0], k[1], Lang.t("paperimport.tracking-same-default"));
+                else imp(SPIGOT, sk, tv, EntityHandleSettings.TRACKING + k[0], String.valueOf(n), Lang.t("paperimport.tracking-label"));
+            }
+            ConfigSection ws = docs.get(SPIGOT) == null ? null : docs.get(SPIGOT).getSection("world-settings");
+            if (ws == null) return;
+            for (String world : ws.keys(false)) {
+                if (world.equals("default")) continue;
+                for (String g : new String[]{"merge-radius", "entity-tracking-range", "max-entity-collisions"}) {
+                    group(Kind.MANUAL, SPIGOT, "world-settings." + world + "." + g, "merge-radius.*·entity-tracking-range.*·" + col,
+                            Lang.t("paperimport.merge-radius-entity-tracking-range"));
+                }
+            }
+        }
+
+        static Double asDouble(Object v) {
+            if (v instanceof Number n) return Double.isFinite(n.doubleValue()) ? n.doubleValue() : null;
+            if (v instanceof String str) {
+                try {
+                    double d = Double.parseDouble(str.strip());
+                    return Double.isFinite(d) ? d : null;
+                } catch (NumberFormatException e) {
+                    return null;
+                }
+            }
+            return null;
+        }
+
+        /** 2.5 → "2.5", 3.0 → "3" (furnace.properties 에 읽기 쉽게). */
+        static String fmtNum(double d) {
+            return d == Math.rint(d) && Math.abs(d) < 1e15 ? Long.toString((long) d) : Double.toString(d);
+        }
+
+        /** 순수 Spigot 파일에 없는 Paper 종류 키를 Spigot 이 실제로 쓰는 범위(from 키 값)로 적는다 — Furnace 기본과 같으면 적지 않는다. */
+        private void spigotOnly(String base, String key, String from, long value, int furnaceDefault, String why) {
+            if (val(SPIGOT, base + key) != null || value != (int) value || value == furnaceDefault) return;
+            imp(SPIGOT, base + from, value, EntityActivationSettings.PREFIX + key, String.valueOf(value),
+                    Lang.t("paperimport.spigot-missing-key", key, why));
         }
 
         private void manualAndUnsupported() {
@@ -446,39 +579,39 @@ public final class PaperConfigImport {
                 Boolean b = asBool(ip);
                 if (Boolean.FALSE.equals(b)) {
                     manual(PAPER_GLOBAL, "logging.log-player-ip-addresses", ip, "server.properties log-ips=false",
-                            "접속 로그에서 IP 를 가리는 키는 바닐라 server.properties 의 log-ips 다(Furnace 도 읽는다)");
+                            Lang.t("paperimport.server-properties-log-ips-false"));
                 } else {
-                    keptDefault(PAPER_GLOBAL, "logging.log-player-ip-addresses", ip, "log-ips", "true", "IP 를 남긴다 — server.properties 기본(log-ips=true)과 같다");
+                    keptDefault(PAPER_GLOBAL, "logging.log-player-ip-addresses", ip, "log-ips", "true", Lang.t("paperimport.log-ips"));
                 }
             }
             Object timeout = val(SPIGOT, "settings.timeout-time");
             if (timeout != null) {
                 Long s = asLong(timeout);
                 if (s != null && s == 60) {
-                    keptDefault(SPIGOT, "settings.timeout-time", timeout, "max-tick-time(server.properties)", "60000", "Spigot 기본(60초)과 같다 — 바닐라 max-tick-time 기본도 60000ms 다");
+                    keptDefault(SPIGOT, "settings.timeout-time", timeout, "max-tick-time(server.properties)", "60000", Lang.t("paperimport.max-tick-time-server-properties"));
                 } else manual(SPIGOT, "settings.timeout-time", timeout, s == null ? "server.properties max-tick-time" : "server.properties max-tick-time=" + s * 1000,
-                        "서버가 멈췄다고 보는 시간(워치독). 바닐라 키 max-tick-time(밀리초)이 같은 역할이다");
+                        Lang.t("paperimport.server-properties-max-tick-time"));
             }
             group(Kind.MANUAL, PAPER_GLOBAL, "watchdog", "server.properties max-tick-time",
-                    "서버 멈춤 감시는 바닐라 max-tick-time 과 Furnace ServerWatchdog 가 한다. 경고 주기 키는 없다");
+                    Lang.t("paperimport.server-properties-max-tick-time-2"));
             Object sendRate = val(PAPER_GLOBAL, "chunk-loading-basic.player-max-chunk-send-rate");
             if (sendRate != null) {
                 Long r = asLong(sendRate);
                 if (sendRate instanceof Number nn && nn.doubleValue() == 75.0) {
-                    keptDefault(PAPER_GLOBAL, "chunk-loading-basic.player-max-chunk-send-rate", sendRate, "chunks-per-tick", "16", "Paper 기본(75.0)과 같다 — Furnace 는 기본 chunks-per-tick=16 을 쓴다");
+                    keptDefault(PAPER_GLOBAL, "chunk-loading-basic.player-max-chunk-send-rate", sendRate, "chunks-per-tick", "16", Lang.t("paperimport.chunks-per-tick"));
                 } else {
                 String hint = r != null && r > 0 ? "chunks-per-tick=" + Math.max(1, Math.round(r / 20.0)) : "chunks-per-tick";
                 manual(PAPER_GLOBAL, "chunk-loading-basic.player-max-chunk-send-rate", sendRate, hint,
-                        "Paper 는 초당, Furnace chunks-per-tick 은 틱당 청크 수(≈ 값 ÷ 20). 새 땅은 월드 생성 속도가 더 큰 제한이라 자동 변환하지 않는다");
+                        Lang.t("paperimport.chunk-loading-basic-player-max-chunk-send-rate"));
                 }
             }
-            group(Kind.MANUAL, PAPER_GLOBAL, "packet-limiter", "connection.<단계>.packets-per-second / packets-burst",
-                    "Furnace 는 접속 단계별(handshake·status·login·configuration·play) 패킷 속도·크기 한도를 가진다(connection-defenses-2026-11-06.md). 단위·판정이 달라 자동 변환하지 않는다");
-            unsupported(PAPER_GLOBAL, "spam-limiter", "탭 완성·레시피 패킷 도배 제한 — Furnace 에는 대응이 없다(접속 단계별 패킷 속도 한도 connection.play.* 가 비슷한 방어를 한다)");
-            group(Kind.MANUAL, BUKKIT, "chunk-gc", "chunk-eviction-grace-ticks", "청크 내리기는 유예 시간 하나로 조절한다(Bukkit 의 주기·기준 방식이 아님)");
+            group(Kind.MANUAL, PAPER_GLOBAL, "packet-limiter", Lang.t("paperimport.packet-limiter"),
+                    Lang.t("paperimport.packet-limiter-2"));
+            unsupported(PAPER_GLOBAL, "spam-limiter", Lang.t("paperimport.spam-limiter"));
+            group(Kind.MANUAL, BUKKIT, "chunk-gc", "chunk-eviction-grace-ticks", Lang.t("paperimport.bukkit-chunk-gc-note"));
             Object container = val(BUKKIT, "settings.world-container");
             if (container != null) {
-                manual(BUKKIT, "settings.world-container", container, "명령줄 --universe <폴더>", "월드를 모아 두는 폴더는 명령줄 옵션으로 정한다");
+                manual(BUKKIT, "settings.world-container", container, Lang.t("paperimport.settings-world-container"), Lang.t("paperimport.settings-world-container-2"));
             }
             // spigot world-settings 의 시야 거리: 월드별 값은 지원하지 않는다
             ConfigSection ws = docs.get(SPIGOT) == null ? null : docs.get(SPIGOT).getSection("world-settings");
@@ -489,66 +622,66 @@ public final class PaperConfigImport {
                         Object v = val(SPIGOT, path);
                         if (v != null && asLong(v) != null) {
                             manual(SPIGOT, path, v, "server.properties " + k + "=" + asLong(v),
-                                    "Furnace 는 서버 전체에 하나뿐인 값을 쓴다(월드별 값 없음)");
+                                    Lang.t("paperimport.server-properties"));
                         } else if (v != null) {
-                            ignored(SPIGOT, path, v, "default — server.properties 값을 따른다");
+                            ignored(SPIGOT, path, v, Lang.t("paperimport.defers-to-server-properties"));
                         }
                     }
                 }
             }
 
             // ---- 대응 없음 (구체적인 것 먼저, 뭉뚱그린 접두사 나중)
-            unsupported(BUKKIT, "settings.allow-end", "엔드 차원을 끄는 설정이 없다");
-            unsupported(BUKKIT, "settings.connection-throttle", "같은 주소 재접속 제한은 없다 — 접속 단계별 패킷 속도 한도(connection.login.*)가 비슷한 방어를 한다");
-            unsupported(BUKKIT, "settings", "Bukkit 전용 동작 설정(종료 메시지·과부하 경고·플러그인 쿼리 목록·맵 색 캐시 등) — Furnace 에 대응이 없다");
-            unsupported(BUKKIT, "spawn-limits", "자연 스폰 상한은 바닐라 값으로 고정이다(키 없음)");
-            unsupported(BUKKIT, "ticks-per", "스폰 시도 간격은 바닐라 값으로 고정이다(키 없음)");
-            unsupported(BUKKIT, "aliases", "명령 별칭 파일 기능이 없다");
-            unsupported(BUKKIT, "database", "옛 설정 — 쓰이지 않는다");
+            unsupported(BUKKIT, "settings.allow-end", Lang.t("paperimport.settings-allow-end"));
+            unsupported(BUKKIT, "settings.connection-throttle", Lang.t("paperimport.settings-connection-throttle"));
+            unsupported(BUKKIT, "settings", Lang.t("paperimport.settings"));
+            unsupported(BUKKIT, "spawn-limits", Lang.t("paperimport.spawn-limits"));
+            unsupported(BUKKIT, "ticks-per", Lang.t("paperimport.ticks-per"));
+            unsupported(BUKKIT, "aliases", Lang.t("paperimport.aliases"));
+            unsupported(BUKKIT, "database", Lang.t("paperimport.database"));
 
-            unsupported(SPIGOT, "settings.netty-threads", "네트워크 스레드 수는 Furnace 가 스스로 정한다");
-            unsupported(SPIGOT, "settings.restart-on-crash", "충돌 시 재시작 스크립트는 지원하지 않는다(프로세스 관리자를 써라)");
-            unsupported(SPIGOT, "settings.restart-script", "충돌 시 재시작 스크립트는 지원하지 않는다");
-            unsupported(SPIGOT, "settings.player-shuffle", "플레이어 틱 순서 섞기는 결정성을 깨서 비목표다");
-            unsupported(SPIGOT, "settings.attribute", "속성 상한 변경은 바닐라 결과를 바꿔 비목표다");
-            unsupported(SPIGOT, "settings", "Spigot 전용 동작 설정(사용자 캐시 크기·이동 판정 임계 등) — Furnace 에 대응이 없다");
-            unsupported(SPIGOT, "messages", "접속 거부·서버 가득 참 같은 안내 문구를 바꾸는 설정이 없다(바닐라 번역 키 그대로)");
-            unsupported(SPIGOT, "commands", "명령 탭 완성·로그·네임스페이스 설정이 없다");
-            unsupported(SPIGOT, "stats", "통계 저장 끄기는 비목표다");
-            unsupported(SPIGOT, "advancements", "발전 과제 저장 끄기는 비목표다");
-            unsupported(SPIGOT, "players", "플레이어 저장 끄기는 비목표다");
-            unsupported(SPIGOT, "world-settings", "월드별 규칙(스폰 범위·성장 속도·병합 거리·추적/활성 범위 등)은 아직 Furnace 에 키가 없다 — 바닐라 값으로 동작한다");
+            unsupported(SPIGOT, "settings.netty-threads", Lang.t("paperimport.settings-netty-threads"));
+            unsupported(SPIGOT, "settings.restart-on-crash", Lang.t("paperimport.settings-restart-on-crash"));
+            unsupported(SPIGOT, "settings.restart-script", Lang.t("paperimport.settings-restart-script"));
+            unsupported(SPIGOT, "settings.player-shuffle", Lang.t("paperimport.settings-player-shuffle"));
+            unsupported(SPIGOT, "settings.attribute", Lang.t("paperimport.settings-attribute"));
+            unsupported(SPIGOT, "settings", Lang.t("paperimport.settings-2"));
+            unsupported(SPIGOT, "messages", Lang.t("paperimport.messages"));
+            unsupported(SPIGOT, "commands", Lang.t("paperimport.commands"));
+            unsupported(SPIGOT, "stats", Lang.t("paperimport.stats"));
+            unsupported(SPIGOT, "advancements", Lang.t("paperimport.advancements"));
+            unsupported(SPIGOT, "players", Lang.t("paperimport.players"));
+            unsupported(SPIGOT, "world-settings", Lang.t("paperimport.world-settings"));
 
-            unsupported(PAPER_GLOBAL, "chunk-system.worker-threads", "청크 작업 스레드는 Furnace 의 region 스케줄러(region-threads)와 모델이 달라 대응이 없다");
-            unsupported(PAPER_GLOBAL, "chunk-system", "Paper 청크 시스템 내부 설정 — Furnace 와 구조가 달라 대응이 없다");
-            unsupported(PAPER_GLOBAL, "chunk-loading-basic", "Paper 청크 전송 조절 — Furnace 는 chunks-per-tick 하나와 자체 속도 제한을 쓴다");
-            unsupported(PAPER_GLOBAL, "chunk-loading-advanced", "Paper 청크 전송 조절 — Furnace 는 chunks-per-tick 하나와 자체 속도 제한을 쓴다");
-            unsupported(PAPER_GLOBAL, "item-validation", "책 제목 길이·선택자 해석 등 — Furnace 의 item-validation 대응(display-name·lore·책 쪽·저자) 밖이다");
-            unsupported(PAPER_GLOBAL, "unsupported-settings", "익스플로잇 허용 스위치는 바닐라와 결과가 달라져 비목표다");
-            unsupported(PAPER_GLOBAL, "anticheat", "Paper 의 부정행위 방지 훅 — Furnace 에 대응이 없다");
-            unsupported(PAPER_GLOBAL, "timings", "Paper timings 는 없다 — Furnace 는 /timings 와 플러그인별 프로파일러를 쓴다");
-            unsupported(PAPER_GLOBAL, "messages", "Paper 안내 문구 설정이 없다");
-            unsupported(PAPER_GLOBAL, "console", "콘솔 자동 완성·하이라이트 설정이 없다");
-            unsupported(PAPER_GLOBAL, "commands", "명령 처리 설정이 없다");
-            unsupported(PAPER_GLOBAL, "scoreboards", "스코어보드 설정이 없다(바닐라 규칙 그대로)");
-            unsupported(PAPER_GLOBAL, "player-auto-save", "플레이어 자동 저장 주기·분산 설정이 없다");
-            unsupported(PAPER_GLOBAL, "collisions", "충돌 설정이 없다(바닐라 maxEntityCramming 게임 규칙을 쓴다)");
-            unsupported(PAPER_GLOBAL, "misc", "Paper 기타 설정(영역 파일 캐시·접속 수 제한 등) — 대응이 없다");
-            unsupported(PAPER_GLOBAL, "logging", "Paper 로그 설정이 없다");
-            unsupported(PAPER_GLOBAL, "proxies", "Paper 프록시 설정 중 옮길 수 있는 것은 위에서 처리했다 — 나머지는 대응이 없다");
+            unsupported(PAPER_GLOBAL, "chunk-system.worker-threads", Lang.t("paperimport.chunk-system-worker-threads"));
+            unsupported(PAPER_GLOBAL, "chunk-system", Lang.t("paperimport.chunk-system"));
+            unsupported(PAPER_GLOBAL, "chunk-loading-basic", Lang.t("paperimport.chunk-loading-basic"));
+            unsupported(PAPER_GLOBAL, "chunk-loading-advanced", Lang.t("paperimport.chunk-loading-advanced"));
+            unsupported(PAPER_GLOBAL, "item-validation", Lang.t("paperimport.item-validation"));
+            unsupported(PAPER_GLOBAL, "unsupported-settings", Lang.t("paperimport.unsupported-settings"));
+            unsupported(PAPER_GLOBAL, "anticheat", Lang.t("paperimport.anticheat"));
+            unsupported(PAPER_GLOBAL, "timings", Lang.t("paperimport.timings"));
+            unsupported(PAPER_GLOBAL, "messages", Lang.t("paperimport.messages-2"));
+            unsupported(PAPER_GLOBAL, "console", Lang.t("paperimport.console"));
+            unsupported(PAPER_GLOBAL, "commands", Lang.t("paperimport.commands-2"));
+            unsupported(PAPER_GLOBAL, "scoreboards", Lang.t("paperimport.scoreboards"));
+            unsupported(PAPER_GLOBAL, "player-auto-save", Lang.t("paperimport.player-auto-save"));
+            unsupported(PAPER_GLOBAL, "collisions", Lang.t("paperimport.collisions"));
+            unsupported(PAPER_GLOBAL, "misc", Lang.t("paperimport.misc-2"));
+            unsupported(PAPER_GLOBAL, "logging", Lang.t("paperimport.logging"));
+            unsupported(PAPER_GLOBAL, "proxies", Lang.t("paperimport.proxies"));
 
-            unsupported(PAPER_WORLD, "chunks.max-auto-save-chunks-per-tick", "틱당 저장 청크 수 키가 없다(저장은 Furnace 가 자체 조절한다)");
-            unsupported(PAPER_WORLD, "chunks", "Paper 청크 보조 설정 — 대응이 없다");
-            unsupported(PAPER_WORLD, "anti-xray", "클라이언트가 받는 블록이 달라져 바닐라와 결과가 어긋나므로 비목표다");
-            unsupported(PAPER_WORLD, "unsupported-settings", "익스플로잇 허용 스위치는 바닐라와 결과가 달라져 비목표다");
-            unsupported(PAPER_WORLD, "entities", "몹 스폰·행동·디스폰 규칙 — 아직 Furnace 에 키가 없다(바닐라 값으로 동작)");
-            unsupported(PAPER_WORLD, "environment", "환경 규칙(폭발·눈·번개 등) — 아직 Furnace 에 키가 없다");
-            unsupported(PAPER_WORLD, "collisions", "충돌 규칙 — 아직 Furnace 에 키가 없다");
-            unsupported(PAPER_WORLD, "hopper", "호퍼 규칙 — 아직 Furnace 에 키가 없다");
-            unsupported(PAPER_WORLD, "tick-rates", "틱 간격 조절 — 결과가 달라질 수 있어 아직 키가 없다");
-            unsupported(PAPER_WORLD, "misc", "월드별 기타 규칙 — 아직 Furnace 에 키가 없다");
-            unsupported(PAPER_WORLD, "fixes", "Paper 가 되돌린 바닐라 버그 수정 스위치 — Furnace 는 바닐라 동작 그대로다");
-            unsupported(PAPER_WORLD, "feature-seeds", "구조물 시드 재정의는 비목표다(바닐라 시드 체계 유지)");
+            unsupported(PAPER_WORLD, "chunks.max-auto-save-chunks-per-tick", Lang.t("paperimport.chunks-max-auto-save-chunks-per-tick"));
+            unsupported(PAPER_WORLD, "chunks", Lang.t("paperimport.chunks"));
+            unsupported(PAPER_WORLD, "anti-xray", Lang.t("paperimport.anti-xray"));
+            unsupported(PAPER_WORLD, "unsupported-settings", Lang.t("paperimport.unsupported-settings-2"));
+            unsupported(PAPER_WORLD, "entities", Lang.t("paperimport.entities"));
+            unsupported(PAPER_WORLD, "environment", Lang.t("paperimport.environment"));
+            unsupported(PAPER_WORLD, "collisions", Lang.t("paperimport.collisions-2"));
+            unsupported(PAPER_WORLD, "hopper", Lang.t("paperimport.hopper"));
+            unsupported(PAPER_WORLD, "tick-rates", Lang.t("paperimport.tick-rates"));
+            unsupported(PAPER_WORLD, "misc", Lang.t("paperimport.misc-3"));
+            unsupported(PAPER_WORLD, "fixes", Lang.t("paperimport.fixes"));
+            unsupported(PAPER_WORLD, "feature-seeds", Lang.t("paperimport.feature-seeds"));
         }
 
         private void versionMarkers() {
@@ -556,7 +689,7 @@ public final class PaperConfigImport {
                 for (String k : new String[] {"_version", "config-version", "version"}) {
                     if (has(f, k) && !isCovered(f, k)) {
                         Object v = val(f, k);
-                        if (v != null) ignored(f, k, v, "설정 파일 버전 표지");
+                        if (v != null) ignored(f, k, v, Lang.t("paperimport.version-marker"));
                     }
                 }
             }
@@ -575,10 +708,10 @@ public final class PaperConfigImport {
                 for (var g : byTop.entrySet()) {
                     List<String> ks = g.getValue();
                     if (ks.size() == 1) {
-                        add(Kind.UNKNOWN, file, ks.get(0), d.get(ks.get(0)), "", "Furnace 도 Paper 1.21.1 표에도 없는 키 — 이 버전 이후에 생긴 설정일 수 있다");
+                        add(Kind.UNKNOWN, file, ks.get(0), d.get(ks.get(0)), "", Lang.t("paperimport.unknown-key-single"));
                     } else {
                         List<String> sample = ks.subList(0, Math.min(3, ks.size()));
-                        add(Kind.UNKNOWN, file, g.getKey() + ".*", ks.size() + "개", "", "Furnace 도 Paper 1.21.1 표에도 없는 키들(예: " + String.join(", ", sample) + ")");
+                        add(Kind.UNKNOWN, file, g.getKey() + ".*", Lang.t("paperimport.count-items", ks.size()), "", Lang.t("paperimport.unknown-keys-sample", String.join(", ", sample)));
                     }
                 }
             }
@@ -616,7 +749,7 @@ public final class PaperConfigImport {
     }
 
     private static String fmt(String key, Object v) {
-        if (v == null) return "(없음)";
+        if (v == null) return Lang.t("paperimport.none");
         if (isSecret(key)) return "****";
         String s = v instanceof ConfigSection ? "{…}" : String.valueOf(v);
         s = s.replace('\n', ' ');
@@ -631,9 +764,10 @@ public final class PaperConfigImport {
         StringBuilder sb = new StringBuilder();
         if (old.length > 0 && old[old.length - 1] != '\n') sb.append('\n');
         if (old.length > 0) sb.append('\n');
-        sb.append("# --- Paper/Spigot 설정에서 가져옴 (").append(Instant.now().toString(), 0, 19).append("Z, ")
-                .append(String.join(" ", labels)).append(") ---\n");
-        sb.append("# 어디서 무엇을 가져왔고 무엇을 못 옮겼는지: ").append(REPORT_FILE).append('\n');
+        // 새로 만드는 파일이면 지금 형식 버전을 먼저 적는다 — 안 적으면 바로 다음 마이그레이션이 형식 1 로 보고 돌아 가져온 값을 기본값 바꾸기로 뒤집을 수 있다
+        if (old.length == 0) sb.append(ConfigMigration.KEY).append('=').append(ConfigMigration.CURRENT).append('\n');
+        sb.append(Lang.t("paperimport.header", Instant.now().toString().substring(0, 19) + "Z", String.join(" ", labels))).append('\n');
+        sb.append(Lang.t("paperimport.header-report", REPORT_FILE)).append('\n');
         for (var e : r.toWrite().entrySet()) {
             sb.append(escapeKey(e.getKey())).append('=').append(escapeValue(e.getValue())).append('\n');
         }
@@ -669,21 +803,16 @@ public final class PaperConfigImport {
 
     static String render(Result r, List<String> notes) {
         StringBuilder sb = new StringBuilder();
-        sb.append("Furnace — Paper/Spigot 설정 가져오기 보고서\n");
-        sb.append("만든 때: ").append(Instant.now().toString(), 0, 19).append("Z\n");
-        sb.append("읽은 파일: ").append(r.filesRead().isEmpty() ? "(없음)" : String.join(", ", r.filesRead())).append('\n');
-        for (var f : r.filesFailed().entrySet()) sb.append("읽지 못한 파일: ").append(f.getKey()).append(" — ").append(f.getValue()).append('\n');
-        for (String n : notes) sb.append("참고: ").append(n).append('\n');
-        sb.append("""
-
-                이 파일이 있으면 다시 가져오지 않는다. 다시 하려면 이 파일을 지우고 서버를 켜거나 -Dfurnace.importConfig=force 로 켠다
-                (이미 furnace.properties 에 있는 키는 건드리지 않는다). 원본 YAML 은 읽기만 했고 바꾸지 않았다.
-                Paper 쪽 키 이름과 기본값은 기억 기준이라 틀릴 수 있다 — 모르는 키는 아래 "모르는 키" 에 남는다.
-                """);
+        sb.append(Lang.t("paperimport.report-title")).append('\n');
+        sb.append(Lang.t("paperimport.report-created", Instant.now().toString().substring(0, 19) + "Z")).append('\n');
+        sb.append(Lang.t("paperimport.report-read", r.filesRead().isEmpty() ? Lang.t("paperimport.none") : String.join(", ", r.filesRead()))).append('\n');
+        for (var f : r.filesFailed().entrySet()) sb.append(Lang.t("paperimport.report-failed", f.getKey(), f.getValue())).append('\n');
+        for (String n : notes) sb.append(Lang.t("paperimport.report-note", n)).append('\n');
+        sb.append('\n').append(Lang.t("paperimport.report-intro")).append('\n');
         for (Kind k : Kind.values()) {
             List<Entry> list = r.entries().stream().filter(e -> e.kind == k).toList();
             if (list.isEmpty()) continue;
-            sb.append("\n== ").append(k.title).append(" (").append(list.size()).append(") ==\n");
+            sb.append("\n== ").append(k.title()).append(" (").append(list.size()).append(") ==\n");
             for (Entry e : list) {
                 sb.append("  ").append(e.file).append("  ").append(e.key).append(" = ").append(e.value);
                 if (!e.target.isEmpty()) sb.append("  →  ").append(e.target);
@@ -691,7 +820,7 @@ public final class PaperConfigImport {
                 if (!e.note.isEmpty()) sb.append("      ").append(e.note).append('\n');
             }
         }
-        if (r.entries().isEmpty()) sb.append("\n옮기거나 보고할 키가 없었다.\n");
+        if (r.entries().isEmpty()) sb.append('\n').append(Lang.t("paperimport.report-empty")).append('\n');
         return sb.toString();
     }
 }

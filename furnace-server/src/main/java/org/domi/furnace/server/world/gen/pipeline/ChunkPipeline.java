@@ -1,5 +1,6 @@
 package org.domi.furnace.server.world.gen.pipeline;
 
+import org.domi.furnace.server.i18n.Lang;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.gen.NoiseWorldSource;
 import org.domi.furnace.server.world.gen.feature.FeatureWorldView;
@@ -45,7 +46,7 @@ public final class ChunkPipeline {
             }
             return m;
         } catch (java.io.IOException e) {
-            throw new IllegalStateException("decorateRanks 읽기 실패: " + path, e);
+            throw new IllegalStateException("failed to read decorateRanks: " + path, e);
         }
     }
 
@@ -94,7 +95,19 @@ public final class ChunkPipeline {
         };
 
     public ChunkPipeline(NoiseWorldSource source) {
+        this(source, null);
+    }
+
+    /**
+     * poolFrom 이 있으면 그 파이프라인의 생성 풀을 같이 쓴다(T-203 임시 월드 — 원래 월드와 같은 코어 몫 안에서 돌고, 닫을 것이 없다).
+     * 장식 레인과 저장소는 늘 새것이다.
+     */
+    public ChunkPipeline(NoiseWorldSource source, ChunkPipeline poolFrom) {
         this.source = source;
+        if (poolFrom != null) {
+            this.genPool = poolFrom.genPool;
+            return;
+        }
         // 생성이 모든 코어를 먹으면 틱 스레드가 밀려 틱이 튄다 — 코어 하나는 남기고, 생성 스레드는 낮은 우선순위로 돈다(윈도·맥에서 효과).
         int cores = Runtime.getRuntime().availableProcessors();
         this.genPool = new ForkJoinPool(Math.max(1, cores > 2 ? cores - 1 : cores), pool -> {
@@ -103,6 +116,9 @@ public final class ChunkPipeline {
             return t;
         }, null, false);
     }
+
+    /** 생성 풀(임시 월드 생성기와 같이 쓴다 — 시험용). */
+    public ForkJoinPool generationPool() { return genPool; }
 
     /** 독립 경로의 pristine 캐시를 비운다(월드젠 훅이 바뀌었을 때 — 재생성이 지금 훅으로 만들게). */
     public void clearPristineCache() {
@@ -250,7 +266,8 @@ public final class ChunkPipeline {
                 List<StructureStart> own = new ArrayList<>();
                 for (StructureStart st : ringStarts) if (st.chunkX() == cx && st.chunkZ() == cz) own.add(st);
                 grid[centerIdx].col.structures(
-                    org.domi.furnace.server.world.gen.structure.ChunkStructures.generated(cx, cz, own, ringStarts));
+                    org.domi.furnace.server.world.gen.structure.ChunkStructures.generated(cx, cz, own, ringStarts)
+                            .attach(source.structureEngine().references()));
                 grid[centerIdx].col.compactSections();
                 grid[centerIdx].col.clearDirty();
                 grid[centerIdx].status = GenStatus.FULL;
@@ -389,15 +406,27 @@ public final class ChunkPipeline {
 
     /** 공유 경로에서 지금까지 장식한 origin 수(테스트·모니터링용). */
     public long sharedDecorationCount() { return decorations; }
-    private final java.util.concurrent.ExecutorService lane = java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r, "furnace-worldgen-decorate");
-        t.setDaemon(true);
-        t.setPriority(Thread.MIN_PRIORITY);
-        return t;
-    });
+    private final java.util.concurrent.ExecutorService lane = newLane();
+
+    /**
+     * 장식 레인: 스레드 하나(순서 하나). 30초 놀면 스레드가 끝나고 다음 일에 다시 뜬다 — 월드를 내리거나 임시 월드(T-203)를 버린 뒤
+     * 레인 스레드가 남지 않게(전에는 생성기마다 스레드 하나가 서버가 꺼질 때까지 남았다).
+     */
+    private static java.util.concurrent.ExecutorService newLane() {
+        var ex = new java.util.concurrent.ThreadPoolExecutor(1, 1, 30, java.util.concurrent.TimeUnit.SECONDS,
+                new java.util.concurrent.LinkedBlockingQueue<>(), r -> {
+                    Thread t = new Thread(r, "furnace-worldgen-decorate");
+                    t.setDaemon(true);
+                    t.setPriority(Thread.MIN_PRIORITY);
+                    return t;
+                });
+        ex.allowCoreThreadTimeOut(true);
+        return ex;
+    }
 
     private CompletableFuture<Proto> sharedPristineFor(int cx, int cz) {
         return sharedPristine.computeIfAbsent(chunkKey(cx, cz), k -> CompletableFuture.supplyAsync(() -> {
+            if (org.domi.furnace.server.world.ChunkTrace.ON) org.domi.furnace.server.world.ChunkTrace.value("gen.pristine", 1);   // 원형/완성 비(T-170 측정)
             NoiseWorldSource.Generated g = source.generateWorldChunk(cx, cz);
             ChunkColumn col = g.col();
             source.applyCarvers(g, cx, cz);
@@ -480,7 +509,8 @@ public final class ChunkPipeline {
                 List<StructureStart> l = decoStarts.get(chunkKey(cx + dx, cz + dz));
                 if (l != null && !l.isEmpty()) nearby.addAll(l);
             }
-        return org.domi.furnace.server.world.gen.structure.ChunkStructures.generated(cx, cz, own, nearby);
+        return org.domi.furnace.server.world.gen.structure.ChunkStructures.generated(cx, cz, own, nearby)
+                .attach(source.structureEngine().references());
     }
 
     private Proto[] gridAround(int ox, int oz) {
@@ -597,7 +627,7 @@ public final class ChunkPipeline {
             }
             if (!warnedLossyEvict) {
                 warnedLossyEvict = true;
-                LOG.warn("[WORLDGEN] 미완성 청크 보관함이 가득 차 오래된 것을 버렸다(그 근처를 다시 만들면 장식이 일부 빠질 수 있다)");
+                LOG.warn(Lang.t("worldgen.pending-store-full"));
             }
         }
         if (decoratedKeys.size() > (1 << 21)) decoratedKeys.clear();
@@ -655,5 +685,6 @@ public final class ChunkPipeline {
         long k = chunkKey(p.cx, p.cz);
         store.remove(k);
         sharedPristine.remove(k);
+        if (org.domi.furnace.server.world.ChunkTrace.ON) org.domi.furnace.server.world.ChunkTrace.value("gen.drop", 1);
     }
 }

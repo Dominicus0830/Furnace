@@ -7,6 +7,7 @@ import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.block.BlockShapes;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.BonusChestFeature")
 public final class BonusChestFeature implements ConfiguredFeature {
 
     private static final String LOOT_TABLE = "minecraft:chests/spawn_bonus_chest";

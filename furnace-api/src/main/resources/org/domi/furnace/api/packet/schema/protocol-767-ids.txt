@@ -1,0 +1,428 @@
+# 프로토콜 767(Minecraft 1.21.1) 패킷 종류·번호 표 — tools/compat/protocol-ids-extract.py 로 바닐라 클래스에서 뽑은 사실(번호·이름)만 담았다.
+# type <PacketTypes 상태> <방향> <와이어 이름>   : 그 <상태>PacketTypes 클래스가 선언한 종류(선언 순서)
+# id <프로토콜> <방향> <번호> <PacketTypes 상태>:<와이어 이름> : 프로토콜 등록부의 번호(등록 순서). bundle 종류는 번호가 없다
+type common clientbound custom_payload
+type common clientbound custom_report_details
+type common clientbound disconnect
+type common clientbound keep_alive
+type common clientbound ping
+type common clientbound resource_pack_pop
+type common clientbound resource_pack_push
+type common clientbound server_links
+type common clientbound store_cookie
+type common clientbound transfer
+type common clientbound update_tags
+type common serverbound client_information
+type common serverbound custom_payload
+type common serverbound keep_alive
+type common serverbound pong
+type common serverbound resource_pack
+type configuration clientbound finish_configuration
+type configuration clientbound registry_data
+type configuration clientbound update_enabled_features
+type configuration clientbound select_known_packs
+type configuration clientbound reset_chat
+type configuration serverbound finish_configuration
+type configuration serverbound select_known_packs
+type cookie clientbound cookie_request
+type cookie serverbound cookie_response
+type game clientbound bundle
+type game clientbound bundle_delimiter
+type game clientbound add_entity
+type game clientbound add_experience_orb
+type game clientbound animate
+type game clientbound award_stats
+type game clientbound block_changed_ack
+type game clientbound block_destruction
+type game clientbound block_entity_data
+type game clientbound block_event
+type game clientbound block_update
+type game clientbound boss_event
+type game clientbound change_difficulty
+type game clientbound chunk_batch_finished
+type game clientbound chunk_batch_start
+type game clientbound chunks_biomes
+type game clientbound clear_titles
+type game clientbound command_suggestions
+type game clientbound commands
+type game clientbound container_close
+type game clientbound container_set_content
+type game clientbound container_set_data
+type game clientbound container_set_slot
+type game clientbound cooldown
+type game clientbound custom_chat_completions
+type game clientbound damage_event
+type game clientbound debug_sample
+type game clientbound delete_chat
+type game clientbound disguised_chat
+type game clientbound entity_event
+type game clientbound explode
+type game clientbound forget_level_chunk
+type game clientbound game_event
+type game clientbound horse_screen_open
+type game clientbound hurt_animation
+type game clientbound initialize_border
+type game clientbound level_chunk_with_light
+type game clientbound level_event
+type game clientbound level_particles
+type game clientbound light_update
+type game clientbound login
+type game clientbound map_item_data
+type game clientbound merchant_offers
+type game clientbound move_entity_pos
+type game clientbound move_entity_pos_rot
+type game clientbound move_entity_rot
+type game clientbound move_vehicle
+type game clientbound open_book
+type game clientbound open_screen
+type game clientbound open_sign_editor
+type game clientbound place_ghost_recipe
+type game clientbound player_abilities
+type game clientbound player_chat
+type game clientbound player_combat_end
+type game clientbound player_combat_enter
+type game clientbound player_combat_kill
+type game clientbound player_info_remove
+type game clientbound player_info_update
+type game clientbound player_look_at
+type game clientbound player_position
+type game clientbound recipe
+type game clientbound remove_entities
+type game clientbound remove_mob_effect
+type game clientbound respawn
+type game clientbound rotate_head
+type game clientbound section_blocks_update
+type game clientbound select_advancements_tab
+type game clientbound server_data
+type game clientbound set_action_bar_text
+type game clientbound set_border_center
+type game clientbound set_border_lerp_size
+type game clientbound set_border_size
+type game clientbound set_border_warning_delay
+type game clientbound set_border_warning_distance
+type game clientbound set_camera
+type game clientbound set_carried_item
+type game clientbound set_chunk_cache_center
+type game clientbound set_chunk_cache_radius
+type game clientbound set_default_spawn_position
+type game clientbound set_display_objective
+type game clientbound set_entity_data
+type game clientbound set_entity_link
+type game clientbound set_entity_motion
+type game clientbound set_equipment
+type game clientbound set_experience
+type game clientbound set_health
+type game clientbound set_objective
+type game clientbound set_passengers
+type game clientbound set_player_team
+type game clientbound set_score
+type game clientbound set_simulation_distance
+type game clientbound set_subtitle_text
+type game clientbound set_time
+type game clientbound set_title_text
+type game clientbound set_titles_animation
+type game clientbound sound_entity
+type game clientbound sound
+type game clientbound start_configuration
+type game clientbound stop_sound
+type game clientbound system_chat
+type game clientbound tab_list
+type game clientbound tag_query
+type game clientbound take_item_entity
+type game clientbound teleport_entity
+type game clientbound update_advancements
+type game clientbound update_attributes
+type game clientbound update_mob_effect
+type game clientbound update_recipes
+type game clientbound projectile_power
+type game serverbound accept_teleportation
+type game serverbound block_entity_tag_query
+type game serverbound change_difficulty
+type game serverbound chat_ack
+type game serverbound chat_command
+type game serverbound chat_command_signed
+type game serverbound chat
+type game serverbound chat_session_update
+type game serverbound chunk_batch_received
+type game serverbound client_command
+type game serverbound command_suggestion
+type game serverbound configuration_acknowledged
+type game serverbound container_button_click
+type game serverbound container_click
+type game serverbound container_close
+type game serverbound container_slot_state_changed
+type game serverbound debug_sample_subscription
+type game serverbound edit_book
+type game serverbound entity_tag_query
+type game serverbound interact
+type game serverbound jigsaw_generate
+type game serverbound lock_difficulty
+type game serverbound move_player_pos
+type game serverbound move_player_pos_rot
+type game serverbound move_player_rot
+type game serverbound move_player_status_only
+type game serverbound move_vehicle
+type game serverbound paddle_boat
+type game serverbound pick_item
+type game serverbound place_recipe
+type game serverbound player_abilities
+type game serverbound player_action
+type game serverbound player_command
+type game serverbound player_input
+type game serverbound recipe_book_change_settings
+type game serverbound recipe_book_seen_recipe
+type game serverbound rename_item
+type game serverbound seen_advancements
+type game serverbound select_trade
+type game serverbound set_beacon
+type game serverbound set_carried_item
+type game serverbound set_command_block
+type game serverbound set_command_minecart
+type game serverbound set_creative_mode_slot
+type game serverbound set_jigsaw_block
+type game serverbound set_structure_block
+type game serverbound sign_update
+type game serverbound swing
+type game serverbound teleport_to_entity
+type game serverbound use_item_on
+type game serverbound use_item
+type game clientbound reset_score
+type game clientbound ticking_state
+type game clientbound ticking_step
+type handshake serverbound intention
+type login clientbound custom_query
+type login clientbound game_profile
+type login clientbound hello
+type login clientbound login_compression
+type login clientbound login_disconnect
+type login serverbound custom_query_answer
+type login serverbound hello
+type login serverbound key
+type login serverbound login_acknowledged
+type ping clientbound pong_response
+type ping serverbound ping_request
+type status clientbound status_response
+type status serverbound status_request
+id configuration clientbound 0 cookie:cookie_request
+id configuration clientbound 1 common:custom_payload
+id configuration clientbound 2 common:disconnect
+id configuration clientbound 3 configuration:finish_configuration
+id configuration clientbound 4 common:keep_alive
+id configuration clientbound 5 common:ping
+id configuration clientbound 6 configuration:reset_chat
+id configuration clientbound 7 configuration:registry_data
+id configuration clientbound 8 common:resource_pack_pop
+id configuration clientbound 9 common:resource_pack_push
+id configuration clientbound 10 common:store_cookie
+id configuration clientbound 11 common:transfer
+id configuration clientbound 12 configuration:update_enabled_features
+id configuration clientbound 13 common:update_tags
+id configuration clientbound 14 configuration:select_known_packs
+id configuration clientbound 15 common:custom_report_details
+id configuration clientbound 16 common:server_links
+id configuration serverbound 0 common:client_information
+id configuration serverbound 1 cookie:cookie_response
+id configuration serverbound 2 common:custom_payload
+id configuration serverbound 3 configuration:finish_configuration
+id configuration serverbound 4 common:keep_alive
+id configuration serverbound 5 common:pong
+id configuration serverbound 6 common:resource_pack
+id configuration serverbound 7 configuration:select_known_packs
+id game clientbound 0 game:bundle_delimiter
+id game clientbound 1 game:add_entity
+id game clientbound 2 game:add_experience_orb
+id game clientbound 3 game:animate
+id game clientbound 4 game:award_stats
+id game clientbound 5 game:block_changed_ack
+id game clientbound 6 game:block_destruction
+id game clientbound 7 game:block_entity_data
+id game clientbound 8 game:block_event
+id game clientbound 9 game:block_update
+id game clientbound 10 game:boss_event
+id game clientbound 11 game:change_difficulty
+id game clientbound 12 game:chunk_batch_finished
+id game clientbound 13 game:chunk_batch_start
+id game clientbound 14 game:chunks_biomes
+id game clientbound 15 game:clear_titles
+id game clientbound 16 game:command_suggestions
+id game clientbound 17 game:commands
+id game clientbound 18 game:container_close
+id game clientbound 19 game:container_set_content
+id game clientbound 20 game:container_set_data
+id game clientbound 21 game:container_set_slot
+id game clientbound 22 cookie:cookie_request
+id game clientbound 23 game:cooldown
+id game clientbound 24 game:custom_chat_completions
+id game clientbound 25 common:custom_payload
+id game clientbound 26 game:damage_event
+id game clientbound 27 game:debug_sample
+id game clientbound 28 game:delete_chat
+id game clientbound 29 common:disconnect
+id game clientbound 30 game:disguised_chat
+id game clientbound 31 game:entity_event
+id game clientbound 32 game:explode
+id game clientbound 33 game:forget_level_chunk
+id game clientbound 34 game:game_event
+id game clientbound 35 game:horse_screen_open
+id game clientbound 36 game:hurt_animation
+id game clientbound 37 game:initialize_border
+id game clientbound 38 common:keep_alive
+id game clientbound 39 game:level_chunk_with_light
+id game clientbound 40 game:level_event
+id game clientbound 41 game:level_particles
+id game clientbound 42 game:light_update
+id game clientbound 43 game:login
+id game clientbound 44 game:map_item_data
+id game clientbound 45 game:merchant_offers
+id game clientbound 46 game:move_entity_pos
+id game clientbound 47 game:move_entity_pos_rot
+id game clientbound 48 game:move_entity_rot
+id game clientbound 49 game:move_vehicle
+id game clientbound 50 game:open_book
+id game clientbound 51 game:open_screen
+id game clientbound 52 game:open_sign_editor
+id game clientbound 53 common:ping
+id game clientbound 54 ping:pong_response
+id game clientbound 55 game:place_ghost_recipe
+id game clientbound 56 game:player_abilities
+id game clientbound 57 game:player_chat
+id game clientbound 58 game:player_combat_end
+id game clientbound 59 game:player_combat_enter
+id game clientbound 60 game:player_combat_kill
+id game clientbound 61 game:player_info_remove
+id game clientbound 62 game:player_info_update
+id game clientbound 63 game:player_look_at
+id game clientbound 64 game:player_position
+id game clientbound 65 game:recipe
+id game clientbound 66 game:remove_entities
+id game clientbound 67 game:remove_mob_effect
+id game clientbound 68 game:reset_score
+id game clientbound 69 common:resource_pack_pop
+id game clientbound 70 common:resource_pack_push
+id game clientbound 71 game:respawn
+id game clientbound 72 game:rotate_head
+id game clientbound 73 game:section_blocks_update
+id game clientbound 74 game:select_advancements_tab
+id game clientbound 75 game:server_data
+id game clientbound 76 game:set_action_bar_text
+id game clientbound 77 game:set_border_center
+id game clientbound 78 game:set_border_lerp_size
+id game clientbound 79 game:set_border_size
+id game clientbound 80 game:set_border_warning_delay
+id game clientbound 81 game:set_border_warning_distance
+id game clientbound 82 game:set_camera
+id game clientbound 83 game:set_carried_item
+id game clientbound 84 game:set_chunk_cache_center
+id game clientbound 85 game:set_chunk_cache_radius
+id game clientbound 86 game:set_default_spawn_position
+id game clientbound 87 game:set_display_objective
+id game clientbound 88 game:set_entity_data
+id game clientbound 89 game:set_entity_link
+id game clientbound 90 game:set_entity_motion
+id game clientbound 91 game:set_equipment
+id game clientbound 92 game:set_experience
+id game clientbound 93 game:set_health
+id game clientbound 94 game:set_objective
+id game clientbound 95 game:set_passengers
+id game clientbound 96 game:set_player_team
+id game clientbound 97 game:set_score
+id game clientbound 98 game:set_simulation_distance
+id game clientbound 99 game:set_subtitle_text
+id game clientbound 100 game:set_time
+id game clientbound 101 game:set_title_text
+id game clientbound 102 game:set_titles_animation
+id game clientbound 103 game:sound_entity
+id game clientbound 104 game:sound
+id game clientbound 105 game:start_configuration
+id game clientbound 106 game:stop_sound
+id game clientbound 107 common:store_cookie
+id game clientbound 108 game:system_chat
+id game clientbound 109 game:tab_list
+id game clientbound 110 game:tag_query
+id game clientbound 111 game:take_item_entity
+id game clientbound 112 game:teleport_entity
+id game clientbound 113 game:ticking_state
+id game clientbound 114 game:ticking_step
+id game clientbound 115 common:transfer
+id game clientbound 116 game:update_advancements
+id game clientbound 117 game:update_attributes
+id game clientbound 118 game:update_mob_effect
+id game clientbound 119 game:update_recipes
+id game clientbound 120 common:update_tags
+id game clientbound 121 game:projectile_power
+id game clientbound 122 common:custom_report_details
+id game clientbound 123 common:server_links
+id game serverbound 0 game:accept_teleportation
+id game serverbound 1 game:block_entity_tag_query
+id game serverbound 2 game:change_difficulty
+id game serverbound 3 game:chat_ack
+id game serverbound 4 game:chat_command
+id game serverbound 5 game:chat_command_signed
+id game serverbound 6 game:chat
+id game serverbound 7 game:chat_session_update
+id game serverbound 8 game:chunk_batch_received
+id game serverbound 9 game:client_command
+id game serverbound 10 common:client_information
+id game serverbound 11 game:command_suggestion
+id game serverbound 12 game:configuration_acknowledged
+id game serverbound 13 game:container_button_click
+id game serverbound 14 game:container_click
+id game serverbound 15 game:container_close
+id game serverbound 16 game:container_slot_state_changed
+id game serverbound 17 cookie:cookie_response
+id game serverbound 18 common:custom_payload
+id game serverbound 19 game:debug_sample_subscription
+id game serverbound 20 game:edit_book
+id game serverbound 21 game:entity_tag_query
+id game serverbound 22 game:interact
+id game serverbound 23 game:jigsaw_generate
+id game serverbound 24 common:keep_alive
+id game serverbound 25 game:lock_difficulty
+id game serverbound 26 game:move_player_pos
+id game serverbound 27 game:move_player_pos_rot
+id game serverbound 28 game:move_player_rot
+id game serverbound 29 game:move_player_status_only
+id game serverbound 30 game:move_vehicle
+id game serverbound 31 game:paddle_boat
+id game serverbound 32 game:pick_item
+id game serverbound 33 ping:ping_request
+id game serverbound 34 game:place_recipe
+id game serverbound 35 game:player_abilities
+id game serverbound 36 game:player_action
+id game serverbound 37 game:player_command
+id game serverbound 38 game:player_input
+id game serverbound 39 common:pong
+id game serverbound 40 game:recipe_book_change_settings
+id game serverbound 41 game:recipe_book_seen_recipe
+id game serverbound 42 game:rename_item
+id game serverbound 43 common:resource_pack
+id game serverbound 44 game:seen_advancements
+id game serverbound 45 game:select_trade
+id game serverbound 46 game:set_beacon
+id game serverbound 47 game:set_carried_item
+id game serverbound 48 game:set_command_block
+id game serverbound 49 game:set_command_minecart
+id game serverbound 50 game:set_creative_mode_slot
+id game serverbound 51 game:set_jigsaw_block
+id game serverbound 52 game:set_structure_block
+id game serverbound 53 game:sign_update
+id game serverbound 54 game:swing
+id game serverbound 55 game:teleport_to_entity
+id game serverbound 56 game:use_item_on
+id game serverbound 57 game:use_item
+id handshake serverbound 0 handshake:intention
+id login clientbound 0 login:login_disconnect
+id login clientbound 1 login:hello
+id login clientbound 2 login:game_profile
+id login clientbound 3 login:login_compression
+id login clientbound 4 login:custom_query
+id login clientbound 5 cookie:cookie_request
+id login serverbound 0 login:hello
+id login serverbound 1 login:key
+id login serverbound 2 login:custom_query_answer
+id login serverbound 3 login:login_acknowledged
+id login serverbound 4 cookie:cookie_response
+id status clientbound 0 status:status_response
+id status clientbound 1 ping:pong_response
+id status serverbound 0 status:status_request
+id status serverbound 1 ping:ping_request

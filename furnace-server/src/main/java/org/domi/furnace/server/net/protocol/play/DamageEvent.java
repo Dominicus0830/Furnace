@@ -2,12 +2,15 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundDamageEventPacket")
 public record DamageEvent(int entityId, int sourceTypeId, int sourceCauseId, int sourceDirectId, double[] sourcePosition) implements Packet {
 
-    public static final int ID = 0x1A;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_DAMAGE_EVENT;
 
     /** 원인 엔티티가 없는 환경 피해(낙하·공허·굶주림 등). */
     public static DamageEvent environmental(int entityId, int sourceTypeId) {

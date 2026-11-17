@@ -1,6 +1,7 @@
 // 바닐라 StructureTemplate 포팅 — .nbt 템플릿 로드(팔레트·블록 정렬), 좌표 변환, 월드에 배치.
 package org.domi.furnace.server.world.gen.structure.template;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -15,11 +16,12 @@ import org.domi.furnace.server.net.io.nbt.NbtList;
 import org.domi.furnace.server.world.BlockAttrs;
 import org.domi.furnace.server.world.BlockRegistry;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate")
 public final class StructureTemplate {
 
     /** 리소스에 없는 템플릿 — 구조물 생성은 건너뛴다(자료 보충 필요). */
     public static final class MissingTemplateException extends IllegalArgumentException {
-        public MissingTemplateException(String id) { super("구조물 템플릿 없음: " + id); }
+        public MissingTemplateException(String id) { super("Structure template not found: " + id); }
     }
 
 
@@ -93,7 +95,7 @@ public final class StructureTemplate {
 
     public static StructureTemplate load(BlockRegistry registry, String id) {
         String path = id.startsWith("minecraft:") ? id.substring("minecraft:".length()) : id;
-        String res = "worldgen/1.21.1/structure/" + path + ".nbt";
+        String res = "worldgen/" + GameVersion.RESOURCE_TAG + "/structure/" + path + ".nbt";
         try (InputStream in = StructureTemplate.class.getClassLoader().getResourceAsStream(res)) {
             // 바닐라 StructureTemplateManager.getOrCreate: 없는 템플릿은 빈 템플릿(크기 0, 팔레트 없음)으로 대신한다
             // (예: 1.21.1 ancient_city/walls/no_corners 풀이 가리키는 intact_horizontal_wall_stairs_5 는 jar 에 없다).
@@ -190,7 +192,7 @@ public final class StructureTemplate {
     }
 
     /** 바닐라 DataVersion(1.21.1). */
-    public static final int DATA_VERSION = 3955;
+    public static final int DATA_VERSION = GameVersion.DATA_VERSION;
 
     /**
      * 바닐라 StructureTemplate.save: 팔레트가 하나면 palette, 여럿이면 palettes. 칸은 첫 팔레트 순서대로 {pos, state, nbt?}, 상태 번호는 첫 팔레트에서

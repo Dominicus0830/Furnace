@@ -1,7 +1,7 @@
 # 설정 키 점검과 규칙 (Q1, 2026-11-07)
 
 도미니코 결정 R4(2026-11-07): "새 옵션은 모두 지원하되 사용자가 ON/OFF 또는 수치로 바꿀 수 있게. 기본값은 바닐라와 같게. 위험한 설정은 경고."
-이 문서는 그 규칙과, 지금 있는 `furnace.properties` 키 전부의 표다. 표의 원본은 코드의 `OptionKeys`(`furnace-server/.../config/OptionKeys.java`)이고,
+이 문서는 그 규칙과, 지금 있는 `furnace.properties` 키 전부의 표다. 코드의 `OptionKeys`(`furnace-server/.../config/OptionKeys.java`)는 키·형식·기본값만 갖고(범위·설명 칸은 없앴다 — 설명의 원본은 생성되는 `furnace.properties` 주석, 즉 `furnace-lang` 의 `cfg.help.*`),
 `OptionKeysTest` 가 표 ↔ 코드 기본값 ↔ 이 문서의 어긋남을 잡는다. 키를 더하면 `OptionKeys` 와 이 표에 한 줄씩 넣는다.
 
 ## 1. 규칙
@@ -20,8 +20,49 @@
 |---|---|---|---|---|---|
 | `tick-nanos` | 수 | 50000000 | 1 이상 | 한 틱 길이(나노초). 바꾸면 게임 속도가 바닐라와 달라진다 | 50000000 이 아니면 경고 |
 | `entity-view-distance` | 수 | 8 | 1 이상 | 엔티티가 보이는 거리(청크). view-distance 보다 크게 효과 없음 |  |
-| `region-section-shift` | 수 | 4 | 1~8 | 동적 region 구역 크기(2^값 청크) |  |
+| `region-section-shift` | 수 | 3 | 1~8 | 동적 region 구역 크기(2^값 청크). 다른 region 까지 띠 2^값×16 블록(3 이면 128, 기본 4 였다 — T-101, 형식 3 마이그레이션이 옛 기본 줄을 옮긴다). 128 이하 반경 읽기만 region 안에서 끝난다: `region-boundary-radii.md` |  |
 | `region-merge-radius` | 수 | 1 | 1 이상 | region 합치기 반경(구역 단위) |  |
+| `light.async` | ON/OFF | false | true\|false | 빛 계산을 빛 스레드에 맡긴다(T-064, 바닐라 ThreadedLevelLightEngine 방식). 켜면 빛 스레드가 밀릴 때 빛이 한두 틱 늦게 보이고 새 청크 전송이 한 틱 늦다(바닐라 과부하와 같은 성질). 저장은 밀린 빛을 기다린다 |  |
+| `light.async-threads` | 수 | 1 | 1 이상 | `light.async` 빛 스레드 수(서버 전체) | `light.async=false` 인데 쓰면 경고 |
+| `worldgen.tick-guard` | ON/OFF | false | true\|false | 생성 조절기(T-172, 결정 W-2 기본 꺼짐). 켜면 가장 느린 region 의 최근 1초 TPS < 19 일 때 동시 청크 생성 수를 하나씩 줄이고(1 까지) ≥ 19.8 이면 늘린다(생성 스레드 수까지). 빛 미리 계산 같은 이어 하기는 세지 않는다. TPS 바닥 보호 ↔ 생성 속도. 생성과 무관한 렉(다른 차원의 큰 농장 등)이어도 모든 생성을 1개까지 묶는다. `-Dfurnace.gen.tickGuard` 가 이긴다 |  |
+| `entity-activation-range.enabled` | ON/OFF | **true** | true\|false | 엔티티 활성 범위(D11, Spigot·Paper 방식). **기본 켜짐 — 규칙 1(기본=바닐라)의 예외(도미니코 결정 2026-11-14)**. 켜면 먼 몹이 AI·이동을 대부분 쉬어 바닐라와 결과가 다르다. false = 바닐라와 바이트까지 같음 | 켜져 있으면 시작 때 경고 |
+| `entity-activation-range.animals` | 수 | 32 | 정수 | 활성 범위: 동물(PathfinderMob·박쥐 등) |  |
+| `entity-activation-range.monsters` | 수 | 32 | 정수 | 활성 범위: 적대 몹(Enemy) |  |
+| `entity-activation-range.raiders` | 수 | 64 | 정수 | 활성 범위: 습격 몹(Raider) |  |
+| `entity-activation-range.misc` | 수 | 16 | 정수 | 활성 범위: 그 밖(아이템·경험치 구슬·화살·구름 등) |  |
+| `entity-activation-range.water` | 수 | 16 | 정수 | 활성 범위: 물 동물(WaterAnimal) |  |
+| `entity-activation-range.villagers` | 수 | 32 | 정수 | 활성 범위: 주민 |  |
+| `entity-activation-range.flying-monsters` | 수 | 32 | 정수 | 활성 범위: 나는 적대 몹(가스트·팬텀) |  |
+| `entity-activation-range.wake-up-inactive.animals-max-per-tick` | 수 | 4 | 정수 | 활성 범위: 비활성 동물을 깨우는 수(틱마다 1씩 차오르는 상한) |  |
+| `entity-activation-range.wake-up-inactive.animals-every` | 수 | 1200 | 정수 | 활성 범위: 동물이 이 틱보다 오래 비활성이면 깨울 후보 |  |
+| `entity-activation-range.wake-up-inactive.animals-for` | 수 | 100 | 정수 | 활성 범위: 깨운 동물이 활성인 틱 |  |
+| `entity-activation-range.wake-up-inactive.monsters-max-per-tick` | 수 | 8 | 정수 | 활성 범위: 비활성 적대 몹(습격 몹 포함)을 깨우는 수 상한 |  |
+| `entity-activation-range.wake-up-inactive.monsters-every` | 수 | 400 | 정수 | 활성 범위: 적대 몹 깨우기 간격(틱) |  |
+| `entity-activation-range.wake-up-inactive.monsters-for` | 수 | 100 | 정수 | 활성 범위: 깨운 적대 몹이 활성인 틱 |  |
+| `entity-activation-range.wake-up-inactive.villagers-max-per-tick` | 수 | 4 | 정수 | 활성 범위: 비활성 주민을 깨우는 수 상한 |  |
+| `entity-activation-range.wake-up-inactive.villagers-every` | 수 | 600 | 정수 | 활성 범위: 주민 깨우기 간격(틱) |  |
+| `entity-activation-range.wake-up-inactive.villagers-for` | 수 | 100 | 정수 | 활성 범위: 깨운 주민이 활성인 틱 |  |
+| `entity-activation-range.wake-up-inactive.flying-monsters-max-per-tick` | 수 | 8 | 정수 | 활성 범위: 비활성 나는 적대 몹을 깨우는 수 상한 |  |
+| `entity-activation-range.wake-up-inactive.flying-monsters-every` | 수 | 200 | 정수 | 활성 범위: 나는 적대 몹 깨우기 간격(틱) |  |
+| `entity-activation-range.wake-up-inactive.flying-monsters-for` | 수 | 100 | 정수 | 활성 범위: 깨운 나는 적대 몹이 활성인 틱 |  |
+| `entity-activation-range.villagers-work-immunity-after` | 수 | 100 | 정수 | 활성 범위: 주민이 이 틱 넘게 비활성이고 일하는 중이면 잠깐 활성(0 이하 = 끔) |  |
+| `entity-activation-range.villagers-work-immunity-for` | 수 | 20 | 정수 | 활성 범위: 일하는 주민 활성 틱 |  |
+| `entity-activation-range.tick-inactive-villagers` | ON/OFF | true | true\|false | 활성 범위: 비활성 주민도 두뇌(일정·기억)를 돌린다. false 면 두뇌 없이 거래 타이머 등만 |  |
+| `entity-activation-range.ignore-spectators` | ON/OFF | false | true\|false | 활성 범위: 관전자 주변은 활성으로 만들지 않는다 |  |
+| `entity-activation-range.villagers-active-for-panic` | ON/OFF | true | true\|false | 활성 범위: 숨기·습격 전·습격·공황 중인 주민은 5초 활성 |  |
+| `merge-radius.item` | 수 | 0.5 | 0 이상(소수) | 아이템 합치기 반경(T-122, spigot.yml 이름, Spigot 식 상자 inflate(r, r-0.5, r)). 0.5 = 바닐라·Paper 기본 | 0.5 가 아니면 경고 |
+| `merge-radius.exp` | 수 | -1 | 소수 | 경험치 구슬 합치기 반경(T-122). 0 이하(기본) = 바닐라. 켜면 새 구슬이 반경 안 같은 count 구슬 값을 흡수(Spigot·Paper) | 0 보다 크면 경고 |
+| `collisions.max-entity-collisions` | 수 | **8** | -1 이상 | 생물 하나가 한 틱에 미는 수 상한(T-122, Paper Cap Entity Collisions). **기본 8 = Paper 1.21.1 — 규칙 1 의 예외(도미니코 결정 B3-1, 2026-11-14)**. -1 = 제한 없음(바닐라), 0 = 밀지 않음(Paper 와 같은 뜻) | -1 이 아니면 시작 때 경고 |
+| `entity-tracking-range.enabled` | ON/OFF | **true** | true\|false | 종류별 추적 거리(T-122, Spigot·Paper). **기본 켜짐 = Paper 1.21.1 — 규칙 1 의 예외(결정 B3-1)**. false = 바닐라(종류마다 clientTrackingRange × 16, 플레이어 512) | 켜져 있으면 시작 때 경고 |
+| `entity-tracking-range.players` | 수 | 128 | 0 이상 | 추적 거리(블록): 플레이어. 실제는 min(값 × entity-broadcast-range-percentage/100, 시야 × 16) |  |
+| `entity-tracking-range.animals` | 수 | 96 | 0 이상 | 추적 거리: 동물·물 동물·주민(Paper 는 물 동물·주민도 동물 범위) |  |
+| `entity-tracking-range.monsters` | 수 | 96 | 0 이상 | 추적 거리: 적대·습격·나는 적대 몹(엔더 드래곤 포함 — Paper 의 드래곤 예외는 닿지 않는 코드) |  |
+| `entity-tracking-range.misc` | 수 | 96 | 0 이상 | 추적 거리: 떨어진 아이템·경험치 구슬·그림·아이템 액자 |  |
+| `entity-tracking-range.display` | 수 | 128 | 0 이상 | 추적 거리: 디스플레이 엔티티 |  |
+| `entity-tracking-range.other` | 수 | 64 | 0 이상 | 추적 거리: 그 밖(화살·탈것·폭발물·갑옷 거치대 등). 0 = 그 종류는 아무에게도 보내지 않음(Paper 와 같다) |  |
+| `item-merge.always-into-ticking` | ON/OFF | **true** | true\|false | 아이템을 합칠 때 늘 틱을 도는 쪽으로 모은다(T-122, Spigot·Paper 고정 변경 `if (true \|\| …)`). **기본 켬 — 규칙 1 의 예외(T122-1, 2026-11-15 위임 결정)**. false = 바닐라(적은 쪽을 많은 쪽에) | 켜져 있으면 시작 때 경고 |
+| `collisions.skip-unpushable` | ON/OFF | **true** | true\|false | 밀 수 없는 생물(사다리·덩굴에 매달림·관전자 등)은 남을 밀지 않고 cramming 피해도 없음(T-122, Paper "Don't run entity collision code if not needed"). **기본 켬 — 규칙 1 의 예외(T122-1)**. false = 바닐라 | 켜져 있으면 시작 때 경고 |
+| `collisions.allow-player-cramming-damage` | ON/OFF | **false** | true\|false | 플레이어가 maxEntityCramming 피해를 받는가(T-122 검토 N1, Paper "Don't apply cramming damage to players", 1/4 굴림은 그대로). **기본 false = Paper — 규칙 1 의 예외**. true = 바닐라 | false 면 시작 때 경고 |
 | `region-threads` | 수 | CPU 수 | 1 이상 | region 작업 스레드 수(공유 풀이면 서버 전체, 끄면 차원마다) | 워커가 코어의 2배를 넘으면 경고 |
 | `shared-region-pool` | ON/OFF | true | true|false | 모든 차원·추가 월드가 region 워커 풀 하나를 쓴다(Q5). false 면 차원마다 region-threads 개 | -D 와 충돌하면 경고 |
 | `region-pool-dim-cap` | 수 | 0 | 0 이상 | 다른 차원 큐에 일이 있을 때 한 차원이 쓸 수 있는 워커 상한(0 = 워커 수−1) | 공유 풀이 꺼져 있으면 쓰이지 않는다고 경고 |
@@ -37,7 +78,9 @@
 | `chat.unsigned-as-system` | ON/OFF | false | true|false | 채팅을 서명 없는 시스템 메시지로 보낸다(채팅 신고 불가) | true 면 경고 |
 | `server-brand` | 글자 | Furnace | - | F3 서버 브랜드와 level.dat ServerBrands |  |
 | `announce-sleep-status` | ON/OFF | true | true|false | 자는 사람 수·밤 건너뛰기 액션바 |  |
+| `world.tick-when-empty` | auto\|vanilla\|always | auto | auto\|vanilla\|always | 플레이어도 /forceload 도 없는 차원의 몹·블록 엔티티. vanilla=15초 뒤 쉼, always=CraftBukkit·Paper 기본(늘 돎), auto=Bukkit 플러그인이 있으면 always |  |
 | `commands.send-namespaced` | ON/OFF | true | true|false | 바닐라 명령의 minecraft:이름 별칭을 접속자 명령 트리·자동완성에 보낸다(Paper 와 같다). false 면 안 보여도 입력하면 실행된다 |  |
+| `commands.region-drain` | ON/OFF | true | true|false | 명령 큐가 도는 동안 region 에 보낸 급한 작업을 다음 틱을 기다리지 않고 곧바로 돌린다(전역 틱당 명령 블록 예산 20ms 공유, 넘으면 다음 틱). false 면 region 접근 한 줄이 한 틱씩 걸린다 |  |
 | `gravity-block-portal-dupe` | ON/OFF | true | true|false | 엔드 포털로 넘어간 중력 블록(모래·자갈 등)이 제자리에도 놓이는 바닐라 복제 현상. false 면 복제되지 않는다(바닐라와 달라짐) |  |
 | `motd-format` | plain|legacy|markup | plain | plain|legacy|markup | server.properties motd 해석 방식(plain=바닐라) |  |
 | `confirm-interrupt` | ON/OFF | false | true|false | 콘솔 Ctrl+C 를 두 번 눌러야 종료 |  |
@@ -82,12 +125,15 @@
 | `plugins.compat.bukkit` | ON/OFF | true | true\|false | Bukkit·Paper 플러그인(plugin.yml) 호환 어댑터 — 끄면 plugin.yml jar 를 읽지 않는다(호환 모듈이 있을 때) |  |
 | `plugins.compat.nms.enabled` | ON/OFF | true | true\|false | Bukkit 호환 플러그인을 올릴 때 NMS·CraftBukkit 이름 변환(CraftBukkit 버전 접미사 v1_21_R1 풀기)을 한다 — 끄면 그런 플러그인은 그 이름에서 실패한다 |  |
 | `plugins.compat.nms.strict` | ON/OFF | false | true\|false | 미지원 NMS·CraftBukkit 심볼을 쓰는 Bukkit 호환 플러그인은 불러오지 않는다(끄면 그 호출만 실행 때 실패하고 나머지는 돈다) |  |
+| `plugins.compat.nms.missing-class-log` | 글자 | summary | summary\|each | 플러그인이 리플렉션으로 찾다 이 서버에 없는 NMS 클래스를 알리는 방식 — summary 는 모아서 플러그인마다 한 줄(개수·앞 5개 이름), each 는 켜는 중·켠 뒤 모두 이름마다 WARN 한 줄(플러그인 개발자가 어느 이름에서 실패하는지 볼 때). ProtocolLib 처럼 여러 이름을 차례로 시도하는 플러그인은 Paper 에서도 같은 실패라 대개 정상 |  |
 | `plugins.compat.nms.version-package` | 글자 | plain | plain\|versioned | 플러그인이 읽는 CraftBukkit 패키지 이름 — plain 은 Paper 처럼 접미사 없음, versioned 는 Spigot 처럼 v1_21_R1 을 붙인다(두 이름 모두 클래스는 풀린다) |  |
-| `plugins.compat.nms.spigot-mappings` | 글자 | off | off\|download\|files | Spigot 이름으로 컴파일된 NMS 플러그인(매니페스트에 `paperweight-mappings-namespace: mojang` 이 없는 jar)의 NMS 이름을 Mojang 이름으로 바꿔 올린다(H7d). download: 그런 플러그인이 있을 때만 Mojang·Spigot 매핑을 처음 한 번 받아 캐시에 둔다. files: 받지 않고 아래 키의 파일을 쓴다. off: 바꾸지 않는다(그 NMS 호출은 실패) |  |
+| `plugins.compat.nms.spigot-mappings` | 글자 | download | download\|files\|off | Spigot 이름으로 컴파일된 NMS 플러그인(매니페스트에 `paperweight-mappings-namespace: mojang` 이 없는 jar)의 NMS 이름을 Mojang 이름으로 바꿔 올린다(H7d). download: 그런 플러그인이 있을 때만 Mojang·Spigot 매핑을 처음 한 번 받아 캐시에 둔다. files: 받지 않고 아래 키의 파일을 쓴다. off: 바꾸지 않는다(그 NMS 호출은 실패) |  |
 | `plugins.compat.nms.spigot-mappings.files` | 글자 | (빈칸) | 경로 구분자로 이은 세 파일 | files 모드의 Mojang server.txt, Spigot 클래스 csrg, Spigot 멤버 csrg 경로 |  |
 | `plugins.chunk-tickets.max-per-plugin` | 수 | 16384 | 1~100000000 | 플러그인 하나가 청크 티켓으로 붙잡을 수 있는 청크 수 상한(겹침 포함) |  |
+| `plugins.compat.config.paper-default-separator` | ON/OFF | false | true\|false | 플러그인이 `options().pathSeparator` 를 바꿨을 때 `addDefault` 기본값 트리를 Paper 처럼 언제나 '.' 로 쪼갠다(끄면 플러그인이 정한 구분자) | 잘못된 값은 기동 거부 |
+| `plugins.async-threads` | 글자 | platform | platform\|virtual | Furnace 플러그인 비동기 실행기(`asyncExecutor`·`PluginTasks.async`)의 스레드. platform: 이름 붙은 플랫폼 스레드 풀 `Furnace Async Thread - N`(Paper 비동기 스케줄러 모양), virtual: 가상 스레드(JDK 21 pinning 위험). 접속 전·구성 이벤트는 이 값과 상관없이 `User Authenticator #N` (T-034, 결정 D1) | 잘못된 값은 기동 거부 |
 | `plugins.compat.scheduler.async-threads` | 글자 | platform | platform\|virtual | Bukkit 비동기 작업을 도는 스레드. platform: 이름 붙은 플랫폼 스레드 풀(Paper 모양), virtual: 가상 스레드 | 잘못된 값은 기동 거부 |
-| `plugins.compat.libraries` | 글자 | needed | needed\|all\|off | Paper 가 싣는 라이브러리(Guava·Adventure·SnakeYAML·Brigadier 등)를 호환 플러그인 클래스가 쓸 때만(needed)·호환 플러그인이 있으면 전부(all) 받아 공유 로더에 붙인다(H4 묶음 B, `docs/api/plugin-libraries.md`) | 잘못된 값은 경고 후 needed |
+| `plugins.compat.libraries` | 글자 | needed | needed\|all\|off | Paper 가 싣는 라이브러리(Guava·Adventure·SnakeYAML·Brigadier 등)를 호환 플러그인 클래스가 쓸 때만(needed)·호환 플러그인이 있으면 전부(all) 받아 공유 로더에 붙인다(H4 묶음 B, `docs/api/plugin-libraries.md`). Guava·SnakeYAML 은 서버 jar 에 실려 받지 않고 꺼낸다 | 잘못된 값은 경고 후 needed |
 | `plugins.compat.libraries.mojang` | ON/OFF | true | true\|false | Brigadier·authlib·DataFixerUpper 를 Mojang 저장소에서 받는다 | off 인데 적혀 있으면 경고 |
 | `plugins.compat.libraries.declared` | ON/OFF | true | true\|false | 호환 플러그인 plugin.yml 의 libraries 를 Paper·Spigot 처럼 받는다 |  |
 | `plugins.libraries.enabled` | ON/OFF | false | true\|false | 플러그인 설명 파일의 libraries 를 Maven Central 에서 받아 붙인다 | 켜면 안내 |
@@ -102,6 +148,7 @@
 | `jvm.check` | ON/OFF | true | true\|false | 기동 때 Java 버전·힙·GC 옵션을 점검해 경고한다 |  |
 | `console.jline` | ON/OFF | true | true\|false | 콘솔 줄 편집·자동완성·기록(터미널이 아니면 자동으로 꺼진다) |  |
 | `console.history-size` | 수 | 500 | 0~100000 | 콘솔 명령 기록 줄 수(0 = 파일에 저장 안 함) |  |
+| `language` | 글자 | auto | auto\|en\|ko | 서버 메시지(콘솔 로그·콘솔 명령 결과) 언어. auto = 실행 환경 언어를 따른다. -Dfurnace.language·환경변수 FURNACE_LANGUAGE 가 있으면 그쪽이 이긴다. 번역이 없으면 영어 |  |
 | `connection.<단계>.packets-per-second` | 수 | 200 | 0~1000000 | 접속 단계(`handshake` `status` `login` `configuration` `play`)별 초당 패킷 평균 상한, 0 = 제한 없음 | 0 이면 경고 |
 | `connection.<단계>.packets-burst` | 수 | 400 | 1~10000000 | 단계별 순간 패킷 상한 | |
 | `connection.<단계>.max-frame-bytes` | 수 | 단계별(play 2097152) | 16~2097152 | 단계별 한 패킷 최대 크기, 넘으면 조정 | 조정 시 경고 |

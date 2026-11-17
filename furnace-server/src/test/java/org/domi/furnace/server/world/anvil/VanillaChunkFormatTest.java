@@ -1,6 +1,7 @@
 // 바닐라 1.21.1 서버가 저장한 청크를 읽어 다시 쓰면 섹션 팰릿·데이터·바이옴·높이맵이 바닐라 파일과 같아야 한다.
 package org.domi.furnace.server.world.anvil;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.InputStream;
@@ -15,17 +16,17 @@ import org.junit.jupiter.api.Test;
 
 class VanillaChunkFormatTest {
 
-    private static final BlockRegistry REG = BlockRegistry.load("blocks/1.21.1.txt");
-    private static final RegistrySet REGISTRIES = RegistrySet.load("registries/1.21.1.txt");
+    private static final BlockRegistry REG = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+    private static final RegistrySet REGISTRIES = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
 
     private static AnvilChunkCodec codec() {
         var biomes = REGISTRIES.entries("minecraft:worldgen/biome");
-        return new AnvilChunkCodec(REG, ItemRegistry.load("items/1.21.1.txt"), biomes,
+        return new AnvilChunkCodec(REG, ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"), biomes,
                 biomes.indexOf("minecraft:plains"), ChunkColumn.MIN_Y, ChunkColumn.SECTION_COUNT);
     }
 
     private static NbtCompound load(String name) throws Exception {
-        try (InputStream in = VanillaChunkFormatTest.class.getResourceAsStream("/storage/" + name)) {
+        try (InputStream in = VanillaChunkFormatTest.class.getResourceAsStream("/storage/" + GameVersion.RESOURCE_TAG + "/" + name)) {
             return NbtIo.readGzip(in);
         }
     }
@@ -95,7 +96,7 @@ class VanillaChunkFormatTest {
         var dim = org.domi.furnace.server.world.gen.NoiseWorldSource.Dimension.NETHER;
         var source = org.domi.furnace.server.world.gen.NoiseWorldSource.nether(1234L, REG, REGISTRIES);
         var biomes = REGISTRIES.entries("minecraft:worldgen/biome");
-        AnvilChunkCodec codec = new AnvilChunkCodec(REG, ItemRegistry.load("items/1.21.1.txt"), biomes,
+        AnvilChunkCodec codec = new AnvilChunkCodec(REG, ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"), biomes,
                 biomes.indexOf("minecraft:plains"), dim.minY, dim.sectionCount);
         ChunkColumn col = source.generate(3, -2);
         NbtCompound nbt = codec.toNbt(col, 3, -2);
@@ -121,7 +122,7 @@ class VanillaChunkFormatTest {
         int cave = withPlugin.indexOf("glow:cave");
         assertEquals(base.entries("minecraft:worldgen/biome").size(), cave, "플러그인 바이옴은 바닐라 뒤");
         int plains = withPlugin.indexOf("minecraft:plains");
-        var items = ItemRegistry.load("items/1.21.1.txt");
+        var items = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
         AnvilChunkCodec saver = new AnvilChunkCodec(REG, items, withPlugin, plains, -64, 24);
         ChunkColumn col = new ChunkColumn(plains, REG.directBits(), 7, -64, 24);
         col.sections()[4].setBiome(1, 2, 3, cave);

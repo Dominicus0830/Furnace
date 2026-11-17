@@ -11,6 +11,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import org.domi.furnace.server.sched.PreciseWait;
 import java.util.concurrent.locks.LockSupport;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,6 +23,8 @@ public final class SharedScheduler implements AutoCloseable {
     static final long PARK_MAX = 50_000_000L;
 
     private final CopyOnWriteArrayList<Regionizer> dims = new CopyOnWriteArrayList<>();
+    /** 등록·해제(표 + 선택기 배열)를 한 덩어리로 묶는 잠금. */
+    private final Object dimsLock = new Object();
     private final Thread[] workers;
     private volatile boolean running = true;
     /** 자는 워커. until 은 갱신될 수 있다(N2). */
@@ -133,16 +136,23 @@ public final class SharedScheduler implements AutoCloseable {
         for (Thread t : workers) t.start();
     }
 
-    /** 잠금 없음. 부르는 쪽은 차원 잠금을 쥐지 않는다. */
+    /**
+     * 표 바꾸기와 선택기 배열 갱신을 한 덩어리로 한다(임시 월드는 아무 스레드에서 동시에 올리고 내린다 — 덩어리가 아니면 늦게 쓴 옛 배열이
+     * 새 차원을 지운다). 깨우기는 잠금 밖. 부르는 쪽은 차원 잠금을 쥐지 않는다.
+     */
     void register(Regionizer rz) {
-        dims.addIfAbsent(rz);
-        snapshot = dims.toArray(new Regionizer[0]);
+        synchronized (dimsLock) {
+            dims.addIfAbsent(rz);
+            snapshot = dims.toArray(new Regionizer[0]);
+        }
         wake(rz.headDue());
     }
 
     void unregister(Regionizer rz) {
-        dims.remove(rz);
-        snapshot = dims.toArray(new Regionizer[0]);
+        synchronized (dimsLock) {
+            dims.remove(rz);
+            snapshot = dims.toArray(new Regionizer[0]);
+        }
     }
 
     /** 선택기가 읽는 차원 배열(등록/해제 때만 바뀐다 — select 마다 할당하지 않는다). */
@@ -159,6 +169,9 @@ public final class SharedScheduler implements AutoCloseable {
 
     /** 등록된 차원 수. */
     public int dimensionCount() { return dims.size(); }
+
+    /** 시험: 선택기가 보는 차원 수(등록 표와 같아야 한다). */
+    int selectableCount() { return snapshot.length; }
 
     int perDimCap() { return perDimCap; }
 
@@ -250,12 +263,22 @@ public final class SharedScheduler implements AutoCloseable {
         int pendingCount = 0, totalActive = 0;
         long min1 = Long.MAX_VALUE, min2 = Long.MAX_VALUE;   // 할 일이 있는 차원의 평균 틱 시간 가장 작은 둘
         for (Regionizer o : ds) {
-            totalActive += o.activeTicks();
-            if (o.headDue() != Long.MAX_VALUE) {
+            int oActive = o.activeTicks();
+            long oHead = o.headDue();
+            totalActive += oActive;
+            // 지금 틱을 도는 차원도 "할 일이 있다"로 센다. 틱 중인 region 은 큐에서 빠져 있어(headDue = MAX) 큐만 보면 그 틱 동안 이 차원이
+            // 쉬는 차원으로 보이고, 그때 고른 다른 워커가 상한 없는(MAX) 판단을 들고 늦게 tryTake 하면 무거운 차원이 마지막 워커까지 쓴다
+            // (T-161: SharedPoolS4Test 가 상한 3 대신 4 를 본 흔들림). Regionizer 는 큐에 다시 넣은 뒤에 activeTicks 를 내리므로
+            // region 이 있는 차원은 언제나 둘 중 하나로 보인다.
+            if (oHead != Long.MAX_VALUE || oActive > 0) {
                 pendingCount++;
                 // 스스로 차원 상한(T−1)을 채운 차원은 남겨 둔 워커를 쓸 수 없다 — "가벼운 차원"으로 치면 무거운 차원만 T−1 로 묶이고
                 // 마지막 워커가 논다(작은 region 이 많은 오버월드 옆 무거운 네더 20→15 TPS, PR #206 검토 R1)
-                if (o.activeTicks() >= perDimCap) continue;
+                if (oActive >= perDimCap) continue;
+                // 틱 중일 뿐 큐에 기다리는 region 이 없는 차원은 "가벼운 차원 몫"(min1·min2 → reserve)에 넣지 않는다 — 그 차원은 지금 워커 하나를
+                // 쥐고 있고 끝나면 그 워커가 곧 다시 고른다. 넣으면 그 틱 동안 무거운 차원이 T−2 로 묶여 워커 하나가 논다(PR #401 검토 R1, −6~10%).
+                // pendingCount(→ othersPending → 차원 상한 T−1)에는 그대로 센다 — 낡은 판단 경합은 그것으로 막힌다.
+                if (oHead == Long.MAX_VALUE) continue;
                 long a = o.avgTickNanos();
                 if (a < min1) { min2 = min1; min1 = a; }
                 else if (a < min2) min2 = a;
@@ -441,7 +464,7 @@ public final class SharedScheduler implements AutoCloseable {
                 }
                 best.runOne(r);
             } catch (Throwable t) {
-                log.error("[TICK] region 워커 루프 오류", t);
+                log.error(Lang.t("tick.worker-loop-error"), t);
             }
         }
     }

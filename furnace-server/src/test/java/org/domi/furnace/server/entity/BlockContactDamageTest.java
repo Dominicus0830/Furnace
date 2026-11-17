@@ -1,6 +1,7 @@
 // 닿은 블록이 생물에게 주는 효과: 선인장 피해 1, 마그마 블록 hot_floor 1, 위더 장미 시듦.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.block.B;
@@ -15,7 +16,7 @@ class BlockContactDamageTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static Chicken chicken(SkeletonCombatTest.ArenaLevel level) {

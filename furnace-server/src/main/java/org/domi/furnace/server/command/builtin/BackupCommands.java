@@ -7,6 +7,7 @@ import static org.domi.furnace.server.command.Commands.literal;
 import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.command.CommandSource;
 import org.domi.furnace.server.command.brigadier.CommandDispatcher;
+import org.domi.furnace.server.i18n.Lang;
 
 public final class BackupCommands {
 
@@ -22,17 +23,17 @@ public final class BackupCommands {
     private static int start(CommandSource source) {
         var backup = source.getServer().backup();
         if (backup == null) {
-            source.sendFailure(Text.text("백업을 쓸 수 없다(서버가 아직 준비되지 않았다)"));
+            source.sendFailure(Text.text(Lang.t("cmd.backup.unavailable-starting")));
             return 0;
         }
         if (backup.running()) {
-            source.sendFailure(Text.text("이미 백업 중이다"));
+            source.sendFailure(Text.text(Lang.t("backup.already-running")));
             return 0;
         }
-        source.sendSuccess(() -> Text.text("백업을 시작한다 → " + backup.options().backupDirectory().toAbsolutePath()), true);
-        backup.runAsync("명령").thenAccept(r -> {
-            if (r.ok()) source.sendSuccess(() -> Text.text("백업 완료: " + r.message()), true);
-            else source.sendFailure(Text.text("백업 실패: " + r.message()));
+        source.sendSuccess(() -> Text.text(Lang.t("cmd.backup.starting", backup.options().backupDirectory().toAbsolutePath())), true);
+        backup.runAsync("command").thenAccept(r -> {
+            if (r.ok()) source.sendSuccess(() -> Text.text(Lang.t("cmd.backup.done", r.message())), true);
+            else source.sendFailure(Text.text(Lang.t("cmd.backup.failed", r.message())));
         });
         return 1;
     }
@@ -40,15 +41,15 @@ public final class BackupCommands {
     private static int status(CommandSource source) {
         var backup = source.getServer().backup();
         if (backup == null) {
-            source.sendFailure(Text.text("백업을 쓸 수 없다"));
+            source.sendFailure(Text.text(Lang.t("cmd.backup.unavailable")));
             return 0;
         }
         var o = backup.options();
-        String every = o.backupEnabled() ? o.backupIntervalMinutes() + "분마다" : "주기 백업 꺼짐(backup.interval-minutes=0)";
-        source.sendSuccess(() -> Text.text("백업: " + every + ", 폴더 " + o.backupDirectory().toAbsolutePath()
-                + ", 보관 " + (o.backupKeep() == 0 ? "전부" : o.backupKeep() + "개") + (backup.running() ? " — 지금 백업 중" : "")), false);
+        String every = o.backupEnabled() ? Lang.t("cmd.backup.every", o.backupIntervalMinutes()) : Lang.t("cmd.backup.scheduled-off");
+        source.sendSuccess(() -> Text.text(Lang.t("cmd.backup.status", every, o.backupDirectory().toAbsolutePath(),
+                o.backupKeep() == 0 ? Lang.t("cmd.backup.keep-all") : Lang.t("cmd.backup.keep-n", o.backupKeep()), backup.running() ? Lang.t("cmd.backup.running-part") : "")), false);
         var last = backup.last();
-        source.sendSuccess(() -> Text.text(last == null ? "이번 기동 뒤 백업 없음" : "마지막: " + (last.ok() ? "성공 " : "실패 ") + last.message()), false);
+        source.sendSuccess(() -> Text.text(last == null ? Lang.t("cmd.backup.none-yet") : Lang.t(last.ok() ? "cmd.backup.last-ok" : "cmd.backup.last-failed", last.message())), false);
         return 1;
     }
 }

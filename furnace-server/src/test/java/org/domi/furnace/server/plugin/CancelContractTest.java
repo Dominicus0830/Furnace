@@ -58,6 +58,8 @@ class CancelContractTest {
                 E2E + "entitySpawnCancelKeepsArmorStandItemAndResendsHand", E2E + "entitySpawnCancelClearsFishingHook",
                 STAGE3 + "projectileAndItemSpawnAreSubEventsOfEntitySpawn"));
         TABLE.put("EntityBreedEvent", new Entry(Kind.SERVER_DRIVEN, STAGE3 + "breedCancelKeepsParentsInLoveAndNoChild"));
+        TABLE.put("EntityChangeBlockEvent", new Entry(Kind.SERVER_DRIVEN, "plugin.PluginApiEntityChangeBlockTest#fallingBlockStartCancelKeepsBlockAndAddsNoEntity",
+                "plugin.PluginApiEntityChangeBlockTest#fallingBlockLandingCancelDiscardsWithoutPlacing", "plugin.PluginApiEntityChangeBlockTest#breakDoorReachesChangeBlockSubscriberAndCancels"));
         TABLE.put("EntityDamageEvent", new Entry(Kind.SERVER_DRIVEN, WORLD + "spawnDamageDeathEventsAndCancellation"));
         TABLE.put("EntityDeathEvent", new Entry(Kind.SERVER_DRIVEN, WORLD + "entityDeathEventCarriesDropsAndCancelKeepsMobAliveWithGear"));
         TABLE.put("EntityExplodeEvent", new Entry(Kind.SERVER_DRIVEN, STAGE3 + "entityExplodeCanEditListAndCancel"));
@@ -112,8 +114,10 @@ class CancelContractTest {
         TABLE.put("PlayerHandshakeEvent", new Entry(Kind.SERVER_DRIVEN, "net.LoginPhaseEventsTest#cancelledHandshakeDisconnectsBeforeLogin"));
         // --- 서버
         TABLE.put("FunctionExecuteEvent", new Entry(Kind.SERVER_DRIVEN, "command.exec.FunctionHookTest#cancellingExecuteSkipsWholeFunctionBodyOnly"));
+        TABLE.put("GameRuleChangeEvent", new Entry(Kind.SERVER_DRIVEN, "command.builtin.GameRuleEventTest#cancelledGameruleKeepsValueAndStillSucceeds"));
         TABLE.put("FunctionCommandEvent", new Entry(Kind.SERVER_DRIVEN, "command.exec.FunctionHookTest#commandEventSeesEachLineAndCanCancelOne"));
         TABLE.put("ServerCommandEvent", new Entry(Kind.SERVER_DRIVEN, "plugin.PluginSystemTest#eventBusOrdersByPriorityAndHonorsCancellation"));
+        TABLE.put("AsyncTabCompleteEvent", new Entry(Kind.SERVER_DRIVEN, "net.TabCompleteEventTest#handledCancelledAndFallbackFollowPaper"));
         TABLE.put("RemoteServerCommandEvent", new Entry(Kind.SERVER_DRIVEN, "remote.RconCoreTest#remoteServerCommandEventCanRewriteOrCancel"));
     }
 

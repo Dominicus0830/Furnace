@@ -1,6 +1,7 @@
 // BiomeSampler Climate 수학 함수 단위 검증
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
 import org.domi.furnace.server.net.registry.RegistrySet;
@@ -44,8 +45,8 @@ class BiomeSamplerTest {
 
     @Test
     void load_entry_count() {
-        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
-        RegistrySet reg = RegistrySet.load("registries/1.21.1.txt");
+        WorldgenData data = WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG);
+        RegistrySet reg = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         BiomeSampler sampler = BiomeSampler.load(data, reg);
         // After filtering out 1.21.4-only biomes (pale_garden etc), expect 7000+ entries
         assertTrue(sampler.entries().size() > 1000, "Expected >1000 entries, got " + sampler.entries().size());

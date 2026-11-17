@@ -3,12 +3,15 @@ package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundServerDataPacket")
 public record ServerData(Text motd, byte[] icon) implements Packet {
 
-    public static final int ID = 0x4B;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_SERVER_DATA;
 
     @Override public int id() { return ID; }
 

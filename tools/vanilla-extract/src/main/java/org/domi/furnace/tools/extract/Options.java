@@ -1,0 +1,96 @@
+package org.domi.furnace.tools.extract;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/** 명령줄 옵션. */
+public final class Options {
+    public enum Mode {
+        /** 결과를 출력 폴더에만 쓴다(기본). */
+        EXTRACT,
+        /** 출력 폴더에 쓴 뒤 저장소의 커밋된 파일과 견준다. */
+        VERIFY,
+        /** 출력 폴더에 쓴 뒤 저장소 리소스를 덮어쓴다(새 판으로 올릴 때). */
+        INSTALL,
+        /** 이전(난독화 이름) 도구를 git 기록에서 꺼내 같은 jar 에 돌려 `<출력>/../<판>-legacy/` 에 쓴다 — 전후 비교의 "전". */
+        BASELINE,
+        /** 이전 도구와 새 도구의 바이트코드 호출을 견준다(이름을 대응표로 푼 뒤 같은 호출을 하는지). */
+        PORT_CHECK,
+        /** BASELINE + EXTRACT + PORT_CHECK 를 한 번에 하고 전·후·커밋을 모두 견준다. */
+        PROOF
+    }
+
+    public String mc;
+    public Mode mode = Mode.EXTRACT;
+    public List<String> tools = List.of();
+    public Path cache = defaultCache();
+    public Path repo = findRepo();
+    public Path out;
+    public Path javaHome = Path.of(System.getProperty("java.home"));
+    public Path serverJar;
+    public Path mappings;
+    public String python;
+    /** 프로토콜 번호를 직접 준다(오프라인 --server-jar 일 때). */
+    public int protocol = -1;
+    public boolean list;
+    /** 이전 도구가 들어 있던 git 커밋/브랜치(BASELINE·PORT_CHECK·PROOF 에 필요). */
+    public String legacyRef;
+    /** 도구별 추가 인자(`--tool-arg 도구=값`, 여러 번 가능). */
+    public final Map<String, List<String>> toolArgs = new LinkedHashMap<>();
+
+    public static Options parse(String[] args) {
+        Options o = new Options();
+        for (int i = 0; i < args.length; i++) {
+            String a = args[i];
+            switch (a) {
+                case "--mc" -> o.mc = next(args, ++i, a);
+                case "--mode" -> o.mode = Mode.valueOf(next(args, ++i, a).toUpperCase(java.util.Locale.ROOT).replace('-', '_'));
+                case "--tools" -> o.tools = List.of(next(args, ++i, a).split(","));
+                case "--cache" -> o.cache = Path.of(next(args, ++i, a));
+                case "--repo" -> o.repo = Path.of(next(args, ++i, a));
+                case "--out" -> o.out = Path.of(next(args, ++i, a));
+                case "--java-home" -> o.javaHome = Path.of(next(args, ++i, a));
+                case "--server-jar" -> o.serverJar = Path.of(next(args, ++i, a));
+                case "--mappings" -> o.mappings = Path.of(next(args, ++i, a));
+                case "--python" -> o.python = next(args, ++i, a);
+                case "--protocol" -> o.protocol = Integer.parseInt(next(args, ++i, a));
+                case "--list" -> o.list = true;
+                case "--legacy-ref" -> o.legacyRef = next(args, ++i, a);
+                case "--tool-arg" -> {
+                    String kv = next(args, ++i, a);
+                    int eq = kv.indexOf('=');
+                    if (eq <= 0) throw new IllegalArgumentException("--tool-arg 는 도구=값 형식: " + kv);
+                    o.toolArgs.computeIfAbsent(kv.substring(0, eq), k -> new ArrayList<>()).add(kv.substring(eq + 1));
+                }
+                default -> throw new IllegalArgumentException("알 수 없는 옵션: " + a);
+            }
+        }
+        if (!o.list && o.mc == null) throw new IllegalArgumentException("--mc <판> 이 필요하다(예 --mc 1.21.1)");
+        if (o.out == null) o.out = o.repo.resolve("tools/vanilla-extract/build/out").resolve(o.mc == null ? "none" : o.mc);
+        return o;
+    }
+
+    private static String next(String[] args, int i, String name) {
+        if (i >= args.length) throw new IllegalArgumentException(name + " 뒤에 값이 필요하다");
+        return args[i];
+    }
+
+    static Path defaultCache() {
+        String env = System.getenv("FURNACE_VANILLA_CACHE");
+        if (env != null && !env.isBlank()) return Path.of(env);
+        return Path.of(System.getProperty("user.home"), ".cache", "furnace-vanilla-extract");
+    }
+
+    /** 현재 폴더에서 위로 올라가며 settings.gradle.kts 가 있는 곳을 저장소 루트로 본다. */
+    static Path findRepo() {
+        Path p = Path.of("").toAbsolutePath();
+        for (Path q = p; q != null; q = q.getParent()) {
+            if (Files.isRegularFile(q.resolve("settings.gradle.kts")) && Files.isDirectory(q.resolve("tools"))) return q;
+        }
+        return p;
+    }
+}

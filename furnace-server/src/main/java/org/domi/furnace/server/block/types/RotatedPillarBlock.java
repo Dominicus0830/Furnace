@@ -1,12 +1,14 @@
 // 바닐라 RotatedPillarBlock: axis 속성 — 클릭한 면의 축으로 놓는다(통나무·기둥).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.RotatedPillarBlock")
 public class RotatedPillarBlock extends BlockBehavior {
 
     protected static final Prop AXIS = B.prop("axis");

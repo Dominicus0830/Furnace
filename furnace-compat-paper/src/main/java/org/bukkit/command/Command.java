@@ -167,7 +167,7 @@ public abstract class Command {
     public static void broadcastCommandMessage(CommandSender source, String message) { broadcastCommandMessage(source, message, true); }
 
     public static void broadcastCommandMessage(CommandSender source, String message, boolean sendToSource) {
-        throw new UnsupportedFeature("Command.broadcastCommandMessage", "권한 구독자 목록(PluginManager.getPermissionSubscriptions)이 없다");
+        throw new UnsupportedFeature("Command.broadcastCommandMessage", "there is no permission subscriber list (PluginManager.getPermissionSubscriptions)");
     }
 
     @Override

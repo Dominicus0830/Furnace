@@ -4,7 +4,9 @@ package org.domi.furnace.server.chat;
 import java.security.Signature;
 import java.security.SignatureException;
 import java.util.UUID;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.network.chat.SignedMessageLink")
 public record SignedMessageLink(int index, UUID sender, UUID sessionId) {
 
     public static final UUID NIL_UUID = new UUID(0L, 0L);

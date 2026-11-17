@@ -1,6 +1,6 @@
-// 플러그인별 시간 프로파일러(Bukkit timings 에 해당) — 리스너·예약 작업·명령·수명 함수에 쓴 시간을 플러그인마다 모은다.
+// 플러그인별 시간 프로파일러(Bukkit timings 에 해당). 리스너·예약 작업·명령·수명 함수에 쓴 시간을 플러그인마다 모은다.
 // 꺼져 있을 때 재는 지점마다 남는 비용은 volatile 읽기 하나다. 여러 region 스레드가 동시에 기록해도 된다.
-// 플러그인에는 "자기 시간"(그 안에서 잰 다른 구간을 뺀 값)을 매긴다 — 리스너 안에서 다른 플러그인의 이벤트·명령이 돌아도 두 번 세지 않는다.
+// 플러그인에는 "자기 시간"(그 안에서 잰 다른 구간을 뺀 값)을 매긴다. 리스너 안에서 다른 플러그인의 이벤트·명령이 돌아도 두 번 세지 않는다.
 // 서버 운영자는 /timings 로 켜고 끄고 본다. 플러그인은 timing(...) 으로 자기 코드 구간을 따로 잴 수 있다(종류 CUSTOM).
 package org.domi.furnace.api.profiler;
 
@@ -15,7 +15,7 @@ public interface PluginProfiler {
         LISTENER,
         /** 틱 스레드(전역·region·엔티티)에서 도는 예약 작업. */
         TASK,
-        /** 비동기 실행기(가상 스레드) 작업. */
+        /** 비동기 실행기(asyncExecutor) 작업. */
         ASYNC,
         /** 명령 실행·자동완성. */
         COMMAND,
@@ -31,7 +31,7 @@ public interface PluginProfiler {
         REGION,
         /** 전역 틱 스레드(명령·전역 작업). */
         GLOBAL,
-        /** 그 밖(비동기 가상 스레드·네트워크 스레드 등) — 틱을 늦추지 않는 시간. */
+        /** 그 밖(비동기 실행기·네트워크 스레드 등). 틱을 늦추지 않는 시간이다. */
         OTHER
     }
 
@@ -54,7 +54,7 @@ public interface PluginProfiler {
 
     /**
      * @param measuredNanos 켜져 있던 시간의 합(마지막 reset 뒤)
-     * @param tickNanos     틱 하나의 예산(보통 50ms) — "틱당 시간" 환산과 초과 횟수 기준
+     * @param tickNanos     틱 하나의 예산(보통 50ms). "틱당 시간" 환산과 초과 횟수의 기준이다.
      */
     record Report(long measuredNanos, boolean running, long tickNanos, List<PluginStats> plugins) {}
 

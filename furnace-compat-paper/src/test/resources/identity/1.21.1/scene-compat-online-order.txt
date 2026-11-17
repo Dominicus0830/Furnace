@@ -1,0 +1,7 @@
+# 결과 동일 금 파일 — scene-compat-online-order. 최적화 PR 은 이 파일을 바꾸지 않는다. 갱신 절차: docs/testing/identitykit.md
+join-order 6 [Zed, Amy, Mia, Bob, Kai, Eve]
+repeat-stable true
+after-quit [Zed, Mia, Bob, Kai, Eve]
+after-rejoin [Zed, Mia, Bob, Kai, Eve, Amy]
+many [Zed, Mia, Bob, Kai, Eve, Amy, Late0, Late1, Late2, Late3, Late4, Late5, Late6, Late7, Late8, Late9, Late10, Late11, Late12, Late13, Late14, Late15, Late16, Late17, Late18, Late19, Late20, Late21, Late22, Late23, Late24, Late25, Late26, Late27, Late28, Late29]
+TOTAL 93e93e54028671b7 lines=5

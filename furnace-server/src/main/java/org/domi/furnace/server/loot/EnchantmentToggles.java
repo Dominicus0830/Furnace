@@ -5,6 +5,7 @@
 // 끈 주체(설정 "config" 또는 플러그인 이름)별로 기록하고, 플러그인이 꺼지면 그 플러그인 몫만 풀린다. 아무 스레드에서 써도 된다.
 package org.domi.furnace.server.loot;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -71,14 +72,14 @@ public final class EnchantmentToggles {
             try {
                 p = org.domi.furnace.server.config.FurnaceProps.read(furnaceProps);
             } catch (RuntimeException e) {
-                warn.accept("furnace.properties 를 읽지 못해 enchantments.disabled 를 건너뛴다: " + e.getMessage());
+                warn.accept(Lang.t("cfg.enchant-file-unreadable", e.getMessage()));
             }
             for (String raw : p.getProperty("enchantments.disabled", "").split(",")) {
                 String id = raw.strip();
                 if (id.isEmpty()) continue;
                 if (id.indexOf(':') < 0) id = "minecraft:" + id;
                 if (known.test(id)) ids.add(id);
-                else warn.accept("enchantments.disabled: 모르는 마법부여 " + id);
+                else warn.accept(Lang.t("cfg.enchant-unknown", id));
             }
         }
         configure(ids);

@@ -2,6 +2,7 @@
 // shoot(방향, 힘 1.1, 흩어짐 6.0)으로 쏜다. 소리는 설정의 이벤트(기본 1002).
 package org.domi.furnace.server.block.dispenser;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.entity.AbstractArrow;
@@ -18,6 +19,10 @@ import org.domi.furnace.server.entity.ThrownExperienceBottle;
 import org.domi.furnace.server.entity.ThrownPotion;
 import org.domi.furnace.server.entity.WindCharge;
 
+@VanillaPort({
+    "net.minecraft.core.dispenser.ProjectileDispenseBehavior",
+    "net.minecraft.world.item.ProjectileItem"
+})
 final class ProjectileDispense extends DefaultDispenseItemBehavior {
 
     /** ProjectileItem.asProjectile(level, pos, stack, direction). */

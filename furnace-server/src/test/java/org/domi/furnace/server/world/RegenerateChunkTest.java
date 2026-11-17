@@ -2,6 +2,7 @@
 // 노이즈 월드는 같은 시드 새 생성기의 독립 경로 결과와 블록·바이옴이 같다. 재생성은 그때의 월드젠 훅을 쓴다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -48,13 +49,13 @@ class RegenerateChunkTest {
     @org.junit.jupiter.api.BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                RegistrySet.load("registries/1.21.1.txt")));
+                RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @Test
     void flatChunkIsRestoredRelitAndResent() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2, reg.directBits(), 7,
                 Executors.newSingleThreadExecutor());
         int glow = reg.defaultStateId("minecraft:glowstone"), chest = reg.defaultStateId("minecraft:chest");
@@ -83,8 +84,12 @@ class RegenerateChunkTest {
 
         w.subscribeChunk(C00, p).ready = true;
         ids(ch);
+        Object token = w.loadedChunkToken(0, 0);
+        assertNotNull(token);
+        assertFalse(token instanceof ChunkColumn, "로드 표시는 컬럼 자체가 아니다(쥐어도 청크를 붙잡지 않게)");
 
         assertTrue(w.regenerateChunk(0, 0, false, false).get(20, TimeUnit.SECONDS));
+        assertSame(token, w.loadedChunkToken(0, 0), "재생성은 로드 표시를 이어받는다(NMS shim 정체성 — Paper 는 같은 LevelChunk)");
 
         sched.region(R00).execute(() -> {
             Region r = w.regionAt(R00);
@@ -119,8 +124,8 @@ class RegenerateChunkTest {
     @Test
     void noiseChunkMatchesFreshIndependentGeneration() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         NoiseWorldSource src = NoiseWorldSource.overworld(777L, reg, registries);
         var gen = Executors.newFixedThreadPool(2);
         World w = new World(src, new ChunkWorkerPool(1), sched, 1, 16, 2, 2, reg.directBits(), 7, Executors.newSingleThreadExecutor(), gen);

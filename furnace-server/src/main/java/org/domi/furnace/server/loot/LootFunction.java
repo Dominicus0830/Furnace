@@ -11,7 +11,11 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({
+        "net.minecraft.world.level.storage.loot.functions.LootItemFunction",
+        "net.minecraft.world.level.storage.loot.functions.LootItemFunctions"})
 public interface LootFunction extends BiFunction<LootStack, LootContext, LootStack> {
 
     Logger LOG = LoggerFactory.getLogger(LootFunction.class);
@@ -250,7 +254,7 @@ public interface LootFunction extends BiFunction<LootStack, LootContext, LootSta
             }
             case "minecraft:copy_components" -> {
                 String source = LootJson.req(o, "source").getAsString();
-                if (!source.equals("block_entity")) throw new LootParseException("모르는 복사 원본: " + source);
+                if (!source.equals("block_entity")) throw new LootParseException("unknown copy source: " + source);
                 List<String> include = o.has("include") ? LootJson.list(o, "include", x -> LootJson.id(x.getAsString())) : null;
                 List<String> exclude = o.has("exclude") ? LootJson.list(o, "exclude", x -> LootJson.id(x.getAsString())) : null;
                 yield (s, c) -> {
@@ -327,7 +331,7 @@ public interface LootFunction extends BiFunction<LootStack, LootContext, LootSta
             }
             default -> {
                 LootFunction f = ItemFunctions.parse(type, o, regs);
-                if (f == null) throw new LootParseException("아직 지원하지 않는 전리품 함수: " + type);
+                if (f == null) throw new LootParseException("loot function not supported yet: " + type);
                 yield f;
             }
         };
@@ -359,7 +363,7 @@ public interface LootFunction extends BiFunction<LootStack, LootContext, LootSta
                 }
                 return count;
             };
-            default -> throw new LootParseException("모르는 보너스 공식: " + formula);
+            default -> throw new LootParseException("unknown bonus formula: " + formula);
         };
         return (s, c) -> {
             LootStack tool = c.param(LootParams.TOOL);

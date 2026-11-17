@@ -130,7 +130,7 @@ public final class LiveGrid {
         if (("minecraft:chest".equals(id) || "minecraft:trapped_chest".equals(id)) && tag.contains("Items") && tag.getList("Items").size() > 0
                 && id.equals(org.domi.furnace.server.block.Blocks.get().nameOfState(level.getBlockState(pos)))) {
             var chest = ChestBlockEntity.empty(id, x, y, z);
-            chest.load(tag);
+            chest.loadWithBukkitValues(tag);
             chest.loadComponents(tag);
             level.setBlockEntity(chest);
             return;

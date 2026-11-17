@@ -1,6 +1,7 @@
 // 화살이 피해를 못 주면 deflect(REVERSE) → ×0.2, 멈추면 (줍기 가능 시) 아이템 드롭.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.block.LegacyRandomSource;
@@ -13,7 +14,7 @@ class ArrowDeflectParityTest {
     @BeforeAll
     static void install() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static final Entity.Damage MOB = new Entity.Damage("mob_attack", false, false, false);

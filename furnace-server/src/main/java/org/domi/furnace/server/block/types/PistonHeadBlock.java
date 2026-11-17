@@ -1,6 +1,7 @@
 // 바닐라 PistonHeadBlock: 늘어난 피스톤 머리. 맞는 받침(같은 종류·늘어남·같은 방향)이나 움직이는 피스톤이 있어야 산다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.piston.PistonHeadBlock")
 public class PistonHeadBlock extends DirectionalBlock {
 
     private static final Prop TYPE = B.prop("type");

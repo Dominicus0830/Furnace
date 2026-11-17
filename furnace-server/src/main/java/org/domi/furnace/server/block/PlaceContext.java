@@ -1,8 +1,14 @@
 // 바닐라 UseOnContext + BlockPlaceContext(+ DirectionalPlaceContext). 설치 위치·바라보는 방향 순서를 바닐라 그대로 계산한다.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort({
+    "net.minecraft.world.item.context.UseOnContext",
+    "net.minecraft.world.item.context.BlockPlaceContext",
+    "net.minecraft.world.item.context.DirectionalPlaceContext"
+})
 public class PlaceContext {
 
     protected final BlockLevel level;
@@ -24,6 +30,20 @@ public class PlaceContext {
         this.relativePos = hit.pos().relative(hit.face());
         // 바닐라: replaceClicked 가 아직 true 인 채로 판정한다(그 안에서 getClickedPos == 클릭 칸)
         this.replaceClicked = BlockBehaviors.of(level.getBlockState(hit.pos())).canBeReplaced(level.getBlockState(hit.pos()), this);
+    }
+
+    /**
+     * 다리용(T-204 — 플러그인의 NMS BlockPlaceContext): 클릭 칸을 바꿀 수 있는지 판정하지 않고 받은 값으로 둔다. 하위 클래스가 값 메서드(clickedPos·canPlace·
+     * itemInHand …)를 그 문맥의 값으로 재정의한다 — 이 생성자는 레벨·문맥을 읽지 않는다(하위 클래스 필드가 아직 비어 있다).
+     */
+    protected PlaceContext(BlockLevel level, int hand, Hit hit, boolean replaceClicked) {
+        this.level = level;
+        this.player = null;
+        this.hand = hand;
+        this.stack = null;
+        this.hit = hit;
+        this.relativePos = hit.pos().relative(hit.face());
+        this.replaceClicked = replaceClicked;
     }
 
     /** DirectionalPlaceContext(level, pos, direction, stack, face). */
@@ -57,7 +77,7 @@ public class PlaceContext {
 
     /** BlockPlaceContext.at(ctx, pos, dir) — 그 칸의 dir 면 가운데를 클릭한 것으로. */
     public static PlaceContext at(PlaceContext c, Pos pos, int dir) {
-        return new PlaceContext(c.level, c.player, c.hand, c.stack,
+        return new PlaceContext(c.level(), c.player(), c.hand(), c.itemInHand(),
                 new Hit(pos, dir, pos.x() + 0.5 + Dir.DX[dir] * 0.5, pos.y() + 0.5 + Dir.DY[dir] * 0.5, pos.z() + 0.5 + Dir.DZ[dir] * 0.5, false));
     }
 
@@ -123,6 +143,7 @@ public class PlaceContext {
 
     /** 손에 든 아이템이 그 블록의 asItem 인가(canBeReplaced 기본 판정 — ItemStack.is(block.asItem())). */
     public boolean holding(int block) {
-        return !stack.isEmpty() && stack.itemId() == BlockItems.asItemId(block);
+        ItemStack s = itemInHand();
+        return !s.isEmpty() && s.itemId() == BlockItems.asItemId(block);
     }
 }

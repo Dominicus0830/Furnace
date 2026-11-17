@@ -1,6 +1,7 @@
 // 목표 선택기: 우선순위 선점(숫자 작은 쪽)·제어 칸 충돌·계속 조건·멈춤, 이동 제어가 몹을 목표로 걷게 한다, 무작위 둘러보기가 머리를 돌린다.
 package org.domi.furnace.server.entity.ai;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -18,7 +19,7 @@ class GoalSelectorTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static final class Script extends Goal {

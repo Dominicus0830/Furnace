@@ -1,11 +1,14 @@
 // 리소스 위치(바닐라 ResourceLocation) — namespace:path. 정렬은 바닐라처럼 path 먼저, 그다음 namespace.
 package org.domi.furnace.server.data;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("net.minecraft.resources.ResourceLocation")
 public record ResourceId(String namespace, String path) implements Comparable<ResourceId> {
 
     public ResourceId {
-        if (!validNamespace(namespace)) throw new IllegalArgumentException("잘못된 namespace: " + namespace + ":" + path);
-        if (!validPath(path)) throw new IllegalArgumentException("잘못된 path: " + namespace + ":" + path);
+        if (!validNamespace(namespace)) throw new IllegalArgumentException("invalid namespace: " + namespace + ":" + path);
+        if (!validPath(path)) throw new IllegalArgumentException("invalid path: " + namespace + ":" + path);
     }
 
     /** "ns:path" 또는 "path"(minecraft). */

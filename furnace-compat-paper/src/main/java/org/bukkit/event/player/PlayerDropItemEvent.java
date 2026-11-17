@@ -5,7 +5,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.Cancellable;
 import org.bukkit.event.HandlerList;
 
-/** 플레이어가 아이템을 버렸다. Furnace 는 버린 아이템 엔티티(Item)를 아직 Bukkit 에 보이지 못해 서버에서 알리지 않는다. */
+/** 플레이어가 아이템을 버린다. getItemDrop() 은 곧 월드에 들어갈 아이템 엔티티(CraftBukkit 처럼 아직 월드 밖)이고, 취소하면 인벤토리로 돌아간다. */
 public class PlayerDropItemEvent extends PlayerEvent implements Cancellable {
 
     private static final HandlerList handlers = new HandlerList();

@@ -1,6 +1,7 @@
 // 바닐라 net.minecraft.util.Mth 핵심 수학 헬퍼 비트정확 포팅(worldgen 전용)
 package org.domi.furnace.server.world.gen;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.util.Mth")
 public final class MathHelper {
     private MathHelper() {}
     public static int floor(double v) { int i = (int) v; return v < i ? i - 1 : i; }

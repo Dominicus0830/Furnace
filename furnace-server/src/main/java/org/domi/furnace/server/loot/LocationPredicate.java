@@ -2,6 +2,8 @@
 // 월드를 읽는 조건은 그 칸 청크를 가진 스레드에서만 답이 나온다(아니면 거짓 — 바닐라의 isLoaded 검사 자리).
 package org.domi.furnace.server.loot;
 
+import org.domi.furnace.server.VanillaPort;
+import org.domi.furnace.server.i18n.Lang;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.LinkedHashMap;
@@ -10,6 +12,7 @@ import java.util.Map;
 import java.util.function.Predicate;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort("net.minecraft.advancements.critereon.LocationPredicate")
 public record LocationPredicate(Bounds x, Bounds y, Bounds z, HolderSet biomes, String dimension,
                                 HolderSet blocks, Map<String, JsonElement> state, boolean unsupported,
                                 Predicate<String> structures, Bounds light, Boolean smokey, Boolean canSeeSky,
@@ -49,7 +52,7 @@ public record LocationPredicate(Bounds x, Bounds y, Bounds z, HolderSet biomes, 
                         try {
                             blockNbt = org.domi.furnace.server.command.arguments.TagParser.parseTag(b.get("nbt").getAsString());
                         } catch (org.domi.furnace.server.command.brigadier.CommandSyntaxException ex) {
-                            throw new LootParseException("위치 조건 block.nbt 를 읽을 수 없다: " + ex.getMessage());
+                            throw new LootParseException("cannot read the block.nbt of a location predicate: " + ex.getMessage());
                         }
                     }
                 }
@@ -64,7 +67,7 @@ public record LocationPredicate(Bounds x, Bounds y, Bounds z, HolderSet biomes, 
                 default -> unsupported = true;
             }
         }
-        if (unsupported) org.slf4j.LoggerFactory.getLogger(LocationPredicate.class).warn("아직 지원하지 않는 위치 조건 필드: {}", o.keySet());
+        if (unsupported) org.slf4j.LoggerFactory.getLogger(LocationPredicate.class).warn(Lang.t("loot.location-condition-unsupported", o.keySet()));
         return new LocationPredicate(x, y, z, biomes, dimension, blocks, state, unsupported, structures, light, smokey, canSeeSky,
                 fluids, fluidState, blockNbt);
     }
@@ -79,7 +82,7 @@ public record LocationPredicate(Bounds x, Bounds y, Bounds z, HolderSet biomes, 
         String s = e.getAsString();
         if (s.startsWith("#")) {
             List<String> members = org.domi.furnace.server.world.gen.structure.StructureRegistry.structureTag(LootJson.id(s.substring(1)));
-            if (members == null) throw new LootParseException("모르는 구조물 태그: " + s);
+            if (members == null) throw new LootParseException("unknown structure tag: " + s);
             return members::contains;
         }
         String id = LootJson.id(s);

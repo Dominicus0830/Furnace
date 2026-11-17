@@ -1,6 +1,7 @@
 // 몹 양동이로 잡기(Bucketable.bucketMobPickup): 물 양동이로 우클릭하면 몹이 bucket_entity_data 에 담긴 채운 양동이가 된다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.api.text.Text;
@@ -16,7 +17,7 @@ class MobBucketPickupTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static Player player(GameMode mode) {

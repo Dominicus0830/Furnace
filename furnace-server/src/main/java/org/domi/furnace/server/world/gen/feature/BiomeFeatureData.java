@@ -468,7 +468,7 @@ public final class BiomeFeatureData {
             if (type.equals("minecraft:large_dripstone")) {
                 TreeIntProvider radius = treeIntProvider(config.get("column_radius"), 1);
                 if (!(radius instanceof TreeIntProvider.Uniform uniform)) {
-                    throw new IllegalArgumentException("large_dripstone column_radius는 uniform만 지원: " + config.get("column_radius"));
+                    throw new IllegalArgumentException("large_dripstone column_radius supports only uniform: " + config.get("column_radius"));
                 }
                 return new DripstoneFeatures.Large(dripstone(),
                     config.has("floor_to_ceiling_search_range") ? config.get("floor_to_ceiling_search_range").getAsInt() : 30,
@@ -1452,7 +1452,7 @@ public final class BiomeFeatureData {
                     }
                     return new TreeIntProvider.WeightedList(List.copyOf(entries));
                 }
-                default -> throw new IllegalArgumentException("알 수 없는 IntProvider: " + obj);
+                default -> throw new IllegalArgumentException("unknown IntProvider: " + obj);
             }
         }
 
@@ -1686,7 +1686,7 @@ public final class BiomeFeatureData {
                     int maxRel = json.has("max_inclusive") ? json.get("max_inclusive").getAsInt() : Integer.MAX_VALUE;
                     out.add(new PlacementModifier.SurfaceRelativeThresholdFilter(parseHeightmapType(json), minRel, maxRel));
                 }
-                default -> throw new IllegalArgumentException("지원하지 않는 placement modifier: " + type);
+                default -> throw new IllegalArgumentException("unsupported placement modifier: " + type);
             }
         }
 
@@ -1698,7 +1698,7 @@ public final class BiomeFeatureData {
                 case "south" -> new int[]{0, 0, 1};
                 case "west" -> new int[]{-1, 0, 0};
                 case "east" -> new int[]{1, 0, 0};
-                default -> throw new IllegalArgumentException("방향: " + name);
+                default -> throw new IllegalArgumentException("unknown direction: " + name);
             };
         }
 

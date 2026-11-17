@@ -2,16 +2,19 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.nbt.NbtWriter;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
+@VanillaPort("net.minecraft.network.protocol.common.ClientboundDisconnectPacket")
 public record Disconnect(org.domi.furnace.api.text.Text reason) implements Packet {
 
     public Disconnect(String literal) {
         this(org.domi.furnace.api.text.Text.text(literal));
     }
 
-    public static final int ID = 0x1D;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_DISCONNECT;
 
     @Override
     public int id() {

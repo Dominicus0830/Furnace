@@ -2,8 +2,13 @@
 // 상태는 int(전역 상태 id), 블록은 블록 번호(Blocks), 위치는 Pos, 유체는 Fluids 인코딩. "null 상태"는 -1.
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort({
+    "net.minecraft.world.level.block.state.BlockBehaviour",
+    "net.minecraft.world.level.block.Block"
+})
 public class BlockBehavior {
 
     protected static final Blocks BLOCKS = Blocks.get();
@@ -125,16 +130,29 @@ public class BlockBehavior {
     /** Block.handlePrecipitation(state, level, pos, "rain"|"snow"): 비·눈이 내린 칸(가마솥만 반응). */
     public void handlePrecipitation(int state, BlockLevel level, Pos pos, String precipitation) {}
 
-    /** BlockBehaviour.spawnAfterBreak(state, level, pos, tool, dropExperience): 경험치·좀벌레 등. */
+    /**
+     * BlockBehaviour.spawnAfterBreak(state, level, pos, tool, dropExperience): 경험치·좀벌레 등. 경험치를 주는 블록은
+     * dropExperience 일 때 {@link #expDrop} 만큼 popExperience 한다(바닐라 tryDropExperience 와 같은 난수·순서).
+     */
     public void spawnAfterBreak(int state, BlockLevel level, Pos pos, ItemStack tool, boolean dropExperience) {}
 
     /**
-     * Block.tryDropExperience(level, pos, tool, IntProvider[min..max]): 표본(uniform 이면 레벨 난수 nextInt) → 섬세한 손길이면 0
-     * (EnchantmentHelper.processBlockExperience — block_experience 효과) → 0 보다 크면 popExperience.
+     * 부서질 때 줄 경험치(Paper Block.getExpDrop(state, level, pos, tool, true)). 기본 0. 표본을 뽑으므로 레벨 난수를 쓴다.
+     * Block#breakNaturally(…, dropExperience) 가 드롭과 효과 뒤에 따로 부른다.
      */
-    protected static void tryDropExperience(BlockLevel level, Pos pos, ItemStack tool, int min, int max) {
+    public int expDrop(int state, BlockLevel level, Pos pos, ItemStack tool) { return 0; }
+
+    /**
+     * Block.tryDropExperience 의 양 계산(IntProvider[min..max]): 표본(uniform 이면 레벨 난수 nextInt) → 섬세한 손길이면 0
+     * (EnchantmentHelper.processBlockExperience — block_experience 효과).
+     */
+    protected static int experienceSample(BlockLevel level, ItemStack tool, int min, int max) {
         int sample = min == max ? min : level.random().nextInt(max - min + 1) + min;
-        int xp = org.domi.furnace.server.item.ItemTools.enchantmentLevel(tool, "minecraft:silk_touch") > 0 ? 0 : sample;
+        return org.domi.furnace.server.item.ItemTools.enchantmentLevel(tool, "minecraft:silk_touch") > 0 ? 0 : sample;
+    }
+
+    /** Block.tryDropExperience 의 마무리: 0 보다 크면 popExperience. */
+    protected static void popExperienceIfAny(BlockLevel level, Pos pos, int xp) {
         if (xp > 0) level.popExperience(pos, xp);
     }
 
@@ -222,7 +240,7 @@ public class BlockBehavior {
     public Shape getShape(int state, BlockLevel level, Pos pos) { return INFO.shape(state); }
 
     /** getVisualShape(state, level, pos): 시선 검사(ClipContext.Block.VISUAL)가 보는 모양 — 기본은 충돌 모양. */
-    public Shape getVisualShape(int state, BlockLevel level, Pos pos, BlockActor entity) { return getCollisionShape(state, level, pos, entity); }
+    public Shape getVisualShape(int state, BlockLevel level, Pos pos, CollisionContext ctx) { return getCollisionShape(state, level, pos, ctx); }
 
     // ------------------------------------------------------------------ 엔티티(바닐라 BlockBehaviour·Block 의 엔티티 훅)
 
@@ -243,15 +261,11 @@ public class BlockBehavior {
     }
 
     /**
-     * getCollisionShape(state, level, pos, EntityCollisionContext.of(entity)): 엔티티 이동·착지 판정이 쓴다. 대부분의 블록은 문맥과 무관하다
-     * (가루눈만 엔티티마다 다르다).
+     * getCollisionShape(state, level, pos, ctx): 충돌 모양. 대부분의 블록은 상태만으로 정해진다(BlockInfo 표). 문맥에 따라 다른 블록(비계·물·용암·
+     * 가루눈)과 칸에 따라 다른 블록(움직이는 피스톤)만 덮어쓴다 — 덮어쓰면 충돌 수집(ChunkLevel.CollisionTable)이 칸마다 부른다.
+     * ctx 는 null 이 아니다: 문맥 없음은 CollisionContext.EMPTY(바닐라 CollisionContext.empty()).
      */
-    public Shape getEntityCollisionShape(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Entity entity) {
-        return getCollisionShape(state, level, pos, null);
-    }
-
-    /** getCollisionShape(state, level, pos, 문맥 엔티티 — 없으면 null). */
-    public Shape getCollisionShape(int state, BlockLevel level, Pos pos, BlockActor entity) { return INFO.collisionShape(state); }
+    public Shape getCollisionShape(int state, BlockLevel level, Pos pos, CollisionContext ctx) { return INFO.collisionShape(state); }
 
     public boolean isFaceSturdy(int state, BlockLevel level, Pos pos, int dir, int supportType) {
         return INFO.faceSturdy(state, dir, supportType);

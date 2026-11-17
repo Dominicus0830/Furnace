@@ -5,6 +5,7 @@
 //                  멀리 있는 몹이 클라이언트에 안 보이는 등 바닐라와 관측 결과가 조금 달라지므로 켠 사람만 받는다.
 package org.domi.furnace.server.config;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +32,14 @@ public final class ConfigPresets {
         for (String k : new String[]{"display-name", "item-name", "lore-line", "book-page", "book-author"}) vanilla.put("limits.item." + k, "0");
         vanilla.put("plugins.dev-mode", "false");
         vanilla.put("idle-pause.empty-seconds", "0");
+        vanilla.put("entity-activation-range.enabled", "false");   // 기본은 켜짐(D11) — 바닐라 프리셋은 끈다
+        vanilla.put(EntityHandleSettings.MAX_COLLISIONS, "-1");   // 기본은 Paper 값(T-122) — 바닐라 프리셋은 밀기 제한 없음
+        vanilla.put(EntityHandleSettings.TRACKING + "enabled", "false");   // 추적 거리도 바닐라
+        vanilla.put(EntityHandleSettings.ITEM_MERGE, "0.5");
+        vanilla.put(EntityHandleSettings.EXP_MERGE, "-1");
+        vanilla.put(EntityHandleSettings.ITEM_MERGE_INTO_TICKING, "false");
+        vanilla.put(EntityHandleSettings.SKIP_UNPUSHABLE, "false");
+        vanilla.put(EntityHandleSettings.PLAYER_CRAMMING, "true");
         PRESETS.put("vanilla", vanilla);
         Map<String, String> perf = new LinkedHashMap<>();
         perf.put("entity-view-distance", "6");
@@ -49,7 +58,7 @@ public final class ConfigPresets {
         String name = name(props);
         Map<String, String> m = PRESETS.get(name);
         if (m == null) {
-            throw new IllegalArgumentException("설정 '" + KEY + "' 값 '" + name + "' 이(가) 잘못됐습니다: " + String.join(", ", NAMES) + " 중 하나");
+            throw new IllegalArgumentException(Lang.t("cfg.invalid-choice", KEY, name, String.join(", ", NAMES)));
         }
         for (var e : m.entrySet()) {
             String cur = props.getProperty(e.getKey());

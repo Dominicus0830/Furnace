@@ -2,13 +2,16 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundSoundPacket")
 public record SoundPacket(int soundId, String directSound, int source, double x, double y, double z, float volume, float pitch, long seed)
         implements Packet {
 
-    public static final int ID = 0x68;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_SOUND;
 
     /** SoundSource 순서: master music record weather block hostile neutral player ambient voice. */
     public static int source(String name) {

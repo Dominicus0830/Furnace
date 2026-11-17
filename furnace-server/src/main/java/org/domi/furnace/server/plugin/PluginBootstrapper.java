@@ -1,7 +1,8 @@
 // 플러그인 부트스트랩 단계: plugins/*.jar 를 훑어 설명 파일을 읽고 의존 순서를 정한 뒤, 플러그인마다 클래스로더를 만들고
 // 설명 파일의 bootstrapper 를 부른다. 서버는 이것을 블록·아이템·동기화 레지스트리와 데이터 팩을 읽기 "전"에 돌린다
 // (Paper 부트스트랩과 같은 자리). 메인 클래스 인스턴스·onLoad 는 그 뒤 PluginManagerImpl.loadAll 이 이어서 한다.
-// furnace-plugin.(yml|yaml|toml|json) 을 가진 jar 만 Furnace 플러그인이다. Paper/Bukkit 플러그인은 plugins/bukkit-plugins/ 에 둔다.
+// furnace-plugin.(yml|yaml|toml|json) 을 가진 jar 만 Furnace 플러그인이다. Paper/Bukkit 플러그인은 plugins/bukkit-plugins/(또는 Paper 처럼 plugins/)에 넣으면 바로 돈다.
+// Bukkit 플러그인이 하나도 없으면 호환 계층은 켜지지 않는다: 어댑터 클래스·호환 jar 꺼내기·서버 제공 라이브러리·Spigot 이름 대응표 모두 손대지 않는다.
 package org.domi.furnace.server.plugin;
 
 import java.io.IOException;
@@ -39,6 +40,7 @@ import org.domi.furnace.server.plugin.library.LibrarySettings;
 import org.domi.furnace.server.plugin.library.ServerLibraries;
 import org.domi.furnace.server.plugin.library.SharedLibraryLoader;
 import org.domi.furnace.server.plugin.library.SpigotMappingFiles;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,7 +58,7 @@ public final class PluginBootstrapper {
      * 다른 서버 소프트웨어 플러그인 형식 어댑터(예: Bukkit plugin.yml). 호환 모듈이 없으면 비어 있다.
      * 어댑터는 Furnace 설명 파일이 없는 jar 를 처음 만날 때까지 만들지 않는다 — Bukkit·Paper 플러그인이 없으면 호환 모듈 클래스는 올라오지 않는다.
      */
-    private final PluginFormats formats;
+    private PluginFormats formats;   // 생성 뒤 한 번만 정한다(embedded 는 이 부트스트래퍼의 로더를 가리켜야 해서)
     /** 찾기·부트스트랩에서 실패한 플러그인(또는 jar) 이름 — plugins.fail-fast 의 근거. */
     private final List<String> failures = new CopyOnWriteArrayList<>();
     private final PluginRegistryStore registries = new PluginRegistryStore();
@@ -87,8 +89,23 @@ public final class PluginBootstrapper {
     /** plugins/ 를 훑어 의존 순서대로 부트스트랩까지 한다. 실패한 플러그인은 로그를 남기고 건너뛴다. */
     public static PluginBootstrapper bootstrap(Path dir) { return bootstrap(dir, PluginSettings.DEFAULT); }
 
-    public static PluginBootstrapper bootstrap(Path dir, PluginSettings settings) {
-        return bootstrap(dir, settings, settings.compat() ? PluginFormats.discover(PluginBootstrapper.class.getClassLoader()) : PluginFormats.none(), ServerLibraries.DEFAULT);
+    public static PluginBootstrapper bootstrap(Path dir, PluginSettings settings) { return bootstrap(dir, settings, PluginBootstrapper.class.getClassLoader()); }
+
+    /** source: 호환 모듈 자원(통째로 실린 jar 색인 또는 ServiceLoader 자원)을 찾는 로더 — 시험이 바꿔 넣는다. */
+    static PluginBootstrapper bootstrap(Path dir, PluginSettings settings, ClassLoader source) {
+        if (!settings.compat()) return bootstrap(dir, settings, PluginFormats.none(), ServerLibraries.DEFAULT);
+        CompatJars embedded = CompatJars.find(source);
+        PluginFormats onClasspath = PluginFormats.discover(source);
+        if (embedded == null) return bootstrap(dir, settings, onClasspath, ServerLibraries.DEFAULT);
+        if (onClasspath.available()) {
+            // 같은 호환 클래스가 서버 로더와 공유 로더에 둘 다 정의되는 일을 구조로 막는다
+            throw new IllegalStateException("the compat module is both on the server classpath and bundled whole in the server jar - only one of them may exist");
+        }
+        PluginBootstrapper b = new PluginBootstrapper(dir, settings, null, ServerLibraries.DEFAULT);
+        b.compatJars = embedded;
+        b.formats = PluginFormats.embedded(b::sharedLoader);
+        b.run();
+        return b;
     }
 
     /** 형식 어댑터를 직접 정해 시작한다(시험용). */
@@ -204,7 +221,33 @@ public final class PluginBootstrapper {
             try {
                 f.afterPluginsDisabled(server);
             } catch (Throwable t) {
-                log.warn("플러그인 형식 '{}' 의 종료 마무리 실패", f.id(), t);
+                log.warn(Lang.t("plugin.format-shutdown-failed", f.id()), t);
+            }
+        }
+    }
+
+    /** 이 플러그인을 기본 월드 전에 켜야 하는가(만들어 둔 형식 어댑터 중 하나라도 그렇다고 하면). */
+    boolean enablesBeforeWorlds(PluginDescription d) {
+        if (!formats.loaded()) return false;
+        for (PluginFormat f : formats.get()) {
+            try {
+                if (f.enablesBeforeWorlds(d)) return true;
+            } catch (Throwable t) {
+                log.warn(Lang.t("plugin.format-order-failed", f.id()), t);
+            }
+        }
+        return false;
+    }
+
+    /** 플러그인 onLoad 직전(true)·월드 전 플러그인을 다 켠 직후(false)를 만들어 둔 형식 어댑터에게 알린다. 어댑터 하나가 던져도 나머지는 계속된다. */
+    void worldsPhase(org.domi.furnace.api.Furnace server, boolean beforeLoad) {
+        if (!formats.loaded()) return;
+        for (PluginFormat f : formats.get()) {
+            try {
+                if (beforeLoad) f.beforePluginsLoad(server);
+                else f.worldsReady(server);
+            } catch (Throwable t) {
+                log.warn(Lang.t("plugin.format-worlds-failed", f.id()), t);
             }
         }
     }
@@ -219,7 +262,7 @@ public final class PluginBootstrapper {
             try {
                 f.awaitPluginTasks(server, plugins, maxMillis);
             } catch (Throwable t) {
-                log.warn("플러그인 형식 '{}' 의 리로드 대기 실패", f.id(), t);
+                log.warn(Lang.t("plugin.format-reload-failed", f.id()), t);
             }
         }
     }
@@ -245,17 +288,16 @@ public final class PluginBootstrapper {
             Files.createDirectories(dir);
             Files.createDirectories(dir.resolve(BUKKIT_FOLDER));
         } catch (IOException e) {
-            log.error("plugins 폴더를 만들 수 없다: {}", dir, e);
+            log.error(Lang.t("plugin.folder-create-failed", dir), e);
             return;
         }
         if (settings.devMode()) {
-            log.warn("plugins.dev-mode=true — 플러그인 핫 리로드가 켜졌다. 운영 서버에서는 끄라");
+            log.warn(Lang.t("plugin.dev-mode"));
             HotReload.clearShadowDir(dir);
         }
         long bukkit = countJars(dir.resolve(BUKKIT_FOLDER));
         if (bukkit > 0 && !formats.available()) {
-            log.warn("plugins/{}/ 에 Paper/Bukkit 플러그인 {}개가 있다 — 호환 어댑터가 {} 불러오지 않는다", BUKKIT_FOLDER, bukkit,
-                    settings.compat() ? "클래스패스에 없어" : "꺼져(plugins.compat.bukkit=false) 있어");
+            log.warn(Lang.t(settings.compat() ? "plugin.bukkit-skipped-missing" : "plugin.bukkit-skipped-off", BUKKIT_FOLDER, bukkit));
         }
         Map<String, Candidate> byName = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         for (Path jar : scanJars()) {
@@ -337,16 +379,15 @@ public final class PluginBootstrapper {
                 // 호환 모듈 자원은 있는데 어댑터를 만들 수 없다(깨진 호환 모듈). 어댑터가 아예 없을 때와 같이 경고만 하고 실패로 세지 않는다.
                 if (!brokenAdapterWarned) {
                     brokenAdapterWarned = true;
-                    log.warn("plugins/{}/ 에 Paper/Bukkit 플러그인이 있지만 호환 어댑터를 만들지 못해(클래스패스의 호환 모듈이 깨졌다) 불러오지 않는다", BUKKIT_FOLDER);
+                    log.warn(Lang.t("plugin.bukkit-adapter-broken", BUKKIT_FOLDER));
                 }
                 return SKIPPED;
             }
             if (jf.getEntry("plugin.yml") != null || jf.getEntry("paper-plugin.yml") != null) {
-                log.error("Could not load '{}' in folder '{}': Paper/Bukkit 플러그인이다 — plugins/{}/ 에 넣어야 한다",
-                        dir.relativize(jar), dir.getFileName(), BUKKIT_FOLDER);
+                log.error("Could not load '{}' in folder '{}': {}", dir.relativize(jar), dir.getFileName(), Lang.t("plugin.load.bukkit-in-wrong-folder", BUKKIT_FOLDER));
                 return null;
             }
-            log.error("Could not load '{}' in folder '{}': 설명 파일({})이 없다", dir.relativize(jar), dir.getFileName(), DESCRIPTOR_NAMES.get(0));
+            log.error("Could not load '{}' in folder '{}': {}", dir.relativize(jar), dir.getFileName(), Lang.t("plugin.load.no-descriptor", DESCRIPTOR_NAMES.get(0)));
             return null;
         }
     }
@@ -397,7 +438,7 @@ public final class PluginBootstrapper {
             }
             if (pick == null) {
                 for (Candidate c : remaining.values()) {
-                    log.error("Could not load '{}' in folder '{}': 의존 관계가 순환한다", dir.relativize(c.file()), dir.getFileName());
+                    log.error("Could not load '{}' in folder '{}': {}", dir.relativize(c.file()), dir.getFileName(), Lang.t("plugin.load.cyclic"));
                     failures.add(c.description().name());
                 }
                 break;
@@ -419,7 +460,7 @@ public final class PluginBootstrapper {
         List<String> failed = new ArrayList<>();
         for (String dep : d.depend()) if (find(dep) == null) failed.add(dep);
         if (!failed.isEmpty()) {
-            log.error("Could not load '{}' in folder '{}': 의존 플러그인 {} 을(를) 불러오지 못했다", dir.relativize(c.file()), dir.getFileName(), failed);
+            log.error("Could not load '{}' in folder '{}': {}", dir.relativize(c.file()), dir.getFileName(), Lang.t("plugin.load.dependency-failed", failed));
             failures.add(d.name());
             return null;
         }
@@ -431,10 +472,10 @@ public final class PluginBootstrapper {
         PluginManagerImpl.PluginClassLoader loader;
         try {
             Path jar = settings.devMode() ? HotReload.shadowCopy(dir, c.file()) : c.file();
-            org.domi.furnace.api.plugin.ClassTransformer transformer = c.format() != null && settings.compatNms() ? c.format().transformer(d, jar, compatOptionsFor(c)) : null;
+            org.domi.furnace.api.plugin.ClassTransformer transformer = c.format() != null && settings.compatNms() ? c.format().transformer(d, jar, compatOptionsFor(c), () -> spigotMappingFilesFor(c)) : null;
             ClassLoader parent = c.format() != null ? sharedLibrariesFor(c) : null;
             loader = new PluginManagerImpl.PluginClassLoader(jar, this, settings.devMode(), libraries, transformer, parent,
-                    c.format() == null && !settings.exposeCompatToNative());
+                    c.format() == null && !settings.exposeCompatToNative(), c.format() != null);
         } catch (IOException | RuntimeException e) {
             log.error("Could not load '{}' in folder '{}'", dir.relativize(c.file()), dir.getFileName(), e);
             failures.add(d.name());
@@ -450,7 +491,7 @@ public final class PluginBootstrapper {
         if (cls != null && !cls.isBlank()) {
             try {
                 Class<?> type = Class.forName(cls, true, loader);
-                if (!PluginBootstrap.class.isAssignableFrom(type)) throw new IllegalArgumentException("bootstrapper 가 PluginBootstrap 을 구현하지 않는다: " + cls);
+                if (!PluginBootstrap.class.isAssignableFrom(type)) throw new IllegalArgumentException("the bootstrapper does not implement PluginBootstrap: " + cls);
                 boot = (PluginBootstrap) type.getDeclaredConstructor().newInstance();
                 logger.info("Bootstrapping " + d.fullName());
                 boot.bootstrap(ctx);
@@ -482,17 +523,15 @@ public final class PluginBootstrapper {
         // Paper·Spigot 은 plugin.yml 의 libraries 를 기본으로 받는다 — 호환 플러그인은 plugins.compat.libraries.declared(기본 켜짐)를 따른다
         boolean on = c.format() != null ? ls.enabled() || ls.compatDeclared() : ls.enabled();
         if (!on) {
-            log.warn("Plugin {} 이 라이브러리 {}개({})를 요구하지만 {} 라 받지 않는다 — 켜거나, 라이브러리를 플러그인 jar 에 넣어라",
-                    d.fullName(), d.libraries().size(), d.libraries().stream().map(PluginDescription.Library::coordinate).toList(),
-                    c.format() != null ? "plugins.compat.libraries.declared=false" : "plugins.libraries.enabled=false");
+            log.warn(Lang.t("plugin.libraries-disabled", d.fullName(), d.libraries().size(), d.libraries().stream().map(PluginDescription.Library::coordinate).toList(), c.format() != null ? "plugins.compat.libraries.declared=false" : "plugins.libraries.enabled=false"));
             return List.of();
         }
         try {
             List<Path> jars = resolver().resolve(d.name(), d.libraries());
-            log.info("Plugin {}: 라이브러리 jar {}개를 클래스패스에 붙인다", d.fullName(), jars.size());
+            log.info(Lang.t("plugin.libraries-attach", d.fullName(), jars.size()));
             return jars;
         } catch (LibraryResolver.LibraryException e) {
-            log.error("Could not load '{}' in folder '{}': 라이브러리를 준비하지 못했다 — {}", dir.relativize(c.file()), dir.getFileName(), e.getMessage());
+            log.error("Could not load '{}' in folder '{}': {}", dir.relativize(c.file()), dir.getFileName(), Lang.t("plugin.load.libraries-failed", e.getMessage()));
             return null;
         }
     }
@@ -516,6 +555,56 @@ public final class PluginBootstrapper {
 
     /** 호환 플러그인들의 부모 로더(처음 필요할 때 만든다). */
     private SharedLibraryLoader sharedLoader;
+    /** 서버 jar 에 실린 호환 모듈 jar(없으면 null — 호환 모듈이 서버 클래스패스에 바로 있다). */
+    private CompatJars compatJars;
+    /** 꺼내 공유 로더 첫 항목으로 붙인 호환 jar(아직이면 null). */
+    private List<Path> compatJarFiles;
+    /** 호환 jar 를 꺼내거나 올리다 실패한 원인(다시 부르면 같은 것을 던진다). */
+    private IllegalStateException compatFailure;
+    /** 호환 계층 자신이 서명·상위 타입에 쓰는 라이브러리 묶음 — 호환 jar 를 표지로 훑어 얻는다. Bukkit 플러그인이 있으면 늘 준비한다. */
+    private Set<String> compatCore = Set.of();
+
+    /**
+     * 공유 로더를 만든다(있으면 그대로). 서버 jar 에 호환 모듈이 실려 있으면 그 jar 를 꺼내 <b>첫 항목</b>으로 붙인다(N-lib-1) — 호환 계층과 라이브러리가
+     * 한 로더에 있어 서로 본다(Paper 처럼). Adventure 는 제공자를 자기 로더로 찾으므로(Services0: ServiceLoader.load(type, type.getClassLoader()))
+     * 호환 계층을 자식 로더에 두면 Adventure 가 호환 계층의 제공자를 못 본다.
+     */
+    private synchronized SharedLibraryLoader sharedLoader() {
+        if (sharedLoader != null) return sharedLoader;
+        if (compatFailure != null) throw compatFailure;   // 한 번 실패했으면 같은 원인으로 다시 던진다(호환 jar 없는 로더를 돌려주지 않는다)
+        SharedLibraryLoader loader = new SharedLibraryLoader(PluginHost.class.getClassLoader());
+        if (compatJars != null) {
+            List<Path> files;
+            Set<String> core = new java.util.TreeSet<>();
+            try {
+                LibrarySettings ls = settings.libraries();
+                Path cache = ls.cache() != null ? ls.cache() : dir.resolve(LibrarySettings.DEFAULT_CACHE_DIR);
+                files = compatJars.extract(cache.resolve("compat"));
+                for (Path j : files) {
+                    loader.add(j);
+                    core.addAll(serverLibraries.scan(j, Set.of()));
+                }
+            } catch (IOException | RuntimeException e) {
+                closeQuietly(loader);
+                compatFailure = new IllegalStateException("could not extract the Bukkit/Paper compat module jar", e);
+                throw compatFailure;
+            }
+            compatJarFiles = files;
+            compatCore = Set.copyOf(core);
+            log.info(Lang.t("plugin.compat-jars", compatJars.names(), compatCore));
+        }
+        sharedLoader = loader;   // 다 만든 뒤에야 필드에 넣는다
+        return sharedLoader;
+    }
+
+    private static void closeQuietly(SharedLibraryLoader loader) {
+        try {
+            loader.close();
+        } catch (IOException ignored) {
+            // 닫기 실패는 원인 보고를 가리지 않는다
+        }
+    }
+
     /** 준비를 시도한 묶음(성공·실패 모두 — 실패를 플러그인마다 다시 시도해 경고를 되풀이하지 않는다). */
     private final Set<String> sharedTried = new HashSet<>();
     /** 붙인 묶음. */
@@ -524,6 +613,12 @@ public final class PluginBootstrapper {
 
     /** 붙인 서버 제공 라이브러리 묶음 이름(목록 순서가 아니라 붙인 순서). */
     synchronized Set<String> sharedLibraryGroups() { return Set.copyOf(sharedReady); }
+
+    /** 공유 로더에 붙인 호환 jar(통째로 실린 jar 가 아니거나 아직이면 null) — 시험·진단용. */
+    synchronized List<Path> compatJarFiles() { return compatJarFiles; }
+
+    /** 호환 계층이 기대는 묶음 — 시험·진단용. */
+    synchronized Set<String> compatCoreGroups() { return compatCore; }
 
     /** 공유 로더(아직 없으면 null) — 시험·진단용. */
     synchronized ClassLoader sharedLibraryLoader() { return sharedLoader; }
@@ -537,34 +632,33 @@ public final class PluginBootstrapper {
         if (ls.compat() == LibrarySettings.CompatMode.OFF) {
             if (!sharedOffWarned) {
                 sharedOffWarned = true;
-                log.warn("plugins.compat.libraries=off — Paper 가 싣고 있는 라이브러리(Guava·Adventure·SnakeYAML·Brigadier 등)를 주지 않는다. "
-                        + "그것을 쓰는 Paper/Bukkit 플러그인은 NoClassDefFoundError 로 실패한다");
+                log.warn(Lang.t("plugin.compat-libs-off") + (compatCore.isEmpty() ? "" : " " + Lang.t("plugin.compat-libs-off-core", compatCore)));
             }
-            return null;
+            return compatJars != null ? sharedLoader() : null;   // 호환 jar 는 공유 로더에 있으므로 그 로더는 늘 부모다
         }
-        if (sharedLoader == null) sharedLoader = new SharedLibraryLoader(PluginHost.class.getClassLoader());
+        sharedLoader();
         java.util.Collection<String> want;
         if (ls.compat() == LibrarySettings.CompatMode.ALL) {
             want = serverLibraries.groups().stream().map(ServerLibraries.Group::id).toList();
         } else {
             try {
-                want = serverLibraries.scan(c.file(), sharedTried);
+                Set<String> w = new java.util.TreeSet<>(serverLibraries.scan(c.file(), sharedTried));
+                w.addAll(compatCore);   // 호환 계층이 서명·상위 타입에 쓰는 묶음: 반사(getMethod 하나)도 모든 서명을 풀므로 그 플러그인이 안 써도 있어야 한다
+                want = w;
             } catch (IOException e) {
-                log.warn("Plugin {} 의 jar 를 훑지 못해 서버 제공 라이브러리 판단을 건너뛴다: {}", c.description().fullName(), e.getMessage());
+                log.warn(Lang.t("plugin.libraries-scan-failed", c.description().fullName(), e.getMessage()));
                 return sharedLoader;
             }
         }
         List<ServerLibraries.Group> todo = new ArrayList<>();
         for (ServerLibraries.Group g : serverLibraries.closure(want)) if (!sharedTried.contains(g.id())) todo.add(g);
         if (todo.isEmpty()) return sharedLoader;
-        log.info("Paper/Bukkit 플러그인을 위해 서버 제공 라이브러리 {} 을(를) 준비한다(처음 {} 이 요구, plugins.compat.libraries={})",
-                todo.stream().map(ServerLibraries.Group::id).toList(), c.description().fullName(), ls.compat().name().toLowerCase(Locale.ROOT));
+        log.info(Lang.t("plugin.server-libs-prepare", todo.stream().map(ServerLibraries.Group::id).toList(), c.description().fullName(), ls.compat().name().toLowerCase(Locale.ROOT)));
         List<String> unreachable = new ArrayList<>();
         for (ServerLibraries.Group g : todo) {
             sharedTried.add(g.id());
             if (g.mojang() && !ls.compatMojang()) {
-                log.warn("서버 제공 라이브러리 {}({})는 Mojang 저장소에만 있는데 plugins.compat.libraries.mojang=false 라 받지 않는다 — "
-                        + "그것을 쓰는 Paper/Bukkit 플러그인(처음: {})은 NoClassDefFoundError 로 실패할 수 있다", g.id(), g.description(), c.description().fullName());
+                log.warn(Lang.t("plugin.server-lib-mojang-only", g.id(), g.description(), c.description().fullName()));
                 continue;
             }
             List<Path> jars = new ArrayList<>();
@@ -589,80 +683,81 @@ public final class PluginBootstrapper {
             }
             if (failed != null) {
                 LibraryResolver r = resolver();
-                log.warn("서버 제공 라이브러리 {}({})를 준비하지 못했다 — {}: {}. 그것을 쓰는 Paper/Bukkit 플러그인(처음: {})은 NoClassDefFoundError 로 실패할 수 있다. "
-                                + "인터넷이 없는 서버라면 {} 의 파일을 {} 에 두라(sha256 {} 인 파일만 쓴다)",
-                        g.id(), g.description(), failed.coordinate(), reason, c.description().fullName(), r.sourceOf(failed), r.cachedPath(failed), failed.sha256());
+                log.warn(Lang.t("plugin.server-lib-failed", g.id(), g.description(), failed.coordinate(), reason, c.description().fullName(), r.sourceOf(failed), r.cachedPath(failed), failed.sha256()));
                 continue;
             }
             for (Path j : jars) sharedLoader.add(j);
             sharedReady.add(g.id());
         }
+        List<String> missingCore = new ArrayList<>();
+        for (ServerLibraries.Group g : todo) if (compatCore.contains(g.id()) && !sharedReady.contains(g.id())) missingCore.add(g.id());
+        if (!missingCore.isEmpty()) {
+            log.error(Lang.t("plugin.core-lib-failed", missingCore, resolver().cacheRoot()));
+        }
         if (!unreachable.isEmpty()) {
-            log.warn("저장소에 이번 시작에서 이미 닿지 못해 서버 제공 라이브러리 {} 도 받지 않았다(묶음마다 제한 시간을 기다리지 않는다) — "
-                    + "인터넷이 없는 서버라면 jar 를 {} 아래에 두고 plugins.libraries.offline=true 로 켜라", unreachable, resolver().cacheRoot());
+            log.warn(Lang.t("plugin.libs-unreachable", unreachable, resolver().cacheRoot()));
         }
         return sharedLoader;
     }
 
     // ------------------------------------------------------------------ Spigot 이름 대응표 (H7d, 사용자 결정 9)
 
-    /** furnace.properties 키: off(기본) | download | files. */
+    /** furnace.properties 키: download(기본) | files | off. */
     public static final String SPIGOT_MAPPINGS = "plugins.compat.nms.spigot-mappings";
     /** 대응표 재료 세 파일 경로(경로 구분자로 이음) — files 모드에서는 운영자가 적고, download 모드에서는 서버가 채운다. 호환 모듈 CompatFormat.SPIGOT_MAPPING_FILES 와 같은 값. */
     static final String SPIGOT_MAPPING_FILES = "plugins.compat.nms.spigot-mappings.files";
     /** download 모드에서 준비한 세 파일(경로 구분자로 이음). 실패했으면 "" — 플러그인마다 다시 받지 않는다. null 은 아직 시도 안 함. */
     private String spigotMappingFiles;
 
-    /**
-     * 이 호환 플러그인에 넘길 plugins.compat.* 설정. jar 가 Spigot 이름 NMS 플러그인일 때만 대응표 재료 경로를 넘긴다: download 면 Mojang·Spigot
-     * 매핑을 (처음 한 번) 받아서, files 면 운영자가 적은 경로 그대로. 받지 못하면 경고하고 넘기지 않는다 — 그 플러그인의 Spigot 이름 NMS 호출만 실패한다.
-     */
+    /** Spigot 이름 대응표 받기를 시도했는가 — 시험·진단용(Spigot 이름 NMS 플러그인이 없으면 false 여야 한다). */
+    synchronized boolean spigotMappingsTried() { return spigotMappingFiles != null; }
+
+    /** 이 호환 플러그인에 넘길 plugins.compat.* 설정. 대응표 재료 경로는 여기 넣지 않는다 — 어댑터가 jar 를 훑어 필요하다고 확인하면 {@link #spigotMappingFilesFor} 로 묻는다. */
     private synchronized Map<String, String> compatOptionsFor(Candidate c) {
         Map<String, String> opts = settings.compatOptions();
-        String mode = opts.getOrDefault(SPIGOT_MAPPINGS, "off");
-        if (mode.equals("off")) {
-            if (!opts.containsKey(SPIGOT_MAPPING_FILES)) return opts;
-            Map<String, String> copy = new HashMap<>(opts);
-            copy.remove(SPIGOT_MAPPING_FILES);
-            return copy;
-        }
-        boolean needs;
-        try {
-            needs = SpigotMappingFiles.needs(c.file());
-        } catch (IOException e) {
-            log.warn("Plugin {} 의 jar 를 훑지 못해 Spigot 이름 대응표 판단을 건너뛴다: {}", c.description().fullName(), e.getMessage());
-            needs = false;
-        }
+        if (!opts.containsKey(SPIGOT_MAPPING_FILES)) return opts;
         Map<String, String> copy = new HashMap<>(opts);
-        if (mode.equals("files")) {
-            if (!needs) copy.remove(SPIGOT_MAPPING_FILES);
-            return copy;
-        }
         copy.remove(SPIGOT_MAPPING_FILES);
-        if (!needs) return copy;
-        if (spigotMappingFiles == null) {
-            LibrarySettings ls = settings.libraries();
-            SpigotMappingFiles files = new SpigotMappingFiles(ls, ls.cache() != null ? ls.cache() : dir.resolve(LibrarySettings.DEFAULT_CACHE_DIR), log);
-            log.info("Spigot 이름 NMS 플러그인({})이 있어 Spigot → Mojang 이름 대응표를 준비한다({}=download)", c.description().fullName(), SPIGOT_MAPPINGS);
-            try {
-                spigotMappingFiles = files.ensure().joined();
-            } catch (LibraryResolver.LibraryException e) {
-                spigotMappingFiles = "";
-                log.warn("Spigot 이름 대응표를 준비하지 못했다 — {}. Spigot 이름으로 컴파일된 NMS 플러그인(처음: {})의 NMS 호출은 실패한다. "
-                        + "인터넷이 없는 서버라면 파일을 {} 에 두고 plugins.libraries.offline=true 로 켜라", e.getMessage(), c.description().fullName(), files.directory());
-            }
-        }
-        if (!spigotMappingFiles.isEmpty()) copy.put(SPIGOT_MAPPING_FILES, spigotMappingFiles);
         return copy;
     }
 
-    /** 서버 종료 — 공유 로더를 닫는다(호환 플러그인 로더를 다 닫은 뒤). */
+    /**
+     * 어댑터가 "이 jar 는 Spigot 이름 NMS 라 대응표가 필요하다"고 jar 를 훑으며 확인했을 때 부른다(필요 여부를 서버가 따로 jar 를 읽어 알아보지 않는다).
+     * download 면 Mojang·Spigot 매핑을 (처음 한 번) 받아서, files 면 운영자가 적은 경로 그대로 돌려준다. off 거나 받지 못했으면 null —
+     * 그 플러그인의 Spigot 이름 NMS 호출만 실패한다.
+     */
+    private synchronized String spigotMappingFilesFor(Candidate c) {
+        Map<String, String> opts = settings.compatOptions();
+        String mode = opts.getOrDefault(SPIGOT_MAPPINGS, PluginSettings.SPIGOT_MAPPINGS_DEFAULT);
+        if (mode.equals("off")) return null;
+        if (mode.equals("files")) {
+            String v = opts.get(SPIGOT_MAPPING_FILES);
+            return v == null || v.isBlank() ? null : v;
+        }
+        if (spigotMappingFiles == null) {
+            LibrarySettings ls = settings.libraries();
+            SpigotMappingFiles files = new SpigotMappingFiles(ls, ls.cache() != null ? ls.cache() : dir.resolve(LibrarySettings.DEFAULT_CACHE_DIR), log);
+            try {
+                spigotMappingFiles = files.ensure().joined();
+            } catch (SpigotMappingFiles.Backoff e) {
+                spigotMappingFiles = "";
+                log.warn(Lang.t("plugin.spigot-mappings-skipped", e.getMessage(), c.description().fullName(), files.directory()));
+            } catch (LibraryResolver.LibraryException e) {
+                spigotMappingFiles = "";
+                log.warn(Lang.t("plugin.spigot-mappings-failed", e.getMessage(), c.description().fullName(), files.directory()));
+            }
+        }
+        return spigotMappingFiles.isEmpty() ? null : spigotMappingFiles;
+    }
+
+    /** 서버 종료 — 공유 로더를 닫는다(호환 플러그인 로더를 다 닫은 뒤). 호환 jar 가 붙어 있으면 호환 계층 클래스 자체가 그 로더에 있으므로 끝까지 둔다. */
     synchronized void closeSharedLibraries() {
+        if (compatJarFiles != null) return;
         if (sharedLoader == null) return;
         try {
             sharedLoader.close();
         } catch (IOException e) {
-            log.debug("서버 제공 라이브러리 로더를 닫지 못했다", e);
+            log.debug("Could not close the server-provided library loader", e);
         }
         sharedLoader = null;
         sharedTried.clear();   // 같은 부트스트래퍼를 다시 쓰면 새 로더에 다시 붙인다
@@ -675,21 +770,20 @@ public final class PluginBootstrapper {
      */
     private boolean apiVersionOk(PluginDescription d, Path file) {
         if (d.apiVersion() == null) {
-            log.warn("Plugin {} 에 api-version 이 없다 — 지금 API({}) 로 간주한다. furnace-plugin 설명 파일에 api-version 을 적어라", d.fullName(), ApiVersion.CURRENT);
+            log.warn(Lang.t("plugin.api-version-missing", d.fullName(), ApiVersion.CURRENT));
             return true;
         }
         ApiVersion v = ApiVersion.parse(d.apiVersion());
         if (v == null) {
-            log.warn("Plugin {} 의 api-version '{}' 을 읽을 수 없다 — 지금 API({}) 로 간주한다", d.fullName(), d.apiVersion(), ApiVersion.CURRENT);
+            log.warn(Lang.t("plugin.api-version-unreadable", d.fullName(), d.apiVersion(), ApiVersion.CURRENT));
             return true;
         }
         if (!ApiVersion.serverSatisfies(v)) {
-            log.error("Could not load '{}' in folder '{}': 플러그인이 요구하는 API {} 를 이 서버({})가 제공하지 않는다", dir.relativize(file), dir.getFileName(),
-                    v, ApiVersion.CURRENT);
+            log.error("Could not load '{}' in folder '{}': {}", dir.relativize(file), dir.getFileName(), Lang.t("plugin.load.api-too-new", v, ApiVersion.CURRENT));
             return false;
         }
         if (v.compareTo(ApiVersion.OLDEST_SUPPORTED) < 0) {
-            log.warn("Plugin {} 은 오래된 API {} 로 만들어졌다(서버 {}, 지원 하한 {}) — 업데이트를 받아라", d.fullName(), v, ApiVersion.CURRENT, ApiVersion.OLDEST_SUPPORTED);
+            log.warn(Lang.t("plugin.api-old", d.fullName(), v, ApiVersion.CURRENT, ApiVersion.OLDEST_SUPPORTED));
         }
         return true;
     }
@@ -785,7 +879,7 @@ public final class PluginBootstrapper {
 
         @Override
         public String discover(String pathInJar, String id, Text title) {
-            if (id == null || !id.matches("[a-z0-9_.-]+")) throw new IllegalArgumentException("잘못된 데이터 팩 id: " + id);
+            if (id == null || !id.matches("[a-z0-9_.-]+")) throw new IllegalArgumentException("invalid data pack id: " + id);
             String prefix = jarPrefix(pathInJar);
             String packId = "plugin/" + d.namespace() + "/" + id;
             out.add(new PackRepository.JarPack(packId, title != null ? title : Text.text(d.name() + "/" + id), jar, prefix));
@@ -801,7 +895,7 @@ public final class PluginBootstrapper {
         while (s.endsWith("/")) s = s.substring(0, s.length() - 1);
         if (s.isEmpty()) return "";
         for (String seg : s.split("/", -1)) {
-            if (seg.isEmpty() || seg.equals(".") || seg.equals("..")) throw new IllegalArgumentException("잘못된 jar 안 경로: " + path);
+            if (seg.isEmpty() || seg.equals(".") || seg.equals("..")) throw new IllegalArgumentException("invalid path inside the jar: " + path);
         }
         return s + "/";
     }

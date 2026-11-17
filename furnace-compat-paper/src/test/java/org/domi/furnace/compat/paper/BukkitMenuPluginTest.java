@@ -99,7 +99,7 @@ class BukkitMenuPluginTest {
                             + e.getOldCursor().getAmount() + "," + (e.getCursor() == null ? "null" : String.valueOf(e.getCursor().getAmount())));
                 }
                 @EventHandler public void close(InventoryCloseEvent e) {
-                    log("close=" + (e.getInventory() == inv) + "," + e.getPlayer().getName() + "," + e.getReason());
+                    log("close=" + (e.getInventory() == inv) + "," + e.getPlayer().getName() + "," + e.getReason() + "," + e.getViewers().size());
                 }
                 @EventHandler public void death(PlayerDeathEvent e) {
                     log("death=" + e.getEntity().getName() + "," + e.getKeepInventory());
@@ -194,8 +194,28 @@ class BukkitMenuPluginTest {
             tp.sync();
             server.tick(3);
             tp.sync();
-            assertTrue(log.contains("close=true,Steve,UNKNOWN"), log.toString());
+            // Paper: 닫힌 까닭은 PLUGIN, 닫는 사람은 이벤트 동안 아직 보는 사람이다
+            assertTrue(log.contains("close=true,Steve,PLUGIN,1"), log.toString());
             assertEquals(0, inv().getViewers().size(), "닫은 뒤에는 보는 사람이 없다");
+
+            // 열린 채로 다시 열면 앞 창은 OPEN_NEW 로 닫힌다
+            tp.command("menu");
+            tp.sync();
+            server.tick(3);
+            tp.sync();
+            tp.command("menu");
+            tp.sync();
+            server.tick(3);
+            tp.sync();
+            assertTrue(log.contains("close=true,Steve,OPEN_NEW,1"), log.toString());
+
+            // 클라이언트가 닫는다(container_close) → PLAYER
+            tp.sendPacket(0x0F, b -> writeVarInt(b, 2));
+            tp.sync();
+            server.tick(3);
+            tp.sync();
+            assertTrue(log.contains("close=true,Steve,PLAYER,1"), log.toString());
+            assertEquals(0, inv().getViewers().size());
         }
     }
 

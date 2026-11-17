@@ -2,6 +2,7 @@
 // 구현된 명령마다 노드 종류·실행 가능 여부·파서·파서 속성·자식 이름·리다이렉트가 같아야 한다.
 package org.domi.furnace.server.command;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.google.gson.JsonElement;
@@ -180,7 +181,7 @@ class VanillaCommandTreeTest {
         try {
             ServerCore core = core(tmp, sched);
             JsonObject vanilla;
-            try (var in = new InputStreamReader(new GZIPInputStream(getClass().getResourceAsStream("/commands/vanilla-1.21.1-commands.json.gz")),
+            try (var in = new InputStreamReader(new GZIPInputStream(getClass().getResourceAsStream("/commands/" + GameVersion.RESOURCE_TAG + "/vanilla-commands.json.gz")),
                     StandardCharsets.UTF_8)) {
                 vanilla = JsonParser.parseReader(in).getAsJsonObject().getAsJsonObject("children");
             }

@@ -14,7 +14,9 @@ import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 import org.domi.furnace.server.net.protocol.play.MapItemData;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.level.saveddata.maps.MapItemSavedData")
 public final class MapData {
 
     public static final int WIDTH = 128, HEIGHT = 128, MAX_BANNERS_OR_FRAMES = 256;

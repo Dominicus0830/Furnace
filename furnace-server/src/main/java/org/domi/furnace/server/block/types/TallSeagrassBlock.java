@@ -1,6 +1,7 @@
 // 바닐라 TallSeagrassBlock: 물속 두 칸 해초. 언제나 물에 잠겨 있다(유체 = 물 원천). 양동이로 뜰 수 없다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.Fluids;
 import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.TallSeagrassBlock")
 public class TallSeagrassBlock extends DoublePlantBlock {
 
     private static final int MAGMA_BLOCK = B.id("magma_block");

@@ -4,7 +4,9 @@ package org.domi.furnace.server.net.io.nbt;
 
 import java.util.Arrays;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.nbt.Tag", "net.minecraft.nbt.CompoundTag", "net.minecraft.nbt.NbtUtils", "net.minecraft.nbt.NumericTag"})
 public final class NbtTags {
     private NbtTags() {}
 
@@ -25,7 +27,7 @@ public final class NbtTags {
         if (v instanceof int[]) return NbtIo.TAG_INT_ARRAY;
         if (v instanceof long[]) return NbtIo.TAG_LONG_ARRAY;
         if (v instanceof NbtArray a) return a.type();
-        throw new IllegalArgumentException("NBT 값이 아님: " + (v == null ? "null" : v.getClass()));
+        throw new IllegalArgumentException("not an NBT value: " + (v == null ? "null" : v.getClass()));
     }
 
     /** TagType.getPrettyName. */

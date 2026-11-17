@@ -44,9 +44,9 @@ final class GameRegistryHooks {
             if (key == null) throw new NullPointerException("key");
             if (key.indexOf(':') < 0) key = d.namespace() + ":" + key;   // 바이옴·차원 타입처럼 namespace 를 붙인다
             ResourceId id = ResourceId.tryParse(key);
-            if (id == null) throw new IllegalArgumentException("잘못된 키(namespace:path): " + key);
+            if (id == null) throw new IllegalArgumentException("invalid key (namespace:path): " + key);
             if (!id.namespace().equals(d.namespace())) {
-                throw new IllegalArgumentException("키의 namespace 는 자기 플러그인 namespace(" + d.namespace() + ")여야 한다: " + key);
+                throw new IllegalArgumentException("the key namespace must be your own plugin namespace (" + d.namespace() + "): " + key);
             }
             return id.toString();
         }
@@ -54,7 +54,7 @@ final class GameRegistryHooks {
         private void add(String registry, String key, JsonObject json) {
             String k = ownKey(key);
             for (var c : out) {
-                if (c.registry().equals(registry) && c.id().equals(k)) throw new IllegalArgumentException("이미 더한 항목: " + registry + " " + k);
+                if (c.registry().equals(registry) && c.id().equals(k)) throw new IllegalArgumentException("entry already added: " + registry + " " + k);
             }
             out.add(new DynamicRegistries.Contribution(d.name(), registry, k, json));
         }
@@ -82,24 +82,24 @@ final class GameRegistryHooks {
 
         public void json(String registry, String key, String json) {
             String reg = ResourceId.parse(registry).toString();
-            if (!DynamicRegistries.DATA_DRIVEN.contains(reg)) throw new IllegalArgumentException("항목을 더할 수 없는 레지스트리: " + registry);
+            if (!DynamicRegistries.DATA_DRIVEN.contains(reg)) throw new IllegalArgumentException("this registry does not accept entries: " + registry);
             JsonElement e;
             try {
                 e = JsonParser.parseString(json);
             } catch (RuntimeException ex) {
-                throw new IllegalArgumentException("JSON 을 읽지 못했다: " + ex.getMessage(), ex);
+                throw new IllegalArgumentException("could not read the JSON: " + ex.getMessage(), ex);
             }
-            if (!e.isJsonObject()) throw new IllegalArgumentException("JSON 객체가 아니다");
+            if (!e.isJsonObject()) throw new IllegalArgumentException("not a JSON object");
             add(reg, key, e.getAsJsonObject());
         }
 
         public void addToTag(String registry, String tag, String... entries) {
             String reg = ResourceId.parse(registry).toString();
             if (!org.domi.furnace.server.data.TagRegistries.SYNCED.contains(reg)) {
-                throw new IllegalArgumentException("태그를 보내지 않는 레지스트리: " + registry);
+                throw new IllegalArgumentException("this registry does not send tags: " + registry);
             }
             ResourceId t = ResourceId.tryParse(tag.startsWith("#") ? tag.substring(1) : tag);
-            if (t == null) throw new IllegalArgumentException("잘못된 태그 id: " + tag);
+            if (t == null) throw new IllegalArgumentException("invalid tag id: " + tag);
             List<String> list = new ArrayList<>();
             for (String e : entries) list.add(id(e));
             tags.add(new DataPackManager.TagAddition(d.name(), reg, t.toString(), List.copyOf(list)));
@@ -108,7 +108,7 @@ final class GameRegistryHooks {
 
     private static String id(String s) {
         ResourceId id = ResourceId.tryParse(s);
-        if (id == null) throw new IllegalArgumentException("잘못된 id: " + s);
+        if (id == null) throw new IllegalArgumentException("invalid id: " + s);
         return id.toString();
     }
 

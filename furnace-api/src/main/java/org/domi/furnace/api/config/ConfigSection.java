@@ -1,4 +1,4 @@
-// 포맷에 독립적인 설정 트리 노드 — 삽입 순서를 보존하는 맵 + 점(.) 경로 기반 타입 접근 + 주석/기본값
+// 포맷에 독립적인 설정 트리 노드다. 삽입 순서를 보존하는 맵이며, 점(.) 경로로 타입별 접근을 하고, 주석과 기본값을 가진다.
 package org.domi.furnace.api.config;
 
 import java.time.LocalDate;
@@ -20,15 +20,16 @@ import java.util.UUID;
  * 설정 트리의 한 노드(맵). 값은 String, Boolean, Integer/Long, Double, List, 하위 {@link ConfigSection},
  * {@code java.time} 날짜/시간(TOML 전용), 또는 null 이다.
  *
- * <p><b>경로</b>: {@code "database.host"} 처럼 점(.)으로 하위 섹션을 따라간다. 파일에 점이 든 키가 literal 로
- * 존재할 수 있다(예: plugin.yml 의 {@code furnace.admin} 권한 노드). 조회는 "남은 경로 전체가 literal 키"인지를
- * 먼저 보고, 아니면 가장 짧은 접두사부터 하위 섹션으로 내려가며 시도한다. {@code set} 으로 새 경로를 만들 때는
- * 기존에 해당 키/섹션이 없으면 점마다 중첩 섹션을 만든다. literal 점 키를 새로 만들려면 {@link #setLiteral}.
+ * <p><b>경로</b>: {@code "database.host"} 처럼 점(.)으로 하위 섹션을 따라간다.
+ * 파일에 점이 든 키가 literal 로 존재할 수 있다(예: plugin.yml 의 {@code furnace.admin} 권한 노드).
+ * 그래서 조회할 때는 먼저 "남은 경로 전체가 literal 키"인지 보고, 아니면 가장 짧은 접두사부터 하위 섹션으로 내려가며 시도한다.
+ * {@code set} 으로 새 경로를 만들 때 해당 키나 섹션이 없으면 점마다 중첩 섹션을 만든다.
+ * literal 점 키를 새로 만들려면 {@link #setLiteral} 을 쓴다.
  *
- * <p><b>null</b>: {@code set(path, null)} 은 키를 제거하지 않고 null 값을 저장한다(YAML {@code key:} 와 동일).
- * 제거는 {@link #remove}. 값이 null 인 키는 {@code get} 시 기본값(defaults)으로 대체된다.
+ * <p><b>null</b>: {@code set(path, null)} 은 키를 제거하지 않고 null 값을 저장한다(YAML {@code key:} 와 같다).
+ * 제거는 {@link #remove} 로 한다. 값이 null 인 키는 {@code get} 할 때 기본값(defaults)으로 대체된다.
  *
- * <p>스레드 안전하지 않다. 숫자는 정수면 Integer(범위 초과 시 Long), 실수면 Double 로 정규화된다.
+ * <p>스레드 안전하지 않다. 숫자는 정수면 Integer(범위를 넘으면 Long), 실수면 Double 로 정규화된다.
  */
 public final class ConfigSection {
 
@@ -222,12 +223,13 @@ public final class ConfigSection {
     // ---------------------------------------------------------------- 변경
 
     /**
-     * 값 저장. 중간 섹션은 필요 시 생성한다. 지원 타입: 문자열/숫자/불리언/null/java.time/Map/Collection/배열/
-     * ConfigSection (Map·컬렉션은 깊은 변환, 이미 다른 부모에 붙은 섹션은 복사). 그 외는 IllegalArgumentException.
+     * 값을 저장한다. 중간 섹션은 필요하면 만든다.
+     * 지원 타입은 문자열, 숫자, 불리언, null, java.time, Map, Collection, 배열, ConfigSection 이다.
+     * Map 과 컬렉션은 깊게 변환하고, 이미 다른 부모에 붙은 섹션은 복사한다. 그 외 타입은 IllegalArgumentException 을 던진다.
      * 중간 경로에 섹션이 아닌 값이 있으면 새 섹션으로 교체한다.
      */
     public void set(String path, Object value) {
-        if (path.isEmpty()) throw new IllegalArgumentException("빈 경로");
+        if (path.isEmpty()) throw new IllegalArgumentException("empty path");
         setResolved(path, 0, normalize(value));
     }
 
@@ -265,6 +267,17 @@ public final class ConfigSection {
         return c;
     }
 
+    /**
+     * 트리의 잎 값으로 들어가는 불투명한 객체다(호환 계층의 직렬화 객체 등).
+     * 트리는 이것을 구역이 아닌 값 하나로 다룬다(키 나열과 경로 해석이 안쪽으로 내려가지 않는다). 참조 그대로 보관하고 복사한다.
+     * 쓰거나 {@link #toMap()} 으로 바꿀 때만 {@link #lower()} 로 그 순간의 저장 꼴을 얻는다.
+     * 호환 계층이 쓰라고 연 것이며, 일반 설정 코드는 쓸 필요가 없다.
+     */
+    public interface Opaque {
+        /** 쓰는 순간의 저장 꼴: Map·List·스칼라(안쪽에 또 Opaque 가 있어도 된다). */
+        Object lower();
+    }
+
     /** 일반 Map/List 로 깊은 변환한 스냅샷. */
     public Map<String, Object> toMap() {
         LinkedHashMap<String, Object> out = new LinkedHashMap<>();
@@ -290,6 +303,116 @@ public final class ConfigSection {
         if (parent == null) return "";
         String pp = parent.getPath();
         return pp.isEmpty() ? key : pp + "." + key;
+    }
+
+    // ---------------------------------------------------------------- 키 한 단계씩 지정하는 경로(구분자가 '.' 이 아닌 호환 설정용)
+    //
+    // 위 메서드들은 점으로 경로를 나누고, 점이 든 literal 키도 너그럽게 찾는다.
+    // 아래 메서드는 호출하는 쪽이 이미 키 단계로 나눈 목록을 준다.
+    // 단계 하나가 곧 키 하나이므로 점이 든 키("minecraft:stone.x", 도메인 이름)도 그대로 한 단계다.
+    // 단계가 섹션이 아니면 없는 것으로 본다(너그러운 대체 없음).
+
+    /** 루트부터 이 섹션까지의 키 단계(루트면 빈 목록). */
+    public List<String> pathSegments() {
+        if (parent == null) return List.of();
+        ArrayList<String> out = new ArrayList<>(parent.pathSegments());
+        out.add(key);
+        return out;
+    }
+
+    private Loc locateSegments(List<String> segs) {
+        ConfigSection cur = this;
+        for (int i = 0; i < segs.size() - 1; i++) {
+            if (!(cur.map.get(segs.get(i)) instanceof ConfigSection next)) return null;
+            cur = next;
+        }
+        return segs.isEmpty() || !cur.map.containsKey(segs.get(segs.size() - 1)) ? null : new Loc(cur, segs.get(segs.size() - 1));
+    }
+
+    private Object lookupSegments(List<String> segs) {
+        Loc loc = locateSegments(segs);
+        return loc == null ? ABSENT : loc.owner.map.get(loc.key);
+    }
+
+    private Object defaultValueSegments(List<String> segs) {
+        ConfigSection root = getRoot();
+        if (root.defaults == null) return ABSENT;
+        ArrayList<String> full = new ArrayList<>(pathSegments());
+        full.addAll(segs);
+        return root.defaults.lookupSegments(full);
+    }
+
+    /** 값 조회(없으면 defaults, 그래도 없으면 null). 단계가 없으면 이 섹션 자신. */
+    public Object getAt(List<String> segs) {
+        if (segs.isEmpty()) return this;
+        Object v = lookupSegments(segs);
+        if (v == ABSENT || v == null) {
+            Object d = defaultValueSegments(segs);
+            return d == ABSENT ? null : d;
+        }
+        return v;
+    }
+
+    public boolean containsAt(List<String> segs, boolean ignoreDefaults) {
+        if (segs.isEmpty()) return true;
+        if (lookupSegments(segs) != ABSENT) return true;
+        return !ignoreDefaults && defaultValueSegments(segs) != ABSENT;
+    }
+
+    /** 값 저장. 중간 단계는 필요하면 새 섹션으로 만들고, 섹션이 아닌 값이 있으면 새 섹션으로 바꾼다. 단계가 비면 IllegalArgumentException. */
+    public void setAt(List<String> segs, Object value) {
+        if (segs.isEmpty()) throw new IllegalArgumentException("empty path");
+        Object v = normalize(value);
+        ConfigSection cur = this;
+        for (int i = 0; i < segs.size() - 1; i++) {
+            if (cur.map.get(segs.get(i)) instanceof ConfigSection next) {
+                cur = next;
+            } else {
+                ConfigSection made = new ConfigSection();
+                cur.putChild(segs.get(i), made);
+                cur = made;
+            }
+        }
+        cur.putChild(segs.get(segs.size() - 1), v);
+    }
+
+    /** 제거하고 이전 값을 돌려준다(없으면 null). 그 키의 주석도 함께 지운다. */
+    public Object removeAt(List<String> segs) {
+        Loc loc = locateSegments(segs);
+        return loc == null ? null : loc.owner.removeKey(loc.key);
+    }
+
+    public List<String> getCommentsAt(List<String> segs) {
+        Loc loc = locateSegments(segs);
+        List<String> c = loc == null || loc.owner.comments == null ? null : loc.owner.comments.get(loc.key);
+        return c == null ? List.of() : Collections.unmodifiableList(c);
+    }
+
+    /** 키가 존재해야 한다(없으면 IllegalArgumentException). */
+    public void setCommentsAt(List<String> segs, List<String> lines) {
+        Loc loc = locateSegments(segs);
+        if (loc == null) throw new IllegalArgumentException("path does not exist: " + segs);
+        loc.owner.setCommentsRaw(loc.key, lines == null || lines.isEmpty() ? null : new ArrayList<>(lines));
+    }
+
+    public String getInlineCommentAt(List<String> segs) {
+        Loc loc = locateSegments(segs);
+        return loc == null || loc.owner.inlineComments == null ? null : loc.owner.inlineComments.get(loc.key);
+    }
+
+    public void setInlineCommentAt(List<String> segs, String comment) {
+        Loc loc = locateSegments(segs);
+        if (loc == null) throw new IllegalArgumentException("path does not exist: " + segs);
+        loc.owner.setInlineRaw(loc.key, comment);
+    }
+
+    /** 기본값 하나 추가(루트 defaults 의 이 섹션 아래에 생성). */
+    public void addDefaultAt(List<String> segs, Object value) {
+        ConfigSection root = getRoot();
+        if (root.defaults == null) root.defaults = new ConfigSection();
+        ArrayList<String> full = new ArrayList<>(pathSegments());
+        full.addAll(segs);
+        root.defaults.setAt(full, value);
     }
 
     // ---------------------------------------------------------------- 기본값
@@ -407,6 +530,54 @@ public final class ConfigSection {
         inlineComments.put(k, c);
     }
 
+    /** 트리 어디에든 {@link Opaque} 값이 있는가(목록 안 포함). */
+    boolean hasOpaque() {
+        for (Object v : map.values()) if (hasOpaque(v)) return true;
+        return false;
+    }
+
+    private static boolean hasOpaque(Object v) {
+        if (v instanceof Opaque) return true;
+        if (v instanceof ConfigSection s) return s.hasOpaque();
+        if (v instanceof List<?> l) for (Object o : l) if (hasOpaque(o)) return true;
+        return false;
+    }
+
+    /** 쓰기용 사본: {@link Opaque} 값을 그 순간의 {@link Opaque#lower()} 꼴(구역·목록)로 바꾼 깊은 복사. 이 트리는 읽기만 한다. */
+    ConfigSection lowered() {
+        ConfigSection c = copy();
+        c.lowerOpaqueInPlace();
+        return c;
+    }
+
+    private void lowerOpaqueInPlace() {
+        for (Map.Entry<String, Object> e : new ArrayList<>(map.entrySet())) {
+            Object v = lowerValue(e.getValue());
+            if (v != e.getValue()) putChild(e.getKey(), v);
+        }
+    }
+
+    private static Object lowerValue(Object v) {
+        if (v instanceof Opaque o) {
+            Object n = normalize(o.lower());
+            if (n instanceof ConfigSection ns) ns.lowerOpaqueInPlace();
+            else if (n instanceof List<?> l) return lowerList(l);
+            return n;
+        }
+        if (v instanceof ConfigSection s) {
+            s.lowerOpaqueInPlace();
+            return s;
+        }
+        if (v instanceof List<?> l) return lowerList(l);
+        return v;
+    }
+
+    private static List<Object> lowerList(List<?> l) {
+        ArrayList<Object> out = new ArrayList<>(l.size());
+        for (Object o : l) out.add(lowerValue(o));
+        return out;
+    }
+
     /** long 을 Integer(범위 내) 또는 Long 으로 정규화한다. */
     static Object intOrLong(long v) {
         return v >= Integer.MIN_VALUE && v <= Integer.MAX_VALUE ? (Object) (int) v : (Object) v;
@@ -436,7 +607,7 @@ public final class ConfigSection {
 
     private Loc requireLoc(String path) {
         Loc loc = locate(path, 0);
-        if (loc == null) throw new IllegalArgumentException("존재하지 않는 경로: " + path);
+        if (loc == null) throw new IllegalArgumentException("path does not exist: " + path);
         return loc;
     }
 
@@ -551,6 +722,7 @@ public final class ConfigSection {
     }
 
     private static Object plain(Object v) {
+        if (v instanceof Opaque o) return plain(normalize(o.lower()));
         if (v instanceof ConfigSection s) return s.toMap();
         if (v instanceof List<?> l) {
             ArrayList<Object> out = new ArrayList<>(l.size());
@@ -569,6 +741,7 @@ public final class ConfigSection {
         if (v instanceof CharSequence || v instanceof Character || v instanceof UUID) return v.toString();
         if (v instanceof Enum<?> e) return e.name();
         if (v instanceof OffsetDateTime || v instanceof LocalDateTime || v instanceof LocalDate || v instanceof LocalTime) return v;
+        if (v instanceof Opaque) return v;
         if (v instanceof ConfigSection s) return s.parent != null ? s.copy() : s;
         if (v instanceof Map<?, ?> m) return fromMap(m);
         if (v instanceof Collection<?> c) {
@@ -581,6 +754,6 @@ public final class ConfigSection {
             for (Object o : arr) out.add(normalize(o));
             return out;
         }
-        throw new IllegalArgumentException("지원하지 않는 설정 값 타입: " + v.getClass().getName());
+        throw new IllegalArgumentException("unsupported config value type: " + v.getClass().getName());
     }
 }

@@ -16,7 +16,7 @@ import org.domi.furnace.api.entity.Player;
 import org.domi.furnace.api.event.EventPriority;
 import org.domi.furnace.api.event.EventSubscription;
 import org.domi.furnace.api.packet.ClientboundPacket;
-import org.domi.furnace.api.packet.OpaquePacket;
+import org.domi.furnace.api.packet.GenericPacket;
 import org.domi.furnace.api.packet.Packet;
 import org.domi.furnace.api.packet.PacketDirection;
 import org.domi.furnace.api.packet.PacketEvent;
@@ -32,6 +32,7 @@ import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.RawPacket;
 import org.domi.furnace.server.plugin.PlayerHandle;
 import org.domi.furnace.server.plugin.PluginHost;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -69,7 +70,7 @@ public final class PacketServiceImpl implements PacketService {
     @Override
     public EventSubscription listen(FurnacePlugin owner, EventPriority priority, PacketListener<Packet> listener, PacketType<?>... types) {
         Objects.requireNonNull(owner, "owner");
-        if (types.length == 0) throw new IllegalArgumentException("종류가 하나는 있어야 한다");
+        if (types.length == 0) throw new IllegalArgumentException("at least one type is required");
         for (PacketType<?> t : types) Objects.requireNonNull(t, "type");
         return add(owner, priority, listener, List.of(types));
     }
@@ -80,7 +81,7 @@ public final class PacketServiceImpl implements PacketService {
         Object token = new Object();
         synchronized (lock) {
             for (PacketType<?> t : types) {
-                if (!isSupported(t)) log.debug("[{}] 이 서버 버전에 없는 패킷을 구독: {}", name(owner), t);
+                if (!isSupported(t)) log.debug("[{}] Subscribed to a packet this server version does not have: {}", name(owner), t);
                 regs.add(new Reg(owner, t, priority, fn, order.getAndIncrement(), token));
             }
             rebuild();
@@ -136,6 +137,25 @@ public final class PacketServiceImpl implements PacketService {
     public void sendSilently(Player player, ClientboundPacket packet) { serverPlayer(player).send(encodeOutbound(packet, true)); }
 
     @Override
+    public void sendBundle(Player player, java.util.List<? extends ClientboundPacket> packets) { serverPlayer(player).sendBundle(encodeBundle(packets, false)); }
+
+    @Override
+    public void sendBundleSilently(Player player, java.util.List<? extends ClientboundPacket> packets) { serverPlayer(player).sendBundle(encodeBundle(packets, true)); }
+
+    /** 번들 안 패킷을 모두 먼저 인코딩한다 — 하나라도 실패하면 아무것도 보내지 않는다. 리스너는 보낼 때(이벤트 루프) 하나씩 본다. */
+    public java.util.List<RawPacket> encodeBundle(java.util.List<? extends ClientboundPacket> packets, boolean silent) {
+        Objects.requireNonNull(packets, "packets");
+        if (packets.size() > BUNDLE_MAX) throw new IllegalArgumentException("too many packets in the bundle: " + packets.size() + " > " + BUNDLE_MAX);
+        java.util.List<RawPacket> out = new ArrayList<>(packets.size());
+        for (ClientboundPacket p : packets) {
+            Objects.requireNonNull(p, "packet");
+            if (p.type() == org.domi.furnace.api.packet.PacketTypes.Clientbound.BUNDLE_DELIMITER) throw new IllegalArgumentException("the bundle delimiter is added by the server");
+            out.add(encodeOutbound(p, silent));
+        }
+        return out;
+    }
+
+    @Override
     public void broadcast(ClientboundPacket packet) {
         RawPacket raw = encodeOutbound(packet, false);
         for (org.domi.furnace.server.entity.Player p : host.core().players()) p.send(raw);
@@ -152,7 +172,10 @@ public final class PacketServiceImpl implements PacketService {
 
     private RawPacket encodeOutbound(ClientboundPacket packet, boolean silent) {
         Objects.requireNonNull(packet, "packet");
-        if (packet.type().direction() != PacketDirection.CLIENTBOUND) throw new IllegalArgumentException("서버→클라이언트 패킷이 아니다: " + packet.type());
+        if (packet.type().direction() != PacketDirection.CLIENTBOUND) throw new IllegalArgumentException("not a server-to-client packet: " + packet.type());
+        if (packet.type() == org.domi.furnace.api.packet.PacketTypes.Clientbound.BUNDLE_DELIMITER) {   // 혼자 보내면 짝이 어긋나 클라이언트가 뒤 패킷을 묶음으로 쌓다 끊긴다
+            throw new IllegalArgumentException("the bundle delimiter is added by the server - use sendBundle");
+        }
         ByteBuf b = Unpooled.buffer();
         try {
             int id = codec.encode(packet, b);
@@ -164,7 +187,7 @@ public final class PacketServiceImpl implements PacketService {
 
     private void inject(Player player, ServerboundPacket packet, boolean silent) {
         Objects.requireNonNull(packet, "packet");
-        if (packet.type().direction() != PacketDirection.SERVERBOUND) throw new IllegalArgumentException("클라이언트→서버 패킷이 아니다: " + packet.type());
+        if (packet.type().direction() != PacketDirection.SERVERBOUND) throw new IllegalArgumentException("not a client-to-server packet: " + packet.type());
         org.domi.furnace.server.entity.Player p = serverPlayer(player);
         ByteBuf body = Unpooled.buffer();
         ByteBuf frame;
@@ -187,7 +210,7 @@ public final class PacketServiceImpl implements PacketService {
     private static org.domi.furnace.server.entity.Player serverPlayer(Player player) {
         Objects.requireNonNull(player, "player");
         if (player instanceof PlayerHandle ph) return ph.handle();
-        throw new IllegalArgumentException("이 서버의 플레이어가 아니다: " + player);
+        throw new IllegalArgumentException("not a player of this server: " + player);
     }
 
     @Override
@@ -201,10 +224,26 @@ public final class PacketServiceImpl implements PacketService {
     }
 
     @Override
+    public boolean isReadable(PacketType<?> type) { return isSupported(type) && codec.readable(java.util.Objects.requireNonNull(type, "type")); }
+
+    @Override
+    public java.util.List<org.domi.furnace.api.packet.PacketField<?>> fields(PacketType<?> type) { return codec.fields(java.util.Objects.requireNonNull(type, "type")); }
+
+    @Override
     public int nextEntityId() { return host.core().world().entityIds().next(); }
 
     @Override
     public int protocolVersion() { return codec.protocolVersion(); }
+
+    @Override
+    public java.util.OptionalInt entityDataIndex(org.domi.furnace.api.entity.data.EntityDataKey<?> key) {
+        return codec.entityDataIndex(java.util.Objects.requireNonNull(key, "key"));
+    }
+
+    @Override
+    public boolean hasEntityData(String entityType, org.domi.furnace.api.entity.data.EntityDataKey<?> key) {
+        return codec.hasEntityData(java.util.Objects.requireNonNull(entityType, "entityType"), java.util.Objects.requireNonNull(key, "key"));
+    }
 
     // ------------------------------------------------------------------ 연결마다
 
@@ -241,31 +280,50 @@ public final class PacketServiceImpl implements PacketService {
             try {
                 if (raw != null && raw.source() instanceof Packet src) {
                     value = src;
-                } else if (type.typed()) {
-                    ByteBuf b = Unpooled.buffer();
-                    try {
-                        packet.write(b);
-                        bytes = ByteBufUtil.getBytes(b);
-                    } finally {
-                        b.release();
+                } else if (codec.readable(type)) {
+                    if (packet instanceof org.domi.furnace.server.net.protocol.play.LevelChunkWithLight chunk) {
+                        // 청크 패킷의 write 는 본문을 놓는다 — 놓지 않고 복사해 읽는다. 손대지 않으면 원래 패킷(공유 압축 프레임 길)을 그대로,
+                        // 취소면 부른 쪽이 한 번만 놓는다(PR #399 검토 R2·S3: 예전엔 여기서 놓고 취소 때 또 놓아 IllegalReferenceCountException)
+                        bytes = ByteBufUtil.getBytes(chunk.body());
+                    } else {
+                        ByteBuf b = Unpooled.buffer();
+                        try {
+                            packet.write(b);
+                            bytes = ByteBufUtil.getBytes(b);
+                        } finally {
+                            b.release();
+                        }
                     }
                     value = codec.decode(type, id, Unpooled.wrappedBuffer(bytes));
                 } else {
-                    value = opaque(type);
+                    value = unreadable(type);
                 }
             } catch (RuntimeException e) {
-                log.warn("패킷 디코드 실패({}), 리스너를 건너뛴다: {}", type, e.toString());
-                return bytes != null ? new RawPacket(id, bytes, null, true) : packet;
+                if (type.typed()) {
+                    log.warn(Lang.t("packet.decode-failed", type, e.toString()));
+                    return unchanged(packet, id, bytes);
+                }
+                log.debug("Generic decode failed ({}), passing it to the listener without content: {}", type, e.toString());
+                value = unreadable(type);
             }
             EventImpl ev = fire(rs, type, value, raw != null);
-            if (ev.cancelled) return null;
-            if (!ev.modified) return bytes != null ? new RawPacket(id, bytes, null, true) : packet;
+            if (ev.cancelled) return null;   // 부른 쪽이 원래 패킷을 놓는다(discard)
+            if (!ev.modified) return unchanged(packet, id, bytes);
+            RawPacket replaced;
             try {
-                return encodeOutbound((ClientboundPacket) ev.value, true);
+                replaced = encodeOutbound((ClientboundPacket) ev.value, true);
             } catch (RuntimeException e) {
-                log.warn("리스너가 바꾼 패킷을 인코딩하지 못했다({}), 원래 패킷을 보낸다: {}", type, e.toString());
-                return bytes != null ? new RawPacket(id, bytes, null, true) : packet;
+                log.warn(Lang.t("packet.encode-failed-send-original", type, e.toString()));
+                return unchanged(packet, id, bytes);
             }
+            packet.discard();   // 바꾼 것을 보낸다 — 원래 패킷이 든 본문(청크)은 여기서 놓는다
+            return replaced;
+        }
+
+        /** 손대지 않은 원래 패킷: 이미 쓴 바이트가 있으면 그것(다시 쓰지 않게), 청크는 본문을 놓지 않았으므로 원래 패킷 그대로. */
+        private static org.domi.furnace.server.net.protocol.Packet unchanged(org.domi.furnace.server.net.protocol.Packet packet, int id, byte[] bytes) {
+            if (packet instanceof org.domi.furnace.server.net.protocol.play.LevelChunkWithLight) return packet;
+            return bytes != null ? new RawPacket(id, bytes, null, true) : packet;
         }
 
         @Override
@@ -277,9 +335,10 @@ public final class PacketServiceImpl implements PacketService {
             if (type == null) return body;
             Packet value;
             try {
-                value = type.typed() ? codec.decode(type, packetId, body.duplicate()) : opaque(type);
+                value = codec.readable(type) ? codec.decode(type, packetId, body.duplicate()) : unreadable(type);
             } catch (RuntimeException e) {
-                return body;   // 잘못된 패킷 — 서버 본래 처리(바닐라처럼 끊기 등)에 맡긴다
+                if (type.typed()) return body;   // 잘못된 패킷 — 서버 본래 처리(바닐라처럼 끊기 등)에 맡긴다
+                value = unreadable(type);        // 범용: 관찰·취소는 되게
             }
             EventImpl ev = fire(rs, type, value, pluginPacket);
             if (ev.cancelled) return null;
@@ -292,7 +351,7 @@ public final class PacketServiceImpl implements PacketService {
                 frame.writeBytes(b);
                 return frame;
             } catch (RuntimeException e) {
-                log.warn("리스너가 바꾼 패킷을 인코딩하지 못했다({}), 원래 패킷을 처리한다: {}", type, e.toString());
+                log.warn(Lang.t("packet.encode-failed-handle-original", type, e.toString()));
                 return body;
             } finally {
                 b.release();
@@ -300,13 +359,13 @@ public final class PacketServiceImpl implements PacketService {
         }
 
         private EventImpl fire(Reg[] rs, PacketType<?> type, Packet value, boolean plugin) {
-            EventImpl ev = new EventImpl(api(), type, value, plugin);
+            EventImpl ev = new EventImpl(codec, api(), type, value, plugin, value instanceof GenericPacket g ? g.readable() : true);
             for (Reg r : rs) {
                 ev.monitor = r.priority == EventPriority.MONITOR;
                 try {
                     r.fn.onPacket(ev);
                 } catch (Throwable t) {
-                    log.error("[{}] 패킷 리스너 오류({})", name(r.plugin), type, t);
+                    log.error(Lang.t("packet.listener-error", name(r.plugin), type), t);
                 }
             }
             return ev;
@@ -323,22 +382,28 @@ public final class PacketServiceImpl implements PacketService {
     }
 
     @SuppressWarnings("unchecked")
-    private static OpaquePacket opaque(PacketType<?> type) { return new OpaquePacket((PacketType<OpaquePacket>) type); }
+    private static GenericPacket unreadable(PacketType<?> type) { return GenericPacket.unreadable((PacketType<GenericPacket>) type); }
 
     @SuppressWarnings("rawtypes")
     private static final class EventImpl implements PacketEvent {
 
+        /** 구분자 하나만 빠지면 짝이 어긋나 클라이언트가 뒤 패킷을 묶음으로 쌓다가(4096개) 끊긴다. */
+        private static final String BUNDLE_PAIR = "A bundle delimiter cannot be cancelled or replaced (the client disconnects when the pair is broken) - cancel the packets inside the bundle instead";
+
         private final Player player;
         private final PacketType<?> type;
-        private final boolean plugin;
+        private final ProtocolCodec codec;
+        private final boolean plugin, readable;
         Packet value;
         boolean cancelled, modified, monitor;
 
-        EventImpl(Player player, PacketType<?> type, Packet value, boolean plugin) {
+        EventImpl(ProtocolCodec codec, Player player, PacketType<?> type, Packet value, boolean plugin, boolean readable) {
+            this.codec = codec;
             this.player = player;
             this.type = type;
             this.value = value;
             this.plugin = plugin;
+            this.readable = readable;
         }
 
         @Override
@@ -352,10 +417,19 @@ public final class PacketServiceImpl implements PacketService {
 
         @Override
         public void setPacket(Packet packet) {
-            if (monitor) throw new IllegalStateException("MONITOR 리스너는 패킷을 바꿀 수 없다");
+            if (monitor) throw new IllegalStateException("a MONITOR listener cannot change the packet");
             Objects.requireNonNull(packet, "packet");
-            if (!type.typed()) throw new UnsupportedOperationException("타입 래퍼가 없는 패킷은 바꿀 수 없다: " + type);
-            if (packet.type() != type) throw new IllegalArgumentException("같은 종류여야 한다: " + type + " ← " + packet.type());
+            if (!readable) throw new UnsupportedOperationException("a packet whose content could not be read cannot be replaced: " + type);
+            if (type == org.domi.furnace.api.packet.PacketTypes.Clientbound.BUNDLE_DELIMITER) throw new UnsupportedOperationException(BUNDLE_PAIR);
+            if (packet.type() != type) throw new IllegalArgumentException("must be the same type: " + type + " ← " + packet.type());
+            if (packet instanceof GenericPacket g && !g.readable()) throw new IllegalArgumentException("cannot be replaced by a packet without content: " + type);
+            // 쓸 수 없는 값(빠진·모르는 필드, 범위 밖, 없는 이름)은 여기서 리스너에게 바로 알린다 — 나중에 실패하면 원래 패킷이 나가 버린다
+            ByteBuf check = Unpooled.buffer();
+            try {
+                codec.encode(packet, check);
+            } finally {
+                check.release();
+            }
             value = packet;
             modified = true;
         }
@@ -365,7 +439,8 @@ public final class PacketServiceImpl implements PacketService {
 
         @Override
         public void setCancelled(boolean c) {
-            if (monitor) throw new IllegalStateException("MONITOR 리스너는 취소할 수 없다");
+            if (monitor) throw new IllegalStateException("a MONITOR listener cannot cancel");
+            if (c && type == org.domi.furnace.api.packet.PacketTypes.Clientbound.BUNDLE_DELIMITER) throw new UnsupportedOperationException(BUNDLE_PAIR);
             cancelled = c;
         }
 

@@ -4,7 +4,9 @@ package org.domi.furnace.server.net.io.nbt;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.nbt.ByteArrayTag", "net.minecraft.nbt.IntArrayTag", "net.minecraft.nbt.LongArrayTag"})
 public final class NbtArray {
 
     private final byte type;
@@ -22,7 +24,7 @@ public final class NbtArray {
             case byte[] a -> { t = NbtIo.TAG_BYTE_ARRAY; for (byte b : a) l.add((long) b); }
             case int[] a -> { t = NbtIo.TAG_INT_ARRAY; for (int b : a) l.add((long) b); }
             case long[] a -> { t = NbtIo.TAG_LONG_ARRAY; for (long b : a) l.add(b); }
-            default -> throw new IllegalArgumentException("배열이 아님: " + array);
+            default -> throw new IllegalArgumentException("not an array: " + array);
         }
         return new NbtArray(t, l);
     }

@@ -3,6 +3,7 @@
 // (지도 내용 — 가리키는 구조물·장식 — 은 map/ExplorationMapLootTest).
 package org.domi.furnace.server.loot;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.BufferedReader;
@@ -26,12 +27,12 @@ import org.junit.jupiter.api.Test;
 public class VanillaChestLootTest {
 
     public static LootData vanillaLoot() throws Exception {
-        Path root = Path.of("../tools/vanilla-data/server-1.21.1");
+        Path root = Path.of("../tools/vanilla-data/server-" + GameVersion.MINECRAFT);
         Assumptions.assumeTrue(Files.isDirectory(root.resolve("data/minecraft/loot_table")), "로컬 바닐라 데이터 없음");
         PackRepository repo = new PackRepository(root, null);
         repo.reload();
         repo.setSelected(List.of("vanilla"));
-        TagRegistries regs = new TagRegistries(RegistrySet.load("registries/1.21.1.txt"));
+        TagRegistries regs = new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"));
         try (ResourceManager rm = repo.openResourceManager()) {
             return LootData.load(rm, new LootRegistries(regs, regs.loadAll(rm)));
         }
@@ -49,7 +50,7 @@ public class VanillaChestLootTest {
         List<String> failures = new ArrayList<>();
         int cases = 0;
         try (BufferedReader r = new BufferedReader(new InputStreamReader(
-                VanillaChestLootTest.class.getResourceAsStream("/loot/chests-1.21.1.txt"), StandardCharsets.UTF_8))) {
+                VanillaChestLootTest.class.getResourceAsStream("/loot/" + GameVersion.RESOURCE_TAG + "/chests.txt"), StandardCharsets.UTF_8))) {
             String line;
             while ((line = r.readLine()) != null) {
                 if (line.startsWith("#") || line.isBlank()) continue;

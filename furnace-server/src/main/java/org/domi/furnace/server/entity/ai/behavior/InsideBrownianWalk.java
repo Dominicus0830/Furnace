@@ -26,7 +26,7 @@ public final class InsideBrownianWalk {
                 for (int z = -1; z <= 1; z++) for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) list.add(new Pos(pos.x() + x, pos.y() + y, pos.z() + z));
                 Collections.shuffle(list);
                 for (Pos p : list) {
-                    if (!level.canSeeSky(p) && loadedAndEntityCanStandOn(level, p) && level.noCollision(mob.boundingBox())) {
+                    if (!level.canSeeSky(p) && loadedAndEntityCanStandOn(level, p, mob) && level.noCollision(mob, mob.boundingBox())) {
                         mob.getBrain().setMemory(MemoryModuleType.WALK_TARGET, new WalkTarget(p, speed, 0));
                         break;
                     }
@@ -36,8 +36,8 @@ public final class InsideBrownianWalk {
         };
     }
 
-    /** Level.loadedAndEntityCanStandOn: 칸 충돌 모양의 윗면이 꽉 찼다. */
-    static boolean loadedAndEntityCanStandOn(ChunkLevel level, Pos p) {
-        return B.isFaceSturdy(level.getBlockState(p), level, p, org.domi.furnace.server.block.Dir.UP);
+    /** Level.loadedAndEntityCanStandOn(p, mob): 청크가 있고 칸 충돌 모양(mob 문맥)의 윗면이 꽉 찼다. */
+    static boolean loadedAndEntityCanStandOn(ChunkLevel level, Pos p, PathfinderMob mob) {
+        return level.hasChunkAt(p) && B.entityCanStandOn(level.getBlockState(p), level, p, mob);
     }
 }

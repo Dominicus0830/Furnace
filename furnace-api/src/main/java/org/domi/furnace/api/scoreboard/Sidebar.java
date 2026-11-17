@@ -1,5 +1,5 @@
-// 화면 오른쪽 점수판(사이드바) — 제목 하나와 위에서 아래로 최대 15줄의 글. 점수 숫자는 보이지 않고, 글은 40자 제한 없이 서식을 쓸 수 있다.
-// 바닐라 점수판(/scoreboard)과 따로 움직인다: 서버 점수판에 목표·점수를 만들지 않고 보는 플레이어에게만 보낸다.
+// 화면 오른쪽 점수판(사이드바). 제목 하나와 위에서 아래로 최대 15줄의 글로 이루어진다. 점수 숫자는 보이지 않고, 글은 40자 제한 없이 서식을 쓸 수 있다.
+// 바닐라 점수판(/scoreboard)과 따로 움직인다. 서버 점수판에 목표·점수를 만들지 않고 보는 플레이어에게만 보낸다.
 // 한 플레이어에게는 사이드바 하나만 보인다(새로 보이면 바뀐다). 숨기면 서버 점수판의 사이드바 목표가 있으면 그것이 돌아온다.
 // 어느 스레드에서 바꿔도 된다.
 package org.domi.furnace.api.scoreboard;
@@ -46,7 +46,7 @@ public final class Sidebar {
     /** 모든 줄을 한 번에 바꾼다(15줄 넘으면 IllegalArgumentException). 보는 사람에게는 바뀐 줄만 간다. */
     public synchronized Sidebar lines(List<Text> lines) {
         List<Text> copy = List.copyOf(lines);
-        if (copy.size() > MAX_LINES) throw new IllegalArgumentException("사이드바는 최대 " + MAX_LINES + "줄: " + copy.size());
+        if (copy.size() > MAX_LINES) throw new IllegalArgumentException("a sidebar has at most " + MAX_LINES + " lines: " + copy.size());
         if (copy.equals(this.lines)) return this;
         this.lines = copy;
         fire();

@@ -5,6 +5,13 @@ import java.util.Objects;
 /** 문자열 태그(불변). getAsString 은 값 그대로, toString 은 따옴표·이스케이프를 붙인 SNBT. */
 public final class StringTag implements Tag {
 
+    /** 바닐라 {@code StringTag.TYPE}: 이 클래스 안의 익명 종류(이름·표시 이름·isValue 는 바닐라 1.21.1 jar 와 대조). */
+    public static final TagType<StringTag> TYPE = new TagType<>() {
+        @Override public String getName() { return "STRING"; }
+        @Override public String getPrettyName() { return "TAG_String"; }
+        @Override public boolean isValue() { return true; }
+    };
+
     private static final StringTag EMPTY = new StringTag("");
 
     private final String data;

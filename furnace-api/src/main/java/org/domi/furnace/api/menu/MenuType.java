@@ -1,4 +1,4 @@
-// 메뉴 모양 — 위쪽 칸 배치. 아래쪽은 늘 플레이어 인벤토리다. 키는 마인크래프트 버전과 무관한 레지스트리 이름.
+// 메뉴 모양, 곧 위쪽 칸 배치다. 아래쪽은 늘 플레이어 인벤토리다. 키는 마인크래프트 버전과 무관한 레지스트리 이름이다.
 package org.domi.furnace.api.menu;
 
 public enum MenuType {
@@ -29,7 +29,7 @@ public enum MenuType {
 
     /** 줄 수(1~6)로 상자 모양을 고른다. */
     public static MenuType chest(int rows) {
-        if (rows < 1 || rows > 6) throw new IllegalArgumentException("상자 줄 수는 1~6: " + rows);
+        if (rows < 1 || rows > 6) throw new IllegalArgumentException("chest rows must be 1~6: " + rows);
         return values()[rows - 1];
     }
 }

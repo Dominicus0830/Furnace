@@ -8,6 +8,7 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.entity.Vec3;
 import org.domi.furnace.server.world.ChunkColumn;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.gameevent.GameEventDispatcher")
 public final class GameEventDispatcher {
 
     private GameEventDispatcher() {}

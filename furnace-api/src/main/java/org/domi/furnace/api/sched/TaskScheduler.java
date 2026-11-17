@@ -13,8 +13,8 @@ public interface TaskScheduler {
     <T> CompletableFuture<T> submit(Supplier<T> task);
 
     /**
-     * delayTicks 틱 후 owner 스레드에서 task 실행. delayTicks는 서버 틱 단위 지연이다(전역·region 모두 /tick rate 를 따른다 —
-     * rate 5 면 20틱은 4초. 전역은 /tick freeze 중에도 세고, /tick sprint 중에는 sprint 틱마다 센다).
+     * delayTicks 틱 후 owner 스레드에서 task 실행. delayTicks는 서버 틱 단위 지연이며 전역·region 모두 /tick rate 를 따른다.
+     * rate 5 면 20틱은 4초다. 전역은 /tick freeze 중에도 세고, /tick sprint 중에는 sprint 틱마다 센다.
      * 0과 1은 다음 틱에 실행된다. owner 스레드가 밀리면 그만큼 늦게 실행된다.
      */
     CompletableFuture<Void> executeDelayed(Runnable task, long delayTicks);
@@ -24,13 +24,13 @@ public interface TaskScheduler {
      * 한 번 실행이 끝난 뒤 다음 실행을 예약하므로 실행끼리 겹치지 않는다.
      */
     default ScheduledTask runAtFixedRate(Runnable task, long initialDelayTicks, long periodTicks) {
-        if (periodTicks <= 0) throw new IllegalArgumentException("periodTicks 는 1 이상: " + periodTicks);
+        if (periodTicks <= 0) throw new IllegalArgumentException("periodTicks must be at least 1: " + periodTicks);
         Repeating r = new Repeating(this, task, periodTicks);
         executeDelayed(r, Math.max(0, initialDelayTicks));
         return r;
     }
 
-    /** delayTicks 뒤 한 번 — 취소할 수 있는 손잡이를 돌려준다. */
+    /** delayTicks 뒤 한 번 실행한다. 취소할 수 있는 손잡이를 돌려준다. */
     default ScheduledTask runLater(Runnable task, long delayTicks) {
         Once o = new Once(task);
         executeDelayed(o, Math.max(0, delayTicks));
@@ -56,7 +56,7 @@ public interface TaskScheduler {
             try {
                 task.run();
             } catch (Throwable t) {
-                System.getLogger("Furnace").log(System.Logger.Level.ERROR, "반복 작업 실패", t);
+                System.getLogger("Furnace").log(System.Logger.Level.ERROR, "Repeating task failed", t);
             }
             if (!cancelled) owner.executeDelayed(this, period);
         }

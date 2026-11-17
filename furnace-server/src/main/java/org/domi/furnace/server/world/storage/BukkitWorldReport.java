@@ -18,6 +18,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Stream;
 import org.domi.furnace.api.world.WorldCreator;
+import org.domi.furnace.server.i18n.Lang;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.slf4j.Logger;
@@ -62,7 +63,7 @@ public final class BukkitWorldReport {
             Files.writeString(file, render(r, universe.resolve(levelName), imported), StandardCharsets.UTF_8);
             logSummary(r, file);
         } catch (IOException | RuntimeException e) {
-            log.warn("Paper/Spigot 월드 가져오기 보고서를 만들지 못했다 — 월드 가져오기 자체와는 무관하다", e);
+            log.warn(Lang.t("bukkitreport.failed"), e);
         }
     }
 
@@ -85,22 +86,21 @@ public final class BukkitWorldReport {
             if (data != null) {
                 diffGameRules(label, data, main, lines);
                 if (data.getBoolean("raining") != main.raining || data.getBoolean("thundering") != main.thundering) {
-                    lines.add(label + "/level.dat: 날씨(비 " + data.getBoolean("raining") + ", 천둥 " + data.getBoolean("thundering")
-                            + ")는 가져오지 않는다 — 날씨는 주 월드 하나를 모든 차원이 쓴다(바닐라)");
+                    lines.add(Lang.t("bukkitreport.weather", label, data.getBoolean("raining"), data.getBoolean("thundering")));
                 }
             }
             for (String top : sortedNames(bukkitWorld)) {
-                if (!KNOWN_TOP.contains(top)) lines.add(label + "/" + top + ": 모르는 파일이라 가져오지 않았다");
+                if (!KNOWN_TOP.contains(top)) lines.add(Lang.t("bukkitreport.unknown-file", label, top));
             }
             if (Files.isRegularFile(bukkitWorld.resolve("paper-world.yml"))) {
-                lines.add(label + "/paper-world.yml: 월드별 Paper 설정은 가져오지 않는다(Furnace 에 월드별 규칙 키가 없다)");
+                lines.add(Lang.t("bukkitreport.paper-world-yml", label));
             }
         }
         if (Files.isRegularFile(universe.resolve(levelName).resolve("paper-world.yml"))) {
-            lines.add(levelName + "/paper-world.yml: 월드별 Paper 설정은 가져오지 않는다(Furnace 에 월드별 규칙 키가 없다)");
+            lines.add(Lang.t("bukkitreport.paper-world-yml", levelName));
         }
         if (imported.anyImported() || !lines.isEmpty()) {
-            lines.add(0, "네더·엔드의 시간·날씨·스폰 지점·월드 보더는 가져오지 않는다 — 주 월드(" + levelName + "/level.dat) 것을 모든 차원이 쓴다(바닐라 배치)");
+            lines.add(0, Lang.t("bukkitreport.other-dimensions", levelName));
         }
         return new Report(lines, findExtraWorlds(universe, levelName));
     }
@@ -111,10 +111,10 @@ public final class BukkitWorldReport {
         for (var e : data.getCompound("GameRules").tags().entrySet()) {
             if (!(e.getValue() instanceof String v)) continue;
             String mine = main.gameRules.get(e.getKey());
-            if (mine != null && !mine.equals(v)) diff.put(e.getKey(), v + " (주 월드 " + mine + ")");
+            if (mine != null && !mine.equals(v)) diff.put(e.getKey(), v + " " + Lang.t("bukkitreport.main-world-value", mine));
         }
         if (!diff.isEmpty()) {
-            out.add(label + "/level.dat: 게임 규칙 " + diff.size() + "개가 주 월드와 다르다 — 주 월드 값을 쓴다: " + diff);
+            out.add(Lang.t("bukkitreport.game-rules", label, diff.size(), diff));
         }
     }
 
@@ -136,15 +136,18 @@ public final class BukkitWorldReport {
             if (BukkitWorldImport.layoutEnvironment(dir) == null) continue;
             NbtCompound data = readData(dir.resolve(LevelStorage.LEVEL_DAT));
             if (data == null) {
-                out.add(new ExtraWorld(name, null, "level.dat 를 읽지 못했다"));
+                out.add(new ExtraWorld(name, null, Lang.t("bukkitreport.level-dat-unreadable")));
                 continue;
             }
             if (data.contains(LevelData.FURNACE_WORLD)) continue;   // Furnace 가 만든 월드
+            if (!WorldCreator.isValidName(name)) {   // 예외 문구를 읽지 않고 이름 규칙을 먼저 본다
+                out.add(new ExtraWorld(name, null, Lang.t("bukkitreport.bad-name")));
+                continue;
+            }
             try {
                 out.add(new ExtraWorld(name, BukkitWorldImport.inferCreator(dir, name, data), null));
             } catch (IllegalArgumentException e) {
-                out.add(new ExtraWorld(name, null, e.getMessage() != null && e.getMessage().startsWith("월드 이름")
-                        ? "월드 이름이 Furnace 규칙(영문·숫자·_ . - 1~64자)에 맞지 않는다" : e.getMessage()));
+                out.add(new ExtraWorld(name, null, e.getMessage()));
             }
         }
         return out;
@@ -154,16 +157,14 @@ public final class BukkitWorldReport {
 
     private static void logSummary(Report r, Path file) {
         if (r.isEmpty()) {
-            log.info("Paper/Spigot 월드 가져오기 보고: 가져오지 않은 것도, 추가 월드도 없다 — {}", file.toAbsolutePath().normalize());
+            log.info(Lang.t("bukkitreport.summary-empty", file.toAbsolutePath().normalize()));
             return;
         }
-        log.info("Paper/Spigot 월드 가져오기 보고: 가져오지 않은 것 {}건, 추가 Bukkit 월드 {}개 — 자세한 내용: {}",
-                r.notImported().size(), r.extras().size(), file.toAbsolutePath().normalize());
-        for (String l : r.notImported()) log.info("  가져오지 않음: {}", l);
+        log.info(Lang.t("bukkitreport.summary", r.notImported().size(), r.extras().size(), file.toAbsolutePath().normalize()));
+        for (String l : r.notImported()) log.info("  {}", Lang.t("bukkitreport.not-imported-line", l));
         List<String> loadable = loadableNames(r);
         if (!loadable.isEmpty()) {
-            log.info("  서버 폴더에 추가 Bukkit 월드가 있다: {} — 올리려면 /worlds load <이름> 또는 furnace.properties 에 worlds.autoload={}",
-                    String.join(", ", loadable), String.join(",", loadable));
+            log.info("  {}", Lang.t("bukkitreport.extra-worlds", String.join(", ", loadable), String.join(",", loadable)));
         }
     }
 
@@ -173,34 +174,33 @@ public final class BukkitWorldReport {
 
     static String render(Report r, Path mainWorld, BukkitWorldImport.Result imported) {
         StringBuilder sb = new StringBuilder();
-        sb.append("Furnace — Paper/Spigot 월드 가져오기 보고서\n");
-        sb.append("만든 때: ").append(Instant.now().toString(), 0, 19).append("Z\n");
-        sb.append("이 파일이 있으면 같은 보고서를 다시 만들지 않는다(새로 가져온 차원이 생기면 갱신). 지워도 된다.\n");
-        sb.append("월드 폴더는 읽기만 했다. 가져온 네더·엔드는 복사본이고 원본(<level>_nether, <level>_the_end)은 그대로다.\n\n");
-        sb.append("== 이번에 가져온 차원 ==\n");
-        sb.append("  네더: ").append(imported.nether()).append("  엔드: ").append(imported.end());
-        if (imported.dragonFightImported()) sb.append("  (엔드 드래곤 전투 상태도 가져옴)");
-        sb.append("\n  (IMPORTED = 복사함, NONE = Paper 폴더 없음, SKIPPED_EXISTING = ").append(mainWorld.getFileName())
-                .append(" 에 이미 차원 폴더가 있어 건드리지 않음)\n");
-        sb.append("\n== 가져오지 않은 것 (").append(r.notImported().size()).append(") ==\n");
-        if (r.notImported().isEmpty()) sb.append("  없음\n");
+        sb.append(Lang.t("bukkitreport.report-title")).append('\n');
+        sb.append(Lang.t("bukkitreport.report-created", Instant.now().toString().substring(0, 19) + "Z")).append('\n');
+        sb.append(Lang.t("bukkitreport.report-intro-1")).append('\n');
+        sb.append(Lang.t("bukkitreport.report-intro-2")).append("\n\n");
+        sb.append(Lang.t("bukkitreport.section-imported")).append('\n');
+        sb.append("  ").append(Lang.t("bukkitreport.dimensions", imported.nether(), imported.end()));
+        if (imported.dragonFightImported()) sb.append("  ").append(Lang.t("bukkitreport.dragon-imported"));
+        sb.append("\n  ").append(Lang.t("bukkitreport.legend", mainWorld.getFileName())).append('\n');
+        sb.append('\n').append(Lang.t("bukkitreport.section-not-imported", r.notImported().size())).append('\n');
+        if (r.notImported().isEmpty()) sb.append("  ").append(Lang.t("bukkitreport.none")).append('\n');
         for (String l : r.notImported()) sb.append("  ").append(l).append('\n');
-        sb.append("\n== 서버 폴더의 추가 Bukkit 월드 (").append(r.extras().size()).append(") ==\n");
+        sb.append('\n').append(Lang.t("bukkitreport.section-extra", r.extras().size())).append('\n');
         if (r.extras().isEmpty()) {
-            sb.append("  없음\n");
+            sb.append("  ").append(Lang.t("bukkitreport.none")).append('\n');
         } else {
-            sb.append("  Bukkit 과 Furnace 의 추가 월드 폴더 배치가 같아 복사하지 않고 그 자리에서 올린다. 자동으로 올리지는 않는다 —\n");
-            sb.append("  올리려면 /worlds load <이름> 또는 furnace.properties 에 worlds.autoload=<이름>,<이름> 을 넣는다.\n");
-            sb.append("  플러그인이 같은 이름으로 createWorld 를 부르면 환경·생성기가 아래와 같아야 한다(다르면 실패).\n");
+            sb.append("  ").append(Lang.t("bukkitreport.extra-help-1")).append('\n');
+            sb.append("  ").append(Lang.t("bukkitreport.extra-help-2")).append('\n');
+            sb.append("  ").append(Lang.t("bukkitreport.extra-help-3")).append('\n');
             for (ExtraWorld e : r.extras()) {
                 sb.append("  ").append(e.name()).append(": ");
                 if (e.creator() == null) {
-                    sb.append("올릴 수 없다 — ").append(e.problem());
+                    sb.append(Lang.t("bukkitreport.cannot-load", e.problem()));
                 } else {
                     WorldCreator c = e.creator();
                     sb.append(c.environment()).append(" / ").append(c.generator());
-                    if (!c.generateStructures()) sb.append(" / 구조물 끔");
-                    sb.append(" (level.dat 에서 추론, 플러그인 생성기를 썼다면 새 청크는 바닐라 생성기로 만든다)");
+                    if (!c.generateStructures()) sb.append(" / ").append(Lang.t("bukkitreport.structures-off"));
+                    sb.append(' ').append(Lang.t("bukkitreport.inferred"));
                 }
                 sb.append('\n');
             }

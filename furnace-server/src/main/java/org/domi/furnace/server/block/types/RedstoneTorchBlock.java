@@ -1,6 +1,7 @@
 // 바닐라 RedstoneTorchBlock: 아래 칸이 신호를 받으면 꺼진다(2틱 뒤). 60틱 안에 8번 꺼지면 타 버려 160틱 쉰다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
@@ -8,6 +9,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.RedstoneTorchBlock")
 public class RedstoneTorchBlock extends BaseTorchBlock {
 
     static final Prop LIT = B.prop("lit");

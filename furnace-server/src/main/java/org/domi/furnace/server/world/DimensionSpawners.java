@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.function.Consumer;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.LevelServices;
+import org.domi.furnace.server.block.RandomSeeds;
 import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.entity.spawn.CatSpawner;
@@ -27,11 +28,16 @@ public final class DimensionSpawners {
     private final PatrolSpawner patrol = new PatrolSpawner();
     private final CatSpawner cat = new CatSpawner();
     private final VillageSiege siege = new VillageSiege();
-    private final WanderingTraderSpawner trader = new WanderingTraderSpawner();
-    private final RandomSource random = RandomSource.create();
+    private final WanderingTraderSpawner trader;
+    private final RandomSource random;
     private final WanderingTraderState ownTraderState = new WanderingTraderState();
 
-    DimensionSpawners(World world) { this.world = world; }
+    DimensionSpawners(World world) {
+        this.world = world;
+        long key = RandomSeeds.world(world.dimension(), world.levelName());
+        this.trader = new WanderingTraderSpawner(key);
+        this.random = RandomSource.createFor(key, RandomSeeds.Purpose.DIMENSION_SPAWNERS);
+    }
 
     public PhantomSpawner phantom() { return phantom; }
 

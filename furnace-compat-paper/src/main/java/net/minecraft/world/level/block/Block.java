@@ -72,7 +72,7 @@ public class Block extends BlockBehaviour implements ItemLike {
             }
             int id = types.stateId(new org.domi.furnace.api.world.BlockData(type.id(), names));
             if (id != baseStateId + local) {
-                throw new IllegalStateException("상태 번호가 바닐라 순서와 다르다: " + type.id() + names + " 서버=" + id + " 계산=" + (baseStateId + local));
+                throw new IllegalStateException("state ids differ from the vanilla order: " + type.id() + names + " server=" + id + " computed=" + (baseStateId + local));
             }
             states[local] = new BlockState(this, values, id);
             for (int i = n - 1; i >= 0; i--) {
@@ -128,6 +128,10 @@ public class Block extends BlockBehaviour implements ItemLike {
     /** 호환 모듈 전용 — 공기 종류(air·cave_air·void_air)인가. */
     public boolean furnaceIsAir() { return air; }
 
+    /** 바닐라: 블록 상태 번호 표(팔레트 컨테이너의 블록 표). 서버 상태 표를 비추는 고정 표다(더할 수 없다). */
+    public static final net.minecraft.core.IdMapper<BlockState> BLOCK_STATE_REGISTRY = net.minecraft.core.IdMapper.furnaceFixed(
+            BlockState::furnaceStateId, org.domi.furnace.compat.nms.NmsBlocks::state, org.domi.furnace.compat.nms.NmsBlocks::stateCount);
+
     /** 바닐라: null 이면 0. */
     public static int getId(BlockState state) { return state == null ? 0 : state.furnaceStateId(); }
 
@@ -137,9 +141,50 @@ public class Block extends BlockBehaviour implements ItemLike {
         return s != null ? s : Blocks.AIR.defaultBlockState();
     }
 
+    /**
+     * 바닐라 Block.updateFromNeighbourShapes(state, level, pos): 서·동·북·남·아래·위 이웃마다 updateShape 를 차례로 건 상태(서버 블록 동작 — updateShape 의
+     * 부수 효과, 예: 물에 잠긴 블록의 유체 틱 예약도 그대로). 그 칸의 주인 region 에서 돈다({@code NmsEffects} 값 호출 규칙). 서버 월드가 아닌 레벨은 UnsupportedNmsCall.
+     */
+    public static BlockState updateFromNeighbourShapes(BlockState state, net.minecraft.world.level.LevelAccessor level, net.minecraft.core.BlockPos pos) {
+        return stateById(org.domi.furnace.compat.nms.NmsEffects.call(level, pos, org.domi.furnace.compat.nms.NmsEffects.FROM_NEIGHBOUR_SHAPES,
+                state.furnaceStateId(), 0, 0, "Block#updateFromNeighbourShapes"));
+    }
+
+    /**
+     * 바닐라 getStateForPlacement(ctx): 그 문맥으로 놓을 상태(놓을 수 없으면 null). 서버 블록 동작의 같은 메서드를 문맥·레벨 객체의 가상 메서드로 돌린다
+     * (FAWE 처럼 레벨을 상속해 편집 중인 내용을 답하게 했으면 그 답으로 — {@code NmsPlacement}). 부른 스레드에서 읽는다.
+     */
+    public BlockState getStateForPlacement(net.minecraft.world.item.context.BlockPlaceContext ctx) {
+        return org.domi.furnace.compat.nms.NmsPlacement.stateForPlacement(this, ctx);
+    }
+
     public static Block byItem(Item item) { return org.domi.furnace.compat.nms.NmsBlocks.byItem(item); }
 
     public final BlockState defaultBlockState() { return defaultState; }
+
+    /** 바닐라: 폭발 저항(블록 속성). */
+    public float getExplosionResistance() { return org.domi.furnace.compat.nms.NmsBlockStates.table().explosionResistance()[defaultState.furnaceStateId()]; }
+
+    /** 바닐라: 마찰(블록 속성, 기본 0.6). */
+    public float getFriction() { return org.domi.furnace.compat.nms.NmsBlockStates.table().friction()[defaultState.furnaceStateId()]; }
+
+    /** 바닐라: 기본 상태의 지도 색. */
+    public net.minecraft.world.level.material.MapColor defaultMapColor() {
+        return net.minecraft.world.level.material.MapColor.furnaceByCol(org.domi.furnace.compat.nms.NmsBlockStates.table().mapColor()[defaultState.furnaceStateId()]);
+    }
+
+    /** 바닐라: 모양이 한 칸 블록 전체를 덮는가. */
+    public static boolean isShapeFullBlock(net.minecraft.world.phys.shapes.VoxelShape shape) { return net.minecraft.world.phys.shapes.Shapes.furnaceIsFullBlock(shape); }
+
+    private static final java.util.Set<String> PAPER_INDESTRUCTIBLE = java.util.Set.of("minecraft:barrier", "minecraft:bedrock", "minecraft:end_portal_frame",
+            "minecraft:end_portal", "minecraft:end_gateway", "minecraft:command_block", "minecraft:repeating_command_block", "minecraft:chain_command_block",
+            "minecraft:structure_block", "minecraft:jigsaw");
+
+    /**
+     * Paper: 이 블록을 부술 수 있는가 — 기본 설정(unsupported-settings.allow-permanent-block-break-exploits 꺼짐)의 Paper 1.21.1 목록 그대로(N2b-6).
+     * Furnace 에는 그 설정이 없어 늘 기본값이다.
+     */
+    public final boolean isDestroyable() { return !PAPER_INDESTRUCTIBLE.contains(key.toString()); }
 
     public StateDefinition<Block, BlockState> getStateDefinition() { return stateDefinition; }
 

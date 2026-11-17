@@ -4,11 +4,13 @@ package org.domi.furnace.server.loot;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.world.gen.noise.NoiseRandom;
 import org.domi.furnace.server.world.gen.noise.RandomSupport;
 import org.domi.furnace.server.world.gen.noise.XoroshiroRandomSource;
 
+@VanillaPort("net.minecraft.world.RandomSequences")
 public final class RandomSequences {
 
     private final long worldSeed;

@@ -61,7 +61,7 @@ public final class ClientResync {
     public static void block(Player p, BlockLevel level, Pos pos) {
         p.send(new BlockUpdate(pos.x(), pos.y(), pos.z(), level.getBlockState(pos)));
         if (level.getBlockEntity(pos) instanceof BlockEntity be && be.hasUpdatePacket()) {
-            p.send(new BlockEntityDataPacket(pos.x(), pos.y(), pos.z(), be.typeId(), be.updateTag()));
+            p.send(new BlockEntityDataPacket(pos.x(), pos.y(), pos.z(), be.typeId(), be.sentUpdateTag()));
         }
     }
 

@@ -261,7 +261,10 @@ public class WitherBoss extends Monster implements RangedAttackMob {
                             for (int pz = bz - j; pz <= bz + j; pz++) {
                                 Pos pos = new Pos(px, py, pz);
                                 int s = level.getBlockState(pos);
-                                if (canDestroy(s)) any = level.destroyBlock(pos, true) || any;
+                                // CraftBukkit(+Paper 새 상태): EntityChangeBlockEvent 를 막은 칸은 건너뛴다
+                                if (canDestroy(s) && org.domi.furnace.server.block.B.entityChange(level, this, pos, org.domi.furnace.server.block.B.fluidLeftover(s))) {
+                                    any = level.destroyBlock(pos, true) || any;
+                                }
                             }
                         }
                     }

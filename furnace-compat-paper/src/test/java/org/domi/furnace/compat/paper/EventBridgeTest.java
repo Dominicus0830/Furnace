@@ -70,6 +70,12 @@ class EventBridgeTest {
         return (E) l.get(0);
     }
 
+    private static org.domi.furnace.api.event.block.BlockLockCheckEvent lockCheck(Player p, String w, BlockPos bp) {
+        return new org.domi.furnace.api.event.block.BlockLockCheckEvent(w, bp, p, "key", org.domi.furnace.api.item.ItemStack.of("minecraft:stick"),
+                Text.translatable("container.isLocked", Text.text("Chest")),
+                org.domi.furnace.api.audience.Sound.sound("minecraft:block.chest.locked", org.domi.furnace.api.audience.Sound.Source.BLOCK));
+    }
+
     /** 지원하는 24종을 모두 한 번씩 발행해 Bukkit 처리기에 닿는지 본다. */
     @Test
     void everyBridgedEventReachesTheBukkitHandler() throws Exception {
@@ -82,6 +88,9 @@ class EventBridgeTest {
             Location at = new Location(w, 1, 64, 2);
             Location to = new Location(w, 5, 64, 6);
             var recorder = server.plugin("Recorder");
+            // 스폰·버리기 이벤트는 월드에 있는 엔티티 핸들이 필요하다(몹과 떨어진 아이템 엔티티)
+            var pig = server.await(server.overworld().spawnEntity("minecraft:pig", p.location()));
+            var itemEntity = server.await(server.overworld().spawnEntity("minecraft:item", p.location()));
             Map<Class<?>, Supplier<org.domi.furnace.api.event.Event>> fire = new java.util.LinkedHashMap<>();
             fire.put(org.bukkit.event.player.PlayerChannelEvent.class, () -> new org.domi.furnace.api.event.player.PlayerChannelEvent(p, "mod:a",
                     org.domi.furnace.api.event.player.PlayerChannelEvent.Action.REGISTER));
@@ -93,6 +102,8 @@ class EventBridgeTest {
             fire.put(org.bukkit.event.player.PlayerTeleportEvent.class, () -> new org.domi.furnace.api.event.player.PlayerTeleportEvent(p, at, to));
             fire.put(org.bukkit.event.player.PlayerRespawnEvent.class, () -> new org.domi.furnace.api.event.player.PlayerRespawnEvent(p, at, true));
             fire.put(org.bukkit.event.player.PlayerChangedWorldEvent.class, () -> new org.domi.furnace.api.event.player.PlayerChangedWorldEvent(p, w));
+            fire.put(org.bukkit.event.player.PlayerShowEntityEvent.class, () -> new org.domi.furnace.api.event.player.PlayerShowEntityEvent(p, pig));
+            fire.put(org.bukkit.event.player.PlayerHideEntityEvent.class, () -> new org.domi.furnace.api.event.player.PlayerHideEntityEvent(p, pig));
             fire.put(org.bukkit.event.player.PlayerGameModeChangeEvent.class, () -> new org.domi.furnace.api.event.player.PlayerGameModeChangeEvent(p, GameMode.CREATIVE));
             fire.put(org.bukkit.event.player.PlayerToggleSneakEvent.class, () -> new org.domi.furnace.api.event.player.PlayerToggleSneakEvent(p, true));
             fire.put(org.bukkit.event.player.PlayerToggleSprintEvent.class, () -> new org.domi.furnace.api.event.player.PlayerToggleSprintEvent(p, true));
@@ -112,9 +123,11 @@ class EventBridgeTest {
             fire.put(org.bukkit.event.server.RemoteServerCommandEvent.class, () -> new org.domi.furnace.api.event.server.RemoteServerCommandEvent(
                     ((org.domi.furnace.server.plugin.PluginHost) server.api()).rconSender(t -> {}), "list"));
             fire.put(org.bukkit.event.world.WorldLoadEvent.class, () -> new org.domi.furnace.api.event.world.WorldLoadEvent(w, "world"));
+            fire.put(org.bukkit.event.world.WorldInitEvent.class, () -> new org.domi.furnace.api.event.world.WorldInitEvent(w, "world"));
             fire.put(org.bukkit.event.world.WorldUnloadEvent.class, () -> new org.domi.furnace.api.event.world.WorldUnloadEvent(w, "world", false));
-            fire.put(org.bukkit.event.world.ChunkLoadEvent.class, () -> new org.domi.furnace.api.event.world.ChunkLoadEvent(w, 3, 4));
+            fire.put(org.bukkit.event.world.ChunkLoadEvent.class, () -> new org.domi.furnace.api.event.world.ChunkLoadEvent(w, 3, 4, true));
             fire.put(org.bukkit.event.world.ChunkUnloadEvent.class, () -> new org.domi.furnace.api.event.world.ChunkUnloadEvent(w, 3, 4));
+            fire.put(io.papermc.paper.event.world.WorldGameRuleChangeEvent.class, () -> new org.domi.furnace.api.event.world.GameRuleChangeEvent(w, server.api().console(), "doFireTick", "false"));
             var chest = new org.domi.furnace.api.inventory.InventorySnapshot("minecraft:generic_9x3", java.util.Collections.nCopies(63, org.domi.furnace.api.item.ItemStack.EMPTY));
             var stone = org.domi.furnace.api.item.ItemStack.of("minecraft:stone").withAmount(4);
             fire.put(org.bukkit.event.inventory.InventoryClickEvent.class, () -> new org.domi.furnace.api.event.inventory.InventoryClickEvent(p, chest, 3, 0, "pickup", org.domi.furnace.api.item.ItemStack.EMPTY));
@@ -143,10 +156,63 @@ class EventBridgeTest {
                     org.domi.furnace.api.event.block.BlockIgniteEvent.Cause.FLINT_AND_STEEL, null, p));
             fire.put(org.bukkit.event.block.BlockRedstoneEvent.class, () -> new org.domi.furnace.api.event.block.BlockRedstoneEvent(w, bp, "minecraft:redstone_wire", 0, 15));
             fire.put(org.bukkit.event.block.LeavesDecayEvent.class, () -> new org.domi.furnace.api.event.block.LeavesDecayEvent(w, bp, org.domi.furnace.api.world.BlockData.of("minecraft:oak_leaves")));
+            fire.put(io.papermc.paper.event.block.BlockLockCheckEvent.class, () -> lockCheck(p, w, bp));
             fire.put(org.bukkit.event.inventory.FurnaceBurnEvent.class, () -> new org.domi.furnace.api.event.inventory.FurnaceBurnEvent(w, bp, "minecraft:furnace",
                     org.domi.furnace.api.item.ItemStack.of("minecraft:coal"), 1600));
             fire.put(org.bukkit.event.block.BlockCookEvent.class, () -> new org.domi.furnace.api.event.inventory.FurnaceSmeltEvent(w, bp, "minecraft:furnace",
                     org.domi.furnace.api.item.ItemStack.of("minecraft:iron_ore"), org.domi.furnace.api.item.ItemStack.of("minecraft:iron_ingot")));
+
+            // 결과를 정하는 인벤토리 이벤트(H4 묶음 D)
+            fire.put(org.bukkit.event.inventory.PrepareItemCraftEvent.class, () -> new org.domi.furnace.api.event.inventory.PrepareItemCraftEvent(p,
+                    InventoryResultEventsTest.window("minecraft:crafting", 10), "minecraft:oak_planks", org.domi.furnace.api.item.ItemStack.of("minecraft:oak_planks").withAmount(4)));
+            fire.put(org.bukkit.event.inventory.PrepareInventoryResultEvent.class, () -> new org.domi.furnace.api.event.inventory.PrepareAnvilEvent(p,
+                    InventoryResultEventsTest.window("minecraft:anvil", 3), stone, 3, 40, "x"));
+            fire.put(org.bukkit.event.enchantment.PrepareItemEnchantEvent.class, () -> new org.domi.furnace.api.event.inventory.PrepareItemEnchantEvent(p,
+                    InventoryResultEventsTest.window("minecraft:enchantment", 2), bp, stone, 15, new ArrayList<>(java.util.Arrays.asList(null, null, null))));
+            fire.put(org.bukkit.event.enchantment.EnchantItemEvent.class, () -> new org.domi.furnace.api.event.inventory.EnchantItemEvent(p,
+                    InventoryResultEventsTest.window("minecraft:enchantment", 2), bp, stone, 0, 1, new java.util.LinkedHashMap<>(Map.of("minecraft:sharpness", 1))));
+            fire.put(org.bukkit.event.inventory.BrewEvent.class, () -> new org.domi.furnace.api.event.inventory.BrewEvent(w, bp,
+                    new org.domi.furnace.api.inventory.InventorySnapshot("minecraft:brewing_stand", java.util.Collections.nCopies(5, org.domi.furnace.api.item.ItemStack.EMPTY)), 10));
+            fire.put(org.bukkit.event.inventory.BrewingStandFuelEvent.class, () -> new org.domi.furnace.api.event.inventory.BrewingStandFuelEvent(w, bp,
+                    org.domi.furnace.api.item.ItemStack.of("minecraft:blaze_powder"), 20));
+            fire.put(org.bukkit.event.inventory.InventoryMoveItemEvent.class, () -> new org.domi.furnace.api.event.inventory.InventoryMoveItemEvent(
+                    new org.domi.furnace.api.inventory.InventorySnapshot("minecraft:chest", java.util.Collections.nCopies(27, org.domi.furnace.api.item.ItemStack.EMPTY)),
+                    new Location(w, 1.5, 65.5, 2.5),
+                    new org.domi.furnace.api.inventory.InventorySnapshot("minecraft:hopper", java.util.Collections.nCopies(5, org.domi.furnace.api.item.ItemStack.EMPTY)),
+                    new Location(w, 1.5, 64.5, 2.5), stone, false));
+
+            // 서버가 이미 내던 이벤트 여섯(O12 H1)
+            fire.put(org.bukkit.event.block.BlockPlaceEvent.class, () -> new org.domi.furnace.api.event.block.BlockPlaceEvent(w, bp,
+                    org.domi.furnace.api.world.BlockData.of("minecraft:stone"), org.domi.furnace.api.world.BlockData.AIR, new BlockPos(1, 63, 2), p, stone, true));
+            fire.put(org.bukkit.event.block.BlockGrowEvent.class, () -> new org.domi.furnace.api.event.block.BlockGrowEvent(w, bp,
+                    org.domi.furnace.api.world.BlockData.of("minecraft:wheat"), org.domi.furnace.api.world.BlockData.of("minecraft:wheat")));
+            fire.put(org.bukkit.event.block.BlockFadeEvent.class, () -> new org.domi.furnace.api.event.block.BlockFadeEvent(w, bp, stoneData,
+                    org.domi.furnace.api.world.BlockData.AIR));
+            fire.put(org.bukkit.event.block.BlockExplodeEvent.class, () -> new org.domi.furnace.api.event.block.BlockExplodeEvent(w, bp, "minecraft:red_bed",
+                    new ArrayList<>(List.of(new BlockPos(1, 64, 3))), org.domi.furnace.api.event.cause.CauseChain.NONE, 1f, "DESTROY"));
+            fire.put(org.bukkit.event.entity.EntitySpawnEvent.class, () -> new org.domi.furnace.api.event.entity.EntitySpawnEvent(pig));
+            fire.put(org.bukkit.event.player.PlayerDropItemEvent.class, () -> new org.domi.furnace.api.event.player.PlayerDropItemEvent(p, stone, itemEntity));
+
+            // 보호 이벤트 여섯(T-040a)
+            var snowball = server.await(server.overworld().spawnEntity("minecraft:snowball", p.location()));
+            fire.put(org.bukkit.event.entity.EntityExplodeEvent.class, () -> new org.domi.furnace.api.event.entity.EntityExplodeEvent(pig, at,
+                    new ArrayList<>(List.of(new BlockPos(1, 64, 3))), org.domi.furnace.api.event.cause.CauseChain.NONE, 1f, "DESTROY"));
+            fire.put(org.bukkit.event.block.BlockPistonExtendEvent.class, () -> new org.domi.furnace.api.event.block.BlockPistonExtendEvent(w, bp, "up", false,
+                    List.of(new BlockPos(1, 65, 2))));
+            fire.put(org.bukkit.event.block.BlockPistonRetractEvent.class, () -> new org.domi.furnace.api.event.block.BlockPistonRetractEvent(w, bp, "up", true,
+                    List.of(new BlockPos(1, 66, 2))));
+            fire.put(org.bukkit.event.block.BlockFormEvent.class, () -> new org.domi.furnace.api.event.block.BlockFormEvent(w, bp,
+                    org.domi.furnace.api.world.BlockData.of("minecraft:lava"), org.domi.furnace.api.world.BlockData.of("minecraft:obsidian")));
+            fire.put(org.bukkit.event.block.BlockSpreadEvent.class, () -> new org.domi.furnace.api.event.block.BlockSpreadEvent(w, bp, new BlockPos(1, 64, 3),
+                    org.domi.furnace.api.world.BlockData.of("minecraft:dirt"), org.domi.furnace.api.world.BlockData.of("minecraft:grass_block")));
+            fire.put(org.bukkit.event.entity.ProjectileHitEvent.class, () -> new org.domi.furnace.api.event.entity.ProjectileHitEvent(snowball, null,
+                    new org.domi.furnace.api.world.BlockSnapshot(w, bp, stoneData), "up"));
+            // 명령 트리 전송·자동완성
+            fire.put(org.bukkit.event.player.PlayerCommandSendEvent.class, () -> new org.domi.furnace.api.event.player.PlayerCommandSendEvent(p, List.of("list", "say")));
+            fire.put(com.destroystokyo.paper.event.server.AsyncTabCompleteEvent.class, () -> new org.domi.furnace.api.event.server.AsyncTabCompleteEvent(p, "/li", true));
+            // EntityChangeBlock(T-040b)
+            fire.put(org.bukkit.event.entity.EntityChangeBlockEvent.class, () -> new org.domi.furnace.api.event.entity.EntityChangeBlockEvent(pig, w, bp,
+                    org.domi.furnace.api.world.BlockData.of("minecraft:grass_block"), org.domi.furnace.api.world.BlockData.of("minecraft:dirt")));
 
             // 시험이 빠뜨린 짝이 없는지: 다리가 아는 이벤트 = 이 시험이 발행한 이벤트
             assertEquals(EventBridge.bridgedEvents(), new HashSet<Class<?>>(fire.keySet()));
@@ -156,6 +222,10 @@ class EventBridgeTest {
                 if (en.getValue() == null) sequences.get(en.getKey()).forEach(bus::call);
                 else bus.call(en.getValue().get());
                 assertEquals(1, seen((Class<? extends Event>) en.getKey()).size(), en.getKey().getSimpleName() + " 이 처리기에 오지 않았다");
+                if (en.getKey() == org.bukkit.event.world.ChunkLoadEvent.class) {
+                    assertTrue(((org.bukkit.event.world.ChunkLoadEvent) seen(org.bukkit.event.world.ChunkLoadEvent.class).get(0)).isNewChunk(),
+                            "서버 이벤트의 newChunk 가 Bukkit isNewChunk 로 이어진다(A15-04)");
+                }
             }
         }
     }
@@ -244,6 +314,44 @@ class EventBridgeTest {
 
             RecorderPlugin.ACTIONS.put("PlayerToggleSneakEvent", e -> ((org.bukkit.event.Cancellable) e).setCancelled(true));
             assertTrue(bus.call(new org.domi.furnace.api.event.player.PlayerToggleSneakEvent(p, true)).isCancelled());
+
+            // Paper BlockLockCheckEvent: 결과·따로 정한 열쇠가 돌아오고, 기본 열쇠는 누를 때 든 것
+            var bp = new BlockPos(1, 64, 2);
+            org.bukkit.inventory.ItemStack[] defaultKey = {null};
+            RecorderPlugin.ACTIONS.put("BlockLockCheckEvent", e -> {
+                var l = (io.papermc.paper.event.block.BlockLockCheckEvent) e;
+                defaultKey[0] = l.getKeyItem();
+                assertFalse(l.isUsingCustomKeyItemStack());
+                l.setResult(org.bukkit.event.Event.Result.DENY);
+                l.setKeyItem(new org.bukkit.inventory.ItemStack(org.bukkit.Material.TRIPWIRE_HOOK));
+            });
+            var lc = bus.call(lockCheck(p, "minecraft:overworld", bp));
+            assertEquals(org.bukkit.Material.STICK, defaultKey[0].getType(), "기본 열쇠 = 누를 때 든 것");
+            assertEquals(org.domi.furnace.api.event.block.BlockLockCheckEvent.Result.DENY, lc.result());
+            assertTrue(lc.isUsingCustomKeyItem());
+            assertEquals("minecraft:tripwire_hook", lc.keyItem().type());
+            assertEquals("container.isLocked", lc.lockedMessage().translationKey(), "Bukkit 쪽에 없는 알림 글은 그대로");
+            RecorderPlugin.ACTIONS.put("BlockLockCheckEvent", e -> ((io.papermc.paper.event.block.BlockLockCheckEvent) e).resetKeyItem());
+            var reset = lockCheck(p, "minecraft:overworld", bp);
+            reset.setKeyItem(org.domi.furnace.api.item.ItemStack.of("minecraft:stone"));
+            assertFalse(bus.call(reset).isUsingCustomKeyItem(), "Bukkit 처리기가 지운 열쇠는 Furnace 쪽에서도 지워진다");
+            // #398 검토: Furnace 쪽에서 먼저 정한 열쇠가 Bukkit 처리기에 보이고, Bukkit ALLOW 가 돌아온다
+            boolean[] sawCustom = {false};
+            String[] sawType = {null};
+            RecorderPlugin.ACTIONS.put("BlockLockCheckEvent", e -> {
+                var l = (io.papermc.paper.event.block.BlockLockCheckEvent) e;
+                sawCustom[0] = l.isUsingCustomKeyItemStack();
+                sawType[0] = l.getKeyItem().getType().name();
+                l.setResult(org.bukkit.event.Event.Result.ALLOW);
+            });
+            var pre = lockCheck(p, "minecraft:overworld", bp);
+            pre.setKeyItem(org.domi.furnace.api.item.ItemStack.of("minecraft:stone"));
+            var preOut = bus.call(pre);
+            assertTrue(sawCustom[0], "Furnace 쪽 따로 정한 열쇠가 Bukkit 에 보인다");
+            assertEquals("STONE", sawType[0]);
+            assertEquals(org.domi.furnace.api.event.block.BlockLockCheckEvent.Result.ALLOW, preOut.result());
+            assertTrue(preOut.isUsingCustomKeyItem());
+            assertEquals("minecraft:stone", preOut.keyItem().type());
 
             RecorderPlugin.ACTIONS.put("BlockBreakEvent", e -> ((org.bukkit.event.Cancellable) e).setCancelled(true));
             assertTrue(bus.call(new org.domi.furnace.api.event.block.BlockBreakEvent("minecraft:overworld", new BlockPos(1, 64, 2), "minecraft:stone", p)).isCancelled());

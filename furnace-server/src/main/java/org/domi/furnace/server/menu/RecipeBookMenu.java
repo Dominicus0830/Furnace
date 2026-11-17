@@ -3,7 +3,9 @@ package org.domi.furnace.server.menu;
 
 import org.domi.furnace.server.recipe.RecipeManager.CraftingEntry;
 import org.domi.furnace.server.recipe.StackedContents;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.inventory.RecipeBookMenu")
 public interface RecipeBookMenu {
 
     int resultSlotIndex();

@@ -2,12 +2,15 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 import org.domi.furnace.server.world.WorldBorder;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundSetBorderSizePacket")
 public record SetBorderSize(double size) implements Packet {
 
-    public static final int ID = 0x4F;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_SET_BORDER_SIZE;
 
     public static SetBorderSize of(WorldBorder border) {
         return new SetBorderSize(border.getLerpTarget());

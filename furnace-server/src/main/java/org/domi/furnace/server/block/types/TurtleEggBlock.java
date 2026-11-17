@@ -1,6 +1,7 @@
 // 바닐라 TurtleEggBlock: 한 칸에 알 1~4개. 모래 위에서 해 질 무렵(또는 1/500) 무작위 틱마다 금이 가고 부화한다. 밟으면 깨진다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockBehavior;
@@ -11,6 +12,7 @@ import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.TurtleEggBlock")
 public class TurtleEggBlock extends BlockBehavior {
 
     private static final Prop HATCH = B.prop("hatch"), EGGS = B.prop("eggs");
@@ -51,7 +53,7 @@ public class TurtleEggBlock extends BlockBehavior {
     }
 
     /** decreaseEggs: 깨지는 소리, 하나뿐이면 부서지고 아니면 하나 줄인다. */
-    private void decreaseEggs(BlockLevel level, Pos pos, int state) {
+    public void decreaseEggs(BlockLevel level, Pos pos, int state) {
         level.playSound(null, pos, "minecraft:entity.turtle.egg_break", "blocks", 0.7F, 0.9F + level.random().nextFloat() * 0.2F);
         int eggs = EGGS.intValue(state);
         if (eggs <= 1) {

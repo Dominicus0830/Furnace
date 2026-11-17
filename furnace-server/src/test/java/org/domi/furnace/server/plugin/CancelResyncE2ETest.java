@@ -3,6 +3,7 @@
 // 클라이언트는 평소 칸 개수·블록·능력·위치를 먼저 바꿔 보므로(예측), "되돌려 보내는 패킷"이 나가야 화면이 어긋나지 않는다.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -87,7 +88,7 @@ class CancelResyncE2ETest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @BeforeEach
@@ -95,7 +96,7 @@ class CancelResyncE2ETest {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         core = TestServers.core(tmp, sched);
         host = core.plugins();
-        core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt"), org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), org.domi.furnace.server.world.ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         plugin.setEnabled(true);
         core.world().submitAtChunk(C00, r -> r.chunkAtBlocking(C00)).get(30, TimeUnit.SECONDS);
         join();
@@ -298,6 +299,46 @@ class CancelResyncE2ETest {
         await(BlockChangedAck.ID, k -> true, "ack");
         assertEquals(B.defaultState("minecraft:stone"), blockAt(gx, GY + 1, gz));
         assertEquals(4, count(HOT0));
+    }
+
+    @Test
+    void blockPlaceEventCarriesPlacedStateReplacedBlockItemAndHand() throws Exception {
+        List<String> log = new java.util.concurrent.CopyOnWriteArrayList<>();
+        on(BlockPlaceEvent.class, e -> log.add(e.placedData().type() + "|" + e.replacedData().type() + "|" + e.item().type() + "x" + e.item().amount()
+                + "|" + e.isMainHand() + "|" + e.against().y()));
+        give(HOT0, "minecraft:stone", 5);
+        useItemOn(0, gx, GY, gz, 1, 7);
+        await(BlockChangedAck.ID, k -> true, "ack");
+        assertEquals(List.of("minecraft:stone|minecraft:air|minecraft:stonex5|true|" + GY), log, "놓일 상태·교체될 블록·손 아이템·손·맞닿은 칸");
+        // 왼손(오프핸드 칸 45)으로 놓으면 손이 거짓이다
+        log.clear();
+        give(45, "minecraft:dirt", 3);
+        useItemOn(1, gx, GY, gz + 1, 1, 8);   // 이미 stone 이 놓인 칸이 아닌 옆 바닥 윗면
+        await(BlockChangedAck.ID, k -> true, "ack 2");
+        assertEquals(1, log.size(), log.toString());
+        assertTrue(log.get(0).startsWith("minecraft:dirt|") && log.get(0).contains("dirtx3|false|"), log.get(0));
+    }
+
+    @Test
+    void dropEventCarriesTheNotYetSpawnedItemEntity() throws Exception {
+        give(HOT0, "minecraft:stick", 3);
+        List<String> log = new java.util.concurrent.CopyOnWriteArrayList<>();
+        on(PlayerDropItemEvent.class, e -> {
+            var it = e.entity();
+            log.add(it.type() + "|" + it.droppedItem().type() + "x" + it.droppedItem().amount() + "|" + it.pickupDelay() + "|" + e.item().amount());
+        });
+        playerAction(4, 0, 0, 0, 0, 0);   // DROP_ITEM(Q)
+        until(() -> !log.isEmpty(), "드롭 이벤트");
+        assertEquals(List.of("minecraft:item|minecraft:stickx1|40|1"), log, "이벤트가 던질 아이템 엔티티(줍기 지연 40)를 보인다");
+        until(() -> {
+            try {
+                return !at(r -> r.level().getEntities(null, new org.domi.furnace.server.entity.AABB(p.x() - 5, p.y() - 5, p.z() - 5, p.x() + 5, p.y() + 5, p.z() + 5),
+                        e -> e instanceof ItemEntity)).isEmpty();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }, "허용하면 그 엔티티가 월드에 들어간다");
+        assertEquals(2, count(HOT0));
     }
 
     // ------------------------------------------------------------------ 도우미(조건 기다리기)

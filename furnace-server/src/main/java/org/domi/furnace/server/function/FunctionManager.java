@@ -14,9 +14,12 @@ import org.domi.furnace.server.command.CommandSource;
 import org.domi.furnace.server.command.exec.CallFunction;
 import org.domi.furnace.server.command.exec.ResultCallback;
 import org.domi.furnace.server.data.ResourceId;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.ServerFunctionManager")
 public final class FunctionManager {
 
     private static final Logger log = LoggerFactory.getLogger(FunctionManager.class);
@@ -87,7 +90,7 @@ public final class FunctionManager {
         }
         if (tick) {
             if (waitingTick.contains(id)) {
-                if (warnedSkip.add(id)) log.warn("tick 함수 {} 가 앞 실행을 기다리는 중이라 이번 틱 실행을 건너뜀(region 왕복이 긴 함수)", id);
+                if (warnedSkip.add(id)) log.warn(Lang.t("function.tick-skipped", id));
                 return;
             }
             waitingTick.add(id);

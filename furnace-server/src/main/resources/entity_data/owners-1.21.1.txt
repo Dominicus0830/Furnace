@@ -1,0 +1,132 @@
+# 엔티티 종류별 메타데이터 주인 부류(위→아래, 1.21.1). 이름은 EntityDataKey.owner(). 바닐라 1.21.1 서버 jar 의 클래스 계층과
+# SynchedEntityData.defineId 호출에서 뽑았다(2026-11-12 독립 검토). EntityData767.has 가 쓴다 — 칸이 있는지는 주인 부류로 정한다.
+minecraft:allay Entity LivingEntity Mob Allay
+minecraft:area_effect_cloud Entity AreaEffectCloud
+minecraft:armadillo Entity LivingEntity Mob AgeableMob Armadillo
+minecraft:armor_stand Entity LivingEntity ArmorStand
+minecraft:arrow Entity AbstractArrow Arrow
+minecraft:axolotl Entity LivingEntity Mob AgeableMob Axolotl
+minecraft:bat Entity LivingEntity Mob Bat
+minecraft:bee Entity LivingEntity Mob AgeableMob Bee
+minecraft:blaze Entity LivingEntity Mob Blaze
+minecraft:block_display Entity Display BlockDisplay
+minecraft:boat Entity VehicleEntity Boat
+minecraft:bogged Entity LivingEntity Mob Bogged
+minecraft:breeze Entity LivingEntity Mob
+minecraft:breeze_wind_charge Entity
+minecraft:camel Entity LivingEntity Mob AgeableMob AbstractHorse Camel
+minecraft:cat Entity LivingEntity Mob AgeableMob TamableAnimal Cat
+minecraft:cave_spider Entity LivingEntity Mob Spider
+minecraft:chest_boat Entity VehicleEntity Boat
+minecraft:chest_minecart Entity VehicleEntity AbstractMinecart
+minecraft:chicken Entity LivingEntity Mob AgeableMob
+minecraft:cod Entity LivingEntity Mob AbstractFish
+minecraft:command_block_minecart Entity VehicleEntity AbstractMinecart MinecartCommandBlock
+minecraft:cow Entity LivingEntity Mob AgeableMob
+minecraft:creeper Entity LivingEntity Mob Creeper
+minecraft:dolphin Entity LivingEntity Mob Dolphin
+minecraft:donkey Entity LivingEntity Mob AgeableMob AbstractHorse AbstractChestedHorse
+minecraft:dragon_fireball Entity
+minecraft:drowned Entity LivingEntity Mob Zombie
+minecraft:egg Entity ThrowableItemProjectile
+minecraft:elder_guardian Entity LivingEntity Mob Guardian
+minecraft:end_crystal Entity EndCrystal
+minecraft:ender_dragon Entity LivingEntity Mob EnderDragon
+minecraft:ender_pearl Entity ThrowableItemProjectile
+minecraft:enderman Entity LivingEntity Mob EnderMan
+minecraft:endermite Entity LivingEntity Mob
+minecraft:evoker Entity LivingEntity Mob Raider SpellcasterIllager
+minecraft:evoker_fangs Entity
+minecraft:experience_bottle Entity ThrowableItemProjectile
+minecraft:experience_orb Entity
+minecraft:eye_of_ender Entity EyeOfEnder
+minecraft:falling_block Entity FallingBlockEntity
+minecraft:fireball Entity Fireball
+minecraft:firework_rocket Entity FireworkRocketEntity
+minecraft:fishing_bobber Entity FishingHook
+minecraft:fox Entity LivingEntity Mob AgeableMob Fox
+minecraft:frog Entity LivingEntity Mob AgeableMob Frog
+minecraft:furnace_minecart Entity VehicleEntity AbstractMinecart MinecartFurnace
+minecraft:ghast Entity LivingEntity Mob Ghast
+minecraft:giant Entity LivingEntity Mob
+minecraft:glow_item_frame Entity ItemFrame
+minecraft:glow_squid Entity LivingEntity Mob GlowSquid
+minecraft:goat Entity LivingEntity Mob AgeableMob Goat
+minecraft:guardian Entity LivingEntity Mob Guardian
+minecraft:hoglin Entity LivingEntity Mob AgeableMob Hoglin
+minecraft:hopper_minecart Entity VehicleEntity AbstractMinecart
+minecraft:horse Entity LivingEntity Mob AgeableMob AbstractHorse Horse
+minecraft:husk Entity LivingEntity Mob Zombie
+minecraft:illusioner Entity LivingEntity Mob Raider SpellcasterIllager
+minecraft:interaction Entity Interaction
+minecraft:iron_golem Entity LivingEntity Mob IronGolem
+minecraft:item Entity ItemEntity
+minecraft:item_display Entity Display ItemDisplay
+minecraft:item_frame Entity ItemFrame
+minecraft:leash_knot Entity
+minecraft:lightning_bolt Entity
+minecraft:llama Entity LivingEntity Mob AgeableMob AbstractHorse AbstractChestedHorse Llama
+minecraft:llama_spit Entity
+minecraft:magma_cube Entity LivingEntity Mob Slime
+minecraft:marker Entity
+minecraft:minecart Entity VehicleEntity AbstractMinecart
+minecraft:mooshroom Entity LivingEntity Mob AgeableMob MushroomCow
+minecraft:mule Entity LivingEntity Mob AgeableMob AbstractHorse AbstractChestedHorse
+minecraft:ocelot Entity LivingEntity Mob AgeableMob Ocelot
+minecraft:ominous_item_spawner Entity OminousItemSpawner
+minecraft:painting Entity Painting
+minecraft:panda Entity LivingEntity Mob AgeableMob Panda
+minecraft:parrot Entity LivingEntity Mob AgeableMob TamableAnimal Parrot
+minecraft:phantom Entity LivingEntity Mob Phantom
+minecraft:pig Entity LivingEntity Mob AgeableMob Pig
+minecraft:piglin Entity LivingEntity Mob AbstractPiglin Piglin
+minecraft:piglin_brute Entity LivingEntity Mob AbstractPiglin
+minecraft:pillager Entity LivingEntity Mob Raider Pillager
+minecraft:polar_bear Entity LivingEntity Mob AgeableMob PolarBear
+minecraft:potion Entity ThrowableItemProjectile
+minecraft:pufferfish Entity LivingEntity Mob AbstractFish Pufferfish
+minecraft:rabbit Entity LivingEntity Mob AgeableMob Rabbit
+minecraft:ravager Entity LivingEntity Mob Raider
+minecraft:salmon Entity LivingEntity Mob AbstractFish
+minecraft:sheep Entity LivingEntity Mob AgeableMob Sheep
+minecraft:shulker Entity LivingEntity Mob Shulker
+minecraft:shulker_bullet Entity
+minecraft:silverfish Entity LivingEntity Mob
+minecraft:skeleton Entity LivingEntity Mob Skeleton
+minecraft:skeleton_horse Entity LivingEntity Mob AgeableMob AbstractHorse
+minecraft:slime Entity LivingEntity Mob Slime
+minecraft:small_fireball Entity Fireball
+minecraft:sniffer Entity LivingEntity Mob AgeableMob Sniffer
+minecraft:snow_golem Entity LivingEntity Mob SnowGolem
+minecraft:snowball Entity ThrowableItemProjectile
+minecraft:spawner_minecart Entity VehicleEntity AbstractMinecart
+minecraft:spectral_arrow Entity AbstractArrow
+minecraft:spider Entity LivingEntity Mob Spider
+minecraft:squid Entity LivingEntity Mob
+minecraft:stray Entity LivingEntity Mob
+minecraft:strider Entity LivingEntity Mob AgeableMob Strider
+minecraft:tadpole Entity LivingEntity Mob AbstractFish
+minecraft:text_display Entity Display TextDisplay
+minecraft:tnt Entity PrimedTnt
+minecraft:tnt_minecart Entity VehicleEntity AbstractMinecart
+minecraft:trader_llama Entity LivingEntity Mob AgeableMob AbstractHorse AbstractChestedHorse Llama
+minecraft:trident Entity AbstractArrow ThrownTrident
+minecraft:tropical_fish Entity LivingEntity Mob AbstractFish TropicalFish
+minecraft:turtle Entity LivingEntity Mob AgeableMob Turtle
+minecraft:vex Entity LivingEntity Mob Vex
+minecraft:villager Entity LivingEntity Mob AgeableMob AbstractVillager Villager
+minecraft:vindicator Entity LivingEntity Mob Raider
+minecraft:wandering_trader Entity LivingEntity Mob AgeableMob AbstractVillager
+minecraft:warden Entity LivingEntity Mob Warden
+minecraft:wind_charge Entity
+minecraft:witch Entity LivingEntity Mob Raider Witch
+minecraft:wither Entity LivingEntity Mob WitherBoss
+minecraft:wither_skeleton Entity LivingEntity Mob
+minecraft:wither_skull Entity WitherSkull
+minecraft:wolf Entity LivingEntity Mob AgeableMob TamableAnimal Wolf
+minecraft:zoglin Entity LivingEntity Mob Zoglin
+minecraft:zombie Entity LivingEntity Mob Zombie
+minecraft:zombie_horse Entity LivingEntity Mob AgeableMob AbstractHorse
+minecraft:zombie_villager Entity LivingEntity Mob Zombie ZombieVillager
+minecraft:zombified_piglin Entity LivingEntity Mob Zombie
+minecraft:player Entity LivingEntity Player

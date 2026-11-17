@@ -1,6 +1,7 @@
 // 엔티티 감사 소규모 불일치 회귀: 평화로움 제거 규칙(종류별), 속성값, 양 전리품 표, 고양이 눈높이, 스폰 배치 표, 번개 반응, create 누락.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Map;
@@ -15,7 +16,7 @@ class EntityAuditFixesTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new org.domi.furnace.server.data.TagRegistries(org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static final class PeacefulLevel extends BlockPlacementTest.TestLevel {

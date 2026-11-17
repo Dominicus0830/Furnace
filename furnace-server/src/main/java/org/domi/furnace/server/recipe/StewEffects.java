@@ -1,6 +1,8 @@
 // 수상한 스튜 효과(SuspiciousEffectHolder) — 꽃 아이템 → 효과 목록. 원본: items/stew_effects_1.21.1.txt (tools/vanilla-data/ExportStewEffects.java).
 package org.domi.furnace.server.recipe;
 
+import org.domi.furnace.api.GameVersion;
+import org.domi.furnace.server.VanillaPort;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -13,6 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+@VanillaPort("net.minecraft.world.level.block.SuspiciousEffectHolder")
 public final class StewEffects {
 
     private StewEffects() { }
@@ -23,8 +26,8 @@ public final class StewEffects {
         Map<String, List<Object>> t = table;
         if (t != null) return t;
         t = new HashMap<>();
-        try (InputStream in = StewEffects.class.getResourceAsStream("/items/stew_effects_1.21.1.txt")) {
-            if (in == null) throw new IllegalStateException("items/stew_effects_1.21.1.txt 없음");
+        try (InputStream in = StewEffects.class.getResourceAsStream("/items/stew_effects_" + GameVersion.RESOURCE_TAG + ".txt")) {
+            if (in == null) throw new IllegalStateException("items/stew_effects_" + GameVersion.RESOURCE_TAG + ".txt is missing");
             BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             for (String line; (line = r.readLine()) != null; ) {
                 if (line.isEmpty() || line.charAt(0) == '#') continue;

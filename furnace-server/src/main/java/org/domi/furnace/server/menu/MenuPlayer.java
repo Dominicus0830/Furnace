@@ -65,7 +65,7 @@ public interface MenuPlayer {
     }
 
     /** 플러그인 PrepareAnvilEvent: 바꾼 값, null 이면 그대로. */
-    default org.domi.furnace.server.plugin.GameEvents.AnvilPrepared prepareAnvil(AbstractContainerMenu menu, ItemStack result, int repairCost, String renameText) { return null; }
+    default org.domi.furnace.server.plugin.GameEvents.AnvilPrepared prepareAnvil(AbstractContainerMenu menu, ItemStack result, int repairCost, int maximumRepairCost, String renameText) { return null; }
 
     /** 바닐라 ItemStack.onCraftedBy(level, player, count) — crafted 통계와 아이템 훅. */
     default void onItemCrafted(ItemStack stack, int count) { }

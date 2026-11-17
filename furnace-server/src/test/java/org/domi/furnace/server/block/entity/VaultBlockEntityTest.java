@@ -3,6 +3,7 @@
 // 기대값은 바닐라 1.21.1 디컴파일(VaultBlockEntity.Server·VaultState·VaultServerData·VaultSharedData)을 손으로 계산한 것이다.
 package org.domi.furnace.server.block.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -35,7 +36,7 @@ class VaultBlockEntityTest {
     static final UUID P1 = new UUID(1, 2), P2 = new UUID(3, 4);
     static final String REWARD = "minecraft:chests/trial_chambers/reward";
 
-    static { ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt"))); }
+    static { ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"))); }
 
     static int item(String name) { return ItemContext.id("minecraft:item", "minecraft:" + name); }
 

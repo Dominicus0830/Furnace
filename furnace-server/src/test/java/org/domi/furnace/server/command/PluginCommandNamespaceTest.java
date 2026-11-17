@@ -80,7 +80,7 @@ class PluginCommandNamespaceTest {
         var registered = host.commands().register(plugin("other"), "give", noop);
         assertEquals(List.of("other:give"), List.copyOf(registered));
         assertEquals(1, warnings().size(), warnings().toString());
-        assertTrue(warnings().get(0).contains("'other:give' 로만 등록한다"), warnings().toString());
+        assertTrue(warnings().get(0).contains("only registered as 'other:give'"), warnings().toString());
     }
 
     @Test
@@ -89,7 +89,7 @@ class PluginCommandNamespaceTest {
         assertTrue(registered.isEmpty(), registered.toString());
         assertEquals(1, warnings().size(), warnings().toString());
         String w = warnings().get(0);
-        assertTrue(w.contains("등록하지 않는다") && !w.contains("로만 등록한다"), w);
+        assertTrue(w.contains("so the plugin's command is not registered") && !w.contains("only registered as"), w);
         // 바닐라 /give 는 그대로
         assertNotNull(core.commands().getDispatcher().getRoot().getChild("minecraft:give"));
     }

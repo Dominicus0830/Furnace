@@ -2,6 +2,7 @@
 // furnace.properties 의 rcon.* 키로 바꿀 수 있다. 바닐라 RCON 에는 이런 한도가 없다(보안 보강).
 package org.domi.furnace.server.remote;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -52,10 +53,10 @@ public record RconLimits(int maxClients, int maxClientsPerIp, int maxFailsPerCon
         try {
             n = Long.parseLong(v.strip());
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("설정 '" + key + "' 가 숫자가 아님: " + v, e);
+            throw new IllegalArgumentException(Lang.t("cfg.not-number", key, v), e);
         }
         if (n < 1 || n > 10_000) {
-            throw new IllegalArgumentException("설정 '" + key + "' 값 " + n + " 잘못됨(1~10000)");
+            throw new IllegalArgumentException(Lang.t("cfg.out-of-range", key, n, 1, 10_000));
         }
         return (int) n;
     }

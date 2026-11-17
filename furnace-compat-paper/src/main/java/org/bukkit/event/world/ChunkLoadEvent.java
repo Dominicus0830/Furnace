@@ -5,12 +5,17 @@ import org.bukkit.event.HandlerList;
 
 public class ChunkLoadEvent extends ChunkEvent {
 
-    public ChunkLoadEvent(Chunk chunk) { super(chunk); }
+    private final boolean newChunk;
 
-    /** 처음 만들어진 청크인가 — Furnace 의 청크 불러오기 이벤트는 이 구분을 알리지 않는다(H3 에서 더한다). */
-    public boolean isNewChunk() {
-        throw new org.domi.furnace.compat.paper.UnsupportedFeature("ChunkLoadEvent#isNewChunk", "청크 이벤트가 새로 만든 청크인지 알려 주지 않는다");
+    public ChunkLoadEvent(Chunk chunk) { this(chunk, false); }
+
+    public ChunkLoadEvent(Chunk chunk, boolean newChunk) {
+        super(chunk);
+        this.newChunk = newChunk;
     }
+
+    /** 이번에 생성기가 처음 만든 청크인가(저장된 청크를 읽은 것이면 거짓) — 서버 ChunkLoadEvent 의 newChunk 를 그대로 잇는다(A15-04). */
+    public boolean isNewChunk() { return newChunk; }
 
     private static final HandlerList handlers = new HandlerList();
 

@@ -11,7 +11,7 @@ import org.domi.furnace.compat.nms.UnsupportedNmsCall;
  * Furnace 엔티티 핸들(만든 시점의 스냅샷)을 읽는다 — 위치는 그 스냅샷 값이다. 같은 엔티티는 같은 shim 이다(CraftEntity 마다 하나).
  * 바닐라처럼 equals 는 같은 엔티티인가(바닐라는 네트워크 id, 여기는 UUID)다.
  */
-public class Entity {
+public class Entity implements net.minecraft.network.syncher.SyncedDataHolder {
 
     private final CraftEntity bukkit;
 
@@ -37,6 +37,27 @@ public class Entity {
 
     public float getXRot() { return f().location().pitch(); }
 
+    /** 바닐라 Entity#getYHeadRot: 살아 있는 엔티티의 머리 방향(그 밖은 0). */
+    public float getYHeadRot() { return f() instanceof org.domi.furnace.api.entity.LivingEntity ? f().headYaw() : 0.0F; }
+
+    /** CraftBukkit 이 더한 메서드: Bukkit Location 의 yaw 가 되는 값(살아 있는 엔티티는 머리 방향, 그 밖은 몸 방향). */
+    public float getBukkitYaw() { return f().headYaw(); }
+
+    /** 바닐라: 위치(스냅샷 값). */
+    public net.minecraft.world.phys.Vec3 position() {
+        var l = f().location();
+        return new net.minecraft.world.phys.Vec3(l.x(), l.y(), l.z());
+    }
+
+    /** 바닐라: 발 밑 칸 좌표(각 축 내림). */
+    public net.minecraft.core.BlockPos blockPosition() { return net.minecraft.core.BlockPos.containing(getX(), getY(), getZ()); }
+
+    /** 바닐라: 있는 청크 좌표. */
+    public net.minecraft.world.level.ChunkPos chunkPosition() { return new net.minecraft.world.level.ChunkPos(blockPosition()); }
+
+    /** 바닐라: 엔티티 종류(키로 같은 객체). */
+    public EntityType<?> getType() { return EntityType.of(net.minecraft.resources.ResourceLocation.parse(f().type())); }
+
     /** 이 엔티티가 있는 월드의 shim. */
     public Level level() { return ((CraftWorld) bukkit.getWorld()).getHandle(); }
 
@@ -46,13 +67,8 @@ public class Entity {
     /** 바닐라 Entity: 지워지지 않았는가. LivingEntity 는 체력도 본다. */
     public boolean isAlive() { return !isRemoved(); }
 
-    /**
-     * 네트워크 엔티티 id. Furnace 공개 API 는 실제 엔티티의 이 번호를 내보내지 않는다 — 패킷을 직접 만드는 코드가 쓰므로 지어내지 않고 던진다.
-     * 패킷으로만 보이는 가짜 엔티티라면 Furnace 패킷 API 의 {@code nextEntityId()} 로 번호를 받는다(docs/api/packets.md).
-     */
-    public int getId() {
-        throw new UnsupportedNmsCall("Entity#getId", "네트워크 엔티티 id 는 플러그인에 내보내지 않는다 — 패킷으로만 보이는 가짜 엔티티는 Furnace 패킷 API 의 nextEntityId() 로 번호를 받는다");
-    }
+    /** 네트워크 엔티티 id(바닐라 getId — Bukkit getEntityId 와 같은 번호). */
+    public int getId() { return f().entityId(); }
 
     @Override
     public boolean equals(Object o) { return o instanceof Entity e && e.getUUID().equals(getUUID()); }

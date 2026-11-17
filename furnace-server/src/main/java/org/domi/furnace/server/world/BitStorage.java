@@ -17,7 +17,7 @@ public final class BitStorage {
 
     public BitStorage(int bitsPerEntry, int size) {
         if (bitsPerEntry < 1 || bitsPerEntry > 32) {
-            throw new IllegalArgumentException("bitsPerEntry 범위 밖: " + bitsPerEntry);
+            throw new IllegalArgumentException("bitsPerEntry out of range: " + bitsPerEntry);
         }
         this.bitsPerEntry = bitsPerEntry;
         this.valuesPerLong = 64 / bitsPerEntry;

@@ -1,6 +1,7 @@
 // 겉날개 비행: 시작 조건, 틱별 속도(바닐라 LivingEntity.travel 식), 내구도 간격, 로켓 가속, 충돌 피해, 자세 패킷.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -25,7 +26,7 @@ class ElytraFlightTest {
     @BeforeAll
     static void install() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static ItemStack item(String n) { return new ItemStack(ItemContext.id("minecraft:item", n), 1); }

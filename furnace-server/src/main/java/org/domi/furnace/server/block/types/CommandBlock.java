@@ -4,6 +4,7 @@
 // 틱 예산(기본 20ms)을 넘기면 그 칸부터는 명령이 끝나 소유 region 으로 돌아온 뒤 이어서 실행한다(예전 방식).
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -21,6 +22,7 @@ import org.domi.furnace.server.block.entity.CommandBlockEntity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@VanillaPort("net.minecraft.world.level.block.CommandBlock")
 public class CommandBlock extends BaseEntityBlock {
 
     private static final Logger log = LoggerFactory.getLogger(CommandBlock.class);

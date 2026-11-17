@@ -1,6 +1,7 @@
 // 바닐라 ChestBlock: 상자. 이웃 상자와 이어 붙고(type single/left/right), 위가 막히면 열리지 않는다. 내용물은 블록 엔티티.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -14,6 +15,7 @@ import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.world.ChestBlockEntity;
 
+@VanillaPort("net.minecraft.world.level.block.ChestBlock")
 public class ChestBlock extends AbstractChestBlock {
 
     static final Prop FACING = B.prop("facing"), TYPE = B.prop("type");
@@ -107,13 +109,7 @@ public class ChestBlock extends AbstractChestBlock {
     /** useWithoutItem: (짝까지) 막히지 않았으면 화면을 열고 통계. 결과는 언제나 CONSUME. */
     @Override
     public InteractionResult useWithoutItem(int state, BlockLevel level, Pos pos, BlockActor player, Hit hit) {
-        boolean blocked = isChestBlockedAt(level, pos);
-        if (!blocked && !SINGLE.equals(type(state))) {
-            Pos other = pos.relative(getConnectedDirection(state));
-            int os = level.getBlockState(other);
-            if (B.is(os, block) && !SINGLE.equals(type(os)) && isChestBlockedAt(level, other)) blocked = true;
-        }
-        if (!blocked) {
+        if (!menuBlocked(state, level, pos)) {
             player.openContainer(pos);
             player.awardStat(openChestStat());
             level.angerNearbyPiglins(player, true);
@@ -122,6 +118,15 @@ public class ChestBlock extends AbstractChestBlock {
     }
 
     protected String openChestStat() { return "minecraft:open_chest"; }
+
+    /** getMenuProvider 가 null 인가(combine(..., false)): 이 칸이나 (더블이면) 짝 칸이 막혔다. */
+    public boolean menuBlocked(int state, BlockLevel level, Pos pos) {
+        if (isChestBlockedAt(level, pos)) return true;
+        if (SINGLE.equals(type(state))) return false;
+        Pos other = pos.relative(getConnectedDirection(state));
+        int os = level.getBlockState(other);
+        return B.is(os, block) && !SINGLE.equals(type(os)) && isChestBlockedAt(level, other);
+    }
 
     /** isChestBlockedAt: 위 칸이 레드스톤 전도체이거나 위에 앉은 고양이가 있으면 막힘. */
     public static boolean isChestBlockedAt(BlockLevel level, Pos pos) { return isBlockedChestByBlock(level, pos) || level.isCatSittingAbove(pos); }

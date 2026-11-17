@@ -6,7 +6,9 @@ import java.util.ArrayList;
 import java.util.List;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.recipe.CraftingInput;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.inventory.TransientCraftingContainer")
 public final class CraftingGrid implements Container {
 
     private final Container storage;

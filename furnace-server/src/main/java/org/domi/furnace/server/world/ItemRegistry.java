@@ -24,7 +24,7 @@ public final class ItemRegistry {
         Map<Integer, String> map = new HashMap<>();
         ClassLoader cl = ItemRegistry.class.getClassLoader();
         try (InputStream in = cl.getResourceAsStream(resourcePath)) {
-            if (in == null) throw new IllegalStateException("아이템 리소스 없음: " + resourcePath);
+            if (in == null) throw new IllegalStateException("item resource is missing: " + resourcePath);
             BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             String line;
             while ((line = r.readLine()) != null) {

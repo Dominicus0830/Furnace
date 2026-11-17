@@ -10,10 +10,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtTags;
 
+@VanillaPort({
+        "net.minecraft.advancements.critereon.ItemPredicate",
+        "net.minecraft.advancements.critereon.ItemSubPredicates",
+        "net.minecraft.advancements.critereon.CollectionPredicate",
+        "net.minecraft.advancements.critereon.CollectionContentsPredicate",
+        "net.minecraft.advancements.critereon.CollectionCountsPredicate",
+        "net.minecraft.advancements.critereon.MinMaxBounds"})
 public final class ItemPredicates {
     private ItemPredicates() {}
 

@@ -3,7 +3,9 @@ package org.domi.furnace.server.players;
 
 import com.google.gson.JsonObject;
 import java.util.UUID;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.players.StoredUserEntry")
 public abstract class StoredUserEntry<T> {
 
     private final T user;

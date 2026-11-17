@@ -2,12 +2,15 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundSectionBlocksUpdatePacket")
 public record SectionBlocksUpdate(int sectionX, int sectionY, int sectionZ, short[] positions, int[] states) implements Packet {
 
-    public static final int ID = 0x49;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_SECTION_BLOCKS_UPDATE;
 
     @Override
     public int id() { return ID; }

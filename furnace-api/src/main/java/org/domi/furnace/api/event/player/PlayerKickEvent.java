@@ -1,5 +1,5 @@
-// 서버가 플레이어를 내보내기 직전(/kick, 화이트리스트·밴, 유휴, 비행 검출, 플러그인 kick 등) — 내보내기를 요청한 스레드에서 불린다.
-// 취소하면 내보내지 않는다. 같은 계정 중복 접속과 서버 종료는 취소할 수 없어 이 이벤트를 부르지 않는다.
+// 서버가 플레이어를 내보내기 직전(/kick, 화이트리스트와 밴, 유휴, 비행 검출, 플러그인 kick 등)에 내보내기를 요청한 스레드에서 불린다.
+// 취소하면 내보내지 않는다. 같은 계정 중복 접속과 서버 종료는 취소할 수 없으므로 이 이벤트를 부르지 않는다.
 package org.domi.furnace.api.event.player;
 
 import java.util.Objects;
@@ -31,8 +31,8 @@ public final class PlayerKickEvent extends PlayerEvent implements Cancellable {
     public void setReason(Text reason) { this.reason = Objects.requireNonNull(reason, "reason"); }
 
     /**
-     * 내보낸 뒤 모두에게 보일 퇴장 알림(기본: 노란 "multiplayer.player.left"). 바꾸면 그 값이 PlayerQuitEvent 의 처음 퇴장 메시지가 된다
-     * (Paper·Spigot 의 PlayerKickEvent#leaveMessage). null 이면 알림이 없다.
+     * 내보낸 뒤 모두에게 보일 퇴장 알림(기본은 노란 "multiplayer.player.left"). 바꾸면 그 값이 PlayerQuitEvent 의 처음 퇴장 메시지가 된다
+     * (Paper, Spigot 의 PlayerKickEvent#leaveMessage). null 이면 알림이 없다.
      */
     public Text leaveMessage() {
         if (leaveMessageSet) return leaveMessage;

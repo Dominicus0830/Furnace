@@ -1,2 +1,4 @@
 org.domi.furnace.server.ItemContextExtension
 org.domi.furnace.server.IoPoolDrainExtension
+org.domi.furnace.server.EntityActivationOffExtension
+org.domi.furnace.server.EntityHandlesVanillaExtension

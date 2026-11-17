@@ -2,6 +2,7 @@
 // 덮어쓴 항목은 데이터째 보낸다. JSON→NBT 는 바닐라 JsonOps.convertTo(NbtOps) 규칙. 마법부여 끄기는 선택에서만 뺀다.
 package org.domi.furnace.server.data;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.google.gson.JsonParser;
@@ -32,8 +33,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 class DynamicRegistriesTest {
 
-    private static final Path VANILLA = Path.of("../tools/vanilla-data/server-1.21.1");
-    private static final RegistrySet BUILTIN = RegistrySet.load("registries/1.21.1.txt");
+    private static final Path VANILLA = Path.of("../tools/vanilla-data/server-" + GameVersion.MINECRAFT);
+    private static final RegistrySet BUILTIN = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
 
     @TempDir Path tmp;
 

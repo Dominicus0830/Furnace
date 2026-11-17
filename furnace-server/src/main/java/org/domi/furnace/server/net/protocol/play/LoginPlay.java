@@ -3,20 +3,23 @@ package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
 /**
  * @param levels        서버의 모든 차원 이름(바닐라 levelKeys: overworld, the_nether, the_end)
  * @param viewDistance  서버 view-distance(클라 렌더 거리 상한)
  * @param hashedSeed    BiomeManager.obfuscateSeed(시드) — 클라 바이옴 블렌딩용
  */
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundLoginPacket")
 public record LoginPlay(int entityId, boolean hardcore, List<String> levels, int maxPlayers, int viewDistance,
                         int simulationDistance, boolean reducedDebugInfo, boolean showDeathScreen, boolean doLimitedCrafting,
                         int dimensionType, String dimensionName, long hashedSeed, int gameMode, int previousGameMode,
                         boolean debug, boolean flat, String lastDeathDimension, int[] lastDeath, boolean enforcesSecureChat) implements Packet {
 
-    public static final int ID = 0x2B;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_LOGIN;
 
     /** 예전 호출부(테스트)용: 기본값으로 채운다. */
     public LoginPlay(int entityId, String dimensionName, int dimensionType, int viewDistance) {
@@ -26,13 +29,7 @@ public record LoginPlay(int entityId, boolean hardcore, List<String> levels, int
 
     /** BiomeManager.obfuscateSeed: SHA-256(시드, little-endian long) 앞 8바이트를 little-endian long 으로. */
     public static long obfuscateSeed(long seed) {
-        try {
-            byte[] in = java.nio.ByteBuffer.allocate(8).order(java.nio.ByteOrder.LITTLE_ENDIAN).putLong(seed).array();
-            byte[] h = java.security.MessageDigest.getInstance("SHA-256").digest(in);
-            return java.nio.ByteBuffer.wrap(h, 0, 8).order(java.nio.ByteOrder.LITTLE_ENDIAN).getLong();
-        } catch (java.security.NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e);
-        }
+        return org.domi.furnace.server.world.BiomeZoom.obfuscateSeed(seed);
     }
 
     @Override

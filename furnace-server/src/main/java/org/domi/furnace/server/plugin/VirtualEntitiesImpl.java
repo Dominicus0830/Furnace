@@ -43,6 +43,7 @@ import org.domi.furnace.api.world.Location;
 import org.domi.furnace.server.net.protocol.play.SetEquipment;
 import org.domi.furnace.server.net.protocol.play.SetPlayerTeam;
 import org.domi.furnace.server.scores.ChatFormatting;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -71,7 +72,7 @@ public final class VirtualEntitiesImpl implements VirtualEntities {
             try {
                 tick();
             } catch (Throwable t) {
-                log.error("가상 엔티티 추적 오류", t);
+                log.error(Lang.t("virtual-entity.tracking-error"), t);
             }
         }, TRACK_PERIOD_TICKS, TRACK_PERIOD_TICKS);
     }
@@ -85,7 +86,7 @@ public final class VirtualEntitiesImpl implements VirtualEntities {
     private org.domi.furnace.server.entity.Player server(org.domi.furnace.api.entity.Player p) {
         Objects.requireNonNull(p, "player");
         if (p instanceof PlayerHandle ph) return ph.handle();
-        throw new IllegalArgumentException("이 서버의 플레이어가 아니다: " + p);
+        throw new IllegalArgumentException("not a player of this server: " + p);
     }
 
     private void send(org.domi.furnace.server.entity.Player sp, ClientboundPacket packet) {
@@ -93,7 +94,7 @@ public final class VirtualEntitiesImpl implements VirtualEntities {
         try {
             host.packets().send(host.player(sp), packet);
         } catch (RuntimeException e) {
-            log.warn("가상 엔티티 패킷을 보내지 못했다({}): {}", packet.type(), e.toString());
+            log.warn(Lang.t("virtual-entity.packet-failed", packet.type(), e.toString()));
         }
     }
 
@@ -106,7 +107,7 @@ public final class VirtualEntitiesImpl implements VirtualEntities {
         Objects.requireNonNull(owner, "owner");
         Objects.requireNonNull(location, "location");
         String type = entityType.indexOf(':') < 0 ? "minecraft:" + entityType : entityType;
-        if (type.equals("minecraft:player")) throw new IllegalArgumentException("가짜 플레이어는 spawnPlayer 로 만든다");
+        if (type.equals("minecraft:player")) throw new IllegalArgumentException("create a fake player with spawnPlayer");
         Entity e = new Entity(owner, type, location);
         register(e);
         return e;
@@ -116,7 +117,7 @@ public final class VirtualEntitiesImpl implements VirtualEntities {
     public VirtualPlayer spawnPlayer(FurnacePlugin owner, String name, List<ProfileProperty> skin, Location location) {
         Objects.requireNonNull(owner, "owner");
         Objects.requireNonNull(location, "location");
-        if (name == null || name.isEmpty() || name.length() > 16) throw new IllegalArgumentException("프로필 이름은 1~16자: " + name);
+        if (name == null || name.isEmpty() || name.length() > 16) throw new IllegalArgumentException("the profile name must be 1..16 characters: " + name);
         Player e = new Player(owner, name, skin == null ? List.of() : List.copyOf(skin), location);
         register(e);
         return e;
@@ -172,7 +173,7 @@ public final class VirtualEntitiesImpl implements VirtualEntities {
             try {
                 h.accept(vi);
             } catch (Throwable t) {
-                log.error("[{}] 가상 엔티티 클릭 처리 오류", e.owner.name(), t);
+                log.error(Lang.t("virtual-entity.click-error", e.owner.name()), t);
             }
         });
     }
@@ -282,7 +283,7 @@ public final class VirtualEntitiesImpl implements VirtualEntities {
 
         @Override
         public void setTrackingRange(double blocks) {
-            if (!(blocks > 0)) throw new IllegalArgumentException("범위는 0보다 커야 한다: " + blocks);
+            if (!(blocks > 0)) throw new IllegalArgumentException("the range must be greater than 0: " + blocks);
             range = blocks;
         }
 
@@ -346,12 +347,27 @@ public final class VirtualEntitiesImpl implements VirtualEntities {
             sendSpawn(sp);
         }
 
+        /** 생성 묶음: 바닐라 ServerEntity.addPairing 처럼 번들 하나로(메타데이터·장비 없는 모습이 한 프레임 보이지 않게). */
         void sendSpawn(org.domi.furnace.server.entity.Player sp) {
-            send(sp, addPacket());
+            if (sp.isDisconnected()) return;
+            List<org.domi.furnace.server.net.protocol.Packet> bundle = new ArrayList<>(4);
+            ClientboundAddEntityPacket add = addPacket();
+            if (!encodeInto(bundle, add)) return;   // 생성 패킷을 못 만들면 나머지도 보내지 않는다
             List<ClientboundSetEntityDataPacket.Entry> es = dataEntries();
-            if (!es.isEmpty()) send(sp, new ClientboundSetEntityDataPacket(id, es));
-            if (!equipment.isEmpty()) sp.send(equipmentPacket(equipment));
-            send(sp, new ClientboundRotateHeadPacket(id, headYaw));
+            if (!es.isEmpty()) encodeInto(bundle, new ClientboundSetEntityDataPacket(id, es));
+            if (!equipment.isEmpty()) bundle.add(equipmentPacket(equipment));
+            encodeInto(bundle, new ClientboundRotateHeadPacket(id, headYaw));
+            sp.sendBundle(bundle);
+        }
+
+        private boolean encodeInto(List<org.domi.furnace.server.net.protocol.Packet> out, ClientboundPacket packet) {
+            try {
+                out.add(host.packetsImpl().encode(packet));
+                return true;
+            } catch (RuntimeException e) {
+                log.warn(Lang.t("virtual-entity.packet-failed", packet.type(), e.toString()));
+                return false;
+            }
         }
 
         void despawn(Viewer v) {
@@ -380,10 +396,34 @@ public final class VirtualEntitiesImpl implements VirtualEntities {
         public synchronized void setMetadata(int index, Value value) {
             if (removed) return;
             Objects.requireNonNull(value, "value");
-            if (value instanceof ClientboundSetEntityDataPacket.Unsupported) throw new IllegalArgumentException("읽지 못한 값 종류는 정할 수 없다");
+            if (value instanceof ClientboundSetEntityDataPacket.Unsupported) throw new IllegalArgumentException("an entity data value of an undecoded kind cannot be sent");
+            var entry = new ClientboundSetEntityDataPacket.Entry(index, value);
+            validateEncodable(entry);   // 보낼 수 없는 값(없는 종류 이름·아이템 등)을 쌓아 두면 이후 새 시청자의 메타데이터 묶음 전체가 안 간다
             if (index == 0 && value instanceof ClientboundSetEntityDataPacket.ByteValue b) flags = b.value() & 0xFF;
             meta.put(index, value);
-            broadcast(ClientboundSetEntityDataPacket.of(id, new ClientboundSetEntityDataPacket.Entry(index, value)));
+            broadcast(ClientboundSetEntityDataPacket.of(id, entry));
+        }
+
+        /** 칸 하나짜리 패킷을 미리 인코딩해 본다 — 실패하면 IllegalArgumentException(저장하지 않는다). */
+        private void validateEncodable(ClientboundSetEntityDataPacket.Entry entry) {
+            io.netty.buffer.ByteBuf b = io.netty.buffer.Unpooled.buffer(32);
+            try {
+                host.packetsImpl().codec().encode(ClientboundSetEntityDataPacket.of(id, entry), b);
+            } catch (IllegalArgumentException e) {
+                throw e;
+            } catch (RuntimeException e) {
+                throw new IllegalArgumentException("metadata slot " + entry.index() + " value cannot be sent: " + e.getMessage(), e);
+            } finally {
+                b.release();
+            }
+        }
+
+        @Override
+        public <T> void set(org.domi.furnace.api.entity.data.EntityDataKey<T> key, T value) {
+            Objects.requireNonNull(key, "key");
+            var packets = host.packets();
+            if (!packets.hasEntityData(type, key)) throw new IllegalArgumentException(type + " has no metadata index " + key.id() + " defined");
+            setMetadata(packets.entityDataIndex(key).getAsInt(), Value.of(key.type(), value));
         }
 
         private void setFlag(int bit, boolean on) {
@@ -549,8 +589,8 @@ public final class VirtualEntitiesImpl implements VirtualEntities {
         @Override
         public synchronized Entry add(FurnacePlugin owner, String name, List<ProfileProperty> skin, GameMode gameMode, int latencyMs, Text displayName) {
             Objects.requireNonNull(owner, "owner");
-            if (name == null || name.isEmpty() || name.length() > 16) throw new IllegalArgumentException("이름은 1~16자: " + name);
-            if (viewer.isDisconnected()) throw new IllegalStateException("접속이 끊긴 플레이어");
+            if (name == null || name.isEmpty() || name.length() > 16) throw new IllegalArgumentException("the name must be 1..16 characters: " + name);
+            if (viewer.isDisconnected()) throw new IllegalStateException("disconnected player");
             TabEntry e = new TabEntry(owner, UUID.randomUUID(), name, gameMode == null ? GameMode.SURVIVAL : gameMode);
             e.latency = latencyMs;
             e.display = displayName;

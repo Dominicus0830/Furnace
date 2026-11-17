@@ -2,6 +2,7 @@
 // 위가 꽉 찬 면이 아니거나 웅크리면 사슬(attached) — 16방향, 아니면 4방향. 매단 표지판 아래에 이어 달면 그 방향을 따른다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockInfo;
@@ -14,6 +15,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.CeilingHangingSignBlock")
 public class CeilingHangingSignBlock extends SignBlock {
 
     static final Prop ROTATION = B.prop("rotation"), ATTACHED = B.prop("attached");
@@ -45,7 +47,7 @@ public class CeilingHangingSignBlock extends SignBlock {
         int as = level.getBlockState(above);
         boolean allHanging = B.isTag(as, "minecraft:all_hanging_signs");
         int dir = Dir.fromYRot(ctx.rotation());
-        boolean attached = !B.behavior(as).getCollisionShape(as, level, above, null).isFaceFull(Dir.DOWN) || ctx.isSecondaryUseActive();
+        boolean attached = !B.behavior(as).getCollisionShape(as, level, above, org.domi.furnace.server.block.CollisionContext.EMPTY).isFaceFull(Dir.DOWN) || ctx.isSecondaryUseActive();
         if (allHanging && !ctx.isSecondaryUseActive()) {
             if (WallHangingSignBlock.FACING.has(as)) {
                 int f = Dir.byName(WallHangingSignBlock.FACING.valueName(as));

@@ -2,11 +2,14 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundSetDefaultSpawnPositionPacket")
 public record SetDefaultSpawnPosition(int x, int y, int z, float angle) implements Packet {
 
-    public static final int ID = 0x56;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION;
 
     public SetDefaultSpawnPosition(int x, int y, int z) {
         this(x, y, z, 0f);

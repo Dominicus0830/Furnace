@@ -1,5 +1,6 @@
 package org.domi.furnace.compat.nms;
 
+import org.domi.furnace.compat.i18n.CompatLang;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -47,10 +48,9 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
                               int otherVersionClasses, int otherVersionSymbols, boolean spigotNamed, boolean spigotMapped) {
 
     private static final Logger LOG = LoggerFactory.getLogger("Furnace");
-    private static final byte[][] NEEDLES = {
-            "net/minecraft/".getBytes(StandardCharsets.UTF_8),
-            "org/bukkit/craftbukkit/".getBytes(StandardCharsets.UTF_8),
-    };
+
+    /** 매니페스트에 paperweight-mappings-namespace 가 없어 Spigot 이름으로 가정한 경우의 값(문장으로 보일 때는 번역한다). */
+    public static final String NAMESPACE_ASSUMED = "Spigot(assumed)";
 
     /**
      * 클래스 이름에 다른 Minecraft 버전 표지가 있는가(여러 버전을 싣는 라이브러리의 버전 모듈: {@code nms/v1_20_1}, {@code NMS_1_20_R3},
@@ -58,6 +58,7 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
      * 1.21.1 표지({@code 1_21_R1}, {@code 1_21_1}, 범위 {@code 1_21_0_1})나 부 버전 없는 {@code 1_21} 은 다른 버전이 아니다.
      */
     static boolean otherVersion(String internalName) {
+        if (YEAR_VERSION_TOKEN.matcher(internalName).find()) return true;   // 연도식 새 버전(26.1 = v26_1) — 1.21.1 보다 새롭다
         java.util.regex.Matcher m = VERSION_TOKEN.matcher(internalName);
         boolean other = false;
         while (m.find()) {
@@ -81,8 +82,33 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
         return other;
     }
 
+    /** 연도식 버전 이름의 패키지·클래스 조각: {@code v26_1}, {@code v26_2_1}(앞이 글자·숫자가 아닌 'v' 로 시작). */
+    private static final java.util.regex.Pattern YEAR_VERSION_TOKEN =
+            java.util.regex.Pattern.compile("(?<![0-9A-Za-z])v(?:2[6-9]|[3-9][0-9])_\\d{1,2}(?:_\\d{1,2})?(?![0-9])");
+
     private static final java.util.regex.Pattern VERSION_TOKEN =
             java.util.regex.Pattern.compile("(?<![0-9])1_(\\d{1,2})(?:_R(\\d+)|((?:_\\d{1,2})+))?(?![0-9])");
+
+    private static final java.util.concurrent.ConcurrentHashMap<String, Boolean> SEND_UNSUPPORTED = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * 스키마로 생성한 clientbound 패킷 shim 인데 보내기 변환이 아직 없는가({@link SchemaPacket} 이고 {@link NmsPacket} 이 아니며
+     * {@link SchemaPacketBridge#supports} 도 아니다 — 손 코덱·타입 레코드 종류, 값 shim 이 빈 껍데기인 종류).
+     * 그런 패킷을 만드는 플러그인은 보낼 때 실패하므로 보고·strict 가 미지원으로 센다. 클래스는 초기화하지 않고 본다.
+     */
+    static boolean sendUnsupported(String internalName) {
+        return SEND_UNSUPPORTED.computeIfAbsent(internalName, n -> {
+            String bin = n.replace('/', '.');
+            var def = org.domi.furnace.api.packet.schema.PacketSchema.current().packetByClass(bin);
+            if (def.isEmpty() || def.get().direction() != org.domi.furnace.api.packet.PacketDirection.CLIENTBOUND) return false;
+            try {
+                Class<?> c = Class.forName(bin, false, NmsCompatReport.class.getClassLoader());
+                return SchemaPacket.class.isAssignableFrom(c) && !NmsPacket.class.isAssignableFrom(c) && !SchemaPacketBridge.supports(def.get());
+            } catch (ClassNotFoundException | LinkageError ex) {
+                return false;
+            }
+        });
+    }
 
     /** 미지원(등급 C + 아직 없음) 심볼 수. */
     public int unsupported() { return gradeC + unknown; }
@@ -91,19 +117,58 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
     public static NmsCompatReport scan(String plugin, Path jar, NmsSymbols index) throws IOException { return scan(plugin, jar, index, null); }
 
     /**
-     * jar 를 훑는다. 읽지 못하는 클래스는 건너뛴다(그 클래스는 정의 때 변환기가 원래 바이트로 올린다). {@code spigot} 이 있고 jar 가 Spigot 이름이면
-     * 변환기와 같은 이름 바꾸기를 먼저 건 뒤 센다.
+     * 1단계 — jar 를 한 번 읽은 결과. 바이트를 읽는 일은 여기서 끝나므로, 서버가 "Spigot 이름 대응표가 필요한가"를 따로 jar 를 훑어 묻지 않고
+     * {@link #needsSpigotMappings()} 로 답을 얻은 뒤(필요할 때만 대응표를 준비해) {@link #analyze} 로 이어 갈 수 있다.
+     *
+     * @param nmsReference 어느 클래스든 {@code net/minecraft/} 나 {@code net.minecraft.}(리터럴·리플렉션 문자열) 를 담았다
      */
-    public static NmsCompatReport scan(String plugin, Path jar, NmsSymbols index, SpigotMappings spigot) throws IOException {
+    public record Read(String namespace, boolean spigotNamed, Set<String> own, List<byte[]> candidates, boolean nmsReference) {
+        /**
+         * 이 jar 에 Spigot → Mojang 이름 대응표가 필요한가: 매니페스트에 {@code paperweight-mappings-namespace: mojang} 이 없고(Paper 와 같은 판정 —
+         * 속성이 없으면 Spigot 이름으로 본다) NMS 이름을 담은 클래스가 하나라도 있다.
+         */
+        public boolean needsSpigotMappings() { return spigotNamed && nmsReference; }
+    }
+
+    private static final int SLASHED = 1, DOTTED = 2, CRAFT = 4;
+    private static final byte[] NET_SLASHED = "net/minecraft/".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] NET_DOTTED = "net.minecraft.".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] CRAFTBUKKIT = "org/bukkit/craftbukkit/".getBytes(StandardCharsets.UTF_8);
+
+    /** 클래스 바이트를 한 번 훑어 {@code net/minecraft/}·{@code net.minecraft.}·{@code org/bukkit/craftbukkit/} 가 있는지 비트로 돌려준다(세 번 따로 훑지 않는다). */
+    static int scanNames(byte[] b) {
+        int hits = 0;
+        for (int i = 0, n = b.length; i < n; i++) {
+            byte c = b[i];
+            if (c == 'n') {
+                if ((hits & SLASHED) == 0 && at(b, i, NET_SLASHED)) hits |= SLASHED;
+                else if ((hits & DOTTED) == 0 && at(b, i, NET_DOTTED)) hits |= DOTTED;
+            } else if (c == 'o' && (hits & CRAFT) == 0 && at(b, i, CRAFTBUKKIT)) {
+                hits |= CRAFT;
+            }
+            if (hits == (SLASHED | DOTTED | CRAFT)) break;
+        }
+        return hits;
+    }
+
+    private static boolean at(byte[] hay, int i, byte[] needle) {
+        if (i + needle.length > hay.length) return false;
+        for (int j = 1; j < needle.length; j++) if (hay[i + j] != needle[j]) return false;
+        return true;
+    }
+
+    /** jar 를 훑는다. 읽지 못하는 클래스는 건너뛴다. */
+    public static Read read(Path jar) throws IOException {
         Set<String> own = new HashSet<>();
         List<byte[]> candidates = new ArrayList<>();
         String namespace;
         boolean spigotNamed;
+        boolean nmsReference = false;
         try (JarFile jf = new JarFile(jar.toFile(), false, java.util.zip.ZipFile.OPEN_READ, Runtime.version())) {
             var man = jf.getManifest();
             String ns = man == null ? null : man.getMainAttributes().getValue("paperweight-mappings-namespace");
             spigotNamed = ns == null || ns.equalsIgnoreCase("spigot");
-            namespace = ns == null ? "Spigot(가정 — 매니페스트에 paperweight-mappings-namespace 없음)" : ns.equalsIgnoreCase("mojang") ? "Mojang" : ns.equalsIgnoreCase("spigot") ? "Spigot" : ns;
+            namespace = ns == null ? NAMESPACE_ASSUMED : ns.equalsIgnoreCase("mojang") ? "Mojang" : ns.equalsIgnoreCase("spigot") ? "Spigot" : ns;
             Enumeration<JarEntry> en = jf.entries();
             while (en.hasMoreElements()) {
                 JarEntry e = en.nextElement();
@@ -117,10 +182,36 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
                 own.add(n.substring(0, n.length() - ".class".length()));
                 try (InputStream in = jf.getInputStream(e)) {
                     byte[] b = in.readAllBytes();
-                    if (NmsClassTransformer.contains(b, NEEDLES)) candidates.add(b);
+                    int hits = scanNames(b);
+                    if ((hits & (SLASHED | CRAFT)) != 0) candidates.add(b);
+                    if ((hits & (SLASHED | DOTTED)) != 0) nmsReference = true;
                 }
             }
         }
+        return new Read(namespace, spigotNamed, own, candidates, nmsReference);
+    }
+
+    /** jar 를 훑는다(Spigot 이름 대응표 있으면 먼저 이름을 바꾼 뒤 센다). {@link #read} + {@link #analyze}. */
+    public static NmsCompatReport scan(String plugin, Path jar, NmsSymbols index, SpigotMappings spigot) throws IOException {
+        return analyze(plugin, read(jar), index, spigot);
+    }
+
+    /**
+     * 2단계 — 읽은 결과를 센다. {@code spigot} 이 있고 jar 가 Spigot 이름이면 변환기와 같은 이름 바꾸기를 먼저 건 뒤 센다.
+     */
+    public static NmsCompatReport analyze(String plugin, Read read, NmsSymbols index, SpigotMappings spigot) {
+        return analyze(plugin, read, index, spigot, null);
+    }
+
+    /**
+     * {@link #analyze(String, Read, NmsSymbols, SpigotMappings)} 와 같되 shim 에 없는 심볼마다 {@code sink} 가 {@code {종류, 소유 클래스(내부 이름), 이름, 서술자}} 를
+     * 받는다(종류 C=클래스, F=필드, M=메서드·생성자, X=상속 거부: 이름=상속한 클래스, 서술자=상위 클래스). 점검 도구(NmsShimAudit)용 — 서버는 쓰지 않는다.
+     */
+    public static NmsCompatReport analyze(String plugin, Read read, NmsSymbols index, SpigotMappings spigot, java.util.function.Consumer<String[]> sink) {
+        Set<String> own = read.own();
+        List<byte[]> candidates = read.candidates();
+        String namespace = read.namespace();
+        boolean spigotNamed = read.spigotNamed();
         Set<String> seen = new HashSet<>();
         TreeSet<String> missing = new TreeSet<>();
         int[] counts = new int[6];   // present, gradeC, unknown, obf, 다른 버전 클래스, 다른 버전 심볼
@@ -145,7 +236,7 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
         };
         for (byte[] b : candidates) {
             try {
-                new ClassReader(b).accept(new ClassRemapper(new Collector(index, own, seen, missing, counts), suffix),
+                new ClassReader(b).accept(new ClassRemapper(new Collector(index, own, seen, missing, counts, sink), suffix),
                         ClassReader.SKIP_FRAMES | ClassReader.SKIP_DEBUG);
             } catch (RuntimeException ignored) {
                 // 읽지 못하는 클래스 — 보고에서 뺀다
@@ -160,24 +251,21 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
     public void log() {
         if (symbols == 0 && otherVersionClasses == 0 && otherVersionSymbols == 0) return;
         String hint = spigotMapped
-                ? " Spigot 이름 → Mojang 이름 대응표로 바꿔 올린다(plugins.compat.nms.spigot-mappings)." + (obfuscatedLooking > 0
-                        ? " 대응표로도 풀리지 않은 난독화 이름 멤버 " + obfuscatedLooking + "개는 그 호출이 실패한다." : "")
+                ? " " + CompatLang.t("compat.nms-hint-spigot-mapped") + (obfuscatedLooking > 0
+                        ? " " + CompatLang.t("compat.nms-hint-unresolved-obfuscated", obfuscatedLooking) : "")
                 : spigotNamed && missing.stream().anyMatch(n -> n.startsWith("net.minecraft."))
-                ? " Spigot 이름 jar 로 보인다" + (obfuscatedLooking > 0 ? "(난독화 이름 멤버 " + obfuscatedLooking + "개)" : "")
-                        + " — Spigot→Mojang 대응표가 없어 shim 에 없는 그 이름의 호출은 실패한다. furnace.properties 에 plugins.compat.nms.spigot-mappings=download 를"
-                        + " 쓰면 처음 한 번 Mojang·Spigot 매핑을 받아 바꿔 올린다."
+                ? " " + CompatLang.t(obfuscatedLooking > 0 ? "compat.nms-hint-spigot-jar-obfuscated" : "compat.nms-hint-spigot-jar", obfuscatedLooking)
                 : obfuscatedLooking > 0
-                ? " 난독화 이름으로 보이는 멤버 " + obfuscatedLooking + "개는 그 호출이 실패한다."
+                ? " " + CompatLang.t("compat.nms-hint-obfuscated", obfuscatedLooking)
                 : "";
         String other = otherVersionClasses + otherVersionSymbols > 0
-                ? " 다른 버전용 모듈 클래스 " + otherVersionClasses + "개·다른 버전 이름 " + otherVersionSymbols + "개는 1.21.1 에서 쓰이지 않아 세지 않았다."
+                ? " " + CompatLang.t("compat.nms-other-version", otherVersionClasses, otherVersionSymbols)
                 : "";
-        LOG.info("플러그인 {}: NMS·CraftBukkit 심볼 {}개 중 shim 있음 {}, 등급 C {}, 아직 없음 {}. 이름 체계={}.{}{}",
-                plugin, symbols, present, gradeC, unknown, namespace, hint, other);
+        LOG.info(CompatLang.t("compat.nms-summary", plugin, symbols, present, gradeC, unknown,
+                NAMESPACE_ASSUMED.equals(namespace) ? CompatLang.t("compat.nms-namespace-assumed") : namespace, hint, other));
         if (!missing.isEmpty()) {
             List<String> head = missing.subList(0, Math.min(20, missing.size()));
-            LOG.warn("플러그인 {}: 미지원 NMS 심볼 {}개(처음 {}개): {} — 그 호출이 실행될 때만 UnsupportedNmsCall 을 던진다(나머지 기능은 돈다)",
-                    plugin, missing.size(), head.size(), head);
+            LOG.warn(CompatLang.t("compat.nms-unsupported-symbols", plugin, missing.size(), head.size(), head));
         }
     }
 
@@ -189,11 +277,13 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
         private final Set<String> seen;
         private final Set<String> missing;
         private final int[] counts;
+        private final java.util.function.Consumer<String[]> sink;   // 점검 도구용(null 이면 안 쓴다)
 
         private boolean skip;   // 다른 버전용 모듈 클래스
 
-        Collector(NmsSymbols index, Set<String> own, Set<String> seen, Set<String> missing, int[] counts) {
+        Collector(NmsSymbols index, Set<String> own, Set<String> seen, Set<String> missing, int[] counts, java.util.function.Consumer<String[]> sink) {
             super(Opcodes.ASM9);
+            this.sink = sink;
             this.index = index;
             this.own = own;
             this.seen = seen;
@@ -217,7 +307,10 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
             String e = NmsSymbols.element(internalName);
             if (!seen.add("C " + e)) return;
             if (index.hasClass(e)) counts[0]++;
-            else miss(e, NmsLinker.dots(e), false);
+            else {
+                if (sink != null) sink.accept(new String[] {"C", e, "", ""});
+                miss(e, NmsLinker.dots(e), false);
+            }
         }
 
         private void member(String owner, String name, String desc, boolean field) {
@@ -230,6 +323,12 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
             if (owner.charAt(0) == '[') return;   // 배열의 clone 등
             if (!seen.add((field ? "F " : "M ") + owner + "#" + name + desc)) return;
             boolean ok = field ? index.hasField(owner, name, desc) : index.hasMethod(owner, name, desc);
+            if (ok && !field && name.equals("<init>") && sendUnsupported(e)) {
+                // 생성 패킷 중 보내기 다리가 아직 없는 것: 만들 수는 있지만 보내면 UnsupportedNmsCall — 보고·strict 에서 미지원으로 센다
+                miss(owner, CompatLang.t("nms.report.packet-ctor", NmsLinker.dots(owner), Type.getArgumentTypes(desc).length), false);
+                return;
+            }
+            if (!ok && sink != null) sink.accept(new String[] {field ? "F" : "M", owner, name, desc});
             if (ok) counts[0]++;
             else miss(owner, NmsLinker.dots(owner) + "#" + name + (field ? "" : "(" + Type.getArgumentTypes(desc).length + ")"),
                     name.length() <= 2 && !name.equals("<init>"));
@@ -262,12 +361,13 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
                 counts[4]++;
                 return;
             }
-            // 있는 NMS 클래스라도 상속은 정의 때 거부된다(NmsLinker.visit 와 같은 판정) — 등급 C 로 센다
+            // 있는 NMS 클래스라도 상속은 정의 때 거부된다(NmsLinker.visit 와 같은 판정 — 상속해도 되는 shim 은 빼고) — 등급 C 로 센다
             if (superName != null && superName.startsWith("net/minecraft/") && !own.contains(superName) && !otherVersion(superName)
-                    && index.hasClass(superName)) {
+                    && index.hasClass(superName) && !NmsLinker.inheritable(index, superName)) {
                 if (seen.add("S " + name)) {
+                    if (sink != null) sink.accept(new String[] {"X", name, name, superName});
                     counts[1]++;
-                    missing.add("상속 " + NmsLinker.dots(name) + " → " + NmsLinker.dots(superName));
+                    missing.add(CompatLang.t("nms.report.extends", NmsLinker.dots(name), NmsLinker.dots(superName)));
                 }
             } else if (superName != null) {
                 cls(superName);

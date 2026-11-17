@@ -2,6 +2,9 @@
 // 입자 방출·회전 속도는 클라이언트 몫이라 빛 밝기와 "몹을 만들 수 있는가"만 남긴다.
 package org.domi.furnace.server.block.entity;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("net.minecraft.world.level.block.entity.trialspawner.TrialSpawnerState")
 public enum TrialSpawnerState {
     INACTIVE("inactive", 0, -1.0, false),
     WAITING_FOR_PLAYERS("waiting_for_players", 4, 200.0, true),

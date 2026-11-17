@@ -107,6 +107,9 @@ class PaperConfigImportTest {
                 entity-activation-range:
                   animals: 32
                   monsters: 32
+                  water: 16
+                  villagers: 32
+                  flying-monsters: 32
             """;
 
     private static final String PAPER_GLOBAL = """
@@ -207,6 +210,163 @@ class PaperConfigImportTest {
         // 옮기지 않는 키는 쓰지 않는다
         assertEquals(List.of("autosave-ticks", "bungeecord", "chunk-eviction-grace-ticks", "io-threads", "limits.item.display-name", "proxy-protocol"),
                 r.toWrite().keySet().stream().sorted().toList());
+    }
+
+    @Test
+    void importsSpigotActivationRange(@TempDir Path dir) throws Exception {
+        write(dir, "spigot.yml", """
+                world-settings:
+                  default:
+                    entity-activation-range:
+                      animals: 16
+                      monsters: 32
+                      raiders: 48
+                      tick-inactive-villagers: false
+                      wake-up-inactive:
+                        animals-max-per-tick: 2
+                  nether:
+                    entity-activation-range:
+                      monsters: 8
+                """);
+        Result r = run(dir, new Properties());
+        assertEquals("16", r.toWrite().get("entity-activation-range.animals"));
+        assertEquals("48", r.toWrite().get("entity-activation-range.raiders"));
+        assertEquals("false", r.toWrite().get("entity-activation-range.tick-inactive-villagers"));
+        assertEquals("2", r.toWrite().get("entity-activation-range.wake-up-inactive.animals-max-per-tick"));
+        assertEquals("16", r.toWrite().get("entity-activation-range.villagers"), "villagers 키 없는 Spigot 파일: 주민은 animals 범위");
+        assertFalse(r.toWrite().containsKey("entity-activation-range.water"), "water 키 없는 Spigot 파일: 물 동물은 animals 범위(16) — Furnace 기본과 같다");
+        assertEquals("16", r.toWrite().get("entity-activation-range.flying-monsters"), "flying-monsters 키 없는 Spigot 파일: 가스트·팬텀은 misc 범위(Spigot 기본 16)");
+        assertFalse(r.toWrite().containsKey("entity-activation-range.monsters"), "기본과 같은 값은 옮기지 않는다");
+        assertTrue(has(r, Kind.DEFAULT, "spigot.yml", "world-settings.default.entity-activation-range.monsters"));
+        assertTrue(has(r, Kind.MANUAL, "spigot.yml", "world-settings.nether.entity-activation-range.monsters"), "월드별 값은 수동 안내");
+    }
+
+    /** 엔티티 손잡이(T-122): Spigot 기본(2.5·3.0·48/48/48/32)은 Furnace 기본(Paper 값)과 달라 옮기고, Paper 기본은 그대로 둔다. */
+    @Test
+    void importsEntityHandles(@TempDir Path dir) throws Exception {
+        write(dir, "spigot.yml", """
+                world-settings:
+                  default:
+                    merge-radius:
+                      item: 2.5
+                      exp: 3.0
+                    max-entity-collisions: 4
+                    entity-tracking-range:
+                      players: 48
+                      animals: 48
+                      monsters: 48
+                      misc: 32
+                      display: 128
+                      other: 64
+                  nether:
+                    entity-tracking-range:
+                      players: 32
+                """);
+        Result r = run(dir, new Properties());
+        assertEquals("2.5", r.toWrite().get("merge-radius.item"));
+        assertEquals("3", r.toWrite().get("merge-radius.exp"));
+        assertEquals("4", r.toWrite().get("collisions.max-entity-collisions"), "paper-world-defaults 가 없으면 옛 spigot.yml 키");
+        assertEquals("48", r.toWrite().get("entity-tracking-range.players"));
+        assertEquals("32", r.toWrite().get("entity-tracking-range.misc"));
+        assertFalse(r.toWrite().containsKey("entity-tracking-range.display"), "Paper 기본과 같다");
+        assertTrue(has(r, Kind.DEFAULT, "spigot.yml", "world-settings.default.entity-tracking-range.other"));
+        assertTrue(has(r, Kind.MANUAL, "spigot.yml", "world-settings.nether.entity-tracking-range.players"), "월드별 값은 수동 안내");
+    }
+
+    @Test
+    void paperWorldCollisionsWinAndZeroStaysZero(@TempDir Path dir) throws Exception {
+        write(dir, "spigot.yml", """
+                world-settings:
+                  default:
+                    merge-radius:
+                      item: 0.5
+                      exp: -1.0
+                    max-entity-collisions: 4
+                """);
+        write(dir, "config/paper-world-defaults.yml", """
+                _version: 31
+                collisions:
+                  max-entity-collisions: -1
+                  only-players-collide: false
+                """);
+        Result r = run(dir, new Properties());
+        assertEquals("0", r.toWrite().get("collisions.max-entity-collisions"), "Paper 의 0 이하는 '밀지 않음' — Furnace -1(제한 없음)과 뜻이 달라 0 으로");
+        assertFalse(r.toWrite().containsKey("merge-radius.item"));
+        assertFalse(r.toWrite().containsKey("merge-radius.exp"));
+        assertTrue(has(r, Kind.IGNORED, "spigot.yml", "world-settings.default.max-entity-collisions"));
+        assertTrue(has(r, Kind.UNSUPPORTED, "paper-world-defaults.yml", "collisions.only-players-collide"));
+    }
+
+    @Test
+    void playerCrammingDamageImportsAndLegacyNegativeCollisionsIgnored(@TempDir Path dir) throws Exception {
+        write(dir, "spigot.yml", """
+                world-settings:
+                  default:
+                    max-entity-collisions: -1
+                """);
+        write(dir, "config/paper-world-defaults.yml", """
+                _version: 31
+                collisions:
+                  allow-player-cramming-damage: true
+                """);
+        Result r = run(dir, new Properties());
+        assertEquals("true", r.toWrite().get("collisions.allow-player-cramming-damage"), "켜 둔 서버는 바닐라처럼 플레이어도 피해");
+        assertFalse(r.toWrite().containsKey("collisions.max-entity-collisions"), "Paper 도 옛 키 음수는 무시하고 기본 8");
+        assertTrue(has(r, Kind.IGNORED, "spigot.yml", "world-settings.default.max-entity-collisions"));
+
+        Path d2 = dir.resolve("b");
+        java.nio.file.Files.createDirectories(d2);
+        write(d2, "config/paper-world-defaults.yml", """
+                _version: 31
+                collisions:
+                  allow-player-cramming-damage: false
+                """);
+        Result r2 = run(d2, new Properties());
+        assertFalse(r2.toWrite().containsKey("collisions.allow-player-cramming-damage"), "Furnace 기본(Paper false)과 같다");
+        assertTrue(has(r2, Kind.DEFAULT, "paper-world-defaults.yml", "collisions.allow-player-cramming-damage"));
+    }
+
+    /** 기본값만 적힌 순수 Spigot 파일: 물 동물은 animals(32), 가스트·팬텀은 misc(16) 범위 — Furnace 기본(16·32)과 달라 옮긴다. 주민은 32 로 같아 옮기지 않는다(PR #326 검토 R8). */
+    @Test
+    void pureSpigotDefaultsMapPaperOnlyKinds(@TempDir Path dir) throws Exception {
+        write(dir, "spigot.yml", """
+                world-settings:
+                  default:
+                    entity-activation-range:
+                      animals: 32
+                      monsters: 32
+                      raiders: 48
+                      misc: 16
+                """);
+        Result r = run(dir, new Properties());
+        assertEquals("32", r.toWrite().get("entity-activation-range.water"));
+        assertEquals("16", r.toWrite().get("entity-activation-range.flying-monsters"));
+        assertFalse(r.toWrite().containsKey("entity-activation-range.villagers"), "Furnace 기본(32)과 같다");
+        assertFalse(r.toWrite().containsKey("entity-activation-range.animals"));
+    }
+
+    /** Paper 가 만든 spigot.yml 은 기본값(villagers: 32)도 적어 둔다 — animals 만 바꾼 Paper 서버의 주민 범위는 32 로 남아야 한다(PR #326 검토 R1). */
+    @Test
+    void importedPaperSpigotYmlKeepsVillagerRange(@TempDir Path dir) throws Exception {
+        write(dir, "spigot.yml", """
+                world-settings:
+                  default:
+                    entity-activation-range:
+                      animals: 16
+                      monsters: 24
+                      water: 16
+                      villagers: 32
+                      flying-monsters: 32
+                """);
+        Result r = run(dir, new Properties());
+        assertFalse(r.toWrite().containsKey("entity-activation-range.villagers"));
+        assertFalse(r.toWrite().containsKey("entity-activation-range.water"));
+        assertFalse(r.toWrite().containsKey("entity-activation-range.flying-monsters"));
+        Properties furnace = new Properties();
+        furnace.putAll(r.toWrite());
+        EntityActivationSettings s = EntityActivationSettings.fromProperties(furnace, w -> {});
+        assertEquals(16, s.animals());
+        assertEquals(32, s.villagers());
     }
 
     @Test
@@ -342,7 +502,7 @@ class PaperConfigImportTest {
 
         String text = Files.readString(props, StandardCharsets.UTF_8);
         assertTrue(text.startsWith(original + "\n"), "원래 내용은 그대로 두고 뒤에 덧붙인다");
-        assertTrue(text.contains("# --- Paper/Spigot 설정에서 가져옴"));
+        assertTrue(text.contains("# --- Imported from Paper/Spigot settings"));
         assertTrue(Files.isRegularFile(dir.resolve(PaperConfigImport.REPORT_FILE)));
 
         // 두 로더가 에러 없이 읽고 값이 들어간다
@@ -398,7 +558,7 @@ class PaperConfigImportTest {
         Files.delete(report);
         PaperConfigImport.runIfNeeded(dir, props);
         assertEquals("io-threads=3\n", Files.readString(props));
-        assertTrue(Files.readString(report).contains("이미 furnace.properties 에 있어"));
+        assertTrue(Files.readString(report).contains("furnace.properties already has"));
         // off
         Files.delete(report);
         System.setProperty(PaperConfigImport.MODE_PROPERTY, "off");
@@ -410,7 +570,7 @@ class PaperConfigImportTest {
             assertTrue(Files.exists(report));
             Files.writeString(report, "OLD");
             PaperConfigImport.runIfNeeded(dir, props);   // force 는 보고서가 있어도 다시 한다
-            assertTrue(Files.readString(report).startsWith("Furnace — Paper/Spigot"), "보고서를 다시 썼다");
+            assertTrue(Files.readString(report).startsWith("Furnace - Paper/Spigot"), "보고서를 다시 썼다");
         } finally {
             System.clearProperty(PaperConfigImport.MODE_PROPERTY);
         }
@@ -424,7 +584,7 @@ class PaperConfigImportTest {
         PaperConfigImport.runIfNeeded(dir, props);   // 던지지 않는다
         assertTrue(Files.readString(props).contains("bungeecord=true"), "읽은 파일은 계속 처리한다");
         String report = Files.readString(dir.resolve(PaperConfigImport.REPORT_FILE));
-        assertTrue(report.contains("읽지 못한 파일: bukkit.yml"));
+        assertTrue(report.contains("Files that could not be read: bukkit.yml"));
     }
 
     @Test
@@ -433,7 +593,7 @@ class PaperConfigImportTest {
         Path props = dir.resolve("furnace.properties");
         PaperConfigImport.runIfNeeded(dir, props);
         assertFalse(Files.exists(props));
-        assertTrue(Files.readString(dir.resolve(PaperConfigImport.REPORT_FILE)).contains("1.19 이전 형식"));
+        assertTrue(Files.readString(dir.resolve(PaperConfigImport.REPORT_FILE)).contains("before 1.19"));
     }
 
     @Test

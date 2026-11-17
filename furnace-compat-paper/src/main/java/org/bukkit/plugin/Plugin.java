@@ -40,4 +40,10 @@ public interface Plugin extends TabExecutor {
     Logger getLogger();
 
     String getName();
+
+    /** 서버 설정이 이 플러그인을 월드 생성기로 고를 때(bukkit.yml·WorldCreator#generator(String)) 줄 생성기. 기본 없음. */
+    default org.bukkit.generator.ChunkGenerator getDefaultWorldGenerator(String worldName, String id) { return null; }
+
+    /** 그 바이옴 공급자판. 기본 없음. */
+    default org.bukkit.generator.BiomeProvider getDefaultBiomeProvider(String worldName, String id) { return null; }
 }

@@ -18,14 +18,14 @@ API 는 버전 중립이다: 내부 패킷 타입을 드러내지 않고, 단계
 | 순서 | 이벤트 | 스레드 | 할 수 있는 것 | Player |
 |---|---|---|---|---|
 | 1 | `PlayerHandshakeEvent` | 연결의 네트워크 스레드 | 가상 호스트(`hostname`)·버전·주소로 거르기. 취소하면 로그인 끊기 패킷 | 없음 |
-| 2 | `AsyncPlayerPreLoginEvent` | 가상 스레드(블로킹 허용) | 인증 뒤, DB 조회 후 거부 | 없음 |
+| 2 | `AsyncPlayerPreLoginEvent` | 접속 이벤트 전용 플랫폼 스레드 `User Authenticator #N`(블로킹 허용, Paper 와 같은 이름) | 인증 뒤, DB 조회 후 거부 | 없음 |
 | 3 | `PlayerLoginEvent` | 연결 스레드 | 밴·화이트리스트·인원 검사 결과를 보고 바꾸기 | 없음 |
-| 4 | `AsyncPlayerConfigureEvent` | 가상 스레드(블로킹 허용) | 구성 끝 패킷 직전. 처리기가 돌아올 때까지 구성이 멈춘다(서버가 15초마다 구성 keep-alive). 데이터 미리 읽기·거부 | 없음 |
+| 4 | `AsyncPlayerConfigureEvent` | 접속 이벤트 전용 플랫폼 스레드 `User Authenticator #N`(블로킹 허용) | 구성 끝 패킷 직전. 처리기가 돌아올 때까지 구성이 멈춘다(서버가 15초마다 구성 keep-alive). 데이터 미리 읽기·거부 | 없음 |
 | 5 | `PlayerCreateEvent` | 연결 스레드 | Player 가 막 생겼고 플레이 패킷을 하나도 보내기 전. 여기서 붙인 권한이 **첫 명령 트리부터** 반영된다(LuckPerms 류, Paper #13176) | 있음(월드 밖) |
 | 6 | `PlayerSpawnLocationEvent` | 연결 스레드 | 첫 위치·차원 바꾸기(차원을 알리기 전). 없는 차원이면 무시 | 있음(월드 밖) |
 | 7 | `PlayerJoinEvent` | 연결 스레드 | 입장 메시지 바꾸기 | 있음(월드 안) |
 
-- 연결 스레드·네트워크 스레드에서 블로킹하면 그 스레드의 다른 연결이 멈춘다. 블로킹은 2·4번(가상 스레드)에서.
+- 연결 스레드·네트워크 스레드에서 블로킹하면 그 스레드의 다른 연결이 멈춘다. 블로킹은 2·4번(접속 이벤트 전용 플랫폼 스레드 `User Authenticator #N` — 플러그인 비동기 작업과 나뉘어 있어 그쪽이 밀려도 접속이 줄 서지 않는다)에서.
 - `AsyncPlayerConfigureEvent` 를 기다리는 시간도 구성 단계 시간에 들어간다. 운영자가 `connection.configuration.timeout-seconds`(기본 0 = 없음)를 걸었으면 그 안에 돌아와야 한다.
 - `AsyncPlayerConfigureEvent` 는 처음 들어올 때 한 번이다(플레이 중 재구성 때는 불리지 않는다). 서버 리소스 팩(`server.properties`)이 있으면 팩 응답이 끝난 뒤에 불린다.
 - 5·6번에서는 Player 가 아직 region 에 들어가지 않았다. 위치·인벤토리·월드를 바꾸지 말 것(위치는 6번 이벤트의 `spawnLocation` 으로).
@@ -51,10 +51,11 @@ API 는 버전 중립이다: 내부 패킷 타입을 드러내지 않고, 단계
 - `onDisable` 동안 접속자는 아직 접속해 있다(메시지·킥·데이터 저장 가능).
 - `tasks()` 로 맡긴 작업은 `onDisable` 이 끝나면 취소된다. 끝까지 돌아야 하는 작업은 `onDisable` 안에서 기다린다.
 - `onDisable` 에서 리로드와 종료를 가르려면 `server().isStopping()`.
+- **`/stop` 의 단계는 JVM 종료 훅보다 먼저 돈다**(Paper 와 같다). 그래서 `onDisable` 에서 `Runtime.removeShutdownHook` 이 되고(H2 가 DB 를 닫으며 훅을 뗀다), 플러그인이 건 종료 훅이 닫힌 클래스로더를 만나지 않는다. Ctrl+C·kill 같은 JVM 종료는 Furnace 종료 훅이 같은 단계를 돈다(/stop 이 이미 돌고 있으면 끝날 때까지 기다린다) — 이때는 Paper 처럼 플러그인 훅과 동시에 돈다.
 
 ## 4. 구성 단계에서 클라이언트와 주고받기 (`PlayerConnection`)
 
-`AsyncPlayerConfigureEvent`(가상 스레드)에서 구성 단계를 멈춰 놓고 클라이언트와 주고받을 수 있다(불만 표 6번). 모든 메서드는 어느 스레드에서나 부를 수 있고, 패킷은 연결의 이벤트 루프로 넘겨 보낸다.
+`AsyncPlayerConfigureEvent`(접속 이벤트 전용 스레드)에서 구성 단계를 멈춰 놓고 클라이언트와 주고받을 수 있다(불만 표 6번). 모든 메서드는 어느 스레드에서나 부를 수 있고, 패킷은 연결의 이벤트 루프로 넘겨 보낸다.
 
 | 메서드 | 단계 | 하는 일 |
 |---|---|---|

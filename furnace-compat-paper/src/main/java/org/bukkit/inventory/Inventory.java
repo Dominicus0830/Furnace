@@ -71,9 +71,15 @@ public interface Inventory extends Iterable<ItemStack> {
 
     InventoryHolder getHolder();
 
+    /** Paper getHolder(useSnapshot): false 면 블록 주인을 사본 없이(Furnace 블록 상태는 영속 데이터만 살아 있다 — getState(false)). */
+    default InventoryHolder getHolder(boolean useSnapshot) { return getHolder(); }
+
     /** 이 인벤토리를 창으로 보고 있는 사람. 플러그인이 만든 인벤토리(createInventory)만 알 수 있고 나머지는 빈 목록이다. */
     java.util.List<org.bukkit.entity.HumanEntity> getViewers();
 
     @Override
     ListIterator<ItemStack> iterator();
+
+    /** 이 인벤토리가 있는 곳(블록·엔티티·플레이어 위치). 플러그인이 만든 인벤토리처럼 위치가 없으면 null. */
+    org.bukkit.Location getLocation();
 }

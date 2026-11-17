@@ -36,7 +36,7 @@
   - 바닐라처럼 남은 전역 수는 틱 **전에** 줄인다(틱 안의 함수가 sprint 를 다시 걸면 N 이 그대로 남는다).
 - region(`Region.tick`): sprint 세대가 바뀌면 참여 여부(그 순간 sprint 중인가)와 남은 sprint 틱(N 또는 0)을 다시 채운다.
   `Regionizer.afterTick` 은 남은 sprint 틱이 있으면 다음 마감을 지금(기다린 틱이면 100µs 뒤)으로 잡는다. 다 쓰면 원래 주기로
-  돌아간다(`nextTickNanos < now` 면 now + tickNanos — 따라잡기 폭주 없음).
+  돌아간다(`nextTickNanos < now` 면 now — T-171 이후 바로 다음 틱, 예전에는 now + tickNanos 로 한 주기 쉼. 따라잡기 폭주 없음).
   - 틱 뒤 잠금 안에서 "본 세대·참여·마친 틱·남았는지"를 요약해 둔다. 전역은 잠금 안에서 이 요약만 읽는다(`sprintMinDone`,
     `sprintDone`). 아직 세대를 못 본 region 은 d = 0, 참여하지 않는 region·흡수 대기(yielded) region 은 뺀다, 게임 틱을 돌지 않는
     월드와 region 이 없는 차원은 제약 없음.

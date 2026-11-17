@@ -1,6 +1,7 @@
 // 다중 월드(W1): 추가 월드 만들기·저장·내리기·다시 불러오기, Paper 폴더 배치, 검사, 차원 타입 값으로 정해지는 동작, 설정·설명서 읽기.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
@@ -44,12 +45,12 @@ class MultiWorldTest {
         dims = new Dimensions();
         dims.register(core.world());
         core.dimensions(dims);
-        reg = BlockRegistry.load("blocks/1.21.1.txt");
+        reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         // 플러그인 차원 타입(W2) 하나가 클라이언트 레지스트리에 있는 상태를 흉내 낸다
-        registries = RegistrySet.load("registries/1.21.1.txt")
+        registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")
                 .withExtras(List.of(new RegistrySet.Extra("minecraft:dimension_type", "test:low", new org.domi.furnace.server.net.io.nbt.NbtCompound())));
         var io = TestServers.ioPool();
-        manager = new WorldManager(new WorldManager.Parts(tmp, reg, ItemRegistry.load("items/1.21.1.txt"), registries,
+        manager = new WorldManager(new WorldManager.Parts(tmp, reg, ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"), registries,
                 registries.indexOf("minecraft:worldgen/biome", "minecraft:plains"), 7, new ChunkWorkerPool(1), sched, null,
                 Config.DEFAULT, false, io, io), dims, core.levelData(), "world");
         core.worldManager(manager);
@@ -250,6 +251,75 @@ class MultiWorldTest {
         assertFalse(api.isLoaded());
     }
 
+    // ----- T-071: PluginHost.handleFor 빠른 길(get)이 옛 compute 와 같은 결과를 내는지 -----
+
+    @Test
+    void handleForKeepsIdentityAndReplacesStaleHandle() throws Exception {
+        var host = core.plugins();
+        var main = host.worldHandle("minecraft:overworld");
+        assertSame(main, host.worldHandle("minecraft:overworld"), "같은 월드 = 같은 손잡이(여러 번)");
+        assertSame(main, host.world("minecraft:overworld"));
+        assertSame(core.world(), main.handle());
+
+        var a = host.createWorld(WorldCreator.named("hf").generator(WorldGenerator.VOID).build()).get(60, TimeUnit.SECONDS);
+        assertSame(a, host.worldHandle("minecraft:hf"));
+        assertSame(a, host.worldHandle("minecraft:hf"));
+        assertSame(a, host.worldNamed("hf"));
+        assertSame(main, host.worldHandle("minecraft:overworld"), "다른 차원의 손잡이는 그대로");
+
+        assertTrue(host.unloadWorld(a, false).get(60, TimeUnit.SECONDS));
+        assertNull(host.worldHandle("minecraft:hf"), "내린 월드는 조회가 null");
+        assertFalse(a.isLoaded(), "내린 월드의 손잡이는 isLoaded()=false 로 남는다");
+
+        var b = host.createWorld(WorldCreator.named("hf").generator(WorldGenerator.VOID).build()).get(60, TimeUnit.SECONDS);
+        assertNotSame(a, b, "같은 키로 다시 올리면 새 손잡이(낡은 손잡이를 돌려주지 않는다)");
+        assertTrue(b.isLoaded());
+        assertSame(b, host.worldHandle("minecraft:hf"));
+        assertSame(b, host.worldHandle("minecraft:hf"));
+        assertFalse(a.isLoaded());
+    }
+
+    @Test
+    void handleForReplacesHandleAfterUnloadAndReload() throws Exception {
+        // 내림(manager 훅 → worldDetached 로 손잡이가 걷힘) 뒤 같은 키로 다시 올리면 새 손잡이. 걷히기 전 낡은 항목이 남은 경우는 plugin.HandleForStaleEntryTest
+        var host = core.plugins();
+        World w1 = create(WorldCreator.named("stale").generator(WorldGenerator.VOID).build());
+        var h1 = host.worldHandle("minecraft:stale");
+        assertSame(w1, h1.handle());
+        assertTrue(manager.unload(w1, false).get(60, TimeUnit.SECONDS));
+        World w2 = create(WorldCreator.named("stale").generator(WorldGenerator.VOID).build());
+        assertNotSame(w1, w2);
+        var h2 = host.worldHandle("minecraft:stale");
+        assertSame(w2, h2.handle(), "손잡이는 늘 지금 서버 월드를 가리킨다");
+        assertSame(h2, host.worldHandle("minecraft:stale"));
+        assertNotSame(h1, h2);
+    }
+
+    @Test
+    void handleForConvergesUnderConcurrentFirstLookup() throws Exception {
+        // 월드를 manager 로 직접 만들어 손잡이가 아직 없는 상태에서 여러 스레드가 동시에 처음 조회 → 모두 같은 손잡이 하나
+        var host = core.plugins();
+        for (int round = 0; round < 20; round++) {
+            String name = "race" + round;
+            World w = create(WorldCreator.named(name).generator(WorldGenerator.VOID).build());
+            int n = 8;
+            var go = new java.util.concurrent.CountDownLatch(1);
+            var ex = java.util.concurrent.Executors.newFixedThreadPool(n);
+            try {
+                List<java.util.concurrent.Future<Object>> fs = new java.util.ArrayList<>();
+                for (int i = 0; i < n; i++) fs.add(ex.submit(() -> { go.await(); return host.worldHandle("minecraft:" + name); }));
+                go.countDown();
+                Object first = fs.get(0).get(30, TimeUnit.SECONDS);
+                assertNotNull(first);
+                for (var f : fs) assertSame(first, f.get(30, TimeUnit.SECONDS), "동시 첫 조회도 하나로 수렴");
+                assertSame(first, host.worldHandle("minecraft:" + name));
+                assertSame(w, ((org.domi.furnace.server.plugin.WorldHandle) first).handle());
+            } finally {
+                ex.shutdownNow();
+            }
+        }
+    }
+
     @Test
     void pluginApiCreatesAndUnloadsWithEvents() throws Exception {
         var host = core.plugins();
@@ -268,6 +338,63 @@ class MultiWorldTest {
         assertNull(host.world("minecraft:api"));
         assertFalse(host.unloadWorld(api, false).get(5, TimeUnit.SECONDS), "이미 내린 손잡이");
         assertEquals(List.of("load minecraft:api api", "unload api false"), seen);
+    }
+
+    /** T-141 E4d: 동기판은 돌아올 때 Init → Load 가 지나갔고, 같은 이름을 다시 부르면 이벤트 없이 같은 손잡이. 실패는 원래 예외. */
+    @Test
+    void createWorldNowWaitsForInitThenLoad() throws Exception {
+        var host = core.plugins();
+        var plugin = testPlugin();
+        List<String> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
+        host.eventsImpl().subscribe(plugin, org.domi.furnace.api.event.world.WorldInitEvent.class, e -> seen.add("init " + e.name()));
+        host.eventsImpl().subscribe(plugin, org.domi.furnace.api.event.world.WorldLoadEvent.class, e -> seen.add("load " + e.name()));
+        var api = host.createWorldNow(WorldCreator.named("now1").generator(WorldGenerator.VOID).build());
+        assertEquals(List.of("init now1", "load now1"), seen, "돌아올 때 이미 지나갔다");
+        assertTrue(api.isLoaded());
+        assertTrue(api.isFlat(), "빈 월드는 평지 표시(바닐라 isFlatWorld)");
+        assertSame(api, host.createWorldNow(WorldCreator.named("now1").generator(WorldGenerator.VOID).build()));
+        assertSame(api, host.createWorld(WorldCreator.named("now1").generator(WorldGenerator.VOID).build()).get(60, TimeUnit.SECONDS));
+        assertEquals(List.of("init now1", "load now1"), seen, "이미 올라온 월드는 다시 알리지 않는다(Paper 도 그 월드를 돌려줄 뿐)");
+        assertThrows(IllegalArgumentException.class, () -> host.createWorldNow(WorldCreator.named("world").build()), "감싸지 않은 원래 예외");
+        var off = host.createWorldNow(WorldCreator.named("nostruct").generator(WorldGenerator.FLAT).generateStructures(false).build());
+        assertFalse(off.generatesStructures());
+        assertTrue(api.generatesStructures());
+        assertFalse(host.world("minecraft:overworld").isHardcore());
+    }
+
+    /** 전역 스레드에서 부르면 이벤트도 그 스레드에서, 돌아오기 전에. */
+    @Test
+    void createWorldNowOnGlobalThreadFiresInline() throws Exception {
+        var host = core.plugins();
+        var plugin = testPlugin();
+        List<String> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
+        host.eventsImpl().subscribe(plugin, org.domi.furnace.api.event.world.WorldLoadEvent.class,
+                e -> seen.add("load " + org.domi.furnace.server.sched.GlobalThread.isGlobalThread()));
+        String r = sched.global().submit(() -> {
+            var w = host.createWorldNow(WorldCreator.named("g1").generator(WorldGenerator.VOID).build());
+            return w.name() + " " + seen;
+        }).get(60, TimeUnit.SECONDS);
+        assertEquals("g1 [load true]", r);
+    }
+
+    /**
+     * 전역 스레드가 동기판으로 막혀 있는 동안 월드 스레드가 앞선 내리기(전역에서 플레이어 확인)를 하고 있으면 서로 기다린다 —
+     * 막힌 전역 스레드가 그 일을 대신 돌려 둘 다 바로 끝난다(예전 길이면 내리기가 30초 뒤 실패).
+     */
+    @Test
+    void createWorldNowOnGlobalHelpsPendingUnload() throws Exception {
+        var host = core.plugins();
+        World first = create(WorldCreator.named("old1").generator(WorldGenerator.VOID).build());
+        long t0 = System.nanoTime();
+        var unloaded = sched.global().submit(() -> {
+            var u = manager.unload(first, false);   // 월드 스레드에 먼저 줄 선다 — 곧 전역 확인을 기다린다
+            host.createWorldNow(WorldCreator.named("new1").generator(WorldGenerator.VOID).build());
+            return u;
+        }).get(60, TimeUnit.SECONDS);
+        assertTrue(unloaded.get(60, TimeUnit.SECONDS));
+        assertTrue(System.nanoTime() - t0 < TimeUnit.SECONDS.toNanos(20), "30초 기다림 없이");
+        assertNull(core.world("minecraft:old1"));
+        assertNotNull(core.world("minecraft:new1"));
     }
 
     @Test

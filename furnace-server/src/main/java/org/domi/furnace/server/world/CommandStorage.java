@@ -3,6 +3,7 @@
 // 어느 스레드에서든 쓴다(명령 스레드). 저장은 World.flushAll(저장·종료)에서.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -17,12 +18,14 @@ import java.util.Map;
 import java.util.Set;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.storage.CommandStorage")
 public final class CommandStorage {
     private static final Logger LOG = LoggerFactory.getLogger(CommandStorage.class);
-    private static final int DATA_VERSION = 3955;
+    private static final int DATA_VERSION = GameVersion.DATA_VERSION;
 
     private final Path dataDir;
     /** 이름공간 → (경로 → 내용). 읽어 본 이름공간만 들어 있다. */
@@ -58,7 +61,7 @@ public final class CommandStorage {
             for (var e : contents.tags().entrySet()) m.put(e.getKey(), e.getValue() instanceof NbtCompound c ? c : new NbtCompound());
             return m;
         } catch (IOException | RuntimeException e) {
-            LOG.warn("{} 읽기 실패", f, e);
+            LOG.warn(Lang.t("cmdstorage.read-failed", f), e);
             return null;
         }
     }
@@ -119,7 +122,7 @@ public final class CommandStorage {
                 }
                 Files.move(tmp, f, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (IOException ex) {
-                LOG.error("{} 저장 실패", f, ex);
+                LOG.error(Lang.t("cmdstorage.save-failed", f), ex);
             }
         }
     }

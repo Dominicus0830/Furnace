@@ -16,7 +16,9 @@ import org.domi.furnace.api.text.TextColor;
 import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.protocol.play.BossEvent;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.server.bossevents.CustomBossEvent", "net.minecraft.server.level.ServerBossEvent"})
 public final class CustomBossEvent {
 
     /** 바닐라 BossBarColor — 네트워크 id 순서: 분홍 파랑 빨강 초록 노랑 보라 흰색. 서식색은 이름 장식에 쓴다. */

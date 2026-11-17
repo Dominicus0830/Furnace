@@ -21,6 +21,7 @@ import java.util.Map;
  *   - FlatCache / Cache2D / CacheOnce / CacheAllInCell: 캐시 구현체
  *   - stoneMask(): 전체 청크에 대해 interpolated final_density > 0 여부 반환
  */
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.NoiseChunk")
 public final class NoiseChunk implements DensityFunction.ContextProvider, DensityFunction.FunctionContext {
 
     // ── 청크/셀 구조 파라미터 ──────────────────────────────────────────────

@@ -26,7 +26,9 @@ import org.domi.furnace.server.data.Pack;
 import org.domi.furnace.server.data.PackRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.server.commands.DataPackCommand", "net.minecraft.server.commands.ReloadCommand"})
 public final class DataPackCommands {
 
     private static final Logger log = LoggerFactory.getLogger("Furnace");

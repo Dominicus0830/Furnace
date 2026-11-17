@@ -36,13 +36,13 @@ public final class EntityViewsImpl implements EntityViews {
         Objects.requireNonNull(e, "target");
         if (e instanceof PlayerHandle ph) return new Target(ph.handle().uuid(), null, ph.handle());
         if (e instanceof EntityHandle eh) return new Target(eh.uniqueId(), eh.tasks(), null);
-        throw new IllegalArgumentException("이 서버의 엔티티가 아니다: " + e);
+        throw new IllegalArgumentException("not an entity of this server: " + e);
     }
 
     private static org.domi.furnace.server.entity.Player viewer(Player p) {
         Objects.requireNonNull(p, "viewer");
         if (p instanceof PlayerHandle ph) return ph.handle();
-        throw new IllegalArgumentException("이 서버의 플레이어가 아니다: " + p);
+        throw new IllegalArgumentException("not a player of this server: " + p);
     }
 
     /** 규칙이 바뀐 뒤: 그 엔티티를 가진 region 에서 viewer(null = 모두)에 대해 다시 추적, respawn 이면 지웠다 다시 스폰. */
@@ -67,7 +67,9 @@ public final class EntityViewsImpl implements EntityViews {
         var v = viewer(viewer);
         Target t = target(target);
         if (t.uuid.equals(v.uuid())) return;
-        refresh(EntityViewRules.hide(plugin, v, t.uuid, t.tasks, t.player != null), v, false);
+        Change c = EntityViewRules.hide(plugin, v, t.uuid, t.tasks, t.player != null);
+        refresh(c, v, false);
+        if (c.hidFrom(v)) fireHide(viewer, target);   // Bukkit untrackAndHideEntity
     }
 
     @Override
@@ -76,7 +78,27 @@ public final class EntityViewsImpl implements EntityViews {
         var v = viewer(viewer);
         Target t = target(target);
         if (t.uuid.equals(v.uuid())) return;
-        refresh(EntityViewRules.show(plugin, v, t.uuid, t.tasks, t.player != null), v, false);
+        Change c = EntityViewRules.show(plugin, v, t.uuid, t.tasks, t.player != null);
+        refresh(c, v, false);
+        if (c.shownTo(v)) fireShow(viewer, target);   // Bukkit trackAndShowEntity
+    }
+
+    /**
+     * Bukkit hideEntity/showEntity·setVisibleByDefault(reset 후 숨김·보임): 그 관찰자에게 실제로 보이다가 숨겨졌을 때 PlayerHideEntityEvent,
+     * 숨겨졌다가 보이게 됐을 때 PlayerShowEntityEvent(호출 스레드에서, 취소 불가).
+     */
+    private void fireHide(Player viewer, Entity target) {
+        var bus = host.eventsImpl();
+        if (bus.hasSubscribers(org.domi.furnace.api.event.player.PlayerHideEntityEvent.class)) {
+            bus.call(new org.domi.furnace.api.event.player.PlayerHideEntityEvent(viewer, target));
+        }
+    }
+
+    private void fireShow(Player viewer, Entity target) {
+        var bus = host.eventsImpl();
+        if (bus.hasSubscribers(org.domi.furnace.api.event.player.PlayerShowEntityEvent.class)) {
+            bus.call(new org.domi.furnace.api.event.player.PlayerShowEntityEvent(viewer, target));
+        }
     }
 
     @Override
@@ -89,7 +111,17 @@ public final class EntityViewsImpl implements EntityViews {
     public void setVisibleByDefault(FurnacePlugin plugin, Entity target, boolean visible) {
         Objects.requireNonNull(plugin, "plugin");
         Target t = target(target);
-        refresh(EntityViewRules.setHiddenByDefault(plugin, t.uuid, !visible, t.tasks, t.player != null), null, false);
+        var bus = host.eventsImpl();
+        boolean listen = bus.hasSubscribers(org.domi.furnace.api.event.player.PlayerHideEntityEvent.class)
+                || bus.hasSubscribers(org.domi.furnace.api.event.player.PlayerShowEntityEvent.class);
+        Change c = EntityViewRules.setHiddenByDefault(plugin, t.uuid, !visible, t.tasks, t.player != null);
+        refresh(c, null, false);
+        if (!listen || !c.changed()) return;
+        for (var v : host.core().players()) {   // CraftEntity.setVisibleByDefault: 접속자마다 resetAndHide/resetAndShow
+            if (v.uuid().equals(t.uuid) || v.isDisconnected()) continue;
+            if (c.hidFrom(v)) fireHide(host.player(v), target);
+            else if (c.shownTo(v)) fireShow(host.player(v), target);
+        }
     }
 
     @Override
@@ -152,7 +184,7 @@ public final class EntityViewsImpl implements EntityViews {
     Appearance appearance(Disguise d) {
         String type = d.entityType();
         int typeId = EntityType.registryId(type);
-        if (typeId < 0) throw new IllegalArgumentException("없는 엔티티 종류: " + type);
+        if (typeId < 0) throw new IllegalArgumentException("no such entity type: " + type);
         var packets = host.packetsImpl();
         java.util.function.IntFunction<org.domi.furnace.server.net.protocol.Packet> meta = null;
         int[] overridden = new int[d.metadata().size()];

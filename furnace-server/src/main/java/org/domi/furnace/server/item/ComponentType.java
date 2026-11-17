@@ -3,7 +3,9 @@
 package org.domi.furnace.server.item;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.core.component.DataComponentType")
 public final class ComponentType {
 
     private final String name;
@@ -48,7 +50,7 @@ public final class ComponentType {
     public Object normalize(Object v) { return persistent != null ? persistent.normalize(v) : v; }
 
     private static NCodec nbtOf(PCodec p) {
-        if (p == null) throw new IllegalArgumentException("코덱이 하나도 없는 컴포넌트");
+        if (p == null) throw new IllegalArgumentException("the component has no codec");
         return new NCodec() {
             public Object read(ByteBuf buf) {
                 Object tag = NbtVals.readNetwork(buf);

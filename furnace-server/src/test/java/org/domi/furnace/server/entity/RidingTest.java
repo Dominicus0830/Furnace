@@ -2,6 +2,7 @@
 // set_passengers·move_vehicle 패킷, 플레이어 승객(회전만 받기·웅크려 내리기·조종 탈것 이동 검증), 닭 기수 좀비.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -22,7 +23,7 @@ class RidingTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static Chicken chicken(BlockPlacementTest.TestLevel level) {

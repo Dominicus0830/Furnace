@@ -314,8 +314,8 @@ class HotReloadTest {
         core.commands().performPrefixedCommand(CommandSource.console(core), "plugins reload Hot");
         awaitLog("hot:enable:v2");
         long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
-        while (console.stream().noneMatch(s -> s.contains("다시 읽음: Hot")) && System.nanoTime() < end) Thread.sleep(10);
-        assertTrue(console.stream().anyMatch(s -> s.contains("다시 읽음: Hot")), console.toString());
+        while (console.stream().noneMatch(s -> s.contains("Reloaded: Hot")) && System.nanoTime() < end) Thread.sleep(10);
+        assertTrue(console.stream().anyMatch(s -> s.contains("Reloaded: Hot")), console.toString());
     }
 
     @Test

@@ -10,6 +10,7 @@ package org.domi.furnace.server.world.gen;
 import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ChunkColumn;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.DebugLevelSource")
 public final class DebugWorldSource implements WorldSource {
 
     /** 바닐라 DebugLevelSource 가 층을 두는 높이. */
@@ -28,7 +29,7 @@ public final class DebugWorldSource implements WorldSource {
     /** minY..minY+16×sectionCount 가 60 과 70 을 품어야 한다(오버월드 높이). */
     public DebugWorldSource(BlockRegistry reg, int biomeId, int minY, int sectionCount) {
         if (minY > BARRIER_Y || minY + sectionCount * 16 <= STATE_Y) {
-            throw new IllegalArgumentException("디버그 월드는 y=" + BARRIER_Y + ".." + STATE_Y + " 를 품은 높이가 필요하다: " + minY + ".." + (minY + sectionCount * 16));
+            throw new IllegalArgumentException("a debug world needs a height range containing y=" + BARRIER_Y + ".." + STATE_Y + " but got: " + minY + ".." + (minY + sectionCount * 16));
         }
         this.totalStates = reg.totalStateCount();
         this.gridWidth = ceil((float) Math.sqrt((float) totalStates));
@@ -46,6 +47,9 @@ public final class DebugWorldSource implements WorldSource {
         return f > (float) i ? i + 1 : i;
     }
 
+    /** 모든 칸의 바이옴 번호(바닐라 디버그 월드는 평원 하나). */
+    public int biomeId() { return biomeId; }
+
     public int gridWidth() { return gridWidth; }
 
     public int gridHeight() { return gridHeight; }
@@ -62,6 +66,13 @@ public final class DebugWorldSource implements WorldSource {
         }
         return air;
     }
+
+    /** 모든 상태를 격자로 늘어놓을 뿐 시드·상태가 없다(T-203). */
+    @Override
+    public DebugWorldSource freshCopy(long seed) { return this; }
+
+    @Override
+    public int noiseBiome(int quartX, int quartY, int quartZ) { return biomeId; }
 
     @Override
     public ChunkColumn generate(int chunkX, int chunkZ) {

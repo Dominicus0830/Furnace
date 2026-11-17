@@ -1,6 +1,7 @@
 // 로그인 파이프라인 검증: 순서 위반·잘못된 이름·버전 불일치는 사유와 함께 거부, 같은 이름 재접속은 기존 세션을 킥
 package org.domi.furnace.server.net;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -39,7 +40,7 @@ class LoginFlowTest {
     private EmbeddedChannel newConn() {
         if (sched == null) {
             sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-            BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+            BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
             world = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2,
                     reg.directBits(), 7, org.domi.furnace.server.TestServers.ioPool());
             world.worldDir(tmp);

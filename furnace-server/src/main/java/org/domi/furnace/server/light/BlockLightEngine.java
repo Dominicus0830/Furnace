@@ -1,11 +1,18 @@
 // 바닐라 BlockLightEngine: 발광 블록에서 퍼지는 빛. 이웃 = 자기 값 − max(1, 이웃의 빛 막는 정도), 면이 가리면 못 지나간다.
 package org.domi.furnace.server.light;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("net.minecraft.world.level.lighting.BlockLightEngine")
 public final class BlockLightEngine extends LightEngine {
 
     public BlockLightEngine(LightWorld world) { super(world); }
 
-    @Override protected byte[][] layers(ChunkLight cl) { return cl.block; }
+    @Override protected byte[] layer(ChunkLight cl, int section) { return cl.block(section); }
+
+    @Override protected byte[] writableLayer(ChunkLight cl, int section) { return cl.writableBlock(section); }
+
+    @Override protected boolean isSky() { return false; }
 
     private int emission(long pos, int state) {
         int e = Math.max(LightTables.lightEmission(state), world.extraEmission(px(pos), py(pos), pz(pos)));
@@ -55,7 +62,10 @@ public final class BlockLightEngine extends LightEngine {
         for (int dir = 0; dir < 6; dir++) {
             if (!shouldPropagateInDirection(flags, dir)) continue;
             long np = offset(pos, dir);
-            if (!storing(np)) continue;
+            if (!storing(np)) {
+                decreaseBlocked(np);
+                continue;
+            }
             int nl = level(np);
             if (nl == 0) continue;
             if (nl <= lvl - 1) {

@@ -22,7 +22,7 @@ public final class LightSourcesImpl implements LightSources {
 
     private static World server(org.domi.furnace.api.world.World w) {
         if (w instanceof WorldHandle h) return h.handle();
-        throw new IllegalArgumentException("이 서버의 월드가 아니다: " + w);
+        throw new IllegalArgumentException("not a world of this server: " + w);
     }
 
     /** 주인 키는 플러그인 객체 자체(핫 리로드로 새 객체가 되면 옛 몫은 옛 객체가 꺼질 때 지워진다). */
@@ -33,7 +33,7 @@ public final class LightSourcesImpl implements LightSources {
 
     @Override
     public CompletableFuture<Boolean> set(FurnacePlugin owner, org.domi.furnace.api.world.World world, BlockPos pos, int level) {
-        if (level < 0 || level > 15) throw new IllegalArgumentException("빛 밝기는 0..15: " + level);
+        if (level < 0 || level > 15) throw new IllegalArgumentException("light level must be 0..15: " + level);
         Object key = ownerKey(owner);
         World w = server(world);
         ChunkPos cp = new ChunkPos(pos.chunkX(), pos.chunkZ());

@@ -1,6 +1,7 @@
 // 지도 아이템: 만들기(번호 발급·저장 데이터), 제작 뒤처리(잠금·확대 → 새 번호), 들고 있는 플레이어·액자 표식.
 package org.domi.furnace.server.map;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
@@ -21,7 +22,7 @@ class MapItemsTest {
     @BeforeEach
     void setUp() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         MapStore.install(dir);
     }
 

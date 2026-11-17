@@ -4,6 +4,7 @@ package org.domi.furnace.server.world.gen.feature;
 import org.domi.furnace.server.world.BlockAttrs;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.ReplaceBlobsFeature")
 public final class NetherrackReplaceBlobsFeature implements ConfiguredFeature {
 
     private final int targetBlock, state;

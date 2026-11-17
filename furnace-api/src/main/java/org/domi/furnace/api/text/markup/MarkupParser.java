@@ -1,5 +1,6 @@
-// 마크업 해석기(패키지 내부) — 한 번 훑으며 스택으로 바로 Text 를 만든다(중간 트리 없음).
-// 열린 태그마다 프레임(자식 목록)을 쌓고, 닫힐 때 태그 종류대로 부모 목록에 붙인다. 그라디언트 같은 변형 태그는 닫힐 때 자식 전체를 받는다.
+// 마크업 해석기(패키지 내부). 한 번 훑으며 스택으로 바로 Text 를 만든다(중간 트리 없음).
+// 열린 태그마다 프레임(자식 목록)을 쌓고, 닫힐 때 태그 종류대로 부모 목록에 붙인다.
+// 그라디언트 같은 변형 태그는 닫힐 때 자식 전체를 받는다.
 package org.domi.furnace.api.text.markup;
 
 import java.util.ArrayList;
@@ -46,7 +47,7 @@ final class MarkupParser implements Context {
 
     /** 원문 치환(Placeholder.parsed)까지 처리하고 해석한다. */
     static Text parseFull(String input, TagResolver resolver, boolean strict, int nest) {
-        if (nest > MAX_NEST) throw new MarkupParseException("마크업 중첩이 너무 깊다", input, -1);
+        if (nest > MAX_NEST) throw new MarkupParseException("markup nesting is too deep", input, -1);
         String s = expand(input, resolver, 0);
         MarkupParser p = new MarkupParser(input, resolver, strict, nest);
         p.feed(s, 0);
@@ -95,7 +96,7 @@ final class MarkupParser implements Context {
             if (kind != TagScanner.CLOSE && name.equals("pre")) {
                 int close = indexOfIgnoreCase(s, "</pre>", end);
                 if (close < 0) {
-                    if (strict) throw error("닫히지 않은 태그: <pre>", i);
+                    if (strict) throw error("unclosed tag: <pre>", i);
                     text.append(s, end, n);
                     i = n;
                 } else {
@@ -156,11 +157,11 @@ final class MarkupParser implements Context {
             }
         }
         if (idx < 0) {
-            if (strict) throw error("여는 태그가 없는 닫는 태그: </" + name + ">", pos);
+            if (strict) throw error("closing tag without an opening tag: </" + name + ">", pos);
             return resolver.has(name); // 아는 태그면 조용히 버리고, 모르면 글자로 남긴다
         }
         if (strict && idx != stack.size() - 1) {
-            throw error("닫는 태그 순서가 어긋났다: </" + name + "> 앞에 <" + stack.get(stack.size() - 1).display + "> 가 열려 있다", pos);
+            throw error("closing tags are out of order: </" + name + "> while <" + stack.get(stack.size() - 1).display + "> is still open", pos);
         }
         flushText();
         closeFrames(idx);
@@ -170,7 +171,7 @@ final class MarkupParser implements Context {
     private Text finish() {
         flushText();
         if (!stack.isEmpty()) {
-            if (strict) throw error("닫히지 않은 태그: <" + stack.get(stack.size() - 1).display + ">", -1);
+            if (strict) throw error("unclosed tag: <" + stack.get(stack.size() - 1).display + ">", -1);
             closeFrames(0);
         }
         return switch (root.size()) {

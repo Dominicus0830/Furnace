@@ -2,14 +2,17 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.chat.ChatType;
 import org.domi.furnace.server.net.io.nbt.NbtWriter;
 import org.domi.furnace.server.net.protocol.Packet;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundDisguisedChatPacket")
 public record DisguisedChatPacket(Text message, ChatType.Bound bound) implements Packet {
 
-    public static final int ID = 0x1E;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_DISGUISED_CHAT;
 
     @Override
     public int id() { return ID; }

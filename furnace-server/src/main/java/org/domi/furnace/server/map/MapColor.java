@@ -2,6 +2,7 @@
 // 블록 상태별 색은 blocks/stateflags 표(BlockInfo.mapColor)에 RGB 로 있다 — 번호 표(blocks/mapcolors, tools/vanilla-data/ExportMapColors)로 번호를 되찾는다.
 package org.domi.furnace.server.map;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -12,7 +13,9 @@ import java.util.HashMap;
 import java.util.Map;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.world.BlockAttrs;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.level.material.MapColor")
 public final class MapColor {
     private MapColor() { }
 
@@ -32,8 +35,8 @@ public final class MapColor {
 
     private static byte[] buildStateIds() {
         Map<Integer, Integer> idByRgb = new HashMap<>();
-        try (InputStream in = MapColor.class.getClassLoader().getResourceAsStream("blocks/mapcolors_1.21.1.txt")) {
-            if (in == null) throw new IllegalStateException("지도 색 표 리소스 없음");
+        try (InputStream in = MapColor.class.getClassLoader().getResourceAsStream("blocks/mapcolors_" + GameVersion.RESOURCE_TAG + ".txt")) {
+            if (in == null) throw new IllegalStateException("map color table resource is missing");
             BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             String line;
             while ((line = r.readLine()) != null) {
@@ -47,7 +50,7 @@ public final class MapColor {
         byte[] t = new byte[BlockAttrs.get().stateCount()];
         for (int s = 0; s < t.length; s++) {
             Integer id = idByRgb.get(B.INFO.mapColor(s));
-            if (id == null) throw new IllegalStateException("모르는 지도 색 RGB: 상태 " + s);
+            if (id == null) throw new IllegalStateException("unknown map color RGB: state " + s);
             t[s] = (byte) (int) id;
         }
         return t;

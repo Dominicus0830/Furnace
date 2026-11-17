@@ -1,11 +1,13 @@
 // 바닐라 PoweredRailBlock: 전동·활성화 레일. 신호를 받거나 같은 레일 줄(최대 8칸)을 타고 신호가 이어지면 켜진다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 
+@VanillaPort("net.minecraft.world.level.block.PoweredRailBlock")
 public class PoweredRailBlock extends BaseRailBlock {
 
     private static final Prop POWERED = B.prop("powered");
@@ -17,7 +19,7 @@ public class PoweredRailBlock extends BaseRailBlock {
     static {
         String[] vs = SHAPE.values(B.defaultState("powered_rail"));
         String[] want = {"north_south", "east_west", "ascending_east", "ascending_west", "ascending_north", "ascending_south"};
-        if (!java.util.Arrays.equals(vs, want)) throw new IllegalStateException("powered_rail shape 값 순서가 다르다");
+        if (!java.util.Arrays.equals(vs, want)) throw new IllegalStateException("powered_rail shape values are in a different order");
     }
 
     /** findPoweredRailSignal: 레일 줄을 따라 searchForward 방향으로 신호 받는 같은 레일을 찾는다. */

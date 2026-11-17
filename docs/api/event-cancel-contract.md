@@ -52,6 +52,7 @@
 | `LeavesDecayEvent` | `SERVER_DRIVEN` | - | 잎 |
 | `EntitySpawnEvent` | `CLIENT_PREDICTED` | 플레이어가 아이템으로 만든 경우(던지기·배·수레·거치대·액자·불꽃·수정·엔더의 눈·활·쇠뇌·삼지창·낚싯대): 손 칸 또는 전체 인벤토리 | 엔티티, 아이템 소모(활·쇠뇌는 뽑은 탄약과 내구도, 쇠뇌는 장전 상태), 낚시찌 연결 |
 | `EntityBreedEvent` | `SERVER_DRIVEN` | - | 새끼, 사랑 상태 |
+| `EntityChangeBlockEvent` | `SERVER_DRIVEN` | - | 엔티티가 바꾸려던 블록(떨어지는 블록·엔더맨·문 부수기 등, 하위 `EntityBreakDoorEvent` 포함). 플레이어 도구 쓰기(삽·도끼 등)는 클라이언트가 먼저 그렸어도 use_item_on 순번 응답(block changed ack)으로 되돌아간다 — 가정, 봇 시험 전 |
 | `EntityDamageEvent` | `SERVER_DRIVEN` | - | 체력, 피격 효과 |
 | `EntityDeathEvent` | `SERVER_DRIVEN` | - | 죽음(체력은 reviveHealth), 드롭·경험치·사망 소리 없음, 장비 그대로 |
 | `EntityExplodeEvent` | `SERVER_DRIVEN` | - | 블록, 불, 폭발 패킷 |
@@ -99,9 +100,11 @@
 | `PlayerFishEvent` | `SERVER_DRIVEN` | - | 낚시찌 연결·낚싯대 내구도 |
 | `PlayerHandshakeEvent` | `SERVER_DRIVEN` | - | 로그인(끊기 패킷만 나가고 Player 도 만들어지지 않는다) |
 | `FunctionExecuteEvent` | `SERVER_DRIVEN` | - | 데이터 팩 함수 본문 실행(통째로 건너뜀) |
+| `GameRuleChangeEvent` | `SERVER_DRIVEN` | - | /gamerule 규칙 값(명령은 성공하고 지금 값을 알린다, 값 바뀜 처리는 지금 값으로 한 번 돈다) |
 | `FunctionCommandEvent` | `SERVER_DRIVEN` | - | 함수 안 명령 한 줄 실행(그 줄만 건너뜀) |
 | `ServerCommandEvent` | `SERVER_DRIVEN` | - | 콘솔 명령 실행 |
 | `RemoteServerCommandEvent` | `SERVER_DRIVEN` | - | RCON 명령 실행(취소면 빈 응답) |
+| `AsyncTabCompleteEvent` | `SERVER_DRIVEN` | - | 자동완성 응답(취소·후보 없는 handled 면 응답 없음, 콘솔은 명령 트리 후보만) |
 
 ## 5. 알려진 한계
 

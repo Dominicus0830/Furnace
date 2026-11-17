@@ -1,6 +1,9 @@
 // 바닐라 MovingPistonBlock: 움직이는 피스톤(밀리는 중인 블록 자리). 이동은 블록 엔티티(PistonMovingBlockEntity)가 2틱 동안 처리한다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
+import org.domi.furnace.server.block.CollisionContext;
+
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -13,6 +16,7 @@ import org.domi.furnace.server.block.Shape;
 import org.domi.furnace.server.block.entity.PistonMovingBlockEntity;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.piston.MovingPistonBlock")
 public class MovingPistonBlock extends BaseEntityBlock {
 
     static final Prop FACING = B.prop("facing"), TYPE = B.prop("type");
@@ -57,7 +61,7 @@ public class MovingPistonBlock extends BaseEntityBlock {
     public Shape getShape(int state, BlockLevel level, Pos pos) { return Shape.EMPTY; }
 
     @Override
-    public Shape getCollisionShape(int state, BlockLevel level, Pos pos, BlockActor entity) {
+    public Shape getCollisionShape(int state, BlockLevel level, Pos pos, CollisionContext ctx) {
         return level.getBlockEntity(pos) instanceof PistonMovingBlockEntity m ? m.getCollisionShape(level, pos) : Shape.EMPTY;
     }
 }

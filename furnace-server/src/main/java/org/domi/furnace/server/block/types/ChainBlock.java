@@ -1,11 +1,13 @@
 // 바닐라 ChainBlock: 기둥처럼 축으로 놓고, 물에 잠길 수 있다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.PlaceContext;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.ChainBlock")
 public class ChainBlock extends RotatedPillarBlock {
 
     public ChainBlock(int block) { super(block); }

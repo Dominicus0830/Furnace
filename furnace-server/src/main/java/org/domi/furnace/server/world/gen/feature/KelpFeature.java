@@ -1,13 +1,15 @@
 package org.domi.furnace.server.world.gen.feature;
 
+import org.domi.furnace.server.world.StateIds;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.KelpFeature")
 public final class KelpFeature implements ConfiguredFeature {
 
-    private static final int WATER_MIN_STATE = 80;
-    private static final int WATER_MAX_STATE = 95;
-    private static final int WATER_SOURCE_STATE = 80;
+    private static final int WATER_MIN_STATE = StateIds.WATER_FIRST;
+    private static final int WATER_MAX_STATE = StateIds.WATER_LAST;
+    private static final int WATER_SOURCE_STATE = StateIds.WATER_SOURCE;
 
     private final int kelpDefaultStateId;
     private final int kelpPlantStateId;

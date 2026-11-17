@@ -1,4 +1,4 @@
-// YAML/TOML 파서가 공유하는 주석 수집 보조 (빈 줄=null, 헤더 분리)
+// YAML/TOML 파서가 함께 쓰는 주석 수집 보조다(빈 줄은 null, 헤더를 분리한다)
 package org.domi.furnace.api.config;
 
 import java.util.ArrayList;
@@ -23,8 +23,8 @@ final class Comments {
     }
 
     /**
-     * 문서 첫 키 앞에 쌓인 주석에서 헤더를 분리한다. 마지막 빈 줄 앞까지가 헤더이고 나머지는 첫 키의 주석으로 남는다.
-     * all=true 면(키가 하나도 없는 문서) 전체가 헤더. pending 에는 헤더가 빠진 나머지가 남는다.
+     * 문서 첫 키 앞에 쌓인 주석에서 헤더를 분리한다. 마지막 빈 줄 앞까지가 헤더이고, 나머지는 첫 키의 주석으로 남는다.
+     * all=true 면(키가 하나도 없는 문서) 전체가 헤더다. pending 에는 헤더가 빠진 나머지가 남는다.
      */
     static List<String> extractHeader(ArrayList<String> pending, boolean all) {
         int cut = -1;

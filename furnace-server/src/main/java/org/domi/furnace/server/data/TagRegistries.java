@@ -3,6 +3,7 @@
 //  - 동기화되는 동적 레지스트리: registries/1.21.1.txt (Furnace 가 보내는 순서)
 package org.domi.furnace.server.data;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -26,8 +27,8 @@ public final class TagRegistries {
     private final Map<String, Map<ResourceId, Integer>> ids = new HashMap<>();
 
     public TagRegistries(RegistrySet dynamic) {
-        try (InputStream in = TagRegistries.class.getClassLoader().getResourceAsStream("registries/builtin-1.21.1.txt")) {
-            if (in == null) throw new IllegalStateException("registries/builtin-1.21.1.txt 없음");
+        try (InputStream in = TagRegistries.class.getClassLoader().getResourceAsStream("registries/builtin-" + GameVersion.RESOURCE_TAG + ".txt")) {
+            if (in == null) throw new IllegalStateException("registries/builtin-" + GameVersion.RESOURCE_TAG + ".txt is missing");
             BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             String line;
             while ((line = r.readLine()) != null) {

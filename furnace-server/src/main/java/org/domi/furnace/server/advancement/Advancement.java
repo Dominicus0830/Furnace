@@ -14,7 +14,9 @@ import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.loot.Components;
 import org.domi.furnace.server.loot.ItemData;
 import org.domi.furnace.server.loot.LootRegistries;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.advancements.Advancement")
 public record Advancement(ResourceId id, ResourceId parent, DisplayInfo display, Rewards rewards, Map<String, Criterion> criteria,
                           List<List<String>> requirements, boolean sendsTelemetryEvent) {
 

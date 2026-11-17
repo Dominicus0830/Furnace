@@ -1,4 +1,4 @@
-// 서식 플레이스홀더 — 숫자·날짜·개수에 따른 문구·참/거짓 문구·목록 잇기. 서식은 태그 인자로 고른다: <n:'ko-KR':'#.##'>.
+// 서식 플레이스홀더다. 숫자, 날짜, 개수에 따른 문구, 참/거짓 문구, 목록 잇기를 한다. 서식은 태그 인자로 고른다. 예: <n:'ko-KR':'#.##'>.
 package org.domi.furnace.api.text.markup;
 
 import java.text.ChoiceFormat;
@@ -38,7 +38,7 @@ public final class Formatter {
                     }
                 }
             } catch (IllegalArgumentException e) {
-                throw ctx.newException("숫자 서식이 잘못됐다: " + e.getMessage());
+                throw ctx.newException("invalid number format: " + e.getMessage());
             }
             return Tag.selfClosingInserting(Text.text(f.format(number)));
         });
@@ -53,7 +53,7 @@ public final class Formatter {
             try {
                 return Tag.selfClosingInserting(Text.text(DateTimeFormatter.ofPattern(args.pop().value(), locale).format(time)));
             } catch (RuntimeException e) {
-                throw ctx.newException("날짜 서식이 잘못됐다: " + e.getMessage());
+                throw ctx.newException("invalid date format: " + e.getMessage());
             }
         });
     }
@@ -61,12 +61,12 @@ public final class Formatter {
     /** 개수에 따른 문구. 인자는 ChoiceFormat 패턴: <c:'0#없음|1#하나|1&lt;{0}개'> ({0} 은 숫자). 고른 문구는 마크업으로 해석된다(단, ChoiceFormat 은 문구 안의 '#'·'<' 를 예약 문자로 보므로 태그를 넣으려면 따옴표로 감싸야 한다). */
     public static TagResolver choice(String name, Number number) {
         return TagResolver.resolver(name, (args, ctx) -> {
-            String pattern = args.popOr("choice 에는 ChoiceFormat 패턴이 필요하다").value();
+            String pattern = args.popOr("choice needs a ChoiceFormat pattern").value();
             String picked;
             try {
                 picked = new ChoiceFormat(pattern).format(number.doubleValue());
             } catch (IllegalArgumentException e) {
-                throw ctx.newException("ChoiceFormat 패턴이 잘못됐다: " + e.getMessage());
+                throw ctx.newException("invalid ChoiceFormat pattern: " + e.getMessage());
             }
             if (picked.indexOf("{0}") >= 0) picked = picked.replace("{0}", NumberFormat.getInstance().format(number));
             return Tag.preProcessParsed(picked);
@@ -76,8 +76,8 @@ public final class Formatter {
     /** 참/거짓에 따른 문구: <b:'켜짐':'꺼짐'>. 고른 문구는 마크업으로 해석된다. */
     public static TagResolver booleanChoice(String name, boolean value) {
         return TagResolver.resolver(name, (args, ctx) -> {
-            String t = args.popOr("booleanChoice 에는 참일 때 문구가 필요하다").value();
-            String f = args.popOr("booleanChoice 에는 거짓일 때 문구가 필요하다").value();
+            String t = args.popOr("booleanChoice needs the text for true").value();
+            String f = args.popOr("booleanChoice needs the text for false").value();
             return Tag.preProcessParsed(value ? t : f);
         });
     }

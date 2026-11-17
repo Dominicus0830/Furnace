@@ -9,7 +9,9 @@ import org.domi.furnace.server.command.brigadier.CommandContextBuilder;
 import org.domi.furnace.server.command.brigadier.ParseResults;
 import org.domi.furnace.server.command.brigadier.ParsedArgument;
 import org.domi.furnace.server.command.brigadier.ParsedCommandNode;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.network.chat.SignableCommand")
 public record SignableCommand(List<Argument> arguments) {
 
     public record Argument(String name, String value) {}

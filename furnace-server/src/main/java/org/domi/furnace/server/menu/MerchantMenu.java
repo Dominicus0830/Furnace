@@ -5,7 +5,9 @@ import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.trade.ItemCost;
 import org.domi.furnace.server.trade.Merchant;
 import org.domi.furnace.server.trade.MerchantOffer;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.inventory.MerchantMenu")
 public class MerchantMenu extends AbstractContainerMenu {
 
     public static final int PAYMENT1_SLOT = 0, PAYMENT2_SLOT = 1, RESULT_SLOT = 2, INV_SLOT_START = 3, INV_SLOT_END = 30, USE_ROW_START = 30, USE_ROW_END = 39;
@@ -30,7 +32,14 @@ public class MerchantMenu extends AbstractContainerMenu {
 
     @Override public boolean canTakeItemForPickAll(ItemStack stack, Slot slot) { return false; }
 
-    @Override public boolean stillValid(MenuPlayer player) { return trader.tradingPlayer() == player; }
+    @Override public boolean stillValid(MenuPlayer player) {
+        // Paper 의 ServerLevel 엔티티 제거 훅은 거래 상대를 놓지 못한 채(플러그인 remove·변환·청크 내림) 지워진 상인의 창도 닫는다
+        return trader.tradingPlayer() == player && !(trader instanceof org.domi.furnace.server.entity.Entity e && e.isRemoved());
+    }
+
+    @Override public org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason invalidCloseReason() {
+        return trader instanceof org.domi.furnace.server.entity.Entity e ? reasonForEntity(e) : super.invalidCloseReason();
+    }
 
     @Override
     public void slotsChanged(Container container) {

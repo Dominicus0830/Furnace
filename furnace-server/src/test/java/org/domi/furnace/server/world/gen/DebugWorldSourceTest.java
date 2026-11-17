@@ -1,6 +1,7 @@
 // 월드 프리셋 debug_all_block_states(DebugWorldSource)와 single_biome_surface(고정 바이옴 노이즈 월드).
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -21,8 +22,8 @@ class DebugWorldSourceTest {
 
     @BeforeAll
     static void load() {
-        blocks = BlockRegistry.load("blocks/1.21.1.txt");
-        registries = RegistrySet.load("registries/1.21.1.txt");
+        blocks = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         plains = registries.indexOf("minecraft:worldgen/biome", "minecraft:plains");
     }
 

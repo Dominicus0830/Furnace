@@ -1,5 +1,8 @@
-// 블록 한 칸이 바뀌었다고 알린다. 서버 월드는 바뀌지 않는다 — 보낸 플레이어에게만 보이는 "가상 블록"을 만들 때 쓴다.
-// block 은 이름 기반 BlockData 라 버전과 무관하다(서버가 그 버전의 블록 상태 번호로 바꾼다). 없는 블록이면 보낼 때 IllegalArgumentException.
+// 블록 한 칸이 바뀌었다고 클라이언트에 알린다. 서버 월드는 바뀌지 않는다.
+// 보낸 플레이어에게만 보이는 "가상 블록"을 만들 때 쓴다.
+//
+// block 은 이름 기반 BlockData 라 버전과 무관하다. 서버가 그 버전의 블록 상태 번호로 바꿔 준다.
+// 없는 블록이면 보낼 때 IllegalArgumentException 을 던진다.
 package org.domi.furnace.api.packet.clientbound;
 
 import java.util.Objects;

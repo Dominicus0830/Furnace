@@ -14,6 +14,7 @@ import org.domi.furnace.server.world.gen.structure.JigsawPools.Jig;
 import org.domi.furnace.server.world.gen.structure.JigsawPools.Pool;
 import org.domi.furnace.server.world.gen.structure.template.BlockStateTable;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.structure.structures.JigsawStructure")
 public final class JigsawStructure extends StructureType {
 
     private final String startPool;
@@ -68,14 +69,14 @@ public final class JigsawStructure extends StructureType {
             if (lo > hi) return lo;
             return random.nextInt(hi - lo + 1) + lo;   // Mth.randomBetweenInclusive
         }
-        throw new IllegalArgumentException("미지원 start_height: " + h);
+        throw new IllegalArgumentException("unsupported start_height: " + h);
     }
 
     private static int anchor(JsonObject a, int minY, int genDepth) {
         if (a.has("absolute")) return a.get("absolute").getAsInt();
         if (a.has("above_bottom")) return minY + a.get("above_bottom").getAsInt();
         if (a.has("below_top")) return minY + genDepth - 1 - a.get("below_top").getAsInt();
-        throw new IllegalArgumentException("미지원 앵커: " + a);
+        throw new IllegalArgumentException("unsupported anchor: " + a);
     }
 
     @Override
@@ -127,7 +128,8 @@ public final class JigsawStructure extends StructureType {
             List<JigsawPiece> pieces = new ArrayList<>();
             pieces.add(startPiece);
             if (maxDepth > 0) {
-                int minBuild = c.terrain.minY(), maxBuild = c.terrain.minY() + c.terrain.genDepth();
+                // 바닐라 JigsawPlacement.addPieces: 차원 높이(LevelHeightAccessor) 기준 — 생성기 minY 가 아니다(평지 0, 네더 노이즈 높이 128)
+                int minBuild = c.terrain.levelMinY(), maxBuild = c.terrain.levelMaxY();
                 int[] outer = {cx - maxDistanceFromCenter, Math.max(stubY - maxDistanceFromCenter, minBuild + paddingBottom), cz - maxDistanceFromCenter,
                     cx + maxDistanceFromCenter + 1, Math.min(stubY + maxDistanceFromCenter + 1, maxBuild - paddingTop), cz + maxDistanceFromCenter + 1};
                 FreeSpace free = new FreeSpace(outer);
@@ -416,7 +418,7 @@ public final class JigsawStructure extends StructureType {
                     JsonObject g = weighted(groups, r);
                     for (com.google.gson.JsonElement e : g.getAsJsonArray("data")) resolve(e.getAsJsonObject(), r, out);
                 }
-                default -> throw new IllegalArgumentException("미지원 pool alias: " + type);
+                default -> throw new IllegalArgumentException("unsupported pool alias: " + type);
             }
         }
 

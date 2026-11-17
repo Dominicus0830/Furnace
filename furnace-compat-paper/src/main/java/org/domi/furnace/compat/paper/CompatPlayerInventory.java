@@ -22,6 +22,10 @@ public final class CompatPlayerInventory extends CompatInventory implements Play
     @Override
     int storageSize() { return STORAGE; }
 
+    /** Paper: 그 플레이어의 위치. */
+    @Override
+    public org.bukkit.Location getLocation() { return player.getLocation(); }
+
     /** 예약돼 아직 적용되지 않은 단축 칸 선택(없으면 -1). */
     private volatile int pendingHeld = -1;
 

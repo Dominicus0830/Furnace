@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.util.valueproviders.FloatProvider")
 public interface FeatureFloatProvider {
 
     float sample(WorldgenRandom random);
@@ -24,7 +25,7 @@ public interface FeatureFloatProvider {
             case "minecraft:uniform" -> new Uniform(o.get("min_inclusive").getAsFloat(), o.get("max_exclusive").getAsFloat());
             case "minecraft:clamped_normal" -> new ClampedNormal(o.get("mean").getAsFloat(), o.get("deviation").getAsFloat(),
                 o.get("min").getAsFloat(), o.get("max").getAsFloat());
-            default -> throw new IllegalArgumentException("알 수 없는 FloatProvider: " + o);
+            default -> throw new IllegalArgumentException("unknown FloatProvider: " + o);
         };
     }
 

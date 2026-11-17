@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,10 +31,10 @@ public final class JmxMetrics implements AutoCloseable {
             ObjectName name = new ObjectName(OBJECT_NAME);
             if (server.isRegistered(name)) server.unregisterMBean(name);
             server.registerMBean(new Bean(source), name);
-            log.info("JMX 메트릭: {}", OBJECT_NAME);
+            log.info(Lang.t("metrics.jmx-name", OBJECT_NAME));
             return new JmxMetrics(server, name);
         } catch (Exception e) {
-            log.warn("[METRICS] JMX MBean 등록 실패: {}", e.toString());
+            log.warn(Lang.t("metrics.jmx-register-failed", e.toString()));
             return null;
         }
     }
@@ -43,7 +44,7 @@ public final class JmxMetrics implements AutoCloseable {
         try {
             if (server.isRegistered(name)) server.unregisterMBean(name);
         } catch (Exception e) {
-            log.warn("[METRICS] JMX MBean 해제 실패: {}", e.toString());
+            log.warn(Lang.t("metrics.jmx-unregister-failed", e.toString()));
         }
     }
 

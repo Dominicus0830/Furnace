@@ -5,7 +5,11 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.List;
 import java.util.function.Predicate;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({
+        "net.minecraft.world.level.storage.loot.predicates.LootItemCondition",
+        "net.minecraft.world.level.storage.loot.predicates.LootItemConditions"})
 public interface LootCondition extends Predicate<LootContext> {
 
     static boolean allOf(List<LootCondition> conditions, LootContext ctx) {
@@ -152,7 +156,7 @@ public interface LootCondition extends Predicate<LootContext> {
                     return a == active;
                 };
             }
-            default -> throw new LootParseException("모르는 조건: " + type);
+            default -> throw new LootParseException("unknown condition: " + type);
         };
     }
 
@@ -175,7 +179,7 @@ public interface LootCondition extends Predicate<LootContext> {
             case "attacker" -> LootParams.ATTACKING_ENTITY;
             case "direct_attacker" -> LootParams.DIRECT_ATTACKING_ENTITY;
             case "attacking_player" -> LootParams.LAST_DAMAGE_PLAYER;
-            default -> throw new LootParseException("모르는 엔티티 대상: " + name);
+            default -> throw new LootParseException("unknown entity target: " + name);
         };
     }
 }

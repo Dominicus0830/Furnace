@@ -19,8 +19,45 @@ public abstract class MinecraftServer {
 
     protected MinecraftServer() {}
 
+    /**
+     * Paper·CraftBukkit 의 틱 수(정적 필드, N2b-6). 이 클래스를 처음 쓸 때부터 전역 스레드가 틱마다 서버 틱 수로 고쳐 쓴다
+     * ({@code Bukkit.getCurrentTick()} 과 같은 값 — 그 전 틱 동안은 한 틱 늦을 수 있다).
+     */
+    public static int currentTick = furnaceStartTickMirror();
+
+    private static int furnaceStartTickMirror() {
+        try {
+            var server = org.domi.furnace.api.Furnace.server();
+            server.scheduler().global().runAtFixedRate(() -> currentTick = (int) server.currentTick(), 0, 1);
+            return (int) server.currentTick();
+        } catch (RuntimeException | LinkageError notRunning) {
+            return 0;   // 서버 없이 올린 시험
+        }
+    }
+
+    /** 바닐라: 주 스레드에 맡기는 실행기 — Furnace 는 전역 스레드(N2b-6). */
+    public final java.util.concurrent.Executor executor = task -> org.domi.furnace.api.Furnace.server().scheduler().global().execute(task);
+
+    /** 바닐라 BlockableEventLoop#execute: 주 스레드에 맡긴다 — Furnace 는 전역 스레드에서 돈다(Bukkit 주 스레드 작업과 같은 곳, N2b-6). */
+    public void execute(Runnable task) { executor.execute(task); }
+
     /** CraftBukkit 이 더한 정적 입구: 지금 서버. */
     public static MinecraftServer getServer() { return DedicatedServer.INSTANCE; }
+
+    private final net.minecraft.server.network.ServerConnectionListener connection = new net.minecraft.server.network.ServerConnectionListener();
+
+    /**
+     * 서버 접속 수신(N3 2단계, 패킷 라이브러리가 소켓 채널 목록을 읽는 자리). 지금은 채널 목록이 비어 있다.
+     * 플러그인이 여기 들어오면 패킷 파이프라인에 끼어들려는 것이므로, 아직 가로채기·보내기가 이어지지 않았음을 한 번 알린다.
+     */
+    public net.minecraft.server.network.ServerConnectionListener getConnection() {
+        warnPipelineNotBridged();
+        return connection;
+    }
+
+    private static void warnPipelineNotBridged() {
+        org.domi.furnace.compat.nms.NmsCaller.warnOnce("pipeline", "compat.pipeline-not-bridged");
+    }
 
     /** 바닐라 서버 버전 이름(1.21.1). */
     public String getServerVersion() { return CraftServer.INSTANCE.getMinecraftVersion(); }
@@ -33,6 +70,22 @@ public abstract class MinecraftServer {
     public int getMaxPlayers() { return CraftServer.INSTANCE.getMaxPlayers(); }
 
     public String getMotd() { return CraftServer.INSTANCE.getMotd(); }
+
+    /** 그 차원 키의 월드(없으면 null). */
+    public net.minecraft.server.level.ServerLevel getLevel(net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> key) {
+        for (ServerLevel l : getAllLevels()) if (l.dimension() == key) return l;
+        return null;
+    }
+
+    /** 오버월드. */
+    public net.minecraft.server.level.ServerLevel overworld() { return getLevel(net.minecraft.world.level.Level.OVERWORLD); }
+
+    /** 불러온 월드의 차원 키. */
+    public java.util.Set<net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level>> levelKeys() {
+        java.util.Set<net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level>> out = new java.util.LinkedHashSet<>();
+        for (ServerLevel l : getAllLevels()) out.add(l.dimension());
+        return out;
+    }
 
     /** 불러온 월드 전부의 shim. */
     public Iterable<ServerLevel> getAllLevels() {

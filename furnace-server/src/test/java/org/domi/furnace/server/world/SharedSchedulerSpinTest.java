@@ -2,6 +2,7 @@
 // 설계: docs/feature-parity/shared-scheduler-design-2026-10-28.md §3.1(N4), §5(N6)
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.lang.management.ManagementFactory;
@@ -37,7 +38,7 @@ class SharedSchedulerSpinTest {
         SharedScheduler pool = new SharedScheduler(4, "furnace-region-spintest-", 17_000_000L);
         pool.start();
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         ExecutorService io = Executors.newSingleThreadExecutor(), gen = Executors.newSingleThreadExecutor();
         try {
             World w = new World(DimensionType.OVERWORLD, new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, pool, 4, 1, 2, 2,

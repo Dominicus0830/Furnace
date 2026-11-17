@@ -22,7 +22,9 @@ import org.domi.furnace.server.command.brigadier.SuggestionProvider;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.entity.Rider;
 import org.domi.furnace.server.scores.ScoreHolder;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.arguments.ScoreHolderArgument")
 public final class ScoreHolderArgument implements ArgumentType<ScoreHolderArgument.Result> {
 
     public static final SimpleCommandExceptionType ERROR_NO_RESULTS = new SimpleCommandExceptionType(Text.translatable("argument.scoreHolder.empty"));

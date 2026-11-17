@@ -1,6 +1,7 @@
 // oracle structplacement 덤프(vanilla RandomSpreadStructurePlacement) vs Furnace StructurePlacementCatalog 판정 parity 검증.
 package org.domi.furnace.server.world.gen.structure;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.BufferedReader;
@@ -20,7 +21,7 @@ class StructurePlacementParityTest {
     void placementCatalog_matchesVanillaOracleDump() throws Exception {
         List<ChunkFixture> fixture = loadFixture();
 
-        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
+        WorldgenData data = WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG);
         StructurePlacementCatalog catalog = StructurePlacementCatalog.load(data);
 
         int mismatches = 0;
@@ -50,7 +51,7 @@ class StructurePlacementParityTest {
 
     private static List<ChunkFixture> loadFixture() throws Exception {
         try (InputStream in = StructurePlacementParityTest.class.getResourceAsStream(
-                "/worldgen/fixtures/structplacement_1234_-64_-64_64_64.txt")) {
+                "/worldgen/fixtures/" + GameVersion.RESOURCE_TAG + "/structplacement_1234_-64_-64_64_64.txt")) {
             assertNotNull(in, "structplacement fixture 없음 — oracle structplacement:-64:-64:64:64 실행 필요");
             BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             List<ChunkFixture> result = new ArrayList<>();

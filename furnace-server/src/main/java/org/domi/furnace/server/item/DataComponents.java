@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 
 import static org.domi.furnace.server.item.NCodec.f;
 import static org.domi.furnace.server.item.NCodec.fDef;
@@ -16,6 +17,7 @@ import static org.domi.furnace.server.item.PCodec.optEmpty;
 import static org.domi.furnace.server.item.PCodec.record;
 import static org.domi.furnace.server.item.PCodec.req;
 
+@VanillaPort("net.minecraft.core.component.DataComponents")
 public final class DataComponents {
     private DataComponents() {}
 

@@ -28,7 +28,7 @@ public class TemptingSensor extends Sensor<PathfinderMob> {
         List<Player> list = new ArrayList<>();
         level.forEachPlayer(p -> {
             if (p.gameMode() != GameMode.SPECTATOR && !p.isDisconnected() && TEMPT_TARGETING.test(mob, p) && NearestLivingEntitySensor.distSqr(mob, p) < 100.0
-                    && playerHoldingTemptation(p)) list.add(p);
+                    && playerHoldingTemptation(p) && !mob.hasPassenger(p)) list.add(p);   // 바닐라: 나를 탄 플레이어는 빼고
         });
         list.sort(Comparator.comparingDouble(p -> NearestLivingEntitySensor.distSqr(mob, p)));
         if (!list.isEmpty()) brain.setMemory(MemoryModuleType.TEMPTING_PLAYER, list.get(0));

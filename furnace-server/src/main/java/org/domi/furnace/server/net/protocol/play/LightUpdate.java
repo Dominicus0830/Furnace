@@ -3,14 +3,17 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.light.ChunkLight;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundLightUpdatePacket")
 public record LightUpdate(int chunkX, int chunkZ, long skyMask, long blockMask, long emptySkyMask, long emptyBlockMask,
                           byte[][] skyData, byte[][] blockData) implements Packet {
 
-    public static final int ID = 0x2A;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_LIGHT_UPDATE;
 
     /**
      * 빛 섹션 i(0 = 맨 아래 빛 섹션)가 바뀐 마스크로 패킷을 만든다. lightBase 는 ChunkLight 배열에서 빛 섹션 0 의 첨자.
@@ -23,18 +26,20 @@ public record LightUpdate(int chunkX, int chunkZ, long skyMask, long blockMask, 
             int a = lightBase + i;
             if (a < 0 || a >= ChunkLight.SECTIONS) continue;
             if ((changedSky & 1L << i) != 0) {
-                if (isZero(light.sky[a])) es |= 1L << i;
-                else { sm |= 1L << i; sd.add(light.sky[a].clone()); }
+                if (isZero(light.sky(a))) es |= 1L << i;
+                else { sm |= 1L << i; sd.add(light.sky(a).clone()); }
             }
             if ((changedBlock & 1L << i) != 0) {
-                if (isZero(light.block[a])) eb |= 1L << i;
-                else { bm |= 1L << i; bd.add(light.block[a].clone()); }
+                if (isZero(light.block(a))) eb |= 1L << i;
+                else { bm |= 1L << i; bd.add(light.block(a).clone()); }
             }
         }
         return new LightUpdate(cx, cz, sm, bm, es, eb, sd.toArray(new byte[0][]), bd.toArray(new byte[0][]));
     }
 
     private static boolean isZero(byte[] a) {
+        if (ChunkLight.isKnownZero(a)) return true;
+        if (ChunkLight.isKnownFull(a)) return false;
         for (byte b : a) if (b != 0) return false;
         return true;
     }

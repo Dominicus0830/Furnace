@@ -1,6 +1,7 @@
 // ChunkSnapshot이 ChunkColumn 섹션을 불변 카피로 뜨는지 + getBlock 검증
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import org.domi.furnace.server.world.gen.SuperflatWorldSource;
 import org.junit.jupiter.api.Test;
@@ -9,7 +10,7 @@ class ChunkSnapshotTest {
 
     @Test
     void of_copiesAndIsIndependent() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         ChunkColumn col = new SuperflatWorldSource(reg, 0).generate(0, 0);
         int grass = reg.defaultStateId("minecraft:grass_block");
         assertEquals(grass, col.getBlock(0, -61, 0)); // superflat grass

@@ -1,6 +1,7 @@
 // 파괴수의 방패 막힘(기절·밀치기)과 좀비 근접 공격 쿨다운(바닐라 MeleeAttackGoal) 결정적 시험.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.entity.ai.goal.ZombieAttackGoal;
@@ -13,7 +14,7 @@ class RavagerZombieAttackTest {
     @BeforeAll
     static void install() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static Ravager ravager(SkeletonCombatTest.ArenaLevel level, double x) {

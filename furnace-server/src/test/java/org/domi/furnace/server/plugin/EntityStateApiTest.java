@@ -2,6 +2,7 @@
 // editState 는 소유 스레드로 넘겨 돈다, 효과·밀림(collides)·탑승·NoAI 가 서버 엔티티에 그대로 들어간다.
 package org.domi.furnace.server.plugin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
@@ -40,7 +41,7 @@ class EntityStateApiTest {
 
     @BeforeAll
     static void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @BeforeEach
@@ -48,7 +49,7 @@ class EntityStateApiTest {
         sched = new FurnaceSchedulerImpl(50_000_000L, 1);
         core = TestServers.core(tmp, sched);
         host = core.plugins();
-        core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt"), org.domi.furnace.server.world.ItemRegistry.load("items/1.21.1.txt"));
+        core.world().setRegistries(org.domi.furnace.server.world.BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), org.domi.furnace.server.world.ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"));
         core.world().submitAtChunk(C00, r -> r.chunkAtBlocking(C00)).get(30, TimeUnit.SECONDS);
     }
 
@@ -152,5 +153,31 @@ class EntityStateApiTest {
             return null;
         }));
         assertTrue(onRegion(() -> s.rawPig().isPushable()));
+    }
+    /** A16-01: 위치·체력·지움이 소유 스레드의 지금 값으로 곧바로 읽힌다(핸들의 location()·health() 는 만든 시점 값). */
+    @Test
+    void locationHealthAndRemoveAreLiveOnTheOwnerThread() throws Exception {
+        Spawned s = spawn();
+        double x0 = s.pig().location().x();
+        var seen = onRegion(() -> {
+            var st = (LivingEntityState) s.pig().stateNow().orElseThrow();
+            Pig p = s.rawPig();
+            p.moveTo(p.x() + 2.0, p.y(), p.z(), p.yRot(), p.xRot());
+            float before = st.health();
+            st.setHealth(st.maxHealth() + 100f);   // 최대 체력으로 잘린다
+            float clamped = st.health();
+            st.setHealth(3f);
+            return new double[]{st.location().x(), before, clamped, st.health(), st.maxHealth()};
+        });
+        assertEquals(x0 + 2.0, seen[0], 1e-6, "핸들 스냅샷이 아니라 지금 위치");
+        assertEquals(seen[4], seen[2], 1e-6);
+        assertEquals(3.0, seen[3], 1e-6);
+        assertEquals(x0, s.pig().location().x(), 1e-6, "핸들의 location() 은 만든 시점 값");
+        assertEquals(List.of(true, false), onRegion(() -> {
+            var st = s.pig().stateNow().orElseThrow();
+            boolean before = st.isValid();
+            st.remove();
+            return List.of(before, st.isValid());
+        }));
     }
 }

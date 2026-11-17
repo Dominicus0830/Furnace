@@ -4,8 +4,8 @@ package org.domi.furnace.server.world.gameevent;
 
 import java.util.HashMap;
 import java.util.Map;
-import org.domi.furnace.server.net.registry.TagSet;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.gameevent.GameEvent")
 public final class GameEvent {
 
     /** 레지스트리 순서(builtin-1.21.1.txt 와 같다). */
@@ -55,10 +55,6 @@ public final class GameEvent {
             SHRIEKER_CAN_LISTEN = "minecraft:shrieker_can_listen", IGNORE_VIBRATIONS_SNEAKING = "minecraft:ignore_vibrations_sneaking",
             ALLAY_CAN_LISTEN = "minecraft:allay_can_listen";
 
-    private static final class Tags {
-        static final TagSet SET = TagSet.load("registries/tags-1.21.1.txt");
-    }
-
     /** VibrationSystem.VIBRATION_FREQUENCY_FOR_EVENT(없으면 0). resonate_n 은 n. */
     private static final int[] FREQUENCY = new int[NAMES.length];
 
@@ -95,7 +91,7 @@ public final class GameEvent {
 
     /** Holder.is(태그). */
     public boolean is(String tag) {
-        int[] ids = Tags.SET.ids("minecraft:game_event", tag);
+        int[] ids = org.domi.furnace.server.item.ItemContext.gameplayTags().ids("minecraft:game_event", tag);
         if (ids == null) return false;
         for (int i : ids) if (i == id) return true;
         return false;

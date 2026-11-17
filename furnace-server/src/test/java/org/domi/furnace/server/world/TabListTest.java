@@ -1,6 +1,7 @@
 // 퇴장한 플레이어가 다른 플레이어 탭 목록에 영구히 남지 않는지, 단순히 시야 밖으로 나간 경우엔 탭을 유지하는지 검증
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -34,7 +35,7 @@ class TabListTest {
 
     private void setup(double tgtX) throws Exception {
         sched = new FurnaceSchedulerImpl(50_000_000L, 2);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, sched.regionThreadCount(),
                 16, 20, 20, reg.directBits(), 7, Executors.newSingleThreadExecutor());
         chObs = new ConcurrentEmbeddedChannel();

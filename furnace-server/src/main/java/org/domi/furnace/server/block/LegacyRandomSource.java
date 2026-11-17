@@ -1,6 +1,9 @@
 // 바닐라 LegacyRandomSource — java.util.Random 과 같은 48비트 LCG(스레드 하나에서만 쓴다).
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.server.VanillaPort;
+
+@VanillaPort("net.minecraft.world.level.levelgen.LegacyRandomSource")
 public final class LegacyRandomSource implements RandomSource {
     private static final long MULT = 0x5DEECE66DL, ADD = 0xBL, MASK = (1L << 48) - 1;
 
@@ -50,7 +53,8 @@ public final class LegacyRandomSource implements RandomSource {
 
     public float nextFloat() { return next(24) * 5.9604645E-8F; }
 
-    public double nextDouble() { return (((long) next(26) << 27) + next(27)) * 1.110223E-16F; }
+    /** 바닐라 BitRandomSource.nextDouble — 상수는 double(1.1102230246251565E-16, 2^-53)이어야 한다. float 상수면 곱이 float 로 돌아 24비트로 깎이고 1.0 이 나온다. */
+    public double nextDouble() { return (double) (((long) next(26) << 27) + next(27)) * 1.1102230246251565E-16; }
 
     public boolean nextBoolean() { return next(1) != 0; }
 

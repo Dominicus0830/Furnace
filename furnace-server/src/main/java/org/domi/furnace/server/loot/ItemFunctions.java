@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.command.arguments.NbtPathArgument;
 import org.domi.furnace.server.command.arguments.TagParser;
 import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
@@ -20,6 +21,21 @@ import org.domi.furnace.server.net.io.nbt.NbtTags;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@VanillaPort({
+        "net.minecraft.world.level.storage.loot.functions.SetCustomDataFunction",
+        "net.minecraft.world.level.storage.loot.functions.CopyCustomDataFunction",
+        "net.minecraft.world.level.storage.loot.functions.SetAttributesFunction",
+        "net.minecraft.world.level.storage.loot.functions.SetContainerContents",
+        "net.minecraft.world.level.storage.loot.functions.ModifyContainerContents",
+        "net.minecraft.world.level.storage.loot.functions.SetContainerLootTable",
+        "net.minecraft.world.level.storage.loot.functions.SetLoreFunction",
+        "net.minecraft.world.level.storage.loot.functions.FillPlayerHead",
+        "net.minecraft.world.level.storage.loot.functions.SetBannerPatternFunction",
+        "net.minecraft.world.level.storage.loot.functions.SetFireworksFunction",
+        "net.minecraft.world.level.storage.loot.functions.SetFireworkExplosionFunction",
+        "net.minecraft.world.level.storage.loot.functions.SetBookCoverFunction",
+        "net.minecraft.world.level.storage.loot.functions.SetWrittenBookPagesFunction",
+        "net.minecraft.world.level.storage.loot.functions.SetWritableBookPagesFunction"})
 final class ItemFunctions {
     private ItemFunctions() {}
 
@@ -68,7 +84,7 @@ final class ItemFunctions {
             if (e.isJsonObject()) return (NbtCompound) PCodec.COMPOUND.normalize(Components.fromJson(e));
             return TagParser.parseTag(e.getAsString());
         } catch (CommandSyntaxException ex) {
-            throw new LootParseException("NBT 를 읽을 수 없다: " + ex.getMessage());
+            throw new LootParseException("cannot read the NBT: " + ex.getMessage());
         }
     }
 
@@ -95,7 +111,7 @@ final class ItemFunctions {
                 String id = LootJson.id(o, "source");
                 yield c -> c.world().storageNbt(id);
             }
-            default -> throw new LootParseException("모르는 NBT 제공자: " + type);
+            default -> throw new LootParseException("unknown NBT provider: " + type);
         };
     }
 
@@ -145,7 +161,7 @@ final class ItemFunctions {
         try {
             return NbtPathArgument.of(s);
         } catch (CommandSyntaxException ex) {
-            throw new LootParseException("NBT 경로를 읽을 수 없다: " + s + " (" + ex.getMessage() + ")");
+            throw new LootParseException("cannot read the NBT path: " + s + " (" + ex.getMessage() + ")");
         }
     }
 
@@ -155,7 +171,7 @@ final class ItemFunctions {
         for (JsonElement x : LootJson.req(o, "ops").getAsJsonArray()) {
             JsonObject op = x.getAsJsonObject();
             String mode = LootJson.req(op, "op").getAsString();
-            if (!mode.equals("replace") && !mode.equals("append") && !mode.equals("merge")) throw new LootParseException("모르는 병합 방식: " + mode);
+            if (!mode.equals("replace") && !mode.equals("append") && !mode.equals("merge")) throw new LootParseException("unknown merge mode: " + mode);
             ops.add(new CopyOp(path(LootJson.req(op, "source").getAsString()), path(LootJson.req(op, "target").getAsString()), mode));
         }
         return (s, c) -> {
@@ -185,10 +201,10 @@ final class ItemFunctions {
             String attribute = LootJson.id(m, "attribute");
             if (!regs.exists("minecraft:attribute", attribute)) throw new LootParseException("Unknown registry key in minecraft:attribute: " + attribute);
             String op = LootJson.req(m, "operation").getAsString();
-            if (!ATTRIBUTE_OPS.contains(op)) throw new LootParseException("모르는 속성 연산: " + op);
+            if (!ATTRIBUTE_OPS.contains(op)) throw new LootParseException("unknown attribute operation: " + op);
             List<String> slots = LootJson.list(m, "slot", e -> {
                 String slot = e.getAsString();
-                if (!SLOT_GROUPS.contains(slot)) throw new LootParseException("모르는 장비 칸 묶음: " + slot);
+                if (!SLOT_GROUPS.contains(slot)) throw new LootParseException("unknown equipment slot group: " + slot);
                 return slot;
             });
             if (slots.isEmpty()) throw new LootParseException("Value must be a non-empty list: slot");

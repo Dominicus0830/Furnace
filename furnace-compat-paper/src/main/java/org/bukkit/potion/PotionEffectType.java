@@ -95,7 +95,10 @@ public abstract class PotionEffectType implements Keyed {
     @Deprecated
     public static PotionEffectType getById(int id) { return BY_ID.get(id); }
 
-    /** @deprecated 키 문자열(대소문자 무시, 이름공간 생략 가능)로 찾는다 — Paper 1.21 과 같이 옛 이름(SLOW)은 찾지 않는다. */
+    /**
+     * @deprecated 키 문자열(대소문자 무시, 이름공간 생략 가능)로 찾는다. 옛 이름(SLOW·INCREASE_DAMAGE)은 Paper 처럼 플러그인 클래스를 올릴 때
+     * 바꾼 다리(compat.nms.ApiRenames)가 먼저 새 이름으로 바꿔 넘긴다 — 이 메서드 자체는 옛 이름을 모른다(Bukkit 과 같다).
+     */
     @Deprecated
     public static PotionEffectType getByName(String name) {
         if (name == null) throw new IllegalArgumentException("name cannot be null");

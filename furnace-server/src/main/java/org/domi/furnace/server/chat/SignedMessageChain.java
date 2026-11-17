@@ -7,7 +7,9 @@ import java.util.function.BooleanSupplier;
 import org.domi.furnace.api.text.Text;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.network.chat.SignedMessageChain")
 public final class SignedMessageChain {
 
     private static final Logger log = LoggerFactory.getLogger(SignedMessageChain.class);

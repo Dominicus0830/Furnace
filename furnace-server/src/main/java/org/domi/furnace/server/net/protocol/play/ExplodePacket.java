@@ -3,14 +3,17 @@ package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundExplodePacket")
 public record ExplodePacket(double x, double y, double z, float power, List<Pos> toBlow, float kx, float ky, float kz, int blockInteraction,
                             int smallParticle, int largeParticle, int soundId) implements Packet {
 
-    public static final int ID = 0x20;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_EXPLODE;
 
     @Override public int id() { return ID; }
 

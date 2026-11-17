@@ -1,6 +1,7 @@
 // 좀비: 플레이어를 대상으로 삼아 다가와 때리고(난이도 보통 3), 생성자에서 아기 속성·저장이 맞고, 크리에이티브/관전자는 겨냥하지 않는다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -19,7 +20,7 @@ class ZombieCombatTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static final class ArenaLevel extends BlockPlacementTest.TestLevel {

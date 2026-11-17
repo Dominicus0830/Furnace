@@ -3,6 +3,7 @@ package org.domi.furnace.server.world.storage;
 
 import java.util.Map;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.presets.WorldPreset")
 public enum WorldPreset {
     NORMAL("minecraft:normal", "minecraft:overworld"),
     FLAT("minecraft:flat", null),

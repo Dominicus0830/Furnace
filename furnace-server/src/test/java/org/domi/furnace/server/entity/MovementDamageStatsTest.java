@@ -2,6 +2,7 @@
 // 분기·반올림은 바닐라 ServerPlayer.checkMovementStatistics(aqv.b)·checkRidingStatistics(aqv.q)·Player.actuallyHurt(cmx.f) 바이트코드 대조 결과.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
@@ -28,7 +29,7 @@ class MovementDamageStatsTest {
     @BeforeAll
     static void install() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     @BeforeEach

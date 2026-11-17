@@ -2,7 +2,9 @@
 package org.domi.furnace.server.command.exec;
 
 import org.domi.furnace.server.command.CommandSource;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.execution.UnboundEntryAction")
 @FunctionalInterface
 public interface UnboundEntryAction {
     void execute(CommandSource source, ExecutionContext context, Frame frame);

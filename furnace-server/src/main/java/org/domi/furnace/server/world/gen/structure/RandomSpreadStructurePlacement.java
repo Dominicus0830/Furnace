@@ -4,6 +4,7 @@ package org.domi.furnace.server.world.gen.structure;
 import org.domi.furnace.server.world.ChunkPos;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.structure.placement.RandomSpreadStructurePlacement")
 public record RandomSpreadStructurePlacement(
     int spacing,
     int separation,

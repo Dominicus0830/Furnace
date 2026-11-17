@@ -3,12 +3,14 @@
 // 용 머리 입 움직임 틱은 클라이언트 전용이라 없다.
 package org.domi.furnace.server.block.entity;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.BlockBehaviors;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.types.AbstractSkullBlock;
 import org.domi.furnace.server.item.DataComponents;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@VanillaPort("net.minecraft.world.level.block.entity.SkullBlockEntity")
 public class SkullBlockEntity extends BlockEntity {
 
     /** ResolvableProfile 정규 값(없으면 null). */
@@ -41,6 +43,39 @@ public class SkullBlockEntity extends BlockEntity {
             noteBlockSound = id == null ? null : id.toString();
         }
         customName = tag.tags().get("custom_name") instanceof String s ? s : null;
+    }
+
+    /**
+     * Paper CraftSkull.applyTo: 플레이어 머리면 사본의 소유자를 그대로 적용한다 — 사본에 소유자가 없으면 지운다(바닐라 load 는 없는 profile 을 옛 값 그대로 둔다).
+     * 소리 블록 소리는 Paper 도 이 길로는 지우지 못한다(저장 → 읽기라 없는 값은 그대로) — 그대로 따른다.
+     */
+    @Override
+    public void beforeSnapshotLoad(NbtCompound tag) {
+        if (!tag.contains("profile") && isPlayerHead()) profile = null;
+    }
+
+    /**
+     * SkullBlockEntity.setOwner → updateOwnerProfile: 이름·UUID 만 있는 프로필이면 세션 서버로 확인해, 끝나면 이 블록의 region 스레드에서 소유자를 바꾸고
+     * setChanged 한다(그 사이 소유자가 바뀌었으면 건드리지 않는다). 클라이언트에는 따로 보내지 않는다(바닐라도 setChanged 뿐).
+     */
+    @Override
+    @SuppressWarnings("unchecked")
+    public void onAddedToLevel(org.domi.furnace.server.block.BlockLevel level) {
+        var service = org.domi.furnace.server.item.ProfileFill.service();
+        if (service == null || !(profile instanceof java.util.Map<?, ?> m)) return;
+        java.util.Map<String, Object> original = (java.util.Map<String, Object>) m;
+        if (org.domi.furnace.server.item.ProfileFill.isResolved(original)) return;
+        service.resolved(original, found -> level.runOnOwner(pos(), lv -> {
+            if (isRemoved() || lv.getBlockEntity(pos()) != this) return;
+            if (!org.domi.furnace.server.item.ProfileFill.sameProfile(original, profile)) return;
+            profile = found;
+            setChanged(lv);
+        }));
+    }
+
+    private boolean isPlayerHead() {
+        var b = BlockBehaviors.of(blockState());
+        return b instanceof org.domi.furnace.server.block.types.PlayerHeadBlock || b instanceof org.domi.furnace.server.block.types.PlayerWallHeadBlock;
     }
 
     @Override

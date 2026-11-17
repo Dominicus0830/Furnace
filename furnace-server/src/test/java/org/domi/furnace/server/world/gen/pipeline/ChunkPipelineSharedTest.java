@@ -1,6 +1,7 @@
 // 공유 월드 장식(서버 경로): 각 origin 은 한 번만 장식되고, 같은 순서로 요청하면 결과가 같다.
 package org.domi.furnace.server.world.gen.pipeline;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -15,7 +16,7 @@ import org.junit.jupiter.api.Test;
 class ChunkPipelineSharedTest {
 
     private static NoiseWorldSource source(long seed) throws Exception {
-        return NoiseWorldSource.overworld(seed, BlockRegistry.load("blocks/1.21.1.txt"), RegistrySet.load("registries/1.21.1.txt"));
+        return NoiseWorldSource.overworld(seed, BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"), RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"));
     }
 
     @Test

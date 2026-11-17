@@ -179,7 +179,7 @@
 | `compression-threshold` | 압축 임계값 | 256 | `network-compression-threshold` 가 우선 |
 | `view-distance` | 청크 전송 반경 | 5 | 2~32 로 조정(`ConfigLoader`) |
 | `entity-view-distance` | 엔티티 가시 반경 | 8 | Paper `entity-tracking-range` 와 의미가 다름 |
-| `region-section-shift` | region 구역 크기 지수(2^값 청크) | 4 | 1~8 |
+| `region-section-shift` | region 구역 크기 지수(2^값 청크) | 3(2026-11-14 전 4) | 1~8 |
 | `region-merge-radius` | region 합치기 반경(구역 단위) | 1 | 1 이상 |
 | `region-threads` | region 작업 스레드 수 | CPU 코어 수 | Paper `chunk-system.worker-threads` 와 의미 다름 |
 | `level-name` | 월드 이름 | `world` | `server.properties` 가 우선 |

@@ -5,6 +5,7 @@
 // WanderingTraderSpawner·VillageSiege, 청크 생성 동물은 spawnMobsForChunkGeneration.
 package org.domi.furnace.server.entity.spawn;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -109,7 +110,7 @@ public final class NaturalSpawner {
                 try {
                     ok = f.fn().allow(cat, type, level.dimension(), pos.x(), pos.y(), pos.z(), biome, nearest == null ? null : nearest.uuid());
                 } catch (Throwable t) {
-                    org.slf4j.LoggerFactory.getLogger(NaturalSpawner.class).warn("플러그인 {} 의 스폰 필터가 예외를 던져 뗀다", f.owner(), t);
+                    org.slf4j.LoggerFactory.getLogger(NaturalSpawner.class).warn(Lang.t("plugin.spawn-filter-threw", f.owner()), t);
                     dropFilter(f);
                     continue;
                 }
@@ -357,11 +358,11 @@ public final class NaturalSpawner {
 
     /**
      * NaturalSpawner.spawnMobsForChunkGeneration: 새로 만든 청크에 동물을 놓는다(청크 좌표·세계 시드로 정한 난수 — 바닐라와 같은 수열).
-     * 바이옴은 청크 왼쪽 위 모서리 맨 위 칸, 확률은 바이옴의 creature_spawn_probability.
+     * 바이옴은 청크 왼쪽 위 모서리 맨 위 칸(maxBuildHeight - 1), 확률은 바이옴의 creature_spawn_probability.
      */
     public static void spawnMobsForChunkGeneration(ChunkLevel level, int cx, int cz, long worldSeed) {
         int minX = cx * 16, minZ = cz * 16;
-        String biome = biomeName(level, new Pos(minX, 319, minZ));
+        String biome = biomeName(level, new Pos(minX, level.maxBuildHeight() - 1, minZ));   // 바닐라 getMaxBuildHeight() - 1(네더·엔드 255)
         if (biome == null) return;
         List<BiomeSpawns.SpawnerData> list = BiomeSpawns.mobs(biome, MobCategory.CREATURE);
         if (list.isEmpty()) return;

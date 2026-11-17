@@ -5,6 +5,7 @@
 // 환경 변수가 없고 기본값도 없으면 어느 키가 문제인지 말하며 기동을 멈춘다 — 조용히 빈 글자로 두면 비밀번호가 빈 채 켜질 수 있다.
 package org.domi.furnace.server.config;
 
+import org.domi.furnace.server.i18n.Lang;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -39,7 +40,7 @@ public final class FurnaceProps {
         try (InputStream in = Files.newInputStream(file)) {
             p.load(in);
         } catch (IOException e) {
-            throw new RuntimeException("설정 로드 실패: " + file, e);
+            throw new RuntimeException(Lang.t("cfg.load-failed", file), e);
         }
         return p;
     }
@@ -70,7 +71,7 @@ public final class FurnaceProps {
                 int end = value.indexOf('}', i + 2);
                 if (end < 0) {
                     // 닫히지 않은 ${ 는 옛 파일의 평범한 글자일 수 있다 — 기동을 막지 않고 그대로 둔다
-                    if (warn != null) warn.accept("'" + key + "' 의 '${' 가 닫히지 않아 글자 그대로 둡니다");
+                    if (warn != null) warn.accept(Lang.t("cfg.env-unclosed", key));
                     sb.append(value, i, value.length());
                     break;
                 }
@@ -86,10 +87,9 @@ public final class FurnaceProps {
                 if (v == null || v.isEmpty()) v = def;   // 빈 환경 변수도 '없음' 으로 본다(${X:-기본} 이 흔히 기대하는 동작)
                 if (v == null) {
                     if (strict) {
-                        throw new IllegalArgumentException("설정 '" + key + "' 가 환경 변수 '" + name + "' 를 가리키는데 값이 없습니다"
-                                + "(기본값을 주려면 ${" + name + ":-값}, 글자 그대로 쓰려면 '" + ESCAPE + "')");
+                        throw new IllegalArgumentException(Lang.t("cfg.env-missing", key, name, "${" + name + ":-value}", ESCAPE));
                     }
-                    if (warn != null) warn.accept("'" + key + "' 의 ${" + name + "} 는 환경 변수가 없어 글자 그대로 둡니다");
+                    if (warn != null) warn.accept(Lang.t("cfg.env-undefined-literal", key, "${" + name + "}"));
                     sb.append(value, i, end + 1);
                 } else {
                     sb.append(v);

@@ -5,6 +5,7 @@
 //  - 플러그인 팩(Furnace): 플러그인이 데이터 팩 찾기 훅으로 알린 jar 안 폴더, id = "plugin/<namespace>/<id>", 위쪽, 월드 팩처럼 자동으로 켜짐.
 package org.domi.furnace.server.data;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -21,13 +22,15 @@ import java.util.zip.ZipFile;
 import org.domi.furnace.api.text.Text;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.server.packs.repository.PackRepository", "net.minecraft.server.packs.repository.ServerPacksSource", "net.minecraft.server.packs.repository.FolderRepositorySource"})
 public final class PackRepository {
 
     private static final Logger log = LoggerFactory.getLogger("Furnace");
 
     /** 1.21.1 데이터 팩 형식(version.json pack_version.data). */
-    public static final int DATA_PACK_FORMAT = 48;
+    public static final int DATA_PACK_FORMAT = GameVersion.PACK_FORMAT_DATA;
     public static final String VANILLA = "vanilla";
 
     private final Path vanillaRoot;   // null 이면 vanilla 팩 없음(테스트)
@@ -193,7 +196,7 @@ public final class PackRepository {
             for (String d : overlays) o.add(new PackResources.ZipPack(id, zip, prefix + d + "/"));
             return new PackResources.Composite(main, o);
         } catch (IOException e) {
-            throw new java.io.UncheckedIOException("팩 " + id + " 을(를) 열 수 없다", e);
+            throw new java.io.UncheckedIOException("pack " + id + " cannot be opened", e);
         }
     }
 

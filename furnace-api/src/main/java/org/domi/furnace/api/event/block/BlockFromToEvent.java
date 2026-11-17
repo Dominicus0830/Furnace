@@ -1,5 +1,5 @@
-// 물·용암이 옆(또는 아래) 칸으로 흘러 들어가기 직전 — 흐르는 칸의 region 스레드에서 불린다. pos 는 흐르는 칸, toPos 는 들어갈 칸.
-// 취소하면 그 칸으로 흐르지 않는다(아래로 흐르기가 취소되면 그 틱에는 옆으로도 흐르지 않는다).
+// 물이나 용암이 옆(또는 아래) 칸으로 흘러 들어가기 직전에 흐르는 칸의 region 스레드에서 불린다. pos 는 흐르는 칸이고 toPos 는 들어갈 칸이다.
+// 취소하면 그 칸으로 흐르지 않는다. 아래로 흐르기가 취소되면 그 틱에는 옆으로도 흐르지 않는다.
 package org.domi.furnace.api.event.block;
 
 import org.domi.furnace.api.event.Cancellable;

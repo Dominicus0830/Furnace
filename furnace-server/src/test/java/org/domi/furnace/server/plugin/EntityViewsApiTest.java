@@ -81,6 +81,48 @@ class EntityViewsApiTest {
         assertTrue(views.isVisibleByDefault(target));
     }
 
+    /**
+     * Bukkit 숨김·보임 이벤트(CraftPlayer untrackAndHideEntity/trackAndShowEntity): 그 관찰자에게 실제로 보임이 바뀔 때만 한 번.
+     * 두 번째 플러그인의 숨김·남은 숨김이 있는 보이기는 조용하고, setVisibleByDefault 는 접속자마다 바뀐 사람에게만 낸다.
+     */
+    @Test
+    void hideAndShowEventsFireOnlyWhenVisibilityChanges() {
+        org.domi.furnace.server.TestPluginContexts.init(a, host, "views-a", tmp);
+        a.setEnabled(true);
+        List<String> events = new java.util.ArrayList<>();
+        host.eventsImpl().subscribe(a, org.domi.furnace.api.event.player.PlayerHideEntityEvent.class,
+                e -> events.add("hide " + e.player().name() + ">" + e.entity().uniqueId()));
+        host.eventsImpl().subscribe(a, org.domi.furnace.api.event.player.PlayerShowEntityEvent.class,
+                e -> events.add("show " + e.player().name() + ">" + e.entity().uniqueId()));
+        var views = host.entityViews();
+        var viewer = host.player(online("Viewer"));
+        var other = host.player(online("Other"));
+        var target = host.player(online("Target"));
+        UUID t = target.uniqueId();
+
+        views.hide(a, viewer, target);
+        views.hide(b, viewer, target);   // 이미 숨었다
+        views.show(a, viewer, target);   // b 의 숨김이 남았다
+        assertEquals(List.of("hide Viewer>" + t), events);
+        events.clear();
+        views.show(b, viewer, target);
+        views.show(b, viewer, target);   // 이미 보인다
+        views.hide(a, viewer, viewer);   // 자기 자신은 무시
+        assertEquals(List.of("show Viewer>" + t), events);
+        events.clear();
+
+        views.show(a, other, target);    // 이미 보인다
+        assertEquals(List.of(), events);
+        views.setVisibleByDefault(a, target, false);   // 접속자마다 resetAndHide — Target 자신은 빠진다
+        assertEquals(List.of("hide Viewer>" + t, "hide Other>" + t), events);
+        events.clear();
+        views.show(a, other, target);    // 기본 숨김 대상을 Other 에게만 보인다
+        assertEquals(List.of("show Other>" + t), events);
+        events.clear();
+        views.setVisibleByDefault(a, target, true);    // Other 는 이미 보였으니 조용하다
+        assertEquals(List.of("show Viewer>" + t), events);
+    }
+
     @Test
     void disguiseValidatesAndResolvesPerViewer() {
         var views = host.entityViews();

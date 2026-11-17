@@ -2,6 +2,7 @@
 // (정답 파일: 바닐라 ComponentSerialization.CODEC 을 JsonOps·NbtOps 로 인코딩한 결과). 번역 포맷·스타일 상속·색 파싱도 본다.
 package org.domi.furnace.api.text;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.BufferedReader;
@@ -50,7 +51,7 @@ class TextEncodingTest {
     @Test
     void jsonAndNbtMatchVanilla() throws Exception {
         List<String[]> golden = new ArrayList<>();
-        try (var r = new BufferedReader(new InputStreamReader(getClass().getResourceAsStream("/text/vanilla-1.21.1-golden.tsv"), StandardCharsets.UTF_8))) {
+        try (var r = new BufferedReader(new InputStreamReader(getClass().getResourceAsStream("/text/" + GameVersion.RESOURCE_TAG + "/vanilla-golden.tsv"), StandardCharsets.UTF_8))) {
             String line;
             while ((line = r.readLine()) != null) golden.add(line.split("\t"));
         }

@@ -2,7 +2,9 @@
 package org.domi.furnace.server.players;
 
 import com.google.gson.JsonObject;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.players.UserWhiteListEntry")
 public final class UserWhiteListEntry extends StoredUserEntry<GameProfile> {
 
     public UserWhiteListEntry(GameProfile user) { super(user); }

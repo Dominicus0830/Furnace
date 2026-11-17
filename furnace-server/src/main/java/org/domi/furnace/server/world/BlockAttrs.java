@@ -2,6 +2,7 @@
 // canBeReplaced 등)를 이름 추측 없이 그대로 쓰게 한다. 리소스: blocks/blockattrs_1.21.1.txt (tools/vanilla-data/ExportBlockAttrs.java).
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -38,7 +39,7 @@ public final class BlockAttrs {
         if (a == null) {
             synchronized (BlockAttrs.class) {
                 a = INSTANCE;
-                if (a == null) INSTANCE = a = load("blocks/blockattrs_1.21.1.txt");
+                if (a == null) INSTANCE = a = load("blocks/blockattrs_" + GameVersion.RESOURCE_TAG + ".txt");
             }
         }
         return a;
@@ -46,7 +47,7 @@ public final class BlockAttrs {
 
     static BlockAttrs load(String resource) {
         try (InputStream in = BlockAttrs.class.getClassLoader().getResourceAsStream(resource)) {
-            if (in == null) throw new IllegalStateException("블록 속성 리소스 없음: " + resource);
+            if (in == null) throw new IllegalStateException("block attribute resource is missing: " + resource);
             BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             String line = r.readLine();
             int n = Integer.parseInt(line.substring("# states ".length()).strip());
@@ -69,7 +70,7 @@ public final class BlockAttrs {
                 collisionFull[i] = (byte) Integer.parseInt(p[4]);
                 i++;
             }
-            if (i != n) throw new IllegalStateException("블록 속성 줄 수 불일치: " + i + " != " + n);
+            if (i != n) throw new IllegalStateException("block attribute line count mismatch: " + i + " != " + n);
             return new BlockAttrs(flags, light, sturdy, block, collisionFull);
         } catch (IOException e) {
             throw new UncheckedIOException(e);

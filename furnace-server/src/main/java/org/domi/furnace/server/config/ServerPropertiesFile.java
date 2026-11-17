@@ -3,7 +3,9 @@ package org.domi.furnace.server.config;
 
 import java.nio.file.Path;
 import java.util.Properties;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.dedicated.DedicatedServerSettings")
 public final class ServerPropertiesFile {
 
     private final Path source;

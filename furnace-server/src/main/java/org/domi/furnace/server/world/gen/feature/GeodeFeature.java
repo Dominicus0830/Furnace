@@ -1,5 +1,6 @@
 package org.domi.furnace.server.world.gen.feature;
 
+import org.domi.furnace.server.world.StateIds;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -9,6 +10,7 @@ import org.domi.furnace.server.world.gen.MathHelper;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 import org.domi.furnace.server.world.gen.noise.LegacyNormalNoise;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.GeodeFeature")
 public final class GeodeFeature implements ConfiguredFeature {
 
     private static final Direction[] DIRECTIONS = Direction.values();
@@ -142,11 +144,11 @@ public final class GeodeFeature implements ConfiguredFeature {
     }
 
     private static boolean isAir(int stateId) {
-        return stateId == ChunkSection.AIR || stateId == 12958 || stateId == 12959;
+        return stateId == ChunkSection.AIR || stateId == StateIds.VOID_AIR || stateId == StateIds.CAVE_AIR;
     }
 
     private static boolean isWater(int stateId) {
-        return stateId == 80;
+        return stateId == StateIds.WATER_SOURCE;
     }
 
     private static double fastInvSqrt(double value) {

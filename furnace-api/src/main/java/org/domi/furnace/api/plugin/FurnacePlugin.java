@@ -1,5 +1,5 @@
 // Furnace 플러그인의 바탕 클래스(Bukkit JavaPlugin 에 해당). 메인 클래스는 이것을 상속하고 인자 없는 생성자를 가진다.
-// 수명: 생성 → onLoad(월드 전, 모든 플러그인 로드 직후) → onEnable(의존 순서대로) → … → onDisable(역순).
+// 수명: 생성 뒤 onLoad(월드 전, 모든 플러그인 로드 직후), onEnable(의존 순서대로), …, onDisable(역순) 순서로 이어진다.
 package org.domi.furnace.api.plugin;
 
 import java.io.IOException;
@@ -22,16 +22,17 @@ public abstract class FurnacePlugin {
     private final java.util.ArrayDeque<AutoCloseable> owned = new java.util.ArrayDeque<>();
     private boolean closing;
 
-    /** 로더 전용 — 한 번만 부를 수 있다. */
+    /** 로더 전용이다. 한 번만 부를 수 있다. */
     public final void init(PluginContext ctx) {
-        if (context != null) throw new IllegalStateException("이미 초기화된 플러그인: " + ctx.description().name());
+        if (context != null) throw new IllegalStateException("plugin is already initialized: " + ctx.description().name());
         this.context = ctx;
         this.tasks = new PluginTasks(this, ctx.server().scheduler(), ctx.server().asyncExecutor(), ctx.server().profiler());
     }
 
     /**
-     * 로더 전용 — 켜짐 상태를 바꾸고 수명 함수를 부른다. 로더가 아닌 곳(플러그인 자신이나 다른 플러그인)에서 부르면 플러그인 관리자의
-     * enable/disable 로 넘긴다 — 수명 함수만 돌고 명령·구독·티켓 같은 자동 정리가 빠지는 일이 없게(A14-08).
+     * 로더 전용이다. 켜짐 상태를 바꾸고 수명 함수를 부른다.
+     * 로더가 아닌 곳(플러그인 자신이나 다른 플러그인)에서 부르면 플러그인 관리자의 enable/disable 로 넘긴다.
+     * 수명 함수만 돌고 명령·구독·티켓 같은 자동 정리가 빠지는 일이 없게 하려는 것이다(A14-08).
      */
     public final void setEnabled(boolean v) {
         if (enabled == v) return;
@@ -87,7 +88,7 @@ public abstract class FurnacePlugin {
     /** 플러그인끼리 공유하는 정의 레지스트리(이 플러그인 소유로 기록된다 — 꺼지면 정리). */
     public final org.domi.furnace.api.registry.PluginRegistries registries() { return context.registries(); }
 
-    /** 데이터 폴더(없으면 만든다). 기본은 plugins/<이름>/ — 서버 설정 plugins.data-root 가 있으면 거기 아래로 갈라진다. */
+    /** 데이터 폴더(없으면 만든다). 기본은 plugins/<이름>/ 이며, 서버 설정 plugins.data-root 가 있으면 그 아래로 갈라진다. */
     public final Path dataFolder() { return ensure(context.dataFolder()); }
 
     /** 설정 폴더 plugins/<이름>/ (없으면 만든다). config.yml 같은 관리자용 파일이 있는 곳. */
@@ -103,7 +104,7 @@ public abstract class FurnacePlugin {
     }
 
     /**
-     * 이 플러그인이 꺼질 때 자동으로 닫을 자원(열린 메뉴·핸들 등)을 맡긴다. onDisable 뒤 등록 역순으로 닫히고,
+     * 이 플러그인이 꺼질 때 자동으로 닫을 자원(열린 메뉴, 핸들 등)을 맡긴다. onDisable 뒤에 등록 역순으로 닫힌다.
      * 이미 꺼진 뒤에 맡기면 바로 닫는다. 닫다가 난 예외는 로그만 남기고 나머지를 계속 닫는다.
      */
     public final <T extends AutoCloseable> T own(T resource) {
@@ -129,7 +130,7 @@ public abstract class FurnacePlugin {
         try {
             c.close();
         } catch (Throwable t) {
-            logger().log(java.util.logging.Level.WARNING, "자원을 닫다가 예외", t);
+            logger().log(java.util.logging.Level.WARNING, "Exception while closing a resource", t);
         }
     }
 
@@ -143,7 +144,7 @@ public abstract class FurnacePlugin {
         Path target = dataFolder().resolve(name);
         if (!replace && Files.exists(target)) return;
         try (InputStream in = resource(name)) {
-            if (in == null) throw new IllegalArgumentException("jar 에 리소스가 없다: " + name);
+            if (in == null) throw new IllegalArgumentException("no such resource in the jar: " + name);
             Files.createDirectories(target.getParent());
             Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {

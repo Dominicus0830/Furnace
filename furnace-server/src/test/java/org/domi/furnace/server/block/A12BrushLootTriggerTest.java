@@ -1,5 +1,6 @@
 package org.domi.furnace.server.block;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
@@ -34,7 +35,7 @@ class A12BrushLootTriggerTest extends BrushingTest {
         PackRepository repo = new PackRepository(dir.resolve("pack"), null);
         repo.reload();
         repo.setSelected(List.of("vanilla"));
-        TagRegistries tags = new TagRegistries(RegistrySet.load("registries/1.21.1.txt"));
+        TagRegistries tags = new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"));
         LootRegistries regs;
         LootData loot;
         AdvancementManager manager;

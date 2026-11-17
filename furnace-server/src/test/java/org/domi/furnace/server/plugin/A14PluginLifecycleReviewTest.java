@@ -109,9 +109,12 @@ class A14PluginLifecycleReviewTest {
         awaitLog("tick:2");
         TestPlugins.LOG.clear();
         Thread.sleep(400);
-        assertFalse(TestPlugins.LOG.contains("tick:1"),
-                "꺼지기 전에 server().scheduler() 로 건 반복 작업은 다시 켠 뒤에도 돌면 안 된다(Paper 는 disablePlugin 때 취소). 기록 일부: "
-                        + TestPlugins.LOG.subList(0, Math.min(8, TestPlugins.LOG.size())));
+        // 새 작업이 계속 LOG 에 붙으므로 사본 하나로 판정·메시지를 만든다(살아 있는 CopyOnWriteArrayList 의 subList 를 메시지로 찍으면
+        // 그사이 붙은 기록 때문에 ConcurrentModificationException 이 난다 — T-161, CI 재시도로 가려진 흔들림)
+        List<String> seen = List.copyOf(TestPlugins.LOG);
+        assertFalse(seen.contains("tick:1"),
+                () -> "꺼지기 전에 server().scheduler() 로 건 반복 작업은 다시 켠 뒤에도 돌면 안 된다(Paper 는 disablePlugin 때 취소). 기록 일부: "
+                        + seen.subList(0, Math.min(8, seen.size())));
     }
 
     @Test

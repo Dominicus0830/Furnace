@@ -1,0 +1,28 @@
+Furnace
+Copyright (C) Furnace contributors. GPL-3.0-only (LICENSE).
+
+서버 jar(furnace-server.jar)는 아래 제3자 라이브러리를 수정·재배치 없이 jar 그대로
+META-INF/furnace/libraries/ 에 싣는다. Bukkit·Paper 호환 플러그인이 쓸 때만
+plugins/.libraries/ 로 꺼내 쓴다. 각 라이브러리는 자기 라이선스를 따른다.
+The server jar ships the following third-party libraries unmodified (not relocated)
+under META-INF/furnace/libraries/. Each is licensed under its own terms.
+
+- Guava 32.1.2-jre (com.google.guava:guava)
+  Copyright (C) The Guava Authors
+  Apache License 2.0 — licenses/LICENSE-APACHE-2.0.txt
+  https://github.com/google/guava
+
+- Guava InternalFutureFailureAccess 1.0.1 (com.google.guava:failureaccess)
+  Copyright (C) The Guava Authors
+  Apache License 2.0 — licenses/LICENSE-APACHE-2.0.txt
+  https://github.com/google/guava
+
+- SnakeYAML 2.2 (org.yaml:snakeyaml)
+  Copyright (c) 2008, SnakeYAML
+  Apache License 2.0 — licenses/LICENSE-APACHE-2.0.txt
+  https://bitbucket.org/snakeyaml/snakeyaml
+
+그 밖에 서버 jar 에 풀어 넣은 런타임 의존(Netty, Gson, SLF4J, Logback, JLine, aircompressor,
+ASM 등)은 각 프로젝트의 라이선스를 따른다(이 파일은 그 목록을 아직 담지 않는다).
+Bukkit·Paper 가 싣는 나머지 라이브러리(Adventure, Brigadier, authlib 등)는 서버 jar 에 싣지 않고
+필요할 때 원 저장소에서 내려받는다.

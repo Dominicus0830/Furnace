@@ -50,7 +50,7 @@ public final class CompatMenuInventory extends CompatInventory {
             case DISPENSER, DROPPER -> MenuType.DISPENSER;
             case HOPPER -> MenuType.HOPPER;
             default -> throw new UnsupportedFeature("Bukkit.createInventory(" + type + ")",
-                    "Furnace 메뉴 프레임워크에 그 화면 모양이 아직 없다(상자·발사기·깔때기 모양만 된다)");
+                    "the Furnace menu framework does not have that screen shape yet (only chest, dispenser and hopper shapes work)");
         };
         return create(mt, type, owner, title == null ? type.getDefaultTitle() : title);
     }
@@ -78,7 +78,7 @@ public final class CompatMenuInventory extends CompatInventory {
     public static org.bukkit.inventory.InventoryView open(org.bukkit.craftbukkit.entity.CraftPlayer p, org.bukkit.inventory.Inventory inventory) {
         if (!(inventory instanceof CompatMenuInventory own)) {
             throw new UnsupportedFeature("HumanEntity#openInventory(" + inventory.getType() + ")",
-                    "Furnace 는 플러그인이 만든 인벤토리(Bukkit.createInventory)만 창으로 열 수 있다 — 블록·엔티티 보관함 창 열기는 아직 없다");
+                    "Furnace can only open inventories made by a plugin (Bukkit.createInventory) as a window - opening block or entity storage windows is not available yet");
         }
         p.furnaceHandle().openMenu(own.menu);
         return new CompatInventoryView(p, own, own.getType(), own.title, null);
@@ -127,6 +127,15 @@ public final class CompatMenuInventory extends CompatInventory {
             try {
                 menu.set(slot, item);
                 return CompletableFuture.completedFuture(null);
+            } catch (RuntimeException e) {
+                return CompletableFuture.failedFuture(e);
+            }
+        }
+
+        @Override
+        public CompletableFuture<Boolean> update(int slot, java.util.function.UnaryOperator<org.domi.furnace.api.item.ItemStack> fn) {
+            try {
+                return CompletableFuture.completedFuture(menu.update(slot, fn));
             } catch (RuntimeException e) {
                 return CompletableFuture.failedFuture(e);
             }

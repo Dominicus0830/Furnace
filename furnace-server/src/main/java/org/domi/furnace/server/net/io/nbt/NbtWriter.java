@@ -3,7 +3,9 @@ package org.domi.furnace.server.net.io.nbt;
 
 import io.netty.buffer.ByteBuf;
 import java.nio.charset.StandardCharsets;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.nbt.NbtIo", "net.minecraft.nbt.Tag"})
 public final class NbtWriter {
 
     private static final byte TAG_END = 0x00;
@@ -80,7 +82,7 @@ public final class NbtWriter {
                 for (Object item : l.items()) writePayload(l.elementType(), item);
             }
             case TAG_COMPOUND -> { writeCompoundEntries((NbtCompound) v); buf.writeByte(TAG_END); }
-            default -> throw new IllegalArgumentException("미지원 태그: " + type);
+            default -> throw new IllegalArgumentException("unsupported tag: " + type);
         }
     }
 
@@ -102,7 +104,7 @@ public final class NbtWriter {
         if (v instanceof long[]) return TAG_LONG_ARRAY;
         if (v instanceof NbtList) return TAG_LIST;
         if (v instanceof NbtCompound) return TAG_COMPOUND;
-        throw new IllegalArgumentException("미지원 값: " + v.getClass());
+        throw new IllegalArgumentException("unsupported value: " + v.getClass());
     }
 
     private void writeName(String name) {

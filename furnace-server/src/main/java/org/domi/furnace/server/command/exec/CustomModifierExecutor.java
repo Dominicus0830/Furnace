@@ -8,7 +8,9 @@ import org.domi.furnace.server.command.brigadier.CommandContext;
 import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.ContextChain;
 import org.domi.furnace.server.command.brigadier.RedirectModifier;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.execution.CustomModifierExecutor")
 public interface CustomModifierExecutor {
 
     void apply(CommandSource originalSource, List<CommandSource> currentSources, ContextChain<CommandSource> currentStep,

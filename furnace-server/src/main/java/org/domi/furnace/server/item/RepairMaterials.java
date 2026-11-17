@@ -4,8 +4,17 @@ package org.domi.furnace.server.item;
 
 import java.util.List;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort({
+        "net.minecraft.world.item.Item",
+        "net.minecraft.world.item.ArmorItem",
+        "net.minecraft.world.item.TieredItem",
+        "net.minecraft.world.item.ElytraItem",
+        "net.minecraft.world.item.MaceItem",
+        "net.minecraft.world.item.ShieldItem",
+        "net.minecraft.world.item.ArmorMaterial"})
 public final class RepairMaterials {
     private RepairMaterials() { }
 

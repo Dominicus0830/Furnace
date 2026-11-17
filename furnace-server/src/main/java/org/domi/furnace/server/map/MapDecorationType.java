@@ -7,7 +7,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.level.saveddata.maps.MapDecorationTypes")
 public record MapDecorationType(int id, String name, boolean showOnItemFrame, boolean explorationMapElement, boolean trackCount, int mapColor) {
 
     private static final List<MapDecorationType> ALL = new ArrayList<>();

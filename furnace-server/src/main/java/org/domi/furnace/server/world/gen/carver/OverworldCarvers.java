@@ -1,11 +1,13 @@
 // 오버월드 carver 3개 설정 로딩 — cave(0.15) + cave_extra_underground(0.07) + canyon(0.01)
 package org.domi.furnace.server.world.gen.carver;
 
+import org.domi.furnace.api.GameVersion;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import java.io.InputStreamReader;
 import java.util.List;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.data.worldgen.Carvers")
 public final class OverworldCarvers {
 
     public record Entry(WorldCarver carver, CarverConfig config) {}
@@ -20,9 +22,9 @@ public final class OverworldCarvers {
 
     public static OverworldCarvers load() {
         Gson gson = new Gson();
-        JsonObject cave      = loadJson(gson, "worldgen/1.21.1/configured_carver/cave.json");
-        JsonObject caveExtra = loadJson(gson, "worldgen/1.21.1/configured_carver/cave_extra_underground.json");
-        JsonObject canyon    = loadJson(gson, "worldgen/1.21.1/configured_carver/canyon.json");
+        JsonObject cave      = loadJson(gson, "worldgen/" + GameVersion.RESOURCE_TAG + "/configured_carver/cave.json");
+        JsonObject caveExtra = loadJson(gson, "worldgen/" + GameVersion.RESOURCE_TAG + "/configured_carver/cave_extra_underground.json");
+        JsonObject canyon    = loadJson(gson, "worldgen/" + GameVersion.RESOURCE_TAG + "/configured_carver/canyon.json");
         return new OverworldCarvers(List.of(
             new Entry(new CaveWorldCarver(),   CarverConfig.Cave.fromJson(cave.get("config").getAsJsonObject())),
             new Entry(new CaveWorldCarver(),   CarverConfig.Cave.fromJson(caveExtra.get("config").getAsJsonObject())),
@@ -36,7 +38,7 @@ public final class OverworldCarvers {
     /** 네더 바이옴 공통 carver: nether_cave 하나(교체 가능 블록 = 설정의 replaceable 태그). */
     public static OverworldCarvers loadNether() {
         Gson gson = new Gson();
-        JsonObject cfg = loadJson(gson, "worldgen/1.21.1/configured_carver/nether_cave.json").get("config").getAsJsonObject();
+        JsonObject cfg = loadJson(gson, "worldgen/" + GameVersion.RESOURCE_TAG + "/configured_carver/nether_cave.json").get("config").getAsJsonObject();
         String tag = cfg.get("replaceable").getAsString().replaceFirst("^#", "");
         java.util.Set<String> repl = java.util.Set.copyOf(org.domi.furnace.server.world.gen.feature.BlockTags.get().blocksOf(tag));
         return new OverworldCarvers(List.of(new Entry(CaveWorldCarver.nether(repl), CarverConfig.Cave.fromJson(cfg))));

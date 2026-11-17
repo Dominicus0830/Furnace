@@ -1,5 +1,6 @@
 package org.domi.furnace.compat.paper;
 
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -110,10 +111,104 @@ class CraftAdapterTest {
         assertSame(player.getWorld(), level.getWorld());
         assertTrue(level.players().contains(h));
         assertEquals(player.getWorld().getSeed(), level.getSeed());
-        // 네트워크 id 는 지어내지 않는다
-        UnsupportedNmsCall e = assertThrows(UnsupportedNmsCall.class, h::getId);
-        assertTrue(e.getMessage().contains("Entity#getId"), e.getMessage());
-        assertInstanceOf(UnsupportedOperationException.class, e, "UnsupportedFeature(UnsupportedOperationException) 하위");
+        // 네트워크 엔티티 id — Bukkit getEntityId 와 NMS getId 와 Furnace 핸들이 같은 번호
+        assertEquals(tp.player().entityId(), player.getEntityId());
+        assertEquals(player.getEntityId(), h.getId());
+        assertTrue(player.getEntityId() > 0);
+    }
+
+    @Test
+    void entityIdIsStableAndDistinct() {
+        World world = player.getWorld();
+        Location spot = new Location(world, at.x() + 3.5, at.y() + 1, at.z() + 0.5);
+        Entity a = owner(() -> world.spawnEntity(spot, EntityType.PIG));
+        Entity b = owner(() -> world.spawnEntity(spot, EntityType.PIG));
+        try {
+            assertTrue(a.getEntityId() > 0);
+            assertNotEquals(a.getEntityId(), b.getEntityId());
+            assertNotEquals(a.getEntityId(), player.getEntityId());
+            assertEquals(a.getEntityId(), ((CraftEntity) a).getHandle().getId());
+            int before = a.getEntityId();
+            ((CraftEntity) a).furnaceHandle(((CraftEntity) a).furnaceHandle().refresh().join());
+            assertEquals(before, a.getEntityId(), "새 스냅샷 뒤에도 같은 번호");
+            // Paper 의 getLocation(Location): 채워서 돌려주고 null 은 null
+            Location into = new Location(null, 0, 0, 0);
+            assertSame(into, a.getLocation(into));
+            assertEquals(a.getLocation().getX(), into.getX());
+            assertEquals(a.getWorld(), into.getWorld());
+            assertNull(a.getLocation(null));
+        } finally {
+            owner(() -> { a.remove(); b.remove(); return null; });
+        }
+    }
+
+    /** 서버 쪽 엔티티(소유 region 스레드 안에서만 만진다). */
+    org.domi.furnace.server.entity.Entity serverEntity(Entity b) {
+        var l = b.getLocation();
+        var cp = org.domi.furnace.server.world.ChunkPos.ofBlock(l.getX(), l.getZ());
+        return server.internals().world().regionizer().ownerOf(cp.x(), cp.z()).level().entities().get(b.getUniqueId());
+    }
+
+    /** Paper: Location 의 yaw 는 getBukkitYaw() — 살아 있는 엔티티는 머리 방향(getYHeadRot), 그 밖은 몸 방향. */
+    @Test
+    void livingLocationYawIsHeadYaw() {
+        World world = player.getWorld();
+        Location spot = new Location(world, at.x() + 4.5, at.y() + 1, at.z() + 0.5);
+        Entity pig = owner(() -> world.spawnEntity(spot, EntityType.PIG));
+        try {
+            float[] yaws = owner(() -> {
+                var e = (org.domi.furnace.server.entity.LivingEntity) serverEntity(pig);
+                e.setYRot(10.0F);
+                e.setYHeadRot(80.0F);
+                ((CraftEntity) pig).furnaceHandle(org.domi.furnace.server.plugin.EntityHandle.of((org.domi.furnace.server.plugin.PluginHost) server.api(), e));
+                Location into = new Location(null, 0, 0, 0);
+                assertSame(into, pig.getLocation(into));
+                return new float[] { pig.getLocation().getYaw(), into.getYaw(), ((CraftEntity) pig).getHandle().getYRot(),
+                        ((CraftEntity) pig).getHandle().getYHeadRot(), ((CraftEntity) pig).getHandle().getBukkitYaw() };
+            });
+            assertEquals(80.0F, yaws[0], "getLocation().getYaw() 는 머리 yaw");
+            assertEquals(80.0F, yaws[1], "getLocation(Location) 도 머리 yaw");
+            assertEquals(10.0F, yaws[2], "NMS getYRot 은 몸 yaw(바닐라)");
+            assertEquals(80.0F, yaws[3], "NMS getYHeadRot 은 머리 yaw");
+            assertEquals(80.0F, yaws[4], "CraftBukkit getBukkitYaw");
+            // 플레이어는 몸 방향 = 머리 방향
+            assertEquals(tp.player().location().yaw(), player.getLocation().getYaw());
+        } finally {
+            owner(() -> { pig.remove(); return null; });
+        }
+    }
+
+    /** ProtocolLib getEntityFromID 가 쓰는 길: ServerLevel#getEntity(int). */
+    @Test
+    void serverLevelFindsEntityById() {
+        World world = player.getWorld();
+        ServerLevel level = ((CraftWorld) world).getHandle();
+        Location spot = new Location(world, at.x() + 5.5, at.y() + 1, at.z() + 0.5);
+        Entity pig = owner(() -> world.spawnEntity(spot, EntityType.PIG));
+        try {
+            int id = pig.getEntityId();
+            // 엔티티를 가진 region 스레드에서 곧바로 — 같은 CraftEntity 의 같은 NMS shim
+            assertSame(((CraftEntity) pig).getHandle(), owner(() -> level.getEntity(id)));
+            // 네트워크·비동기 같은 틱 스레드가 아닌 곳(이 시험 스레드)에서는 소유 region 이 읽어 줄 때까지 잠깐 기다린다
+            assertSame(((CraftEntity) pig).getHandle(), level.getEntity(id));
+            assertEquals(pig.getUniqueId(), level.getEntity(id).getUUID());
+            // 플레이어도 id 로 찾는다(USE_ENTITY 가 가리킬 수 있다)
+            assertSame(((CraftPlayer) player).getHandle(), level.getEntity(player.getEntityId()));
+            // 없는 id
+            assertNull(level.getEntity(Integer.MAX_VALUE));
+            assertNull(level.getEntity(-5));
+            // API 판
+            var api = org.domi.furnace.api.Furnace.server().world(world.getKey().toString());
+            assertEquals(pig.getUniqueId(), api.entityById(id).join().orElseThrow().uniqueId());
+            assertTrue(api.entityById(Integer.MAX_VALUE).join().isEmpty());
+            // 소유 스레드가 아니면 동기판은 ThreadOwnershipException
+            assertThrows(org.domi.furnace.api.concurrent.ThreadOwnershipException.class, () -> api.entityByIdNow(id));
+        } finally {
+            int id = pig.getEntityId();
+            owner(() -> { pig.remove(); return null; });
+            server.tick(2);
+            assertNull(level.getEntity(id), "지운 엔티티는 찾지 않는다");
+        }
     }
 
     @Test

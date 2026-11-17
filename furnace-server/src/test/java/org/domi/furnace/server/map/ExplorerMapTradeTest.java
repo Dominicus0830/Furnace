@@ -1,6 +1,7 @@
 // 제도사 탐험 지도 거래(바다 탐험·삼림 탐험·시련 지도): 가짜 구조물 위치로 만든 지도가 구조물 방향 표식·바이옴 바탕·지도 색·이름을 가진다.
 package org.domi.furnace.server.map;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
@@ -24,7 +25,7 @@ class ExplorerMapTradeTest {
     @BeforeEach
     void setUp() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         MapStore.install(dir);
     }
 
@@ -36,9 +37,11 @@ class ExplorerMapTradeTest {
         String lastTag;
         int[] origin;
         boolean found = true;
+        Boolean skip;
 
-        public int[] findNearestMapStructure(String tag, int x, int y, int z, int radius) {
+        public int[] findNearestMapStructure(String tag, int x, int y, int z, int radius, boolean skip) {
             lastTag = tag;
+            this.skip = skip;
             origin = new int[] {x, y, z, radius};
             return found ? new int[] {1000, 2000} : null;
         }
@@ -56,6 +59,7 @@ class ExplorerMapTradeTest {
         assertNotNull(offer);
         assertEquals("minecraft:on_ocean_explorer_maps", backend.lastTag);
         assertArrayEquals(new int[] {10, 70, -20, 100}, backend.origin);
+        assertEquals(Boolean.TRUE, backend.skip, "TreasureMapForEmeralds 는 skipKnownStructures=true");
         assertEquals("minecraft:emerald", offer.baseCostA().item());
         assertEquals(13, offer.baseCostA().count());
         assertEquals("minecraft:compass", offer.costB().orElseThrow().item());

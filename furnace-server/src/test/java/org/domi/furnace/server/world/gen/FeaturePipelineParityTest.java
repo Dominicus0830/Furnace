@@ -7,6 +7,7 @@
 // 이 테스트는 여전히 유효하다 — center 자신의 decoration이 회귀하지 않았는지 보는 용도로 남겨둔다.
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -51,14 +52,14 @@ class FeaturePipelineParityTest {
     }
 
     private void assertFeatureParity(long seed, int cx, int cz, int maxMismatch) throws Exception {
-        BlockRegistry reg11 = BlockRegistry.load("blocks/1.21.1.txt");
-        Map<Integer, String> oracleIdToName = loadIdToName("/blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry reg11 = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        Map<Integer, String> oracleIdToName = loadIdToName("/blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
 
         NoiseWorldSource source = NoiseWorldSource.overworld(seed, reg11, registries);
         ChunkColumn col = source.generateWithFeatures(cx, cz);
 
-        String fixtureName = "/worldgen/fixtures/featurefull_" + seed + "_" + cx + "_" + cz + ".bin";
+        String fixtureName = "/worldgen/fixtures/" + GameVersion.RESOURCE_TAG + "/featurefull_" + seed + "_" + cx + "_" + cz + ".bin";
         byte[] fx = loadFixture(fixtureName, seed, cx, cz);
 
         int mismatch = countMismatches(col, fx, oracleIdToName, reg11, true, seed, cx, cz);
@@ -291,15 +292,15 @@ class FeaturePipelineParityTest {
 
     /** Furnace step 6 feature 순서가 oracle feature_order.txt와 일치하는지 검증. */
     @Test void verifyStep6FeatureOrder() throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         NoiseWorldSource source = NoiseWorldSource.overworld(1234L, reg, registries);
         var fp = reflect(source, "featurePlacer", org.domi.furnace.server.world.gen.feature.FeaturePlacer.class);
         var step6 = fp.sorter().featuresPerStep().get(6);
 
         // oracle feature_order.txt에서 STEP 6 목록 로드
         java.util.List<String> oracleStep6 = new java.util.ArrayList<>();
-        try (InputStream in = FeaturePipelineParityTest.class.getResourceAsStream("/worldgen/fixtures/feature_order.txt");
+        try (InputStream in = FeaturePipelineParityTest.class.getResourceAsStream("/worldgen/fixtures/" + GameVersion.RESOURCE_TAG + "/feature_order.txt");
              java.io.BufferedReader br = new java.io.BufferedReader(new java.io.InputStreamReader(in))) {
             boolean inStep6 = false;
             String line;
@@ -327,8 +328,8 @@ class FeaturePipelineParityTest {
     }
 
     @Test void dumpStep9Features() throws Exception {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         NoiseWorldSource source = NoiseWorldSource.overworld(1234L, reg, registries);
         var fp = reflect(source, "featurePlacer", org.domi.furnace.server.world.gen.feature.FeaturePlacer.class);
         var step9 = fp.sorter().featuresPerStep().get(9);
@@ -414,13 +415,13 @@ class FeaturePipelineParityTest {
         }
 
         // Oracle fixture: scan for ALL coal positions in cx=7,cz=-2
-        String fixtureName = "/worldgen/fixtures/featurefull_1234_7_-2.bin";
+        String fixtureName = "/worldgen/fixtures/" + GameVersion.RESOURCE_TAG + "/featurefull_1234_7_-2.bin";
         byte[] fx;
         try (InputStream in = FeaturePipelineParityTest.class.getResourceAsStream(fixtureName)) {
             assertNotNull(in, "fixture not found: " + fixtureName);
             fx = in.readAllBytes();
         }
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         int coalId = reg.defaultStateId("minecraft:coal_ore");
         int deepslateCoalId = reg.defaultStateId("minecraft:deepslate_coal_ore");
         System.out.printf("coal_ore=%d deepslate_coal_ore=%d%n", coalId, deepslateCoalId);
@@ -444,7 +445,7 @@ class FeaturePipelineParityTest {
 
     /** oracle binary에서 seagrass 위치 스캔 (seed=1234, cx=0, cz=0). */
     @Test void oracleSeagrassPositions() throws Exception {
-        String fixtureName = "/worldgen/fixtures/featurefull_1234_0_0.bin";
+        String fixtureName = "/worldgen/fixtures/" + GameVersion.RESOURCE_TAG + "/featurefull_1234_0_0.bin";
         byte[] fx;
         try (InputStream in = FeaturePipelineParityTest.class.getResourceAsStream(fixtureName)) {
             assertNotNull(in, "fixture not found: " + fixtureName);

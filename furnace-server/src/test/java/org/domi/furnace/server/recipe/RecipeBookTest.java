@@ -1,6 +1,7 @@
 // 레시피 북: 바닐라 INIT 바이트(빈 책 = 11바이트 0), 배우기/잊기 규칙(특수 레시피 제외·중복 무시), NBT 왕복.
 package org.domi.furnace.server.recipe;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
@@ -63,12 +64,12 @@ class RecipeBookTest {
 
     @Test
     void learningFollowsVanillaRules() throws Exception {
-        Path root = Path.of("../tools/vanilla-data/server-1.21.1");
+        Path root = Path.of("../tools/vanilla-data/server-" + GameVersion.MINECRAFT);
         Assumptions.assumeTrue(Files.isDirectory(root.resolve("data/minecraft/recipe")), "로컬 바닐라 데이터 없음");
         PackRepository repo = new PackRepository(root, null);
         repo.reload();
         repo.setSelected(List.of("vanilla"));
-        TagRegistries regs = new TagRegistries(RegistrySet.load("registries/1.21.1.txt"));
+        TagRegistries regs = new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"));
         try (ResourceManager rm = repo.openResourceManager()) {
             TagSet tags = TagSet.of(regs.loadAll(rm));
             RecipeManager m = RecipeManager.load(rm, new RecipeContext() {

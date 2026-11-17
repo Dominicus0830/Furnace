@@ -23,7 +23,7 @@ import java.util.OptionalLong;
  * @param piglinSafe       피글린이 좀비화하지 않는가
  * @param hasRaids         습격이 일어나는가
  * @param monsterSpawnLightMin 몬스터가 나오는 밝기 상한 범위의 아래(포함)
- * @param monsterSpawnLightMax 몬스터가 나오는 밝기 상한 범위의 위(포함, 15 이하) — 둘이 같으면 고정값
+ * @param monsterSpawnLightMax 몬스터가 나오는 밝기 상한 범위의 위(포함, 15 이하). 둘이 같으면 고정값
  * @param monsterSpawnBlockLightLimit 블록 빛이 이 값보다 밝으면 몬스터가 나오지 않는다(0..15)
  */
 public record DimensionTypeDefinition(
@@ -38,19 +38,19 @@ public record DimensionTypeDefinition(
 
     public DimensionTypeDefinition {
         if (fixedTime == null) throw new NullPointerException("fixedTime");
-        if (!(coordinateScale >= 1.0E-5 && coordinateScale <= 3.0E7)) throw new IllegalArgumentException("coordinateScale 는 1e-5..3e7: " + coordinateScale);
-        if (minY < -2032 || minY > 2031 || (minY & 15) != 0) throw new IllegalArgumentException("minY 는 16의 배수, -2032..2031: " + minY);
-        if (height < 16 || height > 4064 || (height & 15) != 0) throw new IllegalArgumentException("height 는 16의 배수, 16..4064: " + height);
-        if (minY + height > 2032) throw new IllegalArgumentException("minY + height 는 2032 이하: " + (minY + height));
-        if (logicalHeight < 0 || logicalHeight > height) throw new IllegalArgumentException("logicalHeight 는 0..height: " + logicalHeight);
+        if (!(coordinateScale >= 1.0E-5 && coordinateScale <= 3.0E7)) throw new IllegalArgumentException("coordinateScale must be 1e-5..3e7: " + coordinateScale);
+        if (minY < -2032 || minY > 2031 || (minY & 15) != 0) throw new IllegalArgumentException("minY must be a multiple of 16 in -2032..2031: " + minY);
+        if (height < 16 || height > 4064 || (height & 15) != 0) throw new IllegalArgumentException("height must be a multiple of 16 in 16..4064: " + height);
+        if (minY + height > 2032) throw new IllegalArgumentException("minY + height must be at most 2032: " + (minY + height));
+        if (logicalHeight < 0 || logicalHeight > height) throw new IllegalArgumentException("logicalHeight must be 0..height: " + logicalHeight);
         infiniburn = ResourceKeys.reference("infiniburn", infiniburn.startsWith("#") ? infiniburn.substring(1) : infiniburn);
         effects = ResourceKeys.reference("effects", effects);
         ResourceKeys.finite("ambientLight", ambientLight);
         if (monsterSpawnLightMin < 0 || monsterSpawnLightMax > 15 || monsterSpawnLightMin > monsterSpawnLightMax) {
-            throw new IllegalArgumentException("monsterSpawnLight 는 0 <= min <= max <= 15: " + monsterSpawnLightMin + ", " + monsterSpawnLightMax);
+            throw new IllegalArgumentException("monsterSpawnLight must satisfy 0 <= min <= max <= 15: " + monsterSpawnLightMin + ", " + monsterSpawnLightMax);
         }
         if (monsterSpawnBlockLightLimit < 0 || monsterSpawnBlockLightLimit > 15) {
-            throw new IllegalArgumentException("monsterSpawnBlockLightLimit 는 0..15: " + monsterSpawnBlockLightLimit);
+            throw new IllegalArgumentException("monsterSpawnBlockLightLimit must be 0..15: " + monsterSpawnBlockLightLimit);
         }
     }
 

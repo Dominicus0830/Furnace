@@ -5,10 +5,13 @@ import io.netty.buffer.ByteBuf;
 import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.VanillaPort;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundSelectAdvancementsTabPacket")
 public record SelectAdvancementsTab(ResourceId tab) implements Packet {
 
-    public static final int ID = 0x4A;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_SELECT_ADVANCEMENTS_TAB;
 
     @Override public int id() { return ID; }
 

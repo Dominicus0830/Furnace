@@ -1,12 +1,14 @@
 // 바닐라 CropBlock: 경작지 위 작물. 밝으면(9 이상) 무작위 틱마다 주변 경작지·같은 작물 배치에 따른 확률로 자란다. 뼛가루는 2~5 단계.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.CropBlock")
 public class CropBlock extends BushBlock implements BonemealableBlock {
 
     protected static final Prop AGE = B.prop("age");
@@ -86,7 +88,9 @@ public class CropBlock extends BushBlock implements BonemealableBlock {
     /** entityInside: 파괴수가 지나가고 mobGriefing 이면 부순다(떨굼, 부순 엔티티 = 파괴수). */
     @Override
     public void entityInside(int state, BlockLevel level, Pos pos, org.domi.furnace.server.entity.Entity entity) {
-        if (entity instanceof org.domi.furnace.server.entity.Ravager && level.gameRule("mobGriefing")) level.destroyBlockByEntity(pos, true, entity);
+        // CraftBukkit: mobGriefing 거짓이어도 EntityChangeBlockEvent(새 상태 공기 — 1.21.1 Paper 그대로)를 미리 취소한 채로 내고, 처리기가 풀면 부순다
+        if (entity instanceof org.domi.furnace.server.entity.Ravager
+                && B.entityChange(level, entity, pos, B.defaultState("minecraft:air"), !level.gameRule("mobGriefing"))) level.destroyBlockByEntity(pos, true, entity);
     }
 
     @Override

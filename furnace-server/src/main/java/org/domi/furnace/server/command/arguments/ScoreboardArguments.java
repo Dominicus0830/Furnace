@@ -26,7 +26,9 @@ import org.domi.furnace.server.scores.Objective;
 import org.domi.furnace.server.scores.ObjectiveCriteria;
 import org.domi.furnace.server.scores.PlayerTeam;
 import org.domi.furnace.server.scores.ScoreAccess;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.commands.arguments.ObjectiveArgument", "net.minecraft.commands.arguments.ObjectiveCriteriaArgument", "net.minecraft.commands.arguments.OperationArgument", "net.minecraft.commands.arguments.ScoreboardSlotArgument", "net.minecraft.commands.arguments.TeamArgument", "net.minecraft.commands.arguments.ColorArgument", "net.minecraft.commands.arguments.StyleArgument"})
 public final class ScoreboardArguments {
 
     private ScoreboardArguments() {}

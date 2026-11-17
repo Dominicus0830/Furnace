@@ -2,12 +2,15 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundAddExperienceOrbPacket")
 public record AddExperienceOrb(int entityId, double x, double y, double z, int value) implements Packet {
 
-    public static final int ID = 0x02;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_ADD_EXPERIENCE_ORB;
 
     @Override public int id() { return ID; }
 

@@ -4,13 +4,16 @@ package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
 import java.util.UUID;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundAddEntityPacket")
 public record AddEntity(int entityId, UUID uuid, int type, double x, double y, double z, int xRot, int yRot, int yHeadRot,
                         int data, double vx, double vy, double vz) implements Packet {
 
-    public static final int ID = 0x01;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_ADD_ENTITY;
 
     @Override
     public int id() { return ID; }

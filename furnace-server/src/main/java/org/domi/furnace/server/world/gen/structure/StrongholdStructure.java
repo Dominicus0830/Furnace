@@ -8,6 +8,7 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 import org.domi.furnace.server.world.gen.carver.LegacyRandom;
 
+@org.domi.furnace.server.VanillaPort({"net.minecraft.world.level.levelgen.structure.structures.StrongholdStructure", "net.minecraft.world.level.levelgen.structure.structures.StrongholdPieces"})
 public final class StrongholdStructure extends StructureType {
 
     public StrongholdStructure(StructureRegistry.Def def) {}
@@ -279,8 +280,13 @@ public final class StrongholdStructure extends StructureType {
     enum SmallDoorType { OPENING, WOOD_DOOR, GRATES, IRON_DOOR }
 
     abstract static class Piece extends StructurePiece {
-        final int genDepth;
         protected SmallDoorType entryDoor = SmallDoorType.OPENING;
+
+        /** 바닐라 StrongholdPiece: EntryDoor = 문 종류 이름. */
+        @Override
+        protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+            t.putString("EntryDoor", entryDoor.name());
+        }
 
         protected Piece(int genDepth, BoundingBox box, Direction dir) {
             super(box, dir);
@@ -374,6 +380,9 @@ public final class StrongholdStructure extends StructureType {
 
     /** 바닐라 StrongholdPieces.StartPiece(+ 조각 가중치 상태). */
     static final class StartPiece extends StairsDown {
+        @Override
+        public String pieceType() { return "shstart"; }
+
         PieceWeight previousPiece;
         PortalRoom portalRoomPiece;
         final List<Piece> pendingChildren = new ArrayList<>();
@@ -389,6 +398,15 @@ public final class StrongholdStructure extends StructureType {
     // ------------------------------------------------------------------ 조각들
 
     static class ChestCorridor extends Piece {
+        @Override
+        public String pieceType() { return "shcc"; }
+
+        @Override
+        protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+            super.saveAdditional(t);
+            t.putBoolean("Chest", hasPlacedChest);
+        }
+
         private boolean hasPlacedChest;
 
         ChestCorridor(int genDepth, LegacyRandom r, BoundingBox box, Direction dir) {
@@ -428,6 +446,15 @@ public final class StrongholdStructure extends StructureType {
     }
 
     static class FillerCorridor extends Piece {
+        @Override
+        public String pieceType() { return "shfc"; }
+
+        @Override
+        protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+            super.saveAdditional(t);
+            t.putInt("Steps", steps);
+        }
+
         private final int steps;
 
         FillerCorridor(int genDepth, BoundingBox box, Direction dir) {
@@ -478,6 +505,18 @@ public final class StrongholdStructure extends StructureType {
     }
 
     static class FiveCrossing extends Piece {
+        @Override
+        public String pieceType() { return "sh5c"; }
+
+        @Override
+        protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+            super.saveAdditional(t);
+            t.putBoolean("leftLow", leftLow);
+            t.putBoolean("leftHigh", leftHigh);
+            t.putBoolean("rightLow", rightLow);
+            t.putBoolean("rightHigh", rightHigh);
+        }
+
         private final boolean leftLow, leftHigh, rightLow, rightHigh;
 
         FiveCrossing(int genDepth, LegacyRandom r, BoundingBox box, Direction dir) {
@@ -541,6 +580,9 @@ public final class StrongholdStructure extends StructureType {
     }
 
     static class LeftTurn extends Piece {
+        @Override
+        public String pieceType() { return "shlt"; }
+
         LeftTurn(int genDepth, LegacyRandom r, BoundingBox box, Direction dir) {
             super(genDepth, box, dir);
             this.entryDoor = randomSmallDoor(r);
@@ -569,6 +611,9 @@ public final class StrongholdStructure extends StructureType {
     }
 
     static class RightTurn extends Piece {
+        @Override
+        public String pieceType() { return "shrt"; }
+
         RightTurn(int genDepth, LegacyRandom r, BoundingBox box, Direction dir) {
             super(genDepth, box, dir);
             this.entryDoor = randomSmallDoor(r);
@@ -597,6 +642,15 @@ public final class StrongholdStructure extends StructureType {
     }
 
     static class Library extends Piece {
+        @Override
+        public String pieceType() { return "shli"; }
+
+        @Override
+        protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+            super.saveAdditional(t);
+            t.putBoolean("Tall", isTall);
+        }
+
         private final boolean isTall;
 
         Library(int genDepth, LegacyRandom r, BoundingBox box, Direction dir) {
@@ -704,6 +758,15 @@ public final class StrongholdStructure extends StructureType {
     }
 
     static class PortalRoom extends Piece {
+        @Override
+        public String pieceType() { return "shpr"; }
+
+        @Override
+        protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+            super.saveAdditional(t);
+            t.putBoolean("Mob", hasPlacedSpawner);
+        }
+
         private boolean hasPlacedSpawner;
 
         PortalRoom(int genDepth, BoundingBox box, Direction dir) {
@@ -822,6 +885,9 @@ public final class StrongholdStructure extends StructureType {
     }
 
     static class PrisonHall extends Piece {
+        @Override
+        public String pieceType() { return "shph"; }
+
         PrisonHall(int genDepth, LegacyRandom r, BoundingBox box, Direction dir) {
             super(genDepth, box, dir);
             this.entryDoor = randomSmallDoor(r);
@@ -869,6 +935,15 @@ public final class StrongholdStructure extends StructureType {
     }
 
     static class RoomCrossing extends Piece {
+        @Override
+        public String pieceType() { return "shrc"; }
+
+        @Override
+        protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+            super.saveAdditional(t);
+            t.putInt("Type", type);
+        }
+
         private final int type;
 
         RoomCrossing(int genDepth, LegacyRandom r, BoundingBox box, Direction dir) {
@@ -976,6 +1051,15 @@ public final class StrongholdStructure extends StructureType {
     }
 
     static class StairsDown extends Piece {
+        @Override
+        public String pieceType() { return "shsd"; }
+
+        @Override
+        protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+            super.saveAdditional(t);
+            t.putBoolean("Source", isSource);
+        }
+
         private final boolean isSource;
 
         /** 일반 계단 조각. */
@@ -1033,6 +1117,16 @@ public final class StrongholdStructure extends StructureType {
     }
 
     static class Straight extends Piece {
+        @Override
+        public String pieceType() { return "shs"; }
+
+        @Override
+        protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+            super.saveAdditional(t);
+            t.putBoolean("Left", leftChild);
+            t.putBoolean("Right", rightChild);
+        }
+
         private final boolean leftChild, rightChild;
 
         Straight(int genDepth, LegacyRandom r, BoundingBox box, Direction dir) {
@@ -1072,6 +1166,9 @@ public final class StrongholdStructure extends StructureType {
     }
 
     static class StraightStairsDown extends Piece {
+        @Override
+        public String pieceType() { return "shssd"; }
+
         StraightStairsDown(int genDepth, LegacyRandom r, BoundingBox box, Direction dir) {
             super(genDepth, box, dir);
             this.entryDoor = randomSmallDoor(r);

@@ -61,7 +61,7 @@ public abstract class JavaPlugin extends PluginBase {
         try (Reader r = new InputStreamReader(def, StandardCharsets.UTF_8)) {
             newConfig.setDefaults(YamlConfiguration.loadConfiguration(r));
         } catch (IOException e) {
-            getLogger().log(Level.SEVERE, "기본 config.yml 을 읽지 못했다", e);
+            getLogger().log(Level.SEVERE, org.domi.furnace.compat.i18n.CompatLang.t("compat.default-config-unreadable"), e);
         }
     }
 
@@ -90,7 +90,7 @@ public abstract class JavaPlugin extends PluginBase {
         try {
             if (!outFile.getCanonicalPath().startsWith(getDataFolder().getCanonicalPath() + File.separator)) {
                 in.close();
-                throw new IllegalArgumentException("resourcePath 가 데이터 폴더 밖이다: " + resourcePath);
+                throw new IllegalArgumentException("resourcePath is outside the data folder: " + resourcePath);
             }
             if (outFile.exists() && !replace) {
                 getLogger().log(Level.WARNING, "Could not save " + outFile.getName() + " to " + outFile + " because " + outFile.getName() + " already exists.");

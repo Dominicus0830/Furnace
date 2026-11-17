@@ -2,6 +2,7 @@
 package org.domi.furnace.server.block.types;
 
 import java.util.List;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockUtil;
 import org.domi.furnace.server.block.ChunkLevel;
@@ -14,6 +15,7 @@ import org.domi.furnace.server.world.poi.PoiManager;
 import org.domi.furnace.server.world.poi.PoiRecord;
 import org.domi.furnace.server.world.poi.PoiTypes;
 
+@VanillaPort("net.minecraft.world.level.portal.PortalForcer")
 public final class PortalForcer {
     private PortalForcer() {}
 

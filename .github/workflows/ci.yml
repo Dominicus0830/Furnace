@@ -1,10 +1,13 @@
 name: CI
 
 # 실행 구조 (2026-11-07 병합 병목 개선)
-#  - 서버 시험(약 12분, 3500개)은 시험 클래스 해시로 3조각(-PtestShard=i/3)으로 나눠 러너 3대에서 동시에 돌린다.
+#  - 서버 시험은 6조각(-PtestShard=i/6)으로 나눠 러너 6대에서 동시에 돌린다. 배정은 클래스별 실측 시간(furnace-server/test-shard-times.tsv)으로 고르게 맞춘다(T-162).
 #  - 실패한 조각은 전체가 아니라 "처음에 실패한 시험 클래스만" 한 번 다시 돌린다(부하에서만 실패하는 시간 민감 시험 대응, 재시도 비용 12분 → 1분 안팎).
 #    다시 돌려도 실패하면 진짜 실패로 처리하고, 재시도에서 통과한 시험은 "흔들린 시험" 주석·실행 요약·산출물(flaky-tests-N)로 남긴다.
 #    제한시간을 넘긴 시험·@NoRetry 시험의 실패는 재시도하지 않는다(멈춘 시험·확률 실패를 가리지 않게). 자세한 규칙은 docs/ci.md.
+#  - V-08 시험 영향 선택: PR 은 `select` 작업이 "표를 만든 뒤 바뀐 코드를 실제로 실행한 시험"만 고른다(나머지는 -PtestSkip 으로 건너뜀, 조각 수도 그만큼 줄어든다).
+#    표(test-impact-map)는 test-impact.yml 이 만든다. 표가 없거나 낡았거나, 빌드·리소스·동시성 핵심이 바뀌었거나, 도구가 오류를 내면 전체(MAX_SHARDS 조각)를 돈다.
+#    기준 브랜치 push 는 언제나 전체다(고르기가 놓친 것은 병합 뒤 여기서 잡힌다). PR 에 라벨 `full-tests` 를 붙이고 다시 돌리면 전체를 돈다. 자세한 규칙은 docs/ci.md "시험 영향 선택".
 #  - 나머지(API 시험·샘플 플러그인 컴파일·시험 서버 모듈·fatJar)는 light 작업으로 동시에 돈다.
 #  - 합쳐진 판정은 이름이 `test` 인 마지막 작업 하나다(기존 점검 이름 유지).
 #  - push 는 기준 브랜치에서만 돈다. 작업 브랜치는 pull_request 로 한 번만 돈다(전에는 push 와 pull_request 가 둘 다 돌아 같은 시험이 두 번 돌았다).
@@ -24,16 +27,134 @@ concurrency:
 
 env:
   BASE_BRANCH: refs/heads/claude/quirky-wright-lra834
+  # 전체 시험을 돌 때의 서버 시험 조각 수. 아래 server-tests 의 `|| '[1,2,3,4,5,6]'`·`|| 6`(select 작업이 아예 못 돈 경우의 대비)도 같은 수여야 한다 —
+  # tools/ci/test_test_impact.py 가 셋이 같은지 확인한다. (strategy 안에서는 env 를 못 쓴다.)
+  MAX_SHARDS: 6
 
 jobs:
+  # 문서만 바뀐 PR 은 서버 시험·light 를 건너뛴다(docs/ci.md "문서만 바뀐 PR"). 바뀐 파일이 전부 docs/ 아래거나 저장소 맨 위의 *.md 일 때만 code=false.
+  # push(기준 브랜치) 실행은 항상 code=true. 판단이 틀리거나 오류면 code=true 로 두어 시험이 돈다(안전 쪽).
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 0
+      - name: 바뀐 파일 분류
+        id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          code=true
+          if [ "$EVENT" = "pull_request" ]; then
+            if files=$(git diff --name-only --no-renames "$BASE_SHA...$HEAD_SHA") && [ -n "$files" ]; then
+              echo "$files"
+              # 시험이 읽는 문서(docs/api/ 의 계약 문서, docs/feature-parity/ 의 키 표·호환 보고서)는 코드로 본다(PR #405 검토 R1)
+              if ! echo "$files" | grep -qvE '^(docs/|[^/]+\.md$)' && ! echo "$files" | grep -qE '^docs/(api|feature-parity)/'; then code=false; fi
+            fi
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "코드 변경 있음(시험 필요): $code" >> "$GITHUB_STEP_SUMMARY"
+
+  # V-08 시험 영향 선택. 어떤 경우에도 성공으로 끝나며(오류는 전체 실행으로 바뀐다) mode=full|selected, shards=조각 수를 낸다.
+  select:
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
+    name: select
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    outputs:
+      mode: ${{ steps.final.outputs.mode }}
+      shards: ${{ steps.final.outputs.shards }}
+      matrix: ${{ steps.final.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # 가장 최근의 영향 표(기준 브랜치에서 만든 것)를 받는다. 없으면 건너뛰고 아래 도구가 "표가 없다 → 전체"로 처리한다.
+      - name: 영향 표 받기
+        id: map
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          base="${BASE_BRANCH#refs/heads/}"
+          run_id=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=test-impact-map&per_page=30" \
+            --jq "[.artifacts[] | select(.expired==false and .workflow_run.head_branch==\"$base\")] | sort_by(.created_at) | last | .workflow_run.id // empty")
+          if [ -n "$run_id" ]; then
+            mkdir -p /tmp/impact
+            gh run download "$run_id" -R "$GITHUB_REPOSITORY" -n test-impact-map -D /tmp/impact
+            echo "영향 표: 실행 $run_id" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      # 라벨 `full-tests` 는 실행 시점의 실제 라벨을 본다(붙인 뒤 "Re-run" 하면 적용된다).
+      - name: 전체 강제 라벨 확인
+        id: label
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/issues/$PR/labels" --jq '.[].name' | grep -qx 'full-tests'; then
+            echo "force=PR 라벨 full-tests" >> "$GITHUB_OUTPUT"
+          fi
+      - name: 시험 선택
+        id: sel
+        continue-on-error: true
+        env:
+          EVENT: ${{ github.event_name }}
+          FORCE: ${{ steps.label.outputs.force }}
+        run: |
+          python3 -I tools/ci/test-impact.py select --map /tmp/impact/test-impact.tsv --event "$EVENT" \
+            --max-shards "$MAX_SHARDS" --out-dir /tmp/selection --force-full "${FORCE:-}"
+      # 선택 도구가 못 돌았으면(러너 오류 등) 전체로 둔다.
+      - name: 최종 판단
+        id: final
+        env:
+          SEL_OUTCOME: ${{ steps.sel.outcome }}
+          SEL_MODE: ${{ steps.sel.outputs.mode }}
+          SEL_SHARDS: ${{ steps.sel.outputs.shards }}
+          SEL_MATRIX: ${{ steps.sel.outputs.matrix }}
+        run: |
+          if [ "$SEL_OUTCOME" = "success" ] && [ -n "$SEL_MODE" ] && [ -n "$SEL_SHARDS" ] && [ -n "$SEL_MATRIX" ]; then
+            echo "mode=$SEL_MODE" >> "$GITHUB_OUTPUT"; echo "shards=$SEL_SHARDS" >> "$GITHUB_OUTPUT"; echo "matrix=$SEL_MATRIX" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning title=시험 선택::선택 도구가 결과를 내지 못해 전체를 돕니다(outcome=$SEL_OUTCOME)."
+            echo "mode=full" >> "$GITHUB_OUTPUT"; echo "shards=$MAX_SHARDS" >> "$GITHUB_OUTPUT"
+            echo "matrix=$(python3 -c "import os;print(list(range(1,int(os.environ['MAX_SHARDS'])+1)))")" >> "$GITHUB_OUTPUT"
+            mkdir -p /tmp/selection && : > /tmp/selection/skip-tests.txt
+          fi
+      - name: 선택 결과 올리기
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-selection
+          path: /tmp/selection
+          if-no-files-found: ignore
+          retention-days: 7
+
   server-tests:
-    name: server-tests (${{ matrix.shard }}/3)
+    needs: [changes, select]
+    # select 가 러너 오류로 아예 못 돌았을 때도 전체로 돈다(always). 코드 변경이 없으면(문서만) 건너뛴다.
+    if: always() && needs.changes.result == 'success' && needs.changes.outputs.code == 'true'
+    name: server-tests (${{ matrix.shard }}/${{ needs.select.outputs.shards || 6 }})
     runs-on: ubuntu-latest
     timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: ${{ fromJSON(needs.select.outputs.matrix || '[1,2,3,4,5,6]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -44,23 +165,56 @@ jobs:
         with:
           # 기본값은 "기본 브랜치(main)에서만 캐시 저장"이라 기준 브랜치 캐시가 한 번도 안 만들어졌다. 기준 브랜치 실행에서만 저장한다.
           cache-read-only: ${{ github.ref != env.BASE_BRANCH }}
+      # 선택 실행이면 select 작업이 만든 "건너뛸 시험 클래스" 목록을 받는다(목록에 없는 시험은 전부 돈다).
+      - name: 건너뛸 시험 목록 받기
+        if: needs.select.outputs.mode == 'selected'
+        uses: actions/download-artifact@v4
+        with:
+          name: test-selection
+          path: /tmp/selection
       # Paper 저장소 없이 돌리므로 oracle 모듈은 건너뛴다(-PskipOracle=true)
-      - name: 서버 테스트 (조각 ${{ matrix.shard }}/3)
+      - name: 서버 테스트 (조각 ${{ matrix.shard }}/${{ needs.select.outputs.shards || 6 }})
         id: server-test
         continue-on-error: true
         # 멈춘 시험이 작업 제한(35분)까지 가지 않게 단계에도 제한을 둔다(정상 조각은 5~8분). 시험 한 개의 기본 제한시간은
         # furnace-server/src/test/resources/junit-platform.properties 에 있고, 이 제한은 그 위의 마지막 방어선이다.
         # 단계 제한으로 끝나면 재시도 없이 실패하고 보고서·실행 로그는 올라간다.
+        # T-160: 보호막(tools/ci/run-guarded.sh)이 18분에 먼저 스스로 멈추며 시험 JVM 스레드 덤프를 남기고, 메모리가 모자라면 러너 대신 시험이
+        # 먼저 죽게 하고(oom_score_adj), 메모리·부하를 기록한다. PR #362 의 조각 2 는 단계 제한 20분이 발동하지 않은 채 작업 제한(35분)으로
+        # 40분에 취소됐고 로그도 보고서도 없었다 — 러너 프로그램이 응답하지 못한 것이다(docs/ci.md "로그 없이 취소된 조각").
+        # 보호막은 자기 자손만 덮는다. 이 작업의 앞 단계에서 gradle 데몬을 띄우면 그 데몬은 자손이 아니어서 빠진다.
         timeout-minutes: 20
+        env:
+          SHARD: ${{ matrix.shard }}
+          SHARDS: ${{ needs.select.outputs.shards || 6 }}
+          MODE: ${{ needs.select.outputs.mode }}
         run: |
           set -o pipefail
-          ./gradlew -PskipOracle=true -PtestShard=${{ matrix.shard }}/3 :furnace-server:test 2>&1 | tee /tmp/shard-run.log
+          skip=()
+          if [ "$MODE" = "selected" ]; then skip=(-PtestSkip=/tmp/selection/skip-tests.txt); fi
+          tools/ci/run-guarded.sh 18 -- ./gradlew -PskipOracle=true "-PtestShard=$SHARD/$SHARDS" "${skip[@]}" :furnace-server:test 2>&1 | tee /tmp/shard-run.log
+      # T-162: 한 번에 통과한 조각의 클래스별 시험 시간을 남긴다(CI 러너 실측). 조각이 한쪽으로 쏠리면 이 산출물로 시간 파일을 갱신한다(docs/ci.md "조각 균형").
+      # 재시도 전에 둔다 — 재시도는 결과 XML 을 덮어쓴다. 판정과 무관하다(continue-on-error).
+      # 선택 실행은 일부 클래스만 돌아 표본으로 쓸 수 없다(시간 파일이 한쪽으로 치우친다) — 전체 실행만 남긴다.
+      - name: 조각 시간 기록
+        if: steps.server-test.outcome == 'success' && needs.select.outputs.mode != 'selected'
+        continue-on-error: true
+        run: python3 -I tools/ci/shard-balance.py --export /tmp/shard-times-${{ matrix.shard }}.tsv
+      - name: 조각 시간 기록 올리기
+        if: steps.server-test.outcome == 'success' && needs.select.outputs.mode != 'selected'
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: shard-times-${{ matrix.shard }}
+          path: /tmp/shard-times-${{ matrix.shard }}.tsv
+          if-no-files-found: ignore
+          retention-days: 30
       # 부하에서 가끔 실패하는 시간 민감 시험(CommandBlockOneTickTest 등): 처음에 실패한 시험 클래스만 한 번 다시 돌린다.
       # 재시도하지 않는 경우(JVM 이상 종료, 제한시간 초과, @NoRetry 실패)와 흔들린 시험 기록은 tools/ci/retry-failed-tests.sh 에 있다.
       - name: 실패한 시험만 재시도(1회)
         id: retry
         if: steps.server-test.outcome == 'failure'
-        run: tools/ci/retry-failed-tests.sh ${{ matrix.shard }}
+        run: tools/ci/retry-failed-tests.sh ${{ matrix.shard }} ${{ needs.select.outputs.shards || 6 }}
       # 재시도에서 통과한 시험(= 처음에 실패한 시험) 기록. 초록 뒤에 가려지지 않도록 30일 보관한다 — 두 번 이상 나온 시험은 고칠 대상(docs/ci.md).
       - name: 흔들린 시험 기록 올리기
         if: steps.retry.outcome == 'success'
@@ -81,6 +235,8 @@ jobs:
             furnace-server/build/no-retry-failures.txt
             /tmp/first-run
             /tmp/shard-run.log
+            /tmp/ci-resources.log
+            /tmp/ci-thread-dumps
           if-no-files-found: ignore
           retention-days: 7
       # 서버 시험 단계는 continue-on-error 라 단계 제한시간으로 끝나도 작업이 초록이 될 수 있다(outcome 이 failure 가 아닌 값으로 남는 경우 포함).
@@ -88,10 +244,12 @@ jobs:
       - name: 서버 시험 판정
         if: always() && steps.server-test.outcome != 'success' && steps.retry.outcome != 'success'
         run: |
-          echo "::error::서버 테스트 조각 ${{ matrix.shard }} 가 성공하지 못했습니다(server-test=${{ steps.server-test.outcome }}, retry=${{ steps.retry.outcome }})."
+          echo "::error::서버 테스트 조각 ${{ matrix.shard }}/${{ needs.select.outputs.shards || 6 }} 가 성공하지 못했습니다(server-test=${{ steps.server-test.outcome }}, retry=${{ steps.retry.outcome }})."
           exit 1
 
   light:
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -103,20 +261,59 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: ${{ github.ref != env.BASE_BRANCH }}
+      # 시험 단계는 실패해도 다음 시험 단계를 계속 돈다(continue-on-error) — 한 번의 실행에서 모든 모듈의 실패를 다 본다.
+      # 실패 메시지는 전체(기대값·실제값·스택)가 로그에 나오고(루트 build.gradle.kts, T-160) 보고서는 아래에서 올린다. 판정은 맨 끝 "light 시험 판정".
+      # CI 도구(시험 영향 선택 등) 자체 시험 — 몇 초. 실패해도 다음 단계를 계속 돌고 "light 시험 판정"이 실패로 끝낸다.
+      - name: CI 도구 시험
+        id: ci-tools-test
+        continue-on-error: true
+        run: python3 -I tools/ci/test_test_impact.py
       - name: API 테스트
+        id: api-test
+        continue-on-error: true
         run: ./gradlew -PskipOracle=true :furnace-api:test
       # 샘플 플러그인이 공개 API 만으로 컴파일되는지(테스트 코드는 없다)
       - name: 플러그인 샘플 컴파일
         run: ./gradlew -PskipOracle=true :furnace-plugin-test:classes
       # 헤드리스 시험 서버(플러그인 개발자용 시험 라이브러리) 자체 시험
       - name: 시험 서버 모듈 테스트
+        id: test-module-test
+        continue-on-error: true
         run: ./gradlew -PskipOracle=true :furnace-test:test
       # Bukkit·Paper 호환 계층(H 묶음) 시험 — 헤드리스 시험 서버 위에서 돈다
       - name: 호환 계층 모듈 테스트
+        id: compat-test
+        continue-on-error: true
         run: ./gradlew -PskipOracle=true :furnace-compat-paper:test
+      # V-02: 서버 코드에 블록 상태 번호가 숫자로 박히지 않았는지(StateIds 를 써야 한다, AGENTS.md 규칙 6)
+      - name: raw 상태 번호 검사
+        run: |
+          python3 -I tools/ci/check-raw-state-ids.py --self-test
+          ./gradlew -PskipOracle=true :furnace-server:generateStateIds
+          python3 -I tools/ci/check-raw-state-ids.py
       # 단일 실행 jar 가 만들어지는지(실행 검사는 아님). 러너·캐시·브랜치 정책은 사용자 결정 전이라 바꾸지 않았다.
       - name: fatJar 빌드
         run: ./gradlew -PskipOracle=true :furnace-server:fatJar
+      # 시험이 실패하면 모듈별 보고서(HTML·XML, 시험 표준 출력 포함)를 올린다 — 재시도는 없다(흔들리는 시험은 원인을 고친다, docs/ci.md).
+      - name: light 시험 보고서 올리기
+        if: always() && (failure() || cancelled() || steps.api-test.outcome == 'failure' || steps.test-module-test.outcome == 'failure' || steps.compat-test.outcome == 'failure')
+        uses: actions/upload-artifact@v4
+        with:
+          name: light-test-reports
+          path: |
+            furnace-api/build/reports/tests
+            furnace-api/build/test-results/test
+            furnace-test/build/reports/tests
+            furnace-test/build/test-results/test
+            furnace-compat-paper/build/reports/tests
+            furnace-compat-paper/build/test-results/test
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: light 시험 판정
+        if: always() && (steps.ci-tools-test.outcome != 'success' || steps.api-test.outcome != 'success' || steps.test-module-test.outcome != 'success' || steps.compat-test.outcome != 'success')
+        run: |
+          echo "::error::light 시험 실패: ci-tools=${{ steps.ci-tools-test.outcome }} api=${{ steps.api-test.outcome }} furnace-test=${{ steps.test-module-test.outcome }} compat-paper=${{ steps.compat-test.outcome }} — 로그의 FAILED 아래 전체 메시지와 산출물 light-test-reports 를 보세요."
+          exit 1
       # 기준 브랜치 실행에서만: user-todo 항목 파일을 한 문서로 합쳐 올린다(docs/user-todo/README.md)
       - name: user-todo 합친 문서 만들기
         if: github.event_name == 'push' && github.ref == env.BASE_BRANCH
@@ -201,11 +398,18 @@ jobs:
   # 이름이 `test` 인 합친 판정(기존 점검 이름). 조각·light 중 하나라도 실패·취소면 실패.
   test:
     if: always()
-    needs: [server-tests, light]
+    needs: [changes, select, server-tests, light]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: 판정
         run: |
-          echo "server-tests=${{ needs.server-tests.result }} light=${{ needs.light.result }}"
-          [ "${{ needs.server-tests.result }}" = "success" ] && [ "${{ needs.light.result }}" = "success" ]
+          echo "select=${{ needs.select.result }} mode=${{ needs.select.outputs.mode }} shards=${{ needs.select.outputs.shards }}"
+          echo "changes=${{ needs.changes.result }} code=${{ needs.changes.outputs.code }} server-tests=${{ needs.server-tests.result }} light=${{ needs.light.result }}"
+          [ "${{ needs.changes.result }}" = "success" ] || exit 1
+          if [ "${{ needs.changes.outputs.code }}" = "false" ]; then
+            # 문서만 바뀐 PR: 서버 시험·light 는 건너뛴 것이 정상(skipped). 실패·취소면 실패.
+            [ "${{ needs.server-tests.result }}" = "skipped" ] && [ "${{ needs.light.result }}" = "skipped" ]
+          else
+            [ "${{ needs.server-tests.result }}" = "success" ] && [ "${{ needs.light.result }}" = "success" ]
+          fi

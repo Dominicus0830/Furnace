@@ -2,14 +2,17 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 import org.domi.furnace.server.world.WorldBorder;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundInitializeBorderPacket")
 public record InitializeBorder(double centerX, double centerZ, double oldSize, double newSize, long lerpMillis,
                                int absoluteMaxSize, int warningBlocks, int warningTimeSeconds) implements Packet {
 
-    public static final int ID = 0x25;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_INITIALIZE_BORDER;
 
     /** 바닐라 ClientboundInitializeBorderPacket(WorldBorder): 현재 크기·보간 목표·남은 보간 시간을 한 순간의 상태로 싣는다. */
     public static InitializeBorder of(WorldBorder border) {

@@ -10,9 +10,11 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.storage.LevelStorageSource")
 public final class LevelStorage implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(LevelStorage.class);
@@ -62,7 +64,7 @@ public final class LevelStorage implements AutoCloseable {
             } catch (IOException | RuntimeException e2) {
                 log.error("Failed to load world data from {}", old, e2);
                 log.error("Failed to load world data from {} and {}. World files may be corrupted. Shutting down.", main, old);
-                throw new IOException("level.dat 와 level.dat_old 모두 읽기 실패", e2);
+                throw new IOException("failed to read both level.dat and level.dat_old", e2);
             }
         }
     }
@@ -70,7 +72,7 @@ public final class LevelStorage implements AutoCloseable {
     private static LevelData read(Path p) throws IOException {
         try (InputStream in = Files.newInputStream(p)) {
             NbtCompound root = NbtIo.readGzip(in);
-            if (!root.contains("Data")) throw new IOException("Data 태그 없음: " + p);
+            if (!root.contains("Data")) throw new IOException("missing Data tag: " + p);
             NbtCompound data = root.getCompound("Data");
             checkVersion(p, data);
             return LevelData.fromNbt(data);
@@ -95,29 +97,23 @@ public final class LevelStorage implements AutoCloseable {
         String name = version != null && version.tags().get("Name") instanceof String n ? n : "?";
         if (!"main".equals(series)) {
             log.info("This world was created by an incompatible version.");
-            log.error("{}: 판 계열 \"{}\"({}) 은 이 서버(main, 1.21.1)와 맞지 않아 월드를 열지 않는다 — 월드 파일은 건드리지 않았다", p, series, name);
-            throw new IncompatibleWorldException("판 계열이 다른 월드: " + series + " (" + name + ")");
+            log.error(Lang.t("level.series-mismatch", p, series, name));
+            throw new IncompatibleWorldException("world from a different version series: " + series + " (" + name + ")");
         }
         int dataVersion = data.tags().get("DataVersion") instanceof Number n ? n.intValue()
                 : version != null && version.tags().get("Id") instanceof Number id ? id.intValue() : -1;
         int current = org.domi.furnace.server.world.anvil.NewerDataVersionException.CURRENT;
         if (dataVersion > current && !org.domi.furnace.server.world.anvil.NewerDataVersionException.ignored()) {
             log.info("This world was created by an incompatible version.");
-            log.error("{}: 이 월드는 더 새 판({}, 데이터 버전 {})에서 저장됐다. 이 서버는 1.21.1(데이터 버전 {})이라 열면 모르는 블록·아이템이 "
-                    + "지워지므로 기동하지 않는다 — 월드 파일은 건드리지 않았다. 1.21.1 에서 만든 월드나 백업을 쓰거나, 손실을 감수하고 "
-                    + "-D{}=true 로 강제로 열 수 있다", p, name, dataVersion, current,
-                    org.domi.furnace.server.world.anvil.NewerDataVersionException.IGNORE_PROPERTY);
-            throw new IncompatibleWorldException("더 새 판 월드: 데이터 버전 " + dataVersion + " > " + current + " (" + name + ")");
+            log.error(Lang.t("level.newer-version", p, name, dataVersion, current, org.domi.furnace.server.world.anvil.NewerDataVersionException.IGNORE_PROPERTY));
+            throw new IncompatibleWorldException("world from a newer version: data version " + dataVersion + " > " + current + " (" + name + ")");
         }
         // A05-04: 옛 판 월드는 청크·플레이어·엔티티를 올리는 데이터 픽서가 아직 없어 그대로 열면 아이템 개수·마법 부여·블록이 사라진다
         int minReadable = org.domi.furnace.server.world.anvil.OlderDataVersionException.MIN_READABLE;
         if (dataVersion < minReadable && !org.domi.furnace.server.world.anvil.OlderDataVersionException.ignored()) {
             log.info("This world was created by an incompatible version.");
-            log.error("{}: 이 월드는 더 옛 판({}, 데이터 버전 {})에서 저장됐다. 이 서버는 1.21.1(데이터 버전 {})이고 옛 판 청크·플레이어를 올리는 "
-                    + "픽서가 아직 없어 열면 아이템 개수·마법 부여·블록이 조용히 사라지므로 기동하지 않는다 — 월드 파일은 건드리지 않았다. "
-                    + "바닐라 1.21.1 로 한 번 열어 저장한 월드를 쓰거나, 손실을 감수하고 -D{}=true 로 강제로 열 수 있다",
-                    p, name, dataVersion, current, org.domi.furnace.server.world.anvil.OlderDataVersionException.IGNORE_PROPERTY);
-            throw new IncompatibleWorldException("더 옛 판 월드: 데이터 버전 " + dataVersion + " < " + minReadable + " (" + name + ")");
+            log.error(Lang.t("level.older-version", p, name, dataVersion, current, org.domi.furnace.server.world.anvil.OlderDataVersionException.IGNORE_PROPERTY));
+            throw new IncompatibleWorldException("world from an older version: data version " + dataVersion + " < " + minReadable + " (" + name + ")");
         }
     }
 
@@ -129,7 +125,7 @@ public final class LevelStorage implements AutoCloseable {
             if (Files.exists(main)) Files.move(main, broken, StandardCopyOption.REPLACE_EXISTING);
             Files.copy(old, main, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
-            log.warn("level.dat_old 복원 실패", e);
+            log.warn(Lang.t("level.dat-old-restore-failed"), e);
         }
     }
 

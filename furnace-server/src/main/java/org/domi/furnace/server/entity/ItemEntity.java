@@ -55,7 +55,40 @@ public final class ItemEntity extends Entity {
     @Override
     public boolean dampensVibrations() { return org.domi.furnace.server.item.ItemTags.is(getItem(), "minecraft:dampens_vibrations"); }
 
-    public void setItem(ItemStack stack) { entityData.set(DATA_ITEM, stack); }
+    public void setItem(ItemStack stack) {
+        entityData.set(DATA_ITEM, stack);
+        if (org.domi.furnace.server.item.ProfileFill.needsFill(stack)) org.domi.furnace.server.item.ProfileFill.onStore(stack, this::fillProfile);
+    }
+
+    /** 확인 안 된 머리의 스킨 채우기(PlayerHeadItem.verifyComponentsAfterLoad)가 끝났을 때: 이 엔티티를 가진 region 스레드에서 지금 아이템에 fn 을 적용한다. */
+    private void fillProfile(java.util.function.UnaryOperator<ItemStack> fn) { fillProfileSafely(fn, 100); }
+
+    /** 지연 실행기 스레드에서 도는 재시도가 던져도 아무도 못 받으므로 여기서 삼키고 DEBUG 로만 남긴다. */
+    private void fillProfileSafely(java.util.function.UnaryOperator<ItemStack> fn, int tries) {
+        try {
+            fillProfile(fn, tries);
+        } catch (RuntimeException e) {
+            org.slf4j.LoggerFactory.getLogger(ItemEntity.class).debug("head profile fill on dropped item failed", e);
+        }
+    }
+
+    private void fillProfile(java.util.function.UnaryOperator<ItemStack> fn, int tries) {
+        if (isRemoved()) return;
+        // 읽는 사이 다른 region 으로 넘어갔거나 아직 청크에 올라오기 전일 수 있다 — 도착한 region 이 실제로 이 엔티티를 가졌을 때만 쓰고, 아니면 지금 위치로 다시(EntityOps.runOnOwner 와 같다)
+        level.runAtEntityOwner(x(), z(), lvl -> {
+            try {
+                if (lvl.entities().contains(this)) {
+                    ItemStack next = fn.apply(getItem());
+                    if (next != null) entityData.setQuiet(DATA_ITEM, next);   // 바닐라는 스택을 제자리에서 고쳐(dirty 없이) 메타데이터 패킷이 나가지 않는다(shrinkInPlace 와 같다)
+                } else if (!isRemoved() && tries > 0) {
+                    // 다른 스레드에서 만들어져 조금 늦게 청크에 오르는 엔티티가 시도를 다 쓰지 않게 50ms(한 틱) 간격으로(최대 약 5초)
+                    java.util.concurrent.CompletableFuture.delayedExecutor(50, java.util.concurrent.TimeUnit.MILLISECONDS).execute(() -> fillProfileSafely(fn, tries - 1));
+                }
+            } catch (RuntimeException e) {
+                org.slf4j.LoggerFactory.getLogger(ItemEntity.class).debug("head profile fill on dropped item failed", e);
+            }
+        });
+    }
 
     /** 바닐라는 스택을 제자리에서 줄인다(dirty 없이) — 클라이언트는 다음 갱신 전까지 옛 개수를 본다. */
     private void shrinkInPlace(ItemStack now) { entityData.setQuiet(DATA_ITEM, now); }
@@ -89,7 +122,7 @@ public final class ItemEntity extends Entity {
         } else {
             applyGravity();
         }
-        noPhysics = !level.noCollision(boundingBox().deflate(1.0E-7));
+        noPhysics = !level.noCollision(this, boundingBox().deflate(1.0E-7));
         if (noPhysics) moveTowardsClosestSpace(x(), (boundingBox().minY() + boundingBox().maxY()) / 2.0, z());
         if (!onGround() || vx() * vx() + vz() * vz() > 1.0E-5F || (tickCount + id()) % 4 == 0) {
             move(MOVER_SELF, vx(), vy(), vz());
@@ -108,6 +141,14 @@ public final class ItemEntity extends Entity {
         if (age >= LIFETIME) discard();
     }
 
+    /** Spigot·Paper ItemEntity.inactiveTick: 줍기 지연·나이만 세고 다 되면 사라진다. */
+    @Override
+    public void inactiveTick() {
+        if (pickupDelay > 0 && pickupDelay != INFINITE_PICKUP_DELAY) pickupDelay--;
+        if (age != INFINITE_LIFETIME) age++;
+        if (age >= LIFETIME) discard();
+    }
+
     private void setUnderwaterMovement() {
         setDeltaMovement(vx() * 0.99F, vy() + (double) (vy() < 0.06F ? 5.0E-4F : 0.0F), vz() * 0.99F);
     }
@@ -116,14 +157,24 @@ public final class ItemEntity extends Entity {
         setDeltaMovement(vx() * 0.95F, vy() + (double) (vy() < 0.06F ? 5.0E-4F : 0.0F), vz() * 0.95F);
     }
 
+    /**
+     * mergeWithNeighbours: 상자는 Spigot 식 inflate(r, r - 0.5, r)(merge-radius.item, T-122). 기본 0.5 는 바닐라 inflate(0.5, 0.0, 0.5) 와 같다.
+     * 합치는 방향(Spigot 의 "늘 이쪽으로")은 tryToMerge 가 item-merge.always-into-ticking 으로 고른다.
+     */
     private void mergeWithNeighbours() {
         if (!isMergable()) return;
-        for (ItemEntity other : level.getEntitiesOfClass(ItemEntity.class, boundingBox().inflate(0.5, 0.0, 0.5), e -> e != this && e.isMergable())) {
+        double r = org.domi.furnace.server.config.EntityHandleSettings.current().itemMerge();
+        for (ItemEntity other : level.getEntitiesOfClass(ItemEntity.class, sortedInflate(boundingBox(), r, r - 0.5, r), e -> e != this && e.isMergable())) {
             if (other.isMergable()) {
                 tryToMerge(other);
                 if (isRemoved()) break;
             }
         }
+    }
+
+    /** 바닐라 AABB 생성자는 min/max 를 정렬한다 — merge-radius.item < 0.375 면 y 가 뒤집히므로 Paper 처럼 정렬된 상자로(T-122 검토 R1). */
+    private static AABB sortedInflate(AABB b, double dx, double dy, double dz) {
+        return AABB.of(b.minX() - dx, b.minY() - dy, b.minZ() - dz, b.maxX() + dx, b.maxY() + dy, b.maxZ() + dz);
     }
 
     private boolean isMergable() {
@@ -134,7 +185,8 @@ public final class ItemEntity extends Entity {
     private void tryToMerge(ItemEntity other) {
         ItemStack mine = getItem(), theirs = other.getItem();
         if (java.util.Objects.equals(target, other.target) && areMergable(mine, theirs)) {
-            if (theirs.count() < mine.count()) merge(this, mine, other, theirs);
+            // Spigot·Paper 는 늘 이쪽으로 모은다(item-merge.always-into-ticking, 기본 켬 — T122-1). 끄면 바닐라
+            if (org.domi.furnace.server.config.EntityHandleSettings.current().itemMergeIntoTicking() || theirs.count() < mine.count()) merge(this, mine, other, theirs);
             else merge(other, theirs, this, mine);
         }
     }

@@ -1,4 +1,4 @@
-// 액션바 글자(핫바 위).
+// 액션바 글자. 핫바 위에 나온다.
 package org.domi.furnace.api.packet.clientbound;
 
 import java.util.Objects;

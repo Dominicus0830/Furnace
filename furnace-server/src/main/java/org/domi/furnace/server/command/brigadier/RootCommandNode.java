@@ -3,7 +3,9 @@ package org.domi.furnace.server.command.brigadier;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("com.mojang.brigadier.tree.RootCommandNode")
 public class RootCommandNode<S> extends CommandNode<S> {
 
     public RootCommandNode() {

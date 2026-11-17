@@ -32,7 +32,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.players.GameProfileCache")
 public final class GameProfileCache {
 
     private static final Logger log = LoggerFactory.getLogger(GameProfileCache.class);
@@ -57,6 +59,18 @@ public final class GameProfileCache {
 
     /** 온라인 모드면 참: 조회 실패 시 오프라인 프로필을 만들지 않는다. */
     public void setUsesAuthentication(boolean v) { usesAuthentication = v; }
+
+    public boolean usesAuthentication() { return usesAuthentication; }
+
+    private volatile boolean profileLookups;
+
+    /**
+     * 플러그인 프로필 API 가 Mojang 에 물을 수 있는가(Paper MinecraftServer.usesAuthentication: 온라인 모드이거나 BungeeCord·Velocity 포워딩).
+     * 프록시 뒤 online-mode=false 서버도 스킨은 물어야 하므로 {@link #usesAuthentication} 과 따로 둔다 — 이쪽은 오프라인 프로필 만들기에 영향이 없다.
+     */
+    public void setProfileLookups(boolean v) { profileLookups = v; }
+
+    public boolean profileLookups() { return profileLookups; }
 
     private void safeAdd(Entry e) {
         e.setLastAccess(nextOperation());
@@ -113,6 +127,14 @@ public final class GameProfileCache {
     public Optional<GameProfile> peek(String name) {
         Entry e = profilesByName.get(name.toLowerCase(Locale.ROOT));
         if (e == null || new Date().getTime() >= e.expires.getTime()) return Optional.empty();
+        return Optional.of(e.profile);
+    }
+
+    /** {@link #peek} 와 같지만 찾으면 마지막 접근 순서를 올린다(바닐라 get(name) 이 쓴 항목을 usercache.json 의 앞으로 올리는 것과 같다). 조회·생성·저장은 없다. */
+    public Optional<GameProfile> peekAndTouch(String name) {
+        Entry e = profilesByName.get(name.toLowerCase(Locale.ROOT));
+        if (e == null || new Date().getTime() >= e.expires.getTime()) return Optional.empty();
+        e.setLastAccess(nextOperation());
         return Optional.of(e.profile);
     }
 

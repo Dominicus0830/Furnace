@@ -4,7 +4,7 @@ import org.bukkit.Location;
 import org.bukkit.entity.Item;
 
 /**
- * 아이템 엔티티가 나타나려 한다. Furnace 는 아이템 엔티티를 Item 으로 보이지 못해 아직 알리지 않는다.
+ * 아이템 엔티티가 나타나려 한다.
  * Bukkit 처럼 처리기 목록은 {@link EntitySpawnEvent} 것을 같이 쓴다(EntitySpawnEvent 리스너도 아이템 스폰을 받는다).
  */
 public class ItemSpawnEvent extends EntitySpawnEvent {

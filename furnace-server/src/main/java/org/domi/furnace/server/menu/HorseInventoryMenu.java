@@ -5,7 +5,9 @@ package org.domi.furnace.server.menu;
 import org.domi.furnace.server.entity.AbstractHorse;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.world.MenuBlockContext;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.inventory.HorseInventoryMenu")
 public class HorseInventoryMenu extends AbstractContainerMenu {
 
     private final Container horseContainer;
@@ -72,6 +74,8 @@ public class HorseInventoryMenu extends AbstractContainerMenu {
         return MenuBlockContext.ownsEntity(horse) && !horse.hasInventoryChanged(horseContainer) && horseContainer.stillValid(player)
                 && armorContainer.stillValid(player) && horse.isAlive() && player.canInteractWithEntity(horse.boundingBox(), 4.0);
     }
+
+    @Override public org.domi.furnace.api.event.inventory.InventoryCloseEvent.Reason invalidCloseReason() { return reasonForEntity(horse); }
 
     /**
      * quickMoveStack: 말 칸 → 플레이어(끝에서부터). 플레이어 → 갑옷(비었으면) → 안장 → 상자 칸, 다 안 되면 주 ↔ 핫바.

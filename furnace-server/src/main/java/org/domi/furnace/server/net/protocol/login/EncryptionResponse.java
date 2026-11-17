@@ -2,12 +2,15 @@
 package org.domi.furnace.server.net.protocol.login;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
+import org.domi.furnace.server.net.protocol.PacketIds;
 import org.domi.furnace.server.net.protocol.ProtocolException;
 
+@VanillaPort("net.minecraft.network.protocol.login.ServerboundKeyPacket")
 public record EncryptionResponse(byte[] sharedSecret, byte[] verifyToken) {
 
-    public static final int ID = 0x01;
+    public static final int ID = PacketIds.LOGIN_SERVERBOUND_KEY;
     private static final int MAX_LENGTH = 256; // RSA-1024 암호문은 128바이트
 
     public static EncryptionResponse read(ByteBuf buf) {
@@ -16,7 +19,7 @@ public record EncryptionResponse(byte[] sharedSecret, byte[] verifyToken) {
 
     private static byte[] readBytes(ByteBuf buf) {
         int n = Types.readVarInt(buf);
-        if (n < 0 || n > MAX_LENGTH || n > buf.readableBytes()) throw new ProtocolException("암호화 응답 길이 오류: " + n);
+        if (n < 0 || n > MAX_LENGTH || n > buf.readableBytes()) throw new ProtocolException("invalid encryption response length: " + n);
         byte[] b = new byte[n];
         buf.readBytes(b);
         return b;

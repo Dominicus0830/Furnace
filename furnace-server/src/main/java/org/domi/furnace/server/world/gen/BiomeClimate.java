@@ -5,6 +5,7 @@ import java.util.List;
 import org.domi.furnace.server.world.gen.carver.LegacyRandom;
 import org.domi.furnace.server.world.gen.noise.PerlinSimplexNoise;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.biome.Climate")
 public final class BiomeClimate {
 
     private static final PerlinSimplexNoise TEMPERATURE_NOISE = new PerlinSimplexNoise(new LegacyRandom(1234L), List.of(0));

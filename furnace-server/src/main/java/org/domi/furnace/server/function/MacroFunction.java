@@ -17,7 +17,9 @@ import org.domi.furnace.server.command.brigadier.StringReader;
 import org.domi.furnace.server.command.exec.UnboundEntryAction;
 import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.commands.functions.MacroFunction", "net.minecraft.commands.functions.FunctionBuilder", "net.minecraft.commands.functions.StringTemplate"})
 public final class MacroFunction implements CommandFunction {
 
     /** 바닐라 ij.a: "#" + 소수 최대 15자리, US 기호. DecimalFormat 은 스레드 안전하지 않아 이 객체로 잠근다. */
@@ -46,7 +48,7 @@ public final class MacroFunction implements CommandFunction {
     /** 매크로 함수는 인스턴스화해야 줄이 생긴다. */
     @Override
     public List<UnboundEntryAction> entries() {
-        throw new IllegalStateException("매크로 함수 " + id + " 는 instantiate 뒤에 실행해야 한다");
+        throw new IllegalStateException("macro function " + id + " must be run after instantiate");
     }
 
     public List<String> parameters() { return parameters; }

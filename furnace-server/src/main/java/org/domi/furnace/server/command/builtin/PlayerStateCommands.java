@@ -21,7 +21,9 @@ import org.domi.furnace.server.command.brigadier.SimpleCommandExceptionType;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.world.GameMode;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.server.commands.GameModeCommand", "net.minecraft.server.commands.DefaultGameModeCommands", "net.minecraft.server.commands.KillCommand", "net.minecraft.server.commands.ExperienceCommand", "net.minecraft.server.commands.SetSpawnCommand", "net.minecraft.server.commands.SetWorldSpawnCommand"})
 public final class PlayerStateCommands {
 
     private PlayerStateCommands() {}

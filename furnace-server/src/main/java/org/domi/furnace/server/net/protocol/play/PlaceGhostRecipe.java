@@ -2,12 +2,15 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundPlaceGhostRecipePacket")
 public record PlaceGhostRecipe(int containerId, String recipe) implements Packet {
 
-    public static final int ID = 0x37;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_PLACE_GHOST_RECIPE;
 
     @Override public int id() { return ID; }
 

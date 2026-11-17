@@ -128,7 +128,7 @@ public class Zombie extends Monster {
                         && org.domi.furnace.server.entity.spawn.SpawnPlacements.checkSpawnRules(type().name(), level,
                                 org.domi.furnace.server.entity.spawn.SpawnReason.REINFORCEMENT, pos, level.random())) {
                     zombie.setPos(x, y, z);
-                    if (!hasNearbyAlivePlayer(x, y, z, 7.0) && zombie.checkSpawnObstruction(level) && level.noCollision(zombie.boundingBox())) {
+                    if (!hasNearbyAlivePlayer(x, y, z, 7.0) && zombie.checkSpawnObstruction(level) && level.noCollision(zombie, zombie.boundingBox())) {
                         zombie.setTarget(target);
                         zombie.finalizeSpawn(level.random(), level.getCurrentDifficultyAt(zombie.blockPosition()));
                         level.addFreshEntityWithPassengers(zombie.spawnReason("REINFORCEMENTS"));
@@ -374,7 +374,7 @@ public class Zombie extends Monster {
         entityData.set(DATA_BABY, baby);
         var speed = attributes().get(Attribute.MOVEMENT_SPEED);
         speed.removeModifier(BABY_MODIFIER_ID);
-        if (baby) speed.addOrReplaceModifier(new AttributeModifier(BABY_MODIFIER_ID, 0.5, AttributeModifier.ADD_MULTIPLIED_BASE));
+        if (baby) speed.addOrReplaceTransientModifier(new AttributeModifier(BABY_MODIFIER_ID, 0.5, AttributeModifier.ADD_MULTIPLIED_BASE));
         if (baby) setDimensions(0.3F, 0.975F, 0.93F);   // 크기 0.5 배, 눈높이 0.93
         else setDimensions(0.6F, 1.95F, 1.74F);
     }

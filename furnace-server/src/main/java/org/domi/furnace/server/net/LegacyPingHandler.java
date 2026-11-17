@@ -12,9 +12,11 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.function.IntSupplier;
+import org.domi.furnace.server.VanillaPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@VanillaPort("net.minecraft.server.network.LegacyQueryHandler")
 final class LegacyPingHandler extends ChannelInboundHandlerAdapter {
 
     private static final Logger log = LoggerFactory.getLogger(LegacyPingHandler.class);

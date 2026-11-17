@@ -1,6 +1,7 @@
 // 몹 쪽 게임 이벤트 방출: 바닐라 호출 지점과 같은 종류·원인 엔티티·위치로 level.gameEvent 가 불리는가.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -17,7 +18,7 @@ class MobGameEventsTest {
     @BeforeAll
     static void install() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     record Ev(GameEvent event, Vec3 pos, GameEventContext ctx) {}

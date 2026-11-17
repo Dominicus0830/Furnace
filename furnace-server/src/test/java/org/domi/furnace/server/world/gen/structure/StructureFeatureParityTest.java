@@ -8,6 +8,7 @@
 // 완화했다 — 그 상한을 넘으면 진짜 회귀로 잡힌다.
 package org.domi.furnace.server.world.gen.structure;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -43,16 +44,16 @@ class StructureFeatureParityTest {
     }
 
     private void assertStructureFeatureParity(long seed, int cx, int cz, int maxMismatch) throws Exception {
-        BlockRegistry reg11 = BlockRegistry.load("blocks/1.21.1.txt");
-        Map<Integer, String> oracleIdToName = loadIdToName("/blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry reg11 = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        Map<Integer, String> oracleIdToName = loadIdToName("/blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
 
         NoiseWorldSource source = NoiseWorldSource.overworld(seed, reg11, registries);
         // 픽스처는 사막 피라미드만 켠 오라클로 만들었다 — 이후 구현된 다른 구조물(마을·시련의 방 …)은 끈다
         source.structureEngine().restrictTo(java.util.Set.of("minecraft:desert_pyramid"));
         ChunkColumn col = source.generateWithFeatures(cx, cz);
 
-        String fixtureName = "/worldgen/fixtures/featurestruct_" + seed + "_" + cx + "_" + cz + ".bin";
+        String fixtureName = "/worldgen/fixtures/" + GameVersion.RESOURCE_TAG + "/featurestruct_" + seed + "_" + cx + "_" + cz + ".bin";
         byte[] fx = loadFixture(fixtureName, seed, cx, cz);
 
         int mismatch = countMismatches(col, fx, oracleIdToName, reg11, seed, cx, cz);

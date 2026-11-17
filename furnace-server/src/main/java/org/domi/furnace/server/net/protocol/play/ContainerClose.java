@@ -2,12 +2,15 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundContainerClosePacket")
 public record ContainerClose(int containerId) implements Packet {
 
-    public static final int ID = 0x12;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_CONTAINER_CLOSE;
 
     @Override
     public int id() {

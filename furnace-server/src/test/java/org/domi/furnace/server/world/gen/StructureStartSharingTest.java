@@ -3,6 +3,7 @@
 // 나중 청크 결과를 바꾼다). 서버 경로(공유 월드 장식)는 바닐라처럼 순서에 따라 겹치는 장식이 달라질 수 있어 여기서 쓰지 않는다.
 package org.domi.furnace.server.world.gen;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -18,8 +19,8 @@ class StructureStartSharingTest {
 
     @Test
     void sharedJigsawStartsGiveOrderIndependentChunks() throws Exception {
-        BlockRegistry blocks = BlockRegistry.load("blocks/1.21.1.txt");
-        RegistrySet registries = RegistrySet.load("registries/1.21.1.txt");
+        BlockRegistry blocks = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
         NoiseWorldSource a = NoiseWorldSource.overworld(12345L, blocks, registries);
         NoiseWorldSource b = NoiseWorldSource.overworld(12345L, blocks, registries);
 

@@ -11,7 +11,9 @@ import org.domi.furnace.server.item.ItemStackCodecs;
 import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.recipe.RecipeManager.CraftingEntry;
 import org.domi.furnace.server.recipe.StackedContents;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.recipebook.ServerPlaceRecipe")
 public final class ServerPlaceRecipe {
 
     /** 못 채웠을 때 고스트 레시피를 보내는 길. */

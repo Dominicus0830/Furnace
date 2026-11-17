@@ -1,12 +1,15 @@
 // 바닐라 EntityPredicate 중 지금 엔티티 모델로 판단할 수 있는 부분. 판단할 수 없는 필드는 읽을 때 경고하고 거짓으로 본다.
 package org.domi.furnace.server.loot;
 
+import org.domi.furnace.server.VanillaPort;
+import org.domi.furnace.server.i18n.Lang;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
+@VanillaPort("net.minecraft.advancements.critereon.EntityPredicate")
 public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<String, ItemPredicate> equipment,
                               JsonObject typeSpecific, LocationPredicate location, Bounds[] distance, boolean unsupported,
                               Map<String, EffectPredicate> effects, org.domi.furnace.server.net.io.nbt.NbtCompound nbt, Bounds[] movement,
@@ -49,7 +52,7 @@ public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<St
                 case "flags" -> { for (var x : f.getValue().getAsJsonObject().entrySet()) flags.put(x.getKey(), x.getValue().getAsBoolean()); }
                 case "equipment" -> {
                     for (var x : f.getValue().getAsJsonObject().entrySet()) {
-                        if (!SLOTS.contains(x.getKey())) throw new LootParseException("모르는 장비 칸: " + x.getKey());
+                        if (!SLOTS.contains(x.getKey())) throw new LootParseException("unknown equipment slot: " + x.getKey());
                         equipment.put(x.getKey(), ItemPredicate.parse(x.getValue(), regs));
                     }
                 }
@@ -59,7 +62,7 @@ public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<St
                     if (typeSpecific.has("entity_struck")) struck = parse(typeSpecific.get("entity_struck"), regs);
                     for (String k : new String[] {"stats", "looking_at"}) {
                         if (typeSpecific.has(k)) org.slf4j.LoggerFactory.getLogger(EntityPredicate.class)
-                                .warn("아직 지원하지 않는 player 조건 필드(늘 거짓으로 본다): {}", k);
+                                .warn(Lang.t("loot.player-condition-unsupported", k));
                     }
                 }
                 case "location" -> location = LocationPredicate.parse(f.getValue(), regs);
@@ -76,7 +79,7 @@ public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<St
                     try {
                         nbt = org.domi.furnace.server.command.arguments.TagParser.parseTag(f.getValue().getAsString());
                     } catch (org.domi.furnace.server.command.brigadier.CommandSyntaxException ex) {
-                        throw new LootParseException("엔티티 조건 nbt 를 읽을 수 없다: " + ex.getMessage());
+                        throw new LootParseException("cannot read the nbt of an entity predicate: " + ex.getMessage());
                     }
                     nbtUsed = true;
                 }
@@ -95,14 +98,14 @@ public record EntityPredicate(HolderSet type, Map<String, Boolean> flags, Map<St
                 case "slots" -> {
                     slots = new LinkedHashMap<>();
                     for (var x : f.getValue().getAsJsonObject().entrySet()) {
-                        if (org.domi.furnace.server.command.arguments.SlotRanges.byName(x.getKey()) == null) throw new LootParseException("모르는 슬롯 범위: " + x.getKey());
+                        if (org.domi.furnace.server.command.arguments.SlotRanges.byName(x.getKey()) == null) throw new LootParseException("unknown slot range: " + x.getKey());
                         slots.put(x.getKey(), ItemPredicate.parse(x.getValue(), regs));
                     }
                 }
                 default -> unsupported = true;
             }
         }
-        if (unsupported) org.slf4j.LoggerFactory.getLogger(EntityPredicate.class).warn("아직 지원하지 않는 엔티티 조건 필드: {}", o.keySet());
+        if (unsupported) org.slf4j.LoggerFactory.getLogger(EntityPredicate.class).warn(Lang.t("loot.entity-condition-unsupported", o.keySet()));
         return new EntityPredicate(type, flags, equipment, typeSpecific, location, distance, unsupported, effects, nbt, movement,
                 steppingOn, affectedBy, periodic, vehicle, passenger, targeted, team, slots, struck);
     }

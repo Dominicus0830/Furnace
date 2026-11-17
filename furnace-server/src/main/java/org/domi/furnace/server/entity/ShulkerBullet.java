@@ -153,7 +153,7 @@ public class ShulkerBullet extends Projectile {
                 Pos bp = blockPosition();
                 int axis = Dir.axis(currentMoveDirection);
                 Pos ahead = bp.relative(currentMoveDirection);
-                if (level.hasChunkAt(ahead) && B.isFaceSturdy(level.getBlockState(ahead), level, ahead, Dir.UP)) {
+                if (level.hasChunkAt(ahead) && B.entityCanStandOn(level.getBlockState(ahead), level, ahead, this)) {   // loadedAndEntityCanStandOn(ahead, this)
                     selectNextMoveDirection(axis);
                 } else {
                     Pos tp = finalTarget.blockPosition();

@@ -850,6 +850,8 @@ public class Fox extends Animal {
         }
 
         private void pickGlowBerry(int s) {
+            // CaveVines.use(fox, …) 의 CraftBukkit 자리: EntityChangeBlockEvent 를 막으면 아무것도 하지 않는다
+            if (!B.entityChange(level, Fox.this, blockPos, B.prop("berries").with(s, false))) return;
             level.popResource(blockPos, B.stack("minecraft:glow_berries", 1));
             level.playSound(null, blockPos, "minecraft:block.cave_vines.pick_berries", "blocks", 1.0F, level.random().nextFloat() * (1.2F - 0.8F) + 0.8F);
             level.setBlock(blockPos, B.prop("berries").with(s, false), 2);
@@ -857,6 +859,8 @@ public class Fox extends Animal {
 
         private void pickSweetBerries(int s) {
             int age = BERRY_AGE.intValue(s);
+            // CraftBukkit: EntityChangeBlockEvent 를 막으면 따지 않는다(열매 수 난수 전)
+            if (!B.entityChange(level, Fox.this, blockPos, BERRY_AGE.withInt(s, 1))) return;
             int amount = 1 + level.random().nextInt(2) + (age == 3 ? 1 : 0);
             ItemStack held = getItemBySlot(EquipmentSlot.MAINHAND);
             if (held.isEmpty()) {

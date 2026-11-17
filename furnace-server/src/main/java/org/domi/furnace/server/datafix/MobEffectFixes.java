@@ -4,7 +4,9 @@ package org.domi.furnace.server.datafix;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.net.io.nbt.NbtList;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.util.datafix.fixes.MobEffectIdFix")
 final class MobEffectFixes {
     private MobEffectFixes() {}
 

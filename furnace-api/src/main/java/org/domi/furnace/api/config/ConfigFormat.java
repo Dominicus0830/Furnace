@@ -1,4 +1,4 @@
-// 지원하는 설정 파일 포맷(YAML/TOML/JSON)과 파싱·직렬화·확장자 감지
+// 지원하는 설정 파일 포맷(YAML/TOML/JSON)과, 그 파싱·직렬화·확장자 감지
 package org.domi.furnace.api.config;
 
 import java.io.IOException;
@@ -16,22 +16,37 @@ import java.util.Optional;
 public enum ConfigFormat {
 
     /**
-     * YAML 1.1 서브셋(Bukkit/SnakeYAML 호환), 확장자 .yml/.yaml, 주석 보존.
+     * YAML 1.1 서브셋(Bukkit/SnakeYAML 호환). 확장자는 .yml/.yaml 이고 주석을 보존한다.
      *
-     * <p>지원: 블록/플로우 컬렉션, 평문·홑따옴표·겹따옴표 스칼라(여러 줄 포함), {@code | >} 블록 스칼라(+ - 및 들여쓰기 표시),
-     * anchor/alias/병합 키({@code <<}), {@code !!str !!int !!float !!bool !!null} 태그, {@code ---} / {@code ...}.
-     * 불리언은 yes/no/on/off/true/false(대소문자 무시), 정수는 10/16(0x)/8(0o, 앞 0)/2(0b)진과 {@code _} 구분자.
+     * <p>지원하는 것은 다음과 같다.
+     * <ul>
+     * <li>블록/플로우 컬렉션
+     * <li>평문·홑따옴표·겹따옴표 스칼라(여러 줄 포함)
+     * <li>{@code | >} 블록 스칼라(+ - 및 들여쓰기 표시)
+     * <li>anchor/alias/병합 키({@code <<})
+     * <li>{@code !!str !!int !!float !!bool !!null} 태그, {@code ---} / {@code ...}
+     * <li>불리언은 yes/no/on/off/true/false(대소문자 무시)
+     * <li>정수는 10/16(0x)/8(0o, 앞 0)/2(0b)진과 {@code _} 구분자
+     * </ul>
      *
-     * <p>SnakeYAML 과의 차이: 키는 항상 원문 문자열(on/yes/1 키가 Boolean/Integer 로 바뀌지 않음), 60진수(12:30)와
-     * timestamp 는 해석하지 않고 문자열로 둠, long 범위를 넘는 정수는 문자열로 보존, 중복 키·탭 들여쓰기는 오류,
-     * {@code ? } 복합 키와 문서 여러 개는 미지원, 알 수 없는 태그는 무시. 리스트 항목 앞 주석은 보존하지 않는다.
+     * <p>SnakeYAML 과 다른 점은 다음과 같다.
+     * <ul>
+     * <li>키는 항상 원문 문자열이다(on/yes/1 키가 Boolean/Integer 로 바뀌지 않는다).
+     * <li>60진수(12:30)와 timestamp 는 해석하지 않고 문자열로 둔다.
+     * <li>long 범위를 넘는 정수는 문자열로 보존한다.
+     * <li>중복 키와 탭 들여쓰기는 오류다.
+     * <li>{@code ? } 복합 키와 문서 여러 개는 지원하지 않는다.
+     * <li>알 수 없는 태그는 무시한다.
+     * <li>리스트 항목 앞 주석은 보존하지 않는다.
+     * </ul>
      * 쓸 때 리스트는 키보다 2칸 들여 쓰고, 문자열은 필요할 때만 홑따옴표로 감싼다.
      */
     YAML("yml", "yaml"),
     /**
-     * TOML v1.0.0, 확장자 .toml, 주석 보존(테이블 배열 원소 앞 주석은 원소의 {@link ConfigSection#getHeader()}).
+     * TOML v1.0.0. 확장자는 .toml 이고 주석을 보존한다(테이블 배열 원소 앞 주석은 원소의 {@link ConfigSection#getHeader()} 에 담긴다).
      * 날짜/시간은 java.time 타입(OffsetDateTime/LocalDateTime/LocalDate/LocalTime)으로 저장한다.
-     * 정수는 Integer(범위 내) 또는 Long. TOML 에는 null 이 없어 쓸 때 null 값은 생략하고, 값이 테이블보다 먼저 오도록 재배치한다.
+     * 정수는 Integer(범위 내) 또는 Long 이다.
+     * TOML 에는 null 이 없어서 쓸 때 null 값은 생략하고, 값이 테이블보다 먼저 오도록 재배치한다.
      */
     TOML("toml"),
     /** 엄격한 JSON(RFC 8259). 확장자 .json. 주석 없음. */
@@ -69,11 +84,14 @@ public enum ConfigFormat {
     /** 섹션을 이 포맷의 텍스트로 직렬화한다. */
     public String write(ConfigSection section) {
         return switch (this) {
-            case YAML -> YamlWriter.write(section);
-            case TOML -> TomlWriter.write(section);
-            case JSON -> JsonWriter.write(section);
+            case YAML -> YamlWriter.write(writable(section));
+            case TOML -> TomlWriter.write(writable(section));
+            case JSON -> JsonWriter.write(writable(section));
         };
     }
+
+    /** 쓰기용: 불투명 값({@link ConfigSection.Opaque})이 있으면 그 순간의 저장 꼴로 바꾼 사본(원본 트리는 읽기만 한다). */
+    private static ConfigSection writable(ConfigSection section) { return section.hasOpaque() ? section.lowered() : section; }
 
     /** 파일 이름의 확장자(.yml/.yaml/.toml/.json, 대소문자 무시)로 포맷을 찾는다. */
     public static Optional<ConfigFormat> fromFileName(String fileName) {

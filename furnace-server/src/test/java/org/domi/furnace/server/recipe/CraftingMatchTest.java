@@ -1,6 +1,7 @@
 // 제작 매칭 시험 — 로컬 바닐라 데이터(tools/vanilla-data/server-1.21.1)의 실제 레시피로: 모양 있는/없는 제작, 좌우 뒤집기, 여분 재료, 남는 아이템.
 package org.domi.furnace.server.recipe;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
@@ -28,12 +29,12 @@ class CraftingMatchTest {
 
     @BeforeAll
     static void load() throws Exception {
-        Path root = Path.of("../tools/vanilla-data/server-1.21.1");
+        Path root = Path.of("../tools/vanilla-data/server-" + GameVersion.MINECRAFT);
         Assumptions.assumeTrue(Files.isDirectory(root.resolve("data/minecraft/recipe")), "로컬 바닐라 데이터 없음");
         PackRepository repo = new PackRepository(root, null);
         repo.reload();
         repo.setSelected(List.of("vanilla"));
-        regs = new TagRegistries(RegistrySet.load("registries/1.21.1.txt"));
+        regs = new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"));
         org.domi.furnace.server.item.ItemContext.install(regs);
         resources = repo.openResourceManager();
         TagSet tags = TagSet.of(regs.loadAll(resources));

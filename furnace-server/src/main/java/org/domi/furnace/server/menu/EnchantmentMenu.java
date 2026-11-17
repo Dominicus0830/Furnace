@@ -11,7 +11,9 @@ import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.loot.Enchantments;
 import org.domi.furnace.server.loot.LegacyNoiseRandom;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.inventory.EnchantmentMenu")
 public class EnchantmentMenu extends AbstractContainerMenu {
 
     public static final int ITEM_SLOT = 0, LAPIS_SLOT = 1;
@@ -26,6 +28,9 @@ public class EnchantmentMenu extends AbstractContainerMenu {
     public final int[] enchantClue = {-1, -1, -1};
     public final int[] levelClue = {-1, -1, -1};
     private final String[] clueName = new String[3];
+
+    /** 제안 칸 i 가 단서로 보이는 마법 부여 id(단서가 없으면 null) — 플러그인 EnchantItemEvent#enchantmentHint. */
+    public String clueName(int i) { return enchantClue[i] < 0 ? null : clueName[i]; }
 
     public EnchantmentMenu(int containerId, Container playerInventory, MenuPlayer owner, int[] blockPos, BlockAccess access) {
         super("minecraft:enchantment", containerId);

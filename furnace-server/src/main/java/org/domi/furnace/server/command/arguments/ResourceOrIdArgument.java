@@ -19,7 +19,9 @@ import org.domi.furnace.server.command.brigadier.DynamicCommandExceptionType;
 import org.domi.furnace.server.command.brigadier.StringReader;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtList;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.arguments.ResourceOrIdArgument")
 public final class ResourceOrIdArgument implements ArgumentType<ResourceOrIdArgument.Ref> {
 
     public static final DynamicCommandExceptionType ERROR_FAILED_TO_PARSE =
@@ -96,7 +98,7 @@ public final class ResourceOrIdArgument implements ArgumentType<ResourceOrIdArgu
             case long[] b -> { JsonArray a = new JsonArray(); for (long x : b) a.add(x); yield a; }
             case String s -> new JsonPrimitive(s);
             case Number n -> new JsonPrimitive(n);
-            default -> throw new IllegalArgumentException("NBT 값이 아님: " + tag);
+            default -> throw new IllegalArgumentException("not an NBT value: " + tag);
         };
     }
 

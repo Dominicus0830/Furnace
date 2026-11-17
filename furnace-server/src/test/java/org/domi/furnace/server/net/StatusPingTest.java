@@ -1,6 +1,7 @@
 // handshake→status 핑 경로를 실제 소켓으로 검증(JSON에 protocol 767 포함)
 package org.domi.furnace.server.net;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -20,9 +21,9 @@ import org.junit.jupiter.api.Test;
 class StatusPingTest {
 
     @Test
-    void handshakeThenStatusRequest_returnsJsonWithProtocol767() throws Exception {
+    void handshakeThenStatusRequest_returnsJsonWithTheProtocolNumber() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         World world = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1),
                 sched, sched.regionThreadCount(), 16, 2, 2, reg.directBits(), 7, java.util.concurrent.Executors.newSingleThreadExecutor());
         NetworkServer server = new NetworkServer(0, -1, "Furnace Server", sched,

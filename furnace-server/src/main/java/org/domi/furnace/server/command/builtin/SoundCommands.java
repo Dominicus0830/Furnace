@@ -2,6 +2,7 @@
 // playsound 는 Holder.direct(가변 범위 소리)로 보낸다 — 패킷에는 레지스트리 id 가 아니라 이름이 직접 실린다.
 package org.domi.furnace.server.command.builtin;
 
+import org.domi.furnace.api.GameVersion;
 import static org.domi.furnace.server.command.Commands.argument;
 import static org.domi.furnace.server.command.Commands.literal;
 
@@ -24,7 +25,9 @@ import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.net.protocol.play.SoundPacket;
 import org.domi.furnace.server.net.protocol.play.StopSound;
 import org.domi.furnace.server.sound.SoundSource;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort({"net.minecraft.server.commands.PlaySoundCommand", "net.minecraft.server.commands.StopSoundCommand"})
 public final class SoundCommands {
 
     private SoundCommands() {}
@@ -47,7 +50,7 @@ public final class SoundCommands {
         java.util.List<String> l = soundNames;
         if (l == null) {
             java.util.List<String> out = new java.util.ArrayList<>();
-            try (var in = SoundCommands.class.getClassLoader().getResourceAsStream("registries/builtin-1.21.1.txt")) {
+            try (var in = SoundCommands.class.getClassLoader().getResourceAsStream("registries/builtin-" + GameVersion.RESOURCE_TAG + ".txt")) {
                 if (in != null) {
                     var r = new java.io.BufferedReader(new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
                     String line;

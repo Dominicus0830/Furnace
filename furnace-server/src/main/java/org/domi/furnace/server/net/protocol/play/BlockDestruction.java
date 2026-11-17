@@ -2,12 +2,15 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundBlockDestructionPacket")
 public record BlockDestruction(int entityId, int x, int y, int z, int progress) implements Packet {
 
-    public static final int ID = 0x06; // datagen: play.clientbound.block_destruction
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_BLOCK_DESTRUCTION; // datagen: play.clientbound.block_destruction
 
     @Override
     public int id() { return ID; }

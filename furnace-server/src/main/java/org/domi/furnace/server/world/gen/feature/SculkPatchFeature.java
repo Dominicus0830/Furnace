@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.SculkPatchFeature")
 public final class SculkPatchFeature implements ConfiguredFeature {
 
     private static final int DOWN = 0, UP = 1;
@@ -57,7 +58,7 @@ public final class SculkPatchFeature implements ConfiguredFeature {
 
         private static int exact(org.domi.furnace.server.world.BlockRegistry r, String key) {
             int id = r.exactStateId(key);
-            if (id < 0) throw new IllegalStateException("블록 상태 없음: " + key);
+            if (id < 0) throw new IllegalStateException("no such block state: " + key);
             return id;
         }
 

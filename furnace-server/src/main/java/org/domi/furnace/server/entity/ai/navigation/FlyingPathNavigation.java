@@ -59,5 +59,5 @@ public class FlyingPathNavigation extends PathNavigation {
     public boolean canOpenDoors() { return nodeEvaluator.canOpenDoors(); }
 
     @Override
-    public boolean isStableDestination(Pos pos) { return BlockAttrs.get().isCollisionFaceFull(level.getBlockState(pos), Dir.UP); }
+    public boolean isStableDestination(Pos pos) { return org.domi.furnace.server.block.B.entityCanStandOn(level.getBlockState(pos), level, pos, mob); }   // entityCanStandOn(mob 문맥)
 }

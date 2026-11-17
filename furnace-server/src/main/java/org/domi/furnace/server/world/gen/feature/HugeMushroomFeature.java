@@ -8,6 +8,7 @@ import org.domi.furnace.server.world.BlockRegistry;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.gen.carver.WorldgenRandom;
 
+@org.domi.furnace.server.VanillaPort({"net.minecraft.world.level.levelgen.feature.AbstractHugeMushroomFeature", "net.minecraft.world.level.levelgen.feature.HugeRedMushroomFeature", "net.minecraft.world.level.levelgen.feature.HugeBrownMushroomFeature"})
 public final class HugeMushroomFeature implements ConfiguredFeature {
 
     public enum Kind { RED, BROWN }

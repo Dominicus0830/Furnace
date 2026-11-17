@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import org.domi.furnace.api.plugin.PluginFormat;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,10 +24,10 @@ final class PluginFormats {
     private static final PluginFormats NONE = new PluginFormats(false, null, List.of());
 
     private final boolean available;
-    private final ClassLoader loader;
+    private final java.util.function.Supplier<ClassLoader> loader;
     private volatile List<PluginFormat> resolved;
 
-    private PluginFormats(boolean available, ClassLoader loader, List<PluginFormat> resolved) {
+    private PluginFormats(boolean available, java.util.function.Supplier<ClassLoader> loader, List<PluginFormat> resolved) {
         this.available = available;
         this.loader = loader;
         this.resolved = resolved;
@@ -46,11 +47,14 @@ final class PluginFormats {
         try {
             present = loader.getResources(SERVICES_RESOURCE).hasMoreElements();
         } catch (IOException e) {
-            log.warn("호환 모듈 자원을 찾지 못했다: {}", e.toString());
+            log.warn(Lang.t("plugin.compat-resources-missing", e.toString()));
             present = false;
         }
-        return present ? new PluginFormats(true, loader, null) : NONE;
+        return present ? new PluginFormats(true, () -> loader, null) : NONE;
     }
+
+    /** 서버 jar 에 통째로 실린 호환 모듈(N-lib-1). 로더는 get() 에서 처음 만든다 — 그전에는 jar 를 꺼내지도 않는다. */
+    static PluginFormats embedded(java.util.function.Supplier<ClassLoader> loader) { return new PluginFormats(true, loader, null); }
 
     /** 호환 모듈이 있는가(클래스를 올리지 않고 안다). */
     boolean available() { return available; }
@@ -63,7 +67,7 @@ final class PluginFormats {
         List<PluginFormat> r = resolved;
         if (r != null) return r;
         synchronized (this) {
-            if (resolved == null) resolved = load(loader);
+            if (resolved == null) resolved = load(loader.get());
             return resolved;
         }
     }
@@ -76,7 +80,7 @@ final class PluginFormats {
                 if (!it.hasNext()) break;
                 out.add(it.next());
             } catch (java.util.ServiceConfigurationError e) {
-                log.error("플러그인 형식 어댑터를 불러오지 못했다", e);
+                log.error(Lang.t("plugin.format-adapter-failed"), e);
             }
         }
         return List.copyOf(out);

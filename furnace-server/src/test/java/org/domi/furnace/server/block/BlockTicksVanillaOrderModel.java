@@ -1,4 +1,5 @@
 // (Fable 대기열 검증에서 받은 참조 모델 — DeferredBlockTicksTest.matchesVanillaLevelTicksOrderOnRandomScenes 가 쓴다.)
+// T-055b: 틱마다 청크별 저장 목록 순서(컨테이너 큐 배열 순서)도 맞댄다.
 // 바닐라 1.21.1 LevelTicks(eyq) 꺼내기 순서를 바이트코드 그대로 옮긴 참조 모델과 Furnace BlockTicks 를 무작위 장면으로 맞대 본다.
 // 모델 근거: eyq.a(J)(sortContainersToTick), eyq.a(JI)(drainContainers), eyq.a(Queue,eyo,J,I)(drainFromCurrentContainer),
 // eyq.b()(rescheduleLeftoverContainers), eyt.a = DRAIN_ORDER(시각→우선순위→순번), eyt.b = INTRA_TICK(우선순위→순번).
@@ -121,6 +122,14 @@ public final class BlockTicksVanillaOrderModel {
                 if (h % 3 == 0) vanilla.schedule(new T(t.pos, t.type, time + 1 + h % 3, (int) (h % 2), orderV[0]++));
             }
             if (!ranF.equals(ranV)) return "seed " + seed + " tick " + now + " max " + max + "\n  vanilla=" + ranV + "\n  furnace=" + ranF;
+            // 저장 목록 순서(T-055b): 바닐라 LevelChunkTicks.save 는 컨테이너 PriorityQueue 를 배열 순서로 쓴다
+            for (int i = 0; i < chunks; i++) {
+                List<String> savedF = new ArrayList<>(), savedV = new ArrayList<>();
+                for (var s : furnace.chunkTicks(i, 0)) savedF.add(s.pos() + ":" + s.type() + "@" + s.triggerTick() + "/" + s.priority() + "/" + s.subTickOrder());
+                Vanilla.Container c = vanilla.all.get(ChunkPredicateMemo.chunkKey(i, 0));
+                if (c != null) for (T t : c.q) savedV.add(t.pos + ":" + t.type + "@" + t.trigger + "/" + t.prio + "/" + t.order);
+                if (!savedF.equals(savedV)) return "seed " + seed + " tick " + now + " chunk " + i + " 저장 순서\n  vanilla=" + savedV + "\n  furnace=" + savedF;
+            }
         }
         return null;
     }

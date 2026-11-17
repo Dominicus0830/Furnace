@@ -5,12 +5,15 @@ package org.domi.furnace.server.net.protocol.play;
 import io.netty.buffer.ByteBuf;
 import java.util.UUID;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundBossEventPacket")
 public record BossEvent(UUID bossId, int action, Text name, float progress, int color, int overlay, int flags) implements Packet {
 
-    public static final int ID = 0x0A;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_BOSS_EVENT;
     public static final int ADD = 0, REMOVE = 1, UPDATE_PROGRESS = 2, UPDATE_NAME = 3, UPDATE_STYLE = 4, UPDATE_PROPERTIES = 5;
 
     public static BossEvent add(UUID id, Text name, float progress, int color, int overlay, int flags) { return new BossEvent(id, ADD, name, progress, color, overlay, flags); }

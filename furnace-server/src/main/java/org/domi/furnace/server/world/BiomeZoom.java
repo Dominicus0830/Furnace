@@ -2,8 +2,20 @@
 // (SurfaceSystem·FeatureWorldView 와 같은 알고리즘. 게임플레이의 바이옴 질의 — 위치 조건 등 — 는 이 값을 쓴다.)
 package org.domi.furnace.server.world;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.biome.BiomeManager")
 public final class BiomeZoom {
     private BiomeZoom() {}
+
+    /** BiomeManager.obfuscateSeed: SHA-256(시드, little-endian long) 앞 8바이트를 little-endian long 으로. 비싸니 시드마다 한 번만 계산해 둘 것. */
+    public static long obfuscateSeed(long seed) {
+        try {
+            byte[] in = java.nio.ByteBuffer.allocate(8).order(java.nio.ByteOrder.LITTLE_ENDIAN).putLong(seed).array();
+            byte[] h = java.security.MessageDigest.getInstance("SHA-256").digest(in);
+            return java.nio.ByteBuffer.wrap(h, 0, 8).order(java.nio.ByteOrder.LITTLE_ENDIAN).getLong();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
 
     /** @param zoomSeed BiomeManager.obfuscateSeed(월드 시드) @return {quartX, quartY, quartZ} */
     public static int[] quart(long zoomSeed, int blockX, int blockY, int blockZ) {

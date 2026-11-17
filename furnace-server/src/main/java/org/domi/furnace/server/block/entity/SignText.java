@@ -6,11 +6,13 @@ import java.util.Arrays;
 import org.domi.furnace.api.text.ClickEvent;
 import org.domi.furnace.api.text.Content;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.item.FlatText;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 
+@VanillaPort("net.minecraft.world.level.block.entity.SignText")
 public final class SignText {
 
     public static final int LINES = 4;

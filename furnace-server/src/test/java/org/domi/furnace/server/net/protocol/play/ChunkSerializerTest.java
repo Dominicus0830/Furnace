@@ -1,6 +1,7 @@
 // 청크 직렬화 헤더(좌표) + 섹션/라이트 카운트 스모크 검증
 package org.domi.furnace.server.net.protocol.play;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -17,7 +18,7 @@ class ChunkSerializerTest {
 
     @Test
     void serialize_writesCoordsAndIsNonEmpty() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         ChunkColumn col = new SuperflatWorldSource(reg, 6).generate(3, -5);
         ByteBuf buf = Unpooled.buffer();
         ChunkSerializer.serialize(buf, ChunkSnapshot.of(3, -5, col), reg.directBits(), 7); // biomeDirectBits=7(128 biome 가정)
@@ -31,7 +32,7 @@ class ChunkSerializerTest {
 
     @Test
     void serialize_writesMotionBlockingAndWorldSurfaceHeightmapTags() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         ChunkColumn col = new SuperflatWorldSource(reg, 6).generate(0, 0);
         ByteBuf buf = Unpooled.buffer();
         ChunkSerializer.serialize(buf, ChunkSnapshot.of(0, 0, col), reg.directBits(), 7);
@@ -72,7 +73,7 @@ class ChunkSerializerTest {
 
     @Test
     void serialize_noBlockEntities_writesZeroCount() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         ChunkColumn col = new SuperflatWorldSource(reg, 6).generate(0, 0);
         ByteBuf buf = Unpooled.buffer();
         ChunkSerializer.serialize(buf, ChunkSnapshot.of(0, 0, col), reg.directBits(), 7);
@@ -84,7 +85,7 @@ class ChunkSerializerTest {
 
     @Test
     void serialize_blockEntity_writesPackedXZYTypeIdAndEmptyTag() {
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         ChunkColumn col = new SuperflatWorldSource(reg, 6).generate(0, 0);
         ItemStack[] items = new ItemStack[27];
         java.util.Arrays.fill(items, ItemStack.EMPTY);

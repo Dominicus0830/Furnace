@@ -1,4 +1,4 @@
-// 엄격한 RFC 8259 JSON 파서 — 루트는 객체여야 하며 중복 키/후행 쉼표/주석은 오류
+// 엄격한 RFC 8259 JSON 파서다. 루트는 객체여야 하며 중복 키, 후행 쉼표, 주석은 오류다
 package org.domi.furnace.api.config;
 
 import java.util.ArrayList;

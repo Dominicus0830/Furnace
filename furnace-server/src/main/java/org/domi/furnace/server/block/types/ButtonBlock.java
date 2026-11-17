@@ -1,6 +1,7 @@
 // 바닐라 ButtonBlock: 누르면 켜지고 정해진 틱 뒤 꺼진다. 붙은 칸에 강한 신호.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.Explosion;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
@@ -13,6 +14,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 
+@VanillaPort("net.minecraft.world.level.block.ButtonBlock")
 public class ButtonBlock extends FaceAttachedHorizontalDirectionalBlock {
 
     static final Prop POWERED = B.prop("powered");

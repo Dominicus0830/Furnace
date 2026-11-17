@@ -2,6 +2,7 @@
 // 마법 부여 책 거래의 마법 유효성(데이터 팩 필요).
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -27,7 +28,7 @@ class VillagerTradesTest {
     @BeforeEach
     void install() {
         ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     /** 호출 순서를 기록하는 난수(bound 가 있는 nextInt 는 "i<bound>", 그 밖은 이름). */

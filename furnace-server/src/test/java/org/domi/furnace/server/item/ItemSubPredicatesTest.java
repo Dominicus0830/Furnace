@@ -2,6 +2,7 @@
 // 전리품·발전 과제(loot/ItemPredicate)가 같은 공용 코덱(ItemPredicates)으로 같은 판정을 내는지.
 package org.domi.furnace.server.item;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.google.gson.JsonParser;
@@ -30,7 +31,7 @@ class ItemSubPredicatesTest {
     static void loadLootRegistries() throws Exception {
         PackRepository repo = new PackRepository(null, null);
         repo.reload();
-        TagRegistries tags = new TagRegistries(RegistrySet.load("registries/1.21.1.txt"));
+        TagRegistries tags = new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"));
         try (var rm = repo.openResourceManager()) {
             regs = new LootRegistries(tags, tags.loadAll(rm));
         }
@@ -38,8 +39,8 @@ class ItemSubPredicatesTest {
 
     @BeforeEach
     void install() {
-        ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
-        ItemContext.installTags(TagSet.load("registries/tags-1.21.1.txt"));
+        ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
+        ItemContext.installTags(TagSet.load("registries/tags-" + GameVersion.RESOURCE_TAG + ".txt"));
     }
 
     private static ItemStack stack(String s) throws CommandSyntaxException {

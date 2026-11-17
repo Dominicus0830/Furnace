@@ -23,7 +23,9 @@ import org.domi.furnace.server.entity.Entity;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.entity.Rider;
 import org.domi.furnace.server.world.Region;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.RideCommand")
 public final class RideCommand {
     private RideCommand() { }
 

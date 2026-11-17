@@ -7,7 +7,9 @@ import org.domi.furnace.server.data.ResourceId;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.recipe.RecipeManager;
 import org.domi.furnace.server.recipe.RecipeManager.StonecuttingEntry;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.inventory.StonecutterMenu")
 public class StonecutterMenu extends AbstractContainerMenu {
 
     public static final int INPUT_SLOT = 0, RESULT_SLOT = 1, INV_SLOT_START = 2, INV_SLOT_END = 29, USE_ROW_SLOT_START = 29, USE_ROW_SLOT_END = 38;

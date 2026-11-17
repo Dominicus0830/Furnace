@@ -3,6 +3,7 @@
 // 번호는 0 부터(idcounts 에 map 이 없으면 -1 에서 시작해 +1). 파일이 없는 번호는 null(바닐라 MapItem.getSavedData 도 같다).
 package org.domi.furnace.server.map;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -15,13 +16,16 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.level.storage.DimensionDataStorage")
 public final class MapStore {
 
     private static final Logger LOG = LoggerFactory.getLogger(MapStore.class);
-    private static final int DATA_VERSION = 3955;
+    private static final int DATA_VERSION = GameVersion.DATA_VERSION;
 
     private static volatile Path dataDir;
     private static final Map<Integer, MapData> CACHE = new ConcurrentHashMap<>();
@@ -73,7 +77,7 @@ public final class MapStore {
                 return prev != null ? prev : loaded;
             }
         } catch (IOException | RuntimeException e) {
-            LOG.warn("지도 데이터 읽기 실패 map_{}", id, e);
+            LOG.warn(Lang.t("map.read-failed", id), e);
             MISSING.add(id);   // 매 틱 다시 읽으며 로그를 쏟지 않게
             return null;
         }
@@ -116,7 +120,7 @@ public final class MapStore {
                 if (data.containsNumber("map")) lastId = data.getIntOr0("map");
             }
         } catch (IOException | RuntimeException e) {
-            LOG.warn("idcounts.dat 읽기 실패", e);
+            LOG.warn(Lang.t("map.idcounts-read-failed"), e);
         }
     }
 
@@ -127,7 +131,7 @@ public final class MapStore {
         try {
             Files.createDirectories(dir);
         } catch (IOException e) {
-            LOG.warn("data 폴더를 만들지 못함", e);
+            LOG.warn(Lang.t("map.data-folder-failed"), e);
             return;
         }
         boolean writeIds;
@@ -162,7 +166,7 @@ public final class MapStore {
             }
             Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
-            LOG.error("지도 데이터 저장 실패 {}", file, e);
+            LOG.error(Lang.t("map.save-failed", file), e);
         }
     }
 }

@@ -13,6 +13,7 @@ import java.util.function.Consumer;
 import org.domi.furnace.server.net.registry.RegistrySet;
 import org.domi.furnace.server.net.registry.TagSet;
 import org.domi.furnace.server.world.storage.LevelData;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -207,13 +208,13 @@ public final class DataPackManager implements AutoCloseable {
         try {
             adds = tagAdditions.get();
         } catch (RuntimeException e) {
-            log.error("플러그인 태그를 읽지 못했다", e);
+            log.error(Lang.t("datapack.plugin-tags-failed"), e);
             return;
         }
         for (TagAddition a : adds) {
             var byTag = tagIds.get(a.registry());
             if (byTag == null) {
-                log.warn("[{}] 태그를 보내지 않는 레지스트리라 태그를 더할 수 없다: {}", a.owner(), a.registry());
+                log.warn(Lang.t("datapack.tag-registry-unsupported", a.owner(), a.registry()));
                 continue;
             }
             String tag = ResourceId.parse(a.tag()).toString();
@@ -222,7 +223,7 @@ public final class DataPackManager implements AutoCloseable {
             for (int i : old) ids.add(i);
             for (String e : a.entries()) {
                 Integer id = tagRegistries.id(a.registry(), ResourceId.parse(e));
-                if (id == null) log.warn("[{}] 태그 {} 에 넣을 {} 이(가) {} 에 없다", a.owner(), tag, e, a.registry());
+                if (id == null) log.warn(Lang.t("datapack.tag-entry-missing", a.owner(), tag, e, a.registry()));
                 else ids.add(id);
             }
             byTag.put(tag, ids.stream().mapToInt(Integer::intValue).toArray());

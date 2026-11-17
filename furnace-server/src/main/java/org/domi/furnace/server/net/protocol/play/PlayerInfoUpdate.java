@@ -5,12 +5,15 @@ package org.domi.furnace.server.net.protocol.play;
 import io.netty.buffer.ByteBuf;
 import java.util.List;
 import java.util.UUID;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket")
 public record PlayerInfoUpdate(List<Entry> entries) implements Packet {
 
-    public static final int ID = 0x3E;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_PLAYER_INFO_UPDATE;
     /** 바닐라 createPlayerInitializing: add_player | initialize_chat | update_game_mode | update_listed | update_latency | update_display_name. */
     private static final int ACTIONS = 0x01 | 0x02 | 0x04 | 0x08 | 0x10 | 0x20;
     private static final int INITIALIZE_CHAT = 0x02;

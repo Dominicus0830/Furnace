@@ -2,6 +2,7 @@
 // 그 아이템을 다시 놓으면(applyComponentsFromItemStack) 블록 엔티티가 복원되는지.
 package org.domi.furnace.server.loot;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.LinkedHashMap;
@@ -36,7 +37,7 @@ class BlockEntityLootTest {
     @BeforeAll
     static void load() throws Exception {
         data = VanillaChestLootTest.vanillaLoot();
-        net = new NetworkComponents(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        net = new NetworkComponents(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static int id(String name) { return ItemContext.id("minecraft:item", name); }

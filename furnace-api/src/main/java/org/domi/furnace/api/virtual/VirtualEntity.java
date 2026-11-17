@@ -1,7 +1,7 @@
-// 가상 엔티티 — 서버 월드에는 없고, 가까이 있는 플레이어 화면에만 패킷으로 나타나는 엔티티(홀로그램·표지판 대용·NPC 바탕).
-// 서버 상태(충돌·AI·저장·엔티티 수 제한)에 아무 영향이 없다. 번호는 서버 엔티티와 겹치지 않게 예약된다.
+// 가상 엔티티. 서버 월드에는 없고, 가까이 있는 플레이어의 화면에만 패킷으로 나타나는 엔티티다(홀로그램, 표지판 대용, NPC 바탕).
+// 서버 상태(충돌, AI, 저장, 엔티티 수 제한)에는 아무 영향이 없다. 번호는 서버 엔티티와 겹치지 않게 예약된다.
 //
-// 스레드: 모든 메서드는 어느 스레드에서 불러도 된다(바뀐 값은 보고 있는 플레이어에게 바로 패킷으로 간다).
+// 스레드: 모든 메서드를 어느 스레드에서나 불러도 된다. 바뀐 값은 보고 있는 플레이어에게 바로 패킷으로 간다.
 // 소유: 만든 플러그인이 꺼지면 이 서비스가 자동으로 remove() 한다.
 package org.domi.furnace.api.virtual;
 
@@ -65,7 +65,18 @@ public interface VirtualEntity {
 
     // ------------------------------------------------------------------ 겉모습
 
-    /** 칸 번호를 직접 정한다(바닐라 엔티티 메타데이터 칸). 이미 보는 플레이어에게 바로 보낸다. */
+    /**
+     * 이름 있는 메타데이터 칸을 정한다(EntityDataKeys). 이미 보는 플레이어에게 바로 보낸다.
+     * 이 엔티티 종류에 없는 칸이면 IllegalArgumentException 을 던진다(예: 좀비에 TextDisplay.TEXT, interaction 에 LivingEntity.HEALTH). 클라이언트가 끊기는 일을 미리 막으려는 것이다.
+     * 보낼 수 없는 값(없는 종류 이름, 아이템 등)도 IllegalArgumentException 이며 저장하지 않는다.
+     * 예) textDisplay.set(EntityDataKeys.TextDisplay.TEXT, Text.text("상점")); itemDisplay.set(EntityDataKeys.Display.SCALE, new Vector3f(2, 2, 2));
+     */
+    <T> void set(org.domi.furnace.api.entity.data.EntityDataKey<T> key, T value);
+
+    /**
+     * 칸 번호를 직접 정한다(바닐라 엔티티 메타데이터 칸). 번호는 마인크래프트 버전마다 다르므로 set(EntityDataKey, …) 를 먼저 쓴다. 이미 보는 플레이어에게 바로 보낸다.
+     * 보낼 수 없는 값이면 IllegalArgumentException 이며 저장하지 않는다. 칸이 이 종류에 맞는지는 확인하지 않는다.
+     */
     void setMetadata(int index, ClientboundSetEntityDataPacket.Value value);
 
     /** 커스텀 이름(null 이면 지움). 이름표를 보이려면 {@link #setCustomNameVisible}. */
@@ -94,9 +105,9 @@ public interface VirtualEntity {
     // ------------------------------------------------------------------ 클릭
 
     /**
-     * 플레이어가 이 엔티티를 우클릭·좌클릭하면 불린다(서버에 없는 번호여도 클라이언트는 패킷을 보낸다).
+     * 플레이어가 이 엔티티를 우클릭하거나 좌클릭하면 불린다(서버에 없는 번호여도 클라이언트는 패킷을 보낸다).
      * 우클릭은 주 손만 한 번, 공격은 한 번 온다. 처리기는 그 플레이어의 스케줄러 스레드에서 불린다.
-     * 하나만 둘 수 있다(다시 부르면 바뀐다, null 이면 뗀다).
+     * 하나만 둘 수 있다. 다시 부르면 바뀌고, null 이면 뗀다.
      */
     void onInteract(Consumer<VirtualInteraction> handler);
 

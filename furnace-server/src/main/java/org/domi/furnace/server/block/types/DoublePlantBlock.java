@@ -1,6 +1,7 @@
 // 바닐라 DoublePlantBlock: 두 칸 식물. 아래·위 반쪽이 서로를 붙잡는다. 위 반쪽을 부수면 아래 반쪽이 드롭 없이 사라진다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockLevel;
@@ -11,6 +12,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.DoublePlantBlock")
 public class DoublePlantBlock extends BushBlock {
 
     static final Prop HALF = B.prop("half");

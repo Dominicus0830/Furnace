@@ -1,5 +1,6 @@
 package org.domi.furnace.compat.nms;
 
+import org.domi.furnace.api.GameVersion;
 import java.lang.invoke.MethodHandles;
 
 /**
@@ -17,7 +18,7 @@ import java.lang.invoke.MethodHandles;
 public final class CraftNames {
 
     /** CraftBukkit 1.21·1.21.1 의 패키지 접미사. */
-    public static final String VERSION = "v1_21_R1";
+    public static final String VERSION = GameVersion.CRAFT_PACKAGE_SUFFIX;
 
     static final String PLAIN = "org.bukkit.craftbukkit.";
     static final String VERSIONED = PLAIN + VERSION + ".";

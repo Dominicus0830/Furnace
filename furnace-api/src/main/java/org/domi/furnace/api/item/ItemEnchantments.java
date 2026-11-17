@@ -1,4 +1,4 @@
-// minecraft:enchantments / stored_enchantments — 마법 부여 키(minecraft:sharpness) → 레벨(1~255).
+// minecraft:enchantments / stored_enchantments. 마법 부여 키(minecraft:sharpness)별 레벨(1~255)을 가진다.
 // 레벨 0 이하는 넣지 않는다(바닐라 ItemEnchantments.Mutable.set 과 같다). 불변.
 package org.domi.furnace.api.item;
 
@@ -15,7 +15,7 @@ public record ItemEnchantments(Map<String, Integer> levels, boolean showInToolti
         for (var e : levels.entrySet()) {
             String key = e.getKey().indexOf(':') < 0 ? "minecraft:" + e.getKey() : e.getKey();
             int lv = e.getValue();
-            if (lv > 255) throw new IllegalArgumentException("마법 부여 레벨은 255 이하: " + key + "=" + lv);
+            if (lv > 255) throw new IllegalArgumentException("an enchantment level must be at most 255: " + key + "=" + lv);
             if (lv > 0) m.put(key, lv);
         }
         levels = m.isEmpty() ? Map.of() : Collections.unmodifiableMap(m);

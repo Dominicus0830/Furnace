@@ -33,6 +33,7 @@ import org.domi.furnace.server.world.gen.WorldSource;
 import org.domi.furnace.server.world.storage.BukkitWorldImport;
 import org.domi.furnace.server.world.storage.LevelData;
 import org.domi.furnace.server.world.storage.LevelStorage;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,7 +53,7 @@ public final class WorldManager {
                 try {
                     s.closeAll();
                 } catch (Exception e) {
-                    log.error("[WORLD] 저장소 닫기 실패 {}", s.regionDir(), e);
+                    log.error(Lang.t("world.store-close-failed", s.regionDir()), e);
                 }
             }
         }
@@ -106,6 +107,16 @@ public final class WorldManager {
 
     public void hooks(Hooks h) { this.hooks = h == null ? Hooks.NONE : h; }
 
+    private volatile java.util.function.Supplier<CompletableFuture<Void>> saveBarrier = () -> CompletableFuture.completedFuture(null);
+
+    /**
+     * 진행 중 /save-all 이 끝나면 완료되는 future(저장 스레드에 넣은 빈 작업). 월드를 목록에서 뗀 뒤 저장소를 닫기 전에 기다린다 —
+     * 저장 스레드가 이 월드를 저장하는 중에 닫히면 닫힌 저장소에 기록이 다시 핸들을 연다(PR #278 검토 R2).
+     */
+    public void saveBarrier(java.util.function.Supplier<CompletableFuture<Void>> barrier) {
+        this.saveBarrier = barrier == null ? () -> CompletableFuture.completedFuture(null) : barrier;
+    }
+
     public Dimensions dimensions() { return dimensions; }
 
     // ------------------------------------------------------------------ 조립(기본 차원과 추가 월드 공용)
@@ -133,6 +144,52 @@ public final class WorldManager {
         w.configureStreaming(c.spawnChunkRadius(), c.chunksPerTick());
         w.setRegistries(parts.blocks(), parts.items());
         return new Built(w, List.of(store, ents, pois));
+    }
+
+    // ------------------------------------------------------------------ 임시 월드(T-203)
+
+    private final java.util.concurrent.atomic.AtomicLong scratchIds = new java.util.concurrent.atomic.AtomicLong();
+
+    /**
+     * 임시 월드(T-203 — Paper 플러그인이 {@code new ServerLevel(…)} 로 만드는 따로 떨어진 레벨, FAWE {@code //regen}): original 과 같은 차원 타입·생성 설정에
+     * 시드만 seed 인 <b>처음 상태의</b> 생성기로 청크를 만든다. 디스크에 쓰지 않고(Anvil 원천 없음), 게임 틱을 켜지 않으며(region 은 작업 큐·청크 로드·
+     * 공개 스냅샷만 — 무작위·예약 틱·엔티티가 돌지 않는다, Paper 의 임시 레벨도 {@code MinecraftServer#levels} 에 없어 틱을 돌지 않는다),
+     * {@link Dimensions} 에 넣지 않는다(접속자·명령·포털·월드 목록에 안 보인다). 레벨 서비스를 붙이지 않아 플러그인 이벤트도 없다(결정 D1).
+     * 레벨 키는 겹치지 않는 {@code furnace:scratch/<n>}, 이름은 name. 아무 스레드 — 디스크·잠금이 없어 그 자리에서 끝난다. 다 쓰면 {@link #closeScratch}.
+     */
+    public World createScratch(World original, long seed, String name) { return createScratch(original, seed, name, null); }
+
+    /** {@link #createScratch(World, long, String)} 에 바이옴을 biomes 가 정하는 것(null 이면 원래 생성기의 바이옴 원천). 노이즈 생성기만. */
+    public World createScratch(World original, long seed, String name, org.domi.furnace.api.worldgen.BiomeProvider biomes) {
+        if (original == null || original.isUnloaded()) throw new IllegalArgumentException("the original world is not loaded");
+        WorldSource os = original.worldSource();
+        if (os instanceof AnvilWorldSource a) os = a.base();
+        else if (os instanceof org.domi.furnace.server.world.gen.ScratchWorldSource t) os = t.base();
+        WorldSource gen = new org.domi.furnace.server.world.gen.ScratchWorldSource(os.freshCopy(seed, biomes));   // 못 하는 생성기면 UnsupportedOperationException
+        DimensionType ot = original.dimensionType();
+        DimensionType type = ot.forLevel("furnace:scratch/" + scratchIds.incrementAndGet(), ot.gen());
+        Config c = parts.config();
+        World w = parts.regionPool() != null
+                ? new World(type, gen, parts.chunkPool(), parts.scheduler(), parts.regionPool(), c.regionSectionShift(), c.regionMergeRadius(),
+                        c.viewDistance(), c.entityViewDistance(), parts.blocks().directBits(), parts.biomeDirectBits(), parts.ioPool(), parts.genPool())
+                : new World(type, gen, parts.chunkPool(), parts.scheduler(), c.regionThreads(), c.regionSectionShift(), c.regionMergeRadius(),
+                        c.viewDistance(), c.entityViewDistance(), parts.blocks().directBits(), parts.biomeDirectBits(), parts.ioPool(), parts.genPool());
+        w.markScratch(name);
+        w.levelKind(original.isFlatLevel(), original.isDebugLevel());
+        w.seed(seed);
+        w.generatesStructures(original.generatesStructures());
+        w.setRegistries(parts.blocks(), parts.items());
+        w.defaultSpawn(original.defaultSpawn());
+        // 접속자 목록·시계·엔티티 id 는 나누지 않는다 — 틱이 없어 쓰지 않고, 생성 때 생긴 엔티티(버려진다)가 서버 쪽 목록에 닿지 않게
+        return w;
+    }
+
+    /** 임시 월드를 버린다(아무 스레드, 두 번 불러도 된다): 생성 대기열에서 떼고 region 을 닫는다. 청크는 저장하지 않는다. */
+    public void closeScratch(World w) {
+        if (w == null || !w.isScratch() || w.isUnloaded()) return;
+        if (w.genQueue() != null) w.genQueue().removeWorld(w);
+        w.closeForUnload();
+        w.discardAfterClose();   // 진행 중 생성 결과는 닫힌 region 에 못 들어간다 — 기다리는 쪽을 풀고 청크를 놓는다(#486 검토 3)
     }
 
     // ------------------------------------------------------------------ 만들기
@@ -163,46 +220,160 @@ public final class WorldManager {
      * 월드 스레드에서 한다. 등록·틱 켜기 뒤 전역 스레드에서 hooks.loaded 를 부르고 완료된다.
      */
     public CompletableFuture<World> create(WorldCreator spec) {
-        if (reservedName(spec.name())) {
-            return CompletableFuture.failedFuture(new IllegalArgumentException("쓸 수 없는 월드 이름: " + spec.name()));
-        }
         CompletableFuture<World> out = new CompletableFuture<>();
+        CompletableFuture<Created> made = submitCreate(spec);
+        made.whenComplete((c, t) -> {
+            if (t != null) {
+                out.completeExceptionally(t instanceof java.util.concurrent.CompletionException ce && ce.getCause() != null ? ce.getCause() : t);
+            } else if (!c.fresh()) {
+                out.complete(c.world());   // 이미 올라와 있던 월드 — 알림은 처음 올릴 때 한 번
+            } else {
+                try {
+                    parts.scheduler().global().execute(() -> {
+                        loaded(c.world(), spec.name());
+                        out.complete(c.world());
+                    });
+                } catch (java.util.concurrent.RejectedExecutionException e) {
+                    out.completeExceptionally(new IllegalStateException("the server is stopping"));
+                }
+            }
+        });
+        return out.thenApply(w -> w);   // hooks.loaded 이전 상태를 밖에서 complete 하지 못하게 사본
+    }
+
+    /**
+     * {@link #create} 를 끝까지 기다린다(Bukkit 의 동기 createWorld). 전역 스레드에서 부르면 hooks.loaded 를 이 스레드에서 바로 부르고,
+     * 기다리는 동안 월드 스레드가 전역 스레드에 맡긴 일(내리기의 플레이어 확인)을 대신 돌려 서로 기다리지 않게 한다. 다른 스레드면 전역 완료까지 기다린다.
+     * 실패는 원래 예외(IllegalArgumentException 등)를 그대로 던진다.
+     */
+    public World createAndWait(WorldCreator spec) throws InterruptedException {
+        if (!onGlobalThread()) {
+            try (var m = org.domi.furnace.api.concurrent.GlobalWait.begin()) {
+                return unwrap(() -> create(spec).get(5, TimeUnit.MINUTES), spec.name());
+            }
+        }
+        if (WORKER_WAITING.get() != null) {
+            // 월드 스레드가 이 전역 일(내리기 알림 등)이 끝나길 기다리는 중이라, 여기서 월드 스레드 차례를 기다리면 서로 멈춘다
+            throw new IllegalStateException("cannot create world '" + spec.name() + "' synchronously inside " + WORKER_WAITING.get()
+                    + " - use the future of createWorld(..) or create it on the next tick (scheduler runTask)");
+        }
+        CompletableFuture<Created> made = submitCreate(spec);
+        long deadline = System.nanoTime() + TimeUnit.MINUTES.toNanos(5);
+        while (!made.isDone()) {
+            if (System.nanoTime() - deadline > 0) throw new IllegalStateException("world '" + spec.name() + "' was not brought up within 5 minutes");
+            Runnable r = globalHelp.poll(5, TimeUnit.MILLISECONDS);
+            if (r != null) r.run();
+        }
+        Created c = unwrap(made::get, spec.name());
+        if (c.fresh()) loaded(c.world(), spec.name());
+        return c.world();
+    }
+
+    private interface Get<T> { T get() throws Exception; }
+
+    private static <T> T unwrap(Get<T> g, String name) throws InterruptedException {
+        try {
+            return g.get();
+        } catch (java.util.concurrent.ExecutionException | java.util.concurrent.CompletionException e) {
+            Throwable c = e.getCause() != null ? e.getCause() : e;
+            if (c instanceof RuntimeException r) throw r;
+            if (c instanceof Error er) throw er;
+            throw new IllegalStateException("bringing up world '" + name + "' failed", c);
+        } catch (java.util.concurrent.TimeoutException e) {
+            throw new IllegalStateException("world '" + name + "' was not brought up within 5 minutes", e);
+        } catch (InterruptedException | RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("bringing up world '" + name + "' failed", e);
+        }
+    }
+
+    private void loaded(World w, String name) {
+        try {
+            hooks.loaded(w);
+        } catch (Throwable t) {
+            log.error(Lang.t("world.load-notify-failed", name), t);
+        }
+    }
+
+    /** 월드 스레드에서 만든 결과: fresh 면 이번에 새로 올렸다(hooks.loaded 를 불러야 한다). */
+    private record Created(World world, boolean fresh) {}
+
+    private CompletableFuture<Created> submitCreate(WorldCreator spec) {
+        if (reservedName(spec.name())) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException("invalid world name: " + spec.name()));
+        }
+        CompletableFuture<Created> out = new CompletableFuture<>();
         try {
             worker.execute(() -> {
                 try {
+                    Extra existing = extras.get(spec.name());
                     World w = createNow(spec);
-                    if (w == null) return;   // 이미 out 을 끝냈다
-                    parts.scheduler().global().execute(() -> {
-                        try {
-                            hooks.loaded(w);
-                        } catch (Throwable t) {
-                            log.error("[WORLD] 월드 불러오기 알림 실패 {}", spec.name(), t);
-                        }
-                        out.complete(w);
-                    });
+                    out.complete(new Created(w, existing == null || existing.world() != w));
                 } catch (Throwable t) {
                     out.completeExceptionally(t);
                 }
             });
         } catch (java.util.concurrent.RejectedExecutionException e) {
-            out.completeExceptionally(new IllegalStateException("서버 종료 중"));
+            out.completeExceptionally(new IllegalStateException("the server is stopping"));
         }
-        return out.thenApply(w -> w);   // hooks.loaded 이전 상태를 밖에서 complete 하지 못하게 사본
+        return out;
     }
+
+    private boolean onGlobalThread() {
+        return parts.scheduler().global() instanceof org.domi.furnace.api.concurrent.ThreadOwner o && o.isOwnerThread();
+    }
+
+    /**
+     * 월드 스레드가 전역 스레드에서 돌려야 하는 일. 전역 대기열에 넣고, 전역 스레드가 {@link #createAndWait} 로 막혀 있으면 그쪽이 대신 돌린다
+     * (FutureTask 라 먼저 잡은 쪽만 돈다). 도는 동안 전역 스레드에 {@code what} 을 표시해, 그 안의 동기 월드 만들기를 곧바로 거절한다.
+     * 시간 초과면 아직 안 돈 일은 취소한다(늦게 돌지 않는다). 이미 도는 중인 몸체는 스스로 {@code abandoned} 를 보고 그만둬야 한다.
+     */
+    private <T> T onGlobal(String what, java.util.concurrent.Callable<T> body, long timeout, TimeUnit unit) throws Exception {
+        java.util.concurrent.FutureTask<T> task = new java.util.concurrent.FutureTask<>(() -> {
+            String prev = WORKER_WAITING.get();
+            WORKER_WAITING.set(what);
+            try {
+                return body.call();
+            } finally {
+                WORKER_WAITING.set(prev);
+            }
+        });
+        globalHelp.add(task);
+        try {
+            parts.scheduler().global().execute(() -> {
+                globalHelp.remove(task);
+                task.run();
+            });
+            try {
+                return task.get(timeout, unit);
+            } catch (java.util.concurrent.TimeoutException te) {
+                task.cancel(false);
+                throw te;
+            }
+        } finally {
+            globalHelp.remove(task);
+        }
+    }
+
+    /** 전역 스레드가 지금 월드 스레드가 기다리는 일({@link #onGlobal})을 돌리는 중이면 그 이름. */
+    private static final ThreadLocal<String> WORKER_WAITING = new ThreadLocal<>();
+
+    private final java.util.concurrent.LinkedBlockingQueue<Runnable> globalHelp = new java.util.concurrent.LinkedBlockingQueue<>();
 
     /** 이미 올라와 있으면 그 월드를(설명서가 다르면 예외), 아니면 새로 올린다. 월드 스레드 전용. */
     private World createNow(WorldCreator spec) throws Exception {
         Extra existing = extras.get(spec.name());
         if (existing != null) {
             if (!sameWorld(existing.creator(), spec)) {
-                throw new IllegalArgumentException("이미 다른 설명서로 올라온 월드: " + spec.name());
+                throw new IllegalArgumentException("world already brought up with another spec: " + spec.name());
             }
             return existing.world();
         }
         World byKey = dimensions.get(spec.key());
-        if (byKey != null) throw new IllegalArgumentException("이미 쓰는 레벨 키: " + spec.key());
+        if (byKey != null) throw new IllegalArgumentException("level key already in use: " + spec.key());
         for (Extra e : extras.values()) {
-            if (e.name().equalsIgnoreCase(spec.name())) throw new IllegalArgumentException("대소문자만 다른 월드가 이미 있다: " + e.name());
+            if (e.name().equalsIgnoreCase(spec.name())) throw new IllegalArgumentException("a world differing only in case already exists: " + e.name());
         }
         NoiseWorldSource.Dimension family = family(spec.environment());
         DimensionType type = resolveType(spec, family);
@@ -242,6 +413,7 @@ public final class WorldManager {
             w.markExtraWorld(spec.name());
             w.levelKind(spec.generator() == WorldGenerator.FLAT || spec.generator() == WorldGenerator.VOID, spec.generator() == WorldGenerator.DEBUG_ALL_BLOCK_STATES);
             w.seed(seed);
+            w.generatesStructures(spec.generateStructures());   // 생성기도 설명서 값을 쓴다(structures(..))
             if (!ld.initialized) {
                 SpawnPoint sp = initialSpawn(spec, type, gen);
                 ld.spawnX = sp.x();
@@ -269,8 +441,7 @@ public final class WorldManager {
                 throw e;
             }
             extras.put(spec.name(), new Extra(spec.name(), w, storage, ld, built, spec));
-            log.info("[WORLD] 추가 월드 '{}' 올림 — 키 {}, 차원 타입 {}, 생성기 {}, 시드 {}{}", spec.name(), spec.key(), type.typeKey(),
-                    spec.generator(), seed, fresh ? " (새 월드)" : "");
+            log.info(Lang.t("world.extra-up", spec.name(), spec.key(), type.typeKey(), spec.generator(), seed, fresh ? Lang.t("world.extra-new") : ""));
             return w;
         } catch (Exception | Error e) {
             try {
@@ -303,9 +474,9 @@ public final class WorldManager {
         DimensionType vanilla = DimensionType.vanillaType(key);
         if (vanilla != null) return vanilla.forLevel(spec.key(), family);
         var def = hooks.pluginDimensionType(key);
-        if (def == null) throw new IllegalArgumentException("모르는 차원 타입(바닐라도, 켜진 플러그인 등록도 아니다): " + key);
+        if (def == null) throw new IllegalArgumentException("unknown dimension type (neither vanilla nor registered by an enabled plugin): " + key);
         if (parts.registries().indexOf("minecraft:dimension_type", key) < 0) {
-            throw new IllegalArgumentException("클라이언트 레지스트리에 없는 차원 타입(서버 시작 뒤 등록?): " + key);
+            throw new IllegalArgumentException("dimension type missing from the client registry (registered after server start?): " + key);
         }
         return DimensionType.fromDefinition(spec.key(), key, def, family);
     }
@@ -315,8 +486,8 @@ public final class WorldManager {
         boolean noise = spec.generator() != WorldGenerator.FLAT && spec.generator() != WorldGenerator.VOID
                 && spec.generator() != WorldGenerator.DEBUG_ALL_BLOCK_STATES;
         if (noise && (type.minY() != family.minY || type.sectionCount() != family.sectionCount)) {
-            throw new IllegalArgumentException("노이즈 생성기(" + spec.environment() + ")는 높이 " + family.minY + ".." + (family.minY + family.sectionCount * 16)
-                    + " 차원 타입만 쓸 수 있다: " + type.typeKey() + " 는 " + type.minY() + ".." + type.maxY() + " — FLAT·VOID 를 쓰거나 높이를 맞춘다");
+            throw new IllegalArgumentException("the noise generator (" + spec.environment() + ") only works with dimension types of height " + family.minY + ".." + (family.minY + family.sectionCount * 16)
+                    + ": " + type.typeKey() + " is " + type.minY() + ".." + type.maxY() + " - use FLAT or VOID, or match the height");
         }
     }
 
@@ -346,7 +517,7 @@ public final class WorldManager {
 
     private int biomeId(String biome) {
         int id = parts.registries().indexOf("minecraft:worldgen/biome", biome);
-        if (id < 0) throw new IllegalArgumentException("모르는 바이옴: " + biome);
+        if (id < 0) throw new IllegalArgumentException("unknown biome: " + biome);
         return id;
     }
 
@@ -442,7 +613,7 @@ public final class WorldManager {
     public CompletableFuture<World> load(String name) {
         try {
             WorldCreator c = storedCreator(name);
-            if (c == null) return CompletableFuture.failedFuture(new IllegalArgumentException("월드 폴더(level.dat)가 없다: " + name));
+            if (c == null) return CompletableFuture.failedFuture(new IllegalArgumentException("no world folder (level.dat): " + name));
             return create(c);
         } catch (Exception e) {
             return CompletableFuture.failedFuture(e);
@@ -457,7 +628,7 @@ public final class WorldManager {
      * region 스레드 닫기 → 저장소 닫기 → 폴더 잠금 풀기.
      */
     public CompletableFuture<Boolean> unload(World w, boolean save) {
-        if (!w.isExtraWorld()) return CompletableFuture.failedFuture(new IllegalArgumentException("기본 차원은 내릴 수 없다: " + w.dimension()));
+        if (!w.isExtraWorld()) return CompletableFuture.failedFuture(new IllegalArgumentException("the default dimension cannot be unloaded: " + w.dimension()));
         CompletableFuture<Boolean> out = new CompletableFuture<>();
         try {
             worker.execute(() -> {
@@ -468,7 +639,7 @@ public final class WorldManager {
                 }
             });
         } catch (java.util.concurrent.RejectedExecutionException e) {
-            out.completeExceptionally(new IllegalStateException("서버 종료 중"));
+            out.completeExceptionally(new IllegalStateException("the server is stopping"));
         }
         return out;
     }
@@ -477,49 +648,81 @@ public final class WorldManager {
         Extra e = extras.get(w.levelName());
         if (e == null || e.world() != w) return false;   // 이미 내렸다
         // 전역 스레드에서: 플레이어 확인과 알림, 목록에서 떼기를 한 번에(그 사이 명령이 이 월드로 보내지 못하게)
-        boolean go = parts.scheduler().global().<Boolean>submit(() -> {
-            if (!w.playersHere().isEmpty() || w.incomingTravels() > 0) return false;
-            if (!hooks.beforeUnload(w, save)) return false;
-            if (!w.playersHere().isEmpty() || w.incomingTravels() > 0) return false;   // 알림 처리기가 누군가 들여보냈다
-            dimensions.unregister(w);
-            return true;
-        }).get(30, TimeUnit.SECONDS);
+        // 0=기다림, 1·3=전역이 목록에서 떼는 중·뗌, 2=월드 스레드가 시간 초과로 포기 — 포기한 뒤 늦게 돈 몸체가 반쯤 내린 월드를 남기지 않게
+        java.util.concurrent.atomic.AtomicInteger state = new java.util.concurrent.atomic.AtomicInteger();
+        boolean go;
+        try {
+            go = onGlobal(Lang.t("world.what-unload-handler"), () -> {
+                if (!w.playersHere().isEmpty() || w.incomingTravels() > 0) return false;
+                if (!hooks.beforeUnload(w, save)) return false;
+                if (!w.playersHere().isEmpty() || w.incomingTravels() > 0) return false;   // 알림 처리기가 누군가 들여보냈다
+                if (!state.compareAndSet(0, 1)) return false;
+                try {
+                    dimensions.unregister(w);
+                } finally {
+                    state.set(3);
+                }
+                return true;
+            }, 30, TimeUnit.SECONDS);
+        } catch (java.util.concurrent.TimeoutException te) {
+            if (state.compareAndSet(0, 2)) throw te;
+            while (state.get() != 3) Thread.onSpinWait();   // 시간 초과와 같은 순간에 목록에서 떼는 중 — 끝나면 내리기를 마저 한다
+            go = true;
+        }
         if (!go) return false;
+        // 목록에서 뗐으니 새 save-all 은 이 월드를 고르지 않는다. 이미 고른 저장(진행 중·대기 중)이 끝나길 기다린다
+        try {
+            saveBarrier.get().get(10, TimeUnit.MINUTES);
+        } catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException | java.util.concurrent.CancellationException ex) {
+            log.warn(Lang.t("world.save-all-wait-failed", e.name()), ex);
+        }
         extras.remove(e.name(), e);
+        if (w.genQueue() != null) w.genQueue().removeWorld(w);
         try {
             hooks.detached(w);
         } catch (Throwable t) {
-            log.warn("[WORLD] 월드 떼기 알림 실패 {}", e.name(), t);
+            log.warn(Lang.t("world.unload-notify-failed", e.name()), t);
         }
         w.stopTicking();
+        w.relight().shutdown();   // 빛 다시 계산의 붙잡기를 풀어 저장 전 빛 계산이 마저 하게(T-197 검토 R1)
         // 떼기 직전에 이 월드로 떠난 이동(목적 청크 준비 중)이 있으면 도착한 뒤 저장한다 — 저장 뒤에 도착해 사라지지 않게(A03-01)
         w.freezeTravel();
         long arriveBy = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
         while (w.incomingTravels() + w.outgoingTravels() > 0 && System.nanoTime() - arriveBy < 0) Thread.sleep(5);   // 나간 이동의 되돌림까지
         if (save) {
             w.forceSave(true);
-            awaitAll(w.flushAll(), "저장");
+            awaitAll(w.flushAll(), Lang.t("world.what-save"));
             // 저장 중 끝난 청크 읽기·생성이 다시 dirty 를 만들 수 있다 — 진행 중 로드가 빠질 때까지 잠깐 기다린 뒤 한 번 더
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
             while (w.pendingChunkLoads() > 0 && System.nanoTime() < deadline) Thread.sleep(20);
-            awaitAll(w.flushAll(), "저장(마무리)");
+            awaitAll(w.flushAll(), Lang.t("world.what-save-final"));
         }
         try {
             w.ioBarrier().get(60, TimeUnit.SECONDS);
         } catch (java.util.concurrent.TimeoutException te) {
-            log.error("[WORLD] '{}' IO 레인이 60초 안에 비지 않았다 — 저장소를 닫는다", e.name());
+            log.error(Lang.t("world.io-lane-busy", e.name()));
         }
         w.closeForUnload();
         e.built().closeStores();
         if (save) {
             e.levelData().gameTime = w.gameTime();
             e.levelData().dayTime = w.dayTime();
+            copySpawn(e.levelData(), w);
             e.storage().saveLevelData(e.levelData());
         }
         e.storage().close();
-        if (w.saveFailures() > 0) log.error("[WORLD] '{}' 저장 실패 {}건", e.name(), w.saveFailures());
-        log.info("[WORLD] 추가 월드 '{}' 내림{}", e.name(), save ? "(저장)" : "(저장 안 함)");
+        if (w.saveFailures() > 0) log.error(Lang.t("world.save-failures", e.name(), w.saveFailures()));
+        log.info(Lang.t(save ? "world.extra-down-saved" : "world.extra-down-unsaved", e.name()));
         return true;
+    }
+
+    /** 플러그인이 바꾼 추가 월드 스폰(World#setSpawnLocation)을 level.dat 칸으로 옮긴다. */
+    private static void copySpawn(LevelData ld, World w) {
+        var sp = w.defaultSpawn();
+        ld.spawnX = sp.x();
+        ld.spawnY = sp.y();
+        ld.spawnZ = sp.z();
+        ld.spawnAngle = sp.yaw();
     }
 
     private static void awaitAll(List<CompletableFuture<Void>> fs, String what) throws InterruptedException {
@@ -528,7 +731,7 @@ public final class WorldManager {
             try {
                 f.get(Math.max(1, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
             } catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException ex) {
-                log.error("[WORLD] {} 실패/지연", what, ex);
+                log.error(Lang.t("world.step-failed", what), ex);
             }
         }
     }
@@ -543,10 +746,11 @@ public final class WorldManager {
                 e.built().closeStores();
                 e.levelData().gameTime = e.world().gameTime();
                 e.levelData().dayTime = e.world().dayTime();
+                copySpawn(e.levelData(), e.world());
                 e.storage().saveLevelData(e.levelData());
                 e.storage().close();
             } catch (Exception ex) {
-                log.error("[STOP] 추가 월드 '{}' 닫기 실패", e.name(), ex);
+                log.error(Lang.t("world.extra-close-failed", e.name()), ex);
             }
         }
         extras.clear();
@@ -558,10 +762,11 @@ public final class WorldManager {
             synchronized (e.levelData()) {
                 e.levelData().gameTime = e.world().gameTime();
                 e.levelData().dayTime = e.world().dayTime();
+                copySpawn(e.levelData(), e.world());
                 try {
                     e.storage().saveLevelData(e.levelData());
                 } catch (java.io.IOException ex) {
-                    log.error("[SAVE] 추가 월드 '{}' level.dat 저장 실패", e.name(), ex);
+                    log.error(Lang.t("world.extra-level-dat-failed", e.name()), ex);
                 }
             }
         }

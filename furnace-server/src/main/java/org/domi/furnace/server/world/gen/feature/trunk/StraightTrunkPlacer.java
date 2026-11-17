@@ -6,6 +6,7 @@ import org.domi.furnace.server.world.gen.feature.BlockPos;
 import org.domi.furnace.server.world.gen.feature.FeatureWorldView;
 import org.domi.furnace.server.world.gen.feature.TreeConfig;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.trunkplacers.StraightTrunkPlacer")
 public final class StraightTrunkPlacer extends TrunkPlacer {
     public StraightTrunkPlacer(int baseHeight, int heightRandA, int heightRandB) {
         super(baseHeight, heightRandA, heightRandB);

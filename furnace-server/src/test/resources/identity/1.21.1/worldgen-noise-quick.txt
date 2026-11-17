@@ -1,0 +1,23 @@
+# 결과 동일 금 파일 — worldgen-noise-quick. 최적화 PR 은 이 파일을 바꾸지 않는다. 갱신 절차: docs/testing/identitykit.md
+router overworld 0 28d9f30fd54ba414
+chunk overworld 0 22 -14 2c78ef2a22f9c88a
+chunk overworld 0 100001 -100002 9b43638366406e25
+router overworld 12345 5182d0a7c824d78e
+chunk overworld 12345 -28 -2 93ce51a9365694a1
+chunk overworld 12345 100008 -100009 a2cd4cfe244623b6
+router large_biomes 12345 54d9875ecad2c944
+chunk large_biomes 12345 24 5 c956afe8671cbf35
+chunk large_biomes 12345 100001 -100003 8778d5f9099cdc2d
+router amplified 7 09223f490e158a54
+chunk amplified 7 16 2 bc4889479175ca37
+chunk amplified 7 100008 -100006 84652cecda2b32a3
+router nether 12345 df239ebe06749488
+chunk nether 12345 7 -32 6eaf35d0f3b9ed43
+chunk nether 12345 100003 -100009 1ac75788cf7693dc
+router end 42 04eec546a09d4799
+chunk end 42 29 -13 da3c5716722f2a6e
+chunk end 42 100005 -100004 3a7ca10751cdd66e
+router nether -4172144997902289642 69f8fc5d25704884
+chunk nether -4172144997902289642 29 26 6d3b7fd81756c802
+chunk nether -4172144997902289642 100002 -100006 d7c3ffa9833f3692
+TOTAL 52eb9b5c78a3f71d lines=21

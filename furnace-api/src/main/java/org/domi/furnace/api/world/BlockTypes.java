@@ -14,7 +14,7 @@ public interface BlockTypes {
 
     /**
      * 바닐라 블록 상태 번호(1.21.1 의 {@code Block.getId}, 프로토콜이 쓰는 번호와 같다). 적지 않은 속성은 기본 상태 값을 쓴다.
-     * 모르는 블록·속성·값이면 -1. 번호는 마인크래프트 버전마다 바뀌므로 저장하지 말 것(NMS 호환용).
+     * 모르는 블록·속성·값이면 -1. 번호는 마인크래프트 버전마다 바뀌므로 저장하지 않는다(NMS 호환용).
      */
     default int stateId(BlockData data) { throw new UnsupportedOperationException("stateId"); }
 
@@ -23,4 +23,7 @@ public interface BlockTypes {
 
     /** 상태 번호의 개수(1.21.1 = 26684). 번호는 0 부터 이 값 미만. */
     default int stateCount() { throw new UnsupportedOperationException("stateCount"); }
+
+    /** 상태 번호의 유체(바닐라 {@code BlockState.getFluidState}: 물·용암 블록, 잠긴 블록, 켈프·해초·거품 기둥). 유체가 없거나 범위 밖이면 {@link FluidData#EMPTY}. */
+    default FluidData fluid(int stateId) { throw new UnsupportedOperationException("fluid"); }
 }

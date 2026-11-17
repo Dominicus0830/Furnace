@@ -5,7 +5,9 @@ package org.domi.furnace.server.remote;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.rcon.thread.RconClient")
 public final class RconProtocol {
 
     private RconProtocol() {}

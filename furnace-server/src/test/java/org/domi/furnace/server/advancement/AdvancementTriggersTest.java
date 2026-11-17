@@ -2,6 +2,7 @@
 // 처치 점수 기준(totalKillCount·playerKillCount·teamkill·killedByTeam·통계 기준) 갱신.
 package org.domi.furnace.server.advancement;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -49,12 +50,12 @@ class AdvancementTriggersTest {
 
     @BeforeAll
     static void load() throws Exception {
-        Path root = Path.of("../tools/vanilla-data/server-1.21.1");
+        Path root = Path.of("../tools/vanilla-data/server-" + GameVersion.MINECRAFT);
         Assumptions.assumeTrue(java.nio.file.Files.isDirectory(root.resolve("data/minecraft/advancement")), "로컬 바닐라 데이터 없음");
         PackRepository repo = new PackRepository(root, null);
         repo.reload();
         repo.setSelected(List.of("vanilla"));
-        TagRegistries tags = new TagRegistries(RegistrySet.load("registries/1.21.1.txt"));
+        TagRegistries tags = new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt"));
         try (ResourceManager rm = repo.openResourceManager()) {
             regs = new LootRegistries(tags, tags.loadAll(rm));
             loot = LootData.load(rm, regs);
@@ -147,7 +148,7 @@ class AdvancementTriggersTest {
 
     @Test
     void totemTriggersUsedTotem(@TempDir Path dir) {
-        org.domi.furnace.server.item.ItemContext.install(new TagRegistries(RegistrySet.load("registries/1.21.1.txt")));
+        org.domi.furnace.server.item.ItemContext.install(new TagRegistries(RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
         Player p = new Player(7, UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());
         p.vitals().loadGameTypes(null, org.domi.furnace.server.world.GameMode.SURVIVAL, false);
         var dry = new org.domi.furnace.server.entity.PlayerVitals.Surroundings(true, false, false, false, null, false, -64);

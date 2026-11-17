@@ -3,6 +3,7 @@ package org.domi.furnace.server.world;
 
 import java.util.Arrays;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.chunk.PalettedContainer")
 final class PaletteStorage {
 
     private final int size;
@@ -148,6 +149,20 @@ final class PaletteStorage {
             for (int i = 0; i < size; i++) out[i] = palette[storage.get(i)];
         }
         return out;
+    }
+
+    /**
+     * T-015: 펼치지 않고 첫 등장 순 색인을 out 에 채운다. 직접 저장(팔레트 없음)이면 false — 호출 측이 {@link #unpack} 경로로 간다.
+     * 읽기만 한다(스냅샷 읽기 사본에서 부른다).
+     */
+    boolean indexFirstSeen(FirstSeenIndex out) {
+        if (bits == 0) {
+            out.single(singleValue, size);
+            return true;
+        }
+        if (palette == null) return false;
+        out.indirect(palette, storage.data(), bits, size);
+        return true;
     }
 
     private int idFor(int value) {

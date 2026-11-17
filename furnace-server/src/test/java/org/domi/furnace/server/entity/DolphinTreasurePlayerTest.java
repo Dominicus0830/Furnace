@@ -1,6 +1,7 @@
 // 돌고래 보물 찾기(DolphinSwimToTreasureGoal)와 플레이어와 헤엄(DolphinSwimWithPlayerGoal) 시험.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.domi.furnace.server.block.B;
@@ -15,7 +16,7 @@ class DolphinTreasurePlayerTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     private static PlayerSleepingTest.Lvl pool() {
@@ -33,7 +34,7 @@ class DolphinTreasurePlayerTest {
 
     private static ExplorerMaps.Backend backend(int[] result, String[] tagOut) {
         return new ExplorerMaps.Backend() {
-            public int[] findNearestMapStructure(String t, int x, int y, int z, int r) { return result == null ? null : new int[] {result[0], result[2]}; }
+            public int[] findNearestMapStructure(String t, int x, int y, int z, int r, boolean skip) { return result == null ? null : new int[] {result[0], result[2]}; }
             public int[] findNearestStructurePos(String t, int x, int y, int z, int r) { tagOut[0] = t + "@" + r; return result; }
             public boolean waterOnMapOutlines(int bx, int bz) { return false; }
             public String dimension() { return "minecraft:overworld"; }

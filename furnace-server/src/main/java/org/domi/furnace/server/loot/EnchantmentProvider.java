@@ -6,8 +6,14 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.List;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.world.gen.noise.NoiseRandom;
 
+@VanillaPort({
+        "net.minecraft.world.item.enchantment.providers.EnchantmentProvider",
+        "net.minecraft.world.item.enchantment.providers.EnchantmentsByCost",
+        "net.minecraft.world.item.enchantment.providers.EnchantmentsByCostWithDifficulty",
+        "net.minecraft.world.item.enchantment.providers.SingleEnchantment"})
 public sealed interface EnchantmentProvider {
 
     /**
@@ -69,28 +75,28 @@ public sealed interface EnchantmentProvider {
                     JsonObject v = o.has("value") ? o.get("value").getAsJsonObject() : o;
                     yield new IntProvider(LootJson.req(v, "min_inclusive").getAsInt(), LootJson.req(v, "max_inclusive").getAsInt());
                 }
-                default -> throw new LootParseException("모르는 정수 공급자: " + o.get("type"));
+                default -> throw new LootParseException("unknown int provider: " + o.get("type"));
             };
         }
     }
 
     static EnchantmentProvider parse(JsonElement e, LootRegistries regs) {
-        if (!e.isJsonObject()) throw new LootParseException("마법 부여 제공자가 아님: " + e);
+        if (!e.isJsonObject()) throw new LootParseException("not an enchantment provider: " + e);
         JsonObject o = e.getAsJsonObject();
         return switch (LootJson.id(o, "type")) {
             case "minecraft:by_cost" -> new ByCost(HolderSet.parse("minecraft:enchantment", LootJson.req(o, "enchantments"), regs),
                     IntProvider.parse(LootJson.req(o, "cost")));
             case "minecraft:by_cost_with_difficulty" -> {
                 int min = LootJson.req(o, "min_cost").getAsInt(), span = LootJson.req(o, "max_cost_span").getAsInt();
-                if (min < 1 || min > 10000 || span < 0 || span > 10000) throw new LootParseException("min_cost/max_cost_span 범위 밖");
+                if (min < 1 || min > 10000 || span < 0 || span > 10000) throw new LootParseException("min_cost/max_cost_span out of range");
                 yield new ByCostWithDifficulty(HolderSet.parse("minecraft:enchantment", LootJson.req(o, "enchantments"), regs), min, span);
             }
             case "minecraft:single" -> {
                 List<String> ids = HolderSet.parse("minecraft:enchantment", LootJson.req(o, "enchantment"), regs).direct();
-                if (ids == null || ids.size() != 1) throw new LootParseException("single 의 enchantment 는 하나여야 함");
+                if (ids == null || ids.size() != 1) throw new LootParseException("the enchantment of a single provider must be exactly one");
                 yield new Single(ids.get(0), IntProvider.parse(LootJson.req(o, "level")));
             }
-            default -> throw new LootParseException("모르는 마법 부여 제공자: " + o.get("type"));
+            default -> throw new LootParseException("unknown enchantment provider: " + o.get("type"));
         };
     }
 }

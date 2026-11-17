@@ -5,6 +5,7 @@ package org.domi.furnace.server.block.entity;
 
 import java.util.Map;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Dir;
@@ -15,6 +16,7 @@ import org.domi.furnace.server.item.FlatText;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.entity.Rider;
 
+@VanillaPort("net.minecraft.world.level.block.entity.CommandBlockEntity")
 public class CommandBlockEntity extends BlockEntity {
 
     /** 패킷 열거 순서(SEQUENCE, AUTO, REDSTONE)와 같다 — 서버 수신 set_command_block 의 모드 번호. */
@@ -209,5 +211,5 @@ public class CommandBlockEntity extends BlockEntity {
     }
 
     /** openCommandBlock 이 보내는 태그와 같다(saveCustomOnly). */
-    public NbtCompound screenTag() { return saveCustomOnly(); }
+    public NbtCompound screenTag() { return sanitizeSentNbt(saveCustomOnly()); }   // Paper: ClientboundBlockEntityDataPacket.create 가 sanitizeSentNbt
 }

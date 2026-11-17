@@ -6,7 +6,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.advancements.AdvancementProgress")
 public final class AdvancementProgress implements Comparable<AdvancementProgress> {
 
     /** 바닐라 CriterionProgress — 달성 시각(없으면 미달성). */

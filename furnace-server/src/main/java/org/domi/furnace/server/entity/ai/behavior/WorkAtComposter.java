@@ -31,7 +31,7 @@ public class WorkAtComposter extends WorkAtPoi {
 
     private void compostItems(ChunkLevel level, Villager v, GlobalPos g, int state) {
         Pos pos = g.pos();
-        if (B.prop("level").intValue(state) == ComposterBlock.READY) state = ComposterBlock.extractProduce(null, state, level, pos);
+        if (B.prop("level").intValue(state) == ComposterBlock.READY) state = ComposterBlock.extractProduce(null, v, state, level, pos);
         int budget = 20;
         int keep = 10;
         int[] counts = new int[COMPOSTABLE_ITEMS.size()];
@@ -50,7 +50,9 @@ public class WorkAtComposter extends WorkAtPoi {
             budget -= n;
             for (int i = 0; i < n; i++) {
                 boolean shrinks = B.prop("level").intValue(cur) < ComposterBlock.MAX_LEVEL && ComposterBlock.isCompostable(inv.get(slot));
-                cur = ComposterBlock.insertItem(null, cur, level, inv.get(slot), pos);
+                int next = ComposterBlock.insertItemBy(v, cur, level, inv.get(slot), pos);
+                if (next < 0) continue;   // Paper: EntityChangeBlockEvent 를 막으면 넣지 않고 아이템도 줄이지 않는다
+                cur = next;
                 if (shrinks) inv.set(slot, inv.get(slot).withCount(inv.get(slot).count() - 1));   // insertItem 의 stack.shrink(1)
                 if (B.prop("level").intValue(cur) == ComposterBlock.MAX_LEVEL) {
                     spawnComposterFillEffects(level, state, pos, cur);

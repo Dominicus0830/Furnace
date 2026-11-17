@@ -1,6 +1,7 @@
 // Furnace FeatureSorter의 step별 feature 순서/index가 vanilla와 일치하는지 검증 (광석 좌표 결정자).
 package org.domi.furnace.server.world.gen.feature;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.BufferedReader;
@@ -19,10 +20,10 @@ class FeatureOrderParityTest {
     void featureSorter_matchesVanillaStepOrder() throws Exception {
         Fixture fx = loadFixture();
 
-        WorldgenData data = WorldgenData.load("worldgen/1.21.1");
-        BlockRegistry registry = BlockRegistry.load("blocks/1.21.1.txt");
+        WorldgenData data = WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG);
+        BlockRegistry registry = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         org.domi.furnace.server.net.registry.RegistrySet registries =
-            org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt");
+            org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
 
         // production(NoiseWorldSource)이 도출하는 biome 순서가 vanilla possibleBiomes()와 같은지 검증.
         List<String> derivedOrder = possibleBiomeOrder(data, registries);
@@ -57,7 +58,7 @@ class FeatureOrderParityTest {
 
     private static Fixture loadFixture() throws Exception {
         try (InputStream in = FeatureOrderParityTest.class.getResourceAsStream(
-                "/worldgen/fixtures/feature_order.txt")) {
+                "/worldgen/fixtures/" + GameVersion.RESOURCE_TAG + "/feature_order.txt")) {
             assertNotNull(in, "feature_order.txt fixture 없음 — oracle featureorder 실행 필요");
             BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             List<String> biomes = new ArrayList<>();

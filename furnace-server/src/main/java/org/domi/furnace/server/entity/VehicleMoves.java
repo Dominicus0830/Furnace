@@ -41,7 +41,7 @@ public final class VehicleMoves {
             p.send(MoveVehicle.of(v));
             return Result.REJECTED;
         }
-        boolean wasFree = v.level().noCollision(v.boundingBox().deflate(0.0625));
+        boolean wasFree = v.level().noCollision(v, v.boundingBox().deflate(0.0625));
         dx = tx - p.vehicleLastGood[0];
         dy = ty - p.vehicleLastGood[1] - 1.0E-6;
         dz = tz - p.vehicleLastGood[2];
@@ -59,7 +59,7 @@ public final class VehicleMoves {
             log.warn("{} (vehicle of {}) moved wrongly! {}", v, p.name(), Math.sqrt(distSqr));
         }
         v.absMoveTo(tx, ty, tz, yRot, xRot);
-        boolean nowFree = v.level().noCollision(v.boundingBox().deflate(0.0625));
+        boolean nowFree = v.level().noCollision(v, v.boundingBox().deflate(0.0625));
         if (wasFree && (wrong || !nowFree)) {
             v.absMoveTo(ox, oy, oz, yRot, xRot);
             p.send(MoveVehicle.of(v));

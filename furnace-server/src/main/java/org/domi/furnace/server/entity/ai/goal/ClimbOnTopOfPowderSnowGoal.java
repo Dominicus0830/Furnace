@@ -22,7 +22,7 @@ public class ClimbOnTopOfPowderSnowGoal extends Goal {
         if (inSnow && mob.typeInTag("minecraft:powder_snow_walkable_mobs")) {
             Pos above = mob.blockPosition().above();
             int state = mob.level().getBlockState(above);
-            return B.is(state, "minecraft:powder_snow") || BlockBehaviors.of(state).getCollisionShape(state, mob.level(), above, null).isEmpty();
+            return B.is(state, "minecraft:powder_snow") || BlockBehaviors.of(state).getCollisionShape(state, mob.level(), above, org.domi.furnace.server.block.CollisionContext.EMPTY).isEmpty();
         }
         return false;
     }

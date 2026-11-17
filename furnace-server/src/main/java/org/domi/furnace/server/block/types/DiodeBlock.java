@@ -1,6 +1,7 @@
 // 바닐라 DiodeBlock: 중계기·비교기 바탕. 뒤(facing 쪽)에서 신호를 받아 앞(반대쪽)으로 내고, 옆 신호는 잠금·비교에 쓴다.
 package org.domi.furnace.server.block.types;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.BlockInfo;
@@ -12,6 +13,7 @@ import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.level.block.DiodeBlock")
 public abstract class DiodeBlock extends HorizontalDirectionalBlock {
 
     static final Prop POWERED = B.prop("powered"), WIRE_POWER = B.prop("power");

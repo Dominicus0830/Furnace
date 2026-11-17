@@ -2,6 +2,7 @@
 // 바닐라 oracle 대조는 아니다(가정: oracle 미검증) — 기대값은 디컴파일 NetherFossilStructure/NetherFossilPieces 를 한 줄씩 옮겨 독립 계산했다.
 package org.domi.furnace.server.world.gen.structure;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Optional;
@@ -13,7 +14,7 @@ import org.junit.jupiter.api.Test;
 
 class NetherFossilStructureTest {
 
-    private static final BlockRegistry BLOCKS = BlockRegistry.load("blocks/1.21.1.txt");
+    private static final BlockRegistry BLOCKS = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
     private static final long SEED = 4242L;
 
     /** y 에 따라 블록 상태 id 를 돌려주는 합성 기둥(모든 x,z 동일). */

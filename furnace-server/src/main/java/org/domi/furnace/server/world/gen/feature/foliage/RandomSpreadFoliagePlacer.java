@@ -12,6 +12,7 @@ import org.domi.furnace.server.world.gen.feature.trunk.TrunkPlacer;
 // vanilla RandomSpreadFoliagePlacer 포팅 (맹그로브 등). attachment 주변 상자 안에서 무작위 좌표를
 // leafPlacementAttempts회 뽑아 하나씩 잎을 시도한다. shouldSkipLocation은 항상 false(호출되지 않음 —
 // placeLeavesRow를 쓰지 않기 때문).
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.feature.foliageplacers.RandomSpreadFoliagePlacer")
 public final class RandomSpreadFoliagePlacer extends FoliagePlacer {
     private final TreeIntProvider foliageHeightProvider;
     private final int leafPlacementAttempts;

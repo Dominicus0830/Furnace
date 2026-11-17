@@ -15,9 +15,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@VanillaPort("net.minecraft.server.dedicated.ServerWatchdog")
 public final class ServerWatchdog implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(ServerWatchdog.class);
@@ -88,7 +90,7 @@ public final class ServerWatchdog implements AutoCloseable {
             } catch (InterruptedException e) {
                 if (!running) return;
             } catch (Throwable t) {
-                log.error("워치독 검사 실패", t);
+                log.error(Lang.t("watchdog.check-failed"), t);
             }
         }
     }
@@ -105,8 +107,7 @@ public final class ServerWatchdog implements AutoCloseable {
      */
     public static Consumer<Stall> crashHandler(Path crashDir, Runnable exit) {
         return stall -> {
-            log.error("A single server tick took {} seconds ({}) — max-tick-time 초과", String.format(Locale.ROOT, "%.2f", stall.stalledNanos() / 1.0E9),
-                    stall.probe().name());
+            log.error("A single server tick took {} seconds ({}) - {}", String.format(Locale.ROOT, "%.2f", stall.stalledNanos() / 1.0E9), stall.probe().name(), Lang.t("watchdog.over-max-tick-time"));
             log.error("Considering it to be crashed, server will forcibly shutdown.");
             StringBuilder dump = new StringBuilder();
             Error cause = new Error("Watchdog: " + stall.probe().name());

@@ -41,7 +41,7 @@ public class WaterBoundPathNavigation extends PathNavigation {
     /** PathNavigation.isClearForMovementBetween: 도착 지점을 몸 반 높이만큼 올려 충돌 모양으로 시선이 막히지 않으면 참. */
     public static boolean isClearForMovementBetween(Mob mob, double[] from, double[] to, boolean allowLiquids) {
         double ty = to[1] + mob.bbHeight() * 0.5;
-        var hit = Clip.clipCollider(mob.level(), from[0], from[1], from[2], to[0], ty, to[2], allowLiquids ? Clip.FluidMode.ANY : Clip.FluidMode.NONE);
+        var hit = Clip.clipCollider(mob.level(), org.domi.furnace.server.block.CollisionContext.of(mob), from[0], from[1], from[2], to[0], ty, to[2], allowLiquids ? Clip.FluidMode.ANY : Clip.FluidMode.NONE);
         return hit.miss();
     }
 }

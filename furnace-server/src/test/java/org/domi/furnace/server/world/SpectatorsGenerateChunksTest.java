@@ -1,6 +1,7 @@
 // 게임룰 spectatorsGenerateChunks: 꺼져 있으면 관전자의 시야가 청크를 새로 만들게 하지 않는다(바닐라 ChunkMap.skipPlayer) — 이미 로드된 청크만 받는다.
 package org.domi.furnace.server.world;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -31,9 +32,9 @@ class SpectatorsGenerateChunksTest {
     /** auto = chunks-per-tick=auto(서버 기본값, 준비 안 된 청크는 미리 불러오기를 건다). */
     private static Rig rig(GameMode mode, boolean spectatorsGenerate, boolean auto) {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
-        BlockRegistry reg = BlockRegistry.load("blocks/1.21.1.txt");
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         var io = Executors.newSingleThreadExecutor();
-        World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 1, 1, reg.directBits(), 7, io);
+        World w = new World(new SuperflatWorldSource(reg, 0), new ChunkWorkerPool(1), sched, 1, 16, 2, 2, reg.directBits(), 7, io);
         if (auto) w.configureStreaming(w.spawnChunkRadius(), org.domi.furnace.server.config.Config.CHUNKS_PER_TICK_AUTO);
         w.levelServices(new LevelServices.Delegating(w.levelServices()) {
             @Override public boolean gameRule(String name) {
@@ -94,13 +95,13 @@ class SpectatorsGenerateChunksTest {
     void spectatorWithRuleOn_andSurvivalWithRuleOff_generate() throws Exception {
         Rig on = rig(GameMode.SPECTATOR, true);
         try {
-            assertEquals(9, tickAndCountChunks(on, 10), "켜져 있으면 관전자도 시야 9칸을 만든다");
+            assertEquals(ChunkTrackingViewTest.vanillaCount(2), tickAndCountChunks(on, 30), "켜져 있으면 관전자도 시야(바닐라 둥근 모양 45칸)를 만든다");
         } finally {
             on.close();
         }
         Rig surv = rig(GameMode.SURVIVAL, false);
         try {
-            assertEquals(9, tickAndCountChunks(surv, 10), "생존 플레이어는 규칙과 상관없다");
+            assertEquals(ChunkTrackingViewTest.vanillaCount(2), tickAndCountChunks(surv, 30), "생존 플레이어는 규칙과 상관없다");
         } finally {
             surv.close();
         }
@@ -133,7 +134,7 @@ class SpectatorsGenerateChunksTest {
     void autoRate_survival_generates() throws Exception {
         Rig r = rig(GameMode.SURVIVAL, false, true);
         try {
-            assertEquals(9, tickAndCountChunks(r, 10), "auto 의 생존 플레이어는 시야 9칸을 받는다");
+            assertEquals(ChunkTrackingViewTest.vanillaCount(2), tickAndCountChunks(r, 30), "auto 의 생존 플레이어는 시야(바닐라 둥근 모양 45칸)를 받는다");
         } finally {
             r.close();
         }

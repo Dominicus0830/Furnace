@@ -3,7 +3,9 @@ package org.domi.furnace.server.loot;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.advancements.critereon.MinMaxBounds")
 public record Bounds(Double min, Double max) {
 
     public static final Bounds ANY = new Bounds(null, null);

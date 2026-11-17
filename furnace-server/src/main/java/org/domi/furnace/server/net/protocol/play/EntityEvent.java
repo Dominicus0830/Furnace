@@ -2,11 +2,14 @@
 package org.domi.furnace.server.net.protocol.play;
 
 import io.netty.buffer.ByteBuf;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
+@VanillaPort("net.minecraft.network.protocol.game.ClientboundEntityEventPacket")
 public record EntityEvent(int entityId, byte event) implements Packet {
 
-    public static final int ID = 0x1F;
+    public static final int ID = PacketIds.PLAY_CLIENTBOUND_ENTITY_EVENT;
 
     /** 바닐라 PlayerList.sendPlayerPermissionLevel 의 이벤트 값. */
     public static EntityEvent permissionLevel(int entityId, int level) {

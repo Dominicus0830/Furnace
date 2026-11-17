@@ -3,7 +3,9 @@ package org.domi.furnace.server.command.brigadier;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("com.mojang.brigadier.tree.ArgumentCommandNode")
 public class ArgumentCommandNode<S, T> extends CommandNode<S> {
 
     private final String name;

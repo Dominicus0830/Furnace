@@ -2,6 +2,7 @@
 // 기대값은 디컴파일된 1.21.1 공식 손계산(거리² − 속도² > 100 × 패킷 수, 어긋남² > 0.0625, 떠 있는 틱 > 80).
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.api.GameVersion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -22,7 +23,7 @@ class PlayerMoveValidatorTest {
     @BeforeAll
     static void install() {
         org.domi.furnace.server.item.ItemContext.install(new org.domi.furnace.server.data.TagRegistries(
-                org.domi.furnace.server.net.registry.RegistrySet.load("registries/1.21.1.txt")));
+                org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
     static final Blocks B = Blocks.get();
@@ -328,7 +329,7 @@ class PlayerMoveValidatorTest {
 
     @Test
     void poseUpdate_forcedCrouchWhenCeilingBetween1_5And1_8() {
-        var reg = org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt");
+        var reg = org.domi.furnace.server.world.BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
         var l = new Level();
         // 아래 반 블록(윗면 -59.5) 위에 서고 천장은 돌(-58): 틈 1.5 = 웅크림은 들어가고 서기 1.8 은 안 들어감
         l.setBlock(new Pos(0, -60, 0), reg.stateIdOrAir("minecraft:oak_slab", java.util.Map.of("type", "bottom", "waterlogged", "false")), 3);
@@ -364,7 +365,7 @@ class PlayerMoveValidatorTest {
     @Test
     void poseUpdate_crawlsWhenCeilingTooLow_andPublishesPoseFlagsAndHeight() {
         var l = tunnel();
-        var probe = new org.domi.furnace.server.world.PlayerProbe(org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt"));
+        var probe = new org.domi.furnace.server.world.PlayerProbe(org.domi.furnace.server.world.BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"));
         org.domi.furnace.server.world.PlayerProbe.Blocks blocks = (x, y, z) -> l.getBlockState(new Pos(x, y, z));
         var p = player(3.5, -60, 0.5, GameMode.SURVIVAL);   // 통로 안(서 있으면 1.8 > 1)
         assertEquals(0, p.pose());
@@ -386,7 +387,7 @@ class PlayerMoveValidatorTest {
     @Test
     void poseUpdate_sprintingUnderwaterSwims_andKeepsFlagWhileInWater() {
         var l = new Level();
-        var probe = new org.domi.furnace.server.world.PlayerProbe(org.domi.furnace.server.world.BlockRegistry.load("blocks/1.21.1.txt"));
+        var probe = new org.domi.furnace.server.world.PlayerProbe(org.domi.furnace.server.world.BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt"));
         org.domi.furnace.server.world.PlayerProbe.Blocks blocks = (x, y, z) -> l.getBlockState(new Pos(x, y, z));
         int water = B.defaultState("minecraft:water");
         for (int y = -60; y <= -57; y++) l.setBlock(new Pos(0, y, 0), water, 3);

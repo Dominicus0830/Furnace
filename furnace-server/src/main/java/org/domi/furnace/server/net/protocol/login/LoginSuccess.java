@@ -3,9 +3,12 @@ package org.domi.furnace.server.net.protocol.login;
 
 import io.netty.buffer.ByteBuf;
 import java.util.UUID;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
+import org.domi.furnace.server.net.protocol.PacketIds;
 
+@VanillaPort("net.minecraft.network.protocol.login.ClientboundGameProfilePacket")
 public record LoginSuccess(UUID uuid, String name, java.util.List<org.domi.furnace.server.players.GameProfile.Property> properties,
                            boolean strictErrorHandling) implements Packet {
 
@@ -13,7 +16,7 @@ public record LoginSuccess(UUID uuid, String name, java.util.List<org.domi.furna
         this(uuid, name, java.util.List.of(), true);
     }
 
-    public static final int ID = 0x02;
+    public static final int ID = PacketIds.LOGIN_CLIENTBOUND_GAME_PROFILE;
 
     @Override
     public int id() {

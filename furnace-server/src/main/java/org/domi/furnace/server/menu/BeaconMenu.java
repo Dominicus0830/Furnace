@@ -6,7 +6,9 @@ import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.world.MenuBlockContext;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.inventory.BeaconMenu")
 public class BeaconMenu extends AbstractContainerMenu {
 
     public static final int PAYMENT_SLOT = 0, INV_SLOT_START = 1, INV_SLOT_END = 28, USE_ROW_SLOT_START = 28, USE_ROW_SLOT_END = 37;

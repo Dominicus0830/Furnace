@@ -3,7 +3,9 @@ package org.domi.furnace.server.block;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.world.level.block.state.properties.BlockSetType")
 public record BlockSetType(String name, boolean canOpenByHand, boolean canOpenByWindCharge, boolean canButtonBeActivatedByArrows,
                            boolean plateSensitivityEverything, String doorClose, String doorOpen, String trapdoorClose,
                            String trapdoorOpen, String pressurePlateClickOff, String pressurePlateClickOn, String buttonClickOff,
@@ -53,7 +55,7 @@ public record BlockSetType(String name, boolean canOpenByHand, boolean canOpenBy
 
     public static BlockSetType byName(String name) {
         BlockSetType t = BY_NAME.get(name);
-        if (t == null) throw new IllegalArgumentException("알 수 없는 block_set_type: " + name);
+        if (t == null) throw new IllegalArgumentException("unknown block_set_type: " + name);
         return t;
     }
 

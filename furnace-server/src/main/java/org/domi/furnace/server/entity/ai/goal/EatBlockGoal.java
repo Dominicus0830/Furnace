@@ -48,15 +48,19 @@ public class EatBlockGoal extends Goal {
         if (eatAnimationTick != adjustedTickDelay(4)) return;
         var level = mob.level();
         Pos pos = mob.blockPosition();
-        if (B.is(level.getBlockState(pos), "minecraft:short_grass")) {
-            if (level.gameRule("mobGriefing")) level.destroyBlock(pos, false, null, 512);
+        int here = level.getBlockState(pos);
+        // CraftBukkit(+Paper 새 상태): mobGriefing 거짓이어도 EntityChangeBlockEvent 를 미리 취소한 채로 내고, 처리기가 풀면 먹는다
+        if (B.is(here, "minecraft:short_grass")) {
+            if (B.entityChange(level, mob, pos, B.fluidLeftover(here), !level.gameRule("mobGriefing"))) level.destroyBlock(pos, false, null, 512);
             ate.run();
         } else {
             Pos below = pos.below();
             if (B.is(level.getBlockState(below), "minecraft:grass_block")) {
-                if (level.gameRule("mobGriefing")) {
-                    level.levelEvent(null, 2001, below, level.getBlockState(below));
-                    level.setBlock(below, org.domi.furnace.server.block.Blocks.get().defaultState("minecraft:dirt"), 2, 512);
+                int dirt = org.domi.furnace.server.block.Blocks.get().defaultState("minecraft:dirt");
+                if (B.entityChange(level, mob, below, dirt, !level.gameRule("mobGriefing"))) {
+                    // 바닐라: Block.getId(GRASS_BLOCK.defaultBlockState()) — 눈 덮인 풀이어도 기본 상태로 알린다
+                    level.levelEvent(null, 2001, below, B.defaultState("minecraft:grass_block"));
+                    level.setBlock(below, dirt, 2, 512);
                 }
                 ate.run();
             }

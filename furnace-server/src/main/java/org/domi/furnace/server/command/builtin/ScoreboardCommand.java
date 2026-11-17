@@ -33,7 +33,9 @@ import org.domi.furnace.server.scores.Score;
 import org.domi.furnace.server.scores.ScoreAccess;
 import org.domi.furnace.server.scores.ScoreHolder;
 import org.domi.furnace.server.scores.ServerScoreboard;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.server.commands.ScoreboardCommand")
 public final class ScoreboardCommand {
 
     private ScoreboardCommand() {}

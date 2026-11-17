@@ -1,8 +1,9 @@
-// 게임 동기화 레지스트리 보기와 마법부여 끄기 — Furnace.server().gameRegistries().
-// 항목 순서는 클라가 받는 번호 순서다(시작 때 고정). 항목을 더하는 것은 부트스트랩 훅(LifecycleEvents.GAME_REGISTRIES)으로만 된다.
+// 게임 동기화 레지스트리 보기와 마법부여 끄기. Furnace.server().gameRegistries() 로 얻는다.
+// 항목 순서는 클라이언트가 받는 번호 순서다(시작 때 고정). 항목을 더하는 것은 부트스트랩 훅(LifecycleEvents.GAME_REGISTRIES)으로만 된다.
 // 마법부여 끄기(불만 표 32번): 꺼진 마법부여는 마법 부여대·전리품(낚시·상자의 무작위 마법부여)·마법 부여 제공자(몹·습격자 장비)·
-// 주민 거래에서 새로 나오지 않는다. 이미 붙은 아이템, /enchant, 모루 합치기, 전리품의 set_enchantments(명시한 것)는 그대로이고,
-// 레지스트리에서도 빠지지 않는다(다시 켜면 곧바로 원래대로). 서버 설정 furnace.properties 의 enchantments.disabled 로도 끌 수 있다.
+// 주민 거래에서 새로 나오지 않는다.
+// 이미 붙은 아이템, /enchant, 모루 합치기, 전리품의 set_enchantments(명시한 것)는 그대로이고, 레지스트리에서도 빠지지 않는다.
+// 다시 켜면 곧바로 원래대로 돌아간다. 서버 설정 furnace.properties 의 enchantments.disabled 로도 끌 수 있다.
 // 플러그인이 끈 것은 그 플러그인이 꺼지면 풀린다. 아무 스레드에서 불러도 된다.
 package org.domi.furnace.api.registry;
 
@@ -27,13 +28,13 @@ public interface GameRegistries {
 
     /**
      * 내장 레지스트리(데이터 팩이 바꾸지 않는 것: minecraft:block·minecraft:item·minecraft:entity_type 등)의 항목 id, 바닐라 1.21.1 번호 순.
-     * 모르는 레지스트리·동기화 레지스트리면 빈 목록. 번호는 버전마다 바뀌므로 저장하지 말 것(NMS 호환용).
+     * 모르는 레지스트리·동기화 레지스트리면 빈 목록. 번호는 버전마다 바뀌므로 저장하지 않는다(NMS 호환용).
      */
     default List<String> builtIn(String registry) { throw new UnsupportedOperationException("builtIn"); }
 
     /**
      * 지금 걸린 태그 id(데이터 팩 리로드 뒤 값, 예: minecraft:logs). 클라에 태그를 보내는 레지스트리(블록·아이템·유체·엔티티 종류·바이옴·게임 이벤트 등)만
-     * 다룬다 — 그 밖의 레지스트리면 빈 집합.
+     * 다룬다. 그 밖의 레지스트리면 빈 집합이다.
      */
     default Set<String> tags(String registry) { throw new UnsupportedOperationException("tags"); }
 
@@ -42,6 +43,22 @@ public interface GameRegistries {
 
     /** entry 가 태그에 들어 있는가. 없는 태그·모르는 항목이면 거짓. 블록마다 불러도 되게 가볍다. */
     default boolean isTagged(String registry, String tag, String entry) { throw new UnsupportedOperationException("isTagged"); }
+
+    /**
+     * 그 블록이 만드는 블록 엔티티 종류 id(바닐라 1.21.1 BlockEntityType 의 유효 블록 표. 예를 들어 minecraft:oak_sign 은 minecraft:sign,
+     * minecraft:moving_piston 은 minecraft:piston 이다). 블록 엔티티가 없는 블록·모르는 블록이면 null. 아무 스레드에서 불러도 된다.
+     */
+    default String blockEntityType(String block) { throw new UnsupportedOperationException("blockEntityType"); }
+
+    /** 그 아이템("minecraft:coal")을 화로 연료로 넣었을 때 타는 틱(연료가 아니면 0). 바닐라 AbstractFurnaceBlockEntity 연료 표와 같다. */
+    default int fuelBurnTime(String item) { throw new UnsupportedOperationException("fuelBurnTime"); }
+
+    /**
+     * 월드젠 레지스트리(minecraft:worldgen/configured_feature · placed_feature · structure)의 항목 id 별 연결 정보(id 순). NMS 호환용.
+     * configured_feature·structure 는 그 항목의 "type"(예: minecraft:tree), placed_feature 는 가리키는 configured_feature id(안에 직접 적었으면 빈 문자열).
+     * 모르는 레지스트리면 빈 맵.
+     */
+    default java.util.Map<String, String> worldgen(String registry) { throw new UnsupportedOperationException("worldgen"); }
 
     /** 항목을 낸 곳: "vanilla", 데이터 팩 id(예: "file/mypack"), "plugin:<이름>". 없거나 내장 목록이면 empty. */
     java.util.Optional<String> source(String registry, String key);

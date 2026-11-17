@@ -150,6 +150,9 @@ public class ArmorStand extends LivingEntity {
 
     @Override public boolean isPickable() { return !isMarker(); }
 
+    /** ArmorStand.canBeSeenByAnyone: 투명하지 않고 마커가 아니다(살아 있는지는 보지 않는다). */
+    @Override public boolean canBeSeenByAnyone() { return !isInvisible() && !isMarker(); }
+
     // ------------------------------------------------------------------ 틱
 
     @Override

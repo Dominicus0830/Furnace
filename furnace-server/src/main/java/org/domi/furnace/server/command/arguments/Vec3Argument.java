@@ -12,7 +12,9 @@ import org.domi.furnace.server.command.brigadier.CommandSyntaxException;
 import org.domi.furnace.server.command.brigadier.StringReader;
 import org.domi.furnace.server.command.brigadier.Suggestions;
 import org.domi.furnace.server.command.brigadier.SuggestionsBuilder;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("net.minecraft.commands.arguments.coordinates.Vec3Argument")
 public record Vec3Argument(boolean centerCorrect) implements ArgumentType<BlockPosArgument.Coordinates> {
 
     private static final List<String> EXAMPLES = List.of("0 0 0", "0.1 -0.5 .9", "~0.5 ~1 ~-5");

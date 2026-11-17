@@ -15,6 +15,7 @@ import org.domi.furnace.api.text.Text;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.block.Pos;
+import org.domi.furnace.server.block.RandomSeeds;
 import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.effect.MobEffect;
 import org.domi.furnace.server.effect.MobEffectInstance;
@@ -27,6 +28,7 @@ import org.domi.furnace.server.entity.spawn.SpawnPlacements;
 import org.domi.furnace.server.entity.spawn.SpawnReason;
 import org.domi.furnace.server.net.protocol.play.BossEvent;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.raid.Raid")
 public final class Raid {
     public static final int MAX_RAID_OMEN_LEVEL = 5;
     public static final int PRE_RAID_TICKS = 300;
@@ -63,7 +65,7 @@ public final class Raid {
     private final int id;
     private ChunkLevel level;
     private Pos center;
-    private final RandomSource random = RandomSource.create();
+    private final RandomSource random;
     private final int numGroups;
     private final Map<Integer, Raider> groupToLeaderMap = new HashMap<>();
     private final Map<Integer, Set<Raider>> groupRaiderMap = new HashMap<>();
@@ -89,6 +91,7 @@ public final class Raid {
 
     public Raid(int id, ChunkLevel level, Pos center) {
         this.id = id;
+        this.random = RandomSource.createFor(id, RandomSeeds.Purpose.RAID);
         this.level = level;
         this.center = center;
         this.active = true;
@@ -102,6 +105,7 @@ public final class Raid {
     public Raid(ChunkLevel level, org.domi.furnace.server.net.io.nbt.NbtCompound tag) {
         this.level = level;
         this.id = tag.getIntOr0("Id");
+        this.random = RandomSource.createFor(id, RandomSeeds.Purpose.RAID);
         this.started = tag.getBoolean("Started");
         this.active = tag.getBoolean("Active");
         this.ticksActive = tag.tags().get("TicksActive") instanceof Number n ? n.longValue() : 0L;

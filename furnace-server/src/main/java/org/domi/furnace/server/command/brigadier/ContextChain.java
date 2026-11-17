@@ -5,7 +5,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import org.domi.furnace.server.VanillaPort;
 
+@VanillaPort("com.mojang.brigadier.context.ContextChain")
 public class ContextChain<S> {
 
     public enum Stage { MODIFY, EXECUTE }

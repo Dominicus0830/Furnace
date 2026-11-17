@@ -19,6 +19,7 @@ import org.domi.furnace.server.net.protocol.play.UpdateRecipes;
 import org.domi.furnace.server.recipe.ApiRecipes;
 import org.domi.furnace.server.recipe.Recipe;
 import org.domi.furnace.server.recipe.RecipeManager;
+import org.domi.furnace.server.i18n.Lang;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,8 +39,17 @@ public final class PluginRecipes implements RecipeRegistry {
 
     private RecipeManager manager() {
         RecipeManager rm = host.core().recipes();
-        if (rm == null) throw new IllegalStateException("레시피 데이터가 없다(데이터 팩 없이 뜬 서버)");
+        if (rm == null) throw new IllegalStateException("there is no recipe data (the server started without data packs)");
         return rm;
+    }
+
+    @Override
+    public java.util.OptionalInt cookingTime(org.domi.furnace.api.recipe.Recipe.CookingKind kind, org.domi.furnace.api.item.ItemStack input) {
+        java.util.Objects.requireNonNull(kind, "kind");
+        RecipeManager rm = host.core().recipes();
+        if (rm == null || input == null || input.isEmpty()) return java.util.OptionalInt.empty();
+        var e = rm.findCooking(kind.type(), toServer().apply(input));
+        return e == null ? java.util.OptionalInt.empty() : java.util.OptionalInt.of(e.recipe().cookingTime());
     }
 
     private ApiRecipes.ToServer toServer() {
@@ -55,7 +65,7 @@ public final class PluginRecipes implements RecipeRegistry {
     private static ResourceId key(String key) {
         java.util.Objects.requireNonNull(key, "key");
         ResourceId id = key.indexOf(':') > 0 ? ResourceId.tryParse(key) : null;
-        if (id == null) throw new IllegalArgumentException("레시피 키는 '네임스페이스:이름' 소문자 형식: " + key);
+        if (id == null) throw new IllegalArgumentException("a recipe key must be lowercase 'namespace:name': " + key);
         return id;
     }
 
@@ -65,7 +75,7 @@ public final class PluginRecipes implements RecipeRegistry {
         java.util.Objects.requireNonNull(recipe, "recipe");
         ResourceId id = key(key);
         RecipeManager rm = manager();
-        if (rm.recipe(id) != null) throw new IllegalArgumentException("이미 있는 레시피 키: " + key + " (바꾸려면 먼저 remove)");
+        if (rm.recipe(id) != null) throw new IllegalArgumentException("recipe key already exists: " + key + " (remove it first to replace it)");
         Recipe converted = ApiRecipes.toServer(recipe, rm.context(), toServer());
         rm.change(Map.of(id, converted), List.of());
         plugin.put(id, new Entry(owner, converted));
@@ -162,7 +172,7 @@ public final class PluginRecipes implements RecipeRegistry {
         for (var it = plugin.entrySet().iterator(); it.hasNext(); ) {
             var e = it.next();
             if (fresh.recipe(e.getKey()) != null && !drop.contains(e.getKey())) {
-                log.warn("플러그인 레시피 {} 는 새 데이터 팩의 같은 키 때문에 올리지 못해 내린다", e.getKey());
+                log.warn(Lang.t("recipes.removed", e.getKey()));
                 it.remove();
                 continue;
             }

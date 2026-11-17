@@ -1,6 +1,7 @@
 // 바닐라 ScatteredFeaturePiece — 폭/높이/깊이 상자 + 지면 높이 보정(최초 1회).
 package org.domi.furnace.server.world.gen.structure;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.structure.ScatteredFeaturePiece")
 public abstract class ScatteredPiece extends StructurePiece {
     protected final int width, height, depth;
     protected int heightPosition = -1;
@@ -10,6 +11,15 @@ public abstract class ScatteredPiece extends StructurePiece {
         this.width = width;
         this.height = height;
         this.depth = depth;
+    }
+
+    /** 바닐라 ScatteredFeaturePiece: Width·Height·Depth·HPos. */
+    @Override
+    protected void saveAdditional(org.domi.furnace.server.net.io.nbt.NbtCompound t) {
+        t.putInt("Width", width);
+        t.putInt("Height", height);
+        t.putInt("Depth", depth);
+        t.putInt("HPos", heightPosition);
     }
 
     /** updateAverageGroundLevel(level, box, offset) — 쓰기 상자 안 칸들의 MOTION_BLOCKING_NO_LEAVES 평균. */

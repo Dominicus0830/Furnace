@@ -1,6 +1,7 @@
 // 제작 뒤에 남는 아이템(바닐라 Item.getCraftingRemainingItem — 양동이·유리병). 원본: items/craft_remainders_1.21.1.txt (tools/vanilla-data/ExportCraftRemainders.java).
 package org.domi.furnace.server.item;
 
+import org.domi.furnace.api.GameVersion;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -9,8 +10,10 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.entity.ItemStack;
 
+@VanillaPort("net.minecraft.world.item.Item")
 public final class CraftRemainders {
 
     private CraftRemainders() { }
@@ -21,8 +24,8 @@ public final class CraftRemainders {
         Map<String, String> t = table;
         if (t != null) return t;
         t = new HashMap<>();
-        try (InputStream in = CraftRemainders.class.getResourceAsStream("/items/craft_remainders_1.21.1.txt")) {
-            if (in == null) throw new IllegalStateException("items/craft_remainders_1.21.1.txt 없음");
+        try (InputStream in = CraftRemainders.class.getResourceAsStream("/items/craft_remainders_" + GameVersion.RESOURCE_TAG + ".txt")) {
+            if (in == null) throw new IllegalStateException("items/craft_remainders_" + GameVersion.RESOURCE_TAG + ".txt is missing");
             BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             for (String line; (line = r.readLine()) != null; ) {
                 if (line.isEmpty() || line.charAt(0) == '#') continue;

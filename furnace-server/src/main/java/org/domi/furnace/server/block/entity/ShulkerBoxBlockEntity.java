@@ -3,10 +3,12 @@
 // 열리는 동안 뚜껑에 닿은 엔티티를 민다(moveCollidedEntities, 이 region 엔티티만 — 플레이어는 클라이언트가 스스로). TODO(블록): canOpen — 뚜껑 앞이 막혔는지.
 package org.domi.furnace.server.block.entity;
 
+import org.domi.furnace.server.VanillaPort;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Pos;
 
+@VanillaPort("net.minecraft.world.level.block.entity.ShulkerBoxBlockEntity")
 public class ShulkerBoxBlockEntity extends ContainerBlockEntity {
 
     /** 뚜껑 상태: 닫힘·열리는 중·열림·닫히는 중. */
