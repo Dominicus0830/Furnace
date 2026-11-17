@@ -363,7 +363,7 @@ public final class DesertPyramidPiece extends StructurePiece {
         }
         {
             // RandomSource.create(level.getSeed()).forkPositional().at(worldPos(x-2, roofY, z-2))
-            org.domi.furnace.server.world.gen.carver.LegacyRandom base = new org.domi.furnace.server.world.gen.carver.LegacyRandom(view.worldSeed());
+            org.domi.furnace.server.world.gen.carver.LegacyRandom base = new org.domi.furnace.server.world.gen.carver.LegacyRandom(view.levelSeed(false, view.worldSeed()));
             long fork = base.nextLong();
             long ps = org.domi.furnace.server.world.gen.structure.template.PlaceSettings.getSeed(getWorldX(x - 2, z - 2), getWorldY(roofY), getWorldZ(x - 2, z - 2));
             org.domi.furnace.server.world.gen.carver.LegacyRandom pr = new org.domi.furnace.server.world.gen.carver.LegacyRandom(ps ^ fork);
@@ -416,7 +416,7 @@ public final class DesertPyramidPiece extends StructurePiece {
         int cx = bb.minX() + (bb.maxX() - bb.minX() + 1) / 2;
         int cy = bb.minY() + (bb.maxY() - bb.minY() + 1) / 2;
         int cz = bb.minZ() + (bb.maxZ() - bb.minZ() + 1) / 2;
-        org.domi.furnace.server.world.gen.carver.LegacyRandom base = new org.domi.furnace.server.world.gen.carver.LegacyRandom(c.view.worldSeed());
+        org.domi.furnace.server.world.gen.carver.LegacyRandom base = new org.domi.furnace.server.world.gen.carver.LegacyRandom(c.view.levelSeed(false, c.view.worldSeed()));
         long fork = base.nextLong();
         org.domi.furnace.server.world.gen.carver.LegacyRandom r = new org.domi.furnace.server.world.gen.carver.LegacyRandom(
             org.domi.furnace.server.world.gen.structure.template.PlaceSettings.getSeed(cx, cy, cz) ^ fork);
@@ -439,6 +439,11 @@ public final class DesertPyramidPiece extends StructurePiece {
     private static void placeSuspiciousSand(PostCtx c, int[] p) {
         if (!c.writableBox.isInside(p[0], p[1], p[2])) return;
         c.view.setBlock(p[0], p[1], p[2], c.blocks().defaultStateId("minecraft:suspicious_sand"));
+        if (c.view.sinkMode()) {
+            // getBlockEntity(pos, BRUSHABLE_BLOCK) 가 있을 때만 표·시드를 넣는다 — 플러그인 레벨의 것은 바꿀 수 없어 있으면 오류
+            c.view.blockEntityPresent(p[0], p[1], p[2], java.util.Set.of("minecraft:brushable_block"));
+            return;
+        }
         org.domi.furnace.server.net.io.nbt.NbtCompound nbt = new org.domi.furnace.server.net.io.nbt.NbtCompound();
         nbt.putString("id", "minecraft:brushable_block");
         nbt.putInt("x", p[0]); nbt.putInt("y", p[1]); nbt.putInt("z", p[2]);

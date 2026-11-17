@@ -225,7 +225,7 @@ public final class OceanMonumentStructure extends StructureType {
             int wx = getWorldX(x, z), wy = getWorldY(y), wz = getWorldZ(x, z);
             if (box.isInside(wx, wy, wz)) {
                 // 엘더 가디언: heal(maxHealth)=80, 생성자에서 setPersistenceRequired
-                org.domi.furnace.server.net.io.nbt.NbtCompound nbt = c.view.addEntity("minecraft:elder_guardian", wx + 0.5, wy, wz + 0.5, 0.0F, 0.0F);
+                org.domi.furnace.server.net.io.nbt.NbtCompound nbt = c.view.addEntity("minecraft:elder_guardian", wx + 0.5, wy, wz + 0.5, 0.0F, 0.0F, true);
                 nbt.putByte("PersistenceRequired", (byte) 1);
                 nbt.put("Health", 80.0F);
             }

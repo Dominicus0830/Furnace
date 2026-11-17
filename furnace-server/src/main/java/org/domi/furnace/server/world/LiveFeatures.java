@@ -200,13 +200,26 @@ public final class LiveFeatures {
     /** 통로 모드에서 닿지 못했다는 표시(Placement.NONE 과 구별). */
     private static final Placement UNREACHABLE = new Placement(false, List.of());
 
-    /** 통로 모드 나무 가장자리 한 면: StructureTemplate.updateShapeAtEdge(level, 3, …) 의 면 처리 — 쓰기는 flag 2(3 & ~1). */
-    private static void sinkEdge(FeatureWorldView view, SinkShapeLevel level, int x, int y, int z, int dx, int dy, int dz) {
+    /** 통로 모드 모양 갱신: 면 처리와 updateFromNeighbourShapes 를 실제 블록 동작으로(읽기는 SinkShapeLevel). */
+    static FeatureWorldView.EdgeUpdater sinkEdges(FeatureWorldView view, SinkShapeLevel level) {
+        return new FeatureWorldView.EdgeUpdater() {
+            @Override
+            public void update(int x, int y, int z, int dx, int dy, int dz, int writeFlags) { sinkEdge(view, level, x, y, z, dx, dy, dz, writeFlags); }
+
+            @Override
+            public int neighbourShapes(int state, int x, int y, int z) {
+                return org.domi.furnace.server.block.B.updateFromNeighbourShapes(state, level, new Pos(x, y, z));
+            }
+        };
+    }
+
+    /** 통로 모드 가장자리 한 면: StructureTemplate.updateShapeAtEdge(level, flags, …) 의 면 처리 — 쓰기는 writeFlags(flags & ~1; 나무는 2). */
+    private static void sinkEdge(FeatureWorldView view, SinkShapeLevel level, int x, int y, int z, int dx, int dy, int dz, int writeFlags) {
         Pos pos = new Pos(x, y, z), npos = new Pos(x + dx, y + dy, z + dz);
         int dir = fromDelta(dx, dy, dz);
         int s = view.getBlock(x, y, z), n = view.getBlock(npos.x(), npos.y(), npos.z());
         int saved = view.liveWriteFlags();
-        view.setLiveWriteFlags(2);
+        view.setLiveWriteFlags(writeFlags);
         try {
             int s2 = org.domi.furnace.server.block.B.behavior(s).updateShape(s, dir, n, level, pos, npos);
             if (s2 != s) view.trySetBlock(x, y, z, s2);
@@ -262,7 +275,7 @@ public final class LiveFeatures {
                 ChunkColumn l = i >= 0 && i < live.length ? live[i] : null;
                 return l == null ? view.getBlock(x, y, z) : l.getBlock(x & 15, y, z & 15);   // 없는 칸은 view 가 공기로 답하고 닿지 못함을 센다
             });
-            view.useSink(sink, live, (x, y, z, dx, dy, dz) -> sinkEdge(view, shapeLevel, x, y, z, dx, dy, dz));
+            view.useSink(sink, live, sinkEdges(view, shapeLevel));
             boolean placed = body.test(view);
             return view.missingAccess() > 0 ? UNREACHABLE : new Placement(placed, List.of());
         }
@@ -387,7 +400,7 @@ public final class LiveFeatures {
     }
 
     /** FeatureWorldView 의 biome 배열 형식: (quartY * 4 + quartZ) * 4 + quartX. */
-    private static int[] biomeIds(ChunkColumn col) {
+    static int[] biomeIds(ChunkColumn col) {
         ChunkSection[] sections = col.sections();
         int[] ids = new int[sections.length * 64];
         for (int s = 0; s < sections.length; s++) {

@@ -239,7 +239,7 @@ public final class Processors {
             if (limitMax == 0 || processed.isEmpty()) return processed;
             if (originals.size() != processed.size()) return processed;
             // RandomSource.create(worldSeed).forkPositional().at(offset)
-            LegacyRandom base = new LegacyRandom(ctx.worldSeed());
+            LegacyRandom base = new LegacyRandom(ctx.view.levelSeed(true, ctx.worldSeed()));   // world.getLevel().getSeed()
             long forkSeed = base.nextLong();
             LegacyRandom r = new LegacyRandom(PlaceSettings.getSeed(ox, oy, oz) ^ forkSeed);
             int sample = limitMin == limitMax ? limitMin : limitMin + r.nextInt(limitMax - limitMin + 1);

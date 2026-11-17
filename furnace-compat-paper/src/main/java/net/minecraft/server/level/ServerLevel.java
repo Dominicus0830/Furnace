@@ -172,6 +172,25 @@ public class ServerLevel extends Level implements net.minecraft.world.level.Worl
 
     public MinecraftServer getServer() { return MinecraftServer.getServer(); }
 
+    private volatile net.minecraft.world.level.StructureManager structureManager;
+
+    /** 바닐라 getStructureManager: 서버의 구조물 템플릿 관리자(서버에 하나, T-211 2단계). */
+    public net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager getStructureManager() {
+        return net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager.of();
+    }
+
+    /** 바닐라 structureManager: 이 레벨의 구조물 관리자 손잡이(같은 레벨은 같은 객체, T-211 2단계). */
+    public net.minecraft.world.level.StructureManager structureManager() {
+        var m = structureManager;
+        if (m == null) {
+            synchronized (this) {
+                m = structureManager;
+                if (m == null) structureManager = m = new net.minecraft.world.level.StructureManager(getWorld().furnaceHandle());
+            }
+        }
+        return m;
+    }
+
     /** 대기 한도(ms) — 네트워크·비동기 스레드가 id 로 엔티티를 찾을 때 소유 region 의 응답을 기다리는 시간. */
     private static final long LOOKUP_WAIT_MILLIS = Long.getLong("furnace.compat.entityLookupWaitMillis", 1_000L);
 

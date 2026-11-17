@@ -332,6 +332,7 @@ public final class MineshaftStructure extends StructureType {
             if (box.isInside(wx, wy, wz) && a.isAir(c.view.getBlock(wx, wy, wz)) && !a.isAir(c.view.getBlock(wx, wy - 1, wz))) {
                 int rail = c.random.nextBoolean() ? s.railNS : s.railEW;
                 placeBlock(c, rail, x, y, z, box);
+                c.view.prepareEntity();   // new MinecartChest(world.getLevel(), …) 가 시드 뽑기보다 먼저
                 long seed = c.random.nextLong();
                 NbtCompound cart = c.view.addEntity("minecraft:chest_minecart", wx + 0.5, wy + 0.5, wz + 0.5, 0.0F, 0.0F);
                 cart.putString("LootTable", LOOT);

@@ -138,3 +138,101 @@ finally: 두 표시 false, capturedBlockStates.clear()                          
   닿지 못함, 광석), 호환 `NmsFeaturePlaceTest`(FAWE populator 꼴 — 전역 스레드 빌림 구간에서 기록, 평범한 populator, 서버 레벨 바로, 다른 스레드의 기록 표시,
   전역 스레드 기록 중 region 스레드 배치, 부술 수 없는 칸, 광석, 정직한 실패). 남은 시험 공백: 실제 FAWE jar 클래스의 링크, 보너스 상자·던전·엔드 관문의
   블록 엔티티 없음 길, 하이트맵 원천.
+
+
+## 7. 2단계 설계 — 구조물 (`//structure`) (2026-11-17)
+
+### 7.1 FAWE 2.16.2 가 하는 일 (`PaperweightFaweAdapter#generateStructure`, 전역 스레드)
+
+```
+Structure k = registryOrThrow(STRUCTURE).get(id)                     // 없으면 false
+populator = new FaweBlockStateListPopulator(serverLevel); preCaptureStates(serverLevel)   // 1단계와 같은 기록
+start = k.generate(registryAccess, gen, gen.getBiomeSource(), chunkSource.randomState(), serverLevel.getStructureManager(),
+                   serverLevel.getSeed(), new ChunkPos(pt), 0, populator, biome -> true)
+!start.isValid() → null
+bbox = start.getBoundingBox(); 그 청크 범위(ChunkPos.rangeClosed — x 가 먼저)마다:
+  start.placeInChunk(populator, serverLevel.structureManager(), gen, serverLevel.getRandom(),
+                     new BoundingBox(청크 minX, minBuildHeight, 청크 minZ, 청크 maxX, maxBuildHeight, 청크 maxZ), 청크)
+결과 = populator.getList() + capturedBlockStates.values()
+```
+
+배치 난수가 **서버 레벨 난수 자체**다(`serverLevel.getRandom()`). 그래서 조각이 `world.getRandom()` 으로 뽑는 값(사막 피라미드 지하실, 저택 알레이 수,
+몹 `finalizeSpawn`)이 배치 난수와 한 수열에서 섞인다.
+
+### 7.2 Paper 1.21.1 의 규칙 (jar 에서 읽음)
+
+`StructureStart#placeInChunk`: 그 청크 상자와 겹치는 조각마다 `postProcess(transformerAccess, …)` — 레벨을 **`TransformerGeneratorAccess`** 로 감싼다
+(`AsyncStructureGenerateEvent` 를 부르고 블록·엔티티 변환기를 받는다; Furnace 호환 계층에는 이 이벤트가 없어 변환기는 늘 비어 있다 — 아래는 변환기 없는 Paper).
+`afterPlace` 는 감싸지 않은 레벨로.
+
+| 자리 | Paper 동작(변환기 없음) |
+|---|---|
+| 조각 쓰기 `placeBlock` 등 | 감싸개 `setBlock(pos, s, 2)` → **레벨의 `setBlock(pos, s, flags, 512)`(인자 4개)**. 감싸개면 유체 예약 틱·`markPosForPostprocessing` 을 하지 않고 끝난다 |
+| 상자·디스펜서 `createChest`/`createDispenser`, 바다 유적 상자 표시 | `random.nextLong()` 을 **늘** 뽑고(Craft 상태 시드), `placeCraftBlockEntity`: 레벨 4인자 `setBlock(flag 2)` → 유체 예약 틱(버려짐) → `getBlockEntity(pos)` 가 있으면 내용 바꿈 |
+| 스포너(요새·요새 성·폐광) `placeCraftSpawner` | `CraftBlockStates.getBlockState(LevelReader…)` 는 레벨에서 `registryAccess()` 만 묻고 **월드 없는** 상태를 만든다 → `setSpawnedType` 은 `isPlaced()` 가 거짓이라 레벨의 `getRandom()` 이 아니라 `RandomSource.create()`(레벨 난수 안 부름 — 검토 #497 에서 바로잡음) → 위와 같은 `placeCraftBlockEntity` |
+| 표시 상자 `setCraftLootTable`(난파선·이글루·엔드 시티) | `getBlockEntity(pos)` 가 `RandomizableContainerBlockEntity` 일 때만 `nextLong` 과 내용 바꿈 |
+| 템플릿 `StructureTemplate#placeInWorld` | 감싸개를 벗겨 **레벨의 `setBlock` 인자 3개**. NBT 있는 칸은 먼저 방벽을 `flag 20` 으로 쓴다(`WorldGenLevel` 이라 `Clearable` 없음) → 실제 상태를 템플릿 flag(조각 2, 풀 요소 18)로. 쓰기 성공이고 NBT 가 있으면 `getBlockEntity` 가 있을 때만 `LootTableSeed` 뽑기·내용 넣기. 침수는 `placeLiquid`(flag 3). 모양 갱신은 `updateShapeAtEdge(flags)`(쓰기 `flags & ~1`) 뒤 칸마다 `updateFromNeighbourShapes`(쓰기 `flags & ~1 \| 16`)·`blockUpdated` |
+| 템플릿 엔티티 | `EntityType.create(nbt, world.getLevel(), true)` → `finalizeEntities`(풀 요소) 이고 `Mob` 이면 `finalizeSpawn(world, …)` → `addFreshEntityWithPassengers`(populator 는 버림) |
+| 코드가 만드는 엔티티 | `EntityType.X.create(world.getLevel())` → 몹이면 `finalizeSpawn` → `addFreshEntity`. 늪 오두막 마녀·고양이, 바다 유적 드라운드, 해저 유적 엘더 가디언, 저택 몹은 몹, 엔드 시티 셜커·아이템 액자와 폐광 상자 광산수레는 몹 아님 |
+| 표시 `handleDataMarker`·직소 `final_state` | 감싸개로 → 4인자 쓰기(이글루 공기 flag 3, 직소 flag 3, 드라운드 자리 flag 2) |
+| 지형지물 풀 요소 | 감싸개를 레벨로 지형지물 `place` → 4인자 쓰기 |
+| `afterPlace`(사막 피라미드 의심스러운 모래·저택 조약돌) | 감싸지 않은 레벨에 3인자. 모래는 `getBlockEntity(pos, BRUSHABLE_BLOCK)` 가 있으면 내용 바꿈. 시드 `world.getSeed()` |
+| `CappedProcessor` | `world.getLevel().getSeed()` |
+
+FAWE populator 는 3·4인자 쓰기 모두 서버 레벨로 넘겨 나무 기록에 쌓인다(1단계 규칙: 부술 수 없는 블록 칸은 거절). 그래서 Paper+FAWE 에서는
+**템플릿의 NBT 칸(상자 등)에 방벽이 남는다** — 방벽을 기록한 뒤 실제 상태 쓰기는 "지금 방벽(부술 수 없음)" 이라 거절된다. 블록 엔티티는 기록이 만들지 않으므로
+`getBlockEntity` 는 실제 월드(보통 없음)라 상자 내용·`LootTableSeed` 뽑기도 없다. 평범한 populator 는 4인자 쓰기를 `DummyGeneratorAccess` 가 거절(false)하고,
+`getLevel`·`getRandom`·`getSeed` 에서 `UnsupportedOperationException`.
+
+### 7.3 Furnace 설계
+
+서버(1단계 통로의 연장, 구조물용 `LiveStructures`):
+- **생성**: `StructureEngine#generateForCommand` 에 바이옴 검사(시작 자리 바이옴 이름 → 호환이 `Holder<Biome>` 로 플러그인 술어를 부른다)를 더한 판.
+  시작 청크는 플러그인이 준 것, 참조 수는 보관만. 구현 안 된 구조물·템플릿 없음 → `UnsupportedOperationException`.
+- **청크 배치**: `placeInChunk(시작, 청크 상자, 청크, 배치 난수, 레벨 난수, 통로)`. 사본 격자는 청크 상자를 덮고 한 칸 여유(상한 `LiveGrid.MAX_GRID_RADIUS`),
+  처음 닿을 때 복사, 닿지 못하면 `Unreachable`. 통로가 없으면 `/place structure` 와 같은 반영(flag 2).
+- **통로 세션**: 같은 시작을 같은 플러그인 레벨로 여러 청크에 놓으면 앞 청크에서 받아들인 쓰기가 다음 청크의 읽기에 보여야 한다(Paper 는 기록·populator 표를 읽는다 —
+  청크 경계의 모양 갱신 등). 세션이 받아들인 쓰기를 차례대로 들고, 사본을 처음 채울 때 그 청크 몫을 얹는다(실제 월드 + 받아들인 쓰기 = 1단계와 같은 읽기).
+  세션은 호환 `StructureStart` 가 레벨마다 하나 든다.
+- **쓰기 인자 수**: 통로 쓰기에 "인자 4개(깊이 512) / 3개" 를 싣는다. 조각·표시·직소·지형지물 풀 요소·상자·스포너는 4개, 템플릿 본문·`afterPlace` 는 3개.
+- **템플릿(통로)**: NBT 칸 방벽(flag 20) 쓰기, 템플릿 flag, 침수 flag 3, 모양 갱신은 1단계 `SinkShapeLevel` 처럼 실제 블록 동작으로(쓰기 flag 은 위 표), `blockUpdated` 는 통로로.
+  NBT 를 넣을 블록 엔티티가 있으면 `UnsupportedOperationException`(1단계와 같은 이유), 없으면 뽑지 않고 건너뛴다.
+- **블록 엔티티 자리**: 상자·디스펜서·바다 유적 상자는 늘 뽑고(서버 코드 그대로), 쓴 뒤 그 칸에 블록 엔티티가 있으면 오류·없으면 건너뜀. 표시 상자(`setCraftLootTable`)와
+  의심스러운 모래는 블록 엔티티가 있을 때만(있으면 오류). 스포너는 레벨 난수를 부르지 않는다(Paper 는 월드 없는 상태로 `RandomSource.create()` 를 쓴다 — `getRandom()` 이 던지는 평범한 populator 로도 끝난다).
+- **레벨 호출**: `getRandom()`(레벨 난수 — 플러그인 레벨이 주는 원천에서 뽑는다; FAWE 는 배치 난수와 같은 원천이라 섞임까지 같다), `getSeed()`·`getLevel().getSeed()`
+  (월드 시드와 다르면 오류), `getLevel()`(엔티티를 만들 때). 플러그인 레벨이 던지면 그대로 나른다.
+- **엔티티**: 몹이 아니면 `getLevel()` 뒤 통로의 `addFreshEntity`(populator 는 버린다 — Paper 와 같다; 그 밖의 레벨은 오류). **몹 `finalizeSpawn`** 은 레벨 난수로
+  종마다 다른 수를 뽑는데(속성 삼각 분포·왼손잡이, 아기·장비·변종 …) 서버에 아직 그 이식이 없다 — 통로·바로 놓기 모두 그 자리에 닿으면
+  `UnsupportedOperationException`(규칙 3: 난수 소비가 다른 길을 켜지 않는다). 해당: 마을(동물·주민·골렘 템플릿), 약탈자 전초기지(알레이·골렘),
+  보루(피글린·호글린), 늪 오두막, 해저 유적, 저택, 드라운드 표시가 든 바다 유적. 나머지 구조물(이글루 — 템플릿 조각은 `finalizeEntities` 가 꺼져 있어 주민을 만들기만 한다, 사막·정글 사원, 난파선, 묻힌 보물, 폐광, 요새, 네더 요새, 엔드 시티,
+  폐허 포털, 네더 화석, 고대 도시, 흔적 폐허, 시련의 회당 등)은 된다. 이식은 후속(T-221 — 서버 월드젠·`/place structure` 의 몹 속성도 같이 고쳐진다).
+
+호환:
+- `Structure#generate(…)`: 생성기·바이옴 원천·난수 상태·템플릿 관리자는 그 월드 것이어야 하고 시드는 월드 시드, 높이 접근자는 월드 높이와 같아야 한다(아니면 `UnsupportedNmsCall`).
+- `StructureStart`(`INVALID_START`·`isValid`·`getBoundingBox`·`getChunkPos`·`getReferences`·`getStructure`·`placeInChunk`), `levelgen.structure.BoundingBox`(바닐라 그대로),
+  `ChunkGenerator#getBiomeSource`·`BiomeSource`, `ServerChunkCache#randomState`·`RandomState`, `ServerLevel#getStructureManager`(`StructureTemplateManager`)·`structureManager()`(`StructureManager`).
+- `placeInChunk(level, …)`: 1단계 `NmsFeatures` 와 같은 갈래 — 서버 레벨 자신이고 기록 중이 아니면 바로 놓기, 아니면 통로(통로 = 그 레벨의 `setBlock` 3·4인자,
+  `getBlockEntity`, `getRandom`, `getSeed`, `getLevel`, `addFreshEntity`, `blockUpdated`).
+
+## 8. 2단계 구현 메모 (2026-11-17)
+
+- 서버: `world/LiveStructures`(생성 `generate` · 청크 배치 `placeInChunk` · 세션 `Session`), `StructureEngine#generateFor(id, cx, cz, terrain, biomeTest)`,
+  `FeatureWorldView` 의 플러그인 배치 표시(`setPluginPlacement`)·쓰기 깊이(`setSinkDepth` — -1 이면 인자 3개)·레벨 난수 부르기·시드·엔티티·`blockUpdated` 통로,
+  `TemplatePlacer` 의 통로 갈래(방벽 flag 20, NBT 칸 블록 엔티티 검사, 모양 갱신 flag `flags & ~1`·`flags & ~1 | 16`, 침수 flag 3, 엔티티 `pluginTemplateEntity`).
+  API 다리: `FeatureInternals#generateStructure`·`newStructureSession`·`structureSessionWrite`·`placeStructureNow`, `LevelSink` 의 기본 메서드 5개.
+- 호환: `NmsStructures`(검사·세션·예외 변환), `StructureStart`·`BoundingBox`·`BiomeSource`·`RandomState`·`StructureTemplateManager`·`StructureManager` shim,
+  `NmsFeatures#levelSink`(지형지물·구조물 공용 통로). `LevelAccessor#blockUpdated` 기본(아무것도 안 함)을 바닐라처럼 더했다(서버 `Level` 은 이웃 갱신으로 재정의).
+- 세션: 서버 레벨 자신(기록 중)이면 Paper 의 읽기가 기록을 돌려주므로 호출마다 지금 `capturedBlockStates` 에서 새로 채운다. 그 밖의 레벨은 그 레벨이 살아 있는 동안
+  하나(약한 참조 표) — FAWE 는 호출마다 새 populator 를 만들고 바로 앞에서 기록을 켜므로 그 populator 의 세션 = 그 호출의 기록이다.
+- 통로의 엔티티·`blockUpdated`: 그 레벨이 바닐라 기본(`addFreshEntity` 없음 → 거짓, `blockUpdated` → 아무것도 안 함)이면 Paper 처럼 버리고, 직접 정의한 레벨이면
+  `UnsupportedNmsCall`(서버는 플러그인 레벨에 넘길 NMS 엔티티 객체를 만들지 않는다; 기록 중 배치가 실제 월드의 이웃 갱신을 같은 순서로 낼 수 없다).
+  서버 레벨의 기록 중 구조물 배치는 템플릿 모양 갱신 뒤 `blockUpdated` 자리에서 이 오류가 난다 — FAWE 는 populator 를 쓰므로 해당하지 않는다.
+- 시험: 서버 `PluginLevelStructureTest`(통로 쓰기 갈래·방벽·세션·몹 오류·바로 놓기·닿지 못한 청크), 호환 `NmsStructureTest`(FAWE generateStructure 흐름 그대로 —
+  기록에 방벽·눈 블록, 월드 그대로; 시작 값; 서버 레벨에 바로; 마녀 오두막·다른 시드·생성기 없음·DummyGeneratorAccess 의 정직한 실패).
+- 검토 #497 반영: 스포너 자리의 레벨 `getRandom()` 부르기를 지웠다(위 7.2 표). 아래 (4)~(6)은 검토 권장 사항이다.
+- 알려진 차이·가정: (1) 이글루처럼 놓을 때 높이를 옮기는 조각은 시작의 상자(`getBoundingBox`)가 옮기기 전 값이다 — 바닐라도 같다(시작 상자는 처음 계산값을 둔다).
+  (2) 1단계 5장의 유체 읽기 차이(T-220)가 구조물 템플릿의 침수 판정에도 같다. (3) `Structure#generate` 의 `RegistryAccess` 는 서버 것만 받는다(다른 레지스트리의 구조물은 없다).
+  (4) Paper 는 템플릿 NBT 칸마다 방벽 앞·모양 갱신 뒤, 그리고 `setCraftBlock` 에서 쓰기 결과와 상관없이 `getBlockEntity` 를 부른다. Furnace 는 쓰기가 받아들여진
+  뒤에만 묻는다 — FAWE·평범한 populator 는 부작용이 없어 결과가 같고, `getBlockEntity` 가 던지는 레벨이면 Paper 는 방벽을 쓰기 전에 멈춘다(가정: 그런 레벨은 드물다).
+  (5) Paper 는 청크 상자와 겹치는 조각이 있으면 `AsyncStructureGenerateEvent` 를 부른다(`CraftStructureTransformer`). 호환 계층에 그 이벤트가 없어 부르지 않는다.
+  (6) 노이즈 생성기가 없는 월드(평지·빈 월드·Bukkit 생성기 월드)에서는 구조물 생성이 `UnsupportedNmsCall` 이다. Paper 는 이런 월드에서도 `//structure` 가 된다 — 로드맵 T-223.

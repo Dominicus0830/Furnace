@@ -10,6 +10,9 @@ public interface LevelAccessor extends LevelReader, LevelWriter {
     /** 바닐라 LevelAccessor#getRandom. */
     net.minecraft.util.RandomSource getRandom();
 
+    /** 바닐라 LevelAccessor#blockUpdated: 기본은 아무것도 하지 않는다(지형 생성 레벨). 서버 레벨은 이웃 갱신(Level). */
+    default void blockUpdated(net.minecraft.core.BlockPos pos, net.minecraft.world.level.block.Block block) {}
+
     /** CraftBukkit LevelAccessor#getMinecraftWorld: 이 레벨이 속한 서버 레벨. */
     net.minecraft.server.level.ServerLevel getMinecraftWorld();
 }

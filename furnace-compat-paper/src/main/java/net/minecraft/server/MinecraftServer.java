@@ -65,6 +65,11 @@ public abstract class MinecraftServer {
     /** 서버 레지스트리 묶음(H7b). Component·데이터 컴포넌트 직렬화 인자로만 쓰인다 — 레지스트리 내용은 내보내지 않는다. */
     public net.minecraft.core.RegistryAccess.Frozen registryAccess() { return net.minecraft.core.RegistryAccess.SERVER; }
 
+    /** 바닐라 getStructureManager: 서버의 구조물 템플릿 관리자(T-211 2단계). */
+    public net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager getStructureManager() {
+        return net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager.of();
+    }
+
     public int getPlayerCount() { return CraftServer.INSTANCE.getOnlinePlayers().size(); }
 
     public int getMaxPlayers() { return CraftServer.INSTANCE.getMaxPlayers(); }
