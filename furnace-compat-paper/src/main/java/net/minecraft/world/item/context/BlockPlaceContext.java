@@ -15,6 +15,7 @@ import net.minecraft.world.phys.Vec3;
  * 이 문맥으로 부르는 {@code getStateForPlacement}·{@code canBeReplaced} 는 서버 블록 동작을 이 객체의 가상 메서드로 돌린다({@code NmsPlacement}).
  * 플레이어를 바라보는 방향 순서(getNearestLooking*)는 플레이어가 없으면 바닐라처럼 NullPointerException 이다.
  */
+@org.domi.furnace.compat.nms.NmsInheritable   // FAWE PaperweightFaweMutableBlockPlaceContext 꼴 — 놓기 상태 다리가 재정의한 값으로 계산한다
 public class BlockPlaceContext extends UseOnContext {
 
     private final BlockPos relativePos;

@@ -13,7 +13,7 @@ port = sys.argv[3] if len(sys.argv) > 3 else "25565"
 FAWE = os.path.join(ROOT, "jars", "FastAsyncWorldEdit-Paper-2.16.2.jar")
 s = Server(name, kind).fresh(world_from=os.path.join(ROOT, "base", "world"), plugins=[FAWE], extra_props=["server-port=" + port])
 s.start()
-OK = r"(Operation completed|blocks? (have been|has been|were|affected|changed)|affected|Side effect|set to|Selection|First position|Second position|World override|[Ee]rror|[Ee]xception|Unknown|must|cannot|not)"
+OK = r"(Operation completed|blocks? (have been|has been|were|affected|changed)|affected|Side effect|set to|already set|Selection|First position|Second position|World override|[Ee]rror|[Ee]xception|Unknown|must|cannot|not)"
 
 
 def we(line, wait=OK, timeout=120, settle=1.5):

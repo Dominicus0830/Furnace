@@ -13,6 +13,7 @@ import org.domi.furnace.compat.paper.Compat;
  * 서버 월드 shim(Mojang 이름, H6 최소 표면): {@code ((CraftWorld) w).getHandle()}. 같은 CraftWorld 는 같은 shim 이다.
  * 블록 읽기·쓰기·청크 얻기(N1·N2a)는 {@link Level} 에 있다.
  */
+@org.domi.furnace.compat.nms.NmsInheritable   // 편집 내용을 답하는 레벨 프록시(FAWE PaperweightLevelProxy — Unsafe 로 만들어 필드는 null, 읽기만 재정의)
 public class ServerLevel extends Level {
 
     private final ServerChunkCache chunkSource = new ServerChunkCache(this);
