@@ -1,5 +1,6 @@
 // 플러그인 바이옴 공급자를 생성기에 잇는다(T-203 3단계) — CraftBukkit CustomWorldChunkManager 와 같은 자리: 칸마다 공급자에 묻고(기후 값을 함께),
 // 나올 수 있는 바이옴 목록(지형지물 순서)도 공급자 것. 공급자가 틀린 바이옴을 주면 바닐라처럼 IllegalArgumentException("Cannot use the biome …").
+// 평지(T-210)는 라우터 없이: 바닐라 평지의 RandomState 는 NoiseGeneratorSettings.dummy()(라우터가 모두 zero)라 기후 값·최소·최대가 모두 0 이다.
 package org.domi.furnace.server.world.gen;
 
 import java.util.ArrayList;
@@ -20,8 +21,10 @@ public final class ProvidedBiomes {
     private final int[] possibleIds;
     private final double[] min = new double[6];
     private final double[] max = new double[6];
+    /** 기후 밀도 함수(온도·습도·대륙·침식·깊이·기묘함). 평지면 null(모두 0). */
     private final DensityFunction[] climate;
 
+    /** router 가 null 이면 기후 0(평지 — 바닐라 NoiseRouterData.none()). */
     ProvidedBiomes(BiomeProvider provider, RegistrySet registries, NoiseRouter router) {
         this.provider = provider;
         List<String> all = registries.entries("minecraft:worldgen/biome");
@@ -37,10 +40,14 @@ public final class ProvidedBiomes {
         }
         this.possible = List.copyOf(new ArrayList<>(distinct));
         this.possibleIds = possible.stream().mapToInt(m::get).toArray();
-        this.climate = new DensityFunction[] {router.temperature(), router.humidity(), router.continents(), router.erosion(), router.depth(), router.ridges()};
-        for (int i = 0; i < 6; i++) {
-            min[i] = climate[i].minValue();
-            max[i] = climate[i].maxValue();
+        if (router == null) {
+            this.climate = null;   // min·max 는 0 그대로
+        } else {
+            this.climate = new DensityFunction[] {router.temperature(), router.humidity(), router.continents(), router.erosion(), router.depth(), router.ridges()};
+            for (int i = 0; i < 6; i++) {
+                min[i] = climate[i].minValue();
+                max[i] = climate[i].maxValue();
+            }
         }
     }
 
@@ -88,6 +95,7 @@ public final class ProvidedBiomes {
         return new Point() {
             @Override
             void fill(long[] out) {
+                if (climate == null) return;   // 기후 0
                 var ctx = new DensityFunction.SinglePointContext(x, y, z);
                 for (int i = 0; i < 6; i++) out[i] = BiomeSampler.quantize((float) climate[i].compute(ctx));
             }
@@ -96,9 +104,16 @@ public final class ProvidedBiomes {
 
     /** 청크 채우기: 노이즈 청크의 기후 캐시(바닐라 NoiseChunk#cachedClimateSampler). */
     Point cached(NoiseChunk chunk, int localQX, int absQY, int localQZ) {
+        if (climate == null) return ZERO;
         return new Point() {
             @Override
             void fill(long[] out) { chunk.fillTarget(localQX, absQY, localQZ, out); }
         };
     }
+
+    /** 기후 0 인 칸(평지). 값을 계산하지 않아 여러 스레드가 같이 써도 된다. */
+    private final Point ZERO = new Point() {
+        @Override
+        void fill(long[] out) {}
+    };
 }

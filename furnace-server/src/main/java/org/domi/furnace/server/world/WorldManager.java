@@ -82,6 +82,26 @@ public final class WorldManager {
         Hooks NONE = new Hooks() {};
     }
 
+    /**
+     * 바이옴 공급자로 만든 월드를 공급자 없이 저장된 설명서 그대로 열려고 했다(T-210). 공급자 객체는 저장되지 않으므로, 그 공급자를 가진 플러그인이
+     * 다시 만들 때(createWorld + 공급자) 열린다. 서버가 스스로 여는 길(worlds.autoload·/worlds load)은 이 예외로 그 월드를 건너뛴다.
+     */
+    public static final class NeedsBiomeProviderException extends IllegalStateException {
+        private final String world;
+        private final String provider;
+
+        public NeedsBiomeProviderException(String world, String provider) {
+            super("world '" + world + "' was created with the biome provider " + provider
+                    + " - it opens when the plugin that owns the provider creates it again (createWorld with that provider)");
+            this.world = world;
+            this.provider = provider;
+        }
+
+        public String world() { return world; }
+
+        public String provider() { return provider; }
+    }
+
     /** 실행 중인 추가 월드 하나. */
     private record Extra(String name, World world, LevelStorage storage, LevelData levelData, Built built, WorldCreator creator) {}
 
@@ -370,6 +390,7 @@ public final class WorldManager {
             }
             return existing.world();
         }
+        if (spec.needsBiomeProvider()) throw new NeedsBiomeProviderException(spec.name(), spec.biomeProviderName());
         World byKey = dimensions.get(spec.key());
         if (byKey != null) throw new IllegalArgumentException("level key already in use: " + spec.key());
         for (Extra e : extras.values()) {
@@ -389,7 +410,7 @@ public final class WorldManager {
                 ld = LevelData.create(spec.name(), seed, spec.generateStructures(), false, mainLevel.gameType, mainLevel.hardcore,
                         mainLevel.difficulty, mainLevel.enabledPacks, mainLevel.disabledPacks);
                 switch (spec.generator()) {
-                    case FLAT -> ld.useFlatOverworld(flatSettings(spec));
+                    case FLAT -> ld.useFlatOverworld(spec.flatGeneratorSettings().isEmpty() ? flatSettings(spec) : flatSettingsJson(spec));
                     case LARGE_BIOMES -> ld.useNoiseOverworld("minecraft:large_biomes");
                     case AMPLIFIED -> ld.useNoiseOverworld("minecraft:amplified");
                     case SINGLE_BIOME_SURFACE -> ld.useSingleBiomeOverworld("minecraft:plains");
@@ -399,7 +420,12 @@ public final class WorldManager {
             }
             ld.furnaceWorld(specNbt(spec));
             long seed = ld.seed;
-            WorldSource gen = generator(spec, type, family, seed);
+            if (spec.biomeProvider() != null) {
+                // 생성기를 만들기 전에(공급자 biomes() 가 생성기를 만들 때 불린다) 월드 정보를 준다 — 시드는 level.dat 의 것
+                spec.biomeProvider().prepare(new org.domi.furnace.api.worldgen.BiomeProvider.Context(spec.name(), spec.key(), spec.environment(), seed,
+                        type.minY(), type.maxY()));
+            }
+            WorldSource gen = generator(spec, type, family, seed, ld);
             if (!spec.generationHooks().isEmpty()) {
                 // 훅은 키로만 잡는다(플러그인이 꺼지면 저장소에서 빠져 바닐라로) — 첫 청크(스폰 계산) 전에 건다
                 final Hooks h = hooks;
@@ -456,8 +482,10 @@ public final class WorldManager {
     private static boolean sameWorld(WorldCreator a, WorldCreator b) {
         // 시드를 정하지 않은 쪽은 저장된 시드를 따르므로 비교하지 않는다
         boolean seedOk = a.seed().isEmpty() || b.seed().isEmpty() || a.seed().equals(b.seed());
+        // 공급자를 주지 않은 쪽(저장된 설명서로 다시 부르기 등)은 지금 월드를 받는다. 다른 공급자 객체면 다른 설명서
+        boolean providerOk = b.biomeProvider() == null || a.biomeProvider() == b.biomeProvider();
         return a.key().equals(b.key()) && a.environment() == b.environment() && a.generator() == b.generator()
-                && a.dimensionType().equals(b.dimensionType()) && a.generationHooks().equals(b.generationHooks()) && seedOk;
+                && a.dimensionType().equals(b.dimensionType()) && a.generationHooks().equals(b.generationHooks()) && seedOk && providerOk;
     }
 
     static NoiseWorldSource.Dimension family(WorldEnvironment env) {
@@ -491,9 +519,23 @@ public final class WorldManager {
         }
     }
 
-    private WorldSource generator(WorldCreator spec, DimensionType type, NoiseWorldSource.Dimension family, long seed) {
+    /**
+     * 그 월드의 생성기. 바이옴 공급자(T-210)는 노이즈 생성기(모든 환경)와 오버월드 높이의 FLAT 만 받는다 — CraftBukkit 이 바이옴 원천을 바꾸는
+     * 생성기가 NoiseBasedChunkGenerator·FlatLevelSource 둘뿐인 것과 같다(디버그·빈 월드·다른 높이의 평지는 거절).
+     */
+    private WorldSource generator(WorldCreator spec, DimensionType type, NoiseWorldSource.Dimension family, long seed, LevelData ld) {
+        var provider = spec.biomeProvider();
+        if (provider != null && (spec.generator() == WorldGenerator.VOID || spec.generator() == WorldGenerator.DEBUG_ALL_BLOCK_STATES
+                || (spec.generator() == WorldGenerator.FLAT && !overworldHeight(type)))) {
+            throw new IllegalArgumentException("a biome provider needs a noise generator or a FLAT world of overworld height (-64..320): "
+                    + spec.generator() + " " + type.typeKey() + " " + type.minY() + ".." + type.maxY());
+        }
         return switch (spec.generator()) {
             case FLAT -> {
+                if (overworldHeight(type)) {
+                    // 바닐라 FlatLevelSource 와 같은 생성기(구조물·지형지물·호수·fill_layer) — 설정은 level.dat 의 평지 설정(바닐라의 진실)
+                    yield structures(NoiseWorldSource.flat(seed, parts.blocks(), parts.registries(), flatSpec(spec, ld), provider), spec);
+                }
                 List<SuperflatWorldSource.Layer> layers = new ArrayList<>();
                 for (var l : spec.flatLayers()) layers.add(new SuperflatWorldSource.Layer(l.block(), l.height()));
                 if (layers.isEmpty()) layers = SuperflatWorldSource.DEFAULT_LAYERS;
@@ -501,13 +543,48 @@ public final class WorldManager {
                 yield new SuperflatWorldSource(parts.blocks(), layers, biomeId(spec.flatBiome()), type.minY(), type.sectionCount());
             }
             case VOID -> new SuperflatWorldSource(parts.blocks(), List.of(), biomeId("minecraft:the_void"), type.minY(), type.sectionCount());
-            case LARGE_BIOMES -> structures(NoiseWorldSource.overworld(seed, parts.blocks(), parts.registries(), "minecraft:large_biomes"), spec);
-            case AMPLIFIED -> structures(NoiseWorldSource.overworld(seed, parts.blocks(), parts.registries(), "minecraft:amplified"), spec);
-            case SINGLE_BIOME_SURFACE -> structures(NoiseWorldSource.overworld(seed, parts.blocks(), parts.registries(), "minecraft:overworld",
-                    "minecraft:plains"), spec);
+            case LARGE_BIOMES -> structures(NoiseWorldSource.create(family, "minecraft:large_biomes", seed, parts.blocks(), parts.registries(), null, provider), spec);
+            case AMPLIFIED -> structures(NoiseWorldSource.create(family, "minecraft:amplified", seed, parts.blocks(), parts.registries(), null, provider), spec);
+            case SINGLE_BIOME_SURFACE -> structures(NoiseWorldSource.create(family, "minecraft:overworld", seed, parts.blocks(), parts.registries(),
+                    "minecraft:plains", provider), spec);
             case DEBUG_ALL_BLOCK_STATES -> new DebugWorldSource(parts.blocks(), biomeId("minecraft:plains"), type.minY(), type.sectionCount());
-            case DEFAULT -> structures(NoiseWorldSource.create(family, seed, parts.blocks(), parts.registries()), spec);
+            case DEFAULT -> structures(NoiseWorldSource.create(family, family.noiseSettingsId(), seed, parts.blocks(), parts.registries(), null, provider), spec);
         };
+    }
+
+    private static boolean overworldHeight(DimensionType type) {
+        return type.minY() == NoiseWorldSource.Dimension.OVERWORLD.minY && type.sectionCount() == NoiseWorldSource.Dimension.OVERWORLD.sectionCount;
+    }
+
+    /**
+     * 평지 설정: level.dat 의 오버월드 생성기가 minecraft:flat 이면 그 설정(바닐라·Paper 가 만든 폴더도 그대로), 아니면 설명서의 층·바이옴에
+     * 지형지물·호수·구조물 없음({@link #flatSettings} 과 같은 뜻). 모르는 바이옴은 바닐라처럼 평원(오류 한 줄).
+     */
+    private NoiseWorldSource.FlatSpec flatSpec(WorldCreator spec, LevelData ld) {
+        NbtCompound g = ld.overworldGenerator();
+        NoiseWorldSource.FlatSpec fs;
+        if (g != null && "minecraft:flat".equals(g.tags().get("type"))) {
+            fs = SuperflatWorldSource.flatSpecOf(g.contains("settings") ? g.getCompound("settings") : null);
+        } else {
+            fs = SuperflatWorldSource.flatSpecOf(flatSettings(spec));
+        }
+        if (parts.registries().indexOf("minecraft:worldgen/biome", fs.biome()) < 0) {
+            log.error("Unknown biome, defaulting to plains");   // 바닐라 FlatLevelGeneratorSettings 와 같은 줄
+            fs = new NoiseWorldSource.FlatSpec(fs.layers(), "minecraft:plains", fs.features(), fs.lakes(), fs.structureOverrides());
+        }
+        return fs;
+    }
+
+    /** 설명서의 평지 JSON(바닐라 generator-settings 규칙) → level.dat 평지 설정. JSON 객체가 아니면 IllegalArgumentException(Paper 는 JsonParseException). */
+    private static NbtCompound flatSettingsJson(WorldCreator spec) {
+        com.google.gson.JsonElement e;
+        try {
+            e = com.google.gson.JsonParser.parseString(spec.flatGeneratorSettings());
+        } catch (RuntimeException ex) {
+            throw new IllegalArgumentException("flat generator settings of '" + spec.name() + "' are not JSON: " + ex.getMessage(), ex);
+        }
+        if (!e.isJsonObject()) throw new IllegalArgumentException("flat generator settings of '" + spec.name() + "' are not a JSON object");
+        return SuperflatWorldSource.settingsNbt(e.getAsJsonObject());
     }
 
     private static NoiseWorldSource structures(NoiseWorldSource n, WorldCreator spec) {
@@ -524,6 +601,9 @@ public final class WorldManager {
     /** 새 월드의 스폰: 오버월드 노이즈는 바닐라 setInitialSpawn(생성기 기본 스폰), 평지는 (0, 맨 위 층 위, 0), 그 밖은 (0, 64 를 높이 안으로, 0). */
     private static SpawnPoint initialSpawn(WorldCreator spec, DimensionType type, WorldSource gen) {
         if (gen instanceof DebugWorldSource) return new SpawnPoint(0, DebugWorldSource.SPAWN_Y, 0, 0f);   // 바닐라 setInitialSpawn(debug)
+        if (gen instanceof NoiseWorldSource n && n.isFlat()) {
+            return new SpawnPoint(0, Math.min(n.flatSurfaceY(), type.maxY() - 1), 0, 0f);   // 주 월드 평지와 같다(FurnaceMain)
+        }
         if (gen instanceof NoiseWorldSource n && spec.environment() == WorldEnvironment.NORMAL) return n.defaultSpawn();
         if (gen instanceof SuperflatWorldSource f && spec.generator() == WorldGenerator.FLAT) {
             return new SpawnPoint(0, Math.min(f.surfaceY(), type.maxY() - 1), 0, 0f);
@@ -562,6 +642,7 @@ public final class WorldManager {
         c.putBoolean("generate_structures", spec.generateStructures());
         c.putString("flat_biome", spec.flatBiome());
         if (!spec.generationHooks().isEmpty()) c.putString("generation_hooks", spec.generationHooks());
+        if (!spec.biomeProviderName().isEmpty()) c.putString("biome_provider", spec.biomeProviderName());   // 공급자 객체는 저장할 수 없다(T-210)
         NbtList layers = new NbtList(NbtIo.TAG_COMPOUND);
         for (var l : spec.flatLayers()) {
             NbtCompound lc = new NbtCompound();
@@ -584,6 +665,7 @@ public final class WorldManager {
         if (c.contains("generate_structures")) b.generateStructures(((Number) c.tags().get("generate_structures")).intValue() != 0);
         if (c.tags().get("flat_biome") instanceof String fb) b.flatBiome(fb);
         if (c.tags().get("generation_hooks") instanceof String gh) b.generationHooks(gh);
+        if (c.tags().get("biome_provider") instanceof String bp) b.biomeProviderName(bp);
         if (c.contains("flat_layers")) {
             List<WorldCreator.FlatLayer> layers = new ArrayList<>();
             for (Object o : c.getList("flat_layers").items()) {

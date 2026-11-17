@@ -56,9 +56,10 @@ Paper 의 임시 레벨은 `MinecraftServer#levels` 에 들어가지 않아 **�
   - `furnace-api` `worldgen.BiomeProvider`(이름 문자열로 답한다)·`worldgen.Climate`(여섯 값, 늦게 계산). `ScratchWorlds#create(…, BiomeProvider)`.
   - 서버 `ProvidedBiomes`: 이름→id, 목록 검사, 기후 점. `BiomeSampler` 의 공급자 모드는 바닐라 채우기 순서(섹션 오름차순, x·y·z)대로 쿼트마다 공급자를 부른다. 청크를 채울 때 기후는 `NoiseChunk` 의 값을 쓰고(계산 없음), 한 점 질의는 기후 함수를 바로 계산한다 — 묻지 않으면 계산하지 않는다.
   - 공급자는 노이즈 생성기만 받는다. 평지·디버그 월드는 바이옴을 층 설정에서 받으므로 `UnsupportedOperationException` → 호환 쪽 `UnsupportedNmsCall`(Paper 는 평지에도 감싸지만, FAWE `//regen` 에서 평지 월드에 바이옴을 고르는 경우만 해당 — 결정 항목으로 적어 둔다).
+    → **T-210 에서 고침(D3)**: 오버월드 높이 평지도 공급자를 받는다(기후 0, `compat-t210-biome-provider-worlds-2026-11-17.md`). 디버그·빈 월드·다른 높이 평지는 그대로 거절.
   - 호환 `BukkitBiomeProviders`: Bukkit 공급자를 감싼다. `WorldInfo` 는 생성자 안에서 아직 `CraftWorld` 가 없으므로 이름·환경·시드·높이로 만들고 월드가 생기면 묶는다.
   - `Level#getUncachedNoiseBiome`: 생성기의 쿼트 바이옴(공급자 모드면 공급자 답).
-- 보통 월드의 `WorldCreator#biomeProvider` 는 저장·자동 불러오기 규칙이 따로 필요해 T-210 으로 나눴다(지금은 전처럼 `UnsupportedFeature`).
+- 보통 월드의 `WorldCreator#biomeProvider` 는 저장·자동 불러오기 규칙이 따로 필요해 T-210 으로 나눴다 → 완료(`compat-t210-biome-provider-worlds-2026-11-17.md`).
 
 ## 3. 같음의 기준과 한계
 
