@@ -93,7 +93,7 @@ class ProvidedBiomesTest {
     }
 
     @Test
-    void flatGeneratorsDoNotTakeABiomeProvider() {
+    void copiesKeepTheProviderAndDebugRejectsIt() {
         BiomeProvider p = new BiomeProvider() {
             @Override public String biome(int x, int y, int z, Climate c) { return "minecraft:plains"; }
             @Override public List<String> biomes() { return List.of("minecraft:plains"); }
@@ -103,5 +103,58 @@ class ProvidedBiomesTest {
         NoiseWorldSource withP = base.freshCopy(2L, p);
         assertSame(p, withP.freshCopy(3L).biomeProvider(), "다시 복사해도 공급자를 옮긴다");
         assertThrows(UnsupportedOperationException.class, () -> new DebugWorldSource(REG, 0, -64, 24).freshCopy(1L, p));
+    }
+
+    /** T-210·D3: 평지 + 공급자 = CraftBukkit new FlatLevelSource(settings, CustomWorldChunkManager) — 기후 0, 바닐라 채우기 순서, 지형지물은 그 바이옴 것. */
+    @Test
+    void flatGeneratorTakesAProviderWithZeroClimate() {
+        var spec = new NoiseWorldSource.FlatSpec(List.of(new SuperflatWorldSource.Layer("minecraft:bedrock", 1),
+                new SuperflatWorldSource.Layer("minecraft:sand", 3)), "minecraft:plains", false, false, List.of());
+        Recording p = new Recording();
+        NoiseWorldSource n = NoiseWorldSource.flat(5L, REG, REGS, spec, p);
+        assertTrue(n.isFlat());
+        assertFalse(n.flatFixedBiome());
+        assertNull(n.fixedBiome());
+        int[] ids = n.generateWorldChunk(2, -1).biomeIds();
+        assertEquals(24 * 64, p.calls.size());
+        int desert = REGS.indexOf("minecraft:worldgen/biome", "minecraft:desert");
+        for (int id : ids) assertEquals(desert, id, "기후 0 → 온도 0 → 이 공급자는 사막");
+        for (Call c : p.calls) {
+            assertEquals(0.0, c.temperature());
+            assertEquals(0.0, c.minT());
+            assertEquals(0.0, c.maxT());
+        }
+        assertEquals(2 * 16, p.calls.get(0).x());
+        assertEquals(-64, p.calls.get(0).y());
+        assertEquals(-16, p.calls.get(0).z());
+        // 복사(임시 월드 — FAWE //regen <바이옴>)도 평지에 공급자를 받는다
+        Recording q = new Recording();
+        NoiseWorldSource base = NoiseWorldSource.flat(5L, REG, REGS, spec);
+        assertTrue(base.flatFixedBiome());
+        NoiseWorldSource copy = base.freshCopy(9L, q);
+        assertSame(q, copy.biomeProvider());
+        assertEquals(desert, copy.noiseBiome(0, 0, 0));
+        // 공급자 바이옴(사막)은 평지 바이옴(평원)이 아니라 그 바이옴의 지형지물이 놓인다(adjustGenerationSettings) — 모래 위 선인장·마른 덤불
+        int cactus = REG.defaultStateId("minecraft:cactus"), bush = REG.defaultStateId("minecraft:dead_bush");
+        int found = 0, foundPlain = 0;
+        for (int cx = 0; cx < 4; cx++) {
+            for (int cz = 0; cz < 4; cz++) {
+                found += count(n.generateIsolated(cx, cz), cactus, bush);
+                foundPlain += count(base.generateIsolated(cx, cz), cactus, bush);
+            }
+        }
+        assertTrue(found > 0, "사막 지형지물이 놓인다");
+        assertEquals(0, foundPlain, "지형지물을 끈 평원 평지에는 없다");
+    }
+
+    private static int count(org.domi.furnace.server.world.ChunkColumn col, int a, int b) {
+        int n = 0;
+        for (int y = -64; y < -50; y++)
+            for (int x = 0; x < 16; x++)
+                for (int z = 0; z < 16; z++) {
+                    int s = col.getBlock(x, y, z);
+                    if (s == a || s == b) n++;
+                }
+        return n;
     }
 }

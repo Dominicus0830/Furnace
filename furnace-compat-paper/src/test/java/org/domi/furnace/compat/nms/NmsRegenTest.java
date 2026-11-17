@@ -256,6 +256,57 @@ class NmsRegenTest {
         }
     }
 
+    /** 하나의 바이옴만 주는 Bukkit 공급자(보통 월드용 — T-210). */
+    static final class OnlyBiome extends org.bukkit.generator.BiomeProvider {
+        final org.bukkit.block.Biome b;
+
+        OnlyBiome(org.bukkit.block.Biome b) { this.b = b; }
+
+        @Override
+        public org.bukkit.block.Biome getBiome(org.bukkit.generator.WorldInfo w, int x, int y, int z) { return b; }
+
+        @Override
+        public java.util.List<org.bukkit.block.Biome> getBiomes(org.bukkit.generator.WorldInfo w) { return java.util.List.of(b); }
+    }
+
+    /**
+     * D3(T-210): 평지 월드의 //regen <바이옴> — CraftBukkit 처럼 평지 생성기도 공급자를 받는다. 결과 = 같은 시드에 그 공급자로 만든 평지 월드.
+     * 공급자로 만든 월드를 바이옴 없이 //regen 하면 FAWE 는 원래 월드의 공급자(getBiomeProvider)를 넘긴다 — 그 월드와 같은 청크.
+     */
+    @Test
+    void biomeRegenOnFlatWorldsAndProviderWorlds() throws Exception {
+        try (FurnaceTestServer server = FurnaceTestServer.builder().failFast(false).multiWorld(true).start()) {
+            Bukkit.setServer(CraftServer.INSTANCE);
+            long seed = 777L;
+            World flat = new WorldCreator("FlatR").seed(seed).type(org.bukkit.WorldType.FLAT).createWorld();
+            Class<?> regenClass = pluginClass();
+            Object regen = regenClass.getConstructor().newInstance();
+            ServerLevel fresh = (ServerLevel) regenClass.getMethod("init", World.class, Long.class, org.bukkit.block.Biome.class)
+                    .invoke(regen, flat, null, org.bukkit.block.Biome.DESERT);
+            try {
+                ChunkAccess c = FaweRegenLike.source(fresh.getWorld(), 0, 0);
+                assertEquals("minecraft:desert", c.getNoiseBiome(1, -15, 2).unwrapKey().orElseThrow().location().toString(), "평지에도 고른 바이옴");
+                World same = new WorldCreator("FlatD").seed(seed).type(org.bukkit.WorldType.FLAT).biomeProvider(new OnlyBiome(org.bukkit.block.Biome.DESERT)).createWorld();
+                assertEquals(hash(FaweRegenLike.source(same, 0, 0)), hash(c), "같은 시드·같은 공급자의 평지 월드와 같다");
+            } finally {
+                regenClass.getMethod("cleanup").invoke(regen);
+            }
+
+            World provided = new WorldCreator("ProvR").seed(seed).biomeProvider(new OnlyBiome(org.bukkit.block.Biome.BADLANDS)).createWorld();
+            long origHash = hash(FaweRegenLike.source(provided, 0, 0));
+            Object regen2 = regenClass.getConstructor().newInstance();
+            ServerLevel fresh2 = (ServerLevel) regenClass.getMethod("init", World.class, Long.class, org.bukkit.block.Biome.class)
+                    .invoke(regen2, provided, null, null);
+            try {
+                ChunkAccess c = FaweRegenLike.source(fresh2.getWorld(), 0, 0);
+                assertEquals("minecraft:badlands", c.getNoiseBiome(1, 20, 2).unwrapKey().orElseThrow().location().toString());
+                assertEquals(origHash, hash(c), "원래 월드 공급자로 다시 만든 청크");
+            } finally {
+                regenClass.getMethod("cleanup").invoke(regen2);
+            }
+        }
+    }
+
     /** 닫지 않고 버린 임시 레벨도 GC 가 거둘 때 닫힌다(#486 검토 1) — 서버·호환 계층이 그 레벨을 세게 쥐지 않는다. 닫은 뒤 받아 둔 청크의 월드는 그 월드. */
     @Test
     void abandonedLevelsAreClosedWhenCollected() throws Exception {

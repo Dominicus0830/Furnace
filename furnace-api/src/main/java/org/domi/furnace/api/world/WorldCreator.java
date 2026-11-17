@@ -18,10 +18,22 @@ import java.util.regex.Pattern;
  * @param flatLayers         평지 층(아래부터). 비면 바닐라 기본 층. FLAT 에서만
  * @param flatBiome          평지 바이옴. FLAT 에서만
  * @param generationHooks    월드젠 단계 훅 키(LifecycleEvents.WORLD_GENERATION 에서 등록한 것). 빈 문자열이면 없음(바닐라)
+ * @param flatGeneratorSettings 평지 설정 JSON(바닐라 server.properties {@code generator-settings} 와 같은 형식·규칙). 빈 문자열이면
+ *                           flatLayers·flatBiome 에 지형지물·호수·구조물 없음. 새 FLAT 월드에서만 쓴다(이미 있는 월드는 level.dat 의 설정)
+ * @param biomeProvider      바이옴 공급자(T-210). null 이면 생성기 자신의 바이옴
+ * @param biomeProviderName  공급자 이름(level.dat 에 남는 표시). biomeProvider 가 있으면 그 {@code name()}. 저장된 설명서에서 읽은 것이면
+ *                           공급자 없이 이름만 있다 — 그대로는 열 수 없고 {@link Builder#biomeProvider} 로 공급자를 다시 붙이거나 지운다
  */
 public record WorldCreator(String name, String key, WorldEnvironment environment, WorldGenerator generator, String dimensionType,
                            OptionalLong seed, boolean generateStructures, List<FlatLayer> flatLayers, String flatBiome,
-                           String generationHooks) {
+                           String generationHooks, String flatGeneratorSettings, org.domi.furnace.api.worldgen.BiomeProvider biomeProvider,
+                           String biomeProviderName) {
+
+    /** 공급자·평지 JSON 없는 설명서(이전 버전과 같은 모양). */
+    public WorldCreator(String name, String key, WorldEnvironment environment, WorldGenerator generator, String dimensionType,
+                        OptionalLong seed, boolean generateStructures, List<FlatLayer> flatLayers, String flatBiome, String generationHooks) {
+        this(name, key, environment, generator, dimensionType, seed, generateStructures, flatLayers, flatBiome, generationHooks, "", null, "");
+    }
 
     /** 훅 없는 설명서(이전 버전과 같은 모양). */
     public WorldCreator(String name, String key, WorldEnvironment environment, WorldGenerator generator, String dimensionType,
@@ -62,7 +74,18 @@ public record WorldCreator(String name, String key, WorldEnvironment environment
         flatLayers = List.copyOf(flatLayers);
         flatBiome = full("flatBiome", flatBiome);
         generationHooks = generationHooks == null || generationHooks.isEmpty() ? "" : full("generationHooks", generationHooks);
+        flatGeneratorSettings = flatGeneratorSettings == null ? "" : flatGeneratorSettings;
+        if (biomeProvider != null) {
+            String n = biomeProvider.name();
+            if (n == null || n.isBlank()) throw new IllegalArgumentException("BiomeProvider#name must not be blank");
+            biomeProviderName = n;
+        } else if (biomeProviderName == null) {
+            biomeProviderName = "";
+        }
     }
+
+    /** level.dat 에 공급자 표시만 있고 공급자가 없다 — 이대로는 열 수 없다(공급자를 다시 붙이거나 지울 것). */
+    public boolean needsBiomeProvider() { return biomeProvider == null && !biomeProviderName.isEmpty(); }
 
     private static String full(String what, String id) {
         if (id == null) throw new NullPointerException(what);
@@ -76,7 +99,10 @@ public record WorldCreator(String name, String key, WorldEnvironment environment
 
     public Builder toBuilder() {
         Builder b = new Builder(name).key(key).environment(environment).generator(generator).dimensionType(dimensionType)
-                .generateStructures(generateStructures).flatLayers(flatLayers).flatBiome(flatBiome).generationHooks(generationHooks);
+                .generateStructures(generateStructures).flatLayers(flatLayers).flatBiome(flatBiome).generationHooks(generationHooks)
+                .flatGeneratorSettings(flatGeneratorSettings);
+        b.biomeProvider = biomeProvider;
+        b.biomeProviderName = biomeProviderName;
         if (seed.isPresent()) b.seed(seed.getAsLong());
         return b;
     }
@@ -92,6 +118,9 @@ public record WorldCreator(String name, String key, WorldEnvironment environment
         private List<FlatLayer> flatLayers = List.of();
         private String flatBiome = "minecraft:plains";
         private String generationHooks = "";
+        private String flatGeneratorSettings = "";
+        private org.domi.furnace.api.worldgen.BiomeProvider biomeProvider;
+        private String biomeProviderName = "";
 
         private Builder(String name) { this.name = name; }
 
@@ -121,9 +150,34 @@ public record WorldCreator(String name, String key, WorldEnvironment environment
          */
         public Builder generationHooks(String key) { this.generationHooks = key == null ? "" : key; return this; }
 
+        /**
+         * 평지 설정 JSON — 바닐라 server.properties {@code generator-settings}(Bukkit {@code WorldCreator#generatorSettings})와 같은 형식·규칙:
+         * {@code layers} 가 없으면 바닐라 기본 프리셋(기반암·흙 2·잔디, 평원, 요새·마을), {@code structure_overrides} 가 없으면 모든 구조물 세트.
+         * 주면 flatLayers·flatBiome 대신 이것을 쓴다. null·빈 문자열이면 없음. 새 FLAT 월드에서만 쓴다.
+         */
+        public Builder flatGeneratorSettings(String json) { this.flatGeneratorSettings = json == null ? "" : json; return this; }
+
+        /**
+         * 바이옴 공급자(T-210 — CraftBukkit CustomWorldChunkManager 와 같은 자리). 노이즈 생성기(DEFAULT·LARGE_BIOMES·AMPLIFIED·
+         * SINGLE_BIOME_SURFACE, 모든 환경)와 오버월드 높이의 FLAT 만 받는다. 공급자 객체는 저장되지 않고 이름만 level.dat 에 남아,
+         * 서버가 스스로 다시 열 때(worlds.autoload·/worlds load)는 공급자를 다시 줄 때까지 열지 않는다. null 이면 공급자와 표시를 지운다.
+         */
+        public Builder biomeProvider(org.domi.furnace.api.worldgen.BiomeProvider provider) {
+            this.biomeProvider = provider;
+            this.biomeProviderName = "";
+            return this;
+        }
+
+        /** 공급자 없이 표시(이름)만 — 저장된 설명서를 읽을 때 서버가 쓴다. */
+        public Builder biomeProviderName(String name) {
+            this.biomeProvider = null;
+            this.biomeProviderName = name == null ? "" : name;
+            return this;
+        }
+
         public WorldCreator build() {
             return new WorldCreator(name, key, environment, generator, dimensionType, seed, generateStructures, flatLayers, flatBiome,
-                    generationHooks);
+                    generationHooks, flatGeneratorSettings, biomeProvider, biomeProviderName);
         }
     }
 }

@@ -17,4 +17,28 @@ public interface BiomeProvider {
 
     /** 나올 수 있는 바이옴 키 목록. 순서가 지형지물 단계 순서를 정한다(바닐라 BiomeSource#possibleBiomes). 생성기를 만들 때 한 번 부른다. */
     List<String> biomes();
+
+    /**
+     * 이 공급자를 쓰는 월드의 정보 — 서버가 생성기를 만들기 직전({@link #biomes()} 앞) 월드 스레드에서 한 번 부른다(월드마다).
+     * 기본은 아무것도 하지 않는다.
+     */
+    default void prepare(Context world) {}
+
+    /**
+     * 공급자 이름 — 이 공급자로 만든 월드의 level.dat 설명서에 남는다(T-210). 공급자 객체는 저장할 수 없어서, 다시 열 때 이 이름으로
+     * "어떤 공급자가 필요한지"만 알린다. 기본은 클래스 이름.
+     */
+    default String name() { return getClass().getName(); }
+
+    /**
+     * 생성기를 만들 월드의 정보.
+     *
+     * @param worldName   월드 이름(폴더)
+     * @param levelKey    레벨(차원) 키
+     * @param environment 환경
+     * @param seed        생성 시드(이미 있는 월드는 level.dat 의 시드)
+     * @param minY        가장 낮은 블록 y
+     * @param maxY        가장 높은 블록 y + 1
+     */
+    record Context(String worldName, String levelKey, org.domi.furnace.api.world.WorldEnvironment environment, long seed, int minY, int maxY) {}
 }

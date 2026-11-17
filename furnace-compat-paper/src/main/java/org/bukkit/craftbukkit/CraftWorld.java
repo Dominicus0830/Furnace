@@ -71,7 +71,16 @@ public final class CraftWorld implements World {
     }
 
     @Override
-    public UUID getUID() { return UUID.nameUUIDFromBytes(("furnace-world:" + handle.dimension()).getBytes(StandardCharsets.UTF_8)); }
+    public UUID getUID() { return uidOf(handle.dimension()); }
+
+    /** 레벨 키의 월드 UID(getUID 와 같은 값 — 월드가 생기기 전 바이옴 공급자의 WorldInfo 도 쓴다). */
+    public static UUID uidOf(String levelKey) { return UUID.nameUUIDFromBytes(("furnace-world:" + levelKey).getBytes(StandardCharsets.UTF_8)); }
+
+    /** Paper: 만들 때 준 바이옴 공급자(T-210). Bukkit 공급자로 만든 월드가 아니면 null. */
+    @Override
+    public org.bukkit.generator.BiomeProvider getBiomeProvider() {
+        return handle.biomeProvider() instanceof org.domi.furnace.compat.paper.BukkitBiomeProviders.Adapted a ? a.bukkit() : null;
+    }
 
     @Override
     public NamespacedKey getKey() {

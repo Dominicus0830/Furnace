@@ -17,13 +17,15 @@ public final class BukkitBiomeProviders {
 
     /**
      * 월드가 생기기 전(생성기를 만들 때 {@code getBiomes} 를 부른다)에도 쓸 수 있는 WorldInfo — 월드가 생기면 {@link #bind} 로 그 월드를 따른다
-     * (CraftBukkit 은 그 CraftWorld 를 넘긴다). 묶기 전 UID 는 이름에서 만든 값.
+     * (CraftBukkit 은 그 CraftWorld 를 넘긴다). 보통 월드(T-210)는 서버가 생성기를 만들기 직전 {@link #prepare} 로 실제 값(이미 있는 월드는
+     * level.dat 시드)을 채우고, UID 는 {@code CraftWorld#getUID} 와 같은 식(레벨 키)이다. 레벨 키를 모르는 임시 월드는 이름에서 만든 값.
      */
     public static final class LateWorldInfo implements WorldInfo {
-        private final String name;
-        private final World.Environment environment;
-        private final long seed;
-        private final int minHeight, maxHeight;
+        private volatile String name;
+        private volatile String levelKey;
+        private volatile World.Environment environment;
+        private volatile long seed;
+        private volatile int minHeight, maxHeight;
         /** 약하게 — 공급자는 생성기가 쥐고 생성기는 서버가 쥐므로, 세게 쥐면 버린 레벨이 GC 되지 않는다. */
         private volatile java.lang.ref.WeakReference<WorldInfo> bound;
 
@@ -37,6 +39,20 @@ public final class BukkitBiomeProviders {
 
         public void bind(WorldInfo world) { this.bound = new java.lang.ref.WeakReference<>(world); }
 
+        /** 서버가 준 월드 정보로 채운다(생성기를 만들기 직전, 월드 스레드). */
+        void prepare(org.domi.furnace.api.worldgen.BiomeProvider.Context c) {
+            this.name = c.worldName();
+            this.levelKey = c.levelKey();
+            this.environment = switch (c.environment()) {
+                case NORMAL -> World.Environment.NORMAL;
+                case NETHER -> World.Environment.NETHER;
+                case THE_END -> World.Environment.THE_END;
+            };
+            this.seed = c.seed();
+            this.minHeight = c.minY();
+            this.maxHeight = c.maxY();
+        }
+
         private WorldInfo bound() {
             var r = bound;
             return r == null ? null : r.get();
@@ -45,7 +61,10 @@ public final class BukkitBiomeProviders {
         @Override public String getName() { WorldInfo b = bound(); return b != null ? b.getName() : name; }
         @Override public UUID getUID() {
             WorldInfo b = bound();
-            return b != null ? b.getUID() : UUID.nameUUIDFromBytes(("furnace-world-info:" + name).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            if (b != null) return b.getUID();
+            String k = levelKey;
+            return k != null ? org.bukkit.craftbukkit.CraftWorld.uidOf(k)
+                             : UUID.nameUUIDFromBytes(("furnace-world-info:" + name).getBytes(java.nio.charset.StandardCharsets.UTF_8));
         }
         @Override public World.Environment getEnvironment() { return environment; }
         @Override public long getSeed() { return seed; }
@@ -73,26 +92,59 @@ public final class BukkitBiomeProviders {
     }
 
     private static org.domi.furnace.api.worldgen.BiomeProvider adapt(java.util.function.Supplier<BiomeProvider> providerRef, WorldInfo info) {
-        return new org.domi.furnace.api.worldgen.BiomeProvider() {
-            @Override
-            public String biome(int x, int y, int z, Climate climate) {
-                Biome b = providerRef.get().getBiome(info, x, y, z, new Point(climate));
-                if (b == Biome.CUSTOM) throw new IllegalArgumentException("Cannot set the biome to " + b);
-                return b == null ? null : b.getKey().toString();
-            }
+        return new Adapted(providerRef, info);
+    }
 
-            @Override
-            public List<String> biomes() {
-                List<Biome> list = providerRef.get().getBiomes(info);
-                if (list == null) throw new IllegalArgumentException("BiomeProvider#getBiomes returned null");
-                List<String> out = new ArrayList<>(list.size());
-                for (Biome b : list) {
-                    if (b == null || b == Biome.CUSTOM) throw new IllegalArgumentException("Cannot use the biome " + b);
-                    out.add(b.getKey().toString());
-                }
-                return out;
+    /** Bukkit 공급자를 감싼 Furnace 공급자. {@link #bukkit()} 으로 원래 공급자(CraftWorld#getBiomeProvider)를 돌려준다. */
+    public static final class Adapted implements org.domi.furnace.api.worldgen.BiomeProvider {
+        private final java.util.function.Supplier<BiomeProvider> providerRef;
+        private final WorldInfo info;
+        private final String name;
+
+        private Adapted(java.util.function.Supplier<BiomeProvider> providerRef, WorldInfo info) {
+            this.providerRef = providerRef;
+            this.info = info;
+            this.name = providerRef.get().getClass().getName();
+        }
+
+        /** 감싼 Bukkit 공급자(약하게 쥔 판이 거둬졌으면 null). */
+        public BiomeProvider bukkit() {
+            try {
+                return providerRef.get();
+            } catch (IllegalStateException e) {
+                return null;
             }
-        };
+        }
+
+        /** 공급자에 넘기는 WorldInfo. */
+        public WorldInfo worldInfo() { return info; }
+
+        @Override
+        public String name() { return name; }
+
+        @Override
+        public void prepare(org.domi.furnace.api.worldgen.BiomeProvider.Context world) {
+            if (info instanceof LateWorldInfo late) late.prepare(world);
+        }
+
+        @Override
+        public String biome(int x, int y, int z, Climate climate) {
+            Biome b = providerRef.get().getBiome(info, x, y, z, new Point(climate));
+            if (b == Biome.CUSTOM) throw new IllegalArgumentException("Cannot set the biome to " + b);
+            return b == null ? null : b.getKey().toString();
+        }
+
+        @Override
+        public List<String> biomes() {
+            List<Biome> list = providerRef.get().getBiomes(info);
+            if (list == null) throw new IllegalArgumentException("BiomeProvider#getBiomes returned null");
+            List<String> out = new ArrayList<>(list.size());
+            for (Biome b : list) {
+                if (b == null || b == Biome.CUSTOM) throw new IllegalArgumentException("Cannot use the biome " + b);
+                out.add(b.getKey().toString());
+            }
+            return out;
+        }
     }
 
     /** CraftBiomeParameterPoint: 값은 그 칸의 기후(처음 읽을 때 계산), 범위는 기후 밀도 함수의 범위. */

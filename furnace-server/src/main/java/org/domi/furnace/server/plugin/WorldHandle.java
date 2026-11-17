@@ -1044,6 +1044,15 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
     @Override
     public boolean isFlat() { return world.isFlatLevel(); }
 
+    /** 생성기가 쥔 바이옴 공급자(T-210 보통 월드, T-203 임시 월드). */
+    @Override
+    public org.domi.furnace.api.worldgen.BiomeProvider biomeProvider() {
+        var ws = world.worldSource();
+        if (ws instanceof org.domi.furnace.server.world.gen.AnvilWorldSource a) ws = a.base();
+        else if (ws instanceof org.domi.furnace.server.world.gen.ScratchWorldSource t) ws = t.base();
+        return ws instanceof org.domi.furnace.server.world.gen.NoiseWorldSource n ? n.biomeProvider() : null;
+    }
+
     @Override
     public boolean generatesStructures() { return world.generatesStructures(); }
 

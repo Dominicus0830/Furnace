@@ -144,8 +144,8 @@ public final class LocateCommand {
         var timedOut = new java.util.concurrent.atomic.AtomicBoolean();
         var cancel = canceller(source, timedOut);
         java.util.concurrent.CompletableFuture<String[]> found;
-        if (ws instanceof NoiseWorldSource gen && gen.isFlat()) {
-            // FixedBiomeSource: 그 바이옴이면 제자리(평지 생성기)
+        if (ws instanceof NoiseWorldSource gen && gen.flatFixedBiome()) {
+            // FixedBiomeSource: 그 바이옴이면 제자리(평지 생성기 — 바이옴 공급자가 있으면 아래 일반 검색)
             String bname = gen.biomeName(gen.flatBiomeId());
             found = java.util.concurrent.CompletableFuture.completedFuture(
                 pred.test(bname) ? new String[] {bname, "" + ox, "" + oy, "" + oz} : null);

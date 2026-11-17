@@ -458,6 +458,9 @@ public interface World {
     /** level.dat 의 생성기가 평지(또는 빈 월드)인가(바닐라 isFlatWorld). 클라이언트의 지평선·안개가 달라진다. 불변. */
     default boolean isFlat() { return false; }
 
+    /** 이 월드를 만들 때 준 바이옴 공급자(T-210, {@link WorldCreator.Builder#biomeProvider}). 없으면 null. 불변. */
+    default org.domi.furnace.api.worldgen.BiomeProvider biomeProvider() { return null; }
+
     /** level.dat 의 구조물 생성 깃발(바닐라 WorldOptions.generateStructures). 불변. */
     default boolean generatesStructures() { return true; }
 
