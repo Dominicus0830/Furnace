@@ -1782,6 +1782,19 @@ public abstract class ChunkLevel implements BlockLevel {
         return org.domi.furnace.server.world.LiveFeatures.placeWith(this, h, pos, random, featureSeed(), apply);
     }
 
+    /**
+     * 플러그인이 부른 바닐라 ConfiguredFeature/PlacedFeature#place(T-211): {@link org.domi.furnace.server.world.LiveFeatures#placeThrough}. 모르는 id 면 null.
+     * sink 가 null 이면 이 레벨에 바로 놓는다.
+     */
+    public Boolean placeFeatureThrough(String id, boolean placed, Pos pos, org.domi.furnace.server.world.gen.carver.WorldgenRandom random,
+            org.domi.furnace.server.world.gen.feature.FeatureWorldView.WriteSink sink) {
+        var data = featureData();
+        var h = placed ? org.domi.furnace.server.world.LiveFeatures.placed(data, id) : org.domi.furnace.server.world.LiveFeatures.configured(data, id);
+        if (h == null) return null;
+        if (!h.supported()) throw new UnsupportedOperationException("feature not implemented yet: " + id);
+        return org.domi.furnace.server.world.LiveFeatures.placeThrough(this, h, pos, random, featureSeed(), sink);
+    }
+
     /** ChorusFlowerBlock.generatePlant(level, pos, random, 8)(Paper generateTree CHORUS_PLANT). */
     public org.domi.furnace.server.world.LiveFeatures.Placement chorusPlantWith(Pos pos,
             org.domi.furnace.server.world.gen.carver.WorldgenRandom random, boolean apply) {

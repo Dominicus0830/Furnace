@@ -15,8 +15,9 @@ import org.domi.furnace.api.world.BlockPos;
  * 블록 엔티티가 있는 블록은 {@link CompatBlockStates} 가 Paper 와 같은 형(org.bukkit.craftbukkit.block.Craft*, Chest·Sign 등)의 하위 클래스로 만든다.
  * 블록 엔티티 내용(상자·표지판 글 등)은 아직 담지 않는다 — Furnace 는 그 스냅숏을 호환 계층에 보이지 않는다.
  * dimension 이 null 이면 놓이지 않은 상태(BlockData#createBlockState): Paper 처럼 월드·블록·청크를 물으면 IllegalStateException, update 는 아무것도 안 하고 참.
+ * 형은 Paper 의 {@link org.bukkit.craftbukkit.block.CraftBlockState} 다(T-211).
  */
-public class CompatBlockState implements BlockState {
+public class CompatBlockState extends org.bukkit.craftbukkit.block.CraftBlockState {
 
     private final String dimension;
     private final BlockPos pos;
@@ -36,6 +37,16 @@ public class CompatBlockState implements BlockState {
     /** Furnace 블록 데이터로 만든 스냅숏(이벤트의 "새 상태"). */
     static CompatBlockState of(String dimension, BlockPos pos, org.domi.furnace.api.world.BlockData data) {
         return new CompatBlockState(Objects.requireNonNull(dimension, "dimension"), pos, CompatBlockData.of(data));
+    }
+
+    /**
+     * 호환 모듈 전용(T-211, Paper BlockStateListPopulator): 월드에 아직 없는 블록 상태 state 를 그 칸에 놓인 상태로 — 블록 엔티티가 있는 블록은
+     * Paper 와 같은 형(CraftChest 등)이고 그 내용은 새 블록 엔티티(빈 내용)다. 월드를 읽지 않는다.
+     */
+    public static CompatBlockState generated(String dimension, BlockPos pos, net.minecraft.world.level.block.state.BlockState state) {
+        Objects.requireNonNull(dimension, "dimension");
+        BlockData data = org.bukkit.craftbukkit.block.data.CraftBlockData.fromData(state);
+        return org.bukkit.craftbukkit.block.CraftBlockEntityState.furnaceFresh(() -> CompatBlockStates.create(dimension, pos, data));
     }
 
     /** 놓인 상태의 차원 이름(놓이지 않았으면 null). */

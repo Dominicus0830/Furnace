@@ -16,13 +16,31 @@ public abstract class CraftBlockEntityState extends org.domi.furnace.compat.pape
 
     protected CraftBlockEntityState(String dimension, BlockPos pos, org.bukkit.block.data.BlockData data) {
         super(dimension, pos, data);
-        NbtCompound n = dimension == null ? null : Compat.furnace().world(dimension).blockEntityNbtNow(pos).orElse(null);
+        NbtCompound n = dimension == null || FRESH.get()[0] ? null : Compat.furnace().world(dimension).blockEntityNbtNow(pos).orElse(null);
         if (n == null) {
             n = new NbtCompound();
             String id = Compat.furnace().gameRegistries().blockEntityType(((org.domi.furnace.compat.paper.CompatBlockData) data).furnace().type());
             if (id != null) n.putString("id", id);   // Paper createTileEntity 자리: update 때 새로 생긴 같은 종류 블록 엔티티에 실린다
         }
         this.snapshot = n;
+    }
+
+    /** {@link #furnaceFresh} 안에서 만드는 중인가(생성자 인자 대신 — 생성된 하위 클래스들의 생성자 모양을 바꾸지 않으려고). */
+    private static final ThreadLocal<boolean[]> FRESH = ThreadLocal.withInitial(() -> new boolean[1]);
+
+    /**
+     * 호환 모듈 전용(T-211): 월드의 블록 엔티티를 읽지 않고 새 블록 엔티티(id 만 든 사본)로 시작하는 상태를 만든다 — Paper BlockStateListPopulator 가
+     * {@code newBlockEntity} 로 만든 빈 블록 엔티티의 상태 자리. 이 스레드에서 make 가 만드는 상태에만 적용된다.
+     */
+    public static <T> T furnaceFresh(java.util.function.Supplier<T> make) {
+        boolean[] f = FRESH.get();
+        boolean was = f[0];
+        f[0] = true;
+        try {
+            return make.get();
+        } finally {
+            f[0] = was;
+        }
     }
 
     /**

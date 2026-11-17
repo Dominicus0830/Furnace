@@ -5,6 +5,14 @@ public final class FeatureSupport {
 
     private FeatureSupport() {}
 
+    /**
+     * 바닐라 {@code RandomizableContainer} 를 구현한 블록 엔티티 종류 id(1.21.1 서버 jar 로 확인: 상자·덫 상자·통·발사기·공급기·호퍼·셜커 상자·
+     * 장식 단지·제작기). {@code RandomizableContainer.setBlockEntityLootTable} 의 instanceof 자리.
+     */
+    public static final java.util.Set<String> RANDOMIZABLE_CONTAINERS = java.util.Set.of("minecraft:chest", "minecraft:trapped_chest",
+            "minecraft:barrel", "minecraft:dispenser", "minecraft:dropper", "minecraft:hopper", "minecraft:shulker_box",
+            "minecraft:decorated_pot", "minecraft:crafter");
+
     /** feature 트리(필드로 이어진 ConfiguredFeature·PlacedFeature·목록)에 Noop 이 있는가. */
     public static boolean containsNoop(Object o, java.util.Set<Object> seen) {
         if (o == null || !seen.add(o)) return false;

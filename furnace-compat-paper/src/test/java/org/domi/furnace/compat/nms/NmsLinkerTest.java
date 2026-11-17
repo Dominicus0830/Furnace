@@ -38,6 +38,7 @@ class NmsLinkerTest {
                         protected ServerLevel() { super(null); }
                         public net.minecraft.world.level.chunk.ChunkSource getChunkSource() { return null; }
                         public long getSeed() { return 0; }
+                        public ServerLevel getMinecraftWorld() { return this; }
                         public net.minecraft.world.level.chunk.ProtoChunk getProtoChunkAt(net.minecraft.core.BlockPos p) { return null; }
                         public long mixed(long a, double b, int c) { return 0; }
                         public static int staticCounter;

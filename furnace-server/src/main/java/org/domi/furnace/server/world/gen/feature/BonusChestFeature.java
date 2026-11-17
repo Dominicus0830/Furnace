@@ -51,13 +51,15 @@ public final class BonusChestFeature implements ConfiguredFeature {
                 int cur = view.getBlock(bx, py, bz);
                 if (a.isAir(cur) || a.collisionEmpty(cur)) {
                     view.setBlock(bx, py, bz, chest);
-                    // RandomizableContainer.setBlockEntityLootTable: 표 + random.nextLong() 시드
-                    NbtCompound nbt = new NbtCompound();
-                    nbt.putString("id", "minecraft:chest");
-                    nbt.putInt("x", bx); nbt.putInt("y", py); nbt.putInt("z", bz);
-                    nbt.putString("LootTable", LOOT_TABLE);
-                    nbt.putLong("LootTableSeed", random.nextLong());
-                    view.putGeneratedBlockEntity(bx, py, bz, nbt);
+                    // RandomizableContainer.setBlockEntityLootTable: 그 칸 블록 엔티티가 RandomizableContainer 면 표 + random.nextLong() 시드
+                    if (view.blockEntityPresent(bx, py, bz, FeatureSupport.RANDOMIZABLE_CONTAINERS)) {
+                        NbtCompound nbt = new NbtCompound();
+                        nbt.putString("id", "minecraft:chest");
+                        nbt.putInt("x", bx); nbt.putInt("y", py); nbt.putInt("z", bz);
+                        nbt.putString("LootTable", LOOT_TABLE);
+                        nbt.putLong("LootTableSeed", random.nextLong());
+                        view.putGeneratedBlockEntity(bx, py, bz, nbt);
+                    }
                     for (int d = 0; d < 4; d++) {
                         int tx = bx + DX[d], tz = bz + DZ[d];
                         if (shapes.canSurvive(view, torch, tx, py, tz)) view.setBlock(tx, py, tz, torch);
