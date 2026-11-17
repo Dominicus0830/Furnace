@@ -147,6 +147,70 @@ class ScratchWorldTest {
         }
     }
 
+    /**
+     * 여러 스레드가 임시 월드를 동시에 만들고 청크를 불러 닫는다 — 운영 기본인 공유 region 풀 경로(등록·해제가 겹친다).
+     * 등록 표와 선택기 배열이 어긋나면 어떤 임시 월드의 작업을 아무 워커도 고르지 않아 청크 불러오기가 멈춘다.
+     */
+    @Test
+    void concurrentCreateAndCloseOnTheSharedRegionPool() throws Exception {
+        SharedScheduler pool = SharedScheduler.startShared(4, "furnace-region-scratchtest-");
+        RegistrySet registries = RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt");
+        var io = TestServers.ioPool();
+        WorldManager shared = new WorldManager(new WorldManager.Parts(tmp.resolve("shared"), reg, ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt"),
+                registries, registries.indexOf("minecraft:worldgen/biome", "minecraft:plains"), 7, new ChunkWorkerPool(1), sched, pool,
+                Config.DEFAULT, false, io, io), dims, core.levelData(), "world");
+        var exec = java.util.concurrent.Executors.newFixedThreadPool(12);
+        try {
+            World a = shared.create(WorldCreator.named("flatshared").generator(WorldGenerator.FLAT).build()).get(120, TimeUnit.SECONDS);
+            int base = pool.dimensionCount();
+            assertEquals(base, pool.selectableCount());
+            for (int round = 0; round < 4; round++) {
+                var start = new java.util.concurrent.CountDownLatch(1);
+                List<java.util.concurrent.Future<World>> made = new java.util.ArrayList<>();
+                for (int i = 0; i < 12; i++) {
+                    long seed = round * 100L + i;
+                    made.add(exec.submit(() -> {
+                        start.await();
+                        World s = shared.createScratch(a, seed, "flatshared");
+                        s.submitAtChunk(new ChunkPos(0, 0), r -> r.chunkAtBlocking(new ChunkPos(0, 0))).get(30, TimeUnit.SECONDS);
+                        return s;
+                    }));
+                }
+                start.countDown();
+                List<World> scratch = new java.util.ArrayList<>();
+                for (var f : made) scratch.add(f.get(60, TimeUnit.SECONDS));
+                assertEquals(base + 12, pool.dimensionCount());
+                assertEquals(base + 12, pool.selectableCount(), "선택기가 모든 임시 월드를 본다");
+                if (round == 0) {
+                    // 같은 순간에 여러 임시 월드가 등록된다(동시에 만들 때의 틈을 좁혀 여러 번 본다) — 매번 모두 선택기에 보여야 한다
+                    int lost = 0;
+                    for (int k = 0; k < 500 && lost == 0; k++) {
+                        for (World s : scratch) pool.unregister(s.regionizer());
+                        var barrier = new java.util.concurrent.CyclicBarrier(scratch.size());
+                        List<java.util.concurrent.Future<?>> regs = new java.util.ArrayList<>();
+                        for (World s : scratch) regs.add(exec.submit(() -> { barrier.await(); pool.register(s.regionizer()); return null; }));
+                        for (var f : regs) f.get(30, TimeUnit.SECONDS);
+                        if (pool.selectableCount() != pool.dimensionCount()) lost = k + 1;
+                    }
+                    assertEquals(0, lost, "등록 표와 선택기 배열이 어긋났다(회차)");
+                }
+                var close = new java.util.concurrent.CountDownLatch(1);
+                List<java.util.concurrent.Future<?>> closed = new java.util.ArrayList<>();
+                for (World s : scratch) closed.add(exec.submit(() -> { close.await(); shared.closeScratch(s); return null; }));
+                close.countDown();
+                for (var f : closed) f.get(60, TimeUnit.SECONDS);
+                assertEquals(base, pool.dimensionCount());
+                assertEquals(base, pool.selectableCount(), "닫은 임시 월드가 선택기에 남지 않는다");
+            }
+            // 공유 풀은 그대로 돈다
+            assertEquals(chunkHash(a, 1, 1), chunkHash(a, 1, 1));
+        } finally {
+            exec.shutdownNow();
+            shared.closeAllForShutdown();
+            pool.close();
+        }
+    }
+
     @Test
     void freshCopyKeepsStructureSettingAndSharesTheGenerationPool() throws Exception {
         World a = create(WorldCreator.named("nostruct").seed(9L).generateStructures(false).build());

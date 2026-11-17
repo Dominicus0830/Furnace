@@ -23,6 +23,8 @@ public final class SharedScheduler implements AutoCloseable {
     static final long PARK_MAX = 50_000_000L;
 
     private final CopyOnWriteArrayList<Regionizer> dims = new CopyOnWriteArrayList<>();
+    /** 등록·해제(표 + 선택기 배열)를 한 덩어리로 묶는 잠금. */
+    private final Object dimsLock = new Object();
     private final Thread[] workers;
     private volatile boolean running = true;
     /** 자는 워커. until 은 갱신될 수 있다(N2). */
@@ -134,16 +136,23 @@ public final class SharedScheduler implements AutoCloseable {
         for (Thread t : workers) t.start();
     }
 
-    /** 잠금 없음. 부르는 쪽은 차원 잠금을 쥐지 않는다. */
+    /**
+     * 표 바꾸기와 선택기 배열 갱신을 한 덩어리로 한다(임시 월드는 아무 스레드에서 동시에 올리고 내린다 — 덩어리가 아니면 늦게 쓴 옛 배열이
+     * 새 차원을 지운다). 깨우기는 잠금 밖. 부르는 쪽은 차원 잠금을 쥐지 않는다.
+     */
     void register(Regionizer rz) {
-        dims.addIfAbsent(rz);
-        snapshot = dims.toArray(new Regionizer[0]);
+        synchronized (dimsLock) {
+            dims.addIfAbsent(rz);
+            snapshot = dims.toArray(new Regionizer[0]);
+        }
         wake(rz.headDue());
     }
 
     void unregister(Regionizer rz) {
-        dims.remove(rz);
-        snapshot = dims.toArray(new Regionizer[0]);
+        synchronized (dimsLock) {
+            dims.remove(rz);
+            snapshot = dims.toArray(new Regionizer[0]);
+        }
     }
 
     /** 선택기가 읽는 차원 배열(등록/해제 때만 바뀐다 — select 마다 할당하지 않는다). */
@@ -160,6 +169,9 @@ public final class SharedScheduler implements AutoCloseable {
 
     /** 등록된 차원 수. */
     public int dimensionCount() { return dims.size(); }
+
+    /** 시험: 선택기가 보는 차원 수(등록 표와 같아야 한다). */
+    int selectableCount() { return snapshot.length; }
 
     int perDimCap() { return perDimCap; }
 
