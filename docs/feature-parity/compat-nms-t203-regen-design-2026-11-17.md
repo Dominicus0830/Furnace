@@ -74,11 +74,13 @@ Paper 의 임시 레벨은 `MinecraftServer#levels` 에 들어가지 않아 **�
 | 1 | 서버 임시 월드(`freshCopy`·`createScratch`·닫기, 장식 레인 누수 고침) + 내부 다리 | 임시 월드 청크 = 같은 시드 새 월드 청크, 다른 시드는 다름, 틱 없음, 안 보임, 닫은 뒤 거절, 공유 region 풀에서 여러 스레드가 동시에 만들고 닫기(#486 검토) |
 | 2 | 호환 shim(위 2.2) | FAWE 꼴 `PaperweightRegen` 사본을 **NMS 변환기로 실은 플러그인 클래스**로 돌려(T-204 교훈) 대상 월드 결과 = 새 월드 청크 |
 | 3 | `//regen <바이옴>`: Bukkit `BiomeProvider` 로 생성(결정 D2) | 고정 바이옴 공급자 = 바닐라 고정 바이옴 월드, 일반 공급자 호출 순서 |
-| 4 | 실제 FAWE 로 Paper 대조(클라우드에서 Paper 1.21.1-133·FAWE 2.16.2 직접 실행) | 같은 기준 월드에서 `//regen`·`//regen <시드>`·`//regen -b` 뒤 지역 파일 블록·블록 엔티티 비교, 걸린 시간 |
+| 4 | 실제 FAWE 로 Paper 대조(클라우드에서 Paper 1.21.1-133·FAWE 2.16.2 직접 실행) | 같은 기준 월드에서 `//regen`·`//regen <시드>`·`//regen -b` 뒤 지역 파일 블록·블록 엔티티 비교, 걸린 시간 — **결과 `compat-nms-t203-regen-paper-2026-11-17.md`**(바이옴 0차이, 블록은 Paper 실행 사이 차이와 같은 꼴, 빠진 `LevelReader#registryAccess` 보충) |
 
-## 5. 검토 후속(#486) — 3단계 PR 에서 처리
+## 5. 검토 후속(#486·#487) — 3단계 PR 에서 처리
 
 - 닫지 않은 임시 레벨 안전망: `Compat` 의 임시 월드 표와 `WorldInfo` 는 약한 참조, `ServerLevel` 에 `Cleaner` 를 걸어 거둬지면 `closeScratch`. Bukkit 공급자는 생성기가 약하게, `ServerLevel` 이 강하게 잡는다(FAWE 안쪽 클래스 공급자가 레벨을 붙잡아 GC 를 막던 고리를 끊음).
 - 닫을 때 진행 중 청크 불러오기: `World#discardAfterClose` 가 대기 중 불러오기를 `CancellationException` 으로 끝내고, `Regionizer#close` 가 아직 돌지 않은 작업(`submitAtChunk` 등)을 거절해 기다리는 쪽이 멈추지 않는다(전에는 조용히 버려져 미래가 영원히 안 끝났다 — 보통 월드 내리기에도 해당).
 - 닫은 뒤 `CraftChunk#getWorld()`: 임시 월드 청크는 `CraftWorld` 를 직접 쥔다.
 - 임시 월드 생성 요청의 대기열 우선순위(`PRIO_NO_PLAYERS`)는 4단계 측정 때 본다.
+- #487 검토: 닫는 순간 돌던 작업이 닫힌 뒤 건 불러오기도 끝난다(설치 작업을 `Rejectable` 로, 닫힌 월드의 `runAtChunk` 는 그 작업을 던지지 않고 거절, `putLoading` 은 닫힌 뒤 넣으면 스스로 취소, `loadChunk` 는 닫힌 월드에서 곧바로 취소). 플러그인 region 스케줄러 `execute`·`executeDelayed` 도 거절로 끝나고, 닫을 때 쉬는 region 의 지연 작업과 drain 차례 수(`PENDING_DRAINS`)를 정리한다(틱 중이던 region 은 그 틱을 마칠 때). 잠금을 쥔 채 거절할 때(닫힌 뒤 합치기·나누기의 작업 옮기기)는 다른 스레드에서 알린다. `ScratchClose` 는 서버가 없거나 바뀐 경우만 건너뛰고 그 밖의 실패는 부른 쪽에 간다.
+- 받아들인 차이(#487 검토 4장): Paper 는 `getBiomes` 를 처음 쓸 때 부르고 Furnace 는 생성기를 만들 때 부른다 — 그때 `WorldInfo#getUID` 는 이름에서 만든 값이다(Paper 임시 레벨의 UID 도 매번 새 값이라 쓰는 플러그인이 기댈 값이 아니다). 이웃 청크의 저장 바이옴을 읽는 길이 공급자를 다시 부른다 — 같은 좌표에 같은 답을 주는 공급자(FAWE 포함)면 결과가 같다.

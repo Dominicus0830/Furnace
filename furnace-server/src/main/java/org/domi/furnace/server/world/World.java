@@ -362,7 +362,11 @@ public final class World {
 
     CompletableFuture<ChunkColumn> loadingChunk(long key) { return loading.get(mapKey(key)); }
 
-    void putLoading(long key, CompletableFuture<ChunkColumn> f) { loading.put(mapKey(key), f); }
+    void putLoading(long key, CompletableFuture<ChunkColumn> f) {
+        loading.put(mapKey(key), f);
+        // 닫힌 뒤 넣었다 — discardAfterClose 가 이미 훑었을 수 있다(unloaded 는 그 전에 서므로 둘 중 하나는 반드시 본다)
+        if (unloaded && loading.remove(mapKey(key), f)) f.completeExceptionally(new java.util.concurrent.CancellationException("the world was closed"));
+    }
 
     void removeLoading(long key, CompletableFuture<ChunkColumn> f) { loading.remove(mapKey(key), f); }
 
@@ -424,7 +428,15 @@ public final class World {
 
     /** 그 청크 주인 region 에서 task 실행(주인이 없으면 그 구역의 region 을 만든다). 실패는 로그로 남긴다. */
     public void runAtChunk(ChunkPos cp, java.util.function.Consumer<Region> task) {
-        if (unloaded) throw new java.util.concurrent.RejectedExecutionException("unloaded world: " + dimension());
+        if (unloaded) {
+            var why = new java.util.concurrent.RejectedExecutionException("unloaded world: " + dimension());
+            // 결과를 기다리는 쪽이 있는 작업은 던지지 않고 거절을 알린다(콜백 안에서 던지면 조용히 사라져 기다림이 끝나지 않는다)
+            if (task instanceof Regionizer.Rejectable r) {
+                r.reject(why);
+                return;
+            }
+            throw why;
+        }
         regionizer.enqueue(Regionizer.chunkKey(cp.x(), cp.z()), task);
     }
 
@@ -463,6 +475,16 @@ public final class World {
         public void reject(Throwable why) { f.completeExceptionally(why); }
     }
 
+    /** 결과 미래를 다른 작업에 넘기는 중간 작업 — 거절되면 그 미래를 거절로 끝낸다. */
+    private record Forward(CompletableFuture<?> f, java.util.function.Consumer<Region> body)
+            implements java.util.function.Consumer<Region>, Regionizer.Rejectable {
+        @Override
+        public void accept(Region r) { body.accept(r); }
+
+        @Override
+        public void reject(Throwable why) { f.completeExceptionally(why); }
+    }
+
     /** submitAtChunk 의 조회판: 그 청크에 주인 region 이 없으면 region 을 만들지 않고 null. */
     public <T> CompletableFuture<T> submitAtOwnedChunk(ChunkPos cp, java.util.function.Function<Region, T> task) {
         if (unloaded) return CompletableFuture.failedFuture(new java.util.concurrent.RejectedExecutionException("unloaded world: " + dimension()));
@@ -487,9 +509,7 @@ public final class World {
         @Override
         public CompletableFuture<Void> execute(Runnable task) {
             CompletableFuture<Void> f = new CompletableFuture<>();
-            runAtChunk(cp, r -> {
-                try { task.run(); f.complete(null); } catch (Throwable t) { f.completeExceptionally(t); }
-            });
+            runAtChunk(cp, new Submitted<Void>(f, r -> { task.run(); return null; }));
             return f;
         }
 
@@ -502,15 +522,13 @@ public final class World {
         public CompletableFuture<Void> executeDelayed(Runnable task, long delayTicks) {
             CompletableFuture<Void> f = new CompletableFuture<>();
             long key = Regionizer.chunkKey(cp.x(), cp.z());
-            java.util.function.Consumer<Region> run = r2 -> {
-                try { task.run(); f.complete(null); } catch (Throwable t) { f.completeExceptionally(t); }
-            };
+            java.util.function.Consumer<Region> run = new Submitted<Void>(f, r2 -> { task.run(); return null; });   // 닫힐 때 지연 목록에서 거절된다
             // 그 청크의 region 스레드 안이면 곧바로 건다 — 작업 큐를 한 번 더 거치면 다음 틱 머리에서야 걸려 한 틱 밀린다
             // (반복 작업 runAtFixedRate(…, 1, 1) 이 두 틱마다 돌던 원인). 밖에서 부르면 예전처럼 큐를 거친다.
             Region owner = regionizer.ownerOf(cp.x(), cp.z());
             // 곧바로 걸 때 0 은 1 로 — 지금 돌고 있는 지연 작업 차례에서 다시 꺼내 같은 틱에 돌거나, 자기를 다시 거는 작업이 끝없이 돌지 않게
             if (owner != null && owner.isOwnerThread()) owner.schedule(key, run, Math.max(1, delayTicks));
-            else runAtChunk(cp, r -> r.schedule(key, run, delayTicks));
+            else runAtChunk(cp, new Forward(f, r -> r.schedule(key, run, delayTicks)));
             return f;
         }
 

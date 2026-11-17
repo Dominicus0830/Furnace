@@ -211,6 +211,53 @@ class ScratchWorldTest {
         }
     }
 
+    /** 닫는 순간 돌던 region 작업이 닫힌 뒤 불러오기를 걸어도 그 미래는 끝난다(#487 검토 1-1, 검토 스레드 재현 시험). */
+    @Test
+    void loadStartedByARunningTaskAfterCloseStillFinishes() throws Exception {
+        World a = create(WorldCreator.named("race").seed(5L).build());
+        World s = manager.createScratch(a, 5L, "race");
+        ChunkPos cp = new ChunkPos(70, 70);
+        java.util.concurrent.CountDownLatch running = new java.util.concurrent.CountDownLatch(1), release = new java.util.concurrent.CountDownLatch(1);
+        var started = s.submitAtChunk(cp, r -> {
+            running.countDown();
+            try { release.await(); } catch (InterruptedException e) { throw new RuntimeException(e); }
+            return r.loadChunk(cp);   // 닫힌 뒤 돌던 작업이 불러오기를 건다
+        });
+        assertTrue(running.await(20, TimeUnit.SECONDS));
+        Thread closer = new Thread(() -> manager.closeScratch(s));
+        closer.start();
+        closer.join(5000);
+        release.countDown();
+        var load = started.get(20, TimeUnit.SECONDS);
+        try {
+            load.get(20, TimeUnit.SECONDS);
+        } catch (java.util.concurrent.ExecutionException | java.util.concurrent.CancellationException ok) {
+            // 끝나기만 하면 된다
+        } catch (java.util.concurrent.TimeoutException e) {
+            fail("닫은 뒤 시작된 불러오기가 끝나지 않는다 — 대기 " + s.pendingChunkLoads());
+        }
+        assertEquals(0, s.pendingChunkLoads());
+    }
+
+    /** 플러그인 region 스케줄러의 작업·지연 작업도 닫히면 거절로 끝난다(#487 검토 2-1). */
+    @Test
+    void chunkSchedulerTasksAreRejectedWhenTheWorldCloses() throws Exception {
+        World a = create(WorldCreator.named("sched").seed(6L).build());
+        World s = manager.createScratch(a, 6L, "sched");
+        var sch = s.chunkScheduler(3, 3);
+        assertNull(sch.submit(() -> null).get(20, TimeUnit.SECONDS));   // region 이 생겨 돈다
+        var delayed = sch.executeDelayed(() -> { }, 1_000_000L);         // 지연 목록에 남는다
+        var later = sch.submit(() -> null).thenCompose(v -> sch.executeDelayed(() -> { }, 1_000_000L));
+        later.exceptionally(t -> null);
+        Thread.sleep(200);
+        manager.closeScratch(s);
+        var e = assertThrows(java.util.concurrent.ExecutionException.class, () -> delayed.get(20, TimeUnit.SECONDS));
+        assertInstanceOf(java.util.concurrent.RejectedExecutionException.class, e.getCause());
+        assertThrows(java.util.concurrent.ExecutionException.class, () -> later.get(20, TimeUnit.SECONDS));
+        var after = sch.execute(() -> { });
+        assertThrows(java.util.concurrent.ExecutionException.class, () -> after.get(5, TimeUnit.SECONDS));
+    }
+
     /** 닫을 때 진행 중이던 청크 불러오기는 기다리는 쪽이 멈추지 않게 끝난다(#486 검토 3). */
     @Test
     void closingWithLoadsInFlightReleasesTheWaiters() throws Exception {

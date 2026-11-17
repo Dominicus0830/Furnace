@@ -84,11 +84,11 @@ public class ServerLevel extends Level {
         @Override
         public void run() {
             Compat.scratchClosed(world.dimension());
-            try {
-                org.domi.furnace.api.Furnace.server().internals().scratchWorlds().close(world);
-            } catch (RuntimeException e) {
-                // 서버가 이미 내려갔다(시험 서버 교체 등) — 종료 훅이 닫았다
-            }
+            // 서버가 이미 내려갔거나 바뀌었다(시험 서버 교체 등) — 종료 훅이 닫았다. 그 밖의 실패는 부른 쪽(명시적 close)에 그대로 간다.
+            var server = org.domi.furnace.api.Furnace.serverOrNull();
+            if (server == null) return;
+            var scratchWorlds = server.internals().scratchWorlds();
+            if (scratchWorlds.isScratch(world)) scratchWorlds.close(world);
         }
     }
 
