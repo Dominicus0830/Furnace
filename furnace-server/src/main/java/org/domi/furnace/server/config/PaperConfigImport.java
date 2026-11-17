@@ -109,7 +109,7 @@ public final class PaperConfigImport {
                 existing.load(in);
             }
         }
-        Result r = analyze(found, existing);
+        Result r = analyze(found, existing, levelName(serverDir));
         List<String> extra = new ArrayList<>();
         if (Files.exists(serverDir.resolve(LEGACY_PAPER))) {
             extra.add(Lang.t("paperimport.legacy-paper-yml", MODE_PROPERTY));
@@ -118,6 +118,20 @@ public final class PaperConfigImport {
         if (!r.toWrite().isEmpty()) appendProperties(furnaceProps, r, found.keySet());
         Files.writeString(report, render(r, extra), StandardCharsets.UTF_8);
         return r;
+    }
+
+    /** server.properties 의 level-name(없거나 못 읽으면 바닐라 기본 world). */
+    static String levelName(Path serverDir) {
+        Path f = serverDir.resolve("server.properties");
+        if (!Files.isRegularFile(f)) return "world";
+        Properties p = new Properties();
+        try (InputStream in = Files.newInputStream(f)) {
+            p.load(in);
+        } catch (IOException | RuntimeException e) {
+            return "world";
+        }
+        String n = p.getProperty("level-name", "world").strip();
+        return n.isEmpty() ? "world" : n;
     }
 
     /** 서버 폴더에서 읽을 수 있는 파일(라벨 → 경로). */
@@ -151,8 +165,12 @@ public final class PaperConfigImport {
     // ------------------------------------------------------------------ 분석 (파일 쓰기 없음)
 
     /** 읽을 파일들(라벨 → 경로)과 지금의 furnace.properties 내용으로 무엇을 옮길지 정한다. */
-    static Result analyze(Map<String, Path> files, Properties existing) {
+    static Result analyze(Map<String, Path> files, Properties existing) { return analyze(files, existing, "world"); }
+
+    /** levelName: server.properties level-name(bukkit.yml worlds.<이름> 중 기본 세 월드를 가린다). */
+    static Result analyze(Map<String, Path> files, Properties existing, String levelName) {
         Analyzer a = new Analyzer(existing);
+        a.levelName = levelName;
         for (var e : files.entrySet()) a.load(e.getKey(), e.getValue());
         a.rules();
         return a.result();
@@ -160,6 +178,7 @@ public final class PaperConfigImport {
 
     private static final class Analyzer {
         final Properties existing;
+        String levelName = "world";
         final Map<String, ConfigSection> docs = new LinkedHashMap<>();
         final List<String> filesRead = new ArrayList<>();
         final Map<String, String> filesFailed = new LinkedHashMap<>();
@@ -294,6 +313,7 @@ public final class PaperConfigImport {
             itemValidation();
             activationRange();
             entityHandles();
+            defaultWorldGenerators();
             manualAndUnsupported();
             versionMarkers();
             unknown();
@@ -572,6 +592,22 @@ public final class PaperConfigImport {
                     Lang.t("paperimport.spigot-missing-key", key, why));
         }
 
+        /** bukkit.yml worlds.<기본 세 월드>.generator·biome-provider → world-generator.<차원>·world-biome-provider.<차원>(T-219). 다른 이름은 Paper 가 그 이름의 추가 월드를 생성기 없이 만들 때 쓰지만 Furnace 에 이름별 설정이 없어 대응 없음(T-222). */
+        private void defaultWorldGenerators() {
+            for (String dim : org.domi.furnace.server.world.WorldSettings.DIMENSIONS) {
+                String world = org.domi.furnace.server.world.DefaultWorldGenerators.worldName(levelName, "minecraft:" + dim);
+                for (String[] kv : new String[][] {{"generator", "world-generator."}, {"biome-provider", "world-biome-provider."}}) {
+                    String path = "worlds." + world + "." + kv[0];
+                    Object v = val(BUKKIT, path);
+                    if (v instanceof String spec && !spec.isBlank()) {
+                        imp(BUKKIT, path, v, kv[1] + dim, spec.strip(), Lang.t("paperimport.default-world-generator"));
+                    } else if (v != null) {
+                        ignored(BUKKIT, path, v, Lang.t("paperimport.default-world-generator-empty"));
+                    }
+                }
+            }
+        }
+
         private void manualAndUnsupported() {
             // ---- 직접 확인: 비슷한 기능이 있다
             Object ip = val(PAPER_GLOBAL, "logging.log-player-ip-addresses");
@@ -638,6 +674,7 @@ public final class PaperConfigImport {
             unsupported(BUKKIT, "ticks-per", Lang.t("paperimport.ticks-per"));
             unsupported(BUKKIT, "aliases", Lang.t("paperimport.aliases"));
             unsupported(BUKKIT, "database", Lang.t("paperimport.database"));
+            unsupported(BUKKIT, "worlds", Lang.t("paperimport.worlds-other"));
 
             unsupported(SPIGOT, "settings.netty-threads", Lang.t("paperimport.settings-netty-threads"));
             unsupported(SPIGOT, "settings.restart-on-crash", Lang.t("paperimport.settings-restart-on-crash"));

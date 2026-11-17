@@ -56,6 +56,12 @@ public final class FurnacePropertiesFile {
                 commented("worldgen-hooks.overworld", "", "cfg.help.worldgen-hooks.overworld"),
                 commented("worldgen-hooks.the_nether", "", "cfg.help.worldgen-hooks.the_nether"),
                 commented("worldgen-hooks.the_end", "", "cfg.help.worldgen-hooks.the_end"),
+                commented("world-generator.overworld", "", "cfg.help.world-generator.overworld"),
+                commented("world-generator.the_nether", "", "cfg.help.world-generator.the_nether"),
+                commented("world-generator.the_end", "", "cfg.help.world-generator.the_end"),
+                commented("world-biome-provider.overworld", "", "cfg.help.world-biome-provider.overworld"),
+                commented("world-biome-provider.the_nether", "", "cfg.help.world-biome-provider.the_nether"),
+                commented("world-biome-provider.the_end", "", "cfg.help.world-biome-provider.the_end"),
                 opt(WorldgenGuardSettings.KEY, WorldgenGuardSettings.DEFAULT.tickGuard(),
                         "cfg.help.worldgen.tick-guard"),
                 opt("enchantments.disabled", "", "cfg.help.enchantments.disabled")

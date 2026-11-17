@@ -70,6 +70,8 @@ public final class FurnaceTestServer implements AutoCloseable {
     private ChunkWorkerPool chunkPool;
     private ExecutorService ioPool;
     private ExecutorService genPool;
+    /** 기본 월드를 디스크 생성기로 감쌌을 때의 지역 파일(T-219 시험) — 닫을 때 닫는다. */
+    private org.domi.furnace.server.world.anvil.RegionFileStore anvilStore;
     private org.domi.furnace.server.world.World world;
     private org.domi.furnace.server.world.WorldManager worldManager;
     private ServerCore core;
@@ -120,6 +122,15 @@ public final class FurnaceTestServer implements AutoCloseable {
             int biomeBits = Math.max(1, 32 - Integer.numberOfLeadingZeros(biomeCount - 1));
             WorldSource source = b.generator != null ? b.generator.create(blocks, registries)
                     : new SuperflatWorldSource(blocks, b.flatLayers, plains);
+            if (b.pluginGenerated()) {
+                // 운영 서버처럼 디스크 생성기로 감싼다(T-219 — 생성기를 바꿔 끼우는 자리가 그것이다)
+                if (!(source instanceof org.domi.furnace.server.world.gen.NoiseWorldSource)) throw new IllegalArgumentException("defaultWorldGeneration needs a noise generator");
+                var dim = org.domi.furnace.server.world.gen.NoiseWorldSource.Dimension.OVERWORLD;
+                this.anvilStore = new org.domi.furnace.server.world.anvil.RegionFileStore(worldDir, "region", false);
+                source = new org.domi.furnace.server.world.gen.AnvilWorldSource(worldDir, anvilStore,
+                        new org.domi.furnace.server.world.anvil.AnvilChunkCodec(blocks, items, registries.entries("minecraft:worldgen/biome"), plains,
+                                dim.minY, dim.sectionCount), source);
+            }
             chunks = new ChunkWorkerPool(Math.max(1, b.chunkThreads));
             this.chunkPool = chunks;
             io = Executors.newSingleThreadExecutor(r -> daemon(r, "furnace-test-io"));
@@ -178,12 +189,32 @@ public final class FurnaceTestServer implements AutoCloseable {
             org.domi.furnace.server.command.builtin.FurnaceCommands.register(dispatcher, host);
             org.domi.furnace.server.command.builtin.FurnaceAdminCommands.register(dispatcher);
             org.domi.furnace.server.command.builtin.TpsCommands.register(dispatcher);
+            if (b.pluginGenerated()) {
+                // FurnaceMain 과 같은 순서(T-219): 월드 전 플러그인 → 기본 월드 생성기 고르기·스폰 → 틱·스폰 청크 → 월드 드러내기·나머지 플러그인
+                host.pluginsImpl().enableBeforeWorlds();
+                var genSettings = new org.domi.furnace.server.world.WorldSettings(java.util.OptionalLong.empty(), java.util.OptionalLong.empty(), List.of(),
+                        java.util.Map.of(), b.defaultGenerator.isEmpty() ? java.util.Map.of() : java.util.Map.of("minecraft:overworld", b.defaultGenerator),
+                        b.defaultBiomeProvider.isEmpty() ? java.util.Map.of() : java.util.Map.of("minecraft:overworld", b.defaultBiomeProvider));
+                var noise = org.domi.furnace.server.world.gen.NoiseWorldSource.of(w.worldSource());   // 시드·높이는 생성기 것(시험이 정한 생성기 시드)
+                var dim = org.domi.furnace.server.world.gen.NoiseWorldSource.Dimension.OVERWORLD;
+                var target = new org.domi.furnace.server.world.DefaultWorldGenerators.Target(w, "minecraft:overworld", "world",
+                        org.domi.furnace.api.world.WorldEnvironment.NORMAL, noise.seed(), dim.minY, dim.minY + dim.sectionCount * 16);
+                var hooks = org.domi.furnace.server.world.DefaultWorldGenerators.attach(List.of(target), genSettings,
+                        host.pluginsImpl()::defaultWorldGeneration, blocks, registries);
+                SpawnPoint sp = org.domi.furnace.server.world.DefaultWorldGenerators.initialSpawn(w, "world", hooks.get("minecraft:overworld"));
+                w.defaultSpawn(sp);
+                level.spawnX = sp.x();
+                level.spawnY = sp.y();
+                level.spawnZ = sp.z();
+                level.spawnAngle = sp.yaw();
+            }
             w.startTicking();
             w.enableSpawnChunks();   // 운영 서버와 같이 게임 규칙 spawnChunkRadius 의 START 티켓(바닐라 prepareLevels)
             // 스폰 청크를 미리 올린다(접속·블록 시험이 곧바로 쓰게)
             for (int dz = -b.spawnChunkRadius; dz <= b.spawnChunkRadius; dz++)
                 for (int dx = -b.spawnChunkRadius; dx <= b.spawnChunkRadius; dx++) loadChunkBlocking(dx, dz);
-            host.pluginsImpl().enableAll();
+            if (b.pluginGenerated()) host.pluginsImpl().enableAfterWorlds();
+            else host.pluginsImpl().enableAll();
             core.events().call(new org.domi.furnace.api.event.server.ServerLoadEvent());
             started = true;
         } finally {
@@ -412,6 +443,14 @@ public final class FurnaceTestServer implements AutoCloseable {
                 Thread.currentThread().interrupt();
             }
         });
+        step(first, () -> {   // T-219 기본 월드 Anvil 감싸기
+            if (anvilStore == null) return;
+            try {
+                anvilStore.closeAll();
+            } catch (java.io.IOException e) {
+                throw new java.io.UncheckedIOException(e);
+            }
+        });
         step(first, () -> { if (worldManager != null) worldManager.closeAllForShutdown(); });
         step(first, chunkPool::shutdown);
         step(first, scheduler::close);
@@ -479,6 +518,7 @@ public final class FurnaceTestServer implements AutoCloseable {
         private long timeoutMillis = DEFAULT_TIMEOUT_MILLIS;
         private String serverProperties = "";
         private Path directory;
+        private String defaultGenerator = "", defaultBiomeProvider = "";
 
         private Builder() {}
 
@@ -591,6 +631,19 @@ public final class FurnaceTestServer implements AutoCloseable {
 
         /** 임시 폴더 대신 이 폴더를 쓴다(닫아도 지우지 않는다 — 실패한 시험의 파일을 볼 때). */
         public Builder directory(Path dir) { this.directory = dir; return this; }
+
+        /**
+         * 기본 월드의 생성기·바이옴 공급자 플러그인 "플러그인[:id]"(furnace.properties world-generator.overworld·world-biome-provider.overworld,
+         * Bukkit bukkit.yml worlds.world.generator — T-219). 빈 문자열은 없음. {@link #generator} 가 노이즈 생성기여야 하고, 그 월드는 시험 폴더의
+         * 디스크 생성기로 감싸 운영 서버처럼 월드 전 플러그인을 켠 뒤 생성기를 바꿔 끼운다(스폰도 그 생성기로 새로 정한다).
+         */
+        public Builder defaultWorldGeneration(String generator, String biomeProvider) {
+            this.defaultGenerator = Objects.requireNonNull(generator);
+            this.defaultBiomeProvider = Objects.requireNonNull(biomeProvider);
+            return this;
+        }
+
+        boolean pluginGenerated() { return !defaultGenerator.isEmpty() || !defaultBiomeProvider.isEmpty(); }
 
         public FurnaceTestServer start() {
             try {

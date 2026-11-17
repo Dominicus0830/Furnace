@@ -365,7 +365,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
     @Override
     public NoiseWorldSource freshCopy(long newSeed) { return freshCopy(newSeed, biomeProvider); }
 
-    /** {@link #freshCopy(long)} 에 바이옴 원천만 biomes 로(null 이면 이 생성기 것 — 공급자가 없으면 바닐라 바이옴 원천). 평지면 UnsupportedOperationException. */
+    /** {@link #freshCopy(long)} 에 바이옴 원천만 biomes 로(null 이면 이 생성기 것 — 공급자가 없으면 바닐라 바이옴 원천). 평지면 같은 층·공급자로 다시 만든다(T-210 flat 과 같다). */
     @Override
     public NoiseWorldSource freshCopy(long newSeed, org.domi.furnace.api.worldgen.BiomeProvider biomes) {
         org.domi.furnace.api.worldgen.BiomeProvider p = biomes != null ? biomes : biomeProvider;

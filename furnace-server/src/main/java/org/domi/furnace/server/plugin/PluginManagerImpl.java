@@ -267,17 +267,59 @@ public final class PluginManagerImpl implements PluginManager {
      * 순서대로 켜고, {@link org.domi.furnace.api.plugin.PluginFormat#worldsReady} 를 알린 뒤 나머지를 켠다.
      */
     public void enableAll() {
-        PluginBootstrapper b = boot;
         try {
-            if (b != null) for (Loaded l : plugins) if (b.enablesBeforeWorlds(l.description())) enable(l);
+            enableBeforeWorlds();
         } finally {
-            if (b != null && worldsPending) {
-                worldsPending = false;
-                b.worldsPhase(host, false);
-            }
+            enableAfterWorlds();
+        }
+    }
+
+    /**
+     * 서버 시작의 앞 절반: 월드 전에 켜는 플러그인(Bukkit {@code load: STARTUP})만 순서대로 켠다. 형식 어댑터는 아직 월드를 감추고 있다 —
+     * 그 사이 서버가 기본 월드 생성기를 고르고(T-219 {@link #defaultWorldGeneration}) 스폰 청크를 준비한 뒤 {@link #enableAfterWorlds} 를 부른다.
+     */
+    public void enableBeforeWorlds() {
+        PluginBootstrapper b = boot;
+        if (b != null) for (Loaded l : plugins) if (b.enablesBeforeWorlds(l.description())) enable(l);
+    }
+
+    /** 서버 시작의 뒤 절반: 형식 어댑터가 월드를 드러내고(WorldInitEvent·WorldLoadEvent), 나머지 플러그인을 켠다. */
+    public void enableAfterWorlds() {
+        PluginBootstrapper b = boot;
+        if (b != null && worldsPending) {
+            worldsPending = false;
+            b.worldsPhase(host, false);
         }
         for (Loaded l : plugins) enable(l);   // 이미 켠 것은 건너뛴다
         failFastCheck("plugin.stage-enable");
+    }
+
+    /**
+     * 기본 월드 하나의 생성기·공급자를 형식 어댑터에게 묻는다(T-219, {@link #enableBeforeWorlds} 뒤 전역 스레드). 아무 형식도 맡지 않은 몫은
+     * 그 이름의 플러그인이 없거나 다른 형식이라 서버가 알린다.
+     */
+    public org.domi.furnace.api.worldgen.DefaultWorldGeneration defaultWorldGeneration(org.domi.furnace.api.worldgen.DefaultWorldGeneration.Request r) {
+        PluginBootstrapper b = boot;
+        var a = b != null ? b.defaultWorldGeneration(host, r)
+                : new org.domi.furnace.api.worldgen.DefaultWorldGeneration(null, null, false, false);
+        String dim = r.levelKey().substring(r.levelKey().indexOf(':') + 1);
+        if (!r.generator().isEmpty() && !a.generatorClaimed()) {
+            String name = org.domi.furnace.api.worldgen.DefaultWorldGeneration.Request.pluginOf(r.generator());
+            // CraftServer#getGenerator 와 같은 줄(영어 그대로)
+            if (findByName(name) == null) log.error("Could not set generator for default world '" + r.worldName() + "': Plugin '" + name + "' does not exist");
+            else log.error(Lang.t("world.default-generator-unsupported", r.worldName(), name, dim));
+        }
+        if (!r.biomeProvider().isEmpty() && !a.providerClaimed()) {
+            String name = org.domi.furnace.api.worldgen.DefaultWorldGeneration.Request.pluginOf(r.biomeProvider());
+            if (findByName(name) == null) log.error("Could not set biome provider for default world '" + r.worldName() + "': Plugin '" + name + "' does not exist");
+            else log.error(Lang.t("world.default-provider-unsupported", r.worldName(), name));
+        }
+        return a;
+    }
+
+    private Loaded findByName(String name) {
+        for (Loaded l : plugins) if (l.description().name().replace(' ', '_').equalsIgnoreCase(name.replace(' ', '_'))) return l;
+        return null;
     }
 
     @Override

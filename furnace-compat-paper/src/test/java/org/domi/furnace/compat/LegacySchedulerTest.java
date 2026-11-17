@@ -45,6 +45,31 @@ class LegacySchedulerTest {
         }
     }
 
+    /** T-219 검토: 서버 시작 중(월드를 감춘 동안)에는 박동이 틱을 세지도 작업을 돌리지도 않는다 — Paper 는 시작이 끝난 첫 서버 틱부터. */
+    @Test
+    void heldHeartbeatNeitherCountsNorRuns() {
+        try (var server = start()) {
+            var p = server.plugin(CompatTestPlugin.class);
+            AtomicBoolean hold = new AtomicBoolean(true);
+            LegacyScheduler s = new LegacyScheduler(server.api(), hold::get);
+            try {
+                List<String> log = new CopyOnWriteArrayList<>();
+                s.runTaskLater(p, () -> log.add("later"), 2);
+                s.runTask(p, () -> log.add("now"));
+                server.tick();
+                server.tick();
+                assertEquals(List.of(), log, "잡혀 있는 동안은 돌지 않는다");
+                hold.set(false);
+                server.tick();
+                assertEquals(List.of("now"), log, "풀린 뒤 첫 틱이 1 틱째");
+                server.tick();
+                assertEquals(List.of("now", "later"), log);
+            } finally {
+                s.close();
+            }
+        }
+    }
+
     @Test
     void delayRulesMatchCraftScheduler() {
         try (var server = start()) {
