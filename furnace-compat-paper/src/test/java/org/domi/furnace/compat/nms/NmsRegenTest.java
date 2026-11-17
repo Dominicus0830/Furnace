@@ -47,7 +47,30 @@ class NmsRegenTest {
         LevelStorageSource.LevelStorageAccess session;
         public ServerLevel freshWorld;
 
-        public ServerLevel init(World originalBukkitWorld, Long chosenSeed) throws Exception {
+        /** FAWE Regenerator.SingleBiomeProvider 꼴(바깥 객체를 쥔 내부 클래스). */
+        public class SingleBiomeProvider extends org.bukkit.generator.BiomeProvider {
+            @Override public org.bukkit.block.Biome getBiome(org.bukkit.generator.WorldInfo worldInfo, int x, int y, int z) { return biome; }
+            @Override public java.util.List<org.bukkit.block.Biome> getBiomes(org.bukkit.generator.WorldInfo worldInfo) { return java.util.Collections.singletonList(biome); }
+        }
+
+        org.bukkit.block.Biome biome;
+        public org.bukkit.generator.WorldInfo seenInfo;
+
+        /** FAWE PaperweightFaweAdapter#getInternalBiomeId 꼴. */
+        static int internalBiomeId(org.bukkit.block.Biome biome) {
+            net.minecraft.core.Registry<net.minecraft.world.level.biome.Biome> registry =
+                    MinecraftServer.getServer().registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.BIOME);
+            net.minecraft.resources.ResourceLocation rl = net.minecraft.resources.ResourceLocation.tryParse(biome.getKey().toString());
+            return registry.getId(registry.get(rl));
+        }
+
+        public ServerLevel init(World originalBukkitWorld, Long chosenSeed) throws Exception { return init(originalBukkitWorld, chosenSeed, null); }
+
+        public ServerLevel init(World originalBukkitWorld, Long chosenSeed, org.bukkit.block.Biome chosenBiome) throws Exception {
+            this.biome = chosenBiome;
+            org.bukkit.generator.BiomeProvider biomeProvider = chosenBiome != null ? new SingleBiomeProvider() {
+                @Override public java.util.List<org.bukkit.block.Biome> getBiomes(org.bukkit.generator.WorldInfo worldInfo) { seenInfo = worldInfo; return super.getBiomes(worldInfo); }
+            } : originalBukkitWorld.getBiomeProvider();
             ServerLevel originalServerWorld = ((CraftWorld) originalBukkitWorld).getHandle();
             long seed = chosenSeed != null ? chosenSeed : originalBukkitWorld.getSeed();
             tempDir = java.nio.file.Files.createTempDirectory("FastAsyncWorldEditWorldGen");
@@ -77,7 +100,17 @@ class NmsRegenTest {
                         @Override public void stop() { }
                     },
                     originalServerWorld.isDebug(), seed, java.util.List.of(), false, originalServerWorld.getRandomSequences(),
-                    environment, generator, null) {
+                    environment, generator, biomeProvider) {
+                private final net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome> singleBiome = biome != null
+                        ? net.minecraft.server.dedicated.DedicatedServer.getServer().registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.BIOME)
+                                .asHolderIdMap().byIdOrThrow(internalBiomeId(biome)) : null;
+
+                @Override
+                public net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome> getUncachedNoiseBiome(int biomeX, int biomeY, int biomeZ) {
+                    if (biome != null) return singleBiome;
+                    return super.getUncachedNoiseBiome(biomeX, biomeY, biomeZ);
+                }
+
                 @Override public void save(ProgressListener progressListener, boolean flush, boolean savingDisabled) { }
                 @Override public void save(ProgressListener progressListener, boolean flush, boolean savingDisabled, boolean close) { }
             };
@@ -185,6 +218,80 @@ class NmsRegenTest {
             assertThrows(UnsupportedNmsCall.class, () -> ((CraftWorld) orig).getHandle().getChunkSource().close(false), "보통 월드는 이 길로 닫지 않는다");
             fresh.getChunkSource().close(false);   // 두 번 불러도 된다
             assertNull(org.domi.furnace.compat.paper.Compat.furnaceWorld(((CraftWorld) freshBukkit).furnaceHandle().dimension()), "닫으면 차원 키로도 못 찾는다");
+        }
+    }
+
+    /** //regen <바이옴>: FAWE 꼴 단일 바이옴 공급자로 만든 임시 레벨 = 같은 시드의 단일 바이옴(plains) 월드. 공급자는 그 레벨의 CraftWorld 를 WorldInfo 로 본다. */
+    @Test
+    void biomeRegenUsesTheBukkitBiomeProviderLikeCraftBukkit() throws Exception {
+        try (FurnaceTestServer server = FurnaceTestServer.builder().failFast(false).multiWorld(true).start()) {
+            Bukkit.setServer(CraftServer.INSTANCE);
+            long seed = 4242L;
+            World orig = new WorldCreator("OrigB").seed(seed).createWorld();
+            long origHash = hash(FaweRegenLike.source(orig, 0, 0));
+            Class<?> regenClass = pluginClass();
+            Object regen = regenClass.getConstructor().newInstance();
+            ServerLevel fresh = (ServerLevel) regenClass.getMethod("init", World.class, Long.class, org.bukkit.block.Biome.class)
+                    .invoke(regen, orig, null, org.bukkit.block.Biome.PLAINS);
+            try {
+                assertEquals("minecraft:plains", fresh.getUncachedNoiseBiome(0, 16, 0).unwrapKey().orElseThrow().location().toString(), "재정의한 값");
+                ChunkAccess c = FaweRegenLike.source(fresh.getWorld(), 0, 0);
+                assertEquals("minecraft:plains", c.getNoiseBiome(1, 20, 2).unwrapKey().orElseThrow().location().toString(), "저장된 바이옴");
+                long s = hash(c);
+                assertNotEquals(origHash, s, "여러 바이옴 월드와는 다르다");
+                var fw = server.api().createWorld(org.domi.furnace.api.world.WorldCreator.named("Single").seed(seed)
+                        .generator(org.domi.furnace.api.world.WorldGenerator.SINGLE_BIOME_SURFACE).build()).get(120, TimeUnit.SECONDS);
+                World single = org.domi.furnace.compat.paper.Compat.world(fw.dimension());
+                assertEquals(hash(FaweRegenLike.source(single, 0, 0)), s, "같은 시드 단일 바이옴 월드와 같다");
+                var info = (org.bukkit.generator.WorldInfo) regenClass.getField("seenInfo").get(regen);
+                assertNotNull(info, "getBiomes 를 불렀다");
+                assertEquals("OrigB", info.getName(), "월드가 생긴 뒤에는 그 CraftWorld 를 따른다(checkName 뒤 이름)");
+                assertEquals(fresh.getWorld().getUID(), info.getUID());
+                assertEquals(seed, info.getSeed());
+                // 원래 월드의 생성기 바이옴(재정의 없는 바닐라 길)
+                assertNotNull(((CraftWorld) orig).getHandle().getUncachedNoiseBiome(0, 16, 0));
+            } finally {
+                regenClass.getMethod("cleanup").invoke(regen);
+            }
+        }
+    }
+
+    /** 닫지 않고 버린 임시 레벨도 GC 가 거둘 때 닫힌다(#486 검토 1) — 서버·호환 계층이 그 레벨을 세게 쥐지 않는다. 닫은 뒤 받아 둔 청크의 월드는 그 월드. */
+    @Test
+    void abandonedLevelsAreClosedWhenCollected() throws Exception {
+        try (FurnaceTestServer server = FurnaceTestServer.builder().failFast(false).multiWorld(true).start()) {
+            Bukkit.setServer(CraftServer.INSTANCE);
+            World orig = new WorldCreator("OrigG").seed(9L).createWorld();
+            Class<?> regenClass = pluginClass();
+            var handles = new java.util.ArrayList<org.domi.furnace.server.world.World>();
+            String[] dims = new String[2];
+            for (int i = 0; i < 2; i++) {
+                Object regen = regenClass.getConstructor().newInstance();
+                ServerLevel fresh = (ServerLevel) regenClass.getMethod("init", World.class, Long.class, org.bukkit.block.Biome.class)
+                        .invoke(regen, orig, null, i == 0 ? null : org.bukkit.block.Biome.DESERT);
+                FaweRegenLike.source(fresh.getWorld(), 0, 0);
+                var fw = ((CraftWorld) fresh.getWorld()).furnaceHandle();
+                handles.add(((org.domi.furnace.server.plugin.WorldHandle) fw).handle());
+                dims[i] = fw.dimension();
+                assertNotNull(org.domi.furnace.compat.paper.Compat.world(dims[i]));
+            }
+            // 플러그인이 레벨을 버렸다(닫지 않음)
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(20);
+            while (handles.stream().anyMatch(h -> !h.isUnloaded()) && System.nanoTime() < deadline) {
+                System.gc();
+                Thread.sleep(50);
+            }
+            for (var h : handles) assertTrue(h.isUnloaded(), "버린 임시 레벨이 닫혔다: " + h.dimension());
+            for (String d : dims) assertNull(org.domi.furnace.compat.paper.Compat.furnaceWorld(d));
+
+            // 닫은 뒤에도 받아 둔 청크의 월드는 그 월드(Paper CraftChunk 는 레벨을 쥔다)
+            Object regen = regenClass.getConstructor().newInstance();
+            ServerLevel fresh = (ServerLevel) regenClass.getMethod("init", World.class, Long.class).invoke(regen, orig, null);
+            var chunk = fresh.getWorld().getChunkAtAsync(0, 0, true, true).get(120, TimeUnit.SECONDS);
+            assertTrue(chunk.isLoaded());
+            regenClass.getMethod("cleanup").invoke(regen);
+            assertSame(fresh.getWorld(), chunk.getWorld());
+            assertFalse(chunk.isLoaded(), "닫은 월드의 청크는 내려가 있다");
         }
     }
 

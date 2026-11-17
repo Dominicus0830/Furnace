@@ -31,6 +31,9 @@ public final class BiomeSampler {
     /** TheEndBiomeSource 모드: [the_end, end_highlands, end_midlands, small_end_islands, end_barrens] 레지스트리 id (null 이면 multi-noise). */
     private int[] endBiomes;
     private DensityFunction endErosion;
+    /** 플러그인 바이옴 공급자 모드(T-203 3단계, null 이면 아니다)와 그 차원의 가장 낮은 quart y. */
+    private ProvidedBiomes provided;
+    private int minQuartY;
 
     private BiomeSampler(List<BiomeEntry> entries) {
         this(entries, 24);
@@ -118,6 +121,7 @@ public final class BiomeSampler {
     /** BiomeSource.possibleBiomes: 파라미터 목록의 바이옴(끝은 5종) 레지스트리 id. */
     public java.util.Set<Integer> possibleBiomeIds() {
         java.util.Set<Integer> out = new java.util.LinkedHashSet<>();
+        if (provided != null) for (int id : provided.possibleIds()) out.add(id);
         if (endBiomes != null) for (int id : endBiomes) out.add(id);
         for (BiomeEntry e : entries) out.add(e.registryId());
         return out;
@@ -162,6 +166,14 @@ public final class BiomeSampler {
         return b;
     }
 
+    /** 플러그인 바이옴 공급자(CraftBukkit CustomWorldChunkManager) — 칸마다 공급자에 묻는다. */
+    static BiomeSampler provided(ProvidedBiomes p, int sectionCount, int minY) {
+        BiomeSampler b = new BiomeSampler(new ArrayList<>(), sectionCount);
+        b.provided = p;
+        b.minQuartY = minY >> 2;
+        return b;
+    }
+
     private int endBiome(int blockX, int blockY, int blockZ) {
         int sx = blockX >> 4, sz = blockZ >> 4;
         if ((long) sx * sx + (long) sz * sz <= 4096L) return endBiomes[0];
@@ -178,6 +190,7 @@ public final class BiomeSampler {
 
     /** Vanilla noise-biome quart 좌표에서 최근접 바이옴 레지스트리 ID 를 반환한다. */
     public int sampleQuart(int worldQuartX, int worldQuartY, int worldQuartZ, NoiseRouter router) {
+        if (provided != null) return providedAt(worldQuartX, worldQuartY, worldQuartZ);
         if (endBiomes != null) return endBiome(worldQuartX * 4, worldQuartY * 4, worldQuartZ * 4);
         int bx = worldQuartX * 4;
         int by = worldQuartY * 4;
@@ -200,6 +213,7 @@ public final class BiomeSampler {
      * 그 밖에는 그 quart 를 담은 청크의 sampleChunk 결과와 같다(기후 값 fillTarget = 직접 계산).
      */
     public int sampleQuartUnique(int worldQuartX, int worldQuartY, int worldQuartZ, NoiseRouter router) {
+        if (provided != null) return providedAt(worldQuartX, worldQuartY, worldQuartZ);
         if (endBiomes != null) return endBiome(worldQuartX * 4, worldQuartY * 4, worldQuartZ * 4);
         if (rtree == null) return 0;
         DensityFunction.SinglePointContext ctx = new DensityFunction.SinglePointContext(worldQuartX * 4, worldQuartY * 4, worldQuartZ * 4);
@@ -225,6 +239,21 @@ public final class BiomeSampler {
      */
     public int[] sampleChunk(int cx, int cz, NoiseChunk noiseChunk) {
         int[] result = new int[sectionCount * 64];
+        if (provided != null) {
+            // 바닐라 fillBiomesFromNoise 순서(섹션 아래부터, x 바깥 · y 가운데 · z 안쪽)로 공급자를 부른다 — 공급자가 순서를 볼 수 있다.
+            for (int section = 0; section < sectionCount; section++) {
+                for (int qx = 0; qx < 4; qx++) {
+                    for (int dy = 0; dy < 4; dy++) {
+                        int qy = section * 4 + dy;
+                        for (int qz = 0; qz < 4; qz++) {
+                            int bx = (cx * 4 + qx) << 2, by = (minQuartY + qy) << 2, bz = (cz * 4 + qz) << 2;
+                            result[qy * 16 + qz * 4 + qx] = provided.at(bx, by, bz, provided.cached(noiseChunk, qx, qy, qz));
+                        }
+                    }
+                }
+            }
+            return result;
+        }
         if (endBiomes != null) {
             // 청크 안 모든 쿼트가 같은 섹션 xz 라 한 번만 계산(erosion 은 y 불변).
             java.util.Arrays.fill(result, endBiome(cx * 16, 0, cz * 16));
@@ -250,6 +279,11 @@ public final class BiomeSampler {
             }
         }
         return result;
+    }
+
+    private int providedAt(int qx, int qy, int qz) {
+        int x = qx << 2, y = qy << 2, z = qz << 2;
+        return provided.at(x, y, z, provided.direct(x, y, z));
     }
 
     private int findBestEntry(long[] target) {

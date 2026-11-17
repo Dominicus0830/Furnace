@@ -74,6 +74,12 @@ public interface ChunkInternals {
     List<String> biomeKeys();
 
     /**
+     * 바닐라 Level#getUncachedNoiseBiome: 월드 생성기가 그 quart 칸에 정하는 바이옴 번호({@link #biomeKeys()} 순 — 청크에 저장된 값이 아니다).
+     * 아무 스레드. 바이옴 원천이 없는 생성기면 UnsupportedOperationException.
+     */
+    default int noiseBiome(World world, int quartX, int quartY, int quartZ) { throw new UnsupportedOperationException("noiseBiome"); }
+
+    /**
      * 하이트맵의 첫 빈 칸 y(바닐라 Heightmap.getFirstAvailable, 곧 가장 높은 해당 블록 y + 1).
      * heightmap 은 바닐라 직렬화 키(WORLD_SURFACE·OCEAN_FLOOR·MOTION_BLOCKING·MOTION_BLOCKING_NO_LEAVES)다.
      * 로드돼 있지 않으면 {@link Integer#MIN_VALUE}, 모르는 키면 IllegalArgumentException.

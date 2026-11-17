@@ -14,6 +14,9 @@ public interface LevelReader extends BlockGetter {
 
     int getHeight(Heightmap.Types type, int x, int z);
 
+    /** 바닐라처럼 읽기 쪽에 둔다 — FAWE 는 {@code LevelAccessor#registryAccess()} 로 부른다(T-203 4단계). */
+    net.minecraft.core.RegistryAccess registryAccess();
+
     default ChunkAccess getChunk(int x, int z) { return getChunk(x, z, ChunkStatus.FULL, true); }
 
     default ChunkAccess getChunk(int x, int z, ChunkStatus status) { return getChunk(x, z, status, true); }

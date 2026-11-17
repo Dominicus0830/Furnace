@@ -245,11 +245,14 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
 
     private static NoiseWorldSource create(Dimension dim, String noiseSettingsId, long seed, BlockRegistry reg, RegistrySet registries, String fixedBiome,
                                            FlatSpec flat) {
-        return create(dim, noiseSettingsId, seed, reg, registries, fixedBiome, flat, null);
+        return create(dim, noiseSettingsId, seed, reg, registries, fixedBiome, flat, null, null);
     }
 
     private static NoiseWorldSource create(Dimension dim, String noiseSettingsId, long seed, BlockRegistry reg, RegistrySet registries, String fixedBiome,
-                                           FlatSpec flat, ChunkPipeline poolFrom) {
+                                           FlatSpec flat, ChunkPipeline poolFrom, org.domi.furnace.api.worldgen.BiomeProvider biomeProvider) {
+        if (biomeProvider != null && flat != null) {
+            throw new UnsupportedOperationException("a biome provider needs a noise generator - flat worlds take their biome from the layer settings");
+        }
         WorldgenData data = WorldgenData.load("worldgen/" + GameVersion.RESOURCE_TAG);
         JsonObject settingsJson = data.noiseSettings(noiseSettingsId);
         NoiseSettings settings = NoiseSettings.fromJson(noiseSettingsId, settingsJson);
@@ -264,7 +267,10 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
             case NETHER -> data.resourceArray(dim.biomeParameters);
             case END -> endBiomeList();
         };
-        BiomeSampler biomeSampler = dim == Dimension.END ? BiomeSampler.theEnd(registries, router, dim.sectionCount)
+        // 플러그인 바이옴 공급자(CraftBukkit CustomWorldChunkManager): 바이옴 원천 자리만 바꾼다 — 노이즈 설정·지형은 그대로
+        ProvidedBiomes provided = biomeProvider == null ? null : new ProvidedBiomes(biomeProvider, registries, router);
+        BiomeSampler biomeSampler = provided != null ? BiomeSampler.provided(provided, dim.sectionCount, dim.minY)
+                                  : dim == Dimension.END ? BiomeSampler.theEnd(registries, router, dim.sectionCount)
                                                          : BiomeSampler.load(params, registries, dim.sectionCount);
 
         java.util.List<String> biomeEntries = registries.entries("minecraft:worldgen/biome");
@@ -281,7 +287,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         };
         // FeatureSorter index는 vanilla possibleBiomes() 순서에 의존(=파라미터 목록 첫등장 distinct).
         // registry 전체 순서를 쓰면 다른 차원 biome이 섞여 광석 index가 어긋난다.
-        List<String> possible = possibleBiomeOrder(params, registries);
+        List<String> possible = provided != null ? provided.possible() : possibleBiomeOrder(params, registries);
         // WorldGenerationContext: minGenY = max(차원 min, 생성기 min), genDepth = min(차원 높이, 노이즈 높이)
         int genMinY = Math.max(dim.minY, flat != null ? FLAT_MIN_Y : settings.minY());
         int genDepth = Math.min(dim.sectionCount * 16, flat != null ? FLAT_GEN_DEPTH : settings.height());
@@ -309,7 +315,8 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         source.dimension = dim;
         surfaceSystem.attachChunkBiomes(source.chunkBiomeSource(), dim.minY, dim.sectionCount * 16);
         source.flatLayers = flatLayers;
-        source.fixedBiomeName = fixedBiome;
+        source.fixedBiomeName = provided != null ? null : fixedBiome;
+        source.biomeProvider = biomeProvider;
         if (flatLayers != null) source.flatBiomeId = registries.indexOf("minecraft:worldgen/biome", flat.biome());
         return source;
     }
@@ -325,8 +332,13 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
      * 생성 풀은 이 생성기 것을 같이 쓴다. 구조물 켬/끔과 플러그인 월드젠 훅(새 시드로)을 옮긴다.
      */
     @Override
-    public NoiseWorldSource freshCopy(long newSeed) {
-        NoiseWorldSource n = create(dimension, noiseSettingsId, newSeed, reg, registries, fixedBiomeName, flatSpec, pipeline);
+    public NoiseWorldSource freshCopy(long newSeed) { return freshCopy(newSeed, biomeProvider); }
+
+    /** {@link #freshCopy(long)} 에 바이옴 원천만 biomes 로(null 이면 이 생성기 것 — 공급자가 없으면 바닐라 바이옴 원천). 평지면 UnsupportedOperationException. */
+    @Override
+    public NoiseWorldSource freshCopy(long newSeed, org.domi.furnace.api.worldgen.BiomeProvider biomes) {
+        org.domi.furnace.api.worldgen.BiomeProvider p = biomes != null ? biomes : biomeProvider;
+        NoiseWorldSource n = create(dimension, noiseSettingsId, newSeed, reg, registries, p != null ? null : fixedBiomeName, flatSpec, pipeline, p);
         n.structureEngine().setStructuresEnabled(structureEngine.structuresEnabled());
         GenHooks h = genHooks;
         if (h != null) n.generationHooks(h.reseeded(newSeed));
@@ -375,6 +387,10 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
     private int flatBiomeId;
     /** FixedBiomeSource 바이옴(평지·single_biome_surface), multi_noise 면 null. */
     private String fixedBiomeName;
+    /** 플러그인 바이옴 공급자(T-203 3단계, 없으면 null). */
+    private org.domi.furnace.api.worldgen.BiomeProvider biomeProvider;
+
+    public org.domi.furnace.api.worldgen.BiomeProvider biomeProvider() { return biomeProvider; }
 
     @Override public String fixedBiome() { return dimension == Dimension.OVERWORLD ? fixedBiomeName : null; }
 
@@ -1144,6 +1160,9 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
 
     /** BiomeSource.getNoiseBiome(quart 좌표, climate sampler) 의 레지스트리 id(/locate biome). */
     public int noiseBiomeIdAtQuart(int qx, int qy, int qz) { return biomeSampler.sampleQuart(qx, qy, qz, router); }
+
+    @Override
+    public int noiseBiome(int qx, int qy, int qz) { return flatLayers != null ? flatBiomeId : noiseBiomeIdAtQuart(qx, qy, qz); }
 
     /** 레지스트리 id → 바이옴 이름(모르면 ""). */
     public String biomeName(int id) { return (id >= 0 && id < registryBiomeNames.length) ? registryBiomeNames[id] : ""; }

@@ -72,6 +72,9 @@ public final class DebugWorldSource implements WorldSource {
     public DebugWorldSource freshCopy(long seed) { return this; }
 
     @Override
+    public int noiseBiome(int quartX, int quartY, int quartZ) { return biomeId; }
+
+    @Override
     public ChunkColumn generate(int chunkX, int chunkZ) {
         int[] blocks = new int[sectionCount * 4096];
         for (int lz = 0; lz < 16; lz++) {

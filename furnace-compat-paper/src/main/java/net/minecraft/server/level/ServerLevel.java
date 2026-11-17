@@ -54,32 +54,77 @@ public class ServerLevel extends Level {
                        boolean debug, long seed, List<?> spawners, boolean tickTime, net.minecraft.world.RandomSequences randomSequences,
                        org.bukkit.World.Environment environment, org.bukkit.generator.ChunkGenerator generator,
                        org.bukkit.generator.BiomeProvider biomeProvider) {
-        super(openScratch(data, stem, seed, generator, biomeProvider));
+        this(openScratch(data, stem, seed, environment, generator, biomeProvider), data, dimension, debug, randomSequences);
+    }
+
+    private ServerLevel(Object[] opened, net.minecraft.world.level.storage.PrimaryLevelData data, net.minecraft.resources.ResourceKey<Level> dimension,
+                        boolean debug, net.minecraft.world.RandomSequences randomSequences) {
+        super((CraftWorld) opened[0]);
         this.serverLevelData = data;
         this.stemKey = dimension;
         this.scratch = true;
         this.debug = debug;
         this.randomSequences = randomSequences;
+        this.scratchBiomeProvider = opened[2];
         getWorld().bindScratch(this);
+        if (opened[1] instanceof org.domi.furnace.compat.paper.BukkitBiomeProviders.LateWorldInfo info) info.bind(getWorld());
+        // 닫지 않고 버린 레벨도 GC 가 거둘 때 닫는다(#486 검토 1). 동작은 이 레벨·CraftWorld 를 쥐지 않는다.
+        this.scratchCleanup = SCRATCH_CLEANER.register(this, new ScratchClose(getWorld().furnaceHandle()));
     }
 
-    private static CraftWorld openScratch(net.minecraft.world.level.storage.PrimaryLevelData data, net.minecraft.world.level.dimension.LevelStem stem,
-                                          long seed, org.bukkit.generator.ChunkGenerator generator, org.bukkit.generator.BiomeProvider biomeProvider) {
+    /** 임시 월드 생성기가 약하게 쥐는 플러그인 바이옴 공급자를 이 레벨이 쥔다(레벨이 살아 있는 동안 공급자도 산다). */
+    @SuppressWarnings("unused")
+    private Object scratchBiomeProvider;
+
+    private static final java.lang.ref.Cleaner SCRATCH_CLEANER = java.lang.ref.Cleaner.create();
+    private java.lang.ref.Cleaner.Cleanable scratchCleanup;
+
+    /** 임시 월드 닫기(명시적 close 와 GC 안전망이 같이 쓴다 — 두 번 불러도 된다). */
+    private record ScratchClose(org.domi.furnace.api.world.World world) implements Runnable {
+        @Override
+        public void run() {
+            Compat.scratchClosed(world.dimension());
+            // 서버가 이미 내려갔거나 바뀌었다(시험 서버 교체 등) — 종료 훅이 닫았다. 그 밖의 실패는 부른 쪽(명시적 close)에 그대로 간다.
+            var server = org.domi.furnace.api.Furnace.serverOrNull();
+            if (server == null) return;
+            var scratchWorlds = server.internals().scratchWorlds();
+            if (scratchWorlds.isScratch(world)) scratchWorlds.close(world);
+        }
+    }
+
+    /** 임시 월드를 연다 — [CraftWorld, 바이옴 공급자에 넘긴 WorldInfo 또는 null]. */
+    private static Object[] openScratch(net.minecraft.world.level.storage.PrimaryLevelData data, net.minecraft.world.level.dimension.LevelStem stem,
+                                        long seed, org.bukkit.World.Environment environment, org.bukkit.generator.ChunkGenerator generator,
+                                        org.bukkit.generator.BiomeProvider biomeProvider) {
         if (generator != null) {
             throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("ServerLevel#<init>", "a level with a Bukkit ChunkGenerator is not supported - Furnace worlds use their own generator");
-        }
-        if (biomeProvider != null) {
-            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("ServerLevel#<init>", "a level with a Bukkit BiomeProvider is not supported yet");
         }
         var original = stem == null || stem.generator() == null ? null : stem.generator().furnaceWorld();
         if (original == null) {
             throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("ServerLevel#<init>",
                     "only the generator of a loaded world (ServerLevel#getChunkSource().getGenerator()) can make a separate level");
         }
-        var fw = org.domi.furnace.api.Furnace.server().internals().scratchWorlds().create(original, seed, data == null ? null : data.getLevelName());
+        String name = data == null ? null : data.getLevelName();
+        org.domi.furnace.api.worldgen.BiomeProvider biomes = null;
+        org.domi.furnace.compat.paper.BukkitBiomeProviders.LateWorldInfo info = null;
+        if (biomeProvider != null) {
+            // CraftBukkit: 바이옴 공급자가 있으면 생성기의 바이옴 원천을 CustomWorldChunkManager(그 레벨의 CraftWorld 를 WorldInfo 로)로 바꾼다
+            org.bukkit.World ow = Compat.world(original.dimension());
+            info = new org.domi.furnace.compat.paper.BukkitBiomeProviders.LateWorldInfo(name == null ? original.name() : name,
+                    environment != null ? environment : ow.getEnvironment(), seed, ow.getMinHeight(), ow.getMaxHeight());
+            biomes = org.domi.furnace.compat.paper.BukkitBiomeProviders.adaptWeak(biomeProvider, info);   // 이 레벨이 공급자를 쥔다(아래 필드)
+        }
+        org.domi.furnace.api.world.World fw;
+        try {
+            fw = org.domi.furnace.api.Furnace.server().internals().scratchWorlds().create(original, seed, name, biomes);
+        } catch (org.domi.furnace.compat.paper.UnsupportedFeature e) {
+            throw e;
+        } catch (UnsupportedOperationException e) {
+            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("ServerLevel#<init>", e.getMessage());   // 바이옴 공급자를 받지 않는 생성기(평지 등)
+        }
         CraftWorld cw = new CraftWorld(fw);
         Compat.scratchOpened(cw);
-        return cw;
+        return new Object[] {cw, info, biomeProvider};
     }
 
     /** 플러그인이 만든 따로 떨어진 레벨(임시 월드)인가(호환 모듈 전용). */
@@ -87,9 +132,7 @@ public class ServerLevel extends Level {
 
     /** 임시 월드를 버린다(호환 모듈 전용 — {@link ServerChunkCache#close}). 두 번 불러도 된다. */
     void furnaceCloseScratch() {
-        var fw = getWorld().furnaceHandle();
-        Compat.scratchClosed(getWorld());
-        org.domi.furnace.api.Furnace.server().internals().scratchWorlds().close(fw);
+        scratchCleanup.clean();
     }
 
     @Override
