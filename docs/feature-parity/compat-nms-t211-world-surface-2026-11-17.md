@@ -235,4 +235,4 @@ FAWE populator 는 3·4인자 쓰기 모두 서버 레벨로 넘겨 나무 기�
   (4) Paper 는 템플릿 NBT 칸마다 방벽 앞·모양 갱신 뒤, 그리고 `setCraftBlock` 에서 쓰기 결과와 상관없이 `getBlockEntity` 를 부른다. Furnace 는 쓰기가 받아들여진
   뒤에만 묻는다 — FAWE·평범한 populator 는 부작용이 없어 결과가 같고, `getBlockEntity` 가 던지는 레벨이면 Paper 는 방벽을 쓰기 전에 멈춘다(가정: 그런 레벨은 드물다).
   (5) Paper 는 청크 상자와 겹치는 조각이 있으면 `AsyncStructureGenerateEvent` 를 부른다(`CraftStructureTransformer`). 호환 계층에 그 이벤트가 없어 부르지 않는다.
-  (6) 노이즈 생성기가 없는 월드(평지·빈 월드·Bukkit 생성기 월드)에서는 구조물 생성이 `UnsupportedNmsCall` 이다. Paper 는 이런 월드에서도 `//structure` 가 된다 — 로드맵 T-222.
+  (6) 노이즈 생성기가 없는 월드(평지·빈 월드·Bukkit 생성기 월드)에서는 구조물 생성이 `UnsupportedNmsCall` 이다. Paper 는 이런 월드에서도 `//structure` 가 된다 — 로드맵 T-223.
