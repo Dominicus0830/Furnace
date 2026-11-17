@@ -42,6 +42,23 @@ public final class TemplatePlacer {
         List<BlockInfo> list = palettes.get(pr.nextInt(palettes.size()));
         if (!(!list.isEmpty() || (!st.ignoreEntities && !t.entities().isEmpty())) || t.sizeX < 1 || t.sizeY < 1 || t.sizeZ < 1) return false;
 
+        // 통로 모드(T-211 2단계): Paper 는 감싸개를 벗긴 레벨의 setBlock(인자 3개)으로 템플릿 flag 대로 쓴다 — 끝나면 되돌린다
+        boolean sink = view.sinkMode();
+        int savedFlags = view.liveWriteFlags(), savedDepth = sink ? view.setSinkDepth(-1) : -1;
+        if (sink) view.setLiveWriteFlags(flags);
+        try {
+            return placeBody(t, view, shapes, table, ctx, posX, posY, posZ, pivX, pivY, pivZ, st, random, flags, list, sink);
+        } finally {
+            if (sink) {
+                view.setLiveWriteFlags(savedFlags);
+                view.setSinkDepth(savedDepth);
+            }
+        }
+    }
+
+    private static boolean placeBody(StructureTemplate t, FeatureWorldView view, BlockShapes shapes, BlockStateTable table, Processor.Ctx ctx,
+                                     int posX, int posY, int posZ, int pivX, int pivY, int pivZ,
+                                     PlaceSettings st, LegacyRandom random, int flags, List<BlockInfo> list, boolean sink) {
         List<BlockInfo> processed = processBlockInfos(ctx, posX, posY, posZ, pivX, pivY, pivZ, st, list);
         List<int[]> flowing = new ArrayList<>(), sources = new ArrayList<>();   // list(흐르는 물 위치), list2(source)
         List<BlockInfo> placed = new ArrayList<>();
@@ -56,11 +73,20 @@ public final class TemplatePlacer {
             // 바닐라: shouldApplyWaterlogging 이면 놓기 전 칸의 유체(없으면 -1 = null)
             int prevFluid = st.keepLiquids ? org.domi.furnace.server.world.gen.feature.FeatureWorldView.fluidTypeOf(before) : -1;
             int state = table.transform(info.state(), st.mirror, st.rotation);
+            if (sink && info.nbt() != null) {
+                // Paper/바닐라: NBT 칸은 먼저 방벽을 flag 20 으로 쓴다(WorldGenLevel 이라 Clearable 은 없다). 나무 기록에서는 다음 쓰기가 방벽 칸이라 거절된다
+                view.setLiveWriteFlags(20);
+                view.trySetBlock(x, y, z, table.registry().defaultStateId("minecraft:barrier"));
+                view.setLiveWriteFlags(flags);
+            }
             if (!view.trySetBlock(x, y, z, state)) continue;
             minX = Math.min(minX, x); minY = Math.min(minY, y); minZ = Math.min(minZ, z);
             maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); maxZ = Math.max(maxZ, z);
             placed.add(new BlockInfo(x, y, z, state, info.nbt()));
-            if (info.nbt() != null) {
+            if (info.nbt() != null && sink) {
+                // getBlockEntity(pos) 가 있을 때만 LootTableSeed 를 뽑고 내용을 넣는다 — 플러그인 레벨의 블록 엔티티는 바꿀 수 없어 있으면 오류, 없으면 뽑지 않는다
+                view.requireNoBlockEntity(x, y, z);
+            } else if (info.nbt() != null) {
                 NbtCompound nbt = info.nbt();
                 if (isRandomizableContainer(table.name(state))) nbt.putLong("LootTableSeed", random.nextLong());
                 nbt.putInt("x", x); nbt.putInt("y", y); nbt.putInt("z", z);
@@ -111,11 +137,15 @@ public final class TemplatePlacer {
                 for (BlockInfo p : placed) filled[((p.y() - fMinY) * sz + (p.z() - fMinZ)) * sx + (p.x() - fMinX)] = true;
                 ShapeUpdater.updateShapeAtEdge(view, shapes, minX, minY, minZ, sx, sy, sz,
                     (x, y, z) -> x >= fMinX && x < fMinX + sx && y >= fMinY && y < fMinY + sy && z >= fMinZ && z < fMinZ + sz
-                        && filled[((y - fMinY) * sz + (z - fMinZ)) * sx + (x - fMinX)]);
+                        && filled[((y - fMinY) * sz + (z - fMinZ)) * sx + (x - fMinX)], flags & ~1);
+                if (sink) view.setLiveWriteFlags(flags & ~1 | 16);
                 for (BlockInfo p : placed) {
                     int s = view.getBlock(p.x(), p.y(), p.z());
-                    int s2 = ShapeUpdater.updateFromNeighbourShapes(view, shapes, s, p.x(), p.y(), p.z());
+                    // 통로 모드: 실제 블록 동작으로(1단계 나무 가장자리와 같은 SinkShapeLevel), 뒤에 레벨의 blockUpdated
+                    int s2 = sink ? view.edgeUpdater().neighbourShapes(s, p.x(), p.y(), p.z())
+                        : ShapeUpdater.updateFromNeighbourShapes(view, shapes, s, p.x(), p.y(), p.z());
                     if (s != s2) view.trySetBlock(p.x(), p.y(), p.z(), s2);
+                    if (sink) view.blockUpdated(p.x(), p.y(), p.z());
                 }
             }
         }
@@ -173,11 +203,24 @@ public final class TemplatePlacer {
             if (nbt.contains("TileX")) {   // 걸이 엔티티(액자·그림)의 블록 좌표
                 nbt.putInt("TileX", bx); nbt.putInt("TileY", by); nbt.putInt("TileZ", bz);
             }
+            // 플러그인 배치(T-211 2단계): getLevel → finalizeEntities 이고 몹이면 finalizeSpawn(이식 없음 — 오류) → 레벨의 addFreshEntityWithPassengers
+            String eid = nbt.tags().get("id") instanceof String sid ? sid : "";
+            if (view.pluginTemplateEntity(eid, wx, wy, wz, st.finalizeEntities && !NOT_MOBS.contains(eid))) continue;
             // Villager.finalizeSpawn(STRUCTURE): 처음 AI 틱에 근처 직업 블록으로 직업을 받도록 표시해 저장된다
             if ("minecraft:villager".equals(nbt.tags().get("id"))) nbt.putBoolean("AssignProfessionWhenSpawned", true);
             view.addEntityNbt(nbt, wx, wz);
         }
     }
+
+    /**
+     * 몹(바닐라 {@code Mob} 하위)이 아닌 엔티티 종류 — 템플릿에 들 수 있는 것. 이 밖은 몹으로 본다(모르는 종류도 몹으로 보아 finalizeSpawn 자리를 막는다).
+     */
+    private static final Set<String> NOT_MOBS = Set.of("minecraft:armor_stand", "minecraft:item_frame", "minecraft:glow_item_frame",
+        "minecraft:painting", "minecraft:leash_knot", "minecraft:marker", "minecraft:block_display", "minecraft:item_display",
+        "minecraft:text_display", "minecraft:interaction", "minecraft:minecart", "minecraft:chest_minecart", "minecraft:furnace_minecart",
+        "minecraft:hopper_minecart", "minecraft:tnt_minecart", "minecraft:spawner_minecart", "minecraft:command_block_minecart",
+        "minecraft:boat", "minecraft:chest_boat", "minecraft:item", "minecraft:experience_orb", "minecraft:end_crystal",
+        "minecraft:falling_block", "minecraft:tnt", "minecraft:area_effect_cloud");
 
     private static float wrapDegrees(float v) {
         float f = v % 360.0F;
@@ -212,7 +255,13 @@ public final class TemplatePlacer {
      */
     private static void placeLiquid(FeatureWorldView view, BlockStateTable table, int x, int y, int z, int state, int fluidType) {
         if ("true".equals(table.prop(state, "waterlogged")) || fluidType != org.domi.furnace.server.block.Fluids.T_WATER) return;
-        view.setBlock(x, y, z, table.with(state, "waterlogged", true));
+        int saved = view.liveWriteFlags();
+        if (view.sinkMode()) view.setLiveWriteFlags(3);   // world.setBlock(pos, 침수, 3)
+        try {
+            view.setBlock(x, y, z, table.with(state, "waterlogged", true));
+        } finally {
+            view.setLiveWriteFlags(saved);
+        }
         view.scheduleFluidTick(x, y, z, org.domi.furnace.server.block.Fluids.T_WATER, 5);
     }
 

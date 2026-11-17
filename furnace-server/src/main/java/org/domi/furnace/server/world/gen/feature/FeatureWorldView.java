@@ -143,8 +143,15 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         return true;
     }
 
-    /** 생성 중 블록 엔티티 NBT(상자 loot table 등)를 해당 칸의 청크에 남긴다. */
+    /**
+     * 생성 중 블록 엔티티 NBT(상자 loot table 등)를 해당 칸의 청크에 남긴다. 통로 모드는 바닐라·Paper 의 "그 칸 getBlockEntity 가 있으면 내용을 넣는다" 자리라
+     * 그 레벨에 블록 엔티티가 있으면 {@link UnsupportedOperationException}, 없으면 아무것도 하지 않는다({@link #requireNoBlockEntity}).
+     */
     public void putGeneratedBlockEntity(int worldX, int worldY, int worldZ, org.domi.furnace.server.net.io.nbt.NbtCompound nbt) {
+        if (sink != null) {
+            requireNoBlockEntity(worldX, worldY, worldZ);
+            return;
+        }
         ChunkColumn target;
         int lx, lz;
         if (gridCols != null) {
@@ -163,8 +170,21 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         target.putGeneratedBlockEntity(lx, worldY, lz, nbt);
     }
 
-    /** 엔티티 스폰 요청(구조물 마커 등) — 위치가 속한 청크에 NBT 로 남긴다. 월드 좌표 정확 위치. */
+    /** 엔티티 스폰 요청(구조물 마커 등) — 위치가 속한 청크에 NBT 로 남긴다. 월드 좌표 정확 위치. 몹 finalizeSpawn 은 하지 않는 자리. */
     public org.domi.furnace.server.net.io.nbt.NbtCompound addEntity(String id, double x, double y, double z, float yaw, float pitch) {
+        return addEntity(id, x, y, z, yaw, pitch, false);
+    }
+
+    /**
+     * {@link #addEntity(String, double, double, double, float, float)} — finalizes 는 바닐라가 그 자리에서 몹 {@code finalizeSpawn} 을 부르는가.
+     * 플러그인 배치({@link #pluginPlacement})에서는 바닐라·Paper 차례대로 {@code world.getLevel()}(통로) → finalizeSpawn(아직 이식 없음 —
+     * {@link UnsupportedOperationException}) → {@code addFreshEntity}(통로; 통로 모드는 사본에 남기지 않는다).
+     */
+    public org.domi.furnace.server.net.io.nbt.NbtCompound addEntity(String id, double x, double y, double z, float yaw, float pitch, boolean finalizes) {
+        if (pluginPlacement) {
+            pluginEntity(id, x, y, z, finalizes);
+            if (sink != null) return new org.domi.furnace.server.net.io.nbt.NbtCompound();   // 통로가 받았다 — 사본에 남기지 않는다
+        }
         int bx = (int) Math.floor(x), bz = (int) Math.floor(z);
         ChunkColumn target;
         if (gridCols != null) {
@@ -490,7 +510,7 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         ChunkColumn neighbor = cell(nx, nz);
         if (neighbor == null) return;
         // 통로 모드(T-211): 그 레벨이 거절하면(Paper 나무 기록의 부술 수 없는 블록 등) 사본에도 쓰지 않는다 — 다음 읽기가 거절을 그대로 본다
-        if (sink != null && !sink.setBlock(worldX, worldY, worldZ, stateId, liveWriteFlags)) return;
+        if (sink != null && !sinkSetBlock(worldX, worldY, worldZ, stateId)) return;
         debugSetBlockCalls++;
         neighbor.setBlock(worldX - nx * 16, worldY, worldZ - nz * 16, stateId);
         if (writeLog != null) writeLog.add(new long[]{worldX, worldY, worldZ, liveWriteFlags});
@@ -614,11 +634,35 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
 
         /** 그 레벨의 getBlockEntity(pos) 종류 id(예: minecraft:chest), 없으면 null. */
         String blockEntityType(int x, int y, int z);
+
+        /** 그 레벨의 setBlock(pos, state, flags, maxUpdateDepth) — 인자 4개 판(구조물 조각). */
+        default boolean setBlock(int x, int y, int z, int state, int flags, int maxUpdateDepth) {
+            throw new UnsupportedOperationException("setBlock(pos, state, flags, maxUpdateDepth)");
+        }
+
+        /** 그 레벨의 getSeed()(throughGetLevel 이면 getLevel().getSeed()). */
+        default long levelSeed(boolean throughGetLevel) { throw new UnsupportedOperationException("getSeed"); }
+
+        /** 엔티티를 만들 때의 그 레벨 getLevel() — 던지면 그대로. */
+        default void entityLevel() { throw new UnsupportedOperationException("getLevel"); }
+
+        /** 그 레벨의 addFreshEntity(종류 id 의 새 엔티티). */
+        default void addEntity(String id, double x, double y, double z) { throw new UnsupportedOperationException("addFreshEntity"); }
+
+        /** 그 레벨의 blockUpdated(pos, block). */
+        default void blockUpdated(int x, int y, int z, int state) { throw new UnsupportedOperationException("blockUpdated"); }
     }
 
-    /** 나무 가장자리 모양 갱신(StructureTemplate.updateShapeAtEdge 의 한 면)을 그 자리에서 실제 블록 동작으로 하는 쪽(통로 모드). */
+    /** 가장자리 모양 갱신(StructureTemplate.updateShapeAtEdge 의 한 면)을 그 자리에서 실제 블록 동작으로 하는 쪽(통로 모드). */
     public interface EdgeUpdater {
-        void update(int x, int y, int z, int dx, int dy, int dz);
+        /** 나무 feature: updateShapeAtEdge(level, 3, …) — 쓰기 flag 2. */
+        default void update(int x, int y, int z, int dx, int dy, int dz) { update(x, y, z, dx, dy, dz, 2); }
+
+        /** 한 면, 쓰기는 writeFlags. */
+        void update(int x, int y, int z, int dx, int dy, int dz, int writeFlags);
+
+        /** 바닐라 Block.updateFromNeighbourShapes(state, level, pos) — 실제 블록 동작으로. */
+        int neighbourShapes(int state, int x, int y, int z);
     }
 
     private WriteSink sink;
@@ -637,6 +681,110 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
 
     /** 통로 모드인가(플러그인 레벨을 통한 배치). */
     public boolean sinkMode() { return sink != null; }
+
+    // ------------------------------------------------------------------ 구조물 통로(T-211 2단계)
+
+    /**
+     * 통로 쓰기의 인자 수: 음수면 레벨의 {@code setBlock(pos, state, flags)}(3개), 아니면 {@code setBlock(pos, state, flags, 이 깊이)}(4개).
+     * Paper 구조물 조각은 레벨을 {@code TransformerGeneratorAccess} 로 감싸 모든 쓰기가 4개(512)로 가고, 템플릿 본문·afterPlace 는 감싸지 않은 레벨에 3개로 간다.
+     */
+    private int sinkDepth = -1;
+
+    /** 통로 모드에서 이 쓰기만 flags 로(바닐라가 그 자리에서 다른 flag 를 주는 쓰기 — 직소 final_state·이글루 표시 3). 통로가 아니면 보통 setBlock. */
+    public void setBlock(int worldX, int worldY, int worldZ, int stateId, int flags) {
+        int saved = liveWriteFlags;
+        if (sink != null) liveWriteFlags = flags;
+        try {
+            setBlock(worldX, worldY, worldZ, stateId);
+        } finally {
+            liveWriteFlags = saved;
+        }
+    }
+
+    /** 바꾸고 옛 값을 돌려준다. */
+    public int setSinkDepth(int depth) {
+        int old = sinkDepth;
+        sinkDepth = depth;
+        return old;
+    }
+
+    private boolean sinkSetBlock(int x, int y, int z, int state) {
+        return sinkDepth < 0 ? sink.setBlock(x, y, z, state, liveWriteFlags) : sink.setBlock(x, y, z, state, liveWriteFlags, sinkDepth);
+    }
+
+    /** 플러그인이 부른 배치(통로 또는 서버 레벨에 바로)인가 — 몹 finalizeSpawn 자리를 정직하게 막는다. */
+    private boolean pluginPlacement;
+
+    public void setPluginPlacement(boolean on) { pluginPlacement = on; }
+
+    public boolean pluginPlacement() { return pluginPlacement; }
+
+    /** 그 칸의 블록 엔티티 내용을 바꿔야 하는 자리(통로 모드): 그 레벨에 블록 엔티티가 있으면 {@link UnsupportedOperationException}. 통로가 없으면 아무것도 안 한다. */
+    public void requireNoBlockEntity(int worldX, int worldY, int worldZ) {
+        if (sink == null) return;
+        String type = sink.blockEntityType(worldX, worldY, worldZ);
+        if (type != null) {
+            throw new UnsupportedOperationException("the level has a " + type + " block entity at " + worldX + ", " + worldY + ", " + worldZ
+                    + " that this structure would change - changing a block entity of a plugin level is not supported yet");
+        }
+    }
+
+    /** 통로 모드의 그 칸 블록 엔티티 종류(없으면 null). 통로가 없으면 null. */
+    public String sinkBlockEntityType(int worldX, int worldY, int worldZ) {
+        return sink == null ? null : sink.blockEntityType(worldX, worldY, worldZ);
+    }
+
+    /** 다음 엔티티 자리의 getLevel() 을 미리 부른다(바닐라가 엔티티를 만든 뒤 난수를 뽑는 자리 — 폐광 상자 광산수레). */
+    public void prepareEntity() {
+        if (!pluginPlacement || sink == null) return;
+        sink.entityLevel();
+        entityLevelAsked = true;
+    }
+
+    private boolean entityLevelAsked;
+
+    /** 플러그인 배치의 엔티티 자리(바닐라 차례): getLevel → (몹이면 finalizeSpawn — 이식 없음) → addFreshEntity. */
+    private void pluginEntity(String id, double x, double y, double z, boolean finalizes) {
+        if (sink != null && !entityLevelAsked) sink.entityLevel();
+        entityLevelAsked = false;
+        if (finalizes) {
+            throw new UnsupportedOperationException("structure mob " + id + " at " + x + ", " + y + ", " + z
+                    + ": Mob#finalizeSpawn draws from the level random and is not ported yet");
+        }
+        if (sink != null) sink.addEntity(id, x, y, z);
+    }
+
+    /** 템플릿 엔티티(바닐라 placeEntities): 플러그인 배치면 {@link #pluginEntity} 를 거치고, 통로 모드면 참(사본에 남기지 않는다). */
+    public boolean pluginTemplateEntity(String id, double x, double y, double z, boolean finalizes) {
+        if (!pluginPlacement) return false;
+        pluginEntity(id, x, y, z, finalizes);
+        return sink != null;
+    }
+
+    /** 바닐라 {@code world.getRandom()} 을 부르기만 하는 자리(Paper 스포너 setSpawnedType) — 통로가 있으면 그 레벨에 묻는다. */
+    public void touchLevelRandom() {
+        if (levelRandomTouch != null) levelRandomTouch.run();
+    }
+
+    private Runnable levelRandomTouch;
+
+    public void setLevelRandomTouch(Runnable r) { levelRandomTouch = r; }
+
+    /**
+     * 바닐라 {@code world.getSeed()}(throughGetLevel 이면 {@code world.getLevel().getSeed()}) 자리: 통로가 있으면 그 레벨에 묻고, 월드 시드와 다르면
+     * {@link UnsupportedOperationException}(서버 구조물 코드는 월드 시드로 짜여 있다). 월드 시드를 돌려준다.
+     */
+    public long levelSeed(boolean throughGetLevel, long worldSeed) {
+        if (sink == null) return worldSeed;
+        long s = sink.levelSeed(throughGetLevel);
+        if (s != worldSeed) throw new UnsupportedOperationException("the plugin level has seed " + s + ", not the world seed");
+        return worldSeed;
+    }
+
+    /** 바닐라 {@code world.blockUpdated(pos, block)}(템플릿 모양 갱신 뒤) — 통로 모드면 그 레벨에 넘긴다. */
+    public void blockUpdated(int worldX, int worldY, int worldZ) {
+        if (sink != null) sink.blockUpdated(worldX, worldY, worldZ, getBlock(worldX, worldY, worldZ));
+    }
 
     /** 지금 쓰기에 실리는 flag(통로·라이브 반영). */
     public int liveWriteFlags() { return liveWriteFlags; }

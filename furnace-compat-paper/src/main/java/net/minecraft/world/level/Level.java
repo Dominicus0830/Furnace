@@ -304,6 +304,7 @@ public abstract class Level implements LevelAccessor {
     }
 
     /** 바닐라 Level#blockUpdated: 6방향 이웃 갱신(updateNeighborsAt — 플러그인 BlockPhysicsEvent 포함). */
+    @Override
     public void blockUpdated(BlockPos pos, net.minecraft.world.level.block.Block block) { updateNeighborsAt(pos, block); }
 
     /** 바닐라 Level#updateNeighborsAt: 서쪽·동쪽·아래·위·북쪽·남쪽 이웃의 neighborChanged(서버 갱신기 — 플러그인 BlockPhysicsEvent 포함). */

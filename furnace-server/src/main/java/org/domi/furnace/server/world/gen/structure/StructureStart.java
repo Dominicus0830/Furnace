@@ -64,6 +64,13 @@ public final class StructureStart {
         for (StructurePiece p : pieces) {
             if (p.boundingBox().intersects(writableBox)) p.postProcess(ctx);
         }
-        if (type != null) type.afterPlace(ctx, this);
+        if (type != null) {
+            int depth = view.setSinkDepth(-1);   // Paper: afterPlace 는 감싸지 않은 레벨에 — 통로 쓰기는 인자 3개
+            try {
+                type.afterPlace(ctx, this);
+            } finally {
+                view.setSinkDepth(depth);
+            }
+        }
     }
 }

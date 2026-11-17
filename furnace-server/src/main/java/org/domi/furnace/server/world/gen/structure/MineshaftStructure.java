@@ -332,6 +332,7 @@ public final class MineshaftStructure extends StructureType {
             if (box.isInside(wx, wy, wz) && a.isAir(c.view.getBlock(wx, wy, wz)) && !a.isAir(c.view.getBlock(wx, wy - 1, wz))) {
                 int rail = c.random.nextBoolean() ? s.railNS : s.railEW;
                 placeBlock(c, rail, x, y, z, box);
+                c.view.prepareEntity();   // new MinecartChest(world.getLevel(), …) 가 시드 뽑기보다 먼저
                 long seed = c.random.nextLong();
                 NbtCompound cart = c.view.addEntity("minecraft:chest_minecart", wx + 0.5, wy + 0.5, wz + 0.5, 0.0F, 0.0F);
                 cart.putString("LootTable", LOOT);
@@ -371,6 +372,7 @@ public final class MineshaftStructure extends StructureType {
                     int wx = getWorldX(1, sz), wy = getWorldY(0), wz = getWorldZ(1, sz);
                     if (box.isInside(wx, wy, wz) && isInterior(c, 1, 0, sz, box)) {
                         hasPlacedSpider = true;
+                        c.view.touchLevelRandom();   // Paper placeCraftSpawner: setSpawnedType 이 레벨의 getRandom() 을 부른다(새 스포너라 뽑지 않음)
                         c.view.setBlock(wx, wy, wz, s.spawner);
                         putCaveSpiderSpawner(c, wx, wy, wz);
                     }

@@ -39,7 +39,7 @@ public final class NmsFeatures {
     }
 
     /** 플러그인 레벨이 던진 것을 서버 코드 너머로 그대로 나르는 껍데기(서버가 던진 것과 구별한다). */
-    private static final class LevelFailure extends RuntimeException {
+    static final class LevelFailure extends RuntimeException {
         LevelFailure(RuntimeException cause) { super(null, cause, false, false); }
     }
 
@@ -73,11 +73,43 @@ public final class NmsFeatures {
             throw new UnsupportedNmsCall(target + "(captureBlockStates)",
                     "writing to the world without neighbour updates while recording the old states does not exist on the server yet");
         }
-        FeatureInternals.LevelSink sink = direct ? null : new FeatureInternals.LevelSink() {
+        FeatureInternals.LevelSink sink = direct ? null : levelSink(level);
+        try {
+            return Furnace.server().internals().features().placeNow(world, placed, id, origin.getX(), origin.getY(), origin.getZ(),
+                    new RandomSourceAsJava(random), sink);
+        } catch (LevelFailure f) {
+            throw (RuntimeException) f.getCause();
+        } catch (UnsupportedNmsCall e) {
+            throw e;
+        } catch (UnsupportedOperationException e) {
+            throw new UnsupportedNmsCall(target + "(" + id + ")", e.getMessage());
+        } catch (IllegalArgumentException e) {
+            throw new UnsupportedNmsCall(target + "(" + id + ")", "the server's feature table does not have it: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 플러그인 레벨로 가는 쓰기 통로(지형지물·구조물 공용). 쓰기는 그 레벨의 {@code setBlock}(인자 3개·4개 그대로), 블록 엔티티 있음은 {@code getBlockEntity},
+     * 시드는 {@code getSeed()}·{@code getLevel().getSeed()}, 엔티티를 만들 때의 {@code getLevel()}, 템플릿 뒤 {@code blockUpdated} 를 그 레벨에 묻는다.
+     * 엔티티 더하기는 그 레벨이 바닐라 기본({@code LevelWriter#addFreshEntity} — 거짓, Paper 의 populator 들)이면 버리고, 다른 레벨이면 {@link UnsupportedNmsCall}
+     * (서버는 플러그인 레벨에 넘길 NMS 엔티티 객체를 만들지 않는다). {@code blockUpdated} 도 그 레벨이 바닐라 기본(아무것도 안 함)이 아니면(서버 레벨의 이웃 갱신 등)
+     * {@link UnsupportedNmsCall} — 기록 중인 배치가 실제 월드를 바꾸는 이웃 갱신을 같은 순서로 낼 수 없다. 레벨이 던진 것은 {@link LevelFailure} 로 싸서 나른다.
+     */
+    static FeatureInternals.LevelSink levelSink(WorldGenLevel level) {
+        return new FeatureInternals.LevelSink() {
             @Override
             public boolean setBlock(int x, int y, int z, int stateId, int flags) {
                 try {
                     return level.setBlock(new BlockPos(x, y, z), NmsChunks.state(stateId), flags);
+                } catch (RuntimeException e) {
+                    throw new LevelFailure(e);
+                }
+            }
+
+            @Override
+            public boolean setBlock(int x, int y, int z, int stateId, int flags, int maxUpdateDepth) {
+                try {
+                    return level.setBlock(new BlockPos(x, y, z), NmsChunks.state(stateId), flags, maxUpdateDepth);
                 } catch (RuntimeException e) {
                     throw new LevelFailure(e);
                 }
@@ -92,18 +124,58 @@ public final class NmsFeatures {
                     throw new LevelFailure(e);
                 }
             }
+
+            @Override
+            public long levelSeed(boolean throughGetLevel) {
+                try {
+                    return throughGetLevel ? level.getLevel().getSeed() : level.getSeed();
+                } catch (RuntimeException e) {
+                    throw new LevelFailure(e);
+                }
+            }
+
+            @Override
+            public void entityLevel() {
+                try {
+                    level.getLevel();
+                } catch (RuntimeException e) {
+                    throw new LevelFailure(e);
+                }
+            }
+
+            @Override
+            public void addEntity(String entityType, double x, double y, double z) {
+                if (level instanceof net.minecraft.world.level.Level || declares(level, "addFreshEntity", net.minecraft.world.entity.Entity.class)) {
+                    throw new LevelFailure(new UnsupportedNmsCall("addFreshEntity(" + entityType + ")",
+                            "the level (" + level.getClass().getName() + ") takes entities, and the server does not hand NMS entity objects to plugin levels"));
+                }
+                // 바닐라 LevelWriter#addFreshEntity 기본: 거짓(엔티티는 사라진다)
+            }
+
+            @Override
+            public void blockUpdated(int x, int y, int z, int stateId) {
+                java.lang.reflect.Method m;
+                try {
+                    m = level.getClass().getMethod("blockUpdated", BlockPos.class, net.minecraft.world.level.block.Block.class);
+                } catch (NoSuchMethodException e) {
+                    throw new IllegalStateException(e);
+                }
+                if (m.getDeclaringClass() != net.minecraft.world.level.LevelAccessor.class) {
+                    throw new LevelFailure(new UnsupportedNmsCall("blockUpdated",
+                            "the level (" + level.getClass().getName() + ") updates neighbours on blockUpdated, which a placement through it cannot replay in the same order"));
+                }
+                // 바닐라 LevelAccessor#blockUpdated 기본: 아무것도 하지 않는다
+            }
         };
+    }
+
+    /** 그 레벨 클래스가 이 공개 메서드를 가졌는가(바닐라 기본이 없는 메서드 — 있으면 레벨이 직접 정의했다). */
+    private static boolean declares(Object level, String name, Class<?>... params) {
         try {
-            return Furnace.server().internals().features().placeNow(world, placed, id, origin.getX(), origin.getY(), origin.getZ(),
-                    new RandomSourceAsJava(random), sink);
-        } catch (LevelFailure f) {
-            throw (RuntimeException) f.getCause();
-        } catch (UnsupportedNmsCall e) {
-            throw e;
-        } catch (UnsupportedOperationException e) {
-            throw new UnsupportedNmsCall(target + "(" + id + ")", e.getMessage());
-        } catch (IllegalArgumentException e) {
-            throw new UnsupportedNmsCall(target + "(" + id + ")", "the server's feature table does not have it: " + e.getMessage());
+            level.getClass().getMethod(name, params);
+            return true;
+        } catch (NoSuchMethodException e) {
+            return false;
         }
     }
 

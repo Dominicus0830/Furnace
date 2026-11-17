@@ -160,7 +160,7 @@ public final class OceanRuinStructure extends StructureType {
                 nbt.putLong("LootTableSeed", seed);
                 c.view.putGeneratedBlockEntity(x, y, z, nbt);
             } else if ("drowned".equals(marker)) {
-                c.view.addEntity("minecraft:drowned", x + 0.5, y, z + 0.5, 0.0F, 0.0F);   // moveTo(pos, 0, 0) = 블록 중심
+                c.view.addEntity("minecraft:drowned", x + 0.5, y, z + 0.5, 0.0F, 0.0F, true);   // moveTo(pos, 0, 0) = 블록 중심
                 c.view.setBlock(x, y, z, y > 63 ? 0 : c.blocks().defaultStateId("minecraft:water"));
             }
         }

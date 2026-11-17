@@ -407,7 +407,15 @@ public final class JigsawPools {
         public boolean place(PostCtx c, int x, int y, int z, int rotation, BoundingBox box, boolean keepLiquids, boolean keepJigsaws) {
             PlacedFeature pf = c.engine.placedFeature(feature);
             if (pf == null) return false;   // 미지원 feature — 배치하지 않는다
-            return pf.placeAt(c.view, c.random, new BlockPos(x, y, z));
+            if (!c.view.sinkMode()) return pf.placeAt(c.view, c.random, new BlockPos(x, y, z));
+            // 통로 모드(T-211 2단계): 지형지물 쓰기 flag — 1단계와 같이 맨 위 지형지물로 정한다(나무 19, 그 밖 3). 인자 수는 감싸개 그대로 4개
+            int saved = c.view.liveWriteFlags();
+            c.view.setLiveWriteFlags(pf.feature() instanceof org.domi.furnace.server.world.gen.feature.TreeFeature ? 19 : 3);
+            try {
+                return pf.placeAt(c.view, c.random, new BlockPos(x, y, z));
+            } finally {
+                c.view.setLiveWriteFlags(saved);
+            }
         }
 
         @Override

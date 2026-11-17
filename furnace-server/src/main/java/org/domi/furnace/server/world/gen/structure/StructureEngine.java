@@ -361,6 +361,14 @@ public final class StructureEngine {
      * 배치(structure set)·바이옴 판정 없이 그 청크를 시작점으로 조각을 만든다.
      */
     public CommandStart generateForCommand(String structureId, int cx, int cz, TerrainAccess terrain) {
+        return generateFor(structureId, cx, cz, terrain, null);
+    }
+
+    /**
+     * 바닐라 Structure.generate(..., chunkPos, references, level, biomeTest) — biomeTest 가 null 이면 모든 바이옴(biome -> true). 바닐라 차례대로
+     * 시작 자리를 찾고(findGenerationPoint) 그 자리 바이옴(isValidBiome)을 본 뒤 조각을 만든다.
+     */
+    public CommandStart generateFor(String structureId, int cx, int cz, TerrainAccess terrain, java.util.function.Predicate<String> biomeTest) {
         StructureRegistry.Def def = registry.structure(structureId);
         if (def == null) return new CommandStart(false, false, null);
         StructureType type = typeOf(def);
@@ -368,6 +376,7 @@ public final class StructureEngine {
         GenContext ctx = new GenContext(this, def, seed, cx, cz, terrain);
         Optional<StructureType.Stub> stub = type.findGenerationPoint(ctx);
         if (stub.isEmpty()) return new CommandStart(true, true, null);
+        if (biomeTest != null && !biomeTest.test(terrain.biomeAt(stub.get().x(), stub.get().y(), stub.get().z()))) return new CommandStart(true, true, null);
         PiecesBuilder b = new PiecesBuilder();
         try {
             stub.get().generator().accept(b);

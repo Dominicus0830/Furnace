@@ -1034,7 +1034,7 @@ public final class WoodlandMansionStructure extends StructureType {
                     }
                 }
                 for (String id : mobs) {
-                    NbtCompound nbt = c.view.addEntity(id, x + 0.5, y, z + 0.5, 0.0F, 0.0F);
+                    NbtCompound nbt = c.view.addEntity(id, x + 0.5, y, z + 0.5, 0.0F, 0.0F, true);   // 몹 finalizeSpawn 자리
                     nbt.putByte("PersistenceRequired", (byte) 1);
                     c.view.setBlock(x, y, z, 0);
                 }

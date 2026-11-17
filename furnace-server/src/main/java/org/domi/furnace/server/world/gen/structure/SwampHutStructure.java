@@ -77,11 +77,11 @@ public final class SwampHutStructure extends StructureType {
             int wx = getWorldX(2, 5), wy = getWorldY(2), wz = getWorldZ(2, 5);
             if (!spawnedWitch && b.isInside(wx, wy, wz)) {
                 spawnedWitch = true;
-                c.view.addEntity("minecraft:witch", wx + 0.5, wy, wz + 0.5, 0.0F, 0.0F).putByte("PersistenceRequired", (byte) 1);
+                c.view.addEntity("minecraft:witch", wx + 0.5, wy, wz + 0.5, 0.0F, 0.0F, true).putByte("PersistenceRequired", (byte) 1);
             }
             if (!spawnedCat && b.isInside(wx, wy, wz)) {
                 spawnedCat = true;
-                org.domi.furnace.server.net.io.nbt.NbtCompound cat = c.view.addEntity("minecraft:cat", wx + 0.5, wy, wz + 0.5, 0.0F, 0.0F);
+                org.domi.furnace.server.net.io.nbt.NbtCompound cat = c.view.addEntity("minecraft:cat", wx + 0.5, wy, wz + 0.5, 0.0F, 0.0F, true);
                 cat.putByte("PersistenceRequired", (byte) 1);
                 cat.putString("variant", "minecraft:all_black");   // 구조물 스폰(STRUCTURE) 이면 검은 고양이
             }

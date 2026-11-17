@@ -1067,6 +1067,7 @@ public final class NetherFortressStructure extends StructureType {
                 int wx = getWorldX(3, 5), wy = getWorldY(5), wz = getWorldZ(3, 5);
                 if (bb.isInside(wx, wy, wz)) {
                     hasPlacedSpawner = true;
+                    c.view.touchLevelRandom();   // Paper placeCraftSpawner: setSpawnedType 이 레벨의 getRandom() 을 부른다(새 스포너라 뽑지 않음)
                     c.view.setBlock(wx, wy, wz, s.SPAWNER);
                     c.view.putGeneratedBlockEntity(wx, wy, wz, spawnerNbt(wx, wy, wz));
                 }

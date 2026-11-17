@@ -73,7 +73,7 @@ public final class IglooStructure extends StructureType {
         @Override
         protected void handleDataMarker(String marker, int x, int y, int z, PostCtx c) {
             if ("chest".equals(marker)) {
-                c.view.setBlock(x, y, z, 0);
+                c.view.setBlock(x, y, z, 0, 3);   // world.setBlock(pos, AIR, 3)
                 setChestLoot(c, x, y - 1, z, "minecraft:chests/igloo_chest");
             }
         }

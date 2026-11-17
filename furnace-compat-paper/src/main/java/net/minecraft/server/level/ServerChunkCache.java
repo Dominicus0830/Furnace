@@ -127,6 +127,20 @@ public class ServerChunkCache extends ChunkSource {
         return g;
     }
 
+    private volatile net.minecraft.world.level.levelgen.RandomState randomState;
+
+    /** 바닐라 randomState: 이 월드 생성기의 난수 상태 손잡이(같은 월드는 같은 객체, T-211 2단계). */
+    public net.minecraft.world.level.levelgen.RandomState randomState() {
+        var r = randomState;
+        if (r == null) {
+            synchronized (this) {
+                r = randomState;
+                if (r == null) randomState = r = new net.minecraft.world.level.levelgen.RandomState(level.getWorld().furnaceHandle());
+            }
+        }
+        return r;
+    }
+
     /** 바닐라 getDataStorage(T-203 — {@link net.minecraft.world.level.storage.DimensionDataStorage} 설명: 표는 늘 비어 있다). */
     public net.minecraft.world.level.storage.DimensionDataStorage getDataStorage() { return dataStorage; }
 

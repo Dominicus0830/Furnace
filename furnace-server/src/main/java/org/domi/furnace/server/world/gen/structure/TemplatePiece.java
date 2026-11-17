@@ -115,18 +115,27 @@ public abstract class TemplatePiece extends StructurePiece {
                 String finalState = info.nbt().getString("final_state");
                 int state = c.processorCtx().parseBlockState(finalState);
                 if (state < 0) state = 0;
-                c.view.setBlock(info.x(), info.y(), info.z(), state);
+                c.view.setBlock(info.x(), info.y(), info.z(), state, 3);   // world.setBlock(pos, final_state, 3)
             }
         }
     }
 
     protected abstract void handleDataMarker(String marker, int x, int y, int z, PostCtx c);
 
+    /** 바닐라 RandomizableContainerBlockEntity 하위 블록 엔티티 종류(장식 단지는 RandomizableContainer 이지만 이 하위가 아니다). */
+    static final java.util.Set<String> RANDOMIZABLE_CONTAINER_BLOCK_ENTITIES = java.util.Set.of("minecraft:chest", "minecraft:trapped_chest",
+        "minecraft:barrel", "minecraft:dispenser", "minecraft:dropper", "minecraft:hopper", "minecraft:shulker_box", "minecraft:crafter");
+
     /**
      * 바닐라: 마커 아래 칸의 상자 BlockEntity에 setLootTable(table, random.nextLong()) — 내용물은 생략하고 시드/난수 소비만 재현한다.
      * (아래 칸이 상자일 때만 난수를 소비한다: be instanceof ChestBlockEntity)
      */
     protected static void setChestLoot(PostCtx c, int x, int y, int z, String lootTable) {
+        if (c.view.sinkMode()) {
+            // Paper setCraftLootTable: 그 레벨의 getBlockEntity 가 RandomizableContainerBlockEntity 일 때만 뽑고 바꾼다 — 플러그인 레벨의 것은 바꿀 수 없어 있으면 오류
+            c.view.blockEntityPresent(x, y, z, RANDOMIZABLE_CONTAINER_BLOCK_ENTITIES);
+            return;
+        }
         int state = c.view.getBlock(x, y, z);
         String name = c.table().name(state);
         if (!name.equals("minecraft:chest") && !name.equals("minecraft:trapped_chest")) return;
