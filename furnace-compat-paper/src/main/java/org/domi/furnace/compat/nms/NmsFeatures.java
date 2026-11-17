@@ -19,17 +19,18 @@ import org.domi.furnace.api.internal.FeatureInternals;
  *   <li>난수는 받은 RandomSource 에서 뽑을 때마다 그대로 뽑는다(Paper 와 같은 수열, 원천 상태도 같이 나아간다).</li>
  * </ul>
  * 같은 결과를 낼 수 없으면 {@link UnsupportedNmsCall}: 구현 안 된 지형지물, 플러그인 레벨의 블록 엔티티 내용을 바꿔야 하는 배치, 다른 월드의 생성기,
- * 서버 레벨을 모르는 레벨, ensureCanWrite 를 바꾼 레벨. 로드 안 된·다른 region·원점에서 2청크 넘는 청크에 닿으면 IllegalStateException(Paper 는 불러와 계속한다).
+ * 서버 레벨을 모르는 레벨, ensureCanWrite 를 바꾼 레벨, 광석 줄기(바닐라는 청크 섹션에 바로 쓴다).
+ * 쓰기 기록({@code captureTreeGeneration})은 전역 스레드에서만 적용한다({@link #captureAppliesHere}). 로드 안 된·다른 region·원점에서 2청크 넘는 청크에 닿으면 IllegalStateException(Paper 는 불러와 계속한다).
  */
 public final class NmsFeatures {
 
     private NmsFeatures() {}
 
-    private static final ThreadLocal<int[]> PLACING = ThreadLocal.withInitial(() -> new int[1]);
-
-    /** {@code Level} 의 쓰기 기록을 이 호출에 적용하는가: 전역 스레드이거나 이 호환 계층의 지형지물 배치 안. */
+    /**
+     * {@code Level} 의 쓰기 기록을 이 호출에 적용하는가: 전역 스레드(Bukkit 동기 작업 — Paper 의 주 스레드 자리)일 때만. 기록 표시는 월드마다 하나인 평범한
+     * 필드라 켠 스레드를 알 수 없다 — 다른 region 스레드의 쓰기·배치가 전역 스레드가 켠 기록에 섞이지 않게 한 규칙으로 정한다(검토 #494).
+     */
     public static boolean captureAppliesHere() {
-        if (PLACING.get()[0] > 0) return true;
         try {
             return org.domi.furnace.compat.thread.PrimaryThread.isGlobalThread(Furnace.server());
         } catch (IllegalStateException e) {
@@ -66,8 +67,9 @@ public final class NmsFeatures {
         if (overridesEnsureCanWrite(level)) {
             throw new UnsupportedNmsCall(target, "the level overrides WorldGenLevel#ensureCanWrite, which the server's feature code does not ask for every feature");
         }
-        boolean direct = level == server && !server.captureTreeGeneration;
-        if (direct && server.captureBlockStates) {
+        boolean capturing = server.captureTreeGeneration && captureAppliesHere();
+        boolean direct = level == server && !capturing;
+        if (direct && server.captureBlockStates && captureAppliesHere()) {
             throw new UnsupportedNmsCall(target + "(captureBlockStates)",
                     "writing to the world without neighbour updates while recording the old states does not exist on the server yet");
         }
@@ -91,8 +93,6 @@ public final class NmsFeatures {
                 }
             }
         };
-        int[] depth = PLACING.get();
-        depth[0]++;
         try {
             return Furnace.server().internals().features().placeNow(world, placed, id, origin.getX(), origin.getY(), origin.getZ(),
                     new RandomSourceAsJava(random), sink);
@@ -104,8 +104,6 @@ public final class NmsFeatures {
             throw new UnsupportedNmsCall(target + "(" + id + ")", e.getMessage());
         } catch (IllegalArgumentException e) {
             throw new UnsupportedNmsCall(target + "(" + id + ")", "the server's feature table does not have it: " + e.getMessage());
-        } finally {
-            depth[0]--;
         }
     }
 

@@ -211,6 +211,34 @@ class NmsFeaturePlaceTest {
     }
 
     @Test
+    void regionThreadPlacementIsNotSwallowedByTheGlobalThreadsCapture() {
+        // 검토 #494: 전역 스레드가 captureTreeGeneration 을 켠 사이 region 스레드가 서버 레벨에 지형지물을 놓으면 기록이 아니라 월드에 바로 놓인다
+        BlockPos at = fresh(), ref = fresh();
+        level.captureTreeGeneration = true;
+        level.captureBlockStates = true;
+        try {
+            assertTrue(owner(() -> configured("minecraft:oak").place(level, generator, RandomSource.create(5L), at)));
+            assertTrue(owner(() -> configured("minecraft:oak").place(new BlockStateListPopulator(level), generator, RandomSource.create(5L), ref)));
+            assertTrue(level.capturedBlockStates.isEmpty(), "기록에 섞이지 않는다");
+        } finally {
+            level.captureBlockStates = false;
+            level.captureTreeGeneration = false;
+            level.capturedBlockStates.clear();
+        }
+        assertTrue(owner(() -> level.getBlockState(at).is(Blocks.OAK_LOG)), "월드에 바로");
+        assertTrue(owner(() -> level.getBlockState(ref).isAir()), "populator 는 자기 표에만");
+    }
+
+    @Test
+    void oreVeinsAreNotFakedThroughALevel() {
+        // 바닐라 OreFeature 는 BulkSectionAccess 로 섹션에 바로 쓴다 — Paper 도 populator 의 setBlock 을 거치지 않는다
+        BlockPos at = fresh();
+        var e = assertThrows(UnsupportedNmsCall.class,
+                () -> owner(() -> configured("minecraft:ore_iron").place(new BlockStateListPopulator(level), generator, RandomSource.create(1L), at)));
+        assertTrue(e.getMessage().contains("BulkSectionAccess"), e.getMessage());
+    }
+
+    @Test
     void plainPopulatorKeepsItsOwnListAndNeverTouchesTheWorld() {
         BlockPos at = fresh();
         List<String> expected = serverCapture("minecraft:oak", at, 9L);
@@ -229,12 +257,20 @@ class NmsFeaturePlaceTest {
 
     @Test
     void serverLevelWithoutCaptureIsTheRuntimePlacement() {
-        BlockPos a = fresh(), b = fresh();
+        // 같은 자리에서 비교한다 — 잎 거리 갱신 차례는 바닐라에서도 자리마다(HashSet 순서) 다르다
+        BlockPos a = fresh();
         owner(() -> configured("minecraft:birch").place(level, generator, RandomSource.create(3L), a));
-        owner(() -> server.internals().world().regionizer().ownerOf(b.getX() >> 4, b.getZ() >> 4).level()
-                .placeFeatureWith("minecraft:birch", new Pos(b.getX(), b.getY(), b.getZ()), new JavaRandomWorldgen(new Random(3L)), true));
-        assertFalse(column(a).isEmpty());
-        assertEquals(column(b), column(a), "서버 레벨 자신에 기록 없이 놓으면 바닐라 런타임 배치(월드에 바로)");
+        List<String> viaShim = column(a);
+        owner(() -> {
+            for (int y = 0; y <= 12; y++)
+                for (int z = -4; z <= 4; z++)
+                    for (int x = -4; x <= 4; x++) level.setBlock(a.offset(x, y, z), Blocks.AIR.defaultBlockState(), 2 | 16);
+            return null;
+        });
+        owner(() -> server.internals().world().regionizer().ownerOf(a.getX() >> 4, a.getZ() >> 4).level()
+                .placeFeatureWith("minecraft:birch", new Pos(a.getX(), a.getY(), a.getZ()), new JavaRandomWorldgen(new Random(3L)), true));
+        assertFalse(viaShim.isEmpty());
+        assertEquals(column(a), viaShim, "서버 레벨 자신에 기록 없이 놓으면 바닐라 런타임 배치(월드에 바로)");
     }
 
     /** 원점 기준 상자 안 공기 아닌 칸(상대 좌표). */

@@ -47,8 +47,8 @@ public abstract class Level implements LevelAccessor {
     // ------------------------------------------------------------------ 쓰기 기록(T-211 — Paper 필드 그대로)
     // Paper 의 나무·구조물 생성 기록: captureTreeGeneration 이 켜져 있으면 setBlock 은 월드에 쓰지 않고 칸마다 CapturedBlockState 에 마지막 쓰기를 싣고
     // (부술 수 없는 블록 칸은 거짓), getBlockState·getBlockStateIfLoaded 는 기록을 먼저 본다. 표시는 월드마다 하나인 평범한 필드라 누가 켰는지 알 수 없다 —
-    // Furnace 는 region 스레드가 여럿이므로 전역 스레드이거나 이 호환 계층의 지형지물 배치(ConfiguredFeature/PlacedFeature#place) 안의 호출에만 적용한다
-    // (그 밖 region 스레드의 NMS 쓰기는 기록에 빨려 들지 않는다). 기록 표는 그래서 동기화된 표다.
+    // Furnace 는 region 스레드가 여럿이므로 전역 스레드(Bukkit 동기 작업 — Paper 의 주 스레드 자리)의 호출에만 적용한다(NmsFeatures#captureAppliesHere —
+    // region 스레드의 NMS 쓰기·지형지물 배치는 전역 스레드가 켠 기록에 섞이지 않는다). 기록 표는 동기화된 표다(다른 스레드가 읽을 수 있다).
 
     public boolean captureBlockStates = false;
     public boolean captureTreeGeneration = false;

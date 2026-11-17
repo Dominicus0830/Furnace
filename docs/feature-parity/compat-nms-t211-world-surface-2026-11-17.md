@@ -100,9 +100,19 @@ finally: 두 표시 false, capturedBlockStates.clear()                          
 
 1. **유체 읽기**: Paper 의 populator 는 유체를 실제 월드에서 읽어 이번 배치가 쓴 칸의 유체를 모른다. Furnace 지형 생성 코드는 유체를 블록 상태에서
    얻으므로 사본(쓴 것 포함)을 본다. 같은 칸을 쓰고 나서 그 칸의 유체를 읽는 feature 에서만 갈린다(나무는 잎·뿌리가 쓰기 전에 그 칸 유체를 읽어
-   해당 없음). 유체 읽기 자리마다 원천을 고르게 바꾸는 일은 후속(T-218).
+   해당 없음). 유체 읽기 자리마다 원천을 고르게 바꾸는 일은 후속(T-220).
 2. 플러그인 레벨의 블록 엔티티 내용을 바꾸는 길이 없다(3.1) — 바꿔야 할 때는 오류로 알린다. 보통 FAWE 에서는 그 칸에 블록 엔티티가 없어 안 생긴다.
 3. 로드 안 된·다른 region 청크에 닿으면 오류(Paper 는 불러온다).
+4. 쓰기 플래그는 맨 위 지형지물 하나로 정한다(나무면 19, 아니면 3 — `LiveFeatures.liveFlags`). 바닐라는 지형지물마다 자기 플래그라 나무를 고르는
+   지형지물(`random_selector` 등)이 맨 위면 나무 블록도 3 으로 실린다. FAWE 는 플래그를 쓰지 않아 블록 결과는 같고, `CraftBlockState#getFlag` 값과
+   서버 레벨에 바로 놓을 때의 이웃 갱신만 다를 수 있다(기존 묘목·`/place` 길과 같은 제약 — 후속에서 지형지물마다 플래그를 싣게 한다).
+5. 광석 줄기(`OreFeature`, 흩뿌린 광석 제외)는 바닐라가 `BulkSectionAccess` 로 청크 섹션에 바로 쓴다 — Paper 도 플러그인 레벨의 `setBlock` 을 거치지 않는다
+   (평범한 populator 는 `getChunk` 에서 예외, FAWE populator 는 기록 없이 실제 월드 섹션에 바로). 통로로 흉내 내지 않고 `UnsupportedNmsCall`. 서버 레벨에 바로 놓기는 된다.
+6. 높이 밖 쓰기: Paper 나무 기록은 높이 검사 전에 기록하지만 서버 지형 생성 코드는 높이 밖 쓰기를 통로에 넘기지 않는다(바닐라 지형지물이 높이 밖에 쓰는 일은 거의 없다).
+7. `getBlockState` 를 바꾼 플러그인 레벨: 블록 읽기는 플러그인 레벨에 묻지 않고 사본(실제 월드 + 받아들인 쓰기)으로 답한다. FAWE populator(실제 월드 기록으로 돌림)와
+   평범한 populator 는 이것과 같다.
+8. 나무 가장자리 모양 갱신(`SinkShapeLevel`)의 유체는 실제 월드에서 읽는다(Paper `DummyGeneratorAccess` 를 감싼 populator 와 같다 — 1 의 원천 문제는 T-220).
+
 
 ## 6. 1단계 구현 메모 (2026-11-17)
 
@@ -111,7 +121,9 @@ finally: 두 표시 false, capturedBlockStates.clear()                          
 - 오류 종류: 구현 안 된 지형지물·플러그인 레벨 블록 엔티티 내용 바꾸기 → 서버 `UnsupportedOperationException` → 호환 `UnsupportedNmsCall`.
   닿지 못한 청크 → `IllegalStateException`(`LiveFeatures.Unreachable` — 호환 `Level` 의 "로드 안 된 칸은 IllegalStateException" 과 같은 종류).
   플러그인 레벨이 던진 예외는 서버 코드 너머로 그대로 나른다(서버가 던진 것과 섞지 않는다).
-- 기록 적용 범위: 전역 스레드이거나 `NmsFeatures` 배치 안(스레드별 깊이). 기록 표는 `Collections.synchronizedMap(LinkedHashMap)`(필드 형은 Paper 그대로 `Map`).
+- 기록 적용 범위: **전역 스레드(Bukkit 동기 작업)에서만**(`NmsFeatures#captureAppliesHere`). `Level#setBlock`·`getBlockState` 와 "서버 레벨에 바로 놓기" 판정이
+  같은 규칙을 쓴다 — region 스레드의 NMS 쓰기·지형지물 배치는 전역 스레드가 켠 기록에 섞이지 않는다(검토 #494 지적으로 "배치 안" 조건을 뺐다).
+  기록 표는 `Collections.synchronizedMap(LinkedHashMap)`(필드 형은 Paper 그대로 `Map`).
   `captureBlockStates` 만 켠 `setBlock`(이웃 갱신 없이 쓰고 옛 상태 기록)은 서버에 그 길이 없어 `UnsupportedNmsCall`.
 - `BlockStateListPopulator#getList` 차례: Paper 는 `list.remove` 뒤 `put` 이라 다시 쓴 칸이 뒤로 간다(나무 기록 `capturedBlockStates` 는 처음 쓴 차례).
   잎 거리 갱신이 잎을 다시 쓰므로 두 목록의 차례는 다르고, 칸·마지막 상태는 같다(`NmsFeaturePlaceTest`).
@@ -123,5 +135,6 @@ finally: 두 표시 false, capturedBlockStates.clear()                          
 - 난수: 받은 `RandomSource` 를 `java.util.Random` 어댑터로 넘겨 뽑을 때마다 그 원천에서 뽑는다. 위치별 난수 공장(`forkPositional`)을 쓰는 지형지물은
   `UnsupportedNmsCall`(Paper `RandomSourceWrapper` 길과 같은 제약 — 서버 `JavaRandomWorldgen`).
 - 시험: 서버 `PluginLevelFeatureTest`(통로 = Paper 나무 기록과 같은 쓰기·난수, 거절한 칸, 벌집 블록 엔티티 있음/없음, 바로 놓기 = 런타임 길, 바이옴 거르기,
-  닿지 못함), 호환 `NmsFeaturePlaceTest`(FAWE populator 꼴 — 전역 스레드 빌림 구간에서 기록, 평범한 populator, 서버 레벨 바로, 다른 스레드의 기록 표시,
-  부술 수 없는 칸, 정직한 실패).
+  닿지 못함, 광석), 호환 `NmsFeaturePlaceTest`(FAWE populator 꼴 — 전역 스레드 빌림 구간에서 기록, 평범한 populator, 서버 레벨 바로, 다른 스레드의 기록 표시,
+  전역 스레드 기록 중 region 스레드 배치, 부술 수 없는 칸, 광석, 정직한 실패). 남은 시험 공백: 실제 FAWE jar 클래스의 링크, 보너스 상자·던전·엔드 관문의
+  블록 엔티티 없음 길, 하이트맵 원천.

@@ -635,6 +635,9 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
 
     public EdgeUpdater edgeUpdater() { return edgeUpdater; }
 
+    /** 통로 모드인가(플러그인 레벨을 통한 배치). */
+    public boolean sinkMode() { return sink != null; }
+
     /** 지금 쓰기에 실리는 flag(통로·라이브 반영). */
     public int liveWriteFlags() { return liveWriteFlags; }
 

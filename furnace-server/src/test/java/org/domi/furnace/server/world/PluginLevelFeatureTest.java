@@ -222,6 +222,18 @@ class PluginLevelFeatureTest {
     }
 
     @Test
+    void oreVeinThroughALevelIsUnsupportedButPlacesDirectly() throws Exception {
+        Pos o = new Pos(40, 10, 56);
+        onRegion(l -> {
+            var e = assertThrows(UnsupportedOperationException.class,
+                    () -> l.placeFeatureThrough("minecraft:ore_iron", false, o, new JavaRandomWorldgen(new Random(1L)), new Recorder()));
+            assertTrue(e.getMessage().contains("BulkSectionAccess"), e.getMessage());
+            assertNotNull(l.placeFeatureThrough("minecraft:ore_iron", false, o, new JavaRandomWorldgen(new Random(1L)), null), "서버 레벨에 바로는 된다");
+            return null;
+        });
+    }
+
+    @Test
     void unknownIdIsNullAndUnreachableChunkFailsWithoutChangingTheWorld() throws Exception {
         Pos e = new Pos(95, 250, 40);   // 불러온 청크는 0..5 — 여기 나무는 청크 6 에 닿는다
         onRegion(l -> {
