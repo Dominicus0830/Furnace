@@ -25,3 +25,7 @@ FAWE `PlacementStateProcessor` 는 덩굴·켈프·산호처럼 놓기 계산이
 - 블록: Paper 두 번은 서로 같다. Furnace 는 한 번은 Paper 와 **0차이**, 한 번은 **1칸** 차이 — F3 레드스톤 가루 판 동쪽 끝 `-35,101,4` 의 `north`(Paper `side`, Furnace 한 번 `none`). 같은 이웃 모양의 다른 칸 35개는 네 결과 모두 같다. 실행마다 갈리는 것이라 FAWE 편집 결과가 월드에 보이는 시점(앞선 `//set` 쓰기와 `//fixblocks` 읽기의 순서) 차이로 추정한다 — **가정, 원인 미확인**. 후속 과제로 남긴다(같은 장면을 여러 번 돌려 재현 빈도를 재고, 그 칸을 계산할 때 프록시가 돌려준 북쪽 이웃 상태를 기록).
 - 이 장면 밖 차이(T-204 와 무관): 한 번은 Furnace 가 기준 월드의 던전 스포너 청크([1,-2])를 다시 저장해 스포너 블록 엔티티 키 전체를 쓰고(Paper 는 그 청크를 다시 저장하지 않음) 그 청크 BlockLight 61칸이 달랐다. 빛·`furnace:light_version` 차이는 T-197 몫.
 - `//regen`(검토 #480 권고): Furnace 는 `NoClassDefFoundError: net/minecraft/server/level/progress/ChunkProgressListener`(PaperweightFaweAdapter.regenerate) → FAWE 응답 `Please report this error`, **서버는 살아 있다**. Paper 는 `Region regenerated.` regen 표면은 T-203.
+
+## 마지막 확인(병합본 2ec46aa6)
+
+Furnace 한 번 더: Paper 두 결과 모두와 블록 칸 **0차이**, MARK 구간 예외 0, FAWE 응답 22줄이 Paper 와 같다. 레드스톤 `-35,101,4` 는 이번에는 Paper 와 같았다 — Furnace 세 번 중 두 번 0차이, 한 번 그 칸 1개. 갈리는 원인은 여전히 미확인(후속).
