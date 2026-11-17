@@ -434,6 +434,9 @@ public final class ChunkSection {
         return scratch != null ? null : blocks.readCopy();
     }
 
+    /** T-209: 블록 저장소 사본(서버 배치 그대로 — 호환 계층 data 실체화용, 주인 스레드). scratch 가 열려 있으면 null. */
+    public org.domi.furnace.api.internal.ChunkInternals.PackedStates blocksPacked() { return blocksReadCopy(); }
+
     /** 스냅샷용 바이옴 사본(팔레트 원본 그대로). */
     PaletteStorage biomesReadCopy() {
         return biomes.readCopy();

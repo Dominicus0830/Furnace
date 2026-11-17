@@ -1,10 +1,8 @@
 package net.minecraft.world.level.chunk;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import net.minecraft.core.IdMap;
@@ -23,8 +21,8 @@ import net.minecraft.util.ZeroBitStorage;
  *     스레드는 살아 있는 값, 그 밖은 공개 스냅샷 + 자기 쓰기). 칸 쓰기({@code set}·{@code getAndSet}·{@code getAndSetUnchecked}, N2b-2)는 바닐라 살아 있는
  *     컨테이너처럼 그 칸만 쓴다 — 주인 스레드는 서버에 바로, 그 밖은 거울 칸 일지에 쌓아 주인이 1틱 안에 재생한다(N2b-4, 결정 D1). 섹션 개수·하이트맵·빛·
  *     저장 표시·클라이언트는 그대로(바닐라도 컨테이너 쓰기는 아무것도 맞추지 않는다). 필드 {@code data} 는 리플렉션으로 처음 읽힐 때 그 순간 내용으로
- *     바닐라 배치를 실체화한다(N2b-4 장벽, 내용이 바뀌면 다시). 플러그인이 {@code data} 를 바꾸거나 {@code read} 하면 들여오기 전까지 그 data 를 바닐라처럼
- *     읽고 쓰고, 주인이 그 내용을 서버로 들여온다. copy() 는 디스크에서 읽은 바닐라 섹션처럼(팔레트 = 처음 나온 순서, 비트 수 = 직렬화 규칙) 진짜 컨테이너를 만든다.</li>
+ *     바닐라 배치를 실체화한다(N2b-4 장벽, 내용이 바뀌면 다시 — 블록은 서버 섹션 저장소 꼴 그대로, T-209). 플러그인이 {@code data} 를 바꾸거나
+ *     {@code read} 하면 들여오기 전까지 그 data 를 바닐라처럼 읽고 쓰고, 주인이 그 내용을 서버로 들여온다. copy() 는 디스크에서 읽은 바닐라 섹션처럼(팔레트 = 처음 나온 순서, 비트 수 = 직렬화 규칙) 진짜 컨테이너를 만든다.</li>
  * </ul>
  * 바닐라와 다를 수 있는 것: {@link #count} 가 값마다 부르는 순서(바닐라는 fastutil 해시 순서, 여기는 처음 나온 순서 — 개수는 같다),
  * 보기의 팔레트 자체(항목 순서·비트 수 — 살아 있는 섹션의 바닐라 팔레트는 쓰기 이력에 달려 있다). 디버그 잠금(ThreadingDetector)은 두지 않는다 —
@@ -51,8 +49,8 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
      * 이 칸을 고르지 않게). 쓰기는 거울 잠금 아래.
      */
     private volatile Object furnacePlaced;
-    /** Furnace: furnacePlaced 를 실체화한 판(서버 내용 판 번호, 다른 스레드는 공개 스냅샷의 것). 거울 잠금 아래. */
-    private long furnacePlacedStamp = Long.MIN_VALUE;
+    /** Furnace: furnacePlaced 를 실체화한 판(서버 내용 판 번호, 다른 스레드는 공개 스냅샷의 것). 쓰기는 거울 잠금 아래(잠금 밖 읽기는 힌트로만). */
+    private volatile long furnacePlacedStamp = Long.MIN_VALUE;
     /**
      * Furnace: 거울이 들여오려고 잡은 떨어진 컨테이너면 그 거울(아니면 null, PR #396 검토 R3). 잡힌 동안 바닐라 길의 칸 쓰기는 거울 잠금 아래에서 한다 —
      * 주인이 잠금 안에서 내용을 읽고·들여오고·붙이는 사이에 쓴 칸을 잃지 않게. 붙으면 공급원이, 떼어 내면 null 이 이어받는다. 형을 Object 로 둔다.
@@ -87,8 +85,12 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
         /** 이 공급원의 거울(잡힌 컨테이너의 바닐라 쓰기가 그 잠금 아래에서 한다). */
         FurnaceChunkMirror mirror();
 
-        /** 실체화용: 그 순간의 칸 번호 전부와 그 판 번호(stampOut[0]) — 한 출처에서. */
-        int[] idsStamped(long[] stampOut);
+        /**
+         * 실체화용: 그 순간의 칸 내용과 그 판 번호(stampOut[0]) — 한 출처에서. 내용은 칸 번호 배열({@code int[]}, 새 배열) 또는 서버 저장소 사본
+         * ({@link org.domi.furnace.api.internal.ChunkInternals.PackedStates}). 판 번호가 known 과 같으면(MIN 이 아닐 때) 내용을 읽지 않고 null
+         * (stampOut 은 채운다).
+         */
+        Object contentStamped(long[] stampOut, long known);
 
         /** 거울 잠금(Furnace 전용 객체 — 플러그인이 볼 수 있는 객체의 모니터를 쓰지 않는다, 설계 R12). */
         Object lock();
@@ -232,24 +234,34 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
 
     /**
      * 장벽(Field.get 앞, {@code NmsReflect}) — 붙은 보기의 {@code data} 필드를 그 순간 서버 내용(다른 스레드는 공개 스냅샷 + 자기 쓰기)으로 실체화한다.
-     * 바닐라 배치(디스크에서 읽은 섹션과 같은 팔레트·비트 수)다. 내용 판이 그대로면 앞서 만든 것을 그대로 둔다. 플러그인이 data 를 바꿨으면 손대지 않는다.
+     * 바닐라 배치다: 블록은 서버 섹션 저장소 꼴 그대로(팔레트 항목 순서·옛 항목·비트 수 — 서버 저장소가 바닐라 PalettedContainer 포팅이라 바닐라 살아 있는
+     * 섹션과 같은 꼴, 칸을 펼치지 않는다 — T-209), 저장소가 펼쳐져 있거나 자기 쓰기 덧칠이 있거나 바이옴이면 디스크에서 읽은 섹션과 같은 배치(팔레트 = 처음
+     * 나온 순서, 비트 수 = 직렬화 규칙). 내용 판이 그대로면 앞서 만든 것을 그대로 둔다(칸을 읽지 않는다). 플러그인이 data 를 바꿨으면 손대지 않는다.
      * 바꿔 넣기는 CAS 라 플러그인의 대입을 덮지 않는다(설계 3.2 규칙 2).
      */
     void furnaceMaterializeData() {
         FurnaceSource src = furnaceSource;
         if (src == null) return;
-        Data<T> cur = data;
-        if (cur != furnacePlaced) return;   // 플러그인이 바꾼 data — 그대로
-        long[] stamp = {Long.MIN_VALUE};
-        int[] ids = src.idsStamped(stamp);
-        synchronized (src.lock()) {
-            if (cur != null && stamp[0] == furnacePlacedStamp && stamp[0] != Long.MIN_VALUE) return;
-            if (data != cur || furnacePlaced != cur || furnaceSource != src) return;   // 그 사이 바뀌었다 — 다음 읽기가 다시 본다
-            Data<T> next = furnaceDataFromIds(registry, strategy, ids, this);
-            if (DATA.compareAndSet(this, cur, next)) {
-                furnacePlaced = next;
-                furnacePlacedStamp = stamp[0];
+        long hint = furnacePlacedStamp;   // 앞서 만든 판(힌트 — 판정은 잠금 아래에서 다시 한다)
+        for (;;) {
+            Data<T> cur = data;
+            if (cur != furnacePlaced) return;   // 플러그인이 바꾼 data — 그대로
+            long[] stamp = {Long.MIN_VALUE};
+            // T-209: 내용 판이 힌트와 같으면 칸 번호를 읽지 않는다(null) — 바뀌지 않은 섹션의 data 읽기가 칸 4096개를 펼치지 않게
+            Object content = src.contentStamped(stamp, cur == null ? Long.MIN_VALUE : hint);
+            synchronized (src.lock()) {
+                if (cur != null && stamp[0] == furnacePlacedStamp && stamp[0] != Long.MIN_VALUE) return;
+                if (data != cur || furnacePlaced != cur || furnaceSource != src) return;   // 그 사이 바뀌었다 — 다음 읽기가 다시 본다
+                if (content != null) {
+                    Data<T> next = furnaceDataFrom(registry, strategy, content, this);
+                    if (DATA.compareAndSet(this, cur, next)) {
+                        furnacePlaced = next;
+                        furnacePlacedStamp = stamp[0];
+                    }
+                    return;
+                }
             }
+            hint = Long.MIN_VALUE;   // 힌트를 읽은 뒤 기준이 바뀌었다(드묾) — 이번에는 칸 번호를 받는다
         }
     }
 
@@ -331,32 +343,84 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
         return c;
     }
 
-    /** 서버 번호 배열 → 바닐라 배치의 data. 팔레트 크기 바꿈 처리기는 owner(그 data 를 쥘 컨테이너 — 다른 컨테이너면 커질 때 그쪽이 커진다). */
-    private static <T> Data<T> furnaceDataFromIds(IdMap<T> registry, Strategy strategy, int[] registryIds, PalettedContainer<T> owner) {
+    /** 공급원 내용(칸 번호 배열 또는 서버 저장소 사본) → 바닐라 배치의 data. */
+    private static <T> Data<T> furnaceDataFrom(IdMap<T> registry, Strategy strategy, Object content, PalettedContainer<T> owner) {
+        if (content instanceof int[] ids) return furnaceDataFromIds(registry, strategy, ids, owner);
+        var p = (org.domi.furnace.api.internal.ChunkInternals.PackedStates) content;
+        Data<T> d = furnaceDataFromPacked(registry, strategy, p, owner);
+        return d != null ? d : furnaceDataFromIds(registry, strategy, furnaceUnpack(p, strategy.size()), owner);
+    }
+
+    /**
+     * T-209: 서버 섹션 저장소 사본 → data, 칸을 펼치지 않고 묶인 배열을 그대로(사본) 쓴다. 서버 저장소는 바닐라 PalettedContainer 포팅이라 그 꼴(0 비트 단일 값,
+     * 4 비트 배열 팔레트, 5~8 비트 해시 팔레트, 그 위는 전역 — 팔레트 항목 순서·쓰이지 않는 옛 항목 포함)이 바닐라 살아 있는 섹션의 data 와 같다. 그 비트 수가
+     * 이 전략의 바닐라 설정과 맞지 않으면 null(부른 쪽이 칸 번호로 디스크 배치를 만든다 — 서버 설정이 바뀌지 않는 한 오지 않는다).
+     */
+    private static <T> Data<T> furnaceDataFromPacked(IdMap<T> registry, Strategy strategy, org.domi.furnace.api.internal.ChunkInternals.PackedStates p,
+                                                     PalettedContainer<T> owner) {
         int size = strategy.size();
-        List<T> entries = new ArrayList<>();
-        Map<Integer, Integer> local = new HashMap<>();
-        int[] cells = new int[size];
-        for (int i = 0; i < size; i++) {
-            int id = registryIds[i];
-            Integer k = local.get(id);
-            if (k == null) {
+        int bits = p.bits();
+        int n = p.paletteSize();
+        Configuration<T> c = strategy.getConfiguration(registry, bits);
+        if (c.bits() != bits) return null;
+        boolean global = c.factory() == Strategy.GLOBAL_PALETTE_FACTORY;
+        if (global != (n < 0) || (bits == 0 && n != 1)) return null;
+        List<T> entries;
+        if (global) {
+            entries = List.of();
+        } else {
+            entries = new ArrayList<>(n);
+            for (int k = 0; k < n; k++) {
+                int id = p.paletteValue(k);
                 T v = registry.byId(id);
                 if (v == null) throw new IllegalStateException("id missing from the registry: " + id);
-                local.put(id, k = entries.size());
                 entries.add(v);
             }
-            cells[i] = k;
         }
-        int bits = strategy.calculateBitsForSerialization(registry, entries.size());
+        BitStorage storage = bits == 0 ? new ZeroBitStorage(size) : new SimpleBitStorage(bits, size, p.rawCopy());
+        return new Data<>(c, storage, c.factory().create(bits, registry, owner, entries));
+    }
+
+    /** 서버 저장소 사본 → 칸 번호(설정이 맞지 않을 때만 — 디스크 배치로 다시 만든다). */
+    private static int[] furnaceUnpack(org.domi.furnace.api.internal.ChunkInternals.PackedStates p, int size) {
+        int[] out = new int[size];
+        int bits = p.bits();
+        if (bits == 0) {
+            java.util.Arrays.fill(out, p.paletteValue(0));
+            return out;
+        }
+        SimpleBitStorage st = new SimpleBitStorage(bits, size, p.rawCopy());
+        int n = p.paletteSize();
+        for (int i = 0; i < size; i++) out[i] = n < 0 ? st.get(i) : p.paletteValue(st.get(i));
+        return out;
+    }
+
+    /**
+     * 서버 번호 배열 → 바닐라 배치의 data. 팔레트 크기 바꿈 처리기는 owner(그 data 를 쥘 컨테이너 — 다른 컨테이너면 커질 때 그쪽이 커진다).
+     * T-209: 첫 등장 순 색인을 박싱 없는 표({@link FirstSeenScratch})로 매긴다 — 결과(팔레트 순서·비트 수·저장소)는 앞의 HashMap 판과 같다.
+     */
+    private static <T> Data<T> furnaceDataFromIds(IdMap<T> registry, Strategy strategy, int[] registryIds, PalettedContainer<T> owner) {
+        int size = strategy.size();
+        FirstSeenScratch fs = FirstSeenScratch.get();
+        int[] cells = new int[size];
+        int n = fs.index(registryIds, size, cells);
+        int[] distinct = fs.values();
+        List<T> entries = new ArrayList<>(n);
+        for (int k = 0; k < n; k++) {
+            T v = registry.byId(distinct[k]);
+            if (v == null) throw new IllegalStateException("id missing from the registry: " + distinct[k]);
+            entries.add(v);
+        }
+        int bits = strategy.calculateBitsForSerialization(registry, n);
         Configuration<T> c = strategy.getConfiguration(registry, bits);
         BitStorage storage;
         if (bits == 0) {
             storage = new ZeroBitStorage(size);
         } else if (c.factory() == Strategy.GLOBAL_PALETTE_FACTORY) {
-            int[] global = new int[size];
-            for (int i = 0; i < size; i++) global[i] = registry.getId(entries.get(cells[i]));
-            storage = new SimpleBitStorage(c.bits(), size, global);
+            int[] globalOf = new int[n];   // 항목마다 한 번(값 → 레지스트리 번호), 칸은 표로
+            for (int k = 0; k < n; k++) globalOf[k] = registry.getId(entries.get(k));
+            for (int i = 0; i < size; i++) cells[i] = globalOf[cells[i]];
+            storage = new SimpleBitStorage(c.bits(), size, cells);
         } else {
             storage = new SimpleBitStorage(c.bits(), size, cells);
         }

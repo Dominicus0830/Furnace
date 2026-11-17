@@ -40,6 +40,32 @@ public interface ChunkInternals {
     int[] sectionStatesNow(World world, int chunkX, int sectionIndex, int chunkZ);
 
     /**
+     * T-209: 섹션 블록 저장소의 사본({@link PackedStates}, 서버 배치 그대로). 주인 스레드 전용. 로드돼 있지 않거나 펼친 배열이 열려 있으면 null —
+     * 그때는 {@link #sectionStatesNow}.
+     */
+    default PackedStates sectionStatesPackedNow(World world, int chunkX, int sectionIndex, int chunkZ) { return null; }
+
+    /**
+     * T-209: 섹션 블록 저장소(팔레트 + 묶인 칸 배열)를 서버 배치 그대로 — 팔레트 항목 순서·쓰이지 않는 옛 항목·비트 수까지. 서버 저장소는 바닐라
+     * {@code PalettedContainer} 포팅이라(단일 값 0 비트 → 간접 4~8 비트 → 직접) 바닐라 살아 있는 섹션과 같은 꼴이다. 호환 계층이 칸 4096개를 펼치지 않고
+     * {@code PalettedContainer.data} 를 만든다. 칸 순서는 YZX, 묶는 배치는 바닐라 SimpleBitStorage 와 같다(한 long 에 64/bits 개, long 경계를 넘지 않음).
+     * 불변 사본이라 아무 스레드나 읽는다.
+     */
+    interface PackedStates {
+        /** 칸당 비트 수. 0 이면 모든 칸이 {@code paletteValue(0)}. */
+        int bits();
+
+        /** 팔레트 항목 수(쓰이지 않는 옛 항목 포함 — 바닐라처럼 줄지 않는다). 직접 저장(칸에 상태 번호 그대로)이면 -1, 0 비트면 1. */
+        int paletteSize();
+
+        /** 팔레트 i 번째 상태 번호(i &lt; paletteSize()). */
+        int paletteValue(int i);
+
+        /** 묶인 칸 배열의 새 사본(부른 쪽이 고쳐도 된다). 0 비트면 빈 배열. */
+        long[] rawCopy();
+    }
+
+    /**
      * 섹션의 공기 아닌 칸 수(air·cave_air·void_air 는 공기). 0 인지(바닐라 hasOnlyAir)는 바닐라와 같다.
      * 다만 값은 바닐라 nonEmptyBlockCount 와 다를 수 있다(바닐라는 유체 있는 칸을 한 번 더 센다). 로드돼 있지 않으면 -1.
      */
@@ -465,6 +491,9 @@ public interface ChunkInternals {
 
         /** 섹션 칸 4096개(YZX, 새 배열). */
         int[] sectionStates(int sectionIndex);
+
+        /** T-209: 섹션 블록 저장소({@link PackedStates}, 서버 배치 그대로). 펼친 배열만 가진 섹션이면 null — 그때는 {@link #sectionStates}. */
+        default PackedStates sectionStatesPacked(int sectionIndex) { return null; }
 
         /** Furnace 의 정확한 비공기 칸 수({@link #sectionNonAirNow} 와 같은 뜻). */
         int sectionNonAir(int sectionIndex);

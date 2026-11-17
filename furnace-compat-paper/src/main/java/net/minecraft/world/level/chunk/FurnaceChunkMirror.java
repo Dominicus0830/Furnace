@@ -834,6 +834,9 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
         }
     }
 
+    /** 다른 스레드의 자기 쓰기 덧칠이 하나라도 있는가(잠금 없이 — overlayCells 의 빠른 길과 같은 판정, T-209). */
+    boolean hasOverlay() { return overlayCount != 0; }
+
     /** 섹션 칸 번호 배열에 덧칠을 입힌다(제자리). */
     int[] overlayCells(int slot, int[] ids) {
         if (overlayCount == 0) return ids;
