@@ -321,7 +321,8 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         // WorldGenerationContext: minGenY = max(차원 min, 생성기 min), genDepth = min(차원 높이, 노이즈 높이)
         int genMinY = Math.max(dim.minY, flat != null ? FLAT_MIN_Y : settings.minY());
         int genDepth = Math.min(dim.sectionCount * 16, flat != null ? FLAT_GEN_DEPTH : settings.height());
-        FlatLayers flatLayers = flat != null ? FlatLayers.of(flat, reg) : null;
+        // 바닐라는 possibleBiomes 의 바이옴에만 adjustGenerationSettings 를 부른다: 공급자 목록에 평지 바이옴이 없으면 층을 지우지 않는다
+        FlatLayers flatLayers = flat != null ? FlatLayers.of(flat, reg, provided == null || possible.contains(flat.biome())) : null;
         FeaturePlacer featurePlacer = loadFeaturePlacer(data, possible, biomeEntries, reg, seed, genMinY, genDepth,
                 flat != null ? FLAT_SEA_LEVEL : settings.seaLevel(), router, flatLayers == null ? null : b -> flatLayers.generationSteps(data, b));
         StructurePlacementCatalog structurePlacementCatalog = StructurePlacementCatalog.load(data);
@@ -443,7 +444,8 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
      * 생성 전에 그것을 부른다(가정: 생성 전 validate). 그래서 노이즈 채우기는 지운 층을 건너뛴다.
      */
     record FlatLayers(FlatSpec spec, int[] states, int[] filled, boolean voidGen) {
-        static FlatLayers of(FlatSpec spec, BlockRegistry reg) {
+        /** adjusted: 평지 바이옴으로 adjustGenerationSettings 가 불렸는가(possibleBiomes 에 평지 바이옴이 있을 때). */
+        static FlatLayers of(FlatSpec spec, BlockRegistry reg, boolean adjusted) {
             // 월드 높이로 자르지 않는다: 바닐라 getLayers 는 층 전체(높이 합 최대 4064)이고 voidGen·fill_layer 도 그 목록으로 정한다.
             // 채우기·높이 계산이 월드 높이에서 멈춘다.
             java.util.List<Integer> col = new ArrayList<>();
@@ -456,7 +458,9 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
             boolean voidGen = true;   // 모든 층이 공기(Blocks.AIR)면 — 층이 없어도 참(allMatch)
             for (int st : states) if (st != air) { voidGen = false; break; }
             int[] filled = states.clone();
-            for (int i = 0; i < filled.length; i++) if (!org.domi.furnace.server.world.ChunkColumn.motionBlocking(filled[i])) filled[i] = -1;
+            if (adjusted) {
+                for (int i = 0; i < filled.length; i++) if (!org.domi.furnace.server.world.ChunkColumn.motionBlocking(filled[i])) filled[i] = -1;
+            }
             return new FlatLayers(spec, states, filled, voidGen);
         }
 

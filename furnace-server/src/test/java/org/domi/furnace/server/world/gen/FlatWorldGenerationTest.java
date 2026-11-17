@@ -75,7 +75,7 @@ class FlatWorldGenerationTest {
     void voidGenUsesWholeLayerList() {
         var spec = new NoiseWorldSource.FlatSpec(List.of(new SuperflatWorldSource.Layer("minecraft:air", 384),
                 new SuperflatWorldSource.Layer("minecraft:stone", 1)), "minecraft:plains", true, false, null);
-        var layers = NoiseWorldSource.FlatLayers.of(spec, REG);
+        var layers = NoiseWorldSource.FlatLayers.of(spec, REG, true);
         assertFalse(layers.voidGen());
         assertEquals(385, layers.states().length);
         NoiseWorldSource gen = NoiseWorldSource.flat(1234L, REG, REGS, spec);
