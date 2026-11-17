@@ -50,6 +50,8 @@ public record BeehiveDecorator(float probability) implements TreeDecorator {
         context.decorations().add(chosen);
 
         // vanilla: getBlockEntity(pos, BEEHIVE) 에 2~3 마리 storeBee(Occupant.create(nextInt(599))). 생성 블록 엔티티 NBT 로 남긴다.
+        // 그 칸에 벌집 블록 엔티티가 없으면(플러그인 레벨 통로 — Paper 나무 기록) 바닐라 ifPresent 처럼 건너뛰고 난수도 쓰지 않는다
+        if (!context.view().blockEntityPresent(chosen.x(), chosen.y(), chosen.z(), BEEHIVE)) return;
         int beeCount = 2 + context.random().nextInt(2);
         var bees = new org.domi.furnace.server.net.io.nbt.NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_COMPOUND);
         for (int i = 0; i < beeCount; i++) {
@@ -63,6 +65,8 @@ public record BeehiveDecorator(float probability) implements TreeDecorator {
         nbt.putList("bees", bees);
         context.view().putGeneratedBlockEntity(chosen.x(), chosen.y(), chosen.z(), nbt);
     }
+
+    private static final java.util.Set<String> BEEHIVE = java.util.Set.of("minecraft:beehive");
 
     // vanilla Util.shuffle과 동일한 Fisher-Yates(뒤에서부터, nextInt(i)로 스왑).
     private static void shuffle(List<BlockPos> list, Context context) {

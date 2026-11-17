@@ -44,7 +44,8 @@ public final class EndGatewayFeature implements ConfiguredFeature {
                             be.put("exit_portal", new int[]{exit[0], exit[1], exit[2]});
                             if (exact) be.putByte("ExactTeleport", (byte) 1);
                         }
-                        view.putGeneratedBlockEntity(x, y, z, be);
+                        // 바닐라는 출구가 있을 때만 getBlockEntity(pos) instanceof TheEndGatewayBlockEntity 를 본다(플러그인 레벨 통로 — T-211)
+                        if (exit == null || view.blockEntityPresent(x, y, z, END_GATEWAY)) view.putGeneratedBlockEntity(x, y, z, be);
                     } else if (sameY) {
                         view.setBlock(x, y, z, air);
                     } else if (edgeY && sameX && sameZ) {
@@ -59,4 +60,6 @@ public final class EndGatewayFeature implements ConfiguredFeature {
         }
         return true;
     }
+
+    private static final java.util.Set<String> END_GATEWAY = java.util.Set.of("minecraft:end_gateway");
 }

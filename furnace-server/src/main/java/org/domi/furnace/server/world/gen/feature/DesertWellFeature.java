@@ -90,8 +90,20 @@ public final class DesertWellFeature implements ConfiguredFeature {
         int[][] candidates = {{0, 0}, {1, 0}, {0, 1}, {-1, 0}, {0, -1}};
         int[] first = candidates[random.nextInt(5)];
         view.setBlock(x + first[0], y - 1, z + first[1], suspiciousSand);
+        brushable(view, x + first[0], y - 1, z + first[1]);
         int[] second = candidates[random.nextInt(5)];
         view.setBlock(x + second[0], y - 2, z + second[1], suspiciousSand);
+        brushable(view, x + second[0], y - 2, z + second[1]);
         return true;
+    }
+
+    private static final java.util.Set<String> BRUSHABLE = java.util.Set.of("minecraft:brushable_block");
+
+    /**
+     * 바닐라 placeSusSand 의 {@code getBlockEntity(pos, BRUSHABLE_BLOCK).ifPresent(setLootTable)} 자리(난수 없음). 전리품 표는 블록 엔티티 값이라 아직 놓지
+     * 않는다(머리 주석) — 여기서는 플러그인 레벨 통로(T-211)에서 그 레벨의 블록 엔티티를 고쳐야 하는 경우를 알리기만 한다.
+     */
+    private static void brushable(FeatureWorldView view, int x, int y, int z) {
+        view.blockEntityPresent(x, y, z, BRUSHABLE);
     }
 }

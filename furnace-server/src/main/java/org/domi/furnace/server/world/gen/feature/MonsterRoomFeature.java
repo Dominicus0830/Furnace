@@ -108,16 +108,20 @@ public final class MonsterRoomFeature implements ConfiguredFeature {
                 }
                 if (solidNeighbors == 1) {
                     safeSet(view, cx, cy, cz, reorientChest(view, cx, cy, cz));
-                    random.nextLong(); // 상자 loot table seed
+                    // RandomizableContainer.setBlockEntityLootTable: 그 칸 블록 엔티티가 있을 때만 loot table seed
+                    if (view.blockEntityPresent(cx, cy, cz, FeatureSupport.RANDOMIZABLE_CONTAINERS)) random.nextLong();
                     break;
                 }
             }
         }
 
         safeSet(view, x, y, z, spawner);
-        random.nextInt(4); // 스포너 몹 종류(Util.getRandom(MOBS))
+        // getBlockEntity(origin) instanceof SpawnerBlockEntity 일 때만 스포너 몹 종류(Util.getRandom(MOBS))
+        if (view.blockEntityPresent(x, y, z, SPAWNER)) random.nextInt(4);
         return true;
     }
+
+    private static final java.util.Set<String> SPAWNER = java.util.Set.of("minecraft:mob_spawner");
 
     private void safeSet(FeatureWorldView view, int x, int y, int z, int state) {
         if (!cannotReplaceBlocks.contains(attrs.blockIndex(view.getBlock(x, y, z)))) {

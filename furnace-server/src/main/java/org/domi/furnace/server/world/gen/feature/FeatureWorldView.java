@@ -134,6 +134,11 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         } else if (!inCenterChunk(worldX, worldZ)) {
             return false;
         }
+        if (sink != null) {   // 통로 모드: 그 레벨이 받아들였는가가 setBlock 의 답(바닐라 WorldGenLevel.setBlock 의 반환값)
+            int count = debugSetBlockCalls;
+            setBlock(worldX, worldY, worldZ, stateId);
+            return debugSetBlockCalls != count;
+        }
         setBlock(worldX, worldY, worldZ, stateId);
         return true;
     }
@@ -295,7 +300,7 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
             int nx = Math.floorDiv(worldX, 16);
             int nz = Math.floorDiv(worldZ, 16);
             if (!inReadRange(nx, nz)) return minY - 1;
-            ChunkColumn neighbor = cell(nx, nz);
+            ChunkColumn neighbor = heightCell(nx, nz);
             if (neighbor == null) return minY - 1;
             return neighbor.motionBlockingBlockY(worldX - nx * 16, worldZ - nz * 16);
         }
@@ -308,8 +313,9 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         if (gridCols != null) {
             int nx = Math.floorDiv(worldX, 16);
             int nz = Math.floorDiv(worldZ, 16);
-            if (!inReadRange(nx, nz) || cell(nx, nz) == null) return minY - 1;
-            return cell(nx, nz).motionBlockingNoLeavesBlockY(worldX - nx * 16, worldZ - nz * 16);
+            ChunkColumn neighbor = inReadRange(nx, nz) ? heightCell(nx, nz) : null;
+            if (neighbor == null) return minY - 1;
+            return neighbor.motionBlockingNoLeavesBlockY(worldX - nx * 16, worldZ - nz * 16);
         }
         if (!inCenterChunk(worldX, worldZ)) return minY - 1;
         return col.motionBlockingNoLeavesBlockY(worldX - cx * 16, worldZ - cz * 16);
@@ -483,6 +489,8 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         if (!inWriteRange(nx, nz) || !inWorldY(worldY)) return;
         ChunkColumn neighbor = cell(nx, nz);
         if (neighbor == null) return;
+        // 통로 모드(T-211): 그 레벨이 거절하면(Paper 나무 기록의 부술 수 없는 블록 등) 사본에도 쓰지 않는다 — 다음 읽기가 거절을 그대로 본다
+        if (sink != null && !sink.setBlock(worldX, worldY, worldZ, stateId, liveWriteFlags)) return;
         debugSetBlockCalls++;
         neighbor.setBlock(worldX - nx * 16, worldY, worldZ - nz * 16, stateId);
         if (writeLog != null) writeLog.add(new long[]{worldX, worldY, worldZ, liveWriteFlags});
@@ -492,7 +500,7 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         int nx = Math.floorDiv(worldX, 16);
         int nz = Math.floorDiv(worldZ, 16);
         if (!inReadRange(nx, nz)) return minY - 1;
-        ChunkColumn neighbor = cell(nx, nz);
+        ChunkColumn neighbor = heightCell(nx, nz);
         if (neighbor == null) return minY - 1;
         return neighbor.surfaceBlockY(worldX - nx * 16, worldZ - nz * 16);
     }
@@ -501,7 +509,7 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         int nx = Math.floorDiv(worldX, 16);
         int nz = Math.floorDiv(worldZ, 16);
         if (!inReadRange(nx, nz)) return minY - 1;
-        ChunkColumn neighbor = cell(nx, nz);
+        ChunkColumn neighbor = heightCell(nx, nz);
         if (neighbor == null) return minY - 1;
         return neighbor.worldSurfaceWgBlockY(worldX - nx * 16, worldZ - nz * 16);
     }
@@ -510,7 +518,7 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         int nx = Math.floorDiv(worldX, 16);
         int nz = Math.floorDiv(worldZ, 16);
         if (!inReadRange(nx, nz)) return minY - 1;
-        ChunkColumn neighbor = cell(nx, nz);
+        ChunkColumn neighbor = heightCell(nx, nz);
         if (neighbor == null) return minY - 1;
         return neighbor.oceanFloorBlockY(worldX - nx * 16, worldZ - nz * 16);
     }
@@ -519,7 +527,7 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         int nx = Math.floorDiv(worldX, 16);
         int nz = Math.floorDiv(worldZ, 16);
         if (!inReadRange(nx, nz)) return minY;
-        ChunkColumn neighbor = cell(nx, nz);
+        ChunkColumn neighbor = heightCell(nx, nz);
         if (neighbor == null) return minY;
         return neighbor.wgOceanFloorHeight(worldX - nx * 16, worldZ - nz * 16);
     }
@@ -591,6 +599,67 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         v.writeLog = writeLog;
         v.edgeLog = edgeLog;
         return v;
+    }
+
+    // ------------------------------------------------------------------ 통로 모드(T-211)
+
+    /**
+     * 플러그인 레벨을 통한 배치(Paper {@code ConfiguredFeature#place(WorldGenLevel, …)}): 쓰기마다 그 레벨에 먼저 넘기고, 블록 엔티티는 그 레벨이 돌려주는
+     * 것을 본다. 블록 상태 읽기는 사본(월드 + 받아들인 쓰기), 하이트맵은 실제 청크(Paper 의 populator 는 하이트맵을 감싼 레벨에서 읽고 나무 기록은
+     * 하이트맵을 바꾸지 않는다).
+     */
+    public interface WriteSink {
+        /** 그 레벨의 setBlock(pos, state, flags). 거짓이면 쓰지 않은 것이다. */
+        boolean setBlock(int x, int y, int z, int state, int flags);
+
+        /** 그 레벨의 getBlockEntity(pos) 종류 id(예: minecraft:chest), 없으면 null. */
+        String blockEntityType(int x, int y, int z);
+    }
+
+    /** 나무 가장자리 모양 갱신(StructureTemplate.updateShapeAtEdge 의 한 면)을 그 자리에서 실제 블록 동작으로 하는 쪽(통로 모드). */
+    public interface EdgeUpdater {
+        void update(int x, int y, int z, int dx, int dy, int dz);
+    }
+
+    private WriteSink sink;
+    /** 통로 모드의 실제 청크(사본 전) — 하이트맵을 여기서 읽는다. lazyFill 이 사본과 함께 채운다. */
+    private ChunkColumn[] originCols;
+    private EdgeUpdater edgeUpdater;
+
+    /** 통로 모드로 바꾼다(lazyLiveGrid 직후, 배치 전). */
+    public void useSink(WriteSink sink, ChunkColumn[] originCols, EdgeUpdater edgeUpdater) {
+        this.sink = java.util.Objects.requireNonNull(sink, "sink");
+        this.originCols = java.util.Objects.requireNonNull(originCols, "originCols");
+        this.edgeUpdater = edgeUpdater;
+    }
+
+    public EdgeUpdater edgeUpdater() { return edgeUpdater; }
+
+    /** 통로 모드인가(플러그인 레벨을 통한 배치). */
+    public boolean sinkMode() { return sink != null; }
+
+    /** 지금 쓰기에 실리는 flag(통로·라이브 반영). */
+    public int liveWriteFlags() { return liveWriteFlags; }
+
+    /**
+     * 바닐라 {@code level.getBlockEntity(pos) instanceof …}(벌집 장식·보너스 상자·던전) 자리: 그 칸에 types 중 한 종류의 블록 엔티티가 있는가.
+     * 통로가 없으면 늘 참이다(월드젠·{@code /place}·묘목은 블록을 놓을 때 블록 엔티티가 생긴다). 통로 모드는 그 레벨이 돌려주는 것을 본다 — 없거나 다른
+     * 종류면 거짓(바닐라처럼 그 단계를 건너뛰고 난수도 쓰지 않는다). 있으면 그 블록 엔티티의 내용을 바꿔야 하는데 플러그인 레벨의 블록 엔티티를 고치는
+     * 길이 아직 없어 {@link UnsupportedOperationException}.
+     */
+    public boolean blockEntityPresent(int worldX, int worldY, int worldZ, java.util.Set<String> types) {
+        if (sink == null) return true;
+        String type = sink.blockEntityType(worldX, worldY, worldZ);
+        if (type == null || !types.contains(type)) return false;
+        throw new UnsupportedOperationException("the level already has a " + type + " block entity at " + worldX + ", " + worldY + ", " + worldZ
+                + " that this feature would change - changing a block entity of a plugin level is not supported yet");
+    }
+
+    /** 하이트맵을 읽을 청크: 통로 모드는 실제 청크, 아니면 사본. */
+    private ChunkColumn heightCell(int chunkX, int chunkZ) {
+        ChunkColumn c = cell(chunkX, chunkZ);
+        if (originCols == null || c == null) return c;
+        return originCols[gridIndex(chunkX, chunkZ)];
     }
 
     /** /place 라이브 격자: 범위 밖·로드 안 된 청크를 읽거나 쓴 횟수(0 이 아니면 결과를 믿을 수 없다). */

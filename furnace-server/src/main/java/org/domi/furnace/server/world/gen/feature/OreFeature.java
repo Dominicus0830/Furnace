@@ -37,6 +37,9 @@ public final class OreFeature implements ConfiguredFeature {
     @Override
     public boolean place(FeatureWorldView view, WorldgenRandom random, int x, int y, int z) {
         if (scattered) return placeScattered(view, random, x, y, z);
+        // 바닐라 OreFeature 는 BulkSectionAccess 로 청크 섹션에 바로 쓴다(level.setBlock 이 아니다) — 플러그인 레벨로는 Paper 도 setBlock 을 거치지 않으므로
+        // (평범한 populator 는 getChunk 에서 예외, FAWE populator 는 실제 월드 섹션에 바로) 통로로 흉내 내지 않는다
+        if (view.sinkMode()) throw new UnsupportedOperationException("ore veins are written straight into chunk sections (BulkSectionAccess), not through the level's setBlock");
         float angle = random.nextFloat() * (float) Math.PI;
         float horizontalScale = (float) size / 8.0f;
         int padding = (int) Math.ceil(((float) size / 16.0f * 2.0f + 1.0f) / 2.0f);

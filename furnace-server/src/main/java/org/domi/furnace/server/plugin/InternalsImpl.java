@@ -216,6 +216,11 @@ public final class InternalsImpl implements Internals {
     @Override
     public org.domi.furnace.api.internal.ScratchWorlds scratchWorlds() { return scratchWorlds; }
 
+    private final FeatureInternalsImpl features = new FeatureInternalsImpl();
+
+    @Override
+    public org.domi.furnace.api.internal.FeatureInternals features() { return features; }
+
     @Override
     public org.domi.furnace.api.world.World wrapWorld(Object internalWorld) {
         if (internalWorld instanceof World w) {
