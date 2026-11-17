@@ -141,7 +141,7 @@ public final class ChunkPipeline {
                 ChunkColumn col = generated.col();
                 int[] biomeIds = generated.biomeIds();
                 source.applyCarvers(generated, cx, cz);
-                return new PristineChunk(col, biomeIds, source.biomeNamesOf(biomeIds), List.of());
+                return new PristineChunk(col, biomeIds, source.biomeNamesOf(biomeIds, col), List.of());
             }, genPool);
             pristineCache.put(key, future);
             return future;
@@ -430,7 +430,7 @@ public final class ChunkPipeline {
             NoiseWorldSource.Generated g = source.generateWorldChunk(cx, cz);
             ChunkColumn col = g.col();
             source.applyCarvers(g, cx, cz);
-            return new Proto(cx, cz, col, g.biomeIds(), source.biomeNamesOf(g.biomeIds()));
+            return new Proto(cx, cz, col, g.biomeIds(), source.biomeNamesOf(g.biomeIds(), col));
         }, genPool));
     }
 

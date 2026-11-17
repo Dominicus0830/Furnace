@@ -623,12 +623,25 @@ public final class ChunkColumn {
     private void copyGenerationMarksTo(ChunkColumn c) {
         if (postProcessMarks != null) c.postProcessMarks = new java.util.LinkedHashSet<>(postProcessMarks);
         if (generatedFluidTicks != null) c.generatedFluidTicks = new java.util.LinkedHashMap<>(generatedFluidTicks);
+        if (hookBiomes != null) for (int id : hookBiomes) c.addHookBiome(id);
     }
 
     // 월드젠 중 구조물 등이 스폰한 엔티티(NBT: id, Pos, Rotation …) — 청크 로드/저장 쪽에서 소비한다.
     private java.util.List<org.domi.furnace.server.net.io.nbt.NbtCompound> generatedEntities;
 
     private boolean freshlyGenerated;
+    /**
+     * 생성 중 훅이 바꿔 넣은 바이옴 id(T-217 GenerationChunk#setBiome). 바닐라 섹션 팔레트는 덮어쓴 바이옴을 지우지 않으므로 장식 단계의 바이옴 집합은
+     * 생성 때 바이옴 ∪ 이것이다(Paper ChunkGenerator#addVanillaDecorations 가 팔레트에서 모은다). 생성 중에만 쓰고 저장하지 않는다.
+     */
+    private java.util.Set<Integer> hookBiomes;
+
+    public java.util.Set<Integer> hookBiomes() { return hookBiomes; }
+
+    public void addHookBiome(int id) {
+        if (hookBiomes == null) hookBiomes = java.util.concurrent.ConcurrentHashMap.newKeySet();
+        hookBiomes.add(id);
+    }
     /** 이번에 생성기가 만든 청크(저장된 것을 읽지 않았다) — 설치 때 ChunkLoadEvent 의 isNewChunk 로 한 번 읽고 내린다. */
     private boolean newlyCreated;
 

@@ -68,9 +68,28 @@ public final class GenHooks {
         return null;
     }
 
+    /**
+     * 훅 객체를 건다(T-217 WorldCreator.generationHooksObject) — 키 조회 대신 그 객체를 세게 쥔다(월드가 사는 동안). 이름은 기록용 키로 쓴다.
+     * {@link ChunkGenerationHooks#prepare} 는 부르는 쪽이 먼저 부른다.
+     */
+    public static GenHooks attachObject(WorldSource gen, ChunkGenerationHooks hooks, String world, long seed, BlockRegistry blocks,
+                                        org.domi.furnace.server.net.registry.RegistrySet registries) {
+        java.util.Objects.requireNonNull(hooks, "hooks");
+        GenHooks h = attach(gen, hooks.name(), k -> hooks, world, seed, blocks, registries);
+        if (h != null) h.object = hooks;
+        return h;
+    }
+
+    /** 객체로 단 훅(T-217)이면 그 객체, 키 훅이면 null. */
+    private ChunkGenerationHooks object;
+
+    public ChunkGenerationHooks object() { return object; }
+
     /** 같은 등록 키·조회·월드 이름에 시드만 바꾼 새 훅(임시 월드 {@link WorldSource#freshCopy}). 실패 수·상태 캐시는 새로 시작한다. */
     GenHooks reseeded(long newSeed) {
-        return new GenHooks(key, lookup, world, newSeed, blocks, biomeNames, seaLevel);
+        GenHooks h = new GenHooks(key, lookup, world, newSeed, blocks, biomeNames, seaLevel);
+        h.object = object;
+        return h;
     }
 
     public String key() { return key; }
@@ -131,9 +150,17 @@ public final class GenHooks {
 
     /** NOISE·SURFACE·CARVERS 단계 훅. */
     public void chunkStage(GenerationStage stage, ChunkColumn col, int cx, int cz) {
+        chunkStage(stage, col, cx, cz, null);
+    }
+
+    /**
+     * NOISE·SURFACE·CARVERS 단계 훅. biomeIds 는 장식 단계가 읽는 그 청크의 바이옴 배열(섹션 순, 섹션마다 y*16+z*4+x) — 훅이
+     * {@link GenerationChunk#setBiome} 을 부르면 섹션과 함께 바꾼다(null 이면 섹션만). 바이옴을 바꿨으면 true.
+     */
+    public boolean chunkStage(GenerationStage stage, ChunkColumn col, int cx, int cz, int[] biomeIds) {
         ChunkGenerationHooks h = current();
-        if (h == null) return;
-        ChunkView view = new ChunkView(col, cx, cz);
+        if (h == null) return false;
+        ChunkView view = new ChunkView(col, cx, cz, biomeIds);
         try {
             switch (stage) {
                 case NOISE -> h.noise(view);
@@ -146,6 +173,7 @@ public final class GenHooks {
         } finally {
             view.closed = true;
         }
+        return view.biomesChanged;
     }
 
     public boolean structure(String structureId, int cx, int cz) {
@@ -223,17 +251,56 @@ public final class GenHooks {
         return id >= 0 && id < biomeNames.size() ? biomeNames.get(id) : "minecraft:plains";
     }
 
+    private volatile java.util.Map<String, Integer> biomeIdByName;
+
+    /** 바이옴 키 → 레지스트리 번호(모르면 IllegalArgumentException). */
+    private int biomeId(String biome) {
+        if (biome == null) throw new IllegalArgumentException("biome cannot be null");
+        java.util.Map<String, Integer> m = biomeIdByName;
+        if (m == null) {
+            java.util.Map<String, Integer> b = new java.util.HashMap<>();
+            for (int i = 0; i < biomeNames.size(); i++) b.put(biomeNames.get(i), i);
+            biomeIdByName = m = b;
+        }
+        Integer id = m.get(biome.indexOf(':') < 0 ? "minecraft:" + biome : biome);
+        if (id == null) throw new IllegalArgumentException("unknown biome: " + biome);
+        return id;
+    }
+
+    /**
+     * 월드 장식 목록(T-217 World#addChunkDecorator)을 단 순서대로 돈다 — 이 객체는 그 월드의 이름·시드·블록 표만 빌려 준다(훅 조회는 하지 않는다).
+     * 장식 하나의 예외는 기록하고 다음으로 넘어간다.
+     */
+    public void runDecorators(java.util.List<org.domi.furnace.api.worldgen.ChunkDecorator> decorators, FeatureWorldView view, int ox, int oz) {
+        if (decorators.isEmpty()) return;
+        RegionView r = new RegionView(view, ox, oz, decorationSeed(seed, ox, oz));
+        try {
+            for (var d : decorators) {
+                try {
+                    d.decorate(r);
+                } catch (RuntimeException | LinkageError e) {
+                    failed("decorator " + d.getClass().getName(), ox, oz, e);
+                }
+            }
+        } finally {
+            r.closed = true;
+        }
+    }
+
     // ------------------------------------------------------------------ 청크 하나(NOISE·SURFACE·CARVERS)
 
     private final class ChunkView implements GenerationChunk {
         final ChunkColumn col;
         final int cx, cz;
+        final int[] biomeIds;
         volatile boolean closed;
+        boolean biomesChanged;
 
-        ChunkView(ChunkColumn col, int cx, int cz) {
+        ChunkView(ChunkColumn col, int cx, int cz, int[] biomeIds) {
             this.col = col;
             this.cx = cx;
             this.cz = cz;
+            this.biomeIds = biomeIds;
         }
 
         private void check(int x, int z) {
@@ -288,6 +355,18 @@ public final class GenHooks {
             check(x, z);
             int ly = Math.clamp(y, col.minY(), col.maxY()) - col.minY();
             return biomeName(col.sections()[ly >> 4].getBiome(x >> 2, (ly >> 2) & 3, z >> 2));
+        }
+
+        @Override
+        public void setBiome(int x, int y, int z, String biome) {
+            check(x, z);
+            int id = biomeId(biome);
+            int ly = Math.clamp(y, col.minY(), col.maxY()) - col.minY();
+            int sec = ly >> 4, qy = (ly >> 2) & 3;
+            col.sections()[sec].setBiome(x >> 2, qy, z >> 2, id);
+            if (biomeIds != null) biomeIds[sec * 64 + qy * 16 + (z >> 2) * 4 + (x >> 2)] = id;
+            col.addHookBiome(id);
+            biomesChanged = true;
         }
 
         @Override
@@ -366,6 +445,20 @@ public final class GenHooks {
             open();
             if (!canRead(x, view.minY(), z)) return null;
             return biomeName(view.getBiomeId(x, Math.clamp(y, view.minY(), view.maxY()), z));
+        }
+
+        @Override
+        public int height(org.domi.furnace.api.worldgen.GenerationHeightmap heightmap, int x, int z) {
+            open();
+            if (!canRead(x, view.minY(), z)) return view.minY();
+            return switch (heightmap) {
+                case WORLD_SURFACE -> view.getSurfaceY(x, z) + 1;
+                case MOTION_BLOCKING -> view.getMotionBlockingY(x, z) + 1;
+                case MOTION_BLOCKING_NO_LEAVES -> view.getMotionBlockingNoLeavesY(x, z) + 1;
+                case OCEAN_FLOOR -> view.getOceanFloorY(x, z) + 1;
+                case WORLD_SURFACE_WG -> view.getWorldSurfaceWgY(x, z) + 1;
+                case OCEAN_FLOOR_WG -> view.getWgOceanFloorHeight(x, z);
+            };
         }
 
         @Override

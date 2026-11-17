@@ -293,6 +293,8 @@ public final class FurnaceMain {
         org.domi.furnace.server.world.gen.GenHooks.attach(flatSource != null ? flatSource : noiseSource,
                 worldSettings.generationHooks("minecraft:overworld"), pluginBoot.generationHooks()::get, "minecraft:overworld",
                 config.levelSeed(), blockRegistry, registries);
+        org.domi.furnace.server.world.gen.ChunkDecorators.bind(flatSource != null ? flatSource : noiseSource, "minecraft:overworld",
+                config.levelSeed(), blockRegistry, registries);   // 월드 장식(T-217 — Bukkit BlockPopulator)
         var anvilSource = new org.domi.furnace.server.world.gen.AnvilWorldSource(
                 worldDir, regionStore, chunkCodec, debugSource != null ? debugSource : flatSource != null ? flatSource : noiseSource);
         var entityStore = new org.domi.furnace.server.world.anvil.RegionFileStore(dimension.storageDir(worldDir), "entities", props.syncChunkWrites);
@@ -432,6 +434,7 @@ public final class FurnaceMain {
             applyWorldGenOptions(levelData, gen);
             org.domi.furnace.server.world.gen.GenHooks.attach(gen, worldSettings.generationHooks(type.levelKey()),
                     pluginBoot.generationHooks()::get, type.levelKey(), dimSeed, blockRegistry, registries);
+            org.domi.furnace.server.world.gen.ChunkDecorators.bind(gen, type.levelKey(), dimSeed, blockRegistry, registries);
             var built = worldManager.build(type, worldDir, gen);
             extraStores.addAll(built.stores());
             World w = built.world();
@@ -481,6 +484,10 @@ public final class FurnaceMain {
                 Throwable cause = e instanceof java.util.concurrent.ExecutionException ? e.getCause() : e;
                 if (cause instanceof org.domi.furnace.server.world.WorldManager.NeedsBiomeProviderException n) {
                     log.warn(Lang.t("world.autoload-needs-provider", name, n.provider()));   // 공급자를 가진 플러그인이 onEnable 에서 다시 만든다(T-210)
+                    continue;
+                }
+                if (cause instanceof org.domi.furnace.server.world.WorldManager.NeedsGenerationHooksException n) {
+                    log.warn(Lang.t("world.autoload-needs-generator", name, n.hooks()));   // 생성기를 가진 플러그인이 다시 만든다(T-217)
                     continue;
                 }
                 log.error(Lang.t("world.autoload-failed", name), cause);

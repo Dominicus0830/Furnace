@@ -44,6 +44,14 @@ public interface GenerationChunk {
     /** 그 칸의 바이옴 키(4칸 단위). */
     String biome(int x, int y, int z);
 
+    /**
+     * 그 칸이 든 4×4×4 칸의 바이옴을 바꾼다(높이는 잘라 맞춘다). 장식 단계는 바뀐 바이옴을 본다(바닐라처럼 청크에 저장된 바이옴을 읽는다).
+     * 구조물 후보 판정은 바닐라처럼 생성기의 바이옴 원천을 보므로 바뀌지 않는다.
+     *
+     * @throws IllegalArgumentException 모르는 바이옴
+     */
+    default void setBiome(int x, int y, int z, String biome) { throw new UnsupportedOperationException("setBiome"); }
+
     /** 그 열에서 공기가 아닌 가장 높은 블록 y. 다 공기면 minY() - 1. */
     int highestBlockY(int x, int z);
 }

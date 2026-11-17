@@ -60,12 +60,14 @@ public final class FeaturePlacer {
     }
 
     /**
-     * hooks(W3 월드젠 훅)가 있으면: FEATURES 바닐라를 끈 원점은 지형지물을 건너뛰고(구조물 조각은 그대로 — CraftBukkit 의
-     * shouldGenerateDecorations=false 와 같다), 켠 원점도 훅이 거절한 지형지물만 건너뛴다. 지형지물마다 난수 씨앗을 다시 정하므로
+     * hooks(W3 월드젠 훅)가 있으면: DECORATION 바닐라를 끈 원점은 구조물 조각·지형지물 모두 건너뛴다(CraftBukkit 의
+     * shouldGenerateDecorations=false — applyBiomeDecoration 이 addVanillaDecorations 를 부르지 않는다, T-217). 켠 원점에서 FEATURES 를 끄면
+     * 지형지물만 건너뛰고(구조물 조각은 그대로), 켠 원점도 훅이 거절한 지형지물만 건너뛴다. 지형지물마다 난수 씨앗을 다시 정하므로
      * 하나를 빼도 다른 지형지물의 배치 난수는 그대로다(WorldGenRegion 공용 난수를 이어 쓰는 몇몇은 달라질 수 있다).
      */
     public void decorate(FeatureWorldView view, Set<String> biomeSet, int cx, int cz, List<StructureStart> starts,
                          org.domi.furnace.server.world.gen.GenHooks hooks) {
+        if (hooks != null && !hooks.vanilla(org.domi.furnace.api.worldgen.GenerationStage.DECORATION, cx, cz)) return;
         boolean vanillaFeatures = hooks == null || hooks.vanilla(org.domi.furnace.api.worldgen.GenerationStage.FEATURES, cx, cz);
         WorldgenRandom random = new XoroshiroWorldgenRandom();
         long decorationSeed = random.setDecorationSeed(seed, cx * 16, cz * 16);

@@ -327,11 +327,18 @@ public interface World extends Keyed, org.bukkit.metadata.Metadatable, org.bukki
 
     int getMaxHeight();
 
-    /** 이 월드를 만들 때 준 플러그인 바이옴 공급자. Furnace 는 아직 그렇게 월드를 만들지 않아 늘 null(Paper 도 주지 않았으면 null). */
+    /** 이 월드를 만들 때 준 플러그인 바이옴 공급자(T-210, 생성기의 기본 공급자 포함). 주지 않았으면 null. */
     default org.bukkit.generator.BiomeProvider getBiomeProvider() { return null; }
 
-    /** 이 월드를 만들 때 준 플러그인 생성기. Furnace 는 아직 Bukkit 생성기로 월드를 만들지 않아 늘 null(Paper 도 주지 않았으면 null). */
+    /** 이 월드를 만들 때 준 플러그인 생성기(T-217). 주지 않았으면 null. */
     default org.bukkit.generator.ChunkGenerator getGenerator() { return null; }
+
+    /**
+     * 이 월드의 BlockPopulator 목록(바꿀 수 있다) — 새 청크마다 바닐라 장식 뒤 목록 순서대로 불린다(생성기와 무관하게 모든 월드, T-217).
+     */
+    default java.util.List<org.bukkit.generator.BlockPopulator> getPopulators() {
+        throw new org.domi.furnace.compat.paper.UnsupportedFeature("World#getPopulators", "this world implementation has no populators");
+    }
 
     /** Paper CraftWorld: level.dat 생성기가 평지면 FLAT, 아니면 NORMAL(큰 바이옴·증폭도 NORMAL). */
     WorldType getWorldType();

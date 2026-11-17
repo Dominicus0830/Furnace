@@ -196,8 +196,8 @@ public final class AnvilWorldSource implements WorldSource {
                     ChunkColumn gen = generateFallback(chunkX, chunkZ);
                     gen.markDirty();
                     gen.newlyCreated(true);
-                    // 노이즈 생성기만 청크 생성 때 동물을 놓는다(NoiseBasedChunkGenerator.spawnOriginalMobs — 평지 생성기는 없다)
-                    if (base instanceof NoiseWorldSource n && !n.isFlat()) gen.freshlyGenerated(true);
+                    // 노이즈 생성기만 청크 생성 때 동물을 놓는다(NoiseBasedChunkGenerator.spawnOriginalMobs — 평지 생성기는 없다, 훅 MOBS)
+                    if (base instanceof NoiseWorldSource n && n.spawnsOriginalMobs(chunkX, chunkZ)) gen.freshlyGenerated(true);
                     return gen;
                 }, genExecutor);
             });
@@ -231,6 +231,9 @@ public final class AnvilWorldSource implements WorldSource {
 
     @Override
     public int noiseBiome(int quartX, int quartY, int quartZ) { return base.noiseBiome(quartX, quartY, quartZ); }
+
+    @Override
+    public ChunkDecorators chunkDecorators() { return base.chunkDecorators(); }
 
     @Override
     public WorldSource freshCopy(long seed, org.domi.furnace.api.worldgen.BiomeProvider biomes) { return base.freshCopy(seed, biomes); }

@@ -194,16 +194,35 @@ public final class SuperflatWorldSource implements WorldSource {
                 }
             }
         }
+        int[] biomeIds = null;
         if (hooks != null) {
-            hooks.chunkStage(org.domi.furnace.api.worldgen.GenerationStage.NOISE, c, chunkX, chunkZ);
-            hooks.chunkStage(org.domi.furnace.api.worldgen.GenerationStage.SURFACE, c, chunkX, chunkZ);
-            hooks.chunkStage(org.domi.furnace.api.worldgen.GenerationStage.CARVERS, c, chunkX, chunkZ);
-            int[] biomeIds = new int[c.sectionCount() * 64];
+            biomeIds = new int[c.sectionCount() * 64];
             java.util.Arrays.fill(biomeIds, biomeId);
-            var view = new org.domi.furnace.server.world.gen.feature.FeatureWorldView(c, chunkX, chunkZ, biomeIds, hooks.seed());
-            hooks.decorate(view, chunkX, chunkZ, GenHooks.decorationSeed(hooks.seed(), chunkX, chunkZ));
+            hooks.chunkStage(org.domi.furnace.api.worldgen.GenerationStage.NOISE, c, chunkX, chunkZ, biomeIds);
+            hooks.chunkStage(org.domi.furnace.api.worldgen.GenerationStage.SURFACE, c, chunkX, chunkZ, biomeIds);
+            hooks.chunkStage(org.domi.furnace.api.worldgen.GenerationStage.CARVERS, c, chunkX, chunkZ);
+        }
+        if (hooks != null || !chunkDecorators.isEmpty()) {
+            if (biomeIds == null) {
+                biomeIds = new int[c.sectionCount() * 64];
+                java.util.Arrays.fill(biomeIds, biomeId);
+            }
+            long seed = hooks != null ? hooks.seed() : decoratorSeed;
+            var view = new org.domi.furnace.server.world.gen.feature.FeatureWorldView(c, chunkX, chunkZ, biomeIds, seed);
+            if (hooks != null) hooks.decorate(view, chunkX, chunkZ, GenHooks.decorationSeed(hooks.seed(), chunkX, chunkZ));
+            chunkDecorators.run(view, chunkX, chunkZ);   // 월드 장식(T-217) — 이 생성기는 장식 단계가 이 청크 하나뿐이다
             c.rebuildHeightmapsAfterSurface();
         }
         return c;
     }
+
+    /** 월드 장식 목록(T-217 World#addChunkDecorator). */
+    private final ChunkDecorators chunkDecorators = new ChunkDecorators();
+    /** 장식 영역 보기의 시드(훅이 없을 때) — {@link ChunkDecorators#bind} 가 정한다. */
+    private volatile long decoratorSeed;
+
+    void decoratorSeed(long seed) { this.decoratorSeed = seed; }
+
+    @Override
+    public ChunkDecorators chunkDecorators() { return chunkDecorators; }
 }

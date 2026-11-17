@@ -67,6 +67,8 @@ class ChunkFieldCensusTest {
         // 블록과 무관
         e("dirty", Kind.UNRELATED), e("generatedBlockEntities", Kind.UNRELATED), e("postProcessMarks", Kind.UNRELATED),
         e("generatedFluidTicks", Kind.UNRELATED), e("generatedEntities", Kind.UNRELATED), e("freshlyGenerated", Kind.UNRELATED),
+        // 생성 중 훅이 바꿔 넣은 바이옴 id(T-217) — 장식 단계 바이옴 집합에만 쓰는 생성 표시
+        e("hookBiomes", Kind.UNRELATED),
         e("newlyCreated", Kind.UNRELATED), e("bodyWaits", Kind.UNRELATED), e("lightWaits", Kind.UNRELATED),
         e("lightWaitTick", Kind.UNRELATED), e("lightPrecomputed", Kind.UNRELATED), e("lightStored", Kind.UNRELATED),
         e("lightStaleSeq", Kind.UNRELATED), e("listenerRegistries", Kind.UNRELATED), e("extraNbt", Kind.UNRELATED),

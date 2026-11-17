@@ -797,6 +797,22 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
 
     public GenHooks generationHooks() { return genHooks; }
 
+    /** 월드 장식 목록(T-217 World#addChunkDecorator). */
+    private final ChunkDecorators chunkDecorators = new ChunkDecorators();
+
+    @Override
+    public ChunkDecorators chunkDecorators() { return chunkDecorators; }
+
+    /**
+     * 그 청크를 처음 만들 때 동물을 놓는가 — 바닐라 NoiseBasedChunkGenerator.spawnOriginalMobs(평지 FlatLevelSource 는 비어 있다).
+     * 훅이 MOBS 를 끄면 놓지 않는다(Bukkit shouldGenerateMobs). 평지에서도 훅에 묻는다(Paper CustomChunkGenerator 가 늘 묻는다).
+     */
+    public boolean spawnsOriginalMobs(int chunkX, int chunkZ) {
+        GenHooks h = genHooks;
+        boolean asked = h == null || h.vanilla(org.domi.furnace.api.worldgen.GenerationStage.MOBS, chunkX, chunkZ);
+        return asked && !isFlat();
+    }
+
     private Generated generateWithBiomes(int chunkX, int chunkZ, org.domi.furnace.server.world.gen.structure.Beardifier beard) {
         if (flatLayers != null) return generateFlat(chunkX, chunkZ);
         int minY      = settings.minY();       // -64
@@ -826,12 +842,13 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         chunkBiomeCache.put(chunkKey(chunkX, chunkZ), biomeIds.clone());
         col.loadGenerated(blockIds, biomeIds);
         if (vanillaNoise) nc.transferFluidMarks(col);   // 대수층 경계 유체 — 청크가 붙을 때 유체 틱(A06-03)
-        if (hooks != null) hooks.chunkStage(org.domi.furnace.api.worldgen.GenerationStage.NOISE, col, chunkX, chunkZ);
+        boolean biomesChanged = hooks != null && hooks.chunkStage(org.domi.furnace.api.worldgen.GenerationStage.NOISE, col, chunkX, chunkZ, biomeIds);
 
         if (hooks == null || hooks.vanilla(org.domi.furnace.api.worldgen.GenerationStage.SURFACE, chunkX, chunkZ)) {
             surfaceSystem.buildSurface(col, biomeIds, nc, chunkX, chunkZ);
         }
-        if (hooks != null) hooks.chunkStage(org.domi.furnace.api.worldgen.GenerationStage.SURFACE, col, chunkX, chunkZ);
+        if (hooks != null) biomesChanged |= hooks.chunkStage(org.domi.furnace.api.worldgen.GenerationStage.SURFACE, col, chunkX, chunkZ, biomeIds);
+        if (biomesChanged) chunkBiomeCache.put(chunkKey(chunkX, chunkZ), biomeIds.clone());   // 훅이 바꾼 바이옴(T-217 setBiome)
         col.rebuildHeightmapsAfterSurface();
         col.clearDirty();
 
@@ -858,12 +875,24 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         ChunkColumn col = new ChunkColumn(0, reg.directBits(), biomeDirectBits, dimension.minY, dimension.sectionCount);
         col.loadGenerated(blockIds, biomeIds);
         if (hooks != null) {
-            hooks.chunkStage(org.domi.furnace.api.worldgen.GenerationStage.NOISE, col, chunkX, chunkZ);
-            hooks.chunkStage(org.domi.furnace.api.worldgen.GenerationStage.SURFACE, col, chunkX, chunkZ);
+            hooks.chunkStage(org.domi.furnace.api.worldgen.GenerationStage.NOISE, col, chunkX, chunkZ, biomeIds);
+            hooks.chunkStage(org.domi.furnace.api.worldgen.GenerationStage.SURFACE, col, chunkX, chunkZ, biomeIds);
         }
         col.rebuildHeightmapsAfterSurface();
         col.clearDirty();
         return new Generated(col, biomeIds);
+    }
+
+    /**
+     * {@link #biomeNamesOf(int[])} 에 생성 중 훅이 바꿔 넣은 바이옴(T-217)을 더한 것 — 바닐라 섹션 팔레트는 덮어쓴 바이옴을 지우지 않는다.
+     */
+    public Set<String> biomeNamesOf(int[] biomeIds, ChunkColumn col) {
+        Set<String> names = biomeNamesOf(biomeIds);
+        var extra = col.hookBiomes();
+        if (extra != null) {
+            for (int id : extra) if (id >= 0 && id < registryBiomeNames.length) names.add(registryBiomeNames[id]);
+        }
+        return names;
     }
 
     /** 청크 biome id 배열에 등장하는 biome 이름 집합 — FeaturePlacer의 neighborBiomes 구성 단위(청크당 한 번만 계산해 재사용). */
@@ -1257,6 +1286,7 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
         GenHooks hooks = genHooks;
         if (featurePlacer != null) featurePlacer.decorate(view, neighborBiomes, ox, oz, starts, hooks);
         if (hooks != null) hooks.decorate(view, ox, oz, GenHooks.decorationSeed(seed, ox, oz));
+        chunkDecorators.run(view, ox, oz);   // 월드 장식(Bukkit BlockPopulator) — 바닐라 장식을 끈 청크도(CraftBukkit applyBiomeDecoration)
     }
 
     public FeaturePlacer featurePlacer() {

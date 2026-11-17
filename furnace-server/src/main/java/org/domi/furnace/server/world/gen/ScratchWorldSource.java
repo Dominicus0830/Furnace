@@ -20,7 +20,7 @@ public final class ScratchWorldSource implements WorldSource {
         if (base instanceof NoiseWorldSource n) {
             ChunkColumn col = n.generateWithFeatures(chunkX, chunkZ);
             // 노이즈 생성기만 청크 생성 때 동물을 놓는다(NoiseBasedChunkGenerator.spawnOriginalMobs — AnvilWorldSource 와 같다)
-            if (!n.isFlat()) col.freshlyGenerated(true);
+            if (n.spawnsOriginalMobs(chunkX, chunkZ)) col.freshlyGenerated(true);
             return col;
         }
         return base.generate(chunkX, chunkZ);
@@ -31,6 +31,9 @@ public final class ScratchWorldSource implements WorldSource {
 
     @Override
     public int noiseBiome(int quartX, int quartY, int quartZ) { return base.noiseBiome(quartX, quartY, quartZ); }
+
+    @Override
+    public ChunkDecorators chunkDecorators() { return base.chunkDecorators(); }
 
     @Override
     public WorldSource freshCopy(long seed, org.domi.furnace.api.worldgen.BiomeProvider biomes) { return new ScratchWorldSource(base.freshCopy(seed, biomes)); }

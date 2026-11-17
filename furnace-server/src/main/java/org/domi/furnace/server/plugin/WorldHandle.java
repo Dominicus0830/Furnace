@@ -1053,6 +1053,36 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
         return ws instanceof org.domi.furnace.server.world.gen.NoiseWorldSource n ? n.biomeProvider() : null;
     }
 
+    /** 만들 때 단 월드젠 훅 객체(T-217). */
+    @Override
+    public org.domi.furnace.api.worldgen.ChunkGenerationHooks generationHooksObject() {
+        var ws = baseSource();
+        org.domi.furnace.server.world.gen.GenHooks h = ws instanceof org.domi.furnace.server.world.gen.NoiseWorldSource n ? n.generationHooks()
+                : ws instanceof org.domi.furnace.server.world.gen.SuperflatWorldSource f ? f.generationHooks() : null;
+        return h == null ? null : h.object();
+    }
+
+    @Override
+    public void addChunkDecorator(org.domi.furnace.api.worldgen.ChunkDecorator decorator) {
+        java.util.Objects.requireNonNull(decorator, "decorator");
+        var d = world.worldSource().chunkDecorators();
+        if (d == null) throw new UnsupportedOperationException("this world's generator has no decoration step");
+        d.add(decorator);
+    }
+
+    @Override
+    public boolean removeChunkDecorator(org.domi.furnace.api.worldgen.ChunkDecorator decorator) {
+        var d = world.worldSource().chunkDecorators();
+        return d != null && d.remove(decorator);
+    }
+
+    private org.domi.furnace.server.world.gen.WorldSource baseSource() {
+        var ws = world.worldSource();
+        if (ws instanceof org.domi.furnace.server.world.gen.AnvilWorldSource a) ws = a.base();
+        else if (ws instanceof org.domi.furnace.server.world.gen.ScratchWorldSource t) ws = t.base();
+        return ws;
+    }
+
     @Override
     public boolean generatesStructures() { return world.generatesStructures(); }
 

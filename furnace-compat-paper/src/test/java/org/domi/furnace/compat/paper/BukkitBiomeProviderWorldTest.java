@@ -123,7 +123,8 @@ class BukkitBiomeProviderWorldTest {
     @Test
     void flatGeneratorSettingsFollowVanilla() throws Exception {
         try (FurnaceTestServer server = start()) {
-            World def = Bukkit.createWorld(new WorldCreator("deflat").type(WorldType.FLAT));
+            // 시드를 정한다 — 무작위 시드면 기본 프리셋의 마을 길(흙길)이 (3, 3)에 놓일 때가 있다
+            World def = Bukkit.createWorld(new WorldCreator("deflat").seed(1L).type(WorldType.FLAT));
             assertEquals(List.of(org.bukkit.Material.GRASS_BLOCK, org.bukkit.Material.AIR, Biome.PLAINS), onRegion(def, 3, 3, () -> List.<Object>of(
                     def.getBlockAt(3, -61, 3).getType(), def.getBlockAt(3, -60, 3).getType(), def.getBiome(3, -61, 3))));
             World desert = Bukkit.createWorld(new WorldCreator("dflat").type(WorldType.FLAT)

@@ -98,6 +98,13 @@ public interface Server extends org.bukkit.plugin.messaging.PluginMessageRecipie
      */
     World createWorld(WorldCreator creator);
 
+    /** 옛 ChunkGenerator#generateChunkData 가 돌려줄 빈 청크 데이터(Paper CraftServer#createChunkData — 그 월드 높이). */
+    @Deprecated
+    default org.bukkit.generator.ChunkGenerator.ChunkData createChunkData(World world) {
+        if (world == null) throw new IllegalArgumentException("World cannot be null");
+        return new org.domi.furnace.compat.paper.BukkitChunkGenerators.OldChunkData(world.getMinHeight(), world.getMaxHeight());
+    }
+
     int broadcastMessage(String message);
 
     /** 그 권한을 가진(값이 정해져 참인) 접속자·콘솔에게 보낸다. 받은 수를 돌려준다. */
