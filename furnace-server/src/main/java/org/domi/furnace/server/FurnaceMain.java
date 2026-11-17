@@ -255,6 +255,8 @@ public final class FurnaceMain {
         RegistrySet.install(registries);   // 데이터 팩을 읽으면 그쪽(동기화 레지스트리를 다시 만든 것)으로 바뀐다
         pluginBoot.collectGenerationHooks();   // 월드젠 단계 훅(W3) — 월드를 만들기 전에
         var worldSettings = org.domi.furnace.server.world.WorldSettings.load(furnaceProps);
+        // 생성기·바이옴 공급자 플러그인을 정한 기본 차원(T-219, world-generator.*·world-biome-provider.*) — 월드 전 플러그인을 켠 뒤 붙인다
+        java.util.List<String> pluginGenerated = org.domi.furnace.server.world.DefaultWorldGenerators.pending(worldSettings, levelName);
         int plainsBiome = Math.max(0,
                 registries.indexOf("minecraft:worldgen/biome", "minecraft:plains"));
         int biomeCount = registries.entries("minecraft:worldgen/biome").size();
@@ -325,7 +327,9 @@ public final class FurnaceMain {
         world.worldDir(worldDir);
         world.levelKind(levelData.isFlatWorld(), levelData.isDebugWorld());   // 클라이언트 login/respawn 의 is_flat·is_debug
         world.generatesStructures(levelData.generateFeatures);
-        if (!levelData.initialized) {
+        // 생성기 플러그인을 기다리는 새 오버월드는 스폰을 그 생성기를 붙인 뒤 정한다(Paper: STARTUP 플러그인 → 월드 만들기 → setInitialSpawn)
+        boolean spawnDeferred = !levelData.initialized && debugSource == null && pluginGenerated.contains("minecraft:overworld");
+        if (!levelData.initialized && !spawnDeferred) {
             // 새 월드: 바닐라 setInitialSpawn 에 해당하는 생성기 기본 스폰을 정해 level.dat 에 남긴다.
             if (debugSource != null) {
                 // 바닐라 MinecraftServer.setInitialSpawn(debug): BlockPos.ZERO.above(80)
@@ -449,7 +453,8 @@ public final class FurnaceMain {
             dimensions.register(w);
         }
         dimensions.levelEnabled(k -> !k.equals(org.domi.furnace.server.world.DimensionType.NETHER.levelKey()) || props.allowNether);
-        for (World w : dimensions.all()) w.startTicking();
+        // 생성기 플러그인을 기다리는 차원은 붙인 뒤에 틱을 켠다(강제 로드 청크가 바닐라 생성기로 만들어지지 않게)
+        for (World w : dimensions.all()) if (!pluginGenerated.contains(w.dimension())) w.startTicking();
         // 종료 훅은 등록 순: 월드들(자기 큐 분리) → 공유 풀 → fallback → global
         if (regionPool != null) scheduler.addCloseHook(regionPool::close);
         log.info(Lang.t("sched.threads", genThreads, config.regionThreads(),
@@ -632,9 +637,53 @@ public final class FurnaceMain {
         Runtime.getRuntime().addShutdownHook(ShutdownSequence.jvmHook(stop, shutdown::countDown));
 
         // 바닐라 prepareLevels → overworld.setDefaultSpawnPos: 게임 규칙 spawnChunkRadius 의 START 티켓 — 플레이어가 없어도 스폰 청크가 올라와 돈다
+        // Paper 순서: 월드 전 플러그인(load: STARTUP) 켜기 → 기본 월드 생성기 고르기·스폰 → 스폰 청크 → 월드 드러내기 → 나머지 플러그인
+        onGlobal(scheduler, () -> core.plugins().pluginsImpl().enableBeforeWorlds());   // 위 loadAll 과 같은 까닭으로 전역 스레드에서
+        org.domi.furnace.server.world.SpawnPoint startSpawn = defaultSpawn;
+        if (!pluginGenerated.isEmpty()) {
+            java.util.List<org.domi.furnace.server.world.DefaultWorldGenerators.Target> targets = new java.util.ArrayList<>();
+            for (String key : pluginGenerated) {
+                World w = dimensions.get(key);
+                if (w == null) continue;
+                var type = org.domi.furnace.server.world.DimensionType.byLevelKey(key);
+                targets.add(new org.domi.furnace.server.world.DefaultWorldGenerators.Target(w, key,
+                        org.domi.furnace.server.world.DefaultWorldGenerators.worldName(levelName, key),
+                        org.domi.furnace.server.world.DefaultWorldGenerators.environmentOf(key), w.seed(),
+                        type.minY(), type.maxY()));
+            }
+            // 플러그인 코드(생성기 고르기·기본 BlockPopulator·고정 스폰)는 플러그인을 켜는 스레드에서 — Paper 의 주 스레드 자리
+            final var spawnRef = new java.util.concurrent.atomic.AtomicReference<org.domi.furnace.server.world.SpawnPoint>(defaultSpawn);
+            onGlobal(scheduler, () -> {
+                var hooks = org.domi.furnace.server.world.DefaultWorldGenerators.attach(targets, worldSettings,
+                        core.plugins().pluginsImpl()::defaultWorldGeneration, blockRegistry, registries);
+                if (spawnDeferred) {
+                    var sp = org.domi.furnace.server.world.DefaultWorldGenerators.initialSpawn(world, levelName, hooks.get("minecraft:overworld"));
+                    synchronized (level) {
+                        level.spawnX = sp.x();
+                        level.spawnY = sp.y();
+                        level.spawnZ = sp.z();
+                        level.spawnAngle = sp.yaw();
+                        level.initialized = true;
+                    }
+                    spawnRef.set(sp);
+                }
+            });
+            startSpawn = spawnRef.get();
+            if (spawnDeferred) {
+                for (String key : java.util.List.of("minecraft:overworld", "minecraft:the_nether", "minecraft:the_end")) {
+                    World w = dimensions.get(key);
+                    if (w != null) w.defaultSpawn(startSpawn);
+                }
+                saveLevelData.run();
+            }
+            for (String key : pluginGenerated) {
+                World w = dimensions.get(key);
+                if (w != null) w.startTicking();
+            }
+        }
         world.enableSpawnChunks();
-        prepareSpawnArea(world, defaultSpawn, config.spawnChunkRadius());
-        onGlobal(scheduler, () -> core.plugins().pluginsImpl().enableAll());   // 위 loadAll 과 같은 까닭으로 전역 스레드에서
+        prepareSpawnArea(world, startSpawn, config.spawnChunkRadius());
+        onGlobal(scheduler, () -> core.plugins().pluginsImpl().enableAfterWorlds());
         core.plugins().pluginsImpl().startWatcher();   // plugins.dev-mode.auto-reload 일 때만
         core.loadFunctions();   // 플러그인(onLoad·onEnable)·Furnace 명령이 모두 등록된 뒤 함수를 파싱한다 — 그 명령을 쓰는 함수가 시작 때 빠지지 않게
         network.start();

@@ -5,6 +5,9 @@
 //   worldgen-hooks.overworld=      기본 차원의 월드젠 단계 훅 키(플러그인이 WORLD_GENERATION 에서 등록한 것, W3). 비우면 바닐라
 //   worldgen-hooks.the_nether=     위와 같다
 //   worldgen-hooks.the_end=        위와 같다
+//   world-generator.overworld=     기본 차원의 생성기 플러그인 "플러그인[:id]"(Bukkit bukkit.yml worlds.<이름>.generator, T-219). 비우면 바닐라
+//   world-generator.the_nether=    위와 같다(the_end 도)
+//   world-biome-provider.overworld= 기본 차원의 바이옴 공급자 플러그인 "플러그인[:id]"(bukkit.yml worlds.<이름>.biome-provider). 나머지 차원도 같다
 package org.domi.furnace.server.world;
 
 import java.io.IOException;
@@ -16,18 +19,37 @@ import java.util.List;
 import java.util.OptionalLong;
 import java.util.Properties;
 
-public record WorldSettings(OptionalLong netherSeed, OptionalLong endSeed, List<String> autoload, java.util.Map<String, String> hooks) {
+public record WorldSettings(OptionalLong netherSeed, OptionalLong endSeed, List<String> autoload, java.util.Map<String, String> hooks,
+                            java.util.Map<String, String> generators, java.util.Map<String, String> biomeProviders) {
 
     public static final WorldSettings DEFAULT = new WorldSettings(OptionalLong.empty(), OptionalLong.empty(), List.of(), java.util.Map.of());
+
+    /** 기본 세 차원의 설정 이름(furnace.properties 키 끝) — 차원 키는 "minecraft:" 를 붙인 것. */
+    public static final List<String> DIMENSIONS = List.of("overworld", "the_nether", "the_end");
 
     public WorldSettings {
         autoload = List.copyOf(autoload);
         hooks = java.util.Map.copyOf(hooks);
+        generators = java.util.Map.copyOf(generators);
+        biomeProviders = java.util.Map.copyOf(biomeProviders);
+    }
+
+    public WorldSettings(OptionalLong netherSeed, OptionalLong endSeed, List<String> autoload, java.util.Map<String, String> hooks) {
+        this(netherSeed, endSeed, autoload, hooks, java.util.Map.of(), java.util.Map.of());
     }
 
     public WorldSettings(OptionalLong netherSeed, OptionalLong endSeed, List<String> autoload) {
         this(netherSeed, endSeed, autoload, java.util.Map.of());
     }
+
+    /** 그 기본 차원의 생성기 플러그인 "플러그인[:id]"(없으면 빈 문자열, T-219). */
+    public String generator(String levelKey) { return generators.getOrDefault(levelKey, ""); }
+
+    /** 그 기본 차원의 바이옴 공급자 플러그인 "플러그인[:id]"(없으면 빈 문자열, T-219). */
+    public String biomeProvider(String levelKey) { return biomeProviders.getOrDefault(levelKey, ""); }
+
+    /** 생성기나 공급자 플러그인을 정한 기본 차원인가. */
+    public boolean pluginGenerated(String levelKey) { return generators.containsKey(levelKey) || biomeProviders.containsKey(levelKey); }
 
     /** 그 기본 차원(minecraft:overworld · the_nether · the_end)에 걸 월드젠 훅 키(없으면 빈 문자열). */
     public String generationHooks(String levelKey) { return hooks.getOrDefault(levelKey, ""); }
@@ -60,11 +82,18 @@ public record WorldSettings(OptionalLong netherSeed, OptionalLong endSeed, List<
             if (!n.isEmpty() && !names.contains(n)) names.add(n);
         }
         java.util.Map<String, String> hooks = new java.util.HashMap<>();
-        for (String dim : List.of("overworld", "the_nether", "the_end")) {
+        java.util.Map<String, String> generators = new java.util.HashMap<>();
+        java.util.Map<String, String> providers = new java.util.HashMap<>();
+        for (String dim : DIMENSIONS) {
             String k = p.getProperty("worldgen-hooks." + dim, "").strip();
             if (!k.isEmpty()) hooks.put("minecraft:" + dim, k);
+            String g = p.getProperty("world-generator." + dim, "").strip();
+            if (!g.isEmpty()) generators.put("minecraft:" + dim, g);
+            String b = p.getProperty("world-biome-provider." + dim, "").strip();
+            if (!b.isEmpty()) providers.put("minecraft:" + dim, b);
         }
-        return new WorldSettings(seed(p.getProperty("dimension-seed.the_nether")), seed(p.getProperty("dimension-seed.the_end")), names, hooks);
+        return new WorldSettings(seed(p.getProperty("dimension-seed.the_nether")), seed(p.getProperty("dimension-seed.the_end")), names, hooks,
+                generators, providers);
     }
 
     /** 바닐라 WorldOptions.parseSeed: 비면 없음, 숫자면 그 값, 아니면 글자의 hashCode. */

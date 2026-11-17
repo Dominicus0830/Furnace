@@ -253,6 +253,34 @@ public final class PluginBootstrapper {
     }
 
     /**
+     * 기본 월드 하나의 생성기·공급자를 형식 어댑터들에게 묻는다(T-219). 앞선 어댑터의 답이 있는 몫은 그대로 두고, 뒤 어댑터의 답으로 빈 몫만 채운다.
+     * 어댑터 하나가 던져도 나머지는 계속된다. 어댑터를 만들지 않았으면(그 형식의 플러그인이 없다) 아무도 맡지 않은 답.
+     */
+    org.domi.furnace.api.worldgen.DefaultWorldGeneration defaultWorldGeneration(org.domi.furnace.api.Furnace server,
+            org.domi.furnace.api.worldgen.DefaultWorldGeneration.Request request) {
+        org.domi.furnace.api.worldgen.ChunkGenerationHooks hooks = null;
+        org.domi.furnace.api.worldgen.BiomeProvider provider = null;
+        boolean genClaimed = false, providerClaimed = false;
+        if (formats.loaded()) {
+            for (PluginFormat f : formats.get()) {
+                org.domi.furnace.api.worldgen.DefaultWorldGeneration a;
+                try {
+                    a = f.defaultWorldGeneration(server, request);
+                } catch (Throwable t) {
+                    log.warn(Lang.t("plugin.format-worlds-failed", f.id()), t);
+                    continue;
+                }
+                if (a == null) continue;
+                if (hooks == null) hooks = a.hooks();
+                if (provider == null) provider = a.biomeProvider();
+                genClaimed |= a.generatorClaimed();
+                providerClaimed |= a.providerClaimed();
+            }
+        }
+        return new org.domi.furnace.api.worldgen.DefaultWorldGeneration(hooks, provider, genClaimed, providerClaimed);
+    }
+
+    /**
      * 핫 리로드가 플러그인 몇 개를 끈 직후 — 이미 만들어 둔 형식 어댑터가 그 플러그인의 남은 일을 기다린다(안 만들었다면 그 형식의 플러그인이 없었다).
      * 어댑터 하나가 던져도 나머지와 리로드는 계속된다.
      */

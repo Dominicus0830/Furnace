@@ -72,6 +72,7 @@ final class IslandHooks implements ChunkGenerationHooks {
 - **추가 월드**: `WorldCreator.named("islands").generator(WorldGenerator.VOID).generationHooks("islands:islands").build()`. 키는 level.dat 의 `furnace:world` 설명서(`generation_hooks`)에 남아 `/worlds load`·`worlds.autoload` 도 같은 키로 연다.
   노이즈 생성기(DEFAULT·LARGE_BIOMES·AMPLIFIED)와 평지·빈 월드(FLAT·VOID) 모두 된다. 평지·빈 월드는 NOISE(층 쌓기)만 바닐라 단계가 있고, 장식 훅은 그 청크 안에만 쓸 수 있다.
 - **기본 세 차원**: `furnace.properties` 의 `worldgen-hooks.overworld`, `worldgen-hooks.the_nether`, `worldgen-hooks.the_end`(기본 없음 = 바닐라). 부트스트랩 처리기가 등록한 뒤, 스폰 계산·첫 청크 전에 건다.
+- **기본 세 차원의 훅 객체·바이옴 공급자(T-219)**: `world-generator.<차원>`·`world-biome-provider.<차원>` = `플러그인[:id]`. 그 플러그인을 가진 형식이 `PluginFormat#defaultWorldGeneration(서버, 요청)` 으로 훅 객체(`ChunkGenerationHooks`)·공급자(`BiomeProvider`)를 돌려준다. 서버는 월드 전 플러그인(`load: STARTUP` 자리)을 켠 뒤 묻고, 그 차원 청크를 아직 하나도 만들지 않았을 때만 건다(`prepare` → 걸기 → `attached`, 새 오버월드면 `fixedSpawn`). 같은 차원에 `worldgen-hooks.<차원>` 이 있으면 그것이 이긴다(경고 한 줄).
 - 이미 만든 청크는 바뀌지 않는다. 훅을 도중에 걸면 경계가 생긴다 — 필요하면 아래 재생성을 쓴다.
 
 ## 3. 청크 재생성

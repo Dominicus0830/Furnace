@@ -98,6 +98,12 @@ public final class OptionKeys {
             new Option("worldgen-hooks.overworld", "key", ""),
             new Option("worldgen-hooks.the_nether", "key", ""),
             new Option("worldgen-hooks.the_end", "key", ""),
+            new Option("world-generator.overworld", "plugin[:id]", ""),
+            new Option("world-generator.the_nether", "plugin[:id]", ""),
+            new Option("world-generator.the_end", "plugin[:id]", ""),
+            new Option("world-biome-provider.overworld", "plugin[:id]", ""),
+            new Option("world-biome-provider.the_nether", "plugin[:id]", ""),
+            new Option("world-biome-provider.the_end", "plugin[:id]", ""),
             new Option("enchantments.disabled", "list", ""),
             // 아래는 다른 묶음에서 로더만 생기고 키 표에 빠져 있던 키(2026-11-07 furnace.properties 자동 생성 때 채움 — 없으면 오타 경고가 났다)
             new Option("io-uring", "ON/OFF", "false"),
