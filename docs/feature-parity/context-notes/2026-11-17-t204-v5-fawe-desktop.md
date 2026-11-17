@@ -28,4 +28,4 @@ FAWE `PlacementStateProcessor` 는 덩굴·켈프·산호처럼 놓기 계산이
 
 ## 마지막 확인(병합본 2ec46aa6)
 
-Furnace 한 번 더: Paper 두 결과 모두와 블록 칸 **0차이**, MARK 구간 예외 0, FAWE 응답 22줄이 Paper 와 같다. 레드스톤 `-35,101,4` 는 이번에는 Paper 와 같았다 — Furnace 세 번 중 두 번 0차이, 한 번 그 칸 1개. 갈리는 원인은 FAWE CharBlocks 의 겹친 첫 읽기 경쟁이다 — `2026-11-17-t204-redstone-flaky.md`.
+Furnace 한 번 더: Paper 두 결과 모두와 블록 칸 **0차이**, MARK 구간 예외 0, FAWE 응답 22줄이 Paper 와 같다. 레드스톤 `-35,101,4` 는 이번에는 Paper 와 같았다 — Furnace 세 번 중 두 번 0차이, 한 번 그 칸 1개. 갈리는 가장 유력한 원인은 FAWE CharBlocks 의 겹친 첫 읽기 경쟁이다(실서버 확정 실험 남음) — `2026-11-17-t204-redstone-flaky.md`.

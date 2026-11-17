@@ -14,4 +14,5 @@ javac -cp $D/core.jar -d $D RaceHarness.java
 java -cp $D/core.jar:$D/log4j.jar:$D/guava.jar:$D RaceHarness 5,20,50,140,300 3000
 ```
 
-인자: 첫 읽기 시간(µs, 쉼표), 시도 수. FAWE jar 는 커밋하지 않는다.
+인자: 첫 읽기 시간(µs, 쉼표), 시도 수. FAWE jar 는 커밋하지 않는다. log4j 구현이 없다는 `StatusLogger` 한 줄은 무시해도 된다.
+수치는 최악 장면(읽는 쪽이 1.5 ms 내내 그 칸을 읽음)의 상대 비교이지 실서버 확률이 아니다.
