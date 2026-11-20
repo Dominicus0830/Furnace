@@ -102,7 +102,7 @@ mc.javaRelease=21
 - 생성 가능한 것은 생성으로 옮긴다: Bukkit enum·레지스트리·태그·블록 상태·엔티티 클래스(이미 376개), 버전 문자열(`getBukkitVersion`, `CraftNames.VERSION`)은 3.1 상수로.
 - 손 코드 shim 은 버전업 때 **"Paper API 서명 차이 도구"**(U-07a: 새 Paper API jar 의 공개 서명 ↔ Furnace 호환 클래스 서명 비교, B6 의 `filter121.py` 방식 확장)와 **"NMS 이름 차이 도구"**(바닐라 두 판의 Mojang 이름 클래스·멤버 비교 → shim 223+203 중 바뀐 것)로 고칠 목록을 뽑는다.
 - 26.1 부터 바닐라가 난독화되지 않으므로, Spigot 대응표(H7d) 경로는 1.21.x 플러그인용으로만 남고 새 판에서는 할 일이 줄 것으로 본다(가정 — 착수 때 Spigot 쪽 정책 확인).
-- **이어 쓰기(2026-11-20):** shim 을 수천 개로 넓히면서 판마다 손으로 다시 쓰지 않는 구조(서명표 생성·연결 명세·서명 관문·차분 시험·표류 보고)와 다른 영역 전체의 "핵심 / 판별 어댑터 / 자동" 표는 [`broad-support-version-scaling-2026-11-20.md`](broad-support-version-scaling-2026-11-20.md). U-07 의 "NMS 이름 차이 도구"는 그 문서의 T-235(표류 보고), "Paper API 서명 차이 도구(U-07a)"는 T-239 가 맡는다.
+- **이어 쓰기(2026-11-20):** shim 을 수천 개로 넓히면서 판마다 손으로 다시 쓰지 않는 구조(서명표 생성·연결 명세·서명 관문·차분 시험·표류 보고)와 다른 영역 전체의 "핵심 / 판별 어댑터 / 자동" 표는 [`broad-support-version-scaling-2026-11-20.md`](broad-support-version-scaling-2026-11-20.md). U-07 의 "NMS 이름 차이 도구"는 그 문서의 T-236(표류 보고), "Paper API 서명 차이 도구(U-07a)"는 T-240 가 맡는다.
 
 ---
 
