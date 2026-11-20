@@ -170,7 +170,7 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
     /** 바닐라: 그 레벨의 레지스트리 묶음. */
     public net.minecraft.core.RegistryAccess registryAccess() { return level().registryAccess(); }
 
-    /** 마지막으로 읽은 모습 — 그 뒤 엔티티가 사라지면 이 값으로 답한다(바닐라도 지운 엔티티의 필드는 그대로 읽힌다). */
+    /** 마지막으로 읽은 모습 — 그 뒤 엔티티가 사라지면 이 값으로 답한다(바닐라도 지운 엔티티의 필드는 그대로 읽힌다). 틀린 스레드에는 쓰지 않는다. */
     private volatile org.domi.furnace.api.internal.ChunkInternals.EntityLook lastLook;
 
     private static final org.domi.furnace.api.internal.ChunkInternals.EntityLook FRESH =
@@ -189,6 +189,8 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
         try {
             l = h instanceof org.domi.furnace.api.entity.Player ? b.entityLook(h)
                     : org.domi.furnace.compat.nms.NmsEntities.call(furnaceWorld(), h, what, () -> b.entityLook(h));
+        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException wrongThread) {
+            throw wrongThread;   // 틀린 스레드는 예전 값으로 덮지 않는다(같은 IllegalStateException 계열이라 먼저 거른다)
         } catch (IllegalStateException gone) {
             l = lastLook;
             if (l == null) throw gone;
@@ -215,7 +217,11 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
     /** 바닐라: 엔티티는 관전자가 아니다(ServerPlayer 가 덮는다). */
     public boolean isSpectator() { return false; }
 
-    /** 바닐라 getKnownMovement: 조종하는 플레이어가 있으면 그가 알린 움직임, 아니면 지금 속도. 플레이어는 클라이언트가 알린 움직임. */
+    /**
+     * 바닐라 getKnownMovement: 조종하는 플레이어가 있으면 그가 알린 움직임, 아니면 지금 속도. 플레이어는 클라이언트가 알린 움직임 — Furnace 는 마지막
+     * 이동 패킷이 옮긴 거리(새 자리 − 이전 자리)를 쓴다. 바닐라는 처리기가 따로 재는 값이라 한 틱에 이동 패킷이 여럿이거나 순간이동 직후에는 다를 수
+     * 있다(가정 — 바닐라 대조 시험 없음).
+     */
     public net.minecraft.world.phys.Vec3 getKnownMovement() {
         var l = furnaceLook("Entity#getKnownMovement");
         return new net.minecraft.world.phys.Vec3(l.knownX(), l.knownY(), l.knownZ());
@@ -224,7 +230,7 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
     /** 바닐라 getVehicle: 탄 탈것(없으면 null). 탈것은 같은 region 에 있다. */
     public Entity getVehicle() {
         java.util.UUID v = furnaceLook("Entity#getVehicle").vehicle();
-        return v == null ? null : byUuid(v);
+        return v == null ? null : byUuid(v, "Entity#getVehicle");
     }
 
     /** 바닐라 isPassenger: 탈것이 있는가. */
@@ -252,17 +258,33 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
         if (ids.isEmpty()) return java.util.List.of();
         java.util.List<Entity> out = new java.util.ArrayList<>(ids.size());
         for (var id : ids) {
-            Entity e = byUuid(id);
+            Entity e = byUuid(id, what);
             if (e != null) out.add(e);
         }
         return out;
     }
 
-    /** 이미 만든 Bukkit 객체가 있으면 그것(어느 스레드나 된다 — 다른 region 틱 스레드에서 플레이어의 탈것을 물을 때), 없으면 그 월드에서 찾는다. */
-    private Entity byUuid(java.util.UUID id) {
+    /**
+     * 이미 만든 Bukkit 객체가 있으면 그것(어느 스레드나 된다), 없으면 그 월드에서 찾는다. 다른 region·전역 스레드에서 다른 region 의 엔티티를 찾아야 하면
+     * {@link #furnaceLook} 과 같이 ThreadOwnershipException(조용히 null 을 주면 isPassenger() 참과 모순). 틱 스레드가 아니면 주인 region 을 기다린다.
+     * 그 사이 사라진 엔티티는 null(바닐라도 사라진 탈것은 목록에서 빠진다).
+     */
+    private Entity byUuid(java.util.UUID id, String what) {
         CraftEntity cached = org.domi.furnace.compat.paper.Compat.cachedEntity(id);
         if (cached != null) return cached.getHandle();
-        var e = org.domi.furnace.compat.paper.Compat.entityByUuid(furnaceWorld(), id);
+        var w = furnaceWorld();
+        java.util.Optional<org.domi.furnace.api.entity.Entity> now;
+        try {
+            now = w.entityByUuidNow(id);
+        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException wrongThread) {
+            if (org.domi.furnace.compat.thread.PrimaryThread.isPrimary() || org.domi.furnace.api.Furnace.server().scheduler().isTickThread()) {
+                throw new org.domi.furnace.api.concurrent.ThreadOwnershipException(what + ": entity " + id + " belongs to another region - call it on its"
+                        + " owning region (current thread: " + Thread.currentThread().getName() + ")");
+            }
+            var e = org.domi.furnace.compat.paper.Compat.entityByUuid(w, id);   // 틱 스레드가 아니다: 주인 region 에 물어 기다린다
+            return e instanceof CraftEntity c ? c.getHandle() : null;
+        }
+        var e = now.map(org.domi.furnace.compat.paper.Compat::entity).orElse(null);
         return e instanceof CraftEntity c ? c.getHandle() : null;
     }
 

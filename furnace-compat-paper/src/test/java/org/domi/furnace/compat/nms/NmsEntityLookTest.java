@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -147,6 +148,69 @@ class NmsEntityLookTest {
             chick.remove();
             pig.remove();
             boat.remove();
+            return null;
+        });
+    }
+
+    /** 서버가 저장한 속도(바닐라 getDeltaMovement 와 같은 값, NBT "Motion") — 같은 주인 작업 안에서 읽는다. */
+    static String motion(Entity e) {
+        var tag = new net.minecraft.nbt.CompoundTag();
+        assertTrue(e.save(tag));
+        var m = tag.getList("Motion", 6);
+        return new net.minecraft.world.phys.Vec3(m.getDouble(0), m.getDouble(1), m.getDouble(2)).toString();
+    }
+
+    @Test
+    void sharedFlagsAndKnownMovementMatchVanilla() {
+        ServerPlayer me = bukkit.getHandle();
+        // 공유 플래그가 참인 경우: 투명 효과 → 바닐라 updateInvisibilityStatus 가 플래그 5 를 켠다(다음 틱)
+        CraftEntity pig = on(() -> (CraftEntity) world.spawnEntity(new Location(world, at.x() + 0.5, at.y() + 3, at.z() + 0.5), org.bukkit.entity.EntityType.PIG));
+        Entity p = pig.getHandle();
+        var invisible = new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.INVISIBILITY, 400, 0);
+        on(() -> ((org.bukkit.entity.LivingEntity) pig).addPotionEffect(invisible));
+        server.onGlobal(() -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "effect give Looker minecraft:invisibility 20 0 true"));
+        server.tick(3);
+        assertTrue(on(p::isInvisible));
+        assertTrue(me.isInvisible(), "플레이어도 공유 플래그 5(아무 스레드에서 최근 값)");
+        // 조종하는 플레이어가 없으면 지금 속도 — 공중에서 떨어지는 돼지
+        var pigSeen = on(() -> List.of(p.getKnownMovement().toString(), motion(p)));
+        assertEquals(pigSeen.get(1), pigSeen.get(0));
+        assertFalse(new net.minecraft.world.phys.Vec3(0, 0, 0).toString().equals(pigSeen.get(0)), "떨어지는 중이라 0 이 아니다");
+        // 배를 조종하는 플레이어가 있으면 배의 움직임은 그 플레이어가 알린 움직임(배 자신의 속도가 아니다)
+        var loc = bukkit.getLocation();
+        tp.moveTo(loc.getX() + 0.3, loc.getY(), loc.getZ(), true);   // 플레이어가 알린 움직임을 0 이 아니게(마지막 이동 패킷 거리)
+        server.tick(2);
+        CraftEntity boat = on(() -> (CraftEntity) world.spawnEntity(loc, org.bukkit.entity.EntityType.BOAT));
+        Entity b = boat.getHandle();
+        var seen = on(() -> {
+            assertTrue(boat.addPassenger(bukkit));
+            return List.of(b.getKnownMovement().toString(), me.getKnownMovement().toString(), motion(b), me.getVehicle() == b, me.isPassenger());
+        });
+        assertEquals(seen.get(1), seen.get(0));
+        assertFalse(seen.get(2).equals(seen.get(0)), "배 자신의 속도가 아니다: " + seen);
+        assertEquals(List.of(true, true), seen.subList(3, 5));
+        on(() -> {
+            boat.eject();
+            boat.remove();
+            pig.remove();
+            return null;
+        });
+        server.onGlobal(() -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "effect clear Looker minecraft:invisibility"));
+        server.tick(5);
+        assertFalse(me.isInvisible(), "효과를 지우면 플래그도 꺼진다");
+    }
+
+    @Test
+    void wrongThreadIsNotHiddenByTheLastLook() {
+        CraftEntity cow = on(() -> (CraftEntity) world.spawnEntity(new Location(world, at.x() + 0.5, at.y(), at.z() + 0.5), org.bukkit.entity.EntityType.COW));
+        Entity c = cow.getHandle();
+        assertFalse(on(c::isInvisible));   // 주인 스레드에서 한 번 읽어 둔다
+        // 전역 스레드는 다른 region 을 기다릴 수 없다 — 읽어 둔 값을 조용히 주지 않고 ThreadOwnershipException
+        var err = assertThrows(IllegalStateException.class, () -> server.onGlobal(c::isInvisible));
+        assertTrue(err instanceof org.domi.furnace.api.concurrent.ThreadOwnershipException
+                || err.getCause() instanceof org.domi.furnace.api.concurrent.ThreadOwnershipException, String.valueOf(err));
+        on(() -> {
+            cow.remove();
             return null;
         });
     }
