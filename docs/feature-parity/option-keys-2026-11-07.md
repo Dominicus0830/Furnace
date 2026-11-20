@@ -160,7 +160,7 @@
 | `connection.<단계>.max-frame-bytes` | 수 | 단계별(play 2097152) | 16~2097152 | 단계별 한 패킷 최대 크기, 넘으면 조정 | 조정 시 경고 |
 | `connection.<단계>.timeout-seconds` | 수 | login 30, 나머지 0 | 0~86400 | play 를 뺀 단계별 제한 시간(초) | |
 
-접두 가족(이름만 다르다): `spawn.limit.<분류>` · `spawn.player-limit.<분류>`(몹 스폰 상한), `plugins.log-level.<플러그인>`(JUL 수준 이름, 틀린 값은 경고하고 무시), `dimension-seed.the_nether` / `dimension-seed.the_end`(비우면 주 월드 시드 — 바닐라).
+접두 가족(이름만 다르다): `spawn.limit.<분류>` · `spawn.player-limit.<분류>`(몹 스폰 상한), `plugins.log-level.<플러그인>`(JUL 수준 이름, 틀린 값은 경고하고 무시), `dimension-seed.the_nether` / `dimension-seed.the_end`(비우면 주 월드 시드 — 바닐라), `world-generator.name.<월드 이름>` · `world-biome-provider.name.<월드 이름>`(플러그인[:id] — 그 이름의 추가 월드를 Bukkit `createWorld` 가 생성기·공급자 없이 만들 때 쓴다, bukkit.yml `worlds.<이름>.generator`·`biome-provider` 와 같은 뜻, T-222. 이름은 대소문자까지 같아야 하고 한글 이름은 `\uXXXX` 로 적는다 — Properties 형식).
 
 ## 3. R4 대상 항목별 점검 결과
 

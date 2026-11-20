@@ -361,7 +361,8 @@ public final class CraftServer implements Server {
      * 생성기 종류(type)는 오버월드에만 쓰인다(Paper 도 네더·엔드는 바닐라 그대로). FLAT 의 generatorSettings 는 바닐라 평지 JSON 을 그대로 넘긴다
      * (Paper DedicatedServerProperties.WorldDimensionData — 비면 기본 프리셋). 바이옴 공급자(T-210)는 CraftBukkit CustomWorldChunkManager 처럼
      * 생성기의 바이옴 원천을 바꾸고, Bukkit 생성기(T-217)는 CustomChunkGenerator 처럼 서버 생성 훅 객체로 단다
-     * (Paper 는 생성기·공급자가 비면 bukkit.yml worlds.<이름>.generator·biome-provider 를 쓴다 — Furnace 에는 이름별 설정이 없어 쓰지 않는다, T-222. 기본 세 월드는 furnace.properties world-generator.<차원>, T-219). 하드코어 깃발은 서버 값만 쓴다(다르면 경고 한 번).
+     * Paper 처럼 생성기·공급자가 비면 이름별 설정(bukkit.yml worlds.<이름>.generator·biome-provider 자리 — furnace.properties
+     * world-generator.name.<이름>·world-biome-provider.name.<이름>, T-222)을 {@link #getGenerator}·{@link #getBiomeProvider} 로 읽는다. 하드코어 깃발은 서버 값만 쓴다(다르면 경고 한 번).
      */
     @Override
     public World createWorld(org.bukkit.WorldCreator creator) {
@@ -386,6 +387,9 @@ public final class CraftServer implements Server {
         var stored = f().storedWorldCreator(name);
         org.bukkit.generator.ChunkGenerator generator = creator.generator();
         org.bukkit.generator.BiomeProvider provider = creator.biomeProvider();
+        // Paper: 같은 이름·키 검사 뒤, 환경 해석과 level.dat 읽기 앞에서 비어 있는 쪽만 설정으로 채운다(둘은 따로 — 생성기를 줘도 공급자는 설정에서)
+        if (generator == null) generator = getGenerator(name);
+        if (provider == null) provider = getBiomeProvider(name);
         // 공급자·생성기의 WorldInfo: 서버가 생성기를 만들기 직전에 채우고(prepare — 시드는 level.dat 의 것), 월드가 생기면 그 CraftWorld 를 따른다
         var info = provider == null && generator == null ? null : new org.domi.furnace.compat.paper.BukkitBiomeProviders.LateWorldInfo(name,
                 creator.environment(), stored != null && stored.seed().isPresent() ? stored.seed().getAsLong() : creator.seed(),
@@ -421,6 +425,21 @@ public final class CraftServer implements Server {
         }
         warnHardcore(creator, name);
         return bound(Compat.world(f().createWorldNow(b.build())), info);
+    }
+
+    /**
+     * Paper CraftServer#getGenerator(String) — 설정에 그 이름의 생성기 "플러그인[:id]"가 있으면 그 플러그인의 getDefaultWorldGenerator(이름, id).
+     * 설정이 없거나 비면 null, 플러그인이 없거나 켜지지 않았거나 null 을 주거나 던지면 Paper 문구를 남기고 null(그 월드는 바닐라 생성기).
+     */
+    public org.bukkit.generator.ChunkGenerator getGenerator(String world) {
+        String spec = f().configuredWorldGenerator(world).generator();
+        return spec.isEmpty() ? null : org.domi.furnace.compat.paper.BukkitDefaultWorlds.generator(world, spec);
+    }
+
+    /** Paper CraftServer#getBiomeProvider(String) — {@link #getGenerator} 와 같은 규칙, 설정은 비 공급자 쪽. */
+    public org.bukkit.generator.BiomeProvider getBiomeProvider(String world) {
+        String spec = f().configuredWorldGenerator(world).biomeProvider();
+        return spec.isEmpty() ? null : org.domi.furnace.compat.paper.BukkitDefaultWorlds.biomeProvider(world, spec);
     }
 
     /** 공급자의 WorldInfo 를 생긴 월드에 묶는다(CraftBukkit 은 CustomWorldChunkManager 에 그 CraftWorld 를 넘긴다). */

@@ -161,6 +161,8 @@ public final class FurnaceTestServer implements AutoCloseable {
             ServerPropertiesFile settings = new ServerPropertiesFile(props);
             PlayerLists lists = new PlayerLists(root, settings);
             this.core = new ServerCore(settings, lists, new GameProfileCache(ProfileLookup.NONE, root.resolve("usercache.json")), w, level, sched);
+            core.worldSettings(new org.domi.furnace.server.world.WorldSettings(java.util.OptionalLong.empty(), java.util.OptionalLong.empty(), List.of(),
+                    java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), b.namedGenerators, b.namedBiomeProviders));   // 이름별 생성기 설정(T-222)
             core.registries(registries);   // 바이옴 API(WorldHandle.biomeNames)·접속 레지스트리가 보는 세트(FurnaceMain 은 데이터 팩 판을 건다)
             if (b.multiWorld) {   // 추가 월드(createWorld) — FurnaceMain 처럼 플러그인을 불러오기 전에 붙인다. 추가 월드 폴더는 시험 폴더 안
                 var dims = new org.domi.furnace.server.world.Dimensions();
@@ -640,6 +642,21 @@ public final class FurnaceTestServer implements AutoCloseable {
         public Builder defaultWorldGeneration(String generator, String biomeProvider) {
             this.defaultGenerator = Objects.requireNonNull(generator);
             this.defaultBiomeProvider = Objects.requireNonNull(biomeProvider);
+            return this;
+        }
+
+        private final java.util.Map<String, String> namedGenerators = new java.util.HashMap<>();
+        private final java.util.Map<String, String> namedBiomeProviders = new java.util.HashMap<>();
+
+        /**
+         * 월드 이름별 생성기·바이옴 공급자 플러그인 "플러그인[:id]"(furnace.properties world-generator.name.<이름>·world-biome-provider.name.<이름>,
+         * Bukkit bukkit.yml worlds.<이름>.generator·biome-provider — T-222). 빈 문자열은 없음. 다중 월드를 켠다.
+         */
+        public Builder namedWorldGeneration(String worldName, String generator, String biomeProvider) {
+            Objects.requireNonNull(worldName);
+            if (!Objects.requireNonNull(generator).isEmpty()) namedGenerators.put(worldName, generator);
+            if (!Objects.requireNonNull(biomeProvider).isEmpty()) namedBiomeProviders.put(worldName, biomeProvider);
+            this.multiWorld = true;
             return this;
         }
 

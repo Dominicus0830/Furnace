@@ -1,4 +1,4 @@
-// T-219 기본 세 월드의 Bukkit 생성기·바이옴 공급자(bukkit.yml worlds.<이름>.generator·biome-provider 자리 — Furnace 는
+// T-219·T-222 기본 세 월드와 이름별(createWorld) Bukkit 생성기·바이옴 공급자(bukkit.yml worlds.<이름>.generator·biome-provider 자리 — Furnace 는
 // furnace.properties world-generator.<차원>·world-biome-provider.<차원>). CraftServer#getGenerator(String)·getBiomeProvider(String) 와 같은
 // 규칙·같은 문구로 플러그인을 찾고, MinecraftServer#loadWorld0 처럼 공급자가 없으면 생성기의 기본 공급자를 쓴다.
 package org.domi.furnace.compat.paper;
@@ -42,10 +42,14 @@ public final class BukkitDefaultWorlds {
         return Bukkit.getPluginManager().getPlugin(DefaultWorldGeneration.Request.pluginOf(spec));
     }
 
-    /** CraftServer#getGenerator(String) — 플러그인이 있다는 것은 resolve 가 확인했다. */
-    static ChunkGenerator generator(String world, String spec) {
+    /** CraftServer#getGenerator(String) 의 뒷부분(설정에서 spec 을 읽은 뒤) — 플러그인이 없으면 Paper 문구를 남기고 null. */
+    public static ChunkGenerator generator(String world, String spec) {
         Plugin plugin = plugin(spec);
         String id = DefaultWorldGeneration.Request.idOf(spec);
+        if (plugin == null) {
+            LOG.severe("Could not set generator for default world '" + world + "': Plugin '" + DefaultWorldGeneration.Request.pluginOf(spec) + "' does not exist");
+            return null;
+        }
         if (!plugin.isEnabled()) {
             LOG.severe("Could not set generator for default world '" + world + "': Plugin '" + plugin.getDescription().getFullName() + "' is not enabled yet (is it load:STARTUP?)");
             return null;
@@ -62,10 +66,14 @@ public final class BukkitDefaultWorlds {
         }
     }
 
-    /** CraftServer#getBiomeProvider(String). */
-    static BiomeProvider biomeProvider(String world, String spec) {
+    /** CraftServer#getBiomeProvider(String) 의 뒷부분. */
+    public static BiomeProvider biomeProvider(String world, String spec) {
         Plugin plugin = plugin(spec);
         String id = DefaultWorldGeneration.Request.idOf(spec);
+        if (plugin == null) {
+            LOG.severe("Could not set biome provider for default world '" + world + "': Plugin '" + DefaultWorldGeneration.Request.pluginOf(spec) + "' does not exist");
+            return null;
+        }
         if (!plugin.isEnabled()) {
             LOG.severe("Could not set biome provider for default world '" + world + "': Plugin '" + plugin.getDescription().getFullName() + "' is not enabled yet (is it load:STARTUP?)");
             return null;
