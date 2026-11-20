@@ -586,6 +586,14 @@ public interface ChunkInternals {
     /** {@link #handSlotNow} 의 결과: 창 번호(주 손은 36 + 고른 핫바 칸, 왼손은 45)와 그 칸의 지금 값. */
     record HandSlot(int windowSlot, org.domi.furnace.api.item.ItemStack stack) {}
 
+    /**
+     * 접속한 플레이어의 창 칸(플레이어 창 번호 — 갑옷 머리 5·가슴 6·다리 7·발 8) 지금 값(NMS shim 5번 묶음 — {@code getItemBySlot}). 아무 스레드
+     * ({@link #handSlotNow} 와 같은 잠금). 접속하지 않은 플레이어는 IllegalArgumentException.
+     */
+    default org.domi.furnace.api.item.ItemStack windowSlotNow(org.domi.furnace.api.entity.Player player, int windowSlot) {
+        throw new UnsupportedOperationException("windowSlotNow");
+    }
+
     /** 그 창 칸이 아직 expect(같은 값)이면 now 로 바꾸고 true — 그새 바뀌었으면 손대지 않고 false(비교 교체). 아무 스레드. */
     default boolean replaceSlotNow(org.domi.furnace.api.entity.Player player, int windowSlot, org.domi.furnace.api.item.ItemStack expect,
                                    org.domi.furnace.api.item.ItemStack now) {
@@ -656,6 +664,51 @@ public interface ChunkInternals {
      */
     record ItemUse(String result, org.domi.furnace.api.item.ItemStack used, org.domi.furnace.api.item.ItemStack mainHand,
                    org.domi.furnace.api.item.ItemStack offHand) {}
+
+    /**
+     * 그 엔티티를 가진 스레드(전역 빌림 포함). 월드에 있는 엔티티에 바닐라 조작 하나를 한다(NMS shim 5b — Axiom 엔티티 조작). 돌려주는 값은 조작마다
+     * {@link EntityEdit} 에 적었다. 플레이어는 {@link EntityEdit.SaveWithoutId} 만 되고 나머지는 IllegalArgumentException(플레이어 이동·탑승은 접속
+     * 처리기를 거친다). 엔티티가 사라졌으면 IllegalStateException, 주인이 아니면 ThreadOwnershipException.
+     */
+    default Object entityEditNow(org.domi.furnace.api.entity.Entity entity, EntityEdit edit) { throw new UnsupportedOperationException("entityEditNow"); }
+
+    /** 플레이어 능력(바닐라 Abilities 의 일곱 값). 아무 스레드, 최근 값. */
+    default PlayerAbilities playerAbilities(org.domi.furnace.api.entity.Player player) { throw new UnsupportedOperationException("playerAbilities"); }
+
+    /** 플레이어 능력을 통째로 바꾼다. send 면 바닐라 {@code onUpdateAbilities} 처럼 그 플레이어에게 능력 패킷을 보낸다. 아무 스레드. */
+    default void setPlayerAbilities(org.domi.furnace.api.entity.Player player, PlayerAbilities values, boolean send) {
+        throw new UnsupportedOperationException("setPlayerAbilities");
+    }
+
+    /** {@link #playerAbilities} 의 값. */
+    record PlayerAbilities(boolean invulnerable, boolean flying, boolean mayfly, boolean instabuild, boolean mayBuild, float flyingSpeed, float walkingSpeed) {}
+
+    /** {@link #entityEditNow} 의 조작 하나. */
+    sealed interface EntityEdit {
+        /** 바닐라 {@code Entity#saveWithoutId}: "id" 없는 저장 NBT(/data get entity 와 같은 내용). 돌려줌: NbtCompound. */
+        record SaveWithoutId() implements EntityEdit {}
+
+        /** 바닐라 {@code Entity#load(tag)}. tag 의 UUID 가 지금과 다르면 IllegalArgumentException(살아 있는 엔티티의 UUID 는 바꾸지 않는다). 돌려줌: null. */
+        record Load(org.domi.furnace.api.nbt.NbtCompound tag) implements EntityEdit {}
+
+        /** 바닐라 {@code Entity#setPosRaw}. 돌려줌: null. */
+        record SetPosRaw(double x, double y, double z) implements EntityEdit {}
+
+        /** 바닐라 {@code Entity#teleportTo(같은 레벨, x, y, z, 상대, yRot, xRot)}: moveTo·승객 자리·머리 각도. 돌려줌: null. */
+        record TeleportSameLevel(double x, double y, double z, float yRot, float xRot) implements EntityEdit {}
+
+        /** 바닐라 {@code setYHeadRot}(살아 있는 엔티티만 값이 있다). 돌려줌: null. */
+        record SetYHeadRot(float yHeadRot) implements EntityEdit {}
+
+        /** 바닐라 {@code startRiding(vehicle, force)}. 탈것은 같은 region 의 엔티티. 돌려줌: Boolean. */
+        record StartRiding(org.domi.furnace.api.entity.Entity vehicle, boolean force) implements EntityEdit {}
+
+        /** 바닐라 {@code stopRiding}. 돌려줌: null. */
+        record StopRiding() implements EntityEdit {}
+
+        /** 바닐라 {@code ejectPassengers}. 돌려줌: null. */
+        record EjectPassengers() implements EntityEdit {}
+    }
 
     /** {@link #addNmsEntityNow} 가 재생할 엔티티 조작 하나. */
     sealed interface EntityOp {

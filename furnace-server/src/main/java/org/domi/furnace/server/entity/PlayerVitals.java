@@ -392,6 +392,23 @@ public final class PlayerVitals {
 
     public synchronized org.domi.furnace.server.net.protocol.play.PlayerAbilities abilitiesPacket() { return abilities.packet(); }
 
+    /** 능력의 사본(NMS shim 의 getAbilities). 아무 스레드. */
+    public synchronized Abilities abilitiesCopy() {
+        Abilities a = new Abilities();
+        a.copyFrom(abilities);
+        return a;
+    }
+
+    /** 능력을 통째로 바꾼다(NMS shim — 바닐라는 같은 객체의 필드를 고친다). send 면 바닐라 onUpdateAbilities 처럼 능력 패킷을 보낸다. 아무 스레드. */
+    public void setAbilities(Abilities values, boolean send) {
+        Packet pkt;
+        synchronized (this) {
+            abilities.copyFrom(values);
+            pkt = abilities.packet();
+        }
+        if (send) player.send(pkt);
+    }
+
     /**
      * 바닐라 ServerPlayer.setGameMode: 같으면 false. 바꾸면 능력 → 탭 목록(전원) → 게임 이벤트 3 → 능력 순으로 알린다.
      */

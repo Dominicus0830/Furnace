@@ -225,9 +225,26 @@ public final class ItemStack {
         } catch (IllegalArgumentException e) {
             throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LivingEntity#getItemInHand", e.getMessage());
         }
-        if (hs.stack().isEmpty()) return EMPTY;
-        ItemStack s = fromFurnace(hs.stack(), hs.stack().amount());
-        s.live = new LiveSlot(player, hs.windowSlot(), hs.stack());
+        return live(player, hs.windowSlot(), hs.stack());
+    }
+
+    /**
+     * 호환 모듈 전용 — 접속한 플레이어의 창 칸(갑옷 칸 등, {@code getItemBySlot})을 {@link #liveHand} 와 같은 규칙의 살아 있는 보기로 준다. 빈 칸은 EMPTY.
+     */
+    public static ItemStack liveSlot(org.domi.furnace.api.entity.Player player, int windowSlot) {
+        org.domi.furnace.api.item.ItemStack now;
+        try {
+            now = org.domi.furnace.compat.nms.NmsChunks.bridge().windowSlotNow(player, windowSlot);
+        } catch (IllegalArgumentException e) {
+            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LivingEntity#getItemBySlot", e.getMessage());
+        }
+        return live(player, windowSlot, now);
+    }
+
+    private static ItemStack live(org.domi.furnace.api.entity.Player player, int windowSlot, org.domi.furnace.api.item.ItemStack now) {
+        if (now.isEmpty()) return EMPTY;
+        ItemStack s = fromFurnace(now, now.amount());
+        s.live = new LiveSlot(player, windowSlot, now);
         return s;
     }
 

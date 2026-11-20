@@ -6,7 +6,9 @@
 - **자동 연결 가능**: 바닐라 겉모양(이름·서술자·상수)과 이미 있는 Furnace 값만으로 한 줄~몇 줄에 이을 수 있어, 생성기(T-229)와
   연결 명세(T-232)가 생기면 사람이 설계하지 않아도 되는 것. 아직 그 도구가 없어서 이번에는 손으로 썼고, 분류만 한다.
 - **설계 필요**: 스레드 소유(주인 region·다른 스레드 규칙), 새 서버 다리, 바닐라 동작 이식이 필요한 것.
-- **걸린 시간**: 작업 시작부터 PR 을 올릴 때까지(구현·시험). 검토·CI·병합 대기는 따로 적는다.
+- **다리 위 기계적**: 새 서버 다리(스레드 규칙을 지키는 길) 하나를 설계한 뒤에는 그 위에서 한 줄씩 잇기만 하면 되는 것. 다리가 생기면 연결
+  명세(`read=owner`·`write` 줄)로 쓸 수 있는 꼴이다.
+- **걸린 시간**: 작업 기록(명령 시각, UTC)으로 잰 시작~커밋. 검토·CI·병합 대기는 따로 적는다.
 
 ## 묶음 나눔
 
@@ -28,7 +30,7 @@
 | 자동 연결 가능 | 16 | `getBlockX/Y/Z`(엔티티 3·플레이어 2), `registryAccess`, `hasDisconnected`, 플레이어 `getName`, `Entity.RemovalReason`, `EntityType.PLAYER`·`canSerialize`, `Level.isInSpawnableBounds`, `getChunkIfLoaded(BlockPos)`, `BlockState.is(HolderSet)`, `IntegerProperty.min`·`max` |
 | 설계 필요 | 13 | `isCrouching`·`isSwimming`·`isInvisible`·`isFallFlying`·`isSpectator`·`hasPermissions`·`getKnownMovement`·`getVehicle`(엔티티·플레이어)·`isPassenger`·`hasPassenger`·`getSelfAndPassengers`·`getIndirectPassengers` |
 
-자동 연결 가능 비율 **55%(16/29)**. 설계 필요 13개는 모두 새 서버 다리 하나(`ChunkInternals.entityLook`)를 거친다 — 다리를 한 번
+자동 연결 가능 비율 **55%(16/29)**, 다리 위 기계적 12, 설계 필요 1(`getKnownMovement` 의 바닐라 갈래) + 다리 1건. 설계 필요 13개는 모두 새 서버 다리 하나(`ChunkInternals.entityLook`)를 거친다 — 다리를 한 번
 설계하고 나면 게터 하나하나는 기계적이다. 즉 "설계 한 번 + 기계적 게터 여럿" 꼴이고, 다리가 생긴 뒤 비슷한 게터는 자동 연결로 넘어간다.
 
 걸린 시간(작업 기록의 명령 시각, UTC): 첫 명령 20:13:53(1~4번 묶음 병합 보고 직후) → 커밋·PR 20:27, 모두 **약 14분**.
@@ -60,3 +62,93 @@
 
 - 엔티티 `getName`(이름표·종류 이름)은 쓰는 표본이 없어 두지 않았다. 플레이어 `getName` 만.
 - `getItemBySlot` 는 5a-2 로 뺐다(바닐라는 살아 있는 스택 객체를 주는데 compat 스택은 바꿀 수 있어서, 읽기 전용 사본 설계가 따로 필요).
+
+## 5a-2 — 플레이어 장비 칸 읽기
+
+**채운 기호 1개**(`ServerPlayer.getItemBySlot`, voxy). 자동 연결 가능 **0/1** — 바닐라는 칸에 든 객체 자체를 주는데, Furnace 에서 그 칸은 서버의
+주인 스레드가 들고 있어 같은 객체를 줄 수 없다. 어떤 값을 줄지가 설계 문제다.
+
+걸린 시간: 약 5분(20:27:52 PR 직후 ~ 20:32 커밋).
+
+- 접속한 플레이어: 어느 스레드에서나 그 칸의 **살아 있는 보기**(검토 고침 — 처음엔 읽기 전용 사본이었는데 #536 이 손 칸을 같은 꼴로 만들어 맞췄다).
+  고치면(`setCount`·`shrink`·`set`·`setDamageValue` …) 그 칸에 되쓰고, 그새 칸이 다른 스택으로 바뀌었으면 칸에서 떨어진다. 손 칸은
+  `getItemInHand` 와 같은 칸(`ItemStack.liveHand`), 갑옷 칸은 창 번호 5~8 (`ItemStack.liveSlot`, 새 다리 `windowSlotNow` — 손 칸 다리와 같은 잠금).
+  빈 칸은 바닐라처럼 `ItemStack.EMPTY`, 몸 칸(BODY)은 플레이어에게 없어 빈 스택. 서버 인벤토리의 지금 값을 읽으므로 틱 스레드가 아닌 곳에서 Bukkit 으로
+  예약한 쓰기는 주인이 넣은 뒤(다음 틱)에 보인다(손 칸 보기와 같다).
+- 바닐라 생성자로 만든 월드에 없는 플레이어는 든 객체 그대로(갑옷 칸은 넣는 길이 없어 빈 스택).
+- 결정 기록: `docs/user-todo/entries/2026-11-20-shim5-equipment-live-slot.md`. 함정: enum switch 가 만드는 합성 클래스(`ServerPlayer$1`)가 서명 관문을
+  깨뜨린다 — `docs/feature-parity/context-notes/2026-11-20-shim5-enum-switch-synthetic.md`.
+
+## 5a 검토 고침
+
+걸린 시간: 약 5분(20:33:52 검토 도착 ~ 20:38:24 푸시).
+
+## 5b 앞부분 — 월드 엔티티 저장·싣기·옮기기·태우기
+
+**채운 기호 7개**(Axiom `ManipulateEntityPacketListener`): `saveWithoutId`·`setPosRaw`·`teleportTo(ServerLevel, …, Set<RelativeMovement>, …)`·
+`setYHeadRot`·`startRiding(e, force)`·`stopRiding`·`ejectPassengers`. 그리고 이미 있던 `load` 를 월드의 엔티티에도 되게 했다.
+
+| 분류 | 개수 | 기호 |
+|---|---|---|
+| 자동 연결 가능 | 0 | — |
+| 다리 위 기계적 | 5 | `setPosRaw`·`setYHeadRot`·`startRiding`·`stopRiding`·`ejectPassengers` |
+| 설계 필요 | 2 | `saveWithoutId`(플레이어는 /data 비교용 키를 뺀다), `teleportTo`(같은 레벨만 — 다른 레벨은 Furnace 에서 비동기라 아직 없음) |
+
+새 다리 1건(`ChunkInternals.entityEditNow(엔티티, EntityEdit)` — 봉인 레코드 하나로 조작을 모아 다리 표면을 늘리지 않았다).
+
+걸린 시간: 약 8분 — 분석 20:32~20:34, 구현·시험 20:38~20:44(그 사이 5a 검토 고침).
+
+- 스레드 규칙은 `save`·`discard` 와 같다(`NmsEntities`: 주인 스레드면 바로, 틱 스레드가 아니면 기다림, 다른 region·전역은 예외).
+- 플레이어는 저장 읽기만 되고 이동·탑승은 `UnsupportedNmsCall`(플레이어는 접속 처리기를 거쳐 움직인다 — Bukkit `teleport`·`addPassenger`).
+- 월드 엔티티의 `load` 는 `/data` 와 같은 길이다. 넣는 NBT 의 UUID 가 지금과 다르면 거절한다(서버의 엔티티 색인이 깨진다). Axiom 은 같은 엔티티를
+  저장해 고친 것을 다시 실으므로 늘 같은 UUID 다.
+- 시험에서 바닐라 그대로임을 확인: 내린 직후 강제 없는 `startRiding` 은 거짓(바닐라 `boardingCooldown` 60 틱), `teleportTo` 는 위아래 각을 ±90 으로 자른다.
+- **미룸(생성기 스레드와 합의)**: `HangingEntity`·`ItemFrame`·`Marker` 종류별 shim 과 `loadEntityRecursive`·`tryAddFreshEntityWithPassengers`·
+  `moveTo`·`saveAsPassenger`·`remove(이유)`·`RelativeMovement.unpack` 은 생성기의 엔티티 사슬 단계(명세 줄과 조각) 위에 다시 얹는다.
+- **알려진 한계(검토 보강)**: `teleportTo`·`setPosRaw`·`load` 로 엔티티를 한 틱 안에 **다른 region 의 청크**로 옮기면, 틱 끝 넘기기
+  (`Region.handOffEntities`) 전까지 서버는 위치로 주인을 다시 따지므로 같은 작업 안의 다음 조작(`setYHeadRot`·`startRiding` 등)은
+  `ThreadOwnershipException` 이다. 다음 틱(새 주인 region 스레드)부터는 된다. 같은 region 안의 옮기기(Axiom 의 보통 꼴 — 엔티티를 몇 칸 끌기)는 상관없다.
+- 플레이어 `saveWithoutId` 는 서버 플레이어 저장 꼴(`/data` 와 같은 것)이라 `SelectedItem` 을 뺀 것 말고도 바닐라 공통 필드 일부(`Motion`·`Fire` 등)가 없다.
+  사라진 엔티티의 `saveWithoutId` 는 `UnsupportedNmsCall` 이다(바닐라는 그 객체의 마지막 값을 준다 — 낮은 우선순위 차이).
+
+## 5c — 월드 속성·게임 모드·능력
+
+**채운 기호 13개**(Axiom 월드 속성·시간·게임 모드·비행 속도 패킷).
+
+| 분류 | 개수 | 기호 |
+|---|---|---|
+| 자동 연결 가능 | 11 | `ServerLevel.RAIN_DELAY`·`RAIN_DURATION`·`THUNDER_DURATION`, `IntProvider`, `setWeatherParameters`, `setDayTime`, `getGameRules`, `GameRules.getRule`·`RULE_DAYLIGHT`·`BooleanValue`, `ServerPlayer.setGameMode` |
+| 설계 필요 | 2 | `ServerPlayer.getAbilities`, `Abilities`(바닐라는 플레이어가 든 객체의 공개 필드를 고친다) |
+
+새 다리 1건(`ChunkInternals.playerAbilities`·`setPlayerAbilities` — 능력 일곱 값을 레코드 하나로). 자동 연결 가능 비율 **85%(11/13)**. 규칙 열쇠 51개는 서버 jar 에서 기계로 뽑아 넣었다(규칙 하나를 쓰는 플러그인이 다른 규칙도 부를 수 있어서).
+
+걸린 시간: 약 6분(20:42~20:48, 5b 시험과 2분 겹침).
+
+- 시간·날씨·규칙은 이미 있는 Furnace 길(Bukkit 어댑터와 같은 것)에 그대로 잇는다. 아무 스레드.
+- Paper 와 다른 점(이미 정한 것과 같다): 규칙은 서버에 한 벌, 시간·날씨는 오버월드 시계 하나(다른 월드에서 쓰면 경고 한 번 뒤 무시).
+  `setDayTime` 은 접속자에게 곧바로 알린다(바닐라는 다음 20 틱 알림 때) — 시계가 최대 1초 일찍 맞춰질 뿐 값은 같다.
+- `Abilities` 는 서버 값을 비춘 보기다. 세터(`setFlyingSpeed` 등)는 곧바로 서버에 쓰고, 공개 필드를 직접 고친 것은 다음 세터나 `onUpdateAbilities`
+  (패킷도 보낸다) 때 쓴다. 고친 필드가 없으면 `getAbilities` 가 서버 값으로 다시 맞춘다(게임 모드가 바뀌면 따라온다).
+  한계: 필드만 고치고 세터·`onUpdateAbilities` 를 부르지 않으면 그 객체는 "고친 상태"로 남아 서버 값(게임 모드 바꾸기 등)을 다시 받지 않는다.
+- 바닐라 생성자로 만든 월드에 없는 플레이어(검토 고침): `getAbilities` 는 바닐라처럼 값만 드는 객체(서바이벌 기본값), `setGameMode` 는 같은 모드면 거짓,
+  다른 모드와 `onUpdateAbilities` 는 `UnsupportedNmsCall` — Paper 는 연결(null)에 패킷을 보내다 NullPointerException 을 낸다.
+- 규칙 값을 바꿀 때 Paper 도 이벤트를 내지 않는다: Paper 1.21.1 `GameRules$BooleanValue`·`IntegerValue.set(값, ServerLevel)` 은 값을 넣고 규칙 콜백
+  (`onChanged`)만 부른다(Paper jar 를 javap 로 대조). `WorldGameRuleChangeEvent` 는 `/gamerule`·Bukkit `setGameRule` 길에서만 난다.
+- 시험: 규칙 51개(불리언 40·정수 11)를 모두 읽어 Bukkit 규칙 값과 같은지 본다(`NmsWorldPropertiesTest.allFiftyOneRulesRead`).
+
+## 지금까지 모음(5a~5c)
+
+| 묶음 | 기호 | 자동 연결 가능 | 다리 위 기계적 | 설계 필요 | 걸린 시간 |
+|---|---|---|---|---|---|
+| 5a | 29 | 16 | 12 | 1 (+다리 1) | 14분 |
+| 5a-2 | 1 | 0 | 0 | 1 | 5분 |
+| 5b 앞부분 | 7 | 0 | 5 | 2 (+다리 1) | 8분 |
+| 5c | 13 | 11 | 0 | 2 (+다리 1) | 6분 |
+| 합계 | 50 | 27 (54%) | 17 (34%) | 6 (12%) + 다리 3 | 31분 (+5a 검토 고침 5분) |
+
+다리가 생긴 뒤의 기계적 연결까지 넣으면 88%(44/50)가 사람의 설계 없이 이을 수 있는 꼴이었다. 손으로 쓴 시간의 대부분은 설계 필요 6개와
+다리 3건, 그리고 바닐라 값 시험이었다.
+
+시간: 묶음별 시간을 더하면 33분이지만 5b 와 5c 가 2분 겹쳐 실제 손 시간은 약 31분이다. 여기에 5a 검토 고침 5분을 더하면 첫 명령 20:13:53 부터
+5c 문서 커밋 20:48:21 까지 약 34.5분과 맞는다.
+

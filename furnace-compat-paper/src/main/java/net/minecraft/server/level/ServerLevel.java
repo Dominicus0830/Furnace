@@ -175,6 +175,31 @@ public class ServerLevel extends Level implements net.minecraft.world.level.Worl
 
     public MinecraftServer getServer() { return MinecraftServer.getServer(); }
 
+    // ------------------------------------------------------------------ 시간·날씨·규칙 (NMS shim 5c — Axiom 월드 속성)
+
+    /** 바닐라 날씨 순환 범위(맑음·비 기다림, 비 길이, 천둥 길이 — 틱). */
+    public static final net.minecraft.util.valueproviders.IntProvider RAIN_DELAY = net.minecraft.util.valueproviders.UniformInt.of(12000, 180000);
+    public static final net.minecraft.util.valueproviders.IntProvider RAIN_DURATION = net.minecraft.util.valueproviders.UniformInt.of(12000, 24000);
+    private static final net.minecraft.util.valueproviders.IntProvider THUNDER_DELAY = net.minecraft.util.valueproviders.UniformInt.of(12000, 180000);
+    public static final net.minecraft.util.valueproviders.IntProvider THUNDER_DURATION = net.minecraft.util.valueproviders.UniformInt.of(3600, 15600);
+
+    /**
+     * 바닐라 setWeatherParameters(맑음 시간, 비 시간, 비, 천둥): 맑음·비·천둥 남은 틱(천둥 = 비 시간)과 두 깃발을 바꾼다. 아무 스레드.
+     * 모든 차원이 오버월드의 시계를 쓰므로(Bukkit {@code setStorm} 과 같다) 다른 월드에서는 경고 한 번 뒤 무시한다.
+     */
+    public void setWeatherParameters(int clearTime, int rainTime, boolean raining, boolean thundering) {
+        getWorld().furnaceSharedClockWrite(getWorld().furnaceHandle().setWeather(raining, thundering, rainTime, rainTime, clearTime), "setWeatherParameters");
+    }
+
+    /**
+     * 바닐라 setDayTime: 하루 시각을 바꾼다. 다른 월드는 경고 한 번 뒤 무시. 바닐라는 다음 시간 알림(20 틱마다)에 클라이언트가 알지만 Furnace 는
+     * 곧바로 알린다(Bukkit {@code setFullTime} 과 같은 길) — 시계가 최대 1초 일찍 맞춰질 뿐 값은 같다.
+     */
+    public void setDayTime(long time) { getWorld().furnaceSharedClockWrite(getWorld().furnaceHandle().setDayTime(time), "setDayTime"); }
+
+    /** 바닐라 getGameRules: 서버의 규칙 보기({@link net.minecraft.world.level.GameRules}). */
+    public net.minecraft.world.level.GameRules getGameRules() { return new net.minecraft.world.level.GameRules(getWorld().furnaceHandle()); }
+
     private volatile net.minecraft.world.level.StructureManager structureManager;
 
     /** 바닐라 getStructureManager: 서버의 구조물 템플릿 관리자(서버에 하나, T-211 2단계). */

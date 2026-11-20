@@ -268,7 +268,10 @@ class NmsEntityCreateTest {
     void worldEntitiesCannotBeReloadedThroughTheShim() {
         CraftEntity cow = on(() -> (CraftEntity) world.spawnEntity(new Location(world, at.x() + 0.5, at.y(), at.z() + 9.5), org.bukkit.entity.EntityType.COW));
         Entity h = on(cow::getHandle);
-        assertThrows(UnsupportedNmsCall.class, () -> h.load(new CompoundTag()));
+        // 같은 엔티티를 다시 싣는 것은 5b 부터 된다(NmsEntityEditTest — /data 와 같은 길). 다른 UUID 로 바꿔 싣는 것만 막는다(서버 엔티티 색인이 깨진다)
+        CompoundTag other = new CompoundTag();
+        other.putUUID("UUID", UUID.randomUUID());
+        assertThrows(UnsupportedNmsCall.class, () -> h.load(other));
         assertThrows(UnsupportedNmsCall.class, () -> h.absMoveTo(0, 0, 0, 0, 0));
         assertThrows(UnsupportedNmsCall.class, () -> h.setUUID(UUID.randomUUID()));
         on(() -> { cow.remove(); return null; });

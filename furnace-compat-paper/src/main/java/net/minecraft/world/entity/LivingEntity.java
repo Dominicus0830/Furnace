@@ -59,6 +59,12 @@ public class LivingEntity extends Entity {
                 + " available yet - use the Bukkit equipment API");
     }
 
+    /** 바닐라 {@code LivingEntity#getItemBySlot}: 그 장비 칸의 스택. 지원 범위는 {@link #getItemInHand} 와 같다(플레이어는 ServerPlayer 가 덮는다). */
+    public net.minecraft.world.item.ItemStack getItemBySlot(EquipmentSlot slot) {
+        throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LivingEntity#getItemBySlot", "reading the live equipment of an entity in a world is not"
+                + " available yet - use the Bukkit equipment API");
+    }
+
     /** 바닐라 {@code LivingEntity#getMainHandItem}: 주 손의 스택({@link #getItemInHand} 와 같은 범위 — 접속한 플레이어는 손 칸의 살아 있는 보기). */
     public net.minecraft.world.item.ItemStack getMainHandItem() { return getItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND); }
 

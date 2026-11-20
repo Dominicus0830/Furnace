@@ -756,6 +756,67 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     @Override
+    public Object entityEditNow(org.domi.furnace.api.entity.Entity entity, EntityEdit edit) {
+        if (entity instanceof PlayerHandle ph) {
+            if (!(edit instanceof EntityEdit.SaveWithoutId)) throw new IllegalArgumentException("not supported for a player: " + edit);
+            var tag = org.domi.furnace.server.command.builtin.DataCommands.entityData(ph.handle());
+            tag.tags().remove("SelectedItem");   // /data 비교용으로 붙이는 키 — 바닐라 Player#saveWithoutId 에는 없다
+            return ApiNbt.toApi(tag);
+        }
+        var e = org.domi.furnace.api.Furnace.server().internals().entityNow(entity, org.domi.furnace.server.entity.Entity.class);
+        switch (edit) {
+            case EntityEdit.SaveWithoutId s -> {
+                return ApiNbt.toApi(org.domi.furnace.server.command.builtin.DataCommands.entityData(e));
+            }
+            case EntityEdit.Load l -> {
+                var tag = ApiNbt.toServer(l.tag());
+                if (tag.tags().get("UUID") instanceof int[] u && u.length == 4
+                        && !new java.util.UUID((long) u[0] << 32 | u[1] & 0xFFFFFFFFL, (long) u[2] << 32 | u[3] & 0xFFFFFFFFL).equals(e.uuid())) {
+                    throw new IllegalArgumentException("the tag has another UUID - the UUID of an entity in a world is not changed");
+                }
+                org.domi.furnace.server.command.builtin.DataCommands.setEntityData(e, tag);   // 바닐라 load(같은 UUID 라 그대로)
+            }
+            case EntityEdit.SetPosRaw m -> e.setPosRaw(m.x(), m.y(), m.z());
+            case EntityEdit.TeleportSameLevel t -> {
+                e.teleportSameLevel(t.x(), t.y(), t.z(), t.yRot(), t.xRot());
+                if (e instanceof org.domi.furnace.server.entity.LivingEntity le) le.setYHeadRot(t.yRot());
+            }
+            case EntityEdit.SetYHeadRot h -> {
+                if (e instanceof org.domi.furnace.server.entity.LivingEntity le) le.setYHeadRot(h.yHeadRot());
+            }
+            case EntityEdit.StartRiding r -> {
+                if (r.vehicle() instanceof PlayerHandle) throw new IllegalArgumentException("riding a player is not supported");
+                var v = org.domi.furnace.api.Furnace.server().internals().entityNow(r.vehicle(), org.domi.furnace.server.entity.Entity.class);
+                return e.startRiding(v, r.force());
+            }
+            case EntityEdit.StopRiding s -> e.stopRiding();
+            case EntityEdit.EjectPassengers s -> e.ejectPassengers();
+        }
+        return null;
+    }
+
+    @Override
+    public PlayerAbilities playerAbilities(org.domi.furnace.api.entity.Player player) {
+        if (!(player instanceof PlayerHandle ph)) throw new IllegalArgumentException("not a server player: " + player);
+        var a = ph.handle().vitals().abilitiesCopy();
+        return new PlayerAbilities(a.invulnerable, a.flying, a.mayfly, a.instabuild, a.mayBuild, a.flyingSpeed, a.walkingSpeed);
+    }
+
+    @Override
+    public void setPlayerAbilities(org.domi.furnace.api.entity.Player player, PlayerAbilities v, boolean send) {
+        if (!(player instanceof PlayerHandle ph)) throw new IllegalArgumentException("not a server player: " + player);
+        var a = new org.domi.furnace.server.entity.Abilities();
+        a.invulnerable = v.invulnerable();
+        a.flying = v.flying();
+        a.mayfly = v.mayfly();
+        a.instabuild = v.instabuild();
+        a.mayBuild = v.mayBuild();
+        a.flyingSpeed = v.flyingSpeed();
+        a.walkingSpeed = v.walkingSpeed();
+        ph.handle().vitals().setAbilities(a, send);
+    }
+
+    @Override
     public void entityDiscardNow(org.domi.furnace.api.entity.Entity entity) {
         if (entity instanceof org.domi.furnace.api.entity.Player) throw new IllegalArgumentException("a player cannot be discarded: " + entity.uniqueId());
         Object internal;
@@ -886,6 +947,11 @@ final class ChunkInternalsImpl implements ChunkInternals {
         var inv = p.inventoryHost();
         int ws = mainHand ? 36 + inv.selected() : 45;
         return new HandSlot(ws, apiItem(inv.slot(ws)));
+    }
+
+    @Override
+    public org.domi.furnace.api.item.ItemStack windowSlotNow(org.domi.furnace.api.entity.Player player, int windowSlot) {
+        return apiItem(serverPlayer(player, "getItemBySlot").inventoryHost().slot(windowSlot));
     }
 
     @Override
