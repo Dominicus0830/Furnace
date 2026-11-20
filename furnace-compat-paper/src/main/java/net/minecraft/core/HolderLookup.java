@@ -7,8 +7,8 @@ import net.minecraft.tags.TagKey;
 
 /**
  * 레지스트리 조회(Mojang 이름 shim, H7b → N2b-6). 목록 읽기({@code listElements}·{@code listTags})와 레지스트리 조회기({@link RegistryLookup})·묶음
- * 조회기({@link Provider})의 {@code lookup}·{@code lookupOrThrow}. 직렬화 맥락({@code createSerializationContext})·{@code filterFeatures} 는
- * DataFixerUpper·기능 플래그 shim 이 없어 두지 않았다(없는 멤버 — 호출 위치에서 실패).
+ * 조회기({@link Provider})의 {@code lookup}·{@code lookupOrThrow}·{@code createSerializationContext}(T-200). {@code filterFeatures} 는
+ * 기능 플래그 shim 이 없어 두지 않았다(없는 멤버 — 호출 위치에서 실패).
  */
 public interface HolderLookup<T> extends HolderGetter<T> {
 
@@ -55,6 +55,11 @@ public interface HolderLookup<T> extends HolderGetter<T> {
 
         default <T> RegistryLookup<T> lookupOrThrow(ResourceKey<? extends Registry<? extends T>> registry) {
             return this.<T>lookup(registry).orElseThrow(() -> new IllegalStateException("Registry " + registry.location() + " not found"));
+        }
+
+        /** 바닐라: 이 묶음으로 레지스트리를 찾는 직렬화 연산(RegistryOps). DataFixerUpper 가 있어야 부를 수 있다. */
+        default <V> net.minecraft.resources.RegistryOps<V> createSerializationContext(com.mojang.serialization.DynamicOps<V> ops) {
+            return net.minecraft.resources.RegistryOps.create(ops, this);
         }
 
         default HolderGetter.Provider asGetterLookup() {

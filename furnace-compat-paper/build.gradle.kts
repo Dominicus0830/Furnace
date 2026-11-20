@@ -82,6 +82,15 @@ dependencies {
 // Codec 상수(DataComponentPatch.CODEC 등)가 쓰는 모양만 손으로 썼고 jar 에는 넣지 않는다(서버는 쓰는 플러그인이 있으면 묶음 datafixerupper 를 받는다).
 val dfuStub: SourceSet = the<SourceSetContainer>().create("dfu")
 dependencies {
+    // 로컬 대조용(커밋 대상 아님·CI 는 안 쓴다): -PdfuJar=<진짜 datafixerupper-8.0.16.jar> 를 주면 시험이 대역 대신 진짜 DFU 로 돈다 — NMS shim 이 진짜와
+    // 같은 서술자·결과인지 보는 길. 대역 앞에 놓아야 먼저 읽힌다(같은 이름 클래스). guava·fastutil·gson 은 DFU 가 끌어 쓴다.
+    providers.gradleProperty("dfuJar").orNull?.let { jar ->
+        testRuntimeOnly(files(jar))
+        testRuntimeOnly("com.google.guava:guava:32.1.2-jre")
+        testRuntimeOnly("it.unimi.dsi:fastutil:8.5.12")
+        testRuntimeOnly("com.google.code.gson:gson:2.10.1")
+        testRuntimeOnly("org.slf4j:slf4j-api:2.0.16")
+    }
     compileOnly(dfuStub.output)
     testCompileOnly(dfuStub.output)
     testRuntimeOnly(dfuStub.output)

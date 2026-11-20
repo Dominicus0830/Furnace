@@ -54,25 +54,46 @@ public final class ComponentPatch {
 
     // ------------------------------------------------------------------ 저장(DataComponentPatch.CODEC)
 
-    /** {"minecraft:x": 값, "!minecraft:y": {}} 꼴(JSON 꼴·NBT 꼴 모두). 저장하지 않는 종류는 오류. */
+    /** {"minecraft:x": 값, "!minecraft:y": {}} 꼴(JSON 꼴·NBT 꼴 모두). 저장하지 않는 종류는 오류. 첫 오류에서 던진다. */
     public static ComponentPatch fromCodec(Object in) {
+        Partial p = fromCodecPartial(in);
+        if (!p.errors().isEmpty()) throw new CodecException(p.errors().get(0));
+        return p.patch();
+    }
+
+    /**
+     * fromCodec 의 바닐라 DispatchedMapCodec.decode 꼴: 항목마다 따로 읽어 좋은 것은 패치에 담고, 나쁜 항목은 오류 문구와 키를 모은다(입력 순서).
+     * 키는 받은 그대로의 글자다. 입력이 맵이 아니면 CodecException.
+     */
+    public static Partial fromCodecPartial(Object in) {
         Map<String, Object> m = Val.map(in);
-        if (m.isEmpty()) return EMPTY;
+        if (m.isEmpty()) return new Partial(EMPTY, java.util.List.of(), java.util.List.of());
         LinkedHashMap<String, Object> out = new LinkedHashMap<>();
+        java.util.List<String> errors = new java.util.ArrayList<>();
+        java.util.List<String> failed = new java.util.ArrayList<>();
         java.util.Set<String> seen = new java.util.HashSet<>();
         for (var e : m.entrySet()) {
             String key = e.getKey();
-            boolean removed = key.startsWith("!");
-            org.domi.furnace.server.data.ResourceId rid = org.domi.furnace.server.data.ResourceId.tryParse(removed ? key.substring(1) : key);
-            ComponentType t = rid == null ? null : DataComponents.byName(rid.toString());
-            if (t == null) throw new CodecException("No component with type: '" + rid + "'");
-            if (t.isTransient()) throw new CodecException("'" + t.name() + "' is not a persistent component");
-            if (!seen.add((removed ? "!" : "") + t.name())) throw new CodecException("Duplicate entry for key: '" + key + "'");
-            if (removed && !Val.isMap(e.getValue())) throw new CodecException("Not a map: " + Val.describe(e.getValue()));
-            out.put(t.name(), removed ? null : t.persistent().normalize(e.getValue()));   // "x" 와 "!x" 는 나중 것이 앞 자리에서 이긴다
+            try {
+                boolean removed = key.startsWith("!");
+                org.domi.furnace.server.data.ResourceId rid = org.domi.furnace.server.data.ResourceId.tryParse(removed ? key.substring(1) : key);
+                ComponentType t = rid == null ? null : DataComponents.byName(rid.toString());
+                if (t == null) throw new CodecException("No component with type: '" + rid + "'");
+                if (t.isTransient()) throw new CodecException("'" + t.name() + "' is not a persistent component");
+                if (removed && !Val.isMap(e.getValue())) throw new CodecException("Not a map: " + Val.describe(e.getValue()));
+                Object value = removed ? null : t.persistent().normalize(e.getValue());
+                if (!seen.add((removed ? "!" : "") + t.name())) throw new CodecException("Duplicate entry for key: '" + key + "'");
+                out.put(t.name(), value);   // "x" 와 "!x" 는 나중 것이 앞 자리에서 이긴다
+            } catch (CodecException ex) {
+                errors.add(ex.getMessage());
+                failed.add(key);
+            }
         }
-        return new ComponentPatch(out);
+        return new Partial(out.isEmpty() ? EMPTY : new ComponentPatch(out), java.util.List.copyOf(errors), java.util.List.copyOf(failed));
     }
+
+    /** fromCodecPartial 결과: 좋은 항목의 패치, 오류 문구들(입력 순서), 나쁜 항목의 키들. */
+    public record Partial(ComponentPatch patch, java.util.List<String> errors, java.util.List<String> failedKeys) {}
 
     /** DataComponentPatch.CODEC 를 NbtOps 로 쓴 꼴. */
     public NbtCompound toNbt() {

@@ -291,4 +291,67 @@ class ItemComponentsApiTest {
         assertThrows(IllegalArgumentException.class, () -> sword().withPersistentData(c -> c.set("p:x", strings, (List) List.of("a", 1))), "섞인 종류");
         assertThrows(IllegalArgumentException.class, () -> sword().withPersistentData(c -> c.set("p:x", ints, (List) List.of("a"))));
     }
+
+    // ------------------------------------------------------------------ 패치 저장 꼴(T-200)
+
+    @Test
+    void componentPatchEncodesToVanillaNbtShape() {
+        ItemStack s = sword().with(ItemComponents.REPAIR_COST, 3).without(ItemComponents.MAX_DAMAGE).withComponent("minecraft:custom_data", "{ a : 1 }");
+        var nbt = ItemSupport.get().encodeComponentPatch(s.components(), s.removedComponents());
+        assertEquals(3, nbt.getInt("minecraft:repair_cost"));
+        assertTrue(nbt.getCompound("!minecraft:max_damage").isEmpty() && nbt.contains("!minecraft:max_damage"));
+        assertEquals(1, nbt.getCompound("minecraft:custom_data").getInt("a"), "값은 정규 NBT 로 풀려 나온다");
+        assertEquals(3, nbt.size());
+        assertTrue(ItemSupport.get().encodeComponentPatch(Map.of(), java.util.Set.of()).isEmpty());
+        assertThrows(IllegalArgumentException.class, () -> ItemSupport.get().encodeComponentPatch(Map.of("minecraft:nope", "1"), java.util.Set.of()));
+        assertThrows(IllegalArgumentException.class, () -> ItemSupport.get().encodeComponentPatch(Map.of("minecraft:repair_cost", "\"x\""), java.util.Set.of()));
+    }
+
+    @Test
+    void componentPatchDecodePartialKeepsGoodEntries() {
+        var in = org.domi.furnace.api.nbt.NbtCompound.parse("{\"minecraft:repair_cost\":2,\"minecraft:nope\":{},\"minecraft:max_stack_size\":\"x\"}");
+        var d = ItemSupport.get().decodeComponentPatchPartial(in);
+        assertEquals(Map.of("minecraft:repair_cost", "2"), d.patch().set());
+        assertEquals(2, d.errors().size());
+        assertEquals(java.util.Set.of("minecraft:nope", "minecraft:max_stack_size"), new java.util.HashSet<>(d.failedKeys()));
+        assertTrue(d.errors().stream().anyMatch(e -> e.contains("No component with type: 'minecraft:nope'")));
+        assertTrue(ItemSupport.get().decodeComponentPatchPartial(org.domi.furnace.api.nbt.NbtCompound.parse("{\"minecraft:repair_cost\":2}")).ok());
+    }
+
+    @Test
+    void componentPatchValuesKeepBooleansAndFieldNumberTypes() {
+        var out = ItemSupport.get().encodeComponentPatchValues(
+                Map.of("minecraft:unbreakable", "{show_in_tooltip:0b}", "minecraft:repair_cost", "5", "minecraft:custom_data", "{a:1b}"), java.util.Set.of("minecraft:damage"));
+        assertEquals(Map.of("show_in_tooltip", false), out.get("minecraft:unbreakable"));
+        assertEquals(5, out.get("minecraft:repair_cost"));
+        assertEquals(Map.of(), out.get("!minecraft:damage"));
+        assertEquals((byte) 1, ((org.domi.furnace.api.nbt.NbtCompound) out.get("minecraft:custom_data")).getByte("a"));
+        assertThrows(IllegalArgumentException.class, () -> ItemSupport.get().encodeComponentPatchValues(Map.of("minecraft:nope", "1"), java.util.Set.of()));
+    }
+
+    @Test
+    void componentPatchDecodeValidatesLikeVanilla() {
+        var in = org.domi.furnace.api.nbt.NbtCompound.parse("{\"minecraft:repair_cost\":2,\"!minecraft:max_damage\":{}}");
+        var patch = ItemSupport.get().decodeComponentPatch(in);
+        assertEquals(Map.of("minecraft:repair_cost", "2"), patch.set());
+        assertEquals(java.util.Set.of("minecraft:max_damage"), patch.removed());
+        var err = assertThrows(IllegalArgumentException.class, () -> ItemSupport.get().decodeComponentPatch(org.domi.furnace.api.nbt.NbtCompound.parse("{\"minecraft:nope\":{}}")));
+        assertTrue(err.getMessage().contains("No component with type: 'minecraft:nope'"), err.getMessage());
+        assertThrows(IllegalArgumentException.class, () -> ItemSupport.get().decodeComponentPatch(org.domi.furnace.api.nbt.NbtCompound.parse("{\"minecraft:repair_cost\":\"x\"}")));
+        assertThrows(IllegalArgumentException.class, () -> ItemSupport.get().decodeComponentPatch(org.domi.furnace.api.nbt.NbtCompound.parse("{\"!minecraft:repair_cost\":1}")));
+        assertTrue(ItemSupport.get().decodeComponentPatch(new org.domi.furnace.api.nbt.NbtCompound()).isEmpty());
+    }
+
+    @Test
+    void applyComponentPatchUsesSetAndRemoveRules() {
+        ItemStack base = sword();
+        int max = base.get(ItemComponents.MAX_DAMAGE);
+        // 기본값과 같은 값은 붙이지 않는다
+        ItemStack same = ItemSupport.get().applyComponentPatch(base, new org.domi.furnace.api.item.ItemComponentPatch(Map.of("minecraft:max_damage", Integer.toString(max)), java.util.Set.of()));
+        assertTrue(same.components().isEmpty() && same.removedComponents().isEmpty());
+        ItemStack changed = ItemSupport.get().applyComponentPatch(base, new org.domi.furnace.api.item.ItemComponentPatch(Map.of("minecraft:damage", "7"), java.util.Set.of("minecraft:max_damage")));
+        assertEquals(7, changed.damage());
+        assertTrue(changed.removedComponents().contains("minecraft:max_damage"));
+        assertNull(changed.get(ItemComponents.MAX_DAMAGE));
+    }
 }

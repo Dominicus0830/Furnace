@@ -40,7 +40,7 @@ FAWE 출력(두 서버 같음): E1 `Operation completed (1000)`, E2 `8353 blocks
 
 | 묶음 | 내용 |
 |---|---|
-| 판·코덱 | `SharedConstants`·`WorldVersion`·`DetectedVersion`·`DataVersion`(3955). `DataComponentPatch`(`CODEC` 은 진짜 DFU Codec 이지만 인코딩·디코딩은 오류 결과 — T-200), `References`·`DataFixers`(판을 올리지 않는 고치기 — T-199), `NbtOps`(상수만 — T-191). DataFixerUpper 컴파일 대역(`src/dfu`, authlib 과 같은 방식) |
+| 판·코덱 | `SharedConstants`·`WorldVersion`·`DetectedVersion`·`DataVersion`(3955). `DataComponentPatch`(`CODEC` 은 진짜 DFU Codec — 바닐라 저장 꼴로 읽고 쓴다, T-200), `References`·`DataFixers`(판을 올리지 않는 고치기 — T-199), `NbtOps`(진짜 `DynamicOps<Tag>` — T-191 중 이 부분만, T-200). DataFixerUpper 컴파일 대역(`src/dfu`, authlib 과 같은 방식) |
 | 난수 | `RandomSource`·`LegacyRandomSource`·`SingleThreadedRandomSource`·`BitRandomSource`·`MarsagliaPolarGaussian`·`RandomSupport` — Paper 와 같은 수열(시험) |
 | 블록 술어(보조 작업자) | `getLightBlock`·`getShape`/`isShapeFullBlock`·`canOcclude`·`isSolidRender`·`isSignalSource`·`destroySpeed`·`getExplosionResistance`·`getFriction`·`getLightEmission`·`getPistonPushReaction`·`blocksMotion`·`canBeReplaced`·`defaultMapColor`(`MapColor` 62종)·`EmptyBlockGetter`·`VoxelShape`, 다리 `BlockStateInternals`. **상태 26,684개 모두 Paper 와 같다**(`blockMaterialPredicatesMatchPaperForEveryState`). Paper 는 부술 수 없는 블록 10종(기반암 등)의 피스톤 반응을 늘 BLOCK 으로 주므로 그대로 따랐다(`Block#isDestroyable`) |
 | 블록 엔티티(보조 작업자) | `EntityBlock`(바닐라와 같은 블록 집합), `BlockEntity`·`BeaconBlockEntity`·`BlockEntityType`, 새 블록 엔티티의 `saveWithId` = 서버가 새로 만든 블록 엔티티 저장값(FAWE 의 블록별 기본 타일), 살아 있는 블록 엔티티 보기(T-198 에서 `Level#getBlockEntity`·청크 `getBlockEntity` 로 바뀜), `LevelChunk#getBlockEntities`·`getBlockEntity`(읽기) |
@@ -59,7 +59,7 @@ FAWE 출력(두 서버 같음): E1 `Operation completed (1000)`, E2 `8353 blocks
 1. **빛 다시 계산 없음(D2)** — Paper 는 FAWE 편집 뒤 빛이 맞고 Furnace 는 옛 빛. `starlight$serverRelightChunks` 를 Furnace 빛 엔진으로(N2b-5, T-197).
 2. **블록 엔티티 쓰기 없음(T-198 에서 함 — `compat-nms-t198-block-entities-2026-11-16.md`)** — `LevelChunk#removeBlockEntity`·`Level#getBlockEntity`(만들기)·`BlockEntity#loadWithComponents` 가 없어, 블록 엔티티가 든 섹션을 바꾸거나 상자를 붙여 넣으면 그 청크 편집이 실패한다(T-198, 거울 일지에 블록 엔티티 넣기).
 3. **옛 판 데이터 고치기 없음** — 켤 때 FAWE `LegacyMapper` 가 `minecraft:grass`·`sign` 등 30줄 "Unknown block" 오류를 낸다(Paper 는 DFU 로 고친다). 옛 스케매틱도 안 올라간다(T-199).
-4. **아이템 구성 요소 코덱 없음** — `//wand` 아이템 주기·브러시 등 아이템 변환이 실패한다(T-200, NbtOps 는 T-191).
+4. ~~아이템 구성 요소 코덱 없음~~ — T-200 에서 함(`DataComponentPatch.CODEC`·`ItemStack#getComponentsPatch/applyComponents`·`createSerializationContext`, `docs/feature-parity/context-notes/2026-11-20-t200-component-codec.md`).
 5. 가정: `ChunkMap#getPlayers` 는 체비셰프 시야 거리 안의 플레이어(바닐라는 실제로 보낸 청크), 티켓 수준 32(블록 틱만)는 Furnace 에 해당 등급이 없어 로드만, `ChunkHolder` 의 틱 미래는 로드된 청크면 끝난 미래.
 6. 이번에 안 잰 V6 항목: 편집 직후 같은 틱 Bukkit 읽기(다른 플러그인 표본), 물 섹션의 무작위 틱 진행(시나리오는 randomTickSpeed 0), 빠른 블록 놓기 표본·squaremap. FAWE 의 다른 기능(`//regen`·`//forest`·엔티티 복사·`//biome`)도 안 돌렸다 — 남은 없는 기호 목록은 시작 로그(T-203).
 7. 콘솔 앞 `/` 처리(T-201), 편집 안 한 청크의 빛 값 차이(T-202).
