@@ -2256,15 +2256,23 @@ public abstract non-sealed class Entity implements Rider {
     public boolean startRiding(Entity v, boolean force) { return mount(this, v, force); }
 
     /**
+     * 월드에 아직 넣지 않은 묶음 안에서 강제로 태우기(바닐라 loadEntityRecursive 의 startRiding(vehicle, true)). 탑승 이벤트는 내지 않는다 — Paper 는 탈것이
+     * 월드에 든 뒤(valid)에만 VehicleEnterEvent·EntityMountEvent 를 부르므로, 묶음째 넣을 엔티티끼리 태울 때는 이벤트가 없다.
+     */
+    public boolean startRidingBeforeAdd(Entity v) { return mount(this, v, true, false); }
+
+    /**
      * 바닐라 Entity.startRiding 본문(Rider 공용): 같은 탈것이면 거짓, 탈것이 승객을 못 받으면 거짓, 탈것 사슬에 내가 있으면 거짓.
      * 이미 탔으면 내리고, 자세를 서기로 바꾸고, 연결한다. 끝에서 탈것 + 승객 전체의 플레이어에게 started_riding.
      */
-    static boolean mount(Rider r, Entity v, boolean force) {
+    static boolean mount(Rider r, Entity v, boolean force) { return mount(r, v, force, true); }
+
+    private static boolean mount(Rider r, Entity v, boolean force, boolean events) {
         if (v == r.vehicle()) return false;
         if (!v.couldAcceptPassenger()) return false;
         for (Entity e = v; e.vehicle != null; e = e.vehicle) if (e.vehicle == r) return false;
         if (!force && !(r.canRide(v) && v.canAddPassenger(r))) return false;
-        if (v.level != null && !v.level.gameEvents().entityMount(r, v)) return false;   // 플러그인 VehicleEnterEvent·EntityMountEvent 취소
+        if (events && v.level != null && !v.level.gameEvents().entityMount(r, v)) return false;   // 플러그인 VehicleEnterEvent·EntityMountEvent 취소
         if (r.isPassenger()) r.stopRiding();
         if (r instanceof Entity e) e.setPose(POSE_STANDING);
         r.setVehicleField(v);

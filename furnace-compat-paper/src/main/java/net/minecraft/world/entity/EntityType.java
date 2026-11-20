@@ -38,6 +38,42 @@ public class EntityType<T> {
         return t == null ? Optional.empty() : Optional.of(of(k));
     }
 
+    /** 바닐라 {@code EntityType.by(nbt)}: "id" 의 종류(모르면 빈 값). */
+    public static Optional<EntityType<?>> by(net.minecraft.nbt.CompoundTag nbt) { return byString(nbt.getString("id")); }
+
+    /** 바닐라 {@code EntityType.create(nbt, level)}: 종류를 만들어 nbt 를 싣는다. 모르는 종류·만들 수 없는 종류는 경고를 남기고 빈 값. */
+    public static Optional<Entity> create(net.minecraft.nbt.CompoundTag nbt, net.minecraft.world.level.Level level) {
+        Optional<Entity> e = by(nbt).map(t -> t.create(level));
+        if (e.isPresent()) e.get().load(nbt);
+        else org.slf4j.LoggerFactory.getLogger(EntityType.class).warn("Skipping Entity with id {}", nbt.getString("id"));
+        return e;
+    }
+
+    /**
+     * 바닐라 {@code EntityType.loadEntityRecursive}(NMS shim 5e-3 — Axiom 엔티티 놓기): nbt 로 엔티티를 만들어 싣고 처리 함수를 적용한 뒤(null 이면 null),
+     * "Passengers" 의 승객마다 같은 방법으로 만들어 강제로 태운다. 읽다 실패하면 경고를 남기고 null. 돌려준 묶음은 아직 월드에 없고
+     * {@code ServerLevel#tryAddFreshEntityWithPassengers}·{@code addFreshEntityWithPassengers} 로 넣는다(태우기는 그때 서버가 한다).
+     */
+    public static Entity loadEntityRecursive(net.minecraft.nbt.CompoundTag nbt, net.minecraft.world.level.Level level, java.util.function.Function<Entity, Entity> fn) {
+        Optional<Entity> made;
+        try {
+            made = create(nbt, level);
+        } catch (RuntimeException e) {
+            org.slf4j.LoggerFactory.getLogger(EntityType.class).warn("Exception loading entity: ", e);
+            return null;
+        }
+        Entity e = made.map(fn).orElse(null);
+        if (e == null) return null;
+        if (nbt.contains("Passengers", net.minecraft.nbt.Tag.TAG_LIST)) {
+            net.minecraft.nbt.ListTag list = nbt.getList("Passengers", net.minecraft.nbt.Tag.TAG_COMPOUND);
+            for (int i = 0; i < list.size(); i++) {
+                Entity p = loadEntityRecursive(list.getCompound(i), level, fn);
+                if (p != null) p.furnaceRideDetached(e);
+            }
+        }
+        return e;
+    }
+
     /** 바닐라 {@code EntityType.getKey}. */
     public static ResourceLocation getKey(EntityType<?> type) { return type.key; }
 

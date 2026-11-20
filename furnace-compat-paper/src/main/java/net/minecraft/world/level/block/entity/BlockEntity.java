@@ -48,6 +48,11 @@ public abstract class BlockEntity {
         this.blockState = state;
     }
 
+    /** 바닐라: 저장 꼴의 x·y·z(없는 키는 0). */
+    public static net.minecraft.core.BlockPos getPosFromTag(net.minecraft.nbt.CompoundTag tag) {
+        return new net.minecraft.core.BlockPos(tag.getInt("x"), tag.getInt("y"), tag.getInt("z"));
+    }
+
     /**
      * 호환 모듈 전용 - 청크 shim 의 블록 엔티티 보기(그 상태의 블록이 블록 엔티티를 만들지 않으면 null). handle 이 null 이면 주인이 처음 볼 때 묶는다.
      */

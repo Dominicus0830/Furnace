@@ -8,6 +8,12 @@ public class TagTypes {
 
     public TagTypes() {}
 
+    /** 이 패키지 전용: 표 안 종류의 번호. */
+    static int idOf(TagType<?> type) {
+        for (int i = 0; i < TYPES.length; i++) if (TYPES[i] == type) return i;
+        throw new IllegalArgumentException("not a vanilla tag type: " + type.getName());
+    }
+
     public static TagType<?> getType(int id) {
         return id >= 0 && id < TYPES.length ? TYPES[id] : TagType.createInvalid(id);
     }

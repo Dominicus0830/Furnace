@@ -149,6 +149,45 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
         discarded = true;
     }
 
+    /**
+     * 바닐라 {@code Entity#saveAsPassenger}(NMS shim 5e-3 — Axiom 이 엔티티를 복사할 때 쓴다): {@link #save} 와 같되 승객이어도 저장한다("id" 와 승객까지).
+     * 플레이어·저장하지 않는 지움 이유·이미 사라진 엔티티는 거짓(tag 는 그대로). 스레드 규칙은 {@link #save} 와 같다.
+     */
+    public boolean saveAsPassenger(net.minecraft.nbt.CompoundTag tag) {
+        if (detached != null) throw notInWorld("Entity#saveAsPassenger");
+        var h = f();
+        if (h instanceof org.domi.furnace.api.entity.Player) return false;
+        var b = org.domi.furnace.compat.nms.NmsChunks.bridge();
+        org.domi.furnace.api.nbt.NbtCompound saved = org.domi.furnace.compat.nms.NmsEntities.call(furnaceWorld(), h, "Entity#saveAsPassenger",
+                () -> b.entitySaveAsPassengerNow(h));
+        if (saved == null) return false;
+        net.minecraft.nbt.CompoundTag t = net.minecraft.nbt.CompoundTag.fromFurnace(saved);
+        for (String k : t.getAllKeys()) tag.put(k, t.get(k));
+        return true;
+    }
+
+    /**
+     * 바닐라 {@code Entity#remove(reason)}(NMS shim 5e-3 — Axiom 엔티티 지우기): 그 이유로 지운다(이벤트 없음 — Paper 도 원인이 없으면 EntityRemoveEvent 를
+     * 내지 않는다). 아직 월드에 없는 엔티티는 지운 것으로만 표시한다(넣으면 거짓). 플레이어는 지원하지 않는다({@link #discard} 와 같다).
+     */
+    public void remove(RemovalReason reason) {
+        Detached d = detached;
+        if (d != null) {
+            d.removed = true;
+            return;
+        }
+        var h = f();
+        if (h instanceof org.domi.furnace.api.entity.Player) {
+            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("Entity#remove", "removing a player entity is not supported - kick the player instead");
+        }
+        var b = org.domi.furnace.compat.nms.NmsChunks.bridge();
+        org.domi.furnace.compat.nms.NmsEntities.call(furnaceWorld(), h, "Entity#remove", () -> {
+            b.entityRemoveNow(h, reason.name());
+            return null;
+        });
+        discarded = true;
+    }
+
     /** 바닐라 Entity: 지워지지 않았는가. LivingEntity 는 체력도 본다. */
     public boolean isAlive() { return !isRemoved(); }
 
@@ -229,12 +268,17 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
 
     /** 바닐라 getVehicle: 탄 탈것(없으면 null). 탈것은 같은 region 에 있다. */
     public Entity getVehicle() {
+        Detached d = detached;
+        if (d != null) return d.vehicle;   // loadEntityRecursive 로 태운 묶음(넣을 때 서버가 태운다)
         java.util.UUID v = furnaceLook("Entity#getVehicle").vehicle();
         return v == null ? null : byUuid(v, "Entity#getVehicle");
     }
 
     /** 바닐라 isPassenger: 탈것이 있는가. */
-    public boolean isPassenger() { return furnaceLook("Entity#isPassenger").vehicle() != null; }
+    public boolean isPassenger() {
+        Detached d = detached;
+        return d != null ? d.vehicle != null : furnaceLook("Entity#isPassenger").vehicle() != null;
+    }
 
     /** 바닐라 hasPassenger(조건): 바로 탄 승객 중 조건에 맞는 것이 있는가. */
     public boolean hasPassenger(java.util.function.Predicate<Entity> predicate) {
@@ -244,12 +288,16 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
 
     /** 바닐라 getSelfAndPassengers: 자기 다음에 승객마다 그 승객과 그 위 승객(깊이 우선, 타는 순서). */
     public java.util.stream.Stream<Entity> getSelfAndPassengers() {
+        Detached d = detached;
+        if (d != null) return java.util.stream.Stream.concat(java.util.stream.Stream.of(this), d.passengers.stream().flatMap(Entity::getSelfAndPassengers));
         return java.util.stream.Stream.concat(java.util.stream.Stream.of(this),
                 passengersNow("Entity#getSelfAndPassengers").stream().flatMap(Entity::getSelfAndPassengers));
     }
 
     /** 바닐라 getIndirectPassengers: 승객과 그 위 승객 모두(자기 빼고). 돌 때마다 지금 승객을 다시 본다(바닐라도 스트림을 새로 만든다). */
     public Iterable<Entity> getIndirectPassengers() {
+        Detached d = detached;
+        if (d != null) return () -> d.passengers.stream().flatMap(Entity::getSelfAndPassengers).iterator();
         return () -> passengersNow("Entity#getIndirectPassengers").stream().flatMap(Entity::getSelfAndPassengers).iterator();
     }
 
@@ -339,6 +387,11 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
 
     /** 바닐라 {@code setYHeadRot}: 살아 있는 엔티티의 머리 각도(다른 엔티티는 바닐라도 아무 일 없다). */
     public void setYHeadRot(float yHeadRot) {
+        Detached d = detached;
+        if (d != null) {   // 아직 월드에 없는 엔티티: 넣을 때 재생한다(Axiom 이 loadEntityRecursive 의 처리 함수에서 부른다)
+            d.ops.add(new org.domi.furnace.api.internal.ChunkInternals.EntityOp.SetYHeadRot(yHeadRot));
+            return;
+        }
         furnaceEdit("Entity#setYHeadRot", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.SetYHeadRot(yHeadRot));
     }
 
@@ -465,6 +518,67 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
         return true;
     }
 
+    /** 호환 모듈 전용: 이 엔티티가 고른 UUID(아직 월드에 없고 정하지 않았으면 null — 넣을 때 무작위로 정해진다). */
+    public UUID furnaceKnownUuid() {
+        Detached d = detached;
+        return d != null ? d.uuid : f().uniqueId();
+    }
+
+    /** 이 패키지 전용: 바닐라 loadEntityRecursive 의 강제 태우기 — 둘 다 아직 월드에 없을 때 기록만 하고 넣을 때 서버가 태운다. */
+    void furnaceRideDetached(Entity vehicle) {
+        Detached d = detachedFor("Entity#startRiding"), v = vehicle.detachedFor("Entity#startRiding");
+        if (d.vehicle != null) d.vehicle.detached.passengers.remove(this);
+        d.vehicle = vehicle;
+        v.passengers.add(this);
+    }
+
+    /** 호환 모듈 전용: 아직 월드에 없는 승객이 달려 있는가. */
+    public boolean furnaceHasDetachedPassengers() {
+        Detached d = detached;
+        return d != null && !d.passengers.isEmpty();
+    }
+
+    /**
+     * 호환 모듈 전용: Paper {@code addFreshEntityWithPassengers(entity, reason)} 를 {@code EntityType#loadEntityRecursive} 로 만든 탈것·승객 묶음에.
+     * 뿌리 자리의 주인 region 에서 서버가 묶음을 만들어 태운 뒤 함께 넣는다(이벤트 냄). 넣은 엔티티마다 이 shim 들을 그 엔티티의 getHandle 로 묶는다.
+     * 스폰 이벤트를 하나라도 취소하면 묶음 전체를 넣지 않는다(Paper 는 하나씩 넣는다 — user-todo 5e-3 ②).
+     */
+    public void furnaceAddToWorldWithPassengers(net.minecraft.server.level.ServerLevel level, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason reason) {
+        Detached d = detached;
+        if (d == null || d.removed) {
+            furnaceAddToWorld(level, reason, true);
+            return;
+        }
+        java.util.List<Entity> order = getSelfAndPassengers().toList();
+        for (Entity e : order) {
+            e.generation = false;
+            if (e.spawnReason == null) e.spawnReason = reason;
+        }
+        var spec = furnaceSpec();
+        int x = (int) Math.floor(d.x), y = (int) Math.floor(d.y), z = (int) Math.floor(d.z);
+        var world = level.getWorld().furnaceHandle();
+        String why = spawnReason == null ? null : spawnReason.name();
+        var b = org.domi.furnace.compat.nms.NmsChunks.bridge();
+        var added = org.domi.furnace.compat.nms.NmsOwner.call(world, x, y, z, "ServerLevel#addFreshEntityWithPassengers",
+                () -> b.addNmsEntityWithPassengersNow(world, x, z, spec, why));
+        for (int i = 0; i < order.size(); i++) {
+            var h = added.get(i);
+            if (h == null) continue;
+            Entity e = order.get(i);
+            CraftEntity c = (CraftEntity) org.domi.furnace.compat.paper.Compat.entity(h);
+            c.adoptHandle(e);
+            e.bukkit = c;
+            e.detached = null;
+        }
+    }
+
+    private org.domi.furnace.api.internal.ChunkInternals.NmsEntitySpec furnaceSpec() {
+        Detached d = detached;
+        java.util.List<org.domi.furnace.api.internal.ChunkInternals.NmsEntitySpec> ps = new java.util.ArrayList<>(d.passengers.size());
+        for (Entity p : d.passengers) ps.add(p.furnaceSpec());
+        return new org.domi.furnace.api.internal.ChunkInternals.NmsEntitySpec(EntityType.getKey(d.type).toString(), java.util.List.copyOf(d.ops), ps);
+    }
+
     /** 바닐라 지움 이유(이름·순서·두 판정이 1.21.1 과 같다). */
     public enum RemovalReason {
         KILLED(true, false), DISCARDED(true, false), UNLOADED_TO_CHUNK(false, true), UNLOADED_WITH_PLAYER(false, false), CHANGED_DIMENSION(false, false);
@@ -490,6 +604,8 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
         float yRot, xRot;
         UUID uuid;
         boolean removed;
+        final java.util.List<Entity> passengers = new java.util.ArrayList<>();
+        Entity vehicle;
 
         Detached(EntityType<?> type, Level level) {
             this.type = type;

@@ -43,6 +43,32 @@ public class CompoundTag implements Tag {
     @Override
     public byte getId() { return TAG_COMPOUND; }
 
+    @Override
+    public void write(java.io.DataOutput output) throws java.io.IOException {
+        // 바닐라: 키마다 번호·이름·몸통, 끝은 0. 키 차례는 이 묶음의 지도 차례다(바닐라 fastutil 지도와는 차례가 다를 수 있다 — 읽으면 같은 값)
+        for (Map.Entry<String, Tag> e : tags.entrySet()) {
+            Tag t = e.getValue();
+            output.writeByte(t.getId());
+            if (t.getId() != TAG_END) {
+                output.writeUTF(e.getKey());
+                t.write(output);
+            }
+        }
+        output.writeByte(TAG_END);
+    }
+
+    /** 바닐라: 메모리 크기 어림(NbtAccounter 가 쓰는 값과 같은 셈). */
+    @Override
+    public int sizeInBytes() {
+        int size = 48;
+        for (Map.Entry<String, Tag> e : tags.entrySet()) {
+            size += 28 + 2 * e.getKey().length();
+            size += 36;
+            size += e.getValue().sizeInBytes();
+        }
+        return size;
+    }
+
     public int size() { return tags.size(); }
 
     public boolean isEmpty() { return tags.isEmpty(); }

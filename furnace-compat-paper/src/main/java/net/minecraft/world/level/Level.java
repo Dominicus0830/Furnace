@@ -34,6 +34,10 @@ public abstract class Level implements LevelAccessor {
     /** 바닐라 Level#isClientSide 필드(FAWE removeBeacon 이 필드로 읽는다). 서버 월드라 늘 거짓이다. */
     public final boolean isClientSide;
 
+    /** Paper 엑스레이 막기 조절기 필드(Axiom 이 읽는다). Furnace 에는 엑스레이 막기가 없어 늘 "아무것도 안 함" 조절기다. */
+    public final com.destroystokyo.paper.antixray.ChunkPacketBlockController chunkPacketBlockController =
+            com.destroystokyo.paper.antixray.ChunkPacketBlockController.NO_OPERATION_INSTANCE;
+
     protected Level(CraftWorld world) {
         this.world = java.util.Objects.requireNonNull(world, "world");
         this.isClientSide = false;

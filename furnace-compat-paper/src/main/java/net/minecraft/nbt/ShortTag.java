@@ -26,6 +26,12 @@ public final class ShortTag extends NumericTag {
     @Override
     public byte getId() { return TAG_SHORT; }
 
+    /** 바닐라: 메모리 크기 어림(NbtAccounter 가 쓰는 값과 같은 셈). */
+    @Override
+    public int sizeInBytes() {
+        return 10;
+    }
+
     @Override
     public ShortTag copy() { return this; }
 
