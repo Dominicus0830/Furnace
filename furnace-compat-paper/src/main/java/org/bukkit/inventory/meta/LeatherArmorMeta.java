@@ -4,8 +4,8 @@ import org.bukkit.Color;
 
 /**
  * 가죽 방어구·가죽 말 갑옷의 염색 색(Paper 1.21.1 LeatherArmorMeta). 색이 없으면 {@link #getColor} 는 기본 가죽 색(0xA06540)이다.
- * 가죽 투구·갑옷·바지·신발·늑대 갑옷의 Paper 형은 ColorableArmorMeta(ArmorMeta 포함)인데, 방어구 장식(ArmorTrim)이 아직 없어
- * Furnace 는 이 인터페이스 하나로 준다 — 이 인터페이스로 받는 코드는 그대로 동작한다.
+ * 가죽 투구·갑옷·바지·신발·늑대 갑옷의 메타는 {@link ColorableArmorMeta}(이 인터페이스에 방어구 장식 {@link ArmorMeta} 를 더한 것)이고,
+ * 가죽 말 갑옷의 메타는 이 인터페이스뿐이다(Paper 와 같다).
  */
 public interface LeatherArmorMeta extends ItemMeta {
 

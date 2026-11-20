@@ -277,7 +277,7 @@ class ItemSerializationTest {
 
     @Test
     void componentsTheMetaDoesNotModelSurviveInUnhandled() throws Exception {
-        // 염색 색은 가죽 방어구가 전용 키로 다루므로(MetaKind.LEATHER_ARMOR) 다루지 않는 종류(금속 투구 — ArmorMeta 는 아직 없다)로 시험한다
+        // 염색 색은 가죽 방어구가 전용 키로 다루므로(MetaKind.LEATHER_ARMOR) 다루지 않는 종류(금속 투구 — ArmorMeta 는 장식(trim)만 맡고 염색 색은 다루지 않는다)로 시험한다
         var f = new org.domi.furnace.api.item.ItemStack("minecraft:diamond_helmet", 2)
                 .with(ItemComponents.DYED_COLOR, new DyedColor(0xAA3300, true))
                 .with(ItemComponents.MAP_COLOR, 77)

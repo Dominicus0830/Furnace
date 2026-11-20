@@ -87,9 +87,13 @@ public class CompatItemMeta implements ItemMeta, Damageable, Repairable {
         if (hideExtra && !r.has(ItemComponents.HIDE_ADDITIONAL_TOOLTIP)) r = r.with(ItemComponents.HIDE_ADDITIONAL_TOOLTIP);
         if (!hideExtra && r.has(ItemComponents.HIDE_ADDITIONAL_TOOLTIP)) r = r.without(ItemComponents.HIDE_ADDITIONAL_TOOLTIP);
 
+        r = finishApply(r);
         if (pdc.dirty()) r = r.withPersistentData(pdc::applyTo);
         return r;
     }
+
+    /** 종류별로 표시 항목을 컴포넌트에 반영한다(applyTo 끝, 영속 데이터를 쓰기 전). */
+    ItemStack finishApply(ItemStack r) { return r; }
 
     // ------------------------------------------------------------------ 이름·설명
 
@@ -206,7 +210,8 @@ public class CompatItemMeta implements ItemMeta, Damageable, Repairable {
     // ------------------------------------------------------------------ 표시 항목
 
     /** 호환 계층이 숨길 수 없는 표시 항목(그 컴포넌트가 아이템에 있을 때만 문제다). */
-    private static String unsupportedComponent(ItemFlag f) {
+    private String unsupportedComponent(ItemFlag f) {
+        if (kind().handledComponents().contains("minecraft:trim") && f == ItemFlag.HIDE_ARMOR_TRIM) return null;   // 장식 메타가 직접 반영한다
         return switch (f) {
             case HIDE_DESTROYS -> "minecraft:can_break";
             case HIDE_PLACED_ON -> "minecraft:can_place_on";

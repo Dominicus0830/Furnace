@@ -1,7 +1,7 @@
 // ItemMeta ↔ 설정 맵(Paper 1.21.1 의 {@code ==: ItemMeta} 모양). 키 이름·값 모양은 Paper 를 따른다:
 // meta-type, display-name·item-name·lore(JSON 문자열), custom-model-data, enchants, repair-cost, ItemFlags, hide-tool-tip, Unbreakable,
 // enchantment-glint-override, fire-resistant, max-stack-size, rarity, Damage, max-damage, unhandled·removed·custom(base64 압축 NBT·목록), PublicBukkitValues(SNBT).
-// 종류별 하위 메타(MetaKind: 지금은 LEATHER_ARMOR)는 meta-type 과 종류별 키(color …)를 Paper 와 같이 쓰고 읽는다.
+// 종류별 하위 메타(MetaKind: SKULL·BANNER·ARMOR·LEATHER_ARMOR·COLORABLE_ARMOR)는 meta-type 과 종류별 키(color·trim …)를 Paper 와 같이 쓰고 읽는다.
 // 호환 ItemMeta 가 다루지 못하는 컴포넌트(포션·책 …)는 Paper 처럼 "unhandled" 에 컴포넌트 패치(NBT)째 담아 잃지 않는다.
 // 다른 점(아직 없는 종류는 meta-type 이 UNSPECIFIC, 그 종류별 키는 무시 등)은 docs/feature-parity/compat-item-serialization-2026-11-08.md.
 package org.domi.furnace.compat.paper;
@@ -37,7 +37,7 @@ public final class ItemMetaSerialization {
     /** Paper 1.21.1 의 데이터 버전 — ItemStack 맵의 {@code v}. */
     public static final int DATA_VERSION = GameVersion.DATA_VERSION;
     public static final String TYPE_FIELD = "meta-type";
-    /** 종류별 데이터가 없는 메타의 meta-type(아직 없는 종류 — ARMOR·POTION 등 — 도 이 값으로 적는다). */
+    /** 종류별 데이터가 없는 메타의 meta-type(아직 없는 종류 — POTION 등 — 도 이 값으로 적는다). */
     static final String UNSPECIFIC = "UNSPECIFIC";
 
     /** Paper 1.21.1 SerializableMeta 가 알아보는 meta-type — 읽을 때 모두 받아들이고(종류별 키는 무시, "unhandled" 로 컴포넌트는 산다), 모르는 값은 거절한다. */
