@@ -24,6 +24,14 @@ public class Heightmap {
     public static Heightmap furnaceView(ChunkAccess chunk, Types type) { return new Heightmap(chunk, type, true); }
 
     /** 그 칸(청크 안 x·z, 0~15) 위로 처음 비는 y — 가장 높은 해당 블록 y + 1. 빈 기둥이면 최저 높이. */
+    /**
+     * 바닐라 Heightmap#primeHeightmaps: 청크에 그 종류의 하이트맵을 채운다. Furnace 청크의 하이트맵은 서버 청크를 비추는 살아 있는 보기라
+     * 따로 계산해 채울 것이 없다 — 없는 종류의 보기를 만들어 "채워진" 것으로 보이게 한다.
+     */
+    public static void primeHeightmaps(ChunkAccess chunk, java.util.Set<Types> types) {
+        for (Types t : types) chunk.getOrCreateHeightmapUnprimed(t);
+    }
+
     public int getFirstAvailable(int x, int z) {
         if (!type.keepAfterWorldgen()) return chunk.getMinBuildHeight();
         return chunk.furnaceFirstAvailable(type, x & 15, z & 15);
