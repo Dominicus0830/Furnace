@@ -95,7 +95,8 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
      * <ul>
      *   <li>같은 부모 아래 프로토콜 번호 패키지가 둘 이상이면({@code v766}·{@code v768}·{@code v774}) 이 서버 프로토콜 이하에서 가장 큰 것만 탄다.</li>
      *   <li>같은 판 이름에 {@code _mojang} 짝이 있으면({@code v1_21_R1} 과 {@code v1_21_R1_mojang}) 짝이 없는 쪽은 Spigot 이름 어댑터다.</li>
-     *   <li>같은 부모 아래 {@code spigot} 과 {@code paper}(또는 {@code mojang}) 가 함께 있으면 {@code spigot} 쪽은 Spigot 이름 어댑터다.</li>
+     *   <li>같은 부모 아래 {@code spigot} 과 {@code paper}(또는 {@code mojang}) 가 함께 있고 둘 다 판 이름 패키지를 가지면 {@code spigot} 의 판 이름
+ *       패키지는 Spigot 이름 어댑터다({@code spigot} 바로 아래 클래스와 판 이름이 없는 플랫폼 모듈은 센다).</li>
      * </ul>
      * Mojang 이름 서버는 Spigot 이름 코드를 고르지 않는다(Paper 1.20.5+ 와 같다).
      */
@@ -121,8 +122,25 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
                 int chosen = protocols.stream().filter(v -> v <= protocol).max(Integer::compare).orElse(-1);
                 for (int v : protocols) if (v != chosen) out.add(parent + "v" + v + "/");
             }
-            if (segs.contains("spigot") && (segs.contains("paper") || segs.contains("mojang"))) out.add(parent + "spigot/");
+            // 판별 어댑터 묶음만: spigot 과 paper(mojang) 갈래가 둘 다 판 이름 패키지를 가질 때 spigot 의 판 이름 패키지만 뺀다. 플랫폼 모듈 관례
+            // (platform/spigot·platform/paper — paper 가 spigot 을 함께 쓴다)와 spigot 바로 아래 클래스(고르는 쪽 코드)는 그대로 센다(검토 C1)
+            if (segs.contains("spigot") && (segs.contains("paper") || segs.contains("mojang"))) {
+                Set<String> spigot = versionNamed(kids.get(parent + "spigot/"));
+                if (!spigot.isEmpty() && (!versionNamed(kids.get(parent + "paper/")).isEmpty() || !versionNamed(kids.get(parent + "mojang/")).isEmpty())) {
+                    for (String v : spigot) out.add(parent + "spigot/" + v + "/");
+                }
+            }
         });
+        return out;
+    }
+
+    /** 판 이름 패키지 조각({@code v1_21_R1}·{@code v1_20_5}·{@code v766}, {@code _mojang} 꼬리 허용). */
+    private static final java.util.regex.Pattern VERSION_SEGMENT = java.util.regex.Pattern.compile("v(?:1_\\d{1,2}(?:_R\\d|_\\d{1,2})*|\\d{3,4})(?:_mojang)?");
+
+    private static Set<String> versionNamed(Set<String> segs) {
+        if (segs == null) return Set.of();
+        Set<String> out = new HashSet<>();
+        for (String seg : segs) if (VERSION_SEGMENT.matcher(seg).matches()) out.add(seg);
         return out;
     }
 

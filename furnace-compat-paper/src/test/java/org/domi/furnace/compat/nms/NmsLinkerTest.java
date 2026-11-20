@@ -492,16 +492,21 @@ class NmsLinkerTest {
                 "net/imprex/ore/nms/v1_21_R1/NmsManager", "net/imprex/ore/nms/v1_21_R1_mojang/NmsManager", "net/imprex/ore/nms/v1_21_R2/NmsManager",
                 // Geyser 꼴: 프로토콜 번호 어댑터(767 이하 최대 = 766)와 spigot·paper 갈래
                 "org/geyser/adapters/paper/v766/Adapter", "org/geyser/adapters/paper/v768/Adapter", "org/geyser/adapters/paper/v774/Adapter",
-                "org/geyser/adapters/spigot/v1_21_R1/Adapter", "org/geyser/adapters/AdapterLoader",
+                "org/geyser/adapters/spigot/v1_21_R1/Adapter", "org/geyser/adapters/spigot/SpigotAdapters", "org/geyser/adapters/AdapterLoader",
                 // 짝이 없는 것은 그대로
                 "com/x/nms/v1_21_R1/Inv", "com/y/api/v100/Thing", "com/z/spigot/Util");
         assertEquals(Set.of("net/imprex/ore/nms/v1_21_R1/", "org/geyser/adapters/paper/v768/", "org/geyser/adapters/paper/v774/",
-                "org/geyser/adapters/spigot/"), NmsCompatReport.unusedAdapters(own));
+                "org/geyser/adapters/spigot/v1_21_R1/"), NmsCompatReport.unusedAdapters(own));
         Set<String> unused = NmsCompatReport.unusedAdapters(own);
         assertTrue(NmsCompatReport.inUnusedAdapter(unused, "org/geyser/adapters/spigot/v1_21_R1/Adapter"));
         assertFalse(NmsCompatReport.inUnusedAdapter(unused, "net/imprex/ore/nms/v1_21_R1_mojang/NmsManager"));
         assertFalse(NmsCompatReport.inUnusedAdapter(unused, "org/geyser/adapters/paper/v766/Adapter"));
         assertEquals(Set.of(), NmsCompatReport.unusedAdapters(Set.of("com/x/nms/v1_21_R1/Inv", "com/x/Main")), "관례가 안 보이면 전부 센다");
+        assertFalse(NmsCompatReport.inUnusedAdapter(unused, "org/geyser/adapters/spigot/SpigotAdapters"), "spigot 바로 아래(고르는 쪽 코드)는 센다");
+        // 플랫폼 모듈 관례: paper 모듈이 spigot 모듈을 함께 쓴다 — 판 이름 패키지가 없으면 빼지 않는다(검토 C1)
+        assertEquals(Set.of(), NmsCompatReport.unusedAdapters(Set.of("com/p/platform/spigot/SpigotHooks", "com/p/platform/paper/PaperHooks")));
+        assertEquals(Set.of(), NmsCompatReport.unusedAdapters(Set.of("com/p/platform/spigot/v1_21_R1/Hooks", "com/p/platform/paper/PaperHooks")),
+                "paper 쪽에 판 이름 패키지가 없으면 판별 어댑터 묶음이 아니다");
     }
 
     @Test
