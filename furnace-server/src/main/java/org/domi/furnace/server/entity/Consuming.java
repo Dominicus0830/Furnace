@@ -27,7 +27,7 @@ public final class Consuming {
             case "minecraft:potion": return DRINK_TICKS;
             case "minecraft:milk_bucket": return DRINK_TICKS;
             case "minecraft:ominous_bottle": return ItemEffects.OMINOUS_BOTTLE_TICKS;   // ItemUtils.startUsingInstantly — 허기 검사 없음
-            case "minecraft:honey_bottle": return p.vitals().canEat(false) ? HONEY_TICKS : -1;
+            case "minecraft:honey_bottle": return HONEY_TICKS;   // HoneyBottleItem.use = ItemUtils.startUsingInstantly — 배가 불러도 마신다(허기 검사 없음)
             default: break;
         }
         if (!(ItemTools.component(s, "minecraft:food") instanceof Map<?, ?> f)) return -1;

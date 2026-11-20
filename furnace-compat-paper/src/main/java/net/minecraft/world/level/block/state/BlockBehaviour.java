@@ -62,6 +62,16 @@ public abstract class BlockBehaviour {
             return f;
         }
 
+        /**
+         * 바닐라 {@code BlockStateBase#useItemOn(stack, level, player, hand, hit)}(T-212): 이 상태의 블록이 그 아이템을 받는다(맞은 칸은 hit 의 칸).
+         * 지금은 바닐라 생성자로 만든 월드에 없는 플레이어만 된다({@link org.domi.furnace.compat.nms.NmsItemUse}).
+         */
+        public net.minecraft.world.ItemInteractionResult useItemOn(net.minecraft.world.item.ItemStack stack, net.minecraft.world.level.Level level,
+                                                                   net.minecraft.world.entity.player.Player player, net.minecraft.world.InteractionHand hand,
+                                                                   net.minecraft.world.phys.BlockHitResult hit) {
+            return org.domi.furnace.compat.nms.NmsItemUse.useItemOn(furnaceStateId, stack, level, player, hand, hit);
+        }
+
         /** 바닐라 isAir: air·cave_air·void_air. */
         public boolean isAir() { return owner.furnaceIsAir(); }
 

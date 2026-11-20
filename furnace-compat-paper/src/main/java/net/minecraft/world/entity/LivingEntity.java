@@ -24,6 +24,21 @@ public class LivingEntity extends Entity {
         getBukkitEntity().setHealth(Math.max(0f, Math.min(health, max)));
     }
 
+    /**
+     * 바닐라 {@code LivingEntity#getItemInHand}: 그 손의 스택 객체. 월드의 엔티티는 아직 이 길로 읽지 않는다(UnsupportedNmsCall — Bukkit
+     * {@code getEquipment()} 를 쓴다). 바닐라 생성자로 만든 월드에 없는 플레이어는 된다({@code ServerPlayer}).
+     */
+    public net.minecraft.world.item.ItemStack getItemInHand(net.minecraft.world.InteractionHand hand) {
+        throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LivingEntity#getItemInHand", "reading the live hand stack of an entity in a world is not"
+                + " available yet - use the Bukkit equipment API");
+    }
+
+    /** 바닐라 {@code LivingEntity#setItemInHand}: 그 객체를 손에 둔다. 지원 범위는 {@link #getItemInHand} 와 같다. */
+    public void setItemInHand(net.minecraft.world.InteractionHand hand, net.minecraft.world.item.ItemStack stack) {
+        throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LivingEntity#setItemInHand", "changing the live hand stack of an entity in a world is not"
+                + " available yet - use the Bukkit equipment API");
+    }
+
     /** 바닐라 LivingEntity: 지워지지 않았고 체력이 0 보다 크다. */
     @Override
     public boolean isAlive() { return !isRemoved() && getHealth() > 0f; }

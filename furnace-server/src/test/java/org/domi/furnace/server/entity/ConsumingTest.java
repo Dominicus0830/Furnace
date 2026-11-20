@@ -61,6 +61,12 @@ class ConsumingTest {
         assertTrue(Consuming.tryStart(player, 0, TestRecipes.item("golden_apple", 1)), "황금 사과는 언제나 먹는다");
     }
 
+    /** 바닐라 HoneyBottleItem.use = ItemUtils.startUsingInstantly: 허기 검사가 없어 배가 불러도 마신다. */
+    @Test
+    void honeyBottleIsDrunkEvenWhenFull() {
+        assertTrue(Consuming.tryStart(player, 0, TestRecipes.item("honey_bottle", 1)));
+    }
+
     @Test
     void changingHandCancelsEating() {
         v.setFoodLevel(10);

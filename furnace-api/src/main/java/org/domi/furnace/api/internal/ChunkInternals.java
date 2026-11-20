@@ -537,6 +537,34 @@ public interface ChunkInternals {
         throw new UnsupportedOperationException("moveDetachedPlayer");
     }
 
+    /**
+     * 칸 (x, z) 의 주인 스레드(전역 빌림 포함). {@link #detachedPlayer} 로 만든 플레이어가 아이템을 쓴다(T-212 다 묶음 — FAWE {@code simulateItemUse}).
+     * 행위자는 그 플레이어(자리·방향·게임 모드)와 넘겨 받은 두 손이다. 블록을 놓으면 접속한 플레이어와 같은 블록 놓기 이벤트를 낸다(Paper
+     * {@code ItemStack#useOn} — 취소하면 놓지 않는다). 종류:
+     * <ul>
+     *   <li>{@link ItemUseKind#USE_ON}: 바닐라 {@code ItemStack#useOn(UseOnContext)} — 그 손의 스택으로, 맞은 칸·면·점(hit).</li>
+     *   <li>{@link ItemUseKind#USE_ITEM_ON}: 바닐라 {@code BlockState#useItemOn(stack, level, player, hand, hit)} — 그 상태(state, 블록 상태 번호)와 stack 으로.</li>
+     *   <li>{@link ItemUseKind#USE}: 바닐라 {@code Item#use(level, player, hand)} — 맞은 칸은 쓰지 않는다((x, z) 는 플레이어가 선 칸).</li>
+     * </ul>
+     * 결과 이름은 바닐라 {@code InteractionResult}(USE_ITEM_ON 은 {@code ItemInteractionResult}) 상수 이름이다. 청크가 로드되지 않았으면
+     * IllegalStateException, 그런 플레이어가 아니면 IllegalArgumentException, 아직 못 하는 아이템(USE 의 활·쇠뇌·삼지창·낚싯대)은
+     * UnsupportedOperationException.
+     */
+    default ItemUse useItemNow(World world, org.domi.furnace.api.entity.Player player, ItemUseKind kind, boolean mainHand,
+                               org.domi.furnace.api.item.ItemStack main, org.domi.furnace.api.item.ItemStack off, org.domi.furnace.api.item.ItemStack stack,
+                               int state, int x, int y, int z, int face, double hitX, double hitY, double hitZ, boolean inside) {
+        throw new UnsupportedOperationException("useItemNow");
+    }
+
+    /** {@link #useItemNow} 의 종류(바닐라 세 갈래). */
+    enum ItemUseKind { USE_ON, USE_ITEM_ON, USE }
+
+    /**
+     * {@link #useItemNow} 의 결과: 결과 상수 이름, USE 가 돌려준 스택({@code InteractionResultHolder#getObject}, 다른 종류는 null), 쓴 뒤 두 손.
+     */
+    record ItemUse(String result, org.domi.furnace.api.item.ItemStack used, org.domi.furnace.api.item.ItemStack mainHand,
+                   org.domi.furnace.api.item.ItemStack offHand) {}
+
     /** {@link #addNmsEntityNow} 가 재생할 엔티티 조작 하나. */
     sealed interface EntityOp {
         /** 바닐라 {@code Entity#load(tag)}. */

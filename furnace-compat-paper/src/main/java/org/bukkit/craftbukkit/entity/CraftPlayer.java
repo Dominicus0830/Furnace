@@ -447,7 +447,8 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
 
     /** 호환 모듈 전용 — 접속이 끝났다: NMS 연결의 가상 채널을 닫는다(이미 만든 shim 이 있을 때만). */
     public void disconnected() {
-        if (peekHandle() instanceof net.minecraft.server.level.ServerPlayer sp) sp.connection.compatDisconnected();
+        // 바닐라 생성자로 만든 월드에 없는 플레이어는 연결이 없다(connection null)
+        if (peekHandle() instanceof net.minecraft.server.level.ServerPlayer sp && sp.connection != null) sp.connection.compatDisconnected();
         var t = conversations;
         if (t != null) t.abandonAllConversations();   // CraftBukkit PlayerList.remove: 퇴장하면 대화를 모두 끝낸다
     }

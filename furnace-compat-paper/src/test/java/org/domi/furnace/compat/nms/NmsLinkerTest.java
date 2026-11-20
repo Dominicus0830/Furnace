@@ -455,7 +455,7 @@ class NmsLinkerTest {
         // Paper 1.21.1 에서 final: Level#getChunkIfLoadedImmediately(T-211 3단계, jar 대조)
         Set<String> vanillaFinal = Set.of("UseOnContext#getHitResult", "Level#moonrise$getEntityLookup", "Level#getChunkIfLoadedImmediately");
         for (Class<?> c : List.of(net.minecraft.world.item.context.UseOnContext.class, net.minecraft.world.item.context.BlockPlaceContext.class,
-                net.minecraft.server.level.ServerLevel.class)) {
+                net.minecraft.server.level.ServerLevel.class, net.minecraft.server.level.ServerPlayer.class)) {
             assertTrue(NmsLinker.inheritable(NmsSymbols.RUNTIME, c.getName().replace('.', '/')), c.getName());
             for (Class<?> k = c; k != null && k.getName().startsWith("net.minecraft."); k = k.getSuperclass()) {
                 for (var m : k.getDeclaredMethods()) {

@@ -10,8 +10,8 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * 블록에 대고 쓰기 문맥(Mojang 이름 shim, T-204). 필드·메서드는 바닐라 1.21.1 과 같다. 플레이어를 받는 생성자는 손에 든 것을 플레이어에서 읽어야 해서
- * 아직 없다({@code UnsupportedNmsCall}) — 놓기 계산은 플레이어 없는 문맥만 서버로 이어진다({@link BlockPlaceContext}).
+ * 블록에 대고 쓰기 문맥(Mojang 이름 shim, T-204). 필드·메서드는 바닐라 1.21.1 과 같다. 플레이어를 받는 생성자는 그 플레이어의 손(바닐라
+ * {@code getItemInHand})을 읽는다(T-212 — 지금은 바닐라 생성자로 만든 월드에 없는 플레이어만 손을 읽을 수 있다).
  */
 @org.domi.furnace.compat.nms.NmsInheritable   // 플러그인 문맥(FAWE 가변 문맥)이 상속한다 — 값은 가상 메서드로 읽는다
 public class UseOnContext {
@@ -34,11 +34,12 @@ public class UseOnContext {
         this.level = level;
     }
 
-    private static ItemStack heldBy(Player player, InteractionHand hand) {
-        throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("UseOnContext(Player, …)", "reading the held item of a player is not available yet");
-    }
+    private static ItemStack heldBy(Player player, InteractionHand hand) { return player.getItemInHand(hand); }
 
     protected final BlockHitResult getHitResult() { return hitResult; }
+
+    /** 호환 모듈 전용 — {@link #getHitResult()}(바닐라는 protected). */
+    public BlockHitResult furnaceHitResult() { return hitResult; }
 
     public BlockPos getClickedPos() { return hitResult.getBlockPos(); }
 
@@ -60,10 +61,7 @@ public class UseOnContext {
     public Direction getHorizontalDirection() { return player == null ? Direction.NORTH : Direction.fromYRot(player.getYRot()); }
 
     /** 바닐라: 플레이어가 웅크렸는가(없으면 거짓). */
-    public boolean isSecondaryUseActive() {
-        if (player == null) return false;
-        throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("UseOnContext#isSecondaryUseActive", "a player's sneaking state is not available yet");
-    }
+    public boolean isSecondaryUseActive() { return player != null && player.isSecondaryUseActive(); }
 
     public float getRotation() { return player == null ? 0.0F : player.getYRot(); }
 }

@@ -26,6 +26,11 @@ public abstract class Player extends LivingEntity {
     @Override
     public CraftHumanEntity getBukkitEntity() { return (CraftHumanEntity) super.getBukkitEntity(); }
 
+    /** 바닐라 Player#isSecondaryUseActive: 웅크리고 있는가(isShiftKeyDown — 서버에서는 Bukkit isSneaking 과 같은 값). */
+    public boolean isSecondaryUseActive() {
+        return getBukkitEntity() instanceof org.bukkit.craftbukkit.entity.CraftPlayer cp && cp.isSneaking();
+    }
+
     /** 바닐라: 스코어보드에서 쓰는 이름 = 플레이어 이름. */
     public String getScoreboardName() { return getBukkitEntity().getName(); }
 
