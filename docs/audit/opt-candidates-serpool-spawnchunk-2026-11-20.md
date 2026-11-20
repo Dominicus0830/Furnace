@@ -10,7 +10,7 @@
 - 청크 본문 직렬화(`World.startBodySerialization` → `serializeChunkBody`)는 전용 풀 `ChunkWorkerPool`(`net/ChunkWorkerPool.java`)에서 돈다.
   이 풀은 `newFixedThreadPool(코어 수)`, 스레드 우선순위 NORM−1, **무제한 FIFO 큐 하나**다. 이 풀의 사용처는 본문 직렬화 하나뿐이다(`World.java:1456`).
 - 한 일은 직렬화(`ChunkSerializer`) + 미리 압축(`SharedChunkFrames.precompress`, zlib 레벨 6)이다. 압축이 전송 비용의 약 80%(B1 보고서, 11-14).
-- 일을 거는 쪽은 둘이다. ① **요청된 일**: 이미 보낼 차례가 와서 본문이 필요한 청크(`speculative=false`). ② **미리 직렬화**: 배치 뒤쪽 청크를 클라이언트 속도의 2배, 2~64개 창으로 미리 만든다(`speculative=true`, T-011). 둘이 같은 큐에 **들어온 순서대로** 선다.
+- 일을 거는 쪽은 둘이다. ① **요청된 일**: 이미 보낼 차례가 와서 본문이 필요한 청크(`speculative=false`). ② **미리 직렬화**: 배치 뒤쪽 청크를 클라이언트 속도의 2배, 2~64개 창으로 미리 만든다(주인 region 스레드에서 걸면 `speculative=true`, T-011. 주인 스레드가 아닐 때는 `serializedChunkBody(cp,true)` 길로 `speculative=false` 로 걸려 낡은 일 건너뛰기를 못 받는다 — `World.java:1556`, 독립 검토 지적). 둘이 같은 큐에 **들어온 순서대로** 선다.
 - 미리 직렬화 일이 풀에서 시작할 때 이미 낡았으면 건너뛴다(`ser.staleskip`, T-011). 요청이 붙으면 `speculative` 가 거짓으로 바뀐다(`BodyJob.speculative` volatile).
 
 ### 1-2. 측정 근거(이미 있는 것)
@@ -47,12 +47,19 @@
 
 규모 S(계측)+M(큐), 모델 Sonnet high(큐·승격 경쟁은 독립 검토 필수).
 
+### 1-6. 독립 검토 반영(Explore 읽기 전용 검토, 11-20)
+구현 때 반드시 지킬 것(T-226 2단계 조건):
+1. 승격은 큐 중복 등록으로 하지 않는다. 중복분이 낡은 일 건너뛰기에서 `null` 을 돌려주면 `World.java:1470` 의 `handle` 이 `f.complete(null)` 을 해 기다리던 요청이 null 본문을 받는다. 일마다 원자 상태(대기·승격됨·시작됨)를 두고 CAS 로 한 번만 시작한다.
+2. `ChunkWorkerPool.submit` 은 `supplyAsync` 로 감싸 BodyJob 이 큐에서 안 보인다. 시그니처를 바꿔 큐 항목이 상태를 들게 한다. 두 차선은 논블록킹 큐라 워커를 깨울 장치(세마포어·LockSupport)가 필요하다 — `LinkedBlockingQueue` 두 개 + 한 세마포어가 더 단순하다.
+3. 진행 표시를 먼저 읽고 `speculative` 를 나중에 읽는 순서(`World.java:1457`)를 차선 선택·시간 상한 합치기에도 지킨다. 시간 상한으로 합친 일은 차선만 옮기고 `speculative=true` 로 둬 낡은 건너뛰기를 계속 받게 한다(승격과 구분).
+4. 계측 분류는 submit 시점이 아니라 **풀에서 시작하는 시점의 값**(승격 여부 포함)으로 기록한다. 대기 중 승격된 일이 spec 쪽에 잡히면 요청 대기가 과소 측정된다. 주인 스레드가 아닌 길의 미리 직렬화(1-1)는 별도 이름으로 센다.
+
 ## 2. 후보 ② 스폰 청크 CPU
 
 ### 2-1. 지금 구조(코드 확인)
 - F6(PR #279 등): 주 오버월드에 바닐라와 같은 START 티켓을 건다. 게임 규칙 `spawnChunkRadius`(기본 2)+1 거리, 중심은 월드 스폰. 청크 49개(7×7)가 늘 올라와 있고, 예약 틱(블록)·엔티티 틱은 `spawnTicketWithin` 판정으로 돈다(`World.java:1818,1845`).
 - **무작위 틱·자연 스폰은 이 청크들에서 돌지 않는다**: `Region.collectTickingChunks` 는 `players.isEmpty()` 면 바로 0 을 돌려주고(`Region.java:1981`), 아니면 플레이어 근처(체비셰프 NATURAL_SPAWN_RANGE)만 모은다. 바닐라와 같다(바닐라는 스폰 청크도 플레이어 없이는 무작위 틱 없음 — PR #279 검토).
-- 그러므로 스폰 청크가 플레이어와 멀 때 드는 일은 예약 틱·블록 엔티티·엔티티 틱·블록 이벤트뿐이다. 스폰 지점에 농장·호퍼가 없으면 거의 0 이다.
+- 그러므로 스폰 청크가 플레이어와 멀 때 드는 일은 예약 틱·블록 이벤트뿐이고, 엔티티·블록 엔티티 틱은 접속자가 있거나 `world.tick-when-empty` 가 늘 돌림일 때만 돈다(`emptyIdle` 300틱 규칙, `World.java:1066~1095`, `RegionLevel.java:373`). 유휴 측정은 이 쉼 상태다. 스폰 지점에 농장·호퍼가 없으면 거의 0 이다.
 
 ### 2-2. 측정 근거
 | 항목 | A(스폰 청크 없음) | B(49청크) | 출처 |
