@@ -381,7 +381,7 @@ public final class Compat {
         return f.dimension();
     }
 
-    public static Block block(String dimension, BlockPos pos) { return new CompatBlock(dimension, pos); }
+    public static Block block(String dimension, BlockPos pos) { return org.bukkit.craftbukkit.block.CraftBlock.of(dimension, pos); }
 
     /** minecraft:stone → STONE. 모르는 종류(플러그인 블록)는 AIR 가 아니라 null 이 아닌 값을 줄 수 없어 UnsupportedFeature. */
     static Material material(String blockType) {

@@ -55,19 +55,19 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player {
     private net.minecraft.world.item.ItemStack mainHand = net.minecraft.world.item.ItemStack.EMPTY, offHand = net.minecraft.world.item.ItemStack.EMPTY;
 
     /**
-     * 바닐라 {@code LivingEntity#getItemInHand}. 월드에 없는 플레이어만 된다(접속한 플레이어는 UnsupportedNmsCall — 손이 인벤토리 칸이고, 이 값은 아이템
-     * 쓰기 문맥(UseOnContext)이 그대로 고치는 객체라 읽기 전용 사본으로 줄 수 없다. 읽기만 할 때는 {@link #getItemBySlot}).
+     * 바닐라 {@code LivingEntity#getItemInHand}. 월드에 없는 플레이어는 든 객체 그대로, 접속한 플레이어는 손 칸의 살아 있는 보기({@code ItemStack.liveHand}
+     * — 고치면 그 칸에 되쓴다).
      */
     @Override
     public net.minecraft.world.item.ItemStack getItemInHand(net.minecraft.world.InteractionHand hand) {
-        if (!furnaceDetached) return super.getItemInHand(hand);
+        if (!furnaceDetached) return net.minecraft.world.item.ItemStack.liveHand(getBukkitEntity().furnaceHandle(), hand == net.minecraft.world.InteractionHand.MAIN_HAND);
         return hand == net.minecraft.world.InteractionHand.MAIN_HAND ? mainHand : offHand;
     }
 
     /**
      * 바닐라 {@code Player#getItemBySlot}: 고른 단축 칸·보조 손·갑옷 칸(BODY 는 플레이어에게 없어 빈 스택). 월드에 없는 플레이어는 든 객체 그대로.
-     * 접속한 플레이어는 어느 스레드에서나 지금 칸(Bukkit 인벤토리와 같은 값 — 예약된 쓰기까지)의 <b>읽기 전용 사본</b>이다: 칸은 서버의 주인 스레드가
-     * 들고 있어서 바닐라처럼 칸 객체 자체를 줄 수 없고, 사본을 고쳐도 칸이 따라가지 않으므로 바꾸는 호출은 UnsupportedNmsCall 로 막는다.
+     * 접속한 플레이어는 어느 스레드에서나 그 칸의 <b>살아 있는 보기</b>다({@link #getItemInHand} 와 같은 규칙 — 고치면 그 칸에 되쓰고, 그새 칸이 다른
+     * 스택으로 바뀌었으면 칸에서 떨어진다). 바닐라처럼 손 칸은 {@code getItemInHand} 와 같은 칸을 본다.
      */
     @Override
     public net.minecraft.world.item.ItemStack getItemBySlot(net.minecraft.world.entity.EquipmentSlot slot) {
@@ -75,13 +75,11 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player {
         java.util.Objects.requireNonNull(slot, "slot");
         boolean main = slot == net.minecraft.world.entity.EquipmentSlot.MAINHAND, off = slot == net.minecraft.world.entity.EquipmentSlot.OFFHAND;
         if (furnaceDetached) return main ? mainHand : off ? offHand : net.minecraft.world.item.ItemStack.EMPTY;
-        var inv = getBukkitEntity().getInventory();   // 어느 스레드나 지금 칸(PlayerInventoryHandle 읽기는 즉시)
-        org.bukkit.inventory.ItemStack b = main ? inv.getItemInMainHand() : off ? inv.getItemInOffHand()
-                : slot == net.minecraft.world.entity.EquipmentSlot.FEET ? inv.getBoots()
-                : slot == net.minecraft.world.entity.EquipmentSlot.LEGS ? inv.getLeggings()
-                : slot == net.minecraft.world.entity.EquipmentSlot.CHEST ? inv.getChestplate()
-                : slot == net.minecraft.world.entity.EquipmentSlot.HEAD ? inv.getHelmet() : null;   // BODY: 플레이어에게 없다
-        return org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(b).furnaceReadOnly();
+        if (main || off) return getItemInHand(main ? net.minecraft.world.InteractionHand.MAIN_HAND : net.minecraft.world.InteractionHand.OFF_HAND);
+        int window = slot == net.minecraft.world.entity.EquipmentSlot.HEAD ? 5 : slot == net.minecraft.world.entity.EquipmentSlot.CHEST ? 6
+                : slot == net.minecraft.world.entity.EquipmentSlot.LEGS ? 7 : slot == net.minecraft.world.entity.EquipmentSlot.FEET ? 8 : -1;   // 플레이어 창 번호
+        if (window < 0) return net.minecraft.world.item.ItemStack.EMPTY;   // BODY: 플레이어에게 없다
+        return net.minecraft.world.item.ItemStack.liveSlot(getBukkitEntity().furnaceHandle(), window);
     }
 
     /** 바닐라 {@code LivingEntity#setItemInHand}: 그 객체를 그 손에 둔다(복사하지 않는다). */
@@ -144,6 +142,12 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player {
 
     /** 바닐라처럼 공개 필드(Paper 도 같다). 바닐라 생성자로 만든 플레이어는 null. */
     public net.minecraft.server.network.ServerGamePacketListenerImpl connection;
+
+    /** 바닐라 {@code Player#causeFoodExhaustion}: 소모를 더한다(무적 능력이면 무시, 최대 40). Paper 가 내는 소모 이벤트는 내지 않는다. */
+    public void causeFoodExhaustion(float amount) {
+        if (furnaceDetached) throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("Player#causeFoodExhaustion", "a player that is not in a world has no food");
+        org.domi.furnace.compat.nms.NmsChunks.bridge().causeFoodExhaustionNow(getBukkitEntity().furnaceHandle(), amount);
+    }
 
     /** 바닐라: overlay 거짓으로. */
     public void sendSystemMessage(net.minecraft.network.chat.Component message) { sendSystemMessage(message, false); }

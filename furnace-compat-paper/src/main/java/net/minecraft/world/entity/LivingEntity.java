@@ -65,6 +65,9 @@ public class LivingEntity extends Entity {
                 + " available yet - use the Bukkit equipment API");
     }
 
+    /** 바닐라 {@code LivingEntity#getMainHandItem}: 주 손의 스택({@link #getItemInHand} 와 같은 범위 — 접속한 플레이어는 손 칸의 살아 있는 보기). */
+    public net.minecraft.world.item.ItemStack getMainHandItem() { return getItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND); }
+
     /** 바닐라 {@code LivingEntity#setItemInHand}: 그 객체를 손에 둔다. 지원 범위는 {@link #getItemInHand} 와 같다. */
     public void setItemInHand(net.minecraft.world.InteractionHand hand, net.minecraft.world.item.ItemStack stack) {
         throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LivingEntity#setItemInHand", "changing the live hand stack of an entity in a world is not"

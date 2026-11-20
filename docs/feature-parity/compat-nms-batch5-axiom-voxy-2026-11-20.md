@@ -70,14 +70,13 @@
 
 걸린 시간: 약 5분(20:27:52 PR 직후 ~ 20:32 커밋).
 
-- 접속한 플레이어: 어느 스레드에서나 지금 칸(Bukkit 인벤토리와 같은 값 — 예약된 쓰기까지 보인다)의 **읽기 전용 사본**. 빈 칸은 바닐라처럼
-  `ItemStack.EMPTY`, 몸 칸(BODY)은 플레이어에게 없어 빈 스택.
-- 읽기 전용 사본을 바꾸는 호출(`setCount`·`grow`·`shrink`·`split`·`set`·`remove`·`applyComponents`)은 `UnsupportedNmsCall` — 고쳐도 칸이 따라가지
-  않아 조용히 다른 결과가 나는 것을 막는다. `copy()` 는 다시 바꿀 수 있다.
-- 아이템 쓰기(`useOn`·`use`·`useItemOn`)에 읽기 전용 사본이 들어오면 서버에 보내기 전에 거절한다(블록을 놓은 뒤 되쓰다 실패하지 않게).
+- 접속한 플레이어: 어느 스레드에서나 그 칸의 **살아 있는 보기**(검토 고침 — 처음엔 읽기 전용 사본이었는데 #536 이 손 칸을 같은 꼴로 만들어 맞췄다).
+  고치면(`setCount`·`shrink`·`set`·`setDamageValue` …) 그 칸에 되쓰고, 그새 칸이 다른 스택으로 바뀌었으면 칸에서 떨어진다. 손 칸은
+  `getItemInHand` 와 같은 칸(`ItemStack.liveHand`), 갑옷 칸은 창 번호 5~8 (`ItemStack.liveSlot`, 새 다리 `windowSlotNow` — 손 칸 다리와 같은 잠금).
+  빈 칸은 바닐라처럼 `ItemStack.EMPTY`, 몸 칸(BODY)은 플레이어에게 없어 빈 스택. 서버 인벤토리의 지금 값을 읽으므로 틱 스레드가 아닌 곳에서 Bukkit 으로
+  예약한 쓰기는 주인이 넣은 뒤(다음 틱)에 보인다(손 칸 보기와 같다).
 - 바닐라 생성자로 만든 월드에 없는 플레이어는 든 객체 그대로(갑옷 칸은 넣는 길이 없어 빈 스택).
-- 접속한 플레이어의 `getItemInHand` 는 그대로 막아 둔다 — 이 값은 쓰기 문맥(`UseOnContext`)이 고치는 객체라서.
-- 결정 기록: `docs/user-todo/entries/2026-11-20-shim5-equipment-read-only.md`. 함정: enum switch 가 만드는 합성 클래스(`ServerPlayer$1`)가 서명 관문을
+- 결정 기록: `docs/user-todo/entries/2026-11-20-shim5-equipment-live-slot.md`. 함정: enum switch 가 만드는 합성 클래스(`ServerPlayer$1`)가 서명 관문을
   깨뜨린다 — `docs/feature-parity/context-notes/2026-11-20-shim5-enum-switch-synthetic.md`.
 
 ## 5a 검토 고침

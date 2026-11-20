@@ -1,10 +1,7 @@
 package org.domi.furnace.compat.nms;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.mojang.authlib.GameProfile;
 import java.util.UUID;
@@ -31,7 +28,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 
-/** NMS shim 5a-2: 플레이어 장비 칸 읽기(voxy 먼 플레이어 모습). 접속한 플레이어는 지금 칸의 읽기 전용 사본. */
+/** NMS shim 5a-2: 플레이어 장비 칸 읽기(voxy 먼 플레이어 모습). 접속한 플레이어는 그 칸의 살아 있는 보기(고치면 칸에 되쓴다). */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class NmsEquipmentReadTest {
 
@@ -52,11 +49,13 @@ class NmsEquipmentReadTest {
     void stop() { server.close(); }
 
     @Test
-    void connectedPlayerSlotsAreReadOnlyCopiesFromAnyThread() throws Exception {
+    void connectedPlayerSlotsAreLiveViewsFromAnyThread() throws Exception {
         var inv = bukkit.getInventory();
         inv.setHelmet(new org.bukkit.inventory.ItemStack(Material.DIAMOND_HELMET));
         inv.setItemInMainHand(new org.bukkit.inventory.ItemStack(Material.STONE, 5));
-        server.tick(2);
+        inv.setBoots(null);
+        inv.setItemInOffHand(null);
+        server.tick(2);   // 틱 스레드가 아닌 곳의 Bukkit 쓰기는 주인이 다음 틱에 넣는다
         ServerPlayer p = bukkit.getHandle();
         ItemStack head = p.getItemBySlot(EquipmentSlot.HEAD);
         assertSame(Items.DIAMOND_HELMET, head.getItem());
@@ -66,13 +65,21 @@ class NmsEquipmentReadTest {
         assertSame(ItemStack.EMPTY, p.getItemBySlot(EquipmentSlot.FEET), "빈 칸은 바닐라처럼 EMPTY");
         assertSame(ItemStack.EMPTY, p.getItemBySlot(EquipmentSlot.OFFHAND));
         assertSame(ItemStack.EMPTY, p.getItemBySlot(EquipmentSlot.BODY), "플레이어에게는 몸 칸이 없다");
-        // 고치면 칸이 따라가지 않으므로 막는다 — 사본은 고칠 수 있다
-        assertThrows(UnsupportedNmsCall.class, () -> hand.shrink(1));
-        assertThrows(UnsupportedNmsCall.class, () -> hand.set(net.minecraft.core.component.DataComponents.MAX_STACK_SIZE, 1));
-        ItemStack copy = hand.copy();
+        // 바닐라: 칸에 든 객체 자체 — 고치면 그 칸이 바뀐다(손 칸은 getItemInHand 와 같은 칸)
+        hand.shrink(1);
+        assertEquals(4, inv.getItemInMainHand().getAmount());
+        assertEquals(4, p.getItemInHand(InteractionHand.MAIN_HAND).getCount());
+        head.setDamageValue(7);
+        assertEquals(7, ((org.bukkit.inventory.meta.Damageable) inv.getHelmet().getItemMeta()).getDamage());
+        ItemStack copy = hand.copy();   // 사본은 칸과 떨어진다
         copy.shrink(1);
-        assertEquals(4, copy.getCount());
-        assertEquals(5, inv.getItemInMainHand().getAmount());
+        assertEquals(4, inv.getItemInMainHand().getAmount());
+        // 그새 칸이 다른 스택으로 바뀌면 그 보기는 칸에서 떨어진다(바닐라에서 칸에서 빠진 객체와 같다)
+        inv.setHelmet(new org.bukkit.inventory.ItemStack(Material.IRON_HELMET));
+        server.tick(2);
+        head.setDamageValue(9);
+        assertSame(Material.IRON_HELMET, inv.getHelmet().getType());
+        assertEquals(0, ((org.bukkit.inventory.meta.Damageable) inv.getHelmet().getItemMeta()).getDamage());
         // 다른 스레드(틱 스레드 아님)에서도 지금 칸
         var seen = new AtomicReference<Object>();
         var t = new Thread(() -> {
@@ -84,8 +91,7 @@ class NmsEquipmentReadTest {
         });
         t.start();
         t.join(10_000);
-        assertSame(Items.DIAMOND_HELMET, seen.get());
-        assertThrows(UnsupportedNmsCall.class, () -> p.getItemInHand(InteractionHand.MAIN_HAND), "손 객체를 고치는 쓰기 문맥용 길은 그대로 막는다");
+        assertSame(Items.IRON_HELMET, seen.get());
     }
 
     @Test
@@ -96,9 +102,6 @@ class NmsEquipmentReadTest {
         ItemStack stone = new ItemStack(Items.STONE, 3);
         fake.setItemInHand(InteractionHand.MAIN_HAND, stone);
         assertSame(stone, fake.getItemBySlot(EquipmentSlot.MAINHAND));
-        assertFalse(stone.furnaceIsReadOnly());
         assertSame(ItemStack.EMPTY, fake.getItemBySlot(EquipmentSlot.HEAD));
-        assertTrue(new ItemStack(Items.STONE).furnaceReadOnly().furnaceIsReadOnly());
-        assertFalse(ItemStack.EMPTY.furnaceReadOnly().furnaceIsReadOnly(), "공유 EMPTY 는 표시하지 않는다");
     }
 }

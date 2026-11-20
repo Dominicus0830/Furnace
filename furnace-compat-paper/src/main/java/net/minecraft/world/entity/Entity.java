@@ -392,6 +392,28 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
         d.xRot = Math.clamp(xRot, -90.0F, 90.0F) % 360.0F;
     }
 
+    /**
+     * 바닐라 {@code Entity#moveTo(pos)}: 방향은 그대로 두고 그 자리로 옮긴다(이벤트·탈것 내림 없는 "자리 바꿈"). 월드의 엔티티는 Furnace 가 자리만 바꾸는 길이
+     * teleport 뿐이라 그것으로 옮긴다 — 부른 스레드가 주인이면 곧바로, 아니면 주인에게 맡긴다(Bukkit {@code teleport} 와 같은 규칙). 플레이어는 클라이언트에
+     * 알리는 길이 teleport 라 UnsupportedNmsCall 이다. 아직 월드에 없는 엔티티는 {@link #absMoveTo} 처럼 기록해 넣을 때 재생한다.
+     */
+    public void moveTo(net.minecraft.world.phys.Vec3 pos) { moveTo(pos.x, pos.y, pos.z); }
+
+    /** 바닐라 {@code Entity#moveTo(x, y, z)}: 방향은 그대로. {@link #moveTo(net.minecraft.world.phys.Vec3)} 참고. */
+    public void moveTo(double x, double y, double z) { moveTo(x, y, z, getYRot(), getXRot()); }
+
+    /** 바닐라 {@code Entity#moveTo(x, y, z, yRot, xRot)}. {@link #moveTo(net.minecraft.world.phys.Vec3)} 참고. */
+    public void moveTo(double x, double y, double z, float yRot, float xRot) {
+        if (detached != null) {
+            absMoveTo(x, y, z, yRot, xRot);
+            return;
+        }
+        if (f() instanceof org.domi.furnace.api.entity.Player) {
+            throw new UnsupportedNmsCall("Entity#moveTo", "moving a player this way would not tell the client - use the Bukkit teleport");
+        }
+        getBukkitEntity().teleport(new org.bukkit.Location(getBukkitEntity().getWorld(), x, y, z, yRot, xRot));
+    }
+
     /** 바닐라 {@code Entity#setUUID}. 아직 월드에 없는 엔티티에만 된다({@link #load} 와 같은 규칙). */
     public void setUUID(UUID uuid) {
         Detached d = detachedFor("Entity#setUUID");

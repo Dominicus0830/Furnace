@@ -927,6 +927,86 @@ final class ChunkInternalsImpl implements ChunkInternals {
         return new BlockDestroy(destroyed, ApiConvert.item(actor.itemInHand(0), items), ApiConvert.item(actor.itemInHand(1), items));
     }
 
+    private static org.domi.furnace.server.entity.Player serverPlayer(org.domi.furnace.api.entity.Player player, String what) {
+        if (!(player instanceof PlayerHandle ph)) throw new IllegalArgumentException(what + ": not a server player: " + player);
+        var p = ph.handle();
+        if (p.isDetached() || p.inventoryHost() == null) throw new IllegalArgumentException(what + ": the player is not connected: " + p.name());
+        return p;
+    }
+
+    /** 서버 스택 → API 값(세계·레지스트리 없이, 깔린 아이템 문맥의 이름으로). */
+    private static org.domi.furnace.api.item.ItemStack apiItem(org.domi.furnace.server.entity.ItemStack s) {
+        if (s == null || s.isEmpty()) return org.domi.furnace.api.item.ItemStack.EMPTY;
+        var form = s.patch().apiForm();
+        return new org.domi.furnace.api.item.ItemStack(org.domi.furnace.server.item.ItemTools.itemName(s), s.count(), form.components(), form.removed());
+    }
+
+    @Override
+    public HandSlot handSlotNow(org.domi.furnace.api.entity.Player player, boolean mainHand) {
+        var p = serverPlayer(player, "getMainHandItem");
+        var inv = p.inventoryHost();
+        int ws = mainHand ? 36 + inv.selected() : 45;
+        return new HandSlot(ws, apiItem(inv.slot(ws)));
+    }
+
+    @Override
+    public org.domi.furnace.api.item.ItemStack windowSlotNow(org.domi.furnace.api.entity.Player player, int windowSlot) {
+        return apiItem(serverPlayer(player, "getItemBySlot").inventoryHost().slot(windowSlot));
+    }
+
+    @Override
+    public boolean replaceSlotNow(org.domi.furnace.api.entity.Player player, int windowSlot, org.domi.furnace.api.item.ItemStack expect,
+                                  org.domi.furnace.api.item.ItemStack now) {
+        var p = serverPlayer(player, "ItemStack#set");
+        var inv = p.inventory();
+        var next = ApiConvert.item(now);
+        synchronized (inv) {   // PlayerInventory 의 get·replace 와 같은 잠금 — 읽기와 교체 사이에 다른 쓰기가 끼지 않는다
+            if (!apiItem(inv.get(windowSlot)).equals(expect)) return false;
+            inv.replace(windowSlot, inv.get(windowSlot), next);
+        }
+        p.inventoryHost().inventoryChanged(windowSlot);
+        return true;
+    }
+
+    @Override
+    public FoodState foodNow(org.domi.furnace.api.entity.Player player) {
+        var v = serverPlayer0(player).vitals();
+        return new FoodState(v.foodLevel(), v.saturation(), v.exhaustion());
+    }
+
+    @Override
+    public void setFoodFieldNow(org.domi.furnace.api.entity.Player player, int field, float value) {
+        serverPlayer0(player).vitals().setFoodField(field, value);
+    }
+
+    @Override
+    public void addExhaustionNow(org.domi.furnace.api.entity.Player player, float amount) {
+        serverPlayer0(player).vitals().addExhaustion(amount);
+    }
+
+    @Override
+    public void causeFoodExhaustionNow(org.domi.furnace.api.entity.Player player, float amount) {
+        serverPlayer0(player).vitals().causeFoodExhaustion(amount);
+    }
+
+    private static org.domi.furnace.server.entity.Player serverPlayer0(org.domi.furnace.api.entity.Player player) {
+        if (!(player instanceof PlayerHandle ph)) throw new IllegalArgumentException("not a server player: " + player);
+        return ph.handle();
+    }
+
+    @Override
+    public boolean correctToolForDrops(org.domi.furnace.api.item.ItemStack tool, int stateId) {
+        if (tool == null || tool.isEmpty() || stateId < 0 || stateId >= org.domi.furnace.server.block.Blocks.get().stateCount()) return false;
+        return org.domi.furnace.server.item.ItemTools.isCorrectToolForDrops(ApiConvert.item(tool), stateId);
+    }
+
+    @Override
+    public boolean stateRequiresCorrectTool(int stateId) {
+        if (stateId < 0 || stateId >= org.domi.furnace.server.block.Blocks.get().stateCount()) return false;
+        var blocks = org.domi.furnace.server.block.Blocks.get();
+        return org.domi.furnace.server.block.BlockInfo.get().requiresCorrectToolForDrops(blocks.blockOf(stateId));
+    }
+
     @Override
     public int expDropNow(org.domi.furnace.api.world.World world, int state, int x, int y, int z, org.domi.furnace.api.item.ItemStack tool) {
         RegionLevel lv = ownedLevel(world, x, z, "Block#getExpDrop");
