@@ -203,31 +203,75 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
 
     @Override
     public CompletableFuture<Boolean> teleport(Location to) {
-        if (!to.world().equals(location.world())) return RegionFuture.wrap(CompletableFuture.completedFuture(false));
         World w = serverWorld();
-        return onOwner((r, cur) -> moveWithin(w, r, cur, to)).thenApply(b -> b != null && b);
+        CompletableFuture<Boolean> result = new CompletableFuture<>();   // 다른 월드로 가면 도착(또는 되돌림) 뒤에 true
+        CompletableFuture<Boolean> started = onOwner((r, cur) -> moveEntity(w, r, cur, to, () -> result.complete(true)));
+        started.whenComplete((ok, err) -> {
+            if (err != null) result.completeExceptionally(err);
+            else if (ok == null || !ok) result.complete(false);
+        });
+        return RegionFuture.wrap(result);
     }
 
     /**
-     * 같은 region 안의 이동 규칙(Paper CraftEntity#teleport): 승객이 타고 있으면 false(아무것도 안 바꾼다), 목적지가 다른 region 이면 false
-     * (핸드오프는 다음 단계), 그 밖에는 탈것에서 먼저 내리고 옮긴다. 소유 region 스레드에서.
+     * Paper CraftEntity#teleport 의 규칙(소유 region 스레드에서): 사라졌거나 승객이 타고 있으면 false(아무것도 안 바꾼다). EntityTeleportEvent 를
+     * 부르고(취소하거나 to 를 비우면 false, to 를 바꾸면 그 위치로), 탈것에서 내린 뒤, 같은 월드면 그 자리로 옮기고(속도 0, 머리 방향도 맞춘다),
+     * 다른 월드면 Entity#changeDimension 으로 목적 월드에 새로 만든다(UUID·저장 데이터 유지, 이벤트는 한 번 더 — 도착 위치의 yaw 자리에 요청한
+     * pitch 가 들어가는 Paper 1.21.1 의 CraftBukkit 순서 그대로). 목적지가 다른 region 인 같은 월드 이동은 아직 false(핸드오프는 T-196 다음 단계).
+     * done 은 같은 월드면 곧바로, 다른 월드면 도착 뒤 한 번 불린다.
      */
-    private static boolean moveWithin(World w, Region r, Entity cur, Location to) {
+    private boolean moveEntity(World w, Region r, Entity cur, Location to, Runnable done) {
         if (cur.isRemoved() || cur.isVehicle()) return false;
-        ChunkPos tcp = ChunkPos.ofBlock(to.x(), to.z());
-        if (w == null || w.regionizer().ownerOf(tcp.x(), tcp.z()) != r) return false;
+        String here = cur.dimensionKey();
+        boolean across = !to.world().equals(here);
+        if (across ? host.core().world(to.world()) == null : !ownsTarget(w, r, to.x(), to.z())) return false;
+        var events = cur.level().gameEvents();
+        var t = events.entityTeleport(cur, new GameEvents.TeleportTarget(to.world(), to.x(), to.y(), to.z(), to.yaw(), to.pitch()));
+        if (t == null) return false;
+        if (t.dimension().equals(here)) {
+            if (!ownsTarget(w, r, t.x(), t.z())) return false;
+            if (cur.vehicle() != null) cur.stopRiding();
+            cur.moveTo(t.x(), t.y(), t.z(), t.yaw(), t.pitch());
+            cur.setDeltaMovement(0.0, 0.0, 0.0);   // Paper moveTo 처럼 텔레포트하면 속도를 지운다
+            if (cur instanceof LivingEntity le) le.setYHeadRot(t.yaw());   // SPIGOT-619: 머리 방향도 맞춘다
+            done.run();
+            return true;
+        }
+        if (host.core().world(t.dimension()) == null) return false;
         if (cur.vehicle() != null) cur.stopRiding();
-        cur.moveTo(to.x(), to.y(), to.z(), to.yaw(), to.pitch());
-        cur.setDeltaMovement(0.0, 0.0, 0.0);   // Paper moveTo 처럼 텔레포트하면 속도를 지운다
-        return true;
+        if (!cur.isAlive()) {   // Paper changeDimension 맨 앞: 죽는 중이면 null(옮기지 않음) — teleport 는 true
+            done.run();
+            return true;
+        }
+        // Entity#changeDimension 안의 두 번째 EntityTeleportEvent: 도착 위치 = (목적 월드, 위치, yaw 자리에 DimensionTransition 의 yRot, pitch 는 지금 xRot).
+        // CraftBukkit 1.21.1 의 CraftEntity#teleport 는 DimensionTransition 에 (pitch, yaw) 순으로 넘겨 yRot 에 요청한 pitch 가 들어간다.
+        float yRot = PAPER_SWAPS_YAW_PITCH ? t.pitch() : t.yaw();
+        var t2 = events.entityTeleport(cur, new GameEvents.TeleportTarget(t.dimension(), t.x(), t.y(), t.z(), yRot, cur.xRot()));
+        if (t2 == null || cur.isRemoved() || host.core().world(t2.dimension()) == null) {   // 처리기가 지웠어도 Paper 는 changeDimension 이 null 을 돌려줘도 teleport 는 true
+            done.run();
+            return true;
+        }
+        return cur.changeDimensionTo(t2.dimension(), t2.x(), t2.y(), t2.z(), t2.yaw(), done);
     }
 
-    /** 소유 region 스레드에서 곧바로. 그 스레드가 아니면 ThreadOwnershipException, 사라졌으면 false. */
+    /** CraftBukkit 1.21.1 CraftEntity#teleport 가 다른 월드 DimensionTransition 에 yaw 와 pitch 를 바꿔 넘기는 것을 따른다(Paper 와 같은 결과). */
+    private static final boolean PAPER_SWAPS_YAW_PITCH = true;
+
+    /** 목적 칸이 이 region 소유인가(다른 region 으로의 같은 월드 이동은 핸드오프가 없어 아직 못 한다). */
+    private static boolean ownsTarget(World w, Region r, double x, double z) {
+        if (w == null) return false;
+        ChunkPos tcp = ChunkPos.ofBlock(x, z);
+        return w.regionizer().ownerOf(tcp.x(), tcp.z()) == r;
+    }
+
+    /**
+     * 소유 region 스레드에서 곧바로. 그 스레드가 아니면 ThreadOwnershipException, 사라졌으면 false. 다른 월드로 가면 시작이 받아들여졌다는 뜻으로 true 를
+     * 돌리고 도착은 목적 region 이 비동기로 한다(Paper 의 동기 호출과 달리 청크를 막고 기다리지 않는다).
+     */
     @Override
     public boolean teleportNow(Location to) {
         if (!(tasks.owner() instanceof Entity e) || e.isRemoved()) return false;
         World w = host.core().world(e.dimensionKey());
-        if (!to.world().equals(e.dimensionKey())) return false;
         ChunkPos cp = ChunkPos.ofBlock(e.x(), e.z());
         if (org.domi.furnace.server.world.RegionBorrow.claimEntity(e)) cp = ChunkPos.ofBlock(e.x(), e.z());
         Region r = w == null ? null : w.regionizer().ownerOf(cp.x(), cp.z());
@@ -235,7 +279,7 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
             throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("entity " + type() + " is not owned by this region thread (current thread: "
                     + Thread.currentThread().getName() + ") - call it inside an entityScheduler() task");
         }
-        return moveWithin(w, r, e, to);
+        return moveEntity(w, r, e, to, () -> { });
     }
 
     @Override

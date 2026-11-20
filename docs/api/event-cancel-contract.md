@@ -94,6 +94,7 @@
 | `VehicleEnterEvent` | `SERVER_DRIVEN` | - | 타는 상태 |
 | `VehicleExitEvent` | `SERVER_DRIVEN` | - | 타는 상태 |
 | `EntityPortalEvent` | `SERVER_DRIVEN` | - | 엔티티 위치·차원 |
+| `EntityTeleportEvent` | `SERVER_DRIVEN` | - | 엔티티 위치·월드·탈것 상태(탈것에서도 내리지 않는다) |
 | `PlayerPortalEvent` | `SERVER_DRIVEN` | - | 플레이어 위치·차원(리스폰 패킷이 나가지 않는다) |
 | `PortalCreateEvent` | `SERVER_DRIVEN` | - | 지옥문 틀 안이 비어 있다 |
 | `WorldUnloadEvent` | `SERVER_DRIVEN` | - | 월드가 그대로 올라와 있고 `unloadWorld` 는 false |

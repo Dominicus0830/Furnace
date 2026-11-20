@@ -560,6 +560,24 @@ public abstract non-sealed class Entity implements Rider {
         return true;
     }
 
+    /**
+     * 플러그인 teleport 의 다른 월드 경로(Paper CraftEntity#teleport → Entity#changeDimension(DimensionTransition(레벨, 위치, 속도 0, yRot, …,
+     * DO_NOTHING, PLUGIN))): 승객을 내리고(탈것은 호출 전에 막는다) 같은 종류를 목적 차원에 새로 만들어 저장 데이터를 옮기고(UUID 유지) moveTo(위치,
+     * yRot, 지금 xRot)·속도 0 으로 놓는다. 포털과 같은 changeDimension 이라 떠난·닿은 레벨이 resetEmptyTime 하고 낙하 블록 훅이 켜진다.
+     * 포털 소리·티켓은 없다(DO_NOTHING). 소유 region 스레드에서 부르고, 시작하지 못하면(종료 저장 기준점 뒤·길 없음) 거짓.
+     * done 은 도착(또는 되돌림) 뒤 목적·원천 region 스레드에서 한 번 불린다.
+     */
+    public boolean changeDimensionTo(String dimension, double tx, double ty, double tz, float yRot, Runnable done) {
+        if (level == null || isRemoved()) return false;
+        var travel = level.dimensionTravel();
+        if (travel == null || travel.frozen()) return false;
+        final float xr = xRot();
+        PortalTravel plan = new PortalTravel(dimension, floor(tx), floor(tz), 0, 0,
+                lvl -> new DimensionTransition(lvl, tx, ty, tz, 0, 0, 0, yRot, xr));
+        moveAcross(arrive -> travel.travel(plan, arrive), travel, PORTAL_PLACE, done, dimension, true);
+        return true;
+    }
+
     /** changeDimension 이 끝난 뒤 옛 쪽에서 부르는 훅(바닐라 FallingBlockEntity.changeDimension 의 재정의 자리). 기본은 아무것도 안 한다. */
     protected void afterChangedDimension(String from, String to) {}
 
