@@ -145,7 +145,10 @@ public class AttributeInstance {
         return snapshot.apply(handle());
     }
 
-    /** 주인 스레드면 곧바로(값·예외 그대로), 아니면 넘기고 guess 로 답한다. */
+    /**
+     * 주인 스레드면 곧바로(값·예외 그대로), 아니면 넘기고 guess 로 답한다. guess 는 넘기기 전에 계산한다 — 부른 순간의 목록으로 답하고,
+     * guess 가 예외(같은 id 가 이미 있음)면 바닐라처럼 아무것도 넘기지 않는다. 주인 스레드에서는 guess 도 지금 값을 보므로 op 와 같은 판정이다.
+     */
     private <T> T write(Function<org.domi.furnace.api.entity.attribute.AttributeInstance, T> op, Supplier<T> guess) {
         if (EntityStates.live(entity)) {
             Object[] out = new Object[1];
@@ -161,6 +164,7 @@ public class AttributeInstance {
             @SuppressWarnings("unchecked") T t = (T) out[0];
             return t;
         }
+        T answer = guess.get();
         var f = handle().edit(op);
         if (f.isDone()) {   // 플레이어의 주인 스레드(또는 월드에 없는 플레이어): 그 자리에서 했다
             try {
@@ -170,7 +174,6 @@ public class AttributeInstance {
                 throw e;
             }
         }
-        T answer = guess.get();
         String who = org.domi.furnace.compat.nms.NmsCaller.pluginName();
         f.whenComplete((v, e) -> {
             if (e == null) return;

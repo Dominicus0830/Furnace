@@ -118,6 +118,36 @@ class NmsAttributeTest {
     }
 
     @Test
+    void aDuplicateAddFromAnotherThreadThrowsAndHandsNothingOff() {
+        ResourceLocation dup = ResourceLocation.parse("test:dup");
+        ResourceLocation other = ResourceLocation.parse("test:other");
+        AttributeInstance speed = handle.getAttribute(Attributes.BLOCK_BREAK_SPEED);
+        owner(() -> {
+            speed.addTransientModifier(new AttributeModifier(dup, 1.0, AttributeModifier.Operation.ADD_VALUE));
+            return null;
+        });
+        server.tick(1);   // 다른 스레드는 최근 값(틱 끝에 내는 보기)을 본다
+        try {
+            // 시험 스레드(틱 스레드 아님): 부른 순간의 목록에 이미 있으니 바닐라처럼 예외만 던지고 주인에게 아무것도 넘기지 않는다
+            var e = assertThrows(IllegalArgumentException.class,
+                    () -> speed.addTransientModifier(new AttributeModifier(dup, 5.0, AttributeModifier.Operation.ADD_VALUE)));
+            assertEquals("Modifier is already applied on this attribute!", e.getMessage());
+            // 넘긴 작업이 줄에 있으면 주인 스레드의 다음 쓰기도 그 뒤로 밀린다 — 없으니 바닐라처럼 곧바로
+            assertEquals(2.5, owner(() -> {
+                speed.addTransientModifier(new AttributeModifier(other, 0.5, AttributeModifier.Operation.ADD_VALUE));
+                return speed.getValue();
+            }));
+        } finally {
+            owner(() -> {
+                speed.removeModifier(dup);
+                speed.removeModifier(other);
+                return null;
+            });
+            server.tick(1);
+        }
+    }
+
+    @Test
     void armorAndMissingAttributes() {
         assertEquals(0.0, handle.getAttributeValue(Attributes.ARMOR), "squaremap: 맨몸 방어 0");
         assertEquals(0.0, handle.getAttributeBaseValue(Attributes.ARMOR));
