@@ -40,8 +40,12 @@ class BackupZipTest {
                 assertNotNull(e, n);
                 assertEquals(ZipEntry.STORED, e.getMethod(), n);
                 assertEquals(e.getSize(), e.getCompressedSize(), n);
+                byte[] original = Files.readAllBytes(src.resolve(n));
+                var crc = new java.util.zip.CRC32();
+                crc.update(original);
+                assertEquals(crc.getValue(), e.getCrc(), n + " CRC");
                 try (var in = z.getInputStream(e)) {
-                    assertArrayEquals(Files.readAllBytes(src.resolve(n)), in.readAllBytes(), n);   // CRC 도 읽을 때 검사된다
+                    assertArrayEquals(original, in.readAllBytes(), n);
                 }
             }
         }
