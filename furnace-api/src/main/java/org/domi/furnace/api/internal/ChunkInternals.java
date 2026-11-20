@@ -889,6 +889,19 @@ public interface ChunkInternals {
     /** 바닐라 Biome.BIOME_INFO_NOISE.getValue(x, z, false)(풀 색 swamp 보정이 쓴다). 아무 스레드. */
     double biomeInfoNoise(double x, double z);
 
+    // ------------------------------------------------------------------ 디스크에 저장된 청크 NBT(NMS shim 5e — voxy)
+
+    /** {@link #storedNbt} 의 저장소 종류(바닐라 RegionFileType 차례): 청크(region/)·관심 지점(poi/)·엔티티(entities/). */
+    int STORED_CHUNK = 0, STORED_POI = 1, STORED_ENTITIES = 2;
+
+    /**
+     * 바닐라 ChunkStorage#read: 디스크에 저장된 그 청크의 NBT 그대로(옛 판 올림 없이). 그 파일의 IO 차례에서 읽어 앞서 넣은 저장 뒤에 선다. 없으면 null 로
+     * 끝나고 읽기 실패는 예외로 끝난다. 아무 스레드(기다리지 않는다).
+     */
+    default java.util.concurrent.CompletableFuture<org.domi.furnace.api.nbt.NbtCompound> storedNbt(World world, int kind, int chunkX, int chunkZ) {
+        throw new UnsupportedOperationException("storedNbt");
+    }
+
     // ------------------------------------------------------------------ 엔티티 모습 읽기(NMS shim 5번 묶음)
 
     /**

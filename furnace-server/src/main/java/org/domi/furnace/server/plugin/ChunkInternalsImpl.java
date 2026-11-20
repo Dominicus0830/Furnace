@@ -45,6 +45,17 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     @Override
+    public java.util.concurrent.CompletableFuture<org.domi.furnace.api.nbt.NbtCompound> storedNbt(org.domi.furnace.api.world.World world, int kind, int chunkX, int chunkZ) {
+        int k = switch (kind) {
+            case STORED_CHUNK -> org.domi.furnace.server.world.World.STORED_CHUNK;
+            case STORED_POI -> org.domi.furnace.server.world.World.STORED_POI;
+            case STORED_ENTITIES -> org.domi.furnace.server.world.World.STORED_ENTITIES;
+            default -> throw new IllegalArgumentException("stored kind " + kind);
+        };
+        return handle(world).handle().readStoredAsync(k, chunkX, chunkZ).thenApply(t -> t == null ? null : ApiNbt.toApi(t));
+    }
+
+    @Override
     public boolean ownsChunk(org.domi.furnace.api.world.World world, int chunkX, int chunkZ) {
         return org.domi.furnace.server.world.RegionBorrow.claimChunk(handle(world).handle(), chunkX, chunkZ);
     }

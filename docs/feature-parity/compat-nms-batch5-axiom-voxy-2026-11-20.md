@@ -224,6 +224,29 @@ Axiom 이 한 칸·여러 칸 놓기 패킷을 받으면 블록 요청 번호를
 - 시험 `NmsBlockPlaceTest`(5): ack 패킷과 음수, 플러그인이 만든 상태로 한 칸·여러 칸 이벤트(취소·손·대표 칸), 아이템 블록 엔티티 데이터·이름·명령 블록 거절,
   침대 `setPlacedBy` 가 머리 칸을 놓는다, 면 변환.
 
+## 5e-1 — voxy 가 디스크에서 먼 지형 읽기
+
+voxy(0.22.0, 1.21.1 판)는 플레이어가 멀리 보는 지형을 **디스크에 저장된 청크 NBT** 에서 읽어 섹션 코덱으로 풀고 다시 패킷으로 묶는다. 읽는 길은 둘이다:
+설정 `background_priority`(기본 켬)면 Paper moonrise `RegionFileIOThread.loadDataAsync`(우선순위 LOW), 끄면 바닐라 `ChunkMap.read`.
+moonrise 클래스는 NMS 점검 도구가 세지 않는 이름(`ca/spottedleaf/…`)이라 표에 없었지만 기본 설정이 타는 길이라 같이 채웠다.
+
+| 분류 | 개수 | 기호 |
+|---|---|---|
+| 자동 연결 가능 | 3 | `RegionFileIOThread$RegionFileType`, `PrioritisedExecutor$Priority`(Paper jar 의 번호·판정 그대로), `Cancellable` |
+| 다리 위 기계적 | 2 | `ChunkMap.read`, `RegionFileIOThread.loadDataAsync`(그리고 같은 길의 `loadData`·`isRegionFileThread`) |
+| 설계 필요 | 0 | — |
+
+새 다리 1건(`ChunkInternals.storedNbt` — 서버 `World.readStoredAsync`: 그 파일의 IO 차례에서 region/·poi/·entities/ 의 NBT 를 읽는다).
+자동 연결 가능 비율 **60%(3/5)**, 기계적까지 100%. 걸린 시간: 약 12분(21:43~21:55, 539 CI 대기 중에. 도구 점검 확인 시간은 뺐다).
+
+- Paper `ChunkMap.read` 는 부른 스레드에서 막고 읽어 끝난 future 를 준다(moonrise `loadData`). Furnace 는 바닐라처럼 기다리지 않는 future 다 — 같은 파일의
+  앞선 저장 뒤에 줄 서므로 저장 대기분이 보이는 끝 상태는 같다. 옛 판 올림(DataFixer)은 바닐라·Paper 처럼 하지 않는다.
+- moonrise `loadData` 는 Paper 처럼 어느 스레드에서나 막고 기다린다(구역 스레드에서 부르면 그 구역 틱이 늦는다 — Paper 의 주 스레드와 같다).
+- 시험 `NmsChunkDiskReadTest`(4): 평지 월드에 블록을 놓고 저장한 뒤 두 길로 읽어 바닐라 꼴(`sections[].block_states.palette`)에 그 블록이 있는가, 없는
+  청크는 빈 값·(null, null) 콜백, COMPLETING 우선순위 거절, 우선순위 번호.
+- **점검 표 주의:** 앞서 표본 폴더에 있던 voxy jar 는 26.1.2 판(클래스 판 69)이라 점검 도구의 ASM 이 읽지 못해 심볼 0개로 나왔다. 1.21.1 판(0.22.0)으로
+  다시 돌리면 243개 중 234개 있음, 남은 8개는 코덱·`VarInt`·`Biomes`·`ENTITY_TYPE`·`paperConfig` 이다(5e-2).
+
 ## 지금까지 모음(5a~5d-3)
 
 | 묶음 | 기호 | 자동 연결 가능 | 다리 위 기계적 | 설계 필요 | 걸린 시간 |
