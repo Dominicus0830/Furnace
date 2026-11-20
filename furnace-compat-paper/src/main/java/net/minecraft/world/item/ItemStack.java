@@ -131,6 +131,27 @@ public final class ItemStack {
         return new org.domi.furnace.api.item.ItemStack(item.furnaceKey(), Math.max(count, 0), components, removed);
     }
 
+    /**
+     * 바닐라 getComponentsPatch: 비었으면 EMPTY, 아니면 기본값에서 바뀐 것(값·지움). 지금 값의 사본이라 이 스택을 고쳐도 따라가지 않는다. 값은 Furnace 가
+     * 들고 있는 SNBT 꼴 그대로이고(바닐라는 타입 값), {@code DataComponentPatch.CODEC} 이 컴포넌트 규칙으로 정규화해 쓴다.
+     */
+    public net.minecraft.core.component.DataComponentPatch getComponentsPatch() {
+        return isEmpty() ? net.minecraft.core.component.DataComponentPatch.EMPTY : net.minecraft.core.component.DataComponentPatch.furnaceOf(components, removed);
+    }
+
+    /**
+     * 바닐라 applyComponents(patch): 값은 set, 지움은 remove 규칙으로 하나씩 얹는다(기본값과 같은 값은 패치에서 뗀다). 바닐라는 끝에
+     * {@code verifyComponentsAfterLoad}(머리 프로필 확인)도 부르지만, Furnace 는 그 확인을 스택이 놓이는 칸의 쓰기 지점에서 한다(서버 {@code ProfileFill}).
+     * 모르는 컴포넌트·규칙에 안 맞는 값(패치를 직접 만든 경우)은 IllegalArgumentException. EMPTY 는 바닐라처럼 조용히 아무것도 하지 않는다.
+     */
+    public void applyComponents(net.minecraft.core.component.DataComponentPatch patch) {
+        if (patch.isEmpty() || this == EMPTY) return;   // 바닐라: EMPTY 는 components 가 없어서 아무것도 바뀌지 않는다(던지지 않는다)
+        var next = org.domi.furnace.api.item.ItemSupport.get().applyComponentPatch(componentView(),
+                new org.domi.furnace.api.item.ItemComponentPatch(patch.furnaceSet(), patch.furnaceRemoved()));
+        this.components = next.components();
+        this.removed = next.removedComponents();
+    }
+
     /** 바닐라 getOrDefault(MAX_STACK_SIZE, 1) — 종류 기본값 위에 패치를 얹은 값, 패치로 지웠거나 EMPTY 면 1. */
     public int getMaxStackSize() {
         var v = componentView();
@@ -203,6 +224,9 @@ public final class ItemStack {
         if (name != null) return name;
         return net.minecraft.network.chat.Component.translatable(getItem().getDescriptionId());
     }
+
+    /** 바닐라 getDescriptionId: 아이템의 번역 키(비었으면 공기). */
+    public String getDescriptionId() { return getItem().getDescriptionId(); }
 
     /** 같은 종류인가(바닐라 isSameItem). */
     public static boolean isSameItem(ItemStack a, ItemStack b) { return a.is(b.getItem()); }

@@ -31,6 +31,12 @@ public class CompoundTag implements Tag {
     /** 호환 모듈 전용 — 지금 값의 깊은 사본. */
     public org.domi.furnace.api.nbt.NbtCompound furnace() { return (org.domi.furnace.api.nbt.NbtCompound) NbtBridge.toFurnace(this); }
 
+    /** 바닐라와 같이 살아 있는 항목 집합(NbtOps·코덱이 훑는다). */
+    public Set<Map.Entry<String, Tag>> entrySet() { return tags.entrySet(); }
+
+    /** 바닐라 shallowCopy: 값 태그는 그대로 두고 묶음만 새로 만든다. */
+    public CompoundTag shallowCopy() { return new CompoundTag(new HashMap<>(tags)); }
+
     /** 바닐라와 같이 살아 있는 키 집합. */
     public Set<String> getAllKeys() { return tags.keySet(); }
 

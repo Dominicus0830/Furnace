@@ -317,15 +317,12 @@ class NmsFaweSurfaceTest {
     }
 
     @Test
-    void dataComponentPatchCodecExistsButFailsLoudlyWhenUsed() {
+    void dataComponentPatchCodecIsARealCodec() {
         assertTrue(net.minecraft.core.component.DataComponentPatch.EMPTY.isEmpty());
         assertNotNull(net.minecraft.core.component.DataComponentPatch.CODEC);
-        var enc = org.junit.jupiter.api.Assertions.assertThrows(UnsupportedNmsCall.class,
-                () -> net.minecraft.core.component.DataComponentPatch.CODEC.encode(net.minecraft.core.component.DataComponentPatch.EMPTY, null, null));
-        assertTrue(enc.getMessage().contains("DataComponentPatch.CODEC#encode") && enc.getMessage().contains("Furnace item API"), enc.getMessage());
-        var dec = org.junit.jupiter.api.Assertions.assertThrows(UnsupportedNmsCall.class,
-                () -> net.minecraft.core.component.DataComponentPatch.CODEC.decode(null, null));
-        assertTrue(dec.getMessage().contains("DataComponentPatch.CODEC#decode"), dec.getMessage());
+        // 쓰고 읽는 것은 NmsComponentCodecTest(T-200)
+        var enc = net.minecraft.core.component.DataComponentPatch.CODEC.encodeStart(net.minecraft.nbt.NbtOps.INSTANCE, net.minecraft.core.component.DataComponentPatch.EMPTY);
+        assertEquals(new net.minecraft.nbt.CompoundTag(), enc.getOrThrow(IllegalStateException::new));
     }
 
     @Test
@@ -399,8 +396,8 @@ class NmsFaweSurfaceTest {
     @Test
     void dataFixerUpgradesLegacyNames() {
         var fixer = net.minecraft.util.datafix.DataFixers.getDataFixer();
-        // NbtOps shim 은 DynamicOps 가 아니다(상수만, T-191) — FAWE 는 그 상수를 그대로 Dynamic 에 넣고, 고치기는 ops 를 건드리지 않고 돌려준다. 시험은 대역 Dynamic 이라 null.
-        com.mojang.serialization.DynamicOps<net.minecraft.nbt.Tag> ops = null;
+        // FAWE 는 NbtOps 상수를 Dynamic 에 넣고, 고치기는 ops 를 건드리지 않고 입력의 ops 를 새 Dynamic 에 넘긴다.
+        com.mojang.serialization.DynamicOps<net.minecraft.nbt.Tag> ops = net.minecraft.nbt.NbtOps.INSTANCE;
         var grass = fixer.update(net.minecraft.util.datafix.fixes.References.BLOCK_NAME,
                 new com.mojang.serialization.Dynamic<net.minecraft.nbt.Tag>(ops, net.minecraft.nbt.StringTag.valueOf("minecraft:grass")), 1631, 3955);
         assertEquals("minecraft:short_grass", ((net.minecraft.nbt.StringTag) grass.getValue()).getAsString());
