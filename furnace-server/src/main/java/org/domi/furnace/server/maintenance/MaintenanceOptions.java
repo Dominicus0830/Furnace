@@ -14,14 +14,25 @@ import java.util.function.Consumer;
  * backupKeep: 남길 백업 수(넘으면 오래된 것부터 지운다, 0 = 지우지 않음). backupFormat: zip 또는 folder.
  * backupSkipIdle: 지난 백업 뒤 아무도 접속하지 않았으면 주기 백업을 건너뛴다. backupHoldTimeoutSeconds: 기준점을 잡는 동안 틱을
  *   붙잡는 최대 시간 — 넘으면 이번 백업을 포기한다.
+ * backupCompression: zip 안의 파일 압축. STORED = 다시 압축하지 않는다(지역 파일은 이미 압축돼 있어 CPU 가 크게 줄고 zip 은 커진다), FAST = 빠른 단계로 다시 압축.
  */
 public record MaintenanceOptions(int idlePauseSeconds, boolean idlePauseFlush,
                                  int backupIntervalMinutes, Path backupDirectory, int backupKeep, BackupFormat backupFormat,
-                                 boolean backupSkipIdle, int backupHoldTimeoutSeconds) {
+                                 boolean backupSkipIdle, int backupHoldTimeoutSeconds, BackupCompression backupCompression) {
 
     public enum BackupFormat { ZIP, FOLDER }
 
-    public static final MaintenanceOptions DEFAULT = new MaintenanceOptions(0, true, 0, Path.of("backups"), 10, BackupFormat.ZIP, true, 10);
+    /** zip 안의 파일 압축 방식(결정 D3 — 기본 STORED). */
+    public enum BackupCompression { STORED, FAST }
+
+    /** 압축 방식을 기본(STORED)으로 두는 생성자. */
+    public MaintenanceOptions(int idlePauseSeconds, boolean idlePauseFlush, int backupIntervalMinutes, Path backupDirectory, int backupKeep,
+                              BackupFormat backupFormat, boolean backupSkipIdle, int backupHoldTimeoutSeconds) {
+        this(idlePauseSeconds, idlePauseFlush, backupIntervalMinutes, backupDirectory, backupKeep, backupFormat, backupSkipIdle,
+                backupHoldTimeoutSeconds, BackupCompression.STORED);
+    }
+
+    public static final MaintenanceOptions DEFAULT = new MaintenanceOptions(0, true, 0, Path.of("backups"), 10, BackupFormat.ZIP, true, 10, BackupCompression.STORED);
 
     public boolean idlePauseEnabled() { return idlePauseSeconds > 0; }
 
@@ -47,7 +58,13 @@ public record MaintenanceOptions(int idlePauseSeconds, boolean idlePauseFlush,
         };
         boolean skipIdle = bool(props, "backup.skip-if-no-players", DEFAULT.backupSkipIdle);
         int hold = integer(props, "backup.hold-timeout-seconds", DEFAULT.backupHoldTimeoutSeconds, 1, 600);
-        var o = new MaintenanceOptions(pause, flush, interval, directory, keep, format, skipIdle, hold);
+        String comp = props.getProperty("backup.compression", "stored").strip().toLowerCase(java.util.Locale.ROOT);
+        BackupCompression compression = switch (comp) {
+            case "stored" -> BackupCompression.STORED;
+            case "fast" -> BackupCompression.FAST;
+            default -> throw new IllegalArgumentException(Lang.t("cfg.invalid-choice", "backup.compression", comp, "stored, fast"));
+        };
+        var o = new MaintenanceOptions(pause, flush, interval, directory, keep, format, skipIdle, hold, compression);
         o.warnings(warn);
         return o;
     }

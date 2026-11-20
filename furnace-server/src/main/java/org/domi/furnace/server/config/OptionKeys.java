@@ -122,6 +122,7 @@ public final class OptionKeys {
             new Option("backup.directory", "path", ""),
             new Option("backup.keep", "number", "10"),
             new Option("backup.format", "text", "zip"),
+            new Option("backup.compression", "text", "stored"),
             new Option("backup.skip-if-no-players", "ON/OFF", "true"),
             new Option("backup.hold-timeout-seconds", "number", "10"),
             new Option("plugins.compat.bukkit", "ON/OFF", "true"),

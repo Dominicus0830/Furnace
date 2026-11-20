@@ -154,6 +154,7 @@ public final class FurnacePropertiesFile {
                 optText("backup.directory", "", Lang.t("cfg.help.backup.directory", mt.backupDirectory())),
                 opt("backup.keep", mt.backupKeep(), "cfg.help.backup.keep"),
                 opt("backup.format", mt.backupFormat().name().toLowerCase(java.util.Locale.ROOT), "cfg.help.backup.format"),
+                opt("backup.compression", mt.backupCompression().name().toLowerCase(java.util.Locale.ROOT), "cfg.help.backup.compression"),
                 opt("backup.skip-if-no-players", mt.backupSkipIdle(), "cfg.help.backup.skip-if-no-players"),
                 opt("backup.hold-timeout-seconds", mt.backupHoldTimeoutSeconds(), "cfg.help.backup.hold-timeout-seconds")
         )));
