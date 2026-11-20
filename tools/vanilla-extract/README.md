@@ -53,6 +53,21 @@ tools/compat/sig-tables.sh 1.21.1                                               
 - **법적 경계:** 클래스 파일을 `SKIP_CODE|SKIP_DEBUG|SKIP_FRAMES` 로만 읽고 방문자가 몸통·애노테이션을 받지 않는다(시험 `methodBodiesAreNeverRead` — 몸통이 깨진 클래스도 통과해야 한다). 표는 Mojang 대응표에서 나온 것이므로 **저장소·서버 jar·공유 폴더 어디에도 두지 않는다**(대응표 머리말: 완전·미수정 재배포 금지).
 - Mojang 이름 Paper 서버 jar(`ServerLevel#captureBlockStates`·`CraftPlayer` 등 Paper·CraftBukkit 이 더한 멤버)는 `:worldgen-oracle:printPaperServerJar` 가 경로를 낸다. 이 클라우드 환경에서도 paperweight 가 dev-bundle 을 받아 동작했다(2026-11-20). 단 CI 는 모든 gradle 에 `-PskipOracle=true` 라서 CI 에서 이 칸을 만들려면 그 단계만 오라클을 켜야 한다(T-228 이 정한다).
 
+## 서명 관문 (T-228)
+
+컴파일한 `furnace-compat-paper` 의 shim 클래스 선언(`net/minecraft/`·`com/mojang/`·`org/bukkit/craftbukkit/`)을 기준 서명표(Paper 서버 → 바닐라 → 라이브러리 순)와 맞댄다. 플러그인이 Paper 에 대고 컴파일한 호출이 **링크되는 모양**인지 본다.
+
+```
+tools/compat/sig-tables.sh 1.21.1                              기준 표를 캐시에 만든다(Paper 서버 칸은 paperweight 가 닿을 때)
+./gradlew -PskipOracle=true :vanilla-extract:signatureGate     기준선과 견준다(없는 기준 표는 건너뛰지 않고 실패)
+./gradlew -PskipOracle=true :vanilla-extract:signatureGate -PsigBaselineWrite=true   기준선 다시 쓰기(이미 적은 이유는 그대로, 새 줄은 코드별 기본 이유)
+```
+
+- **실패 대상(링크를 깨는 차이):** `class-kind`·`class-access`(덜 열림·shim 만 final/abstract)·`super`(상위 클래스 다름)·`type-missing`(바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없음, 상위가 같을 때만·JDK 타입 제외)·`descriptor`(같은 이름 멤버인데 서술자가 다르고 기준의 같은 이름 서술자가 shim 에 없음)·`static`·`member-access`. 멤버는 JVM 처럼 상위 사슬을 따라 풀어 상위 멤버를 하위에 다시 선언한 것은 세지 않는다.
+- **참고만(실패 아님):** shim 이 더 가진 `extra-class`·`extra-member`·`extra-overload`(Furnace 내부 도우미) — 플러그인이 컴파일한 호출을 깨지 않는다. 보고서에 건수만 나온다.
+- **기준선** `furnace-compat-paper/src/test/resources/shim-signature-baseline.txt`: `코드<TAB>소유<TAB>멤버<TAB>자세히<TAB>이유`. **새 차이**(기준선에 없음)·**낡은 줄**(이제 같아졌는데 남음)·**이유 없는 줄** 은 실패다. 지금 값은 손 shim 의 알려진 구멍을 코드별 "미분류" 이유로 채운 것이고, 생성기(T-229~)가 바로잡을 때마다 줄을 지운다. 의도한 차이는 이유에 Furnace 가 그렇게 한 까닭을 적는다. 이 파일에는 shim 에 이미 있는 이름만 들어가 새 Mojang 정보가 없다.
+- 보고서: `tools/vanilla-extract/build/reports/signature-gate.md`.
+
 ## 바이트 동일 증명 (V-05 수용 조건)
 
 수용 조건은 "1.21.1 결과가 이전 도구 결과와 같다"이다. 옛 도구는 `tools/vanilla-data/Export*.java` 와 파이썬 둘이었고 git 기록에 남아 있다.

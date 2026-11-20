@@ -95,6 +95,13 @@ public final class SigTable {
     /** jar 에서 prefixes 로 시작하는 내부 이름(예: net/minecraft/)의 클래스만 모은다. 멀티 릴리스 폴더(META-INF/versions)는 건너뛴다. */
     public static SigTable fromJar(Path jar, List<String> prefixes, String label) throws IOException {
         SigTable t = new SigTable(label);
+        t.addJar(jar, prefixes);
+        return t;
+    }
+
+    /** jar 하나의 선언을 이 표에 더한다(라이브러리 jar 여러 개를 한 표로 모을 때). */
+    public void addJar(Path jar, List<String> prefixes) throws IOException {
+        SigTable t = this;
         try (ZipFile zf = new ZipFile(jar.toFile())) {
             Enumeration<? extends ZipEntry> en = zf.entries();
             while (en.hasMoreElements()) {
@@ -105,6 +112,17 @@ public final class SigTable {
                 try (InputStream in = zf.getInputStream(e)) {
                     t.add(in.readAllBytes());
                 }
+            }
+        }
+    }
+
+    /** 컴파일된 클래스 폴더(예: gradle 의 classes/java/main)에서 prefixes 로 시작하는 클래스만 모은다(서명 관문이 shim 을 읽는다). */
+    public static SigTable fromDirectory(Path dir, List<String> prefixes, String label) throws IOException {
+        SigTable t = new SigTable(label);
+        try (var s = Files.walk(dir)) {
+            for (Path p : s.filter(x -> x.toString().endsWith(".class")).sorted().toList()) {
+                String rel = dir.relativize(p).toString().replace('\\', '/');
+                if (matches(rel, prefixes)) t.add(Files.readAllBytes(p));
             }
         }
         return t;

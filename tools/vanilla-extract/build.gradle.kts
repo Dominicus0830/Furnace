@@ -62,6 +62,11 @@ tasks.named<JavaExec>("run") {
     (findProperty("sigName") as String?)?.let { a += listOf("--sig-name", it) }
     (findProperty("sigPrefix") as String?)?.let { a += listOf("--sig-prefix", it) }
     (findProperty("sigPaperApi") as String?)?.let { if (it != "false") a += "--sig-paper-api" }
+    // 서명 관문(-Pmode=sig-gate): -PsigShims=<shim 클래스 폴더> -PsigBaseline=<기준선> [-PsigBaselineWrite=true] [-PsigReport=<md>]
+    (findProperty("sigShims") as String?)?.let { a += listOf("--sig-shims", it) }
+    (findProperty("sigBaseline") as String?)?.let { a += listOf("--sig-baseline", it) }
+    (findProperty("sigBaselineWrite") as String?)?.let { if (it != "false") a += "--sig-baseline-write" }
+    (findProperty("sigReport") as String?)?.let { a += listOf("--sig-report", it) }
     (findProperty("list") as String?)?.let { if (it != "false") a += "--list" }
     args = a
 }
@@ -77,5 +82,26 @@ tasks.register<JavaExec>("prepareVanillaReports") {
     val a = mutableListOf("--mc", mc, "--mode", "reports")
     (findProperty("cache") as String?)?.let { a += listOf("--cache", it) }
     (findProperty("javaHome") as String?)?.let { a += listOf("--java-home", it) }
+    args = a
+}
+
+// T-228: 서명 관문 — 컴파일한 호환 계층 shim 의 선언을 기준 서명표(바닐라·Paper 서버·라이브러리)와 맞대 기준선과 견준다.
+// 서명표는 tools/compat/sig-tables.sh 가 캐시에 만든다(없으면 건너뛰지 않고 실패). 기준선을 다시 쓰려면 -PsigBaselineWrite=true.
+tasks.register<JavaExec>("signatureGate") {
+    group = "verification"
+    description = "shim 클래스 선언 ↔ 기준 서명표 차이를 기준선(furnace-compat-paper/src/test/resources/shim-signature-baseline.txt)과 견준다"
+    dependsOn(":furnace-compat-paper:classes")
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.domi.furnace.tools.extract.Main")
+    workingDir = rootProject.projectDir
+    val mc = (rootProject.extra["mc"] as java.util.Properties).getProperty("mc.version")
+    val compat = project(":furnace-compat-paper")
+    val a = mutableListOf(
+        "--mc", mc, "--mode", "sig-gate",
+        "--sig-shims", compat.layout.buildDirectory.dir("classes/java/main").get().asFile.absolutePath,
+        "--sig-baseline", compat.file("src/test/resources/shim-signature-baseline.txt").absolutePath,
+        "--sig-report", layout.buildDirectory.file("reports/signature-gate.md").get().asFile.absolutePath)
+    (findProperty("sigBaselineWrite") as String?)?.let { if (it != "false") a += "--sig-baseline-write" }
+    (findProperty("cache") as String?)?.let { a += listOf("--cache", it) }
     args = a
 }

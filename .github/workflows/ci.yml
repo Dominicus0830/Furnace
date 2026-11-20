@@ -336,7 +336,7 @@ jobs:
     if: needs.changes.outputs.code == 'true'
     name: vanilla-gates
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -353,6 +353,12 @@ jobs:
           key: vanilla-extract-${{ hashFiles('gradle/minecraft.properties') }}-1
       - name: 바닐라 보고서 대조 시험 (T-238)
         run: ./gradlew -PskipOracle=true :furnace-server:vanillaReportsTest
+      # T-228: 기준 서명표 셋(바닐라·paper-api·Mojang 이름 Paper 서버)을 만든다. Paper 서버 칸은 paperweight 가 Paper 저장소에 닿아야 하므로
+      # 이 스크립트만 오라클을 켠다. 못 구하면 다음 관문이 "기준 표 없음"으로 건너뛰지 않고 실패한다.
+      - name: 서명표 만들기 (T-228)
+        run: tools/compat/sig-tables.sh
+      - name: 서명 관문 (T-228)
+        run: ./gradlew -PskipOracle=true :vanilla-extract:signatureGate
       - name: 대조 시험 보고서 올리기
         if: failure()
         uses: actions/upload-artifact@v4
@@ -361,6 +367,7 @@ jobs:
           path: |
             furnace-server/build/reports/tests/vanillaReportsTest
             furnace-server/build/test-results/vanillaReportsTest
+            tools/vanilla-extract/build/reports/signature-gate.md
           if-no-files-found: ignore
           retention-days: 7
 

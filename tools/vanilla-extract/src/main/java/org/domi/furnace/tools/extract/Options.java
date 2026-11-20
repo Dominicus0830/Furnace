@@ -25,7 +25,9 @@ public final class Options {
         /** 서명표(T-227)만 만든다. 바닐라 jar 준비까지만 하고 데이터 생성기는 돌리지 않는다. */
         SIG_TABLE,
         /** 바닐라 데이터 생성기 보고서(`generated/reports`)까지 준비하고 그 폴더를 알린다(T-238 대조 시험이 읽는다). */
-        REPORTS
+        REPORTS,
+        /** 서명 관문(T-228): shim 클래스 선언을 기준 서명표와 맞대고 기준선 파일과 견준다. */
+        SIG_GATE
     }
 
     public String mc;
@@ -52,6 +54,14 @@ public final class Options {
     public String sigName;
     /** paper-api jar 를 repo.papermc.io 에서 받아 서명표를 만든다. */
     public boolean sigPaperApi;
+    /** 서명 관문이 읽을 shim 클래스 폴더(예: furnace-compat-paper/build/classes/java/main). */
+    public Path sigShims;
+    /** 서명 관문 기준선 파일(의도한 차이 + 이유). */
+    public Path sigBaseline;
+    /** 기준선 파일을 현재 차이로 다시 쓴다(이유는 이미 적힌 것을 보존, 새 줄은 기본 이유). */
+    public boolean sigBaselineWrite;
+    /** 서명 관문 보고서(마크다운) 출력 위치. */
+    public Path sigReport;
     public final Map<String, List<String>> toolArgs = new LinkedHashMap<>();
 
     public static Options parse(String[] args) {
@@ -75,6 +85,10 @@ public final class Options {
                 case "--sig-prefix" -> o.sigPrefix = List.of(next(args, ++i, a).split(","));
                 case "--sig-name" -> o.sigName = next(args, ++i, a);
                 case "--sig-paper-api" -> o.sigPaperApi = true;
+                case "--sig-shims" -> o.sigShims = Path.of(next(args, ++i, a));
+                case "--sig-baseline" -> o.sigBaseline = Path.of(next(args, ++i, a));
+                case "--sig-baseline-write" -> o.sigBaselineWrite = true;
+                case "--sig-report" -> o.sigReport = Path.of(next(args, ++i, a));
                 case "--legacy-ref" -> o.legacyRef = next(args, ++i, a);
                 case "--tool-arg" -> {
                     String kv = next(args, ++i, a);
