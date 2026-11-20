@@ -45,6 +45,11 @@ public final class Main {
 
     static boolean run(Options o) throws IOException {
         if (o.mode == Options.Mode.SIG_TABLE) return SigTableCommand.run(o);
+        if (o.mode == Options.Mode.REPORTS) {
+            Prepared p = new Preparer(o).prepare(true);
+            System.out.println("[보고서] " + p.generated().resolve("reports"));
+            return Files.isRegularFile(p.generated().resolve("reports").resolve("packets.json"));
+        }
         List<Tool> selected = select(o);
         Prepared p = new Preparer(o).prepare();
         if (o.protocol >= 0) p = new Prepared(p.mc(), p.serverJar(), p.innerJar(), p.mappings(), p.libraries(), p.generated(), o.protocol, p.remapped());

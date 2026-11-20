@@ -232,3 +232,10 @@ PR 은 서버 시험 약 5,200개 중 **이 변경이 실제로 실행되는 시
 ## 태그 (2026-11-16)
 - 태그를 올리면 `.github/workflows/tag-check.yml` 이 이름 형식을 검사한다(`tools/release/furnace-tag.sh check`). 시험 조각은 태그에서 돌지 않는다 — base·ms 태그는 기준 브랜치 `test` 가 이미 초록인 커밋에 찍는다. 규칙: `docs/ops/version-tags.md`.
 - 서버 fatJar 의 `Implementation-Version` 은 가장 가까운 판 태그 `<MC>` 에서 만든다(없으면 `dev+<해시>`). 태그를 읽으려면 `git describe` 가 되어야 하므로 버전이 중요한 빌드(판 완성)는 `fetch-depth: 0` 로 받는다. 얕은 복제 CI 에서는 `dev+<해시>` 가 되어도 시험·빌드에는 영향이 없다.
+
+## vanilla-gates 작업 (2026-11-20, T-238)
+- 바닐라 서버 jar 로 만든 자료와 Furnace 가 쓰는 표를 맞대는 별도 작업이다(코드가 바뀐 PR 만; 문서만 바뀐 PR 은 `light` 처럼 건너뜀). `test` 판정이 `vanilla-gates` 를 같이 본다.
+- 지금 하는 일: `./gradlew -PskipOracle=true :furnace-server:vanillaReportsTest` — vanilla-extract 가 데이터 생성기 보고서(`blocks·packets·registries·commands.json`)를 캐시에 만들고(`:vanilla-extract:prepareVanillaReports`), `VanillaReportsParityTest`(태그 `vanilla-reports`, 평소 `:furnace-server:test` 에서는 제외)가 맞댄다: 판 상수(`GameVersion` ↔ 번들러 jar 의 version.json), `PacketIds` ↔ `packets.json`(양쪽 모두), `BlockRegistry` ↔ `blocks.json`(상태 번호·키·기본 상태·총수), `ItemRegistry`·엔티티·입자 이름표 ↔ `registries.json`, 명령 트리 정답 파일 ↔ `commands.json`.
+- 자료는 저장소에 없다. 캐시 `~/.cache/furnace-vanilla-extract` 를 Actions 캐시로 두고(키 = `gradle/minecraft.properties` 해시) 받기는 piston-meta·piston-data 원 출처에서만 한다. **받기·생성이 실패하면 건너뛰지 않고 실패**한다(보고서 없이 초록이 되는 것을 막는다). 로컬에서 보고서가 없으면 시험이 안내 문구와 함께 실패한다.
+- 차이가 나오면 시험을 고치지 말고 차이마다 FIX 과제로 만든다. 판을 올릴 때(`mc.version` 변경)는 이 시험의 실패 목록이 그 홉의 할 일에 들어간다(설계 `docs/roadmap/broad-support-version-scaling-2026-11-20.md` 4.5·5.3). T-228 서명 관문도 이 작업에 단계로 들어온다.
+- 첫 실행(1.21.1, 2026-11-20): 다섯 시험 모두 차이 없음. 보고서 사본을 일부러 바꿔(패킷 번호·아이템 번호·블록 상태 번호·명령 실행 가능 표시) 네 시험이 실제로 실패함을 확인했다.

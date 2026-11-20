@@ -23,7 +23,9 @@ public final class Options {
         /** BASELINE + EXTRACT + PORT_CHECK 를 한 번에 하고 전·후·커밋을 모두 견준다. */
         PROOF,
         /** 서명표(T-227)만 만든다. 바닐라 jar 준비까지만 하고 데이터 생성기는 돌리지 않는다. */
-        SIG_TABLE
+        SIG_TABLE,
+        /** 바닐라 데이터 생성기 보고서(`generated/reports`)까지 준비하고 그 폴더를 알린다(T-238 대조 시험이 읽는다). */
+        REPORTS
     }
 
     public String mc;
