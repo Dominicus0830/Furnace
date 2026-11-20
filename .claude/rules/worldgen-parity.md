@@ -9,7 +9,7 @@ paths:
 ---
 # worldgen parity 규칙 (1.21.1)
 
-시작 전 `docs/feature-parity/vanilla-audit-2026-10-07.md`("확정된 편차", "후속 과제")와 `docs/feature-parity/context-notes.md`를 읽는다.
+시작 전 `docs/feature-parity/vanilla-audit-2026-10-07.md`("확정된 편차", "후속 과제") 절을 읽는다. `context-notes.md`(342KB)는 통째로 읽지 않고 `grep -n "<키워드>"` 로 찾은 절만 읽는다(새 기록은 `context-notes/` 폴더).
 
 ## RNG·재시드
 - feature마다 `setFeatureSeed(decorationSeed, globalIndex, step)`로 독립 재시드된다. index만 맞으면 다른 feature 구현 여부와 무관하게 해당 feature 좌표가 정해진다.

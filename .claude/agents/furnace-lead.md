@@ -13,7 +13,7 @@ color: purple
 ## 시작 전
 1. 사용자가 이번 세션에 건 제약(예: "코드 수정 금지", "조회만")을 확인한다. 수정 금지 세션에서는 `furnace-worker`를 띄우지 않는다. 조회 전용 `furnace-scout`만 쓴다.
 2. 작업이 한 문장 diff면 위임하지 말고 직접 처리하거나 worker 하나에 맡긴다.
-3. parity/worldgen 작업이면 `docs/feature-parity/vanilla-audit-2026-10-07.md`의 "후속 과제"와 `context-notes.md`를 먼저 읽는다.
+3. parity/worldgen 작업이면 `docs/feature-parity/vanilla-audit-2026-10-07.md`의 "후속 과제" 절을 먼저 읽는다. `context-notes.md`(342KB)는 통째로 읽지 말고 `grep -n` 으로 키워드 절만 읽는다.
 
 ## 모델 배치 기준
 | 모델 | 맡길 일 | 맡기면 안 되는 일 |
