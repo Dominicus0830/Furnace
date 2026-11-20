@@ -3,6 +3,7 @@ package org.domi.furnace.compat.nms;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.netty.buffer.ByteBuf;
@@ -34,7 +35,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * NMS shim 5e-2: voxy 가 쓰는 작은 서버 조각 — {@code VarInt}, {@code Biomes}, {@code BuiltInRegistries.ENTITY_TYPE}, {@code ServerLevel.paperConfig()}.
- * 기대값은 Paper 1.21.1 jar 의 바이트코드·기본 설정(javap)과 바닐라 VarInt 규칙.
+ * 기대값은 Paper 1.21.1 jar 의 바이트코드·기본 설정(javap)과 바닐라 VarInt 규칙(VarInt 는 Furnace 가 새로 쓴 구현).
  */
 class NmsVoxyServerBitsTest {
 
@@ -67,6 +68,13 @@ class NmsVoxyServerBitsTest {
         assertEquals((byte) 0x02, three.getByte(1));
         assertTrue(VarInt.hasContinuationBit((byte) 0x80));
         assertFalse(VarInt.hasContinuationBit((byte) 0x7F));
+        // 다섯 바이트 뒤에도 이어지면 바닐라처럼 여섯째 바이트까지 읽고 거절한다
+        ByteBuf tooBig = Unpooled.buffer().writeBytes(new byte[] {(byte) 0x80, (byte) 0x80, (byte) 0x80, (byte) 0x80, (byte) 0x80, (byte) 0x80, 1});
+        RuntimeException e = assertThrows(RuntimeException.class, () -> VarInt.read(tooBig));
+        assertEquals("VarInt too big", e.getMessage());
+        assertEquals(6, tooBig.readerIndex());
+        ByteBuf five = Unpooled.buffer().writeBytes(new byte[] {(byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0x7F});
+        assertEquals(-1, VarInt.read(five), "다섯째 바이트의 남는 윗비트는 버린다");
     }
 
     @Test

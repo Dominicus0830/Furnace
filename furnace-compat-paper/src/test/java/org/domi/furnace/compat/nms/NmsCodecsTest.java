@@ -162,10 +162,30 @@ class NmsCodecsTest {
         CompoundTag tag = (CompoundTag) encode(states(), c);
         ((CompoundTag) tag.getList("palette", Tag.TAG_COMPOUND).get(1)).putString("Name", "minecraft:gone");
         var r = states().parse(NbtOps.INSTANCE, tag);
-        assertEquals("Unknown registry key in ResourceKey[minecraft:root / minecraft:block]: minecraft:gone", error(r));
+        assertEquals("(Unknown registry key in ResourceKey[minecraft:root / minecraft:block]: minecraft:gone -> using default)", error(r));
         PalettedContainer<BlockState> partial = r.resultOrPartial().orElseThrow();
         assertSame(Blocks.DIRT.defaultBlockState(), partial.get(0, 0, 0));
         assertSame(Blocks.AIR.defaultBlockState(), partial.get(1, 0, 0), "못 읽은 항목 자리는 기본값");
+    }
+
+    /** 기대 문구는 바닐라 1.21.1 jar 의 코덱 짜임을 진짜 DFU 8.0.16 조합기로 지어 돌린 결과(PR 541 검토 재현)다: 뒤 항목부터, 뒤 단계 오류는 끝에. */
+    @Test
+    void severalBadPaletteEntriesJoinFromTheLastLikeVanilla() {
+        PalettedContainer<BlockState> c = new PalettedContainer<>(Block.BLOCK_STATE_REGISTRY, Blocks.STONE.defaultBlockState(), PalettedContainer.Strategy.SECTION_STATES);
+        c.set(0, 0, 0, Blocks.DIRT.defaultBlockState());
+        CompoundTag tag = (CompoundTag) encode(states(), c);
+        ListTag palette = tag.getList("palette", Tag.TAG_COMPOUND);
+        ((CompoundTag) palette.get(0)).putString("Name", "minecraft:gone");
+        ((CompoundTag) palette.get(1)).putString("Name", "minecraft:gone2");
+        var r = states().parse(NbtOps.INSTANCE, tag);
+        String key = "Unknown registry key in ResourceKey[minecraft:root / minecraft:block]: ";
+        assertEquals("(" + key + "minecraft:gone2 -> using default); (" + key + "minecraft:gone -> using default)", error(r));
+        assertSame(Blocks.AIR.defaultBlockState(), r.resultOrPartial().orElseThrow().get(0, 0, 0));
+
+        tag.remove("data");   // 뒤 단계(풀기)도 틀리면 그 문구가 끝에 붙고 부분 결과는 없다
+        var r2 = states().parse(NbtOps.INSTANCE, tag);
+        assertEquals("(" + key + "minecraft:gone2 -> using default); (" + key + "minecraft:gone -> using default); Missing values for non-zero storage", error(r2));
+        assertTrue(r2.resultOrPartial().isEmpty());
     }
 
     @Test
@@ -216,7 +236,7 @@ class NmsCodecsTest {
         broken.set(0, s("minecraft:nowhere"));   // 0번 칸의 사막 자리
         tag.put("palette", broken);
         var r = codec.parse(NbtOps.INSTANCE, tag);
-        assertEquals("Unknown registry key in ResourceKey[minecraft:root / minecraft:worldgen/biome]: minecraft:nowhere", error(r));
+        assertEquals("(Unknown registry key in ResourceKey[minecraft:root / minecraft:worldgen/biome]: minecraft:nowhere -> using default)", error(r));
         assertSame(plains, r.resultOrPartial().orElseThrow().get(0, 0, 0), "못 읽은 바이옴은 기본값(평원)");
     }
 

@@ -157,7 +157,7 @@ public final class NmsCodecs {
 
     /**
      * Paper {@code PalettedContainer.codec}: {@code {palette: [항목…], data: long 배열}}. 항목 하나를 못 읽으면 그 자리는 기본값으로 두고(부분 결과)
-     * 오류 문구를 "; " 로 잇는다({@code orElsePartial}·{@code ListCodec}). {@code data} 는 없거나 못 읽으면 없는 것({@code lenientOptionalFieldOf}).
+     * 오류 문구를 "(원문 -> using default)" 로 감싸 뒤 항목부터 "; " 로 잇는다({@code orElsePartial}·{@code ListCodec}, 바닐라 1.21.1 jar·DFU 8.0.16 으로 확인). {@code data} 는 없거나 못 읽으면 없는 것({@code lenientOptionalFieldOf}).
      * 팔레트 크기에 비트가 필요한데 {@code data} 가 없으면 "Missing values for non-zero storage", 길이가 틀리면 "Failed to read PalettedContainer: …".
      */
     @SuppressWarnings("unchecked")
@@ -180,8 +180,11 @@ public final class NmsCodecs {
                 list.result().get().accept(v -> {
                     DataResult<Pair<T, O>> r = entry.decode(ops, v);
                     if (r.isError()) {
-                        errors.add(r.error().get().message());
-                        entries.add(r.resultOrPartial().map(Pair::getFirst).orElse(defaultValue));
+                        // ExtraCodecs.orElsePartial: 부분 결과가 없으면 문구를 "(… -> using default)" 로 감싸고 기본값을 부분 결과로, 있으면 그대로
+                        Optional<T> partial = r.resultOrPartial().map(Pair::getFirst);
+                        String message = r.error().get().message();
+                        errors.add(partial.isPresent() ? message : "(" + message + " -> using default)");
+                        entries.add(partial.orElse(defaultValue));
                     } else {
                         entries.add(r.result().get().getFirst());
                     }
@@ -193,8 +196,9 @@ public final class NmsCodecs {
                 Object made = PalettedContainer.furnaceUnpack(registry, strategy, entries, data);
                 DataResult<C> unpacked = made instanceof String message ? DataResult.error(() -> message) : DataResult.success((C) made);
                 if (errors.isEmpty()) return unpacked.map(c -> Pair.of(c, input));
-                // 앞 단계가 부분 결과가 있는 오류면 DFU 는 부분 결과로 다음 단계를 돌리고 문구를 잇는다(DataResult.Error.flatMap)
-                String head = String.join("; ", errors);
+                // ListCodec 은 항목 오류 문구를 뒤 항목부터 잇는다. 앞 단계가 부분 결과가 있는 오류면 DFU 는 부분 결과로 다음 단계를 돌리고
+                // 문구를 잇는다(DataResult.Error.flatMap)
+                String head = String.join("; ", errors.reversed());
                 if (unpacked.isError()) {
                     String tail = unpacked.error().get().message();
                     return DataResult.error(() -> head + "; " + tail);

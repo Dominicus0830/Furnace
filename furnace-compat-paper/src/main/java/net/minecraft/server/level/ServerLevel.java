@@ -192,8 +192,11 @@ public class ServerLevel extends Level implements net.minecraft.world.level.Worl
      */
     public io.papermc.paper.configuration.WorldConfiguration paperConfig() {
         var c = paperConfig;
-        if (c == null) paperConfig = c = io.papermc.paper.configuration.WorldConfiguration.furnaceDefaults();
-        return c;
+        if (c != null) return c;
+        synchronized (this) {   // 처음 동시에 불러도 한 객체만(Paper 는 월드마다 하나)
+            if (paperConfig == null) paperConfig = io.papermc.paper.configuration.WorldConfiguration.furnaceDefaults();
+            return paperConfig;
+        }
     }
 
     public long getSeed() { return getWorld().getSeed(); }
