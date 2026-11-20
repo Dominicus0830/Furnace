@@ -1,7 +1,7 @@
 package net.minecraft.network.codec;
 
 /**
- * 스트림 코덱 shim(Mojang 이름, N3 1단계). 이 단계에서는 인터페이스와 {@link #of} 만 있다 —
+ * 스트림 코덱 shim(Mojang 이름, N3 1단계). 이 단계에서는 인터페이스와 {@link #of}·{@link #ofMember}·{@link #unit} 만 있다 —
  * 합성 도우미(composite·map 등)는 플러그인이 쓰는 것이 확인되는 대로 더한다.
  */
 public interface StreamCodec<B, V> extends StreamDecoder<B, V>, StreamEncoder<B, V> {
@@ -10,6 +10,14 @@ public interface StreamCodec<B, V> extends StreamDecoder<B, V>, StreamEncoder<B,
         return new StreamCodec<>() {
             @Override public V decode(B input) { return decoder.decode(input); }
             @Override public void encode(B output, V value) { encoder.encode(output, value); }
+        };
+    }
+
+    /** 바닐라와 같다: 인코더는 값 쪽이 먼저(payload.write(buf) 모양). */
+    static <B, V> StreamCodec<B, V> ofMember(StreamMemberEncoder<B, V> encoder, StreamDecoder<B, V> decoder) {
+        return new StreamCodec<>() {
+            @Override public V decode(B input) { return decoder.decode(input); }
+            @Override public void encode(B output, V value) { encoder.encode(value, output); }
         };
     }
 

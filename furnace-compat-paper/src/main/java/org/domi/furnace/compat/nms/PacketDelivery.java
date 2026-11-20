@@ -78,10 +78,11 @@ public final class PacketDelivery {
     }
 
     /**
-     * Furnace → shim → Furnace 가 값을 그대로 돌려주는 종류(청크·빛 — 시험이 지킨다). 다리는 이 종류에서 비교 기준을 다시 변환하지 않고
-     * 원래 값과 바로 비교한다(PR #399 검토 S2: 청크 하나 약 30µs).
+     * Furnace → shim → Furnace 가 값을 그대로 돌려주는 종류(청크·빛·플러그인 메시지 — 시험이 지킨다). 다리는 이 종류에서 비교 기준을 다시 변환하지 않고
+     * 원래 값과 바로 비교한다(PR #399 검토 S2: 청크 하나 약 30µs). 플러그인 메시지는 바꾸면서 본문 버퍼를 읽어 옮기므로(Paper 인코더와 같다) 두 번 바꾸면 안 된다.
      */
     public static boolean losslessRoundTrip(org.domi.furnace.api.packet.PacketType<?> t) {
+        if (t == org.domi.furnace.api.packet.PacketTypes.Clientbound.CUSTOM_PAYLOAD) return true;
         String n = t.name();
         return ChunkPacketBridge.handles(n.substring(n.indexOf(':') + 1));
     }

@@ -156,6 +156,9 @@ class SchemaPacketReverseTest {
                         java.util.Optional.of(new net.minecraft.network.chat.numbers.FixedFormat(net.minecraft.network.chat.Component.literal("MAX")))));
                 conn.send(new net.minecraft.network.protocol.game.ClientboundSetScorePacket("Rev", "o2", 3, java.util.Optional.of(net.minecraft.network.chat.Component.literal("n")),
                         java.util.Optional.of(net.minecraft.network.chat.numbers.BlankFormat.INSTANCE)));
+                // 플러그인 메시지(Axiom·VeinMiner 가 connection.send 로 보내는 모양, 1번 묶음)
+                conn.send(new net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket(new net.minecraft.network.protocol.common.custom.DiscardedPayload(
+                        rl.apply("axiom:hello"), io.netty.buffer.Unpooled.wrappedBuffer(new byte[] {4, 5, 6}))));
                 return null;
             });
             // 타입 레코드 종류는 Furnace 패킷 API 로
@@ -180,6 +183,7 @@ class SchemaPacketReverseTest {
             api.sendPacket(new ClientboundSoundPacket("myplugin:quiet", null, SoundCategory.AMBIENT, 0, 0, 0, 1f, 1f, 79L));
             tp.awaitPacket(PacketTypes.Clientbound.SOUND, g -> g.seed() == 79L);
             tp.awaitPacket(PacketTypes.Clientbound.SET_SCORE, g -> "o2".equals(g.get("objective_name")));
+            tp.awaitPacket(PacketTypes.Clientbound.CUSTOM_PAYLOAD, g -> "axiom:hello".equals(g.channel()) && java.util.Arrays.equals(g.data(), new byte[] {4, 5, 6}));
             server.tick(2);
             tp.flushReceived();
 
@@ -198,7 +202,7 @@ class SchemaPacketReverseTest {
                     "minecraft:stop_sound", "minecraft:player_look_at", "minecraft:move_entity_pos_rot", "minecraft:set_equipment", "minecraft:section_blocks_update",
                     "minecraft:damage_event", "minecraft:set_score", "minecraft:cookie_request", "minecraft:pong_response", "minecraft:set_title_text",
                     "minecraft:set_entity_motion", "minecraft:add_entity", "minecraft:teleport_entity", "minecraft:block_update", "minecraft:sound",
-                    "minecraft:disconnect", "minecraft:set_time", "minecraft:set_entity_motion", "minecraft:player_position")) {
+                    "minecraft:disconnect", "minecraft:set_time", "minecraft:set_entity_motion", "minecraft:player_position", "minecraft:custom_payload")) {
                 assertTrue(checked.contains(must), must + " 를 돌려 보지 못했다: " + checked);
             }
         }
@@ -216,8 +220,7 @@ class SchemaPacketReverseTest {
                 (PacketDelivery.reversible(t) ? yes : no).add(t.name().substring("minecraft:".length()));
             }
             assertEquals(new TreeSet<>(List.of(
-                    // 타입 레코드: 플러그인 메시지(2b-4). 메타데이터는 EntityDataBridge(2026-11-14), 탭 목록은 PlayerInfoBridge(T-181)
-                    "custom_payload",
+                    // 타입 레코드는 모두 된다: 메타데이터는 EntityDataBridge(2026-11-14), 탭 목록은 PlayerInfoBridge(T-181), 플러그인 메시지는 1번 묶음(2026-11-20)
                     // 값 shim 이 빈 껍데기(toFurnace 도 없다)
                     "block_entity_data", "delete_chat", "disguised_chat", "login", "open_screen", "respawn", "server_links",
                     // 손 코덱: toFurnace 도 없다(보스바·통계), 역변환이 아직 없다(팀·목표·속성·지도)
