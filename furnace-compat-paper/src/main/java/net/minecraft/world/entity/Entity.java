@@ -158,6 +158,136 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
         return f().entityId();
     }
 
+    // ------------------------------------------------------------------ 모습·탑승 읽기 (NMS shim 5번 묶음)
+
+    /** 바닐라 getBlockX·Y·Z: 지금 칸 좌표(내림). */
+    public final int getBlockX() { return net.minecraft.util.Mth.floor(getX()); }
+
+    public final int getBlockY() { return net.minecraft.util.Mth.floor(getY()); }
+
+    public final int getBlockZ() { return net.minecraft.util.Mth.floor(getZ()); }
+
+    /** 바닐라: 그 레벨의 레지스트리 묶음. */
+    public net.minecraft.core.RegistryAccess registryAccess() { return level().registryAccess(); }
+
+    /** 마지막으로 읽은 모습 — 그 뒤 엔티티가 사라지면 이 값으로 답한다(바닐라도 지운 엔티티의 필드는 그대로 읽힌다). 틀린 스레드에는 쓰지 않는다. */
+    private volatile org.domi.furnace.api.internal.ChunkInternals.EntityLook lastLook;
+
+    private static final org.domi.furnace.api.internal.ChunkInternals.EntityLook FRESH =
+            new org.domi.furnace.api.internal.ChunkInternals.EntityLook((byte) 0, 0, 0, 0, 0, false, false, 0, null, java.util.List.of());
+
+    /**
+     * 지금 모습. 플레이어는 아무 스레드에서 최근 값(Paper 처럼 경쟁 읽기). 다른 엔티티는 주인 스레드에서 읽고, 다른 스레드 규칙은
+     * {@link org.domi.furnace.compat.nms.NmsEntities}(틱 스레드가 아니면 기다리고, 다른 region·전역 스레드는 ThreadOwnershipException).
+     * 아직 월드에 없는 엔티티는 바닐라 생성자의 모습(플래그 0·서 있음·속도 0·탑승 없음).
+     */
+    protected org.domi.furnace.api.internal.ChunkInternals.EntityLook furnaceLook(String what) {
+        if (detached != null) return FRESH;
+        var h = f();
+        var b = org.domi.furnace.compat.nms.NmsChunks.bridge();
+        org.domi.furnace.api.internal.ChunkInternals.EntityLook l;
+        try {
+            l = h instanceof org.domi.furnace.api.entity.Player ? b.entityLook(h)
+                    : org.domi.furnace.compat.nms.NmsEntities.call(furnaceWorld(), h, what, () -> b.entityLook(h));
+        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException wrongThread) {
+            throw wrongThread;   // 틀린 스레드는 예전 값으로 덮지 않는다(같은 IllegalStateException 계열이라 먼저 거른다)
+        } catch (IllegalStateException gone) {
+            l = lastLook;
+            if (l == null) throw gone;
+            return l;
+        }
+        lastLook = l;
+        return l;
+    }
+
+    private boolean sharedFlag(int bit, String what) { return (furnaceLook(what).sharedFlags() & 1 << bit) != 0; }
+
+    /** 바닐라 isCrouching: 자세가 웅크림. */
+    public boolean isCrouching() { return furnaceLook("Entity#isCrouching").pose() == Pose.CROUCHING.ordinal(); }
+
+    /** 바닐라 isSwimming: 공유 플래그 4. 플레이어는 날거나 관전 중이면 거짓(Player 가 덮는다). */
+    public boolean isSwimming() { return sharedFlag(4, "Entity#isSwimming"); }
+
+    /** 바닐라 isInvisible: 공유 플래그 5. */
+    public boolean isInvisible() { return sharedFlag(5, "Entity#isInvisible"); }
+
+    /** 바닐라 hasPermissions(단계): 권한 단계가 그 이상인가. 엔티티는 0, 플레이어는 op 단계. */
+    public boolean hasPermissions(int level) { return furnaceLook("Entity#hasPermissions").permissionLevel() >= level; }
+
+    /** 바닐라: 엔티티는 관전자가 아니다(ServerPlayer 가 덮는다). */
+    public boolean isSpectator() { return false; }
+
+    /**
+     * 바닐라 getKnownMovement: 조종하는 플레이어가 있으면 그가 알린 움직임, 아니면 지금 속도. 플레이어는 클라이언트가 알린 움직임 — Furnace 는 마지막
+     * 이동 패킷이 옮긴 거리(새 자리 − 이전 자리)를 쓴다. 바닐라는 처리기가 따로 재는 값이라 한 틱에 이동 패킷이 여럿이거나 순간이동 직후에는 다를 수
+     * 있다(가정 — 바닐라 대조 시험 없음).
+     */
+    public net.minecraft.world.phys.Vec3 getKnownMovement() {
+        var l = furnaceLook("Entity#getKnownMovement");
+        return new net.minecraft.world.phys.Vec3(l.knownX(), l.knownY(), l.knownZ());
+    }
+
+    /** 바닐라 getVehicle: 탄 탈것(없으면 null). 탈것은 같은 region 에 있다. */
+    public Entity getVehicle() {
+        java.util.UUID v = furnaceLook("Entity#getVehicle").vehicle();
+        return v == null ? null : byUuid(v, "Entity#getVehicle");
+    }
+
+    /** 바닐라 isPassenger: 탈것이 있는가. */
+    public boolean isPassenger() { return furnaceLook("Entity#isPassenger").vehicle() != null; }
+
+    /** 바닐라 hasPassenger(조건): 바로 탄 승객 중 조건에 맞는 것이 있는가. */
+    public boolean hasPassenger(java.util.function.Predicate<Entity> predicate) {
+        for (Entity p : passengersNow("Entity#hasPassenger")) if (predicate.test(p)) return true;
+        return false;
+    }
+
+    /** 바닐라 getSelfAndPassengers: 자기 다음에 승객마다 그 승객과 그 위 승객(깊이 우선, 타는 순서). */
+    public java.util.stream.Stream<Entity> getSelfAndPassengers() {
+        return java.util.stream.Stream.concat(java.util.stream.Stream.of(this),
+                passengersNow("Entity#getSelfAndPassengers").stream().flatMap(Entity::getSelfAndPassengers));
+    }
+
+    /** 바닐라 getIndirectPassengers: 승객과 그 위 승객 모두(자기 빼고). 돌 때마다 지금 승객을 다시 본다(바닐라도 스트림을 새로 만든다). */
+    public Iterable<Entity> getIndirectPassengers() {
+        return () -> passengersNow("Entity#getIndirectPassengers").stream().flatMap(Entity::getSelfAndPassengers).iterator();
+    }
+
+    private java.util.List<Entity> passengersNow(String what) {
+        var ids = furnaceLook(what).passengers();
+        if (ids.isEmpty()) return java.util.List.of();
+        java.util.List<Entity> out = new java.util.ArrayList<>(ids.size());
+        for (var id : ids) {
+            Entity e = byUuid(id, what);
+            if (e != null) out.add(e);
+        }
+        return out;
+    }
+
+    /**
+     * 이미 만든 Bukkit 객체가 있으면 그것(어느 스레드나 된다), 없으면 그 월드에서 찾는다. 다른 region·전역 스레드에서 다른 region 의 엔티티를 찾아야 하면
+     * {@link #furnaceLook} 과 같이 ThreadOwnershipException(조용히 null 을 주면 isPassenger() 참과 모순). 틱 스레드가 아니면 주인 region 을 기다린다.
+     * 그 사이 사라진 엔티티는 null(바닐라도 사라진 탈것은 목록에서 빠진다).
+     */
+    private Entity byUuid(java.util.UUID id, String what) {
+        CraftEntity cached = org.domi.furnace.compat.paper.Compat.cachedEntity(id);
+        if (cached != null) return cached.getHandle();
+        var w = furnaceWorld();
+        java.util.Optional<org.domi.furnace.api.entity.Entity> now;
+        try {
+            now = w.entityByUuidNow(id);
+        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException wrongThread) {
+            if (org.domi.furnace.compat.thread.PrimaryThread.isPrimary() || org.domi.furnace.api.Furnace.server().scheduler().isTickThread()) {
+                throw new org.domi.furnace.api.concurrent.ThreadOwnershipException(what + ": entity " + id + " belongs to another region - call it on its"
+                        + " owning region (current thread: " + Thread.currentThread().getName() + ")");
+            }
+            var e = org.domi.furnace.compat.paper.Compat.entityByUuid(w, id);   // 틱 스레드가 아니다: 주인 region 에 물어 기다린다
+            return e instanceof CraftEntity c ? c.getHandle() : null;
+        }
+        var e = now.map(org.domi.furnace.compat.paper.Compat::entity).orElse(null);
+        return e instanceof CraftEntity c ? c.getHandle() : null;
+    }
+
     // ------------------------------------------------------------------ 아직 월드에 없는 엔티티 (T-212: FAWE //paste -e)
 
     /**
@@ -260,6 +390,22 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
         bukkit = c;
         detached = null;
         return true;
+    }
+
+    /** 바닐라 지움 이유(이름·순서·두 판정이 1.21.1 과 같다). */
+    public enum RemovalReason {
+        KILLED(true, false), DISCARDED(true, false), UNLOADED_TO_CHUNK(false, true), UNLOADED_WITH_PLAYER(false, false), CHANGED_DIMENSION(false, false);
+
+        private final boolean destroy, save;
+
+        RemovalReason(boolean destroy, boolean save) {
+            this.destroy = destroy;
+            this.save = save;
+        }
+
+        public boolean shouldDestroy() { return destroy; }
+
+        public boolean shouldSave() { return save; }
     }
 
     /** 아직 월드에 없는 엔티티의 상태. 바닐라 생성자처럼 자리 0,0,0·방향 0 에서 시작한다. 한 스레드가 만들고 넣는다(FAWE 동기 작업). */

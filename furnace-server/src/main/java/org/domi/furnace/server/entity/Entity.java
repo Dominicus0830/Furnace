@@ -964,6 +964,9 @@ public abstract non-sealed class Entity implements Rider {
 
     protected boolean getSharedFlag(int flag) { return ((Byte) entityData.get(DATA_SHARED_FLAGS) & 1 << flag) != 0; }
 
+    /** 공유 플래그 바이트 전체(바닐라 DATA_SHARED_FLAGS — 호환 계층의 모습 읽기). */
+    public final byte sharedFlagsByte() { return (Byte) entityData.get(DATA_SHARED_FLAGS); }
+
     /** LivingEntity.updateGlowingStatus 용. */
     protected final void syncGlowingFlag() {
         boolean g = isCurrentlyGlowing();

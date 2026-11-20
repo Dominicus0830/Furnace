@@ -71,4 +71,7 @@ public class LivingEntity extends Entity {
     /** 바닐라 LivingEntity: 지워지지 않았고 체력이 0 보다 크다. */
     @Override
     public boolean isAlive() { return !isRemoved() && getHealth() > 0f; }
+
+    /** 바닐라 isFallFlying: 공유 플래그 7(겉날개로 나는 중). */
+    public boolean isFallFlying() { return (furnaceLook("LivingEntity#isFallFlying").sharedFlags() & 1 << 7) != 0; }
 }

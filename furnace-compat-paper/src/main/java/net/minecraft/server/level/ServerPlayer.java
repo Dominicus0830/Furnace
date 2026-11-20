@@ -93,6 +93,13 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player {
     @Override
     public CraftPlayer getBukkitEntity() { return (CraftPlayer) super.getBukkitEntity(); }
 
+    /** 바닐라 ServerPlayer#isSpectator: 게임 모드가 관전. */
+    @Override
+    public boolean isSpectator() { return furnaceLook("ServerPlayer#isSpectator").spectator(); }
+
+    /** 바닐라 hasDisconnected: 접속이 끊겼는가. 바닐라 생성자로 만든 플레이어는 거짓(끊긴 적이 없다 — Paper 와 같다). */
+    public boolean hasDisconnected() { return !furnaceDetached && !getBukkitEntity().furnaceHandle().isOnline(); }
+
     /** 이 플레이어가 있는 월드. */
     public ServerLevel serverLevel() { return (ServerLevel) level(); }
 

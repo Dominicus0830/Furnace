@@ -20,6 +20,16 @@ public class EntityType<T> {
 
     private EntityType(ResourceLocation key) { this.key = key == null ? DEFAULT_KEY : key; }
 
+    /** 바닐라 상수(나머지 종류 상수는 아직 없다 — {@link #byString}·{@link #of}). */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static final EntityType<net.minecraft.world.entity.player.Player> PLAYER = (EntityType) of(ResourceLocation.withDefaultNamespace("player"));
+
+    /** 바닐라 noSave 종류(저장하지 않는다): 1.21.1 바닐라 EntityType 의 noSave 넷. */
+    private static final java.util.Set<String> NO_SAVE = java.util.Set.of("leash_knot", "lightning_bolt", "player", "fishing_bobber");
+
+    /** 바닐라 canSerialize: 청크에 저장되는 종류인가(플레이어·번개·낚시찌·끈 매듭은 거짓). */
+    public boolean canSerialize() { return !("minecraft".equals(key.getNamespace()) && NO_SAVE.contains(key.getPath())); }
+
     /** 바닐라 {@code EntityType.byString}: "zombie"·"minecraft:zombie". 모르는 종류는 빈 값. */
     public static Optional<EntityType<?>> byString(String name) {
         ResourceLocation k = name == null ? null : ResourceLocation.tryParse(name);

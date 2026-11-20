@@ -45,6 +45,16 @@ public abstract class Player extends LivingEntity {
     /** 바닐라: 스코어보드에서 쓰는 이름 = 플레이어 이름. */
     public String getScoreboardName() { return getBukkitEntity().getName(); }
 
+    /** 바닐라 Player#getName: 게임 프로필 이름 글자. */
+    public net.minecraft.network.chat.Component getName() { return net.minecraft.network.chat.Component.literal(getGameProfile().getName()); }
+
+    /** 바닐라 Player#isSwimming: 날거나 관전 중이 아닐 때만 공유 플래그 4. */
+    @Override
+    public boolean isSwimming() {
+        var l = furnaceLook("Player#isSwimming");
+        return !l.flying() && !l.spectator() && (l.sharedFlags() & 1 << 4) != 0;
+    }
+
     /** 바닐라: 플레이어 프로필(authlib 이 없으면 null). */
     public com.mojang.authlib.GameProfile getGameProfile() {
         if (getBukkitEntity() instanceof org.bukkit.craftbukkit.entity.CraftPlayer cp && gameProfile != null) {
