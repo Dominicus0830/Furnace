@@ -312,6 +312,28 @@ class ArmorTrimMetaTest {
     }
 
     @Test
+    void serverBuiltAndMetaBuiltTrimStacksAreSimilar() {
+        var raw = org.domi.furnace.api.item.ItemComponent.raw("trim");
+        var server = new org.domi.furnace.api.item.ItemStack("minecraft:iron_boots", 1)
+                .with(raw, "{material:\"minecraft:quartz\",pattern:\"minecraft:sentry\"}");
+        ItemStack fromServer = org.domi.furnace.compat.paper.CompatItems.copyOf(server);
+        ItemStack fromMeta = new ItemStack(Material.IRON_BOOTS);
+        ArmorMeta meta = (ArmorMeta) fromMeta.getItemMeta();
+        meta.setTrim(trim());
+        fromMeta.setItemMeta(meta);
+        assertTrue(fromMeta.isSimilar(fromServer), "서버가 만든 장식과 메타로 만든 장식은 쌓인다");
+        assertEquals(trim(), ((ArmorMeta) fromServer.getItemMeta()).getTrim());
+
+        var hiddenServer = new org.domi.furnace.api.item.ItemStack("minecraft:iron_boots", 1)
+                .with(raw, "{material:\"minecraft:quartz\",pattern:\"minecraft:sentry\",show_in_tooltip:0b}");
+        ItemStack hiddenFromMeta = new ItemStack(Material.IRON_BOOTS);
+        meta.addItemFlags(ItemFlag.HIDE_ARMOR_TRIM);
+        hiddenFromMeta.setItemMeta(meta);
+        assertTrue(hiddenFromMeta.isSimilar(org.domi.furnace.compat.paper.CompatItems.copyOf(hiddenServer)));
+        assertFalse(hiddenFromMeta.isSimilar(fromMeta));
+    }
+
+    @Test
     void metaEqualityAndHashFollowTheTrim() {
         ArmorMeta a = (ArmorMeta) FACTORY.getItemMeta(Material.IRON_HELMET);
         ArmorMeta b = (ArmorMeta) FACTORY.getItemMeta(Material.IRON_HELMET);
