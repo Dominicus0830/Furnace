@@ -321,6 +321,27 @@ public abstract class Level implements LevelAccessor {
                 org.bukkit.SoundCategory.valueOf(source.name()), volume, pitch, java.util.concurrent.ThreadLocalRandom.current().nextLong());
     }
 
+    /** 바닐라 {@code LevelAccessor#levelEvent(type, pos, data)}: 제외할 플레이어 없이 {@link #levelEvent(net.minecraft.world.entity.player.Player, int, BlockPos, int)}. */
+    public void levelEvent(int type, BlockPos pos, int data) { levelEvent(null, type, pos, data); }
+
+    /**
+     * 바닐라 {@code ServerLevel#levelEvent}: 이 월드에서 그 칸 64칸 안(거리 제곱 &lt; 64²)에 있는 플레이어에게 레벨 이벤트(소리·입자 번호 type, data)를 보낸다.
+     * except 는 뺀다. 이 서버는 이 이벤트를 받는 쪽 클라이언트에만 알린다 — 서버 상태는 바뀌지 않는다.
+     */
+    public void levelEvent(net.minecraft.world.entity.player.Player except, int type, BlockPos pos, int data) {
+        var packet = org.domi.furnace.api.packet.GenericPacket.of(org.domi.furnace.api.packet.PacketTypes.Clientbound.LEVEL_EVENT)
+                .with("type", type)
+                .with("pos", new org.domi.furnace.api.world.BlockPos(pos.getX(), pos.getY(), pos.getZ()))
+                .with("data", data)
+                .with("global_event", false);
+        for (org.bukkit.entity.Player player : world.getPlayers()) {
+            if (!(player instanceof org.bukkit.craftbukkit.entity.CraftPlayer cp) || !cp.furnaceHandle().isOnline()) continue;
+            if (except != null && except.getBukkitEntity() == cp) continue;
+            double dx = pos.getX() - player.getLocation().getX(), dy = pos.getY() - player.getLocation().getY(), dz = pos.getZ() - player.getLocation().getZ();
+            if (dx * dx + dy * dy + dz * dz < 64.0 * 64.0) cp.furnaceHandle().sendPacket(packet);
+        }
+    }
+
     // ------------------------------------------------------------------ 블록 쓰기(N1)
 
     /** 바닐라 Block.UPDATE_MOVE_BY_PISTON. */

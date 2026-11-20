@@ -57,7 +57,7 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player {
     /** 바닐라 {@code LivingEntity#getItemInHand}. 월드에 없는 플레이어만 된다(접속한 플레이어는 UnsupportedNmsCall — 손이 인벤토리 칸이다). */
     @Override
     public net.minecraft.world.item.ItemStack getItemInHand(net.minecraft.world.InteractionHand hand) {
-        if (!furnaceDetached) return super.getItemInHand(hand);
+        if (!furnaceDetached) return net.minecraft.world.item.ItemStack.liveHand(getBukkitEntity().furnaceHandle(), hand == net.minecraft.world.InteractionHand.MAIN_HAND);
         return hand == net.minecraft.world.InteractionHand.MAIN_HAND ? mainHand : offHand;
     }
 
@@ -74,6 +74,12 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player {
 
     /** 바닐라처럼 공개 필드(Paper 도 같다). 바닐라 생성자로 만든 플레이어는 null. */
     public net.minecraft.server.network.ServerGamePacketListenerImpl connection;
+
+    /** 바닐라 {@code Player#causeFoodExhaustion}: 소모를 더한다(무적 능력이면 무시, 최대 40). Paper 가 내는 소모 이벤트는 내지 않는다. */
+    public void causeFoodExhaustion(float amount) {
+        if (furnaceDetached) throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("Player#causeFoodExhaustion", "a player that is not in a world has no food");
+        org.domi.furnace.compat.nms.NmsChunks.bridge().causeFoodExhaustionNow(getBukkitEntity().furnaceHandle(), amount);
+    }
 
     /** 바닐라: overlay 거짓으로. */
     public void sendSystemMessage(net.minecraft.network.chat.Component message) { sendSystemMessage(message, false); }

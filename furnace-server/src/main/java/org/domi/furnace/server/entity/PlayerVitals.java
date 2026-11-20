@@ -1138,6 +1138,13 @@ public final class PlayerVitals {
 
     public synchronized void setFoodLevel(int food) { this.food.foodLevel(Math.clamp(food, 0, 20)); }
 
+    /** 허기·포화·소모를 한 번에 정한다(NMS FoodData 의 setter 들 — 사이에 틱이 끼지 않는다). */
+    public synchronized void setFood(int level, float saturation, float exhaustion) {
+        this.food.foodLevel(Math.clamp(level, 0, 20));
+        this.food.saturationLevel(saturation);
+        this.food.exhaustionLevel(exhaustion);
+    }
+
     // ------------------------------------------------------------------ 이동(낙하·소모)
 
     /**

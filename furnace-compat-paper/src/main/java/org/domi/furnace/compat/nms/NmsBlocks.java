@@ -38,7 +38,10 @@ public final class NmsBlocks {
                 for (var info : type.properties()) first.put(info.name(), info.values().get(0));
                 int base = types.stateId(new org.domi.furnace.api.world.BlockData(type.id(), first));
                 boolean entity = (flags[base] & org.domi.furnace.api.internal.BlockStateInternals.HAS_BLOCK_ENTITY) != 0;   // 바닐라 EntityBlock 구현 블록
-                blocks.add(entity ? new net.minecraft.world.level.block.FurnaceEntityBlock(type, types) : new Block(type, types));
+                // 바닐라 FireBlock·SoulFireBlock 은 BaseFireBlock 이다(플러그인이 instanceof 로 불 블록을 가린다)
+                boolean fire = type.id().equals("minecraft:fire") || type.id().equals("minecraft:soul_fire");
+                blocks.add(entity ? new net.minecraft.world.level.block.FurnaceEntityBlock(type, types)
+                        : fire ? new net.minecraft.world.level.block.BaseFireBlock(type, types) : new Block(type, types));
             }
             blocks.sort(Comparator.comparingInt(Block::furnaceBaseStateId));
             byBase = blocks.toArray(Block[]::new);

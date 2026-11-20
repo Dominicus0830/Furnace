@@ -576,6 +576,47 @@ public interface ChunkInternals {
     record BlockDestroy(boolean destroyed, org.domi.furnace.api.item.ItemStack mainHand, org.domi.furnace.api.item.ItemStack offHand) {}
 
     /**
+     * 접속한 플레이어의 손 칸 지금 값(NMS shim 5번 묶음 — {@code getMainHandItem}). 아무 스레드(인벤토리가 잠금으로 지킨다). 접속하지 않은 플레이어는
+     * IllegalArgumentException. {@code mainHand} 거짓이면 왼손(창 번호 45).
+     */
+    default HandSlot handSlotNow(org.domi.furnace.api.entity.Player player, boolean mainHand) {
+        throw new UnsupportedOperationException("handSlotNow");
+    }
+
+    /** {@link #handSlotNow} 의 결과: 창 번호(주 손은 36 + 고른 핫바 칸, 왼손은 45)와 그 칸의 지금 값. */
+    record HandSlot(int windowSlot, org.domi.furnace.api.item.ItemStack stack) {}
+
+    /** 그 창 칸이 아직 expect(같은 값)이면 now 로 바꾸고 true — 그새 바뀌었으면 손대지 않고 false(비교 교체). 아무 스레드. */
+    default boolean replaceSlotNow(org.domi.furnace.api.entity.Player player, int windowSlot, org.domi.furnace.api.item.ItemStack expect,
+                                   org.domi.furnace.api.item.ItemStack now) {
+        throw new UnsupportedOperationException("replaceSlotNow");
+    }
+
+    /** 플레이어의 허기·포화·소모(바닐라 FoodData). 아무 스레드(바닐라 잠금 안에서 읽는다). */
+    default FoodState foodNow(org.domi.furnace.api.entity.Player player) { throw new UnsupportedOperationException("foodNow"); }
+
+    /** {@link #foodNow} 의 결과. */
+    record FoodState(int level, float saturation, float exhaustion) {}
+
+    /** 허기(0..20 으로 자른다)·포화·소모를 그대로 정한다(바닐라 FoodData 의 setFoodLevel·setSaturation·setExhaustion). 아무 스레드. */
+    default void setFoodNow(org.domi.furnace.api.entity.Player player, int level, float saturation, float exhaustion) {
+        throw new UnsupportedOperationException("setFoodNow");
+    }
+
+    /** 바닐라 {@code Player#causeFoodExhaustion}: 소모를 더한다(바닐라처럼 최대 40, 무적 능력이면 무시). 아무 스레드. */
+    default void causeFoodExhaustionNow(org.domi.furnace.api.entity.Player player, float amount) {
+        throw new UnsupportedOperationException("causeFoodExhaustionNow");
+    }
+
+    /** 바닐라 {@code ItemStack#isCorrectToolForDrops(state)}: 그 도구의 Tool 규칙이 이 블록 상태(상태 번호)를 맞는 도구로 치는가. 고정 표 — 아무 스레드. */
+    default boolean correctToolForDrops(org.domi.furnace.api.item.ItemStack tool, int stateId) {
+        throw new UnsupportedOperationException("correctToolForDrops");
+    }
+
+    /** 바닐라 {@code BlockState#requiresCorrectToolForDrops()}. 모르는 번호면 false. 고정 표 — 아무 스레드. */
+    default boolean stateRequiresCorrectTool(int stateId) { throw new UnsupportedOperationException("stateRequiresCorrectTool"); }
+
+    /**
      * 칸 (x, z) 의 주인 스레드(전역 빌림 포함). Paper {@code Block#getExpDrop(state, level, pos, tool, true)}: 그 상태(state, 블록 상태 번호)의 블록이
      * 부서질 때 줄 경험치 — 표본을 그 레벨의 난수로 뽑고 섬세한 손길이면 0. 청크가 로드되지 않았으면 IllegalStateException.
      */

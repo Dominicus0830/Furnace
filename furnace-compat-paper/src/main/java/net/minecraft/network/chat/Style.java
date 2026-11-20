@@ -8,7 +8,7 @@ import org.domi.furnace.api.text.TriState;
 
 /**
  * 글자 모양(Mojang 이름 shim, H7b, 불변). 값은 Furnace {@link org.domi.furnace.api.text.Style} 이고 바닐라 이름의 읽기·withXxx·applyFormat·
- * applyTo(부모 위에 얹기) 규칙을 입힌다. 클릭·마우스 올림 이벤트(ClickEvent·HoverEvent)는 아직 shim 이 없다(없는 멤버 — 호출 위치에서 실패).
+ * applyTo(부모 위에 얹기) 규칙을 입힌다. 클릭·마우스 올림 이벤트는 {@link ClickEvent}·{@link HoverEvent} 로 Furnace 이벤트에 오간다(NMS shim 5번 묶음).
  */
 public final class Style {
 
@@ -67,6 +67,14 @@ public final class Style {
     public Style withStrikethrough(Boolean v) { return flag(TextDecoration.STRIKETHROUGH, v); }
 
     public Style withObfuscated(Boolean v) { return flag(TextDecoration.OBFUSCATED, v); }
+
+    public ClickEvent getClickEvent() { return ClickEvent.fromFurnace(s.clickEvent()); }
+
+    public HoverEvent getHoverEvent() { return HoverEvent.fromFurnace(s.hoverEvent()); }
+
+    public Style withClickEvent(ClickEvent e) { return with(s.clickEvent(e == null ? null : e.furnace())); }
+
+    public Style withHoverEvent(HoverEvent e) { return with(s.hoverEvent(e == null ? null : e.furnace())); }
 
     public Style withInsertion(String v) { return with(s.insertion(v)); }
 
