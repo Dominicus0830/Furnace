@@ -190,6 +190,109 @@ class NmsBlockBufferTest {
     @Test
     void bufferFromAnotherThread() { bufferFlow(new BlockPos(cx * 16 + 5, baseY, cz * 16 + 5), false); }
 
+    /** 통 블록 엔티티(내용 nbt) — 칸에 넣기 전 객체. */
+    BlockEntity barrel(BlockPos p, BlockState state, String nbt) {
+        BlockEntity be = ((EntityBlock) state.getBlock()).newBlockEntity(p, state);
+        if (nbt != null) be.loadWithComponents(TagParser.parseTag(nbt), reg);
+        return be;
+    }
+
+    static final String EMERALDS = "{Items:[{Slot:1b,id:\"minecraft:emerald\",count:9}]}";
+
+    static String firstItem(CompoundTag saved) { return saved.getList("Items", 10).getCompound(0).getString("id"); }
+
+    /** 이미 블록 엔티티가 있는 칸에 새 객체를 넣으면(바닐라 setBlockEntity) 옛 것은 지움 표시, 서버에는 새 내용 — 지우기→만들기→싣기 차례. */
+    void replaceFlow(BlockPos p, boolean owner) {
+        BlockState east = Blocks.BARREL.defaultBlockState().setValue(BlockStateProperties.FACING, Direction.EAST);
+        List<BlockEntity> made = new ArrayList<>();
+        on(p, () -> { axiomSet(p, east, ITEMS, made); return null; });
+        server.tick(2);
+        BlockEntity old = made.get(0);
+        var oldServer = serverBe(p);
+        assertNotNull(oldServer);
+        Runnable replace = () -> level.getChunkIfLoaded(p.getX() >> 4, p.getZ() >> 4).addAndRegisterBlockEntity(barrel(p, east, EMERALDS));
+        if (owner) on(p, () -> { replace.run(); return null; });
+        else offThread(replace);
+        server.tick(1);
+        var now = serverBe(p);
+        assertNotNull(now);
+        assertFalse(now == oldServer, "새 서버 블록 엔티티");
+        assertEquals("minecraft:emerald", firstItem(on(p, () -> level.getChunkIfLoaded(p.getX() >> 4, p.getZ() >> 4).getBlockEntity(p).saveWithId(reg))),
+                "새 내용이 서버에");
+        assertTrue(old.isRemoved(), "옛 보기는 지움 표시");
+        assertEquals("minecraft:diamond", firstItem(on(p, () -> old.saveWithId(reg))), "옛 보기는 지우기 직전 내용");
+    }
+
+    @Test
+    void replacingABlockEntityOnTheOwnerThread() { replaceFlow(new BlockPos(cx * 16 + 11, baseY, cz * 16 + 3), true); }
+
+    @Test
+    void replacingABlockEntityFromAnotherThread() { replaceFlow(new BlockPos(cx * 16 + 13, baseY, cz * 16 + 3), false); }
+
+    /** Axiom 이 실제로 하듯 다른 스레드의 한 작업 안에서 넣기·상태 바꾸기·싣기가 한꺼번에 쌓이고 한 틱에 맞춰진다. */
+    @Test
+    void manyStepsInOneTaskFromAnotherThread() {
+        BlockPos p = new BlockPos(cx * 16 + 11, baseY, cz * 16 + 7);
+        BlockState east = Blocks.BARREL.defaultBlockState().setValue(BlockStateProperties.FACING, Direction.EAST);
+        BlockState west = east.setValue(BlockStateProperties.FACING, Direction.WEST);
+        List<BlockEntity> made = new ArrayList<>();
+        offThread(() -> {
+            axiomSet(p, east, null, made);
+            axiomSet(p, west, ITEMS, made);   // 같은 칸의 다른 상태: 방금 넣은 것을 다시 찾아 상태를 바꾸고 내용을 싣는다
+        });
+        assertSame(made.get(0), made.get(1), "다른 스레드도 자기가 방금 넣은 블록 엔티티를 다시 찾는다");
+        server.tick(1);
+        assertEquals(west.furnaceStateId(), serverState(p));
+        var sb = serverBe(p);
+        assertNotNull(sb);
+        assertEquals(west.furnaceStateId(), sb.blockState(), "상태 바꾸기가 만들기 뒤에 들어갔다");
+        assertEquals("minecraft:diamond", firstItem(on(p, () -> made.get(0).saveWithId(reg))), "싣기가 만들기 뒤에 들어갔다");
+        // 넣자마자 지우기도 한 작업 안에서
+        BlockPos q = new BlockPos(cx * 16 + 13, baseY, cz * 16 + 7);
+        List<BlockEntity> made2 = new ArrayList<>();
+        offThread(() -> {
+            axiomSet(q, east, ITEMS, made2);
+            level.getChunkIfLoaded(q.getX() >> 4, q.getZ() >> 4).removeBlockEntity(q);
+        });
+        server.tick(1);
+        assertEquals(east.furnaceStateId(), serverState(q), "블록은 그대로");
+        assertNull(serverBe(q), "지우기가 만들기 뒤에 들어갔다");
+        assertTrue(made2.get(0).isRemoved());
+    }
+
+    /** 든 상태가 칸과 다르면(같은 종류가 받는 상태) 경고하고 칸 상태로 맞춘다. 종류가 못 받는 상태면 IllegalStateException, 서버에는 아무것도 안 들어간다. */
+    @Test
+    void heldStateIsAlignedOrRejectedLikeVanilla() {
+        BlockState east = Blocks.BARREL.defaultBlockState().setValue(BlockStateProperties.FACING, Direction.EAST);
+        BlockState west = east.setValue(BlockStateProperties.FACING, Direction.WEST);
+        BlockPos p = new BlockPos(cx * 16 + 11, baseY, cz * 16 + 11);
+        offThread(() -> {
+            LevelChunk chunk = level.getChunkIfLoaded(p.getX() >> 4, p.getZ() >> 4);
+            chunk.getSection(level.getSectionIndexFromSectionY(p.getY() >> 4)).setBlockState(p.getX() & 15, p.getY() & 15, p.getZ() & 15, west, false);
+            BlockEntity be = barrel(p, east, ITEMS);
+            chunk.addAndRegisterBlockEntity(be);
+            assertEquals(west, be.getBlockState(), "칸 상태로 맞춘다");
+        });
+        server.tick(1);
+        var sb = serverBe(p);
+        assertNotNull(sb);
+        assertEquals(west.furnaceStateId(), sb.blockState());
+        // 통 칸에 상자 블록 엔티티: 상자 종류는 통 상태를 못 받는다
+        BlockPos q = new BlockPos(cx * 16 + 13, baseY, cz * 16 + 11);
+        AtomicReference<Throwable> thrown = new AtomicReference<>();
+        offThread(() -> {
+            LevelChunk chunk = level.getChunkIfLoaded(q.getX() >> 4, q.getZ() >> 4);
+            chunk.getSection(level.getSectionIndexFromSectionY(q.getY() >> 4)).setBlockState(q.getX() & 15, q.getY() & 15, q.getZ() & 15, east, false);
+            BlockEntity chest = ((EntityBlock) Blocks.CHEST).newBlockEntity(q, Blocks.CHEST.defaultBlockState());
+            thrown.set(assertThrows(IllegalStateException.class, () -> chunk.addAndRegisterBlockEntity(chest)));
+            assertFalse(chest.furnaceIsView());
+        });
+        assertNotNull(thrown.get());
+        server.tick(1);
+        assertEquals(east.furnaceStateId(), serverState(q), "섹션에 쓴 블록은 들어간다");
+        assertNull(serverBe(q), "블록 엔티티는 안 들어간다");
+    }
+
     @Test
     void addingWhereTheBlockHasNoBlockEntityDoesNothing() {
         BlockPos p = new BlockPos(cx * 16 + 7, baseY, cz * 16 + 7);

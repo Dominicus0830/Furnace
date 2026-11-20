@@ -126,7 +126,7 @@ public class LevelChunk extends ChunkAccess {
     /**
      * Paper: 청크의 블록 엔티티 표(공개 필드). Furnace: 서버 블록 엔티티로 만드는 보기 — 읽기(get·containsKey·entrySet 등)는 {@link #getBlockEntities()} 와 같고,
      * {@code remove(pos)} 는 {@link #removeBlockEntity} 처럼 그 칸의 블록 엔티티를 청크에서 떼고(지움 표시·틱·게임 이벤트까지 — FAWE 의 신호기 지우기가 뒤이어
-     * 리스너·틱을 떼고 지움 필드를 세우는 것과 끝 상태가 같다) 뗀 것을 돌려준다. {@code put} 은 없다(UnsupportedNmsCall — setBlockEntity 길이 아직 없다).
+     * 리스너·틱을 떼고 지움 필드를 세우는 것과 끝 상태가 같다) 뗀 것을 돌려준다. {@code put} 은 없다(UnsupportedNmsCall — 표에 바로 넣으면 setBlockEntity 의 판정·옛 것 지우기를 건너뛴다. 넣기는 {@link #addAndRegisterBlockEntity}).
      */
     public final java.util.Map<net.minecraft.core.BlockPos, net.minecraft.world.level.block.entity.BlockEntity> blockEntities = new java.util.AbstractMap<>() {
         @Override
@@ -149,7 +149,7 @@ public class LevelChunk extends ChunkAccess {
 
         @Override
         public net.minecraft.world.level.block.entity.BlockEntity put(net.minecraft.core.BlockPos key, net.minecraft.world.level.block.entity.BlockEntity value) {
-            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LevelChunk#blockEntities.put", "adding a block entity object to the chunk table directly does not exist yet");
+            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LevelChunk#blockEntities.put", "putting into the chunk table directly skips the setBlockEntity checks; use addAndRegisterBlockEntity");
         }
     };
 
