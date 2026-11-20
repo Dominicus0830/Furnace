@@ -110,4 +110,10 @@ public interface PluginFormat {
      * @param plugins 방금 끈(그리고 곧 다시 읽을) 플러그인
      */
     default void awaitPluginTasks(org.domi.furnace.api.Furnace server, java.util.Collection<FurnacePlugin> plugins, long maxMillis) {}
+
+    /**
+     * 이 형식의 플러그인이 지금까지 밟은 "서버에 없는 것" 표다(T-233). 서버는 운영자가 {@code /furnace compat gaps} 를 부를 때만 묻는다.
+     * 계측은 없는 심볼 자리의 덫 안에서만 일어나므로 정상 호출 비용은 0이다. 기본은 빈 목록.
+     */
+    default java.util.List<CompatGap> compatGaps() { return java.util.List.of(); }
 }

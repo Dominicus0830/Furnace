@@ -34,10 +34,13 @@ public final class NmsTrap {
         if (otherVersionSite(site)) {
             // 다른 버전용 모듈(버전 고르기가 찔러 보는 v1_21_9·v26_1 어댑터 등) 안의 호출은 1.21.1 몫이 아니다 — 같은 대상의 1.21.1 몫 경고는 남겨 둔다
             LOG.debug("Unsupported NMS call (other version module): plugin={}, call site={}, target={}", plugin, site, target);
-        } else if (WARNED.add(plugin + '\0' + target)) {
-            LOG.warn(CompatLang.t("compat.nms-unsupported-call", plugin, site, target, why));
         } else {
-            LOG.debug("Unsupported NMS call: plugin={}, call site={}, target={}", plugin, site, target);
+            NmsGaps.trapped(plugin, target, kind);   // compat gaps 표(T-233) — 덫 안에서만 센다
+            if (WARNED.add(plugin + '\0' + target)) {
+                LOG.warn(CompatLang.t("compat.nms-unsupported-call", plugin, site, target, why));
+            } else {
+                LOG.debug("Unsupported NMS call: plugin={}, call site={}, target={}", plugin, site, target);
+            }
         }
         throw e;
     }
@@ -54,6 +57,7 @@ public final class NmsTrap {
      * 실제로 만들려 할 때 (플러그인, 클래스)당 처음 한 번만 WARN 을 남긴다(정의할 때는 실패한 것이 없어 알리지 않는다).
      */
     public static RuntimeException husk(String plugin, String cls, String parent, String why, String message) {
+        NmsGaps.huskBuilt(plugin, parent, cls);
         if (HUSK_WARNED.add(plugin + '\0' + cls)) {
             LOG.warn(CompatLang.t("compat.nms-class-husk", plugin, cls, parent, why));
         } else {
@@ -74,5 +78,5 @@ public final class NmsTrap {
     }
 
     /** 시험용: 경고 기록을 지운다. */
-    public static void resetWarnings() { WARNED.clear(); HUSK_WARNED.clear(); }
+    public static void resetWarnings() { WARNED.clear(); HUSK_WARNED.clear(); NmsGaps.reset(); }
 }

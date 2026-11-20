@@ -1,4 +1,4 @@
-// Furnace 전용 관리 명령 /furnace threads | regions [개수] | profile | config [all|키] — 멀티스레드 서버의 스레드·region 현황과 틱 시간 요약.
+// Furnace 전용 관리 명령 /furnace threads | regions [개수] | profile | config [all|키] | compat gaps — 멀티스레드 서버의 스레드·region 현황과 틱 시간 요약.
 // 바닐라에 없는 명령이라 BuiltinCommands(바닐라 트리 대조 대상)에 넣지 않고 FurnaceCommands 처럼 기동 때 따로 등록한다. 권한 3(/tick 과 같다).
 // 값은 모두 읽기 전용 계측에서 온다: Regionizer 의 스케줄 계측(큐 지연 분포)·틱 시간 고리·region 관측 사본(자기 잠금 안에서 값만 복사),
 // 전역 스레드의 틱 시간 고리와 대기 작업 수. region 이 소유한 상태(청크·엔티티·플레이어)는 만지지 않는다 — 전역 스레드에서 안전하다.
@@ -46,9 +46,62 @@ public final class FurnaceAdminCommands {
                         .then(argument("filter", Arguments.greedyString())
                                 .suggests((c, b) -> org.domi.furnace.server.command.SharedSuggestions.suggest(configFilters(), b))
                                 .executes(c -> send(c.getSource(), org.domi.furnace.server.config.ConfigDump.render(c.getArgument("filter", String.class))))))
+                .then(literal("compat").then(literal("gaps").executes(c -> compatGaps(c.getSource()))))
                 .then(literal("profile").executes(c -> send(c.getSource(),
                         profileReport(global(c.getSource().getServer()), dims(c.getSource().getServer()), c.getSource().getServer().tickState().rate())))));
     }
+
+    /**
+     * /furnace compat gaps — 호환 어댑터가 모은 "서버에 없는 것" 표를 파일로 내보낸다(T-233, 결정 D2). 서버는 이것을 밖으로 보내지 않는다 —
+     * 운영자가 원할 때 파일을 직접 보내 준다. 파일에는 플러그인 이름·NMS 심볼 이름·횟수만 있고 플레이어·월드·경로 정보는 없다.
+     */
+    private static int compatGaps(CommandSource source) {
+        List<org.domi.furnace.api.plugin.CompatGap> rows = source.getServer().plugins().pluginsImpl().compatGaps();
+        if (rows.isEmpty()) return send(source, List.of(Lang.t("cmd.compat.gaps-none")));
+        java.time.Instant now = java.time.Instant.now();
+        java.nio.file.Path file = java.nio.file.Path.of("compat-gaps-" + GAPS_FILE_TIME.format(now) + ".tsv");
+        try {
+            java.nio.file.Files.writeString(file, gapsTsv(rows, org.domi.furnace.api.GameVersion.MINECRAFT, now), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (java.io.IOException e) {
+            source.sendFailure(Text.text(Lang.t("cmd.compat.gaps-write-failed", file.toString(), e.toString())));
+            return 0;
+        }
+        return send(source, gapsReport(rows, file.toString()));
+    }
+
+    private static final java.time.format.DateTimeFormatter GAPS_FILE_TIME =
+            java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").withZone(java.time.ZoneOffset.UTC);
+
+    /** 내보내는 표(탭 구분, UTF-8). 첫 줄은 형식·판·시각, 둘째 줄은 열 이름. 횟수 많은 순으로 이미 정렬돼 들어온다. */
+    public static String gapsTsv(List<org.domi.furnace.api.plugin.CompatGap> rows, String mc, java.time.Instant at) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("#furnace-compat-gaps\t1\t").append(mc).append('\t').append(at.truncatedTo(java.time.temporal.ChronoUnit.SECONDS)).append('\n');
+        sb.append("plugin\tkind\ttarget\treferenced\tcalls\n");
+        for (var r : rows) {
+            sb.append(tsv(r.plugin())).append('\t').append(r.kind()).append('\t').append(tsv(r.target())).append('\t')
+                    .append(r.referenced() ? "yes" : "no").append('\t').append(r.calls()).append('\n');
+        }
+        return sb.toString();
+    }
+
+    private static String tsv(String s) {
+        return s.replace('\t', ' ').replace('\n', ' ').replace('\r', ' ');
+    }
+
+    public static List<String> gapsReport(List<org.domi.furnace.api.plugin.CompatGap> rows, String file) {
+        List<String> out = new ArrayList<>();
+        long called = rows.stream().filter(r -> r.calls() > 0).count();
+        out.add(Lang.t("cmd.compat.gaps-header", rows.size(), called, file));
+        int n = 0;
+        for (var r : rows) {
+            if (n++ >= GAPS_PREVIEW) break;
+            out.add("  " + Lang.t("cmd.compat.gaps-line", r.plugin(), r.kind(), r.target(), r.calls()));
+        }
+        out.add(Lang.t("cmd.compat.gaps-footer"));
+        return out;
+    }
+
+    private static final int GAPS_PREVIEW = 10;
 
     /** /furnace config 의 자동완성 후보: all 과 모든 키. */
     private static List<String> configFilters() {

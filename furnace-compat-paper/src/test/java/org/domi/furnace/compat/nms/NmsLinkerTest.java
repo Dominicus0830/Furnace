@@ -383,6 +383,10 @@ class NmsLinkerTest {
         assertTrue(r.missing().stream().noneMatch(m -> m.startsWith("net.minecraft.world.item.ItemStack#EMPTY")), "있는 것은 없음에 들지 않는다");
         assertEquals(1, r.gradeC(), "ProtoChunk 하나가 등급 C");
         assertEquals(r.missing().size(), r.gradeC() + r.unknown());
+        // compat gaps(T-233): 말투와 무관한 고정 이름으로 같은 구멍을 담는다
+        assertTrue(r.gaps().contains("class\tnet.minecraft.world.level.chunk.ProtoChunk"), r.gaps().toString());
+        assertTrue(r.gaps().contains("method\tnet.minecraft.server.level.ServerLevel#getProtoChunkAt(1)"), r.gaps().toString());
+        assertEquals(r.missing().size(), r.gaps().size());
         assertTrue(r.present() >= 3, "MinecraftServer·getServer·getServerVersion·ItemStack·EMPTY …: " + r.present());
         assertEquals(r.present() + r.gradeC() + r.unknown(), r.symbols());
         assertEquals(List.copyOf(new java.util.TreeSet<>(r.missing())), r.missing(), "정렬");
@@ -395,6 +399,7 @@ class NmsLinkerTest {
                 Map.of("linky.MyEntity", SUB), Set.of("net.minecraft."));
         NmsCompatReport r = NmsCompatReport.scan("S", jar, NmsSymbols.RUNTIME);
         assertTrue(r.missing().contains("extends linky.MyEntity -> net.minecraft.world.entity.LivingEntity"), r.missing().toString());
+        assertTrue(r.gaps().contains("extends\tlinky.MyEntity -> net.minecraft.world.entity.LivingEntity"), r.gaps().toString());
         assertEquals(1, r.gradeC());
         assertThrows(UnsupportedNmsCall.class, () -> NmsClassTransformer.forJar("S", jar, new NmsClassTransformer.Options(true, false)),
                 "strict 는 정의 거부될 클래스가 있는 jar 를 로드 전에 거절한다");

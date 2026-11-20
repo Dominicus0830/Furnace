@@ -42,10 +42,11 @@ import org.slf4j.LoggerFactory;
  * @param otherVersionSymbols 다른 버전 이름({@code org.bukkit.craftbukkit.v1_20_R3}, {@code net.minecraft.server.v1_8_R3})을 가리킨 심볼 수 — 세지 않았다
  * @param spigotNamed 매니페스트로 보아 Spigot 이름 jar 인가(속성이 없거나 {@code spigot}) — Paper 와 같은 판정
  * @param spigotMapped Spigot 이름 대응표(H7d)로 바꾼 뒤의 이름으로 셌다(대응표가 있고 Spigot 이름 jar 일 때)
+ * @param gaps      없는 심볼의 "종류<TAB>대상"(정렬, 말투와 무관한 고정 이름 — {@link NmsGaps} 가 compat gaps 표로 낸다). 종류는 class·method·field·extends
  */
 public record NmsCompatReport(String plugin, String namespace, int symbols, int present, int gradeC, int unknown,
                               int obfuscatedLooking, List<String> missing, Set<String> ownClasses,
-                              int otherVersionClasses, int otherVersionSymbols, boolean spigotNamed, boolean spigotMapped) {
+                              int otherVersionClasses, int otherVersionSymbols, boolean spigotNamed, boolean spigotMapped, List<String> gaps) {
 
     private static final Logger LOG = LoggerFactory.getLogger("Furnace");
 
@@ -214,6 +215,7 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
         boolean spigotNamed = read.spigotNamed();
         Set<String> seen = new HashSet<>();
         TreeSet<String> missing = new TreeSet<>();
+        TreeSet<String> gaps = new TreeSet<>();
         int[] counts = new int[6];   // present, gradeC, unknown, obf, 다른 버전 클래스, 다른 버전 심볼
         SpigotRemapper sp = spigot != null && spigotNamed ? new SpigotRemapper(spigot, index, own) : null;
         Remapper suffix = sp == null ? new Remapper() {
@@ -236,7 +238,7 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
         };
         for (byte[] b : candidates) {
             try {
-                new ClassReader(b).accept(new ClassRemapper(new Collector(index, own, seen, missing, counts, sink), suffix),
+                new ClassReader(b).accept(new ClassRemapper(new Collector(index, own, seen, missing, gaps, counts, sink), suffix),
                         ClassReader.SKIP_FRAMES | ClassReader.SKIP_DEBUG);
             } catch (RuntimeException ignored) {
                 // 읽지 못하는 클래스 — 보고에서 뺀다
@@ -244,7 +246,7 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
         }
         int total = counts[0] + counts[1] + counts[2];
         return new NmsCompatReport(plugin, namespace, total, counts[0], counts[1], counts[2], counts[3], List.copyOf(missing), Set.copyOf(own),
-                counts[4], counts[5], spigotNamed, sp != null);
+                counts[4], counts[5], spigotNamed, sp != null, List.copyOf(gaps));
     }
 
     /** 로드 로그. NMS 에 닿지 않는 jar 는 아무것도 남기지 않는다. */
@@ -261,6 +263,7 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
         String other = otherVersionClasses + otherVersionSymbols > 0
                 ? " " + CompatLang.t("compat.nms-other-version", otherVersionClasses, otherVersionSymbols)
                 : "";
+        NmsGaps.referenced(plugin, gaps);
         LOG.info(CompatLang.t("compat.nms-summary", plugin, symbols, present, gradeC, unknown,
                 NAMESPACE_ASSUMED.equals(namespace) ? CompatLang.t("compat.nms-namespace-assumed") : namespace, hint, other));
         if (!missing.isEmpty()) {
@@ -276,18 +279,20 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
         private final Set<String> own;
         private final Set<String> seen;
         private final Set<String> missing;
+        private final Set<String> gaps;
         private final int[] counts;
         private final java.util.function.Consumer<String[]> sink;   // 점검 도구용(null 이면 안 쓴다)
 
         private boolean skip;   // 다른 버전용 모듈 클래스
 
-        Collector(NmsSymbols index, Set<String> own, Set<String> seen, Set<String> missing, int[] counts, java.util.function.Consumer<String[]> sink) {
+        Collector(NmsSymbols index, Set<String> own, Set<String> seen, Set<String> missing, Set<String> gaps, int[] counts, java.util.function.Consumer<String[]> sink) {
             super(Opcodes.ASM9);
             this.sink = sink;
             this.index = index;
             this.own = own;
             this.seen = seen;
             this.missing = missing;
+            this.gaps = gaps;
             this.counts = counts;
         }
 
@@ -309,6 +314,7 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
             if (index.hasClass(e)) counts[0]++;
             else {
                 if (sink != null) sink.accept(new String[] {"C", e, "", ""});
+                gaps.add("class\t" + NmsLinker.dots(e));
                 miss(e, NmsLinker.dots(e), false);
             }
         }
@@ -325,13 +331,17 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
             boolean ok = field ? index.hasField(owner, name, desc) : index.hasMethod(owner, name, desc);
             if (ok && !field && name.equals("<init>") && sendUnsupported(e)) {
                 // 생성 패킷 중 보내기 다리가 아직 없는 것: 만들 수는 있지만 보내면 UnsupportedNmsCall — 보고·strict 에서 미지원으로 센다
+                gaps.add("method\t" + NmsLinker.dots(owner) + "#<init>(" + Type.getArgumentTypes(desc).length + ")");
                 miss(owner, CompatLang.t("nms.report.packet-ctor", NmsLinker.dots(owner), Type.getArgumentTypes(desc).length), false);
                 return;
             }
             if (!ok && sink != null) sink.accept(new String[] {field ? "F" : "M", owner, name, desc});
             if (ok) counts[0]++;
-            else miss(owner, NmsLinker.dots(owner) + "#" + name + (field ? "" : "(" + Type.getArgumentTypes(desc).length + ")"),
-                    name.length() <= 2 && !name.equals("<init>"));
+            else {
+                String sym = NmsLinker.dots(owner) + "#" + name + (field ? "" : "(" + Type.getArgumentTypes(desc).length + ")");
+                gaps.add((field ? "field" : "method") + "\t" + sym);
+                miss(owner, sym, name.length() <= 2 && !name.equals("<init>"));
+            }
         }
 
         private void methodType(String desc) {
@@ -367,6 +377,7 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
                 if (seen.add("S " + name)) {
                     if (sink != null) sink.accept(new String[] {"X", name, name, superName});
                     counts[1]++;
+                    gaps.add("extends\t" + NmsLinker.dots(name) + " -> " + NmsLinker.dots(superName));
                     missing.add(CompatLang.t("nms.report.extends", NmsLinker.dots(name), NmsLinker.dots(superName)));
                 }
             } else if (superName != null) {
