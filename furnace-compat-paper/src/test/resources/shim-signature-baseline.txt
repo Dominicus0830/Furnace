@@ -410,6 +410,7 @@ super	net/minecraft/server/level/ServerChunkCache$MainThreadExecutor	-	shim=java
 super	net/minecraft/server/packs/PathPackResources	-	shim=java/lang/Object ref=#04d911169251	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	net/minecraft/stats/Stat	-	shim=java/lang/Object ref=#18a7b5b96f4f	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	net/minecraft/world/RandomSequences	-	shim=java/lang/Object ref=#3df556e437e9	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+super	net/minecraft/world/entity/ai/village/poi/PoiManager	-	shim=java/lang/Object ref=#fb4f299dafde	의도 — 관심 지점은 서버가 청크마다 들고 있어 구역 저장소(파일·코덱)를 상속하지 않는다. shim 은 ServerLevel#getPoiManager 로 얻는 보기이고 넣기·지우기를 서버의 같은 코드로 넘긴다(NMS shim 5d)
 super	net/minecraft/world/entity/animal/CatVariant	-	shim=java/lang/Object ref=#e7f93413726d	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	net/minecraft/world/entity/animal/FrogVariant	-	shim=java/lang/Object ref=#e7f93413726d	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	net/minecraft/world/entity/animal/armadillo/Armadillo	-	shim=java/lang/Object ref=#77e17197e612	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다

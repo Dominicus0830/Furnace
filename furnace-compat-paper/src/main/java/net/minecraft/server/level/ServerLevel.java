@@ -27,6 +27,10 @@ public class ServerLevel extends Level implements net.minecraft.world.level.Worl
     private final boolean scratch;
     private final boolean debug;
     private volatile net.minecraft.world.RandomSequences randomSequences;
+    private final net.minecraft.world.entity.ai.village.poi.PoiManager poiManager = net.minecraft.world.entity.ai.village.poi.PoiManager.furnaceFor(this);
+
+    /** 바닐라: 이 레벨의 관심 지점 저장소(NMS shim 5d — 서버 POI 를 바꾸는 보기, 아무 스레드). */
+    public net.minecraft.world.entity.ai.village.poi.PoiManager getPoiManager() { return poiManager; }
 
     /** 호환 모듈 전용(CraftWorld 가 만든다). */
     public ServerLevel(CraftWorld world) {

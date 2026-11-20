@@ -224,4 +224,61 @@ class NmsBlockBufferTest {
         it.next();
         assertThrows(UnsupportedOperationException.class, it::remove);
     }
+
+    // ------------------------------------------------------------------ 5d-2 관심 지점(Axiom: 옛·새 상태의 종류가 다르면 지우고 넣는다)
+
+    org.domi.furnace.server.world.poi.PoiType serverPoi(BlockPos p) {
+        return on(p, () -> server.internals().world().regionizer().ownerOf(p.getX() >> 4, p.getZ() >> 4).level().poiManager()
+                .getType(new org.domi.furnace.server.block.Pos(p.getX(), p.getY(), p.getZ())));
+    }
+
+    @Test
+    void poiTypesComeFromTheVanillaTable() {
+        var reg = net.minecraft.core.registries.BuiltInRegistries.POINT_OF_INTEREST_TYPE;
+        assertEquals(20, reg.size());
+        var hive = net.minecraft.world.entity.ai.village.poi.PoiTypes.forState(Blocks.BEEHIVE.defaultBlockState()).orElseThrow();
+        assertSame(hive, net.minecraft.world.entity.ai.village.poi.PoiTypes.forState(Blocks.BEEHIVE.defaultBlockState()).orElseThrow(), "같은 종류는 같은 손잡이");
+        assertTrue(hive.is(net.minecraft.world.entity.ai.village.poi.PoiTypes.BEEHIVE));
+        assertEquals(0, hive.value().maxTickets());
+        assertTrue(hive.value().is(Blocks.BEEHIVE.defaultBlockState()));
+        var meeting = net.minecraft.world.entity.ai.village.poi.PoiTypes.forState(Blocks.BELL.defaultBlockState()).orElseThrow();
+        assertTrue(meeting.is(net.minecraft.world.entity.ai.village.poi.PoiTypes.MEETING));
+        assertEquals(32, meeting.value().maxTickets());
+        assertEquals(6, meeting.value().validRange());
+        assertTrue(net.minecraft.world.entity.ai.village.poi.PoiTypes.forState(Blocks.STONE.defaultBlockState()).isEmpty());
+        // 침대는 머리 쪽만(바닐라 BEDS)
+        BlockState foot = Blocks.RED_BED.defaultBlockState();
+        BlockState head = foot.setValue(BlockStateProperties.BED_PART, net.minecraft.world.level.block.state.properties.BedPart.HEAD);
+        assertFalse(net.minecraft.world.entity.ai.village.poi.PoiTypes.hasPoi(foot));
+        assertTrue(net.minecraft.world.entity.ai.village.poi.PoiTypes.forState(head).orElseThrow().is(net.minecraft.world.entity.ai.village.poi.PoiTypes.HOME));
+        assertSame(reg.getHolderOrThrow(net.minecraft.world.entity.ai.village.poi.PoiTypes.LODESTONE),
+                net.minecraft.world.entity.ai.village.poi.PoiTypes.forState(Blocks.LODESTONE.defaultBlockState()).orElseThrow());
+    }
+
+    void poiFlow(BlockPos p, boolean owner) {
+        var poi = level.getPoiManager();
+        assertSame(poi, level.getPoiManager());
+        var lodestone = net.minecraft.world.entity.ai.village.poi.PoiTypes.forState(Blocks.LODESTONE.defaultBlockState()).orElseThrow();
+        Runnable add = () -> poi.add(p, lodestone), remove = () -> poi.remove(p);
+        if (owner) on(p, () -> { add.run(); return null; });
+        else offThread(add);
+        server.tick(2);
+        assertEquals("minecraft:lodestone", serverPoi(p).name());
+        if (owner) on(p, () -> { remove.run(); return null; });
+        else offThread(remove);
+        server.tick(2);
+        assertNull(serverPoi(p));
+    }
+
+    @Test
+    void poiOnTheOwnerThread() { poiFlow(new BlockPos(cx * 16 + 7, baseY, cz * 16 + 7), true); }
+
+    @Test
+    void poiFromAnotherThread() { poiFlow(new BlockPos(cx * 16 + 9, baseY, cz * 16 + 9), false); }
+
+    @Test
+    void poiTypesOutsideTheRegistryAreRejected() {
+        var odd = net.minecraft.core.Holder.direct(new net.minecraft.world.entity.ai.village.poi.PoiType(java.util.Set.of(), 1, 1));
+        assertThrows(UnsupportedNmsCall.class, () -> level.getPoiManager().add(new BlockPos(cx * 16, baseY, cz * 16), odd));
+    }
 }
