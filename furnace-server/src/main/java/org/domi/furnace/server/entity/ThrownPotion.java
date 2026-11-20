@@ -1,7 +1,13 @@
-// 바닐라 ThrownPotion(투척/지속 물약 공통): 맞으면 반경 4×2×4 안 생물에게 효과(거리 비례), 물이면 불을 끈다. TODO: 물병의 화로·모닥불 끄기/물 감응 몹 피해(일부).
+// 바닐라 ThrownPotion(투척/지속 물약 공통): 맞으면 반경 4×2×4 안 생물에게 효과(거리 비례), 물이면 불·양초·모닥불과 불붙은 몹을 끄고 물 감응 몹을 다치게 한다.
 package org.domi.furnace.server.entity;
 
+import org.domi.furnace.server.block.B;
+import org.domi.furnace.server.block.BlockActor;
 import org.domi.furnace.server.block.ChunkLevel;
+import org.domi.furnace.server.block.Dir;
+import org.domi.furnace.server.block.Pos;
+import org.domi.furnace.server.block.types.AbstractCandleBlock;
+import org.domi.furnace.server.block.types.CampfireBlock;
 import org.domi.furnace.server.effect.MobEffectInstance;
 
 public class ThrownPotion extends ThrowableProjectile {
@@ -12,18 +18,37 @@ public class ThrownPotion extends ThrowableProjectile {
 
     @Override protected double defaultGravity() { return 0.05; }
 
-    @Override
-    protected void onHitEntity(Hit hit) { splash(hit.target()); }
-
+    /** onHitBlock: 물 물약이면 맞은 칸 바깥쪽(면 맞은편 포함)과 그 수평 네 칸의 불을 끈다. 터뜨림은 onHit(바닐라 순서). */
     @Override
     protected void onHitBlock(Hit hit) {
         super.onHitBlock(hit);
-        splash(null);
+        if (hit.blockPos() != null && Consuming.isWaterPotion(getItem())) {
+            Pos front = hit.blockPos().relative(hit.face());
+            dowseFire(front);
+            dowseFire(front.relative(Dir.opposite(hit.face())));
+            for (int d : Dir.HORIZONTAL) dowseFire(front.relative(d));
+        }
     }
 
+    /** ThrownPotion.dowseFire: 불 태그면 지우고, 켜진 양초면 끄고, 켜진 모닥불이면 소리(1009)·dowse·꺼짐. */
+    private void dowseFire(Pos pos) {
+        int s = level.getBlockState(pos);
+        if (B.isTag(s, "minecraft:fire")) {
+            level.removeBlock(pos, false);
+        } else if (AbstractCandleBlock.isLit(s)) {
+            AbstractCandleBlock.extinguish(null, s, level, pos);
+        } else if (CampfireBlock.isLitCampfire(s)) {
+            level.levelEvent(null, 1009, pos, 0);
+            CampfireBlock.dowse(getOwner() instanceof BlockActor a ? a : null, level, pos, s);
+            level.setBlockAndUpdate(pos, CampfireBlock.withoutLit(s));
+        }
+    }
+
+    /** onHit: 부딪힘 처리(블록 불 끄기·projectile_land) 뒤에 터뜨린다. 직접 맞은 대상은 엔티티 적중일 때만. */
     @Override
     protected void onHit(Hit hit) {
         super.onHit(hit);
+        splash(hit.isEntity() ? hit.target() : null);
     }
 
     private void splash(Targetable direct) {
@@ -68,6 +93,7 @@ public class ThrownPotion extends ThrowableProjectile {
                 if (le.isOnFire() && le.isAlive()) le.clearFire();
             }
         }
+        for (Entity e : level.getEntities(this, box, x -> x instanceof Axolotl)) ((Axolotl) e).rehydrate();
     }
 
     private void applySplash(java.util.List<MobEffectInstance> effects, Targetable direct) {
