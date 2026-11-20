@@ -126,6 +126,9 @@ public abstract class BlockBehaviour {
         /** 바닐라: 블록 클래스의 isSignalSource 재정의(레드스톤 가루·횃불·레버·단추 …). */
         public boolean isSignalSource() { return (flagBits() & org.domi.furnace.api.internal.BlockStateInternals.SIGNAL_SOURCE) != 0; }
 
+        /** 바닐라 캐시값: 빛 가림에 모양을 쓰는가(반 블록·계단 등 — 서버 빛 표와 같은 값). */
+        public boolean useShapeForLightOcclusion() { return (flagBits() & org.domi.furnace.api.internal.BlockStateInternals.USE_SHAPE_FOR_LIGHT) != 0; }
+
         public int getLightEmission() { return org.domi.furnace.compat.nms.NmsBlockStates.table().lightEmission()[furnaceStateId]; }
 
         /**

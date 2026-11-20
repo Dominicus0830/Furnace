@@ -152,11 +152,13 @@ public interface ChunkInternals {
      *   <li>FROM_NEIGHBOUR_SHAPES(a 상태): Block.updateFromNeighbourShapes — 새 상태</li>
      *   <li>SCHEDULE_BLOCK_TICK(a 블록, b 지연, c 우선순위 -3..3): LevelAccessor.scheduleTick(pos, Block, …) — 그 칸 청크가 없으면 순번만 쓰고 버린다(바닐라)</li>
      *   <li>SCHEDULE_FLUID_TICK(a 유체 종류 0..4 — 빈 것·흐르는 물·물·흐르는 용암·용암, b 지연, c 우선순위): LevelAccessor.scheduleTick(pos, Fluid, …)</li>
+     *   <li>POI_ADD(a 관심 지점 종류 번호 — {@link BlockStateInternals#poiTypes()} 인덱스): PoiManager.add(pos, type) — 그 칸 블록과 상관없이 넣는다(바닐라)</li>
+     *   <li>POI_REMOVE: PoiManager.remove(pos) — 없으면 바닐라처럼 오류 기록만</li>
      * </ul>
      */
     int EFFECT_SEND_BLOCK_UPDATED = 0, EFFECT_BLOCK_CHANGED = 1, EFFECT_UPDATE_NEIGHBORS = 2, EFFECT_OUTPUT_SIGNAL = 3, EFFECT_POI = 4,
             EFFECT_ON_PLACE = 5, EFFECT_NEIGHBOR_CHANGED = 6, EFFECT_NEIGHBOUR_SHAPES = 7, EFFECT_INDIRECT_SHAPES = 8, EFFECT_TRIGGER_EVENT = 9,
-            EFFECT_FROM_NEIGHBOUR_SHAPES = 10, EFFECT_SCHEDULE_BLOCK_TICK = 11, EFFECT_SCHEDULE_FLUID_TICK = 12;
+            EFFECT_FROM_NEIGHBOUR_SHAPES = 10, EFFECT_SCHEDULE_BLOCK_TICK = 11, EFFECT_SCHEDULE_FLUID_TICK = 12, EFFECT_POI_ADD = 13, EFFECT_POI_REMOVE = 14;
 
     /**
      * 그 칸의 주인 스레드에서 쪼갠 Level.setBlock 조각 하나를 서버의 같은 코드로 한다(T-204). 원점 칸의 청크가 로드돼 있지 않으면 -1, 값이 있는 종류는
@@ -386,6 +388,14 @@ public interface ChunkInternals {
      * 부르는 쪽이 setChanged 등을 고른다). 지워진(떨어진) 블록 엔티티에도 싣는다(그 객체에만 남는다). 싣지 못하면 false.
      */
     boolean blockEntityLoadNow(World world, Object blockEntity, org.domi.furnace.api.nbt.NbtCompound tag);
+
+    /**
+     * 주인 스레드: 바닐라 BlockEntity.setBlockState — 블록 엔티티가 든 상태만 바꾼다(칸의 블록·저장 표시·패킷은 그대로, NMS shim 5d). 서버가 해석하지 못하는
+     * 생성 블록 엔티티나 지워진 것은 false.
+     */
+    default boolean blockEntitySetStateNow(World world, Object blockEntity, int stateId) {
+        throw new UnsupportedOperationException("blockEntitySetStateNow");
+    }
 
     /**
      * 손잡이의 클라이언트 갱신 태그(바닐라 getUpdatePacket 이 싣는 getUpdateTag — Paper 처럼 영속 데이터를 뺀 것, 새 트리). 그 종류가 갱신 패킷을 보내지

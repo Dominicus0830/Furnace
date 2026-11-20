@@ -10,7 +10,9 @@ public interface BlockStateInternals {
             /** 바닐라 hasAnalogOutputSignal(비교기가 읽는 블록, T-204). */
             ANALOG_OUTPUT = 64,
             /** 바닐라 hasPostProcess(마그마 블록·갈색·빨간 버섯 — Properties.hasPostProcess(Blocks::always), T-204). */
-            POST_PROCESS = 128;
+            POST_PROCESS = 128,
+            /** 바닐라 useShapeForLightOcclusion(빛 가림에 모양을 쓰는 상태 — 반 블록·계단 등, NMS shim 5d). */
+            USE_SHAPE_FOR_LIGHT = 256;
 
     /**
      * 상태 번호를 인덱스로 하는 표다(배열 길이는 상태 수).
@@ -36,4 +38,13 @@ public interface BlockStateInternals {
      * 블록 엔티티를 만들지 않는 블록(EntityBlock 이 아님, 움직이는 피스톤)이면 null. 새 객체. 아무 스레드(월드에 닿지 않는다).
      */
     org.domi.furnace.api.nbt.NbtCompound defaultBlockEntityNbt(int stateId);
+
+    /** 바닐라 PoiTypes 의 관심 지점 종류 하나: 레지스트리 이름(예 "minecraft:home"), 최대 티켓 수, 유효 거리. */
+    record PoiTypeRow(String name, int maxTickets, int validRange) {}
+
+    /** 관심 지점 종류 전부, 바닐라 등록 차례(= 레지스트리 번호, NMS shim 5d). */
+    java.util.List<PoiTypeRow> poiTypes();
+
+    /** 그 상태가 속한 관심 지점 종류의 번호({@link #poiTypes()} 의 인덱스), 없으면 -1(바닐라 PoiTypes.forState). */
+    int poiType(int stateId);
 }

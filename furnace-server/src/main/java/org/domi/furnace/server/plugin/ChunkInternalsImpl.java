@@ -259,7 +259,8 @@ final class ChunkInternalsImpl implements ChunkInternals {
     private static final String[] EFFECT_NAMES = {"Level#sendBlockUpdated", "ServerChunkCache#blockChanged", "Level#updateNeighborsAt",
             "Level#updateNeighbourForOutputSignal", "Level#onBlockStateChange", "BlockState#onPlace", "BlockState#handleNeighborChanged",
             "BlockState#updateNeighbourShapes", "BlockState#updateIndirectNeighbourShapes", "BlockState#triggerEvent", "Block#updateFromNeighbourShapes",
-            "Level#scheduleTick(Block)", "Level#scheduleTick(Fluid)"};
+            "Level#scheduleTick(Block)", "Level#scheduleTick(Fluid)",
+            "PoiManager#add", "PoiManager#remove"};
 
     /** T-204: 쪼갠 Level.setBlock 조각 — 서버 setBlock 과 같은 코드(ChunkLevel·BlockBehavior·B). */
     @Override
@@ -276,6 +277,16 @@ final class ChunkInternalsImpl implements ChunkInternals {
             } else {
                 if (a < 0 || a > 4) throw new IllegalArgumentException("unknown fluid type " + a);
                 lv.scheduleFluidTick(p, a, b, c);
+            }
+            return 0;
+        }
+        if (kind == EFFECT_POI_ADD || kind == EFFECT_POI_REMOVE) {
+            Pos p = new Pos(x, y, z);
+            if (kind == EFFECT_POI_REMOVE) lv.poiManager().remove(p);
+            else {
+                var types = org.domi.furnace.server.world.poi.PoiTypes.all();
+                if (a < 0 || a >= types.size()) throw new IllegalArgumentException("unknown poi type " + a);
+                lv.poiManager().add(p, types.get(a));
             }
             return 0;
         }
@@ -645,6 +656,14 @@ final class ChunkInternalsImpl implements ChunkInternals {
         if (!be.hasUpdatePacket()) return null;
         var t = be.sentUpdateTag();
         return ApiNbt.toApi((org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.thaw(org.domi.furnace.server.net.io.nbt.NbtTags.copy(t)));
+    }
+
+    @Override
+    public boolean blockEntitySetStateNow(org.domi.furnace.api.world.World world, Object blockEntity, int stateId) {
+        if (!(blockEntity instanceof org.domi.furnace.server.block.entity.BlockEntity be)) return false;
+        if (ownedLevel(world, be.pos().x(), be.pos().z(), "BlockEntity#setBlockState") == null || be.isRemoved()) return false;
+        be.setBlockState(stateId);
+        return true;
     }
 
     @Override

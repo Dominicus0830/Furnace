@@ -12,7 +12,7 @@ import org.slf4j.LoggerFactory;
  * 쪼갠 {@code Level#setBlock} 조각(T-204 설계 2·3장) — FAWE NativeAccess 등이 부르는 부수 효과 NMS 메서드가 서버의 같은 코드({@code ChunkLevel.setBlock} 의
  * 조각)를 부르는 길. 원점 칸의 주인 region 스레드(전역 빌림 포함)면 원점과 둘레 청크 거울을 먼저 맞추고 바로 한다.
  * <ul>
- *   <li>값이 없는 조각(이웃 갱신·변경 방송·POI·놓기 반응·모양 갱신): 다른 스레드면 주인 region 작업으로 넘긴다(기다리지 않음 — 받은 스레드가 주인이 아니면
+ *   <li>값이 없는 조각(이웃 갱신·변경 방송·POI·POI 넣기·지우기·놓기 반응·모양 갱신): 다른 스레드면 주인 region 작업으로 넘긴다(기다리지 않음 — 받은 스레드가 주인이 아니면
  *       한 번 다시 보낸다). 주인은 원점과 둘레 청크의 거울을 맞춘 뒤 한다 — 앞서 그 청크들에 쓴 것(일지·섹션 교체)이 먼저 들어간다. 바닐라·Paper 보다 최대 한 틱 늦다(Paper 에서는 경쟁 호출이다 — 설계 9장 가정).</li>
  *   <li>값이 있는 조각(triggerEvent·updateFromNeighbourShapes): {@link NmsOwner} 규칙(틱 스레드가 아니면 기다림, region·전역 스레드는 ThreadOwnershipException).</li>
  * </ul>
@@ -97,7 +97,7 @@ public final class NmsEffects {
      */
     private static void syncAround(World w, int kind, int x, int y, int z) {
         int cx = x >> 4, cz = z >> 4;
-        int r = kind == SEND_BLOCK_UPDATED || kind == BLOCK_CHANGED || kind == POI || kind == SCHEDULE_BLOCK_TICK || kind == SCHEDULE_FLUID_TICK ? 0 : 1;
+        int r = kind == SEND_BLOCK_UPDATED || kind == BLOCK_CHANGED || kind == POI || kind == POI_ADD || kind == POI_REMOVE || kind == SCHEDULE_BLOCK_TICK || kind == SCHEDULE_FLUID_TICK ? 0 : 1;
         var b = NmsChunks.bridge();
         for (int dz = -r; dz <= r; dz++) {
             for (int dx = -r; dx <= r; dx++) {
@@ -121,5 +121,6 @@ public final class NmsEffects {
             ON_PLACE = ChunkInternals.EFFECT_ON_PLACE, NEIGHBOR_CHANGED = ChunkInternals.EFFECT_NEIGHBOR_CHANGED,
             NEIGHBOUR_SHAPES = ChunkInternals.EFFECT_NEIGHBOUR_SHAPES, INDIRECT_SHAPES = ChunkInternals.EFFECT_INDIRECT_SHAPES,
             TRIGGER_EVENT = ChunkInternals.EFFECT_TRIGGER_EVENT, FROM_NEIGHBOUR_SHAPES = ChunkInternals.EFFECT_FROM_NEIGHBOUR_SHAPES,
-            SCHEDULE_BLOCK_TICK = ChunkInternals.EFFECT_SCHEDULE_BLOCK_TICK, SCHEDULE_FLUID_TICK = ChunkInternals.EFFECT_SCHEDULE_FLUID_TICK;
+            SCHEDULE_BLOCK_TICK = ChunkInternals.EFFECT_SCHEDULE_BLOCK_TICK, SCHEDULE_FLUID_TICK = ChunkInternals.EFFECT_SCHEDULE_FLUID_TICK,
+            POI_ADD = ChunkInternals.EFFECT_POI_ADD, POI_REMOVE = ChunkInternals.EFFECT_POI_REMOVE;
 }

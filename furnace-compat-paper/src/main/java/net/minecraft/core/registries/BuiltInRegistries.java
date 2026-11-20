@@ -34,4 +34,5 @@ public final class BuiltInRegistries {
     public static final Registry<net.minecraft.world.entity.ai.attributes.Attribute> ATTRIBUTE = org.domi.furnace.compat.nms.NmsAttributes.registry();
     public static final Registry<net.minecraft.world.level.block.entity.BlockEntityType<?>> BLOCK_ENTITY_TYPE = org.domi.furnace.compat.nms.NmsBlockEntityTypes.registry();
     public static final Registry<MapDecorationType> MAP_DECORATION_TYPE = NmsMapDecorations.registry();
+    public static final Registry<net.minecraft.world.entity.ai.village.poi.PoiType> POINT_OF_INTEREST_TYPE = org.domi.furnace.compat.nms.NmsPoiTypes.registry();
 }

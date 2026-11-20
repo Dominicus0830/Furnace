@@ -50,6 +50,7 @@ final class BlockStateInternalsImpl implements BlockStateInternals {
             if (info.hasBlockEntity(s)) f |= HAS_BLOCK_ENTITY;
             if (BlockBehaviors.of(s).hasAnalogOutputSignal(s)) f |= ANALOG_OUTPUT;
             if (org.domi.furnace.server.world.gen.feature.BlockStates.hasPostProcess(blocks.name(b))) f |= POST_PROCESS;
+            if (LightTables.useShapeForLightOcclusion(s)) f |= USE_SHAPE_FOR_LIGHT;
             flags[s] = (short) f;
             destroy[s] = info.destroyTime(b);
             resistance[s] = info.explosionResistance(b);
@@ -139,5 +140,24 @@ final class BlockStateInternalsImpl implements BlockStateInternals {
             tag.putString("id", be.type());
         }
         return ApiNbt.toApi(tag);
+    }
+
+    private volatile java.util.List<PoiTypeRow> poiTypes;
+
+    @Override
+    public java.util.List<PoiTypeRow> poiTypes() {
+        var l = poiTypes;
+        if (l == null) {
+            l = org.domi.furnace.server.world.poi.PoiTypes.all().stream()
+                    .map(t -> new PoiTypeRow(t.name(), t.maxTickets(), t.validRange())).toList();
+            poiTypes = l;
+        }
+        return l;
+    }
+
+    @Override
+    public int poiType(int stateId) {
+        var t = org.domi.furnace.server.world.poi.PoiTypes.forState(stateId);
+        return t == null ? -1 : t.index();
     }
 }

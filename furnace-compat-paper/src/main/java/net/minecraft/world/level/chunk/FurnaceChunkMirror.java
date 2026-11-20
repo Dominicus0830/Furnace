@@ -49,7 +49,7 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
 
     private static final int SECTION_SET = 0, CONTAINER_SET = 1, BIOME_SET = 2, CHUNK_SET = 3, HM_RAW = 4, HM_UPDATE = 5, UNSAVED = 6;
     /** 블록 엔티티 일지(T-198): 지우기·만들기(IMMEDIATE)·싣기(loadWithComponents)·setChanged. target 은 그 보기, extra 는 실을 NBT. */
-    private static final int BE_REMOVE = 7, BE_CREATE = 8, BE_LOAD = 9, BE_CHANGED = 10;
+    private static final int BE_REMOVE = 7, BE_CREATE = 8, BE_LOAD = 9, BE_CHANGED = 10, BE_STATE = 11;
     /** 블록 엔티티 덧칠의 "지웠다" 표시. */
     static final Object BE_REMOVED = new Object();
 
@@ -483,6 +483,10 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
                     if (h != null) b.blockEntityLoadNow(world, h, (org.domi.furnace.api.nbt.NbtCompound) op.extra);
                 }
                 case BE_CHANGED -> b.blockEntityChangedNow(world, op.x, op.y, op.z);
+                case BE_STATE -> {
+                    Object h = ChunkAccess.furnaceBindNow(world, (net.minecraft.world.level.block.entity.BlockEntity) op.target);
+                    if (h != null) b.blockEntitySetStateNow(world, h, op.id);
+                }
                 case SECTION_SET -> b.setSectionStateRawNow(world, cx, op.slot, cz, op.cell, op.id, true);
                 case CONTAINER_SET -> b.setSectionStateRawNow(world, cx, op.slot, cz, op.cell, op.id, false);
                 case BIOME_SET -> b.setSectionBiomeRawNow(world, cx, op.slot, cz, op.cell, op.id);
@@ -710,6 +714,16 @@ final class FurnaceChunkMirror implements ChunkInternals.ChunkMirror {
         synchronized (lock) {
             if (dead) return;
             journal.add(new Op(BE_LOAD, -1, 0, 0, p.getX(), p.getY(), p.getZ(), false, null, null, view, ++seq, tag));
+        }
+        noteWrite();
+    }
+
+    /** BlockEntity#setBlockState·다른 스레드: 주인이 그 보기의 블록 엔티티가 든 상태를 바꾼다(NMS shim 5d). */
+    void blockEntityState(net.minecraft.world.level.block.entity.BlockEntity view, int stateId) {
+        var p = view.getBlockPos();
+        synchronized (lock) {
+            if (dead) return;
+            journal.add(new Op(BE_STATE, -1, 0, stateId, p.getX(), p.getY(), p.getZ(), false, null, null, view, ++seq, null));
         }
         noteWrite();
     }

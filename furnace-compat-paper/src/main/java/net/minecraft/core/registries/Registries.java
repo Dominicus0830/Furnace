@@ -22,7 +22,7 @@ public final class Registries {
     public static final ResourceKey<Registry<Object>> GAME_EVENT = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("game_event"));
     public static final ResourceKey<Registry<Object>> INSTRUMENT = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("instrument"));
     public static final ResourceKey<Registry<Object>> CAT_VARIANT = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("cat_variant"));
-    public static final ResourceKey<Registry<Object>> POINT_OF_INTEREST_TYPE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("point_of_interest_type"));
+    public static final ResourceKey<Registry<net.minecraft.world.entity.ai.village.poi.PoiType>> POINT_OF_INTEREST_TYPE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("point_of_interest_type"));
     public static final ResourceKey<Registry<Object>> DATA_COMPONENT_TYPE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("data_component_type"));
     public static final ResourceKey<Registry<Object>> POTION = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("potion"));
     public static final ResourceKey<Registry<net.minecraft.world.effect.MobEffect>> MOB_EFFECT = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("mob_effect"));
