@@ -53,6 +53,9 @@ public final class NmsItemUse {
             apply(held, used);
             out = held;
         } else {
+            // 바닐라 ItemUtils.createFilledResult(양동이·병 채우기): 손의 그 객체를 하나 줄이고(1 개면 빈 스택) 채운 것을 돌려준다. 다른 종류를
+            // 돌려주는 Item#use 는 이 길뿐이다(2 개 이상이면 줄인 손 객체를 돌려주므로 위의 같은 종류 갈래)
+            if (held != ItemStack.EMPTY && !held.isEmpty()) held.shrink(1);
             out = ItemStack.fromFurnace(used, used.amount());
         }
         return new InteractionResultHolder<>(InteractionResult.valueOf(r.result()), out);

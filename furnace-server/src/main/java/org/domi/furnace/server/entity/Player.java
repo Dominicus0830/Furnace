@@ -243,6 +243,14 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     /** {@link #detached} 로 만든, 월드에 없는 플레이어인가. */
     public boolean isDetached() { return detached; }
 
+    /** 월드에 없는 플레이어가 아이템을 쓰는 중(쓰는 동안 그 레벨을 잠깐 가진다 — 두 region 이 겹쳐 쓰지 않게). */
+    private final java.util.concurrent.atomic.AtomicBoolean detachedUse = new java.util.concurrent.atomic.AtomicBoolean();
+
+    /** 월드에 없는 플레이어의 아이템 쓰기를 시작한다. 이미 다른 스레드가 쓰는 중이면 false. 끝나면 {@link #endDetachedUse}. */
+    public boolean beginDetachedUse() { return detached && detachedUse.compareAndSet(false, true); }
+
+    public void endDetachedUse() { detachedUse.set(false); }
+
     /** 월드에 없는 플레이어의 자리·방향(바닐라 Entity#absMoveTo 가 이미 고른 값). 다른 플레이어에게는 쓰지 않는다. */
     public void moveDetached(double x, double y, double z, float yaw, float pitch) {
         if (!detached) throw new IllegalStateException("only a detached player is moved this way: " + name());

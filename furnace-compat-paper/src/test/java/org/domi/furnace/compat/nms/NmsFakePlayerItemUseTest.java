@@ -156,6 +156,32 @@ class NmsFakePlayerItemUseTest {
                 "꿀 병은 배가 불러도 마신다(HoneyBottleItem: startUsingInstantly)");
     }
 
+    /** 바닐라 ItemUtils.createFilledResult: 양동이 하나로 물을 뜨면 손의 그 객체는 빈 스택이 되고, 물 양동이를 돌려준다. 둘이면 하나 줄어든 손 객체. */
+    @Test
+    void fillingABucketShrinksTheHeldStackLikeVanilla() {
+        BlockPos water = base.above();
+        set(water, Blocks.WATER.defaultBlockState());
+        try {
+            ItemStack one = new ItemStack(Items.BUCKET, 1);
+            fake.setItemInHand(InteractionHand.MAIN_HAND, one);
+            fake.absMoveTo(water.getX() + 0.5, water.getY() + 1, water.getZ() + 0.5, 0.0F, 90.0F);   // 물 바로 위에서 아래를 본다
+            var r = Items.BUCKET.use(level, fake, InteractionHand.MAIN_HAND);
+            assertEquals(InteractionResult.CONSUME, r.getResult());
+            assertSame(Items.WATER_BUCKET, r.getObject().getItem());
+            assertTrue(one.isEmpty(), "손의 양동이 객체는 다 써서 빈 스택");
+
+            set(water, Blocks.WATER.defaultBlockState());
+            ItemStack two = new ItemStack(Items.BUCKET, 2);
+            fake.setItemInHand(InteractionHand.MAIN_HAND, two);
+            var r2 = Items.BUCKET.use(level, fake, InteractionHand.MAIN_HAND);
+            assertEquals(InteractionResult.CONSUME, r2.getResult());
+            assertSame(two, r2.getObject());
+            assertEquals(1, two.getCount());
+        } finally {
+            set(water, Blocks.AIR.defaultBlockState());
+        }
+    }
+
     /** FAWE simulateItemUse 그대로: useOn 이 SUCCESS 가 아니면 블록 useItemOn, 그다음 Item#use. 서버 결과는 CONSUME 이라 Paper 처럼 거짓이다. */
     @Test
     void faweSimulateItemUseFlow() {

@@ -827,6 +827,9 @@ final class ChunkInternalsImpl implements ChunkInternals {
         var hit = new org.domi.furnace.server.block.Hit(pos, face, hitX, hitY, hitZ, inside);
         String result;
         org.domi.furnace.api.item.ItemStack used = null;
+        if (!p.beginDetachedUse()) {   // 같은 플레이어를 두 region 이 동시에 쓰면 그 레벨(currentLevel)이 남의 스레드로 샌다
+            throw new IllegalStateException(what + ": the player " + p.name() + " is already using an item on another thread");
+        }
         p.currentLevel = lv;   // 쓰는 동안만 이 레벨에 있다(게임 이벤트·소리가 그 자리에서 난다 — 바닐라는 가짜 플레이어도 레벨을 가진다)
         try {
             switch (kind) {
@@ -856,6 +859,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
             }
         } finally {
             p.currentLevel = null;
+            p.endDetachedUse();
         }
         return new ItemUse(result, used, ApiConvert.item(actor.itemInHand(0), items), ApiConvert.item(actor.itemInHand(1), items));
     }
