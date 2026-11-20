@@ -40,6 +40,15 @@ public class ChunkMap {
         return out;
     }
 
+    /**
+     * 바닐라 ChunkStorage#read(NMS shim 5e — voxy): 디스크에 저장된 그 청크의 NBT 그대로(옛 판 올림 없이), 없으면 빈 값. 서버의 IO 차례에서 읽어 앞서 넣은
+     * 저장 뒤에 선다. 바닐라처럼 기다리지 않는 future 다(Paper 는 부른 스레드에서 막고 읽어 끝난 future 를 준다). 읽기 실패는 실패한 future. 아무 스레드.
+     */
+    public java.util.concurrent.CompletableFuture<java.util.Optional<net.minecraft.nbt.CompoundTag>> read(ChunkPos pos) {
+        return org.domi.furnace.compat.nms.NmsStorage.read(level, org.domi.furnace.api.internal.ChunkInternals.STORED_CHUNK, pos.x, pos.z, "ChunkMap#read")
+                .thenApply(java.util.Optional::ofNullable);
+    }
+
     /** 바닐라: 그 청크들의 바이옴을 다시 보낸다 — Furnace 는 청크를 통째로 다시 보낸다(Paper World#refreshChunk). */
     public void resendBiomesForChunks(List<net.minecraft.world.level.chunk.ChunkAccess> chunks) {
         for (var c : chunks) level.getWorld().refreshChunk(c.getPos().x, c.getPos().z);

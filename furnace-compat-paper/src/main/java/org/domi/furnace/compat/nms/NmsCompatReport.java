@@ -163,7 +163,7 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
 
     /**
      * 스키마로 생성한 clientbound 패킷 shim 인데 보내기 변환이 아직 없는가({@link SchemaPacket} 이고 {@link NmsPacket} 이 아니며
-     * {@link SchemaPacketBridge#supports} 도 아니다 — 손 코덱·타입 레코드 종류, 값 shim 이 빈 껍데기인 종류).
+     * {@link TypedPacketBridge} 가 맡는 종류도 {@link SchemaPacketBridge#supports} 도 아니다 — 손 코덱 종류, 값 shim 이 빈 껍데기인 종류).
      * 그런 패킷을 만드는 플러그인은 보낼 때 실패하므로 보고·strict 가 미지원으로 센다. 클래스는 초기화하지 않고 본다.
      */
     static boolean sendUnsupported(String internalName) {
@@ -173,7 +173,10 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
             if (def.isEmpty() || def.get().direction() != org.domi.furnace.api.packet.PacketDirection.CLIENTBOUND) return false;
             try {
                 Class<?> c = Class.forName(bin, false, NmsCompatReport.class.getClassLoader());
-                return SchemaPacket.class.isAssignableFrom(c) && !NmsPacket.class.isAssignableFrom(c) && !SchemaPacketBridge.supports(def.get());
+                // 보내기는 PacketDelivery 처럼 타입 레코드 다리가 먼저 맡는다(플러그인 메시지 custom_payload 등)
+                String key = def.get().state() + "/clientbound/" + def.get().wireName();
+                return SchemaPacket.class.isAssignableFrom(c) && !NmsPacket.class.isAssignableFrom(c) && !TypedPacketBridge.handlesSchema(key)
+                        && !SchemaPacketBridge.supports(def.get());
             } catch (ClassNotFoundException | LinkageError ex) {
                 return false;
             }

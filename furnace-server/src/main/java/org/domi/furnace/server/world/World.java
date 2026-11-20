@@ -855,6 +855,36 @@ public final class World {
         }
     }
 
+    /** {@link #readStoredAsync} 의 저장소 종류: region/·poi/·entities/ (바닐라 RegionFileType 차례). */
+    public static final int STORED_CHUNK = 0, STORED_POI = 1, STORED_ENTITIES = 2;
+
+    /**
+     * 바닐라 ChunkStorage#read(NMS shim — voxy 가 먼 거리 지형을 디스크에서 읽는다): 디스크에 저장된 그 청크의 NBT 그대로(옛 판 올림 없이). 그 파일의 IO 레인에서
+     * 읽어 앞서 넣은 저장 뒤에 줄 선다(바닐라·Paper 가 아직 쓰지 않은 저장 대기분을 돌려주는 것과 같은 끝 상태). 없거나 저장소가 없으면 null 로 끝나고, 읽기 실패는
+     * 예외로 끝난다(바닐라처럼 실패한 future). 아무 스레드.
+     */
+    public CompletableFuture<NbtCompound> readStoredAsync(int kind, int chunkX, int chunkZ) {
+        if (!(worldSource instanceof AnvilWorldSource anvil)) return CompletableFuture.completedFuture(null);
+        org.domi.furnace.server.world.anvil.RegionFileStore store = switch (kind) {
+            case STORED_CHUNK -> anvil.store();
+            case STORED_POI -> anvil.poiStore();
+            case STORED_ENTITIES -> anvil.entityStore();
+            default -> throw new IllegalArgumentException("stored kind " + kind);
+        };
+        if (store == null) return CompletableFuture.completedFuture(null);
+        Object lock = kind == STORED_POI ? anvil.poiLock(chunkX, chunkZ) : kind == STORED_ENTITIES ? anvil.entityLock(chunkX, chunkZ) : null;
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                byte[] bytes;
+                if (lock == null) bytes = store.readChunk(chunkX, chunkZ);
+                else synchronized (lock) { bytes = store.readChunk(chunkX, chunkZ); }
+                return bytes == null ? null : NbtIo.read(bytes);
+            } catch (java.io.IOException e) {
+                throw new java.io.UncheckedIOException(e);
+            }
+        }, ioLane(chunkX, chunkZ));
+    }
+
     /** 그 청크의 엔티티 묶음을 IO 레인에서 읽는다(없거나 저장소가 없으면 null 로 끝난다). */
     public CompletableFuture<NbtCompound> loadEntitiesAsync(int chunkX, int chunkZ) {
         if (!(worldSource instanceof AnvilWorldSource anvil) || anvil.entityStore() == null) return CompletableFuture.completedFuture(null);

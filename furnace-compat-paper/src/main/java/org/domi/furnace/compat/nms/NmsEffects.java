@@ -89,6 +89,24 @@ public final class NmsEffects {
     }
 
     /**
+     * 블록 놓기 뒷일 조각({@link ChunkInternals#placeStepNow}, NMS shim 5d): 값이 있는 조각과 같은 스레드 규칙({@link NmsOwner}). 블록 엔티티 조각은 원점 청크,
+     * setPlacedBy 는 둘레 청크까지 맞춘 뒤 한다(침대 머리처럼 옆 칸을 놓는다). 청크가 로드돼 있지 않으면 IllegalStateException.
+     */
+    public static int place(Object level, BlockPos pos, int kind, int state, org.domi.furnace.api.entity.Player placer,
+                            org.domi.furnace.api.item.ItemStack item, boolean opData, String what) {
+        World w = world(level, what);
+        int x = pos.getX(), y = pos.getY(), z = pos.getZ();
+        var br = NmsChunks.bridge();
+        if (!br.isLoaded(w, x >> 4, z >> 4)) throw NmsChunks.notLoaded(w, x >> 4, z >> 4, what);
+        int r = NmsOwner.call(w, x, y, z, what, () -> {
+            syncAround(w, kind == ChunkInternals.PLACE_SET_PLACED_BY ? ON_PLACE : POI, x, y, z);
+            return br.placeStepNow(w, kind, x, y, z, state, placer, item, opData);
+        });
+        if (r < 0) throw NmsChunks.notLoaded(w, x >> 4, z >> 4, what);
+        return r;
+    }
+
+    /**
      * 주인: 부수 효과 전 맞춤 지점 — 원점 청크와 둘레 8청크 가운데 이 스레드가 가진 것의 거울을 맞춘다(다른 region 의 청크는 그 주인이 맞춘다). 다른 스레드가
      * 앞서 거울 일지로 쓴 것이 효과보다 먼저 서버에 든다(검토 #468). 그 쓰기의 맞춤 작업은 주인 대기열에서 효과 작업보다 앞서지만, 주인 스레드가 그 사이에
      * 직접 효과를 부르면(주인 작업 안에서 다른 스레드의 쓰기를 기다린 뒤 등) 아직 돌지 않았다 — 이웃 청크를 읽는 효과(이웃 갱신·모양 갱신)가 그 쓰기를 보게 한다.

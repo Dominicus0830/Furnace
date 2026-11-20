@@ -685,6 +685,39 @@ public interface ChunkInternals {
     /** 플레이어 능력(바닐라 Abilities 의 일곱 값). 아무 스레드, 최근 값. */
     default PlayerAbilities playerAbilities(org.domi.furnace.api.entity.Player player) { throw new UnsupportedOperationException("playerAbilities"); }
 
+    /**
+     * 바닐라 {@code ServerGamePacketListenerImpl.ackBlockChangesUpTo(seq)}(NMS shim 5d): 그 플레이어에게 seq 번 블록 요청까지 처리했다고 알린다. 알림은 그 플레이어가 선
+     * 칸의 region 틱 끝, 그 틱의 블록 변경 방송 뒤에 나간다(서버 블록 요청 처리와 같은 길 — 여러 번이면 큰 번호 하나). 아무 스레드.
+     *
+     * @throws IllegalArgumentException 음수(바닐라와 같은 문구)이거나 접속한 서버 플레이어가 아닐 때
+     */
+    default void ackBlockChanges(org.domi.furnace.api.entity.Player player, int sequence) { throw new UnsupportedOperationException("ackBlockChanges"); }
+
+    /** {@link #placeStepNow} 종류. */
+    int PLACE_CUSTOM_DATA = 0, PLACE_APPLY_COMPONENTS = 1, PLACE_SET_PLACED_BY = 2;
+
+    /**
+     * 바닐라 BlockItem.place 의 뒷일 조각 하나를 그 칸 주인 스레드에서 서버의 같은 코드로 한다(NMS shim 5d — Axiom 블록 놓기). 청크가 로드돼 있지 않으면 -1.
+     * <ul>
+     *   <li>CUSTOM_DATA: BlockItem.updateCustomBlockEntityTag — 아이템의 block_entity_data 를 그 칸 블록 엔티티에 싣는다. 관리자만 쓸 수 있는 종류는
+     *       opData 가 참일 때만(부르는 쪽이 Paper 규칙으로 정한다). 실었으면 1, 아니면 0</li>
+     *   <li>APPLY_COMPONENTS: BlockEntity.applyComponentsFromItemStack — 그 칸 블록 엔티티(있으면)가 아이템 컴포넌트를 받는다. 0</li>
+     *   <li>SET_PLACED_BY(state): Block.setPlacedBy(level, pos, state, placer, item) — placer 는 null 이거나 플레이어(월드에 없는 플레이어 포함). 0</li>
+     * </ul>
+     */
+    default int placeStepNow(org.domi.furnace.api.world.World world, int kind, int x, int y, int z, int state, org.domi.furnace.api.entity.Player placer,
+                             org.domi.furnace.api.item.ItemStack item, boolean opData) {
+        throw new UnsupportedOperationException("placeStepNow");
+    }
+
+    /**
+     * 바닐라 스폰 보호(DedicatedServer.isUnderSpawnProtection)를 그 월드의 칸에 본다: 오버월드이고, OP 가 한 명이라도 있고, 이 플레이어가 OP 가 아니며,
+     * spawn-protection 이 0 보다 크고 월드 스폰과의 체비셰프 거리가 그 이하면 참(NMS shim 5d — Paper CraftEventFactory.canBuild 의 반대). 아무 스레드.
+     */
+    default boolean underSpawnProtection(org.domi.furnace.api.world.World world, org.domi.furnace.api.entity.Player player, int x, int z) {
+        throw new UnsupportedOperationException("underSpawnProtection");
+    }
+
     /** 플레이어 능력을 통째로 바꾼다. send 면 바닐라 {@code onUpdateAbilities} 처럼 그 플레이어에게 능력 패킷을 보낸다. 아무 스레드. */
     default void setPlayerAbilities(org.domi.furnace.api.entity.Player player, PlayerAbilities values, boolean send) {
         throw new UnsupportedOperationException("setPlayerAbilities");
@@ -855,6 +888,19 @@ public interface ChunkInternals {
 
     /** 바닐라 Biome.BIOME_INFO_NOISE.getValue(x, z, false)(풀 색 swamp 보정이 쓴다). 아무 스레드. */
     double biomeInfoNoise(double x, double z);
+
+    // ------------------------------------------------------------------ 디스크에 저장된 청크 NBT(NMS shim 5e — voxy)
+
+    /** {@link #storedNbt} 의 저장소 종류(바닐라 RegionFileType 차례): 청크(region/)·관심 지점(poi/)·엔티티(entities/). */
+    int STORED_CHUNK = 0, STORED_POI = 1, STORED_ENTITIES = 2;
+
+    /**
+     * 바닐라 ChunkStorage#read: 디스크에 저장된 그 청크의 NBT 그대로(옛 판 올림 없이). 그 파일의 IO 차례에서 읽어 앞서 넣은 저장 뒤에 선다. 없으면 null 로
+     * 끝나고 읽기 실패는 예외로 끝난다. 아무 스레드(기다리지 않는다).
+     */
+    default java.util.concurrent.CompletableFuture<org.domi.furnace.api.nbt.NbtCompound> storedNbt(World world, int kind, int chunkX, int chunkZ) {
+        throw new UnsupportedOperationException("storedNbt");
+    }
 
     // ------------------------------------------------------------------ 엔티티 모습 읽기(NMS shim 5번 묶음)
 

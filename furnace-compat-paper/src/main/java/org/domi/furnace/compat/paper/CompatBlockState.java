@@ -49,6 +49,11 @@ public class CompatBlockState extends org.bukkit.craftbukkit.block.CraftBlockSta
         return org.bukkit.craftbukkit.block.CraftBlockEntityState.furnaceFresh(() -> CompatBlockStates.create(dimension, pos, data));
     }
 
+    /** 호환 모듈 전용(NMS shim 5d — Paper {@code CraftBlockState(World, BlockPos, BlockState)} 의 속): 그 칸의 NMS 상태로 만든 보통 스냅숏. 월드를 읽지 않는다. */
+    public static CompatBlockState furnaceOf(String dimension, BlockPos pos, net.minecraft.world.level.block.state.BlockState state) {
+        return new CompatBlockState(dimension, pos, org.bukkit.craftbukkit.block.data.CraftBlockData.fromData(state));   // null 차원 = 놓이지 않은 상태(Paper: 월드 null)
+    }
+
     /** 놓인 상태의 차원 이름(놓이지 않았으면 null). */
     protected final String dimension() { return dimension; }
 
@@ -61,7 +66,7 @@ public class CompatBlockState extends org.bukkit.craftbukkit.block.CraftBlockSta
     }
 
     @Override
-    public Block getBlock() {
+    public org.bukkit.craftbukkit.block.CraftBlock getBlock() {
         requirePlaced();
         return org.bukkit.craftbukkit.block.CraftBlock.of(dimension, pos);
     }

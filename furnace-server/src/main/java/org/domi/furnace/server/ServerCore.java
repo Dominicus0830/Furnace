@@ -1315,8 +1315,11 @@ public final class ServerCore {
      * 바닐라 DedicatedServer.isUnderSpawnProtection(오버월드): OP 가 한 명이라도 있고, 이 플레이어가 OP 가 아니며,
      * spawn-protection > 0 이고 월드 스폰과의 체비셰프 거리가 그 이하인가.
      */
-    public boolean isUnderSpawnProtection(int x, int z, Player p) {
-        if (!"minecraft:overworld".equals(p.dimension())) return false;   // 바닐라 DedicatedServer.isUnderSpawnProtection: 오버월드만
+    public boolean isUnderSpawnProtection(int x, int z, Player p) { return isUnderSpawnProtection(p.dimension(), x, z, p); }
+
+    /** 위와 같되 칸의 차원을 따로 준다(Paper CraftEventFactory.canBuild 는 놓는 레벨의 차원을 본다). */
+    public boolean isUnderSpawnProtection(String dimension, int x, int z, Player p) {
+        if (!"minecraft:overworld".equals(dimension)) return false;   // 바닐라 DedicatedServer.isUnderSpawnProtection: 오버월드만
         if (lists.getOps().isEmpty()) return false;
         if (lists.isOp(profileOf(p))) return false;
         int radius = settings.get().spawnProtection;
