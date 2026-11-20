@@ -53,6 +53,9 @@ class CompatLinkTest {
                     || n.equals("net.minecraft.commands.arguments.DimensionArgument")) continue;
             // Brigadier 의 ArgumentType 을 구현 — 그 라이브러리가 있을 때(Paper 서버·명령 라이브러리를 쓰는 플러그인)만 올라간다
             if (n.startsWith("net.minecraft.commands.arguments.")) continue;
+            // Brigadier 메시지·기본 오류를 구현(5e-3c) — Brigadier 묶음이 붙은 뒤에만 올라간다(CompatFormat.sharedLibrariesReady, 명령 인자 shim)
+            if (n.equals("net.minecraft.commands.BrigadierExceptions") || n.equals("org.domi.furnace.compat.nms.NmsBrigadier")
+                    || n.startsWith("org.domi.furnace.compat.nms.NmsBrigadier$")) continue;
             if (n.equals("org.domi.furnace.compat.nms.NmsStateCodec")) continue;   // DataFixerUpper 의 MapCodec 을 상속 — NmsDfu.visible() 일 때만 올린다
             // DataFixerUpper 의 Codec 을 구현(5e-2) — BlockState.CODEC 은 NmsDfu.visible() 일 때만, 나머지는 DFU 를 쓰는 플러그인이 부를 때만 올린다
             if (n.equals("org.domi.furnace.compat.nms.NmsCodecs") || n.startsWith("org.domi.furnace.compat.nms.NmsCodecs$")) continue;

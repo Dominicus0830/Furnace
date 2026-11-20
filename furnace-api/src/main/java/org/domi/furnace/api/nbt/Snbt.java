@@ -34,7 +34,22 @@ public final class Snbt {
         return v;
     }
 
-    private SnbtParseException error(String msg) { return new SnbtParseException(msg + " at position " + i + ": " + context(), i); }
+    /** {@link #readCompound} 결과: 읽은 묶음과 그 뒤 첫 글자 위치. */
+    public record Prefix(NbtCompound value, int end) {}
+
+    /**
+     * 바닐라 TagParser(StringReader).readStruct 처럼 from 부터 공백을 건너 묶음({…}) 하나만 읽고, 그 뒤 글자는 남긴다(블록 상태 글 "stone{…}" 꼴).
+     * 틀리면 {@link SnbtParseException}(위치는 전체 글 기준).
+     */
+    public static Prefix readCompound(String s, int from) {
+        java.util.Objects.requireNonNull(s, "snbt");
+        Snbt p = new Snbt(s);
+        p.i = from;
+        NbtCompound c = (NbtCompound) p.compound();
+        return new Prefix(c, p.i);
+    }
+
+    private SnbtParseException error(String msg) { return new SnbtParseException(msg + " at position " + i + ": " + context(), i, msg); }
 
     private String context() {
         int from = Math.max(0, i - 35);
@@ -72,7 +87,7 @@ public final class Snbt {
             expect(':');
             c.put(key, value());
             if (!separator()) break;
-            ws();
+            if (i >= s.length()) throw error("Expected key");
         }
         expect('}');
         depth--;
@@ -108,7 +123,7 @@ public final class Snbt {
         while (i < s.length()) {
             char c = s.charAt(i++);
             if (esc) {
-                if (c != q && c != '\\') { i--; throw error("Invalid escape sequence '" + c + "' in quoted string"); }
+                if (c != q && c != '\\') { i--; throw error("Invalid escape sequence '\\" + c + "' in quoted string"); }
                 b.append(c);
                 esc = false;
             } else if (c == '\\') esc = true;
@@ -146,25 +161,23 @@ public final class Snbt {
     }
 
     private Object listOrArray() {
-        if (i + 2 < s.length() && s.charAt(i + 1) != '"' && s.charAt(i + 2) == ';') {
-            char t = s.charAt(i + 1);
-            i += 3;
-            return array(t);
-        }
+        // 바닐라 readValue: "[" 뒤 둘째 글자가 따옴표가 아니고 셋째가 ";" 이면 배열
+        if (i + 2 < s.length() && s.charAt(i + 1) != '"' && s.charAt(i + 1) != '\'' && s.charAt(i + 2) == ';') return array();
         if (++depth > MAX_DEPTH) throw error("Too deep");
         expect('[');
-        List<Object> items = new ArrayList<>();
-        NbtType type = NbtType.END;
         ws();
-        while (i < s.length() && s.charAt(i) != ']') {
+        if (i >= s.length()) throw error("Expected value");
+        List<Object> items = new ArrayList<>();
+        NbtType type = null;
+        while (s.charAt(i) != ']') {
             int start = i;
             Object v = value();
             NbtType t = NbtType.of(v);
-            if (type == NbtType.END) type = t;
-            else if (t != type) { i = start; throw error("Can't insert " + t + " into list of " + type); }
+            if (type == null) type = t;
+            else if (t != type) { i = start; throw error("Can't insert " + prettyName(t) + " into list of " + prettyName(type)); }
             items.add(v);
             if (!separator()) break;
-            ws();
+            if (i >= s.length()) throw error("Expected value");
         }
         expect(']');
         depth--;
@@ -173,29 +186,56 @@ public final class Snbt {
         return l;
     }
 
-    private Object array(char t) {
-        List<Object> items = new ArrayList<>();
+    /** 바닐라 readArrayTag·readArray: 종류 글자는 대문자 B·I·L 만, 원소는 그 종류와 정확히 같아야 한다(예 [I;1b] 는 오류). */
+    private Object array() {
+        expect('[');
+        int typeAt = i;
+        char t = s.charAt(i++);
+        i++;
         ws();
-        while (i < s.length() && s.charAt(i) != ']') {
+        if (i >= s.length()) throw error("Expected value");
+        NbtType element = switch (t) {
+            case 'B' -> NbtType.BYTE;
+            case 'L' -> NbtType.LONG;
+            case 'I' -> NbtType.INT;
+            default -> { i = typeAt; throw error("Invalid array type '" + t + "'"); }
+        };
+        NbtType arrayType = t == 'B' ? NbtType.BYTE_ARRAY : t == 'L' ? NbtType.LONG_ARRAY : NbtType.INT_ARRAY;
+        List<Object> items = new ArrayList<>();
+        while (s.charAt(i) != ']') {
             int start = i;
             Object v = value();
-            boolean ok = switch (Character.toUpperCase(t)) {
-                case 'B' -> v instanceof Byte || v instanceof Short || v instanceof Integer || v instanceof Long;
-                case 'I' -> v instanceof Byte || v instanceof Short || v instanceof Integer;
-                case 'L' -> v instanceof Byte || v instanceof Short || v instanceof Integer || v instanceof Long;
-                default -> { i = start; throw error("Invalid array type '" + t + "'"); }
-            };
-            if (!ok) { i = start; throw error("Can't insert " + NbtType.of(v) + " into array of " + t); }
+            NbtType vt = NbtType.of(v);
+            if (vt != element) { i = start; throw error("Can't insert " + prettyName(vt) + " into " + prettyName(arrayType)); }
             items.add(v);
             if (!separator()) break;
-            ws();
+            if (i >= s.length()) throw error("Expected value");
         }
         expect(']');
-        switch (Character.toUpperCase(t)) {
-            case 'B' -> { byte[] a = new byte[items.size()]; for (int k = 0; k < a.length; k++) a[k] = ((Number) items.get(k)).byteValue(); return a; }
-            case 'I' -> { int[] a = new int[items.size()]; for (int k = 0; k < a.length; k++) a[k] = ((Number) items.get(k)).intValue(); return a; }
-            default -> { long[] a = new long[items.size()]; for (int k = 0; k < a.length; k++) a[k] = ((Number) items.get(k)).longValue(); return a; }
+        switch (t) {
+            case 'B' -> { byte[] a = new byte[items.size()]; for (int k = 0; k < a.length; k++) a[k] = (Byte) items.get(k); return a; }
+            case 'I' -> { int[] a = new int[items.size()]; for (int k = 0; k < a.length; k++) a[k] = (Integer) items.get(k); return a; }
+            default -> { long[] a = new long[items.size()]; for (int k = 0; k < a.length; k++) a[k] = (Long) items.get(k); return a; }
         }
+    }
+
+    /** 바닐라 TagType.getPrettyName(예 "TAG_Int_Array") — 오류 문구에 쓴다. */
+    private static String prettyName(NbtType t) {
+        return switch (t) {
+            case END -> "TAG_End";
+            case BYTE -> "TAG_Byte";
+            case SHORT -> "TAG_Short";
+            case INT -> "TAG_Int";
+            case LONG -> "TAG_Long";
+            case FLOAT -> "TAG_Float";
+            case DOUBLE -> "TAG_Double";
+            case BYTE_ARRAY -> "TAG_Byte_Array";
+            case STRING -> "TAG_String";
+            case LIST -> "TAG_List";
+            case COMPOUND -> "TAG_Compound";
+            case INT_ARRAY -> "TAG_Int_Array";
+            case LONG_ARRAY -> "TAG_Long_Array";
+        };
     }
 
     // ------------------------------------------------------------------ 쓰기(바닐라 SnbtPrinter 가 아닌 Tag.toString 꼴)

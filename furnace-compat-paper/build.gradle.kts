@@ -101,6 +101,8 @@ dependencies {
 // (서버는 쓰는 플러그인이 있으면 묶음 brigadier 를 받아 공유 로더로 준다).
 val brigadierStub: SourceSet = the<SourceSetContainer>().create("brigadier")
 dependencies {
+    // 로컬 대조용(커밋 대상 아님·CI 는 안 쓴다): -PbrigadierJar=<진짜 brigadier-1.3.10.jar> 를 주면 시험이 대역 대신 진짜 Brigadier 로 돈다(dfuJar 와 같은 방식).
+    providers.gradleProperty("brigadierJar").orNull?.let { jar -> testRuntimeOnly(files(jar)) }
     compileOnly(brigadierStub.output)
     testCompileOnly(brigadierStub.output)
     testRuntimeOnly(brigadierStub.output)

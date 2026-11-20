@@ -63,6 +63,14 @@ public interface PluginFormat {
     }
 
     /**
+     * 서버가 이 형식의 플러그인 부모 로더에 서버 제공 라이브러리 묶음(예 "brigadier")을 붙인 뒤, 그 플러그인 클래스를 올리기 전에 부른다(플러그인마다, 붙인 묶음 전부).
+     * 바닐라·Paper 가 서버를 띄울 때 라이브러리에 하는 설정(예 Brigadier 기본 오류 문구)을 어댑터가 따라 하는 자리다. 기본은 아무것도 안 한다.
+     *
+     * @param groups 지금까지 붙인 묶음 이름(바꿀 수 없는 보기)
+     */
+    default void sharedLibrariesReady(java.util.Set<String> groups) {}
+
+    /**
      * 이 플러그인을 기본 월드가 "올라오기 전"에 켜야 하는가(Bukkit {@code load: STARTUP}).
      * 서버는 이런 플러그인을 먼저 모두 켜고, 그다음 {@link #worldsReady} 를 알린 뒤 나머지를 켠다(Bukkit {@code POSTWORLD}).
      * 기본은 false. 어댑터를 아직 만들지 않았으면 불리지 않는다.

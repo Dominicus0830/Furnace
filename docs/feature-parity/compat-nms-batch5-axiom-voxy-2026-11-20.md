@@ -336,7 +336,33 @@ Paper 디컴파일 폴더를 다시 써서 그만큼 짧게 나왔다. 검토(#5
 - 다시 잰 점검(같은 jar 폴더): **Axiom 493 중 476 있음**(NbtIo 클래스가 생겨 그 메서드 5개가 따로 세어져 489 → 493). 남은 17개 중 8개는 클래스 계층
   (T-231 — 생성기 작업), 9개는 5e-3c(`BlockStateParser`·`ItemStack` 스트림 코덱·`forChunks`·`BlockState.tick`·`FluidState.tick`·`LevelEntityGetter.getAll`).
 
-## 지금까지 모음(5a~5e-3b)
+5e-3b 검토(#542) 고침: 넣기 전 묶음 안의 탑승은 이벤트 없이(Paper 는 탈것이 월드에 든 뒤에만 `EntityMountEvent`·`VehicleEnterEvent` 를 부른다 —
+리스너가 취소하면 승객이 조용히 빠지던 것). 서버 `Entity.startRidingBeforeAdd`, 시험 `placingAGroupFiresNoMountEventLikePaper`. 약 3.5분(알림 23:03:02 → 커밋 `c77f2fef` 23:06:30).
+
+## 5e-3c-1 — 블록 상태 글 읽기(Axiom 허용 블록 목록)
+
+| 묶음 | 수 | 기호 |
+|---|---|---|
+| 자동 연결 가능 | 2 | `BlockStateParser$BlockResult`·`$TagResult`(필드만 있는 record — Paper 서명 그대로) |
+| 설계 필요 | 1 | `BlockStateParser`(`parseForTesting`·`parseForBlock`·`serialize`) |
+
+새로 쓴 것: 파서 본문(Paper 바이트코드의 분기·오류 종류·인자 차례·커서 되돌림대로 — 블록·태그는 건네받은 조회기에서 찾는다), `ResourceLocation.read`,
+`TagParser(StringReader).readStruct`(Furnace SNBT 읽기 `Snbt.readCompound` 위). 새 다리 1건: **라이브러리 묶음을 붙였다는 알림**
+(`PluginFormat.sharedLibrariesReady` — 서버가 Brigadier 묶음을 붙이면 호환 계층이 바닐라 `SharedConstants` 처럼 `CommandSyntaxException.BUILT_IN_EXCEPTIONS` 를
+`BrigadierExceptions`(게임 번역 문구)로 바꾸고 스택 추적을 끈다). Brigadier 를 쓰는 본문은 `$Lib` 도우미로 떼어 Brigadier 없는 서버에서도 클래스가 링크된다.
+
+기대값은 Paper 1.21.1 jar 를 부트스트랩해 같은 입력 26개 × 3모드(78건)와 SNBT 25건을 직접 돌린 결과다. 대조하다 찾은 Furnace 쪽 차이(같이 고침):
+- `furnace-api` `Snbt`(= `NbtCompound.parse`)가 배열에 느슨했다: `[B;1,2]`·`[i;1]`·`[I;1b]` 를 받았는데 바닐라는 종류 글자가 대문자 B·I·L 이고 원소 종류가 정확히 같아야 한다.
+  오류 문구의 종류 이름도 바닐라 `TAG_Int` 꼴로, 끝 쉼표 뒤 끝난 글은 "Expected key/value" 로, 이스케이프 오류는 `'\i'` 로 맞췄다.
+- Brigadier 기본 오류 문구: 진짜 Brigadier 는 `'i'`, 바닐라 서버는 `BrigadierExceptions` 라 `'\i'`(`parsing.quote.escape`). 위 다리로 맞췄다.
+- 서버 내부 `item/Snbt`(플러그인 API 의 아이템 구성요소 글 읽기)에도 같은 배열 느슨함이 있다 — 이 묶음 밖이라 따로 알린다(명령 NBT 인자는 이미 바닐라대로).
+
+자동 연결 가능 비율 **67%(2/3)**. 걸린 시간 약 **21분**(첫 명령 22:50:16 → 로컬 커밋, 사이의 5e-3b 검토 고침 3.5분은 뺐다 — Paper 를 직접 돌려 대조하다
+찾은 SNBT·Brigadier 문구 차이를 고친 시간이 대부분).
+시험 `NmsBlockStateParserTest`(5) — Brigadier·DFU 대역으로도, `-PbrigadierJar=`·`-PdfuJar=` 로 진짜 위에서도 통과. `CompatLinkTest` 통과.
+- 다시 잰 점검: **Axiom 498 중 484 있음**(파서가 생겨 그 멤버 6개가 따로 세어져 493 → 498). 남은 14개 중 8개는 클래스 계층(T-231), 6개는 5e-3c-2.
+
+## 지금까지 모음(5a~5e-3c-1)
 
 | 묶음 | 기호 | 자동 연결 가능 | 다리 위 기계적 | 설계 필요 | 걸린 시간 |
 |---|---|---|---|---|---|
@@ -351,12 +377,13 @@ Paper 디컴파일 폴더를 다시 써서 그만큼 짧게 나왔다. 검토(#5
 | 5e-2 | 8 | 3 | 2 | 3 (+다리 1) | 17분 |
 | 5e-3a | 6 | 3 | 3 | 0 | 7분 |
 | 5e-3b | 9 | 0 | 5 | 4 (+다리 2) | 12분 |
-| 합계 | 99 | 43 (43%) | 39 (39%) | 17 (17%) + 다리 12 | 줄 합 108분, 5b·5c 가 겹친 2분을 빼면 **약 106분** (+5a 검토 고침 5분, 5d 검토 보강 8분, 5d-3·5e-1 검토 고침 약 10분, 5e-2 검토 고침 4.5분) |
+| 5e-3c-1 | 3 | 2 | 0 | 1 (+다리 1) | 21분 |
+| 합계 | 102 | 45 (44%) | 39 (38%) | 18 (18%) + 다리 13 | 줄 합 129분, 5b·5c 가 겹친 2분을 빼면 **약 127분** (+5a 검토 고침 5분, 5d 검토 보강 8분, 5d-3·5e-1 검토 고침 약 10분, 5e-2 검토 고침 4.5분, 5e-3b 검토 고침 3.5분) |
 
 5e-2 검토(#541) 고침: 약 4.5분(검토 받은 22:27:47 → 고침 커밋 `091b1bae` 22:32:16, 5e-3a 를 하던 중에 끊고).
 
-다리가 생긴 뒤의 기계적 연결까지 넣으면 83%(82/99; 5e-2 까지는 71/84 = 85%, 5c 까지는 44/50 = 88%)가 사람의 설계 없이 이을 수 있는 꼴이었다. 손으로 쓴 시간의 대부분은 설계 필요 17개와
-다리 12건, 그리고 바닐라 값 시험이었다.
+다리가 생긴 뒤의 기계적 연결까지 넣으면 82%(84/102; 5e-3b 까지는 82/99 = 83%, 5e-2 까지는 71/84 = 85%, 5c 까지는 44/50 = 88%)가 사람의 설계 없이 이을 수 있는 꼴이었다. 손으로 쓴 시간의 대부분은 설계 필요 18개와
+다리 13건, 그리고 바닐라 값 시험이었다.
 
 5a~5c 시간: 묶음별 시간을 더하면 33분이지만 5b 와 5c 가 2분 겹쳐 실제 손 시간은 약 31분이다. 여기에 5a 검토 고침 5분을 더하면 첫 명령 20:13:53 부터
 5c 문서 커밋 20:48:21 까지 약 34.5분과 맞는다.
