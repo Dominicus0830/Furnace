@@ -15,10 +15,14 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player {
     /** 바닐라 생성자로 만든, 월드·접속자 목록에 없는 플레이어인가. */
     private final boolean furnaceDetached;
 
+    /** 바닐라처럼 공개 필드(Paper 도 같다): 게임 모드·블록 부수기(NMS shim 3번 묶음). */
+    public final ServerPlayerGameMode gameMode;
+
     /** 호환 모듈 전용(CraftPlayer 가 만든다). */
     public ServerPlayer(CraftPlayer bukkit) {
         super(bukkit);
         this.furnaceDetached = false;
+        this.gameMode = new ServerPlayerGameMode(this);
         this.connection = new net.minecraft.server.network.ServerGamePacketListenerImpl(this);
     }
 
@@ -32,6 +36,7 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player {
     public ServerPlayer(net.minecraft.server.MinecraftServer server, ServerLevel level, com.mojang.authlib.GameProfile profile, ClientInformation clientInformation) {
         super(detachedCraftPlayer(level, profile));
         this.furnaceDetached = true;
+        this.gameMode = new ServerPlayerGameMode(this);
         getBukkitEntity().adoptHandle(this);
     }
 

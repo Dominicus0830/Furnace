@@ -2456,6 +2456,19 @@ public final class Region {
         writeBackHand(p, actor);
     }
 
+    /**
+     * NMS {@code ServerPlayerGameMode#destroyBlock(pos)}(호환 계층 NMS shim 3번 묶음): 그 플레이어가 손으로 부순 것과 같은 길 — 블록 부수기 이벤트·드롭·
+     * 도구 닳기·허기. 이 region 이 그 칸의 주인이어야 하고, 플레이어는 다른 region 에 있어도 된다(손은 인벤토리 비교 교체, 허기는 잠금, 도구 부서짐 알림은
+     * 플레이어의 주인 스레드에서). 부쉈으면 true.
+     */
+    public boolean destroyBlockAsPlayer(Player p, org.domi.furnace.server.block.Pos pos) {
+        world.assertOwns(this);
+        var actor = breakerActor(p);
+        boolean r = p.breaking().destroyBlock(level(), actor, breakHost(p, -1, actor), pos);
+        writeBackHand(p, actor);
+        return r;
+    }
+
     private void tickBreaking(Player p) {
         var holder = new org.domi.furnace.server.block.BreakerActor[1];
         p.breaking().tick(level(), () -> holder[0] = breakerActor(p), breakHost(p));
@@ -2482,8 +2495,14 @@ public final class Region {
             @Override
             protected void brokenEvent(int hand, ItemStack broken) {
                 var pkt = new org.domi.furnace.server.net.protocol.play.EntityEvent(p.entityId(), (byte) (47 + hand));
-                p.send(pkt);
-                for (Player o : players.values()) if (o != p && o.tracked().containsKey(p.entityId())) o.send(pkt);
+                if (ownsPlayer(p)) {
+                    sendBroken(p, pkt);
+                } else {   // 다른 region 의 칸을 부쉈다(NMS destroyBlock) — 추적자는 플레이어의 region 에 있다
+                    p.runOnOwner(() -> {
+                        var r = p.ownerRegion;
+                        if (r != null) r.sendBroken(p, pkt);
+                    });
+                }
             }
 
             @Override
@@ -2500,6 +2519,12 @@ public final class Region {
                 });
             }
         }.withInventory(inv);
+    }
+
+    /** 도구 부서짐 엔티티 이벤트를 자신과 이 region 의 추적자에게. */
+    private void sendBroken(Player p, org.domi.furnace.server.net.protocol.play.EntityEvent pkt) {
+        p.send(pkt);
+        for (Player o : players.values()) if (o != p && o.tracked().containsKey(p.entityId())) o.send(pkt);
     }
 
     private org.domi.furnace.server.block.BlockBreaking.Host breakHost(Player p) { return breakHost(p, -1, null); }

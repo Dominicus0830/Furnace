@@ -546,6 +546,31 @@ public interface ChunkInternals {
     }
 
     /**
+     * 칸 (x, z) 의 주인 스레드(전역 빌림 포함). 바닐라 {@code ServerPlayerGameMode#destroyBlock(pos)}(NMS shim 3번 묶음): 그 플레이어가 손으로 부순 것과
+     * 같은 길이다 — 블록 부수기 이벤트(취소하면 안 부수고 블록을 되돌려 보낸다)·드롭·경험치·도구 닳기·허기.
+     * <ul>
+     *   <li>접속한 플레이어: 손은 그 플레이어의 인벤토리다(main·off 는 쓰지 않고 null 을 준다). 플레이어는 다른 region 에 있어도 된다.</li>
+     *   <li>{@link #detachedPlayer} 로 만든 플레이어: 넘겨 받은 두 손으로 부수고 쓴 뒤 두 손을 돌려준다.</li>
+     * </ul>
+     * 청크가 로드되지 않았으면 IllegalStateException, 서버 플레이어가 아니면 IllegalArgumentException.
+     */
+    default BlockDestroy destroyBlockAsPlayer(World world, org.domi.furnace.api.entity.Player player, int x, int y, int z,
+                                              org.domi.furnace.api.item.ItemStack main, org.domi.furnace.api.item.ItemStack off) {
+        throw new UnsupportedOperationException("destroyBlockAsPlayer");
+    }
+
+    /** {@link #destroyBlockAsPlayer} 의 결과: 부쉈는가, 쓴 뒤 두 손(접속한 플레이어는 null). */
+    record BlockDestroy(boolean destroyed, org.domi.furnace.api.item.ItemStack mainHand, org.domi.furnace.api.item.ItemStack offHand) {}
+
+    /**
+     * 칸 (x, z) 의 주인 스레드(전역 빌림 포함). Paper {@code Block#getExpDrop(state, level, pos, tool, true)}: 그 상태(state, 블록 상태 번호)의 블록이
+     * 부서질 때 줄 경험치 — 표본을 그 레벨의 난수로 뽑고 섬세한 손길이면 0. 청크가 로드되지 않았으면 IllegalStateException.
+     */
+    default int expDropNow(World world, int state, int x, int y, int z, org.domi.furnace.api.item.ItemStack tool) {
+        throw new UnsupportedOperationException("expDropNow");
+    }
+
+    /**
      * 칸 (x, z) 의 주인 스레드(전역 빌림 포함). {@link #detachedPlayer} 로 만든 플레이어가 아이템을 쓴다(T-212 다 묶음 — FAWE {@code simulateItemUse}).
      * 행위자는 그 플레이어(자리·방향·게임 모드)와 넘겨 받은 두 손이다. 블록을 놓으면 접속한 플레이어와 같은 블록 놓기 이벤트를 낸다(Paper
      * {@code ItemStack#useOn} — 취소하면 놓지 않는다). 종류:
