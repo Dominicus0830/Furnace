@@ -24,8 +24,8 @@ helper 5.6.14 의 `InventorySerialization.encodeItemStackToString`·`decodeItemS
 
 ## Paper 1.21.1 과 관측되는 차이
 
-1. **`meta-type` 은 가죽 방어구만 종류별.** T-141 E11 부터 가죽 투구·갑옷·바지·신발·늑대 갑옷은 `COLORABLE_ARMOR`, 가죽 말 갑옷은 `LEATHER_ARMOR`(키 `color`)로 Paper 와 같이 쓰고 읽는다(머리 `SKULL`·현수막 `BANNER` 도 E11b 에서 같은 방식).
-   Paper 는 그 밖에도 아이템에 따라 `ARMOR`·`POTION`·`TILE_ENTITY`·`ENCHANTED` 등을 쓰고 종류별 키(`potion-type`, `pages` …)를 쓴다. 아직 없는 종류는 `UNSPECIFIC` 으로 쓰고 해당 컴포넌트를 `unhandled` 에 넣는다.
+1. **`meta-type` 은 가죽 방어구·머리·현수막·금속 방어구만 종류별.** T-141 E11 부터 가죽 투구·갑옷·바지·신발·늑대 갑옷은 `COLORABLE_ARMOR`, 가죽 말 갑옷은 `LEATHER_ARMOR`(키 `color`)로 Paper 와 같이 쓰고 읽는다(머리 `SKULL`·현수막 `BANNER` 도 E11b 에서 같은 방식, 금속·거북 방어구 `ARMOR`(키 `trim: {material, pattern}`)와 가죽 방어구의 `trim` 은 E12).
+   Paper 는 그 밖에도 아이템에 따라 `POTION`·`TILE_ENTITY`·`ENCHANTED` 등을 쓰고 종류별 키(`potion-type`, `pages` …)를 쓴다. 아직 없는 종류는 `UNSPECIFIC` 으로 쓰고 해당 컴포넌트를 `unhandled` 에 넣는다.
    읽을 때는 Paper 의 meta-type 이름을 모두 받아들이지만 아직 없는 종류의 키는 무시한다(Paper 가 쓴 포션·책 메타의 그 데이터는 잃는다). 모르는 meta-type 은 `IllegalArgumentException`, 없으면 `NoSuchElementException`(Paper 와 같다).
 2. **`attribute-modifiers`·`food` 등 모델링하지 않는 키.** Paper 는 `attribute-modifiers` 를 `AttributeModifier` 객체 맵으로 쓰는데 우리는 `AttributeModifier` 클래스·별칭이 없어, Paper 가 쓴 그런 스트림은 `IOException: Failed to deserialize object` 로 실패하고 Paper YAML 의 해당 키는 무시된다. 우리가 쓰는 쪽은 컴포넌트 전체가 `unhandled` 에 산다.
 3. **JSON 글 모양이 다를 수 있다.** `display-name`·`item-name`·`lore` 는 JSON 문자열이지만 `Text#toJson` 이 만든 모양이다. `setDisplayName("§6x")` 한 이름의 JSON 구조가 CraftChatMessage 의 것(`{"extra":[...],"text":""}` 꼴)과 글자 단위로 같지 않을 수 있다. 읽을 때는 JSON·§ 서식 둘 다 받는다. 두 서버가 같은 글을 보여 주는지는 확인하지 못했다(가정).
@@ -35,7 +35,7 @@ helper 5.6.14 의 `InventorySerialization.encodeItemStackToString`·`decodeItemS
 7. **`Wrapper` 의 맵이 `LinkedHashMap`.** 위 설계 결정. Paper 스트림을 읽으려면 Guava 가 보여야 한다.
 8. **알아보는 마법 부여 한정.** 읽을 때 `Enchantment` 상수(1.21.1 바닐라 목록)에 없는 키(데이터 팩 마법)와 레벨 1~255 밖의 값은 건너뛴다.
 9. **Material 로 나타낼 수 없는 아이템은 `serialize()` 가 `UnsupportedFeature`.** `getType()` 이 던지기 때문이다.
-10. **`HIDE_DESTROYS`·`HIDE_PLACED_ON`·`HIDE_ARMOR_TRIM` 표시 항목은 스택에 남지 않는다**(기존 호환 메타의 한계). 메타 사본을 직접 `serialize()` 하면 `ItemFlags` 에 나오지만, 스택에 `setItemMeta` 한 뒤의 `ItemStack#serialize` 에는 없다.
+10. **`HIDE_DESTROYS`·`HIDE_PLACED_ON` 표시 항목은 스택에 남지 않는다**(기존 호환 메타의 한계). 메타 사본을 직접 `serialize()` 하면 `ItemFlags` 에 나오지만, 스택에 `setItemMeta` 한 뒤의 `ItemStack#serialize` 에는 없다. `HIDE_ARMOR_TRIM` 은 E12 부터 장식 컴포넌트의 `show_in_tooltip` 으로 남는다(장식이 없으면 Paper 처럼 남지 않는다).
 11. **설정은 사본으로 저장·사본으로 읽는다.** Bukkit 은 `set(path, item)` 이 같은 객체를 들고 있어 이후 `item` 을 바꾸면 저장 값도 바뀌고 `get` 은 같은 객체를 준다. 여기서는 `set` 순간의 값이 저장되고 `get` 은 매번 새 객체를 준다.
 12. **설정 키 목록.** `getKeys(true)`·`getValues(true)` 가 직렬화 객체 안쪽(`item.==`, `item.type`, `item.meta.…`)까지 풀어 준다. Bukkit 은 그 객체를 잎 값으로 본다.
 13. **모르는 별칭.** Bukkit 의 YAML 읽기는 등록되지 않은 `==` 값에서 `YAMLException` 을 던진다. 여기서는 읽기에 실패하지 않고 그 구역은 평범한 구역(`getConfigurationSection`)으로 남는다.

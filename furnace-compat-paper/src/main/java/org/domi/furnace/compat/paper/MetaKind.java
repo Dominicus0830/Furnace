@@ -43,10 +43,19 @@ public enum MetaKind {
         }
     },
 
+    /** 금속·거북 방어구(투구·갑옷·바지·신발): 장식(Paper ARMOR). */
+    ARMOR("ARMOR", Set.of("minecraft:trim")) {
+        @Override
+        CompatItemMeta create(ItemStack work, EnumSet<org.bukkit.inventory.ItemFlag> flags, ItemPdc pdc) { return new CompatMetaArmor(work, flags, pdc); }
+
+        @Override
+        boolean appliesTo(String itemType) { return METAL_ARMOR.contains(itemType); }
+    },
+
     /** 가죽 말 갑옷: 염색 색(Paper LEATHER_ARMOR — 이 종류의 메타는 가죽 방어구에도 붙는다). */
     LEATHER_ARMOR("LEATHER_ARMOR", Set.of("minecraft:dyed_color")) {
         @Override
-        CompatItemMeta create(ItemStack work, EnumSet<org.bukkit.inventory.ItemFlag> flags, ItemPdc pdc) { return new CompatMetaLeatherArmor(MetaKind.LEATHER_ARMOR, work, flags, pdc); }
+        CompatItemMeta create(ItemStack work, EnumSet<org.bukkit.inventory.ItemFlag> flags, ItemPdc pdc) { return new CompatMetaLeatherArmor(work, flags, pdc); }
 
         @Override
         boolean appliesTo(String itemType) { return itemType.equals("minecraft:leather_horse_armor"); }
@@ -55,10 +64,10 @@ public enum MetaKind {
         boolean accepts(MetaKind itemKind) { return itemKind == LEATHER_ARMOR || itemKind == COLORABLE_ARMOR; }
     },
 
-    /** 가죽 투구·갑옷·바지·신발·늑대 갑옷: 염색 색(Paper COLORABLE_ARMOR, ArmorMeta 의 장식은 아직 없다). */
-    COLORABLE_ARMOR("COLORABLE_ARMOR", Set.of("minecraft:dyed_color")) {
+    /** 가죽 투구·갑옷·바지·신발·늑대 갑옷: 염색 색과 장식(Paper COLORABLE_ARMOR). */
+    COLORABLE_ARMOR("COLORABLE_ARMOR", Set.of("minecraft:dyed_color", "minecraft:trim")) {
         @Override
-        CompatItemMeta create(ItemStack work, EnumSet<org.bukkit.inventory.ItemFlag> flags, ItemPdc pdc) { return new CompatMetaLeatherArmor(MetaKind.COLORABLE_ARMOR, work, flags, pdc); }
+        CompatItemMeta create(ItemStack work, EnumSet<org.bukkit.inventory.ItemFlag> flags, ItemPdc pdc) { return new CompatMetaColorableArmor(work, flags, pdc); }
 
         @Override
         boolean appliesTo(String itemType) {
@@ -68,6 +77,17 @@ public enum MetaKind {
             };
         }
     };
+
+    private static final Set<String> METAL_ARMOR = armorNames();
+
+    private static Set<String> armorNames() {
+        java.util.Set<String> out = new java.util.HashSet<>();
+        for (String m : new String[]{"chainmail", "diamond", "golden", "iron", "netherite"}) {
+            for (String piece : new String[]{"helmet", "chestplate", "leggings", "boots"}) out.add("minecraft:" + m + "_" + piece);
+        }
+        out.add("minecraft:turtle_helmet");
+        return Set.copyOf(out);
+    }
 
     private static final Set<String> BANNER_COLORS = Set.of("white", "orange", "magenta", "light_blue", "yellow", "lime", "pink", "gray", "light_gray",
             "cyan", "purple", "blue", "brown", "green", "red", "black");

@@ -17,7 +17,7 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.potion.PotionType;
 
 /**
- * 키로 찾는 값 목록(1.21.1 Bukkit·Paper 의 Registry). 이 호환 계층에 값 타입이 있는 레지스트리만 상수로 둔다 — 없는 것(구조물·트림·변종 등)은
+ * 키로 찾는 값 목록(1.21.1 Bukkit·Paper 의 Registry). 이 호환 계층에 값 타입이 있는 레지스트리만 상수로 둔다 — 없는 것(구조물·변종 등)은
  * 상수 자체가 없어 그 필드를 읽는 플러그인은 NoSuchFieldError 로 그 자리에서 멈춘다(엉뚱한 빈 목록을 주지 않는다).
  * Paper 의 adventure Key·TypedKey 판 getOrThrow 는 Adventure 를 쓸 때만 받아 오므로 없다.
  */
@@ -45,6 +45,10 @@ public interface Registry<T extends Keyed> extends Iterable<T> {
     Registry<PotionType> POTION = new SimpleRegistry<>(PotionType.class);
     /** 소리. */
     Registry<Sound> SOUNDS = new SimpleRegistry<>(Sound.class);
+    /** 방어구 장식 재료(데이터 팩이 더한 것까지). */
+    Registry<org.bukkit.inventory.meta.trim.TrimMaterial> TRIM_MATERIAL = org.domi.furnace.compat.paper.TrimRegistry.materials();
+    /** 방어구 장식 무늬(데이터 팩이 더한 것까지). */
+    Registry<org.bukkit.inventory.meta.trim.TrimPattern> TRIM_PATTERN = org.domi.furnace.compat.paper.TrimRegistry.patterns();
 
     /** 키의 값(없으면 null). */
     T get(NamespacedKey key);
