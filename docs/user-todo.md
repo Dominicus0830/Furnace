@@ -152,3 +152,19 @@
 - **다차원 설계**: 차원마다 region 스레드 풀을 따로 둠(쉬는 차원은 거의 비용 없음). 하나로 공유하는 구조는 B안 (`docs/feature-parity/multi-dimension-2026-10-26.md`)
 - **플러그인 API 3단계 이벤트 (2026-11-04)**: 봇 `tools/bot-test/round4/ev.js` + `round4/probe` 로 33개 통과. 둘째 묶음 (2026-11-06): `tools/bot-test/round5/ev.js` 로 31개 통과
 - **봇 시험 근거**: `docs/feature-parity/bot-connection-test-2026-11-03.md`, `…-11-03-round2.md`, `…-11-04.md`, `…-11-06.md`. 2026-11-06 에 흩어져 있던 "접속 시험 요청" 표들을 이 파일 1번 표 하나로 합침. 지운 항목의 봇 결과는 6차 문서 끝에 근거 위치를 적음
+
+- **끝난 항목 정리 (2026-11-20)** — 도미니코가 확인·결정했거나 위임 결정으로 적용돼 더 할 일이 없는 항목 파일 14개를 `docs/user-todo/entries/archive/` 로 옮겼다(내용 그대로, 필요하면 거기서 읽는다. 한 줄 목록 도구와 합본은 `archive/` 를 보지 않는다):
+  - `2026-11-08-chunk-ticket-limit` — 플러그인당 청크 티켓 한도 옵션(`plugins.chunk-tickets.max-per-plugin`, 기본 16384) 구현, 직접 확인 없음
+  - `2026-11-11-worldgen-hooks-base-height` — 월드젠 훅 `baseHeight` 추천대로 구현(안 정하면 바닐라)
+  - `2026-11-14-opt-review-r2-b2` — D8 생성 스레드 기본값: 코어−1 유지, 스레드 줄이기 기각(도미니코 "Ok")
+  - `2026-11-14-opt-review-r2-b3` — B3-1 활성 범위 뒤 엔티티 설정 기본값: Paper 1.21.1 기본값과 같게(확정)
+  - `2026-11-14-shift3-assessment` — region 구역 shift 기본값 4→3 조건부 적용(도미니코 "추천대로")
+  - `2026-11-14-protocollib-audit` — D1 ProtocolLib 이름 시도 경고는 요약 한 줄(A), D2 구현 순서 P0 먼저+T-141 병행(확정)
+  - `2026-11-14-nms-n2b-design` — N2b 결정 4건 D1~D4 전부 추천(A)대로(끝남)
+  - `2026-11-14-w60-explore` — 60명 탐험 W-1~W-4 네 건 확정(바로 다음 틱·조절기 기본 꺼짐·미리 생성 명령 만듦·굶김 없는 공정성)
+  - `2026-11-15-t122-entity-handles` — T-122 엔티티 손잡이: Paper 와 같게 기본 켬 + 끄는 키(위임 확정)
+  - `2026-11-15-protocollib-d1` — ProtocolLib D1: 요약 한 줄 + 개발자용 설정 키로 구현(위임 확정)
+  - `2026-11-16-version-upgrade` — Z1 버전업 순서(1.21.2→…→26.3)·Z2 PR 은 관련 시험만 확정
+  - `2026-11-16-t204-side-effects` — T-204 FAWE 블록 쓰기 부수 효과는 바닐라 값 기준(위임 결정, 적용함)
+  - `2026-11-16-t205-light-surface` — T-205 FAWE 빛 직접 쓰기는 Paper 처럼 무시(위임 결정, 확인 없음)
+  - `2026-11-14-t141e2e-cook-compare` — T-141 E2e 화로 굽기 완료 비교: B+ 확정(11-15, 도미니코), 직접 확인 없음

@@ -9,7 +9,7 @@
   FAWE 전용 코드는 없다 — 같은 Mojang 이름을 부르는 어떤 플러그인도 같은 길을 탄다.
 - 핵심 사실(원문 확인, 2장): Paper 의 `getDataLayerData` 는 **새 사본**을 주고 `queueSectionData` 는 **아무 일도 안 한다**. 그래서 FAWE 의
   `removeSectionLighting`·`fillLightNibble`(받은 배열에 직접 쓰기)은 Paper 에서 서버 빛을 바꾸지 못한다. Furnace 도 같게 했다 — T-205 표에 적혀 있던
-  "queueSectionData 는 거울 일지 쓰기"는 바닐라(Spigot) 동작이고 Paper 와 다르므로 하지 않는다(사용자 확인 항목 `docs/user-todo/entries/2026-11-16-t205-light-surface.md`).
+  "queueSectionData 는 거울 일지 쓰기"는 바닐라(Spigot) 동작이고 Paper 와 다르므로 하지 않는다(사용자 확인 항목 `docs/user-todo/entries/archive/2026-11-16-t205-light-surface.md`).
 - 다른 스레드 읽기(FAWE 일꾼): 주인 region 이 틱 끝에 내는 **공개 스냅샷에 빛 층을 복사 없이** 넣는다. 넘긴 층은 서버가 다음 쓰기 때 복사한다(쓰기 시 복사).
   스냅샷을 내지 않는 청크는 쓰기 길에 비트 검사 하나만 는다.
 - `checkBlock`: 아무 스레드에서 걸고 곧바로 돌아온다. 주인 region 이 그 청크의 거울 쓰기를 먼저 들여온 뒤 원천+검사를 건다(`LevelLight.blockChanged`).

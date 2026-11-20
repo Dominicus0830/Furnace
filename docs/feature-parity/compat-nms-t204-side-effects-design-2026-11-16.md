@@ -89,7 +89,7 @@ N2b 결정 D1·D4(다른 스레드의 쓰기는 거울 일지로 주인이 재�
 
 알려진 어긋남(검토 #468): NMS `addRegionTicket`·`addTicketAtLevel` 의 레벨 32 티켓은 Furnace 에서 "붙잡기"(`pluginHeld` — `NmsTickets` 참고)라 FULL 로 보인다(바닐라 BLOCK_TICKING). 레벨 ≤31 은 tick 티켓으로 옮겨져 맞다. Paper `CHUNK_RELIGHT`(서버 `relight.pinned`)는 Paper 에서도 레벨이 FULL 이 되지 않는 내부 티켓이라 상태 계산에 넣지 않는다(의도). 서버에서 `Region.fullChunkStatus(cx, cz)` 로 계산한다(그 region 의 플레이어 목록을 읽으므로 주인 스레드 — 3장 규칙).
 
-**Paper 와 다른 점(위임 결정, `docs/user-todo/entries/2026-11-16-t204-side-effects.md`)**: Paper 1.21.1(Moonrise `RegionizedPlayerChunkLoader`)은 플레이어 티켓을 시뮬레이션 거리 안 31(ENTITY_TICKING), 불러오기 거리 안 33(FULL)으로 건다 — 시뮬레이션 거리 + 1 만 BLOCK_TICKING 이고 그 밖 시야 안은 FULL 이다. Furnace 는 바닐라 티켓 규칙으로 실제로 청크를 돌리므로(엔티티·블록 틱 판정이 바닐라), **서버가 실제로 쓰는 바닐라 값**을 낸다. FAWE 에서 보이는 차이: 주 스레드 WNA 편집이 시뮬레이션 거리 + 2 ~ 시야 + 1 사이 청크에서 Paper 는 블록 변경 패킷을 보내지 않고(클라이언트가 다시 받을 때까지 옛 블록을 본다), Furnace 는 보낸다(바닐라와 같다). 월드 결과(블록·틱)는 같다.
+**Paper 와 다른 점(위임 결정, `docs/user-todo/entries/archive/2026-11-16-t204-side-effects.md`)**: Paper 1.21.1(Moonrise `RegionizedPlayerChunkLoader`)은 플레이어 티켓을 시뮬레이션 거리 안 31(ENTITY_TICKING), 불러오기 거리 안 33(FULL)으로 건다 — 시뮬레이션 거리 + 1 만 BLOCK_TICKING 이고 그 밖 시야 안은 FULL 이다. Furnace 는 바닐라 티켓 규칙으로 실제로 청크를 돌리므로(엔티티·블록 틱 판정이 바닐라), **서버가 실제로 쓰는 바닐라 값**을 낸다. FAWE 에서 보이는 차이: 주 스레드 WNA 편집이 시뮬레이션 거리 + 2 ~ 시야 + 1 사이 청크에서 Paper 는 블록 변경 패킷을 보내지 않고(클라이언트가 다시 받을 때까지 옛 블록을 본다), Furnace 는 보낸다(바닐라와 같다). 월드 결과(블록·틱)는 같다.
 
 ## 5. 유체·블록 예약 틱
 

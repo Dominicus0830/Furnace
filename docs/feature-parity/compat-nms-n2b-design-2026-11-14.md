@@ -1,7 +1,7 @@
 # NMS 어댑터 N2b 설계 — 필드·배열 수준 청크 쓰기 (2026-11-14)
 
 상태: **확정 설계(구현 전)** — 독립 검토(`/mnt/project-files/furnace/reviews/n2b-design-pr351.md`, 1판 조건부 승인 R1~R15 → 2판 재검토 승인, R16·R17 반영).
-결정이 필요한 것은 `docs/user-todo/entries/2026-11-14-nms-n2b-design.md`(D1~D4).
+결정이 필요한 것은 `docs/user-todo/entries/archive/2026-11-14-nms-n2b-design.md`(D1~D4).
 
 근거: 계획 `compat-nms-adapter-plan-2026-11-11.md` 4장 6번, 계획 검토(4.3 "필드·배열 수준은 보기로는 불가능"), N1+N2a 문서
 `compat-nms-n1-n2a-2026-11-14.md`, 2차 CSP B6 검토(FAWE NMS 기호 664 중 없음 330), 도미니코 11-14 결정 "N2b 는 설계 먼저".
