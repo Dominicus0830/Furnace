@@ -398,7 +398,7 @@ class ConfigToolsTest {
         for (String k : RconLimits.knownKeys()) assertTrue(OptionKeys.isKnown(k), "키 표에 없음: " + k);
         for (String k : ConnectionLimits.knownKeys()) assertTrue(OptionKeys.isKnown(k), "키 표에 없음: " + k);
         for (String k : List.of("motd-format", "io-uring", "idle-pause.empty-seconds", "idle-pause.flush-caches", "backup.interval-minutes",
-                "backup.directory", "backup.keep", "backup.format", "backup.skip-if-no-players", "backup.hold-timeout-seconds",
+                "backup.directory", "backup.keep", "backup.format", "backup.compression", "backup.skip-if-no-players", "backup.hold-timeout-seconds",
                 "metrics.prometheus.enabled", "metrics.prometheus.bind", "metrics.prometheus.port", "metrics.prometheus.token",
                 "metrics.jmx.enabled", "config-version", "config.preset", "jvm.check", "console.jline", "console.history-size")) {
             assertTrue(OptionKeys.isKnown(k), "키 표에 없음: " + k);

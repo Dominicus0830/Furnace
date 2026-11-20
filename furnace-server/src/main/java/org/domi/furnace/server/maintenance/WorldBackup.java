@@ -244,7 +244,7 @@ public final class WorldBackup {
         if (options.backupFormat() == MaintenanceOptions.BackupFormat.ZIP) {
             out = root.resolve(name + ".zip");
             Path part = root.resolve("." + name + ".zip.part");
-            zip(staging, part);
+            zip(staging, part, options.backupCompression());
             Files.move(part, out, java.nio.file.StandardCopyOption.ATOMIC_MOVE);
             deleteTree(staging);
         } else {
@@ -303,18 +303,42 @@ public final class WorldBackup {
         return n[0];
     }
 
-    /** dir 내용을 zip 으로(경로 구분자 '/'). 지역 파일은 이미 압축돼 있어 빠른 단계로. */
-    static void zip(Path dir, Path zipFile) throws IOException {
+    /**
+     * dir 내용을 zip 으로(경로 구분자 '/'). 지역 파일은 이미 압축돼 있어 STORED 면 다시 압축하지 않는다(CPU 절약, 크기 증가).
+     * FAST 는 빠른 단계 deflate. STORED 항목은 zip 규격상 크기·CRC 를 먼저 알아야 해서 파일을 한 번 더 읽어 CRC 를 센다.
+     */
+    static void zip(Path dir, Path zipFile, MaintenanceOptions.BackupCompression compression) throws IOException {
+        boolean stored = compression == MaintenanceOptions.BackupCompression.STORED;
         try (var out = new java.util.zip.ZipOutputStream(new java.io.BufferedOutputStream(Files.newOutputStream(zipFile), 1 << 16))) {
             out.setLevel(java.util.zip.Deflater.BEST_SPEED);
             List<Path> all = new ArrayList<>();
             try (var st = Files.walk(dir)) {
                 st.filter(Files::isRegularFile).sorted().forEach(all::add);
             }
+            byte[] buf = stored ? new byte[1 << 16] : null;
             for (Path p : all) {
                 String entry = dir.relativize(p).toString().replace(java.io.File.separatorChar, '/');
-                out.putNextEntry(new java.util.zip.ZipEntry(entry));
-                Files.copy(p, out);
+                var ze = new java.util.zip.ZipEntry(entry);
+                if (stored) {
+                    ze.setMethod(java.util.zip.ZipEntry.STORED);
+                    var crc = new java.util.zip.CRC32();
+                    long size = 0;
+                    try (var in = Files.newInputStream(p)) {
+                        for (int n; (n = in.read(buf)) > 0; ) {
+                            crc.update(buf, 0, n);
+                            size += n;
+                        }
+                    }
+                    ze.setSize(size);
+                    ze.setCompressedSize(size);
+                    ze.setCrc(crc.getValue());
+                }
+                out.putNextEntry(ze);
+                long written = Files.copy(p, out);
+                if (stored && written != ze.getSize()) {
+                    // 스테이징 폴더는 복사가 끝난 뒤라 바뀌지 않아야 한다
+                    throw new IOException("File changed while zipping: " + p);
+                }
                 out.closeEntry();
             }
         }

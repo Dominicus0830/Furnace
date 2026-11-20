@@ -126,6 +126,7 @@
 | `backup.directory` | 경로 | (없음) | - | 백업 폴더(비면 backups) |  |
 | `backup.keep` | 수 | 10 | 0~100000 | 남길 백업 수(0 = 지우지 않음) | 0 이면 경고 |
 | `backup.format` | 글자 | zip | zip\|folder | 백업 형식 |  |
+| `backup.compression` | 글자 | stored | stored\|fast | 백업 zip 안의 파일 압축(stored = 다시 압축 안 함) |  |
 | `backup.skip-if-no-players` | ON/OFF | true | true\|false | 접속자가 없었으면 백업을 건너뛴다 |  |
 | `backup.hold-timeout-seconds` | 수 | 10 | 1~600 | 백업 기준점에서 저장을 기다리는 최대 초 |  |
 | `plugins.compat.bukkit` | ON/OFF | true | true\|false | Bukkit·Paper 플러그인(plugin.yml) 호환 어댑터 — 끄면 plugin.yml jar 를 읽지 않는다(호환 모듈이 있을 때) |  |

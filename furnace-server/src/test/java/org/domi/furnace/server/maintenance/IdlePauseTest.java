@@ -62,6 +62,12 @@ class IdlePauseTest {
         assertEquals(60, o.idlePauseSeconds());
         assertEquals(MaintenanceOptions.BackupFormat.FOLDER, o.backupFormat());
         assertEquals(3, warns.size(), String.join("\n", warns));
+        assertEquals(MaintenanceOptions.BackupCompression.STORED, d.backupCompression(), "결정 D3: 기본은 다시 압축하지 않는다");
+        p.setProperty("backup.compression", "FAST");
+        assertEquals(MaintenanceOptions.BackupCompression.FAST, MaintenanceOptions.from(p, w -> { }).backupCompression());
+        Properties badComp = new Properties();
+        badComp.setProperty("backup.compression", "parallel");
+        assertThrows(IllegalArgumentException.class, () -> MaintenanceOptions.from(badComp, w -> { }));
         Properties bad = new Properties();
         bad.setProperty("backup.format", "tar");
         assertThrows(IllegalArgumentException.class, () -> MaintenanceOptions.from(bad, w -> { }));
