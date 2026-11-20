@@ -32,7 +32,8 @@ import org.domi.furnace.api.world.SoundCategory;
  * (엔티티 생성·머리 회전·애니메이션·순간 이동·블록 바꾸기·소리)는 두 방향을 모두 여기서 한다 — 바닐라 와이어 값(1/256 바퀴 각도, 1/8000 속도,
  * 1/8 좌표)을 shim 필드에 그대로 담고, Furnace 쪽은 서버 코덱이 읽는 것과 같은 값으로 바꾼다.
  * 메타데이터(set_entity_data)는 {@link EntityDataBridge} 가 값 종류별로 두 방향을 맡는다(2026-11-14). 탭 목록 갱신(player_info_update)은 {@link PlayerInfoBridge}
- * (authlib 이 있을 때만, T-181). 플러그인 메시지는 아직(2b-4) — {@link #supports} 가 false.
+ * (authlib 이 있을 때만, T-181). 플러그인 메시지(custom_payload)는 채널 이름 + 날 바이트 본문({@code DiscardedPayload})만 두 방향을 한다 —
+ * Paper 도 플러그인 메시지를 이 본문으로만 보낼 수 있다(1번 묶음, 2026-11-20).
  */
 public final class TypedPacketBridge {
 
@@ -46,7 +47,7 @@ public final class TypedPacketBridge {
             PacketTypes.Clientbound.PLAYER_INFO_REMOVE, PacketTypes.Clientbound.DISCONNECT,
             PacketTypes.Clientbound.ADD_ENTITY, PacketTypes.Clientbound.ROTATE_HEAD, PacketTypes.Clientbound.ANIMATE,
             PacketTypes.Clientbound.TELEPORT_ENTITY, PacketTypes.Clientbound.BLOCK_UPDATE, PacketTypes.Clientbound.SOUND,
-            PacketTypes.Clientbound.SET_ENTITY_DATA);
+            PacketTypes.Clientbound.SET_ENTITY_DATA, PacketTypes.Clientbound.CUSTOM_PAYLOAD);
 
     /** 탭 목록 갱신은 authlib(GameProfile)이 있을 때만 되돌린다(T-181, {@link PlayerInfoBridge}). */
     public static boolean supports(PacketType<?> t) { return refusal(t) == null; }
@@ -62,7 +63,8 @@ public final class TypedPacketBridge {
     static boolean handlesSchema(String schemaKey) {
         return switch (schemaKey) {
             case "game/clientbound/add_entity", "game/clientbound/rotate_head", "game/clientbound/animate", "game/clientbound/teleport_entity",
-                    "game/clientbound/block_update", "game/clientbound/sound", "game/clientbound/set_entity_data" -> true;
+                    "game/clientbound/block_update", "game/clientbound/sound", "game/clientbound/set_entity_data",
+                    "common/clientbound/custom_payload" -> true;
             default -> false;
         };
     }
@@ -104,6 +106,9 @@ public final class TypedPacketBridge {
                     (int) (t.x() * 8.0), (int) (t.y() * 8.0), (int) (t.z() * 8.0), t.volume(), t.pitch(), t.seed());
             case org.domi.furnace.api.packet.clientbound.ClientboundSetEntityDataPacket t -> EntityDataBridge.fromFurnace(t);
             case org.domi.furnace.api.packet.clientbound.ClientboundPlayerInfoUpdatePacket t -> PlayerInfoBridge.fromFurnace(t);
+            case org.domi.furnace.api.packet.clientbound.ClientboundCustomPayloadPacket t -> new net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket(
+                    new net.minecraft.network.protocol.common.custom.DiscardedPayload(net.minecraft.resources.ResourceLocation.parse(t.channel()),
+                            io.netty.buffer.Unpooled.wrappedBuffer(t.data())));
             default -> throw new UnsupportedNmsCall("fromFurnace(" + p.type() + ")", "this typed record kind cannot be converted back to the shim yet (2b-4)");
         };
     }
@@ -189,8 +194,25 @@ public final class TypedPacketBridge {
                             .orElseThrow(() -> new IllegalArgumentException(at + ": unknown block state")));
             case "game/clientbound/sound" -> soundToFurnace(v, at);
             case "game/clientbound/set_entity_data" -> EntityDataBridge.toFurnace(v, at);
+            case "common/clientbound/custom_payload" -> customPayloadToFurnace(need(v[0], at + ".payload"));
             default -> throw new IllegalStateException("schema key without a typed record bridge: " + at);
         };
+    }
+
+    /**
+     * 플러그인 메시지 본문 → 채널·바이트. 바닐라·Paper 의 인코더는 {@code buf.writeBytes(payload.data())} 로 본문 버퍼의 읽기 위치를 끝까지 옮긴다 —
+     * 같은 패킷 객체를 두 번 보내면 두 번째는 빈 본문이 되는 것까지 같게, 여기서도 읽어서 옮긴다.
+     * 바닐라 디버그·브랜드 본문이나 플러그인이 직접 만든 본문 클래스는 바꾸지 못한다(Paper 에서도 플러그인 본문 클래스는 인코더에서 ClassCastException).
+     */
+    private static org.domi.furnace.api.packet.clientbound.ClientboundCustomPayloadPacket customPayloadToFurnace(Object payload) {
+        if (!(payload instanceof net.minecraft.network.protocol.common.custom.DiscardedPayload d)) {
+            throw new UnsupportedNmsCall("ClientboundCustomPayloadPacket(" + payload.getClass().getName() + ")",
+                    "only DiscardedPayload (channel id + raw bytes) can be sent as a plugin message - Paper also cannot encode other payload classes");
+        }
+        io.netty.buffer.ByteBuf b = d.data();
+        byte[] bytes = new byte[b.readableBytes()];
+        b.readBytes(bytes);
+        return new org.domi.furnace.api.packet.clientbound.ClientboundCustomPayloadPacket(d.id().toString(), bytes);
     }
 
     private static ClientboundSoundPacket soundToFurnace(Object[] v, String at) {

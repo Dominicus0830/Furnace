@@ -53,6 +53,27 @@ public final class NbtWire {
         }
     }
 
+    /**
+     * 아무 태그(바닐라 NbtIo#readAnyTag 네트워크 형식: 타입 바이트 + 이름 없는 값, FriendlyByteBuf#readNbt(NbtAccounter)). END(0) 면 null.
+     * 값은 {@link NbtType} 의 Furnace 값(수는 박싱, 리스트·묶음은 NbtList·NbtCompound).
+     */
+    public static Object readAny(ByteBuf buf) throws IOException {
+        int t = buf.readByte();
+        if (t == 0) return null;
+        return payload(new DataInputStream(new ByteBufInputStream(buf)), t, 0);
+    }
+
+    /** 아무 값 쓰기(바닐라 NbtIo#writeAnyTag): null 이면 END(0) 한 바이트. */
+    public static void writeAny(ByteBuf buf, Object v) throws IOException {
+        DataOutput out = new DataOutputStream(new ByteBufOutputStream(buf));
+        if (v == null) {
+            out.writeByte(0);
+            return;
+        }
+        out.writeByte(NbtType.of(v).id());
+        writePayload(out, v);
+    }
+
     private static NbtCompound compound(DataInput in, int depth) throws IOException {
         if (depth > MAX_DEPTH) throw new IllegalArgumentException("NBT depth exceeds " + MAX_DEPTH);
         NbtCompound c = new NbtCompound();

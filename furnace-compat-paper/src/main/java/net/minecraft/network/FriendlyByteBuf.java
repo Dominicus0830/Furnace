@@ -1,18 +1,44 @@
 package net.minecraft.network;
 
 import io.netty.buffer.ByteBuf;
-import java.nio.charset.StandardCharsets;
+import io.netty.handler.codec.DecoderException;
+import io.netty.handler.codec.EncoderException;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.IntFunction;
+import java.util.function.ToIntFunction;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Registry;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.EndTag;
+import net.minecraft.nbt.NbtAccounter;
+import net.minecraft.nbt.NbtBridge;
+import net.minecraft.nbt.Tag;
+import net.minecraft.network.codec.StreamDecoder;
+import net.minecraft.network.codec.StreamEncoder;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
+import org.domi.furnace.compat.nms.NbtWire;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
 
 /**
  * 패킷 바이트 버퍼 shim(Mojang 이름, N3 1단계). 바닐라처럼 netty {@link ByteBuf} 를 감싸 위임하고(읽기·쓰기 위치도 안쪽 버퍼와 같다),
  * 프로토콜의 값 형식(가변 길이 정수·문자열·UUID·블록 위치 등)을 읽고 쓰는 도우미를 더한다.
  * <p>
  * 위임 메서드(아래 "위임" 구간)는 netty 4.1.115 {@code ByteBuf} 의 추상 메서드를 기계적으로 만든 것이다
- * ({@code tools/compat/gen-friendly-bytebuf.py}). 도우미는 프로토콜 형식(가변 정수·UTF-8 문자열)을 새로 쓴 것이다.
- * 컴포넌트·NBT·아이템처럼 레지스트리나 서버 타입이 필요한 값은 패킷 바이트 변환(ProtocolLib 다리 3단계)과 함께 더한다.
+ * ({@code tools/compat/gen-friendly-bytebuf.py}). 바닐라 1.21.1 처럼 쓰기·위치 옮기기 등은 반환형이 {@code FriendlyByteBuf}(공변)이고, 새 버퍼를 주는 것
+ * (copy·slice·duplicate·readBytes(int) 등)과 order·unwrap·asReadOnly 만 {@code ByteBuf} 다. 도우미는 프로토콜 형식(가변 정수·UTF-8 문자열)을 새로 쓴 것이다.
+ * 컴포넌트·아이템처럼 레지스트리나 서버 타입이 필요한 값은 패킷 바이트 변환(ProtocolLib 다리 3단계)과 함께 더한다.
+ * 묶음·선택 값·번호·NBT·키·벡터 도우미는 Axiom·VeinMiner 같은 플러그인 메시지 코덱이 쓰는 것을 바닐라 바이트코드대로 옮겼다(1번 묶음).
  */
 public class FriendlyByteBuf extends ByteBuf {
 
@@ -20,6 +46,8 @@ public class FriendlyByteBuf extends ByteBuf {
     private static final int MAX_VARLONG_BYTES = 10;
     /** 바닐라 문자열 상한(UTF-16 코드 유닛 수). */
     private static final int MAX_STRING = 32767;
+    /** 바닐라: 패킷 NBT 바이트 한도 2 MiB. */
+    public static final int DEFAULT_NBT_QUOTA = 2097152;
 
     private final ByteBuf source;
 
@@ -77,26 +105,12 @@ public class FriendlyByteBuf extends ByteBuf {
 
     public String readUtf() { return readUtf(MAX_STRING); }
 
-    public String readUtf(int maxLength) {
-        int bytes = readVarInt();
-        if (bytes > maxLength * 3) throw new io.netty.handler.codec.DecoderException("The received encoded string buffer length is longer than maximum allowed (" + bytes + " > " + maxLength * 3 + ")");
-        if (bytes < 0) throw new io.netty.handler.codec.DecoderException("The received encoded string buffer length is less than zero! Weird string!");
-        int readable = readableBytes();
-        if (bytes > readable) throw new io.netty.handler.codec.DecoderException("Not enough bytes in buffer, expected " + bytes + ", but got " + readable);
-        String s = toString(readerIndex(), bytes, StandardCharsets.UTF_8);
-        readerIndex(readerIndex() + bytes);
-        if (s.length() > maxLength) throw new io.netty.handler.codec.DecoderException("The received string length is longer than maximum allowed (" + s.length() + " > " + maxLength + ")");
-        return s;
-    }
+    public String readUtf(int maxLength) { return Utf8String.read(source, maxLength); }
 
     public FriendlyByteBuf writeUtf(String value) { return writeUtf(value, MAX_STRING); }
 
     public FriendlyByteBuf writeUtf(String value, int maxLength) {
-        if (value.length() > maxLength) throw new io.netty.handler.codec.EncoderException("String too big (was " + value.length() + " characters, max " + maxLength + ")");
-        byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
-        if (bytes.length > maxLength * 3) throw new io.netty.handler.codec.EncoderException("String too big (was " + bytes.length + " bytes encoded, max " + maxLength * 3 + ")");
-        writeVarInt(bytes.length);
-        writeBytes(bytes);
+        Utf8String.write(source, value, maxLength);
         return this;
     }
 
@@ -170,6 +184,162 @@ public class FriendlyByteBuf extends ByteBuf {
 
     public FriendlyByteBuf writeEnum(Enum<?> value) { return writeVarInt(value.ordinal()); }
 
+    // ---------------------------------------------------------------- 묶음·선택 값·번호·NBT·키·벡터 (바닐라 1.21.1 과 같은 바이트·예외)
+
+    public static <T> IntFunction<T> limitValue(IntFunction<T> function, int limit) {
+        return i -> {
+            if (i > limit) throw new DecoderException("Value " + i + " is larger than limit " + limit);
+            return function.apply(i);
+        };
+    }
+
+    public <T, C extends Collection<T>> C readCollection(IntFunction<C> collectionFactory, StreamDecoder<? super FriendlyByteBuf, T> decoder) {
+        int n = readVarInt();
+        C out = collectionFactory.apply(n);
+        for (int i = 0; i < n; i++) out.add(decoder.decode(this));
+        return out;
+    }
+
+    public <T> void writeCollection(Collection<T> collection, StreamEncoder<? super FriendlyByteBuf, T> encoder) {
+        writeVarInt(collection.size());
+        for (T v : collection) encoder.encode(this, v);
+    }
+
+    public <T> List<T> readList(StreamDecoder<? super FriendlyByteBuf, T> decoder) {
+        return readCollection(ArrayList::new, decoder);
+    }
+
+    public <K, V, M extends Map<K, V>> M readMap(IntFunction<M> mapFactory, StreamDecoder<? super FriendlyByteBuf, K> keyDecoder, StreamDecoder<? super FriendlyByteBuf, V> valueDecoder) {
+        int n = readVarInt();
+        M out = mapFactory.apply(n);
+        for (int i = 0; i < n; i++) {
+            K k = keyDecoder.decode(this);
+            V v = valueDecoder.decode(this);
+            out.put(k, v);
+        }
+        return out;
+    }
+
+    /** 바닐라는 Maps.newHashMapWithExpectedSize(guava 32.1.2: n<3 이면 n+1, 아니면 ceil(n/0.75)) — HashMap.newHashMap 과 표 크기가 같다. */
+    public <K, V> Map<K, V> readMap(StreamDecoder<? super FriendlyByteBuf, K> keyDecoder, StreamDecoder<? super FriendlyByteBuf, V> valueDecoder) {
+        return readMap(HashMap::newHashMap, keyDecoder, valueDecoder);
+    }
+
+    public <K, V> void writeMap(Map<K, V> map, StreamEncoder<? super FriendlyByteBuf, K> keyEncoder, StreamEncoder<? super FriendlyByteBuf, V> valueEncoder) {
+        writeVarInt(map.size());
+        map.forEach((k, v) -> {
+            keyEncoder.encode(this, k);
+            valueEncoder.encode(this, v);
+        });
+    }
+
+    public <T> T readNullable(StreamDecoder<? super FriendlyByteBuf, T> decoder) { return readNullable(this, decoder); }
+
+    public static <T, B extends ByteBuf> T readNullable(B buf, StreamDecoder<? super B, T> decoder) {
+        return buf.readBoolean() ? decoder.decode(buf) : null;
+    }
+
+    public <T> void writeNullable(T value, StreamEncoder<? super FriendlyByteBuf, T> encoder) { writeNullable(this, value, encoder); }
+
+    public static <T, B extends ByteBuf> void writeNullable(B buf, T value, StreamEncoder<? super B, T> encoder) {
+        if (value != null) {
+            buf.writeBoolean(true);
+            encoder.encode(buf, value);
+        } else {
+            buf.writeBoolean(false);
+        }
+    }
+
+    public <T> T readById(IntFunction<T> idLookup) { return idLookup.apply(readVarInt()); }
+
+    public <T> FriendlyByteBuf writeById(ToIntFunction<T> idGetter, T value) { return writeVarInt(idGetter.applyAsInt(value)); }
+
+    /** 바닐라 네트워크 NBT(타입 바이트 + 이름 없는 값). null 은 END(0). 읽기 깊이 상한 512 는 같고, 바이트 한도(quota)는 세지 않는다(NbtAccounter 참고). */
+    public FriendlyByteBuf writeNbt(Tag tag) {
+        writeNbt(source, tag);
+        return this;
+    }
+
+    public static void writeNbt(ByteBuf buf, Tag tag) {
+        try {
+            NbtWire.writeAny(buf, tag == null || tag instanceof EndTag ? null : NbtBridge.toFurnace(tag));
+        } catch (Exception e) {
+            throw new EncoderException(e);
+        }
+    }
+
+    public CompoundTag readNbt() { return readNbt(source); }
+
+    public static CompoundTag readNbt(ByteBuf buf) {
+        Tag tag = readNbt(buf, NbtAccounter.create(DEFAULT_NBT_QUOTA));
+        if (tag != null && !(tag instanceof CompoundTag)) throw new DecoderException("Not a compound tag: " + tag);
+        return (CompoundTag) tag;
+    }
+
+    /** END 면 null. 바닐라처럼 IOException 은 EncoderException 으로 싼다. */
+    public static Tag readNbt(ByteBuf buf, NbtAccounter accounter) {
+        try {
+            Object v = NbtWire.readAny(buf);
+            return v == null ? null : NbtBridge.fromFurnace(v);
+        } catch (IOException e) {
+            throw new EncoderException(e);
+        }
+    }
+
+    public Tag readNbt(NbtAccounter accounter) { return readNbt(source, accounter); }
+
+    public <T> ResourceKey<T> readResourceKey(ResourceKey<? extends Registry<T>> registryKey) {
+        return ResourceKey.create(registryKey, readResourceLocation());
+    }
+
+    public void writeResourceKey(ResourceKey<?> key) { writeResourceLocation(key.location()); }
+
+    public BlockHitResult readBlockHitResult() {
+        BlockPos pos = readBlockPos();
+        Direction direction = readEnum(Direction.class);
+        float x = readFloat();
+        float y = readFloat();
+        float z = readFloat();
+        boolean inside = readBoolean();
+        return new BlockHitResult(new Vec3(pos.getX() + (double) x, pos.getY() + (double) y, pos.getZ() + (double) z), direction, pos, inside);
+    }
+
+    public void writeBlockHitResult(BlockHitResult hit) {
+        BlockPos pos = hit.getBlockPos();
+        writeBlockPos(pos);
+        writeEnum(hit.getDirection());
+        Vec3 at = hit.getLocation();
+        writeFloat((float) (at.x - pos.getX()));
+        writeFloat((float) (at.y - pos.getY()));
+        writeFloat((float) (at.z - pos.getZ()));
+        writeBoolean(hit.isInside());
+    }
+
+    public Vector3f readVector3f() { return readVector3f(this); }
+
+    public static Vector3f readVector3f(ByteBuf buf) { return new Vector3f(buf.readFloat(), buf.readFloat(), buf.readFloat()); }
+
+    public void writeVector3f(Vector3f v) { writeVector3f(this, v); }
+
+    public static void writeVector3f(ByteBuf buf, Vector3f v) {
+        buf.writeFloat(v.x());
+        buf.writeFloat(v.y());
+        buf.writeFloat(v.z());
+    }
+
+    public Quaternionf readQuaternion() { return readQuaternion(this); }
+
+    public static Quaternionf readQuaternion(ByteBuf buf) { return new Quaternionf(buf.readFloat(), buf.readFloat(), buf.readFloat(), buf.readFloat()); }
+
+    public void writeQuaternion(Quaternionf q) { writeQuaternion(this, q); }
+
+    public static void writeQuaternion(ByteBuf buf, Quaternionf q) {
+        buf.writeFloat(q.x);
+        buf.writeFloat(q.y);
+        buf.writeFloat(q.z);
+        buf.writeFloat(q.w);
+    }
+
     // ---------------------------------------------------------------- 위임 (tools/compat/gen-friendly-bytebuf.py)
     // ByteBuf 가 선언하지 않고 ReferenceCounted 에서 물려받는 것(생성기가 못 본다)
     @Override public int refCnt() { return source.refCnt(); }
@@ -178,7 +348,7 @@ public class FriendlyByteBuf extends ByteBuf {
 
 
     @Override public int capacity() { return source.capacity(); }
-    @Override public io.netty.buffer.ByteBuf capacity(int p0) { source.capacity(p0); return this; }
+    @Override public FriendlyByteBuf capacity(int p0) { source.capacity(p0); return this; }
     @Override public int maxCapacity() { return source.maxCapacity(); }
     @Override public io.netty.buffer.ByteBufAllocator alloc() { return source.alloc(); }
     @Override public java.nio.ByteOrder order() { return source.order(); }
@@ -188,10 +358,10 @@ public class FriendlyByteBuf extends ByteBuf {
     @Override public boolean isReadOnly() { return source.isReadOnly(); }
     @Override public io.netty.buffer.ByteBuf asReadOnly() { return source.asReadOnly(); }
     @Override public int readerIndex() { return source.readerIndex(); }
-    @Override public io.netty.buffer.ByteBuf readerIndex(int p0) { source.readerIndex(p0); return this; }
+    @Override public FriendlyByteBuf readerIndex(int p0) { source.readerIndex(p0); return this; }
     @Override public int writerIndex() { return source.writerIndex(); }
-    @Override public io.netty.buffer.ByteBuf writerIndex(int p0) { source.writerIndex(p0); return this; }
-    @Override public io.netty.buffer.ByteBuf setIndex(int p0, int p1) { source.setIndex(p0, p1); return this; }
+    @Override public FriendlyByteBuf writerIndex(int p0) { source.writerIndex(p0); return this; }
+    @Override public FriendlyByteBuf setIndex(int p0, int p1) { source.setIndex(p0, p1); return this; }
     @Override public int readableBytes() { return source.readableBytes(); }
     @Override public int writableBytes() { return source.writableBytes(); }
     @Override public int maxWritableBytes() { return source.maxWritableBytes(); }
@@ -199,14 +369,14 @@ public class FriendlyByteBuf extends ByteBuf {
     @Override public boolean isReadable(int p0) { return source.isReadable(p0); }
     @Override public boolean isWritable() { return source.isWritable(); }
     @Override public boolean isWritable(int p0) { return source.isWritable(p0); }
-    @Override public io.netty.buffer.ByteBuf clear() { source.clear(); return this; }
-    @Override public io.netty.buffer.ByteBuf markReaderIndex() { source.markReaderIndex(); return this; }
-    @Override public io.netty.buffer.ByteBuf resetReaderIndex() { source.resetReaderIndex(); return this; }
-    @Override public io.netty.buffer.ByteBuf markWriterIndex() { source.markWriterIndex(); return this; }
-    @Override public io.netty.buffer.ByteBuf resetWriterIndex() { source.resetWriterIndex(); return this; }
-    @Override public io.netty.buffer.ByteBuf discardReadBytes() { source.discardReadBytes(); return this; }
-    @Override public io.netty.buffer.ByteBuf discardSomeReadBytes() { source.discardSomeReadBytes(); return this; }
-    @Override public io.netty.buffer.ByteBuf ensureWritable(int p0) { source.ensureWritable(p0); return this; }
+    @Override public FriendlyByteBuf clear() { source.clear(); return this; }
+    @Override public FriendlyByteBuf markReaderIndex() { source.markReaderIndex(); return this; }
+    @Override public FriendlyByteBuf resetReaderIndex() { source.resetReaderIndex(); return this; }
+    @Override public FriendlyByteBuf markWriterIndex() { source.markWriterIndex(); return this; }
+    @Override public FriendlyByteBuf resetWriterIndex() { source.resetWriterIndex(); return this; }
+    @Override public FriendlyByteBuf discardReadBytes() { source.discardReadBytes(); return this; }
+    @Override public FriendlyByteBuf discardSomeReadBytes() { source.discardSomeReadBytes(); return this; }
+    @Override public FriendlyByteBuf ensureWritable(int p0) { source.ensureWritable(p0); return this; }
     @Override public int ensureWritable(int p0, boolean p1) { return source.ensureWritable(p0, p1); }
     @Override public boolean getBoolean(int p0) { return source.getBoolean(p0); }
     @Override public byte getByte(int p0) { return source.getByte(p0); }
@@ -228,39 +398,39 @@ public class FriendlyByteBuf extends ByteBuf {
     @Override public char getChar(int p0) { return source.getChar(p0); }
     @Override public float getFloat(int p0) { return source.getFloat(p0); }
     @Override public double getDouble(int p0) { return source.getDouble(p0); }
-    @Override public io.netty.buffer.ByteBuf getBytes(int p0, io.netty.buffer.ByteBuf p1) { source.getBytes(p0, p1); return this; }
-    @Override public io.netty.buffer.ByteBuf getBytes(int p0, io.netty.buffer.ByteBuf p1, int p2) { source.getBytes(p0, p1, p2); return this; }
-    @Override public io.netty.buffer.ByteBuf getBytes(int p0, io.netty.buffer.ByteBuf p1, int p2, int p3) { source.getBytes(p0, p1, p2, p3); return this; }
-    @Override public io.netty.buffer.ByteBuf getBytes(int p0, byte[] p1) { source.getBytes(p0, p1); return this; }
-    @Override public io.netty.buffer.ByteBuf getBytes(int p0, byte[] p1, int p2, int p3) { source.getBytes(p0, p1, p2, p3); return this; }
-    @Override public io.netty.buffer.ByteBuf getBytes(int p0, java.nio.ByteBuffer p1) { source.getBytes(p0, p1); return this; }
-    @Override public io.netty.buffer.ByteBuf getBytes(int p0, java.io.OutputStream p1, int p2) throws java.io.IOException { source.getBytes(p0, p1, p2); return this; }
+    @Override public FriendlyByteBuf getBytes(int p0, io.netty.buffer.ByteBuf p1) { source.getBytes(p0, p1); return this; }
+    @Override public FriendlyByteBuf getBytes(int p0, io.netty.buffer.ByteBuf p1, int p2) { source.getBytes(p0, p1, p2); return this; }
+    @Override public FriendlyByteBuf getBytes(int p0, io.netty.buffer.ByteBuf p1, int p2, int p3) { source.getBytes(p0, p1, p2, p3); return this; }
+    @Override public FriendlyByteBuf getBytes(int p0, byte[] p1) { source.getBytes(p0, p1); return this; }
+    @Override public FriendlyByteBuf getBytes(int p0, byte[] p1, int p2, int p3) { source.getBytes(p0, p1, p2, p3); return this; }
+    @Override public FriendlyByteBuf getBytes(int p0, java.nio.ByteBuffer p1) { source.getBytes(p0, p1); return this; }
+    @Override public FriendlyByteBuf getBytes(int p0, java.io.OutputStream p1, int p2) throws java.io.IOException { source.getBytes(p0, p1, p2); return this; }
     @Override public int getBytes(int p0, java.nio.channels.GatheringByteChannel p1, int p2) throws java.io.IOException { return source.getBytes(p0, p1, p2); }
     @Override public int getBytes(int p0, java.nio.channels.FileChannel p1, long p2, int p3) throws java.io.IOException { return source.getBytes(p0, p1, p2, p3); }
     @Override public java.lang.CharSequence getCharSequence(int p0, int p1, java.nio.charset.Charset p2) { return source.getCharSequence(p0, p1, p2); }
-    @Override public io.netty.buffer.ByteBuf setBoolean(int p0, boolean p1) { source.setBoolean(p0, p1); return this; }
-    @Override public io.netty.buffer.ByteBuf setByte(int p0, int p1) { source.setByte(p0, p1); return this; }
-    @Override public io.netty.buffer.ByteBuf setShort(int p0, int p1) { source.setShort(p0, p1); return this; }
-    @Override public io.netty.buffer.ByteBuf setShortLE(int p0, int p1) { source.setShortLE(p0, p1); return this; }
-    @Override public io.netty.buffer.ByteBuf setMedium(int p0, int p1) { source.setMedium(p0, p1); return this; }
-    @Override public io.netty.buffer.ByteBuf setMediumLE(int p0, int p1) { source.setMediumLE(p0, p1); return this; }
-    @Override public io.netty.buffer.ByteBuf setInt(int p0, int p1) { source.setInt(p0, p1); return this; }
-    @Override public io.netty.buffer.ByteBuf setIntLE(int p0, int p1) { source.setIntLE(p0, p1); return this; }
-    @Override public io.netty.buffer.ByteBuf setLong(int p0, long p1) { source.setLong(p0, p1); return this; }
-    @Override public io.netty.buffer.ByteBuf setLongLE(int p0, long p1) { source.setLongLE(p0, p1); return this; }
-    @Override public io.netty.buffer.ByteBuf setChar(int p0, int p1) { source.setChar(p0, p1); return this; }
-    @Override public io.netty.buffer.ByteBuf setFloat(int p0, float p1) { source.setFloat(p0, p1); return this; }
-    @Override public io.netty.buffer.ByteBuf setDouble(int p0, double p1) { source.setDouble(p0, p1); return this; }
-    @Override public io.netty.buffer.ByteBuf setBytes(int p0, io.netty.buffer.ByteBuf p1) { source.setBytes(p0, p1); return this; }
-    @Override public io.netty.buffer.ByteBuf setBytes(int p0, io.netty.buffer.ByteBuf p1, int p2) { source.setBytes(p0, p1, p2); return this; }
-    @Override public io.netty.buffer.ByteBuf setBytes(int p0, io.netty.buffer.ByteBuf p1, int p2, int p3) { source.setBytes(p0, p1, p2, p3); return this; }
-    @Override public io.netty.buffer.ByteBuf setBytes(int p0, byte[] p1) { source.setBytes(p0, p1); return this; }
-    @Override public io.netty.buffer.ByteBuf setBytes(int p0, byte[] p1, int p2, int p3) { source.setBytes(p0, p1, p2, p3); return this; }
-    @Override public io.netty.buffer.ByteBuf setBytes(int p0, java.nio.ByteBuffer p1) { source.setBytes(p0, p1); return this; }
+    @Override public FriendlyByteBuf setBoolean(int p0, boolean p1) { source.setBoolean(p0, p1); return this; }
+    @Override public FriendlyByteBuf setByte(int p0, int p1) { source.setByte(p0, p1); return this; }
+    @Override public FriendlyByteBuf setShort(int p0, int p1) { source.setShort(p0, p1); return this; }
+    @Override public FriendlyByteBuf setShortLE(int p0, int p1) { source.setShortLE(p0, p1); return this; }
+    @Override public FriendlyByteBuf setMedium(int p0, int p1) { source.setMedium(p0, p1); return this; }
+    @Override public FriendlyByteBuf setMediumLE(int p0, int p1) { source.setMediumLE(p0, p1); return this; }
+    @Override public FriendlyByteBuf setInt(int p0, int p1) { source.setInt(p0, p1); return this; }
+    @Override public FriendlyByteBuf setIntLE(int p0, int p1) { source.setIntLE(p0, p1); return this; }
+    @Override public FriendlyByteBuf setLong(int p0, long p1) { source.setLong(p0, p1); return this; }
+    @Override public FriendlyByteBuf setLongLE(int p0, long p1) { source.setLongLE(p0, p1); return this; }
+    @Override public FriendlyByteBuf setChar(int p0, int p1) { source.setChar(p0, p1); return this; }
+    @Override public FriendlyByteBuf setFloat(int p0, float p1) { source.setFloat(p0, p1); return this; }
+    @Override public FriendlyByteBuf setDouble(int p0, double p1) { source.setDouble(p0, p1); return this; }
+    @Override public FriendlyByteBuf setBytes(int p0, io.netty.buffer.ByteBuf p1) { source.setBytes(p0, p1); return this; }
+    @Override public FriendlyByteBuf setBytes(int p0, io.netty.buffer.ByteBuf p1, int p2) { source.setBytes(p0, p1, p2); return this; }
+    @Override public FriendlyByteBuf setBytes(int p0, io.netty.buffer.ByteBuf p1, int p2, int p3) { source.setBytes(p0, p1, p2, p3); return this; }
+    @Override public FriendlyByteBuf setBytes(int p0, byte[] p1) { source.setBytes(p0, p1); return this; }
+    @Override public FriendlyByteBuf setBytes(int p0, byte[] p1, int p2, int p3) { source.setBytes(p0, p1, p2, p3); return this; }
+    @Override public FriendlyByteBuf setBytes(int p0, java.nio.ByteBuffer p1) { source.setBytes(p0, p1); return this; }
     @Override public int setBytes(int p0, java.io.InputStream p1, int p2) throws java.io.IOException { return source.setBytes(p0, p1, p2); }
     @Override public int setBytes(int p0, java.nio.channels.ScatteringByteChannel p1, int p2) throws java.io.IOException { return source.setBytes(p0, p1, p2); }
     @Override public int setBytes(int p0, java.nio.channels.FileChannel p1, long p2, int p3) throws java.io.IOException { return source.setBytes(p0, p1, p2, p3); }
-    @Override public io.netty.buffer.ByteBuf setZero(int p0, int p1) { source.setZero(p0, p1); return this; }
+    @Override public FriendlyByteBuf setZero(int p0, int p1) { source.setZero(p0, p1); return this; }
     @Override public int setCharSequence(int p0, java.lang.CharSequence p1, java.nio.charset.Charset p2) { return source.setCharSequence(p0, p1, p2); }
     @Override public boolean readBoolean() { return source.readBoolean(); }
     @Override public byte readByte() { return source.readByte(); }
@@ -282,43 +452,43 @@ public class FriendlyByteBuf extends ByteBuf {
     @Override public char readChar() { return source.readChar(); }
     @Override public float readFloat() { return source.readFloat(); }
     @Override public double readDouble() { return source.readDouble(); }
-    @Override public io.netty.buffer.ByteBuf readBytes(int p0) { source.readBytes(p0); return this; }
+    @Override public io.netty.buffer.ByteBuf readBytes(int p0) { return source.readBytes(p0); }
     @Override public io.netty.buffer.ByteBuf readSlice(int p0) { return source.readSlice(p0); }
     @Override public io.netty.buffer.ByteBuf readRetainedSlice(int p0) { return source.readRetainedSlice(p0); }
-    @Override public io.netty.buffer.ByteBuf readBytes(io.netty.buffer.ByteBuf p0) { source.readBytes(p0); return this; }
-    @Override public io.netty.buffer.ByteBuf readBytes(io.netty.buffer.ByteBuf p0, int p1) { source.readBytes(p0, p1); return this; }
-    @Override public io.netty.buffer.ByteBuf readBytes(io.netty.buffer.ByteBuf p0, int p1, int p2) { source.readBytes(p0, p1, p2); return this; }
-    @Override public io.netty.buffer.ByteBuf readBytes(byte[] p0) { source.readBytes(p0); return this; }
-    @Override public io.netty.buffer.ByteBuf readBytes(byte[] p0, int p1, int p2) { source.readBytes(p0, p1, p2); return this; }
-    @Override public io.netty.buffer.ByteBuf readBytes(java.nio.ByteBuffer p0) { source.readBytes(p0); return this; }
-    @Override public io.netty.buffer.ByteBuf readBytes(java.io.OutputStream p0, int p1) throws java.io.IOException { source.readBytes(p0, p1); return this; }
+    @Override public FriendlyByteBuf readBytes(io.netty.buffer.ByteBuf p0) { source.readBytes(p0); return this; }
+    @Override public FriendlyByteBuf readBytes(io.netty.buffer.ByteBuf p0, int p1) { source.readBytes(p0, p1); return this; }
+    @Override public FriendlyByteBuf readBytes(io.netty.buffer.ByteBuf p0, int p1, int p2) { source.readBytes(p0, p1, p2); return this; }
+    @Override public FriendlyByteBuf readBytes(byte[] p0) { source.readBytes(p0); return this; }
+    @Override public FriendlyByteBuf readBytes(byte[] p0, int p1, int p2) { source.readBytes(p0, p1, p2); return this; }
+    @Override public FriendlyByteBuf readBytes(java.nio.ByteBuffer p0) { source.readBytes(p0); return this; }
+    @Override public FriendlyByteBuf readBytes(java.io.OutputStream p0, int p1) throws java.io.IOException { source.readBytes(p0, p1); return this; }
     @Override public int readBytes(java.nio.channels.GatheringByteChannel p0, int p1) throws java.io.IOException { return source.readBytes(p0, p1); }
     @Override public java.lang.CharSequence readCharSequence(int p0, java.nio.charset.Charset p1) { return source.readCharSequence(p0, p1); }
     @Override public int readBytes(java.nio.channels.FileChannel p0, long p1, int p2) throws java.io.IOException { return source.readBytes(p0, p1, p2); }
-    @Override public io.netty.buffer.ByteBuf skipBytes(int p0) { source.skipBytes(p0); return this; }
-    @Override public io.netty.buffer.ByteBuf writeBoolean(boolean p0) { source.writeBoolean(p0); return this; }
-    @Override public io.netty.buffer.ByteBuf writeByte(int p0) { source.writeByte(p0); return this; }
-    @Override public io.netty.buffer.ByteBuf writeShort(int p0) { source.writeShort(p0); return this; }
-    @Override public io.netty.buffer.ByteBuf writeShortLE(int p0) { source.writeShortLE(p0); return this; }
-    @Override public io.netty.buffer.ByteBuf writeMedium(int p0) { source.writeMedium(p0); return this; }
-    @Override public io.netty.buffer.ByteBuf writeMediumLE(int p0) { source.writeMediumLE(p0); return this; }
-    @Override public io.netty.buffer.ByteBuf writeInt(int p0) { source.writeInt(p0); return this; }
-    @Override public io.netty.buffer.ByteBuf writeIntLE(int p0) { source.writeIntLE(p0); return this; }
-    @Override public io.netty.buffer.ByteBuf writeLong(long p0) { source.writeLong(p0); return this; }
-    @Override public io.netty.buffer.ByteBuf writeLongLE(long p0) { source.writeLongLE(p0); return this; }
-    @Override public io.netty.buffer.ByteBuf writeChar(int p0) { source.writeChar(p0); return this; }
-    @Override public io.netty.buffer.ByteBuf writeFloat(float p0) { source.writeFloat(p0); return this; }
-    @Override public io.netty.buffer.ByteBuf writeDouble(double p0) { source.writeDouble(p0); return this; }
-    @Override public io.netty.buffer.ByteBuf writeBytes(io.netty.buffer.ByteBuf p0) { source.writeBytes(p0); return this; }
-    @Override public io.netty.buffer.ByteBuf writeBytes(io.netty.buffer.ByteBuf p0, int p1) { source.writeBytes(p0, p1); return this; }
-    @Override public io.netty.buffer.ByteBuf writeBytes(io.netty.buffer.ByteBuf p0, int p1, int p2) { source.writeBytes(p0, p1, p2); return this; }
-    @Override public io.netty.buffer.ByteBuf writeBytes(byte[] p0) { source.writeBytes(p0); return this; }
-    @Override public io.netty.buffer.ByteBuf writeBytes(byte[] p0, int p1, int p2) { source.writeBytes(p0, p1, p2); return this; }
-    @Override public io.netty.buffer.ByteBuf writeBytes(java.nio.ByteBuffer p0) { source.writeBytes(p0); return this; }
+    @Override public FriendlyByteBuf skipBytes(int p0) { source.skipBytes(p0); return this; }
+    @Override public FriendlyByteBuf writeBoolean(boolean p0) { source.writeBoolean(p0); return this; }
+    @Override public FriendlyByteBuf writeByte(int p0) { source.writeByte(p0); return this; }
+    @Override public FriendlyByteBuf writeShort(int p0) { source.writeShort(p0); return this; }
+    @Override public FriendlyByteBuf writeShortLE(int p0) { source.writeShortLE(p0); return this; }
+    @Override public FriendlyByteBuf writeMedium(int p0) { source.writeMedium(p0); return this; }
+    @Override public FriendlyByteBuf writeMediumLE(int p0) { source.writeMediumLE(p0); return this; }
+    @Override public FriendlyByteBuf writeInt(int p0) { source.writeInt(p0); return this; }
+    @Override public FriendlyByteBuf writeIntLE(int p0) { source.writeIntLE(p0); return this; }
+    @Override public FriendlyByteBuf writeLong(long p0) { source.writeLong(p0); return this; }
+    @Override public FriendlyByteBuf writeLongLE(long p0) { source.writeLongLE(p0); return this; }
+    @Override public FriendlyByteBuf writeChar(int p0) { source.writeChar(p0); return this; }
+    @Override public FriendlyByteBuf writeFloat(float p0) { source.writeFloat(p0); return this; }
+    @Override public FriendlyByteBuf writeDouble(double p0) { source.writeDouble(p0); return this; }
+    @Override public FriendlyByteBuf writeBytes(io.netty.buffer.ByteBuf p0) { source.writeBytes(p0); return this; }
+    @Override public FriendlyByteBuf writeBytes(io.netty.buffer.ByteBuf p0, int p1) { source.writeBytes(p0, p1); return this; }
+    @Override public FriendlyByteBuf writeBytes(io.netty.buffer.ByteBuf p0, int p1, int p2) { source.writeBytes(p0, p1, p2); return this; }
+    @Override public FriendlyByteBuf writeBytes(byte[] p0) { source.writeBytes(p0); return this; }
+    @Override public FriendlyByteBuf writeBytes(byte[] p0, int p1, int p2) { source.writeBytes(p0, p1, p2); return this; }
+    @Override public FriendlyByteBuf writeBytes(java.nio.ByteBuffer p0) { source.writeBytes(p0); return this; }
     @Override public int writeBytes(java.io.InputStream p0, int p1) throws java.io.IOException { return source.writeBytes(p0, p1); }
     @Override public int writeBytes(java.nio.channels.ScatteringByteChannel p0, int p1) throws java.io.IOException { return source.writeBytes(p0, p1); }
     @Override public int writeBytes(java.nio.channels.FileChannel p0, long p1, int p2) throws java.io.IOException { return source.writeBytes(p0, p1, p2); }
-    @Override public io.netty.buffer.ByteBuf writeZero(int p0) { source.writeZero(p0); return this; }
+    @Override public FriendlyByteBuf writeZero(int p0) { source.writeZero(p0); return this; }
     @Override public int writeCharSequence(java.lang.CharSequence p0, java.nio.charset.Charset p1) { return source.writeCharSequence(p0, p1); }
     @Override public int indexOf(int p0, int p1, byte p2) { return source.indexOf(p0, p1, p2); }
     @Override public int bytesBefore(byte p0) { return source.bytesBefore(p0); }
@@ -353,9 +523,9 @@ public class FriendlyByteBuf extends ByteBuf {
     @Override public boolean equals(java.lang.Object p0) { return source.equals(p0); }
     @Override public int compareTo(io.netty.buffer.ByteBuf p0) { return source.compareTo(p0); }
     @Override public java.lang.String toString() { return source.toString(); }
-    @Override public io.netty.buffer.ByteBuf retain(int p0) { source.retain(p0); return this; }
-    @Override public io.netty.buffer.ByteBuf retain() { source.retain(); return this; }
-    @Override public io.netty.buffer.ByteBuf touch() { source.touch(); return this; }
-    @Override public io.netty.buffer.ByteBuf touch(java.lang.Object p0) { source.touch(p0); return this; }
+    @Override public FriendlyByteBuf retain(int p0) { source.retain(p0); return this; }
+    @Override public FriendlyByteBuf retain() { source.retain(); return this; }
+    @Override public FriendlyByteBuf touch() { source.touch(); return this; }
+    @Override public FriendlyByteBuf touch(java.lang.Object p0) { source.touch(p0); return this; }
 
 }
