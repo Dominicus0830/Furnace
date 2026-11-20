@@ -79,6 +79,13 @@ public final class NmsShimAudit {
         if (!paper.isBlank()) r = new Result(r.jars(), r.rows(), compareWithPaper(Paths.get(paper), r));
         Files.writeString(md, render(r), StandardCharsets.UTF_8);
         Files.writeString(tsv, tsv(r), StandardCharsets.UTF_8);
+        // T-234: 인기 가중치 순위와 Class.forName 감지 대상(-Dfurnace.audit.ranking=<출력 .md>, -Dfurnace.audit.manifest=<sample-manifest.tsv>)
+        String ranking = System.getProperty("furnace.audit.ranking", "");
+        if (!ranking.isBlank()) {
+            String man = System.getProperty("furnace.audit.manifest", "");
+            Files.writeString(Paths.get(ranking), NmsGapRanking.render(r, NmsGapRanking.downloads(man.isBlank() ? null : Paths.get(man)),
+                    NmsGapRanking.stringTargets(jars), java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString()), StandardCharsets.UTF_8);
+        }
         System.out.println("jar " + jars.size() + "개 → " + md + " , " + tsv);
     }
 

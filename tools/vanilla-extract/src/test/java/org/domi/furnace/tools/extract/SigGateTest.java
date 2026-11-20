@@ -105,6 +105,30 @@ class SigGateTest {
     }
 
     @Test
+    void referenceSideNamesAreOnlyFingerprintsInTheCommittedKey() {
+        SigTable ref = table(cls("a/Itf", "java/lang/Object", PUB | Opcodes.ACC_INTERFACE | Opcodes.ACC_ABSTRACT, null),
+                cls("a/X", "a/RefSuper", PUB, new String[] {"a/Itf"}), cls("a/RefSuper", "java/lang/Object", PUB, null),
+                cls("a/Y", "java/lang/Object", PUB, new String[] {"a/Itf"}, m(PUB, "ret", "(Lsecret/RefOnly;)I")));
+        SigTable shim = table(cls("a/Itf", "java/lang/Object", PUB | Opcodes.ACC_INTERFACE | Opcodes.ACC_ABSTRACT, null),
+                cls("a/X", "java/lang/Object", PUB, null), cls("a/RefSuper", "java/lang/Object", PUB, null),
+                cls("a/Y", "java/lang/Object", PUB, null, m(PUB, "ret", "()J")));
+        List<SigGate.Diff> d = new SigGate(shim, List.of(ref)).compare();
+        assertFalse(d.isEmpty());
+        for (SigGate.Diff x : d) {
+            assertFalse(x.key().contains("secret/RefOnly"), "기준 쪽 서술자가 키에 들어가면 안 된다: " + x.key());
+            assertFalse(x.detail().contains("a/Itf"), "기준 쪽 타입 이름이 키에 들어가면 안 된다: " + x.key());
+            assertFalse(x.key().contains("ref=a/RefSuper"), x.key());
+        }
+        SigGate.Diff sup = d.stream().filter(x -> x.code().equals("super")).findFirst().orElseThrow();
+        assertTrue(sup.detail().matches("shim=java/lang/Object ref=#[0-9a-f]{12}"), sup.detail());
+        assertTrue(sup.readable().contains("ref=a/RefSuper"), "원문은 보고서용으로 남는다");
+        SigGate.Diff tm = d.stream().filter(x -> x.code().equals("type-missing")).findFirst().orElseThrow();
+        assertTrue(tm.detail().matches("#[0-9a-f]{12}"), tm.detail());
+        assertEquals("a/Itf", tm.readable());
+        assertEquals(tm.detail(), SigGate.fp("a/Itf"), "같은 입력은 같은 지문");
+    }
+
+    @Test
     void privateShimMembersAreNotCompared() {
         SigTable ref = table(cls("a/A", "java/lang/Object", PUB, null));
         SigTable shim = table(cls("a/A", "java/lang/Object", PUB, null, m(Opcodes.ACC_PRIVATE, "secret", "()V")));
