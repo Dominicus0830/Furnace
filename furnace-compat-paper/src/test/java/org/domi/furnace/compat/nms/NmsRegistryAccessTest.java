@@ -119,7 +119,7 @@ class NmsRegistryAccessTest {
         var e2 = assertThrows(IllegalStateException.class, () -> access.lookupOrThrow(bogus));
         assertEquals("Registry furnace:no_such_registry not found", e2.getMessage());
         // 바닐라에는 있지만 shim 이 값 타입을 아직 안 만든 레지스트리도 같은 길
-        assertThrows(IllegalStateException.class, () -> access.registryOrThrow(Registries.ENTITY_TYPE));
+        assertThrows(IllegalStateException.class, () -> access.registryOrThrow(Registries.GAME_EVENT));   // 엔티티 종류는 5e-2 에서 생겼다
     }
 
     @Test

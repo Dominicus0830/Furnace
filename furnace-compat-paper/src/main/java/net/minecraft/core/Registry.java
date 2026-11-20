@@ -61,6 +61,12 @@ public interface Registry<T> extends IdMap<T> {
 
     Holder<T> wrapAsHolder(T value);
 
+    /** 바닐라: 이름 문자열 ↔ 값 코덱(없는 이름은 "Unknown registry key in …" 오류). DataFixerUpper 가 보일 때만 부를 수 있다. */
+    default com.mojang.serialization.Codec<T> byNameCodec() { return org.domi.furnace.compat.nms.NmsCodecs.byName(this); }
+
+    /** 바닐라: 이름 문자열 ↔ 등록된 손잡이 코덱(등록되지 않은 손잡이를 쓰면 "Unregistered holder in …" 오류). */
+    default com.mojang.serialization.Codec<Holder<T>> holderByNameCodec() { return org.domi.furnace.compat.nms.NmsCodecs.holderByName(this); }
+
     default Holder.Reference<T> getHolderOrThrow(ResourceKey<T> key) {
         return getHolder(key).orElseThrow(() -> new IllegalStateException("Missing key in " + key() + ": " + key));
     }

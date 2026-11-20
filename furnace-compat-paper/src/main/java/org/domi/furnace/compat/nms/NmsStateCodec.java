@@ -33,6 +33,9 @@ public final class NmsStateCodec<S> extends MapCodec<S> {
     /** 호환 모듈 전용: {@code StateHolder} 가 만든다. */
     public static <S> MapCodec<S> of(StateHolder<?, ?> holder) { return new NmsStateCodec<>(holder); }
 
+    /** 호환 모듈 전용: 맵 단계에서 바로 읽고 쓰는 쪽({@link NmsCodecs#blockState}). */
+    static <S> NmsStateCodec<S> direct(StateHolder<?, ?> holder) { return new NmsStateCodec<>(holder); }
+
     private List<Property<?>> properties() {
         List<Property<?>> p = properties;
         if (p == null) {
