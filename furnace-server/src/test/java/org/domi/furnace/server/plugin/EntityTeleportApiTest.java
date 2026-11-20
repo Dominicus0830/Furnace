@@ -101,7 +101,7 @@ class EntityTeleportApiTest {
             cow.moveTo(8, -50, 8, 10, 20);
             cow.persistentData(true).putString("marker", "kept");
             level.addFreshEntity(cow);
-            return new Object[] {cow.uuid(), EntityHandle.of(host, cow)};
+            return new Object[] {cow.uuid(), EntityHandle.of(host, cow), cow};
         }).get(30, TimeUnit.SECONDS);
     }
 
@@ -233,5 +233,33 @@ class EntityTeleportApiTest {
         Entity cow = find(core.world(), (UUID) spawned[0], 5.5, 5.5);
         assertEquals(77f, cow.yRot());
         assertEquals(77f, ((org.domi.furnace.server.entity.LivingEntity) cow).yHeadRot(), "SPIGOT-619: 머리 방향도 맞춘다");
+    }
+
+    @Test
+    void dyingEntityIsNotMovedButStillReportsTrueAndFiresOnlyTheFirstEvent() throws Exception {
+        record(e -> false);
+        Object[] spawned = spawnCow();
+        core.world().submitAtChunk(C00, r -> {   // 체력 0 = 죽는 중(아직 레벨에서 빠지지 않았다)
+            ((org.domi.furnace.server.entity.LivingEntity) spawned[2]).setHealth(0f);
+            return null;
+        }).get(30, TimeUnit.SECONDS);
+        var h = (org.domi.furnace.api.entity.Entity) spawned[1];
+        assertTrue(h.teleport(new Location(NETHER, 40.5, -50, 40.5)).get(30, TimeUnit.SECONDS), "Paper changeDimension 은 죽는 중이면 null 이어도 teleport 는 true");
+        assertEquals(1, events.size(), "changeDimension 앞에서 끝나 두 번째 이벤트는 없다");
+        assertNull(find(nether, (UUID) spawned[0], 40.5, 40.5));
+    }
+
+    @Test
+    void entityRemovedByTheSecondEventHandlerIsNotMovedAndTheFutureStillCompletes() throws Exception {
+        Object[] spawned = spawnCow();
+        host.eventsImpl().subscribe(plugin, EntityTeleportEvent.class, e -> {
+            events.add(new Location[] {e.from(), e.to()});
+            if (events.size() == 2) ((Entity) spawned[2]).discard();   // 두 번째 처리기가 엔티티를 지운다(소유 region 스레드)
+        });
+        var h = (org.domi.furnace.api.entity.Entity) spawned[1];
+        assertTrue(h.teleport(new Location(NETHER, 40.5, -50, 40.5)).get(30, TimeUnit.SECONDS));
+        assertEquals(2, events.size());
+        assertNull(find(nether, (UUID) spawned[0], 40.5, 40.5), "지워진 엔티티는 목적 월드에 만들지 않는다");
+        assertNull(find(core.world(), (UUID) spawned[0], 8, 8));
     }
 }

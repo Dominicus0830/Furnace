@@ -24,3 +24,4 @@
 - 포털로 건너는 엔티티는 Paper 가 changeDimension 안에서 EntityTeleportEvent 를 (그리고 EntityPortalExitEvent 를) 더 부르는데 Furnace 포털 경로는 아직 안 부른다. Bukkit `EntityPortalEvent`(EntityTeleportEvent 의 하위)도 호환 계층에 클래스가 없다.
 - 두 번째 이벤트가 도착 월드를 원래 월드로 되돌리면 Paper 는 같은 월드 changeDimension 이다. Furnace 는 `moveAcross` 를 그대로 태운다(드문 경우, 미검증).
 - 플러그인이 건 엔티티 작업(EntityScheduler)은 옛 엔티티가 빠질 때 끝난다(포털과 같다).
+- Paper 는 `restoreFrom` 의 `setHandle` 로 플러그인이 쥔 Bukkit 객체가 새 엔티티를 따라가지만, Furnace 는 핸들이 만든 시점 스냅샷이라 다른 월드로 가면 그 CraftEntity 가 낡는다(`refresh()` 로 새 핸들을 얻는다). 같은 객체를 계속 쓰는 플러그인은 `getWorld()` 등이 옛 월드를 본다.

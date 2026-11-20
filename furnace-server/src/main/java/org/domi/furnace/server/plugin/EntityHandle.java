@@ -239,11 +239,15 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
         }
         if (host.core().world(t.dimension()) == null) return false;
         if (cur.vehicle() != null) cur.stopRiding();
+        if (!cur.isAlive()) {   // Paper changeDimension 맨 앞: 죽는 중이면 null(옮기지 않음) — teleport 는 true
+            done.run();
+            return true;
+        }
         // Entity#changeDimension 안의 두 번째 EntityTeleportEvent: 도착 위치 = (목적 월드, 위치, yaw 자리에 DimensionTransition 의 yRot, pitch 는 지금 xRot).
         // CraftBukkit 1.21.1 의 CraftEntity#teleport 는 DimensionTransition 에 (pitch, yaw) 순으로 넘겨 yRot 에 요청한 pitch 가 들어간다.
         float yRot = PAPER_SWAPS_YAW_PITCH ? t.pitch() : t.yaw();
         var t2 = events.entityTeleport(cur, new GameEvents.TeleportTarget(t.dimension(), t.x(), t.y(), t.z(), yRot, cur.xRot()));
-        if (t2 == null || host.core().world(t2.dimension()) == null) {   // Paper 는 changeDimension 이 null 을 돌려줘도 teleport 는 true
+        if (t2 == null || cur.isRemoved() || host.core().world(t2.dimension()) == null) {   // 처리기가 지웠어도 Paper 는 changeDimension 이 null 을 돌려줘도 teleport 는 true
             done.run();
             return true;
         }
