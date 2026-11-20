@@ -125,6 +125,76 @@ class AnvilChunkCodecTest {
         }
     }
 
+    private static NbtCompound be(String id, int x, int y, int z) {
+        NbtCompound c = new NbtCompound();
+        c.putString("id", id);
+        c.putInt("x", x); c.putInt("y", y); c.putInt("z", z);
+        return c;
+    }
+
+    /**
+     * 바닐라 1.21.1 LevelChunk.promotePendingBlockEntity: 블록 엔티티 종류가 그 칸 블록과 안 맞으면(BlockEntity 생성자의
+     * validateBlockState 가 던져 loadStatic 이 null) 경고하고 버린다 — getBlockEntityNbtForSaving 이 대기 맵에서 지운 뒤라
+     * 다시 저장되지도 않는다. 상자(칸 블록이 돌)·종류별(칸 블록이 돌인 화로)은 버리고, 맞는 상자·모르는 종류는 남긴다.
+     */
+    @Test
+    void mismatchedBlockEntityIsDroppedOnLoadLikeVanilla() {
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        ItemRegistry items = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
+        AnvilChunkCodec codec = new AnvilChunkCodec(reg, 0, items);
+        var base = new SuperflatWorldSource(reg, 0).generate(0, 0);
+        base.setBlock(1, -60, 2, reg.defaultStateId("minecraft:chest"));          // 맞는 상자
+        base.setBlock(3, -60, 3, reg.defaultStateId("minecraft:stone"));          // 안 맞는 상자 칸
+        base.setBlock(4, -60, 4, reg.defaultStateId("minecraft:stone"));          // 안 맞는 화로 칸
+        base.setBlock(6, -60, 6, reg.defaultStateId("minecraft:trapped_chest"));  // 덫 상자 칸에 chest NBT
+        NbtCompound nbt = codec.toNbt(base, 0, 0);
+
+        NbtList bes = new NbtList(NbtIo.TAG_COMPOUND);
+        bes.add(be("minecraft:chest", 1, -60, 2));
+        bes.add(be("minecraft:chest", 3, -60, 3));
+        bes.add(be("minecraft:furnace", 4, -60, 4));
+        bes.add(be("minecraft:chest", 6, -60, 6));
+        bes.add(be("example:unknown", 9, -60, 9));   // 서버가 모르는 종류는 NBT 그대로 보존
+        nbt.putList("block_entities", bes);
+
+        ChunkColumn back = codec.fromNbt(nbt);
+        NbtList out = codec.toNbt(back, 0, 0).getList("block_entities");
+        java.util.Set<String> kept = new java.util.TreeSet<>();
+        for (Object o : out.items()) {
+            NbtCompound c = (NbtCompound) o;
+            kept.add(c.tags().get("id") + "@" + c.getInt("x") + "," + c.getInt("z"));
+        }
+        assertEquals(java.util.Set.of("minecraft:chest@1,2", "example:unknown@9,9"), kept);
+    }
+
+    /** 월드젠이 남긴 대기 NBT 도 승격할 때 같다: 안 맞는 상자·종류별은 버리고(저장 안 함), 맞는 것은 승격한다. */
+    @Test
+    void mismatchedGeneratedBlockEntityIsDroppedOnPromote() {
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        ItemRegistry items = ItemRegistry.load("items/" + GameVersion.RESOURCE_TAG + ".txt");
+        AnvilChunkCodec codec = new AnvilChunkCodec(reg, 0, items);
+        var col = new SuperflatWorldSource(reg, 0).generate(0, 0);
+        col.setBlock(1, -60, 2, reg.defaultStateId("minecraft:chest"));
+        col.setBlock(3, -60, 3, reg.defaultStateId("minecraft:stone"));
+        col.setBlock(4, -60, 4, reg.defaultStateId("minecraft:stone"));
+        col.putGeneratedBlockEntity(1, -60, 2, be("minecraft:chest", 1, -60, 2));
+        col.putGeneratedBlockEntity(3, -60, 3, be("minecraft:chest", 3, -60, 3));
+        col.putGeneratedBlockEntity(4, -60, 4, be("minecraft:furnace", 4, -60, 4));
+        col.putGeneratedBlockEntity(9, -60, 9, be("example:unknown", 9, -60, 9));
+
+        col.promotePendingBlockEntities(0, 0, false);
+
+        assertNotNull(col.chestAt(1, -60, 2), "맞는 상자는 승격");
+        assertNull(col.generatedBlockEntity(3, -60, 3), "안 맞는 상자 NBT 는 버린다");
+        assertNull(col.generatedBlockEntity(4, -60, 4), "안 맞는 화로 NBT 는 버린다");
+        assertNotNull(col.generatedBlockEntity(9, -60, 9), "모르는 종류는 보존");
+        NbtList out = codec.toNbt(col, 0, 0).getList("block_entities");
+        assertEquals(2, out.size());
+        // 돌 칸에 상자를 놓아도 옛 NBT 를 물려받지 않는다
+        col.setBlock(3, -60, 3, reg.defaultStateId("minecraft:chest"));
+        assertNull(col.chestAt(3, -60, 3));
+    }
+
     /** 바닐라 월드의 블록 엔티티(아이템 든 상자, 화로, 표지판 등)가 있어도 청크 로드가 예외 없이 되어야 한다. */
     @Test
     void fromNbt_vanillaBlockEntities_doNotThrow() {

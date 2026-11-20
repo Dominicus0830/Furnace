@@ -74,8 +74,9 @@ class VanillaChunkFormatTest {
         NbtCompound vanilla = load("vanilla-chunk--25.-4.nbt.gz");
         vanilla.putString("Paper.SomeKey", "kept");
         NbtList bes = new NbtList(NbtIo.TAG_COMPOUND);
+        // 서버가 아직 모르는 종류만 NBT 그대로 남는다 — 아는 종류가 칸 블록과 안 맞으면 바닐라처럼 버린다(AnvilChunkCodecTest)
         NbtCompound sign = new NbtCompound();
-        sign.putString("id", "minecraft:sign");
+        sign.putString("id", "minecraft:enchanting_table");
         sign.putInt("x", -25 * 16 + 3); sign.putInt("y", 70); sign.putInt("z", -4 * 16 + 5);
         sign.put("is_waxed", (byte) 1);
         bes.add(sign);
@@ -84,7 +85,7 @@ class VanillaChunkFormatTest {
         NbtCompound ours = codec.toNbt(codec.fromNbt(vanilla), -25, -4);
         assertEquals("kept", ours.getString("Paper.SomeKey"));
         NbtCompound back = (NbtCompound) ours.getList("block_entities").get(0);
-        assertEquals("minecraft:sign", back.getString("id"));
+        assertEquals("minecraft:enchanting_table", back.getString("id"));
         assertEquals(-25 * 16 + 3, back.getInt("x"));
         assertEquals(70, back.getInt("y"));
         assertEquals(-4 * 16 + 5, back.getInt("z"));
