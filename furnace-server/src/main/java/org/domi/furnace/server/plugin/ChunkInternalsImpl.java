@@ -695,7 +695,9 @@ final class ChunkInternalsImpl implements ChunkInternals {
         try {
             internal = org.domi.furnace.api.Furnace.server().internals().entityNow(breaker, Object.class);
         } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException e) {
-            throw new IllegalStateException("the breaking entity is not owned by this thread: " + e.getMessage(), e);
+            throw new IllegalArgumentException("the breaking entity is not owned by this thread: " + e.getMessage(), e);
+        } catch (IllegalStateException e) {
+            throw new IllegalArgumentException(e.getMessage(), e);   // 사라진 엔티티
         }
         if (internal instanceof org.domi.furnace.server.entity.Player pl) {
             return lv.destroyBlock(p, drop, new org.domi.furnace.server.block.PlayerActor(pl), maxUpdateDepth);

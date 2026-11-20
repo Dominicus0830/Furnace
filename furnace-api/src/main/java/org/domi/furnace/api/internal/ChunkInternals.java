@@ -472,7 +472,7 @@ public interface ChunkInternals {
 
     /**
      * 주인 스레드. 바닐라 {@code Level#destroyBlock(pos, drop, breaker, maxUpdateDepth)} — 부순 블록이 있었고 바꿨으면 true.
-     * breaker 는 null 이거나 이 스레드가 가진 엔티티(아니면 IllegalStateException). 청크가 로드돼 있지 않으면 false.
+     * breaker 는 null 이거나 이 스레드가 가진 엔티티(아니면 IllegalArgumentException). 청크가 로드돼 있지 않으면 false.
      */
     default boolean destroyBlockNow(World world, int x, int y, int z, boolean drop, org.domi.furnace.api.entity.Entity breaker, int maxUpdateDepth) {
         throw new UnsupportedOperationException("destroyBlockNow");

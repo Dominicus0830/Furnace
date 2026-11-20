@@ -8,7 +8,9 @@
   바닐라는 떨굼 안(`spawnAfterBreak`)에서만 뽑는다. Furnace 서버는 바닐라 순서를 따른다(T-204 `getFullStatus` 와 같은 기준). `BlockDestroyEvent` 는 T-224.
 - **서버 `Clearables.tryClear` 빈칸**: 주크박스·독서대가 빠져 있었고 장식 단지의 전리품을 풀지 않았다. 그래서 `/setblock` 으로 음반 든 주크박스를 바꾸면
   `onRemove` 가 음반을 떨궜다(바닐라는 먼저 비워 떨구지 않는다). 이제 레벨을 받아 바닐라 `clearContent` 대로 한다. 독서대 `setBook(EMPTY)` 은 `has_book` 을
-  끄지 않는다(바닐라 그대로 — 그 뒤 블록을 바꾸므로 보이지 않는다). 열린 옛 PR #215(A13-02)가 같은 빈칸을 다른 방식으로 고치려 했다.
+  끄지 않는다(바닐라 그대로). 그래서 뒤이어 블록을 바꾸면 `LecternBlock#onRemove` 가 **블록 상태** `has_book` 을 보고 `popBook` 을 부르고, 바닐라 `popBook` 은
+  빈 책도 빈 아이템 엔티티로 만든다(레벨 난수 nextDouble 2번·엔티티 번호 1개, 첫 틱에 사라짐 — Paper 만 빈 책이면 빠져나온다). 서버는 블록 엔티티의
+  `hasBook()` 을 보고 있어서 이 난수 소비가 갈렸다 — #499 검토 지적으로 바닐라대로 고쳤다. 열린 옛 PR #215(A13-02)가 같은 빈칸을 다른 방식으로 고치려 했다.
 - **비노출 함정**: 주인이 아닌 스레드의 `getChunkNow`(= `getChunkIfLoadedImmediately`)는 공개본이 아직 없으면 null 이다(다음 틱부터 보인다). 시험은 주인 스레드에서 본다.
 - **바이옴 확대 지터는 이웃 청크의 quart 를 고를 수 있다**(가장자리 두 칸). 시험 좌표는 로드된 청크 안쪽으로 잡는다. 로드되지 않은 이웃이면 `getUncachedNoiseBiome`.
 - `FeatureFlagSet#hashCode` 는 fastutil `HashCommon.mix` 식(`x * 0x9E3779B97F4A7C15L`, `^>>>32`, `^>>>16`)을 그대로 옮겼다(호환 계층에 fastutil 이 없다).

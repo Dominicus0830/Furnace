@@ -163,8 +163,7 @@ public abstract class Level implements LevelAccessor {
         var breaker = breakingEntity == null ? null : breakingEntity.getBukkitEntity().furnaceHandle();
         try {
             return NmsChunks.bridge().destroyBlockNow(furnace(), pos.getX(), pos.getY(), pos.getZ(), drop, breaker, maxUpdateDepth);
-        } catch (IllegalStateException e) {
-            if (breaker == null) throw e;
+        } catch (IllegalArgumentException e) {   // 부수는 엔티티가 이 스레드의 것이 아니거나 사라졌다
             throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("Level#destroyBlock", e.getMessage());
         }
     }

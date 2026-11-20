@@ -274,7 +274,8 @@ Paper `Level#destroyBlock`: 공기면 거짓 → **경험치를 먼저 뽑는다
 
 서버 `Clearables.tryClear`(`/setblock`·`/fill`·`/clone`·빠른 블록 쓰기 공용)는 주크박스·독서대를 빠뜨렸고 장식 단지의 전리품을 풀지 않았다. 바닐라 `clearContent`:
 담는 블록 엔티티는 칸을 모두 비움(전리품 표는 그대로), 주크박스는 `removeTheItem` → `setTheItem(EMPTY)`(has_record 끄기 flag 2·`block_change`·재생 멈춤 1011),
-독서대는 `setBook(EMPTY)`(쪽 0·저장 표시 — `has_book` 상태는 그대로), 장식 단지는 `removeTheItem` → `unpackLootTable(null)` 뒤 비움, 모닥불·조각된 책장은 칸 비움.
+독서대는 `setBook(EMPTY)`(쪽 0·저장 표시 — `has_book` 상태는 그대로; 뒤이은 블록 바꾸기에서 바닐라 `popBook` 이 `has_book` 상태를 보고 빈 아이템
+엔티티를 만든다 — 난수 2번·엔티티 번호 1개. 서버 `LecternBlock` 도 그렇게 고쳤다, #499 검토), 장식 단지는 `removeTheItem` → `unpackLootTable(null)` 뒤 비움, 모닥불·조각된 책장은 칸 비움.
 `tryClear(be, level)` 로 레벨을 받아 이 셋을 바닐라대로 고친다. 이 고침은 명령 길도 바꾼다: 지금까지 `/setblock` 으로 음반이 든 주크박스를 바꾸면
 `onRemove` 가 음반을 떨궜는데 바닐라는 먼저 비워 떨구지 않는다.
 호환: 월드의 블록 엔티티 보기는 그 칸 주인 스레드에서 서버 블록 엔티티에(`NmsOwner` — 저장과 같은 문), 플러그인이 만든 떨어진 블록 엔티티는 `UnsupportedNmsCall`

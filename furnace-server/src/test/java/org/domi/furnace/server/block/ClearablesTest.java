@@ -115,6 +115,43 @@ class ClearablesTest {
         assertFalse(be.hasBook());
         assertEquals(0, be.page());
         assertTrue(B.prop("has_book").is(level.getBlockState(pos)), "바닐라 setBook(EMPTY) 은 블록 상태를 바꾸지 않는다");
+        level.setBlock(pos, B.defaultState("minecraft:stone"), 3);   // /setblock 의 다음 걸음
+        assertEquals(1, level.spawned.size(), "바닐라 popBook 은 has_book 상태를 보고, 비운 책도 빈 아이템 엔티티로 만든다(Paper 만 빠져나온다)");
+        assertTrue(level.spawned.get(0).isEmpty());
+    }
+
+    /** 빈 책 popBook 의 아이템 엔티티 생성자가 레벨 난수 nextDouble 을 두 번 쓴다(속도 x·z). */
+    @Test
+    void emptyBookPopUsesTwoLevelRandomDoubles() {
+        int[] doubles = {0};
+        var counting = new RandomSource() {
+            public int nextInt() { return 0; }
+            public int nextInt(int bound) { return 0; }
+            public long nextLong() { return 0; }
+            public float nextFloat() { return 0; }
+            public double nextDouble() { doubles[0]++; return 0.5; }
+            public boolean nextBoolean() { return false; }
+            public double nextGaussian() { return 0; }
+        };
+        var level = new BlockPlacementTest.TestLevel() {
+            @Override public RandomSource random() { return counting; }
+        };
+        Pos pos = new Pos(1, -60, 1);
+        int state = B.prop("has_book").with(B.defaultState("minecraft:lectern"), true);
+        level.setBlock(pos, state, 3);
+        var be = new LecternBlockEntity(pos, state);
+        level.setBlockEntity(be);
+        assertTrue(Clearables.tryClear(be, level));
+        doubles[0] = 0;
+        level.setBlock(pos, B.defaultState("minecraft:stone"), 3);
+        assertEquals(2, doubles[0]);
+        // 책이 없는 독서대(has_book 거짓)는 아무것도 만들지 않는다
+        Pos other = new Pos(3, -60, 1);
+        level.setBlock(other, B.defaultState("minecraft:lectern"), 3);
+        level.setBlockEntity(new LecternBlockEntity(other, B.defaultState("minecraft:lectern")));
+        doubles[0] = 0;
+        level.setBlock(other, B.defaultState("minecraft:stone"), 3);
+        assertEquals(0, doubles[0]);
     }
 
     @Test

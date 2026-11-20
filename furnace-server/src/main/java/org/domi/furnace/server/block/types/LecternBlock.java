@@ -61,9 +61,13 @@ public class LecternBlock extends BaseEntityBlock {
         level.levelEvent(null, 1043, pos, 0);
     }
 
-    /** popBook: 책이 있으면 앞쪽 0.25 · 위 1.0 에 아이템 엔티티로 떨구고(속도는 아이템 엔티티 생성자의 레벨 난수 2번) 블록 엔티티를 비운다. */
+    /**
+     * popBook: 앞쪽 0.25 · 위 1.0 에 책을 아이템 엔티티로 떨구고(속도는 아이템 엔티티 생성자의 레벨 난수 2번) 블록 엔티티를 비운다.
+     * 바닐라는 책이 비어 있어도(has_book 인데 clearContent 로 비운 뒤 — /setblock 등) 빈 아이템 엔티티를 만든다: 난수 2번과 엔티티 번호 하나를 쓰고 첫 틱에
+     * 사라진다. Paper 만 빈 책이면 빠져나온다(바닐라가 정답).
+     */
     private static void popBook(int state, BlockLevel level, Pos pos) {
-        if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.LecternBlockEntity be && be.hasBook()) {
+        if (level.getBlockEntity(pos) instanceof org.domi.furnace.server.block.entity.LecternBlockEntity be) {
             int dir = Dir.byName(FACING.valueName(state));
             ItemStack book = be.book();
             float dx = 0.25F * Dir.DX[dir];
@@ -86,7 +90,7 @@ public class LecternBlock extends BaseEntityBlock {
     @Override
     public void onRemove(int state, BlockLevel level, Pos pos, int newState, boolean moved) {
         if (!B.is(newState, block)) {
-            popBook(state, level, pos);
+            if (HAS_BOOK.is(state)) popBook(state, level, pos);   // 바닐라: 블록 엔티티가 아니라 블록 상태 has_book 을 본다
             super.onRemove(state, level, pos, newState, moved);
             if (POWERED.is(state)) level.updateNeighborsAt(pos.below(), block);
         }
