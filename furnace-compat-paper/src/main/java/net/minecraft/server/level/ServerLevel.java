@@ -249,6 +249,42 @@ public class ServerLevel extends Level implements net.minecraft.world.level.Worl
         return found.map(e -> ((org.bukkit.craftbukkit.entity.CraftEntity) Compat.entity(e)).getHandle()).orElse(null);
     }
 
+    /**
+     * 바닐라 {@code ServerLevel#getEntities()}(T-212): 이 월드의 엔티티 찾기. {@code get(int)}·{@code get(UUID)} 는 {@link #getEntity(int)}·
+     * {@link #getEntity(java.util.UUID)} 와 같다(FAWE 는 동기 작업에서 지울 엔티티를 UUID 로 찾는다).
+     */
+    public net.minecraft.world.level.entity.LevelEntityGetter<Entity> getEntities() {
+        // 상태 없는 얇은 감싸개 — 필드로 두면 Unsafe 로 만든 하위 레벨(시험·프록시)에서 null 이 된다
+        return new net.minecraft.world.level.entity.LevelEntityGetter<>() {
+            @Override
+            public Entity get(int id) { return getEntity(id); }
+
+            @Override
+            public Entity get(java.util.UUID uuid) { return getEntity(uuid); }
+        };
+    }
+
+    /** Paper {@code addFreshEntity(entity)} = 스폰 이유 DEFAULT. */
+    public boolean addFreshEntity(Entity entity) { return addFreshEntity(entity, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.DEFAULT); }
+
+    /**
+     * Paper {@code ServerLevel#addFreshEntity(entity, reason)}(T-212): {@code EntityType#create} 로 만든 엔티티를 월드에 넣는다 — 스폰 이벤트를 내고(취소되면
+     * 거짓), 같은 UUID 가 이미 있으면 거짓, 넣기 전에 지운 엔티티·빈 아이템 엔티티는 거짓. 이미 월드에 있는 엔티티는 Paper 처럼 오류 기록만 남기고 참.
+     * 그 자리의 주인 region 에서 돈다({@link org.domi.furnace.compat.nms.NmsOwner} 규칙 — FAWE 는 동기 작업에서 부른다).
+     */
+    public boolean addFreshEntity(Entity entity, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason reason) {
+        return entity.furnaceAddToWorld(this, reason, true);
+    }
+
+    /** Paper {@code ServerLevelAccessor#addFreshEntityWithPassengers(entity, reason)}: 자신과 승객을 하나씩 {@link #addFreshEntity(Entity, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason)}. */
+    public void addFreshEntityWithPassengers(Entity entity, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason reason) {
+        // EntityType#create 로 만든 엔티티는 승객이 없다(바닐라 load 도 승객을 읽지 않는다 — 그건 EntityType.loadEntityRecursive)
+        addFreshEntity(entity, reason);
+    }
+
+    /** Paper {@code addFreshEntityWithPassengers(entity)} = 스폰 이유 DEFAULT. */
+    public void addFreshEntityWithPassengers(Entity entity) { addFreshEntityWithPassengers(entity, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.DEFAULT); }
+
     /** 이 월드에 있는 접속 플레이어. */
     public List<ServerPlayer> players() {
         List<ServerPlayer> out = new ArrayList<>();

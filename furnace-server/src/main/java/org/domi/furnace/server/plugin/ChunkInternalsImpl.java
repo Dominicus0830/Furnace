@@ -4,6 +4,7 @@ package org.domi.furnace.server.plugin;
 
 import java.util.List;
 import org.domi.furnace.api.internal.ChunkInternals;
+import org.domi.furnace.api.internal.ChunkInternals.EntityOp;
 import org.domi.furnace.api.world.BlockPos;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.ChunkPos;
@@ -716,6 +717,60 @@ final class ChunkInternalsImpl implements ChunkInternals {
         RegionLevel lv = ownedLevel(world, be.pos().x(), be.pos().z(), "Clearable#clearContent");
         if (lv == null) return false;
         return org.domi.furnace.server.block.entity.Clearables.tryClear(be, lv);
+    }
+
+    @Override
+    public org.domi.furnace.api.nbt.NbtCompound entitySaveNow(org.domi.furnace.api.entity.Entity entity) {
+        Object internal;
+        try {
+            internal = org.domi.furnace.api.Furnace.server().internals().entityNow(entity, Object.class);
+        } catch (IllegalStateException gone) {
+            return null;   // 사라진 엔티티: 바닐라도 지움 이유가 저장하지 않는 것(DISCARDED·KILLED)이면 거짓
+        }
+        // 플레이어는 저장하지 않는 종류(EntityType.PLAYER noSave → getEncodeId null)
+        if (!(internal instanceof org.domi.furnace.server.entity.Entity e)) return null;
+        var tag = e.save();
+        if (tag == null) return null;
+        return ApiNbt.toApi((org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.thaw(org.domi.furnace.server.net.io.nbt.NbtTags.copy(tag)));
+    }
+
+    @Override
+    public void entityDiscardNow(org.domi.furnace.api.entity.Entity entity) {
+        if (entity instanceof org.domi.furnace.api.entity.Player) throw new IllegalArgumentException("a player cannot be discarded: " + entity.uniqueId());
+        Object internal;
+        try {
+            internal = org.domi.furnace.api.Furnace.server().internals().entityNow(entity, Object.class);
+        } catch (IllegalStateException gone) {
+            return;   // 이미 지워졌다 — 바닐라도 다시 지우면 아무 일 없다
+        }
+        if (internal instanceof org.domi.furnace.server.entity.Entity e) e.discard();
+    }
+
+    @Override
+    public NmsEntityAdd addNmsEntityNow(org.domi.furnace.api.world.World world, int x, int z, String id, List<EntityOp> ops,
+                                        String spawnReason, boolean fireEvents) {
+        RegionLevel lv = ownedLevel(world, x, z, "ServerLevel#addFreshEntity");
+        if (lv == null) return NmsEntityAdd.REFUSED;   // 청크가 로드되지 않았다
+        var e = org.domi.furnace.server.entity.Entities.create(lv, id);
+        if (e == null) throw new IllegalArgumentException("entity type that cannot be created: " + id);
+        for (EntityOp op : ops) {
+            switch (op) {
+                case EntityOp.Load l -> e.load((org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.freeze(ApiNbt.toServer(l.tag())));
+                case EntityOp.AbsMoveTo m -> e.absMoveTo(m.x(), m.y(), m.z(), m.yRot(), m.xRot());
+                case EntityOp.SetUuid u -> e.setUuid(u.uuid());
+            }
+        }
+        if (ownedLevel(world, (int) Math.floor(e.x()), (int) Math.floor(e.z()), "ServerLevel#addFreshEntity") != lv) {
+            throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("ServerLevel#addFreshEntity: the entity ended at " + e.x() + ", " + e.z()
+                    + " but was routed to the region of " + x + ", " + z);
+        }
+        if (spawnReason != null) e.spawnReason(spawnReason);
+        // Paper ServerLevel#addEntity: 빈 아이템 엔티티는 넣지 않는다(이벤트 전에 거짓, 지우지 않음)
+        if (fireEvents && e instanceof org.domi.furnace.server.entity.ItemEntity ie && ie.getItem().isEmpty()) return NmsEntityAdd.REFUSED;
+        int r = lv.addFreshEntityResult(e, fireEvents);
+        if (r == org.domi.furnace.server.block.ChunkLevel.ADDED) return new NmsEntityAdd(EntityHandle.of(host, e), false);
+        // Paper doEntityAddEventCalling: 이벤트를 취소했거나 처리기가 지웠으면 그 엔티티를 지운다. UUID 겹침은 지우지 않는다
+        return new NmsEntityAdd(null, r == org.domi.furnace.server.block.ChunkLevel.ADD_CANCELLED);
     }
 
     /** 명령 범위 안에서 넣는다 — 주인이 쉬고 있으면 drain 차례로 곧바로 돈다(CommandDrainGate: 같은 예산·같은 끄기 옵션). */

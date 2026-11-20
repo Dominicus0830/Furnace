@@ -8,6 +8,9 @@ public class LivingEntity extends Entity {
     /** 호환 모듈 전용(CraftLivingEntity 가 만든다). */
     public LivingEntity(CraftLivingEntity bukkit) { super(bukkit); }
 
+    /** {@link EntityType#create} 전용: 아직 월드에 없는 살아 있는 엔티티. */
+    LivingEntity(EntityType<?> type, net.minecraft.world.level.Level level) { super(type, level); }
+
     @Override
     public CraftLivingEntity getBukkitEntity() { return (CraftLivingEntity) super.getBukkitEntity(); }
 

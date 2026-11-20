@@ -484,6 +484,52 @@ public interface ChunkInternals {
      */
     default boolean clearBlockEntityContentNow(World world, Object blockEntity) { throw new UnsupportedOperationException("clearBlockEntityContentNow"); }
 
+    // ------------------------------------------------------------------ NMS 엔티티(T-212: FAWE 엔티티 복사·지우기)
+
+    /**
+     * 그 엔티티를 가진 스레드(전역 빌림 포함). 바닐라 {@code Entity#save}: 승객(탄 것은 탈것이 저장)·저장하지 않는 종류(플레이어)·저장하지 않는 지움 이유면
+     * null, 아니면 "id" 가 든 저장 NBT(승객까지). 엔티티가 이미 사라졌으면 null(Paper 에서 지워진 엔티티의 save 는 거짓). 주인이 아니면 ThreadOwnershipException.
+     */
+    default org.domi.furnace.api.nbt.NbtCompound entitySaveNow(org.domi.furnace.api.entity.Entity entity) {
+        throw new UnsupportedOperationException("entitySaveNow");
+    }
+
+    /**
+     * 그 엔티티를 가진 스레드(전역 빌림 포함). 바닐라 {@code Entity#discard} — 지움 이유 DISCARDED, 이벤트 없음(Paper 도 원인이 없으면 EntityRemoveEvent 를 내지 않는다).
+     * 이미 사라졌으면 아무 일도 하지 않는다. 플레이어는 IllegalArgumentException. 주인이 아니면 ThreadOwnershipException.
+     */
+    default void entityDiscardNow(org.domi.furnace.api.entity.Entity entity) { throw new UnsupportedOperationException("entityDiscardNow"); }
+
+    /**
+     * 칸 (x, z) 의 주인 스레드(전역 빌림 포함). NMS 로 만든 엔티티(바닐라 {@code EntityType#create} 뒤 아직 월드에 없는 것)를 서버 엔티티로 만들어
+     * ops 를 차례로 재생(바닐라 {@code Entity#load}·{@code absMoveTo}·{@code setUUID})하고, spawnReason(Bukkit 이름, null 이면 서버 기본)을 붙여 월드에 넣는다.
+     * fireEvents 면 Paper {@code ServerLevel#addFreshEntity(entity, reason)} — 스폰 이벤트를 내고, 빈 아이템 엔티티는 넣지 않는다. 아니면 Paper
+     * {@code EntityLookup#addNewEntity} — 이벤트 없이 넣는다. (x, z) 는 재생 뒤 자리여야 한다(아니면 ThreadOwnershipException).
+     * 넣었으면 {@link NmsEntityAdd#added} 가 그 핸들, 넣지 못했으면(UUID 겹침·이벤트 취소·처리기가 지움·청크가 로드되지 않음) null 이고,
+     * {@link NmsEntityAdd#discarded} 는 Paper 가 그 엔티티를 지우는 경우(스폰 이벤트 취소·처리기가 지움 — {@code CraftEventFactory#doEntityAddEventCalling})만 참.
+     * id 를 서버가 만들 수 없으면 IllegalArgumentException.
+     */
+    default NmsEntityAdd addNmsEntityNow(World world, int x, int z, String id, java.util.List<EntityOp> ops, String spawnReason, boolean fireEvents) {
+        throw new UnsupportedOperationException("addNmsEntityNow");
+    }
+
+    /** {@link #addNmsEntityNow} 의 결과: 넣은 엔티티(못 넣었으면 null)와, 못 넣은 엔티티를 Paper 처럼 지운 것으로 볼지. */
+    record NmsEntityAdd(org.domi.furnace.api.entity.Entity added, boolean discarded) {
+        public static final NmsEntityAdd REFUSED = new NmsEntityAdd(null, false);
+    }
+
+    /** {@link #addNmsEntityNow} 가 재생할 엔티티 조작 하나. */
+    sealed interface EntityOp {
+        /** 바닐라 {@code Entity#load(tag)}. */
+        record Load(org.domi.furnace.api.nbt.NbtCompound tag) implements EntityOp {}
+
+        /** 바닐라 {@code Entity#absMoveTo(x, y, z, yRot, xRot)}. */
+        record AbsMoveTo(double x, double y, double z, float yRot, float xRot) implements EntityOp {}
+
+        /** 바닐라 {@code Entity#setUUID(uuid)}. */
+        record SetUuid(java.util.UUID uuid) implements EntityOp {}
+    }
+
     /**
      * 청크 shim 의 거울이다(호환 계층이 만들며, 플러그인이 볼 수 없는 내부 객체). 서버는 그 청크의 주인 region 스레드에서만 부르고, 이 객체의 모니터를 쓰지 않는다.
      */
