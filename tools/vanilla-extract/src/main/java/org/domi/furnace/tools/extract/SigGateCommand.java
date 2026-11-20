@@ -15,7 +15,8 @@ import java.util.TreeMap;
  * 새 차이가 있거나, 기준선에 적힌 차이가 사라졌거나(낡은 줄), 이유가 비었으면 실패한다.
  *
  * <p>기준선 줄: {@code 코드<TAB>소유 클래스<TAB>멤버<TAB>자세히<TAB>이유}. {@code #} 로 시작하는 줄은 주석.
- * 이 파일에는 shim 에 이미 있는 이름과 Furnace 가 쓴 이유만 들어간다(새 Mojang 정보 없음).
+ * 이 파일은 저장소에 커밋되므로 shim 에 이미 있는 이름과 Furnace 가 쓴 이유만 담는다. 기준(바닐라·Paper) 쪽 이름·서술자는 {@code #<12자리 지문>} 으로만 적고
+ * (Mojang 대응표 조건: 완전·미수정 재배포 금지 — 원문은 커밋하지 않는다), 사람이 읽을 원문은 커밋하지 않는 보고서(build/reports/signature-gate.md)에만 나간다.
  */
 final class SigGateCommand {
     /** 처음 채울 때의 이유(코드별) — 구멍이므로 생성기(T-229~)가 바로잡으면 줄을 지운다. 의도한 차이로 확인되면 이유를 구체적으로 고쳐 쓴다. */
@@ -68,7 +69,9 @@ final class SigGateCommand {
         }
         System.out.println("[서명 관문] shim 클래스 " + shim.classes().size() + "개, 차이 " + diffs.size() + "건(참고: shim 이 더 가진 것 " + info.size() + "건) — 새 차이 " + r.fresh().size()
                 + ", 낡은 기준선 " + r.stale().size() + ", 이유 없음 " + r.noReason().size());
-        for (String k : r.fresh()) System.out.println("  새 차이  " + k.replace('\t', ' '));
+        Map<String, String> readable = new java.util.HashMap<>();
+        for (SigGate.Diff d : diffs) readable.put(d.key(), d.code() + "\t" + d.owner() + "\t" + d.member() + "\t" + d.readable());
+        for (String k : r.fresh()) System.out.println("  새 차이  " + readable.getOrDefault(k, k).replace('\t', ' '));
         for (String k : r.stale()) System.out.println("  낡은 기준선(이제 같다 — 줄을 지운다)  " + k.replace('\t', ' '));
         for (String k : r.noReason()) System.out.println("  이유 없음  " + k.replace('\t', ' '));
         return r.ok();
@@ -108,8 +111,9 @@ final class SigGateCommand {
     static void writeBaseline(Path file, List<SigGate.Diff> diffs, Map<String, String> old) throws IOException {
         StringBuilder b = new StringBuilder();
         b.append("# 서명 관문 기준선(T-228) — shim 이 기준(바닐라·Paper·라이브러리)과 일부러 다르거나 아직 못 바로잡은 곳.\n");
+        b.append("# 기준 쪽 이름·서술자는 #지문(SHA-256 앞 12자리)으로만 적는다(Mojang 이름은 커밋하지 않는다). 원문은 CI 보고서 signature-gate.md 에 나온다.\n");
         b.append("# 줄: 코드<TAB>소유 클래스<TAB>멤버<TAB>자세히<TAB>이유. 새 차이는 여기에 없으면 CI 가 실패하고, 이제 같아진 줄이 남아 있어도 실패한다.\n");
-        b.append("# 의도한 차이는 이유에 Furnace 가 그렇게 한 까닭을 쓴다. 이 파일에는 shim 에 이미 있는 이름만 들어간다.\n");
+        b.append("# 의도한 차이는 이유에 Furnace 가 그렇게 한 까닭을 쓴다. 이 파일에는 shim 에 이미 있는 이름과 지문만 들어간다.\n");
         Map<String, String> sorted = new TreeMap<>();
         for (SigGate.Diff d : diffs) sorted.put(d.key(), old.getOrDefault(d.key(), "").isBlank() ? defaultReason(d.code()) : old.get(d.key()));
         sorted.forEach((k, v) -> b.append(k).append('\t').append(v).append('\n'));
@@ -127,6 +131,8 @@ final class SigGateCommand {
         b.append("\n참고(실패 아님 — shim 이 더 가진 것): ");
         byInfo.forEach((c, n) -> b.append(c).append(' ').append(n).append(" · "));
         b.append('\n');
+        b.append("\n## 차이 전체(원문 — 이 보고서는 커밋하지 않는다)\n\n");
+        for (SigGate.Diff d : diffs) b.append("- `").append(d.code()).append(' ').append(d.owner()).append(' ').append(d.member()).append("` ").append(d.readable()).append('\n');
         b.append("\n새 차이 ").append(r.fresh().size()).append("건 · 낡은 기준선 ").append(r.stale().size()).append("건 · 이유 없음 ").append(r.noReason().size()).append("건\n");
         for (String k : r.fresh()) b.append("\n- 새 차이 `").append(k.replace('\t', ' ')).append('`');
         for (String k : r.stale()) b.append("\n- 낡은 기준선 `").append(k.replace('\t', ' ')).append('`');

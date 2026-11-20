@@ -18,10 +18,29 @@ import org.objectweb.asm.Opcodes;
  */
 public final class SigGate {
 
-    /** 차이 한 건. key 가 기준선 파일의 줄 앞부분이다. */
-    public record Diff(String code, String owner, String member, String detail) {
+    /**
+     * 차이 한 건. key 가 기준선 파일의 줄 앞부분이다. {@code detail} 은 **저장소에 커밋되는** 칸이라 shim 에 이미 있는 이름만 쓰고,
+     * 기준(바닐라·Paper) 쪽 이름·서술자는 {@link #fp 지문}으로만 담는다. 사람이 읽을 원문은 {@code readable} 이고 CI 보고서(커밋 안 함)에만 나간다.
+     */
+    public record Diff(String code, String owner, String member, String detail, String readable) {
+        public Diff(String code, String owner, String member, String detail) {
+            this(code, owner, member, detail, detail);
+        }
+
         public String key() {
             return code + "\t" + owner + "\t" + member + "\t" + detail;
+        }
+    }
+
+    /** 기준 쪽 문자열의 짧은 지문(SHA-256 앞 12자리). 이름·서술자를 되돌려 읽을 수 없고 같은 입력은 같은 값이다. */
+    static String fp(String s) {
+        try {
+            byte[] h = java.security.MessageDigest.getInstance("SHA-256").digest(s.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder b = new StringBuilder("#");
+            for (int i = 0; i < 6; i++) b.append(String.format("%02x", h[i]));
+            return b.toString();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
         }
     }
 
@@ -100,11 +119,12 @@ public final class SigGate {
             if ((sa & Opcodes.ACC_FINAL) != 0 && (ra & Opcodes.ACC_FINAL) == 0) diffs.add(new Diff("class-access", s.name(), "-", "shim 만 final"));
             if ((sa & Opcodes.ACC_ABSTRACT) != 0 && (ra & Opcodes.ACC_ABSTRACT) == 0 && (ra & Opcodes.ACC_INTERFACE) == 0)
                 diffs.add(new Diff("class-access", s.name(), "-", "shim 만 abstract"));
-            if (!java.util.Objects.equals(s.superName(), r.superName())) diffs.add(new Diff("super", s.name(), "-", "shim=" + s.superName() + " ref=" + r.superName()));
+            if (!java.util.Objects.equals(s.superName(), r.superName())) diffs.add(new Diff("super", s.name(), "-", "shim=" + s.superName() + " ref=" + fp(String.valueOf(r.superName())),
+                    "shim=" + s.superName() + " ref=" + r.superName()));
             Set<String> shimAll = allTypes(s.name(), true), refAll = allTypes(r.name(), false);
             // 상위가 다르면 super 한 건이 이미 말한다. JDK 타입은 양쪽 같은 JVM 이 준다.
             if (java.util.Objects.equals(s.superName(), r.superName())) {
-                for (String t : refAll) if (!shimAll.contains(t) && !t.startsWith("java/")) diffs.add(new Diff("type-missing", s.name(), "-", t));
+                for (String t : refAll) if (!shimAll.contains(t) && !t.startsWith("java/")) diffs.add(new Diff("type-missing", s.name(), "-", fp(t), t));
             }
             members(s, r, diffs);
         }
@@ -143,7 +163,7 @@ public final class SigGate {
             if (hit == null) {
                 if (sameName.isEmpty()) info.add(new Diff("extra-member", s.name(), id, "기준에 없음"));
                 else if (allSameNameCovered(s.name(), m, sameName)) info.add(new Diff("extra-overload", s.name(), id, "기준 오버로드는 모두 shim 에 있다"));
-                else diffs.add(new Diff("descriptor", s.name(), id, "기준=" + new TreeSet<>(sameName)));
+                else diffs.add(new Diff("descriptor", s.name(), id, "기준=" + fp(new TreeSet<>(sameName).toString()), "기준=" + new TreeSet<>(sameName)));
                 continue;
             }
             if (((hit.access() ^ m.access()) & Opcodes.ACC_STATIC) != 0) diffs.add(new Diff("static", s.name(), id, "shim=" + ((m.access() & Opcodes.ACC_STATIC) != 0)));
