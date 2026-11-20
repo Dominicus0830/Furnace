@@ -188,6 +188,8 @@ class EventBridgeTest {
                     org.domi.furnace.api.world.BlockData.of("minecraft:wheat"), org.domi.furnace.api.world.BlockData.of("minecraft:wheat")));
             fire.put(org.bukkit.event.block.BlockFadeEvent.class, () -> new org.domi.furnace.api.event.block.BlockFadeEvent(w, bp, stoneData,
                     org.domi.furnace.api.world.BlockData.AIR));
+            fire.put(com.destroystokyo.paper.event.block.BlockDestroyEvent.class, () -> new org.domi.furnace.api.event.block.BlockDestroyEvent(w, bp, stoneData,
+                    org.domi.furnace.api.world.BlockData.AIR, 0, true));
             fire.put(org.bukkit.event.block.BlockExplodeEvent.class, () -> new org.domi.furnace.api.event.block.BlockExplodeEvent(w, bp, "minecraft:red_bed",
                     new ArrayList<>(List.of(new BlockPos(1, 64, 3))), org.domi.furnace.api.event.cause.CauseChain.NONE, 1f, "DESTROY"));
             fire.put(org.bukkit.event.entity.EntitySpawnEvent.class, () -> new org.domi.furnace.api.event.entity.EntitySpawnEvent(pig));

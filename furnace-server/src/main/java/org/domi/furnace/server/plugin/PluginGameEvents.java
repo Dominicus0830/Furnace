@@ -145,6 +145,7 @@ public final class PluginGameEvents implements GameEvents {
     private final EventBusImpl.Flag wBlockForm;
     private final EventBusImpl.Flag wBlockSpread;
     private final EventBusImpl.Flag wBlockFade;
+    private final EventBusImpl.Flag wBlockDestroy;
     private final EventBusImpl.Flag wPrepareItemEnchant;
     private final EventBusImpl.Flag wEnchantItem;
     private final EventBusImpl.Flag wPrepareAnvil;
@@ -218,6 +219,7 @@ public final class PluginGameEvents implements GameEvents {
         wBlockForm = b.flag(BlockFormEvent.class);
         wBlockSpread = b.flag(BlockSpreadEvent.class);
         wBlockFade = b.flag(BlockFadeEvent.class);
+        wBlockDestroy = b.flag(org.domi.furnace.api.event.block.BlockDestroyEvent.class);
         wPrepareItemEnchant = b.flag(PrepareItemEnchantEvent.class);
         wEnchantItem = b.flag(EnchantItemEvent.class);
         wPrepareAnvil = b.flag(PrepareAnvilEvent.class);
@@ -848,6 +850,28 @@ public final class PluginGameEvents implements GameEvents {
     public boolean blockFade(String dimension, org.domi.furnace.server.block.Pos pos, int oldState, int newState) {
         if (!wBlockFade.on()) return true;
         return !bus().call(new BlockFadeEvent(dimension, bp(pos), data(oldState), data(newState))).isCancelled();
+    }
+
+    @Override
+    public boolean wantsBlockDestroy() { return wBlockDestroy.on(); }
+
+    @Override
+    public DestroyOutcome blockDestroy(String dimension, org.domi.furnace.server.block.Pos pos, int oldState, int newState, int expToDrop, boolean willDrop) {
+        if (!wBlockDestroy.on()) return new DestroyOutcome(oldState, true, willDrop, expToDrop);
+        var e = bus().call(new org.domi.furnace.api.event.block.BlockDestroyEvent(dimension, bp(pos), data(oldState), data(newState), expToDrop, willDrop));
+        if (e.isCancelled()) return null;
+        return new DestroyOutcome(effectState(e.effectData(), e.oldData(), oldState), e.playEffect(), e.willDrop(), e.expToDrop());
+    }
+
+    /** 플러그인이 바꾼 효과 블록의 번호(바꾸지 않았으면 원래 번호, 서버가 모르는 블록이면 경고 뒤 원래 번호). */
+    private int effectState(org.domi.furnace.api.world.BlockData now, org.domi.furnace.api.world.BlockData given, int original) {
+        if (now == given) return original;
+        try {
+            return ApiConvert.stateId(now, host.core().world().blockRegistry());
+        } catch (IllegalArgumentException ex) {
+            org.slf4j.LoggerFactory.getLogger(PluginGameEvents.class).warn(Lang.t("plugin.block-unusable", ex.getMessage()));
+            return original;
+        }
     }
 
     // ------------------------------------------------------------------ 3단계 셋째 묶음: 마법 부여·모루·양조

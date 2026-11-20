@@ -45,6 +45,7 @@
 | `BlockIgniteEvent` | `CLIENT_PREDICTED` | 불 자리 블록(부싯돌) | 불. 예외: 부싯돌 내구도는 닳는다(CraftBukkit 과 같다) |
 | `BlockBurnEvent` | `SERVER_DRIVEN` | - | 불에 타는 블록 |
 | `BlockExplodeEvent` | `SERVER_DRIVEN` | - | 블록, 불, 폭발 패킷 |
+| `BlockDestroyEvent` | `SERVER_DRIVEN` | - | 서버가 부수려던 블록(`Level#destroyBlock` 자리 — 받침 잃은 선인장, 엔티티·명령·플러그인 등). 효과·떨굼·경험치도 없다(T-224) |
 | `BlockFromToEvent` | `SERVER_DRIVEN` | - | 유체 흐름 |
 | `BlockGrowEvent` | `SERVER_DRIVEN` | - | 작물 나이 등 |
 | `BlockPhysicsEvent` | `SERVER_DRIVEN` | - | 이웃·모양 갱신 |

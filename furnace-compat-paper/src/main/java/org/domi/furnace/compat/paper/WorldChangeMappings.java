@@ -47,6 +47,24 @@ final class WorldChangeMappings {
         EventBridge.reg(org.domi.furnace.api.event.block.BlockFadeEvent.class, org.bukkit.event.block.BlockFadeEvent.class,
                 f -> new org.bukkit.event.block.BlockFadeEvent(Compat.block(f.world(), f.pos()), CompatBlockState.of(f.world(), f.pos(), f.newData())),
                 (f, b) -> {});
+        // Paper BlockDestroyEvent(T-224): NMS Level#destroyBlock 자리. 효과 블록·효과 끄기·떨굼·경험치·취소가 오간다.
+        // Furnace 처리기가 먼저 바꾼 값은 pull 로 보이고, Bukkit 처리기가 바꾼 값은 push 로 되돌린다.
+        EventBridge.reg(org.domi.furnace.api.event.block.BlockDestroyEvent.class, com.destroystokyo.paper.event.block.BlockDestroyEvent.class,
+                f -> new com.destroystokyo.paper.event.block.BlockDestroyEvent(Compat.block(f.world(), f.pos()), CompatBlockData.of(f.newData()),
+                        CompatBlockData.of(f.effectData()), f.expToDrop(), f.willDrop()),
+                (f, b) -> {
+                    // Paper 는 (CraftBlockData) 로 캐스트한다 — null·남의 구현이면 서버 쪽에서 예외로 터진다. Furnace 는 효과 블록을 그대로 둔다
+                    if (b.getEffectBlock() instanceof CompatBlockData c) f.setEffectData(c.furnace());
+                    f.setPlayEffect(b.playEffect());
+                    f.setWillDrop(b.willDrop());
+                    f.setExpToDrop(b.getExpToDrop());
+                },
+                (f, b) -> {
+                    if (!(b.getEffectBlock() instanceof CompatBlockData c && c.furnace().equals(f.effectData()))) b.setEffectBlock(CompatBlockData.of(f.effectData()));
+                    b.setPlayEffect(f.playEffect());
+                    b.setWillDrop(f.willDrop());
+                    b.setExpToDrop(f.expToDrop());
+                });
         EventBridge.reg(org.domi.furnace.api.event.block.BlockExplodeEvent.class, org.bukkit.event.block.BlockExplodeEvent.class,
                 f -> {
                     var type = Compat.furnace().blockTypes().get(f.blockType());

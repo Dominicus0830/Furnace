@@ -195,6 +195,23 @@ public interface GameEvents {
         return !cancelled;
     }
 
+    /**
+     * BlockDestroyEvent 구독자가 있는가(T-224). 참이면 {@link org.domi.furnace.server.block.ChunkLevel#destroyBlock} 이 Paper 순서
+     * (경험치를 먼저 뽑고 이벤트 → 효과 → 떨굼(경험치 없이) → 뽑아 둔 경험치)를 쓴다. 거짓이면 바닐라 순서.
+     */
+    default boolean wantsBlockDestroy() { return false; }
+
+    /** BlockDestroyEvent 뒤 destroyBlock 이 쓸 값(Paper 가 이벤트에서 다시 읽는 넷). */
+    record DestroyOutcome(int effectState, boolean playEffect, boolean willDrop, int expToDrop) {}
+
+    /**
+     * Level#destroyBlock 이 블록을 부수기 직전(Paper BlockDestroyEvent). 취소면 null. 블록의 region 스레드에서. wantsBlockDestroy 가 참일 때만 부른다.
+     * newState 는 부서진 뒤 칸(유체의 레거시 블록), oldState 는 부서지는 블록(효과 블록의 처음 값).
+     */
+    default DestroyOutcome blockDestroy(String dimension, Pos pos, int oldState, int newState, int expToDrop, boolean willDrop) {
+        return new DestroyOutcome(oldState, true, willDrop, expToDrop);
+    }
+
     /** 좀비류가 문을 부수기 직전(Paper callEntityBreakDoorEvent — EntityChangeBlockEvent 의 하위). false 면 취소. */
     default boolean entityBreakDoor(String dimension, LivingEntity who, Pos pos, int oldState, int newState) { return true; }
 
