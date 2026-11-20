@@ -96,6 +96,11 @@ public interface Registry<T> extends IdMap<T> {
 
     Stream<net.minecraft.tags.TagKey<T>> getTagNames();
 
+    /** 바닐라: 묶인 태그마다 (키, 태그 집합) 짝. */
+    default Stream<com.mojang.datafixers.util.Pair<net.minecraft.tags.TagKey<T>, HolderSet.Named<T>>> getTags() {
+        return getTagNames().map(k -> com.mojang.datafixers.util.Pair.of(k, getOrCreateTag(k)));
+    }
+
     /**
      * 이 레지스트리의 조회기(바닐라 {@code asLookup()}). 목록·키 조회·태그 조회가 이 레지스트리를 그대로 본다 —
      * 키로 꺼낸 손잡이는 {@link #getHolder(ResourceKey)} 와 같은 객체다.

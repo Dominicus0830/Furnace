@@ -188,6 +188,13 @@ public final class RegionFile implements Closeable {
         writeCompressed(chunkX, chunkZ, Compression.compress(type, nbtBytes), type);
     }
 
+    /** 압축 종류를 정해 기록한다(NMS shim RegionFile — 그 파일을 연 쪽이 고른 종류, 바닐라 RegionFile 의 version). type 은 1~4. */
+    public void writeChunk(int chunkX, int chunkZ, byte[] nbtBytes, int type) throws IOException {
+        if (nbtBytes == null) throw new IllegalArgumentException("nbtBytes null");
+        if (type < Compression.GZIP || type > Compression.LZ4) throw new IOException("unsupported region compression type " + type);
+        writeCompressed(chunkX, chunkZ, Compression.compress(type, nbtBytes), type);
+    }
+
     /**
      * 이미 zlib(type 2)로 압축한 본문을 기록. RegionFileStore 가 파일 잠금 밖에서 압축한 뒤 부른다(F-01).
      * 순서(크래시 일관성): [외부면 .mcc 임시→원자 교체] → 새 섹터에 데이터 → 헤더 8KB → [내부면 옛 .mcc 삭제] → 옛 섹터 해제.

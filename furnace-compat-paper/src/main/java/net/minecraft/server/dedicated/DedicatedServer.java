@@ -12,6 +12,9 @@ public class DedicatedServer extends MinecraftServer {
 
     public boolean isDedicatedServer() { return true; }
 
+    /** 바닐라: server.properties sync-chunk-writes(지역 파일을 쓸 때마다 디스크에 내리는가). */
+    public boolean forceSynchronousWrites() { return org.domi.furnace.api.Furnace.server().internals().chunks().syncChunkWrites(); }
+
     /** Paper 처럼 반환형이 전용 서버 목록이다(공변). */
     @Override
     public DedicatedPlayerList getPlayerList() { return DedicatedPlayerList.INSTANCE; }

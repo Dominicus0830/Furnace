@@ -26,6 +26,23 @@ class CampfireBlockEntityTest {
         @Override public void dropItemStack(double x, double y, double z, ItemStack s) { dropped.add(s); }
     }
 
+    /** 바닐라 markUpdated 는 같은 상태로 sendBlockUpdated 한다(같은 상태 setBlock 은 아무것도 보내지 않는다) — 올린 음식이 클라이언트에 보이게. */
+    @Test
+    void markUpdatedResendsTheBlockAndItsData() throws Exception {
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        var sent = new ArrayList<Pos>();
+        var level = new BlockPlacementTest.TestLevel() {
+            @Override public void sendBlockUpdated(Pos p) { sent.add(p); }
+        };
+        Pos pos = new Pos(1, -60, 1);
+        int lit = reg.stateIdOrAir("minecraft:campfire", Map.of("facing", "north", "lit", "true", "signal_fire", "false", "waterlogged", "false"));
+        level.setBlock(pos, lit, 3);
+        var be = new CampfireBlockEntity(pos, lit);
+        be.markUpdated(level);
+        assertEquals(List.of(pos), sent);
+        assertTrue(be.hasUpdatePacket(), "바닐라 getUpdatePacket 이 패킷을 낸다");
+    }
+
     @Test
     void cooksBeefAfterItsCookingTimeAndDropsResult() throws Exception {
         RecipeManager rm = TestRecipes.manager();

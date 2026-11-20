@@ -8,7 +8,7 @@
 |---|---|---|
 | 2번 플레이어 목록·틱 스레드 판정 | T-245 | 완료(PR #530). 표본 감사에서 이 묶음 심볼 0(Axiom 없는 심볼 92 → 87, VeinMiner 50 → 47). 시험 `NmsPlayerListTest`(3) |
 | 3번 블록 부수기·경험치·속성 | T-246 | 완료. 앞부분(블록 부수기·게임 모드·경험치): 표본 감사 없음 행 squaremap 39 → 37, VeinMiner 45 → 42, 시험 `NmsPlayerBreakTest`(8). 뒷부분(속성, 이 PR): squaremap 37 → 34, VeinMiner 42 → 39(속성 행 0), 시험 `NmsAttributeTest`(5) |
-| 4번 감사 도구 "타는 길" 거르기 + Orebfuscator 9개 | T-247 | 앞부분(거르기) 완료: 아래 "4번 묶음 앞부분에서 한 것". 뒷부분(Orebfuscator 구멍) 진행 |
+| 4번 감사 도구 "타는 길" 거르기 + Orebfuscator 9개 | T-247 | 완료. 앞부분(거르기, PR #533): 지원 비율 85.8% → 88.2%. 뒷부분(Orebfuscator 구멍 10개): Orebfuscator 없는 심볼 10 → 0, 지원 비율 88.2% → **88.9%**(인기 가중 87.9% → 88.6%). 시험 `NmsRegionFileTest`(3)·`NmsOrebfuscatorPathTest`(6) |
 
 ### 4번 묶음 앞부분에서 한 것
 
@@ -21,6 +21,27 @@
   - Orebfuscator 없는 심볼 46 → 10: 남은 것은 `v1_21_R1_mojang` 어댑터의 실제 구멍(설계의 9개 + `ClientboundSectionBlocksUpdatePacket` 생성자).
   - Geyser 없는 심볼 28 → 10: `adapters/paper/v766` 은 구멍 0, 남은 10개는 함께 실린 Erosion 의 `NmsPickItemProvider`(블록 집기 아이템, `DataComponents` 등) — 실제로 탈 수 있는 길이라 그대로 센다.
   - 85.8% 는 1~3번 묶음 병합 뒤 거르기 전 값(11-20 처음 측정 80.2%).
+
+### 4번 묶음 뒷부분(Orebfuscator)에서 한 것
+
+- **지역 파일.** `RegionFile`·`RegionFileVersion`·`RegionStorageInfo` shim 은 서버의 anvil 지역 파일 구현(`world/anvil/RegionFile`)을 그대로 쓴다. 섹터·헤더·`.mcc` 바깥 파일·쓰는 순서가 바닐라와 같다.
+  - Orebfuscator 는 이것으로 **자기 캐시 폴더**의 파일을 읽고 쓴다. 월드 저장 파일과 겹치지 않아 서버 IO 풀 순서 문제는 생기지 않는다. 플러그인이 월드 파일을 직접 열면 서버 저장과 따로 쓰게 되는데, 바닐라·Paper 도 같다.
+  - 압축은 gzip·deflate·none·lz4. 기본은 서버 설정의 압축(바닐라 `region-file-compression`). CUSTOM 압축과 다른 폴더의 바깥 파일은 `UnsupportedNmsCall` 로 거절한다.
+  - `DedicatedServer.forceSynchronousWrites()` 는 서버 설정 `sync-chunk-writes` 를 읽는다.
+- **작은 것.** `StateDefinition.getPossibleStates()` 를 Guava `ImmutableList` 로 바꾸었다(한 번 만들어 둔다, 서명 관문 기준선 한 줄 지움). 함께 바꾼 것:
+  - `BlockState.hasBlockEntity()`
+  - `Registry.getTags()`(태그 이름·묶음 짝)
+  - `ServerChunkCache.getChunkFuture`·`isChunkLoaded`
+  - `ClientboundSectionBlocksUpdatePacket` 의 Paper 생성자(fastutil `ShortSet`)
+  - Guava·fastutil 형은 그것을 부르는 플러그인만 닿는 메서드 안에만 둔다(공유 로더에 그 라이브러리가 없을 수 있다).
+- **블록 엔티티 갱신 패킷(`BlockEntity.getUpdatePacket`).** 바닐라는 종류별 하위 클래스가 고르지만 shim 은 종류별 클래스가 없어 서버 블록 엔티티에 묻는다.
+  - 갱신 패킷을 내는 종류(표지판·현수막·머리·신호기 등)면 그 칸·종류·갱신 태그를 실은 패킷을 돌려준다. 상자처럼 내지 않는 종류는 null 이다.
+  - 월드의 것은 저장과 같은 스레드 규칙을 따른다. 플러그인이 만든 떨어진 것은 아무 스레드에서 된다.
+  - `ClientboundBlockEntityDataPacket.create` 는 Paper 처럼 `sanitizeSentNbt`(영속 데이터 빼기)를 거친다.
+  - **서버 쪽 바닐라 차이 두 개를 함께 고쳤다**(Paper 바이트코드로 확인):
+    - 신호기·모닥불·전달체·장식 단지가 바닐라와 달리 블록 엔티티 갱신 패킷을 보내지 않았다.
+    - 모닥불 `markUpdated` 가 같은 상태 `setBlock` 이라 아무것도 보내지 않았다. 그래서 올린 음식이 청크를 다시 받기 전까지 화면에 안 보였을 것이다(가정 — 실제 클라이언트로는 확인하지 않음). 이제 바닐라처럼 `sendBlockUpdated` 를 부른다.
+- 서버에 틀이 없는 생성 블록 엔티티(청크 패킷에도 싣지 않는 것)는 `getUpdatePacket` 이 null 이다. 서버가 보내는 것과 같게 했다.
 
 ### 2번 묶음에서 한 것
 

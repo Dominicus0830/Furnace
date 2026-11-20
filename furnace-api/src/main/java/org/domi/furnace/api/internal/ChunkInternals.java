@@ -388,6 +388,19 @@ public interface ChunkInternals {
     boolean blockEntityLoadNow(World world, Object blockEntity, org.domi.furnace.api.nbt.NbtCompound tag);
 
     /**
+     * 손잡이의 클라이언트 갱신 태그(바닐라 getUpdatePacket 이 싣는 getUpdateTag — Paper 처럼 영속 데이터를 뺀 것, 새 트리). 그 종류가 갱신 패킷을 보내지
+     * 않으면(상자 등 — 바닐라 null) null. 서버에 틀이 없는 생성 블록 엔티티도 null(청크 패킷에도 싣지 않는다). 살아 있는 것은 그 칸의 주인 스레드, 떨어진 것은 아무 스레드.
+     */
+    default org.domi.furnace.api.nbt.NbtCompound blockEntityUpdateTagNow(Object blockEntity) {
+        throw new UnsupportedOperationException("blockEntityUpdateTagNow");
+    }
+
+    /** 아무 스레드: 레벨에 놓이지 않은 블록 엔티티(그 상태, tag 내용)의 클라이언트 갱신 태그. 갱신 패킷을 보내지 않는 종류·블록 엔티티가 없는 상태면 null. */
+    default org.domi.furnace.api.nbt.NbtCompound detachedBlockEntityUpdateTag(int stateId, org.domi.furnace.api.nbt.NbtCompound tag) {
+        throw new UnsupportedOperationException("detachedBlockEntityUpdateTag");
+    }
+
+    /**
      * 주인 스레드: 바닐라 정적 BlockEntity.setChanged(level, pos, state) — 그 청크 저장 표시(로드돼 있을 때), 그 칸 블록이 공기가 아니면 비교기 쪽 알림
      * (updateNeighbourForOutputSignal). 로드돼 있지 않으면 false.
      */
@@ -680,4 +693,35 @@ public interface ChunkInternals {
         /** {@link #lightLayerNow} 와 같은 값이다(새 배열, 이 스냅샷을 낸 순간). */
         byte[] lightLayer(boolean sky, int sectionY);
     }
+
+    // ------------------------------------------------------------------ 지역 파일(NMS shim RegionFile·DedicatedServer, T-247)
+
+    /**
+     * 서버의 anvil 지역 파일(.mca) 구현으로 파일 하나를 연다. 플러그인이 자기 폴더에 두는 캐시(Orebfuscator)용이다. 외부 청크 파일(.mcc)은 path 와 같은
+     * 폴더에 둔다. 월드 저장 파일을 열면 서버 저장과 같은 파일을 따로 쓰게 되므로 하지 않는다(바닐라·Paper 도 같다).
+     */
+    default RegionFileAccess openRegionFile(java.nio.file.Path path, boolean sync) throws java.io.IOException {
+        throw new UnsupportedOperationException("openRegionFile");
+    }
+
+    /** {@link #openRegionFile} 이 연 파일. 스레드 안전하다(파일 하나에 잠금 하나). */
+    interface RegionFileAccess extends java.io.Closeable {
+        /** 청크 하나의 압축 푼 본문(절대 청크 좌표). 없거나 헤더·길이가 깨졌으면 null. */
+        byte[] read(int chunkX, int chunkZ) throws java.io.IOException;
+
+        /** 본문을 그 압축 종류(1 gzip, 2 deflate, 3 압축 없음, 4 lz4)로 써 넣는다. */
+        void write(int chunkX, int chunkZ, byte[] data, int compression) throws java.io.IOException;
+
+        /** 헤더에 그 청크 자리가 있는가(바닐라 RegionFile#hasChunk). */
+        boolean hasChunk(int chunkX, int chunkZ);
+
+        /** 지금까지 쓴 것을 디스크에 내린다. */
+        void flush() throws java.io.IOException;
+    }
+
+    /** server.properties 의 region-file-compression 이 고른 압축 종류(1 gzip, 2 deflate, 3 없음, 4 lz4). */
+    default int regionFileCompression() { return 2; }
+
+    /** server.properties 의 sync-chunk-writes(바닐라 DedicatedServer#forceSynchronousWrites). */
+    default boolean syncChunkWrites() { return false; }
 }

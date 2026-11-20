@@ -120,6 +120,12 @@ dependencies {
     // 1번 묶음: FriendlyByteBuf#writeVector3f·writeQuaternion 의 서명이 JOML 형식을 받는다. Paper 처럼 서버 라이브러리 묶음 joml 이 준다.
     compileOnly("org.joml:joml:1.10.5")
     testImplementation("org.joml:joml:1.10.5")
+    // 4번 묶음: StateDefinition#getPossibleStates(ImmutableList)·ClientboundSectionBlocksUpdatePacket(ShortSet) 의 서명. 서버 라이브러리 묶음(Guava 는 서버 jar,
+    // fastutil 은 내려받기)이 그 이름을 쓰는 플러그인에게 공유 로더로 준다 — shim 은 그 메서드가 불릴 때만 이 형식에 닿는다.
+    compileOnly("com.google.guava:guava:32.1.2-jre")
+    testImplementation("com.google.guava:guava:32.1.2-jre")
+    compileOnly("it.unimi.dsi:fastutil:8.5.12")
+    testImplementation("it.unimi.dsi:fastutil:8.5.12")
     // H6: 플러그인 클래스를 올릴 때 CraftBukkit 버전 접미사·리플렉션 이름을 바꾸는 바이트코드 변환(BSD). 서버 fatJar 에 함께 싣는다.
     implementation("org.ow2.asm:asm-commons:9.7.1")
     // H7a: 없는 NMS 심볼 호출을 덫으로 바꿀 때 메서드 하나를 트리로 다룬다(asm-commons 가 이미 끌어오는 것을 명시)

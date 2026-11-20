@@ -36,11 +36,11 @@ public ClientboundAnimatePacket(net.minecraft.world.entity.Entity entity, int ac
 
 @@ net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket
 // 바닐라 create(블록 엔티티, 태그 만들기): 그 블록 엔티티의 칸·종류와 함수가 만든 태그(T-198 — FAWE·WorldEdit 의 가짜 구조 블록 NBT 보내기).
-// 레지스트리는 그 블록 엔티티 레벨의 것(레벨이 없으면 서버 것 — Furnace 는 하나다).
+// 레지스트리는 그 블록 엔티티 레벨의 것(레벨이 없으면 서버 것 — Furnace 는 하나다). 태그는 Paper 처럼 sanitizeSentNbt 를 거친다.
 public static ClientboundBlockEntityDataPacket create(net.minecraft.world.level.block.entity.BlockEntity blockEntity,
         java.util.function.BiFunction<net.minecraft.world.level.block.entity.BlockEntity, net.minecraft.core.RegistryAccess, net.minecraft.nbt.CompoundTag> tagCreator) {
     net.minecraft.core.RegistryAccess registries = blockEntity.getLevel() != null ? blockEntity.getLevel().registryAccess() : net.minecraft.core.RegistryAccess.SERVER;
-    return new ClientboundBlockEntityDataPacket(blockEntity.getBlockPos(), blockEntity.getType(), tagCreator.apply(blockEntity, registries));
+    return new ClientboundBlockEntityDataPacket(blockEntity.getBlockPos(), blockEntity.getType(), blockEntity.sanitizeSentNbt(tagCreator.apply(blockEntity, registries)));
 }
 
 @@ net.minecraft.network.protocol.game.ClientboundBlockEventPacket
@@ -302,4 +302,11 @@ private static class InteractionAtLocationAction implements Action {
     }
 
     @Override public ActionType getType() { return ActionType.INTERACT_AT; }
+}
+
+@@ net.minecraft.network.protocol.game.ClientboundSectionBlocksUpdatePacket
+// Paper 편의 생성자(Orebfuscator): 칸 집합을 그 순서대로 위치 배열로, 상태 배열은 받은 그대로.
+public ClientboundSectionBlocksUpdatePacket(net.minecraft.core.SectionPos sectionPos, it.unimi.dsi.fastutil.shorts.ShortSet positions,
+        net.minecraft.world.level.block.state.BlockState[] states) {
+    this(sectionPos, positions.toShortArray(), states);
 }

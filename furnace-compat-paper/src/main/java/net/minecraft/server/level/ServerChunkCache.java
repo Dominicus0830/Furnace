@@ -50,6 +50,17 @@ public class ServerChunkCache extends ChunkSource {
         });
     }
 
+    /**
+     * 바닐라: 그 청크(status 까지)의 미래. Furnace 는 아무 스레드에서나 {@link #getChunkFutureMainThread} 와 같다 — 로드돼 있으면 끝난 미래, 아니면 그 청크를
+     * 가진 region 이 불러온 뒤 끝난다. 바닐라 주 스레드는 끝날 때까지 기다린 뒤 돌려주지만 region 스레드가 자기 일을 기다리면 멈추므로 기다리지 않는다.
+     */
+    public java.util.concurrent.CompletableFuture<ChunkResult<ChunkAccess>> getChunkFuture(int x, int z, ChunkStatus status, boolean create) {
+        return getChunkFutureMainThread(x, z, status, create);
+    }
+
+    /** 바닐라: 그 청크가 다 불러져(FULL) 있는가. */
+    public boolean isChunkLoaded(int x, int z) { return hasChunk(x, z); }
+
     /** 서버 빛 엔진({@link ThreadedLevelLightEngine} — 빛 다시 계산(T-197), 층 듣기·checkBlock(T-205)). */
     @Override
     public ThreadedLevelLightEngine getLightEngine() { return lightEngine; }

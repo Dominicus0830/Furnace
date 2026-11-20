@@ -61,11 +61,10 @@ public class CampfireBlockEntity extends ContainerBlockEntity {
         return false;
     }
 
-    /** 바닐라 markUpdated: 저장 대상 + 클라이언트 갱신(같은 상태 setBlock 3). */
+    /** 바닐라 markUpdated: 저장 대상 + sendBlockUpdated(같은 상태 — 블록 갱신과 블록 엔티티 데이터를 다시 보낸다). */
     public void markUpdated(BlockLevel level) {
         setChanged(level);
-        int s = level.getBlockState(pos);
-        level.setBlock(pos, s, 3);
+        level.sendBlockUpdated(pos);
     }
 
     @Override
@@ -122,6 +121,9 @@ public class CampfireBlockEntity extends ContainerBlockEntity {
         tag.putIntArray("CookingTimes", cookingProgress.clone());
         tag.putIntArray("CookingTotalTimes", cookingTime.clone());
     }
+
+    /** 바닐라 getUpdatePacket: ClientboundBlockEntityDataPacket.create(this). */
+    @Override public boolean hasUpdatePacket() { return true; }
 
     /** getUpdateTag: 클라이언트가 올린 음식을 그리도록 Items 만(바닐라 saveAllItems alwaysPut). */
     @Override

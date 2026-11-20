@@ -200,4 +200,7 @@ public class BeaconBlockEntity extends BlockEntity {
     /** 청크 패킷/갱신: 바닐라 getUpdateTag = saveCustomOnly(Levels·효과·CustomName·Lock). */
     @Override
     public NbtCompound updateTag() { return saveCustomOnly(); }
+
+    /** 바닐라 getUpdatePacket: ClientboundBlockEntityDataPacket.create(this). */
+    @Override public boolean hasUpdatePacket() { return true; }
 }

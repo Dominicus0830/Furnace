@@ -627,6 +627,27 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     @Override
+    public org.domi.furnace.api.nbt.NbtCompound blockEntityUpdateTagNow(Object blockEntity) {
+        if (blockEntity instanceof org.domi.furnace.server.block.entity.BlockEntity be) return updateTagOf(be);
+        if (blockEntity instanceof GeneratedBlockEntityRef) return null;   // 서버에 틀이 없는 종류 — 청크 패킷에도 싣지 않는다
+        throw new IllegalArgumentException("not a block entity handle: " + blockEntity);
+    }
+
+    @Override
+    public org.domi.furnace.api.nbt.NbtCompound detachedBlockEntityUpdateTag(int stateId, org.domi.furnace.api.nbt.NbtCompound tag) {
+        checkState(stateId);
+        var be = detachedBlockEntity(stateId, new Pos(0, 0, 0), tag);
+        return be == null ? null : updateTagOf(be);
+    }
+
+    /** 갱신 패킷을 보내는 종류면 보내는 그대로의 태그(ChunkLevel 의 block_entity_data 와 같은 sentUpdateTag), 아니면 null. */
+    private static org.domi.furnace.api.nbt.NbtCompound updateTagOf(org.domi.furnace.server.block.entity.BlockEntity be) {
+        if (!be.hasUpdatePacket()) return null;
+        var t = be.sentUpdateTag();
+        return ApiNbt.toApi((org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.thaw(org.domi.furnace.server.net.io.nbt.NbtTags.copy(t)));
+    }
+
+    @Override
     public boolean blockEntityLoadNow(org.domi.furnace.api.world.World world, Object blockEntity, org.domi.furnace.api.nbt.NbtCompound tag) {
         java.util.Objects.requireNonNull(tag, "tag");
         if (blockEntity instanceof org.domi.furnace.server.block.entity.BlockEntity be) {
@@ -983,5 +1004,39 @@ final class ChunkInternalsImpl implements ChunkInternals {
         var out = be.saveWithoutMetadata();
         out.putString("id", be.type());
         return ApiNbt.toApi((org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.thaw(org.domi.furnace.server.net.io.nbt.NbtTags.copy(out)));
+    }
+
+    // ------------------------------------------------------------------ 지역 파일(T-247)
+
+    @Override
+    public RegionFileAccess openRegionFile(java.nio.file.Path path, boolean sync) throws java.io.IOException {
+        var file = new org.domi.furnace.server.world.anvil.RegionFile(path, sync);
+        return new RegionFileAccess() {
+            @Override
+            public byte[] read(int chunkX, int chunkZ) throws java.io.IOException { return file.readChunk(chunkX, chunkZ); }
+
+            @Override
+            public void write(int chunkX, int chunkZ, byte[] data, int compression) throws java.io.IOException {
+                file.writeChunk(chunkX, chunkZ, data, compression);
+            }
+
+            @Override
+            public boolean hasChunk(int chunkX, int chunkZ) { return file.hasChunk(chunkX, chunkZ); }
+
+            @Override
+            public void flush() throws java.io.IOException { file.flush(); }
+
+            @Override
+            public void close() throws java.io.IOException { file.close(); }
+        };
+    }
+
+    @Override
+    public int regionFileCompression() { return org.domi.furnace.server.world.anvil.Compression.writeType(); }
+
+    @Override
+    public boolean syncChunkWrites() {
+        var s = host.core().settings();
+        return s != null && s.get().syncChunkWrites;   // server.properties 가 없는 시험 서버는 기본값(거짓)
     }
 }

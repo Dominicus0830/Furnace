@@ -150,6 +150,25 @@ public abstract class BlockEntity {
         level.furnaceBlockEntityChanged(pos);
     }
 
+    /**
+     * 바닐라 getUpdatePacket: 갱신 패킷을 보내는 종류(표지판·현수막·머리·생성기 등 — 서버가 block_entity_data 를 보내는 종류)면 그 칸·종류와 갱신 태그를
+     * 실은 패킷, 아니면(상자 등) null. 바닐라는 종류별 하위 클래스가 고르지만 이 shim 은 종류별 클래스를 두지 않아 서버 블록 엔티티에 묻는다.
+     * 월드의 보기는 그 칸의 주인 스레드에서 읽는다(저장과 같은 규칙).
+     */
+    public net.minecraft.network.protocol.Packet<net.minecraft.network.protocol.game.ClientGamePacketListener> getUpdatePacket() {
+        NbtCompound t = furnaceChunk != null ? furnaceChunk.furnaceBlockEntityUpdateTag(this)
+                : NmsChunks.bridge().detachedBlockEntityUpdateTag(blockState.furnaceStateId(), base());
+        if (t == null) return null;
+        CompoundTag tag = (CompoundTag) NbtBridge.fromFurnace(t);
+        return net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket.create(this, (be, registries) -> tag);
+    }
+
+    /** Paper sanitizeSentNbt: 클라이언트로 나가는 태그에서 영속 데이터(PublicBukkitValues)를 뺀다(넘긴 태그를 고쳐 돌려준다). */
+    public CompoundTag sanitizeSentNbt(CompoundTag tag) {
+        tag.remove("PublicBukkitValues");
+        return tag;
+    }
+
     /** 바닐라 saveWithoutMetadata: 종류별 필드(+ 남은 컴포넌트)만, id·좌표 없음. */
     public final CompoundTag saveWithoutMetadata(HolderLookup.Provider registries) {
         NbtCompound c = base();
