@@ -718,6 +718,33 @@ final class ChunkInternalsImpl implements ChunkInternals {
         return org.domi.furnace.server.block.entity.Clearables.tryClear(be, lv);
     }
 
+    @Override
+    public org.domi.furnace.api.nbt.NbtCompound entitySaveNow(org.domi.furnace.api.entity.Entity entity) {
+        Object internal;
+        try {
+            internal = org.domi.furnace.api.Furnace.server().internals().entityNow(entity, Object.class);
+        } catch (IllegalStateException gone) {
+            return null;   // 사라진 엔티티: 바닐라도 지움 이유가 저장하지 않는 것(DISCARDED·KILLED)이면 거짓
+        }
+        // 플레이어는 저장하지 않는 종류(EntityType.PLAYER noSave → getEncodeId null)
+        if (!(internal instanceof org.domi.furnace.server.entity.Entity e)) return null;
+        var tag = e.save();
+        if (tag == null) return null;
+        return ApiNbt.toApi((org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.thaw(org.domi.furnace.server.net.io.nbt.NbtTags.copy(tag)));
+    }
+
+    @Override
+    public void entityDiscardNow(org.domi.furnace.api.entity.Entity entity) {
+        if (entity instanceof org.domi.furnace.api.entity.Player) throw new IllegalArgumentException("a player cannot be discarded: " + entity.uniqueId());
+        Object internal;
+        try {
+            internal = org.domi.furnace.api.Furnace.server().internals().entityNow(entity, Object.class);
+        } catch (IllegalStateException gone) {
+            return;   // 이미 지워졌다 — 바닐라도 다시 지우면 아무 일 없다
+        }
+        if (internal instanceof org.domi.furnace.server.entity.Entity e) e.discard();
+    }
+
     /** 명령 범위 안에서 넣는다 — 주인이 쉬고 있으면 drain 차례로 곧바로 돈다(CommandDrainGate: 같은 예산·같은 끄기 옵션). */
     @Override
     public <T> java.util.concurrent.CompletableFuture<T> submitAwaited(org.domi.furnace.api.world.World world, int x, int y, int z, java.util.function.Supplier<T> task) {

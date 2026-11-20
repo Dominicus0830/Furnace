@@ -11,7 +11,7 @@ import org.domi.furnace.compat.nms.UnsupportedNmsCall;
  * Furnace 엔티티 핸들(만든 시점의 스냅샷)을 읽는다 — 위치는 그 스냅샷 값이다. 같은 엔티티는 같은 shim 이다(CraftEntity 마다 하나).
  * 바닐라처럼 equals 는 같은 엔티티인가(바닐라는 네트워크 id, 여기는 UUID)다.
  */
-public class Entity implements net.minecraft.network.syncher.SyncedDataHolder {
+public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, net.minecraft.world.level.entity.EntityAccess {
 
     private final CraftEntity bukkit;
 
@@ -61,8 +61,46 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder {
     /** 이 엔티티가 있는 월드의 shim. */
     public Level level() { return ((CraftWorld) bukkit.getWorld()).getHandle(); }
 
-    /** 바닐라: 지워졌는가(스냅샷 시점). */
-    public boolean isRemoved() { return !f().isValid(); }
+    /** 바닐라: 지워졌는가(스냅샷 시점, 이 shim 으로 {@link #discard} 했으면 참). */
+    public boolean isRemoved() { return discarded || !f().isValid(); }
+
+    /** 이 shim 의 {@link #discard} 가 엔티티를 지웠다(스냅샷은 그 뒤에도 살아 있는 값이다). */
+    private volatile boolean discarded;
+
+    private org.domi.furnace.api.world.World furnaceWorld() { return ((CraftWorld) bukkit.getWorld()).furnaceHandle(); }
+
+    /**
+     * 바닐라 {@code Entity#save}(T-212): 그 엔티티를 가진 스레드에서 서버가 저장한 NBT("id" 포함, 승객까지)를 tag 에 넣고 참. 승객·플레이어·저장하지 않는
+     * 상태·이미 사라진 엔티티는 거짓(tag 는 그대로). 스레드 규칙은 {@link org.domi.furnace.compat.nms.NmsEntities}(FAWE 작업 스레드는 주인을 기다린다).
+     * 내용은 서버가 월드에 저장하는 꼴과 같다 — Paper 가 더하는 Bukkit·Spigot·Paper 키(WorldUUID·Spigot.ticksLived·Paper.Origin 등)는 없다.
+     */
+    public boolean save(net.minecraft.nbt.CompoundTag tag) {
+        var h = f();
+        if (h instanceof org.domi.furnace.api.entity.Player) return false;   // 플레이어는 저장하지 않는 종류(바닐라 getEncodeId null)
+        var b = org.domi.furnace.compat.nms.NmsChunks.bridge();
+        org.domi.furnace.api.nbt.NbtCompound saved = org.domi.furnace.compat.nms.NmsEntities.call(furnaceWorld(), h, "Entity#save", () -> b.entitySaveNow(h));
+        if (saved == null) return false;
+        net.minecraft.nbt.CompoundTag t = net.minecraft.nbt.CompoundTag.fromFurnace(saved);
+        for (String k : t.getAllKeys()) tag.put(k, t.get(k));
+        return true;
+    }
+
+    /**
+     * 바닐라 {@code Entity#discard}(T-212): 지움 이유 DISCARDED 로 지운다 — Paper 도 원인 없는 discard 에는 EntityRemoveEvent 를 내지 않는다. 이미 사라졌으면
+     * 아무 일 없다. 스레드 규칙은 {@link #save} 와 같다(FAWE 는 동기 작업 = 전역 스레드의 빌림 구간에서 부른다).
+     */
+    public void discard() {
+        var h = f();
+        if (h instanceof org.domi.furnace.api.entity.Player) {
+            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("Entity#discard", "discarding a player entity is not supported - kick the player instead");
+        }
+        var b = org.domi.furnace.compat.nms.NmsChunks.bridge();
+        org.domi.furnace.compat.nms.NmsEntities.call(furnaceWorld(), h, "Entity#discard", () -> {
+            b.entityDiscardNow(h);
+            return null;
+        });
+        discarded = true;
+    }
 
     /** 바닐라 Entity: 지워지지 않았는가. LivingEntity 는 체력도 본다. */
     public boolean isAlive() { return !isRemoved(); }

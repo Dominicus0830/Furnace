@@ -249,6 +249,21 @@ public class ServerLevel extends Level implements net.minecraft.world.level.Worl
         return found.map(e -> ((org.bukkit.craftbukkit.entity.CraftEntity) Compat.entity(e)).getHandle()).orElse(null);
     }
 
+    /**
+     * 바닐라 {@code ServerLevel#getEntities()}(T-212): 이 월드의 엔티티 찾기. {@code get(int)}·{@code get(UUID)} 는 {@link #getEntity(int)}·
+     * {@link #getEntity(java.util.UUID)} 와 같다(FAWE 는 동기 작업에서 지울 엔티티를 UUID 로 찾는다).
+     */
+    public net.minecraft.world.level.entity.LevelEntityGetter<Entity> getEntities() {
+        // 상태 없는 얇은 감싸개 — 필드로 두면 Unsafe 로 만든 하위 레벨(시험·프록시)에서 null 이 된다
+        return new net.minecraft.world.level.entity.LevelEntityGetter<>() {
+            @Override
+            public Entity get(int id) { return getEntity(id); }
+
+            @Override
+            public Entity get(java.util.UUID uuid) { return getEntity(uuid); }
+        };
+    }
+
     /** 이 월드에 있는 접속 플레이어. */
     public List<ServerPlayer> players() {
         List<ServerPlayer> out = new ArrayList<>();

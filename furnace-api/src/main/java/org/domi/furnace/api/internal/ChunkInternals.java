@@ -484,6 +484,22 @@ public interface ChunkInternals {
      */
     default boolean clearBlockEntityContentNow(World world, Object blockEntity) { throw new UnsupportedOperationException("clearBlockEntityContentNow"); }
 
+    // ------------------------------------------------------------------ NMS 엔티티(T-212: FAWE 엔티티 복사·지우기)
+
+    /**
+     * 그 엔티티를 가진 스레드(전역 빌림 포함). 바닐라 {@code Entity#save}: 승객(탄 것은 탈것이 저장)·저장하지 않는 종류(플레이어)·저장하지 않는 지움 이유면
+     * null, 아니면 "id" 가 든 저장 NBT(승객까지). 엔티티가 이미 사라졌으면 null(Paper 에서 지워진 엔티티의 save 는 거짓). 주인이 아니면 ThreadOwnershipException.
+     */
+    default org.domi.furnace.api.nbt.NbtCompound entitySaveNow(org.domi.furnace.api.entity.Entity entity) {
+        throw new UnsupportedOperationException("entitySaveNow");
+    }
+
+    /**
+     * 그 엔티티를 가진 스레드(전역 빌림 포함). 바닐라 {@code Entity#discard} — 지움 이유 DISCARDED, 이벤트 없음(Paper 도 원인이 없으면 EntityRemoveEvent 를 내지 않는다).
+     * 이미 사라졌으면 아무 일도 하지 않는다. 플레이어는 IllegalArgumentException. 주인이 아니면 ThreadOwnershipException.
+     */
+    default void entityDiscardNow(org.domi.furnace.api.entity.Entity entity) { throw new UnsupportedOperationException("entityDiscardNow"); }
+
     /**
      * 청크 shim 의 거울이다(호환 계층이 만들며, 플러그인이 볼 수 없는 내부 객체). 서버는 그 청크의 주인 region 스레드에서만 부르고, 이 객체의 모니터를 쓰지 않는다.
      */
