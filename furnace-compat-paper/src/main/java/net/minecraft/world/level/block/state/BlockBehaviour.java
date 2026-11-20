@@ -48,6 +48,9 @@ public abstract class BlockBehaviour {
 
         public boolean is(Holder<Block> block) { return block.value() == owner; }
 
+        /** 바닐라: 그 묶음에 이 블록이 있는가. */
+        public boolean is(net.minecraft.core.HolderSet<Block> set) { return set.contains(owner.builtInRegistryHolder()); }
+
         /** 바닐라: 블록의 레지스트리 손잡이가 태그에 들었는가(지금 걸린 태그). */
         public boolean is(net.minecraft.tags.TagKey<Block> tag) { return owner.builtInRegistryHolder().is(tag); }
 

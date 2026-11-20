@@ -725,9 +725,6 @@ public interface ChunkInternals {
     /** server.properties 의 sync-chunk-writes(바닐라 DedicatedServer#forceSynchronousWrites). */
     default boolean syncChunkWrites() { return false; }
 
-    /** 접속자가 투명한가(바닐라 Entity#isInvisible — 투명 상태 효과가 있을 때). 효과 표가 잠겨 있어 아무 스레드. */
-    boolean isPlayerInvisible(org.domi.furnace.api.entity.Player player);
-
     /** 그 차원에 천장이 있는가(바닐라 DimensionType.hasCeiling, 네더 참). 고정 값 — 아무 스레드. */
     boolean hasCeiling(World world);
 
@@ -749,4 +746,18 @@ public interface ChunkInternals {
 
     /** 바닐라 Biome.BIOME_INFO_NOISE.getValue(x, z, false)(풀 색 swamp 보정이 쓴다). 아무 스레드. */
     double biomeInfoNoise(double x, double z);
+
+    // ------------------------------------------------------------------ 엔티티 모습 읽기(NMS shim 5번 묶음)
+
+    /**
+     * 엔티티의 지금 모습: 공유 플래그(바닐라 DATA_SHARED_FLAGS 비트 — 웅크림 1·질주 3·수영 4·투명 5·발광 6·겉날개 7), 자세 번호, 바닐라 getKnownMovement,
+     * 날고 있는가(플레이어 능력), 관전 모드인가, 권한 단계(플레이어는 바닐라 getProfilePermissions — op 단계, 아니면 0. 엔티티는 0), 탈것·승객의 UUID(타는 순서).
+     * <p>플레이어는 아무 스레드에서 최근 값을 읽는다(Paper 처럼 경쟁 읽기 — PlayerHandle 의 다른 읽기와 같다). 다른 엔티티는 그 엔티티의 주인 스레드에서만
+     * (아니면 ThreadOwnershipException), 사라졌으면 IllegalStateException.
+     */
+    default EntityLook entityLook(org.domi.furnace.api.entity.Entity entity) { throw new UnsupportedOperationException("entityLook"); }
+
+    /** {@link #entityLook} 의 값. */
+    record EntityLook(byte sharedFlags, int pose, double knownX, double knownY, double knownZ, boolean flying, boolean spectator,
+                      int permissionLevel, java.util.UUID vehicle, java.util.List<java.util.UUID> passengers) {}
 }
