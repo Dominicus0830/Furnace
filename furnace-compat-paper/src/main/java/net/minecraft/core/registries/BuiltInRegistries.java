@@ -27,6 +27,8 @@ public final class BuiltInRegistries {
     public static final DefaultedRegistry<Block> BLOCK = NmsBlocks.registry();
     public static final DefaultedRegistry<Item> ITEM = NmsItems.registry();
     public static final DefaultedRegistry<Fluid> FLUID = NmsFluids.registry();
+    /** 청크 생성 단계(바닐라 DefaultedMappedRegistry, 기본값 minecraft:empty). */
+    public static final DefaultedRegistry<net.minecraft.world.level.chunk.status.ChunkStatus> CHUNK_STATUS = org.domi.furnace.compat.nms.NmsChunkStatuses.registry();
     public static final Registry<SoundEvent> SOUND_EVENT = NmsSounds.registry();
     public static final Registry<MobEffect> MOB_EFFECT = NmsMobEffects.registry();
     public static final Registry<net.minecraft.world.entity.ai.attributes.Attribute> ATTRIBUTE = org.domi.furnace.compat.nms.NmsAttributes.registry();

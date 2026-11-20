@@ -25,6 +25,16 @@ public final class DimensionType {
     /** 바닐라 DimensionType#moonBrightness. */
     public float moonBrightness(long time) { return MOON_BRIGHTNESS_PER_PHASE[moonPhase(time)]; }
 
+    /** 바닐라 DimensionType#getStorageFolder: 차원 키의 저장 폴더(오버월드 = 월드 폴더, 엔드 = DIM1, 네더 = DIM-1, 그 밖은 dimensions/<이름공간>/<경로>). */
+    public static java.nio.file.Path getStorageFolder(net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> dimensionKey, java.nio.file.Path levelFolder) {
+        if (dimensionKey == net.minecraft.world.level.Level.OVERWORLD) return levelFolder;
+        if (dimensionKey == net.minecraft.world.level.Level.END) return levelFolder.resolve("DIM1");
+        if (dimensionKey == net.minecraft.world.level.Level.NETHER) return levelFolder.resolve("DIM-1");
+        return levelFolder.resolve("dimensions").resolve(dimensionKey.location().getNamespace()).resolve(dimensionKey.location().getPath());
+    }
+
+    public boolean hasCeiling() { return org.domi.furnace.compat.nms.NmsChunks.bridge().hasCeiling(world); }
+
     public int minY() { return org.domi.furnace.compat.nms.NmsChunks.bridge().minY(world); }
 
     public int height() { return org.domi.furnace.compat.nms.NmsChunks.bridge().height(world); }

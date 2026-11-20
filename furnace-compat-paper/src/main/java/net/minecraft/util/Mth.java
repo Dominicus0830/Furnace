@@ -121,6 +121,28 @@ public final class Mth {
 
     public static boolean isPowerOfTwo(int value) { return value != 0 && (value & value - 1) == 0; }
 
+    private static final int[] MULTIPLY_DE_BRUIJN_BIT_POSITION = {0, 1, 28, 2, 29, 14, 24, 3, 30, 22, 20, 15, 25, 17, 4, 8, 31, 27, 13, 23, 21, 19, 16, 7, 26, 12, 18, 6, 11, 5, 10, 9};
+
+    /** 바닐라 Mth#smallestEncompassingPowerOfTwo. */
+    public static int smallestEncompassingPowerOfTwo(int value) {
+        int i = value - 1;
+        i |= i >> 1;
+        i |= i >> 2;
+        i |= i >> 4;
+        i |= i >> 8;
+        i |= i >> 16;
+        return i + 1;
+    }
+
+    /** 바닐라 Mth#ceillog2(드브루인 표 — 0 은 0). */
+    public static int ceillog2(int value) {
+        value = isPowerOfTwo(value) ? value : smallestEncompassingPowerOfTwo(value);
+        return MULTIPLY_DE_BRUIJN_BIT_POSITION[(int) ((long) value * 125613361L >> 27) & 31];
+    }
+
+    /** 바닐라 Mth#log2. */
+    public static int log2(int value) { return ceillog2(value) - (isPowerOfTwo(value) ? 0 : 1); }
+
     public static float frac(float v) { return v - (float) floor(v); }
 
     public static double frac(double v) { return v - (double) lfloor(v); }

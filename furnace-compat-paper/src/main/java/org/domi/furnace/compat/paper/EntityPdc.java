@@ -6,7 +6,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-public final class EntityPdc extends LivePdc {
+public final class EntityPdc extends org.bukkit.craftbukkit.persistence.CraftPersistentDataContainer {
 
     private final org.domi.furnace.api.entity.Entity entity;
 

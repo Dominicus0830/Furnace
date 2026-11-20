@@ -834,6 +834,28 @@ public interface ChunkInternals {
     /** server.properties 의 sync-chunk-writes(바닐라 DedicatedServer#forceSynchronousWrites). */
     default boolean syncChunkWrites() { return false; }
 
+    /** 그 차원에 천장이 있는가(바닐라 DimensionType.hasCeiling, 네더 참). 고정 값 — 아무 스레드. */
+    boolean hasCeiling(World world);
+
+    /** 그 월드 경계의 {중심 x, 중심 z, 크기}(바닐라 WorldBorder.getCenterX·getCenterZ·getSize, 지금 값). 아무 스레드. */
+    double[] borderCenterAndSize(World world);
+
+    /** 지도 데이터의 겉모양(바닐라 MapItemSavedData 의 centerX·centerZ·dimension·scale). */
+    record MapInfo(int centerX, int centerZ, String dimension, byte scale) {}
+
+    /** 그 번호의 지도(서버 전체 — 바닐라 Level#getMapData 는 오버월드 저장소에서 읽는다). 없으면 null. 아무 스레드. */
+    MapInfo mapInfo(int mapId);
+
+    /** 바이옴 기후·색(바닐라 Biome.ClimateSettings·BiomeSpecialEffects 의 값). 색 고정값이 없으면 -1. */
+    record BiomeInfo(boolean hasPrecipitation, float temperature, boolean frozen, float downfall, int fogColor, int waterColor, int waterFogColor,
+                     int skyColor, int foliageColor, int grassColor, String grassColorModifier) {}
+
+    /** 그 바이옴 키의 기후·색(플러그인 바이옴이 먼저, 없으면 바닐라 데이터). 모르는 키는 null. 아무 스레드. */
+    BiomeInfo biomeInfo(String biomeKey);
+
+    /** 바닐라 Biome.BIOME_INFO_NOISE.getValue(x, z, false)(풀 색 swamp 보정이 쓴다). 아무 스레드. */
+    double biomeInfoNoise(double x, double z);
+
     // ------------------------------------------------------------------ 엔티티 모습 읽기(NMS shim 5번 묶음)
 
     /**

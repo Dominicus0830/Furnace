@@ -28,6 +28,8 @@ class-access	net/minecraft/nbt/StringTag	-	shim 만 final	미분류 — 손 shim
 class-access	net/minecraft/nbt/TagParser	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	net/minecraft/network/chat/CommonComponents	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	net/minecraft/network/chat/Component$Serializer	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+class-access	net/minecraft/network/chat/ComponentSerialization	-	shim 만 final	미분류 — 클래스 접근·final·abstract 가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+class-access	net/minecraft/network/chat/ComponentUtils	-	shim 만 final	미분류 — 클래스 접근·final·abstract 가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	net/minecraft/network/chat/Style	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	net/minecraft/network/protocol/game/ClientboundBossEventPacket$Operation	-	shim 이 덜 열려 있다(0 < 1)	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	net/minecraft/network/protocol/game/ClientboundCommandsPacket$Entry	-	shim 이 덜 열려 있다(0 < 1)	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -53,6 +55,8 @@ class-access	net/minecraft/world/entity/animal/sniffer/Sniffer	-	shim 만 final	
 class-access	net/minecraft/world/entity/npc/VillagerData	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	net/minecraft/world/item/Items	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	net/minecraft/world/level/GameRules	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+class-access	net/minecraft/world/level/biome/Biome$TemperatureModifier	-	shim 만 final	미분류 — 클래스 접근·final·abstract 가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+class-access	net/minecraft/world/level/biome/BiomeSpecialEffects	-	shim 만 final	미분류 — 클래스 접근·final·abstract 가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	net/minecraft/world/level/block/Blocks	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	net/minecraft/world/level/block/entity/BlockEntityType	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	net/minecraft/world/level/block/entity/vault/VaultState	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -76,10 +80,12 @@ class-access	org/bukkit/craftbukkit/entity/CraftCreature	-	shim 만 abstract	미
 class-access	org/bukkit/craftbukkit/entity/CraftHumanEntity	-	shim 만 abstract	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	org/bukkit/craftbukkit/inventory/trim/CraftTrimMaterial	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	org/bukkit/craftbukkit/inventory/trim/CraftTrimPattern	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+class-access	org/bukkit/craftbukkit/map/CraftMapRenderer	-	shim 만 final	미분류 — 클래스 접근·final·abstract 가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	org/bukkit/craftbukkit/metadata/BlockMetadataStore	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	org/bukkit/craftbukkit/metadata/EntityMetadataStore	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	org/bukkit/craftbukkit/metadata/PlayerMetadataStore	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	org/bukkit/craftbukkit/metadata/WorldMetadataStore	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+class-access	org/bukkit/craftbukkit/persistence/CraftPersistentDataContainer	-	shim 만 abstract	미분류 — 클래스 접근·final·abstract 가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-kind	net/minecraft/core/RegistrationInfo	-	shim=class ref=record	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-kind	net/minecraft/server/ServerLinks	-	shim=class ref=record	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-kind	net/minecraft/world/entity/animal/CatVariant	-	shim=class ref=record	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -87,6 +93,7 @@ class-kind	net/minecraft/world/entity/animal/FrogVariant	-	shim=class ref=record
 class-kind	net/minecraft/world/entity/decoration/PaintingVariant	-	shim=class ref=record	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-kind	net/minecraft/world/item/enchantment/Enchantment	-	shim=class ref=record	미분류 — 클래스 종류(인터페이스·열거형·레코드)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-kind	net/minecraft/world/level/WorldDataConfiguration	-	shim=class ref=record	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+class-kind	net/minecraft/world/level/biome/Biome$ClimateSettings	-	shim=class ref=record	미분류 — 클래스 종류(인터페이스·열거형·레코드)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-kind	net/minecraft/world/level/dimension/DimensionType	-	shim=class ref=record	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-kind	net/minecraft/world/level/levelgen/feature/ConfiguredFeature	-	shim=class ref=record	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-kind	net/minecraft/world/level/levelgen/placement/PlacedFeature	-	shim=class ref=record	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -128,6 +135,9 @@ descriptor	net/minecraft/world/level/StructureManager	<init>(Lorg/domi/furnace/a
 descriptor	net/minecraft/world/level/biome/BiomeSource	<init>(Lorg/domi/furnace/api/world/World;)V	기준=#8db329472a27	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	net/minecraft/world/level/block/BaseFireBlock	<init>(Lorg/domi/furnace/api/world/BlockType;Lorg/domi/furnace/api/world/BlockTypes;)V	기준=#3793a8d26734	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	net/minecraft/world/level/block/Block	<init>(Lorg/domi/furnace/api/world/BlockType;Lorg/domi/furnace/api/world/BlockTypes;)V	기준=#f4a2e6c33a1c	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	net/minecraft/world/level/block/CropBlock	<init>(Lorg/domi/furnace/api/world/BlockType;Lorg/domi/furnace/api/world/BlockTypes;)V	기준=#f4a2e6c33a1c	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	net/minecraft/world/level/block/StainedGlassBlock	<init>(Lorg/domi/furnace/api/world/BlockType;Lorg/domi/furnace/api/world/BlockTypes;)V	기준=#09d2ddaf7b44	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	net/minecraft/world/level/block/StemBlock	<init>(Lorg/domi/furnace/api/world/BlockType;Lorg/domi/furnace/api/world/BlockTypes;)V	기준=#185a8f9691e8	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity	<init>(Lnet/minecraft/world/level/block/entity/BlockEntityType;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;)V	기준=#47f3f384f3e2	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	net/minecraft/world/level/block/entity/BannerBlockEntity	<init>(Lnet/minecraft/world/level/block/entity/BlockEntityType;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;)V	기준=#4676080f9a16	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	net/minecraft/world/level/block/entity/BedBlockEntity	<init>(Lnet/minecraft/world/level/block/entity/BlockEntityType;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;)V	기준=#4676080f9a16	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -361,7 +371,9 @@ descriptor	org/bukkit/craftbukkit/entity/CraftZombie	<init>(Lorg/domi/furnace/ap
 descriptor	org/bukkit/craftbukkit/entity/CraftZombieHorse	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#f51f781065bd	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/inventory/trim/CraftTrimMaterial	<init>(Lorg/bukkit/NamespacedKey;)V	기준=#68124ebb6a97	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/inventory/trim/CraftTrimPattern	<init>(Lorg/bukkit/NamespacedKey;)V	기준=#5d5b26e5d279	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/map/CraftMapView	<init>(I)V	기준=#b2a7c55c76ae	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/metadata/BlockMetadataStore	<init>()V	기준=#00d8f3b20679	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/persistence/CraftPersistentDataContainer	<init>()V	기준=#2f9248a890db	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/profile/CraftPlayerProfile	<init>(Lorg/domi/furnace/compat/paper/ProfileValue;)V	기준=#5acedb4272c0	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/profile/CraftPlayerProfile	getProperty(Ljava/lang/String;)Lcom/destroystokyo/paper/profile/ProfileProperty;	기준=#563af3209b04	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/profile/CraftPlayerProfile	setProperty(Ljava/lang/String;Lcom/destroystokyo/paper/profile/ProfileProperty;)V	기준=#06ae4de17512	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -419,6 +431,11 @@ super	net/minecraft/world/entity/decoration/PaintingVariant	-	shim=java/lang/Obj
 super	net/minecraft/world/item/enchantment/Enchantment	-	shim=java/lang/Object ref=#e7f93413726d	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	net/minecraft/world/item/trading/MerchantOffers	-	shim=java/lang/Object ref=#4a65ccfda97f	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	net/minecraft/world/level/WorldDataConfiguration	-	shim=java/lang/Object ref=#e7f93413726d	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+super	net/minecraft/world/level/biome/Biome$ClimateSettings	-	shim=java/lang/Object ref=#e7f93413726d	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+super	net/minecraft/world/level/block/CropBlock	-	shim=net/minecraft/world/level/block/Block ref=#e8df6e4ac813	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+super	net/minecraft/world/level/block/StainedGlassBlock	-	shim=net/minecraft/world/level/block/Block ref=#d1f9468ef5e2	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+super	net/minecraft/world/level/block/StemBlock	-	shim=net/minecraft/world/level/block/Block ref=#e8df6e4ac813	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+super	net/minecraft/world/level/chunk/ImposterProtoChunk	-	shim=net/minecraft/world/level/chunk/ChunkAccess ref=#323c3e5dce8d	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	net/minecraft/world/level/chunk/LevelChunk$1	-	shim=java/util/AbstractMap ref=#c1307bf3492c	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	net/minecraft/world/level/dimension/DimensionType	-	shim=java/lang/Object ref=#e7f93413726d	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	net/minecraft/world/level/levelgen/feature/ConfiguredFeature	-	shim=java/lang/Object ref=#e7f93413726d	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -525,6 +542,8 @@ super	org/bukkit/craftbukkit/entity/CraftWolf	-	shim=org/bukkit/craftbukkit/enti
 super	org/bukkit/craftbukkit/entity/CraftZoglin	-	shim=org/bukkit/craftbukkit/entity/CraftAgeable ref=#a1d98adcceb8	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	org/bukkit/craftbukkit/entity/CraftZombie	-	shim=org/bukkit/craftbukkit/entity/CraftAgeable ref=#a1d98adcceb8	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	org/bukkit/craftbukkit/entity/CraftZombieHorse	-	shim=org/bukkit/craftbukkit/entity/CraftAnimals ref=#c8754a232a25	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+super	org/bukkit/craftbukkit/map/CraftMapRenderer	-	shim=java/lang/Object ref=#1a35e6a14920	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+super	org/bukkit/craftbukkit/persistence/CraftPersistentDataContainer	-	shim=org/domi/furnace/compat/paper/LivePdc ref=#280a3e5e682a	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/ChatFormatting	-	#683140e2fc3f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/commands/CommandSourceStack	-	#021abfa5543e	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/commands/CommandSourceStack	-	#05c9548fda97	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -553,6 +572,9 @@ type-missing	net/minecraft/nbt/StringTag$1	-	#29aad60c6818	미분류 — 바닐�
 type-missing	net/minecraft/network/chat/ClickEvent$Action	-	#683140e2fc3f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/network/chat/Component	-	#59c851e9c8c1	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/network/chat/Component	-	#c1fafd024500	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	net/minecraft/network/chat/ComponentSerialization$1	-	#03a65e1c8449	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	net/minecraft/network/chat/ComponentSerialization$1	-	#baf0353db021	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	net/minecraft/network/chat/ComponentSerialization$1	-	#cf0e2c1e6038	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/network/chat/HoverEvent$Action	-	#683140e2fc3f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/network/chat/MutableComponent	-	#59c851e9c8c1	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/network/chat/MutableComponent	-	#c1fafd024500	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -578,7 +600,6 @@ type-missing	net/minecraft/server/level/ServerLevel	-	#766040133931	미분류 �
 type-missing	net/minecraft/server/level/ServerLevel	-	#7ffb184f80f3	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/server/level/ServerLevel	-	#80afe85c6176	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/server/level/ServerLevel	-	#8a38e2a36000	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	net/minecraft/server/level/ServerLevel	-	#bdc3ca086f1f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/server/level/ServerLevel	-	#f4a01a4a949f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/server/level/ServerPlayer	-	#1586a422ea91	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/server/level/ServerPlayer	-	#38047041a118	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -648,6 +669,15 @@ type-missing	net/minecraft/world/item/ItemStack	-	#77104a472748	미분류 — �
 type-missing	net/minecraft/world/item/component/ItemLore	-	#df582c8d1b8c	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/item/component/Unbreakable	-	#df582c8d1b8c	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/item/enchantment/ItemEnchantments	-	#df582c8d1b8c	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	net/minecraft/world/level/CommonLevelAccessor	-	#01bbaf257356	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	net/minecraft/world/level/CommonLevelAccessor	-	#4bcd8cf57e47	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	net/minecraft/world/level/CommonLevelAccessor	-	#514904355a09	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	net/minecraft/world/level/CommonLevelAccessor	-	#72ea55cfd98a	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	net/minecraft/world/level/CommonLevelAccessor	-	#7656d8a29ad1	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	net/minecraft/world/level/CommonLevelAccessor	-	#766040133931	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	net/minecraft/world/level/CommonLevelAccessor	-	#80e033b1204d	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	net/minecraft/world/level/CommonLevelAccessor	-	#8a38e2a36000	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	net/minecraft/world/level/CommonLevelAccessor	-	#f4a01a4a949f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/GameType	-	#683140e2fc3f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/Level	-	#01bbaf257356	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/Level	-	#0f5fefe4f3d6	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -659,7 +689,6 @@ type-missing	net/minecraft/world/level/Level	-	#7656d8a29ad1	미분류 — 바�
 type-missing	net/minecraft/world/level/Level	-	#766040133931	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/Level	-	#7ffb184f80f3	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/Level	-	#8a38e2a36000	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	net/minecraft/world/level/Level	-	#bdc3ca086f1f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/Level	-	#f4a01a4a949f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/LevelAccessor	-	#01bbaf257356	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/LevelAccessor	-	#4bcd8cf57e47	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -669,7 +698,6 @@ type-missing	net/minecraft/world/level/LevelAccessor	-	#7656d8a29ad1	미분류 �
 type-missing	net/minecraft/world/level/LevelAccessor	-	#766040133931	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/LevelAccessor	-	#7ffb184f80f3	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/LevelAccessor	-	#8a38e2a36000	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	net/minecraft/world/level/LevelAccessor	-	#bdc3ca086f1f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/LevelAccessor	-	#f4a01a4a949f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/LevelReader	-	#01bbaf257356	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/LevelReader	-	#7656d8a29ad1	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -683,7 +711,6 @@ type-missing	net/minecraft/world/level/ServerLevelAccessor	-	#7656d8a29ad1	미�
 type-missing	net/minecraft/world/level/ServerLevelAccessor	-	#766040133931	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/ServerLevelAccessor	-	#7ffb184f80f3	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/ServerLevelAccessor	-	#8a38e2a36000	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	net/minecraft/world/level/ServerLevelAccessor	-	#bdc3ca086f1f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/ServerLevelAccessor	-	#f4a01a4a949f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/WorldGenLevel	-	#01bbaf257356	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/WorldGenLevel	-	#4bcd8cf57e47	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -693,7 +720,6 @@ type-missing	net/minecraft/world/level/WorldGenLevel	-	#7656d8a29ad1	미분류 �
 type-missing	net/minecraft/world/level/WorldGenLevel	-	#766040133931	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/WorldGenLevel	-	#7ffb184f80f3	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/WorldGenLevel	-	#8a38e2a36000	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	net/minecraft/world/level/WorldGenLevel	-	#bdc3ca086f1f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/WorldGenLevel	-	#f4a01a4a949f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/biome/BiomeSource	-	#acbc8b360078	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/block/BaseFireBlock	-	#3a04039cff05	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -1056,6 +1082,7 @@ type-missing	org/bukkit/craftbukkit/entity/CraftTurtle	-	#5ef8507e95b5	미분류
 type-missing	org/bukkit/craftbukkit/entity/CraftTurtle	-	#e9e4dd2d103f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/inventory/trim/CraftTrimMaterial	-	#9e324518c54a	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/inventory/trim/CraftTrimPattern	-	#9e324518c54a	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	org/bukkit/craftbukkit/map/CraftMapView	-	#5faf26569b3a	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/profile/CraftPlayerProfile	-	#c43dbb96cfce	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/util/BlockStateListPopulator	-	#01bbaf257356	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/util/BlockStateListPopulator	-	#4bcd8cf57e47	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -1065,7 +1092,6 @@ type-missing	org/bukkit/craftbukkit/util/BlockStateListPopulator	-	#7656d8a29ad1
 type-missing	org/bukkit/craftbukkit/util/BlockStateListPopulator	-	#766040133931	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/util/BlockStateListPopulator	-	#7ffb184f80f3	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/util/BlockStateListPopulator	-	#8a38e2a36000	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/util/BlockStateListPopulator	-	#bdc3ca086f1f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/util/BlockStateListPopulator	-	#f4a01a4a949f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/util/DummyGeneratorAccess	-	#01bbaf257356	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/util/DummyGeneratorAccess	-	#4bcd8cf57e47	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -1075,5 +1101,4 @@ type-missing	org/bukkit/craftbukkit/util/DummyGeneratorAccess	-	#7656d8a29ad1	�
 type-missing	org/bukkit/craftbukkit/util/DummyGeneratorAccess	-	#766040133931	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/util/DummyGeneratorAccess	-	#7ffb184f80f3	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/util/DummyGeneratorAccess	-	#8a38e2a36000	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/util/DummyGeneratorAccess	-	#bdc3ca086f1f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/util/DummyGeneratorAccess	-	#f4a01a4a949f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다

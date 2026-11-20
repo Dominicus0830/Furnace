@@ -49,5 +49,6 @@ public final class Registries {
     public static final ResourceKey<Registry<net.minecraft.world.level.levelgen.placement.PlacedFeature>> PLACED_FEATURE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("worldgen/placed_feature"));
     public static final ResourceKey<Registry<net.minecraft.world.level.levelgen.structure.Structure>> STRUCTURE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("worldgen/structure"));
     public static final ResourceKey<Registry<net.minecraft.world.level.Level>> DIMENSION = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("dimension"));
+    public static final ResourceKey<Registry<net.minecraft.world.level.chunk.status.ChunkStatus>> CHUNK_STATUS = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("chunk_status"));
     public static final ResourceKey<Registry<Object>> LEVEL_STEM = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("dimension"));
 }

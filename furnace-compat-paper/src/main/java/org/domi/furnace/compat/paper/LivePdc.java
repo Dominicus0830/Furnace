@@ -13,7 +13,7 @@ import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import org.domi.furnace.api.concurrent.ThreadOwnershipException;
 
-abstract class LivePdc implements PersistentDataContainer {
+public abstract class LivePdc implements PersistentDataContainer {
 
     /** 소유 스레드에서 곧바로 edit 를 돌린다. 주인(엔티티·블록 엔티티)이 없으면 false. 소유 스레드가 아니면 ThreadOwnershipException. */
     protected abstract boolean editNow(Consumer<org.domi.furnace.api.persistence.PersistentDataContainer> edit);
