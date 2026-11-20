@@ -39,6 +39,7 @@
 | `BlockPlaceEvent` | `BlockPlaceEvent` | 취소 또는 `setBuild(false)`(둘 다 막는다), 플레이어가 놓은 것만. `getBlockPlaced()` 가 놓일 상태를 보인다([아래](#세계-변화·스폰·버리기-이벤트-o12-h1-2026-11-12)) |
 | `BlockGrowEvent` / `BlockFadeEvent` | 같은 이름 | 취소. `getNewState()` 는 바뀐 뒤 스냅숏 |
 | `BlockExplodeEvent` | `BlockExplodeEvent` | 취소, `blockList()` 편집(`yield` 는 읽기만) |
+| `com.destroystokyo.paper.event.block.BlockDestroyEvent` | `BlockDestroyEvent` | 취소·`setEffectBlock`·`setPlayEffect`·`setWillDrop`·`setExpToDrop`. 서버가 블록을 부수는 모든 길(NMS `Level#destroyBlock` 자리 — 받침 잃은 선인장, 엔티티·명령·플러그인 `destroyBlock` 등, 플레이어 손 부수기는 아님). 처리기가 있으면 Paper 처럼 경험치를 이벤트 전에 먼저 뽑는다(T-224). 효과 블록을 null·남의 구현으로 바꾸면 Paper 는 예외로 터지고 Furnace 는 효과 블록을 그대로 둔다 |
 | `EntityExplodeEvent` | `EntityExplodeEvent` | 취소, `blockList()` 편집(`yield` 는 읽기만) |
 | `BlockPistonExtendEvent` / `BlockPistonRetractEvent` | 같은 이름 | 취소 |
 | `BlockFormEvent` / `BlockSpreadEvent` (처리기 목록은 각각 따로) | 같은 이름 | 취소 |

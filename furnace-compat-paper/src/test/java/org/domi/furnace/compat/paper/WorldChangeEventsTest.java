@@ -189,6 +189,56 @@ class WorldChangeEventsTest {
         }
     }
 
+    // ------------------------------------------------------------------ 서버가 부수기(Paper BlockDestroyEvent, T-224)
+
+    @Test
+    void blockDestroyFromTheServerReachesThePaperHandlerAndEditsComeBack() throws Exception {
+        try (FurnaceTestServer server = FurnaceTestServer.builder().failFast(false).pluginJar(recorderJar()).start()) {
+            server.join("Dana");
+            server.tick(2);
+            var at = new BlockPos(3, 70, 3);
+            var p = new org.domi.furnace.server.block.Pos(3, 70, 3);
+            int stone = org.domi.furnace.server.block.B.defaultState("minecraft:stone");
+            java.util.function.Supplier<org.domi.furnace.server.world.RegionLevel> level = () -> server.internals().world().regionizer().ownerOf(0, 0).level();
+
+            // 실제 서버 경로: 취소하면 destroyBlock 이 거짓이고 블록이 그대로
+            RecorderPlugin.ACTIONS.put("BlockDestroyEvent", e -> ((com.destroystokyo.paper.event.block.BlockDestroyEvent) e).setCancelled(true));
+            boolean ok = server.onRegion(at, () -> {
+                level.get().setBlock(p, stone, 3);
+                return level.get().destroyBlock(p, true);
+            });
+            assertFalse(ok);
+            assertEquals(stone, (int) server.onRegion(at, () -> level.get().getBlockState(p)));
+            var seen = only(com.destroystokyo.paper.event.block.BlockDestroyEvent.class);
+            assertEquals(Material.STONE, seen.getEffectBlock().getMaterial());
+            assertEquals(Material.AIR, seen.getNewState().getMaterial());
+            assertEquals(3, seen.getBlock().getX());
+            assertTrue(seen.willDrop());
+            assertTrue(seen.playEffect());
+            assertEquals(0, seen.getExpToDrop());
+
+            // Bukkit 처리기의 바꾸기가 Furnace 이벤트로 돌아온다
+            RecorderPlugin.reset();
+            RecorderPlugin.ACTIONS.put("BlockDestroyEvent", e -> {
+                var d = (com.destroystokyo.paper.event.block.BlockDestroyEvent) e;
+                d.setEffectBlock(org.bukkit.Bukkit.createBlockData(Material.DIRT));
+                d.setPlayEffect(false);
+                d.setWillDrop(false);
+                d.setExpToDrop(9);
+            });
+            var f = server.api().events().call(new org.domi.furnace.api.event.block.BlockDestroyEvent(W, at, BlockData.of("minecraft:stone"), BlockData.AIR, 2, true));
+            assertFalse(f.isCancelled());
+            assertEquals("minecraft:dirt", f.effectData().type());
+            assertFalse(f.playEffect());
+            assertFalse(f.willDrop());
+            assertEquals(9, f.expToDrop());
+            // null 효과 블록은 Paper 에선 서버 예외 — Furnace 는 그대로 둔다
+            RecorderPlugin.ACTIONS.put("BlockDestroyEvent", e -> ((com.destroystokyo.paper.event.block.BlockDestroyEvent) e).setEffectBlock(null));
+            var g = server.api().events().call(new org.domi.furnace.api.event.block.BlockDestroyEvent(W, at, BlockData.of("minecraft:stone"), BlockData.AIR, 0, true));
+            assertEquals("minecraft:stone", g.effectData().type());
+        }
+    }
+
     // ------------------------------------------------------------------ 폭발
 
     @Test

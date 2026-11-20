@@ -477,13 +477,30 @@ public abstract class ChunkLevel implements BlockLevel {
         return destroyBlock(pos, dropBlock, null, entity, recursionLeft);
     }
 
+    /**
+     * Level#destroyBlock. BlockDestroyEvent 구독자가 없으면 바닐라 순서(효과 → 떨굼, 경험치는 떨굼 안 spawnAfterBreak 에서 뽑는다).
+     * 구독자가 있으면 Paper 순서(T-224, 설계 compat-nms-t211 9.2): 경험치를 먼저 뽑고(떨굼이 꺼져 있어도) 이벤트 → 효과 블록 → 떨굼(경험치 없이)
+     * → 뽑아 둔 경험치. 경험치 블록의 레벨 난수 차례가 바닐라와 달라지는 것은 Paper 와 같게 하려는 것이라 구독자가 있을 때만이다.
+     */
     private boolean destroyBlock(Pos pos, boolean dropBlock, BlockActor breaker, Object eventSource, int recursionLeft) {
         int s = getBlockState(pos);
         if (info.isAir(s)) return false;
-        int f = getFluidState(pos);
-        if (!B.isTag(s, "minecraft:fire")) levelEvent(null, 2001, pos, s);
-        if (dropBlock) dropResources(s, pos, info.hasBlockEntity(s) ? getBlockEntity(pos) : null, breaker, ItemStack.EMPTY);
-        boolean ok = setBlock(pos, Fluids.createLegacyBlock(f), UPDATE_ALL, recursionLeft);
+        int leftover = Fluids.createLegacyBlock(getFluidState(pos));
+        var events = gameEvents();
+        if (events.wantsBlockDestroy()) {
+            int xp = BlockBehaviors.of(s).expDrop(s, this, pos, ItemStack.EMPTY);   // Paper getExpDrop(state, level, pos, EMPTY, true)
+            var out = events.blockDestroy(dimension(), pos, s, leftover, xp, dropBlock);
+            if (out == null) return false;   // 취소: 블록·효과·떨굼 모두 그대로
+            if (out.playEffect() && !B.isTag(out.effectState(), "minecraft:fire")) levelEvent(null, 2001, pos, out.effectState());
+            if (out.willDrop()) {
+                dropResources(s, pos, info.hasBlockEntity(s) ? getBlockEntity(pos) : null, breaker, ItemStack.EMPTY, false);
+                if (out.expToDrop() > 0) popExperience(pos, out.expToDrop());   // Paper popExperience → ExperienceOrb.award(양이 0 이하면 아무것도 없다)
+            }
+        } else {
+            if (!B.isTag(s, "minecraft:fire")) levelEvent(null, 2001, pos, s);
+            if (dropBlock) dropResources(s, pos, info.hasBlockEntity(s) ? getBlockEntity(pos) : null, breaker, ItemStack.EMPTY);
+        }
+        boolean ok = setBlock(pos, leftover, UPDATE_ALL, recursionLeft);
         if (ok) gameEventFrom("minecraft:block_destroy", pos, eventSource, s);
         return ok;
     }

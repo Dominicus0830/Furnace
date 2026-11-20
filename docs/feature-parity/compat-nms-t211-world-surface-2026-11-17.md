@@ -266,7 +266,8 @@ Paper `Level#destroyBlock`: 공기면 거짓 → **경험치를 먼저 뽑는다
 `dropResources(…, 경험치 없음)` 뒤 뽑아 둔 경험치 → `setBlock(유체 상태, 3, depth)` → 성공이면 `BLOCK_DESTROY` 게임 이벤트.
 바닐라는 경험치를 `dropResources` 안(`spawnAfterBreak`, 떨굼 뒤)에서만 뽑는다. Furnace 서버는 바닐라 순서다(바닐라가 정답 — 절대 규칙 2, T-204 의
 `getFullStatus` 결정과 같은 기준). 그래서 경험치를 주는 블록을 부술 때 레벨 난수를 쓰는 차례가 Paper 와 다르고, `drop` 이 거짓이면 Paper 만 난수를 쓴다.
-`BlockDestroyEvent` 는 Furnace 서버 어디에서도 부르지 않는다(물·덩굴 등이 블록을 부수는 모든 길 공통) — 로드맵에 따로 둔다.
+`BlockDestroyEvent` 는 T-224(11-20)에서 더했다: 구독자가 있으면 서버 `ChunkLevel#destroyBlock` 이 위 Paper 순서를 그대로 쓰고, 없으면 바닐라 순서다
+(`docs/feature-parity/context-notes/2026-11-20-t224-block-destroy-event.md`).
 부수는 엔티티: 플레이어는 서버 `PlayerActor`, 그 밖의 엔티티는 서버의 엔티티 부수기(`destroyBlockByEntity` — 전리품의 this 엔티티는 비움, 서버의 기존 차이)로.
 그 칸 주인 스레드에서 돌린다(`NmsOwner`). 부수는 엔티티가 그 스레드의 것이 아니면 `UnsupportedNmsCall`.
 

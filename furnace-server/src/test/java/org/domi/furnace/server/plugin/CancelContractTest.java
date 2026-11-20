@@ -48,6 +48,8 @@ class CancelContractTest {
         TABLE.put("BlockIgniteEvent", new Entry(Kind.CLIENT_PREDICTED, E2E + "blockIgniteCancelKeepsFireOutAndResendsBlock"));
         TABLE.put("BlockBurnEvent", new Entry(Kind.SERVER_DRIVEN, BLOCKS + "burnEventReachesSubscriberAndCancelKeepsPlanks"));
         TABLE.put("BlockExplodeEvent", new Entry(Kind.SERVER_DRIVEN, STAGE3 + "blockExplodeNamesTheBedAndKeepEntityExplodeQuiet"));
+        TABLE.put("BlockDestroyEvent", new Entry(Kind.SERVER_DRIVEN, "plugin.PluginApiBlockDestroyTest#cancelKeepsBlockAndDropsNothing",
+                "block.DestroyBlockEventOrderTest#cancelLeavesBlockAndDoesNothing"));
         TABLE.put("BlockFromToEvent", new Entry(Kind.SERVER_DRIVEN, BLOCKS + "fromToCancelStopsWater"));
         TABLE.put("BlockGrowEvent", new Entry(Kind.SERVER_DRIVEN, BLOCKS + "growCancelKeepsCropAge"));
         TABLE.put("BlockPhysicsEvent", new Entry(Kind.SERVER_DRIVEN, BLOCKS + "physicsCancelKeepsTorchWithoutSupport"));
