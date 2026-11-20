@@ -22,6 +22,9 @@ public final class ItemStack {
     private Map<String, String> components;
     private Set<String> removed;
 
+    /** 플레이어의 살아 있는 칸을 비춘 읽기 전용 사본인가({@code getItemBySlot}) — 바꾸면 UnsupportedNmsCall. 사본({@link #copy})은 다시 바꿀 수 있다. */
+    private boolean furnaceReadOnly;
+
     private ItemStack() {
         this.item = null;
         this.count = 0;
@@ -61,6 +64,7 @@ public final class ItemStack {
     /** 호환 모듈 전용 — 종류·컴포넌트·개수를 Furnace 값으로 바꾼다(CraftItemStack 거울의 쓰기). EMPTY 는 바꾸지 않는다. */
     public void furnaceSet(org.domi.furnace.api.item.ItemStack value) {
         if (this == EMPTY) throw new IllegalStateException("ItemStack.EMPTY cannot be modified");
+        writable("furnaceSet");
         this.item = Item.byKey(value.type());
         this.count = value.amount();
         this.components = value.components();
@@ -70,7 +74,25 @@ public final class ItemStack {
     /** 호환 모듈 전용 — 종류만 바꾼다(개수·컴포넌트 패치는 그대로, CraftBukkit 의 setItem 자리). EMPTY 는 바꾸지 않는다. */
     public void furnaceSetItem(Item item) {
         if (this == EMPTY) throw new IllegalStateException("ItemStack.EMPTY cannot be modified");
+        writable("furnaceSetItem");
         this.item = java.util.Objects.requireNonNull(item, "item");
+    }
+
+    /**
+     * 호환 모듈 전용 — 이 스택을 읽기 전용으로 표시하고 돌려준다(EMPTY 는 그대로). 바닐라 {@code getItemBySlot} 은 칸에 든 객체 자체를 주지만, 그 칸은
+     * 서버(주인 스레드)가 들고 있어 이 객체를 고쳐도 칸이 따라가지 않는다. 조용히 다른 결과가 나지 않게 바꾸는 호출은 막는다.
+     */
+    public ItemStack furnaceReadOnly() {
+        if (this != EMPTY) furnaceReadOnly = true;
+        return this;
+    }
+
+    /** 호환 모듈 전용 — {@link #furnaceReadOnly()} 로 표시된 사본인가. */
+    public boolean furnaceIsReadOnly() { return furnaceReadOnly; }
+
+    private void writable(String what) {
+        if (furnaceReadOnly) throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("ItemStack#" + what, "this stack is a read-only copy of a player's"
+                + " live slot (getItemBySlot/getItemInHand) - copy() it, or change the slot with the Bukkit inventory API");
     }
 
     // ------------------------------------------------------------------ 바닐라 표면
@@ -97,7 +119,10 @@ public final class ItemStack {
     /** 비었으면 0. */
     public int getCount() { return isEmpty() ? 0 : count; }
 
-    public void setCount(int count) { this.count = count; }
+    public void setCount(int count) {
+        writable("setCount");
+        this.count = count;
+    }
 
     public void grow(int n) { setCount(getCount() + n); }
 
@@ -146,6 +171,7 @@ public final class ItemStack {
      */
     public void applyComponents(net.minecraft.core.component.DataComponentPatch patch) {
         if (patch.isEmpty() || this == EMPTY) return;   // 바닐라: EMPTY 는 components 가 없어서 아무것도 바뀌지 않는다(던지지 않는다)
+        writable("applyComponents");
         var next = org.domi.furnace.api.item.ItemSupport.get().applyComponentPatch(componentView(),
                 new org.domi.furnace.api.item.ItemComponentPatch(patch.furnaceSet(), patch.furnaceRemoved()));
         this.components = next.components();
@@ -196,6 +222,7 @@ public final class ItemStack {
     @SuppressWarnings("unchecked")
     public <T> T set(net.minecraft.core.component.DataComponentType<? super T> t, T value) {
         if (this == EMPTY) throw new IllegalStateException("ItemStack.EMPTY cannot be modified");
+        writable("set");
         var k = (net.minecraft.core.component.DataComponents.Type<Object, Object>) type(t);
         T old = (T) get((net.minecraft.core.component.DataComponentType<Object>) t);
         var v = componentView();
@@ -208,6 +235,7 @@ public final class ItemStack {
     /** 지우고 이전 값을 돌려준다. */
     public <T> T remove(net.minecraft.core.component.DataComponentType<? extends T> t) {
         if (this == EMPTY) throw new IllegalStateException("ItemStack.EMPTY cannot be modified");
+        writable("remove");
         @SuppressWarnings("unchecked") var k = (net.minecraft.core.component.DataComponents.Type<Object, T>) type(t);
         T old = get(t);
         var next = componentView().without(k.furnace());

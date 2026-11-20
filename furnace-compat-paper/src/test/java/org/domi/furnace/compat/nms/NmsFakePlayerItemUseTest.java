@@ -294,5 +294,15 @@ class NmsFakePlayerItemUseTest {
         ServerPlayer online = ((org.bukkit.craftbukkit.entity.CraftPlayer) Compat.player(tp.player())).getHandle();
         assertThrows(UnsupportedNmsCall.class, () -> online.getItemInHand(InteractionHand.MAIN_HAND));
         assertThrows(UnsupportedNmsCall.class, () -> Items.APPLE.use(level, online, InteractionHand.MAIN_HAND));
+        // getItemBySlot 의 읽기 전용 사본은 쓰기 전에 거절한다(블록을 놓은 뒤 되쓰다 실패하지 않게)
+        ItemStack readOnly = new ItemStack(Items.STONE, 2).furnaceReadOnly();
+        BlockHitResult hit = aim(readOnly, base, Direction.UP);
+        assertThrows(UnsupportedNmsCall.class, () -> readOnly.useOn(new UseOnContext(fake, InteractionHand.MAIN_HAND, hit)));
+        assertSame(Blocks.AIR.defaultBlockState(), get(base.above()), "아무것도 놓지 않는다");
+        assertEquals(List.of(), placed);
+        ItemStack copy = readOnly.copy();
+        aim(copy, base, Direction.UP);
+        assertEquals(InteractionResult.CONSUME, copy.useOn(new UseOnContext(fake, InteractionHand.MAIN_HAND, hit)), "copy() 는 다시 쓸 수 있다");
+        assertEquals(1, copy.getCount());
     }
 }

@@ -78,6 +78,10 @@ public final class NmsItemUse {
         var w = level.getWorld().furnaceHandle();
         var player = fake.getBukkitEntity().furnaceHandle();
         ItemStack main = fake.getItemInHand(InteractionHand.MAIN_HAND), off = fake.getItemInHand(InteractionHand.OFF_HAND);
+        // 읽기 전용 사본(getItemBySlot)은 쓰고 나서 되쓸 수 없다 — 블록을 놓은 뒤 실패하지 않게 서버에 보내기 전에 거절한다
+        for (ItemStack s : new ItemStack[] {main, off, handStack, stack}) {
+            if (s != null && s.furnaceIsReadOnly()) throw new UnsupportedNmsCall(what, "a read-only stack copied with getItemBySlot cannot be used - copy() it first");
+        }
         var mainV = hand == InteractionHand.MAIN_HAND && handStack != null ? handStack.furnaceValue() : main.furnaceValue();
         var offV = hand == InteractionHand.OFF_HAND && handStack != null ? handStack.furnaceValue() : off.furnaceValue();
         var stackV = stack == null ? null : stack.furnaceValue();
