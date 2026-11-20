@@ -226,7 +226,7 @@ class NmsSquaremapPathTest {
     @Test
     void dimensionArgumentIsAMarkerOnly() {
         assertSame(net.minecraft.commands.arguments.DimensionArgument.dimension(), net.minecraft.commands.arguments.DimensionArgument.dimension());
-        assertThrows(UnsupportedNmsCall.class, () -> net.minecraft.commands.arguments.DimensionArgument.dimension().parse(new com.mojang.brigadier.StringReader()));
+        assertThrows(UnsupportedNmsCall.class, () -> net.minecraft.commands.arguments.DimensionArgument.dimension().parse(new com.mojang.brigadier.StringReader("")));
     }
 
     @Test

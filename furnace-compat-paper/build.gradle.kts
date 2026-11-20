@@ -96,7 +96,9 @@ dependencies {
     testRuntimeOnly(dfuStub.output)
 }
 
-// T-248: Brigadier(Message·ArgumentType) 대역 — 위와 같은 방식. 명령 인자 shim 이 상속·인자로 쓰는 모양만(서버는 쓰는 플러그인이 있으면 진짜를 받는다).
+// 5번 묶음: Brigadier(ArgumentType·StringReader·CommandContext …) 대역. 진짜는 Mojang 저장소(libraries.minecraft.net)에만 있어 컴파일 경로에 받지 않는다 —
+// 명령 인자 shim(BlockPredicateArgument·ItemPredicateArgument)이 ArgumentType 을 구현하는 데 필요한 모양만 손으로 썼고 jar 에는 넣지 않는다
+// (서버는 쓰는 플러그인이 있으면 묶음 brigadier 를 받아 공유 로더로 준다).
 val brigadierStub: SourceSet = the<SourceSetContainer>().create("brigadier")
 dependencies {
     compileOnly(brigadierStub.output)

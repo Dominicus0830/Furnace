@@ -51,6 +51,8 @@ class CompatLinkTest {
             // DFU Codec 상수·Brigadier ArgumentType 을 상속하는 shim — 그 라이브러리를 쓰는 플러그인(squaremap 등)이 있어 서버가 묶음을 붙인 때만 올라간다
             if (n.equals("net.minecraft.network.chat.ComponentSerialization") || n.startsWith("net.minecraft.network.chat.ComponentSerialization$")
                     || n.equals("net.minecraft.commands.arguments.DimensionArgument")) continue;
+            // Brigadier 의 ArgumentType 을 구현 — 그 라이브러리가 있을 때(Paper 서버·명령 라이브러리를 쓰는 플러그인)만 올라간다
+            if (n.startsWith("net.minecraft.commands.arguments.")) continue;
             if (n.equals("org.domi.furnace.compat.nms.NmsStateCodec")) continue;   // DataFixerUpper 의 MapCodec 을 상속 — NmsDfu.visible() 일 때만 올린다
             try {
                 Class<?> c = Class.forName(n, false, loader);   // 상위 타입이 라이브러리면 여기서 실패한다

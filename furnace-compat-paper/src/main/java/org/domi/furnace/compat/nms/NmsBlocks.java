@@ -26,6 +26,8 @@ public final class NmsBlocks {
     private static Block create(org.domi.furnace.api.world.BlockType type, BlockTypes types) {
         String id = type.id();
         if (id.startsWith("minecraft:") && id.endsWith("_stained_glass")) return new net.minecraft.world.level.block.StainedGlassBlock(type, types);
+        // 바닐라 FireBlock·SoulFireBlock 은 BaseFireBlock 이다(플러그인이 instanceof 로 불 블록을 가린다)
+        if (id.equals("minecraft:fire") || id.equals("minecraft:soul_fire")) return new net.minecraft.world.level.block.BaseFireBlock(type, types);
         return switch (id) {
             case "minecraft:wheat", "minecraft:carrots", "minecraft:potatoes", "minecraft:beetroots", "minecraft:torchflower_crop" ->
                     new net.minecraft.world.level.block.CropBlock(type, types);

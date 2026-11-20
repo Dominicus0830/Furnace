@@ -14,6 +14,9 @@ public class CraftItem extends CraftEntity implements Item {
     public CraftItem(org.domi.furnace.api.entity.Entity handle) { super(handle); }
 
     @Override
+    protected net.minecraft.world.entity.Entity createHandle() { return new net.minecraft.world.entity.item.ItemEntity(this); }
+
+    @Override
     public ItemStack getItemStack() {
         var stack = furnaceHandle().droppedItem();
         return stack == null ? new ItemStack(org.bukkit.Material.AIR) : CompatItems.copyOf(stack);   // CraftItem.getItemStack 은 복사본

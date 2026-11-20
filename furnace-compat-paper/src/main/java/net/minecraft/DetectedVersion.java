@@ -32,5 +32,10 @@ public class DetectedVersion implements WorldVersion {
     @Override
     public boolean isStable() { return true; }
 
+    @Override
+    public int getPackVersion(net.minecraft.server.packs.PackType type) {
+        return type == net.minecraft.server.packs.PackType.SERVER_DATA ? SharedConstants.DATA_PACK_FORMAT : SharedConstants.RESOURCE_PACK_FORMAT;
+    }
+
     public static WorldVersion tryDetectVersion() { return BUILT_IN; }
 }

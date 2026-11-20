@@ -86,6 +86,15 @@ public abstract class BlockBehaviour {
 
         public boolean hasBlockEntity() { return owner instanceof net.minecraft.world.level.block.EntityBlock; }
 
+        private byte requiresTool;   // 0 = 아직 모름, 1 = 아니오, 2 = 예(경합해도 결과가 같다)
+
+        /** 바닐라 requiresCorrectToolForDrops: 맞는 도구가 아니면 드롭이 없는 블록인가(돌·광석 …). 고정 표 — 아무 스레드. */
+        public boolean requiresCorrectToolForDrops() {
+            byte t = requiresTool;
+            if (t == 0) requiresTool = t = org.domi.furnace.compat.nms.NmsChunks.bridge().stateRequiresCorrectTool(furnaceStateId) ? (byte) 2 : (byte) 1;
+            return t == 2;
+        }
+
         /** 바닐라: 블록 자체가 무작위 틱을 받는가(유체 쪽은 {@code getFluidState().isRandomlyTicking()}). 서버 블록 동작 표에서 처음 물을 때 채운다. */
         public boolean isRandomlyTicking() {
             byte t = randomlyTicking;

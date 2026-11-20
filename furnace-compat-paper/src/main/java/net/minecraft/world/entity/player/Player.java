@@ -31,6 +31,12 @@ public abstract class Player extends LivingEntity {
         return getBukkitEntity() instanceof org.bukkit.craftbukkit.entity.CraftPlayer cp && cp.isSneaking();
     }
 
+    /** 바닐라 {@code Player#isCreative}: 크리에이티브 모드인가(스펙테이터는 아니다). */
+    public boolean isCreative() { return getBukkitEntity().getGameMode() == org.bukkit.GameMode.CREATIVE; }
+
+    /** 바닐라 {@code Player#getFoodData}: 이 플레이어의 허기·포화·소모(서버 값을 보는 보기). */
+    public net.minecraft.world.food.FoodData getFoodData() { return new net.minecraft.world.food.FoodData(this); }
+
     /** 바닐라: 스코어보드에서 쓰는 이름 = 플레이어 이름. */
     public String getScoreboardName() { return getBukkitEntity().getName(); }
 
