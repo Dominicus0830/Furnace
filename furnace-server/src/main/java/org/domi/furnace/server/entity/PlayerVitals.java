@@ -1138,12 +1138,18 @@ public final class PlayerVitals {
 
     public synchronized void setFoodLevel(int food) { this.food.foodLevel(Math.clamp(food, 0, 20)); }
 
-    /** 허기·포화·소모를 한 번에 정한다(NMS FoodData 의 setter 들 — 사이에 틱이 끼지 않는다). */
-    public synchronized void setFood(int level, float saturation, float exhaustion) {
-        this.food.foodLevel(Math.clamp(level, 0, 20));
-        this.food.saturationLevel(saturation);
-        this.food.exhaustionLevel(exhaustion);
+    /** NMS FoodData 의 setter 하나(field 0 허기 0..20, 1 포화, 2 소모) — 나머지 값은 건드리지 않아 그 사이 틱이 바꾼 값이 남는다. */
+    public synchronized void setFoodField(int field, float value) {
+        switch (field) {
+            case 0 -> food.foodLevel(Math.clamp((int) value, 0, 20));
+            case 1 -> food.saturationLevel(value);
+            case 2 -> food.exhaustionLevel(value);
+            default -> throw new IllegalArgumentException("food field " + field);
+        }
     }
+
+    /** 바닐라 FoodData.addExhaustion(무적 확인 없음, 최대 40). */
+    public synchronized void addExhaustion(float amount) { food.addExhaustion(amount); }
 
     // ------------------------------------------------------------------ 이동(낙하·소모)
 

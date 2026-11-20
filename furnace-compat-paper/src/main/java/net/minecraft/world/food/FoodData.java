@@ -28,7 +28,7 @@ public class FoodData {
         }
     }
 
-    private void set(int level, float saturation, float exhaustion) { NmsChunks.bridge().setFoodNow(handle(), level, saturation, exhaustion); }
+    private void set(int field, float value) { NmsChunks.bridge().setFoodFieldNow(handle(), field, value); }
 
     public int getFoodLevel() { return state().level(); }
 
@@ -38,25 +38,13 @@ public class FoodData {
 
     public boolean needsFood() { return getFoodLevel() < 20; }
 
-    /** 바닐라: 0..20 으로 자르지 않고 그대로 넣지만 서버는 0..20 으로 자른다(바닐라 Player 도 읽을 때 같은 범위다). */
-    public void setFoodLevel(int level) {
-        var s = state();
-        set(level, s.saturation(), s.exhaustion());
-    }
+    /** 서버는 0..20 으로 자른다(바닐라는 그대로 넣는다 — user-todo). 다른 두 값은 건드리지 않는다. */
+    public void setFoodLevel(int level) { set(0, level); }
 
-    public void setSaturation(float saturation) {
-        var s = state();
-        set(s.level(), saturation, s.exhaustion());
-    }
+    public void setSaturation(float saturation) { set(1, saturation); }
 
-    public void setExhaustion(float exhaustion) {
-        var s = state();
-        set(s.level(), s.saturation(), exhaustion);
-    }
+    public void setExhaustion(float exhaustion) { set(2, exhaustion); }
 
-    /** 바닐라 addExhaustion: 최대 40. */
-    public void addExhaustion(float exhaustion) {
-        var s = state();
-        set(s.level(), s.saturation(), Math.min(s.exhaustion() + exhaustion, 40.0F));
-    }
+    /** 바닐라 addExhaustion: 최대 40. 서버 안에서 한 번에 더한다. */
+    public void addExhaustion(float exhaustion) { NmsChunks.bridge().addExhaustionNow(handle(), exhaustion); }
 }

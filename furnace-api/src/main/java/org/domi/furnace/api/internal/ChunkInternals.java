@@ -598,9 +598,14 @@ public interface ChunkInternals {
     /** {@link #foodNow} 의 결과. */
     record FoodState(int level, float saturation, float exhaustion) {}
 
-    /** 허기(0..20 으로 자른다)·포화·소모를 그대로 정한다(바닐라 FoodData 의 setFoodLevel·setSaturation·setExhaustion). 아무 스레드. */
-    default void setFoodNow(org.domi.furnace.api.entity.Player player, int level, float saturation, float exhaustion) {
-        throw new UnsupportedOperationException("setFoodNow");
+    /** 허기(0..20 으로 자른다)·포화·소모 중 하나만 정한다(field 0 허기, 1 포화, 2 소모 — 나머지 값은 그 사이 틱이 바꾼 그대로 둔다). 아무 스레드. */
+    default void setFoodFieldNow(org.domi.furnace.api.entity.Player player, int field, float value) {
+        throw new UnsupportedOperationException("setFoodFieldNow");
+    }
+
+    /** 바닐라 FoodData.addExhaustion: 소모를 더한다(최대 40, 무적이어도 더한다). 아무 스레드. */
+    default void addExhaustionNow(org.domi.furnace.api.entity.Player player, float amount) {
+        throw new UnsupportedOperationException("addExhaustionNow");
     }
 
     /** 바닐라 {@code Player#causeFoodExhaustion}: 소모를 더한다(바닐라처럼 최대 40, 무적 능력이면 무시). 아무 스레드. */

@@ -909,8 +909,13 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     @Override
-    public void setFoodNow(org.domi.furnace.api.entity.Player player, int level, float saturation, float exhaustion) {
-        serverPlayer0(player).vitals().setFood(level, saturation, exhaustion);
+    public void setFoodFieldNow(org.domi.furnace.api.entity.Player player, int field, float value) {
+        serverPlayer0(player).vitals().setFoodField(field, value);
+    }
+
+    @Override
+    public void addExhaustionNow(org.domi.furnace.api.entity.Player player, float amount) {
+        serverPlayer0(player).vitals().addExhaustion(amount);
     }
 
     @Override

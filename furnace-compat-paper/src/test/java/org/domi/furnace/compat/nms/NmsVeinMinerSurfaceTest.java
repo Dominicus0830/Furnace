@@ -104,4 +104,66 @@ class NmsVeinMinerSurfaceTest {
         assertFalse(Blocks.STONE instanceof net.minecraft.world.level.block.BaseFireBlock);
         assertNotNull(Items.DIAMOND_PICKAXE);
     }
+
+    @Test
+    void foodFieldsChangeAloneAndKeepTheOthers() {
+        var food = on(() -> handle.getFoodData());
+        on(() -> { food.setFoodLevel(15); food.setSaturation(4F); food.setExhaustion(1F); return null; });
+        on(() -> { food.setSaturation(2F); return null; });
+        assertEquals(15, (int) on(() -> food.getFoodLevel()), "포화만 바꿨다");
+        assertEquals(1F, on(() -> food.getExhaustionLevel()));
+        on(() -> { food.addExhaustion(100F); return null; });
+        assertEquals(40F, on(() -> food.getExhaustionLevel()), "최대 40");
+        on(() -> { food.setFoodLevel(99); return null; });
+        assertEquals(20, (int) on(() -> food.getFoodLevel()), "서버는 0..20 으로 자른다");
+    }
+
+    @Test
+    void hoverEventItemRoundTripsThroughStyle() {
+        var info = new net.minecraft.network.chat.HoverEvent.ItemStackInfo(new ItemStack(Items.DIAMOND_PICKAXE, 1));
+        var e = new net.minecraft.network.chat.HoverEvent(net.minecraft.network.chat.HoverEvent.Action.SHOW_ITEM, info);
+        var style = net.minecraft.network.chat.Style.EMPTY.withHoverEvent(e);
+        var back = style.getHoverEvent();
+        assertEquals(net.minecraft.network.chat.HoverEvent.Action.SHOW_ITEM, back.getAction());
+        assertEquals(info, back.getValue(net.minecraft.network.chat.HoverEvent.Action.SHOW_ITEM));
+        assertEquals(null, back.getValue(net.minecraft.network.chat.HoverEvent.Action.SHOW_TEXT));
+    }
+
+    @Test
+    void enchantmentsReadFromFurnaceValue() {
+        var e = net.minecraft.world.item.enchantment.ItemEnchantments.fromFurnace(
+                new org.domi.furnace.api.item.ItemEnchantments(java.util.Map.of("minecraft:efficiency", 3, "minecraft:unbreaking", 2), true));
+        assertEquals(2, e.size());
+        assertFalse(e.isEmpty());
+        assertEquals(2, e.keySet().size());
+        assertTrue(net.minecraft.world.item.enchantment.ItemEnchantments.fromFurnace(null).isEmpty());
+    }
+
+    @Test
+    void liveHandDetachesWhenTheSlotChanged() {
+        var put = tp.player().inventory().set(0, org.domi.furnace.api.item.ItemStack.of("minecraft:diamond_pickaxe"));
+        for (int i = 0; i < 20 && !put.isDone(); i++) server.tick(1);
+        put.join();
+        ItemStack hand = on(() -> handle.getItemInHand(InteractionHand.MAIN_HAND));
+        var swap = tp.player().inventory().set(0, org.domi.furnace.api.item.ItemStack.of("minecraft:iron_pickaxe"));
+        for (int i = 0; i < 20 && !swap.isDone(); i++) server.tick(1);
+        swap.join();
+        on(() -> { hand.setDamageValue(5); return null; });   // 칸이 그새 바뀌었다 — 되쓰기 실패, 보기가 떨어진다
+        on(() -> { hand.setDamageValue(6); return null; });
+        assertEquals(0, (int) on(() -> handle.getItemInHand(InteractionHand.MAIN_HAND).getDamageValue()), "새 칸의 값은 그대로");
+        assertEquals("minecraft:iron_pickaxe", on(() -> handle.getItemInHand(InteractionHand.MAIN_HAND).getItem().toString()).replaceAll(".*(minecraft:iron_pickaxe).*", "$1"));
+    }
+
+    @Test
+    void levelEventReachesOnlyNearPlayers() {
+        tp.clearReceived();
+        on(() -> { level.levelEvent(2001, base, 1); return null; });
+        for (int i = 0; i < 5; i++) server.tick(1);
+        assertFalse(tp.received(org.domi.furnace.api.packet.PacketTypes.Clientbound.LEVEL_EVENT).isEmpty(), "가까운 플레이어는 받는다");
+        tp.clearReceived();
+        var far = new BlockPos(base.getX() + 200, base.getY(), base.getZ());
+        on(() -> { level.levelEvent(2001, far, 1); return null; });
+        for (int i = 0; i < 5; i++) server.tick(1);
+        assertTrue(tp.received(org.domi.furnace.api.packet.PacketTypes.Clientbound.LEVEL_EVENT).isEmpty(), "64칸 밖은 못 받는다");
+    }
 }

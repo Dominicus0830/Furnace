@@ -15,3 +15,10 @@
 - 명령·팩 클래스는 겉모양뿐이다. `parse`·`open()` 은 `UnsupportedNmsCall` 을 던진다(Paper 의 Brigadier 명령 API·팩 저장소가 호환 계층에 없음).
 - Paper 의 허기 소모 이벤트는 내지 않는다. `Enchantment` 는 이름만 든다. `FoodData` 의 먹기·틱은 없다.
 - 명령 인자 클래스는 Brigadier 가 있을 때만 올라가므로 `CompatLinkTest` 가 건너뛴다.
+
+## 후속(로드맵 후보)
+- `causeFoodExhaustion`·`isCrouching` 을 바닐라 선언 위치(Player)로 옮기기.
+- `getRelative`·설치 이벤트의 블록이 아직 `CraftBlock` 이 아니다.
+- `FireBlock` 클래스 없음(`BaseFireBlock` 만).
+- `levelEvent` 가 플레이어 위치를 다른 구역 스레드에서 읽는다 — 안전한지 확인.
+- 허기 보기는 값마다 서버에서 따로 정한다(`setFoodFieldNow`). 틱이 그 사이 바꾼 값이 덮이지 않는다.
