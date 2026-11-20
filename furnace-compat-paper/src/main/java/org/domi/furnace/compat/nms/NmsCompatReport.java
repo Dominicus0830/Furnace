@@ -7,8 +7,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.jar.JarEntry;
@@ -38,7 +40,8 @@ import org.slf4j.LoggerFactory;
  * @param obfuscatedLooking 없는 것 중 이름이 1~2글자인 멤버(Spigot 난독화 이름으로 보이는 것)
  * @param missing   없는 심볼 이름(정렬, 전부)
  * @param ownClasses 이 jar 의 클래스(내부 이름) — 변환기가 플러그인 자기 클래스를 판정하지 않게
- * @param otherVersionClasses 다른 버전용 모듈로 보이는 클래스 수 — 세지 않았다({@link #otherVersion(String)})
+ * @param otherVersionClasses 다른 버전용 모듈이나 이 서버에서 안 타는 어댑터로 보이는 클래스 수 — 세지 않았다({@link #otherVersion(String)},
+ *                  {@link #unusedAdapters(Set)})
  * @param otherVersionSymbols 다른 버전 이름({@code org.bukkit.craftbukkit.v1_20_R3}, {@code net.minecraft.server.v1_8_R3})을 가리킨 심볼 수 — 세지 않았다
  * @param spigotNamed 매니페스트로 보아 Spigot 이름 jar 인가(속성이 없거나 {@code spigot}) — Paper 와 같은 판정
  * @param spigotMapped Spigot 이름 대응표(H7d)로 바꾼 뒤의 이름으로 셌다(대응표가 있고 Spigot 이름 jar 일 때)
@@ -81,6 +84,72 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
             other = true;
         }
         return other;
+    }
+
+    /** 프로토콜 번호 패키지 조각(Geyser {@code adapters/paper/v766}): 부모가 같은 것이 둘 이상일 때만 프로토콜 번호로 본다. */
+    private static final java.util.regex.Pattern PROTOCOL_SEGMENT = java.util.regex.Pattern.compile("v(\\d{3,4})");
+
+    /**
+     * jar 의 클래스 이름 전체를 보고 이 서버(Mojang 이름 1.21.1, 프로토콜 {@link org.domi.furnace.api.GameVersion#PROTOCOL})에서 고르지 않을 어댑터
+     * 패키지(끝이 {@code /})를 낸다. 여러 판을 한 jar 에 담는 플러그인의 흔한 관례를 읽는 일반 규칙이다 — 맞지 않는 jar 는 빈 집합(전부 센다).
+     * <ul>
+     *   <li>같은 부모 아래 프로토콜 번호 패키지가 둘 이상이면({@code v766}·{@code v768}·{@code v774}) 이 서버 프로토콜 이하에서 가장 큰 것만 탄다.</li>
+     *   <li>같은 판 이름에 {@code _mojang} 짝이 있으면({@code v1_21_R1} 과 {@code v1_21_R1_mojang}) 짝이 없는 쪽은 Spigot 이름 어댑터다.</li>
+     *   <li>같은 부모 아래 {@code spigot} 과 {@code paper}(또는 {@code mojang}) 가 함께 있고 둘 다 판 이름 패키지를 가지면 {@code spigot} 의 판 이름
+ *       패키지는 Spigot 이름 어댑터다({@code spigot} 바로 아래 클래스와 판 이름이 없는 플랫폼 모듈은 센다).</li>
+     * </ul>
+     * Mojang 이름 서버는 Spigot 이름 코드를 고르지 않는다(Paper 1.20.5+ 와 같다).
+     */
+    static Set<String> unusedAdapters(Set<String> own) {
+        Map<String, Set<String>> kids = new HashMap<>();
+        for (String n : own) {
+            int i = -1, j;
+            while ((j = n.indexOf('/', i + 1)) >= 0) {
+                kids.computeIfAbsent(n.substring(0, i + 1), k -> new HashSet<>()).add(n.substring(i + 1, j));
+                i = j;
+            }
+        }
+        Set<String> out = new HashSet<>();
+        int protocol = org.domi.furnace.api.GameVersion.PROTOCOL;
+        kids.forEach((parent, segs) -> {
+            List<Integer> protocols = new ArrayList<>();
+            for (String seg : segs) {
+                java.util.regex.Matcher m = PROTOCOL_SEGMENT.matcher(seg);
+                if (m.matches()) protocols.add(Integer.parseInt(m.group(1)));
+                if (segs.contains(seg + "_mojang")) out.add(parent + seg + "/");
+            }
+            if (protocols.size() >= 2) {
+                int chosen = protocols.stream().filter(v -> v <= protocol).max(Integer::compare).orElse(-1);
+                for (int v : protocols) if (v != chosen) out.add(parent + "v" + v + "/");
+            }
+            // 판별 어댑터 묶음만: spigot 과 paper(mojang) 갈래가 둘 다 판 이름 패키지를 가질 때 spigot 의 판 이름 패키지만 뺀다. 플랫폼 모듈 관례
+            // (platform/spigot·platform/paper — paper 가 spigot 을 함께 쓴다)와 spigot 바로 아래 클래스(고르는 쪽 코드)는 그대로 센다(검토 C1)
+            if (segs.contains("spigot") && (segs.contains("paper") || segs.contains("mojang"))) {
+                Set<String> spigot = versionNamed(kids.get(parent + "spigot/"));
+                if (!spigot.isEmpty() && (!versionNamed(kids.get(parent + "paper/")).isEmpty() || !versionNamed(kids.get(parent + "mojang/")).isEmpty())) {
+                    for (String v : spigot) out.add(parent + "spigot/" + v + "/");
+                }
+            }
+        });
+        return out;
+    }
+
+    /** 판 이름 패키지 조각({@code v1_21_R1}·{@code v1_20_5}·{@code v766}, {@code _mojang} 꼬리 허용). */
+    private static final java.util.regex.Pattern VERSION_SEGMENT = java.util.regex.Pattern.compile("v(?:1_\\d{1,2}(?:_R\\d|_\\d{1,2})*|\\d{3,4})(?:_mojang)?");
+
+    private static Set<String> versionNamed(Set<String> segs) {
+        if (segs == null) return Set.of();
+        Set<String> out = new HashSet<>();
+        for (String seg : segs) if (VERSION_SEGMENT.matcher(seg).matches()) out.add(seg);
+        return out;
+    }
+
+    static boolean inUnusedAdapter(Set<String> unused, String internalName) {
+        if (unused.isEmpty()) return false;
+        for (int i = internalName.indexOf('/'); i >= 0; i = internalName.indexOf('/', i + 1)) {
+            if (unused.contains(internalName.substring(0, i + 1))) return true;
+        }
+        return false;
     }
 
     /** 연도식 버전 이름의 패키지·클래스 조각: {@code v26_1}, {@code v26_2_1}(앞이 글자·숫자가 아닌 'v' 로 시작). */
@@ -210,6 +279,7 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
      */
     public static NmsCompatReport analyze(String plugin, Read read, NmsSymbols index, SpigotMappings spigot, java.util.function.Consumer<String[]> sink) {
         Set<String> own = read.own();
+        Set<String> unused = unusedAdapters(own);
         List<byte[]> candidates = read.candidates();
         String namespace = read.namespace();
         boolean spigotNamed = read.spigotNamed();
@@ -238,7 +308,7 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
         };
         for (byte[] b : candidates) {
             try {
-                new ClassReader(b).accept(new ClassRemapper(new Collector(index, own, seen, missing, gaps, counts, sink), suffix),
+                new ClassReader(b).accept(new ClassRemapper(new Collector(index, own, unused, seen, missing, gaps, counts, sink), suffix),
                         ClassReader.SKIP_FRAMES | ClassReader.SKIP_DEBUG);
             } catch (RuntimeException ignored) {
                 // 읽지 못하는 클래스 — 보고에서 뺀다
@@ -277,6 +347,7 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
     private static final class Collector extends ClassVisitor {
         private final NmsSymbols index;
         private final Set<String> own;
+        private final Set<String> unused;   // 이 서버에서 안 타는 어댑터 패키지(unusedAdapters)
         private final Set<String> seen;
         private final Set<String> missing;
         private final Set<String> gaps;
@@ -285,11 +356,12 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
 
         private boolean skip;   // 다른 버전용 모듈 클래스
 
-        Collector(NmsSymbols index, Set<String> own, Set<String> seen, Set<String> missing, Set<String> gaps, int[] counts, java.util.function.Consumer<String[]> sink) {
+        Collector(NmsSymbols index, Set<String> own, Set<String> unused, Set<String> seen, Set<String> missing, Set<String> gaps, int[] counts, java.util.function.Consumer<String[]> sink) {
             super(Opcodes.ASM9);
             this.sink = sink;
             this.index = index;
             this.own = own;
+            this.unused = unused;
             this.seen = seen;
             this.missing = missing;
             this.gaps = gaps;
@@ -366,7 +438,7 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
 
         @Override
         public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
-            skip = otherVersion(name);
+            skip = otherVersion(name) || inUnusedAdapter(unused, name);
             if (skip) {
                 counts[4]++;
                 return;

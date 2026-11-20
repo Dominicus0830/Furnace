@@ -9,5 +9,5 @@ python3 -I tools/compat/fetch-sample-plugins.py <받을 폴더> 100 1.21.1      
 
 - 서버·플레이어 정보는 보내지 않는다(Modrinth API 에 일반 클라이언트 이름으로 목록·jar 만 요청).
 - Spigot 이름(`WorldServer`·`IBlockData`)으로 쓴 jar 는 이름 대응표가 있어야 분석된다. 클라우드 환경에서는 대응표를 못 받아 건너뛴다 — 대응표가 있는 PC 에서 같은 명령을 돌리면 그 jar 도 포함된다(`NmsShimAudit` 가 Spigot→Mojang 이름 대응표를 쓰는 판).
-- 결과 예: `docs/feature-parity/compat-gaps-ranking-2026-11-20.md`. 여러 판을 한 jar 에 담는 플러그인은 Spigot 이름 코드 길이 "클래스 없음"으로 잡히는데 Mojang 이름 서버에서는 쓰이지 않아 진짜 구멍이 아니다.
+- 결과 예: `docs/feature-parity/compat-gaps-ranking-2026-11-20.md`. 여러 판을 한 jar 에 담는 플러그인의 이 서버에서 안 타는 어댑터(다른 판·다른 프로토콜 번호·`_mojang` 짝이 있는 Spigot 이름 어댑터)는 세지 않는다(`NmsCompatReport.unusedAdapters`, T-247).
 - `Class.forName`·리플렉션 문자열로 NMS 를 찾는 플러그인 감지 목록도 같은 결과 파일에 나온다.

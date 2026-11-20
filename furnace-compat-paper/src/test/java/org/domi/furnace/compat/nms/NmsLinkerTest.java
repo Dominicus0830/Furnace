@@ -484,6 +484,47 @@ class NmsLinkerTest {
         }
     }
 
+    /** T-247: 여러 판을 담은 jar 에서 이 서버가 고르지 않을 어댑터(Spigot 이름 짝·다른 프로토콜)는 세지 않는다. */
+    @Test
+    void unusedAdaptersAreReadFromTheJarLayout() {
+        Set<String> own = Set.of(
+                // Orebfuscator 꼴: 같은 판의 Spigot 이름 어댑터와 _mojang 어댑터
+                "net/imprex/ore/nms/v1_21_R1/NmsManager", "net/imprex/ore/nms/v1_21_R1_mojang/NmsManager", "net/imprex/ore/nms/v1_21_R2/NmsManager",
+                // Geyser 꼴: 프로토콜 번호 어댑터(767 이하 최대 = 766)와 spigot·paper 갈래
+                "org/geyser/adapters/paper/v766/Adapter", "org/geyser/adapters/paper/v768/Adapter", "org/geyser/adapters/paper/v774/Adapter",
+                "org/geyser/adapters/spigot/v1_21_R1/Adapter", "org/geyser/adapters/spigot/SpigotAdapters", "org/geyser/adapters/AdapterLoader",
+                // 짝이 없는 것은 그대로
+                "com/x/nms/v1_21_R1/Inv", "com/y/api/v100/Thing", "com/z/spigot/Util");
+        assertEquals(Set.of("net/imprex/ore/nms/v1_21_R1/", "org/geyser/adapters/paper/v768/", "org/geyser/adapters/paper/v774/",
+                "org/geyser/adapters/spigot/v1_21_R1/"), NmsCompatReport.unusedAdapters(own));
+        Set<String> unused = NmsCompatReport.unusedAdapters(own);
+        assertTrue(NmsCompatReport.inUnusedAdapter(unused, "org/geyser/adapters/spigot/v1_21_R1/Adapter"));
+        assertFalse(NmsCompatReport.inUnusedAdapter(unused, "net/imprex/ore/nms/v1_21_R1_mojang/NmsManager"));
+        assertFalse(NmsCompatReport.inUnusedAdapter(unused, "org/geyser/adapters/paper/v766/Adapter"));
+        assertEquals(Set.of(), NmsCompatReport.unusedAdapters(Set.of("com/x/nms/v1_21_R1/Inv", "com/x/Main")), "관례가 안 보이면 전부 센다");
+        assertFalse(NmsCompatReport.inUnusedAdapter(unused, "org/geyser/adapters/spigot/SpigotAdapters"), "spigot 바로 아래(고르는 쪽 코드)는 센다");
+        // 플랫폼 모듈 관례: paper 모듈이 spigot 모듈을 함께 쓴다 — 판 이름 패키지가 없으면 빼지 않는다(검토 C1)
+        assertEquals(Set.of(), NmsCompatReport.unusedAdapters(Set.of("com/p/platform/spigot/SpigotHooks", "com/p/platform/paper/PaperHooks")));
+        assertEquals(Set.of(), NmsCompatReport.unusedAdapters(Set.of("com/p/platform/spigot/v1_21_R1/Hooks", "com/p/platform/paper/PaperHooks")),
+                "paper 쪽에 판 이름 패키지가 없으면 판별 어댑터 묶음이 아니다");
+    }
+
+    @Test
+    void unusedAdapterClassesAreNotCountedInTheReport() throws IOException {
+        String body = "{ public static Object f() { return new net.minecraft.world.level.chunk.ProtoChunk(0, 0); } }";
+        Path jar = JarCompiler.jar(tmp.resolve("adapters.jar"), "name: A\nversion: '1'\nmain: ada.Main\n",
+                Map.of("ada.Main", "package ada; public class Main {}",
+                        "ada.nms.v1_21_R1.Gap", "package ada.nms.v1_21_R1; public class Gap " + body,
+                        "ada.nms.v1_21_R1_mojang.Ok", "package ada.nms.v1_21_R1_mojang; public class Ok { public static Object f() { return net.minecraft.world.item.ItemStack.EMPTY; } }",
+                        "net.minecraft.world.level.chunk.ProtoChunk", STUBS.get("net.minecraft.world.level.chunk.ProtoChunk"),
+                        "net.minecraft.world.item.ItemStack", STUBS.get("net.minecraft.world.item.ItemStack")),
+                Set.of("net.minecraft."));
+        NmsCompatReport r = NmsCompatReport.scan("A", jar, NmsSymbols.RUNTIME);
+        assertEquals(List.of(), r.missing(), "Spigot 이름 짝 어댑터의 ProtoChunk 는 이 서버에서 안 탄다");
+        assertEquals(1, r.otherVersionClasses());
+        assertTrue(r.present() >= 1, "_mojang 어댑터는 센다: " + r.present());
+    }
+
     /** 다른 버전 모듈 안의 호출 위치는 경고 대신 DEBUG — 같은 대상의 1.21.1 몫 경고는 남는다. */
     @Test
     void otherVersionCallSitesAreRecognised() {
