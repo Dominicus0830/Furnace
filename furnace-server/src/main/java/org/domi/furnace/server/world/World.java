@@ -1402,6 +1402,11 @@ public final class World {
      * 이미 로드된 청크의 본문이 같은 틱에 나간다(auto 전송). 다른 스레드에서 부르면 예전처럼 주인 region 에 넣는다.
      */
     public CompletableFuture<byte[]> serializedChunkBody(ChunkPos cp, boolean inlineOnOwner) {
+        return serializedChunkBody(cp, inlineOnOwner, false);
+    }
+
+    /** prefetchPath: 미리 직렬화가 주인 스레드가 아닌 길로 걸린 것(speculative 가 아니지만 요청도 아니다) — chunktrace 분류 전용. */
+    private CompletableFuture<byte[]> serializedChunkBody(ChunkPos cp, boolean inlineOnOwner, boolean prefetchPath) {
         return atChunk(cp, inlineOnOwner, r -> r.loadChunk(cp))
                 .thenCompose(f -> f)
                 // 컬럼 접근(dirty/캐시/스냅샷)은 항상 주인 region 스레드서 — 로드 완료 스레드(IO 풀 등)서 돌지 않게 한다.
@@ -1418,7 +1423,7 @@ public final class World {
                         if (inflight instanceof BodyJob job) job.speculative = false;
                         return inflight;
                     }
-                    return startBodySerialization(cp, col, false);
+                    return startBodySerialization(cp, col, false, prefetchPath);
                 }).thenCompose(f -> f));
     }
 
@@ -1440,7 +1445,7 @@ public final class World {
      * speculative(미리 직렬화, 기다리는 요청 없음)인 일은 풀에서 시작할 때 이미 낡았으면 직렬화하지 않는다 — 그 결과는 어차피 캐시에 들어가지 않고
      * 받을 곳도 없다(T-011: 이웃이 올라올 때마다 비워진 본문을 풀이 계속 다시 만들던 낭비).
      */
-    private CompletableFuture<byte[]> startBodySerialization(ChunkPos cp, ChunkColumn col, boolean speculative) {
+    private CompletableFuture<byte[]> startBodySerialization(ChunkPos cp, ChunkColumn col, boolean speculative, boolean prefetchPath) {
         // 스냅샷(약 390KB)은 본문 직렬화에만 쓰므로 컬럼에 붙들어 두지 않는다 — 본문 캐시가 그 뒤를 대신한다.
         ChunkSnapshot snapshot = ChunkSnapshot.of(cp.x(), cp.z(), col);
         bodySnapshots.incrementAndGet();
@@ -1452,7 +1457,7 @@ public final class World {
         // 결과(성공·실패)는 주인 스레드 태스크 안에서 진행 표시를 내린 뒤 완료한다 — 그 뒤 요청이 끝난(실패한)
         // future 를 물려받지 않는다. 캐시 쓰기도 같은 태스크라 내림과 캐시 사이에 틈이 없다.
         final long[] traceSer = ChunkTrace.ON ? new long[2] : null;
-        if (ChunkTrace.ON) traceSer[0] = System.nanoTime();
+        if (ChunkTrace.ON) { traceSer[0] = System.nanoTime(); ChunkTrace.value("batch.serpool.depth", chunkPool.queueDepth()); }
         chunkPool.submit(() -> {
             // 읽는 순서가 중요하다: 진행 표시 먼저, speculative 나중(BodyJob 주석). 진행 표시가 그대로면 청크가 안 바뀌었다.
             if (col.inflightSerializedBody() != f && f.speculative) {
@@ -1462,7 +1467,7 @@ public final class World {
             }
             long ts = ChunkTrace.ON ? System.nanoTime() : 0L;
             byte[] out = serializeChunkBody(snapshot);
-            if (ChunkTrace.ON) { traceSer[1] = System.nanoTime(); ChunkTrace.nanos("ser", traceSer[1] - ts); ChunkTrace.nanos("hop.serpool", ts - traceSer[0]); }
+            if (ChunkTrace.ON) { traceSer[1] = System.nanoTime(); ChunkTrace.nanos("ser", traceSer[1] - ts); traceSerPoolWait(f, prefetchPath, ts - traceSer[0]); }
             return out;
         }).handle((body, ex) -> {
             if (ex == null && body == null) {   // 건너뛴 낡은 미리 직렬화 — 진행 표시는 이미 내려갔고 기다리는 요청이 없다
@@ -1481,6 +1486,19 @@ public final class World {
             });
         });
         return f;
+    }
+
+    /**
+     * 풀 대기(제출 → 풀에서 시작)를 시작 시점의 분류로 기록한다(chunktrace, T-226 계측). 분류는 시작 시점의 speculative 값 —
+     * 대기 중 요청이 붙어 승격된 일은 req 로 센다. 미리 직렬화가 주인 스레드 밖 길로 걸린 일은 pf 로 따로 센다.
+     * hop.serpool 은 셋의 합계(예전 키), hop.serpool.{req,spec,pf}, 요청 일 대기가 100ms 를 넘은 횟수 batch.serpool.req.over100ms.
+     */
+    private static void traceSerPoolWait(BodyJob f, boolean prefetchPath, long waitNanos) {
+        ChunkTrace.nanos("hop.serpool", waitNanos);
+        if (f.speculative) { ChunkTrace.nanos("hop.serpool.spec", waitNanos); return; }
+        if (prefetchPath) { ChunkTrace.nanos("hop.serpool.pf", waitNanos); return; }
+        ChunkTrace.nanos("hop.serpool.req", waitNanos);
+        if (waitNanos > 100_000_000L) ChunkTrace.value("batch.serpool.req.over100ms", 1);
     }
 
     /** auto 전송이 본문을 기다려 주는 최대 횟수(보내려던 틱 수). 넘으면 바닐라처럼 그 자리에서 직렬화한다. */
@@ -1552,8 +1570,8 @@ public final class World {
         if (col.inflightSerializedBody() == null) {
             Region owner = regionizer.ownerOf(cp.x(), cp.z());
             // 미리 직렬화: 결과는 캐시로만 받는다(배치는 다음 틱에 캐시를 본다). 기다리는 요청이 없으니 낡으면 풀이 건너뛴다.
-            if (owner != null && owner.isOwnerThread()) startBodySerialization(cp, col, true);
-            else serializedChunkBody(cp, true);
+            if (owner != null && owner.isOwnerThread()) startBodySerialization(cp, col, true, false);
+            else serializedChunkBody(cp, true, true);
         }
         return BODY_PENDING;
     }
