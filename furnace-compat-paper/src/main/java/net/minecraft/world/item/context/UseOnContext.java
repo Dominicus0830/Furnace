@@ -39,7 +39,7 @@ public class UseOnContext {
     protected final BlockHitResult getHitResult() { return hitResult; }
 
     /** 호환 모듈 전용 — {@link #getHitResult()}(바닐라는 protected). */
-    public final BlockHitResult furnaceHitResult() { return hitResult; }
+    public BlockHitResult furnaceHitResult() { return hitResult; }
 
     public BlockPos getClickedPos() { return hitResult.getBlockPos(); }
 

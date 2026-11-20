@@ -44,7 +44,7 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player {
     }
 
     /** 호환 모듈 전용 — 바닐라 생성자로 만든, 월드에 없는 플레이어인가. */
-    public final boolean furnaceDetached() { return furnaceDetached; }
+    public boolean furnaceDetached() { return furnaceDetached; }
 
     /** 월드에 없는 플레이어의 두 손(바닐라: 인벤토리의 고른 칸·보조 손 칸 — 처음엔 빈 스택). 그 객체를 그대로 든다. */
     private net.minecraft.world.item.ItemStack mainHand = net.minecraft.world.item.ItemStack.EMPTY, offHand = net.minecraft.world.item.ItemStack.EMPTY;
