@@ -47,6 +47,7 @@ class NmsEntityPassengersTest {
     final List<String> spawnEvents = new CopyOnWriteArrayList<>();
     final List<String> mountEvents = new CopyOnWriteArrayList<>();
     volatile boolean cancelSpawns;
+    volatile String cancelSpawnType;
     volatile boolean cancelMounts;
 
     @BeforeAll
@@ -62,7 +63,7 @@ class NmsEntityPassengersTest {
         server.api().events().subscribe(server.plugin(CompatTestPlugin.class), org.domi.furnace.api.event.entity.CreatureSpawnEvent.class,
                 EventPriority.NORMAL, false, e -> {
                     spawnEvents.add(e.entity().type() + " " + e.reason());
-                    if (cancelSpawns) e.setCancelled(true);
+                    if (cancelSpawns || e.entity().type().equals(cancelSpawnType)) e.setCancelled(true);
                 });
         server.api().events().subscribe(server.plugin(CompatTestPlugin.class), org.domi.furnace.api.event.entity.EntityMountEvent.class,
                 EventPriority.NORMAL, false, e -> {
@@ -79,6 +80,7 @@ class NmsEntityPassengersTest {
         spawnEvents.clear();
         mountEvents.clear();
         cancelSpawns = false;
+        cancelSpawnType = null;
         cancelMounts = false;
     }
 
@@ -211,6 +213,46 @@ class NmsEntityPassengersTest {
             pz[1].remove();
             return null;
         });
+    }
+
+    @Test
+    void aPassengerUuidInUseRefusesTheWholeGroupToo() {
+        // Paper: 뿌리와 모든 승객의 UUID 중 하나라도 월드에 있으면 거짓, 아무것도 넣지 않는다
+        CraftEntity[] pz = pigWithZombie();
+        CompoundTag tag = new CompoundTag();
+        on(() -> pz[0].getHandle().saveAsPassenger(tag));
+        java.util.concurrent.atomic.AtomicBoolean first = new java.util.concurrent.atomic.AtomicBoolean(true);
+        Entity copy = EntityType.loadEntityRecursive(tag, level, e -> {
+            e.setUUID(first.getAndSet(false) ? UUID.randomUUID() : pz[1].getUniqueId());   // 승객만 살아 있는 좀비의 UUID
+            e.moveTo(at.x() + 0.5, at.y(), at.z() + 0.5, 0.0F, 0.0F);
+            return e;
+        });
+        assertFalse(on(() -> level.tryAddFreshEntityWithPassengers(copy)));
+        assertTrue(spawnEvents.isEmpty(), "아무것도 넣지 않았다");
+        on(() -> {
+            pz[0].remove();
+            pz[1].remove();
+            return null;
+        });
+    }
+
+    @Test
+    void cancellingOnlyThePassengerSpawnDropsTheWholeGroup() {
+        // user-todo 5e-3b ②: 승객 하나의 스폰이 취소돼도 묶음 전체를 넣지 않고 결과는 참(Paper 는 UUID 가 겹치지 않으면 참)
+        CraftEntity[] pz = pigWithZombie();
+        CompoundTag tag = new CompoundTag();
+        on(() -> pz[0].getHandle().saveAsPassenger(tag));
+        on(() -> {
+            pz[0].remove();
+            pz[1].remove();
+            return null;
+        });
+        cancelSpawnType = "minecraft:zombie";
+        Entity root = EntityType.loadEntityRecursive(tag, level, axiomLike(UUID.randomUUID()));
+        assertTrue(on(() -> level.tryAddFreshEntityWithPassengers(root)));
+        assertTrue(spawnEvents.contains("minecraft:zombie DEFAULT"), spawnEvents.toString());
+        assertNull(on(() -> level.getEntity(root.furnaceKnownUuid())), "돼지도 들지 않았다");
+        for (Entity p : root.getIndirectPassengers()) assertNull(on(() -> level.getEntity(p.furnaceKnownUuid())), "좀비도 들지 않았다");
     }
 
     @Test

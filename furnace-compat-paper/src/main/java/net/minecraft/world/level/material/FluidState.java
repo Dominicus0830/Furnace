@@ -11,7 +11,7 @@ import net.minecraft.world.level.block.state.properties.Property;
 
 /**
  * 유체 상태 하나(Mojang 이름 shim, N0). 종류마다 미리 만든 표의 같은 객체라 바닐라처럼 {@code ==} 로 비교된다.
- * 월드가 필요한 메서드(getHeight·getFlow·tick·shouldRenderBackwardUpFace)는 두지 않았다.
+ * 월드가 필요한 메서드 중 getHeight·getFlow·shouldRenderBackwardUpFace 는 두지 않았다({@link #tick} 은 서버 유체 틱으로 잇는다).
  */
 public final class FluidState extends StateHolder<Fluid, FluidState> {
 
@@ -54,4 +54,15 @@ public final class FluidState extends StateHolder<Fluid, FluidState> {
     public Holder<Fluid> holder() { return owner.builtInRegistryHolder(); }
 
     public Stream<TagKey<Fluid>> getTags() { return owner.builtInRegistryHolder().tags(); }
+
+    /**
+     * 바닐라 {@code FluidState#tick(level, pos)}: 그 칸에서 이 유체 값으로 흐르는 유체 예약 틱을 한 번 돈다(퍼지기·마르기 — 서버의 FlowingFluid 이식).
+     * 빈 유체는 아무것도 하지 않는다. 그 칸의 주인 region 스레드에서만(Level#setBlock 과 같다).
+     */
+    public void tick(net.minecraft.world.level.Level level, net.minecraft.core.BlockPos pos) {
+        if (isEmpty()) return;
+        boolean falling = hasProperty(FlowingFluid.FALLING) && getValue(FlowingFluid.FALLING);
+        String key = net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(owner).toString();
+        level.furnaceScheduledTick(pos, new org.domi.furnace.api.world.FluidData(key, getAmount(), falling), null, null);
+    }
 }
