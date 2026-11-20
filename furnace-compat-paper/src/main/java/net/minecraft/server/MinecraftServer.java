@@ -10,7 +10,7 @@ import org.bukkit.craftbukkit.CraftWorld;
 /**
  * 서버 shim(Mojang 이름, H6 최소 표면): {@code ((CraftServer) Bukkit.getServer()).getServer()}, {@code MinecraftServer.getServer()}.
  * 읽기 질의만 있다. "서버 스레드에서 돌려라"·틱 수 같은 단일 틱 가정 표면은 Furnace 의 region 멀티스레드 모델로 같은 의미를 줄 수 없어 두지 않는다
- * (설계 H5 2.1 — 대체: Furnace 스케줄러·Bukkit 스케줄러).
+ * (설계 H5 2.1 — 대체: Furnace 스케줄러·Bukkit 스케줄러). 예외: {@link #isSameThread()} 는 Paper 의 뜻("틱 스레드인가")이 Furnace 에도 그대로 있다(2번 묶음).
  */
 public abstract class MinecraftServer {
 
@@ -40,6 +40,28 @@ public abstract class MinecraftServer {
 
     /** 바닐라 BlockableEventLoop#execute: 주 스레드에 맡긴다 — Furnace 는 전역 스레드에서 돈다(Bukkit 주 스레드 작업과 같은 곳, N2b-6). */
     public void execute(Runnable task) { executor.execute(task); }
+
+    /** 접속자 목록(2번 묶음). */
+    public net.minecraft.server.players.PlayerList getPlayerList() { return DedicatedServer.INSTANCE.getPlayerList(); }
+
+    /**
+     * Paper 1.21.1: {@code TickThread.isTickThread()} — 서버 틱을 도는 스레드면 참. Furnace 에서는 전역·region 스레드({@code FurnaceScheduler#isTickThread})와
+     * 호환 계층이 Bukkit 주 스레드로 표시한 구간(동기 작업·명령·이벤트)이다. Bukkit {@code isPrimaryThread} 보다 넓다(region 스레드도 참 — Paper·Folia 와 같다).
+     * 2026-11-20 결정 D2-1(docs/user-todo/entries/2026-11-20-nms-shim-batch2.md).
+     */
+    public boolean isSameThread() {
+        if (org.domi.furnace.compat.thread.PrimaryThread.isPrimary()) return true;
+        try {
+            return org.domi.furnace.api.Furnace.server().scheduler().isTickThread();
+        } catch (IllegalStateException notRunning) {
+            return false;
+        }
+    }
+
+    /** 바닐라 CommandSource: 콘솔에 한 줄(서버 콘솔 보내는 곳으로 — 색·번역은 콘솔과 같다). */
+    public void sendSystemMessage(net.minecraft.network.chat.Component message) {
+        org.domi.furnace.api.Furnace.server().console().sendMessage(net.minecraft.network.chat.Component.furnace(message));
+    }
 
     /** CraftBukkit 이 더한 정적 입구: 지금 서버. */
     public static MinecraftServer getServer() { return DedicatedServer.INSTANCE; }

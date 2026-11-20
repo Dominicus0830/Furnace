@@ -538,6 +538,14 @@ public interface ChunkInternals {
     }
 
     /**
+     * 바닐라 {@code ServerPlayer#sendSystemMessage(Component, boolean)}: 채팅을 숨긴 클라이언트는 overlay(액션바 자리)만 받는다(NMS shim 2번 묶음).
+     * 보내기 큐에 넣을 뿐이라 어느 스레드에서나 부를 수 있다.
+     */
+    default void sendSystemMessage(org.domi.furnace.api.entity.Player player, org.domi.furnace.api.text.Text message, boolean overlay) {
+        throw new UnsupportedOperationException("sendSystemMessage");
+    }
+
+    /**
      * 칸 (x, z) 의 주인 스레드(전역 빌림 포함). {@link #detachedPlayer} 로 만든 플레이어가 아이템을 쓴다(T-212 다 묶음 — FAWE {@code simulateItemUse}).
      * 행위자는 그 플레이어(자리·방향·게임 모드)와 넘겨 받은 두 손이다. 블록을 놓으면 접속한 플레이어와 같은 블록 놓기 이벤트를 낸다(Paper
      * {@code ItemStack#useOn} — 취소하면 놓지 않는다). 종류:

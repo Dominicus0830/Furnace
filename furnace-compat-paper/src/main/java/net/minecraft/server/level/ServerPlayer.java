@@ -70,6 +70,15 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player {
     /** 바닐라처럼 공개 필드(Paper 도 같다). 바닐라 생성자로 만든 플레이어는 null. */
     public net.minecraft.server.network.ServerGamePacketListenerImpl connection;
 
+    /** 바닐라: overlay 거짓으로. */
+    public void sendSystemMessage(net.minecraft.network.chat.Component message) { sendSystemMessage(message, false); }
+
+    /** 바닐라: 채팅을 숨긴 클라이언트는 overlay 만 받는다(서버 플레이어의 같은 메서드로). */
+    public void sendSystemMessage(net.minecraft.network.chat.Component message, boolean overlay) {
+        org.domi.furnace.compat.nms.NmsChunks.bridge().sendSystemMessage(getBukkitEntity().furnaceHandle(),
+                net.minecraft.network.chat.Component.furnace(message), overlay);
+    }
+
     @Override
     public CraftPlayer getBukkitEntity() { return (CraftPlayer) super.getBukkitEntity(); }
 

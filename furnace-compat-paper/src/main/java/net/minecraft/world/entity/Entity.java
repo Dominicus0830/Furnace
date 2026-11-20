@@ -59,6 +59,9 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
 
     public String getStringUUID() { return getUUID().toString(); }
 
+    /** 바닐라 {@code level().getServer()} — Furnace 의 월드는 모두 이 서버의 것이다(월드에 아직 없는 엔티티도). */
+    public net.minecraft.server.MinecraftServer getServer() { return net.minecraft.server.MinecraftServer.getServer(); }
+
     public double getX() { Detached d = detached; return d != null ? d.x : f().location().x(); }
 
     public double getY() { Detached d = detached; return d != null ? d.y : f().location().y(); }

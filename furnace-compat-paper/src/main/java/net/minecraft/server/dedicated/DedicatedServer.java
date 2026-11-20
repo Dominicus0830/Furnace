@@ -11,4 +11,8 @@ public class DedicatedServer extends MinecraftServer {
     private DedicatedServer() {}
 
     public boolean isDedicatedServer() { return true; }
+
+    /** Paper 처럼 반환형이 전용 서버 목록이다(공변). */
+    @Override
+    public DedicatedPlayerList getPlayerList() { return DedicatedPlayerList.INSTANCE; }
 }
