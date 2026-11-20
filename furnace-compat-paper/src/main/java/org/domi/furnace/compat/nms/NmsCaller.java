@@ -34,6 +34,15 @@ public final class NmsCaller {
         LoggerFactory.getLogger("Furnace").warn(CompatLang.t(key, all));
     }
 
+    /** {@link #warnOnce} 와 같지만 플러그인 이름을 미리 잡아 둔 경우(넘긴 작업이 다른 스레드에서 끝날 때 — 그 스택에는 플러그인이 없다). */
+    public static void warnOnceAs(String who, String topic, String key, Object... args) {
+        if (who == null || !WARNED.add(topic + "|" + who)) return;
+        Object[] all = new Object[args.length + 1];
+        all[0] = who;
+        System.arraycopy(args, 0, all, 1, args.length);
+        LoggerFactory.getLogger("Furnace").warn(CompatLang.t(key, all));
+    }
+
     /** 시험에서 한 번 기록을 비운다. */
     public static void resetWarnings() { WARNED.clear(); }
 }

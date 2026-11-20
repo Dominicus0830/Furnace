@@ -25,6 +25,32 @@ public class LivingEntity extends Entity {
     }
 
     /**
+     * 바닐라 {@code LivingEntity#getAttribute(Holder)}: 이 엔티티의 그 속성(가지지 않으면 null). 서버의 그 엔티티 속성을 보는 shim 이다 —
+     * 주인 스레드면 곧바로 읽고 쓰고, 다른 스레드의 쓰기는 주인 스레드로 넘긴다(NMS shim 3번 묶음, {@link net.minecraft.world.entity.ai.attributes.AttributeInstance}).
+     */
+    public net.minecraft.world.entity.ai.attributes.AttributeInstance getAttribute(
+            net.minecraft.core.Holder<net.minecraft.world.entity.ai.attributes.Attribute> attribute) {
+        return net.minecraft.world.entity.ai.attributes.AttributeInstance.furnaceOf(
+                (org.domi.furnace.api.entity.LivingEntity) getBukkitEntity().furnaceHandle(), attribute);
+    }
+
+    /** 바닐라: 그 속성의 값. 가지지 않으면 IllegalArgumentException("Can't find attribute " + 이름) — 바닐라 AttributeSupplier 와 같다. */
+    public double getAttributeValue(net.minecraft.core.Holder<net.minecraft.world.entity.ai.attributes.Attribute> attribute) {
+        return need(attribute).getValue();
+    }
+
+    /** 바닐라: 그 속성의 기본값(수정자를 뺀 값). 가지지 않으면 {@link #getAttributeValue} 와 같은 예외. */
+    public double getAttributeBaseValue(net.minecraft.core.Holder<net.minecraft.world.entity.ai.attributes.Attribute> attribute) {
+        return need(attribute).getBaseValue();
+    }
+
+    private net.minecraft.world.entity.ai.attributes.AttributeInstance need(net.minecraft.core.Holder<net.minecraft.world.entity.ai.attributes.Attribute> attribute) {
+        var i = getAttribute(attribute);
+        if (i == null) throw new IllegalArgumentException("Can't find attribute " + attribute.getRegisteredName());
+        return i;
+    }
+
+    /**
      * 바닐라 {@code LivingEntity#getItemInHand}: 그 손의 스택 객체. 월드의 엔티티는 아직 이 길로 읽지 않는다(UnsupportedNmsCall — Bukkit
      * {@code getEquipment()} 를 쓴다). 바닐라 생성자로 만든 월드에 없는 플레이어는 된다({@code ServerPlayer}).
      */
