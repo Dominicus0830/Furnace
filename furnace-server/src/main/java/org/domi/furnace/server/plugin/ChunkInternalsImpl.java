@@ -794,6 +794,72 @@ final class ChunkInternalsImpl implements ChunkInternals {
         ph.handle().moveDetached(x, y, z, yRot, xRot);
     }
 
+    @Override
+    public ItemUse useItemNow(org.domi.furnace.api.world.World world, org.domi.furnace.api.entity.Player player, ItemUseKind kind, boolean mainHand,
+                              org.domi.furnace.api.item.ItemStack main, org.domi.furnace.api.item.ItemStack off, org.domi.furnace.api.item.ItemStack stack,
+                              int state, int x, int y, int z, int face, double hitX, double hitY, double hitZ, boolean inside) {
+        if (!(player instanceof PlayerHandle ph) || !ph.handle().isDetached()) {
+            throw new IllegalArgumentException("not a detached player made by detachedPlayer: " + player);
+        }
+        String what = switch (kind) {
+            case USE_ON -> "ItemStack#useOn";
+            case USE_ITEM_ON -> "BlockState#useItemOn";
+            case USE -> "Item#use";
+        };
+        RegionLevel lv = ownedLevel(world, x, z, what);
+        if (lv == null) throw new IllegalStateException(what + ": the chunk at " + x + ", " + z + " is not loaded");
+        var p = ph.handle();
+        var items = handle(world).handle().itemRegistry();
+        var core = host.core();
+        var events = core.gameEvents();
+        int hand = mainHand ? org.domi.furnace.server.block.BlockActor.MAIN_HAND : org.domi.furnace.server.block.BlockActor.OFF_HAND;
+        final var before = ApiConvert.item(mainHand ? main : off);
+        // 접속한 플레이어의 블록 놓기와 같은 이벤트(ConnectionHandler#handleUseItemOn 의 allowPlace) — Paper ItemStack#useOn 의 BlockPlaceEvent
+        var actor = new org.domi.furnace.server.block.PlayerActor(p, ApiConvert.item(main), ApiConvert.item(off),
+                core.profilePermissions(org.domi.furnace.server.ServerCore.profileOf(p))) {
+            @Override
+            public boolean allowPlace(Pos at, int state, Pos against) {
+                if (!events.wantsBlockPlace()) return true;
+                return events.blockPlace(p, at, state, lv.getBlockState(at), against, before, mainHand);
+            }
+        };
+        var pos = new Pos(x, y, z);
+        var hit = new org.domi.furnace.server.block.Hit(pos, face, hitX, hitY, hitZ, inside);
+        String result;
+        org.domi.furnace.api.item.ItemStack used = null;
+        p.currentLevel = lv;   // 쓰는 동안만 이 레벨에 있다(게임 이벤트·소리가 그 자리에서 난다 — 바닐라는 가짜 플레이어도 레벨을 가진다)
+        try {
+            switch (kind) {
+                case USE_ON -> result = org.domi.furnace.server.block.BlockPlacement.useOn(lv, actor, hand, hit).name();
+                case USE_ITEM_ON -> {   // 바닐라 BlockStateBase#useItemOn: 그 상태 객체의 블록으로(칸의 지금 상태가 아니라)
+                    result = org.domi.furnace.server.block.BlockBehaviors.of(state).useItemOn(ApiConvert.item(stack), state, lv, pos, actor, hand, hit).name();
+                }
+                default -> {
+                    var s = actor.itemInHand(hand);
+                    if (org.domi.furnace.server.entity.RangedWeapons.isBow(s) || org.domi.furnace.server.entity.RangedWeapons.isCrossbow(s)
+                            || org.domi.furnace.server.entity.Tridents.isTrident(s) || org.domi.furnace.server.item.ItemTools.itemName(s).equals("minecraft:fishing_rod")) {
+                        throw new UnsupportedOperationException("Item#use of " + org.domi.furnace.server.item.ItemTools.itemName(s)
+                                + " is not available for a player that is not in a world yet");
+                    }
+                    if (org.domi.furnace.server.entity.Consuming.tryStart(p, hand, s)) {   // 먹기·마시기·방패·망원경: startUsingItem → consume
+                        result = "CONSUME";
+                        used = ApiConvert.item(s, items);
+                    } else if (org.domi.furnace.server.item.ItemTools.component(s, "minecraft:food") != null) {   // Item#use: 못 먹으면 fail
+                        result = "FAIL";
+                        used = ApiConvert.item(s, items);
+                    } else {
+                        var h = org.domi.furnace.server.block.ItemUse.use(lv, actor, hand, s);
+                        result = h.result().name();
+                        used = ApiConvert.item(h.stack(), items);
+                    }
+                }
+            }
+        } finally {
+            p.currentLevel = null;
+        }
+        return new ItemUse(result, used, ApiConvert.item(actor.itemInHand(0), items), ApiConvert.item(actor.itemInHand(1), items));
+    }
+
     /** 명령 범위 안에서 넣는다 — 주인이 쉬고 있으면 drain 차례로 곧바로 돈다(CommandDrainGate: 같은 예산·같은 끄기 옵션). */
     @Override
     public <T> java.util.concurrent.CompletableFuture<T> submitAwaited(org.domi.furnace.api.world.World world, int x, int y, int z, java.util.function.Supplier<T> task) {

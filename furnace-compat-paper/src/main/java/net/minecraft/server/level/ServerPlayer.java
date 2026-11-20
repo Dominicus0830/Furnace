@@ -43,6 +43,30 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player {
         return org.domi.furnace.compat.paper.Compat.detachedPlayer(h);
     }
 
+    /** 호환 모듈 전용 — 바닐라 생성자로 만든, 월드에 없는 플레이어인가. */
+    public final boolean furnaceDetached() { return furnaceDetached; }
+
+    /** 월드에 없는 플레이어의 두 손(바닐라: 인벤토리의 고른 칸·보조 손 칸 — 처음엔 빈 스택). 그 객체를 그대로 든다. */
+    private net.minecraft.world.item.ItemStack mainHand = net.minecraft.world.item.ItemStack.EMPTY, offHand = net.minecraft.world.item.ItemStack.EMPTY;
+
+    /** 바닐라 {@code LivingEntity#getItemInHand}. 월드에 없는 플레이어만 된다(접속한 플레이어는 UnsupportedNmsCall — 손이 인벤토리 칸이다). */
+    @Override
+    public net.minecraft.world.item.ItemStack getItemInHand(net.minecraft.world.InteractionHand hand) {
+        if (!furnaceDetached) return super.getItemInHand(hand);
+        return hand == net.minecraft.world.InteractionHand.MAIN_HAND ? mainHand : offHand;
+    }
+
+    /** 바닐라 {@code LivingEntity#setItemInHand}: 그 객체를 그 손에 둔다(복사하지 않는다). */
+    @Override
+    public void setItemInHand(net.minecraft.world.InteractionHand hand, net.minecraft.world.item.ItemStack stack) {
+        if (!furnaceDetached) {
+            super.setItemInHand(hand, stack);
+            return;
+        }
+        if (hand == net.minecraft.world.InteractionHand.MAIN_HAND) mainHand = java.util.Objects.requireNonNull(stack, "stack");
+        else offHand = java.util.Objects.requireNonNull(stack, "stack");
+    }
+
     /** 바닐라처럼 공개 필드(Paper 도 같다). 바닐라 생성자로 만든 플레이어는 null. */
     public net.minecraft.server.network.ServerGamePacketListenerImpl connection;
 

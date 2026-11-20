@@ -108,4 +108,13 @@ public class Item implements ItemLike {
     /** 바닐라와 같다: 등록 이름(minecraft:stone). */
     @Override
     public String toString() { return key; }
+
+    /**
+     * 바닐라 {@code Item#use(level, player, hand)}(T-212): 그 손의 스택을 서버가 바닐라 그대로 쓴다. 지금은 바닐라 생성자로 만든 월드에 없는 플레이어만
+     * 되고, 활·쇠뇌·삼지창·낚싯대는 아직 UnsupportedNmsCall 이다({@link org.domi.furnace.compat.nms.NmsItemUse}).
+     */
+    public net.minecraft.world.InteractionResultHolder<ItemStack> use(net.minecraft.world.level.Level level, net.minecraft.world.entity.player.Player player,
+                                                                       net.minecraft.world.InteractionHand hand) {
+        return org.domi.furnace.compat.nms.NmsItemUse.use(level, player, hand);
+    }
 }

@@ -94,8 +94,8 @@ public final class ItemUse {
         return h.result();
     }
 
-    /** Item.use(level, player, hand) — 아이템 종류별. */
-    static Holder use(BlockLevel level, BlockActor player, int hand, ItemStack stack) {
+    /** Item.use(level, player, hand) — 아이템 종류별. 먹기·마시기·방패·망원경({@code Consuming})과 활·쇠뇌·삼지창·낚싯대({@code RangedWeapons})는 여기 없다. */
+    public static Holder use(BlockLevel level, BlockActor player, int hand, ItemStack stack) {
         String n = name(stack);
         switch (n) {
             case "minecraft:bucket": return bucketUse(level, player, hand, stack, Fluids.EMPTY);

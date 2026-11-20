@@ -250,6 +250,14 @@ public final class ItemStack {
         return a.getCount() == b.getCount() && isSameItemSameComponents(a, b);
     }
 
+    /**
+     * 바닐라 {@code ItemStack#useOn(UseOnContext)}(T-212): 서버가 그 칸의 주인 스레드에서 바닐라 그대로 쓴다(Paper 처럼 블록을 놓으면 블록 놓기
+     * 이벤트, 취소하면 놓지 않는다). 지금은 바닐라 생성자로 만든 월드에 없는 플레이어의 문맥만 된다({@link org.domi.furnace.compat.nms.NmsItemUse}).
+     */
+    public net.minecraft.world.InteractionResult useOn(net.minecraft.world.item.context.UseOnContext context) {
+        return org.domi.furnace.compat.nms.NmsItemUse.useOn(this, context);
+    }
+
     /** 바닐라와 같다: "개수 종류"(예: 3 minecraft:stone). */
     @Override
     public String toString() { return getCount() + " " + getItem(); }

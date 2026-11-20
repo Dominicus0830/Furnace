@@ -98,5 +98,15 @@
 
 ### 6.4 나눠 올릴 PR
 
-1. 서버 detached 플레이어 + 다리 `detachedPlayerNow` + `ServerPlayer` 상속·생성자·`CraftPlayer` 연결(시험: 만들기, Bukkit 쪽 모양, 월드·목록에 없음, 패킷 없음).
-2. 상호작용 결과 형식 + `useOn`·`useItemOn`·`use` 다리 + 이벤트(시험: FAWE `simulateItemUse` 흐름 — 뼛가루, 블록 놓기, `BlockPlaceEvent` 의 플레이어 이름·취소, 들고 쓰는 아이템).
+1. (#525) 서버 detached 플레이어 + 다리 `detachedPlayer`·`moveDetachedPlayer` + `ServerPlayer` 상속·생성자·`CraftPlayer` 연결(시험 `NmsDetachedPlayerTest`).
+2. 상호작용 결과 형식 + `useOn`·`useItemOn`·`use` 다리 + 이벤트(시험 `NmsFakePlayerItemUseTest`: 블록 놓기와 `BlockPlaceEvent` 의 플레이어·취소, 화분에 꽃, 음식 규칙, FAWE `simulateItemUse` 흐름, 아직 안 되는 호출).
+
+### 6.5 2번 PR 에서 정한 것
+
+- **다리 `useItemNow(world, 핸들, 종류, 손, 두 손, stack, 상태, 칸·면·맞은 점)`:** 맞은 칸(USE 는 플레이어가 선 칸)의 주인 스레드에서 돈다. 행위자는 서버 `PlayerActor`(그 플레이어 + 넘겨 받은 두 손, 권한 단계는 ops 목록)이고 `allowPlace` 는 접속한 플레이어와 같은 `gameEvents().blockPlace(…)` 다. 쓰는 동안만 그 플레이어의 `currentLevel` 을 그 레벨로 둔다(먹기 시작의 게임 이벤트·망원경 소리가 그 자리에서 난다 — 바닐라 가짜 플레이어도 레벨을 가진다).
+  - USE_ON = 서버 `BlockPlacement.useOn`(바닐라 `ItemStack#useOn`, 모험 모드 검사 포함).
+  - USE_ITEM_ON = 서버 `BlockBehaviors.of(state).useItemOn` — 바닐라 `BlockStateBase#useItemOn` 처럼 **그 상태 객체**로(칸의 지금 상태가 아니라).
+  - USE = 바닐라 `Item#use`: 먹기·마시기·방패·망원경은 `Consuming.tryStart`(시작하면 CONSUME), 음식인데 못 먹으면 FAIL(바닐라 `Item#use`), 나머지는 `ItemUse.use`. 활·쇠뇌·삼지창·낚싯대는 서버 쪽이 접속한 플레이어의 인벤토리·사용 상태에 묶여 있어 아직 `UnsupportedNmsCall`.
+- **손 되쓰기:** 바닐라는 손의 스택 객체를 그 자리에서 줄인다(`consume`). 서버 스택은 불변이라, 서버가 바꾼 손이 같은 종류(또는 다 써서 빔)면 손에 있던 그 shim 객체를 고치고, 종류가 바뀌면 새 객체를 넣는다. `Item#use` 가 돌려준 스택도 같은 규칙(같은 종류면 손의 그 객체). 알고 둔 차이: 여러 개 쌓인 빈 양동이로 `Item#use` 를 부르면 바닐라는 손의 양동이를 하나 줄이고 채운 것을 인벤토리에 넣지만, 여기서는 서버 `ItemUse` 결과(채운 양동이)만 돌려주고 손은 그대로다.
+- **청크가 로드되지 않은 칸:** Paper 는 그 자리에서 청크를 불러오지만, 여기서는 `UnsupportedNmsCall`(region 스레드가 청크를 동기로 불러올 수 없다). FAWE 는 편집 중인 로드된 칸에서만 부른다.
+- **서버 고침(같이 들어감):** 꿀 병은 배가 불러도 마신다. 바닐라 `HoneyBottleItem#use` 는 `ItemUtils.startUsingInstantly`(허기 검사 없음)인데 서버 `Consuming.duration` 이 `canEat` 을 보고 있었다(접속한 플레이어도 같은 차이였다). 시험 `ConsumingTest#honeyBottleIsDrunkEvenWhenFull`.
