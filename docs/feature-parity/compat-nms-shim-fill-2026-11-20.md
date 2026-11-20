@@ -68,3 +68,35 @@
   - `Item#getDescriptionId(ItemStack)`·`ItemStack#getDescriptionId()`: 자석 나침반(`lodestone_tracker` 있는 나침반 → `item.minecraft.lodestone_compass`), 물약·투척·잔류 물약·물약 화살(키 + `.effect.` + 물약 이름, 물약이 없으면 `empty` — 물약 46가지의 기본 이름은 경로에서 `long_`·`strong_` 을 뗀 것), 바탕색 있는 방패(키 + `.` + 색). `getHoverName` 의 기본 이름도 이 키를 쓴다.
   - 서버 `RecipeManager.descriptionId`(`/give` 메시지·석재 절단기 정렬)도 같은 규칙으로 고쳤다: 밀이 `[Wheat Crops]` 로 보이던 것.
 - 시험 `NmsLegacyHelpersTest`(Gson 읽기·lenient·null, 빈 문자열, 염료 16색, 아이템·스택 번역 키), 서버 `ItemCommandsTest` 에 밀·네더 사마귀.
+
+## 6. 다 묶음 설계 (가짜 플레이어 아이템 쓰기)
+
+결정 S2(도미니코): Paper 처럼 이벤트도 보낸다. 그래서 FAWE 의 가짜 플레이어도 Paper 처럼 **서버에 플레이어 객체가 있고 Bukkit `Player` 로 보이는** 것으로 만든다.
+
+### 6.1 FAWE 가 하는 일 (`PaperweightAdapter#simulateItemUse`, 2.16.2)
+
+1. 월드마다 하나 `new PaperweightFakePlayer(level)` → `ServerPlayer(server, level, 프로필 "[WorldEdit]"(UUID = nameUUIDFromBytes("worldedit")), ClientInformation)`. 재정의: `position()`(원점), `tick`·`die`·`openMenu`·`updateOptions`·`displayClientMessage`·`awardStat` 둘·`openTextEdit` 는 아무것도 안 함, `isInvulnerableTo` 참.
+2. `setItemInHand(MAIN_HAND, 사본)` → `absMoveTo(x, y, z, yaw, pitch)`(누르는 면을 바라보게).
+3. `stack.useOn(new UseOnContext(fake, MAIN_HAND, BlockHitResult(블록 아래 모서리, 면, 자리, false)))` → SUCCESS 가 아니면 `level.getBlockState(pos).useItemOn(stack, level, fake, MAIN_HAND, hit).consumesAction()` → 아니면 `stack.getItem().use(level, fake, MAIN_HAND).getResult()`. SUCCESS 면 참.
+
+### 6.2 Paper 에서 생기는 일 (javap 로 확인한 것과 남은 가정)
+
+- 생성자: 공용 스폰 자리·각도에 서고, 게임 모드는 서버 기본(생존). 통계·발전 과제 객체를 `PlayerList` 에서 받는다(그 UUID 의 파일을 읽고, 저장 때 쓴다). 플레이어 목록·월드에는 넣지 않는다. `getBukkitEntity()` 는 그 객체를 감싼 `CraftPlayer`(`isOnline()` 거짓, op 는 ops 목록 기준).
+- `ItemStack#useOn`(Paper): 블록 상태를 모았다가 놓인 블록이 있으면 `BlockPlaceEvent`/`BlockMultiPlaceEvent`(플레이어 = 가짜의 `CraftPlayer`)를 부르고, 취소되면 되돌린다. 뼛가루로 나무가 자라면 `StructureGrowEvent`. → 보호 플러그인이 "[WorldEdit]" 을 보고 막을 수 있다.
+- 바닐라 판정(아이템별 `useOn`·블록 `useItemOn`·`Item#use`)은 그 객체의 손·자리·방향·게임 모드로 돈다.
+
+### 6.3 Furnace 설계
+
+- **서버 "월드에 없는 플레이어"(`Player` 의 detached 모드):** 연결(channel) 없음, 접속자 목록·region·월드 명단에 없음, 처음부터 `isDisconnected()` 참(→ API `isOnline()` 거짓 = Paper). 패킷 보내기는 버린다. 파일(플레이어 데이터·통계·발전 과제)을 읽지도 쓰지도 않는다. 자리·방향은 이 서버 플레이어가 든다(호환 `absMoveTo` → 다리 `moveDetachedPlayer`, 어느 region 에도 없는 객체라 부른 스레드가 바로 쓴다 — Bukkit `getLocation` 도 같은 값). 손은 아이템 쓰기 다리에 부를 때마다 넘긴다. 플러그인에게는 보통 `PlayerHandle` 로 보인다 → 이벤트(`BlockPlaceEvent` 등)의 플레이어 칸에 그대로 들어가고, Bukkit 쪽에는 `CraftPlayer` 로 이어진다.
+- **다리(`ChunkInternals`):** `detachedPlayer(world, uuid, name, 속성)` → API 플레이어 핸들(어느 스레드나 — region 상태를 건드리지 않는다), `moveDetachedPlayer(핸들, 자리·방향)`. `useItemNow(핸들, 쓰기 종류, 손, 두 손 스택, 자리·방향, 맞은 자리·면·점)` → 결과 + 바뀐 두 손. 쓰기 종류는 바닐라 세 갈래 그대로: `ItemStack#useOn`(서버 `BlockPlacement.useOn`), `BlockState#useItemOn`(서버 블록 동작 `useItemOn`), `Item#use`(서버 `ItemUse.use`). 맞은 칸의 주인 region 에서 돈다(전역 빌림 포함, 작업 스레드는 기다림 — `NmsOwner`). 행위자는 서버 `PlayerActor`(그 detached 플레이어 + 넘겨 받은 손) 이고, `allowPlace` 는 접속한 플레이어와 같은 `gameEvents().blockPlace(…)` 를 부른다.
+- **호환 계층:**
+  - `ServerPlayer` 에 `@NmsInheritable` 과 생성자 `(MinecraftServer, ServerLevel, GameProfile, ClientInformation)`. 생성자가 다리로 detached 플레이어를 만들고 그 `CraftPlayer` 를 이 객체에 묶는다(`getBukkitEntity().getHandle()` 이 그 하위 클래스 객체 = Paper). `Compat.player` 는 detached 핸들을 약한 참조 표로 따로 들고 접속 끊긴 플레이어 정리에서 빼, 같은 `CraftPlayer` 를 준다.
+  - 손(`getItemInHand`·`setItemInHand`)은 그 shim 이 가진다. 서버로는 부를 때마다 넘기고, 돌아온 손을 shim 에 다시 쓴다. `isRemoved()` 는 거짓(Paper 와 같다), `connection` 은 null.
+  - `InteractionResult`(1.21.1 값 7개와 `consumesAction`·`shouldSwing`·`shouldAwardStats`·`sidedSuccess`), `ItemInteractionResult`, `InteractionResultHolder`, `UseOnContext(Player, …)`(손의 스택을 읽는다), `ItemStack#useOn`, `Item#use`, `BlockState#useItemOn`.
+  - 접속한 플레이어의 shim 으로 부르면(플러그인이 진짜 플레이어로 아이템을 쓰게 함) 이 단계에서는 `UnsupportedNmsCall` — 손이 인벤토리 칸이라 인벤토리 줄 차례를 지켜야 해서 따로 설계한다.
+- **Paper 와 다른 점(알고 둔 것):** detached 플레이어는 통계·발전 과제를 들지 않는다. Paper 는 가짜 플레이어도 기준(예: 씨앗 심기)을 채우면 발전 과제를 주고 채팅에 알리며(`announceAdvancements`) `PlayerAdvancementDoneEvent` 를 부르고 그 UUID 의 파일을 쓴다. 이 차이는 결정 S3.
+
+### 6.4 나눠 올릴 PR
+
+1. 서버 detached 플레이어 + 다리 `detachedPlayerNow` + `ServerPlayer` 상속·생성자·`CraftPlayer` 연결(시험: 만들기, Bukkit 쪽 모양, 월드·목록에 없음, 패킷 없음).
+2. 상호작용 결과 형식 + `useOn`·`useItemOn`·`use` 다리 + 이벤트(시험: FAWE `simulateItemUse` 흐름 — 뼛가루, 블록 놓기, `BlockPlaceEvent` 의 플레이어 이름·취소, 들고 쓰는 아이템).

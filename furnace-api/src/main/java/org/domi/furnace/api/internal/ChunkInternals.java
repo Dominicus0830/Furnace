@@ -518,6 +518,25 @@ public interface ChunkInternals {
         public static final NmsEntityAdd REFUSED = new NmsEntityAdd(null, false);
     }
 
+    /**
+     * 바닐라 {@code new ServerPlayer(server, level, profile, clientInformation)}(T-212 다 묶음 — FAWE 가짜 플레이어): 월드·접속자 목록에 들지 않는
+     * 서버 플레이어를 만들어 그 API 핸들을 준다. 자리·방향은 그 월드의 공용 스폰이다(바닐라 Player 생성자: 칸 가운데·한 칸 위, 스폰 각도, 숙임 0).
+     * 연결이 없어 패킷은 버리고, 처음부터 접속이 끊긴 것으로 보인다({@code isOnline()} 거짓 — Paper 도 목록에 없는 플레이어라 거짓). 파일을 읽지도
+     * 쓰지도 않는다. region 상태를 건드리지 않아 어느 스레드에서나 부를 수 있다.
+     */
+    default org.domi.furnace.api.entity.Player detachedPlayer(World world, java.util.UUID uuid, String name,
+                                                              List<org.domi.furnace.api.entity.ProfileProperty> properties) {
+        throw new UnsupportedOperationException("detachedPlayer");
+    }
+
+    /**
+     * {@link #detachedPlayer} 로 만든 플레이어의 자리·방향(바닐라 {@code Entity#absMoveTo} 가 고른 값 그대로). 어느 region 에도 없는 객체라 부른 스레드가
+     * 바로 쓴다. 그런 플레이어가 아니면 IllegalArgumentException.
+     */
+    default void moveDetachedPlayer(org.domi.furnace.api.entity.Player player, double x, double y, double z, float yRot, float xRot) {
+        throw new UnsupportedOperationException("moveDetachedPlayer");
+    }
+
     /** {@link #addNmsEntityNow} 가 재생할 엔티티 조작 하나. */
     sealed interface EntityOp {
         /** 바닐라 {@code Entity#load(tag)}. */

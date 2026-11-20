@@ -52,6 +52,12 @@ public final class Compat {
          */
         final ConcurrentHashMap<String, java.lang.ref.WeakReference<CraftWorld>> scratch = new ConcurrentHashMap<>();
         final ConcurrentHashMap<UUID, CraftPlayer> players = new ConcurrentHashMap<>();
+        /**
+         * 월드에 없는 플레이어(NMS 로 만든 ServerPlayer — T-212)의 CraftPlayer. 접속이 끊긴 것으로 보여 {@link #players} 정리에 지워지므로 따로 둔다.
+         * 그 ServerPlayer 를 만든 플러그인이 놓으면 함께 사라지게 키·값 모두 약하게 든다(CraftPlayer 가 핸들을 쥐어 값이 강하면 키가 안 사라진다).
+         */
+        final java.util.Map<org.domi.furnace.api.entity.Player, java.lang.ref.WeakReference<CraftPlayer>> detached =
+                java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
         /** Bukkit 에 보이는 월드(차원 키). null 이면 모두 보인다 — {@link Compat#hideWorldsForStartup}. 서버마다 따로(시험이 서버를 다시 띄워도 새지 않게). */
         volatile List<String> visibleWorlds;
         /** 감출 때 이미 있던 월드(기본 차원·데이터 팩 차원) — Paper 가 loadWorld0 에서 만드는 몫. 그 뒤에 올라온 월드는 추가 월드. */
@@ -398,6 +404,10 @@ public final class Compat {
     public static org.bukkit.entity.Player player(org.domi.furnace.api.entity.Player p) {
         if (p == null) return null;
         State s = state();
+        if (!p.isOnline()) {   // 월드에 없는 플레이어면 그것을 만든 CraftPlayer(그 getHandle 이 플러그인의 ServerPlayer 객체)
+            CraftPlayer d = detachedOf(s, p);
+            if (d != null) return d;
+        }
         CraftPlayer c = s.players.get(p.uniqueId());
         if (c != null && c.furnaceHandle() == p) return c;
         int size = s.players.size();
@@ -433,6 +443,23 @@ public final class Compat {
                 return fresh;
             }
         }
+    }
+
+    /**
+     * 호환 모듈 전용(T-212): NMS 로 만든 ServerPlayer 의 서버 플레이어(월드에 없는 것)를 감싼다. 같은 핸들은 늘 이 CraftPlayer 로 돌아온다
+     * ({@link #player} — 이벤트의 플레이어 칸도 이것).
+     */
+    public static CraftPlayer detachedPlayer(org.domi.furnace.api.entity.Player p) {
+        State s = state();
+        CraftPlayer c = create(p);
+        s.detached.put(p, new java.lang.ref.WeakReference<>(c));
+        return c;
+    }
+
+    private static CraftPlayer detachedOf(State s, org.domi.furnace.api.entity.Player p) {
+        if (s.detached.isEmpty()) return null;
+        var r = s.detached.get(p);
+        return r != null ? r.get() : null;
     }
 
     /** 이 스레드가 CraftPlayer 를 만드는 중인 핸들들(생성 중 권한 계산이 같은 플레이어를 다시 감싸지 않게). 겹쳐 만드는 일이 드물어 작은 목록이면 된다. */
@@ -499,7 +526,8 @@ public final class Compat {
         State s = state;
         if (s == null) return null;
         CraftPlayer c = s.players.get(p.uniqueId());
-        return c != null && c.furnaceHandle() == p ? c : null;
+        if (c != null && c.furnaceHandle() == p) return c;
+        return p.isOnline() ? null : detachedOf(s, p);
     }
 
     /**

@@ -181,7 +181,6 @@ descriptor	net/minecraft/network/protocol/status/ServerStatus	<init>()V	기준=#
 descriptor	net/minecraft/server/MinecraftServer	<init>()V	기준=#a1afecae589a	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	net/minecraft/server/ServerLinks$UntrustedEntry	<init>()V	기준=#1d676c4502be	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	net/minecraft/server/level/ServerLevel	<init>(Lorg/bukkit/craftbukkit/CraftWorld;)V	기준=#dc662cdd2622	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-descriptor	net/minecraft/server/level/ServerPlayer	<init>(Lorg/bukkit/craftbukkit/entity/CraftPlayer;)V	기준=#3d31ec620a4d	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	net/minecraft/server/network/ServerCommonPacketListenerImpl	<init>(Lnet/minecraft/server/level/ServerPlayer;)V	기준=#fbeac183052e	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	net/minecraft/server/network/ServerConnectionListener	<init>()V	기준=#da5dd4413f4c	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	net/minecraft/server/network/ServerGamePacketListenerImpl	<init>(Lnet/minecraft/server/level/ServerPlayer;)V	기준=#f4e27d5d397f	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다

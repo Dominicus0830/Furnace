@@ -6,16 +6,44 @@ import org.bukkit.craftbukkit.entity.CraftPlayer;
  * 접속한 플레이어 shim(Mojang 이름, H6 최소 표면): {@code ((CraftPlayer) p).getHandle()}.
  * 패킷 연결은 {@code connection.send(packet)}(H7c) — 이 모듈의 clientbound 패킷 shim 만 보낼 수 있다.
  * 옛 이름 {@code playerConnection.sendPacket}(Spigot 1.16 이하)은 없다 — 그 호출 위치에서 UnsupportedNmsCall 이 난다.
+ *
+ * <p>T-212 다 묶음: 플러그인이 상속해 바닐라 생성자로 "월드에 없는 플레이어"를 만들 수 있다(FAWE 가짜 플레이어 — {@link NmsInheritable}).
  */
+@org.domi.furnace.compat.nms.NmsInheritable
 public class ServerPlayer extends net.minecraft.world.entity.player.Player {
+
+    /** 바닐라 생성자로 만든, 월드·접속자 목록에 없는 플레이어인가. */
+    private final boolean furnaceDetached;
 
     /** 호환 모듈 전용(CraftPlayer 가 만든다). */
     public ServerPlayer(CraftPlayer bukkit) {
         super(bukkit);
+        this.furnaceDetached = false;
         this.connection = new net.minecraft.server.network.ServerGamePacketListenerImpl(this);
     }
 
-    /** 바닐라처럼 공개 필드(Paper 도 같다). */
+    /**
+     * 바닐라 생성자(T-212 다 묶음). Paper 처럼 서버에 플레이어를 만들되 월드·접속자 목록에는 넣지 않는다: 그 월드의 공용 스폰 자리·각도에 서고,
+     * {@code getBukkitEntity()} 는 이 객체를 {@code getHandle()} 로 주는 {@link CraftPlayer}({@code isOnline()} 거짓)이며, {@link #connection} 은
+     * null 이다(바닐라도 목록에 넣을 때 정한다). 이 플레이어로 낸 이벤트의 플레이어 칸도 같은 CraftPlayer 다.
+     * <p>Paper 와 다른 점: 통계·발전 과제를 들지 않고 그 UUID 의 파일을 읽거나 쓰지 않는다(결정 S3). clientInformation(언어·주 손 등)은 쓰지 않는다
+     * — 바닐라는 {@code updateOptions} 로 넣는데, 이 shim 에는 그 값을 읽는 멤버가 없다.
+     */
+    public ServerPlayer(net.minecraft.server.MinecraftServer server, ServerLevel level, com.mojang.authlib.GameProfile profile, ClientInformation clientInformation) {
+        super(detachedCraftPlayer(level, profile));
+        this.furnaceDetached = true;
+        getBukkitEntity().adoptHandle(this);
+    }
+
+    private static CraftPlayer detachedCraftPlayer(ServerLevel level, com.mojang.authlib.GameProfile profile) {
+        java.util.Objects.requireNonNull(level, "level");
+        java.util.Objects.requireNonNull(profile, "profile");
+        var h = org.domi.furnace.compat.nms.NmsChunks.bridge().detachedPlayer(level.getWorld().furnaceHandle(), profile.getId(), profile.getName(),
+                org.domi.furnace.compat.nms.Profiles.properties(profile));
+        return org.domi.furnace.compat.paper.Compat.detachedPlayer(h);
+    }
+
+    /** 바닐라처럼 공개 필드(Paper 도 같다). 바닐라 생성자로 만든 플레이어는 null. */
     public net.minecraft.server.network.ServerGamePacketListenerImpl connection;
 
     @Override
@@ -23,4 +51,22 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player {
 
     /** 이 플레이어가 있는 월드. */
     public ServerLevel serverLevel() { return (ServerLevel) level(); }
+
+    /** 바닐라: 지워졌는가. 월드에 없는 플레이어는 지운 적이 없어 거짓이다(Paper 와 같다 — 접속이 끊긴 것으로 보이는 것과 따로). */
+    @Override
+    public boolean isRemoved() { return !furnaceDetached && super.isRemoved(); }
+
+    /**
+     * 바닐라 {@code Entity#absMoveTo(x, y, z, yRot, xRot)}: x·z 는 ±3000만으로 자르고, 방향은 yRot % 360, xRot 는 ±90 으로 자른 뒤 % 360.
+     * 월드에 없는 플레이어에만 된다(접속한 플레이어는 Bukkit {@code teleport} 를 쓴다).
+     */
+    @Override
+    public void absMoveTo(double x, double y, double z, float yRot, float xRot) {
+        if (!furnaceDetached) {
+            super.absMoveTo(x, y, z, yRot, xRot);
+            return;
+        }
+        org.domi.furnace.compat.nms.NmsChunks.bridge().moveDetachedPlayer(getBukkitEntity().furnaceHandle(), Math.clamp(x, -3.0E7, 3.0E7), y,
+                Math.clamp(z, -3.0E7, 3.0E7), yRot % 360.0F, Math.clamp(xRot, -90.0F, 90.0F) % 360.0F);
+    }
 }
