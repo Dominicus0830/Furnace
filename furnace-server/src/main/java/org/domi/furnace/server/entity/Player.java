@@ -331,7 +331,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
      */
     public record ProfileRefresh(double x, double y, double z, float yaw, float pitch, int portalCooldown,
                                  org.domi.furnace.server.net.protocol.play.UpdateAttributes attributes,
-                                 org.domi.furnace.server.net.protocol.play.SetEntityData entityData) {}
+                                 org.domi.furnace.server.net.protocol.play.SetEntityData entityData, MoveSample teleport) {}
 
     /** 연결 처리기가 걸어 둔다: 연결 스레드 작업으로 올려 앞서 이 플레이어에게 보낸 탭 패킷 뒤에 나간다. */
     private volatile java.util.function.Consumer<ProfileRefresh> profileRefresher;
@@ -349,7 +349,8 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         maxHealth.setBaseValue(vitals.maxHealth());   // CraftPlayer.injectScaledMaxHealth(체력 비율 끔): getMaxHealth, 수정자 없음
         attrs.add(maxHealth);
         r.accept(new ProfileRefresh(x, y, z, yaw, pitch, portalCooldown,
-                new org.domi.furnace.server.net.protocol.play.UpdateAttributes(entityId, java.util.List.copyOf(attrs)), allEntityData()));
+                new org.domi.furnace.server.net.protocol.play.UpdateAttributes(entityId, java.util.List.copyOf(attrs)), allEntityData(),
+                pendingTeleport()));   // 위치와 같은 순간에 잡는다 — 연결이 나중에 볼 때는 region 이 그 텔레포트를 이미 꺼냈을 수 있다
     }
 
     /** ServerPlayer.wardenSpawnTracker(저장 키 warden_spawn_tracker — PlayerVitals 가 읽고 쓴다). */
