@@ -185,7 +185,8 @@ class BlockRemainderM17Test {
     void lecternDropsBookInFrontAtTopWithItemEntityVelocity() {
         Lvl level = new Lvl();
         Pos pos = new Pos(5, -60, 5);
-        int lectern = B.prop("facing").with(state("lectern"), "east");
+        // 바닐라는 has_book 이 참일 때만 책을 떨군다(LecternBlock.onRemove). 책을 넣은 상태 그대로 만든다.
+        int lectern = B.prop("has_book").with(B.prop("facing").with(state("lectern"), "east"), true);
         level.setBlock(pos, lectern, 3);
         var be = (LecternBlockEntity) level.getBlockEntity(pos);
         be.setBook(stack("writable_book", 1), null);
