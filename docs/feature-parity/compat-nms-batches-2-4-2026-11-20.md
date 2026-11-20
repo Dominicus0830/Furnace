@@ -15,7 +15,7 @@
 - `NmsCompatReport.unusedAdapters`: jar 의 클래스 이름 전체를 보고 이 서버가 고르지 않을 어댑터 패키지를 세지 않는다(서버 로드 보고·감사 도구 공통).
   - 같은 부모 아래 프로토콜 번호 패키지가 둘 이상이면(`v766`·`v768`·`v774`) 1.21.1 프로토콜 767 이하에서 가장 큰 것만 센다.
   - 같은 판 이름에 `_mojang` 짝이 있으면(`v1_21_R1`·`v1_21_R1_mojang`) 짝이 없는 쪽(Spigot 이름)은 세지 않는다.
-  - 같은 부모 아래 `spigot` 과 `paper`(또는 `mojang`) 가 함께 있으면 `spigot` 쪽은 세지 않는다.
+  - 같은 부모 아래 `spigot` 과 `paper`(또는 `mojang`) 가 함께 있고 둘 다 판 이름 패키지를 가지면 `spigot` 의 판 이름 패키지만 세지 않는다. `spigot` 바로 아래 클래스와 판 이름이 없는 플랫폼 모듈(`platform/spigot`·`platform/paper`)은 센다(검토 C1 로 좁힘 — 좁힌 규칙으로 다시 재도 88.2%·Geyser 10 그대로).
   - 관례가 안 보이는 jar 는 지금처럼 전부 센다. 세지 않은 클래스는 "다른 버전용 모듈 클래스" 수에 더한다.
 - 표본 100개(11-20 Modrinth 인기순, Mojang 이름 NMS 9개) 재측정: 지원 비율 85.8% → **88.2%**(인기 가중 85.6% → 87.9%). 바뀐 jar 는 둘뿐이다.
   - Orebfuscator 없는 심볼 46 → 10: 남은 것은 `v1_21_R1_mojang` 어댑터의 실제 구멍(설계의 9개 + `ClientboundSectionBlocksUpdatePacket` 생성자).
