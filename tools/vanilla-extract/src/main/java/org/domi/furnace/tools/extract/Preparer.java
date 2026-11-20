@@ -29,6 +29,11 @@ public final class Preparer {
     }
 
     public Prepared prepare() throws IOException {
+        return prepare(true);
+    }
+
+    /** 바닐라 데이터 생성기 실행이 필요 없는 도구(서명표 등)는 generate=false 로 jar 준비까지만 한다. */
+    public Prepared prepare(boolean generate) throws IOException {
         Path dir = o.cache.resolve(o.mc);
         Files.createDirectories(dir);
         Path bundler;
@@ -90,7 +95,7 @@ public final class Preparer {
 
         Path generated = dir.resolve("generated");
         Path genStamp = generated.resolve(".stamp");
-        if (!(fresh && Files.isRegularFile(genStamp) && Files.readString(genStamp).equals(stamp))) {
+        if (generate && !(fresh && Files.isRegularFile(genStamp) && Files.readString(genStamp).equals(stamp))) {
             deleteTree(generated);
             Files.createDirectories(generated);
             List<String> cp = new ArrayList<>();
