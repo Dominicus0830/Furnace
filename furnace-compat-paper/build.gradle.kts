@@ -264,6 +264,9 @@ tasks.register<JavaExec>("nmsShimAudit") {
     jvmArgumentProviders.add(RealWorldJars(auditJars))
     // -PpaperJar=<versions/1.21.1/paper-1.21.1.jar> 를 주면 Paper 의 NMS 클래스 전수와 shim 을 서술자까지 견주는 절이 더해진다(jar 는 읽기만 한다)
     providers.gradleProperty("paperJar").orNull?.let { systemProperty("furnace.audit.paperJar", it) }
+    // T-234: -PrankingOut=<.md>(인기 가중치 순위 + Class.forName 감지 대상) -Pmanifest=<sample-manifest.tsv>(tools/compat/fetch-sample-plugins.py 가 만든다)
+    providers.gradleProperty("rankingOut").orNull?.let { systemProperty("furnace.audit.ranking", it) }
+    providers.gradleProperty("manifest").orNull?.let { systemProperty("furnace.audit.manifest", it) }
     doFirst { layout.buildDirectory.get().asFile.mkdirs() }
 }
 
