@@ -23,7 +23,7 @@
 
 바닐라·Paper 인코더는 `buf.writeBytes(payload.data())` 라서 **보낼 때 본문 버퍼의 읽기 위치가 끝까지 옮겨진다** — 같은 패킷 객체를 두 번 보내면 두 번째는 빈 본문이다. Furnace 도 바꿀 때 읽어서 옮긴다(같은 결과).
 그래서 이 종류는 ProtocolLib 다리에서 "값이 그대로 도는 종류"(`PacketDelivery.losslessRoundTrip`)로 두어, 리스너에게 보이기 전 비교 기준을 만들려고 한 번 더 바꾸지 않는다(두 번 바꾸면 두 번째가 빈 본문이 된다).
-리스너가 본문 버퍼를 읽으면 그만큼 덜 나가는 것도 Paper 와 같다.
+리스너가 본문 버퍼를 먼저 읽으면 남은 바이트만 나가는 것도 Paper 와 같다(PR #529 독립 검토에서 확인, 차이 아님).
 
 `DiscardedPayload` 가 아닌 본문(바닐라 디버그·브랜드 본문, 플러그인이 직접 만든 본문 클래스)은 `UnsupportedNmsCall` 로 거절한다. Paper 에서도 플러그인 본문 클래스는 인코더가 `DiscardedPayload` 코덱으로 쓰다 `ClassCastException` 이 난다.
 받는 쪽(클라이언트 → 서버 플러그인 메시지)은 이 묶음 밖이다 — 지금처럼 Bukkit `registerIncomingPluginChannel` 이나 Furnace 패킷 API 로 받는다(`ServerboundBridge`).
@@ -37,7 +37,7 @@ Furnace 는 이미 이것을 막는다: 서버가 호환 jar 자체도 라이브
 
 ## 4. 알려진 차이(남김)
 
-- NBT 바이트 한도(`NbtAccounter` quota, 패킷 2 MiB): 세지 않는다. 깊이 512 는 지킨다. 기존 패킷 NBT 읽기(`NbtWire`)와 같은 상태이고 `NbtAccounter` 주석에 적혀 있다 — 플러그인이 넘는 자료를 스스로 읽는 경우에만 다르다(가정: 드물다).
+- NBT 바이트 한도(`NbtAccounter` quota, 패킷 2 MiB): 세지 않는다. 깊이 512 는 지킨다. 기존 패킷 NBT 읽기(`NbtWire`)와 같은 상태이고 `NbtAccounter` 주석에 적혀 있다 — 플러그인이 넘는 자료를 스스로 읽는 경우에만 다르다(가정: 드물다). PR #529 독립 검토에서 "알려진 차이"로 남기기로 확인했다 — Paper 는 2 MiB 를 넘으면 `NbtAccounterException` 으로 끊고, Furnace 는 깊이만 검사해 끝까지 읽는다.
 - 모르는 NBT 타입 번호: 바닐라는 `IOException("Invalid tag id")` 를 `EncoderException` 으로 싸고, Furnace 는 `IllegalArgumentException("unknown NBT tag type")`.
 - `ItemStack.STREAM_CODEC`·`OPTIONAL_STREAM_CODEC`(Axiom·VeinMiner)는 아이템 코덱이라 이 묶음 밖이다(아이템 구성 요소 코덱이 필요하다).
 
