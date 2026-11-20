@@ -96,9 +96,9 @@ class PlaceCommandTest {
         assertEquals(List.of("There is no template with id \"minecraft:nope\""), run("place template minecraft:nope 20 220 20"));
     }
 
-    /** PR #500 후속: NBT 가 있는 템플릿 칸은 바닐라 placeInWorld 처럼 옛 블록 엔티티를 Clearable.tryClear 해 상자 내용물이 쏟아지지 않는다. */
+    /** PR #500 후속: Paper 1.21.1 placeInWorld 는 ServerLevel(WorldGenLevel)에서 Clearable.tryClear 를 부르지 않아 옛 상자 내용물이 쏟아진다(바닐라 1.21.1 만 무조건 tryClear). Paper 와 같게 쏟는다. */
     @Test
-    void templateNbtCellClearsOldContainerWithoutDrops() throws Exception {
+    void templateNbtCellSpillsOldContainerLikePaper() throws Exception {
         Path pack = tmp.resolve("clrpack");
         Path file = pack.resolve("data/clr/structure/cell.nbt");
         java.nio.file.Files.createDirectories(file.getParent());
@@ -130,7 +130,7 @@ class PlaceCommandTest {
             run("setblock 70 220 70 chest{Items:[{Slot:0b,id:\"minecraft:diamond\",count:3}]}");
             assertEquals(List.of("Loaded template \"clr:cell\" at 70, 220, 70"), run("place template clr:cell 70 220 70"));
             assertTrue(B.is(at(70, 220, 70), "minecraft:gold_block"));
-            assertEquals(List.of("Test failed"), run("execute if entity @e[type=item]"), "상자 내용물이 쏟아지면 안 된다");
+            assertEquals(List.of("Test passed, count: 1"), run("execute if entity @e[type=item]"), "Paper 처럼 옛 상자 내용물이 쏟아진다");
         } finally {
             org.domi.furnace.server.world.gen.structure.template.TemplateManager.installDataPacks(null);
         }

@@ -101,11 +101,6 @@ public final class LiveGrid {
                 for (int z = 0; z < 16; z++) {
                     for (int x = 0; x < 16; x++) {
                         int s = cp.getBlock(x, y, z);
-                        // 바닐라 StructureTemplate.placeInWorld: NBT 가 있는 칸은 방벽을 쓰기 전 옛 블록 엔티티를 Clearable.tryClear 해 내용물이 쏟아지지 않게 한다
-                        if (cp.generatedBlockEntity(x, y, z) != null) {
-                            var oldBe = level.getBlockEntity(new Pos(ox + x, y, oz + z));
-                            if (oldBe != null) org.domi.furnace.server.block.entity.Clearables.tryClear(oldBe, level);
-                        }
                         if (s == l.getBlock(x, y, z)) continue;
                         level.setBlock(new Pos(ox + x, y, oz + z), s, flags);
                         changed++;
