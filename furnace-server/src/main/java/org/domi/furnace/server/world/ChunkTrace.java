@@ -2,7 +2,8 @@
 // 단계마다 횟수·합계·최대를 모으고, 5초마다 그 사이의 값만 [CHUNKTRACE] 한 줄씩 로그로 남긴다(누적하지 않는다).
 // 단계 이름: src.gen(생성)·src.disk(디스크 읽기+디코드), light(POI·블록 엔티티·빛 미리 계산), hop.load(완성 → 주인 region 이 설치하기까지),
 // install(설치), ser(본문 직렬화+압축), hop.ser(직렬화 끝 → 주인 region 이 받기까지), batch(Start → Finished 를 보낼 때까지),
-// batch.cached(배치 안 캐시 적중 청크 수), batch.size, client.want(클라이언트가 알린 틱당 청크 수 ×100).
+// hop.serpool(풀 대기 합계)·hop.serpool.req/spec/pf(요청 일·미리 일·주인 밖 길 미리 일, 풀에서 시작하는 시점 분류)·batch.serpool.depth(제출 때 큐 깊이)·
+// batch.serpool.req.over100ms(요청 일 풀 대기 100ms 초과 횟수), batch.cached(배치 안 캐시 적중 청크 수), batch.size, client.want(클라이언트가 알린 틱당 청크 수 ×100).
 package org.domi.furnace.server.world;
 
 import java.util.Map;
