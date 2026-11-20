@@ -1,4 +1,4 @@
-# 플러그인 호환을 넓히면서 버전업은 쉽게 — 결정 셋 (2026-11-20)
+# 플러그인 호환 넓히기·쉬운 버전업 (shim-coverage-plan) — 2026-11-20
 
 근거: `docs/roadmap/broad-support-version-scaling-2026-11-20.md`
 
