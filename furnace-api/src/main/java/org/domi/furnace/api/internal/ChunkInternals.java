@@ -685,7 +685,6 @@ public interface ChunkInternals {
     /** 플레이어 능력(바닐라 Abilities 의 일곱 값). 아무 스레드, 최근 값. */
     default PlayerAbilities playerAbilities(org.domi.furnace.api.entity.Player player) { throw new UnsupportedOperationException("playerAbilities"); }
 
-    /** 플레이어 능력을 통째로 바꾼다. send 면 바닐라 {@code onUpdateAbilities} 처럼 그 플레이어에게 능력 패킷을 보낸다. 아무 스레드. */
     /**
      * 바닐라 {@code ServerGamePacketListenerImpl.ackBlockChangesUpTo(seq)}(NMS shim 5d): 그 플레이어에게 seq 번 블록 요청까지 처리했다고 알린다. 알림은 그 플레이어가 선
      * 칸의 region 틱 끝, 그 틱의 블록 변경 방송 뒤에 나간다(서버 블록 요청 처리와 같은 길 — 여러 번이면 큰 번호 하나). 아무 스레드.
@@ -719,6 +718,7 @@ public interface ChunkInternals {
         throw new UnsupportedOperationException("underSpawnProtection");
     }
 
+    /** 플레이어 능력을 통째로 바꾼다. send 면 바닐라 {@code onUpdateAbilities} 처럼 그 플레이어에게 능력 패킷을 보낸다. 아무 스레드. */
     default void setPlayerAbilities(org.domi.furnace.api.entity.Player player, PlayerAbilities values, boolean send) {
         throw new UnsupportedOperationException("setPlayerAbilities");
     }

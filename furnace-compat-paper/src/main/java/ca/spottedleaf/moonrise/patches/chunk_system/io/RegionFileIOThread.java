@@ -20,10 +20,13 @@ public final class RegionFileIOThread {
         CHUNK_DATA, POI_DATA, ENTITY_DATA
     }
 
-    /** 지금 스레드가 지역 파일 IO 스레드인가. Furnace 의 IO 일꾼은 플러그인 코드를 돌리지 않으므로 늘 거짓. */
+    /** 지금 스레드가 지역 파일 IO 스레드인가. Furnace 는 읽은 결과·콜백을 서버 비동기 일꾼에서 내고 IO 차례에서 플러그인 코드를 돌리지 않으므로 늘 거짓. */
     public static boolean isRegionFileThread() { return false; }
 
-    /** 디스크에서 그 청크의 데이터를 읽어 콜백(데이터 또는 null, 오류 또는 null)에 넘긴다. 콜백은 IO 일꾼 스레드에서 불린다. 아무 스레드. */
+    /**
+     * 디스크에서 그 청크의 데이터를 읽어 콜백(데이터 또는 null, 오류 또는 null)에 넘긴다. 아무 스레드. Paper 는 콜백을 IO 스레드에서 부르지만 Furnace 의 IO 차례는
+     * 저장도 맡으므로 서버 비동기 일꾼에서 부른다(콜백 안에서 {@link #loadData} 로 이어 읽어도 막히지 않는다).
+     */
     public static Cancellable loadDataAsync(ServerLevel world, int chunkX, int chunkZ, RegionFileType type, BiConsumer<CompoundTag, Throwable> onComplete,
                                            boolean intendingToBlock) {
         return loadDataAsync(world, chunkX, chunkZ, type, onComplete, intendingToBlock, PrioritisedExecutor.Priority.NORMAL);

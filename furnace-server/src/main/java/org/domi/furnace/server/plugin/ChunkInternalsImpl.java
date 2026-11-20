@@ -865,7 +865,12 @@ final class ChunkInternalsImpl implements ChunkInternals {
                 return be.loadCustomDataInto(lv, data) ? 1 : 0;
             }
             case PLACE_APPLY_COMPONENTS -> {
-                if (lv.getBlockEntity(p) instanceof org.domi.furnace.server.block.entity.BlockEntity be) be.applyComponentsFromItemStack(stack);
+                if (lv.getBlockEntity(p) instanceof org.domi.furnace.server.block.entity.BlockEntity be) {
+                    be.applyComponentsFromItemStack(stack);
+                    // 바닐라는 applyImplicitComponents 안(머리 SkullBlockEntity.setOwner)에서 이름만 있는 프로필 확인을 시작한다 — 서버 이식은 그 일을
+                    // onAddedToLevel 에 두었으므로 놓기 길(BlockPlacement.updateBlockEntityComponents)처럼 이어 부른다. 저장 표시는 바닐라처럼 하지 않는다
+                    be.onAddedToLevel(lv);
+                }
                 return 0;
             }
             default -> {

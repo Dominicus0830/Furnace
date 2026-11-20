@@ -41,6 +41,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * NMS shim 5d-3: Axiom 블록 놓기(SetBlockPacketListener)가 부르는 길 — 블록 요청 ack, 플러그인이 만든 CraftBlockState 하위 클래스로 놓기 이벤트,
@@ -60,9 +61,19 @@ class NmsBlockPlaceTest {
         PlacingState(org.bukkit.World world, BlockPos pos, BlockState state) { super(world, pos, state); }
     }
 
+    @TempDir
+    static java.nio.file.Path tmp;
+
     @BeforeAll
-    void start() {
-        server = FurnaceTestServer.builder().failFast(false).start();
+    void start() throws Exception {
+        // 권한 첨부는 이 서버가 불러온 플러그인이어야 서버 쪽 판정에 든다(PermissibleBase 거울)
+        var jar = org.domi.furnace.compat.paper.fixtures.Jars.bukkit(tmp.resolve("recorder.jar"), """
+                name: Recorder
+                version: '1'
+                main: org.domi.furnace.compat.paper.fixtures.RecorderPlugin
+                api-version: '1.21'
+                """, Map.of("config.yml", "a: 1\n"), org.domi.furnace.compat.paper.fixtures.RecorderPlugin.class);
+        server = FurnaceTestServer.builder().failFast(false).pluginJar(jar).start();
         Bukkit.setServer(CraftServer.INSTANCE);
         tp = server.join("Placer");
         server.tick(3);
@@ -119,6 +130,74 @@ class NmsBlockPlaceTest {
         assertNotNull(ack);
         var e = assertThrows(IllegalArgumentException.class, () -> player.connection.ackBlockChangesUpTo(-1));
         assertEquals("Expected packet sequence nr >= 0", e.getMessage());
+    }
+
+    /** 바닐라: 블록 변경 방송(레벨 틱)이 연결 틱의 ack 보다 먼저다 — 클라이언트는 ack 를 받을 때 이미 서버 블록을 안다. */
+    @Test
+    void ackComesAfterTheBlockUpdateOfTheSameTick() {
+        BlockPos p = new BlockPos(cx * 16 + 10, baseY + 3, cz * 16 + 10);
+        var fp = new org.domi.furnace.api.world.BlockPos(p.getX(), p.getY(), p.getZ());
+        server.tick(2);   // 앞 시험들이 같은 구역에 남긴 변경을 먼저 내보낸다 — 그래야 이 칸 하나만 block_update 로 간다
+        tp.clearReceived();
+        on(p, () -> {
+            level.setBlock(p, Blocks.GOLD_BLOCK.defaultBlockState(), 3);
+            player.connection.ackBlockChangesUpTo(5555);
+            return null;
+        });
+        server.tick(2);
+        tp.awaitPacket(PacketTypes.Clientbound.BLOCK_CHANGED_ACK, a -> Integer.valueOf(5555).equals(a.get(a.names().get(0))));
+        List<org.domi.furnace.api.packet.Packet> got = tp.received();
+        int update = -1, ack = -1;
+        for (int i = 0; i < got.size(); i++) {
+            var pk = got.get(i);
+            if (update < 0 && pk instanceof org.domi.furnace.api.packet.clientbound.ClientboundBlockUpdatePacket u && u.pos().equals(fp)) update = i;
+            if (ack < 0 && pk.type() == PacketTypes.Clientbound.BLOCK_CHANGED_ACK) ack = i;
+        }
+        assertTrue(update >= 0 && update < ack, "블록 갱신 " + update + ", ack " + ack + " " + got.stream().map(x -> x.type() + "").toList());
+    }
+
+    /** Paper canBuild: OP 가 하나라도 있고 놓는 이가 OP 가 아니면 스폰 보호 반경 안에서는 거짓, 반경 밖은 참. */
+    @Test
+    void spawnProtectionMakesCanBuildFalse() {
+        var spawn = level.getWorld().getSpawnLocation();
+        TestPlayer adminTp = server.join("SpawnAdmin");
+        server.tick(2);
+        var admin = Compat.player(adminTp.player());
+        admin.setOp(true);
+        try {
+            CraftWorld world = level.getWorld();
+            BlockPos in = new BlockPos(spawn.getBlockX(), baseY, spawn.getBlockZ());
+            var inside = on(in, () -> CraftEventFactory.callBlockPlaceEvent(level, player, InteractionHand.MAIN_HAND,
+                    new PlacingState(world, in, Blocks.AIR.defaultBlockState()), in.getX(), in.getY() - 1, in.getZ()));
+            assertFalse(inside.canBuild(), "스폰 칸");
+            BlockPos out = in.east(17);
+            var outside = on(out, () -> CraftEventFactory.callBlockPlaceEvent(level, player, InteractionHand.MAIN_HAND,
+                    new PlacingState(world, out, Blocks.AIR.defaultBlockState()), out.getX(), out.getY() - 1, out.getZ()));
+            assertTrue(outside.canBuild(), "반경(16) 밖");
+        } finally {
+            admin.setOp(false);
+            adminTp.close();
+            server.tick(2);
+        }
+    }
+
+    /** Paper: 즉시 짓기이고 minecraft.nbt.place 권한이 있으면 OP 아니어도 관리자용 블록(명령 블록) 데이터를 싣는다. */
+    @Test
+    void instabuildWithNbtPlacePermissionLoadsCommandBlockData() {
+        BlockPos q = new BlockPos(cx * 16 + 12, baseY, cz * 16 + 12);
+        ItemStack cmd = item("minecraft:command_block", Map.of("minecraft:block_entity_data", "{id:\"minecraft:command_block\",Command:\"say nbt\"}"));
+        on(q, () -> { level.setBlock(q, Blocks.COMMAND_BLOCK.defaultBlockState(), 3); return null; });
+        on(q, () -> { player.getAbilities().instabuild = true; player.onUpdateAbilities(); return null; });
+        var att = player.getBukkitEntity().addAttachment(Bukkit.getPluginManager().getPlugin("Recorder"));
+        try {
+            assertFalse(on(q, () -> BlockItem.updateCustomBlockEntityTag(level, player, q, cmd)), "권한 없이 즉시 짓기만으로는 못 싣는다");
+            att.setPermission("minecraft.nbt.place", true);
+            assertTrue(on(q, () -> BlockItem.updateCustomBlockEntityTag(level, player, q, cmd)));
+            assertTrue(serverBeSave(q).contains("say nbt"), serverBeSave(q));
+        } finally {
+            att.remove();
+            on(q, () -> { player.getAbilities().instabuild = false; player.onUpdateAbilities(); return null; });
+        }
     }
 
     @Test

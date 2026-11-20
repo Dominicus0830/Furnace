@@ -22,7 +22,8 @@ public class CraftBlockState implements org.bukkit.block.BlockState {
 
     /** Paper: 그 월드·칸에 놓인 NMS 상태의 스냅숏(월드를 읽지 않는다). 하위 클래스로 만든다(Axiom 놓기 이벤트). */
     protected CraftBlockState(org.bukkit.World world, net.minecraft.core.BlockPos pos, net.minecraft.world.level.block.state.BlockState data) {
-        this.snapshot = org.domi.furnace.compat.paper.CompatBlockState.furnaceOf(((org.bukkit.craftbukkit.CraftWorld) world).furnaceHandle().dimension(),
+        // Paper: world 는 @Nullable — null 이면 놓이지 않은 상태(월드·블록을 물으면 "must be placed")
+        this.snapshot = org.domi.furnace.compat.paper.CompatBlockState.furnaceOf(world == null ? null : ((org.bukkit.craftbukkit.CraftWorld) world).furnaceHandle().dimension(),
                 new org.domi.furnace.api.world.BlockPos(pos.getX(), pos.getY(), pos.getZ()), data);
     }
 

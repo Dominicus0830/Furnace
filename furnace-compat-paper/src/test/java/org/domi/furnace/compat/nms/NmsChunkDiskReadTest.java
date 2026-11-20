@@ -114,6 +114,27 @@ class NmsChunkDiskReadTest {
                 (tag, err) -> {}, false, PrioritisedExecutor.Priority.COMPLETING));
     }
 
+    /** 콜백은 IO 차례(저장도 맡는다) 밖에서 돈다 — 콜백 안에서 같은 파일을 이어 읽어도 막히지 않는다. */
+    @Test
+    void callbacksRunOffTheIoLane() throws Exception {
+        CompletableFuture<String> thread = new CompletableFuture<>();
+        CompletableFuture<CompoundTag> nested = new CompletableFuture<>();
+        RegionFileIOThread.loadDataAsync(level, cx, cz, RegionFileIOThread.RegionFileType.CHUNK_DATA, (tag, err) -> {
+            thread.complete(Thread.currentThread().getName());
+            try {   // 같은 청크(같은 파일·같은 IO 차례)를 콜백 안에서 막고 다시 읽는다
+                nested.complete(RegionFileIOThread.loadData(level, cx, cz, RegionFileIOThread.RegionFileType.CHUNK_DATA, PrioritisedExecutor.Priority.NORMAL));
+            } catch (Throwable t) {
+                nested.completeExceptionally(t);
+            }
+        }, false);
+        String name = thread.get(60, TimeUnit.SECONDS);
+        assertFalse(name.startsWith("furnace-test-io"), "IO 차례 스레드가 아니다: " + name);
+        assertStoredChunk(nested.get(60, TimeUnit.SECONDS));
+        CompletableFuture<String> mapThread = new CompletableFuture<>();
+        level.getChunkSource().chunkMap.read(new ChunkPos(cx, cz)).thenAccept(o -> mapThread.complete(Thread.currentThread().getName()));
+        assertFalse(mapThread.get(60, TimeUnit.SECONDS).startsWith("furnace-test-io"));
+    }
+
     @Test
     void moonriseLoadDataBlocksForTheStoredChunk() throws Exception {
         assertStoredChunk(RegionFileIOThread.loadData(level, cx, cz, RegionFileIOThread.RegionFileType.CHUNK_DATA, PrioritisedExecutor.Priority.BLOCKING));

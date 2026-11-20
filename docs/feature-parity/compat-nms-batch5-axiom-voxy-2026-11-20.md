@@ -1,6 +1,6 @@
 # NMS shim 5번 묶음 — Axiom·voxy 빈 곳 (2026-11-20)
 
-4번 묶음 뒤 감사(`nmsShimAudit`)에서 Axiom 86개, voxy 23개가 남았다. 이 묶음은 작은 PR 여러 개(5a~5e)로 나눠 채우고,
+4번 묶음 뒤 감사(`nmsShimAudit`, 표본 100개 폴더 — voxy 는 0.22.0 판 jar, 아래 "점검에 쓴 jar")에서 Axiom 86개, voxy 23개가 남았다. 이 묶음은 작은 PR 여러 개(5a~5e)로 나눠 채우고,
 도미니코에게 약속한 소요 시간 재추정을 위해 **PR 마다 "자동 연결 가능 비율"과 "걸린 시간"** 을 따로 적는다.
 
 - **자동 연결 가능**: 바닐라 겉모양(이름·서술자·상수)과 이미 있는 Furnace 값만으로 한 줄~몇 줄에 이을 수 있어, 생성기(T-229)와
@@ -237,15 +237,41 @@ moonrise 클래스는 NMS 점검 도구가 세지 않는 이름(`ca/spottedleaf/
 | 설계 필요 | 0 | — |
 
 새 다리 1건(`ChunkInternals.storedNbt` — 서버 `World.readStoredAsync`: 그 파일의 IO 차례에서 region/·poi/·entities/ 의 NBT 를 읽는다).
-자동 연결 가능 비율 **60%(3/5)**, 기계적까지 100%. 걸린 시간: 약 12분(21:43~21:55, 539 CI 대기 중에. 도구 점검 확인 시간은 뺐다).
+자동 연결 가능 비율 **60%(3/5)**, 기계적까지 100%. 걸린 시간: **약 8분** — 시작은 기준 병합 커밋(`22ddfe1d`, 21:42:53) 직후, 코드 커밋 21:50:26,
+문서 커밋 21:51:05(539 CI 대기 중에). 처음 적은 "12분(21:43~21:55)"은 커밋 시각이 아닌 보고 시각까지 센 잘못이라 고쳤다.
 
 - Paper `ChunkMap.read` 는 부른 스레드에서 막고 읽어 끝난 future 를 준다(moonrise `loadData`). Furnace 는 바닐라처럼 기다리지 않는 future 다 — 같은 파일의
   앞선 저장 뒤에 줄 서므로 저장 대기분이 보이는 끝 상태는 같다. 옛 판 올림(DataFixer)은 바닐라·Paper 처럼 하지 않는다.
 - moonrise `loadData` 는 Paper 처럼 어느 스레드에서나 막고 기다린다(구역 스레드에서 부르면 그 구역 틱이 늦는다 — Paper 의 주 스레드와 같다).
 - 시험 `NmsChunkDiskReadTest`(4): 평지 월드에 블록을 놓고 저장한 뒤 두 길로 읽어 바닐라 꼴(`sections[].block_states.palette`)에 그 블록이 있는가, 없는
   청크는 빈 값·(null, null) 콜백, COMPLETING 우선순위 거절, 우선순위 번호.
-- **점검 표 주의:** 앞서 표본 폴더에 있던 voxy jar 는 26.1.2 판(클래스 판 69)이라 점검 도구의 ASM 이 읽지 못해 심볼 0개로 나왔다. 1.21.1 판(0.22.0)으로
-  다시 돌리면 243개 중 234개 있음, 남은 8개는 코덱·`VarInt`·`Biomes`·`ENTITY_TYPE`·`paperConfig` 이다(5e-2).
+- **점검에 쓴 jar(근거):**
+  - 맞는 판: voxy-server-side **0.22.0**(`plugin.yml` `version: '0.22.0'`, `api-version: '1.21.1'`, 클래스 판 65), sha256
+    `4d9e6b01a90600e3444dd7544d5718ef9f8592587ea20aea7207eaad4b5a5811`. 표본 목록(`sample-manifest.tsv`)의 voxy 줄과 같은 파일이다.
+    머리말의 "voxy 23개"와 5a 의 "voxy 8"은 이 jar 로 돌린 표본 100개 점검(19:38, `nmsShimAudit -PauditJars=<표본 폴더>`, 243 심볼 중 219 있음,
+    "없음(Paper 에 있음)" 23줄)에서 셌다.
+  - 잘못 섞인 판: 다른 작업 폴더(`b1jars`)에 있던 같은 이름의 jar 는 **0.21.1 플러그인의 26.1.2 대상 빌드**(`api-version: '26.1.2'`, 클래스 판 69),
+    sha256 `7a6a33f84bab89fcb10e48f4f130eae83ddec8bd7bde021690ddff21a0924c12`. 5e-1 을 시작할 때 이 폴더로 점검을 돌려 voxy 심볼 0개가 나왔다 —
+    점검 도구의 ASM 9.7.1 이 클래스 판 69 를 못 읽고 예외를 삼켜 건너뛴다(도구의 사각, 코디네이터에게 알림).
+  - 다시 잰 값: 0.22.0 jar 와 Axiom jar 만 넣은 폴더로 `ORG_GRADLE_PROJECT_skipOracle=true ./gradlew :furnace-compat-paper:nmsShimAudit -PauditJars=<폴더>`.
+    **243 심볼 중 234 있음, 9개 없음**(처음 적은 "남은 8개"는 표의 "없는 심볼" 칸을 옮긴 것인데, 그 칸은 서로 다른 빠진 이름 수라 9와 다르다).
+    9개는 "없음(Paper 에 있음)" 8줄 — `BlockState.CODEC`, `PalettedContainer.codecRW`·`codecRO`, `Registry.holderByNameCodec`, `VarInt`, `Biomes`,
+    `BuiltInRegistries.ENTITY_TYPE`, `ServerLevel.paperConfig`(5e-2) — 그리고 표에 줄이 없는 1개: `ClientboundCustomPayloadPacket` 생성자를
+    "만들 수는 있지만 보내지 못함"으로 센 것. 실제 보내기는 타입 레코드 다리(`TypedPacketBridge`, `DiscardedPayload`)가 맡아 되는데 점검이 그 다리를
+    보지 않던 오류라, 검토 고침에서 점검 쪽을 고쳤다(`NmsCompatReport.sendUnsupported`, 시험 `PacketShimVanillaBehaviorTest`). 고친 뒤 다시 돌리면 voxy 243 중 235 있음, Axiom 489 중 459 있음(Axiom 도 같은 패킷을 써서 458 에서 하나 늘었다).
+
+### 5d-3·5e-1 검토 고침
+
+검토(#540) 지적을 고쳤다. 걸린 시간 약 15분(21:57~22:12, 5e-2 를 하던 중에 끊고).
+- **디스크 읽기 콜백을 IO 차례 밖으로:** 처음엔 플러그인 콜백·`ChunkMap.read` 의 이어지는 일이 IO 차례(그 파일의 저장도 맡는 스레드)에서 돌았다. 콜백 안에서
+  같은 파일을 막고 읽으면 서로 기다려 멈춘다. 이제 결과는 서버 비동기 일꾼으로 넘겨 돌린다(`NmsStorage.read`). 시험 `callbacksRunOffTheIoLane`:
+  콜백 스레드가 IO 차례가 아니고, 콜백 안에서 같은 청크를 `loadData` 로 막고 읽어도 끝난다. 그 결과 `isRegionFileThread` 는 늘 거짓(Paper 와 다른 점 ④).
+- **이름만 든 머리:** 컴포넌트를 실은 뒤 바닐라처럼 `onAddedToLevel` 을 불러 이름으로 프로필(스킨)을 찾는다.
+- `CraftBlockState` 를 월드 없이 만들면(Paper `@Nullable`) 놓이지 않은 상태로 다룬다(예전엔 NPE).
+- 시험 보강(`NmsBlockPlaceTest` +3): 같은 틱의 블록 갱신이 ack 보다 먼저 간다, OP 가 있으면 스폰 칸은 `canBuild` 거짓·반경 밖은 참,
+  즉시 짓기 + `minecraft.nbt.place` 권한이면 OP 아니어도 명령 블록 데이터를 싣는다(권한 없으면 못 싣는다).
+- 점검 도구 오류 고침(위 "점검에 쓴 jar" 의 9번째 기호).
+- Paper 와 다르게 둔 점 7개는 `docs/user-todo/entries/2026-11-20-axiom-voxy-5d3-5e1.md`.
 
 ## 지금까지 모음(5a~5e-1)
 
@@ -258,8 +284,8 @@ moonrise 클래스는 NMS 점검 도구가 세지 않는 이름(`ca/spottedleaf/
 | 5d-1 | 8 | 4 | 2 | 2 (+다리 1) | 15분 |
 | 5d-2 | 4 | 1 | 3 | 0 (+다리 1) | 6분 |
 | 5d-3 | 9 | 2 | 5 | 2 (+다리 3) | 10분 |
-| 5e-1 | 5 | 3 | 2 | 0 (+다리 1) | 12분 |
-| 합계 | 76 | 37 (49%) | 29 (38%) | 10 (13%) + 다리 9 | 74분 (+5a 검토 고침 5분, 5d 검토 보강 8분) |
+| 5e-1 | 5 | 3 | 2 | 0 (+다리 1) | 8분 |
+| 합계 | 76 | 37 (49%) | 29 (38%) | 10 (13%) + 다리 9 | 줄 합 72분, 5b·5c 가 겹친 2분을 빼면 **약 70분** (+5a 검토 고침 5분, 5d 검토 보강 8분, 5d-3·5e-1 검토 고침 약 15분) |
 
 다리가 생긴 뒤의 기계적 연결까지 넣으면 87%(66/76, 5c 까지는 44/50 = 88%)가 사람의 설계 없이 이을 수 있는 꼴이었다. 손으로 쓴 시간의 대부분은 설계 필요 10개와
 다리 9건, 그리고 바닐라 값 시험이었다.
