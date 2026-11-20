@@ -100,9 +100,13 @@ class NmsPlayerBreakTest {
         cancel = false;
         on(base, () -> {
             bukkit.setGameMode(GameMode.SURVIVAL);
-            bukkit.getInventory().setItemInMainHand(new org.bukkit.inventory.ItemStack(Material.DIAMOND_PICKAXE));
             return null;
         });
+        // 손(고른 칸 0)에 새 곡괭이 — 쓰기가 서버 인벤토리에 닿을 때까지 기다린다(Bukkit setItem 은 플레이어 인벤토리에 비동기로 쓴다)
+        assertEquals(0, on(base, () -> bukkit.getInventory().getHeldItemSlot()));
+        var put = tp.player().inventory().set(0, org.domi.furnace.api.item.ItemStack.of("minecraft:diamond_pickaxe"));
+        for (int i = 0; i < 20 && !put.isDone(); i++) server.tick(1);   // 시험 서버는 손으로 틱을 돌린다
+        put.join();
         set(base, Blocks.STONE.defaultBlockState());
     }
 
