@@ -29,19 +29,13 @@ Java 21로 바닥부터 만드는 멀티스레드 Minecraft **1.21.1** 서버. �
 7. **바닐라 jar·생성 결과물은 커밋하지 않는다**(Mojang EULA). 커밋 대상은 추출된 리소스와 도구뿐이다(`tools/vanilla-data/README.md`).
 
 ## 영역별 상세 규칙
-`.claude/rules/`에서 해당 경로 파일을 열 때 자동 로드된다.
-- `worldgen-parity.md` — `world/gen/**`, `worldgen-oracle/**`, 리소스
-- `network-packets.md` — `net/**`
-- `scheduler.md` — `sched/**`, `furnace-api/**`
+`.claude/rules/` 에서 경로가 맞는 파일을 열 때 자동 로드된다: `worldgen-parity.md`(`world/gen/**`·oracle·리소스), `network-packets.md`(`net/**`), `scheduler.md`(`sched/**`·`furnace-api/**`).
 
-## 작업 기록 위치
-- `docs/feature-parity/` — parity 계획·체크리스트·컨텍스트 노트·바닐라 대조 감사(2026-10-07). 시작 전에 `vanilla-audit-2026-10-07.md`의 "후속 과제"를 읽는다.
-- `docs/ops/version-tags.md` — 깃 태그·버전 규칙(판 `<MC>`, 마일스톤 `ms/<MC>/<슬러그>`, 병합 묶음 `base/<MC>/<날짜>-<N>`; 한 판에는 계속 갱신되는 빌드 하나). 도구 `tools/release/furnace-tag.sh`.
-- `docs/superpowers/{specs,plans}/` — 마일스톤 설계서와 구현 계획(M0~M4g-d).
-- `LLM-Wiki/wiki/Furnace/` — 작업별 지식 노트. `아키텍처-개요.md`, `레이어-*.md`가 진입점.
-- 새 교훈·함정은 `docs/feature-parity/context-notes.md`에 날짜와 함께 추가한다.
+## 작업 기록 위치 (통째로 읽지 않는다 — `docs/handoff/START.md` 의 읽는 법을 따른다)
+- `docs/feature-parity/` — parity 계획·감사·컨텍스트 노트. worldgen 작업이면 `vanilla-audit-2026-10-07.md` 의 "후속 과제" 절만 읽는다.
+- `docs/ops/version-tags.md` — 깃 태그·버전 규칙. `docs/superpowers/{specs,plans}/` — 마일스톤 설계서·계획(M0~M4g-d, 역사 기록). `LLM-Wiki/wiki/Furnace/` — 작업별 지식 노트(`아키텍처-개요.md`, `레이어-*.md` 가 진입점).
+- 새 교훈·함정은 `docs/feature-parity/context-notes/<날짜>-<묶음 id>.md` **새 파일**로 쓴다(`context-notes.md` 끝에 덧붙이면 PR 마다 병합 충돌 — `CLAUDE.md`).
 
 ## 커밋·문서 스타일
-- 커밋 메시지는 `feat(worldgen): …`, `fix: …` 형식, 한국어.
-- 주석·문서·노트는 한국어. 식별자는 영어.
+- 커밋 `feat(worldgen): …`·`fix: …` 형식, 한국어. 주석·문서·노트도 한국어, 식별자는 영어.
 - 검증 숫자(테스트 개수, mismatch 수)는 실제로 돌려본 것만 쓴다.

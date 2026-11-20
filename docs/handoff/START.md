@@ -7,35 +7,27 @@ Furnace = 처음부터 새로 쓰는 멀티스레드 Minecraft 1.21.1 서버(Jav
 
 ## 지금 상태는 어디서 보나 (문서에 현황 숫자를 박지 않는다 — 금방 낡는다)
 - 최근 작업: `git log --oneline -20`, 열린 PR 목록.
-- 사용자 확인·결정 대기: `docs/user-todo/entries/` 의 최근 날짜 파일(`ls -t | head`). `docs/user-todo.md` 는 34KB 라 맨 위 표 구조만 보고, 필요한 줄만 grep.
+- 사용자 확인·결정 대기: `tools/user-todo-index.sh 20`(최신 20개를 파일당 한 줄로, 합본 300KB 를 통째로 읽지 않는다) 뒤 필요한 파일만 `cat`. `docs/user-todo.md` 는 34KB 라 맨 위 표 구조만 보고, 필요한 줄만 grep.
+- 로드맵 TASK 번호·상태: `python3 tools/ci/roadmap-index.py [T-2]`(한 줄 목록) 뒤 `grep -n "<ID>" docs/roadmap/optimization-tasks.md`. 표의 상태 칸은 낡을 수 있어 진행 여부는 열린 PR·`git log` 로 확인.
 - 남은 구멍: `docs/feature-parity/unimplemented-survey-2026-10-31.md` 1장(일부 낡음 — 착수 전 코드로 확인).
 - 로드맵: `docs/feature-parity/roadmap-2026-10-09.md`.
 
 ## 큰 문서 — 이렇게만 읽는다
 | 문서 | 크기 | 읽는 법 |
 |---|---|---|
-| `docs/handoff/2026-10-31-session-handoff.md` | 24KB | 4장 "다음 할 일"(96~105줄), 6장 "작업 방식에서 배운 것"(114줄~끝)만. 2~3장은 이력이라 필요할 때 grep |
-| `docs/handoff/2026-10-18-session-handoff.md` | 약 90KB(6~10장은 archive/) | **통째로 읽지 않는다.** 아래 색인의 줄 범위만 |
+| `docs/handoff/2026-10-31-session-handoff.md` | 24KB | 6장 "작업 방식에서 배운 것"(114줄~끝)만. 4장 "다음 할 일"은 2026-11-04 스냅샷이라 **낡았다**(현황은 위 목록·`git log`). 2~3장은 이력, 필요할 때 grep |
+| `docs/handoff/2026-10-18-session-handoff.md` | 약 90KB(6~10장은 archive/) | **통째로 읽지 않는다.** 줄 범위만(색인 아래) |
 | `docs/feature-parity/context-notes.md` | 342KB | 절대 통째로 읽지 않는다. `grep -n "<키워드>"` 로 찾은 절만. 새 기록은 `context-notes/` 폴더에 새 파일 |
-| `docs/feature-parity/context-notes/` | 187개 | 이름(날짜-묶음 id)으로 고른 파일만 |
+| `docs/feature-parity/context-notes/` | 약 200개, 770KB | 이름(날짜-묶음 id)으로 고른 파일만 |
+| `docs/roadmap/optimization-tasks.md` | 91KB | 위 `roadmap-index.py` 로 목록, 필요한 행만 grep |
+| `docs/user-todo/entries/` | 136개, 245KB | 위 `user-todo-index.sh` 로 목록, 필요한 파일만 |
+| `docs/ci.md` | 40KB | `grep -n '^#'` 로 절 제목을 보고 필요한 절만 |
+| `docs/furnace-community-wishlist.md`, `docs/superpowers/plans/`(역사), `docs/audit/`, `docs/feature-parity/compat-nms-shim-audit-full-run-*-raw.md`(150KB 원자료) | 각 50~150KB | 찾는 주제가 있을 때만 grep. 원자료는 읽지 않는다 |
 | `graphify-out/GRAPH_REPORT.md`, `graph.html` | 97KB, 1.3MB | 읽지 않는다. `graphify query/path/explain` 으로 묻는다 |
 | `docs/user-todo.md` | 34KB | 위 참고 |
 | `docs/feature-parity/*-YYYY-MM-DD.md` 보고서 | 다양 | 제목·머리 20줄을 먼저 보고 필요하면 이어서 |
 
-### 옛 인수인계서(2026-10-18) 줄 범위 색인
-| 알고 싶은 것 | 줄 |
-|---|---|
-| 철학·"같다"의 기준·비효율 재설계 원칙 | 63~125 (2.1) |
-| 스레딩·region 설계 결정 | 126~141 (2.2) |
-| 플러그인 API·Paper 어댑터 결정과 원칙 | 142~200 (2.3) |
-| 검증 방법·정답 우선순위 | 211~238 (2.5) |
-| 사용자 선호·금지사항 원문 | 276~310 (2.7) |
-| 커밋·브랜치·시험 규칙(대부분 CLAUDE.md 에 요약됨) | 328~369 (3장) |
-| 기본 명령·환경 | 372~398 (4.1~4.2) |
-| 블록 오라클 사용 | 399~429 (4.3; 스크립트 전문 430~513 은 필요할 때만) |
-| 난독화 이름·엔티티 데이터 id·패킷 id·메뉴 id 표 | 534~615 (4.6~4.9, 값이 필요할 때 grep) |
-| 아키텍처 요약(패키지·틱 순서·엔티티·블록 엔진) | 616~731 (5장) |
-| 6~10장 | `archive/2026-10-18-ch6-10-stale.md` 로 옮김(낡음). 읽지 않는다 |
+옛 인수인계서(2026-10-18, 91KB)는 통째로 읽지 않는다. 줄 범위 색인: `docs/handoff/old-handoff-line-index.md`(6~10장은 `archive/` 로 옮김, 낡음).
 
 ## 토큰 아끼는 작업 습관
 - 코드 위치는 `graphify query` 먼저, 그다음 `Grep` 으로 좁혀 필요한 줄 범위만 `Read`. 1000줄 넘는 파일 전체 읽기 금지.
