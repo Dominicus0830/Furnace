@@ -13,7 +13,7 @@
 plugin  kind  target  referenced  calls
 ```
 - `kind`: `class`·`method`·`field`·`extends`(NMS 클래스를 상속해 정의만 한 플러그인 클래스 — 상속 거부) · 모르면 `unknown`.
-- `target`: 점 이름. 메서드는 `클래스#이름(인자 수)`.
+- `target`: 점 이름. 메서드는 `클래스#이름(인자 형, …)`(예: `net.minecraft.server.level.ServerLevel#getChunkAt(BlockPos)`), 필드는 `클래스#이름 : 형`, 상속 거부는 상속하려던 NMS 부모 클래스(플러그인 자기 클래스 이름은 담지 않는다). 로드 때 보고와 실행 때 덫이 같은 함수(`NmsLinker.methodTarget`/`fieldTarget`)로 이름을 만들어 한 심볼은 한 줄이다.
 - `referenced`: 플러그인 jar 를 열 때 바이트코드가 이것을 가리킨다고 확인했는가(`yes`/`no`).
 - `calls`: 실행 중 실제로 걸린 횟수. 0 이면 가리키기만 하고 아직 안 밟았다. 횟수 많은 순으로 정렬된다.
 

@@ -331,7 +331,7 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
             boolean ok = field ? index.hasField(owner, name, desc) : index.hasMethod(owner, name, desc);
             if (ok && !field && name.equals("<init>") && sendUnsupported(e)) {
                 // 생성 패킷 중 보내기 다리가 아직 없는 것: 만들 수는 있지만 보내면 UnsupportedNmsCall — 보고·strict 에서 미지원으로 센다
-                gaps.add("method\t" + NmsLinker.dots(owner) + "#<init>(" + Type.getArgumentTypes(desc).length + ")");
+                gaps.add("method\t" + NmsLinker.methodTarget(owner, name, desc));
                 miss(owner, CompatLang.t("nms.report.packet-ctor", NmsLinker.dots(owner), Type.getArgumentTypes(desc).length), false);
                 return;
             }
@@ -339,7 +339,7 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
             if (ok) counts[0]++;
             else {
                 String sym = NmsLinker.dots(owner) + "#" + name + (field ? "" : "(" + Type.getArgumentTypes(desc).length + ")");
-                gaps.add((field ? "field" : "method") + "\t" + sym);
+                gaps.add((field ? "field" : "method") + "\t" + (field ? NmsLinker.fieldTarget(owner, name, desc) : NmsLinker.methodTarget(owner, name, desc)));
                 miss(owner, sym, name.length() <= 2 && !name.equals("<init>"));
             }
         }
@@ -377,7 +377,7 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
                 if (seen.add("S " + name)) {
                     if (sink != null) sink.accept(new String[] {"X", name, name, superName});
                     counts[1]++;
-                    gaps.add("extends\t" + NmsLinker.dots(name) + " -> " + NmsLinker.dots(superName));
+                    gaps.add("extends\t" + NmsLinker.dots(superName));
                     missing.add(CompatLang.t("nms.report.extends", NmsLinker.dots(name), NmsLinker.dots(superName)));
                 }
             } else if (superName != null) {

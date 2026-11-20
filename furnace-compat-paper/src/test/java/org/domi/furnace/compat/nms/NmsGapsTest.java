@@ -47,14 +47,14 @@ class NmsGapsTest {
 
     @Test
     void referencedFromLoadAndTrappedMergeIntoOneRow() {
-        NmsGaps.referenced("A", List.of("method\tm.X#y(0)", "class\tm.Z", "extends\tp.My -> m.Living"));
-        hit("A", "m.X#y(0)", UnsupportedNmsLink.METHOD);
-        NmsGaps.huskBuilt("A", "m.Living", "p.My");
+        NmsGaps.referenced("A", List.of("method\tm.X#y()", "class\tm.Z", "extends\tm.Living"));
+        hit("A", "m.X#y()", UnsupportedNmsLink.METHOD);
+        NmsGaps.huskBuilt("A", "m.Living");
         List<CompatGap> g = NmsGaps.snapshot();
         assertEquals(3, g.size());
-        assertTrue(g.contains(new CompatGap("A", "method", "m.X#y(0)", true, 1)));
+        assertTrue(g.contains(new CompatGap("A", "method", "m.X#y()", true, 1)));
         assertTrue(g.contains(new CompatGap("A", "class", "m.Z", true, 0)));
-        assertTrue(g.contains(new CompatGap("A", "extends", "extends p.My -> m.Living", true, 1)), g.toString());
+        assertTrue(g.contains(new CompatGap("A", "extends", "m.Living", true, 1)), g.toString());
     }
 
     @Test

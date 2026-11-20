@@ -114,6 +114,7 @@ public interface PluginFormat {
     /**
      * 이 형식의 플러그인이 지금까지 밟은 "서버에 없는 것" 표다(T-233). 서버는 운영자가 {@code /furnace compat gaps} 를 부를 때만 묻는다.
      * 계측은 없는 심볼 자리의 덫 안에서만 일어나므로 정상 호출 비용은 0이다. 기본은 빈 목록.
+     * 어느 스레드에서 불러도 안전하다(동시 표의 복사본을 돌려준다). 비용은 표 크기(최대 5만 줄)에 비례하는 복사·정렬이다.
      */
     default java.util.List<CompatGap> compatGaps() { return java.util.List.of(); }
 }

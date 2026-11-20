@@ -54,8 +54,8 @@ public final class NmsGaps {
     }
 
     /** 상속한 껍데기 클래스를 만들려 했다. */
-    static void huskBuilt(String plugin, String parent, String cls) {
-        Entry e = entry(plugin, "extends " + cls + " -> " + parent, "extends");
+    static void huskBuilt(String plugin, String parent) {
+        Entry e = entry(plugin, parent, "extends");   // 대상은 상속하려던 NMS 부모 — 플러그인 자기 클래스 이름은 담지 않는다
         if (e != null) e.calls.increment();
     }
 
@@ -65,8 +65,6 @@ public final class NmsGaps {
             int tab = line.indexOf('\t');
             String kind = tab < 0 ? "unknown" : line.substring(0, tab);
             String target = tab < 0 ? line : line.substring(tab + 1);
-            // 상속 거부는 덫 쪽 대상 이름("extends A -> B")과 같은 모양으로 맞춘다
-            if (kind.equals("extends") && !target.startsWith("extends ")) target = "extends " + target;
             Entry e = entry(plugin, target, kind);
             if (e != null) e.referenced = true;
         }

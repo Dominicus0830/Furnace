@@ -57,7 +57,7 @@ public final class NmsTrap {
      * 실제로 만들려 할 때 (플러그인, 클래스)당 처음 한 번만 WARN 을 남긴다(정의할 때는 실패한 것이 없어 알리지 않는다).
      */
     public static RuntimeException husk(String plugin, String cls, String parent, String why, String message) {
-        NmsGaps.huskBuilt(plugin, parent, cls);
+        NmsGaps.huskBuilt(plugin, parent);
         if (HUSK_WARNED.add(plugin + '\0' + cls)) {
             LOG.warn(CompatLang.t("compat.nms-class-husk", plugin, cls, parent, why));
         } else {

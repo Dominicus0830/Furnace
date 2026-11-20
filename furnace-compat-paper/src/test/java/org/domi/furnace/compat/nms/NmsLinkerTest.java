@@ -385,12 +385,41 @@ class NmsLinkerTest {
         assertEquals(r.missing().size(), r.gradeC() + r.unknown());
         // compat gaps(T-233): 말투와 무관한 고정 이름으로 같은 구멍을 담는다
         assertTrue(r.gaps().contains("class\tnet.minecraft.world.level.chunk.ProtoChunk"), r.gaps().toString());
-        assertTrue(r.gaps().contains("method\tnet.minecraft.server.level.ServerLevel#getProtoChunkAt(1)"), r.gaps().toString());
+        assertTrue(r.gaps().contains("method\tnet.minecraft.server.level.ServerLevel#getProtoChunkAt(BlockPos)"), r.gaps().toString());
         assertEquals(r.missing().size(), r.gaps().size());
         assertTrue(r.present() >= 3, "MinecraftServer·getServer·getServerVersion·ItemStack·EMPTY …: " + r.present());
         assertEquals(r.present() + r.gradeC() + r.unknown(), r.symbols());
         assertEquals(List.copyOf(new java.util.TreeSet<>(r.missing())), r.missing(), "정렬");
         assertNull(r.ownClasses().stream().filter(n -> n.startsWith("net/")).findFirst().orElse(null), "스텁은 jar 에 없다");
+    }
+
+    /** T-233: 로드 때 보고와 덫이 같은 이름을 쓴다 — 한 심볼이 한 줄(referenced=true, calls=1)이 된다. */
+    @Test
+    void gapRowsFromLoadReportAndTrapMergeIntoOneRowPerSymbol() throws Throwable {
+        Path jar = JarCompiler.jar(tmp.resolve("gaps.jar"), "name: Linky\nversion: '1'\nmain: linky.User\n",
+                Map.of("linky.User", USER, "net.minecraft.server.level.ServerLevel", STUBS.get("net.minecraft.server.level.ServerLevel")
+                                .replace("public static int staticCounter;", "public static int staticCounter; " + SEED_STUB_PATCH),
+                        "net.minecraft.world.level.chunk.ProtoChunk", STUBS.get("net.minecraft.world.level.chunk.ProtoChunk"),
+                        "net.minecraft.world.item.ItemStack", STUBS.get("net.minecraft.world.item.ItemStack"),
+                        "net.minecraft.server.MinecraftServer", STUBS.get("net.minecraft.server.MinecraftServer")),
+                Set.of("net.minecraft."));
+        NmsTrap.resetWarnings();
+        NmsCompatReport.scan("Linky", jar, NmsSymbols.RUNTIME).log();
+        Class<?> c = user(true);
+        trapped(c, "missingMethod", level());
+        trapped(c, "missingField", level());
+        trapped(c, "missingStaticField");
+        List<org.domi.furnace.api.plugin.CompatGap> g = NmsGaps.snapshot();
+        for (String target : List.of("net.minecraft.server.level.ServerLevel#getProtoChunkAt(BlockPos)",
+                "net.minecraft.server.level.ServerLevel#instanceCounter : int",
+                "net.minecraft.server.MinecraftServer#tickCount : int")) {
+            List<org.domi.furnace.api.plugin.CompatGap> rows = g.stream().filter(x -> x.target().equals(target)).toList();
+            assertEquals(1, rows.size(), target + " 은 한 줄이어야 한다: " + g);
+            assertTrue(rows.get(0).referenced(), target);
+            assertEquals(1, rows.get(0).calls(), target);
+        }
+        assertTrue(g.stream().noneMatch(x -> x.target().matches(".*#\\w+\\(\\d+\\)")), "인자 수 꼴 이름이 남으면 안 된다: " + g);
+        NmsTrap.resetWarnings();
     }
 
     @Test
@@ -399,7 +428,7 @@ class NmsLinkerTest {
                 Map.of("linky.MyEntity", SUB), Set.of("net.minecraft."));
         NmsCompatReport r = NmsCompatReport.scan("S", jar, NmsSymbols.RUNTIME);
         assertTrue(r.missing().contains("extends linky.MyEntity -> net.minecraft.world.entity.LivingEntity"), r.missing().toString());
-        assertTrue(r.gaps().contains("extends\tlinky.MyEntity -> net.minecraft.world.entity.LivingEntity"), r.gaps().toString());
+        assertTrue(r.gaps().contains("extends\tnet.minecraft.world.entity.LivingEntity"), r.gaps().toString());
         assertEquals(1, r.gradeC());
         assertThrows(UnsupportedNmsCall.class, () -> NmsClassTransformer.forJar("S", jar, new NmsClassTransformer.Options(true, false)),
                 "strict 는 정의 거부될 클래스가 있는 jar 를 로드 전에 거절한다");
