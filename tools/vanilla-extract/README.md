@@ -38,6 +38,21 @@
 
 도구 목록(27개, `--list`): Java 21개 — 블록 10(`block-attrs`·`block-hardness`·`block-light`·`block-props`·`block-shapes`·`block-transforms`·`block-sound-types`·`map-colors`·`note-instruments`·`pathfindable`), 아이템 5(`item-props`·`item-blocks`·`item-default-attributes`·`craft-remainders`·`stew-effects`), 프로토콜 1(`protocol-ids`), 시험 정답표 4(`context-collision-shapes`·`section-oracle`·`raw-write-oracle`·`palette-oracle`), 시험 벡터 1(`shape-vectors`, 재료를 따로 받아 전체 실행에 안 들어감) / 파이썬 6개 — `tags`·`builtin-registries`·`block-tags`·`item-components`·`block-definitions`·`damage-types`.
 
+## 서명표 (T-227)
+
+`-Pmode=sig-table` 은 jar 안 클래스·멤버의 **선언만** 모은 표를 캐시(`<캐시>/<판>/`)에 만든다. 서명 관문(T-228)·차분 시험(T-235)·표류 보고(T-236)가 읽는 공통 입력이다(설계 `docs/roadmap/broad-support-version-scaling-2026-11-20.md` 4.2).
+
+```
+./gradlew -PskipOracle=true :vanilla-extract:run -Pmc=1.21.1 -Pmode=sig-table                          바닐라(Mojang 이름) → sig-table.tsv.gz
+./gradlew -PskipOracle=true :vanilla-extract:run -Pmc=1.21.1 -Pmode=sig-table -PsigPaperApi=true       paper-api(repo.papermc.io, 스냅샷 jar 의 sha1 확인) → sig-table-paper-api.tsv.gz
+./gradlew -PskipOracle=true :vanilla-extract:run -Pmc=1.21.1 -Pmode=sig-table -PsigJar=<jar> -PsigName=<이름> [-PsigPrefix=a/,b/]   임의 jar → sig-table-<이름>.tsv.gz
+tools/compat/sig-tables.sh 1.21.1                                                                      위 셋 + Mojang 이름 Paper 서버 jar(paperweight 가 닿을 때만) 한 번에
+```
+
+- 형식: 첫 줄 `#furnace-sig-table<TAB>1<TAB><이름표>`, 이어서 `C 접근 클래스 상위 인터페이스(쉼표) 제네릭서명 안쪽접근`, `F|M 접근 소유자 이름 서술자 제네릭서명`(없는 칸 `-`, 접근은 10진 ACC_*). 합성 멤버·`<clinit>` 는 뺀다. 같은 입력은 같은 바이트(gzip 시각 0, 정렬 고정). 읽기는 `SigTable.read`.
+- **법적 경계:** 클래스 파일을 `SKIP_CODE|SKIP_DEBUG|SKIP_FRAMES` 로만 읽고 방문자가 몸통·애노테이션을 받지 않는다(시험 `methodBodiesAreNeverRead` — 몸통이 깨진 클래스도 통과해야 한다). 표는 Mojang 대응표에서 나온 것이므로 **저장소·서버 jar·공유 폴더 어디에도 두지 않는다**(대응표 머리말: 완전·미수정 재배포 금지).
+- Mojang 이름 Paper 서버 jar(`ServerLevel#captureBlockStates`·`CraftPlayer` 등 Paper·CraftBukkit 이 더한 멤버)는 `:worldgen-oracle:printPaperServerJar` 가 경로를 낸다. 이 클라우드 환경에서도 paperweight 가 dev-bundle 을 받아 동작했다(2026-11-20). 단 CI 는 모든 gradle 에 `-PskipOracle=true` 라서 CI 에서 이 칸을 만들려면 그 단계만 오라클을 켜야 한다(T-228 이 정한다).
+
 ## 바이트 동일 증명 (V-05 수용 조건)
 
 수용 조건은 "1.21.1 결과가 이전 도구 결과와 같다"이다. 옛 도구는 `tools/vanilla-data/Export*.java` 와 파이썬 둘이었고 git 기록에 남아 있다.

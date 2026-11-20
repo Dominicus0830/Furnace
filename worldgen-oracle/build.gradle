@@ -15,3 +15,14 @@ tasks.named('run', JavaExec) {
 dependencies {
     paperweight.paperDevBundle(rootProject.ext.mc.getProperty('mc.paperDevBundle'))
 }
+
+// T-227: Mojang 이름 Paper 서버 jar(CraftBukkit 포함)의 위치를 한 줄로 낸다. 서명표 도구가 `-PsigJar=<이 경로>` 로 읽는다.
+// 이 jar 는 paperweight 캐시에만 있고 저장소·배포에는 넣지 않는다.
+tasks.register('printPaperServerJar') {
+    def jars = configurations.compileClasspath.incoming.artifactView { lenient = true }.files
+    doLast {
+        def j = jars.files.find { it.name.startsWith('paper-server') }
+        if (j == null) throw new GradleException('paper-server jar 가 compileClasspath 에 없다')
+        println "PAPER_SERVER_JAR=" + j.absolutePath
+    }
+}

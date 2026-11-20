@@ -21,7 +21,9 @@ public final class Options {
         /** 이전 도구와 새 도구의 바이트코드 호출을 견준다(이름을 대응표로 푼 뒤 같은 호출을 하는지). */
         PORT_CHECK,
         /** BASELINE + EXTRACT + PORT_CHECK 를 한 번에 하고 전·후·커밋을 모두 견준다. */
-        PROOF
+        PROOF,
+        /** 서명표(T-227)만 만든다. 바닐라 jar 준비까지만 하고 데이터 생성기는 돌리지 않는다. */
+        SIG_TABLE
     }
 
     public String mc;
@@ -40,6 +42,14 @@ public final class Options {
     /** 이전 도구가 들어 있던 git 커밋/브랜치(BASELINE·PORT_CHECK·PROOF 에 필요). */
     public String legacyRef;
     /** 도구별 추가 인자(`--tool-arg 도구=값`, 여러 번 가능). */
+    /** 서명표를 만들 임의 jar(Paper 서버 jar·API jar·컴파일된 shim). 비우면 바닐라 서버 jar. */
+    public Path sigJar;
+    /** 서명표에 넣을 내부 이름 접두(쉼표). 기본은 바닐라 net/minecraft/·com/mojang/. */
+    public List<String> sigPrefix = List.of();
+    /** 서명표 이름표. `--sig-jar` 와 함께 쓰며 파일 이름이 sig-table-<이름>.tsv.gz 가 된다. */
+    public String sigName;
+    /** paper-api jar 를 repo.papermc.io 에서 받아 서명표를 만든다. */
+    public boolean sigPaperApi;
     public final Map<String, List<String>> toolArgs = new LinkedHashMap<>();
 
     public static Options parse(String[] args) {
@@ -59,6 +69,10 @@ public final class Options {
                 case "--python" -> o.python = next(args, ++i, a);
                 case "--protocol" -> o.protocol = Integer.parseInt(next(args, ++i, a));
                 case "--list" -> o.list = true;
+                case "--sig-jar" -> o.sigJar = Path.of(next(args, ++i, a));
+                case "--sig-prefix" -> o.sigPrefix = List.of(next(args, ++i, a).split(","));
+                case "--sig-name" -> o.sigName = next(args, ++i, a);
+                case "--sig-paper-api" -> o.sigPaperApi = true;
                 case "--legacy-ref" -> o.legacyRef = next(args, ++i, a);
                 case "--tool-arg" -> {
                     String kv = next(args, ++i, a);
