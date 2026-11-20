@@ -113,6 +113,14 @@ public final class EntityTasks {
         }
     }
 
+    /**
+     * 차원(또는 같은 레벨 관문)을 건너 새로 만든 엔티티가 이 대기열을 이어 받는다(Paper restoreFrom 의 CraftEntity#setHandle — 플러그인이 쥔 객체와
+     * EntityScheduler 가 새 엔티티를 따라간다). 이미 retire 됐으면 아무것도 안 한다. 새 엔티티의 레벨 스레드에서, 레벨에 넣기 전에 부른다.
+     */
+    public synchronized void rebind(Object newOwner) {
+        if (!retired) owner = newOwner;
+    }
+
     /** 엔티티가 사라졌다 — 더 받지 않고, 돌지 않은(취소되지 않은) 작업마다 retired 를 한 번 부른다. 부른 스레드에서. 두 번째부터는 아무것도 안 한다. */
     public void retire() {
         List<Entry> left;

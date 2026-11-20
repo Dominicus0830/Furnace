@@ -586,7 +586,7 @@ public abstract non-sealed class Entity implements Rider {
 
     /** 떠난 엔티티: 저장 데이터·포털 대기·종류, 그리고 함께 건너가는 그 승객들(바닐라 getPassengers 순서). */
     private record CarriedEntity(NbtCompound tag, int cooldown, PortalProcessor process, String typeName,
-                                 java.util.List<Carried> passengers) implements Carried { }
+                                 java.util.List<Carried> passengers, EntityTasks tasks) implements Carried { }
 
     private record CarriedPlayer(Player player) implements Carried { }
 
@@ -609,7 +609,7 @@ public abstract non-sealed class Entity implements Rider {
                 }
             }
             final NbtCompound tag = saveWithoutId(new NbtCompound());
-            CarriedEntity self = new CarriedEntity(tag, portalCooldown, portalProcess, type.name(), java.util.List.copyOf(carried));
+            CarriedEntity self = new CarriedEntity(tag, portalCooldown, portalProcess, type.name(), java.util.List.copyOf(carried), apiTasks);
             final String fromDimension = level.dimension();
             setRemoved(RemovalReason.CHANGED_DIMENSION);
             afterChangedDimension(fromDimension, targetDimension);
@@ -644,6 +644,8 @@ public abstract non-sealed class Entity implements Rider {
             self = depart(travel, targetDimension, carryPassengers);
         } catch (RuntimeException ex) {
             travel.settled();
+            EntityTasks t = apiTasks;
+            if (t != null && isRemoved()) t.retire();   // 빠진 뒤 던졌다 — 이어 받을 엔티티가 없다
             throw ex;
         }
         final java.util.concurrent.atomic.AtomicBoolean called = new java.util.concurrent.atomic.AtomicBoolean();
@@ -703,17 +705,19 @@ public abstract non-sealed class Entity implements Rider {
             }
             Entity made = Entities.create(target, c.typeName());
             if (made != null) {
+                made.inheritApiTasks(c.tasks());   // restoreFrom 의 setHandle — 저장 데이터보다 먼저(Paper 순서)
                 made.load(c.tag());
                 made.portalCooldown = c.cooldown();
                 made.portalProcess = c.process();
                 place.accept(made, t);
-                target.addFreshEntity(made);
+                if (!target.addFreshEntity(made) && c.tasks() != null) c.tasks().retire();   // 넣지 못했다(UUID 겹침 등) — 대기열도 끝낸다
                 e = made;
                 for (Entity r : riders) r.startRiding(made, true);
                 target.afterDimensionTransition(t);
             }
             return e;
         } finally {
+            retireUnclaimed(c);
             // 뗀 승객 플레이어는 무슨 일이 있어도 한 번 보낸다(탈것을 못 넣었으면 null — 태우지 않는다)
             for (Player p : players) travel.arrivePassenger(p, target, t, e);
         }
@@ -743,17 +747,28 @@ public abstract non-sealed class Entity implements Rider {
             }
             Entity made = Entities.create(src, c.typeName());
             if (made != null) {
+                made.inheritApiTasks(c.tasks());
                 made.load(c.tag());
                 made.portalCooldown = c.cooldown();
                 made.portalProcess = c.process();
-                src.addFreshEntity(made);
+                if (!src.addFreshEntity(made) && c.tasks() != null) c.tasks().retire();
                 back = made;
                 for (Entity r : riders) r.startRiding(made, true);
             }
             return back;
         } finally {
+            retireUnclaimed(c);
             for (Player p : players) travel.returnPassenger(p, src, back);
         }
+    }
+
+    /**
+     * 떠난 엔티티의 플러그인 대기열을 새 엔티티가 이어 받지 못했으면(종류를 못 만들었거나 도중에 던졌다) 여기서 끝낸다 — 옛 엔티티는 CHANGED_DIMENSION 으로
+     * 빠질 때 retire 하지 않았다. 이어 받은 뒤 넣기에 실패한 경우는 addFreshEntity 가 이미 retire 했다.
+     */
+    private static void retireUnclaimed(CarriedEntity c) {
+        EntityTasks t = c.tasks();
+        if (t != null && !(t.owner() instanceof Entity e && e.apiTasks == t && !e.isRemoved())) t.retire();
     }
 
     /**
@@ -783,7 +798,10 @@ public abstract non-sealed class Entity implements Rider {
         }
         e.moveTo(t.x(), t.y(), t.z(), t.yRot(), e.xRot());
         e.setDeltaMovement(t.vx(), t.vy(), t.vz());
-        if (e != this) target.addFreshEntity(e);
+        if (e != this && !target.addFreshEntity(e)) {
+            EntityTasks tasks = e.apiTasks;
+            if (tasks != null) tasks.retire();   // 넣지 못했다 — 이어 받은 대기열도 끝낸다
+        }
         for (Entity n : moved) n.startRiding(e, true);
         if (level != null) level.resetEmptyTime();   // 바닐라: serverLevel.resetEmptyTime(); serverLevel2.resetEmptyTime()
         target.resetEmptyTime();
@@ -793,6 +811,7 @@ public abstract non-sealed class Entity implements Rider {
 
     /** restoreFrom: 저장 데이터·UUID·포털 상태를 그대로 옮긴다. */
     protected void restoreFrom(Entity old) {
+        inheritApiTasks(old.apiTasks);   // Paper: bukkitEntity.setHandle(this) 가 맨 앞
         NbtCompound tag = old.saveWithoutId(new NbtCompound());
         load(tag);
         portalCooldown = old.portalCooldown;
@@ -1049,7 +1068,9 @@ public abstract non-sealed class Entity implements Rider {
     public final void setRemoved(RemovalReason reason) {
         if (removalReason == null) removalReason = reason;
         EntityTasks tasks = apiTasks;
-        if (tasks != null) tasks.retire();   // 플러그인 EntityScheduler: 남은 작업 대신 retired
+        // 플러그인 EntityScheduler: 남은 작업 대신 retired. 차원 이동(CHANGED_DIMENSION)은 Paper Entity#setRemoved 처럼 retire 하지 않는다 —
+        // 새로 만든 엔티티가 대기열을 이어 받는다(inheritApiTasks). 이어 받지 못하면 그 길이 retire 한다
+        if (tasks != null && removalReason != RemovalReason.CHANGED_DIMENSION) tasks.retire();
         if (removalReason == RemovalReason.CHANGED_DIMENSION) removeAfterChangingDimensions();
         if (removalReason.shouldDestroy()) stopRidingForced(this);
         if (!passengers.isEmpty()) for (Rider r : passengers) stopRidingForced(r);
@@ -2008,6 +2029,22 @@ public abstract non-sealed class Entity implements Rider {
             }
             return apiTasks;
         }
+    }
+
+    /**
+     * Paper restoreFrom 의 CraftEntity#setHandle: 차원을 건너며 빠진 옛 엔티티의 플러그인 작업 대기열을 이 새 엔티티가 이어 받는다 — 플러그인이 쥔 핸들의
+     * 지금 상태·EntityScheduler 가 새 엔티티를 따라간다. 레벨에 넣기 전에(새 엔티티의 레벨 스레드에서) 부른다. 넣지 못하면 addFreshEntity 가 retire 한다.
+     */
+    void inheritApiTasks(EntityTasks t) {
+        if (t == null) return;
+        synchronized (this) {
+            if (apiTasks != null && apiTasks != t) {   // 새 엔티티에 벌써 대기열이 생겼다(있을 수 없다) — 옛 것은 이어 받지 못한다
+                t.retire();
+                return;
+            }
+            apiTasks = t;
+        }
+        t.rebind(this);
     }
 
     /** 대기열이 있으면(없으면 null). 소유 region 스레드가 틱마다. */

@@ -262,4 +262,94 @@ class EntityTeleportApiTest {
         assertNull(find(nether, (UUID) spawned[0], 40.5, 40.5), "지워진 엔티티는 목적 월드에 만들지 않는다");
         assertNull(find(core.world(), (UUID) spawned[0], 8, 8));
     }
+
+    /** 그 칸 주인 region 에서 그 UUID 엔티티를 기다린다(같은 월드 다른 region 이동은 원천 region 틱 끝에 넘어간다). */
+    private Entity await(World w, UUID id, double x, double z) throws Exception {
+        long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+        while (System.nanoTime() < until) {
+            Entity e = find(w, id, x, z);
+            if (e != null) return e;
+            Thread.sleep(20);
+        }
+        return null;
+    }
+
+    @Test
+    void sameWorldOtherRegionHandsOffTheSameEntityObject() throws Exception {
+        record(e -> false);
+        Object[] spawned = spawnCow();
+        UUID id = (UUID) spawned[0];
+        Entity cow = (Entity) spawned[2];
+        var h = (org.domi.furnace.api.entity.Entity) spawned[1];
+        int idBefore = cow.id();
+        // Paper teleportAsync 처럼 목적지 청크를 먼저 올린다 — 멀리 떨어진, 다른 region 의 칸
+        assertTrue(h.teleport(new Location(OVERWORLD, 2000.5, -50, 2000.5, 45f, 10f)).get(30, TimeUnit.SECONDS));
+        assertEquals(1, events.size(), "같은 월드는 한 번");
+        Entity there = await(core.world(), id, 2000.5, 2000.5);
+        assertSame(cow, there, "다른 region 으로 같은 객체째 넘어간다(Paper 는 같은 엔티티를 moveTo)");
+        assertEquals(idBefore, there.id(), "엔티티 번호 그대로");
+        assertNotSame(core.world().regionizer().ownerOf(0, 0), core.world().regionizer().ownerOf(125, 125), "시험 전제: 서로 다른 region");
+        assertNull(find(core.world(), id, 8, 8));
+        assertEquals(45f, there.yRot());
+        assertEquals("kept", core.world().submitAtChunk(new ChunkPos(125, 125), r -> there.persistentData(false).getString("marker")).get(30, TimeUnit.SECONDS));
+        // 옛 핸들(위치는 떠나온 곳)로도 찾아간다 — 핸들 시점 region 에 없으면 엔티티를 따라가는 대기열로
+        var fresh = h.refresh().get(30, TimeUnit.SECONDS);
+        assertNotNull(fresh);
+        assertEquals(2000.5, fresh.location().x(), 1e-9);
+        assertTrue(h.teleport(new Location(OVERWORLD, 2001.5, -50, 2000.5)).get(30, TimeUnit.SECONDS), "옛 핸들로 한 번 더 옮길 수 있다");
+        assertEquals(2001.5, await(core.world(), id, 2001.5, 2000.5).x(), 1e-9);
+    }
+
+    @Test
+    void sameWorldTeleportNowToAnotherRegionReturnsTrueAndHandsOff() throws Exception {
+        record(e -> false);
+        Object[] spawned = spawnCow();
+        UUID id = (UUID) spawned[0];
+        var h = (org.domi.furnace.api.entity.Entity) spawned[1];
+        core.world().submitAtChunk(new ChunkPos(125, 125), r -> r.chunkAtBlocking(new ChunkPos(125, 125))).get(30, TimeUnit.SECONDS);
+        boolean ok = core.world().submitAtChunk(C00, r -> h.teleportNow(new Location(OVERWORLD, 2000.5, -50, 2000.5))).get(30, TimeUnit.SECONDS);
+        assertTrue(ok, "Paper teleport 는 같은 월드면 어느 칸이든 true");
+        assertSame(spawned[2], await(core.world(), id, 2000.5, 2000.5));
+    }
+
+    @Test
+    void crossWorldKeepsThePluginHandleAndItsScheduledTasks() throws Exception {
+        Object[] spawned = spawnCow();
+        UUID id = (UUID) spawned[0];
+        var h = (org.domi.furnace.api.entity.Entity) spawned[1];
+        java.util.concurrent.CompletableFuture<String> ran = new java.util.concurrent.CompletableFuture<>();
+        // 옮기기 전에 걸어 둔 작업이 도착한 새 엔티티에서 돈다(Paper: CHANGED_DIMENSION 은 EntityScheduler 를 retire 하지 않고 restoreFrom 이 핸들을 넘긴다)
+        assertNotNull(h.entityScheduler().runDelayed(() -> ran.complete(h.stateNow().map(st -> st.location().world()).orElse("gone")),
+                () -> ran.complete("retired"), 40));
+        assertTrue(h.teleport(new Location(NETHER, 40.5, -50, 40.5)).get(30, TimeUnit.SECONDS));
+        Entity moved = find(nether, id, 40.5, 40.5);
+        assertNotNull(moved);
+        assertEquals(NETHER, ran.get(30, TimeUnit.SECONDS), "작업이 retire 되지 않고 새 엔티티(네더)에서 돈다");
+        assertFalse(h.entityScheduler().isRetired());
+        assertEquals(moved.id(), h.entityId(), "엔티티 번호는 새 엔티티의 것(Paper getEntityId 도 새 번호)");
+        assertEquals(NETHER, h.editState(st -> st.location().world()).get(30, TimeUnit.SECONDS), "쓰기·읽기 작업이 새 엔티티로 간다");
+        assertEquals(NETHER, h.refresh().get(30, TimeUnit.SECONDS).location().world(), "옛 핸들의 refresh 가 새 월드에서 찾는다");
+        assertTrue(h.remove().get(30, TimeUnit.SECONDS), "옛 핸들로 지울 수 있다");
+        assertNull(find(nether, id, 40.5, 40.5));
+        assertTrue(h.entityScheduler().isRetired(), "지우면 그때 retire");
+    }
+
+    @Test
+    void entityThatCannotArriveRetiresItsTasks() throws Exception {
+        Object[] spawned = spawnCow();
+        UUID id = (UUID) spawned[0];
+        var h = (org.domi.furnace.api.entity.Entity) spawned[1];
+        java.util.concurrent.CompletableFuture<String> ran = new java.util.concurrent.CompletableFuture<>();
+        h.entityScheduler().runDelayed(() -> ran.complete("ran"), () -> ran.complete("retired"), 40);
+        // 목적 월드에 같은 UUID 가 이미 있으면 새 엔티티를 넣지 못한다 — 이어 받은 대기열도 끝난다
+        nether.submitAtChunk(new ChunkPos(2, 2), r -> {
+            r.chunkAtBlocking(new ChunkPos(2, 2));
+            Cow twin = new Cow(r.level(), r.level().nextEntityId());
+            twin.setUuid(id);
+            twin.moveTo(40.5, -50, 40.5, 0, 0);
+            return r.level().addFreshEntity(twin);
+        }).get(30, TimeUnit.SECONDS);
+        assertTrue(h.teleport(new Location(NETHER, 40.5, -50, 40.5)).get(30, TimeUnit.SECONDS));
+        assertEquals("retired", ran.get(30, TimeUnit.SECONDS));
+    }
 }

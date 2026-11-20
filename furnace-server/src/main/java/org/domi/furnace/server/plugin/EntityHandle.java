@@ -106,8 +106,12 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     @Override
     public UUID uniqueId() { return uuid; }
 
+    /**
+     * 엔티티 번호. 차원을 건너 새로 만든 엔티티가 이 핸들의 대기열을 이어 받았으면 그 엔티티의 번호다(Paper 는 CraftEntity 가 새 NMS 엔티티를 따라가
+     * getEntityId 도 새 번호). 번호는 바뀌지 않는 값이라 아무 스레드에서 읽어도 된다.
+     */
     @Override
-    public int entityId() { return entityId; }
+    public int entityId() { return tasks.owner() instanceof Entity e ? e.id() : entityId; }
 
     @Override
     public long snapshotStamp() { return stamp; }
@@ -160,15 +164,41 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     /** 엔티티를 따라가는 대기열(Internals 가 살아 있는 엔티티를 찾을 때). */
     EntityTasks tasks() { return tasks; }
 
-    /** 핸들 시점 위치의 region 에서 uuid 로 찾아 task 를 돈다. 그 region 에 없으면 null 로 완료. */
-    <T> CompletableFuture<T> onOwner(java.util.function.BiFunction<Region, Entity, T> task) {
+    /**
+     * 핸들 시점 위치의 region 에서 uuid 로 찾아 task 를 돈다. 거기에 없으면(그 뒤 다른 region·월드로 옮겨 갔다) 엔티티를 따라가는 대기열로 지금 가진
+     * region 에서 다음 틱에 돈다(Paper 는 CraftEntity 가 옮겨 간 엔티티를 따라간다). 엔티티가 사라졌으면 null 로 완료.
+     */
+    <T> CompletableFuture<T> onOwner(Function<Entity, T> task) {
         World w = serverWorld();
-        if (w == null) return RegionFuture.wrap(CompletableFuture.completedFuture(null));
-        CompletableFuture<T> f = w.submitAtOwnedChunk(chunk(), r -> {
+        @SuppressWarnings("unchecked")
+        T missing = (T) MISSING;
+        CompletableFuture<T> f = w == null ? null : w.submitAtOwnedChunk(chunk(), r -> {
             Entity cur = r.level().entities().get(uuid);
-            return cur == null || cur.isRemoved() ? null : task.apply(r, cur);
+            if (cur == null) return missing;
+            return cur.isRemoved() ? null : task.apply(cur);
         });
-        return RegionFuture.wrap(f != null ? f : CompletableFuture.completedFuture(null));
+        CompletableFuture<T> first = f != null ? f : CompletableFuture.completedFuture(missing);
+        return RegionFuture.wrap(first.thenCompose(v -> v == MISSING ? onFollowed(task) : CompletableFuture.completedFuture(v)));
+    }
+
+    /** onOwner 의 "핸들 시점 region 에 없다" 표시. */
+    private static final Object MISSING = new Object();
+
+    /** 엔티티를 따라가는 대기열로 지금 그 엔티티를 가진 region 스레드에서 task(엔티티)(다음 틱). 사라졌으면 null. */
+    private <T> CompletableFuture<T> onFollowed(Function<Entity, T> task) {
+        return onEntity(task, null, false);
+    }
+
+    /**
+     * 차원(같은 레벨 관문 포함)을 건너는 중인가: 옛 엔티티는 CHANGED_DIMENSION 으로 빠졌고 새 엔티티가 아직 대기열을 이어 받지 않았다. 이 동안은 어느 스레드도
+     * 그 엔티티를 갖지 않는다 — 지금 상태는 핸들 값으로 답하고, 쓰기·작업은 대기열에 걸려 도착한 새 엔티티에서 돈다(Paper 는 같은 틱에 옮겨 이 틈이 없다).
+     */
+    private boolean inTransit(Entity e) {
+        return e.isRemoved() && e.removalReason() == Entity.RemovalReason.CHANGED_DIMENSION && !tasks.isRetired() && tasks.owner() == e;
+    }
+
+    private org.domi.furnace.api.concurrent.ThreadOwnershipException inTransitError(String hint) {
+        return new org.domi.furnace.api.concurrent.ThreadOwnershipException("entity " + type() + " is moving to another world or region and no thread owns it right now - " + hint);
     }
 
     /**
@@ -198,42 +228,66 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
 
     @Override
     public CompletableFuture<? extends org.domi.furnace.api.entity.Entity> refresh() {
-        return onOwner((r, cur) -> of(host, cur));
+        return onOwner(cur -> of(host, cur));
     }
 
     @Override
     public CompletableFuture<Boolean> teleport(Location to) {
-        World w = serverWorld();
         CompletableFuture<Boolean> result = new CompletableFuture<>();   // 다른 월드로 가면 도착(또는 되돌림) 뒤에 true
-        CompletableFuture<Boolean> started = onOwner((r, cur) -> moveEntity(w, r, cur, to, () -> result.complete(true)));
-        started.whenComplete((ok, err) -> {
-            if (err != null) result.completeExceptionally(err);
-            else if (ok == null || !ok) result.complete(false);
+        // Paper teleportAsync: 목적지 충돌 상자 둘레 청크를 먼저 올리고(만들어서라도) 옮긴다 — 다른 region·올라오지 않은 칸으로 가도 엔티티가 살아 있다
+        preloadAround(to).whenComplete((loaded, loadErr) -> {
+            if (loadErr != null || loaded == null || !loaded) {   // 내린 월드 등 — 옮기지 않는다
+                result.complete(false);
+                return;
+            }
+            onOwner(cur -> moveEntity(cur, to, () -> result.complete(true))).whenComplete((ok, err) -> {
+                if (err != null) result.completeExceptionally(err);
+                else if (ok == null || !ok) result.complete(false);
+            });
         });
         return RegionFuture.wrap(result);
     }
 
     /**
+     * Paper CraftEntity#teleportAsync → ServerLevel#loadChunksForMoveAsync(getBoundingBoxAt(목적지)): 상자를 1e-7 넓혀 블록으로 내린 뒤 ±3 블록
+     * 둘레가 걸친 청크를 모두 올린다(만들어서라도). 상자 크기는 이 핸들 시점 값. 그 월드가 없으면 false.
+     */
+    private CompletableFuture<Boolean> preloadAround(Location to) {
+        WorldHandle wh = host.worldHandle(to.world());
+        if (wh == null) return CompletableFuture.completedFuture(false);
+        var bb = boundingBox;
+        double hx = (bb.maxX() - bb.minX()) / 2.0, hz = (bb.maxZ() - bb.minZ()) / 2.0;
+        int minCx = (floor(to.x() - hx - 1.0E-7) - 3) >> 4, maxCx = (floor(to.x() + hx + 1.0E-7) + 3) >> 4;
+        int minCz = (floor(to.z() - hz - 1.0E-7) - 3) >> 4, maxCz = (floor(to.z() + hz + 1.0E-7) + 3) >> 4;
+        List<CompletableFuture<Boolean>> all = new ArrayList<>();
+        for (int cx = minCx; cx <= maxCx; cx++) for (int cz = minCz; cz <= maxCz; cz++) all.add(wh.loadChunkAsync(cx, cz, true));
+        return CompletableFuture.allOf(all.toArray(CompletableFuture[]::new)).thenApply(v -> all.stream().allMatch(CompletableFuture::join));
+    }
+
+    private static int floor(double v) { return (int) Math.floor(v); }
+
+    /**
      * Paper CraftEntity#teleport 의 규칙(소유 region 스레드에서): 사라졌거나 승객이 타고 있으면 false(아무것도 안 바꾼다). EntityTeleportEvent 를
      * 부르고(취소하거나 to 를 비우면 false, to 를 바꾸면 그 위치로), 탈것에서 내린 뒤, 같은 월드면 그 자리로 옮기고(속도 0, 머리 방향도 맞춘다),
      * 다른 월드면 Entity#changeDimension 으로 목적 월드에 새로 만든다(UUID·저장 데이터 유지, 이벤트는 한 번 더 — 도착 위치의 yaw 자리에 요청한
-     * pitch 가 들어가는 Paper 1.21.1 의 CraftBukkit 순서 그대로). 목적지가 다른 region 인 같은 월드 이동은 아직 false(핸드오프는 T-196 다음 단계).
+     * pitch 가 들어가는 Paper 1.21.1 의 CraftBukkit 순서 그대로). 같은 월드 안 다른 region 으로 가면 이 region 틱 끝에 그 region 이 같은 객체를 이어 받는다.
      * done 은 같은 월드면 곧바로, 다른 월드면 도착 뒤 한 번 불린다.
      */
-    private boolean moveEntity(World w, Region r, Entity cur, Location to, Runnable done) {
+    private boolean moveEntity(Entity cur, Location to, Runnable done) {
         if (cur.isRemoved() || cur.isVehicle()) return false;
         String here = cur.dimensionKey();
-        boolean across = !to.world().equals(here);
-        if (across ? host.core().world(to.world()) == null : !ownsTarget(w, r, to.x(), to.z())) return false;
+        if (!to.world().equals(here) && host.core().world(to.world()) == null) return false;
         var events = cur.level().gameEvents();
         var t = events.entityTeleport(cur, new GameEvents.TeleportTarget(to.world(), to.x(), to.y(), to.z(), to.yaw(), to.pitch()));
         if (t == null) return false;
         if (t.dimension().equals(here)) {
-            if (!ownsTarget(w, r, t.x(), t.z())) return false;
             if (cur.vehicle() != null) cur.stopRiding();
             cur.moveTo(t.x(), t.y(), t.z(), t.yaw(), t.pitch());
             cur.setDeltaMovement(0.0, 0.0, 0.0);   // Paper moveTo 처럼 텔레포트하면 속도를 지운다
             if (cur instanceof LivingEntity le) le.setYHeadRot(t.yaw());   // SPIGOT-619: 머리 방향도 맞춘다
+            // 목적 칸이 다른 region 이면 이 region 틱 끝(handOffEntities)에 그 region 이 이 객체째 이어 받는다 — 걸어서 경계를 넘을 때와 같은 길이라
+            // 엔티티 번호·추적 상태·플러그인 대기열이 그대로다(Paper 는 같은 엔티티를 moveTo). 그동안 남의 칸이라 이 region 에선 틱하지 않는다.
+            // 아무도 갖지 않은(올라오지 않은) 칸이면 그 청크 저장으로 내린다(handOffEntities 와 같다)
             done.run();
             return true;
         }
@@ -251,18 +305,20 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
             done.run();
             return true;
         }
+        if (t2.dimension().equals(here)) {
+            // 두 번째 이벤트가 떠나온 월드로 되돌렸다: Paper changeDimension 의 같은 레벨 쪽 — 같은 엔티티를 moveTo(위치, yRot, 지금 xRot)·속도 0,
+            // resetEmptyTime(머리 방향은 맞추지 않는다). 다른 region 칸이면 위 같은 월드 이동처럼 틱 끝에 넘어간다
+            cur.moveTo(t2.x(), t2.y(), t2.z(), t2.yaw(), cur.xRot());
+            cur.setDeltaMovement(0.0, 0.0, 0.0);
+            cur.level().resetEmptyTime();
+            done.run();
+            return true;
+        }
         return cur.changeDimensionTo(t2.dimension(), t2.x(), t2.y(), t2.z(), t2.yaw(), done);
     }
 
     /** CraftBukkit 1.21.1 CraftEntity#teleport 가 다른 월드 DimensionTransition 에 yaw 와 pitch 를 바꿔 넘기는 것을 따른다(Paper 와 같은 결과). */
     private static final boolean PAPER_SWAPS_YAW_PITCH = true;
-
-    /** 목적 칸이 이 region 소유인가(다른 region 으로의 같은 월드 이동은 핸드오프가 없어 아직 못 한다). */
-    private static boolean ownsTarget(World w, Region r, double x, double z) {
-        if (w == null) return false;
-        ChunkPos tcp = ChunkPos.ofBlock(x, z);
-        return w.regionizer().ownerOf(tcp.x(), tcp.z()) == r;
-    }
 
     /**
      * 소유 region 스레드에서 곧바로. 그 스레드가 아니면 ThreadOwnershipException, 사라졌으면 false. 다른 월드로 가면 시작이 받아들여졌다는 뜻으로 true 를
@@ -270,7 +326,9 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
      */
     @Override
     public boolean teleportNow(Location to) {
-        if (!(tasks.owner() instanceof Entity e) || e.isRemoved()) return false;
+        if (!(tasks.owner() instanceof Entity e)) return false;
+        if (inTransit(e)) throw inTransitError("call it inside an entityScheduler() task");
+        if (e.isRemoved()) return false;
         World w = host.core().world(e.dimensionKey());
         ChunkPos cp = ChunkPos.ofBlock(e.x(), e.z());
         if (org.domi.furnace.server.world.RegionBorrow.claimEntity(e)) cp = ChunkPos.ofBlock(e.x(), e.z());
@@ -279,12 +337,12 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
             throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("entity " + type() + " is not owned by this region thread (current thread: "
                     + Thread.currentThread().getName() + ") - call it inside an entityScheduler() task");
         }
-        return moveEntity(w, r, e, to, () -> { });
+        return moveEntity(e, to, () -> { });
     }
 
     @Override
     public CompletableFuture<Boolean> remove() {
-        return onOwner((r, cur) -> {
+        return onOwner(cur -> {
             cur.discard();
             return true;
         }).thenApply(b -> b != null && b);
@@ -332,7 +390,9 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     /** 소유 스레드에서 곧바로: 이 스레드가 엔티티를 가진 region 을 돌리고 있어야 한다(아니면 ThreadOwnershipException). 사라졌으면 false. */
     @Override
     public boolean editPersistentDataNow(Consumer<PersistentDataContainer> edit) {
-        if (!(tasks.owner() instanceof Entity e) || e.isRemoved()) return false;
+        if (!(tasks.owner() instanceof Entity e)) return false;
+        if (inTransit(e)) throw inTransitError("call it inside editPersistentData or an entityScheduler() task");
+        if (e.isRemoved()) return false;
         World w = host.core().world(e.dimensionKey());
         ChunkPos cp = ChunkPos.ofBlock(e.x(), e.z());
         // 전역 빌림 구간이면 그 엔티티의 region 을 빌린다 — 기다리는 사이 경계를 넘었으면 옮겨 간 region 을(위치는 빌린 뒤 다시 읽는다)
@@ -351,6 +411,7 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     @Override
     public boolean isOwnedByCurrentThread() {
         if (!(tasks.owner() instanceof Entity e)) return true;   // 사라졌다 — stateNow 는 어느 스레드에서나 빈 값
+        if (inTransit(e)) return false;   // 건너는 중 — 아무 스레드도 갖지 않는다(쓰기는 대기열로 맡긴다)
         return org.domi.furnace.server.world.RegionBorrow.claimEntity(e) || e.level().isOwnerThread();
     }
 
@@ -358,6 +419,7 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
     public Optional<org.domi.furnace.api.entity.EntityState> stateNow() {
         // 엔티티를 따라가는 대기열이 지금의 엔티티를 쥐고 있다 — 스폰 이벤트처럼 아직 레벨 목록에 오르기 전에도 찾는다(aiNow 와 같다)
         if (!(tasks.owner() instanceof Entity e)) return Optional.empty();
+        if (inTransit(e)) throw inTransitError("use editState");
         if (!org.domi.furnace.server.world.RegionBorrow.claimEntity(e) && !e.level().isOwnerThread()) {
             throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("stateNow() is for entity " + type() + " and can only be called from the region thread that owns it (current thread: "
                     + Thread.currentThread().getName() + ") - use editState");
@@ -487,7 +549,7 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
 
         @Override
         public CompletableFuture<Void> updateHealth(float h) {
-            return onOwner((r, cur) -> {
+            return onOwner(cur -> {
                 if (!(cur instanceof LivingEntity le)) return Boolean.FALSE;
                 if (h <= 0f) le.dieFromApi();
                 else le.setHealth(h);
