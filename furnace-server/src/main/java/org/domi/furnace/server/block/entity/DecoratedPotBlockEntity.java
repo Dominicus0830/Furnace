@@ -145,4 +145,7 @@ public class DecoratedPotBlockEntity extends ContainerBlockEntity {
     /** getUpdateTag(saveCustomOnly): 클라이언트가 면 무늬를 그리도록 sherds·item 을 그대로. */
     @Override
     public NbtCompound updateTag() { return saveCustomOnly(); }
+
+    /** 바닐라 getUpdatePacket: ClientboundBlockEntityDataPacket.create(this). */
+    @Override public boolean hasUpdatePacket() { return true; }
 }

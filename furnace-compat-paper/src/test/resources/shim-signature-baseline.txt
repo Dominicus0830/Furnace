@@ -133,7 +133,6 @@ descriptor	net/minecraft/world/level/block/state/BlockBehaviour	<init>()V	기준
 descriptor	net/minecraft/world/level/block/state/BlockBehaviour$BlockStateBase	<init>(Lnet/minecraft/world/level/block/Block;Ljava/util/Map;I)V	기준=#f3785920ad5b	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	net/minecraft/world/level/block/state/BlockState	<init>(Lnet/minecraft/world/level/block/Block;Ljava/util/Map;I)V	기준=#f3785920ad5b	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	net/minecraft/world/level/block/state/StateDefinition	<init>(Ljava/lang/Object;Ljava/util/Map;Ljava/util/List;)V	기준=#8c55a48276f5	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-descriptor	net/minecraft/world/level/block/state/StateDefinition	getPossibleStates()Ljava/util/List;	기준=#747dc7642c65	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	net/minecraft/world/level/block/state/StateHolder	<init>(Ljava/lang/Object;Ljava/util/Map;)V	기준=#d8bbfde02172	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	net/minecraft/world/level/border/WorldBorder	<init>(Lorg/domi/furnace/api/world/World;)V	기준=#8db329472a27	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	net/minecraft/world/level/chunk/ChunkAccess	<init>(Lorg/domi/furnace/api/world/World;II)V	기준=#ae3c3cdc651e	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다

@@ -75,6 +75,9 @@ public abstract class BlockBehaviour {
         /** 바닐라 isAir: air·cave_air·void_air. */
         public boolean isAir() { return owner.furnaceIsAir(); }
 
+        /** 바닐라: 블록이 EntityBlock 인가(움직이는 피스톤도 참). */
+        public boolean hasBlockEntity() { return owner instanceof net.minecraft.world.level.block.EntityBlock; }
+
         /** 바닐라: 블록 자체가 무작위 틱을 받는가(유체 쪽은 {@code getFluidState().isRandomlyTicking()}). 서버 블록 동작 표에서 처음 물을 때 채운다. */
         public boolean isRandomlyTicking() {
             byte t = randomlyTicking;

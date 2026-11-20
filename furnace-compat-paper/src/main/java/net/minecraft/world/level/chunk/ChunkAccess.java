@@ -329,6 +329,34 @@ public abstract class ChunkAccess implements BlockGetter {
         }, false);
     }
 
+    /**
+     * 호환 모듈 전용 — 보기의 클라이언트 갱신 태그(바닐라 getUpdatePacket 이 싣는 것, 갱신 패킷을 보내지 않는 종류면 null). 스레드 규칙은
+     * {@link #furnaceBlockEntitySave} 와 같다. 다른 스레드가 지운 것은 주인이 지우기 직전에 뜬 꼴로 만든다.
+     */
+    public org.domi.furnace.api.nbt.NbtCompound furnaceBlockEntityUpdateTag(net.minecraft.world.level.block.entity.BlockEntity view) {
+        var b = NmsChunks.bridge();
+        var p = view.getBlockPos();
+        var snap = view.furnaceSnapshot();
+        if (snap != null) return b.detachedBlockEntityUpdateTag(view.getBlockState().furnaceStateId(), snap);
+        if (furnaceMirror.dead()) {
+            Object h = view.furnaceHandle();
+            if (h == null) throw new IllegalStateException("the chunk of this block entity was unloaded: " + p);
+            return b.blockEntityUpdateTagNow(h);
+        }
+        return org.domi.furnace.compat.nms.NmsOwner.call(furnaceWorld, p.getX(), p.getY(), p.getZ(), "BlockEntity.getUpdatePacket", () -> {
+            Object h;
+            if (furnaceMirror.dead() || !furnaceOwner()) {
+                h = view.furnaceHandle();
+                if (h == null) throw new IllegalStateException("the chunk of this block entity was unloaded: " + p);
+            } else {
+                furnaceMirror.ownerSyncIfDirty();
+                h = furnaceBindNow(furnaceWorld, view);
+                if (h == null) throw new IllegalStateException("no block entity at that position (removed, or its chunk was unloaded): " + p);
+            }
+            return b.blockEntityUpdateTagNow(h);
+        }, false);
+    }
+
     private org.domi.furnace.api.nbt.NbtCompound furnaceSaveOwned(net.minecraft.world.level.block.entity.BlockEntity view) {
         furnaceMirror.ownerSyncIfDirty();   // 이 스레드·다른 스레드의 앞선 블록 엔티티 일지(지우기·싣기)를 먼저
         Object h = furnaceBindNow(furnaceWorld, view);
