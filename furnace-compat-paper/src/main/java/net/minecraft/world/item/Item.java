@@ -18,7 +18,7 @@ public class Item implements ItemLike {
 
     private final String key;
 
-    private Item(String key) { this.key = key; }
+    Item(String key) { this.key = key; }   // 같은 패키지 하위 클래스(BlockItem)만
 
     /** 호환 모듈 전용 — 레지스트리 키(minecraft:stone)의 종류. */
     public static Item byKey(String key) {

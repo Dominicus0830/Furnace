@@ -209,6 +209,25 @@ public class Block extends BlockBehaviour implements ItemLike {
         return org.domi.furnace.compat.nms.NmsOwner.call(w, x, y, z, "Block#getExpDrop", () -> b.expDropNow(w, id, x, y, z, t));
     }
 
+    /**
+     * 바닐라: 블록을 놓은 뒤 블록 종류별 뒷일(침대 머리 놓기, 이름표 붙은 블록 엔티티 등). state 의 블록 종류의 서버 코드(바닐라 이식)를 그 칸 주인 스레드에서
+     * 부른다({@link org.domi.furnace.compat.nms.NmsOwner} 규칙, NMS shim 5d — Axiom 블록 놓기). placer 는 null 이거나 플레이어여야 한다(다른 생물이 놓는 일은 Furnace 에
+     * 없다 — UnsupportedNmsCall). 로드되지 않은 칸은 IllegalStateException.
+     */
+    public void setPlacedBy(net.minecraft.world.level.Level level, net.minecraft.core.BlockPos pos, BlockState state,
+                            net.minecraft.world.entity.LivingEntity placer, net.minecraft.world.item.ItemStack itemStack) {
+        org.domi.furnace.api.entity.Player who = null;
+        if (placer != null) {
+            if (!(placer instanceof net.minecraft.server.level.ServerPlayer sp)) {
+                throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("Block#setPlacedBy", "only a player (or no one) can be the placer here (got " + placer + ")");
+            }
+            who = sp.getBukkitEntity().furnaceHandle();
+        }
+        var item = (itemStack == null ? net.minecraft.world.item.ItemStack.EMPTY : itemStack).furnaceValue();
+        org.domi.furnace.compat.nms.NmsEffects.place(level, pos, org.domi.furnace.api.internal.ChunkInternals.PLACE_SET_PLACED_BY, state.furnaceStateId(),
+                who, item, false, "Block#setPlacedBy");
+    }
+
     /** 바닐라 Util.makeDescriptionId("block", 키). */
     public String getDescriptionId() { return "block." + key.getNamespace() + "." + key.getPath().replace('/', '.'); }
 

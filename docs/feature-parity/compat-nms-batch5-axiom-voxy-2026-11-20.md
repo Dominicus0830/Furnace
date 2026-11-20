@@ -185,7 +185,38 @@ Axiom 블록 버퍼는 칸마다 옛 상태와 새 상태의 관심 지점 종�
 - 시험(`NmsBlockBufferTest` 에 4개): 종류 표(벌집·종·침대 머리만·자석석, 같은 종류는 같은 손잡이, 레지스트리 20개), 주인·다른 스레드로 넣고 지우기를
   서버 POI 로 확인, 레지스트리 밖 종류 거절.
 
-## 지금까지 모음(5a~5d-2)
+## 5d-3 — 블록 놓기 패킷 길(Axiom SetBlockPacketListener)
+
+Axiom 이 한 칸·여러 칸 놓기 패킷을 받으면 블록 요청 번호를 알리고(ack), 놓을 칸마다 자기 `CraftBlockState` 하위 클래스로 Bukkit 놓기 이벤트를 부르고,
+놓은 뒤 아이템의 블록 엔티티 데이터·컴포넌트를 싣고 `setPlacedBy` 를 부른다. **채운 기호 9개.**
+
+| 분류 | 개수 | 기호 |
+|---|---|---|
+| 자동 연결 가능 | 2 | `CraftBlock.notchToBlockFace`(+`blockFaceToNotch`), `BlockMultiPlaceEvent`(Bukkit API) |
+| 다리 위 기계적 | 5 | `CraftEventFactory.callBlockPlaceEvent`·`callBlockMultiPlaceEvent`(Paper 판정, 스폰 보호 다리), `BlockItem.updateCustomBlockEntityTag`, `BlockEntity.applyComponentsFromItemStack`, `Block.setPlacedBy`(놓기 뒷일 다리) |
+| 설계 필요 | 2 | `CraftBlockState(World, BlockPos, BlockState)`(플러그인이 상속 — 추상 클래스를 구체로), `ServerGamePacketListenerImpl.ackBlockChangesUpTo`(알림 차례) |
+
+새 다리 3건(`ChunkInternals.ackBlockChanges`·`underSpawnProtection`·`placeStepNow`). 자동 연결 가능 비율 **22%(2/9)**, 기계적까지 78%.
+
+걸린 시간: 약 10분(21:22~21:35 중 538 병합·539 올리기 3분 뺌).
+
+- `CraftBlockState` 는 Paper 처럼 구체 클래스가 됐다. Paper 생성자 `(World, BlockPos, BlockState)` 로 만든 하위 클래스(Axiom `AxiomPlacingCraftBlockState`)는
+  Bukkit 표면을 그 칸의 보통 스냅숏(`CompatBlockState`)에 맡긴다(월드를 읽지 않는다). Furnace 하위 클래스는 전처럼 스스로 구현한다. `getBlock` 은 Paper 처럼
+  `CraftBlock`(공변 반환형). 서명 관문 기준선의 "shim 만 abstract" 줄을 지웠다.
+- 놓기 이벤트: Paper `canBuild`(오버월드·스폰 보호 반경·OP 있음·이 플레이어 OP 아님)를 서버의 `isUnderSpawnProtection` 으로 본다(놓는 레벨의 차원).
+  이벤트는 Bukkit 처리기에만 간다(Paper 와 같다 — 서버의 블록 놓기가 아니다). 여러 칸 이벤트는 `BlockPlaceEvent` 처리기 목록을 같이 쓴다.
+- ack: 그 플레이어가 선 칸의 region 틱 끝, 그 틱의 블록 변경 방송 뒤에 나간다(서버 블록 요청과 같은 길 — 바닐라는 다음 연결 틱 첫머리, 차례가 같다).
+  음수는 바닐라 문구로 `IllegalArgumentException`.
+- `updateCustomBlockEntityTag`: 관리자만 쓸 수 있는 종류는 Paper 처럼 관리자 블록 권한이거나 즉시 짓기 + `minecraft.nbt.place` 권한. 서버 쪽 블록 놓기
+  (`BlockPlacement`)는 아직 권한 갈래가 없다(바닐라 판정) — 서버 길은 이번 범위가 아니라 그대로 둔다.
+- `applyComponentsFromItemStack`: 월드의 보기만(종류별 컴포넌트 읽기가 서버에만 있다). 월드 밖 블록 엔티티는 `UnsupportedNmsCall`.
+- `setPlacedBy`: 놓는 이는 null 이거나 플레이어(월드에 없는 가짜 플레이어 포함). 다른 생물은 `UnsupportedNmsCall`. 둘레 청크까지 맞춘 뒤 부른다(침대 머리).
+- 남긴 것: Axiom 은 `BedBlock`·`DoublePlantBlock`·`DoorBlock` 이면 `setPlacedBy` 를 건너뛰는데 지금 shim 블록 객체는 그 클래스가 아니라 늘 부른다(침대·문을
+  두 칸 다 놓은 뒤라 한 번 더 같은 칸을 쓴다). 블록·아이템 종류 계층(T-231)은 생성기 스레드가 맡았다 — 그때 `BlockItem` 손 shim 도 옮긴다.
+- 시험 `NmsBlockPlaceTest`(5): ack 패킷과 음수, 플러그인이 만든 상태로 한 칸·여러 칸 이벤트(취소·손·대표 칸), 아이템 블록 엔티티 데이터·이름·명령 블록 거절,
+  침대 `setPlacedBy` 가 머리 칸을 놓는다, 면 변환.
+
+## 지금까지 모음(5a~5d-3)
 
 | 묶음 | 기호 | 자동 연결 가능 | 다리 위 기계적 | 설계 필요 | 걸린 시간 |
 |---|---|---|---|---|---|
@@ -195,10 +226,11 @@ Axiom 블록 버퍼는 칸마다 옛 상태와 새 상태의 관심 지점 종�
 | 5c | 13 | 11 | 0 | 2 (+다리 1) | 6분 |
 | 5d-1 | 8 | 4 | 2 | 2 (+다리 1) | 15분 |
 | 5d-2 | 4 | 1 | 3 | 0 (+다리 1) | 6분 |
-| 합계 | 62 | 32 (52%) | 22 (35%) | 8 (13%) + 다리 5 | 52분 (+5a 검토 고침 5분) |
+| 5d-3 | 9 | 2 | 5 | 2 (+다리 3) | 10분 |
+| 합계 | 71 | 34 (48%) | 27 (38%) | 10 (14%) + 다리 8 | 62분 (+5a 검토 고침 5분) |
 
-다리가 생긴 뒤의 기계적 연결까지 넣으면 87%(54/62, 5c 까지는 44/50 = 88%)가 사람의 설계 없이 이을 수 있는 꼴이었다. 손으로 쓴 시간의 대부분은 설계 필요 8개와
-다리 5건, 그리고 바닐라 값 시험이었다.
+다리가 생긴 뒤의 기계적 연결까지 넣으면 86%(61/71, 5c 까지는 44/50 = 88%)가 사람의 설계 없이 이을 수 있는 꼴이었다. 손으로 쓴 시간의 대부분은 설계 필요 10개와
+다리 8건, 그리고 바닐라 값 시험이었다.
 
 5a~5c 시간: 묶음별 시간을 더하면 33분이지만 5b 와 5c 가 2분 겹쳐 실제 손 시간은 약 31분이다. 여기에 5a 검토 고침 5분을 더하면 첫 명령 20:13:53 부터
 5c 문서 커밋 20:48:21 까지 약 34.5분과 맞는다.

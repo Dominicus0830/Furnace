@@ -14,6 +14,18 @@ public class CraftBlock extends CompatBlock {
     /** 호환 모듈 전용 — 월드가 주는 블록(Paper 처럼 {@code getWorld().getBlockAt}·이벤트의 블록이 CraftBlock 이다). */
     public static CraftBlock of(String dimension, org.domi.furnace.api.world.BlockPos pos) { return new CraftBlock(dimension, pos); }
 
+    /** Paper: NMS 방향 → Bukkit 면(null 이면 SELF). 이름이 같다(enum switch 의 합성 클래스를 만들지 않으려고 이름으로). */
+    public static org.bukkit.block.BlockFace notchToBlockFace(net.minecraft.core.Direction notch) {
+        return notch == null ? org.bukkit.block.BlockFace.SELF : org.bukkit.block.BlockFace.valueOf(notch.name());
+    }
+
+    /** Paper: Bukkit 면 → NMS 방향(여섯 면이 아니거나 null 이면 null). */
+    public static net.minecraft.core.Direction blockFaceToNotch(org.bukkit.block.BlockFace face) {
+        if (face == null) return null;
+        for (net.minecraft.core.Direction d : net.minecraft.core.Direction.values()) if (d.name().equals(face.name())) return d;
+        return null;
+    }
+
     /** Paper: 이 블록이 있는 월드(CraftWorld). */
     public org.bukkit.craftbukkit.CraftWorld getCraftWorld() { return (org.bukkit.craftbukkit.CraftWorld) getWorld(); }
 

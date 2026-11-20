@@ -34,6 +34,12 @@ public abstract class Player extends LivingEntity {
     /** 바닐라 {@code Player#isCreative}: 크리에이티브 모드인가(스펙테이터는 아니다). */
     public boolean isCreative() { return getBukkitEntity().getGameMode() == org.bukkit.GameMode.CREATIVE; }
 
+    /** 바닐라: 관리자 블록(명령 블록 등)을 쓸 수 있는가 — 즉시 짓기(크리에이티브)이고 권한 수준 2 이상. */
+    public boolean canUseGameMasterBlocks() {
+        boolean instabuild = this instanceof net.minecraft.server.level.ServerPlayer sp ? sp.getAbilities().instabuild : isCreative();
+        return instabuild && hasPermissions(2);
+    }
+
     /** 바닐라 {@code Player#getFoodData}: 이 플레이어의 허기·포화·소모(서버 값을 보는 보기). */
     public net.minecraft.world.food.FoodData getFoodData() { return new net.minecraft.world.food.FoodData(this); }
 

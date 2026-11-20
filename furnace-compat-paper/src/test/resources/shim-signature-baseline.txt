@@ -66,7 +66,6 @@ class-access	org/bukkit/craftbukkit/CraftChunk	-	shim 만 final	미분류 — �
 class-access	org/bukkit/craftbukkit/CraftEffect	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	org/bukkit/craftbukkit/CraftOfflinePlayer	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	org/bukkit/craftbukkit/CraftWorld	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-class-access	org/bukkit/craftbukkit/block/CraftBlockState	-	shim 만 abstract	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	org/bukkit/craftbukkit/block/banner/CraftPatternType	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	org/bukkit/craftbukkit/block/data/CraftBlockData	-	shim 만 abstract	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	org/bukkit/craftbukkit/block/sign/CraftSignSide	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -643,6 +642,7 @@ type-missing	net/minecraft/world/entity/player/Player	-	#ce19b700f72a	미분류 
 type-missing	net/minecraft/world/entity/player/Player	-	#dcb2cba631c3	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/entity/player/Player	-	#f950c66245ab	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/inventory/MenuType	-	#3a04039cff05	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	net/minecraft/world/item/BlockItem	-	#3a04039cff05	미분류 — 상위 Item 의 같은 차이(FeatureElement 없음)를 물려받는다. Item 줄과 함께 생성기(T-229~)가 바로잡으면 지운다
 type-missing	net/minecraft/world/item/Item	-	#3a04039cff05	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/item/ItemStack	-	#77104a472748	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/item/component/ItemLore	-	#df582c8d1b8c	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다

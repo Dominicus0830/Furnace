@@ -822,6 +822,64 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     @Override
+    public void ackBlockChanges(org.domi.furnace.api.entity.Player player, int sequence) {
+        if (sequence < 0) throw new IllegalArgumentException("Expected packet sequence nr >= 0");
+        var p = serverPlayer(player, "ServerGamePacketListenerImpl#ackBlockChangesUpTo");
+        var w = host.core().world(p.dimension());
+        if (w == null) return;   // 월드를 옮기는 사이 — 그 플레이어의 블록 요청도 없다
+        w.runAt(p.x(), p.z(), r -> r.level().ackBlockChangesUpTo(p, sequence));
+    }
+
+    @Override
+    public int placeStepNow(org.domi.furnace.api.world.World world, int kind, int x, int y, int z, int state, org.domi.furnace.api.entity.Player placer,
+                            org.domi.furnace.api.item.ItemStack item, boolean opData) {
+        String what = switch (kind) {
+            case PLACE_CUSTOM_DATA -> "BlockItem#updateCustomBlockEntityTag";
+            case PLACE_APPLY_COMPONENTS -> "BlockEntity#applyComponentsFromItemStack";
+            case PLACE_SET_PLACED_BY -> "Block#setPlacedBy";
+            default -> throw new IllegalArgumentException("unknown place step " + kind);
+        };
+        RegionLevel lv = ownedLevel(world, x, z, what);
+        if (lv == null) return -1;
+        var w = handle(world).handle();
+        var stack = ApiConvert.item(item, w.itemRegistry());
+        Pos p = new Pos(x, y, z);
+        switch (kind) {
+            case PLACE_CUSTOM_DATA -> {
+                // 바닐라 updateCustomBlockEntityTag(서버 BlockPlacement 와 같은 판정 — 관리자 판정만 부르는 쪽이 Paper 규칙으로 넘긴다)
+                if (!(org.domi.furnace.server.item.ItemTools.component(stack, "minecraft:block_entity_data")
+                        instanceof org.domi.furnace.server.net.io.nbt.NbtCompound data) || data.tags().isEmpty()) return 0;
+                if (!(lv.getBlockEntity(p) instanceof org.domi.furnace.server.block.entity.BlockEntity be)) return 0;
+                if (be.onlyOpCanSetNbt() && !opData) return 0;
+                return be.loadCustomDataInto(lv, data) ? 1 : 0;
+            }
+            case PLACE_APPLY_COMPONENTS -> {
+                if (lv.getBlockEntity(p) instanceof org.domi.furnace.server.block.entity.BlockEntity be) be.applyComponentsFromItemStack(stack);
+                return 0;
+            }
+            default -> {
+                checkState(state);
+                org.domi.furnace.server.block.BlockActor actor = null;
+                if (placer != null) {
+                    if (!(placer instanceof PlayerHandle ph)) throw new IllegalArgumentException(what + ": not a server player: " + placer);
+                    var pl = ph.handle();
+                    // setPlacedBy 는 넘긴 아이템을 쓴다 — 손은 비운 행위자(위치·시선·권한은 그 플레이어)
+                    actor = new org.domi.furnace.server.block.PlayerActor(pl, org.domi.furnace.server.entity.ItemStack.EMPTY,
+                            org.domi.furnace.server.entity.ItemStack.EMPTY, host.core().profilePermissions(org.domi.furnace.server.ServerCore.profileOf(pl)));
+                }
+                org.domi.furnace.server.block.BlockBehaviors.of(state).setPlacedBy(lv, p, state, actor, stack);
+                return 0;
+            }
+        }
+    }
+
+    @Override
+    public boolean underSpawnProtection(org.domi.furnace.api.world.World world, org.domi.furnace.api.entity.Player player, int x, int z) {
+        if (!(player instanceof PlayerHandle ph)) throw new IllegalArgumentException("not a server player: " + player);
+        return host.core().isUnderSpawnProtection(world.dimension(), x, z, ph.handle());
+    }
+
+    @Override
     public void setPlayerAbilities(org.domi.furnace.api.entity.Player player, PlayerAbilities v, boolean send) {
         if (!(player instanceof PlayerHandle ph)) throw new IllegalArgumentException("not a server player: " + player);
         var a = new org.domi.furnace.server.entity.Abilities();

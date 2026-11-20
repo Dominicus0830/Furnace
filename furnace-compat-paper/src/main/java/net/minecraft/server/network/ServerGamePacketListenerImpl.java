@@ -15,4 +15,12 @@ public class ServerGamePacketListenerImpl extends ServerCommonPacketListenerImpl
     }
 
     public ServerPlayer getPlayer() { return player; }
+
+    /**
+     * 바닐라: seq 번 블록 요청까지 처리했다고 알린다(NMS shim 5d — Axiom 블록 놓기). 알림은 그 플레이어가 선 칸의 region 틱 끝, 그 틱의 블록 변경 방송 뒤에
+     * 나간다(바닐라: 다음 연결 틱 첫머리 — 같은 차례). 아무 스레드. 음수면 바닐라처럼 IllegalArgumentException.
+     */
+    public void ackBlockChangesUpTo(int sequence) {
+        org.domi.furnace.compat.nms.NmsChunks.bridge().ackBlockChanges(player.getBukkitEntity().furnaceHandle(), sequence);
+    }
 }

@@ -237,4 +237,17 @@ public abstract class BlockEntity {
 
     @Override
     public String toString() { return getClass().getSimpleName() + "{" + BlockEntityType.getKey(type) + "@" + worldPosition + "}"; }
+
+    /**
+     * 바닐라: 아이템의 컴포넌트(이름·잠금·내용물 등 종류별)를 이 블록 엔티티가 받는다(NMS shim 5d — Axiom 블록 놓기). 월드의 보기면 그 칸 서버 블록 엔티티가
+     * 서버의 같은 코드로 받는다({@link org.domi.furnace.compat.nms.NmsOwner} 규칙). 월드 밖 블록 엔티티는 종류별 컴포넌트 읽기가 서버에만 있어 UnsupportedNmsCall.
+     */
+    public void applyComponentsFromItemStack(net.minecraft.world.item.ItemStack stack) {
+        if (furnaceChunk == null || level == null) {
+            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("BlockEntity#applyComponentsFromItemStack",
+                    "reading item components into a block entity outside the world");
+        }
+        org.domi.furnace.compat.nms.NmsEffects.place(level, worldPosition, org.domi.furnace.api.internal.ChunkInternals.PLACE_APPLY_COMPONENTS, 0, null,
+                (stack == null ? net.minecraft.world.item.ItemStack.EMPTY : stack).furnaceValue(), false, "BlockEntity#applyComponentsFromItemStack");
+    }
 }
