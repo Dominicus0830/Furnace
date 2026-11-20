@@ -369,7 +369,7 @@ class PaperConfigImportTest {
         assertEquals(32, s.villagers());
     }
 
-    /** T-219: bukkit.yml worlds.<기본 세 월드>.generator·biome-provider → world-generator.<차원>·world-biome-provider.<차원>. 다른 이름은 대응 없음(T-222). */
+    /** T-219·T-222: bukkit.yml worlds.<기본 세 월드>.generator·biome-provider → world-generator.<차원>…, 다른 이름은 world-generator.name.<이름>…. */
     @Test
     void importsDefaultWorldGenerators(@TempDir Path dir) throws Exception {
         write(dir, "bukkit.yml", """
@@ -389,8 +389,50 @@ class PaperConfigImportTest {
         assertFalse(r.toWrite().containsKey("world-generator.the_end"));
         assertTrue(has(r, Kind.IMPORTED, "bukkit.yml", "worlds.survival.generator"));
         assertTrue(has(r, Kind.IGNORED, "bukkit.yml", "worlds.survival_the_end.generator"));
-        assertTrue(has(r, Kind.UNSUPPORTED, "bukkit.yml", "worlds.world.generator"), "다른 이름(추가 월드)은 이름별 설정이 없어 대응 없음(T-222)");
-        assertFalse(r.toWrite().containsValue("Other"));
+        assertEquals("Other", r.toWrite().get("world-generator.name.world"), "level-name 이 survival 이면 world 는 추가 월드 이름(T-222)");
+        assertTrue(has(r, Kind.IMPORTED, "bukkit.yml", "worlds.world.generator"));
+    }
+
+    /** T-222: 추가 월드 이름 — 점·빈칸·숫자 값·중첩 경로, 쓰기 때 키 이스케이프. */
+    @Test
+    void importsNamedWorldGenerators(@TempDir Path dir) throws Exception {
+        write(dir, "bukkit.yml", """
+                worlds:
+                  Arena World:
+                    generator: Terra:arena
+                    biome-provider: 7
+                  a:
+                    b:
+                      generator: Nested
+                  "dotted.name":
+                    generator: Dotted
+                  empty:
+                    generator: ''
+                  other:
+                    something: 1
+                """);
+        Result r = PaperConfigImport.analyze(PaperConfigImport.detect(dir), new Properties(), "survival");
+        assertEquals("Terra:arena", r.toWrite().get("world-generator.name.Arena World"));
+        assertEquals("7", r.toWrite().get("world-biome-provider.name.Arena World"), "Bukkit getString 처럼 숫자도 글자로");
+        assertEquals("Nested", r.toWrite().get("world-generator.name.a.b"), "점이 든 이름은 중첩 칸으로 적혀도 같은 이름(MemorySection 경로)");
+        assertEquals("Dotted", r.toWrite().get("world-generator.name.dotted.name"), "따옴표 친 점 든 키도 같은 이름");
+        assertFalse(r.toWrite().containsKey("world-generator.name.empty"));
+        assertTrue(has(r, Kind.IGNORED, "bukkit.yml", "worlds.empty.generator"));
+        assertTrue(has(r, Kind.UNSUPPORTED, "bukkit.yml", "worlds.other.something"));
+        // 쓴 파일을 다시 읽으면 같은 이름(키 이스케이프)
+        Properties back = new Properties();
+        back.load(new java.io.StringReader(PaperConfigImport.escapeKey("world-generator.name.Arena World") + "=x"));
+        assertEquals("x", back.getProperty("world-generator.name.Arena World"));
+        // 파일에 쓰고 서버 설정으로 다시 읽는다(한글 이름은 \\uXXXX 로 적혀야 읽힌다)
+        write(dir, "bukkit.yml", "worlds:\n  '월드 1':\n    generator: Korean\n");
+        Result k = PaperConfigImport.analyze(PaperConfigImport.detect(dir), new Properties(), "world");
+        assertEquals("Korean", k.toWrite().get("world-generator.name.월드 1"));
+        Path file = dir.resolve("furnace.properties");
+        Files.writeString(file, PaperConfigImport.escapeKey("world-generator.name.월드 1") + "=" + PaperConfigImport.escapeValue("Korean") + "\n"
+                + PaperConfigImport.escapeKey("world-generator.name.Arena World") + "=Terra\\:arena\n", StandardCharsets.ISO_8859_1);
+        var settings = org.domi.furnace.server.world.WorldSettings.load(file);
+        assertEquals("Korean", settings.generatorByName("월드 1"));
+        assertEquals("Terra:arena", settings.generatorByName("Arena World"));
     }
 
     @Test

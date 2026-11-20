@@ -29,11 +29,56 @@ class DefaultWorldGeneratorsTest {
         assertEquals("Terra:default", s.generator("minecraft:overworld"));
         assertEquals("", s.biomeProvider("minecraft:overworld"));
         assertEquals("Biomes", s.biomeProvider("minecraft:the_end"));
-        assertTrue(s.pluginGenerated("minecraft:overworld"));
-        assertFalse(s.pluginGenerated("minecraft:the_nether"), "빈 값은 바닐라");
-        assertTrue(s.pluginGenerated("minecraft:the_end"));
+        assertTrue(s.pluginGenerated("minecraft:overworld", "world"));
+        assertFalse(s.pluginGenerated("minecraft:the_nether", "world_nether"), "빈 값은 바닐라");
+        assertTrue(s.pluginGenerated("minecraft:the_end", "world_the_end"));
         assertEquals(2, s.generators().size() + s.biomeProviders().size());
         assertEquals(WorldSettings.DEFAULT, WorldSettings.from(new Properties()));
+    }
+
+    /** T-222: 이름별 키는 월드 이름 그대로(점·빈칸 포함, 대소문자 구분), 기본 세 월드는 차원 키가 이름별 키보다 앞선다. */
+    @Test
+    void namedKeysAreExactWorldNames() {
+        Properties p = new Properties();
+        p.setProperty("world-generator.name.my.world", " Terra:x ");
+        p.setProperty("world-generator.name.Spaced Name", "A");
+        p.setProperty("world-biome-provider.name.my.world", "Biomes");
+        p.setProperty("world-generator.name.", "Nameless");   // 이름이 없으면 무시
+        p.setProperty("world-generator.name.empty", " ");
+        p.setProperty("world-generator.name.world", "ByName");
+        p.setProperty("world-generator.name.world_nether", "NetherByName");
+        p.setProperty("world-generator.the_nether", "NetherByDim");
+        WorldSettings s = WorldSettings.from(p);
+        assertEquals("Terra:x", s.generatorByName("my.world"));
+        assertEquals("A", s.generatorByName("Spaced Name"));
+        assertEquals("", s.generatorByName("spaced name"), "대소문자 구분");
+        assertEquals("Biomes", s.biomeProviderByName("my.world"));
+        assertEquals("", s.biomeProviderByName("Spaced Name"));
+        assertEquals("", s.generatorByName("empty"));
+        assertEquals("", s.generatorByName(""));
+        // 기본 월드: 차원 키가 이기고, 없으면 그 월드의 Bukkit 식 이름으로
+        assertEquals("ByName", s.generator("minecraft:overworld", "world"));
+        assertEquals("NetherByDim", s.generator("minecraft:the_nether", "world_nether"));
+        assertEquals("", s.generator("minecraft:the_end", "world_the_end"));
+        assertEquals(List.of("minecraft:overworld", "minecraft:the_nether"), DefaultWorldGenerators.pending(s, "world"));
+        assertEquals(List.of("minecraft:the_nether"), DefaultWorldGenerators.pending(s, "survival"), "level-name 이 다르면 world 이름 키는 오버월드가 아니다");
+    }
+
+    /** T-222(검토): 기본 세 월드가 이름별 키만으로도 물음(Request)에 닿는다 — 차원 키가 있으면 그쪽. */
+    @Test
+    void defaultWorldRequestsReadNameKeys() {
+        Properties p = new Properties();
+        p.setProperty("world-generator.name.survival", "ByName");
+        p.setProperty("world-biome-provider.name.survival_the_end", "EndBiomes");
+        p.setProperty("world-generator.the_end", "ByDim");
+        p.setProperty("world-generator.name.survival_the_end", "Shadowed");
+        WorldSettings s = WorldSettings.from(p);
+        var overworld = new DefaultWorldGenerators.Target(null, "minecraft:overworld", "survival", WorldEnvironment.NORMAL, 1L, -64, 320).request(s);
+        assertEquals("ByName", overworld.generator());
+        assertEquals("", overworld.biomeProvider());
+        var end = new DefaultWorldGenerators.Target(null, "minecraft:the_end", "survival_the_end", WorldEnvironment.THE_END, 1L, 0, 256).request(s);
+        assertEquals("ByDim", end.generator(), "차원 키가 이름별 키를 가린다");
+        assertEquals("EndBiomes", end.biomeProvider());
     }
 
     @Test

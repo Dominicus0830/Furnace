@@ -472,6 +472,11 @@ public abstract class ChunkLevel implements BlockLevel {
     @Override
     public boolean destroyBlockByEntity(Pos pos, boolean dropBlock, Object entity) { return destroyBlock(pos, dropBlock, null, entity, UPDATE_LIMIT); }
 
+    /** {@link #destroyBlockByEntity(Pos, boolean, Object)} 에 쓰기 깊이를 준다(호환 계층 Level#destroyBlock 4인자). */
+    public boolean destroyBlockByEntity(Pos pos, boolean dropBlock, Object entity, int recursionLeft) {
+        return destroyBlock(pos, dropBlock, null, entity, recursionLeft);
+    }
+
     private boolean destroyBlock(Pos pos, boolean dropBlock, BlockActor breaker, Object eventSource, int recursionLeft) {
         int s = getBlockState(pos);
         if (info.isAir(s)) return false;

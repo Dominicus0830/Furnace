@@ -5,8 +5,8 @@ import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.levelgen.Heightmap;
 
-/** 월드 읽기(Mojang 이름, N2a). 바닐라 기본 메서드 중 청크·높이 쪽만. */
-public interface LevelReader extends BlockGetter {
+/** 월드 읽기(Mojang 이름, N2a). 바닐라 기본 메서드 중 청크·높이·바이옴(T-211 3단계)·기능 플래그 쪽만. */
+public interface LevelReader extends BlockGetter, net.minecraft.world.level.biome.BiomeManager.NoiseBiomeSource {
 
     ChunkAccess getChunk(int x, int z, ChunkStatus status, boolean create);
 
@@ -22,15 +22,31 @@ public interface LevelReader extends BlockGetter {
         throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LevelReader#dimensionType", "the level (" + getClass().getName() + ") has no dimension type in the shim");
     }
 
-    /** 바닐라 LevelReader#getBiomeManager. */
-    default net.minecraft.world.level.biome.BiomeManager getBiomeManager() {
-        throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LevelReader#getBiomeManager", "the level (" + getClass().getName() + ") has no biome manager in the shim");
-    }
+    default ChunkAccess getChunk(int x, int z) { return getChunk(x, z, ChunkStatus.FULL, true); }
 
-    /** 바닐라 LevelReader#getBiome: {@code getBiomeManager().getBiome(pos)}. */
+    /** Paper LevelReader#getChunkIfLoadedImmediately: 로드된 다 만든 청크, 아니면 null(T-211 3단계). */
+    ChunkAccess getChunkIfLoadedImmediately(int x, int z);
+
+    default ChunkAccess getChunkIfLoadedImmediately(BlockPos pos) { return getChunkIfLoadedImmediately(pos.getX() >> 4, pos.getZ() >> 4); }
+
+    /** 바닐라 LevelReader#getBiomeManager(T-211 3단계). */
+    net.minecraft.world.level.biome.BiomeManager getBiomeManager();
+
+    /** 바닐라 LevelReader#getBiome: 확대 지터를 거친 그 칸의 바이옴. */
     default net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome> getBiome(BlockPos pos) { return getBiomeManager().getBiome(pos); }
 
-    default ChunkAccess getChunk(int x, int z) { return getChunk(x, z, ChunkStatus.FULL, true); }
+    /** 바닐라 LevelReader#getNoiseBiome: BIOMES 이상인 청크가 있으면 그 청크의 바이옴, 없으면 생성기 값. */
+    @Override
+    default net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome> getNoiseBiome(int biomeX, int biomeY, int biomeZ) {
+        ChunkAccess c = getChunk(net.minecraft.core.QuartPos.toSection(biomeX), net.minecraft.core.QuartPos.toSection(biomeZ), ChunkStatus.BIOMES, false);
+        return c != null ? c.getNoiseBiome(biomeX, biomeY, biomeZ) : getUncachedNoiseBiome(biomeX, biomeY, biomeZ);
+    }
+
+    /** 바닐라 LevelReader#getUncachedNoiseBiome: 생성기가 그 칸에 정하는 바이옴. */
+    net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome> getUncachedNoiseBiome(int biomeX, int biomeY, int biomeZ);
+
+    /** 바닐라 LevelReader#enabledFeatures(T-211 3단계). */
+    net.minecraft.world.flag.FeatureFlagSet enabledFeatures();
 
     default ChunkAccess getChunk(int x, int z, ChunkStatus status) { return getChunk(x, z, status, true); }
 

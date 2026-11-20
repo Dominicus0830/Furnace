@@ -119,15 +119,6 @@ public interface FeatureInternals {
     }
 
     /**
-     * 서버 레벨의 {@code getCurrentDifficultyAt(pos)}(바닐라 Level — 청크가 없으면 머문 시간 0·달 밝기 0): {난이도 번호, 실효 난이도}.
-     * 그 칸을 가진 region 스레드(전역 빌림 구간 포함)에서만.
-     */
-    default float[] difficultyAtNow(World world, int x, int y, int z) { throw new UnsupportedOperationException("difficultyAtNow"); }
-
-    /** 서버 레벨의 {@code getBiome(pos)}(바닐라 BiomeManager 확대 — 시드 지터 포함) 바이옴 id. 그 칸을 가진 region 스레드에서만. 청크가 없으면 IllegalStateException. */
-    default String biomeAtNow(World world, int x, int y, int z) { throw new UnsupportedOperationException("biomeAtNow"); }
-
-    /**
      * 지형지물을 원점에 놓는다. placed 가 참이면 배치된 지형지물 표, 거짓이면 설정된 지형지물 표에서 id 를 찾는다(그 월드가 쓰는 표). sink 가 null 이면 서버 월드에 바로 놓고(바닐라 런타임 배치 — 블록 엔티티·생성 NBT 포함, 쓰기 플래그 그대로),
      * 아니면 쓰기를 sink 로만 보내고 서버 월드는 바꾸지 않는다(생성 NBT·엔티티·유체 예약 틱은 버린다 — Paper 의 populator 와 같다).
      * 난수는 random 에서 뽑을 때마다 그대로 뽑는다(원천 상태도 같이 나아간다).

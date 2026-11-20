@@ -139,7 +139,7 @@ class SpreadPlayersCommandTest {
     }
 
     @Test
-    void respectTeamsPutsEveryoneAtTheSamePosition() {
+    void respectTeamsPutsTeamlessTargetsAtTheSamePosition() {
         var a = new Player(1, UUID.randomUUID(), "A", new ConcurrentEmbeddedChannel());
         var b = new Player(2, UUID.randomUUID(), "B", new ConcurrentEmbeddedChannel());
         var c = new Player(3, UUID.randomUUID(), "C", new ConcurrentEmbeddedChannel());

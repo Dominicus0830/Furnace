@@ -7,14 +7,14 @@ public interface LevelAccessor extends LevelReader, LevelWriter {
 
     ChunkSource getChunkSource();
 
+    /** 바닐라 LevelAccessor#getCurrentDifficultyAt(T-211 3단계). */
+    net.minecraft.world.DifficultyInstance getCurrentDifficultyAt(net.minecraft.core.BlockPos pos);
+
     /** 바닐라 LevelAccessor#getRandom. */
     net.minecraft.util.RandomSource getRandom();
 
     /** 바닐라 LevelAccessor#blockUpdated: 기본은 아무것도 하지 않는다(지형 생성 레벨). 서버 레벨은 이웃 갱신(Level). */
     default void blockUpdated(net.minecraft.core.BlockPos pos, net.minecraft.world.level.block.Block block) {}
-
-    /** 바닐라 LevelAccessor#getCurrentDifficultyAt(구조물 몹 finalizeSpawn 이 묻는다, T-221). */
-    net.minecraft.world.DifficultyInstance getCurrentDifficultyAt(net.minecraft.core.BlockPos pos);
 
     /**
      * 바닐라 LevelAccessor#dayTime: {@code getLevelData().getDayTime()}. shim 에는 레벨 데이터가 없어 레벨이 직접 답한다 — 서버 레벨은 그 월드의 하루 시각,

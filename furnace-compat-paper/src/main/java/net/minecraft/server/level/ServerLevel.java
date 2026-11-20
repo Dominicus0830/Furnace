@@ -170,6 +170,9 @@ public class ServerLevel extends Level implements net.minecraft.world.level.Worl
 
     public long getSeed() { return getWorld().getSeed(); }
 
+    /** 바닐라 ServerLevel#getShade: 서버는 면 밝기를 쓰지 않는다 — 늘 1(T-211 3단계). */
+    public float getShade(net.minecraft.core.Direction direction, boolean shaded) { return 1.0F; }
+
     public MinecraftServer getServer() { return MinecraftServer.getServer(); }
 
     private volatile net.minecraft.world.level.StructureManager structureManager;

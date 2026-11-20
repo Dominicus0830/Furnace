@@ -466,6 +466,7 @@ public final class FurnaceMain {
         core.dimensions(dimensions);
         core.worldManager(worldManager);
         core.bungeeCordForwarding(config.bungeecord());
+        core.worldSettings(worldSettings);   // 이름별 생성기 설정(T-222) — 플러그인 호환 계층의 createWorld 가 묻는다
         // 클라에 보내는 세트: 데이터 팩을 읽었으면 데이터 주도 레지스트리(변종·마법부여 등)를 다시 만든 것, 아니면 플러그인 바이옴·차원 타입까지
         core.registries(dataPacks != null ? dataPacks.dynamicRegistries().registries() : registries);
         if (dataPacks != null) core.dataPacks(dataPacks);

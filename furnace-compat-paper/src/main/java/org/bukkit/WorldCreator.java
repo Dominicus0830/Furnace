@@ -9,8 +9,7 @@ import org.bukkit.plugin.Plugin;
 
 /**
  * Paper 1.21.1 WorldCreator(새 월드 설명서 — {@link Bukkit#createWorld}). 값과 기본값은 Paper 와 같다(시드는 무작위, 구조물 켬, NORMAL).
- * Furnace 에서 다른 점: Bukkit 생성기·바이옴 공급자(generator·biomeProvider)는 createWorld 에서 지원하지 않는다는 예외,
- * Adventure TriState 를 쓰는 keepSpawnLoaded 는 없고 옛 keepSpawnInMemory 만 있다 — docs/api/compat-paper.md.
+ * Furnace 에서 다른 점: Adventure TriState 를 쓰는 keepSpawnLoaded 는 없고 옛 keepSpawnInMemory 만 있다 — docs/api/compat-paper.md.
  */
 public class WorldCreator {
 

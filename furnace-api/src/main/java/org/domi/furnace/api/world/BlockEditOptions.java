@@ -100,6 +100,7 @@ public final class BlockEditOptions {
     /**
      * 다른 상태로 바꾸는 칸의 담긴 아이템을 먼저 비우는가(바닐라 /fill·/setblock 의 Clearable.tryClear). 상자를 덮어써도 내용물을 쏟지 않는다.
      * false 면 바닐라 setBlock 처럼 바꾸는 순간 쏟아진다.
+     * 비우기는 바닐라 clearContent 그대로다: 재생 중인 주크박스는 멈추고(has_record 끄기·재생 정지 이벤트), 전리품을 열지 않은 장식 단지는 전리품을 먼저 푼다.
      */
     public boolean clearContainers() { return clearContainers; }
 

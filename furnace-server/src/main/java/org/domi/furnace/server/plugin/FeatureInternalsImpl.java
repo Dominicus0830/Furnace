@@ -104,22 +104,6 @@ final class FeatureInternalsImpl implements FeatureInternals {
     }
 
     @Override
-    public float[] difficultyAtNow(org.domi.furnace.api.world.World world, int x, int y, int z) {
-        Region r = handle(world).ownedRegion(new BlockPos(x, y, z), "Level#getCurrentDifficultyAt(" + x + ", " + y + ", " + z + ")");
-        if (r == null) throw new IllegalStateException("no region for " + x + ", " + y + ", " + z);
-        var d = r.level().getCurrentDifficultyAt(new Pos(x, y, z));
-        return new float[] {d.difficulty(), d.effectiveDifficulty()};
-    }
-
-    @Override
-    public String biomeAtNow(org.domi.furnace.api.world.World world, int x, int y, int z) {
-        BlockPos pos = new BlockPos(x, y, z);
-        Region r = handle(world).ownedRegion(pos, "Level#getBiome(" + pos + ")");
-        if (r == null || !r.chunkLoaded(new ChunkPos(x >> 4, z >> 4))) throw new IllegalStateException("the chunk is not loaded: " + pos);
-        return r.level().biomeAt(x, y, z);
-    }
-
-    @Override
     public Object newStructureSession() { return new LiveStructures.Session(); }
 
     @Override
