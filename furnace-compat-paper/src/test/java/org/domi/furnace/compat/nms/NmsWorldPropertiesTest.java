@@ -114,4 +114,29 @@ class NmsWorldPropertiesTest {
         free.setFlyingSpeed(0.2F);
         assertEquals(0.2F, free.getFlyingSpeed(), "플레이어 없는 객체는 값만 든다");
     }
+
+    /** 바닐라 1.21.1 규칙 51개(불리언 40·정수 11)가 모두 키로 있고, 읽은 값이 Bukkit 규칙 값과 같다. */
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void allFiftyOneRulesRead() throws IllegalAccessException {
+        GameRules rules = level.getGameRules();
+        int bools = 0, ints = 0;
+        for (var f : GameRules.class.getFields()) {
+            if (!java.lang.reflect.Modifier.isStatic(f.getModifiers()) || f.getType() != GameRules.Key.class) continue;
+            GameRules.Key k = (GameRules.Key) f.get(null);
+            Object bukkitValue = world.getGameRuleValue(org.bukkit.GameRule.getByName(k.getId()));
+            Object v = rules.getRule(k);
+            if (v instanceof GameRules.BooleanValue b) {
+                bools++;
+                assertEquals(bukkitValue, b.get(), k.getId());
+                assertEquals(b.get(), rules.getBoolean(k), k.getId());
+            } else {
+                ints++;
+                assertEquals(bukkitValue, ((GameRules.IntegerValue) v).get(), k.getId());
+                assertEquals(((GameRules.IntegerValue) v).get(), rules.getInt(k), k.getId());
+            }
+        }
+        assertEquals(40, bools);
+        assertEquals(11, ints);
+    }
 }

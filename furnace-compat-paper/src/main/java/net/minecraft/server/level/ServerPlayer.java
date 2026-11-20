@@ -97,19 +97,32 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player {
 
     // ------------------------------------------------------------------ 게임 모드·능력 (NMS shim 5c)
 
-    /** Paper setGameMode(모드): 게임 모드 바꾸기 이벤트를 거쳐 바꾸고, 같은 모드였거나 취소되면 거짓. 아무 스레드. */
+    /**
+     * Paper setGameMode(모드): 게임 모드 바꾸기 이벤트를 거쳐 바꾸고, 같은 모드였거나 취소되면 거짓. 아무 스레드.
+     * 월드에 없는 플레이어는 처음 모드(바닐라 DEFAULT_MODE, 서바이벌)를 값으로만 든다: 같은 모드면 거짓(Paper 와 같다), 다른 모드는 UnsupportedNmsCall —
+     * Paper 는 이벤트를 내고 모드·능력을 바꾼 뒤 connection(null)에 모드 패킷을 보내다 NullPointerException 을 낸다.
+     */
     public boolean setGameMode(net.minecraft.world.level.GameType gameMode) {
+        if (furnaceDetached) {
+            if (java.util.Objects.requireNonNull(gameMode, "gameMode") == net.minecraft.world.level.GameType.DEFAULT_MODE) return false;
+            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("ServerPlayer#setGameMode", "a player that is not in a world has no connection to send"
+                    + " the game mode to (Paper throws NullPointerException after the change event)");
+        }
         return getBukkitEntity().furnaceHandle().setGameMode(org.domi.furnace.api.entity.GameMode.valueOf(gameMode.name()));
     }
 
     private volatile net.minecraft.world.entity.player.Abilities abilities;
 
-    /** 바닐라 getAbilities: 이 플레이어의 능력({@link net.minecraft.world.entity.player.Abilities} — 서버 값을 비춘 보기, 플레이어마다 같은 객체). */
+    /**
+     * 바닐라 getAbilities: 이 플레이어의 능력({@link net.minecraft.world.entity.player.Abilities} — 서버 값을 비춘 보기, 플레이어마다 같은 객체).
+     * 월드에 없는 플레이어는 바닐라처럼 값만 드는 객체(처음엔 서바이벌 기본값 — 바닐라 생성자는 능력을 모드에 맞추지 않는다)다.
+     */
     public net.minecraft.world.entity.player.Abilities getAbilities() {
         net.minecraft.world.entity.player.Abilities a = abilities;
         if (a == null) {
             synchronized (this) {
-                if (abilities == null) abilities = net.minecraft.world.entity.player.Abilities.furnaceOf(getBukkitEntity().furnaceHandle());
+                if (abilities == null) abilities = furnaceDetached ? new net.minecraft.world.entity.player.Abilities()
+                        : net.minecraft.world.entity.player.Abilities.furnaceOf(getBukkitEntity().furnaceHandle());
                 return abilities;
             }
         }
@@ -117,8 +130,17 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player {
         return a;
     }
 
-    /** 바닐라 onUpdateAbilities: 고친 능력을 서버에 쓰고 그 플레이어에게 능력 패킷을 보낸다. */
-    public void onUpdateAbilities() { getAbilities().furnacePush(true); }
+    /**
+     * 바닐라 onUpdateAbilities: 고친 능력을 서버에 쓰고 그 플레이어에게 능력 패킷을 보낸다. 월드에 없는 플레이어는 UnsupportedNmsCall — 바닐라·Paper 는
+     * connection(null)에 보내다 NullPointerException 을 낸다(능력 객체의 값은 그대로 남는다).
+     */
+    public void onUpdateAbilities() {
+        if (furnaceDetached) {
+            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("ServerPlayer#onUpdateAbilities", "a player that is not in a world has no connection to send"
+                    + " its abilities to (vanilla and Paper throw NullPointerException)");
+        }
+        getAbilities().furnacePush(true);
+    }
 
     /** 바닐라처럼 공개 필드(Paper 도 같다). 바닐라 생성자로 만든 플레이어는 null. */
     public net.minecraft.server.network.ServerGamePacketListenerImpl connection;

@@ -141,4 +141,22 @@ class NmsDetachedPlayerTest {
         assertThrows(UnsupportedNmsCall.class, () -> online.absMoveTo(0, 80, 0, 0, 0));
         assertNotNull(online.connection);
     }
+
+    @Test
+    void abilitiesAndGameModeHoldValuesLikeVanilla() {
+        FakePlayer fake = new FakePlayer(level, PROFILE);
+        var a = fake.getAbilities();   // 바닐라: 값만 드는 객체, 플레이어마다 같은 객체, 서바이벌 기본값
+        assertSame(a, fake.getAbilities());
+        assertFalse(a.instabuild);
+        assertTrue(a.mayBuild);
+        assertEquals(0.05F, a.getFlyingSpeed());
+        a.instabuild = true;   // 블록 부수기를 흉내 내는 플러그인의 흔한 꼴
+        a.setFlyingSpeed(0.2F);
+        assertTrue(fake.getAbilities().instabuild);
+        assertEquals(0.2F, fake.getAbilities().getFlyingSpeed());
+        assertFalse(fake.setGameMode(net.minecraft.world.level.GameType.SURVIVAL));   // 같은 모드: 거짓(Paper 와 같다)
+        assertThrows(UnsupportedNmsCall.class, () -> fake.setGameMode(net.minecraft.world.level.GameType.CREATIVE));   // Paper: 연결이 없어 NPE
+        assertThrows(UnsupportedNmsCall.class, fake::onUpdateAbilities);
+        assertTrue(fake.getAbilities().instabuild);
+    }
 }
