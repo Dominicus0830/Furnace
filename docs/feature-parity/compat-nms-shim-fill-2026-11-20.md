@@ -13,7 +13,7 @@
 | 묶음 | 개수 | 심볼 | FAWE 에서 쓰는 곳 | 처리 |
 |---|--:|---|---|---|
 | 가. 엔티티 저장·지우기·찾기 | 4 | `Entity.save`·`discard`, `ServerLevel.getEntities()`, `LevelEntityGetter` | `//copy -e`·되돌리기 기록(`PaperweightGetBlocks.entities`), 지우기 동기 작업 | 이 문서 3장 |
-| 나. 엔티티 만들기·넣기 | 8 | `EntityType.create(Level)`, `Entity.load`·`absMoveTo`·`setUUID`·`generation`·`spawnReason`, `ServerLevel.addFreshEntity(…, SpawnReason)`·`addFreshEntityWithPassengers(…, SpawnReason)` (+ 이미 있지만 막혀 있던 Paper `EntityLookup.addNewEntity`) | `//paste -e`·되돌리기 | 다음 PR |
+| 나. 엔티티 만들기·넣기 | 8 | `EntityType.create(Level)`, `Entity.load`·`absMoveTo`·`setUUID`·`generation`·`spawnReason`, `ServerLevel.addFreshEntity(…, SpawnReason)`·`addFreshEntityWithPassengers(…, SpawnReason)` (+ 이미 있지만 막혀 있던 Paper `EntityLookup.addNewEntity`) | `//paste -e`·되돌리기 | 이 문서 4장 |
 | 다. 가짜 플레이어 아이템 쓰기 | 8 | `ServerPlayer` 상속·생성자, `InteractionResult`·`InteractionResultHolder`·`ItemInteractionResult`, `ItemStack.useOn`, `Item.use`, `BlockState.useItemOn` | `simulateItemUse`(아이템을 쓰는 브러시·`//apply`) | 뒤 PR |
 | 라. 옛 도식 변환·아이템 이름 | 4 | `GsonHelper`, `StringUtil`, `DyeColor`, `ItemStack.getDescriptionId` | 1.13 이전 도식 변환기(`PaperweightDataConverters`), `getRichItemName` | 뒤 PR |
 | 마. Furnace 에서 실행되지 않음 | 8 | `Util`, `ThreadingDetector`, `BlockableEventLoop`, `WorldData`·`MinecraftServer.getWorldData`, `ServerLevel.paperConfig`, `PersistentEntitySectionManager`, `LevelChunk.setBiome` | 아래 | 구현 안 함 |
@@ -38,3 +38,17 @@
   - **청크와 함께 내려간 엔티티:** Paper 에서는 객체가 남아 마지막 상태를 저장하지만, Furnace 핸들은 사라진 엔티티의 객체를 들지 않아 거짓을 준다(지운 엔티티의 거짓은 Paper 와 같다).
   - **플레이어 discard:** Paper 는 플레이어 엔티티를 지워 버리지만 Furnace 는 `UnsupportedNmsCall`(FAWE 는 플레이어를 지우지 않는다).
 - 시험 `NmsEntityWriteTest`: 주인 스레드 저장 = 서버 저장 꼴(/data + id), 받은 묶음에 더하기, 승객은 거짓·탈것이 승객까지 저장, 작업 스레드는 주인을 기다려 같은 값, 전역 스레드(빌림 밖)는 기다리지 않음, discard 뒤 UUID 찾기 null·저장 거짓·두 번 지워도 무사, 플레이어.
+
+## 4. 나 묶음 (엔티티 만들기·월드에 넣기)
+
+- FAWE 붙여 넣기(`PaperweightGetBlocks` 동기 작업): `EntityType.byString(id).create(level)` → `load(tag)`(UUID 키는 지운 것) → `absMoveTo(x, y, z, yaw, pitch)` → `setUUID(원래 UUID)` → 엔티티 이벤트를 켰으면 `addFreshEntity(e, CUSTOM)`, 껐으면 `spawnReason = CUSTOM`·`generation = false` 뒤 `moonrise$getEntityLookup().addNewEntity(e)`. WorldEdit `createEntity` 는 `addFreshEntityWithPassengers(e, CUSTOM)`.
+- **만들기를 넣기까지 미룬다:** Furnace 서버 엔티티는 넣을 region 의 레벨에 묶여 만들어지고(엔티티 번호·난수가 그 레벨에서 나온다), `EntityType#create` 때는 자리를 모른다. 그래서 `create` 는 "아직 월드에 없는" shim 을 주고, `load`·`absMoveTo`·`setUUID` 를 기록해 두었다가 넣을 때 그 자리의 주인 region 에서 서버 엔티티를 만들어 **같은 차례로 재생**한다(서버 다리 `ChunkInternals#addNmsEntityNow`). 재생하는 코드는 서버의 바닐라 `load`·`absMoveTo`·`setUUID` 그대로라 결과가 같다.
+  - 아직 월드에 없는 shim 의 게터: 종류·레벨·자리·방향(바닐라 생성자처럼 0,0,0 에서 시작해 `load`·`absMoveTo` 를 서버와 같은 자르기로 따라간다)·지움 표시는 답한다. UUID 는 `setUUID` 나 "UUID" 든 `load` 뒤에만 답한다(바닐라의 무작위 UUID 는 넣을 때 정해진다 — 그 전에 물으면 `UnsupportedNmsCall`). `getId`·`getBukkitEntity`·`save` 도 넣은 뒤에만 된다.
+  - 넣으면 그 shim 이 그 엔티티의 `CraftEntity#getHandle()` 이 된다(Paper 는 그 객체 자체). 살아 있는 종류는 `LivingEntity` shim(Bukkit 종류의 `isAlive`), 플레이어·낚시찌는 `create` 가 null(바닐라 공장이 null).
+- `addFreshEntity(e, reason)` = Paper `ServerLevel#addEntity`: `generation` 을 거짓으로, `spawnReason` 이 비었으면 reason, 넣기 전에 지웠으면 거짓, 빈 아이템 엔티티는 거짓, 스폰 이벤트(취소되면 거짓), 같은 UUID 가 이미 있으면 거짓. 이미 월드에 있는 엔티티는 Paper 처럼 "Attempted Double World add" 오류 기록만 남기고 참.
+- `EntityLookup#addNewEntity(e)` = 이벤트 없이 넣기(서버 `ChunkLevel#addFreshEntityWithoutEvent`). 스폰 이유·generation 은 건드리지 않는다. 이미 월드에 있으면 거짓.
+- `addFreshEntityWithPassengers`: `create` 로 만든 엔티티는 승객이 없다(바닐라 `load` 도 승객을 읽지 않는다 — 그건 `EntityType.loadEntityRecursive`) → `addFreshEntity` 하나.
+- 월드의 엔티티에 `load`·`absMoveTo`·`setUUID` 는 `UnsupportedNmsCall` — 살아 있는 엔티티의 UUID·자리를 패킷·색인 없이 바꾸게 된다. Bukkit API 나 Furnace `Entity#editNbt` 를 쓴다.
+- Paper 필드 `spawnReason` 은 월드의 엔티티 shim 에서 읽으면 null 이다(채워 두지 않는다 — Bukkit `getEntitySpawnReason` 을 쓴다).
+- 스레드: 넣기는 그 자리의 주인 region(전역 스레드의 빌림 포함 — FAWE 동기 작업)에서 바로, 틱 스레드가 아닌 스레드는 기다린다(`NmsOwner`). 기록하는 조작은 한 스레드에서 한다(FAWE 는 만들기부터 넣기까지 한 동기 작업 안).
+- 시험 `NmsEntityCreateTest`: 만들기 꼴(살아 있는 종류·null 종류·게터), 이벤트 없는 붙여 넣기(자리·방향·UUID·이름·스폰 이유 CUSTOM·getHandle 이 같은 shim·같은 UUID 다시 넣기 거짓), `addFreshEntity` 이벤트·취소·두 번 넣기, 넣기 전 지우기, 빈 아이템 엔티티, WorldEdit `addFreshEntityWithPassengers`, 월드 엔티티 고치기 거절.

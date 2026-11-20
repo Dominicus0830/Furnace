@@ -264,6 +264,27 @@ public class ServerLevel extends Level implements net.minecraft.world.level.Worl
         };
     }
 
+    /** Paper {@code addFreshEntity(entity)} = 스폰 이유 DEFAULT. */
+    public boolean addFreshEntity(Entity entity) { return addFreshEntity(entity, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.DEFAULT); }
+
+    /**
+     * Paper {@code ServerLevel#addFreshEntity(entity, reason)}(T-212): {@code EntityType#create} 로 만든 엔티티를 월드에 넣는다 — 스폰 이벤트를 내고(취소되면
+     * 거짓), 같은 UUID 가 이미 있으면 거짓, 넣기 전에 지운 엔티티·빈 아이템 엔티티는 거짓. 이미 월드에 있는 엔티티는 Paper 처럼 오류 기록만 남기고 참.
+     * 그 자리의 주인 region 에서 돈다({@link org.domi.furnace.compat.nms.NmsOwner} 규칙 — FAWE 는 동기 작업에서 부른다).
+     */
+    public boolean addFreshEntity(Entity entity, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason reason) {
+        return entity.furnaceAddToWorld(this, reason, true);
+    }
+
+    /** Paper {@code ServerLevelAccessor#addFreshEntityWithPassengers(entity, reason)}: 자신과 승객을 하나씩 {@link #addFreshEntity(Entity, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason)}. */
+    public void addFreshEntityWithPassengers(Entity entity, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason reason) {
+        // EntityType#create 로 만든 엔티티는 승객이 없다(바닐라 load 도 승객을 읽지 않는다 — 그건 EntityType.loadEntityRecursive)
+        addFreshEntity(entity, reason);
+    }
+
+    /** Paper {@code addFreshEntityWithPassengers(entity)} = 스폰 이유 DEFAULT. */
+    public void addFreshEntityWithPassengers(Entity entity) { addFreshEntityWithPassengers(entity, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.DEFAULT); }
+
     /** 이 월드에 있는 접속 플레이어. */
     public List<ServerPlayer> players() {
         List<ServerPlayer> out = new ArrayList<>();

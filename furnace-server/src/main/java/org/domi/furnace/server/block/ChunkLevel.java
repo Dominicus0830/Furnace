@@ -2783,6 +2783,9 @@ public abstract class ChunkLevel implements BlockLevel {
     /** addFreshEntity: 넣고(같은 UUID 가 있으면 거부) 추적을 시작한다 — 볼 수 있는 플레이어에게 바로 스폰. */
     public boolean addFreshEntity(Entity e) { return addFreshEntity(e, true, false); }
 
+    /** Paper EntityLookup#addNewEntity: 스폰 이벤트 없이 넣는다(같은 UUID 가 있으면 거부) — 플러그인이 NMS 로 만든 엔티티(T-212). */
+    public boolean addFreshEntityWithoutEvent(Entity e) { return addFreshEntity(e, false, false); }
+
     /** claimed: 승객 묶음이 이미 UUID 를 잡아 둔 경우(여기서 다시 잡지 않고, 실패하면 놓는다). */
     private boolean addFreshEntity(Entity e, boolean fireEvent, boolean claimed) {
         if (e.isRemoved()) {

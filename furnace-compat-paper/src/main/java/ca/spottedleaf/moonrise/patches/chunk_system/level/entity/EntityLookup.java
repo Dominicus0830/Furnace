@@ -18,9 +18,9 @@ public class EntityLookup {
         return level.getChunkSource().hasChunk(chunkX, chunkZ) ? new ChunkEntitySlices(level, chunkX, chunkZ) : null;
     }
 
-    /** Paper: 이벤트 없이 엔티티를 월드에 넣는다. Furnace 는 NMS 엔티티 객체로 엔티티를 만드는 길이 아직 없다. */
-    public boolean addNewEntity(Entity entity) {
-        throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("EntityLookup#addNewEntity",
-                "adding an entity as an NMS entity object is not supported yet - use Bukkit World#spawn");
-    }
+    /**
+     * Paper: 이벤트 없이 엔티티를 월드에 넣는다(T-212 — FAWE 가 엔티티 이벤트를 끈 붙여 넣기에 쓴다). {@code EntityType#create} 로 만든 엔티티만 넣고,
+     * 같은 UUID 가 이미 있거나 넣기 전에 지웠거나 이미 월드에 있으면 거짓. 스폰 이유·generation 필드는 건드리지 않는다(Paper 와 같다).
+     */
+    public boolean addNewEntity(Entity entity) { return entity.furnaceAddToWorld(level, null, false); }
 }

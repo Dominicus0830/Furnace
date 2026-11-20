@@ -4,6 +4,7 @@ package org.domi.furnace.server.plugin;
 
 import java.util.List;
 import org.domi.furnace.api.internal.ChunkInternals;
+import org.domi.furnace.api.internal.ChunkInternals.EntityOp;
 import org.domi.furnace.api.world.BlockPos;
 import org.domi.furnace.server.world.ChunkColumn;
 import org.domi.furnace.server.world.ChunkPos;
@@ -743,6 +744,36 @@ final class ChunkInternalsImpl implements ChunkInternals {
             return;   // 이미 지워졌다 — 바닐라도 다시 지우면 아무 일 없다
         }
         if (internal instanceof org.domi.furnace.server.entity.Entity e) e.discard();
+    }
+
+    @Override
+    public org.domi.furnace.api.entity.Entity addNmsEntityNow(org.domi.furnace.api.world.World world, int x, int z, String id, List<EntityOp> ops,
+                                                              String spawnReason, boolean fireEvents) {
+        RegionLevel lv = ownedLevel(world, x, z, "ServerLevel#addFreshEntity");
+        if (lv == null) return null;   // 청크가 로드되지 않았다
+        var e = org.domi.furnace.server.entity.Entities.create(lv, id);
+        if (e == null) throw new IllegalArgumentException("entity type that cannot be created: " + id);
+        for (EntityOp op : ops) {
+            switch (op) {
+                case EntityOp.Load l -> e.load((org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.freeze(ApiNbt.toServer(l.tag())));
+                case EntityOp.AbsMoveTo m -> e.absMoveTo(m.x(), m.y(), m.z(), m.yRot(), m.xRot());
+                case EntityOp.SetUuid u -> e.setUuid(u.uuid());
+            }
+        }
+        if (ownedLevel(world, (int) Math.floor(e.x()), (int) Math.floor(e.z()), "ServerLevel#addFreshEntity") != lv) {
+            throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("ServerLevel#addFreshEntity: the entity ended at " + e.x() + ", " + e.z()
+                    + " but was routed to the region of " + x + ", " + z);
+        }
+        if (spawnReason != null) e.spawnReason(spawnReason);
+        boolean added;
+        if (fireEvents) {
+            // Paper ServerLevel#addEntity: 빈 아이템 엔티티는 넣지 않는다(이벤트 전에 거짓)
+            if (e instanceof org.domi.furnace.server.entity.ItemEntity ie && ie.getItem().isEmpty()) return null;
+            added = lv.addFreshEntity(e);
+        } else {
+            added = lv.addFreshEntityWithoutEvent(e);
+        }
+        return added ? EntityHandle.of(host, e) : null;
     }
 
     /** 명령 범위 안에서 넣는다 — 주인이 쉬고 있으면 drain 차례로 곧바로 돈다(CommandDrainGate: 같은 예산·같은 끄기 옵션). */

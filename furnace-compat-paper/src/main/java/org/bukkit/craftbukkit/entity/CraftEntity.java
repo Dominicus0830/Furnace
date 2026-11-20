@@ -81,6 +81,14 @@ public class CraftEntity implements Entity {
         return n;
     }
 
+    /**
+     * 호환 모듈 전용(T-212): NMS 로 만들어 막 월드에 넣은 엔티티의 shim 을 이 엔티티의 {@link #getHandle()} 로 삼는다(Paper 는 그 객체 자체다).
+     * 넣는 동안 이벤트 처리기가 이미 shim 을 만들었으면 그것을 둔다 — 두 shim 은 같은 엔티티라 equals 가 참이다.
+     */
+    public synchronized void adoptHandle(net.minecraft.world.entity.Entity shim) {
+        if (nms == null) nms = shim;
+    }
+
     /** 이 종류의 shim 을 만든다(하위 클래스가 더 좁은 shim 을 준다). */
     protected net.minecraft.world.entity.Entity createHandle() { return new net.minecraft.world.entity.Entity(this); }
 
