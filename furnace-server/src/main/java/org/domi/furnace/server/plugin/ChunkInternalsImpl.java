@@ -1039,4 +1039,41 @@ final class ChunkInternalsImpl implements ChunkInternals {
         var s = host.core().settings();
         return s != null && s.get().syncChunkWrites;   // server.properties 가 없는 시험 서버는 기본값(거짓)
     }
+
+    // ------------------------------------------------------------------ 엔티티 모습 읽기(NMS shim 5번 묶음)
+
+    @Override
+    public EntityLook entityLook(org.domi.furnace.api.entity.Entity entity) {
+        if (entity instanceof PlayerHandle ph) {
+            var p = ph.handle();
+            double[] k = knownMovement(p);
+            var v = p.vehicle();
+            return new EntityLook(p.sharedFlags(), p.pose(), k[0], k[1], k[2], p.vitals().isFlying(),
+                    p.isSpectator(), host.core().profilePermissions(org.domi.furnace.server.ServerCore.profileOf(p)), v == null ? null : v.uuid(), List.of());
+        }
+        var e = org.domi.furnace.api.Furnace.server().internals().entityNow(entity, org.domi.furnace.server.entity.Entity.class);
+        double[] k = knownMovement(e);
+        var v = e.vehicle();
+        List<java.util.UUID> passengers = new java.util.ArrayList<>(e.passengers().size());
+        for (var r : e.passengers()) passengers.add(uuidOf(r));
+        return new EntityLook(e.sharedFlagsByte(), e.getPose(), k[0], k[1], k[2], false, false, 0, v == null ? null : v.uuid(), List.copyOf(passengers));
+    }
+
+    private static java.util.UUID uuidOf(org.domi.furnace.server.entity.Rider r) {
+        return r instanceof org.domi.furnace.server.entity.Player p ? p.uuid() : ((org.domi.furnace.server.entity.Entity) r).uuid();
+    }
+
+    /**
+     * 바닐라 getKnownMovement. 플레이어(ServerPlayer): 남이 조종하는 탈것에 탔으면 그 탈것의 것, 아니면 클라이언트가 마지막으로 알린 움직임.
+     * 다른 엔티티(Entity): 살아 있고 조종하는 승객이 플레이어면 그 플레이어의 것, 아니면 지금 속도.
+     */
+    private static double[] knownMovement(org.domi.furnace.server.entity.Rider r) {
+        if (r instanceof org.domi.furnace.server.entity.Player p) {
+            var v = p.vehicle();
+            return v != null && v.getControllingPassenger() != p ? knownMovement(v) : p.knownMovement();
+        }
+        var e = (org.domi.furnace.server.entity.Entity) r;
+        if (e.getControllingPassenger() instanceof org.domi.furnace.server.entity.Player cp && e.isAlive()) return knownMovement(cp);
+        return new double[] {e.vx(), e.vy(), e.vz()};
+    }
 }
