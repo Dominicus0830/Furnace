@@ -120,7 +120,7 @@ class BlockEditApiTest {
             for (Put p : puts) {
                 Pos pos = new Pos(off + p.x, p.y, p.z);
                 int s = ApiConvert.stateId(p.data, reg);
-                if (clear && lv.getBlockState(pos) != s) org.domi.furnace.server.block.entity.Clearables.tryClear(lv.getBlockEntity(pos));
+                if (clear && lv.getBlockState(pos) != s) org.domi.furnace.server.block.entity.Clearables.tryClear(lv.getBlockEntity(pos), lv);
                 if (lv.setBlock(pos, s, flags)) placed.add(pos);
             }
             if (afterEdit) for (Pos pos : placed) lv.blockUpdated(pos, B.block(lv.getBlockState(pos)));

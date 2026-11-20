@@ -236,3 +236,71 @@ FAWE populator 는 3·4인자 쓰기 모두 서버 레벨로 넘겨 나무 기�
   뒤에만 묻는다 — FAWE·평범한 populator 는 부작용이 없어 결과가 같고, `getBlockEntity` 가 던지는 레벨이면 Paper 는 방벽을 쓰기 전에 멈춘다(가정: 그런 레벨은 드물다).
   (5) Paper 는 청크 상자와 겹치는 조각이 있으면 `AsyncStructureGenerateEvent` 를 부른다(`CraftStructureTransformer`). 호환 계층에 그 이벤트가 없어 부르지 않는다.
   (6) 노이즈 생성기가 없는 월드(평지·빈 월드·Bukkit 생성기 월드)에서는 구조물 생성이 `UnsupportedNmsCall` 이다. Paper 는 이런 월드에서도 `//structure` 가 된다 — 로드맵 T-223.
+
+## 9. 3단계 설계 — 서버 레벨 나머지 멤버 (2026-11-17)
+
+### 9.1 범위
+
+점검 보고서(`compat-nms-shim-audit-full-run-2026-11-17-raw.md`)의 FAWE 없는 멤버 가운데 레벨 쪽 7개. FAWE 2.16.2 에서 이것들을 부르는 곳은
+`FaweBlockStateListPopulator`(그 레벨 메서드를 서버 레벨로 넘기는 재정의)와 `PaperweightAdapter#clearContainerBlockContents`(`Clearable`) 뿐이다.
+1·2단계의 배치는 서버 코드가 돌리므로 populator 의 이 재정의를 부르지 않는다 — 다른 플러그인·바닐라 꼴 코드가 부를 때 Paper 와 같게 하는 것이 목적이다.
+
+| 멤버 | Paper 1.21.1 (jar 에서 읽음) | Furnace |
+|---|---|---|
+| `ServerLevel#getShade(Direction, boolean)` | `1.0F` | 같다 |
+| `Level#getChunkIfLoadedImmediately(int, int)`(final, `LevelReader` 에 추상) | `chunkSource.getChunkAtIfLoadedImmediately` | 같다(이미 있는 `ServerChunkCache` 메서드 — 로드된 청크, 아무 스레드) |
+| `LevelReader#enabledFeatures()` → `FeatureFlagSet` | `server.getWorldData().enabledFeatures()` | 서버의 켜진 플래그(`data/FeatureFlags`)를 바닐라 `FeatureFlags.REGISTRY.fromNames` 로 |
+| `LevelReader#getBiomeManager()` → `BiomeManager`, `getBiome(pos)`, `getNoiseBiome(qx, qy, qz)` | 레벨이 만들 때 `new BiomeManager(this, obfuscateSeed(seed))`; `getNoiseBiome` 은 BIOMES 이상 청크가 있으면 그 청크, 없으면 `getUncachedNoiseBiome` | `BiomeManager` 바닐라 그대로 이식(확대 지터), 원천은 그 레벨의 `getNoiseBiome`(로드된 청크 = 공개본, 아니면 생성기) |
+| `LevelAccessor#getCurrentDifficultyAt(pos)` → `DifficultyInstance` | 청크가 있으면 달 밝기·머문 시간을 넣어 `new DifficultyInstance(난이도, 낮 시간, 머문 시간, 달)` | 서버 `ChunkLevel#getCurrentDifficultyAt` 값(그 칸 주인 스레드 — `NmsOwner`). 청크가 없으면 머문 시간 0·달 0 |
+| `LevelWriter#destroyBlock(pos, drop, entity, depth)`(+ 2·3인자 기본) | 아래 9.2 | 서버 `ChunkLevel#destroyBlock`(바닐라) |
+| `net.minecraft.world.Clearable` | 담는 블록 엔티티(`BaseContainerBlockEntity` 계열·모닥불·조각된 책장·장식 단지·주크박스·독서대)가 구현 | 같은 클래스에 구현, `clearContent()` 는 서버 `Clearables.tryClear`(그 칸 주인 스레드) |
+
+그 밖: 엔티티 멤버(`addFreshEntity(Entity, SpawnReason)`·`addFreshEntityWithPassengers`·`getEntities()`/`LevelEntityGetter`·`Entity.generation`·
+`spawnReason`)는 엔티티 쓰기 작업(T-212)으로 넘긴다. `paperConfig()` 는 FAWE `//regen` 의 리플렉션 필드 복사에서만 쓰이고(필드가 없으면 건너뛴다),
+`MinecraftServer#getWorldData` 는 FAWE 가 아닌 WorldEdit `//regen` 길에서만 쓰여 이번 범위가 아니다.
+
+### 9.2 `destroyBlock` — Paper 와 바닐라가 다른 곳
+
+Paper `Level#destroyBlock`: 공기면 거짓 → **경험치를 먼저 뽑는다**(`getExpDrop(state, level, pos, EMPTY, true)` — 광석은 레벨 난수, `drop` 이 거짓이어도)
+→ `BlockDestroyEvent` 듣는 쪽이 있으면 부르고(취소·효과 블록·효과 끄기·떨굼·경험치를 바꿀 수 있다) → 불이 아니면 레벨 이벤트 2001 → 떨굼이면
+`dropResources(…, 경험치 없음)` 뒤 뽑아 둔 경험치 → `setBlock(유체 상태, 3, depth)` → 성공이면 `BLOCK_DESTROY` 게임 이벤트.
+바닐라는 경험치를 `dropResources` 안(`spawnAfterBreak`, 떨굼 뒤)에서만 뽑는다. Furnace 서버는 바닐라 순서다(바닐라가 정답 — 절대 규칙 2, T-204 의
+`getFullStatus` 결정과 같은 기준). 그래서 경험치를 주는 블록을 부술 때 레벨 난수를 쓰는 차례가 Paper 와 다르고, `drop` 이 거짓이면 Paper 만 난수를 쓴다.
+`BlockDestroyEvent` 는 Furnace 서버 어디에서도 부르지 않는다(물·덩굴 등이 블록을 부수는 모든 길 공통) — 로드맵에 따로 둔다.
+부수는 엔티티: 플레이어는 서버 `PlayerActor`, 그 밖의 엔티티는 서버의 엔티티 부수기(`destroyBlockByEntity` — 전리품의 this 엔티티는 비움, 서버의 기존 차이)로.
+그 칸 주인 스레드에서 돌린다(`NmsOwner`). 부수는 엔티티가 그 스레드의 것이 아니면 `UnsupportedNmsCall`.
+
+### 9.3 `Clearable` — 서버 쪽 빈칸
+
+서버 `Clearables.tryClear`(`/setblock`·`/fill`·`/clone`·빠른 블록 쓰기 공용)는 주크박스·독서대를 빠뜨렸고 장식 단지의 전리품을 풀지 않았다. 바닐라 `clearContent`:
+담는 블록 엔티티는 칸을 모두 비움(전리품 표는 그대로), 주크박스는 `removeTheItem` → `setTheItem(EMPTY)`(has_record 끄기 flag 2·`block_change`·재생 멈춤 1011),
+독서대는 `setBook(EMPTY)`(쪽 0·저장 표시 — `has_book` 상태는 그대로; 뒤이은 블록 바꾸기에서 바닐라 `popBook` 이 `has_book` 상태를 보고 빈 아이템
+엔티티를 만든다 — 난수 2번·엔티티 번호 1개. 서버 `LecternBlock` 도 그렇게 고쳤다, #499 검토), 장식 단지는 `removeTheItem` → `unpackLootTable(null)` 뒤 비움, 모닥불·조각된 책장은 칸 비움.
+`tryClear(be, level)` 로 레벨을 받아 이 셋을 바닐라대로 고친다. 이 고침은 명령 길도 바꾼다: 지금까지 `/setblock` 으로 음반이 든 주크박스를 바꾸면
+`onRemove` 가 음반을 떨궜는데 바닐라는 먼저 비워 떨구지 않는다.
+호환: 월드의 블록 엔티티 보기는 그 칸 주인 스레드에서 서버 블록 엔티티에(`NmsOwner` — 저장과 같은 문), 플러그인이 만든 떨어진 블록 엔티티는 `UnsupportedNmsCall`
+(내용을 NBT 로만 들고 있어 주크박스·단지의 레벨 동작을 같게 낼 수 없다; FAWE 는 월드의 것만 비운다).
+
+### 9.4 기타
+
+- `FeatureFlagSet`·`FeatureFlag`·`FeatureFlagUniverse`·`FeatureFlagRegistry`·`FeatureFlags` 는 바닐라 그대로(코덱은 빼고). `hashCode` 는 fastutil `HashCommon.mix` 와 같은 식.
+- `BiomeManager.obfuscateSeed` 는 바닐라(구아바 `sha256().hashLong(seed).asLong()`)와 같은 값 — 8바이트 리틀 엔디언 SHA-256 앞 8바이트(서버 `BiomeZoom` 과 같다).
+- `DummyGeneratorAccess` 에 Paper 처럼 `getCurrentDifficultyAt`·`getBiomeManager`·`enabledFeatures`·`getChunkIfLoadedImmediately` 를 둔다(모두 "Not supported yet.").
+- `getShade` 는 `ServerLevel` 에만 둔다(바닐라는 `BlockAndTintGetter` 에 추상 — shim 에 그 인터페이스가 없다).
+
+## 10. 3단계 구현 메모 (2026-11-17)
+
+- API 다리(`ChunkInternals`, 기본 메서드 4개): `enabledFeatureFlags()`(아무 스레드), `currentDifficultyNow`(청크가 있으면 주인 스레드),
+  `destroyBlockNow`(주인 스레드, 부수는 엔티티는 `entityNow` 로 — 플레이어는 `PlayerActor`, 그 밖은 `destroyBlockByEntity` 에 깊이를 더한 겹메서드),
+  `clearBlockEntityContentNow`(주인 스레드, 아직 만들지 않은 생성 블록 엔티티는 바닐라 `getBlockEntity` 처럼 만든 뒤).
+- 서버: `Clearables.tryClear(be, level)`·`isClearable` — 명령(`/setblock`·`/fill`·`/clone`)·빠른 블록 쓰기와 같은 코드.
+- 호환: `LevelReader`(`NoiseBiomeSource` 상속, `getChunkIfLoadedImmediately`·`getBiomeManager`·`getBiome`·`getNoiseBiome`·`getUncachedNoiseBiome`·`enabledFeatures`),
+  `LevelAccessor#getCurrentDifficultyAt`, `LevelWriter#destroyBlock`(2·3인자 기본 + 4인자), `Level` 구현, `ServerLevel#getShade`, `DummyGeneratorAccess` 의 Paper 거절 4개.
+  새 shim: `Clearable`·`DifficultyInstance`·`flag.*`·`BiomeManager`·`LinearCongruentialGenerator`. 블록 엔티티 생성기(`tools/compat/gen-nms-block-entities.py`)가
+  바닐라 `Clearable` 클래스 6개에 `implements Clearable`·`clearContent()` 를 붙인다(하위 클래스는 물려받는다).
+- `getCurrentDifficultyAt`·`clearContent` 는 그 칸 주인 스레드(`NmsOwner` — 틱 스레드가 아니면 기다리는 왕복, 남의 region·전역 스레드는 ThreadOwnershipException,
+  빌림 구간이면 된다), `destroyBlock` 은 `setBlock` 과 같이 주인 스레드(빌림 포함)에서만.
+- 시험: 호환 `NmsLevelSurfaceTest`(7개), 서버 `ClearablesTest`(5개).
+- 알려진 차이·가정: (1) 9.2 의 `destroyBlock` 경험치 난수 순서·`BlockDestroyEvent`(T-224). (2) `getNoiseBiome` 은 BIOMES 단계의 생성 중 청크를 보지 않는다 —
+  로드된 청크만 보고 나머지는 생성기 값이다(생성 중 청크의 바이옴은 생성기 값과 같으므로 결과는 같다, 가정: 생성 뒤 바이옴을 바꾸는 단계는 없다).
+  (3) 지워졌거나 내려간 청크의 블록 엔티티 보기·떨어진 블록 엔티티의 `clearContent` 는 `UnsupportedNmsCall`. (4) `FeatureFlagRegistry#codec` 은 없다.

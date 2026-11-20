@@ -11,4 +11,15 @@ public interface LevelWriter {
     default boolean setBlock(BlockPos pos, BlockState state, int flags) { return setBlock(pos, state, flags, 512); }
 
     boolean removeBlock(BlockPos pos, boolean moved);
+
+    /** 바닐라 LevelWriter#destroyBlock(pos, drop): 부수는 엔티티 없이. */
+    default boolean destroyBlock(BlockPos pos, boolean drop) { return destroyBlock(pos, drop, null); }
+
+    /** 바닐라 LevelWriter#destroyBlock(pos, drop, entity): 깊이 512. */
+    default boolean destroyBlock(BlockPos pos, boolean drop, net.minecraft.world.entity.Entity breakingEntity) {
+        return destroyBlock(pos, drop, breakingEntity, 512);
+    }
+
+    /** 바닐라 LevelWriter#destroyBlock(4인자, T-211 3단계). */
+    boolean destroyBlock(BlockPos pos, boolean drop, net.minecraft.world.entity.Entity breakingEntity, int maxUpdateDepth);
 }

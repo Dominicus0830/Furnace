@@ -102,6 +102,72 @@ public abstract class Level implements LevelAccessor {
         return org.domi.furnace.compat.nms.NmsChunks.biomeHolders().get(id);
     }
 
+    // ------------------------------------------------------------------ 레벨 공통(T-211 3단계 — 설계 9장)
+
+    private volatile net.minecraft.world.level.biome.BiomeManager biomeManager;
+
+    /** 바닐라 Level#getBiomeManager: 이 레벨을 원천으로, 월드 시드를 감춘 값(obfuscateSeed)으로 만든 것 하나. */
+    @Override
+    public net.minecraft.world.level.biome.BiomeManager getBiomeManager() {
+        var m = biomeManager;
+        if (m == null) {
+            biomeManager = m = new net.minecraft.world.level.biome.BiomeManager(this,
+                    net.minecraft.world.level.biome.BiomeManager.obfuscateSeed(furnace().seed()));
+        }
+        return m;
+    }
+
+    /** Paper Level#getChunkIfLoadedImmediately: {@code chunkSource.getChunkAtIfLoadedImmediately} — 로드된 청크의 보기, 아니면 null. 아무 스레드. */
+    @Override
+    public final ChunkAccess getChunkIfLoadedImmediately(int x, int z) { return getChunkSource().getChunkNow(x, z); }
+
+    /** 바닐라 ServerLevel#enabledFeatures: 서버에 켜진 기능 플래그(데이터 팩 구성). 아무 스레드. */
+    @Override
+    public net.minecraft.world.flag.FeatureFlagSet enabledFeatures() {
+        java.util.List<ResourceLocation> names = new java.util.ArrayList<>();
+        for (String n : NmsChunks.bridge().enabledFeatureFlags()) names.add(ResourceLocation.parse(n));
+        return net.minecraft.world.flag.FeatureFlags.REGISTRY.fromNames(names);
+    }
+
+    /**
+     * 바닐라 Level#getCurrentDifficultyAt: 청크가 있으면 그 청크의 머문 시간·달 밝기를 넣은 지역 난이도(서버 값 — 난이도 프로필의 지역 배율 포함).
+     * 청크가 로드돼 있으면 그 칸의 주인 스레드에서 읽는다(주인이 아닌 틱 스레드면 ThreadOwnershipException, 그 밖의 스레드는 기다리는 왕복 — {@code NmsOwner}).
+     */
+    @Override
+    public net.minecraft.world.DifficultyInstance getCurrentDifficultyAt(BlockPos pos) {
+        var b = NmsChunks.bridge();
+        var w = furnace();
+        int x = pos.getX(), y = pos.getY(), z = pos.getZ();
+        float[] d;
+        if (hasChunkAt(pos)) {
+            d = org.domi.furnace.compat.nms.NmsOwner.call(w, x, y, z, "Level#getCurrentDifficultyAt", () -> b.currentDifficultyNow(w, x, y, z));
+        } else {
+            try {
+                d = b.currentDifficultyNow(w, x, y, z);
+            } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException e) {   // 그사이 로드됐다
+                d = org.domi.furnace.compat.nms.NmsOwner.call(w, x, y, z, "Level#getCurrentDifficultyAt", () -> b.currentDifficultyNow(w, x, y, z));
+            }
+        }
+        return net.minecraft.world.DifficultyInstance.furnaceOf(net.minecraft.world.Difficulty.byId((int) d[0]), d[1]);
+    }
+
+    /**
+     * 바닐라 Level#destroyBlock(4인자): 서버의 블록 부수기(바닐라 순서 — 레벨 이벤트 2001, 떨굼, 유체 상태로 setBlock(3, 깊이), BLOCK_DESTROY). 그 칸의 주인
+     * 스레드(빌림 포함)에서만, 로드되지 않은 칸은 IllegalStateException({@link #setBlock} 과 같다). Paper 와 다른 점: 경험치를 뽑는 차례(설계 9.2),
+     * {@code BlockDestroyEvent} 를 부르지 않는다. 부수는 엔티티는 이 스레드가 가진 것이어야 한다(아니면 UnsupportedNmsCall).
+     */
+    @Override
+    public boolean destroyBlock(BlockPos pos, boolean drop, net.minecraft.world.entity.Entity breakingEntity, int maxUpdateDepth) {
+        if (isOutsideBuildHeight(pos)) return false;   // 바닐라: 높이 밖은 공기
+        if (!hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) throw NmsChunks.notLoaded(furnace(), pos.getX() >> 4, pos.getZ() >> 4, "Level#destroyBlock");
+        var breaker = breakingEntity == null ? null : breakingEntity.getBukkitEntity().furnaceHandle();
+        try {
+            return NmsChunks.bridge().destroyBlockNow(furnace(), pos.getX(), pos.getY(), pos.getZ(), drop, breaker, maxUpdateDepth);
+        } catch (IllegalArgumentException e) {   // 부수는 엔티티가 이 스레드의 것이 아니거나 사라졌다
+            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("Level#destroyBlock", e.getMessage());
+        }
+    }
+
     /** 서버 레지스트리 묶음(H7b, {@link net.minecraft.server.MinecraftServer#registryAccess()} 와 같다). */
     public net.minecraft.core.RegistryAccess registryAccess() { return net.minecraft.core.RegistryAccess.SERVER; }
 
