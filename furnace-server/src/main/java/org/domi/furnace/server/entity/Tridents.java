@@ -44,11 +44,11 @@ public final class Tridents {
         return "item.trident.riptide_" + Math.min(lvl, 3);
     }
 
-    /** use: 너무 닳았거나 급류인데 물·비 밖이면 실패, 아니면 쓰기 시작. */
+    /** use: 너무 닳았거나 급류인데 물·비 밖이면 실패(false), 아니면 쓰기 시작(true). */
     static boolean use(ChunkLevel level, BlockActor actor, Player p, int hand) {
         ItemStack s = actor.itemInHand(hand);
-        if (tooDamaged(s)) return true;
-        if (spinStrength(s) > 0.0F && !isInWaterOrRain(level, p)) return true;
+        if (tooDamaged(s)) return false;
+        if (spinStrength(s) > 0.0F && !isInWaterOrRain(level, p)) return false;
         RangedWeapons.start(p, hand, USE_TICKS);
         return true;
     }

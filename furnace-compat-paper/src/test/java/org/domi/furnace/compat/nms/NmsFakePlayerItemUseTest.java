@@ -62,9 +62,14 @@ class NmsFakePlayerItemUseTest {
     FakePlayer fake;
     final List<String> placed = new CopyOnWriteArrayList<>();
     volatile boolean cancel;
+    /** 데이터 팩을 안 거는 시험 서버는 아이템 태그 표가 없다(실서버는 DataPackManager 가 건다) — 화살 태그(minecraft:arrows)를 보는 활·쇠뇌 때문에 바닐라 표를 건다. */
+    org.domi.furnace.server.net.registry.TagSet tagsBefore;
 
     @BeforeAll
     void start() {
+        tagsBefore = org.domi.furnace.server.item.ItemContext.tagSet();
+        if (tagsBefore == null) org.domi.furnace.server.item.ItemContext.installTags(org.domi.furnace.server.net.registry.TagSet.load(
+                "registries/tags-" + org.domi.furnace.api.GameVersion.RESOURCE_TAG + ".txt"));
         server = FurnaceTestServer.builder().failFast(false).exposeCompatToNative(true).plugin(CompatTestPlugin.class).start();
         Bukkit.setServer(CraftServer.INSTANCE);
         tp = server.join("Builder");
@@ -82,7 +87,10 @@ class NmsFakePlayerItemUseTest {
     }
 
     @AfterAll
-    void stop() { server.close(); }
+    void stop() {
+        server.close();
+        org.domi.furnace.server.item.ItemContext.installTags(tagsBefore);
+    }
 
     @BeforeEach
     void reset() {
@@ -196,11 +204,93 @@ class NmsFakePlayerItemUseTest {
         assertSame(Blocks.STONE.defaultBlockState(), get(base.above()));
     }
 
+    /** 바닐라 BowItem#use: 손(왼손 먼저)·인벤토리에 화살이 있거나 무한 재료면 당기기 시작(consume), 아니면 fail. 시작만으로는 화살을 쓰지 않는다. */
     @Test
-    void notYetSupportedCallsSayWhy() {
+    void bowStartsDrawingOnlyWithArrows() {
         ItemStack bow = new ItemStack(Items.BOW, 1);
         aim(bow, base, Direction.UP);
-        assertThrows(UnsupportedNmsCall.class, () -> Items.BOW.use(level, fake, InteractionHand.MAIN_HAND));
+        fake.setItemInHand(InteractionHand.OFF_HAND, ItemStack.EMPTY);
+        var r = Items.BOW.use(level, fake, InteractionHand.MAIN_HAND);
+        assertEquals(InteractionResult.FAIL, r.getResult());
+        assertSame(bow, r.getObject());
+
+        ItemStack arrows = new ItemStack(Items.ARROW, 5);
+        fake.setItemInHand(InteractionHand.OFF_HAND, arrows);
+        try {
+            var r2 = Items.BOW.use(level, fake, InteractionHand.MAIN_HAND);
+            assertEquals(InteractionResult.CONSUME, r2.getResult());
+            assertSame(bow, r2.getObject());
+            assertEquals(5, arrows.getCount());
+            assertSame(arrows, fake.getItemInHand(InteractionHand.OFF_HAND));
+        } finally {
+            fake.setItemInHand(InteractionHand.OFF_HAND, ItemStack.EMPTY);
+        }
+    }
+
+    /** 바닐라 TridentItem#use: 너무 닳았으면(피해 ≥ 최대 − 1) fail, 아니면 쓰기 시작. */
+    @Test
+    void tridentStartsUnlessTooDamaged() {
+        ItemStack trident = new ItemStack(Items.TRIDENT, 1);
+        aim(trident, base, Direction.UP);
+        assertEquals(InteractionResult.CONSUME, Items.TRIDENT.use(level, fake, InteractionHand.MAIN_HAND).getResult());
+
+        ItemStack worn = ItemStack.fromFurnace(new org.domi.furnace.api.item.ItemStack("minecraft:trident", 1).withComponent("minecraft:damage", "249"), 1);
+        aim(worn, base, Direction.UP);
+        var r = Items.TRIDENT.use(level, fake, InteractionHand.MAIN_HAND);
+        assertEquals(InteractionResult.FAIL, r.getResult());
+        assertSame(worn, r.getObject());
+    }
+
+    /**
+     * 바닐라 CrossbowItem#use: 빈 쇠뇌는 탄약이 있으면 장전을 시작하고 없으면 fail. 장전된 쇠뇌는 쏘고 consume — 손의 그 객체가 장전이 비고 내구도
+     * 1 이 깎이며, 화살이 월드에 들어간다(투사체 발사 이벤트의 쏜 쪽은 그 가짜의 CraftPlayer).
+     */
+    @Test
+    void crossbowChargesOrShoots() {
+        ItemStack empty = new ItemStack(Items.CROSSBOW, 1);
+        aim(empty, base, Direction.UP);
+        fake.setItemInHand(InteractionHand.OFF_HAND, ItemStack.EMPTY);
+        assertEquals(InteractionResult.FAIL, Items.CROSSBOW.use(level, fake, InteractionHand.MAIN_HAND).getResult());
+        ItemStack arrows = new ItemStack(Items.ARROW, 3);
+        fake.setItemInHand(InteractionHand.OFF_HAND, arrows);
+        try {
+            assertEquals(InteractionResult.CONSUME, Items.CROSSBOW.use(level, fake, InteractionHand.MAIN_HAND).getResult());
+            assertEquals(3, arrows.getCount(), "장전 시작만으로는 화살을 쓰지 않는다");
+        } finally {
+            fake.setItemInHand(InteractionHand.OFF_HAND, ItemStack.EMPTY);
+        }
+
+        BlockPos target = base.east(3);
+        set(target, Blocks.STONE.defaultBlockState());
+        set(target.above(), Blocks.AIR.defaultBlockState());
+        List<String> launched = new CopyOnWriteArrayList<>();
+        var sub = server.api().events().subscribe(server.plugin(CompatTestPlugin.class), org.domi.furnace.api.event.entity.ProjectileLaunchEvent.class,
+                EventPriority.NORMAL, false, e -> launched.add(e.entity().type() + " "
+                        + (Compat.entity(e.entity()) instanceof org.bukkit.entity.Projectile pr && pr.getShooter() == fake.getBukkitEntity())));
+        try {
+            ItemStack charged = ItemStack.fromFurnace(new org.domi.furnace.api.item.ItemStack("minecraft:crossbow", 1)
+                    .withComponent("minecraft:charged_projectiles", "[{id:\"minecraft:arrow\",count:1}]"), 1);
+            fake.setItemInHand(InteractionHand.MAIN_HAND, charged);
+            fake.absMoveTo(target.getX() + 0.5, target.getY() + 1, target.getZ() + 0.5, 0.0F, 90.0F);   // 돌 바로 위에서 아래로 쏜다
+            var r = Items.CROSSBOW.use(level, fake, InteractionHand.MAIN_HAND);
+            assertEquals(InteractionResult.CONSUME, r.getResult());
+            assertSame(charged, r.getObject());
+            assertSame(charged, fake.getItemInHand(InteractionHand.MAIN_HAND));
+            assertEquals(1, charged.getDamageValue());
+            assertEquals(List.of("minecraft:arrow true"), launched);
+            server.tick(5);   // 쏜 쪽이 월드에 없는 플레이어인 화살이 돌에 박혀도 탈이 없다
+            assertTrue(Items.CROSSBOW.use(level, fake, InteractionHand.MAIN_HAND).getResult() == InteractionResult.FAIL, "장전이 비었다");
+        } finally {
+            sub.unsubscribe();
+            set(target, Blocks.AIR.defaultBlockState());
+        }
+    }
+
+    @Test
+    void notYetSupportedCallsSayWhy() {
+        ItemStack rod = new ItemStack(Items.FISHING_ROD, 1);
+        aim(rod, base, Direction.UP);
+        assertThrows(UnsupportedNmsCall.class, () -> Items.FISHING_ROD.use(level, fake, InteractionHand.MAIN_HAND));
         ServerPlayer online = ((org.bukkit.craftbukkit.entity.CraftPlayer) Compat.player(tp.player())).getHandle();
         assertThrows(UnsupportedNmsCall.class, () -> online.getItemInHand(InteractionHand.MAIN_HAND));
         assertThrows(UnsupportedNmsCall.class, () -> Items.APPLE.use(level, online, InteractionHand.MAIN_HAND));

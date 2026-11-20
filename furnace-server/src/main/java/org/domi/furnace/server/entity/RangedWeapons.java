@@ -122,24 +122,33 @@ public final class RangedWeapons {
     public static boolean use(ChunkLevel level, BlockActor actor, Player p, int hand) {
         ItemStack weapon = actor.itemInHand(hand);
         if (FishingHook.isRod(weapon)) return FishingRods.use(level, actor, p, hand);
-        if (Tridents.isTrident(weapon)) return Tridents.use(level, actor, p, hand);
-        if (isBow(weapon)) {
+        return useResult(level, actor, p, hand) != null;
+    }
+
+    /**
+     * 활·쇠뇌·삼지창의 바닐라 {@code Item#use} 결과(서버 쪽): 쓰기 시작했거나 장전된 쇠뇌를 쐈으면 "CONSUME", 아니면 "FAIL". 셋이 아니면
+     * 아무것도 하지 않고 null(낚싯대 포함).
+     */
+    public static String useResult(ChunkLevel level, BlockActor actor, Player p, int hand) {
+        ItemStack weapon = actor.itemInHand(hand);
+        if (Tridents.isTrident(weapon)) return Tridents.use(level, actor, p, hand) ? "CONSUME" : "FAIL";
+        if (isBow(weapon)) {   // BowItem#use: 탄약이 있거나 무한 재료면 시작, 아니면 fail
             boolean has = !projectile(p, actor, weapon).stack().isEmpty();
-            if (p.hasInfiniteMaterials() || has) start(p, hand, BOW_USE_TICKS);
-            return true;
+            if (!p.hasInfiniteMaterials() && !has) return "FAIL";
+            start(p, hand, BOW_USE_TICKS);
+            return "CONSUME";
         }
-        if (!isCrossbow(weapon)) return false;
+        if (!isCrossbow(weapon)) return null;
         List<?> charged = chargedRaw(weapon);
-        if (!charged.isEmpty()) {
+        if (!charged.isEmpty()) {   // CrossbowItem#use: 장전돼 있으면 쏘고 consume(플러그인이 모두 취소해도 consume)
             performShooting(level, actor, p, hand, containsFirework(charged) ? 1.6F : 3.15F, 1.0F);
-            return true;
+            return "CONSUME";
         }
-        if (!projectile(p, actor, weapon).stack().isEmpty()) {
-            p.crossbowStartSound = false;
-            p.crossbowMidSound = false;
-            start(p, hand, crossbowUseDuration(weapon));
-        }
-        return true;
+        if (projectile(p, actor, weapon).stack().isEmpty()) return "FAIL";
+        p.crossbowStartSound = false;
+        p.crossbowMidSound = false;
+        start(p, hand, crossbowUseDuration(weapon));
+        return "CONSUME";
     }
 
     static void start(Player p, int hand, int ticks) {

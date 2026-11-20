@@ -839,12 +839,15 @@ final class ChunkInternalsImpl implements ChunkInternals {
                 }
                 default -> {
                     var s = actor.itemInHand(hand);
-                    if (org.domi.furnace.server.entity.RangedWeapons.isBow(s) || org.domi.furnace.server.entity.RangedWeapons.isCrossbow(s)
-                            || org.domi.furnace.server.entity.Tridents.isTrident(s) || org.domi.furnace.server.item.ItemTools.itemName(s).equals("minecraft:fishing_rod")) {
+                    if (org.domi.furnace.server.item.ItemTools.itemName(s).equals("minecraft:fishing_rod")) {   // 찌가 월드에 없는 플레이어에 묶여 남는다(설명서 6.6)
                         throw new UnsupportedOperationException("Item#use of " + org.domi.furnace.server.item.ItemTools.itemName(s)
-                                + " is not available for a player that is not in a world yet");
+                                + " is not available for a player that is not in a world");
                     }
-                    if (org.domi.furnace.server.entity.Consuming.tryStart(p, hand, s)) {   // 먹기·마시기·방패·망원경: startUsingItem → consume
+                    String ranged = org.domi.furnace.server.entity.RangedWeapons.useResult(lv, actor, p, hand);   // 활·쇠뇌·삼지창
+                    if (ranged != null) {
+                        result = ranged;
+                        used = ApiConvert.item(actor.itemInHand(hand), items);   // 바닐라: 손의 그 스택(쇠뇌는 쏘며 고친 것)
+                    } else if (org.domi.furnace.server.entity.Consuming.tryStart(p, hand, s)) {   // 먹기·마시기·방패·망원경: startUsingItem → consume
                         result = "CONSUME";
                         used = ApiConvert.item(s, items);
                     } else if (org.domi.furnace.server.item.ItemTools.component(s, "minecraft:food") != null) {   // Item#use: 못 먹으면 fail

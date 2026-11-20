@@ -456,6 +456,24 @@ public final class Compat {
         return c;
     }
 
+    /**
+     * 호환 모듈 전용(T-212): 그 UUID·그 차원 키의, NMS 로 만든 월드에 없는 플레이어의 CraftPlayer(없으면 null). 투사체의 쏜 쪽 찾기 —
+     * Paper {@code Projectile#getOwner} 는 쏜 객체를 들고 있어 가짜 플레이어도 돌려준다. FAWE 는 월드마다 같은 UUID 의 가짜를 하나씩 만든다.
+     */
+    public static CraftPlayer detachedPlayer(java.util.UUID id, String dimension) {
+        State s = state();
+        if (s.detached.isEmpty()) return null;
+        synchronized (s.detached) {
+            for (var e : s.detached.entrySet()) {
+                var p = e.getKey();
+                if (p == null || !p.uniqueId().equals(id) || !p.location().world().equals(dimension)) continue;
+                CraftPlayer c = e.getValue().get();
+                if (c != null) return c;
+            }
+        }
+        return null;
+    }
+
     private static CraftPlayer detachedOf(State s, org.domi.furnace.api.entity.Player p) {
         if (s.detached.isEmpty()) return null;
         var r = s.detached.get(p);

@@ -14,7 +14,7 @@
 |---|--:|---|---|---|
 | 가. 엔티티 저장·지우기·찾기 | 4 | `Entity.save`·`discard`, `ServerLevel.getEntities()`, `LevelEntityGetter` | `//copy -e`·되돌리기 기록(`PaperweightGetBlocks.entities`), 지우기 동기 작업 | 이 문서 3장 |
 | 나. 엔티티 만들기·넣기 | 8 | `EntityType.create(Level)`, `Entity.load`·`absMoveTo`·`setUUID`·`generation`·`spawnReason`, `ServerLevel.addFreshEntity(…, SpawnReason)`·`addFreshEntityWithPassengers(…, SpawnReason)` (+ 이미 있지만 막혀 있던 Paper `EntityLookup.addNewEntity`) | `//paste -e`·되돌리기 | 이 문서 4장 |
-| 다. 가짜 플레이어 아이템 쓰기 | 8 | `ServerPlayer` 상속·생성자, `InteractionResult`·`InteractionResultHolder`·`ItemInteractionResult`, `ItemStack.useOn`, `Item.use`, `BlockState.useItemOn` | `simulateItemUse`(아이템을 쓰는 브러시·`//apply`) | 뒤 PR |
+| 다. 가짜 플레이어 아이템 쓰기 | 8 | `ServerPlayer` 상속·생성자, `InteractionResult`·`InteractionResultHolder`·`ItemInteractionResult`, `ItemStack.useOn`, `Item.use`, `BlockState.useItemOn` | `simulateItemUse`(아이템을 쓰는 브러시·`//apply`) | 이 문서 6장(#525·#526·3번 PR) |
 | 라. 옛 도식 변환·아이템 이름 | 4 | `GsonHelper`, `StringUtil`, `DyeColor`, `ItemStack.getDescriptionId` | 1.13 이전 도식 변환기(`PaperweightDataConverters`), `getRichItemName` | 이 문서 5장 |
 | 마. Furnace 에서 실행되지 않음 | 8 | `Util`, `ThreadingDetector`, `BlockableEventLoop`, `WorldData`·`MinecraftServer.getWorldData`, `ServerLevel.paperConfig`, `PersistentEntitySectionManager`, `LevelChunk.setBiome` | 아래 | 구현 안 함 |
 | 바. 진행 중인 PR #509(T-200) | 3 | `ItemStack.applyComponents`·`getComponentsPatch`, `RegistryAccess$Frozen.createSerializationContext` | 아이템 NBT 왕복 | #509 |
@@ -100,15 +100,32 @@
 
 1. (#525) 서버 detached 플레이어 + 다리 `detachedPlayer`·`moveDetachedPlayer` + `ServerPlayer` 상속·생성자·`CraftPlayer` 연결(시험 `NmsDetachedPlayerTest`).
 2. 상호작용 결과 형식 + `useOn`·`useItemOn`·`use` 다리 + 이벤트(시험 `NmsFakePlayerItemUseTest`: 블록 놓기와 `BlockPlaceEvent` 의 플레이어·취소, 화분에 꽃, 음식 규칙, FAWE `simulateItemUse` 흐름, 아직 안 되는 호출).
+3. 활·쇠뇌·삼지창의 `Item#use`와 가짜 플레이어가 쏜 투사체의 쏜 쪽(6.6).
 
 ### 6.5 2번 PR 에서 정한 것
 
 - **다리 `useItemNow(world, 핸들, 종류, 손, 두 손, stack, 상태, 칸·면·맞은 점)`:** 맞은 칸(USE 는 플레이어가 선 칸)의 주인 스레드에서 돈다. 행위자는 서버 `PlayerActor`(그 플레이어 + 넘겨 받은 두 손, 권한 단계는 ops 목록)이고 `allowPlace` 는 접속한 플레이어와 같은 `gameEvents().blockPlace(…)` 다. 쓰는 동안만 그 플레이어의 `currentLevel` 을 그 레벨로 둔다(먹기 시작의 게임 이벤트·망원경 소리가 그 자리에서 난다 — 바닐라 가짜 플레이어도 레벨을 가진다).
   - USE_ON = 서버 `BlockPlacement.useOn`(바닐라 `ItemStack#useOn`, 모험 모드 검사 포함).
   - USE_ITEM_ON = 서버 `BlockBehaviors.of(state).useItemOn` — 바닐라 `BlockStateBase#useItemOn` 처럼 **그 상태 객체**로(칸의 지금 상태가 아니라).
-  - USE = 바닐라 `Item#use`: 먹기·마시기·방패·망원경은 `Consuming.tryStart`(시작하면 CONSUME), 음식인데 못 먹으면 FAIL(바닐라 `Item#use`), 나머지는 `ItemUse.use`. 활·쇠뇌·삼지창·낚싯대는 서버 쪽이 접속한 플레이어의 인벤토리·사용 상태에 묶여 있어 아직 `UnsupportedNmsCall`.
+  - USE = 바닐라 `Item#use`: 먹기·마시기·방패·망원경은 `Consuming.tryStart`(시작하면 CONSUME), 음식인데 못 먹으면 FAIL(바닐라 `Item#use`), 나머지는 `ItemUse.use`. 활·쇠뇌·삼지창은 3번 PR(6.6), 낚싯대는 `UnsupportedNmsCall`(6.6).
 - **손 되쓰기:** 바닐라는 손의 스택 객체를 그 자리에서 줄인다(`consume`). 서버 스택은 불변이라, 서버가 바꾼 손이 같은 종류(또는 다 써서 빔)면 손에 있던 그 shim 객체를 고치고, 종류가 바뀌면 새 객체를 넣는다. `Item#use` 가 돌려준 스택도 같은 규칙(같은 종류면 손의 그 객체). `Item#use` 가 다른 종류를 돌려주는 길은 바닐라 `ItemUtils.createFilledResult`(양동이·병 채우기)뿐이라 그대로 따른다: 손의 그 객체를 하나 줄이고(1 개였으면 빈 스택), 채운 것을 돌려준다. 2 개 이상이면 서버 결과가 줄어든 손이라 위의 같은 종류 갈래로 손의 그 객체를 돌려준다(시험 `fillingABucketShrinksTheHeldStackLikeVanilla`). 서버 `ItemUse` 가 채운 것을 인벤토리에 넣는 쪽은 월드에 없는 플레이어에 인벤토리가 없어 하지 않는다 — 바닐라도 가짜 플레이어 인벤토리에 넣을 뿐이고 FAWE 는 그것을 보지 않는다.
 - **같은 가짜 플레이어를 두 구역에서 동시에(#526 검토):** 서버 플레이어 하나를 두 region 스레드가 함께 쓰면 `currentLevel`·손이 섞이므로, 쓰는 동안 그 플레이어에 표시를 하고 다른 스레드가 같은 플레이어로 또 부르면 `UnsupportedNmsCall`("already using an item on another thread")로 거절한다. 거절당한 쪽은 바닐라처럼 기다려 주지 않는다(바닐라는 스레드가 하나라 이 경우가 없다).
 - **청크가 로드되지 않은 칸:** Paper 는 그 자리에서 청크를 불러오지만, 여기서는 `UnsupportedNmsCall`(region 스레드가 청크를 동기로 불러올 수 없다). FAWE 는 편집 중인 로드된 칸에서만 부른다.
 - **#525 검토에서 나온 것:** `CraftPlayer.disconnected()` 가 연결이 없는(null) 플레이어도 견디게 했다. Paper `CraftPlayer.isOnline()` 은 UUID 로 접속자 목록을 보므로, 가짜 플레이어가 접속 중인 진짜 플레이어와 같은 UUID 를 쓰면 Paper 는 참·Furnace 는 거짓이다(알고 둔 차이 — FAWE 는 자기 UUID "worldedit" 을 쓴다). FAWE 2.16.2 `simulateItemUse` 가 가짜 플레이어의 자리를 바꾸는 길은 `absMoveTo` 하나뿐이다(`position()` 은 재정의해 원점) — 다른 자리 바꾸기(`moveTo`·`setPos`)는 월드에 없는 플레이어에 아직 없다.
 - **서버 고침(같이 들어감):** 꿀 병은 배가 불러도 마신다. 바닐라 `HoneyBottleItem#use` 는 `ItemUtils.startUsingInstantly`(허기 검사 없음)인데 서버 `Consuming.duration` 이 `canEat` 을 보고 있었다(접속한 플레이어도 같은 차이였다). 시험 `ConsumingTest#honeyBottleIsDrunkEvenWhenFull`.
+
+### 6.6 3번 PR: 활·쇠뇌·삼지창, 낚싯대
+
+Paper 1.21.1 jar(`javap`)의 `BowItem#use`·`CrossbowItem#use`·`TridentItem#use` 와 맞췄다. 서버는 접속한 플레이어가 쓰는 `RangedWeapons` 를 그대로 쓰고, 결과만 바닐라 값으로 돌려준다(`RangedWeapons#useResult` — 접속한 플레이어의 길은 바뀌지 않는다).
+
+- **활:** 손(왼손 먼저)·인벤토리에 화살이 있거나 무한 재료(창조)면 당기기 시작하고 CONSUME, 아니면 FAIL. 월드에 없는 플레이어의 인벤토리는 두 손뿐이다(바닐라 가짜 플레이어도 빈 인벤토리). 당기기만 시작하고 끝나지 않는다 — 바닐라 가짜 플레이어도 틱이 돌지 않아 놓지 않는다.
+- **삼지창:** 너무 닳았거나(피해 ≥ 최대 − 1) 급류인데 물·비 밖이면 FAIL, 아니면 쓰기 시작해 CONSUME(서버 `Tridents.use` 가 시작 여부를 돌려주게 바꿨다).
+- **쇠뇌:** 장전돼 있으면 쏘고 CONSUME(손의 그 객체가 장전이 비고 내구도가 깎인다 — 접속한 플레이어와 같은 `performShooting`). 비어 있으면 탄약이 있을 때 장전을 시작하고 CONSUME, 없으면 FAIL.
+- **쏜 쪽:** 가짜가 쏜 화살의 Bukkit `Projectile#getShooter()` 는 그 가짜의 `CraftPlayer` 다(Paper `Projectile#getOwner` 는 쏜 객체를 들고 있다). Furnace 투사체 감싸개는 쏜 쪽을 UUID 로 찾으므로, 접속자 목록에 없으면 그 UUID·그 차원의 NMS 로 만든 플레이어를 찾는다(`Compat.detachedPlayer(UUID, 차원)`). FAWE 는 월드마다 같은 UUID 의 가짜를 하나씩 두므로 차원으로 갈린다. 같은 UUID·같은 차원의 가짜가 둘 이상이면 그중 하나다(알고 둔 차이 — Paper 는 쏜 바로 그 객체).
+- **낚싯대는 거절 유지(`UnsupportedNmsCall`):** 찌(`FishingHook`)는 월드에 남아 틱마다 주인을 본다(바닐라 `shouldStopFishing`: 주인이 살아 있고, 어느 손에든 낚싯대가 있고, 32칸 안이면 계속). Paper 의 가짜 플레이어는 손에 낚싯대를 든 채 남으므로 찌가 그대로 남는다. Furnace 서버 찌는 주인의 끊김 표시·인벤토리 칸으로 판정하는데, 월드에 없는 플레이어는 처음부터 끊김이고 두 손이 호환 쪽에 있어 던지자마자 찌가 사라진다 — 결과가 달라지므로 흉내 내지 않고 거절한다. 다시 거두기(찌가 있을 때 쓰기)도 같은 판정에 묶여 있다. FAWE 에서는 사용자가 브러시 아이템으로 낚싯대를 고를 때만 닿는다.
+- **Paper 와 다른 점(서버 전체, 이 PR 밖):** Furnace 서버는 `PlayerReadyArrowEvent`(Paper 가 `Player#getProjectile` 에서 화살 칸마다 부름)와 `EntityShootBowEvent`(활 놓기·쇠뇌 쏘기)를 아직 내지 않는다. 접속한 플레이어도 같다. 투사체를 월드에 넣을 때의 `ProjectileLaunchEvent` 는 난다. 후속 T-242.
+- 시험 `NmsFakePlayerItemUseTest`: 활(화살 없으면 FAIL, 왼손 화살이면 CONSUME·화살 그대로), 삼지창(새것 CONSUME, 닳은 것 FAIL), 쇠뇌(빈 것 FAIL·장전 시작 CONSUME, 장전된 것 쏘기 — 손의 그 객체·내구도 1·발사 이벤트의 쏜 쪽이 그 가짜, 쏜 뒤 틱이 돌아도 탈 없음), 낚싯대 거절. 데이터 팩을 걸지 않는 시험 서버는 아이템 태그 표가 없어(실서버는 `DataPackManager` 가 건다) 시험이 바닐라 표를 건다.
+
+## 7. 마무리 대조 (#526 병합 뒤, d6c7dedf)
+
+같은 도구로 다시 돌린 결과: FAWE 심볼 667 중 없는 것 **8**(11-20 아침 35). 남은 8 은 모두 2장의 마 묶음(`Util`·`ThreadingDetector`·`BlockableEventLoop`·`WorldData`·`MinecraftServer.getWorldData`·`ServerLevel.paperConfig`·`PersistentEntitySectionManager`·`LevelChunk.setBiome`)이고, FAWE 가 Furnace 에서는 타지 않는 갈래다. 서명 다름 0, 상속 거부 0.
