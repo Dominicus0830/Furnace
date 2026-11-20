@@ -807,6 +807,7 @@ public final class ChunkColumn {
                 if ("minecraft:chest".equals(cid) || "minecraft:trapped_chest".equals(cid)) {
                     int cs = getBlock(k[0], k[1], k[2]);
                     if (chestMatches(cs, cid)) adoptGeneratedChest((chunkX << 4) + k[0], k[1], (chunkZ << 4) + k[2]);
+                    else dropMismatchedGenerated(k[0], k[1], k[2]);   // 바닐라 promotePendingBlockEntity: 블록과 안 맞으면 경고하고 버린다
                     continue;
                 }
                 int state = getBlock(k[0], k[1], k[2]);
@@ -822,6 +823,7 @@ public final class ChunkColumn {
                     be = org.domi.furnace.server.block.entity.BlockEntities.loadStatic(pos, state, nbt);
                 }
                 if (be != null && be.isValid(state)) putBlockEntity(be);
+                else if (be != null && cid != null) dropMismatchedGenerated(k[0], k[1], k[2]);   // 바닐라: BlockEntity 생성자의 validateBlockState 가 던져 loadStatic 이 null → 버림
             }
         }
         if (!dummyScan) return;
@@ -855,6 +857,11 @@ public final class ChunkColumn {
                 }
             }
         }
+    }
+
+    /** 그 칸 블록과 안 맞는 대기 블록 엔티티 NBT 를 버린다(바닐라는 다시 저장하지 않는다). 저장 대상으로 표시한다. */
+    private void dropMismatchedGenerated(int lx, int y, int lz) {
+        if (generatedBlockEntities != null && generatedBlockEntities.remove(blockEntityKey(lx, y, lz)) != null) touch();
     }
 
     private static String chestIdOf(int state) {

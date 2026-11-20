@@ -432,12 +432,11 @@ public final class AnvilChunkCodec {
                         col.putChest(legacyChestFromNbt(be));
                     } else if (items != null && ("minecraft:chest".equals(id) || "minecraft:trapped_chest".equals(id))) {
                         int x = be.getInt("x"), y = be.getInt("y"), z = be.getInt("z");
-                        // 다른 종류와 같이 isValid: 그 칸이 같은 상자 블록일 때만 읽고, 아니면 NBT 그대로 보존
+                        // 다른 종류와 같이 isValid: 그 칸이 같은 상자 블록일 때만 읽고, 아니면 바닐라처럼 경고하고 버린다
                         if (id.equals(org.domi.furnace.server.block.Blocks.get().nameOfState(col.getBlock(x & 15, y, z & 15)))) {
                             col.putChest(vanillaChestFromNbt(be));
                         } else {
                             org.slf4j.LoggerFactory.getLogger(AnvilChunkCodec.class).warn(Lang.t("codec.be-mismatch", id, x, y, z));
-                            col.putGeneratedBlockEntity(x & 15, y, z & 15, be);
                         }
                     } else if (id != null && org.domi.furnace.server.block.entity.BlockEntities.known(id)) {
                         int x = be.getInt("x"), y = be.getInt("y"), z = be.getInt("z");
@@ -446,9 +445,8 @@ public final class AnvilChunkCodec {
                         if (typed != null && typed.isValid(col.getBlock(x & 15, y, z & 15))) {
                             col.putBlockEntity(typed);
                         } else {
-                            // 바닐라 promotePendingBlockEntity 는 블록과 맞지 않으면 경고하고 버린다 — 여기서는 NBT 그대로 보존(데이터를 잃지 않게)
+                            // 바닐라 promotePendingBlockEntity: 블록과 맞지 않으면 경고하고 버린다(다시 저장하지 않는다)
                             org.slf4j.LoggerFactory.getLogger(AnvilChunkCodec.class).warn(Lang.t("codec.be-mismatch", id, x, y, z));
-                            col.putGeneratedBlockEntity(x & 15, y, z & 15, be);
                         }
                     } else if (id != null) {
                         // 아직 서버가 동작을 모르는 블록 엔티티(화로·표지판·스포너 등)는 NBT 그대로 보존해 다시 쓴다.
