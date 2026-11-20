@@ -88,6 +88,24 @@ class BukkitNamedWorldGeneratorTest {
         }
     }
 
+    /** 검토: 설정에 이름이 있는 월드를 두 번째 createWorld 해도 다시 묻지 않고, 내렸다 level.dat 으로 다시 열 때는 설정을 또 읽는다. */
+    @Test
+    void secondCreateDoesNotAskButReopenReadsConfigAgain() throws Exception {
+        DefaultGenProbe.GENERATOR = new BukkitDefaultWorldGeneratorTest.Stone();
+        try (FurnaceTestServer server = start("again", "GenPlug:v", "")) {
+            World first = Bukkit.createWorld(new WorldCreator("again").seed(3L));
+            assertSame(first, Bukkit.createWorld(new WorldCreator("again")));
+            assertEquals(List.of("GenPlug:enable", "GenPlug:generator again v"), DefaultGenProbe.LOG, "이미 있는 월드는 묻지 않는다");
+            assertTrue(server.api().unloadWorld(((org.bukkit.craftbukkit.CraftWorld) first).furnaceHandle(), true).get(60, TimeUnit.SECONDS));
+            var second = new BukkitDefaultWorldGeneratorTest.Stone();
+            DefaultGenProbe.GENERATOR = second;
+            World reopened = Bukkit.createWorld(new WorldCreator("again"));   // level.dat 이 있다 — Paper 는 그래도 설정을 먼저 읽는다
+            assertEquals(List.of("GenPlug:enable", "GenPlug:generator again v", "GenPlug:generator again v"), DefaultGenProbe.LOG);
+            assertSame(second, reopened.getGenerator());
+            assertEquals(3L, reopened.getSeed(), "시드는 level.dat 의 것");
+        }
+    }
+
     @Test
     void explicitGeneratorKeepsConfigProviderIndependent() throws Exception {
         var gen = new BukkitDefaultWorldGeneratorTest.Stone();

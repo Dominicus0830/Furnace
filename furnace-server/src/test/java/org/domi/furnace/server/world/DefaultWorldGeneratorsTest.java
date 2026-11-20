@@ -64,6 +64,23 @@ class DefaultWorldGeneratorsTest {
         assertEquals(List.of("minecraft:the_nether"), DefaultWorldGenerators.pending(s, "survival"), "level-name 이 다르면 world 이름 키는 오버월드가 아니다");
     }
 
+    /** T-222(검토): 기본 세 월드가 이름별 키만으로도 물음(Request)에 닿는다 — 차원 키가 있으면 그쪽. */
+    @Test
+    void defaultWorldRequestsReadNameKeys() {
+        Properties p = new Properties();
+        p.setProperty("world-generator.name.survival", "ByName");
+        p.setProperty("world-biome-provider.name.survival_the_end", "EndBiomes");
+        p.setProperty("world-generator.the_end", "ByDim");
+        p.setProperty("world-generator.name.survival_the_end", "Shadowed");
+        WorldSettings s = WorldSettings.from(p);
+        var overworld = new DefaultWorldGenerators.Target(null, "minecraft:overworld", "survival", WorldEnvironment.NORMAL, 1L, -64, 320).request(s);
+        assertEquals("ByName", overworld.generator());
+        assertEquals("", overworld.biomeProvider());
+        var end = new DefaultWorldGenerators.Target(null, "minecraft:the_end", "survival_the_end", WorldEnvironment.THE_END, 1L, 0, 256).request(s);
+        assertEquals("ByDim", end.generator(), "차원 키가 이름별 키를 가린다");
+        assertEquals("EndBiomes", end.biomeProvider());
+    }
+
     @Test
     void pendingSkipsDimensionsWithFurnaceHooks() {
         Properties p = new Properties();

@@ -377,6 +377,11 @@ public final class CraftServer implements Server {
             throw new IllegalArgumentException("Cannot create a world with key " + creator.key() + " and name " + name
                     + " one (or both) already match a world that exists");
         }
+        // Paper: 같은 이름·키 검사 뒤, 환경 해석(Illegal dimension)과 level.dat 읽기 앞에서 비어 있는 쪽만 설정으로 채운다(둘은 따로 — 생성기를 줘도 공급자는 설정에서)
+        org.bukkit.generator.ChunkGenerator generator = creator.generator();
+        org.bukkit.generator.BiomeProvider provider = creator.biomeProvider();
+        if (generator == null) generator = getGenerator(name);
+        if (provider == null) provider = getBiomeProvider(name);
         var env = switch (creator.environment()) {
             case NORMAL -> org.domi.furnace.api.world.WorldEnvironment.NORMAL;
             case NETHER -> org.domi.furnace.api.world.WorldEnvironment.NETHER;
@@ -385,11 +390,6 @@ public final class CraftServer implements Server {
         };
         // Paper: 폴더에 level.dat 이 있으면 저장된 생성기·구조물·시드를 쓴다(설명서의 type·generatorSettings·generateStructures·seed 는 새 월드만)
         var stored = f().storedWorldCreator(name);
-        org.bukkit.generator.ChunkGenerator generator = creator.generator();
-        org.bukkit.generator.BiomeProvider provider = creator.biomeProvider();
-        // Paper: 같은 이름·키 검사 뒤, 환경 해석과 level.dat 읽기 앞에서 비어 있는 쪽만 설정으로 채운다(둘은 따로 — 생성기를 줘도 공급자는 설정에서)
-        if (generator == null) generator = getGenerator(name);
-        if (provider == null) provider = getBiomeProvider(name);
         // 공급자·생성기의 WorldInfo: 서버가 생성기를 만들기 직전에 채우고(prepare — 시드는 level.dat 의 것), 월드가 생기면 그 CraftWorld 를 따른다
         var info = provider == null && generator == null ? null : new org.domi.furnace.compat.paper.BukkitBiomeProviders.LateWorldInfo(name,
                 creator.environment(), stored != null && stored.seed().isPresent() ? stored.seed().getAsLong() : creator.seed(),

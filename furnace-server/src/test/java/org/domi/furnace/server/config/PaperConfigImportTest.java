@@ -404,6 +404,8 @@ class PaperConfigImportTest {
                   a:
                     b:
                       generator: Nested
+                  "dotted.name":
+                    generator: Dotted
                   empty:
                     generator: ''
                   other:
@@ -413,6 +415,7 @@ class PaperConfigImportTest {
         assertEquals("Terra:arena", r.toWrite().get("world-generator.name.Arena World"));
         assertEquals("7", r.toWrite().get("world-biome-provider.name.Arena World"), "Bukkit getString 처럼 숫자도 글자로");
         assertEquals("Nested", r.toWrite().get("world-generator.name.a.b"), "점이 든 이름은 중첩 칸으로 적혀도 같은 이름(MemorySection 경로)");
+        assertEquals("Dotted", r.toWrite().get("world-generator.name.dotted.name"), "따옴표 친 점 든 키도 같은 이름");
         assertFalse(r.toWrite().containsKey("world-generator.name.empty"));
         assertTrue(has(r, Kind.IGNORED, "bukkit.yml", "worlds.empty.generator"));
         assertTrue(has(r, Kind.UNSUPPORTED, "bukkit.yml", "worlds.other.something"));
