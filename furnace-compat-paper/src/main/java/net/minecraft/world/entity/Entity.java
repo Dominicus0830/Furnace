@@ -288,13 +288,86 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
         return e instanceof CraftEntity c ? c.getHandle() : null;
     }
 
+    // ------------------------------------------------------------------ 월드의 엔티티 바꾸기 (NMS shim 5b — Axiom 엔티티 조작)
+
+    /**
+     * 월드에 있는 엔티티에 바닐라 조작 하나. 스레드 규칙은 {@link #save} 와 같다({@link org.domi.furnace.compat.nms.NmsEntities}). 플레이어는 저장 읽기만
+     * 되고(아무 스레드), 이동·탑승은 UnsupportedNmsCall — 플레이어는 접속 처리기를 거쳐 움직인다. 엔티티가 사라졌거나 서버가 거절한 조작도 UnsupportedNmsCall.
+     */
+    private Object furnaceEdit(String what, org.domi.furnace.api.internal.ChunkInternals.EntityEdit op) {
+        if (detached != null) throw notInWorld(what);
+        var h = f();
+        var b = org.domi.furnace.compat.nms.NmsChunks.bridge();
+        boolean player = h instanceof org.domi.furnace.api.entity.Player;
+        if (player && !(op instanceof org.domi.furnace.api.internal.ChunkInternals.EntityEdit.SaveWithoutId)) {
+            throw new UnsupportedNmsCall(what, "moving or mounting a connected player this way is not supported - use the Bukkit API (teleport, addPassenger)");
+        }
+        try {
+            return player ? b.entityEditNow(h, op) : org.domi.furnace.compat.nms.NmsEntities.call(furnaceWorld(), h, what, () -> b.entityEditNow(h, op));
+        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException wrongThread) {
+            throw wrongThread;
+        } catch (IllegalArgumentException | IllegalStateException refused) {
+            throw new UnsupportedNmsCall(what, String.valueOf(refused.getMessage()));
+        }
+    }
+
+    /** 바닐라 {@code saveWithoutId(tag)}: "id" 없는 저장 NBT 를 tag 에 넣고 tag 를 돌려준다(/data get entity 와 같은 내용). */
+    public net.minecraft.nbt.CompoundTag saveWithoutId(net.minecraft.nbt.CompoundTag tag) {
+        var saved = (org.domi.furnace.api.nbt.NbtCompound) furnaceEdit("Entity#saveWithoutId", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.SaveWithoutId());
+        net.minecraft.nbt.CompoundTag t = net.minecraft.nbt.CompoundTag.fromFurnace(saved);
+        for (String k : t.getAllKeys()) tag.put(k, t.get(k));
+        return tag;
+    }
+
+    /** 바닐라 {@code setPosRaw}: 자리만 바꾼다(이전 자리·회전은 그대로). */
+    public void setPosRaw(double x, double y, double z) {
+        furnaceEdit("Entity#setPosRaw", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.SetPosRaw(x, y, z));
+    }
+
+    /**
+     * 바닐라 {@code teleportTo(level, x, y, z, 상대, yRot, xRot)}: 같은 레벨이면 moveTo(위아래 각은 ±90 으로 자름)·승객 자리·머리 각도를 맞추고 참. 플레이어가
+     * 아닌 엔티티에서 바닐라도 상대 표시는 쓰지 않는다. 다른 레벨로 옮기기는 아직 없다(UnsupportedNmsCall — Bukkit {@code teleport} 를 쓴다).
+     */
+    public boolean teleportTo(net.minecraft.server.level.ServerLevel level, double x, double y, double z, java.util.Set<RelativeMovement> relative,
+                              float yRot, float xRot) {
+        if (detached == null && !java.util.Objects.equals(level.getWorld().furnaceHandle(), furnaceWorld())) {
+            throw new UnsupportedNmsCall("Entity#teleportTo", "moving an entity to another level this way is not available yet - use the Bukkit teleport API");
+        }
+        furnaceEdit("Entity#teleportTo", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.TeleportSameLevel(x, y, z, yRot, xRot));
+        return true;
+    }
+
+    /** 바닐라 {@code setYHeadRot}: 살아 있는 엔티티의 머리 각도(다른 엔티티는 바닐라도 아무 일 없다). */
+    public void setYHeadRot(float yHeadRot) {
+        furnaceEdit("Entity#setYHeadRot", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.SetYHeadRot(yHeadRot));
+    }
+
+    /** 바닐라 {@code startRiding(vehicle)}: 강제 없이. */
+    public boolean startRiding(Entity vehicle) { return startRiding(vehicle, false); }
+
+    /** 바닐라 {@code startRiding(vehicle, force)}: 탔으면 참. 탈것은 같은 region 의 월드 엔티티(플레이어 탈것은 아직 없다). */
+    public boolean startRiding(Entity vehicle, boolean force) {
+        if (vehicle.detached != null) throw notInWorld("Entity#startRiding");
+        return (Boolean) furnaceEdit("Entity#startRiding", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.StartRiding(vehicle.f(), force));
+    }
+
+    /** 바닐라 {@code stopRiding}: 탈것에서 내린다. */
+    public void stopRiding() { furnaceEdit("Entity#stopRiding", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.StopRiding()); }
+
+    /** 바닐라 {@code ejectPassengers}: 탄 것을 모두 내린다. */
+    public void ejectPassengers() { furnaceEdit("Entity#ejectPassengers", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.EjectPassengers()); }
+
     // ------------------------------------------------------------------ 아직 월드에 없는 엔티티 (T-212: FAWE //paste -e)
 
     /**
-     * 바닐라 {@code Entity#load(tag)}. {@link EntityType#create} 로 만든 엔티티에만 된다 — 조작은 기록해 두었다가 월드에 넣을 때 서버 엔티티에 같은 차례로
-     * 재생한다. 월드의 엔티티는 UnsupportedNmsCall(살아 있는 엔티티의 UUID 를 바꿔 버린다 — Furnace API 의 editNbt 를 쓴다).
+     * 바닐라 {@code Entity#load(tag)}. {@link EntityType#create} 로 만든 엔티티는 조작을 기록해 두었다가 월드에 넣을 때 서버 엔티티에 같은 차례로 재생한다.
+     * 월드의 엔티티는 주인 스레드에서 바로 싣는다(/data 와 같은 길) — 단 tag 의 UUID 가 지금과 다르면 UnsupportedNmsCall(서버의 엔티티 색인이 깨진다).
      */
     public void load(net.minecraft.nbt.CompoundTag tag) {
+        if (detached == null) {
+            furnaceEdit("Entity#load", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.Load(tag.furnace()));
+            return;
+        }
         Detached d = detachedFor("Entity#load");
         d.ops.add(new org.domi.furnace.api.internal.ChunkInternals.EntityOp.Load(tag.furnace()));
         // 바닐라 load 의 자리·방향·UUID(넣을 region 을 고르고 게터가 같은 값을 주게)
