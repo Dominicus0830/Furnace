@@ -524,6 +524,20 @@ public interface ChunkInternals {
     default void entityDiscardNow(org.domi.furnace.api.entity.Entity entity) { throw new UnsupportedOperationException("entityDiscardNow"); }
 
     /**
+     * 그 엔티티를 가진 스레드(전역 빌림 포함). 바닐라 {@code Entity#saveAsPassenger}: {@link #entitySaveNow} 와 같되 승객이어도 저장한다. 저장하지 않는
+     * 종류(플레이어)·저장하지 않는 지움 이유·이미 사라진 엔티티는 null. 주인이 아니면 ThreadOwnershipException.
+     */
+    default org.domi.furnace.api.nbt.NbtCompound entitySaveAsPassengerNow(org.domi.furnace.api.entity.Entity entity) {
+        throw new UnsupportedOperationException("entitySaveAsPassengerNow");
+    }
+
+    /**
+     * 그 엔티티를 가진 스레드(전역 빌림 포함). 바닐라 {@code Entity#remove(reason)} — reason 은 바닐라 지움 이유 이름(KILLED·DISCARDED·…), 이벤트 없음
+     * (Paper 도 원인이 없으면 EntityRemoveEvent 를 내지 않는다). 이미 사라졌으면 아무 일도 하지 않는다. 플레이어는 IllegalArgumentException.
+     */
+    default void entityRemoveNow(org.domi.furnace.api.entity.Entity entity, String reason) { throw new UnsupportedOperationException("entityRemoveNow"); }
+
+    /**
      * 칸 (x, z) 의 주인 스레드(전역 빌림 포함). NMS 로 만든 엔티티(바닐라 {@code EntityType#create} 뒤 아직 월드에 없는 것)를 서버 엔티티로 만들어
      * ops 를 차례로 재생(바닐라 {@code Entity#load}·{@code absMoveTo}·{@code setUUID})하고, spawnReason(Bukkit 이름, null 이면 서버 기본)을 붙여 월드에 넣는다.
      * fireEvents 면 Paper {@code ServerLevel#addFreshEntity(entity, reason)} — 스폰 이벤트를 내고, 빈 아이템 엔티티는 넣지 않는다. 아니면 Paper
@@ -535,6 +549,18 @@ public interface ChunkInternals {
     default NmsEntityAdd addNmsEntityNow(World world, int x, int z, String id, java.util.List<EntityOp> ops, String spawnReason, boolean fireEvents) {
         throw new UnsupportedOperationException("addNmsEntityNow");
     }
+
+    /**
+     * 칸 (x, z) 의 주인 스레드(전역 빌림 포함). 바닐라 {@code EntityType#loadEntityRecursive} 로 만든 엔티티 묶음(탈것과 승객)을 서버 엔티티로 만들어 ops 를
+     * 재생하고 승객을 강제로 태운 뒤(태울 수 없으면 그 승객과 그 위는 빠진다), 서버의 승객 함께 넣기(이벤트 냄, 하나라도 취소하면 전부 안 넣음)로 넣는다.
+     * 돌려줌: 뿌리부터 깊이 우선 차례(바닐라 getSelfAndPassengers)로 spec 마다 넣은 핸들, 못 넣은 것은 null. 청크가 로드되지 않았으면 모두 null.
+     */
+    default java.util.List<org.domi.furnace.api.entity.Entity> addNmsEntityWithPassengersNow(World world, int x, int z, NmsEntitySpec root, String spawnReason) {
+        throw new UnsupportedOperationException("addNmsEntityWithPassengersNow");
+    }
+
+    /** {@link #addNmsEntityWithPassengersNow} 의 엔티티 하나: 종류 이름, 재생할 조작, 태울 승객. */
+    record NmsEntitySpec(String id, java.util.List<EntityOp> ops, java.util.List<NmsEntitySpec> passengers) {}
 
     /** {@link #addNmsEntityNow} 의 결과: 넣은 엔티티(못 넣었으면 null)와, 못 넣은 엔티티를 Paper 처럼 지운 것으로 볼지. */
     record NmsEntityAdd(org.domi.furnace.api.entity.Entity added, boolean discarded) {
@@ -763,6 +789,9 @@ public interface ChunkInternals {
 
         /** 바닐라 {@code Entity#setUUID(uuid)}. */
         record SetUuid(java.util.UUID uuid) implements EntityOp {}
+
+        /** 바닐라 {@code Entity#setYHeadRot(yHeadRot)}(살아 있는 엔티티만 바뀐다). */
+        record SetYHeadRot(float yHeadRot) implements EntityOp {}
     }
 
     /**

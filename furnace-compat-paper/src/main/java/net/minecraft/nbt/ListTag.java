@@ -30,8 +30,25 @@ public final class ListTag extends CollectionTag<Tag> {
     @Override
     public byte getId() { return TAG_LIST; }
 
+    /** 바닐라: 메모리 크기 어림(NbtAccounter 가 쓰는 값과 같은 셈). */
+    @Override
+    public int sizeInBytes() {
+        int size = 37 + 4 * list.size();
+        for (Tag t : list) size += t.sizeInBytes();
+        return size;
+    }
+
     @Override
     public byte getElementType() { return type; }
+
+    /** 바닐라: 원소 종류(비면 0, 아니면 첫 원소 번호 — 이때 정해 둔다)·개수·원소 몸통. */
+    @Override
+    public void write(java.io.DataOutput output) throws java.io.IOException {
+        type = list.isEmpty() ? TAG_END : list.get(0).getId();
+        output.writeByte(type);
+        output.writeInt(list.size());
+        for (Tag t : list) t.write(output);
+    }
 
     @Override
     public boolean isEmpty() { return list.isEmpty(); }

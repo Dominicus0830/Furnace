@@ -30,6 +30,12 @@ public final class ByteTag extends NumericTag {
     @Override
     public byte getId() { return TAG_BYTE; }
 
+    /** 바닐라: 메모리 크기 어림(NbtAccounter 가 쓰는 값과 같은 셈). */
+    @Override
+    public int sizeInBytes() {
+        return 9;
+    }
+
     @Override
     public ByteTag copy() { return this; }
 

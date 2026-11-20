@@ -910,6 +910,33 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     @Override
+    public org.domi.furnace.api.nbt.NbtCompound entitySaveAsPassengerNow(org.domi.furnace.api.entity.Entity entity) {
+        Object internal;
+        try {
+            internal = org.domi.furnace.api.Furnace.server().internals().entityNow(entity, Object.class);
+        } catch (IllegalStateException gone) {
+            return null;
+        }
+        if (!(internal instanceof org.domi.furnace.server.entity.Entity e)) return null;   // 플레이어는 저장하지 않는 종류
+        var tag = e.saveAsPassenger();
+        if (tag == null) return null;
+        return ApiNbt.toApi((org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.thaw(org.domi.furnace.server.net.io.nbt.NbtTags.copy(tag)));
+    }
+
+    @Override
+    public void entityRemoveNow(org.domi.furnace.api.entity.Entity entity, String reason) {
+        if (entity instanceof org.domi.furnace.api.entity.Player) throw new IllegalArgumentException("a player cannot be removed this way: " + entity.uniqueId());
+        var why = org.domi.furnace.server.entity.Entity.RemovalReason.valueOf(reason);
+        Object internal;
+        try {
+            internal = org.domi.furnace.api.Furnace.server().internals().entityNow(entity, Object.class);
+        } catch (IllegalStateException gone) {
+            return;
+        }
+        if (internal instanceof org.domi.furnace.server.entity.Entity e) e.remove(why);
+    }
+
+    @Override
     public void entityDiscardNow(org.domi.furnace.api.entity.Entity entity) {
         if (entity instanceof org.domi.furnace.api.entity.Player) throw new IllegalArgumentException("a player cannot be discarded: " + entity.uniqueId());
         Object internal;
@@ -926,15 +953,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
                                         String spawnReason, boolean fireEvents) {
         RegionLevel lv = ownedLevel(world, x, z, "ServerLevel#addFreshEntity");
         if (lv == null) return NmsEntityAdd.REFUSED;   // 청크가 로드되지 않았다
-        var e = org.domi.furnace.server.entity.Entities.create(lv, id);
-        if (e == null) throw new IllegalArgumentException("entity type that cannot be created: " + id);
-        for (EntityOp op : ops) {
-            switch (op) {
-                case EntityOp.Load l -> e.load((org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.freeze(ApiNbt.toServer(l.tag())));
-                case EntityOp.AbsMoveTo m -> e.absMoveTo(m.x(), m.y(), m.z(), m.yRot(), m.xRot());
-                case EntityOp.SetUuid u -> e.setUuid(u.uuid());
-            }
-        }
+        var e = createNmsEntity(lv, id, ops);
         if (ownedLevel(world, (int) Math.floor(e.x()), (int) Math.floor(e.z()), "ServerLevel#addFreshEntity") != lv) {
             throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("ServerLevel#addFreshEntity: the entity ended at " + e.x() + ", " + e.z()
                     + " but was routed to the region of " + x + ", " + z);
@@ -946,6 +965,61 @@ final class ChunkInternalsImpl implements ChunkInternals {
         if (r == org.domi.furnace.server.block.ChunkLevel.ADDED) return new NmsEntityAdd(EntityHandle.of(host, e), false);
         // Paper doEntityAddEventCalling: 이벤트를 취소했거나 처리기가 지웠으면 그 엔티티를 지운다. UUID 겹침은 지우지 않는다
         return new NmsEntityAdd(null, r == org.domi.furnace.server.block.ChunkLevel.ADD_CANCELLED);
+    }
+
+    /** NMS 로 만든 엔티티 하나: 서버 엔티티를 만들고 기록한 조작을 차례로 재생한다. */
+    private static org.domi.furnace.server.entity.Entity createNmsEntity(RegionLevel lv, String id, List<EntityOp> ops) {
+        var e = org.domi.furnace.server.entity.Entities.create(lv, id);
+        if (e == null) throw new IllegalArgumentException("entity type that cannot be created: " + id);
+        for (EntityOp op : ops) {
+            switch (op) {
+                case EntityOp.Load l -> e.load((org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.freeze(ApiNbt.toServer(l.tag())));
+                case EntityOp.AbsMoveTo m -> e.absMoveTo(m.x(), m.y(), m.z(), m.yRot(), m.xRot());
+                case EntityOp.SetUuid u -> e.setUuid(u.uuid());
+                case EntityOp.SetYHeadRot h -> {
+                    if (e instanceof org.domi.furnace.server.entity.LivingEntity le) le.setYHeadRot(h.yHeadRot());
+                }
+            }
+        }
+        return e;
+    }
+
+    @Override
+    public List<org.domi.furnace.api.entity.Entity> addNmsEntityWithPassengersNow(org.domi.furnace.api.world.World world, int x, int z, NmsEntitySpec root,
+                                                                                  String spawnReason) {
+        int count = countSpecs(root);
+        List<org.domi.furnace.api.entity.Entity> out = new java.util.ArrayList<>(java.util.Collections.nCopies(count, null));
+        RegionLevel lv = ownedLevel(world, x, z, "ServerLevel#tryAddFreshEntityWithPassengers");
+        if (lv == null) return out;   // 청크가 로드되지 않았다
+        List<org.domi.furnace.server.entity.Entity> made = new java.util.ArrayList<>(java.util.Collections.nCopies(count, null));
+        var e = buildNms(lv, root, made, new int[1]);
+        if (ownedLevel(world, (int) Math.floor(e.x()), (int) Math.floor(e.z()), "ServerLevel#tryAddFreshEntityWithPassengers") != lv) {
+            throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("ServerLevel#tryAddFreshEntityWithPassengers: the entity ended at " + e.x() + ", "
+                    + e.z() + " but was routed to the region of " + x + ", " + z);
+        }
+        if (spawnReason != null) for (var m : made) if (m != null) m.spawnReason(spawnReason);
+        if (!lv.addFreshEntityWithPassengers(e)) return out;
+        for (int i = 0; i < count; i++) {
+            var m = made.get(i);
+            // 태우지 못한 승객은 넣지 않았다(바닐라도 그 승객은 월드에 들지 않는다)
+            if (lv.entities().contains(m)) out.set(i, EntityHandle.of(host, m));
+        }
+        return out;
+    }
+
+    private static int countSpecs(NmsEntitySpec s) {
+        int n = 1;
+        for (var p : s.passengers()) n += countSpecs(p);
+        return n;
+    }
+
+    /** 바닐라 loadEntityRecursive 의 뒷부분: 승객을 깊이 우선으로 만들어 강제로 태운다. made 의 자리는 spec 의 깊이 우선 차례. */
+    private static org.domi.furnace.server.entity.Entity buildNms(RegionLevel lv, NmsEntitySpec spec, List<org.domi.furnace.server.entity.Entity> made, int[] next) {
+        int at = next[0]++;
+        var e = createNmsEntity(lv, spec.id(), spec.ops());
+        made.set(at, e);
+        for (var ps : spec.passengers()) buildNms(lv, ps, made, next).startRiding(e, true);   // 못 타면 그 승객은 함께 넣기에 들지 않는다
+        return e;
     }
 
     @Override

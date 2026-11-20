@@ -142,6 +142,14 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
     @Override
     public void kickPlayer(String message) { handle.kick(message == null ? org.domi.furnace.api.text.Text.empty() : Compat.text(message)); }
 
+    /** Paper kick(Component)(NMS shim 5e-3 — Axiom 이 쓴다): Adventure 글을 JSON 으로 옮겨 그대로 이유로 보낸다. */
+    @Override
+    public void kick(net.kyori.adventure.text.Component message) {
+        handle.kick(message == null ? org.domi.furnace.api.text.Text.empty()
+                : org.domi.furnace.api.text.serializer.JsonTextSerializer.json().deserialize(
+                        net.kyori.adventure.text.serializer.gson.GsonComponentSerializer.gson().serialize(message)));
+    }
+
     @Override
     public int getLevel() { return handle.level(); }
 

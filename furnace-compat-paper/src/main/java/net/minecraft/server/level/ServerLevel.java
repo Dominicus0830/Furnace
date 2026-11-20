@@ -332,10 +332,32 @@ public class ServerLevel extends Level implements net.minecraft.world.level.Worl
         return entity.furnaceAddToWorld(this, reason, true);
     }
 
-    /** Paper {@code ServerLevelAccessor#addFreshEntityWithPassengers(entity, reason)}: 자신과 승객을 하나씩 {@link #addFreshEntity(Entity, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason)}. */
+    /**
+     * Paper {@code ServerLevelAccessor#addFreshEntityWithPassengers(entity, reason)}: 자신과 승객을 넣는다. {@code EntityType#create} 로 만든 엔티티는 승객이 없어
+     * {@link #addFreshEntity(Entity, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason)} 와 같고, {@code EntityType#loadEntityRecursive} 로 만든 묶음은
+     * 서버가 태워 함께 넣는다({@link Entity#furnaceAddToWorldWithPassengers}).
+     */
     public void addFreshEntityWithPassengers(Entity entity, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason reason) {
-        // EntityType#create 로 만든 엔티티는 승객이 없다(바닐라 load 도 승객을 읽지 않는다 — 그건 EntityType.loadEntityRecursive)
-        addFreshEntity(entity, reason);
+        if (entity.furnaceHasDetachedPassengers()) entity.furnaceAddToWorldWithPassengers(this, reason);
+        else addFreshEntity(entity, reason);
+    }
+
+    /** Paper {@code tryAddFreshEntityWithPassengers(entity)} = 스폰 이유 DEFAULT. */
+    public boolean tryAddFreshEntityWithPassengers(Entity entity) {
+        return tryAddFreshEntityWithPassengers(entity, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.DEFAULT);
+    }
+
+    /**
+     * Paper {@code tryAddFreshEntityWithPassengers(entity, reason)}(NMS shim 5e-3 — Axiom 엔티티 놓기): 자신이나 승객의 UUID 가 이 월드에 이미 있으면 거짓,
+     * 아니면 {@link #addFreshEntityWithPassengers(Entity, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason)} 하고 참(스폰 이벤트가 취소돼도 참 — Paper 와 같다).
+     */
+    public boolean tryAddFreshEntityWithPassengers(Entity entity, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason reason) {
+        for (Entity e : (Iterable<Entity>) entity.getSelfAndPassengers()::iterator) {
+            java.util.UUID id = e.furnaceKnownUuid();   // 정하지 않은 UUID 는 넣을 때 무작위로 정해진다 — 겹칠 일이 없다
+            if (id != null && getEntity(id) != null) return false;
+        }
+        addFreshEntityWithPassengers(entity, reason);
+        return true;
     }
 
     /** Paper {@code addFreshEntityWithPassengers(entity)} = 스폰 이유 DEFAULT. */

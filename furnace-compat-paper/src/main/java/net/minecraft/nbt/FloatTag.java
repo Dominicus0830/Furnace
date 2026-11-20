@@ -21,6 +21,12 @@ public final class FloatTag extends NumericTag {
     @Override
     public byte getId() { return TAG_FLOAT; }
 
+    /** 바닐라: 메모리 크기 어림(NbtAccounter 가 쓰는 값과 같은 셈). */
+    @Override
+    public int sizeInBytes() {
+        return 12;
+    }
+
     @Override
     public FloatTag copy() { return this; }
 

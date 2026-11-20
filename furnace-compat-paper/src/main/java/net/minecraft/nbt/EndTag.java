@@ -17,6 +17,12 @@ public final class EndTag implements Tag {
     @Override
     public byte getId() { return TAG_END; }
 
+    /** 바닐라: 메모리 크기 어림(NbtAccounter 가 쓰는 값과 같은 셈). */
+    @Override
+    public int sizeInBytes() {
+        return 8;
+    }
+
     @Override
     public EndTag copy() { return this; }
 

@@ -309,7 +309,34 @@ Paper 디컴파일 폴더를 다시 써서 그만큼 짧게 나왔다. 검토(#5
   461 로 는 것은 Axiom 도 `BlockState.CODEC` 과 4인자 `PalettedContainer.codecRW` 를 불러서다.
 - Paper 와 다른 점은 `docs/user-todo/entries/2026-11-20-axiom-voxy-5e2.md`.
 
-## 지금까지 모음(5a~5e-2)
+## 5e-3a — Axiom 의 작은 조각
+
+| 묶음 | 수 | 기호 |
+|---|---|---|
+| 자동 연결 가능 | 3 | `BlockEntity.getPosFromTag`(x·y·z), `RelativeMovement.unpack`(손으로 쓴 enum — 비트 = 순서 번호, `ALL`·`ROTATION`·`pack` 도), `Level.chunkPacketBlockController`(Paper 의 "아무것도 안 함" 조절기 — Furnace 에 엑스레이 막기가 없다) |
+| 다리 위 기계적 | 3 | `Tag.sizeInBytes`(태그마다 바닐라 식), `Player.kick(Component)`(Adventure JSON → Furnace 글), `BlockEntityType.validBlocks`(서버 블록 표에서 그 종류를 갖는 블록, 처음 읽을 때 채움) |
+
+자동 연결 가능 비율 **50%(3/6)**, 기계적까지 100%. 걸린 시간 약 **7분**(22:20:39 → 5e-2 검토로 끊긴 22:27:54, 로컬 커밋 `c90a5831`).
+시험 `NmsAxiomSmallBitsTest`(6): 태그 크기 식, 위치 읽기, 상자·표지판의 유효 블록(1.21.1 표지판 11나무 × 2), 상대 이동 풀기·묶기, 조절기, kick 이유가 끊기 패킷에 실린다.
+
+## 5e-3b — 이진 NBT, 엔티티 복사·놓기·지우기
+
+| 묶음 | 수 | 기호 |
+|---|---|---|
+| 다리 위 기계적 | 5 | `NbtIo.read(DataInput)`·`readCompressed`·`writeCompressed`(아래 두 길 위), `Entity.saveAsPassenger`·`Entity.remove(reason)`(서버 엔티티의 같은 이름 메서드로) |
+| 설계 필요 | 4 | `NbtIo.read(DataInput, NbtAccounter)`, `NbtIo.write`, `EntityType.loadEntityRecursive`, `ServerLevel.tryAddFreshEntityWithPassengers` |
+
+새 다리 2건: **이진 NBT**(`NbtBinary` — 태그마다 바닐라처럼 한도 바이트를 세고, 깊이·오류 문구·"Loading NBT data" 보고 예외까지; `Tag.write`·`TagType.load`
+기본 메서드가 쓴다)와 **승객 묶음 넣기**(`ChunkInternals.addNmsEntityWithPassengersNow` — 아직 월드에 없는 탈것·승객 묶음을 뿌리 자리의 주인 region 에서
+서버 엔티티로 만들어 태운 뒤 서버의 승객 함께 넣기로 넣는다). 기대값은 Paper 1.21.1 jar 의 진짜 `NbtIo` 를 같은 입력으로 돌린 결과(바이트·사용량·문구)와,
+`tryAddFreshEntityWithPassengers` 바이트코드(UUID 가 겹치면 거짓, 아니면 넣고 참 — 이벤트가 취소돼도 참)다.
+
+자동 연결 가능 비율 **0%(0/9)**, 기계적까지 56%(5/9). 걸린 시간 약 **12분**(22:33:02 → 로컬 커밋 22:45:35, 중간에 541 병합·보고 약 1분).
+시험 `NmsNbtIoTest`(5)·`NmsEntityPassengersTest`(6). Paper 와 다른 점은 `docs/user-todo/entries/2026-11-20-axiom-5e3.md`.
+- 다시 잰 점검(같은 jar 폴더): **Axiom 493 중 476 있음**(NbtIo 클래스가 생겨 그 메서드 5개가 따로 세어져 489 → 493). 남은 17개 중 8개는 클래스 계층
+  (T-231 — 생성기 작업), 9개는 5e-3c(`BlockStateParser`·`ItemStack` 스트림 코덱·`forChunks`·`BlockState.tick`·`FluidState.tick`·`LevelEntityGetter.getAll`).
+
+## 지금까지 모음(5a~5e-3b)
 
 | 묶음 | 기호 | 자동 연결 가능 | 다리 위 기계적 | 설계 필요 | 걸린 시간 |
 |---|---|---|---|---|---|
@@ -322,12 +349,14 @@ Paper 디컴파일 폴더를 다시 써서 그만큼 짧게 나왔다. 검토(#5
 | 5d-3 | 9 | 2 | 5 | 2 (+다리 3) | 10분 |
 | 5e-1 | 5 | 3 | 2 | 0 (+다리 1) | 8분 |
 | 5e-2 | 8 | 3 | 2 | 3 (+다리 1) | 17분 |
-| 합계 | 84 | 40 (48%) | 31 (37%) | 13 (15%) + 다리 10 | 줄 합 89분, 5b·5c 가 겹친 2분을 빼면 **약 87분** (+5a 검토 고침 5분, 5d 검토 보강 8분, 5d-3·5e-1 검토 고침 약 10분, 5e-2 검토 고침은 아래) |
+| 5e-3a | 6 | 3 | 3 | 0 | 7분 |
+| 5e-3b | 9 | 0 | 5 | 4 (+다리 2) | 12분 |
+| 합계 | 99 | 43 (43%) | 39 (39%) | 17 (17%) + 다리 12 | 줄 합 108분, 5b·5c 가 겹친 2분을 빼면 **약 106분** (+5a 검토 고침 5분, 5d 검토 보강 8분, 5d-3·5e-1 검토 고침 약 10분, 5e-2 검토 고침 4.5분) |
 
 5e-2 검토(#541) 고침: 약 4.5분(검토 받은 22:27:47 → 고침 커밋 `091b1bae` 22:32:16, 5e-3a 를 하던 중에 끊고).
 
-다리가 생긴 뒤의 기계적 연결까지 넣으면 85%(71/84, 5c 까지는 44/50 = 88%)가 사람의 설계 없이 이을 수 있는 꼴이었다. 손으로 쓴 시간의 대부분은 설계 필요 13개와
-다리 10건, 그리고 바닐라 값 시험이었다.
+다리가 생긴 뒤의 기계적 연결까지 넣으면 83%(82/99; 5e-2 까지는 71/84 = 85%, 5c 까지는 44/50 = 88%)가 사람의 설계 없이 이을 수 있는 꼴이었다. 손으로 쓴 시간의 대부분은 설계 필요 17개와
+다리 12건, 그리고 바닐라 값 시험이었다.
 
 5a~5c 시간: 묶음별 시간을 더하면 33분이지만 5b 와 5c 가 2분 겹쳐 실제 손 시간은 약 31분이다. 여기에 5a 검토 고침 5분을 더하면 첫 명령 20:13:53 부터
 5c 문서 커밋 20:48:21 까지 약 34.5분과 맞는다.

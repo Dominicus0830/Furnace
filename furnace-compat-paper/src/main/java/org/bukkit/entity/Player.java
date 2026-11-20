@@ -28,6 +28,9 @@ public interface Player extends HumanEntity, org.bukkit.conversations.Conversabl
     /** 이유와 함께 내보낸다(Bukkit 의 kickPlayer). */
     void kickPlayer(String message);
 
+    /** Paper kick(Component): Adventure 글을 이유로 내보낸다. null 이면 빈 글. */
+    void kick(net.kyori.adventure.text.Component message);
+
     int getLevel();
 
     void setLevel(int level);
