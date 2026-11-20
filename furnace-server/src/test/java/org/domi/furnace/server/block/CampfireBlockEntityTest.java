@@ -43,6 +43,30 @@ class CampfireBlockEntityTest {
         assertTrue(be.hasUpdatePacket(), "바닐라 getUpdatePacket 이 패킷을 낸다");
     }
 
+    /** 바닐라 cookTick: 다 익어 떨군 칸마다 sendBlockUpdated(같은 상태) — 떨군 음식이 클라이언트 모닥불에서 사라진다. */
+    @Test
+    void cookedFoodLeavingResendsTheBlock() throws Exception {
+        BlockRegistry reg = BlockRegistry.load("blocks/" + GameVersion.RESOURCE_TAG + ".txt");
+        var sent = new ArrayList<Pos>();
+        var dropped = new ArrayList<ItemStack>();
+        var level = new BlockPlacementTest.TestLevel() {
+            @Override public void sendBlockUpdated(Pos p) { sent.add(p); }
+            @Override public void dropItemStack(double x, double y, double z, ItemStack s) { dropped.add(s); }
+        };
+        Pos pos = new Pos(1, -60, 1);
+        int lit = reg.stateIdOrAir("minecraft:campfire", Map.of("facing", "north", "lit", "true", "signal_fire", "false", "waterlogged", "false"));
+        level.setBlock(pos, lit, 3);
+        var be = new CampfireBlockEntity(pos, lit);
+        assertTrue(be.placeFood(null, 0, new ItemStack(1, 1), 2, level));
+        assertEquals(1, sent.size(), "올릴 때 한 번(markUpdated)");
+        be.tick(level);
+        assertEquals(1, sent.size());
+        be.tick(level);
+        assertEquals(1, dropped.size(), "레시피 없으면 그 아이템 그대로 떨군다");
+        assertEquals(List.of(pos, pos), sent, "떨굴 때 한 번 더");
+        assertTrue(be.items[0].isEmpty());
+    }
+
     @Test
     void cooksBeefAfterItsCookingTimeAndDropsResult() throws Exception {
         RecipeManager rm = TestRecipes.manager();

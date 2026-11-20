@@ -89,7 +89,7 @@ public class CampfireBlockEntity extends ContainerBlockEntity {
                 level.dropItemStack(pos.x(), pos.y(), pos.z(), result);
                 items[i] = ItemStack.EMPTY;
                 int s = level.getBlockState(pos);
-                level.setBlock(pos, s, 3);
+                level.sendBlockUpdated(pos);   // 바닐라 sendBlockUpdated(pos, s, s, 3) — 같은 상태 setBlock 은 아무것도 보내지 않는다
                 level.gameEvent("minecraft:block_change", pos, null, s);
             }
         }

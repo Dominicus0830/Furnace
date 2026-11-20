@@ -117,6 +117,30 @@ class NmsRegionFileTest {
         }
     }
 
+    /** 쓸 때 고른 압축 종류(gzip 1·lz4 4)가 청크 머리에 적히고, 다른 종류로 연 파일에서도 그 종류로 풀린다. */
+    @Test
+    void gzipAndLz4Chunks() throws IOException {
+        Path file = dir.resolve("r.3.3.mca");
+        byte[] text = "region ".repeat(700).getBytes();
+        ChunkPos gz = new ChunkPos(96, 96), lz = new ChunkPos(97, 96);
+        try (RegionFile f = open(file, RegionFileVersion.VERSION_GZIP)) {
+            write(f, gz, text);
+        }
+        try (RegionFile f = open(file, RegionFileVersion.VERSION_LZ4)) {
+            write(f, lz, text);
+            assertArrayEquals(text, read(f, gz));
+            assertArrayEquals(text, read(f, lz));
+        }
+        try (var raf = new RandomAccessFile(file.toFile(), "r")) {
+            for (var c : new Object[][] {{gz, 1}, {lz, 4}}) {
+                ChunkPos p = (ChunkPos) c[0];
+                raf.seek(4L * ((p.z & 31) * 32 + (p.x & 31)));
+                raf.seek((long) (raf.readInt() >>> 8) * 4096 + 4);
+                assertEquals((int) c[1], raf.readByte(), "압축 종류 " + c[1]);
+            }
+        }
+    }
+
     @Test
     void versionsAndRefusals() throws IOException {
         assertEquals(3, RegionFileVersion.VERSION_NONE.getId());
