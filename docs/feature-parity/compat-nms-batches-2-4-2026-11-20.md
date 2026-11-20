@@ -6,8 +6,8 @@
 
 | 묶음 | 번호 | 상태 |
 |---|---|---|
-| 2번 플레이어 목록·틱 스레드 판정 | T-245 | 완료(이 PR). 표본 감사에서 이 묶음 심볼 0(Axiom 없는 심볼 92 → 87, VeinMiner 50 → 47). 시험 `NmsPlayerListTest`(3) |
-| 3번 블록 부수기·경험치·속성 | T-246 | 다음 PR |
+| 2번 플레이어 목록·틱 스레드 판정 | T-245 | 완료(PR #530). 표본 감사에서 이 묶음 심볼 0(Axiom 없는 심볼 92 → 87, VeinMiner 50 → 47). 시험 `NmsPlayerListTest`(3) |
+| 3번 블록 부수기·경험치·속성 | T-246 | 앞부분(블록 부수기·게임 모드·경험치) 완료(이 PR). 표본 감사 없음 행 squaremap 39 → 37, VeinMiner 45 → 42. 시험 `NmsPlayerBreakTest`(8). 뒷부분(속성)은 다음 PR |
 | 4번 감사 도구 "타는 길" 거르기 + Orebfuscator 9개 | T-247 | 설계만 |
 
 ### 2번 묶음에서 한 것
@@ -17,6 +17,20 @@
 - `MinecraftServer#sendSystemMessage(Component)`(콘솔), `ServerPlayer#sendSystemMessage` 둘(서버 플레이어의 같은 메서드 — 채팅을 숨긴 클라이언트는 overlay 만), `Entity#getServer`.
 - 서버 다리 `ChunkInternals#sendSystemMessage`(보내기 큐에 넣을 뿐이라 어느 스레드에서나).
 - 서명 관문: `PlayerList` 생성자만 다르다(의도 — 상태 없는 보기라 바닐라 생성자를 두지 않음, 기준선에 이유).
+
+### 3번 묶음 앞부분에서 한 것
+
+- `ServerPlayer#gameMode`(Paper 처럼 공개 final 필드)와 `ServerPlayerGameMode` shim. 서버 상태를 따로 들지 않는 보기다.
+  - `getGameModeForPlayer`·`isSurvival`·`isCreative`: 그 순간 플레이어의 게임 모드.
+  - `destroyBlock(pos)`: 새 다리 `ChunkInternals#destroyBlockAsPlayer` 로 서버의 손으로 부수기 길(`BlockBreaking#destroyBlock`, 바닐라 이식)을 그 칸의 주인 region 에서 그대로 탄다. 블록 부수기 이벤트(취소하면 안 부숨)·드롭·경험치·도구 닳기·허기가 손으로 부순 것과 같다.
+  - 스레드(결정 D3-1): 그 칸의 주인 스레드면 진짜 결과, 다른 region·전역 스레드는 그 region 으로 넘기고 true, 틱 스레드가 아니면 기다려 진짜 결과(`NmsBreaking`). 넘긴 부수기가 실패하면 플러그인마다 한 번 콘솔 경고(`compat.nms.effect-failed`).
+  - 플레이어가 다른 region 에 있어도 된다: 손은 인벤토리 비교 교체(연결 쪽), 허기는 잠금, 도구 부서짐 알림은 플레이어의 주인 스레드로 보낸다(`Region#brokenEvent` 가 플레이어를 가진 region 이 아니면 `runOnOwner`).
+  - 바닐라 생성자로 만든 가짜 플레이어(T-212)는 이 shim 이 든 두 손으로 부수고 손을 되쓴다(바닐라처럼 손의 그 객체가 닳는다). 이벤트도 낸다(결정 S2). 아이템 쓰기와 같이 언제나 기다리는 길이라, 다른 region 의 틱 스레드에서 부르면 `ThreadOwnershipException`.
+- Paper `Block#getExpDrop(state, level, pos, tool, dropExperience)`: 다리 `ChunkInternals#expDropNow` 로 서버 `BlockBehavior#expDrop`(바닐라 `tryDropExperience` 의 양 — 레벨 난수 표본, 섬세한 손길이면 0)을 그 칸의 주인 스레드에서 부른다. `dropExperience` 거짓이면 0.
+- 알려진 차이:
+  - 로드되지 않은 칸은 둘 다 `IllegalStateException` 이다(Paper 는 그 자리에서 불러온다 — Furnace 는 동기로 불러오지 않는다, `Level#setBlock` 과 같은 규칙).
+  - `getExpDrop` 은 `this` 블록이 아니라 넘겨 받은 state 의 블록으로 계산한다(Paper 는 `this` 로 고른다 — 플러그인이 둘을 다르게 넘기는 경우만 다르다, 가정: 드물다).
+  - `ServerPlayerGameMode` 의 Paper 내부 필드(`level`·부수는 중인 칸·진행도 등)와 `changeGameModeForPlayer`·`handleBlockBreakAction` 은 두지 않았다(표본 플러그인이 안 부른다). 부르면 지금처럼 없는 심볼로 잡힌다.
 
 ## 설계 초안(묶음별)
 

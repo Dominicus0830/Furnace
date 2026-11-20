@@ -117,7 +117,7 @@ public final class NmsItemUse {
     }
 
     /** 바뀐 손을 되쓴다: 같은 종류(또는 다 써서 빔)면 그 객체를 고치고, 아니면 새 객체를 손에 넣는다. */
-    private static void writeBack(ServerPlayer fake, InteractionHand hand, ItemStack held, org.domi.furnace.api.item.ItemStack sent,
+    static void writeBack(ServerPlayer fake, InteractionHand hand, ItemStack held, org.domi.furnace.api.item.ItemStack sent,
                                   org.domi.furnace.api.item.ItemStack now) {
         if (now.equals(sent)) return;   // 서버가 그 손을 바꾸지 않았다
         if (sameKind(held, now)) apply(held, now);

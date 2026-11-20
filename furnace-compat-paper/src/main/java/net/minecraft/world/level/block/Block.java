@@ -191,6 +191,24 @@ public class Block extends BlockBehaviour implements ItemLike {
     @Override
     public Item asItem() { return Item.byKey(itemKey); }
 
+    /**
+     * Paper {@code Block#getExpDrop(state, level, pos, tool, dropExperience)}: 부서질 때 줄 경험치. dropExperience 가 거짓이거나 경험치를 안 주는 블록이면 0,
+     * 아니면 바닐라 {@code tryDropExperience} 의 양 — 그 레벨의 난수로 표본을 뽑고 섬세한 손길이면 0(경험치를 떨구지는 않는다). 그 칸의 주인 스레드에서
+     * 돈다({@link org.domi.furnace.compat.nms.NmsOwner} — 난수 차례가 바닐라와 같다). Paper 처럼 state 로 계산한다(이 블록이 아니라 state 의 블록 —
+     * Paper 에서도 둘이 다르게 부르는 일은 없다). 로드되지 않은 칸은 IllegalStateException(NMS shim 3번 묶음).
+     */
+    public int getExpDrop(BlockState state, net.minecraft.server.level.ServerLevel level, net.minecraft.core.BlockPos pos,
+                          net.minecraft.world.item.ItemStack tool, boolean dropExperience) {
+        if (!dropExperience) return 0;
+        var w = level.getWorld().furnaceHandle();
+        int x = pos.getX(), y = pos.getY(), z = pos.getZ();
+        if (!level.hasChunk(x >> 4, z >> 4)) throw org.domi.furnace.compat.nms.NmsChunks.notLoaded(w, x >> 4, z >> 4, "Block#getExpDrop");
+        var b = org.domi.furnace.compat.nms.NmsChunks.bridge();
+        int id = state.furnaceStateId();
+        var t = (tool == null ? net.minecraft.world.item.ItemStack.EMPTY : tool).furnaceValue();
+        return org.domi.furnace.compat.nms.NmsOwner.call(w, x, y, z, "Block#getExpDrop", () -> b.expDropNow(w, id, x, y, z, t));
+    }
+
     /** 바닐라 Util.makeDescriptionId("block", 키). */
     public String getDescriptionId() { return "block." + key.getNamespace() + "." + key.getPath().replace('/', '.'); }
 

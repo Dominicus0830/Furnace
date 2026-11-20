@@ -801,6 +801,59 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     @Override
+    public BlockDestroy destroyBlockAsPlayer(org.domi.furnace.api.world.World world, org.domi.furnace.api.entity.Player player, int x, int y, int z,
+                                             org.domi.furnace.api.item.ItemStack main, org.domi.furnace.api.item.ItemStack off) {
+        String what = "ServerPlayerGameMode#destroyBlock";
+        if (!(player instanceof PlayerHandle ph)) throw new IllegalArgumentException("not a server player: " + player);
+        Region r = ownedLoaded(world, x >> 4, z >> 4, what);
+        if (r == null || !r.chunkLoaded(new ChunkPos(x >> 4, z >> 4))) {
+            throw new IllegalStateException(what + ": the chunk at " + x + ", " + z + " is not loaded");
+        }
+        var p = ph.handle();
+        Pos pos = new Pos(x, y, z);
+        if (!p.isDetached()) return new BlockDestroy(r.destroyBlockAsPlayer(p, pos), null, null);
+        // 월드에 없는 플레이어(T-212): 넘겨 받은 두 손으로, 접속한 플레이어와 같은 블록 부수기 이벤트(Paper 처럼 — 결정 S2)
+        RegionLevel lv = r.level();
+        var w = handle(world).handle();
+        var core = host.core();
+        var items = w.itemRegistry();
+        var actor = new org.domi.furnace.server.block.BreakerActor(p, ApiConvert.item(main, items), ApiConvert.item(off, items), null,
+                core.profilePermissions(org.domi.furnace.server.ServerCore.profileOf(p)), false, -1);
+        var breakHost = new org.domi.furnace.server.block.BlockBreaking.Host() {
+            public void sendBlockUpdate(org.domi.furnace.server.block.BlockLevel level, Pos at) {}   // 연결이 없다
+
+            public boolean allowBreak(org.domi.furnace.server.block.BlockLevel level, Pos at, int state) {
+                var bus = core.events();
+                if (!bus.hasSubscribers(org.domi.furnace.api.event.block.BlockBreakEvent.class)) return true;
+                return !bus.call(new org.domi.furnace.api.event.block.BlockBreakEvent(p.dimension(), new BlockPos(at.x(), at.y(), at.z()),
+                        w.blockRegistry().nameOf(state), host.player(p))).isCancelled();
+            }
+
+            public boolean owns(Pos at) { return ownsChunk(world, at.x() >> 4, at.z() >> 4); }
+        };
+        if (!p.beginDetachedUse()) {   // useItemNow 와 같다 — 같은 플레이어를 두 region 이 동시에 쓰지 않는다
+            throw new IllegalStateException(what + ": the player " + p.name() + " is already used on another thread");
+        }
+        boolean destroyed;
+        p.currentLevel = lv;
+        try {
+            destroyed = p.breaking().destroyBlock(lv, actor, breakHost, pos);
+        } finally {
+            p.currentLevel = null;
+            p.endDetachedUse();
+        }
+        return new BlockDestroy(destroyed, ApiConvert.item(actor.itemInHand(0), items), ApiConvert.item(actor.itemInHand(1), items));
+    }
+
+    @Override
+    public int expDropNow(org.domi.furnace.api.world.World world, int state, int x, int y, int z, org.domi.furnace.api.item.ItemStack tool) {
+        RegionLevel lv = ownedLevel(world, x, z, "Block#getExpDrop");
+        if (lv == null) throw new IllegalStateException("Block#getExpDrop: the chunk at " + x + ", " + z + " is not loaded");
+        var items = handle(world).handle().itemRegistry();
+        return org.domi.furnace.server.block.BlockBehaviors.of(state).expDrop(state, lv, new Pos(x, y, z), ApiConvert.item(tool, items));
+    }
+
+    @Override
     public ItemUse useItemNow(org.domi.furnace.api.world.World world, org.domi.furnace.api.entity.Player player, ItemUseKind kind, boolean mainHand,
                               org.domi.furnace.api.item.ItemStack main, org.domi.furnace.api.item.ItemStack off, org.domi.furnace.api.item.ItemStack stack,
                               int state, int x, int y, int z, int face, double hitX, double hitY, double hitZ, boolean inside) {
