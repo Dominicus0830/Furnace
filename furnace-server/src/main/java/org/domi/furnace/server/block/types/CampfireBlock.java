@@ -130,6 +130,9 @@ public class CampfireBlock extends BaseEntityBlock {
         return false;
     }
 
+    /** 켜짐 속성만 끈 상태(ThrownPotion.dowseFire 의 setValue(LIT, false)). */
+    public static int withoutLit(int state) { return LIT.with(state, false); }
+
     public static boolean isLitCampfire(int state) { return LIT.has(state) && B.isTag(state, "minecraft:campfires") && LIT.is(state); }
 
     /** canLight: 잠기지 않은 꺼진 모닥불. */

@@ -138,6 +138,9 @@ public class Axolotl extends Animal implements Bucketable {
         }
     }
 
+    /** Axolotl.rehydrate: 공기 +1800(최대 6000) — 물 물약이 닿을 때. */
+    public void rehydrate() { setAirSupply(Math.min(getAirSupply() + REHYDRATE_AIR_SUPPLY, TOTAL_AIR_SUPPLY)); }
+
     @Override
     protected int increaseAirSupply(int air) { return Math.min(air + REHYDRATE_AIR_SUPPLY, getMaxAirSupply()); }
 
