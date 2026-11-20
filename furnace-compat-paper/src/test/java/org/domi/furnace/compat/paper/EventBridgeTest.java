@@ -101,6 +101,8 @@ class EventBridgeTest {
             fire.put(org.bukkit.event.player.PlayerMoveEvent.class, () -> new org.domi.furnace.api.event.player.PlayerMoveEvent(p, at, to));
             fire.put(org.bukkit.event.player.PlayerTeleportEvent.class, () -> new org.domi.furnace.api.event.player.PlayerTeleportEvent(p, at, to));
             fire.put(org.bukkit.event.entity.EntityTeleportEvent.class, () -> new org.domi.furnace.api.event.entity.EntityTeleportEvent(pig, at, to));
+            fire.put(org.bukkit.event.entity.EntityPortalExitEvent.class, () -> new org.domi.furnace.api.event.entity.EntityPortalExitEvent(pig, at, to,
+                    org.domi.furnace.api.math.Vector3d.ZERO, new org.domi.furnace.api.math.Vector3d(0, 0.5, 0)));
             fire.put(org.bukkit.event.player.PlayerRespawnEvent.class, () -> new org.domi.furnace.api.event.player.PlayerRespawnEvent(p, at, true));
             fire.put(org.bukkit.event.player.PlayerChangedWorldEvent.class, () -> new org.domi.furnace.api.event.player.PlayerChangedWorldEvent(p, w));
             fire.put(org.bukkit.event.player.PlayerShowEntityEvent.class, () -> new org.domi.furnace.api.event.player.PlayerShowEntityEvent(p, pig));
@@ -358,6 +360,46 @@ class EventBridgeTest {
 
             RecorderPlugin.ACTIONS.put("BlockBreakEvent", e -> ((org.bukkit.event.Cancellable) e).setCancelled(true));
             assertTrue(bus.call(new org.domi.furnace.api.event.block.BlockBreakEvent("minecraft:overworld", new BlockPos(1, 64, 2), "minecraft:stone", p)).isCancelled());
+
+            // Paper EntityPortalExitEvent: 도착 위치·도착 속도가 돌아온다
+            var pig = server.await(server.overworld().spawnEntity("minecraft:pig", p.location()));
+            RecorderPlugin.ACTIONS.put("EntityPortalExitEvent", e -> {
+                var x = (org.bukkit.event.entity.EntityPortalExitEvent) e;
+                assertEquals(0.5, x.getAfter().getY(), 1e-9);
+                x.setAfter(new org.bukkit.util.Vector(1, 2, 3));
+                var l = x.getTo();
+                l.setX(77);
+                x.setTo(l);
+            });
+            var exit = bus.call(new org.domi.furnace.api.event.entity.EntityPortalExitEvent(pig, at, at,
+                    org.domi.furnace.api.math.Vector3d.ZERO, new org.domi.furnace.api.math.Vector3d(0, 0.5, 0)));
+            assertEquals(new org.domi.furnace.api.math.Vector3d(1, 2, 3), exit.after());
+            assertEquals(77.0, exit.to().x());
+        }
+    }
+
+    /** 엔드 관문으로 건너는 엔티티의 EntityTeleportEvent 는 Bukkit 에서 Paper EntityTeleportEndGatewayEvent(같은 처리기 목록)로 온다. */
+    @Test
+    void endGatewayTeleportArrivesAsTheGatewaySubclass() throws Exception {
+        try (FurnaceTestServer server = FurnaceTestServer.builder().failFast(false).pluginJar(recorderJar()).start()) {
+            Player p = server.join("Dana").player();
+            server.tick(2);
+            var world = server.overworld();
+            var gw = new BlockPos(3, 64, 3);
+            server.await(world.editBlocks(ed -> ed.set(gw, org.domi.furnace.api.world.BlockData.of("minecraft:end_gateway"))));
+            var pig = server.await(world.spawnEntity("minecraft:pig", p.location()));
+            Location at = new Location("minecraft:overworld", 3.5, 64, 3.5);
+            RecorderPlugin.SEEN.clear();
+            server.await(world.scheduler(gw).submit(() -> {
+                server.api().events().call(new org.domi.furnace.api.event.entity.EntityTeleportEvent(pig, at, at, gw));
+                server.api().events().call(new org.domi.furnace.api.event.entity.EntityTeleportEvent(pig, at, at, new BlockPos(9, 64, 9)));
+                return null;
+            }));
+            var got = seen(org.bukkit.event.entity.EntityTeleportEvent.class);
+            assertEquals(2, got.size(), RecorderPlugin.SEEN.toString());
+            var g = org.junit.jupiter.api.Assertions.assertInstanceOf(com.destroystokyo.paper.event.entity.EntityTeleportEndGatewayEvent.class, got.get(0));
+            assertEquals(3, g.getGateway().getX());
+            assertFalse(got.get(1) instanceof com.destroystokyo.paper.event.entity.EntityTeleportEndGatewayEvent, "관문이 아닌 칸이면 보통 이벤트");
         }
     }
 

@@ -370,9 +370,10 @@ class EntityWorldApiTest {
 
         assertTrue(living.teleport(new org.domi.furnace.api.world.Location("minecraft:overworld", 4, -50, 4)).get(10, TimeUnit.SECONDS));
         assertEquals(4.0, living.refresh().get(10, TimeUnit.SECONDS).location().x());
-        assertFalse(living.teleport(new org.domi.furnace.api.world.Location("minecraft:the_nether", 4, 64, 4)).get(10, TimeUnit.SECONDS), "차원 이동은 지원하지 않는다");
-        assertFalse(living.teleport(new org.domi.furnace.api.world.Location("minecraft:overworld", 16 * 40, -50, 4)).get(10, TimeUnit.SECONDS),
-                "다른 region 으로 넘기는 이동은 거부(핸드오프는 다음 단계)");
+        assertFalse(living.teleport(new org.domi.furnace.api.world.Location("minecraft:the_nether", 4, 64, 4)).get(10, TimeUnit.SECONDS), "없는 월드로는 옮기지 않는다");
+        assertTrue(living.teleport(new org.domi.furnace.api.world.Location("minecraft:overworld", 16 * 40, -50, 4)).get(10, TimeUnit.SECONDS),
+                "다른 region 으로도 옮긴다(T-196 — 그 region 이 같은 객체를 이어 받는다)");
+        assertEquals(16 * 40.0, living.refresh().get(10, TimeUnit.SECONDS).location().x(), "옛 핸들의 refresh 가 옮겨 간 region 에서 찾는다");
 
         assertTrue(living.remove().get(10, TimeUnit.SECONDS));
         assertNull(living.refresh().get(10, TimeUnit.SECONDS), "사라진 엔티티는 null");

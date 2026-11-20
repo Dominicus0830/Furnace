@@ -449,6 +449,17 @@ public abstract non-sealed class Entity implements Rider {
 
     public PortalProcessor portalProcess() { return portalProcess; }
 
+    /**
+     * Paper changeDimension 의 관문 판정(portalProcess.isSamePortal(END_GATEWAY) 이고 들어간 칸이 TheEndGatewayBlockEntity): 그 관문 칸, 아니면 null.
+     * 소유 region 스레드에서.
+     */
+    public Pos endGatewayEntry() {
+        PortalProcessor p = portalProcess;
+        if (p == null || level == null || !(p.portal() instanceof org.domi.furnace.server.block.types.EndGatewayBlock)) return null;
+        Pos at = p.getEntryPosition();
+        return level.getBlockEntity(at) instanceof org.domi.furnace.server.block.entity.EndGatewayBlockEntity ? at : null;
+    }
+
     /** getDimensionChangingDelay: 넘어간 뒤 포털을 다시 못 쓰는 틱. */
     public int getDimensionChangingDelay() { return 300; }
 
@@ -520,7 +531,52 @@ public abstract non-sealed class Entity implements Rider {
      * 다시 탄다(carryPassengers). 목적지가 없으면 원천에 되돌린다.
      */
     private void travelAcross(PortalTravel plan, org.domi.furnace.server.block.LevelServices.DimensionTravel travel) {
+        if (level.gameEvents().listensEntityChangeDimension()) {
+            final String sourceDim = level.dimension();
+            final Pos gateway = endGatewayEntry();   // 바닐라는 같은 틱 안이라 지금 본다(돌아올 때는 포털 처리가 끝났을 수 있다)
+            final EntityTasks q = apiTasks();   // 소유 스레드에서 미리 만든다(목적 스레드에서 처음 만들면 depart 와 겹쳐 은퇴되지 않는 대기열이 생길 수 있다)
+            travel.travel(plan, (target, t) -> returnWithDestination(q, t, travel, sourceDim, gateway));
+            return;
+        }
         moveAcross(arrive -> travel.travel(plan, arrive), travel, PORTAL_PLACE, null, plan.targetDimension(), true);
+    }
+
+    /**
+     * 플러그인이 차원 이동 이벤트를 들을 때의 차원문 경로(Paper Entity#changeDimension 순서): 목적 region 스레드에서 정한 목적지(지옥문은 찾거나 만든 뒤)를
+     * 들고 이 엔티티를 따라가는 대기열로 이 엔티티의 region 스레드에 돌아와(다음 틱) 떠나기 전에 EntityTeleportEvent·EntityPortalExitEvent 를 부르고,
+     * 이벤트가 정한 도착 위치로 건넌다. 바닐라는 한 틱 안에 동기로 하지만 Furnace 는 목적 차원이 다른 스레드라 목적지 준비(청크 읽기·지옥문 찾기) 뒤
+     * 다음 틱에 떠난다(듣는 처리기가 없으면
+     * 이 길을 타지 않는다). 그 사이 엔티티가 사라졌거나 목적지가 없으면 아무 일도 없다(바닐라도 목적지가 없으면 그대로).
+     */
+    private void returnWithDestination(EntityTasks q, DimensionTransition t, org.domi.furnace.server.block.LevelServices.DimensionTravel travel, String sourceDim, Pos gateway) {
+        if (t == null) return;
+        q.schedule(() -> {
+            if (isRemoved() || level == null || !level.dimension().equals(sourceDim)) return;
+            leaveAfterEvents(t, travel, gateway);
+        }, null, 0, 0);
+    }
+
+    /**
+     * 원천 region 스레드에서: changeDimension 의 이벤트(죽는 중이면 null) 뒤 도착 위치가 바뀌었으면 그 자리로, 아니면 정한 목적지로 건넌다.
+     * 바닐라는 포털 처리(handlePortal) 안이라 portalProcess 가 있어 EntityPortalExitEvent 도 부른다 — 한 틱 뒤인 여기서도 그대로 부른다.
+     */
+    private void leaveAfterEvents(DimensionTransition t, org.domi.furnace.server.block.LevelServices.DimensionTravel travel, Pos gateway) {
+        if (!isAlive()) return;   // Paper changeDimension 맨 앞: 죽는 중이면 null
+        var to = new org.domi.furnace.server.plugin.GameEvents.Arrival(t.newLevel().dimension(), t.x(), t.y(), t.z(), t.yRot(), xRot(), t.vx(), t.vy(), t.vz());
+        var a = level.gameEvents().entityChangeDimension(this, to, gateway, true);
+        if (a == null || isRemoved()) return;
+        if (!a.dimension().equals(level.dimension()) && !travel.isLevelEnabled(a.dimension())) return;   // 처리기가 띄우지 않은 월드로 보냈다
+        final String dest = a.dimension();
+        final double ax = a.x(), ay = a.y(), az = a.z(), vx = a.vx(), vy = a.vy(), vz = a.vz();
+        final float yr = a.yaw(), xr = a.pitch();
+        PortalTravel fixed = new PortalTravel(dest, floor(ax), floor(az), 0, 0, lvl -> t.redirected(lvl, ax, ay, az, vx, vy, vz, yr, xr));
+        if (dest.equals(level.dimension())) {
+            // 같은 레벨(엔드 관문, 또는 처리기가 떠나온 월드로 돌렸다): 관문 경로처럼 목적 칸 region 에 같은 종류를 새로 만든다(teleportWithinLevel)
+            moveAcross(arrive -> travel.withLoadedChunks(floor(ax), floor(az), 0,
+                    lvl -> arrive.accept(lvl, lvl == null ? null : fixed.complete().apply(lvl))), travel, PORTAL_PLACE, null, dest, true);
+        } else {
+            moveAcross(arrive -> travel.travel(fixed, arrive), travel, PORTAL_PLACE, null, dest, true);
+        }
     }
 
     /** changeDimension 이 옮긴 엔티티를 놓는 방식: moveTo(위치, 목적 yRot, 지금 xRot) 후 목적 속도. */
@@ -537,6 +593,13 @@ public abstract non-sealed class Entity implements Rider {
     private void teleportWithinLevel(Portal portal, Pos entry, org.domi.furnace.server.block.LevelServices.DimensionTravel travel) {
         final ChunkLevel src = level;
         final Traveler tr = Traveler.of(this);
+        if (src.gameEvents().listensEntityChangeDimension()) {   // 출구를 먼저 정하고 돌아와 이벤트 뒤 떠난다(travelAcross 와 같다)
+            final String sourceDim = src.dimension();
+            final Pos gateway = endGatewayEntry();
+            final EntityTasks q = apiTasks();
+            portal.travelWithinLevel(src, entry, tr, (target, t) -> returnWithDestination(q, t, travel, sourceDim, gateway));
+            return;
+        }
         moveAcross(arrive -> portal.travelWithinLevel(src, entry, tr, arrive), travel, PORTAL_PLACE, null, src.dimension(), true);
     }
 
@@ -563,17 +626,17 @@ public abstract non-sealed class Entity implements Rider {
     /**
      * 플러그인 teleport 의 다른 월드 경로(Paper CraftEntity#teleport → Entity#changeDimension(DimensionTransition(레벨, 위치, 속도 0, yRot, …,
      * DO_NOTHING, PLUGIN))): 승객을 내리고(탈것은 호출 전에 막는다) 같은 종류를 목적 차원에 새로 만들어 저장 데이터를 옮기고(UUID 유지) moveTo(위치,
-     * yRot, 지금 xRot)·속도 0 으로 놓는다. 포털과 같은 changeDimension 이라 떠난·닿은 레벨이 resetEmptyTime 하고 낙하 블록 훅이 켜진다.
+     * yRot, 지금 xRot)·속도(보통 0 — 포털 안에 있었으면 EntityPortalExitEvent 가 바꿀 수 있다)로 놓는다. 포털과 같은 changeDimension 이라 떠난·닿은 레벨이 resetEmptyTime 하고 낙하 블록 훅이 켜진다.
      * 포털 소리·티켓은 없다(DO_NOTHING). 소유 region 스레드에서 부르고, 시작하지 못하면(종료 저장 기준점 뒤·길 없음) 거짓.
      * done 은 도착(또는 되돌림) 뒤 목적·원천 region 스레드에서 한 번 불린다.
      */
-    public boolean changeDimensionTo(String dimension, double tx, double ty, double tz, float yRot, Runnable done) {
+    public boolean changeDimensionTo(String dimension, double tx, double ty, double tz, float yRot, double vx, double vy, double vz, Runnable done) {
         if (level == null || isRemoved()) return false;
         var travel = level.dimensionTravel();
         if (travel == null || travel.frozen()) return false;
         final float xr = xRot();
         PortalTravel plan = new PortalTravel(dimension, floor(tx), floor(tz), 0, 0,
-                lvl -> new DimensionTransition(lvl, tx, ty, tz, 0, 0, 0, yRot, xr));
+                lvl -> new DimensionTransition(lvl, tx, ty, tz, vx, vy, vz, yRot, xr));
         moveAcross(arrive -> travel.travel(plan, arrive), travel, PORTAL_PLACE, done, dimension, true);
         return true;
     }
@@ -586,7 +649,7 @@ public abstract non-sealed class Entity implements Rider {
 
     /** 떠난 엔티티: 저장 데이터·포털 대기·종류, 그리고 함께 건너가는 그 승객들(바닐라 getPassengers 순서). */
     private record CarriedEntity(NbtCompound tag, int cooldown, PortalProcessor process, String typeName,
-                                 java.util.List<Carried> passengers) implements Carried { }
+                                 java.util.List<Carried> passengers, EntityTasks tasks) implements Carried { }
 
     private record CarriedPlayer(Player player) implements Carried { }
 
@@ -609,7 +672,7 @@ public abstract non-sealed class Entity implements Rider {
                 }
             }
             final NbtCompound tag = saveWithoutId(new NbtCompound());
-            CarriedEntity self = new CarriedEntity(tag, portalCooldown, portalProcess, type.name(), java.util.List.copyOf(carried));
+            CarriedEntity self = new CarriedEntity(tag, portalCooldown, portalProcess, type.name(), java.util.List.copyOf(carried), apiTasks);
             final String fromDimension = level.dimension();
             setRemoved(RemovalReason.CHANGED_DIMENSION);
             afterChangedDimension(fromDimension, targetDimension);
@@ -644,6 +707,8 @@ public abstract non-sealed class Entity implements Rider {
             self = depart(travel, targetDimension, carryPassengers);
         } catch (RuntimeException ex) {
             travel.settled();
+            EntityTasks t = apiTasks;
+            if (t != null && isRemoved()) t.retire();   // 빠진 뒤 던졌다 — 이어 받을 엔티티가 없다
             throw ex;
         }
         final java.util.concurrent.atomic.AtomicBoolean called = new java.util.concurrent.atomic.AtomicBoolean();
@@ -703,17 +768,19 @@ public abstract non-sealed class Entity implements Rider {
             }
             Entity made = Entities.create(target, c.typeName());
             if (made != null) {
+                made.inheritApiTasks(c.tasks());   // restoreFrom 의 setHandle — 저장 데이터보다 먼저(Paper 순서)
                 made.load(c.tag());
                 made.portalCooldown = c.cooldown();
                 made.portalProcess = c.process();
                 place.accept(made, t);
-                target.addFreshEntity(made);
+                if (!target.addFreshEntity(made) && c.tasks() != null) c.tasks().retire();   // 넣지 못했다(UUID 겹침 등) — 대기열도 끝낸다
                 e = made;
                 for (Entity r : riders) r.startRiding(made, true);
                 target.afterDimensionTransition(t);
             }
             return e;
         } finally {
+            retireUnclaimed(c);
             // 뗀 승객 플레이어는 무슨 일이 있어도 한 번 보낸다(탈것을 못 넣었으면 null — 태우지 않는다)
             for (Player p : players) travel.arrivePassenger(p, target, t, e);
         }
@@ -743,17 +810,28 @@ public abstract non-sealed class Entity implements Rider {
             }
             Entity made = Entities.create(src, c.typeName());
             if (made != null) {
+                made.inheritApiTasks(c.tasks());
                 made.load(c.tag());
                 made.portalCooldown = c.cooldown();
                 made.portalProcess = c.process();
-                src.addFreshEntity(made);
+                if (!src.addFreshEntity(made) && c.tasks() != null) c.tasks().retire();
                 back = made;
                 for (Entity r : riders) r.startRiding(made, true);
             }
             return back;
         } finally {
+            retireUnclaimed(c);
             for (Player p : players) travel.returnPassenger(p, src, back);
         }
+    }
+
+    /**
+     * 떠난 엔티티의 플러그인 대기열을 새 엔티티가 이어 받지 못했으면(종류를 못 만들었거나 도중에 던졌다) 여기서 끝낸다 — 옛 엔티티는 CHANGED_DIMENSION 으로
+     * 빠질 때 retire 하지 않았다. 이어 받은 뒤 넣기에 실패한 경우는 addFreshEntity 가 이미 retire 했다.
+     */
+    private static void retireUnclaimed(CarriedEntity c) {
+        EntityTasks t = c.tasks();
+        if (t != null && !(t.owner() instanceof Entity e && e.apiTasks == t && !e.isRemoved())) t.retire();
     }
 
     /**
@@ -783,7 +861,10 @@ public abstract non-sealed class Entity implements Rider {
         }
         e.moveTo(t.x(), t.y(), t.z(), t.yRot(), e.xRot());
         e.setDeltaMovement(t.vx(), t.vy(), t.vz());
-        if (e != this) target.addFreshEntity(e);
+        if (e != this && !target.addFreshEntity(e)) {
+            EntityTasks tasks = e.apiTasks;
+            if (tasks != null) tasks.retire();   // 넣지 못했다 — 이어 받은 대기열도 끝낸다
+        }
         for (Entity n : moved) n.startRiding(e, true);
         if (level != null) level.resetEmptyTime();   // 바닐라: serverLevel.resetEmptyTime(); serverLevel2.resetEmptyTime()
         target.resetEmptyTime();
@@ -793,6 +874,7 @@ public abstract non-sealed class Entity implements Rider {
 
     /** restoreFrom: 저장 데이터·UUID·포털 상태를 그대로 옮긴다. */
     protected void restoreFrom(Entity old) {
+        inheritApiTasks(old.apiTasks);   // Paper: bukkitEntity.setHandle(this) 가 맨 앞
         NbtCompound tag = old.saveWithoutId(new NbtCompound());
         load(tag);
         portalCooldown = old.portalCooldown;
@@ -1049,7 +1131,9 @@ public abstract non-sealed class Entity implements Rider {
     public final void setRemoved(RemovalReason reason) {
         if (removalReason == null) removalReason = reason;
         EntityTasks tasks = apiTasks;
-        if (tasks != null) tasks.retire();   // 플러그인 EntityScheduler: 남은 작업 대신 retired
+        // 플러그인 EntityScheduler: 남은 작업 대신 retired. 차원 이동(CHANGED_DIMENSION)은 Paper Entity#setRemoved 처럼 retire 하지 않는다 —
+        // 새로 만든 엔티티가 대기열을 이어 받는다(inheritApiTasks). 이어 받지 못하면 그 길이 retire 한다
+        if (tasks != null && removalReason != RemovalReason.CHANGED_DIMENSION) tasks.retire();
         if (removalReason == RemovalReason.CHANGED_DIMENSION) removeAfterChangingDimensions();
         if (removalReason.shouldDestroy()) stopRidingForced(this);
         if (!passengers.isEmpty()) for (Rider r : passengers) stopRidingForced(r);
@@ -2008,6 +2092,22 @@ public abstract non-sealed class Entity implements Rider {
             }
             return apiTasks;
         }
+    }
+
+    /**
+     * Paper restoreFrom 의 CraftEntity#setHandle: 차원을 건너며 빠진 옛 엔티티의 플러그인 작업 대기열을 이 새 엔티티가 이어 받는다 — 플러그인이 쥔 핸들의
+     * 지금 상태·EntityScheduler 가 새 엔티티를 따라간다. 레벨에 넣기 전에(새 엔티티의 레벨 스레드에서) 부른다. 넣지 못하면 addFreshEntity 가 retire 한다.
+     */
+    void inheritApiTasks(EntityTasks t) {
+        if (t == null) return;
+        synchronized (this) {
+            if (apiTasks != null && apiTasks != t) {   // 새 엔티티에 벌써 대기열이 생겼다(있을 수 없다) — 옛 것은 이어 받지 못한다
+                t.retire();
+                return;
+            }
+            apiTasks = t;
+        }
+        t.rebind(this);
     }
 
     /** 대기열이 있으면(없으면 null). 소유 region 스레드가 틱마다. */

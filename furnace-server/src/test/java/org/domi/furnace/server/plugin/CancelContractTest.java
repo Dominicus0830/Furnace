@@ -107,7 +107,9 @@ class CancelContractTest {
         TABLE.put("VehicleEnterEvent", new Entry(Kind.SERVER_DRIVEN, FORM + "vehicleAndMountEventsFireInOrderAndCancelStopsRiding"));
         TABLE.put("VehicleExitEvent", new Entry(Kind.SERVER_DRIVEN, FORM + "vehicleAndMountEventsFireInOrderAndCancelStopsRiding"));
         TABLE.put("EntityPortalEvent", new Entry(Kind.SERVER_DRIVEN, "entity.PortalCancelTest#entityPortalCancelStopsTheTravel"));
-        TABLE.put("EntityTeleportEvent", new Entry(Kind.SERVER_DRIVEN, "plugin.EntityTeleportApiTest#cancelKeepsEntityWhereItIs"));
+        TABLE.put("EntityTeleportEvent", new Entry(Kind.SERVER_DRIVEN, "plugin.EntityTeleportApiTest#cancelKeepsEntityWhereItIs",
+                "entity.EntityPortalChangeDimensionEventsTest#cancelKeepsThePigInThePortal"));
+        TABLE.put("EntityPortalExitEvent", new Entry(Kind.SERVER_DRIVEN, "plugin.EntityTeleportApiTest#cancelledPortalExitKeepsTheDestinationAndStillMoves"));
         TABLE.put("PlayerPortalEvent", new Entry(Kind.SERVER_DRIVEN, "net.DimensionChangeTest#playerPortalCancelKeepsPlayerInOverworld"));
         TABLE.put("PortalCreateEvent", new Entry(Kind.SERVER_DRIVEN, "entity.PortalCancelTest#portalCreateCancelLeavesTheFrameEmpty"));
         TABLE.put("WorldUnloadEvent", new Entry(Kind.SERVER_DRIVEN, "world.MultiWorldTest#unloadEventCancelKeepsWorldLoaded"));

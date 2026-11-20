@@ -50,10 +50,9 @@ class CraftTeleportResultTest {
             Entity fresh = owner(() -> world.getNearbyEntities(near, 1, 1, 1).stream().filter(e -> e.getUniqueId().equals(pig.getUniqueId())).findFirst().orElseThrow());
             assertEquals(near.getX(), fresh.getLocation().getX(), 1e-6);
             Location far = new Location(world, at.x() + 16 * 40 + 0.5, at.y() + 1, at.z() + 0.5);
-            assertFalse(owner(() -> pig.teleport(far)), "다른 region 으로의 이동은 아직 못 옮긴다 — 거짓 true 가 아니라 false");
+            assertTrue(owner(() -> pig.teleport(far)), "다른 region 으로도 옮기고 true(Paper 처럼 같은 월드면 moveTo, 틱 끝에 새 region 으로 넘어간다)");
             server.tick(2);
-            Entity still = owner(() -> world.getNearbyEntities(near, 1, 1, 1).stream().filter(e -> e.getUniqueId().equals(pig.getUniqueId())).findFirst().orElseThrow());
-            assertEquals(near.getX(), still.getLocation().getX(), 1e-6, "거절하면 제자리");
+            assertTrue(owner(() -> world.getNearbyEntities(near, 1, 1, 1).stream().noneMatch(e -> e.getUniqueId().equals(pig.getUniqueId()))), "제자리에 남지 않는다");
             assertThrows(IllegalArgumentException.class, () -> pig.teleport(null));
         } finally {
             owner(() -> { pig.remove(); return null; });
