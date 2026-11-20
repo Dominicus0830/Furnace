@@ -15,5 +15,11 @@ public class WorldBorder {
 
     public boolean isWithinBounds(BlockPos pos) { return isWithinBounds((double) pos.getX(), (double) pos.getZ()); }
 
+    public double getCenterX() { return org.domi.furnace.compat.nms.NmsChunks.bridge().borderCenterAndSize(world)[0]; }
+
+    public double getCenterZ() { return org.domi.furnace.compat.nms.NmsChunks.bridge().borderCenterAndSize(world)[1]; }
+
+    public double getSize() { return org.domi.furnace.compat.nms.NmsChunks.bridge().borderCenterAndSize(world)[2]; }
+
     public boolean isWithinBounds(double x, double z) { return org.domi.furnace.compat.nms.NmsChunks.bridge().withinBorder(world, x, z); }
 }

@@ -96,6 +96,22 @@ dependencies {
     testRuntimeOnly(dfuStub.output)
 }
 
+// T-248: Brigadier(Message·ArgumentType) 대역 — 위와 같은 방식. 명령 인자 shim 이 상속·인자로 쓰는 모양만(서버는 쓰는 플러그인이 있으면 진짜를 받는다).
+val brigadierStub: SourceSet = the<SourceSetContainer>().create("brigadier")
+dependencies {
+    compileOnly(brigadierStub.output)
+    testCompileOnly(brigadierStub.output)
+    testRuntimeOnly(brigadierStub.output)
+}
+
+// T-248: Adventure(Component·GsonComponentSerializer) 대역 — 컴파일 전용. 시험은 Maven Central 의 진짜 adventure 를 쓴다(서버는 쓰는 플러그인이 있으면 받는다).
+val adventureStub: SourceSet = the<SourceSetContainer>().create("adventure")
+dependencies {
+    compileOnly(adventureStub.output)
+    testCompileOnly(adventureStub.output)
+    testRuntimeOnly("net.kyori:adventure-text-serializer-gson:4.17.0")
+}
+
 // 경로 목록은 태스크 실행 때 푼다 — 설정 단계에서 풀면 다른 모듈의 시험(:furnace-server:test)도 jar 13개를 받으려 든다.
 class RealWorldJars(@get:InputFiles @get:PathSensitive(PathSensitivity.NONE) val jars: FileCollection) : CommandLineArgumentProvider {
     override fun asArguments(): Iterable<String> =
@@ -176,7 +192,7 @@ tasks.test {
     jvmArgumentProviders.add(RealWorldJars(realWorld))
     systemProperty("furnace.language", "en")   // 서버 문구를 확인하는 시험이 실행 환경 언어에 흔들리지 않게
     // CompatLinkTest 가 authlib·DataFixerUpper 대역을 뺀 클래스패스로 링크를 본다
-    val stubDirs = authlibStub.output.classesDirs + dfuStub.output.classesDirs
+    val stubDirs = authlibStub.output.classesDirs + dfuStub.output.classesDirs + brigadierStub.output.classesDirs + adventureStub.output.classesDirs
     jvmArgumentProviders.add(CommandLineArgumentProvider { listOf("-Dfurnace.test.authlibStub=" + stubDirs.asPath) })
     // T-075: -Dfurnace.identity.bless=<금 파일 이름> 등 furnace.* 속성을 시험 JVM 에 넘긴다(서버 시험과 같다)
     System.getProperties().forEach { k, v ->

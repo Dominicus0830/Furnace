@@ -976,6 +976,55 @@ final class ChunkInternalsImpl implements ChunkInternals {
     public boolean ultraWarm(org.domi.furnace.api.world.World world) { return handle(world).handle().dimensionType().ultraWarm(); }
 
     @Override
+    public boolean isPlayerInvisible(org.domi.furnace.api.entity.Player player) {
+        if (!(player instanceof PlayerHandle ph)) throw new IllegalArgumentException("not a server player: " + player);
+        return ph.handle().isInvisible();
+    }
+
+    @Override
+    public boolean hasCeiling(org.domi.furnace.api.world.World world) { return handle(world).handle().dimensionType().hasCeiling(); }
+
+    @Override
+    public double[] borderCenterAndSize(org.domi.furnace.api.world.World world) {
+        var b = handle(world).handle().border();
+        synchronized (b) { return new double[] {b.getCenterX(), b.getCenterZ(), b.getSize()}; }
+    }
+
+    @Override
+    public MapInfo mapInfo(int mapId) {
+        var d = org.domi.furnace.server.map.MapStore.get(mapId);
+        return d == null ? null : new MapInfo(d.centerX(), d.centerZ(), d.dimension(), d.scale());
+    }
+
+    @Override
+    public BiomeInfo biomeInfo(String biomeKey) {
+        if (biomeKey == null) return null;
+        var store = host.pluginsImpl().gameRegistries();
+        var custom = store == null ? null : store.biome(biomeKey);
+        if (custom != null) {
+            var d = custom.definition();
+            return new BiomeInfo(d.hasPrecipitation(), d.temperature(), d.temperatureModifier() == org.domi.furnace.api.worldgen.BiomeDefinition.TemperatureModifier.FROZEN,
+                    d.downfall(), d.fogColor(), d.waterColor(), d.waterFogColor(), d.skyColor(), d.foliageColor().orElse(-1), d.grassColor().orElse(-1),
+                    d.grassColorModifier().key());
+        }
+        try {
+            var b = org.domi.furnace.server.world.gen.WorldgenData.load("worldgen/" + org.domi.furnace.api.GameVersion.RESOURCE_TAG).biome(biomeKey);
+            var fx = b.has("effects") ? b.getAsJsonObject("effects") : new com.google.gson.JsonObject();
+            return new BiomeInfo(!b.has("has_precipitation") || b.get("has_precipitation").getAsBoolean(), b.has("temperature") ? b.get("temperature").getAsFloat() : 0.5F,
+                    b.has("temperature_modifier") && "frozen".equals(b.get("temperature_modifier").getAsString()), b.has("downfall") ? b.get("downfall").getAsFloat() : 0.5F,
+                    intOr(fx, "fog_color"), intOr(fx, "water_color"), intOr(fx, "water_fog_color"), intOr(fx, "sky_color"), intOr(fx, "foliage_color"), intOr(fx, "grass_color"),
+                    fx.has("grass_color_modifier") ? fx.get("grass_color_modifier").getAsString() : "none");
+        } catch (RuntimeException unknown) {
+            return null;
+        }
+    }
+
+    private static int intOr(com.google.gson.JsonObject o, String key) { return o.has(key) ? o.get(key).getAsInt() : -1; }
+
+    @Override
+    public double biomeInfoNoise(double x, double z) { return org.domi.furnace.server.world.gen.BiomeClimate.biomeInfoNoise(x, z); }
+
+    @Override
     public boolean withinBorder(org.domi.furnace.api.world.World world, double x, double z) { return handle(world).handle().border().isWithinBounds(x, z); }
 
     @Override

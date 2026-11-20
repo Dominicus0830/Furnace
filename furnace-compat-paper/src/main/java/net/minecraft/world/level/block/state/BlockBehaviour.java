@@ -76,6 +76,11 @@ public abstract class BlockBehaviour {
         public boolean isAir() { return owner.furnaceIsAir(); }
 
         /** 바닐라: 블록이 EntityBlock 인가(움직이는 피스톤도 참). */
+        /** 바닐라 getMapColor: 지도에서 이 상태의 색(위치와 무관 — 바닐라 1.21.1 은 상태마다 한 번 계산해 둔 값). 서버 블록 표의 지도 색이다. */
+        public net.minecraft.world.level.material.MapColor getMapColor(net.minecraft.world.level.BlockGetter level, net.minecraft.core.BlockPos pos) {
+            return net.minecraft.world.level.material.MapColor.furnaceByCol(org.domi.furnace.compat.nms.NmsBlockStates.table().mapColor()[furnaceStateId()]);
+        }
+
         public boolean hasBlockEntity() { return owner instanceof net.minecraft.world.level.block.EntityBlock; }
 
         /** 바닐라: 블록 자체가 무작위 틱을 받는가(유체 쪽은 {@code getFluidState().isRandomlyTicking()}). 서버 블록 동작 표에서 처음 물을 때 채운다. */

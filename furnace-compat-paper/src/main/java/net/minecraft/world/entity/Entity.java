@@ -152,6 +152,20 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
     /** 바닐라 Entity: 지워지지 않았는가. LivingEntity 는 체력도 본다. */
     public boolean isAlive() { return !isRemoved(); }
 
+    /**
+     * 바닐라 isInvisible(공유 플래그 투명): 생명체는 투명 상태 효과가 있을 때(바닐라 updateInvisibilityStatus 가 그 효과로 플래그를 정한다),
+     * 그 밖의 엔티티는 서버의 투명 비트. 그 엔티티의 주인 스레드가 아니면 Bukkit 규칙대로 실패한다.
+     */
+    public boolean isInvisible() {
+        var bukkit = getBukkitEntity();
+        if (bukkit instanceof org.bukkit.craftbukkit.entity.CraftPlayer player) {
+            return org.domi.furnace.compat.nms.NmsChunks.bridge().isPlayerInvisible((org.domi.furnace.api.entity.Player) player.furnaceHandle());
+        }
+        if (bukkit instanceof org.bukkit.entity.LivingEntity living) return living.hasPotionEffect(org.bukkit.potion.PotionEffectType.INVISIBILITY);
+        return org.domi.furnace.compat.paper.EntityStates.read(bukkit.furnaceHandle(), org.domi.furnace.api.entity.EntityState.class,
+                org.domi.furnace.api.entity.EntityState::isInvisible, false, "Entity#isInvisible");
+    }
+
     /** 네트워크 엔티티 id(바닐라 getId — Bukkit getEntityId 와 같은 번호). 아직 월드에 없으면 UnsupportedNmsCall(번호는 넣을 때 정해진다). */
     public int getId() {
         if (detached != null) throw notInWorld("Entity#getId");

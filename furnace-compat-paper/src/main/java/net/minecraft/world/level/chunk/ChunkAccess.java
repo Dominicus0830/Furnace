@@ -113,6 +113,12 @@ public abstract class ChunkAccess implements BlockGetter {
     }
 
     /** 로드된 청크는 늘 다 만들어진 상태다. */
+    /**
+     * 바닐라 getBelowZeroRetrogen: 1.18 이전 청크의 아래쪽 다시 만들기 표시. Furnace 의 로드된 청크는 모두 다 만든 청크라 늘 null 이다
+     * (가정 — 그런 낡은 청크를 서버가 불러올 때 어떻게 다루는지는 이 길에서 확인하지 않았다).
+     */
+    public net.minecraft.world.level.levelgen.BelowZeroRetrogen getBelowZeroRetrogen() { return null; }
+
     public ChunkStatus getPersistedStatus() { return ChunkStatus.FULL; }
 
     /**

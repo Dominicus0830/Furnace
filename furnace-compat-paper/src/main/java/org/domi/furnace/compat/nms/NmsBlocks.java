@@ -22,6 +22,18 @@ public final class NmsBlocks {
 
     private NmsBlocks() {}
 
+    /** 바닐라가 전용 클래스를 쓰는 블록은 그 클래스로(플러그인의 instanceof 용): 색유리·작물·줄기. 나머지는 Block. */
+    private static Block create(org.domi.furnace.api.world.BlockType type, BlockTypes types) {
+        String id = type.id();
+        if (id.startsWith("minecraft:") && id.endsWith("_stained_glass")) return new net.minecraft.world.level.block.StainedGlassBlock(type, types);
+        return switch (id) {
+            case "minecraft:wheat", "minecraft:carrots", "minecraft:potatoes", "minecraft:beetroots", "minecraft:torchflower_crop" ->
+                    new net.minecraft.world.level.block.CropBlock(type, types);
+            case "minecraft:melon_stem", "minecraft:pumpkin_stem" -> new net.minecraft.world.level.block.StemBlock(type, types);
+            default -> new Block(type, types);
+        };
+    }
+
     private static final class Table {
         final NmsDefaultedRegistry<Block> registry = new NmsDefaultedRegistry<>(Registries.BLOCK, ResourceLocation.withDefaultNamespace("air"));
         final Block[] byBase;
@@ -38,7 +50,7 @@ public final class NmsBlocks {
                 for (var info : type.properties()) first.put(info.name(), info.values().get(0));
                 int base = types.stateId(new org.domi.furnace.api.world.BlockData(type.id(), first));
                 boolean entity = (flags[base] & org.domi.furnace.api.internal.BlockStateInternals.HAS_BLOCK_ENTITY) != 0;   // 바닐라 EntityBlock 구현 블록
-                blocks.add(entity ? new net.minecraft.world.level.block.FurnaceEntityBlock(type, types) : new Block(type, types));
+                blocks.add(entity ? new net.minecraft.world.level.block.FurnaceEntityBlock(type, types) : create(type, types));
             }
             blocks.sort(Comparator.comparingInt(Block::furnaceBaseStateId));
             byBase = blocks.toArray(Block[]::new);

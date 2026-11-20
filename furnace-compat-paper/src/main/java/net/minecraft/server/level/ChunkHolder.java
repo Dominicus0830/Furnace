@@ -25,6 +25,9 @@ public class ChunkHolder {
 
     public ChunkPos getPos() { return pos; }
 
+    /** 바닐라 ChunkHolder#getLatestChunk: 지금 가장 최근 단계의 청크. Furnace 는 로드된 청크가 늘 다 만든 청크라 {@link #getFullChunkNow()} 와 같다(없으면 null). */
+    public net.minecraft.world.level.chunk.ChunkAccess getLatestChunk() { return getFullChunkNow(); }
+
     public LevelChunk getFullChunkNow() { return level.getChunkSource().getChunkNow(pos.x, pos.z); }
 
     public LevelChunk getFullChunkNowUnchecked() { return getFullChunkNow(); }

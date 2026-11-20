@@ -419,6 +419,29 @@ public abstract class Level implements LevelAccessor {
         scheduleTick(pos, fluid, delay, net.minecraft.world.ticks.TickPriority.NORMAL);
     }
 
+    /**
+     * 바닐라 Level#getSharedSpawnPos: 월드 스폰. 경계 밖이면 경계 중심 칸의 MOTION_BLOCKING 맨 위(바닐라 getHeightmapPos — 그 청크가 없으면 최저 높이 바닥).
+     * 네더·엔드는 서버가 오버월드 스폰을 함께 쓴다(바닐라 DerivedLevelData).
+     */
+    public BlockPos getSharedSpawnPos() {
+        var sp = furnace().spawnLocation();
+        BlockPos pos = new BlockPos((int) Math.floor(sp.x()), (int) Math.floor(sp.y()), (int) Math.floor(sp.z()));
+        var border = getWorldBorder();
+        if (!border.isWithinBounds(pos)) {
+            int x = net.minecraft.util.Mth.floor(border.getCenterX()), z = net.minecraft.util.Mth.floor(border.getCenterZ());
+            return new BlockPos(x, getHeight(Heightmap.Types.MOTION_BLOCKING, x, z), z);
+        }
+        return pos;
+    }
+
+    /**
+     * 바닐라 Level#getMapData: 번호의 지도 데이터(서버 전체 — 바닐라는 오버월드 저장소에서 읽는다). 없으면 null. 값은 읽을 때의 겉모양 사본이다.
+     */
+    public net.minecraft.world.level.saveddata.maps.MapItemSavedData getMapData(net.minecraft.world.level.saveddata.maps.MapId id) {
+        var info = NmsChunks.bridge().mapInfo(id.id());
+        return info == null ? null : net.minecraft.world.level.saveddata.maps.MapItemSavedData.furnaceOf(id.id(), info);
+    }
+
     private volatile net.minecraft.world.level.border.WorldBorder furnaceBorder;
 
     /** 바닐라 Level#getWorldBorder: 이 월드의 경계(서버 경계를 비춘다 — 판정만). */

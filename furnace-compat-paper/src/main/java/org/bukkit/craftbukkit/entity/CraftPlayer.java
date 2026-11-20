@@ -102,6 +102,22 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
     @Override
     public String getName() { return handle.name(); }
 
+    /** Paper CraftPlayer#getPersistentDataContainer: 반환형이 CraftPersistentDataContainer(플러그인이 이 서술자로 링크한다). */
+    @Override
+    public org.bukkit.craftbukkit.persistence.CraftPersistentDataContainer getPersistentDataContainer() {
+        return (org.bukkit.craftbukkit.persistence.CraftPersistentDataContainer) super.getPersistentDataContainer();
+    }
+
+    /**
+     * Paper displayName(): 표시 이름을 Adventure 글로. 바꾼 이름이 있으면 그 글, 없으면 {@link #getDisplayName()} 의 이름 그대로.
+     * Adventure 라이브러리는 서버가 쓰는 플러그인이 있을 때 받아 둔다(이 호출이 닿는 플러그인은 이미 Adventure 를 쓴다).
+     */
+    public net.kyori.adventure.text.Component displayName() {
+        org.domi.furnace.api.text.Text custom = handle.customDisplayName();
+        org.domi.furnace.api.text.Text text = custom != null ? custom : org.domi.furnace.api.text.Text.text(getDisplayName());
+        return net.kyori.adventure.text.serializer.gson.GsonComponentSerializer.gson().deserialize(text.toJson());
+    }
+
     @Override
     public String getDisplayName() {
         org.domi.furnace.api.text.Text custom = handle.customDisplayName();
