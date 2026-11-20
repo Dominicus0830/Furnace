@@ -272,10 +272,12 @@ class NmsComponentCodecTest {
     }
 
     @Test
-    void applyComponentsRejectsUnknownComponentsAndEmpty() {
+    void applyComponentsRejectsUnknownComponentsAndLeavesEmptyAlone() {
         ItemStack s = new ItemStack(net.minecraft.world.item.Items.STICK);
         assertThrows(IllegalArgumentException.class, () -> s.applyComponents(DataComponentPatch.furnaceOf(Map.of("minecraft:nope", "1"), Set.of())));
-        assertThrows(IllegalStateException.class, () -> ItemStack.EMPTY.applyComponents(DataComponentPatch.furnaceOf(Map.of("minecraft:repair_cost", "1"), Set.of())));
-        ItemStack.EMPTY.applyComponents(DataComponentPatch.EMPTY);   // 빈 패치는 빈 스택에도 아무 일 없다(바닐라 EMPTY 도 그대로)
+        ItemStack.EMPTY.applyComponents(DataComponentPatch.furnaceOf(Map.of("minecraft:repair_cost", "1"), Set.of()));   // 바닐라: EMPTY 는 던지지 않고 그대로 비어 있다
+        assertTrue(ItemStack.EMPTY.isEmpty());
+        assertTrue(ItemStack.EMPTY.getComponentsPatch().isEmpty());
+        ItemStack.EMPTY.applyComponents(DataComponentPatch.EMPTY);
     }
 }

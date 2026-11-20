@@ -308,6 +308,28 @@ class ItemComponentsApiTest {
     }
 
     @Test
+    void componentPatchDecodePartialKeepsGoodEntries() {
+        var in = org.domi.furnace.api.nbt.NbtCompound.parse("{\"minecraft:repair_cost\":2,\"minecraft:nope\":{},\"minecraft:max_stack_size\":\"x\"}");
+        var d = ItemSupport.get().decodeComponentPatchPartial(in);
+        assertEquals(Map.of("minecraft:repair_cost", "2"), d.patch().set());
+        assertEquals(2, d.errors().size());
+        assertEquals(java.util.Set.of("minecraft:nope", "minecraft:max_stack_size"), new java.util.HashSet<>(d.failedKeys()));
+        assertTrue(d.errors().stream().anyMatch(e -> e.contains("No component with type: 'minecraft:nope'")));
+        assertTrue(ItemSupport.get().decodeComponentPatchPartial(org.domi.furnace.api.nbt.NbtCompound.parse("{\"minecraft:repair_cost\":2}")).ok());
+    }
+
+    @Test
+    void componentPatchValuesKeepBooleansAndFieldNumberTypes() {
+        var out = ItemSupport.get().encodeComponentPatchValues(
+                Map.of("minecraft:unbreakable", "{show_in_tooltip:0b}", "minecraft:repair_cost", "5", "minecraft:custom_data", "{a:1b}"), java.util.Set.of("minecraft:damage"));
+        assertEquals(Map.of("show_in_tooltip", false), out.get("minecraft:unbreakable"));
+        assertEquals(5, out.get("minecraft:repair_cost"));
+        assertEquals(Map.of(), out.get("!minecraft:damage"));
+        assertEquals((byte) 1, ((org.domi.furnace.api.nbt.NbtCompound) out.get("minecraft:custom_data")).getByte("a"));
+        assertThrows(IllegalArgumentException.class, () -> ItemSupport.get().encodeComponentPatchValues(Map.of("minecraft:nope", "1"), java.util.Set.of()));
+    }
+
+    @Test
     void componentPatchDecodeValidatesLikeVanilla() {
         var in = org.domi.furnace.api.nbt.NbtCompound.parse("{\"minecraft:repair_cost\":2,\"!minecraft:max_damage\":{}}");
         var patch = ItemSupport.get().decodeComponentPatch(in);

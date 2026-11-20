@@ -8,10 +8,16 @@ import java.util.Set;
  * {@code components}(키 → SNBT)·{@code removedComponents} 를 그대로 쥔다.
  *
  * <p>{@link #CODEC} 은 진짜 DataFixerUpper {@code Codec} 이다. 바닐라 {@code DataComponentPatch.CODEC} 과 같은 저장 꼴
- * ({@code {"minecraft:x": 값, "!minecraft:y": {}}})로 어떤 {@code DynamicOps} 로든 읽고 쓴다. 값의 변환·검사는 서버의 컴포넌트 코덱(바닐라 규칙)이 하고
- * ({@code ItemSupport#encodeComponentPatch}·{@code decodeComponentPatch}), 이 shim 은 그 NBT 꼴을 받은 ops 의 값으로 옮긴다. 모르는 컴포넌트·잘못된 값은
- * 바닐라처럼 {@code DataResult.error} 로 돌려준다. 알려진 차이: 바닐라 패치는 넣은 순서를 지키지만 Furnace 아이템은 키 순으로 정렬해 들고 있어, 값이 있는 것
- * 다음 지운 것 순서로 쓴다(NBT 묶음은 순서가 없어 결과가 같다).
+ * ({@code {"minecraft:x": 값, "!minecraft:y": {}}})로 읽고 쓴다. 값의 변환·검사는 서버의 컴포넌트 코덱(바닐라 규칙)이 한다
+ * ({@code ItemSupport#encodeComponentPatch}·{@code encodeComponentPatchValues}·{@code decodeComponentPatchPartial}).
+ * <ul>
+ *   <li>쓰기: {@code NbtOps}(와 그것을 감싼 {@code RegistryOps})는 NBT 꼴(참·거짓은 바이트), 그 밖의 ops(JsonOps 등)는 바닐라 JSON 꼴(참·거짓은 불리언,
+ *       수는 필드 타입대로, NBT 로 저장되는 값은 NbtOps 에서 옮김)로 쓴다.</li>
+ *   <li>읽기: 어떤 ops 든 NBT 로 옮겨 항목마다 읽는다. 모르는 컴포넌트·잘못된 값은 바닐라 {@code DispatchedMapCodec} 처럼
+ *       {@code DataResult.error("…; … missed input: {못 읽은 항목}")} 이고, 읽은 항목은 부분 결과({@code resultOrPartial})로 준다.</li>
+ * </ul>
+ * 알려진 차이: 바닐라 패치는 넣은 순서를 지키지만 Furnace 아이템은 키 순으로 정렬해 들고 있어, 값이 있는 것 다음 지운 것 순서로 쓴다
+ * (NBT·JSON 묶음은 순서가 의미 없어 결과가 같다).
  */
 public final class DataComponentPatch {
 
@@ -61,20 +67,51 @@ public final class DataComponentPatch {
     static final class Lib {
         private Lib() {}
 
+        /** NbtOps(또는 NbtOps 를 감싼 RegistryOps 등)면 참: 값을 NBT 꼴로 그대로 쓸 수 있다. 그 밖의 ops 는 참·거짓이 구분되는 JSON 꼴 값으로 쓴다. */
+        private static boolean isNbt(com.mojang.serialization.DynamicOps<?> ops) {
+            while (ops instanceof net.minecraft.resources.DelegatingOps<?> d) ops = d.furnaceDelegate();
+            return ops instanceof net.minecraft.nbt.NbtOps;
+        }
+
+        /** 서버가 준 JSON 꼴 값(맵·리스트·문자열·참거짓·수·API NBT)을 ops 의 값으로. NBT 로 저장되는 값은 바닐라처럼 NbtOps 에서 옮긴다. */
+        @SuppressWarnings("unchecked")
+        private static <T> T toOps(com.mojang.serialization.DynamicOps<T> ops, Object v) {
+            if (v instanceof java.util.Map<?, ?> m) {
+                return ops.createMap(((java.util.Map<String, Object>) m).entrySet().stream()
+                        .map(e -> com.mojang.datafixers.util.Pair.of(ops.createString(e.getKey()), toOps(ops, e.getValue()))));
+            }
+            if (v instanceof java.util.List<?> l) return ops.createList(l.stream().map(o -> toOps(ops, o)));
+            if (v instanceof String s) return ops.createString(s);
+            if (v instanceof Boolean b) return ops.createBoolean(b);
+            if (v instanceof Byte n) return ops.createByte(n);
+            if (v instanceof Short n) return ops.createShort(n);
+            if (v instanceof Integer n) return ops.createInt(n);
+            if (v instanceof Long n) return ops.createLong(n);
+            if (v instanceof Float n) return ops.createFloat(n);
+            if (v instanceof Double n) return ops.createDouble(n);
+            return net.minecraft.nbt.NbtOps.INSTANCE.convertTo(ops, net.minecraft.nbt.NbtBridge.fromFurnace(v));
+        }
+
         static com.mojang.serialization.Codec<DataComponentPatch> codec() {
             return new com.mojang.serialization.Codec<>() {
                 @Override
                 public <T> com.mojang.serialization.DataResult<T> encode(DataComponentPatch input, com.mojang.serialization.DynamicOps<T> ops, T prefix) {
-                    org.domi.furnace.api.nbt.NbtCompound nbt;
+                    var support = org.domi.furnace.api.item.ItemSupport.get();
+                    com.mojang.serialization.RecordBuilder<T> builder = ops.mapBuilder();
                     try {
-                        nbt = org.domi.furnace.api.item.ItemSupport.get().encodeComponentPatch(input.set, input.removed);
+                        if (isNbt(ops)) {
+                            org.domi.furnace.api.nbt.NbtCompound nbt = support.encodeComponentPatch(input.set, input.removed);
+                            for (String key : nbt.keys()) {
+                                builder.add(ops.createString(key), net.minecraft.nbt.NbtOps.INSTANCE.convertTo(ops, net.minecraft.nbt.NbtBridge.fromFurnace(nbt.get(key))));
+                            }
+                        } else {
+                            for (var e : support.encodeComponentPatchValues(input.set, input.removed).entrySet()) {
+                                builder.add(ops.createString(e.getKey()), toOps(ops, e.getValue()));
+                            }
+                        }
                     } catch (IllegalArgumentException e) {
                         String message = e.getMessage();
                         return com.mojang.serialization.DataResult.error(() -> message);
-                    }
-                    com.mojang.serialization.RecordBuilder<T> builder = ops.mapBuilder();
-                    for (String key : nbt.keys()) {
-                        builder.add(ops.createString(key), net.minecraft.nbt.NbtOps.INSTANCE.convertTo(ops, net.minecraft.nbt.NbtBridge.fromFurnace(nbt.get(key))));
                     }
                     return builder.build(prefix);
                 }
@@ -87,16 +124,21 @@ public final class DataComponentPatch {
                         String message = map.error().get().message();
                         return com.mojang.serialization.DataResult.error(() -> message);
                     }
-                    try {
-                        net.minecraft.nbt.Tag tag = ops.convertTo(net.minecraft.nbt.NbtOps.INSTANCE, input);
-                        var nbt = (org.domi.furnace.api.nbt.NbtCompound) net.minecraft.nbt.NbtBridge.toFurnace(tag);
-                        var patch = org.domi.furnace.api.item.ItemSupport.get().decodeComponentPatch(nbt);
-                        return com.mojang.serialization.DataResult.success(
-                                com.mojang.datafixers.util.Pair.of(patch.isEmpty() ? EMPTY : new DataComponentPatch(patch.set(), patch.removed()), input));
-                    } catch (IllegalArgumentException e) {
-                        String message = e.getMessage();
-                        return com.mojang.serialization.DataResult.error(() -> message);
-                    }
+                    net.minecraft.nbt.Tag tag = ops.convertTo(net.minecraft.nbt.NbtOps.INSTANCE, input);
+                    var decoded = org.domi.furnace.api.item.ItemSupport.get()
+                            .decodeComponentPatchPartial((org.domi.furnace.api.nbt.NbtCompound) net.minecraft.nbt.NbtBridge.toFurnace(tag));
+                    var patch = decoded.patch();
+                    var pair = com.mojang.datafixers.util.Pair.of(patch.isEmpty() ? EMPTY : new DataComponentPatch(patch.set(), patch.removed()), input);
+                    if (decoded.ok()) return com.mojang.serialization.DataResult.success(pair);
+                    // 바닐라 DispatchedMapCodec: 오류는 "; " 로 잇고 뒤에 " missed input: " 과 못 읽은 항목(받은 ops 의 값 그대로)을 붙이며, 읽은 항목은 부분 결과로 준다
+                    java.util.Set<String> failedKeys = new java.util.HashSet<>(decoded.failedKeys());
+                    java.util.stream.Stream.Builder<com.mojang.datafixers.util.Pair<T, T>> failed = java.util.stream.Stream.builder();
+                    map.result().get().entries().forEach(e -> {
+                        String key = ops.getStringValue(e.getFirst()).result().orElse(null);
+                        if (key != null && failedKeys.contains(key)) failed.add(e);
+                    });
+                    String message = String.join("; ", decoded.errors()) + " missed input: " + ops.createMap(failed.build());
+                    return com.mojang.serialization.DataResult.error(() -> message, pair);
                 }
 
                 @Override

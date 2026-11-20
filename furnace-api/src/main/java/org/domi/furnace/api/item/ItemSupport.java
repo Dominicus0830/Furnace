@@ -38,8 +38,26 @@ public interface ItemSupport {
      */
     NbtCompound encodeComponentPatch(Map<String, String> components, Set<String> removed);
 
-    /** {@link #encodeComponentPatch} 의 반대(바닐라 CODEC 읽기). 모르는 컴포넌트·저장하지 않는 종류·규칙에 안 맞는 값이면 바닐라와 같은 문구로 IllegalArgumentException. */
-    ItemComponentPatch decodeComponentPatch(NbtCompound nbt);
+    /**
+     * {@link #encodeComponentPatch} 와 같은 규칙(정규화·transient 건너뜀·오류)으로 NBT 가 아닌 ops(JsonOps 등)가 쓸 값을 돌려준다. NBT 꼴은 참·거짓이
+     * 바이트라서 그 ops 로는 0/1 이 되므로, 바닐라가 JSON 으로 쓰는 모양을 따로 준다: 맵은 {@code Map<String,Object>}, 리스트는 {@code List<Object>},
+     * 잎은 {@code String}·{@code Boolean}·수({@code Byte}~{@code Double}, 필드 타입대로)이고, NBT 로 저장되는 값(custom_data 등)은 이 API 의
+     * {@code NbtCompound}·{@code NbtList}·배열 그대로다. 키는 {@code {"minecraft:x": 값, "!minecraft:y": {}}} 꼴.
+     */
+    Map<String, Object> encodeComponentPatchValues(Map<String, String> components, Set<String> removed);
+
+    /**
+     * {@link #encodeComponentPatch} 의 반대(바닐라 CODEC 읽기)를 항목마다 따로 한다(바닐라 {@code DispatchedMapCodec.decode}): 좋은 항목은 패치에,
+     * 모르는 컴포넌트·저장하지 않는 종류·규칙에 안 맞는 값은 바닐라와 같은 문구의 오류와 그 키로 모아 돌려준다(던지지 않는다).
+     */
+    ItemComponentPatchDecoding decodeComponentPatchPartial(NbtCompound nbt);
+
+    /** {@link #decodeComponentPatchPartial} 의 엄격한 꼴: 나쁜 항목이 하나라도 있으면 첫 오류 문구로 IllegalArgumentException. */
+    default ItemComponentPatch decodeComponentPatch(NbtCompound nbt) {
+        ItemComponentPatchDecoding d = decodeComponentPatchPartial(nbt);
+        if (!d.errors().isEmpty()) throw new IllegalArgumentException(d.errors().get(0));
+        return d.patch();
+    }
 
     /**
      * 패치를 스택에 얹은 새 스택(바닐라 {@code ItemStack.applyComponents(patch)} = PatchedDataComponentMap.applyPatch): 값은 {@code set}, 지움은 {@code remove}

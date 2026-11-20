@@ -17,6 +17,7 @@ import org.domi.furnace.api.item.AttributeModifiers;
 import org.domi.furnace.api.item.DyedColor;
 import org.domi.furnace.api.item.ItemComponent;
 import org.domi.furnace.api.item.ItemComponentPatch;
+import org.domi.furnace.api.item.ItemComponentPatchDecoding;
 import org.domi.furnace.api.item.ItemComponents;
 import org.domi.furnace.api.item.ItemEnchantments;
 import org.domi.furnace.api.item.ItemStack;
@@ -255,19 +256,52 @@ public final class ItemSupportImpl implements ItemSupport {
     }
 
     @Override
-    public ItemComponentPatch decodeComponentPatch(org.domi.furnace.api.nbt.NbtCompound nbt) {
+    public Map<String, Object> encodeComponentPatchValues(Map<String, String> components, Set<String> removed) {
         try {
-            var patch = org.domi.furnace.server.item.ComponentPatch.fromCodec(ApiNbt.toServer(nbt));
-            Map<String, String> set = new LinkedHashMap<>();
-            Set<String> gone = new java.util.LinkedHashSet<>();
-            for (var e : patch.entries().entrySet()) {
-                if (e.getValue() == null) gone.add(e.getKey());
-                else set.put(e.getKey(), Snbt.write(DataComponents.require(e.getKey()).persistent().toNbt(e.getValue())));
+            Map<String, Object> raw = new LinkedHashMap<>();
+            for (var e : components.entrySet()) {
+                ComponentType t = DataComponents.require(e.getKey());
+                raw.put(t.name(), Snbt.parse(e.getValue()));
             }
-            return new ItemComponentPatch(set, gone);
-        } catch (CodecException e) {
+            for (String id : removed) raw.put(DataComponents.require(id).name(), null);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> tree = (Map<String, Object>) jsonTree(org.domi.furnace.server.item.ComponentPatch.of(raw).toCodecMap());
+            return tree;
+        } catch (CodecException | org.domi.furnace.api.nbt.SnbtParseException e) {
             throw new IllegalArgumentException(e.getMessage(), e);
         }
+    }
+
+    /** 정규 값 → 플러그인 API 가 줄 수 있는 JSON 꼴 값(맵·리스트·문자열·참거짓·수, NBT 로 저장되는 부분은 API NBT). */
+    private static Object jsonTree(Object v) {
+        if (v instanceof Map<?, ?> m) {
+            Map<String, Object> out = new LinkedHashMap<>();
+            for (var e : m.entrySet()) out.put((String) e.getKey(), jsonTree(e.getValue()));
+            return out;
+        }
+        if (v instanceof java.util.List<?> l) {
+            java.util.List<Object> out = new java.util.ArrayList<>(l.size());
+            for (Object o : l) out.add(jsonTree(o));
+            return out;
+        }
+        if (v instanceof String || v instanceof Boolean || v instanceof Number) return v;
+        if (v instanceof NbtCompound || v instanceof org.domi.furnace.server.net.io.nbt.NbtList || v instanceof org.domi.furnace.server.net.io.nbt.NbtArray
+                || v instanceof byte[] || v instanceof int[] || v instanceof long[]) {
+            return ApiNbt.toApiValue(v);
+        }
+        throw new IllegalStateException("Unsupported component value: " + v.getClass().getName());
+    }
+
+    @Override
+    public ItemComponentPatchDecoding decodeComponentPatchPartial(org.domi.furnace.api.nbt.NbtCompound nbt) {
+        var partial = org.domi.furnace.server.item.ComponentPatch.fromCodecPartial(ApiNbt.toServer(nbt));
+        Map<String, String> set = new LinkedHashMap<>();
+        Set<String> gone = new java.util.LinkedHashSet<>();
+        for (var e : partial.patch().entries().entrySet()) {
+            if (e.getValue() == null) gone.add(e.getKey());
+            else set.put(e.getKey(), Snbt.write(DataComponents.require(e.getKey()).persistent().toNbt(e.getValue())));
+        }
+        return new ItemComponentPatchDecoding(new ItemComponentPatch(set, gone), partial.errors(), partial.failedKeys());
     }
 
     @Override

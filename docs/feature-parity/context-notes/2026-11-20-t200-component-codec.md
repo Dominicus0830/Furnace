@@ -10,7 +10,11 @@ FAWE `PaperweightFaweAdapter#adapt(BaseItemStack)`(`//wand`·브러시 아이템
 - `ItemStack#getComponentsPatch`: 비었으면(개수 0 포함) EMPTY. `applyComponents`: 값은 `set`, 지움은 `remove` 규칙(기본값과 같으면 패치에서 뗌).
 
 ## 구조
-호환 계층은 공개 API 만 본다 → `ItemSupport` 에 `encodeComponentPatch`·`decodeComponentPatch`·`applyComponentPatch` 와 값 객체 `ItemComponentPatch` 를 더했다(서버 구현 `ItemSupportImpl`). shim 은 서버가 준 NBT 꼴을 받은 ops 의 값으로 옮기기만 한다(`NbtOps.convertTo`) — JsonOps 등 아무 ops 로도 된다.
+호환 계층은 공개 API 만 본다 → `ItemSupport` 에 `encodeComponentPatch`·`decodeComponentPatch`·`applyComponentPatch` 와 값 객체 `ItemComponentPatch` 를 더했다(서버 구현 `ItemSupportImpl`). shim 은 서버가 준 값을 ops 의 값으로 옮기기만 한다.
+- 쓰기: `NbtOps`(와 그것을 감싼 `RegistryOps`)는 NBT 꼴(`encodeComponentPatch`, 참·거짓은 바이트). 그 밖의 ops(JsonOps 등)는 NBT 꼴을 `convertTo` 하면 참·거짓이 0/1 이 되므로(바닐라는 불리언) 서버가 JSON 꼴 값(`encodeComponentPatchValues`: 불리언·필드 타입대로의 수·NBT 로 저장되는 값만 NbtOps 에서 옮김)을 따로 준다.
+- 읽기: 어떤 ops 든 NBT 로 옮겨 `decodeComponentPatchPartial` 로 항목마다 읽는다. 바닐라 `DispatchedMapCodec.decode` 처럼 오류는 `"; "` 로 잇고 `" missed input: {못 읽은 항목}"` 을 붙이며(못 읽은 항목은 받은 ops 값 그대로), 읽은 항목은 부분 결과(`resultOrPartial`)로 준다.
+- `ItemStack.EMPTY.applyComponents(비지 않은 패치)` 는 바닐라처럼 던지지 않고 EMPTY 가 그대로다.
+- 11-20 독립 검토(PR #509)에서 위 세 가지(부분 결과, JsonOps 불리언, EMPTY)가 바닐라와 달라 고쳤다.
 
 ## 알려진 차이·함정
 - **넣은 순서**: 바닐라 패치는 넣은 순서(Reference2ObjectArrayMap), Furnace 스택은 키 정렬(TreeMap)로 들고 있어 값 → 지움 순서로 쓴다. NBT 묶음은 순서 없음이라 FAWE 에선 영향 없음, JSON 으로 쓰면 순서가 다를 수 있다.
@@ -21,5 +25,5 @@ FAWE `PaperweightFaweAdapter#adapt(BaseItemStack)`(`//wand`·브러시 아이템
 
 ## 확인한 것
 - 같은 시험(`NmsComponentCodecTest`, 15개)을 대역과 **진짜 DFU 8.0.16**(`-PdfuJar=<jar>`, 로컬 전용·CI 안 씀)에서 모두 통과.
-- 진짜 `JsonOps` 로 쓰고 읽기 왕복도 임시로 확인(커밋 안 함): `{"minecraft:repair_cost":5,"minecraft:custom_data":{…},"!minecraft:max_stack_size":{}}`.
+- 진짜 `JsonOps` 로 쓰기(불리언 `false` 유지)·읽기도 확인(`-PdfuJar` 로 로컬에서만 돌림, CI 는 대역이라 비 NBT ops 시험은 `PlainOps`(자바 객체 ops)로 한다): `{"minecraft:repair_cost":5,"minecraft:custom_data":{…},"!minecraft:max_stack_size":{}}`.
 - 확인 못 한 것(가정): 실제 FAWE jar 로 `//wand` 를 줘 보는 접속 시험은 안 했다(`docs/user-todo/entries/2026-11-20-t200-fawe-wand.md`).

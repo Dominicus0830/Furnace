@@ -142,11 +142,10 @@ public final class ItemStack {
     /**
      * 바닐라 applyComponents(patch): 값은 set, 지움은 remove 규칙으로 하나씩 얹는다(기본값과 같은 값은 패치에서 뗀다). 바닐라는 끝에
      * {@code verifyComponentsAfterLoad}(머리 프로필 확인)도 부르지만, Furnace 는 그 확인을 스택이 놓이는 칸의 쓰기 지점에서 한다(서버 {@code ProfileFill}).
-     * 모르는 컴포넌트·규칙에 안 맞는 값(패치를 직접 만든 경우)은 IllegalArgumentException. EMPTY 는 바꾸지 않는다.
+     * 모르는 컴포넌트·규칙에 안 맞는 값(패치를 직접 만든 경우)은 IllegalArgumentException. EMPTY 는 바닐라처럼 조용히 아무것도 하지 않는다.
      */
     public void applyComponents(net.minecraft.core.component.DataComponentPatch patch) {
-        if (patch.isEmpty()) return;
-        if (this == EMPTY) throw new IllegalStateException("ItemStack.EMPTY cannot be modified");
+        if (patch.isEmpty() || this == EMPTY) return;   // 바닐라: EMPTY 는 components 가 없어서 아무것도 바뀌지 않는다(던지지 않는다)
         var next = org.domi.furnace.api.item.ItemSupport.get().applyComponentPatch(componentView(),
                 new org.domi.furnace.api.item.ItemComponentPatch(patch.furnaceSet(), patch.furnaceRemoved()));
         this.components = next.components();

@@ -25,6 +25,9 @@ public abstract class DelegatingOps<T> implements DynamicOps<T> {
 
     protected DelegatingOps(DynamicOps<T> delegate) { this.delegate = delegate; }
 
+    /** 호환 모듈 전용(바닐라에는 없다): 감싼 ops. 값 변환이 NBT 꼴로 되는지(NbtOps 를 감쌌는지) 볼 때 쓴다. */
+    public DynamicOps<T> furnaceDelegate() { return delegate; }
+
     @Override
     public T empty() { return delegate.empty(); }
 
