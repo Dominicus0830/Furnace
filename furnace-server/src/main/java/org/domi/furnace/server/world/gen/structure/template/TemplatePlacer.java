@@ -74,7 +74,7 @@ public final class TemplatePlacer {
             int prevFluid = st.keepLiquids ? org.domi.furnace.server.world.gen.feature.FeatureWorldView.fluidTypeOf(before) : -1;
             int state = table.transform(info.state(), st.mirror, st.rotation);
             if (sink && info.nbt() != null) {
-                // Paper/바닐라: NBT 칸은 먼저 방벽을 flag 20 으로 쓴다(통로 모드의 옛 블록 엔티티 Clearable.tryClear 는 아직 없다 — 사본 격자는 LiveGrid.commit 이 한다). 나무 기록에서는 다음 쓰기가 방벽 칸이라 거절된다
+                // Paper/바닐라: NBT 칸은 먼저 방벽을 flag 20 으로 쓴다(WorldGenLevel 이라 Clearable 은 없다). 나무 기록에서는 다음 쓰기가 방벽 칸이라 거절된다
                 view.setLiveWriteFlags(20);
                 view.trySetBlock(x, y, z, table.registry().defaultStateId("minecraft:barrier"));
                 view.setLiveWriteFlags(flags);
