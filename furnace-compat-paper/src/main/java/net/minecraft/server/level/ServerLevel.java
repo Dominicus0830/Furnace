@@ -184,6 +184,18 @@ public class ServerLevel extends Level implements net.minecraft.world.level.Worl
     /** 바닐라 ServerLevelAccessor#getMinecraftWorld: 자기 자신. */
     public ServerLevel getMinecraftWorld() { return this; }
 
+    private volatile io.papermc.paper.configuration.WorldConfiguration paperConfig;
+
+    /**
+     * Paper paperConfig(NMS shim 5e — voxy 가 엑스레이 막기 설정을 읽는다): 이 월드의 Paper 설정. Furnace 는 Paper 엑스레이 막기가 없어 꺼짐, 나머지 Paper 기본값
+     * ({@link io.papermc.paper.configuration.WorldConfiguration} 에 있는 부분만). 아무 스레드.
+     */
+    public io.papermc.paper.configuration.WorldConfiguration paperConfig() {
+        var c = paperConfig;
+        if (c == null) paperConfig = c = io.papermc.paper.configuration.WorldConfiguration.furnaceDefaults();
+        return c;
+    }
+
     public long getSeed() { return getWorld().getSeed(); }
 
     /** 바닐라 ServerLevel#getShade: 서버는 면 밝기를 쓰지 않는다 — 늘 1(T-211 3단계). */

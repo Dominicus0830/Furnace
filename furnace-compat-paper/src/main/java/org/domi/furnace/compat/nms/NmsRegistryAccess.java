@@ -16,7 +16,7 @@ import net.minecraft.resources.ResourceKey;
 public final class NmsRegistryAccess implements RegistryAccess.Frozen {
 
     private static final java.util.List<ResourceKey<? extends Registry<?>>> KEYS = java.util.List.of(
-            Registries.BLOCK, Registries.ITEM, Registries.FLUID, Registries.SOUND_EVENT, Registries.MOB_EFFECT, Registries.MAP_DECORATION_TYPE,
+            Registries.BLOCK, Registries.ITEM, Registries.ENTITY_TYPE, Registries.FLUID, Registries.SOUND_EVENT, Registries.MOB_EFFECT, Registries.MAP_DECORATION_TYPE,
             Registries.BIOME, Registries.CONFIGURED_FEATURE, Registries.PLACED_FEATURE, Registries.STRUCTURE);
 
     @SuppressWarnings("unchecked")
@@ -26,6 +26,7 @@ public final class NmsRegistryAccess implements RegistryAccess.Frozen {
         Registry<?> r = switch (key.location().toString()) {
             case "minecraft:block" -> BuiltInRegistries.BLOCK;
             case "minecraft:item" -> BuiltInRegistries.ITEM;
+            case "minecraft:entity_type" -> BuiltInRegistries.ENTITY_TYPE;
             case "minecraft:fluid" -> BuiltInRegistries.FLUID;
             case "minecraft:sound_event" -> BuiltInRegistries.SOUND_EVENT;
             case "minecraft:mob_effect" -> BuiltInRegistries.MOB_EFFECT;

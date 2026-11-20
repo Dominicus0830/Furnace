@@ -648,6 +648,99 @@ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainer
         for (var e : counts.entrySet()) consumer.accept(d.palette().valueFor(e.getKey()), e.getValue()[0]);
     }
 
+    // ------------------------------------------------------------------ 코덱(NMS shim 5e-2)
+
+    /** Paper(옛 4인자, @Deprecated): {@link #codecRW(IdMap, com.mojang.serialization.Codec, Strategy, Object, Object[])} 에 미리 둔 값 없이. */
+    @Deprecated
+    public static <T> com.mojang.serialization.Codec<PalettedContainer<T>> codecRW(IdMap<T> registry, com.mojang.serialization.Codec<T> entryCodec, Strategy strategy,
+                                                                                  T defaultValue) {
+        return codecRW(registry, entryCodec, strategy, defaultValue, null);
+    }
+
+    /**
+     * 바닐라·Paper: 디스크 섹션의 {@code {palette, data}} 꼴 ↔ 고칠 수 있는 컨테이너. Paper 의 presetValues(엑스레이 막기가 미리 둔 값)는 Furnace 에 엑스레이
+     * 막기가 없어 받기만 한다. 구현은 {@link org.domi.furnace.compat.nms.NmsCodecs#paletted}(DataFixerUpper 가 보일 때만 부른다).
+     */
+    public static <T> com.mojang.serialization.Codec<PalettedContainer<T>> codecRW(IdMap<T> registry, com.mojang.serialization.Codec<T> entryCodec, Strategy strategy,
+                                                                                  T defaultValue, T[] presetValues) {
+        return org.domi.furnace.compat.nms.NmsCodecs.paletted(registry, entryCodec, strategy, defaultValue, "PalettedContainer.codecRW");
+    }
+
+    /** 바닐라: 같은 꼴 ↔ 읽기 전용 보기(만드는 것은 같은 컨테이너다). */
+    public static <T> com.mojang.serialization.Codec<PalettedContainerRO<T>> codecRO(IdMap<T> registry, com.mojang.serialization.Codec<T> entryCodec, Strategy strategy,
+                                                                                    T defaultValue) {
+        return org.domi.furnace.compat.nms.NmsCodecs.paletted(registry, entryCodec, strategy, defaultValue, "PalettedContainer.codecRO");
+    }
+
+    /**
+     * 호환 모듈 전용 — 바닐라 {@code unpack}(DataFixerUpper 타입을 쓰지 않게 결과를 컨테이너 또는 오류 문구로 준다). 팔레트 크기로 비트 수를 정하고
+     * (0 비트면 저장소 없음), 전역 팔레트 크기면 팔레트 번호를 레지스트리 번호로 바꿔 담는다.
+     *
+     * @return {@code PalettedContainer} 또는 바닐라와 같은 오류 문구({@code String})
+     */
+    public static <T> Object furnaceUnpack(IdMap<T> registry, Strategy strategy, List<T> entries, java.util.Optional<java.util.stream.LongStream> storage) {
+        int size = strategy.size();
+        int bits = strategy.calculateBitsForSerialization(registry, entries.size());
+        Configuration<T> configuration = strategy.getConfiguration(registry, bits);
+        BitStorage bitStorage;
+        if (bits == 0) {
+            bitStorage = new ZeroBitStorage(size);
+        } else {
+            if (storage.isEmpty()) return "Missing values for non-zero storage";
+            long[] raw = storage.get().toArray();
+            try {
+                if (configuration.factory() == Strategy.GLOBAL_PALETTE_FACTORY) {
+                    Palette<T> palette = new HashMapPalette<>(registry, bits, (b, v) -> 0, entries);
+                    SimpleBitStorage packed = new SimpleBitStorage(bits, size, raw);
+                    int[] ids = new int[size];
+                    packed.unpack(ids);
+                    swapPalette(ids, id -> registry.getId(palette.valueFor(id)));
+                    bitStorage = new SimpleBitStorage(configuration.bits(), size, ids);
+                } else {
+                    bitStorage = new SimpleBitStorage(configuration.bits(), size, raw);
+                }
+            } catch (SimpleBitStorage.InitializationException e) {
+                return "Failed to read PalettedContainer: " + e.getMessage();
+            }
+        }
+        return new PalettedContainer<>(registry, strategy, configuration, bitStorage, entries);
+    }
+
+    /** 바닐라 pack: 실제로 쓰인 값만 처음 나온 순서로 새 팔레트에 담고, 그 크기에 맞는 비트 수로 다시 담는다. */
+    @Override
+    public PalettedContainerRO.PackedData<T> pack(IdMap<T> registry, Strategy strategy) {
+        FurnaceSource src = liveSource();
+        if (src != null) return furnaceMaterialize(src).pack(registry, strategy);
+        acquire();
+        try {
+            Data<T> d = data;
+            HashMapPalette<T> palette = new HashMapPalette<>(registry, d.storage().getBits(), (b, v) -> 0);
+            int size = strategy.size();
+            int[] ids = new int[size];
+            d.storage().unpack(ids);
+            swapPalette(ids, id -> palette.idFor(d.palette().valueFor(id)));
+            int bits = strategy.calculateBitsForSerialization(registry, palette.getSize());
+            java.util.Optional<java.util.stream.LongStream> out = bits != 0
+                    ? java.util.Optional.of(java.util.Arrays.stream(new SimpleBitStorage(bits, size, ids).getRaw())) : java.util.Optional.empty();
+            return new PalettedContainerRO.PackedData<>(palette.getEntries(), out);
+        } finally {
+            release();
+        }
+    }
+
+    /** 바닐라: 같은 번호가 이어지는 동안은 바꾼 값을 다시 쓴다. */
+    private static void swapPalette(int[] ids, java.util.function.IntUnaryOperator applier) {
+        int last = -1, mapped = -1;
+        for (int i = 0; i < ids.length; i++) {
+            int id = ids[i];
+            if (id != last) {
+                last = id;
+                mapped = applier.applyAsInt(id);
+            }
+            ids[i] = mapped;
+        }
+    }
+
     // ------------------------------------------------------------------ 바닐라 중첩 형
 
     /** 크기(칸 수)와 비트 수 → 팔레트 종류 규칙(바닐라 1.21.1 그대로). */

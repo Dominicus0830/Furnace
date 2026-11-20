@@ -54,6 +54,8 @@ class CompatLinkTest {
             // Brigadier 의 ArgumentType 을 구현 — 그 라이브러리가 있을 때(Paper 서버·명령 라이브러리를 쓰는 플러그인)만 올라간다
             if (n.startsWith("net.minecraft.commands.arguments.")) continue;
             if (n.equals("org.domi.furnace.compat.nms.NmsStateCodec")) continue;   // DataFixerUpper 의 MapCodec 을 상속 — NmsDfu.visible() 일 때만 올린다
+            // DataFixerUpper 의 Codec 을 구현(5e-2) — BlockState.CODEC 은 NmsDfu.visible() 일 때만, 나머지는 DFU 를 쓰는 플러그인이 부를 때만 올린다
+            if (n.equals("org.domi.furnace.compat.nms.NmsCodecs") || n.startsWith("org.domi.furnace.compat.nms.NmsCodecs$")) continue;
             try {
                 Class<?> c = Class.forName(n, false, loader);   // 상위 타입이 라이브러리면 여기서 실패한다
                 // 없는 이름을 찾으면 대상 클래스를 링크(검증)한 뒤 NoSuchMethodException 이 난다 — 초기화는 하지 않는다.

@@ -262,7 +262,7 @@ moonrise 클래스는 NMS 점검 도구가 세지 않는 이름(`ca/spottedleaf/
 
 ### 5d-3·5e-1 검토 고침
 
-검토(#540) 지적을 고쳤다. 걸린 시간 약 15분(21:57~22:12, 5e-2 를 하던 중에 끊고).
+검토(#540) 지적을 고쳤다. 걸린 시간 약 10분(검토 받은 21:57 → 고침 커밋 22:06:41, 5e-2 를 하던 중에 끊고. 처음 적은 "15분(~22:12)"은 커밋 시각을 보지 않고 어림한 값이라 고쳤다).
 - **디스크 읽기 콜백을 IO 차례 밖으로:** 처음엔 플러그인 콜백·`ChunkMap.read` 의 이어지는 일이 IO 차례(그 파일의 저장도 맡는 스레드)에서 돌았다. 콜백 안에서
   같은 파일을 막고 읽으면 서로 기다려 멈춘다. 이제 결과는 서버 비동기 일꾼으로 넘겨 돌린다(`NmsStorage.read`). 시험 `callbacksRunOffTheIoLane`:
   콜백 스레드가 IO 차례가 아니고, 콜백 안에서 같은 청크를 `loadData` 로 막고 읽어도 끝난다. 그 결과 `isRegionFileThread` 는 늘 거짓(Paper 와 다른 점 ④).
@@ -273,7 +273,37 @@ moonrise 클래스는 NMS 점검 도구가 세지 않는 이름(`ca/spottedleaf/
 - 점검 도구 오류 고침(위 "점검에 쓴 jar" 의 9번째 기호).
 - Paper 와 다르게 둔 점 7개는 `docs/user-todo/entries/2026-11-20-axiom-voxy-5d3-5e1.md`.
 
-## 지금까지 모음(5a~5e-1)
+## 5e-2 — voxy 섹션 코덱·월드 설정·작은 조각
+
+voxy 가 디스크에서 읽은 청크 NBT 의 섹션(`block_states`·`biomes`)을 `PalettedContainer.codecRW`(블록, 항목 코덱은 `BlockState.CODEC`)와
+`codecRO`(바이옴, 항목 코덱은 `Registry.holderByNameCodec`)로 풀고, 바이옴 기본값으로 `Biomes.PLAINS`, 패킷 크기 셈에 `VarInt.getByteSize`,
+엔티티 이름표에 `BuiltInRegistries.ENTITY_TYPE`, 광석 숨김 여부에 `ServerLevel.paperConfig().anticheat.antiXray` 를 읽는다.
+
+| 분류 | 개수 | 기호 |
+|---|---|---|
+| 자동 연결 가능 | 3 | `VarInt`(Paper 판 그대로 — 길이 표·빠른 쓰기·옛 길), `Biomes`(Paper jar 의 정적 초기화 차례대로 64개), `BuiltInRegistries.ENTITY_TYPE`(서버 번호표에서, 기본값 돼지) |
+| 다리 위 기계적 | 2 | `Registry.holderByNameCodec`(그리고 `byNameCodec`), `PalettedContainer.codecRO` |
+| 설계 필요 | 3 | `BlockState.CODEC`, `PalettedContainer.codecRW`(그리고 `pack`·`PackedData`·`Unpacker`), `ServerLevel.paperConfig` |
+
+새 다리 1건: **손으로 쓴 DFU 조합기 결과**(`NmsCodecs`). 호환 계층은 DataFixerUpper 를 컴파일 대역으로만 가져(진짜는 그 라이브러리를 쓰는 플러그인이 있을 때
+서버가 붙인다) `dispatch`·`RecordCodecBuilder`·`listOf`·`lenientOptionalFieldOf` 를 부를 수 없다. 그래서 그 조합기들이 내는 값·부분 결과·오류 문구·키 순서를
+DFU 8.0.16 디컴파일(`KeyDispatchCodec`·`ListCodec`·`FieldDecoder`·`DataResult.Error.flatMap`)과 Paper 1.21.1 `PalettedContainer.codec/unpack/pack` 을 보고
+손으로 같게 냈다. 코덱 셋이 설계 필요인 까닭은 거의 이것이다 — DFU 를 컴파일 경로에 두면(DFU 는 MIT) 이 셋은 바닐라 식을 옮기는 자동 연결로 바뀐다.
+`paperConfig` 는 판단 하나가 든다: Furnace 에는 Paper 엑스레이 막기가 없으므로 `enabled=false`, 나머지는 Paper 기본값.
+
+자동 연결 가능 비율 **38%(3/8)**, 다리 위 기계적까지 63%(5/8). 걸린 시간: 약 **20분** — 21:51~21:57(월드 설정·VarInt·Biomes·엔티티 레지스트리, 6분),
+540 검토 고침으로 끊김, 22:07~22:21(코덱·시험·문서, 14분). 처음 몫(DFU·Paper 디컴파일 읽기)은 5e-1 직후 이어서라 따로 재지 않았다.
+
+- 시험 `NmsCodecsTest`(8): 블록 상태 이름·속성 쓰기와 읽기(같은 객체), 너그러운 속성 읽기(없음·맵 아님·틀린 값·속성 없는 블록), 바닐라 오류 문구
+  (이름 없음·없는 블록·틀린 이름·맵 아님), 섹션 블록 왕복(팔레트는 0번 칸부터 처음 나온 차례, 3항목 → 4비트 256 long, 값 하나면 `data` 없음), 못 읽는 항목은
+  기본값으로 둔 부분 결과, 저장소 오류 문구, 바이옴 왕복(전역 팔레트 포함)과 없는 바이옴, 등록 안 된 손잡이 쓰기 거절. **대역 DFU 와 진짜 DFU 8.0.16
+  (`-PdfuJar`) 양쪽에서 통과.**
+- 시험 `NmsVoxyServerBitsTest`(4): VarInt 크기·바이트(빠른 길 = 옛 길), 바이옴 열쇠 64개가 서버 바이옴과 같다, 엔티티 레지스트리 기본값, Paper 설정 기본값.
+- 링크 시험: DFU 없는 서버에서 `BlockState`·`PalettedContainer`·`Registry` 는 그대로 링크된다(코덱 몸체는 `NmsCodecs` 에만 — DFU 가 보일 때만 올린다).
+- 다시 잰 점검: **voxy 243 중 243 있음**(남은 것 0), Axiom 489 중 461.
+- Paper 와 다른 점은 `docs/user-todo/entries/2026-11-20-axiom-voxy-5e2.md`.
+
+## 지금까지 모음(5a~5e-2)
 
 | 묶음 | 기호 | 자동 연결 가능 | 다리 위 기계적 | 설계 필요 | 걸린 시간 |
 |---|---|---|---|---|---|
@@ -285,10 +315,11 @@ moonrise 클래스는 NMS 점검 도구가 세지 않는 이름(`ca/spottedleaf/
 | 5d-2 | 4 | 1 | 3 | 0 (+다리 1) | 6분 |
 | 5d-3 | 9 | 2 | 5 | 2 (+다리 3) | 10분 |
 | 5e-1 | 5 | 3 | 2 | 0 (+다리 1) | 8분 |
-| 합계 | 76 | 37 (49%) | 29 (38%) | 10 (13%) + 다리 9 | 줄 합 72분, 5b·5c 가 겹친 2분을 빼면 **약 70분** (+5a 검토 고침 5분, 5d 검토 보강 8분, 5d-3·5e-1 검토 고침 약 15분) |
+| 5e-2 | 8 | 3 | 2 | 3 (+다리 1) | 20분 |
+| 합계 | 84 | 40 (48%) | 31 (37%) | 13 (15%) + 다리 10 | 줄 합 92분, 5b·5c 가 겹친 2분을 빼면 **약 90분** (+5a 검토 고침 5분, 5d 검토 보강 8분, 5d-3·5e-1 검토 고침 약 10분) |
 
-다리가 생긴 뒤의 기계적 연결까지 넣으면 87%(66/76, 5c 까지는 44/50 = 88%)가 사람의 설계 없이 이을 수 있는 꼴이었다. 손으로 쓴 시간의 대부분은 설계 필요 10개와
-다리 9건, 그리고 바닐라 값 시험이었다.
+다리가 생긴 뒤의 기계적 연결까지 넣으면 85%(71/84, 5c 까지는 44/50 = 88%)가 사람의 설계 없이 이을 수 있는 꼴이었다. 손으로 쓴 시간의 대부분은 설계 필요 13개와
+다리 10건, 그리고 바닐라 값 시험이었다.
 
 5a~5c 시간: 묶음별 시간을 더하면 33분이지만 5b 와 5c 가 2분 겹쳐 실제 손 시간은 약 31분이다. 여기에 5a 검토 고침 5분을 더하면 첫 명령 20:13:53 부터
 5c 문서 커밋 20:48:21 까지 약 34.5분과 맞는다.
