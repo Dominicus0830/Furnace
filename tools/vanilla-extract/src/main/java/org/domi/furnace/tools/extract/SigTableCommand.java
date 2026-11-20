@@ -39,9 +39,16 @@ final class SigTableCommand {
             jar = downloadPaperApi(o, dir);
             name = "paper-api";
         } else {
-            jar = new Preparer(o).prepare(false).serverJar();
+            Prepared p = new Preparer(o).prepare(false);
+            jar = p.serverJar();
             if (prefixes.isEmpty()) prefixes = VANILLA_PREFIXES;
             name = null;
+            // 서버가 싣는 라이브러리(authlib·brigadier·DataFixerUpper …)의 com/mojang 선언도 같이 — 서명 관문의 "라이브러리 칸"
+            SigTable libs = SigTable.empty("libs-" + o.mc);
+            for (Path lib : p.libraries()) libs.addJar(lib, List.of("com/mojang/"));
+            Path libsOut = dir.resolve("sig-table-libs.tsv.gz");
+            libs.write(libsOut);
+            System.out.println("[서명표] libs-" + o.mc + ": 클래스 " + libs.classes().size() + "개, 멤버 " + libs.memberCount() + "개 → " + libsOut);
         }
         if (name != null && !NAME.matcher(name).matches()) throw new IllegalArgumentException("--sig-name 은 영문·숫자·._- 만: " + name);
         String file = name == null ? "sig-table.tsv.gz" : "sig-table-" + name + ".tsv.gz";
