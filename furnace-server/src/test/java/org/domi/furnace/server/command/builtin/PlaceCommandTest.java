@@ -96,6 +96,46 @@ class PlaceCommandTest {
         assertEquals(List.of("There is no template with id \"minecraft:nope\""), run("place template minecraft:nope 20 220 20"));
     }
 
+    /** PR #500 후속: Paper 1.21.1 placeInWorld 는 ServerLevel(WorldGenLevel)에서 Clearable.tryClear 를 부르지 않아 옛 상자 내용물이 쏟아진다(바닐라 1.21.1 만 무조건 tryClear). Paper 와 같게 쏟는다. */
+    @Test
+    void templateNbtCellSpillsOldContainerLikePaper() throws Exception {
+        Path pack = tmp.resolve("clrpack");
+        Path file = pack.resolve("data/clr/structure/cell.nbt");
+        java.nio.file.Files.createDirectories(file.getParent());
+        var root = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+        var size = new org.domi.furnace.server.net.io.nbt.NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_INT);
+        for (int i = 0; i < 3; i++) size.add(1);
+        root.putList("size", size);
+        var palette = new org.domi.furnace.server.net.io.nbt.NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_COMPOUND);
+        var entry = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+        entry.putString("Name", "minecraft:gold_block");
+        palette.add(entry);
+        root.putList("palette", palette);
+        var blocks = new org.domi.furnace.server.net.io.nbt.NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_COMPOUND);
+        var b = new org.domi.furnace.server.net.io.nbt.NbtCompound();
+        var pos = new org.domi.furnace.server.net.io.nbt.NbtList(org.domi.furnace.server.net.io.nbt.NbtIo.TAG_INT);
+        for (int i = 0; i < 3; i++) pos.add(0);
+        b.putList("pos", pos);
+        b.putInt("state", 0);
+        b.putCompound("nbt", new org.domi.furnace.server.net.io.nbt.NbtCompound());
+        blocks.add(b);
+        root.putList("blocks", blocks);
+        root.putInt("DataVersion", 3955);
+        try (var out = java.nio.file.Files.newOutputStream(file)) {
+            org.domi.furnace.server.net.io.nbt.NbtIo.writeGzip(out, root, "");
+        }
+        org.domi.furnace.server.world.gen.structure.template.TemplateManager.installDataPacks(
+                new org.domi.furnace.server.data.ResourceManager(List.of(new org.domi.furnace.server.data.PackResources.PathPack("clrpack", pack)), List.of()));
+        try {
+            run("setblock 70 220 70 chest{Items:[{Slot:0b,id:\"minecraft:diamond\",count:3}]}");
+            assertEquals(List.of("Loaded template \"clr:cell\" at 70, 220, 70"), run("place template clr:cell 70 220 70"));
+            assertTrue(B.is(at(70, 220, 70), "minecraft:gold_block"));
+            assertEquals(List.of("Test passed, count: 1"), run("execute if entity @e[type=item]"), "Paper 처럼 옛 상자 내용물이 쏟아진다");
+        } finally {
+            org.domi.furnace.server.world.gen.structure.template.TemplateManager.installDataPacks(null);
+        }
+    }
+
     /** Q7: 데이터 팩의 data/<ns>/structure/<path>.nbt 템플릿도 /place template 으로 놓인다(제안에도 보인다). */
     @Test
     void templateFromDataPackIsPlaced() throws Exception {
