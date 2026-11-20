@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Consumer;
@@ -15,6 +16,7 @@ import java.util.function.Function;
 import org.domi.furnace.api.item.AttributeModifiers;
 import org.domi.furnace.api.item.DyedColor;
 import org.domi.furnace.api.item.ItemComponent;
+import org.domi.furnace.api.item.ItemComponentPatch;
 import org.domi.furnace.api.item.ItemComponents;
 import org.domi.furnace.api.item.ItemEnchantments;
 import org.domi.furnace.api.item.ItemStack;
@@ -233,6 +235,47 @@ public final class ItemSupportImpl implements ItemSupport {
         TreeSet<String> r = new TreeSet<>(s.removedComponents());
         r.remove(id);
         return new ItemStack(s.type(), s.amount(), m, r);
+    }
+
+    // ------------------------------------------------------------------ 패치 저장 꼴(DataComponentPatch.CODEC)
+
+    @Override
+    public org.domi.furnace.api.nbt.NbtCompound encodeComponentPatch(Map<String, String> components, Set<String> removed) {
+        try {
+            Map<String, Object> raw = new LinkedHashMap<>();
+            for (var e : components.entrySet()) {
+                ComponentType t = DataComponents.require(e.getKey());
+                raw.put(t.name(), Snbt.parse(e.getValue()));
+            }
+            for (String id : removed) raw.put(DataComponents.require(id).name(), null);
+            return ApiNbt.toApi(org.domi.furnace.server.item.ComponentPatch.of(raw).toNbt());
+        } catch (CodecException | org.domi.furnace.api.nbt.SnbtParseException e) {
+            throw new IllegalArgumentException(e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public ItemComponentPatch decodeComponentPatch(org.domi.furnace.api.nbt.NbtCompound nbt) {
+        try {
+            var patch = org.domi.furnace.server.item.ComponentPatch.fromCodec(ApiNbt.toServer(nbt));
+            Map<String, String> set = new LinkedHashMap<>();
+            Set<String> gone = new java.util.LinkedHashSet<>();
+            for (var e : patch.entries().entrySet()) {
+                if (e.getValue() == null) gone.add(e.getKey());
+                else set.put(e.getKey(), Snbt.write(DataComponents.require(e.getKey()).persistent().toNbt(e.getValue())));
+            }
+            return new ItemComponentPatch(set, gone);
+        } catch (CodecException e) {
+            throw new IllegalArgumentException(e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public ItemStack applyComponentPatch(ItemStack stack, ItemComponentPatch patch) {
+        ItemStack out = stack;
+        for (var e : patch.set().entrySet()) out = set(out, ItemComponent.raw(e.getKey()), e.getValue());
+        for (String id : patch.removed()) out = remove(out, ItemComponent.raw(id));
+        return out;
     }
 
     // ------------------------------------------------------------------ 영속 데이터

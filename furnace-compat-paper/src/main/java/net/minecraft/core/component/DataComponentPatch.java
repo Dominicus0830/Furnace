@@ -4,13 +4,14 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 아이템 구성 요소 패치(Mojang 이름 shim, N2b-6): 기본 구성 요소에서 바뀐 값과 지운 종류. Furnace 아이템({@code org.domi.furnace.api.item.ItemStack})의
+ * 아이템 구성 요소 패치(Mojang 이름 shim, N2b-6 → T-200): 기본 구성 요소에서 바뀐 값과 지운 종류. Furnace 아이템({@code org.domi.furnace.api.item.ItemStack})의
  * {@code components}(키 → SNBT)·{@code removedComponents} 를 그대로 쥔다.
  *
- * <p>{@link #CODEC} 은 진짜 DataFixerUpper {@code Codec} 객체라 {@code optionalFieldOf(..)} 같은 조합은 되지만, 인코딩·디코딩을 <b>부르면</b>
- * {@link org.domi.furnace.compat.nms.UnsupportedNmsCall} 을 던진다 — NBT({@code NbtOps} 는 아직 {@code DynamicOps} 가 아니다)와 Furnace 구성 요소(키 → SNBT)
- * 사이를 바닐라와 같은 결과로 바꾸는 길이 아직 없다(T-191·T-200). 오류 결과({@code DataResult.error})로 조용히 넘기지 않아 부른 자리에서 이유와 대체
- * (Furnace 아이템 API)가 바로 보인다. 코덱을 만들어 두기만 하는 어댑터는 영향이 없다.
+ * <p>{@link #CODEC} 은 진짜 DataFixerUpper {@code Codec} 이다. 바닐라 {@code DataComponentPatch.CODEC} 과 같은 저장 꼴
+ * ({@code {"minecraft:x": 값, "!minecraft:y": {}}})로 어떤 {@code DynamicOps} 로든 읽고 쓴다. 값의 변환·검사는 서버의 컴포넌트 코덱(바닐라 규칙)이 하고
+ * ({@code ItemSupport#encodeComponentPatch}·{@code decodeComponentPatch}), 이 shim 은 그 NBT 꼴을 받은 ops 의 값으로 옮긴다. 모르는 컴포넌트·잘못된 값은
+ * 바닐라처럼 {@code DataResult.error} 로 돌려준다. 알려진 차이: 바닐라 패치는 넣은 순서를 지키지만 Furnace 아이템은 키 순으로 정렬해 들고 있어, 값이 있는 것
+ * 다음 지운 것 순서로 쓴다(NBT 묶음은 순서가 없어 결과가 같다).
  */
 public final class DataComponentPatch {
 
@@ -64,23 +65,43 @@ public final class DataComponentPatch {
             return new com.mojang.serialization.Codec<>() {
                 @Override
                 public <T> com.mojang.serialization.DataResult<T> encode(DataComponentPatch input, com.mojang.serialization.DynamicOps<T> ops, T prefix) {
-                    throw unsupported("encode");
+                    org.domi.furnace.api.nbt.NbtCompound nbt;
+                    try {
+                        nbt = org.domi.furnace.api.item.ItemSupport.get().encodeComponentPatch(input.set, input.removed);
+                    } catch (IllegalArgumentException e) {
+                        String message = e.getMessage();
+                        return com.mojang.serialization.DataResult.error(() -> message);
+                    }
+                    com.mojang.serialization.RecordBuilder<T> builder = ops.mapBuilder();
+                    for (String key : nbt.keys()) {
+                        builder.add(ops.createString(key), net.minecraft.nbt.NbtOps.INSTANCE.convertTo(ops, net.minecraft.nbt.NbtBridge.fromFurnace(nbt.get(key))));
+                    }
+                    return builder.build(prefix);
                 }
 
                 @Override
                 public <T> com.mojang.serialization.DataResult<com.mojang.datafixers.util.Pair<DataComponentPatch, T>> decode(
                         com.mojang.serialization.DynamicOps<T> ops, T input) {
-                    throw unsupported("decode");
+                    var map = ops.getMap(input);
+                    if (map.isError()) {
+                        String message = map.error().get().message();
+                        return com.mojang.serialization.DataResult.error(() -> message);
+                    }
+                    try {
+                        net.minecraft.nbt.Tag tag = ops.convertTo(net.minecraft.nbt.NbtOps.INSTANCE, input);
+                        var nbt = (org.domi.furnace.api.nbt.NbtCompound) net.minecraft.nbt.NbtBridge.toFurnace(tag);
+                        var patch = org.domi.furnace.api.item.ItemSupport.get().decodeComponentPatch(nbt);
+                        return com.mojang.serialization.DataResult.success(
+                                com.mojang.datafixers.util.Pair.of(patch.isEmpty() ? EMPTY : new DataComponentPatch(patch.set(), patch.removed()), input));
+                    } catch (IllegalArgumentException e) {
+                        String message = e.getMessage();
+                        return com.mojang.serialization.DataResult.error(() -> message);
+                    }
                 }
 
                 @Override
                 public String toString() { return "DataComponentPatch.CODEC[Furnace]"; }
             };
-        }
-
-        private static org.domi.furnace.compat.nms.UnsupportedNmsCall unsupported(String what) {
-            return new org.domi.furnace.compat.nms.UnsupportedNmsCall("DataComponentPatch.CODEC#" + what,
-                    "converting item component patches to and from NBT or JSON is not available yet (it needs the NbtOps DynamicOps). Use the Furnace item API (ItemStack components) instead");
         }
     }
 }

@@ -3,7 +3,10 @@
 // 서버 구현 전용으로 한 번만 설치한다.
 package org.domi.furnace.api.item;
 
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
+import org.domi.furnace.api.nbt.NbtCompound;
 import org.domi.furnace.api.persistence.PersistentDataContainer;
 import org.domi.furnace.api.persistence.PersistentDataView;
 
@@ -26,6 +29,23 @@ public interface ItemSupport {
 
     /** 영속 데이터를 고친 새 스택. 바뀐 것이 없으면 같은 스택. 다 비면 PublicBukkitValues, 그래서 custom_data 가 비면 그것도 뗀다. */
     ItemStack editPersistentData(ItemStack stack, Consumer<PersistentDataContainer> edit);
+
+    // ------------------------------------------------------------------ 패치 저장 꼴(바닐라 DataComponentPatch.CODEC 의 NBT 꼴)
+
+    /**
+     * 패치를 바닐라 {@code DataComponentPatch.CODEC} 을 NbtOps 로 쓴 꼴로: {@code {"minecraft:x": 값, "!minecraft:y": {}}}. 값은 컴포넌트 규칙으로
+     * 정규화하고, 저장하지 않는(transient) 종류는 건너뛴다. 모르는 컴포넌트·규칙에 안 맞는 값이면 IllegalArgumentException.
+     */
+    NbtCompound encodeComponentPatch(Map<String, String> components, Set<String> removed);
+
+    /** {@link #encodeComponentPatch} 의 반대(바닐라 CODEC 읽기). 모르는 컴포넌트·저장하지 않는 종류·규칙에 안 맞는 값이면 바닐라와 같은 문구로 IllegalArgumentException. */
+    ItemComponentPatch decodeComponentPatch(NbtCompound nbt);
+
+    /**
+     * 패치를 스택에 얹은 새 스택(바닐라 {@code ItemStack.applyComponents(patch)} = PatchedDataComponentMap.applyPatch): 값은 {@code set}, 지움은 {@code remove}
+     * 규칙(기본값과 같으면 패치에서 뗀다)으로 하나씩 적용한다.
+     */
+    ItemStack applyComponentPatch(ItemStack stack, ItemComponentPatch patch);
 
     // ------------------------------------------------------------------ 설치
 
