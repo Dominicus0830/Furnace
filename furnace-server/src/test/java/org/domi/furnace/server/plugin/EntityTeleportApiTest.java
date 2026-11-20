@@ -352,4 +352,53 @@ class EntityTeleportApiTest {
         assertTrue(h.teleport(new Location(NETHER, 40.5, -50, 40.5)).get(30, TimeUnit.SECONDS));
         assertEquals("retired", ran.get(30, TimeUnit.SECONDS));
     }
+
+    /** 소유 region 스레드에서 서버 이벤트 다리(PluginGameEvents)의 changeDimension 이벤트를 직접 부른다(포털 안이라고 친다). */
+    private org.domi.furnace.server.plugin.GameEvents.Arrival changeDimensionEvents(Entity cow, org.domi.furnace.server.block.Pos gateway) throws Exception {
+        var to = new org.domi.furnace.server.plugin.GameEvents.Arrival(NETHER, 40.5, -50, 40.5, 90f, 0f, 0.0, 0.25, 0.0);
+        return core.world().submitAtChunk(C00, r -> cow.level().gameEvents().entityChangeDimension(cow, to, gateway, true)).get(30, TimeUnit.SECONDS);
+    }
+
+    @Test
+    void portalExitEventChangesTheArrivalAndVelocity() throws Exception {
+        Object[] spawned = spawnCow();
+        List<String> order = new CopyOnWriteArrayList<>();
+        host.eventsImpl().subscribe(plugin, EntityTeleportEvent.class, e -> order.add("teleport:" + e.gateway()));
+        host.eventsImpl().subscribe(plugin, org.domi.furnace.api.event.entity.EntityPortalExitEvent.class, e -> {
+            order.add("exit");
+            assertEquals(0.25, e.after().y(), 1e-9, "after = 전이 속도");
+            assertEquals(40.5, e.to().x(), 1e-9);
+            e.to(new Location(NETHER, 12.5, -50, 12.5, 5f, 0f));
+            e.after(new org.domi.furnace.api.math.Vector3d(0, 1, 0));
+        });
+        var a = changeDimensionEvents((Entity) spawned[2], new org.domi.furnace.server.block.Pos(8, -50, 8));
+        assertEquals(List.of("teleport:BlockPos[x=8, y=-50, z=8]", "exit"), order, "Paper 순서: (관문) EntityTeleportEvent 뒤 EntityPortalExitEvent");
+        assertEquals(12.5, a.x(), 1e-9);
+        assertEquals(5f, a.yaw());
+        assertEquals(1.0, a.vy(), 1e-9);
+    }
+
+    @Test
+    void cancelledPortalExitKeepsTheDestinationAndStillMoves() throws Exception {
+        Object[] spawned = spawnCow();
+        host.eventsImpl().subscribe(plugin, org.domi.furnace.api.event.entity.EntityPortalExitEvent.class, e -> {
+            e.to(new Location(NETHER, 12.5, -50, 12.5));
+            e.after(new org.domi.furnace.api.math.Vector3d(0, 1, 0));
+            e.setCancelled(true);
+        });
+        var a = changeDimensionEvents((Entity) spawned[2], null);
+        assertNotNull(a, "EntityPortalExitEvent 를 취소해도 이동은 막지 않는다(Paper)");
+        assertEquals(40.5, a.x(), 1e-9, "취소하면 바꾼 도착 위치를 버린다");
+        assertEquals(0.25, a.vy(), 1e-9, "바꾼 속도도 버린다");
+    }
+
+    @Test
+    void cancelledChangeDimensionTeleportEventStopsBeforeTheExitEvent() throws Exception {
+        Object[] spawned = spawnCow();
+        List<String> order = new CopyOnWriteArrayList<>();
+        host.eventsImpl().subscribe(plugin, EntityTeleportEvent.class, e -> { order.add("teleport"); e.setCancelled(true); });
+        host.eventsImpl().subscribe(plugin, org.domi.furnace.api.event.entity.EntityPortalExitEvent.class, e -> order.add("exit"));
+        assertNull(changeDimensionEvents((Entity) spawned[2], null));
+        assertEquals(List.of("teleport"), order);
+    }
 }

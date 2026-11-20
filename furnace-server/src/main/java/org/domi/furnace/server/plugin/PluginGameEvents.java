@@ -159,6 +159,7 @@ public final class PluginGameEvents implements GameEvents {
     private final EventBusImpl.Flag wPlayerPortal;
     private final EventBusImpl.Flag wEntityPortal;
     private final EventBusImpl.Flag wEntityTeleport;
+    private final EventBusImpl.Flag wEntityPortalExit;
     private final EventBusImpl.Flag wPortalCreate;
     private final EventBusImpl.Flag wPlayerEditBook;
     private final EventBusImpl.Flag wEntityChangeBlock;
@@ -234,6 +235,7 @@ public final class PluginGameEvents implements GameEvents {
         wPlayerPortal = b.flag(PlayerPortalEvent.class);
         wEntityPortal = b.flag(EntityPortalEvent.class);
         wEntityTeleport = b.flag(org.domi.furnace.api.event.entity.EntityTeleportEvent.class);
+        wEntityPortalExit = b.flag(org.domi.furnace.api.event.entity.EntityPortalExitEvent.class);
         wPortalCreate = b.flag(PortalCreateEvent.class);
         wPlayerEditBook = b.flag(PlayerEditBookEvent.class);
         wEntityChangeBlock = b.flag(org.domi.furnace.api.event.entity.EntityChangeBlockEvent.class);
@@ -1012,6 +1014,38 @@ public final class PluginGameEvents implements GameEvents {
         if (ev.isCancelled() || t == null) return null;
         return new TeleportTarget(t.world(), t.x(), t.y(), t.z(), t.yaw(), t.pitch());
     }
+
+    @Override
+    public boolean listensEntityChangeDimension() { return wEntityTeleport.on() || wEntityPortalExit.on(); }
+
+    @Override
+    public Arrival entityChangeDimension(Entity e, Arrival to, org.domi.furnace.server.block.Pos gateway, boolean inPortal) {
+        Location dest = new Location(to.dimension(), to.x(), to.y(), to.z(), to.yaw(), to.pitch());
+        double vx = to.vx(), vy = to.vy(), vz = to.vz();
+        if (wEntityTeleport.on()) {
+            var ev = bus().call(new org.domi.furnace.api.event.entity.EntityTeleportEvent(EntityHandle.of(host, e), here(e), dest,
+                    gateway == null ? null : new org.domi.furnace.api.world.BlockPos(gateway.x(), gateway.y(), gateway.z())));
+            if (ev.isCancelled() || ev.to() == null) return null;
+            dest = ev.to();
+        }
+        if (inPortal && wEntityPortalExit.on()) {
+            // Paper: from = 지금 위치(앞 처리기가 옮겼으면 그 자리), before = 지금 속도, after = 전이 속도. 취소하면 바꾼 값을 버린다(이동은 그대로)
+            var ex = bus().call(new org.domi.furnace.api.event.entity.EntityPortalExitEvent(EntityHandle.of(host, e), here(e), dest,
+                    new org.domi.furnace.api.math.Vector3d(e.vx(), e.vy(), e.vz()), new org.domi.furnace.api.math.Vector3d(vx, vy, vz)));
+            if (!ex.isCancelled() && ex.to() != null) {
+                dest = ex.to();
+                var a = ex.after();
+                if (a != null) {
+                    vx = a.x();
+                    vy = a.y();
+                    vz = a.z();
+                }
+            }
+        }
+        return new Arrival(dest.world(), dest.x(), dest.y(), dest.z(), dest.yaw(), dest.pitch(), vx, vy, vz);
+    }
+
+    private static Location here(Entity e) { return new Location(e.dimensionKey(), e.x(), e.y(), e.z(), e.yRot(), e.xRot()); }
 
     @Override
     public boolean portalCreate(String dimension, java.util.List<org.domi.furnace.server.block.Pos> blocks) {

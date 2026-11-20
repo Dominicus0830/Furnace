@@ -157,6 +157,6 @@ public class EndGatewayBlock extends BaseEntityBlock implements Portal {
         double x = p.x() + 0.5, y = p.y(), z = p.z() + 0.5;
         double vx = t.enderPearl() ? 0.0 : t.vx(), vy = t.enderPearl() ? -1.0 : t.vy(), vz = t.enderPearl() ? 0.0 : t.vz();
         return new DimensionTransition(level, x, y, z, vx, vy, vz, t.yRot(), t.xRot(), false,
-                new Pos(Entity.floor(x), Entity.floor(y), Entity.floor(z)), false);
+                new Pos(Entity.floor(x), Entity.floor(y), Entity.floor(z)), false, true);
     }
 }

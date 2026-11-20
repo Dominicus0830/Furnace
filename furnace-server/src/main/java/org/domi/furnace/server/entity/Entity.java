@@ -449,6 +449,17 @@ public abstract non-sealed class Entity implements Rider {
 
     public PortalProcessor portalProcess() { return portalProcess; }
 
+    /**
+     * Paper changeDimension 의 관문 판정(portalProcess.isSamePortal(END_GATEWAY) 이고 들어간 칸이 TheEndGatewayBlockEntity): 그 관문 칸, 아니면 null.
+     * 소유 region 스레드에서.
+     */
+    public Pos endGatewayEntry() {
+        PortalProcessor p = portalProcess;
+        if (p == null || level == null || !(p.portal() instanceof org.domi.furnace.server.block.types.EndGatewayBlock)) return null;
+        Pos at = p.getEntryPosition();
+        return level.getBlockEntity(at) instanceof org.domi.furnace.server.block.entity.EndGatewayBlockEntity ? at : null;
+    }
+
     /** getDimensionChangingDelay: 넘어간 뒤 포털을 다시 못 쓰는 틱. */
     public int getDimensionChangingDelay() { return 300; }
 
@@ -520,7 +531,51 @@ public abstract non-sealed class Entity implements Rider {
      * 다시 탄다(carryPassengers). 목적지가 없으면 원천에 되돌린다.
      */
     private void travelAcross(PortalTravel plan, org.domi.furnace.server.block.LevelServices.DimensionTravel travel) {
+        if (level.gameEvents().listensEntityChangeDimension()) {
+            final String sourceDim = level.dimension();
+            final Pos gateway = endGatewayEntry();   // 바닐라는 같은 틱 안이라 지금 본다(돌아올 때는 포털 처리가 끝났을 수 있다)
+            travel.travel(plan, (target, t) -> returnWithDestination(t, travel, sourceDim, gateway));
+            return;
+        }
         moveAcross(arrive -> travel.travel(plan, arrive), travel, PORTAL_PLACE, null, plan.targetDimension(), true);
+    }
+
+    /**
+     * 플러그인이 차원 이동 이벤트를 들을 때의 차원문 경로(Paper Entity#changeDimension 순서): 목적 region 스레드에서 정한 목적지(지옥문은 찾거나 만든 뒤)를
+     * 들고 이 엔티티를 따라가는 대기열로 이 엔티티의 region 스레드에 돌아와(다음 틱) 떠나기 전에 EntityTeleportEvent·EntityPortalExitEvent 를 부르고,
+     * 이벤트가 정한 도착 위치로 건넌다. 바닐라는 한 틱 안에 동기로 하지만 Furnace 는 목적 차원이 다른 스레드라 한 틱 늦게 떠난다(듣는 처리기가 없으면
+     * 이 길을 타지 않는다). 그 사이 엔티티가 사라졌거나 목적지가 없으면 아무 일도 없다(바닐라도 목적지가 없으면 그대로).
+     */
+    private void returnWithDestination(DimensionTransition t, org.domi.furnace.server.block.LevelServices.DimensionTravel travel, String sourceDim, Pos gateway) {
+        if (t == null) return;
+        EntityTasks q = apiTasks();
+        q.schedule(() -> {
+            if (isRemoved() || level == null || !level.dimension().equals(sourceDim)) return;
+            leaveAfterEvents(t, travel, gateway);
+        }, null, 0, 0);
+    }
+
+    /**
+     * 원천 region 스레드에서: changeDimension 의 이벤트(죽는 중이면 null) 뒤 도착 위치가 바뀌었으면 그 자리로, 아니면 정한 목적지로 건넌다.
+     * 바닐라는 포털 처리(handlePortal) 안이라 portalProcess 가 있어 EntityPortalExitEvent 도 부른다 — 한 틱 뒤인 여기서도 그대로 부른다.
+     */
+    private void leaveAfterEvents(DimensionTransition t, org.domi.furnace.server.block.LevelServices.DimensionTravel travel, Pos gateway) {
+        if (!isAlive()) return;   // Paper changeDimension 맨 앞: 죽는 중이면 null
+        var to = new org.domi.furnace.server.plugin.GameEvents.Arrival(t.newLevel().dimension(), t.x(), t.y(), t.z(), t.yRot(), xRot(), t.vx(), t.vy(), t.vz());
+        var a = level.gameEvents().entityChangeDimension(this, to, gateway, true);
+        if (a == null || isRemoved()) return;
+        if (!a.dimension().equals(level.dimension()) && !travel.isLevelEnabled(a.dimension())) return;   // 처리기가 띄우지 않은 월드로 보냈다
+        final String dest = a.dimension();
+        final double ax = a.x(), ay = a.y(), az = a.z(), vx = a.vx(), vy = a.vy(), vz = a.vz();
+        final float yr = a.yaw(), xr = a.pitch();
+        PortalTravel fixed = new PortalTravel(dest, floor(ax), floor(az), 0, 0, lvl -> t.redirected(lvl, ax, ay, az, vx, vy, vz, yr, xr));
+        if (dest.equals(level.dimension())) {
+            // 같은 레벨(엔드 관문, 또는 처리기가 떠나온 월드로 돌렸다): 관문 경로처럼 목적 칸 region 에 같은 종류를 새로 만든다(teleportWithinLevel)
+            moveAcross(arrive -> travel.withLoadedChunks(floor(ax), floor(az), 0,
+                    lvl -> arrive.accept(lvl, lvl == null ? null : fixed.complete().apply(lvl))), travel, PORTAL_PLACE, null, dest, true);
+        } else {
+            moveAcross(arrive -> travel.travel(fixed, arrive), travel, PORTAL_PLACE, null, dest, true);
+        }
     }
 
     /** changeDimension 이 옮긴 엔티티를 놓는 방식: moveTo(위치, 목적 yRot, 지금 xRot) 후 목적 속도. */
@@ -537,6 +592,12 @@ public abstract non-sealed class Entity implements Rider {
     private void teleportWithinLevel(Portal portal, Pos entry, org.domi.furnace.server.block.LevelServices.DimensionTravel travel) {
         final ChunkLevel src = level;
         final Traveler tr = Traveler.of(this);
+        if (src.gameEvents().listensEntityChangeDimension()) {   // 출구를 먼저 정하고 돌아와 이벤트 뒤 떠난다(travelAcross 와 같다)
+            final String sourceDim = src.dimension();
+            final Pos gateway = endGatewayEntry();
+            portal.travelWithinLevel(src, entry, tr, (target, t) -> returnWithDestination(t, travel, sourceDim, gateway));
+            return;
+        }
         moveAcross(arrive -> portal.travelWithinLevel(src, entry, tr, arrive), travel, PORTAL_PLACE, null, src.dimension(), true);
     }
 
@@ -563,17 +624,17 @@ public abstract non-sealed class Entity implements Rider {
     /**
      * 플러그인 teleport 의 다른 월드 경로(Paper CraftEntity#teleport → Entity#changeDimension(DimensionTransition(레벨, 위치, 속도 0, yRot, …,
      * DO_NOTHING, PLUGIN))): 승객을 내리고(탈것은 호출 전에 막는다) 같은 종류를 목적 차원에 새로 만들어 저장 데이터를 옮기고(UUID 유지) moveTo(위치,
-     * yRot, 지금 xRot)·속도 0 으로 놓는다. 포털과 같은 changeDimension 이라 떠난·닿은 레벨이 resetEmptyTime 하고 낙하 블록 훅이 켜진다.
+     * yRot, 지금 xRot)·속도(보통 0 — 포털 안에 있었으면 EntityPortalExitEvent 가 바꿀 수 있다)로 놓는다. 포털과 같은 changeDimension 이라 떠난·닿은 레벨이 resetEmptyTime 하고 낙하 블록 훅이 켜진다.
      * 포털 소리·티켓은 없다(DO_NOTHING). 소유 region 스레드에서 부르고, 시작하지 못하면(종료 저장 기준점 뒤·길 없음) 거짓.
      * done 은 도착(또는 되돌림) 뒤 목적·원천 region 스레드에서 한 번 불린다.
      */
-    public boolean changeDimensionTo(String dimension, double tx, double ty, double tz, float yRot, Runnable done) {
+    public boolean changeDimensionTo(String dimension, double tx, double ty, double tz, float yRot, double vx, double vy, double vz, Runnable done) {
         if (level == null || isRemoved()) return false;
         var travel = level.dimensionTravel();
         if (travel == null || travel.frozen()) return false;
         final float xr = xRot();
         PortalTravel plan = new PortalTravel(dimension, floor(tx), floor(tz), 0, 0,
-                lvl -> new DimensionTransition(lvl, tx, ty, tz, 0, 0, 0, yRot, xr));
+                lvl -> new DimensionTransition(lvl, tx, ty, tz, vx, vy, vz, yRot, xr));
         moveAcross(arrive -> travel.travel(plan, arrive), travel, PORTAL_PLACE, done, dimension, true);
         return true;
     }

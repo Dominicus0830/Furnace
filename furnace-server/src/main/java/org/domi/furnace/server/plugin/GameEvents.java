@@ -375,9 +375,25 @@ public interface GameEvents {
 
     /**
      * 플레이어가 아닌 엔티티의 플러그인 teleport 직전(Paper EntityTeleportEvent, 소유 region 스레드에서). 취소했거나 도착 위치를 비웠으면 null,
-     * 아니면 이벤트가 정한 도착 위치(구독자가 없으면 to 그대로). 다른 차원으로 가면 Paper 처럼 두 번 부른다(요청 때, 차원을 건너기 직전).
+     * 아니면 이벤트가 정한 도착 위치(구독자가 없으면 to 그대로). 다른 차원으로 가면 차원을 건너기 직전에 {@link #entityChangeDimension} 으로 한 번 더 부른다.
      */
     default TeleportTarget entityTeleport(Entity e, TeleportTarget to) { return to; }
+
+    /** 차원 이동(Entity#changeDimension)의 도착 위치(차원 키·좌표·회전)와 도착 속도. */
+    record Arrival(String dimension, double x, double y, double z, float yaw, float pitch, double vx, double vy, double vz) {}
+
+    /**
+     * 플레이어가 아닌 엔티티의 차원 이동 이벤트({@link #entityChangeDimension})를 듣는 구독자가 있는가. 없으면 차원문 경로는 목적지를 먼저 정해
+     * 돌아오지 않고 곧바로 건넌다(이벤트가 없으면 결과가 같다).
+     */
+    default boolean listensEntityChangeDimension() { return false; }
+
+    /**
+     * Paper Entity#changeDimension 의 플러그인 이벤트(플레이어가 아닌 엔티티, 소유 region 스레드에서, 도착 위치가 정해진 뒤 떠나기 전):
+     * EntityTeleportEvent(엔드 관문 칸 gateway 가 있으면 Paper EntityTeleportEndGatewayEvent) — 취소했거나 도착 위치를 비웠으면 null.
+     * 그다음 inPortal(포털 처리 중)이면 EntityPortalExitEvent — 취소하지 않았고 도착 위치가 있으면 그 위치·도착 속도를 쓴다. 결과 도착.
+     */
+    default Arrival entityChangeDimension(Entity e, Arrival to, Pos gateway, boolean inPortal) { return to; }
 
     /** 불로 지옥문을 만들기 직전(blocks 는 채울 칸). false 면 취소. */
     default boolean portalCreate(String dimension, java.util.List<Pos> blocks) { return true; }

@@ -91,10 +91,15 @@ final class Mappings {
         EventBridge.reg(org.domi.furnace.api.event.player.PlayerTeleportEvent.class, org.bukkit.event.player.PlayerTeleportEvent.class,
                 f -> new org.bukkit.event.player.PlayerTeleportEvent(p(f.player()), Compat.location(f.from()), Compat.location(f.to())), (f, b) -> {});
         // Paper CraftEntity#teleport: 플레이어가 아닌 엔티티의 텔레포트. 처리기가 to 를 바꾸거나 비우면 Furnace 로 돌려준다(null 은 취소와 같다)
+        // 엔드 관문으로 건너는 엔티티는 Paper EntityTeleportEndGatewayEvent(EntityTeleportEvent 의 처리기 목록을 같이 쓴다)
         EventBridge.reg(org.domi.furnace.api.event.entity.EntityTeleportEvent.class, org.bukkit.event.entity.EntityTeleportEvent.class,
                 f -> {
                     var e = Compat.entity(f.entity());
-                    return e == null ? null : new org.bukkit.event.entity.EntityTeleportEvent(e, Compat.location(f.from()), Compat.location(f.to()));
+                    if (e == null) return null;
+                    var gateway = f.gateway() == null ? null : endGateway(f.from().world(), f.gateway());
+                    return gateway != null
+                            ? new com.destroystokyo.paper.event.entity.EntityTeleportEndGatewayEvent(e, Compat.location(f.from()), Compat.location(f.to()), gateway)
+                            : new org.bukkit.event.entity.EntityTeleportEvent(e, Compat.location(f.from()), Compat.location(f.to()));
                 },
                 (f, b) -> {
                     var to = b.getTo() == null ? null : Compat.location(b.getTo());
@@ -102,6 +107,24 @@ final class Mappings {
                 }, (f, b) -> {
                     var cur = Compat.location(f.to());
                     if (!java.util.Objects.equals(cur, b.getTo() == null ? null : Compat.location(b.getTo()))) b.setTo(cur);
+                });
+        // Paper Entity#changeDimension 의 EntityPortalExitEvent: 도착 위치·도착 속도(after)를 되돌려 쓴다
+        EventBridge.reg(org.domi.furnace.api.event.entity.EntityPortalExitEvent.class, org.bukkit.event.entity.EntityPortalExitEvent.class,
+                f -> {
+                    var e = Compat.entity(f.entity());
+                    return e == null ? null : new org.bukkit.event.entity.EntityPortalExitEvent(e, Compat.location(f.from()),
+                            f.to() == null ? null : Compat.location(f.to()), vector(f.before()), vector(f.after()));
+                },
+                (f, b) -> {
+                    var to = b.getTo() == null ? null : Compat.location(b.getTo());
+                    if (!java.util.Objects.equals(to, f.to())) f.to(to);
+                    var after = b.getAfter();
+                    if (!after.equals(vector(f.after()))) f.after(new org.domi.furnace.api.math.Vector3d(after.getX(), after.getY(), after.getZ()));
+                }, (f, b) -> {
+                    var cur = f.to();
+                    if (!java.util.Objects.equals(cur, b.getTo() == null ? null : Compat.location(b.getTo()))) b.setTo(cur == null ? null : Compat.location(cur));
+                    var after = vector(f.after());
+                    if (!after.equals(b.getAfter())) b.setAfter(after);
                 });
         EventBridge.reg(org.domi.furnace.api.event.player.PlayerRespawnEvent.class, org.bukkit.event.player.PlayerRespawnEvent.class,
                 f -> new org.bukkit.event.player.PlayerRespawnEvent(p(f.player()), Compat.location(f.respawnLocation()), !f.isWorldSpawn()),
@@ -721,5 +744,18 @@ final class Mappings {
                 }, (f, b) -> {
                     if (!Objects.equals(b.getCommand(), f.command())) b.setCommand(f.command());
                 });
+    }
+
+    /** 이벤트용 관문 블록 상태(그 칸이 관문이 아니게 됐으면 null — 보통 EntityTeleportEvent 로). 엔티티의 region 스레드에서. */
+    private static org.bukkit.block.EndGateway endGateway(String world, org.domi.furnace.api.world.BlockPos pos) {
+        try {
+            return Compat.block(world, pos).getState() instanceof org.bukkit.block.EndGateway g ? g : null;
+        } catch (RuntimeException notReadable) {
+            return null;
+        }
+    }
+
+    private static org.bukkit.util.Vector vector(org.domi.furnace.api.math.Vector3d v) {
+        return v == null ? new org.bukkit.util.Vector(0, 0, 0) : new org.bukkit.util.Vector(v.x(), v.y(), v.z());
     }
 }

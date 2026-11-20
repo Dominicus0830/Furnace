@@ -299,8 +299,10 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
         }
         // Entity#changeDimension 안의 두 번째 EntityTeleportEvent: 도착 위치 = (목적 월드, 위치, yaw 자리에 DimensionTransition 의 yRot, pitch 는 지금 xRot).
         // CraftBukkit 1.21.1 의 CraftEntity#teleport 는 DimensionTransition 에 (pitch, yaw) 순으로 넘겨 yRot 에 요청한 pitch 가 들어간다.
+        // 포털 안에 서 있던 엔티티면 Paper 처럼 관문 이벤트(EntityTeleportEndGatewayEvent)·EntityPortalExitEvent 도 같은 자리에서 부른다
         float yRot = PAPER_SWAPS_YAW_PITCH ? t.pitch() : t.yaw();
-        var t2 = events.entityTeleport(cur, new GameEvents.TeleportTarget(t.dimension(), t.x(), t.y(), t.z(), yRot, cur.xRot()));
+        var t2 = events.entityChangeDimension(cur, new GameEvents.Arrival(t.dimension(), t.x(), t.y(), t.z(), yRot, cur.xRot(), 0.0, 0.0, 0.0),
+                cur.endGatewayEntry(), cur.portalProcess() != null);
         if (t2 == null || cur.isRemoved() || host.core().world(t2.dimension()) == null) {   // 처리기가 지웠어도 Paper 는 changeDimension 이 null 을 돌려줘도 teleport 는 true
             done.run();
             return true;
@@ -309,12 +311,12 @@ public class EntityHandle implements org.domi.furnace.api.entity.Entity {
             // 두 번째 이벤트가 떠나온 월드로 되돌렸다: Paper changeDimension 의 같은 레벨 쪽 — 같은 엔티티를 moveTo(위치, yRot, 지금 xRot)·속도 0,
             // resetEmptyTime(머리 방향은 맞추지 않는다). 다른 region 칸이면 위 같은 월드 이동처럼 틱 끝에 넘어간다
             cur.moveTo(t2.x(), t2.y(), t2.z(), t2.yaw(), cur.xRot());
-            cur.setDeltaMovement(0.0, 0.0, 0.0);
+            cur.setDeltaMovement(t2.vx(), t2.vy(), t2.vz());
             cur.level().resetEmptyTime();
             done.run();
             return true;
         }
-        return cur.changeDimensionTo(t2.dimension(), t2.x(), t2.y(), t2.z(), t2.yaw(), done);
+        return cur.changeDimensionTo(t2.dimension(), t2.x(), t2.y(), t2.z(), t2.yaw(), t2.vx(), t2.vy(), t2.vz(), done);
     }
 
     /** CraftBukkit 1.21.1 CraftEntity#teleport 가 다른 월드 DimensionTransition 에 yaw 와 pitch 를 바꿔 넘기는 것을 따른다(Paper 와 같은 결과). */
