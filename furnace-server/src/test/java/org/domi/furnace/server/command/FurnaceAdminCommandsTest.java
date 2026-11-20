@@ -95,6 +95,45 @@ class FurnaceAdminCommandsTest {
         assertEquals(10 * MS, ring.stats().maxEverNanos());
     }
 
+    private static List<org.domi.furnace.api.plugin.CompatGap> gaps() {
+        return List.of(new org.domi.furnace.api.plugin.CompatGap("Citizens", "extends", "extends a.Npc -> net.minecraft.world.entity.LivingEntity", true, 12),
+                new org.domi.furnace.api.plugin.CompatGap("Weird\tName", "method", "net.minecraft.X#y(1)", false, 0));
+    }
+
+    @Test
+    void compatGapsTsvHasHeaderColumnsAndNoTabsInsideValues() {
+        String t = FurnaceAdminCommands.gapsTsv(gaps(), "1.21.1", java.time.Instant.parse("2026-11-20T14:31:17.123Z"));
+        String[] lines = t.split("\n");
+        assertEquals("#furnace-compat-gaps\t1\t1.21.1\t2026-11-20T14:31:17Z", lines[0]);
+        assertEquals("plugin\tkind\ttarget\treferenced\tcalls", lines[1]);
+        assertEquals("Citizens\textends\textends a.Npc -> net.minecraft.world.entity.LivingEntity\tyes\t12", lines[2]);
+        assertEquals("Weird Name\tmethod\tnet.minecraft.X#y(1)\tno\t0", lines[3], "값 안의 탭은 공백으로");
+        assertEquals(4, lines.length);
+    }
+
+    @Test
+    void compatGapsReportShowsCountsAndFooter() {
+        List<String> r = FurnaceAdminCommands.gapsReport(gaps(), "compat-gaps-x.tsv");
+        assertEquals("== Compatibility gaps: 2 entries, 1 hit at run time -> compat-gaps-x.tsv ==", r.get(0));
+        assertEquals("  plugin Citizens: extends extends a.Npc -> net.minecraft.world.entity.LivingEntity (hit 12 times)", r.get(1));
+        assertTrue(r.get(r.size() - 1).startsWith("The server sends nothing anywhere"), r.toString());
+    }
+
+    @Test
+    void compatGapsCommandSaysNothingRecordedWithoutAdapters() throws Exception {
+        FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);
+        try {
+            ServerCore core = TestServers.core(tmp, sched);
+            FurnaceAdminCommands.register(core.commands().getDispatcher());
+            var spawn = core.world().defaultSpawn();
+            var sink = new RconConsole(() -> false, spawn.x(), spawn.y(), spawn.z());
+            core.commands().performPrefixedCommandAsync(CommandSource.rcon(core, sink), "furnace compat gaps").get(20, java.util.concurrent.TimeUnit.SECONDS);
+            assertTrue(sink.takeOutput().startsWith("No gaps recorded"));
+        } finally {
+            sched.close();
+        }
+    }
+
     @Test
     void commandRunsAgainstRealServerAndRespectsPermission() throws Exception {
         FurnaceSchedulerImpl sched = new FurnaceSchedulerImpl(50_000_000L, 1);

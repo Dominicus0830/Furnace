@@ -87,6 +87,12 @@ public final class PluginManagerImpl implements PluginManager {
         return b == null ? null : b.gameRegistries();
     }
 
+    /** 호환 어댑터가 모은 "서버에 없는 것" 표(T-233). 부트스트랩 전이거나 어댑터가 없으면 빈 목록. */
+    public List<org.domi.furnace.api.plugin.CompatGap> compatGaps() {
+        PluginBootstrapper b = boot;
+        return b == null ? List.of() : b.compatGaps();
+    }
+
     /** 플러그인 월드젠 훅 저장소(W3). 부트스트랩 전이면 null. */
     public GenerationHookStore generationHooks() {
         PluginBootstrapper b = boot;

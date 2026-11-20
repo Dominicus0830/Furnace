@@ -281,6 +281,23 @@ public final class PluginBootstrapper {
     }
 
     /**
+     * {@code /furnace compat gaps}(T-233): 이미 만들어 둔 형식 어댑터가 모은 "서버에 없는 것" 표. 어댑터를 아직 안 올렸다면 그 형식의 플러그인이
+     * 없었으니 빈 목록이다(이 호출 때문에 어댑터를 올리지 않는다). 어댑터 하나가 던져도 나머지는 낸다.
+     */
+    List<org.domi.furnace.api.plugin.CompatGap> compatGaps() {
+        if (!formats.loaded()) return List.of();
+        List<org.domi.furnace.api.plugin.CompatGap> out = new ArrayList<>();
+        for (PluginFormat f : formats.get()) {
+            try {
+                out.addAll(f.compatGaps());
+            } catch (Throwable t) {
+                log.warn(Lang.t("plugin.format-gaps-failed", f.id()), t);
+            }
+        }
+        return out;
+    }
+
+    /**
      * 핫 리로드가 플러그인 몇 개를 끈 직후 — 이미 만들어 둔 형식 어댑터가 그 플러그인의 남은 일을 기다린다(안 만들었다면 그 형식의 플러그인이 없었다).
      * 어댑터 하나가 던져도 나머지와 리로드는 계속된다.
      */

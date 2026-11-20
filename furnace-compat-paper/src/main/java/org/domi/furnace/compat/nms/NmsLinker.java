@@ -450,16 +450,14 @@ final class NmsLinker extends ClassVisitor {
         if (!judged(owner)) return null;
         if (!symbols.hasClass(owner)) return new Miss(dots(NmsSymbols.element(owner)), CLASS, owner);
         if (symbols.hasMethod(owner, name, desc)) return null;
-        StringJoiner args = new StringJoiner(", ", "(", ")");
-        for (Type t : Type.getArgumentTypes(desc)) args.add(simple(t.getClassName()));
-        return new Miss(dots(owner) + "#" + name + args, UnsupportedNmsLink.METHOD, owner);
+        return new Miss(methodTarget(owner, name, desc), UnsupportedNmsLink.METHOD, owner);
     }
 
     private Miss missingField(String owner, String name, String desc) {
         if (!judged(owner)) return null;
         if (!symbols.hasClass(owner)) return new Miss(dots(NmsSymbols.element(owner)), CLASS, owner);
         if (symbols.hasField(owner, name, desc)) return null;
-        return new Miss(dots(owner) + "#" + name + " : " + simple(Type.getType(desc).getClassName()), UnsupportedNmsLink.FIELD, owner);
+        return new Miss(fieldTarget(owner, name, desc), UnsupportedNmsLink.FIELD, owner);
     }
 
     /** 메서드 서술자의 인자·반환형 중 없는 클래스. */
@@ -488,6 +486,18 @@ final class NmsLinker extends ClassVisitor {
             return null;
         }
         return missingInMethodType(h.getDesc());
+    }
+
+    /** 없는 메서드의 이름표. 덫이 던질 때와 로드 때 보고(compat gaps)가 같은 함수로 만들어 한 심볼이 한 줄이 된다. */
+    static String methodTarget(String owner, String name, String desc) {
+        StringJoiner args = new StringJoiner(", ", "(", ")");
+        for (Type t : Type.getArgumentTypes(desc)) args.add(simple(t.getClassName()));
+        return dots(owner) + "#" + name + args;
+    }
+
+    /** 없는 필드의 이름표(위와 같은 이유로 한 곳에서 만든다). */
+    static String fieldTarget(String owner, String name, String desc) {
+        return dots(owner) + "#" + name + " : " + simple(Type.getType(desc).getClassName());
     }
 
     private static String simple(String className) {

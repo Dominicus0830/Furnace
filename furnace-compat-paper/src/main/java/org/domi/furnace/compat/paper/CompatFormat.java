@@ -48,6 +48,12 @@ public final class CompatFormat implements PluginFormat {
         if (createdPlugin) Compat.awaitPluginAsyncTasks(server, plugins, maxMillis);
     }
 
+    /** {@code /furnace compat gaps}(T-233): 이 서버 shim 에 없어서 걸린 것·플러그인이 가리키는 것의 표. 덫 안에서만 모은 값이다. */
+    @Override
+    public java.util.List<org.domi.furnace.api.plugin.CompatGap> compatGaps() {
+        return org.domi.furnace.compat.nms.NmsGaps.snapshot();
+    }
+
     private volatile boolean createdPlugin;
 
     /** Bukkit {@code load: STARTUP} — Paper 는 월드를 만들기 전에 켠다(paper-plugin.yml 의 {@code load} 도 같은 값). */
