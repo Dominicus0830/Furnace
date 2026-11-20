@@ -377,6 +377,9 @@ public final class CraftWorld implements World {
 
     private static final java.util.Set<String> WARNED_CLOCK = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
+    /** 호환 모듈 전용 — 시계 주인이 아닌 월드의 시간·날씨 쓰기 경고(이름마다 한 번). NMS ServerLevel 도 같은 경고를 쓴다. */
+    public void furnaceSharedClockWrite(boolean applied, String what) { sharedClockWrite(applied, what); }
+
     private void sharedClockWrite(boolean applied, String what) {
         if (applied || !WARNED_CLOCK.add(handle.dimension() + "|" + what)) return;
         System.getLogger("FurnaceCompat").log(System.Logger.Level.WARNING, org.domi.furnace.compat.i18n.CompatLang.t("compat.clock-shared", what, getName()));

@@ -15,6 +15,17 @@ public final class Abilities {
     public float flyingSpeed = 0.05f;
     public float walkingSpeed = 0.1f;
 
+    /** 값을 모두 옮겨 온다(NMS shim 의 능력 보기 — 바닐라는 같은 객체를 나눠 쓴다). */
+    public void copyFrom(Abilities o) {
+        invulnerable = o.invulnerable;
+        flying = o.flying;
+        mayfly = o.mayfly;
+        instabuild = o.instabuild;
+        mayBuild = o.mayBuild;
+        flyingSpeed = o.flyingSpeed;
+        walkingSpeed = o.walkingSpeed;
+    }
+
     /** 바닐라 GameType.updatePlayerAbilities. */
     public void applyGameMode(GameMode mode) {
         switch (mode) {

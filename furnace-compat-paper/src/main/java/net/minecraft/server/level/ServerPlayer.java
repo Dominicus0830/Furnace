@@ -95,6 +95,31 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player {
         else offHand = java.util.Objects.requireNonNull(stack, "stack");
     }
 
+    // ------------------------------------------------------------------ 게임 모드·능력 (NMS shim 5c)
+
+    /** Paper setGameMode(모드): 게임 모드 바꾸기 이벤트를 거쳐 바꾸고, 같은 모드였거나 취소되면 거짓. 아무 스레드. */
+    public boolean setGameMode(net.minecraft.world.level.GameType gameMode) {
+        return getBukkitEntity().furnaceHandle().setGameMode(org.domi.furnace.api.entity.GameMode.valueOf(gameMode.name()));
+    }
+
+    private volatile net.minecraft.world.entity.player.Abilities abilities;
+
+    /** 바닐라 getAbilities: 이 플레이어의 능력({@link net.minecraft.world.entity.player.Abilities} — 서버 값을 비춘 보기, 플레이어마다 같은 객체). */
+    public net.minecraft.world.entity.player.Abilities getAbilities() {
+        net.minecraft.world.entity.player.Abilities a = abilities;
+        if (a == null) {
+            synchronized (this) {
+                if (abilities == null) abilities = net.minecraft.world.entity.player.Abilities.furnaceOf(getBukkitEntity().furnaceHandle());
+                return abilities;
+            }
+        }
+        a.furnaceRefresh();
+        return a;
+    }
+
+    /** 바닐라 onUpdateAbilities: 고친 능력을 서버에 쓰고 그 플레이어에게 능력 패킷을 보낸다. */
+    public void onUpdateAbilities() { getAbilities().furnacePush(true); }
+
     /** 바닐라처럼 공개 필드(Paper 도 같다). 바닐라 생성자로 만든 플레이어는 null. */
     public net.minecraft.server.network.ServerGamePacketListenerImpl connection;
 

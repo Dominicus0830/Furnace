@@ -796,6 +796,27 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     @Override
+    public PlayerAbilities playerAbilities(org.domi.furnace.api.entity.Player player) {
+        if (!(player instanceof PlayerHandle ph)) throw new IllegalArgumentException("not a server player: " + player);
+        var a = ph.handle().vitals().abilitiesCopy();
+        return new PlayerAbilities(a.invulnerable, a.flying, a.mayfly, a.instabuild, a.mayBuild, a.flyingSpeed, a.walkingSpeed);
+    }
+
+    @Override
+    public void setPlayerAbilities(org.domi.furnace.api.entity.Player player, PlayerAbilities v, boolean send) {
+        if (!(player instanceof PlayerHandle ph)) throw new IllegalArgumentException("not a server player: " + player);
+        var a = new org.domi.furnace.server.entity.Abilities();
+        a.invulnerable = v.invulnerable();
+        a.flying = v.flying();
+        a.mayfly = v.mayfly();
+        a.instabuild = v.instabuild();
+        a.mayBuild = v.mayBuild();
+        a.flyingSpeed = v.flyingSpeed();
+        a.walkingSpeed = v.walkingSpeed();
+        ph.handle().vitals().setAbilities(a, send);
+    }
+
+    @Override
     public void entityDiscardNow(org.domi.furnace.api.entity.Entity entity) {
         if (entity instanceof org.domi.furnace.api.entity.Player) throw new IllegalArgumentException("a player cannot be discarded: " + entity.uniqueId());
         Object internal;
