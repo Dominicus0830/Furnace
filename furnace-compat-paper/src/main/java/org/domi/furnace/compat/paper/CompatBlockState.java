@@ -63,7 +63,7 @@ public class CompatBlockState extends org.bukkit.craftbukkit.block.CraftBlockSta
     @Override
     public Block getBlock() {
         requirePlaced();
-        return new CompatBlock(dimension, pos);
+        return org.bukkit.craftbukkit.block.CraftBlock.of(dimension, pos);
     }
 
     @Override

@@ -131,7 +131,7 @@ public final class CraftWorld implements World {
     public boolean isHardcore() { return handle.isHardcore(); }
 
     @Override
-    public Block getBlockAt(int x, int y, int z) { return new CompatBlock(handle.dimension(), new BlockPos(x, y, z)); }
+    public Block getBlockAt(int x, int y, int z) { return org.bukkit.craftbukkit.block.CraftBlock.of(handle.dimension(), new BlockPos(x, y, z)); }
 
     @Override
     public Chunk getChunkAt(int x, int z) { return scratchLevel != null ? new CraftChunk(this, x, z) : new CraftChunk(handle.dimension(), x, z); }

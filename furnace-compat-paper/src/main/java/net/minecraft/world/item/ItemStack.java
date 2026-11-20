@@ -21,6 +21,8 @@ public final class ItemStack {
     private int count;
     private Map<String, String> components;
     private Set<String> removed;
+    /** 접속한 플레이어의 손 칸에 묶인 보기면 값이 있다({@link #liveHand}) — 바꾸면 그 칸에 되쓴다. */
+    private LiveSlot live;
 
     private ItemStack() {
         this.item = null;
@@ -65,12 +67,14 @@ public final class ItemStack {
         this.count = value.amount();
         this.components = value.components();
         this.removed = value.removedComponents();
+        changed();
     }
 
     /** 호환 모듈 전용 — 종류만 바꾼다(개수·컴포넌트 패치는 그대로, CraftBukkit 의 setItem 자리). EMPTY 는 바꾸지 않는다. */
     public void furnaceSetItem(Item item) {
         if (this == EMPTY) throw new IllegalStateException("ItemStack.EMPTY cannot be modified");
         this.item = java.util.Objects.requireNonNull(item, "item");
+        changed();
     }
 
     // ------------------------------------------------------------------ 바닐라 표면
@@ -97,7 +101,10 @@ public final class ItemStack {
     /** 비었으면 0. */
     public int getCount() { return isEmpty() ? 0 : count; }
 
-    public void setCount(int count) { this.count = count; }
+    public void setCount(int count) {
+        this.count = count;
+        changed();
+    }
 
     public void grow(int n) { setCount(getCount() + n); }
 
@@ -150,6 +157,7 @@ public final class ItemStack {
                 new org.domi.furnace.api.item.ItemComponentPatch(patch.furnaceSet(), patch.furnaceRemoved()));
         this.components = next.components();
         this.removed = next.removedComponents();
+        changed();
     }
 
     /** 바닐라 getOrDefault(MAX_STACK_SIZE, 1) — 종류 기본값 위에 패치를 얹은 값, 패치로 지웠거나 EMPTY 면 1. */
@@ -168,6 +176,68 @@ public final class ItemStack {
     public int getDamageValue() {
         var v = componentView();
         return v == null ? 0 : Math.min(Math.max(v.damage(), 0), getMaxDamage());
+    }
+
+    /**
+     * 바닐라 setDamageValue(damage): 0..최대 내구도로 잘라 damage 컴포넌트에 넣는다(내구도 없는 아이템은 0 으로 잘려 바뀌지 않는다).
+     * 손에 묶인 보기면 그 칸에 되쓴다.
+     */
+    public void setDamageValue(int damage) { set(net.minecraft.core.component.DataComponents.DAMAGE, Math.clamp(damage, 0, getMaxDamage())); }
+
+    /** 바닐라 getEnchantments: enchantments 컴포넌트(없으면 EMPTY)의 사본. 읽기 전용 — 고쳐도 이 아이템은 안 바뀐다. */
+    public net.minecraft.world.item.enchantment.ItemEnchantments getEnchantments() {
+        var v = componentView();
+        return v == null ? net.minecraft.world.item.enchantment.ItemEnchantments.EMPTY
+                : net.minecraft.world.item.enchantment.ItemEnchantments.fromFurnace(v.get(ItemComponents.ENCHANTMENTS));
+    }
+
+    /**
+     * 바닐라 isCorrectToolForDrops(state): tool 컴포넌트의 규칙이 이 상태를 맞는 도구로 치는가(없으면 거짓). 규칙은 서버의 도구 판정
+     * ({@code ItemStack.isCorrectToolForDrops})과 같은 것이다.
+     */
+    public boolean isCorrectToolForDrops(net.minecraft.world.level.block.state.BlockState state) {
+        return !isEmpty() && org.domi.furnace.compat.nms.NmsChunks.bridge().correctToolForDrops(furnaceValue(), state.furnaceStateId());
+    }
+
+    // ------------------------------------------------------------------ 손에 묶인 보기(NMS shim 5번 묶음)
+
+    private static final class LiveSlot {
+        final org.domi.furnace.api.entity.Player player;
+        final int windowSlot;
+        org.domi.furnace.api.item.ItemStack last;
+
+        LiveSlot(org.domi.furnace.api.entity.Player player, int windowSlot, org.domi.furnace.api.item.ItemStack last) {
+            this.player = player;
+            this.windowSlot = windowSlot;
+            this.last = last;
+        }
+    }
+
+    /**
+     * 호환 모듈 전용 — 접속한 플레이어의 손 칸을 바닐라처럼 "그 칸의 스택 객체"로 준다. 이 객체를 고치면(개수·컴포넌트·내구도) 그 칸의 값이 같은 순간 바뀐다.
+     * 그새 칸이 다른 스택으로 바뀌었으면 이 객체는 칸에서 떨어진다(바닐라에서 칸에서 빠진 객체와 같다 — 이후 고쳐도 칸은 안 바뀐다). 빈 칸은 EMPTY.
+     * 읽기와 되쓰기는 서버 인벤토리의 잠금 안에서 일어난다(아무 스레드).
+     */
+    public static ItemStack liveHand(org.domi.furnace.api.entity.Player player, boolean mainHand) {
+        org.domi.furnace.api.internal.ChunkInternals.HandSlot hs;
+        try {
+            hs = org.domi.furnace.compat.nms.NmsChunks.bridge().handSlotNow(player, mainHand);
+        } catch (IllegalArgumentException e) {
+            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LivingEntity#getItemInHand", e.getMessage());
+        }
+        if (hs.stack().isEmpty()) return EMPTY;
+        ItemStack s = fromFurnace(hs.stack(), hs.stack().amount());
+        s.live = new LiveSlot(player, hs.windowSlot(), hs.stack());
+        return s;
+    }
+
+    /** 바뀐 값을 묶인 칸에 되쓴다. 칸이 그새 바뀌었으면 칸에서 떨어진다. */
+    private void changed() {
+        LiveSlot l = live;
+        if (l == null) return;
+        var now = furnaceValue();
+        if (org.domi.furnace.compat.nms.NmsChunks.bridge().replaceSlotNow(l.player, l.windowSlot, l.last, now)) l.last = now;
+        else live = null;
     }
 
     // ------------------------------------------------------------------ 데이터 컴포넌트(H7b, DataComponents 에 있는 종류만)
@@ -202,6 +272,7 @@ public final class ItemStack {
         var next = value == null ? v.without(k.furnace()) : v.with(k.furnace(), k.toFurnace(value));
         this.components = next.components();
         this.removed = next.removedComponents();
+        changed();
         return old;
     }
 
@@ -213,6 +284,7 @@ public final class ItemStack {
         var next = componentView().without(k.furnace());
         this.components = next.components();
         this.removed = next.removedComponents();
+        changed();
         return old;
     }
 

@@ -48,6 +48,8 @@ class CompatLinkTest {
             if (n.endsWith("$Lib") || n.contains("$Lib$")) continue;
             // DataFixerUpper 의 DynamicOps 를 구현 — 그 라이브러리를 쓰는 플러그인(FAWE 등)이 있어 서버가 묶음을 붙인 때만 올라간다(T-191·T-200)
             if (n.equals("net.minecraft.nbt.NbtOps") || n.startsWith("net.minecraft.nbt.NbtOps$") || n.equals("net.minecraft.resources.DelegatingOps") || n.equals("net.minecraft.resources.RegistryOps")) continue;
+            // Brigadier 의 ArgumentType 을 구현 — 그 라이브러리가 있을 때(Paper 서버·명령 라이브러리를 쓰는 플러그인)만 올라간다
+            if (n.startsWith("net.minecraft.commands.arguments.")) continue;
             if (n.equals("org.domi.furnace.compat.nms.NmsStateCodec")) continue;   // DataFixerUpper 의 MapCodec 을 상속 — NmsDfu.visible() 일 때만 올린다
             try {
                 Class<?> c = Class.forName(n, false, loader);   // 상위 타입이 라이브러리면 여기서 실패한다
