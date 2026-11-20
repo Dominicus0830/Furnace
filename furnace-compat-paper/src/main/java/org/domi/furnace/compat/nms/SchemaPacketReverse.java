@@ -614,7 +614,8 @@ final class SchemaPacketReverse {
                     .orElseThrow(() -> new IllegalArgumentException(at + ": name missing from the sound registry " + name));
             case "MobEffect" -> net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.getHolder(loc)
                     .orElseThrow(() -> new IllegalArgumentException(at + ": name missing from the effect registry " + name));
-            case "Attribute" -> reference(net.minecraft.core.registries.Registries.ATTRIBUTE, name, null);
+            case "Attribute" -> net.minecraft.core.registries.BuiltInRegistries.ATTRIBUTE.getHolder(loc)
+                    .orElseThrow(() -> new IllegalArgumentException(at + ": name missing from the attribute registry " + name));
             case "DimensionType" -> reference(net.minecraft.core.registries.Registries.DIMENSION_TYPE, name, null);
             default -> throw new IllegalArgumentException(at + ": Holder<" + registry + "> is not handled yet");
         };

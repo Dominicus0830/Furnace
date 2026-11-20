@@ -7,7 +7,7 @@
 | 묶음 | 번호 | 상태 |
 |---|---|---|
 | 2번 플레이어 목록·틱 스레드 판정 | T-245 | 완료(PR #530). 표본 감사에서 이 묶음 심볼 0(Axiom 없는 심볼 92 → 87, VeinMiner 50 → 47). 시험 `NmsPlayerListTest`(3) |
-| 3번 블록 부수기·경험치·속성 | T-246 | 앞부분(블록 부수기·게임 모드·경험치) 완료(이 PR). 표본 감사 없음 행 squaremap 39 → 37, VeinMiner 45 → 42. 시험 `NmsPlayerBreakTest`(8). 뒷부분(속성)은 다음 PR |
+| 3번 블록 부수기·경험치·속성 | T-246 | 완료. 앞부분(블록 부수기·게임 모드·경험치): 표본 감사 없음 행 squaremap 39 → 37, VeinMiner 45 → 42, 시험 `NmsPlayerBreakTest`(8). 뒷부분(속성, 이 PR): squaremap 37 → 34, VeinMiner 42 → 39(속성 행 0), 시험 `NmsAttributeTest`(5) |
 | 4번 감사 도구 "타는 길" 거르기 + Orebfuscator 9개 | T-247 | 설계만 |
 
 ### 2번 묶음에서 한 것
@@ -31,6 +31,15 @@
   - 로드되지 않은 칸은 둘 다 `IllegalStateException` 이다(Paper 는 그 자리에서 불러온다 — Furnace 는 동기로 불러오지 않는다, `Level#setBlock` 과 같은 규칙).
   - `getExpDrop` 은 `this` 블록이 아니라 넘겨 받은 state 의 블록으로 계산한다(Paper 는 `this` 로 고른다 — 플러그인이 둘을 다르게 넘기는 경우만 다르다, 가정: 드물다).
   - `ServerPlayerGameMode` 의 Paper 내부 필드(`level`·부수는 중인 칸·진행도 등)와 `changeGameModeForPlayer`·`handleBlockBreakAction` 은 두지 않았다(표본 플러그인이 안 부른다). 부르면 지금처럼 없는 심볼로 잡힌다.
+
+### 3번 묶음 뒷부분(속성)에서 한 것
+
+- `Attribute`·`RangedAttribute`·`Attributes`(바닐라 1.21.1 상수 31개, 선언 순서 그대로)와 `BuiltInRegistries.ATTRIBUTE`. 번호 순서는 서버 내장 레지스트리 목록, 기본값·범위는 Furnace 공개 API 속성 표(서버 표와 같음), 설명 키는 `attribute.name.<경로>`, 클라이언트 동기 여부는 바닐라 정의(공격력·공격 넉백·추적 범위·넉백 저항·좀비 지원군만 동기 안 함)다. 패킷 되돌리기(`SchemaPacketReverse`)의 속성 손잡이도 이 등록된 손잡이로 바꿨다(전에는 값이 null).
+- `LivingEntity#getAttribute(Holder)`·`getAttributeValue`·`getAttributeBaseValue`와 `AttributeInstance` shim. 상태를 따로 들지 않고 서버의 그 엔티티 속성을 본다(/attribute 명령·장비·효과 수정자와 같은 상태).
+  - 몹은 주인 스레드면, 플레이어는 그 플레이어의 region 스레드면 바닐라처럼 곧바로 읽고 쓴다(방금 단 수정자가 값에 바로 보인다).
+  - 다른 스레드: 읽기는 그 순간 값(플레이어는 최근 값), 쓰기는 주인 스레드로 넘긴다. 돌려줄 값(`removeModifier` 가 뗐는가)과 같은 id 중복 오류는 부른 순간의 수정자 목록으로 판정한다. 넘긴 쓰기가 실패하면 플러그인마다 한 번 콘솔 경고.
+  - 바닐라 생성자로 만든 가짜 플레이어(T-212)는 어느 region 에도 없어 부른 스레드가 바로 쓴다(서버 `PlayerHandle` 의 속성 주인 규칙에 한 갈래를 더했다).
+- 알려진 차이: 다른 스레드에서 부른 쓰기는 그 자리에서 값이 바뀌지 않는다(다음 주인 틱). Paper 는 주 스레드 밖에서 부르면 경쟁 상태라 정해진 결과가 없다. 바닐라 생성자·`replaceFrom`·`save`·`load` 는 두지 않았다(엔티티에 붙지 않은 속성 객체는 서버에 없다).
 
 ## 설계 초안(묶음별)
 

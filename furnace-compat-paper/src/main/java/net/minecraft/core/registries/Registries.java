@@ -26,7 +26,7 @@ public final class Registries {
     public static final ResourceKey<Registry<Object>> DATA_COMPONENT_TYPE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("data_component_type"));
     public static final ResourceKey<Registry<Object>> POTION = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("potion"));
     public static final ResourceKey<Registry<net.minecraft.world.effect.MobEffect>> MOB_EFFECT = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("mob_effect"));
-    public static final ResourceKey<Registry<Object>> ATTRIBUTE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("attribute"));
+    public static final ResourceKey<Registry<net.minecraft.world.entity.ai.attributes.Attribute>> ATTRIBUTE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("attribute"));
     public static final ResourceKey<Registry<net.minecraft.sounds.SoundEvent>> SOUND_EVENT = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("sound_event"));
     public static final ResourceKey<Registry<net.minecraft.world.level.block.entity.BlockEntityType<?>>> BLOCK_ENTITY_TYPE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("block_entity_type"));
     public static final ResourceKey<Registry<net.minecraft.world.level.saveddata.maps.MapDecorationType>> MAP_DECORATION_TYPE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("map_decoration_type"));

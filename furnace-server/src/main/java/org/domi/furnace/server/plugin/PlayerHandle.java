@@ -494,6 +494,13 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     private final AttributeApi.Owner attrOwner = new AttributeApi.Owner() {
         @Override
         public <T> java.util.concurrent.CompletableFuture<T> run(java.util.function.Function<org.domi.furnace.server.attribute.AttributeMap, T> task) {
+            if (p.isDetached()) {   // 월드에 없는 플레이어(T-212): 어느 region 에도 없어 부른 스레드가 바로 쓴다(moveDetachedPlayer 와 같다)
+                try {
+                    return RegionFuture.wrap(java.util.concurrent.CompletableFuture.completedFuture(task.apply(p.attributes())));
+                } catch (Throwable t) {
+                    return RegionFuture.wrap(java.util.concurrent.CompletableFuture.failedFuture(t));
+                }
+            }
             if (p.isDisconnected()) return RegionFuture.wrap(java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("disconnected player: " + p.name())));
             RegionFuture<T> f = new RegionFuture<>();
             p.runOnOwner(() -> {
@@ -508,7 +515,7 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
 
         @Override
         public void check() {
-            if (!p.isOnOwnerThread()) {
+            if (!p.isDetached() && !p.isOnOwnerThread()) {   // 월드에 없는 플레이어는 부른 스레드가 쓴다(run 과 같다)
                 throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("AttributeInstance of player " + p.name()
                         + " can only be used from the region thread that owns it (current thread: " + Thread.currentThread().getName() + ") - use AttributeHandle.edit");
             }
