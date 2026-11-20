@@ -45,7 +45,9 @@ class NmsEntityPassengersTest {
     CraftWorld world;
     BlockPos at;
     final List<String> spawnEvents = new CopyOnWriteArrayList<>();
+    final List<String> mountEvents = new CopyOnWriteArrayList<>();
     volatile boolean cancelSpawns;
+    volatile boolean cancelMounts;
 
     @BeforeAll
     void start() {
@@ -62,6 +64,11 @@ class NmsEntityPassengersTest {
                     spawnEvents.add(e.entity().type() + " " + e.reason());
                     if (cancelSpawns) e.setCancelled(true);
                 });
+        server.api().events().subscribe(server.plugin(CompatTestPlugin.class), org.domi.furnace.api.event.entity.EntityMountEvent.class,
+                EventPriority.NORMAL, false, e -> {
+                    mountEvents.add(e.entity().type() + " on " + e.mount().type());
+                    if (cancelMounts) e.setCancelled(true);
+                });
     }
 
     @AfterAll
@@ -70,7 +77,9 @@ class NmsEntityPassengersTest {
     @BeforeEach
     void reset() {
         spawnEvents.clear();
+        mountEvents.clear();
         cancelSpawns = false;
+        cancelMounts = false;
     }
 
     <T> T on(java.util.function.Supplier<T> task) { return server.onRegion(at, task); }
@@ -82,7 +91,8 @@ class NmsEntityPassengersTest {
             CraftEntity pig = (CraftEntity) world.spawnEntity(l, org.bukkit.entity.EntityType.PIG);
             CraftEntity zombie = (CraftEntity) world.spawnEntity(l, org.bukkit.entity.EntityType.ZOMBIE);
             assertTrue(pig.addPassenger(zombie));
-            spawnEvents.clear();   // 원본을 만든 스폰은 세지 않는다
+            spawnEvents.clear();   // 원본을 만든 스폰·탑승은 세지 않는다
+            mountEvents.clear();
             return new CraftEntity[] {pig, zombie};
         });
     }
@@ -145,6 +155,45 @@ class NmsEntityPassengersTest {
             root.discard();
             pz[0].remove();
             pz[1].remove();
+            return null;
+        });
+    }
+
+    @Test
+    void placingAGroupFiresNoMountEventLikePaper() {
+        // Paper: loadEntityRecursive 의 startRiding(vehicle, true) 는 탈것이 아직 월드 밖(valid 거짓)이라 탑승 이벤트를 부르지 않는다 — 리스너가 취소해도 승객이 빠지지 않는다
+        CraftEntity[] pz = pigWithZombie();
+        CompoundTag tag = new CompoundTag();
+        on(() -> {
+            assertTrue(pz[0].getHandle().saveAsPassenger(tag));
+            return null;
+        });
+        cancelMounts = true;
+        Entity root = EntityType.loadEntityRecursive(tag, level, axiomLike(UUID.randomUUID()));
+        assertTrue(on(() -> level.tryAddFreshEntityWithPassengers(root)));
+        assertEquals(List.of(), mountEvents, "탑승 이벤트 없음");
+        assertEquals(List.of("minecraft:pig DEFAULT", "minecraft:zombie DEFAULT"), spawnEvents);
+        on(() -> {
+            CraftEntity pig = root.getBukkitEntity();
+            assertEquals(1, pig.getPassengers().size(), "취소하는 리스너가 있어도 좀비는 그대로 탔다");
+            for (Entity p : root.getIndirectPassengers()) p.discard();
+            root.discard();
+            pz[0].remove();
+            pz[1].remove();
+            return null;
+        });
+        // 이미 월드에 있는 엔티티끼리 태우면 이벤트가 난다(대조)
+        CraftEntity[] again = on(() -> {
+            Location l = new Location(world, at.x() + 0.5, at.y(), at.z() + 0.5);
+            CraftEntity pig = (CraftEntity) world.spawnEntity(l, org.bukkit.entity.EntityType.PIG);
+            CraftEntity zombie = (CraftEntity) world.spawnEntity(l, org.bukkit.entity.EntityType.ZOMBIE);
+            assertFalse(pig.addPassenger(zombie), "취소됐다");
+            return new CraftEntity[] {pig, zombie};
+        });
+        assertEquals(List.of("minecraft:zombie on minecraft:pig"), mountEvents);
+        on(() -> {
+            again[0].remove();
+            again[1].remove();
             return null;
         });
     }

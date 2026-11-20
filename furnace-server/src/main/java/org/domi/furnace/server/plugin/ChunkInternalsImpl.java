@@ -1018,7 +1018,8 @@ final class ChunkInternalsImpl implements ChunkInternals {
         int at = next[0]++;
         var e = createNmsEntity(lv, spec.id(), spec.ops());
         made.set(at, e);
-        for (var ps : spec.passengers()) buildNms(lv, ps, made, next).startRiding(e, true);   // 못 타면 그 승객은 함께 넣기에 들지 않는다
+        // 못 타면 그 승객은 함께 넣기에 들지 않는다. 아직 월드 밖이라 탑승 이벤트는 없다(Paper 와 같다 — 넣을 때 스폰 이벤트만)
+        for (var ps : spec.passengers()) buildNms(lv, ps, made, next).startRidingBeforeAdd(e);
         return e;
     }
 
