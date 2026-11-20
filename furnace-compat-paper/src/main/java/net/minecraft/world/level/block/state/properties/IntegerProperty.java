@@ -9,8 +9,9 @@ import java.util.Optional;
 public class IntegerProperty extends Property<Integer> {
 
     private final Collection<Integer> values;
-    private final int min;
-    private final int max;
+    /** Paper: 공개 필드(바닐라는 private — Paper 접근 변환). */
+    public final int min;
+    public final int max;
 
     protected IntegerProperty(String name, int min, int max) {
         super(name, Integer.class);

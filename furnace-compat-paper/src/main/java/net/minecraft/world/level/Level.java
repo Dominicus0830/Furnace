@@ -238,6 +238,15 @@ public abstract class Level implements LevelAccessor {
     /** Paper: 로드된 청크면 그 보기, 아니면 null(불러오지 않고 기다리지 않는다 — 주인이 아닌 스레드는 공개본이 생긴 뒤부터 보인다). 아무 스레드. */
     public LevelChunk getChunkIfLoaded(int x, int z) { return getChunkSource().getChunkNow(x, z); }
 
+    /** Paper Level#getChunkIfLoaded(pos): 그 칸의 로드된 청크, 아니면 null. */
+    public final LevelChunk getChunkIfLoaded(BlockPos pos) { return getChunkIfLoaded(pos.getX() >> 4, pos.getZ() >> 4); }
+
+    /** 바닐라 isInSpawnableBounds: 높이 ±2000만 안, 가로 ±3000만 안. */
+    public static boolean isInSpawnableBounds(BlockPos pos) {
+        int x = pos.getX(), y = pos.getY(), z = pos.getZ();
+        return y >= -20000000 && y < 20000000 && x >= -30000000 && z >= -30000000 && x < 30000000 && z < 30000000;
+    }
+
     // ------------------------------------------------------------------ 블록 읽기(N1)
 
     /** 높이 밖은 void_air(바닐라). */
