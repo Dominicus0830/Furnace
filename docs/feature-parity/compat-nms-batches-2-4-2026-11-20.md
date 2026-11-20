@@ -8,7 +8,19 @@
 |---|---|---|
 | 2번 플레이어 목록·틱 스레드 판정 | T-245 | 완료(PR #530). 표본 감사에서 이 묶음 심볼 0(Axiom 없는 심볼 92 → 87, VeinMiner 50 → 47). 시험 `NmsPlayerListTest`(3) |
 | 3번 블록 부수기·경험치·속성 | T-246 | 완료. 앞부분(블록 부수기·게임 모드·경험치): 표본 감사 없음 행 squaremap 39 → 37, VeinMiner 45 → 42, 시험 `NmsPlayerBreakTest`(8). 뒷부분(속성, 이 PR): squaremap 37 → 34, VeinMiner 42 → 39(속성 행 0), 시험 `NmsAttributeTest`(5) |
-| 4번 감사 도구 "타는 길" 거르기 + Orebfuscator 9개 | T-247 | 설계만 |
+| 4번 감사 도구 "타는 길" 거르기 + Orebfuscator 9개 | T-247 | 앞부분(거르기) 완료: 아래 "4번 묶음 앞부분에서 한 것". 뒷부분(Orebfuscator 구멍) 진행 |
+
+### 4번 묶음 앞부분에서 한 것
+
+- `NmsCompatReport.unusedAdapters`: jar 의 클래스 이름 전체를 보고 이 서버가 고르지 않을 어댑터 패키지를 세지 않는다(서버 로드 보고·감사 도구 공통).
+  - 같은 부모 아래 프로토콜 번호 패키지가 둘 이상이면(`v766`·`v768`·`v774`) 1.21.1 프로토콜 767 이하에서 가장 큰 것만 센다.
+  - 같은 판 이름에 `_mojang` 짝이 있으면(`v1_21_R1`·`v1_21_R1_mojang`) 짝이 없는 쪽(Spigot 이름)은 세지 않는다.
+  - 같은 부모 아래 `spigot` 과 `paper`(또는 `mojang`) 가 함께 있으면 `spigot` 쪽은 세지 않는다.
+  - 관례가 안 보이는 jar 는 지금처럼 전부 센다. 세지 않은 클래스는 "다른 버전용 모듈 클래스" 수에 더한다.
+- 표본 100개(11-20 Modrinth 인기순, Mojang 이름 NMS 9개) 재측정: 지원 비율 85.8% → **88.2%**(인기 가중 85.6% → 87.9%). 바뀐 jar 는 둘뿐이다.
+  - Orebfuscator 없는 심볼 46 → 10: 남은 것은 `v1_21_R1_mojang` 어댑터의 실제 구멍(설계의 9개 + `ClientboundSectionBlocksUpdatePacket` 생성자).
+  - Geyser 없는 심볼 28 → 10: `adapters/paper/v766` 은 구멍 0, 남은 10개는 함께 실린 Erosion 의 `NmsPickItemProvider`(블록 집기 아이템, `DataComponents` 등) — 실제로 탈 수 있는 길이라 그대로 센다.
+  - 85.8% 는 1~3번 묶음 병합 뒤 거르기 전 값(11-20 처음 측정 80.2%).
 
 ### 2번 묶음에서 한 것
 
