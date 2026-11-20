@@ -46,10 +46,56 @@ public class Item implements ItemLike {
         return net.minecraft.core.registries.BuiltInRegistries.ITEM.getHolder(net.minecraft.resources.ResourceLocation.parse(key)).orElseThrow();
     }
 
-    /** 바닐라 규칙: item.&lt;이름공간&gt;.&lt;경로(/ 는 .)&gt;. */
+    /**
+     * 바닐라 getDescriptionId: 블록 아이템(BlockItem·AirItem)은 그 블록의 번역 키 block.&lt;이름공간&gt;.&lt;경로&gt;, 그 밖은 item.&lt;이름공간&gt;.&lt;경로&gt;
+     * (경로의 / 는 .). 1.21.1 에서 블록 아이템의 블록 이름은 아이템 이름과 같고, 이름이 다른 것(씨앗·당근 등 ItemNameBlockItem, 가루눈 양동이)은
+     * 아이템 키를 쓴다. 블록과 이름이 같은데 블록 키가 아닌 아이템은 밀(그냥 Item)과 네더 사마귀(ItemNameBlockItem) 둘뿐이다(1.21.1 jar 의
+     * Items 등록 대조).
+     */
     public String getDescriptionId() {
+        boolean block = !ITEM_NAMED.contains(key)
+                && net.minecraft.core.registries.BuiltInRegistries.BLOCK.containsKey(net.minecraft.resources.ResourceLocation.parse(key));
         int c = key.indexOf(':');
-        return "item." + key.substring(0, c) + "." + key.substring(c + 1).replace('/', '.');
+        return (block ? "block." : "item.") + key.substring(0, c) + "." + key.substring(c + 1).replace('/', '.');
+    }
+
+    /** 블록과 이름이 같지만 아이템 키를 쓰는 아이템. */
+    private static final java.util.Set<String> ITEM_NAMED = java.util.Set.of("minecraft:wheat", "minecraft:nether_wart");
+
+    /**
+     * 바닐라 getDescriptionId(stack): 스택에 따라 키가 바뀌는 아이템 — 자석 나침반(lodestone_tracker 가 있는 나침반), 물약·투척·잔류 물약·물약 화살
+     * (키 + ".effect." + 물약 이름, 물약이 없으면 empty), 바탕색이 있는 방패(키 + "." + 색). 그 밖은 {@link #getDescriptionId()}.
+     */
+    public String getDescriptionId(ItemStack stack) {
+        switch (key) {
+            case "minecraft:compass" -> {
+                if (stack.furnaceComponent(org.domi.furnace.api.item.ItemComponent.raw("minecraft:lodestone_tracker")) != null) return "item.minecraft.lodestone_compass";
+            }
+            case "minecraft:potion", "minecraft:splash_potion", "minecraft:lingering_potion", "minecraft:tipped_arrow" -> {
+                return getDescriptionId() + ".effect." + potionName(stack.furnaceComponent(org.domi.furnace.api.item.ItemComponent.raw("minecraft:potion_contents")));
+            }
+            case "minecraft:shield" -> {
+                String color = stack.furnaceComponent(org.domi.furnace.api.item.ItemComponents.BASE_COLOR);
+                if (color != null) return getDescriptionId() + "." + color;
+            }
+            default -> {}
+        }
+        return getDescriptionId();
+    }
+
+    /**
+     * 바닐라 Potion.getName 의 이름: 물약에 기본 이름이 있으면 그것, 없으면 레지스트리 경로. 1.21.1 물약 46가지의 기본 이름은 경로에서 long_·strong_ 을
+     * 뗀 것이다(Potions 등록 대조). 물약이 없으면 empty.
+     */
+    private static String potionName(String contentsSnbt) {
+        if (contentsSnbt == null) return "empty";
+        Object v = org.domi.furnace.api.nbt.Snbt.parse(contentsSnbt);
+        Object id = v instanceof org.domi.furnace.api.nbt.NbtCompound c ? (c.contains("potion") ? c.getString("potion") : null) : v;
+        if (!(id instanceof String s) || s.isEmpty()) return "empty";
+        String path = s.indexOf(':') < 0 ? s : s.substring(s.indexOf(':') + 1);
+        if (path.startsWith("long_")) return path.substring(5);
+        if (path.startsWith("strong_")) return path.substring(7);
+        return path;
     }
 
     /** 이 종류의 기본 최대 쌓기 개수(컴포넌트가 없을 때). Bukkit Material 표를 쓴다 — 표에 없는 종류는 UnsupportedNmsCall. */

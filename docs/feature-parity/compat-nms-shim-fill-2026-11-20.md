@@ -15,7 +15,7 @@
 | 가. 엔티티 저장·지우기·찾기 | 4 | `Entity.save`·`discard`, `ServerLevel.getEntities()`, `LevelEntityGetter` | `//copy -e`·되돌리기 기록(`PaperweightGetBlocks.entities`), 지우기 동기 작업 | 이 문서 3장 |
 | 나. 엔티티 만들기·넣기 | 8 | `EntityType.create(Level)`, `Entity.load`·`absMoveTo`·`setUUID`·`generation`·`spawnReason`, `ServerLevel.addFreshEntity(…, SpawnReason)`·`addFreshEntityWithPassengers(…, SpawnReason)` (+ 이미 있지만 막혀 있던 Paper `EntityLookup.addNewEntity`) | `//paste -e`·되돌리기 | 이 문서 4장 |
 | 다. 가짜 플레이어 아이템 쓰기 | 8 | `ServerPlayer` 상속·생성자, `InteractionResult`·`InteractionResultHolder`·`ItemInteractionResult`, `ItemStack.useOn`, `Item.use`, `BlockState.useItemOn` | `simulateItemUse`(아이템을 쓰는 브러시·`//apply`) | 뒤 PR |
-| 라. 옛 도식 변환·아이템 이름 | 4 | `GsonHelper`, `StringUtil`, `DyeColor`, `ItemStack.getDescriptionId` | 1.13 이전 도식 변환기(`PaperweightDataConverters`), `getRichItemName` | 뒤 PR |
+| 라. 옛 도식 변환·아이템 이름 | 4 | `GsonHelper`, `StringUtil`, `DyeColor`, `ItemStack.getDescriptionId` | 1.13 이전 도식 변환기(`PaperweightDataConverters`), `getRichItemName` | 이 문서 5장 |
 | 마. Furnace 에서 실행되지 않음 | 8 | `Util`, `ThreadingDetector`, `BlockableEventLoop`, `WorldData`·`MinecraftServer.getWorldData`, `ServerLevel.paperConfig`, `PersistentEntitySectionManager`, `LevelChunk.setBiome` | 아래 | 구현 안 함 |
 | 바. 진행 중인 PR #509(T-200) | 3 | `ItemStack.applyComponents`·`getComponentsPatch`, `RegistryAccess$Frozen.createSerializationContext` | 아이템 NBT 왕복 | #509 |
 
@@ -57,3 +57,14 @@
   - **넣기 전 해시:** 아직 월드에 없는 shim 의 `hashCode` 는 객체 해시이고, 넣은 뒤에는 UUID 해시다(바닐라는 엔티티 번호). 넣기 전에 해시 집합에 둔 shim 은 넣은 뒤 그 집합에서 못 찾는다. FAWE 는 그렇게 쓰지 않는다.
 - 스레드: 넣기는 그 자리의 주인 region(전역 스레드의 빌림 포함 — FAWE 동기 작업)에서 바로, 틱 스레드가 아닌 스레드는 기다린다(`NmsOwner`). 기록하는 조작은 한 스레드에서 한다(FAWE 는 만들기부터 넣기까지 한 동기 작업 안).
 - 시험 `NmsEntityCreateTest`: 만들기 꼴(살아 있는 종류·null 종류·게터), 이벤트 없는 붙여 넣기(자리·방향·UUID·이름·스폰 이유 CUSTOM·getHandle 이 같은 shim·같은 UUID 다시 넣기 거짓), `addFreshEntity` 이벤트·취소(취소 뒤 지움)·두 번 넣기, 같은 UUID 거절(지우지 않음), 넣기 전 지우기, 빈 아이템 엔티티, WorldEdit `addFreshEntityWithPassengers`, 작업 스레드에서 넣기(이벤트 있음·없음), 전역 스레드의 빌림 구간에서 넣기, 월드 엔티티 고치기 거절. `NmsEntityWriteTest` 에 다른 region 으로 건너간 엔티티를 작업 스레드에서 저장하기(엔티티를 따라가는 갈래)를 더했다.
+
+## 5. 라 묶음 (옛 도식 변환·아이템 이름)
+
+- `GsonHelper.fromJson`·`fromNullableJson`(문자열·Reader, Class·TypeToken): 바닐라처럼 리더에 lenient 를 걸고 Gson 의 그 타입 어댑터로 읽는다. IO 오류는 `JsonParseException` 으로 감싸고, `fromJson` 은 결과가 null 이면 "JSON data was null or empty". FAWE 는 1.13 이전 도식의 책·표지판 글을 자기 Gson 으로 읽을 때 쓴다. 호환 모듈은 gson 을 `compileOnly` 로만 둔다(서버 jar 가 싣고 있다).
+- `StringUtil.isNullOrEmpty`: null 이거나 길이 0(공백 문자열은 거짓 — `StringUtils.isEmpty`).
+- `DyeColor`: 16색의 번호·이름·천 색(불투명 알파)·지도 색·폭죽 색·글 색을 jar 값 그대로. `byId`(범위 밖 흰색)·`byName(이름, 기본)`·`byFireworkColor`. 코덱 상수는 두지 않았다. FAWE 는 옛 침대 아이템 변환에서 `RED.getId()` 를 쓴다.
+- `ItemStack.getDescriptionId` 는 #509 에서 이미 들어왔지만 바닐라와 달랐다(블록 아이템도 `item.` 키를 주었다 — 돌이 `item.minecraft.stone`). 고쳤다:
+  - `Item#getDescriptionId()`: 블록 아이템(BlockItem·AirItem)은 블록 키 `block.…`, 그 밖은 `item.…`. 1.21.1 `Items` 등록을 jar 로 대조하면 블록 아이템의 블록 이름은 늘 아이템 이름과 같고, 블록과 이름이 같은데 블록 키가 아닌 것은 밀(그냥 Item)과 네더 사마귀(ItemNameBlockItem)뿐이다. 가루눈 양동이(SolidBucketItem)는 아이템 키. 아이템 1333개 모두 이 규칙의 키가 en_us 에 있다.
+  - `Item#getDescriptionId(ItemStack)`·`ItemStack#getDescriptionId()`: 자석 나침반(`lodestone_tracker` 있는 나침반 → `item.minecraft.lodestone_compass`), 물약·투척·잔류 물약·물약 화살(키 + `.effect.` + 물약 이름, 물약이 없으면 `empty` — 물약 46가지의 기본 이름은 경로에서 `long_`·`strong_` 을 뗀 것), 바탕색 있는 방패(키 + `.` + 색). `getHoverName` 의 기본 이름도 이 키를 쓴다.
+  - 서버 `RecipeManager.descriptionId`(`/give` 메시지·석재 절단기 정렬)도 같은 규칙으로 고쳤다: 밀이 `[Wheat Crops]` 로 보이던 것.
+- 시험 `NmsLegacyHelpersTest`(Gson 읽기·lenient·null, 빈 문자열, 염료 16색, 아이템·스택 번역 키), 서버 `ItemCommandsTest` 에 밀·네더 사마귀.

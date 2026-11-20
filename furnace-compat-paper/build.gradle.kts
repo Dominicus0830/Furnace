@@ -114,6 +114,9 @@ dependencies {
     compileOnly("org.slf4j:slf4j-api:2.0.16")
     // N3 1단계: 패킷 등록부 shim 의 형식 인자(ByteBuf)·서버 소켓 채널 목록(ChannelFuture). 서버가 netty 를 싣고 있다.
     compileOnly("io.netty:netty-codec:4.1.115.Final")   // transport·buffer 를 함께 끌어온다
+    // T-212: NMS GsonHelper(FAWE 옛 도식 변환기)의 서명이 Gson 형식을 받는다. 서버가 gson 을 싣고 있다(Paper 도 플러그인에 gson 을 준다).
+    compileOnly("com.google.code.gson:gson:2.11.0")
+    testImplementation("com.google.code.gson:gson:2.11.0")
     // H6: 플러그인 클래스를 올릴 때 CraftBukkit 버전 접미사·리플렉션 이름을 바꾸는 바이트코드 변환(BSD). 서버 fatJar 에 함께 싣는다.
     implementation("org.ow2.asm:asm-commons:9.7.1")
     // H7a: 없는 NMS 심볼 호출을 덫으로 바꿀 때 메서드 하나를 트리로 다룬다(asm-commons 가 이미 끌어오는 것을 명시)

@@ -246,10 +246,15 @@ public final class RecipeManager {
         return out;
     }
 
-    /** Item.getDescriptionId: 블록 아이템은 block.<ns>.<path>, 그 밖은 item.<ns>.<path>. */
+    /**
+     * Item.getDescriptionId: 블록 아이템은 block.<ns>.<path>, 그 밖은 item.<ns>.<path>. 블록과 이름이 같은데 블록 키가 아닌 것은 밀(그냥 Item)과
+     * 네더 사마귀(ItemNameBlockItem) 둘뿐이다(1.21.1 jar 의 Items 등록 대조 — 호환 계층 Item#getDescriptionId 와 같은 규칙).
+     */
     public static String descriptionId(ResourceId item) {
+        String key = item.toString();
         boolean block = org.domi.furnace.server.item.ItemContext.installed()
-                && org.domi.furnace.server.item.ItemContext.id("minecraft:block", item.toString()) != null;
+                && !key.equals("minecraft:wheat") && !key.equals("minecraft:nether_wart")
+                && org.domi.furnace.server.item.ItemContext.id("minecraft:block", key) != null;
         return (block ? "block." : "item.") + item.namespace() + "." + item.path().replace('/', '.');
     }
 

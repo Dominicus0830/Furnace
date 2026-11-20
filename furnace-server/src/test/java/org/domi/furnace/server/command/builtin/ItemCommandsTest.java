@@ -190,5 +190,8 @@ class ItemCommandsTest {
         assertEquals("block.minecraft.structure_block", ItemCommands.hoverName(item("structure_block").createItemStack(1, false)).translationKey());
         assertEquals("block.minecraft.stone", ItemCommands.hoverName(item("stone").createItemStack(1, false)).translationKey());
         assertEquals("item.minecraft.stick", ItemCommands.hoverName(item("stick").createItemStack(1, false)).translationKey());
+        // 밀 블록·네더 사마귀 블록이 있어도 그 아이템은 아이템 키(밀 = 그냥 Item, 네더 사마귀 = ItemNameBlockItem) — [Wheat Crops] 로 보이던 것
+        assertEquals("item.minecraft.wheat", ItemCommands.hoverName(item("wheat").createItemStack(1, false)).translationKey());
+        assertEquals("item.minecraft.nether_wart", ItemCommands.hoverName(item("nether_wart").createItemStack(1, false)).translationKey());
     }
 }
