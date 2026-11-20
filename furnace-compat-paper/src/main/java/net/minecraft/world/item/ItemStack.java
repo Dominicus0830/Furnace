@@ -222,11 +222,17 @@ public final class ItemStack {
         if (custom != null) return custom;
         var name = get(net.minecraft.core.component.DataComponents.ITEM_NAME);
         if (name != null) return name;
-        return net.minecraft.network.chat.Component.translatable(getItem().getDescriptionId());
+        return net.minecraft.network.chat.Component.translatable(getDescriptionId());
     }
 
-    /** 바닐라 getDescriptionId: 아이템의 번역 키(비었으면 공기). */
-    public String getDescriptionId() { return getItem().getDescriptionId(); }
+    /** 바닐라 getDescriptionId: getItem().getDescriptionId(this) — 물약·방패·자석 나침반은 스택에 따라 다르다(비었으면 공기). */
+    public String getDescriptionId() { return getItem().getDescriptionId(this); }
+
+    /** 호환 모듈 전용 — 종류 기본값 위에 패치를 얹은 컴포넌트 값(EMPTY 는 null). */
+    <T> T furnaceComponent(org.domi.furnace.api.item.ItemComponent<T> component) {
+        var v = componentView();
+        return v == null ? null : v.get(component);
+    }
 
     /** 같은 종류인가(바닐라 isSameItem). */
     public static boolean isSameItem(ItemStack a, ItemStack b) { return a.is(b.getItem()); }
