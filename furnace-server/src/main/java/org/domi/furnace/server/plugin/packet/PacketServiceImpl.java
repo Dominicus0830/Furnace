@@ -199,7 +199,7 @@ public final class PacketServiceImpl implements PacketService {
         } finally {
             body.release();
         }
-        ConnectionHandler h = p.channel().pipeline().get(ConnectionHandler.class);
+        ConnectionHandler h = p.channel() != null ? p.channel().pipeline().get(ConnectionHandler.class) : null;   // 월드에 없는 플레이어는 연결이 없다
         if (h == null) {
             frame.release();
             return;

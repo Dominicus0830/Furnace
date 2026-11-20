@@ -773,6 +773,27 @@ final class ChunkInternalsImpl implements ChunkInternals {
         return new NmsEntityAdd(null, r == org.domi.furnace.server.block.ChunkLevel.ADD_CANCELLED);
     }
 
+    @Override
+    public org.domi.furnace.api.entity.Player detachedPlayer(org.domi.furnace.api.world.World world, java.util.UUID uuid, String name,
+                                                             List<org.domi.furnace.api.entity.ProfileProperty> properties) {
+        var w = handle(world).handle();
+        var props = new java.util.ArrayList<org.domi.furnace.server.players.GameProfile.Property>(properties.size());
+        for (var q : properties) props.add(new org.domi.furnace.server.players.GameProfile.Property(q.name(), q.value(), q.signature()));
+        var p = org.domi.furnace.server.entity.Player.detached(w.entityIds().next(), java.util.Objects.requireNonNull(uuid, "uuid"),
+                java.util.Objects.requireNonNull(name, "name"), props, w.dimension());
+        var spawn = w.defaultSpawn();   // 바닐라 Player(level, sharedSpawnPos, sharedSpawnAngle, profile) → moveTo(x+0.5, y+1, z+0.5, angle, 0)
+        p.moveDetached(spawn.x() + 0.5, spawn.y() + 1, spawn.z() + 0.5, spawn.yaw(), 0.0F);
+        return host.player(p);
+    }
+
+    @Override
+    public void moveDetachedPlayer(org.domi.furnace.api.entity.Player player, double x, double y, double z, float yRot, float xRot) {
+        if (!(player instanceof PlayerHandle ph) || !ph.handle().isDetached()) {
+            throw new IllegalArgumentException("not a detached player made by detachedPlayer: " + player);
+        }
+        ph.handle().moveDetached(x, y, z, yRot, xRot);
+    }
+
     /** 명령 범위 안에서 넣는다 — 주인이 쉬고 있으면 drain 차례로 곧바로 돈다(CommandDrainGate: 같은 예산·같은 끄기 옵션). */
     @Override
     public <T> java.util.concurrent.CompletableFuture<T> submitAwaited(org.domi.furnace.api.world.World world, int x, int y, int z, java.util.function.Supplier<T> task) {

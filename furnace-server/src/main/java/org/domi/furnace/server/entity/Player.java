@@ -224,6 +224,33 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     }
 
     /**
+     * 월드·접속자 목록에 들지 않는 플레이어(T-212 다 묶음: 플러그인이 NMS 로 만든 {@code ServerPlayer} — FAWE 가짜 플레이어). 연결이 없어 보내는
+     * 패킷은 버리고, 처음부터 접속 끊김이라 API {@code isOnline()} 은 거짓이다(Paper 의 가짜 플레이어와 같다). 파일을 읽지도 쓰지도 않는다.
+     * 어느 region 에도 없어 자리·방향은 만든 쪽이 쓴다({@link #moveDetached}).
+     */
+    public static Player detached(int entityId, UUID uuid, String name, java.util.List<org.domi.furnace.server.players.GameProfile.Property> properties,
+                                  String dimension) {
+        Player p = new Player(entityId, uuid, name, null);
+        if (!properties.isEmpty()) p.profileProperties(properties);
+        p.dimension = dimension;
+        p.detached = true;
+        p.disconnected = true;
+        return p;
+    }
+
+    private volatile boolean detached;
+
+    /** {@link #detached} 로 만든, 월드에 없는 플레이어인가. */
+    public boolean isDetached() { return detached; }
+
+    /** 월드에 없는 플레이어의 자리·방향(바닐라 Entity#absMoveTo 가 이미 고른 값). 다른 플레이어에게는 쓰지 않는다. */
+    public void moveDetached(double x, double y, double z, float yaw, float pitch) {
+        if (!detached) throw new IllegalStateException("only a detached player is moved this way: " + name());
+        setPosRaw(x, y, z);
+        setRotRaw(yaw, pitch);
+    }
+
+    /**
      * 게임 프로필과 그 세대를 한 번에 바꾸는 불변 묶음(T-141 E11c-2 설계 §3). 엔티티 UUID({@link #uuid()})와 따로 간다 —
      * 파일·접속자 맵·숨김 규칙·탭의 UUID 칸·채팅 서명은 엔티티 UUID, 이름·스킨 속성·op·화이트리스트·밴·스코어보드는 프로필이다.
      * 세대는 같은지만 비교한다(관찰자 탭이 바뀐 프로필을 알아채는 데 쓴다).
@@ -825,6 +852,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
      * 없고, 던지면 종료 직전 틱(끊긴 플레이어 정리 → 다른 플레이어에게 보내기)이 중간에 끊긴다.
      */
     private void runOnLoop(Runnable task) {
+        if (channel == null) return;   // 연결 없는 플레이어(월드에 없는 플레이어·시험용) — 보낼 곳이 없다
         if (org.domi.furnace.server.net.io.SharedChunkFrames.deferInsideListener(channel, task)) return;   // 리스너 안에서 보냄 — 지금 패킷 앞에
         try {
             channel.eventLoop().execute(task);
@@ -2138,7 +2166,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     public java.net.SocketAddress remoteAddress() {
         java.net.SocketAddress a = remoteAddress;
-        return a != null ? a : channel.remoteAddress();
+        return a != null ? a : channel != null ? channel.remoteAddress() : null;
     }
 
     /** 소켓 상대 주소(포워딩·PROXY 프로토콜이어도 프록시 쪽, Paper Connection.getRawAddress). 연결 없는 시험용 Player 면 null. */
