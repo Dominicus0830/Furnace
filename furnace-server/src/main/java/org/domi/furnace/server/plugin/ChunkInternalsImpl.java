@@ -795,6 +795,12 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     @Override
+    public void sendSystemMessage(org.domi.furnace.api.entity.Player player, org.domi.furnace.api.text.Text message, boolean overlay) {
+        if (!(player instanceof PlayerHandle ph)) throw new IllegalArgumentException("not a server player: " + player);
+        ph.handle().sendSystemMessage(message, overlay);
+    }
+
+    @Override
     public ItemUse useItemNow(org.domi.furnace.api.world.World world, org.domi.furnace.api.entity.Player player, ItemUseKind kind, boolean mainHand,
                               org.domi.furnace.api.item.ItemStack main, org.domi.furnace.api.item.ItemStack off, org.domi.furnace.api.item.ItemStack stack,
                               int state, int x, int y, int z, int face, double hitX, double hitY, double hitZ, boolean inside) {
