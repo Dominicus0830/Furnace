@@ -50,6 +50,25 @@ public interface FeatureInternals {
 
         /** 바닐라 {@code blockUpdated(pos, block)}(템플릿 모양 갱신 뒤). */
         default void blockUpdated(int x, int y, int z, int stateId) { throw new UnsupportedOperationException("blockUpdated"); }
+
+        // ---- 구조물 몹 finalizeSpawn 의 world 인자 쪽(T-221). 레벨이 던지면 그대로 나른다.
+
+        /** 바닐라 {@code getCurrentDifficultyAt(pos)}: {난이도 번호(0 평화 · 1 쉬움 · 2 보통 · 3 어려움), 실효 난이도}. */
+        default float[] currentDifficultyAt(int x, int y, int z) { throw new UnsupportedOperationException("getCurrentDifficultyAt"); }
+
+        /** 바닐라 {@code getMoonBrightness()}. */
+        default float moonBrightness() { throw new UnsupportedOperationException("getMoonBrightness"); }
+
+        /** 바닐라 {@code getBiome(pos)} 의 바이옴 id. */
+        default String biomeAt(int x, int y, int z) { throw new UnsupportedOperationException("getBiome"); }
+
+        /**
+         * 바닐라 {@code getEntitiesOfClass(Chicken.class, box, ENTITY_NOT_BEING_RIDDEN)}(아기 좀비가 탈 닭 찾기): 빈 목록이면 거짓. 레벨이 닭을 돌려주면
+         * 그 엔티티에 태울 길이 없어 {@code UnsupportedNmsCall} 류로 던진다.
+         */
+        default boolean chickensToRide(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
+            throw new UnsupportedOperationException("getEntitiesOfClass");
+        }
     }
 
     /** 바닐라 {@code Structure#generate} 결과(서버 쪽 시작 — 호환 계층이 그대로 들고 다닌다). */
@@ -92,12 +111,21 @@ public interface FeatureInternals {
      *
      * @param box minX, minY, minZ, maxX, maxY, maxZ
      * @throws IllegalStateException 닿은 청크가 로드돼 있지 않거나 다른 region·범위 밖
-     * @throws UnsupportedOperationException 몹 finalizeSpawn 자리, 플러그인 레벨 블록 엔티티 내용 바꾸기 등 같은 결과를 낼 수 없는 자리
+     * @throws UnsupportedOperationException 플러그인 레벨 블록 엔티티 내용 바꾸기, 플러그인 레벨이 돌려준 닭에 아기 좀비 태우기 등 같은 결과를 낼 수 없는 자리
      */
     default void placeStructureNow(World world, StructureStartHandle start, int[] box, int chunkX, int chunkZ, Random random,
                                    java.util.function.Supplier<Random> levelRandom, Object session, LevelSink sink) {
         throw new UnsupportedOperationException("placeStructureNow");
     }
+
+    /**
+     * 서버 레벨의 {@code getCurrentDifficultyAt(pos)}(바닐라 Level — 청크가 없으면 머문 시간 0·달 밝기 0): {난이도 번호, 실효 난이도}.
+     * 그 칸을 가진 region 스레드(전역 빌림 구간 포함)에서만.
+     */
+    default float[] difficultyAtNow(World world, int x, int y, int z) { throw new UnsupportedOperationException("difficultyAtNow"); }
+
+    /** 서버 레벨의 {@code getBiome(pos)}(바닐라 BiomeManager 확대 — 시드 지터 포함) 바이옴 id. 그 칸을 가진 region 스레드에서만. 청크가 없으면 IllegalStateException. */
+    default String biomeAtNow(World world, int x, int y, int z) { throw new UnsupportedOperationException("biomeAtNow"); }
 
     /**
      * 지형지물을 원점에 놓는다. placed 가 참이면 배치된 지형지물 표, 거짓이면 설정된 지형지물 표에서 id 를 찾는다(그 월드가 쓰는 표). sink 가 null 이면 서버 월드에 바로 놓고(바닐라 런타임 배치 — 블록 엔티티·생성 NBT 포함, 쓰기 플래그 그대로),

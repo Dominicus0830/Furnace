@@ -93,12 +93,30 @@ public class Piglin extends AbstractPiglin implements CrossbowAttackMob, Invento
 
     @Override public MobInventory getInventory() { return inventory; }
 
+    /** 지금 finalizeSpawn 이 구조물 생성(STRUCTURE)인가 — 바닐라는 그때 아기·무기 뽑기를 건너뛴다. */
+    private boolean structureSpawn;
+
+    @Override
+    public Object finalizeSpawnGroup(RandomSource r, DifficultyInstance difficulty, Object group,
+            org.domi.furnace.server.entity.spawn.SpawnReason reason) {
+        structureSpawn = reason == org.domi.furnace.server.entity.spawn.SpawnReason.STRUCTURE;
+        try {
+            return super.finalizeSpawnGroup(r, difficulty, group, reason);
+        } finally {
+            structureSpawn = false;
+        }
+    }
+
+    /** Piglin.finalizeSpawn(1.21.1 jar): STRUCTURE 가 아니면 아기(0.2)·아니면 무기 → 기억 → 방어구 → 장비 마법 부여 → AbstractPiglin(Mob). */
     @Override
     public void finalizeSpawn(RandomSource r, DifficultyInstance difficulty) {
-        if (r.nextFloat() < 0.2F) setBaby(true);
-        else if (isAdult()) setItemSlot(EquipmentSlot.MAINHAND, createSpawnWeapon());
+        if (!structureSpawn) {
+            if (r.nextFloat() < 0.2F) setBaby(true);
+            else if (isAdult()) setItemSlot(EquipmentSlot.MAINHAND, createSpawnWeapon());
+        }
         PiglinAi.initMemories(this, r);
         populateDefaultEquipmentSlots(r, difficulty);
+        populateDefaultEquipmentEnchantments(r, difficulty);
         super.finalizeSpawn(r, difficulty);
     }
 

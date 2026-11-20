@@ -17,6 +17,14 @@ public final class DimensionType {
     /** 차원 타입 키(minecraft:overworld …). */
     public String furnaceTypeKey() { return world.dimensionType(); }
 
+    private static final float[] MOON_BRIGHTNESS_PER_PHASE = {1.0F, 0.75F, 0.5F, 0.25F, 0.0F, 0.25F, 0.5F, 0.75F};
+
+    /** 바닐라 DimensionType#moonPhase. */
+    public int moonPhase(long time) { return (int) (time / 24000L % 8L + 8L) % 8; }
+
+    /** 바닐라 DimensionType#moonBrightness. */
+    public float moonBrightness(long time) { return MOON_BRIGHTNESS_PER_PHASE[moonPhase(time)]; }
+
     public int minY() { return org.domi.furnace.compat.nms.NmsChunks.bridge().minY(world); }
 
     public int height() { return org.domi.furnace.compat.nms.NmsChunks.bridge().height(world); }

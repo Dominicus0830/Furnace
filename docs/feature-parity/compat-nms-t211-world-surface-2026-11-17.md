@@ -236,3 +236,43 @@ FAWE populator 는 3·4인자 쓰기 모두 서버 레벨로 넘겨 나무 기�
   뒤에만 묻는다 — FAWE·평범한 populator 는 부작용이 없어 결과가 같고, `getBlockEntity` 가 던지는 레벨이면 Paper 는 방벽을 쓰기 전에 멈춘다(가정: 그런 레벨은 드물다).
   (5) Paper 는 청크 상자와 겹치는 조각이 있으면 `AsyncStructureGenerateEvent` 를 부른다(`CraftStructureTransformer`). 호환 계층에 그 이벤트가 없어 부르지 않는다.
   (6) 노이즈 생성기가 없는 월드(평지·빈 월드·Bukkit 생성기 월드)에서는 구조물 생성이 `UnsupportedNmsCall` 이다. Paper 는 이런 월드에서도 `//structure` 가 된다 — 로드맵 T-223.
+
+## 9. T-221 구조물 몹 (2026-11-20)
+
+구조물 조각·템플릿이 만드는 몹을 바닐라 1.21.1 차례 그대로 마무리한다(Paper 1.21.1 jar 를 `javap` 로 읽어 몹 종류별로 대조):
+`EntityType.create(world.getLevel())` → (조각마다 `setPersistenceRequired`·`heal` 등) → `moveTo` →
+`finalizeSpawn(world, world.getCurrentDifficultyAt(pos), STRUCTURE, null)` → `world.addFreshEntityWithPassengers(e[, 이유])`.
+템플릿은 `createEntityIgnoreException`(이것도 `getLevel()`) → `moveTo(위치, 돌린 방향)` → `finalizeEntities` 이고 몹이면 같은 마무리.
+
+### 9.1 world 는 배치 길마다 다르다
+
+| | 월드젠(서버 청크 생성) | 실제 레벨(`/place`, 서버 레벨에 바로) | 플러그인 레벨(FAWE populator 등) |
+|---|---|---|---|
+| `getRandom()` | 그 장식의 레벨 난수(`WorldGenRegion` — 구조물·지형지물이 이어 쓴다) | 배치가 쓰는 레벨 난수 | 그 레벨의 `getRandom()` 을 뽑을 때마다 |
+| `getCurrentDifficultyAt` | (난이도, 하루 시각, 머문 시간 0, 달 밝기) | 그 레벨(청크의 머문 시간 포함) | 그 레벨 — FAWE 는 서버 레벨에 넘긴다, Paper `DummyGeneratorAccess` 는 던진다 |
+| `getMoonBrightness`·`getBiome` | 레벨 데이터·그 지역의 바이옴 확대 | 그 레벨 | 그 레벨(`dimensionType().moonBrightness(dayTime())`, `getBiomeManager().getBiome`) |
+| `getEntitiesOfClass`(아기 좀비의 닭) | 늘 빈 목록 | 그 레벨 | Paper populator 는 던진다(`Not supported yet.`) — 그대로 |
+| `addFreshEntity` | 그 순간 저장(`ProtoChunk.addEntity` → NBT, 탄 것은 건너뜀) | 사본을 반영할 때 그 레벨에 | 그 레벨에(populator 는 바닐라 기본 — 버린다) |
+| `getLevel()` 쪽(고양이의 구조물 검사·시간·난이도) | 서버 레벨 | 서버 레벨 | 서버 레벨(FAWE 의 `getLevel()`) |
+
+몹 코드는 엔티티의 `level()` 을 읽으므로 월드젠·플러그인 길은 위 world 로 답하는 분리 레벨(`DetachedMobLevel`)에서 몹을 만든다(틱·방송·이벤트 없음).
+
+### 9.2 구현
+
+- 서버: `world/gen/structure/StructureMobs`(세 world·`spawn`·`spawnGroup`·`spawnTemplate`·`finalizeStructure`), `DetachedMobLevel`,
+  `FeatureWorldView#setMobEnv`·`addStructureMob(s)`·`addTemplateMob`, `FeaturePlacer`(장식마다 생성 world), `LiveGrid#mobsWith`(실제 레벨 길, 반영 때 더하기),
+  `LiveStructures`(플러그인 길), 조각: 늪 오두막(마녀·고양이, 이유 `CHUNK_GEN`), 바다 유적(익사체), 해저 유적(엘더 가디언 — `heal` 뒤 `moveTo`), 저택(목록을 다 만든 뒤 차례로).
+- 몹 쪽에서 고친 바닐라 차이: 피글린의 `STRUCTURE` 분기(아기·무기 뽑기를 건너뛴다)와 장비 마법 부여 누락, 바다 유적 익사체의 유지 표시 누락, 이글루 템플릿 주민에
+  잘못 붙던 `AssignProfessionWhenSpawned`(이글루는 `finalizeEntities` 가 꺼져 있다), 고양이 변종·양 털색이 world 인자 대신 레벨 자체 난수를 쓰던 것.
+  서버 월드젠이 구조물 몹을 마무리하지 않던 것(레벨 난수 소비·속성 보너스·왼손잡이·변종이 바닐라와 달랐다)도 함께 고쳐졌다.
+- API 다리: `LevelSink#currentDifficultyAt`·`moonBrightness`·`biomeAt`·`chickensToRide`, `FeatureInternals#difficultyAtNow`·`biomeAtNow`(서버 레벨의 값, 그 칸을 가진 region 스레드에서만).
+- 호환: `net.minecraft.world.DifficultyInstance`, `BiomeManager`, `LevelAccessor#getCurrentDifficultyAt`·`dayTime`·`getMoonBrightness`, `LevelReader#dimensionType`·`getBiomeManager`·`getBiome`,
+  `DimensionType#moonPhase`·`moonBrightness`, `Level` 의 구현, `DummyGeneratorAccess` 는 Paper 처럼 던진다, `BlockStateListPopulator#dayTime` 은 감싼 레벨.
+
+### 9.3 알려진 차이·가정
+
+1. shim 에는 레벨 데이터(`getLevelData`)가 없어 `dayTime()` 을 레벨이 직접 답한다. `getLevelData` 만 고쳐 쓴 플러그인 레벨은 따라가지 못하고 `UnsupportedNmsCall` 이다(FAWE 는 해당 없음).
+2. 플러그인 레벨이 엔티티를 받아들이면(`addFreshEntity` 를 정의) 지금처럼 `UnsupportedNmsCall` — 서버는 넘길 NMS 엔티티 객체를 만들지 않는다. populator 는 바닐라 기본대로 버린다.
+3. 아기 좀비(좀비 주민)가 닭을 찾을 때 플러그인 레벨이 `DummyGeneratorAccess` 계열이 아니면 물을 수 없어 `UnsupportedNmsCall`.
+4. 실제 레벨 길에서 아기 좀비가 새로 만든 닭은 바닐라처럼 바로 레벨에 들어가고, 그 몹 자신은 사본을 반영할 때 들어간다(같은 틱 안의 순서 차이 — 관측되지 않는다고 가정).
+5. 실측(바닐라 서버로 같은 시드 마녀 오두막의 마녀 속성 비교)은 하지 않았다 — 차례는 jar 바이트코드 대조와 시험(`PluginLevelStructureTest` 의 뽑기 차례·속성 값)으로 확인했다.

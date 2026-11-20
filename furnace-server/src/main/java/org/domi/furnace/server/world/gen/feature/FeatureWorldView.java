@@ -170,19 +170,10 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         target.putGeneratedBlockEntity(lx, worldY, lz, nbt);
     }
 
-    /** 엔티티 스폰 요청(구조물 마커 등) — 위치가 속한 청크에 NBT 로 남긴다. 월드 좌표 정확 위치. 몹 finalizeSpawn 은 하지 않는 자리. */
+    /** 엔티티 스폰 요청(구조물 마커 등) — 위치가 속한 청크에 NBT 로 남긴다. 월드 좌표 정확 위치. 몹(finalizeSpawn)은 {@link #addStructureMob}. */
     public org.domi.furnace.server.net.io.nbt.NbtCompound addEntity(String id, double x, double y, double z, float yaw, float pitch) {
-        return addEntity(id, x, y, z, yaw, pitch, false);
-    }
-
-    /**
-     * {@link #addEntity(String, double, double, double, float, float)} — finalizes 는 바닐라가 그 자리에서 몹 {@code finalizeSpawn} 을 부르는가.
-     * 플러그인 배치({@link #pluginPlacement})에서는 바닐라·Paper 차례대로 {@code world.getLevel()}(통로) → finalizeSpawn(아직 이식 없음 —
-     * {@link UnsupportedOperationException}) → {@code addFreshEntity}(통로; 통로 모드는 사본에 남기지 않는다).
-     */
-    public org.domi.furnace.server.net.io.nbt.NbtCompound addEntity(String id, double x, double y, double z, float yaw, float pitch, boolean finalizes) {
         if (pluginPlacement) {
-            pluginEntity(id, x, y, z, finalizes);
+            pluginEntity(id, x, y, z);
             if (sink != null) return new org.domi.furnace.server.net.io.nbt.NbtCompound();   // 통로가 받았다 — 사본에 남기지 않는다
         }
         int bx = (int) Math.floor(x), bz = (int) Math.floor(z);
@@ -206,6 +197,45 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
         nbt.put("Rotation", rot);
         target.addGeneratedEntity(nbt);
         return nbt;
+    }
+
+    // ------------------------------------------------------------------ 구조물 몹(T-221)
+
+    /** 몹을 만들고 마무리할 world(배치 길마다 — 월드젠 장식·실제 레벨·플러그인 레벨). */
+    private org.domi.furnace.server.world.gen.structure.StructureMobs.Env mobEnv;
+
+    public void setMobEnv(org.domi.furnace.server.world.gen.structure.StructureMobs.Env env) { this.mobEnv = env; }
+
+    public org.domi.furnace.server.world.gen.structure.StructureMobs.Env mobEnv() { return mobEnv; }
+
+    private org.domi.furnace.server.world.gen.structure.StructureMobs.Env requireMobEnv() {
+        if (mobEnv == null) throw new IllegalStateException("structure mobs need a placement world (setMobEnv) - this placement path does not set one");
+        return mobEnv;
+    }
+
+    /**
+     * 조각이 코드로 만드는 몹(바닐라 EntityType.create(world.getLevel()) → before → moveTo(x, y, z, 0, 0) → finalizeSpawn(STRUCTURE) →
+     * addFreshEntityWithPassengers). reason 은 플러그인 스폰 이유(CraftBukkit 이름).
+     */
+    public void addStructureMob(String id, double x, double y, double z, java.util.function.Consumer<org.domi.furnace.server.entity.Mob> before, String reason) {
+        org.domi.furnace.server.world.gen.structure.StructureMobs.spawn(requireMobEnv(), id, x, y, z, before, reason);
+    }
+
+    /** 여러 몹을 모두 만든 뒤 하나씩 마무리(저택 표시). after 는 몹마다 더한 뒤. */
+    public void addStructureMobs(java.util.List<String> ids, double x, double y, double z,
+                                 java.util.function.Consumer<org.domi.furnace.server.entity.Mob> before, String reason, Runnable after) {
+        org.domi.furnace.server.world.gen.structure.StructureMobs.spawnGroup(requireMobEnv(), ids, x, y, z, before, reason, after);
+    }
+
+    /**
+     * 템플릿 몹(바닐라 placeEntities, finalizeEntities): NBT 로 만들어 moveTo → finalizeSpawn(STRUCTURE) → addFreshEntityWithPassengers.
+     * 서버가 만들 수 없는 종류면 거짓(월드젠·/place 는 NBT 를 그대로 남긴다; 플러그인 레벨 통로는 같은 결과를 낼 수 없어 오류).
+     */
+    public boolean addTemplateMob(org.domi.furnace.server.net.io.nbt.NbtCompound nbt, double x, double y, double z, float yRot, float xRot) {
+        var env = requireMobEnv();
+        if (org.domi.furnace.server.world.gen.structure.StructureMobs.spawnTemplate(env, nbt, x, y, z, yRot, xRot, true) != null) return true;
+        if (sink != null) throw new UnsupportedOperationException("template mob " + nbt.tags().get("id") + " is not an entity the server can make");
+        return false;
     }
 
     /** 완성된 엔티티 NBT(Pos 포함)를 그 위치의 청크에 남긴다(구조물 템플릿 엔티티). */
@@ -651,6 +681,20 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
 
         /** 그 레벨의 blockUpdated(pos, block). */
         default void blockUpdated(int x, int y, int z, int state) { throw new UnsupportedOperationException("blockUpdated"); }
+
+        /** 그 레벨의 getCurrentDifficultyAt(pos): {난이도 번호, 실효 난이도}(구조물 몹 — T-221). */
+        default float[] currentDifficultyAt(int x, int y, int z) { throw new UnsupportedOperationException("getCurrentDifficultyAt"); }
+
+        /** 그 레벨의 getMoonBrightness(). */
+        default float moonBrightness() { throw new UnsupportedOperationException("getMoonBrightness"); }
+
+        /** 그 레벨의 getBiome(pos) 바이옴 id. */
+        default String biomeAt(int x, int y, int z) { throw new UnsupportedOperationException("getBiome"); }
+
+        /** 그 레벨의 getEntitiesOfClass(Chicken.class, box, 아무도 안 탄 것)이 무엇이라도 돌려주는가. */
+        default boolean chickensToRide(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
+            throw new UnsupportedOperationException("getEntitiesOfClass");
+        }
     }
 
     /** 가장자리 모양 갱신(StructureTemplate.updateShapeAtEdge 의 한 면)을 그 자리에서 실제 블록 동작으로 하는 쪽(통로 모드). */
@@ -743,21 +787,17 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
 
     private boolean entityLevelAsked;
 
-    /** 플러그인 배치의 엔티티 자리(바닐라 차례): getLevel → (몹이면 finalizeSpawn — 이식 없음) → addFreshEntity. */
-    private void pluginEntity(String id, double x, double y, double z, boolean finalizes) {
+    /** 플러그인 배치의 몹이 아닌 엔티티 자리(바닐라 차례): getLevel → addFreshEntity. */
+    private void pluginEntity(String id, double x, double y, double z) {
         if (sink != null && !entityLevelAsked) sink.entityLevel();
         entityLevelAsked = false;
-        if (finalizes) {
-            throw new UnsupportedOperationException("structure mob " + id + " at " + x + ", " + y + ", " + z
-                    + ": Mob#finalizeSpawn draws from the level random and is not ported yet");
-        }
         if (sink != null) sink.addEntity(id, x, y, z);
     }
 
-    /** 템플릿 엔티티(바닐라 placeEntities): 플러그인 배치면 {@link #pluginEntity} 를 거치고, 통로 모드면 참(사본에 남기지 않는다). */
-    public boolean pluginTemplateEntity(String id, double x, double y, double z, boolean finalizes) {
+    /** 몹이 아닌 템플릿 엔티티(바닐라 placeEntities): 플러그인 배치면 {@link #pluginEntity} 를 거치고, 통로 모드면 참(사본에 남기지 않는다). */
+    public boolean pluginTemplateEntity(String id, double x, double y, double z) {
         if (!pluginPlacement) return false;
-        pluginEntity(id, x, y, z, finalizes);
+        pluginEntity(id, x, y, z);
         return sink != null;
     }
 

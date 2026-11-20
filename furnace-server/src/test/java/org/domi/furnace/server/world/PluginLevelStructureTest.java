@@ -1,5 +1,5 @@
 // 플러그인이 부른 바닐라 Structure#generate·StructureStart#placeInChunk(T-211 2단계): 통로(Paper 의 감싸개 쓰기 갈래·방벽 칸·엔티티),
-// 서버 레벨에 바로, 세션, 몹 finalizeSpawn 자리의 정직한 실패.
+// 서버 레벨에 바로, 세션, 구조물 몹 finalizeSpawn(T-221 — 플러그인 레벨의 난수·지역 난이도·달 밝기, 서버 레벨에 바로 놓으면 그 레벨의 몹).
 package org.domi.furnace.server.world;
 
 import org.domi.furnace.api.GameVersion;
@@ -102,6 +102,11 @@ class PluginLevelStructureTest {
         @Override public void entityLevel() {}
         @Override public void addEntity(String id, double x, double y, double z) { entities.add(id); }
         @Override public void blockUpdated(int x, int y, int z, int state) { blockUpdates++; }
+        final List<String> asks = new ArrayList<>();
+        float moon = 0.5F;
+        @Override public float[] currentDifficultyAt(int x, int y, int z) { asks.add("difficulty"); return new float[] {2, 1.5F}; }
+        @Override public float moonBrightness() { asks.add("moon"); return moon; }
+        @Override public String biomeAt(int x, int y, int z) { asks.add("biome"); return "minecraft:swamp"; }
 
         long count(String name) {
             return writes.values().stream().filter(w -> Blocks.get().describe(w[3]).startsWith(name)).count();
@@ -234,15 +239,68 @@ class PluginLevelStructureTest {
         });
     }
 
+    /** 뽑기 이름을 적는 레벨 난수(바닐라 조각의 world.getRandom()). */
+    static final class TracingRandom extends Random {
+        final List<String> draws = new ArrayList<>();
+        TracingRandom(long seed) { super(seed); }
+        @Override public double nextDouble() { draws.add("D"); return super.nextDouble(); }
+        @Override public float nextFloat() { draws.add("F"); return super.nextFloat(); }
+        @Override public int nextInt(int bound) { draws.add("I" + bound); return super.nextInt(bound); }
+        @Override public int nextInt() { draws.add("I"); return super.nextInt(); }
+        @Override public long nextLong() { draws.add("L"); return super.nextLong(); }
+        @Override public boolean nextBoolean() { draws.add("B"); return super.nextBoolean(); }
+    }
+
     @Test
-    void structureMobsFailHonestly() throws Exception {
-        // 마녀 오두막의 마녀: 바닐라는 finalizeSpawn 에서 레벨 난수를 뽑는다 — 이식 전에는 같은 결과를 낼 수 없어 오류(통로·바로 둘 다)
+    void swampHutMobsDrawFromThePluginLevel() throws Exception {
+        // 바닐라 1.21.1(Paper 같음): 마녀 — Raider·PatrollingMonster 는 STRUCTURE 에서 뽑지 않고 Mob.finalizeSpawn 이 triangle(nextDouble 둘)·왼손잡이(nextFloat),
+        // 고양이 — AgeableMob(무리 크기 0 이라 아기 뽑기 없음)·Mob 같은 뽑기 뒤 달 밝기로 고른 변종 표(보름 아님 10개)에서 nextInt.
+        // 둘 다 지역 난이도를 그 레벨에 묻고, 만든 몹은 그 레벨의 addFreshEntity 로 넘긴다.
         onRegion(l -> {
             StructureStart start = LiveStructures.generate(gen, "minecraft:swamp_hut", 5, 5, b -> true);
             assertNotNull(start);
-            var e = assertThrows(UnsupportedOperationException.class,
-                    () -> placeAll(l, start, new Random(1L), new Random(2L), new LiveStructures.Session(), new Recorder()));
-            assertTrue(e.getMessage().contains("finalizeSpawn"), e.getMessage());
+            Recorder sink = new Recorder();
+            TracingRandom lr = new TracingRandom(2L);
+            placeAll(l, start, new Random(1L), lr, new LiveStructures.Session(), sink);
+            assertEquals(List.of("minecraft:witch", "minecraft:cat"), sink.entities);
+            assertEquals(List.of("D", "D", "F", "D", "D", "F", "I10"), lr.draws);
+            assertEquals(2, sink.asks.stream().filter("difficulty"::equals).count(), sink.asks.toString());
+            assertTrue(sink.asks.contains("moon"), sink.asks.toString());
+            return null;
+        });
+        onRegion(l -> {
+            // 보름달이면 변종 표가 11개
+            StructureStart start = LiveStructures.generate(gen, "minecraft:swamp_hut", 5, 5, b -> true);
+            Recorder sink = new Recorder();
+            sink.moon = 1.0F;
+            TracingRandom lr = new TracingRandom(2L);
+            placeAll(l, start, new Random(1L), lr, new LiveStructures.Session(), sink);
+            assertEquals("I11", lr.draws.get(lr.draws.size() - 1));
+            return null;
+        });
+    }
+
+    @Test
+    void directSwampHutAddsFinalizedMobsToTheLevel() throws Exception {
+        onRegion(l -> {
+            StructureStart start = LiveStructures.generate(gen, "minecraft:swamp_hut", 5, 5, b -> true);
+            assertNotNull(start);
+            BoundingBox b = start.boundingBox();
+            var box = new org.domi.furnace.server.entity.AABB(b.minX(), -64, b.minZ(), b.maxX() + 1, 320, b.maxZ() + 1);
+            assertTrue(l.getEntitiesOfClass(org.domi.furnace.server.entity.Witch.class, box, e -> true).isEmpty());
+            Random lr = new Random(2L);
+            Random expect = new Random(2L);
+            placeAll(l, start, new Random(1L), lr, null, null);
+            var witches = l.getEntitiesOfClass(org.domi.furnace.server.entity.Witch.class, box, e -> true);
+            assertEquals(1, witches.size());
+            var witch = witches.get(0);
+            assertTrue(witch.isPersistenceRequired(), "바닐라 SwampHutPiece: setPersistenceRequired");
+            double bonus = 0.0 + 0.11485000000000001 * (expect.nextDouble() - expect.nextDouble());
+            var mod = witch.attributes().get(org.domi.furnace.server.attribute.Attribute.FOLLOW_RANGE).getModifier("minecraft:random_spawn_bonus");
+            assertNotNull(mod);
+            assertEquals(bonus, mod.amount(), 0.0, "Mob.finalizeSpawn 의 triangle 이 레벨 난수의 첫 뽑기");
+            assertEquals(expect.nextFloat() < 0.05F, witch.isLeftHanded());
+            assertEquals(1, l.getEntitiesOfClass(org.domi.furnace.server.entity.Cat.class, box, e -> true).size());
             return null;
         });
     }

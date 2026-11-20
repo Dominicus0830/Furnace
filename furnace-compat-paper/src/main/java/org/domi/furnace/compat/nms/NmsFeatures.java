@@ -91,7 +91,8 @@ public final class NmsFeatures {
     /**
      * 플러그인 레벨로 가는 쓰기 통로(지형지물·구조물 공용). 쓰기는 그 레벨의 {@code setBlock}(인자 3개·4개 그대로), 블록 엔티티 있음은 {@code getBlockEntity},
      * 시드는 {@code getSeed()}·{@code getLevel().getSeed()}, 엔티티를 만들 때의 {@code getLevel()}, 템플릿 뒤 {@code blockUpdated} 를 그 레벨에 묻는다.
-     * 엔티티 더하기는 그 레벨이 바닐라 기본({@code LevelWriter#addFreshEntity} — 거짓, Paper 의 populator 들)이면 버리고, 다른 레벨이면 {@link UnsupportedNmsCall}
+     * 구조물 몹 finalizeSpawn(T-221)의 지역 난이도·달 밝기·바이옴은 그 레벨의 {@code getCurrentDifficultyAt}·{@code getMoonBrightness}·{@code getBiome} 에,
+     * 아기 좀비가 탈 닭 찾기는 Paper 의 populator 처럼 던진다(아래). 엔티티 더하기는 그 레벨이 바닐라 기본({@code LevelWriter#addFreshEntity} — 거짓, Paper 의 populator 들)이면 버리고, 다른 레벨이면 {@link UnsupportedNmsCall}
      * (서버는 플러그인 레벨에 넘길 NMS 엔티티 객체를 만들지 않는다). {@code blockUpdated} 도 그 레벨이 바닐라 기본(아무것도 안 함)이 아니면(서버 레벨의 이웃 갱신 등)
      * {@link UnsupportedNmsCall} — 기록 중인 배치가 실제 월드를 바꾸는 이웃 갱신을 같은 순서로 낼 수 없다. 레벨이 던진 것은 {@link LevelFailure} 로 싸서 나른다.
      */
@@ -150,6 +151,49 @@ public final class NmsFeatures {
                             "the level (" + level.getClass().getName() + ") takes entities, and the server does not hand NMS entity objects to plugin levels"));
                 }
                 // 바닐라 LevelWriter#addFreshEntity 기본: 거짓(엔티티는 사라진다)
+            }
+
+            @Override
+            public float[] currentDifficultyAt(int x, int y, int z) {
+                net.minecraft.world.DifficultyInstance d;
+                try {
+                    d = level.getCurrentDifficultyAt(new BlockPos(x, y, z));
+                } catch (RuntimeException e) {
+                    throw new LevelFailure(e);
+                }
+                return new float[] {d.getDifficulty().getId(), d.getEffectiveDifficulty()};
+            }
+
+            @Override
+            public float moonBrightness() {
+                try {
+                    return level.getMoonBrightness();
+                } catch (RuntimeException e) {
+                    throw new LevelFailure(e);
+                }
+            }
+
+            @Override
+            public String biomeAt(int x, int y, int z) {
+                net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome> h;
+                try {
+                    h = level.getBiome(new BlockPos(x, y, z));
+                } catch (RuntimeException e) {
+                    throw new LevelFailure(e);
+                }
+                if (h != null && h.value() instanceof net.minecraft.world.level.biome.Biome b) return b.furnaceKey().location().toString();
+                throw new LevelFailure(new UnsupportedNmsCall("getBiome", "the level (" + level.getClass().getName() + ") gave a biome the server does not know: " + h));
+            }
+
+            @Override
+            public boolean chickensToRide(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
+                // 바닐라 getEntitiesOfClass → getEntities(EntityTypeTest, box, filter): Paper 의 populator 들(DummyGeneratorAccess)은 던진다 — FAWE 2.16.2 도 고쳐 쓰지 않는다.
+                // shim 에는 엔티티 찾기가 없어 다른 레벨의 답은 따라갈 수 없다.
+                if (level instanceof org.bukkit.craftbukkit.util.DummyGeneratorAccess) {
+                    throw new LevelFailure(new UnsupportedOperationException("Not supported yet."));
+                }
+                throw new LevelFailure(new UnsupportedNmsCall("getEntitiesOfClass(Chicken)",
+                        "the level (" + level.getClass().getName() + ") would be asked for chickens a baby zombie could ride, which the shim cannot ask"));
             }
 
             @Override

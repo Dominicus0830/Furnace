@@ -102,6 +102,32 @@ public abstract class Level implements LevelAccessor {
         return org.domi.furnace.compat.nms.NmsChunks.biomeHolders().get(id);
     }
 
+    /**
+     * 바닐라 Level#getCurrentDifficultyAt(T-221): 그 칸 청크가 있으면 머문 시간과 달 밝기를 넣은 지역 난이도. 그 칸을 가진 region 스레드에서만
+     * (서버의 난이도 배율까지 든 값).
+     */
+    @Override
+    public net.minecraft.world.DifficultyInstance getCurrentDifficultyAt(BlockPos pos) {
+        float[] d = org.domi.furnace.api.Furnace.server().internals().features().difficultyAtNow(furnace(), pos.getX(), pos.getY(), pos.getZ());
+        return net.minecraft.world.DifficultyInstance.furnaceOf(net.minecraft.world.Difficulty.byId((int) d[0]), d[1]);
+    }
+
+    /** 바닐라 Level#getDayTime(레벨 데이터의 하루 시각). */
+    public long getDayTime() { return furnace().dayTime(); }
+
+    @Override
+    public long dayTime() { return getDayTime(); }
+
+    private volatile net.minecraft.world.level.biome.BiomeManager biomeManager;
+
+    /** 바닐라 Level#getBiomeManager: 그 월드 시드로 확대하는 바이옴 질의(같은 레벨은 같은 객체). */
+    @Override
+    public net.minecraft.world.level.biome.BiomeManager getBiomeManager() {
+        var m = biomeManager;
+        if (m == null) biomeManager = m = new net.minecraft.world.level.biome.BiomeManager(furnace());
+        return m;
+    }
+
     /** 서버 레지스트리 묶음(H7b, {@link net.minecraft.server.MinecraftServer#registryAccess()} 와 같다). */
     public net.minecraft.core.RegistryAccess registryAccess() { return net.minecraft.core.RegistryAccess.SERVER; }
 

@@ -153,7 +153,7 @@ public final class TemplatePlacer {
         return true;
     }
 
-    /** 바닐라 StructureTemplate.addEntitiesToWorld — 위치/회전 변환한 NBT 를 청크에 기록(finalizeSpawn 무작위 장비는 엔티티 쪽 난수라 생략). */
+    /** 바닐라 StructureTemplate.placeEntities — 위치/회전을 바꾼 NBT. finalizeEntities 이고 몹이면 배치 world 로 마무리하고, 아니면 NBT 를 그 청크에 남긴다. */
     private static void addEntities(StructureTemplate t, FeatureWorldView view, int ox, int oy, int oz, PlaceSettings st) {
         for (StructureTemplate.EntityInfo e : t.entities()) {
             int[] bp = StructureTemplate.transform(e.bx(), e.by(), e.bz(), st.mirror, st.rotation, st.pivotX, st.pivotZ);
@@ -203,11 +203,11 @@ public final class TemplatePlacer {
             if (nbt.contains("TileX")) {   // 걸이 엔티티(액자·그림)의 블록 좌표
                 nbt.putInt("TileX", bx); nbt.putInt("TileY", by); nbt.putInt("TileZ", bz);
             }
-            // 플러그인 배치(T-211 2단계): getLevel → finalizeEntities 이고 몹이면 finalizeSpawn(이식 없음 — 오류) → 레벨의 addFreshEntityWithPassengers
             String eid = nbt.tags().get("id") instanceof String sid ? sid : "";
-            if (view.pluginTemplateEntity(eid, wx, wy, wz, st.finalizeEntities && !NOT_MOBS.contains(eid))) continue;
-            // Villager.finalizeSpawn(STRUCTURE): 처음 AI 틱에 근처 직업 블록으로 직업을 받도록 표시해 저장된다
-            if ("minecraft:villager".equals(nbt.tags().get("id"))) nbt.putBoolean("AssignProfessionWhenSpawned", true);
+            // finalizeEntities 이고 몹이면: 만들어 moveTo → finalizeSpawn(world, …, STRUCTURE) → addFreshEntityWithPassengers(T-221)
+            if (st.finalizeEntities && !NOT_MOBS.contains(eid) && view.addTemplateMob(nbt, wx, wy, wz, newYaw, xRot)) continue;
+            // 플러그인 배치(T-211 2단계): getLevel → 레벨의 addFreshEntityWithPassengers
+            if (view.pluginTemplateEntity(eid, wx, wy, wz)) continue;
             view.addEntityNbt(nbt, wx, wz);
         }
     }

@@ -30,6 +30,7 @@ public final class JigsawGenerate {
         LiveGrid grid = LiveGrid.covering(level, minCx, minCz, maxCx, maxCz, gen.seed());
         WorldgenRandom random = new WorldgenRandom();
         random.setSeed(level.random().nextLong());
+        grid.mobsWith(random);   // 템플릿 몹(finalizeEntities): world = 이 레벨
         BoundingBox infinite = new BoundingBox(Integer.MIN_VALUE / 2, Integer.MIN_VALUE / 2, Integer.MIN_VALUE / 2,
                 Integer.MAX_VALUE / 2, Integer.MAX_VALUE / 2, Integer.MAX_VALUE / 2);
         PostCtx ctx = new PostCtx(engine, grid.view, random, random, infinite, cx, cz, x, y, z);

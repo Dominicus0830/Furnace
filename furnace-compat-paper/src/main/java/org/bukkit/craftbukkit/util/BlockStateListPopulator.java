@@ -108,6 +108,10 @@ public class BlockStateListPopulator extends DummyGeneratorAccess {
     @Override
     public RegistryAccess registryAccess() { return world.registryAccess(); }
 
+    /** Paper: getLevelData 를 감싼 레벨에 묻는다(shim 은 레벨 데이터 대신 dayTime 을 직접). */
+    @Override
+    public long dayTime() { return world.dayTime(); }
+
     public <T extends BlockEntity> Optional<T> getBlockEntity(BlockPos pos, BlockEntityType<T> type) {
         BlockEntity tileentity = getBlockEntity(pos);
         @SuppressWarnings("unchecked")

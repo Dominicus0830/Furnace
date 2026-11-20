@@ -61,6 +61,17 @@ final class FeatureInternalsImpl implements FeatureInternals {
 
             @Override
             public void blockUpdated(int bx, int by, int bz, int state) { sink.blockUpdated(bx, by, bz, state); }
+
+            @Override public float[] currentDifficultyAt(int bx, int by, int bz) { return sink.currentDifficultyAt(bx, by, bz); }
+
+            @Override public float moonBrightness() { return sink.moonBrightness(); }
+
+            @Override public String biomeAt(int bx, int by, int bz) { return sink.biomeAt(bx, by, bz); }
+
+            @Override
+            public boolean chickensToRide(double x0, double y0, double z0, double x1, double y1, double z1) {
+                return sink.chickensToRide(x0, y0, z0, x1, y1, z1);
+            }
         };
     }
 
@@ -90,6 +101,22 @@ final class FeatureInternalsImpl implements FeatureInternals {
         Objects.requireNonNull(id, "id");
         StructureStart start = LiveStructures.generate(noise(handle(world)), id, chunkX, chunkZ, biomeTest);
         return start == null ? null : new StartHandle(start);
+    }
+
+    @Override
+    public float[] difficultyAtNow(org.domi.furnace.api.world.World world, int x, int y, int z) {
+        Region r = handle(world).ownedRegion(new BlockPos(x, y, z), "Level#getCurrentDifficultyAt(" + x + ", " + y + ", " + z + ")");
+        if (r == null) throw new IllegalStateException("no region for " + x + ", " + y + ", " + z);
+        var d = r.level().getCurrentDifficultyAt(new Pos(x, y, z));
+        return new float[] {d.difficulty(), d.effectiveDifficulty()};
+    }
+
+    @Override
+    public String biomeAtNow(org.domi.furnace.api.world.World world, int x, int y, int z) {
+        BlockPos pos = new BlockPos(x, y, z);
+        Region r = handle(world).ownedRegion(pos, "Level#getBiome(" + pos + ")");
+        if (r == null || !r.chunkLoaded(new ChunkPos(x >> 4, z >> 4))) throw new IllegalStateException("the chunk is not loaded: " + pos);
+        return r.level().biomeAt(x, y, z);
     }
 
     @Override
