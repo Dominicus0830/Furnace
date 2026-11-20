@@ -157,8 +157,14 @@
 - 틱터: Furnace 서버는 틱마다 칸의 지금 상태로 할 일을 고르므로(모닥불은 켜졌는가) 틱터를 다시 고를 일이 없다.
 - 빛: Furnace 는 청크마다 빛 26층을 다 들고 있어 구역 비었음 상태가 없다. `updateSectionStatus` 는 할 일이 없다(Paper 의 Starlight 도 비었음 지도
   갱신만 줄 세운다). `LightEngine` 은 정적 도우미만 있고 생성자는 private(서버에 층별 빛 엔진 객체가 없다).
-- 시험 `NmsBlockBufferTest`(4): 주인·다른 스레드로 통 넣기(방향 상태·든 아이템이 서버에 들어가고 저장된다), 블록 엔티티 없는 칸은 아무것도 안 함,
-  빛 성질·높이 지도 종류 차례.
+- 대조 근거: Paper 1.21.1 jar(`paper-1.21.1.jar`)의 `LevelChunk.setBlockEntity` 를 `javap -c -constants` 로 봤다 — 문구 세 줄(`Trying to set block
+  entity %s …`·`{}` 꼴 경고·`Block state mismatch … updating`)이 글자 그대로 같고, 블록 엔티티 못 갖는 칸은 `ServerInternalException` 을 만들어
+  `printStackTrace`·`reportInternalException` 한 뒤 넣지 않는다(Furnace 는 같은 문구를 오류 로그로 찍는다). 로거는 `LogUtils.getLogger()`(=`LevelChunk`
+  클래스 이름)라 Furnace 도 `LevelChunk` 이름 로거를 쓴다. `ChunkAccess.getHeightmaps` 의 반환형은 같은 jar 에서 `Collection<Map$Entry<…>>` 다.
+- 시험 `NmsBlockBufferTest`(4, 검토 뒤 +4): 주인·다른 스레드로 통 넣기(방향 상태·든 아이템이 서버에 들어가고 저장된다), 블록 엔티티 없는 칸은 아무것도 안 함,
+  빛 성질·높이 지도 종류 차례. 검토 보강: 이미 있는 블록 엔티티 위에 새것 넣기(주인·다른 스레드 — 옛 보기는 지움 표시·지우기 직전 내용, 서버엔 새 내용),
+  다른 스레드의 한 작업 안에서 넣기→상태 바꾸기→싣기, 넣기→바로 지우기를 한 틱에 맞추기, 든 상태가 칸과 다르면 칸 상태로 맞추고 종류가 못 받는 상태면
+  `IllegalStateException`(서버에 블록 엔티티 안 들어감).
 
 ## 5d-2 — 마을 관심 지점(POI) 넣기·지우기
 
@@ -181,7 +187,9 @@ Axiom 블록 버퍼는 칸마다 옛 상태와 새 상태의 관심 지점 종�
   쓴 것이 먼저 들어가고 최대 한 틱 늦다). Paper 는 틱 스레드가 아니면 "Accessing poi chunk off-main" 예외다 — Axiom 은 틱 스레드에서 부른다.
 - 이미 다른 종류가 있으면 바닐라처럼 오류를 남기고 덮어쓰고, 없는 것을 지우면 바닐라처럼 오류만 남긴다. 청크가 로드돼 있지 않으면 아무것도 안 한다.
 - `PoiManager` 는 바닐라처럼 구역 저장소(`SectionStorage`)를 상속하지 않는다(서명 관문 기준선에 의도한 차이로 적음 — 서버가 들고 있다).
-  레지스트리 밖의 종류(`Holder.direct(new PoiType(…))`)는 `UnsupportedNmsCall`.
+  레지스트리 밖의 종류(`Holder.direct(new PoiType(…))`)는 `UnsupportedNmsCall`. Paper 와 다른 점 세 가지는 `docs/user-todo/entries/2026-11-20-axiom-poi.md`.
+- 기준선 병합 순서: #537(squaremap)과 같은 기준선 파일에 줄을 끼워 넣으므로 나중에 병합하는 쪽이 기준 브랜치를 합치고 `:vanilla-extract:signatureGate` 를
+  다시 돈다(이 PR 은 #537 병합 뒤 합쳐 다시 돌렸다).
 - 시험(`NmsBlockBufferTest` 에 4개): 종류 표(벌집·종·침대 머리만·자석석, 같은 종류는 같은 손잡이, 레지스트리 20개), 주인·다른 스레드로 넣고 지우기를
   서버 POI 로 확인, 레지스트리 밖 종류 거절.
 

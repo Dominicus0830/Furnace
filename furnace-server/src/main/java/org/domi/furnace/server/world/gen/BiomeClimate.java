@@ -14,6 +14,9 @@ public final class BiomeClimate {
 
     private BiomeClimate() {}
 
+    /** Biome.BIOME_INFO_NOISE.getValue(x, z, false) — 풀 색 swamp 보정(GrassColorModifier)이 쓴다. */
+    public static double biomeInfoNoise(double x, double z) { return BIOME_INFO_NOISE.getValue(x, z, false); }
+
     /** Biome.getHeightAdjustedTemperature(pos) — temperature_modifier(frozen) 적용 후 y>80 고도 보정. */
     public static float temperature(float baseTemperature, boolean frozenModifier, int x, int y, int z) {
         float t = baseTemperature;

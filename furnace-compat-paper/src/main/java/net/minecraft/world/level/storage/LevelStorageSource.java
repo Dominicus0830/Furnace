@@ -15,6 +15,17 @@ public class LevelStorageSource {
 
     public static LevelStorageSource createDefault(Path path) { return new LevelStorageSource(path); }
 
+    /**
+     * 바닐라(CraftBukkit) 차원 줄기 키의 저장 폴더: 오버월드 = 월드 폴더, 네더 = DIM-1, 엔드 = DIM1, 그 밖은 dimensions/<이름공간>/<경로>.
+     * 키는 같은 값이 같은 객체라 바닐라처럼 {@code ==} 로 비교한다.
+     */
+    public static Path getStorageFolder(Path path, ResourceKey<net.minecraft.world.level.dimension.LevelStem> dimensionType) {
+        if (dimensionType == net.minecraft.world.level.dimension.LevelStem.OVERWORLD) return path;
+        if (dimensionType == net.minecraft.world.level.dimension.LevelStem.NETHER) return path.resolve("DIM-1");
+        if (dimensionType == net.minecraft.world.level.dimension.LevelStem.END) return path.resolve("DIM1");
+        return path.resolve("dimensions").resolve(dimensionType.location().getNamespace()).resolve(dimensionType.location().getPath());
+    }
+
     public Path getBaseDir() { return baseDir; }
 
     public LevelStorageAccess createAccess(String levelId, ResourceKey<?> dimensionType) { return new LevelStorageAccess(levelId, dimensionType); }

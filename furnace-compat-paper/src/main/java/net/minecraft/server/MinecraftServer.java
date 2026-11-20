@@ -92,6 +92,16 @@ public abstract class MinecraftServer {
         return net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager.of();
     }
 
+    /**
+     * 바닐라 getWorldPath: 서버 월드 폴더(기본 월드의 폴더 — Bukkit {@code level-name}) 안의 자원 경로. {@code ROOT} 는 폴더 자신("." 을 붙인 경로, 바닐라와 같다).
+     * 아직 월드가 없으면 IllegalStateException.
+     */
+    public java.nio.file.Path getWorldPath(net.minecraft.world.level.storage.LevelResource resource) {
+        var worlds = CraftServer.INSTANCE.getWorlds();
+        if (worlds.isEmpty()) throw new IllegalStateException("no world is loaded yet");
+        return worlds.get(0).getWorldFolder().toPath().resolve(resource.getId());
+    }
+
     public int getPlayerCount() { return CraftServer.INSTANCE.getOnlinePlayers().size(); }
 
     public int getMaxPlayers() { return CraftServer.INSTANCE.getMaxPlayers(); }

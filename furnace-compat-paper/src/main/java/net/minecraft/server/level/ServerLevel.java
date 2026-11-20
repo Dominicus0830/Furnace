@@ -141,6 +141,18 @@ public class ServerLevel extends Level implements net.minecraft.world.level.Worl
     @Override
     public net.minecraft.resources.ResourceKey<Level> dimension() { return stemKey != null ? stemKey : super.dimension(); }
 
+    /**
+     * CraftBukkit getTypeKey: 이 월드가 만들어진 차원 줄기 키 — 월드 환경이 정한다(NORMAL = overworld, NETHER = the_nether, THE_END = the_end).
+     * 저장 폴더 배치({@code LevelStorageSource#getStorageFolder})가 이 키로 갈린다.
+     */
+    public net.minecraft.resources.ResourceKey<net.minecraft.world.level.dimension.LevelStem> getTypeKey() {
+        return switch (getWorld().furnaceHandle().environment()) {
+            case NETHER -> net.minecraft.world.level.dimension.LevelStem.NETHER;
+            case THE_END -> net.minecraft.world.level.dimension.LevelStem.END;
+            default -> net.minecraft.world.level.dimension.LevelStem.OVERWORLD;
+        };
+    }
+
     /** 바닐라 isDebug: 모든 블록 상태 격자 월드인가. */
     public boolean isDebug() { return scratch ? debug : serverLevelData.isDebugWorld(); }
 
