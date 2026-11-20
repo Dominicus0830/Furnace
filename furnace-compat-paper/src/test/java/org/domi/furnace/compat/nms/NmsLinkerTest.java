@@ -418,7 +418,8 @@ class NmsLinkerTest {
     /** 상속해도 되는 shim(과 그 상위 사슬)의 final 인스턴스 메서드는 바닐라도 final 인 것뿐이어야 한다 — 재정의가 정의를 깨지 않게(검토 #480). */
     @Test
     void inheritableShimsKeepVanillaFinality() {
-        Set<String> vanillaFinal = Set.of("UseOnContext#getHitResult", "Level#moonrise$getEntityLookup");
+        // Paper 1.21.1 에서 final: Level#getChunkIfLoadedImmediately(T-211 3단계, jar 대조)
+        Set<String> vanillaFinal = Set.of("UseOnContext#getHitResult", "Level#moonrise$getEntityLookup", "Level#getChunkIfLoadedImmediately");
         for (Class<?> c : List.of(net.minecraft.world.item.context.UseOnContext.class, net.minecraft.world.item.context.BlockPlaceContext.class,
                 net.minecraft.server.level.ServerLevel.class)) {
             assertTrue(NmsLinker.inheritable(NmsSymbols.RUNTIME, c.getName().replace('.', '/')), c.getName());

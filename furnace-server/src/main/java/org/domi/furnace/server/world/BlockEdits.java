@@ -206,7 +206,7 @@ public final class BlockEdits {
                 if (v == 0) continue;
                 int state = v - 1;
                 Pos p = new Pos(baseX | idx & 15, baseY + (idx >> 8), baseZ | idx >> 4 & 15);
-                if (clear && lv.getBlockState(p) != state) org.domi.furnace.server.block.entity.Clearables.tryClear(lv.getBlockEntity(p));
+                if (clear && lv.getBlockState(p) != state) org.domi.furnace.server.block.entity.Clearables.tryClear(lv.getBlockEntity(p), lv);
                 if (lv.setBlock(p, state, flags)) {
                     c.changed++;
                     if (after != null) after.add(p);

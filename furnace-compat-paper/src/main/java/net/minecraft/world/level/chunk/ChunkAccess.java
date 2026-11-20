@@ -348,6 +348,28 @@ public abstract class ChunkAccess implements BlockGetter {
         if (h != null) NmsChunks.bridge().blockEntityLoadNow(furnaceWorld, h, tag);
     }
 
+    /**
+     * 호환 모듈 전용 — 바닐라 Clearable#clearContent(T-211 3단계): 묶인 서버 블록 엔티티를 바닐라처럼 비운다. 그 칸의 주인 스레드에서(저장과 같은 문 — {@code NmsOwner}).
+     * 지워졌거나 청크가 내려간 블록 엔티티는 월드 밖 객체라 UnsupportedNmsCall.
+     */
+    public void furnaceBlockEntityClear(net.minecraft.world.level.block.entity.BlockEntity view) {
+        var p = view.getBlockPos();
+        String what = "Clearable#clearContent";
+        if (view.furnaceSnapshot() != null || furnaceMirror.dead()) {
+            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall(what, "the block entity at " + p + " was removed or its chunk was unloaded");
+        }
+        org.domi.furnace.compat.nms.NmsOwner.call(furnaceWorld, p.getX(), p.getY(), p.getZ(), what, () -> {
+            if (furnaceMirror.dead()) throw new org.domi.furnace.compat.nms.UnsupportedNmsCall(what, "the chunk of the block entity at " + p + " was unloaded");
+            furnaceMirror.ownerSyncIfDirty();   // 앞선 블록 엔티티 일지(지우기·싣기)를 먼저
+            Object h = furnaceBindNow(furnaceWorld, view);
+            if (h == null) throw new IllegalStateException("no block entity at that position (removed, or its chunk was unloaded): " + p);
+            if (!NmsChunks.bridge().clearBlockEntityContentNow(furnaceWorld, h)) {
+                throw new org.domi.furnace.compat.nms.UnsupportedNmsCall(what, "the server cannot clear the block entity at " + p);
+            }
+            return null;
+        });
+    }
+
     /** 호환 모듈 전용 — 바닐라 정적 BlockEntity.setChanged(level, pos, state) 의 이 청크 부분. 주인은 바로, 다른 스레드는 거울 일지. */
     public void furnaceBlockEntityChanged(BlockPos at) {
         if (furnaceMirror.dead()) return;

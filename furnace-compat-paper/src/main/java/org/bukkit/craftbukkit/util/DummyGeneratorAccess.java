@@ -33,7 +33,7 @@ import net.minecraft.world.ticks.TickPriority;
 
 /**
  * CraftBukkit DummyGeneratorAccess(T-211) — Paper 1.21.1 그대로: 아무 월드도 아닌 지형 생성 레벨. 블록은 늘 공기, 쓰기는 거짓, 예약 틱·레벨 이벤트는 버리고
- * 나머지는 UnsupportedOperationException("Not supported yet."). shim 에 없는 형(틱 접근·난이도·파티클·엔티티 찾기 등)을 쓰는 메서드는 두지 않았다.
+ * 나머지는 UnsupportedOperationException("Not supported yet."). shim 에 없는 형(틱 접근·파티클·엔티티 찾기 등)을 쓰는 메서드는 두지 않았다.
  */
 public class DummyGeneratorAccess implements WorldGenLevel {
 
@@ -81,7 +81,20 @@ public class DummyGeneratorAccess implements WorldGenLevel {
     @Override
     public int getHeight(Heightmap.Types heightmap, int x, int z) { throw no(); }
 
+    @Override
     public Holder<Biome> getUncachedNoiseBiome(int biomeX, int biomeY, int biomeZ) { throw no(); }
+
+    @Override
+    public net.minecraft.world.level.biome.BiomeManager getBiomeManager() { throw no(); }
+
+    @Override
+    public net.minecraft.world.DifficultyInstance getCurrentDifficultyAt(BlockPos pos) { throw no(); }
+
+    @Override
+    public net.minecraft.world.flag.FeatureFlagSet enabledFeatures() { throw no(); }
+
+    @Override
+    public ChunkAccess getChunkIfLoadedImmediately(int x, int z) { throw no(); }
 
     public boolean isClientSide() { return false; }
 
@@ -130,5 +143,6 @@ public class DummyGeneratorAccess implements WorldGenLevel {
     @Override
     public boolean removeBlock(BlockPos pos, boolean move) { throw no(); }
 
+    @Override
     public boolean destroyBlock(BlockPos pos, boolean drop, Entity breakingEntity, int maxUpdateDepth) { return false; }
 }

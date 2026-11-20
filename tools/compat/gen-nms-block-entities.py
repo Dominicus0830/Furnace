@@ -65,6 +65,25 @@ CONCRETE = [
     ("vault", "VaultBlockEntity", "BlockEntity"),
 ]
 
+# 바닐라에서 Clearable 인 클래스(Container 를 거치거나 직접 — T-211 3단계). 하위 클래스는 물려받는다.
+CLEARABLE = {"BaseContainerBlockEntity", "CampfireBlockEntity", "ChiseledBookShelfBlockEntity", "DecoratedPotBlockEntity", "JukeboxBlockEntity",
+             "LecternBlockEntity"}
+
+CLEAR_BODY = """
+    /** 바닐라 clearContent(Clearable) — 월드의 블록 엔티티면 서버 블록 엔티티를 바닐라처럼 비운다(T-211 3단계). */
+    @Override
+    public void clearContent() { furnaceClearContent(); }
+"""
+
+
+def implements(name):
+    return " implements net.minecraft.world.Clearable" if name in CLEARABLE else ""
+
+
+def clear_body(name):
+    return CLEAR_BODY if name in CLEARABLE else ""
+
+
 GEN = "// 생성 파일 — tools/compat/gen-nms-block-entities.py 로 만든다(손으로 고치지 않는다).\n"
 
 
@@ -127,10 +146,10 @@ import net.minecraft.world.level.block.state.BlockState;
  * 바닐라 {name}(Mojang 이름 shim, N2b-6). 플러그인이 종류별 클래스로 가르는 {{@code instanceof}} 와 형변환이 돌게 하는 계층 자리다 —
  * 종류별 필드·메서드(컨테이너·틱 등)는 두지 않았고 저장은 {{@link BlockEntity}} 가 서버의 NBT 로 한다.
  */
-public abstract class {name} extends {parent} {{
+public abstract class {name} extends {parent}{implements(name)} {{
 
     protected {name}(BlockEntityType<?> type, BlockPos pos, BlockState state) {{ super(type, pos, state); }}
-}}
+{clear_body(name)}}}
 """)
 
 CONCRETE_NAMES = {c[1] for c in CONCRETE}
@@ -147,13 +166,13 @@ import net.minecraft.core.BlockPos;
  * 바닐라 {name}(Mojang 이름 shim, N2b-6) — 블록 엔티티 종류 {{@code minecraft:{tid}}}. 종류별 필드·메서드는 두지 않았고
  * 플러그인이 종류별 클래스로 가르는 {{@code instanceof}} 와 형변환이 돌게 하는 계층 자리다(저장은 {{@link BlockEntity}} 가 서버의 NBT 로 한다).
  */
-public class {name} extends {parent} {{
+public class {name} extends {parent}{implements(name)} {{
 
     public {name}(BlockPos pos, BlockState state) {{ this({'BlockEntityType.furnaceOf("minecraft:%s")' % tid}, pos, state); }}
 
     /** 하위 종류가 쓴다(바닐라는 {name} 이 종류를 받는 생성자를 둔다). */
     protected {name}(BlockEntityType<?> type, BlockPos pos, BlockState state) {{ super(type, pos, state); }}
-{nested}}}
+{nested}{clear_body(name)}}}
 """)
 
 # 종류 → 인스턴스 표

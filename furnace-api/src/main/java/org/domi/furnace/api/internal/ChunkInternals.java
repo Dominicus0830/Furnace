@@ -459,6 +459,31 @@ public interface ChunkInternals {
      */
     boolean checkLight(World world, int x, int y, int z);
 
+    // ------------------------------------------------------------------ 레벨 공통(T-211 3단계)
+
+    /** 아무 스레드. 이 서버에 켜진 기능 플래그 이름(바닐라 등록 순서, 예: "minecraft:vanilla") — 바닐라 {@code Level#enabledFeatures}. */
+    default List<String> enabledFeatureFlags() { throw new UnsupportedOperationException("enabledFeatureFlags"); }
+
+    /**
+     * 바닐라 {@code Level#getCurrentDifficultyAt}: {난이도 번호, 실효 난이도}. 청크가 로드돼 있으면 그 칸 주인 스레드(빌림 포함)에서만 — 아니면
+     * ThreadOwnershipException — 그 청크의 머문 시간·달 밝기를 넣고, 로드돼 있지 않으면 아무 스레드에서 둘 다 0 으로 계산한다.
+     */
+    default float[] currentDifficultyNow(World world, int x, int y, int z) { throw new UnsupportedOperationException("currentDifficultyNow"); }
+
+    /**
+     * 주인 스레드. 바닐라 {@code Level#destroyBlock(pos, drop, breaker, maxUpdateDepth)} — 부순 블록이 있었고 바꿨으면 true.
+     * breaker 는 null 이거나 이 스레드가 가진 엔티티(아니면 IllegalStateException). 청크가 로드돼 있지 않으면 false.
+     */
+    default boolean destroyBlockNow(World world, int x, int y, int z, boolean drop, org.domi.furnace.api.entity.Entity breaker, int maxUpdateDepth) {
+        throw new UnsupportedOperationException("destroyBlockNow");
+    }
+
+    /**
+     * 주인 스레드. 바닐라 {@code Clearable#clearContent}: {@link #blockEntityNow} 가 준 서버 블록 엔티티의 내용을 바닐라처럼 비운다
+     * (주크박스는 재생을 멈추고, 장식 단지는 전리품을 먼저 푼다). 비울 수 있는 종류가 아니거나 서버가 모르는 블록 엔티티면 false.
+     */
+    default boolean clearBlockEntityContentNow(World world, Object blockEntity) { throw new UnsupportedOperationException("clearBlockEntityContentNow"); }
+
     /**
      * 청크 shim 의 거울이다(호환 계층이 만들며, 플러그인이 볼 수 없는 내부 객체). 서버는 그 청크의 주인 region 스레드에서만 부르고, 이 객체의 모니터를 쓰지 않는다.
      */

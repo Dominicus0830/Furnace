@@ -7,6 +7,9 @@ public interface LevelAccessor extends LevelReader, LevelWriter {
 
     ChunkSource getChunkSource();
 
+    /** 바닐라 LevelAccessor#getCurrentDifficultyAt(T-211 3단계). */
+    net.minecraft.world.DifficultyInstance getCurrentDifficultyAt(net.minecraft.core.BlockPos pos);
+
     /** 바닐라 LevelAccessor#getRandom. */
     net.minecraft.util.RandomSource getRandom();
 

@@ -661,6 +661,61 @@ final class ChunkInternalsImpl implements ChunkInternals {
         return true;
     }
 
+    // ------------------------------------------------------------------ 레벨 공통(T-211 3단계)
+
+    @Override
+    public List<String> enabledFeatureFlags() {
+        List<String> out = new java.util.ArrayList<>();
+        for (String f : org.domi.furnace.server.data.FeatureFlags.ALL) if (org.domi.furnace.server.data.FeatureFlags.isEnabled(f)) out.add(f);
+        return out;
+    }
+
+    @Override
+    public float[] currentDifficultyNow(org.domi.furnace.api.world.World world, int x, int y, int z) {
+        RegionLevel lv = ownedLevel(world, x, z, "Level#getCurrentDifficultyAt");
+        org.domi.furnace.server.entity.DifficultyInstance d;
+        if (lv != null) {
+            d = lv.getCurrentDifficultyAt(new Pos(x, y, z));
+        } else {   // 바닐라 hasChunkAt 거짓: 머문 시간·달 밝기 0
+            var services = handle(world).handle().levelServices();
+            d = new org.domi.furnace.server.entity.DifficultyInstance(services.difficulty(), services.dayTime(), 0L, 0.0F,
+                    org.domi.furnace.server.world.DifficultyModifiers.local());
+        }
+        return new float[] {d.difficulty(), d.effectiveDifficulty()};
+    }
+
+    @Override
+    public boolean destroyBlockNow(org.domi.furnace.api.world.World world, int x, int y, int z, boolean drop, org.domi.furnace.api.entity.Entity breaker,
+                                   int maxUpdateDepth) {
+        RegionLevel lv = ownedLevel(world, x, z, "Level#destroyBlock");
+        if (lv == null) return false;
+        Pos p = new Pos(x, y, z);
+        if (breaker == null) return lv.destroyBlock(p, drop, null, maxUpdateDepth);
+        Object internal;
+        try {
+            internal = org.domi.furnace.api.Furnace.server().internals().entityNow(breaker, Object.class);
+        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException e) {
+            throw new IllegalStateException("the breaking entity is not owned by this thread: " + e.getMessage(), e);
+        }
+        if (internal instanceof org.domi.furnace.server.entity.Player pl) {
+            return lv.destroyBlock(p, drop, new org.domi.furnace.server.block.PlayerActor(pl), maxUpdateDepth);
+        }
+        return lv.destroyBlockByEntity(p, drop, internal, maxUpdateDepth);
+    }
+
+    @Override
+    public boolean clearBlockEntityContentNow(org.domi.furnace.api.world.World world, Object blockEntity) {
+        if (blockEntity instanceof GeneratedBlockEntityRef g) {   // 아직 만들지 않은 생성 블록 엔티티: 바닐라 getBlockEntity 처럼 만든 뒤
+            RegionLevel lv = ownedLevel(world, g.x(), g.z(), "Clearable#clearContent");
+            if (lv == null || g.removed()) return false;
+            blockEntity = lv.getBlockEntity(new Pos(g.x(), g.y(), g.z()));
+        }
+        if (!(blockEntity instanceof org.domi.furnace.server.block.entity.BlockEntity be)) return false;
+        RegionLevel lv = ownedLevel(world, be.pos().x(), be.pos().z(), "Clearable#clearContent");
+        if (lv == null) return false;
+        return org.domi.furnace.server.block.entity.Clearables.tryClear(be, lv);
+    }
+
     /** 명령 범위 안에서 넣는다 — 주인이 쉬고 있으면 drain 차례로 곧바로 돈다(CommandDrainGate: 같은 예산·같은 끄기 옵션). */
     @Override
     public <T> java.util.concurrent.CompletableFuture<T> submitAwaited(org.domi.furnace.api.world.World world, int x, int y, int z, java.util.function.Supplier<T> task) {
