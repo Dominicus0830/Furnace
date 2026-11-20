@@ -46,9 +46,14 @@
   - 아직 월드에 없는 shim 의 게터: 종류·레벨·자리·방향(바닐라 생성자처럼 0,0,0 에서 시작해 `load`·`absMoveTo` 를 서버와 같은 자르기로 따라간다)·지움 표시는 답한다. UUID 는 `setUUID` 나 "UUID" 든 `load` 뒤에만 답한다(바닐라의 무작위 UUID 는 넣을 때 정해진다 — 그 전에 물으면 `UnsupportedNmsCall`). `getId`·`getBukkitEntity`·`save` 도 넣은 뒤에만 된다.
   - 넣으면 그 shim 이 그 엔티티의 `CraftEntity#getHandle()` 이 된다(Paper 는 그 객체 자체). 살아 있는 종류는 `LivingEntity` shim(Bukkit 종류의 `isAlive`), 플레이어·낚시찌는 `create` 가 null(바닐라 공장이 null).
 - `addFreshEntity(e, reason)` = Paper `ServerLevel#addEntity`: `generation` 을 거짓으로, `spawnReason` 이 비었으면 reason, 넣기 전에 지웠으면 거짓, 빈 아이템 엔티티는 거짓, 스폰 이벤트(취소되면 거짓), 같은 UUID 가 이미 있으면 거짓. 이미 월드에 있는 엔티티는 Paper 처럼 "Attempted Double World add" 오류 기록만 남기고 참.
+  - 스폰 이벤트를 취소했거나 처리기가 엔티티를 지웠으면 Paper(`CraftEventFactory#doEntityAddEventCalling`)처럼 그 shim 을 지운 것으로 둔다(`isRemoved()` 참, 다시 넣으면 거짓). 같은 UUID 로 거절된 것은 지우지 않는다(서버 `ChunkLevel#addFreshEntityResult` 가 둘을 가른다).
 - `EntityLookup#addNewEntity(e)` = 이벤트 없이 넣기(서버 `ChunkLevel#addFreshEntityWithoutEvent`). 스폰 이유·generation 은 건드리지 않는다. 이미 월드에 있으면 거짓.
 - `addFreshEntityWithPassengers`: `create` 로 만든 엔티티는 승객이 없다(바닐라 `load` 도 승객을 읽지 않는다 — 그건 `EntityType.loadEntityRecursive`) → `addFreshEntity` 하나.
 - 월드의 엔티티에 `load`·`absMoveTo`·`setUUID` 는 `UnsupportedNmsCall` — 살아 있는 엔티티의 UUID·자리를 패킷·색인 없이 바꾸게 된다. Bukkit API 나 Furnace `Entity#editNbt` 를 쓴다.
 - Paper 필드 `spawnReason` 은 월드의 엔티티 shim 에서 읽으면 null 이다(채워 두지 않는다 — Bukkit `getEntitySpawnReason` 을 쓴다).
+- Paper 와 다른 점(알고 둔 것):
+  - **로드되지 않은 청크에 넣기:** Furnace 는 거짓(넣지 않음). Paper(moonrise)는 그 자리에 엔티티 조각을 만들어 넣는다. FAWE 는 붙여 넣는 청크를 먼저 읽으므로 실제 차이는 거의 없다.
+  - **같은 UUID 일 때 스폰 이벤트:** Paper 는 이벤트를 먼저 내고 그 뒤 UUID 겹침으로 거절한다. Furnace 서버는 UUID 를 먼저 잡고 겹치면 이벤트 없이 거절한다(서버의 모든 스폰과 같은 차례).
+  - **넣기 전 해시:** 아직 월드에 없는 shim 의 `hashCode` 는 객체 해시이고, 넣은 뒤에는 UUID 해시다(바닐라는 엔티티 번호). 넣기 전에 해시 집합에 둔 shim 은 넣은 뒤 그 집합에서 못 찾는다. FAWE 는 그렇게 쓰지 않는다.
 - 스레드: 넣기는 그 자리의 주인 region(전역 스레드의 빌림 포함 — FAWE 동기 작업)에서 바로, 틱 스레드가 아닌 스레드는 기다린다(`NmsOwner`). 기록하는 조작은 한 스레드에서 한다(FAWE 는 만들기부터 넣기까지 한 동기 작업 안).
-- 시험 `NmsEntityCreateTest`: 만들기 꼴(살아 있는 종류·null 종류·게터), 이벤트 없는 붙여 넣기(자리·방향·UUID·이름·스폰 이유 CUSTOM·getHandle 이 같은 shim·같은 UUID 다시 넣기 거짓), `addFreshEntity` 이벤트·취소·두 번 넣기, 넣기 전 지우기, 빈 아이템 엔티티, WorldEdit `addFreshEntityWithPassengers`, 월드 엔티티 고치기 거절.
+- 시험 `NmsEntityCreateTest`: 만들기 꼴(살아 있는 종류·null 종류·게터), 이벤트 없는 붙여 넣기(자리·방향·UUID·이름·스폰 이유 CUSTOM·getHandle 이 같은 shim·같은 UUID 다시 넣기 거짓), `addFreshEntity` 이벤트·취소(취소 뒤 지움)·두 번 넣기, 같은 UUID 거절(지우지 않음), 넣기 전 지우기, 빈 아이템 엔티티, WorldEdit `addFreshEntityWithPassengers`, 작업 스레드에서 넣기(이벤트 있음·없음), 전역 스레드의 빌림 구간에서 넣기, 월드 엔티티 고치기 거절. `NmsEntityWriteTest` 에 다른 region 으로 건너간 엔티티를 작업 스레드에서 저장하기(엔티티를 따라가는 갈래)를 더했다.

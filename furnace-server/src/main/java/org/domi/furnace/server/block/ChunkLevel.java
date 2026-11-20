@@ -2781,40 +2781,46 @@ public abstract class ChunkLevel implements BlockLevel {
     public EntityTracker.Viewers viewers() { return viewers; }
 
     /** addFreshEntity: 넣고(같은 UUID 가 있으면 거부) 추적을 시작한다 — 볼 수 있는 플레이어에게 바로 스폰. */
-    public boolean addFreshEntity(Entity e) { return addFreshEntity(e, true, false); }
+    public boolean addFreshEntity(Entity e) { return addFreshEntity(e, true, false) == ADDED; }
 
-    /** Paper EntityLookup#addNewEntity: 스폰 이벤트 없이 넣는다(같은 UUID 가 있으면 거부) — 플러그인이 NMS 로 만든 엔티티(T-212). */
-    public boolean addFreshEntityWithoutEvent(Entity e) { return addFreshEntity(e, false, false); }
+    /** {@link #addFreshEntityResult} 의 결과: 넣음, 넣기 전에 지워져 있음, 같은 UUID 가 있음, 스폰 이벤트 취소 또는 처리기가 지움. */
+    public static final int ADDED = 0, ADD_REMOVED = 1, ADD_DUPLICATE = 2, ADD_CANCELLED = 3;
+
+    /**
+     * 넣고 결과를 알린다. fireEvent 가 거짓이면 Paper EntityLookup#addNewEntity(스폰 이벤트 없음, 같은 UUID 가 있으면 거부) — 플러그인이 NMS 로 만든
+     * 엔티티(T-212)가 쓴다.
+     */
+    public int addFreshEntityResult(Entity e, boolean fireEvent) { return addFreshEntity(e, fireEvent, false); }
 
     /** claimed: 승객 묶음이 이미 UUID 를 잡아 둔 경우(여기서 다시 잡지 않고, 실패하면 놓는다). */
-    private boolean addFreshEntity(Entity e, boolean fireEvent, boolean claimed) {
+    private int addFreshEntity(Entity e, boolean fireEvent, boolean claimed) {
         if (e.isRemoved()) {
             if (claimed) indexEntity(e, false);
-            return false;
+            return ADD_REMOVED;
         }
         ChunkLevel before = e.level();
         e.setLevel(this);
         long addedKey = e.sectionKey();
         if (!entities.add(e)) {
             if (claimed) indexEntity(e, false);
-            return false;
+            return ADD_DUPLICATE;
         }
         if (!claimed && !claimUuid(e, false)) {   // 바닐라 "UUID of added entity already exists": 다른 region 이 같은 UUID 를 이미 쥐고 있다
             entities.remove(e);
             e.setLevel(before);
-            return false;
+            return ADD_DUPLICATE;
         }
         if (fireEvent && !gameEvents().entitySpawn(e)) {   // 플러그인 EntitySpawnEvent 취소: 추적·리스너 등록 전이라 목록과 레벨만 되돌린다
             entities.remove(e);
             indexEntity(e, false);   // 위에서 잡은 UUID 자리를 놓는다
             e.setLevel(before);
             retireApiTasks(e);
-            return false;
+            return ADD_CANCELLED;
         }
         if (e.isRemoved()) {   // 스폰 이벤트 처리기가 지웠다: 이미 목록에서 빠졌으니 추적·리스너를 붙이지 않는다(유령 엔티티 방지)
             indexEntity(e, false);
             retireApiTasks(e);
-            return false;
+            return ADD_CANCELLED;
         }
         // 처리기가 옮겼으면 구역 목록을 맞춘다 — 추적기가 없는 동안에는 setPosRaw 가 구역 이동을 알리지 않는다(Paper 도 이벤트 뒤 위치로 넣는다)
         if (e.sectionKey() != addedKey) entities.moved(e);
@@ -2827,7 +2833,7 @@ public abstract class ChunkLevel implements BlockLevel {
         indexEntity(e, true);
         startTracking(e);
         for (var l : e.dynamicGameEventListeners()) l.add(this);
-        return true;
+        return ADDED;
     }
 
     /** id → 엔티티 색인(월드마다 하나, 어느 스레드에서나 읽는다)에 넣거나 뺀다. 색인이 없는 레벨(시험 레벨)은 아무것도 안 한다. */

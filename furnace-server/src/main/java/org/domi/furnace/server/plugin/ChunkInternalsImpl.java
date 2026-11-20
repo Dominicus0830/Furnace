@@ -747,10 +747,10 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     @Override
-    public org.domi.furnace.api.entity.Entity addNmsEntityNow(org.domi.furnace.api.world.World world, int x, int z, String id, List<EntityOp> ops,
-                                                              String spawnReason, boolean fireEvents) {
+    public NmsEntityAdd addNmsEntityNow(org.domi.furnace.api.world.World world, int x, int z, String id, List<EntityOp> ops,
+                                        String spawnReason, boolean fireEvents) {
         RegionLevel lv = ownedLevel(world, x, z, "ServerLevel#addFreshEntity");
-        if (lv == null) return null;   // 청크가 로드되지 않았다
+        if (lv == null) return NmsEntityAdd.REFUSED;   // 청크가 로드되지 않았다
         var e = org.domi.furnace.server.entity.Entities.create(lv, id);
         if (e == null) throw new IllegalArgumentException("entity type that cannot be created: " + id);
         for (EntityOp op : ops) {
@@ -765,15 +765,12 @@ final class ChunkInternalsImpl implements ChunkInternals {
                     + " but was routed to the region of " + x + ", " + z);
         }
         if (spawnReason != null) e.spawnReason(spawnReason);
-        boolean added;
-        if (fireEvents) {
-            // Paper ServerLevel#addEntity: 빈 아이템 엔티티는 넣지 않는다(이벤트 전에 거짓)
-            if (e instanceof org.domi.furnace.server.entity.ItemEntity ie && ie.getItem().isEmpty()) return null;
-            added = lv.addFreshEntity(e);
-        } else {
-            added = lv.addFreshEntityWithoutEvent(e);
-        }
-        return added ? EntityHandle.of(host, e) : null;
+        // Paper ServerLevel#addEntity: 빈 아이템 엔티티는 넣지 않는다(이벤트 전에 거짓, 지우지 않음)
+        if (fireEvents && e instanceof org.domi.furnace.server.entity.ItemEntity ie && ie.getItem().isEmpty()) return NmsEntityAdd.REFUSED;
+        int r = lv.addFreshEntityResult(e, fireEvents);
+        if (r == org.domi.furnace.server.block.ChunkLevel.ADDED) return new NmsEntityAdd(EntityHandle.of(host, e), false);
+        // Paper doEntityAddEventCalling: 이벤트를 취소했거나 처리기가 지웠으면 그 엔티티를 지운다. UUID 겹침은 지우지 않는다
+        return new NmsEntityAdd(null, r == org.domi.furnace.server.block.ChunkLevel.ADD_CANCELLED);
     }
 
     /** 명령 범위 안에서 넣는다 — 주인이 쉬고 있으면 drain 차례로 곧바로 돈다(CommandDrainGate: 같은 예산·같은 끄기 옵션). */

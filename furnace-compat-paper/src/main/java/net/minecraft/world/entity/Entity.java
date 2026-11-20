@@ -224,10 +224,13 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
         var ops = java.util.List.copyOf(d.ops);
         String why = spawnReason == null ? null : spawnReason.name();
         var b = org.domi.furnace.compat.nms.NmsChunks.bridge();
-        org.domi.furnace.api.entity.Entity added = org.domi.furnace.compat.nms.NmsOwner.call(world, x, y, z, "ServerLevel#addFreshEntity",
+        var r = org.domi.furnace.compat.nms.NmsOwner.call(world, x, y, z, "ServerLevel#addFreshEntity",
                 () -> b.addNmsEntityNow(world, x, z, id, ops, why, events));
-        if (added == null) return false;
-        CraftEntity c = (CraftEntity) org.domi.furnace.compat.paper.Compat.entity(added);
+        if (r.added() == null) {
+            if (r.discarded()) d.removed = true;   // Paper doEntityAddEventCalling: 이벤트 취소·처리기가 지움이면 그 엔티티를 discard
+            return false;
+        }
+        CraftEntity c = (CraftEntity) org.domi.furnace.compat.paper.Compat.entity(r.added());
         c.adoptHandle(this);
         bukkit = c;
         detached = null;

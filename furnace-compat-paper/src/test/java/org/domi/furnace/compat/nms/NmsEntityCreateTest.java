@@ -171,6 +171,70 @@ class NmsEntityCreateTest {
         c.absMoveTo(at.x() + 0.5, at.y(), at.z() + 5.5, 0, 0);
         assertFalse(on(() -> level.addFreshEntity(c, SpawnReason.CUSTOM)), "이벤트 취소");
         assertThrows(UnsupportedNmsCall.class, c::getBukkitEntity, "넣지 못했으니 아직 월드에 없다");
+        assertTrue(c.isRemoved(), "Paper doEntityAddEventCalling: 취소된 엔티티는 discard");
+        cancelSpawns = false;
+        assertFalse(on(() -> level.addFreshEntity(c, SpawnReason.CUSTOM)), "지운 엔티티는 다시 넣지 못한다");
+        assertEquals(List.of("minecraft:pig CUSTOM", "minecraft:pig CUSTOM"), spawnEvents, "다시 넣기는 이벤트를 내지 않는다");
+    }
+
+    @Test
+    void sameUuidIsRefusedWithoutDiscarding() {
+        CraftEntity cow = on(() -> (CraftEntity) world.spawnEntity(new Location(world, at.x() + 0.5, at.y(), at.z() + 10.5), org.bukkit.entity.EntityType.COW));
+        spawnEvents.clear();
+        Entity e = EntityType.byString("minecraft:cow").orElseThrow().create(level);
+        e.absMoveTo(at.x() + 1.5, at.y(), at.z() + 10.5, 0, 0);
+        e.setUUID(cow.getUniqueId());
+        assertFalse(on(() -> level.addFreshEntity(e, SpawnReason.CUSTOM)), "같은 UUID");
+        assertFalse(e.isRemoved(), "UUID 겹침은 Paper 도 지우지 않는다");
+        on(() -> { cow.remove(); return null; });
+    }
+
+    @Test
+    void workerThreadAddsThroughTheOwner() throws Exception {
+        CompoundTag tag = copiedPig();
+        spawnEvents.clear();
+        // FAWE 작업 스레드(틱 스레드가 아님): 만들기·기록은 그 스레드에서, 넣기는 주인 region 에 보내 기다린다
+        Entity withEvents = java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+            Entity n = EntityType.byString("minecraft:pig").orElseThrow().create(level);
+            n.load(tag);
+            n.absMoveTo(at.x() + 2.5, at.y(), at.z() + 11.5, 45.0F, 0.0F);
+            assertTrue(level.addFreshEntity(n, SpawnReason.CUSTOM));
+            return n;
+        }).get(20, java.util.concurrent.TimeUnit.SECONDS);
+        assertEquals(List.of("minecraft:pig CUSTOM"), spawnEvents);
+        UUID quietId = UUID.randomUUID();
+        Entity quiet = java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+            Entity n = EntityType.byString("minecraft:pig").orElseThrow().create(level);
+            n.load(tag);
+            n.absMoveTo(at.x() + 3.5, at.y(), at.z() + 11.5, 0.0F, 0.0F);
+            n.setUUID(quietId);
+            assertTrue(level.moonrise$getEntityLookup().addNewEntity(n));
+            return n;
+        }).get(20, java.util.concurrent.TimeUnit.SECONDS);
+        assertEquals(1, spawnEvents.size(), "addNewEntity 는 이벤트가 없다");
+        for (Entity e : List.of(withEvents, quiet)) {
+            CraftEntity b = e.getBukkitEntity();
+            assertSame(e, on(b::getHandle), "작업 스레드에서 넣은 shim 도 그 엔티티의 getHandle");
+            assertEquals("Copied", on(b::getCustomName));
+        }
+        assertEquals(45.0F, serverEntity(withEvents.getUUID()).yRot());
+        assertEquals(quietId, quiet.getUUID());
+        on(() -> { withEvents.getBukkitEntity().remove(); quiet.getBukkitEntity().remove(); return null; });
+    }
+
+    @Test
+    void globalThreadAddsInsideABorrow() {
+        // FAWE 동기 작업: 전역 스레드가 region 을 빌린 구간에서 넣는다
+        Entity e = EntityType.byString("minecraft:sheep").orElseThrow().create(level);
+        e.absMoveTo(at.x() + 4.5, at.y(), at.z() + 11.5, 0, 0);
+        assertTrue(server.onGlobal(() -> {
+            try (var a = server.api().scheduler().global().openRegionAccess()) {
+                return level.addFreshEntity(e, SpawnReason.CUSTOM);
+            }
+        }));
+        assertEquals(List.of("minecraft:sheep CUSTOM"), spawnEvents);
+        assertNotNull(serverEntity(e.getUUID()));
+        on(() -> { e.getBukkitEntity().remove(); return null; });
     }
 
     @Test

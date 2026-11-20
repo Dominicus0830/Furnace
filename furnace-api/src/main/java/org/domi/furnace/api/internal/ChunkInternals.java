@@ -505,11 +505,17 @@ public interface ChunkInternals {
      * ops 를 차례로 재생(바닐라 {@code Entity#load}·{@code absMoveTo}·{@code setUUID})하고, spawnReason(Bukkit 이름, null 이면 서버 기본)을 붙여 월드에 넣는다.
      * fireEvents 면 Paper {@code ServerLevel#addFreshEntity(entity, reason)} — 스폰 이벤트를 내고, 빈 아이템 엔티티는 넣지 않는다. 아니면 Paper
      * {@code EntityLookup#addNewEntity} — 이벤트 없이 넣는다. (x, z) 는 재생 뒤 자리여야 한다(아니면 ThreadOwnershipException).
-     * 넣은 엔티티의 핸들, 넣지 못했으면(UUID 겹침·이벤트 취소·청크가 로드되지 않음) null. id 를 서버가 만들 수 없으면 IllegalArgumentException.
+     * 넣었으면 {@link NmsEntityAdd#added} 가 그 핸들, 넣지 못했으면(UUID 겹침·이벤트 취소·처리기가 지움·청크가 로드되지 않음) null 이고,
+     * {@link NmsEntityAdd#discarded} 는 Paper 가 그 엔티티를 지우는 경우(스폰 이벤트 취소·처리기가 지움 — {@code CraftEventFactory#doEntityAddEventCalling})만 참.
+     * id 를 서버가 만들 수 없으면 IllegalArgumentException.
      */
-    default org.domi.furnace.api.entity.Entity addNmsEntityNow(World world, int x, int z, String id, java.util.List<EntityOp> ops, String spawnReason,
-                                                                boolean fireEvents) {
+    default NmsEntityAdd addNmsEntityNow(World world, int x, int z, String id, java.util.List<EntityOp> ops, String spawnReason, boolean fireEvents) {
         throw new UnsupportedOperationException("addNmsEntityNow");
+    }
+
+    /** {@link #addNmsEntityNow} 의 결과: 넣은 엔티티(못 넣었으면 null)와, 못 넣은 엔티티를 Paper 처럼 지운 것으로 볼지. */
+    record NmsEntityAdd(org.domi.furnace.api.entity.Entity added, boolean discarded) {
+        public static final NmsEntityAdd REFUSED = new NmsEntityAdd(null, false);
     }
 
     /** {@link #addNmsEntityNow} 가 재생할 엔티티 조작 하나. */

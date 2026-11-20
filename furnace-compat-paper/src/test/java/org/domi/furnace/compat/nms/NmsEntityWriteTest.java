@@ -2,6 +2,7 @@ package org.domi.furnace.compat.nms;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -109,6 +110,38 @@ class NmsEntityWriteTest {
         boolean saved = CompletableFuture.supplyAsync(() -> handle.save(tag)).get(20, TimeUnit.SECONDS);
         assertTrue(saved);
         assertEquals(truth(cow), tag.furnace());
+        on(() -> { cow.remove(); return null; });
+    }
+
+    /**
+     * 핸들이 아는 자리가 이제 다른 region 의 것일 때(엔티티가 걸어간 뒤 region 이 갈라진 경우 등): 그 자리의 주인에게 보냈다가 엔티티가 없으면
+     * 엔티티를 따라가는 대기열로 한 번 더. 시험은 서버 엔티티를 잠깐 먼 자리에 둔 채 핸들을 찍어 "낡은 자리" 핸들을 만든다(같은 엔티티 객체).
+     */
+    @Test
+    void workerThreadFollowsTheEntityWhenItsSnapshotIsInAnotherRegion() throws Exception {
+        CraftEntity cow = spawn(org.bukkit.entity.EntityType.COW);
+        Entity shim = on(cow::getHandle);
+        BlockPos far = new BlockPos(at.x() + 4000, at.y(), at.z());
+        server.loadChunk(far.x() >> 4, far.z() >> 4);
+        var host = (org.domi.furnace.server.plugin.PluginHost) server.api();
+        var stale = on(() -> {
+            var se = org.domi.furnace.api.internal.Internals.get().entityNow(cow.furnaceHandle(), org.domi.furnace.server.entity.Entity.class);
+            double x = se.x(), y = se.y(), z = se.z();
+            se.setPosRaw(far.x() + 0.5, far.y(), far.z() + 0.5);
+            var h = org.domi.furnace.server.plugin.EntityHandle.of(host, se);
+            se.setPosRaw(x, y, z);
+            return h;
+        });
+        assertEquals(far.x() + 0.5, stale.location().x());
+        assertNotSame(on(() -> server.internals().world().regionizer().ownerOf(at.x() >> 4, at.z() >> 4)),
+                server.onRegion(far, () -> server.internals().world().regionizer().ownerOf(far.x() >> 4, far.z() >> 4)), "다른 region");
+        cow.furnaceHandle(stale);
+        CompoundTag tag = new CompoundTag();
+        var f = CompletableFuture.supplyAsync(() -> shim.save(tag));
+        for (int i = 0; i < 200 && !f.isDone(); i++) server.tick(1);
+        assertTrue(f.get(20, TimeUnit.SECONDS));
+        assertEquals(at.x() + 0.5, tag.getList("Pos", 6).getDouble(0), "엔티티가 실제로 있는 자리를 저장했다");
+        assertEquals(cow.getUniqueId(), tag.getUUID("UUID"));
         on(() -> { cow.remove(); return null; });
     }
 
