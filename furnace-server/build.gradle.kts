@@ -475,4 +475,8 @@ tasks.register<Test>("vanillaReportsTest") {
     systemProperty("furnace.vanillaReports", "$cache/$mc/generated/reports")
     testLogging { showStandardStreams = true }
     outputs.upToDateWhen { false }   // 보고서가 바뀔 수 있어 매번 돌린다
+    // 태그가 바뀌거나 클래스가 빠져 시험이 하나도 안 돌면 Gradle 은 조용히 초록이다 — 비교하지 않은 초록을 막는다(규칙 5)
+    afterSuite(KotlinClosure2<TestDescriptor, TestResult, Unit>({ d, r ->
+        if (d.parent == null && r.testCount == 0L) throw GradleException("vanillaReportsTest 가 시험을 하나도 돌리지 않았다(태그 vanilla-reports 확인)")
+    }))
 }
