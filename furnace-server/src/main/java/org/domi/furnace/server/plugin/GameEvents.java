@@ -353,6 +353,15 @@ public interface GameEvents {
     /** 플레이어가 아닌 엔티티가 차원문으로 넘어가기 직전. false 면 취소. */
     default boolean entityPortal(Entity e, String toDimension, int cause) { return true; }
 
+    /** 플러그인 teleport 의 도착 위치(차원 키·좌표·회전). */
+    record TeleportTarget(String dimension, double x, double y, double z, float yaw, float pitch) {}
+
+    /**
+     * 플레이어가 아닌 엔티티의 플러그인 teleport 직전(Paper EntityTeleportEvent, 소유 region 스레드에서). 취소했거나 도착 위치를 비웠으면 null,
+     * 아니면 이벤트가 정한 도착 위치(구독자가 없으면 to 그대로). 다른 차원으로 가면 Paper 처럼 두 번 부른다(요청 때, 차원을 건너기 직전).
+     */
+    default TeleportTarget entityTeleport(Entity e, TeleportTarget to) { return to; }
+
     /** 불로 지옥문을 만들기 직전(blocks 는 채울 칸). false 면 취소. */
     default boolean portalCreate(String dimension, java.util.List<Pos> blocks) { return true; }
 

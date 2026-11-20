@@ -157,6 +157,7 @@ public final class PluginGameEvents implements GameEvents {
     private final EventBusImpl.Flag wPlayerFish;
     private final EventBusImpl.Flag wPlayerPortal;
     private final EventBusImpl.Flag wEntityPortal;
+    private final EventBusImpl.Flag wEntityTeleport;
     private final EventBusImpl.Flag wPortalCreate;
     private final EventBusImpl.Flag wPlayerEditBook;
     private final EventBusImpl.Flag wEntityChangeBlock;
@@ -230,6 +231,7 @@ public final class PluginGameEvents implements GameEvents {
         wPlayerFish = b.flag(PlayerFishEvent.class);
         wPlayerPortal = b.flag(PlayerPortalEvent.class);
         wEntityPortal = b.flag(EntityPortalEvent.class);
+        wEntityTeleport = b.flag(org.domi.furnace.api.event.entity.EntityTeleportEvent.class);
         wPortalCreate = b.flag(PortalCreateEvent.class);
         wPlayerEditBook = b.flag(PlayerEditBookEvent.class);
         wEntityChangeBlock = b.flag(org.domi.furnace.api.event.entity.EntityChangeBlockEvent.class);
@@ -974,6 +976,17 @@ public final class PluginGameEvents implements GameEvents {
     public boolean entityPortal(Entity e, String toDimension, int cause) {
         if (!wEntityPortal.on()) return true;
         return !bus().call(new EntityPortalEvent(EntityHandle.of(host, e), new Location(e.dimensionKey(), e.x(), e.y(), e.z(), e.yRot(), e.xRot()), toDimension, PORTAL_CAUSES[cause])).isCancelled();
+    }
+
+    @Override
+    public TeleportTarget entityTeleport(Entity e, TeleportTarget to) {
+        if (!wEntityTeleport.on()) return to;
+        var ev = bus().call(new org.domi.furnace.api.event.entity.EntityTeleportEvent(EntityHandle.of(host, e),
+                new Location(e.dimensionKey(), e.x(), e.y(), e.z(), e.yRot(), e.xRot()),
+                new Location(to.dimension(), to.x(), to.y(), to.z(), to.yaw(), to.pitch())));
+        Location t = ev.to();
+        if (ev.isCancelled() || t == null) return null;
+        return new TeleportTarget(t.world(), t.x(), t.y(), t.z(), t.yaw(), t.pitch());
     }
 
     @Override

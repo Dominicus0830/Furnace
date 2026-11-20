@@ -82,10 +82,12 @@ public interface Entity {
     CompletableFuture<? extends Entity> refresh();
 
     /**
-     * 옮긴다(소유 region 에서 실행). 옮겼으면 true. 플레이어가 아닌 엔티티는 같은 차원 안에서만 옮긴다.
+     * 옮긴다(소유 region 에서 실행). 옮겼으면 true.
      *
-     * <p>다음 경우에는 false 다. 엔티티가 사라졌거나, 승객이 타고 있거나, (플레이어가 아닌 엔티티의) 다른 차원이나 다른 region 으로 가는
-     * 이동이거나, 플레이어의 PlayerTeleportEvent 가 취소됐을 때다.
+     * <p>다음 경우에는 false 다. 엔티티가 사라졌거나, 승객이 타고 있거나, (플레이어가 아닌 엔티티의) 같은 월드 안 다른 region 으로 가는
+     * 이동이거나, 플레이어의 PlayerTeleportEvent 나 (플레이어가 아닌 엔티티의) EntityTeleportEvent 가 취소됐을 때다.
+     * <p>플레이어가 아닌 엔티티도 Paper 처럼 다른 월드로 보낸다: 탈것에서 내린 뒤 목적 월드에 같은 종류를 새로 만들어(UUID·저장 데이터 유지, 속도 0)
+     * 넣고, 이 핸들은 낡은 스냅샷이 된다({@link #refresh}). 그때 true 는 목적 월드에 들어간(목적지가 없어 되돌렸어도) 뒤에 완료된다.
      * <p>플레이어는 Paper 처럼 다른 월드로도 보낸다. 그때는 목적 월드에 들어간 뒤 true 로, 목적 월드를 쓸 수 없어 되돌리면 false 로 끝난다.
      * <p>탈것을 타고 있으면 먼저 내린다(Paper 의 Entity#teleport 와 같다).
      */

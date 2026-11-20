@@ -90,6 +90,19 @@ final class Mappings {
                 f -> new org.bukkit.event.player.PlayerMoveEvent(p(f.player()), Compat.location(f.from()), Compat.location(f.to())), (f, b) -> {});
         EventBridge.reg(org.domi.furnace.api.event.player.PlayerTeleportEvent.class, org.bukkit.event.player.PlayerTeleportEvent.class,
                 f -> new org.bukkit.event.player.PlayerTeleportEvent(p(f.player()), Compat.location(f.from()), Compat.location(f.to())), (f, b) -> {});
+        // Paper CraftEntity#teleport: 플레이어가 아닌 엔티티의 텔레포트. 처리기가 to 를 바꾸거나 비우면 Furnace 로 돌려준다(null 은 취소와 같다)
+        EventBridge.reg(org.domi.furnace.api.event.entity.EntityTeleportEvent.class, org.bukkit.event.entity.EntityTeleportEvent.class,
+                f -> {
+                    var e = Compat.entity(f.entity());
+                    return e == null ? null : new org.bukkit.event.entity.EntityTeleportEvent(e, Compat.location(f.from()), Compat.location(f.to()));
+                },
+                (f, b) -> {
+                    var to = b.getTo() == null ? null : Compat.location(b.getTo());
+                    if (!java.util.Objects.equals(to, f.to())) f.to(to);
+                }, (f, b) -> {
+                    var cur = Compat.location(f.to());
+                    if (!java.util.Objects.equals(cur, b.getTo() == null ? null : Compat.location(b.getTo()))) b.setTo(cur);
+                });
         EventBridge.reg(org.domi.furnace.api.event.player.PlayerRespawnEvent.class, org.bukkit.event.player.PlayerRespawnEvent.class,
                 f -> new org.bukkit.event.player.PlayerRespawnEvent(p(f.player()), Compat.location(f.respawnLocation()), !f.isWorldSpawn()),
                 (f, b) -> {
