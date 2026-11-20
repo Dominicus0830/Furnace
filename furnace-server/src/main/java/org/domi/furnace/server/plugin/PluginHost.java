@@ -208,6 +208,13 @@ public final class PluginHost implements Furnace {
     }
 
     @Override
+    public org.domi.furnace.api.worldgen.WorldGeneratorSetting configuredWorldGenerator(String worldName) {
+        if (worldName == null) return org.domi.furnace.api.worldgen.WorldGeneratorSetting.NONE;
+        var s = core.worldSettings();
+        return new org.domi.furnace.api.worldgen.WorldGeneratorSetting(s.generatorByName(worldName), s.biomeProviderByName(worldName));
+    }
+
+    @Override
     public org.domi.furnace.api.world.WorldCreator storedWorldCreator(String name) {
         if (name == null) throw new NullPointerException("name");
         var m = core.worldManager();

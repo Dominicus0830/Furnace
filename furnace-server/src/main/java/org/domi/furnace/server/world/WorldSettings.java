@@ -8,6 +8,9 @@
 //   world-generator.overworld=     기본 차원의 생성기 플러그인 "플러그인[:id]"(Bukkit bukkit.yml worlds.<이름>.generator, T-219). 비우면 바닐라
 //   world-generator.the_nether=    위와 같다(the_end 도)
 //   world-biome-provider.overworld= 기본 차원의 바이옴 공급자 플러그인 "플러그인[:id]"(bukkit.yml worlds.<이름>.biome-provider). 나머지 차원도 같다
+//   world-generator.name.<월드 이름>=        그 이름의 월드에 쓸 생성기 플러그인(T-222 — Paper 는 플러그인이 그 이름으로 생성기 없이 createWorld 할 때 bukkit.yml
+//                                            worlds.<이름>.generator 를 쓴다). 이름은 정확히 같아야 한다. 기본 세 월드의 이름(level-name 등)도 되지만 차원 키가 이긴다
+//   world-biome-provider.name.<월드 이름>=   위와 같다(바이옴 공급자)
 package org.domi.furnace.server.world;
 
 import java.io.IOException;
@@ -20,7 +23,8 @@ import java.util.OptionalLong;
 import java.util.Properties;
 
 public record WorldSettings(OptionalLong netherSeed, OptionalLong endSeed, List<String> autoload, java.util.Map<String, String> hooks,
-                            java.util.Map<String, String> generators, java.util.Map<String, String> biomeProviders) {
+                            java.util.Map<String, String> generators, java.util.Map<String, String> biomeProviders,
+                            java.util.Map<String, String> namedGenerators, java.util.Map<String, String> namedBiomeProviders) {
 
     public static final WorldSettings DEFAULT = new WorldSettings(OptionalLong.empty(), OptionalLong.empty(), List.of(), java.util.Map.of());
 
@@ -32,6 +36,13 @@ public record WorldSettings(OptionalLong netherSeed, OptionalLong endSeed, List<
         hooks = java.util.Map.copyOf(hooks);
         generators = java.util.Map.copyOf(generators);
         biomeProviders = java.util.Map.copyOf(biomeProviders);
+        namedGenerators = java.util.Map.copyOf(namedGenerators);
+        namedBiomeProviders = java.util.Map.copyOf(namedBiomeProviders);
+    }
+
+    public WorldSettings(OptionalLong netherSeed, OptionalLong endSeed, List<String> autoload, java.util.Map<String, String> hooks,
+                         java.util.Map<String, String> generators, java.util.Map<String, String> biomeProviders) {
+        this(netherSeed, endSeed, autoload, hooks, generators, biomeProviders, java.util.Map.of(), java.util.Map.of());
     }
 
     public WorldSettings(OptionalLong netherSeed, OptionalLong endSeed, List<String> autoload, java.util.Map<String, String> hooks) {
@@ -48,8 +59,31 @@ public record WorldSettings(OptionalLong netherSeed, OptionalLong endSeed, List<
     /** 그 기본 차원의 바이옴 공급자 플러그인 "플러그인[:id]"(없으면 빈 문자열, T-219). */
     public String biomeProvider(String levelKey) { return biomeProviders.getOrDefault(levelKey, ""); }
 
-    /** 생성기나 공급자 플러그인을 정한 기본 차원인가. */
-    public boolean pluginGenerated(String levelKey) { return generators.containsKey(levelKey) || biomeProviders.containsKey(levelKey); }
+    /** 그 이름의 월드에 정한 생성기 플러그인 "플러그인[:id]"(없으면 빈 문자열, T-222). 이름은 정확히 같아야 한다. */
+    public String generatorByName(String worldName) { return namedGenerators.getOrDefault(worldName, ""); }
+
+    /** 그 이름의 월드에 정한 바이옴 공급자 플러그인 "플러그인[:id]"(없으면 빈 문자열, T-222). */
+    public String biomeProviderByName(String worldName) { return namedBiomeProviders.getOrDefault(worldName, ""); }
+
+    /**
+     * 기본 차원의 생성기 — 차원 키(world-generator.overworld 등)가 이기고, 없으면 그 차원의 Bukkit 식 월드 이름(level-name·_nether·_the_end)으로
+     * 정한 이름별 키(T-222, Paper 는 이름으로만 찾는다).
+     */
+    public String generator(String levelKey, String worldName) {
+        String g = generator(levelKey);
+        return g.isEmpty() ? generatorByName(worldName) : g;
+    }
+
+    /** 기본 차원의 바이옴 공급자 — {@link #generator(String, String)} 와 같은 우선순위. */
+    public String biomeProvider(String levelKey, String worldName) {
+        String b = biomeProvider(levelKey);
+        return b.isEmpty() ? biomeProviderByName(worldName) : b;
+    }
+
+    /** 생성기나 공급자 플러그인을 정한 기본 차원인가(worldName: 그 차원의 Bukkit 식 월드 이름). */
+    public boolean pluginGenerated(String levelKey, String worldName) {
+        return !generator(levelKey, worldName).isEmpty() || !biomeProvider(levelKey, worldName).isEmpty();
+    }
 
     /** 그 기본 차원(minecraft:overworld · the_nether · the_end)에 걸 월드젠 훅 키(없으면 빈 문자열). */
     public String generationHooks(String levelKey) { return hooks.getOrDefault(levelKey, ""); }
@@ -92,8 +126,24 @@ public record WorldSettings(OptionalLong netherSeed, OptionalLong endSeed, List<
             String b = p.getProperty("world-biome-provider." + dim, "").strip();
             if (!b.isEmpty()) providers.put("minecraft:" + dim, b);
         }
+        java.util.Map<String, String> namedGenerators = new java.util.HashMap<>();
+        java.util.Map<String, String> namedProviders = new java.util.HashMap<>();
+        for (String key : p.stringPropertyNames()) {
+            named(key, p.getProperty(key), GENERATOR_NAME_PREFIX, namedGenerators);
+            named(key, p.getProperty(key), PROVIDER_NAME_PREFIX, namedProviders);
+        }
         return new WorldSettings(seed(p.getProperty("dimension-seed.the_nether")), seed(p.getProperty("dimension-seed.the_end")), names, hooks,
-                generators, providers);
+                generators, providers, namedGenerators, namedProviders);
+    }
+
+    /** 이름별 키 접두(T-222) — 뒤는 월드 이름 그대로(점·빈칸 포함). */
+    public static final String GENERATOR_NAME_PREFIX = "world-generator.name.";
+    public static final String PROVIDER_NAME_PREFIX = "world-biome-provider.name.";
+
+    private static void named(String key, String raw, String prefix, java.util.Map<String, String> out) {
+        if (!key.startsWith(prefix) || key.length() == prefix.length()) return;
+        String v = raw == null ? "" : raw.strip();
+        if (!v.isEmpty()) out.put(key.substring(prefix.length()), v);
     }
 
     /** 바닐라 WorldOptions.parseSeed: 비면 없음, 숫자면 그 값, 아니면 글자의 hashCode. */

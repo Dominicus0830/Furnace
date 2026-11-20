@@ -102,6 +102,15 @@ public interface Furnace {
     }
 
     /**
+     * 서버 설정이 그 월드 이름에 정해 둔 생성기·바이옴 공급자 플러그인(furnace.properties {@code world-generator.name.<이름>}·
+     * {@code world-biome-provider.name.<이름>}, Bukkit bukkit.yml {@code worlds.<이름>.generator·biome-provider} 자리, T-222).
+     * 이름은 정확히 같아야 한다(대소문자 구분). 정한 것이 없으면 {@link org.domi.furnace.api.worldgen.WorldGeneratorSetting#NONE}. 아무 스레드.
+     */
+    default org.domi.furnace.api.worldgen.WorldGeneratorSetting configuredWorldGenerator(String worldName) {
+        return org.domi.furnace.api.worldgen.WorldGeneratorSetting.NONE;
+    }
+
+    /**
      * 추가 월드를 내린다(Bukkit unloadWorld). 기본 세 차원(오버월드·네더·엔드)은 내릴 수 없고, 월드 안에 플레이어가 있거나
      * {@link org.domi.furnace.api.event.world.WorldUnloadEvent} 가 취소되면 false 로 완료된다. save 면 청크·엔티티·level.dat 을 다 쓴 뒤 닫는다.
      * 내린 월드의 손잡이는 더 쓸 수 없다(블록 접근은 실패로 완료). 아무 스레드.

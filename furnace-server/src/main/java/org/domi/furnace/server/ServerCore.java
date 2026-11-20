@@ -122,6 +122,13 @@ public final class ServerCore {
     /** /bossbar 로 만든 커스텀 보스바. */
     public org.domi.furnace.server.bossbar.CustomBossEvents customBossEvents() { return customBossEvents; }
 
+    private volatile org.domi.furnace.server.world.WorldSettings worldSettings = org.domi.furnace.server.world.WorldSettings.DEFAULT;
+
+    /** furnace.properties 의 월드 설정(시드·훅·이름별 생성기 — T-222). 서버 본체가 시작 때 건다. */
+    public org.domi.furnace.server.world.WorldSettings worldSettings() { return worldSettings; }
+
+    public void worldSettings(org.domi.furnace.server.world.WorldSettings s) { this.worldSettings = java.util.Objects.requireNonNull(s); }
+
     private volatile org.domi.furnace.server.net.registry.RegistrySet registries;
 
     /** 클라이언트와 동기하는 레지스트리(플러그인 바이옴·차원 타입 포함). 없으면 null — 접속 처리가 바닐라 목록을 쓴다. */

@@ -313,7 +313,7 @@ public final class PaperConfigImport {
             itemValidation();
             activationRange();
             entityHandles();
-            defaultWorldGenerators();
+            worldGenerators();
             manualAndUnsupported();
             versionMarkers();
             unknown();
@@ -592,17 +592,34 @@ public final class PaperConfigImport {
                     Lang.t("paperimport.spigot-missing-key", key, why));
         }
 
-        /** bukkit.yml worlds.<기본 세 월드>.generator·biome-provider → world-generator.<차원>·world-biome-provider.<차원>(T-219). 다른 이름은 Paper 가 그 이름의 추가 월드를 생성기 없이 만들 때 쓰지만 Furnace 에 이름별 설정이 없어 대응 없음(T-222). */
-        private void defaultWorldGenerators() {
-            for (String dim : org.domi.furnace.server.world.WorldSettings.DIMENSIONS) {
-                String world = org.domi.furnace.server.world.DefaultWorldGenerators.worldName(levelName, "minecraft:" + dim);
+        /**
+         * bukkit.yml worlds.<이름>.generator·biome-provider → 기본 세 월드(level-name·_nether·_the_end)는 world-generator.<차원>·world-biome-provider.<차원>
+         * (T-219), 그 밖의 이름은 world-generator.name.<이름>·world-biome-provider.name.<이름>(T-222 — Paper 는 플러그인이 그 이름으로 생성기 없이
+         * createWorld 할 때 쓴다). 이름은 Bukkit 설정 경로 그대로라 점이 든 이름은 중첩 칸으로 적혀도 같은 이름이 된다(MemorySection 경로 규칙).
+         * 값은 Bukkit getString 처럼 숫자·불리언도 글자로 읽는다.
+         */
+        private void worldGenerators() {
+            ConfigSection d = docs.get(BUKKIT);
+            if (d == null) return;
+            for (String leaf : leaves(d)) {
+                if (!leaf.startsWith("worlds.")) continue;
+                String rest = leaf.substring("worlds.".length());
                 for (String[] kv : new String[][] {{"generator", "world-generator."}, {"biome-provider", "world-biome-provider."}}) {
-                    String path = "worlds." + world + "." + kv[0];
-                    Object v = val(BUKKIT, path);
-                    if (v instanceof String spec && !spec.isBlank()) {
-                        imp(BUKKIT, path, v, kv[1] + dim, spec.strip(), Lang.t("paperimport.default-world-generator"));
+                    String suffix = "." + kv[0];
+                    if (!rest.endsWith(suffix) || rest.length() == suffix.length()) continue;
+                    String world = rest.substring(0, rest.length() - suffix.length());
+                    String furnaceKey = null;
+                    for (String dim : org.domi.furnace.server.world.WorldSettings.DIMENSIONS) {
+                        if (world.equals(org.domi.furnace.server.world.DefaultWorldGenerators.worldName(levelName, "minecraft:" + dim))) furnaceKey = kv[1] + dim;
+                    }
+                    boolean defaultWorld = furnaceKey != null;
+                    if (furnaceKey == null) furnaceKey = kv[1] + "name." + world;
+                    Object v = val(BUKKIT, leaf);
+                    String spec = v instanceof String || v instanceof Number || v instanceof Boolean ? String.valueOf(v).strip() : null;
+                    if (spec != null && !spec.isEmpty()) {
+                        imp(BUKKIT, leaf, v, furnaceKey, spec, Lang.t(defaultWorld ? "paperimport.default-world-generator" : "paperimport.named-world-generator"));
                     } else if (v != null) {
-                        ignored(BUKKIT, path, v, Lang.t("paperimport.default-world-generator-empty"));
+                        ignored(BUKKIT, leaf, v, Lang.t("paperimport.default-world-generator-empty"));
                     }
                 }
             }
@@ -674,7 +691,7 @@ public final class PaperConfigImport {
             unsupported(BUKKIT, "ticks-per", Lang.t("paperimport.ticks-per"));
             unsupported(BUKKIT, "aliases", Lang.t("paperimport.aliases"));
             unsupported(BUKKIT, "database", Lang.t("paperimport.database"));
-            unsupported(BUKKIT, "worlds", Lang.t("paperimport.worlds-other"));
+            unsupported(BUKKIT, "worlds", Lang.t("paperimport.worlds-other"));   // 위 worldGenerators 가 옮긴 칸은 이미 처리됨 — 남은 칸(다른 설정)만
 
             unsupported(SPIGOT, "settings.netty-threads", Lang.t("paperimport.settings-netty-threads"));
             unsupported(SPIGOT, "settings.restart-on-crash", Lang.t("paperimport.settings-restart-on-crash"));
@@ -834,7 +851,26 @@ public final class PaperConfigImport {
         return sb.toString();
     }
 
-    static String escapeKey(String k) { return k.replace(" ", "\\ ").replace("=", "\\=").replace(":", "\\:"); }
+    /** 키 쓰기: 구분자·역슬래시·줄바꿈과 ASCII 밖(월드 이름 등, Properties.load 가 ISO-8859-1 로 읽는다)은 이스케이프. */
+    static String escapeKey(String k) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < k.length(); i++) {
+            char c = k.charAt(i);
+            switch (c) {
+                case '\\' -> sb.append("\\\\");
+                case '\n' -> sb.append("\\n");
+                case '\r' -> sb.append("\\r");
+                case '\t' -> sb.append("\\t");
+                case ' ', '=', ':' -> sb.append('\\').append(c);
+                case '#', '!' -> sb.append(i == 0 ? "\\" : "").append(c);
+                default -> {
+                    if (c < 0x20 || c > 0x7e) sb.append(String.format("\\u%04x", (int) c));
+                    else sb.append(c);
+                }
+            }
+        }
+        return sb.toString();
+    }
 
     // ------------------------------------------------------------------ 보고서
 

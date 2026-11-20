@@ -40,7 +40,7 @@ public final class OptionKeys {
     public static final String DEF_PER_STAGE = "per-stage";
 
     /** 키가 아니라 이름 접두로 받는 가족(플러그인별 로그 수준, 차원별 시드). */
-    private static final List<String> PREFIXES = List.of("plugins.log-level.", "dimension-seed.", "spawn.limit.", "spawn.player-limit.");
+    private static final List<String> PREFIXES = List.of("plugins.log-level.", "dimension-seed.", "spawn.limit.", "spawn.player-limit.", "world-generator.name.", "world-biome-provider.name.");
 
     private static final String[] STATES = {"handshake", "status", "login", "configuration", "play"};
 

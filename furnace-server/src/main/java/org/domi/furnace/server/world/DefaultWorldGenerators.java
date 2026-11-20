@@ -31,7 +31,7 @@ public final class DefaultWorldGenerators {
     public record Target(World world, String levelKey, String worldName, WorldEnvironment environment, long seed, int minY, int maxY) {
 
         DefaultWorldGeneration.Request request(WorldSettings s) {
-            return new DefaultWorldGeneration.Request(worldName, levelKey, environment, seed, minY, maxY, s.generator(levelKey), s.biomeProvider(levelKey));
+            return new DefaultWorldGeneration.Request(worldName, levelKey, environment, seed, minY, maxY, s.generator(levelKey, worldName), s.biomeProvider(levelKey, worldName));
         }
     }
 
@@ -61,7 +61,7 @@ public final class DefaultWorldGenerators {
         List<String> out = new java.util.ArrayList<>();
         for (String dim : WorldSettings.DIMENSIONS) {
             String key = "minecraft:" + dim;
-            if (!s.pluginGenerated(key)) continue;
+            if (!s.pluginGenerated(key, worldName(levelName, key))) continue;
             if (!s.generationHooks(key).isEmpty()) {
                 log.warn(Lang.t("world.default-generator-hooks-win", worldName(levelName, key), dim));
                 continue;

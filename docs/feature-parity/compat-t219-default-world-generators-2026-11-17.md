@@ -25,7 +25,7 @@ T-217(`compat-t217-chunk-generator-worlds-2026-11-17.md`)·T-210 의 뒤. 결정
   플러그인 이름은 형식과 무관하다 — 그 플러그인을 가진 형식 어댑터(Bukkit 호환 계층)가 답한다.
 - Paper 설정 가져오기(`PaperConfigImport`): `bukkit.yml` `worlds.<level-name>[ _nether | _the_end ].generator|biome-provider` 를 위 키로 옮긴다.
   다른 이름의 `worlds.*` 는 "대응 없음"으로 보고서에 남긴다 — Paper 는 `CraftServer#createWorld(WorldCreator)` 에서 생성기·공급자가 비면
-  `getGenerator(이름)`·`getBiomeProvider(이름)` 를 불러 **추가 월드에도** 이 설정을 쓰지만(검토에서 바이트코드 확인), Furnace 에는 이름별 설정이 없다(3장, 후속 T-222).
+  `getGenerator(이름)`·`getBiomeProvider(이름)` 를 불러 **추가 월드에도** 이 설정을 쓰지만(검토에서 바이트코드 확인), 당시 Furnace 에는 이름별 설정이 없었다(3장, → T-222 에서 이름별 키로 구현, `compat-t222-named-world-generators-2026-11-17.md`).
 - 같은 차원에 `worldgen-hooks.<차원>`(Furnace 훅 키)과 함께 적으면 Furnace 훅이 이기고 생성기 설정은 경고 한 줄과 함께 무시한다(둘을 겹쳐 걸 수 없다).
 
 ### 2.2 시작 순서
@@ -65,7 +65,7 @@ Furnace 는 기본 월드를 플러그인보다 먼저 만든다(접속자·명�
   - 플러그인 `onLoad` 에서 Furnace API 로 그 차원의 청크를 미리 만들게 하면(Bukkit 은 그때 월드가 없다) 생성기를 붙이지 못하고 바닐라로 남는다(오류 기록).
   - `allow-nether=false` 여도 네더 생성기를 묻는다(Furnace 는 네더 월드를 늘 만든다 — 묻는 횟수만 다르다).
   - bukkit.yml `worlds.<추가 월드 이름>.generator·biome-provider`(Paper 는 플러그인이 그 이름으로 생성기 없이 `createWorld` 할 때 쓴다)는
-    아직 없다 — Furnace 설정 키는 기본 세 차원뿐이다. 후속 T-222(이름별 키와 가져오기).
+    아직 없다 — Furnace 설정 키는 기본 세 차원뿐이다. T-222 에서 구현(이름별 키와 가져오기).
 
 ## 4. 시험
 - 서버: 설정 읽기, `replaceBase`(만든 뒤 거절), 시작 순서(가짜 형식 어댑터 — STARTUP 뒤·스폰 청크 앞에 묻고 스폰이 그 생성기를 따름).
