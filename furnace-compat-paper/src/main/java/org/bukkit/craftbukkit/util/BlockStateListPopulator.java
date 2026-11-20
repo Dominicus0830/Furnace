@@ -100,9 +100,7 @@ public class BlockStateListPopulator extends DummyGeneratorAccess {
 
     @Override
     public DimensionType dimensionType() {
-        if (world instanceof net.minecraft.world.level.Level level) return level.dimensionType();
-        if (world instanceof DummyGeneratorAccess dummy) return dummy.dimensionType();
-        throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("BlockStateListPopulator#dimensionType", "the wrapped level has no dimension type in the shim");
+        return world.dimensionType();   // Paper 그대로: 감싼 레벨의 것
     }
 
     @Override

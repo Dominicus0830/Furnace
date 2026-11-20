@@ -321,7 +321,8 @@ Paper `Level#destroyBlock`: 공기면 거짓 → **경험치를 먼저 뽑는다
 | `getMoonBrightness`·`getBiome` | 레벨 데이터·그 지역의 바이옴 확대 | 그 레벨 | 그 레벨(`dimensionType().moonBrightness(dayTime())`, `getBiomeManager().getBiome`) |
 | `getEntitiesOfClass`(아기 좀비의 닭) | 늘 빈 목록 | 그 레벨 | Paper populator 는 던진다(`Not supported yet.`) — 그대로 |
 | `addFreshEntity` | 그 순간 저장(`ProtoChunk.addEntity` → NBT, 탄 것은 건너뜀) | 사본을 반영할 때 그 레벨에 | 그 레벨에(populator 는 바닐라 기본 — 버린다) |
-| `getLevel()` 쪽(고양이의 구조물 검사·시간·난이도) | 서버 레벨 | 서버 레벨 | 서버 레벨(FAWE 의 `getLevel()`) |
+| `getLevel()` 쪽(시간·난이도·레지스트리) | 서버 레벨 | 서버 레벨 | 서버 레벨(FAWE 의 `getLevel()`) |
+| 고양이의 구조물 검사(Paper `getStructureWithPieceAt(pos, tag, world)` — 참조는 world 인자의 `getChunk(STRUCTURE_REFERENCES)`, 시작은 서버 레벨) | 그 청크의 참조 시작점 | 서버 레벨 | `getLevel()` 을 묻고 서버 레벨의 참조로 답한다(11.3-6) |
 
 몹 코드는 엔티티의 `level()` 을 읽으므로 월드젠·플러그인 길은 위 world 로 답하는 분리 레벨(`DetachedMobLevel`)에서 몹을 만든다(틱·방송·이벤트 없음).
 
@@ -345,3 +346,6 @@ Paper `Level#destroyBlock`: 공기면 거짓 → **경험치를 먼저 뽑는다
 3. 아기 좀비(좀비 주민)가 닭을 찾을 때 플러그인 레벨이 `DummyGeneratorAccess` 계열이 아니면 물을 수 없어 `UnsupportedNmsCall`.
 4. 실제 레벨 길에서 아기 좀비가 새로 만든 닭은 바닐라처럼 바로 레벨에 들어가고, 그 몹 자신은 사본을 반영할 때 들어간다(같은 틱 안의 순서 차이 — 관측되지 않는다고 가정).
 5. 실측(바닐라 서버로 같은 시드 마녀 오두막의 마녀 속성 비교)은 하지 않았다 — 차례는 jar 바이트코드 대조와 시험(`PluginLevelStructureTest` 의 뽑기 차례·속성 값)으로 확인했다.
+6. Paper 의 고양이 구조물 검사는 참조를 world 인자의 `getChunk(x, z, STRUCTURE_REFERENCES)` 에서 읽는다. 플러그인 길은 그 레벨의 `getChunk` 를 부르지 않고 서버 레벨의 참조로 답한다 —
+   FAWE populator 는 `getChunk` 를 서버 레벨에 넘기므로 같고, 평범한 populator 는 그보다 앞서 `getLevel()` 에서 던진다. `getChunk` 를 다르게 답하는 플러그인 레벨만 갈린다(가정: 드물다).
+7. 낙타의 `finalizeSpawn` 도 `getLevel()` 을 부른다 — 서버는 그 값(게임 시간)을 서버 레벨에서 읽고 플러그인 레벨의 `getLevel()` 을 한 번 더 부르지는 않는다. FAWE 는 부작용이 없어 관측되지 않는다.
