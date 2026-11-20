@@ -648,6 +648,14 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     @Override
+    public boolean blockEntitySetStateNow(org.domi.furnace.api.world.World world, Object blockEntity, int stateId) {
+        if (!(blockEntity instanceof org.domi.furnace.server.block.entity.BlockEntity be)) return false;
+        if (ownedLevel(world, be.pos().x(), be.pos().z(), "BlockEntity#setBlockState") == null || be.isRemoved()) return false;
+        be.setBlockState(stateId);
+        return true;
+    }
+
+    @Override
     public boolean blockEntityLoadNow(org.domi.furnace.api.world.World world, Object blockEntity, org.domi.furnace.api.nbt.NbtCompound tag) {
         java.util.Objects.requireNonNull(tag, "tag");
         if (blockEntity instanceof org.domi.furnace.server.block.entity.BlockEntity be) {

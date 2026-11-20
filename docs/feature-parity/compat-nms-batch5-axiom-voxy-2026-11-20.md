@@ -136,7 +136,31 @@
   (`onChanged`)만 부른다(Paper jar 를 javap 로 대조). `WorldGameRuleChangeEvent` 는 `/gamerule`·Bukkit `setGameRule` 길에서만 난다.
 - 시험: 규칙 51개(불리언 40·정수 11)를 모두 읽어 Bukkit 규칙 값과 같은지 본다(`NmsWorldPropertiesTest.allFiftyOneRulesRead`).
 
-## 지금까지 모음(5a~5c)
+## 5d-1 — 블록 엔티티 넣기·상태, 빛 성질 (Axiom 블록 버퍼)
+
+**채운 기호 8개.** 무엇보다 Axiom 은 켜질 때(`onEnable`) `AxiomReflection` 이 `LevelChunk.updateBlockEntityTicker(BlockEntity)` 를 리플렉션으로
+찾는다. 없으면 플러그인이 켜지지 않으므로 이것부터 채웠다(Paper 와 같은 이름·서명의 private 메서드).
+
+| 분류 | 개수 | 기호 |
+|---|---|---|
+| 자동 연결 가능 | 4 | `LevelChunk.updateBlockEntityTicker`(할 일 없음), `BlockEntity.isValidBlockState`, `ChunkAccess.getHeightmaps`, `LevelLightEngine.updateSectionStatus`(할 일 없음) |
+| 다리 위 기계적 | 2 | `LightEngine.hasDifferentLightProperties`, `BlockStateBase.useShapeForLightOcclusion`(블록 상태 표에 깃발 하나) |
+| 설계 필요 | 2 | `LevelChunk.addAndRegisterBlockEntity`, `BlockEntity.setBlockState`(월드의 보기면 서버 블록 엔티티에 쓴다) |
+
+새 다리 1건(`ChunkInternals.blockEntitySetStateNow`, 거울 일지 `BE_STATE`). 자동 연결 가능 비율 **50%(4/8)**, 기계적까지 75%.
+
+걸린 시간: 약 15분(분석 20:52~20:58, 538 검토 고침으로 끊김, 구현 21:05~21:11, 서명 관문·시험 21:12~21:16).
+
+- `addAndRegisterBlockEntity` 는 Paper `setBlockEntity` 판정 그대로: 칸 블록이 블록 엔티티를 갖지 않으면 내부 오류를 찍고 넣지 않는다. 든 상태가 칸과 다르면
+  경고(같은 문구)한 뒤 칸 상태로 맞춘다(종류가 못 받는 상태면 바닐라처럼 `IllegalStateException`). 넣은 객체는 그 칸 서버 블록 엔티티의 보기가 되고
+  든 내용을 싣는다. 주인 스레드는 곧바로, 다른 스레드는 거울 일지로(지우기→만들기→싣기 차례 그대로).
+- 틱터: Furnace 서버는 틱마다 칸의 지금 상태로 할 일을 고르므로(모닥불은 켜졌는가) 틱터를 다시 고를 일이 없다.
+- 빛: Furnace 는 청크마다 빛 26층을 다 들고 있어 구역 비었음 상태가 없다. `updateSectionStatus` 는 할 일이 없다(Paper 의 Starlight 도 비었음 지도
+  갱신만 줄 세운다). `LightEngine` 은 정적 도우미만 있고 생성자는 private(서버에 층별 빛 엔진 객체가 없다).
+- 시험 `NmsBlockBufferTest`(4): 주인·다른 스레드로 통 넣기(방향 상태·든 아이템이 서버에 들어가고 저장된다), 블록 엔티티 없는 칸은 아무것도 안 함,
+  빛 성질·높이 지도 종류 차례.
+
+## 지금까지 모음(5a~5d-1)
 
 | 묶음 | 기호 | 자동 연결 가능 | 다리 위 기계적 | 설계 필요 | 걸린 시간 |
 |---|---|---|---|---|---|
@@ -144,11 +168,12 @@
 | 5a-2 | 1 | 0 | 0 | 1 | 5분 |
 | 5b 앞부분 | 7 | 0 | 5 | 2 (+다리 1) | 8분 |
 | 5c | 13 | 11 | 0 | 2 (+다리 1) | 6분 |
-| 합계 | 50 | 27 (54%) | 17 (34%) | 6 (12%) + 다리 3 | 31분 (+5a 검토 고침 5분) |
+| 5d-1 | 8 | 4 | 2 | 2 (+다리 1) | 15분 |
+| 합계 | 58 | 31 (53%) | 19 (33%) | 8 (14%) + 다리 4 | 46분 (+5a 검토 고침 5분) |
 
-다리가 생긴 뒤의 기계적 연결까지 넣으면 88%(44/50)가 사람의 설계 없이 이을 수 있는 꼴이었다. 손으로 쓴 시간의 대부분은 설계 필요 6개와
-다리 3건, 그리고 바닐라 값 시험이었다.
+다리가 생긴 뒤의 기계적 연결까지 넣으면 86%(50/58, 5c 까지는 44/50 = 88%)가 사람의 설계 없이 이을 수 있는 꼴이었다. 손으로 쓴 시간의 대부분은 설계 필요 8개와
+다리 4건, 그리고 바닐라 값 시험이었다.
 
-시간: 묶음별 시간을 더하면 33분이지만 5b 와 5c 가 2분 겹쳐 실제 손 시간은 약 31분이다. 여기에 5a 검토 고침 5분을 더하면 첫 명령 20:13:53 부터
+5a~5c 시간: 묶음별 시간을 더하면 33분이지만 5b 와 5c 가 2분 겹쳐 실제 손 시간은 약 31분이다. 여기에 5a 검토 고침 5분을 더하면 첫 명령 20:13:53 부터
 5c 문서 커밋 20:48:21 까지 약 34.5분과 맞는다.
 

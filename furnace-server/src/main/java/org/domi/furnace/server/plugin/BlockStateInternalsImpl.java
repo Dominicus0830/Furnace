@@ -50,6 +50,7 @@ final class BlockStateInternalsImpl implements BlockStateInternals {
             if (info.hasBlockEntity(s)) f |= HAS_BLOCK_ENTITY;
             if (BlockBehaviors.of(s).hasAnalogOutputSignal(s)) f |= ANALOG_OUTPUT;
             if (org.domi.furnace.server.world.gen.feature.BlockStates.hasPostProcess(blocks.name(b))) f |= POST_PROCESS;
+            if (LightTables.useShapeForLightOcclusion(s)) f |= USE_SHAPE_FOR_LIGHT;
             flags[s] = (short) f;
             destroy[s] = info.destroyTime(b);
             resistance[s] = info.explosionResistance(b);

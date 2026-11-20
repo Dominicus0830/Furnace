@@ -19,8 +19,9 @@ import org.domi.furnace.compat.nms.UnsupportedNmsCall;
  *   <li>{@link #checkBlock}: 그 칸의 빛 검사를 걸고 곧바로 돌아온다(아무 스레드). 계산은 그 청크 주인의 다음 빛 계산.</li>
  *   <li>{@link #queueSectionData}·{@link #setLightEnabled}·{@link #propagateLightSources}·{@link #retainData}: Paper 처럼 아무것도 하지 않는다
  *       (Starlight 는 빛 자료를 청크에 두고 이 길로 바꾸지 못하게 막는다).</li>
- *   <li>{@link #hasLightWork}·{@link #runLightUpdates}·{@link #updateSectionStatus}: Furnace 의 빛 대기열은 region 마다 따로 돌아 아무 스레드에서
+ *   <li>{@link #hasLightWork}·{@link #runLightUpdates}: Furnace 의 빛 대기열은 region 마다 따로 돌아 아무 스레드에서
  *       세계 전체 빛 일을 묻거나 돌릴 수 없다 — 값을 지어내지 않고 {@link UnsupportedNmsCall}.</li>
+ *   <li>{@link #updateSectionStatus}: 아무것도 하지 않는다(NMS shim 5d — Furnace 에는 섹션 비었음 표가 없다).</li>
  * </ul>
  */
 public class LevelLightEngine implements LightEventListener {
@@ -73,10 +74,13 @@ public class LevelLightEngine implements LightEventListener {
         throw new UnsupportedNmsCall("LevelLightEngine#runLightUpdates", "Furnace runs light updates per region on that region's thread at the end of its tick - use checkBlock, the next tick computes it");
     }
 
+    /**
+     * 바닐라: 섹션이 공기뿐이 되었는지(notReady) 빛 저장소에 알린다. Paper(Starlight)는 그 섹션의 비었음 표를 고치는 작업을 빛 대기열에 건다(Paper jar 대조).
+     * Furnace 의 빛 자료는 모든 섹션에 늘 있고(청크마다 26 층) 공기뿐인 섹션은 빛 계산이 칸을 읽어 스스로 판정하므로 고칠 표가 없다 — 아무것도 하지 않는다. 섹션에 직접 쓴 칸의 빛은
+     * 바닐라처럼 {@link #checkBlock} 이나 다시 계산(Starlight {@code serverRelightChunks})으로 맞춘다(Axiom 블록 버퍼가 이 순서로 부른다).
+     */
     @Override
-    public void updateSectionStatus(SectionPos pos, boolean notReady) {
-        throw new UnsupportedNmsCall("LevelLightEngine#updateSectionStatus", "Furnace updates the light of empty sections itself when blocks change");
-    }
+    public void updateSectionStatus(SectionPos pos, boolean notReady) {}
 
     /** 바닐라: 빛 섹션 수(블록 섹션 + 아래위 하나씩). */
     public int getLightSectionCount() { return NmsLight.maxLightSection(level) - NmsLight.minLightSection(level) + 1; }

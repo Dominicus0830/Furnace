@@ -95,6 +95,12 @@ public abstract class ChunkAccess implements BlockGetter {
     /** 바닐라: heightmaps 의 그 종류, 없으면 만들어 넣는다(로드된 청크는 살아 있는 네 종류를 늘 가진다 — 월드젠 종류는 비어 있는 하이트맵). */
     public Heightmap getOrCreateHeightmapUnprimed(Heightmap.Types type) { return heightmaps.computeIfAbsent(type, t -> Heightmap.furnaceView(this, t)); }
 
+    /**
+     * 바닐라 getHeightmaps: 하이트맵 표의 항목(종류 순서, 고칠 수 없는 보기). 로드된 청크는 살아 있는 네 종류(월드젠 종류를 {@link #getOrCreateHeightmapUnprimed}
+     * 로 만들었으면 그것도). 하이트맵 객체는 {@link Heightmap#update} 등이 그 칸 주인 규칙으로 서버에 쓰는 보기다.
+     */
+    public java.util.Collection<java.util.Map.Entry<Heightmap.Types, Heightmap>> getHeightmaps() { return java.util.Collections.unmodifiableSet(heightmaps.entrySet()); }
+
     /** 바닐라: heightmaps 에 그 종류가 있는가(로드된 청크는 살아 있는 네 종류). */
     public boolean hasPrimedHeightmap(Heightmap.Types type) { return heightmaps.get(type) != null; }
 
@@ -407,6 +413,53 @@ public abstract class ChunkAccess implements BlockGetter {
         }
         furnaceMirror.ownerSyncIfDirty();
         NmsChunks.bridge().blockEntityChangedNow(furnaceWorld, at.getX(), at.getY(), at.getZ());
+    }
+
+    /** 호환 모듈 전용 — 보기의 BlockEntity#setBlockState: 서버 블록 엔티티가 든 상태를 바꾼다(NMS shim 5d). 주인은 바로, 다른 스레드는 거울 일지. */
+    public void furnaceBlockEntityState(net.minecraft.world.level.block.entity.BlockEntity view, net.minecraft.world.level.block.state.BlockState state) {
+        if (furnaceMirror.dead()) return;
+        if (!furnaceOwner()) {
+            furnaceMirror.blockEntityState(view, state.furnaceStateId());
+            return;
+        }
+        furnaceMirror.ownerSyncIfDirty();
+        Object h = furnaceBindNow(furnaceWorld, view);
+        if (h != null) NmsChunks.bridge().blockEntitySetStateNow(furnaceWorld, h, state.furnaceStateId());
+    }
+
+    /**
+     * 호환 모듈 전용 — 바닐라 LevelChunk.setBlockEntity 의 표 넣기(NMS shim 5d): 떨어진 블록 엔티티 be 를 그 칸의 블록 엔티티로 만든다. 그 칸에 있던 것은 지우고
+     * (바닐라 put 이 옛 것에 setRemoved), 그 칸 블록으로 서버 블록 엔티티를 새로 만들어(틱·게임 이벤트 등록 포함) be 가 든 내용을 싣고 be 를 그 보기로 묶는다.
+     * 주인은 바로, 다른 스레드는 거울 일지(지우기 → 만들기 → 싣기 순서 — 앞서 쓴 섹션 칸이 먼저 들어간다). 부르는 쪽이 그 칸 블록이 블록 엔티티를 가지는지 본다.
+     */
+    public void furnaceAddBlockEntity(net.minecraft.world.level.block.entity.BlockEntity be) {
+        BlockPos at = be.getBlockPos();
+        int x = at.getX(), y = at.getY(), z = at.getZ();
+        if (isOutsideBuildHeight(y) || (x >> 4) != pos.x || (z >> 4) != pos.z || furnaceMirror.dead()) return;   // 바닐라: 이 청크 표 밖이면 넣어도 안 보인다
+        long k = BlockPos.asLong(x, y, z);
+        org.domi.furnace.api.nbt.NbtCompound data = be.furnaceDetachedData();
+        var cur = furnaceBlockEntity(at, false);
+        if (cur != null) {
+            cur.setRemoved();
+            furnaceBlockEntityViews.remove(k, cur);
+        }
+        if (furnaceOwner()) {
+            furnaceMirror.ownerSyncIfDirty();
+            var b = NmsChunks.bridge();
+            b.removeBlockEntityNow(furnaceWorld, x, y, z);
+            Object h = b.blockEntityNow(furnaceWorld, x, y, z, true);
+            be.furnaceAttach(this, h);
+            if (h == null) return;
+            if (data != null) b.blockEntityLoadNow(furnaceWorld, h, data);
+            furnaceBlockEntityViews.put(k, be);
+            return;
+        }
+        if (cur != null) furnaceMirror.blockEntityRemove(x, y, z, cur);
+        be.furnaceAttach(this, null);
+        if (!furnaceMirror.blockEntityCreate(x, y, z, be)) return;
+        furnaceBlockEntityViews.put(k, be);
+        furnaceUnboundViews.add(be);
+        if (data != null) furnaceMirror.blockEntityLoad(be, data);
     }
 
     // ------------------------------------------------------------------ 서버 다리(호환 모듈 전용)

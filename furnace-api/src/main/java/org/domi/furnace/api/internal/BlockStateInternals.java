@@ -10,7 +10,9 @@ public interface BlockStateInternals {
             /** 바닐라 hasAnalogOutputSignal(비교기가 읽는 블록, T-204). */
             ANALOG_OUTPUT = 64,
             /** 바닐라 hasPostProcess(마그마 블록·갈색·빨간 버섯 — Properties.hasPostProcess(Blocks::always), T-204). */
-            POST_PROCESS = 128;
+            POST_PROCESS = 128,
+            /** 바닐라 useShapeForLightOcclusion(빛 가림에 모양을 쓰는 상태 — 반 블록·계단 등, NMS shim 5d). */
+            USE_SHAPE_FOR_LIGHT = 256;
 
     /**
      * 상태 번호를 인덱스로 하는 표다(배열 길이는 상태 수).

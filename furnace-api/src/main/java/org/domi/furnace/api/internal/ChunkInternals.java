@@ -388,6 +388,14 @@ public interface ChunkInternals {
     boolean blockEntityLoadNow(World world, Object blockEntity, org.domi.furnace.api.nbt.NbtCompound tag);
 
     /**
+     * 주인 스레드: 바닐라 BlockEntity.setBlockState — 블록 엔티티가 든 상태만 바꾼다(칸의 블록·저장 표시·패킷은 그대로, NMS shim 5d). 서버가 해석하지 못하는
+     * 생성 블록 엔티티나 지워진 것은 false.
+     */
+    default boolean blockEntitySetStateNow(World world, Object blockEntity, int stateId) {
+        throw new UnsupportedOperationException("blockEntitySetStateNow");
+    }
+
+    /**
      * 손잡이의 클라이언트 갱신 태그(바닐라 getUpdatePacket 이 싣는 getUpdateTag — Paper 처럼 영속 데이터를 뺀 것, 새 트리). 그 종류가 갱신 패킷을 보내지
      * 않으면(상자 등 — 바닐라 null) null. 서버에 틀이 없는 생성 블록 엔티티도 null(청크 패킷에도 싣지 않는다). 살아 있는 것은 그 칸의 주인 스레드, 떨어진 것은 아무 스레드.
      */

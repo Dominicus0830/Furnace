@@ -34,7 +34,7 @@ public abstract class BlockEntity {
 
     // ---- 월드의 보기(T-198)
     /** 이 보기를 준 청크 shim(떨어진 블록 엔티티는 null). */
-    private ChunkAccess furnaceChunk;
+    private volatile ChunkAccess furnaceChunk;
     /** 묶인 서버 블록 엔티티 손잡이(ChunkInternals). 다른 스레드가 만든 보기는 주인이 처음 볼 때 묶는다. */
     private volatile Object furnaceHandle;
     /** 떨어진 블록 엔티티의 내용(saveWithoutMetadata 꼴, id 포함). null 이면 그 상태의 갓 만든 모습. */
@@ -94,7 +94,37 @@ public abstract class BlockEntity {
 
     public BlockState getBlockState() { return blockState; }
 
-    public void setBlockState(BlockState state) { this.blockState = state; }
+    /**
+     * 바닐라 setBlockState: 이 종류가 받을 수 있는 상태인지 보고(아니면 IllegalStateException — 바닐라 validateBlockState) 든 상태를 바꾼다. 칸의 블록은
+     * 그대로다. 월드의 보기는 서버 블록 엔티티가 든 상태도 바꾼다(주인은 바로, 다른 스레드는 거울 일지 — NMS shim 5d, Axiom 이 섹션에 직접 쓴 뒤 맞춘다).
+     */
+    public void setBlockState(BlockState state) {
+        if (!isValidBlockState(state)) {
+            throw new IllegalStateException("Invalid block entity " + BlockEntityType.getKey(type) + " // " + getClass().getCanonicalName() + " state at "
+                    + worldPosition + ", got " + state);
+        }
+        this.blockState = state;
+        if (furnaceChunk != null) furnaceChunk.furnaceBlockEntityState(this, state);
+    }
+
+    /** 바닐라 isValidBlockState: 이 종류가 그 상태의 블록에 붙을 수 있는가. */
+    public boolean isValidBlockState(BlockState state) { return type.isValid(state); }
+
+    /** 호환 모듈 전용 — 떨어진 블록 엔티티가 든 내용(실은 적이 없으면 null — 그 상태의 갓 만든 모습). 월드의 보기는 null. */
+    public final NbtCompound furnaceDetachedData() {
+        if (furnaceChunk != null) return null;
+        NbtCompound d = furnaceData;
+        return d == null ? null : d.copy();
+    }
+
+    /** 호환 모듈 전용(NMS shim 5d, LevelChunk#addAndRegisterBlockEntity) — 떨어진 블록 엔티티를 그 청크의 보기로 바꾼다. handle 이 null 이면 주인이 묶는다. */
+    public final void furnaceAttach(ChunkAccess chunk, Object handle) {
+        this.furnaceChunk = chunk;
+        this.furnaceHandle = handle;
+        this.furnaceData = null;
+        this.furnaceSnapshot = null;
+        if (chunk instanceof net.minecraft.world.level.chunk.LevelChunk lc) this.level = lc.getLevel();
+    }
 
     public BlockEntityType<?> getType() { return type; }
 

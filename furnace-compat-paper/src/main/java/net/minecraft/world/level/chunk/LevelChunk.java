@@ -180,6 +180,45 @@ public class LevelChunk extends ChunkAccess {
         throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LevelChunk#removeGameEventListener", "detaching only the game event listener of a block entity that stays in the chunk does not exist");
     }
 
+    /**
+     * 바닐라 addAndRegisterBlockEntity(NMS shim 5d — Axiom 블록 버퍼): 블록 엔티티를 그 칸의 것으로 넣고(setBlockEntity) 틱·게임 이벤트에 등록한다.
+     * 바닐라 setBlockEntity 그대로: 그 칸 블록(이 스레드가 보는 것)이 블록 엔티티를 갖지 않으면 Paper 처럼 내부 오류를 남기고 넣지 않는다. 블록 엔티티가 든 상태가
+     * 칸과 다르면 경고(종류가 못 받는 상태면 그 뒤 setBlockState 가 IllegalStateException — 바닐라 그대로)하고 칸 상태로 맞춘다. 그 칸에 있던 것은 지움 표시.
+     * Furnace: 넣은 객체는 그 칸 서버 블록 엔티티의 보기가 된다(든 내용을 싣는다). 다른 스레드는 거울 일지로 주인이 넣는다. 이미 월드의 보기인 객체는 같은 칸에
+     * 다시 넣는 것(바닐라: 같은 객체라 바뀌지 않는다)만 된다.
+     */
+    public void addAndRegisterBlockEntity(net.minecraft.world.level.block.entity.BlockEntity blockEntity) {
+        net.minecraft.core.BlockPos at = blockEntity.getBlockPos();
+        if (blockEntity.furnaceIsView()) {
+            if (getBlockEntity(at) == blockEntity) return;
+            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LevelChunk#addAndRegisterBlockEntity", "putting a block entity that already belongs to a world"
+                    + " into another position or chunk (" + blockEntity + ") is not supported");
+        }
+        BlockState here = getBlockState(at);
+        if (!here.hasBlockEntity()) {
+            String msg = "Trying to set block entity %s at position %s, but state %s does not allow it".formatted(blockEntity, at, here);
+            LOG.error(msg, new IllegalStateException(msg));   // Paper: ServerInternalException 를 찍고 넣지 않는다
+            return;
+        }
+        BlockState held = blockEntity.getBlockState();
+        if (held != here) {
+            if (!blockEntity.getType().isValid(here)) LOG.warn("Trying to set block entity {} at position {}, but state {} does not allow it", blockEntity, at, here);
+            else if (here.getBlock() != held.getBlock()) LOG.warn("Block state mismatch on block entity {} in position {}, {} != {}, updating", blockEntity, at, here, held);
+            blockEntity.setBlockState(here);
+        }
+        blockEntity.setLevel(level);
+        blockEntity.clearRemoved();
+        furnaceAddBlockEntity(blockEntity);
+    }
+
+    /**
+     * 바닐라 private 도우미(Paper 와 같은 이름·서명 — Axiom 이 리플렉션으로 부른다): 블록 엔티티가 든 상태로 틱터를 다시 고른다. Furnace 서버는 틱마다 칸의 지금
+     * 상태로 할 일을 고르고(모닥불은 켜졌는가로 굽기·식히기), 든 상태는 {@code setBlockState} 가 이미 서버에 넣었으므로 더 할 일이 없다.
+     */
+    private <T extends net.minecraft.world.level.block.entity.BlockEntity> void updateBlockEntityTicker(T blockEntity) {}
+
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(LevelChunk.class);
+
     /** 바닐라 private 도우미(위와 같은 규칙): 그 칸의 블록 엔티티 틱터를 뗀다. 그 칸에 블록 엔티티가 없으면(이미 뗐다) 할 일이 없다. 붙은 채 틱만 끄는 것은 없다. */
     private void removeBlockEntityTicker(net.minecraft.core.BlockPos pos) {
         if (getBlockEntity(pos) == null) return;
