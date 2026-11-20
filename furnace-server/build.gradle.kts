@@ -148,7 +148,8 @@ tasks.named<JavaExec>("run") {
 }
 
 tasks.test {
-    useJUnitPlatform()
+    // T-238 의 보고서 대조 시험(태그 vanilla-reports)은 바닐라 jar 에서 만든 보고서가 있어야 해서 아래 vanillaReportsTest 가 따로 돌린다.
+    useJUnitPlatform { excludeTags("vanilla-reports") }
     enableAssertions = true
     maxHeapSize = "3g"   // 통합 테스트가 월드를 많이 만들어 기본 힙으로는 모자란다
     testLogging { showStandardStreams = true }
@@ -456,4 +457,22 @@ publishing {
             from(components["java"])
         }
     }
+}
+
+// T-238: 바닐라 데이터 생성기 보고서와 Furnace 코드가 쓰는 표를 직접 맞댄다(VanillaReportsParityTest). 보고서는 vanilla-extract 캐시에서 온다(저장소에 없다).
+//   ./gradlew -PskipOracle=true :furnace-server:vanillaReportsTest            (-Pcache=<폴더> 또는 FURNACE_VANILLA_CACHE 로 캐시 위치)
+tasks.register<Test>("vanillaReportsTest") {
+    group = "verification"
+    description = "바닐라 보고서(packets·blocks·registries·commands.json) ↔ Furnace 표 대조 시험"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnitPlatform { includeTags("vanilla-reports") }
+    enableAssertions = true
+    dependsOn(":vanilla-extract:prepareVanillaReports")
+    val mc = (rootProject.extra["mc"] as java.util.Properties).getProperty("mc.version")
+    val cache = (findProperty("cache") as String?) ?: System.getenv("FURNACE_VANILLA_CACHE")?.takeIf { it.isNotBlank() }
+        ?: "${System.getProperty("user.home")}/.cache/furnace-vanilla-extract"
+    systemProperty("furnace.vanillaReports", "$cache/$mc/generated/reports")
+    testLogging { showStandardStreams = true }
+    outputs.upToDateWhen { false }   // 보고서가 바뀔 수 있어 매번 돌린다
 }

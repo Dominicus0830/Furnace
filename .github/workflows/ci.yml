@@ -328,6 +328,42 @@ jobs:
           path: build/user-todo/user-todo-combined.md
           retention-days: 14
 
+  # T-238(와 뒤이어 T-228 서명 관문): 바닐라 서버 jar 로 만든 자료(데이터 생성기 보고서·서명표)와 Furnace 가 쓰는 표를 맞댄다. 자료는 저장소에 없고
+  # vanilla-extract 캐시(~/.cache/furnace-vanilla-extract)에만 있다 — 내려받기는 piston-meta·piston-data 원 출처에서만 한다.
+  # 내려받기·생성이 실패하면 건너뛰지 않고 실패한다(AGENTS.md 규칙 5 — 비교하지 않은 초록을 만들지 않는다). 문서만 바뀐 PR 은 지금처럼 돌지 않는다.
+  vanilla-gates:
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
+    name: vanilla-gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != env.BASE_BRANCH }}
+      - name: 바닐라 추출 캐시
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/furnace-vanilla-extract
+          key: vanilla-extract-${{ hashFiles('gradle/minecraft.properties') }}-1
+      - name: 바닐라 보고서 대조 시험 (T-238)
+        run: ./gradlew -PskipOracle=true :furnace-server:vanillaReportsTest
+      - name: 대조 시험 보고서 올리기
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vanilla-gates-reports
+          path: |
+            furnace-server/build/reports/tests/vanillaReportsTest
+            furnace-server/build/test-results/vanillaReportsTest
+          if-no-files-found: ignore
+          retention-days: 7
+
   # 커버리지용 서버 시험(JaCoCo 에이전트). `test` 판정과 무관한 별도 비게이트 작업이다 — 에이전트가 시험을 5배 가까이 느리게 해
   # 제한시간 시험이 실패할 수 있으므로(RegenerateChunkTest 59초 대 11초) 판정용 조각과 분리했다. 기준 브랜치 push 실행에서만 돈다.
   # 실패해도 .exec 는 JVM 종료 때 기록되니 그대로 올리고, 이 작업의 결과는 어디서도 needs 로 쓰지 않는다.
@@ -398,18 +434,18 @@ jobs:
   # 이름이 `test` 인 합친 판정(기존 점검 이름). 조각·light 중 하나라도 실패·취소면 실패.
   test:
     if: always()
-    needs: [changes, select, server-tests, light]
+    needs: [changes, select, server-tests, light, vanilla-gates]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: 판정
         run: |
           echo "select=${{ needs.select.result }} mode=${{ needs.select.outputs.mode }} shards=${{ needs.select.outputs.shards }}"
-          echo "changes=${{ needs.changes.result }} code=${{ needs.changes.outputs.code }} server-tests=${{ needs.server-tests.result }} light=${{ needs.light.result }}"
+          echo "changes=${{ needs.changes.result }} code=${{ needs.changes.outputs.code }} server-tests=${{ needs.server-tests.result }} light=${{ needs.light.result }} vanilla-gates=${{ needs.vanilla-gates.result }}"
           [ "${{ needs.changes.result }}" = "success" ] || exit 1
           if [ "${{ needs.changes.outputs.code }}" = "false" ]; then
             # 문서만 바뀐 PR: 서버 시험·light 는 건너뛴 것이 정상(skipped). 실패·취소면 실패.
-            [ "${{ needs.server-tests.result }}" = "skipped" ] && [ "${{ needs.light.result }}" = "skipped" ]
+            [ "${{ needs.server-tests.result }}" = "skipped" ] && [ "${{ needs.light.result }}" = "skipped" ] && [ "${{ needs.vanilla-gates.result }}" = "skipped" ]
           else
-            [ "${{ needs.server-tests.result }}" = "success" ] && [ "${{ needs.light.result }}" = "success" ]
+            [ "${{ needs.server-tests.result }}" = "success" ] && [ "${{ needs.light.result }}" = "success" ] && [ "${{ needs.vanilla-gates.result }}" = "success" ]
           fi

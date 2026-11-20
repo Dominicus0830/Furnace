@@ -65,3 +65,17 @@ tasks.named<JavaExec>("run") {
     (findProperty("list") as String?)?.let { if (it != "false") a += "--list" }
     args = a
 }
+
+// T-238: 바닐라 데이터 생성기 보고서를 만든다(캐시에 있으면 재사용). :furnace-server:vanillaReportsTest 가 먼저 부른다. 캐시 위치는 -Pcache 또는 FURNACE_VANILLA_CACHE.
+tasks.register<JavaExec>("prepareVanillaReports") {
+    group = "verification"
+    description = "바닐라 서버 jar 로 데이터 생성기 보고서(blocks·packets·registries·commands.json)를 캐시에 만든다"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.domi.furnace.tools.extract.Main")
+    workingDir = rootProject.projectDir
+    val mc = (rootProject.extra["mc"] as java.util.Properties).getProperty("mc.version")
+    val a = mutableListOf("--mc", mc, "--mode", "reports")
+    (findProperty("cache") as String?)?.let { a += listOf("--cache", it) }
+    (findProperty("javaHome") as String?)?.let { a += listOf("--java-home", it) }
+    args = a
+}
