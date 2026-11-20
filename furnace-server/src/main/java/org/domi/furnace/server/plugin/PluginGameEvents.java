@@ -1028,7 +1028,9 @@ public final class PluginGameEvents implements GameEvents {
             if (ev.isCancelled() || ev.to() == null) return null;
             dest = ev.to();
         }
-        if (inPortal && wEntityPortalExit.on()) {
+        // Paper: portalProcess 가 null 이면 바꾼 to 를 버리고 원래 전이 그대로 간다(취소·null 만 효과)
+        if (!inPortal) return to;
+        if (wEntityPortalExit.on()) {
             // Paper: from = 지금 위치(앞 처리기가 옮겼으면 그 자리), before = 지금 속도, after = 전이 속도. 취소하면 바꾼 값을 버린다(이동은 그대로)
             var ex = bus().call(new org.domi.furnace.api.event.entity.EntityPortalExitEvent(EntityHandle.of(host, e), here(e), dest,
                     new org.domi.furnace.api.math.Vector3d(e.vx(), e.vy(), e.vz()), new org.domi.furnace.api.math.Vector3d(vx, vy, vz)));

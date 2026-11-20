@@ -534,7 +534,8 @@ public abstract non-sealed class Entity implements Rider {
         if (level.gameEvents().listensEntityChangeDimension()) {
             final String sourceDim = level.dimension();
             final Pos gateway = endGatewayEntry();   // 바닐라는 같은 틱 안이라 지금 본다(돌아올 때는 포털 처리가 끝났을 수 있다)
-            travel.travel(plan, (target, t) -> returnWithDestination(t, travel, sourceDim, gateway));
+            final EntityTasks q = apiTasks();   // 소유 스레드에서 미리 만든다(목적 스레드에서 처음 만들면 depart 와 겹쳐 은퇴되지 않는 대기열이 생길 수 있다)
+            travel.travel(plan, (target, t) -> returnWithDestination(q, t, travel, sourceDim, gateway));
             return;
         }
         moveAcross(arrive -> travel.travel(plan, arrive), travel, PORTAL_PLACE, null, plan.targetDimension(), true);
@@ -543,12 +544,12 @@ public abstract non-sealed class Entity implements Rider {
     /**
      * 플러그인이 차원 이동 이벤트를 들을 때의 차원문 경로(Paper Entity#changeDimension 순서): 목적 region 스레드에서 정한 목적지(지옥문은 찾거나 만든 뒤)를
      * 들고 이 엔티티를 따라가는 대기열로 이 엔티티의 region 스레드에 돌아와(다음 틱) 떠나기 전에 EntityTeleportEvent·EntityPortalExitEvent 를 부르고,
-     * 이벤트가 정한 도착 위치로 건넌다. 바닐라는 한 틱 안에 동기로 하지만 Furnace 는 목적 차원이 다른 스레드라 한 틱 늦게 떠난다(듣는 처리기가 없으면
+     * 이벤트가 정한 도착 위치로 건넌다. 바닐라는 한 틱 안에 동기로 하지만 Furnace 는 목적 차원이 다른 스레드라 목적지 준비(청크 읽기·지옥문 찾기) 뒤
+     * 다음 틱에 떠난다(듣는 처리기가 없으면
      * 이 길을 타지 않는다). 그 사이 엔티티가 사라졌거나 목적지가 없으면 아무 일도 없다(바닐라도 목적지가 없으면 그대로).
      */
-    private void returnWithDestination(DimensionTransition t, org.domi.furnace.server.block.LevelServices.DimensionTravel travel, String sourceDim, Pos gateway) {
+    private void returnWithDestination(EntityTasks q, DimensionTransition t, org.domi.furnace.server.block.LevelServices.DimensionTravel travel, String sourceDim, Pos gateway) {
         if (t == null) return;
-        EntityTasks q = apiTasks();
         q.schedule(() -> {
             if (isRemoved() || level == null || !level.dimension().equals(sourceDim)) return;
             leaveAfterEvents(t, travel, gateway);
@@ -595,7 +596,8 @@ public abstract non-sealed class Entity implements Rider {
         if (src.gameEvents().listensEntityChangeDimension()) {   // 출구를 먼저 정하고 돌아와 이벤트 뒤 떠난다(travelAcross 와 같다)
             final String sourceDim = src.dimension();
             final Pos gateway = endGatewayEntry();
-            portal.travelWithinLevel(src, entry, tr, (target, t) -> returnWithDestination(t, travel, sourceDim, gateway));
+            final EntityTasks q = apiTasks();
+            portal.travelWithinLevel(src, entry, tr, (target, t) -> returnWithDestination(q, t, travel, sourceDim, gateway));
             return;
         }
         moveAcross(arrive -> portal.travelWithinLevel(src, entry, tr, arrive), travel, PORTAL_PLACE, null, src.dimension(), true);

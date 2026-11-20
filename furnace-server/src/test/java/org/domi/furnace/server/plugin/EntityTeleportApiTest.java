@@ -355,8 +355,25 @@ class EntityTeleportApiTest {
 
     /** 소유 region 스레드에서 서버 이벤트 다리(PluginGameEvents)의 changeDimension 이벤트를 직접 부른다(포털 안이라고 친다). */
     private org.domi.furnace.server.plugin.GameEvents.Arrival changeDimensionEvents(Entity cow, org.domi.furnace.server.block.Pos gateway) throws Exception {
+        return changeDimensionEvents(cow, gateway, true);
+    }
+
+    private org.domi.furnace.server.plugin.GameEvents.Arrival changeDimensionEvents(Entity cow, org.domi.furnace.server.block.Pos gateway, boolean inPortal) throws Exception {
         var to = new org.domi.furnace.server.plugin.GameEvents.Arrival(NETHER, 40.5, -50, 40.5, 90f, 0f, 0.0, 0.25, 0.0);
-        return core.world().submitAtChunk(C00, r -> cow.level().gameEvents().entityChangeDimension(cow, to, gateway, true)).get(30, TimeUnit.SECONDS);
+        return core.world().submitAtChunk(C00, r -> cow.level().gameEvents().entityChangeDimension(cow, to, gateway, inPortal)).get(30, TimeUnit.SECONDS);
+    }
+
+    @Test
+    void outsideAPortalTheChangedDestinationIsIgnored() throws Exception {
+        Object[] spawned = spawnCow();
+        List<String> order = new CopyOnWriteArrayList<>();
+        host.eventsImpl().subscribe(plugin, EntityTeleportEvent.class, e -> { order.add("teleport"); e.to(new Location(OVERWORLD, 3.5, -50, 3.5)); });
+        host.eventsImpl().subscribe(plugin, org.domi.furnace.api.event.entity.EntityPortalExitEvent.class, e -> order.add("exit"));
+        var a = changeDimensionEvents((Entity) spawned[2], null, false);
+        assertEquals(List.of("teleport"), order, "포털 처리 중이 아니면 EntityPortalExitEvent 없음");
+        assertNotNull(a);
+        assertEquals(NETHER, a.dimension(), "Paper: portalProcess 가 null 이면 바꾼 to 를 버린다(취소·null 만 효과)");
+        assertEquals(40.5, a.x(), 1e-9);
     }
 
     @Test
