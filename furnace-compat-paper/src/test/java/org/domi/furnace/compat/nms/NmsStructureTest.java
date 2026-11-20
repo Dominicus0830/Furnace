@@ -87,6 +87,8 @@ class NmsStructureTest {
         @Override public boolean setBlock(BlockPos pos, BlockState state, int flags, int maxUpdateDepth) { return world.setBlock(pos, state, flags, maxUpdateDepth); }
         @Override public boolean setBlock(BlockPos pos, BlockState state, int flags) { return world.setBlock(pos, state, flags); }
         @Override public BlockState getBlockState(BlockPos pos) { return world.getBlockState(pos); }
+        @Override public net.minecraft.world.DifficultyInstance getCurrentDifficultyAt(BlockPos pos) { return world.getCurrentDifficultyAt(pos); }
+        @Override public net.minecraft.world.level.biome.BiomeManager getBiomeManager() { return world.getBiomeManager(); }
     }
 
     StructureStart generate(String id, ChunkPos at, net.minecraft.world.level.LevelHeightAccessor height) {
@@ -175,11 +177,35 @@ class NmsStructureTest {
     }
 
     @Test
-    void structureMobsAndForeignInputsFailHonestly() {
-        // 마녀 오두막의 마녀: finalizeSpawn 이 레벨 난수를 뽑는다 — 이식 전에는 같은 결과를 낼 수 없다
-        var mob = assertThrows(UnsupportedNmsCall.class, () -> faweGenerate("minecraft:swamp_hut", new ChunkPos(5, 2)));
-        assertTrue(mob.getMessage().contains("finalizeSpawn"), mob.getMessage());
+    void faweSwampHutFinalizesMobsAndDropsThem() {
+        // T-221: 마녀·고양이를 바닐라처럼 마무리(난수는 그 레벨의 getRandom(), 지역 난이도·바이옴은 FAWE 가 서버 레벨에 넘긴다)한 뒤
+        // populator 의 addFreshEntity(바닐라 기본 — 거짓)로 넘겨 버린다. 오두막 블록은 기록되고 월드에는 몹이 없다.
+        List<CraftBlockState> got = faweGenerate("minecraft:swamp_hut", new ChunkPos(5, 2));
+        assertNotNull(got);
+        assertTrue(count(got, Blocks.SPRUCE_PLANKS) > 10, "오두막 몸체: " + got.size());
+        long witches = sync(() -> Compat.world(server.overworld()).getEntities().stream().filter(e -> e.getType() == org.bukkit.entity.EntityType.WITCH).count());
+        assertEquals(0, witches, "populator 에 넘긴 몹은 월드에 들어가지 않는다");
+    }
 
+    @Test
+    void plainPopulatorSwampHutThrowsLikePaper() {
+        // Paper 의 BlockStateListPopulator 는 getLevel·getCurrentDifficultyAt 를 고쳐 쓰지 않아 DummyGeneratorAccess 가 던진다 — 같은 예외
+        var e = assertThrows(UnsupportedOperationException.class, () -> sync(() -> {
+            StructureStart start = generate("minecraft:swamp_hut", new ChunkPos(5, 2), level);
+            BlockStateListPopulator populator = new BlockStateListPopulator(level);
+            BoundingBox b = start.getBoundingBox();
+            ChunkPos.rangeClosed(new ChunkPos(b.minX() >> 4, b.minZ() >> 4), new ChunkPos(b.maxX() >> 4, b.maxZ() >> 4)).forEach(cp ->
+                    start.placeInChunk(populator, level.structureManager(), level.getChunkSource().getGenerator(), level.getRandom(),
+                            new BoundingBox(cp.getMinBlockX(), level.getMinBuildHeight(), cp.getMinBlockZ(), cp.getMaxBlockX(), level.getMaxBuildHeight(),
+                                    cp.getMaxBlockZ()), cp));
+            return null;
+        }));
+        assertEquals("Not supported yet.", e.getMessage());
+        assertFalse(e instanceof UnsupportedNmsCall, "Paper 와 같은 예외(서버가 못 하는 자리가 아니다)");
+    }
+
+    @Test
+    void foreignInputsFailHonestly() {
         ServerChunkCache chunks = level.getChunkSource();
         Structure igloo = structure("minecraft:igloo");
         var seed = assertThrows(UnsupportedNmsCall.class, () -> igloo.generate(level.registryAccess(), chunks.getGenerator(),

@@ -27,6 +27,8 @@ public final class LiveGrid {
     private final int centerX, centerZ, radius, size;
     private final ChunkColumn[] live, copy;
     public final FeatureWorldView view;
+    /** 구조물 몹(T-221): 배치 중 마무리한 몹 — 사본을 반영할 때 레벨에 넣는다. */
+    private final java.util.List<Entity> pendingMobs = new java.util.ArrayList<>();
 
     public LiveGrid(RegionLevel level, int centerX, int centerZ, int radius, long seed) {
         this.level = level;
@@ -48,6 +50,14 @@ public final class LiveGrid {
             }
         }
         view = FeatureWorldView.liveGrid(copy, biomes, centerX, centerZ, radius, seed);
+    }
+
+    /**
+     * 구조물 몹을 이 레벨에서 만들고 random 으로 마무리하게 한다(바닐라 /place 의 world = 서버 레벨, 난수 = 배치에 넘긴 레벨 난수). 몹이 생길 수 있는
+     * 배치(구조물·직소) 전에 부른다.
+     */
+    public void mobsWith(org.domi.furnace.server.world.gen.noise.NoiseRandom random) {
+        view.setMobEnv(org.domi.furnace.server.world.gen.structure.StructureMobs.live(level, random, pendingMobs));
     }
 
     /** 청크 범위를 덮는 가장 작은 정사각 격자. */
@@ -108,6 +118,8 @@ public final class LiveGrid {
             for (int[] t : cp.generatedFluidTicks()) level.scheduleFluidTick(new Pos(ox + t[0], t[1], oz + t[2]), t[3], t[4]);
             cp.clearGeneratedFluidTicks();
         }
+        for (Entity e : pendingMobs) level.addFreshEntity(e);   // 구조물 몹: 바닐라 addFreshEntityWithPassengers 가 자신·승객마다 부른 차례(스폰 이유는 마무리 때)
+        pendingMobs.clear();
         return changed;
     }
 

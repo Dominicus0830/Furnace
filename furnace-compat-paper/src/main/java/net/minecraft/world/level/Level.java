@@ -168,6 +168,13 @@ public abstract class Level implements LevelAccessor {
         }
     }
 
+    /** 바닐라 Level#getDayTime(레벨 데이터의 하루 시각). */
+    public long getDayTime() { return furnace().dayTime(); }
+
+    /** shim 의 LevelAccessor#dayTime(레벨 데이터 대신 — T-221). */
+    @Override
+    public long dayTime() { return getDayTime(); }
+
     /** 서버 레지스트리 묶음(H7b, {@link net.minecraft.server.MinecraftServer#registryAccess()} 와 같다). */
     public net.minecraft.core.RegistryAccess registryAccess() { return net.minecraft.core.RegistryAccess.SERVER; }
 

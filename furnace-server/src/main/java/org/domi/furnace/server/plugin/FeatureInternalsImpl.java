@@ -61,6 +61,17 @@ final class FeatureInternalsImpl implements FeatureInternals {
 
             @Override
             public void blockUpdated(int bx, int by, int bz, int state) { sink.blockUpdated(bx, by, bz, state); }
+
+            @Override public float[] currentDifficultyAt(int bx, int by, int bz) { return sink.currentDifficultyAt(bx, by, bz); }
+
+            @Override public float moonBrightness() { return sink.moonBrightness(); }
+
+            @Override public String biomeAt(int bx, int by, int bz) { return sink.biomeAt(bx, by, bz); }
+
+            @Override
+            public boolean chickensToRide(double x0, double y0, double z0, double x1, double y1, double z1) {
+                return sink.chickensToRide(x0, y0, z0, x1, y1, z1);
+            }
         };
     }
 

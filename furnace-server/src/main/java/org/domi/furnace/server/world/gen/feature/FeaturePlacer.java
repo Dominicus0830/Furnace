@@ -29,6 +29,12 @@ public final class FeaturePlacer {
 
     public void setStructureEngine(org.domi.furnace.server.world.gen.structure.StructureEngine e) { this.structureEngine = e; }
 
+    /** 그 월드의 레벨 서비스(구조물 몹 finalizeSpawn 의 난이도·시간 — WorldGenRegion 이 서버 레벨에서 읽는 값, T-221). */
+    private volatile java.util.function.Supplier<org.domi.furnace.server.block.LevelServices> levelServices =
+            () -> org.domi.furnace.server.block.LevelServices.DEFAULT;
+
+    public void setLevelServices(java.util.function.Supplier<org.domi.furnace.server.block.LevelServices> s) { this.levelServices = s; }
+
     public FeaturePlacer(long seed, BiomeFeatureData biomeData, FeatureSorter sorter, BlockRegistry blocks) {
         this(seed, biomeData, sorter, blocks, new XoroshiroRandomSource(seed).forkPositional());
     }
@@ -74,6 +80,9 @@ public final class FeaturePlacer {
         WorldgenRandom featureRandom = new XoroshiroWorldgenRandom();
         // 바닐라 WorldGenRegion.getRandom() — 이 청크(cx,cz) 원점에 fork, 구조물+feature 전체가 순차 공유 소비.
         NoiseRandom regionRandom = regionRandomFactory.at(cx * 16, 0, cz * 16);
+        // 구조물 몹의 world(WorldGenRegion): 같은 레벨 난수·그 청크 참조 시작점·서버 레벨 값(T-221)
+        view.setMobEnv(org.domi.furnace.server.world.gen.structure.StructureMobs.generation(view, regionRandom, starts, levelServices.get(),
+                structureEngine));
 
         if (DEBUG) {
             System.out.printf("FURNACE decorate cx=%d cz=%d decorationSeed=%d biomes=%s%n",

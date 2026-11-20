@@ -797,6 +797,21 @@ public final class NoiseWorldSource implements WorldSource, org.domi.furnace.ser
 
     public GenHooks generationHooks() { return genHooks; }
 
+    /**
+     * 이 생성기를 쓰는 월드의 레벨 서비스(난이도·시간·레지스트리) — 구조물 몹 finalizeSpawn 이 바닐라 WorldGenRegion 처럼 그 서버 레벨의 값을 읽는다(T-221).
+     * 월드에 걸리기 전(도구·시험)은 {@link org.domi.furnace.server.block.LevelServices#DEFAULT}.
+     */
+    private volatile java.util.function.Supplier<org.domi.furnace.server.block.LevelServices> levelServices =
+            () -> org.domi.furnace.server.block.LevelServices.DEFAULT;
+
+    /** 월드가 만들어질 때 건다(바탕을 바꾸면 AnvilWorldSource 가 옮긴다). */
+    public void bindLevelServices(java.util.function.Supplier<org.domi.furnace.server.block.LevelServices> s) {
+        this.levelServices = java.util.Objects.requireNonNull(s, "levelServices");
+        if (featurePlacer != null) featurePlacer.setLevelServices(s);
+    }
+
+    public java.util.function.Supplier<org.domi.furnace.server.block.LevelServices> levelServicesBinding() { return levelServices; }
+
     /** 월드 장식 목록(T-217 World#addChunkDecorator). */
     private final ChunkDecorators chunkDecorators = new ChunkDecorators();
 

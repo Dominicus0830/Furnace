@@ -16,6 +16,16 @@ public final class DifficultyInstance {
         this.effectiveDifficulty = localMultiplier == 1.0F ? e : e * localMultiplier;
     }
 
+    private DifficultyInstance(int difficulty, float effectiveDifficulty, boolean raw) {
+        this.difficulty = difficulty;
+        this.effectiveDifficulty = effectiveDifficulty;
+    }
+
+    /** 이미 계산된 실효 난이도로(플러그인 레벨이 돌려준 DifficultyInstance — T-221). */
+    public static DifficultyInstance ofEffective(int difficulty, float effectiveDifficulty) {
+        return new DifficultyInstance(difficulty, effectiveDifficulty, true);
+    }
+
     public int difficulty() { return difficulty; }
 
     public float effectiveDifficulty() { return effectiveDifficulty; }

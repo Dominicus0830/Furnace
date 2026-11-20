@@ -16,6 +16,17 @@ public interface LevelAccessor extends LevelReader, LevelWriter {
     /** 바닐라 LevelAccessor#blockUpdated: 기본은 아무것도 하지 않는다(지형 생성 레벨). 서버 레벨은 이웃 갱신(Level). */
     default void blockUpdated(net.minecraft.core.BlockPos pos, net.minecraft.world.level.block.Block block) {}
 
+    /**
+     * 바닐라 LevelAccessor#dayTime: {@code getLevelData().getDayTime()}. shim 에는 레벨 데이터가 없어 레벨이 직접 답한다 — 서버 레벨은 그 월드의 하루 시각,
+     * Paper 의 populator 는 감싼 레벨의 것, DummyGeneratorAccess 는 Paper 처럼 던진다. 그 밖의 레벨은 {@code getLevelData} 를 고쳐 쓴 것을 따라갈 수 없다.
+     */
+    default long dayTime() {
+        throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LevelAccessor#dayTime", "the level (" + getClass().getName() + ") has no level data in the shim");
+    }
+
+    /** 바닐라 LevelTimeAccess#getMoonBrightness: {@code dimensionType().moonBrightness(dayTime())}. */
+    default float getMoonBrightness() { return dimensionType().moonBrightness(dayTime()); }
+
     /** CraftBukkit LevelAccessor#getMinecraftWorld: 이 레벨이 속한 서버 레벨. */
     net.minecraft.server.level.ServerLevel getMinecraftWorld();
 }

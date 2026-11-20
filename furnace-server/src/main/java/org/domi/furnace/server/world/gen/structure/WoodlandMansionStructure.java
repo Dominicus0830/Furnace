@@ -1033,11 +1033,9 @@ public final class WoodlandMansionStructure extends StructureType {
                         return;
                     }
                 }
-                for (String id : mobs) {
-                    NbtCompound nbt = c.view.addEntity(id, x + 0.5, y, z + 0.5, 0.0F, 0.0F, true);   // 몹 finalizeSpawn 자리
-                    nbt.putByte("PersistenceRequired", (byte) 1);
-                    c.view.setBlock(x, y, z, 0);
-                }
+                // 모두 만든 뒤(create 마다 getLevel) 하나씩: setPersistenceRequired → moveTo → finalizeSpawn(STRUCTURE) → addFreshEntityWithPassengers → 공기
+                c.view.addStructureMobs(mobs, x + 0.5, y, z + 0.5, org.domi.furnace.server.entity.Mob::setPersistenceRequired, "DEFAULT",
+                        () -> c.view.setBlock(x, y, z, 0));
             }
         }
     }

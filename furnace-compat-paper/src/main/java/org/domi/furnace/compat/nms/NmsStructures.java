@@ -34,9 +34,12 @@ import org.domi.furnace.api.world.World;
  *       (조각은 Paper 의 감싸개처럼 인자 4개·깊이 512, 템플릿과 afterPlace 는 인자 3개). 같은 레벨로 여러 청크에 놓으면 그 레벨이 앞서 받아들인 쓰기를
  *       다음 청크에서도 읽는다(레벨마다 세션 — 서버 레벨의 기록이면 지금 기록에서 새로 채운다).</li>
  *   <li>조각의 {@code world.getRandom()} 자리는 그 레벨의 getRandom() 을 뽑을 때마다 부른다(FAWE 는 배치 난수와 같은 원천을 준다).</li>
+ *   <li>구조물 몹(T-221)은 바닐라처럼 만들어 {@code finalizeSpawn(world, world.getCurrentDifficultyAt(pos), STRUCTURE, null)} 한 뒤 그 레벨의
+ *       {@code addFreshEntity} 로 넘긴다 — 난수·지역 난이도·달 밝기·바이옴은 그 레벨에, 고양이의 구조물 검사·난이도·시간은 서버 레벨에 묻는다.
+ *       Paper 의 populator 처럼 그 레벨이 던지면(DummyGeneratorAccess 의 getCurrentDifficultyAt, 아기 좀비의 닭 찾기) 그대로 던진다.</li>
  * </ul>
- * 같은 결과를 낼 수 없으면 {@link UnsupportedNmsCall}: 서버에 없는 구조물 종류, 다른 월드의 생성기·관리자, 몹 finalizeSpawn 자리(마을·전초기지 등 — T-221),
- * 플러그인 레벨의 블록 엔티티 내용 바꾸기.
+ * 같은 결과를 낼 수 없으면 {@link UnsupportedNmsCall}: 서버에 없는 구조물 종류, 다른 월드의 생성기·관리자, 플러그인 레벨의 블록 엔티티 내용 바꾸기,
+ * 엔티티를 받아들이는 플러그인 레벨(서버는 그 레벨에 넘길 NMS 엔티티 객체를 만들지 않는다).
  */
 public final class NmsStructures {
 

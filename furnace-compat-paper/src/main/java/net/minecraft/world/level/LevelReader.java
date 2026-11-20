@@ -17,6 +17,11 @@ public interface LevelReader extends BlockGetter, net.minecraft.world.level.biom
     /** 바닐라처럼 읽기 쪽에 둔다 — FAWE 는 {@code LevelAccessor#registryAccess()} 로 부른다(T-203 4단계). */
     net.minecraft.core.RegistryAccess registryAccess();
 
+    /** 바닐라 LevelReader#dimensionType. 서버 레벨은 그 월드의 차원 타입. */
+    default net.minecraft.world.level.dimension.DimensionType dimensionType() {
+        throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LevelReader#dimensionType", "the level (" + getClass().getName() + ") has no dimension type in the shim");
+    }
+
     default ChunkAccess getChunk(int x, int z) { return getChunk(x, z, ChunkStatus.FULL, true); }
 
     /** Paper LevelReader#getChunkIfLoadedImmediately: 로드된 다 만든 청크, 아니면 null(T-211 3단계). */

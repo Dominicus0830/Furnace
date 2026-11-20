@@ -69,7 +69,7 @@ public final class LiveStructures {
      * @param session     통로 모드의 세션(sink 가 null 이면 쓰지 않는다)
      * @param sink        null 이면 이 레벨에 바로 놓는다(/place structure 와 같은 반영, flag 2)
      * @throws IllegalStateException 닿은 청크가 로드돼 있지 않거나 다른 region·범위 밖이었다
-     * @throws UnsupportedOperationException 몹 finalizeSpawn 자리, 플러그인 레벨 블록 엔티티 내용 바꾸기 등 같은 결과를 낼 수 없는 자리
+     * @throws UnsupportedOperationException 플러그인 레벨 블록 엔티티 내용 바꾸기 등 같은 결과를 낼 수 없는 자리(구조물 몹 finalizeSpawn 은 그 레벨에 묻는다 — T-221)
      */
     public static void placeInChunk(ChunkLevel level, NoiseWorldSource gen, StructureStart start, BoundingBox chunkBox, int chunkX, int chunkZ,
                                     WorldgenRandom random, Supplier<java.util.Random> levelRandom, Session session, FeatureWorldView.WriteSink sink) {
@@ -84,6 +84,7 @@ public final class LiveStructures {
             LiveGrid grid = new LiveGrid(rl, chunkX, chunkZ, radius, gen.seed());
             FeatureWorldView view = grid.view;
             view.setPluginPlacement(true);
+            grid.mobsWith(lr);   // 구조물 몹: world = 이 서버 레벨, 난수 = 그 레벨의 getRandom()
             synchronized (start) {
                 start.placeInChunk(engine, view, random, lr, chunkBox, chunkX, chunkZ);
             }
@@ -118,7 +119,10 @@ public final class LiveStructures {
             ChunkColumn l = i >= 0 && i < live.length ? live[i] : null;
             return l == null ? view.getBlock(x, y, z) : l.getBlock(x & 15, y, z & 15);
         });
-        view.useSink(new Recording(sink, session), live, LiveFeatures.sinkEdges(view, shapeLevel));
+        Recording rec = new Recording(sink, session);
+        view.useSink(rec, live, LiveFeatures.sinkEdges(view, shapeLevel));
+        // 구조물 몹: world = 플러그인 레벨(난수·난이도·달·바이옴·엔티티는 그 레벨에), world.getLevel() = 이 서버 레벨(구조물·시간·난이도)
+        view.setMobEnv(org.domi.furnace.server.world.gen.structure.StructureMobs.plugin(level, rec, lr));
         synchronized (start) {
             start.placeInChunk(engine, view, random, lr, chunkBox, chunkX, chunkZ);
         }
@@ -162,6 +166,14 @@ public final class LiveStructures {
         @Override public void entityLevel() { sink.entityLevel(); }
         @Override public void addEntity(String id, double x, double y, double z) { sink.addEntity(id, x, y, z); }
         @Override public void blockUpdated(int x, int y, int z, int state) { sink.blockUpdated(x, y, z, state); }
+        @Override public float[] currentDifficultyAt(int x, int y, int z) { return sink.currentDifficultyAt(x, y, z); }
+        @Override public float moonBrightness() { return sink.moonBrightness(); }
+        @Override public String biomeAt(int x, int y, int z) { return sink.biomeAt(x, y, z); }
+
+        @Override
+        public boolean chickensToRide(double x0, double y0, double z0, double x1, double y1, double z1) {
+            return sink.chickensToRide(x0, y0, z0, x1, y1, z1);
+        }
     }
 
     /** 레벨의 getRandom() 을 뽑을 때마다 불러 그 원천에서 뽑는다(Paper 조각의 world.getRandom()). 위치별 공장은 Paper 와 같이 지원하지 않는다. */

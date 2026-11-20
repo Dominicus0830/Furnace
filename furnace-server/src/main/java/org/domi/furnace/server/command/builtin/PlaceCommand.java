@@ -225,6 +225,7 @@ public final class PlaceCommand {
             LiveGrid grid = covering(level, minCx, minCz, maxCx, maxCz, gen.seed());
             WorldgenRandom random = new WorldgenRandom();
             random.setSeed(level.random().nextLong());
+            grid.mobsWith(random);   // 구조물 몹: world = 이 레벨, 난수 = 배치 난수(바닐라는 레벨 난수 하나를 함께 쓴다)
             // ChunkPos.rangeClosed: x 가 먼저 돈다
             for (int z = minCz; z <= maxCz; z++) {
                 for (int x = minCx; x <= maxCx; x++) {

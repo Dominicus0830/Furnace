@@ -56,6 +56,8 @@ public final class AnvilWorldSource implements WorldSource {
     public synchronized boolean replaceBase(WorldSource next) {
         java.util.Objects.requireNonNull(next, "next");
         if (baseUsed) return false;
+        NoiseWorldSource from = NoiseWorldSource.of(base), to = NoiseWorldSource.of(next);
+        if (from != null && to != null && from != to) to.bindLevelServices(from.levelServicesBinding());   // 그 월드의 난이도·시간(구조물 몹)
         base = next;
         bindReferences(next);
         return true;

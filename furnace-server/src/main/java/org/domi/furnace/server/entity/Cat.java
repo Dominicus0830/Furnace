@@ -159,7 +159,7 @@ public class Cat extends TamableAnimal {
     public GroupData finalizeSpawn(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty, GroupData data) {
         data = super.finalizeSpawn(r, difficulty, data);
         boolean fullMoon = level.moonBrightness() > 0.9F;
-        setVariant(level.random().nextInt(fullMoon ? 11 : 10));
+        setVariant(r.nextInt(fullMoon ? 11 : 10));   // world.getRandom() — 레벨 난수와 같은 것(구조물은 그 배치의 난수)
         // #cats_spawn_as_black(swamp_hut) 조각 안이면 all_black + 유지. CatSpawner 는 moveTo 전에 불러 원점 기준이다(바닐라 그대로).
         if (level.structureWithPieceAt(blockPosition(), "minecraft:swamp_hut") != null) {
             setVariant(10);

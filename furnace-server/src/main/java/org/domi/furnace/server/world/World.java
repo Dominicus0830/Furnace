@@ -123,6 +123,8 @@ public final class World {
         this.dimensionType = type;
         this.border = new WorldBorder(type.coordinateScale());
         this.worldSource = worldSource;
+        var noise = org.domi.furnace.server.world.gen.NoiseWorldSource.of(worldSource);
+        if (noise != null) noise.bindLevelServices(this::levelServices);   // 구조물 몹 finalizeSpawn 의 난이도·시간(T-221)
         this.ioPool = ioPool;
         this.ioLanes = ioPool == null ? null : new org.domi.furnace.server.world.anvil.IoLanes(ioPool, IO_LANES);
         this.genPool = genPool;

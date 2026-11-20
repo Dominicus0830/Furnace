@@ -91,7 +91,7 @@ public class Sheep extends Animal {
 
     @Override
     public void finalizeSpawn(org.domi.furnace.server.block.RandomSource r, DifficultyInstance difficulty) {
-        setColor(getRandomSheepColor(level.random()));
+        setColor(getRandomSheepColor(r));   // world.getRandom()
         super.finalizeSpawn(r, difficulty);
     }
 

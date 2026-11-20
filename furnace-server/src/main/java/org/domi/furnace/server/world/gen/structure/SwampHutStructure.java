@@ -77,13 +77,13 @@ public final class SwampHutStructure extends StructureType {
             int wx = getWorldX(2, 5), wy = getWorldY(2), wz = getWorldZ(2, 5);
             if (!spawnedWitch && b.isInside(wx, wy, wz)) {
                 spawnedWitch = true;
-                c.view.addEntity("minecraft:witch", wx + 0.5, wy, wz + 0.5, 0.0F, 0.0F, true).putByte("PersistenceRequired", (byte) 1);
+                // SwampHutPiece.spawnWitch: create → setPersistenceRequired → moveTo → finalizeSpawn(STRUCTURE) → addFreshEntityWithPassengers(CHUNK_GEN)
+                c.view.addStructureMob("minecraft:witch", wx + 0.5, wy, wz + 0.5, org.domi.furnace.server.entity.Mob::setPersistenceRequired, "CHUNK_GEN");
             }
             if (!spawnedCat && b.isInside(wx, wy, wz)) {
                 spawnedCat = true;
-                org.domi.furnace.server.net.io.nbt.NbtCompound cat = c.view.addEntity("minecraft:cat", wx + 0.5, wy, wz + 0.5, 0.0F, 0.0F, true);
-                cat.putByte("PersistenceRequired", (byte) 1);
-                cat.putString("variant", "minecraft:all_black");   // 구조물 스폰(STRUCTURE) 이면 검은 고양이
+                // spawnCat: 같은 차례. 검은 고양이는 Cat.finalizeSpawn 이 이 오두막(#cats_spawn_as_black)을 보고 정한다
+                c.view.addStructureMob("minecraft:cat", wx + 0.5, wy, wz + 0.5, org.domi.furnace.server.entity.Mob::setPersistenceRequired, "CHUNK_GEN");
             }
         }
     }

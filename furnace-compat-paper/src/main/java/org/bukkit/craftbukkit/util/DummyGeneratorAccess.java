@@ -100,7 +100,12 @@ public class DummyGeneratorAccess implements WorldGenLevel {
 
     public int getSeaLevel() { throw no(); }
 
+    @Override
     public DimensionType dimensionType() { throw no(); }
+
+    /** Paper: getLevelData 가 던진다(shim 은 레벨 데이터 대신 dayTime 을 직접). */
+    @Override
+    public long dayTime() { throw no(); }
 
     /** 바닐라 높이 질의는 dimensionType() 으로 가므로 여기서도 지원하지 않는다. */
     @Override
