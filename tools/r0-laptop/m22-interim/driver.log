@@ -1,0 +1,14 @@
+12:26:25 start tpl name=_tplsrv k=0 jar=A wall_to_done_s=43.56 Done (41.837s)
+12:26:39 level.dat ['E:/Project/IdeaProjects/Furnace-m22-runs\\_tplsrv\\world\\level.dat']
+12:26:45 start tpl0 name=_tplsrv k=1 jar=A wall_to_done_s=6.32 Done (4.489s)
+12:26:55 templates ok ['level0.dat', 'level2.dat']
+12:33:10 start m22 idle r=1 rule=0 name=m22i1r0 k=0 jar=A wall_to_done_s=35.47 Done (33.705s)
+12:38:42 idle done 1 0
+12:39:24 start m22 idle r=1 rule=2 name=m22i1r2 k=0 jar=A wall_to_done_s=36.93 Done (34.884s)
+12:44:56 idle done 1 2
+12:45:35 start m22 idle r=2 rule=2 name=m22i2r2 k=0 jar=A wall_to_done_s=34.91 Done (32.999s)
+12:51:07 idle done 2 2
+12:51:41 start m22 idle r=2 rule=0 name=m22i2r0 k=0 jar=A wall_to_done_s=30.22 Done (28.744s)
+12:57:13 idle done 2 0
+12:57:42 start m22 idle r=3 rule=0 name=m22i3r0 k=0 jar=A wall_to_done_s=26.60 Done (25.198s)
+13:03:14 idle done 3 0

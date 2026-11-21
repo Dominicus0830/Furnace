@@ -1,0 +1,7 @@
+tpl name=_tplsrv k=0 jar=A wall_to_done_s=43.56 Done (41.837s)
+tpl0 name=_tplsrv k=1 jar=A wall_to_done_s=6.32 Done (4.489s)
+m22 idle r=1 rule=0 name=m22i1r0 k=0 jar=A wall_to_done_s=35.47 Done (33.705s)
+m22 idle r=1 rule=2 name=m22i1r2 k=0 jar=A wall_to_done_s=36.93 Done (34.884s)
+m22 idle r=2 rule=2 name=m22i2r2 k=0 jar=A wall_to_done_s=34.91 Done (32.999s)
+m22 idle r=2 rule=0 name=m22i2r0 k=0 jar=A wall_to_done_s=30.22 Done (28.744s)
+m22 idle r=3 rule=0 name=m22i3r0 k=0 jar=A wall_to_done_s=26.60 Done (25.198s)

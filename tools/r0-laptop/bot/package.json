@@ -1,0 +1,7 @@
+{
+  "name": "furnace-bot-test",
+  "private": true,
+  "description": "Furnace 오프라인 서버 접속 시험용 mineflayer 봇",
+  "scripts": { "postinstall": "node patch-registry.js" },
+  "dependencies": { "mineflayer": "4.39.0", "minecraft-protocol": "1.68.0" }
+}
