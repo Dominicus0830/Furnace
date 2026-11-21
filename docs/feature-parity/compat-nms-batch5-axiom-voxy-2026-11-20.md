@@ -378,6 +378,8 @@ Paper 디컴파일 폴더를 다시 써서 그만큼 짧게 나왔다. 검토(#5
 섹션 바이트가 범용 패킷으로 나간다), 엔티티 전부(시험 스레드에서, 플레이어 포함), 유체 틱(원천 물이 옆 네 칸으로 양 7, 한 칸만, 빈 유체는 아무것도 안 함, 주인 아닌
 스레드 거절), 블록 틱(돌 칸에 경작지 상태 → 흙, 올라오지 않은 청크 거절). 5e-3b 검토 권고로 `NmsEntityPassengersTest` 에 승객 UUID 겹침·승객만 스폰 취소 시험 2개를 더했다(9개).
 Paper 와 다른 점은 `docs/user-todo/entries/2026-11-20-axiom-5e3c2.md`.
+- 다시 잰 점검: **Axiom 498 중 490 있음, voxy 243 중 243 있음**. Axiom 에 남은 8개는 모두 클래스 계층(T-231 — 생성기 작업: Marker·HangingEntity·ItemFrame·
+  BedBlock·DoorBlock·DoublePlantBlock·GameMasterBlock·LiquidBlock)이다. 서명 관문 새 차이 0(익명 클래스가 바닐라 `Level$1` 과 이름이 겹쳐 이름 있는 클래스로 바꿨다).
 
 ## 지금까지 모음(5a~5e-3c-2)
 

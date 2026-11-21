@@ -406,15 +406,18 @@ public abstract class Level implements LevelAccessor {
             NmsChunks.bridge().fluidTickNow(furnace(), pos.getX(), pos.getY(), pos.getZ(), fluid);
             return;
         }
-        NmsChunks.bridge().blockTickNow(furnace(), pos.getX(), pos.getY(), pos.getZ(), block.furnaceStateId(), new java.util.random.RandomGenerator() {
-            @Override public long nextLong() { return random.nextLong(); }
-            @Override public int nextInt() { return random.nextInt(); }
-            @Override public int nextInt(int bound) { return random.nextInt(bound); }
-            @Override public float nextFloat() { return random.nextFloat(); }
-            @Override public double nextDouble() { return random.nextDouble(); }
-            @Override public boolean nextBoolean() { return random.nextBoolean(); }
-            @Override public double nextGaussian() { return random.nextGaussian(); }
-        });
+        NmsChunks.bridge().blockTickNow(furnace(), pos.getX(), pos.getY(), pos.getZ(), block.furnaceStateId(), new FurnaceCallerRandom(random));
+    }
+
+    /** 부른 쪽 난수를 다리의 난수로(값은 그 난수열 그대로). 이름 있는 클래스 — 익명이면 바닐라 Level$1(WorldBorder)과 이름이 겹친다. */
+    private record FurnaceCallerRandom(net.minecraft.util.RandomSource random) implements java.util.random.RandomGenerator {
+        @Override public long nextLong() { return random.nextLong(); }
+        @Override public int nextInt() { return random.nextInt(); }
+        @Override public int nextInt(int bound) { return random.nextInt(bound); }
+        @Override public float nextFloat() { return random.nextFloat(); }
+        @Override public double nextDouble() { return random.nextDouble(); }
+        @Override public boolean nextBoolean() { return random.nextBoolean(); }
+        @Override public double nextGaussian() { return random.nextGaussian(); }
     }
 
     public boolean setBlockAndUpdate(BlockPos pos, BlockState state) { return setBlock(pos, state, 3); }
