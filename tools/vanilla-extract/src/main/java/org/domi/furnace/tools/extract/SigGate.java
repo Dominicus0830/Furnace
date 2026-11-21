@@ -141,12 +141,19 @@ public final class SigGate {
         return have.containsAll(refDescs);
     }
 
+    static final String SHIM_CTOR_DESC = "(Lorg/domi/furnace/compat/nms/ShimCtor;)V";
+
     private void members(SigTable.Cls s, SigTable.Cls r, List<Diff> diffs) {
         // 기준 사슬의 멤버: 클래스 자신 → 상위·인터페이스 순으로 이름+서술자 → 멤버
         Set<String> chain = allTypes(r.name(), false);
         for (SigTable.Member m : shim.members(s.name())) {
             if (vis(m.access()) < 2) continue;   // 공개·보호만(플러그인이 닿는 면)
             boolean ctor = m.name().equals("<init>");
+            // T-229: shim 생성기 전용 생성자 C(ShimCtor) — 바닐라에 없는 Furnace 형식이라 플러그인이 부를 수 없다(기본 생성자 대신 둔다)
+            if (ctor && m.desc().equals(SHIM_CTOR_DESC)) {
+                info.add(new Diff("generator-ctor", s.name(), m.name() + m.desc(), "생성기 전용 생성자"));
+                continue;
+            }
             SigTable.Member hit = null;
             List<String> sameName = new ArrayList<>();
             for (String c : ctor ? List.of(r.name()) : chain) {
