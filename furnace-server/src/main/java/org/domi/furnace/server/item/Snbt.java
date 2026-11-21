@@ -50,7 +50,7 @@ public final class Snbt {
     private CodecException error(String msg) { return new CodecException(msg + " at position " + i + ": " + context()); }
 
     private String context() {
-        int from = Math.max(0, i - 35);
+        int from = Math.max(0, i - 10); // Brigadier CONTEXT_AMOUNT = 10
         return (from > 0 ? "..." : "") + s.substring(from, Math.min(s.length(), i)) + "<--[HERE]";
     }
 
@@ -85,7 +85,7 @@ public final class Snbt {
             expect(':');
             c.put(key, value());
             if (!separator()) break;
-            ws();
+            if (i >= s.length()) throw error("Expected key");
         }
         expect('}');
         depth--;
@@ -159,25 +159,24 @@ public final class Snbt {
     }
 
     private Object listOrArray() {
-        if (i + 2 < s.length() && s.charAt(i + 1) != '"' && s.charAt(i + 2) == ';') {
-            char t = s.charAt(i + 1);
-            i += 3;
-            return array(t);
-        }
+        // 바닐라 readList: '[' 뒤 두 번째 글자가 따옴표가 아니고 세 번째가 ';' 이면 배열(공백은 건너뛰지 않는다)
+        if (i + 2 < s.length() && s.charAt(i + 1) != '"' && s.charAt(i + 1) != '\'' && s.charAt(i + 2) == ';') return arrayTag();
         if (++depth > MAX_DEPTH) throw error("Too deep");
         expect('[');
+        ws();
+        if (i >= s.length()) throw error("Expected value");
         List<Object> items = new ArrayList<>();
         byte type = NbtIo.TAG_END;
-        ws();
+        String typeName = null;
         while (i < s.length() && s.charAt(i) != ']') {
             int start = i;
             Object v = value();
             byte t = NbtVals.typeOf(v);
-            if (type == NbtIo.TAG_END) type = t;
-            else if (t != type) { i = start; throw error("Can't insert " + t + " into list of " + type); }
+            if (type == NbtIo.TAG_END) { type = t; typeName = prettyName(v); }
+            else if (t != type) { i = start; throw error("Can't insert " + prettyName(v) + " into list of " + typeName); }
             items.add(v);
             if (!separator()) break;
-            ws();
+            if (i >= s.length()) throw error("Expected value");
         }
         expect(']');
         depth--;
@@ -186,29 +185,61 @@ public final class Snbt {
         return l;
     }
 
-    private Object array(char t) {
-        List<Object> items = new ArrayList<>();
+    /** 바닐라 readArrayTag: 배열 종류 글자는 대문자 B·L·I 만, 원소는 그 배열의 원소 종류와 정확히 같아야 한다(수를 넓히지 않는다). */
+    private Object arrayTag() {
+        expect('[');
+        int letterAt = i;
+        char t = s.charAt(i);
+        i += 2;
         ws();
+        if (i >= s.length()) throw error("Expected value");
+        switch (t) {
+            case 'B' -> { return array(t, "TAG_Byte_Array"); }
+            case 'L' -> { return array(t, "TAG_Long_Array"); }
+            case 'I' -> { return array(t, "TAG_Int_Array"); }
+            default -> { i = letterAt; throw error("Invalid array type '" + t + "'"); }
+        }
+    }
+
+    private Object array(char t, String arrayName) {
+        List<Object> items = new ArrayList<>();
         while (i < s.length() && s.charAt(i) != ']') {
             int start = i;
             Object v = value();
-            boolean ok = switch (Character.toUpperCase(t)) {
-                case 'B' -> v instanceof Byte || v instanceof Short || v instanceof Integer || v instanceof Long;
-                case 'I' -> v instanceof Byte || v instanceof Short || v instanceof Integer;
-                case 'L' -> v instanceof Byte || v instanceof Short || v instanceof Integer || v instanceof Long;
-                default -> { i = start; throw error("Invalid array type '" + t + "'"); }
+            boolean ok = switch (t) {
+                case 'B' -> v instanceof Byte;
+                case 'I' -> v instanceof Integer;
+                default -> v instanceof Long;
             };
-            if (!ok) { i = start; throw error("Can't insert " + NbtVals.typeOf(v) + " into array of " + t); }
+            if (!ok) { i = start; throw error("Can't insert " + prettyName(v) + " into " + arrayName); }
             items.add(v);
             if (!separator()) break;
-            ws();
+            if (i >= s.length()) throw error("Expected value");
         }
         expect(']');
-        switch (Character.toUpperCase(t)) {
-            case 'B' -> { byte[] a = new byte[items.size()]; for (int k = 0; k < a.length; k++) a[k] = ((Number) items.get(k)).byteValue(); return a; }
-            case 'I' -> { int[] a = new int[items.size()]; for (int k = 0; k < a.length; k++) a[k] = ((Number) items.get(k)).intValue(); return a; }
-            default -> { long[] a = new long[items.size()]; for (int k = 0; k < a.length; k++) a[k] = ((Number) items.get(k)).longValue(); return a; }
+        switch (t) {
+            case 'B' -> { byte[] a = new byte[items.size()]; for (int k = 0; k < a.length; k++) a[k] = (Byte) items.get(k); return a; }
+            case 'I' -> { int[] a = new int[items.size()]; for (int k = 0; k < a.length; k++) a[k] = (Integer) items.get(k); return a; }
+            default -> { long[] a = new long[items.size()]; for (int k = 0; k < a.length; k++) a[k] = (Long) items.get(k); return a; }
         }
+    }
+
+    /** 바닐라 TagType.getPrettyName(오류 문구에 쓰인다). */
+    private static String prettyName(Object v) {
+        return switch (v) {
+            case Byte x -> "TAG_Byte";
+            case Short x -> "TAG_Short";
+            case Integer x -> "TAG_Int";
+            case Long x -> "TAG_Long";
+            case Float x -> "TAG_Float";
+            case Double x -> "TAG_Double";
+            case String x -> "TAG_String";
+            case byte[] x -> "TAG_Byte_Array";
+            case int[] x -> "TAG_Int_Array";
+            case long[] x -> "TAG_Long_Array";
+            case NbtList x -> "TAG_List";
+            default -> "TAG_Compound";
+        };
     }
 
     // ------------------------------------------------------------------ JSON 꼴 → NBT (JsonOps → NbtOps 변환)

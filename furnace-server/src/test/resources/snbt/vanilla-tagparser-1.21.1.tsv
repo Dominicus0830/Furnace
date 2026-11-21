@@ -1,0 +1,207 @@
+# Results of vanilla 1.21.1 TagParser.readValue. Columns: input, OK, Tag.toString, cursor after read | input, ERR, message
+[B;1,2]	ERR	Can't insert TAG_Int into TAG_Byte_Array at position 3: [B;<--[HERE]
+[B;1b,2b]	OK	[B;1B,2B]	9
+[B;1B,2B]	OK	[B;1B,2B]	9
+[b;1b]	ERR	Invalid array type 'b' at position 1: [<--[HERE]
+[I;1,2]	OK	[I;1,2]	7
+[I;1b]	ERR	Can't insert TAG_Byte into TAG_Int_Array at position 3: [I;<--[HERE]
+[I;1L]	ERR	Can't insert TAG_Long into TAG_Int_Array at position 3: [I;<--[HERE]
+[i;1]	ERR	Invalid array type 'i' at position 1: [<--[HERE]
+[L;1L,2L]	OK	[L;1L,2L]	9
+[L;1,2]	ERR	Can't insert TAG_Int into TAG_Long_Array at position 3: [L;<--[HERE]
+[L;1b]	ERR	Can't insert TAG_Byte into TAG_Long_Array at position 3: [L;<--[HERE]
+[L;1]	ERR	Can't insert TAG_Int into TAG_Long_Array at position 3: [L;<--[HERE]
+[B;]	OK	[B;]	4
+[I;]	OK	[I;]	4
+[L;]	OK	[L;]	4
+[B;1b,]	OK	[B;1B]	7
+[B;1b,2]	ERR	Can't insert TAG_Int into TAG_Byte_Array at position 6: [B;1b,<--[HERE]
+[X;1]	ERR	Invalid array type 'X' at position 1: [<--[HERE]
+[B;	ERR	Expected value at position 3: [B;<--[HERE]
+[B;1b	ERR	Expected ']' at position 5: [B;1b<--[HERE]
+[B; 1b , 2b ]	OK	[B;1B,2B]	13
+[ B;1b]	ERR	Expected ']' at position 3: [ B<--[HERE]
+[B ;1b]	ERR	Expected ']' at position 3: [B <--[HERE]
+["B";1]	ERR	Expected ']' at position 4: ["B"<--[HERE]
+[1,2]	OK	[1,2]	5
+[1,2L]	ERR	Can't insert TAG_Long into list of TAG_Int at position 3: [1,<--[HERE]
+[1b,2]	ERR	Can't insert TAG_Int into list of TAG_Byte at position 4: [1b,<--[HERE]
+[]	OK	[]	2
+[1,]	OK	[1]	4
+[	ERR	Expected value at position 1: [<--[HERE]
+[1	ERR	Expected ']' at position 2: [1<--[HERE]
+{a:[B;1b]}	OK	{a:[B;1B]}	10
+[B;true,false]	OK	[B;1B,0B]	14
+[B;300b]	ERR	Can't insert TAG_String into TAG_Byte_Array at position 3: [B;<--[HERE]
+[I;1.5]	ERR	Can't insert TAG_Double into TAG_Int_Array at position 3: [I;<--[HERE]
+[I;"a"]	ERR	Can't insert TAG_String into TAG_Int_Array at position 3: [I;<--[HERE]
+[I;{}]	ERR	Can't insert TAG_Compound into TAG_Int_Array at position 3: [I;<--[HERE]
+[I;[I;1]]	ERR	Can't insert TAG_Int_Array into TAG_Int_Array at position 3: [I;<--[HERE]
+[B;1b 2b]	ERR	Expected ']' at position 6: [B;1b <--[HERE]
+[B;1b,,2b]	ERR	Expected value at position 6: [B;1b,<--[HERE]
+[1,,2]	ERR	Expected value at position 3: [1,<--[HERE]
+{a:1,}	OK	{a:1}	6
+{a:1 b:2}	ERR	Expected '}' at position 5: {a:1 <--[HERE]
+{}	OK	{}	2
+{a}	ERR	Expected ':' at position 2: {a<--[HERE]
+{:1}	ERR	Expected key at position 1: {<--[HERE]
+{a:}	ERR	Expected value at position 3: {a:<--[HERE]
+{"":1}	ERR	Expected key at position 1: {<--[HERE]
+[I;-1,+2]	OK	[I;-1,2]	9
+[I;1s]	ERR	Can't insert TAG_Short into TAG_Int_Array at position 3: [I;<--[HERE]
+[I;1f]	ERR	Can't insert TAG_Float into TAG_Int_Array at position 3: [I;<--[HERE]
+[I;1d]	ERR	Can't insert TAG_Double into TAG_Int_Array at position 3: [I;<--[HERE]
+[I;1.0]	ERR	Can't insert TAG_Double into TAG_Int_Array at position 3: [I;<--[HERE]
+[I;true]	ERR	Can't insert TAG_Byte into TAG_Int_Array at position 3: [I;<--[HERE]
+[L;1s]	ERR	Can't insert TAG_Short into TAG_Long_Array at position 3: [L;<--[HERE]
+[L;1,2L]	ERR	Can't insert TAG_Int into TAG_Long_Array at position 3: [L;<--[HERE]
+[B;1b,2b,3b]	OK	[B;1B,2B,3B]	12
+[B;-128b,127b]	OK	[B;-128B,127B]	14
+[B;128b]	ERR	Can't insert TAG_String into TAG_Byte_Array at position 3: [B;<--[HERE]
+[B;0x1b]	ERR	Can't insert TAG_String into TAG_Byte_Array at position 3: [B;<--[HERE]
+[I;2147483647,-2147483648]	OK	[I;2147483647,-2147483648]	26
+[I;2147483648]	ERR	Can't insert TAG_String into TAG_Int_Array at position 3: [I;<--[HERE]
+[L;9223372036854775807L]	OK	[L;9223372036854775807L]	24
+[L;9223372036854775808L]	ERR	Can't insert TAG_String into TAG_Long_Array at position 3: [L;<--[HERE]
+[L;-1L,+5L]	OK	[L;-1L,5L]	11
+[ I ; 1 ]	ERR	Expected ']' at position 4: [ I <--[HERE]
+[I;1 ]	OK	[I;1]	6
+[I; ]	OK	[I;]	5
+[I;,]	ERR	Expected value at position 3: [I;<--[HERE]
+[I;1,,]	ERR	Expected value at position 5: [I;1,<--[HERE]
+[I;1,2,]	OK	[I;1,2]	8
+[I;1, 2 , 3]	OK	[I;1,2,3]	12
+[B;'a']	ERR	Can't insert TAG_String into TAG_Byte_Array at position 3: [B;<--[HERE]
+[B;a]	ERR	Can't insert TAG_String into TAG_Byte_Array at position 3: [B;<--[HERE]
+[B;1b]x	OK	[B;1B]	6
+[I;1]  	OK	[I;1]	5
+ [I;1]	OK	[I;1]	6
+[I;[1]]	ERR	Can't insert TAG_List into TAG_Int_Array at position 3: [I;<--[HERE]
+[[I;1],[I;2]]	OK	[[I;1],[I;2]]	13
+[[I;1],[B;1b]]	ERR	Can't insert TAG_Byte_Array into list of TAG_Int_Array at position 7: [[I;1],<--[HERE]
+[[1],[I;2]]	ERR	Can't insert TAG_Int_Array into list of TAG_List at position 5: [[1],<--[HERE]
+[[],[1]]	OK	[[],[1]]	8
+[[1],[]]	OK	[[1],[]]	8
+[I;1][I;2]	OK	[I;1]	5
+{a:[I;1,2],b:[B;1b],c:[L;1L]}	OK	{a:[I;1,2],b:[B;1B],c:[L;1L]}	29
+{a:[I;1,2],b:[B;1]}	ERR	Can't insert TAG_Int into TAG_Byte_Array at position 16: ...1,2],b:[B;<--[HERE]
+{a:[I;1,2 b:1}	ERR	Expected ']' at position 10: {a:[I;1,2 <--[HERE]
+[B;1b,2b	ERR	Expected ']' at position 8: [B;1b,2b<--[HERE]
+[B;1b,2b,	ERR	Expected value at position 9: [B;1b,2b,<--[HERE]
+[I;1,	ERR	Expected value at position 5: [I;1,<--[HERE]
+[I;1	ERR	Expected ']' at position 4: [I;1<--[HERE]
+[I;	ERR	Expected value at position 3: [I;<--[HERE]
+[I	ERR	Expected ']' at position 2: [I<--[HERE]
+[	ERR	Expected value at position 1: [<--[HERE]
+[]x	OK	[]	2
+[B	ERR	Expected ']' at position 2: [B<--[HERE]
+[B;]]	OK	[B;]	4
+[;1]	ERR	Expected value at position 1: [<--[HERE]
+[;]	ERR	Expected value at position 1: [<--[HERE]
+[I,1]	ERR	Can't insert TAG_Int into list of TAG_String at position 3: [I,<--[HERE]
+[I;1;2]	ERR	Expected ']' at position 4: [I;1<--[HERE]
+[A;1]	ERR	Invalid array type 'A' at position 1: [<--[HERE]
+['I';1]	ERR	Expected ']' at position 4: ['I'<--[HERE]
+[II;1]	ERR	Expected ']' at position 3: [II<--[HERE]
+[I:1]	ERR	Expected ']' at position 2: [I<--[HERE]
+[I;1b,2b]	ERR	Can't insert TAG_Byte into TAG_Int_Array at position 3: [I;<--[HERE]
+[I;1L,2L]	ERR	Can't insert TAG_Long into TAG_Int_Array at position 3: [I;<--[HERE]
+[B;1L]	ERR	Can't insert TAG_Long into TAG_Byte_Array at position 3: [B;<--[HERE]
+[B;1s]	ERR	Can't insert TAG_Short into TAG_Byte_Array at position 3: [B;<--[HERE]
+[B;1.0f]	ERR	Can't insert TAG_Float into TAG_Byte_Array at position 3: [B;<--[HERE]
+[B;"1b"]	ERR	Can't insert TAG_String into TAG_Byte_Array at position 3: [B;<--[HERE]
+[1b,2b]	OK	[1b,2b]	7
+[1b,2]	ERR	Can't insert TAG_Int into list of TAG_Byte at position 4: [1b,<--[HERE]
+[1,2b]	ERR	Can't insert TAG_Byte into list of TAG_Int at position 3: [1,<--[HERE]
+[1s,2s]	OK	[1s,2s]	7
+[1.5,2.5]	OK	[1.5d,2.5d]	9
+[1.5,2]	ERR	Can't insert TAG_Int into list of TAG_Double at position 5: [1.5,<--[HERE]
+["a","b"]	OK	["a","b"]	9
+["a",1]	ERR	Can't insert TAG_Int into list of TAG_String at position 5: ["a",<--[HERE]
+[{},{}]	OK	[{},{}]	7
+[{},1]	ERR	Can't insert TAG_Int into list of TAG_Compound at position 4: [{},<--[HERE]
+[{a:1},{b:2}]	OK	[{a:1},{b:2}]	13
+[[1],[2]]	OK	[[1],[2]]	9
+[[1],["a"]]	OK	[[1],["a"]]	11
+[true,false]	OK	[1b,0b]	12
+[true,1]	ERR	Can't insert TAG_Int into list of TAG_Byte at position 6: [true,<--[HERE]
+[1,true]	ERR	Can't insert TAG_Byte into list of TAG_Int at position 3: [1,<--[HERE]
+[1b,true]	OK	[1b,1b]	9
+1	OK	1	1
+1b	OK	1b	2
+1s	OK	1s	2
+1L	OK	1L	2
+1l	OK	1L	2
+1.5	OK	1.5d	3
+1.5f	OK	1.5f	4
+1.5d	OK	1.5d	4
+1e5	OK	"1e5"	3
+1e5d	OK	100000.0d	4
+.5	OK	0.5d	2
+5.	OK	5.0d	2
+-.5	OK	-0.5d	3
++1	OK	1	2
++1b	OK	1b	3
+01	OK	"01"	2
+00	OK	"00"	2
+0	OK	0	1
+-0	OK	0	2
+123abc	OK	"123abc"	6
+abc	OK	"abc"	3
+true	OK	1b	4
+TRUE	OK	1b	4
+false	OK	0b	5
+"a b"	OK	"a b"	5
+'a b'	OK	"a b"	5
+"a\"b"	OK	'a"b'	6
+"a\\b"	OK	"a\\b"	6
+"a\nb"	ERR	Invalid escape sequence 'n' in quoted string at position 3: "a\<--[HERE]
+"a\'b"	ERR	Invalid escape sequence ''' in quoted string at position 3: "a\<--[HERE]
+'a\'b'	OK	"a'b"	6
+"unclosed	ERR	Unclosed quoted string at position 9: "unclosed<--[HERE]
+'unclosed	ERR	Unclosed quoted string at position 9: 'unclosed<--[HERE]
+""	OK	""	2
+''	OK	""	2
+a:b	OK	"a"	1
+a.b	OK	"a.b"	3
+a+b	OK	"a+b"	3
+a-b	OK	"a-b"	3
+a_b	OK	"a_b"	3
+?	ERR	Expected value at position 0: <--[HERE]
+{a:1,b:2}	OK	{a:1,b:2}	9
+{a:1, b:2}	OK	{a:1,b:2}	10
+{ a : 1 , b : 2 }	OK	{a:1,b:2}	17
+{a:{b:{c:1}}}	OK	{a:{b:{c:1}}}	13
+{'a b':1}	OK	{"a b":1}	9
+{"a b":1}	OK	{"a b":1}	9
+{a:1,a:2}	OK	{a:2}	9
+{1:1}	OK	{1:1}	5
+{a:b c}	ERR	Expected '}' at position 5: {a:b <--[HERE]
+{a:[1,2,3],b:{c:[I;1]}}	OK	{a:[1,2,3],b:{c:[I;1]}}	23
+{a:1}x	OK	{a:1}	5
+{a:1}	OK	{a:1}	5
+{	ERR	Expected '}' at position 1: {<--[HERE]
+{a	ERR	Expected ':' at position 2: {a<--[HERE]
+{a:	ERR	Expected value at position 3: {a:<--[HERE]
+{a:1	ERR	Expected '}' at position 4: {a:1<--[HERE]
+{a:1,	ERR	Expected key at position 5: {a:1,<--[HERE]
+{a:1,b	ERR	Expected ':' at position 6: {a:1,b<--[HERE]
+{,}	ERR	Expected key at position 1: {<--[HERE]
+{,a:1}	ERR	Expected key at position 1: {<--[HERE]
+{a:1,,b:2}	ERR	Expected key at position 5: {a:1,<--[HERE]
+128b	OK	"128b"	4
+-129b	OK	"-129b"	5
+32768s	OK	"32768s"	6
+2147483648	OK	"2147483648"	10
+9223372036854775808L	OK	"9223372036854775808L"	20
+1e999	OK	"1e999"	5
+1e999d	OK	Infinityd	6
+1f	OK	1.0f	2
+1d	OK	1.0d	2
+1.0e10f	OK	1.0E10f	7
+1.0E10	OK	1.0E10d	6
+1.0e+10	OK	1.0E10d	7
+1.0e-10	OK	1.0E-10d	7
+infinityd	OK	"infinityd"	9
+NaN	OK	"NaN"	3
+nand	OK	"nand"	4
