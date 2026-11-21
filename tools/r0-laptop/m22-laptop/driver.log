@@ -1,0 +1,40 @@
+13:07:43 start tpl name=_tplsrv k=0 jar=A wall_to_done_s=18.29 Done (16.828s)
+13:07:53 level.dat ['C:/Users/gagam/furnace-r0/m22-runs\\_tplsrv\\world\\level.dat']
+13:08:01 start tpl0 name=_tplsrv k=1 jar=A wall_to_done_s=7.92 Done (6.415s)
+13:08:11 templates ok ['level0.dat', 'level2.dat']
+13:08:32 start m22 idle r=1 rule=0 name=m22i1r0 k=0 jar=A wall_to_done_s=15.47 Done (14.140s)
+13:14:03 idle done 1 0
+13:14:23 start m22 idle r=1 rule=2 name=m22i1r2 k=0 jar=A wall_to_done_s=15.49 Done (14.230s)
+13:19:55 idle done 1 2
+13:20:27 start m22 idle r=2 rule=2 name=m22i2r2 k=0 jar=A wall_to_done_s=26.64 Done (25.051s)
+13:25:59 idle done 2 2
+13:26:19 start m22 idle r=2 rule=0 name=m22i2r0 k=0 jar=A wall_to_done_s=15.48 Done (14.190s)
+13:31:51 idle done 2 0
+13:32:13 start m22 idle r=3 rule=0 name=m22i3r0 k=0 jar=A wall_to_done_s=17.28 Done (15.856s)
+13:37:45 idle done 3 0
+13:38:48 start m22 idle r=3 rule=2 name=m22i3r2 k=0 jar=A wall_to_done_s=58.07 Done (56.622s)
+13:44:20 idle done 3 2
+13:44:42 start m22 walk r=1 vd=16 rule=0 name=m22w1v16r0 k=0 jar=A wall_to_done_s=16.07 Done (14.595s)
+13:46:14 walk done 1 16 0
+13:46:34 start m22 walk r=1 vd=16 rule=2 name=m22w1v16r2 k=0 jar=A wall_to_done_s=16.07 Done (14.623s)
+13:48:01 walk done 1 16 2
+13:48:21 start m22 walk r=2 vd=16 rule=2 name=m22w2v16r2 k=0 jar=A wall_to_done_s=16.07 Done (14.768s)
+13:49:48 walk done 2 16 2
+13:50:07 start m22 walk r=2 vd=16 rule=0 name=m22w2v16r0 k=0 jar=A wall_to_done_s=15.07 Done (13.609s)
+13:51:35 walk done 2 16 0
+13:51:54 start m22 walk r=3 vd=16 rule=0 name=m22w3v16r0 k=0 jar=A wall_to_done_s=15.27 Done (13.728s)
+13:53:22 walk done 3 16 0
+13:53:41 start m22 walk r=3 vd=16 rule=2 name=m22w3v16r2 k=0 jar=A wall_to_done_s=15.27 Done (13.999s)
+13:55:08 walk done 3 16 2
+13:55:29 start m22 walk r=1 vd=10 rule=2 name=m22w1v10r2 k=0 jar=A wall_to_done_s=16.28 Done (14.726s)
+13:56:50 walk done 1 10 2
+13:57:10 start m22 walk r=1 vd=10 rule=0 name=m22w1v10r0 k=0 jar=A wall_to_done_s=15.27 Done (13.819s)
+13:58:31 walk done 1 10 0
+13:58:49 start m22 walk r=2 vd=10 rule=0 name=m22w2v10r0 k=0 jar=A wall_to_done_s=14.67 Done (13.186s)
+14:00:11 walk done 2 10 0
+14:00:30 start m22 walk r=2 vd=10 rule=2 name=m22w2v10r2 k=0 jar=A wall_to_done_s=15.48 Done (14.086s)
+14:01:51 walk done 2 10 2
+14:02:08 start m22 walk r=3 vd=10 rule=2 name=m22w3v10r2 k=0 jar=A wall_to_done_s=12.66 Done (11.269s)
+14:03:29 walk done 3 10 2
+14:03:47 start m22 walk r=3 vd=10 rule=0 name=m22w3v10r0 k=0 jar=A wall_to_done_s=14.87 Done (13.489s)
+14:05:08 walk done 3 10 0

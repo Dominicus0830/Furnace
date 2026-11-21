@@ -18,8 +18,23 @@ spec.loader.exec_module(r0)
 r0.RUNS = RUNS; r0.OUT = os.path.join(RUNS, "results.jsonl"); r0.MISC = os.path.join(RUNS, "misc.jsonl")
 r0.JAVA = JAVA; r0.JARS = {"A": JAR, "B": JAR}
 os.makedirs(RUNS, exist_ok=True)
+# 노트북(i5-1235U, P코어 2개+E코어 8개) 조건: 서버 java 는 E코어 8개(0xFF0)+ActiveProcessorCount=8, 봇 node 는 P코어(0x00F)에 묶는다.
+if os.environ.get("M22_PIN", "1") == "1":
+    import psutil
+    _Popen = subprocess.Popen
+    def _pin(*a, **k):
+        p = _Popen(*a, **k)
+        try:
+            exe = os.path.basename(str(a[0][0])).lower() if a and isinstance(a[0], list) else ""
+            if exe.startswith("java"): psutil.Process(p.pid).cpu_affinity(list(range(4, 12)))
+            elif exe.startswith("node"): psutil.Process(p.pid).cpu_affinity(list(range(0, 4)))
+        except Exception as e: print("pin fail", e)
+        return p
+    r0.subprocess.Popen = _pin
+    UTF8_PIN = ["-XX:ActiveProcessorCount=8"]
+else: UTF8_PIN = []
 IDLE_S = int(os.environ.get("IDLE_S", "300"))
-UTF8 = ["-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8", "-XX:+UnlockDiagnosticVMOptions", "-XX:+DebugNonSafepoints"]
+UTF8 = ["-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8", "-XX:+UnlockDiagnosticVMOptions", "-XX:+DebugNonSafepoints", *UTF8_PIN]
 TPL = os.path.join(RUNS, "_tpl")
 log = r0.log
 
