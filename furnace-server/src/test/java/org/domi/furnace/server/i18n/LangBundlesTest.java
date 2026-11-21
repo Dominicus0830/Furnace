@@ -24,7 +24,7 @@ class LangBundlesTest {
     private static final List<Path> SOURCE_ROOTS = List.of(
             Path.of("src/main/java"), Path.of("../furnace-compat-paper/src/main/java"), Path.of("../furnace-api/src/main/java"),
             Path.of("../furnace-test/src/main/java"), Path.of("../furnace-plugin-test/src/main/java"),
-            Path.of("../furnace-compat-paper/src/shimgen/java"));
+            Path.of("../furnace-compat-paper/src/shimgen/java"), Path.of("../furnace-compat-paper/src/shims/java"));
 
     @Test
     void everySupportedLanguageHasAFileWithTheSameKeysAndSlots() {
