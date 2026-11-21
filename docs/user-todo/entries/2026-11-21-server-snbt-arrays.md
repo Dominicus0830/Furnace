@@ -20,3 +20,6 @@ Paper 도 같은 바닐라 읽기를 쓰므로 호환 면도 Paper 와 같아진
 
 ## 시험
 `SnbtVanillaParityTest` 가 `furnace-server/src/test/resources/snbt/vanilla-tagparser-1.21.1.tsv`(바닐라 서버 jar 결과, 허용·거절 모두)와 견준다.
+
+## 남은 것 (이 묶음에서 안 고침)
+`furnace-api` 의 `Snbt`(플러그인에 공개되는 읽기)는 기준 브랜치에서 아직 느슨하다(소문자 배열 글자 허용, 수 넓히기, 문맥 35글자, 오류 문구가 다름). 파일 머리 주석의 "바닐라와 같다"는 아직 사실과 다르다. 같은 기준 파일로 고치는 일은 추가 작업으로 미뤄 둔 상태다.
