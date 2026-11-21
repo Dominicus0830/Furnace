@@ -1,4 +1,4 @@
-# Results of vanilla 1.21.1 TagParser.readValue. Columns: input, OK, Tag.toString, cursor after read | input, ERR, message
+# Results of vanilla 1.21.1 server jar TagParser.readValue, dumped 2026-11-21 with tools/snbt-vanilla-dump. Columns: input, OK, Tag.toString, cursor after read | input, ERR, message
 [B;1,2]	ERR	Can't insert TAG_Int into TAG_Byte_Array at position 3: [B;<--[HERE]
 [B;1b,2b]	OK	[B;1B,2B]	9
 [B;1B,2B]	OK	[B;1B,2B]	9
