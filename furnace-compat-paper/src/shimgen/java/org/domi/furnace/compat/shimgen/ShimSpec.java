@@ -16,7 +16,7 @@ import java.util.stream.Stream;
 
 final class ShimSpec {
 
-    /** 소유 검사 종류. 위임(->) 줄마다 하나를 반드시 적는다. */
+    /** 소유 검사 종류. 메서드 연결(->) 줄마다(손 몸통·빈 몸통 포함, 생성자 제외) 하나를 반드시 적는다. */
     enum Kind {
         /** 공유 상태 없음(값 계산). 검사 없음. */
         PURE("pure"),
@@ -24,9 +24,9 @@ final class ShimSpec {
         READ_ANY("read=any"),
         /** 공개 스냅샷을 읽음(다른 스레드는 직전 틱 값). 검사 없음 — 대상이 스냅샷을 돌려준다. */
         READ_SNAPSHOT("read=snapshot"),
-        /** 주인 스레드에서만 읽기. 위임 전에 소유 규칙 클래스의 read(this, 이름) 를 부른다. */
+        /** 주인 스레드에서만 읽기. 몸통 첫 호출이 소유 규칙 클래스의 read(this, 이름) — 생성 몸통은 생성기가 넣고, 손 몸통은 빌드 시험이 본다. */
         READ_OWNER("read=owner"),
-        /** 쓰기. 위임 전에 소유 규칙 클래스의 write(this, 이름) 를 부른다. */
+        /** 쓰기. 몸통 첫 호출이 소유 규칙 클래스의 write(this, 이름) — 생성 몸통은 생성기가 넣고, 손 몸통은 빌드 시험이 본다. */
         WRITE("write");
 
         final String token;
@@ -53,7 +53,7 @@ final class ShimSpec {
         HAND,
         /** 핫 경로 맞춤 설계(설계 4.6) — 손 조각이 쓰고, 근거 설계 문서를 적는다. */
         FAST,
-        /** 빈 몸통(void 메서드·생성자). */
+        /** 빈 몸통(void 메서드·생성자). read=owner·write 면 소유 검사만 있는 몸통. */
         EMPTY,
         /** 필드 초기값(자바 식). */
         VALUE
@@ -204,11 +204,12 @@ final class ShimSpec {
                 throw err(file, no, e.getMessage());
             }
         }
-        if ((body == Body.DELEGATE || body == Body.SELF) && kind == null) {
-            throw err(file, no, "a delegating line needs a check kind (pure, read=any, read=snapshot, read=owner, write): " + t);
-        }
-        if ((body == Body.HAND || body == Body.FAST || body == Body.EMPTY) && kind != null) {
-            throw err(file, no, "check kinds go on delegating lines only (hand bodies do their own checks): " + t);
+        // 메서드 연결 줄은 전부(손 몸통·빈 몸통 포함) 검사 종류를 적는다 — 생성 몸통은 생성기가, 손 몸통은 빌드 시험(ShimSpecBuildTest)이
+        // read=owner·write 의 첫 호출이 소유 검사인지 본다. 생성자는 아직 주인이 없으니 적지 않는다.
+        if (name.equals("<init>")) {
+            if (kind != null) throw err(file, no, "constructors take no check kind (the object has no owner yet): " + t);
+        } else if (kind == null) {
+            throw err(file, no, "a method line needs a check kind (pure, read=any, read=snapshot, read=owner, write), hand bodies too: " + t);
         }
         return new Member(name, desc, body, tgt, kind, file, no);
     }

@@ -130,9 +130,11 @@ class ShimSpecBuildTest {
                 Integer acc = got.members().get(key);
                 if (acc == null) { problems.add(n + ": 명세 멤버가 없다 " + key); continue; }
                 if ((acc & MEMBER_MASK) != (m.access() & MEMBER_MASK)) problems.add(n + ": 멤버 접근 " + key + " " + acc + " != " + m.access());
-                ShimSpec.Member sm = sc == null ? null : sc.members().stream().filter(x -> x.name().equals(m.name())).findFirst().orElse(null);
+                ShimSpec.Member sm = sc == null ? null : sc.members().stream().filter(x -> x.name().equals(m.name()) && (x.desc() == null
+                        || (m.kind() == 'F' ? x.fieldDesc() && x.desc().equals(m.desc()) : !x.fieldDesc() && m.desc().startsWith(x.desc())))).findFirst().orElse(null);
                 if (sm == null || m.kind() != 'M') continue;
                 boolean generatedBody = sm.body() == ShimSpec.Body.DELEGATE || sm.body() == ShimSpec.Body.SELF || sm.body() == ShimSpec.Body.EMPTY;
+                // read=owner·write 는 생성 몸통이든 손 몸통(@hand·@fast)이든 첫 호출이 소유 검사여야 한다
                 if (generatedBody && !got.badInsns().get(key).isEmpty()) problems.add(n + ": 생성 몸통에 리플렉션·invokedynamic " + key + " " + got.badInsns().get(key));
                 if (sm.kind() != null && sm.kind().checked()) {
                     String want0 = sc.owner().replace('.', '/') + "." + (sm.kind() == ShimSpec.Kind.WRITE ? "write" : "read");

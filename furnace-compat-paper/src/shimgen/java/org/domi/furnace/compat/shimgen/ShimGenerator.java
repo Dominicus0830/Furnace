@@ -212,6 +212,14 @@ public final class ShimGenerator {
             if ((o == Origin.GEN || o == Origin.FRAGMENT) && (c.isRecord() || c.isAnnotation())) {
                 problems.add("records and annotation types are not generated yet (T-230): " + n + " - keep it as a hand shim");
             }
+            if ((o == Origin.GEN || o == Origin.FRAGMENT) && c.isEnum()) {
+                // 상수를 일부만 적으면 서수·values() 가 바닐라와 달라진다 — 전부(바닐라 순서로) 적어야 한다
+                Integer want = lock.enumConstants.get(n);
+                int listed = enumConstants(n).size();
+                if (want == null) problems.add("the shim lock has no enum constant count for " + n + " - rerun :furnace-compat-paper:shimLock");
+                else if (listed != want) problems.add("enum " + n + " lists " + listed + " of its " + want + " vanilla constants in the spec;"
+                        + " list every constant in vanilla order (ordinals and values() must match vanilla)");
+            }
         }
         for (ShimSpec.Cls c : spec.classes.values()) {
             String n = c.name().replace('.', '/');
@@ -224,6 +232,11 @@ public final class ShimGenerator {
             }
             for (Bound b : bs) {
                 ShimSpec.Member m = b.spec();
+                if (b.lock().kind() == 'M' && b.lock().isAbstract() && m.body() != ShimSpec.Body.DECLARE) {
+                    problems.add(m.where() + ": " + n + "#" + m.name() + " is abstract in vanilla"
+                            + (lock.classes.get(n).isInterface() ? " (an interface method without a default body)" : "")
+                            + "; write the name only (an abstract declaration) - a body would change the class shape");
+                }
                 if ((m.body() == ShimSpec.Body.HAND || m.body() == ShimSpec.Body.FAST) && o != Origin.FRAGMENT) {
                     problems.add(m.where() + ": @hand/@fast bodies go in the fragment src/shims/java/" + n + ".java, which does not exist");
                 }
@@ -354,12 +367,8 @@ public final class ShimGenerator {
         StringBuilder sb = new StringBuilder();
         String simple = JavaTypes.simple(n);
         List<Bound> bs = bound.getOrDefault(n, List.of());
-        // 열거형 상수(명세 순서)
-        if (c.isEnum() && origin.get(n) == Origin.GEN) {
-            List<String> consts = new ArrayList<>();
-            for (Bound b : bs) if (b.lock().kind() == 'F' && (b.lock().access() & 0x4000) != 0) consts.add(b.lock().name());
-            sb.append(in).append(String.join(", ", consts)).append(";\n");
-        }
+        // 열거형 상수(명세 순서). 조각은 mergeFragment 가 머리 바로 뒤에 쓴다.
+        if (c.isEnum() && origin.get(n) == Origin.GEN) sb.append(in).append(String.join(", ", enumConstants(n))).append(";\n");
         // 필드
         for (Bound b : bs) {
             ShimLock.Member m = b.lock();
@@ -398,13 +407,15 @@ public final class ShimGenerator {
                         problems.add(b.spec().where() + ": @empty is for void methods and constructors only: " + m.name());
                     } else if (m.name().equals("<init>") && isShim(c.superName())) {
                         sb.append(in).append(head).append(" { super(").append(SHIM_CTOR).append(".TAG); }\n");
+                    } else if (b.spec().kind() != null && b.spec().kind().checked()) {
+                        sb.append(in).append(head).append(" {\n").append(ownerCheck(n, b, in + "    ")).append(in).append("}\n");
                     } else {
                         sb.append(in).append(head).append(" { }\n");
                     }
                 }
                 case DELEGATE, SELF -> {
                     if (m.name().equals("<init>")) { problems.add(b.spec().where() + ": constructors take @empty or @hand"); continue; }
-                    if (m.isAbstract() && !c.isInterface()) { problems.add(b.spec().where() + ": a method that is abstract in vanilla cannot get a body: " + m.name()); continue; }
+                    if (m.isAbstract()) continue;   // classify 가 이미 알렸다
                     sb.append(in).append(head).append(" {\n");
                     sb.append(delegateBody(n, b, in + "    "));
                     sb.append(in).append("}\n");
@@ -431,16 +442,27 @@ public final class ShimGenerator {
         return sb.toString();
     }
 
+    /** 명세 순서의 열거형 상수 이름. */
+    List<String> enumConstants(String n) {
+        List<String> consts = new ArrayList<>();
+        for (Bound b : bound.getOrDefault(n, List.of())) if (b.lock().kind() == 'F' && (b.lock().access() & 0x4000) != 0) consts.add(b.lock().name());
+        return consts;
+    }
+
+    /** read=owner·write 의 소유 검사 줄(몸통 첫 줄). 다른 종류는 빈 글. */
+    private String ownerCheck(String owner, Bound b, String in) {
+        ShimSpec.Member s = b.spec();
+        if (s.kind() == null || !s.kind().checked()) return "";
+        ShimSpec.Cls sc = spec.classes.get(owner.replace('/', '.'));
+        String method = s.kind() == ShimSpec.Kind.WRITE ? "write" : "read";
+        return in + sc.owner().replace('$', '.') + '.' + method + "(this, \"" + JavaTypes.simple(owner) + '#' + b.lock().name() + "\");\n";
+    }
+
     private String delegateBody(String owner, Bound b, String in) {
         ShimLock.Member m = b.lock();
         ShimSpec.Member s = b.spec();
         StringBuilder sb = new StringBuilder();
-        String simple = JavaTypes.simple(owner);
-        ShimSpec.Cls sc = spec.classes.get(owner.replace('/', '.'));
-        if (s.kind().checked()) {
-            String method = s.kind() == ShimSpec.Kind.WRITE ? "write" : "read";
-            sb.append(in).append(sc.owner().replace('$', '.')).append('.').append(method).append("(this, \"").append(simple).append('#').append(m.name()).append("\");\n");
-        }
+        sb.append(ownerCheck(owner, b, in));
         List<String> args = new ArrayList<>();
         int n = JavaTypes.descParams(m.desc()).size();
         for (int i = 0; i < n; i++) args.add("a" + i);
@@ -585,6 +607,7 @@ public final class ShimGenerator {
         sb.append(GEN_NOTE).append(" - edit the hand bodies in src/shims/java/").append(top).append(".java.\n");
         sb.append(text, 0, h.start());
         sb.append(header(top)).append(" {");
+        if (c.isEnum()) sb.append("\n    // -- enum constants (shim spec, vanilla order) --\n    ").append(String.join(", ", enumConstants(top))).append(';');
         sb.append(text, h.end(), close);
         String gen = body(top, "    ");
         if (!gen.isEmpty()) sb.append("\n    // -- generated members (shim spec) --\n").append(gen);

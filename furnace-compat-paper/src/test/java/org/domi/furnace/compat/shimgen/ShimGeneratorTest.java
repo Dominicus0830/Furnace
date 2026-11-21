@@ -54,7 +54,8 @@ class ShimGeneratorTest {
               peek -> ShimGenFixtures.peek read=owner
               alias -> this.getX read=any
               twice -> ShimGenFixtures.twice pure
-              size -> @hand
+              size -> @hand read=any
+              reset -> @empty write                       # 빈 몸통도 쓰기면 소유 검사만 있는 몸통
               LIMIT = 7
             class net.minecraft.zz.Thing$Inner
             class net.minecraft.zz.Kind
@@ -66,6 +67,7 @@ class ShimGeneratorTest {
     static final String LOCK = String.join("\n",
             "#furnace-shim-lock\t1\ttest",
             "C\tnet/minecraft/zz/Kind\t16433\tjava/lang/Enum\t-\tLjava/lang/Enum<Lnet/minecraft/zz/Kind;>;\t-\tt",
+            "E\tnet/minecraft/zz/Kind\t2",
             "F\tnet/minecraft/zz/Kind\tA\tLnet/minecraft/zz/Kind;\t16409\t-",
             "F\tnet/minecraft/zz/Kind\tB\tLnet/minecraft/zz/Kind;\t16409\t-",
             "C\tnet/minecraft/zz/Leaf\t33\tnet/minecraft/zz/Base\t-\t-\t-\tt",
@@ -76,6 +78,7 @@ class ShimGeneratorTest {
             "M\tnet/minecraft/zz/Thing\talias\t()D\t1\t-",
             "M\tnet/minecraft/zz/Thing\tgetX\t()D\t1\t-",
             "M\tnet/minecraft/zz/Thing\tpeek\t()I\t1\t-",
+            "M\tnet/minecraft/zz/Thing\treset\t()V\t1\t-",
             "M\tnet/minecraft/zz/Thing\tsetX\t(D)V\t1\t-",
             "M\tnet/minecraft/zz/Thing\tsize\t()I\t1\t-",
             "M\tnet/minecraft/zz/Thing\ttwice\t(I)I\t9\t-",
@@ -197,6 +200,8 @@ class ShimGeneratorTest {
         assertEquals(1.5, ShimGenFixtures.x, "검사가 위임보다 먼저 — 값이 안 바뀐다");
         assertFalse(ShimGenFixtures.calls.contains("setX"));
         assertEquals(1.5, (double) getX.invoke(t), "read=any 는 다른 스레드에서도 된다");
+        InvocationTargetException e2 = assertThrows(InvocationTargetException.class, () -> thing.getMethod("reset").invoke(t));
+        assertTrue(e2.getCause().getMessage().contains("write Thing#reset"), "@empty write 도 소유 검사를 한다: " + e2.getCause());
         // 주인 스레드에서는 된다
         AtomicReference<Throwable> fail = new AtomicReference<>();
         Thread owner = new Thread(() -> {
@@ -280,7 +285,11 @@ class ShimGeneratorTest {
         assertTrue(e.getMessage().contains("check kind"), e.getMessage());
         IllegalArgumentException imp = assertThrows(IllegalArgumentException.class, () -> new ShimSpec().parse("f.spec", "class net.minecraft.A\n\n  getX -> Foo.x pure\n"));
         assertTrue(imp.getMessage().startsWith("f.spec:3: name not imported: Foo"), imp.getMessage());
-        assertThrows(IllegalArgumentException.class, () -> new ShimSpec().parse("b.spec", "class net.minecraft.A\n  getX -> @hand write\n"));
+        new ShimSpec().parse("b.spec", "class net.minecraft.A\n  getX -> @hand write\n  tick -> @empty pure\n  <init> -> @hand\n");
+        IllegalArgumentException hand = assertThrows(IllegalArgumentException.class, () -> new ShimSpec().parse("b.spec", "class net.minecraft.A\n  getX -> @hand\n"));
+        assertTrue(hand.getMessage().contains("hand bodies too"), "손 몸통도 검사 종류를 적는다: " + hand.getMessage());
+        assertThrows(IllegalArgumentException.class, () -> new ShimSpec().parse("b.spec", "class net.minecraft.A\n  tick -> @empty\n"));
+        assertThrows(IllegalArgumentException.class, () -> new ShimSpec().parse("b.spec", "class net.minecraft.A\n  <init> -> @empty write\n"));
         assertThrows(IllegalArgumentException.class, () -> new ShimSpec().parse("c.spec", "class org.example.A\n"));
         assertThrows(IllegalArgumentException.class, () -> new ShimSpec().parse("d.spec", "class net.minecraft.A\n  x\n  x\n"));
         assertThrows(IllegalArgumentException.class, () -> new ShimSpec().parse("e.spec", "  x\n"));
@@ -299,6 +308,55 @@ class ShimGeneratorTest {
         IllegalStateException e2 = assertThrows(IllegalStateException.class,
                 () -> new ShimGenerator(s2, ShimLock.parse(LOCK), tmp, List.of(), List.of()).generate());
         assertTrue(e2.getMessage().contains("stale shim lock (member not in the spec): net/minecraft/zz/Thing#LIMITI"), e2.getMessage());
+    }
+
+    @Test
+    void ownerCheckOnAStaticMethodIsRefused() {
+        ShimSpec s = new ShimSpec();
+        s.parse("t.spec", SPEC.replace("twice -> ShimGenFixtures.twice pure", "twice -> ShimGenFixtures.twice write"));
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> new ShimGenerator(s, ShimLock.parse(LOCK), tmp, List.of(), List.of()).generate());
+        assertTrue(e.getMessage().contains("t.spec:8: no owner check is generated for static methods"), e.getMessage());
+    }
+
+    @Test
+    void enumWithMissingConstantsIsRefused() {
+        ShimSpec s = new ShimSpec();
+        s.parse("t.spec", SPEC.replace("  B\n  A\n", "  B\n"));
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> new ShimGenerator(s, ShimLock.parse(LOCK.replace("F\tnet/minecraft/zz/Kind\tA\tLnet/minecraft/zz/Kind;\t16409\t-\n", "")), tmp, List.of(), List.of()).generate());
+        assertTrue(e.getMessage().contains("enum net/minecraft/zz/Kind lists 1 of its 2 vanilla constants"), e.getMessage());
+        // 잠금에 상수 개수가 없으면(옛 잠금) 다시 쓰라고 한다
+        ShimSpec s2 = new ShimSpec();
+        s2.parse("t.spec", SPEC);
+        IllegalStateException e2 = assertThrows(IllegalStateException.class,
+                () -> new ShimGenerator(s2, ShimLock.parse(LOCK.replace("E\tnet/minecraft/zz/Kind\t2\n", "")), tmp, List.of(), List.of()).generate());
+        assertTrue(e2.getMessage().contains("no enum constant count for net/minecraft/zz/Kind"), e2.getMessage());
+    }
+
+    @Test
+    void enumFragmentGetsItsConstantsFirst() throws Exception {
+        String spec = "class net.minecraft.zz.Mode\n  Y\n  X\n  label -> @hand pure\n";
+        String lock = String.join("\n", "#furnace-shim-lock\t1\ttest",
+                "C\tnet/minecraft/zz/Mode\t16433\tjava/lang/Enum\t-\tLjava/lang/Enum<Lnet/minecraft/zz/Mode;>;\t-\tt",
+                "E\tnet/minecraft/zz/Mode\t2",
+                "F\tnet/minecraft/zz/Mode\tX\tLnet/minecraft/zz/Mode;\t16409\t-",
+                "F\tnet/minecraft/zz/Mode\tY\tLnet/minecraft/zz/Mode;\t16409\t-",
+                "M\tnet/minecraft/zz/Mode\tlabel\t()Ljava/lang/String;\t1\t-", "");
+        Built b = build(spec, lock, Map.of("net/minecraft/zz/Mode", "package net.minecraft.zz;\n\nenum Mode {\n    public String label() { return name().toLowerCase(); }\n}\n"));
+        Class<?> mode = b.loader().loadClass("net.minecraft.zz.Mode");
+        assertEquals("[Y, X]", Arrays.toString(mode.getEnumConstants()));
+        assertEquals("y", mode.getMethod("label").invoke(mode.getEnumConstants()[0]));
+    }
+
+    @Test
+    void abstractMethodsCannotGetABody() {
+        // 인터페이스의 추상 메서드에 위임을 적으면 default 없는 몸통(문법 오류)이 아니라 이름 있는 생성기 오류
+        ShimSpec s = new ShimSpec();
+        s.parse("t.spec", SPEC + "class net.minecraft.zz.Named\n  getName -> ShimGenFixtures.peek read=any\n");
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> new ShimGenerator(s, ShimLock.parse(lockWithNamed()), tmp, List.of(), List.of()).generate());
+        assertTrue(e.getMessage().contains("net/minecraft/zz/Named#getName is abstract in vanilla (an interface method without a default body)"), e.getMessage());
     }
 
     @Test

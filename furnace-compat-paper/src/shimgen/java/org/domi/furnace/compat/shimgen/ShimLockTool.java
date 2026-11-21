@@ -49,7 +49,7 @@ public final class ShimLockTool {
             return;
         }
         String now = Files.exists(lockFile) ? Files.readString(lockFile, StandardCharsets.UTF_8) : "";
-        if (now.equals(text)) {
+        if (ShimLock.same(text, now)) {
             System.out.println("[shimLock] the shim lock matches the signature tables and the spec (" + lock.classes.size() + " classes)");
             return;
         }
