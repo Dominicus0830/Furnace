@@ -40,7 +40,25 @@ class ShimSpecBuildTest {
     static Compiled read(String internalName) throws IOException {
         try (InputStream in = ShimSpecBuildTest.class.getClassLoader().getResourceAsStream(internalName + ".class")) {
             assertNotNull(in, "컴파일된 클래스가 없다: " + internalName);
-            ClassReader r = new ClassReader(in.readAllBytes());
+            return read(internalName, in.readAllBytes());
+        }
+    }
+
+    /**
+     * read=owner·write 줄이면 컴파일된 몸통의 첫 호출이 소유 규칙(owner.read·write)인지 — 생성 몸통이든 손 몸통(@hand·@fast)이든 같은 규칙.
+     * 문제 글, 맞거나 검사 종류가 아니면 null. ShimGeneratorTest 가 합성 손 조각으로 이 함수를 직접 돌린다.
+     */
+    static String ownerCheckProblem(Compiled got, String n, String key, ShimSpec.Cls sc, ShimSpec.Member sm) {
+        if (sm.kind() == null || !sm.kind().checked()) return null;
+        String want0 = sc.owner().replace('.', '/') + "." + (sm.kind() == ShimSpec.Kind.WRITE ? "write" : "read");
+        List<String> c = got.firstCalls().get(key);
+        if (c == null || c.isEmpty() || !c.get(0).equals(want0)) return n + ": " + key + " 의 첫 호출이 소유 검사(" + want0 + ")가 아니다: " + c;
+        return null;
+    }
+
+    static Compiled read(String internalName, byte[] bytes) {
+        {
+            ClassReader r = new ClassReader(bytes);
             int[] inner = {-1};
             Map<String, Integer> members = new HashMap<>();
             Map<String, List<String>> calls = new HashMap<>();
@@ -136,11 +154,8 @@ class ShimSpecBuildTest {
                 boolean generatedBody = sm.body() == ShimSpec.Body.DELEGATE || sm.body() == ShimSpec.Body.SELF || sm.body() == ShimSpec.Body.EMPTY;
                 // read=owner·write 는 생성 몸통이든 손 몸통(@hand·@fast)이든 첫 호출이 소유 검사여야 한다
                 if (generatedBody && !got.badInsns().get(key).isEmpty()) problems.add(n + ": 생성 몸통에 리플렉션·invokedynamic " + key + " " + got.badInsns().get(key));
-                if (sm.kind() != null && sm.kind().checked()) {
-                    String want0 = sc.owner().replace('.', '/') + "." + (sm.kind() == ShimSpec.Kind.WRITE ? "write" : "read");
-                    List<String> c = got.firstCalls().get(key);
-                    if (c.isEmpty() || !c.get(0).equals(want0)) problems.add(n + ": " + key + " 의 첫 호출이 소유 검사(" + want0 + ")가 아니다: " + c);
-                }
+                String own = ownerCheckProblem(got, n, key, sc, sm);
+                if (own != null) problems.add(own);
             }
         }
         assertEquals(List.of(), problems);

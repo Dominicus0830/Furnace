@@ -311,6 +311,25 @@ class ShimGeneratorTest {
     }
 
     @Test
+    void handBodyWithAnOwnerCheckKindMustCallTheCheckFirst() throws Exception {
+        // 실제 빌드의 ShimSpecBuildTest 와 같은 함수로: @hand write 인데 몸통이 검사를 안 부르면 문제, 첫 줄에 부르면 통과
+        String spec = SPEC.replace("size -> @hand read=any", "size -> @hand write");
+        ShimSpec parsed = new ShimSpec();
+        parsed.parse("t.spec", spec);
+        ShimSpec.Cls sc = parsed.classes.get("net.minecraft.zz.Thing");
+        ShimSpec.Member sm = sc.members().stream().filter(m -> m.name().equals("size")).findFirst().orElseThrow();
+        Built bad = build(spec, LOCK, Map.of("net/minecraft/zz/Thing", FRAGMENT));
+        ShimSpecBuildTest.Compiled got = ShimSpecBuildTest.read("net/minecraft/zz/Thing", Files.readAllBytes(bad.classes().resolve("net/minecraft/zz/Thing.class")));
+        String p = ShimSpecBuildTest.ownerCheckProblem(got, "net/minecraft/zz/Thing", "M size ()I", sc, sm);
+        assertTrue(p != null && p.contains("ShimGenFixtures$Owner.write"), String.valueOf(p));
+        String checked = FRAGMENT.replace("public int size() { return HAND.size() + 2; }",
+                "public int size() { org.domi.furnace.compat.shimgen.ShimGenFixtures.Owner.write(this, \"Thing#size\"); return HAND.size() + 2; }");
+        Built good = build(spec, LOCK, Map.of("net/minecraft/zz/Thing", checked));
+        ShimSpecBuildTest.Compiled ok = ShimSpecBuildTest.read("net/minecraft/zz/Thing", Files.readAllBytes(good.classes().resolve("net/minecraft/zz/Thing.class")));
+        assertEquals(null, ShimSpecBuildTest.ownerCheckProblem(ok, "net/minecraft/zz/Thing", "M size ()I", sc, sm));
+    }
+
+    @Test
     void ownerCheckOnAStaticMethodIsRefused() {
         ShimSpec s = new ShimSpec();
         s.parse("t.spec", SPEC.replace("twice -> ShimGenFixtures.twice pure", "twice -> ShimGenFixtures.twice write"));
