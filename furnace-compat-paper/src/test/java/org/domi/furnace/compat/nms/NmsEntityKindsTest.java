@@ -148,10 +148,15 @@ class NmsEntityKindsTest {
                 stone.putInt("count", 5);
                 items.add(stone);
                 tag.put("Items", items);
+                tag.putString("LootTable", "minecraft:chests/simple_dungeon");
                 h.load(tag);
-                assertEquals(1, h.saveWithoutId(new CompoundTag()).getList("Items", Tag.TAG_COMPOUND).size());
+                CompoundTag before = h.saveWithoutId(new CompoundTag());
+                assertTrue(before.contains("LootTable"), "전리품 표가 실렸다(바닐라 저장은 표가 있으면 Items 를 쓰지 않는다)");
                 ((Clearable) h).clearContent();
-                assertEquals(0, h.saveWithoutId(new CompoundTag()).getList("Items", Tag.TAG_COMPOUND).size(), "바닐라 clearChestVehicleContent: 칸을 모두 비운다");
+                CompoundTag after = h.saveWithoutId(new CompoundTag());
+                // 바닐라 clearChestVehicleContent: 전리품 표를 먼저 풀고(표가 지워짐) 칸을 모두 비운다 — 풀기를 빼면 표가 남는다
+                assertFalse(after.contains("LootTable"), "전리품 표를 풀어 지웠다");
+                assertEquals(0, after.getList("Items", Tag.TAG_COMPOUND).size(), "풀린 전리품까지 모두 비운다");
             } finally {
                 boat.remove();
             }
@@ -162,6 +167,7 @@ class NmsEntityKindsTest {
     @Test
     void writesFromAnotherRegionThreadThrow() {
         // 소유 규칙(NmsEntityOwner): 다른 region 스레드의 쓰기는 몸통 전에 ThreadOwnershipException
+        // (몸통의 NmsEntities.call 도 같은 예외를 던져 이 시험만으로는 검사 줄을 붙잡지 못한다 — 검사가 몸통 첫 줄인지는 ShimSpecBuildTest 가 구조로 본다)
         CraftEntity pig = on(() -> (CraftEntity) world.spawnEntity(new Location(world, at.x() + 0.5, at.y(), at.z() + 0.5), org.bukkit.entity.EntityType.PIG));
         BlockPos far = new BlockPos(at.x() + 4000, at.y(), at.z());
         server.loadChunk(far.x() >> 4, far.z() >> 4);

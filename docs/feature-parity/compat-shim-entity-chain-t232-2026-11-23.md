@@ -9,8 +9,8 @@ shim 생성기(T-229)가 서명표에서 만든다. T-231(블록·아이템)과 
 
 | 부분 | 내용 |
 |---|---|
-| 표 뽑기 | `kind-classes` 도구(`ExportKindClasses`)에 `E <엔티티 종류> <클래스>` 줄을 더했다. 정답은 바닐라 `EntityType` 상수 필드의 형식 인자(`EntityType<Zombie> ZOMBIE`). 도구가 그 클래스가 구체이고 `(EntityType, Level)` 생성자가 있는지 보고, 레벨 없이 만들어지는 **46종은 공장이 만든 객체의 클래스와 같은지** 대조한다(나머지는 레벨이 있어야 생성자가 돈다 — 형식 인자만 쓴다). 플레이어는 뺀다(공장이 없음, 늘 `ServerPlayer`). 129줄 |
-| 명세 | `src/shimspec/entity.spec`: `Entity`·`LivingEntity`·`Player`·`ItemEntity` 는 손 조각(`src/shims/java`, `git mv`), 바닐라 멤버 65줄에 검사 종류. 표의 129클래스와 그 상위 사슬·인터페이스(새로 209클래스, 그중 인터페이스 41)는 생성 |
+| 표 뽑기 | `kind-classes` 도구(`ExportKindClasses`)에 `E <엔티티 종류> <클래스>` 줄을 더했다. 정답은 바닐라 `EntityType` 상수 필드의 형식 인자(`EntityType<Zombie> ZOMBIE`). 도구가 그 클래스가 구체이고 `(EntityType, Level)` 생성자가 있는지 보고, 레벨 없이 만들어지는 **46종은 공장이 만든 객체의 클래스와 같은지** 대조한다(나머지 83종은 레벨이 있어야 생성자가 돌아 형식 인자를 그대로 믿는다 — **가정**: 공장이 형식 인자와 같은 클래스를 만든다. 월드 시험의 좀비·표지·상자 배는 실물로 맞음). 플레이어는 뺀다(공장이 없음, 늘 `ServerPlayer`). 129줄 |
+| 명세 | `src/shimspec/entity.spec`: `Entity`·`LivingEntity`·`Player`·`ItemEntity` 는 손 조각(`src/shims/java`, `git mv`), 바닐라 멤버 연결 55줄에 검사 종류. 표의 129클래스와 그 상위 사슬·인터페이스(새로 209클래스, 그중 인터페이스 41)는 생성 |
 | 객체 만들기 | `NmsEntityKinds`: `CraftEntity#getHandle()`(종류 이름 → 표 → `C(ShimCtor)`)과 `EntityType#create(level)`(아직 월드에 없는 엔티티). 재료는 표지에 실려 사슬 맨 위 조각 `Entity(ShimCtor)` 가 받는다(Bukkit 객체 또는 종류·레벨). `CraftLivingEntity`·`CraftItem`·`CraftExperienceOrb` 의 손 `createHandle` 은 지웠다 |
 | 생성기 | ① 조각이 `C(ShimCtor 이름)` 생성자를 스스로 쓰면 생성기는 만들지 않는다(재료를 받는 사슬 맨 위). ② 종류 표의 클래스는 조각이어도 그 생성자를 받는다(`ItemEntity`). ③ Paper 내부 패치 인터페이스 `ca/spottedleaf/`(moonrise 청크·추적 시스템 — Paper `Entity` 가 구현)는 잠금 파일·선언에서 뺀다. 서명 관문도 같은 규칙(`type-missing` 에서 제외) |
 | 소유 규칙 | `NmsEntityOwner`(명세 `owner=`): 엔티티를 가진 스레드·틱 스레드가 아닌 스레드는 통과(몸통이 주인 region 에 맡겨 기다린다), 다른 region·전역 스레드는 `ThreadOwnershipException`. 아직 월드에 없는 엔티티·플레이어는 통과. `NmsEntities.call` 과 같은 규칙을 몸통 앞에서 먼저 본다 |
@@ -32,6 +32,7 @@ shim 생성기(T-229)가 서명표에서 만든다. T-231(블록·아이템)과 
 
 - `getHandle()` 이 종류의 바닐라 클래스: 좀비 `Zombie`(→ `Monster` → `PathfinderMob` → `Mob` → `LivingEntity`, `Enemy`), 표지 `Marker`, 액자 `ItemFrame`(→ `HangingEntity`),
   발광 액자 `GlowItemFrame`(→ `ItemFrame`), 상자 배 `ChestBoat`, 낚시찌 `FishingHook` …. Axiom 이 가르는 `Marker`·`HangingEntity`·`ItemFrame` 이 바닐라와 같은 길을 탄다.
+- 서버: 전리품 표 풀기(상자 블록·담는 탈것)가 데이터 팩이 없을 때도 표 이름을 지운다. 바닐라는 표를 못 찾아도(`LootTable.EMPTY`) 이름을 지우고 채우기만 하지 않는다. 검토에서 더한 `clearContent` 의 전리품 표 단언이 잡았다.
 - `EntityType#create(level)` 도 그 클래스. 낚시찌는 바닐라처럼 null(`createNothing`).
 - `Entity`·`LivingEntity`·`Mob` 등은 바닐라처럼 추상. 플러그인이 상속해 몹을 만드는 것(Citizens 류)은 여전히 지원하지 않는다(결정 D3 — T-237 설계 뒤). 생성 클래스에는 생성기 전용
   생성자만 있어 바닐라 생성자를 부르는 하위 클래스는 지금처럼 링크 덫에 걸린다.

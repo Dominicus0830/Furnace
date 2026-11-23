@@ -93,7 +93,11 @@ final class ShimLock {
             if (found == null) { problems.add("class not in the signature tables: " + n); continue; }
             // Paper 내부 패치 인터페이스(moonrise 청크·추적 시스템 — T-232 Entity)는 플러그인이 쓰는 형식이 아니고 shim 에 없다: 선언에서 뺀다
             List<String> itfs = found.interfaces().stream().filter(i -> !i.startsWith(PAPER_INTERNAL)).toList();
-            String sig = itfs.size() == found.interfaces().size() ? found.signature() : null;   // 서명이 뺀 인터페이스를 적고 있으면 서명도 뺀다(서술자 쪽이 같다)
+            if (itfs.size() != found.interfaces().size() && found.signature() != null) {
+                // 제네릭 서명에서 인터페이스만 골라 지우지 않는다 — 조용히 제네릭 정보를 잃지 않게 멈춘다(지금은 그런 클래스가 없다)
+                throw new IllegalStateException(n + ": generic class implements Paper-internal " + PAPER_INTERNAL + " interfaces; signature filtering is not supported");
+            }
+            String sig = found.signature();
             lock.classes.put(n, new Cls(n, found.access(), found.superName(), itfs, sig, found.innerAccess(), src));
             if ((found.access() & 0x4000) != 0) {
                 int count = 0;
