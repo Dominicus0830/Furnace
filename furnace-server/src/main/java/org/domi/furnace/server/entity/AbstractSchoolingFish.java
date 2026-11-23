@@ -6,6 +6,7 @@ import java.util.stream.Stream;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.entity.ai.goal.FollowFlockLeaderGoal;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.AbstractSchoolingFish")
 public abstract class AbstractSchoolingFish extends AbstractFish {
     private AbstractSchoolingFish leader;
     private int schoolSize = 1;

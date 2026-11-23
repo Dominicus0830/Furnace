@@ -11,6 +11,7 @@ import org.domi.furnace.server.entity.ai.util.DefaultRandomPos;
 import org.domi.furnace.server.entity.ai.util.LandRandomPos;
 import org.domi.furnace.server.world.poi.PoiManager;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.VillageBoundRandomStroll")
 public final class VillageBoundRandomStroll {
     private static final int MAX_XZ_DIST = 10, MAX_Y_DIST = 7;
 

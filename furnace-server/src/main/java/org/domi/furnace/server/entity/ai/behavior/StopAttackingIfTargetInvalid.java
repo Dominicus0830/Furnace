@@ -10,6 +10,7 @@ import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.Targetable;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.StopAttackingIfTargetInvalid")
 public final class StopAttackingIfTargetInvalid {
     private static final int TIMEOUT_TO_GET_WITHIN_ATTACK_RANGE = 200;
 

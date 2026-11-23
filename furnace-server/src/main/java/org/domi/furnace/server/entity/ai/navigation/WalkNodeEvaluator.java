@@ -15,6 +15,7 @@ import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.entity.AABB;
 import org.domi.furnace.server.entity.Mob;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.pathfinder.WalkNodeEvaluator")
 public class WalkNodeEvaluator extends NodeEvaluator {
     public static final double SPACE_BETWEEN_WALL_POSTS = 0.5;
     private static final double DEFAULT_MOB_JUMP_HEIGHT = 1.125;

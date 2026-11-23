@@ -9,6 +9,7 @@ import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.Targetable;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.sensing.FrogAttackablesSensor")
 public class FrogAttackablesSensor extends NearestVisibleLivingEntitySensor {
     public static final float TARGET_DETECTION_DISTANCE = 10.0F;
 

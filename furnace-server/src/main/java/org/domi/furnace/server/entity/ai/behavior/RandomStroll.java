@@ -10,6 +10,7 @@ import org.domi.furnace.server.entity.ai.brain.WalkTarget;
 import org.domi.furnace.server.entity.ai.util.DefaultRandomPos;
 import org.domi.furnace.server.entity.ai.util.FlyingRandomPos;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.RandomStroll")
 public final class RandomStroll {
     private static final int MAX_XZ_DIST = 10;
     private static final int MAX_Y_DIST = 7;

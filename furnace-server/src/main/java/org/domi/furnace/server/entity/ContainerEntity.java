@@ -1,6 +1,7 @@
 // 바닐라 ContainerEntity: 아이템 칸을 가진 탈것(상자 배·상자/깔때기 수레). 열지 않은 전리품 표(LootTable·LootTableSeed)를 가질 수 있다.
 package org.domi.furnace.server.entity;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.vehicle.ContainerEntity")
 public interface ContainerEntity {
 
     /** 칸 배열(그 엔티티가 있는 region 스레드에서만 쓴다). */

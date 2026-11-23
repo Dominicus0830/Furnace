@@ -21,10 +21,11 @@ import org.domi.furnace.server.block.types.FallingBlock;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.item.FallingBlockEntity")
 public class FallingBlockEntity extends Entity {
     @Override public boolean onlyOpCanSetNbt() { return true; }
 
-    public static final int DATA_START_POS = 8;
+    public static final int DATA_START_POS = EntityDataIds.FallingBlockEntity_DATA_START_POS;
     private static final Prop WATERLOGGED = B.prop("waterlogged");
     private int blockState = B.defaultState("sand");
     public int time;

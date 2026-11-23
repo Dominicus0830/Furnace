@@ -12,6 +12,7 @@ import org.domi.furnace.server.net.protocol.play.DamageEvent;
 import org.domi.furnace.server.net.protocol.play.EntityEvent;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.LivingEntity")
 public abstract class LivingEntity extends Entity implements Targetable {
 
     /** 바닐라 기본 getMovementEmission = ALL(Entity 쪽 기본을 NONE 으로 둔 것을 되돌린다). */
@@ -23,8 +24,8 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
 
     /** 엔티티 데이터 번호(LivingEntity): 8 생활 플래그, 9 체력, 10 효과 색, 11 효과 앰비언트, 12 화살 수, 13 침 수, 14 자는 위치. */
-    public static final int DATA_LIVING_FLAGS = 8, DATA_HEALTH = 9, DATA_EFFECT_PARTICLES = 10, DATA_EFFECT_AMBIENT = 11, DATA_ARROW_COUNT = 12,
-            DATA_STINGER_COUNT = 13, DATA_SLEEPING_POS = 14;
+    public static final int DATA_LIVING_FLAGS = EntityDataIds.LivingEntity_DATA_LIVING_ENTITY_FLAGS, DATA_HEALTH = EntityDataIds.LivingEntity_DATA_HEALTH_ID, DATA_EFFECT_PARTICLES = EntityDataIds.LivingEntity_DATA_EFFECT_PARTICLES, DATA_EFFECT_AMBIENT = EntityDataIds.LivingEntity_DATA_EFFECT_AMBIENCE_ID, DATA_ARROW_COUNT = EntityDataIds.LivingEntity_DATA_ARROW_COUNT_ID,
+            DATA_STINGER_COUNT = EntityDataIds.LivingEntity_DATA_STINGER_COUNT_ID, DATA_SLEEPING_POS = EntityDataIds.LivingEntity_SLEEPING_POS_ID;
 
     public int invulnerableTime, hurtTime, hurtDuration, deathTime;
     protected float lastHurt;

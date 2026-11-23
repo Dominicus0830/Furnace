@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity.ai.behavior;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.entity.Mob;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.UpdateActivityFromSchedule")
 public final class UpdateActivityFromSchedule {
     private UpdateActivityFromSchedule() {}
 

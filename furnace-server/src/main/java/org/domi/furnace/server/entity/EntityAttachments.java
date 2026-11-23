@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.EntityAttachments")
 public final class EntityAttachments {
 
     private EntityAttachments() {}

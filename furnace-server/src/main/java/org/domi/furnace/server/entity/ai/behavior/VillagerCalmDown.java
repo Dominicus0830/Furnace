@@ -5,6 +5,7 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.VillagerCalmDown")
 public final class VillagerCalmDown {
     private static final int SAFE_DISTANCE_FROM_DANGER = 36;
 

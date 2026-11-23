@@ -16,6 +16,7 @@ import org.domi.furnace.server.entity.spawn.MobCategory;
 import org.domi.furnace.server.world.poi.PoiTypes;
 
 @SuppressWarnings({"unchecked", "rawtypes"})
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.VillagerGoalPackages")
 public final class VillagerGoalPackages {
     public static final int INTERACT_DIST_SQR = 5;
     private static final float STROLL_SPEED_MODIFIER = 0.4F;

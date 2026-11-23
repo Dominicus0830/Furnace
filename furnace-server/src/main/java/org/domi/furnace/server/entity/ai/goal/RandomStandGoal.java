@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity.ai.goal;
 import org.domi.furnace.server.entity.AbstractHorse;
 import org.domi.furnace.server.entity.ai.Goal;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.RandomStandGoal")
 public class RandomStandGoal extends Goal {
     private final AbstractHorse horse;
     private int nextStand;

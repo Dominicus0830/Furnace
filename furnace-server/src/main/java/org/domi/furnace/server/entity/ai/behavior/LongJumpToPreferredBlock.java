@@ -10,6 +10,7 @@ import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.entity.PathfinderMob;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.LongJumpToPreferredBlock")
 public class LongJumpToPreferredBlock<E extends PathfinderMob> extends LongJumpToRandomPos<E> {
     private final String preferredBlockTag;
     private final float preferredBlocksChance;

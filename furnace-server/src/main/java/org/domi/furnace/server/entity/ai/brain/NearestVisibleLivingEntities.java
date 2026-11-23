@@ -10,6 +10,7 @@ import java.util.function.Predicate;
 import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.Targetable;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.memory.NearestVisibleLivingEntities")
 public final class NearestVisibleLivingEntities {
     private static final NearestVisibleLivingEntities EMPTY = new NearestVisibleLivingEntities();
     private final List<Targetable> nearbyEntities;

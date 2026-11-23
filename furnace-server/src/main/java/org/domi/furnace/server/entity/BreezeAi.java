@@ -22,6 +22,7 @@ import org.domi.furnace.server.entity.ai.brain.Unit;
 import org.domi.furnace.server.entity.ai.brain.WalkTarget;
 import org.domi.furnace.server.entity.ai.util.LandRandomPos;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.breeze.BreezeAi")
 public final class BreezeAi {
     public static final float SPEED_MULTIPLIER_WHEN_SLIDING = 0.6F;
     private static final MemoryStatus PRESENT = MemoryStatus.VALUE_PRESENT, ABSENT = MemoryStatus.VALUE_ABSENT, REGISTERED = MemoryStatus.REGISTERED;

@@ -8,6 +8,7 @@ import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.RunOne")
 public class RunOne<E extends Mob> extends GateBehavior<E> {
     public RunOne(List<Map.Entry<? extends BehaviorControl<? super E>, Integer>> behaviors) { this(Map.of(), behaviors); }
 

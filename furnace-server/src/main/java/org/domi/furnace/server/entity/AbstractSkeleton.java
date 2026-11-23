@@ -7,6 +7,7 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.entity.ai.goal.*;
 import org.domi.furnace.server.item.ItemContext;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.AbstractSkeleton")
 public abstract class AbstractSkeleton extends Monster implements RangedAttackMob {
     private final RangedBowAttackGoal<AbstractSkeleton> bowGoal = new RangedBowAttackGoal<>(this, 1.0, 20, 15.0F);
     private final MeleeAttackGoal meleeGoal = new MeleeAttackGoal(this, 1.2, false) {

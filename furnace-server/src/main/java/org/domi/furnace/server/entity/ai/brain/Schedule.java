@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.schedule.Schedule")
 public final class Schedule {
     public static final int WORK_START_TIME = 2000, TOTAL_WORK_TIME = 7000;
 

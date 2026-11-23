@@ -3,6 +3,7 @@ package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.ChunkLevel;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.decoration.GlowItemFrame")
 public class GlowItemFrame extends ItemFrame {
     public GlowItemFrame(ChunkLevel level, int id) { super(EntityType.GLOW_ITEM_FRAME, level, id, true); }
 }

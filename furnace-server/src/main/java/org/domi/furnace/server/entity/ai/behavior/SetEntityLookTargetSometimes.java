@@ -11,6 +11,7 @@ import org.domi.furnace.server.entity.ai.brain.EntityTracker;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.NearestVisibleLivingEntities;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.SetEntityLookTargetSometimes")
 public final class SetEntityLookTargetSometimes {
     private SetEntityLookTargetSometimes() {}
 

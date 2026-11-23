@@ -12,6 +12,7 @@ import org.domi.furnace.server.entity.PathfinderMob;
 import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.net.protocol.play.ParticleOptions;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.RemoveBlockGoal")
 public class RemoveBlockGoal extends MoveToBlockGoal {
     private static final int WAIT_AFTER_BLOCK_FOUND = 20;
     private final String blockToRemove;

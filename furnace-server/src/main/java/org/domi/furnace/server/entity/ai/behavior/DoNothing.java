@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity.ai.behavior;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.entity.Mob;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.DoNothing")
 public class DoNothing implements BehaviorControl<Mob> {
     private final int minDuration, maxDuration;
     private Status status = Status.STOPPED;

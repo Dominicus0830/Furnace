@@ -8,6 +8,7 @@ import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.CountDownCooldownTicks")
 public class CountDownCooldownTicks extends Behavior<Mob> {
     private final MemoryModuleType<Integer> cooldownTicks;
 

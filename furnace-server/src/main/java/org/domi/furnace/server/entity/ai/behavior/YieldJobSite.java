@@ -10,6 +10,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.navigation.Path;
 import org.domi.furnace.server.world.poi.PoiType;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.YieldJobSite")
 public final class YieldJobSite {
     private YieldJobSite() {}
 

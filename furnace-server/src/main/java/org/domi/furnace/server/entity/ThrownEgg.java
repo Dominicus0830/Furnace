@@ -3,6 +3,7 @@ package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.ChunkLevel;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.projectile.ThrownEgg")
 public class ThrownEgg extends ThrowableProjectile {
     public ThrownEgg(ChunkLevel level, int id) { super(EntityType.EGG, level, id); }
 

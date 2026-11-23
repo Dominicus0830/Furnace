@@ -6,6 +6,7 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.Animal")
 public abstract class Animal extends AgeableMob {
     protected int inLove;
     private UUID loveCause;

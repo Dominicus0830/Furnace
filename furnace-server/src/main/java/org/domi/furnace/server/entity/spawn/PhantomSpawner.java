@@ -11,6 +11,7 @@ import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.world.GameMode;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.PhantomSpawner")
 public final class PhantomSpawner {
     private int nextTick;
 

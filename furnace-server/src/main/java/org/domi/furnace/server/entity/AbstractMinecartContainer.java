@@ -7,6 +7,7 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.vehicle.AbstractMinecartContainer")
 public abstract class AbstractMinecartContainer extends AbstractMinecart implements ContainerEntity {
 
     private final ItemStack[] items;

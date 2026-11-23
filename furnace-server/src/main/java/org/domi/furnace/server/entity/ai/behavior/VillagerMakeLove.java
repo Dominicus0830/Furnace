@@ -14,6 +14,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 import org.domi.furnace.server.entity.ai.navigation.Path;
 import org.domi.furnace.server.world.poi.PoiTypes;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.VillagerMakeLove")
 public class VillagerMakeLove extends Behavior<Villager> {
     private long birthTimestamp;
 

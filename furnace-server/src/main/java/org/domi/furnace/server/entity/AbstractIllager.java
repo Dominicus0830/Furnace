@@ -3,6 +3,7 @@ package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.ChunkLevel;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.AbstractIllager")
 public abstract class AbstractIllager extends Raider {
     public enum IllagerArmPose { CROSSED, ATTACKING, SPELLCASTING, BOW_AND_ARROW, CROSSBOW_HOLD, CROSSBOW_CHARGE, CELEBRATING, NEUTRAL }
 

@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity.ai.brain;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.Targetable;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.memory.WalkTarget")
 public final class WalkTarget {
     private final PositionTracker target;
     private final float speedModifier;

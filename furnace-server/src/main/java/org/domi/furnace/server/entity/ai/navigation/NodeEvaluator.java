@@ -7,6 +7,7 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.Mob;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.pathfinder.NodeEvaluator")
 public abstract class NodeEvaluator {
     protected ChunkLevel level;
     protected Mob mob;

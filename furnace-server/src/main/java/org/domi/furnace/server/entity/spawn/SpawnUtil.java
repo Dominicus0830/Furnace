@@ -8,6 +8,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.ai.control.Mth;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.util.SpawnUtil")
 public final class SpawnUtil {
     private SpawnUtil() {}
 

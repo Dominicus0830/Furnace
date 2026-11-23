@@ -16,6 +16,7 @@ import org.domi.furnace.server.entity.ai.navigation.PathType;
 import org.domi.furnace.server.entity.ai.navigation.PathfindingContext;
 import org.domi.furnace.server.entity.ai.navigation.WalkNodeEvaluator;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.frog.FrogAi")
 public final class FrogAi {
     private static final float SPEED_MULTIPLIER_WHEN_PANICKING = 2.0F;
     private static final float SPEED_MULTIPLIER_ON_LAND = 1.0F;

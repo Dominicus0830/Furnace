@@ -1,6 +1,7 @@
 // 바닐라 EquipmentSlot: 번호는 set_equipment 패킷의 칸 번호(순서 그대로). 종류: 손·방어구·몸(동물 갑옷).
 package org.domi.furnace.server.entity;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.EquipmentSlot")
 public enum EquipmentSlot {
     MAINHAND(Type.HAND, 0, "mainhand"), OFFHAND(Type.HAND, 1, "offhand"), FEET(Type.HUMANOID_ARMOR, 0, "feet"), LEGS(Type.HUMANOID_ARMOR, 1, "legs"),
     CHEST(Type.HUMANOID_ARMOR, 2, "chest"), HEAD(Type.HUMANOID_ARMOR, 3, "head"), BODY(Type.ANIMAL_ARMOR, 0, "body");

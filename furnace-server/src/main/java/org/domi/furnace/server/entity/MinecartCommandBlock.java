@@ -12,9 +12,10 @@ import org.domi.furnace.server.block.entity.BaseCommandBlock;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.vehicle.MinecartCommandBlock")
 public class MinecartCommandBlock extends AbstractMinecart {
 
-    public static final int DATA_ID_COMMAND_NAME = 14, DATA_ID_LAST_OUTPUT = 15;
+    public static final int DATA_ID_COMMAND_NAME = EntityDataIds.MinecartCommandBlock_DATA_ID_COMMAND_NAME, DATA_ID_LAST_OUTPUT = EntityDataIds.MinecartCommandBlock_DATA_ID_LAST_OUTPUT;
     /** 활성화 레일 실행 간격(틱). */
     private static final int ACTIVATION_DELAY = 4;
 

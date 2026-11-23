@@ -11,8 +11,9 @@ import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.Creeper")
 public class Creeper extends Monster {
-    public static final int DATA_SWELL_DIR = 16, DATA_IS_POWERED = 17, DATA_IS_IGNITED = 18;
+    public static final int DATA_SWELL_DIR = EntityDataIds.Creeper_DATA_SWELL_DIR, DATA_IS_POWERED = EntityDataIds.Creeper_DATA_IS_POWERED, DATA_IS_IGNITED = EntityDataIds.Creeper_DATA_IS_IGNITED;
     private int oldSwell, swell;
     private int maxSwell = 30;
     private int explosionRadius = 3;

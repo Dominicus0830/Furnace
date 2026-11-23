@@ -9,8 +9,9 @@ import org.domi.furnace.server.entity.ai.goal.*;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.PolarBear")
 public class PolarBear extends Animal implements NeutralMob {
-    public static final int DATA_STANDING_ID = 17;
+    public static final int DATA_STANDING_ID = EntityDataIds.PolarBear_DATA_STANDING_ID;
     private int warningSoundTicks;
     private int remainingPersistentAngerTime;
     private UUID persistentAngerTarget;

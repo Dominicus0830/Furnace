@@ -20,6 +20,7 @@ import org.domi.furnace.server.entity.Zombie;
 import org.domi.furnace.server.entity.ai.control.Mth;
 import org.domi.furnace.server.world.GameMode;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.village.VillageSiege")
 public final class VillageSiege {
     private static final String ZOMBIE = "minecraft:zombie";
     /** 보고가 이 게임 틱 수보다 오래되면 후보로 보지 않는다(region 이 한두 틱 늦게 돌 수 있다). */

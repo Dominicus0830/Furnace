@@ -10,6 +10,7 @@ import org.domi.furnace.server.block.Pathfinding;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.Mob;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.pathfinder.SwimNodeEvaluator")
 public class SwimNodeEvaluator extends NodeEvaluator {
     /** Direction.values() 순서: 아래, 위, 북, 남, 서, 동. */
     private static final int[] DX = {0, 0, 0, 0, -1, 1}, DY = {-1, 1, 0, 0, 0, 0}, DZ = {0, 0, -1, 1, 0, 0};

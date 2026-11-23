@@ -12,8 +12,9 @@ import org.domi.furnace.server.entity.ai.navigation.PathNavigation;
 import org.domi.furnace.server.entity.ai.navigation.WallClimberNavigation;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.Spider")
 public class Spider extends Monster {
-    public static final int DATA_FLAGS_ID = 16;
+    public static final int DATA_FLAGS_ID = EntityDataIds.Spider_DATA_FLAGS_ID;
 
     public Spider(ChunkLevel level, int id) { this(EntityType.SPIDER, level, id); }
 

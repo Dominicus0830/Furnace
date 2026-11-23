@@ -7,6 +7,7 @@ import org.domi.furnace.server.entity.LivingEntity;
 import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.Player;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.control.LookControl")
 public class LookControl {
     protected final Mob mob;
     protected float yMaxRotSpeed, xMaxRotAngle;

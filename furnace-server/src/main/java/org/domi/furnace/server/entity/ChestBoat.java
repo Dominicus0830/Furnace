@@ -6,6 +6,7 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.vehicle.ChestBoat")
 public class ChestBoat extends Boat implements ContainerEntity {
 
     public static final int SIZE = 27;

@@ -3,6 +3,7 @@ package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.ChunkLevel;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.FlyingMob")
 public abstract class FlyingMob extends Mob {
 
     /** 바닐라는 낙하 처리를 비운다(날아다니는 몹은 착지 입자·낙하 거리·HIT_GROUND 가 없다). */

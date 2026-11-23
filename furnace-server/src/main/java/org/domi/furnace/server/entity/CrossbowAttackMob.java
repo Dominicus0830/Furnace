@@ -1,6 +1,7 @@
 // 바닐라 CrossbowAttackMob: 석궁을 쓰는 몹(약탈자·피글린). 장전 중 표시와 쏜 뒤 처리를 맡는다.
 package org.domi.furnace.server.entity;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.CrossbowAttackMob")
 public interface CrossbowAttackMob extends RangedAttackMob {
     void setChargingCrossbow(boolean charging);
 

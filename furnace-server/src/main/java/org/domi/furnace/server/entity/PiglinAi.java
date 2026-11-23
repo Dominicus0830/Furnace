@@ -18,6 +18,7 @@ import org.domi.furnace.server.entity.ai.util.LandRandomPos;
 import org.domi.furnace.server.item.ItemTags;
 import org.domi.furnace.server.item.ItemTools;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.piglin.PiglinAi")
 public final class PiglinAi {
     public static final int REPELLENT_DETECTION_RANGE_HORIZONTAL = 8;
     public static final int REPELLENT_DETECTION_RANGE_VERTICAL = 4;

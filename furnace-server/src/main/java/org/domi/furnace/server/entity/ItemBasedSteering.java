@@ -5,6 +5,7 @@ import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ItemBasedSteering")
 public final class ItemBasedSteering {
     private final SynchedData data;
     private final int boostTimeId, saddleId;

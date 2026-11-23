@@ -7,6 +7,7 @@ import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.vehicle.MinecartSpawner")
 public class MinecartSpawner extends AbstractMinecart {
     @Override public boolean onlyOpCanSetNbt() { return true; }
 

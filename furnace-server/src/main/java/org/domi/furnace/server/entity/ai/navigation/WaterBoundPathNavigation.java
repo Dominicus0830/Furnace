@@ -8,6 +8,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.EntityType;
 import org.domi.furnace.server.entity.Mob;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.navigation.WaterBoundPathNavigation")
 public class WaterBoundPathNavigation extends PathNavigation {
     private boolean allowBreaching;
 

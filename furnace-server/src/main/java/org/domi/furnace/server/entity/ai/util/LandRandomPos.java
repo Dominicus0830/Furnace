@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity.ai.util;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.PathfinderMob;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.util.LandRandomPos")
 public final class LandRandomPos {
     private LandRandomPos() { }
 

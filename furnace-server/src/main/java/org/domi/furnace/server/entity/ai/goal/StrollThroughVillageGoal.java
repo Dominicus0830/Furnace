@@ -8,6 +8,7 @@ import org.domi.furnace.server.entity.PathfinderMob;
 import org.domi.furnace.server.entity.ai.Goal;
 import org.domi.furnace.server.entity.ai.util.LandRandomPos;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.StrollThroughVillageGoal")
 public class StrollThroughVillageGoal extends Goal {
     private static final int DISTANCE_THRESHOLD = 10;
     protected final PathfinderMob mob;

@@ -16,10 +16,11 @@ import org.domi.furnace.server.entity.ai.navigation.PathType;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.Mob")
 public abstract class Mob extends LivingEntity implements Leashable {
 
     /** Mob.DATA_MOB_FLAGS_ID = 15: 1 NoAI, 2 왼손잡이, 4 공격 중. */
-    public static final int DATA_MOB_FLAGS = 15;
+    public static final int DATA_MOB_FLAGS = EntityDataIds.Mob_DATA_MOB_FLAGS_ID;
 
     protected boolean persistenceRequired;
     /** xpReward: 종류별 기본 경험치(적대 몹 5, 동물은 별도 규칙, 주민 0). */

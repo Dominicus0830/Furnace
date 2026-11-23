@@ -20,13 +20,14 @@ import org.domi.furnace.server.item.ItemTags;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.Dolphin")
 public class Dolphin extends WaterAnimal {
     /** canBeLeashed(디컴파일 y): 돌고래(cfm)는 맬 수 있다. */
     @Override
     public boolean canBeLeashed() { return true; }
 
 
-    public static final int DATA_TREASURE_POS = 16, DATA_GOT_FISH = 17, DATA_MOISTNESS = 18;
+    public static final int DATA_TREASURE_POS = EntityDataIds.Dolphin_TREASURE_POS, DATA_GOT_FISH = EntityDataIds.Dolphin_GOT_FISH, DATA_MOISTNESS = EntityDataIds.Dolphin_MOISTNESS_LEVEL;
     public static final int TOTAL_AIR_SUPPLY = 4800;
     private static final int TOTAL_MOISTNESS_LEVEL = 2400;
 

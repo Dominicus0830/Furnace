@@ -14,8 +14,9 @@ import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.Sheep")
 public class Sheep extends Animal {
-    public static final int DATA_WOOL_ID = 17;
+    public static final int DATA_WOOL_ID = EntityDataIds.Sheep_DATA_WOOL_ID;
     private EatBlockGoal eatBlockGoal;
 
     /** 염료 섞기 레시피(순서 무관 2칸): 바닐라 crafting_shapeless 중 재료 2개짜리. */

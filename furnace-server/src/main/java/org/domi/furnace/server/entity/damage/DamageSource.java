@@ -13,6 +13,7 @@ import org.domi.furnace.server.entity.Targetable;
  * @param direct   getDirectEntity(): 실제로 맞힌 것(화살 자체). 없으면 null
  * @param position 명시 위치(바닐라 DamageSource(type, Vec3)). 없으면 null
  */
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.damagesource.DamageSource")
 public record DamageSource(DamageType type, Rider causing, Rider direct, double[] position) {
 
     public static DamageSource of(DamageType type) { return new DamageSource(type, null, null, null); }

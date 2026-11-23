@@ -6,13 +6,14 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.Interaction")
 public class Interaction extends Entity {
 
     /** getPistonPushReaction = IGNORE. */
     @Override
     public boolean ignoresPistonPush() { return true; }
 
-    public static final int DATA_WIDTH = 8, DATA_HEIGHT = 9, DATA_RESPONSE = 10;
+    public static final int DATA_WIDTH = EntityDataIds.Interaction_DATA_WIDTH_ID, DATA_HEIGHT = EntityDataIds.Interaction_DATA_HEIGHT_ID, DATA_RESPONSE = EntityDataIds.Interaction_DATA_RESPONSE_ID;
     private int[] attackPlayer, interactionPlayer;
     private long attackTime, interactionTime;
 

@@ -3,6 +3,7 @@ package org.domi.furnace.server.entity.ai.control;
 
 import org.domi.furnace.server.entity.Mob;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.control.BodyRotationControl")
 public class BodyRotationControl {
     private static final int HEAD_STABLE_ANGLE = 15;
     private static final int DELAY_UNTIL_STARTING_TO_FACE_FORWARD = 10;

@@ -45,6 +45,8 @@ public final class Tools {
         java("stew-effects", "ExportStewEffects", "수상한 스튜 효과", Output.of(S + "items/stew_effects_{mc}.txt"));
         // 호환(shim 생성기 T-231)
         java("kind-classes", "ExportKindClasses", "블록·아이템 종류 → 바닐라 클래스", Output.of(SPEC + "kind-classes-{mc}.txt"));
+        java("entity-data", "ExportEntityData", "엔티티 메타데이터 칸 배치·주인 부류·칸 번호 표(V-04)",
+                Output.of(S + "entity_data/layouts-{mc}.txt"), Output.of(S + "entity_data/owners-{mc}.txt"), Output.of(S + "entity_data/ids-{mc}.txt"));
         // 프로토콜
         java("protocol-ids", "ExportProtocolIds", "프로토콜 패킷 종류·번호 표", Output.of(API + "protocol-{protocol}-ids.txt"));
         // 시험 정답표

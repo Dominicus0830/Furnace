@@ -7,6 +7,7 @@ import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.Targetable;
 import org.domi.furnace.server.entity.ai.targeting.TargetingConditions;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.sensing.Sensor")
 public abstract class Sensor<E extends Mob> {
     /** 바닐라 Sensor.RANDOM = RandomSource.createThreadSafe() — 몹은 여러 region 스레드에서 만들어진다. */
     private static final org.domi.furnace.server.block.RandomSource RANDOM = org.domi.furnace.server.block.RandomSource.createThreadSafeFor(

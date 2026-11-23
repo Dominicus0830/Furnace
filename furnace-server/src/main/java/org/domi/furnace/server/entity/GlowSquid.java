@@ -5,8 +5,9 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.GlowSquid")
 public class GlowSquid extends Squid {
-    public static final int DATA_DARK_TICKS_REMAINING = 16;
+    public static final int DATA_DARK_TICKS_REMAINING = EntityDataIds.GlowSquid_DATA_DARK_TICKS_REMAINING;
 
     public GlowSquid(ChunkLevel level, int id) { super(EntityType.GLOW_SQUID, level, id); }
 

@@ -11,6 +11,7 @@ import org.domi.furnace.server.entity.ai.brain.EntityTracker;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.WalkTarget;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.InteractWith")
 public final class InteractWith {
     private InteractWith() {}
 

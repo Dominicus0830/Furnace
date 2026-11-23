@@ -19,6 +19,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 import org.domi.furnace.server.entity.ai.brain.WalkTarget;
 import org.domi.furnace.server.item.ItemTools;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.UseBonemeal")
 public class UseBonemeal extends Behavior<Villager> {
     private static final int BONEMEALING_DURATION = 80;
     private static final String BONE_MEAL = "minecraft:bone_meal";

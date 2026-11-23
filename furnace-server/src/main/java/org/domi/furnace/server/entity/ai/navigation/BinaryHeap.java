@@ -3,6 +3,7 @@ package org.domi.furnace.server.entity.ai.navigation;
 
 import java.util.Arrays;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.pathfinder.BinaryHeap")
 public class BinaryHeap {
     private Node[] heap = new Node[128];
     private int size;

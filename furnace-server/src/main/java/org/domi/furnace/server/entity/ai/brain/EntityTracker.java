@@ -6,6 +6,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.Targetable;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.EntityTracker")
 public final class EntityTracker implements PositionTracker {
     private final Targetable entity;
     private final boolean trackEyeHeight;

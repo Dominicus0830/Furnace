@@ -21,6 +21,7 @@ import org.domi.furnace.server.item.ItemTags;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.Turtle")
 public class Turtle extends Animal {
     /** canBeLeashed(디컴파일 y): 거북(cgf)은 못 맨다. */
     @Override
@@ -36,7 +37,7 @@ public class Turtle extends Animal {
         hurt(new Damage("lightning_bolt", false, false, false), Float.MAX_VALUE);
     }
 
-    public static final int DATA_HOME_POS = 17, DATA_HAS_EGG = 18, DATA_LAYING_EGG = 19, DATA_TRAVEL_POS = 20, DATA_GOING_HOME = 21, DATA_TRAVELLING = 22;
+    public static final int DATA_HOME_POS = EntityDataIds.Turtle_HOME_POS, DATA_HAS_EGG = EntityDataIds.Turtle_HAS_EGG, DATA_LAYING_EGG = EntityDataIds.Turtle_LAYING_EGG, DATA_TRAVEL_POS = EntityDataIds.Turtle_TRAVEL_POS, DATA_GOING_HOME = EntityDataIds.Turtle_GOING_HOME, DATA_TRAVELLING = EntityDataIds.Turtle_TRAVELLING;
     private static final Prop EGGS = B.prop("eggs");
     int layEggCounter;
 

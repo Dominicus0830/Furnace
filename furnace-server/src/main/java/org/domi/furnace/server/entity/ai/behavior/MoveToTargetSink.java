@@ -14,6 +14,7 @@ import org.domi.furnace.server.entity.ai.brain.WalkTarget;
 import org.domi.furnace.server.entity.ai.navigation.Path;
 import org.domi.furnace.server.entity.ai.util.DefaultRandomPos;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.MoveToTargetSink")
 public class MoveToTargetSink extends Behavior<Mob> {
     private static final int MAX_COOLDOWN_BEFORE_RETRYING = 40;
     private int remainingCooldown;

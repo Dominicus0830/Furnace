@@ -5,6 +5,7 @@ import java.util.function.Predicate;
 import org.domi.furnace.server.entity.TamableAnimal;
 import org.domi.furnace.server.entity.Targetable;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.target.NonTameRandomTargetGoal")
 public class NonTameRandomTargetGoal extends NearestAttackableTargetGoal {
     private final TamableAnimal tamableMob;
 

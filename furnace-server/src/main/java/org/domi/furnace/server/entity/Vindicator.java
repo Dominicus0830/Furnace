@@ -7,6 +7,7 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.entity.ai.goal.*;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.Vindicator")
 public class Vindicator extends AbstractIllager {
     private boolean isJohnny;
 

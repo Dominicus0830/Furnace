@@ -6,8 +6,9 @@ import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.item.PrimedTnt")
 public class PrimedTnt extends Entity {
-    public static final int DATA_FUSE_ID = 8, DATA_BLOCK_STATE_ID = 9;
+    public static final int DATA_FUSE_ID = EntityDataIds.PrimedTnt_DATA_FUSE_ID, DATA_BLOCK_STATE_ID = EntityDataIds.PrimedTnt_DATA_BLOCK_STATE_ID;
     private Targetable owner;
     private java.util.UUID ownerUuid;
     private float explosionPower = 4.0F;

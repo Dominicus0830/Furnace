@@ -3,6 +3,7 @@ package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.npc.InventoryCarrier")
 public interface InventoryCarrier {
     String INVENTORY_TAG = "Inventory";
 

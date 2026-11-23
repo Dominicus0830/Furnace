@@ -13,6 +13,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 import org.domi.furnace.server.entity.ai.brain.PositionTracker;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.GoAndGiveItemsToTarget")
 public class GoAndGiveItemsToTarget<E extends Mob & InventoryCarrier> extends Behavior<E> {
     private static final int CLOSE_ENOUGH_DISTANCE_TO_TARGET = 3;
     private static final int ITEM_PICKUP_COOLDOWN_AFTER_THROWING = 60;

@@ -11,8 +11,9 @@ import org.domi.furnace.server.entity.ai.control.Mth;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.projectile.AbstractArrow")
 public abstract class AbstractArrow extends Projectile {
-    public static final int DATA_ID_FLAGS = 8, DATA_PIERCE_LEVEL = 9;
+    public static final int DATA_ID_FLAGS = EntityDataIds.AbstractArrow_ID_FLAGS, DATA_PIERCE_LEVEL = EntityDataIds.AbstractArrow_PIERCE_LEVEL;
     public enum Pickup { DISALLOWED, ALLOWED, CREATIVE_ONLY }
 
     protected boolean inGround;

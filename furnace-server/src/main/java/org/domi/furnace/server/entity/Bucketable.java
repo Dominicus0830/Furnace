@@ -5,6 +5,7 @@ package org.domi.furnace.server.entity;
 import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.Bucketable")
 public interface Bucketable {
 
     String BUCKET_ENTITY_DATA = "minecraft:bucket_entity_data";

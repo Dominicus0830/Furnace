@@ -7,6 +7,7 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.effect.MobEffect;
 import org.domi.furnace.server.effect.MobEffectInstance;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.CaveSpider")
 public class CaveSpider extends Spider {
 
     public CaveSpider(ChunkLevel level, int id) { super(EntityType.CAVE_SPIDER, level, id); }

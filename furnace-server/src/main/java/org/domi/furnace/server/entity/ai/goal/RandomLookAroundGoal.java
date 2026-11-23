@@ -5,6 +5,7 @@ import java.util.EnumSet;
 import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.ai.Goal;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.RandomLookAroundGoal")
 public class RandomLookAroundGoal extends Goal {
     private final Mob mob;
     private double relX, relZ;

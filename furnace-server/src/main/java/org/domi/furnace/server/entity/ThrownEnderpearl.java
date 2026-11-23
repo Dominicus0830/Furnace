@@ -3,6 +3,7 @@ package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.ChunkLevel;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.projectile.ThrownEnderpearl")
 public class ThrownEnderpearl extends ThrowableProjectile {
     public ThrownEnderpearl(ChunkLevel level, int id) { super(EntityType.ENDER_PEARL, level, id); }
 

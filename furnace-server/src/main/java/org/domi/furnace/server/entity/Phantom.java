@@ -18,12 +18,13 @@ import org.domi.furnace.server.entity.ai.targeting.TargetingConditions;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.Phantom")
 public class Phantom extends FlyingMob implements Enemy {
 
     @Override
     protected boolean shouldDespawnInPeaceful() { return true; }
 
-    public static final int DATA_ID_SIZE = 16;
+    public static final int DATA_ID_SIZE = EntityDataIds.Phantom_ID_SIZE;
     private static final TargetingConditions DEFAULT_TARGETING = TargetingConditions.forCombat();
     private double[] moveTargetPoint = {0.0, 0.0, 0.0};
     private Pos anchorPoint = new Pos(0, 0, 0);

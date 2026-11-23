@@ -17,13 +17,14 @@ import org.domi.furnace.server.item.ItemTags;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.hoglin.Hoglin")
 public class Hoglin extends Animal implements Enemy, HoglinBase {
     /** canBeLeashed(디컴파일 y): Hoglin(clh)은 Enemy 여도 맬 수 있다. */
     @Override
     public boolean canBeLeashed() { return true; }
 
 
-    public static final int DATA_IMMUNE_TO_ZOMBIFICATION = 17;
+    public static final int DATA_IMMUNE_TO_ZOMBIFICATION = EntityDataIds.Hoglin_DATA_IMMUNE_TO_ZOMBIFICATION;
     public static final int CONVERSION_TIME = 300;
     private int attackAnimationRemainingTicks;
     private int timeInOverworld;

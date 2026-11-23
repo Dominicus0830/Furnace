@@ -136,6 +136,45 @@ val generatePacketIds by tasks.registering {
 }
 sourceSets.main { java.srcDir(generatePacketIds.map { packetIdsDir.get() }) }
 
+// V-04: entity_data/ids-<tag>.txt(바닐라에서 뽑은 직렬화기·메타데이터 칸 번호표) → EntityDataIds(컴파일 시간 상수). build/generated 에만 생기고 커밋하지 않는다.
+// 엔티티 클래스의 DATA_* 번호와 SetEntityData.SERIALIZER_* 가 숫자를 직접 쓰지 않고 이 상수를 쓴다. 이름은 <바닐라 클래스>_<바닐라 상수>(안쪽 클래스는 $ 를 _ 로),
+// 직렬화기는 SERIALIZER_<바닐라 상수>. 안쪽 클래스를 쓰지 않는다 — javap 동일 증명에 InnerClasses 노이즈가 생긴다.
+val entityDataIdsDir = layout.buildDirectory.dir("generated/entityDataIds")
+val generateEntityDataIds by tasks.registering {
+    group = "build"
+    description = "메타데이터 번호표로 EntityDataIds 상수 클래스를 만든다"
+    @Suppress("UNCHECKED_CAST") val mc = rootProject.extra["mc"] as java.util.Properties
+    val tag = mc.getProperty("mc.resourceTag") ?: error("gradle/minecraft.properties 에 mc.resourceTag 가 없다")
+    val idsFile = file("src/main/resources/entity_data/ids-$tag.txt")
+    val outDir = entityDataIdsDir
+    inputs.file(idsFile)
+    outputs.dir(outDir)
+    doLast {
+        val body = StringBuilder()
+        val seen = HashSet<String>()
+        idsFile.readLines(Charsets.UTF_8).forEachIndexed { i, raw ->
+            if (raw.isBlank() || raw.startsWith("#")) return@forEachIndexed
+            val t = raw.trim().split(Regex("\\s+"))
+            fun bad(msg: String): Nothing = error("${idsFile.name}:${i + 1}: $msg — $raw")
+            val (name, value) = when (t[0]) {
+                "S" -> { if (t.size != 3) bad("S <번호> <상수> 꼴이어야 한다"); "SERIALIZER_" + t[2] to t[1].toInt() }
+                "A" -> { if (t.size != 5) bad("A <클래스> <상수> <번호> <직렬화기> 꼴이어야 한다"); t[1].substringAfterLast('.').replace('$', '_') + "_" + t[2] to t[3].toInt() }
+                else -> bad("모르는 줄 종류")
+            }
+            if (!seen.add(name)) bad("상수 이름이 겹친다")
+            body.append("    public static final int ").append(name).append(" = ").append(value).append(";\n")
+        }
+        val src = "// 자동 생성 — entity_data/ids-$tag.txt 에서 만든다(generateEntityDataIds). 손으로 고치지 않는다.\n" +
+            "package org.domi.furnace.server.entity;\n\n" +
+            "/** 바닐라 메타데이터 칸 번호와 직렬화기 번호. 모든 칸이 컴파일 시간 상수라 쓰는 자리에 값이 그대로 들어간다. */\n" +
+            "public final class EntityDataIds {\n    private EntityDataIds() {}\n\n" + body + "}\n"
+        val f = outDir.get().file("org/domi/furnace/server/entity/EntityDataIds.java").asFile
+        f.parentFile.mkdirs()
+        f.writeText(src)
+    }
+}
+sourceSets.main { java.srcDir(generateEntityDataIds.map { entityDataIdsDir.get() }) }
+
 application {
     mainClass = "org.domi.furnace.server.FurnaceMain"
     applicationDefaultJvmArgs = listOf("-Xmx6G")

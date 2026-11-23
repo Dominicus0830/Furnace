@@ -7,14 +7,15 @@ import org.domi.furnace.server.net.io.nbt.NbtList;
 import org.domi.furnace.server.net.io.nbt.NbtIo;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.Display")
 public abstract class Display extends Entity {
 
     /** getPistonPushReaction = IGNORE. */
     @Override
     public boolean ignoresPistonPush() { return true; }
 
-    public static final int DATA_START_DELTA = 8, DATA_INTERPOLATION = 9, DATA_TELEPORT = 10, DATA_TRANSLATION = 11, DATA_SCALE = 12, DATA_LEFT_ROT = 13, DATA_RIGHT_ROT = 14,
-            DATA_BILLBOARD = 15, DATA_BRIGHTNESS = 16, DATA_VIEW_RANGE = 17, DATA_SHADOW_RADIUS = 18, DATA_SHADOW_STRENGTH = 19, DATA_WIDTH = 20, DATA_HEIGHT = 21, DATA_GLOW = 22;
+    public static final int DATA_START_DELTA = EntityDataIds.Display_DATA_TRANSFORMATION_INTERPOLATION_START_DELTA_TICKS_ID, DATA_INTERPOLATION = EntityDataIds.Display_DATA_TRANSFORMATION_INTERPOLATION_DURATION_ID, DATA_TELEPORT = EntityDataIds.Display_DATA_POS_ROT_INTERPOLATION_DURATION_ID, DATA_TRANSLATION = EntityDataIds.Display_DATA_TRANSLATION_ID, DATA_SCALE = EntityDataIds.Display_DATA_SCALE_ID, DATA_LEFT_ROT = EntityDataIds.Display_DATA_LEFT_ROTATION_ID, DATA_RIGHT_ROT = EntityDataIds.Display_DATA_RIGHT_ROTATION_ID,
+            DATA_BILLBOARD = EntityDataIds.Display_DATA_BILLBOARD_RENDER_CONSTRAINTS_ID, DATA_BRIGHTNESS = EntityDataIds.Display_DATA_BRIGHTNESS_OVERRIDE_ID, DATA_VIEW_RANGE = EntityDataIds.Display_DATA_VIEW_RANGE_ID, DATA_SHADOW_RADIUS = EntityDataIds.Display_DATA_SHADOW_RADIUS_ID, DATA_SHADOW_STRENGTH = EntityDataIds.Display_DATA_SHADOW_STRENGTH_ID, DATA_WIDTH = EntityDataIds.Display_DATA_WIDTH_ID, DATA_HEIGHT = EntityDataIds.Display_DATA_HEIGHT_ID, DATA_GLOW = EntityDataIds.Display_DATA_GLOW_COLOR_OVERRIDE_ID;
     private static final String[] BILLBOARDS = {"fixed", "vertical", "horizontal", "center"};
 
     protected Display(EntityType type, ChunkLevel level, int id) {
@@ -119,7 +120,7 @@ public abstract class Display extends Entity {
 
     /** 블록 표시. */
     public static class BlockDisplay extends Display {
-        public static final int DATA_BLOCK_STATE = 23;
+        public static final int DATA_BLOCK_STATE = EntityDataIds.Display_BlockDisplay_DATA_BLOCK_STATE_ID;
 
         public BlockDisplay(ChunkLevel level, int id) { super(EntityType.BLOCK_DISPLAY, level, id); }
 
@@ -146,7 +147,7 @@ public abstract class Display extends Entity {
 
     /** 아이템 표시. 표시 방식(none, thirdperson_lefthand, ... gui, ground, fixed)은 번호로 가진다. */
     public static class ItemDisplay extends Display {
-        public static final int DATA_ITEM = 23, DATA_ITEM_DISPLAY = 24;
+        public static final int DATA_ITEM = EntityDataIds.Display_ItemDisplay_DATA_ITEM_STACK_ID, DATA_ITEM_DISPLAY = EntityDataIds.Display_ItemDisplay_DATA_ITEM_DISPLAY_ID;
         private static final String[] MODES = {"none", "thirdperson_lefthand", "thirdperson_righthand", "firstperson_lefthand", "firstperson_righthand", "head", "gui", "ground", "fixed"};
 
         public ItemDisplay(ChunkLevel level, int id) { super(EntityType.ITEM_DISPLAY, level, id); }
@@ -186,7 +187,7 @@ public abstract class Display extends Entity {
      * 엔티티가 서버 코어에 닿는 길이 없어 풀지 않고 그대로 둔다.
      */
     public static class TextDisplay extends Display {
-        public static final int DATA_TEXT = 23, DATA_LINE_WIDTH = 24, DATA_BACKGROUND = 25, DATA_TEXT_OPACITY = 26, DATA_FLAGS = 27;
+        public static final int DATA_TEXT = EntityDataIds.Display_TextDisplay_DATA_TEXT_ID, DATA_LINE_WIDTH = EntityDataIds.Display_TextDisplay_DATA_LINE_WIDTH_ID, DATA_BACKGROUND = EntityDataIds.Display_TextDisplay_DATA_BACKGROUND_COLOR_ID, DATA_TEXT_OPACITY = EntityDataIds.Display_TextDisplay_DATA_TEXT_OPACITY_ID, DATA_FLAGS = EntityDataIds.Display_TextDisplay_DATA_STYLE_FLAGS_ID;
         public static final byte FLAG_SHADOW = 1, FLAG_SEE_THROUGH = 2, FLAG_USE_DEFAULT_BACKGROUND = 4, FLAG_ALIGN_LEFT = 8, FLAG_ALIGN_RIGHT = 16;
         private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(TextDisplay.class);
 

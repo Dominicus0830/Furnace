@@ -15,8 +15,9 @@ import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.armadillo.Armadillo")
 public class Armadillo extends Animal {
-    public static final int DATA_STATE = 17;
+    public static final int DATA_STATE = EntityDataIds.Armadillo_ARMADILLO_STATE;
     public static final float BABY_SCALE = 0.6F;
     public static final float MAX_HEAD_ROTATION_EXTENT = 32.5F;
     public static final int SCARE_CHECK_RANGE_XZ = 7;

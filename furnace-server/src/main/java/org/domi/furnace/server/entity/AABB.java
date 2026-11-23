@@ -1,6 +1,7 @@
 // 바닐라 AABB: 축 정렬 상자. 엔티티 몸통·충돌 판정에 쓴다. 불변.
 package org.domi.furnace.server.entity;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.phys.AABB")
 public record AABB(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
 
     /** 두 꼭짓점으로(작은 쪽을 min 으로). */

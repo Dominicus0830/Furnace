@@ -13,6 +13,7 @@ import org.domi.furnace.server.effect.MobEffectInstance;
 import org.domi.furnace.server.entity.ai.control.Mth;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.projectile.ShulkerBullet")
 public class ShulkerBullet extends Projectile {
     private static final double SPEED = 0.15;
     private Targetable finalTarget;

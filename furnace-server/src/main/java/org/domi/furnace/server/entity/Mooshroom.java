@@ -10,6 +10,7 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 import org.domi.furnace.server.recipe.StewEffects;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.MushroomCow")
 public class Mooshroom extends Cow {
     /** 마지막으로 바꾼 번개(같은 번개로 여러 번 바뀌지 않게). 저장하지 않는다(바닐라와 같음). */
     private java.util.UUID lastLightningBoltUUID;
@@ -25,7 +26,7 @@ public class Mooshroom extends Cow {
         }
     }
 
-    public static final int DATA_TYPE = 17;
+    public static final int DATA_TYPE = EntityDataIds.MushroomCow_DATA_TYPE;
     private List<Object> stewEffects;
 
     public Mooshroom(ChunkLevel level, int id) { super(EntityType.MOOSHROOM, level, id); }

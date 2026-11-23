@@ -6,6 +6,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.Targetable;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.navigation.WallClimberNavigation")
 public class WallClimberNavigation extends GroundPathNavigation {
     private Pos pathToPosition;
 

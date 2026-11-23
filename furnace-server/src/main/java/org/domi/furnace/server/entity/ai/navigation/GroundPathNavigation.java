@@ -7,6 +7,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.Targetable;
 import org.domi.furnace.server.entity.Mob;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.navigation.GroundPathNavigation")
 public class GroundPathNavigation extends PathNavigation {
     private boolean avoidSun;
 

@@ -7,8 +7,9 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.horse.Horse")
 public class Horse extends AbstractHorse {
-    public static final int DATA_ID_TYPE_VARIANT = 18;
+    public static final int DATA_ID_TYPE_VARIANT = EntityDataIds.Horse_DATA_ID_TYPE_VARIANT;
     private static final int COLORS = 7, MARKINGS = 5;
 
     public Horse(ChunkLevel level, int id) { super(EntityType.HORSE, level, id); }

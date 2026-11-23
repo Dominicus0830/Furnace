@@ -12,6 +12,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.SensorType;
 import org.domi.furnace.server.entity.ai.navigation.PathType;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.breeze.Breeze")
 public class Breeze extends Monster {
     private int whirlCounter;
 

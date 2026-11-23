@@ -6,6 +6,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.ShufflingList")
 public final class ShufflingList<U> implements Iterable<U> {
     /**
      * 바닐라처럼 목록마다 난수(정적으로 공유하면 여러 region 스레드가 동기화 없이 같은 상태를 고친다). 주인이 없어 열쇠는 상수 —

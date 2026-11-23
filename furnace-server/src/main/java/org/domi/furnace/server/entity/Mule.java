@@ -3,6 +3,7 @@ package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.ChunkLevel;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.horse.Mule")
 public class Mule extends AbstractChestedHorse {
     public Mule(ChunkLevel level, int id) { super(EntityType.MULE, level, id); }
 

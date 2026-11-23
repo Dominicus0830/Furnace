@@ -13,8 +13,9 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 import org.domi.furnace.server.world.gen.BiomeTags;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.SnowGolem")
 public class SnowGolem extends AbstractGolem implements RangedAttackMob {
-    public static final int DATA_PUMPKIN_ID = 16;
+    public static final int DATA_PUMPKIN_ID = EntityDataIds.SnowGolem_DATA_PUMPKIN_ID;
     private static final byte PUMPKIN_FLAG = 16;
 
     public SnowGolem(ChunkLevel level, int id) { super(EntityType.SNOW_GOLEM, level, id); }

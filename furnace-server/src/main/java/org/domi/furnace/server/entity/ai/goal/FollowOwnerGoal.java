@@ -8,6 +8,7 @@ import org.domi.furnace.server.entity.ai.Goal;
 import org.domi.furnace.server.entity.ai.navigation.PathNavigation;
 import org.domi.furnace.server.entity.ai.navigation.PathType;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.FollowOwnerGoal")
 public class FollowOwnerGoal extends Goal {
     private final TamableAnimal tamable;
     private Player owner;

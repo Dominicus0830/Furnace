@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity.ai.brain;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.schedule.Activity")
 public final class Activity {
     private static final Map<String, Activity> BY_KEY = new ConcurrentHashMap<>();
 

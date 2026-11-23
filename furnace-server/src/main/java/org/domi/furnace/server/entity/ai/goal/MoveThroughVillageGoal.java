@@ -21,6 +21,7 @@ import org.domi.furnace.server.entity.ai.util.LandRandomPos;
 import org.domi.furnace.server.world.poi.PoiManager;
 import org.domi.furnace.server.world.poi.PoiTypes;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.MoveThroughVillageGoal")
 public class MoveThroughVillageGoal extends Goal {
     protected final PathfinderMob mob;
     private final double speedModifier;

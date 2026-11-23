@@ -6,6 +6,7 @@ import org.domi.furnace.server.entity.PathfinderMob;
 import org.domi.furnace.server.entity.ai.Goal;
 import org.domi.furnace.server.entity.ai.util.LandRandomPos;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.RandomStrollGoal")
 public class RandomStrollGoal extends Goal {
     public static final int DEFAULT_INTERVAL = 120;
     protected final PathfinderMob mob;

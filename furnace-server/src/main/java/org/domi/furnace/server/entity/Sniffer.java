@@ -23,8 +23,9 @@ import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.item.ItemTags;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.sniffer.Sniffer")
 public class Sniffer extends Animal {
-    public static final int DATA_STATE = 17, DATA_DROP_SEED_AT_TICK = 18;
+    public static final int DATA_STATE = EntityDataIds.Sniffer_DATA_STATE, DATA_DROP_SEED_AT_TICK = EntityDataIds.Sniffer_DATA_DROP_SEED_AT_TICK;
     public static final int EGG_DROP_COOLDOWN_TICKS = 48000;
 
     public enum State {

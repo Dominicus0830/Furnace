@@ -8,6 +8,7 @@ import org.domi.furnace.server.entity.ai.goal.*;
 import org.domi.furnace.server.item.ItemTags;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.Cow")
 public class Cow extends Animal {
 
     public Cow(ChunkLevel level, int id) { this(EntityType.COW, level, id); }

@@ -16,8 +16,9 @@ import org.domi.furnace.server.item.ItemTags;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.Rabbit")
 public class Rabbit extends Animal {
-    public static final int DATA_TYPE = 17;
+    public static final int DATA_TYPE = EntityDataIds.Rabbit_DATA_TYPE_ID;
     public static final int TYPE_BROWN = 0, TYPE_WHITE = 1, TYPE_BLACK = 2, TYPE_WHITE_SPLOTCHED = 3, TYPE_GOLD = 4, TYPE_SALT = 5, TYPE_EVIL = 99;
     private static final String EVIL_ATTACK_MODIFIER = "minecraft:evil";
 

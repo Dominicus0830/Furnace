@@ -6,6 +6,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.PathfinderMob;
 import org.domi.furnace.server.entity.ai.util.LandRandomPos;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.RandomSwimmingGoal")
 public class RandomSwimmingGoal extends RandomStrollGoal {
 
     public RandomSwimmingGoal(PathfinderMob mob, double speed, int interval) { super(mob, speed, interval); }

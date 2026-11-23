@@ -9,6 +9,7 @@ import org.domi.furnace.server.effect.MobEffectInstance;
 import org.domi.furnace.server.net.protocol.play.GameEvent;
 import org.domi.furnace.server.world.GameMode;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.ElderGuardian")
 public class ElderGuardian extends Guardian {
     public ElderGuardian(ChunkLevel level, int id) {
         super(EntityType.ELDER_GUARDIAN, level, id);

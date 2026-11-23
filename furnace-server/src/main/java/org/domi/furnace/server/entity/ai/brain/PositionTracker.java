@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity.ai.brain;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.Mob;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.PositionTracker")
 public interface PositionTracker {
     /** 정확한 위치 {x, y, z}. */
     double[] currentPosition();

@@ -9,6 +9,7 @@ import org.domi.furnace.server.entity.ai.brain.WalkTarget;
 import org.domi.furnace.server.entity.ai.util.LandRandomPos;
 import org.domi.furnace.server.world.poi.PoiManager;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.GoToClosestVillage")
 public final class GoToClosestVillage {
     private GoToClosestVillage() {}
 

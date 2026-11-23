@@ -11,6 +11,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 import org.domi.furnace.server.entity.ai.targeting.TargetingConditions;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.goat.GoatAi")
 public final class GoatAi {
     static final int RAM_PREPARE_TIME = 20;
     static final int RAM_MAX_DISTANCE = 7;

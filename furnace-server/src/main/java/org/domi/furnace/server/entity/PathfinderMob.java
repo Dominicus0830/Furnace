@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.Pos;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.PathfinderMob")
 public abstract class PathfinderMob extends Mob {
 
     /** Paper: MoveToBlockGoal 이 향하는 칸(활성 범위 면역 검사 — 벌). 결과에는 쓰지 않는다. */

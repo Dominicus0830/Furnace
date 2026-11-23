@@ -6,6 +6,7 @@ import org.domi.furnace.server.attribute.AttributeMap;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.Pos;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.Monster")
 public abstract class Monster extends PathfinderMob implements Enemy {
 
     private static final String[] HOSTILE_FALL_SOUNDS = {"minecraft:entity.hostile.small_fall", "minecraft:entity.hostile.big_fall"};

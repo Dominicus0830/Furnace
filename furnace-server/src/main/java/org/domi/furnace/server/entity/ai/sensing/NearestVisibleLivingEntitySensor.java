@@ -10,6 +10,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.NearestVisibleLivingEntities;
 import org.domi.furnace.server.entity.ai.brain.Sensor;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.sensing.NearestVisibleLivingEntitySensor")
 public abstract class NearestVisibleLivingEntitySensor extends Sensor<Mob> {
     protected abstract boolean isMatchingEntity(Mob owner, Targetable target);
 

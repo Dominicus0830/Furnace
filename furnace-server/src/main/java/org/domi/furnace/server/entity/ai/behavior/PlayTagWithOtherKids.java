@@ -16,6 +16,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.WalkTarget;
 import org.domi.furnace.server.entity.ai.util.LandRandomPos;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.PlayTagWithOtherKids")
 public final class PlayTagWithOtherKids {
     private static final int MAX_FLEE_XZ_DIST = 20, MAX_FLEE_Y_DIST = 8, MAX_CHASERS_PER_TARGET = 5;
     private static final float FLEE_SPEED = 0.6F, CHASE_SPEED = 0.6F;

@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.GoalSelector")
 public class GoalSelector {
     private static final WrappedGoal NO_GOAL = new WrappedGoal(Integer.MAX_VALUE, new Goal() {
         @Override public boolean canUse() { return false; }

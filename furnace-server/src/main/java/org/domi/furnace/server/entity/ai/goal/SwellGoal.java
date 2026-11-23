@@ -6,6 +6,7 @@ import org.domi.furnace.server.entity.Creeper;
 import org.domi.furnace.server.entity.Targetable;
 import org.domi.furnace.server.entity.ai.Goal;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.SwellGoal")
 public class SwellGoal extends Goal {
     private final Creeper creeper;
     private Targetable target;

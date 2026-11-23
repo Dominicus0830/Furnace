@@ -10,8 +10,9 @@ import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.projectile.FireworkRocketEntity")
 public class FireworkRocketEntity extends Projectile {
-    public static final int DATA_ID_FIREWORKS_ITEM = 8, DATA_ATTACHED_TO_TARGET = 9, DATA_SHOT_AT_ANGLE = 10;
+    public static final int DATA_ID_FIREWORKS_ITEM = EntityDataIds.FireworkRocketEntity_DATA_ID_FIREWORKS_ITEM, DATA_ATTACHED_TO_TARGET = EntityDataIds.FireworkRocketEntity_DATA_ATTACHED_TO_TARGET, DATA_SHOT_AT_ANGLE = EntityDataIds.FireworkRocketEntity_DATA_SHOT_AT_ANGLE;
     private int life, lifetime;
     /** 붙은 플레이어(바닐라 attachedToEntity — 저장하지 않는다). */
     private Player attached;

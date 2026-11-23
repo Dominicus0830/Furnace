@@ -9,6 +9,7 @@ import org.domi.furnace.server.entity.ai.brain.GlobalPos;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.WorkAtPoi")
 public class WorkAtPoi extends Behavior<Villager> {
     private static final int CHECK_COOLDOWN = 300;
     private static final double DISTANCE = 1.73;

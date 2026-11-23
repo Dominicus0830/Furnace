@@ -5,8 +5,9 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.TropicalFish")
 public class TropicalFish extends AbstractSchoolingFish {
-    public static final int DATA_ID_TYPE_VARIANT = 17;
+    public static final int DATA_ID_TYPE_VARIANT = EntityDataIds.TropicalFish_DATA_ID_TYPE_VARIANT;
 
     /** 무늬 번호(큰 무늬 비트 | 번호 << 8): kob, sunstreak, snooper, dasher, brinely, spotty, flopper, stripey, glitter, blockfish, betty, clayfish. */
     private static final int[] PATTERNS = {0, 256, 512, 768, 1024, 1280, 1, 257, 513, 769, 1025, 1281};

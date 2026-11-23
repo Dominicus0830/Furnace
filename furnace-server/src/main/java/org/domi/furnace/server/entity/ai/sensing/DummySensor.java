@@ -8,6 +8,7 @@ import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.Sensor;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.sensing.DummySensor")
 public class DummySensor extends Sensor<Mob> {
     @Override protected void doTick(ChunkLevel level, Mob entity) { }
 

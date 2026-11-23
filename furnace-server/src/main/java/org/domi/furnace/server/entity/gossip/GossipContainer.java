@@ -21,6 +21,7 @@ import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.gossip.GossipContainer")
 public final class GossipContainer {
     public static final int DISCARD_THRESHOLD = 2;
 

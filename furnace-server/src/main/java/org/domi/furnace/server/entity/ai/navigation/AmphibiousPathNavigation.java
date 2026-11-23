@@ -6,6 +6,7 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.Mob;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.navigation.AmphibiousPathNavigation")
 public class AmphibiousPathNavigation extends PathNavigation {
 
     public AmphibiousPathNavigation(Mob mob, ChunkLevel level) { super(mob, level); }

@@ -9,6 +9,7 @@ import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.entity.ai.Goal;
 import org.domi.furnace.server.entity.ai.targeting.TargetingConditions;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.TemptGoal")
 public class TemptGoal extends Goal {
     private static final TargetingConditions TEMP_TARGETING = TargetingConditions.forNonCombat().range(10.0).ignoreLineOfSight();
     private final TargetingConditions targetingConditions;

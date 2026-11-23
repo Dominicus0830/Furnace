@@ -6,6 +6,7 @@ import java.util.function.Predicate;
 import org.domi.furnace.server.entity.AbstractSchoolingFish;
 import org.domi.furnace.server.entity.ai.Goal;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.FollowFlockLeaderGoal")
 public class FollowFlockLeaderGoal extends Goal {
     private static final int INTERVAL_TICKS = 200;
     private final AbstractSchoolingFish mob;

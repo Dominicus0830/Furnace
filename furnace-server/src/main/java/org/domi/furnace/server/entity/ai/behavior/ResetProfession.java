@@ -5,6 +5,7 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.entity.Villager;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.ResetProfession")
 public final class ResetProfession {
     private ResetProfession() {}
 

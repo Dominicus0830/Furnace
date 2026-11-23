@@ -8,6 +8,7 @@ import org.domi.furnace.server.entity.PathfinderMob;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.LongJumpMidJump")
 public class LongJumpMidJump extends Behavior<PathfinderMob> {
     public static final int TIME_OUT_DURATION = 100;
     private final UniformInt timeBetweenLongJumps;

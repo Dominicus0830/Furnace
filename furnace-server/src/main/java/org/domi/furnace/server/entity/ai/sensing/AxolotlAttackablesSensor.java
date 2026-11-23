@@ -7,6 +7,7 @@ import org.domi.furnace.server.entity.Targetable;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.Sensor;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.sensing.AxolotlAttackablesSensor")
 public class AxolotlAttackablesSensor extends NearestVisibleLivingEntitySensor {
     public static final float TARGET_DETECTION_DISTANCE = 8.0F;
 

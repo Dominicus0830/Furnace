@@ -1,6 +1,7 @@
 // 바닐라 Target: 길찾기 목표 칸 — 지금까지 가장 가까이 간 거리(bestHeuristic)와 그 노드, 도달 여부.
 package org.domi.furnace.server.entity.ai.navigation;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.pathfinder.Target")
 public class Target extends Node {
     private float bestHeuristic = Float.MAX_VALUE;
     private Node bestNode;

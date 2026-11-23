@@ -16,8 +16,9 @@ import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.raid.Raider")
 public abstract class Raider extends Monster {
-    public static final int DATA_IS_CELEBRATING = 16;
+    public static final int DATA_IS_CELEBRATING = EntityDataIds.Raider_IS_CELEBRATING;
     private int wave;
     private boolean canJoinRaid;
     private boolean patrolLeader;

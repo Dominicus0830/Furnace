@@ -24,8 +24,9 @@ import org.domi.furnace.server.world.gameevent.GameEventContext;
 import org.domi.furnace.server.world.gameevent.PositionSource;
 import org.domi.furnace.server.world.gameevent.VibrationSystem;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.warden.Warden")
 public class Warden extends Monster implements VibrationSystem {
-    public static final int DATA_CLIENT_ANGER_LEVEL = 16;
+    public static final int DATA_CLIENT_ANGER_LEVEL = EntityDataIds.Warden_CLIENT_ANGER_LEVEL;
     private static final int VIBRATION_COOLDOWN_TICKS = 40, DARKNESS_DISPLAY_LIMIT = 200, DARKNESS_DURATION = 260, DARKNESS_RADIUS = 20,
             DARKNESS_INTERVAL = 120, ANGERMANAGEMENT_TICK_DELAY = 20, DEFAULT_ANGER = 35, PROJECTILE_ANGER = 10, RECENT_PROJECTILE_TICK_THRESHOLD = 100,
             TOUCH_COOLDOWN_TICKS = 20, ON_HURT_ANGER_BOOST = 20;

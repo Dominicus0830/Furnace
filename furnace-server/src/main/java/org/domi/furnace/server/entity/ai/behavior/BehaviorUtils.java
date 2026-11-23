@@ -19,6 +19,7 @@ import org.domi.furnace.server.entity.ai.brain.PositionTracker;
 import org.domi.furnace.server.entity.ai.brain.WalkTarget;
 import org.domi.furnace.server.entity.ai.util.LandRandomPos;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.BehaviorUtils")
 public final class BehaviorUtils {
     private BehaviorUtils() {}
 

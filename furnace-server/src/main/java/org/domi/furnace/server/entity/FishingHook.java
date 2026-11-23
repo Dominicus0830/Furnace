@@ -18,8 +18,9 @@ import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.projectile.FishingHook")
 public class FishingHook extends Projectile {
-    public static final int DATA_HOOKED_ENTITY = 8, DATA_BITING = 9;
+    public static final int DATA_HOOKED_ENTITY = EntityDataIds.FishingHook_DATA_HOOKED_ENTITY, DATA_BITING = EntityDataIds.FishingHook_DATA_BITING;
 
     enum FishHookState { FLYING, HOOKED_IN_ENTITY, BOBBING }
 

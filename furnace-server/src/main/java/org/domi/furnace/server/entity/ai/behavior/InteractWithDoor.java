@@ -17,6 +17,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.navigation.Node;
 import org.domi.furnace.server.entity.ai.navigation.Path;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.InteractWithDoor")
 public final class InteractWithDoor {
     private static final int COOLDOWN_BEFORE_RERUNNING_IN_SAME_NODE = 20;
     private static final double SKIP_CLOSING_DOOR_IF_FURTHER_AWAY_THAN = 3.0;

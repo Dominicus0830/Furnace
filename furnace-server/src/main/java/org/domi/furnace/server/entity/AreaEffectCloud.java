@@ -20,13 +20,14 @@ import org.domi.furnace.server.net.protocol.play.ParticleNbt;
 import org.domi.furnace.server.net.protocol.play.ParticleOptions;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.AreaEffectCloud")
 public class AreaEffectCloud extends Entity {
 
     /** getPistonPushReaction = IGNORE. */
     @Override
     public boolean ignoresPistonPush() { return true; }
 
-    public static final int DATA_RADIUS = 8, DATA_WAITING = 9, DATA_PARTICLE = 10;
+    public static final int DATA_RADIUS = EntityDataIds.AreaEffectCloud_DATA_RADIUS, DATA_WAITING = EntityDataIds.AreaEffectCloud_DATA_WAITING, DATA_PARTICLE = EntityDataIds.AreaEffectCloud_DATA_PARTICLE;
     public static final ParticleOptions DRAGON_BREATH_PARTICLE = ParticleOptions.simple("dragon_breath");
 
     /** PotionContents: 기본 물약 id(없으면 null) + 사용자 지정 효과 + 사용자 지정 색(없으면 null). */

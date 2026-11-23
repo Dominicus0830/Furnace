@@ -7,8 +7,9 @@ import org.domi.furnace.server.effect.MobEffectInstance;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.projectile.WitherSkull")
 public class WitherSkull extends AbstractHurtingProjectile {
-    public static final int DATA_DANGEROUS = 8;
+    public static final int DATA_DANGEROUS = EntityDataIds.WitherSkull_DATA_DANGEROUS;
 
     public WitherSkull(ChunkLevel level, int id) { super(EntityType.WITHER_SKULL, level, id); }
 

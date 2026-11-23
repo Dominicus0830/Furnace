@@ -8,6 +8,7 @@ import org.domi.furnace.server.entity.Targetable;
 import org.domi.furnace.server.entity.ai.brain.EntityTracker;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.SetEntityLookTarget")
 public final class SetEntityLookTarget {
     private SetEntityLookTarget() {}
 

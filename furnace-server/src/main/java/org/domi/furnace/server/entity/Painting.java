@@ -13,8 +13,9 @@ import org.domi.furnace.server.net.protocol.play.SetEntityData;
 import org.domi.furnace.server.net.registry.RegistrySet;
 import org.domi.furnace.server.net.registry.TagSet;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.decoration.Painting")
 public class Painting extends HangingEntity {
-    public static final int DATA_VARIANT = 8;
+    public static final int DATA_VARIANT = EntityDataIds.Painting_DATA_PAINTING_VARIANT_ID;
 
     private static final String REGISTRY = "minecraft:painting_variant";
 

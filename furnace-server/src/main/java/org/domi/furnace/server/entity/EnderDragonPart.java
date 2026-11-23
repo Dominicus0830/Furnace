@@ -5,6 +5,7 @@ package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.Pos;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.boss.EnderDragonPart")
 public final class EnderDragonPart implements Targetable {
     public final EnderDragon parent;
     public final String name;
