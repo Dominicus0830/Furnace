@@ -1,4 +1,4 @@
-package org.domi.furnace.compat.paper;
+package org.bukkit.craftbukkit.help;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -12,32 +12,32 @@ import org.bukkit.help.HelpTopic;
 import org.bukkit.help.HelpTopicFactory;
 
 /**
- * Bukkit HelpMap. 플러그인이 넣은 항목·공장을 보관하고 돌려준다(CraftBukkit SimpleHelpMap 처럼 이름은 대소문자 무시).
+ * Bukkit HelpMap(Paper 와 같은 이름 SimpleHelpMap — T-264). 플러그인이 넣은 항목·공장을 보관하고 돌려준다(CraftBukkit SimpleHelpMap 처럼 이름은 대소문자 무시).
  * Furnace 의 /help 는 바닐라 명령 트리 도움말이라 여기 넣은 항목을 아직 보이지 않는다 — 문서 docs/api/compat-paper.md.
  */
-public final class CompatHelpMap implements HelpMap {
+public class SimpleHelpMap implements HelpMap {
 
-    private final Map<String, HelpTopic> topics = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+    private final Map<String, HelpTopic> helpTopics = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
     private final Map<Class<?>, HelpTopicFactory<?>> factories = new ConcurrentHashMap<>();
 
     @Override
     public synchronized HelpTopic getHelpTopic(String topicName) {
         if (topicName == null) return null;
         if (topicName.isEmpty()) return null;
-        return topics.get(topicName);
+        return helpTopics.get(topicName);
     }
 
     @Override
-    public synchronized Collection<HelpTopic> getHelpTopics() { return List.copyOf(topics.values()); }
+    public synchronized Collection<HelpTopic> getHelpTopics() { return List.copyOf(helpTopics.values()); }
 
     @Override
     public synchronized void addTopic(HelpTopic topic) {
         if (topic == null) throw new IllegalArgumentException("topic is null");
-        topics.putIfAbsent(topic.getName(), topic);   // CraftBukkit: 이미 있는 이름은 덮지 않는다
+        helpTopics.putIfAbsent(topic.getName(), topic);   // CraftBukkit: 이미 있는 이름은 덮지 않는다
     }
 
     @Override
-    public synchronized void clear() { topics.clear(); }
+    public synchronized void clear() { helpTopics.clear(); }
 
     @Override
     public void registerHelpTopicFactory(Class<?> commandClass, HelpTopicFactory<?> factory) {

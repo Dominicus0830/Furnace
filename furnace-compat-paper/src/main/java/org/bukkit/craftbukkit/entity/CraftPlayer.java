@@ -5,7 +5,8 @@ import java.util.Locale;
 import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
 import org.domi.furnace.compat.paper.Compat;
-import org.domi.furnace.compat.paper.CompatPlayerInventory;
+import org.bukkit.craftbukkit.inventory.CraftInventoryPlayer;
+import org.bukkit.craftbukkit.inventory.CraftInventoryPlayer;
 
 /** Furnace 플레이어 위의 Bukkit Player. 접속이 끊긴 뒤에도 객체는 남지만 isOnline() 이 false 다. */
 @org.bukkit.configuration.serialization.DelegateDeserialization(org.bukkit.craftbukkit.CraftOfflinePlayer.class)
@@ -73,12 +74,12 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
     @Override
     protected net.minecraft.world.entity.Entity createHandle() { return new net.minecraft.server.level.ServerPlayer(this); }
 
-    private CompatPlayerInventory inventory;
+    private CraftInventoryPlayer inventory;
 
     @Override
     public org.bukkit.inventory.PlayerInventory getInventory() {
-        CompatPlayerInventory i = inventory;
-        if (i == null) inventory = i = new CompatPlayerInventory(this);
+        CraftInventoryPlayer i = inventory;
+        if (i == null) inventory = i = new CraftInventoryPlayer(this);
         return i;
     }
 
@@ -94,14 +95,14 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
     @Override
     public org.bukkit.inventory.InventoryView openInventory(org.bukkit.inventory.Inventory inventory) {
         java.util.Objects.requireNonNull(inventory, "inventory");
-        return org.domi.furnace.compat.paper.CompatMenuInventory.open(this, inventory);
+        return org.bukkit.craftbukkit.inventory.CraftInventoryCustom.open(this, inventory);
     }
 
     @Override
     public void closeInventory() { handle.closeContainer(); }
 
     @Override
-    public org.bukkit.inventory.InventoryView getOpenInventory() { return org.domi.furnace.compat.paper.CompatMenuInventory.openView(this); }
+    public org.bukkit.inventory.InventoryView getOpenInventory() { return org.bukkit.craftbukkit.inventory.CraftInventoryCustom.openView(this); }
 
     @Override
     public String getName() { return handle.name(); }

@@ -1,10 +1,8 @@
 package org.domi.furnace.compat.paper;
 
-import org.bukkit.Server;
-import org.bukkit.command.CommandSender;
 
-/** 플레이어·콘솔이 아닌 Furnace 발신자(명령 블록 등). */
-class CompatSender implements CommandSender {
+/** 플레이어·콘솔·RCON 이 아닌 Furnace 발신자(명령 블록 등). Paper 처럼 {@link org.bukkit.craftbukkit.command.ServerCommandSender} 아래. */
+class CompatSender extends org.bukkit.craftbukkit.command.ServerCommandSender {
 
     private final org.domi.furnace.api.command.CommandSender handle;
 
@@ -19,9 +17,6 @@ class CompatSender implements CommandSender {
     public void sendMessage(String... messages) {
         for (String m : messages) sendMessage(m);
     }
-
-    @Override
-    public Server getServer() { return org.bukkit.Bukkit.getServer(); }
 
     @Override
     public String getName() { return handle.name(); }

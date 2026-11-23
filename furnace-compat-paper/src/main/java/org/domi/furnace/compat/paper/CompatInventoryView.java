@@ -1,4 +1,4 @@
-// 플레이어가 보는 창 — 위쪽 인벤토리(플러그인 메뉴면 CompatMenuInventory, 아니면 SnapshotInventory)와 아래쪽 플레이어 인벤토리.
+// 플레이어가 보는 창 — 위쪽 인벤토리(플러그인 메뉴면 CraftInventoryCustom, 아니면 SnapshotInventory)와 아래쪽 플레이어 인벤토리.
 // 칸 번호 변환·칸 종류는 CraftBukkit 의 창 규칙과 같다(위쪽 칸 다음에 플레이어 주 인벤토리 27칸, 그다음 핫바 9칸. 플레이어 인벤토리 창은
 // 0 결과·1..4 제작·5..8 방어구·9..35 주·36..44 핫바·45 왼손).
 package org.domi.furnace.compat.paper;
@@ -10,6 +10,7 @@ import org.bukkit.event.inventory.InventoryType.SlotType;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryView;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.craftbukkit.inventory.CraftInventoryCustom;
 
 public class CompatInventoryView implements InventoryView {
 
@@ -20,7 +21,7 @@ public class CompatInventoryView implements InventoryView {
     /** 이벤트 시점의 커서(빈 것은 EMPTY). 이벤트 밖에서 만든 창은 null — 커서를 모른다. */
     private final org.domi.furnace.api.item.ItemStack cursor;
 
-    CompatInventoryView(CraftPlayer player, Inventory top, InventoryType type, String title, org.domi.furnace.api.item.ItemStack cursor) {
+    public CompatInventoryView(CraftPlayer player, Inventory top, InventoryType type, String title, org.domi.furnace.api.item.ItemStack cursor) {
         this.player = player;
         this.top = top;
         this.type = type;
@@ -125,15 +126,15 @@ public class CompatInventoryView implements InventoryView {
     /** Paper: 이 창의 제목(setTitle 로 바꿨으면 그 값). 같은 인벤토리를 보는 다른 사람의 setTitle 은 보이지 않는다. */
     @Override
     public String getTitle() {
-        if (!(top instanceof CompatMenuInventory m)) return title;
+        if (!(top instanceof CraftInventoryCustom m)) return title;
         org.domi.furnace.api.text.Text shown = player.furnaceHandle().menuTitle(m.menu());
-        if (shown == null || shown == m.menu().title()) return m.title();
+        if (shown == null || shown == m.menu().title()) return m.titleText();
         String raw = m.retitledRaw(player.getUniqueId(), shown);
         return raw != null ? raw : Compat.legacy(shown);
     }
 
     @Override
-    public String getOriginalTitle() { return top instanceof CompatMenuInventory m ? m.title() : title; }
+    public String getOriginalTitle() { return top instanceof CraftInventoryCustom m ? m.titleText() : title; }
 
     /**
      * Paper CraftInventoryView#setTitle: 이 플레이어 창에만 open_screen 을 다시 보낸다 — 인벤토리 제목·다른 보는 사람·다음에 여는 창은 그대로.
@@ -142,7 +143,7 @@ public class CompatInventoryView implements InventoryView {
     @Override
     public void setTitle(String title) {
         if (title == null) throw new IllegalArgumentException("Title cannot be null");
-        if (top instanceof CompatMenuInventory m) {
+        if (top instanceof CraftInventoryCustom m) {
             org.domi.furnace.api.text.Text t = Compat.text(title);
             m.retitled(player.getUniqueId(), t, title);   // getTitle 이 서식 문자열을 그대로 돌려주게(Text 를 거치면 §r 이 붙는 등 달라진다)
             player.furnaceHandle().retitleMenu(t);

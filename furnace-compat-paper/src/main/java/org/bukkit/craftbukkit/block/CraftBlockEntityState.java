@@ -3,6 +3,7 @@ package org.bukkit.craftbukkit.block;
 import org.domi.furnace.api.nbt.NbtCompound;
 import org.domi.furnace.api.world.BlockPos;
 import org.domi.furnace.compat.paper.Compat;
+import org.bukkit.craftbukkit.inventory.CraftInventory;
 
 /**
  * Paper CraftBlockEntityState: 블록 엔티티가 있는 블록의 상태. 만들 때 블록 엔티티 NBT 사본(스냅숏)을 떠 두고, 하위 클래스(표지판 등)는

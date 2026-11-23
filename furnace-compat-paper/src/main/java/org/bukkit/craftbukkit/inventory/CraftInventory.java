@@ -1,7 +1,7 @@
 // Furnace Inventory 위의 Bukkit Inventory. 칸 읽기·쓰기는 Furnace 의 Future 가 곧바로 끝나는 경우(주인 스레드, 플레이어 읽기)를 동기로 올린다.
 // 소유 스레드가 아닌 곳(접속·퇴장 처리기, 전역 스레드의 명령)의 쓰기는 소유 스레드로 예약되는데, Bukkit 코드는 쓰자마자 읽는다고 믿으므로
 // 이 객체가 "아직 적용되지 않은 쓰기"를 들고 있다가 읽을 때 겹쳐 보여 준다(같은 스레드의 addItem 두 번이 서로 덮어쓰지 않는다).
-package org.domi.furnace.compat.paper;
+package org.bukkit.craftbukkit.inventory;
 
 import java.util.AbstractList;
 import java.util.HashMap;
@@ -14,20 +14,25 @@ import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
+import org.domi.furnace.compat.paper.PlainSlot;
+import org.domi.furnace.compat.paper.ItemSlot;
+import org.domi.furnace.compat.paper.CompatItems;
+import org.domi.furnace.compat.paper.SkullProfileFill;
+import org.domi.furnace.compat.paper.Owned;
+import org.domi.furnace.compat.paper.InventoryParts;
 
-public class CompatInventory implements Inventory {
+public class CraftInventory implements Inventory {
 
-    final org.domi.furnace.api.inventory.Inventory handle;
+    public final org.domi.furnace.api.inventory.Inventory handle;
     private final InventoryType type;
     private final java.util.function.Supplier<InventoryHolder> holder;
 
     /** 예약돼 아직 적용되지 않은 칸 쓰기: 칸 번호 → (값, 쓰기 번호). 같은 칸을 다시 쓰면 나중 것이 이긴다. */
-    private record Pending(org.domi.furnace.api.item.ItemStack stack, long seq) {}
 
-    private final java.util.Map<Integer, Pending> pending = new java.util.HashMap<>();
+    private final java.util.Map<Integer, InventoryParts.Pending> pending = new java.util.HashMap<>();
     private long seq;
 
-    CompatInventory(org.domi.furnace.api.inventory.Inventory handle, InventoryType type, java.util.function.Supplier<InventoryHolder> holder) {
+    public CraftInventory(org.domi.furnace.api.inventory.Inventory handle, InventoryType type, java.util.function.Supplier<InventoryHolder> holder) {
         this.handle = handle;
         this.type = type;
         this.holder = holder;
@@ -35,9 +40,9 @@ public class CompatInventory implements Inventory {
 
     // ------------------------------------------------------------------ 칸 읽기·쓰기(예약된 쓰기를 겹쳐 본다)
 
-    final org.domi.furnace.api.item.ItemStack readSlot(int index) {
+    public final org.domi.furnace.api.item.ItemStack readSlot(int index) {
         synchronized (pending) {
-            Pending p = pending.get(index);
+            InventoryParts.Pending p = pending.get(index);
             if (p != null) return p.stack();
         }
         return Owned.read(handle.get(index), "Inventory#getItem(" + index + ")");
@@ -51,7 +56,7 @@ public class CompatInventory implements Inventory {
         return all;
     }
 
-    final void writeSlot(int index, org.domi.furnace.api.item.ItemStack stack, String what) {
+    public final void writeSlot(int index, org.domi.furnace.api.item.ItemStack stack, String what) {
         org.domi.furnace.api.item.ItemStack value = stack.isEmpty() ? org.domi.furnace.api.item.ItemStack.EMPTY : stack;
         CompletableFuture<Void> f = handle.set(index, value);
         // 머리면 스킨을 비동기로 채운다(Paper SPIGOT-6558 — 칸이 아직 그대로일 때만 바꾼다). 쓰기가 성공한 뒤에만 시작한다(접속 끊긴 플레이어 등에는 조회를 안 보낸다).
@@ -65,11 +70,11 @@ public class CompatInventory implements Inventory {
         long mine;
         synchronized (pending) {
             mine = ++seq;
-            pending.put(index, new Pending(value, mine));
+            pending.put(index, new InventoryParts.Pending(value, mine));
         }
         f.whenComplete((v, e) -> {
             synchronized (pending) {
-                Pending cur = pending.get(index);
+                InventoryParts.Pending cur = pending.get(index);
                 if (cur != null && cur.seq() == mine) pending.remove(index);
             }
             if (e != null) System.getLogger("FurnaceCompat").log(System.Logger.Level.WARNING, org.domi.furnace.compat.i18n.CompatLang.t("compat.scheduled-task-failed", what), e);
@@ -77,7 +82,7 @@ public class CompatInventory implements Inventory {
     }
 
     /** 저장 칸 수(플레이어는 방어구·왼손을 뺀 36). */
-    int storageSize() { return handle.size(); }
+    public int storageSize() { return handle.size(); }
 
     // ------------------------------------------------------------------ 칸 거울
 
@@ -87,60 +92,22 @@ public class CompatInventory implements Inventory {
      * 떨어져 나간 거울들은 사본 하나를 함께 본다: CraftBukkit 의 거울이 NMS 객체에 묶여(칸 번호가 아니라 칸 안의 아이템에 묶인다)
      * 칸이 바뀐 뒤에도 같은 칸에서 꺼낸 거울끼리 그 고아 NMS 객체를 공유하는 것과 같다(R1, 검토에서 Paper 와 대조).
      */
-    private final class Mirror implements ItemSlot {
-        private final int index;
-        private final Epoch epoch;
-
-        Mirror(int index, Epoch epoch) {
-            this.index = index;
-            this.epoch = epoch;
-        }
-
-        @Override
-        public org.domi.furnace.api.item.ItemStack get() {
-            PlainSlot d = epoch.get();
-            return d != null ? d.get() : readSlot(index);
-        }
-
-        @Override
-        public void set(org.domi.furnace.api.item.ItemStack stack) {
-            PlainSlot d = epoch.get();
-            if (d != null) d.set(stack);
-            else writeSlot(index, stack, "writing ItemStack(Inventory slot " + index + ")");
-        }
-
-        @Override
-        public int amount() {
-            PlainSlot d = epoch.get();
-            return d != null ? d.amount() : get().amount();
-        }
-
-        @Override
-        public void setAmount(int n) {
-            PlainSlot d = epoch.get();
-            if (d != null) d.setAmount(n);
-            else set(get().withAmount(n));
-        }
-    }
-
     /**
      * 칸 하나의 "세대": 그 칸의 거울들이 함께 쥔다. 비어 있으면 거울은 살아 있고,
      * {@link #detachMirrors} 가 떼어 낸 순간의 값을 담은 사본 하나를 넣으면 그 세대의 모든 거울이 한꺼번에 그 사본을 보게 된다.
      * 거울 목록을 따로 들고 있지 않으므로 거울을 만드는 데 드는 일이 칸을 읽은 횟수와 무관하다(약한 참조 목록 폭주 제거, T-070).
      */
-    private static final class Epoch extends java.util.concurrent.atomic.AtomicReference<PlainSlot> {}
-
     /** 칸 번호 → 지금 세대(거울이 한 번도 안 만들어졌거나 떼어 낸 직후면 없다). 크기는 칸 수를 넘지 않는다. */
-    private final java.util.concurrent.ConcurrentHashMap<Integer, Epoch> epochs = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.concurrent.ConcurrentHashMap<Integer, InventoryParts.Epoch> epochs = new java.util.concurrent.ConcurrentHashMap<>();
 
     /** 테스트용: 지금 세대를 들고 있는 칸 수. */
-    final int liveEpochCount() { return epochs.size(); }
+    public final int liveEpochCount() { return epochs.size(); }
 
-    final ItemSlot mirror(int index) {
+    public final ItemSlot mirror(int index) {
         while (true) {
-            Epoch e = epochs.get(index);
-            if (e == null) e = epochs.computeIfAbsent(index, k -> new Epoch());
-            if (e.get() == null) return new Mirror(index, e);
+            InventoryParts.Epoch e = epochs.get(index);
+            if (e == null) e = epochs.computeIfAbsent(index, k -> new InventoryParts.Epoch());
+            if (e.get() == null) return new InventoryParts.Mirror(this, index, e);
             epochs.remove(index, e); // 막 떨어져 나간 세대 — 치우고 새 세대로
         }
     }
@@ -148,7 +115,7 @@ public class CompatInventory implements Inventory {
     /** 칸 값을 예외 없이 본다: 예약된 쓰기가 있으면 그것, 곧바로 읽히면 그 값, 소유 스레드가 아니라 못 읽으면 null. */
     private org.domi.furnace.api.item.ItemStack peekSlot(int index) {
         synchronized (pending) {
-            Pending p = pending.get(index);
+            InventoryParts.Pending p = pending.get(index);
             if (p != null) return p.stack();
         }
         CompletableFuture<org.domi.furnace.api.item.ItemStack> f = handle.get(index);
@@ -162,7 +129,7 @@ public class CompatInventory implements Inventory {
 
     /** 거울을 거치지 않는 칸 쓰기 직전에 부른다: 그 칸의 거울들을 지금 값의 평범한 사본 하나로 떼어 낸다. */
     private void detachMirrors(int index) {
-        Epoch e = epochs.get(index);
+        InventoryParts.Epoch e = epochs.get(index);
         if (e == null) return;
         org.domi.furnace.api.item.ItemStack now = peekSlot(index);
         if (now == null) return; // 소유 스레드가 아니라 읽을 수 없다 — 그 거울도 읽을 때마다 같은 예외를 던지므로 떼어 낼 값이 없다
@@ -437,7 +404,7 @@ public class CompatInventory implements Inventory {
     private volatile org.bukkit.Location location;
 
     /** 위치를 단다(만든 직후 한 번). */
-    final CompatInventory locatedAt(org.bukkit.Location at) {
+    public final CraftInventory locatedAt(org.bukkit.Location at) {
         this.location = at;
         return this;
     }

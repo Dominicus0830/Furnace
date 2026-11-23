@@ -10,8 +10,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.IntPredicate;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.craftbukkit.inventory.CraftInventory;
 
-class SnapshotInventory extends CompatInventory {
+class SnapshotInventory extends CraftInventory {
 
     private static final IntPredicate READ_ONLY = i -> false;
 

@@ -4,6 +4,7 @@ package org.domi.furnace.compat.paper;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.domi.furnace.api.world.BlockPos;
+import org.bukkit.craftbukkit.inventory.CraftInventory;
 
 public final class BlockInventories {
 
@@ -36,16 +37,16 @@ public final class BlockInventories {
 
     /** 사본 인벤토리의 지금 칸 → NBT Items(비지 않은 칸만) — 상태가 update 때 되쓸 때. */
     public static org.domi.furnace.api.nbt.NbtList itemsNbt(Inventory snapshot) {
-        return ItemNbtCodec.writeItems(((CompatInventory) snapshot).handle.contents().join());
+        return ItemNbtCodec.writeItems(((CraftInventory) snapshot).handle.contents().join());
     }
 
     /** 종류에 맞는 Bukkit 인벤토리 형으로 감싼다(양조대·화로류는 하위 인터페이스). */
-    static CompatInventory wrap(org.domi.furnace.api.inventory.Inventory inv, java.util.function.Supplier<InventoryHolder> holder) {
+    static CraftInventory wrap(org.domi.furnace.api.inventory.Inventory inv, java.util.function.Supplier<InventoryHolder> holder) {
         var type = InventoryResultMappings.containerType(inv.type());
-        if (type == org.bukkit.event.inventory.InventoryType.BREWING) return new Brewer(inv, holder);
+        if (type == org.bukkit.event.inventory.InventoryType.BREWING) return new org.bukkit.craftbukkit.inventory.CraftInventoryBrewer(inv, holder);
         var kind = cookingKind(type);
-        if (kind != null) return new Furnace(inv, type, kind, holder);
-        return new CompatInventory(inv, type, holder);
+        if (kind != null) return new org.bukkit.craftbukkit.inventory.CraftInventoryFurnace(inv, type, kind, holder);
+        return new CraftInventory(inv, type, holder);
     }
 
     /** 화로류 인벤토리 종류 → 레시피 종류(화로류가 아니면 null). */
@@ -59,77 +60,13 @@ public final class BlockInventories {
     }
 
     /** Paper CraftInventoryFurnace#isFuel: 비었으면 거짓, 아니면 바닐라 연료 표. */
-    static boolean isFuel(org.bukkit.inventory.ItemStack item) {
+    public static boolean isFuel(org.bukkit.inventory.ItemStack item) {
         return item != null && !item.getType().isAir() && Compat.furnace().gameRegistries().fuelBurnTime(item.getType().getKey().toString()) > 0;
     }
 
     /** Paper CraftInventoryFurnace#canSmelt: RecipeManager.getRecipeFor(이 화로의 레시피 종류, 아이템) — 서버 화로가 쓰는 조회 그대로. */
-    static boolean canSmelt(org.domi.furnace.api.recipe.Recipe.CookingKind kind, org.bukkit.inventory.ItemStack item) {
+    public static boolean canSmelt(org.domi.furnace.api.recipe.Recipe.CookingKind kind, org.bukkit.inventory.ItemStack item) {
         if (item == null || item.getType().isAir()) return false;
         return Compat.furnace().recipes().canCook(kind, CompatItems.toFurnace(item));
-    }
-
-    /** 양조대의 살아 있는 인벤토리(Paper CraftInventoryBrewer): 0~2 병, 3 재료, 4 연료. */
-    static final class Brewer extends CompatInventory implements org.bukkit.inventory.BrewerInventory {
-        Brewer(org.domi.furnace.api.inventory.Inventory handle, java.util.function.Supplier<InventoryHolder> holder) {
-            super(handle, org.bukkit.event.inventory.InventoryType.BREWING, holder);
-        }
-
-        @Override
-        public org.bukkit.inventory.ItemStack getIngredient() { return getItem(3); }
-
-        @Override
-        public void setIngredient(org.bukkit.inventory.ItemStack ingredient) { setItem(3, ingredient); }
-
-        @Override
-        public org.bukkit.inventory.ItemStack getFuel() { return getItem(4); }
-
-        @Override
-        public void setFuel(org.bukkit.inventory.ItemStack fuel) { setItem(4, fuel); }
-
-        @Override
-        public org.bukkit.block.BrewingStand getHolder() {
-            return super.getHolder() instanceof org.bukkit.block.BrewingStand b ? b : null;
-        }
-    }
-
-    /** 화로류의 살아 있는 인벤토리(Paper CraftInventoryFurnace): 0 굽는 것, 1 연료, 2 결과. */
-    static final class Furnace extends CompatInventory implements org.bukkit.inventory.FurnaceInventory {
-        private final org.domi.furnace.api.recipe.Recipe.CookingKind kind;
-
-        Furnace(org.domi.furnace.api.inventory.Inventory handle, org.bukkit.event.inventory.InventoryType type,
-                org.domi.furnace.api.recipe.Recipe.CookingKind kind, java.util.function.Supplier<InventoryHolder> holder) {
-            super(handle, type, holder);
-            this.kind = kind;
-        }
-
-        @Override
-        public org.bukkit.inventory.ItemStack getResult() { return getItem(2); }
-
-        @Override
-        public org.bukkit.inventory.ItemStack getFuel() { return getItem(1); }
-
-        @Override
-        public org.bukkit.inventory.ItemStack getSmelting() { return getItem(0); }
-
-        @Override
-        public void setFuel(org.bukkit.inventory.ItemStack stack) { setItem(1, stack); }
-
-        @Override
-        public void setResult(org.bukkit.inventory.ItemStack stack) { setItem(2, stack); }
-
-        @Override
-        public void setSmelting(org.bukkit.inventory.ItemStack stack) { setItem(0, stack); }
-
-        @Override
-        public boolean isFuel(org.bukkit.inventory.ItemStack item) { return BlockInventories.isFuel(item); }
-
-        @Override
-        public boolean canSmelt(org.bukkit.inventory.ItemStack item) { return BlockInventories.canSmelt(kind, item); }
-
-        @Override
-        public org.bukkit.block.Furnace getHolder() {
-            return super.getHolder() instanceof org.bukkit.block.Furnace f ? f : null;
-        }
     }
 }

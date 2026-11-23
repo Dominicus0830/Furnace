@@ -58,6 +58,7 @@ interfaces org/bukkit/craftbukkit/entity/CraftSnowman paper-only=com/destroystok
 interfaces org/bukkit/craftbukkit/entity/CraftThrownPotion paper-only=org/bukkit/entity/LingeringPotion,org/bukkit/entity/SplashPotion furnace-only=
 interfaces org/bukkit/craftbukkit/entity/CraftWitch paper-only=com/destroystokyo/paper/entity/CraftRangedEntity furnace-only=
 interfaces org/bukkit/craftbukkit/entity/CraftWither paper-only=com/destroystokyo/paper/entity/CraftRangedEntity furnace-only=
+interfaces org/bukkit/craftbukkit/inventory/CraftInventoryPlayer paper-only=org/bukkit/inventory/EntityEquipment furnace-only=
 interfaces org/bukkit/craftbukkit/inventory/CraftMerchant paper-only=org/bukkit/inventory/Merchant furnace-only=
 interfaces org/bukkit/craftbukkit/inventory/trim/CraftTrimMaterial paper-only=org/bukkit/craftbukkit/util/Handleable furnace-only=
 interfaces org/bukkit/craftbukkit/inventory/trim/CraftTrimPattern paper-only=org/bukkit/craftbukkit/util/Handleable furnace-only=

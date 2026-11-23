@@ -16,6 +16,7 @@ import org.domi.furnace.api.world.BlockData;
 import org.domi.furnace.api.world.BlockPos;
 import org.domi.furnace.test.FurnaceTestServer;
 import org.junit.jupiter.api.*;
+import org.bukkit.craftbukkit.inventory.CraftInventory;
 
 /** T-141 E2c: Container#getInventory 는 그 칸 블록 엔티티의 살아 있는 인벤토리(Paper CraftInventory(tileEntity)) — 소유 스레드에서 곧바로 읽고 쓴다. */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -441,7 +442,7 @@ class BukkitContainerInventoryTest {
                 var liveForms = liveInv.contents().join();
                 Barrel b = (Barrel) Compat.block(dim, pos).getState();
                 Inventory snap = b.getSnapshotInventory();
-                var snapForms = ((CompatInventory) snap).handle.contents().join();
+                var snapForms = ((CraftInventory) snap).handle.contents().join();
                 for (int i = 0; i < liveForms.size(); i++) {
                     assertEquals(liveForms.get(i), snapForms.get(i), "칸 " + i + " 사본 읽기");
                     assertEquals(b.getInventory().getItem(i), snap.getItem(i), "칸 " + i + " Bukkit 아이템");

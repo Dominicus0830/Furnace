@@ -139,6 +139,7 @@ def main(argv):
                 by_api[x].add(n)
 
     state = {}
+    cands = {}   # furnace-other-name: 같은 API 를 구현하는 Furnace 클래스(--list 에 찍는다)
     for c, r in rows.items():
         if r['kind'] != 'impl':
             continue
@@ -155,6 +156,7 @@ def main(argv):
             continue
         if any(by_api.get(i) for i in key):
             state[c] = 'furnace-other-name'
+            cands[c] = sorted({n for i in key for n in by_api.get(i, ())})
         elif any(i in fur for i in key):
             state[c] = 'no-impl:api-type-in-furnace'
         else:
@@ -179,7 +181,8 @@ def main(argv):
     if listing:
         for c in sorted(state):
             print(state[c], c[len(CB):], 'super=' + (rows[c]['sup'] or '-').replace(CB, ''),
-                  'furnace-super=' + ((fur[c]['sup'] or '-').replace(CB, '') if c in fur else '-'))
+                  'furnace-super=' + ((fur[c]['sup'] or '-').replace(CB, '') if c in fur else '-'),
+                  *(['furnace=' + ','.join(x.rsplit('/', 1)[-1] for x in cands[c][:6])] if c in cands else []))
 
 
 if __name__ == '__main__':
