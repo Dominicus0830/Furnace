@@ -6,7 +6,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 창 종류(Mojang 이름 shim). 서버가 연 창의 종류 이름(minecraft:generic_9x3 …)을 이 객체로 비춘다 — 같은 이름이면 같은 객체.
  * 바닐라의 종류 상수·메뉴 만들기(MenuSupplier)는 아직 없다(부르면 링크 덫).
  */
-public class MenuType<T extends AbstractContainerMenu> {
+class MenuType {
 
     private static final ConcurrentHashMap<String, MenuType<?>> BY_KEY = new ConcurrentHashMap<>();
 
