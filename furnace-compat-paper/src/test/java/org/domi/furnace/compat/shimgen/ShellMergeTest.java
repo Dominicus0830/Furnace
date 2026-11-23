@@ -267,7 +267,7 @@ class ShellMergeTest {
         assertTrue(annotated(merged.get("org/bukkit/craftbukkit/zz/CraftLeaf"), "other(I)Lnet/minecraft/zz/Zom;", FullShells.SHELL_MEMBER));
 
         CraftRoles roles = new CraftRoles(g);
-        String tsv = roles.build(m.bridges);
+        String tsv = roles.build(m.bridges, g.conversions.converted);
         assertTrue(tsv.contains("org/bukkit/craftbukkit/zz/CraftLeaf\tgetHandle\t()Lnet/minecraft/zz/Zom;\tb\n"), tsv);
         assertTrue(tsv.contains("org/bukkit/craftbukkit/zz/CraftLeaf\tother\t(I)Lnet/minecraft/zz/Zom;\td\n"), tsv);
 
@@ -295,6 +295,73 @@ class ShellMergeTest {
             root.getField("h").set(l, mob.getConstructor().newInstance());
             var ex = assertThrows(InvocationTargetException.class, () -> narrow.invoke(l));
             assertInstanceOf(UnsupportedNmsCall.class, ex.getCause(), "형이 안 맞으면 ClassCastException 이 아니라 껍데기와 같은 오류");
+        }
+    }
+
+    /**
+     * T-264 P4 변환 가족: CraftBukkit 클래스의 레지스트리 값 변환 정적 메서드는 손 클래스에 합칠 때(CraftEff)도 통째 껍데기(CraftEff2)도 진짜 몸통
+     * (CraftConvert, @CraftBridge)이 되고, 키·위치 변환이나 Registries 필드가 없는 형은 껍데기로 남는다. 만든 클래스를 JVM 에 올려 부른다.
+     */
+    @Test
+    void craftRegistryConversionsGetRealBodies() throws Exception {
+        String reg = "\tLnet/minecraft/resources/ResourceKey;\tLnet/minecraft/resources/ResourceKey<Lnet/minecraft/core/Registry<";
+        String paper = String.join("\n",
+                "#furnace-sig-table\t2\tpaper-server-test",
+                "F\t25\tnet/minecraft/core/registries/Registries\tMOB_EFFECT" + reg + "Lnet/minecraft/world/effect/MobEffect;>;>;",
+                "F\t25\tnet/minecraft/core/registries/Registries\tPOTION" + reg + "Lnet/minecraft/world/item/alchemy/Potion;>;>;",
+                "C\t33\torg/bukkit/craftbukkit/zz/CraftEff\tjava/lang/Object\t-\t-\t-",
+                "M\t9\torg/bukkit/craftbukkit/zz/CraftEff\tminecraftToBukkit\t(Lnet/minecraft/world/effect/MobEffect;)Lorg/bukkit/potion/PotionEffectType;\t-",
+                "M\t9\torg/bukkit/craftbukkit/zz/CraftEff\tbukkitToMinecraftHolder\t(Lorg/bukkit/potion/PotionEffectType;)Lnet/minecraft/core/Holder;"
+                        + "\t(Lorg/bukkit/potion/PotionEffectType;)Lnet/minecraft/core/Holder<Lnet/minecraft/world/effect/MobEffect;>;",
+                "C\t33\torg/bukkit/craftbukkit/zz/CraftEff2\tjava/lang/Object\t-\t-\t-",
+                "M\t1\torg/bukkit/craftbukkit/zz/CraftEff2\t<init>\t()V\t-",
+                "M\t9\torg/bukkit/craftbukkit/zz/CraftEff2\tbukkitToMinecraft\t(Lorg/bukkit/potion/PotionEffectType;)Lnet/minecraft/world/effect/MobEffect;\t-",
+                "M\t9\torg/bukkit/craftbukkit/zz/CraftEff2\tminecraftHolderToBukkit\t(Lnet/minecraft/core/Holder;)Lorg/bukkit/potion/PotionEffectType;"
+                        + "\t(Lnet/minecraft/core/Holder<Lnet/minecraft/world/effect/MobEffect;>;)Lorg/bukkit/potion/PotionEffectType;",
+                "M\t9\torg/bukkit/craftbukkit/zz/CraftEff2\tbukkitToMinecraftHolder\t(Lorg/bukkit/potion/PotionType;)Lnet/minecraft/core/Holder;"
+                        + "\t(Lorg/bukkit/potion/PotionType;)Lnet/minecraft/core/Holder<Lnet/minecraft/world/item/alchemy/Potion;>;",
+                "M\t9\torg/bukkit/craftbukkit/zz/CraftEff2\tminecraftToBukkit\t(Lnet/minecraft/resources/ResourceLocation;)Lorg/bukkit/NamespacedKey;\t-",
+                "M\t9\torg/bukkit/craftbukkit/zz/CraftEff2\tminecraftToBukkit\t(Lnet/minecraft/core/BlockPos;)Lorg/bukkit/Art;\t-",
+                "");
+        Path compat = tmp.resolve("conv");
+        write(compat, "org/bukkit/craftbukkit/zz/CraftEff", Opcodes.ACC_PUBLIC, "java/lang/Object", null, cw -> ctor(cw, "java/lang/Object"));
+        FullShells g = new FullShells(table(paper), table(EMPTY), table(EMPTY), new FullShells.Existing(List.of(compat)));
+        Map<String, byte[]> shells = g.generate();
+        ShellMerge m = new ShellMerge(g, FullShells.Existing.classesIn(compat));
+        Map<String, byte[]> merged = m.merge();
+        assertEquals(Set.of("org/bukkit/craftbukkit/zz/CraftEff#minecraftToBukkit(Lnet/minecraft/world/effect/MobEffect;)Lorg/bukkit/potion/PotionEffectType;",
+                "org/bukkit/craftbukkit/zz/CraftEff#bukkitToMinecraftHolder(Lorg/bukkit/potion/PotionEffectType;)Lnet/minecraft/core/Holder;",
+                "org/bukkit/craftbukkit/zz/CraftEff2#bukkitToMinecraft(Lorg/bukkit/potion/PotionEffectType;)Lnet/minecraft/world/effect/MobEffect;",
+                "org/bukkit/craftbukkit/zz/CraftEff2#minecraftHolderToBukkit(Lnet/minecraft/core/Holder;)Lorg/bukkit/potion/PotionEffectType;",
+                "org/bukkit/craftbukkit/zz/CraftEff2#bukkitToMinecraftHolder(Lorg/bukkit/potion/PotionType;)Lnet/minecraft/core/Holder;"), g.conversions.converted);
+        String bridge = "Lorg/domi/furnace/compat/nms/CraftBridge;";
+        byte[] eff2 = shells.get("org/bukkit/craftbukkit/zz/CraftEff2");
+        assertTrue(annotated(eff2, "bukkitToMinecraft(Lorg/bukkit/potion/PotionEffectType;)Lnet/minecraft/world/effect/MobEffect;", bridge));
+        assertFalse(annotated(eff2, "bukkitToMinecraft(Lorg/bukkit/potion/PotionEffectType;)Lnet/minecraft/world/effect/MobEffect;", FullShells.SHELL_MEMBER));
+        assertTrue(annotated(eff2, "minecraftToBukkit(Lnet/minecraft/resources/ResourceLocation;)Lorg/bukkit/NamespacedKey;", FullShells.SHELL_MEMBER), "위치 변환은 레지스트리 값 변환이 아니다");
+        assertTrue(annotated(eff2, "minecraftToBukkit(Lnet/minecraft/core/BlockPos;)Lorg/bukkit/Art;", FullShells.SHELL_MEMBER), "Registries 필드가 없는 형");
+        assertTrue(annotated(merged.get("org/bukkit/craftbukkit/zz/CraftEff"), "minecraftToBukkit(Lnet/minecraft/world/effect/MobEffect;)Lorg/bukkit/potion/PotionEffectType;", bridge));
+        String tsv = new CraftRoles(g).build(m.bridges, g.conversions.converted);
+        assertTrue(tsv.contains("org/bukkit/craftbukkit/zz/CraftEff\tminecraftToBukkit\t(Lnet/minecraft/world/effect/MobEffect;)Lorg/bukkit/potion/PotionEffectType;\tc\n"), tsv);
+        assertTrue(tsv.contains("org/bukkit/craftbukkit/zz/CraftEff2\tminecraftToBukkit\t(Lnet/minecraft/core/BlockPos;)Lorg/bukkit/Art;\td\n"), tsv);
+
+        Path out = tmp.resolve("conv-shells");
+        for (Map.Entry<String, byte[]> e : Map.of("org/bukkit/craftbukkit/zz/CraftEff", merged.get("org/bukkit/craftbukkit/zz/CraftEff"),
+                "org/bukkit/craftbukkit/zz/CraftEff2", eff2).entrySet()) {
+            Path p = out.resolve(e.getKey() + ".class");
+            Files.createDirectories(p.getParent());
+            Files.write(p, e.getValue());
+        }
+        try (URLClassLoader cl = new URLClassLoader(new URL[]{out.toUri().toURL(), compat.toUri().toURL()}, getClass().getClassLoader())) {
+            Class<?> c1 = Class.forName("org.bukkit.craftbukkit.zz.CraftEff", true, cl);
+            Class<?> c2 = Class.forName("org.bukkit.craftbukkit.zz.CraftEff2", true, cl);
+            // 실제 레지스트리 왕복은 서버가 있어야 해서 CraftConvertTest 가 본다 — 여기서는 몸통이 검증기를 지나고 도우미로 가는지만
+            Class<?> mobEffect = net.minecraft.world.effect.MobEffect.class;
+            var nul = assertThrows(InvocationTargetException.class, () -> c1.getMethod("minecraftToBukkit", mobEffect).invoke(null, (Object) null));
+            assertInstanceOf(IllegalArgumentException.class, nul.getCause());
+            var missing = assertThrows(InvocationTargetException.class,
+                    () -> c2.getMethod("bukkitToMinecraftHolder", org.bukkit.potion.PotionType.class).invoke(null, org.bukkit.potion.PotionType.WATER));
+            assertInstanceOf(UnsupportedNmsCall.class, missing.getCause(), "Furnace 가 아직 주지 않는 레지스트리(물약)는 껍데기와 같은 오류");
         }
     }
 

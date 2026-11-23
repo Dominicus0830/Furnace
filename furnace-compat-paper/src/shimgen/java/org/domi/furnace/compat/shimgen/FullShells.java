@@ -62,6 +62,8 @@ public final class FullShells {
     FillTable fillTable;
     /** T-262: 채우기 계획. */
     Fills fills = new Fills();
+    /** T-264 P4: 변환 가족 W/U(CraftBukkit 레지스트리 값 변환 정적 메서드의 진짜 몸통). */
+    final CraftConversions conversions;
 
     /** 범위 안 클래스 → 종류. */
     final Map<String, Scope> scope = new TreeMap<>();
@@ -84,6 +86,7 @@ public final class FullShells {
         this.api = api;
         this.apiClasses = api.classes().keySet();
         this.existing = existing;
+        this.conversions = new CraftConversions(paper);
     }
 
     /**
@@ -168,11 +171,12 @@ public final class FullShells {
             write(out.resolve(ShellMerge.MERGED), String.join("\n", merged) + "\n");
         }
         CraftRoles roles = new CraftRoles(g);
-        write(out.resolve(CraftRoles.PATH), roles.build(merge == null ? Set.of() : merge.bridges));
+        write(out.resolve(CraftRoles.PATH), roles.build(merge == null ? Set.of() : merge.bridges, g.conversions.converted));
         System.out.println("[full-shells] " + roles.summary());
         Files.createDirectories(report.toAbsolutePath().getParent());
         StringBuilder rep = new StringBuilder(g.report());
         if (merge != null) merge.report(rep);
+        g.conversions.report(rep);
         Files.writeString(report, rep.toString(), StandardCharsets.UTF_8);
         System.out.println("[full-shells] " + g.summary());
         if (baselinePath != null && areasPath != null && g.fillTable != null) {
@@ -187,6 +191,7 @@ public final class FullShells {
             }
         }
         if (merge != null) System.out.println("[full-shells] " + merge.summary());
+        System.out.println("[full-shells] " + g.conversions.summary());
     }
 
     /** 채움 표 지문(바닐라 표·Paper 표). 서명표 지문과 따로 둬서 추출기만 바꾸는 PR 이 서명표 지문을 건드리지 않게 한다. */
@@ -463,6 +468,12 @@ public final class FullShells {
         if (isAbstract) {
             liveMembers++;   // 추상 선언은 모양 그대로 — 해석은 바닐라와 같다
             mv.visitEnd();
+            return;
+        }
+        CraftConversions.Conv conv = conversions.match(owner, m);
+        if (conv != null) {
+            CraftConversions.body(mv, owner, m, conv);
+            liveMembers++;
             return;
         }
         if (cf != null && filledBody(cw, mv, owner, m, cf)) {

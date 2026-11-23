@@ -188,8 +188,10 @@ build/full-shells/classes/**.class + report.md(이름 들어감 — 커밋·업�
 | 12 | datafix·gametest | 334+ | 2,132 | 맨 끝, V-09 와 맞춤 | Haiku medium | 1~2일 |
 
 - **T-264 P3 뒤 남은 던지는 `getHandle()` 뿌리 13곳(11-23, 코디네이터 확정 — 도미니코 위임).** 위에 손 접근자가 없어 좁힘 다리를 못 만든 자리다 — 진짜 NMS 객체를 주는 일이라 아래 몫으로 넘긴다. 시험 `CraftBridgeTest.THROWING_ROOTS` 가 이 목록을 들고 있어, **그 작업이 끝나는 PR 에서 목록의 이름을 지운다**(줄어들기만 — 살아났는데 안 지우면 시험이 지우라고 실패한다).
-  - P4(변환 가족 U — 레지스트리 값은 같은 키의 NMS 상수): `CraftPotionEffectType`, `CraftTrimMaterial`, `CraftTrimPattern`, `block/banner/CraftPatternType`.
-  - P4(생성기 — 인터페이스 표지): `entity/CraftEnemy`(구현 클래스는 P3 컴파일러 다리로 이미 산다, 인터페이스 자기 선언만 남음).
+  - P4(변환 가족 U — 레지스트리 값은 같은 키의 NMS 상수): ~~`CraftPotionEffectType`~~(P4 에서 지움), `CraftTrimMaterial`, `CraftTrimPattern`, `block/banner/CraftPatternType` — 이 셋은 NMS 쪽 데이터 팩 레지스트리(장식 재료·무늬·현수막 무늬)와 그 NMS 형이 먼저 있어야 한다(영역 9·10). 들어오면 `CraftPotionEffectType#getHandle` 과 같은 몸통(`CraftConvert.bukkitToMinecraft`)으로 채우고 이름을 지운다.
+  - **Paper 생성자 다리(T-264 P4 남은 몫).** 담당: T-264 스레드. 조건: 서버 러너(furnace-server-runner)에서 플러그인을 실제로 돌려 생성자 덫 계측(T-233)을 받은 뒤, 계측에 나온 Craft 생성자만 다리로 만든다(나오지 않은 생성자는 만들지 않는다 — 부르는 플러그인이 없다는 뜻).
+  - **T-264 P4 변환 가족(c 칸 73개)도 레지스트리를 기다린다.** 생성기가 몸통을 이미 냈고 레지스트리가 서버 묶음(`NmsRegistryAccess`)과 `Bukkit.getRegistry`(`CompatRegistries.forType`) 양쪽에 들어오면 저절로 산다. 지금 도는 것은 상태 효과·속성·엔티티 종류·그림뿐 — 나머지 목록은 껍데기 보고서 `report.md` 의 "conversion family W/U" 절과 설계서 [P4 구현].
+  - ~~P4(생성기 — 인터페이스 표지): `entity/CraftEnemy`~~ — 줄어들 목록에서 뺐다(P4 검토). 구현하는 손 클래스는 모두 P3 컴파일러 다리로 받아 인터페이스 자기 선언 몸통에 닿지 않는 영구 예외다(`CraftBridgeTest.UNREACHABLE_THROWING`).
   - 영역 10 + 소유 영역: `CraftServer`(영역 8 `PlayerList`), `block/CraftBlock`·`CraftRegionAccessor`·`generator/CraftLimitedRegion`·`generator/CraftChunkData`(영역 5 레벨·청크), `boss/CraftBossBar`(영역 8), `inventory/CraftInventoryView`(영역 4 메뉴), `tag/CraftTag`(영역 9 태그).
 - **어댑터 분리 4단계(손 shim 이전)도 영역 스레드 몫이다(코디네이터 11-23).** `src/main/java` 의 손 NMS shim 431개(+ CraftBukkit 219)를 영역마다 명세·조각(`src/shimspec`·`src/shims`)으로 옮긴다 — T-229 방식대로 옮긴 클래스의 javap 전후 같음을 증명하고, 경계는 `docs/ops/adapter-boundary.md`·`AdapterBoundaryStaticTest` 를 따른다. 영역별 손 shim 파일 수(11-23): CraftBukkit 219, NBT·core·util 85, 블록 84, 네트워크 62, 레벨 46, 서버 37, 그 밖 33, 청크·저장 31, 월드젠 21, 아이템 12, 엔티티 12, AI 8. 이전은 같은 영역의 채우기보다 **먼저** 한다(채우기가 명세 줄로 들어가야 기계 병합 흐름을 탄다). 검토는 11-23 병합 규칙대로: 손 몸통을 그대로 옮기고 javap 같음이 통과하면 기계적 묶음, 몸통을 고치거나 생성기를 바꾸면 독립 검토.
 - **순서**: (1) T-262·T-261 → (2) T-263·T-264 설계 → (3) 영역 9·6·1·4·7(값·데이터 위주, 자동 비율 높음) → (4) 영역 2·5·8·10(소유 스레드·위임) → (5) 영역 3·11 → (6) 영역 12.

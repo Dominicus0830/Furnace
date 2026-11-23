@@ -184,6 +184,8 @@ class BukkitValueTypesTest {
     void registryLookupsFollowBukkit() {
         assertSame(Registry.SOUNDS, org.bukkit.Bukkit.getRegistry(Sound.class));
         assertSame(Registry.ENCHANTMENT, org.bukkit.Bukkit.getRegistry(org.bukkit.enchantments.Enchantment.class));
+        assertSame(Registry.TRIM_MATERIAL, org.bukkit.Bukkit.getRegistry(org.bukkit.inventory.meta.trim.TrimMaterial.class), "Paper 처럼 장식 재료·무늬도 (T-264 P4)");
+        assertSame(Registry.TRIM_PATTERN, org.bukkit.Bukkit.getRegistry(org.bukkit.inventory.meta.trim.TrimPattern.class));
         assertNull(org.bukkit.Bukkit.getRegistry(org.bukkit.Keyed.class));
         assertThrows(IllegalArgumentException.class, () -> Registry.PARTICLE_TYPE.getOrThrow(NamespacedKey.minecraft("nope")));
         assertSame(org.bukkit.enchantments.Enchantment.SHARPNESS, Registry.ENCHANTMENT.get(NamespacedKey.minecraft("sharpness")));
