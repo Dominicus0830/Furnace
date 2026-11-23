@@ -18,10 +18,15 @@ public final class NmsEntityData {
 
     private NmsEntityData() {}
 
+    /** 서버 빈 레벨에서 그 종류를 만들어 ops 를 재생한 상태 — 뒤의 조작은 {@link #refresh} 로 하나씩만 재생한다. */
+    public static ChunkInternals.DetachedEntityData open(String kind, List<ChunkInternals.EntityOp> ops) {
+        return NmsChunks.bridge().openDetachedEntityData(kind, List.copyOf(ops));
+    }
+
     /** 처음 꺼낼 때: 칸마다 DataItem(처음 값 = 정의 값, 값·더러움 = 서버 재생 뒤). */
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public static SynchedEntityData build(SyncedDataHolder holder, String kind, List<ChunkInternals.EntityOp> ops) {
-        List<ChunkInternals.EntityDataSlot> slots = NmsChunks.bridge().detachedEntityData(kind, List.copyOf(ops));
+    public static SynchedEntityData build(SyncedDataHolder holder, String kind, ChunkInternals.DetachedEntityData session) {
+        List<ChunkInternals.EntityDataSlot> slots = session.slots();
         SynchedEntityData.DataItem<?>[] items = new SynchedEntityData.DataItem<?>[slots.size()];
         for (ChunkInternals.EntityDataSlot s : slots) {
             String name = s.definedValue().dataType().name();
@@ -35,9 +40,9 @@ public final class NmsEntityData {
         return data;
     }
 
-    /** 조작이 붙은 뒤: 같은 객체의 값·더러움을 서버 재생 결과로 다시 채운다. */
-    public static void refresh(SynchedEntityData data, String kind, List<ChunkInternals.EntityOp> ops) {
-        assign(data, kind, NmsChunks.bridge().detachedEntityData(kind, List.copyOf(ops)));
+    /** 조작이 하나 붙은 뒤: 그 조작만 서버에서 재생하고 같은 객체의 값·더러움을 다시 채운다. */
+    public static void refresh(SynchedEntityData data, String kind, ChunkInternals.DetachedEntityData session, ChunkInternals.EntityOp op) {
+        assign(data, kind, session.apply(op));
     }
 
     private static void assign(SynchedEntityData data, String kind, List<ChunkInternals.EntityDataSlot> slots) {
