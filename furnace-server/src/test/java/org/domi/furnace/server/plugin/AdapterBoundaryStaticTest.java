@@ -44,10 +44,10 @@ class AdapterBoundaryStaticTest {
             Map.entry("org/domi/furnace/server/plugin/ScratchWorldsImpl", "api.internal.ScratchWorlds 서버 쪽 구현(다리)"),
             Map.entry("org/domi/furnace/server/plugin/PluginHost", "서버가 다리 진입점(InternalsImpl)을 하나 들고 호환 어댑터에게 internals() 로 내준다"),
             Map.entry("org/domi/furnace/server/plugin/PlacementBridge", "NMS 놓기 어댑터 전용 다리 — 서버 놓기 규칙을 api.internal 로 보인다"),
-            // 아래 셋은 구현 클래스가 아니라 핵심 자료구조가 어댑터를 위한 "읽기 보기" 자료형을 복사 없이 내주려고 API 인터페이스를 직접 구현한다 — 3b 에서 측정해 정한다(docs/ops/adapter-boundary-step3-plan.md). 거울 동기화(Region·ChunkColumn)는 3단계에서 훅(ChunkMirrorOps) 뒤로 옮겨 빠졌다.
-            Map.entry("org/domi/furnace/server/world/ChunkSection", "ChunkInternals 읽기 보기용 접근(블록 묶음 복사본) — 3b 에서 측정해 정한다"),
-            Map.entry("org/domi/furnace/server/world/ChunkReadView", "ChunkInternals 읽기 보기 자료형(ChunkView 직접 구현) — 3b 에서 측정해 정한다"),
-            Map.entry("org/domi/furnace/server/world/PaletteStorage", "ChunkInternals 읽기 보기용 팔레트 접근(PackedStates 직접 구현, 복사 없음) — 3b 에서 측정해 정한다")));
+            // 아래 셋은 구현 클래스가 아니라 핵심 자료구조가 어댑터를 위한 "읽기 보기" 자료형을 복사 없이 내주려고 API 인터페이스를 직접 구현한다 — 감싸면 읽기가 6~14% 느려져(3b 측정) 그대로 둔다(docs/ops/adapter-boundary-step3-plan.md). 거울 동기화(Region·ChunkColumn)는 3단계에서 훅(ChunkMirrorOps) 뒤로 옮겨 빠졌다.
+            Map.entry("org/domi/furnace/server/world/ChunkSection", "ChunkInternals 읽기 보기용 접근(블록 묶음 복사본) — 감싸개 비용 때문에 남김(3b)"),
+            Map.entry("org/domi/furnace/server/world/ChunkReadView", "ChunkInternals 읽기 보기 자료형(ChunkView 직접 구현) — 감싸개 비용 때문에 남김(3b)"),
+            Map.entry("org/domi/furnace/server/world/PaletteStorage", "ChunkInternals 읽기 보기용 팔레트 접근(PackedStates 직접 구현, 복사 없음) — 감싸개 비용 때문에 남김(3b)")));
 
     /**
      * ② 의 예외: 상수 풀에 어댑터 이름이 "자료"로 들어 있는 API 클래스(클래스 파일 상대 경로 접두). 어댑터 클래스를 부르지 않는다.
