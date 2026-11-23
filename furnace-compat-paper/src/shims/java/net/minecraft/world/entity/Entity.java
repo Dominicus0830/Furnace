@@ -247,6 +247,11 @@ class Entity {
     protected org.domi.furnace.api.internal.ChunkInternals.EntityLook furnaceLook(String what) {
         Detached dl = detached;
         if (dl != null) {
+            if (dl.data != null) {   // 칸을 꺼내 줬으면 칸이 한 곳의 정답이다(플러그인이 칸에 바로 쓴 깃발·자세도)
+                byte flags = org.domi.furnace.compat.nms.NmsEntityData.sharedFlags(dl.data);
+                int pose = org.domi.furnace.compat.nms.NmsEntityData.pose(dl.data);
+                return flags == 0 && pose == 0 ? FRESH : new org.domi.furnace.api.internal.ChunkInternals.EntityLook(flags, pose, 0, 0, 0, false, false, 0, null, java.util.List.of());
+            }
             return dl.flags == 0 ? FRESH
                     : new org.domi.furnace.api.internal.ChunkInternals.EntityLook(dl.flags, 0, 0, 0, 0, false, false, 0, null, java.util.List.of());
         }
@@ -436,7 +441,7 @@ class Entity {
         org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#setYHeadRot");
         Detached d = detached;
         if (d != null) {   // 아직 월드에 없는 엔티티: 넣을 때 재생한다(Axiom 이 loadEntityRecursive 의 처리 함수에서 부른다)
-            d.ops.add(new org.domi.furnace.api.internal.ChunkInternals.EntityOp.SetYHeadRot(yHeadRot));
+            d.add(new org.domi.furnace.api.internal.ChunkInternals.EntityOp.SetYHeadRot(yHeadRot));
             return;
         }
         furnaceEdit("Entity#setYHeadRot", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.SetYHeadRot(yHeadRot));
@@ -451,7 +456,7 @@ class Entity {
     private void furnaceSet(String what, org.domi.furnace.api.internal.ChunkInternals.EntityOp op) {
         Detached d = detached;
         if (d != null) {
-            d.ops.add(op);
+            d.add(op);
             return;
         }
         furnaceEdit(what, (org.domi.furnace.api.internal.ChunkInternals.EntityEdit) op);
@@ -598,6 +603,49 @@ class Entity {
     /** 바닐라 {@code ejectPassengers}: 탄 것을 모두 내린다. */
     public void ejectPassengers() { org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#ejectPassengers"); furnaceEdit("Entity#ejectPassengers", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.EjectPassengers()); }
 
+    // ------------------------------------------------------------------ 엔티티 데이터 (엔티티 데이터 설계 3.2 — FancyNpcs)
+
+    /**
+     * 바닐라 {@code getEntityData}. 아직 월드에 없는 엔티티: 서버가 그 종류를 빈 레벨에서 만들어 지금까지의 조작을 재생한 칸으로 채운 바닐라 모양
+     * {@link net.minecraft.network.syncher.SynchedEntityData}(itemsById·DataItem 반사 그대로). 같은 엔티티는 같은 객체이고, 조작이 붙으면 그 자리에서
+     * 다시 채운다. {@code set} 은 차례대로 기록돼 월드에 넣을 때 서버 칸에 그대로 쓰인다(종류별 훅을 지난다). 반사로 DataItem 값을 바로 고친 것은
+     * 기록되지 않는다. 월드의 엔티티는 아직 UnsupportedNmsCall(설계 D5).
+     */
+    public net.minecraft.network.syncher.SynchedEntityData getEntityData() {
+        org.domi.furnace.compat.nms.NmsEntityOwner.read(this, "Entity#getEntityData");
+        Detached d = detached;
+        if (d == null) throw worldEntityData("Entity#getEntityData");
+        if (d.data == null) d.data = org.domi.furnace.compat.nms.NmsEntityData.build(this, d.kind(), d.ops);
+        return d.data;
+    }
+
+    private static UnsupportedNmsCall worldEntityData(String what) {
+        return new UnsupportedNmsCall(what, "the data slots of an entity that is already in a world are not reachable yet - only entities made with"
+                + " EntityType#create before they are added");
+    }
+
+    /** 호환 모듈 전용: {@code SynchedEntityData#set} 이 값을 바꾸기 전에 부른다. 월드에 넣은 뒤 남은 칸 객체에 쓰면 UnsupportedNmsCall(서버에 닿지 않는 쓰기를 막는다). */
+    public final void furnaceBeforeDataSet() {
+        org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "SynchedEntityData#set");
+        if (detached == null) throw worldEntityData("SynchedEntityData#set");
+    }
+
+    /**
+     * 호환 모듈 전용: {@code SynchedEntityData#set} 이 값을 바꾼 뒤(바닐라 onSyncedDataUpdated 자리) 부른다. 쓰기를 차례대로 기록하고 칸을 서버 재생으로 다시 채운다.
+     * 바닐라 종류별 훅(크기·상자)은 월드에 넣을 때 서버가 같은 차례로 돌린다(기록은 force — 바닐라에서 훅이 불린 쓰기만 기록되므로 재생도 훅을 부른다).
+     */
+    public final void furnaceDataWritten(net.minecraft.network.syncher.EntityDataAccessor<?> accessor, Object value) {
+        Detached d = detached;
+        if (d == null) throw worldEntityData("SynchedEntityData#set");
+        d.add(org.domi.furnace.compat.nms.NmsEntityData.setOp(accessor, value));
+    }
+
+    /** 바닐라 {@code SyncedDataHolder#onSyncedDataUpdated(accessor)}: 칸 쓰기 훅. shim 엔티티의 칸 쓰기는 {@link #furnaceDataWritten} 이 받는다(바닐라 훅 효과는 서버가 낸다). */
+    public void onSyncedDataUpdated(net.minecraft.network.syncher.EntityDataAccessor<?> accessor) {}
+
+    /** 바닐라 {@code SyncedDataHolder#onSyncedDataUpdated(list)}: 클라이언트가 받은 값에 반응한다 — 서버에서는 불리지 않는다. */
+    public void onSyncedDataUpdated(java.util.List<net.minecraft.network.syncher.SynchedEntityData.DataValue<?>> values) {}
+
     // ------------------------------------------------------------------ 아직 월드에 없는 엔티티 (T-212: FAWE //paste -e)
 
     /**
@@ -611,7 +659,7 @@ class Entity {
             return;
         }
         Detached d = detachedFor("Entity#load");
-        d.ops.add(new org.domi.furnace.api.internal.ChunkInternals.EntityOp.Load(tag.furnace()));
+        d.add(new org.domi.furnace.api.internal.ChunkInternals.EntityOp.Load(tag.furnace()));
         // 바닐라 load 의 자리·방향·UUID(넣을 region 을 고르고 게터가 같은 값을 주게)
         net.minecraft.nbt.ListTag pos = tag.getList("Pos", 6), rot = tag.getList("Rotation", 5);
         d.x = clamp(pos.getDouble(0), 3.0000512E7);
@@ -638,7 +686,7 @@ class Entity {
     }
 
     /** 종류별 조각 전용: 아직 월드에 없는 엔티티에 조작 하나를 기록한다(넣을 때 서버가 차례로 재생). */
-    protected void furnaceDetachedOp(String what, org.domi.furnace.api.internal.ChunkInternals.EntityOp op) { detachedFor(what).ops.add(op); }
+    protected void furnaceDetachedOp(String what, org.domi.furnace.api.internal.ChunkInternals.EntityOp op) { detachedFor(what).add(op); }
 
     /** 종류별 조각 전용: 월드에 있는 엔티티에 바닐라 조작 하나({@link #furnaceEdit} 와 같은 스레드 규칙). */
     protected Object furnaceEditOf(String what, org.domi.furnace.api.internal.ChunkInternals.EntityEdit op) { return furnaceEdit(what, op); }
@@ -647,7 +695,7 @@ class Entity {
     public void absMoveTo(double x, double y, double z, float yRot, float xRot) {
         org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#absMoveTo");
         Detached d = detachedFor("Entity#absMoveTo");
-        d.ops.add(new org.domi.furnace.api.internal.ChunkInternals.EntityOp.AbsMoveTo(x, y, z, yRot, xRot));
+        d.add(new org.domi.furnace.api.internal.ChunkInternals.EntityOp.AbsMoveTo(x, y, z, yRot, xRot));
         d.x = Math.clamp(x, -3.0E7, 3.0E7);
         d.y = y;
         d.z = Math.clamp(z, -3.0E7, 3.0E7);
@@ -681,7 +729,7 @@ class Entity {
     public void setUUID(UUID uuid) {
         org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#setUUID");
         Detached d = detachedFor("Entity#setUUID");
-        d.ops.add(new org.domi.furnace.api.internal.ChunkInternals.EntityOp.SetUuid(uuid));
+        d.add(new org.domi.furnace.api.internal.ChunkInternals.EntityOp.SetUuid(uuid));
         d.uuid = uuid;
     }
 
@@ -840,10 +888,20 @@ class Entity {
         byte flags;
         final java.util.List<Entity> passengers = new java.util.ArrayList<>();
         Entity vehicle;
+        /** {@link #getEntityData()} 를 부른 뒤의 칸(엔티티 데이터 설계 3.2). 서버가 빈 레벨에서 ops 를 재생해 채운다 — 조작이 붙을 때마다 다시 채운다. */
+        net.minecraft.network.syncher.SynchedEntityData data;
 
         Detached(EntityType<?> type, Level level) {
             this.type = type;
             this.level = level;
+        }
+
+        String kind() { return EntityType.getKey(type).toString(); }
+
+        /** 조작 하나를 기록한다. 칸을 이미 꺼내 줬으면 서버 재생으로 그 자리에서 다시 채운다(setter·load 의 칸 효과가 바닐라처럼 바로 보이게). */
+        void add(org.domi.furnace.api.internal.ChunkInternals.EntityOp op) {
+            ops.add(op);
+            if (data != null) org.domi.furnace.compat.nms.NmsEntityData.refresh(data, kind(), ops);
         }
     }
 

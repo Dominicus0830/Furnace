@@ -31,10 +31,26 @@ public class SynchedEntityData {
     public <T> void set(EntityDataAccessor<T> accessor, T value, boolean force) {
         DataItem<T> item = item(accessor);
         if (force || !java.util.Objects.equals(value, item.value)) {
+            // 바닐라 순서: 값 → onSyncedDataUpdated → 더러움. shim 엔티티는 쓰기를 기록하고 서버 재생으로 칸을 다시 채운다
+            net.minecraft.world.entity.Entity shim = entity instanceof net.minecraft.world.entity.Entity e ? e : null;
+            if (shim != null) shim.furnaceBeforeDataSet();
             item.value = value;
+            if (shim != null) shim.furnaceDataWritten(accessor, value);
+            else if (entity != null) entity.onSyncedDataUpdated(accessor);
             item.dirty = true;
             isDirty = true;
         }
+    }
+
+    /** 호환 모듈 전용: 서버가 다시 채운 칸 하나(값·더러움). 처음 값(initialValue)은 종류마다 정해져 그대로다. */
+    @SuppressWarnings("unchecked")
+    public void furnaceAssign(int id, Object value, boolean dirty) {
+        DataItem<Object> item = (DataItem<Object>) itemsById[id];
+        item.value = value;
+        item.setDirty(dirty);
+        boolean any = false;
+        for (DataItem<?> i : itemsById) any |= i != null && i.isDirty();
+        isDirty = any;
     }
 
     @SuppressWarnings("unchecked")
