@@ -22,7 +22,7 @@ public final class ConfigPaths {
         org.domi.furnace.api.Furnace f = org.domi.furnace.api.Furnace.serverOrNull();
         if (f == null) return false;
         Cached c = cached;
-        if (c == null || c.server != f) cached = c = new Cached(f, "true".equals(f.compatOption(PAPER_DEFAULT_SEPARATOR_OPTION)));
+        if (c == null || c.server != f) cached = c = new Cached(f, "true".equals(org.domi.furnace.compat.CompatOptions.get(f, PAPER_DEFAULT_SEPARATOR_OPTION)));
         return c.on;
     }
 

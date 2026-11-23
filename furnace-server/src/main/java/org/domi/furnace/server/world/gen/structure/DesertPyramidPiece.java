@@ -436,14 +436,13 @@ public final class DesertPyramidPiece extends StructurePiece {
         }
     }
 
+    private static final java.util.Set<String> BRUSHABLE_BLOCK = java.util.Set.of("minecraft:brushable_block");
+
     private static void placeSuspiciousSand(PostCtx c, int[] p) {
         if (!c.writableBox.isInside(p[0], p[1], p[2])) return;
         c.view.setBlock(p[0], p[1], p[2], c.blocks().defaultStateId("minecraft:suspicious_sand"));
-        if (c.view.sinkMode()) {
-            // getBlockEntity(pos, BRUSHABLE_BLOCK) 가 있을 때만 표·시드를 넣는다 — 플러그인 레벨의 것은 바꿀 수 없어 있으면 오류
-            c.view.blockEntityPresent(p[0], p[1], p[2], java.util.Set.of("minecraft:brushable_block"));
-            return;
-        }
+        // getBlockEntity(pos, BRUSHABLE_BLOCK) 가 있을 때만 표·시드를 넣는다 — 플러그인 레벨의 것은 바꿀 수 없어 있으면 오류
+        if (c.view.pluginLevelOwnsBlockEntity(p[0], p[1], p[2], BRUSHABLE_BLOCK)) return;
         org.domi.furnace.server.net.io.nbt.NbtCompound nbt = new org.domi.furnace.server.net.io.nbt.NbtCompound();
         nbt.putString("id", "minecraft:brushable_block");
         nbt.putInt("x", p[0]); nbt.putInt("y", p[1]); nbt.putInt("z", p[2]);

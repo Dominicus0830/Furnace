@@ -188,7 +188,7 @@ public final class ChunkSection {
      * 바닐라 개수 셋을 그 값으로(플러그인이 필드에 대입한 값 — FAWE clearCounts 의 0, 음수 포함 short 범위). 블록은 그대로다. 무작위 틱 대상·T-053 마스크가
      * 이 값을 따른다. 그 뒤 칸 쓰기는 이 값 위에 ±1 한다(바닐라 그대로).
      */
-    public void setVanillaCounts(int nonEmptyBlockCount, int tickingBlockCount, int tickingFluidCount) {
+    void setVanillaCounts(int nonEmptyBlockCount, int tickingBlockCount, int tickingFluidCount) {
         version++;
         nonEmpty = (short) nonEmptyBlockCount;
         counts((short) tickingBlockCount, (short) tickingFluidCount);

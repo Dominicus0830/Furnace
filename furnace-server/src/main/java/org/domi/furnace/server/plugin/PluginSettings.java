@@ -111,7 +111,7 @@ public record PluginSettings(boolean failFast, Path dataRoot, Map<String, Level>
         return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, chunkTicketLimit, exposeCompatToNative, compatOptions, on);
     }
 
-    /** {@code Furnace#compatOption} 의 값: 적힌 글자 그대로, 안 적었으면 null. */
+    /** {@code Internals#compatOption} 의 값: 적힌 글자 그대로, 안 적었으면 null. */
     public String compatOption(String key) { return compatOptions.get(key); }
 
     public PluginSettings withChunkTicketLimit(int n) { return new PluginSettings(failFast, dataRoot, logLevels, devMode, autoReload, libraries, compat, compatNms, n, exposeCompatToNative, compatOptions, asyncVirtual); }
