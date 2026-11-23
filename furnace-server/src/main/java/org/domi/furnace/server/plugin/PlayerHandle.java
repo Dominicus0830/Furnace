@@ -522,6 +522,64 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
         }
     };
 
+    // ------------------------------------------------------------------ 상태 효과(PlayerVitals 가 잠금 안에서 들고 있다 — 읽기는 어느 스레드나, 쓰기는 소유 스레드)
+
+    private static org.domi.furnace.server.effect.MobEffect effectType(String key) {
+        String k = key.indexOf(':') < 0 ? "minecraft:" + key : key;
+        var t = org.domi.furnace.server.effect.MobEffect.byName(k);
+        if (t == null) throw new IllegalArgumentException("unknown effect: " + key);
+        return t;
+    }
+
+    private static org.domi.furnace.api.entity.MobEffect effectApi(org.domi.furnace.server.effect.MobEffectInstance i) {
+        return new org.domi.furnace.api.entity.MobEffect(i.effect().name(), i.duration(), i.amplifier(), i.ambient(), i.visible(), i.showIcon());
+    }
+
+    /** 소유 스레드에서 돌리고 결과로 완료한다(월드에 없는 플레이어는 부른 스레드, 접속이 끊겼으면 IllegalStateException). */
+    private <T> java.util.concurrent.CompletableFuture<T> onOwner(java.util.function.Supplier<T> task) {
+        if (p.isDetached() || p.isOnOwnerThread()) {
+            try {
+                return RegionFuture.wrap(java.util.concurrent.CompletableFuture.completedFuture(task.get()));
+            } catch (Throwable t) {
+                return RegionFuture.wrap(java.util.concurrent.CompletableFuture.failedFuture(t));
+            }
+        }
+        if (p.isDisconnected()) return RegionFuture.wrap(java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("disconnected player: " + p.name())));
+        RegionFuture<T> f = new RegionFuture<>();
+        p.runOnOwner(() -> {
+            try {
+                f.complete(task.get());
+            } catch (Throwable t) {
+                f.completeExceptionally(t);
+            }
+        });
+        return f;
+    }
+
+    @Override
+    public java.util.List<org.domi.furnace.api.entity.MobEffect> effects() {
+        var out = new java.util.ArrayList<org.domi.furnace.api.entity.MobEffect>();
+        for (var i : p.vitals().activeEffects()) out.add(effectApi(i));
+        return out;
+    }
+
+    @Override
+    public java.util.concurrent.CompletableFuture<Boolean> addEffect(org.domi.furnace.api.entity.MobEffect effect) {
+        java.util.Objects.requireNonNull(effect, "effect");
+        var t = effectType(effect.type());
+        return onOwner(() -> p.vitals().addEffect(new org.domi.furnace.server.effect.MobEffectInstance(t, effect.duration(), effect.amplifier(),
+                effect.ambient(), effect.particles(), effect.icon())));
+    }
+
+    @Override
+    public java.util.concurrent.CompletableFuture<Boolean> removeEffect(String type) {
+        var t = effectType(type);
+        return onOwner(() -> p.vitals().removeEffect(t));
+    }
+
+    @Override
+    public java.util.concurrent.CompletableFuture<Integer> clearEffects() { return onOwner(() -> p.vitals().removeAllEffects()); }
+
     @Override
     public java.util.Optional<org.domi.furnace.api.entity.attribute.AttributeHandle> attribute(org.domi.furnace.api.entity.attribute.Attribute attribute) {
         java.util.Objects.requireNonNull(attribute, "attribute");

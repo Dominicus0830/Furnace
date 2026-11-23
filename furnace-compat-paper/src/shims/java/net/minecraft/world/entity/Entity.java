@@ -99,6 +99,18 @@ class Entity {
         return d != null ? d.type : EntityType.of(net.minecraft.resources.ResourceLocation.parse(f().type()));
     }
 
+    /** 바닐라 CommandSource: 엔티티는 명령 출력을 받지 않는다(플레이어만 {@code ServerPlayer} 가 덮는다). */
+    public void sendSystemMessage(net.minecraft.network.chat.Component message) {}
+
+    /** 바닐라: 게임 규칙 sendCommandFeedback(서버 월드가 아니면 참). */
+    public boolean acceptsSuccess() {
+        return !(level() instanceof net.minecraft.server.level.ServerLevel sl) || sl.getGameRules().getBoolean(net.minecraft.world.level.GameRules.RULE_SENDCOMMANDFEEDBACK);
+    }
+
+    public boolean acceptsFailure() { return true; }
+
+    public boolean shouldInformAdmins() { return true; }
+
     /** 이 엔티티가 있는 월드의 shim(아직 월드에 없으면 만들 때 준 레벨). */
     public Level level() {
         Detached d = detached;

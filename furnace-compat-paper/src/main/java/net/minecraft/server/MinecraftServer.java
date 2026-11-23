@@ -12,12 +12,15 @@ import org.bukkit.craftbukkit.CraftWorld;
  * 읽기 질의만 있다. "서버 스레드에서 돌려라"·틱 수 같은 단일 틱 가정 표면은 Furnace 의 region 멀티스레드 모델로 같은 의미를 줄 수 없어 두지 않는다
  * (설계 H5 2.1 — 대체: Furnace 스케줄러·Bukkit 스케줄러). 예외: {@link #isSameThread()} 는 Paper 의 뜻("틱 스레드인가")이 Furnace 에도 그대로 있다(2번 묶음).
  */
-public abstract class MinecraftServer {
+public abstract class MinecraftServer extends net.minecraft.util.thread.ReentrantBlockableEventLoop<TickTask>
+        implements ServerInfo, net.minecraft.world.level.chunk.storage.ChunkIOErrorReporter, net.minecraft.commands.CommandSource {
+
+    private static final System.Logger CHUNK_IO_LOG = System.getLogger("MinecraftServer");
 
     /** CraftBukkit 이 더한 필드: Bukkit 서버(실제 jar 9개가 읽는다 — compat-h4-coverage 4장). */
     public CraftServer server = CraftServer.INSTANCE;
 
-    protected MinecraftServer() {}
+    protected MinecraftServer() { super("Server"); }
 
     /**
      * Paper·CraftBukkit 의 틱 수(정적 필드, N2b-6). 이 클래스를 처음 쓸 때부터 전역 스레드가 틱마다 서버 틱 수로 고쳐 쓴다
@@ -58,7 +61,28 @@ public abstract class MinecraftServer {
         }
     }
 
+    /** 바닐라와 같다: 서버 콘솔은 성공·실패 출력을 모두 받는다. 관리자 알림 여부({@code shouldInformAdmins})는 전용 서버가 정한다. */
+    @Override
+    public boolean acceptsSuccess() { return true; }
+
+    @Override
+    public boolean acceptsFailure() { return true; }
+
+    @Override
+    public abstract boolean shouldInformAdmins();
+
+    @Override
+    public void reportChunkLoadFailure(Throwable error, net.minecraft.world.level.chunk.storage.RegionStorageInfo info, net.minecraft.world.level.ChunkPos pos) {
+        CHUNK_IO_LOG.log(System.Logger.Level.WARNING, "Failed to load chunk " + pos + " in " + info.level() + "/" + info.type(), error);
+    }
+
+    @Override
+    public void reportChunkSaveFailure(Throwable error, net.minecraft.world.level.chunk.storage.RegionStorageInfo info, net.minecraft.world.level.ChunkPos pos) {
+        CHUNK_IO_LOG.log(System.Logger.Level.WARNING, "Failed to save chunk " + pos + " in " + info.level() + "/" + info.type(), error);
+    }
+
     /** 바닐라 CommandSource: 콘솔에 한 줄(서버 콘솔 보내는 곳으로 — 색·번역은 콘솔과 같다). */
+    @Override
     public void sendSystemMessage(net.minecraft.network.chat.Component message) {
         org.domi.furnace.api.Furnace.server().console().sendMessage(net.minecraft.network.chat.Component.furnace(message));
     }
@@ -112,6 +136,16 @@ public abstract class MinecraftServer {
     public net.minecraft.server.level.ServerLevel getLevel(net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> key) {
         for (ServerLevel l : getAllLevels()) if (l.dimension() == key) return l;
         return null;
+    }
+
+    /**
+     * 바닐라 getWorldData: 서버의 월드 데이터(level.dat 윗면). 서버 월드의 것은 기본 월드에서 그때그때 읽는 {@link net.minecraft.world.level.storage.PrimaryLevelData} —
+     * 서버 월드가 아직 없으면 IllegalStateException.
+     */
+    public net.minecraft.world.level.storage.WorldData getWorldData() {
+        var worlds = CraftServer.INSTANCE.getWorlds();
+        if (worlds.isEmpty()) throw new IllegalStateException("no world is loaded yet");
+        return ((CraftWorld) worlds.get(0)).getHandle().serverLevelData;
     }
 
     /** 오버월드. */
