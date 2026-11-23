@@ -374,6 +374,9 @@ jobs:
       # T-229: 연결 명세의 잠금 파일(src/shimspec/shim-<판>.lock)이 서명표·명세로 다시 푼 것과 같은지 본다(낡으면 실패 — 목록이 할 일)
       - name: shim 잠금 파일 (T-229)
         run: ./gradlew -PskipOracle=true :furnace-compat-paper:shimLockCheck
+      # T-252: 바닐라 jar 에서 패킷 와이어 모양을 다시 뽑아 커밋된 잠금(protocol-767.layout)과 같은지 본다(추출기가 바뀌었거나 잠금이 낡았으면 실패)
+      - name: 패킷 와이어 모양 잠금 (T-252)
+        run: ./gradlew -PskipOracle=true :vanilla-extract:run -Pmc=$(sed -n 's/^mc.version=//p' gradle/minecraft.properties) -Pmode=packet-layout -PlayoutVerify=true
       - name: 대조 시험 보고서 올리기
         if: failure()
         uses: actions/upload-artifact@v4

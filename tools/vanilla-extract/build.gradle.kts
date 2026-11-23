@@ -11,6 +11,7 @@
 //   -PtoolArgs="shape-vectors=<블록들>;shape-vectors=<이웃 블록들>;shape-vectors=<시도 수>;shape-vectors=<시드>"   shape-vectors 처럼 재료를 받는 도구의 인자
 //   -Pmode=sig-table   서명표(T-227): 클래스·멤버 선언만 모은 표를 캐시에 만든다(-PsigPaperApi=true 는 paper-api, -PsigJar -PsigName 은 임의 jar)
 //   -Pmode=body-table  본문 지문표: 메서드마다 모양·참조 해시만(판 사이 동작 변경 후보 — tools/compat/version-diff.py 가 읽는다)
+//   -Pmode=packet-layout  패킷 코덱 추출기(T-252): 패킷 와이어 모양을 캐시에 쓴다(-PlayoutInstall=true 잠금 파일 저장소에 쓰기, -PlayoutVerify=true 커밋된 잠금과 견주기)
 //   -Pmode=reports     데이터 생성기 보고서까지 준비(packets.json·registries.json 등)
 //   -Ptools=block-attrs,block-light   일부 도구만   -Plist=true   도구 목록   -Pcache=<폴더>   내려받기 캐시   -PjavaHome=<JAVA_HOME>   실행 JDK
 // 바닐라 jar·대응표·내려받은 결과는 캐시 폴더에만 둔다(EULA — 커밋하지 않는다).
@@ -69,6 +70,9 @@ tasks.named<JavaExec>("run") {
     (findProperty("sigBaseline") as String?)?.let { a += listOf("--sig-baseline", it) }
     (findProperty("sigBaselineWrite") as String?)?.let { if (it != "false") a += "--sig-baseline-write" }
     (findProperty("sigReport") as String?)?.let { a += listOf("--sig-report", it) }
+    // 패킷 코덱 추출기(-Pmode=packet-layout): -PlayoutInstall=true 는 중립 잠금 파일을 저장소에 쓰고, -PlayoutVerify=true 는 커밋된 것과 견준다
+    (findProperty("layoutInstall") as String?)?.let { if (it != "false") a += "--layout-install" }
+    (findProperty("layoutVerify") as String?)?.let { if (it != "false") a += "--layout-verify" }
     (findProperty("list") as String?)?.let { if (it != "false") a += "--list" }
     args = a
 }

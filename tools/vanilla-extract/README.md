@@ -70,6 +70,18 @@ python3 tools/compat/paper-patch-diff.py <Paper 옛 체크아웃> <Paper 새 체
 
 `version-diff.py` 는 서명표·본문표·생성기 보고서·jar 자원(구조물 NBT 는 DataVersion 을 가리고 견줌)을 읽어 클래스·멤버·본문·상수·패킷·레지스트리·블록·아이템·명령·데이터 파일 차이를 영역별로 센다. `--port-map` 을 주면 `@VanillaPort` 대응표(V-06)로 "고칠 Furnace 파일" 후보를 등급(A 선언 삭제·서술자 / C 멤버 추가만 / B 흐름만 / D 참조만)으로 낸다. 전체 보고서·목록(`<캐시>/diffs/`)에는 Mojang 이름이 들어 있으므로 커밋하지 않고, `--safe` 요약(개수만)만 문서에 옮긴다. 1.21.1→1.21.2 결과와 버전업 시간 추정: `docs/roadmap/version-diff-1.21.2-2026-11-23.md`.
 
+## 패킷 코덱 추출기 (T-252, 2026-11-23)
+
+`-Pmode=packet-layout` 은 바닐라 패킷 클래스의 코덱 정의(`StreamCodec.composite` 인자 목록, `Packet.codec` 쓰기 메서드의 버퍼 호출 순서)를 바이트코드로 따라가 **와이어 모양**(필드 순서·코덱 종류)을 뽑는다. 분기가 있으면 손으로 남는 것으로 표시하고 멈춘다. 설명·결과·한계: `docs/feature-parity/compat-packet-layout-2026-11-23.md`.
+
+```
+./gradlew -PskipOracle=true :vanilla-extract:run -Pmc=1.21.1 -Pmode=packet-layout                       전체 표 → 캐시 packet-layout.tsv (Mojang 이름 포함, 커밋 금지)
+./gradlew -PskipOracle=true :vanilla-extract:run -Pmc=1.21.1 -Pmode=packet-layout -PlayoutInstall=true  중립 잠금 → furnace-api/.../packet/schema/protocol-<번호>.layout (커밋한다)
+./gradlew -PskipOracle=true :vanilla-extract:run -Pmc=1.21.1 -Pmode=packet-layout -PlayoutVerify=true   새로 뽑은 잠금이 커밋된 것과 같은지(CI vanilla-gates)
+```
+
+잠금은 Mojang 클래스·상수 이름을 담지 않는다(안쪽 값 코덱 이름은 SHA-256 앞 8자리 `ref#…`). 몸통의 명령·상수는 저장하지 않는다. 손 스키마와의 대조는 `PacketLayoutLockTest`(furnace-api), 서버 코덱과의 바이트 대조는 `PacketLayoutBytesTest`(furnace-server), 판 사이 차이는 `tools/compat/version-diff.py`.
+
 ## 서명 관문 (T-228)
 
 컴파일한 `furnace-compat-paper` 의 shim 클래스 선언(`net/minecraft/`·`com/mojang/`·`org/bukkit/craftbukkit/`)을 기준 서명표(Paper 서버 → 바닐라 → 라이브러리 순)와 맞댄다. 플러그인이 Paper 에 대고 컴파일한 호출이 **링크되는 모양**인지 본다.
