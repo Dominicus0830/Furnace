@@ -40,6 +40,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       code: ${{ steps.diff.outputs.code }}
+      vdiff: ${{ steps.diff.outputs.vdiff }}
     steps:
       - uses: actions/checkout@v4
         if: github.event_name == 'pull_request'
@@ -53,14 +54,19 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           code=true
+          vdiff=true
           if [ "$EVENT" = "pull_request" ]; then
             if files=$(git diff --name-only --no-renames "$BASE_SHA...$HEAD_SHA") && [ -n "$files" ]; then
               echo "$files"
               # 시험이 읽는 문서(docs/api/ 의 계약 문서, docs/feature-parity/ 의 키 표·호환 보고서)는 코드로 본다(PR #405 검토 R1)
               if ! echo "$files" | grep -qvE '^(docs/|[^/]+\.md$)' && ! echo "$files" | grep -qE '^docs/(api|feature-parity)/'; then code=false; fi
+              # T-235 차분 시험: shim 이 실행하는 코드(호환 계층·API·서버 본체 main)·바닐라 준비 도구·빌드 설정이 바뀐 PR 에서만. 시험만·문서만·다른 도구만 바뀐 PR 은 돌지 않는다.
+              if ! echo "$files" | grep -qE '^(furnace-compat-paper/|furnace-api/src/main/|furnace-server/src/main/|tools/vanilla-extract/|gradle/|[^/]+\.gradle\.kts$|[^/]+/build\.gradle\.kts$|gradle\.properties$|\.github/workflows/ci\.yml$)'; then vdiff=false; fi
             fi
           fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "vdiff=$vdiff" >> "$GITHUB_OUTPUT"
+          echo "바닐라 차분 시험 필요(T-235): $vdiff" >> "$GITHUB_STEP_SUMMARY"
           echo "코드 변경 있음(시험 필요): $code" >> "$GITHUB_STEP_SUMMARY"
 
   # V-08 시험 영향 선택. 어떤 경우에도 성공으로 끝나며(오류는 전체 실행으로 바뀐다) mode=full|selected, shards=조각 수를 낸다.
@@ -354,6 +360,12 @@ jobs:
           key: vanilla-extract-${{ hashFiles('gradle/minecraft.properties') }}-1
       - name: 바닐라 보고서 대조 시험 (T-238)
         run: ./gradlew -PskipOracle=true :furnace-server:vanillaReportsTest
+      # T-235: 이름 푼 바닐라 jar ↔ shim 값 클래스 차분 시험. 바뀐 영역 선택은 changes 작업의 vdiff(기준 브랜치 push 는 언제나 돈다).
+      - name: 바닐라 차분 시험 (T-235)
+        if: needs.changes.outputs.vdiff == 'true'
+        run: |
+          ./gradlew -PskipOracle=true :furnace-compat-paper:vanillaDiffTest
+          sed -n '1,12p' furnace-compat-paper/build/reports/vanilla-diff/shim-proof-report.md >> "$GITHUB_STEP_SUMMARY"
       # T-228: 기준 서명표 셋(바닐라·paper-api·Mojang 이름 Paper 서버)을 만든다. Paper 서버 칸은 paperweight 가 Paper 저장소에 닿아야 하므로
       # 이 스크립트만 오라클을 켠다. 못 구하면 다음 관문이 "기준 표 없음"으로 건너뛰지 않고 실패한다.
       - name: 서명표 만들기 (T-228)
@@ -375,6 +387,8 @@ jobs:
             furnace-server/build/reports/tests/vanillaReportsTest
             furnace-server/build/test-results/vanillaReportsTest
             tools/vanilla-extract/build/reports/signature-gate.md
+            furnace-compat-paper/build/reports/vanilla-diff
+            furnace-compat-paper/build/reports/tests/vanillaDiffTest
           if-no-files-found: ignore
           retention-days: 7
 

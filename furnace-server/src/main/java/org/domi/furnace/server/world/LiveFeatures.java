@@ -348,6 +348,7 @@ public final class LiveFeatures {
             cp.forEachGeneratedBlockEntity((lx, y, lz, nbt) -> adoptBlockEntity(level, l, ox + lx, y, oz + lz, nbt));
             for (NbtCompound e : cp.generatedEntities()) {
                 Entity ent = Entities.load(level, e.copy());
+                if (ent instanceof org.domi.furnace.server.entity.HangingEntity h) h.keepPlacedYaw(e);
                 if (ent != null) level.addFreshEntityWithPassengers(ent);
             }
         }

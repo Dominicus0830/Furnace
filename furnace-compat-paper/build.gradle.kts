@@ -485,3 +485,42 @@ tasks.register<Test>("fullShellsTest") {
     })
     testLogging { showStandardStreams = true }
 }
+
+// ===== 바닐라 차분 시험(T-235) =====
+// 이름 푼 바닐라 jar(캐시, :vanilla-extract:prepareVanillaJars)를 격리 로더에 올리고 shim 과 같은 입력으로 결과를 견준다.
+// 시험은 src/vanillaDiff 에 두어 평소 `test` 에 안 들어간다(바닐라 jar 가 있어야 하므로). CI vanilla-gates 가 돌린다.
+//   ./gradlew -PskipOracle=true :furnace-compat-paper:vanillaDiffTest [-PvdiffClasses=<클래스,…>] [-PvdiffIterations=<N>] [-Pcache=<폴더>]
+// 보고서: build/reports/vanilla-diff/shim-proof-report.md. 대상: src/vanillaDiff/resources/vanilla-diff-targets.txt
+val vanillaDiffSources = the<SourceSetContainer>().create("vanillaDiff") {
+    compileClasspath += mainSources.output + testSources.compileClasspath
+    runtimeClasspath += mainSources.output + testSources.runtimeClasspath
+}
+tasks.register<Test>("vanillaDiffTest") {
+    group = "verification"
+    description = "바닐라 jar ↔ shim 값 클래스 차분 시험(T-235). 보고서 build/reports/vanilla-diff/shim-proof-report.md"
+    testClassesDirs = vanillaDiffSources.output.classesDirs
+    classpath = vanillaDiffSources.runtimeClasspath
+    useJUnitPlatform()
+    enableAssertions = true
+    dependsOn(":vanilla-extract:prepareVanillaJars")
+    val mc = (rootProject.extra["mc"] as java.util.Properties).getProperty("mc.version")
+    val cache = (findProperty("cache") as String?) ?: System.getenv("FURNACE_VANILLA_CACHE")?.takeIf { it.isNotBlank() }
+        ?: "${System.getProperty("user.home")}/.cache/furnace-vanilla-extract"
+    systemProperty("furnace.vdiff.classpath", "$cache/$mc/vanilla-classpath.txt")
+    systemProperty("furnace.vdiff.mc", mc)
+    systemProperty("furnace.vdiff.specDir", file("src/shimspec").absolutePath)
+    // shim 클래스가 이 폴더들(호환 계층 main 출력)에서 왔는지 시험이 단언한다
+    systemProperty("furnace.vdiff.shimDirs", mainSources.output.classesDirs.files.joinToString(File.pathSeparator) { it.absolutePath })
+    systemProperty("furnace.vdiff.report", layout.buildDirectory.file("reports/vanilla-diff/shim-proof-report.md").get().asFile.absolutePath)
+    (findProperty("vdiffClasses") as String?)?.let { systemProperty("furnace.vdiff.classes", it) }
+    (findProperty("vdiffIterations") as String?)?.let { systemProperty("furnace.vdiff.iterations", it) }
+    (findProperty("vdiffSeed") as String?)?.let { systemProperty("furnace.vdiff.seed", it) }
+    testLogging { showStandardStreams = true; exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }
+    outputs.upToDateWhen { false }
+    // 시험이 하나도 안 돌면 Gradle 은 조용히 초록이다 — 비교하지 않은 초록을 막는다(규칙 5)
+    afterSuite(KotlinClosure2<TestDescriptor, TestResult, Unit>({ d, r ->
+        if (d.parent == null && r.testCount == 0L) throw GradleException("vanillaDiffTest ran no test")
+    }))
+}
+// 차분 시험 소스가 컴파일은 되게 한다(평소 시험 때 같이 확인 — 몰래 썩지 않게).
+tasks.test { dependsOn("compileVanillaDiffJava") }

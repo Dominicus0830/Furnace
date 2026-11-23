@@ -29,7 +29,9 @@ public final class Options {
         /** 서명 관문(T-228): shim 클래스 선언을 기준 서명표와 맞대고 기준선 파일과 견준다. */
         SIG_GATE,
         /** 본문 지문표(버전 사이 동작 변경 후보 찾기). 서명표와 달리 메서드 몸통의 해시만 남긴다. */
-        BODY_TABLE
+        BODY_TABLE,
+        /** 바닐라 jar 준비까지만 하고(데이터 생성기 없음) Mojang 이름 서버 jar·라이브러리 경로를 `<캐시>/<판>/vanilla-classpath.txt` 에 적는다(T-235 차분 시험이 읽는다). */
+        JARS
     }
 
     public String mc;
