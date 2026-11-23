@@ -208,6 +208,119 @@ class ShellMergeTest {
         assertEquals(Set.of("LIMIT", "<init>()V", "kept()I"), Set.copyOf(unmarked), "원래 멤버와 값 있는 상수에는 표지가 없다");
     }
 
+    /**
+     * T-264 P3 핸들 다리: CraftBukkit 클래스의 "상위 접근자 + 반환형 좁힘"은 던지는 몸통 대신 다리(@CraftBridge)가 되고, Paper 상위 형식의 넓은
+     * 서술자는 javac 처럼 컴파일러 다리가 된다. 실제 JVM 에 올려 부른다(검증기·스택 프레임까지 본다).
+     */
+    @Test
+    void craftNarrowingAccessorsBecomeBridges() throws Exception {
+        String paper = String.join("\n",
+                "#furnace-sig-table\t2\tpaper-server-test",
+                "C\t33\tnet/minecraft/zz/Ent\tjava/lang/Object\t-\t-\t-",
+                "C\t1537\tnet/minecraft/zz/Enemy\tjava/lang/Object\t-\t-\t-",
+                "C\t33\tnet/minecraft/zz/Mob\tnet/minecraft/zz/Ent\tnet/minecraft/zz/Enemy\t-\t-",
+                "C\t33\tnet/minecraft/zz/Zom\tnet/minecraft/zz/Mob\t-\t-\t-",
+                "C\t1537\torg/bukkit/craftbukkit/zz/CraftEnemy\tjava/lang/Object\t-\t-\t-",
+                "M\t1025\torg/bukkit/craftbukkit/zz/CraftEnemy\tgetHandle\t()Lnet/minecraft/zz/Enemy;\t-",
+                "C\t33\torg/bukkit/craftbukkit/zz/CraftRoot\tjava/lang/Object\t-\t-\t-",
+                "M\t1\torg/bukkit/craftbukkit/zz/CraftRoot\tgetHandle\t()Lnet/minecraft/zz/Ent;\t-",
+                "C\t33\torg/bukkit/craftbukkit/zz/CraftMid\torg/bukkit/craftbukkit/zz/CraftRoot\torg/bukkit/craftbukkit/zz/CraftEnemy\t-\t-",
+                "M\t1\torg/bukkit/craftbukkit/zz/CraftMid\tgetHandle\t()Lnet/minecraft/zz/Mob;\t-",
+                "C\t33\torg/bukkit/craftbukkit/zz/CraftLeaf\torg/bukkit/craftbukkit/zz/CraftMid\t-\t-\t-",
+                "M\t1\torg/bukkit/craftbukkit/zz/CraftLeaf\tgetHandle\t()Lnet/minecraft/zz/Zom;\t-",
+                "M\t1\torg/bukkit/craftbukkit/zz/CraftLeaf\tother\t(I)Lnet/minecraft/zz/Zom;\t-",
+                "");
+        Path compat = tmp.resolve("craft");
+        write(compat, "net/minecraft/zz/Ent", Opcodes.ACC_PUBLIC, "java/lang/Object", null, cw -> ctor(cw, "java/lang/Object"));
+        write(compat, "net/minecraft/zz/Enemy", Opcodes.ACC_PUBLIC | Opcodes.ACC_INTERFACE | Opcodes.ACC_ABSTRACT, "java/lang/Object", null, cw -> {});
+        write(compat, "net/minecraft/zz/Mob", Opcodes.ACC_PUBLIC, "net/minecraft/zz/Ent", new String[]{"net/minecraft/zz/Enemy"}, cw -> ctor(cw, "net/minecraft/zz/Ent"));
+        write(compat, "net/minecraft/zz/Zom", Opcodes.ACC_PUBLIC, "net/minecraft/zz/Mob", null, cw -> ctor(cw, "net/minecraft/zz/Mob"));
+        write(compat, "org/bukkit/craftbukkit/zz/CraftRoot", Opcodes.ACC_PUBLIC, "java/lang/Object", null, cw -> {
+            ctor(cw, "java/lang/Object");
+            cw.visitField(Opcodes.ACC_PUBLIC, "h", "Ljava/lang/Object;", null, null).visitEnd();
+            MethodVisitor mv = cw.visitMethod(Opcodes.ACC_PUBLIC, "getHandle", "()Lnet/minecraft/zz/Ent;", null, null);
+            mv.visitCode();
+            mv.visitVarInsn(Opcodes.ALOAD, 0);
+            mv.visitFieldInsn(Opcodes.GETFIELD, "org/bukkit/craftbukkit/zz/CraftRoot", "h", "Ljava/lang/Object;");
+            mv.visitTypeInsn(Opcodes.CHECKCAST, "net/minecraft/zz/Ent");
+            mv.visitInsn(Opcodes.ARETURN);
+            mv.visitMaxs(1, 1);
+            mv.visitEnd();
+        });
+        write(compat, "org/bukkit/craftbukkit/zz/CraftMid", Opcodes.ACC_PUBLIC, "org/bukkit/craftbukkit/zz/CraftRoot", null, cw -> ctor(cw, "org/bukkit/craftbukkit/zz/CraftRoot"));
+        write(compat, "org/bukkit/craftbukkit/zz/CraftLeaf", Opcodes.ACC_PUBLIC, "org/bukkit/craftbukkit/zz/CraftMid", null, cw -> ctor(cw, "org/bukkit/craftbukkit/zz/CraftMid"));
+
+        FullShells g = new FullShells(table(paper), table(EMPTY), table(EMPTY), new FullShells.Existing(List.of(compat)));
+        g.generate();
+        ShellMerge m = new ShellMerge(g, FullShells.Existing.classesIn(compat));
+        Map<String, byte[]> merged = m.merge();
+        assertEquals(Set.of("org/bukkit/craftbukkit/zz/CraftMid#getHandle()Lnet/minecraft/zz/Mob;",
+                "org/bukkit/craftbukkit/zz/CraftLeaf#getHandle()Lnet/minecraft/zz/Zom;"), m.bridges, "인자가 다른 other(I) 는 좁힘이 아니라 껍데기");
+        // javac 와 같다: CraftMid 는 Paper 인터페이스 CraftEnemy 의 넓은 서술자(손 CraftEnemy 가 없어도 Paper 계층으로 계산), CraftLeaf 는 CraftMid 의 두 서술자.
+        // ()Ent 는 손 CraftRoot 의 진짜 메서드가 이미 받으므로 넣지 않는다
+        assertEquals(Set.of("org/bukkit/craftbukkit/zz/CraftMid#getHandle()Lnet/minecraft/zz/Enemy;",
+                "org/bukkit/craftbukkit/zz/CraftLeaf#getHandle()Lnet/minecraft/zz/Enemy;",
+                "org/bukkit/craftbukkit/zz/CraftLeaf#getHandle()Lnet/minecraft/zz/Mob;"), m.compilerBridges);
+        String bridge = "Lorg/domi/furnace/compat/nms/CraftBridge;";
+        assertTrue(annotated(merged.get("org/bukkit/craftbukkit/zz/CraftLeaf"), "getHandle()Lnet/minecraft/zz/Zom;", bridge));
+        assertFalse(annotated(merged.get("org/bukkit/craftbukkit/zz/CraftLeaf"), "getHandle()Lnet/minecraft/zz/Zom;", FullShells.SHELL_MEMBER), "다리는 껍데기 표지가 없다");
+        assertTrue(annotated(merged.get("org/bukkit/craftbukkit/zz/CraftLeaf"), "other(I)Lnet/minecraft/zz/Zom;", FullShells.SHELL_MEMBER));
+
+        CraftRoles roles = new CraftRoles(g);
+        String tsv = roles.build(m.bridges);
+        assertTrue(tsv.contains("org/bukkit/craftbukkit/zz/CraftLeaf\tgetHandle\t()Lnet/minecraft/zz/Zom;\tb\n"), tsv);
+        assertTrue(tsv.contains("org/bukkit/craftbukkit/zz/CraftLeaf\tother\t(I)Lnet/minecraft/zz/Zom;\td\n"), tsv);
+
+        Path out = tmp.resolve("craft-shells");
+        for (Map.Entry<String, byte[]> e : merged.entrySet()) {
+            Path p = out.resolve(e.getKey() + ".class");
+            Files.createDirectories(p.getParent());
+            Files.write(p, e.getValue());
+        }
+        try (URLClassLoader cl = new URLClassLoader(new URL[]{out.toUri().toURL(), compat.toUri().toURL()}, getClass().getClassLoader())) {
+            Class<?> leaf = Class.forName("org.bukkit.craftbukkit.zz.CraftLeaf", true, cl);
+            Class<?> mid = Class.forName("org.bukkit.craftbukkit.zz.CraftMid", true, cl);
+            Class<?> root = Class.forName("org.bukkit.craftbukkit.zz.CraftRoot", true, cl);
+            Class<?> zom = Class.forName("net.minecraft.zz.Zom", true, cl);
+            Class<?> mob = Class.forName("net.minecraft.zz.Mob", true, cl);
+            Object l = leaf.getConstructor().newInstance();
+            Object z = zom.getConstructor().newInstance();
+            root.getField("h").set(l, z);
+            java.lang.reflect.Method narrow = method(leaf, "getHandle", zom);
+            assertTrue(narrow.invoke(l) == z, "좁힌 접근자가 같은 객체를 준다");
+            assertTrue(method(mid, "getHandle", mob).invoke(l) == z);
+            assertTrue(method(mid, "getHandle", Class.forName("net.minecraft.zz.Enemy", true, cl)).invoke(l) == z, "컴파일러 다리");
+            root.getField("h").set(l, null);
+            assertEquals(null, narrow.invoke(l), "null 은 null");
+            root.getField("h").set(l, mob.getConstructor().newInstance());
+            var ex = assertThrows(InvocationTargetException.class, () -> narrow.invoke(l));
+            assertInstanceOf(UnsupportedNmsCall.class, ex.getCause(), "형이 안 맞으면 ClassCastException 이 아니라 껍데기와 같은 오류");
+        }
+    }
+
+    private static java.lang.reflect.Method method(Class<?> c, String name, Class<?> ret) {
+        for (java.lang.reflect.Method x : c.getDeclaredMethods()) if (x.getName().equals(name) && x.getReturnType() == ret && x.getParameterCount() == 0) return x;
+        throw new AssertionError(c + "#" + name + " -> " + ret);
+    }
+
+    private static boolean annotated(byte[] cls, String method, String annotation) {
+        boolean[] found = {false};
+        new ClassReader(cls).accept(new ClassVisitor(Opcodes.ASM9) {
+            @Override
+            public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
+                if (!(name + descriptor).equals(method)) return null;
+                return new MethodVisitor(Opcodes.ASM9) {
+                    @Override
+                    public org.objectweb.asm.AnnotationVisitor visitAnnotation(String desc, boolean visible) {
+                        if (desc.equals(annotation)) found[0] = true;
+                        return null;
+                    }
+                };
+            }
+        }, 0);
+        return found[0];
+    }
+
     // ───────────────────────── 도우미 ─────────────────────────
 
     static SigTable table(String text) throws Exception {

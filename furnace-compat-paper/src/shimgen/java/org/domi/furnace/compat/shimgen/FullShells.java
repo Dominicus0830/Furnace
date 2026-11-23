@@ -167,6 +167,9 @@ public final class FullShells {
             for (String n : classes.keySet()) if (!g.shells.contains(n)) merged.add(n);
             write(out.resolve(ShellMerge.MERGED), String.join("\n", merged) + "\n");
         }
+        CraftRoles roles = new CraftRoles(g);
+        write(out.resolve(CraftRoles.PATH), roles.build(merge == null ? Set.of() : merge.bridges));
+        System.out.println("[full-shells] " + roles.summary());
         Files.createDirectories(report.toAbsolutePath().getParent());
         StringBuilder rep = new StringBuilder(g.report());
         if (merge != null) merge.report(rep);
