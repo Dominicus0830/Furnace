@@ -346,7 +346,7 @@ final class Links {
         }
         mv.visitMethodInsn(plan.opcode, plan.callOwner, plan.callName, plan.callDesc, plan.callItf);
         Type ret = Type.getReturnType(desc);
-        if (plan.retConvert != null) mv.visitMethodInsn(Opcodes.INVOKESTATIC, plan.retConvert[0], plan.retConvert[1], plan.retConvert[2], false);
+        if (plan.retConvert != null) plan.retConvert.accept(mv);
         mv.visitInsn(ret.getOpcode(Opcodes.IRETURN));
         int locals = (Type.getArgumentsAndReturnSizes(desc) >> 2) - (isStatic ? 1 : 0);
         mv.visitMaxs(maxStack + 2, locals);   // 변환 중 잠깐 더 큰 값(long→객체)·대상 반환값 몫으로 넉넉히 — 큰 쪽은 해가 없다
@@ -365,7 +365,7 @@ final class Links {
         int opcode;
         String callOwner, callName, callDesc;
         boolean callItf;
-        String[] retConvert;
+        java.util.function.Consumer<MethodVisitor> retConvert;
     }
 
     private Plan plan(Line ln, String owner, boolean isStatic, String name, String desc) {
@@ -443,7 +443,7 @@ final class Links {
                 Plan best = null;
                 for (String key : candidates) {
                     String tdesc = key.substring(st.name().length());
-                    Plan q = callPlan(ln, owner, isStatic, args, slots, ret, List.of(), tdesc, ln.where());
+                    Plan q = callPlan(ln, owner, isStatic, args, slots, ret, List.of(), tdesc, ln.where(), false);
                     if (q == null) continue;
                     if (best != null) {
                         problems.add(ln.where() + ": several @LinkTarget overloads fit " + st.name() + " - make one");
@@ -469,7 +469,7 @@ final class Links {
                 }
                 AnnInfo ai = new AnnInfo(info[3], info[4], false);
                 if (!checkMatches(ln, ai)) return null;
-                Plan q = callPlan(ln, owner, isStatic, args, slots, ret, id.values(), info[2], ln.where());
+                Plan q = callPlan(ln, owner, isStatic, args, slots, ret, id.values(), info[2], ln.where(), true);
                 if (q == null) return null;
                 q.ownerRule = ai.owner;
                 q.opcode = Opcodes.INVOKESTATIC;
@@ -506,7 +506,11 @@ final class Links {
     }
 
     /** 대상 서술자 tdesc 에 [받는 쪽] + 값 + 인자를 맞춘다. 맞지 않으면 null(문제는 적지 않음 — 여러 겹침을 고를 때 씀). */
-    private Plan callPlan(Line ln, String owner, boolean isStatic, Type[] args, List<Integer> slots, Type ret, List<String> values, String tdesc, String where) {
+    /**
+     * idiom: 관용구 대상이면 Object 자리의 원시 인자를 박싱하고, Object 반환을 멤버 반환형으로 CHECKCAST(원시면 박스형 + xxxValue)한다.
+     * 관용구는 검토 받은 손 코드이고 틀 맞추기가 바닐라 몸통 모양(박싱 포함)을 정확히 보므로 형식은 바닐라가 보증한다 — 다리(@LinkTarget)에는 쓰지 않는다.
+     */
+    private Plan callPlan(Line ln, String owner, boolean isStatic, Type[] args, List<Integer> slots, Type ret, List<String> values, String tdesc, String where, boolean idiom) {
         Type[] params = Type.getArgumentTypes(tdesc);
         int need = (isStatic ? 0 : 1) + values.size() + args.length;
         if (params.length != need) return null;
@@ -523,7 +527,7 @@ final class Links {
             p.pushes.add(pv);
         }
         for (int i = 0; i < args.length; i++) {
-            Push pa = load(args[i], slots.get(i), params[k++]);
+            Push pa = idiom ? loadBoxing(args[i], slots.get(i), params[k++]) : load(args[i], slots.get(i), params[k++]);
             if (pa == null) return null;
             p.pushes.add(pa);
         }
@@ -531,11 +535,53 @@ final class Links {
         if (ret.getSort() == Type.VOID) {
             if (tret.getSort() != Type.VOID) return null;
         } else if (!assignable(tret, ret)) {
-            String[] conv = converter(tret, ret);
-            if (conv == null) return null;
-            p.retConvert = conv;
+            if (idiom && tret.getDescriptor().equals("Ljava/lang/Object;")) {
+                p.retConvert = unbox(ret);
+            } else {
+                String[] conv = converter(tret, ret);
+                if (conv == null) return null;
+                p.retConvert = mv -> mv.visitMethodInsn(Opcodes.INVOKESTATIC, conv[0], conv[1], conv[2], false);
+            }
         }
         return p;
+    }
+
+    /** 관용구 인자: 원시를 Object 자리에 넣을 때 박싱, 나머지는 load 와 같다. */
+    private Push loadBoxing(Type from, int slot, Type want) {
+        if (from.getSort() == Type.OBJECT || from.getSort() == Type.ARRAY || !want.getDescriptor().equals("Ljava/lang/Object;")) return load(from, slot, want);
+        String box = box(from);
+        int op = from.getOpcode(Opcodes.ILOAD);
+        return new Push(1, mv -> {
+            mv.visitVarInsn(op, slot);
+            mv.visitMethodInsn(Opcodes.INVOKESTATIC, box, "valueOf", "(" + from.getDescriptor() + ")L" + box + ";", false);
+        });
+    }
+
+    /** 관용구 반환 Object → 멤버 반환형. */
+    private static java.util.function.Consumer<MethodVisitor> unbox(Type ret) {
+        if (ret.getSort() == Type.OBJECT || ret.getSort() == Type.ARRAY) {
+            String cast = ret.getSort() == Type.ARRAY ? ret.getDescriptor() : ret.getInternalName();
+            return mv -> mv.visitTypeInsn(Opcodes.CHECKCAST, cast);
+        }
+        String box = box(ret);
+        return mv -> {
+            mv.visitTypeInsn(Opcodes.CHECKCAST, box);
+            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, box, ret.getClassName() + "Value", "()" + ret.getDescriptor(), false);
+        };
+    }
+
+    static String box(Type prim) {
+        return switch (prim.getSort()) {
+            case Type.BOOLEAN -> "java/lang/Boolean";
+            case Type.BYTE -> "java/lang/Byte";
+            case Type.CHAR -> "java/lang/Character";
+            case Type.SHORT -> "java/lang/Short";
+            case Type.INT -> "java/lang/Integer";
+            case Type.LONG -> "java/lang/Long";
+            case Type.FLOAT -> "java/lang/Float";
+            case Type.DOUBLE -> "java/lang/Double";
+            default -> throw new IllegalArgumentException(prim.toString());
+        };
     }
 
     /** 지역 변수(slot)의 형식 from 을 want 로(같거나 대입 가능, 아니면 @LinkConvert). want 가 null 이면 그대로. */

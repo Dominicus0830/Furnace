@@ -62,6 +62,10 @@ class LinksTest {
             "M\t1\t" + Z + "Mob\tlabel\t()Ljava/lang/String;\t-",
             "M\t2\t" + Z + "Mob\tsecret\t()I\t-",
             "M\t1\t" + Z + "Mob\tplain\t()I\t-",
+            "M\t1\t" + Z + "Mob\tgFlag\t()Z\t-",
+            "M\t1\t" + Z + "Mob\tgInt\t()I\t-",
+            "M\t1\t" + Z + "Mob\tgName\t()Ljava/lang/String;\t-",
+            "M\t1\t" + Z + "Mob\tgSet\t(F)V\t-",
             "M\t1\t" + Z + "Mob\tb1\t()Z\t-",
             "M\t1\t" + Z + "Mob\tb2\t()Z\t-",
             "M\t1\t" + Z + "Mob\tb3\t()Z\t-",
@@ -95,6 +99,15 @@ class LinksTest {
         @LinkTarget(check = "pure")
         public static int size(String s) { return s.length(); }
 
+        public static Object lastSet;
+
+        /** 제네릭 관용구(엔티티 데이터 칸처럼 형식이 칸마다 다름): 12 → true, 7 → "seven", 나머지 → 2배 정수. */
+        @LinkIdiom(value = "test-get", check = "read=any")
+        public static Object get(Object self, int slot) { return slot == 12 ? Boolean.TRUE : slot == 7 ? "seven" : Integer.valueOf(slot * 2); }
+
+        @LinkIdiom(value = "test-set", check = "write", owner = Rule.class)
+        public static void set(Object self, int slot, Object value) { lastSet = slot + ":" + value + ":" + value.getClass().getSimpleName(); }
+
         @LinkTarget(check = "pure")
         public static StringBuilder label(Object self) { return new StringBuilder("mob"); }
 
@@ -120,10 +133,14 @@ class LinksTest {
                 "  size(Ljava/lang/String;)I -> " + BRIDGE + ".size pure",
                 "  label()Ljava/lang/String; -> " + BRIDGE + ".label pure",
                 "  " + Links.fingerprint(Z + "Mob", "secret") + "()I -> " + BRIDGE + ".secret pure",
+                "  gFlag()Z -> @idiom(test-get, " + Links.fingerprint(Z + "Mob", "DATA_BABY") + ") read=any",
+                "  gInt()I -> @idiom(test-get, 5) read=any",
+                "  gName()Ljava/lang/String; -> @idiom(test-get, 7) read=any",
+                "  gSet(F)V -> @idiom(test-set, 3) write",
                 "");
         Gen r = gen(links);
         r.g().checkLinks(null);
-        assertEquals(7, r.g().links.linkedMembers);
+        assertEquals(11, r.g().links.linkedMembers);
         assertEquals(List.of(), shellMarked(r.classes().get(Z + "Mob"), "health()F", "setHealth(F)V", "isBaby()Z", "level()I", "size(Ljava/lang/String;)I",
                 "label()Ljava/lang/String;", "secret()I"), "이은 멤버엔 껍데기 표지가 없다");
         assertEquals(List.of("plain()I"), shellMarked(r.classes().get(Z + "Mob"), "plain()I"), "줄 없는 멤버는 그대로 껍데기");
@@ -143,6 +160,14 @@ class LinksTest {
             var secret = mob.getDeclaredMethod("secret");
             secret.setAccessible(true);
             assertEquals(99, secret.invoke(m));
+            // 제네릭 관용구: 반환 Object → 멤버 반환형(원시는 박스형 CHECKCAST + xxxValue), 원시 인자 → 박싱
+            assertEquals(true, mob.getMethod("gFlag").invoke(m));
+            assertEquals(10, mob.getMethod("gInt").invoke(m));
+            assertEquals("seven", mob.getMethod("gName").invoke(m));
+            Rule.CALLS.clear();
+            mob.getMethod("gSet", float.class).invoke(m, 2.5f);
+            assertEquals("3:2.5:Float", Bridge.lastSet);
+            assertEquals(List.of("write Mob#gSet"), Rule.CALLS);
             InvocationTargetException e = assertThrows(InvocationTargetException.class, () -> mob.getMethod("plain").invoke(m));
             assertInstanceOf(UnsupportedNmsCall.class, e.getCause());
         }
