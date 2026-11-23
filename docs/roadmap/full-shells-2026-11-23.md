@@ -12,7 +12,7 @@
   - 플러그인 바이트코드의 직접 참조 → 연결기 덫 `UnsupportedNmsLink.Method/Field` — `NoSuchMethodError`/`NoSuchFieldError` 하위라 **진짜 Paper 에 없는 멤버를 부를 때와 같은 종류**다.
   - 리플렉션·변환 안 된 코드로 몸통에 들어옴 → `UnsupportedNmsCall`(`UnsupportedFeature` → `UnsupportedOperationException` 하위). `Method.invoke` 로 부르면 `InvocationTargetException` 에 싸여 나온다. 진짜와 같은 종류는 아니다(진짜에는 그 멤버가 있어 동작한다).
   - NMS 밖 범위(Bukkit API·Paper 내부·Mojang)에서 값 없는 필드를 가진 껍데기(자기 덫 892개, 상위가 덫이라 같이 실패하는 것까지 1,001개) → 클래스 초기화가 던진다: Error(`UnsupportedNmsLink.Klass`, `NoClassDefFoundError` 하위)라 JVM 이 싸지 않아 첫 사용부터 `NoClassDefFoundError` — 예전 "클래스 없음"과 같은 종류(2.2절).
-- 껍데기는 별도 jar(`furnace-compat-shells.jar`, 5.5 MiB, 7,198 클래스)로 붙는다. T-261 부터는 빠진 멤버를 합친 손 shim 1,492개도 같은 jar 에 들어가 **호환 jar 앞**에 붙는다(8.2 MiB, 7.4절). **안 쓰면 비용 0**(클래스는 처음 쓸 때만 올라감), 다 올려도 0.8초.
+- 껍데기는 별도 jar(`furnace-compat-shells.jar`, 5.5 MiB, 7,198 클래스)로 붙는다. T-261 부터는 빠진 멤버를 합친 손 shim 1,504개도 같은 jar 에 들어가 **호환 jar 앞**에 붙는다(8.2 MiB, 7.4절). **안 쓰면 비용 0**(클래스는 처음 쓸 때만 올라감), 다 올려도 0.8초.
 - 2단계는 85,218개 "동작 없음" 멤버를 열 갈래로 나눠 기계가 채우고 자동 대조가 통과하면 검토 없이 병합한다(11-23 도미니코 확정 흐름). 도구 약 1주 + 영역 채우기 3~6주(병렬 약 8스레드, 보수적).
 - **도미니코 결정(11-23 20:31 KST): A — 서버 파일에 넣기.** 기록 `docs/user-todo/entries/2026-11-23-full-shells.md`. 기능 감지(`Class.forName`)가 Paper 처럼 "있음"으로 바뀌는 대가도 거기 적었다.
 
@@ -164,9 +164,9 @@ build/full-shells/classes/**.class + report.md(이름 들어감 — 커밋·업�
 - **넣는 것**: 메서드·생성자(추상은 떼고, 인터페이스면 default), NMS 범위의 정적 필드(상수면 값 그대로, 아니면 선언 + 표지 — 연결기 덫·리플렉션 다리가 막는다).
 - **색인만**: 인스턴스 필드(살아 있는 객체 메모리). 껍데기 jar 자원 `META-INF/furnace/full-shells/instance-fields.tsv` → `NmsShellFields`. 리플렉션으로 그 필드를 찾다 없으면 원래 `NoSuchFieldException` 그대로, 단 구멍 표(`compat gaps`)에 "field" 로 센다. 영역 스레드가 읽기를 Furnace 값으로 돌릴 때 이 색인이 목록이다.
 - **넣지 않는 것**(보고서에 이유): 상위 사슬·인터페이스에서 이미 찾아지는 이름+서술자(덧붙이면 지금 도는 상속을 가린다), 손 하위가 다른 인터페이스 default 로 받는 메서드(덧붙이면 해석이 바뀐다), 합성 멤버, NMS 밖 범위의 정적 필드(덫이 못 봄). API 범위(Furnace `org.bukkit`)는 T-240 몫이라 손대지 않는다. 손 하위가 덮는 Paper `final` 메서드는 final 을 떼서 넣는다(편차 목록).
-- **수(1.21.1, 이 컨테이너)**: 합친 클래스 1,492개(빠진 것 없는 207개), 덧붙인 멤버 21,524개(메서드 14,636·정적 메서드 1,892·생성자 1,153·값 없는 정적 필드 2,561·상수 1,282) + 인스턴스 필드 색인 2,435개. 넣지 않음: 상위에서 찾아짐 768·필드 4·NMS 밖 정적 필드 3. 껍데기 jar 8,583,059 바이트(8.2 MiB, 합친 손 shim 원래 바이트 포함). `fullShellsTest`: 연결 오류 0·초기화 오류 0, 합친 클래스 1,492개 모두 껍데기 jar 에서 올라옴, 자기 정적 초기화가 서버를 요구하는 손 shim 14개(합친 멤버 탓 아님 — 따로 셈). 전부 올리기 809~1,086 ms·초기화 738~791 ms(실행마다).
+- **수(1.21.1, 이 컨테이너)**: 합친 클래스 1,504개(빠진 것 없는 211개), 덧붙인 멤버 21,579개(메서드 14,611·정적 메서드 1,949·생성자 1,155·값 없는 정적 필드 2,578·상수 1,286) + 인스턴스 필드 색인 2,443개. 넣지 않음: 상위에서 찾아짐 772·필드 4·NMS 밖 정적 필드 3(#567·#570 병합 뒤). 껍데기 jar 8,598,986 바이트(8.2 MiB, 합친 손 shim 원래 바이트 포함). `fullShellsTest`: 연결 오류 0·초기화 오류 0, 합친 클래스 1,504개 모두 껍데기 jar 에서 올라옴, 자기 정적 초기화가 서버를 요구하는 손 shim 14개(합친 멤버 탓 아님 — 따로 셈). 전부 올리기 809~1,086 ms·초기화 738~791 ms(실행마다).
 - **손 열거형 상수 몸통**: `Direction.Axis`(X·Y·Z 몸통이 `choose` 를 덮고 `Axis.choose` 는 추상 — 바닐라와 같은 모양, 동작 같음), `Biome.TemperatureModifier`·`VaultState`·`Armadillo.ArmadilloState`(빈 몸통 — 상태별 동작은 껍데기 멤버로 합쳐짐). `ArmadilloState` 는 바닐라처럼 `StringRepresentable`(직렬화 이름은 바닐라 정적 초기화 javap 로 확인). 서명 관문 기준선에서 이제 같아진 5줄을 지웠다.
-- **서명 관문**: 빠진 멤버를 실패가 아니라 참고 건수(`missing-member`, 보고서에는 원문·기준선에는 안 씀)로 센다 — 19,090건(공개·보호, 상위 사슬에도 없는 것). 한 줄씩 기준선에 두지 않는 까닭: 전체 껍데기 빌드가 모양을 채우므로 "링크가 깨짐"이 아니라 "동작 없음"이고, 그 수는 영역 스레드가 줄여 가는 작업량이다. 덕분에 PR 567 처럼 손 shim 이 필요한 형식이 없어 멤버를 빼 둔 경우(`ProfilerMeasured.profiledMetrics`·`ProcessorHandle.askEither`)도 실행 서버에는 모양이 생기고 관문 건수에 나온다.
+- **서명 관문**: 빠진 멤버를 실패가 아니라 참고 건수(`missing-member`, 보고서에는 원문·기준선에는 안 씀)로 센다 — 19,113건(공개·보호, 상위 사슬에도 없는 것). 한 줄씩 기준선에 두지 않는 까닭: 전체 껍데기 빌드가 모양을 채우므로 "링크가 깨짐"이 아니라 "동작 없음"이고, 그 수는 영역 스레드가 줄여 가는 작업량이다. 덕분에 PR 567 처럼 손 shim 이 필요한 형식이 없어 멤버를 빼 둔 경우(`ProfilerMeasured.profiledMetrics`·`ProcessorHandle.askEither`)도 실행 서버에는 모양이 생기고 관문 건수에 나온다 — #567 병합 뒤 두 멤버가 각각 default 껍데기 멤버로, `BlockableEventLoop.profiledMetrics` 도 껍데기 멤버로 합쳐진 것을 javap 로 확인했다.
 
 ## 8. 영역별 병렬 분할·순서·시간 (보수적)
 
