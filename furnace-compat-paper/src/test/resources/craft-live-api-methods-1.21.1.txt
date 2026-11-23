@@ -538,13 +538,13 @@ org/bukkit/craftbukkit/entity/CraftWolf$CraftVariant 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/entity/CraftZoglin 79 4834c1938f73771d
 org/bukkit/craftbukkit/entity/CraftZombie 79 4834c1938f73771d
 org/bukkit/craftbukkit/entity/CraftZombieHorse 80 a745e85d792381c1
-org/bukkit/craftbukkit/generator/CraftBiomeParameterPoint 0 e3b0c44298fc1c14
-org/bukkit/craftbukkit/generator/CraftChunkData 0 e3b0c44298fc1c14
+org/bukkit/craftbukkit/generator/CraftBiomeParameterPoint 18 bc265886ce268f1d
+org/bukkit/craftbukkit/generator/CraftChunkData 10 ac0d910f0e1cb447
 org/bukkit/craftbukkit/generator/CraftLimitedRegion 63 9f721d85716a3d4d
-org/bukkit/craftbukkit/generator/CraftWorldInfo 0 e3b0c44298fc1c14
+org/bukkit/craftbukkit/generator/CraftWorldInfo 7 9233df867410902d
 org/bukkit/craftbukkit/generator/CraftWorldInfo$1 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/generator/CustomChunkGenerator$CustomBiomeGrid 0 e3b0c44298fc1c14
-org/bukkit/craftbukkit/generator/OldCraftChunkData 0 e3b0c44298fc1c14
+org/bukkit/craftbukkit/generator/OldCraftChunkData 10 ac0d910f0e1cb447
 org/bukkit/craftbukkit/generator/structure/CraftGeneratedStructure 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/generator/structure/CraftStructure 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/generator/structure/CraftStructurePiece 0 e3b0c44298fc1c14

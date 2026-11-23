@@ -50,6 +50,7 @@ class BukkitBiomeProviderWorldTest {
     static final class Halves extends BiomeProvider {
         final List<String> infos = new CopyOnWriteArrayList<>();
         volatile double maxAbsTemperature;
+        final java.util.Set<String> pointClasses = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
         @Override
         public Biome getBiome(WorldInfo worldInfo, int x, int y, int z) { return x < 0 ? Biome.DESERT : Biome.SNOWY_PLAINS; }
@@ -57,6 +58,7 @@ class BukkitBiomeProviderWorldTest {
         @Override
         public Biome getBiome(WorldInfo worldInfo, int x, int y, int z, BiomeParameterPoint p) {
             maxAbsTemperature = Math.max(maxAbsTemperature, Math.abs(p.getTemperature()));
+            pointClasses.add(p.getClass().getName());
             return getBiome(worldInfo, x, y, z);
         }
 
@@ -77,6 +79,7 @@ class BukkitBiomeProviderWorldTest {
             assertEquals(Biome.DESERT, onRegion(w, -40, 8, () -> w.getBiome(-40, 64, 8)));
             assertEquals(Biome.SNOWY_PLAINS, onRegion(w, 40, 8, () -> w.getBiome(40, 64, 8)));
             assertTrue(p.maxAbsTemperature > 0, "노이즈 월드는 바닐라 기후");
+            assertEquals(java.util.Set.of("org.bukkit.craftbukkit.generator.CraftBiomeParameterPoint"), p.pointClasses, "T-264 P2c-3: Paper 와 같은 클래스");
             assertSame(p, new WorldCreator("copy").copy(w).biomeProvider(), "WorldCreator#copy 도 옮긴다");
 
             // 평지(오버월드)도 받는다 — 기후 0
