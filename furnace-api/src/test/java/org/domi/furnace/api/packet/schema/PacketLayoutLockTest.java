@@ -24,10 +24,9 @@ class PacketLayoutLockTest {
             Map.entry("block_state", "varint"),
             Map.entry("vec3", "struct(f64,f64,f64)"));
 
-    /** 스키마 쪽 선택 값 optional&lt;nbt&gt; 와 바닐라 writeNbt(null → 끝 태그 하나)는 같은 와이어다. */
+    /** 잠금 쪽 nbt_any(어떤 태그든)는 스키마의 nbt 와 같은 와이어다. 선택 값 nbt 는 {@link #unify} 가 따로 본다. */
     private static String canon(String w) {
-        if (w.equals("optional<nbt>")) return "nbt";
-        if (w.equals("nbt_opt") || w.equals("nbt_any")) return "nbt";
+        if (w.equals("nbt_any")) return "nbt";
         return CANON.getOrDefault(w, w);
     }
 
@@ -80,6 +79,9 @@ class PacketLayoutLockTest {
             refs.computeIfAbsent(lock, k -> new TreeSet<>()).add(sch);
             return true;
         }
+        // 스키마의 선택 값 nbt 는 바닐라 writeNbt(null → 끝 태그 하나)이고 잠금에서는 nbt_opt 다. 잠금 쪽 optional<…>(있음 바이트가 붙는다)는 이것과 다르다.
+        if (sch.equals("optional<nbt>")) return lock.equals("nbt_opt");
+        if (lock.equals("nbt_opt")) return false;
         for (String h : new String[] {"list", "optional"}) {
             if (sch.startsWith(h + "<") && lock.startsWith(h + "<")) return unify(inner(sch, h), inner(lock, h), refs);
         }
@@ -115,6 +117,17 @@ class PacketLayoutLockTest {
         assertEquals(202, PacketSchema.current().packets().size());
         assertTrue(r.compared() >= 150, "compared packets: " + r.compared());
         assertTrue(r.lockCustom() <= 23, "lock custom: " + r.lockCustom());
+    }
+
+    @Test
+    void anOptionalNbtIsNotTheSameWireAsAPresenceByteOptional() {
+        Map<String, Set<String>> refs = new TreeMap<>();
+        assertTrue(unify("optional<nbt>", "nbt_opt", refs));
+        assertFalse(unify("optional<nbt>", "optional<nbt>", refs));
+        assertFalse(unify("optional<nbt>", "nbt", refs));
+        assertFalse(unify("nbt", "nbt_opt", refs));
+        assertFalse(unify("nbt", "optional<nbt>", refs));
+        assertTrue(unify("nbt", "nbt", refs));
     }
 
     @Test

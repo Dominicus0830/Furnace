@@ -29,7 +29,16 @@ class PacketLayoutBytesTest {
     static final class Writer {
         final Random rnd;
 
-        Writer(long seed) { rnd = new Random(seed); }
+        /** 이 패킷의 "열거형·비트 묶음" 칸 이름 → 값 상한(미포함). 이 칸만 0..상한-1 을 쓰고, 나머지 정수 칸은 여러 바이트 값까지 쓴다. */
+        final java.util.Map<String, Integer> narrow;
+
+        /** 시드는 섞어서 쓴다(단순 곱셈 시드는 첫 값이 패킷마다 거의 같다). */
+        Writer(long seed, java.util.Map<String, Integer> narrow) {
+            rnd = new Random(new java.util.SplittableRandom(seed).nextLong());
+            this.narrow = narrow;
+        }
+
+        private static final int[] WIDE_VARINTS = {0, 1, 127, 128, 300, 16384, 2_097_152, 268_435_456, -1};
 
         static final class UnsupportedToken extends RuntimeException {
             UnsupportedToken(String t) { super(t, null, false, false); }
@@ -40,20 +49,23 @@ class PacketLayoutBytesTest {
 
         void write(Token t, ByteBuf b) {
             String choice = t.field() == null ? null : STRING_CHOICES.get(t.field());
+            Integer bound = t.field() == null ? null : narrow.get(t.field());
             if (t.wire().equals("string") && choice != null) string(b, 0, choice);
+            else if (bound != null && t.wire().equals("varint")) varint(b, rnd.nextInt(bound));
+            else if (bound != null && (t.wire().equals("i8") || t.wire().equals("u8"))) b.writeByte(rnd.nextInt(bound));
             else write(t.wire(), b);
         }
 
         void write(String tok, ByteBuf b) {
             switch (tok) {
                 case "bool" -> b.writeBoolean(rnd.nextBoolean());
-                case "i8", "u8" -> b.writeByte(0);   // 열거형 번호·비트 묶음 칸일 수 있어 0 만(잠금은 칸의 의미를 모른다). 폭은 길이가 본다
+                case "i8", "u8" -> b.writeByte(rnd.nextInt(256));
                 case "i16", "u16" -> b.writeShort(rnd.nextInt(2001) - 1000);   // 속도 칸(×8000 짧은 정수)은 범위를 넘으면 값이 잘린다
                 case "i32" -> b.writeInt(rnd.nextInt());
                 case "i64", "chunk_pos", "section_pos", "block_pos" -> b.writeLong(rnd.nextLong());
                 case "f32" -> b.writeFloat((float) (rnd.nextDouble() * 1000 - 500));
                 case "f64" -> b.writeDouble(rnd.nextDouble() * 1000 - 500);
-                case "varint" -> varint(b, 0);   // 열거형 번호일 수 있어(상수가 하나뿐인 것도 있다) 0 만. 가변 길이 자체는 varlong·목록 길이·varints 가 본다
+                case "varint" -> varint(b, WIDE_VARINTS[rnd.nextInt(WIDE_VARINTS.length)]);   // 한 바이트·여러 바이트를 섞어 가변 길이를 i8 로 바꾼 것도 잡는다
                 case "varlong" -> varlong(b, rnd.nextLong());
                 case "string" -> string(b, 12);
                 case "identifier" -> string(b, 0, "minecraft:" + "abcdefghij".substring(0, 1 + rnd.nextInt(8)));
@@ -128,6 +140,32 @@ class PacketLayoutBytesTest {
         }
     }
 
+    /**
+     * 열거형 번호·비트 묶음·레지스트리 번호 칸(범위를 넘으면 서버 코덱이 거부하거나 잘라 쓴다) — 패킷 와이어 이름 → (칸 이름 → 값 상한).
+     * 잠금은 칸의 의미를 모르므로 이 목록은 시험이 안다. 여기에 없는 칸은 한 바이트·여러 바이트 값을 모두 쓴다.
+     */
+    static final java.util.Map<String, java.util.Map<String, Integer>> NARROW = java.util.Map.ofEntries(
+            java.util.Map.entry("animate", java.util.Map.of("action", 1)),
+            java.util.Map.entry("block_update", java.util.Map.of("getBlockState", 1)),
+            java.util.Map.entry("change_difficulty", java.util.Map.of("difficulty", 4)),
+            java.util.Map.entry("custom_chat_completions", java.util.Map.of("action", 3)),
+            java.util.Map.entry("debug_sample", java.util.Map.of("debugSampleType", 1)),
+            java.util.Map.entry("open_book", java.util.Map.of("hand", 2)),
+            java.util.Map.entry("player_position", java.util.Map.of("relativeArguments", 32)),
+            java.util.Map.entry("set_display_objective", java.util.Map.of("slot", 3)),
+            java.util.Map.entry("client_command", java.util.Map.of("action", 2)),
+            java.util.Map.entry("debug_sample_subscription", java.util.Map.of("sampleType", 1)),
+            java.util.Map.entry("player_action", java.util.Map.of("action", 7, "direction", 6)),
+            java.util.Map.entry("player_command", java.util.Map.of("action", 9)),
+            java.util.Map.entry("recipe_book_change_settings", java.util.Map.of("bookType", 4)),
+            java.util.Map.entry("resource_pack", java.util.Map.of("action", 2)),
+            java.util.Map.entry("swing", java.util.Map.of("hand", 2)),
+            java.util.Map.entry("use_item", java.util.Map.of("hand", 2)));
+
+    static java.util.Map<String, Integer> narrowFields(String wire) {
+        return NARROW.getOrDefault(wire, java.util.Map.of());
+    }
+
     /** 시험 결과: 같은 바이트로 확인한 종류의 와이어 이름들, 건너뛴 수, 어긋난 곳. */
     record Run(List<String> checked, int skippedToken, int notReadable, List<String> failures) {}
 
@@ -151,7 +189,7 @@ class PacketLayoutBytesTest {
                 for (int round = 0; round < ROUNDS; round++) {
                     ByteBuf in = Unpooled.buffer();
                     try {
-                        Writer w = new Writer(31L * wire.hashCode() + round);
+                        Writer w = new Writer(31L * (dir + ":" + wire).hashCode() + round, narrowFields(wire));
                         for (var tok : e.tokens()) w.write(tok, in);
                     } catch (Writer.UnsupportedToken u) {
                         skippedToken++;
@@ -207,6 +245,42 @@ class PacketLayoutBytesTest {
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         } catch (java.io.IOException e) {
             throw new java.io.UncheckedIOException(e);
+        }
+    }
+
+    @Test
+    void aVarintChangedToAFixedByteIsCaught() {
+        // 가변 정수(varint)를 한 바이트 정수(i8)로 바꾼 잠금도 잡는다 — 열거형이 아닌 칸에서 여러 바이트 값을 쓰기 때문.
+        String text = readLock();
+        String[][] cases = {
+                {"game\tC\tchunk_batch_finished\tcodec\t-\tvarint@batchSize", "game\tC\tchunk_batch_finished\tcodec\t-\ti8@batchSize"},
+                {"game\tC\tset_chunk_cache_radius\tcodec\t-\tvarint@radius", "game\tC\tset_chunk_cache_radius\tcodec\t-\ti8@radius"},
+        };
+        for (String[] c : cases) {
+            String broken = text.replace(c[0], c[1]);
+            assertNotEquals(text, broken, "lock line not found: " + c[0]);
+            Run r = run(PacketLayoutLock.parse(broken));
+            String wire = c[0].split("\t")[2];
+            assertTrue(r.failures().stream().anyMatch(s -> s.contains(wire)), wire + ": " + r.failures());
+        }
+    }
+
+    @Test
+    void anOptionalPresenceByteIsCaught() {
+        // 선택 값의 있음/없음 바이트를 지운(optional<x> → x) 잠금도 잡는다.
+        String text = readLock();
+        String[][] cases = {
+                {"game\tC\treset_score\tcodec\t-\tstring@owner optional<string>@objectiveName", "game\tC\treset_score\tcodec\t-\tstring@owner string@objectiveName"},
+                {"game\tC\tselect_advancements_tab\tcodec\t-\toptional<identifier>@tab", "game\tC\tselect_advancements_tab\tcodec\t-\tidentifier@tab"},
+        };
+        Run base = run(PacketLayoutLock.parse(text));
+        for (String[] c : cases) {
+            String wire = c[0].split("\t")[2];
+            assertTrue(base.checked().stream().anyMatch(s -> s.endsWith(":" + wire)), wire + " is not byte-checked at all");
+            String broken = text.replace(c[0], c[1]);
+            assertNotEquals(text, broken, "lock line not found: " + c[0]);
+            Run r = run(PacketLayoutLock.parse(broken));
+            assertTrue(r.failures().stream().anyMatch(s -> s.contains(wire)), wire + ": " + r.failures());
         }
     }
 }
