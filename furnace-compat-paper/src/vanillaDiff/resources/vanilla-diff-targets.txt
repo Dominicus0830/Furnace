@@ -1,6 +1,8 @@
 # T-235 차분 시험 대상 — 값 클래스(설계 5.5 의 1순위: "전부").
 # 줄 꼴:
-#   class <Mojang 이름 클래스> [iterations=N] 바닐라와 shim 이 함께 가진 공개 멤버를 전부 같은 입력으로 견준다(멤버마다 입력 N개, 기본 20000)
+#   class <Mojang 이름 클래스> [iterations=N] [budget=초] 바닐라와 shim 이 함께 가진 공개 멤버를 전부 같은 입력으로 견준다(멤버마다 입력 N개, 기본 20000)
+#     budget=초: 바닐라 쪽이 비싼 느린 클래스만(멤버마다 시간 예산 — 경계값 입력 400개는 다 돌고, 그 뒤 난수 입력에서 예산을 넘으면 멈추고 보고서 머리에 적는다).
+#                 없는 클래스는 멈추지 않는다(300초 감시를 넘기면 실패)
 #     exclude <열쇠>  # <이유>                 열쇠 = 필드 이름 또는 이름(인자 형식,…) (보고서의 열쇠 그대로). 이유 없는 exclude 는 오류
 #     paper <열쇠> [when=<입력 조건>] vanilla=<예외> shim=<예외> [vanilla=… shim=…]…  # <근거>
 #                                             바닐라와 다르지만 Paper 와 같게 둔 차이(호환 원칙). 적은 예외 쌍(바닐라가 이것, shim 이 저것)인
@@ -45,7 +47,7 @@ class net.minecraft.nbt.CompoundTag  iterations=3000
 class net.minecraft.nbt.NbtAccounter  iterations=3000
 # NbtIo 는 1000: 바닐라 읽기가 실패마다 CrashReport(시스템 정보 수집, 입력당 약 10ms)를 만들어 3000 이면 CI 에서 멤버당 120초를 넘는다.
 # 근거 입력은 고정 훑기에 있어 입력 수와 무관하다
-class net.minecraft.nbt.NbtIo  iterations=1000
+class net.minecraft.nbt.NbtIo  iterations=1000 budget=45
   paper read(java.io.DataInput) when=nbt-array-limit vanilla=net.minecraft.nbt.ReportedNbtException shim=java.lang.IllegalArgumentException vanilla=net.minecraft.nbt.NbtAccounterException shim=java.lang.IllegalArgumentException  # Paper 는 바이트·정수 배열 길이를 할당량 계산 전에 checkArgument(n < 1<<24) 로 막는다(바닐라 1.21.1 에는 없음). Paper Mojang 이름 jar 의 ByteArrayTag$1·IntArrayTag$1 바이트코드로 확인(11-23). 근거 입력: NbtKit 큰 배열 길이(고정 훑기 0·4·8·12)
   paper read(java.io.DataInput,net.minecraft.nbt.NbtAccounter) when=nbt-array-limit vanilla=net.minecraft.nbt.ReportedNbtException shim=java.lang.IllegalArgumentException vanilla=net.minecraft.nbt.NbtAccounterException shim=java.lang.IllegalArgumentException  # Paper 는 바이트·정수 배열 길이를 할당량 계산 전에 checkArgument(n < 1<<24) 로 막는다(바닐라 1.21.1 에는 없음). Paper Mojang 이름 jar 의 ByteArrayTag$1·IntArrayTag$1 바이트코드로 확인(11-23). 근거 입력: NbtKit 큰 배열 길이(고정 훑기 0·4·8·12)
   paper read(java.nio.file.Path) when=nbt-array-limit vanilla=net.minecraft.nbt.ReportedNbtException shim=java.lang.IllegalArgumentException vanilla=net.minecraft.nbt.NbtAccounterException shim=java.lang.IllegalArgumentException  # Paper 는 바이트·정수 배열 길이를 할당량 계산 전에 checkArgument(n < 1<<24) 로 막는다(바닐라 1.21.1 에는 없음). Paper Mojang 이름 jar 의 ByteArrayTag$1·IntArrayTag$1 바이트코드로 확인(11-23). 근거 입력: NbtKit 큰 배열 길이(고정 훑기 0·4·8·12)

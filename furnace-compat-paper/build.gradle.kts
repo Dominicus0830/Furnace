@@ -430,7 +430,7 @@ tasks.register<Test>("vanillaDiffTest") {
     (findProperty("vdiffClasses") as String?)?.let { systemProperty("furnace.vdiff.classes", it) }
     (findProperty("vdiffIterations") as String?)?.let { systemProperty("furnace.vdiff.iterations", it) }
     (findProperty("vdiffSeed") as String?)?.let { systemProperty("furnace.vdiff.seed", it) }
-    // 멤버마다 시간 예산(초, 기본 45) — 넘으면 남은 입력을 멈추고 몇 개 돌렸는지 보고서에 적는다(DiffRunner.MEMBER_BUDGET_SECONDS)
+    // 대상 파일에서 budget= 으로 시간 예산을 켠 클래스의 예산(초)을 바꾼다(DiffRunner.HARD_WATCHDOG_SECONDS 설명)
     (findProperty("vdiffBudget") as String?)?.let { systemProperty("furnace.vdiff.memberBudgetSeconds", it) }
     testLogging { showStandardStreams = true; exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }
     outputs.upToDateWhen { false }
