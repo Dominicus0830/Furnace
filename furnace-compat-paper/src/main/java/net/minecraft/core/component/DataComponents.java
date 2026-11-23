@@ -62,11 +62,23 @@ public final class DataComponents {
 
     private static DataComponentType<RawComponentValue> raw(String key) { return new Raw(key); }
 
-    /** 호환 모듈 전용: 그 키의 종류(값 변환이 있으면 {@link Type}, 아니면 늘 같은 {@link Raw} 객체). */
+    /**
+     * 호환 모듈 전용: 그 키의 종류(값 변환이 있으면 {@link Type}, 아니면 늘 같은 {@link Raw} 객체). 서버 레지스트리에 없는 키는
+     * IllegalArgumentException(바닐라 레지스트리 조회 실패와 같은 문구) — 아무 키나 영구히 쌓지 않는다.
+     */
     public static DataComponentType<?> furnaceType(String key) {
         String k = key.indexOf(':') < 0 ? "minecraft:" + key : key;
-        return BY_KEY.computeIfAbsent(k, Raw::new);
+        DataComponentType<?> t = BY_KEY.get(k);
+        if (t == null) {
+            org.domi.furnace.compat.nms.NmsDataComponentTypes.registry();   // 서버 목록의 종류를 채운다
+            t = BY_KEY.get(k);
+            if (t == null) throw new IllegalArgumentException("No element " + k + " in registry minecraft:data_component_type");
+        }
+        return t;
     }
+
+    /** 호환 모듈 전용: 레지스트리를 만들 때 서버 목록의 키를 등록한다(상수가 아니면 값 없는 종류). */
+    public static DataComponentType<?> furnaceRegister(String key) { return BY_KEY.computeIfAbsent(key, Raw::new); }
 
     /** 호환 모듈 전용: 값 클래스 없이 저장 꼴 SNBT 로 값을 주고받는 종류. */
     public static final class Raw implements DataComponentType<RawComponentValue> {
@@ -125,7 +137,7 @@ public final class DataComponents {
 
         /** NMS 값 → 저장 꼴 SNBT. */
         public String toSnbt(T v) {
-            return new org.domi.furnace.api.item.ItemStack("minecraft:stone", 1).with(furnace, toFurnace(v)).components().get(key);
+            return org.domi.furnace.api.item.ItemSupport.get().componentSnbt(furnace, toFurnace(v));
         }
 
         /** 저장 꼴 SNBT → NMS 값. */

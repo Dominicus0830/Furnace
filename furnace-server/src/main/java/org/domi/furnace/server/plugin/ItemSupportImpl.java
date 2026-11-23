@@ -305,6 +305,18 @@ public final class ItemSupportImpl implements ItemSupport {
     }
 
     @Override
+    public <T> String componentSnbt(ItemComponent<T> component, T value) {
+        ComponentType t = type(component);
+        if (t.isTransient()) throw new IllegalArgumentException(t.name() + " is a transient component");
+        try {
+            Object in = component.isRaw() ? Snbt.parse((String) value) : adapter(component).write().apply(value);
+            return Snbt.write(t.persistent().toNbt(t.normalize(in)));
+        } catch (CodecException | ClassCastException e) {
+            throw bad(component, e);
+        }
+    }
+
+    @Override
     public byte[] encodeComponentValue(String component, String snbt) {
         io.netty.buffer.ByteBuf out = io.netty.buffer.Unpooled.buffer();
         try {
@@ -321,8 +333,8 @@ public final class ItemSupportImpl implements ItemSupport {
     }
 
     @Override
-    public org.domi.furnace.api.item.ItemComponentWireValue decodeComponentValue(String component, byte[] bytes, int offset) {
-        io.netty.buffer.ByteBuf in = io.netty.buffer.Unpooled.wrappedBuffer(bytes, offset, bytes.length - offset);
+    public org.domi.furnace.api.item.ItemComponentWireValue decodeComponentValue(String component, java.nio.ByteBuffer bytes) {
+        io.netty.buffer.ByteBuf in = io.netty.buffer.Unpooled.wrappedBuffer(bytes.slice());
         try {
             ComponentType t = DataComponents.require(component);
             Object v = t.network().read(in);

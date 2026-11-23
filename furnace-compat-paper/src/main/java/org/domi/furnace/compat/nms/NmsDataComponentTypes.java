@@ -26,7 +26,7 @@ public final class NmsDataComponentTypes {
                     r = new NmsMappedRegistry<>(Registries.DATA_COMPONENT_TYPE);
                     var ids = Furnace.server().gameRegistries().builtIn("minecraft:data_component_type");
                     if (ids.isEmpty()) throw new IllegalStateException("the server did not provide the data component type registry list");
-                    for (String id : ids) r.add(ResourceLocation.parse(id), DataComponents.furnaceType(id));
+                    for (String id : ids) r.add(ResourceLocation.parse(id), DataComponents.furnaceRegister(id));
                     registry = r;
                 }
             }

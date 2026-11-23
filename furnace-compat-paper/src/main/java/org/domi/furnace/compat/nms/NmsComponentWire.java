@@ -19,10 +19,7 @@ public final class NmsComponentWire {
         return new StreamCodec<>() {
             @Override
             public T decode(RegistryFriendlyByteBuf buf) {
-                int start = buf.readerIndex();
-                byte[] rest = new byte[buf.readableBytes()];
-                buf.getBytes(start, rest);
-                ItemComponentWireValue v = ItemSupport.get().decodeComponentValue(key, rest, 0);
+                ItemComponentWireValue v = ItemSupport.get().decodeComponentValue(key, buf.nioBuffer(buf.readerIndex(), buf.readableBytes()));
                 buf.skipBytes(v.length());
                 return fromSnbt.apply(v.snbt());
             }

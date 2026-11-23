@@ -66,13 +66,19 @@ public interface ItemSupport {
     ItemStack applyComponentPatch(ItemStack stack, ItemComponentPatch patch);
 
     /**
+     * 값을 그 컴포넌트의 저장 꼴 SNBT 로(규칙·정규화는 {@code set} 과 같다). 아이템 기본값과 같아도 떼지 않는다 — 스택에 얹지 않고 값만 바꾼다.
+     * 규칙에 맞지 않으면 IllegalArgumentException.
+     */
+    <T> String componentSnbt(ItemComponent<T> component, T value);
+
+    /**
      * 컴포넌트 값 하나를 네트워크 꼴 바이트로(바닐라 {@code DataComponentType.streamCodec().encode}): 종류 id 는 붙이지 않는다.
      * 값은 SNBT(저장 꼴). 모르는 컴포넌트·규칙에 안 맞는 값이면 IllegalArgumentException.
      */
     byte[] encodeComponentValue(String component, String snbt);
 
-    /** {@link #encodeComponentValue} 의 반대: {@code bytes} 의 {@code offset} 부터 값 하나를 읽어 저장 꼴 SNBT 와 읽은 바이트 수를 준다. 잘못된 바이트면 IllegalArgumentException. */
-    ItemComponentWireValue decodeComponentValue(String component, byte[] bytes, int offset);
+    /** {@link #encodeComponentValue} 의 반대: {@code bytes} 의 위치부터 값 하나를 읽어(버퍼의 위치·한도는 바꾸지 않는다) 저장 꼴 SNBT 와 읽은 바이트 수를 준다. 잘못된 바이트면 IllegalArgumentException. */
+    ItemComponentWireValue decodeComponentValue(String component, java.nio.ByteBuffer bytes);
 
     // ------------------------------------------------------------------ 설치
 

@@ -94,6 +94,50 @@ class NmsGeyserGapsTest {
     }
 
     @Test
+    void streamCodecKeepsValuesEqualToItemDefaults() {
+        // 아이템 기본값과 같은 값(최대 개수 64·수리 비용 0·빈 설명)도 값 하나를 쓰는 일이라 그대로 쓴다
+        RegistryFriendlyByteBuf b = buf();
+        DataComponents.MAX_STACK_SIZE.streamCodec().encode(b, 64);
+        DataComponents.REPAIR_COST.streamCodec().encode(b, 0);
+        DataComponents.LORE.streamCodec().encode(b, new net.minecraft.world.item.component.ItemLore(java.util.List.of()));
+        assertArrayEquals(new byte[] {64, 0, 0}, bytes(b));
+        assertEquals(64, DataComponents.MAX_STACK_SIZE.streamCodec().decode(b));
+        assertEquals(0, DataComponents.REPAIR_COST.streamCodec().decode(b));
+        assertTrue(DataComponents.LORE.streamCodec().decode(b).lines().isEmpty());
+        assertEquals(0, b.readableBytes());
+    }
+
+    @Test
+    void containerAndLootRoundTripWithVanillaBytes() {
+        var container = DataComponents.CONTAINER.streamCodec();
+        RegistryFriendlyByteBuf c = buf();
+        container.encode(c, new RawComponentValue("[{slot:0,item:{id:\"minecraft:stone\",count:2}}]"));
+        assertArrayEquals(new byte[] {1, 2, 1, 0, 0}, bytes(c));
+        container.decode(c);
+        assertEquals(0, c.readableBytes());
+        // 비어 있는 앞 칸은 빈 스택(개수 0 한 바이트)
+        RegistryFriendlyByteBuf d = buf();
+        container.encode(d, new RawComponentValue("[{slot:1,item:{id:\"minecraft:stone\",count:2}}]"));
+        assertArrayEquals(new byte[] {2, 0, 2, 1, 0, 0}, bytes(d));
+
+        var loot = DataComponents.CONTAINER_LOOT.streamCodec();
+        RegistryFriendlyByteBuf e = buf();
+        loot.encode(e, new RawComponentValue("{loot_table:\"minecraft:chests/simple_dungeon\",seed:5L}"));
+        byte[] w = bytes(e);
+        assertEquals(10, w[0]);                    // 이름 없는 복합 태그(1.21 네트워크 NBT)
+        assertEquals(0, w[w.length - 1]);
+        RawComponentValue back = loot.decode(e);
+        assertTrue(back.snbt().contains("simple_dungeon") && back.snbt().contains("5"));
+        assertEquals(0, e.readableBytes());
+    }
+
+    @Test
+    void unknownComponentKeyIsRejected() {
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () -> DataComponents.furnaceType("minecraft:no_such_component"));
+        assertSame(DataComponents.CONTAINER, DataComponents.furnaceType("container"));
+    }
+
+    @Test
     void patchEntrySetListsValuesAndRemovals() {
         DataComponentPatch patch = DataComponentPatch.furnaceOf(
                 Map.of("minecraft:max_stack_size", "16", "minecraft:bundle_contents", "[{id:\"minecraft:stone\",count:2}]"),
