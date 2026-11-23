@@ -176,6 +176,9 @@ Craft 클래스 멤버를 T-264 가 다음 네 칸으로 나눠 **기계가 읽�
 
 - 모두 `furnace-compat-paper`(+ `tools/`) 안이고 서버 핵심은 안 건드린다. 성능: 이름·상속만 바뀌므로 핫 경로 비용 0, 다리는 `checkcast` 하나.
 - **[검토 5] 금 파일 하나가 바뀐다.** `furnace-compat-paper/src/test/resources/identity/1.21.1/scene-compat-block-reads.txt` 의 `state-classes` 줄에 `CompatBlockState` 가 있다(블록 엔티티 없는 블록의 상태 클래스). P2 에서 이것이 `CraftBlockState` 로 바뀐다 — Paper 와 같아지는 **정확성 수정**이다. 절차는 `docs/testing/identitykit.md` "금 파일 갱신": `-Dfurnace.identity.bless=scene-compat-block-reads` 로 그 이름 하나만 갱신, PR 본문에 "금 파일 갱신" 절(바뀐 파일·줄 수·이유·근거 = 관측표의 `blockstate.<Material>` 줄)을 쓴다. 그 PR 은 금 파일 변경이라 독립 검토를 유지한다. 다른 장면 금 파일에 Compat 클래스 이름이 더 있는지는 P2 시작 때 `grep -rn Compat src/test/resources/identity` 로 다시 본다(11-23 기준 이 한 줄뿐).
+- **[P1 구현]** 생성기는 `tools/compat/gen-bukkit-entity-classes.py` 를 잠금으로 돌게 고쳤다(새 `gen-craft-classes.py` 는 만들지 않음): 종류 표의 Craft 클래스와 손 클래스에 닿을 때까지의 상위 사슬(중간 계층 26 + Paper 내부 `PaperSchoolableFish` + Craft 인터페이스 3 `CraftEnemy`·`CraftMerchant`·`PaperSharedSpawnerLogic`)을 잠금의 상위·접근대로 만든다. 손으로 고친 것은 `CraftProjectile` 하나 — Paper 처럼 `AbstractProjectile`(추상) 아래로 두고 몸통(쏜 쪽 읽기 등)을 `AbstractProjectile` 로 올렸다(화살·화염구·라마 침·셜커 탄환도 같은 몸통). 결과: 엔티티 `super` 줄 0(기준선 103줄 지움).
+  - 인터페이스: Furnace 에 있는 형만 붙이고, 그 형(과 상위)에 몸통 없는 메서드가 있으면 붙이지 않는다(엔티티 API 는 손 사슬이 채움 — 컴파일이 확인). 그래서 새로 생긴 중간 계층에서 처음 보이는 인터페이스 차이 5줄(API 형이 Furnace 에 없음: `RangedEntity`·`Bucketable`·`LootableEntityInventory`·`Merchant`, 몸통 없음: 주민 `InventoryHolder`)은 기준선에 같은 커밋으로 들어간다 — 옛 상위 줄이 지워진 자리라 기준선은 순으로 98줄 준다. 이 5줄은 5장 규칙대로 API 형을 들여오는 스레드가 지운다.
+  - 패키지 전용: Paper 의 `CraftMinecartMobSpawner` 는 패키지 전용 `final` 이라 그대로 만들고, `CompatEntityKinds` 는 `CraftAccess`(3.1 [검토 3]) 로만 만든다. `CraftAccessStaticTest` 가 craftbukkit 밖에서 패키지 전용 Craft 클래스 이름을 드는 곳이 `CraftAccess` 뿐인지 본다.
 - 끝난 뒤 남는 것: 5장의 386개(API 형식 들여오기와 함께), (d) 칸(T-263·영역 10).
 
 ## 9. 위험

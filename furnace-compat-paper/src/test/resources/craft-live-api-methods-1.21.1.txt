@@ -359,12 +359,12 @@ org/bukkit/craftbukkit/damage/CraftDamageEffect 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/damage/CraftDamageSource 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/damage/CraftDamageSourceBuilder 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/damage/CraftDamageType 0 e3b0c44298fc1c14
-org/bukkit/craftbukkit/entity/AbstractProjectile 61 54eb57e81f76e200
-org/bukkit/craftbukkit/entity/CraftAbstractArrow 61 54eb57e81f76e200
-org/bukkit/craftbukkit/entity/CraftAbstractHorse 79 4834c1938f73771d
+org/bukkit/craftbukkit/entity/AbstractProjectile 73 d4afd82793f21709
+org/bukkit/craftbukkit/entity/CraftAbstractArrow 73 d4afd82793f21709
+org/bukkit/craftbukkit/entity/CraftAbstractHorse 80 a745e85d792381c1
 org/bukkit/craftbukkit/entity/CraftAbstractSkeleton 79 4834c1938f73771d
 org/bukkit/craftbukkit/entity/CraftAbstractVillager 79 4834c1938f73771d
-org/bukkit/craftbukkit/entity/CraftAbstractWindCharge 61 54eb57e81f76e200
+org/bukkit/craftbukkit/entity/CraftAbstractWindCharge 73 d4afd82793f21709
 org/bukkit/craftbukkit/entity/CraftAgeable 79 4834c1938f73771d
 org/bukkit/craftbukkit/entity/CraftAllay 79 4834c1938f73771d
 org/bukkit/craftbukkit/entity/CraftAmbient 79 4834c1938f73771d
@@ -388,7 +388,7 @@ org/bukkit/craftbukkit/entity/CraftCat 80 a745e85d792381c1
 org/bukkit/craftbukkit/entity/CraftCat$CraftType 1 be9dae042c314ffc
 org/bukkit/craftbukkit/entity/CraftCaveSpider 79 4834c1938f73771d
 org/bukkit/craftbukkit/entity/CraftChestBoat 61 54eb57e81f76e200
-org/bukkit/craftbukkit/entity/CraftChestedHorse 79 4834c1938f73771d
+org/bukkit/craftbukkit/entity/CraftChestedHorse 80 a745e85d792381c1
 org/bukkit/craftbukkit/entity/CraftChicken 79 4834c1938f73771d
 org/bukkit/craftbukkit/entity/CraftCod 79 4834c1938f73771d
 org/bukkit/craftbukkit/entity/CraftComplexPart 60 d1b67b7909af22bb
@@ -418,7 +418,7 @@ org/bukkit/craftbukkit/entity/CraftEvoker 79 4834c1938f73771d
 org/bukkit/craftbukkit/entity/CraftEvokerFangs 61 54eb57e81f76e200
 org/bukkit/craftbukkit/entity/CraftExperienceOrb 61 54eb57e81f76e200
 org/bukkit/craftbukkit/entity/CraftFallingBlock 61 54eb57e81f76e200
-org/bukkit/craftbukkit/entity/CraftFireball 61 54eb57e81f76e200
+org/bukkit/craftbukkit/entity/CraftFireball 73 d4afd82793f21709
 org/bukkit/craftbukkit/entity/CraftFirework 73 d4afd82793f21709
 org/bukkit/craftbukkit/entity/CraftFish 79 4834c1938f73771d
 org/bukkit/craftbukkit/entity/CraftFishHook 73 d4afd82793f21709
@@ -493,7 +493,7 @@ org/bukkit/craftbukkit/entity/CraftSheep 79 4834c1938f73771d
 org/bukkit/craftbukkit/entity/CraftShulker 79 4834c1938f73771d
 org/bukkit/craftbukkit/entity/CraftShulkerBullet 73 d4afd82793f21709
 org/bukkit/craftbukkit/entity/CraftSilverfish 79 4834c1938f73771d
-org/bukkit/craftbukkit/entity/CraftSizedFireball 61 54eb57e81f76e200
+org/bukkit/craftbukkit/entity/CraftSizedFireball 73 d4afd82793f21709
 org/bukkit/craftbukkit/entity/CraftSkeleton 79 4834c1938f73771d
 org/bukkit/craftbukkit/entity/CraftSkeletonHorse 80 a745e85d792381c1
 org/bukkit/craftbukkit/entity/CraftSlime 79 4834c1938f73771d
@@ -509,7 +509,7 @@ org/bukkit/craftbukkit/entity/CraftStray 79 4834c1938f73771d
 org/bukkit/craftbukkit/entity/CraftStrider 79 4834c1938f73771d
 org/bukkit/craftbukkit/entity/CraftTNTPrimed 61 54eb57e81f76e200
 org/bukkit/craftbukkit/entity/CraftTadpole 79 4834c1938f73771d
-org/bukkit/craftbukkit/entity/CraftTameableAnimal 79 4834c1938f73771d
+org/bukkit/craftbukkit/entity/CraftTameableAnimal 80 a745e85d792381c1
 org/bukkit/craftbukkit/entity/CraftTextDisplay 61 54eb57e81f76e200
 org/bukkit/craftbukkit/entity/CraftThrowableProjectile 73 d4afd82793f21709
 org/bukkit/craftbukkit/entity/CraftThrownExpBottle 73 d4afd82793f21709
