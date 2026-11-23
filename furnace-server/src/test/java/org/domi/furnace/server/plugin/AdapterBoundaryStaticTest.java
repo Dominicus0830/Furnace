@@ -1,0 +1,148 @@
+// 어댑터(호환 계층)와 핵심의 의존 방향을 CI 시험으로 지킨다(T-249). 방향은 어댑터 → 공개 API → (서버 구현은 api.internal 다리로만 노출).
+// 규칙 ① furnace-compat-paper 주 코드는 서버 구현(org.domi.furnace.server..)을 쓰지 않는다 → furnace-compat-paper 의 AdapterDirectionStaticTest
+// 규칙 ② furnace-api 는 호환 계층·어댑터 이름(org.bukkit, io.papermc, net.minecraft, …)을 쓰지 않는다 → 이 시험
+// 규칙 ③ api.internal.* 는 허용 목록의 서버 클래스만 쓴다(어댑터 전용 핵심 코드가 더 늘지 않게) → 이 시험
+// 허용 목록은 줄어들기만 한다: 줄일 수 있게 되면 그 줄을 지우고, 새 줄을 더하려면 이유를 적어 검토를 받는다(docs/ops/adapter-boundary.md).
+package org.domi.furnace.server.plugin;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
+import java.util.stream.Stream;
+import org.domi.furnace.api.plugin.PluginFormat;
+import org.junit.jupiter.api.Test;
+
+class AdapterBoundaryStaticTest {
+
+    /** ② 공개 API 가 이름으로 가리키면 안 되는 어댑터·호환 패키지(내부 이름 + 점 표기). */
+    private static final List<String> API_FORBIDDEN = List.of("org/bukkit/", "io/papermc/", "com/destroystokyo/", "org/spigotmc/", "net/minecraft/",
+            "net/md_5/", "org/domi/furnace/compat/", "org/domi/furnace/server/",
+            "org.bukkit.", "io.papermc.", "com.destroystokyo.", "org.spigotmc.", "net.minecraft.", "net.md_5.", "org.domi.furnace.compat.", "org.domi.furnace.server.");
+
+    /**
+     * ③ api.internal 을 이름으로 가리켜도 되는 서버 클래스(클래스 파일 상대 경로의 접두 — 안쪽 클래스 $ 는 바깥 클래스를 따른다).
+     * 이 클래스들이 호환 어댑터(furnace-compat-paper)에게 서버 내부를 보여 주는 다리의 서버 쪽이다. 더 늘리지 않는다.
+     */
+    private static final Map<String, String> INTERNAL_ALLOWED = new TreeMap<>(Map.ofEntries(
+            Map.entry("org/domi/furnace/server/plugin/BlockStateInternalsImpl", "api.internal.BlockStateInternals 서버 쪽 구현(다리)"),
+            Map.entry("org/domi/furnace/server/plugin/ChunkInternalsImpl", "api.internal.ChunkInternals 서버 쪽 구현(다리)"),
+            Map.entry("org/domi/furnace/server/plugin/FeatureInternalsImpl", "api.internal.FeatureInternals 서버 쪽 구현(다리)"),
+            Map.entry("org/domi/furnace/server/plugin/InternalsImpl", "api.internal.Internals 진입점 서버 쪽 구현(다리)"),
+            Map.entry("org/domi/furnace/server/plugin/ScratchWorldsImpl", "api.internal.ScratchWorlds 서버 쪽 구현(다리)"),
+            Map.entry("org/domi/furnace/server/plugin/PluginHost", "서버가 다리 진입점(InternalsImpl)을 하나 들고 호환 어댑터에게 internals() 로 내준다"),
+            Map.entry("org/domi/furnace/server/world/Region", "region 스레드에서 로드된 청크를 ChunkInternals 읽기 보기에 내주는 접근 — 권장 3단계에서 훅 뒤로"),
+            Map.entry("org/domi/furnace/server/plugin/PlacementBridge", "NMS 놓기 어댑터 전용 다리 — 서버 놓기 규칙을 api.internal 로 보인다"),
+            // 아래 넷은 구현 클래스가 아니라 핵심 자료구조가 어댑터를 위한 "거울 동기화·읽기 보기" 모양을 직접 안다 — 점검 보고서(어댑터 분리 점검)의 권장 3단계(훅 뒤로)에서 줄인다.
+            Map.entry("org/domi/furnace/server/world/ChunkColumn", "어댑터 청크 거울(FurnaceChunkMirror) 동기화 훅 — 권장 3단계에서 훅 뒤로"),
+            Map.entry("org/domi/furnace/server/world/ChunkSection", "ChunkInternals 읽기 보기용 접근 — 권장 3단계에서 훅 뒤로"),
+            Map.entry("org/domi/furnace/server/world/ChunkReadView", "ChunkInternals 읽기 보기 자료형 — 권장 3단계에서 훅 뒤로"),
+            Map.entry("org/domi/furnace/server/world/PaletteStorage", "ChunkInternals 읽기 보기용 팔레트 접근 — 권장 3단계에서 훅 뒤로")));
+
+    /**
+     * ② 의 예외: 상수 풀에 어댑터 이름이 "자료"로 들어 있는 API 클래스(클래스 파일 상대 경로 접두). 어댑터 클래스를 부르지 않는다.
+     * PacketSchema 는 중립 패킷 스키마의 바닐라 패킷 패키지 이름("net.minecraft.network.protocol.")을 글자로 가진다 — 호환 계층이 빌드 때 shim 소스를 만드는 입력이다.
+     */
+    private static final Map<String, String> API_NAME_AS_DATA = Map.of(
+            "org/domi/furnace/api/packet/schema/PacketSchema", "패킷 스키마의 바닐라 패킷 패키지 이름(자료) — 클래스 참조가 아니다");
+
+    private static final String INTERNAL = "org/domi/furnace/api/internal/";
+
+    @Test
+    void apiNeverNamesAnAdapterOrCompatClass() throws Exception {
+        List<String> offenders = new ArrayList<>();
+        int scanned = scan(PluginFormat.class, (name, bytes) -> {
+            if (API_NAME_AS_DATA.keySet().stream().anyMatch(a -> name.replace('\\', '/').startsWith(a))) return;
+            String text = new String(bytes, StandardCharsets.ISO_8859_1);
+            for (String f : API_FORBIDDEN) {
+                if (text.contains(f)) {
+                    offenders.add(name + " → " + f);
+                    return;
+                }
+            }
+        });
+        assertTrue(scanned > 100, "스캔한 API 클래스가 너무 적다(" + scanned + ") — 위치를 못 찾았을 수 있다");
+        assertEquals(List.of(), offenders, "furnace-api 가 어댑터·호환 이름을 가리킨다 — 어댑터 이름은 호환 계층에만 있어야 한다");
+    }
+
+    @Test
+    void apiInternalIsUsedOnlyByAllowedServerClasses() throws Exception {
+        List<String> offenders = new ArrayList<>();
+        TreeSet<String> seen = new TreeSet<>();
+        int scanned = scan(PluginBootstrapper.class, (name, bytes) -> {
+            if (!new String(bytes, StandardCharsets.ISO_8859_1).contains(INTERNAL)) return;
+            String outer = name.replace('\\', '/').replaceAll("\\.class$", "");
+            int dollar = outer.indexOf('$');
+            if (dollar >= 0) outer = outer.substring(0, dollar);
+            if (INTERNAL_ALLOWED.containsKey(outer)) seen.add(outer);
+            else offenders.add(name);
+        });
+        assertTrue(scanned > 1000, "스캔한 서버 클래스가 너무 적다(" + scanned + ")");
+        assertEquals(List.of(), offenders, "허용 목록 밖의 서버 클래스가 api.internal 을 쓴다 — 어댑터 전용 핵심 코드를 늘리지 않는다(docs/ops/adapter-boundary.md)");
+        // 목록이 줄어들기만 하게: 더는 쓰지 않는 항목은 지워야 한다
+        TreeSet<String> stale = new TreeSet<>(INTERNAL_ALLOWED.keySet());
+        stale.removeAll(seen);
+        assertEquals(new TreeSet<String>(), stale, "허용 목록에 있지만 이제 api.internal 을 쓰지 않는 클래스 — 목록에서 지운다");
+    }
+
+    @Test
+    void knownStringSplitHolesStillExistWithTheirReason() throws IOException {
+        // 클래스 파일 검사는 상수 풀의 글자만 본다. 이름을 이어 붙여 피하는 곳은 검사에 안 잡히므로 여기에 이유와 함께 적고, 사라지면 줄을 지운다.
+        Map<String, String> holes = Map.of(
+                "furnace-server/src/main/java/org/domi/furnace/server/log/ConsolePrefixConverter.java",
+                "로거 이름 접두(org.bukkit. 등)를 콘솔 접두 판단에만 쓴다 — 클래스를 부르지 않는다(이어 붙여 CompatIsolationStaticTest 를 피함)");
+        Path root = repoRoot();
+        for (var e : holes.entrySet()) {
+            Path f = root.resolve(e.getKey());
+            assertTrue(Files.exists(f), e.getKey() + " 가 없다 — 목록에서 지운다");
+            assertTrue(Files.readString(f).contains("pkg(\"org\", \"bukkit\")"), e.getKey() + " 가 더는 이어 붙이지 않는다 — 목록에서 지운다");
+        }
+    }
+
+    private static Path repoRoot() {
+        Path p = Path.of("").toAbsolutePath();
+        while (p != null && !Files.exists(p.resolve("settings.gradle.kts"))) p = p.getParent();
+        assertTrue(p != null, "저장소 루트를 못 찾았다");
+        return p;
+    }
+
+    private interface Visitor {
+        void visit(String name, byte[] bytes);
+    }
+
+    private static int scan(Class<?> anchor, Visitor v) throws IOException, URISyntaxException {
+        Path root = Path.of(anchor.getProtectionDomain().getCodeSource().getLocation().toURI());
+        int[] n = {0};
+        if (Files.isDirectory(root)) {
+            try (Stream<Path> s = Files.walk(root)) {
+                for (Path p : (Iterable<Path>) s.filter(f -> f.toString().endsWith(".class"))::iterator) {
+                    v.visit(root.relativize(p).toString(), Files.readAllBytes(p));
+                    n[0]++;
+                }
+            }
+        } else {
+            try (JarFile jar = new JarFile(root.toFile())) {
+                for (JarEntry e : (Iterable<JarEntry>) jar.stream()::iterator) {
+                    if (!e.getName().endsWith(".class")) continue;
+                    try (InputStream in = jar.getInputStream(e)) {
+                        v.visit(e.getName(), in.readAllBytes());
+                    }
+                    n[0]++;
+                }
+            }
+        }
+        return n[0];
+    }
+}
