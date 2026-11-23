@@ -31,3 +31,37 @@
   서버는 미리 보기·넣기 모두 그 씨앗으로 엔티티 난수를 만든다(`Entity.withRandomSeed`). UUID 도 그 난수에서 나온다.
 - 기록: 빈 레벨에서 만들어도 정적 공유 난수(몹 감지기 시작 틱, `Sensor` 의 스레드 안전 난수)는 한 번 소비된다. 바닐라도 엔티티를 만들 때마다
   같은 공유 난수를 쓰므로 결과 분포는 같고 월드 난수·엔티티 번호와는 무관하다.
+
+## 칸 상수 DATA_* (D2)
+- `tools/compat/entity-data-spec.py` 가 Paper 서버 서명표(클라우드에서도 `tools/compat/sig-tables.sh` 로 만든다 — Maven 429 면 다시 실행)에서
+  public/protected `EntityDataAccessor` 정적 필드 49개를 골라 명세 줄을 쓴다. 이미 다른 명세에 있는 클래스(Entity·LivingEntity·Player·ArmorStand·ItemFrame)는
+  `entity.spec` 의 표지 블록에, 나머지는 `entity-data.spec` 에. 값은 명세에 숫자를 적지 않고 실행 때 `NmsEntityData.accessor(클래스, 이름)` 가
+  #565 칸 번호표의 지문으로 찾는다.
+- Paper 1.21.1 칸 상수 210개: public 31·protected 18(생성), private 159·package 2(명세에 안 적음 — 필요하면 목록을 뽑아 따로 결정).
+  FancyNpcs 의 Goat 뿔 두 개·Shulker 색·Player 모드는 모두 public.
+- 시험 `NmsEntityDataConstantsTest`: 상수마다 그 클래스를 사슬에 가진 종류 전부의 배치에서 번호·값 종류가 맞는지.
+
+## 재생 비용 줄이기 (11-23, PR 573 검토의 후속)
+- 예전: 칸을 꺼낸 월드 밖 엔티티에 조작이 붙을 때마다 `detachedEntityData(kind, 전체 ops)` 로 빈 레벨에서 처음부터 다시 만들어 재생했다 — 조작 n 개면 n² 재생.
+- 지금: `ChunkInternals#openDetachedEntityData` 가 빈 레벨의 엔티티를 쥔 `DetachedEntityData` 를 돌려주고, shim `Entity.Detached` 가 그것을 들고 있다가 붙은 조작 하나만 `apply` 한다. 결과는 처음부터 재생한 것과 같다(`EntityDataSlotsTest.incrementalReplayMatchesFullReplay` 가 세 종류·조작 8개로 매 단계 견준다).
+- 실패한 조작 뒤로는 그 예외를 계속 던진다: 엔티티가 조작 도중 상태일 수 있고, 처음부터 재생해도 그 조작에서 늘 실패하므로 관측 결과가 같다.
+- 쥔 엔티티는 어느 region 에도 속하지 않아 `synchronized` 로 아무 스레드에서 부른다(월드 상태를 건드리지 않는다). 월드에 넣을 때는 지금처럼 기록한 ops 를 주인 스레드에서 새 엔티티로 재생한다.
+
+## D4-1 주민 종류·직업·데이터 (11-23)
+- shim `VillagerType`·`VillagerProfession`(record)·`VillagerData` 와 `BuiltInRegistries.VILLAGER_TYPE`·`VILLAGER_PROFESSION`(기본값 plains·none), `PoiTypeTags`.
+- 바닐라처럼 두 클래스의 초기화가 상수를 차례로 등록한다. 처음에는 레지스트리 shim 이 서버 목록을 돌며 값을 만들게 했는데, 값을 만들면 그 클래스 초기화가 돌고 그 초기화가 다시 레지스트리를 불러 **레지스트리가 둘 생겼다**(상수와 레지스트리 값이 다른 객체). 함정: 레지스트리를 값 클래스의 `<clinit>` 바깥에서 값 생성으로 채우지 말 것.
+- 번호 순서는 서버 `registries/builtin-1.21.1.txt` 에 villager_type·villager_profession·frog_variant 를 더해(바닐라 reports/registries.json, `extract_builtin_registries.py`) 처음 꺼낼 때 견준다.
+- 직업 성분(직업 블록 두 람다·요청 아이템 차례·보조 지점·일 소리)과 바이옴 대응은 바닐라 바이트코드로 확인했고, `NmsVillagersTest` 가 서버 `Villager` 정의(heldJobSite·acquirableJobSite·requestedItems·secondaryPoi·typeForBiome)와 견준다.
+- 다리: 등록되지 않은 직업 record 는 바닐라 DefaultedMappedRegistry 처럼 기본값(none)으로 나간다(바닐라 STREAM_CODEC 도 레지스트리 번호).
+
+## D4-2 고양이·개구리 무늬 (11-23)
+- shim `CatVariant`·`FrogVariant` 를 바닐라 record(그림 위치)로, `BuiltInRegistries.CAT_VARIANT`·`FROG_VARIANT`(바닐라 registerSimple, 기본값 없음). 그림 위치 꼴은 바닐라 bootstrap 바이트코드로 확인(고양이 `<이름>.png`, 개구리 `<이름>_frog.png`).
+- 칸 값은 레지스트리 손잡이. 다리에서 등록되지 않은 값(Direct 손잡이에 새 record)은 바닐라 holderRegistry 코덱처럼 실패한다. Direct 라도 값이 등록된 것이면 그 이름.
+- 남은 값 종류: 늑대·그림 무늬(데이터 팩 레지스트리 — RegistryAccess 쪽), 입자, optional_global_pos, vector3·quaternion.
+
+## D4-3 늑대·그림 무늬 (11-24)
+- 둘 다 데이터 팩 레지스트리라 shim 이 순서·값을 스스로 정하지 않는다. 순서는 서버가 클라에 보내는 `entries`, 값은 새 API `GameRegistries.wolfVariant/paintingVariant`(서버 `Wolf.definition`·`Painting.definition`)에서 받는다. 플러그인·데이터 팩 변종도 그대로 담긴다.
+- 바닐라 데이터를 읽지 못하고 돈 판(시험 등)은 바닐라 항목이 정의 없이 레지스트리에 있다. 이때 늑대는 바닐라 `wolf_variant/*.json` 과 같은 값(텍스처 `wolf_<이름>`, pale 만 `wolf`, 바이옴 표), 그림은 `entities/painting_variants-*.txt` 크기와 asset_id=항목 id 로 채운다. 1.21.1 생성 데이터와 하나씩 견줘 확인했다.
+- 바닐라 `WolfVariant` 접근자는 적힌 위치가 아니라 `textures/<경로>.png` 로 늘인 전체 위치를 돌려주고, equals·hashCode 는 적힌 위치 셋과 바이옴 묶음으로 본다(javap 확인). shim 도 같다.
+- 바이옴 묶음: 태그면 `NmsBiomes.registry().getOrCreateTag`, 목록이면 손잡이 목록. 바이옴 레지스트리에 없는 id 는 바닐라라면 정의를 읽을 때 거부되므로 오지 않는다고 보고(가정) 빼 둔다.
+- 서버마다 한 번 만든다(데이터 팩 레지스트리는 시작 때 고정). 남은 값 종류: 입자, optional_global_pos, vector3·quaternion.

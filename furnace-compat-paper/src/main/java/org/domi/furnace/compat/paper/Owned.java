@@ -9,7 +9,7 @@ import org.domi.furnace.api.concurrent.ThreadOwner;
 import org.domi.furnace.api.concurrent.ThreadOwnershipException;
 import org.domi.furnace.api.sched.TaskScheduler;
 
-final class Owned {
+public final class Owned {
 
     private static final System.Logger LOG = System.getLogger("FurnaceCompat");
 
@@ -19,13 +19,13 @@ final class Owned {
     static boolean owns(TaskScheduler s) { return s instanceof ThreadOwner o && o.isOwnerThread(); }
 
     /** 곧바로 끝난 Future 의 값. 아직 안 끝났으면 소유 스레드가 아니라는 뜻이라 ThreadOwnershipException. */
-    static <T> T read(CompletableFuture<T> f, String what) {
+    public static <T> T read(CompletableFuture<T> f, String what) {
         if (!f.isDone()) throw notOwner(what);
         return join(f);
     }
 
     /** 곧바로 끝났으면 실패를 던지고, 아니면 예약된 것으로 보고 실패는 로그만 남긴다. */
-    static void write(CompletableFuture<?> f, String what) {
+    public static void write(CompletableFuture<?> f, String what) {
         if (f.isDone()) {
             join(f);
             return;

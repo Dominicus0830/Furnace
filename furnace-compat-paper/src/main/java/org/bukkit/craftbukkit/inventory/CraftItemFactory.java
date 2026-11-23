@@ -8,13 +8,14 @@ import org.bukkit.entity.EntityType;
 import org.bukkit.inventory.ItemFactory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.domi.furnace.compat.paper.CompatItemMeta;
-import org.domi.furnace.compat.paper.CompatMetaLeatherArmor;
 import org.domi.furnace.compat.paper.MetaKind;
 import org.domi.furnace.compat.paper.UnsupportedFeature;
 
 /** Paper 1.21.1 CraftItemFactory 의 자리 — 재료를 보고 종류별 메타({@link MetaKind})를 골라 주고, 메타끼리 비교·변환한다. */
 public final class CraftItemFactory implements ItemFactory {
+
+    /** 기본 가죽 색(Paper 와 같은 자리·접근). */
+    static final Color DEFAULT_LEATHER_COLOR = Color.fromRGB(0xA06540);
 
     private static final CraftItemFactory INSTANCE = new CraftItemFactory();
 
@@ -29,15 +30,15 @@ public final class CraftItemFactory implements ItemFactory {
     }
 
     /** meta 가 null 이면 새 빈 메타, 아니면 그 재료 종류로 옮긴 메타. */
-    private static CompatItemMeta metaFor(Material material, CompatItemMeta meta) {
+    private static CraftMetaItem metaFor(Material material, CraftMetaItem meta) {
         if (material == Material.AIR) return null;
         String type = material.getKey().toString();
         if (!material.isItem()) {
             // 아이템이 아닌 재료는 일반 메타(Paper: new CraftMetaItem(meta))
-            return meta == null ? CompatItemMeta.of(MetaKind.UNSPECIFIC, new org.domi.furnace.api.item.ItemStack(type, 1)) : meta.asKind(MetaKind.UNSPECIFIC);
+            return meta == null ? CraftMetaItem.of(MetaKind.UNSPECIFIC, new org.domi.furnace.api.item.ItemStack(type, 1)) : meta.asKind(MetaKind.UNSPECIFIC);
         }
         MetaKind kind = MetaKind.of(type);
-        if (meta == null) return CompatItemMeta.of(kind, new org.domi.furnace.api.item.ItemStack(type, 1));
+        if (meta == null) return CraftMetaItem.of(kind, new org.domi.furnace.api.item.ItemStack(type, 1));
         return meta.asKind(kind);
     }
 
@@ -50,7 +51,7 @@ public final class CraftItemFactory implements ItemFactory {
     @Override
     public boolean isApplicable(ItemMeta meta, Material material) {
         if (material == null || meta == null) return false;
-        return own(meta, "Meta of %s not created by %s").applicableTo(material.getKey().toString());
+        return own(meta, "Meta of %s not created by %s").appliesToItem(material.getKey().toString());
     }
 
     @Override
@@ -64,7 +65,7 @@ public final class CraftItemFactory implements ItemFactory {
         if (meta2 != null) {
             own(meta2, "Second meta of %s does not belong to %s");
         } else {
-            return ((CompatItemMeta) meta1).isEmpty();
+            return ((CraftMetaItem) meta1).isEmpty();
         }
         return meta1.equals(meta2);
     }
@@ -81,15 +82,15 @@ public final class CraftItemFactory implements ItemFactory {
         return metaFor(material, own(meta, "ItemMeta of %s not created by %s"));
     }
 
-    private static CompatItemMeta own(ItemMeta meta, String message) {
-        if (!(meta instanceof CompatItemMeta cm)) {
+    private static CraftMetaItem own(ItemMeta meta, String message) {
+        if (!(meta instanceof CraftMetaItem cm)) {
             throw new IllegalArgumentException(String.format(message, meta != null ? meta.getClass().toString() : "null", CraftItemFactory.class.getName()));
         }
         return cm;
     }
 
     @Override
-    public Color getDefaultLeatherColor() { return CompatMetaLeatherArmor.DEFAULT_LEATHER_COLOR; }
+    public Color getDefaultLeatherColor() { return DEFAULT_LEATHER_COLOR; }
 
     @Override
     public ItemStack createItemStack(String input) {

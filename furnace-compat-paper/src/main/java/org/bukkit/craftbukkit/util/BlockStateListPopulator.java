@@ -65,7 +65,7 @@ public class BlockStateListPopulator extends DummyGeneratorAccess {
         list.remove(pos);
         dataMap.put(pos, state);
         entityMap.put(pos, state.getBlock() instanceof EntityBlock eb ? eb.newBlockEntity(pos, state) : null);
-        CraftBlockState state1 = org.domi.furnace.compat.paper.CompatBlockState.generated(getMinecraftWorld().getWorld().furnaceHandle().dimension(),
+        CraftBlockState state1 = org.domi.furnace.compat.paper.BlockStateSnapshots.generated(getMinecraftWorld().getWorld().furnaceHandle().dimension(),
                 new org.domi.furnace.api.world.BlockPos(pos.getX(), pos.getY(), pos.getZ()), state);
         state1.setFlag(flags);
         state1.setWorldHandle(world);

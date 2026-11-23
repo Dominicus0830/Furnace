@@ -14,7 +14,6 @@ import net.minecraft.server.level.ServerLevel;
 import org.domi.furnace.api.Furnace;
 import org.domi.furnace.api.world.BlockPos;
 import org.domi.furnace.compat.paper.Compat;
-import org.domi.furnace.compat.paper.CompatBlock;
 import org.domi.furnace.compat.paper.CompatEffects;
 import org.domi.furnace.compat.paper.UnsupportedFeature;
 
@@ -22,7 +21,7 @@ import org.domi.furnace.compat.paper.UnsupportedFeature;
  * Furnace 월드 위의 Bukkit World. 같은 차원이면 같은 객체(Compat 캐시) — equals 도 차원 키로 본다.
  * CraftBukkit 과 같은 이름이라 {@code (CraftWorld) world} 캐스트와 {@link #getHandle()} 이 된다(H6).
  */
-public final class CraftWorld implements World {
+public class CraftWorld extends CraftRegionAccessor implements World {
 
     private final org.domi.furnace.api.world.World handle;
     private volatile ServerLevel nms;
@@ -133,6 +132,18 @@ public final class CraftWorld implements World {
     @Override
     public Block getBlockAt(int x, int y, int z) { return org.bukkit.craftbukkit.block.CraftBlock.of(handle.dimension(), new BlockPos(x, y, z)); }
 
+    // Paper CraftRegionAccessor 의 칸 읽기·쓰기 — 같은 칸의 CraftBlock 과 같은 길(setBlockData 는 물리 적용)
+    @Override
+    public org.bukkit.block.data.BlockData getBlockData(int x, int y, int z) { return getBlockAt(x, y, z).getBlockData(); }
+
+    @Override
+    public org.bukkit.Material getType(int x, int y, int z) { return getBlockAt(x, y, z).getType(); }
+
+    @Override
+    public void setBlockData(int x, int y, int z, org.bukkit.block.data.BlockData blockData) {
+        getBlockAt(x, y, z).setBlockData(blockData);
+    }
+
     @Override
     public Chunk getChunkAt(int x, int z) { return scratchLevel != null ? new CraftChunk(this, x, z) : new CraftChunk(handle.dimension(), x, z); }
 
@@ -152,7 +163,7 @@ public final class CraftWorld implements World {
     }
 
     @Override
-    public <T extends org.bukkit.entity.Entity> T spawn(org.bukkit.Location location, Class<T> clazz) { return spawn(location, clazz, null); }
+    public <T extends org.bukkit.entity.Entity> T spawn(org.bukkit.Location location, Class<T> clazz) { return spawn(location, clazz, (java.util.function.Consumer<? super T>) null); }
 
     @Override
     public <T extends org.bukkit.entity.Entity> T spawn(org.bukkit.Location location, Class<T> clazz, java.util.function.Consumer<? super T> function) {
@@ -805,6 +816,46 @@ public final class CraftWorld implements World {
         if (biome == null) throw new IllegalArgumentException("Biome cannot be null");
         if (biome == org.bukkit.block.Biome.CUSTOM) throw new IllegalArgumentException("Cannot set the biome to CUSTOM");
         handle.setBiomeNow(new BlockPos(x, y, z), biome.getKey().toString());   // 로드되지 않은 청크면 Paper 처럼 아무 일도 없다
+    }
+
+    // ---- World 와 RegionAccessor 가 함께 기본 몸을 주는 멤버 — 월드는 World 쪽 몸을 쓴다(P2c-2)
+
+    @Override
+    public <T extends org.bukkit.entity.Entity> java.util.Collection<T> getEntitiesByClass(Class<T> cls) { return World.super.getEntitiesByClass(cls); }
+
+    @Override
+    public java.util.Collection<org.bukkit.entity.Entity> getEntitiesByClasses(Class<?>... classes) { return World.super.getEntitiesByClasses(classes); }
+
+    @Override
+    public org.bukkit.block.Biome getBiome(org.bukkit.Location location) { return World.super.getBiome(location); }
+
+    @Override
+    public void setBiome(org.bukkit.Location location, org.bukkit.block.Biome biome) { World.super.setBiome(location, biome); }
+
+    // ---- 높이 지도(RegionAccessor, P2c-2)
+
+    /**
+     * Paper CraftWorld#getHighestBlockYAt: 그 청크 높이 지도의 첫 빈 칸 - 1(바닐라 ChunkAccess#getHeight). 다 만든 청크에 없는 생성 단계
+     * 지도(*_WG)는 바닐라가 그 자리에서 지금 블록으로 만들어 답한다 — 술어가 같은 살아 있는 지도(WORLD_SURFACE_WG↔WORLD_SURFACE 는 NOT_AIR,
+     * OCEAN_FLOOR_WG↔OCEAN_FLOOR 는 MATERIAL_MOTION_BLOCKING, 바닐라 1.21.1 Heightmap$Types 로 확인)와 그 순간 값이 같다. 남는 차이: 바닐라는 한 번
+     * 만든 *_WG 지도를 청크가 내려갈 때까지 갱신하지 않아 그 뒤 블록 변화에 낡은 값을 주고, Furnace 는 늘 지금 값을 준다. Paper 는 로드 안 된
+     * 청크를 그 자리에서 올리지만 Furnace 는 동기 로드를 하지 않는다(getBiome 과 같은 원칙, user-todo 2026-11-23-t264-unloaded-chunk-reads).
+     */
+    @Override
+    public int getHighestBlockYAt(int x, int z, org.bukkit.HeightMap heightMap) {
+        org.bukkit.HeightMap live = switchWorldgen(heightMap);
+        int first = org.domi.furnace.compat.nms.NmsChunks.bridge().firstAvailableNow(handle, live.name(), x, z);
+        if (first == Integer.MIN_VALUE) {
+            throw new UnsupportedFeature("World#getHighestBlockYAt(unloaded chunk)", "Furnace does not load a chunk synchronously to read a heightmap - call it on a loaded chunk");
+        }
+        return first - 1;
+    }
+
+    /** 생성 단계 지도 → 술어가 같은 살아 있는 지도(if 사슬: enum switch 의 합성 클래스가 Paper 의 CraftWorld$N 이름과 부딪힌다). */
+    private static org.bukkit.HeightMap switchWorldgen(org.bukkit.HeightMap heightMap) {
+        if (heightMap == org.bukkit.HeightMap.WORLD_SURFACE_WG) return org.bukkit.HeightMap.WORLD_SURFACE;
+        if (heightMap == org.bukkit.HeightMap.OCEAN_FLOOR_WG) return org.bukkit.HeightMap.OCEAN_FLOOR;
+        return heightMap;
     }
 
     @Override

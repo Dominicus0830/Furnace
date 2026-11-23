@@ -21,6 +21,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.bukkit.craftbukkit.inventory.CraftInventory;
 
 /**
  * T-070: 칸 거울의 관측 계약을 모델과 맞춰 본다. 계약(옛 구현의 약한 참조 목록 때나 지금이나 같다):
@@ -228,7 +229,7 @@ class InventoryMirrorModelTest {
         owner(() -> {
             PlayerInventory inv = player.getInventory();
             inv.setItemInMainHand(new ItemStack(Material.DIAMOND_SWORD));
-            CompatInventory ci = (CompatInventory) inv;
+            CraftInventory ci = (CraftInventory) inv;
             ItemStack[] keep = new ItemStack[200_000]; // 거울을 강하게 쥐어 GC 가 정리할 수 없게 한다
             for (int k = 0; k < keep.length; k++) keep[k] = inv.getItemInMainHand();
             assertEquals(1, ci.liveEpochCount(), "손 칸 하나를 읽었으니 세대도 하나");

@@ -242,4 +242,30 @@ class BukkitWorldStateTest {
         assertTrue(b >= a + 3, a + " → " + b);
         assertEquals(server.internals().serverTickCount(), (long) Bukkit.getCurrentTick());
     }
+
+    /** T-264 P2c-2: CraftWorld 는 Paper 처럼 CraftRegionAccessor 아래 — RegionAccessor 의 칸 읽기·쓰기·높이 지도가 월드에서 돈다. */
+    @Test
+    void regionAccessorMembersOnWorld() {
+        assertEquals("org.bukkit.craftbukkit.CraftRegionAccessor", world.getClass().getSuperclass().getName());
+        org.bukkit.RegionAccessor ra = (org.bukkit.RegionAccessor) world;
+        int x = origin.x(), y = origin.y(), z = origin.z();
+        try {
+            owner(() -> { ra.setBlockData(x, y, z, Material.STONE.createBlockData()); return null; });
+            assertEquals(Material.STONE, owner(() -> ra.getType(x, y, z)));
+            assertEquals(Material.STONE, owner(() -> ra.getBlockData(x, y, z).getMaterial()));
+            assertEquals(Material.STONE, owner(() -> world.getBlockAt(x, y, z).getType()), "같은 칸을 CraftBlock 으로 봐도 같다");
+            // 하늘이 트인 칸 위에 놓은 돌: 동작 막는 높이 지도의 맨 위 블록이다(Paper: 첫 빈 칸 - 1)
+            assertEquals(y, owner(() -> ra.getHighestBlockYAt(x, z)));
+            assertEquals(y, owner(() -> ra.getHighestBlockYAt(x, z, org.bukkit.HeightMap.WORLD_SURFACE)));
+            // 생성 단계 지도: 바닐라는 그 자리에서 지금 블록으로 만들어 답한다 — 술어가 같은 살아 있는 지도와 같은 값(바닐라는 그 뒤 갱신하지 않아 낡을 수 있다)
+            assertEquals(y, owner(() -> ra.getHighestBlockYAt(x, z, org.bukkit.HeightMap.WORLD_SURFACE_WG)));
+            assertEquals(owner(() -> ra.getHighestBlockYAt(x, z, org.bukkit.HeightMap.OCEAN_FLOOR)),
+                    owner(() -> ra.getHighestBlockYAt(x, z, org.bukkit.HeightMap.OCEAN_FLOOR_WG)));
+            assertEquals(y, owner(() -> ra.getHighestBlockYAt(x, z, org.bukkit.HeightMap.OCEAN_FLOOR_WG)), "돌은 움직임을 막는 재질");
+            int ux = origin.x() + 16 * 400;
+            assertThrows(UnsupportedFeature.class, () -> owner(() -> ra.getHighestBlockYAt(ux, z)), "로드 안 된 청크는 동기 로드하지 않는다");
+        } finally {
+            owner(() -> { ra.setType(x, y, z, Material.AIR); return null; });
+        }
+    }
 }

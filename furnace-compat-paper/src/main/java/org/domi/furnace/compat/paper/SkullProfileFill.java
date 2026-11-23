@@ -12,7 +12,10 @@ import org.domi.furnace.api.inventory.Inventory;
 import org.domi.furnace.api.item.ItemStack;
 import org.domi.furnace.api.nbt.Snbt;
 
-final class SkullProfileFill {
+public final class SkullProfileFill {
+
+    /** 머리 아이템의 소유자 프로필 컴포넌트(머리 메타도 이 이름을 쓴다). */
+    public static final String PROFILE = "minecraft:profile";
 
     private static final System.Logger LOG = System.getLogger("FurnaceCompat");
 
@@ -22,7 +25,7 @@ final class SkullProfileFill {
      * 이 스택이 막 칸에 **쓰였다**(쓰기가 성공한 뒤에 부른다). 채울 것이 있으면 비동기로 채우기를 시작한다(기다리지 않는다).
      * 이 메서드는 예외를 던지지 않는다 — 이상한 프로필(이름 16자 초과·속성 과다 등)이나 조회 풀 문제가 칸 쓰기를 망치면 안 된다.
      */
-    static void afterWrite(Inventory handle, int index, ItemStack written) {
+    public static void afterWrite(Inventory handle, int index, ItemStack written) {
         try {
             ProfileValue original = incomplete(written);
             if (original == null) return;
@@ -74,11 +77,11 @@ final class SkullProfileFill {
     static ItemStack replaceIfStillTheSame(ItemStack current, ProfileValue original, ProfileValue found) {
         if (current == null || current.isEmpty() || MetaKind.of(current.type()) != MetaKind.SKULL) return null;
         if (!original.equals(profile(current))) return null;
-        return current.withComponent(CompatMetaSkull.PROFILE, Snbt.write(found.toNbt()));
+        return current.withComponent(PROFILE, Snbt.write(found.toNbt()));
     }
 
     private static ProfileValue profile(ItemStack stack) {
-        String raw = stack.components().get(CompatMetaSkull.PROFILE);
+        String raw = stack.components().get(PROFILE);
         if (raw == null) return null;
         try {
             return ProfileValue.fromNbt(Snbt.parse(raw));

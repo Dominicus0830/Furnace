@@ -577,6 +577,27 @@ public interface ChunkInternals {
     }
 
     /**
+     * {@link #detachedEntityData} 를 이어서 쓰는 꼴: 빈 레벨의 엔티티를 버리지 않고 쥐고 있어, 조작이 하나 붙을 때마다 그 조작만 재생한다
+     * (월드 밖 엔티티에 조작이 n 개 쌓이면 매번 처음부터 재생하는 n² 을 n 으로). 결과는 같은 ops 로 {@link #detachedEntityData} 를 부른 것과 같다.
+     * 만들 수 없는 종류는 IllegalArgumentException.
+     */
+    default DetachedEntityData openDetachedEntityData(String kind, java.util.List<EntityOp> ops) {
+        throw new UnsupportedOperationException("openDetachedEntityData");
+    }
+
+    /**
+     * 월드 밖 엔티티 하나의 칸 재생 상태({@link #openDetachedEntityData}). 아무 스레드(안에서 동기화한다). 어떤 조작이 실패하면 그 뒤로는 늘 그 예외를
+     * 다시 던진다 — 처음부터 재생할 때도 그 조작에서 늘 실패하는 것과 같다.
+     */
+    interface DetachedEntityData {
+        /** 지금 칸, 칸 번호 순. */
+        java.util.List<EntityDataSlot> slots();
+
+        /** 조작 하나를 더 재생하고 지금 칸을 돌려준다. {@link EntityOp.EntityRandom} 은 맨 앞에만 올 수 있어 여기서는 IllegalArgumentException. */
+        java.util.List<EntityDataSlot> apply(EntityOp op);
+    }
+
+    /**
      * 칸 하나: 바닐라 {@code DataItem} 의 initialValue(defineSynchedData 값 — getNonDefaultValues 의 기준), value(지금 값), dirty(packDirty 가 보낼 것).
      * 생성자가 엔티티 난수로 고르는 칸(좀비 주민 직업)은 서버가 그 엔티티 하나에서 고른 값이다(바닐라도 생성마다 다르다).
      */

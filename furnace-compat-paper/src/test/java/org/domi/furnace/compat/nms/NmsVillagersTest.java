@@ -1,0 +1,194 @@
+package org.domi.furnace.compat.nms;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import net.minecraft.core.Holder;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.syncher.EntityDataAccessor;
+import net.minecraft.network.syncher.EntityDataSerializers;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.npc.VillagerData;
+import net.minecraft.world.entity.npc.VillagerProfession;
+import net.minecraft.world.entity.npc.VillagerType;
+import org.bukkit.Bukkit;
+import org.bukkit.craftbukkit.CraftServer;
+import org.bukkit.craftbukkit.CraftWorld;
+import org.domi.furnace.compat.CompatTestPlugin;
+import org.domi.furnace.compat.paper.Compat;
+import org.domi.furnace.server.entity.Villager;
+import org.domi.furnace.test.FurnaceTestServer;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
+
+/**
+ * 주민 종류·직업·데이터(엔티티 데이터 설계 D4): 레지스트리 번호 순서·기본값, 직업 성분(직업 블록·요청 아이템·보조 지점·일 소리)과 바이옴 대응이
+ * 서버 주민 정의와 같고, 주민 데이터 칸이 월드 밖 엔티티의 getEntityData 와 패킷 다리를 지난다.
+ */
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+class NmsVillagersTest {
+
+    FurnaceTestServer server;
+    ServerLevel level;
+
+    @BeforeAll
+    void start() {
+        server = FurnaceTestServer.builder().failFast(false).exposeCompatToNative(true).plugin(CompatTestPlugin.class).start();
+        Bukkit.setServer(CraftServer.INSTANCE);
+        var tp = server.join("Villagers");
+        server.tick(2);
+        level = ((CraftWorld) Compat.player(tp.player()).getWorld()).getHandle();
+    }
+
+    @AfterAll
+    void stop() { server.close(); }
+
+    static String key(ResourceLocation l) { return l.getPath(); }
+
+    @Test
+    void registriesFollowTheServerOrderAndDefaults() {
+        List<String> types = new ArrayList<>();
+        for (VillagerType t : BuiltInRegistries.VILLAGER_TYPE) types.add(t.toString());
+        assertEquals(Villager.TYPES, types);
+        List<String> profs = new ArrayList<>();
+        for (VillagerProfession p : BuiltInRegistries.VILLAGER_PROFESSION) profs.add(p.toString());
+        assertEquals(Villager.PROFESSIONS, profs);
+        assertSame(VillagerType.PLAINS, BuiltInRegistries.VILLAGER_TYPE.get(ResourceLocation.parse("minecraft:nope")), "기본값 plains");
+        assertSame(VillagerProfession.NONE, BuiltInRegistries.VILLAGER_PROFESSION.get(ResourceLocation.parse("minecraft:nope")), "기본값 none");
+        assertEquals(2, BuiltInRegistries.VILLAGER_TYPE.getId(VillagerType.PLAINS));
+        assertEquals("librarian", VillagerProfession.LIBRARIAN.name());
+        assertSame(VillagerProfession.FARMER, BuiltInRegistries.VILLAGER_PROFESSION.get(ResourceLocation.withDefaultNamespace("farmer")));
+    }
+
+    @Test
+    void professionsMatchTheServerVillager() {
+        var pois = BuiltInRegistries.POINT_OF_INTEREST_TYPE;
+        for (VillagerProfession p : BuiltInRegistries.VILLAGER_PROFESSION) {
+            String n = p.name();
+            List<String> req = new ArrayList<>();
+            p.requestedItems().forEach(i -> req.add(BuiltInRegistries.ITEM.getKey(i).toString()));
+            assertEquals(Villager.requestedItems(n), java.util.Set.copyOf(req), n + " 요청 아이템");
+            List<String> sec = new ArrayList<>();
+            p.secondaryPoi().forEach(b -> sec.add(BuiltInRegistries.BLOCK.getKey(b).toString()));
+            assertEquals(Villager.secondaryPoi(n), java.util.Set.copyOf(sec), n + " 보조 지점");
+            if (n.equals("none") || n.equals("nitwit")) assertNull(p.workSound(), n);
+            else assertEquals("entity.villager.work_" + n, BuiltInRegistries.SOUND_EVENT.getKey(p.workSound()).getPath(), n + " 일 소리");
+            for (Holder.Reference<net.minecraft.world.entity.ai.village.poi.PoiType> h : pois.holders().toList()) {
+                var sp = org.domi.furnace.server.world.poi.PoiTypes.byName(h.key().location().toString());
+                assertNotNull(sp, h.key().toString());
+                assertEquals(Villager.heldJobSite(n).test(sp), p.heldJobSite().test(h), n + " 들고 있는 직업 블록 " + h.key().location());
+                assertEquals(Villager.acquirableJobSite(n).test(sp), p.acquirableJobSite().test(h), n + " 얻을 직업 블록 " + h.key().location());
+            }
+        }
+        List<String> farmer = new ArrayList<>();
+        VillagerProfession.FARMER.requestedItems().forEach(i -> farmer.add(BuiltInRegistries.ITEM.getKey(i).getPath()));
+        assertEquals(List.of("wheat", "wheat_seeds", "beetroot_seeds", "bone_meal"), farmer, "바닐라 ImmutableSet 차례");
+    }
+
+    @Test
+    void biomesMapLikeTheServerVillager() {
+        var biomes = org.domi.furnace.api.Furnace.server().gameRegistries().entries("minecraft:worldgen/biome");
+        assertEquals(64, biomes.size());
+        for (String b : biomes) assertEquals(Villager.typeForBiome(b), NmsVillagers.typeForBiome(b).toString(), b);
+        assertSame(VillagerType.PLAINS, NmsVillagers.typeForBiome("other:snowy_plains"), "다른 이름공간은 표에 없다");
+        var snowy = ResourceKey.create(net.minecraft.core.registries.Registries.BIOME, ResourceLocation.withDefaultNamespace("snowy_plains"));
+        assertSame(VillagerType.SNOW, VillagerType.byBiome(new Holder.Reference<>(snowy, null)));
+        assertSame(VillagerType.PLAINS, VillagerType.byBiome(Holder.direct(null)), "키 없는 손잡이");
+    }
+
+    @Test
+    void villagerDataIsAValueAndCrossesTheBridge() {
+        var d = new VillagerData(VillagerType.TAIGA, VillagerProfession.CLERIC, 0);
+        assertEquals(1, d.getLevel(), "1 아래는 1");
+        assertEquals(3, d.setLevel(3).getLevel());
+        assertSame(VillagerType.TAIGA, d.setProfession(VillagerProfession.MASON).getType());
+        assertEquals(10, VillagerData.getMinXpPerLevel(2));
+        assertEquals(70, VillagerData.getMaxXpPerLevel(2));
+        assertEquals(0, VillagerData.getMaxXpPerLevel(5));
+        var api = (org.domi.furnace.api.entity.data.VillagerData) EntityDataBridge.toApi("villager_data", d.setLevel(4), "test");
+        assertEquals(new org.domi.furnace.api.entity.data.VillagerData("minecraft:taiga", "minecraft:cleric", 4), api);
+        var back = (VillagerData) EntityDataBridge.toShim("villager_data", api, "test");
+        assertSame(VillagerType.TAIGA, back.getType());
+        assertSame(VillagerProfession.CLERIC, back.getProfession());
+        var custom = new VillagerProfession("custom", h -> false, h -> false, com.google.common.collect.ImmutableSet.of(), com.google.common.collect.ImmutableSet.of(), null);
+        assertEquals("minecraft:none", ((org.domi.furnace.api.entity.data.VillagerData) EntityDataBridge.toApi("villager_data",
+                d.setProfession(custom), "test")).profession(), "등록되지 않은 직업은 바닐라처럼 기본값");
+
+        // 월드 밖 주민의 칸: 바닐라 생성자처럼 plains·무직·1
+        var v = EntityType.VILLAGER.create(level);
+        var slot = new EntityDataAccessor<VillagerData>(Villager.DATA_VILLAGER_DATA, EntityDataSerializers.VILLAGER_DATA);
+        VillagerData now = v.getEntityData().get(slot);
+        assertSame(VillagerType.PLAINS, now.getType());
+        assertSame(VillagerProfession.NONE, now.getProfession());
+        v.getEntityData().set(slot, now.setProfession(VillagerProfession.LIBRARIAN).setLevel(2));
+        assertSame(VillagerProfession.LIBRARIAN, v.getEntityData().get(slot).getProfession(), "칸 쓰기가 서버 재생을 지나 돌아온다");
+        assertEquals(Optional.of(2), Optional.of(v.getEntityData().get(slot).getLevel()));
+    }
+
+    /** 고양이·개구리 무늬 레지스트리(D4): 서버 목록 순서, 바닐라 그림 위치 꼴, 키 상수가 레지스트리 손잡이를 찾는다. */
+    @Test
+    void catAndFrogVariantRegistries() {
+        List<String> cats = new ArrayList<>();
+        BuiltInRegistries.CAT_VARIANT.holders().forEach(h -> cats.add(h.key().location().toString()));
+        assertEquals(org.domi.furnace.api.Furnace.server().gameRegistries().builtIn("minecraft:cat_variant"), cats);
+        assertEquals("minecraft:textures/entity/cat/british_shorthair.png",
+                BuiltInRegistries.CAT_VARIANT.getOrThrow(net.minecraft.world.entity.animal.CatVariant.BRITISH_SHORTHAIR).texture().toString());
+        assertEquals(1, BuiltInRegistries.CAT_VARIANT.getId(BuiltInRegistries.CAT_VARIANT.getOrThrow(net.minecraft.world.entity.animal.CatVariant.BLACK)));
+        List<String> frogs = new ArrayList<>();
+        BuiltInRegistries.FROG_VARIANT.holders().forEach(h -> frogs.add(h.key().location().toString()));
+        assertEquals(List.of("minecraft:temperate", "minecraft:warm", "minecraft:cold"), frogs);
+        assertEquals("minecraft:textures/entity/frog/warm_frog.png",
+                BuiltInRegistries.FROG_VARIANT.getOrThrow(net.minecraft.world.entity.animal.FrogVariant.WARM).texture().toString());
+        var direct = Holder.direct(new net.minecraft.world.entity.animal.CatVariant(ResourceLocation.parse("x:y")));
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () -> EntityDataBridge.toApi("cat_variant", direct, "test"),
+                "등록되지 않은 무늬는 바닐라 holderRegistry 코덱처럼 실패");
+        assertEquals("minecraft:white", EntityDataBridge.toApi("cat_variant",
+                Holder.direct(BuiltInRegistries.CAT_VARIANT.getOrThrow(net.minecraft.world.entity.animal.CatVariant.WHITE)), "test"), "값이 등록된 것이면 그 이름");
+    }
+
+    /** 늑대·그림 무늬(D4-3, 데이터 팩 레지스트리): 순서는 서버가 클라에 보내는 순서, 값은 바닐라 정의와 같다. */
+    @Test
+    void wolfAndPaintingVariantRegistries() {
+        var regs = org.domi.furnace.api.Furnace.server().gameRegistries();
+        var wolves = NmsVariants.wolves();
+        List<String> ids = new ArrayList<>();
+        wolves.holders().forEach(h -> ids.add(h.key().location().toString()));
+        assertEquals(regs.entries("minecraft:wolf_variant"), ids);
+        var pale = wolves.get(ResourceLocation.parse("minecraft:pale"));
+        assertEquals(regs.entries("minecraft:wolf_variant").indexOf("minecraft:pale"), wolves.getId(pale));
+        assertEquals("minecraft:textures/entity/wolf/wolf.png", pale.wildTexture().toString());
+        assertEquals("minecraft:textures/entity/wolf/wolf_tame.png", pale.tameTexture().toString());
+        var spotted = wolves.get(ResourceLocation.parse("minecraft:spotted"));
+        assertEquals("minecraft:textures/entity/wolf/wolf_spotted_angry.png", spotted.angryTexture().toString());
+        assertEquals("minecraft:is_savanna", spotted.biomes().unwrapKey().orElseThrow().location().toString(), "태그 바이옴은 이름 묶음");
+        assertTrue(spotted.biomes().stream().anyMatch(h -> h.is(ResourceLocation.parse("minecraft:savanna"))));
+        var woods = wolves.get(ResourceLocation.parse("minecraft:woods"));
+        assertEquals(1, woods.biomes().size());
+        assertTrue(woods.biomes().get(0).is(ResourceLocation.parse("minecraft:forest")));
+        assertEquals(woods, new net.minecraft.world.entity.animal.WolfVariant(ResourceLocation.parse("minecraft:entity/wolf/wolf_woods"),
+                ResourceLocation.parse("minecraft:entity/wolf/wolf_woods_tame"), ResourceLocation.parse("minecraft:entity/wolf/wolf_woods_angry"), woods.biomes()),
+                "같음은 적힌 꼴 셋과 바이옴 묶음");
+
+        var paintings = NmsVariants.paintings();
+        List<String> pids = new ArrayList<>();
+        paintings.holders().forEach(h -> pids.add(h.key().location().toString()));
+        assertEquals(regs.entries("minecraft:painting_variant"), pids);
+        var kebab = paintings.get(ResourceLocation.parse("minecraft:kebab"));
+        assertEquals(new net.minecraft.world.entity.decoration.PaintingVariant(1, 1, ResourceLocation.parse("minecraft:kebab")), kebab);
+        var fighters = paintings.get(ResourceLocation.parse("minecraft:fighters"));
+        assertEquals(4 * 2, fighters.area());
+        assertEquals("minecraft:woods", EntityDataBridge.toApi("wolf_variant", wolves.wrapAsHolder(woods), "test"));
+        assertSame(paintings.getHolder(ResourceLocation.parse("minecraft:kebab")).orElseThrow(), EntityDataBridge.toShim("painting_variant", "minecraft:kebab", "test"));
+    }
+}

@@ -88,6 +88,7 @@ class BukkitChunkGeneratorWorldTest {
         final List<String> infos = new CopyOnWriteArrayList<>();
         final List<Object> noiseInfo = new CopyOnWriteArrayList<>();
         final Map<String, Biome> seenBiome = new ConcurrentHashMap<>();
+        final java.util.Set<String> classes = ConcurrentHashMap.newKeySet();
         final BiomeProvider desert = new BiomeProvider() {
             @Override public Biome getBiome(WorldInfo w, int x, int y, int z) { return Biome.DESERT; }
             @Override public List<Biome> getBiomes(WorldInfo w) { return List.of(Biome.DESERT); }
@@ -96,6 +97,7 @@ class BukkitChunkGeneratorWorldTest {
         @Override
         public BiomeProvider getDefaultBiomeProvider(WorldInfo w) {
             infos.add(w.getName() + " " + w.getSeed());
+            classes.add("info " + w.getClass().getName());
             return desert;
         }
 
@@ -103,6 +105,7 @@ class BukkitChunkGeneratorWorldTest {
         public void generateNoise(WorldInfo w, Random random, int x, int z, ChunkData data) {
             noiseFirst.put(x + "," + z, random.nextLong());
             noiseInfo.add(w);
+            classes.add("data " + data.getClass().getName());
             seenBiome.put(x + "," + z, data.getBiome(3, 0, 3));
             assertEquals(-64, data.getMinHeight());
             assertEquals(320, data.getMaxHeight());
@@ -146,6 +149,9 @@ class BukkitChunkGeneratorWorldTest {
             assertEquals(List.of(Material.AIR, Material.AIR), onRegion(w, 16, 5, () -> List.of(w.getBlockAt(16, -60, 5).getType(), w.getBlockAt(0, -60, 5).getType())), "청크 밖 쓰기는 무시");
             assertEquals(Biome.DESERT, g.seenBiome.get("0,0"), "ChunkData#getBiome 은 그 청크의 바이옴");
             assertSame(w, g.noiseInfo.get(0), "Paper 는 WorldInfo 자리에 그 CraftWorld 를 넘긴다");
+            // T-264 P2c-3: 플러그인이 보는 클래스가 Paper 와 같다(ChunkData 는 관측표 generator.callback.chunkData, 기본 공급자에 넘기는 WorldInfo 는
+            // Paper createWorld 가 만드는 CraftWorldInfo — 관측표에 없는 가정)
+            assertEquals(java.util.Set.of("info org.bukkit.craftbukkit.generator.CraftWorldInfo", "data org.bukkit.craftbukkit.generator.CraftChunkData"), g.classes);
 
             assertEquals(new Random(chunkSeed(0, 0)).nextLong(), g.noiseFirst.get("0,0"), "generateNoise 난수 = x*341873128712 + z*132897987541");
             assertEquals(new Random(chunkSeed(1, 0)).nextLong(), g.noiseFirst.get("1,0"));
@@ -208,6 +214,7 @@ class BukkitChunkGeneratorWorldTest {
             calls++;
             first.put(x + "," + z, random.nextLong());
             ChunkData d = createChunkData(world);
+            assertEquals("org.bukkit.craftbukkit.generator.OldCraftChunkData", d.getClass().getName(), "T-264 P2c-3: Paper 와 같은 클래스");
             d.setRegion(0, -64, 0, 16, -62, 16, Material.GLASS);   // 맨 아래 섹션(-64..-49)만 생긴다
             assertEquals(Material.GLASS, d.getType(3, -63, 3));
             assertEquals(Material.AIR, d.getType(3, -40, 3));

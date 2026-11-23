@@ -28,9 +28,9 @@ final class WorldChangeMappings {
         EventBridge.reg(org.domi.furnace.api.event.block.BlockPlaceEvent.class, org.bukkit.event.block.BlockPlaceEvent.class,
                 f -> {
                     if (f.player() == null) return null;
-                    var placed = CompatBlock.showing(f.world(), f.pos(), f.placedData());
+                    var placed = CraftAccess.blockShowing(f.world(), f.pos(), f.placedData());
                     // 아직 놓기 전이라 그 자리의 원래 블록이 교체될 블록이다(서버가 소유 스레드에서 읽어 알린다)
-                    var replaced = f.replacedData() != null ? CompatBlockState.of(f.world(), f.pos(), f.replacedData()) : liveOrAir(f.world(), f.pos());
+                    var replaced = f.replacedData() != null ? BlockStateSnapshots.of(f.world(), f.pos(), f.replacedData()) : liveOrAir(f.world(), f.pos());
                     var hand = f.isMainHand() ? org.bukkit.inventory.EquipmentSlot.HAND : org.bukkit.inventory.EquipmentSlot.OFF_HAND;
                     return new org.bukkit.event.block.BlockPlaceEvent(placed, replaced, Compat.block(f.world(), f.against()), CompatItems.copyOf(f.item()),
                             p(f.player()), true, hand);
@@ -42,10 +42,10 @@ final class WorldChangeMappings {
                     if (!cancelled) b.setBuild(true);
                 });
         EventBridge.reg(org.domi.furnace.api.event.block.BlockGrowEvent.class, org.bukkit.event.block.BlockGrowEvent.class,
-                f -> new org.bukkit.event.block.BlockGrowEvent(Compat.block(f.world(), f.pos()), CompatBlockState.of(f.world(), f.pos(), f.newData())),
+                f -> new org.bukkit.event.block.BlockGrowEvent(Compat.block(f.world(), f.pos()), BlockStateSnapshots.of(f.world(), f.pos(), f.newData())),
                 (f, b) -> {});
         EventBridge.reg(org.domi.furnace.api.event.block.BlockFadeEvent.class, org.bukkit.event.block.BlockFadeEvent.class,
-                f -> new org.bukkit.event.block.BlockFadeEvent(Compat.block(f.world(), f.pos()), CompatBlockState.of(f.world(), f.pos(), f.newData())),
+                f -> new org.bukkit.event.block.BlockFadeEvent(Compat.block(f.world(), f.pos()), BlockStateSnapshots.of(f.world(), f.pos(), f.newData())),
                 (f, b) -> {});
         // Paper BlockDestroyEvent(T-224): NMS Level#destroyBlock 자리. 효과 블록·효과 끄기·떨굼·경험치·취소가 오간다.
         // Furnace 처리기가 먼저 바꾼 값은 pull 로 보이고, Bukkit 처리기가 바꾼 값은 push 로 되돌린다.
@@ -70,7 +70,7 @@ final class WorldChangeMappings {
                     var type = Compat.furnace().blockTypes().get(f.blockType());
                     if (type.isEmpty()) return null;   // 서버가 모르는 종류 — 다리가 알 수 없는 블록은 건너뛴다
                     return new org.bukkit.event.block.BlockExplodeEvent(Compat.block(f.world(), f.pos()),
-                            CompatBlockState.of(f.world(), f.pos(), type.get().defaultData()), explodeList(f, f.world(), f.blocks()), f.yield(),
+                            BlockStateSnapshots.of(f.world(), f.pos(), type.get().defaultData()), explodeList(f, f.world(), f.blocks()), f.yield(),
                             org.bukkit.ExplosionResult.valueOf(f.result()));
                 },
                 (f, b) -> pushExplodeList(f, b.blockList(), f.blocks()),
@@ -163,11 +163,11 @@ final class WorldChangeMappings {
                 }, (f, b) -> {});
         EventBridge.reg(org.domi.furnace.api.event.block.BlockFormEvent.class, org.bukkit.event.block.BlockFormEvent.class,
                 f -> f instanceof org.domi.furnace.api.event.block.BlockSpreadEvent ? null
-                        : new org.bukkit.event.block.BlockFormEvent(Compat.block(f.world(), f.pos()), CompatBlockState.of(f.world(), f.pos(), f.newData())),
+                        : new org.bukkit.event.block.BlockFormEvent(Compat.block(f.world(), f.pos()), BlockStateSnapshots.of(f.world(), f.pos(), f.newData())),
                 (f, b) -> {});
         EventBridge.reg(org.domi.furnace.api.event.block.BlockSpreadEvent.class, org.bukkit.event.block.BlockSpreadEvent.class,
                 f -> new org.bukkit.event.block.BlockSpreadEvent(Compat.block(f.world(), f.pos()), Compat.block(f.world(), f.source()),
-                        CompatBlockState.of(f.world(), f.pos(), f.newData())), (f, b) -> {});
+                        BlockStateSnapshots.of(f.world(), f.pos(), f.newData())), (f, b) -> {});
         // EntityChangeBlockEvent(T-040b): 문 부수기는 하위 이벤트 EntityBreakDoorEvent 로 — Bukkit 에서도 처리기 목록이 같아 ECB 처리기가 함께 받는다.
         // 취소만 오간다(바뀔 상태는 Bukkit 에서도 고칠 수 없다). 게임 규칙이 막는 자리는 취소된 채로 와서 처리기가 풀 수 있다(Paper 와 같다).
         EventBridge.reg(org.domi.furnace.api.event.entity.EntityChangeBlockEvent.class, org.bukkit.event.entity.EntityChangeBlockEvent.class,
@@ -199,11 +199,11 @@ final class WorldChangeMappings {
     }
 
     /** 서버가 원래 블록을 알리지 않은 옛 생성자의 이벤트: 소유 스레드면 월드의 지금 블록, 아니면(읽을 수 없으면) 공기로 본다. */
-    private static CompatBlockState liveOrAir(String world, BlockPos pos) {
+    private static org.bukkit.craftbukkit.block.CraftBlockState liveOrAir(String world, BlockPos pos) {
         try {
-            return CompatBlockState.of(world, pos);
+            return BlockStateSnapshots.of(world, pos);
         } catch (RuntimeException cannotRead) {
-            return CompatBlockState.of(world, pos, org.domi.furnace.api.world.BlockData.AIR);
+            return BlockStateSnapshots.of(world, pos, org.domi.furnace.api.world.BlockData.AIR);
         }
     }
 

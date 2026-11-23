@@ -367,8 +367,19 @@ public class CraftEntity implements Entity {
         else Compat.entityMetadata().removeMetadata(this, metadataKey, owningPlugin);
     }
 
+    /** Paper CraftEntity.persistentDataContainer 처럼 엔티티당 하나 — 부를 때마다 같은 객체. */
     @Override
-    public org.bukkit.persistence.PersistentDataContainer getPersistentDataContainer() { return new EntityPdc(handle); }
+    public org.bukkit.craftbukkit.persistence.CraftPersistentDataContainer getPersistentDataContainer() {   // Paper 와 같은 좁은 반환형
+        org.bukkit.craftbukkit.persistence.CraftPersistentDataContainer c = pdc;
+        if (c == null) {
+            synchronized (this) {
+                if ((c = pdc) == null) pdc = c = org.domi.furnace.compat.paper.PdcViews.craft(new EntityPdc(() -> handle));
+            }
+        }
+        return c;
+    }
+
+    private volatile org.bukkit.craftbukkit.persistence.CraftPersistentDataContainer pdc;
 
     @Override
     public void remove() {

@@ -1,0 +1,224 @@
+// Bukkit BukkitScheduler(Paper 와 같은 이름 — T-264) — H2 의 LegacyScheduler(CraftScheduler 의미) 위의 얇은 껍데기. Plugin ↔ FurnacePlugin, LegacyTask ↔ BukkitTask 를 옮긴다.
+package org.bukkit.craftbukkit.scheduler;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+import org.bukkit.plugin.IllegalPluginAccessException;
+import org.bukkit.plugin.Plugin;
+import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitScheduler;
+import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.scheduler.BukkitWorker;
+import org.domi.furnace.api.plugin.FurnacePlugin;
+import org.domi.furnace.compat.sched.LegacyScheduler;
+import org.domi.furnace.compat.sched.LegacyTask;
+import org.domi.furnace.compat.sched.PluginDisabledException;
+import org.domi.furnace.compat.paper.BukkitPluginAdapter;
+import org.domi.furnace.compat.paper.Compat;
+import org.domi.furnace.compat.paper.CompatPluginManager;
+
+public class CraftScheduler implements BukkitScheduler {
+
+    public CraftScheduler() {}
+
+    private static LegacyScheduler core() { return Compat.scheduler(); }
+
+    /** Bukkit Plugin → 그 플러그인의 Furnace 껍데기. */
+    private static FurnacePlugin owner(Plugin plugin) {
+        if (plugin == null) throw new IllegalArgumentException("Plugin cannot be null");
+        return CompatPluginManager.adapter(plugin);
+    }
+
+    /** 꺼진 플러그인의 예약은 Bukkit 처럼 IllegalPluginAccessException. */
+    private static <T> T guard(Supplier<T> call) {
+        try {
+            return call.get();
+        } catch (PluginDisabledException e) {
+            throw new IllegalPluginAccessException(e.getMessage());
+        }
+    }
+
+    /** 작업 하나에 손잡이 하나(Paper 처럼 같은 객체): 주 스레드 작업은 CraftTask, 비동기 작업은 CraftAsyncTask, callSyncMethod 작업은 CraftFuture. */
+    private static BukkitTask wrap(LegacyTask t) { return t.view(CraftScheduler::handle); }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static BukkitTask handle(LegacyTask t) {
+        Future<?> call = t.syncCall();
+        if (call != null) return new CraftFuture(call, t);
+        return t.isSync() ? new CraftTask(t) : new CraftAsyncTask(t);
+    }
+
+    /** 작업 주인(Bukkit 플러그인이 아니면 null). */
+    static Plugin ownerOf(org.domi.furnace.api.plugin.FurnacePlugin p) { return p instanceof BukkitPluginAdapter a ? a.javaPlugin() : null; }
+
+    // ---- 번호만 돌려주는 옛 이름들
+
+    @Override
+    public int scheduleSyncDelayedTask(Plugin plugin, Runnable task, long delay) { return guard(() -> core().scheduleSyncDelayedTask(owner(plugin), task, delay)); }
+
+    @Override
+    public int scheduleSyncDelayedTask(Plugin plugin, BukkitRunnable task, long delay) { return scheduleSyncDelayedTask(plugin, (Runnable) task, delay); }
+
+    @Override
+    public int scheduleSyncDelayedTask(Plugin plugin, Runnable task) { return guard(() -> core().scheduleSyncDelayedTask(owner(plugin), task)); }
+
+    @Override
+    public int scheduleSyncDelayedTask(Plugin plugin, BukkitRunnable task) { return scheduleSyncDelayedTask(plugin, (Runnable) task); }
+
+    @Override
+    public int scheduleSyncRepeatingTask(Plugin plugin, Runnable task, long delay, long period) {
+        return guard(() -> core().scheduleSyncRepeatingTask(owner(plugin), task, delay, period));
+    }
+
+    @Override
+    public int scheduleSyncRepeatingTask(Plugin plugin, BukkitRunnable task, long delay, long period) {
+        return scheduleSyncRepeatingTask(plugin, (Runnable) task, delay, period);
+    }
+
+    @Override
+    public int scheduleAsyncDelayedTask(Plugin plugin, Runnable task, long delay) { return guard(() -> core().scheduleAsyncDelayedTask(owner(plugin), task, delay)); }
+
+    @Override
+    public int scheduleAsyncDelayedTask(Plugin plugin, Runnable task) { return guard(() -> core().scheduleAsyncDelayedTask(owner(plugin), task)); }
+
+    @Override
+    public int scheduleAsyncRepeatingTask(Plugin plugin, Runnable task, long delay, long period) {
+        return guard(() -> core().scheduleAsyncRepeatingTask(owner(plugin), task, delay, period));
+    }
+
+    @Override
+    public <T> Future<T> callSyncMethod(Plugin plugin, Callable<T> task) {
+        return guard(() -> {
+            Future<T> f = core().callSyncMethod(owner(plugin), task);
+            @SuppressWarnings("unchecked")
+            Future<T> handle = (Future<T>) wrap(LegacyScheduler.taskOf(f));   // Paper: CraftFuture(CraftTask 하위) — 대기 목록의 것과 같은 객체
+            return handle;
+        });
+    }
+
+    // ---- 조회·취소
+
+    @Override
+    public void cancelTask(int taskId) { core().cancelTask(taskId); }
+
+    @Override
+    public void cancelTasks(Plugin plugin) {
+        if (plugin == null) throw new IllegalArgumentException("Cannot cancel tasks of null plugin");
+        core().cancelTasks(owner(plugin));
+    }
+
+    @Override
+    public boolean isCurrentlyRunning(int taskId) { return core().isCurrentlyRunning(taskId); }
+
+    @Override
+    public boolean isQueued(int taskId) { return core().isQueued(taskId); }
+
+    /** Paper 1.21.1 (Add-getMainThreadExecutor-to-BukkitScheduler): 실행하면 runTask 로 다음 틱에 돈다. */
+    @Override
+    public java.util.concurrent.Executor getMainThreadExecutor(Plugin plugin) {
+        if (plugin == null) throw new IllegalArgumentException("Plugin cannot be null");
+        FurnacePlugin fp = owner(plugin);
+        return command -> guard(() -> {   // 꺼진 플러그인이면 Bukkit 처럼 IllegalPluginAccessException
+            core().mainThreadExecutor(fp).execute(command);
+            return null;
+        });
+    }
+
+    @Override
+    public List<BukkitWorker> getActiveWorkers() {
+        List<BukkitWorker> out = new ArrayList<>();
+        for (LegacyScheduler.Worker w : core().activeWorkers()) out.add(CraftTask.worker(w));
+        return out;
+    }
+
+    @Override
+    public List<BukkitTask> getPendingTasks() {
+        List<BukkitTask> out = new ArrayList<>();
+        for (LegacyTask t : core().pendingTasks()) out.add(wrap(t));
+        return out;
+    }
+
+    // ---- 핸들을 주는 이름들
+
+    @Override
+    public BukkitTask runTask(Plugin plugin, Runnable task) { return guard(() -> wrap(core().runTask(owner(plugin), task))); }
+
+    @Override
+    public BukkitTask runTask(Plugin plugin, BukkitRunnable task) { return runTask(plugin, (Runnable) task); }
+
+    @Override
+    public BukkitTask runTaskAsynchronously(Plugin plugin, Runnable task) { return guard(() -> wrap(core().runTaskAsynchronously(owner(plugin), task))); }
+
+    @Override
+    public BukkitTask runTaskAsynchronously(Plugin plugin, BukkitRunnable task) { return runTaskAsynchronously(plugin, (Runnable) task); }
+
+    @Override
+    public BukkitTask runTaskLater(Plugin plugin, Runnable task, long delay) { return guard(() -> wrap(core().runTaskLater(owner(plugin), task, delay))); }
+
+    @Override
+    public BukkitTask runTaskLater(Plugin plugin, BukkitRunnable task, long delay) { return runTaskLater(plugin, (Runnable) task, delay); }
+
+    @Override
+    public BukkitTask runTaskLaterAsynchronously(Plugin plugin, Runnable task, long delay) {
+        return guard(() -> wrap(core().runTaskLaterAsynchronously(owner(plugin), task, delay)));
+    }
+
+    @Override
+    public BukkitTask runTaskLaterAsynchronously(Plugin plugin, BukkitRunnable task, long delay) { return runTaskLaterAsynchronously(plugin, (Runnable) task, delay); }
+
+    @Override
+    public BukkitTask runTaskTimer(Plugin plugin, Runnable task, long delay, long period) { return guard(() -> wrap(core().runTaskTimer(owner(plugin), task, delay, period))); }
+
+    @Override
+    public BukkitTask runTaskTimer(Plugin plugin, BukkitRunnable task, long delay, long period) { return runTaskTimer(plugin, (Runnable) task, delay, period); }
+
+    @Override
+    public BukkitTask runTaskTimerAsynchronously(Plugin plugin, Runnable task, long delay, long period) {
+        return guard(() -> wrap(core().runTaskTimerAsynchronously(owner(plugin), task, delay, period)));
+    }
+
+    @Override
+    public BukkitTask runTaskTimerAsynchronously(Plugin plugin, BukkitRunnable task, long delay, long period) {
+        return runTaskTimerAsynchronously(plugin, (Runnable) task, delay, period);
+    }
+
+    // ---- 핸들을 몸통에 넘기는 이름들 (Consumer<BukkitTask>)
+
+    @Override
+    public void runTask(Plugin plugin, Consumer<? super BukkitTask> task) { withHandle(task, r -> runTask(plugin, r)); }
+
+    @Override
+    public void runTaskAsynchronously(Plugin plugin, Consumer<? super BukkitTask> task) { withHandle(task, r -> runTaskAsynchronously(plugin, r)); }
+
+    @Override
+    public void runTaskLater(Plugin plugin, Consumer<? super BukkitTask> task, long delay) { withHandle(task, r -> runTaskLater(plugin, r, delay)); }
+
+    @Override
+    public void runTaskLaterAsynchronously(Plugin plugin, Consumer<? super BukkitTask> task, long delay) {
+        withHandle(task, r -> runTaskLaterAsynchronously(plugin, r, delay));
+    }
+
+    @Override
+    public void runTaskTimer(Plugin plugin, Consumer<? super BukkitTask> task, long delay, long period) { withHandle(task, r -> runTaskTimer(plugin, r, delay, period)); }
+
+    @Override
+    public void runTaskTimerAsynchronously(Plugin plugin, Consumer<? super BukkitTask> task, long delay, long period) {
+        withHandle(task, r -> runTaskTimerAsynchronously(plugin, r, delay, period));
+    }
+
+    /**
+     * 몸통이 자기 핸들을 받는 변형: 예약이 끝나 핸들이 생겨야 몸통을 부른다. 핸들이 만들어지기 전에 박동이 먼저 도착할 수 있어(비동기 호출자와 박동은 다른 스레드)
+     * 핸들 future 를 기다린다 — 호출자는 예약 직후 곧바로 채우므로 기다림은 마이크로초다.
+     */
+    private static void withHandle(Consumer<? super BukkitTask> body, java.util.function.Function<Runnable, BukkitTask> schedule) {
+        if (body == null) throw new IllegalArgumentException("Task cannot be null");
+        CompletableFuture<BukkitTask> handle = new CompletableFuture<>();
+        BukkitTask t = schedule.apply(() -> body.accept(handle.join()));
+        handle.complete(t);
+    }
+}

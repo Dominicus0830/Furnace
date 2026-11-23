@@ -231,7 +231,7 @@ class ArmorTrimMetaTest {
         ItemMeta horse = FACTORY.asMetaFor(colorable, Material.LEATHER_HORSE_ARMOR);
         assertInstanceOf(LeatherArmorMeta.class, horse);
         assertFalse(horse instanceof ArmorMeta);
-        assertNull(((CompatItemMeta) horse).work().components().get(TRIM), "Paper CraftMetaLeatherArmor 는 장식을 옮기지 않는다");
+        assertNull(ItemMetaBridge.putInto(horse, new org.domi.furnace.api.item.ItemStack("minecraft:leather_horse_armor", 1)).components().get(TRIM), "Paper CraftMetaLeatherArmor 는 장식을 옮기지 않는다");
         ItemMeta plain = FACTORY.asMetaFor(colorable, Material.STONE);
         assertFalse(plain instanceof ArmorMeta);
         // 장식 메타는 자기 아이템 종류에만 붙는다(Paper: 메타 클래스의 첫 인터페이스가 아이템의 메타 클래스와 같아야 한다)

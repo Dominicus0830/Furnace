@@ -3,6 +3,7 @@ package org.bukkit.craftbukkit.block;
 import org.domi.furnace.api.nbt.NbtCompound;
 import org.domi.furnace.api.world.BlockPos;
 import org.domi.furnace.compat.paper.Compat;
+import org.bukkit.craftbukkit.inventory.CraftInventory;
 
 /**
  * Paper CraftBlockEntityState: 블록 엔티티가 있는 블록의 상태. 만들 때 블록 엔티티 NBT 사본(스냅숏)을 떠 두고, 하위 클래스(표지판 등)는
@@ -10,7 +11,7 @@ import org.domi.furnace.compat.paper.Compat;
  * 놓이지 않은 상태와 블록 엔티티가 없는 칸은 id 만 든 사본(나머지는 바닐라 기본값으로 읽힌다)에서 시작한다 — Paper 는 새 블록 엔티티의
  * 전체 NBT 를 주므로 {@link #getSnapshotNBT} 에 기본값 칸이 빠지는 것만 다르다.
  */
-public abstract class CraftBlockEntityState extends org.domi.furnace.compat.paper.CompatBlockState implements org.bukkit.block.TileState {
+public abstract class CraftBlockEntityState extends CraftBlockState implements org.bukkit.block.TileState {
 
     private final NbtCompound snapshot;
 
@@ -117,7 +118,7 @@ public abstract class CraftBlockEntityState extends org.domi.furnace.compat.pape
     @Override
     public org.bukkit.persistence.PersistentDataContainer getPersistentDataContainer() {
         if (pdc == null) {
-            pdc = live ? new org.domi.furnace.compat.paper.BlockEntityPdc(dimension(), position(), liveType)
+            pdc = live ? org.domi.furnace.compat.paper.PdcViews.craft(new org.domi.furnace.compat.paper.BlockEntityPdc(dimension(), position(), liveType))
                     : org.domi.furnace.compat.paper.TileStatePdc.of(snapshot.getCompound(PUBLIC_BUKKIT_VALUES));
         }
         return pdc;

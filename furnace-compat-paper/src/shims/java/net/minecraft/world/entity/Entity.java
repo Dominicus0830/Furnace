@@ -620,7 +620,10 @@ class Entity {
             if (d.ops.isEmpty() || !(d.ops.get(0) instanceof org.domi.furnace.api.internal.ChunkInternals.EntityOp.EntityRandom)) {
                 d.ops.add(0, new org.domi.furnace.api.internal.ChunkInternals.EntityOp.EntityRandom(java.util.concurrent.ThreadLocalRandom.current().nextLong()));
             }
-            d.data = org.domi.furnace.compat.nms.NmsEntityData.build(this, d.kind(), d.ops);
+            var session = org.domi.furnace.compat.nms.NmsEntityData.open(d.kind(), d.ops);
+            var data = org.domi.furnace.compat.nms.NmsEntityData.build(this, d.kind(), session);
+            d.session = session;
+            d.data = data;
         }
         return d.data;
     }
@@ -896,6 +899,8 @@ class Entity {
         Entity vehicle;
         /** {@link #getEntityData()} 를 부른 뒤의 칸(엔티티 데이터 설계 3.2). 서버가 빈 레벨에서 ops 를 재생해 채운다 — 조작이 붙을 때마다 다시 채운다. */
         net.minecraft.network.syncher.SynchedEntityData data;
+        /** data 를 채우는 서버 재생 상태 — 조작이 붙으면 그 조작만 재생한다(처음부터 다시 재생하지 않는다). */
+        org.domi.furnace.api.internal.ChunkInternals.DetachedEntityData session;
 
         Detached(EntityType<?> type, Level level) {
             this.type = type;
@@ -904,10 +909,10 @@ class Entity {
 
         String kind() { return EntityType.getKey(type).toString(); }
 
-        /** 조작 하나를 기록한다. 칸을 이미 꺼내 줬으면 서버 재생으로 그 자리에서 다시 채운다(setter·load 의 칸 효과가 바닐라처럼 바로 보이게). */
+        /** 조작 하나를 기록한다. 칸을 이미 꺼내 줬으면 그 조작을 서버에서 재생해 그 자리에서 다시 채운다(setter·load 의 칸 효과가 바닐라처럼 바로 보이게). */
         void add(org.domi.furnace.api.internal.ChunkInternals.EntityOp op) {
             ops.add(op);
-            if (data != null) org.domi.furnace.compat.nms.NmsEntityData.refresh(data, kind(), ops);
+            if (data != null) org.domi.furnace.compat.nms.NmsEntityData.refresh(data, kind(), session, op);
         }
     }
 

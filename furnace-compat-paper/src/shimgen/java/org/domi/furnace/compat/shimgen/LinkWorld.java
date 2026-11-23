@@ -79,6 +79,7 @@ final class LinkWorld implements Links.World {
         boolean isEnum = Fills.isEnumClass(g, s);
         if (isEnum && (m.access() & Opcodes.ACC_STATIC) != 0
                 && (m.name().equals("values") && m.desc().equals("()[L" + s + ";") || m.name().equals("valueOf") && m.desc().equals("(Ljava/lang/String;)L" + s + ";"))) return true;
+        if (g.conversions.match(s, m) != null) return true;   // T-264 P4 변환 몸통
         Fills.ClassFill cf = g.fills.of(s);
         if (cf == null || g.initTraps(s)) return false;
         if (cf.getters.containsKey(m.name() + m.desc())) return true;

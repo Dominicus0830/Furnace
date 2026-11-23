@@ -325,7 +325,7 @@ class InventoryResultEventsTest {
             assertEquals(0, hopper.resolvedCount());
 
             // 쓸 수 있는 칸: 처음 쓸 때 사본 — 이벤트 스냅샷은 바뀌지 않는다
-            var inv = new SnapshotInventory(InventoryType.CHEST, chest, 27, "minecraft:chest", i -> i == 4, null);
+            var inv = SnapshotInventory.of(InventoryType.CHEST, chest, 27, "minecraft:chest", i -> i == 4, null);
             inv.setItem(4, new org.bukkit.inventory.ItemStack(Material.DIAMOND, 5));
             assertEquals(Material.DIAMOND, inv.getItem(4).getType());
             assertEquals(5, inv.getItem(4).getAmount());

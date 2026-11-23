@@ -17,4 +17,13 @@ public interface LegacyTask {
 
     /** 취소한다 — 아직 안 돈 실행과 다음 반복이 사라진다. 지금 도는 중인 실행은 끝까지 간다. 여러 번 불러도 된다. */
     void cancel();
+
+    /** 몸통을 이 스레드에서 곧바로 한 번 돌린다(Paper CraftTask#run — 예약·취소 상태를 보지 않는다). */
+    void runBody();
+
+    /** callSyncMethod 로 건 작업이면 그 future, 아니면 null(Paper 처럼 대기 목록에서도 CraftFuture 로 보이게). */
+    default java.util.concurrent.Future<?> syncCall() { return null; }
+
+    /** 이 작업의 플러그인 쪽 손잡이 — 처음 부를 때 make 로 한 번 만들고 그 뒤로는 같은 객체(Paper 처럼 작업 하나에 객체 하나). */
+    <T> T view(java.util.function.Function<LegacyTask, T> make);
 }

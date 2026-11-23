@@ -15,7 +15,7 @@ states 22528-24575 5ab966623917a239
 states 24576-26623 80c55654b126f366
 states 26624-26683 5795ed2e024f74f7
 read 22149 placed-mismatch 4535 5049a106b762a5e3
-state-classes [CompatBlockState, CraftBanner, CraftBarrel, CraftBeacon, CraftBed, CraftBeehive, CraftBell, CraftBlastFurnace, CraftBrewingStand, CraftBrushableBlock, CraftCalibratedSculkSensor, CraftCampfire, CraftChest, CraftChiseledBookshelf, CraftCommandBlock, CraftComparator, CraftConduit, CraftCrafter, CraftCreatureSpawner, CraftDaylightDetector, CraftDecoratedPot, CraftDispenser, CraftDropper, CraftEnchantingTable, CraftEndGateway, CraftEndPortal, CraftEnderChest, CraftFurnaceFurnace, CraftHangingSign, CraftHopper, CraftJigsaw, CraftJukebox, CraftLectern, CraftMovingPiston, CraftSculkCatalyst, CraftSculkSensor, CraftSculkShrieker, CraftShulkerBox, CraftSign, CraftSkull, CraftSmoker, CraftStructureBlock, CraftTrialSpawner, CraftVault]
+state-classes [CraftBanner, CraftBarrel, CraftBeacon, CraftBed, CraftBeehive, CraftBell, CraftBlastFurnace, CraftBlockState, CraftBrewingStand, CraftBrushableBlock, CraftCalibratedSculkSensor, CraftCampfire, CraftChest, CraftChiseledBookshelf, CraftCommandBlock, CraftComparator, CraftConduit, CraftCrafter, CraftCreatureSpawner, CraftDaylightDetector, CraftDecoratedPot, CraftDispenser, CraftDropper, CraftEnchantingTable, CraftEndGateway, CraftEndPortal, CraftEnderChest, CraftFurnaceFurnace, CraftHangingSign, CraftHopper, CraftJigsaw, CraftJukebox, CraftLectern, CraftMovingPiston, CraftSculkCatalyst, CraftSculkSensor, CraftSculkShrieker, CraftShulkerBox, CraftSign, CraftSkull, CraftSmoker, CraftStructureBlock, CraftTrialSpawner, CraftVault]
 unreadable 0
 materials 1051
-TOTAL 854334d6e131f889 lines=19
+TOTAL 3f87ff482f05d9b0 lines=19

@@ -5,7 +5,7 @@
 #   Lootable 류의 PaperLootableBlockInventory. (TileStateInventoryHolder 는 손으로 써서 BlockInventoryHolder 를 넓힌다.)
 # 손으로 쓴 인터페이스·클래스(머리말 없음)는 생성기가 건드리지 않는다: BlockState·BrewingStand·Sign·CraftBrewingStand 등.
 # 생성기: tools/compat/gen-bukkit-block-state-classes.py
-A CraftBlockEntityState CompatBlockState org.bukkit.block.TileState
+A CraftBlockEntityState CraftBlockState org.bukkit.block.TileState
 A CraftContainer CraftBlockEntityState org.bukkit.block.Container
 A CraftLootable CraftContainer org.bukkit.Nameable org.bukkit.loot.Lootable
 A CraftFurnace CraftContainer org.bukkit.block.Furnace

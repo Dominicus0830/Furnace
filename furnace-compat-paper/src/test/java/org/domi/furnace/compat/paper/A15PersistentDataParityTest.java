@@ -271,4 +271,42 @@ class A15PersistentDataParityTest {
         });
         assertEquals(List.of("p", "q"), server.onRegion(at, () -> c.get(K, PersistentDataType.LIST.strings())));
     }
+
+    /** T-264 P2c-4: 플러그인이 받는 묶음은 어디서 오든 Paper 와 같은 CraftPersistentDataContainer(관측표 itemmeta.*.pdc·entity.*.pdc). */
+    @Test
+    void containersAreCraftPersistentDataContainerLikePaper() {
+        String craft = "org.bukkit.craftbukkit.persistence.CraftPersistentDataContainer";
+        var meta = new org.bukkit.inventory.ItemStack(org.bukkit.Material.DIAMOND_SWORD).getItemMeta();
+        PersistentDataContainer m = meta.getPersistentDataContainer();
+        assertEquals(craft, m.getClass().getName());
+        assertTrue(m == meta.getPersistentDataContainer(), "Paper 처럼 메타마다 같은 객체");
+        assertEquals(craft, player.getPersistentDataContainer().getClass().getName());
+        assertTrue(player.getPersistentDataContainer() == player.getPersistentDataContainer(), "Paper 처럼 엔티티마다 같은 객체");
+        assertEquals("org.bukkit.craftbukkit.persistence.CraftPersistentDataAdapterContext", m.getAdapterContext().getClass().getName());
+
+        // 중첩 묶음: 문맥이 만든 것도, 꺼낸 것도 같은 클래스 — 사용자 데이터 종류는 그 묶음의 문맥을 받는다
+        PersistentDataContainer nested = m.getAdapterContext().newPersistentDataContainer();
+        assertEquals(craft, nested.getClass().getName());
+        nested.set(K2, PersistentDataType.STRING, "x");
+        m.set(K, PersistentDataType.TAG_CONTAINER, nested);
+        PersistentDataContainer back = m.get(K, PersistentDataType.TAG_CONTAINER);
+        assertEquals(craft, back.getClass().getName());
+        assertEquals("x", back.get(K2, PersistentDataType.STRING));
+        assertEquals(nested, back, "같은 내용이면 같다(Paper: 원시 맵 비교)");
+        PersistentDataContainer[] arr = m.getOrDefault(K2, PersistentDataType.TAG_CONTAINER_ARRAY, new PersistentDataContainer[0]);
+        assertEquals(0, arr.length);
+        m.set(K2, PersistentDataType.TAG_CONTAINER_ARRAY, new PersistentDataContainer[] {nested});
+        assertEquals(craft, m.get(K2, PersistentDataType.TAG_CONTAINER_ARRAY)[0].getClass().getName());
+
+        var seen = new java.util.ArrayList<Object>();
+        PersistentDataType<String, String> spy = new PersistentDataType<>() {
+            @Override public Class<String> getPrimitiveType() { return String.class; }
+            @Override public Class<String> getComplexType() { return String.class; }
+            @Override public String toPrimitive(String c, org.bukkit.persistence.PersistentDataAdapterContext ctx) { seen.add(ctx); return c; }
+            @Override public String fromPrimitive(String p, org.bukkit.persistence.PersistentDataAdapterContext ctx) { seen.add(ctx); return p; }
+        };
+        m.set(K, spy, "v");
+        assertEquals("v", m.get(K, spy));
+        assertEquals(List.of(m.getAdapterContext(), m.getAdapterContext()), seen, "toPrimitive·fromPrimitive 는 그 묶음의 문맥을 받는다");
+    }
 }

@@ -345,6 +345,44 @@ class NmsLinkerTest {
     }
 
     @Test
+    void craftParentPresentButCalledConstructorMissingIsAHusk() throws Throwable {
+        // T-264: Craft 클래스가 Paper 이름으로 생겨도 플러그인이 부르는 그 상위 생성자(Paper 서술자)가 없으면, 클래스가 없을 때처럼 껍데기 + 같은 덫
+        String stub = """
+                package org.bukkit.craftbukkit.inventory;
+                public class CraftInventoryEnchanting {
+                    public CraftInventoryEnchanting(Object paperContainer) {}
+                    public CraftInventoryEnchanting(org.domi.furnace.api.inventory.Inventory handle) {}
+                }
+                """;
+        Path jar = JarCompiler.jar(tmp.resolve("craftsuper.jar"), "name: Linky\nversion: '1'\nmain: linky.User\n", Map.of(
+                "org.bukkit.craftbukkit.inventory.CraftInventoryEnchanting", stub,
+                "linky.PaperShaped", """
+                        package linky;
+                        public class PaperShaped extends org.bukkit.craftbukkit.inventory.CraftInventoryEnchanting {
+                            public PaperShaped() { super((Object) null); }
+                            public static String marker() { return "static-ok"; }
+                        }
+                        """,
+                "linky.FurnaceShaped", """
+                        package linky;
+                        public class FurnaceShaped extends org.bukkit.craftbukkit.inventory.CraftInventoryEnchanting {
+                            public FurnaceShaped() { super((org.domi.furnace.api.inventory.Inventory) null); }
+                        }
+                        """), Set.of("org.bukkit.craftbukkit."));
+        Map<String, byte[]> own = read(jar);
+        NmsClassTransformer t = new NmsClassTransformer("Linky", Set.of(), NmsClassTransformer.Options.DEFAULT, NmsSymbols.RUNTIME);
+        Loader loader = new Loader(own, t);
+        Class<?> husk = loader.loadClass("linky.PaperShaped");
+        assertEquals(org.bukkit.craftbukkit.inventory.CraftInventoryEnchanting.class, husk.getSuperclass(), "상위 사슬은 Paper 와 같다");
+        assertEquals("static-ok", husk.getMethod("marker").invoke(null));
+        var e = assertThrows(InvocationTargetException.class, () -> husk.getDeclaredConstructor().newInstance());
+        assertInstanceOf(UnsupportedNmsCall.class, e.getCause());
+        assertTrue(e.getCause().getMessage().contains("CraftInventoryEnchanting#<init>(Object)"), e.getCause().getMessage());
+        // 있는 생성자를 부르면 껍데기가 아니다(변환할 것이 없다)
+        assertNull(t.transform("linky.FurnaceShaped", own.get("linky.FurnaceShaped")));
+    }
+
+    @Test
     void huskOnAFinalShimParentIsDefinedOnObjectAndKeepsItsStaticMembers() throws Throwable {
         // H1: 상위 shim 이 final 이면 그 위에 정의하면 IncompatibleClassChangeError — Object 위에 세우고 정적 멤버는 그대로 쓴다
         assertTrue(java.lang.reflect.Modifier.isFinal(net.minecraft.util.StringUtil.class.getModifiers()), "premise: the shim parent is final");

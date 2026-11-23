@@ -3,15 +3,15 @@ package org.domi.furnace.compat.paper;
 
 /**
  * 블록 엔티티 종류 → Paper 와 같은 형의 블록 상태(Paper CraftBlockStates 의 등록표). 블록 엔티티가 없는 블록·표에 없는 종류(양조대)는
- * 일반 {@link CompatBlockState}. dimension 이 null 이면 놓이지 않은 상태.
+ * Paper 처럼 일반 {@link org.bukkit.craftbukkit.block.CraftBlockState}. dimension 이 null 이면 놓이지 않은 상태.
  */
-final class CompatBlockStates {
+public final class CompatBlockStates {
 
     private CompatBlockStates() {}
 
-    static CompatBlockState create(String dimension, org.domi.furnace.api.world.BlockPos pos, org.bukkit.block.data.BlockData data) {
+    public static org.bukkit.craftbukkit.block.CraftBlockState create(String dimension, org.domi.furnace.api.world.BlockPos pos, org.bukkit.block.data.BlockData data) {
         String be = Compat.furnace().gameRegistries().blockEntityType(((CompatBlockData) data).furnace().type());
-        if (be == null) return new CompatBlockState(dimension, pos, data);
+        if (be == null) return new org.bukkit.craftbukkit.block.CraftBlockState(dimension, pos, data);
         return switch (be) {
             case "minecraft:sign" -> new org.bukkit.craftbukkit.block.CraftSign(dimension, pos, data);
             case "minecraft:hanging_sign" -> new org.bukkit.craftbukkit.block.CraftHangingSign(dimension, pos, data);
@@ -57,7 +57,7 @@ final class CompatBlockStates {
             case "minecraft:crafter" -> new org.bukkit.craftbukkit.block.CraftCrafter(dimension, pos, data);
             case "minecraft:trial_spawner" -> new org.bukkit.craftbukkit.block.CraftTrialSpawner(dimension, pos, data);
             case "minecraft:vault" -> new org.bukkit.craftbukkit.block.CraftVault(dimension, pos, data);
-            default -> new CompatBlockState(dimension, pos, data);
+            default -> new org.bukkit.craftbukkit.block.CraftBlockState(dimension, pos, data);
         };
     }
 }

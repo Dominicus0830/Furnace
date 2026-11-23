@@ -20,8 +20,6 @@ import net.minecraft.server.dedicated.DedicatedServer;
 import org.domi.furnace.api.Furnace;
 import org.domi.furnace.compat.paper.Compat;
 import org.domi.furnace.compat.paper.CompatBlockData;
-import org.domi.furnace.compat.paper.CompatConsole;
-import org.domi.furnace.compat.paper.CompatScheduler;
 import org.domi.furnace.compat.paper.UnsupportedFeature;
 
 /**
@@ -84,7 +82,7 @@ public final class CraftServer implements Server {
     private static Furnace f() { return Compat.furnace(); }
 
     @Override
-    public org.bukkit.inventory.ItemFactory getItemFactory() { return org.bukkit.craftbukkit.inventory.CraftItemFactory.instance(); }
+    public org.bukkit.craftbukkit.inventory.CraftItemFactory getItemFactory() { return org.bukkit.craftbukkit.inventory.CraftItemFactory.instance(); }   // Paper 와 같은 좁은 반환형
 
     @Override
     public org.bukkit.block.data.BlockData createBlockData(org.bukkit.Material material) { return CompatBlockData.create(material); }
@@ -131,22 +129,22 @@ public final class CraftServer implements Server {
 
     @Override
     public org.bukkit.inventory.Inventory createInventory(org.bukkit.inventory.InventoryHolder owner, int size) {
-        return org.domi.furnace.compat.paper.CompatMenuInventory.chest(owner, size, null);
+        return org.bukkit.craftbukkit.inventory.CraftInventoryCustom.chest(owner, size, null);
     }
 
     @Override
     public org.bukkit.inventory.Inventory createInventory(org.bukkit.inventory.InventoryHolder owner, int size, String title) {
-        return org.domi.furnace.compat.paper.CompatMenuInventory.chest(owner, size, title);
+        return org.bukkit.craftbukkit.inventory.CraftInventoryCustom.chest(owner, size, title);
     }
 
     @Override
     public org.bukkit.inventory.Inventory createInventory(org.bukkit.inventory.InventoryHolder owner, org.bukkit.event.inventory.InventoryType type) {
-        return org.domi.furnace.compat.paper.CompatMenuInventory.ofType(owner, type, null);
+        return org.bukkit.craftbukkit.inventory.CraftInventoryCustom.ofType(owner, type, null);
     }
 
     @Override
     public org.bukkit.inventory.Inventory createInventory(org.bukkit.inventory.InventoryHolder owner, org.bukkit.event.inventory.InventoryType type, String title) {
-        return org.domi.furnace.compat.paper.CompatMenuInventory.ofType(owner, type, title);
+        return org.bukkit.craftbukkit.inventory.CraftInventoryCustom.ofType(owner, type, title);
     }
 
     @Override
@@ -391,7 +389,7 @@ public final class CraftServer implements Server {
         // Paper: 폴더에 level.dat 이 있으면 저장된 생성기·구조물·시드를 쓴다(설명서의 type·generatorSettings·generateStructures·seed 는 새 월드만)
         var stored = f().storedWorldCreator(name);
         // 공급자·생성기의 WorldInfo: 서버가 생성기를 만들기 직전에 채우고(prepare — 시드는 level.dat 의 것), 월드가 생기면 그 CraftWorld 를 따른다
-        var info = provider == null && generator == null ? null : new org.domi.furnace.compat.paper.BukkitBiomeProviders.LateWorldInfo(name,
+        var info = provider == null && generator == null ? null : org.domi.furnace.compat.paper.BukkitBiomeProviders.worldInfo(name,
                 creator.environment(), stored != null && stored.seed().isPresent() ? stored.seed().getAsLong() : creator.seed(),
                 env == org.domi.furnace.api.world.WorldEnvironment.NORMAL ? -64 : 0, env == org.domi.furnace.api.world.WorldEnvironment.NORMAL ? 320 : 256);
         if (provider == null && generator != null) provider = generator.getDefaultBiomeProvider(info);   // CraftServer: 생성기의 기본 공급자
@@ -443,8 +441,8 @@ public final class CraftServer implements Server {
     }
 
     /** 공급자의 WorldInfo 를 생긴 월드에 묶는다(CraftBukkit 은 CustomWorldChunkManager 에 그 CraftWorld 를 넘긴다). */
-    private static World bound(World w, org.domi.furnace.compat.paper.BukkitBiomeProviders.LateWorldInfo info) {
-        if (info != null && w != null) info.bind(w);
+    private static World bound(World w, org.bukkit.craftbukkit.generator.CraftWorldInfo info) {
+        if (info != null && w != null) org.domi.furnace.compat.paper.BukkitBiomeProviders.bind(info, w);
         return w;
     }
 
@@ -504,7 +502,7 @@ public final class CraftServer implements Server {
     }
 
     @Override
-    public ConsoleCommandSender getConsoleSender() { return CompatConsole.INSTANCE; }
+    public ConsoleCommandSender getConsoleSender() { return org.domi.furnace.compat.paper.Compat.CONSOLE; }
 
     /**
      * 옛 방식 명령이면 Bukkit 처럼 지금 스레드가 주 스레드일 때 바로 실행해 알리고(예외는 CommandException), 아니면 Furnace 명령 큐에 넣는다.
@@ -529,8 +527,11 @@ public final class CraftServer implements Server {
         return true;
     }
 
+    /** Paper 처럼 서버마다 CraftScheduler 하나(상태는 스케줄러 core 에 있다 — T-264). */
+    private final org.bukkit.craftbukkit.scheduler.CraftScheduler scheduler = new org.bukkit.craftbukkit.scheduler.CraftScheduler();
+
     @Override
-    public BukkitScheduler getScheduler() { return CompatScheduler.INSTANCE; }
+    public org.bukkit.craftbukkit.scheduler.CraftScheduler getScheduler() { return scheduler; }   // Paper 와 같은 좁은 반환형
 
     @Override
     public io.papermc.paper.threadedregions.scheduler.AsyncScheduler getAsyncScheduler() { return org.domi.furnace.compat.paper.CompatPaperSchedulers.ASYNC; }
@@ -547,7 +548,7 @@ public final class CraftServer implements Server {
     @Override
     public org.bukkit.plugin.messaging.Messenger getMessenger() { return Compat.messenger(); }
 
-    private final org.domi.furnace.compat.paper.CompatHelpMap helpMap = new org.domi.furnace.compat.paper.CompatHelpMap();
+    private final org.bukkit.craftbukkit.help.SimpleHelpMap helpMap = new org.bukkit.craftbukkit.help.SimpleHelpMap();
 
     @Override
     public org.bukkit.help.HelpMap getHelpMap() { return helpMap; }
@@ -571,7 +572,8 @@ public final class CraftServer implements Server {
     public boolean isPrimaryThread() { return org.domi.furnace.compat.thread.PrimaryThread.isPrimary(); }
 
     @Override
-    public CommandMap getCommandMap() { return Compat.commandMap(); }
+    /** Paper 처럼 좁은 반환형(SimpleCommandMap — Paper 는 그 하위 CraftCommandMap). 넓게 두면 합친 껍데기 getCommandMap()SimpleCommandMap 이 리플렉션 getMethod 에 먼저 잡혀 던진다(T-264 덫 계측 11-23, 9개 플러그인). */
+    public org.bukkit.command.SimpleCommandMap getCommandMap() { return Compat.commandMap(); }
 
     @Override
     public org.bukkit.command.PluginCommand getPluginCommand(String name) {

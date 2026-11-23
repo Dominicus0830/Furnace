@@ -18,7 +18,6 @@ SRC = os.path.join(ROOT, 'furnace-compat-paper/src/main/java')
 DATA = os.path.join(ROOT, 'tools/compat/bukkit-block-state-hierarchy-1.21.1.txt')
 HEADER = '// 생성됨: tools/compat/gen-bukkit-block-state-classes.py — 손으로 고치려면 이 줄을 지운다.'
 CRAFT_PKG = 'org.bukkit.craftbukkit.block'
-BASE = 'org.domi.furnace.compat.paper.CompatBlockState'
 CTOR_ARGS = 'String dimension, org.domi.furnace.api.world.BlockPos pos, org.bukkit.block.data.BlockData data'
 
 
@@ -34,7 +33,7 @@ def generated(path):
 
 
 def craft_fq(name):
-    return BASE if name == 'CompatBlockState' else f'{CRAFT_PKG}.{name}'
+    return f'{CRAFT_PKG}.{name}'
 
 
 def main():
@@ -97,15 +96,15 @@ def main():
           f'{HEADER}\npackage org.domi.furnace.compat.paper;\n\n'
           '/**\n'
           ' * 블록 엔티티 종류 → Paper 와 같은 형의 블록 상태(Paper CraftBlockStates 의 등록표). 블록 엔티티가 없는 블록·표에 없는 종류(양조대)는\n'
-          ' * 일반 {@link CompatBlockState}. dimension 이 null 이면 놓이지 않은 상태.\n'
+          ' * Paper 처럼 일반 {@link org.bukkit.craftbukkit.block.CraftBlockState}. dimension 이 null 이면 놓이지 않은 상태.\n'
           ' */\n'
-          'final class CompatBlockStates {\n\n'
+          'public final class CompatBlockStates {\n\n'
           '    private CompatBlockStates() {}\n\n'
-          f'    static CompatBlockState create({CTOR_ARGS}) {{\n'
+          f'    public static {CRAFT_PKG}.CraftBlockState create({CTOR_ARGS}) {{\n'
           '        String be = Compat.furnace().gameRegistries().blockEntityType(((CompatBlockData) data).furnace().type());\n'
-          '        if (be == null) return new CompatBlockState(dimension, pos, data);\n'
+          f'        if (be == null) return new {CRAFT_PKG}.CraftBlockState(dimension, pos, data);\n'
           '        return switch (be) {\n' + '\n'.join(cases) + '\n'
-          '            default -> new CompatBlockState(dimension, pos, data);\n'
+          f'            default -> new {CRAFT_PKG}.CraftBlockState(dimension, pos, data);\n'
           '        };\n    }\n}\n')
     print(f'파일 {written}개 씀, 블록 엔티티 종류 {len(cases)}개')
 

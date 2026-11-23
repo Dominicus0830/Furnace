@@ -1,0 +1,440 @@
+// Furnace Inventory 위의 Bukkit Inventory. 칸 읽기·쓰기는 Furnace 의 Future 가 곧바로 끝나는 경우(주인 스레드, 플레이어 읽기)를 동기로 올린다.
+// 소유 스레드가 아닌 곳(접속·퇴장 처리기, 전역 스레드의 명령)의 쓰기는 소유 스레드로 예약되는데, Bukkit 코드는 쓰자마자 읽는다고 믿으므로
+// 이 객체가 "아직 적용되지 않은 쓰기"를 들고 있다가 읽을 때 겹쳐 보여 준다(같은 스레드의 addItem 두 번이 서로 덮어쓰지 않는다).
+package org.bukkit.craftbukkit.inventory;
+
+import java.util.AbstractList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import org.bukkit.Material;
+import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
+import org.bukkit.inventory.ItemStack;
+import org.domi.furnace.compat.paper.PlainSlot;
+import org.domi.furnace.compat.paper.ItemSlot;
+import org.domi.furnace.compat.paper.CompatItems;
+import org.domi.furnace.compat.paper.SkullProfileFill;
+import org.domi.furnace.compat.paper.Owned;
+import org.domi.furnace.compat.paper.InventoryParts;
+
+public class CraftInventory implements Inventory {
+
+    public final org.domi.furnace.api.inventory.Inventory handle;
+    private final InventoryType type;
+    private final java.util.function.Supplier<InventoryHolder> holder;
+
+    /** 예약돼 아직 적용되지 않은 칸 쓰기: 칸 번호 → (값, 쓰기 번호). 같은 칸을 다시 쓰면 나중 것이 이긴다. */
+
+    private final java.util.Map<Integer, InventoryParts.Pending> pending = new java.util.HashMap<>();
+    private long seq;
+
+    public CraftInventory(org.domi.furnace.api.inventory.Inventory handle, InventoryType type, java.util.function.Supplier<InventoryHolder> holder) {
+        this.handle = handle;
+        this.type = type;
+        this.holder = holder;
+    }
+
+    // ------------------------------------------------------------------ 칸 읽기·쓰기(예약된 쓰기를 겹쳐 본다)
+
+    public final org.domi.furnace.api.item.ItemStack readSlot(int index) {
+        synchronized (pending) {
+            InventoryParts.Pending p = pending.get(index);
+            if (p != null) return p.stack();
+        }
+        return Owned.read(handle.get(index), "Inventory#getItem(" + index + ")");
+    }
+
+    private List<org.domi.furnace.api.item.ItemStack> readAll() {
+        List<org.domi.furnace.api.item.ItemStack> all = new java.util.ArrayList<>(Owned.read(handle.contents(), "Inventory#getContents"));
+        synchronized (pending) {
+            for (var e : pending.entrySet()) if (e.getKey() < all.size()) all.set(e.getKey(), e.getValue().stack());
+        }
+        return all;
+    }
+
+    public final void writeSlot(int index, org.domi.furnace.api.item.ItemStack stack, String what) {
+        org.domi.furnace.api.item.ItemStack value = stack.isEmpty() ? org.domi.furnace.api.item.ItemStack.EMPTY : stack;
+        CompletableFuture<Void> f = handle.set(index, value);
+        // 머리면 스킨을 비동기로 채운다(Paper SPIGOT-6558 — 칸이 아직 그대로일 때만 바꾼다). 쓰기가 성공한 뒤에만 시작한다(접속 끊긴 플레이어 등에는 조회를 안 보낸다).
+        f.whenComplete((v, e) -> {
+            if (e == null) SkullProfileFill.afterWrite(handle, index, value);
+        });
+        if (f.isDone()) {
+            Owned.write(f, what);
+            return;
+        }
+        long mine;
+        synchronized (pending) {
+            mine = ++seq;
+            pending.put(index, new InventoryParts.Pending(value, mine));
+        }
+        f.whenComplete((v, e) -> {
+            synchronized (pending) {
+                InventoryParts.Pending cur = pending.get(index);
+                if (cur != null && cur.seq() == mine) pending.remove(index);
+            }
+            if (e != null) System.getLogger("FurnaceCompat").log(System.Logger.Level.WARNING, org.domi.furnace.compat.i18n.CompatLang.t("compat.scheduled-task-failed", what), e);
+        });
+    }
+
+    /** 저장 칸 수(플레이어는 방어구·왼손을 뺀 36). */
+    public int storageSize() { return handle.size(); }
+
+    // ------------------------------------------------------------------ 칸 거울
+
+    /**
+     * 칸 하나를 비추는 ItemSlot — 읽을 때마다 칸을 다시 읽고, 쓸 때마다 칸을 덮어쓴다.
+     * 거울을 거치지 않고 그 칸을 바꾸면(setItem·clear·setContents) {@link #detachMirrors} 가 그 칸의 거울들을 그 순간의 값으로 떼어 낸다.
+     * 떨어져 나간 거울들은 사본 하나를 함께 본다: CraftBukkit 의 거울이 NMS 객체에 묶여(칸 번호가 아니라 칸 안의 아이템에 묶인다)
+     * 칸이 바뀐 뒤에도 같은 칸에서 꺼낸 거울끼리 그 고아 NMS 객체를 공유하는 것과 같다(R1, 검토에서 Paper 와 대조).
+     */
+    /**
+     * 칸 하나의 "세대": 그 칸의 거울들이 함께 쥔다. 비어 있으면 거울은 살아 있고,
+     * {@link #detachMirrors} 가 떼어 낸 순간의 값을 담은 사본 하나를 넣으면 그 세대의 모든 거울이 한꺼번에 그 사본을 보게 된다.
+     * 거울 목록을 따로 들고 있지 않으므로 거울을 만드는 데 드는 일이 칸을 읽은 횟수와 무관하다(약한 참조 목록 폭주 제거, T-070).
+     */
+    /** 칸 번호 → 지금 세대(거울이 한 번도 안 만들어졌거나 떼어 낸 직후면 없다). 크기는 칸 수를 넘지 않는다. */
+    private final java.util.concurrent.ConcurrentHashMap<Integer, InventoryParts.Epoch> epochs = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** 테스트용: 지금 세대를 들고 있는 칸 수. */
+    public final int liveEpochCount() { return epochs.size(); }
+
+    public final ItemSlot mirror(int index) {
+        while (true) {
+            InventoryParts.Epoch e = epochs.get(index);
+            if (e == null) e = epochs.computeIfAbsent(index, k -> new InventoryParts.Epoch());
+            if (e.get() == null) return new InventoryParts.Mirror(this, index, e);
+            epochs.remove(index, e); // 막 떨어져 나간 세대 — 치우고 새 세대로
+        }
+    }
+
+    /** 칸 값을 예외 없이 본다: 예약된 쓰기가 있으면 그것, 곧바로 읽히면 그 값, 소유 스레드가 아니라 못 읽으면 null. */
+    private org.domi.furnace.api.item.ItemStack peekSlot(int index) {
+        synchronized (pending) {
+            InventoryParts.Pending p = pending.get(index);
+            if (p != null) return p.stack();
+        }
+        CompletableFuture<org.domi.furnace.api.item.ItemStack> f = handle.get(index);
+        if (!f.isDone()) return null;
+        try {
+            return Owned.read(f, "Inventory#getItem(" + index + ")");
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** 거울을 거치지 않는 칸 쓰기 직전에 부른다: 그 칸의 거울들을 지금 값의 평범한 사본 하나로 떼어 낸다. */
+    private void detachMirrors(int index) {
+        InventoryParts.Epoch e = epochs.get(index);
+        if (e == null) return;
+        org.domi.furnace.api.item.ItemStack now = peekSlot(index);
+        if (now == null) return; // 소유 스레드가 아니라 읽을 수 없다 — 그 거울도 읽을 때마다 같은 예외를 던지므로 떼어 낼 값이 없다
+        e.compareAndSet(null, new PlainSlot(now, now.amount()));
+        epochs.remove(index, e);
+    }
+
+    private void check(int index) {
+        if (index < 0 || index >= handle.size()) throw new IndexOutOfBoundsException("Index " + index + " out of bounds for length " + handle.size());
+    }
+
+    private boolean isEmptyAt(int index) { return readSlot(index).isEmpty(); }
+
+    // ------------------------------------------------------------------ Inventory
+
+    @Override
+    public int getSize() { return handle.size(); }
+
+    @Override
+    public int getMaxStackSize() { return 64; }
+
+    @Override
+    public ItemStack getItem(int index) {
+        check(index);
+        return readSlot(index).isEmpty() ? null : new ItemStack(mirror(index));
+    }
+
+    @Override
+    public void setItem(int index, ItemStack item) {
+        check(index);
+        org.domi.furnace.api.item.ItemStack value = CompatItems.toFurnace(item); // 넣을 값은 거울이 떨어져 나가기 전에 읽는다
+        detachMirrors(index);
+        writeSlot(index, value, "Inventory#setItem(" + index + ")");
+    }
+
+    @Override
+    public ItemStack[] getContents() { return slice(0, handle.size()); }
+
+    @Override
+    public ItemStack[] getStorageContents() { return slice(0, storageSize()); }
+
+    private ItemStack[] slice(int from, int to) {
+        List<org.domi.furnace.api.item.ItemStack> all = readAll();
+        ItemStack[] out = new ItemStack[to - from];
+        for (int i = from; i < to; i++) out[i - from] = all.get(i).isEmpty() ? null : new ItemStack(mirror(i));
+        return out;
+    }
+
+    @Override
+    public void setContents(ItemStack[] items) {
+        Objects.requireNonNull(items, "Cannot set contents to null");
+        if (items.length > handle.size()) throw new IllegalArgumentException("Invalid inventory size (" + items.length + "); expected " + handle.size() + " or less");
+        for (int i = 0; i < handle.size(); i++) setItem(i, i < items.length ? items[i] : null);
+    }
+
+    @Override
+    public void setStorageContents(ItemStack[] items) {
+        Objects.requireNonNull(items, "Cannot set contents to null");
+        int n = storageSize();
+        if (items.length > n) throw new IllegalArgumentException("Invalid inventory size (" + items.length + "); expected " + n + " or less");
+        for (int i = 0; i < n; i++) setItem(i, i < items.length ? items[i] : null);
+    }
+
+    /** 저장 칸에서 합칠 수 있는 첫 칸(같은 종류이고 가득 차지 않은 칸), 없으면 -1. */
+    private int firstPartial(ItemStack item) {
+        ItemStack[] inv = getStorageContents();
+        ItemStack filter = item;
+        if (filter == null) return -1;
+        for (int i = 0; i < inv.length; i++) {
+            ItemStack cItem = inv[i];
+            if (cItem != null && cItem.getAmount() < cItem.getMaxStackSize() && cItem.isSimilar(filter)) return i;
+        }
+        return -1;
+    }
+
+    @Override
+    public HashMap<Integer, ItemStack> addItem(ItemStack... items) {
+        Objects.requireNonNull(items, "Items cannot be null");
+        HashMap<Integer, ItemStack> leftover = new HashMap<>();
+        for (int i = 0; i < items.length; i++) {
+            ItemStack item = items[i];
+            Objects.requireNonNull(item, "Item " + i + " cannot be null");
+            while (true) {
+                int firstPartial = firstPartial(item);
+                if (firstPartial == -1) {
+                    int firstFree = firstEmpty();
+                    if (firstFree == -1) {
+                        leftover.put(i, item);
+                        break;
+                    }
+                    int max = item.getMaxStackSize();
+                    if (item.getAmount() > max) {
+                        ItemStack stack = item.clone();
+                        stack.setAmount(max);
+                        setItem(firstFree, stack);
+                        item.setAmount(item.getAmount() - max);
+                    } else {
+                        setItem(firstFree, item);
+                        break;
+                    }
+                } else {
+                    ItemStack partialItem = getItem(firstPartial);
+                    int amount = item.getAmount();
+                    int partialAmount = partialItem.getAmount();
+                    int maxAmount = partialItem.getMaxStackSize();
+                    if (amount + partialAmount <= maxAmount) {
+                        partialItem.setAmount(amount + partialAmount);
+                        break;
+                    }
+                    partialItem.setAmount(maxAmount);
+                    item.setAmount(amount + partialAmount - maxAmount);
+                }
+            }
+        }
+        return leftover;
+    }
+
+    @Override
+    public HashMap<Integer, ItemStack> removeItem(ItemStack... items) {
+        Objects.requireNonNull(items, "Items cannot be null");
+        HashMap<Integer, ItemStack> leftover = new HashMap<>();
+        for (int i = 0; i < items.length; i++) {
+            ItemStack item = items[i];
+            Objects.requireNonNull(item, "Item " + i + " cannot be null");
+            int toDelete = item.getAmount();
+            while (true) {
+                int first = firstSimilar(item);
+                if (first == -1) {
+                    item.setAmount(toDelete);
+                    leftover.put(i, item);
+                    break;
+                }
+                ItemStack itemStack = getItem(first);
+                int amount = itemStack.getAmount();
+                if (amount <= toDelete) {
+                    toDelete -= amount;
+                    clear(first);
+                } else {
+                    itemStack.setAmount(amount - toDelete);
+                    toDelete = 0;
+                }
+                if (toDelete <= 0) break;
+            }
+        }
+        return leftover;
+    }
+
+    /** 모든 칸에서 isSimilar 인 첫 칸(개수 무시), 없으면 -1. */
+    private int firstSimilar(ItemStack item) {
+        if (item == null) return -1;
+        ItemStack[] inv = getContents();
+        for (int i = 0; i < inv.length; i++) if (inv[i] != null && item.isSimilar(inv[i])) return i;
+        return -1;
+    }
+
+    @Override
+    public boolean contains(Material material) {
+        Objects.requireNonNull(material, "Material cannot be null");
+        for (ItemStack i : getContents()) if (i != null && i.getType() == material) return true;
+        return false;
+    }
+
+    @Override
+    public boolean contains(ItemStack item) {
+        if (item == null) return false;
+        for (ItemStack i : getContents()) if (item.equals(i)) return true;
+        return false;
+    }
+
+    @Override
+    public boolean contains(Material material, int amount) {
+        Objects.requireNonNull(material, "Material cannot be null");
+        if (amount <= 0) return true;
+        for (ItemStack i : getContents()) {
+            if (i != null && i.getType() == material && (amount -= i.getAmount()) <= 0) return true;
+        }
+        return false;
+    }
+
+    @Override
+    public boolean contains(ItemStack item, int amount) {
+        if (item == null) return false;
+        if (amount <= 0) return true;
+        for (ItemStack i : getContents()) if (item.equals(i) && --amount <= 0) return true;
+        return false;
+    }
+
+    @Override
+    public boolean containsAtLeast(ItemStack item, int amount) {
+        if (item == null) return false;
+        if (amount <= 0) return true;
+        for (ItemStack i : getContents()) if (item.isSimilar(i) && (amount -= i.getAmount()) <= 0) return true;
+        return false;
+    }
+
+    @Override
+    public HashMap<Integer, ? extends ItemStack> all(Material material) {
+        Objects.requireNonNull(material, "Material cannot be null");
+        HashMap<Integer, ItemStack> slots = new HashMap<>();
+        ItemStack[] inv = getContents();
+        for (int i = 0; i < inv.length; i++) if (inv[i] != null && inv[i].getType() == material) slots.put(i, inv[i]);
+        return slots;
+    }
+
+    @Override
+    public HashMap<Integer, ? extends ItemStack> all(ItemStack item) {
+        HashMap<Integer, ItemStack> slots = new HashMap<>();
+        if (item != null) {
+            ItemStack[] inv = getContents();
+            for (int i = 0; i < inv.length; i++) if (item.equals(inv[i])) slots.put(i, inv[i]);
+        }
+        return slots;
+    }
+
+    @Override
+    public int first(Material material) {
+        Objects.requireNonNull(material, "Material cannot be null");
+        ItemStack[] inv = getContents();
+        for (int i = 0; i < inv.length; i++) if (inv[i] != null && inv[i].getType() == material) return i;
+        return -1;
+    }
+
+    @Override
+    public int first(ItemStack item) {
+        if (item == null) return -1;
+        ItemStack[] inv = getContents();
+        for (int i = 0; i < inv.length; i++) if (inv[i] != null && item.equals(inv[i])) return i;
+        return -1;
+    }
+
+    @Override
+    public int firstEmpty() {
+        for (int i = 0; i < storageSize(); i++) if (isEmptyAt(i)) return i;
+        return -1;
+    }
+
+    @Override
+    public boolean isEmpty() {
+        for (int i = 0; i < handle.size(); i++) if (!isEmptyAt(i)) return false;
+        return true;
+    }
+
+    @Override
+    public void remove(Material material) {
+        Objects.requireNonNull(material, "Material cannot be null");
+        ItemStack[] inv = getContents();
+        for (int i = 0; i < inv.length; i++) if (inv[i] != null && inv[i].getType() == material) clear(i);
+    }
+
+    @Override
+    public void remove(ItemStack item) {
+        Objects.requireNonNull(item, "ItemStack cannot be null");
+        ItemStack[] inv = getContents();
+        for (int i = 0; i < inv.length; i++) if (inv[i] != null && inv[i].equals(item)) clear(i);
+    }
+
+    @Override
+    public void clear(int index) { setItem(index, null); }
+
+    @Override
+    public void clear() {
+        for (int i = 0; i < handle.size(); i++) clear(i);
+    }
+
+    @Override
+    public InventoryType getType() { return type; }
+
+    @Override
+    public InventoryHolder getHolder() { return holder.get(); }
+
+    /** 블록 인벤토리의 위치(Paper CraftInventory#getLocation — 블록 엔티티 칸 모서리). 모르면 null. */
+    private volatile org.bukkit.Location location;
+
+    /** 위치를 단다(만든 직후 한 번). */
+    public final CraftInventory locatedAt(org.bukkit.Location at) {
+        this.location = at;
+        return this;
+    }
+
+    /** 위치를 모르는 인벤토리(플러그인이 만든 인벤토리 등)는 null. */
+    @Override
+    public org.bukkit.Location getLocation() {
+        org.bukkit.Location l = location;
+        return l == null ? null : l.clone();
+    }
+
+    /** Furnace 는 블록·엔티티 보관함을 누가 보고 있는지 알리지 않아 빈 목록이다(플러그인이 만든 인벤토리만 안다). */
+    @Override
+    public java.util.List<org.bukkit.entity.HumanEntity> getViewers() { return java.util.List.of(); }
+
+    @Override
+    public ListIterator<ItemStack> iterator() {
+        return new AbstractList<ItemStack>() {
+            @Override
+            public ItemStack get(int index) { return getItem(index); }
+
+            @Override
+            public ItemStack set(int index, ItemStack element) {
+                ItemStack old = getItem(index);
+                setItem(index, element);
+                return old;
+            }
+
+            @Override
+            public int size() { return getSize(); }
+        }.listIterator();
+    }
+}

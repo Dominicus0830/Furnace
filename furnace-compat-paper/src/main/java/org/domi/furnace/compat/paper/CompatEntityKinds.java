@@ -133,7 +133,7 @@ final class CompatEntityKinds {
             case "minecraft:furnace_minecart" -> h instanceof org.domi.furnace.api.entity.Entity ? org.bukkit.craftbukkit.entity.CraftMinecartFurnace.class : null;
             case "minecraft:tnt_minecart" -> h instanceof org.domi.furnace.api.entity.Entity ? org.bukkit.craftbukkit.entity.CraftMinecartTNT.class : null;
             case "minecraft:hopper_minecart" -> h instanceof org.domi.furnace.api.entity.Entity ? org.bukkit.craftbukkit.entity.CraftMinecartHopper.class : null;
-            case "minecraft:spawner_minecart" -> h instanceof org.domi.furnace.api.entity.Entity ? org.bukkit.craftbukkit.entity.CraftMinecartMobSpawner.class : null;
+            case "minecraft:spawner_minecart" -> h instanceof org.domi.furnace.api.entity.Entity ? CraftAccess.CRAFT_MINECART_MOB_SPAWNER : null;
             case "minecraft:fishing_bobber" -> h instanceof org.domi.furnace.api.entity.Entity ? org.bukkit.craftbukkit.entity.CraftFishHook.class : null;
             default -> null;
         };
@@ -266,7 +266,7 @@ final class CompatEntityKinds {
             case "minecraft:furnace_minecart" -> h instanceof org.domi.furnace.api.entity.Entity x ? new org.bukkit.craftbukkit.entity.CraftMinecartFurnace(x) : null;
             case "minecraft:tnt_minecart" -> h instanceof org.domi.furnace.api.entity.Entity x ? new org.bukkit.craftbukkit.entity.CraftMinecartTNT(x) : null;
             case "minecraft:hopper_minecart" -> h instanceof org.domi.furnace.api.entity.Entity x ? new org.bukkit.craftbukkit.entity.CraftMinecartHopper(x) : null;
-            case "minecraft:spawner_minecart" -> h instanceof org.domi.furnace.api.entity.Entity x ? new org.bukkit.craftbukkit.entity.CraftMinecartMobSpawner(x) : null;
+            case "minecraft:spawner_minecart" -> h instanceof org.domi.furnace.api.entity.Entity x ? CraftAccess.newCraftMinecartMobSpawner(x) : null;
             case "minecraft:fishing_bobber" -> h instanceof org.domi.furnace.api.entity.Entity x ? new org.bukkit.craftbukkit.entity.CraftFishHook(x) : null;
             default -> null;
         };

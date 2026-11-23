@@ -145,12 +145,39 @@ class NmsEntityDataTest {
         }
     }
 
-    /** 아직 바꾸지 못하는 값 종류(고양이 변형 — 설계 D4)가 있는 종류는 getEntityData 만 알리고, setter 는 그대로 된다. */
+    /** 아직 바꾸지 못하는 값 종류(입자 — 입자 shim 이 빈 껍데기)가 있는 종류는 getEntityData 만 알리고, setter 는 그대로 된다. */
     @Test
     void kindsWithUnbridgedValueKindsSayUnsupported() {
+        Entity cloud = EntityType.AREA_EFFECT_CLOUD.create(level);
+        assertThrows(UnsupportedNmsCall.class, cloud::getEntityData);
+        cloud.setInvisible(true);
+        assertTrue(cloud.isInvisible());
+    }
+
+    /** 늑대 무늬 칸(D4-3): 처음 값 pale 이 데이터 팩 레지스트리 손잡이로 보이고, 칸 쓰기가 서버 재생을 지난다. */
+    @Test
+    void wolfVariantSlotIsARegistryHolder() {
+        Entity wolf = EntityType.WOLF.create(level);
+        SynchedEntityData d = wolf.getEntityData();
+        var slot = new EntityDataAccessor<net.minecraft.core.Holder<net.minecraft.world.entity.animal.WolfVariant>>(org.domi.furnace.server.entity.Wolf.DATA_VARIANT_ID, EntityDataSerializers.WOLF_VARIANT);
+        var wolves = org.domi.furnace.compat.nms.NmsVariants.wolves();
+        assertSame(wolves.getHolder(net.minecraft.resources.ResourceLocation.parse("minecraft:pale")).orElseThrow(), d.get(slot));
+        var woods = wolves.getHolder(net.minecraft.resources.ResourceLocation.parse("minecraft:woods")).orElseThrow();
+        d.set(slot, woods);
+        assertSame(woods, d.get(slot));
+        assertEquals("minecraft:textures/entity/wolf/wolf_woods.png", d.get(slot).value().wildTexture().toString());
+    }
+
+    /** 고양이 무늬 칸(D4): 바닐라 생성자의 처음 값(검정 — 고양이 정의 값)이 레지스트리 손잡이로 보이고, 칸 쓰기가 서버 재생을 지난다. */
+    @Test
+    void catVariantSlotIsARegistryHolder() {
         Entity cat = EntityType.CAT.create(level);
-        assertThrows(UnsupportedNmsCall.class, cat::getEntityData);
-        cat.setInvisible(true);
-        assertTrue(cat.isInvisible());
+        SynchedEntityData d = cat.getEntityData();
+        var slot = new EntityDataAccessor<net.minecraft.core.Holder<net.minecraft.world.entity.animal.CatVariant>>(org.domi.furnace.server.entity.Cat.DATA_VARIANT, EntityDataSerializers.CAT_VARIANT);
+        assertSame(net.minecraft.core.registries.BuiltInRegistries.CAT_VARIANT.getHolder(net.minecraft.world.entity.animal.CatVariant.BLACK).orElseThrow(), d.get(slot));
+        var jellie = net.minecraft.core.registries.BuiltInRegistries.CAT_VARIANT.getHolderOrThrow(net.minecraft.world.entity.animal.CatVariant.JELLIE);
+        d.set(slot, jellie);
+        assertSame(jellie, d.get(slot));
+        assertEquals("minecraft:textures/entity/cat/jellie.png", d.get(slot).value().texture().toString());
     }
 }

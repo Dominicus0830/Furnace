@@ -1,7 +1,8 @@
 // 플러그인 메뉴가 아닌 창(상자·화로·제작대·플레이어 2×2 제작 칸)의 위쪽 칸, 깔때기가 옮기는 용기, 양조대 — 이벤트가 가진 그 순간의 내용을 읽는다.
 // Furnace 이벤트는 그 창이 어느 블록의 것인지 알리지 않아 쓰기는 UnsupportedFeature, getHolder() 는 null 이다. 이벤트 밖(getOpenInventory)에서는
 // 내용도 모르므로 읽기도 UnsupportedFeature 다. 이벤트가 결과를 되돌려 받는 칸(제작 준비 이벤트의 결과 칸)만 쓸 수 있다 — 쓴 값은 이 사본에 남고
-// 다리가 이벤트 뒤에 읽어 Furnace 이벤트로 옮긴다.
+// 다리가 이벤트 뒤에 읽어 Furnace 이벤트로 옮긴다. 이 클래스는 그 사본 칸(Furnace Inventory)만 만든다 — 플러그인이 받는 객체는 Paper 와 같은
+// CraftInventory·CraftInventoryCrafting 등이다(T-264 P2b).
 package org.domi.furnace.compat.paper;
 
 import java.util.ArrayList;
@@ -9,35 +10,33 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.IntPredicate;
 import org.bukkit.event.inventory.InventoryType;
-import org.bukkit.inventory.ItemStack;
+import org.bukkit.craftbukkit.inventory.CraftInventory;
 
-class SnapshotInventory extends CompatInventory {
+public final class SnapshotInventory {
 
     private static final IntPredicate READ_ONLY = i -> false;
 
-    private final org.bukkit.Location location;
+    private SnapshotInventory() {}
 
-    SnapshotInventory(InventoryType type, List<org.domi.furnace.api.item.ItemStack> contents, int size, String key) {
-        this(type, contents, size, key, READ_ONLY, null);
+    /** 읽기만 하는 사본 칸. */
+    public static org.domi.furnace.api.inventory.Inventory slots(String key, List<org.domi.furnace.api.item.ItemStack> contents, int size) {
+        return new Slots(key, contents, size, READ_ONLY);
+    }
+
+    /** writable: 쓸 수 있는 칸. */
+    public static org.domi.furnace.api.inventory.Inventory slots(String key, List<org.domi.furnace.api.item.ItemStack> contents, int size, IntPredicate writable) {
+        return new Slots(key, contents, size, writable);
+    }
+
+    /** 종류별 클래스가 없는 창의 위쪽 칸 — Paper 처럼 CraftInventory 그대로. */
+    static CraftInventory of(InventoryType type, List<org.domi.furnace.api.item.ItemStack> contents, int size, String key) {
+        return new CraftInventory(slots(key, contents, size), type, () -> null);
     }
 
     /** writable: 쓸 수 있는 칸, location: getLocation()(모르면 null). */
-    SnapshotInventory(InventoryType type, List<org.domi.furnace.api.item.ItemStack> contents, int size, String key, IntPredicate writable,
-                      org.bukkit.Location location) {
-        super(new Slots(key, contents, size, writable), type, () -> null);
-        this.location = location;
-    }
-
-    @Override
-    public org.bukkit.Location getLocation() { return location == null ? null : location.clone(); }
-
-    /** 이 사본의 칸(쓴 값 포함) — 다리가 되돌려 쓸 때. */
-    final org.domi.furnace.api.item.ItemStack furnaceAt(int slot) { return readSlot(slot); }
-
-    /** 빈 칸은 null 인 Bukkit 사본. */
-    final ItemStack bukkitAt(int slot) {
-        org.domi.furnace.api.item.ItemStack s = readSlot(slot);
-        return s.isEmpty() ? null : CompatItems.copyOf(s);
+    static CraftInventory of(InventoryType type, List<org.domi.furnace.api.item.ItemStack> contents, int size, String key, IntPredicate writable,
+                             org.bukkit.Location location) {
+        return new CraftInventory(slots(key, contents, size, writable), type, () -> null).locatedAt(location);
     }
 
     /** 모든 칸을 쓸 수 있는 메모리 칸(블록 상태의 사본 인벤토리용). */

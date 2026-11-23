@@ -10,7 +10,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Logger;
 import org.bukkit.HeightMap;
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.block.Biome;
@@ -152,85 +151,20 @@ public final class BukkitChunkGenerators {
 
     // ------------------------------------------------------------------ 바이옴
 
-    static Biome biomeOf(String key) {
+    public static Biome biomeOf(String key) {
         NamespacedKey k = key == null ? null : NamespacedKey.fromString(key);
         Biome b = k == null ? null : Biome.byKey(k);
         return b != null ? b : Biome.CUSTOM;   // CraftBiome: 레지스트리에 없는 바이옴은 CUSTOM
     }
 
-    private static org.domi.furnace.api.world.BlockData furnaceData(BlockData data) {
+    public static org.domi.furnace.api.world.BlockData furnaceData(BlockData data) {
         return ((CompatBlockData) data).furnace();   // CraftBukkit 의 (CraftBlockData) 캐스트와 같다 — 다른 구현이면 ClassCastException
     }
 
     // ------------------------------------------------------------------ ChunkData
 
-    /** CraftChunkData — 생성 중인 청크 하나를 직접 고친다. 그 단계가 끝나면 끊긴다. */
-    static final class LiveChunkData implements ChunkGenerator.ChunkData {
-        private final int minHeight, maxHeight;
-        private volatile GenerationChunk chunk;
-
-        LiveChunkData(GenerationChunk chunk) {
-            this.chunk = chunk;
-            this.minHeight = chunk.minY();
-            this.maxHeight = chunk.maxY() + 1;
-        }
-
-        void breakLink() { chunk = null; }
-
-        private GenerationChunk handle() {
-            GenerationChunk c = chunk;
-            if (c == null) throw new IllegalStateException("IChunkAccess no longer present, are you using it in a different tick?");
-            return c;
-        }
-
-        private boolean outside(int x, int y, int z) { return x != (x & 0xf) || y < minHeight || y >= maxHeight || z != (z & 0xf); }
-
-        @Override public int getMinHeight() { return minHeight; }
-        @Override public int getMaxHeight() { return maxHeight; }
-
-        @Override
-        public Biome getBiome(int x, int y, int z) {
-            // ChunkAccess#getNoiseBiome(x>>2, y>>2, z>>2): x·z 는 4칸 단위로 감기고 y 는 높이 안으로 잘린다
-            return biomeOf(handle().biome(x & 15, Math.clamp(y, minHeight, maxHeight - 1), z & 15));
-        }
-
-        @Override public void setBlock(int x, int y, int z, Material material) { setBlock(x, y, z, material.createBlockData()); }
-
-        @Override
-        public void setBlock(int x, int y, int z, BlockData blockData) {
-            var d = furnaceData(blockData);
-            if (outside(x, y, z)) return;
-            handle().setBlock(x, y, z, d);
-        }
-
-        @Override
-        public void setRegion(int xMin, int yMin, int zMin, int xMax, int yMax, int zMax, Material material) {
-            setRegion(xMin, yMin, zMin, xMax, yMax, zMax, material.createBlockData());
-        }
-
-        @Override
-        public void setRegion(int xMin, int yMin, int zMin, int xMax, int yMax, int zMax, BlockData blockData) {
-            var d = furnaceData(blockData);
-            int[] r = clamp(xMin, yMin, zMin, xMax, yMax, zMax, minHeight, maxHeight);
-            if (r == null) return;
-            handle().fill(r[0], r[1], r[2], r[3] - 1, r[4] - 1, r[5] - 1, d);
-        }
-
-        @Override
-        public Material getType(int x, int y, int z) {
-            if (outside(x, y, z)) return Material.AIR;
-            return Compat.material(handle().blockType(x, y, z));
-        }
-
-        @Override
-        public BlockData getBlockData(int x, int y, int z) {
-            if (outside(x, y, z)) return CompatBlockData.of(org.domi.furnace.api.world.BlockData.AIR);
-            return CompatBlockData.of(handle().block(x, y, z));
-        }
-    }
-
     /** CraftChunkData·OldCraftChunkData#setRegion 의 자르기(끝은 제외). 빈 상자면 null. */
-    static int[] clamp(int xMin, int yMin, int zMin, int xMax, int yMax, int zMax, int minHeight, int maxHeight) {
+    public static int[] clamp(int xMin, int yMin, int zMin, int xMax, int yMax, int zMax, int minHeight, int maxHeight) {
         if (xMin > 0xf || yMin >= maxHeight || zMin > 0xf) return null;
         if (xMin < 0) xMin = 0;
         if (yMin < minHeight) yMin = minHeight;
@@ -242,92 +176,8 @@ public final class BukkitChunkGenerators {
         return new int[] {xMin, yMin, zMin, xMax, yMax, zMax};
     }
 
-    /**
-     * OldCraftChunkData({@code Server#createChunkData}) — 옛 generateChunkData 가 돌려주는 섹션 묶음. 손댄 섹션(16칸 높이)만 생기고,
-     * 생긴 섹션은 청크의 그 섹션 블록을 통째로 갈아 끼운다(안 놓은 칸은 공기, 바이옴은 그대로).
-     */
-    public static final class OldChunkData implements ChunkGenerator.ChunkData {
-        private final int minHeight, maxHeight;
-        private final org.domi.furnace.api.world.BlockData[][] sections;
-
-        public OldChunkData(int minHeight, int maxHeight) {
-            this.minHeight = minHeight;
-            this.maxHeight = maxHeight;
-            this.sections = new org.domi.furnace.api.world.BlockData[(((maxHeight - 1) >> 4) + 1) - (minHeight >> 4)][];
-        }
-
-        @Override public int getMinHeight() { return minHeight; }
-        @Override public int getMaxHeight() { return maxHeight; }
-
-        @Override
-        public Biome getBiome(int x, int y, int z) { throw new UnsupportedOperationException("Unsupported, in older chunk generator api"); }
-
-        @Override public void setBlock(int x, int y, int z, Material material) { setBlock(x, y, z, material.createBlockData()); }
-
-        @Override
-        public void setBlock(int x, int y, int z, BlockData blockData) { set(x, y, z, furnaceData(blockData)); }
-
-        private void set(int x, int y, int z, org.domi.furnace.api.world.BlockData d) {
-            if (x != (x & 0xf) || y < minHeight || y >= maxHeight || z != (z & 0xf)) return;
-            section(y)[index(x, y, z)] = d;
-        }
-
-        @Override
-        public void setRegion(int xMin, int yMin, int zMin, int xMax, int yMax, int zMax, Material material) {
-            setRegion(xMin, yMin, zMin, xMax, yMax, zMax, material.createBlockData());
-        }
-
-        @Override
-        public void setRegion(int xMin, int yMin, int zMin, int xMax, int yMax, int zMax, BlockData blockData) {
-            var d = furnaceData(blockData);
-            int[] r = clamp(xMin, yMin, zMin, xMax, yMax, zMax, minHeight, maxHeight);
-            if (r == null) return;
-            for (int y = r[1]; y < r[4]; y++) {
-                var s = section(y);
-                for (int x = r[0]; x < r[3]; x++) {
-                    for (int z = r[2]; z < r[5]; z++) s[index(x, y, z)] = d;
-                }
-            }
-        }
-
-        @Override
-        public Material getType(int x, int y, int z) { return Compat.material(data(x, y, z).type()); }
-
-        @Override
-        public BlockData getBlockData(int x, int y, int z) { return CompatBlockData.of(data(x, y, z)); }
-
-        private org.domi.furnace.api.world.BlockData data(int x, int y, int z) {
-            if (x != (x & 0xf) || y < minHeight || y >= maxHeight || z != (z & 0xf)) return org.domi.furnace.api.world.BlockData.AIR;
-            var s = sections[(y - minHeight) >> 4];
-            if (s == null) return org.domi.furnace.api.world.BlockData.AIR;
-            var d = s[index(x, y, z)];
-            return d == null ? org.domi.furnace.api.world.BlockData.AIR : d;
-        }
-
-        private org.domi.furnace.api.world.BlockData[] section(int y) {
-            int i = (y - minHeight) >> 4;
-            var s = sections[i];
-            if (s == null) sections[i] = s = new org.domi.furnace.api.world.BlockData[4096];
-            return s;
-        }
-
-        private static int index(int x, int y, int z) { return (y & 0xf) << 8 | z << 4 | x; }
-
-        /** 생긴 섹션을 청크에 갈아 끼운다(CustomChunkGenerator#buildSurface 의 옛 길). */
-        void applyTo(GenerationChunk chunk) {
-            int base = chunk.minY();
-            int count = Math.min(sections.length, (chunk.maxY() + 1 - base + 15) >> 4);
-            for (int sec = 0; sec < count; sec++) {
-                var s = sections[sec];
-                if (s == null) continue;
-                int y0 = base + (sec << 4);
-                for (int i = 0; i < 4096; i++) {
-                    var d = s[i];
-                    chunk.setBlock(i & 15, y0 + (i >> 8), (i >> 4) & 15, d == null ? org.domi.furnace.api.world.BlockData.AIR : d);
-                }
-            }
-        }
-    }
+    /** {@code Server#createChunkData} 의 OldCraftChunkData(생성자는 패키지 전용). */
+    public static ChunkGenerator.ChunkData createOldChunkData(int minHeight, int maxHeight) { return CraftAccess.newOldChunkData(minHeight, maxHeight); }
 
     /** CustomBiomeGrid — 옛 generateChunkData 의 바이옴 격자(청크에 바로 쓴다). */
     @SuppressWarnings("deprecation")
@@ -361,18 +211,18 @@ public final class BukkitChunkGenerators {
     // ------------------------------------------------------------------ 생성기 → 훅
 
     /** Bukkit 생성기를 Furnace 생성 훅 객체로. info 는 월드가 목록에 오르기 전 생성기에 넘길 월드 정보(서버가 prepare 로 채운다). */
-    public static Adapted adapt(ChunkGenerator generator, BukkitBiomeProviders.LateWorldInfo info) {
+    public static Adapted adapt(ChunkGenerator generator, org.bukkit.craftbukkit.generator.CraftWorldInfo info) {
         return new Adapted(java.util.Objects.requireNonNull(generator, "generator"), java.util.Objects.requireNonNull(info, "info"));
     }
 
     /** CustomChunkGenerator 와 같은 자리의 훅. {@link #bukkit()} 은 원래 생성기(CraftWorld#getGenerator). */
     public static final class Adapted implements ChunkGenerationHooks {
         private final ChunkGenerator generator;
-        private final BukkitBiomeProviders.LateWorldInfo info;
+        private final org.bukkit.craftbukkit.generator.CraftWorldInfo info;
         private volatile World world;   // 목록에 오른 뒤 그 CraftWorld — Paper 는 생성기에 늘 그 CraftWorld 를 넘긴다
         private volatile boolean newApi;
 
-        private Adapted(ChunkGenerator generator, BukkitBiomeProviders.LateWorldInfo info) {
+        private Adapted(ChunkGenerator generator, org.bukkit.craftbukkit.generator.CraftWorldInfo info) {
             this.generator = generator;
             this.info = info;
         }
@@ -395,14 +245,14 @@ public final class BukkitChunkGenerators {
         public String name() { return generator.getClass().getName(); }
 
         @Override
-        public void prepare(org.domi.furnace.api.worldgen.BiomeProvider.Context ctx) { info.prepare(ctx); }
+        public void prepare(org.domi.furnace.api.worldgen.BiomeProvider.Context ctx) { CraftAccess.worldInfoPrepare(info, ctx); }
 
         @Override
         public void attached(String levelKey) {
             World w = Compat.world(levelKey);
             if (w == null) throw new IllegalStateException("world " + levelKey + " is not registered");
             world = w;
-            info.bind(w);
+            CraftAccess.worldInfoBind(info, w);
             w.getPopulators().addAll(generator.getDefaultPopulators(w));   // CraftBukkit initWorld
         }
 
@@ -445,7 +295,7 @@ public final class BukkitChunkGenerators {
 
         @Override
         public void noise(GenerationChunk chunk) {
-            LiveChunkData data = new LiveChunkData(chunk);
+            var data = CraftAccess.newChunkData(chunk);
             PaperRandom r = new PaperRandom();
             r.setSeed(chunkSeed(chunk.chunkX(), chunk.chunkZ()));
             try {
@@ -459,7 +309,7 @@ public final class BukkitChunkGenerators {
         public void surface(GenerationChunk chunk) {
             int x = chunk.chunkX(), z = chunk.chunkZ();
             WorldInfo wi = worldInfo();
-            LiveChunkData data = new LiveChunkData(chunk);
+            var data = CraftAccess.newChunkData(chunk);
             try {
                 PaperRandom r = new PaperRandom();
                 r.setSeed(chunkSeed(x, z));
@@ -492,15 +342,15 @@ public final class BukkitChunkGenerators {
                 newApi = true;
                 return;
             }
-            if (!(data instanceof OldChunkData old)) {
+            if (!(data instanceof org.bukkit.craftbukkit.generator.OldCraftChunkData old)) {
                 throw new IllegalArgumentException("Plugins must use createChunkData(World) rather than implementing ChunkData: " + data);
             }
-            old.applyTo(chunk);
+            CraftAccess.oldChunkDataApply(old, chunk);
         }
 
         @Override
         public void carvers(GenerationChunk chunk) {
-            LiveChunkData data = new LiveChunkData(chunk);
+            var data = CraftAccess.newChunkData(chunk);
             PaperRandom r = new PaperRandom();
             r.setDecorationSeed(chunk.seed(), 0, 0);
             try {
@@ -544,7 +394,7 @@ public final class BukkitChunkGenerators {
             if (isEmpty()) return;
             int x = region.originChunkX(), z = region.originChunkZ();
             long seed = region.seed();
-            Region limited = new Region(world, region);
+            org.bukkit.craftbukkit.generator.CraftLimitedRegion limited = CraftAccess.newLimitedRegion(world, region);
             try {
                 for (BlockPopulator p : this) {
                     warnLegacy(p);
@@ -584,130 +434,5 @@ public final class BukkitChunkGenerators {
             }
         }
         return false;
-    }
-
-    /** CraftLimitedRegion — 중심 청크 둘레 16칸(3×3 청크), y 는 월드 높이 안. populate 가 끝나면 끊긴다. */
-    static final class Region implements LimitedRegion {
-        private static final int BUFFER = 16;
-        private final World world;
-        private volatile DecorationRegion handle;
-        private final int centerX, centerZ;
-        private final int minX, minY, minZ, maxX, maxY, maxZ;   // 끝은 제외(BoundingBox#contains)
-
-        Region(World world, DecorationRegion handle) {
-            this.world = world;
-            this.handle = handle;
-            this.centerX = handle.originChunkX();
-            this.centerZ = handle.originChunkZ();
-            this.minX = (centerX << 4) - BUFFER;
-            this.minZ = (centerZ << 4) - BUFFER;
-            this.maxX = (centerX << 4) + BUFFER + 16;
-            this.maxZ = (centerZ << 4) + BUFFER + 16;
-            this.minY = handle.minY();
-            this.maxY = handle.maxY() + 1;
-        }
-
-        void breakLink() { handle = null; }
-
-        private DecorationRegion h() {
-            DecorationRegion d = handle;
-            if (d == null) throw new IllegalStateException("GeneratorAccessSeed no longer present, are you using it in a different tick?");
-            return d;
-        }
-
-        private boolean contains(double x, double y, double z) { return x >= minX && x < maxX && y >= minY && y < maxY && z >= minZ && z < maxZ; }
-
-        private void check(int x, int y, int z) {
-            if (!isInRegion(x, y, z)) throw new IllegalArgumentException("Coordinates " + x + ", " + y + ", " + z + " are not in the region");
-        }
-
-        private void checkColumn(int x, int z) {
-            // CraftLimitedRegion: 상자 가운데 y 로 본다
-            if (!isInRegion(x, (int) Math.floor((minY + maxY) / 2.0), z)) throw new IllegalArgumentException("Coordinates " + x + ", " + z + " are not in the region");
-        }
-
-        @Override public int getBuffer() { return BUFFER; }
-        @Override public boolean isInRegion(Location location) { return contains(location.getX(), location.getY(), location.getZ()); }
-        @Override public boolean isInRegion(int x, int y, int z) { return contains(x, y, z); }
-        @Override public int getCenterChunkX() { return centerX; }
-        @Override public int getCenterChunkZ() { return centerZ; }
-
-        /** CraftLimitedRegion: 연결(생성 중 영역)을 거쳐 그 월드 — 끊긴 뒤에는 IllegalStateException. */
-        @Override
-        public World getWorld() {
-            h();
-            return world;
-        }
-
-        /** CraftRegionAccessor: 그 월드(차원) 키 — 끊긴 뒤에는 IllegalStateException. */
-        @Override
-        public org.bukkit.NamespacedKey getKey() {
-            h();
-            return world.getKey();
-        }
-
-        @Override
-        public List<BlockState> getTileEntities() {
-            throw new UnsupportedFeature("LimitedRegion#getTileEntities", "block entities of a region being generated are not available yet (T-218)");
-        }
-
-        @Override
-        public Biome getBiome(int x, int y, int z) {
-            check(x, y, z);
-            return biomeOf(h().biome(x, y, z));
-        }
-
-        @Override
-        public void setBiome(int x, int y, int z, Biome biome) {
-            if (biome == Biome.CUSTOM) throw new IllegalArgumentException("Cannot set the biome to " + biome);
-            check(x, y, z);
-            throw new UnsupportedFeature("LimitedRegion#setBiome", "changing biomes while decorating is not available yet (T-218)");
-        }
-
-        @Override
-        public BlockData getBlockData(int x, int y, int z) {
-            check(x, y, z);
-            return CompatBlockData.of(h().block(x, y, z));
-        }
-
-        @Override
-        public Material getType(int x, int y, int z) {
-            check(x, y, z);
-            return Compat.material(h().blockType(x, y, z));
-        }
-
-        @Override
-        public void setBlockData(int x, int y, int z, BlockData blockData) {
-            check(x, y, z);
-            h().setBlock(x, y, z, furnaceData(blockData));
-        }
-
-        @Override
-        public int getHighestBlockYAt(int x, int z) {
-            checkColumn(x, z);
-            return h().height(GenerationHeightmap.MOTION_BLOCKING, x, z);
-        }
-
-        @Override
-        public int getHighestBlockYAt(Location location) {
-            if (!isInRegion(location)) {
-                throw new IllegalArgumentException("Coordinates " + location.getBlockX() + ", " + location.getBlockY() + ", " + location.getBlockZ() + " are not in the region");
-            }
-            return h().height(GenerationHeightmap.MOTION_BLOCKING, location.getBlockX(), location.getBlockZ());
-        }
-
-        @Override
-        public int getHighestBlockYAt(int x, int z, HeightMap heightMap) {
-            checkColumn(x, z);
-            return h().height(GenerationHeightmap.valueOf(heightMap.name()), x, z);
-        }
-
-        @Override
-        public int getHighestBlockYAt(Location location, HeightMap heightMap) {
-            if (!isInRegion(location)) {
-                throw new IllegalArgumentException("Coordinates " + location.getBlockX() + ", " + location.getBlockY() + ", " + location.getBlockZ() + " are not in the region");
-            }
-            return h().height(GenerationHeightmap.valueOf(heightMap.name()), location.getBlockX(), location.getBlockZ());
-        }
     }
 }

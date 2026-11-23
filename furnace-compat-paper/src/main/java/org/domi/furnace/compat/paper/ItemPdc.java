@@ -21,7 +21,7 @@ import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import org.domi.furnace.api.persistence.PersistentDataView;
 
-final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterContext {
+public final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterContext, PdcBody {
 
     /** 바뀐 값: Furnace 종류와 기본 종류 값. 지운 키는 null. */
     private record Value(org.domi.furnace.api.persistence.PersistentDataType<?> type, Object value) {}
@@ -41,9 +41,17 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
     private final PersistentDataView view;
     private final Map<String, Value> changes = new LinkedHashMap<>();
 
-    ItemPdc(PersistentDataView view) { this.view = view; }
+    public ItemPdc(PersistentDataView view) { this.view = view; }
 
-    ItemPdc copy() {
+    /** 감싼 CraftPersistentDataContainer 의 어댑터 문맥(없으면 이 몸 — 감싸지 않은 내부 쓰임). */
+    private PersistentDataAdapterContext context;
+
+    @Override
+    public void useContext(PersistentDataAdapterContext context) { this.context = context; }
+
+    private PersistentDataAdapterContext ctx() { return context != null ? context : this; }
+
+    public ItemPdc copy() {
         ItemPdc c = new ItemPdc(view);
         for (var e : changes.entrySet()) c.changes.put(e.getKey(), e.getValue() == null ? null : copyValue(e.getValue()));
         return c;
@@ -54,6 +62,7 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
     /** 값의 깊은 복사: 중첩 컨테이너·배열·목록을 새로 만든다(꺼낸 값을 고쳐도 저장된 값이 안 바뀌게). */
     private static Object copyPrim(Object o) {
         if (o instanceof ItemPdc p) return p.copy();
+        if (o instanceof org.bukkit.craftbukkit.persistence.CraftPersistentDataContainer w && PdcViews.body(w) instanceof ItemPdc p) return p.copy();
         if (o instanceof PersistentDataContainer c) return copyNested(c);
         if (o instanceof byte[] a) return a.clone();
         if (o instanceof int[] a) return a.clone();
@@ -66,7 +75,7 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
         return o;
     }
 
-    boolean dirty() { return !changes.isEmpty(); }
+    public boolean dirty() { return !changes.isEmpty(); }
 
     // ------------------------------------------------------------------ 종류 대응
 
@@ -197,7 +206,7 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
     public <P, C> void set(NamespacedKey key, PersistentDataType<P, C> type, C value) {
         Objects.requireNonNull(key, "key");
         Objects.requireNonNull(type, "type");
-        put(key.toString(), prepare(type, value, this));
+        put(key.toString(), prepare(type, value, ctx()));
     }
 
     /** 호출 스레드에서 값을 저장 꼴로 바꿔 둔다(사용자 종류의 코드·종류 검사가 소유 스레드에서 돌지 않게). 값은 복사된다. */
@@ -232,9 +241,20 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
         if (!matches(v, furnaceType(type))) {
             throw new IllegalArgumentException("The found object is of the type " + v.type() + ", which is not the expected " + type.getPrimitiveType().getSimpleName());
         }
-        Object prim = copyPrim(v.value());
+        Object prim = exposed(copyPrim(v.value()));
         if (type.getPrimitiveType() == PersistentDataContainer[].class) prim = ((List<?>) prim).toArray(new PersistentDataContainer[0]);
-        return type.fromPrimitive((P) prim, this);
+        return type.fromPrimitive((P) prim, ctx());
+    }
+
+    /** 꺼내는 값의 중첩 묶음을 플러그인이 받는 CraftPersistentDataContainer 로 감싼다(Paper 와 같은 클래스). */
+    private static Object exposed(Object o) {
+        if (o instanceof ItemPdc p) return PdcViews.craft(p);
+        if (o instanceof List<?> l) {
+            List<Object> out = new ArrayList<>(l.size());
+            for (Object e : l) out.add(exposed(e));
+            return out;
+        }
+        return o;
     }
 
     @Override
@@ -284,6 +304,7 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
     @Override
     public void copyTo(PersistentDataContainer other, boolean replace) {
         Objects.requireNonNull(other, "other");
+        if (other instanceof org.bukkit.craftbukkit.persistence.CraftPersistentDataContainer w) other = PdcViews.body(w);
         if (other instanceof ItemPdc o) {
             // Paper 는 원시 맵을 그대로 복사한다(콜론 없는 키도 옮겨진다)
             for (String k : rawKeys()) {
@@ -303,16 +324,16 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
     }
 
     @Override
-    public PersistentDataAdapterContext getAdapterContext() { return this; }
+    public PersistentDataAdapterContext getAdapterContext() { return ctx(); }
 
     @Override
-    public PersistentDataContainer newPersistentDataContainer() { return new ItemPdc(null); }
+    public PersistentDataContainer newPersistentDataContainer() { return PdcViews.craft(new ItemPdc(null)); }
 
     // ------------------------------------------------------------------ Furnace 로 쓰기
 
     /** 바뀐 것을 Furnace 컨테이너에 적용한다(ItemStack#withPersistentData 콜백 안에서). */
     @SuppressWarnings({"unchecked", "rawtypes"})
-    void applyTo(org.domi.furnace.api.persistence.PersistentDataContainer target) {
+    public void applyTo(org.domi.furnace.api.persistence.PersistentDataContainer target) {
         for (var e : changes.entrySet()) {
             Value v = e.getValue();
             if (v == null) {

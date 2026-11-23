@@ -1125,29 +1125,31 @@ final class ChunkInternalsImpl implements ChunkInternals {
                 ? org.domi.furnace.server.entity.Entity.withRandomSeed(r.seed(), () -> org.domi.furnace.server.entity.Entities.create(lv, id))
                 : org.domi.furnace.server.entity.Entities.create(lv, id);
         if (e == null) throw new IllegalArgumentException("entity type that cannot be created: " + id);
-        for (int i = 0; i < ops.size(); i++) {
-            EntityOp op = ops.get(i);
-            switch (op) {
-                case EntityOp.EntityRandom r -> {
-                    if (i != 0) throw new IllegalArgumentException("EntityRandom must be the first op");
-                }
-                case EntityOp.Load l -> e.load((org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.freeze(ApiNbt.toServer(l.tag())));
-                case EntityOp.AbsMoveTo m -> e.absMoveTo(m.x(), m.y(), m.z(), m.yRot(), m.xRot());
-                case EntityOp.SetUuid u -> e.setUuid(u.uuid());
-                case EntityOp.SetYHeadRot h -> {
-                    if (e instanceof org.domi.furnace.server.entity.LivingEntity le) le.setYHeadRot(h.yHeadRot());
-                }
-                case EntityOp.HangingRotate r -> hanging(e).rotate(r.rotation());
-                case EntityOp.SetItemFrameRotation r -> itemFrame(e).setRotation(r.rotation());
-                case EntityEdit.SetPos p -> applySetter(e, p);
-                case EntityEdit.SetRot r -> applySetter(e, r);
-                case EntityEdit.SetFlag f -> applySetter(e, f);
-                case EntityEdit.SetCustomName n -> applySetter(e, n);
-                case EntityEdit.SetTicksFrozen t -> applySetter(e, t);
-                case EntityOp.SetData d -> setData(e, id, d);
-            }
-        }
+        for (int i = 0; i < ops.size(); i++) applyOp(e, id, ops.get(i), i == 0);
         return e;
+    }
+
+    /** 기록한 조작 하나를 재생한다(first = 맨 앞 조작 — EntityRandom 은 거기서만, 생성 때 이미 썼다). */
+    private static void applyOp(org.domi.furnace.server.entity.Entity e, String id, EntityOp op, boolean first) {
+        switch (op) {
+            case EntityOp.EntityRandom r -> {
+                if (!first) throw new IllegalArgumentException("EntityRandom must be the first op");
+            }
+            case EntityOp.Load l -> e.load((org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.freeze(ApiNbt.toServer(l.tag())));
+            case EntityOp.AbsMoveTo m -> e.absMoveTo(m.x(), m.y(), m.z(), m.yRot(), m.xRot());
+            case EntityOp.SetUuid u -> e.setUuid(u.uuid());
+            case EntityOp.SetYHeadRot h -> {
+                if (e instanceof org.domi.furnace.server.entity.LivingEntity le) le.setYHeadRot(h.yHeadRot());
+            }
+            case EntityOp.HangingRotate r -> hanging(e).rotate(r.rotation());
+            case EntityOp.SetItemFrameRotation r -> itemFrame(e).setRotation(r.rotation());
+            case EntityEdit.SetPos p -> applySetter(e, p);
+            case EntityEdit.SetRot r -> applySetter(e, r);
+            case EntityEdit.SetFlag f -> applySetter(e, f);
+            case EntityEdit.SetCustomName n -> applySetter(e, n);
+            case EntityEdit.SetTicksFrozen t -> applySetter(e, t);
+            case EntityOp.SetData d -> setData(e, id, d);
+        }
     }
 
     /** 바닐라 SynchedEntityData#set: 칸 번호·값 종류를 그 종류의 배치로 확인하고 서버 칸에 쓴다(값이 바뀌면 종류별 훅). */
@@ -1194,7 +1196,10 @@ final class ChunkInternalsImpl implements ChunkInternals {
     public List<EntityDataSlot> detachedEntityData(String kind, List<EntityOp> ops) {
         String k = kind.indexOf(':') < 0 ? "minecraft:" + kind : kind;
         // 빈 레벨: 청크·저장·방송 없음, 엔티티 번호는 그 안에서만 센다(전역 번호 발급기·월드 난수를 건드리지 않는다)
-        var e = createNmsEntity(new org.domi.furnace.server.entity.SandboxLevel(), k, ops);
+        return slots(createNmsEntity(new org.domi.furnace.server.entity.SandboxLevel(), k, ops));
+    }
+
+    private static List<EntityDataSlot> slots(org.domi.furnace.server.entity.Entity e) {
         var d = e.entityData();
         var conv = entityData();
         List<EntityDataSlot> out = new java.util.ArrayList<>(d.size());
@@ -1202,6 +1207,51 @@ final class ChunkInternalsImpl implements ChunkInternals {
             out.add(new EntityDataSlot(i, conv.toApi(d.serializer(i), d.defaultValue(i)), conv.toApi(d.serializer(i), d.get(i)), d.dirty(i)));
         }
         return List.copyOf(out);
+    }
+
+    @Override
+    public DetachedEntityData openDetachedEntityData(String kind, List<EntityOp> ops) {
+        String k = kind.indexOf(':') < 0 ? "minecraft:" + kind : kind;
+        return new Detached(k, createNmsEntity(new org.domi.furnace.server.entity.SandboxLevel(), k, ops));
+    }
+
+    /** 빈 레벨의 엔티티 하나를 쥐고 조작을 하나씩 재생한다. 그 엔티티는 이 객체 밖으로 나가지 않는다(어느 region 소유도 아니다). */
+    private static final class Detached implements DetachedEntityData {
+        private final String kind;
+        private final org.domi.furnace.server.entity.Entity entity;
+        private List<EntityDataSlot> slots;
+        /** 실패한 조작의 예외. 뒤의 호출은 같은 객체를 다시 던진다(스택은 처음 실패한 자리 — 원인을 가리키도록 일부러 새로 만들지 않는다). */
+        private Throwable failed;
+
+        Detached(String kind, org.domi.furnace.server.entity.Entity entity) {
+            this.kind = kind;
+            this.entity = entity;
+        }
+
+        private void rethrowIfFailed() {
+            if (failed instanceof RuntimeException r) throw r;
+            if (failed instanceof Error e) throw e;
+        }
+
+        @Override
+        public synchronized List<EntityDataSlot> slots() {
+            rethrowIfFailed();
+            if (slots == null) slots = ChunkInternalsImpl.slots(entity);
+            return slots;
+        }
+
+        @Override
+        public synchronized List<EntityDataSlot> apply(EntityOp op) {
+            rethrowIfFailed();
+            try {
+                applyOp(entity, kind, op, false);
+            } catch (RuntimeException | Error ex) {
+                failed = ex;   // 엔티티가 조작 도중 상태일 수 있다 — 처음부터 재생해도 여기서 늘 실패한다(Error 도 잠근다: 반쯤 바뀐 엔티티를 다시 쓰지 않는다)
+                throw ex;
+            }
+            slots = null;
+            return slots();
+        }
     }
 
     @Override

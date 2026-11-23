@@ -43,24 +43,24 @@ final class InventoryResultMappings {
         EventBridge.reg(org.domi.furnace.api.event.inventory.PrepareItemCraftEvent.class, org.bukkit.event.inventory.PrepareItemCraftEvent.class,
                 f -> {
                     var recipe = EventInventories.CompatRecipe.of(f.recipe(), f.result());
-                    CompatInventoryView view = CompatInventories.view(f.player(), f.inventory(), f.menu(), null,
+                    org.bukkit.craftbukkit.inventory.CraftInventoryView view = CompatInventories.view(f.player(), f.inventory(), f.menu(), null,
                             new CompatInventories.Extras(recipe, true, f.result(), null, null));
-                    if (!(view.getTopInventory() instanceof EventInventories.Crafting c)) return null;   // 제작 창이 아니면(있을 수 없다) 건너뛴다
+                    if (!(view.getTopInventory() instanceof org.bukkit.craftbukkit.inventory.CraftInventoryCrafting c)) return null;   // 제작 창이 아니면(있을 수 없다) 건너뛴다
                     return new org.bukkit.event.inventory.PrepareItemCraftEvent(c, view, "minecraft:repair_item".equals(f.recipe()));
                 },
                 (f, b) -> {
-                    ItemStack now = ((EventInventories.Crafting) b.getInventory()).furnaceAt(0);
+                    ItemStack now = ((org.bukkit.craftbukkit.inventory.CraftInventoryCrafting) b.getInventory()).readSlot(0);
                     if (!now.equals(f.result())) f.setResult(now);
                 }, (f, b) -> {
-                    var c = (EventInventories.Crafting) b.getInventory();
-                    if (!c.furnaceAt(0).equals(f.result())) c.setResult(bukkitOrNull(f.result()));
+                    var c = (org.bukkit.craftbukkit.inventory.CraftInventoryCrafting) b.getInventory();
+                    if (!c.readSlot(0).equals(f.result())) c.setResult(bukkitOrNull(f.result()));
                 });
     }
 
     // ------------------------------------------------------------------ 모루
 
     private static EventInventories.AnvilState anvilState(org.bukkit.event.inventory.PrepareInventoryResultEvent b) {
-        return ((EventInventories.Anvil) b.getInventory()).state();
+        return ((org.bukkit.craftbukkit.inventory.CraftInventoryAnvil) b.getInventory()).furnaceState();
     }
 
     private static void registerAnvil() {
@@ -68,9 +68,9 @@ final class InventoryResultMappings {
         EventBridge.reg(org.domi.furnace.api.event.inventory.PrepareAnvilEvent.class, org.bukkit.event.inventory.PrepareInventoryResultEvent.class,
                 f -> {
                     var st = new EventInventories.AnvilState(f.renameText(), f.repairCost(), f.maximumRepairCost());
-                    CompatInventoryView view = CompatInventories.view(f.player(), f.inventory(), f.menu(), null,
+                    org.bukkit.craftbukkit.inventory.CraftInventoryView view = CompatInventories.view(f.player(), f.inventory(), f.menu(), null,
                             new CompatInventories.Extras(null, false, null, st, null));
-                    if (!(view instanceof CompatInventoryView.Anvil av)) return null;
+                    if (!(view instanceof org.bukkit.craftbukkit.inventory.view.CraftAnvilView av)) return null;
                     return new org.bukkit.event.inventory.PrepareAnvilEvent(av, bukkitOrNull(f.result()));
                 },
                 (f, b) -> {
@@ -115,9 +115,9 @@ final class InventoryResultMappings {
                 f -> {
                     EnchantmentOffer[] offers = new EnchantmentOffer[3];
                     for (int i = 0; i < 3 && i < f.offers().size(); i++) offers[i] = bukkitOffer(f.offers().get(i));
-                    CompatInventoryView view = CompatInventories.view(f.player(), f.inventory(), f.menu(), null,
+                    org.bukkit.craftbukkit.inventory.CraftInventoryView view = CompatInventories.view(f.player(), f.inventory(), f.menu(), null,
                             new CompatInventories.Extras(null, false, null, null, offers));
-                    if (!(view instanceof CompatInventoryView.Enchantment ev)) return null;
+                    if (!(view instanceof org.bukkit.craftbukkit.inventory.view.CraftEnchantmentView ev)) return null;
                     return new org.bukkit.event.enchantment.PrepareItemEnchantEvent(Compat.player(f.player()), ev, block(f.player(), f.table()),
                             CompatItems.copyOf(f.item()), offers, f.bookshelves());
                 },
@@ -135,7 +135,7 @@ final class InventoryResultMappings {
                 });
         EventBridge.reg(org.domi.furnace.api.event.inventory.EnchantItemEvent.class, org.bukkit.event.enchantment.EnchantItemEvent.class,
                 f -> {
-                    CompatInventoryView view = CompatInventories.view(f.player(), f.inventory(), f.menu(), null);
+                    org.bukkit.craftbukkit.inventory.CraftInventoryView view = CompatInventories.view(f.player(), f.inventory(), f.menu(), null);
                     Enchantment hint = f.enchantmentHint() == null ? null : Enchantment.fromKey(f.enchantmentHint());
                     return new org.bukkit.event.enchantment.EnchantItemEvent(Compat.player(f.player()), view, block(f.player(), f.table()),
                             CompatItems.copyOf(f.item()), f.expLevelCost(), bukkitEnchants(f.enchants()), hint, hint == null ? -1 : f.levelHint(),
@@ -170,7 +170,8 @@ final class InventoryResultMappings {
         EventBridge.reg(org.domi.furnace.api.event.inventory.BrewEvent.class, org.bukkit.event.inventory.BrewEvent.class,
                 f -> {
                     var c = f.contents();
-                    var inv = new EventInventories.Brewer(c.contents(), Math.max(5, c.size()), c.type(), blockLocation(f.world(), f.pos()));
+                    var inv = new org.bukkit.craftbukkit.inventory.CraftInventoryBrewer(SnapshotInventory.slots(c.type(), c.contents(), Math.max(5, c.size())), () -> null);
+                    inv.locatedAt(blockLocation(f.world(), f.pos()));
                     List<org.bukkit.inventory.ItemStack> results = new ArrayList<>(3);
                     for (ItemStack s : f.results()) results.add(CompatItems.copyOf(s));
                     return new org.bukkit.event.inventory.BrewEvent(Compat.block(f.world(), f.pos()), inv, results, f.fuelLevel());
@@ -227,15 +228,17 @@ final class InventoryResultMappings {
     }
 
     /** 이벤트의 용기 사본. 블록이면 Paper 처럼 블록 좌표(모서리), 수레면 엔티티 위치. */
-    private static SnapshotInventory container(org.domi.furnace.api.inventory.InventorySnapshot snap, org.domi.furnace.api.world.Location at) {
+    private static org.bukkit.craftbukkit.inventory.CraftInventory container(org.domi.furnace.api.inventory.InventorySnapshot snap, org.domi.furnace.api.world.Location at) {
         InventoryType t = containerType(snap.type());
         boolean entity = snap.type().endsWith("_minecart");
         var w = Compat.world(at.world());
         var loc = entity ? new org.bukkit.Location(w, at.x(), at.y(), at.z())
                 : new org.bukkit.Location(w, Math.floor(at.x()), Math.floor(at.y()), Math.floor(at.z()));
-        if (t == InventoryType.BREWING) return new EventInventories.Brewer(snap.contents(), snap.size(), snap.type(), loc);
-        if (BlockInventories.cookingKind(t) != null) return new EventInventories.Furnace(t, snap.contents(), snap.size(), snap.type(), loc);
-        return new SnapshotInventory(t, snap.contents(), snap.size(), snap.type(), i -> false, loc);
+        var slots = SnapshotInventory.slots(snap.type(), snap.contents(), snap.size());
+        if (t == InventoryType.BREWING) return new org.bukkit.craftbukkit.inventory.CraftInventoryBrewer(slots, () -> null).locatedAt(loc);
+        var kind = BlockInventories.cookingKind(t);
+        if (kind != null) return new org.bukkit.craftbukkit.inventory.CraftInventoryFurnace(slots, t, kind, () -> null).locatedAt(loc);
+        return new org.bukkit.craftbukkit.inventory.CraftInventory(slots, t, () -> null).locatedAt(loc);
     }
 
     /**

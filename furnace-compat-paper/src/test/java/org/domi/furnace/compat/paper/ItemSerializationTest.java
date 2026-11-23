@@ -427,7 +427,7 @@ class ItemSerializationTest {
     @Test
     void registryAliasesAndDeserialization() {
         assertEquals("org.bukkit.inventory.ItemStack", ConfigurationSerialization.getAlias(ItemStack.class), "ItemStack 별칭은 클래스 이름");
-        assertEquals("ItemMeta", ConfigurationSerialization.getAlias(CompatItemMeta.class), "DelegateDeserialization → SerializableMeta 의 별칭");
+        assertEquals("ItemMeta", ConfigurationSerialization.getAlias(org.bukkit.craftbukkit.inventory.CraftItemFactory.instance().getItemMeta(org.bukkit.Material.STONE).getClass()), "DelegateDeserialization → SerializableMeta 의 별칭");
         assertEquals("ItemMeta", ConfigurationSerialization.getAlias(org.bukkit.craftbukkit.inventory.SerializableMeta.class));
         assertEquals(ItemStack.class, ConfigurationSerialization.getClassByAlias("org.bukkit.inventory.ItemStack"));
         assertEquals(org.bukkit.craftbukkit.inventory.SerializableMeta.class, ConfigurationSerialization.getClassByAlias("ItemMeta"));

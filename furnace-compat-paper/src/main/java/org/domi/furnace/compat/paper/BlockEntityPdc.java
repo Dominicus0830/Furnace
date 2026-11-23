@@ -47,7 +47,10 @@ public final class BlockEntityPdc extends LivePdc {
         if (write) {
             org.domi.furnace.compat.nms.NmsCaller.warnOnce("TileState.pdc.gone", "compat.tilestate-pdc-gone");
         }
-        if (detached == null) detached = new ItemPdc(null);
+        if (detached == null) {
+            detached = new ItemPdc(null);
+            detached.useContext(getAdapterContext());
+        }
         return op.apply(detached);
     }
 }

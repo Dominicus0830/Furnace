@@ -48,7 +48,6 @@ class-access	net/minecraft/util/Mth	-	shim 만 final	미분류 — 손 shim 의 
 class-access	net/minecraft/util/StringUtil	-	shim 만 final	미분류 — 클래스 접근·final·abstract 가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	net/minecraft/world/RandomSequences	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	net/minecraft/world/effect/MobEffects	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-class-access	net/minecraft/world/entity/npc/VillagerData	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	net/minecraft/world/item/Items	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	net/minecraft/world/level/GameRules	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	net/minecraft/world/level/biome/BiomeSpecialEffects	-	shim 만 final	미분류 — 클래스 접근·final·abstract 가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -63,7 +62,6 @@ class-access	net/minecraft/world/level/storage/DimensionDataStorage	-	shim 만 f
 class-access	org/bukkit/craftbukkit/CraftChunk	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	org/bukkit/craftbukkit/CraftEffect	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	org/bukkit/craftbukkit/CraftOfflinePlayer	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-class-access	org/bukkit/craftbukkit/CraftWorld	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	org/bukkit/craftbukkit/block/banner/CraftPatternType	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	org/bukkit/craftbukkit/block/data/CraftBlockData	-	shim 만 abstract	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	org/bukkit/craftbukkit/block/sign/CraftSignSide	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -78,12 +76,8 @@ class-access	org/bukkit/craftbukkit/metadata/BlockMetadataStore	-	shim 만 final
 class-access	org/bukkit/craftbukkit/metadata/EntityMetadataStore	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	org/bukkit/craftbukkit/metadata/PlayerMetadataStore	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	org/bukkit/craftbukkit/metadata/WorldMetadataStore	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-class-access	org/bukkit/craftbukkit/persistence/CraftPersistentDataContainer	-	shim 만 abstract	미분류 — 클래스 접근·final·abstract 가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-kind	net/minecraft/core/RegistrationInfo	-	shim=class ref=record	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-kind	net/minecraft/server/ServerLinks	-	shim=class ref=record	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-class-kind	net/minecraft/world/entity/animal/CatVariant	-	shim=class ref=record	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-class-kind	net/minecraft/world/entity/animal/FrogVariant	-	shim=class ref=record	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-class-kind	net/minecraft/world/entity/decoration/PaintingVariant	-	shim=class ref=record	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-kind	net/minecraft/world/item/enchantment/Enchantment	-	shim=class ref=record	미분류 — 클래스 종류(인터페이스·열거형·레코드)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-kind	net/minecraft/world/level/WorldDataConfiguration	-	shim=class ref=record	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-kind	net/minecraft/world/level/biome/Biome$ClimateSettings	-	shim=class ref=record	미분류 — 클래스 종류(인터페이스·열거형·레코드)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -151,11 +145,9 @@ descriptor	net/minecraft/world/level/storage/DimensionDataStorage	<init>()V	기�
 descriptor	net/minecraft/world/level/storage/LevelStorageSource$LevelStorageAccess	getLevelDirectory()Ljava/nio/file/Path;	기준=#10177be8a966	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/CraftChunk	<init>(Ljava/lang/String;II)V	기준=#cce1bd5b11c6	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/CraftChunk	<init>(Lorg/bukkit/craftbukkit/CraftWorld;II)V	기준=#cce1bd5b11c6	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-descriptor	org/bukkit/craftbukkit/CraftServer	getCommandMap()Lorg/bukkit/command/CommandMap;	기준=#3506ac6e48e2	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/CraftRegistry	<init>(Lorg/bukkit/Registry;)V	기준=#0c6905bfb000	T-264 P2d: Furnace 레지스트리 본체를 감싸는 얇은 Craft 래퍼 — Furnace 생성자(본체, WritableCraftRegistry 가 다른 패키지라 protected)는 그대로 둔다(설계 3.1, P3 에서 함께 정리), Paper 생성자는 T-261 껍데기 멤버가 합친다
 descriptor	org/bukkit/craftbukkit/CraftServer	getGlobalRegionScheduler()Lio/papermc/paper/threadedregions/scheduler/GlobalRegionScheduler;	기준=#9230d4d483c6	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-descriptor	org/bukkit/craftbukkit/CraftServer	getItemFactory()Lorg/bukkit/inventory/ItemFactory;	기준=#af72ebecf777	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/CraftServer	getOnlinePlayers()Ljava/util/Collection;	기준=#a40f2ec84257	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-descriptor	org/bukkit/craftbukkit/CraftServer	getScheduler()Lorg/bukkit/scheduler/BukkitScheduler;	기준=#4f138b7eee49	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/CraftWorld	<init>(Lorg/domi/furnace/api/world/World;)V	기준=#bb82cff4332f	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/block/CraftBanner	<init>(Ljava/lang/String;Lorg/domi/furnace/api/world/BlockPos;Lorg/bukkit/block/data/BlockData;)V	기준=#87eb0b48c457	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/block/CraftBanner	getSnapshotNBT()Lorg/domi/furnace/api/nbt/NbtCompound;	기준=#3e73edeb094b	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -168,7 +160,7 @@ descriptor	org/bukkit/craftbukkit/block/CraftBlastFurnace	<init>(Ljava/lang/Stri
 descriptor	org/bukkit/craftbukkit/block/CraftBlock	<init>(Ljava/lang/String;Lorg/domi/furnace/api/world/BlockPos;)V	기준=#094596319d44	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/block/CraftBlockEntityState	<init>(Ljava/lang/String;Lorg/domi/furnace/api/world/BlockPos;Lorg/bukkit/block/data/BlockData;)V	기준=#ecafcb2e0bf9	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/block/CraftBlockEntityState	getSnapshotNBT()Lorg/domi/furnace/api/nbt/NbtCompound;	기준=#3e73edeb094b	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-descriptor	org/bukkit/craftbukkit/block/CraftBlockState	<init>()V	기준=#a7f5c89ee3b7	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/block/CraftBlockState	<init>(Ljava/lang/String;Lorg/domi/furnace/api/world/BlockPos;Lorg/bukkit/block/data/BlockData;)V	기준=#a7f5c89ee3b7	T-264 P2c: 옛 CompatBlockState 를 Paper 이름에 합침 — Furnace 생성자(스냅숏 칸)는 하위 블록 엔티티 상태(CraftChest 등)와 같은 모양으로 둔다(설계 3.1, P3 에서 함께 정리), Paper 생성자는 T-261 껍데기 멤버가 합친다
 descriptor	org/bukkit/craftbukkit/block/CraftBrewingStand	<init>(Ljava/lang/String;Lorg/domi/furnace/api/world/BlockPos;Lorg/bukkit/block/data/BlockData;)V	기준=#f7cfcf9246df	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/block/CraftBrushableBlock	<init>(Ljava/lang/String;Lorg/domi/furnace/api/world/BlockPos;Lorg/bukkit/block/data/BlockData;)V	기준=#d31ae5c20db5	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/block/CraftCalibratedSculkSensor	<init>(Ljava/lang/String;Lorg/domi/furnace/api/world/BlockPos;Lorg/bukkit/block/data/BlockData;)V	기준=#5f9c984c312f	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -212,8 +204,16 @@ descriptor	org/bukkit/craftbukkit/block/banner/CraftPatternType	<init>(Lorg/bukk
 descriptor	org/bukkit/craftbukkit/block/data/CraftBlockData	clone()Lorg/bukkit/craftbukkit/block/data/CraftBlockData;	기준=#e781badfd4c7	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/block/data/CraftBlockData	newData(Lorg/bukkit/Material;Ljava/lang/String;)Lorg/bukkit/craftbukkit/block/data/CraftBlockData;	기준=#a28fa2fb84a7	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/block/sign/CraftSignSide	<init>(Lorg/domi/furnace/api/nbt/NbtCompound;Ljava/lang/String;)V	기준=#979bb465af67	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/command/CraftRemoteConsoleCommandSender	<init>(Lorg/domi/furnace/api/command/RemoteConsoleSender;)V	기준=#ebadddb7a050	T-264 P2a: Furnace 클래스를 Paper 이름으로 옮김 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
+descriptor	org/bukkit/craftbukkit/entity/AbstractProjectile	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#5b8fa626cbe2	T-264 P1: Paper 상위 사슬의 중간 계층을 새로 만듦 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
+descriptor	org/bukkit/craftbukkit/entity/CraftAbstractArrow	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#db9a69f60d46	T-264 P1: Paper 상위 사슬의 중간 계층을 새로 만듦 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
+descriptor	org/bukkit/craftbukkit/entity/CraftAbstractHorse	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#8d2d96cd6ebf	T-264 P1: Paper 상위 사슬의 중간 계층을 새로 만듦 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
+descriptor	org/bukkit/craftbukkit/entity/CraftAbstractSkeleton	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#b031630dcfc8	T-264 P1: Paper 상위 사슬의 중간 계층을 새로 만듦 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
+descriptor	org/bukkit/craftbukkit/entity/CraftAbstractVillager	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#4990a391d860	T-264 P1: Paper 상위 사슬의 중간 계층을 새로 만듦 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
+descriptor	org/bukkit/craftbukkit/entity/CraftAbstractWindCharge	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#9f6d818c0ea9	T-264 P1: Paper 상위 사슬의 중간 계층을 새로 만듦 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
 descriptor	org/bukkit/craftbukkit/entity/CraftAgeable	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#4c2865391d23	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftAllay	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#c999503ed7a5	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/entity/CraftAmbient	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#24f13b1d7395	T-264 P1: Paper 상위 사슬의 중간 계층을 새로 만듦 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
 descriptor	org/bukkit/craftbukkit/entity/CraftAnimals	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#294c8757ff78	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftAreaEffectCloud	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#a9b2d98f9698	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftArmadillo	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#cbc7e5b28790	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -223,6 +223,7 @@ descriptor	org/bukkit/craftbukkit/entity/CraftAxolotl	<init>(Lorg/domi/furnace/a
 descriptor	org/bukkit/craftbukkit/entity/CraftBat	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#7be6542cc34a	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftBee	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#ad4eed251306	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftBlaze	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#b1c27d414ab7	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/entity/CraftBlockAttachedEntity	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#3f7ee6ed47e7	T-264 P1: Paper 상위 사슬의 중간 계층을 새로 만듦 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
 descriptor	org/bukkit/craftbukkit/entity/CraftBlockDisplay	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#5110bee3534a	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftBoat	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#2332209c950c	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftBogged	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#b75d1f81e72f	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -232,11 +233,13 @@ descriptor	org/bukkit/craftbukkit/entity/CraftCamel	<init>(Lorg/domi/furnace/api
 descriptor	org/bukkit/craftbukkit/entity/CraftCat	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#dfaf52cbf81f	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftCaveSpider	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#7121b4e0dbcd	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftChestBoat	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#c650cafe651e	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/entity/CraftChestedHorse	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#73a14a7703fd	T-264 P1: Paper 상위 사슬의 중간 계층을 새로 만듦 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
 descriptor	org/bukkit/craftbukkit/entity/CraftChicken	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#3ea159e0b77f	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftCod	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#51fb1f27e57d	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftCow	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#0a50dac59206	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftCreature	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#040f57cc9b36	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftCreeper	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#49a9d78c5189	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/entity/CraftDisplay	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#39f1002baacb	T-264 P1: Paper 상위 사슬의 중간 계층을 새로 만듦 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
 descriptor	org/bukkit/craftbukkit/entity/CraftDolphin	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#5c2d632722cb	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftDonkey	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#aa50075d74a8	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftDragonFireball	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#3c8805272616	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -250,14 +253,16 @@ descriptor	org/bukkit/craftbukkit/entity/CraftEnderSignal	<init>(Lorg/domi/furna
 descriptor	org/bukkit/craftbukkit/entity/CraftEnderman	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#f44bfca42946	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftEndermite	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#d9fac1df64f5	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftEntity	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#5b8fa626cbe2	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-descriptor	org/bukkit/craftbukkit/entity/CraftEntity	getPersistentDataContainer()Lorg/bukkit/persistence/PersistentDataContainer;	기준=#9dafdec82b1c	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftEntity	teleportAsync(Lorg/bukkit/Location;)Ljava/util/concurrent/CompletableFuture;	기준=#8936ec3fe400	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftEvoker	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#d41e94aeade0	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftEvokerFangs	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#660fe1fc1895	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftExperienceOrb	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#c1304f4ee53e	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftFallingBlock	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#291df45ad988	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/entity/CraftFireball	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#316648c62fb0	T-264 P1: Paper 상위 사슬의 중간 계층을 새로 만듦 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
 descriptor	org/bukkit/craftbukkit/entity/CraftFirework	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#487f6d2b5629	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/entity/CraftFish	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#83f9140cabe0	T-264 P1: Paper 상위 사슬의 중간 계층을 새로 만듦 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
 descriptor	org/bukkit/craftbukkit/entity/CraftFishHook	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#1703d4247baf	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/entity/CraftFlying	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#292d2e55d1a5	T-264 P1: Paper 상위 사슬의 중간 계층을 새로 만듦 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
 descriptor	org/bukkit/craftbukkit/entity/CraftFox	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#ef0f15ae41a6	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftFrog	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#5fcf69c0ef19	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftGhast	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#284864ed495e	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -265,11 +270,14 @@ descriptor	org/bukkit/craftbukkit/entity/CraftGiant	<init>(Lorg/domi/furnace/api
 descriptor	org/bukkit/craftbukkit/entity/CraftGlowItemFrame	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#626ae1631b39	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftGlowSquid	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#2eb45a2efbc7	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftGoat	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#0d97799537bc	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/entity/CraftGolem	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#3f7c22809812	T-264 P1: Paper 상위 사슬의 중간 계층을 새로 만듦 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
 descriptor	org/bukkit/craftbukkit/entity/CraftGuardian	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#04e94f20fdea	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/entity/CraftHanging	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#bfb5085bfa50	T-264 P1: Paper 상위 사슬의 중간 계층을 새로 만듦 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
 descriptor	org/bukkit/craftbukkit/entity/CraftHoglin	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#3dc174227c03	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftHorse	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#1876c6d69d9e	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftHumanEntity	<init>(Lorg/domi/furnace/api/entity/LivingEntity;)V	기준=#e79c4f3978b9	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftHusk	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#ba50ebdf9c18	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/entity/CraftIllager	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#3d87f57dce89	T-264 P1: Paper 상위 사슬의 중간 계층을 새로 만듦 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
 descriptor	org/bukkit/craftbukkit/entity/CraftIllusioner	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#ffe3d637c635	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftInteraction	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#40868b5f1bd1	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftIronGolem	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#48dbc0db6509	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -284,12 +292,15 @@ descriptor	org/bukkit/craftbukkit/entity/CraftLlama	<init>(Lorg/domi/furnace/api
 descriptor	org/bukkit/craftbukkit/entity/CraftLlamaSpit	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#e2bb00c03dfd	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftMagmaCube	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#c5df5cb45e7d	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftMarker	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#3194409cc5c6	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/entity/CraftMinecart	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#4583952e576f	T-264 P1: Paper 상위 사슬의 중간 계층을 새로 만듦 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
 descriptor	org/bukkit/craftbukkit/entity/CraftMinecartChest	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#be2600131882	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftMinecartCommand	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#76cfdea31442	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/entity/CraftMinecartContainer	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#4583952e576f	T-264 P1: Paper 상위 사슬의 중간 계층을 새로 만듦 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
 descriptor	org/bukkit/craftbukkit/entity/CraftMinecartFurnace	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#bf890bcea716	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftMinecartHopper	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#1dcf6ee3d87d	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftMinecartRideable	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#4583952e576f	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftMob	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#161c14bed63d	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/entity/CraftMonster	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#575fece8d3f3	T-264 P1: Paper 상위 사슬의 중간 계층을 새로 만듦 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
 descriptor	org/bukkit/craftbukkit/entity/CraftMule	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#629d49c26f3c	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftMushroomCow	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#d3e92400f145	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftOcelot	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#6a4a085ebf8a	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -301,6 +312,7 @@ descriptor	org/bukkit/craftbukkit/entity/CraftPhantom	<init>(Lorg/domi/furnace/a
 descriptor	org/bukkit/craftbukkit/entity/CraftPig	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#c7668b2a71a4	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftPigZombie	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#b130f9256256	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftPiglin	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#8552c4000a50	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/entity/CraftPiglinAbstract	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#92e0afe5c894	T-264 P1: Paper 상위 사슬의 중간 계층을 새로 만듦 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
 descriptor	org/bukkit/craftbukkit/entity/CraftPiglinBrute	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#a46ea4d537c0	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftPillager	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#a5d7a4a4eaac	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftPlayer	<init>(Lorg/domi/furnace/api/entity/Player;)V	기준=#c614c9d8cb23	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -309,12 +321,14 @@ descriptor	org/bukkit/craftbukkit/entity/CraftPolarBear	<init>(Lorg/domi/furnace
 descriptor	org/bukkit/craftbukkit/entity/CraftProjectile	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#0dea6a424f3b	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftPufferFish	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#f0e1842de4f1	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftRabbit	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#a91ca714484e	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/entity/CraftRaider	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#8004dbd8ed38	T-264 P1: Paper 상위 사슬의 중간 계층을 새로 만듦 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
 descriptor	org/bukkit/craftbukkit/entity/CraftRavager	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#5e961483e52f	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftSalmon	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#518ed30ccdf7	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftSheep	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#ed016a72de59	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftShulker	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#09b75199e9fb	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftShulkerBullet	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#17199613daef	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftSilverfish	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#097343f1c08b	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/entity/CraftSizedFireball	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#b9ad9c76af74	T-264 P1: Paper 상위 사슬의 중간 계층을 새로 만듦 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
 descriptor	org/bukkit/craftbukkit/entity/CraftSkeleton	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#cded4fecef72	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftSkeletonHorse	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#6c26081f5d76	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftSlime	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#e57c1daa2038	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -323,25 +337,30 @@ descriptor	org/bukkit/craftbukkit/entity/CraftSniffer	<init>(Lorg/domi/furnace/a
 descriptor	org/bukkit/craftbukkit/entity/CraftSnowball	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#604c4b9ed5ac	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftSnowman	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#f904aa1c97ef	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftSpectralArrow	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#1a4de5cb06e1	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/entity/CraftSpellcaster	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#cd61b7edc773	T-264 P1: Paper 상위 사슬의 중간 계층을 새로 만듦 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
 descriptor	org/bukkit/craftbukkit/entity/CraftSpider	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#43a750fa097d	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftSquid	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#895e911ac648	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftStray	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#75cb9b8440f0	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftStrider	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#9aa40d3aac9b	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftTNTPrimed	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#5c8a10137690	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftTadpole	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#95f4dc351015	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/entity/CraftTameableAnimal	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#c3acd4ec57da	T-264 P1: Paper 상위 사슬의 중간 계층을 새로 만듦 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
 descriptor	org/bukkit/craftbukkit/entity/CraftTextDisplay	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#02eb78e2d31d	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/entity/CraftThrowableProjectile	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#74d4a4226834	T-264 P1: Paper 상위 사슬의 중간 계층을 새로 만듦 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
 descriptor	org/bukkit/craftbukkit/entity/CraftThrownExpBottle	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#688be4a44d86	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftThrownPotion	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#47231b8a961c	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftTraderLlama	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#235d387bb7d3	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftTrident	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#319a02460f31	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftTropicalFish	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#70b7a22381ce	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftTurtle	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#8ee2af293a4f	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/entity/CraftVehicle	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#5b8fa626cbe2	T-264 P1: Paper 상위 사슬의 중간 계층을 새로 만듦 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
 descriptor	org/bukkit/craftbukkit/entity/CraftVex	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#81497155c7a9	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftVillager	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#5a455aba1677	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftVillagerZombie	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#57b0395ea74f	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftVindicator	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#5b995edb613c	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftWanderingTrader	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#5085d210daba	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftWarden	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#9590cb45e234	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/entity/CraftWaterMob	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#066bf5281b42	T-264 P1: Paper 상위 사슬의 중간 계층을 새로 만듦 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
 descriptor	org/bukkit/craftbukkit/entity/CraftWindCharge	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#6e3930168228	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftWitch	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#eb3c0d639abb	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftWither	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#e6597301ca05	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -351,11 +370,22 @@ descriptor	org/bukkit/craftbukkit/entity/CraftWolf	<init>(Lorg/domi/furnace/api/
 descriptor	org/bukkit/craftbukkit/entity/CraftZoglin	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#ddc191c38e5a	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftZombie	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#67f35f4ab1f6	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftZombieHorse	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#f51f781065bd	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/help/SimpleHelpMap	<init>()V	기준=#9dae1eb74072	T-264 P2a: Furnace 클래스를 Paper 이름으로 옮김 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
+descriptor	org/bukkit/craftbukkit/inventory/CraftInventory	<init>(Lorg/domi/furnace/api/inventory/Inventory;Lorg/bukkit/event/inventory/InventoryType;Ljava/util/function/Supplier;)V	기준=#fa1d420fc008	T-264 P2a: Furnace 클래스를 Paper 이름으로 옮김 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
+descriptor	org/bukkit/craftbukkit/inventory/CraftInventoryAnvil	<init>(Lorg/domi/furnace/api/inventory/Inventory;Lorg/domi/furnace/compat/paper/EventInventories$AnvilState;)V	기준=#e55095076533	T-264 P2b: Furnace 클래스를 Paper 이름으로 옮김 — Furnace 생성자(이벤트 사본 칸·핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
+descriptor	org/bukkit/craftbukkit/inventory/CraftInventoryBrewer	<init>(Lorg/domi/furnace/api/inventory/Inventory;Ljava/util/function/Supplier;)V	기준=#fa1d420fc008	T-264 P2a: Furnace 클래스를 Paper 이름으로 옮김 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
+descriptor	org/bukkit/craftbukkit/inventory/CraftInventoryCrafting	<init>(Lorg/domi/furnace/api/inventory/Inventory;Lorg/bukkit/event/inventory/InventoryType;Lorg/bukkit/inventory/Recipe;)V	기준=#4c65a46c0e19	T-264 P2b: Furnace 클래스를 Paper 이름으로 옮김 — Furnace 생성자(이벤트 사본 칸·핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
+descriptor	org/bukkit/craftbukkit/inventory/CraftInventoryEnchanting	<init>(Lorg/domi/furnace/api/inventory/Inventory;)V	기준=#fa1d420fc008	T-264 P2b: Furnace 클래스를 Paper 이름으로 옮김 — Furnace 생성자(이벤트 사본 칸·핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
+descriptor	org/bukkit/craftbukkit/inventory/CraftInventoryFurnace	<init>(Lorg/domi/furnace/api/inventory/Inventory;Lorg/bukkit/event/inventory/InventoryType;Lorg/domi/furnace/api/recipe/Recipe$CookingKind;Ljava/util/function/Supplier;)V	기준=#c1c19b8c1fa9	T-264 P2a: Furnace 클래스를 Paper 이름으로 옮김 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
+descriptor	org/bukkit/craftbukkit/inventory/CraftInventoryPlayer	<init>(Lorg/bukkit/craftbukkit/entity/CraftPlayer;)V	기준=#1ab68d921b12	T-264 P2a: Furnace 클래스를 Paper 이름으로 옮김 — Furnace 생성자(핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
+descriptor	org/bukkit/craftbukkit/inventory/CraftInventoryView	<init>(Lorg/bukkit/craftbukkit/entity/CraftPlayer;Lorg/bukkit/inventory/Inventory;Lorg/bukkit/event/inventory/InventoryType;Ljava/lang/String;Lorg/domi/furnace/api/item/ItemStack;)V	기준=#238d3cf24f36	T-264 P2b: Furnace 클래스를 Paper 이름으로 옮김 — Furnace 생성자(이벤트 사본 칸·핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
+descriptor	org/bukkit/craftbukkit/inventory/CraftResultInventory	<init>(Lorg/domi/furnace/api/inventory/Inventory;Lorg/bukkit/event/inventory/InventoryType;Ljava/util/function/Supplier;)V	기준=#77697ba0ed3d	T-264 P2b: Furnace 클래스를 Paper 이름으로 옮김 — Furnace 생성자(이벤트 사본 칸·핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
 descriptor	org/bukkit/craftbukkit/inventory/trim/CraftTrimMaterial	<init>(Lorg/bukkit/NamespacedKey;)V	기준=#68124ebb6a97	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/inventory/trim/CraftTrimPattern	<init>(Lorg/bukkit/NamespacedKey;)V	기준=#5d5b26e5d279	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/inventory/view/CraftAnvilView	<init>(Lorg/bukkit/craftbukkit/entity/CraftPlayer;Lorg/bukkit/craftbukkit/inventory/CraftInventoryAnvil;Ljava/lang/String;Lorg/domi/furnace/api/item/ItemStack;)V	기준=#7b4a01b8c2af	T-264 P2b: Furnace 클래스를 Paper 이름으로 옮김 — Furnace 생성자(이벤트 사본 칸·핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
+descriptor	org/bukkit/craftbukkit/inventory/view/CraftEnchantmentView	<init>(Lorg/bukkit/craftbukkit/entity/CraftPlayer;Lorg/bukkit/craftbukkit/inventory/CraftInventoryEnchanting;Ljava/lang/String;Lorg/domi/furnace/api/item/ItemStack;[Lorg/bukkit/enchantments/EnchantmentOffer;)V	기준=#5dba7678a1ca	T-264 P2b: Furnace 클래스를 Paper 이름으로 옮김 — Furnace 생성자(이벤트 사본 칸·핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
 descriptor	org/bukkit/craftbukkit/map/CraftMapView	<init>(I)V	기준=#b2a7c55c76ae	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/metadata/BlockMetadataStore	<init>()V	기준=#00d8f3b20679	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-descriptor	org/bukkit/craftbukkit/persistence/CraftPersistentDataContainer	<init>()V	기준=#2f9248a890db	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/profile/CraftPlayerProfile	<init>(Lorg/domi/furnace/compat/paper/ProfileValue;)V	기준=#5acedb4272c0	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/profile/CraftPlayerProfile	getProperty(Ljava/lang/String;)Lcom/destroystokyo/paper/profile/ProfileProperty;	기준=#563af3209b04	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/profile/CraftPlayerProfile	setProperty(Ljava/lang/String;Lcom/destroystokyo/paper/profile/ProfileProperty;)V	기준=#06ae4de17512	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -368,6 +398,11 @@ descriptor	org/bukkit/craftbukkit/profile/CraftProfileProperty	hashCode(Lcom/des
 descriptor	org/bukkit/craftbukkit/profile/CraftProfileProperty	serialize(Lcom/destroystokyo/paper/profile/ProfileProperty;)Ljava/util/Map;	기준=#2039eb3e4f65	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/profile/CraftProfileProperty	toString(Lcom/destroystokyo/paper/profile/ProfileProperty;)Ljava/lang/String;	기준=#504fc113e1af	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/profile/CraftProfileProperty	toString(Ljava/util/List;)Ljava/lang/String;	기준=#504fc113e1af	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/tag/CraftBlockTag	<init>(Lorg/domi/furnace/compat/paper/CompatTags$Kind;Lorg/bukkit/NamespacedKey;)V	기준=#f342996ee55e	T-264 P2b: Furnace 클래스를 Paper 이름으로 옮김 — Furnace 생성자(태그 종류·키)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
+descriptor	org/bukkit/craftbukkit/tag/CraftEntityTag	<init>(Lorg/domi/furnace/compat/paper/CompatTags$Kind;Lorg/bukkit/NamespacedKey;)V	기준=#f342996ee55e	T-264 P2b: Furnace 클래스를 Paper 이름으로 옮김 — Furnace 생성자(태그 종류·키)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
+descriptor	org/bukkit/craftbukkit/tag/CraftFluidTag	<init>(Lorg/domi/furnace/compat/paper/CompatTags$Kind;Lorg/bukkit/NamespacedKey;)V	기준=#f342996ee55e	T-264 P2b: Furnace 클래스를 Paper 이름으로 옮김 — Furnace 생성자(태그 종류·키)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
+descriptor	org/bukkit/craftbukkit/tag/CraftItemTag	<init>(Lorg/domi/furnace/compat/paper/CompatTags$Kind;Lorg/bukkit/NamespacedKey;)V	기준=#f342996ee55e	T-264 P2b: Furnace 클래스를 Paper 이름으로 옮김 — Furnace 생성자(태그 종류·키)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
+descriptor	org/bukkit/craftbukkit/tag/CraftTag	<init>(Lorg/domi/furnace/compat/paper/CompatTags$Kind;Lorg/bukkit/NamespacedKey;)V	기준=#f342996ee55e	T-264 P2b: Furnace 클래스를 Paper 이름으로 옮김 — Furnace 생성자(태그 종류·키)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
 member-access	net/minecraft/advancements/AdvancementHolder	equals(Ljava/lang/Object;)Z	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 member-access	net/minecraft/advancements/AdvancementHolder	hashCode()I	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 member-access	net/minecraft/advancements/AdvancementHolder	toString()Ljava/lang/String;	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -404,9 +439,6 @@ super	net/minecraft/server/packs/PathPackResources	-	shim=java/lang/Object ref=#
 super	net/minecraft/stats/Stat	-	shim=java/lang/Object ref=#18a7b5b96f4f	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	net/minecraft/world/RandomSequences	-	shim=java/lang/Object ref=#3df556e437e9	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	net/minecraft/world/entity/ai/village/poi/PoiManager	-	shim=java/lang/Object ref=#fb4f299dafde	의도 — 관심 지점은 서버가 청크마다 들고 있어 구역 저장소(파일·코덱)를 상속하지 않는다. shim 은 ServerLevel#getPoiManager 로 얻는 보기이고 넣기·지우기를 서버의 같은 코드로 넘긴다(NMS shim 5d). 상속 메서드(getOrCreate 등)는 두지 않는다 — 부르면 호환 보고가 '없음'으로 센다
-super	net/minecraft/world/entity/animal/CatVariant	-	shim=java/lang/Object ref=#e7f93413726d	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	net/minecraft/world/entity/animal/FrogVariant	-	shim=java/lang/Object ref=#e7f93413726d	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	net/minecraft/world/entity/decoration/PaintingVariant	-	shim=java/lang/Object ref=#e7f93413726d	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	net/minecraft/world/item/enchantment/Enchantment	-	shim=java/lang/Object ref=#e7f93413726d	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	net/minecraft/world/item/trading/MerchantOffers	-	shim=java/lang/Object ref=#4a65ccfda97f	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	net/minecraft/world/level/WorldDataConfiguration	-	shim=java/lang/Object ref=#e7f93413726d	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -418,108 +450,9 @@ super	net/minecraft/world/level/levelgen/feature/ConfiguredFeature	-	shim=java/l
 super	net/minecraft/world/level/levelgen/placement/PlacedFeature	-	shim=java/lang/Object ref=#e7f93413726d	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	net/minecraft/world/level/saveddata/maps/MapItemSavedData	-	shim=java/lang/Object ref=#3df556e437e9	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	net/minecraft/world/phys/shapes/VoxelShape$1	-	shim=net/minecraft/world/phys/shapes/VoxelShape ref=#c1307bf3492c	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/CraftWorld	-	shim=java/lang/Object ref=#eb3d18b56aed	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	org/bukkit/craftbukkit/CraftWorld$1	-	shim=java/lang/Object ref=#46f29ec627df	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/block/CapturedBlockState	-	shim=org/domi/furnace/compat/paper/CompatBlockState ref=#4eb7b84b6770	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/block/CraftBlock	-	shim=org/domi/furnace/compat/paper/CompatBlock ref=#c1307bf3492c	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/block/CraftBlockEntityState	-	shim=org/domi/furnace/compat/paper/CompatBlockState ref=#4eb7b84b6770	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftArrow	-	shim=org/bukkit/craftbukkit/entity/CraftProjectile ref=#7b1dbe8519c5	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftBat	-	shim=org/bukkit/craftbukkit/entity/CraftMob ref=#4a2b8372bdf1	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftBlaze	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#a1d98adcceb8	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftBlockDisplay	-	shim=org/bukkit/craftbukkit/entity/CraftEntity ref=#528f237d89fb	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftBoat	-	shim=org/bukkit/craftbukkit/entity/CraftEntity ref=#dc6de780fbea	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftBogged	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#bda56848bc95	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftBreeze	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#a1d98adcceb8	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftBreezeWindCharge	-	shim=org/bukkit/craftbukkit/entity/CraftProjectile ref=#dfbe1fa62e40	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftCamel	-	shim=org/bukkit/craftbukkit/entity/CraftAnimals ref=#c8754a232a25	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftCat	-	shim=org/bukkit/craftbukkit/entity/CraftAnimals ref=#ace1754b53da	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftCaveSpider	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#ec480c756f30	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftChestBoat	-	shim=org/bukkit/craftbukkit/entity/CraftEntity ref=#c3ba1929ae6f	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftCod	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#08c0f4cd92e8	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftCreeper	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#a1d98adcceb8	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftDolphin	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#1716aeac69d3	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftDonkey	-	shim=org/bukkit/craftbukkit/entity/CraftAnimals ref=#3d2e80da1eef	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftDragonFireball	-	shim=org/bukkit/craftbukkit/entity/CraftProjectile ref=#f201f92a78e7	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftDrowned	-	shim=org/bukkit/craftbukkit/entity/CraftAgeable ref=#a87df70ec12e	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftEgg	-	shim=org/bukkit/craftbukkit/entity/CraftProjectile ref=#6cc35b36ccdc	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftElderGuardian	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#cbe0dabc44b3	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftEnderPearl	-	shim=org/bukkit/craftbukkit/entity/CraftProjectile ref=#6cc35b36ccdc	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftEnderman	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#a1d98adcceb8	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftEndermite	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#a1d98adcceb8	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	org/bukkit/craftbukkit/entity/CraftEntity$1	-	shim=org/bukkit/entity/Entity$Spigot ref=#c1307bf3492c	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftEvoker	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#7e7c79fdf6cd	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftGhast	-	shim=org/bukkit/craftbukkit/entity/CraftMob ref=#41cd9f83bc53	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftGiant	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#a1d98adcceb8	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftGlowItemFrame	-	shim=org/bukkit/craftbukkit/entity/CraftEntity ref=#71c9b29a2c90	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftGlowSquid	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#f715ff764e38	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftGuardian	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#a1d98adcceb8	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftHorse	-	shim=org/bukkit/craftbukkit/entity/CraftAnimals ref=#c8754a232a25	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftHusk	-	shim=org/bukkit/craftbukkit/entity/CraftAgeable ref=#a87df70ec12e	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftIllusioner	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#7e7c79fdf6cd	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftIronGolem	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#0dfbd26697a3	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftItemDisplay	-	shim=org/bukkit/craftbukkit/entity/CraftEntity ref=#528f237d89fb	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftItemFrame	-	shim=org/bukkit/craftbukkit/entity/CraftEntity ref=#4635a9a6056d	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftLargeFireball	-	shim=org/bukkit/craftbukkit/entity/CraftProjectile ref=#3f6bebbddf53	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftLeash	-	shim=org/bukkit/craftbukkit/entity/CraftEntity ref=#344cf051f4d6	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftLlama	-	shim=org/bukkit/craftbukkit/entity/CraftAnimals ref=#3d2e80da1eef	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftLlamaSpit	-	shim=org/bukkit/craftbukkit/entity/CraftProjectile ref=#596fe0ff671c	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftMagmaCube	-	shim=org/bukkit/craftbukkit/entity/CraftMob ref=#5875b03d51af	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftMinecartChest	-	shim=org/bukkit/craftbukkit/entity/CraftEntity ref=#568b20924801	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftMinecartCommand	-	shim=org/bukkit/craftbukkit/entity/CraftEntity ref=#1fccfe9eac68	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftMinecartFurnace	-	shim=org/bukkit/craftbukkit/entity/CraftEntity ref=#1fccfe9eac68	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftMinecartHopper	-	shim=org/bukkit/craftbukkit/entity/CraftEntity ref=#568b20924801	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftMinecartMobSpawner	-	shim=org/bukkit/craftbukkit/entity/CraftEntity ref=#1fccfe9eac68	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftMinecartRideable	-	shim=org/bukkit/craftbukkit/entity/CraftEntity ref=#1fccfe9eac68	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftMinecartTNT	-	shim=org/bukkit/craftbukkit/entity/CraftEntity ref=#1fccfe9eac68	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftMule	-	shim=org/bukkit/craftbukkit/entity/CraftAnimals ref=#3d2e80da1eef	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftMushroomCow	-	shim=org/bukkit/craftbukkit/entity/CraftAnimals ref=#54cb7e2b2fb2	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftPainting	-	shim=org/bukkit/craftbukkit/entity/CraftEntity ref=#4635a9a6056d	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftParrot	-	shim=org/bukkit/craftbukkit/entity/CraftAnimals ref=#ace1754b53da	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftPhantom	-	shim=org/bukkit/craftbukkit/entity/CraftMob ref=#41cd9f83bc53	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftPigZombie	-	shim=org/bukkit/craftbukkit/entity/CraftAgeable ref=#a87df70ec12e	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftPiglin	-	shim=org/bukkit/craftbukkit/entity/CraftAgeable ref=#752b140d44fa	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftPiglinBrute	-	shim=org/bukkit/craftbukkit/entity/CraftAgeable ref=#752b140d44fa	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftPillager	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#7c31b087665d	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftProjectile	-	shim=org/bukkit/craftbukkit/entity/CraftEntity ref=#596fe0ff671c	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftPufferFish	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#dc7238c37f32	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftRavager	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#8905d2449565	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftSalmon	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#08c0f4cd92e8	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftShulker	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#0dfbd26697a3	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftShulkerBullet	-	shim=org/bukkit/craftbukkit/entity/CraftProjectile ref=#596fe0ff671c	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftSilverfish	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#a1d98adcceb8	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftSkeleton	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#bda56848bc95	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftSkeletonHorse	-	shim=org/bukkit/craftbukkit/entity/CraftAnimals ref=#c8754a232a25	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftSmallFireball	-	shim=org/bukkit/craftbukkit/entity/CraftProjectile ref=#3f6bebbddf53	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftSnowball	-	shim=org/bukkit/craftbukkit/entity/CraftProjectile ref=#6cc35b36ccdc	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftSnowman	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#0dfbd26697a3	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftSpectralArrow	-	shim=org/bukkit/craftbukkit/entity/CraftProjectile ref=#7b1dbe8519c5	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftSpider	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#a1d98adcceb8	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftSquid	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#1716aeac69d3	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftStray	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#bda56848bc95	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftTadpole	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#dc7238c37f32	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftTextDisplay	-	shim=org/bukkit/craftbukkit/entity/CraftEntity ref=#528f237d89fb	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftThrownExpBottle	-	shim=org/bukkit/craftbukkit/entity/CraftProjectile ref=#6cc35b36ccdc	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftThrownPotion	-	shim=org/bukkit/craftbukkit/entity/CraftProjectile ref=#6cc35b36ccdc	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftTraderLlama	-	shim=org/bukkit/craftbukkit/entity/CraftAnimals ref=#1f5427f90782	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftTrident	-	shim=org/bukkit/craftbukkit/entity/CraftProjectile ref=#7b1dbe8519c5	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftTropicalFish	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#08c0f4cd92e8	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftVex	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#a1d98adcceb8	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftVillager	-	shim=org/bukkit/craftbukkit/entity/CraftAgeable ref=#31488755543f	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftVillagerZombie	-	shim=org/bukkit/craftbukkit/entity/CraftAgeable ref=#a87df70ec12e	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftVindicator	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#7c31b087665d	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftWanderingTrader	-	shim=org/bukkit/craftbukkit/entity/CraftAgeable ref=#31488755543f	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftWarden	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#a1d98adcceb8	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftWindCharge	-	shim=org/bukkit/craftbukkit/entity/CraftProjectile ref=#dfbe1fa62e40	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftWitch	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#8905d2449565	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftWither	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#a1d98adcceb8	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftWitherSkeleton	-	shim=org/bukkit/craftbukkit/entity/CraftCreature ref=#bda56848bc95	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftWitherSkull	-	shim=org/bukkit/craftbukkit/entity/CraftProjectile ref=#f201f92a78e7	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftWolf	-	shim=org/bukkit/craftbukkit/entity/CraftAnimals ref=#ace1754b53da	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftZoglin	-	shim=org/bukkit/craftbukkit/entity/CraftAgeable ref=#a1d98adcceb8	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftZombie	-	shim=org/bukkit/craftbukkit/entity/CraftAgeable ref=#a1d98adcceb8	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/entity/CraftZombieHorse	-	shim=org/bukkit/craftbukkit/entity/CraftAnimals ref=#c8754a232a25	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	org/bukkit/craftbukkit/map/CraftMapRenderer	-	shim=java/lang/Object ref=#1a35e6a14920	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/persistence/CraftPersistentDataContainer	-	shim=org/domi/furnace/compat/paper/LivePdc ref=#280a3e5e682a	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/ChatFormatting	-	#683140e2fc3f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/commands/CommandSourceStack	-	#021abfa5543e	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/commands/CommandSourceStack	-	#05c9548fda97	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -758,155 +691,75 @@ type-missing	net/minecraft/world/scores/DisplaySlot	-	#683140e2fc3f	미분류 �
 type-missing	net/minecraft/world/scores/criteria/ObjectiveCriteria$RenderType	-	#683140e2fc3f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/CraftOfflinePlayer	-	#9315bc151baa	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/CraftServer$1	-	#182022f11298	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftBanner	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftBanner	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftBarrel	-	#06123721699a	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftBarrel	-	#3000d12104ad	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftBarrel	-	#466ef5710296	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftBarrel	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftBarrel	-	#510883586e18	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftBarrel	-	#57d3543dc736	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftBarrel	-	#915f5fde13e6	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftBarrel	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftBeacon	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftBeacon	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftBed	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftBed	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftBeehive	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftBeehive	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftBell	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftBell	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftBlastFurnace	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftBlastFurnace	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftBrewingStand	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftBrewingStand	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftBrushableBlock	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftBrushableBlock	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftCalibratedSculkSensor	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftCalibratedSculkSensor	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftCampfire	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftCampfire	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftChest	-	#06123721699a	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftChest	-	#3000d12104ad	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftChest	-	#466ef5710296	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftChest	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftChest	-	#510883586e18	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftChest	-	#57d3543dc736	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftChest	-	#915f5fde13e6	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftChest	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftChiseledBookshelf	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftChiseledBookshelf	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftCommandBlock	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftCommandBlock	-	#9456dbc12b09	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftCommandBlock	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftCommandBlock	-	#fd5d5a5c789b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftComparator	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftComparator	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftConduit	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftConduit	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftContainer	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftContainer	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftCrafter	-	#06123721699a	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftCrafter	-	#3000d12104ad	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftCrafter	-	#466ef5710296	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftCrafter	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftCrafter	-	#510883586e18	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftCrafter	-	#57d3543dc736	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftCrafter	-	#915f5fde13e6	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftCrafter	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftCreatureSpawner	-	#25fb7184c53d	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftCreatureSpawner	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftCreatureSpawner	-	#5ff63f50216b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftCreatureSpawner	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftDaylightDetector	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftDaylightDetector	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftDecoratedPot	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftDecoratedPot	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftDispenser	-	#06123721699a	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftDispenser	-	#3000d12104ad	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftDispenser	-	#466ef5710296	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftDispenser	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftDispenser	-	#510883586e18	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftDispenser	-	#57d3543dc736	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftDispenser	-	#915f5fde13e6	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftDispenser	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftDropper	-	#06123721699a	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftDropper	-	#3000d12104ad	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftDropper	-	#466ef5710296	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftDropper	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftDropper	-	#510883586e18	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftDropper	-	#57d3543dc736	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftDropper	-	#915f5fde13e6	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftDropper	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftEnchantingTable	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftEnchantingTable	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftEndGateway	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftEndGateway	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftEndPortal	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftEndPortal	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftEnderChest	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftEnderChest	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftFurnace	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftFurnace	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftFurnaceFurnace	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftFurnaceFurnace	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftHangingSign	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftHangingSign	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftHopper	-	#06123721699a	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftHopper	-	#3000d12104ad	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftHopper	-	#466ef5710296	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftHopper	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftHopper	-	#510883586e18	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftHopper	-	#57d3543dc736	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftHopper	-	#915f5fde13e6	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftHopper	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftJigsaw	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftJigsaw	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftJukebox	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftJukebox	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftLectern	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftLectern	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftLootable	-	#06123721699a	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftLootable	-	#3000d12104ad	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftLootable	-	#466ef5710296	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftLootable	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftLootable	-	#510883586e18	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftLootable	-	#57d3543dc736	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftLootable	-	#915f5fde13e6	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftLootable	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftMovingPiston	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftMovingPiston	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftSculkCatalyst	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftSculkCatalyst	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftSculkSensor	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftSculkSensor	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftSculkShrieker	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftSculkShrieker	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftShulkerBox	-	#06123721699a	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftShulkerBox	-	#3000d12104ad	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftShulkerBox	-	#466ef5710296	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftShulkerBox	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftShulkerBox	-	#510883586e18	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftShulkerBox	-	#57d3543dc736	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/CraftShulkerBox	-	#915f5fde13e6	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftShulkerBox	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftSign	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftSign	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftSkull	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftSkull	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftSmoker	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftSmoker	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftStructureBlock	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftStructureBlock	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftTrialSpawner	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftTrialSpawner	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftVault	-	#4eb7b84b6770	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/block/CraftVault	-	#bbcd7b1f863b	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/block/banner/CraftPatternType	-	#9e324518c54a	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftAbstractHorse	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftAbstractHorse	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftAbstractSkeleton	-	#48e5abd9d3fa	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftAbstractSkeleton	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftAbstractSkeleton	-	#7777ac3e0b0a	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftAbstractSkeleton	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftAbstractVillager	-	#536a61f0a7f3	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftAbstractVillager	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftAbstractVillager	-	#6deb800b98e4	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftAbstractVillager	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftAgeable	-	#5ef8507e95b5	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftAgeable	-	#e9e4dd2d103f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftAllay	-	#5ef8507e95b5	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftAllay	-	#e9e4dd2d103f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftAmbient	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftAmbient	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftAnimals	-	#5ef8507e95b5	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftAnimals	-	#e9e4dd2d103f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftArmadillo	-	#5ef8507e95b5	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -915,59 +768,292 @@ type-missing	org/bukkit/craftbukkit/entity/CraftAxolotl	-	#5ef8507e95b5	미분�
 type-missing	org/bukkit/craftbukkit/entity/CraftAxolotl	-	#c39a636bd507	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftAxolotl	-	#d4efe86fbc3d	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftAxolotl	-	#e9e4dd2d103f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftBat	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftBat	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftBee	-	#5ef8507e95b5	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftBee	-	#e9e4dd2d103f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftBlaze	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftBlaze	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftBoat	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftBoat	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftBogged	-	#48e5abd9d3fa	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftBogged	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftBogged	-	#7777ac3e0b0a	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftBogged	-	#8b5a1d6e8331	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftBogged	-	#9acd61849613	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftBogged	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftBreeze	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftBreeze	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftCamel	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftCamel	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftCat	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftCat	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftCaveSpider	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftCaveSpider	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftChestBoat	-	#3000d12104ad	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftChestBoat	-	#466ef5710296	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftChestBoat	-	#57d3543dc736	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftChestBoat	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftChestBoat	-	#bac9ee6240e7	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftChestBoat	-	#cfe0ad91245c	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftChestBoat	-	#da68fd99bf7d	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftChestBoat	-	#e6838240e514	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftChestBoat	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftChestedHorse	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftChestedHorse	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftChicken	-	#5ef8507e95b5	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftChicken	-	#e9e4dd2d103f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftCod	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftCod	-	#c39a636bd507	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftCod	-	#d4efe86fbc3d	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftCod	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftCow	-	#5ef8507e95b5	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftCow	-	#e9e4dd2d103f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftCreature	-	#5ef8507e95b5	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftCreature	-	#e9e4dd2d103f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/entity/CraftEnderDragon	-	#00544eff1bfb	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftCreeper	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftCreeper	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftDolphin	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftDolphin	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftDonkey	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftDonkey	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftDrowned	-	#48e5abd9d3fa	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftDrowned	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftDrowned	-	#7777ac3e0b0a	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftDrowned	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftElderGuardian	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftElderGuardian	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftEnderDragon	-	#5ef8507e95b5	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/entity/CraftEnderDragon	-	#a0277350dd7c	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftEnderDragon	-	#e9e4dd2d103f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/entity/CraftFirework	-	#596fe0ff671c	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/entity/CraftFishHook	-	#596fe0ff671c	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftEnderman	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftEnderman	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftEndermite	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftEndermite	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftEvoker	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftEvoker	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftFish	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftFish	-	#c39a636bd507	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftFish	-	#d4efe86fbc3d	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftFish	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftFlying	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftFlying	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftFox	-	#5ef8507e95b5	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftFox	-	#e9e4dd2d103f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftFrog	-	#5ef8507e95b5	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftFrog	-	#e9e4dd2d103f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftGhast	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftGhast	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftGiant	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftGiant	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftGlowSquid	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftGlowSquid	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftGoat	-	#5ef8507e95b5	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftGoat	-	#e9e4dd2d103f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/entity/CraftHoglin	-	#00544eff1bfb	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftGolem	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftGolem	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftGuardian	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftGuardian	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftHoglin	-	#5ef8507e95b5	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/entity/CraftHoglin	-	#a0277350dd7c	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftHoglin	-	#e9e4dd2d103f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftHorse	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftHorse	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftHusk	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftHusk	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftIllager	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftIllager	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftIllusioner	-	#48e5abd9d3fa	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftIllusioner	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftIllusioner	-	#7777ac3e0b0a	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftIllusioner	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftIronGolem	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftIronGolem	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftLlama	-	#48e5abd9d3fa	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftLlama	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftLlama	-	#7777ac3e0b0a	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftLlama	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMagmaCube	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMagmaCube	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMinecartChest	-	#3000d12104ad	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMinecartChest	-	#466ef5710296	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMinecartChest	-	#57d3543dc736	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMinecartChest	-	#bac9ee6240e7	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMinecartChest	-	#cfe0ad91245c	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMinecartChest	-	#da68fd99bf7d	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMinecartChest	-	#e6838240e514	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMinecartCommand	-	#9456dbc12b09	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMinecartCommand	-	#fd5d5a5c789b	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMinecartContainer	-	#3000d12104ad	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMinecartContainer	-	#466ef5710296	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMinecartContainer	-	#57d3543dc736	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMinecartContainer	-	#bac9ee6240e7	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMinecartContainer	-	#cfe0ad91245c	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMinecartContainer	-	#da68fd99bf7d	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMinecartContainer	-	#e6838240e514	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMinecartHopper	-	#3000d12104ad	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMinecartHopper	-	#466ef5710296	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMinecartHopper	-	#57d3543dc736	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMinecartHopper	-	#bac9ee6240e7	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMinecartHopper	-	#cfe0ad91245c	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMinecartHopper	-	#da68fd99bf7d	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMinecartHopper	-	#e6838240e514	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMinecartMobSpawner	-	#25fb7184c53d	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMinecartMobSpawner	-	#5ff63f50216b	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftMob	-	#5ef8507e95b5	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftMob	-	#e9e4dd2d103f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMonster	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMonster	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMule	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMule	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMushroomCow	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMushroomCow	-	#8b5a1d6e8331	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMushroomCow	-	#9acd61849613	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftMushroomCow	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftOcelot	-	#5ef8507e95b5	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftOcelot	-	#e9e4dd2d103f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftPanda	-	#5ef8507e95b5	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftPanda	-	#e9e4dd2d103f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftParrot	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftParrot	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftPhantom	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftPhantom	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftPig	-	#5ef8507e95b5	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftPig	-	#e9e4dd2d103f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftPigZombie	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftPigZombie	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftPiglin	-	#48e5abd9d3fa	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftPiglin	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftPiglin	-	#7777ac3e0b0a	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftPiglin	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftPiglinAbstract	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftPiglinAbstract	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftPiglinBrute	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftPiglinBrute	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftPillager	-	#48e5abd9d3fa	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftPillager	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftPillager	-	#7777ac3e0b0a	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftPillager	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftPolarBear	-	#5ef8507e95b5	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftPolarBear	-	#e9e4dd2d103f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftPufferFish	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftPufferFish	-	#c39a636bd507	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftPufferFish	-	#d4efe86fbc3d	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftPufferFish	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftRabbit	-	#5ef8507e95b5	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftRabbit	-	#e9e4dd2d103f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftRaider	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftRaider	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftRavager	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftRavager	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftSalmon	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftSalmon	-	#c39a636bd507	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftSalmon	-	#d4efe86fbc3d	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftSalmon	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftSheep	-	#5ef8507e95b5	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftSheep	-	#8b5a1d6e8331	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftSheep	-	#9acd61849613	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftSheep	-	#e9e4dd2d103f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/entity/CraftSlime	-	#00544eff1bfb	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftShulker	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftShulker	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftSilverfish	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftSilverfish	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftSkeleton	-	#48e5abd9d3fa	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftSkeleton	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftSkeleton	-	#7777ac3e0b0a	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftSkeleton	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftSkeletonHorse	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftSkeletonHorse	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftSlime	-	#5ef8507e95b5	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	org/bukkit/craftbukkit/entity/CraftSlime	-	#a0277350dd7c	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftSlime	-	#e9e4dd2d103f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftSniffer	-	#5ef8507e95b5	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftSniffer	-	#e9e4dd2d103f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftSnowman	-	#48e5abd9d3fa	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftSnowman	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftSnowman	-	#7777ac3e0b0a	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftSnowman	-	#8b5a1d6e8331	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftSnowman	-	#9acd61849613	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftSnowman	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftSpellcaster	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftSpellcaster	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftSpider	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftSpider	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftSquid	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftSquid	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftStray	-	#48e5abd9d3fa	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftStray	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftStray	-	#7777ac3e0b0a	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftStray	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftStrider	-	#5ef8507e95b5	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftStrider	-	#e9e4dd2d103f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftTadpole	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftTadpole	-	#c39a636bd507	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftTadpole	-	#d4efe86fbc3d	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftTadpole	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftTameableAnimal	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftTameableAnimal	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftThrownPotion	-	#5735f0b0dd7f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftThrownPotion	-	#c917ffe4b142	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftTraderLlama	-	#48e5abd9d3fa	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftTraderLlama	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftTraderLlama	-	#7777ac3e0b0a	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftTraderLlama	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftTropicalFish	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftTropicalFish	-	#c39a636bd507	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftTropicalFish	-	#d4efe86fbc3d	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftTropicalFish	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftTurtle	-	#5ef8507e95b5	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/entity/CraftTurtle	-	#e9e4dd2d103f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftVex	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftVex	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftVillager	-	#536a61f0a7f3	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftVillager	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftVillager	-	#6deb800b98e4	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftVillager	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftVillagerZombie	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftVillagerZombie	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftVindicator	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftVindicator	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftWanderingTrader	-	#536a61f0a7f3	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftWanderingTrader	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftWanderingTrader	-	#6deb800b98e4	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftWanderingTrader	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftWarden	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftWarden	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftWaterMob	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftWaterMob	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftWitch	-	#48e5abd9d3fa	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftWitch	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftWitch	-	#7777ac3e0b0a	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftWitch	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftWither	-	#48e5abd9d3fa	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftWither	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftWither	-	#7777ac3e0b0a	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftWither	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftWitherSkeleton	-	#48e5abd9d3fa	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftWitherSkeleton	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftWitherSkeleton	-	#7777ac3e0b0a	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftWitherSkeleton	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftWolf	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftWolf	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftZoglin	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftZoglin	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftZombie	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftZombie	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftZombieHorse	-	#5ef8507e95b5	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/entity/CraftZombieHorse	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/inventory/CraftInventoryPlayer	-	#65704a5b1cc3	T-264 P2a: CraftInventoryPlayer 가 Paper 처럼 EntityEquipment 도 구현해야 함 — 그 API 형식이 아직 없다(영역 11 + 4, docs/roadmap/craft-missing-api-types-t264-2026-11-24.md)
+type-missing	org/bukkit/craftbukkit/inventory/CraftMerchant	-	#536a61f0a7f3	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/inventory/CraftMetaArmor	-	#f198974287b3	T-264 P2b: CraftMetaItem 계층이 Paper 처럼 BlockDataMeta 도 구현해야 함 — 그 API 형식이 아직 없다(영역 11 + 4, docs/roadmap/craft-missing-api-types-t264-2026-11-24.md)
+type-missing	org/bukkit/craftbukkit/inventory/CraftMetaBanner	-	#f198974287b3	T-264 P2b: CraftMetaItem 계층이 Paper 처럼 BlockDataMeta 도 구현해야 함 — 그 API 형식이 아직 없다(영역 11 + 4, docs/roadmap/craft-missing-api-types-t264-2026-11-24.md)
+type-missing	org/bukkit/craftbukkit/inventory/CraftMetaColorableArmor	-	#f198974287b3	T-264 P2b: CraftMetaItem 계층이 Paper 처럼 BlockDataMeta 도 구현해야 함 — 그 API 형식이 아직 없다(영역 11 + 4, docs/roadmap/craft-missing-api-types-t264-2026-11-24.md)
+type-missing	org/bukkit/craftbukkit/inventory/CraftMetaItem	-	#f198974287b3	T-264 P2b: CraftMetaItem 계층이 Paper 처럼 BlockDataMeta 도 구현해야 함 — 그 API 형식이 아직 없다(영역 11 + 4, docs/roadmap/craft-missing-api-types-t264-2026-11-24.md)
+type-missing	org/bukkit/craftbukkit/inventory/CraftMetaLeatherArmor	-	#f198974287b3	T-264 P2b: CraftMetaItem 계층이 Paper 처럼 BlockDataMeta 도 구현해야 함 — 그 API 형식이 아직 없다(영역 11 + 4, docs/roadmap/craft-missing-api-types-t264-2026-11-24.md)
+type-missing	org/bukkit/craftbukkit/inventory/CraftMetaSkull	-	#f198974287b3	T-264 P2b: CraftMetaItem 계층이 Paper 처럼 BlockDataMeta 도 구현해야 함 — 그 API 형식이 아직 없다(영역 11 + 4, docs/roadmap/craft-missing-api-types-t264-2026-11-24.md)
 type-missing	org/bukkit/craftbukkit/inventory/trim/CraftTrimMaterial	-	#9e324518c54a	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/inventory/trim/CraftTrimPattern	-	#9e324518c54a	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/map/CraftMapView	-	#5faf26569b3a	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	org/bukkit/craftbukkit/potion/CraftPotionEffectType	-	#6823ae52263a	T-264 P2d: Paper 의 내부 인터페이스(util/Handleable·world/flag/PaperFeatureDependent 와 그 상위)가 호환 계층에 없다 — NMS 손잡이·기능 플래그를 들여올 때 붙인다(docs/roadmap/craft-missing-api-types-t264-2026-11-24.md)
+type-missing	org/bukkit/craftbukkit/potion/CraftPotionEffectType	-	#9e324518c54a	T-264 P2d: Paper 의 내부 인터페이스(util/Handleable·world/flag/PaperFeatureDependent 와 그 상위)가 호환 계층에 없다 — NMS 손잡이·기능 플래그를 들여올 때 붙인다(docs/roadmap/craft-missing-api-types-t264-2026-11-24.md)
+type-missing	org/bukkit/craftbukkit/potion/CraftPotionEffectType	-	#bcf856522680	T-264 P2d: Paper 의 내부 인터페이스(util/Handleable·world/flag/PaperFeatureDependent 와 그 상위)가 호환 계층에 없다 — NMS 손잡이·기능 플래그를 들여올 때 붙인다(docs/roadmap/craft-missing-api-types-t264-2026-11-24.md)
 type-missing	org/bukkit/craftbukkit/profile/CraftPlayerProfile	-	#c43dbb96cfce	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/util/BlockStateListPopulator	-	#01bbaf257356	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/util/BlockStateListPopulator	-	#4bcd8cf57e47	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다

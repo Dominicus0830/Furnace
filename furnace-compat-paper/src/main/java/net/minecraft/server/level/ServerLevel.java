@@ -70,7 +70,7 @@ public class ServerLevel extends Level implements net.minecraft.world.level.Worl
         this.randomSequences = randomSequences;
         this.scratchBiomeProvider = opened[2];
         getWorld().bindScratch(this);
-        if (opened[1] instanceof org.domi.furnace.compat.paper.BukkitBiomeProviders.LateWorldInfo info) info.bind(getWorld());
+        if (opened[1] instanceof org.bukkit.craftbukkit.generator.CraftWorldInfo info) org.domi.furnace.compat.paper.BukkitBiomeProviders.bind(info, getWorld());
         // 닫지 않고 버린 레벨도 GC 가 거둘 때 닫는다(#486 검토 1). 동작은 이 레벨·CraftWorld 를 쥐지 않는다.
         this.scratchCleanup = SCRATCH_CLEANER.register(this, new ScratchClose(getWorld().furnaceHandle()));
     }
@@ -109,11 +109,11 @@ public class ServerLevel extends Level implements net.minecraft.world.level.Worl
         }
         String name = data == null ? null : data.getLevelName();
         org.domi.furnace.api.worldgen.BiomeProvider biomes = null;
-        org.domi.furnace.compat.paper.BukkitBiomeProviders.LateWorldInfo info = null;
+        org.bukkit.craftbukkit.generator.CraftWorldInfo info = null;
         if (biomeProvider != null) {
             // CraftBukkit: 바이옴 공급자가 있으면 생성기의 바이옴 원천을 CustomWorldChunkManager(그 레벨의 CraftWorld 를 WorldInfo 로)로 바꾼다
             org.bukkit.World ow = Compat.world(original.dimension());
-            info = new org.domi.furnace.compat.paper.BukkitBiomeProviders.LateWorldInfo(name == null ? original.name() : name,
+            info = org.domi.furnace.compat.paper.BukkitBiomeProviders.worldInfo(name == null ? original.name() : name,
                     environment != null ? environment : ow.getEnvironment(), seed, ow.getMinHeight(), ow.getMaxHeight());
             biomes = org.domi.furnace.compat.paper.BukkitBiomeProviders.adaptWeak(biomeProvider, info);   // 이 레벨이 공급자를 쥔다(아래 필드)
         }

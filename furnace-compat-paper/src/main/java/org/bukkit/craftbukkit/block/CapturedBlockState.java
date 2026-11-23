@@ -13,7 +13,7 @@ import org.domi.furnace.compat.nms.UnsupportedNmsCall;
  * Paper 와 다른 점: 나무가 놓은 벌집(bee_nest)을 월드에 반영하면 Paper 는 그 블록 엔티티에 벌 2~3 마리를 넣는데(레벨 난수), 블록 엔티티 shim 에
  * 벌 넣기가 아직 없어 그 경우는 쓰기 전에 {@link UnsupportedNmsCall} 이다.
  */
-public final class CapturedBlockState extends org.domi.furnace.compat.paper.CompatBlockState {
+public final class CapturedBlockState extends CraftBlockState {
 
     private final boolean treeBlock;
 
