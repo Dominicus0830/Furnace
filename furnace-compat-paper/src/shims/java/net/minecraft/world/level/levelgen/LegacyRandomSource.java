@@ -38,5 +38,34 @@ class LegacyRandomSource {
     @Override
     public double nextGaussian() { return gaussianSource.nextGaussian(); }
 
+    @Override
+    public PositionalRandomFactory forkPositional() { return new LegacyPositionalRandomFactory(nextLong()); }
+
+    /** 바닐라 LegacyRandomSource.LegacyPositionalRandomFactory: 위치 씨앗(Mth.getSeed)·이름 해시를 이 공장의 씨앗과 섞는다. */
+    public static class LegacyPositionalRandomFactory implements PositionalRandomFactory {
+        private final long seed;
+
+        public LegacyPositionalRandomFactory(long seed) { this.seed = seed; }
+
+        @Override
+        public RandomSource at(int x, int y, int z) {
+            long l = net.minecraft.util.Mth.getSeed(x, y, z);
+            long m = l ^ this.seed;
+            return new LegacyRandomSource(m);
+        }
+
+        @Override
+        public RandomSource fromHashOf(String name) {
+            int i = name.hashCode();
+            return new LegacyRandomSource((long) i ^ this.seed);
+        }
+
+        @Override
+        public RandomSource fromSeed(long seed) { return new LegacyRandomSource(seed); }
+
+        @Override
+        public void parityConfigString(StringBuilder sb) { sb.append("LegacyPositionalRandomFactory{").append(this.seed).append("}"); }
+    }
+
     private static RuntimeException threading() { return new IllegalStateException("Accessing LegacyRandomSource from multiple threads"); }
 }

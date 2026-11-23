@@ -185,4 +185,11 @@ public final class Mth {
     public static float map(float value, float inMin, float inMax, float outMin, float outMax) {
         return lerp(inverseLerp(value, inMin, inMax), outMin, outMax);
     }
+
+    /** 바닐라 Mth#getSeed: 위치로 만든 씨앗(옛 LCG 위치 난수의 바탕). */
+    public static long getSeed(int x, int y, int z) {
+        long l = (long) (x * 3129871) ^ (long) z * 116129781L ^ (long) y;
+        l = l * l * 42317861L + l * 11L;
+        return l >> 16;
+    }
 }

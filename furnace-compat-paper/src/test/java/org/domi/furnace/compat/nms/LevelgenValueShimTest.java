@@ -49,4 +49,28 @@ class LevelgenValueShimTest {
         assertFalse(BelowZeroRetrogen.furnaceCreate(ChunkStatus.SPAWN, Optional.empty()).hasBedrockHoles());
         assertFalse(BelowZeroRetrogen.furnaceCreate(ChunkStatus.SPAWN, Optional.of(new BitSet())).hasBedrockHoles());
     }
+
+    /** 기대값은 Paper 1.21.1 서버 jar 의 같은 호출에서 뽑았다(씨앗 12345·777, 호출 순서 포함). */
+    @Test
+    void positionalRandomMatchesVanillaValues() {
+        var f = new net.minecraft.world.level.levelgen.LegacyRandomSource(12345L).forkPositional();
+        StringBuilder sb = new StringBuilder();
+        f.parityConfigString(sb);
+        assertEquals("LegacyPositionalRandomFactory{6674089274190705457}", sb.toString());
+        var r = f.at(10, 64, -33);
+        assertEquals(39, r.nextInt(100));
+        assertEquals(-880906120772830161L, r.nextLong());
+        assertEquals(0.6009447107729808, r.nextDouble());
+        assertEquals(-1.525278903530697, r.nextGaussian());
+        var h = f.fromHashOf("minecraft:test");
+        assertEquals(712883558, h.nextInt());
+        assertEquals(0.7488483F, h.nextFloat());
+        assertEquals(-5119754439980850796L, f.fromSeed(99L).nextLong());
+        var g = new net.minecraft.world.level.levelgen.SingleThreadedRandomSource(777L).forkPositional();
+        sb = new StringBuilder();
+        g.parityConfigString(sb);
+        assertEquals("LegacyPositionalRandomFactory{-5400676711371204147}", sb.toString());
+        assertEquals(126, g.at(-5, 3, 8).nextInt(1000));
+        assertEquals(60552680979424L, net.minecraft.util.Mth.getSeed(10, 64, -33));
+    }
 }

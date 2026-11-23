@@ -19,13 +19,22 @@ class net.minecraft.world.level.levelgen.MarsagliaPolarGaussian
   <init>(Lnet/minecraft/util/RandomSource;)V -> @hand
   reset -> @hand pure
   nextGaussian -> @hand pure
+class net.minecraft.world.level.levelgen.PositionalRandomFactory
+  at(Lnet/minecraft/core/BlockPos;)Lnet/minecraft/util/RandomSource; -> @hand pure
+  fromHashOf(Lnet/minecraft/resources/ResourceLocation;)Lnet/minecraft/util/RandomSource; -> @hand pure
+  fromHashOf(Ljava/lang/String;)Lnet/minecraft/util/RandomSource;
+  fromSeed
+  at(III)Lnet/minecraft/util/RandomSource;
+  parityConfigString
 class net.minecraft.world.level.levelgen.SingleThreadedRandomSource
+  forkPositional -> @hand pure
   <init>(J)V -> @hand
   fork -> @hand pure
   setSeed -> @hand pure
   next -> @hand pure
   nextGaussian -> @hand pure
 class net.minecraft.world.level.levelgen.LegacyRandomSource
+  forkPositional -> @hand pure
   <init>(J)V -> @hand
   fork -> @hand pure
   setSeed -> @hand pure

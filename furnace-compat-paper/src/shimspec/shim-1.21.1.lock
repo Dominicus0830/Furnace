@@ -937,6 +937,7 @@ C	net/minecraft/world/level/levelgen/FlatLevelSource	33	net/minecraft/world/leve
 C	net/minecraft/world/level/levelgen/LegacyRandomSource	33	java/lang/Object	net/minecraft/world/level/levelgen/BitRandomSource	-	-	paper-server-1.21.1
 M	net/minecraft/world/level/levelgen/LegacyRandomSource	<init>	(J)V	1	-
 M	net/minecraft/world/level/levelgen/LegacyRandomSource	fork	()Lnet/minecraft/util/RandomSource;	1	-
+M	net/minecraft/world/level/levelgen/LegacyRandomSource	forkPositional	()Lnet/minecraft/world/level/levelgen/PositionalRandomFactory;	1	-
 M	net/minecraft/world/level/levelgen/LegacyRandomSource	next	(I)I	1	-
 M	net/minecraft/world/level/levelgen/LegacyRandomSource	nextGaussian	()D	1	-
 M	net/minecraft/world/level/levelgen/LegacyRandomSource	setSeed	(J)V	1	-
@@ -945,6 +946,13 @@ M	net/minecraft/world/level/levelgen/MarsagliaPolarGaussian	<init>	(Lnet/minecra
 M	net/minecraft/world/level/levelgen/MarsagliaPolarGaussian	nextGaussian	()D	1	-
 M	net/minecraft/world/level/levelgen/MarsagliaPolarGaussian	reset	()V	1	-
 C	net/minecraft/world/level/levelgen/NoiseBasedChunkGenerator	49	net/minecraft/world/level/chunk/ChunkGenerator	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/levelgen/PositionalRandomFactory	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/level/levelgen/PositionalRandomFactory	at	(III)Lnet/minecraft/util/RandomSource;	1025	-
+M	net/minecraft/world/level/levelgen/PositionalRandomFactory	at	(Lnet/minecraft/core/BlockPos;)Lnet/minecraft/util/RandomSource;	1	-
+M	net/minecraft/world/level/levelgen/PositionalRandomFactory	fromHashOf	(Ljava/lang/String;)Lnet/minecraft/util/RandomSource;	1025	-
+M	net/minecraft/world/level/levelgen/PositionalRandomFactory	fromHashOf	(Lnet/minecraft/resources/ResourceLocation;)Lnet/minecraft/util/RandomSource;	1	-
+M	net/minecraft/world/level/levelgen/PositionalRandomFactory	fromSeed	(J)Lnet/minecraft/util/RandomSource;	1025	-
+M	net/minecraft/world/level/levelgen/PositionalRandomFactory	parityConfigString	(Ljava/lang/StringBuilder;)V	1025	-
 C	net/minecraft/world/level/levelgen/RandomState	49	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/levelgen/RandomSupport	49	java/lang/Object	-	-	-	paper-server-1.21.1
 F	net/minecraft/world/level/levelgen/RandomSupport	GOLDEN_RATIO_64	J	25	-
@@ -954,6 +962,7 @@ M	net/minecraft/world/level/levelgen/RandomSupport	mixStafford13	(J)J	9	-
 C	net/minecraft/world/level/levelgen/SingleThreadedRandomSource	33	java/lang/Object	net/minecraft/world/level/levelgen/BitRandomSource	-	-	paper-server-1.21.1
 M	net/minecraft/world/level/levelgen/SingleThreadedRandomSource	<init>	(J)V	1	-
 M	net/minecraft/world/level/levelgen/SingleThreadedRandomSource	fork	()Lnet/minecraft/util/RandomSource;	1	-
+M	net/minecraft/world/level/levelgen/SingleThreadedRandomSource	forkPositional	()Lnet/minecraft/world/level/levelgen/PositionalRandomFactory;	1	-
 M	net/minecraft/world/level/levelgen/SingleThreadedRandomSource	next	(I)I	1	-
 M	net/minecraft/world/level/levelgen/SingleThreadedRandomSource	nextGaussian	()D	1	-
 M	net/minecraft/world/level/levelgen/SingleThreadedRandomSource	setSeed	(J)V	1	-

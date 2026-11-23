@@ -31,4 +31,7 @@ class SingleThreadedRandomSource {
 
     @Override
     public double nextGaussian() { return gaussianSource.nextGaussian(); }
+
+    @Override
+    public PositionalRandomFactory forkPositional() { return new LegacyRandomSource.LegacyPositionalRandomFactory(nextLong()); }
 }
