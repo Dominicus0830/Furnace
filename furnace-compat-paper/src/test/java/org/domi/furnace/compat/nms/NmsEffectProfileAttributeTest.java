@@ -340,6 +340,7 @@ class NmsEffectProfileAttributeTest {
 
         // 아래는 이 시험이 쓰지 않는다
         @Override public net.minecraft.util.RandomSource fork() { throw new UnsupportedOperationException(); }
+        @Override public net.minecraft.world.level.levelgen.PositionalRandomFactory forkPositional() { throw new UnsupportedOperationException(); }
         @Override public void setSeed(long seed) { throw new UnsupportedOperationException(); }
         @Override public int nextInt() { throw new UnsupportedOperationException(); }
         @Override public long nextLong() { throw new UnsupportedOperationException(); }

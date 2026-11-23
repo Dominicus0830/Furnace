@@ -142,7 +142,7 @@ class FullShellsLoadTest {
         try (URLClassLoader cl = new URLClassLoader(urls.toArray(URL[]::new), ClassLoader.getPlatformClassLoader())) {
             var res = cl.getResourceAsStream("entity_data/ids-1.21.1.txt");
             assertTrue(res != null, "entity data id table missing from the loader");
-            // shim 에 값 종류 상수가 없는 칸(JOML 값 — VECTOR3·QUATERNION)은 생성기가 채우지 않는다(초기화가 실패하지 않게) — 견주지 않는다
+            // shim 에 값 종류 상수가 없는 칸은 생성기가 채우지 않는다(초기화가 실패하지 않게) — 견주지 않는다
             java.util.Set<String> kinds = new java.util.HashSet<>();
             for (java.lang.reflect.Field f : Class.forName("net.minecraft.network.syncher.EntityDataSerializers", true, cl).getDeclaredFields()) {
                 // 합친 껍데기 필드(값 없음)는 상수가 아니다
@@ -157,8 +157,8 @@ class FullShellsLoadTest {
                 else unsupported++;
             }
             System.out.println("[full-shells] entity data slots with a value kind the shim lacks (left empty): " + unsupported);
-            // 지금 비는 칸은 JOML 값(VECTOR3·QUATERNION) 4칸뿐 — 값 종류를 더하거나 빼면 이 숫자를 함께 고친다(검토 권장)
-            assertEquals(4, unsupported, "entity data slots left empty because the shim lacks their value kind");
+            // JOML 값(VECTOR3·QUATERNION)이 들어와 지금은 비는 칸이 없다 — 값 종류를 빼면 이 숫자를 함께 고친다(검토 권장)
+            assertEquals(0, unsupported, "entity data slots left empty because the shim lacks their value kind");
             Class<?> accessor = Class.forName("net.minecraft.network.syncher.EntityDataAccessor", false, cl);
             java.lang.reflect.Method id = accessor.getMethod("id");
             for (String n : merged) {

@@ -67,7 +67,7 @@
 - 서버마다 한 번 만든다(데이터 팩 레지스트리는 시작 때 고정). 남은 값 종류: 입자, optional_global_pos, vector3·quaternion.
 
 ## D3 칸 필드 채우기·관용구 (11-24)
-- 엔티티 클래스는 거의 전부 손 shim(entity.spec 생성 포함)이라 숨은 칸 필드는 껍데기 생성기(FullShells)가 아니라 합치기(ShellMerge)가 더한다. 실측: 껍데기 0, 손 shim 에 합친 칸 154. 공개 칸 49(PR 575 명세)와 합쳐 207칸 가운데 203칸이 값을 갖고, JOML 값(VECTOR3·QUATERNION) 4칸만 비어 있다.
+- 엔티티 클래스는 거의 전부 손 shim(entity.spec 생성 포함)이라 숨은 칸 필드는 껍데기 생성기(FullShells)가 아니라 합치기(ShellMerge)가 더한다. 실측: 껍데기 0, 손 shim 에 합친 칸 154. 공개 칸 49(PR 575 명세)와 합쳐 207칸 가운데 203칸이 값을 갖고, JOML 값(VECTOR3·QUATERNION) 4칸만 비어 있다. → JOML 이 서버 jar 에 실린 뒤(PR 597) shim 에 VECTOR3·QUATERNION(바닐라처럼 값 복사 없음)과 다리 변환을 더해 207칸 모두 채운다.
 - 손 shim 에 정적 초기화가 있으면 그 맨 앞에 곧은 코드(스택 2, 지역 없음)를 끼운다. 프레임은 그대로 맞고 최대 스택만 2 이상으로 올린다. 없으면 새로 만든다.
 - 함정: shim 값 종류 상수가 없는 칸까지 채우면 `accessor` 가 던져 그 클래스 전체가 죽는다(필드 하나가 클래스를 죽인다 — README T-262 규칙). 생성기는 원래 호환 jar 의 `EntityDataSerializers` 필드로 판단한다. 껍데기 jar 의 `EntityDataSerializers` 에는 합친 빈 필드(VECTOR3 등)가 있어 이름만 보면 속는다 — 시험은 값이 null 아닌 상수만 센다.
 - 덤: `fullShellsTest` 로더에 칸 번호표를 얹자 "손 shim 자기 정적 초기화가 서버 필요" 가 183 → 15 로 줄었다. 앞의 168개는 서버가 아니라 칸 번호표가 없어 공개 칸 필드(PR 575) 초기화가 실패하던 것이었다.

@@ -3,7 +3,7 @@ package net.minecraft.world.level.levelgen;
 import net.minecraft.util.RandomSource;
 
 /** 한 스레드용 옛 LCG 난수원(Mojang 이름 shim, N2b-6) — 바닐라 1.21.1 그대로(검사 없는 {@link LegacyRandomSource}). */
-public class SingleThreadedRandomSource implements BitRandomSource {
+class SingleThreadedRandomSource {
 
     private static final long MODULUS_MASK = 281474976710655L;
     private static final long MULTIPLIER = 25214903917L;
@@ -31,4 +31,7 @@ public class SingleThreadedRandomSource implements BitRandomSource {
 
     @Override
     public double nextGaussian() { return gaussianSource.nextGaussian(); }
+
+    @Override
+    public PositionalRandomFactory forkPositional() { return new LegacyRandomSource.LegacyPositionalRandomFactory(nextLong()); }
 }

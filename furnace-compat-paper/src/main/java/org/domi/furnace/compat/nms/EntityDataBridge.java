@@ -22,7 +22,7 @@ import net.minecraft.network.syncher.SynchedEntityData;
  * {@link UnsupportedNmsCall} 로 거절한다(일부 칸만 버리면 클라이언트가 보는 엔티티 모양이 Paper 와 달라진다).
  *
  * <p>아직 못 하는 종류: particle·particles(입자 shim 이 빈 껍데기),
- * optional_global_pos, vector3·quaternion(shim 직렬화 상수가 없다 — JOML 이 이 로더에 없다).
+ * optional_global_pos. vector3·quaternion 은 JOML 값(서버 라이브러리 묶음)과 Furnace 불변 레코드 사이를 성분 그대로 옮긴다.
  */
 final class EntityDataBridge {
 
@@ -96,6 +96,8 @@ final class EntityDataBridge {
             case "frog_variant" -> NmsVariants.name(NmsVariants.frogs(), cast(v), at);
             case "wolf_variant" -> NmsVariants.name(NmsVariants.wolves(), cast(v), at);
             case "painting_variant" -> NmsVariants.name(NmsVariants.paintings(), cast(v), at);
+            case "vector3" -> { org.joml.Vector3f f = (org.joml.Vector3f) v; yield new org.domi.furnace.api.math.Vector3f(f.x, f.y, f.z); }
+            case "quaternion" -> { org.joml.Quaternionf q = (org.joml.Quaternionf) v; yield new org.domi.furnace.api.math.Quaternionf(q.x, q.y, q.z, q.w); }
             default -> throw new UnsupportedNmsCall("set_entity_data(" + name + ")", "this metadata value kind cannot be converted from the shim to Furnace yet");
         };
     }
@@ -146,6 +148,8 @@ final class EntityDataBridge {
             case "frog_variant" -> NmsVariants.holder(NmsVariants.frogs(), (String) v, at);
             case "wolf_variant" -> NmsVariants.holder(NmsVariants.wolves(), (String) v, at);
             case "painting_variant" -> NmsVariants.holder(NmsVariants.paintings(), (String) v, at);
+            case "vector3" -> { org.domi.furnace.api.math.Vector3f f = (org.domi.furnace.api.math.Vector3f) v; yield new org.joml.Vector3f(f.x(), f.y(), f.z()); }
+            case "quaternion" -> { org.domi.furnace.api.math.Quaternionf q = (org.domi.furnace.api.math.Quaternionf) v; yield new org.joml.Quaternionf(q.x(), q.y(), q.z(), q.w()); }
             default -> throw new UnsupportedNmsCall("fromFurnace(set_entity_data." + name + ")", "this metadata value kind cannot be converted back to the shim yet");
         };
     }
@@ -184,7 +188,8 @@ final class EntityDataBridge {
     /** 두 방향 모두 되는 값 종류 이름. */
     private static final java.util.Set<String> BRIDGED = java.util.Set.of("byte", "int", "long", "float", "string", "boolean", "optional_uuid", "optional_unsigned_int", "component", "optional_component",
                 "item_stack", "rotations", "block_pos", "optional_block_pos", "direction", "block_state", "optional_block_state", "compound_tag", "pose",
-                "sniffer_state", "armadillo_state", "villager_data", "cat_variant", "frog_variant", "wolf_variant", "painting_variant");
+                "sniffer_state", "armadillo_state", "villager_data", "cat_variant", "frog_variant", "wolf_variant", "painting_variant",
+                "vector3", "quaternion");
 
     /** 시험용: 두 방향 모두 되는 값 종류 이름. */
     static List<String> bridgedTypes() { return List.copyOf(new java.util.TreeSet<>(BRIDGED)); }

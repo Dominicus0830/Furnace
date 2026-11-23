@@ -49,6 +49,7 @@ C	net/minecraft/tags/TagKey	65585	java/lang/Record	-	<T:Ljava/lang/Object;>Ljava
 R	net/minecraft/tags/TagKey	registry	Lnet/minecraft/resources/ResourceKey;	Lnet/minecraft/resources/ResourceKey<+Lnet/minecraft/core/Registry<TT;>;>;
 R	net/minecraft/tags/TagKey	location	Lnet/minecraft/resources/ResourceLocation;	-
 X	net/minecraft/tags/TagKey	toString
+C	net/minecraft/util/RandomSource	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/util/StringRepresentable	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/Clearable	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/Container	1537	java/lang/Object	net/minecraft/world/Clearable	-	-	paper-server-1.21.1
@@ -1002,6 +1003,7 @@ C	net/minecraft/world/level/block/piston/MovingPistonBlock	33	net/minecraft/worl
 C	net/minecraft/world/level/block/piston/PistonBaseBlock	33	net/minecraft/world/level/block/DirectionalBlock	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/piston/PistonHeadBlock	33	net/minecraft/world/level/block/DirectionalBlock	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/state/BlockBehaviour	1057	java/lang/Object	net/minecraft/world/flag/FeatureElement	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/chunk/ChunkGenerator	1057	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/chunk/storage/RegionStorageInfo	65585	java/lang/Record	-	-	-	paper-server-1.21.1
 R	net/minecraft/world/level/chunk/storage/RegionStorageInfo	level	Ljava/lang/String;	-
 R	net/minecraft/world/level/chunk/storage/RegionStorageInfo	dimension	Lnet/minecraft/resources/ResourceKey;	Lnet/minecraft/resources/ResourceKey<Lnet/minecraft/world/level/Level;>;
@@ -1011,6 +1013,65 @@ R	net/minecraft/world/level/dimension/LevelStem	type	Lnet/minecraft/core/Holder;
 R	net/minecraft/world/level/dimension/LevelStem	generator	Lnet/minecraft/world/level/chunk/ChunkGenerator;	-
 C	net/minecraft/world/level/entity/EntityAccess	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/gameevent/vibrations/VibrationSystem	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/levelgen/BelowZeroRetrogen	49	java/lang/Object	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/level/levelgen/BelowZeroRetrogen	hasBedrockHole	(II)Z	1	-
+M	net/minecraft/world/level/levelgen/BelowZeroRetrogen	hasBedrockHoles	()Z	1	-
+M	net/minecraft/world/level/levelgen/BelowZeroRetrogen	targetStatus	()Lnet/minecraft/world/level/chunk/status/ChunkStatus;	1	-
+C	net/minecraft/world/level/levelgen/BitRandomSource	1537	java/lang/Object	net/minecraft/util/RandomSource	-	-	paper-server-1.21.1
+F	net/minecraft/world/level/levelgen/BitRandomSource	DOUBLE_MULTIPLIER	D	25	-
+F	net/minecraft/world/level/levelgen/BitRandomSource	FLOAT_MULTIPLIER	F	25	-
+M	net/minecraft/world/level/levelgen/BitRandomSource	next	(I)I	1025	-
+M	net/minecraft/world/level/levelgen/BitRandomSource	nextBoolean	()Z	1	-
+M	net/minecraft/world/level/levelgen/BitRandomSource	nextDouble	()D	1	-
+M	net/minecraft/world/level/levelgen/BitRandomSource	nextFloat	()F	1	-
+M	net/minecraft/world/level/levelgen/BitRandomSource	nextInt	()I	1	-
+M	net/minecraft/world/level/levelgen/BitRandomSource	nextInt	(I)I	1	-
+M	net/minecraft/world/level/levelgen/BitRandomSource	nextLong	()J	1	-
+C	net/minecraft/world/level/levelgen/DebugLevelSource	33	net/minecraft/world/level/chunk/ChunkGenerator	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/levelgen/FlatLevelSource	33	net/minecraft/world/level/chunk/ChunkGenerator	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/levelgen/LegacyRandomSource	33	java/lang/Object	net/minecraft/world/level/levelgen/BitRandomSource	-	-	paper-server-1.21.1
+M	net/minecraft/world/level/levelgen/LegacyRandomSource	<init>	(J)V	1	-
+M	net/minecraft/world/level/levelgen/LegacyRandomSource	fork	()Lnet/minecraft/util/RandomSource;	1	-
+M	net/minecraft/world/level/levelgen/LegacyRandomSource	forkPositional	()Lnet/minecraft/world/level/levelgen/PositionalRandomFactory;	1	-
+M	net/minecraft/world/level/levelgen/LegacyRandomSource	next	(I)I	1	-
+M	net/minecraft/world/level/levelgen/LegacyRandomSource	nextGaussian	()D	1	-
+M	net/minecraft/world/level/levelgen/LegacyRandomSource	setSeed	(J)V	1	-
+C	net/minecraft/world/level/levelgen/MarsagliaPolarGaussian	33	java/lang/Object	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/level/levelgen/MarsagliaPolarGaussian	<init>	(Lnet/minecraft/util/RandomSource;)V	1	-
+M	net/minecraft/world/level/levelgen/MarsagliaPolarGaussian	nextGaussian	()D	1	-
+M	net/minecraft/world/level/levelgen/MarsagliaPolarGaussian	reset	()V	1	-
+C	net/minecraft/world/level/levelgen/NoiseBasedChunkGenerator	49	net/minecraft/world/level/chunk/ChunkGenerator	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/levelgen/PositionalRandomFactory	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/level/levelgen/PositionalRandomFactory	at	(III)Lnet/minecraft/util/RandomSource;	1025	-
+M	net/minecraft/world/level/levelgen/PositionalRandomFactory	at	(Lnet/minecraft/core/BlockPos;)Lnet/minecraft/util/RandomSource;	1	-
+M	net/minecraft/world/level/levelgen/PositionalRandomFactory	fromHashOf	(Ljava/lang/String;)Lnet/minecraft/util/RandomSource;	1025	-
+M	net/minecraft/world/level/levelgen/PositionalRandomFactory	fromHashOf	(Lnet/minecraft/resources/ResourceLocation;)Lnet/minecraft/util/RandomSource;	1	-
+M	net/minecraft/world/level/levelgen/PositionalRandomFactory	fromSeed	(J)Lnet/minecraft/util/RandomSource;	1025	-
+M	net/minecraft/world/level/levelgen/PositionalRandomFactory	parityConfigString	(Ljava/lang/StringBuilder;)V	1025	-
+C	net/minecraft/world/level/levelgen/RandomState	49	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/levelgen/RandomSupport	49	java/lang/Object	-	-	-	paper-server-1.21.1
+F	net/minecraft/world/level/levelgen/RandomSupport	GOLDEN_RATIO_64	J	25	-
+F	net/minecraft/world/level/levelgen/RandomSupport	SILVER_RATIO_64	J	25	-
+M	net/minecraft/world/level/levelgen/RandomSupport	mixStafford13	(J)J	9	-
+C	net/minecraft/world/level/levelgen/SingleThreadedRandomSource	33	java/lang/Object	net/minecraft/world/level/levelgen/BitRandomSource	-	-	paper-server-1.21.1
+M	net/minecraft/world/level/levelgen/SingleThreadedRandomSource	<init>	(J)V	1	-
+M	net/minecraft/world/level/levelgen/SingleThreadedRandomSource	fork	()Lnet/minecraft/util/RandomSource;	1	-
+M	net/minecraft/world/level/levelgen/SingleThreadedRandomSource	forkPositional	()Lnet/minecraft/world/level/levelgen/PositionalRandomFactory;	1	-
+M	net/minecraft/world/level/levelgen/SingleThreadedRandomSource	next	(I)I	1	-
+M	net/minecraft/world/level/levelgen/SingleThreadedRandomSource	nextGaussian	()D	1	-
+M	net/minecraft/world/level/levelgen/SingleThreadedRandomSource	setSeed	(J)V	1	-
+C	net/minecraft/world/level/levelgen/WorldOptions	33	java/lang/Object	-	-	-	paper-server-1.21.1
+F	net/minecraft/world/level/levelgen/WorldOptions	DEMO_OPTIONS	Lnet/minecraft/world/level/levelgen/WorldOptions;	25	-
+M	net/minecraft/world/level/levelgen/WorldOptions	<init>	(JZZ)V	1	-
+M	net/minecraft/world/level/levelgen/WorldOptions	defaultWithRandomSeed	()Lnet/minecraft/world/level/levelgen/WorldOptions;	9	-
+M	net/minecraft/world/level/levelgen/WorldOptions	generateBonusChest	()Z	1	-
+M	net/minecraft/world/level/levelgen/WorldOptions	generateStructures	()Z	1	-
+M	net/minecraft/world/level/levelgen/WorldOptions	isOldCustomizedWorld	()Z	1	-
+M	net/minecraft/world/level/levelgen/WorldOptions	parseSeed	(Ljava/lang/String;)Ljava/util/OptionalLong;	9	-
+M	net/minecraft/world/level/levelgen/WorldOptions	seed	()J	1	-
+M	net/minecraft/world/level/levelgen/WorldOptions	withBonusChest	(Z)Lnet/minecraft/world/level/levelgen/WorldOptions;	1	-
+M	net/minecraft/world/level/levelgen/WorldOptions	withSeed	(Ljava/util/OptionalLong;)Lnet/minecraft/world/level/levelgen/WorldOptions;	1	-
+M	net/minecraft/world/level/levelgen/WorldOptions	withStructures	(Z)Lnet/minecraft/world/level/levelgen/WorldOptions;	1	-
 C	net/minecraft/world/level/levelgen/feature/CoralClawFeature	33	net/minecraft/world/level/levelgen/feature/CoralFeature	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/levelgen/feature/CoralFeature	1057	net/minecraft/world/level/levelgen/feature/Feature	-	Lnet/minecraft/world/level/levelgen/feature/Feature<Lnet/minecraft/world/level/levelgen/feature/configurations/NoneFeatureConfiguration;>;	-	paper-server-1.21.1
 C	net/minecraft/world/level/levelgen/feature/CoralMushroomFeature	33	net/minecraft/world/level/levelgen/feature/CoralFeature	-	-	-	paper-server-1.21.1
@@ -1022,6 +1083,41 @@ C	net/minecraft/world/level/levelgen/feature/configurations/NoneFeatureConfigura
 F	net/minecraft/world/level/levelgen/feature/configurations/NoneFeatureConfiguration	INSTANCE	Lnet/minecraft/world/level/levelgen/feature/configurations/NoneFeatureConfiguration;	25	-
 M	net/minecraft/world/level/levelgen/feature/configurations/NoneFeatureConfiguration	<init>	()V	1	-
 C	net/minecraft/world/level/levelgen/feature/configurations/TreeConfiguration	33	java/lang/Object	net/minecraft/world/level/levelgen/feature/configurations/FeatureConfiguration	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/levelgen/structure/BoundingBox	33	java/lang/Object	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	<init>	(IIIIII)V	1	-
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	<init>	(Lnet/minecraft/core/BlockPos;)V	1	-
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	encapsulate	(Lnet/minecraft/core/BlockPos;)Lnet/minecraft/world/level/levelgen/structure/BoundingBox;	131073	-
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	encapsulate	(Lnet/minecraft/world/level/levelgen/structure/BoundingBox;)Lnet/minecraft/world/level/levelgen/structure/BoundingBox;	131073	-
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	encapsulatingBoxes	(Ljava/lang/Iterable;)Ljava/util/Optional;	9	(Ljava/lang/Iterable<Lnet/minecraft/world/level/levelgen/structure/BoundingBox;>;)Ljava/util/Optional<Lnet/minecraft/world/level/levelgen/structure/BoundingBox;>;
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	encapsulatingPositions	(Ljava/lang/Iterable;)Ljava/util/Optional;	9	(Ljava/lang/Iterable<Lnet/minecraft/core/BlockPos;>;)Ljava/util/Optional<Lnet/minecraft/world/level/levelgen/structure/BoundingBox;>;
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	equals	(Ljava/lang/Object;)Z	1	-
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	forAllCorners	(Ljava/util/function/Consumer;)V	1	(Ljava/util/function/Consumer<Lnet/minecraft/core/BlockPos;>;)V
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	fromCorners	(Lnet/minecraft/core/Vec3i;Lnet/minecraft/core/Vec3i;)Lnet/minecraft/world/level/levelgen/structure/BoundingBox;	9	-
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	getCenter	()Lnet/minecraft/core/BlockPos;	1	-
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	getLength	()Lnet/minecraft/core/Vec3i;	1	-
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	getXSpan	()I	1	-
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	getYSpan	()I	1	-
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	getZSpan	()I	1	-
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	hashCode	()I	1	-
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	infinite	()Lnet/minecraft/world/level/levelgen/structure/BoundingBox;	9	-
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	inflatedBy	(I)Lnet/minecraft/world/level/levelgen/structure/BoundingBox;	1	-
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	inflatedBy	(III)Lnet/minecraft/world/level/levelgen/structure/BoundingBox;	1	-
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	intersectingChunks	()Ljava/util/stream/Stream;	1	()Ljava/util/stream/Stream<Lnet/minecraft/world/level/ChunkPos;>;
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	intersects	(IIII)Z	1	-
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	intersects	(Lnet/minecraft/world/level/levelgen/structure/BoundingBox;)Z	1	-
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	isInside	(III)Z	1	-
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	isInside	(Lnet/minecraft/core/Vec3i;)Z	1	-
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	maxX	()I	1	-
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	maxY	()I	1	-
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	maxZ	()I	1	-
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	minX	()I	1	-
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	minY	()I	1	-
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	minZ	()I	1	-
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	move	(III)Lnet/minecraft/world/level/levelgen/structure/BoundingBox;	131073	-
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	move	(Lnet/minecraft/core/Vec3i;)Lnet/minecraft/world/level/levelgen/structure/BoundingBox;	131073	-
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	moved	(III)Lnet/minecraft/world/level/levelgen/structure/BoundingBox;	1	-
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	orientBox	(IIIIIIIIILnet/minecraft/core/Direction;)Lnet/minecraft/world/level/levelgen/structure/BoundingBox;	9	-
+M	net/minecraft/world/level/levelgen/structure/BoundingBox	toString	()Ljava/lang/String;	1	-
 C	net/minecraft/world/level/saveddata/maps/MapDecoration	65585	java/lang/Record	-	-	-	paper-server-1.21.1
 R	net/minecraft/world/level/saveddata/maps/MapDecoration	type	Lnet/minecraft/core/Holder;	Lnet/minecraft/core/Holder<Lnet/minecraft/world/level/saveddata/maps/MapDecorationType;>;
 R	net/minecraft/world/level/saveddata/maps/MapDecoration	x	B	-

@@ -3,7 +3,7 @@ package net.minecraft.world.level.levelgen;
 import net.minecraft.util.RandomSource;
 
 /** 정규 분포 값(Mojang 이름 shim, N2b-6) — 바닐라 1.21.1 의 마르살리아 극좌표법 그대로(java.util.Random#nextGaussian 과 같은 식). */
-public class MarsagliaPolarGaussian {
+class MarsagliaPolarGaussian {
 
     public final RandomSource randomSource;
     private double nextNextGaussian;
