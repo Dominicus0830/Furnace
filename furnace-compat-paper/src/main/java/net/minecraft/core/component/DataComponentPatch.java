@@ -45,6 +45,35 @@ public final class DataComponentPatch {
     /** 호환 모듈 전용: 지운 종류. */
     public Set<String> furnaceRemoved() { return removed; }
 
+    /**
+     * 바닐라 entrySet(): (종류, 값 또는 지움=empty) 짝. 값 변환이 있는 종류는 NMS 값, 나머지는 {@link org.domi.furnace.compat.nms.RawComponentValue}
+     * (저장 꼴 SNBT) — 값은 {@code type.streamCodec()} 으로 쓰고 읽는다. 바닐라 패치는 넣은 순서지만 여기는 값이 있는 것 다음 지운 것 순서다
+     * (위 "알려진 차이").
+     */
+    public Set<Map.Entry<DataComponentType<?>, java.util.Optional<?>>> entrySet() {
+        java.util.LinkedHashSet<Map.Entry<DataComponentType<?>, java.util.Optional<?>>> out = new java.util.LinkedHashSet<>();
+        for (var e : set.entrySet()) {
+            DataComponentType<?> t = knownType(e.getKey());
+            if (t == null) continue;
+            Object v = t instanceof DataComponents.Type<?, ?> k ? k.fromSnbt(e.getValue()) : new org.domi.furnace.compat.nms.RawComponentValue(e.getValue());
+            out.add(new java.util.AbstractMap.SimpleImmutableEntry<>(t, java.util.Optional.of(v)));
+        }
+        for (String key : removed) {
+            DataComponentType<?> t = knownType(key);
+            if (t != null) out.add(new java.util.AbstractMap.SimpleImmutableEntry<>(t, java.util.Optional.empty()));
+        }
+        return java.util.Collections.unmodifiableSet(out);
+    }
+
+    /** 서버 레지스트리에 없는 키(바닐라 패치에는 있을 수 없는 항목)는 null — entrySet 이 건너뛴다. */
+    private static DataComponentType<?> knownType(String key) {
+        try {
+            return DataComponents.furnaceType(key);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
     public boolean isEmpty() { return set.isEmpty() && removed.isEmpty(); }
 
     public int size() { return set.size() + removed.size(); }
