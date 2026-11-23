@@ -91,10 +91,10 @@ public class Warden extends Monster implements VibrationSystem {
 
     public boolean isDiggingOrEmerging() { return getPose() == POSE_DIGGING || getPose() == POSE_EMERGING; }
 
-    /** 파고들기·나오기 동안 몸 높이 1(EntityDimensions.scalable(폭, 1)). */
+    /** Warden.getDefaultDimensions: 파고들기·나오기 동안 몸 높이 1(EntityDimensions.scalable(폭, 1)). 자세 칸이 바뀌면 Entity 훅이 부른다. */
     @Override
-    public void setPose(int pose) {
-        super.setPose(pose);
+    protected void refreshDimensions() {
+        int pose = getPose();
         boolean low = pose == POSE_DIGGING || pose == POSE_EMERGING;
         float h = low ? 1.0F : EntityType.WARDEN.height();
         setDimensions(EntityType.WARDEN.width(), h, h * 0.85F);

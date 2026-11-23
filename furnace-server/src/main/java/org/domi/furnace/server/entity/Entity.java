@@ -184,6 +184,12 @@ public abstract non-sealed class Entity implements Rider {
         if (index == DATA_POSE) refreshDimensions();
     }
 
+    /**
+     * 바닐라 Entity.load 의 회전 읽기 직후 setYHeadRot(yRot)·setYBodyRot(yRot) 자리(readAdditionalSaveData 전).
+     * 살아 있는 엔티티만 머리·몸 방향이 있다. 저장 읽기 중 크기 칸 훅(Slime)이 머리 방향을 쓰므로 이 차례여야 한다.
+     */
+    protected void syncLoadedRotation() {}
+
     /** 바닐라 refreshDimensions 자리. 기본은 아무것도 안 한다(크기가 상태에 따라 바뀌는 종류만 재정의). */
     protected void refreshDimensions() {}
 
@@ -2057,6 +2063,7 @@ public abstract non-sealed class Entity implements Rider {
         setXRot(xr);
         yRotO = yRot;
         xRotO = xRot;
+        syncLoadedRotation();
         fallDistance = tag.getFloat("FallDistance");
         remainingFireTicks = tag.getShort("Fire");
         if (tag.contains("Air")) entityData.set(DATA_AIR_SUPPLY, (int) tag.getShort("Air"));
