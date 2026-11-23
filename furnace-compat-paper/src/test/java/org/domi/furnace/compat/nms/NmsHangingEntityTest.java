@@ -136,6 +136,15 @@ class NmsHangingEntityTest {
     }
 
     @Test
+    void unknownItemIdCountsAsEmptyLikeVanilla() {
+        ItemFrame f = (ItemFrame) EntityType.byString("item_frame").orElseThrow().create(level);
+        CompoundTag tag = frameTag(at.x(), 3, true);
+        tag.getCompound("Item").putString("id", "minecraft:no_such_item");
+        f.load(tag);
+        assertEquals(0, f.getRotation(), "바닐라 ItemStack.parse 가 모르는 id 를 빈 스택으로 — ItemRotation 을 읽지 않는다");
+    }
+
+    @Test
     void paintingReadsItsTwoDimensionalFacing() {
         HangingEntity p = (HangingEntity) EntityType.byString("painting").orElseThrow().create(level);
         CompoundTag tag = frameTag(at.x(), 0, false);

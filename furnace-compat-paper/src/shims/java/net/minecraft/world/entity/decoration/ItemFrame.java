@@ -40,7 +40,8 @@ class ItemFrame {
 
     /**
      * 바닐라 ItemFrame#readAdditionalSaveData: 아이템이 있으면 "ItemRotation" 으로 돌림(이웃 갱신 없이), 그다음 "Facing"(3D 값)으로 setDirection.
-     * 아이템이 비었는지는 태그 모양으로 본다 — 가정: id 가 있고 공기가 아니며 count 가 1~99(또는 없음)면 비지 않았다(모르는 id 는 바닐라에선 빈 스택이다).
+     * 아이템이 비었는지는 바닐라 ItemStack.parse 의 앞 규칙으로 본다: 아이템 레지스트리에 있는 id 이고 공기가 아니며 count 가 1~99(또는 없음).
+     * 가정: components 가 잘못된 태그(바닐라는 파싱 실패 → 빈 스택)는 비지 않았다고 본다 — 넣은 뒤에는 서버 값이 정답이다.
      */
     @Override
     protected void furnaceDetachedLoaded(CompoundTag tag) {
@@ -52,7 +53,9 @@ class ItemFrame {
         if (!tag.contains("Item", 10)) return false;
         CompoundTag item = tag.getCompound("Item");
         String id = item.getString("id");
-        if (id.isEmpty() || id.equals("minecraft:air") || id.equals("air")) return false;
+        net.minecraft.resources.ResourceLocation key = net.minecraft.resources.ResourceLocation.tryParse(id);
+        if (key == null || key.equals(net.minecraft.resources.ResourceLocation.withDefaultNamespace("air"))
+                || !net.minecraft.core.registries.BuiltInRegistries.ITEM.containsKey(key)) return false;
         if (!item.contains("count", 99)) return true;
         int count = item.getInt("count");
         return count >= 1 && count <= 99;
