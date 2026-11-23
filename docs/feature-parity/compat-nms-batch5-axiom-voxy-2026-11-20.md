@@ -408,3 +408,11 @@ Paper 와 다른 점은 `docs/user-todo/entries/2026-11-20-axiom-5e3c2.md`.
 5a~5c 시간: 묶음별 시간을 더하면 33분이지만 5b 와 5c 가 2분 겹쳐 실제 손 시간은 약 31분이다. 여기에 5a 검토 고침 5분을 더하면 첫 명령 20:13:53 부터
 5c 문서 커밋 20:48:21 까지 약 34.5분과 맞는다.
 
+## 5e-3b 후속 — 검토 권고 4개 (2026-11-23)
+
+- **UUID 겹침 검사**: `ServerLevel.tryAddFreshEntityWithPassengers` 의 사전 검사가 `getEntity(UUID)`(다른 구역이면 예외) 대신 월드 전체 UUID 색인(`World.entityIdByUuid` — 어느 스레드나, 기다림 없이)을 본다.
+- **거절 이유 구분**: 다리 `addNmsEntityWithPassengersNow` 가 `NmsGroupAdd(핸들 목록, GroupResult)` 를 돌려준다(`NOT_LOADED`·`ADDED`·`UUID_TAKEN`·`CANCELLED`). 서버 `ChunkLevel.addFreshEntityGroupResult` 가 겹침과 이벤트 취소를 나눈다. 외톨이 엔티티 길(`NmsEntityAdd.uuidTaken`)도 같다. `tryAdd…` 는 UUID 겹침만 거짓, 이벤트 취소는 Paper 처럼 참.
+- **먼 승객**: 넣기 전에 뿌리에서 `reapplyPosition()` 으로 승객을 탈것 자리에 놓는다(바닐라 첫 틱 `positionRider` 와 같은 결과).
+- **`NbtIo` 파일판**: 바닐라 바이트코드(javap)로 열기 옵션(SYNC·WRITE·CREATE·TRUNCATE_EXISTING)과 `read(Path)` 의 없는 파일 null 을 확인해 구현.
+- 시험: `NmsEntityPassengersTest` +3(다른 구역 UUID, 검사 뒤 겹침, 먼 승객), `NmsNbtIoTest` +1(파일 왕복·없는 파일·덮어쓰기). 결정 기록 `docs/user-todo/entries/2026-11-23-nms-5e3b-followups.md`.
+

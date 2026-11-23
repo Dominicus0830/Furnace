@@ -2850,18 +2850,21 @@ public abstract class ChunkLevel implements BlockLevel {
     protected boolean uuidTakenElsewhere(Entity e) { return false; }
 
     /** tryAddFreshEntityWithPassengers: 승객의 승객까지 하나라도 UUID 가 겹치면 아무것도 넣지 않는다. */
-    public boolean addFreshEntityWithPassengers(Entity e) {
+    public boolean addFreshEntityWithPassengers(Entity e) { return addFreshEntityGroupResult(e) == ADDED; }
+
+    /** addFreshEntityWithPassengers 의 이유 구분판: ADDED, UUID 겹침 ADD_DUPLICATE(아무것도 안 넣음), 스폰 이벤트 취소 ADD_CANCELLED(아무것도 안 넣음). */
+    public int addFreshEntityGroupResult(Entity e) {
         java.util.List<org.domi.furnace.server.entity.Rider> all = new java.util.ArrayList<>();
         all.add(e);
         e.collectIndirectPassengers(all);
-        for (var r : all) if (r instanceof Entity x && (entities.containsUuid(x.uuid()) || uuidTakenElsewhere(x))) return false;
+        for (var r : all) if (r instanceof Entity x && (entities.containsUuid(x.uuid()) || uuidTakenElsewhere(x))) return ADD_DUPLICATE;
         // 이벤트 전에 전원의 UUID 를 월드에서 잡는다 — 하나라도 못 잡으면 전부 놓고 그만둔다(전부 아니면 전무, 다른 region 과의 경쟁 틈 없이)
         java.util.List<Entity> fired = new java.util.ArrayList<>();
         for (var r : all) {
             if (!(r instanceof Entity x)) continue;
             if (!claimUuid(x, false)) {
                 for (Entity c : fired) indexEntity(c, false);
-                return false;
+                return ADD_DUPLICATE;
             }
             fired.add(x);
         }
@@ -2878,11 +2881,11 @@ public abstract class ChunkLevel implements BlockLevel {
                     retireApiTasks(eventsFired.get(i));
                 }
                 for (Entity c : fired) indexEntity(c, false);
-                return false;
+                return ADD_CANCELLED;
             }
         }
         for (Entity x : fired) addFreshEntity(x, false, true);
-        return true;
+        return ADDED;
     }
 
     /**
