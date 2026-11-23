@@ -51,6 +51,7 @@ public final class Main {
             return Files.isRegularFile(p.generated().resolve("reports").resolve("packets.json"));
         }
         if (o.mode == Options.Mode.SIG_GATE) return SigGateCommand.run(o);
+        if (o.mode == Options.Mode.BODY_TABLE) return BodyTableCommand.run(o);
         List<Tool> selected = select(o);
         Prepared p = new Preparer(o).prepare();
         if (o.protocol >= 0) p = new Prepared(p.mc(), p.serverJar(), p.innerJar(), p.mappings(), p.libraries(), p.generated(), o.protocol, p.remapped());
