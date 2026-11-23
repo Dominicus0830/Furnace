@@ -45,12 +45,18 @@ class EntityDataTablesTest {
         assertEquals(8, EntityDataIds.VehicleEntity_DATA_ID_HURT);
     }
 
-    /** 배치 표의 값 종류는 모두 알려진 종류이고, 칸 번호가 있는 모든 종류에 번호표의 Entity 칸 8개가 앞에 온다. */
+    /** 배치 표의 값 종류는 모두 알려진 종류이고, 모든 종류의 앞 8칸이 번호표의 Entity 칸(0~7번)과 같다. */
     @Test
     void layoutsStartWithEntityBaseSlots() throws IOException {
+        String[] base = new String[8];
+        for (String[] r : rows("ids")) {
+            if (r[0].equals("A") && r[1].equals("net.minecraft.world.entity.Entity")) base[Integer.parseInt(r[3])] = r[4].toLowerCase();
+        }
+        for (String b : base) assertNotNull(b);
         for (String[] r : rows("layouts")) {
             assertTrue(r.length - 1 >= 8, r[0]);
             for (int i = 1; i < r.length; i++) assertNotNull(EntityDataType.byName(r[i]), r[0] + " " + r[i]);
+            for (int i = 0; i < 8; i++) assertEquals(base[i], r[i + 1], r[0] + " slot " + i);
         }
     }
 }

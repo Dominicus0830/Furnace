@@ -146,23 +146,43 @@ val generateEntityDataIds by tasks.registering {
     @Suppress("UNCHECKED_CAST") val mc = rootProject.extra["mc"] as java.util.Properties
     val tag = mc.getProperty("mc.resourceTag") ?: error("gradle/minecraft.properties 에 mc.resourceTag 가 없다")
     val idsFile = file("src/main/resources/entity_data/ids-$tag.txt")
+    val specFile = file("src/main/resources/entity_data/ids.spec")
     val outDir = entityDataIdsDir
     inputs.file(idsFile)
+    inputs.file(specFile)
     outputs.dir(outDir)
     doLast {
+        // 칸 이름은 ids.spec(우리 쪽 이름 ↔ 지문)에서, 번호는 바닐라에서 뽑은 ids-<판>.txt 에서 가져온다. 표에 바닐라 상수 이름을 적지 않는다.
+        val byFingerprint = HashMap<String, Int>()
         val body = StringBuilder()
         val seen = HashSet<String>()
         idsFile.readLines(Charsets.UTF_8).forEachIndexed { i, raw ->
             if (raw.isBlank() || raw.startsWith("#")) return@forEachIndexed
             val t = raw.trim().split(Regex("\\s+"))
             fun bad(msg: String): Nothing = error("${idsFile.name}:${i + 1}: $msg — $raw")
-            val (name, value) = when (t[0]) {
-                "S" -> { if (t.size != 3) bad("S <번호> <상수> 꼴이어야 한다"); "SERIALIZER_" + t[2] to t[1].toInt() }
-                "A" -> { if (t.size != 5) bad("A <클래스> <상수> <번호> <직렬화기> 꼴이어야 한다"); t[1].substringAfterLast('.').replace('$', '_') + "_" + t[2] to t[3].toInt() }
+            when (t[0]) {
+                "S" -> {
+                    if (t.size != 3) bad("S <번호> <상수> 꼴이어야 한다")
+                    val name = "SERIALIZER_" + t[2]
+                    if (!seen.add(name)) bad("상수 이름이 겹친다")
+                    body.append("    public static final int ").append(name).append(" = ").append(t[1].toInt()).append(";\n")
+                }
+                "A" -> {
+                    if (t.size != 5) bad("A <클래스> <지문> <번호> <직렬화기> 꼴이어야 한다")
+                    if (byFingerprint.put(t[2], t[3].toInt()) != null) bad("지문이 겹친다")
+                }
                 else -> bad("모르는 줄 종류")
             }
-            if (!seen.add(name)) bad("상수 이름이 겹친다")
-            body.append("    public static final int ").append(name).append(" = ").append(value).append(";\n")
+        }
+        specFile.readLines(Charsets.UTF_8).forEachIndexed { i, raw ->
+            val line = raw.substringBefore('#').trim()
+            if (line.isEmpty()) return@forEachIndexed
+            val t = line.split(Regex("\\s+"))
+            fun bad(msg: String): Nothing = error("${specFile.name}:${i + 1}: $msg — $raw")
+            if (t.size != 2) bad("<이름> <지문> 꼴이어야 한다")
+            val value = byFingerprint[t[1]] ?: bad("새 표에 없는 칸(바닐라가 지웠거나 이름을 바꿨다 — 쓰는 곳을 고쳐야 한다)")
+            if (!seen.add(t[0])) bad("상수 이름이 겹친다")
+            body.append("    public static final int ").append(t[0]).append(" = ").append(value).append(";\n")
         }
         val src = "// 자동 생성 — entity_data/ids-$tag.txt 에서 만든다(generateEntityDataIds). 손으로 고치지 않는다.\n" +
             "package org.domi.furnace.server.entity;\n\n" +
