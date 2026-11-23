@@ -12,6 +12,10 @@ public class DedicatedServer extends MinecraftServer {
 
     public boolean isDedicatedServer() { return true; }
 
+    /** 바닐라 전용 서버와 같다: 콘솔 명령 결과를 관리자에게도 알린다. */
+    @Override
+    public boolean shouldInformAdmins() { return true; }
+
     /** 바닐라: server.properties sync-chunk-writes(지역 파일을 쓸 때마다 디스크에 내리는가). */
     public boolean forceSynchronousWrites() { return org.domi.furnace.api.Furnace.server().internals().chunks().syncChunkWrites(); }
 

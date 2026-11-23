@@ -626,9 +626,11 @@ public final class PluginBootstrapper {
                 LibrarySettings ls = settings.libraries();
                 Path cache = ls.cache() != null ? ls.cache() : dir.resolve(LibrarySettings.DEFAULT_CACHE_DIR);
                 files = compatJars.extract(cache.resolve("compat"));
-                for (Path j : files) {
+                for (int i = 0; i < files.size(); i++) {
+                    Path j = files.get(i);
                     loader.add(j);
-                    core.addAll(serverLibraries.scan(j, Set.of()));
+                    // 껍데기 jar 는 훑지 않는다: 껍데기 서명이 닿는 라이브러리(yaml·log4j 등)를 모든 서버가 늘 준비하게 되고, 껍데기는 플러그인이 그 클래스를 쓸 때만 올라간다
+                    if (!CompatJars.SHELLS.equals(compatJars.names().get(i))) core.addAll(serverLibraries.scan(j, Set.of()));
                 }
             } catch (IOException | RuntimeException e) {
                 closeQuietly(loader);

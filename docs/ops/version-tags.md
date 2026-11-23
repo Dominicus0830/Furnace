@@ -47,3 +47,10 @@ tools/release/furnace-tag.sh create base/1.21.1/20261116-1 <커밋> -m "6조각+
 ## 5. 브랜치 이름 (Paper 를 따름)
 - 판마다 유지 브랜치 `ver/<MC>`(예: `ver/1.21.1`) — 그 판의 급한 고침용. 기준 브랜치가 다음 판으로 간 뒤에 갈라 둔다. 고침은 그 브랜치에 넣고 같은 고침을 기준 브랜치에도 따로 병합(체리픽)한다. 한 판 안의 갱신은 새 출시가 아니라 병합 묶음 태그로 남는다.
 - 새 판 포팅 작업은 기준 브랜치 위에서 한다. 필요하면 `dev/<MC>`.
+
+## 6. 배포 빌드 (전체 껍데기 포함, T-260 — 2026-11-23)
+- 배포·출시용 서버 jar(배포 저장소에 올리는 것, 장비 스레드가 만드는 것 포함)는 **반드시** 아래 순서로 만든다. 서명표가 없는 PC 에서 그냥 빌드하면 경고 한 줄만 남기고 Paper 내부 클래스 껍데기가 빠진 jar 가 나온다.
+  1. `tools/compat/sig-tables.sh` — 서명표 셋(바닐라·Paper 서버·paper-api)을 캐시에 만든다(Paper 서버 칸은 오라클을 켠다).
+  2. `./gradlew -PrequireFullShells :furnace-server:fatJar` — 표가 없거나 지문(`furnace-compat-paper/src/shimspec/full-shells-<판>.fp`)과 다르면 **실패**한다.
+  3. 확인: `unzip -l furnace-server/build/libs/furnace-server.jar | grep furnace-compat-shells.jar` 이 한 줄 나와야 한다.
+- 개발 실행(`start.sh`·`installDist`)·CI `light` 는 표가 없으면 껍데기 없이 빌드된다(그 서버는 껍데기 없던 때와 같다). 설계 `docs/roadmap/full-shells-2026-11-23.md`.

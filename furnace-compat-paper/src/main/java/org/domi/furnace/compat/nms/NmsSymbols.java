@@ -24,7 +24,7 @@ public final class NmsSymbols {
     /** 모든 플러그인이 같이 쓰는 색인(호환 모듈의 클래스로더 기준 — 플러그인 로더의 부모). */
     public static final NmsSymbols RUNTIME = new NmsSymbols(NmsSymbols.class.getClassLoader());
 
-    private static final Info MISSING = new Info(null, List.of(), false, false, false, Set.of(), Set.of());
+    private static final Info MISSING = new Info(null, List.of(), false, false, false, 0, Set.of(), Set.of(), Set.of());
 
     private final ClassLoader loader;
     private final ConcurrentHashMap<String, Info> cache = new ConcurrentHashMap<>();
@@ -60,14 +60,18 @@ public final class NmsSymbols {
     /** 메서드가 있는가(클래스 사슬 → 상위 인터페이스, JVMS 5.4.3.3/5.4.3.4). 배열의 clone 등 Object 메서드도 된다. */
     public boolean hasMethod(String owner, String name, String desc) {
         String key = name + ' ' + desc;
-        if (name.equals("<init>")) return info(element(owner)).methods.contains(key);   // 생성자는 상속되지 않는다(JVM 은 그 클래스의 것만 링크한다)
+        if (name.equals("<init>")) {   // 생성자는 상속되지 않는다(JVM 은 그 클래스의 것만 링크한다)
+            Info i = info(element(owner));
+            return i.methods.contains(key) && !i.shell.contains(key);
+        }
         if (owner.charAt(0) == '[') return info("java/lang/Object").methods.contains(key) || name.equals("clone");
         Set<String> seen = new HashSet<>();
         for (String c = owner; c != null; ) {
             Info i = info(c);
             if (i == MISSING) return false;
             // T-229: 생성기가 인터페이스 때문에 붙인 던지는 몸통은 "없음"(명세에 없는 멤버 — 링크 때 덫)
-            if (i.methods.contains(key)) return !unimplemented().contains(c + ' ' + key);
+            // T-260: 전체 껍데기의 동작 없는 멤버(@NmsShellMember)도 "없음" — 그 클래스의 객체는 Furnace 에 없으니 다른 몸통으로 갈 일도 없다
+            if (i.methods.contains(key)) return !i.shell.contains(key) && !unimplemented().contains(c + ' ' + key);
             c = i.superName;   // 인터페이스 클래스 파일의 상위는 java/lang/Object 다 — 인터페이스 메서드 해석도 Object 메서드를 본다
         }
         // 인터페이스 쪽(기본 메서드·추상 메서드 모두 해석은 된다)
@@ -80,7 +84,7 @@ public final class NmsSymbols {
         if (i == MISSING) return false;
         for (String itf : i.interfaces) {
             Info ii = info(itf);
-            if (ii.methods.contains(key)) return true;
+            if (ii.methods.contains(key)) return !ii.shell.contains(key);
             if (findInInterfaces(itf, key, seen)) return true;
         }
         return findInInterfaces(i.superName, key, seen);
@@ -90,7 +94,7 @@ public final class NmsSymbols {
         if (c == null || !seen.add(c)) return false;
         Info i = info(c);
         if (i == MISSING) return false;
-        if (i.fields.contains(key)) return true;
+        if (i.fields.contains(key)) return !i.shell.contains(key);
         for (String itf : i.interfaces) if (findField(itf, key, seen)) return true;
         return findField(i.superName, key, seen);
     }
@@ -158,8 +162,10 @@ public final class NmsSymbols {
             ClassReader r = new ClassReader(in.readAllBytes());
             Set<String> fields = new HashSet<>();
             Set<String> methods = new HashSet<>();
-            Object[] head = new Object[5];
+            Set<String> shell = new HashSet<>();
+            Object[] head = new Object[6];
             head[4] = Boolean.FALSE;
+            head[5] = 0;   // 껍데기 클래스 표지: 0 없음, 1 껍데기, 2 껍데기 + 초기화 덫
             r.accept(new ClassVisitor(Opcodes.ASM9) {
                 @Override
                 public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
@@ -172,24 +178,49 @@ public final class NmsSymbols {
                 @Override
                 public org.objectweb.asm.AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
                     if (descriptor.equals(INHERITABLE)) head[4] = Boolean.TRUE;
+                    if (descriptor.equals(SHELL_MEMBER)) {
+                        head[5] = 1;
+                        return new org.objectweb.asm.AnnotationVisitor(Opcodes.ASM9) {
+                            @Override
+                            public void visit(String name, Object value) {
+                                if (name.equals("initTrap") && Boolean.TRUE.equals(value)) head[5] = 2;
+                            }
+                        };
+                    }
                     return null;
                 }
 
                 @Override
-                // private 멤버는 다른 클래스에서 링크할 수 없다 — 플러그인 바이트코드가 보기에는 없는 것과 같다
+                // private 멤버는 다른 클래스에서 링크할 수 없다 — 플러그인 바이트코드가 보기에는 없는 것과 같다(링크용 fields 에는 안 넣는다).
+                // 단 껍데기 표지는 private 도 모은다: 리플렉션(getDeclaredField + setAccessible)으로는 읽히므로 NmsReflect 가 막아야 한다
                 public FieldVisitor visitField(int access, String name, String descriptor, String signature, Object value) {
-                    if ((access & Opcodes.ACC_PRIVATE) == 0) fields.add(name + ' ' + descriptor);
-                    return null;
+                    String key = name + ' ' + descriptor;
+                    if ((access & Opcodes.ACC_PRIVATE) == 0) fields.add(key);
+                    return new FieldVisitor(Opcodes.ASM9) {
+                        @Override
+                        public org.objectweb.asm.AnnotationVisitor visitAnnotation(String d, boolean visible) {
+                            if (d.equals(SHELL_MEMBER)) shell.add(key);
+                            return null;
+                        }
+                    };
                 }
 
                 @Override
                 public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
-                    if ((access & Opcodes.ACC_PRIVATE) == 0) methods.add(name + ' ' + descriptor);
-                    return null;
+                    if ((access & Opcodes.ACC_PRIVATE) != 0) return null;
+                    String key = name + ' ' + descriptor;
+                    methods.add(key);
+                    return new MethodVisitor(Opcodes.ASM9) {
+                        @Override
+                        public org.objectweb.asm.AnnotationVisitor visitAnnotation(String d, boolean visible) {
+                            if (d.equals(SHELL_MEMBER)) shell.add(key);
+                            return null;
+                        }
+                    };
                 }
             }, ClassReader.SKIP_CODE | ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
             @SuppressWarnings("unchecked") List<String> itfs = (List<String>) head[1];
-            return new Info((String) head[0], itfs, (Boolean) head[2], (Boolean) head[3], (Boolean) head[4], Set.copyOf(fields), Set.copyOf(methods));
+            return new Info((String) head[0], itfs, (Boolean) head[2], (Boolean) head[3], (Boolean) head[4], (Integer) head[5], Set.copyOf(fields), Set.copyOf(methods), Set.copyOf(shell));
         } catch (IOException | RuntimeException e) {
             return MISSING;
         }
@@ -197,5 +228,30 @@ public final class NmsSymbols {
 
     private static final String INHERITABLE = "L" + NmsInheritable.class.getName().replace('.', '/') + ";";
 
-    private record Info(String superName, List<String> interfaces, boolean isInterface, boolean isFinal, boolean inheritable, Set<String> fields, Set<String> methods) {}
+    /** 전체 껍데기(T-260)의 동작 없는 멤버 표지(보이지 않는 애노테이션). */
+    static final String SHELL_MEMBER = "L" + NmsShellMember.class.getName().replace('.', '/') + ";";
+
+    /** 이 필드가 전체 껍데기의 동작 없는 필드인가(리플렉션 다리 {@link NmsReflect} 가 묻는다). 클래스 파일만 읽는다. */
+    public boolean isShellField(String owner, String name, String desc) { return info(owner).shell.contains(name + ' ' + desc); }
+
+    /** 이 클래스가 전체 껍데기(T-260)인가(클래스 표지). 없으면 false. */
+    public boolean isShellClass(String internalName) { return info(internalName).shellClass > 0; }
+
+    /**
+     * 이 클래스를 초기화하면 껍데기 초기화 덫이 걸리나: 자기나 상위 클래스·상위 인터페이스(초기화가 따라 올라가는 곳) 가운데 덫 표지가 있는 것.
+     * {@code Class.forName} 다리가 그 실패를 "클래스 없음"으로 바꿀 때 쓴다.
+     */
+    public boolean initTrapped(String internalName) { return initTrapped(internalName, new HashSet<>()); }
+
+    private boolean initTrapped(String c, Set<String> seen) {
+        if (c == null || !seen.add(c)) return false;
+        Info i = info(c);
+        if (i == MISSING) return false;
+        if (i.shellClass == 2) return true;
+        for (String itf : i.interfaces) if (initTrapped(itf, seen)) return true;
+        return initTrapped(i.superName, seen);
+    }
+
+    private record Info(String superName, List<String> interfaces, boolean isInterface, boolean isFinal, boolean inheritable, int shellClass, Set<String> fields,
+                        Set<String> methods, Set<String> shell) {}
 }

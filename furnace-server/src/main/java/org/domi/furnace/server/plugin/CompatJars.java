@@ -21,6 +21,8 @@ final class CompatJars {
     /** jar 이름 목록(한 줄에 하나). 이 자원이 있으면 호환 모듈이 실려 있다. */
     static final String INDEX = "META-INF/furnace/compat/index.txt";
     private static final String DIR = "META-INF/furnace/compat/";
+    /** 전체 껍데기 jar(T-260). 모양뿐이라 쓰일 때만 클래스가 올라가므로 "호환 계층이 늘 쓰는 라이브러리" 훑기에서 뺀다. */
+    static final String SHELLS = "furnace-compat-shells.jar";
 
     private final ClassLoader source;
     private final List<String> names;

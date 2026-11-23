@@ -59,6 +59,17 @@ class HarnessCanaryTest {
         }
     }
 
+    /** 깨진 입력의 바닐라 보고 예외를 전부 IllegalArgumentException 으로 바꾸는 틀린 구현(Paper 허용 쌍과 같은 모양이지만 배열 길이와 무관). */
+    public static final class WrongIae {
+        public static net.minecraft.nbt.CompoundTag read(java.io.DataInput in) throws java.io.IOException {
+            try {
+                return net.minecraft.nbt.NbtIo.read(in);
+            } catch (net.minecraft.nbt.ReportedNbtException e) {
+                throw new IllegalArgumentException(e);
+            }
+        }
+    }
+
     private static MemberResult run(Class<?> shim) throws Exception {
         return run(shim, "net.minecraft.util.Mth", "floor", double.class);
     }
@@ -104,14 +115,27 @@ class HarnessCanaryTest {
     /** paper 허용은 정한 예외 쌍에만 — 다른 차이는 같은 멤버여도 다름이다. */
     @Test
     void paperAllowanceDoesNotHideOtherDifferences() throws Exception {
+        assertEquals(Status.DIFF, paperRun(WrongTag.class, null).status());
+    }
+
+    /** when=nbt-array-limit: 같은 예외 쌍이라도 배열 길이 막기가 걸리는 입력이 아니면 다름이다. */
+    @Test
+    void paperAllowanceIsLimitedToItsInputs() throws Exception {
+        // 조건 없이는 이 틀린 구현이 허용 쌍 모양이라 통과해 버린다(대조군) — 조건을 걸면 잡힌다
+        assertEquals(Status.PAPER, paperRun(WrongIae.class, null).status());
+        assertEquals(Status.DIFF, paperRun(WrongIae.class, NbtKit.ARRAY_LIMIT).status());
+    }
+
+    private static MemberResult paperRun(Class<?> shim, String when) throws Exception {
         VanillaRuntime rt = VanillaRuntime.get();
         Class<?> vc = Class.forName("net.minecraft.nbt.NbtIo", true, rt.loader());
         Method m = vc.getMethod("read", java.io.DataInput.class);
         DiffRunner r = new DiffRunner(rt.loader(), HarnessCanaryTest.class.getClassLoader(), 1L);
         try {
-            MemberResult res = r.run(vc, WrongTag.class, m, 500, java.util.List.of(
-                    new DiffRunner.Allowance("net.minecraft.nbt.ReportedNbtException", "java.lang.IllegalArgumentException")));
-            assertEquals(Status.DIFF, res.status(), String.valueOf(res));
+            MemberResult res = r.run(vc, shim, m, 500, java.util.List.of(
+                    new DiffRunner.Allowance("net.minecraft.nbt.ReportedNbtException", "java.lang.IllegalArgumentException", when)));
+            System.out.println("[vanilla-diff canary] " + shim.getSimpleName() + " when=" + when + " -> " + res);
+            return res;
         } finally {
             r.close();
         }
