@@ -339,7 +339,9 @@ public final class FullShells {
         if (sig != null && sig.contains("L" + DROPPED_SUPER_PREFIX)) sig = null;   // 위에서 뺀 인터페이스를 서명이 가리키면 서명을 버린다(서술자는 같다)
         cw.visit(Opcodes.V21, access, n, sig, c.superName(), itfs.toArray(String[]::new));
         // 안쪽 클래스 관계: 자기 자신(안쪽이면)과 만들어지는 안쪽 클래스들
-        if (c.innerAccess() >= 0 || n.indexOf('$') > 0) innerClass(cw, n);
+        // 바깥 클래스가 손으로 쓴 shim 이면 그쪽 InnerClasses 에 이 클래스가 없다 — 한쪽만 적으면 리플렉션이 IncompatibleClassChangeError 를 던지므로 적지 않는다
+        boolean outerHand = n.indexOf('$') > 0 && existing.has(n.substring(0, n.lastIndexOf('$')));
+        if (!outerHand && (c.innerAccess() >= 0 || n.indexOf('$') > 0)) innerClass(cw, n);
         for (String inner : nestedShells) innerClass(cw, inner);
         if (n.indexOf('$') > 0 && isAnonymousOrLocal(n)) cw.visitOuterClass(n.substring(0, n.lastIndexOf('$')), null, null);
         // 클래스 표지: 껍데기임(없는 이벤트 처리기 건너뛰기 등), NMS 밖 범위에 값 없는 필드가 있으면 초기화 덫 표시(Class.forName 다리가 "없음"으로 바꿈)
