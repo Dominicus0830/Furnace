@@ -631,7 +631,7 @@ class Entity {
     }
 
     /** 호환 모듈 전용: {@code SynchedEntityData#set} 이 값을 바꾸기 전에 부른다. 월드에 넣은 뒤 남은 칸 객체에 쓰면 UnsupportedNmsCall(서버에 닿지 않는 쓰기를 막는다). */
-    public final void furnaceBeforeDataSet() {
+    public void furnaceBeforeDataSet() {
         org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "SynchedEntityData#set");
         if (detached == null) throw worldEntityData("SynchedEntityData#set");
     }
@@ -640,7 +640,7 @@ class Entity {
      * 호환 모듈 전용: {@code SynchedEntityData#set} 이 값을 바꾼 뒤(바닐라 onSyncedDataUpdated 자리) 부른다. 쓰기를 차례대로 기록하고 칸을 서버 재생으로 다시 채운다.
      * 바닐라 종류별 훅(크기·상자)은 월드에 넣을 때 서버가 같은 차례로 돌린다(기록은 force — 바닐라에서 훅이 불린 쓰기만 기록되므로 재생도 훅을 부른다).
      */
-    public final void furnaceDataWritten(net.minecraft.network.syncher.EntityDataAccessor<?> accessor, Object value) {
+    public void furnaceDataWritten(net.minecraft.network.syncher.EntityDataAccessor<?> accessor, Object value) {
         Detached d = detached;
         if (d == null) throw worldEntityData("SynchedEntityData#set");
         d.add(org.domi.furnace.compat.nms.NmsEntityData.setOp(accessor, value));
