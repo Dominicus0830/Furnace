@@ -120,6 +120,13 @@ public class ItemFrame extends HangingEntity {
 
     public void setItem(ItemStack stack) { setItem(stack, true); }
 
+    /** ItemFrame.onSyncedDataUpdated: 물건 칸이 바뀌면 onItemChanged → recalculateBoundingBox(서버 스택은 불변이라 setEntityRepresentation 은 없음). */
+    @Override
+    protected void onSyncedDataUpdated(int index) {
+        if (index == DATA_ITEM) recalculate();
+        super.onSyncedDataUpdated(index);
+    }
+
     public void setItem(ItemStack stack, boolean updateNeighbours) {
         if (!stack.isEmpty()) stack = stack.withCount(1);
         entityData.set(DATA_ITEM, stack);

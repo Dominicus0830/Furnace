@@ -38,8 +38,14 @@ public class Pufferfish extends AbstractFish {
     public int getPuffState() { return (Integer) entityData.get(DATA_PUFF_STATE); }
 
     public void setPuffState(int state) {
-        entityData.set(DATA_PUFF_STATE, state);
-        refreshPuffDimensions();
+        entityData.set(DATA_PUFF_STATE, state);   // 훅이 크기를 다시 잰다
+    }
+
+    /** Pufferfish.onSyncedDataUpdated: 부푼 정도 칸이 바뀌면 refreshDimensions. */
+    @Override
+    protected void onSyncedDataUpdated(int index) {
+        if (index == DATA_PUFF_STATE) refreshPuffDimensions();
+        super.onSyncedDataUpdated(index);
     }
 
     private static float getScale(int state) {

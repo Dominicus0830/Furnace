@@ -94,7 +94,7 @@ public abstract non-sealed class Entity implements Rider {
     protected UUID uuid;
     protected ChunkLevel level;
     protected final RandomSource random;
-    protected final SynchedData entityData = new SynchedData();
+    protected final SynchedData entityData = new SynchedData(this::onSyncedDataUpdated);
 
     private double x, y, z;
     private int blockX, blockY, blockZ;
@@ -175,6 +175,17 @@ public abstract non-sealed class Entity implements Rider {
     }
 
     protected void defineSynchedData() {}
+
+    /**
+     * 바닐라 onSyncedDataUpdated(accessor): 칸 값이 바뀔 때마다 {@link SynchedData#set} 이 부른다(서버·플러그인 쓰기 같은 길).
+     * 바닐라 재정의 33개 중 서버에서 보이는 것만 옮겼다. 클라이언트 쪽만 하는 것(isClientSide 갈래, 애니메이션 상태, 디스플레이 그리기 상태)은 두지 않는다.
+     */
+    protected void onSyncedDataUpdated(int index) {
+        if (index == DATA_POSE) refreshDimensions();
+    }
+
+    /** 바닐라 refreshDimensions 자리. 기본은 아무것도 안 한다(크기가 상태에 따라 바뀌는 종류만 재정의). */
+    protected void refreshDimensions() {}
 
     // ------------------------------------------------------------------ 기본
 

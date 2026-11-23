@@ -102,11 +102,11 @@ public class Camel extends AbstractHorse {
         else super.refreshBabyDimensions();
     }
 
-    /** 자세가 바뀌면 몸 크기를 다시 잰다(Entity.onSyncedDataUpdated(DATA_POSE) → refreshDimensions). */
+    /** Camel.onSyncedDataUpdated: 질주 칸이 바뀌면(첫 틱 제외) 쿨다운이 0 일 때 55. 서버에서도 불려 dash_ready 소리가 난다. 자세는 Entity 훅이 크기를 다시 잰다. */
     @Override
-    public void setPose(int pose) {
-        super.setPose(pose);
-        refreshBabyDimensions();
+    protected void onSyncedDataUpdated(int index) {
+        if (!firstTick && index == DATA_DASH) dashCooldown = dashCooldown == 0 ? DASH_COOLDOWN_TICKS : dashCooldown;
+        super.onSyncedDataUpdated(index);
     }
 
     @Override protected boolean canEatGrass() { return false; }
@@ -280,12 +280,7 @@ public class Camel extends AbstractHorse {
 
     public boolean isDashing() { return (Boolean) entityData.get(DATA_DASH); }
 
-    /** setDashing + onSyncedDataUpdated(DASH): 값이 바뀌면(첫 틱 제외) 질주 쿨다운이 0 일 때 55 로. 서버에서도 불려 dash_ready 소리가 난다. */
-    public void setDashing(boolean v) {
-        boolean changed = (Boolean) entityData.get(DATA_DASH) != v;
-        entityData.set(DATA_DASH, v);
-        if (changed && !firstTick) dashCooldown = dashCooldown == 0 ? DASH_COOLDOWN_TICKS : dashCooldown;
-    }
+    public void setDashing(boolean v) { entityData.set(DATA_DASH, v); }
 
     /** 마지막 자세가 바뀐 틱이 음수면 앉은 상태(양수면 선 상태). */
     public boolean isCamelSitting() { return (Long) entityData.get(DATA_LAST_POSE_CHANGE_TICK) < 0L; }

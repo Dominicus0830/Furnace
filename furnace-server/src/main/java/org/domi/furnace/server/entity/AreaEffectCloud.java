@@ -55,8 +55,14 @@ public class AreaEffectCloud extends Entity {
     public float getRadius() { return (Float) entityData.get(DATA_RADIUS); }
 
     public void setRadius(float r) {
-        entityData.set(DATA_RADIUS, Math.max(0.0F, Math.min(32.0F, r)));
-        setDimensions(getRadius() * 2.0F, 0.5F, dimEye);
+        entityData.set(DATA_RADIUS, Math.max(0.0F, Math.min(32.0F, r)));   // 훅이 크기를 다시 잰다
+    }
+
+    /** AreaEffectCloud.onSyncedDataUpdated: 반지름 칸이 바뀌면 refreshDimensions. */
+    @Override
+    protected void onSyncedDataUpdated(int index) {
+        if (index == DATA_RADIUS) setDimensions(getRadius() * 2.0F, 0.5F, dimEye);
+        super.onSyncedDataUpdated(index);
     }
 
     /** 사용자 지정 효과만 둔다(바닐라 addEffect: 지속 시간을 줄이지 않는다). */

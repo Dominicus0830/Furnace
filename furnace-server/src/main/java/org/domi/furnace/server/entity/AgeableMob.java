@@ -34,11 +34,20 @@ public abstract class AgeableMob extends PathfinderMob {
         int old = getAge();
         age = v;
         if (old < 0 && v >= 0 || old >= 0 && v < 0) {
-            entityData.set(DATA_BABY_ID, v < 0);
+            entityData.set(DATA_BABY_ID, v < 0);   // 훅이 크기를 다시 잰다
             ageBoundaryReached();
-            refreshBabyDimensions();
         }
     }
+
+    /** AgeableMob.onSyncedDataUpdated: 아기 칸이 바뀌면 refreshDimensions. */
+    @Override
+    protected void onSyncedDataUpdated(int index) {
+        if (index == DATA_BABY_ID) refreshDimensions();
+        super.onSyncedDataUpdated(index);
+    }
+
+    @Override
+    protected void refreshDimensions() { refreshBabyDimensions(); }
 
     public void ageUp(int seconds, boolean forced) {
         int old = getAge();
