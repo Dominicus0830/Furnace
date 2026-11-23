@@ -301,6 +301,58 @@ def shim_impact(shim, a, b, ba, bb, out):
     return dict(res)
 
 
+def read_packet_layout(ver):
+    """`-Pmode=packet-layout` 이 캐시에 쓴 전체 표를 읽는다: (상태, 방향, 와이어 이름) → (클래스, 방식, 손으로 남는 이유, 토큰 목록). 없으면 None."""
+    p = os.path.join(vdir(ver), "packet-layout.tsv")
+    if not os.path.isfile(p):
+        return None
+    rows = {}
+    with open(p, encoding="utf-8") as f:
+        for line in f:
+            c = line.rstrip("\n").split("\t")
+            if len(c) != 7:
+                continue
+            rows[(c[0], c[1], c[2])] = (c[3], c[4], c[5], [] if c[6] == "-" else c[6].split(" "))
+    return rows
+
+
+def diff_packet_layout(A, B, out):
+    la, lb = read_packet_layout(A), read_packet_layout(B)
+    if la is None or lb is None:
+        print(f"[알림] 패킷 와이어 모양 표가 없어 건너뜀(없는 판: {', '.join(v for v, x in ((A, la), (B, lb)) if x is None)}) — -Pmode=packet-layout 로 만든다", file=sys.stderr)
+        return {}
+    ct = collections.Counter()
+    for k in sorted(set(la) | set(lb)):
+        state, dr, wire = k
+        owner = f"{state}/{'serverbound' if dr == 'S' else 'clientbound'}"
+        if k not in la:
+            cls, form, custom, toks = lb[k]
+            out.add("패킷 와이어 추가", "프로토콜", owner, wire, ("손 필요: " + custom if custom != "-" else "기계로 뽑힘") + " · " + " ".join(toks))
+            ct["added_hand" if custom != "-" else "added_machine"] += 1
+        elif k not in lb:
+            out.add("패킷 와이어 삭제", "프로토콜", owner, wire, " ".join(la[k][3]))
+            ct["removed"] += 1
+        else:
+            ta, tb = la[k][3], lb[k][3]
+            # 필드 이름(@뒤)은 판마다 바뀔 수 있어 와이어 토큰만 견주고, 이름 바뀜은 따로 센다
+            wa, wb = [t.split("@")[0] for t in ta], [t.split("@")[0] for t in tb]
+            if wa != wb or la[k][2] != lb[k][2]:
+                out.add("패킷 와이어 모양 변경", "프로토콜", owner, wire, " ".join(ta) + (f" [손: {la[k][2]}]" if la[k][2] != "-" else "") + " → " + " ".join(tb) + (f" [손: {lb[k][2]}]" if lb[k][2] != "-" else ""))
+                ct["layout_changed"] += 1
+            elif ta != tb:
+                ct["field_names_only"] += 1
+            else:
+                ct["same"] += 1
+        # 판 B 에서 손이 필요한 것
+        if k in lb and lb[k][2] != "-":
+            ct["custom_in_b"] += 1
+        # 못 푼 토큰(? 로 시작) — 추출기 어휘를 더해야 한다는 신호
+        if k in lb and any(t.split("@")[0].startswith("?") or "<?" in t for t in lb[k][3]):
+            out.add("패킷 와이어 못 푼 토큰", "프로토콜", owner, wire, " ".join(lb[k][3]))
+            ct["unresolved_in_b"] += 1
+    return dict(ct)
+
+
 def diff_data(A, B, out):
     ga, gb = os.path.join(vdir(A), "generated"), os.path.join(vdir(B), "generated")
     st = {}
@@ -320,6 +372,8 @@ def diff_data(A, B, out):
                 else:
                     pk["same"] += 1
     st["packets"] = dict(pk)
+    # 패킷 와이어 모양(T-250 packet-layout 표). 번호가 같아도 필드·폭이 바뀐 것을 잡는다. 표가 없으면 건너뛴다.
+    st["packet_layout"] = diff_packet_layout(A, B, out)
     # 레지스트리
     ra, rb = jload(f"{ga}/reports/registries.json"), jload(f"{gb}/reports/registries.json")
     rk = collections.Counter()
@@ -553,7 +607,7 @@ def write_reports(A, B, out, stats, outdir, safe, tbl=None):
     s = stats
     body = [head, f"클래스 {s['classes_a']} → {s['classes_b']} (삭제 {s['classes_removed']}, 추가 {s['classes_added']}). 메서드 본문 지문 {s['methods_a']} → {s['methods_b']}.\n",
             "## 영역별 개수\n", table(True), "\n"]
-    for key in ("packets", "registries", "blocks", "items", "command_nodes", "data_files", "jar_resources"):
+    for key in ("packets", "packet_layout", "registries", "blocks", "items", "command_nodes", "data_files", "jar_resources"):
         if key in stats:
             body.append(f"- {key}: {canon(stats[key])}")
     if not tbl:

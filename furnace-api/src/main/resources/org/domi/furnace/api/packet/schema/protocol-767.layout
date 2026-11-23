@@ -1,0 +1,207 @@
+#furnace-packet-layout 1 767
+# 바닐라 1.21.1 서버 jar 의 패킷 코덱 바이트코드에서 기계로 뽑은 와이어 모양(tools/vanilla-extract -Pmode=packet-layout). 손으로 고치지 않는다.
+# 열(탭): 상태, 방향(C 클라이언트로·S 서버로), 와이어 이름, 방식(composite·codec·unit·expr·multi·none), 손으로 남는 이유 종류(없으면 -), 와이어 토큰(필드)
+# 토큰: 스키마 와이어 이름(varint·i32·string·uuid·identifier·block_pos·nbt…), list<x>·optional<x>·map<k,v>, ref#해시(Mojang 이름이 든 안쪽 값 코덱의 이름 지문), ?(못 푼 것).
+# 손으로 남는 이유가 있는 줄의 토큰은 분기 전까지의 일부일 수 있다(대조 시험은 이런 줄의 순서·개수를 믿지 않는다).
+common	C	custom_payload	multi	several-codecs	-
+common	C	custom_report_details	composite	-	ref#038d0e21@details
+common	C	disconnect	expr	-	component
+common	C	keep_alive	codec	-	i64@id
+common	C	ping	codec	-	i32@id
+common	C	resource_pack_pop	codec	-	optional<uuid>@id
+common	C	resource_pack_push	composite	-	uuid@id string@url string@hash bool@required optional<component>@prompt
+common	C	server_links	composite	-	ref#24e7e94d@links
+common	C	store_cookie	codec	-	identifier@key ref#a65ae5a3@payload
+common	C	transfer	codec	-	string@host varint@port
+common	C	update_tags	codec	-	map<identifier,ref#bea5f629>@tags
+common	S	client_information	codec	-	ref#899da52c@information
+common	S	custom_payload	expr	expr	?
+common	S	keep_alive	codec	-	i64@id
+common	S	pong	codec	-	i32@id
+common	S	resource_pack	codec	-	uuid@id varint@action
+configuration	C	finish_configuration	unit	-	-
+configuration	C	registry_data	composite	-	ref#af045a6f@registry list<ref#a9f0a3f4>@entries
+configuration	C	reset_chat	unit	-	-
+configuration	C	select_known_packs	composite	-	list<ref#5404af86>@knownPacks
+configuration	C	update_enabled_features	codec	-	list<identifier>@features
+configuration	S	finish_configuration	unit	-	-
+configuration	S	select_known_packs	composite	-	list<ref#5404af86>@knownPacks
+cookie	C	cookie_request	codec	-	identifier@key
+cookie	S	cookie_response	codec	-	identifier@key optional<ref#a65ae5a3>@payload
+game	C	add_entity	codec	-	varint@id uuid@uuid registry_id@type f64@x f64@y f64@z i8@xRot i8@yRot i8@yHeadRot varint@data i16@xa i16@ya i16@za
+game	C	add_experience_orb	codec	-	varint@id f64@x f64@y f64@z i16@value
+game	C	animate	codec	-	varint@id i8@action
+game	C	award_stats	expr	-	ref#bdc7835d
+game	C	block_changed_ack	codec	-	varint@sequence
+game	C	block_destruction	codec	-	varint@id block_pos@pos i8@progress
+game	C	block_entity_data	composite	-	block_pos@getPos registry_id@getType ref#d61b2e9c@getTag
+game	C	block_event	codec	-	block_pos@pos i8@b0 i8@b1 registry_id@block
+game	C	block_update	composite	-	block_pos@getPos varint@getBlockState
+game	C	boss_event	codec	-	uuid@id varint@operation ref#d900590c@operation
+game	C	bundle	none	no-static-init	-
+game	C	bundle_delimiter	none	no-static-init	-
+game	C	change_difficulty	codec	-	i8@difficulty bool@locked
+game	C	chunk_batch_finished	codec	-	varint@batchSize
+game	C	chunk_batch_start	unit	-	-
+game	C	chunks_biomes	codec	-	list<ref#9542dcad>@chunkBiomeData
+game	C	clear_titles	codec	-	bool@resetTimes
+game	C	command_suggestions	composite	-	varint@id varint@start varint@length list<ref#51355006>@suggestions
+game	C	commands	codec	-	list<ref#b84ac4a9>@entries varint@rootIndex
+game	C	container_close	codec	-	i8@containerId
+game	C	container_set_content	codec	-	i8@containerId varint@stateId ref#5ad145b4@items item_stack@carriedItem
+game	C	container_set_data	codec	-	i8@containerId i16@id i16@value
+game	C	container_set_slot	codec	-	i8@containerId varint@stateId i16@slot item_stack@itemStack
+game	C	cooldown	composite	-	registry_id@item varint@duration
+game	C	custom_chat_completions	codec	-	varint@action list<string>@entries
+game	C	damage_event	codec	-	varint@entityId ref#2211895f@sourceType ref#1ce60b59 ref#1ce60b59 optional<struct(f64,f64,f64)>@sourcePosition
+game	C	debug_sample	codec	-	longs@sample varint@debugSampleType
+game	C	delete_chat	codec	-	ref#78bffddd
+game	C	disguised_chat	composite	-	component@message ref#a303e82e@chatType
+game	C	entity_event	codec	-	i32@entityId i8@eventId
+game	C	explode	codec	-	f64@x f64@y f64@z f32@power list<struct(i8,i8,i8)>@toBlow f32@knockbackX f32@knockbackY f32@knockbackZ varint@blockInteraction ref#0b7f7aef@smallExplosionParticles ref#0b7f7aef@largeExplosionParticles ref#31bf24a3@explosionSound
+game	C	forget_level_chunk	codec	-	chunk_pos@pos
+game	C	game_event	codec	-	i8@id f32@param
+game	C	horse_screen_open	codec	-	i8@containerId varint@inventoryColumns i32@entityId
+game	C	hurt_animation	codec	-	varint@id f32@yaw
+game	C	initialize_border	codec	-	f64@newCenterX f64@newCenterZ f64@oldSize f64@newSize varlong@lerpTime varint@newAbsoluteMaxSize varint@warningBlocks varint@warningTime
+game	C	level_chunk_with_light	codec	-	i32@x i32@z ref#165e040c@chunkData ref#9bd22833@lightData
+game	C	level_event	codec	-	i32@type block_pos@pos i32@data bool@globalEvent
+game	C	level_particles	codec	-	bool@overrideLimiter f64@x f64@y f64@z f32@xDist f32@yDist f32@zDist f32@maxSpeed i32@count ref#0b7f7aef@particle
+game	C	light_update	codec	-	varint@x varint@z ref#9bd22833@lightData
+game	C	login	codec	-	i32@playerId bool@hardcore list<identifier>@levels varint@maxPlayers varint@chunkRadius varint@simulationDistance bool@reducedDebugInfo bool@showDeathScreen bool@doLimitedCrafting ref#3db3d263@commonPlayerSpawnInfo bool@enforcesSecureChat
+game	C	map_item_data	composite	-	ref#8d250096@mapId i8@scale bool@locked optional<list<ref#b3e1e55c>>@decorations ref#8e496f1d@colorPatch
+game	C	merchant_offers	codec	-	varint@containerId ref#73b35331@offers varint@villagerLevel varint@villagerXp bool@showProgress bool@canRestock
+game	C	move_entity_pos	codec	-	varint@entityId i16@xa i16@ya i16@za bool@onGround
+game	C	move_entity_pos_rot	codec	-	varint@entityId i16@xa i16@ya i16@za i8@yRot i8@xRot bool@onGround
+game	C	move_entity_rot	codec	-	varint@entityId i8@yRot i8@xRot bool@onGround
+game	C	move_vehicle	codec	-	f64@x f64@y f64@z f32@yRot f32@xRot
+game	C	open_book	codec	-	varint@hand
+game	C	open_screen	composite	-	varint@getContainerId registry_id@getType component@getTitle
+game	C	open_sign_editor	codec	-	block_pos@pos bool@isFrontText
+game	C	place_ghost_recipe	codec	-	i8@containerId identifier@recipe
+game	C	player_abilities	codec	branch	i8 f32@flyingSpeed f32@walkingSpeed
+game	C	player_chat	codec	-	uuid@sender varint@index optional<ref#35d19471>@signature ref#e5d6c689@body optional<component>@unsignedContent ref#8fe299ab ref#a303e82e@chatType
+game	C	player_combat_end	codec	-	varint@duration
+game	C	player_combat_enter	unit	-	-
+game	C	player_combat_kill	composite	-	varint@playerId component@message
+game	C	player_info_remove	codec	-	list<uuid>@profileIds
+game	C	player_info_update	codec	unresolved	enum_set@actions list<?>@entries
+game	C	player_look_at	codec	branch	varint@fromAnchor f64@x f64@y f64@z bool@atEntity varint@entity varint@toAnchor
+game	C	player_position	codec	-	f64@x f64@y f64@z f32@yRot f32@xRot i8@relativeArguments varint@id
+game	C	projectile_power	codec	-	varint@id f64@accelerationPower
+game	C	recipe	codec	branch	varint@state ref#2d1d8aa2@bookSettings list<identifier>@recipes list<identifier>@toHighlight
+game	C	remove_entities	codec	-	int_id_list@entityIds
+game	C	remove_mob_effect	composite	-	varint@entityId ref#3833d25e@effect
+game	C	reset_score	codec	-	string@owner optional<string>@objectiveName
+game	C	respawn	codec	-	ref#3db3d263@commonPlayerSpawnInfo i8@dataToKeep
+game	C	rotate_head	codec	-	varint@entityId i8@yHeadRot
+game	C	section_blocks_update	codec	branch	i64@sectionPos varint varlong
+game	C	select_advancements_tab	codec	-	optional<identifier>@tab
+game	C	server_data	composite	-	component@motd optional<bytes>@iconBytes
+game	C	set_action_bar_text	composite	-	component@text
+game	C	set_border_center	codec	-	f64@newCenterX f64@newCenterZ
+game	C	set_border_lerp_size	codec	-	f64@oldSize f64@newSize varlong@lerpTime
+game	C	set_border_size	codec	-	f64@size
+game	C	set_border_warning_delay	codec	-	varint@warningDelay
+game	C	set_border_warning_distance	codec	-	varint@warningBlocks
+game	C	set_camera	codec	-	varint@cameraId
+game	C	set_carried_item	codec	-	i8@slot
+game	C	set_chunk_cache_center	codec	-	varint@x varint@z
+game	C	set_chunk_cache_radius	codec	-	varint@radius
+game	C	set_default_spawn_position	codec	-	block_pos@pos f32@angle
+game	C	set_display_objective	codec	-	varint@slot string@objectiveName
+game	C	set_entity_data	codec	-	varint@id ref#1144e546@packedItems
+game	C	set_entity_link	codec	-	i32@sourceId i32@destId
+game	C	set_entity_motion	codec	-	varint@id i16@xa i16@ya i16@za
+game	C	set_equipment	codec	branch	varint@entity item_stack
+game	C	set_experience	codec	-	f32@experienceProgress varint@experienceLevel varint@totalExperience
+game	C	set_health	codec	-	f32@health varint@food f32@saturation
+game	C	set_objective	codec	branch	string@objectiveName i8@method component@displayName varint@renderType ref#4ce169c5@numberFormat
+game	C	set_passengers	codec	-	varint@vehicle varints@passengers
+game	C	set_player_team	codec	branch	string@name i8@method ref#94e8e08c list<string>@players
+game	C	set_score	composite	-	string@owner string@objectiveName varint@score ref#c392bfa1@display ref#4ce169c5@numberFormat
+game	C	set_simulation_distance	codec	-	varint@simulationDistance
+game	C	set_subtitle_text	composite	-	component@text
+game	C	set_time	codec	-	i64@gameTime i64@dayTime
+game	C	set_title_text	composite	-	component@text
+game	C	set_titles_animation	codec	-	i32@fadeIn i32@stay i32@fadeOut
+game	C	sound	codec	-	ref#31bf24a3@sound varint@source i32@x i32@y i32@z f32@volume f32@pitch i64@seed
+game	C	sound_entity	codec	-	ref#31bf24a3@sound varint@source varint@id f32@volume f32@pitch i64@seed
+game	C	start_configuration	unit	-	-
+game	C	stop_sound	codec	branch	i8 varint@source identifier@name i8 varint@source i8 identifier@name i8
+game	C	system_chat	composite	-	component@content bool@overlay
+game	C	tab_list	composite	-	component@header component@footer
+game	C	tag_query	codec	-	varint@transactionId nbt_opt@tag
+game	C	take_item_entity	codec	-	varint@itemId varint@playerId varint@amount
+game	C	teleport_entity	codec	-	varint@id f64@x f64@y f64@z i8@yRot i8@xRot bool@onGround
+game	C	ticking_state	codec	-	f32@tickRate bool@isFrozen
+game	C	ticking_step	codec	-	varint@tickSteps
+game	C	update_advancements	codec	-	bool@reset ref#dd9876eb@added list<identifier>@removed map<identifier,ref#30bf1a20>@progress
+game	C	update_attributes	composite	-	varint@getEntityId list<ref#6624ff7d>@getValues
+game	C	update_mob_effect	codec	-	varint@entityId ref#3833d25e@effect varint@effectAmplifier varint@effectDurationTicks i8@flags
+game	C	update_recipes	composite	-	list<ref#3023ea02>@lambda$static$0
+game	S	accept_teleportation	codec	-	varint@id
+game	S	block_entity_tag_query	codec	-	varint@transactionId block_pos@pos
+game	S	change_difficulty	codec	-	i8@difficulty
+game	S	chat	codec	-	string@message instant@timeStamp i64@salt optional<ref#35d19471>@signature ref#1d48c7ca@lastSeenMessages
+game	S	chat_ack	codec	-	varint@offset
+game	S	chat_command	codec	-	string@command
+game	S	chat_command_signed	codec	-	string@command instant@timeStamp i64@salt ref#55b67c48@argumentSignatures ref#1d48c7ca@lastSeenMessages
+game	S	chat_session_update	codec	-	ref#4bd4c465
+game	S	chunk_batch_received	codec	-	f32@desiredChunksPerTick
+game	S	client_command	codec	-	varint@action
+game	S	command_suggestion	codec	-	varint@id string@command
+game	S	configuration_acknowledged	unit	-	-
+game	S	container_button_click	composite	-	varint@containerId varint@buttonId
+game	S	container_click	codec	-	i8@containerId varint@stateId i16@slotNum i8@buttonNum varint@clickType ref#aa26584b@changedSlots item_stack@carriedItem
+game	S	container_close	codec	-	i8@containerId
+game	S	container_slot_state_changed	codec	-	varint@slotId varint@containerId bool@newState
+game	S	debug_sample_subscription	codec	-	varint@sampleType
+game	S	edit_book	composite	-	varint@slot list<string>@pages optional<string>@title
+game	S	entity_tag_query	codec	-	varint@transactionId varint@entityId
+game	S	interact	codec	-	varint@entityId varint@action ref#e7bf2c41@action bool@usingSecondaryAction
+game	S	jigsaw_generate	codec	-	block_pos@pos varint@levels bool@keepJigsaws
+game	S	lock_difficulty	codec	-	bool@locked
+game	S	move_player_pos	codec	branch	f64@x f64@y f64@z
+game	S	move_player_pos_rot	codec	branch	f64@x f64@y f64@z f32@yRot f32@xRot
+game	S	move_player_rot	codec	branch	f32@yRot f32@xRot
+game	S	move_player_status_only	codec	branch	-
+game	S	move_vehicle	codec	-	f64@x f64@y f64@z f32@yRot f32@xRot
+game	S	paddle_boat	codec	-	bool@left bool@right
+game	S	pick_item	codec	-	varint@slot
+game	S	place_recipe	codec	-	i8@containerId identifier@recipe bool@shiftDown
+game	S	player_abilities	codec	branch	i8
+game	S	player_action	codec	-	varint@action block_pos@pos i8@direction varint@sequence
+game	S	player_command	codec	-	varint@id varint@action varint@data
+game	S	player_input	codec	branch	f32@xxa f32@zza i8
+game	S	recipe_book_change_settings	codec	-	varint@bookType bool@isOpen bool@isFiltering
+game	S	recipe_book_seen_recipe	codec	-	identifier@recipe
+game	S	rename_item	codec	-	string@name
+game	S	seen_advancements	codec	branch	varint@action identifier@tab
+game	S	select_trade	codec	-	varint@item
+game	S	set_beacon	composite	-	optional<ref#3833d25e>@primary optional<ref#3833d25e>@secondary
+game	S	set_carried_item	codec	-	i16@slot
+game	S	set_command_block	codec	branch	block_pos@pos string@command varint@mode i8
+game	S	set_command_minecart	codec	-	varint@entity string@command bool@trackOutput
+game	S	set_creative_mode_slot	composite	-	i16@slotNum item_stack@itemStack
+game	S	set_jigsaw_block	codec	-	block_pos@pos identifier@name identifier@target identifier@pool string@finalState string@joint varint@selectionPriority varint@placementPriority
+game	S	set_structure_block	codec	branch	block_pos@pos varint@updateType varint@mode string@name i8@offset i8@offset i8@offset i8@size i8@size i8@size varint@mirror varint@rotation string@data f32@integrity varlong@seed i8
+game	S	sign_update	codec	branch	block_pos@pos bool@isFrontText string
+game	S	swing	codec	-	varint@hand
+game	S	teleport_to_entity	codec	-	uuid@uuid
+game	S	use_item	codec	-	varint@hand varint@sequence f32@yRot f32@xRot
+game	S	use_item_on	codec	-	varint@hand block_hit@blockHit varint@sequence
+handshake	S	intention	codec	-	varint@protocolVersion string@hostName i16@port varint@intention
+login	C	custom_query	codec	-	varint@transactionId identifier@payload ref#f2a3b8a7@payload
+login	C	game_profile	composite	-	game_profile@gameProfile bool@strictErrorHandling
+login	C	hello	codec	-	string@serverId bytes@publicKey bytes@challenge bool@shouldAuthenticate
+login	C	login_compression	codec	-	varint@compressionThreshold
+login	C	login_disconnect	codec	-	string
+login	S	custom_query_answer	codec	-	varint@transactionId optional<ref#01db632c>@payload
+login	S	hello	codec	-	string@name uuid@profileId
+login	S	key	codec	-	bytes@keybytes bytes@encryptedChallenge
+login	S	login_acknowledged	unit	-	-
+ping	C	pong_response	codec	-	i64@time
+ping	S	ping_request	codec	-	i64@time
+status	C	status_response	codec	-	json
+status	S	status_request	unit	-	-

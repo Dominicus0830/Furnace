@@ -191,7 +191,7 @@ packet clientbound hello ClientboundHelloPacket class new
 packet clientbound login_compression ClientboundLoginCompressionPacket class new
   int compressionThreshold get=getCompressionThreshold
 packet clientbound login_disconnect ClientboundLoginDisconnectPacket class new
-  Component reason get=getReason
+  Component reason string get=getReason
 packet serverbound custom_query_answer ServerboundCustomQueryAnswerPacket record custom
   int transactionId
   CustomQueryAnswerPayload payload nullable

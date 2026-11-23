@@ -29,7 +29,9 @@ public final class Options {
         /** 서명 관문(T-228): shim 클래스 선언을 기준 서명표와 맞대고 기준선 파일과 견준다. */
         SIG_GATE,
         /** 본문 지문표(버전 사이 동작 변경 후보 찾기). 서명표와 달리 메서드 몸통의 해시만 남긴다. */
-        BODY_TABLE
+        BODY_TABLE,
+        /** 패킷 코덱 추출기(T-250): 바닐라 패킷의 와이어 모양을 뽑아 캐시에 쓰고, 중립 잠금 파일을 만들거나(`--layout-install`) 커밋된 것과 견준다(`--layout-verify`). */
+        PACKET_LAYOUT
     }
 
     public String mc;
@@ -64,6 +66,10 @@ public final class Options {
     public boolean sigBaselineWrite;
     /** 서명 관문 보고서(마크다운) 출력 위치. */
     public Path sigReport;
+    /** packet-layout: 중립 잠금 파일을 저장소 리소스에 쓴다. */
+    public boolean layoutInstall;
+    /** packet-layout: 새로 뽑은 잠금을 저장소에 커밋된 것과 견준다(다르면 실패). */
+    public boolean layoutVerify;
     public final Map<String, List<String>> toolArgs = new LinkedHashMap<>();
 
     public static Options parse(String[] args) {
@@ -91,6 +97,8 @@ public final class Options {
                 case "--sig-baseline" -> o.sigBaseline = Path.of(next(args, ++i, a));
                 case "--sig-baseline-write" -> o.sigBaselineWrite = true;
                 case "--sig-report" -> o.sigReport = Path.of(next(args, ++i, a));
+                case "--layout-install" -> o.layoutInstall = true;
+                case "--layout-verify" -> o.layoutVerify = true;
                 case "--legacy-ref" -> o.legacyRef = next(args, ++i, a);
                 case "--tool-arg" -> {
                     String kv = next(args, ++i, a);
