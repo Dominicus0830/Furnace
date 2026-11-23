@@ -305,6 +305,49 @@ public final class ItemSupportImpl implements ItemSupport {
     }
 
     @Override
+    public <T> String componentSnbt(ItemComponent<T> component, T value) {
+        ComponentType t = type(component);
+        if (t.isTransient()) throw new IllegalArgumentException(t.name() + " is a transient component");
+        try {
+            Object in = component.isRaw() ? Snbt.parse((String) value) : adapter(component).write().apply(value);
+            return Snbt.write(t.persistent().toNbt(t.normalize(in)));
+        } catch (CodecException | ClassCastException e) {
+            throw bad(component, e);
+        }
+    }
+
+    @Override
+    public byte[] encodeComponentValue(String component, String snbt) {
+        io.netty.buffer.ByteBuf out = io.netty.buffer.Unpooled.buffer();
+        try {
+            ComponentType t = DataComponents.require(component);
+            t.network().write(out, t.normalize(Snbt.parse(snbt)));
+            byte[] b = new byte[out.readableBytes()];
+            out.readBytes(b);
+            return b;
+        } catch (CodecException | org.domi.furnace.api.nbt.SnbtParseException e) {
+            throw new IllegalArgumentException(e.getMessage(), e);
+        } finally {
+            out.release();
+        }
+    }
+
+    @Override
+    public org.domi.furnace.api.item.ItemComponentWireValue decodeComponentValue(String component, java.nio.ByteBuffer bytes) {
+        io.netty.buffer.ByteBuf in = io.netty.buffer.Unpooled.wrappedBuffer(bytes.slice());
+        try {
+            ComponentType t = DataComponents.require(component);
+            Object v = t.network().read(in);
+            Object nbt = t.isTransient() ? v : t.persistent().toNbt(v);
+            return new org.domi.furnace.api.item.ItemComponentWireValue(Snbt.write(nbt), in.readerIndex());
+        } catch (CodecException | IndexOutOfBoundsException e) {
+            throw new IllegalArgumentException(e.getMessage(), e);
+        } finally {
+            in.release();
+        }
+    }
+
+    @Override
     public ItemStack applyComponentPatch(ItemStack stack, ItemComponentPatch patch) {
         ItemStack out = stack;
         for (var e : patch.set().entrySet()) out = set(out, ItemComponent.raw(e.getKey()), e.getValue());
