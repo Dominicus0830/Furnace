@@ -1045,7 +1045,6 @@ C	net/minecraft/world/level/levelgen/RandomState	49	java/lang/Object	-	-	-	paper
 C	net/minecraft/world/level/levelgen/RandomSupport	49	java/lang/Object	-	-	-	paper-server-1.21.1
 F	net/minecraft/world/level/levelgen/RandomSupport	GOLDEN_RATIO_64	J	25	-
 F	net/minecraft/world/level/levelgen/RandomSupport	SILVER_RATIO_64	J	25	-
-M	net/minecraft/world/level/levelgen/RandomSupport	generateUniqueSeed	()J	9	-
 M	net/minecraft/world/level/levelgen/RandomSupport	mixStafford13	(J)J	9	-
 C	net/minecraft/world/level/levelgen/SingleThreadedRandomSource	33	java/lang/Object	net/minecraft/world/level/levelgen/BitRandomSource	-	-	paper-server-1.21.1
 M	net/minecraft/world/level/levelgen/SingleThreadedRandomSource	<init>	(J)V	1	-
@@ -1062,7 +1061,6 @@ M	net/minecraft/world/level/levelgen/WorldOptions	generateBonusChest	()Z	1	-
 M	net/minecraft/world/level/levelgen/WorldOptions	generateStructures	()Z	1	-
 M	net/minecraft/world/level/levelgen/WorldOptions	isOldCustomizedWorld	()Z	1	-
 M	net/minecraft/world/level/levelgen/WorldOptions	parseSeed	(Ljava/lang/String;)Ljava/util/OptionalLong;	9	-
-M	net/minecraft/world/level/levelgen/WorldOptions	randomSeed	()J	9	-
 M	net/minecraft/world/level/levelgen/WorldOptions	seed	()J	1	-
 M	net/minecraft/world/level/levelgen/WorldOptions	withBonusChest	(Z)Lnet/minecraft/world/level/levelgen/WorldOptions;	1	-
 M	net/minecraft/world/level/levelgen/WorldOptions	withSeed	(Ljava/util/OptionalLong;)Lnet/minecraft/world/level/levelgen/WorldOptions;	1	-

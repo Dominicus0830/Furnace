@@ -4,7 +4,7 @@ class net.minecraft.world.level.levelgen.RandomSupport
   GOLDEN_RATIO_64 = -7046029254386353131L
   SILVER_RATIO_64 = 7640891576956012809L
   mixStafford13 -> @hand pure
-  generateUniqueSeed -> @hand pure
+  # generateUniqueSeed 는 시간·전역 씨앗을 써서 호출마다 값이 달라 pure 가 아니다 — 명세에 적지 않고 조각만 가진다(차분 시험이 견주지 못한다)
 class net.minecraft.world.level.levelgen.BitRandomSource
   FLOAT_MULTIPLIER = 5.9604645E-8F
   DOUBLE_MULTIPLIER = 1.110223E-16F
@@ -52,7 +52,7 @@ class net.minecraft.world.level.levelgen.WorldOptions
   withStructures -> @hand pure
   withSeed -> @hand pure
   parseSeed -> @hand pure
-  randomSeed -> @hand pure
+  # randomSeed 도 같은 이유로 명세에 적지 않는다
 class net.minecraft.world.level.levelgen.BelowZeroRetrogen
   targetStatus()Lnet/minecraft/world/level/chunk/status/ChunkStatus; -> @hand pure
   hasBedrockHoles -> @hand pure
