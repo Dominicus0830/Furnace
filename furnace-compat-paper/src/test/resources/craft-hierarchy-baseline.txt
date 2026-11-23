@@ -61,5 +61,6 @@ interfaces org/bukkit/craftbukkit/inventory/CraftMetaItem paper-only=org/bukkit/
 interfaces org/bukkit/craftbukkit/inventory/trim/CraftTrimMaterial paper-only=org/bukkit/craftbukkit/util/Handleable furnace-only=
 interfaces org/bukkit/craftbukkit/inventory/trim/CraftTrimPattern paper-only=org/bukkit/craftbukkit/util/Handleable furnace-only=
 interfaces org/bukkit/craftbukkit/map/CraftMapView paper-only=org/bukkit/map/MapView furnace-only=
+interfaces org/bukkit/craftbukkit/potion/CraftPotionEffectType paper-only=io/papermc/paper/world/flag/PaperFeatureDependent,org/bukkit/craftbukkit/util/Handleable furnace-only=
 interfaces org/bukkit/craftbukkit/profile/CraftPlayerProfile paper-only=com/destroystokyo/paper/profile/PlayerProfile furnace-only=
 super org/bukkit/craftbukkit/map/CraftMapRenderer paper=org/bukkit/map/MapRenderer furnace=java/lang/Object

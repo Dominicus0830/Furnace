@@ -123,4 +123,19 @@ class CraftSchedulerTagIdentityTest {
                     Bukkit.getTag(Tag.REGISTRY_GAME_EVENTS, NamespacedKey.minecraft("vibrations"), GameEvent.class).getClass().getName());
         }
     }
+
+    /** T-264 P2d: 이 호환 계층에 있는 Bukkit 레지스트리 상수의 클래스가 Paper 관측표(registry.<이름>)와 같다. */
+    @Test
+    void registryClassesMatchPaper() throws Exception {
+        Map<String, String> paper = paper();
+        int seen = 0;
+        for (var f : org.bukkit.Registry.class.getFields()) {
+            if (!org.bukkit.Registry.class.isAssignableFrom(f.getType())) continue;
+            String want = paper.get("registry." + f.getName());
+            if (want == null) continue;
+            assertEquals(want, f.get(null).getClass().getName(), "registry." + f.getName());
+            seen++;
+        }
+        assertTrue(seen >= 13, "견준 레지스트리 " + seen);
+    }
 }

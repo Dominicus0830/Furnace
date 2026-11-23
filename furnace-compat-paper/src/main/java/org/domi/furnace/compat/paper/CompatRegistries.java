@@ -26,8 +26,14 @@ public final class CompatRegistries {
 
     private CompatRegistries() {}
 
-    /** 고정 값 목록의 레지스트리(키 순서 = 주어진 순서). */
-    public static <T extends Keyed> Registry<T> fixed(Class<T> type, Iterable<T> values) { return new Fixed<>(type, values); }
+    /** 고정 값 목록의 레지스트리(키 순서 = 주어진 순서). 플러그인에게는 Paper 와 같은 CraftRegistry 로. */
+    public static <T extends Keyed> Registry<T> fixed(Class<T> type, Iterable<T> values) { return craft(new Fixed<>(type, values)); }
+
+    /** 고정 값 목록의 레지스트리 — Paper 1.21.1 에서 부트스트랩 때 고칠 수 있는 것(마법부여)은 WritableCraftRegistry. */
+    public static <T extends Keyed> Registry<T> fixedWritable(Class<T> type, Iterable<T> values) { return CraftAccess.newWritableRegistry(new Fixed<>(type, values)); }
+
+    /** 서버 레지스트리에서 오는 Bukkit 레지스트리의 몸을 Paper 와 같은 CraftRegistry 로 감싼다(T-264 P2d). */
+    public static <T extends Keyed> Registry<T> craft(Registry<T> body) { return CraftAccess.newRegistry(body); }
 
     /** 이 호환 계층에 있는 레지스트리(없으면 null — Bukkit 도 모르는 형이면 null). */
     @SuppressWarnings("unchecked")
