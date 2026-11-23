@@ -1,14 +1,12 @@
-// Bukkit Tag 의 구현 — Furnace 게임 레지스트리(Furnace.server().gameRegistries())의 태그를 그때그때 읽는다.
+// Bukkit Tag 조회 — 태그 객체는 Paper 와 같은 CraftTag 하위(CraftBlockTag·CraftItemTag·CraftFluidTag·CraftEntityTag·CraftGameEventTag — T-264)이고, Furnace 게임 레지스트리(Furnace.server().gameRegistries())의 태그를 그때그때 읽는다.
 // CraftBukkit 의 CraftBlockTag·CraftItemTag·CraftFluidTag·CraftEntityTag·CraftGameEventTag 와 같은 동작: 태그를 잡고 있다가 데이터 팩 리로드로 내용이
 // 바뀌면 다음 물음부터 새 내용이 보이고(태그 키를 들고 레지스트리를 매번 본다), 값이 태그에 없거나 그 레지스트리의 값이 아니면(예: 아이템 전용 Material 을 블록 태그에 물음) isTagged 는 false.
 package org.domi.furnace.compat.paper;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.bukkit.Fluid;
@@ -32,7 +30,7 @@ public final class CompatTags {
         if (tag == null) throw new IllegalArgumentException("NamespacedKey tag cannot be null");
         Kind kind = kind(registry, clazz);
         Optional<List<String>> values = registries().tag(kind.vanillaRegistry, tag.toString());
-        return values.isPresent() ? (Tag<T>) new Impl<>(kind, tag) : null;
+        return values.isPresent() ? (Tag<T>) newTag(kind, tag) : null;
     }
 
     /** Bukkit.getTags(registry, clazz) — 그 레지스트리에 지금 있는 태그 전부. */
@@ -42,16 +40,28 @@ public final class CompatTags {
         List<Tag<T>> out = new ArrayList<>();
         for (String id : registries().tags(kind.vanillaRegistry)) {
             NamespacedKey key = NamespacedKey.fromString(id);
-            if (key != null) out.add((Tag<T>) new Impl<>(kind, key));
+            if (key != null) out.add((Tag<T>) newTag(kind, key));
         }
         return Collections.unmodifiableList(out);
     }
 
-    private static GameRegistries registries() { return Furnace.server().gameRegistries(); }
+    public static GameRegistries registries() { return Furnace.server().gameRegistries(); }
 
     /** 레지스트리 하나의 값 ↔ 항목 id 변환. */
-    private record Kind(String bukkitRegistry, String vanillaRegistry, Class<?> type,
-                        Function<NamespacedKey, Keyed> byKey, Predicate<Keyed> inRegistry) {}
+    public record Kind(String bukkitRegistry, String vanillaRegistry, Class<?> type,
+                       Function<NamespacedKey, Keyed> byKey, Predicate<Keyed> inRegistry) {}
+
+    /** CraftTag 가 getValues 로 마지막에 만든 값과 그 원본 항목 목록(craftbukkit 에 Paper 에 없는 중첩 클래스를 두지 않으려고 여기 둔다). */
+    public record ValuesCache(List<String> source, java.util.Set<?> values) {}
+
+    /** 종류별 Paper 태그 클래스(CraftBlockTag 등 — T-264). */
+    private static Tag<?> newTag(Kind kind, NamespacedKey key) {
+        if (kind == BLOCKS) return new org.bukkit.craftbukkit.tag.CraftBlockTag(kind, key);
+        if (kind == ITEMS) return new org.bukkit.craftbukkit.tag.CraftItemTag(kind, key);
+        if (kind == FLUIDS) return new org.bukkit.craftbukkit.tag.CraftFluidTag(kind, key);
+        if (kind == ENTITY_TYPES) return new org.bukkit.craftbukkit.tag.CraftEntityTag(kind, key);
+        return new io.papermc.paper.CraftGameEventTag(kind, key);
+    }
 
     private static Kind kind(String registry, Class<?> clazz) {
         if (registry == null) throw new IllegalArgumentException("registry cannot be null");
@@ -97,62 +107,5 @@ public final class CompatTags {
         if (!NamespacedKey.MINECRAFT.equals(key.getNamespace())) return null;
         for (Fluid f : Fluid.values()) if (f.getKey().equals(key)) return f;
         return null;
-    }
-
-    private static final class Impl<T extends Keyed> implements Tag<T> {
-
-        private final Kind kind;
-        private final NamespacedKey key;
-        /** getValues 가 마지막으로 만든 값 — 같은 항목 목록 객체(레지스트리 보기가 안 바뀜)면 다시 만들지 않는다. */
-        private volatile Cache cache;
-
-        private record Cache(List<String> source, Set<?> values) {}
-
-        Impl(Kind kind, NamespacedKey key) {
-            this.kind = kind;
-            this.key = key;
-        }
-
-        @Override
-        public NamespacedKey getKey() { return key; }
-
-        @Override
-        public boolean isTagged(T item) {
-            if (item == null) {
-                // Paper: 블록·아이템 태그는 EnumMap 조회라 null 이면 false, 엔티티·유체·게임 이벤트 태그는 예외
-                if (kind == BLOCKS || kind == ITEMS) return false;
-                throw new IllegalArgumentException("item cannot be null");
-            }
-            if (!kind.inRegistry.test(item)) return false;
-            return registries().isTagged(kind.vanillaRegistry, key.toString(), item.getKey().toString());
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        public Set<T> getValues() {
-            List<String> ids = registries().tag(kind.vanillaRegistry, key.toString()).orElse(List.of());
-            Cache c = cache;
-            if (c != null && c.source == ids) return (Set<T>) c.values;
-            Set<T> out = new LinkedHashSet<>();
-            for (String id : ids) {
-                NamespacedKey k = NamespacedKey.fromString(id);
-                Keyed v = k == null ? null : kind.byKey.apply(k);
-                if (v != null) out.add((T) v);
-            }
-            Set<T> frozen = Collections.unmodifiableSet(out);
-            cache = new Cache(ids, frozen);
-            return frozen;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            return this == o || o instanceof Impl<?> t && t.kind == kind && t.key.equals(key);
-        }
-
-        @Override
-        public int hashCode() { return key.hashCode(); }
-
-        @Override
-        public String toString() { return "Tag{" + kind.bukkitRegistry + ":" + key + "}"; }
     }
 }

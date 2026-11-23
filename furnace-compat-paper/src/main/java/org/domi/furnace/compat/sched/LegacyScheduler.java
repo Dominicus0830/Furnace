@@ -208,7 +208,14 @@ public final class LegacyScheduler {
                 future.completeExceptionally(t);
             }
         }, true, 0, NO_REPEATING, () -> future.completeExceptionally(new CancellationException("task cancelled")));
+        future.task.future = future;
         return future;
+    }
+
+    /** callSyncMethod 가 돌려준 future 의 작업(그 밖의 future 면 IllegalArgumentException). */
+    public static LegacyTask taskOf(Future<?> future) {
+        if (future instanceof SyncFuture<?> f) return f.task;
+        throw new IllegalArgumentException("not a callSyncMethod future");
     }
 
     /** CraftFuture 처럼: 아직 안 돈 callable 은 cancel 하면 돌지 않는다. 이미 돌기 시작했으면 false. */
@@ -478,6 +485,26 @@ public final class LegacyScheduler {
         final AtomicBoolean claimed = new AtomicBoolean();
         volatile long nextRun;
         volatile boolean cancelled;
+        /** callSyncMethod 의 future(그 밖의 작업은 null). */
+        volatile Future<?> future;
+
+        @Override
+        public Future<?> syncCall() { return future; }
+
+        private volatile Object view;
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <T> T view(java.util.function.Function<LegacyTask, T> make) {
+            Object v = view;
+            if (v == null) {
+                synchronized (this) {
+                    v = view;
+                    if (v == null) view = v = make.apply(this);
+                }
+            }
+            return (T) v;
+        }
 
         Task(int id, FurnacePlugin plugin, Runnable body, boolean sync, long period, Runnable onCancel) {
             this.id = id;
@@ -578,6 +605,9 @@ public final class LegacyScheduler {
             book.remove(plugin, this);
             return true;
         }
+
+        @Override
+        public void runBody() { body.run(); }
 
         @Override
         public int taskId() { return id; }
