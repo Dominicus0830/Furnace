@@ -28,6 +28,11 @@ class LivingEntity {
                 (org.domi.furnace.api.entity.LivingEntity) getBukkitEntity().furnaceHandle(), attribute);
     }
 
+    /** 바닐라 getAttributes: 이 엔티티의 속성 모음(서버의 그 엔티티 속성을 보는 보기). */
+    public net.minecraft.world.entity.ai.attributes.AttributeMap getAttributes() {
+        return net.minecraft.world.entity.ai.attributes.AttributeMap.furnaceOf(furnaceLiving());
+    }
+
     /** 바닐라: 그 속성의 값. 가지지 않으면 IllegalArgumentException("Can't find attribute " + 이름) — 바닐라 AttributeSupplier 와 같다. */
     public double getAttributeValue(net.minecraft.core.Holder<net.minecraft.world.entity.ai.attributes.Attribute> attribute) {
         return need(attribute).getValue();
@@ -43,6 +48,36 @@ class LivingEntity {
         if (i == null) throw new IllegalArgumentException("Can't find attribute " + attribute.getRegisteredName());
         return i;
     }
+
+    private org.domi.furnace.api.entity.LivingEntity furnaceLiving() { return (org.domi.furnace.api.entity.LivingEntity) getBukkitEntity().furnaceHandle(); }
+
+    // ---- 상태 효과(NmsEffects: 몹은 소유 스레드, 플레이어는 PlayerVitals). 읽은 MobEffectInstance 는 사본이다.
+
+    /** 바닐라 getEffect: 그 효과의 사본(없으면 null). 숨은 효과는 담기지 않는다. */
+    public net.minecraft.world.effect.MobEffectInstance getEffect(net.minecraft.core.Holder<net.minecraft.world.effect.MobEffect> effect) {
+        return org.domi.furnace.compat.nms.NmsMobEffectOps.get(furnaceLiving(), effect);
+    }
+
+    public boolean hasEffect(net.minecraft.core.Holder<net.minecraft.world.effect.MobEffect> effect) { return getEffect(effect) != null; }
+
+    /** 바닐라 getActiveEffects: 걸린 효과들의 사본(걸린 순서). */
+    public java.util.Collection<net.minecraft.world.effect.MobEffectInstance> getActiveEffects() { return org.domi.furnace.compat.nms.NmsMobEffectOps.list(furnaceLiving()); }
+
+    public java.util.Map<net.minecraft.core.Holder<net.minecraft.world.effect.MobEffect>, net.minecraft.world.effect.MobEffectInstance> getActiveEffectsMap() {
+        return org.domi.furnace.compat.nms.NmsMobEffectOps.map(furnaceLiving());
+    }
+
+    /** 바닐라 addEffect: 서버가 바닐라 규칙(더 센 쪽·숨은 효과)으로 건다. 소유 스레드가 아닌 쓰기는 넘기고 true 를 돌려준다. */
+    public final boolean addEffect(net.minecraft.world.effect.MobEffectInstance effect) { return org.domi.furnace.compat.nms.NmsMobEffectOps.add(furnaceLiving(), effect); }
+
+    /** 바닐라 addEffect(효과, 준 엔티티): 준 엔티티는 효과 변경 발전 과제의 출처로만 쓰여 지금은 무시한다. */
+    public boolean addEffect(net.minecraft.world.effect.MobEffectInstance effect, Entity source) { return addEffect(effect); }
+
+    public boolean removeEffect(net.minecraft.core.Holder<net.minecraft.world.effect.MobEffect> effect) {
+        return org.domi.furnace.compat.nms.NmsMobEffectOps.remove(furnaceLiving(), effect);
+    }
+
+    public boolean removeAllEffects() { return org.domi.furnace.compat.nms.NmsMobEffectOps.removeAll(furnaceLiving()); }
 
     /**
      * 바닐라 {@code LivingEntity#getItemInHand}: 그 손의 스택 객체. 월드의 엔티티는 아직 이 길로 읽지 않는다(UnsupportedNmsCall — Bukkit
