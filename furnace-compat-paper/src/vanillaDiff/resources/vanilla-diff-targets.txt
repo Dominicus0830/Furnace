@@ -41,7 +41,9 @@ class net.minecraft.nbt.CollectionTag  iterations=3000
 class net.minecraft.nbt.ListTag  iterations=3000
 class net.minecraft.nbt.CompoundTag  iterations=3000
 class net.minecraft.nbt.NbtAccounter  iterations=3000
-class net.minecraft.nbt.NbtIo  iterations=3000
+# NbtIo 는 1000: 바닐라 읽기가 실패마다 CrashReport(시스템 정보 수집, 입력당 약 10ms)를 만들어 3000 이면 CI 에서 멤버당 120초를 넘는다.
+# 근거 입력은 고정 훑기에 있어 입력 수와 무관하다
+class net.minecraft.nbt.NbtIo  iterations=1000
   paper read(java.io.DataInput) vanilla=net.minecraft.nbt.ReportedNbtException shim=java.lang.IllegalArgumentException vanilla=net.minecraft.nbt.NbtAccounterException shim=java.lang.IllegalArgumentException  # Paper 는 바이트·정수 배열 길이를 할당량 계산 전에 checkArgument(n < 1<<24) 로 막는다(바닐라 1.21.1 에는 없음). Paper Mojang 이름 jar 의 ByteArrayTag$1·IntArrayTag$1 바이트코드로 확인(11-23). 근거 입력: NbtKit 큰 배열 길이(고정 훑기 0·4·8·12)
   paper read(java.io.DataInput,net.minecraft.nbt.NbtAccounter) vanilla=net.minecraft.nbt.ReportedNbtException shim=java.lang.IllegalArgumentException vanilla=net.minecraft.nbt.NbtAccounterException shim=java.lang.IllegalArgumentException  # Paper 는 바이트·정수 배열 길이를 할당량 계산 전에 checkArgument(n < 1<<24) 로 막는다(바닐라 1.21.1 에는 없음). Paper Mojang 이름 jar 의 ByteArrayTag$1·IntArrayTag$1 바이트코드로 확인(11-23). 근거 입력: NbtKit 큰 배열 길이(고정 훑기 0·4·8·12)
   paper read(java.nio.file.Path) vanilla=net.minecraft.nbt.ReportedNbtException shim=java.lang.IllegalArgumentException vanilla=net.minecraft.nbt.NbtAccounterException shim=java.lang.IllegalArgumentException  # Paper 는 바이트·정수 배열 길이를 할당량 계산 전에 checkArgument(n < 1<<24) 로 막는다(바닐라 1.21.1 에는 없음). Paper Mojang 이름 jar 의 ByteArrayTag$1·IntArrayTag$1 바이트코드로 확인(11-23). 근거 입력: NbtKit 큰 배열 길이(고정 훑기 0·4·8·12)
