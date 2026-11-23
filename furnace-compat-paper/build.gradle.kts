@@ -256,7 +256,7 @@ dependencies {
 }
 
 tasks.test {
-    useJUnitPlatform()
+    useJUnitPlatform { excludeTags("full-shells") }   // T-260: 실제 서명표로 만든 전체 껍데기 시험은 fullShellsTest 가 돈다(서명표 캐시 필요)
     enableAssertions = true
     maxHeapSize = "2g"
     jvmArgumentProviders.add(RealWorldJars(realWorld))
@@ -402,6 +402,91 @@ tasks.register<JavaExec>("nmsReport") {
         args(rootProject.layout.projectDirectory.file("docs/feature-parity/compat-h5-nms-calls-2026-11-07.md").asFile.absolutePath)
     }
     jvmArgumentProviders.add(RealWorldJars(realWorld + nmsSurvey + extraJars))
+}
+
+// T-260: 전체 껍데기 — Paper 1.21.1 내부 클래스(net.minecraft·CraftBukkit 7,139 + Paper 서버 전용) 가운데 호환 계층에 없는 것 전부를 서명표에서
+// "모양만" 만든다(docs/roadmap/full-shells-2026-11-23.md). 서명표는 캐시에만 있으므로(tools/compat/sig-tables.sh) 저장소에는 표의 지문(src/shimspec/full-shells-<판>.fp)만 둔다.
+// 결과는 호환 jar 와 따로 furnace-compat-shells.jar 로 서버 fatJar 에 실린다. 서버 빌드는 서명표가 캐시에 없으면 경고하고 뺀다(-PnoFullShells 로 늘 빼기, -PrequireFullShells 로 없으면 실패).
+//   ./gradlew -PskipOracle=true :furnace-compat-paper:fullShellsJar      (-PfullShellsFpWrite=true: 표를 일부러 다시 만들었을 때 지문 다시 쓰기)
+//   ./gradlew -PskipOracle=true :furnace-compat-paper:fullShellsTest     (전부 올리고 초기화 + 크기·시간 보고 — CI vanilla-gates)
+val fullShellsCache = (findProperty("cache") as String?) ?: System.getenv("FURNACE_VANILLA_CACHE")?.takeIf { it.isNotBlank() }
+    ?: (System.getProperty("user.home") + "/.cache/furnace-vanilla-extract")
+val fullShellsTables = listOf("sig-table-paper-server.tsv.gz", "sig-table.tsv.gz", "sig-table-paper-api.tsv.gz")
+    .map { "$fullShellsCache/$mcVersion/$it" }
+val fullShellsLibs = "$fullShellsCache/$mcVersion/work/libs"   // 바닐라 서버 jar 가 싣는 라이브러리(vanilla-extract 가 풀어 둔 것)
+val fullShellsMain: SourceSet = the<SourceSetContainer>()["main"]
+// 서버가 플러그인에게 주는 라이브러리(ServerLibraries 의 목록 그대로 — Adventure·SnakeYAML 등). 껍데기의 상위 형식이 이것이면 실행 때 있다.
+val fullShellsServerLibs by configurations.creating {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+    isTransitive = false
+}
+Regex("new Artifact\\(\"([^\"]+)\"").findAll(rootProject.file("furnace-server/src/main/java/org/domi/furnace/server/plugin/library/ServerLibraries.java").readText())
+    .map { it.groupValues[1] }.filter { !it.startsWith("com.mojang:") }   // Mojang 라이브러리는 Mojang 저장소에만 있다 — 바닐라 라이브러리 폴더(work/libs)에 이미 있다
+    .forEach { dependencies.add(fullShellsServerLibs.name, it) }
+val fullShellsTestSources: SourceSet = the<SourceSetContainer>()["test"]
+val fullShellsDir = layout.buildDirectory.dir("full-shells/classes")
+val fullShellsReport = layout.buildDirectory.file("full-shells/report.md")
+val fullShellsFp = layout.projectDirectory.file("src/shimspec/full-shells-$mcVersion.fp")
+val generateFullShells by tasks.registering(JavaExec::class) {
+    group = "build"
+    description = "서명표에서 호환 계층에 없는 Paper 내부 클래스 전부의 껍데기를 만든다(T-260)"
+    val main = fullShellsMain
+    dependsOn(main.classesTaskName)
+    classpath = shimgen.runtimeClasspath
+    mainClass.set("org.domi.furnace.compat.shimgen.FullShells")
+    jvmArgs("-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8")
+    maxHeapSize = "2g"
+    inputs.files(shimgen.runtimeClasspath).withNormalizer(ClasspathNormalizer::class)
+    inputs.files(fullShellsTables).withPathSensitivity(PathSensitivity.NONE)
+    inputs.files(main.runtimeClasspath).withNormalizer(ClasspathNormalizer::class)
+    inputs.files(fullShellsServerLibs).withNormalizer(ClasspathNormalizer::class)
+    inputs.files(fullShellsFp).withPathSensitivity(PathSensitivity.NONE)
+    outputs.dir(fullShellsDir)
+    outputs.file(fullShellsReport)
+    val writeFp = providers.gradleProperty("fullShellsFpWrite").isPresent
+    argumentProviders.add(CommandLineArgumentProvider {
+        listOf(fullShellsDir.get().asFile.absolutePath, fullShellsReport.get().asFile.absolutePath, fullShellsFp.asFile.absolutePath, writeFp.toString(),
+            (main.runtimeClasspath.files + fullShellsServerLibs.files).joinToString(File.pathSeparator) { it.absolutePath }) + fullShellsTables + fullShellsLibs
+    })
+}
+val fullShellsJar by tasks.registering(Jar::class) {
+    group = "build"
+    description = "전체 껍데기 jar(furnace-compat-shells.jar) — 서버 fatJar 가 호환 jar 뒤에 싣는다(T-260)"
+    from(generateFullShells.map { fullShellsDir.get() })
+    archiveFileName = "furnace-compat-shells.jar"
+    destinationDirectory = layout.buildDirectory.dir("full-shells")
+}
+val fullShellsElements by configurations.creating {
+    isCanBeConsumed = true
+    isCanBeResolved = false
+}
+artifacts.add(fullShellsElements.name, fullShellsJar)
+// 실제 서명표로 만든 껍데기 전부를 호환 계층·라이브러리와 한 로더에 올려 초기화까지 하고, 크기·시간을 build/full-shells/load-report.md 에 쓴다.
+// 라이브러리 jar 는 바닐라 서버 jar(캐시) 안의 META-INF/libraries 에서 꺼내 쓴다(Paper 처럼 실행 때 서버 라이브러리로 있는 것).
+tasks.register<Test>("fullShellsTest") {
+    group = "verification"
+    description = "전체 껍데기를 전부 올리고 초기화하는 시험 + 크기·시간 보고(T-260, 서명표 캐시 필요)"
+    val test = fullShellsTestSources
+    testClassesDirs = test.output.classesDirs
+    classpath = test.runtimeClasspath
+    useJUnitPlatform { includeTags("full-shells") }
+    enableAssertions = true
+    maxHeapSize = "2g"
+    dependsOn(fullShellsJar)
+    inputs.files(fullShellsJar)
+    systemProperty("furnace.fullShells.jar", layout.buildDirectory.file("full-shells/furnace-compat-shells.jar").get().asFile.absolutePath)
+    systemProperty("furnace.fullShells.report", layout.buildDirectory.file("full-shells/load-report.md").get().asFile.absolutePath)
+    dependsOn(tasks.jar)
+    // 실제 실행과 같은 모양의 따로 된 로더: 호환 jar → 껍데기 jar → 호환 실행 의존 → 서버 제공 라이브러리 → 바닐라 라이브러리(부모는 플랫폼 로더)
+    jvmArgumentProviders.add(CommandLineArgumentProvider {
+        // 바닐라의 log4j→slf4j 백엔드(log4j-slf4j2-impl)는 Furnace 가 싣지 않는다 — 서버 제공 log4j-to-slf4j 와 함께 있으면 로그 초기화가 실패한다
+        val libs = fileTree(fullShellsLibs) { include("**/*.jar"); exclude("**/log4j-slf4j2-impl-*.jar") }.files.sorted()
+        val cp = listOf(tasks.jar.get().archiveFile.get().asFile, fullShellsJar.get().archiveFile.get().asFile) +
+            fullShellsMain.runtimeClasspath.files.filter { it.isFile } + fullShellsServerLibs.files + libs
+        listOf("-Dfurnace.fullShells.classpath=" + cp.joinToString(File.pathSeparator) { it.absolutePath })
+    })
+    testLogging { showStandardStreams = true }
 }
 
 // ===== 바닐라 차분 시험(T-235) =====

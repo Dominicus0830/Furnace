@@ -378,12 +378,35 @@ val compatBundle by configurations.creating {
     isCanBeResolved = true
 }
 dependencies { compatBundle(project(":furnace-compat-paper")) }
-// 호환 모듈 jar 와 그 런타임 의존(ASM) — furnace-api 는 서버 로더에 이미 있으므로 빼고, 호환 모듈 자신은 넣는다.
-fun compatJars() = compatBundle.filter { it.name.endsWith(".jar") && (!it.name.startsWith("furnace-") || it.name.startsWith("furnace-compat")) }
+// T-260: 전체 껍데기 jar(furnace-compat-shells.jar) — 서명표 캐시(tools/compat/sig-tables.sh)가 있어야 만들어진다.
+// 기본: 서명표 셋이 캐시에 있으면 싣고, 없으면 경고하고 뺀다(새로 받은 저장소의 start.sh·installDist·fatJar 가 깨지지 않게 — 껍데기 없는 서버는 예전과 같다).
+// -PnoFullShells(=true) 는 늘 빼고, 배포용 빌드는 -PrequireFullShells(=true) 로 표가 없으면 실패하게 한다(docs/roadmap/full-shells-2026-11-23.md).
+val compatShells by configurations.creating {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+}
+fun fullShellsFlag(name: String): Boolean = providers.gradleProperty(name).map { it.isBlank() || it.toBoolean() }.getOrElse(false)
+val fullShellsTablesPresent: Boolean = run {
+    val cache = (findProperty("cache") as String?) ?: System.getenv("FURNACE_VANILLA_CACHE")?.takeIf { it.isNotBlank() }
+        ?: (System.getProperty("user.home") + "/.cache/furnace-vanilla-extract")
+    val v = (rootProject.extra["mc"] as java.util.Properties).getProperty("mc.version")
+    listOf("sig-table-paper-server.tsv.gz", "sig-table.tsv.gz", "sig-table-paper-api.tsv.gz").all { file("$cache/$v/$it").isFile }
+}
+when {
+    fullShellsFlag("noFullShells") -> {
+        if (fullShellsFlag("requireFullShells")) throw GradleException("-PnoFullShells and -PrequireFullShells contradict each other")
+    }
+    fullShellsTablesPresent || fullShellsFlag("requireFullShells") ->   // 표가 없는데 요구하면 생성기가 없는 표를 이름 대며 실패한다
+        dependencies { compatShells(project(path = ":furnace-compat-paper", configuration = "fullShellsElements")) }
+    else -> logger.warn("T-260: signature tables not in the cache - building without the full shells jar (run tools/compat/sig-tables.sh, or -PrequireFullShells to fail instead)")
+}
+// 호환 모듈 jar 와 그 런타임 의존(ASM) — furnace-api 는 서버 로더에 이미 있으므로 빼고, 호환 모듈 자신은 넣는다. 껍데기 jar 는 이름순으로 호환 jar 뒤에 온다.
+fun compatJars() = compatBundle.filter { it.name.endsWith(".jar") && (!it.name.startsWith("furnace-") || it.name.startsWith("furnace-compat")) } + compatShells
 // 호환 jar 이름 색인(N-lib-1) — 서버는 이 자원이 있으면 jar 를 꺼내 서버 제공 라이브러리 로더의 첫 항목으로 붙인다(CompatJars).
 val compatIndex = tasks.register("compatIndex") {
     dependsOn(":furnace-compat-paper:jar")
     dependsOn(compatBundle)
+    dependsOn(compatShells)
     val out = layout.buildDirectory.file("compat-index/META-INF/furnace/compat/index.txt")
     outputs.file(out)
     outputs.upToDateWhen { false }
@@ -423,6 +446,7 @@ val bundledLibrariesJar = tasks.register<Jar>("bundledLibrariesJar") {
 val compatEmbeddedJar = tasks.register<Jar>("compatEmbeddedJar") {
     dependsOn(":furnace-compat-paper:jar")
     dependsOn(compatBundle)
+    dependsOn(compatShells)
     dependsOn(compatIndex)
     archiveFileName = "furnace-compat-embedded.jar"
     destinationDirectory = layout.buildDirectory.dir("compat-embedded")
@@ -439,6 +463,7 @@ val fatJar = tasks.register<Jar>("fatJar") {
     // 서버 모듈이 이 모듈에 의존하지는 않는다(순환 없음): 모듈 시험은 호환 모듈이 서버에 의존한다.
     dependsOn(":furnace-compat-paper:jar")
     dependsOn(compatBundle)
+    dependsOn(compatShells)
     dependsOn(compatIndex)
     description = "서버와 모든 런타임 의존성을 담은 단일 실행 jar"
     archiveFileName = "furnace-server.jar"

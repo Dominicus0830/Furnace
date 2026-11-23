@@ -31,9 +31,11 @@ public final class NmsReflect {
 
     /**
      * {@code Field.get(target)} 앞: 로드된 청크 섹션 보기 컨테이너의 {@code data} 를 읽으면 그 순간 내용으로 바닐라 배치를 실체화한다(FAWE 가 섹션을 읽는 길).
-     * 아무것도 던지지 않는다(실패하면 원래 필드 값 그대로).
+     * 그 밖에는 던지지 않는다(실패하면 원래 필드 값 그대로). 단 전체 껍데기(T-260)의 동작 없는 필드는 값(0·null)을 지어내지 않고
+     * {@link UnsupportedNmsCall} 을 던진다 — 메서드를 {@code invoke} 했을 때와 같다.
      */
     public static void beforeFieldGet(Field field, Object target) {
+        shellField(field);
         if (target instanceof net.minecraft.world.level.chunk.PalettedContainer<?>) {
             try {
                 net.minecraft.world.level.chunk.ChunkAccess.furnaceBarrierFieldGet(field, target);
@@ -45,15 +47,27 @@ public final class NmsReflect {
 
     /**
      * {@code Field.set*(target, …)} 뒤: 로드된 청크의 섹션·컨테이너 필드를 바꿨으면 그 거울에 알린다(주인이 다음 맞춤 지점에서 들여온다 — 정확성은 틱 끝
-     * 훑기가 보장하고 이 알림은 지연을 줄인다). 아무것도 던지지 않는다.
+     * 훑기가 보장하고 이 알림은 지연을 줄인다). 그 밖에는 던지지 않는다. 단 전체 껍데기(T-260)의 동작 없는 필드에 쓴 것은 아무 데도 닿지 않으므로
+     * 쓴 뒤 {@link UnsupportedNmsCall} 을 던진다(조용히 무시하지 않는다).
      */
     public static void afterFieldSet(Field field, Object target) {
+        shellField(field);
         if (target instanceof net.minecraft.world.level.chunk.LevelChunkSection || target instanceof net.minecraft.world.level.chunk.PalettedContainer<?>) {
             try {
                 net.minecraft.world.level.chunk.ChunkAccess.furnaceBarrierFieldSet(target);
             } catch (RuntimeException | LinkageError ignored) {
                 // 훑기가 잡는다
             }
+        }
+    }
+
+    /** 전체 껍데기의 동작 없는 필드면 던진다(클래스 파일 표지 — {@link NmsSymbols#isShellField}). */
+    private static void shellField(Field field) {
+        String owner = field.getDeclaringClass().getName().replace('.', '/');
+        if (!(NmsSymbols.isNms(owner) || owner.startsWith("com/mojang/") || owner.startsWith("io/papermc/") || owner.startsWith("com/destroystokyo/"))) return;
+        String desc = org.objectweb.asm.Type.getDescriptor(field.getType());
+        if (NmsSymbols.RUNTIME.isShellField(owner, field.getName(), desc)) {
+            throw NmsShell.unsupported(field.getDeclaringClass().getName() + "#" + field.getName() + ":" + desc);
         }
     }
 

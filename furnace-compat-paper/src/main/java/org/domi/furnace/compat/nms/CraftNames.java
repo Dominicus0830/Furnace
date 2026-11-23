@@ -84,6 +84,8 @@ public final class CraftNames {
             NmsReflect.classMissing(plugin, name);
             if (n == name) throw e;
             throw new ClassNotFoundException(name, e);
+        } catch (LinkageError e) {
+            throw initTrapAsMissing(e, n, name, plugin);
         }
     }
 
@@ -100,7 +102,19 @@ public final class CraftNames {
             NmsReflect.classMissing(plugin, name);
             if (n == name) throw e;
             throw new ClassNotFoundException(name, e);
+        } catch (LinkageError e) {
+            throw initTrapAsMissing(e, n, name, plugin);
         }
+    }
+
+    /**
+     * 전체 껍데기(T-260)의 클래스 초기화 덫이면 "클래스 없음"(ClassNotFoundException)으로 바꾼다 — 그 클래스는 PR 전에는 없었고, 흔한 감지 관용구
+     * {@code try { Class.forName(…) } catch (ClassNotFoundException e) { 대체 길 }} 이 그대로 대체 길로 가야 한다. 다른 연결 오류는 그대로 다시 던진다.
+     */
+    private static ClassNotFoundException initTrapAsMissing(LinkageError e, String resolved, String name, String plugin) throws LinkageError {
+        if (!NmsShell.isInitTrap(e, resolved)) throw e;
+        NmsReflect.classMissing(plugin, name);
+        return new ClassNotFoundException(name, e);
     }
 
     /** {@code loader.loadClass(name)} 대신(loader 가 null 이면 원래처럼 NullPointerException). */
