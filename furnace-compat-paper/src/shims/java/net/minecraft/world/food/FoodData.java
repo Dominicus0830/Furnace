@@ -8,7 +8,7 @@ import org.domi.furnace.compat.nms.NmsChunks;
  * 바뀐다(바닐라처럼 {@code Player#getFoodData()} 가 주는 것은 그 플레이어의 것이다). 틱(자연 회복·굶주림)·eat·NBT 는 서버 안에 있어 이 shim 에는 없다
  * (호출 위치에서 실패). 접속하지 않은 플레이어는 UnsupportedNmsCall.
  */
-public class FoodData {
+class FoodData {
 
     private final Player player;
 

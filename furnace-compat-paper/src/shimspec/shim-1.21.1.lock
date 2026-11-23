@@ -497,8 +497,10 @@ F	net/minecraft/world/entity/vehicle/VehicleEntity	DATA_ID_DAMAGE	Lnet/minecraft
 F	net/minecraft/world/entity/vehicle/VehicleEntity	DATA_ID_HURT	Lnet/minecraft/network/syncher/EntityDataAccessor;	28	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Integer;>;
 F	net/minecraft/world/entity/vehicle/VehicleEntity	DATA_ID_HURTDIR	Lnet/minecraft/network/syncher/EntityDataAccessor;	28	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Integer;>;
 C	net/minecraft/world/flag/FeatureElement	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/food/FoodData	33	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/inventory/AbstractContainerMenu	1057	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/inventory/MenuConstructor	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/inventory/MenuType	33	java/lang/Object	net/minecraft/world/flag/FeatureElement	<T:Lnet/minecraft/world/inventory/AbstractContainerMenu;>Ljava/lang/Object;Lnet/minecraft/world/flag/FeatureElement;	-	paper-server-1.21.1
 C	net/minecraft/world/inventory/RecipeBookMenu	1057	net/minecraft/world/inventory/AbstractContainerMenu	-	<I::Lnet/minecraft/world/item/crafting/RecipeInput;R::Lnet/minecraft/world/item/crafting/Recipe<TI;>;>Lnet/minecraft/world/inventory/AbstractContainerMenu;	-	paper-server-1.21.1
 M	net/minecraft/world/inventory/RecipeBookMenu	clearCraftingContent	()V	1025	-
 M	net/minecraft/world/inventory/RecipeBookMenu	fillCraftSlotsStackedContents	(Lnet/minecraft/world/entity/player/StackedContents;)V	1025	-
@@ -515,6 +517,7 @@ F	net/minecraft/world/inventory/RecipeBookType	BLAST_FURNACE	Lnet/minecraft/worl
 F	net/minecraft/world/inventory/RecipeBookType	CRAFTING	Lnet/minecraft/world/inventory/RecipeBookType;	16409	-
 F	net/minecraft/world/inventory/RecipeBookType	FURNACE	Lnet/minecraft/world/inventory/RecipeBookType;	16409	-
 F	net/minecraft/world/inventory/RecipeBookType	SMOKER	Lnet/minecraft/world/inventory/RecipeBookType;	16409	-
+C	net/minecraft/world/inventory/Slot	33	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/item/AirItem	33	net/minecraft/world/item/Item	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/item/AnimalArmorItem	33	net/minecraft/world/item/ArmorItem	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/item/ArmorItem	33	net/minecraft/world/item/Item	net/minecraft/world/item/Equipable	-	-	paper-server-1.21.1

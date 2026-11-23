@@ -9,7 +9,7 @@ import net.minecraft.world.item.ItemStack;
  * 플레이어의 {@link net.minecraft.world.entity.player.Inventory}, 창이 가진 컨테이너 칸은 그 창의 컨테이너 보기를 컨테이너로 가진다. 화면 좌표({@link #x}·{@link #y})는
  * 서버에 없어 서버 창에서는 0 이다.
  */
-public class Slot {
+class Slot {
 
     private final int slot;
     public int index;
