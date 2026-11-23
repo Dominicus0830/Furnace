@@ -56,7 +56,7 @@ public abstract class PotionEffectType implements Keyed {
     public static final PotionEffectType INFESTED = create(39, "infested", PotionEffectTypeCategory.HARMFUL, false, null);
 
     private static PotionEffectType create(int id, String key, PotionEffectTypeCategory category, boolean instant, String legacyName) {
-        PotionEffectType t = new Vanilla(id, NamespacedKey.minecraft(key), category, instant, legacyName);
+        PotionEffectType t = org.domi.furnace.compat.paper.PotionEffectTypes.vanilla(id, NamespacedKey.minecraft(key), category, instant, legacyName);
         BY_KEY.put(t.getKey().toString(), t);
         BY_ID.put(id, t);
         return t;
@@ -127,43 +127,4 @@ public abstract class PotionEffectType implements Keyed {
 
     @Override
     public String toString() { return "CraftPotionEffectType[" + getKey() + "]"; }
-
-    /** 바닐라 효과. */
-    private static final class Vanilla extends PotionEffectType {
-
-        private final int id;
-        private final NamespacedKey key;
-        private final PotionEffectTypeCategory category;
-        private final boolean instant;
-        private final String legacyName;
-
-        Vanilla(int id, NamespacedKey key, PotionEffectTypeCategory category, boolean instant, String legacyName) {
-            this.id = id;
-            this.key = key;
-            this.category = category;
-            this.instant = instant;
-            this.legacyName = legacyName;
-        }
-
-        @Override
-        public NamespacedKey getKey() { return key; }
-
-        @Override
-        public PotionEffect createEffect(int duration, int amplifier) { return new PotionEffect(this, instant ? 1 : duration, amplifier); }
-
-        @Override
-        public boolean isInstant() { return instant; }
-
-        @Override
-        public PotionEffectTypeCategory getCategory() { return category; }
-
-        @Override
-        public double getDurationModifier() { return 1.0D; }
-
-        @Override
-        public int getId() { return id; }
-
-        @Override
-        public String getName() { return legacyName != null ? legacyName : key.toString(); }
-    }
 }

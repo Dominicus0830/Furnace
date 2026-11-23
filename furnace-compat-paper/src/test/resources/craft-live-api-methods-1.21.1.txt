@@ -8,7 +8,7 @@ org/bukkit/craftbukkit/CraftMusicInstrument 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/CraftOfflinePlayer 9 1b70b45ab5f90c9c
 org/bukkit/craftbukkit/CraftOfflinePlayer$1 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/CraftParticle 0 e3b0c44298fc1c14
-org/bukkit/craftbukkit/CraftParticle$CraftParticleRegistry 2 0721336fc3871554
+org/bukkit/craftbukkit/CraftParticle$CraftParticleRegistry 6 2561a56062a208ed
 org/bukkit/craftbukkit/CraftParticle$CraftParticleRegistry$1 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/CraftParticle$CraftParticleRegistry$2 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/CraftParticle$CraftParticleRegistry$3 0 e3b0c44298fc1c14
@@ -20,7 +20,7 @@ org/bukkit/craftbukkit/CraftParticle$CraftParticleRegistry$8 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/CraftParticle$CraftParticleRegistry$9 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/CraftRaid 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/CraftRegionAccessor 38 14d53f5c3e0dc376
-org/bukkit/craftbukkit/CraftRegistry 2 0721336fc3871554
+org/bukkit/craftbukkit/CraftRegistry 6 2561a56062a208ed
 org/bukkit/craftbukkit/CraftServer 57 8184fae651ff300c
 org/bukkit/craftbukkit/CraftServer$5 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/CraftServerLinks 0 e3b0c44298fc1c14
@@ -672,7 +672,7 @@ org/bukkit/craftbukkit/packs/CraftResourcePack 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/persistence/CraftPersistentDataAdapterContext 1 199382bef6186610
 org/bukkit/craftbukkit/persistence/CraftPersistentDataContainer 14 f65d09bb2b7a8015
 org/bukkit/craftbukkit/persistence/DirtyCraftPersistentDataContainer 12 ba6f3194f2d4518b
-org/bukkit/craftbukkit/potion/CraftPotionEffectType 0 e3b0c44298fc1c14
+org/bukkit/craftbukkit/potion/CraftPotionEffectType 1 057209589aa0aaed
 org/bukkit/craftbukkit/potion/CraftPotionType 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/profile/CraftPlayerProfile 13 01a76c88bc2002aa
 org/bukkit/craftbukkit/profile/CraftPlayerTextures 10 bef03ac5dde63688
