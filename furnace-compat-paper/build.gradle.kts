@@ -275,6 +275,7 @@ dependencies {
 
 // 영역 9: Mth 기대값 입력 도구(tools/compat/mth-values)를 시험 소스로 함께 건다 — 시험과 같은 입력을 쓴다
 the<SourceSetContainer>()["test"].java.srcDir("../tools/compat/mth-values")
+the<SourceSetContainer>()["test"].java.srcDir("../tools/compat/core-values")   // 좌표 계열(BlockPos 반복자 등) 기대값 입력
 
 tasks.test {
     useJUnitPlatform { excludeTags("full-shells") }   // T-260: 실제 서명표로 만든 전체 껍데기 시험은 fullShellsTest 가 돈다(서명표 캐시 필요)

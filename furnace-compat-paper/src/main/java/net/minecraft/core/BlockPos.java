@@ -152,6 +152,207 @@ public class BlockPos extends Vec3i {
 
     public MutableBlockPos mutable() { return new MutableBlockPos(getX(), getY(), getZ()); }
 
+    /** 시계 방향 돌림(Y 축). NONE 은 자기 자신. */
+    public BlockPos rotate(net.minecraft.world.level.block.Rotation rotation) {
+        return switch (rotation) {
+            case NONE -> this;
+            case CLOCKWISE_90 -> new BlockPos(-getZ(), getY(), getX());
+            case CLOCKWISE_180 -> new BlockPos(-getX(), getY(), -getZ());
+            case COUNTERCLOCKWISE_90 -> new BlockPos(getZ(), getY(), -getX());
+        };
+    }
+
+    /** 칸 안쪽(위쪽 끝은 1e-5 만큼 안으로)으로 실수 좌표를 끼운다. float 덧셈 뒤 double 로 넓히는 것까지 바닐라와 같다. */
+    public net.minecraft.world.phys.Vec3 clampLocationWithin(net.minecraft.world.phys.Vec3 pos) {
+        return new net.minecraft.world.phys.Vec3(
+                net.minecraft.util.Mth.clamp(pos.x, (double) ((float) getX() + 1.0E-5F), (double) getX() + 1.0 - 9.999999747378752E-6),
+                net.minecraft.util.Mth.clamp(pos.y, (double) ((float) getY() + 1.0E-5F), (double) getY() + 1.0 - 9.999999747378752E-6),
+                net.minecraft.util.Mth.clamp(pos.z, (double) ((float) getZ() + 1.0E-5F), (double) getZ() + 1.0 - 9.999999747378752E-6));
+    }
+
+    /** 가운데 기준 정육면체 안의 무작위 칸 {@code limit} 개(난수는 x·y·z 순서로 하나씩). */
+    public static Iterable<BlockPos> randomInCube(net.minecraft.util.RandomSource random, int limit, BlockPos center, int radius) {
+        return randomBetweenClosed(random, limit, center.getX() - radius, center.getY() - radius, center.getZ() - radius,
+                center.getX() + radius, center.getY() + radius, center.getZ() + radius);
+    }
+
+    public static java.util.stream.Stream<BlockPos> squareOutSouthEast(BlockPos pos) {
+        return java.util.stream.Stream.of(pos, pos.south(), pos.east(), pos.south().east());
+    }
+
+    /** 상자 안 무작위 칸 {@code limit} 개. 돌려주는 객체는 하나를 계속 고쳐 쓴다. */
+    public static Iterable<BlockPos> randomBetweenClosed(net.minecraft.util.RandomSource random, int limit, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        int width = maxX - minX + 1;
+        int height = maxY - minY + 1;
+        int depth = maxZ - minZ + 1;
+        return () -> new com.google.common.collect.AbstractIterator<BlockPos>() {
+            final MutableBlockPos nextPos = new MutableBlockPos();
+            int counter = limit;
+
+            @Override
+            protected BlockPos computeNext() {
+                if (this.counter <= 0) return this.endOfData();
+                BlockPos pos = this.nextPos.set(minX + random.nextInt(width), minY + random.nextInt(height), minZ + random.nextInt(depth));
+                this.counter--;
+                return pos;
+            }
+        };
+    }
+
+    /** 맨해튼 거리 순으로(0, 1, 2…) 훑는다. x·y 는 거리가 같은 칸끼리 x 오름, y 오름, z 는 양수 다음 음수. */
+    public static Iterable<BlockPos> withinManhattan(BlockPos origin, int reachX, int reachY, int reachZ) {
+        int maxDepth = reachX + reachY + reachZ;
+        int originX = origin.getX();
+        int originY = origin.getY();
+        int originZ = origin.getZ();
+        return () -> new com.google.common.collect.AbstractIterator<BlockPos>() {
+            private final MutableBlockPos cursor = new MutableBlockPos();
+            private int currentDepth;
+            private int maxX;
+            private int maxY;
+            private int x;
+            private int y;
+            private boolean zMirror;
+
+            @Override
+            protected BlockPos computeNext() {
+                if (this.zMirror) {
+                    this.zMirror = false;
+                    this.cursor.setZ(originZ - (this.cursor.getZ() - originZ));
+                    return this.cursor;
+                }
+                BlockPos found = null;
+                while (found == null) {
+                    if (this.y > this.maxY) {
+                        this.x++;
+                        if (this.x > this.maxX) {
+                            this.currentDepth++;
+                            if (this.currentDepth > maxDepth) return this.endOfData();
+                            this.maxX = Math.min(reachX, this.currentDepth);
+                            this.x = -this.maxX;
+                        }
+                        this.maxY = Math.min(reachY, this.currentDepth - Math.abs(this.x));
+                        this.y = -this.maxY;
+                    }
+                    int dx = this.x;
+                    int dy = this.y;
+                    int dz = this.currentDepth - Math.abs(dx) - Math.abs(dy);
+                    if (dz <= reachZ) {
+                        this.zMirror = dz != 0;
+                        found = this.cursor.set(originX + dx, originY + dy, originZ + dz);
+                    }
+                    this.y++;
+                }
+                return found;
+            }
+        };
+    }
+
+    public static java.util.Optional<BlockPos> findClosestMatch(BlockPos origin, int reachX, int reachY, java.util.function.Predicate<BlockPos> predicate) {
+        for (BlockPos pos : withinManhattan(origin, reachX, reachY, reachX)) {
+            if (predicate.test(pos)) return java.util.Optional.of(pos);
+        }
+        return java.util.Optional.empty();
+    }
+
+    public static java.util.stream.Stream<BlockPos> withinManhattanStream(BlockPos origin, int reachX, int reachY, int reachZ) {
+        return java.util.stream.StreamSupport.stream(withinManhattan(origin, reachX, reachY, reachZ).spliterator(), false);
+    }
+
+    public static Iterable<BlockPos> betweenClosed(BlockPos a, BlockPos b) {
+        return betweenClosed(Math.min(a.getX(), b.getX()), Math.min(a.getY(), b.getY()), Math.min(a.getZ(), b.getZ()),
+                Math.max(a.getX(), b.getX()), Math.max(a.getY(), b.getY()), Math.max(a.getZ(), b.getZ()));
+    }
+
+    public static java.util.stream.Stream<BlockPos> betweenClosedStream(BlockPos a, BlockPos b) {
+        return java.util.stream.StreamSupport.stream(betweenClosed(a, b).spliterator(), false);
+    }
+
+    public static java.util.stream.Stream<BlockPos> betweenClosedStream(net.minecraft.world.level.levelgen.structure.BoundingBox box) {
+        return betweenClosedStream(Math.min(box.minX(), box.maxX()), Math.min(box.minY(), box.maxY()), Math.min(box.minZ(), box.maxZ()),
+                Math.max(box.minX(), box.maxX()), Math.max(box.minY(), box.maxY()), Math.max(box.minZ(), box.maxZ()));
+    }
+
+    public static java.util.stream.Stream<BlockPos> betweenClosedStream(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        return java.util.stream.StreamSupport.stream(betweenClosed(minX, minY, minZ, maxX, maxY, maxZ).spliterator(), false);
+    }
+
+    /** 상자 안 모든 칸을 x → y → z 순서로. 돌려주는 객체는 하나를 계속 고쳐 쓴다. */
+    public static Iterable<BlockPos> betweenClosed(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        int width = maxX - minX + 1;
+        int height = maxY - minY + 1;
+        int depth = maxZ - minZ + 1;
+        int total = width * height * depth;
+        return () -> new com.google.common.collect.AbstractIterator<BlockPos>() {
+            private final MutableBlockPos cursor = new MutableBlockPos();
+            private int index;
+
+            @Override
+            protected BlockPos computeNext() {
+                if (this.index == total) return this.endOfData();
+                int x = this.index % width;
+                int rest = this.index / width;
+                int y = rest % height;
+                int z = rest / height;
+                this.index++;
+                return this.cursor.set(minX + x, minY + y, minZ + z);
+            }
+        };
+    }
+
+    /** 가운데에서 바깥으로 도는 나선(반지름 {@code radius} 칸). 두 방향은 같은 축이면 IllegalStateException. */
+    public static Iterable<MutableBlockPos> spiralAround(BlockPos center, int radius, Direction first, Direction second) {
+        if (first.getAxis() == second.getAxis()) throw new IllegalStateException("The two directions cannot be on the same axis");
+        return () -> new com.google.common.collect.AbstractIterator<MutableBlockPos>() {
+            private final Direction[] directions = new Direction[] {first, second, first.getOpposite(), second.getOpposite()};
+            private final MutableBlockPos cursor = center.mutable().move(second);
+            private final int legs = 4 * radius;
+            private int leg = -1;
+            private int legSize;
+            private int legIndex;
+            private int lastX = this.cursor.getX();
+            private int lastY = this.cursor.getY();
+            private int lastZ = this.cursor.getZ();
+
+            @Override
+            protected MutableBlockPos computeNext() {
+                this.cursor.set(this.lastX, this.lastY, this.lastZ).move(this.directions[(this.leg + 4) % 4]);
+                this.lastX = this.cursor.getX();
+                this.lastY = this.cursor.getY();
+                this.lastZ = this.cursor.getZ();
+                if (this.legIndex >= this.legSize) {
+                    if (this.leg >= this.legs) return this.endOfData();
+                    this.leg++;
+                    this.legIndex = 0;
+                    this.legSize = this.leg / 2 + 1;
+                }
+                this.legIndex++;
+                return this.cursor;
+            }
+        };
+    }
+
+    /** 너비 우선 탐색. 방문한 칸 수를 돌려준다({@code maxCount} 에 닿으면 거기서 멈춘다). */
+    public static int breadthFirstTraversal(BlockPos start, int maxDepth, int maxCount,
+            java.util.function.BiConsumer<BlockPos, java.util.function.Consumer<BlockPos>> neighbors, java.util.function.Predicate<BlockPos> shouldVisit) {
+        java.util.ArrayDeque<Object[]> queue = new java.util.ArrayDeque<>();
+        it.unimi.dsi.fastutil.longs.LongOpenHashSet visited = new it.unimi.dsi.fastutil.longs.LongOpenHashSet();
+        queue.add(new Object[] {start, 0});
+        int count = 0;
+        while (!queue.isEmpty()) {
+            Object[] entry = queue.poll();
+            BlockPos pos = (BlockPos) entry[0];
+            int depth = (Integer) entry[1];
+            if (!visited.add(pos.asLong())) continue;
+            if (!shouldVisit.test(pos)) continue;
+            count++;
+            if (count >= maxCount) return count;
+            if (depth >= maxDepth) continue;
+            neighbors.accept(pos, next -> queue.add(new Object[] {next, depth + 1}));
+        }
+        return count;
+    }
+
     /** 가변 블록 좌표(바닐라 BlockPos.MutableBlockPos). 바꾸는 메서드는 자기 자신을 돌려준다. */
     public static class MutableBlockPos extends BlockPos {
 
@@ -181,6 +382,21 @@ public class BlockPos extends Vec3i {
         }
 
         public MutableBlockPos set(double x, double y, double z) { return set(floor(x), floor(y), floor(z)); }
+
+        public MutableBlockPos set(AxisCycle cycle, int x, int y, int z) {
+            return set(cycle.cycle(x, y, z, Direction.Axis.X), cycle.cycle(x, y, z, Direction.Axis.Y), cycle.cycle(x, y, z, Direction.Axis.Z));
+        }
+
+        public MutableBlockPos clamp(Direction.Axis axis, int min, int max) {
+            return switch (axis) {
+                case X -> set(net.minecraft.util.Mth.clamp(getX(), min, max), getY(), getZ());
+                case Y -> set(getX(), net.minecraft.util.Mth.clamp(getY(), min, max), getZ());
+                case Z -> set(getX(), getY(), net.minecraft.util.Mth.clamp(getZ(), min, max));
+            };
+        }
+
+        @Override
+        public BlockPos rotate(net.minecraft.world.level.block.Rotation rotation) { return super.rotate(rotation).immutable(); }
 
         public MutableBlockPos set(Vec3i v) { return set(v.getX(), v.getY(), v.getZ()); }
 

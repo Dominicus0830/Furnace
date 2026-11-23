@@ -4,7 +4,7 @@ import net.minecraft.world.level.ChunkPos;
 
 /**
  * 섹션 좌표(16×16×16, Mojang 이름 shim, N0). 묶기(x 22비트 &lt;&lt;42, y 20비트, z 22비트 &lt;&lt;20)·섹션 안 상대 좌표 short(x&lt;&lt;8 | z&lt;&lt;4 | y)·
- * 블록 ↔ 섹션 좌표 변환은 바닐라 1.21.1 {@code kf} 바이트코드와 같다. 엔티티·청크 객체를 받는 생성 메서드와 좌표 스트림(blocksInside·cube·betweenClosedStream)은 아직 없다(없는 멤버 — 호출 위치에서 실패).
+ * 블록 ↔ 섹션 좌표 변환은 바닐라 1.21.1 {@code kf} 바이트코드와 같다. 좌표 스트림(blocksInside·cube·aroundChunk·betweenClosedStream)과 주변 섹션 훑기(aroundAndAtBlockPos)는 영역 9 에서 채웠다. 엔티티·청크 객체를 받는 생성 메서드는 아직 없다(없는 멤버 — 호출 위치에서 실패).
  */
 public class SectionPos extends Vec3i {
 
@@ -119,4 +119,61 @@ public class SectionPos extends Vec3i {
 
     @Override
     public SectionPos offset(int dx, int dy, int dz) { return dx == 0 && dy == 0 && dz == 0 ? this : new SectionPos(x() + dx, y() + dy, z() + dz); }
+
+    /** 이 섹션 안의 모든 블록 칸(x → y → z 순서). */
+    public java.util.stream.Stream<BlockPos> blocksInside() {
+        return BlockPos.betweenClosedStream(minBlockX(), minBlockY(), minBlockZ(), maxBlockX(), maxBlockY(), maxBlockZ());
+    }
+
+    /** 가운데 섹션 둘레 {@code radius} 안 정육면체의 섹션들. */
+    public static java.util.stream.Stream<SectionPos> cube(SectionPos center, int radius) {
+        return betweenClosedStream(center.x() - radius, center.y() - radius, center.z() - radius,
+                center.x() + radius, center.y() + radius, center.z() + radius);
+    }
+
+    public static java.util.stream.Stream<SectionPos> aroundChunk(ChunkPos pos, int radius, int minSection, int maxSection) {
+        return betweenClosedStream(pos.x - radius, minSection, pos.z - radius, pos.x + radius, maxSection - 1, pos.z + radius);
+    }
+
+    /** 상자 안 섹션을 x → y → z 순서로. 크기 추정은 int 곱셈 뒤 long 으로 넓힌다(바닐라와 같음). */
+    public static java.util.stream.Stream<SectionPos> betweenClosedStream(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        long size = (long) ((maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1));
+        return java.util.stream.StreamSupport.stream(new java.util.Spliterators.AbstractSpliterator<SectionPos>(size, 64) {
+            final Cursor3D cursor = new Cursor3D(minX, minY, minZ, maxX, maxY, maxZ);
+
+            @Override
+            public boolean tryAdvance(java.util.function.Consumer<? super SectionPos> consumer) {
+                if (!this.cursor.advance()) return false;
+                consumer.accept(SectionPos.of(this.cursor.nextX(), this.cursor.nextY(), this.cursor.nextZ()));
+                return true;
+            }
+        }, false);
+    }
+
+    public static void aroundAndAtBlockPos(BlockPos pos, it.unimi.dsi.fastutil.longs.LongConsumer consumer) {
+        aroundAndAtBlockPos(pos.getX(), pos.getY(), pos.getZ(), consumer);
+    }
+
+    public static void aroundAndAtBlockPos(long packed, it.unimi.dsi.fastutil.longs.LongConsumer consumer) {
+        aroundAndAtBlockPos(BlockPos.getX(packed), BlockPos.getY(packed), BlockPos.getZ(packed), consumer);
+    }
+
+    /** 블록 칸 둘레 ±1 이 걸치는 섹션들의 묶음 좌표를 x → y → z 순서로(한 섹션뿐이면 그것 하나). */
+    public static void aroundAndAtBlockPos(int x, int y, int z, it.unimi.dsi.fastutil.longs.LongConsumer consumer) {
+        int minX = blockToSectionCoord(x - 1);
+        int maxX = blockToSectionCoord(x + 1);
+        int minY = blockToSectionCoord(y - 1);
+        int maxY = blockToSectionCoord(y + 1);
+        int minZ = blockToSectionCoord(z - 1);
+        int maxZ = blockToSectionCoord(z + 1);
+        if (minX == maxX && minY == maxY && minZ == maxZ) {
+            consumer.accept(asLong(minX, minY, minZ));
+        } else {
+            for (int sx = minX; sx <= maxX; sx++) {
+                for (int sy = minY; sy <= maxY; sy++) {
+                    for (int sz = minZ; sz <= maxZ; sz++) consumer.accept(asLong(sx, sy, sz));
+                }
+            }
+        }
+    }
 }

@@ -4,8 +4,8 @@ import net.minecraft.ResourceLocationException;
 
 /**
  * 이름공간:경로 식별자(Mojang 이름 shim, H7b, 등급 A, 불변). 허용 글자·오류 문구·parse/tryParse 규칙·equals·hashCode
- * (31·namespace + path)·compareTo(경로 먼저, 같으면 이름공간)·toString 은 바닐라 1.21.1 바이트코드와 같다. Codec·StreamCodec·
- * brigadier 읽기(read(StringReader))는 그 라이브러리가 서버에 없어 두지 않았다.
+ * (31·namespace + path)·compareTo(경로 먼저, 같으면 이름공간)·toString 은 바닐라 1.21.1 바이트코드와 같다. Codec·StreamCodec 상수는
+ * 두지 않았다(DFU·Netty 코덱이 서버에 없다). 문자열 → DataResult 읽기와 명령 읽기(read(StringReader)·readNonEmpty)는 있다.
  */
 public final class ResourceLocation implements Comparable<ResourceLocation> {
 
@@ -70,6 +70,8 @@ public final class ResourceLocation implements Comparable<ResourceLocation> {
 
     public ResourceLocation withPath(String p) { return new ResourceLocation(namespace, assertValidPath(namespace, p)); }
 
+    public ResourceLocation withPath(java.util.function.UnaryOperator<String> op) { return withPath(op.apply(path)); }
+
     public ResourceLocation withPrefix(String prefix) { return withPath(prefix + path); }
 
     public ResourceLocation withSuffix(String suffix) { return withPath(path + suffix); }
@@ -110,6 +112,20 @@ public final class ResourceLocation implements Comparable<ResourceLocation> {
      */
     public static ResourceLocation read(com.mojang.brigadier.StringReader reader) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
         return Lib.read(reader);
+    }
+
+    /** 바닐라 read(String): 맞으면 success, 틀리면 "Not a valid resource location: 입력 오류문구" 오류. */
+    public static com.mojang.serialization.DataResult<ResourceLocation> read(String s) {
+        try {
+            return com.mojang.serialization.DataResult.success(parse(s));
+        } catch (net.minecraft.ResourceLocationException e) {
+            return com.mojang.serialization.DataResult.error(() -> "Not a valid resource location: " + s + " " + e.getMessage());
+        }
+    }
+
+    /** {@link #read(com.mojang.brigadier.StringReader)} 와 같되, 읽은 글이 비어 있어도 "Invalid ID" 오류(자리는 그대로). */
+    public static ResourceLocation readNonEmpty(com.mojang.brigadier.StringReader reader) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        return Lib.readNonEmpty(reader);
     }
 
     /** 위치 문자열에 쓸 수 있는 글자(0-9 a-z _ : / . -). */
@@ -159,6 +175,19 @@ public final class ResourceLocation implements Comparable<ResourceLocation> {
         static ResourceLocation read(com.mojang.brigadier.StringReader reader) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
             int start = reader.getCursor();
             String s = readGreedy(reader);
+            try {
+                return ResourceLocation.parse(s);
+            } catch (net.minecraft.ResourceLocationException e) {
+                reader.setCursor(start);
+                throw ERROR_INVALID.createWithContext(reader);
+            }
+        }
+
+        /** 바닐라 readNonEmpty: 빈 글이면 자리를 되돌리지 않고 오류(읽은 게 없어 자리가 그대로다), 틀린 글이면 처음 자리로 돌아가 오류. */
+        static ResourceLocation readNonEmpty(com.mojang.brigadier.StringReader reader) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+            int start = reader.getCursor();
+            String s = readGreedy(reader);
+            if (s.isEmpty()) throw ERROR_INVALID.createWithContext(reader);
             try {
                 return ResourceLocation.parse(s);
             } catch (net.minecraft.ResourceLocationException e) {
