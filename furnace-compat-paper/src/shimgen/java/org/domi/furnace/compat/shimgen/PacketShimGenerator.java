@@ -78,6 +78,8 @@ public final class PacketShimGenerator {
     }
 
     private final PacketSchema schema;
+    /** 연결 명세 생성기가 만드는 클래스('$' 이름). */
+    final Set<String> specClasses = new java.util.HashSet<>();
     private final Path srcDir;
     private final Map<String, String> extras;
     private final Set<String> usedExtras = new LinkedHashSet<>();
@@ -98,6 +100,11 @@ public final class PacketShimGenerator {
         Path src = Path.of(args[1]);
         Map<String, String> extras = readExtras(Files.readString(Path.of(args[2]), StandardCharsets.UTF_8));
         PacketShimGenerator g = new PacketShimGenerator(PacketSchema.current(), src, extras);
+        // T-229: 연결 명세 생성기가 만드는 클래스(잠금 파일 C 줄)는 빈 채움 shim·처리자 표지를 만들지 않는다(같은 클래스가 둘 생기지 않게)
+        if (args.length > 3) {
+            ShimLock lock = ShimLock.read(Path.of(args[3]));
+            if (lock != null) for (String n : lock.classes.keySet()) g.specClasses.add(n.replace('/', '.'));
+        }
         Map<String, String> files = g.generate();
         deleteTree(out);
         for (Map.Entry<String, String> e : files.entrySet()) {
@@ -162,7 +169,7 @@ public final class PacketShimGenerator {
         for (TypeDecl d : schema.types().values()) {
             if (d.kind() == TypeDecl.Kind.LIB) { erased.add(d.binaryName()); continue; }
             if (!d.binaryName().startsWith("net.minecraft.")) throw new IllegalStateException("types outside net.minecraft must be erased as libraries: " + d.binaryName());
-            if (handWritten(d.binaryName())) continue;
+            if (handWritten(d.binaryName()) || specClasses.contains(d.binaryName())) continue;
             if (!topLevel(d.binaryName()).equals(d.binaryName()) && handWritten(topLevel(d.binaryName()))) {
                 // 바깥이 손으로 쓴 shim 인데 안쪽이 없다 — 손으로 쓴 파일에 끼울 수 없어 지운다
                 erased.add(d.binaryName());
@@ -172,7 +179,7 @@ public final class PacketShimGenerator {
         }
         // 2) 처리자 인터페이스
         for (Map.Entry<String, List<String>> e : LISTENER_PARENTS.entrySet()) {
-            if (handWritten(e.getKey())) continue;
+            if (handWritten(e.getKey()) || specClasses.contains(e.getKey())) continue;
             StringBuilder sb = new StringBuilder();
             sb.append("/** Packet listener marker (Mojang name). Used only as a packet generic argument. */\n");
             sb.append("public interface ").append(simple(e.getKey())).append(" extends ");

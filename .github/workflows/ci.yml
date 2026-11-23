@@ -359,6 +359,9 @@ jobs:
         run: tools/compat/sig-tables.sh
       - name: 서명 관문 (T-228)
         run: ./gradlew -PskipOracle=true :vanilla-extract:signatureGate
+      # T-229: 연결 명세의 잠금 파일(src/shimspec/shim-<판>.lock)이 서명표·명세로 다시 푼 것과 같은지 본다(낡으면 실패 — 목록이 할 일)
+      - name: shim 잠금 파일 (T-229)
+        run: ./gradlew -PskipOracle=true :furnace-compat-paper:shimLockCheck
       - name: 대조 시험 보고서 올리기
         if: failure()
         uses: actions/upload-artifact@v4

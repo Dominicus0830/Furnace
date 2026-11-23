@@ -66,7 +66,8 @@ public final class NmsSymbols {
         for (String c = owner; c != null; ) {
             Info i = info(c);
             if (i == MISSING) return false;
-            if (i.methods.contains(key)) return true;
+            // T-229: 생성기가 인터페이스 때문에 붙인 던지는 몸통은 "없음"(명세에 없는 멤버 — 링크 때 덫)
+            if (i.methods.contains(key)) return !unimplemented().contains(c + ' ' + key);
             c = i.superName;   // 인터페이스 클래스 파일의 상위는 java/lang/Object 다 — 인터페이스 메서드 해석도 Object 메서드를 본다
         }
         // 인터페이스 쪽(기본 메서드·추상 메서드 모두 해석은 된다)
@@ -92,6 +93,37 @@ public final class NmsSymbols {
         if (i.fields.contains(key)) return true;
         for (String itf : i.interfaces) if (findField(itf, key, seen)) return true;
         return findField(i.superName, key, seen);
+    }
+
+    /**
+     * shim 생성기(T-229)가 빌드 때 적은 "구현 없는 추상 메서드" 색인: 구체 생성 클래스가 생성 인터페이스·상위의 추상 메서드를 연결 명세에 안 적어
+     * 던지는 몸통만 받은 것({@code 소유 이름 서술자}). 그 클래스(와 하위)로 부르는 플러그인 호출은 "없음"으로 보아 덫을 건다(설계 4.3).
+     */
+    Set<String> unimplemented() {
+        Set<String> u = unimplemented;
+        if (u == null) unimplemented = u = readUnimplemented(loader);
+        return u;
+    }
+
+    private volatile Set<String> unimplemented;
+
+    static final String UNIMPLEMENTED_INDEX = "META-INF/furnace/shim-unimplemented.txt";
+
+    static Set<String> readUnimplemented(ClassLoader loader) {
+        Set<String> out = new HashSet<>();
+        try {
+            java.util.Enumeration<java.net.URL> urls = loader == null ? ClassLoader.getSystemResources(UNIMPLEMENTED_INDEX) : loader.getResources(UNIMPLEMENTED_INDEX);
+            while (urls.hasMoreElements()) {
+                try (InputStream in = urls.nextElement().openStream()) {
+                    for (String l : new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).split("\n")) {
+                        if (!l.isBlank()) out.add(l.strip());
+                    }
+                }
+            }
+        } catch (IOException e) {
+            throw new java.io.UncheckedIOException("cannot read the shim index: " + UNIMPLEMENTED_INDEX, e);
+        }
+        return Set.copyOf(out);
     }
 
     /** 이 클래스의 바로 위 클래스(없거나 모르면 null). */

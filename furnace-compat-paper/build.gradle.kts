@@ -35,6 +35,7 @@ val nmsSurvey by configurations.creating {
 // 결과물은 build/generated 에만 생기고 커밋하지 않는다. 손으로 쓴 shim(src/main/java)이 있는 클래스는 만들지 않는다.
 val shimgen: SourceSet = the<SourceSetContainer>().create("shimgen")
 dependencies { "shimgenImplementation"(project(":furnace-api")) }
+val lockForPackets = layout.projectDirectory.file("src/shimspec/shim-" + (rootProject.extra["mc"] as java.util.Properties).getProperty("mc.version") + ".lock")
 val generateNmsPacketShims by tasks.registering(JavaExec::class) {
     group = "build"
     description = "패킷 스키마에서 net.minecraft 패킷 shim 소스를 만든다"
@@ -47,9 +48,11 @@ val generateNmsPacketShims by tasks.registering(JavaExec::class) {
     inputs.files(shimgen.runtimeClasspath).withNormalizer(ClasspathNormalizer::class)
     inputs.dir(hand).withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file(extras)
+    // T-229: 연결 명세 생성기가 만드는 클래스(잠금 파일의 C 줄)는 빈 채움 shim 을 만들지 않는다
+    inputs.files(lockForPackets).withPathSensitivity(PathSensitivity.RELATIVE)
     outputs.dir(out)
     argumentProviders.add(CommandLineArgumentProvider {
-        listOf(out.get().asFile.absolutePath, hand.asFile.absolutePath, extras.asFile.absolutePath)
+        listOf(out.get().asFile.absolutePath, hand.asFile.absolutePath, extras.asFile.absolutePath, lockForPackets.asFile.absolutePath)
     })
 }
 the<SourceSetContainer>()["main"].java.srcDir(generateNmsPacketShims)
@@ -67,6 +70,69 @@ val generateNmsProtocolShims by tasks.registering(JavaExec::class) {
     argumentProviders.add(CommandLineArgumentProvider { listOf(out.get().asFile.absolutePath) })
 }
 the<SourceSetContainer>()["main"].java.srcDir(generateNmsProtocolShims)
+
+// T-229·T-232: 연결 명세(src/shimspec/*.spec) + 잠금 파일(src/shimspec/shim-<판>.lock) + 손 조각(src/shims/java) → net.minecraft shim 소스.
+// 바닐라 jar 없이 돈다(잠금 파일이 서명표에서 푼 선언을 담는다). 형식: src/shimspec/README.md. 결과물은 build/generated 에만(커밋 안 함).
+dependencies {
+    "shimgenImplementation"(project(":vanilla-extract"))   // 잠금 파일 만들 때 서명표 읽개(SigTable)
+    "shimgenImplementation"("org.ow2.asm:asm:9.8")            // 제네릭 서명 읽기
+}
+val mcVersion: String = (rootProject.extra["mc"] as java.util.Properties).getProperty("mc.version")
+val shimSpecDir = layout.projectDirectory.dir("src/shimspec")
+val shimLockFile = layout.projectDirectory.file("src/shimspec/shim-$mcVersion.lock")
+val shimFragments = layout.projectDirectory.dir("src/shims/java")
+val handShims = layout.projectDirectory.dir("src/main/java")
+val packetShimOut = layout.buildDirectory.dir("generated/sources/nms-packets/java")
+val protocolShimOut = layout.buildDirectory.dir("generated/sources/nms-protocols/java")
+val nmsShimOut = layout.buildDirectory.dir("generated/sources/nms-shims/java")
+val nmsShimRes = layout.buildDirectory.dir("generated/resources/nms-shims")
+val generateNmsShims by tasks.registering(JavaExec::class) {
+    group = "build"
+    description = "연결 명세·잠금 파일·손 조각에서 net.minecraft shim 소스를 만든다(T-229)"
+    dependsOn(generateNmsPacketShims, generateNmsProtocolShims)
+    classpath = shimgen.runtimeClasspath
+    mainClass.set("org.domi.furnace.compat.shimgen.ShimGenerator")
+    jvmArgs("-Dstdout.encoding=UTF-8")
+    inputs.files(shimgen.runtimeClasspath).withNormalizer(ClasspathNormalizer::class)
+    inputs.dir(shimSpecDir).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.files(shimFragments).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.dir(handShims).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.dir(packetShimOut).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.dir(protocolShimOut).withPathSensitivity(PathSensitivity.RELATIVE)
+    outputs.dir(nmsShimOut)
+    outputs.dir(nmsShimRes)
+    argumentProviders.add(CommandLineArgumentProvider {
+        listOf(shimSpecDir.asFile.absolutePath, shimLockFile.asFile.absolutePath, shimFragments.asFile.absolutePath,
+            nmsShimOut.get().asFile.absolutePath, nmsShimRes.get().asFile.absolutePath, handShims.asFile.absolutePath,
+            packetShimOut.get().asFile.absolutePath + File.pathSeparator + protocolShimOut.get().asFile.absolutePath)
+    })
+}
+// 생성기 시험(ShimGeneratorTest·ShimLockTest)은 호환 계층 시험에서 돈다
+dependencies {
+    testImplementation(shimgen.output)
+    testImplementation(project(":vanilla-extract"))
+}
+the<SourceSetContainer>()["main"].java.srcDir(files(nmsShimOut).builtBy(generateNmsShims))
+the<SourceSetContainer>()["main"].resources.srcDir(files(nmsShimRes).builtBy(generateNmsShims))
+
+// 잠금 파일 쓰기·검사: 서명표 캐시(tools/compat/sig-tables.sh)가 있어야 한다. 검사는 CI vanilla-gates 가 돈다. 캐시 위치는 -Pcache=<폴더> 또는 FURNACE_VANILLA_CACHE(기본 ~/.cache/furnace-vanilla-extract).
+fun shimLockTask(name: String, mode: String, what: String) = tasks.register<JavaExec>(name) {
+    group = "verification"
+    description = what
+    dependsOn(generateNmsPacketShims, generateNmsProtocolShims)
+    classpath = shimgen.runtimeClasspath
+    mainClass.set("org.domi.furnace.compat.shimgen.ShimLockTool")
+    jvmArgs("-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8")
+    val cache = (findProperty("cache") as String?) ?: System.getenv("FURNACE_VANILLA_CACHE")?.takeIf { it.isNotBlank() }
+        ?: (System.getProperty("user.home") + "/.cache/furnace-vanilla-extract")
+    argumentProviders.add(CommandLineArgumentProvider {
+        listOf(mode, mcVersion, "$cache/$mcVersion", shimSpecDir.asFile.absolutePath, shimLockFile.asFile.absolutePath,
+            listOf(handShims.asFile.absolutePath, shimFragments.asFile.absolutePath, packetShimOut.get().asFile.absolutePath,
+                protocolShimOut.get().asFile.absolutePath).joinToString(File.pathSeparator))
+    })
+}
+shimLockTask("shimLock", "write", "연결 명세를 서명표로 풀어 잠금 파일(src/shimspec/shim-<판>.lock)을 쓴다")
+shimLockTask("shimLockCheck", "check", "잠금 파일이 서명표·연결 명세와 같은지 본다(CI vanilla-gates)")
 
 // T-181: authlib(GameProfile·Property·PropertyMap) 대역. Mojang 저장소에만 있어 컴파일 경로에 받지 않는다 — 호환 계층이 부르는 멤버만
 // 진짜 authlib 6.0.54 와 같은 서술자로 손으로 쓴 것을 컴파일·시험에만 쓰고 jar 에는 넣지 않는다(서버는 쓰는 플러그인이 있으면 진짜를 받는다).
