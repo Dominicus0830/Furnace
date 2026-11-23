@@ -431,6 +431,7 @@ dependencies {
     bundledLibraries("com.google.guava:guava:32.1.2-jre")
     bundledLibraries("com.google.guava:failureaccess:1.0.1")
     bundledLibraries("org.yaml:snakeyaml:2.2")
+    bundledLibraries("org.joml:joml:1.10.5")
 }
 val serverLibrariesSource = file("src/main/java/org/domi/furnace/server/plugin/library/ServerLibraries.java")
 // start.sh/start.bat 은 installDist 의 lib/* 로 띄운다 — 같은 자원(META-INF/furnace/libraries/*.jar)을 담은 jar 하나를 lib/ 에 넣어 그 실행에서도 꺼내게 한다.

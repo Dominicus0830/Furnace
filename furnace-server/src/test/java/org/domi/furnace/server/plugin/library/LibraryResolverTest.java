@@ -608,15 +608,15 @@ class LibraryResolverTest {
     }
 
     @Test
-    void onlyGuavaAndSnakeYamlAreBundled() {
+    void onlyGuavaSnakeYamlAndJomlAreBundled() {
         java.util.Set<String> bundledCoords = new java.util.TreeSet<>();
         for (ServerLibraries.Group g : ServerLibraries.DEFAULT.groups()) {
             for (ServerLibraries.Artifact a : g.artifacts()) if (a.bundled()) bundledCoords.add(a.coordinate());
-            if (g.id().equals("guava") || g.id().equals("snakeyaml")) assertTrue(g.bundled(), g.id());
+            if (g.id().equals("guava") || g.id().equals("snakeyaml") || g.id().equals("joml")) assertTrue(g.bundled(), g.id());
             else assertFalse(g.bundled(), g.id() + " 는 필요할 때 받는다");
         }
-        assertEquals(java.util.Set.of("com.google.guava:guava:32.1.2-jre", "com.google.guava:failureaccess:1.0.1", "org.yaml:snakeyaml:2.2"), bundledCoords,
-                "서버 jar 에 싣는 것은 Guava·failureaccess·SnakeYAML 뿐(Adventure 는 받는다, 2026-11-12)");
+        assertEquals(java.util.Set.of("com.google.guava:guava:32.1.2-jre", "com.google.guava:failureaccess:1.0.1", "org.yaml:snakeyaml:2.2", "org.joml:joml:1.10.5"), bundledCoords,
+                "서버 jar 에 싣는 것은 Guava·failureaccess·SnakeYAML·JOML 뿐(Adventure 는 받는다, 2026-11-12·JOML 2026-11-24)");
     }
 
     @Test
