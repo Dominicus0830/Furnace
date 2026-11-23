@@ -84,7 +84,8 @@ public enum Direction implements net.minecraft.util.StringRepresentable {
     public static Direction from2DDataValue(int i) { return BY_2D[Math.abs(i % BY_2D.length)]; }
 
     /** 바닐라: from2DDataValue(floor(rot / 90 + 0.5) & 3). */
-    public static Direction fromYRot(double rot) { return from2DDataValue((int) Math.floor(rot / 90.0 + 0.5) & 3); }
+    /** 내림은 Mth.floor(아주 큰 음수에서 Math.floor 와 다르다 — T-235 차분 시험이 찾음). */
+    public static Direction fromYRot(double rot) { return from2DDataValue(net.minecraft.util.Mth.floor(rot / 90.0 + 0.5) & 3); }
 
     /** 이름(소문자)으로, 없으면 null. */
     public static Direction byName(String name) {
@@ -103,12 +104,15 @@ public enum Direction implements net.minecraft.util.StringRepresentable {
 
     public static Direction get(AxisDirection dir, Axis axis) { return fromAxisAndDirection(axis, dir); }
 
-    /** 바닐라 getNearest: 법선과의 내적이 가장 큰 방향(같으면 앞 순서), 0 벡터면 NORTH. */
-    public static Direction getNearest(double x, double y, double z) {
+    /** 바닐라 getNearest: 인자를 float 로 바꾼 뒤 float 판으로(큰 값에서 double 곱과 결과가 다르다 — T-235 차분 시험이 찾음). */
+    public static Direction getNearest(double x, double y, double z) { return getNearest((float) x, (float) y, (float) z); }
+
+    /** 법선과의 내적(float 셈)이 가장 큰 방향, 같으면 앞 순서. 모두 Float.MIN_VALUE 이하면 NORTH. */
+    public static Direction getNearest(float x, float y, float z) {
         Direction best = NORTH;
         float max = Float.MIN_VALUE;
         for (Direction d : BY_3D) {
-            float dot = (float) (x * d.normal.getX() + y * d.normal.getY() + z * d.normal.getZ());
+            float dot = x * (float) d.normal.getX() + y * (float) d.normal.getY() + z * (float) d.normal.getZ();
             if (dot > max) {
                 max = dot;
                 best = d;

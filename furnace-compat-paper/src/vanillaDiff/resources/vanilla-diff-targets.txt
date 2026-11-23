@@ -1,0 +1,44 @@
+# T-235 차분 시험 대상 — 값 클래스(설계 5.5 의 1순위: "전부").
+# 줄 꼴:
+#   class <Mojang 이름 클래스> [iterations=N] 바닐라와 shim 이 함께 가진 공개 멤버를 전부 같은 입력으로 견준다(멤버마다 입력 N개, 기본 20000)
+#     exclude <열쇠>  # <이유>                 열쇠 = 필드 이름 또는 이름(인자 형식,…) (보고서의 열쇠 그대로). 이유 없는 exclude 는 오류
+#     paper <열쇠>  # <이유>                   바닐라와 다르지만 Paper 와 같게 둔 멤버(호환 원칙). 계속 돌리고 다르면 "Paper 와 같게"로 보고,
+#                                             더는 다르지 않으면 낡은 줄이라 실패. 이유에 Paper 쪽 확인 근거를 적는다
+# 여기 적힌 클래스는 관문이다: 차이가 하나라도 있거나, 증명 못 한 멤버(형식 꾸러미에 없는 형식)가 exclude 없이 남으면 실패한다.
+# 바닐라에만 있는 멤버(연결 안 됨)는 서명 관문 몫이라 보고만 한다.
+# 연결 명세(src/shimspec/*.spec)의 pure·read=any 줄은 따로 자동으로 시도하고 보고만 한다(관문 아님 — 받는 쪽 형식이 아직 꾸러미에 없다).
+
+class net.minecraft.util.Mth
+class net.minecraft.core.Vec3i
+class net.minecraft.core.BlockPos
+class net.minecraft.core.BlockPos$MutableBlockPos
+class net.minecraft.core.SectionPos
+class net.minecraft.core.QuartPos
+class net.minecraft.core.Direction
+class net.minecraft.core.Direction$Axis
+class net.minecraft.core.Direction$AxisDirection
+class net.minecraft.world.level.ChunkPos
+class net.minecraft.world.phys.Vec3
+class net.minecraft.resources.ResourceLocation
+
+# NBT(설계 5.5 의 2순위 직렬화 — 태그 나무 씨앗·바이트 비교, NbtKit). 입력 하나가 나무·바이트라 값 클래스보다 무거워 입력 수를 줄인다
+class net.minecraft.nbt.Tag  iterations=3000
+class net.minecraft.nbt.EndTag  iterations=3000
+class net.minecraft.nbt.ByteTag  iterations=3000
+class net.minecraft.nbt.ShortTag  iterations=3000
+class net.minecraft.nbt.IntTag  iterations=3000
+class net.minecraft.nbt.LongTag  iterations=3000
+class net.minecraft.nbt.FloatTag  iterations=3000
+class net.minecraft.nbt.DoubleTag  iterations=3000
+class net.minecraft.nbt.NumericTag  iterations=3000
+class net.minecraft.nbt.StringTag  iterations=3000
+class net.minecraft.nbt.ByteArrayTag  iterations=3000
+class net.minecraft.nbt.IntArrayTag  iterations=3000
+class net.minecraft.nbt.LongArrayTag  iterations=3000
+class net.minecraft.nbt.CollectionTag  iterations=3000
+class net.minecraft.nbt.ListTag  iterations=3000
+class net.minecraft.nbt.CompoundTag  iterations=3000
+class net.minecraft.nbt.NbtAccounter  iterations=3000
+class net.minecraft.nbt.NbtIo  iterations=3000
+  paper readCompressed(java.io.InputStream,net.minecraft.nbt.NbtAccounter)  # Paper 는 배열 길이를 계산 전에 검사(Preconditions.checkArgument(n < 1<<24)) — 바닐라는 할당량 예외. Paper jar 의 ByteArrayTag$1·IntArrayTag$1 바이트코드로 확인(11-23)
+  paper read(java.io.DataInput,net.minecraft.nbt.NbtAccounter)  # 위와 같은 뿌리(Paper 의 배열 길이 검사) — 깨진 길이에서 바닐라는 끝까지 읽다 ReportedNbtException, Paper·shim 은 IllegalArgumentException

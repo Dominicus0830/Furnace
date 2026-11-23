@@ -35,16 +35,16 @@ public final class FloatTag extends NumericTag {
     public long getAsLong() { return (long) data; }
 
     @Override
-    /** 바닐라: 바닥 내림(Mth.floor). */
-    public int getAsInt() { return (int) Math.floor(data); }
+    /** 바닐라처럼 Mth.floor(아주 큰 값·무한대에서 (int) Math.floor 와 다르다 — T-235 차분 시험). */
+    public int getAsInt() { return net.minecraft.util.Mth.floor(data); }
 
     @Override
     /** 바닐라: 바닥 내림 뒤 하위 16비트. */
-    public short getAsShort() { return (short) (((int) Math.floor(data)) & 0xFFFF); }
+    public short getAsShort() { return (short) (net.minecraft.util.Mth.floor(data) & 0xFFFF); }
 
     @Override
     /** 바닐라: 바닥 내림 뒤 하위 8비트. */
-    public byte getAsByte() { return (byte) (((int) Math.floor(data)) & 0xFF); }
+    public byte getAsByte() { return (byte) (net.minecraft.util.Mth.floor(data) & 0xFF); }
 
     @Override
     public double getAsDouble() { return data; }

@@ -24,7 +24,7 @@ public interface Tag {
     byte TAG_COMPOUND = 10;
     byte TAG_INT_ARRAY = 11;
     byte TAG_LONG_ARRAY = 12;
-    int TAG_ANY_NUMERIC = 99;
+    byte TAG_ANY_NUMERIC = 99;
     int MAX_DEPTH = 512;
 
     byte getId();
