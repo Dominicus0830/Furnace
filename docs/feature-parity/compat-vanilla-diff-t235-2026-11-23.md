@@ -3,6 +3,7 @@
 shim 연결마다 손으로 시험을 쓰지 않고, **이름 푼 바닐라 서버 jar 와 shim 에 같은 입력을 넣어 결과를 프로그램이 견준다.**
 설계 근거: `docs/roadmap/faster-shim-and-version-up-research-2026-11-23.md` 5.1(1a·1b·1c), `docs/roadmap/broad-support-version-scaling-2026-11-20.md` 5.2·5.5.
 결정 F1(11-23, 도미니코): 이 시험을 통과한 **읽기** 연결은 검토 없이 병합할 수 있다(쓰기는 검토 유지).
+**적용 범위**: "통과"는 ① 대상 파일의 관문 클래스 멤버, ② 연결 명세 `pure`·`read=any` 줄 가운데 보고서에서 **같음**으로 증명된 멤버만이다. 증명 없음으로 남은 명세 줄은 이 시험을 통과한 것이 아니므로 검토 생략 대상이 아니다.
 
 ## 쓰는 법
 
@@ -24,19 +25,21 @@ shim 연결마다 손으로 시험을 쓰지 않고, **이름 푼 바닐라 서�
 | 격리 로더 | `VanillaRuntime` | 캐시의 Mojang 이름 서버 jar + 라이브러리를 부모가 플랫폼 로더인 별도 로더에 올리고 `SharedConstants.tryDetectVersion()`·`Bootstrap.bootStrap()`(vanilla-extract `Vanilla.boot` 와 같은 두 호출). shim 은 시험 클래스패스에서 — 두 쪽이 섞이지 않는다 |
 | 형식 꾸러미 | `TypeKit`·`NbtKit` | 형식마다 한 번: **씨앗**(고정 시드 난수·경계값 → 중립 값), **올리기**(씨앗 → 한쪽 로더의 객체, 생성자·정적 공장·열거형 이름), **내리기**(객체 → 숫자·글·목록). 형식 하나를 더하면 그 형식을 쓰는 멤버가 모두 시험된다 |
 | 실행기 | `DiffRunner` | 바닐라 클래스의 공개 정적 필드·공개 생성자·공개 메서드(물려받은 `net.minecraft` 멤버 포함)를 훑어 같은 이름·인자 형식의 shim 멤버를 찾고, 입력마다 [반환값 또는 던진 예외 종류, 부른 뒤 받는 쪽 상태, 부른 뒤 인자 상태]를 양쪽에서 내려 견준다. 처음 400개 입력은 경계값 위주(80%), 나머지는 난수 위주(경계값 10%) |
-| 시험·보고 | `VanillaDiffTest` | 대상 파일의 클래스마다 동적 시험 하나, 보고서 쓰기. 연결 명세(`src/shimspec/*.spec`)의 `pure`·`read=any` 줄도 자동으로 시도해 보고만 한다(1c) |
-| 틀 점검 | `HarnessCanaryTest` | 일부러 틀린 `floor` 는 "다름", 같은 규칙의 다른 구현은 "같음" — 틀이 늘 "같음"을 내는 고장을 막는다 |
+| 시험·보고 | `VanillaDiffTest` | 대상 파일의 클래스마다 동적 시험 하나, 보고서 쓰기. 연결 명세(`src/shimspec/*.spec`)의 `pure`·`read=any` 줄도 자동으로 시도한다(1c) — 다름·오류는 실패, 증명 없음만 보고. shim 클래스가 호환 계층 main 출력 폴더에서 왔는지 단언한다 |
+| 틀 점검 | `HarnessCanaryTest` | 일부러 틀린 구현은 "다름", 같은 구현은 "같음" — 반환값(`Mth.floor`), 예외 종류(`ResourceLocation.parse`), 인자 상태(`NbtIo.write` 바이트), NBT 내리기(`NbtIo.read`), paper 허용 범위(허용 쌍이 있어도 다른 차이는 다름) 경로를 하나씩. 틀이 늘 "같음"을 내는 고장을 막는다 |
 
 판정 규칙:
 - 대상 파일의 클래스는 **관문**이다. 다름이 하나라도 있거나, 증명 없음(꾸러미에 없는 형식)이 `exclude <열쇠>  # 이유` 없이 남으면 실패.
-- `paper <열쇠>  # 근거` — 바닐라와 다르지만 Paper 와 같게 둔 멤버(호환 원칙 #505·#449·#222). 계속 돌리고, 다르면 "Paper 와 같게"로 보고, **더는 다르지 않으면 낡은 줄이라 실패**.
+- `paper <열쇠> vanilla=<예외> shim=<예외> [vanilla=… shim=…]…  # 근거` — 바닐라와 다르지만 Paper 와 같게 둔 차이(호환 원칙 #505·#449·#222). **적은 예외 쌍인 입력만 허용**하고, 같은 멤버여도 그 밖의 차이는 다름(실패). 허용한 차이가 한 번도 안 나오면 낡은 줄이라 실패. 근거 입력은 고정 훑기에 넣는다.
+- 고정 훑기: 멤버마다 처음 16개 입력(`DiffRunner.SWEEP`)은 모든 자리가 경계값 0~15번이라 입력 수·씨앗과 무관하게 늘 같다. paper 줄의 근거 입력(길이 1<<24 배열 태그, 한도 무제한·1MiB)이 여기 있어 입력 16·400·3000개, 씨앗 0~3 에서 같은 판정을 확인했다.
+- 리플렉션 실패(`harness …`)는 양쪽이 같아도 다름으로 센다.
 - 바닐라에만 있는 멤버(shim 에 없음)는 서명 관문 몫이라 보고만.
 - 메모리 모자람(OutOfMemoryError)은 입력의 관측값이 아니라 힙 크기라 그 입력은 건너뛴다(센다). 모든 입력에서 양쪽이 같은 예외를 던진 멤버는 같음이지만 "주의"로 따로 적는다(값을 본 적 없음).
 - 멤버 하나가 120초를 넘으면 다름(시간 초과)으로 본다.
 
 ## 첫 실행 결과 (이 PR, 입력 값 클래스 20,000·NBT 3,000)
 
-- 대상 30클래스 820멤버: **같음 818, 다름 0, 증명 없음 0, Paper 와 같게 2**(증명 비율 100%). shim 에 없는 바닐라 멤버 202개는 보고만. 이 환경에서 약 104초(NbtIo 61초 — 깨진 길이로 큰 배열을 잡는 입력이 대부분).
+- 대상 30클래스 820멤버: **같음 814, 다름 0, 증명 없음 0, Paper 와 같게 6**(증명 비율 100%). shim 에 없는 바닐라 멤버 202개는 보고만. 이 환경에서 약 93초(NbtIo 가 절반 넘게 — 깨진 길이로 큰 배열을 잡는 입력).
 - 연결 명세 pure·read=any 9개는 받는 쪽(엔티티·블록·아이템·레벨)이 꾸러미에 없어 전부 증명 없음 — 이 형식은 값 차분이 아니라 장면 차분(T-253 후보)의 몫이다.
 
 ### 이 틀이 찾아 고친 차이
@@ -51,7 +54,7 @@ shim 연결마다 손으로 시험을 쓰지 않고, **이름 푼 바닐라 서�
 
 ### Paper 와 같게 둔 차이 (바닐라와 다름)
 
-`NbtIo.read(DataInput, NbtAccounter)`·`readCompressed(InputStream, NbtAccounter)`: Paper 는 바이트·정수 배열 태그의 길이를 할당량 계산 **전에** `Preconditions.checkArgument(n < 1<<24)` 로 막는다(바닐라는 할당량 예외 또는 끝까지 읽다 `ReportedNbtException`). shim 은 Paper 와 같다. Mojang 이름 Paper 서버 jar(paperweight 개발 묶음)의 `ByteArrayTag$1`·`IntArrayTag$1` 바이트코드로 확인. 기록: `docs/user-todo/entries/2026-11-23-t235-vanilla-diff.md`.
+`NbtIo` 의 읽기 6개(`read(DataInput)`·`read(DataInput, NbtAccounter)`·`read(Path)`·`readAnyTag`·`readCompressed(InputStream, …)`·`readCompressed(Path, …)`): 허용 쌍은 바닐라 `ReportedNbtException`·`NbtAccounterException` ↔ shim `IllegalArgumentException` 뿐. Paper 는 바이트·정수 배열 태그의 길이를 할당량 계산 **전에** `Preconditions.checkArgument(n < 1<<24)` 로 막는다(바닐라는 할당량 예외 또는 끝까지 읽다 `ReportedNbtException`). shim 은 Paper 와 같다. Mojang 이름 Paper 서버 jar(paperweight 개발 묶음)의 `ByteArrayTag$1`·`IntArrayTag$1` 바이트코드로 확인. 기록: `docs/user-todo/entries/2026-11-23-t235-vanilla-diff.md`.
 
 ## 형식 꾸러미에 있는 것
 

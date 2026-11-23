@@ -61,7 +61,7 @@ jobs:
               # 시험이 읽는 문서(docs/api/ 의 계약 문서, docs/feature-parity/ 의 키 표·호환 보고서)는 코드로 본다(PR #405 검토 R1)
               if ! echo "$files" | grep -qvE '^(docs/|[^/]+\.md$)' && ! echo "$files" | grep -qE '^docs/(api|feature-parity)/'; then code=false; fi
               # T-235 차분 시험: shim 이 실행하는 코드(호환 계층·API·서버 본체 main)·바닐라 준비 도구·빌드 설정이 바뀐 PR 에서만. 시험만·문서만·다른 도구만 바뀐 PR 은 돌지 않는다.
-              if ! echo "$files" | grep -qE '^(furnace-compat-paper/|furnace-api/src/main/|furnace-server/src/main/|tools/vanilla-extract/|gradle/|[^/]+\.gradle\.kts$|\.github/workflows/ci\.yml$)'; then vdiff=false; fi
+              if ! echo "$files" | grep -qE '^(furnace-compat-paper/|furnace-api/src/main/|furnace-server/src/main/|tools/vanilla-extract/|gradle/|[^/]+\.gradle\.kts$|[^/]+/build\.gradle\.kts$|gradle\.properties$|\.github/workflows/ci\.yml$)'; then vdiff=false; fi
             fi
           fi
           echo "code=$code" >> "$GITHUB_OUTPUT"

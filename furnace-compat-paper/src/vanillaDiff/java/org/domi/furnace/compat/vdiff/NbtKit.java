@@ -60,14 +60,17 @@ final class NbtKit {
     /** 바이트를 받는 출력 인자. */
     record OutSeed(boolean dataOutput) {}
 
-    /** 바이트를 내주는 입력 인자(바닐라가 쓴 태그 바이트, gzip 여부, 깨기). */
-    record InSeed(TagSeed tag, boolean compressed, boolean dataInput, int corrupt, boolean named) {}
+    /**
+     * 바이트를 내주는 입력 인자(바닐라가 쓴 태그 바이트, gzip 여부, 깨기). huge 가 7·11 이면 바닐라 대신 손으로 만든 바이트:
+     * 이름표 안에 길이 1<<24 인 바이트(7)·정수(11) 배열 태그 머리만 있고 내용 없이 끝난다(Paper 의 배열 길이 검사가 걸리는 입력).
+     */
+    record InSeed(TagSeed tag, boolean compressed, boolean dataInput, int corrupt, boolean named, int huge) {}
 
     /** 파일 경로 인자: 내용이 있으면 바닐라가 쓴 태그 바이트가 든 새 임시 파일, 없으면 아직 없는 경로(쓰기용). */
     record PathSeed(InSeed content) {}
 
     /** 형식 이름이 NBT 꾸러미 몫이면 씨앗, 아니면 null. */
-    static Object seed(String type, SplittableRandom r) {
+    static Object seed(String type, SplittableRandom r, int boundaryIndex) {
         return switch (type) {
             case P + "Tag" -> tag(r, (byte) (1 + r.nextInt(12)), 0);
             case P + "CompoundTag" -> tag(r, COMPOUND, 0);
@@ -90,16 +93,31 @@ final class NbtKit {
             case "long[]", "[J" -> longs(r);
             case "java.io.DataOutput" -> new OutSeed(true);
             case "java.io.OutputStream" -> new OutSeed(false);
-            case "java.io.DataInput" -> in(r, false, true);
-            case "java.io.InputStream" -> in(r, true, false);
-            case "java.nio.file.Path" -> new PathSeed(r.nextBoolean() ? in(r, r.nextBoolean(), false) : null);
+            case "java.io.DataInput" -> in(r, false, true, boundaryIndex);
+            case "java.io.InputStream" -> in(r, true, false, boundaryIndex);
+            // 큰 배열 길이 파일은 0번(바이트·이름 있음·압축 없음 → read(Path))과 4번(정수·이름 있음·gzip → readCompressed(Path))이 늘 생기게
+            case "java.nio.file.Path" -> isHuge(boundaryIndex)
+                    ? new PathSeed(in(r, (boundaryIndex / 4) % 2 == 1, false, boundaryIndex))
+                    : new PathSeed(r.nextBoolean() ? in(r, r.nextBoolean(), false, boundaryIndex) : null);
             default -> null;
         };
     }
 
-    private static InSeed in(SplittableRandom r, boolean compressed, boolean dataInput) {
+    private static boolean isHuge(int b) {
+        return b >= 0 && b < 16 && b % 4 == 0;
+    }
+
+    /** 경계값 0·4·8·12번은 큰 배열 길이 입력(바이트·정수 배열 × 이름 있음·없음) — 고정 훑기(DiffRunner.SWEEP)에 늘 들어간다. */
+    private static InSeed in(SplittableRandom r, boolean compressed, boolean dataInput, int b) {
         int corrupt = r.nextInt(4) == 0 ? r.nextInt(1, 1 << 20) : 0;
-        return new InSeed(tag(r, COMPOUND, 0), compressed, dataInput, corrupt, r.nextInt(3) != 0);
+        boolean named = r.nextInt(3) != 0;
+        int huge = 0;
+        if (isHuge(b)) {
+            huge = (b / 4) % 2 == 0 ? BYTE_ARRAY : INT_ARRAY;
+            named = (b / 8) % 2 == 0;
+            corrupt = 0;
+        }
+        return new InSeed(tag(r, COMPOUND, 0), compressed, dataInput, corrupt, named, huge);
     }
 
     static TagSeed tag(SplittableRandom r, byte kind, int depth) {
@@ -211,6 +229,7 @@ final class NbtKit {
 
     /** 입력 바이트는 바닐라가 쓴다(정답 쪽 직렬화) — 양쪽이 같은 바이트를 읽는다. */
     private static byte[] inputBytes(InSeed in) throws ReflectiveOperationException, IOException {
+        if (in.huge != 0) return gzipIf(in.compressed, hugeArrayBytes(in.huge, in.named));
         ClassLoader v = VanillaRuntime.get().loader();
         Object tag = raiseTag(in.tag, v);
         Class<?> io = cls(v, "NbtIo");
@@ -227,12 +246,29 @@ final class NbtKit {
             if ((in.corrupt & 1) == 0) b = java.util.Arrays.copyOf(b, at);
             else b[at] ^= (byte) (in.corrupt >>> 8 | 1);
         }
-        if (!in.compressed) return b;
+        return gzipIf(in.compressed, b);
+    }
+
+    private static byte[] gzipIf(boolean compressed, byte[] b) throws IOException {
+        if (!compressed) return b;
         ByteArrayOutputStream gz = new ByteArrayOutputStream();
         try (GZIPOutputStream z = new GZIPOutputStream(gz)) {
             z.write(b);
         }
         return gz.toByteArray();
+    }
+
+    /** NBT 바이너리 형식(공개 사양) 그대로: 이름표 머리, 배열 칸 "a" 의 종류·이름·길이 1<<24, 그리고 끝. */
+    private static byte[] hugeArrayBytes(int kind, boolean named) throws IOException {
+        ByteArrayOutputStream bo = new ByteArrayOutputStream();
+        try (DataOutputStream out = new DataOutputStream(bo)) {
+            out.writeByte(COMPOUND);
+            if (named) out.writeUTF("");
+            out.writeByte(kind);
+            out.writeUTF("a");
+            out.writeInt(1 << 24);
+        }
+        return bo.toByteArray();
     }
 
     // ---- 내리기 ----

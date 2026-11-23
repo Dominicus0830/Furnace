@@ -424,6 +424,8 @@ tasks.register<Test>("vanillaDiffTest") {
     systemProperty("furnace.vdiff.classpath", "$cache/$mc/vanilla-classpath.txt")
     systemProperty("furnace.vdiff.mc", mc)
     systemProperty("furnace.vdiff.specDir", file("src/shimspec").absolutePath)
+    // shim 클래스가 이 폴더들(호환 계층 main 출력)에서 왔는지 시험이 단언한다
+    systemProperty("furnace.vdiff.shimDirs", mainSources.output.classesDirs.files.joinToString(File.pathSeparator) { it.absolutePath })
     systemProperty("furnace.vdiff.report", layout.buildDirectory.file("reports/vanilla-diff/shim-proof-report.md").get().asFile.absolutePath)
     (findProperty("vdiffClasses") as String?)?.let { systemProperty("furnace.vdiff.classes", it) }
     (findProperty("vdiffIterations") as String?)?.let { systemProperty("furnace.vdiff.iterations", it) }

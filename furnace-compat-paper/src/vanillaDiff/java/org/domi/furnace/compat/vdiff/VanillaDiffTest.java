@@ -36,7 +36,10 @@ import org.junit.jupiter.api.TestFactory;
  */
 class VanillaDiffTest {
 
-    record Target(String cls, int iterations, Map<String, String> excludes, Map<String, String> paper) {}
+    record Target(String cls, int iterations, Map<String, String> excludes, Map<String, PaperLine> paper) {}
+
+    /** paper 줄: 허용하는 차이 모양(바닐라 예외 ↔ shim 예외 쌍)과 근거. */
+    record PaperLine(String reason, List<DiffRunner.Allowance> allowed) {}
 
     record ClassReport(String cls, boolean gate, int iterations, long millis, String error, List<MemberResult> members) {}
 
@@ -88,19 +91,22 @@ class VanillaDiffTest {
         writeReport(new ArrayList<>(REPORTS), VanillaRuntime.get().mc(), seed);
     }
 
+    /**
+     * 관문 클래스: 다름·오류·이유 없는 증명 없음이 실패. 연결 명세 줄: 다름·오류는 실패, 증명 없음만 보고(할 일 목록) —
+     * 꾸러미에 형식이 들어와 증명되는 순간부터 틀린 읽기 연결이 초록으로 지나가지 않게.
+     */
     private static void check(ClassReport r) {
-        if (!r.gate) return; // 명세 줄은 보고만(관문 아님) — 보고서의 "증명 없음"이 할 일 목록
-        if (r.error != null) fail(r.cls + ": " + r.error);
         List<String> bad = new ArrayList<>();
+        if (r.error != null) bad.add("ERROR " + r.error);
         for (MemberResult m : r.members) {
             if (m.status() == Status.DIFF) bad.add("DIFF " + m.key() + " " + (m.detail() == null ? "" : m.detail()) + " " + m.examples());
-            if (m.status() == Status.UNPROVED) bad.add("UNPROVED " + m.key() + " (" + m.detail() + ") - add a TypeKit type or an exclude with a reason");
+            if (r.gate && m.status() == Status.UNPROVED) bad.add("UNPROVED " + m.key() + " (" + m.detail() + ") - add a TypeKit type or an exclude with a reason");
         }
         if (!bad.isEmpty()) fail(r.cls + ":\n  " + String.join("\n  ", bad));
     }
 
     private static ClassReport runClass(VanillaRuntime rt, String cls, Set<String> onlyNames,
-                                        Map<String, String> excludes, Map<String, String> paper, boolean gate, int iterations) {
+                                        Map<String, String> excludes, Map<String, PaperLine> paper, boolean gate, int iterations) {
         long t0 = System.nanoTime();
         Class<?> vc, sc;
         try {
@@ -114,6 +120,8 @@ class VanillaDiffTest {
             return new ClassReport(cls, gate, iterations, 0, "shim class not loadable: " + e, List.of());
         }
         if (sc.getClassLoader() == rt.loader()) return new ClassReport(cls, gate, iterations, 0, "shim resolved to vanilla loader", List.of());
+        String origin = shimOrigin(sc);
+        if (origin != null) return new ClassReport(cls, gate, iterations, 0, origin, List.of());
         List<MemberResult> out = new ArrayList<>();
         Set<String> unusedExcludes = new LinkedHashSet<>(excludes.keySet());
         Set<String> unusedPaper = new LinkedHashSet<>(paper.keySet());
@@ -128,13 +136,14 @@ class VanillaDiffTest {
                 out.add(new MemberResult(key, Status.EXCLUDED, 0, 0, excludes.get(key), List.of()));
                 continue;
             }
-            MemberResult res = runner.run(vc, sc, m, iterations);
-            if (paper.containsKey(key)) {
-                // 다를 때만 Paper 표시를 쓴다 — 더는 다르지 않으면 줄이 낡은 것이니 오류로 알린다
-                if (res.status() == Status.DIFF) {
-                    unusedPaper.remove(key);
-                    res = new MemberResult(key, Status.PAPER, res.calls(), res.skipped(), paper.get(key) + " / " + res.detail(), res.examples());
-                }
+            PaperLine pl = paper.get(key);
+            MemberResult res = runner.run(vc, sc, m, iterations, pl == null ? List.of() : pl.allowed());
+            // 허용한 모양의 차이가 실제로 나왔을 때만 줄이 쓰인 것 — 안 나오면 낡은 줄(오류). 허용 밖 차이는 그대로 다름
+            if (pl != null && (res.status() == Status.PAPER || (res.status() == Status.DIFF && res.detail() != null && res.detail().contains("allowed Paper-shaped")))) {
+                unusedPaper.remove(key);
+            }
+            if (res.status() == Status.PAPER) {
+                res = new MemberResult(key, Status.PAPER, res.calls(), res.skipped(), pl.reason() + " / " + res.detail(), res.examples());
             }
             out.add(res);
         }
@@ -172,11 +181,47 @@ class VanillaDiffTest {
                     cur.excludes.put(line.substring(8).strip(), reason);
                 } else if (line.startsWith("paper ") && cur != null) {
                     if (reason.isEmpty()) throw new IllegalStateException("vanilla-diff-targets.txt:" + no + ": paper needs '# reason'");
-                    cur.paper.put(line.substring(6).strip(), reason);
+                    cur.paper.put(paperKey(line, no), new PaperLine(reason, allowances(line, no)));
                 } else {
                     throw new IllegalStateException("vanilla-diff-targets.txt:" + no + ": cannot parse: " + raw);
                 }
             }
+        }
+        return out;
+    }
+
+    /** shim 클래스가 호환 계층 main 출력 폴더에서 왔는지(바닐라 대 바닐라를 견주는 사고 방지). 맞으면 null. */
+    private static String shimOrigin(Class<?> sc) {
+        String dirs = System.getProperty("furnace.vdiff.shimDirs");
+        if (dirs == null) return "-Dfurnace.vdiff.shimDirs missing";
+        try {
+            Path at = Path.of(sc.getProtectionDomain().getCodeSource().getLocation().toURI()).toAbsolutePath().normalize();
+            for (String d : dirs.split(java.io.File.pathSeparator)) {
+                if (!d.isBlank() && at.startsWith(Path.of(d).toAbsolutePath().normalize())) return null;
+            }
+            return "shim class not from compat main output: " + at;
+        } catch (Exception e) {
+            return "shim class origin unknown: " + e;
+        }
+    }
+
+    /** "paper <열쇠> vanilla=<예외> shim=<예외> [vanilla=… shim=…]…" 의 열쇠. */
+    private static String paperKey(String line, int no) {
+        String[] parts = line.substring(6).strip().split("\\s+");
+        return parts[0];
+    }
+
+    private static List<DiffRunner.Allowance> allowances(String line, int no) {
+        String[] parts = line.substring(6).strip().split("\\s+");
+        List<DiffRunner.Allowance> out = new ArrayList<>();
+        if (parts.length < 3 || (parts.length - 1) % 2 != 0) {
+            throw new IllegalStateException("vanilla-diff-targets.txt:" + no + ": paper needs 'vanilla=<exception> shim=<exception>' pairs");
+        }
+        for (int k = 1; k < parts.length; k += 2) {
+            if (!parts[k].startsWith("vanilla=") || !parts[k + 1].startsWith("shim=")) {
+                throw new IllegalStateException("vanilla-diff-targets.txt:" + no + ": expected vanilla=… shim=… at " + parts[k]);
+            }
+            out.add(new DiffRunner.Allowance(parts[k].substring(8), parts[k + 1].substring(5)));
         }
         return out;
     }
@@ -234,7 +279,7 @@ class VanillaDiffTest {
         }
         sb.append("| 묶음 | 같음 | 다름 | 증명 없음 | 뺌 | Paper 와 같게 | shim 에 없음 | 증명 비율 |\n|---|---:|---:|---:|---:|---:|---:|---:|\n");
         row(sb, "값 클래스(관문)", gateCounts);
-        row(sb, "연결 명세 pure·read=any(보고만)", specCounts);
+        row(sb, "연결 명세 pure·read=any(다름은 실패, 증명 없음은 보고)", specCounts);
         sb.append("\n호출 수 합계(양쪽 한 쌍을 1로): ").append(calls).append("\n\n");
         sb.append("증명 비율 = 같음 / (같음 + 다름 + 증명 없음). 뺌·Paper 와 같게·shim 에 없음은 분모에 넣지 않는다.\n\n");
         for (ClassReport r : reports) {

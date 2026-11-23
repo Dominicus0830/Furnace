@@ -26,6 +26,16 @@ import java.util.concurrent.TimeoutException;
  */
 public final class DiffRunner {
 
+    /**
+     * Paper 와 같게 둔 차이 하나의 모양: 바닐라가 이 예외를 던지고 shim 이 저 예외를 던지는 입력만 허용한다(대상 파일 paper 줄).
+     * 그 밖의 차이는 같은 멤버여도 다름이다.
+     */
+    public record Allowance(String vanillaThrows, String shimThrows) {
+        boolean matches(Object vanillaOutcome, Object shimOutcome) {
+            return ("throws " + vanillaThrows).equals(vanillaOutcome) && ("throws " + shimThrows).equals(shimOutcome);
+        }
+    }
+
     /** 멤버 하나의 결과. */
     public record MemberResult(String key, Status status, long calls, long skipped, String detail, List<String> examples) {}
 
@@ -101,10 +111,15 @@ public final class DiffRunner {
 
     /** iterations = 입력 수(경계값 쪽 400개까지 + 나머지 난수). */
     public MemberResult run(Class<?> vc, Class<?> sc, Object member, int iterations) {
+        return run(vc, sc, member, iterations, List.of());
+    }
+
+    /** allowed = 이 멤버에서 허용하는 Paper 차이 모양(없으면 빈 목록). */
+    public MemberResult run(Class<?> vc, Class<?> sc, Object member, int iterations, List<Allowance> allowed) {
         String key = memberKey(member);
         try {
             if (member instanceof Field f) return field(key, f, sc);
-            Future<MemberResult> fut = exec.submit(() -> executable(key, vc, sc, (Executable) member, iterations));
+            Future<MemberResult> fut = exec.submit(() -> executable(key, vc, sc, (Executable) member, iterations, allowed));
             try {
                 return fut.get(120, TimeUnit.SECONDS);
             } catch (TimeoutException e) {
@@ -142,7 +157,7 @@ public final class DiffRunner {
         }
     }
 
-    private MemberResult executable(String key, Class<?> vc, Class<?> sc, Executable ve, int iterations) throws Exception {
+    private MemberResult executable(String key, Class<?> vc, Class<?> sc, Executable ve, int iterations, List<Allowance> allowed) throws Exception {
         boolean isStatic = ve instanceof Constructor<?> || Modifier.isStatic(ve.getModifiers());
         Class<?>[] vps = ve.getParameterTypes();
         Class<?>[] sps = new Class<?>[vps.length];
@@ -170,15 +185,17 @@ public final class DiffRunner {
 
         SplittableRandom r = new SplittableRandom(seed ^ key.hashCode() * 0x9E3779B97F4A7C15L ^ vc.getName().hashCode());
         int edgeTrials = Math.min(iterations, 400);
-        long calls = 0, skipped = 0, diffs = 0, lowered = 0, threw = 0;
+        long calls = 0, skipped = 0, diffs = 0, lowered = 0, threw = 0, paper = 0;
         String unlowerable = null;
         List<String> examples = new ArrayList<>();
+        List<String> paperExamples = new ArrayList<>();
         Object lastOutcome = null;
         for (int i = 0; i < iterations; i++) {
             double edgeP = i < edgeTrials ? 0.8 : 0.1;
-            Object recvSeed = isStatic ? null : TypeKit.seed(vc, r, pick(r, edgeP), self);
+            // 처음 SWEEP 개는 모든 자리가 경계값 i 번 — 입력 수·씨앗 순서와 무관하게 늘 같은 입력(고정 근거 입력이 여기 있다)
+            Object recvSeed = isStatic ? null : TypeKit.seed(vc, r, i < SWEEP ? i : pick(r, edgeP), self);
             Object[] argSeeds = new Object[vps.length];
-            for (int k = 0; k < vps.length; k++) argSeeds[k] = TypeKit.seed(gps[k], vps[k], r, pick(r, edgeP), self);
+            for (int k = 0; k < vps.length; k++) argSeeds[k] = TypeKit.seed(gps[k], vps[k], r, i < SWEEP ? i : pick(r, edgeP), self);
             List<Object> va, sa;
             try {
                 va = call(ve, recvSeed, argSeeds, vanilla);
@@ -195,14 +212,23 @@ public final class DiffRunner {
             lowered++;
             lastOutcome = va.get(0);
             if (va.get(0) instanceof String o && o.startsWith("throws ")) threw++;
-            if (!Objects.equals(va, sa)) {
-                diffs++;
-                if (examples.size() < 3) {
-                    examples.add("input " + describe(recvSeed, argSeeds) + " -> vanilla=" + clip(va) + " shim=" + clip(sa));
+            boolean harness = isHarness(va.get(0)) || isHarness(sa.get(0));
+            if (harness || !Objects.equals(va, sa)) {
+                String ex = "input " + describe(recvSeed, argSeeds) + " -> vanilla=" + clip(va) + " shim=" + clip(sa);
+                if (!harness && allowed.stream().anyMatch(a -> a.matches(va.get(0), sa.get(0)))) {
+                    paper++;
+                    if (paperExamples.size() < 3) paperExamples.add(ex);
+                } else {
+                    diffs++;
+                    if (examples.size() < 3) examples.add(ex);
                 }
             }
         }
-        if (diffs > 0) return new MemberResult(key, Status.DIFF, calls, skipped, diffs + " of " + lowered, examples);
+        if (diffs > 0) {
+            String d = diffs + " of " + lowered + (paper > 0 ? " (+" + paper + " allowed Paper-shaped)" : "");
+            return new MemberResult(key, Status.DIFF, calls, skipped, d, examples);
+        }
+        if (paper > 0) return new MemberResult(key, Status.PAPER, calls, skipped, paper + " of " + lowered + " allowed Paper-shaped", paperExamples);
         if (lowered == 0) {
             String why = unlowerable != null ? "result " + unlowerable : "no input accepted by both sides (" + skipped + " skipped)";
             return new MemberResult(key, Status.UNPROVED, calls, skipped, why, List.of());
@@ -212,6 +238,14 @@ public final class DiffRunner {
         return new MemberResult(key, Status.SAME, calls, skipped, note, List.of());
     }
 
+
+    /** 경계값 고정 훑기 입력 수. */
+    static final int SWEEP = 16;
+
+    /** 리플렉션 실패(접근 불가 등)는 양쪽이 같아도 증명이 아니다 — 늘 다름으로 센다. */
+    private static boolean isHarness(Object outcome) {
+        return outcome instanceof String s && s.startsWith("harness ");
+    }
 
     private static int pick(SplittableRandom r, double edgeP) {
         return r.nextDouble() < edgeP ? r.nextInt(1 << 16) : -1;

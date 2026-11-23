@@ -100,7 +100,9 @@ public final class TypeKit {
                 (r, b) -> b >= 0 ? new String[]{"minecraft:stone", "air", "furnace:a/b", "x:y.z", "minecraft:block/oak_log"}[b % 5] : randomId(r));
         factory("com.mojang.brigadier.StringReader", "<init>", new String[]{"java.lang.String"}, PRIMS.get("java.lang.String"));
         factory("net.minecraft.nbt.NbtAccounter", "create", new String[]{"long"},
-                (r, b) -> switch (r.nextInt(3)) { case 0 -> Long.MAX_VALUE; case 1 -> (long) r.nextInt(0, 64); default -> (long) r.nextInt(0, 4096); });
+                // 고정 훑기(경계값 0~15)는 정해진 한도: 0·8 은 무제한, 4·12 는 1MiB(이름표는 지나고 큰 배열에서 걸림) — NbtKit 큰 배열 입력과 짝
+                (r, b) -> b >= 0 && b < 16 ? (b % 8 == 0 ? Long.MAX_VALUE : 1L << 20)
+                        : switch (r.nextInt(3)) { case 0 -> Long.MAX_VALUE; case 1 -> (long) r.nextInt(0, 64); default -> (long) r.nextInt(0, 4096); });
         factory("java.util.UUID", "<init>", new String[]{"long", "long"}, PRIMS.get("long"), PRIMS.get("long"));
         factory("net.minecraft.util.RandomSource", "create", new String[]{"long"}, PRIMS.get("long"));
         STAND_INS.put("net.minecraft.core.Position", "net.minecraft.world.phys.Vec3");
@@ -187,7 +189,7 @@ public final class TypeKit {
         } else if (stand != null && !FACTORIES.containsKey(name)) {
             name = stand;
         }
-        Object nbt = NbtKit.seed(name, r);
+        Object nbt = NbtKit.seed(name, r, boundaryIndex);
         if (nbt != null) return nbt;
         if (vanillaType.isArray()) throw new Unsupported("array " + name);
         Seeder p = PRIMS.get(name);
@@ -201,7 +203,8 @@ public final class TypeKit {
         if (f == null) throw new Unsupported(vanillaType.getName());
         Object[] parts = new Object[f.parts.length];
         for (int k = 0; k < parts.length; k++) {
-            parts[k] = f.parts[k].seed(r, boundaryIndex >= 0 ? boundaryIndex * 7 + k * 3 : -1);
+            // 여러 칸이면 칸마다 다른 경계값으로 섞고, 한 칸이면 경계값 번호를 그대로(고정 훑기 번호를 기대는 씨앗이 있다 — NbtAccounter)
+            parts[k] = f.parts[k].seed(r, boundaryIndex < 0 ? -1 : f.parts.length == 1 ? boundaryIndex : boundaryIndex * 7 + k * 3);
         }
         return new ObjSeed(name, parts);
     }
