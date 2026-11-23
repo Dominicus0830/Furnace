@@ -147,11 +147,11 @@
 class net.minecraft.core.Holder$Reference
   value()Ljava/lang/Object; -> this.get  read=any  via=G3 proof=O1 body=1a2b3c4d5e6f target=0f1e2d3c4b5a
 class net.minecraft.world.entity.monster.Zombie
-  isBaby()Z -> @idiom(entity-data-get, #797c04e648)  read=owner  via=G1 proof=O3 body=… target=…   # 칸 상수는 바닐라 private → 지문
+  isBaby()Z -> @idiom(entity-data-get, #16271d1c1b)  read=owner  via=G1 proof=O3 body=… target=…   # 칸 상수 Zombie.DATA_BABY_ID 는 바닐라 private → 지문
 ```
 
 - 문법은 명세 줄(`->`)과 같고 서술자는 늘 적는다(판과 무관하지 않음을 받아들임 — 판을 올리면 다시 추론). 대상은 `C.m`(정적 다리), `this.m`(별칭), `@idiom(이름, 값…)`.
-- **이름**(결정 D1, 검토 R1): 평문으로 적는 것은 Paper 서버 서명표에서 **공개·보호**인 클래스·멤버·값 이름뿐이다(shim 이 이미 같은 이름으로 내놓는 표면, 명세 파일과 같은 기준). private·패키지 멤버나 값(예: 엔티티 데이터 칸 상수 `DATA_*` 는 바닐라 private)은 `entity_data/ids-<판>.txt` 와 같은 지문 꼴 `#<SHA-256("바닐라 클래스 이름.멤버 이름") 앞 10자리>`(`ExportEntityData.fingerprint` 와 같은 계산) 로 적고, 생성 때 서명표·바닐라 jar 에서 푼다(못 풀면 멈춤). 우리 쪽 이름이 이미 있는 값(`entity_data/ids.spec` 의 `EntityDataIds` 이름)은 그 이름을 써도 된다. `adoptLinks` 가 쓸 때와 빌드 검사가 읽을 때 **둘 다** "private·패키지 이름 평문 금지"를 검사한다(서명표의 접근 플래그로).
+- **이름**(결정 D1, 검토 R1): 평문으로 적는 것은 Paper 서버 서명표에서 **공개·보호**인 클래스·멤버·값 이름뿐이다(shim 이 이미 같은 이름으로 내놓는 표면, 명세 파일과 같은 기준). private·패키지 멤버나 값(예: 엔티티 데이터 칸 상수 `DATA_*` 는 바닐라 private)은 `entity_data/ids-<판>.txt` 와 같은 지문 꼴 `#<SHA-256("바닐라 클래스 이름.멤버 이름") 앞 10자리>`(`ExportEntityData.fingerprint` 와 같은 계산) 로 적고, 생성 때 서명표·바닐라 jar 에서 푼다(못 풀면 멈춤). 우리 쪽 이름이 이미 있는 값(`entity_data/ids.spec` 의 `EntityDataIds` 이름)은 그 이름을 써도 된다. 지문은 값을 **선언한** 클래스로 만든다 — 이름은 같고 선언 클래스가 다른 상수(`Zombie.DATA_BABY_ID` 와 `AgeableMob.DATA_BABY_ID`)를 섞지 않도록, 생성 때 지문을 풀어 나온 선언 클래스가 몸통이 실제로 읽는 필드의 소유자와 같은지 검사한다(재검토 비차단 지적). `adoptLinks` 가 쓸 때와 빌드 검사가 읽을 때 **둘 다** "private·패키지 이름 평문 금지"를 검사한다(서명표의 접근 플래그로).
 - 생성: `FullShells`(껍데기 클래스)와 `ShellMerge`(손·생성 shim 에 합치는 멤버)가 그 멤버에 던지는 몸통 대신 [소유 검사] → [인자 변환] → 대상 호출 → [반환 변환] → 반환 을 쓰고 `@NmsShellMember` 표지를 달지 않는다(그래서 연결기가 "있음"으로 본다). 리플렉션·`invokedynamic` 없음.
 - 빌드 검사(멈춤): 연결 줄의 멤버가 이미 손·명세로 살아 있으면 — 그 클래스뿐 아니라 **상위 사슬·인터페이스에서 찾아져도** — "낡은 줄"(지우라고, 손 shim 바이트를 덮어쓰지 않는다), 대상 메서드가 없거나 형식이 안 맞거나 표지 검사 종류와 줄이 다르면 오류, `body=` 지문이 지금 바닐라 jar 와 다르면 "바닐라 몸통 바뀜"(판 올림 때 T-236 과 같은 신호), `target=` 지문이 지금 대상과 다르면 그 줄만 정답기 다시(CI 선택 실행).
 - 표가 없는 빌드(껍데기 없음)는 연결 파일을 안 읽는다 — 지금과 같다. 배포 빌드는 `-PrequireFullShells` 라 늘 들어간다.
