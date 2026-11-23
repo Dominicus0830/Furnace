@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * `--mode packet-layout` (T-250). 바닐라 서버 jar(Mojang 이름)의 패킷 코덱 와이어 모양을 뽑는다.
+ * `--mode packet-layout` (T-252). 바닐라 서버 jar(Mojang 이름)의 패킷 코덱 와이어 모양을 뽑는다.
  *
  * <ul>
  *   <li>캐시 {@code <캐시>/<판>/packet-layout.tsv} — 전체 표(Mojang 클래스 이름 포함, 커밋 금지)</li>

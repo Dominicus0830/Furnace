@@ -11,7 +11,7 @@
 //   -PtoolArgs="shape-vectors=<블록들>;shape-vectors=<이웃 블록들>;shape-vectors=<시도 수>;shape-vectors=<시드>"   shape-vectors 처럼 재료를 받는 도구의 인자
 //   -Pmode=sig-table   서명표(T-227): 클래스·멤버 선언만 모은 표를 캐시에 만든다(-PsigPaperApi=true 는 paper-api, -PsigJar -PsigName 은 임의 jar)
 //   -Pmode=body-table  본문 지문표: 메서드마다 모양·참조 해시만(판 사이 동작 변경 후보 — tools/compat/version-diff.py 가 읽는다)
-//   -Pmode=packet-layout  패킷 코덱 추출기(T-250): 패킷 와이어 모양을 캐시에 쓴다(-PlayoutInstall=true 잠금 파일 저장소에 쓰기, -PlayoutVerify=true 커밋된 잠금과 견주기)
+//   -Pmode=packet-layout  패킷 코덱 추출기(T-252): 패킷 와이어 모양을 캐시에 쓴다(-PlayoutInstall=true 잠금 파일 저장소에 쓰기, -PlayoutVerify=true 커밋된 잠금과 견주기)
 //   -Pmode=reports     데이터 생성기 보고서까지 준비(packets.json·registries.json 등)
 //   -Ptools=block-attrs,block-light   일부 도구만   -Plist=true   도구 목록   -Pcache=<폴더>   내려받기 캐시   -PjavaHome=<JAVA_HOME>   실행 JDK
 // 바닐라 jar·대응표·내려받은 결과는 캐시 폴더에만 둔다(EULA — 커밋하지 않는다).
@@ -88,6 +88,20 @@ tasks.register<JavaExec>("prepareVanillaReports") {
     val a = mutableListOf("--mc", mc, "--mode", "reports")
     (findProperty("cache") as String?)?.let { a += listOf("--cache", it) }
     (findProperty("javaHome") as String?)?.let { a += listOf("--java-home", it) }
+    args = a
+}
+
+// T-235: 차분 시험용 — Mojang 이름 서버 jar·라이브러리만 준비하고(데이터 생성기 없음) 경로를 <캐시>/<판>/vanilla-classpath.txt 에 적는다.
+// :furnace-compat-paper:vanillaDiffTest 가 먼저 부른다. 캐시 위치는 -Pcache 또는 FURNACE_VANILLA_CACHE.
+tasks.register<JavaExec>("prepareVanillaJars") {
+    group = "verification"
+    description = "바닐라 서버 jar 를 Mojang 이름으로 풀어 캐시에 두고 클래스패스 목록을 적는다(T-235)"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.domi.furnace.tools.extract.Main")
+    workingDir = rootProject.projectDir
+    val mc = (rootProject.extra["mc"] as java.util.Properties).getProperty("mc.version")
+    val a = mutableListOf("--mc", mc, "--mode", "jars")
+    (findProperty("cache") as String?)?.let { a += listOf("--cache", it) }
     args = a
 }
 

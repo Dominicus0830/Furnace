@@ -4,6 +4,7 @@
 # C class access super interfaces signature innerAccess source / F,M owner name descriptor access signature (- = none) / E enum constantCount
 C	net/minecraft/commands/CommandSource	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/network/syncher/SyncedDataHolder	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/util/StringRepresentable	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/Clearable	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/Container	1537	java/lang/Object	net/minecraft/world/Clearable	-	-	paper-server-1.21.1
 C	net/minecraft/world/ContainerListener	1537	java/lang/Object	-	-	-	paper-server-1.21.1
@@ -34,6 +35,7 @@ M	net/minecraft/world/entity/Entity	getKnownMovement	()Lnet/minecraft/world/phys
 M	net/minecraft/world/entity/Entity	getSelfAndPassengers	()Ljava/util/stream/Stream;	1	()Ljava/util/stream/Stream<Lnet/minecraft/world/entity/Entity;>;
 M	net/minecraft/world/entity/Entity	getServer	()Lnet/minecraft/server/MinecraftServer;	1	-
 M	net/minecraft/world/entity/Entity	getStringUUID	()Ljava/lang/String;	1	-
+M	net/minecraft/world/entity/Entity	getTicksRequiredToFreeze	()I	1	-
 M	net/minecraft/world/entity/Entity	getType	()Lnet/minecraft/world/entity/EntityType;	1	()Lnet/minecraft/world/entity/EntityType<*>;
 M	net/minecraft/world/entity/Entity	getUUID	()Ljava/util/UUID;	1	-
 M	net/minecraft/world/entity/Entity	getVehicle	()Lnet/minecraft/world/entity/Entity;	1	-
@@ -60,13 +62,44 @@ M	net/minecraft/world/entity/Entity	remove	(Lnet/minecraft/world/entity/Entity$R
 M	net/minecraft/world/entity/Entity	save	(Lnet/minecraft/nbt/CompoundTag;)Z	1	-
 M	net/minecraft/world/entity/Entity	saveAsPassenger	(Lnet/minecraft/nbt/CompoundTag;)Z	1	-
 M	net/minecraft/world/entity/Entity	saveWithoutId	(Lnet/minecraft/nbt/CompoundTag;)Lnet/minecraft/nbt/CompoundTag;	1	-
+M	net/minecraft/world/entity/Entity	setCustomName	(Lnet/minecraft/network/chat/Component;)V	1	-
+M	net/minecraft/world/entity/Entity	setCustomNameVisible	(Z)V	1	-
+M	net/minecraft/world/entity/Entity	setGlowingTag	(Z)V	17	-
+M	net/minecraft/world/entity/Entity	setInvisible	(Z)V	1	-
+M	net/minecraft/world/entity/Entity	setOnGround	(Z)V	1	-
+M	net/minecraft/world/entity/Entity	setPos	(DDD)V	1	-
+M	net/minecraft/world/entity/Entity	setPos	(Lnet/minecraft/world/phys/Vec3;)V	17	-
 M	net/minecraft/world/entity/Entity	setPosRaw	(DDD)V	17	-
+M	net/minecraft/world/entity/Entity	setRot	(FF)V	1	-
+M	net/minecraft/world/entity/Entity	setSharedFlagOnFire	(Z)V	1	-
+M	net/minecraft/world/entity/Entity	setSilent	(Z)V	1	-
+M	net/minecraft/world/entity/Entity	setTicksFrozen	(I)V	1	-
 M	net/minecraft/world/entity/Entity	setUUID	(Ljava/util/UUID;)V	1	-
+M	net/minecraft/world/entity/Entity	setXRot	(F)V	1	-
 M	net/minecraft/world/entity/Entity	setYHeadRot	(F)V	1	-
+M	net/minecraft/world/entity/Entity	setYRot	(F)V	1	-
 M	net/minecraft/world/entity/Entity	startRiding	(Lnet/minecraft/world/entity/Entity;)Z	1	-
 M	net/minecraft/world/entity/Entity	startRiding	(Lnet/minecraft/world/entity/Entity;Z)Z	1	-
 M	net/minecraft/world/entity/Entity	stopRiding	()V	1	-
+M	net/minecraft/world/entity/Entity	teleportTo	(DDD)V	1	-
 M	net/minecraft/world/entity/Entity	teleportTo	(Lnet/minecraft/server/level/ServerLevel;DDDLjava/util/Set;FF)Z	1	(Lnet/minecraft/server/level/ServerLevel;DDDLjava/util/Set<Lnet/minecraft/world/entity/RelativeMovement;>;FF)Z
+C	net/minecraft/world/entity/EquipmentSlot	16433	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/entity/EquipmentSlot;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
+E	net/minecraft/world/entity/EquipmentSlot	7
+F	net/minecraft/world/entity/EquipmentSlot	BODY	Lnet/minecraft/world/entity/EquipmentSlot;	16409	-
+F	net/minecraft/world/entity/EquipmentSlot	CHEST	Lnet/minecraft/world/entity/EquipmentSlot;	16409	-
+F	net/minecraft/world/entity/EquipmentSlot	FEET	Lnet/minecraft/world/entity/EquipmentSlot;	16409	-
+F	net/minecraft/world/entity/EquipmentSlot	HEAD	Lnet/minecraft/world/entity/EquipmentSlot;	16409	-
+F	net/minecraft/world/entity/EquipmentSlot	LEGS	Lnet/minecraft/world/entity/EquipmentSlot;	16409	-
+F	net/minecraft/world/entity/EquipmentSlot	MAINHAND	Lnet/minecraft/world/entity/EquipmentSlot;	16409	-
+F	net/minecraft/world/entity/EquipmentSlot	OFFHAND	Lnet/minecraft/world/entity/EquipmentSlot;	16409	-
+M	net/minecraft/world/entity/EquipmentSlot	byName	(Ljava/lang/String;)Lnet/minecraft/world/entity/EquipmentSlot;	9	-
+M	net/minecraft/world/entity/EquipmentSlot	getFilterFlag	()I	1	-
+M	net/minecraft/world/entity/EquipmentSlot	getIndex	()I	1	-
+M	net/minecraft/world/entity/EquipmentSlot	getIndex	(I)I	1	-
+M	net/minecraft/world/entity/EquipmentSlot	getName	()Ljava/lang/String;	1	-
+M	net/minecraft/world/entity/EquipmentSlot	getSerializedName	()Ljava/lang/String;	1	-
+M	net/minecraft/world/entity/EquipmentSlot	getType	()Lnet/minecraft/world/entity/EquipmentSlot$Type;	1	-
+M	net/minecraft/world/entity/EquipmentSlot	isArmor	()Z	1	-
 C	net/minecraft/world/entity/EquipmentUser	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/ExperienceOrb	33	net/minecraft/world/entity/Entity	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/FlyingMob	1057	net/minecraft/world/entity/Mob	-	-	-	paper-server-1.21.1
@@ -153,7 +186,11 @@ C	net/minecraft/world/entity/decoration/ArmorStand	33	net/minecraft/world/entity
 C	net/minecraft/world/entity/decoration/BlockAttachedEntity	1057	net/minecraft/world/entity/Entity	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/decoration/GlowItemFrame	33	net/minecraft/world/entity/decoration/ItemFrame	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/decoration/HangingEntity	1057	net/minecraft/world/entity/decoration/BlockAttachedEntity	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/decoration/HangingEntity	getDirection	()Lnet/minecraft/core/Direction;	1	-
+M	net/minecraft/world/entity/decoration/HangingEntity	rotate	(Lnet/minecraft/world/level/block/Rotation;)F	1	-
 C	net/minecraft/world/entity/decoration/ItemFrame	33	net/minecraft/world/entity/decoration/HangingEntity	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/decoration/ItemFrame	getRotation	()I	1	-
+M	net/minecraft/world/entity/decoration/ItemFrame	setRotation	(I)V	1	-
 C	net/minecraft/world/entity/decoration/LeashFenceKnotEntity	33	net/minecraft/world/entity/decoration/BlockAttachedEntity	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/decoration/Painting	33	net/minecraft/world/entity/decoration/HangingEntity	net/minecraft/world/entity/VariantHolder	Lnet/minecraft/world/entity/decoration/HangingEntity;Lnet/minecraft/world/entity/VariantHolder<Lnet/minecraft/core/Holder<Lnet/minecraft/world/entity/decoration/PaintingVariant;>;>;	-	paper-server-1.21.1
 C	net/minecraft/world/entity/item/FallingBlockEntity	33	net/minecraft/world/entity/Entity	-	-	-	paper-server-1.21.1
@@ -561,6 +598,12 @@ C	net/minecraft/world/level/block/RodBlock	1057	net/minecraft/world/level/block/
 C	net/minecraft/world/level/block/RootedDirtBlock	33	net/minecraft/world/level/block/Block	net/minecraft/world/level/block/BonemealableBlock	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/RootsBlock	33	net/minecraft/world/level/block/BushBlock	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/RotatedPillarBlock	33	net/minecraft/world/level/block/Block	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/Rotation	16433	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/block/Rotation;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
+E	net/minecraft/world/level/block/Rotation	4
+F	net/minecraft/world/level/block/Rotation	CLOCKWISE_180	Lnet/minecraft/world/level/block/Rotation;	16409	-
+F	net/minecraft/world/level/block/Rotation	CLOCKWISE_90	Lnet/minecraft/world/level/block/Rotation;	16409	-
+F	net/minecraft/world/level/block/Rotation	COUNTERCLOCKWISE_90	Lnet/minecraft/world/level/block/Rotation;	16409	-
+F	net/minecraft/world/level/block/Rotation	NONE	Lnet/minecraft/world/level/block/Rotation;	16409	-
 C	net/minecraft/world/level/block/SaplingBlock	33	net/minecraft/world/level/block/BushBlock	net/minecraft/world/level/block/BonemealableBlock	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/ScaffoldingBlock	33	net/minecraft/world/level/block/Block	net/minecraft/world/level/block/SimpleWaterloggedBlock	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/SculkBehaviour	1537	java/lang/Object	-	-	-	paper-server-1.21.1

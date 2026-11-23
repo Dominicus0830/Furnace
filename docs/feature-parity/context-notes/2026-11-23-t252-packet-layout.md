@@ -1,4 +1,4 @@
-# T-251 패킷 코덱 추출기 — 함정과 바닐라 대조 (2026-11-23)
+# T-252 패킷 코덱 추출기 — 함정과 바닐라 대조 (2026-11-23)
 
 - 1.21.1 패킷 쓰기 방식: `Packet.codec(write, ctor)` 150개 안팎, `StreamCodec.composite` 27, `unit` 9. `writeCollection`·`writeOptional`·`writeNullable` 의 두 번째 인자는 메서드 참조·람다일 수도, **코덱 값 그대로**(`UUIDUtil.STREAM_CODEC` 등 `StreamEncoder` 구현)일 수도 있다. `FriendlyByteBuf.writeNullable(buf, v, enc)` 처럼 **버퍼를 첫 인자로 받는 정적 도우미**도 있다 — 둘 다 풀어야 한다.
 - `Stream.apply(ByteBufCodecs::optional)` 처럼 연산을 **메서드 참조**로 넘기는 꼴이 있다(`ServerboundEditBook`·`ResourcePackPush` 등). 호출(`list()`)과 참조(`::optional`)를 모두 읽는다.

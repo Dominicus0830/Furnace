@@ -19,6 +19,10 @@ import org.junit.jupiter.api.Test;
  */
 class ChunkColumnMirrorPendingTest {
 
+    static {
+        org.domi.furnace.server.plugin.InternalsImpl.installChunkMirrorOps();   // 다리를 거치지 않고 거울을 붙인다 — 훅을 먼저 꽂는다
+    }
+
     static final class FakeMirror implements ChunkInternals.ChunkMirror {
         int syncs;
 
@@ -98,7 +102,7 @@ class ChunkColumnMirrorPendingTest {
         FakeMirror m = new FakeMirror();
         col.attachViewHolder(shim, m);
         VarHandle held = MethodHandles.privateLookupIn(ChunkColumn.class, MethodHandles.lookup())
-                .findVarHandle(ChunkColumn.class, "mirrorHeld", ChunkInternals.ChunkMirror.class);
+                .findVarHandle(ChunkColumn.class, "mirrorHeld", Object.class);
         AtomicInteger pend = new AtomicInteger();
         int iters = 200_000;
         AtomicInteger go = new AtomicInteger(), doneW = new AtomicInteger(), doneO = new AtomicInteger();

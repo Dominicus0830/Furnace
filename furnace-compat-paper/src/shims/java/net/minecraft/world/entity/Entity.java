@@ -233,7 +233,11 @@ class Entity {
      * 아직 월드에 없는 엔티티는 바닐라 생성자의 모습(플래그 0·서 있음·속도 0·탑승 없음).
      */
     protected org.domi.furnace.api.internal.ChunkInternals.EntityLook furnaceLook(String what) {
-        if (detached != null) return FRESH;
+        Detached dl = detached;
+        if (dl != null) {
+            return dl.flags == 0 ? FRESH
+                    : new org.domi.furnace.api.internal.ChunkInternals.EntityLook(dl.flags, 0, 0, 0, 0, false, false, 0, null, java.util.List.of());
+        }
         var h = f();
         var b = org.domi.furnace.compat.nms.NmsChunks.bridge();
         org.domi.furnace.api.internal.ChunkInternals.EntityLook l;
@@ -426,6 +430,146 @@ class Entity {
         furnaceEdit("Entity#setYHeadRot", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.SetYHeadRot(yHeadRot));
     }
 
+    // ------------------------------------------------------------------ 단순 설정 (엔티티 영역 구멍 — FancyNpcs·LagFixer·GSit 등)
+
+    /**
+     * 단순 설정 하나: 월드의 엔티티는 주인 스레드에서 서버가 바로 바꾸고({@link #furnaceEdit} 와 같은 규칙 — 접속한 플레이어는 UnsupportedNmsCall),
+     * 아직 월드에 없는 엔티티는 기록했다가 넣을 때 서버가 차례로 재생한다.
+     */
+    private void furnaceSet(String what, org.domi.furnace.api.internal.ChunkInternals.EntityOp op) {
+        Detached d = detached;
+        if (d != null) {
+            d.ops.add(op);
+            return;
+        }
+        furnaceEdit(what, (org.domi.furnace.api.internal.ChunkInternals.EntityEdit) op);
+    }
+
+    private void furnaceSetFlag(String what, org.domi.furnace.api.internal.ChunkInternals.EntityFlag flag, boolean value) {
+        Detached d = detached;
+        if (d != null) {
+            int bit = switch (flag) {
+                case ON_FIRE -> 0;
+                case INVISIBLE -> 5;
+                case GLOWING_TAG -> 6;
+                default -> -1;
+            };
+            if (bit >= 0) d.flags = (byte) (value ? d.flags | 1 << bit : d.flags & ~(1 << bit));
+        }
+        furnaceSet(what, new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.SetFlag(flag, value));
+    }
+
+    /** 바닐라 {@code Entity#setPos(x, y, z)}: 자리와 경계 상자(회전·이전 자리는 그대로). */
+    public void setPos(double x, double y, double z) {
+        org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#setPos");
+        Detached d = detached;
+        if (d != null) {
+            d.x = x;
+            d.y = y;
+            d.z = z;
+        }
+        furnaceSet("Entity#setPos", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.SetPos(x, y, z));
+    }
+
+    /** 바닐라 {@code Entity#setPos(Vec3)}. */
+    public final void setPos(net.minecraft.world.phys.Vec3 pos) {
+        org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#setPos");
+        setPos(pos.x, pos.y, pos.z);
+    }
+
+    /** 바닐라 {@code Entity#setRot(yRot, xRot)}: 각각 360 으로 나눈 나머지. */
+    public void setRot(float yRot, float xRot) {
+        org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#setRot");
+        setYRot(yRot % 360.0F);
+        setXRot(xRot % 360.0F);
+    }
+
+    /** 바닐라 {@code Entity#setYRot}: 유한하지 않은 값은 기록을 남기고 버린다. */
+    public void setYRot(float yRot) {
+        org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#setYRot");
+        if (!Float.isFinite(yRot)) {
+            org.slf4j.LoggerFactory.getLogger(Entity.class).error("Invalid entity rotation: {}, discarding.", yRot);
+            return;
+        }
+        Detached d = detached;
+        if (d != null) d.yRot = yRot;
+        furnaceSet("Entity#setYRot", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.SetRot(yRot, null));
+    }
+
+    /** 바닐라 {@code Entity#setXRot}: 유한하지 않은 값은 기록을 남기고 버린다. */
+    public void setXRot(float xRot) {
+        org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#setXRot");
+        if (!Float.isFinite(xRot)) {
+            org.slf4j.LoggerFactory.getLogger(Entity.class).error("Invalid entity rotation: {}, discarding.", xRot);
+            return;
+        }
+        Detached d = detached;
+        if (d != null) d.xRot = xRot;
+        furnaceSet("Entity#setXRot", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.SetRot(null, xRot));
+    }
+
+    /** 바닐라 {@code Entity#teleportTo(x, y, z)}: 지금 각도로 그 자리에 놓고 승객도 따라 옮긴다. 접속한 플레이어는 UnsupportedNmsCall(Bukkit teleport). */
+    public void teleportTo(double x, double y, double z) {
+        org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#teleportTo");
+        if (detached != null) {   // 승객은 넣을 때 서버가 태우며 자리를 맞춘다
+            moveTo(x, y, z, getYRot(), getXRot());
+            return;
+        }
+        furnaceEdit("Entity#teleportTo", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.TeleportTo(x, y, z));
+    }
+
+    /** 바닐라 {@code Entity#setInvisible}(공유 플래그 5). */
+    public void setInvisible(boolean invisible) {
+        org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#setInvisible");
+        furnaceSetFlag("Entity#setInvisible", org.domi.furnace.api.internal.ChunkInternals.EntityFlag.INVISIBLE, invisible);
+    }
+
+    /** 바닐라 {@code Entity#setGlowingTag}(공유 플래그 6). */
+    public final void setGlowingTag(boolean glowing) {
+        org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#setGlowingTag");
+        furnaceSetFlag("Entity#setGlowingTag", org.domi.furnace.api.internal.ChunkInternals.EntityFlag.GLOWING_TAG, glowing);
+    }
+
+    /** 바닐라 {@code Entity#setSharedFlagOnFire}(공유 플래그 0 = 값 또는 HasVisualFire). */
+    public void setSharedFlagOnFire(boolean onFire) {
+        org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#setSharedFlagOnFire");
+        furnaceSetFlag("Entity#setSharedFlagOnFire", org.domi.furnace.api.internal.ChunkInternals.EntityFlag.ON_FIRE, onFire);
+    }
+
+    /** 바닐라 {@code Entity#setSilent}. */
+    public void setSilent(boolean silent) {
+        org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#setSilent");
+        furnaceSetFlag("Entity#setSilent", org.domi.furnace.api.internal.ChunkInternals.EntityFlag.SILENT, silent);
+    }
+
+    /** 바닐라 {@code Entity#setOnGround}. */
+    public void setOnGround(boolean onGround) {
+        org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#setOnGround");
+        furnaceSetFlag("Entity#setOnGround", org.domi.furnace.api.internal.ChunkInternals.EntityFlag.ON_GROUND, onGround);
+    }
+
+    /** 바닐라 {@code Entity#setCustomNameVisible}. */
+    public void setCustomNameVisible(boolean visible) {
+        org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#setCustomNameVisible");
+        furnaceSetFlag("Entity#setCustomNameVisible", org.domi.furnace.api.internal.ChunkInternals.EntityFlag.CUSTOM_NAME_VISIBLE, visible);
+    }
+
+    /** 바닐라 {@code Entity#setCustomName}(null 이면 지움). */
+    public void setCustomName(net.minecraft.network.chat.Component name) {
+        org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#setCustomName");
+        furnaceSet("Entity#setCustomName", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.SetCustomName(
+                name == null ? null : net.minecraft.network.chat.Component.furnace(name)));
+    }
+
+    /** 바닐라 {@code Entity#setTicksFrozen}. */
+    public void setTicksFrozen(int ticks) {
+        org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#setTicksFrozen");
+        furnaceSet("Entity#setTicksFrozen", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.SetTicksFrozen(ticks));
+    }
+
+    /** 바닐라 {@code Entity#getTicksRequiredToFreeze}: 140. */
+    public int getTicksRequiredToFreeze() { return 140; }
+
     /** 바닐라 {@code startRiding(vehicle)}: 강제 없이. */
     public boolean startRiding(Entity vehicle) { org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#startRiding"); return startRiding(vehicle, false); }
 
@@ -465,7 +609,27 @@ class Entity {
         if (Float.isFinite(yr)) d.yRot = yr;
         if (Float.isFinite(xr)) d.xRot = xr;
         if (tag.hasUUID("UUID")) d.uuid = tag.getUUID("UUID");
+        furnaceDetachedLoaded(tag);
     }
+
+    /** 아직 월드에 없는 엔티티의 {@link #load} 뒤: 종류별 조각이 바닐라 readAdditionalSaveData 의 값(걸이 방향 등)을 읽어 게터가 같은 값을 주게 한다. */
+    protected void furnaceDetachedLoaded(net.minecraft.nbt.CompoundTag tag) {}
+
+    /** 종류별 조각 전용: 아직 월드에 없는 엔티티인가(EntityType#create 로 만들어 넣기 전). */
+    protected boolean furnaceNotInWorld() { return detached != null; }
+
+    /** 종류별 조각 전용: 아직 월드에 없는 엔티티의 각도(바닐라 setDirection 이 바꾸는 yRot·xRot). */
+    protected void furnaceDetachedRot(float yRot, float xRot) {
+        Detached d = detachedFor("Entity#setRot");
+        d.yRot = yRot;
+        d.xRot = xRot;
+    }
+
+    /** 종류별 조각 전용: 아직 월드에 없는 엔티티에 조작 하나를 기록한다(넣을 때 서버가 차례로 재생). */
+    protected void furnaceDetachedOp(String what, org.domi.furnace.api.internal.ChunkInternals.EntityOp op) { detachedFor(what).ops.add(op); }
+
+    /** 종류별 조각 전용: 월드에 있는 엔티티에 바닐라 조작 하나({@link #furnaceEdit} 와 같은 스레드 규칙). */
+    protected Object furnaceEditOf(String what, org.domi.furnace.api.internal.ChunkInternals.EntityEdit op) { return furnaceEdit(what, op); }
 
     /** 바닐라 {@code Entity#absMoveTo(x, y, z, yRot, xRot)}. 아직 월드에 없는 엔티티에만 된다({@link #load} 와 같은 규칙). */
     public void absMoveTo(double x, double y, double z, float yRot, float xRot) {
@@ -660,6 +824,8 @@ class Entity {
         float yRot, xRot;
         UUID uuid;
         boolean removed;
+        /** 바닐라 생성자 뒤 바꾼 공유 플래그(불 0·투명 5·발광 6) — 게터가 바닐라와 같은 값을 주게 한다. */
+        byte flags;
         final java.util.List<Entity> passengers = new java.util.ArrayList<>();
         Entity vehicle;
 

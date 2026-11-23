@@ -33,7 +33,7 @@ import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
 /**
- * 패킷 코덱 추출기(T-250). 바닐라 서버 jar(Mojang 이름)의 패킷 클래스 코덱 정의를 바이트코드로 따라가 **와이어 모양**(필드 순서·코덱 종류)을 뽑는다.
+ * 패킷 코덱 추출기(T-252). 바닐라 서버 jar(Mojang 이름)의 패킷 클래스 코덱 정의를 바이트코드로 따라가 **와이어 모양**(필드 순서·코덱 종류)을 뽑는다.
  *
  * <p>두 가지 정의 방식을 읽는다.
  * <ul>

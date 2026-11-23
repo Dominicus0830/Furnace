@@ -372,7 +372,7 @@ def diff_data(A, B, out):
                 else:
                     pk["same"] += 1
     st["packets"] = dict(pk)
-    # 패킷 와이어 모양(T-250 packet-layout 표). 번호가 같아도 필드·폭이 바뀐 것을 잡는다. 표가 없으면 건너뛴다.
+    # 패킷 와이어 모양(T-252 packet-layout 표). 번호가 같아도 필드·폭이 바뀐 것을 잡는다. 표가 없으면 건너뛴다.
     st["packet_layout"] = diff_packet_layout(A, B, out)
     # 레지스트리
     ra, rb = jload(f"{ga}/reports/registries.json"), jload(f"{gb}/reports/registries.json")

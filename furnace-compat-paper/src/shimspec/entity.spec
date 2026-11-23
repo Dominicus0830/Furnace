@@ -60,6 +60,22 @@ class net.minecraft.world.entity.Entity  owner=org.domi.furnace.compat.nms.NmsEn
   load -> @hand write
   absMoveTo(DDDFF)V -> @hand write
   setUUID -> @hand write
+  # 단순 설정(월드의 엔티티는 주인 스레드에서 서버가, 아직 월드에 없는 엔티티는 기록해 넣을 때 재생)
+  setPos(DDD)V -> @hand write
+  setPos(Lnet/minecraft/world/phys/Vec3;)V -> @hand write
+  setRot -> @hand write
+  setYRot -> @hand write
+  setXRot -> @hand write
+  teleportTo(DDD)V -> @hand write
+  setInvisible -> @hand write
+  setGlowingTag -> @hand write
+  setSharedFlagOnFire -> @hand write
+  setSilent -> @hand write
+  setOnGround -> @hand write
+  setCustomNameVisible -> @hand write
+  setCustomName -> @hand write
+  setTicksFrozen -> @hand write
+  getTicksRequiredToFreeze -> @hand pure
 class net.minecraft.world.entity.LivingEntity  owner=org.domi.furnace.compat.nms.NmsEntityOwner
   isAlive -> @hand read=snapshot
   isFallFlying -> @hand read=owner
@@ -73,3 +89,33 @@ class net.minecraft.world.entity.vehicle.AbstractMinecartContainer  owner=org.do
   clearContent -> NmsEntityOps.clearContent write
 class net.minecraft.world.entity.vehicle.ChestBoat  owner=org.domi.furnace.compat.nms.NmsEntityOwner
   clearContent -> NmsEntityOps.clearContent write
+# 걸이 엔티티(Axiom 이 소환·조작 때 돌린다): 방향·돌림. 월드 밖 엔티티는 조각이 태그대로 들고 조작을 기록한다
+class net.minecraft.world.entity.decoration.HangingEntity  owner=org.domi.furnace.compat.nms.NmsEntityOwner
+  getDirection -> @hand read=owner
+  rotate -> @hand write
+class net.minecraft.world.entity.decoration.ItemFrame  owner=org.domi.furnace.compat.nms.NmsEntityOwner
+  getRotation -> @hand read=owner
+  setRotation(I)V -> @hand write
+# 돌림(걸이 엔티티 rotate 의 인자). 패킷 생성기가 빈 열거형으로 채우던 것을 명세로 옮겼다
+class net.minecraft.world.level.block.Rotation
+  NONE
+  CLOCKWISE_90
+  CLOCKWISE_180
+  COUNTERCLOCKWISE_90
+# 장비 칸(AxGraves·FancyNpcs 가 칸 번호·종류·이름으로 쓴다). 패킷 생성기가 빈 열거형으로 채우던 것을 명세로 옮겼다. 값은 Paper 1.21.1 javap(정적 초기화)
+class net.minecraft.world.entity.EquipmentSlot
+  MAINHAND
+  OFFHAND
+  FEET
+  LEGS
+  CHEST
+  HEAD
+  BODY
+  getType -> @hand pure
+  getIndex()I -> @hand pure
+  getIndex(I)I -> @hand pure
+  getFilterFlag -> @hand pure
+  getName -> @hand pure
+  getSerializedName -> @hand pure
+  isArmor -> @hand pure
+  byName -> @hand pure
