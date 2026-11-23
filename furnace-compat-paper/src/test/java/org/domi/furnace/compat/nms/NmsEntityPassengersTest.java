@@ -237,6 +237,76 @@ class NmsEntityPassengersTest {
     }
 
     @Test
+    void aUuidHeldInAnotherRegionRefusesInsteadOfThrowing() {
+        // 5e-3b 검토 권고 1: 겹치는 엔티티가 다른 region 소유여도 Paper 처럼 거짓(예외 아님)
+        BlockPos far = new BlockPos(at.x() + 4000, at.y(), at.z());
+        server.loadChunk(far.x() >> 4, far.z() >> 4);
+        CraftEntity held = server.onRegion(far, () -> (CraftEntity) world.spawnEntity(new Location(world, far.x() + 0.5, far.y(), far.z() + 0.5),
+                org.bukkit.entity.EntityType.PIG));
+        CompoundTag tag = new CompoundTag();
+        tag.putString("id", "minecraft:pig");
+        Entity copy = EntityType.loadEntityRecursive(tag, level, axiomLike(held.getUniqueId()));
+        assertFalse(on(() -> level.tryAddFreshEntityWithPassengers(copy)));
+        assertTrue(spawnEvents.stream().noneMatch(e -> e.endsWith("DEFAULT")), "아무것도 넣지 않았다: " + spawnEvents);
+        server.onRegion(far, () -> {
+            held.remove();
+            return null;
+        });
+    }
+
+    @Test
+    void aUuidTakenAfterTheCheckIsReportedByTheServerAsFalse() {
+        // 5e-3b 검토 권고 2: 사전 검사 뒤 서버가 UUID 겹침으로 거절하면 true 가 아니라 false. 사전 검사를 건너뛰고 브리지를 바로 부른다
+        CraftEntity[] pz = pigWithZombie();
+        var spec = new org.domi.furnace.api.internal.ChunkInternals.NmsEntitySpec("minecraft:zombie",
+                List.of(new org.domi.furnace.api.internal.ChunkInternals.EntityOp.AbsMoveTo(at.x() + 0.5, at.y(), at.z() + 0.5, 0.0F, 0.0F),
+                        new org.domi.furnace.api.internal.ChunkInternals.EntityOp.SetUuid(pz[1].getUniqueId())), List.of());
+        var r = on(() -> org.domi.furnace.compat.nms.NmsChunks.bridge().addNmsEntityWithPassengersNow(world.furnaceHandle(), at.x(), at.z(), spec, null));
+        assertEquals(org.domi.furnace.api.internal.ChunkInternals.GroupResult.UUID_TAKEN, r.result());
+        assertTrue(r.added().stream().allMatch(java.util.Objects::isNull));
+        on(() -> {
+            pz[0].remove();
+            pz[1].remove();
+            return null;
+        });
+    }
+
+    @Test
+    void aPassengerSavedFarAwayIsPlacedWithItsVehicle() {
+        // 5e-3b 검토 권고 3: 승객의 Pos 가 먼 곳이어도 바닐라는 첫 틱에 탈것이 제자리에 놓는다 — 묶음은 뿌리 region 에 들고 승객은 탈것 곁
+        CraftEntity[] pz = pigWithZombie();
+        CompoundTag tag = new CompoundTag();
+        on(() -> pz[0].getHandle().saveAsPassenger(tag));
+        on(() -> {
+            pz[0].remove();
+            pz[1].remove();
+            return null;
+        });
+        CompoundTag rider = tag.getList("Passengers", Tag.TAG_COMPOUND).getCompound(0);
+        var far = new net.minecraft.nbt.ListTag();
+        far.add(net.minecraft.nbt.DoubleTag.valueOf(at.x() + 5000.5));
+        far.add(net.minecraft.nbt.DoubleTag.valueOf(at.y()));
+        far.add(net.minecraft.nbt.DoubleTag.valueOf(at.z() + 0.5));
+        rider.put("Pos", far);
+        java.util.concurrent.atomic.AtomicBoolean first = new java.util.concurrent.atomic.AtomicBoolean(true);
+        Entity root = EntityType.loadEntityRecursive(tag, level, e -> {
+            if (first.getAndSet(false)) e.moveTo(at.x() + 0.5, at.y(), at.z() + 0.5, 0.0F, 0.0F);   // 승객은 NBT 의 먼 자리 그대로
+            e.setUUID(UUID.randomUUID());
+            return e;
+        });
+        assertTrue(on(() -> level.tryAddFreshEntityWithPassengers(root)));
+        on(() -> {
+            for (Entity p : root.getIndirectPassengers()) {
+                assertTrue(Math.abs(p.getX() - (at.x() + 0.5)) < 2.0, "승객 x=" + p.getX());
+                assertNotNull(level.getEntity(p.getBukkitEntity().getUniqueId()), "승객이 월드에 들었다");
+            }
+            assertEquals(2, root.getSelfAndPassengers().count());
+            for (Entity p : root.getSelfAndPassengers().toList()) p.getBukkitEntity().remove();
+            return null;
+        });
+    }
+
+    @Test
     void cancellingOnlyThePassengerSpawnDropsTheWholeGroup() {
         // user-todo 5e-3b ②: 승객 하나의 스폰이 취소돼도 묶음 전체를 넣지 않고 결과는 참(Paper 는 UUID 가 겹치지 않으면 참)
         CraftEntity[] pz = pigWithZombie();

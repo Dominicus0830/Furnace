@@ -1035,9 +1035,9 @@ final class ChunkInternalsImpl implements ChunkInternals {
         // Paper ServerLevel#addEntity: 빈 아이템 엔티티는 넣지 않는다(이벤트 전에 거짓, 지우지 않음)
         if (fireEvents && e instanceof org.domi.furnace.server.entity.ItemEntity ie && ie.getItem().isEmpty()) return NmsEntityAdd.REFUSED;
         int r = lv.addFreshEntityResult(e, fireEvents);
-        if (r == org.domi.furnace.server.block.ChunkLevel.ADDED) return new NmsEntityAdd(EntityHandle.of(host, e), false);
+        if (r == org.domi.furnace.server.block.ChunkLevel.ADDED) return new NmsEntityAdd(EntityHandle.of(host, e), false, false);
         // Paper doEntityAddEventCalling: 이벤트를 취소했거나 처리기가 지웠으면 그 엔티티를 지운다. UUID 겹침은 지우지 않는다
-        return new NmsEntityAdd(null, r == org.domi.furnace.server.block.ChunkLevel.ADD_CANCELLED);
+        return new NmsEntityAdd(null, r == org.domi.furnace.server.block.ChunkLevel.ADD_CANCELLED, r == org.domi.furnace.server.block.ChunkLevel.ADD_DUPLICATE);
     }
 
     /** NMS 로 만든 엔티티 하나: 서버 엔티티를 만들고 기록한 조작을 차례로 재생한다. */
@@ -1058,26 +1058,30 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     @Override
-    public List<org.domi.furnace.api.entity.Entity> addNmsEntityWithPassengersNow(org.domi.furnace.api.world.World world, int x, int z, NmsEntitySpec root,
+    public NmsGroupAdd addNmsEntityWithPassengersNow(org.domi.furnace.api.world.World world, int x, int z, NmsEntitySpec root,
                                                                                   String spawnReason) {
         int count = countSpecs(root);
         List<org.domi.furnace.api.entity.Entity> out = new java.util.ArrayList<>(java.util.Collections.nCopies(count, null));
         RegionLevel lv = ownedLevel(world, x, z, "ServerLevel#tryAddFreshEntityWithPassengers");
-        if (lv == null) return out;   // 청크가 로드되지 않았다
+        if (lv == null) return new NmsGroupAdd(out, GroupResult.NOT_LOADED);   // 청크가 로드되지 않았다
         List<org.domi.furnace.server.entity.Entity> made = new java.util.ArrayList<>(java.util.Collections.nCopies(count, null));
         var e = buildNms(lv, root, made, new int[1]);
+        e.reapplyPosition();   // 바닐라는 첫 틱에 탈것이 승객을 제자리에 놓는다. 먼 Pos 로 저장된 승객이 다른 region 에 걸리지 않게 먼저 놓는다
         if (ownedLevel(world, (int) Math.floor(e.x()), (int) Math.floor(e.z()), "ServerLevel#tryAddFreshEntityWithPassengers") != lv) {
             throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("ServerLevel#tryAddFreshEntityWithPassengers: the entity ended at " + e.x() + ", "
                     + e.z() + " but was routed to the region of " + x + ", " + z);
         }
         if (spawnReason != null) for (var m : made) if (m != null) m.spawnReason(spawnReason);
-        if (!lv.addFreshEntityWithPassengers(e)) return out;
+        int added = lv.addFreshEntityGroupResult(e);
+        if (added != org.domi.furnace.server.block.ChunkLevel.ADDED) {
+            return new NmsGroupAdd(out, added == org.domi.furnace.server.block.ChunkLevel.ADD_DUPLICATE ? GroupResult.UUID_TAKEN : GroupResult.CANCELLED);
+        }
         for (int i = 0; i < count; i++) {
             var m = made.get(i);
             // 태우지 못한 승객은 넣지 않았다(바닐라도 그 승객은 월드에 들지 않는다)
             if (lv.entities().contains(m)) out.set(i, EntityHandle.of(host, m));
         }
-        return out;
+        return new NmsGroupAdd(out, GroupResult.ADDED);
     }
 
     private static int countSpecs(NmsEntitySpec s) {

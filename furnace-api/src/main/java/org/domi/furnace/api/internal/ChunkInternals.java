@@ -577,9 +577,10 @@ public interface ChunkInternals {
     /**
      * 칸 (x, z) 의 주인 스레드(전역 빌림 포함). 바닐라 {@code EntityType#loadEntityRecursive} 로 만든 엔티티 묶음(탈것과 승객)을 서버 엔티티로 만들어 ops 를
      * 재생하고 승객을 강제로 태운 뒤(태울 수 없으면 그 승객과 그 위는 빠진다), 서버의 승객 함께 넣기(이벤트 냄, 하나라도 취소하면 전부 안 넣음)로 넣는다.
-     * 돌려줌: 뿌리부터 깊이 우선 차례(바닐라 getSelfAndPassengers)로 spec 마다 넣은 핸들, 못 넣은 것은 null. 청크가 로드되지 않았으면 모두 null.
+     * 돌려줌: 뿌리부터 깊이 우선 차례(바닐라 getSelfAndPassengers)로 spec 마다 넣은 핸들(못 넣은 것은 null)과 {@link GroupResult}(UUID 겹침과 이벤트 취소를 구분).
+     * 승객은 넣기 전에 탈것 위치로 옮긴다(바닐라는 다음 틱 positionRider 가 하는 일 — 묶음이 한 region 에 들게).
      */
-    default java.util.List<org.domi.furnace.api.entity.Entity> addNmsEntityWithPassengersNow(World world, int x, int z, NmsEntitySpec root, String spawnReason) {
+    default NmsGroupAdd addNmsEntityWithPassengersNow(World world, int x, int z, NmsEntitySpec root, String spawnReason) {
         throw new UnsupportedOperationException("addNmsEntityWithPassengersNow");
     }
 
@@ -587,9 +588,17 @@ public interface ChunkInternals {
     record NmsEntitySpec(String id, java.util.List<EntityOp> ops, java.util.List<NmsEntitySpec> passengers) {}
 
     /** {@link #addNmsEntityNow} 의 결과: 넣은 엔티티(못 넣었으면 null)와, 못 넣은 엔티티를 Paper 처럼 지운 것으로 볼지. */
-    record NmsEntityAdd(org.domi.furnace.api.entity.Entity added, boolean discarded) {
-        public static final NmsEntityAdd REFUSED = new NmsEntityAdd(null, false);
+    record NmsEntityAdd(org.domi.furnace.api.entity.Entity added, boolean discarded, boolean uuidTaken) {
+        public static final NmsEntityAdd REFUSED = new NmsEntityAdd(null, false, false);
+        /** 같은 UUID 가 이미 월드에 있어 넣지 못했다(지우지 않는다). */
+        public static final NmsEntityAdd UUID_TAKEN = new NmsEntityAdd(null, false, true);
     }
+
+    /** {@link #addNmsEntityWithPassengersNow} 의 결과: 넣은 핸들(뿌리부터 깊이 우선, 못 넣은 것은 null)과 거절 이유. */
+    record NmsGroupAdd(java.util.List<org.domi.furnace.api.entity.Entity> added, GroupResult result) {}
+
+    /** 묶음 넣기의 결과: 청크가 로드되지 않음, 넣음, 묶음 안 누군가의 UUID 가 이미 월드에 있음(아무것도 안 넣음), 스폰 이벤트 취소(아무것도 안 넣음). */
+    enum GroupResult { NOT_LOADED, ADDED, UUID_TAKEN, CANCELLED }
 
     /**
      * 바닐라 {@code new ServerPlayer(server, level, profile, clientInformation)}(T-212 다 묶음 — FAWE 가짜 플레이어): 월드·접속자 목록에 들지 않는
