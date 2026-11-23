@@ -46,7 +46,8 @@ public class SynchedEntityData {
     @SuppressWarnings("unchecked")
     public void furnaceAssign(int id, Object value, boolean dirty) {
         DataItem<Object> item = (DataItem<Object>) itemsById[id];
-        item.value = value;
+        // 값이 같으면 기존 객체를 둔다(바닐라 set 도 같을 때 바꾸지 않는다) — 플러그인이 꺼낸 가변 값(JOML 등)이 다음 조작에서 다른 객체로 바뀌지 않게
+        if (!java.util.Objects.equals(item.value, value)) item.value = value;
         item.setDirty(dirty);
         boolean any = false;
         for (DataItem<?> i : itemsById) any |= i != null && i.isDirty();
