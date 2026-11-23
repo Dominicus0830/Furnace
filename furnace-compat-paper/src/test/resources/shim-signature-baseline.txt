@@ -1145,6 +1145,12 @@ type-missing	org/bukkit/craftbukkit/entity/CraftZombieHorse	-	#5ef8507e95b5	T-26
 type-missing	org/bukkit/craftbukkit/entity/CraftZombieHorse	-	#e9e4dd2d103f	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
 type-missing	org/bukkit/craftbukkit/inventory/CraftInventoryPlayer	-	#65704a5b1cc3	T-264 P2a: CraftInventoryPlayer 가 Paper 처럼 EntityEquipment 도 구현해야 함 — 그 API 형식이 아직 없다(영역 11 + 4, docs/roadmap/craft-missing-api-types-t264-2026-11-24.md)
 type-missing	org/bukkit/craftbukkit/inventory/CraftMerchant	-	#536a61f0a7f3	T-264 P1: 상위 사슬을 Paper 대로 맞추자 처음 드러난 차이 — 이 API·Paper 내부 형식이 Furnace 에 아직 없다. 그 형식을 들여오는 작업(설계 5장)이 이 줄을 지운다
+type-missing	org/bukkit/craftbukkit/inventory/CraftMetaArmor	-	#f198974287b3	T-264 P2b: CraftMetaItem 계층이 Paper 처럼 BlockDataMeta 도 구현해야 함 — 그 API 형식이 아직 없다(영역 11 + 4, docs/roadmap/craft-missing-api-types-t264-2026-11-24.md)
+type-missing	org/bukkit/craftbukkit/inventory/CraftMetaBanner	-	#f198974287b3	T-264 P2b: CraftMetaItem 계층이 Paper 처럼 BlockDataMeta 도 구현해야 함 — 그 API 형식이 아직 없다(영역 11 + 4, docs/roadmap/craft-missing-api-types-t264-2026-11-24.md)
+type-missing	org/bukkit/craftbukkit/inventory/CraftMetaColorableArmor	-	#f198974287b3	T-264 P2b: CraftMetaItem 계층이 Paper 처럼 BlockDataMeta 도 구현해야 함 — 그 API 형식이 아직 없다(영역 11 + 4, docs/roadmap/craft-missing-api-types-t264-2026-11-24.md)
+type-missing	org/bukkit/craftbukkit/inventory/CraftMetaItem	-	#f198974287b3	T-264 P2b: CraftMetaItem 계층이 Paper 처럼 BlockDataMeta 도 구현해야 함 — 그 API 형식이 아직 없다(영역 11 + 4, docs/roadmap/craft-missing-api-types-t264-2026-11-24.md)
+type-missing	org/bukkit/craftbukkit/inventory/CraftMetaLeatherArmor	-	#f198974287b3	T-264 P2b: CraftMetaItem 계층이 Paper 처럼 BlockDataMeta 도 구현해야 함 — 그 API 형식이 아직 없다(영역 11 + 4, docs/roadmap/craft-missing-api-types-t264-2026-11-24.md)
+type-missing	org/bukkit/craftbukkit/inventory/CraftMetaSkull	-	#f198974287b3	T-264 P2b: CraftMetaItem 계층이 Paper 처럼 BlockDataMeta 도 구현해야 함 — 그 API 형식이 아직 없다(영역 11 + 4, docs/roadmap/craft-missing-api-types-t264-2026-11-24.md)
 type-missing	org/bukkit/craftbukkit/inventory/trim/CraftTrimMaterial	-	#9e324518c54a	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/inventory/trim/CraftTrimPattern	-	#9e324518c54a	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/map/CraftMapView	-	#5faf26569b3a	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다

@@ -13,7 +13,7 @@ import org.domi.furnace.api.nbt.NbtList;
 
 /**
  * 현수막 무늬 겹 ↔ 바닐라 저장 모양({@code [{pattern: "minecraft:…", color: "red"}]}). 현수막 블록 상태(CraftBanner)와
- * 아이템 메타(CompatMetaBanner)가 함께 쓴다.
+ * 아이템 메타(CraftMetaBanner)가 함께 쓴다.
  */
 public final class BannerLayers {
 

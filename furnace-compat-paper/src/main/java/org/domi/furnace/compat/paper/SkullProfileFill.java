@@ -14,6 +14,9 @@ import org.domi.furnace.api.nbt.Snbt;
 
 public final class SkullProfileFill {
 
+    /** 머리 아이템의 소유자 프로필 컴포넌트(머리 메타도 이 이름을 쓴다). */
+    public static final String PROFILE = "minecraft:profile";
+
     private static final System.Logger LOG = System.getLogger("FurnaceCompat");
 
     private SkullProfileFill() {}
@@ -74,11 +77,11 @@ public final class SkullProfileFill {
     static ItemStack replaceIfStillTheSame(ItemStack current, ProfileValue original, ProfileValue found) {
         if (current == null || current.isEmpty() || MetaKind.of(current.type()) != MetaKind.SKULL) return null;
         if (!original.equals(profile(current))) return null;
-        return current.withComponent(CompatMetaSkull.PROFILE, Snbt.write(found.toNbt()));
+        return current.withComponent(PROFILE, Snbt.write(found.toNbt()));
     }
 
     private static ProfileValue profile(ItemStack stack) {
-        String raw = stack.components().get(CompatMetaSkull.PROFILE);
+        String raw = stack.components().get(PROFILE);
         if (raw == null) return null;
         try {
             return ProfileValue.fromNbt(Snbt.parse(raw));

@@ -51,6 +51,44 @@ class ItemMetaKindsTest {
 
     // ------------------------------------------------------------------ 종류 선택
 
+    /**
+     * T-264 P2b: 재료마다 메타 클래스가 Paper 관측표(itemmeta.*)와 같다. 아직 없는 종류(CraftMetaSpawnEgg·CraftMetaBlockState …)는 일반
+     * CraftMetaItem 이어야 하고(다른 종류로 잘못 가지 않는다) 대기로 센다.
+     */
+    @Test
+    void metaClassesMatchPaperObservation() throws Exception {
+        String base = "org.bukkit.craftbukkit.inventory.";
+        java.util.Set<String> done = java.util.Set.of(base + "CraftMetaItem", base + "CraftMetaArmor", base + "CraftMetaColorableArmor",
+                base + "CraftMetaLeatherArmor", base + "CraftMetaSkull", base + "CraftMetaBanner");
+        java.util.List<String> wrong = new java.util.ArrayList<>();
+        java.util.Map<String, Integer> pending = new java.util.TreeMap<>();
+        int matched = 0;
+        try (var in = ItemMetaKindsTest.class.getResourceAsStream("/craft-identity-paper-1.21.1.tsv")) {
+            for (String line : new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).split("\n")) {
+                if (!line.startsWith("itemmeta.")) continue;
+                String[] t = line.split("\t");
+                if (t[0].endsWith(".pdc")) continue;
+                Material m = Material.matchMaterial(t[0].substring("itemmeta.".length()));
+                if (m == null) {
+                    wrong.add(t[0] + ": no material");
+                    continue;
+                }
+                ItemMeta meta = FACTORY.getItemMeta(m);
+                String got = meta == null ? "null" : meta.getClass().getName();
+                if (done.contains(t[1])) {
+                    if (t[1].equals(got)) matched++;
+                    else wrong.add(t[0] + ": paper=" + t[1] + " furnace=" + got);
+                } else if (got.equals(base + "CraftMetaItem")) {
+                    pending.merge(t[1], 1, Integer::sum);
+                } else {
+                    wrong.add(t[0] + ": paper=" + t[1] + " furnace=" + got);
+                }
+            }
+        }
+        assertEquals(java.util.List.of(), wrong);
+        assertTrue(matched > 1100, "matched " + matched + ", pending " + pending);
+    }
+
     @Test
     void factoryIsReachableFromBukkitAndServer() {
         assertSame(FACTORY, Bukkit.getItemFactory());
@@ -228,7 +266,7 @@ class ItemMetaKindsTest {
         ItemMeta plain = FACTORY.asMetaFor(leather, Material.STONE);
         assertFalse(plain instanceof LeatherArmorMeta);
         assertEquals("n", plain.getDisplayName(), "공통 값은 따라온다");
-        assertNull(((org.domi.furnace.compat.paper.CompatItemMeta) plain).work().get(ItemComponents.DYED_COLOR), "종류별 값은 버려진다");
+        assertNull(ItemMetaBridge.putInto(plain, new org.domi.furnace.api.item.ItemStack("minecraft:stone", 1)).get(ItemComponents.DYED_COLOR), "종류별 값은 버려진다");
         ItemMeta again = FACTORY.asMetaFor(FACTORY.getItemMeta(Material.STONE), Material.STONE);
         assertNotNull(again);
     }

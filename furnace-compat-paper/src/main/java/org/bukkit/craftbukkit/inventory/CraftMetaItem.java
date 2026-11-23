@@ -1,6 +1,7 @@
 // Bukkit ItemMeta — 아이템의 컴포넌트를 사본으로 들고 있다가 ItemStack#setItemMeta 때 돌려놓는다(Bukkit 과 같은 "사본" 규칙).
 // 종류별 하위 형(가죽 방어구·머리·현수막 …, MetaKind)은 이 클래스를 이어받아 같은 컴포넌트 사본 위에서 자기 값을 읽고 쓴다.
-package org.domi.furnace.compat.paper;
+// T-264 P2b: Paper 와 같은 이름·접근(패키지 전용). 꾸러미 밖(Bukkit ItemStack 등)은 ItemMetaBridge → CraftAccess 핸들로만 들어온다.
+package org.bukkit.craftbukkit.inventory;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -10,7 +11,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.bukkit.configuration.serialization.DelegateDeserialization;
-import org.bukkit.craftbukkit.inventory.SerializableMeta;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.meta.Damageable;
@@ -24,16 +24,21 @@ import org.domi.furnace.api.item.ItemEnchantments;
 import org.domi.furnace.api.item.ItemStack;
 import org.domi.furnace.api.item.Unbreakable;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.compat.paper.Compat;
+import org.domi.furnace.compat.paper.ItemMetaSerialization;
+import org.domi.furnace.compat.paper.ItemPdc;
+import org.domi.furnace.compat.paper.MetaKind;
+import org.domi.furnace.compat.paper.UnsupportedFeature;
 
 // Paper 의 CraftMetaItem 처럼 {@code ==: ItemMeta} 로 저장되고 SerializableMeta 가 되읽는다(ItemMetaSerialization)
 @DelegateDeserialization(SerializableMeta.class)
-public class CompatItemMeta implements ItemMeta, Damageable, Repairable {
+class CraftMetaItem implements ItemMeta, Damageable, Repairable {
 
     ItemStack work;
     final EnumSet<ItemFlag> flags;
     final ItemPdc pdc;
 
-    CompatItemMeta(ItemStack work, EnumSet<ItemFlag> flags, ItemPdc pdc) {
+    CraftMetaItem(ItemStack work, EnumSet<ItemFlag> flags, ItemPdc pdc) {
         this.work = work;
         this.flags = flags;
         this.pdc = pdc;
@@ -43,13 +48,13 @@ public class CompatItemMeta implements ItemMeta, Damageable, Repairable {
     MetaKind kind() { return MetaKind.UNSPECIFIC; }
 
     /** 스택 종류에 맞는 하위 형으로, 스택의 지금 컴포넌트에서 사본을 만든다. 공기는 null(Paper 와 같다). */
-    public static CompatItemMeta of(ItemStack stack) {
+    static CraftMetaItem of(ItemStack stack) {
         if (stack.type().equals("minecraft:air")) return null;
         return of(MetaKind.of(stack.type()), stack);
     }
 
     /** 종류를 정해서 만든다(되읽기는 아이템 종류를 몰라 임시 종류 위에서 만든다). */
-    public static CompatItemMeta of(MetaKind kind, ItemStack stack) {
+    static CraftMetaItem of(MetaKind kind, ItemStack stack) {
         ItemStack w = new ItemStack(stack.type(), 1, stack.components(), stack.removedComponents());
         EnumSet<ItemFlag> flags = EnumSet.noneOf(ItemFlag.class);
         ItemEnchantments ench = w.get(ItemComponents.ENCHANTMENTS);
@@ -61,11 +66,35 @@ public class CompatItemMeta implements ItemMeta, Damageable, Repairable {
         if (w.has(ItemComponents.HIDE_ADDITIONAL_TOOLTIP)) flags.add(ItemFlag.HIDE_ADDITIONAL_TOOLTIP);
         DyedColor dye = w.get(ItemComponents.DYED_COLOR);
         if (dye != null && !dye.showInTooltip()) flags.add(ItemFlag.HIDE_DYE);
-        return kind.create(w, flags, new ItemPdc(stack.persistentData()));
+        return create(kind, w, flags, new ItemPdc(stack.persistentData()));
+    }
+
+    /**
+     * 종류별 하위 형을 만든다(Paper 의 종류별 생성자 표 자리). enum switch 는 switch 표 클래스({@code CraftMetaItem$1})를 만들어 Paper 의
+     * 같은 이름 클래스와 겹치므로 if 로 고른다.
+     */
+    static CraftMetaItem create(MetaKind kind, ItemStack work, EnumSet<ItemFlag> flags, ItemPdc pdc) {
+        if (kind == MetaKind.SKULL) return new CraftMetaSkull(work, flags, pdc);
+        if (kind == MetaKind.BANNER) return new CraftMetaBanner(work, flags, pdc);
+        if (kind == MetaKind.ARMOR) return new CraftMetaArmor(work, flags, pdc);
+        if (kind == MetaKind.LEATHER_ARMOR) return new CraftMetaLeatherArmor(work, flags, pdc);
+        if (kind == MetaKind.COLORABLE_ARMOR) return new CraftMetaColorableArmor(work, flags, pdc);
+        return new CraftMetaItem(work, flags, pdc);
+    }
+
+    /**
+     * ItemStack#setItemMeta 의 몸통(Paper CraftItemStack#setItemMeta). 비었으면 구성 요소를 모두 뺀 스택, 이 아이템에 붙일 수 없는 종류면 null,
+     * 이 계층이 만든 메타가 아니면 IllegalArgumentException. meta 는 null 이 아니다.
+     */
+    static ItemStack putInto(ItemMeta meta, ItemStack cur) {
+        if (!(meta instanceof CraftMetaItem cm)) throw new IllegalArgumentException("Meta of " + meta.getClass() + " not created by " + CraftItemFactory.class.getName());
+        if (cm.isEmpty()) return new ItemStack(cur.type(), cur.amount());
+        if (!cm.appliesToItem(cur.type())) return null;
+        return cm.asKind(MetaKind.of(cur.type())).applyTo(cur);
     }
 
     /** 이 메타를 stack 에 적용한 새 스택(종류·개수는 stack 그대로). */
-    public ItemStack applyTo(ItemStack stack) {
+    ItemStack applyTo(ItemStack stack) {
         ItemStack r = new ItemStack(stack.type(), stack.amount(), work.components(), work.removedComponents());
 
         ItemEnchantments ench = r.get(ItemComponents.ENCHANTMENTS);
@@ -212,12 +241,11 @@ public class CompatItemMeta implements ItemMeta, Damageable, Repairable {
     /** 호환 계층이 숨길 수 없는 표시 항목(그 컴포넌트가 아이템에 있을 때만 문제다). */
     private String unsupportedComponent(ItemFlag f) {
         if (kind().handledComponents().contains("minecraft:trim") && f == ItemFlag.HIDE_ARMOR_TRIM) return null;   // 장식 메타가 직접 반영한다
-        return switch (f) {
-            case HIDE_DESTROYS -> "minecraft:can_break";
-            case HIDE_PLACED_ON -> "minecraft:can_place_on";
-            case HIDE_ARMOR_TRIM -> "minecraft:trim";
-            default -> null;
-        };
+        // enum switch 는 switch 표 클래스(CraftMetaItem$1)를 만들어 Paper 의 같은 이름과 겹친다 — if 로 고른다
+        if (f == ItemFlag.HIDE_DESTROYS) return "minecraft:can_break";
+        if (f == ItemFlag.HIDE_PLACED_ON) return "minecraft:can_place_on";
+        if (f == ItemFlag.HIDE_ARMOR_TRIM) return "minecraft:trim";
+        return null;
     }
 
     @Override
@@ -314,7 +342,11 @@ public class CompatItemMeta implements ItemMeta, Damageable, Repairable {
     // ------------------------------------------------------------------ 직렬화
 
     @Override
-    public Map<String, Object> serialize() { return ItemMetaSerialization.serialize(this); }
+    public Map<String, Object> serialize() {
+        Map<String, Object> out = ItemMetaSerialization.serialize(this, kind(), work, effective(), flags);
+        serializeKind(out);
+        return out;
+    }
 
     /** 직렬화 전용: 지금 컴포넌트(영속 데이터의 바뀐 것은 아직 안 들어 있다). */
     ItemStack work() { return work; }
@@ -331,13 +363,13 @@ public class CompatItemMeta implements ItemMeta, Damageable, Repairable {
     public PersistentDataContainer getPersistentDataContainer() { return pdc; }
 
     @Override
-    public CompatItemMeta clone() { return kind().create(work, EnumSet.copyOf(flags), pdc.copy()); }
+    public CraftMetaItem clone() { return create(kind(), work, EnumSet.copyOf(flags), pdc.copy()); }
 
     /**
      * 다른 종류의 메타로 옮긴다(Paper CraftItemFactory#asMetaFor). 같은 종류면 자기 자신. 일반 메타로 옮길 때는 지금 종류가 맡던 값을 버리고,
      * 일반 메타에서 옮길 때는 컴포넌트가 모두 따라간다(Paper 의 unhandled 가 그 컴포넌트를 들고 다닌다).
      */
-    public CompatItemMeta asKind(MetaKind target) {
+    CraftMetaItem asKind(MetaKind target) {
         if (target == kind() && target != MetaKind.UNSPECIFIC) return this;
         ItemStack w = work;
         if (kind() != MetaKind.UNSPECIFIC && kind() != target) {
@@ -347,14 +379,14 @@ public class CompatItemMeta implements ItemMeta, Damageable, Repairable {
             for (String id : target.handledComponents()) if (work.components().containsKey(id)) comps.put(id, work.components().get(id));
             w = new ItemStack(w.type(), w.amount(), comps, w.removedComponents());
         }
-        return target.create(w, EnumSet.copyOf(flags), pdc.copy());
+        return create(target, w, EnumSet.copyOf(flags), pdc.copy());
     }
 
     /** 아무것도 정하지 않은 메타인가(Paper CraftMetaItem#isEmpty). 비어 있으면 setItemMeta 가 아이템의 컴포넌트를 모두 지운다. */
-    public boolean isEmpty() { return work.components().isEmpty() && work.removedComponents().isEmpty() && flags.isEmpty() && pdc.isEmpty(); }
+    boolean isEmpty() { return work.components().isEmpty() && work.removedComponents().isEmpty() && flags.isEmpty() && pdc.isEmpty(); }
 
     /** 이 메타를 붙일 수 있는 아이템 종류인가(Paper CraftMetaItem#applicableTo). 공기와 아이템이 아닌 것은 안 된다. */
-    public boolean applicableTo(String itemType) {
+    boolean appliesToItem(String itemType) {
         if (itemType.equals("minecraft:air")) return false;
         org.bukkit.Material m = org.bukkit.Material.matchMaterial(itemType);
         if (m != null && !m.isItem()) return false;
@@ -387,7 +419,7 @@ public class CompatItemMeta implements ItemMeta, Damageable, Repairable {
     public boolean equals(Object o) {
         // 종류는 보지 않는다(Paper 도 한쪽의 종류별 값이 비어 있으면 종류가 달라도 같다): 컴포넌트가 같으면 아이템에 적용한 결과가 같다.
         // 설정·스트림에서 되읽은 메타는 아직 어느 아이템 종류에도 붙지 않았다
-        return o instanceof CompatItemMeta m && m.work.components().equals(work.components()) && m.work.removedComponents().equals(work.removedComponents())
+        return o instanceof CraftMetaItem m && m.work.components().equals(work.components()) && m.work.removedComponents().equals(work.removedComponents())
                 && m.flags.equals(flags) && m.pdc.equals(pdc);
     }
 

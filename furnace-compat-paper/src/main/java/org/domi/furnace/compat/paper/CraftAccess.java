@@ -26,6 +26,51 @@ final class CraftAccess {
         }
     }
 
+    /** Paper {@code class CraftMetaItem}(패키지 전용) — 모든 아이템 메타의 뿌리. */
+    static final Class<?> CRAFT_META_ITEM = anyClass("org.bukkit.craftbukkit.inventory.CraftMetaItem");
+    private static final MethodHandle META_OF = staticMethod(CRAFT_META_ITEM, "of", MethodType.methodType(CRAFT_META_ITEM, org.domi.furnace.api.item.ItemStack.class))
+            .asType(MethodType.methodType(org.bukkit.inventory.meta.ItemMeta.class, org.domi.furnace.api.item.ItemStack.class));
+    private static final MethodHandle META_PUT_INTO = staticMethod(CRAFT_META_ITEM, "putInto",
+            MethodType.methodType(org.domi.furnace.api.item.ItemStack.class, org.bukkit.inventory.meta.ItemMeta.class, org.domi.furnace.api.item.ItemStack.class));
+
+    /** CraftMetaItem.of(stack): 스택 종류에 맞는 메타 사본, 공기는 null. */
+    static org.bukkit.inventory.meta.ItemMeta metaOf(org.domi.furnace.api.item.ItemStack stack) {
+        try {
+            return (org.bukkit.inventory.meta.ItemMeta) META_OF.invokeExact(stack);
+        } catch (RuntimeException | Error e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException(t);
+        }
+    }
+
+    /** CraftMetaItem.putInto(meta, cur): 메타를 붙인 스택, 못 붙이면 null, 남의 메타면 IllegalArgumentException. */
+    static org.domi.furnace.api.item.ItemStack metaPutInto(org.bukkit.inventory.meta.ItemMeta meta, org.domi.furnace.api.item.ItemStack cur) {
+        try {
+            return (org.domi.furnace.api.item.ItemStack) META_PUT_INTO.invokeExact(meta, cur);
+        } catch (RuntimeException | Error e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException(t);
+        }
+    }
+
+    private static Class<?> anyClass(String name) {
+        try {
+            return Class.forName(name, false, CraftAccess.class.getClassLoader());
+        } catch (ClassNotFoundException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
+    private static MethodHandle staticMethod(Class<?> target, String name, MethodType type) {
+        try {
+            return MethodHandles.privateLookupIn(target, MethodHandles.lookup()).findStatic(target, name, type);
+        } catch (ReflectiveOperationException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
     private static Class<? extends org.bukkit.craftbukkit.entity.CraftEntity> craftClass(String name) {
         try {
             return Class.forName(name, false, CraftAccess.class.getClassLoader()).asSubclass(org.bukkit.craftbukkit.entity.CraftEntity.class);

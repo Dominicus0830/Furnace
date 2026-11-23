@@ -22,6 +22,7 @@ import java.util.logging.Logger;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.Repairable;
 import org.domi.furnace.api.item.ItemComponents;
 import org.domi.furnace.api.item.ItemEnchantments;
 import org.domi.furnace.api.item.ItemStack;
@@ -74,11 +75,14 @@ public final class ItemMetaSerialization {
 
     // ------------------------------------------------------------------ 쓰기
 
-    static Map<String, Object> serialize(CompatItemMeta meta) {
-        ItemStack w = meta.work();
+    /**
+     * 메타(CraftMetaItem)의 공통 키를 쓴다 — 종류별 키는 메타가 이어서 쓴다. w 는 메타의 컴포넌트 사본, effective 는 바뀐 영속 데이터까지 반영한 값,
+     * flags 는 메타의 표시 항목.
+     */
+    public static Map<String, Object> serialize(ItemMeta meta, MetaKind kind, ItemStack w, ItemStack effective, Set<ItemFlag> metaFlags) {
         Map<String, String> comps = w.components();
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put(TYPE_FIELD, meta.kind().serialName());
+        out.put(TYPE_FIELD, kind.serialName());
 
         if (comps.containsKey(CUSTOM_NAME)) {
             Text t = w.get(ItemComponents.CUSTOM_NAME);
@@ -99,10 +103,11 @@ public final class ItemMetaSerialization {
         ItemEnchantments ench = w.get(ItemComponents.ENCHANTMENTS);
         if (ench != null && !ench.isEmpty()) out.put("enchants", new LinkedHashMap<String, Integer>(ench.levels()));
 
-        if (meta.getRepairCost() > 0) out.put("repair-cost", meta.getRepairCost());
+        int repairCost = ((Repairable) meta).getRepairCost();
+        if (repairCost > 0) out.put("repair-cost", repairCost);
 
         List<String> flags = new ArrayList<>();
-        for (ItemFlag f : meta.flagSet()) flags.add(f.name());
+        for (ItemFlag f : metaFlags) flags.add(f.name());
         if (!flags.isEmpty()) out.put("ItemFlags", flags);
 
         if (comps.containsKey(HIDE_TOOLTIP)) out.put("hide-tool-tip", true);
@@ -116,27 +121,29 @@ public final class ItemMetaSerialization {
 
         NbtCompound unhandled = new NbtCompound();
         for (var e : comps.entrySet()) {
-            if (!HANDLED.contains(e.getKey()) && !meta.kind().handledComponents().contains(e.getKey())) unhandled.put(e.getKey(), Snbt.parse(e.getValue()));
+            if (!HANDLED.contains(e.getKey()) && !kind.handledComponents().contains(e.getKey())) unhandled.put(e.getKey(), Snbt.parse(e.getValue()));
         }
         if (!unhandled.isEmpty()) out.put("unhandled", Base64.getEncoder().encodeToString(NbtBinary.writeCompressed(unhandled)));
 
         if (!w.removedComponents().isEmpty()) out.put("removed", new ArrayList<>(w.removedComponents()));
 
         // 영속 데이터는 바뀐 것까지 반영한 값, custom_data 의 나머지는 "custom"
-        String cd = meta.effective().components().get(CUSTOM_DATA);
+        String cd = effective.components().get(CUSTOM_DATA);
         if (cd != null && Snbt.parse(cd) instanceof NbtCompound custom) {
             Object pbv = custom.remove(PBV);
             if (pbv instanceof NbtCompound values && !values.isEmpty()) out.put(PBV, Snbt.write(values));
             if (!custom.isEmpty()) out.put("custom", Base64.getEncoder().encodeToString(NbtBinary.writeCompressed(custom)));
         }
-        meta.serializeKind(out);
         return out;
     }
 
     // ------------------------------------------------------------------ 읽기
 
-    /** 설정 맵 → ItemMeta. 아이템 종류는 모르므로 임시 종류 위에 만들고, ItemStack#setItemMeta 가 실제 종류에 옮긴다. */
-    public static ItemMeta deserialize(Map<String, Object> map) {
+    /** 공통 키를 읽은 결과: 종류, 임시 종류 위의 컴포넌트 사본, 표시 항목(지금 없는 옛 이름은 뺐다). 메타는 SerializableMeta 가 만든다. */
+    public record Read(MetaKind kind, ItemStack work, List<ItemFlag> flags) {}
+
+    /** 설정 맵의 공통 키를 읽는다. 아이템 종류는 모르므로 임시 종류 위에 쌓고, ItemStack#setItemMeta 가 실제 종류에 옮긴다. */
+    public static Read read(Map<String, Object> map) {
         String type = get(map, TYPE_FIELD, String.class);
         if (type == null) throw new NoSuchElementException(map + " does not contain " + TYPE_FIELD);
         if (!META_TYPES.contains(type)) throw new IllegalArgumentException(type + " is not a valid " + TYPE_FIELD);
@@ -222,22 +229,18 @@ public final class ItemMetaSerialization {
         // 아직 없는 종류(BOOK 등)는 일반 메타로 읽는다 — 그 종류의 컴포넌트는 위 "unhandled" 로 산다
         MetaKind kind = MetaKind.bySerialName(type);
         if (kind == null) kind = MetaKind.UNSPECIFIC;
-        CompatItemMeta meta = CompatItemMeta.of(kind, w);
-        meta.deserializeKind(map);
+        List<ItemFlag> itemFlags = new ArrayList<>();
         Iterable<?> flags = get(map, "ItemFlags", Iterable.class);
         if (flags != null) {
             for (Object f : flags) {
                 try {
-                    meta.flagSet().add(ItemFlag.valueOf((String) f));
+                    itemFlags.add(ItemFlag.valueOf((String) f));
                 } catch (IllegalArgumentException ex) {
                     // 지금은 없는 옛 이름은 무시한다(Paper 와 같다)
                 }
             }
         }
-        // 표시 항목을 컴포넌트(showInTooltip)에 반영한 모양으로 맞춘다 — 스택에서 꺼낸 메타와 같은 꼴이어야 equals 가 같다
-        CompatItemMeta normalized = CompatItemMeta.of(kind, meta.applyTo(meta.work()));
-        normalized.flagSet().addAll(meta.flagSet());
-        return normalized;
+        return new Read(kind, w, itemFlags);
     }
 
     /** JSON 으로 보이면 JSON, 아니면(또는 JSON 이 깨졌으면) § 서식 문자열로 읽는다(Paper 의 fromJSONOrString). */

@@ -1,6 +1,6 @@
 // Bukkit ArmorMeta(투구·갑옷·바지·신발, Paper ARMOR) — 방어구 장식은 minecraft:trim 컴포넌트에서 읽고 쓴다.
 // Paper 처럼 장식의 "툴팁에 보이기"는 메타 안에서 ItemFlag.HIDE_ARMOR_TRIM 으로만 다룬다(컴포넌트의 show_in_tooltip 은 적용할 때 쓴다).
-package org.domi.furnace.compat.paper;
+package org.bukkit.craftbukkit.inventory;
 
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
@@ -8,7 +8,6 @@ import java.util.Map;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
 import org.bukkit.configuration.serialization.DelegateDeserialization;
-import org.bukkit.craftbukkit.inventory.SerializableMeta;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.meta.ArmorMeta;
 import org.bukkit.inventory.meta.trim.ArmorTrim;
@@ -16,11 +15,13 @@ import org.bukkit.inventory.meta.trim.TrimMaterial;
 import org.bukkit.inventory.meta.trim.TrimPattern;
 import org.domi.furnace.api.item.ItemComponent;
 import org.domi.furnace.api.item.ItemStack;
+import org.domi.furnace.compat.paper.ItemPdc;
+import org.domi.furnace.compat.paper.MetaKind;
 import org.domi.furnace.api.nbt.NbtCompound;
 import org.domi.furnace.api.nbt.Snbt;
 
 @DelegateDeserialization(SerializableMeta.class)
-public class CompatMetaArmor extends CompatItemMeta implements ArmorMeta {
+public class CraftMetaArmor extends CraftMetaItem implements ArmorMeta {
 
     static final String TRIM_ID = "minecraft:trim";
     /** 서버 코덱을 거치는 날 SNBT 컴포넌트(기본값 show_in_tooltip=true 는 적히지 않는 정규 모양으로 돌려준다). */
@@ -28,11 +29,11 @@ public class CompatMetaArmor extends CompatItemMeta implements ArmorMeta {
 
     private final MetaKind kind;
 
-    CompatMetaArmor(ItemStack work, EnumSet<ItemFlag> flags, ItemPdc pdc) {
+    CraftMetaArmor(ItemStack work, EnumSet<ItemFlag> flags, ItemPdc pdc) {
         this(MetaKind.ARMOR, work, flags, pdc);
     }
 
-    CompatMetaArmor(MetaKind kind, ItemStack work, EnumSet<ItemFlag> flags, ItemPdc pdc) {
+    CraftMetaArmor(MetaKind kind, ItemStack work, EnumSet<ItemFlag> flags, ItemPdc pdc) {
         super(work, flags, pdc);
         this.kind = kind;
         normalizeTrim();
@@ -124,7 +125,7 @@ public class CompatMetaArmor extends CompatItemMeta implements ArmorMeta {
     }
 
     @Override
-    public CompatMetaArmor clone() { return (CompatMetaArmor) super.clone(); }
+    public CraftMetaArmor clone() { return (CraftMetaArmor) super.clone(); }
 
     @Override
     void serializeKind(Map<String, Object> out) {

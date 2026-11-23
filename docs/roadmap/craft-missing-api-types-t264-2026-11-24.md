@@ -19,5 +19,6 @@ T-264 P1(PR #580)이 엔티티 Craft 클래스의 상위 사슬을 Paper 와 같
 
 - 합계 243(= 156 + 28 + 28 + 12 + 4 + 6 + 3 + 2 + 2 + 2).
 - P2a(인벤토리 이름 옮김)에서 1줄 더: `org.bukkit.inventory.EntityEquipment` — `CraftInventoryPlayer` 가 Paper 처럼 구현해야 하나 형식이 없다(영역 11 + 4, 이유 "T-264 P2a: …"). 계층 기준선 `interfaces` 줄 1개도 같은 몫이다.
+- P2b-3(아이템 메타 이름 옮김)에서 6줄 더: `org.bukkit.inventory.meta.BlockDataMeta` — `CraftMetaItem` 과 하위 5종(`CraftMetaArmor`·`CraftMetaBanner`·`CraftMetaColorableArmor`·`CraftMetaLeatherArmor`·`CraftMetaSkull`)이 Paper 처럼 구현해야 하나 형식이 없다(영역 11 + 4, 이유 "T-264 P2b: …"). 동작은 `minecraft:block_state` 컴포넌트 읽기·쓰기와 직렬화 키 `BlockStateTag`(지금은 "unhandled" 로 산다). 계층 기준선 `interfaces` 줄 1개도 같은 몫이다.
 - 순서 제안: Leashable(156) → RangedEntity(28)·Lootable(28) → 나머지. 형식을 들여올 때는 T-264 생성기(`tools/compat/gen-bukkit-entity-classes.py`)를 다시 돌리면 Craft 클래스에 인터페이스가 붙는다(몸통 없는 메서드가 없을 때만 — 몸통은 손 사슬 또는 default 로).
 - 함께 볼 기준선: `craft-hierarchy-baseline.txt`(Craft 직접 인터페이스), `craft-live-api-methods-1.21.1.txt`(살아 있는 메서드는 늘기만).
