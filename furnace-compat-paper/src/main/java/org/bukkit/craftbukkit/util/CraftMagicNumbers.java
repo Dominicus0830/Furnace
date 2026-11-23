@@ -97,4 +97,10 @@ public final class CraftMagicNumbers implements UnsafeValues {
 
     @Override
     public int nextEntityId() { return f().packets().nextEntityId(); }
+
+    /**
+     * Paper 1.21.1 의 매핑 지문(Spigot 이름 매핑 판) — 플러그인이 "같은 판의 서버인가"를 이 문자열로 확인한다(SkinsRestorer 등, 리플렉션).
+     * 값은 Paper 1.21.1 서버 바이트코드의 상수 그대로(T-264 덫 계측 11-23 에서 잡힘).
+     */
+    public String getMappingsVersion() { return "7092ff1ff9352ad7e2260dc150e6a3ec"; }
 }

@@ -369,7 +369,7 @@ public class CraftEntity implements Entity {
 
     /** Paper CraftEntity.persistentDataContainer 처럼 엔티티당 하나 — 부를 때마다 같은 객체. */
     @Override
-    public org.bukkit.persistence.PersistentDataContainer getPersistentDataContainer() {
+    public org.bukkit.craftbukkit.persistence.CraftPersistentDataContainer getPersistentDataContainer() {   // Paper 와 같은 좁은 반환형
         org.bukkit.craftbukkit.persistence.CraftPersistentDataContainer c = pdc;
         if (c == null) {
             synchronized (this) {

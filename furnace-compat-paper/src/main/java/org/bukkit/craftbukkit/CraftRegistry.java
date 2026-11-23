@@ -31,4 +31,12 @@ public class CraftRegistry<B extends Keyed, M> implements Registry<B> {
 
     @Override
     public String toString() { return body.toString(); }
+
+    /** Paper CraftRegistry.getMinecraftRegistry() — 서버의 레지스트리 묶음(T-264, 덫 계측 11-23 에서 6개 플러그인이 리플렉션으로 부름). */
+    public static net.minecraft.core.RegistryAccess getMinecraftRegistry() { return net.minecraft.core.RegistryAccess.SERVER; }
+
+    /** Paper 와 같다: 묶음에 없는 레지스트리는 {@code registryOrThrow} 의 "Missing registry". */
+    public static <E> net.minecraft.core.Registry<E> getMinecraftRegistry(net.minecraft.resources.ResourceKey<net.minecraft.core.Registry<E>> key) {
+        return getMinecraftRegistry().registryOrThrow(key);
+    }
 }
