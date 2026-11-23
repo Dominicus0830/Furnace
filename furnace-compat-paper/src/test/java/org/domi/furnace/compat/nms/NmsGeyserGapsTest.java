@@ -124,11 +124,22 @@ class NmsGeyserGapsTest {
         RegistryFriendlyByteBuf e = buf();
         loot.encode(e, new RawComponentValue("{loot_table:\"minecraft:chests/simple_dungeon\",seed:5L}"));
         byte[] w = bytes(e);
-        assertEquals(10, w[0]);                    // 이름 없는 복합 태그(1.21 네트워크 NBT)
-        assertEquals(0, w[w.length - 1]);
+        // 이름 없는 복합 태그(1.21 네트워크 NBT). 바닐라 CompoundTag 는 HashMap 이라 키 해시 순서(seed 가 loot_table 보다 앞)로 쓴다
+        ByteBuf exp = Unpooled.buffer();
+        exp.writeByte(10).writeByte(4).writeShort(4).writeBytes("seed".getBytes(java.nio.charset.StandardCharsets.UTF_8)).writeLong(5L);
+        byte[] table = "minecraft:chests/simple_dungeon".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        exp.writeByte(8).writeShort(10).writeBytes("loot_table".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        exp.writeShort(table.length).writeBytes(table).writeByte(0);
+        assertArrayEquals(bytes(exp), w);
         RawComponentValue back = loot.decode(e);
         assertTrue(back.snbt().contains("simple_dungeon") && back.snbt().contains("5"));
         assertEquals(0, e.readableBytes());
+    }
+
+    @Test
+    void entrySetSkipsKeysTheRegistryDoesNotHave() {
+        DataComponentPatch patch = DataComponentPatch.furnaceOf(Map.of("minecraft:max_stack_size", "16", "foo:bar", "1"), Set.of("foo:gone"));
+        assertEquals(1, patch.entrySet().size());
     }
 
     @Test
