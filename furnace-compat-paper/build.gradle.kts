@@ -41,18 +41,20 @@ val generateNmsPacketShims by tasks.registering(JavaExec::class) {
     description = "패킷 스키마에서 net.minecraft 패킷 shim 소스를 만든다"
     val out = layout.buildDirectory.dir("generated/sources/nms-packets/java")
     val hand = layout.projectDirectory.dir("src/main/java")
+    val fragments = layout.projectDirectory.dir("src/shims/java")
     val extras = layout.projectDirectory.file("src/shimgen/resources/packet-shim-extras.txt")
     classpath = shimgen.runtimeClasspath
     mainClass.set("org.domi.furnace.compat.shimgen.PacketShimGenerator")
     jvmArgs("-Dstdout.encoding=UTF-8")
     inputs.files(shimgen.runtimeClasspath).withNormalizer(ClasspathNormalizer::class)
     inputs.dir(hand).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.dir(fragments).withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file(extras)
     // T-229: 연결 명세 생성기가 만드는 클래스(잠금 파일의 C 줄)는 빈 채움 shim 을 만들지 않는다
     inputs.files(lockForPackets).withPathSensitivity(PathSensitivity.RELATIVE)
     outputs.dir(out)
     argumentProviders.add(CommandLineArgumentProvider {
-        listOf(out.get().asFile.absolutePath, hand.asFile.absolutePath, extras.asFile.absolutePath, lockForPackets.asFile.absolutePath)
+        listOf(out.get().asFile.absolutePath, hand.asFile.absolutePath, extras.asFile.absolutePath, lockForPackets.asFile.absolutePath, fragments.asFile.absolutePath)
     })
 }
 the<SourceSetContainer>()["main"].java.srcDir(generateNmsPacketShims)

@@ -94,7 +94,7 @@ public final class PacketShimGenerator {
         this.extras = extras;
     }
 
-    /** 인자: 출력 폴더, 손으로 쓴 소스 폴더(src/main/java), 덧붙임 파일. */
+    /** 인자: 출력 폴더, 손으로 쓴 소스 폴더(src/main/java), 덧붙임 파일, [잠금 파일, 손 조각 폴더(src/shims/java)]. */
     public static void main(String[] args) throws IOException {
         Path out = Path.of(args[0]);
         Path src = Path.of(args[1]);
@@ -105,6 +105,7 @@ public final class PacketShimGenerator {
             ShimLock lock = ShimLock.read(Path.of(args[3]));
             if (lock != null) for (String n : lock.classes.keySet()) g.specClasses.add(n.replace('/', '.'));
         }
+        if (args.length > 4) g.fragmentDir = Path.of(args[4]);
         Map<String, String> files = g.generate();
         deleteTree(out);
         for (Map.Entry<String, String> e : files.entrySet()) {
@@ -146,7 +147,17 @@ public final class PacketShimGenerator {
     /** 손으로 쓴 src 에 이 '$' 이름의 클래스가 있는가. */
     boolean handWritten(String binaryName) {
         String top = topLevel(binaryName);
-        Path p = srcDir.resolve(top.replace('.', '/') + ".java");
+        for (Path dir : handDirs()) if (handWritten(dir, top, binaryName)) return true;
+        return false;
+    }
+
+    /** 손으로 쓴 소스 폴더들: src/main/java, 그리고 손 조각 폴더(src/shims/java — 조각 안의 안쪽 클래스도 손으로 쓴 것이다). */
+    private List<Path> handDirs() { return fragmentDir == null ? List.of(srcDir) : List.of(srcDir, fragmentDir); }
+
+    Path fragmentDir;
+
+    private boolean handWritten(Path dir, String top, String binaryName) {
+        Path p = dir.resolve(top.replace('.', '/') + ".java");
         if (!Files.exists(p)) return false;
         if (top.equals(binaryName)) return true;
         String inner = binaryName.substring(binaryName.lastIndexOf('$') + 1);

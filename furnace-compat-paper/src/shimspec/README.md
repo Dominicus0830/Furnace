@@ -72,6 +72,15 @@ class net.minecraft.world.level.block.CropBlock            # 멤버 없이 클�
   생성 몸통이 그것을 말없이 가리므로 생성기 오류로 멈춘다(손 메서드를 지우거나 `@each` 대신 명세로 잇는다).
   예: `EntityBlock#newBlockEntity` 하나로 블록 엔티티 있는 블록 클래스 전부, `BeaconBeamBlock#getColor` 하나로 색유리·색유리판·신호기.
 
+## 레코드 (T-230)
+
+`class` 줄이 가리키는 클래스가 바닐라에서 `record` 면 생성기는 머리를 **잠금 파일의 `R` 줄(성분 이름·서술자·제네릭 서명, 바닐라 선언 순서)** 에서 만든다:
+`public record Name<T>(T value, int count) implements Iface {`. 표준 생성자·성분 접근자·`equals`/`hashCode`/`toString` 은 컴파일러가 만들므로 명세에 적지 않는다(적으면 오류 —
+다른 몸통이면 바닐라 레코드가 아니다). 생성기 전용 생성자 `C(ShimCtor)` 는 레코드에 만들지 않는다. 안쪽 레코드는 `static` 을 적지 않는다(암묵).
+손 몸통(정적 필드·보조 메서드·compact 생성자)이 있는 레코드는 `src/shims/java` 조각이고 머리는 `record 이름 {` 로 쓴다.
+성분 표는 서명표 형식 2(`recordComponents`)에서 온다 — 서명표를 새로 만들고 `shimLock` 을 다시 돌린다. 애노테이션 형식은 아직 손 shim 이다.
+이전 증명: 손 레코드 27개를 명세로 옮기고 `tools/ci/javap-same.sh` 로 전후 호환 계층 클래스 폴더 전체(2851개)를 견줬다 — 다름은 `Unbreakable` 하나뿐이다(Paper 의 `TooltipProvider` 구현이 새로 붙음. 바닐라와 같아지는 방향).
+
 ## 종류 표 (T-231)
 
 `kind-classes-<판>.txt` 의 줄 `B|I <레지스트리 이름> <클래스>` 는 바닐라에서 그 블록·아이템 객체의 클래스다. 생성기는 표의 클래스를 **멤버 없는 `class` 줄**로 더하고
