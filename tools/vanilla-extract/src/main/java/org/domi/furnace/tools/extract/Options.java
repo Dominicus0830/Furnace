@@ -32,6 +32,8 @@ public final class Options {
         BODY_TABLE,
         /** 패킷 코덱 추출기(T-252): 바닐라 패킷의 와이어 모양을 뽑아 캐시에 쓰고, 중립 잠금 파일을 만들거나(`--layout-install`) 커밋된 것과 견준다(`--layout-verify`). */
         PACKET_LAYOUT,
+        /** 채움 표(T-262): 바닐라 jar 에서 값만으로 정해지는 껍데기 멤버(단순 생성자·읽기·정적 리터럴·열거형 상수 인자·레코드 기본 메서드)를 뽑아 캐시에 쓴다. */
+        FILL_TABLE,
         /** 바닐라 jar 준비까지만 하고(데이터 생성기 없음) Mojang 이름 서버 jar·라이브러리 경로를 `<캐시>/<판>/vanilla-classpath.txt` 에 적는다(T-235 차분 시험이 읽는다). */
         JARS
     }

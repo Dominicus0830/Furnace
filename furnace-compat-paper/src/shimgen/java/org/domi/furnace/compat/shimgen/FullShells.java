@@ -29,6 +29,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+import org.domi.furnace.tools.extract.FillTable;
 import org.domi.furnace.tools.extract.SigTable;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
@@ -57,6 +58,10 @@ public final class FullShells {
     final SigTable api;
     final Set<String> apiClasses;
     final Existing existing;
+    /** T-262: 채움 표(없으면 null — 껍데기는 전부 던지는 몸통). */
+    FillTable fillTable;
+    /** T-262: 채우기 계획. */
+    Fills fills = new Fills();
 
     /** 범위 안 클래스 → 종류. */
     final Map<String, Scope> scope = new TreeMap<>();
@@ -66,6 +71,8 @@ public final class FullShells {
     final Map<String, String> skipped = new TreeMap<>();
     /** 만들었지만 모양을 조금 바꾼 것(이유별 목록). */
     final Map<String, List<String>> deviations = new TreeMap<>();
+    /** 클래스 → {껍데기 멤버 수, 채운 멤버 수}(기준선용). */
+    final Map<String, int[]> classStats = new TreeMap<>();
     int shellMembers;
     int liveMembers;
     /** NMS 밖 범위에서 값 없는 필드가 있어 클래스 초기화가 던지는 껍데기 수. */
@@ -96,6 +103,24 @@ public final class FullShells {
         Path vanillaTable = Path.of(args[6]);
         Path apiTable = Path.of(args[7]);
         Path libsDir = Path.of(args[8]);
+        Path baselinePath = args.length > 10 && !args[10].equals("-") ? Path.of(args[10]) : null;
+        Path areasPath = args.length > 11 && !args[11].equals("-") ? Path.of(args[11]) : null;
+        boolean writeBaseline = args.length > 12 && Boolean.parseBoolean(args[12]);
+        Path fillPath = args.length > 9 && !args[9].isBlank() && !args[9].equals("-") ? Path.of(args[9]) : null;
+        Path paperFillPath = args.length > 13 && !args[13].equals("-") ? Path.of(args[13]) : null;
+        Path fillFp = args.length > 14 && !args[14].equals("-") ? Path.of(args[14]) : null;
+        for (Path f : new Path[]{fillPath, paperFillPath}) {
+            if (f != null && !Files.isRegularFile(f)) throw new IllegalStateException("fill table missing: " + f + " - run tools/compat/sig-tables.sh");
+        }
+        // 채움은 바닐라 표와 Paper 표에서 줄이 같은 것만 — 한쪽만 있으면 채우지 않고 알린다(Paper 가 바꾼 클래스를 바닐라 값으로 채우면 안 된다)
+        if ((fillPath == null) != (paperFillPath == null)) {
+            if (fillFp != null && Files.isRegularFile(fillFp)) {
+                throw new IllegalStateException("the committed fill fingerprint " + fillFp + " needs both fill tables (vanilla and Paper) in the cache - run tools/compat/sig-tables.sh with the Paper tables");
+            }
+            System.out.println("[full-shells] only one of the vanilla/Paper fill tables is present - building without fills (run tools/compat/sig-tables.sh with the Paper tables)");
+            fillPath = null;
+            paperFillPath = null;
+        }
         if (!Files.isDirectory(libsDir)) throw new IllegalStateException("vanilla library folder missing: " + libsDir + " - run tools/compat/sig-tables.sh");
         existingRoots.add(libsDir);
         for (Path t : List.of(paperTable, vanillaTable, apiTable)) {
@@ -118,11 +143,15 @@ public final class FullShells {
         SigTable paper = SigTable.read(paperTable);
         SigTable vanilla = SigTable.read(vanillaTable);
         FullShells g = new FullShells(paper, vanilla, SigTable.read(apiTable), new Existing(existingRoots));
+        if (fillPath != null) {
+            g.fillTable = FillTable.read(fillPath).intersect(FillTable.read(paperFillPath));
+            if (fillFp != null) checkFillFingerprint(fillPath, paperFillPath, fillFp, writeFp);
+        }
         Map<String, byte[]> classes = g.generate();
         ShellMerge merge = null;
-        if (args.length > 9 && !args[9].isBlank()) {
+        if (args.length > 15 && !args[15].isBlank()) {
             Set<String> overlay = new HashSet<>();
-            for (String p : args[9].split(java.io.File.pathSeparator)) if (!p.isBlank()) overlay.addAll(Existing.classesIn(Path.of(p)));
+            for (String p : args[15].split(java.io.File.pathSeparator)) if (!p.isBlank()) overlay.addAll(Existing.classesIn(Path.of(p)));
             merge = new ShellMerge(g, overlay);
             classes.putAll(merge.merge());
         }
@@ -143,7 +172,66 @@ public final class FullShells {
         if (merge != null) merge.report(rep);
         Files.writeString(report, rep.toString(), StandardCharsets.UTF_8);
         System.out.println("[full-shells] " + g.summary());
+        if (baselinePath != null && areasPath != null && g.fillTable != null) {
+            Map<String, String> files = g.baseline(Files.readAllLines(areasPath, StandardCharsets.UTF_8));
+            if (writeBaseline) {
+                deleteTree(baselinePath);
+                Files.createDirectories(baselinePath);
+                for (var e : files.entrySet()) Files.writeString(baselinePath.resolve(e.getKey()), e.getValue(), StandardCharsets.UTF_8);
+                System.out.println("[full-shells] wrote " + baselinePath);
+            } else {
+                checkBaseline(baselinePath, files);
+            }
+        }
         if (merge != null) System.out.println("[full-shells] " + merge.summary());
+    }
+
+    /** 채움 표 지문(바닐라 표·Paper 표). 서명표 지문과 따로 둬서 추출기만 바꾸는 PR 이 서명표 지문을 건드리지 않게 한다. */
+    static void checkFillFingerprint(Path vanillaFill, Path paperFill, Path fp, boolean write) throws IOException {
+        String now = "# T-262 fill tables: sha256 of the fill tables (vanilla jar and Paper server jar) - no names\nfill " + sha256(vanillaFill) + "\nfill-paper " + sha256(paperFill) + "\n";
+        if (write) {
+            Files.writeString(fp, now, StandardCharsets.UTF_8);
+            System.out.println("[full-shells] wrote " + fp);
+            return;
+        }
+        String want = Files.isRegularFile(fp) ? Files.readString(fp, StandardCharsets.UTF_8).replace("\r\n", "\n") : "";
+        if (!want.equals(now)) {
+            throw new IllegalStateException("fill tables differ from the committed fingerprint " + fp + ":\n--- committed\n" + want + "--- now\n" + now
+                    + "If the extractor changed on purpose, rerun with -PfullShellsFpWrite=true on a computer with the Paper tables and commit the file.");
+        }
+    }
+
+    /**
+     * 기준선 검사(되돌아감만 실패): 커밋된 영역 파일의 클래스(해시)마다 지금 채운 수가 줄었으면 실패한다. 늘었거나 손 shim 이 생겨
+     * 껍데기에서 빠진 클래스(지금 없음)는 괜찮다 — 정확한 다시 쓰기는 {@code -PfullShellsBaselineWrite=true}(Paper 표가 있는 곳)에서 몰아서 한다.
+     */
+    static void checkBaseline(Path dir, Map<String, String> current) throws IOException {
+        if (!Files.isDirectory(dir)) throw new IllegalStateException("fill baseline folder missing: " + dir + " - run once with -PfullShellsBaselineWrite=true and commit it");
+        Map<String, Integer> now = new HashMap<>();
+        for (String c : current.values()) for (String l : c.split("\n")) if (l.startsWith("c\t")) {
+            String[] f = l.split("\t");
+            now.put(f[1], Integer.parseInt(f[3]));
+        }
+        List<String> regress = new ArrayList<>();
+        int improved = 0;
+        int dropped = 0;
+        try (var s = Files.list(dir)) {
+            for (Path p : s.filter(x -> x.toString().endsWith(".txt")).sorted().toList()) {
+                for (String l : Files.readAllLines(p, StandardCharsets.UTF_8)) {
+                    if (!l.startsWith("c\t")) continue;
+                    String[] f = l.split("\t");
+                    Integer cur = now.get(f[1]);
+                    int was = Integer.parseInt(f[3]);
+                    if (cur == null) dropped++;
+                    else if (cur < was) regress.add(p.getFileName() + " " + f[1] + " filled " + was + " -> " + cur);
+                    else if (cur > was) improved++;
+                }
+            }
+        }
+        System.out.println("[full-shells] fill baseline: improved=" + improved + " droppedFromShells=" + dropped + " regressed=" + regress.size());
+        if (!regress.isEmpty()) {
+            throw new IllegalStateException("fewer members are filled than the committed fill baseline " + dir + " (a fill got lost):\n" + String.join("\n", regress.subList(0, Math.min(30, regress.size()))));
+        }
     }
 
     private static void write(Path p, String text) throws IOException {
@@ -240,6 +328,7 @@ public final class FullShells {
 
     Map<String, byte[]> generate() {
         select();
+        if (fillTable != null) fills = Fills.plan(this, fillTable);
         Map<String, byte[]> out = new TreeMap<>();
         Map<String, List<String>> nested = new HashMap<>();
         for (String n : shells) {
@@ -257,11 +346,13 @@ public final class FullShells {
         boolean isRecord = (c.access() & 0x10000) != 0;   // ASM 의 ACC_RECORD(서명표가 ASM 접근 값을 그대로 적는다)
         int access = c.access() & 0xFFFF;                 // ACC_RECORD·ACC_DEPRECATED 같은 ASM 전용 비트는 클래스 파일 플래그가 아니다
         List<String> enumConstants = isEnum ? enumOrder(n) : List.of();
+        Fills.ClassFill cf = fills.of(n);
         if (isEnum && (access & Opcodes.ACC_ABSTRACT) != 0) {
             // 상수별 몸통이 있는 열거형: 상수의 실제 클래스(익명 하위)를 선언만으로는 짝지을 수 없다 → 클래스의 abstract 만 떼고 상수를 이 클래스로 만든다
             access &= ~Opcodes.ACC_ABSTRACT;
             deviation("abstract enum made concrete (constants are instances of the enum class itself, not of their anonymous bodies)", n);
         }
+        int shellBefore = shellMembers;
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
         List<String> itfs = new ArrayList<>();
         for (String i : c.interfaces()) if (!i.startsWith(DROPPED_SUPER_PREFIX)) itfs.add(i);
@@ -270,11 +361,13 @@ public final class FullShells {
         if (sig != null && sig.contains("L" + DROPPED_SUPER_PREFIX)) sig = null;   // 위에서 뺀 인터페이스를 서명이 가리키면 서명을 버린다(서술자는 같다)
         cw.visit(Opcodes.V21, access, n, sig, c.superName(), itfs.toArray(String[]::new));
         // 안쪽 클래스 관계: 자기 자신(안쪽이면)과 만들어지는 안쪽 클래스들
-        if (c.innerAccess() >= 0 || n.indexOf('$') > 0) innerClass(cw, n);
+        // 바깥 클래스가 손으로 쓴 shim 이면 그쪽 InnerClasses 에 이 클래스가 없다 — 한쪽만 적으면 리플렉션이 IncompatibleClassChangeError 를 던지므로 적지 않는다
+        boolean outerHand = n.indexOf('$') > 0 && existing.has(n.substring(0, n.lastIndexOf('$')));
+        if (!outerHand && (c.innerAccess() >= 0 || n.indexOf('$') > 0)) innerClass(cw, n);
         for (String inner : nestedShells) innerClass(cw, inner);
         if (n.indexOf('$') > 0 && isAnonymousOrLocal(n)) cw.visitOuterClass(n.substring(0, n.lastIndexOf('$')), null, null);
         // 클래스 표지: 껍데기임(없는 이벤트 처리기 건너뛰기 등), NMS 밖 범위에 값 없는 필드가 있으면 초기화 덫 표시(Class.forName 다리가 "없음"으로 바꿈)
-        boolean trapInit = scope.get(n) != Scope.NMS && hasShellField(n, t, isEnum);
+        boolean trapInit = scope.get(n) != Scope.NMS && hasShellField(n, t, isEnum, cf);
         org.objectweb.asm.AnnotationVisitor ca = cw.visitAnnotation(SHELL_MEMBER, false);
         if (trapInit) ca.visit("initTrap", Boolean.TRUE);
         ca.visitEnd();
@@ -292,22 +385,25 @@ public final class FullShells {
         String enumCtor = null;
         Set<String> declared = new HashSet<>();
         for (SigTable.Member m : t.members(n)) {
-            if (m.kind() == 'F') field(cw, n, m, isEnum);
+            if (m.kind() == 'F') field(cw, n, m, isEnum, cf);
             else {
                 if (finals.contains(m.name() + m.desc())) {
                     deviation("method left out: a hand shim superclass declares it final", n + "#" + m.name() + m.desc());
                     continue;
                 }
                 if (isEnum && m.name().equals("<init>") && enumCtor == null && m.desc().startsWith("(Ljava/lang/String;I")) enumCtor = m.desc();
-                method(cw, n, m, isEnum, access, madeConcrete);
+                method(cw, n, m, isEnum, access, madeConcrete, cf);
                 declared.add(m.name() + m.desc());
             }
         }
         // 구체로 바꾼 추상 열거형: 상수 몸통에만 있던 인터페이스 구현도 던지는 몸통으로(AbstractMethodError 대신 같은 오류·계측)
         if (madeConcrete) for (String[] im : abstractInterfaceMethods(c, declared)) shellBody(cw, n, Opcodes.ACC_PUBLIC, im[0], im[1], null);
-        if (isEnum) enumSupport(cw, n, enumConstants, enumCtor, trapInit);
+        if (isEnum) enumSupport(cw, n, enumConstants, enumCtor, trapInit, cf);
         else if (trapInit) initTrap(cw, n);
+        else if (cf != null && !cf.statics.isEmpty()) staticClinit(cw, n, cf);
         cw.visitEnd();
+        int filledN = cf == null || trapInit ? 0 : cf.ctors.size() + cf.getters.size() + cf.statics.size() + cf.objectMethods.size() + (cf.enumConsts == null ? 0 : cf.enumConsts.size());
+        classStats.put(n, new int[]{shellMembers - shellBefore, filledN});
         return cw.toByteArray();
     }
 
@@ -333,12 +429,13 @@ public final class FullShells {
         return s.substring(i);
     }
 
-    private void field(ClassWriter cw, String owner, SigTable.Member m, boolean isEnum) {
+    private void field(ClassWriter cw, String owner, SigTable.Member m, boolean isEnum, Fills.ClassFill cf) {
         Object value = null;
         if ((m.access() & (Opcodes.ACC_STATIC | Opcodes.ACC_FINAL)) == (Opcodes.ACC_STATIC | Opcodes.ACC_FINAL)) value = constant(owner, m.name());
         boolean enumConstant = isEnum && (m.access() & Opcodes.ACC_ENUM) != 0;
         FieldVisitor fv = cw.visitField(m.access() & 0xFFFF, m.name(), m.desc(), m.signature(), value);
-        if (value == null && !enumConstant) {
+        boolean filled = cf != null && cf.liveFields.contains(m.name());
+        if (value == null && !enumConstant && !filled) {
             fv.visitAnnotation(SHELL_MEMBER, false).visitEnd();
             shellMembers++;
         } else {
@@ -347,7 +444,7 @@ public final class FullShells {
         fv.visitEnd();
     }
 
-    private void method(ClassWriter cw, String owner, SigTable.Member m, boolean isEnum, int classAccess, boolean madeConcrete) {
+    private void method(ClassWriter cw, String owner, SigTable.Member m, boolean isEnum, int classAccess, boolean madeConcrete, Fills.ClassFill cf) {
         int acc = m.access() & 0xFFFF & ~Opcodes.ACC_NATIVE;
         if (madeConcrete && (acc & Opcodes.ACC_ABSTRACT) != 0) {
             // 상수가 이 클래스의 진짜 객체이므로 추상 메서드가 실제로 불린다 — 추상으로 두면 AbstractMethodError(덫·계측 없음)
@@ -363,6 +460,10 @@ public final class FullShells {
         if (isAbstract) {
             liveMembers++;   // 추상 선언은 모양 그대로 — 해석은 바닐라와 같다
             mv.visitEnd();
+            return;
+        }
+        if (cf != null && filledBody(cw, mv, owner, m, cf)) {
+            liveMembers++;
             return;
         }
         mv.visitAnnotation(SHELL_MEMBER, false).visitEnd();
@@ -385,7 +486,7 @@ public final class FullShells {
     }
 
     /** 열거형: 상수 만들기(<clinit>), values(), valueOf(String). 바닐라와 같은 이름·서수·순서. */
-    private void enumSupport(ClassWriter cw, String n, List<String> constants, String ctor, boolean trapInit) {
+    private void enumSupport(ClassWriter cw, String n, List<String> constants, String ctor, boolean trapInit, Fills.ClassFill cf) {
         String desc = "L" + n + ";";
         String arr = "[" + desc;
         if (ctor == null && !constants.isEmpty()) throw new IllegalStateException("enum without a (String,int...) constructor in the table: " + n);
@@ -397,20 +498,27 @@ public final class FullShells {
         } else {
             ci = cw.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
         }
-        if (ci != null) enumConstants(ci, n, constants, ctor, desc, arr);
+        if (ci != null) enumConstants(ci, n, constants, ctor, desc, arr, cf);
         enumHelpers(cw, n, constants, desc, arr);
     }
 
-    private void enumConstants(MethodVisitor ci, String n, List<String> constants, String ctor, String desc, String arr) {
+    private void enumConstants(MethodVisitor ci, String n, List<String> constants, String ctor, String desc, String arr, Fills.ClassFill cf) {
         ci.visitCode();
-        Type[] args = ctor == null ? new Type[0] : Type.getArgumentTypes(ctor);
         for (int i = 0; i < constants.size(); i++) {
             ci.visitTypeInsn(Opcodes.NEW, n);
             ci.visitInsn(Opcodes.DUP);
             ci.visitLdcInsn(constants.get(i));
             ci.visitLdcInsn(i);
-            for (int a = 2; a < args.length; a++) zero(ci, args[a]);
-            ci.visitMethodInsn(Opcodes.INVOKESPECIAL, n, "<init>", ctor, false);
+            if (cf != null && cf.enumConsts != null) {
+                // 채운 열거형: 바닐라 정적 초기화가 넘기던 리터럴 인자 그대로(값만 — 코드는 안 옮긴다)
+                FillTable.EnumConst ec = cf.enumConsts.get(i);
+                for (FillTable.Val v : ec.args()) push(ci, v);
+                ci.visitMethodInsn(Opcodes.INVOKESPECIAL, n, "<init>", ec.ctorDesc(), false);
+            } else {
+                Type[] args = ctor == null ? new Type[0] : Type.getArgumentTypes(ctor);
+                for (int a = 2; a < args.length; a++) zero(ci, args[a]);
+                ci.visitMethodInsn(Opcodes.INVOKESPECIAL, n, "<init>", ctor, false);
+            }
             ci.visitFieldInsn(Opcodes.PUTSTATIC, n, constants.get(i), desc);
         }
         ci.visitLdcInsn(constants.size());
@@ -422,6 +530,7 @@ public final class FullShells {
             ci.visitInsn(Opcodes.AASTORE);
         }
         ci.visitFieldInsn(Opcodes.PUTSTATIC, n, "$VALUES", arr);
+        if (cf != null) putStatics(ci, n, cf);
         ci.visitInsn(Opcodes.RETURN);
         ci.visitMaxs(0, 0);
         ci.visitEnd();
@@ -446,6 +555,130 @@ public final class FullShells {
         vo.visitMaxs(0, 0);
         vo.visitEnd();
         liveMembers += 2 + constants.size();
+    }
+
+
+    // ───────────────────────── 채운 몸통(T-262) ─────────────────────────
+
+    /** 채운 멤버면 표지 없는 진짜 몸통을 쓰고 true. mv 는 이미 열린 메서드(방문 시작 전). */
+    private boolean filledBody(ClassWriter cw, MethodVisitor mv, String owner, SigTable.Member m, Fills.ClassFill cf) {
+        String key = m.name() + m.desc();
+        if (m.name().equals("<init>")) {
+            FillTable.Ctor c = cf.ctors.get(m.desc());
+            if (c == null) return false;
+            mv.visitCode();
+            Map<Integer, Type> slots = new HashMap<>();
+            int slot = 1;
+            for (Type at : Type.getArgumentTypes(m.desc())) {
+                slots.put(slot, at);
+                slot += at.getSize();
+            }
+            mv.visitVarInsn(Opcodes.ALOAD, 0);
+            Type[] sat = Type.getArgumentTypes(c.superDesc());
+            for (int i = 0; i < c.superArgs().size(); i++) pushOrLoad(mv, c.superArgs().get(i), sat[i], slots);
+            mv.visitMethodInsn(Opcodes.INVOKESPECIAL, c.superOwner(), "<init>", c.superDesc(), false);
+            for (FillTable.Step s : c.steps()) {
+                mv.visitVarInsn(Opcodes.ALOAD, 0);
+                pushOrLoad(mv, s.value(), Type.getType(s.desc()), slots);
+                mv.visitFieldInsn(Opcodes.PUTFIELD, owner, s.field(), s.desc());
+            }
+            mv.visitInsn(Opcodes.RETURN);
+            mv.visitMaxs(0, 0);
+            mv.visitEnd();
+            return true;
+        }
+        FillTable.Getter g = cf.getters.get(key);
+        if (g != null) {
+            mv.visitCode();
+            mv.visitVarInsn(Opcodes.ALOAD, 0);
+            mv.visitFieldInsn(Opcodes.GETFIELD, owner, g.field(), g.fieldDesc());
+            mv.visitInsn(Type.getReturnType(m.desc()).getOpcode(Opcodes.IRETURN));
+            mv.visitMaxs(0, 0);
+            mv.visitEnd();
+            return true;
+        }
+        String om = switch (key) {
+            case "toString()Ljava/lang/String;" -> "toString";
+            case "hashCode()I" -> "hashCode";
+            case "equals(Ljava/lang/Object;)Z" -> "equals";
+            default -> null;
+        };
+        if (om != null && cf.objectMethods.contains(om)) {
+            mv.visitCode();
+            recordMethod(mv, owner, om);
+            mv.visitMaxs(0, 0);
+            mv.visitEnd();
+            return true;
+        }
+        return false;
+    }
+
+    /** javac 가 레코드에 쓰는 것과 같은 ObjectMethods 부트스트랩(성분 이름 목록 + 필드 읽기 핸들). */
+    private void recordMethod(MethodVisitor mv, String owner, String name) {
+        List<String> comps = recordComponents(owner);
+        StringBuilder names = new StringBuilder();
+        Object[] bsmArgs = new Object[2 + comps.size()];
+        bsmArgs[0] = Type.getObjectType(owner);
+        for (int i = 0; i < comps.size(); i++) {
+            int k = comps.get(i).indexOf(':');
+            String cn = comps.get(i).substring(0, k);
+            if (i > 0) names.append(';');
+            names.append(cn);
+            bsmArgs[2 + i] = new org.objectweb.asm.Handle(Opcodes.H_GETFIELD, owner, cn, comps.get(i).substring(k + 1), false);
+        }
+        bsmArgs[1] = names.toString();
+        org.objectweb.asm.Handle bsm = new org.objectweb.asm.Handle(Opcodes.H_INVOKESTATIC, "java/lang/runtime/ObjectMethods", "bootstrap",
+                "(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/TypeDescriptor;Ljava/lang/Class;Ljava/lang/String;[Ljava/lang/invoke/MethodHandle;)Ljava/lang/Object;", false);
+        String self = "L" + owner + ";";
+        mv.visitVarInsn(Opcodes.ALOAD, 0);
+        switch (name) {
+            case "toString" -> {
+                mv.visitInvokeDynamicInsn("toString", "(" + self + ")Ljava/lang/String;", bsm, bsmArgs);
+                mv.visitInsn(Opcodes.ARETURN);
+            }
+            case "hashCode" -> {
+                mv.visitInvokeDynamicInsn("hashCode", "(" + self + ")I", bsm, bsmArgs);
+                mv.visitInsn(Opcodes.IRETURN);
+            }
+            default -> {
+                mv.visitVarInsn(Opcodes.ALOAD, 1);
+                mv.visitInvokeDynamicInsn("equals", "(" + self + "Ljava/lang/Object;)Z", bsm, bsmArgs);
+                mv.visitInsn(Opcodes.IRETURN);
+            }
+        }
+    }
+
+    private static void pushOrLoad(MethodVisitor mv, FillTable.Val v, Type want, Map<Integer, Type> slots) {
+        if (v.isParam()) {
+            int slot = (Integer) v.value();
+            mv.visitVarInsn(slots.get(slot).getOpcode(Opcodes.ILOAD), slot);
+        } else {
+            push(mv, v);
+        }
+    }
+
+    static void push(MethodVisitor mv, FillTable.Val v) {
+        switch (v.kind()) {
+            case 'n' -> mv.visitInsn(Opcodes.ACONST_NULL);
+            default -> mv.visitLdcInsn(v.value());
+        }
+    }
+
+    /** 정적 리터럴 대입(열거형이 아닌 클래스의 정적 초기화). */
+    private void staticClinit(ClassWriter cw, String n, Fills.ClassFill cf) {
+        MethodVisitor ci = cw.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
+        ci.visitCode();
+        putStatics(ci, n, cf);
+        ci.visitInsn(Opcodes.RETURN);
+        ci.visitMaxs(0, 0);
+        ci.visitEnd();
+    }
+
+    private static void putStatics(MethodVisitor ci, String n, Fills.ClassFill cf) {
+        for (FillTable.Static s : cf.statics.values()) {
+            push(ci, s.value());
+            ci.visitFieldInsn(Opcodes.PUTSTATIC, n, s.field(), s.desc());
+        }
     }
 
     /** 표지 달린 던지는 몸통 하나. */
@@ -473,9 +706,10 @@ public final class FullShells {
     }
 
     /** 값 없는(표지가 붙을) 필드가 있나 — 상수 값 필드·열거형 상수는 진짜 값이 있다. */
-    private boolean hasShellField(String n, SigTable t, boolean isEnum) {
+    private boolean hasShellField(String n, SigTable t, boolean isEnum, Fills.ClassFill cf) {
         for (SigTable.Member m : t.members(n)) {
             if (m.kind() != 'F') continue;
+            if (cf != null && cf.liveFields.contains(m.name())) continue;
             if (isEnum && (m.access() & Opcodes.ACC_ENUM) != 0) continue;
             boolean sf = (m.access() & (Opcodes.ACC_STATIC | Opcodes.ACC_FINAL)) == (Opcodes.ACC_STATIC | Opcodes.ACC_FINAL);
             if (sf && constant(n, m.name()) != null) continue;
@@ -559,8 +793,59 @@ public final class FullShells {
             sb.append(s).append(": ").append(c[0]).append(" in scope, ").append(c[1]).append(" already in compat, ").append(c[2]).append(" generated, ")
                     .append(c[3]).append(" skipped; ");
         }
+        sb.append("fills: ").append(String.join(", ", Fills.kindCounts(fills))).append("; ");
         sb.append(shellMembers).append(" shell members, ").append(liveMembers).append(" live members (abstract, constants, enum support), ").append(initTrapped).append(" non-NMS shells whose class init throws (fields without a value)");
         return sb.toString();
+    }
+
+
+    /** 기준선(T-262): 영역 파일 이름 → 내용. 영역 합계 한 줄 + 클래스(이름 해시 앞 8자리)별 남은 껍데기 멤버 수·채운 멤버 수. Mojang 이름은 쓰지 않는다. */
+    Map<String, String> baseline(List<String> areaLines) {
+        List<String[]> areas = new ArrayList<>();
+        for (String l : areaLines) {
+            if (l.isBlank() || l.startsWith("#")) continue;
+            areas.add(l.split("\t", -1));
+        }
+        Map<String, String> areaName = new TreeMap<>();
+        areaName.put("0", "other");
+        for (String[] a : areas) areaName.put(a[0], a[1]);
+        Map<String, List<String>> lines = new TreeMap<>();
+        Map<String, int[]> sums = new TreeMap<>();
+        for (var e : classStats.entrySet()) {
+            int[] st = e.getValue();
+            if (st[0] == 0 && st[1] == 0) continue;
+            String area = "0";
+            int best = -1;
+            for (String[] a : areas) {
+                for (String p : a[2].split(",")) if (e.getKey().startsWith(p) && p.length() > best) { best = p.length(); area = a[0]; }
+            }
+            int[] pa = sums.computeIfAbsent(area, k -> new int[3]);
+            pa[0]++;
+            pa[1] += st[0];
+            pa[2] += st[1];
+            lines.computeIfAbsent(area, k -> new ArrayList<>()).add("c\t" + hash8(e.getKey()) + "\t" + st[0] + "\t" + st[1]);
+        }
+        Map<String, String> out = new TreeMap<>();
+        for (var e : lines.entrySet()) {
+            e.getValue().sort(null);
+            int[] v = sums.get(e.getKey());
+            StringBuilder sb = new StringBuilder("#furnace-fills-baseline 2\n");
+            sb.append("# T-262: area ").append(e.getKey()).append(' ').append(areaName.get(e.getKey())).append(". Generated by FullShells (-PfullShellsBaselineWrite=true); names are hashed (sha256 prefix).\n");
+            sb.append("# A classes shellMembers filled  |  c hash8 shellMembers filled. CI fails only when a class's filled count drops.\n");
+            sb.append("A\t").append(v[0]).append('\t').append(v[1]).append('\t').append(v[2]).append('\n');
+            for (String l : e.getValue()) sb.append(l).append('\n');
+            out.put(String.format("%02d-%s.txt", Integer.parseInt(e.getKey()), areaName.get(e.getKey())), sb.toString());
+        }
+        return out;
+    }
+
+    private static String hash8(String s) {
+        try {
+            byte[] d = MessageDigest.getInstance("SHA-256").digest(s.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(d, 0, 4);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private Map<Scope, int[]> counts() {

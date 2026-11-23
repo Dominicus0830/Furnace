@@ -53,6 +53,7 @@ public final class Main {
         if (o.mode == Options.Mode.SIG_GATE) return SigGateCommand.run(o);
         if (o.mode == Options.Mode.BODY_TABLE) return BodyTableCommand.run(o);
         if (o.mode == Options.Mode.PACKET_LAYOUT) return PacketLayoutCommand.run(o);
+        if (o.mode == Options.Mode.FILL_TABLE) return FillTableCommand.run(o);
         if (o.mode == Options.Mode.JARS) {
             Prepared p = new Preparer(o).prepare(false);
             List<String> cp = new java.util.ArrayList<>();
