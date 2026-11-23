@@ -368,7 +368,7 @@ public class CraftEntity implements Entity {
     }
 
     @Override
-    public org.bukkit.persistence.PersistentDataContainer getPersistentDataContainer() { return new EntityPdc(handle); }
+    public org.bukkit.persistence.PersistentDataContainer getPersistentDataContainer() { return org.domi.furnace.compat.paper.PdcViews.craft(new EntityPdc(handle)); }
 
     @Override
     public void remove() {

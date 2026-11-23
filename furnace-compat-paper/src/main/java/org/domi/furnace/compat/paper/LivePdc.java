@@ -13,7 +13,15 @@ import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import org.domi.furnace.api.concurrent.ThreadOwnershipException;
 
-public abstract class LivePdc implements PersistentDataContainer {
+public abstract class LivePdc implements PersistentDataContainer, PdcBody {
+
+    /** 감싼 CraftPersistentDataContainer 의 어댑터 문맥(없으면 이 몸 — 감싸지 않은 내부 쓰임). */
+    private PersistentDataAdapterContext context;
+
+    @Override
+    public void useContext(PersistentDataAdapterContext context) { this.context = context; }
+
+    private PersistentDataAdapterContext ctx() { return context != null ? context : this; }
 
     /** 소유 스레드에서 곧바로 edit 를 돌린다. 주인(엔티티·블록 엔티티)이 없으면 false. 소유 스레드가 아니면 ThreadOwnershipException. */
     protected abstract boolean editNow(Consumer<org.domi.furnace.api.persistence.PersistentDataContainer> edit);
@@ -31,6 +39,7 @@ public abstract class LivePdc implements PersistentDataContainer {
         AtomicReference<T> out = new AtomicReference<>();
         boolean alive = editNow(c -> {
             ItemPdc p = new ItemPdc(c);
+            p.useContext(ctx());
             out.set(op.apply(p));
             if (p.dirty()) p.applyTo(c);
         });
@@ -45,6 +54,7 @@ public abstract class LivePdc implements PersistentDataContainer {
         } catch (ThreadOwnershipException notOwner) {
             Owned.write(editLater(c -> {
                 ItemPdc p = new ItemPdc(c);
+                p.useContext(ctx());
                 op.apply(p);
                 if (p.dirty()) p.applyTo(c);
             }), what);
@@ -55,7 +65,7 @@ public abstract class LivePdc implements PersistentDataContainer {
     public <P, C> void set(NamespacedKey key, PersistentDataType<P, C> type, C value) {
         java.util.Objects.requireNonNull(key, "key");
         // 값 변환·종류 검사는 호출 스레드에서 미리 해 둔다(사용자 정의 종류의 코드가 소유 스레드에서 돌지 않게)
-        ItemPdc.Prepared prepared = ItemPdc.prepare(type, value, this);
+        ItemPdc.Prepared prepared = ItemPdc.prepare(type, value, ctx());
         write(p -> {
             p.put(key.toString(), prepared);
             return null;
@@ -132,5 +142,5 @@ public abstract class LivePdc implements PersistentDataContainer {
     }
 
     @Override
-    public PersistentDataAdapterContext getAdapterContext() { return new ItemPdc(null); }
+    public PersistentDataAdapterContext getAdapterContext() { return ctx(); }
 }

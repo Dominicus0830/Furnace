@@ -76,7 +76,6 @@ class-access	org/bukkit/craftbukkit/metadata/BlockMetadataStore	-	shim 만 final
 class-access	org/bukkit/craftbukkit/metadata/EntityMetadataStore	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	org/bukkit/craftbukkit/metadata/PlayerMetadataStore	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	org/bukkit/craftbukkit/metadata/WorldMetadataStore	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-class-access	org/bukkit/craftbukkit/persistence/CraftPersistentDataContainer	-	shim 만 abstract	미분류 — 클래스 접근·final·abstract 가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-kind	net/minecraft/core/RegistrationInfo	-	shim=class ref=record	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-kind	net/minecraft/server/ServerLinks	-	shim=class ref=record	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-kind	net/minecraft/world/item/enchantment/Enchantment	-	shim=class ref=record	미분류 — 클래스 종류(인터페이스·열거형·레코드)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -390,7 +389,6 @@ descriptor	org/bukkit/craftbukkit/inventory/view/CraftAnvilView	<init>(Lorg/bukk
 descriptor	org/bukkit/craftbukkit/inventory/view/CraftEnchantmentView	<init>(Lorg/bukkit/craftbukkit/entity/CraftPlayer;Lorg/bukkit/craftbukkit/inventory/CraftInventoryEnchanting;Ljava/lang/String;Lorg/domi/furnace/api/item/ItemStack;[Lorg/bukkit/enchantments/EnchantmentOffer;)V	기준=#5dba7678a1ca	T-264 P2b: Furnace 클래스를 Paper 이름으로 옮김 — Furnace 생성자(이벤트 사본 칸·핸들)는 그대로 둔다(설계 3.1), Paper 생성자는 T-261 껍데기 멤버가 합친다
 descriptor	org/bukkit/craftbukkit/map/CraftMapView	<init>(I)V	기준=#b2a7c55c76ae	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/metadata/BlockMetadataStore	<init>()V	기준=#00d8f3b20679	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-descriptor	org/bukkit/craftbukkit/persistence/CraftPersistentDataContainer	<init>()V	기준=#2f9248a890db	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/profile/CraftPlayerProfile	<init>(Lorg/domi/furnace/compat/paper/ProfileValue;)V	기준=#5acedb4272c0	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/profile/CraftPlayerProfile	getProperty(Ljava/lang/String;)Lcom/destroystokyo/paper/profile/ProfileProperty;	기준=#563af3209b04	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/profile/CraftPlayerProfile	setProperty(Ljava/lang/String;Lcom/destroystokyo/paper/profile/ProfileProperty;)V	기준=#06ae4de17512	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -458,7 +456,6 @@ super	net/minecraft/world/phys/shapes/VoxelShape$1	-	shim=net/minecraft/world/ph
 super	org/bukkit/craftbukkit/CraftWorld$1	-	shim=java/lang/Object ref=#46f29ec627df	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	org/bukkit/craftbukkit/entity/CraftEntity$1	-	shim=org/bukkit/entity/Entity$Spigot ref=#c1307bf3492c	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	org/bukkit/craftbukkit/map/CraftMapRenderer	-	shim=java/lang/Object ref=#1a35e6a14920	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/persistence/CraftPersistentDataContainer	-	shim=org/domi/furnace/compat/paper/LivePdc ref=#280a3e5e682a	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/ChatFormatting	-	#683140e2fc3f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/commands/CommandSourceStack	-	#021abfa5543e	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/commands/CommandSourceStack	-	#05c9548fda97	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다

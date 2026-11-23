@@ -174,6 +174,44 @@ final class CraftAccess {
         }
     }
 
+    // ---- 영속 데이터 묶음(T-264 P2c-4): Furnace 몸을 감싸는 생성자·몸 꺼내기는 패키지 전용
+
+    private static final MethodHandle NEW_PDC = constructor(org.bukkit.craftbukkit.persistence.CraftPersistentDataContainer.class,
+            MethodType.methodType(void.class, org.bukkit.persistence.PersistentDataContainer.class));
+    private static final MethodHandle PDC_BODY = virtualMethod(org.bukkit.craftbukkit.persistence.CraftPersistentDataContainer.class, "furnaceBody",
+            MethodType.methodType(org.bukkit.persistence.PersistentDataContainer.class));
+    private static final MethodHandle NEW_PDC_CONTEXT = constructor(org.bukkit.craftbukkit.persistence.CraftPersistentDataAdapterContext.class, MethodType.methodType(void.class));
+
+    static org.bukkit.craftbukkit.persistence.CraftPersistentDataContainer newPdc(org.bukkit.persistence.PersistentDataContainer body) {
+        try {
+            return (org.bukkit.craftbukkit.persistence.CraftPersistentDataContainer) NEW_PDC.invokeExact(body);
+        } catch (RuntimeException | Error e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException(t);
+        }
+    }
+
+    static org.bukkit.persistence.PersistentDataContainer pdcBody(org.bukkit.craftbukkit.persistence.CraftPersistentDataContainer c) {
+        try {
+            return (org.bukkit.persistence.PersistentDataContainer) PDC_BODY.invokeExact(c);
+        } catch (RuntimeException | Error e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException(t);
+        }
+    }
+
+    static org.bukkit.craftbukkit.persistence.CraftPersistentDataAdapterContext newPdcContext() {
+        try {
+            return (org.bukkit.craftbukkit.persistence.CraftPersistentDataAdapterContext) NEW_PDC_CONTEXT.invokeExact();
+        } catch (RuntimeException | Error e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException(t);
+        }
+    }
+
     private static MethodHandle virtualMethod(Class<?> target, String name, MethodType type) {
         try {
             return MethodHandles.privateLookupIn(target, MethodHandles.lookup()).findVirtual(target, name, type);

@@ -359,8 +359,15 @@ class CraftMetaItem implements ItemMeta, Damageable, Repairable {
 
     // ------------------------------------------------------------------ 영속 데이터·같음·사본
 
+    /** 플러그인이 받는 묶음(Paper 처럼 메타마다 하나, 같은 객체) — 몸은 {@link #pdc}. */
+    private PersistentDataContainer pdcView;
+
     @Override
-    public PersistentDataContainer getPersistentDataContainer() { return pdc; }
+    public PersistentDataContainer getPersistentDataContainer() {
+        PersistentDataContainer v = pdcView;
+        if (v == null) pdcView = v = org.domi.furnace.compat.paper.PdcViews.craft(pdc);
+        return v;
+    }
 
     @Override
     public CraftMetaItem clone() { return create(kind(), work, EnumSet.copyOf(flags), pdc.copy()); }

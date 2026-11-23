@@ -8,29 +8,33 @@ import org.bukkit.persistence.PersistentDataAdapterContext;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import org.domi.furnace.api.persistence.PersistentDataView;
-import io.papermc.paper.persistence.PersistentDataContainerView;
 
 public final class PdcViews {
 
     private PdcViews() {}
 
     /** source 가 줄 때마다(없으면 null = 빈 데이터) 읽는 읽기 전용 보기. */
-    public static PersistentDataContainerView live(Supplier<PersistentDataView> source) { return new Live(source); }
+    public static io.papermc.paper.persistence.PersistentDataContainerView live(Supplier<PersistentDataView> source) { return new Live(source); }
 
-    /** 보기마다 하나 두는 어댑터 문맥(Paper CraftPersistentDataAdapterContext — 컨테이너가 아니다). */
-    private static final class Context implements PersistentDataAdapterContext {
-        @Override
-        public PersistentDataContainer newPersistentDataContainer() { return new ItemPdc(null); }
-    }
+    /** Furnace 몸(ItemPdc·LivePdc)을 플러그인이 받는 CraftPersistentDataContainer 로 감싼다(T-264 P2c-4, 생성자는 패키지 전용). */
+    public static org.bukkit.craftbukkit.persistence.CraftPersistentDataContainer craft(PersistentDataContainer body) { return CraftAccess.newPdc(body); }
 
-    private static final class Live implements PersistentDataContainerView {
+    /** 감싼 Furnace 몸. */
+    public static PersistentDataContainer body(org.bukkit.craftbukkit.persistence.CraftPersistentDataContainer c) { return CraftAccess.pdcBody(c); }
+
+    /** Paper 의 익명 PaperPersistentDataContainerView(CraftItemStack$3·CraftOfflinePlayer$1)와 같은 상위. */
+    private static final class Live extends io.papermc.paper.persistence.PaperPersistentDataContainerView {
 
         private final Supplier<PersistentDataView> source;
-        private final PersistentDataAdapterContext context = new Context();
+        private final PersistentDataAdapterContext context = CraftAccess.newPdcContext();
 
         Live(Supplier<PersistentDataView> source) { this.source = source; }
 
-        private ItemPdc now() { return new ItemPdc(source.get()); }
+        private ItemPdc now() {
+            ItemPdc p = new ItemPdc(source.get());
+            p.useContext(context);
+            return p;
+        }
 
         @Override
         public <P, C> boolean has(NamespacedKey key, PersistentDataType<P, C> type) { return now().has(key, type); }

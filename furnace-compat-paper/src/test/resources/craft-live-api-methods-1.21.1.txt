@@ -669,7 +669,7 @@ org/bukkit/craftbukkit/metadata/WorldMetadataStore 5 96212247b7c10ceb
 org/bukkit/craftbukkit/packs/CraftDataPack 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/packs/CraftDataPackManager 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/packs/CraftResourcePack 0 e3b0c44298fc1c14
-org/bukkit/craftbukkit/persistence/CraftPersistentDataAdapterContext 0 e3b0c44298fc1c14
+org/bukkit/craftbukkit/persistence/CraftPersistentDataAdapterContext 1 199382bef6186610
 org/bukkit/craftbukkit/persistence/CraftPersistentDataContainer 14 f65d09bb2b7a8015
 org/bukkit/craftbukkit/persistence/DirtyCraftPersistentDataContainer 12 ba6f3194f2d4518b
 org/bukkit/craftbukkit/potion/CraftPotionEffectType 0 e3b0c44298fc1c14

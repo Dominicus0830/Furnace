@@ -19,7 +19,6 @@ access org/bukkit/craftbukkit/metadata/BlockMetadataStore paper=1 furnace=11
 access org/bukkit/craftbukkit/metadata/EntityMetadataStore paper=1 furnace=11
 access org/bukkit/craftbukkit/metadata/PlayerMetadataStore paper=1 furnace=11
 access org/bukkit/craftbukkit/metadata/WorldMetadataStore paper=1 furnace=11
-access org/bukkit/craftbukkit/persistence/CraftPersistentDataContainer paper=1 furnace=401
 extra org/bukkit/craftbukkit/CraftServer$OnlineView
 extra org/bukkit/craftbukkit/CraftServer$OnlineView$Wrapped
 extra org/bukkit/craftbukkit/CraftServer$WorldsView
@@ -62,7 +61,5 @@ interfaces org/bukkit/craftbukkit/inventory/CraftMetaItem paper-only=org/bukkit/
 interfaces org/bukkit/craftbukkit/inventory/trim/CraftTrimMaterial paper-only=org/bukkit/craftbukkit/util/Handleable furnace-only=
 interfaces org/bukkit/craftbukkit/inventory/trim/CraftTrimPattern paper-only=org/bukkit/craftbukkit/util/Handleable furnace-only=
 interfaces org/bukkit/craftbukkit/map/CraftMapView paper-only=org/bukkit/map/MapView furnace-only=
-interfaces org/bukkit/craftbukkit/persistence/CraftPersistentDataContainer paper-only=org/bukkit/persistence/PersistentDataContainer furnace-only=
 interfaces org/bukkit/craftbukkit/profile/CraftPlayerProfile paper-only=com/destroystokyo/paper/profile/PlayerProfile furnace-only=
 super org/bukkit/craftbukkit/map/CraftMapRenderer paper=org/bukkit/map/MapRenderer furnace=java/lang/Object
-super org/bukkit/craftbukkit/persistence/CraftPersistentDataContainer paper=io/papermc/paper/persistence/PaperPersistentDataContainerView furnace=org/domi/furnace/compat/paper/LivePdc
