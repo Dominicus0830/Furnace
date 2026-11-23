@@ -251,6 +251,11 @@ public final class FullShells {
         if (c.innerAccess() >= 0 || n.indexOf('$') > 0) innerClass(cw, n);
         for (String inner : nestedShells) innerClass(cw, inner);
         if (n.indexOf('$') > 0 && isAnonymousOrLocal(n)) cw.visitOuterClass(n.substring(0, n.lastIndexOf('$')), null, null);
+        // 클래스 표지: 껍데기임(없는 이벤트 처리기 건너뛰기 등), NMS 밖 범위에 값 없는 필드가 있으면 초기화 덫 표시(Class.forName 다리가 "없음"으로 바꿈)
+        boolean trapInit = scope.get(n) != Scope.NMS && hasShellField(n, t, isEnum);
+        org.objectweb.asm.AnnotationVisitor ca = cw.visitAnnotation(SHELL_MEMBER, false);
+        if (trapInit) ca.visit("initTrap", Boolean.TRUE);
+        ca.visitEnd();
         if (isRecord) {
             for (String rc : recordComponents(n)) {
                 int k = rc.indexOf(':');
@@ -261,7 +266,6 @@ public final class FullShells {
         boolean madeConcrete = isEnum && (c.access() & Opcodes.ACC_ABSTRACT) != 0;
         // NMS 밖 범위(Bukkit API·Paper 내부·Mojang)는 연결기 덫이 필드 참조를 보지 않는다(플러그인 클래스를 다 바꾸지 않으려고 NMS 이름이 든 클래스만 변환).
         // 값 없는 필드가 있으면 클래스 초기화에서 던진다 — 필드가 조용히 null/0 을 주지 않게, 예전의 "클래스 없음"처럼 크게 실패하고 계측에 센다.
-        boolean trapInit = scope.get(n) != Scope.NMS && hasShellField(n, t, isEnum);
         if (trapInit) initTrapped++;
         String enumCtor = null;
         Set<String> declared = new HashSet<>();

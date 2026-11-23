@@ -197,6 +197,9 @@ public final class SimplePluginManager implements PluginManager {
         }
     }
 
+    /** 껍데기 이벤트 건너뛰기 경고를 (플러그인, 이벤트)마다 한 번만. */
+    private static final Set<String> SHELL_EVENT_WARNED = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     @Override
     public void registerEvents(Listener listener, Plugin plugin) {
         if (!plugin.isEnabled()) throw new IllegalPluginAccessException("Plugin attempted to register " + listener + " while not enabled");
@@ -288,6 +291,14 @@ public final class SimplePluginManager implements PluginManager {
                               boolean ignoreCancelled) {
         if (listener == null || priority == null || executor == null || plugin == null) throw new IllegalArgumentException("registerEvent argument is null");
         if (!plugin.isEnabled()) throw new IllegalPluginAccessException("Plugin attempted to register " + event + " while not enabled");
+        if (org.domi.furnace.compat.nms.NmsSymbols.RUNTIME.isShellClass(event.getName().replace('.', '/'))) {
+            // 전체 껍데기(T-260): Furnace 에 아직 모양만 있는 Paper 이벤트다 — 껍데기가 없던 때처럼 그 처리기만 건너뛴다(T-040a). 그 이벤트는 내지 않으므로
+            // 등록해도 불릴 일이 없고, HandlerList 를 만들면 껍데기 초기화 덫이 걸려 리스너의 나머지 처리기까지 못 올린다
+            if (SHELL_EVENT_WARNED.add(plugin.getName() + '\0' + event.getName())) {
+                plugin.getLogger().warning(CompatLang.t("compat.event-shell-skipped", event.getName(), listener.getClass().getName()));
+            }
+            return;
+        }
         BukkitPluginAdapter owner = CompatPluginManager.adapter(plugin);
         Class<? extends Event> owning = CompatPluginManager.registrationClass(event);
         RegisteredListener registered = new RegisteredListener(listener, executor, priority, plugin, ignoreCancelled);

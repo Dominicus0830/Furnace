@@ -45,6 +45,10 @@
 
 연결기 덫은 NMS 이름(`net/minecraft`·`craftbukkit`)이 든 플러그인 클래스만 변환한다 — `org/bukkit` 참조까지 보려면 모든 플러그인 클래스를 변환해야 해서 올리기 비용이 커진다. 그래서 NMS 밖 범위 껍데기가 값 없는 필드(정적이든 인스턴스든)를 가지면, 그 필드가 조용히 null/0 을 주지 않게 **클래스 초기화(`<clinit>`)가 `NmsShell.unsupportedClass` 로 던진다**. 클래스 객체·`instanceof`·`Class.forName(이름, false, …)` 은 되고, 정적 필드·정적 메서드·상수 아닌 무엇이든 처음 쓰는 순간 실패하며 "class" 종류로 센다. 1.21.1 에서 자기 덫 892개, 상위 클래스·인터페이스가 덫이라 같이 실패하는 것까지 1,001개(열거형이면 상수도 못 쓴다). 이 껍데기들은 PR 전에는 아예 없던 클래스라 플러그인이 보는 결과는 예전과 같은 "클래스 없음" 실패다. NMS 범위는 덫·리플렉션 다리가 필드마다 잡으므로 초기화를 막지 않는다.
 
+초기화 덫 때문에 예외 종류가 바뀌는 두 길은 예전("클래스 없음")과 같게 되돌린다(11-23 재검토):
+- **`Class.forName` 감지**: 플러그인의 `Class.forName` 은 `CraftNames.forName` 다리로 바뀌는데, 초기화가 껍데기 덫으로 실패하면(클래스 표지 `@NmsShellMember(initTrap = true)` 가 자기나 상위에 있음 — `NmsSymbols.initTrapped`) `ClassNotFoundException` 으로 바꾼다. 흔한 `catch (ClassNotFoundException e) { 대체 길 }` 이 그대로 대체 길로 간다. 다른 초기화 실패는 그대로 던진다.
+- **없는 Paper 이벤트 처리기**: 이벤트 클래스가 껍데기(클래스 표지)면 `SimplePluginManager.registerEvent` 가 그 처리기만 건너뛰고 (플러그인, 이벤트)마다 한 번 경고한다(`compat.event-shell-skipped`). 같은 리스너의 다른 처리기는 등록된다 — 껍데기가 없던 때의 T-040a 와 같은 결과. Furnace 는 그 이벤트를 내지 않으므로 등록해도 불릴 일이 없다.
+
 ### 2.3 무엇이 "이미 있음"인가
 
 호환 jar 의 `runtimeClasspath`(손 shim·생성 shim·패킷 생성물·Furnace `org.bukkit`), 서버가 실행 때 내려받는 라이브러리(`ServerLibraries` 목록 — `fullShellsServerLibs` 구성이 소스에서 읽음), JDK. 바닐라 라이브러리 jar(`work/libs`, DFU·brigadier·authlib 등)는 **상위 타입으로는 쓰되 "있음"으로는 안 친다** — Furnace 가 그 라이브러리를 싣지 않으므로 표에 있는 `com/mojang` 클래스는 껍데기로 만든다.
@@ -66,7 +70,7 @@ build/full-shells/classes/**.class + report.md(이름 들어감 — 커밋·업�
 ```
 
 - **커밋하는 것은 지문뿐**: `furnace-compat-paper/src/shimspec/full-shells-1.21.1.fp` 에 세 표(압축 푼 바이트)의 sha256. 표가 바뀌면 생성기가 멈추고, 바뀐 것을 확인한 사람이 `-PfullShellsFpWrite=true` 로 지문을 고쳐 같은 PR 에 넣는다. 서명표·껍데기·보고서는 저장소에 없다(Mojang 이름 원문 금지 규칙).
-- 서버 빌드(`installDist`·`fatJar`·`start.sh`)는 세 서명표가 캐시에 **있으면 껍데기를 싣고, 없으면 경고하고 뺀다**(새로 받은 저장소·표 없는 개발 PC 가 깨지지 않게). `-PnoFullShells` 는 늘 빼고, **배포용 빌드는 `-PrequireFullShells`** 로 표가 없으면 실패하게 한다. 껍데기 없는 서버는 지금과 똑같이 돈다. CI `light` 단계 fatJar 는 `-PnoFullShells=true` 를 그대로 적어 둔다.
+- 서버 빌드(`installDist`·`fatJar`·`start.sh`)는 세 서명표가 캐시에 **있으면 껍데기를 싣고, 없으면 경고하고 뺀다**(새로 받은 저장소·표 없는 개발 PC 가 깨지지 않게). `-PnoFullShells` 는 늘 빼고, **배포용 빌드는 `-PrequireFullShells`** 로 표가 없으면 실패하게 한다. 껍데기 없는 서버는 지금과 똑같이 돈다. CI `light` 단계 fatJar 는 `-PnoFullShells=true` 를 그대로 적어 둔다. 배포 빌드 절차는 `docs/ops/version-tags.md` 6장.
 - CI `vanilla-gates` 에 단계 "전체 껍데기 (T-260)": `:furnace-compat-paper:fullShellsTest` 가 껍데기를 만들고 실행 때와 같은 따로 된 로더(호환 jar → 껍데기 jar → 호환 실행 의존 → 서버 제공 라이브러리 → 바닐라 라이브러리)에 **전부 올리고 초기화**한다. 연결 오류·껍데기 자신의 정적 초기화 오류가 하나라도 있으면 실패. 출력에는 숫자만, 이름은 보고서 파일에만.
 - 일반 `:furnace-compat-paper:test` 는 이 시험을 뺀다(태그 `full-shells`). 생성기 단위 시험(`FullShellsTest`, 합성 서명표 5개)과 표지 시험(`NmsShellMemberTest` 3개)은 평소 시험에 들어 있다.
 

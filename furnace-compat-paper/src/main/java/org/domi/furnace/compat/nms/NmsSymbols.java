@@ -24,7 +24,7 @@ public final class NmsSymbols {
     /** 모든 플러그인이 같이 쓰는 색인(호환 모듈의 클래스로더 기준 — 플러그인 로더의 부모). */
     public static final NmsSymbols RUNTIME = new NmsSymbols(NmsSymbols.class.getClassLoader());
 
-    private static final Info MISSING = new Info(null, List.of(), false, false, false, Set.of(), Set.of(), Set.of());
+    private static final Info MISSING = new Info(null, List.of(), false, false, false, 0, Set.of(), Set.of(), Set.of());
 
     private final ClassLoader loader;
     private final ConcurrentHashMap<String, Info> cache = new ConcurrentHashMap<>();
@@ -163,8 +163,9 @@ public final class NmsSymbols {
             Set<String> fields = new HashSet<>();
             Set<String> methods = new HashSet<>();
             Set<String> shell = new HashSet<>();
-            Object[] head = new Object[5];
+            Object[] head = new Object[6];
             head[4] = Boolean.FALSE;
+            head[5] = 0;   // 껍데기 클래스 표지: 0 없음, 1 껍데기, 2 껍데기 + 초기화 덫
             r.accept(new ClassVisitor(Opcodes.ASM9) {
                 @Override
                 public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
@@ -177,6 +178,15 @@ public final class NmsSymbols {
                 @Override
                 public org.objectweb.asm.AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
                     if (descriptor.equals(INHERITABLE)) head[4] = Boolean.TRUE;
+                    if (descriptor.equals(SHELL_MEMBER)) {
+                        head[5] = 1;
+                        return new org.objectweb.asm.AnnotationVisitor(Opcodes.ASM9) {
+                            @Override
+                            public void visit(String name, Object value) {
+                                if (name.equals("initTrap") && Boolean.TRUE.equals(value)) head[5] = 2;
+                            }
+                        };
+                    }
                     return null;
                 }
 
@@ -210,7 +220,7 @@ public final class NmsSymbols {
                 }
             }, ClassReader.SKIP_CODE | ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
             @SuppressWarnings("unchecked") List<String> itfs = (List<String>) head[1];
-            return new Info((String) head[0], itfs, (Boolean) head[2], (Boolean) head[3], (Boolean) head[4], Set.copyOf(fields), Set.copyOf(methods), Set.copyOf(shell));
+            return new Info((String) head[0], itfs, (Boolean) head[2], (Boolean) head[3], (Boolean) head[4], (Integer) head[5], Set.copyOf(fields), Set.copyOf(methods), Set.copyOf(shell));
         } catch (IOException | RuntimeException e) {
             return MISSING;
         }
@@ -224,6 +234,24 @@ public final class NmsSymbols {
     /** 이 필드가 전체 껍데기의 동작 없는 필드인가(리플렉션 다리 {@link NmsReflect} 가 묻는다). 클래스 파일만 읽는다. */
     public boolean isShellField(String owner, String name, String desc) { return info(owner).shell.contains(name + ' ' + desc); }
 
-    private record Info(String superName, List<String> interfaces, boolean isInterface, boolean isFinal, boolean inheritable, Set<String> fields, Set<String> methods,
-                        Set<String> shell) {}
+    /** 이 클래스가 전체 껍데기(T-260)인가(클래스 표지). 없으면 false. */
+    public boolean isShellClass(String internalName) { return info(internalName).shellClass > 0; }
+
+    /**
+     * 이 클래스를 초기화하면 껍데기 초기화 덫이 걸리나: 자기나 상위 클래스·상위 인터페이스(초기화가 따라 올라가는 곳) 가운데 덫 표지가 있는 것.
+     * {@code Class.forName} 다리가 그 실패를 "클래스 없음"으로 바꿀 때 쓴다.
+     */
+    public boolean initTrapped(String internalName) { return initTrapped(internalName, new HashSet<>()); }
+
+    private boolean initTrapped(String c, Set<String> seen) {
+        if (c == null || !seen.add(c)) return false;
+        Info i = info(c);
+        if (i == MISSING) return false;
+        if (i.shellClass == 2) return true;
+        for (String itf : i.interfaces) if (initTrapped(itf, seen)) return true;
+        return initTrapped(i.superName, seen);
+    }
+
+    private record Info(String superName, List<String> interfaces, boolean isInterface, boolean isFinal, boolean inheritable, int shellClass, Set<String> fields,
+                        Set<String> methods, Set<String> shell) {}
 }
