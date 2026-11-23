@@ -396,7 +396,7 @@ public abstract class Level implements LevelAccessor {
      * 호환 모듈 전용 — {@code FluidState#tick}·{@code BlockState#tick}(fluid 가 null 이면 블록): 그 칸에서 받은 값으로 서버의 예약 틱 동작(FlowingFluid.tick·
      * Block#tick 이식)을 한 번 돈다. 스레드 규칙은 {@link #setBlock} 과 같다(그 칸의 주인 region). 쓰기 기록 중이면 기록에 싣지 못하므로 거절한다.
      */
-    public final void furnaceScheduledTick(BlockPos pos, org.domi.furnace.api.world.FluidData fluid, BlockState block, net.minecraft.util.RandomSource random) {
+    public void furnaceScheduledTick(BlockPos pos, org.domi.furnace.api.world.FluidData fluid, BlockState block, net.minecraft.util.RandomSource random) {
         String what = fluid != null ? "FluidState#tick" : "BlockState#tick";
         if (treeCapture() || (captureBlockStates && org.domi.furnace.compat.nms.NmsFeatures.captureAppliesHere())) {
             throw new UnsupportedNmsCall(what + "(capture)", "running a scheduled tick while the world records block writes does not exist on the server yet");
