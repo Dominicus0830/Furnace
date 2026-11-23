@@ -13,6 +13,10 @@ X	net/minecraft/network/chat/MessageSignature	equals,hashCode,toString
 C	net/minecraft/network/chat/RemoteChatSession	65585	java/lang/Record	-	-	-	paper-server-1.21.1
 R	net/minecraft/network/chat/RemoteChatSession	sessionId	Ljava/util/UUID;	-
 R	net/minecraft/network/chat/RemoteChatSession	profilePublicKey	Lnet/minecraft/world/entity/player/ProfilePublicKey;	-
+C	net/minecraft/network/protocol/PacketFlow	16433	java/lang/Enum	-	Ljava/lang/Enum<Lnet/minecraft/network/protocol/PacketFlow;>;	-	paper-server-1.21.1
+E	net/minecraft/network/protocol/PacketFlow	2
+F	net/minecraft/network/protocol/PacketFlow	CLIENTBOUND	Lnet/minecraft/network/protocol/PacketFlow;	16409	-
+F	net/minecraft/network/protocol/PacketFlow	SERVERBOUND	Lnet/minecraft/network/protocol/PacketFlow;	16409	-
 C	net/minecraft/network/protocol/PacketType	65585	java/lang/Record	-	<T::Lnet/minecraft/network/protocol/Packet<*>;>Ljava/lang/Record;	-	paper-server-1.21.1
 R	net/minecraft/network/protocol/PacketType	flow	Lnet/minecraft/network/protocol/PacketFlow;	-
 R	net/minecraft/network/protocol/PacketType	id	Lnet/minecraft/resources/ResourceLocation;	-

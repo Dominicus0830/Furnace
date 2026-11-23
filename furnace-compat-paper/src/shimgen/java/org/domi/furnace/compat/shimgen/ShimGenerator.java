@@ -469,7 +469,11 @@ public final class ShimGenerator {
         String simple = JavaTypes.simple(n);
         List<Bound> bs = bound.getOrDefault(n, List.of());
         // 열거형 상수(명세 순서). 조각은 mergeFragment 가 머리 바로 뒤에 쓴다.
-        if (c.isEnum() && origin.get(n) == Origin.GEN) sb.append(in).append(String.join(", ", enumConstants(n))).append(";\n");
+        if (c.isEnum() && origin.get(n) == Origin.GEN) {
+            List<String> consts = enumConstants(n);
+            if (consts.stream().anyMatch(k -> k.contains("("))) problems.add("enum " + n + " has constants with constructor arguments: it needs a fragment (src/shims/java) with the constructor and fields");
+            sb.append(in).append(String.join(", ", consts)).append(";\n");
+        }
         boolean rec = c.isRecord();
         if (rec) recordAutoMembers(n, bs);
         if (rec) explicitRecordMethods(n);
@@ -622,10 +626,20 @@ public final class ShimGenerator {
         }
     }
 
-    /** 명세 순서의 열거형 상수 이름. */
+    /**
+     * 명세 순서의 열거형 상수. 명세 줄이 {@code NAME = (인자…)} 이면 생성자 인자가 붙은 {@code NAME(인자…)} 로 쓴다
+     * (인자는 자바 식 그대로 — 생성자·필드는 손 조각이 쓴다).
+     */
     List<String> enumConstants(String n) {
         List<String> consts = new ArrayList<>();
-        for (Bound b : bound.getOrDefault(n, List.of())) if (b.lock().kind() == 'F' && (b.lock().access() & 0x4000) != 0) consts.add(b.lock().name());
+        for (Bound b : bound.getOrDefault(n, List.of())) {
+            if (b.lock().kind() != 'F' || (b.lock().access() & 0x4000) == 0) continue;
+            if (b.spec().body() == ShimSpec.Body.VALUE) {
+                String a = b.spec().target().trim();
+                if (!a.startsWith("(") || !a.endsWith(")")) problems.add(b.spec().where() + ": enum constant " + b.lock().name() + " takes constructor arguments as = (args)");
+                else consts.add(b.lock().name() + a);
+            } else consts.add(b.lock().name());
+        }
         return consts;
     }
 
