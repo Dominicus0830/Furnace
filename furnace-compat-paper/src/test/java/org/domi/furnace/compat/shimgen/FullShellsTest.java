@@ -94,6 +94,20 @@ class FullShellsTest {
             "M\t1\tio/papermc/paper/zz/Internal\t<init>\t()V\t-",
             "C\t1537\tio/papermc/paper/zz/ApiThing\tjava/lang/Object\t-\t-\t-",
             "C\t33\tcom/example/zz/Library\tjava/lang/Object\t-\t-\t-",
+            // 상수별 몸통이 있는 추상 열거형: 자기 추상 메서드 apply, 인터페이스 Named 의 label 은 상수 몸통에만 있다
+            "C\t17441\tnet/minecraft/zz/Mode\tjava/lang/Enum\tnet/minecraft/zz/Named\t-\t-",
+            "F\t16409\tnet/minecraft/zz/Mode\tA\tLnet/minecraft/zz/Mode;\t-",
+            "F\t16409\tnet/minecraft/zz/Mode\tB\tLnet/minecraft/zz/Mode;\t-",
+            "M\t2\tnet/minecraft/zz/Mode\t<init>\t(Ljava/lang/String;I)V\t-",
+            "M\t1025\tnet/minecraft/zz/Mode\tapply\t()V\t-",
+            "E\tnet/minecraft/zz/Mode\tA,B",
+            "C\t1537\tnet/minecraft/zz/Named\tjava/lang/Object\t-\t-\t-",
+            "M\t1025\tnet/minecraft/zz/Named\tlabel\t()Ljava/lang/String;\t-",
+            // NMS 밖 범위의 값 없는 정적 필드: 연결기 덫이 안 보므로 클래스 초기화가 던져야 한다
+            "C\t33\tio/papermc/paper/zz/Holder\tjava/lang/Object\t-\t-\t-",
+            "F\t25\tio/papermc/paper/zz/Holder\tINSTANCE\tLio/papermc/paper/zz/Holder;\t-",
+            "F\t25\tio/papermc/paper/zz/Holder\tSIZE\tI\t-",
+            "K\tio/papermc/paper/zz/Holder\tSIZE\tI\t3",
             "");
 
     static final String VANILLA = "#furnace-sig-table\t2\tvanilla-test\n";
@@ -280,6 +294,55 @@ class FullShellsTest {
                 "net/minecraft/zz/Shape.of", "net/minecraft/zz/Shape.size", "net/minecraft/zz/Color.hex")), marked.toString());
         assertTrue(unmarked.containsAll(List.of("net/minecraft/zz/Shape.LIMIT", "net/minecraft/zz/Shape.NAME", "net/minecraft/zz/Shape.draw",
                 "net/minecraft/zz/Color.RED", "net/minecraft/zz/Color.values", "net/minecraft/zz/Color.valueOf", "net/minecraft/zz/Color.<clinit>")), unmarked.toString());
+    }
+
+    @Test
+    void abstractEnumMethodsThrowWithTheMarker() throws Exception {
+        Path ex = existing();
+        ClassLoader cl = load(ex, generator(ex).generate());
+        Class<?> mode = Class.forName("net.minecraft.zz.Mode", true, cl);
+        assertFalse(Modifier.isAbstract(mode.getModifiers()));
+        Object a = mode.getField("A").get(null);
+        // 추상으로 두면 AbstractMethodError(덫·계측 없음) — 같은 오류를 던지는 몸통이어야 한다
+        for (String m : List.of("apply", "label")) {
+            Method mm = mode.getMethod(m);
+            assertFalse(Modifier.isAbstract(mm.getModifiers()), m);
+            InvocationTargetException ite = assertThrows(InvocationTargetException.class, () -> mm.invoke(a), m);
+            assertInstanceOf(UnsupportedNmsCall.class, ite.getCause(), m);
+        }
+        List<String> marked = new ArrayList<>();
+        try (var in = cl.getResourceAsStream("net/minecraft/zz/Mode.class")) {
+            new ClassReader(in.readAllBytes()).accept(new ClassVisitor(Opcodes.ASM9) {
+                @Override
+                public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
+                    return new MethodVisitor(Opcodes.ASM9) {
+                        @Override
+                        public AnnotationVisitor visitAnnotation(String d, boolean visible) {
+                            if (d.equals(FullShells.SHELL_MEMBER)) marked.add(name);
+                            return null;
+                        }
+                    };
+                }
+            }, 0);
+        }
+        assertTrue(marked.containsAll(List.of("apply", "label")), marked.toString());
+    }
+
+    @Test
+    void nonNmsShellWithValuelessFieldsFailsClassInit() throws Exception {
+        Path ex = existing();
+        FullShells g = generator(ex);
+        ClassLoader cl = load(ex, g.generate());
+        // 올리기(초기화 없이)와 instanceof 용 클래스 객체는 된다
+        Class<?> holder = Class.forName("io.papermc.paper.zz.Holder", false, cl);
+        // 값 없는 정적 필드를 읽으면 null 대신 초기화 실패(예전 "클래스 없음"과 같은 꼴) + 계측
+        ExceptionInInitializerError e = assertThrows(ExceptionInInitializerError.class, () -> holder.getField("INSTANCE").get(null));
+        assertInstanceOf(UnsupportedNmsCall.class, e.getCause());
+        assertTrue(e.getCause().getMessage().contains("io.papermc.paper.zz.Holder"), e.getCause().getMessage());
+        assertThrows(NoClassDefFoundError.class, () -> holder.getField("INSTANCE").get(null));
+        // 값 없는 필드가 없는 NMS 밖 껍데기는 그대로 초기화된다
+        Class.forName("io.papermc.paper.zz.Internal", true, cl);
+        assertEquals(1, g.initTrapped);
     }
 
     @Test

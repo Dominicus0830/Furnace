@@ -7,4 +7,7 @@ public class ShellFieldHolder {
     @NmsShellMember
     public int shellValue;
     public int liveValue = 5;
+    /** private 껍데기 필드도 리플렉션(getDeclaredField + setAccessible)으로는 읽힌다 — 막혀야 한다. */
+    @NmsShellMember
+    private static Object hidden;
 }

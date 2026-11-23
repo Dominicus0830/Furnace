@@ -48,6 +48,7 @@ class FullShellsLoadTest {
         Map<String, List<String>> loadErrors = new TreeMap<>();
         Map<String, List<String>> initErrors = new TreeMap<>();
         int initBlockedByHandSuper = 0;
+        int initTrapped = 0;
         long t0, loadNanos, initNanos;
         try (URLClassLoader cl = new URLClassLoader(urls.toArray(URL[]::new), ClassLoader.getPlatformClassLoader())) {
             t0 = System.nanoTime();
@@ -65,10 +66,13 @@ class FullShellsLoadTest {
                 try {
                     Class.forName(c.getName(), true, cl);
                 } catch (Throwable t) {
-                    // 원인이 손 shim(껍데기 jar 밖) 상위의 정적 초기화면 따로 센다
                     Throwable root = t;
                     while (root.getCause() != null) root = root.getCause();
-                    if (fromHandSuper(c, jar, cl)) initBlockedByHandSuper++;
+                    // 검증·형식·연결 오류는 상위 정적 초기화 탓일 수 없다 — 늘 오류로 센다
+                    boolean linkage = t instanceof VerifyError || t instanceof ClassFormatError || t instanceof IncompatibleClassChangeError;
+                    if (!linkage && hasInitTrap(c, cl, new java.util.HashSet<>())) initTrapped++;   // NMS 밖 껍데기의 의도된 초기화 덫(값 없는 필드)
+                    // 원인이 손 shim(껍데기 jar 밖) 상위의 정적 초기화면 따로 센다
+                    else if (!linkage && fromHandSuper(c, jar, cl)) initBlockedByHandSuper++;
                     else initErrors.computeIfAbsent(t.getClass().getSimpleName() + "/" + root.getClass().getSimpleName(), k -> new ArrayList<>())
                             .add(c.getName() + " - " + root.getMessage());
                 }
@@ -82,6 +86,7 @@ class FullShellsLoadTest {
         sb.append("load all (define + resolve supertypes, no init): ").append(loadNanos / 1_000_000).append(" ms\n");
         sb.append("initialize all loaded: ").append(initNanos / 1_000_000).append(" ms\n");
         sb.append("init failures caused by a hand-shim superclass static init (needs a running server): ").append(initBlockedByHandSuper).append('\n');
+        sb.append("intended init traps (non-NMS shells with fields that have no value): ").append(initTrapped).append('\n');
         // 표준 출력(CI 로그)에는 숫자만 — 클래스 이름은 보고서 파일에만 둔다
         System.out.println("[full-shells] " + sb.substring(head0).replace('\n', ';') + " load errors=" + loadErrors.size() + " init errors=" + initErrors.size());
         dump(sb, "load errors", loadErrors);
@@ -91,6 +96,22 @@ class FullShellsLoadTest {
 
         assertEquals(Map.of(), loadErrors, "every shell must load (define + resolve its supertypes)");
         assertEquals(Map.of(), initErrors, "shell static init (enum constants) must not fail");
+    }
+
+    /**
+     * 의도된 초기화 덫인가: 이 클래스나 상위 형식(클래스·인터페이스, 초기화가 따라 올라가는 곳)의 정적 초기화가 {@code NmsShell.unsupportedClass} 를 부른다.
+     * 클래스 파일만 본다(실패 메시지는 두 번째부터 원인이 바뀌어 믿을 수 없다).
+     */
+    private static boolean hasInitTrap(Class<?> c, ClassLoader cl, java.util.Set<Class<?>> seen) {
+        if (c == null || c == Object.class || !seen.add(c) || c.getName().startsWith("java.")) return false;
+        try (java.io.InputStream in = cl.getResourceAsStream(c.getName().replace('.', '/') + ".class")) {
+            if (in != null && new String(in.readAllBytes(), StandardCharsets.ISO_8859_1).contains("unsupportedClass")) return true;
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+        if (hasInitTrap(c.getSuperclass(), cl, seen)) return true;
+        for (Class<?> i : c.getInterfaces()) if (hasInitTrap(i, cl, seen)) return true;
+        return false;
     }
 
     /** 이 클래스의 상위 사슬에 껍데기 jar 밖(손 shim) 클래스가 있나. */

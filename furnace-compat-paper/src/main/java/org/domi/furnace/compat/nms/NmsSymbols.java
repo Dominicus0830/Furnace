@@ -181,11 +181,11 @@ public final class NmsSymbols {
                 }
 
                 @Override
-                // private 멤버는 다른 클래스에서 링크할 수 없다 — 플러그인 바이트코드가 보기에는 없는 것과 같다
+                // private 멤버는 다른 클래스에서 링크할 수 없다 — 플러그인 바이트코드가 보기에는 없는 것과 같다(링크용 fields 에는 안 넣는다).
+                // 단 껍데기 표지는 private 도 모은다: 리플렉션(getDeclaredField + setAccessible)으로는 읽히므로 NmsReflect 가 막아야 한다
                 public FieldVisitor visitField(int access, String name, String descriptor, String signature, Object value) {
-                    if ((access & Opcodes.ACC_PRIVATE) != 0) return null;
                     String key = name + ' ' + descriptor;
-                    fields.add(key);
+                    if ((access & Opcodes.ACC_PRIVATE) == 0) fields.add(key);
                     return new FieldVisitor(Opcodes.ASM9) {
                         @Override
                         public org.objectweb.asm.AnnotationVisitor visitAnnotation(String d, boolean visible) {

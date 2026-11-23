@@ -68,6 +68,8 @@ public final class FullShells {
     final Map<String, List<String>> deviations = new TreeMap<>();
     int shellMembers;
     int liveMembers;
+    /** NMS 밖 범위에서 값 없는 필드가 있어 클래스 초기화가 던지는 껍데기 수. */
+    int initTrapped;
 
     FullShells(SigTable paper, SigTable vanilla, SigTable api, Existing existing) {
         this.paper = paper;
@@ -256,7 +258,13 @@ public final class FullShells {
             }
         }
         Set<String> finals = isInterface(access) ? Set.of() : existing.finalMethodsAbove(c.superName(), this);
+        boolean madeConcrete = isEnum && (c.access() & Opcodes.ACC_ABSTRACT) != 0;
+        // NMS 밖 범위(Bukkit API·Paper 내부·Mojang)는 연결기 덫이 필드 참조를 보지 않는다(플러그인 클래스를 다 바꾸지 않으려고 NMS 이름이 든 클래스만 변환).
+        // 값 없는 필드가 있으면 클래스 초기화에서 던진다 — 필드가 조용히 null/0 을 주지 않게, 예전의 "클래스 없음"처럼 크게 실패하고 계측에 센다.
+        boolean trapInit = scope.get(n) != Scope.NMS && hasShellField(n, t, isEnum);
+        if (trapInit) initTrapped++;
         String enumCtor = null;
+        Set<String> declared = new HashSet<>();
         for (SigTable.Member m : t.members(n)) {
             if (m.kind() == 'F') field(cw, n, m, isEnum);
             else {
@@ -265,10 +273,14 @@ public final class FullShells {
                     continue;
                 }
                 if (isEnum && m.name().equals("<init>") && enumCtor == null && m.desc().startsWith("(Ljava/lang/String;I")) enumCtor = m.desc();
-                method(cw, n, m, isEnum, access);
+                method(cw, n, m, isEnum, access, madeConcrete);
+                declared.add(m.name() + m.desc());
             }
         }
-        if (isEnum) enumSupport(cw, n, enumConstants, enumCtor);
+        // 구체로 바꾼 추상 열거형: 상수 몸통에만 있던 인터페이스 구현도 던지는 몸통으로(AbstractMethodError 대신 같은 오류·계측)
+        if (madeConcrete) for (String[] im : abstractInterfaceMethods(c, declared)) shellBody(cw, n, Opcodes.ACC_PUBLIC, im[0], im[1], null);
+        if (isEnum) enumSupport(cw, n, enumConstants, enumCtor, trapInit);
+        else if (trapInit) initTrap(cw, n);
         cw.visitEnd();
         return cw.toByteArray();
     }
@@ -309,8 +321,13 @@ public final class FullShells {
         fv.visitEnd();
     }
 
-    private void method(ClassWriter cw, String owner, SigTable.Member m, boolean isEnum, int classAccess) {
+    private void method(ClassWriter cw, String owner, SigTable.Member m, boolean isEnum, int classAccess, boolean madeConcrete) {
         int acc = m.access() & 0xFFFF & ~Opcodes.ACC_NATIVE;
+        if (madeConcrete && (acc & Opcodes.ACC_ABSTRACT) != 0) {
+            // 상수가 이 클래스의 진짜 객체이므로 추상 메서드가 실제로 불린다 — 추상으로 두면 AbstractMethodError(덫·계측 없음)
+            shellBody(cw, owner, acc & ~Opcodes.ACC_ABSTRACT, m.name(), m.desc(), m.signature());
+            return;
+        }
         boolean isAbstract = (acc & Opcodes.ACC_ABSTRACT) != 0;
         boolean enumHelper = isEnum && (acc & Opcodes.ACC_STATIC) != 0
                 && (m.name().equals("values") && m.desc().equals("()[L" + owner + ";")
@@ -342,12 +359,23 @@ public final class FullShells {
     }
 
     /** 열거형: 상수 만들기(<clinit>), values(), valueOf(String). 바닐라와 같은 이름·서수·순서. */
-    private void enumSupport(ClassWriter cw, String n, List<String> constants, String ctor) {
+    private void enumSupport(ClassWriter cw, String n, List<String> constants, String ctor, boolean trapInit) {
         String desc = "L" + n + ";";
         String arr = "[" + desc;
         if (ctor == null && !constants.isEmpty()) throw new IllegalStateException("enum without a (String,int...) constructor in the table: " + n);
         cw.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL | Opcodes.ACC_SYNTHETIC, "$VALUES", arr, null, null).visitEnd();
-        MethodVisitor ci = cw.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
+        MethodVisitor ci;
+        if (trapInit) {
+            initTrap(cw, n);   // 상수를 만들지 않는다(뒤 코드는 닿지 않음 — 프레임 없이 쓰려고 아예 내지 않는다)
+            ci = null;
+        } else {
+            ci = cw.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
+        }
+        if (ci != null) enumConstants(ci, n, constants, ctor, desc, arr);
+        enumHelpers(cw, n, constants, desc, arr);
+    }
+
+    private void enumConstants(MethodVisitor ci, String n, List<String> constants, String ctor, String desc, String arr) {
         ci.visitCode();
         Type[] args = ctor == null ? new Type[0] : Type.getArgumentTypes(ctor);
         for (int i = 0; i < constants.size(); i++) {
@@ -371,6 +399,9 @@ public final class FullShells {
         ci.visitInsn(Opcodes.RETURN);
         ci.visitMaxs(0, 0);
         ci.visitEnd();
+    }
+
+    private void enumHelpers(ClassWriter cw, String n, List<String> constants, String desc, String arr) {
         MethodVisitor v = cw.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "values", "()" + arr, null, null);
         v.visitCode();
         v.visitFieldInsn(Opcodes.GETSTATIC, n, "$VALUES", arr);
@@ -390,6 +421,69 @@ public final class FullShells {
         vo.visitEnd();
         liveMembers += 2 + constants.size();
     }
+
+    /** 표지 달린 던지는 몸통 하나. */
+    private void shellBody(ClassWriter cw, String owner, int acc, String name, String desc, String signature) {
+        MethodVisitor mv = cw.visitMethod(acc, name, desc, signature, null);
+        mv.visitAnnotation(SHELL_MEMBER, false).visitEnd();
+        shellMembers++;
+        mv.visitCode();
+        mv.visitLdcInsn(owner.replace('/', '.') + "#" + name + desc);
+        mv.visitMethodInsn(Opcodes.INVOKESTATIC, SHELL_HELPER, "unsupported", "(Ljava/lang/String;)Ljava/lang/RuntimeException;", false);
+        mv.visitInsn(Opcodes.ATHROW);
+        mv.visitMaxs(0, 0);
+        mv.visitEnd();
+    }
+
+    /** 클래스 초기화에서 던진다: {@code NmsShell.unsupportedClass("소유")} — JVM 이 ExceptionInInitializerError, 다음부터 NoClassDefFoundError 로 낸다. */
+    private void initTrap(ClassWriter cw, String n) {
+        MethodVisitor ci = cw.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
+        ci.visitCode();
+        ci.visitLdcInsn(n.replace('/', '.'));
+        ci.visitMethodInsn(Opcodes.INVOKESTATIC, SHELL_HELPER, "unsupportedClass", "(Ljava/lang/String;)Ljava/lang/RuntimeException;", false);
+        ci.visitInsn(Opcodes.ATHROW);
+        ci.visitMaxs(0, 0);
+        ci.visitEnd();
+    }
+
+    /** 값 없는(표지가 붙을) 필드가 있나 — 상수 값 필드·열거형 상수는 진짜 값이 있다. */
+    private boolean hasShellField(String n, SigTable t, boolean isEnum) {
+        for (SigTable.Member m : t.members(n)) {
+            if (m.kind() != 'F') continue;
+            if (isEnum && (m.access() & Opcodes.ACC_ENUM) != 0) continue;
+            boolean sf = (m.access() & (Opcodes.ACC_STATIC | Opcodes.ACC_FINAL)) == (Opcodes.ACC_STATIC | Opcodes.ACC_FINAL);
+            if (sf && constant(n, m.name()) != null) continue;
+            return true;
+        }
+        return false;
+    }
+
+    /** 이 클래스가 (상위 인터페이스까지) 구현해야 하나 선언하지 않은 추상 인스턴스 메서드(이름, 서술자). 서명표에 있는 인터페이스만 본다. */
+    private List<String[]> abstractInterfaceMethods(SigTable.Cls c, Set<String> declared) {
+        Map<String, String[]> out = new java.util.LinkedHashMap<>();
+        Set<String> concrete = new HashSet<>();
+        java.util.ArrayDeque<String> todo = new java.util.ArrayDeque<>(c.interfaces());
+        Set<String> seen = new HashSet<>();
+        while (!todo.isEmpty()) {
+            String i = todo.poll();
+            if (!seen.add(i)) continue;
+            SigTable it = paper.classes().containsKey(i) ? paper : api.classes().containsKey(i) ? api : null;
+            if (it == null) continue;
+            for (SigTable.Member m : it.members(i)) {
+                if (m.kind() != 'M' || (m.access() & Opcodes.ACC_STATIC) != 0 || m.name().startsWith("<")) continue;
+                String k = m.name() + m.desc();
+                if ((m.access() & Opcodes.ACC_ABSTRACT) != 0) out.putIfAbsent(k, new String[]{m.name(), m.desc()});
+                else concrete.add(k);   // 기본 메서드
+            }
+            todo.addAll(it.classes().get(i).interfaces());
+        }
+        List<String[]> r = new ArrayList<>();
+        for (var e : out.entrySet()) if (!declared.contains(e.getKey()) && !concrete.contains(e.getKey()) && !OBJECT_METHODS.contains(e.getKey())) r.add(e.getValue());
+        return r;
+    }
+
+    private static final Set<String> OBJECT_METHODS = Set.of("equals(Ljava/lang/Object;)Z", "hashCode()I", "toString()Ljava/lang/String;",
+            "compareTo(Ljava/lang/Object;)I", "name()Ljava/lang/String;", "ordinal()I", "getDeclaringClass()Ljava/lang/Class;");
 
     private static void zero(MethodVisitor mv, Type t) {
         switch (t.getSort()) {
@@ -437,7 +531,7 @@ public final class FullShells {
             sb.append(s).append(": ").append(c[0]).append(" in scope, ").append(c[1]).append(" already in compat, ").append(c[2]).append(" generated, ")
                     .append(c[3]).append(" skipped; ");
         }
-        sb.append(shellMembers).append(" shell members, ").append(liveMembers).append(" live members (abstract, constants, enum support)");
+        sb.append(shellMembers).append(" shell members, ").append(liveMembers).append(" live members (abstract, constants, enum support), ").append(initTrapped).append(" non-NMS shells whose class init throws (fields without a value)");
         return sb.toString();
     }
 

@@ -43,6 +43,9 @@ class NmsShellMemberTest {
         f.visitAnnotation(MARK, false).visitEnd();
         f.visitEnd();
         w.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, "LIMIT", "I", null, 7).visitEnd();
+        FieldVisitor pf = w.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC, "cache", "Ljava/lang/Object;", null, null);
+        pf.visitAnnotation(MARK, false).visitEnd();
+        pf.visitEnd();
         MethodVisitor m = w.visitMethod(Opcodes.ACC_PUBLIC, "size", "()I", null, null);
         m.visitAnnotation(MARK, false).visitEnd();
         m.visitEnd();
@@ -64,6 +67,8 @@ class NmsShellMemberTest {
             assertTrue(s.hasMethod("net/minecraft/u/Shell", "draw", "()V"), "추상 선언은 해석된다");
             assertTrue(s.isShellField("net/minecraft/u/Shell", "count", "I"));
             assertFalse(s.isShellField("net/minecraft/u/Shell", "LIMIT", "I"));
+            assertFalse(s.hasField("net/minecraft/u/Shell", "cache", "Ljava/lang/Object;"), "private 은 링크할 수 없다");
+            assertTrue(s.isShellField("net/minecraft/u/Shell", "cache", "Ljava/lang/Object;"), "private 껍데기 필드도 표지는 모은다(리플렉션 덫)");
         }
     }
 
@@ -82,6 +87,25 @@ class NmsShellMemberTest {
         assertEquals(1, g.size(), g.toString());
         assertEquals("field", g.get(0).kind());
         assertEquals(2, g.get(0).calls());
+    }
+
+    @Test
+    void privateShellFieldsAreTrappedThroughReflection() throws Exception {
+        Field hidden = ShellFieldHolder.class.getDeclaredField("hidden");
+        hidden.setAccessible(true);
+        UnsupportedNmsCall e = assertThrows(UnsupportedNmsCall.class, () -> NmsReflect.beforeFieldGet(hidden, null));
+        assertTrue(e.getMessage().contains("ShellFieldHolder#hidden"), e.getMessage());
+        assertThrows(UnsupportedNmsCall.class, () -> NmsReflect.afterFieldSet(hidden, null));
+    }
+
+    @Test
+    void classInitTrapCountsAsClass() {
+        RuntimeException e = NmsShell.unsupportedClass("io.papermc.u.Holder");
+        assertTrue(e instanceof UnsupportedNmsCall);
+        List<CompatGap> g = NmsGaps.snapshot();
+        assertEquals(1, g.size());
+        assertEquals("class", g.get(0).kind());
+        assertEquals("io.papermc.u.Holder", g.get(0).target());
     }
 
     @Test

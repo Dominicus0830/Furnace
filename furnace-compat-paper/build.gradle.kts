@@ -403,7 +403,7 @@ tasks.register<JavaExec>("nmsReport") {
 
 // T-260: 전체 껍데기 — Paper 1.21.1 내부 클래스(net.minecraft·CraftBukkit 7,139 + Paper 서버 전용) 가운데 호환 계층에 없는 것 전부를 서명표에서
 // "모양만" 만든다(docs/roadmap/full-shells-2026-11-23.md). 서명표는 캐시에만 있으므로(tools/compat/sig-tables.sh) 저장소에는 표의 지문(src/shimspec/full-shells-<판>.fp)만 둔다.
-// 결과는 호환 jar 와 따로 furnace-compat-shells.jar 로 서버 fatJar 에 실린다. 서명표에 못 닿는 곳에서는 -PnoFullShells=true 로 빼고 빌드한다(그 jar 는 껍데기 없음).
+// 결과는 호환 jar 와 따로 furnace-compat-shells.jar 로 서버 fatJar 에 실린다. 서버 빌드는 서명표가 캐시에 없으면 경고하고 뺀다(-PnoFullShells 로 늘 빼기, -PrequireFullShells 로 없으면 실패).
 //   ./gradlew -PskipOracle=true :furnace-compat-paper:fullShellsJar      (-PfullShellsFpWrite=true: 표를 일부러 다시 만들었을 때 지문 다시 쓰기)
 //   ./gradlew -PskipOracle=true :furnace-compat-paper:fullShellsTest     (전부 올리고 초기화 + 크기·시간 보고 — CI vanilla-gates)
 val fullShellsCache = (findProperty("cache") as String?) ?: System.getenv("FURNACE_VANILLA_CACHE")?.takeIf { it.isNotBlank() }
@@ -477,7 +477,8 @@ tasks.register<Test>("fullShellsTest") {
     dependsOn(tasks.jar)
     // 실제 실행과 같은 모양의 따로 된 로더: 호환 jar → 껍데기 jar → 호환 실행 의존 → 서버 제공 라이브러리 → 바닐라 라이브러리(부모는 플랫폼 로더)
     jvmArgumentProviders.add(CommandLineArgumentProvider {
-        val libs = fileTree(fullShellsLibs) { include("**/*.jar") }.files.sorted()
+        // 바닐라의 log4j→slf4j 백엔드(log4j-slf4j2-impl)는 Furnace 가 싣지 않는다 — 서버 제공 log4j-to-slf4j 와 함께 있으면 로그 초기화가 실패한다
+        val libs = fileTree(fullShellsLibs) { include("**/*.jar"); exclude("**/log4j-slf4j2-impl-*.jar") }.files.sorted()
         val cp = listOf(tasks.jar.get().archiveFile.get().asFile, fullShellsJar.get().archiveFile.get().asFile) +
             fullShellsMain.runtimeClasspath.files.filter { it.isFile } + fullShellsServerLibs.files + libs
         listOf("-Dfurnace.fullShells.classpath=" + cp.joinToString(File.pathSeparator) { it.absolutePath })

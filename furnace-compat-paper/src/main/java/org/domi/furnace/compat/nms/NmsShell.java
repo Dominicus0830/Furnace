@@ -26,4 +26,16 @@ public final class NmsShell {
         if (WARNED.add(who + '\0' + target)) LOG.warn(CompatLang.t("compat.nms-unsupported-call", who, "reflection", target, WHY));
         return new UnsupportedNmsCall(target, WHY);
     }
+
+    /**
+     * NMS 밖 범위(Bukkit API·Paper 내부·Mojang) 껍데기 가운데 값 없는 필드를 가진 것의 클래스 초기화가 부른다. 연결기 덫은 그 범위의 필드 참조를 보지
+     * 않으므로, 필드가 조용히 null/0 을 주는 대신 클래스 초기화를 실패시킨다(JVM 이 ExceptionInInitializerError, 그다음 NoClassDefFoundError — 예전 "클래스 없음"과 같은 꼴).
+     */
+    public static RuntimeException unsupportedClass(String className) {
+        String plugin = NmsCaller.pluginName();
+        String who = plugin == null ? "?" : plugin;
+        NmsGaps.trapped(who, className, UnsupportedNmsLink.CLASS);
+        if (WARNED.add(who + '\0' + className)) LOG.warn(CompatLang.t("compat.nms-unsupported-call", who, "class init", className, WHY));
+        return new UnsupportedNmsCall(className, WHY);
+    }
 }
