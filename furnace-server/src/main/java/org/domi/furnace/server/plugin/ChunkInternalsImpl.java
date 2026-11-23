@@ -900,8 +900,28 @@ final class ChunkInternalsImpl implements ChunkInternals {
                 ce.unpackLootTable();
                 java.util.Arrays.fill(ce.chestVehicleItems(), org.domi.furnace.server.entity.ItemStack.EMPTY);
             }
+            case EntityEdit.HangingDirection s -> {
+                return hanging(e).direction();
+            }
+            case EntityEdit.HangingRotate r -> {
+                return hanging(e).rotate(r.rotation());
+            }
+            case EntityEdit.ItemFrameRotation s -> {
+                return itemFrame(e).rotation();
+            }
+            case EntityEdit.SetItemFrameRotation r -> itemFrame(e).setRotation(r.rotation());
         }
         return null;
+    }
+
+    private static org.domi.furnace.server.entity.HangingEntity hanging(org.domi.furnace.server.entity.Entity e) {
+        if (!(e instanceof org.domi.furnace.server.entity.HangingEntity h)) throw new IllegalArgumentException("not a hanging entity: " + e);
+        return h;
+    }
+
+    private static org.domi.furnace.server.entity.ItemFrame itemFrame(org.domi.furnace.server.entity.Entity e) {
+        if (!(e instanceof org.domi.furnace.server.entity.ItemFrame f)) throw new IllegalArgumentException("not an item frame: " + e);
+        return f;
     }
 
     @Override
@@ -1058,6 +1078,8 @@ final class ChunkInternalsImpl implements ChunkInternals {
                 case EntityOp.SetYHeadRot h -> {
                     if (e instanceof org.domi.furnace.server.entity.LivingEntity le) le.setYHeadRot(h.yHeadRot());
                 }
+                case EntityOp.HangingRotate r -> hanging(e).rotate(r.rotation());
+                case EntityOp.SetItemFrameRotation r -> itemFrame(e).setRotation(r.rotation());
             }
         }
         return e;

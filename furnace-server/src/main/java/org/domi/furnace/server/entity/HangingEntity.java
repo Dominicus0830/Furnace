@@ -70,6 +70,28 @@ public abstract class HangingEntity extends Entity {
         recalculate();
     }
 
+    /**
+     * 바닐라 HangingEntity#rotate(Rotation): 걸린 방향이 수평이면 방향만 돌린다(각도·상자는 그대로 — 바닐라도 필드만 바꾼다).
+     * 돌려줌은 wrapDegrees(yRot) 에 돌림을 더한 값. {@code rotation} 은 Rotation 서수(0 없음·1 시계 90·2 180·3 반시계 90).
+     */
+    public float rotate(int rotation) {
+        if (Dir.horizontal(direction)) {
+            direction = switch (rotation) {
+                case 2 -> Dir.opposite(direction);
+                case 3 -> Dir.counterClockWise(direction);
+                case 1 -> Dir.clockWise(direction);
+                default -> direction;
+            };
+        }
+        float f = org.domi.furnace.server.entity.ai.control.Mth.wrapDegrees(yRot());
+        return switch (rotation) {
+            case 2 -> f + 180.0F;
+            case 3 -> f + 90.0F;
+            case 1 -> f + 270.0F;
+            default -> f;
+        };
+    }
+
     @Override public int spawnData() { return direction; }
 
     @Override public boolean isPickable() { return true; }

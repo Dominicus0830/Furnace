@@ -465,7 +465,27 @@ class Entity {
         if (Float.isFinite(yr)) d.yRot = yr;
         if (Float.isFinite(xr)) d.xRot = xr;
         if (tag.hasUUID("UUID")) d.uuid = tag.getUUID("UUID");
+        furnaceDetachedLoaded(tag);
     }
+
+    /** 아직 월드에 없는 엔티티의 {@link #load} 뒤: 종류별 조각이 바닐라 readAdditionalSaveData 의 값(걸이 방향 등)을 읽어 게터가 같은 값을 주게 한다. */
+    protected void furnaceDetachedLoaded(net.minecraft.nbt.CompoundTag tag) {}
+
+    /** 종류별 조각 전용: 아직 월드에 없는 엔티티인가(EntityType#create 로 만들어 넣기 전). */
+    protected boolean furnaceNotInWorld() { return detached != null; }
+
+    /** 종류별 조각 전용: 아직 월드에 없는 엔티티의 각도(바닐라 setDirection 이 바꾸는 yRot·xRot). */
+    protected void furnaceDetachedRot(float yRot, float xRot) {
+        Detached d = detachedFor("Entity#setRot");
+        d.yRot = yRot;
+        d.xRot = xRot;
+    }
+
+    /** 종류별 조각 전용: 아직 월드에 없는 엔티티에 조작 하나를 기록한다(넣을 때 서버가 차례로 재생). */
+    protected void furnaceDetachedOp(String what, org.domi.furnace.api.internal.ChunkInternals.EntityOp op) { detachedFor(what).ops.add(op); }
+
+    /** 종류별 조각 전용: 월드에 있는 엔티티에 바닐라 조작 하나({@link #furnaceEdit} 와 같은 스레드 규칙). */
+    protected Object furnaceEditOf(String what, org.domi.furnace.api.internal.ChunkInternals.EntityEdit op) { return furnaceEdit(what, op); }
 
     /** 바닐라 {@code Entity#absMoveTo(x, y, z, yRot, xRot)}. 아직 월드에 없는 엔티티에만 된다({@link #load} 와 같은 규칙). */
     public void absMoveTo(double x, double y, double z, float yRot, float xRot) {
