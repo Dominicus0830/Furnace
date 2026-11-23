@@ -36,7 +36,7 @@ import org.junit.jupiter.api.TestFactory;
  */
 class VanillaDiffTest {
 
-    record Target(String cls, int iterations, Map<String, String> excludes, Map<String, PaperLine> paper) {}
+    record Target(String cls, int iterations, long budgetSeconds, Map<String, String> excludes, Map<String, PaperLine> paper) {}
 
     /** paper 줄: 허용하는 차이 모양(바닐라 예외 ↔ shim 예외 쌍)과 근거. */
     record PaperLine(String reason, List<DiffRunner.Allowance> allowed) {}
@@ -63,14 +63,14 @@ class VanillaDiffTest {
         for (Target t : targets) {
             if (!only.isEmpty() && !only.contains(t.cls)) continue;
             int n = forced != null ? forced : t.iterations;
-            tests.add(DynamicTest.dynamicTest(t.cls, () -> check(record(runClass(rt, t.cls, null, t.excludes, t.paper, true, n)))));
+            tests.add(DynamicTest.dynamicTest(t.cls, () -> check(record(runClass(rt, t.cls, null, t.excludes, t.paper, true, n, budgetOf(t))))));
         }
         if (only.isEmpty()) {
             for (Map.Entry<String, Set<String>> e : specTargets().entrySet()) {
                 if (targets.stream().anyMatch(t -> t.cls.equals(e.getKey()))) continue;
                 int n = forced != null ? forced : DEFAULT_ITERATIONS;
                 tests.add(DynamicTest.dynamicTest("[spec] " + e.getKey(),
-                        () -> check(record(runClass(rt, e.getKey(), e.getValue(), Map.of(), Map.of(), false, n)))));
+                        () -> check(record(runClass(rt, e.getKey(), e.getValue(), Map.of(), Map.of(), false, n, 0)))));
             }
         }
         assertFalse(tests.isEmpty(), "no class was compared");
@@ -78,6 +78,12 @@ class VanillaDiffTest {
     }
 
     static final int DEFAULT_ITERATIONS = 20_000;
+
+    /** 대상 파일 budget=<초>, 켜진 클래스만 -PvdiffBudget 으로 바꿀 수 있다. */
+    private static long budgetOf(Target t) {
+        if (t.budgetSeconds <= 0) return 0;
+        return Long.getLong("furnace.vdiff.memberBudgetSeconds", t.budgetSeconds);
+    }
 
     private static ClassReport record(ClassReport r) {
         REPORTS.add(r);
@@ -106,7 +112,7 @@ class VanillaDiffTest {
     }
 
     private static ClassReport runClass(VanillaRuntime rt, String cls, Set<String> onlyNames,
-                                        Map<String, String> excludes, Map<String, PaperLine> paper, boolean gate, int iterations) {
+                                        Map<String, String> excludes, Map<String, PaperLine> paper, boolean gate, int iterations, long budgetSeconds) {
         long t0 = System.nanoTime();
         Class<?> vc, sc;
         try {
@@ -137,13 +143,13 @@ class VanillaDiffTest {
                 continue;
             }
             PaperLine pl = paper.get(key);
-            MemberResult res = runner.run(vc, sc, m, iterations, pl == null ? List.of() : pl.allowed());
+            MemberResult res = runner.run(vc, sc, m, iterations, pl == null ? List.of() : pl.allowed(), budgetSeconds);
             // 허용한 모양의 차이가 실제로 나왔을 때만 줄이 쓰인 것 — 안 나오면 낡은 줄(오류). 허용 밖 차이는 그대로 다름
             if (pl != null && (res.status() == Status.PAPER || (res.status() == Status.DIFF && res.detail() != null && res.detail().contains("allowed Paper-shaped")))) {
                 unusedPaper.remove(key);
             }
             if (res.status() == Status.PAPER) {
-                res = new MemberResult(key, Status.PAPER, res.calls(), res.skipped(), pl.reason() + " / " + res.detail(), res.examples());
+                res = new MemberResult(key, Status.PAPER, res.calls(), res.skipped(), pl.reason() + " / " + res.detail(), res.examples(), res.stoppedAt(), res.planned());
             }
             out.add(res);
         }
@@ -170,11 +176,13 @@ class VanillaDiffTest {
                 if (line.startsWith("class ")) {
                     String[] parts = line.substring(6).strip().split("\\s+");
                     int n = DEFAULT_ITERATIONS;
+                    long budget = 0;
                     for (int k = 1; k < parts.length; k++) {
-                        if (!parts[k].startsWith("iterations=")) throw new IllegalStateException("vanilla-diff-targets.txt:" + no + ": unknown option " + parts[k]);
-                        n = Integer.parseInt(parts[k].substring("iterations=".length()));
+                        if (parts[k].startsWith("iterations=")) n = Integer.parseInt(parts[k].substring("iterations=".length()));
+                        else if (parts[k].startsWith("budget=")) budget = Long.parseLong(parts[k].substring("budget=".length()));
+                        else throw new IllegalStateException("vanilla-diff-targets.txt:" + no + ": unknown option " + parts[k]);
                     }
-                    cur = new Target(parts[0], n, new LinkedHashMap<>(), new LinkedHashMap<>());
+                    cur = new Target(parts[0], n, budget, new LinkedHashMap<>(), new LinkedHashMap<>());
                     out.add(cur);
                 } else if (line.startsWith("exclude ") && cur != null) {
                     if (reason.isEmpty()) throw new IllegalStateException("vanilla-diff-targets.txt:" + no + ": exclude needs '# reason'");
@@ -205,23 +213,36 @@ class VanillaDiffTest {
         }
     }
 
-    /** "paper <열쇠> vanilla=<예외> shim=<예외> [vanilla=… shim=…]…" 의 열쇠. */
+    /** "paper <열쇠> [when=<조건>] vanilla=<예외> shim=<예외> [vanilla=… shim=…]…" 의 열쇠. */
     private static String paperKey(String line, int no) {
         String[] parts = line.substring(6).strip().split("\\s+");
         return parts[0];
     }
 
     private static List<DiffRunner.Allowance> allowances(String line, int no) {
-        String[] parts = line.substring(6).strip().split("\\s+");
+        List<String> parts = new ArrayList<>(List.of(line.substring(6).strip().split("\\s+")));
+        parts.remove(0);
+        // when=<조건> 은 줄의 모든 쌍에 걸린다(어디에 적어도 된다)
+        String when = null;
+        for (var it = parts.iterator(); it.hasNext(); ) {
+            String p = it.next();
+            if (!p.startsWith("when=")) continue;
+            if (when != null) throw new IllegalStateException("vanilla-diff-targets.txt:" + no + ": only one when= per paper line");
+            when = p.substring(5);
+            if (!DiffRunner.CONDITIONS.contains(when)) {
+                throw new IllegalStateException("vanilla-diff-targets.txt:" + no + ": unknown when=" + when + " (known: " + DiffRunner.CONDITIONS + ")");
+            }
+            it.remove();
+        }
         List<DiffRunner.Allowance> out = new ArrayList<>();
-        if (parts.length < 3 || (parts.length - 1) % 2 != 0) {
+        if (parts.size() < 2 || parts.size() % 2 != 0) {
             throw new IllegalStateException("vanilla-diff-targets.txt:" + no + ": paper needs 'vanilla=<exception> shim=<exception>' pairs");
         }
-        for (int k = 1; k < parts.length; k += 2) {
-            if (!parts[k].startsWith("vanilla=") || !parts[k + 1].startsWith("shim=")) {
-                throw new IllegalStateException("vanilla-diff-targets.txt:" + no + ": expected vanilla=… shim=… at " + parts[k]);
+        for (int k = 0; k < parts.size(); k += 2) {
+            if (!parts.get(k).startsWith("vanilla=") || !parts.get(k + 1).startsWith("shim=")) {
+                throw new IllegalStateException("vanilla-diff-targets.txt:" + no + ": expected vanilla=… shim=… at " + parts.get(k));
             }
-            out.add(new DiffRunner.Allowance(parts[k].substring(8), parts[k + 1].substring(5)));
+            out.add(new DiffRunner.Allowance(parts.get(k).substring(8), parts.get(k + 1).substring(5), when));
         }
         return out;
     }
@@ -277,6 +298,18 @@ class VanillaDiffTest {
                 calls += m.calls();
             }
         }
+        // 시간 예산으로 멈춘 멤버(대상 파일 budget= 클래스만) — CI 요약(앞 12줄)에 들도록 표 앞에 적는다
+        long stopped = 0, ran = 0, planned = 0;
+        for (ClassReport r : reports) {
+            for (MemberResult m : r.members) {
+                if (m.stoppedAt() < 0) continue;
+                stopped++;
+                ran += m.stoppedAt();
+                planned += m.planned();
+            }
+        }
+        sb.append("예산으로 멈춘 멤버: ").append(stopped).append("개")
+                .append(stopped == 0 ? "" : " (돌린 입력 " + ran + " / 계획 " + planned + " — 경계값 입력은 다 돌았다)").append("\n\n");
         sb.append("| 묶음 | 같음 | 다름 | 증명 없음 | 뺌 | Paper 와 같게 | shim 에 없음 | 증명 비율 |\n|---|---:|---:|---:|---:|---:|---:|---:|\n");
         row(sb, "값 클래스(관문)", gateCounts);
         row(sb, "연결 명세 pure·read=any(다름은 실패, 증명 없음은 보고)", specCounts);

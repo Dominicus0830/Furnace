@@ -28,16 +28,42 @@ public final class DiffRunner {
 
     /**
      * Paper 와 같게 둔 차이 하나의 모양: 바닐라가 이 예외를 던지고 shim 이 저 예외를 던지는 입력만 허용한다(대상 파일 paper 줄).
+     * when 이 있으면 그 입력 조건(Paper 패치가 실제로 걸리는 입력인지 — {@link #holds})도 맞아야 한다.
      * 그 밖의 차이는 같은 멤버여도 다름이다.
      */
-    public record Allowance(String vanillaThrows, String shimThrows) {
+    public record Allowance(String vanillaThrows, String shimThrows, String when) {
+        public Allowance {
+            if (when != null && !CONDITIONS.contains(when)) throw new IllegalArgumentException("unknown when=" + when + " (known: " + CONDITIONS + ")");
+        }
+
         boolean matches(Object vanillaOutcome, Object shimOutcome) {
             return ("throws " + vanillaThrows).equals(vanillaOutcome) && ("throws " + shimThrows).equals(shimOutcome);
         }
     }
 
+    /** 입력 조건 이름들(대상 파일 when=). */
+    public static final java.util.Set<String> CONDITIONS = java.util.Set.of(NbtKit.ARRAY_LIMIT);
+
+    /** 입력 조건이 이 입력에서 성립하나. 판정 못 하면(올리기 실패 등) 성립하지 않는다 — 허용을 넓히지 않는 쪽. */
+    static boolean holds(String when, String key, Object[] argSeeds) {
+        if (when == null) return true;
+        try {
+            return switch (when) {
+                case NbtKit.ARRAY_LIMIT -> NbtKit.tripsArrayLimit(key, argSeeds);
+                default -> false;
+            };
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     /** 멤버 하나의 결과. */
-    public record MemberResult(String key, Status status, long calls, long skipped, String detail, List<String> examples) {}
+    /** stoppedAt = 시간 예산으로 멈춘 입력 번호(멈추지 않았으면 -1), planned = 계획한 입력 수. */
+    public record MemberResult(String key, Status status, long calls, long skipped, String detail, List<String> examples, int stoppedAt, int planned) {
+        public MemberResult(String key, Status status, long calls, long skipped, String detail, List<String> examples) {
+            this(key, status, calls, skipped, detail, examples, -1, 0);
+        }
+    }
 
     public enum Status {
         /** 모든 입력에서 같았다. */
@@ -109,6 +135,14 @@ public final class DiffRunner {
         return member instanceof Field f ? f.getName() : key((Executable) member);
     }
 
+    /**
+     * 시간 예산(대상 파일의 class 줄 budget=<초> 로 켠 느린 클래스만 — NbtIo 처럼 바닐라 쪽이 비싼 것). 경계값 입력(앞 400개, 고정 훑기 포함)은
+     * 예산과 무관하게 다 돌고, 그 뒤 난수 입력에서 예산을 넘으면 남은 입력을 멈춘다. 멈춘 멤버는 결과(stoppedAt)와 보고서 머리에 드러난다.
+     * 까닭: CI 에서는 바닐라 NBT 읽기 실패 한 번이 수십~백 ms 다 — CrashReport 의 SystemReport 가 매번 OSHI 로 하드웨어를 훑는다(11-23 PR 563).
+     * 예산이 없는 클래스(값 클래스 등)는 멈추지 않고, HARD_WATCHDOG 를 넘기면 다름(실패)이다. -PvdiffBudget 은 예산이 켜진 클래스의 초를 바꾼다.
+     */
+    static final long HARD_WATCHDOG_SECONDS = 300;
+
     /** iterations = 입력 수(경계값 쪽 400개까지 + 나머지 난수). */
     public MemberResult run(Class<?> vc, Class<?> sc, Object member, int iterations) {
         return run(vc, sc, member, iterations, List.of());
@@ -116,15 +150,20 @@ public final class DiffRunner {
 
     /** allowed = 이 멤버에서 허용하는 Paper 차이 모양(없으면 빈 목록). */
     public MemberResult run(Class<?> vc, Class<?> sc, Object member, int iterations, List<Allowance> allowed) {
+        return run(vc, sc, member, iterations, allowed, 0);
+    }
+
+    /** budgetSeconds > 0 이면 시간 예산을 켠다(위 HARD_WATCHDOG 설명). */
+    public MemberResult run(Class<?> vc, Class<?> sc, Object member, int iterations, List<Allowance> allowed, long budgetSeconds) {
         String key = memberKey(member);
         try {
             if (member instanceof Field f) return field(key, f, sc);
-            Future<MemberResult> fut = exec.submit(() -> executable(key, vc, sc, (Executable) member, iterations, allowed));
+            Future<MemberResult> fut = exec.submit(() -> executable(key, vc, sc, (Executable) member, iterations, allowed, budgetSeconds));
             try {
-                return fut.get(120, TimeUnit.SECONDS);
+                return fut.get(HARD_WATCHDOG_SECONDS, TimeUnit.SECONDS);
             } catch (TimeoutException e) {
                 fut.cancel(true);
-                return new MemberResult(key, Status.DIFF, 0, 0, "timeout (120s)", List.of());
+                return new MemberResult(key, Status.DIFF, 0, 0, "timeout (" + HARD_WATCHDOG_SECONDS + "s)", List.of());
             } catch (ExecutionException e) {
                 return new MemberResult(key, Status.DIFF, 0, 0, "harness error: " + e.getCause(), List.of());
             }
@@ -157,7 +196,7 @@ public final class DiffRunner {
         }
     }
 
-    private MemberResult executable(String key, Class<?> vc, Class<?> sc, Executable ve, int iterations, List<Allowance> allowed) throws Exception {
+    private MemberResult executable(String key, Class<?> vc, Class<?> sc, Executable ve, int iterations, List<Allowance> allowed, long budgetSeconds) throws Exception {
         boolean isStatic = ve instanceof Constructor<?> || Modifier.isStatic(ve.getModifiers());
         Class<?>[] vps = ve.getParameterTypes();
         Class<?>[] sps = new Class<?>[vps.length];
@@ -190,7 +229,13 @@ public final class DiffRunner {
         List<String> examples = new ArrayList<>();
         List<String> paperExamples = new ArrayList<>();
         Object lastOutcome = null;
+        long start = System.nanoTime();
+        int stoppedAt = -1;
         for (int i = 0; i < iterations; i++) {
+            if (budgetSeconds > 0 && i >= edgeTrials && System.nanoTime() - start > budgetSeconds * 1_000_000_000L) {
+                stoppedAt = i;
+                break;
+            }
             double edgeP = i < edgeTrials ? 0.8 : 0.1;
             // 처음 SWEEP 개는 모든 자리가 경계값 i 번 — 입력 수·씨앗 순서와 무관하게 늘 같은 입력(고정 근거 입력이 여기 있다)
             Object recvSeed = isStatic ? null : TypeKit.seed(vc, r, i < SWEEP ? i : pick(r, edgeP), self);
@@ -215,7 +260,7 @@ public final class DiffRunner {
             boolean harness = isHarness(va.get(0)) || isHarness(sa.get(0));
             if (harness || !Objects.equals(va, sa)) {
                 String ex = "input " + describe(recvSeed, argSeeds) + " -> vanilla=" + clip(va) + " shim=" + clip(sa);
-                if (!harness && allowed.stream().anyMatch(a -> a.matches(va.get(0), sa.get(0)))) {
+                if (!harness && allowed.stream().anyMatch(a -> a.matches(va.get(0), sa.get(0)) && holds(a.when(), key, argSeeds))) {
                     paper++;
                     if (paperExamples.size() < 3) paperExamples.add(ex);
                 } else {
@@ -224,18 +269,20 @@ public final class DiffRunner {
                 }
             }
         }
+        String budget = stoppedAt < 0 ? "" : " [time budget " + budgetSeconds + "s: ran " + stoppedAt + " of " + iterations + " inputs]";
+        if (stoppedAt >= 0) System.out.println("[vanilla-diff] " + vc.getName() + " " + key + budget);
         if (diffs > 0) {
-            String d = diffs + " of " + lowered + (paper > 0 ? " (+" + paper + " allowed Paper-shaped)" : "");
-            return new MemberResult(key, Status.DIFF, calls, skipped, d, examples);
+            String d = diffs + " of " + lowered + (paper > 0 ? " (+" + paper + " allowed Paper-shaped)" : "") + budget;
+            return new MemberResult(key, Status.DIFF, calls, skipped, d, examples, stoppedAt, iterations);
         }
-        if (paper > 0) return new MemberResult(key, Status.PAPER, calls, skipped, paper + " of " + lowered + " allowed Paper-shaped", paperExamples);
+        if (paper > 0) return new MemberResult(key, Status.PAPER, calls, skipped, paper + " of " + lowered + " allowed Paper-shaped" + budget, paperExamples, stoppedAt, iterations);
         if (lowered == 0) {
             String why = unlowerable != null ? "result " + unlowerable : "no input accepted by both sides (" + skipped + " skipped)";
-            return new MemberResult(key, Status.UNPROVED, calls, skipped, why, List.of());
+            return new MemberResult(key, Status.UNPROVED, calls, skipped, why, List.of(), stoppedAt, iterations);
         }
         // 모든 입력에서 양쪽이 같은 예외를 던졌다면 같음이지만 값은 본 적이 없다 — 보고서에 따로 드러낸다
-        String note = threw == lowered ? "all inputs threw on both sides (" + lastOutcome + ")" : null;
-        return new MemberResult(key, Status.SAME, calls, skipped, note, List.of());
+        String note = threw == lowered ? "all inputs threw on both sides (" + lastOutcome + ")" + budget : budget.isEmpty() ? null : budget.strip();
+        return new MemberResult(key, Status.SAME, calls, skipped, note, List.of(), stoppedAt, iterations);
     }
 
 
