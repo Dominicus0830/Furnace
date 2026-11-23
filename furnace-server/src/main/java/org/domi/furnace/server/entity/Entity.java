@@ -152,7 +152,7 @@ public abstract non-sealed class Entity implements Rider {
         this.random = RandomSource.createFor(id, RandomSeeds.Purpose.ENTITY);   // 주인 열쇠 = 엔티티 id. UUID 도 이 난수에서 나온다
         this.uuid = randomUuid(random);
         entityData.define(DATA_SHARED_FLAGS, SetEntityData.SERIALIZER_BYTE, (byte) 0);
-        entityData.define(DATA_AIR_SUPPLY, SetEntityData.SERIALIZER_INT, 300);
+        entityData.define(DATA_AIR_SUPPLY, SetEntityData.SERIALIZER_INT, getMaxAirSupply());   // 바닐라 define(DATA_AIR_SUPPLY_ID, getMaxAirSupply()) — 아홀로틀 6000·돌고래 4800
         entityData.define(DATA_CUSTOM_NAME, SetEntityData.SERIALIZER_OPTIONAL_COMPONENT, null);   // Optional<Component>, null = 없음
         entityData.define(DATA_CUSTOM_NAME_VISIBLE, SetEntityData.SERIALIZER_BOOLEAN, false);
         entityData.define(DATA_SILENT, SetEntityData.SERIALIZER_BOOLEAN, false);

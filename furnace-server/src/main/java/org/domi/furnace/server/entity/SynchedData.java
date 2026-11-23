@@ -32,6 +32,9 @@ public final class SynchedData {
 
     public Object get(int index) { return values[index]; }
 
+    /** define 때 값(바닐라 DataItem.initialValue — getNonDefaultValues 의 기준). */
+    public Object defaultValue(int index) { return defaults[index]; }
+
     /** 정의된 칸 수. */
     public int size() { return values.length; }
 

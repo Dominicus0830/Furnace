@@ -35,7 +35,10 @@ public class Painting extends HangingEntity {
         }
     }
 
-    private String variant = "minecraft:kebab";
+    /** 바닐라 처음 값 registry.getAny(): 데이터 팩 레지스트리는 키 이름순으로 등록되므로 첫 항목(1.21.1 은 alban). */
+    private String variant = defaultVariant();
+
+    static String defaultVariant() { return RegistrySet.current().entries(REGISTRY).get(0); }
 
     public Painting(ChunkLevel level, int id) {
         super(EntityType.PAINTING, level, id);
@@ -50,7 +53,7 @@ public class Painting extends HangingEntity {
     @Override
     protected void defineSynchedData() {
         super.defineSynchedData();
-        entityData.define(DATA_VARIANT, SetEntityData.SERIALIZER_PAINTING_VARIANT, RegistrySet.current().indexOf(REGISTRY, "minecraft:kebab"));
+        entityData.define(DATA_VARIANT, SetEntityData.SERIALIZER_PAINTING_VARIANT, 0);   // defaultVariant()
     }
 
     public void setVariant(String name) {
