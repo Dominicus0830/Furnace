@@ -42,7 +42,8 @@
 
 ## 3. 시험
 - `NmsInventoryMenuTest`(5개): 칸 번호·라이브 보기, 빼기·넣기·`contains` 규칙, `selected` 동기, 열린 창 보기(generic_9x3, 칸 읽기, 다른 스레드 읽기, 닫기), 접속 안 한 플레이어 인벤토리. `NmsEquipmentReadTest`(8개 묶음 전체 통과).
-- 서명 관문(`signatureGate`)은 이 클라우드에 Paper 서버 서명표가 없어 못 돌렸다. 대신 바닐라 서명표(`sig.tsv`)와 `javap` 를 대조해 서술자 차이 0을 확인했고, 남는 건 위 표의 상위 클래스 차이와 shim 이 더한 멤버(info 수준)뿐이다. → 2026-11-23 Paper 표가 있는 PC 에서 돌려 새 차이 0 을 확인했다(`InventoryMenu` 상위는 예외 없이 `RecipeBookMenu` 로 고침).
+- 서명 관문(`signatureGate`): 이 클라우드엔 Paper 서버 서명표가 없어 처음엔 못 돌렸고(바닐라 표와 `javap` 대조로 서술자 차이 0 확인), CI·Paper 표가 있는 PC 에서 돌려 새 차이 1(`InventoryMenu` 상위)을 잡았다. 예외 줄 없이 `RecipeBookMenu` 껍데기를 상속하도록 고쳐 새 차이 0 이다. `Container` 도 명세(`containers.spec`)로 옮겨 바닐라처럼 추상이다.
+- 검토 반영: 닫힌 창에서 쥔 플레이어 칸 스택을 고치면 예외 없이 그 인벤토리 칸에 되쓴다(`NmsInventoryMenuTest`), 두 스레드가 동시에 `add` 해도 잃는 것이 없다(경쟁 시험). `remoteSlots` 쓰기 일부(`MenuSession.opened`)는 menuLock 밖이라 읽기가 한 틱 낡을 수 있으나 예외는 없다.
 
 ## 4. 측정(표본 jar 100개, Spigot 이름 jar 포함: `-PspigotDir`)
 | 시점 | 지원 | 전체 | 비율 |

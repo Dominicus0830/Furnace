@@ -250,7 +250,7 @@ public class Inventory implements Container, Nameable {
     // ------------------------------------------------------------------ 칸 저장소
 
     /** 인벤토리 번호 → 플레이어 창 칸(0..8 → 36..44, 9..35 → 9..35, 36..39 → 8..5, 40 → 45). */
-    private static int windowSlot(int index) {
+    public static int windowSlot(int index) {
         if (index < 9) return 36 + index;
         if (index < 36) return index;
         if (index < 40) return 8 - (index - 36);

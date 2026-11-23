@@ -245,8 +245,12 @@ class NmsInventoryMenuTest {
         t.join(10_000);
         assertSame(Items.GOLD_BLOCK, seen.get());
         // 창을 닫으면 containerMenu 는 다시 inventoryMenu
+        ItemStack held = mine.getItem();   // 닫기 전에 쥔 플레이어 칸의 스택
         bukkit.closeInventory();
         server.tick(3);
+        // 닫힌 뒤에도 쥔 스택을 고치면 바닐라처럼 그 인벤토리 칸에 되쓴다(예외 없이)
+        held.shrink(1);
+        assertEquals(1, bukkit.getInventory().getItem(3).getAmount(), "닫힌 창에서 쥔 스택도 인벤토리 칸에 되쓴다");
         ServerPlayer again = bukkit.getHandle();
         assertSame(again.inventoryMenu, again.containerMenu);
         // 닫힌 창의 칸을 읽으면 조용히 틀린 값을 주지 않는다
@@ -283,5 +287,26 @@ class NmsInventoryMenuTest {
         assertSame(own.getItem(0), menu.getSlot(36).getItem());
         assertSame(fake.inventoryMenu, fake.containerMenu);
         assertEquals(0, fake.containerMenu.containerId);
+    }
+
+    @Test
+    void twoThreadsAddingAtTheSameTimeLoseNothing() throws Exception {
+        clear();
+        ServerPlayer p = bukkit.getHandle();
+        Inventory inv = p.getInventory();
+        int per = 40;
+        Runnable job = () -> {
+            for (int i = 0; i < per; i++) inv.add(new ItemStack(Items.DIRT, 1));
+        };
+        var a = new Thread(job);
+        var b = new Thread(job);
+        a.start();
+        b.start();
+        a.join(30_000);
+        b.join(30_000);
+        int total = 0;
+        for (var st : bukkit.getInventory().getContents()) if (st != null && st.getType() == Material.DIRT) total += st.getAmount();
+        assertEquals(2 * per, total, "두 스레드가 동시에 넣어도 하나도 잃거나 겹치지 않는다");
+        clear();
     }
 }

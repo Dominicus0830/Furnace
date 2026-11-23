@@ -55,7 +55,9 @@ public final class NmsMenus {
             } catch (IllegalStateException closed) {
                 throw new UnsupportedNmsCall("Slot#getItem", "the window " + containerId + " is closed - a closed window keeps no slot contents here");
             }
-            return ItemStack.liveMenuSlot(handle, containerId, menuIndex, playerSlot, now);
+            ChunkInternals.MenuLook l = last;
+            int inv = playerSlot && l != null && menuIndex < l.playerIndex().length ? l.playerIndex()[menuIndex] : -1;
+            return ItemStack.liveMenuSlot(handle, containerId, menuIndex, playerSlot, inv, now);
         }
     }
 

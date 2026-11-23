@@ -290,11 +290,20 @@ public final class ItemStack {
      * (그 컨테이너를 쥔 스레드에서만 바꿀 수 있다). 빈 칸은 EMPTY.
      */
     public static ItemStack liveMenuSlot(org.domi.furnace.api.entity.Player player, int containerId, int slot, boolean playerSlot,
-                                         org.domi.furnace.api.item.ItemStack now) {
+                                         int inventoryIndex, org.domi.furnace.api.item.ItemStack now) {
         if (now.isEmpty()) return EMPTY;
         ItemStack s = fromFurnace(now, now.amount());
         s.live = new LiveSlot(playerSlot
-                ? (expect, next) -> org.domi.furnace.compat.nms.NmsChunks.bridge().replaceMenuSlotNow(player, containerId, slot, expect, next)
+                ? (expect, next) -> {
+                    var bridge = org.domi.furnace.compat.nms.NmsChunks.bridge();
+                    try {
+                        return bridge.replaceMenuSlotNow(player, containerId, slot, expect, next);
+                    } catch (IllegalStateException closed) {
+                        // 창이 닫힌 뒤: 바닐라의 Slot 은 여전히 인벤토리 칸을 가리키므로 같은 인벤토리 칸에 되쓴다.
+                        if (inventoryIndex < 0) throw closed;
+                        return bridge.replaceSlotNow(player, net.minecraft.world.entity.player.Inventory.windowSlot(inventoryIndex), expect, next);
+                    }
+                }
                 : (expect, next) -> {
                     throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("Slot#getItem", "slot " + slot + " of the open window belongs to the container of the window;"
                             + " only the thread that owns that container may change it (use the Bukkit InventoryView of the window)");
