@@ -146,11 +146,8 @@ descriptor	net/minecraft/world/level/storage/LevelStorageSource$LevelStorageAcce
 descriptor	org/bukkit/craftbukkit/CraftChunk	<init>(Ljava/lang/String;II)V	기준=#cce1bd5b11c6	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/CraftChunk	<init>(Lorg/bukkit/craftbukkit/CraftWorld;II)V	기준=#cce1bd5b11c6	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/CraftRegistry	<init>(Lorg/bukkit/Registry;)V	기준=#0c6905bfb000	T-264 P2d: Furnace 레지스트리 본체를 감싸는 얇은 Craft 래퍼 — Furnace 생성자(본체, WritableCraftRegistry 가 다른 패키지라 protected)는 그대로 둔다(설계 3.1, P3 에서 함께 정리), Paper 생성자는 T-261 껍데기 멤버가 합친다
-descriptor	org/bukkit/craftbukkit/CraftServer	getCommandMap()Lorg/bukkit/command/CommandMap;	기준=#3506ac6e48e2	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/CraftServer	getGlobalRegionScheduler()Lio/papermc/paper/threadedregions/scheduler/GlobalRegionScheduler;	기준=#9230d4d483c6	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-descriptor	org/bukkit/craftbukkit/CraftServer	getItemFactory()Lorg/bukkit/inventory/ItemFactory;	기준=#af72ebecf777	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/CraftServer	getOnlinePlayers()Ljava/util/Collection;	기준=#a40f2ec84257	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-descriptor	org/bukkit/craftbukkit/CraftServer	getScheduler()Lorg/bukkit/scheduler/BukkitScheduler;	기준=#4f138b7eee49	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/CraftWorld	<init>(Lorg/domi/furnace/api/world/World;)V	기준=#bb82cff4332f	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/block/CraftBanner	<init>(Ljava/lang/String;Lorg/domi/furnace/api/world/BlockPos;Lorg/bukkit/block/data/BlockData;)V	기준=#87eb0b48c457	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/block/CraftBanner	getSnapshotNBT()Lorg/domi/furnace/api/nbt/NbtCompound;	기준=#3e73edeb094b	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -256,7 +253,6 @@ descriptor	org/bukkit/craftbukkit/entity/CraftEnderSignal	<init>(Lorg/domi/furna
 descriptor	org/bukkit/craftbukkit/entity/CraftEnderman	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#f44bfca42946	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftEndermite	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#d9fac1df64f5	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftEntity	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#5b8fa626cbe2	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-descriptor	org/bukkit/craftbukkit/entity/CraftEntity	getPersistentDataContainer()Lorg/bukkit/persistence/PersistentDataContainer;	기준=#9dafdec82b1c	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftEntity	teleportAsync(Lorg/bukkit/Location;)Ljava/util/concurrent/CompletableFuture;	기준=#8936ec3fe400	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftEvoker	<init>(Lorg/domi/furnace/api/entity/Mob;)V	기준=#d41e94aeade0	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/entity/CraftEvokerFangs	<init>(Lorg/domi/furnace/api/entity/Entity;)V	기준=#660fe1fc1895	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다

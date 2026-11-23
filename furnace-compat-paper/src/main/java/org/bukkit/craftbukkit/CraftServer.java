@@ -82,7 +82,7 @@ public final class CraftServer implements Server {
     private static Furnace f() { return Compat.furnace(); }
 
     @Override
-    public org.bukkit.inventory.ItemFactory getItemFactory() { return org.bukkit.craftbukkit.inventory.CraftItemFactory.instance(); }
+    public org.bukkit.craftbukkit.inventory.CraftItemFactory getItemFactory() { return org.bukkit.craftbukkit.inventory.CraftItemFactory.instance(); }   // Paper 와 같은 좁은 반환형
 
     @Override
     public org.bukkit.block.data.BlockData createBlockData(org.bukkit.Material material) { return CompatBlockData.create(material); }
@@ -531,7 +531,7 @@ public final class CraftServer implements Server {
     private final org.bukkit.craftbukkit.scheduler.CraftScheduler scheduler = new org.bukkit.craftbukkit.scheduler.CraftScheduler();
 
     @Override
-    public BukkitScheduler getScheduler() { return scheduler; }
+    public org.bukkit.craftbukkit.scheduler.CraftScheduler getScheduler() { return scheduler; }   // Paper 와 같은 좁은 반환형
 
     @Override
     public io.papermc.paper.threadedregions.scheduler.AsyncScheduler getAsyncScheduler() { return org.domi.furnace.compat.paper.CompatPaperSchedulers.ASYNC; }
@@ -572,7 +572,8 @@ public final class CraftServer implements Server {
     public boolean isPrimaryThread() { return org.domi.furnace.compat.thread.PrimaryThread.isPrimary(); }
 
     @Override
-    public CommandMap getCommandMap() { return Compat.commandMap(); }
+    /** Paper 처럼 좁은 반환형(SimpleCommandMap — Paper 는 그 하위 CraftCommandMap). 넓게 두면 합친 껍데기 getCommandMap()SimpleCommandMap 이 리플렉션 getMethod 에 먼저 잡혀 던진다(T-264 덫 계측 11-23, 9개 플러그인). */
+    public org.bukkit.command.SimpleCommandMap getCommandMap() { return Compat.commandMap(); }
 
     @Override
     public org.bukkit.command.PluginCommand getPluginCommand(String name) {
