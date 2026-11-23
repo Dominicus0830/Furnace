@@ -375,6 +375,9 @@ jobs:
       # T-229: 연결 명세의 잠금 파일(src/shimspec/shim-<판>.lock)이 서명표·명세로 다시 푼 것과 같은지 본다(낡으면 실패 — 목록이 할 일)
       - name: shim 잠금 파일 (T-229)
         run: ./gradlew -PskipOracle=true :furnace-compat-paper:shimLockCheck
+      # T-264: CraftBukkit 계층 잠금(src/shimspec/craft-hierarchy-<판>.lock)이 Paper 서명표와 같은지 본다
+      - name: CraftBukkit 계층 잠금 (T-264)
+        run: ./gradlew -PskipOracle=true :furnace-compat-paper:craftLockCheck
       # T-260: 서명표에서 Paper 내부 클래스 전부의 껍데기를 만들고(지문 src/shimspec/full-shells-<판>.fp 와 표가 같아야 함) 전부 올려 초기화해 본다
       - name: 전체 껍데기 (T-260)
         run: ./gradlew -PskipOracle=true :furnace-compat-paper:fullShellsTest
