@@ -102,7 +102,7 @@ public final class LegacyScheduler {
     public LegacyScheduler(Furnace server, java.util.function.BooleanSupplier hold) {
         this.server = server;
         this.hold = hold;
-        if ("virtual".equalsIgnoreCase(server.compatOption(ASYNC_THREADS_OPTION))) {
+        if ("virtual".equalsIgnoreCase(org.domi.furnace.compat.CompatOptions.get(server, ASYNC_THREADS_OPTION))) {
             this.ownedPool = null;
             // 서버의 asyncExecutor 는 plugins.async-threads(기본 platform, T-034)를 따르므로 이 옵션의 가상 스레드는 여기서 따로 만든다
             this.virtualPool = java.util.concurrent.Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("Craft Scheduler Virtual Thread - ", 0).factory());

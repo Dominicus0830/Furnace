@@ -67,6 +67,11 @@ public final class InternalsImpl implements Internals {
     @Override
     public int dataVersion() { return DATA_VERSION; }
 
+    // ------------------------------------------------------------------ 호환 어댑터 설정
+
+    @Override
+    public String compatOption(String key) { return host.compatOption(key); }
+
     // ------------------------------------------------------------------ 공용
 
     static <H> H cast(Object o, Class<H> type, String what) {

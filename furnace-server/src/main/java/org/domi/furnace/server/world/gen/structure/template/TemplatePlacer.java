@@ -255,8 +255,7 @@ public final class TemplatePlacer {
      */
     private static void placeLiquid(FeatureWorldView view, BlockStateTable table, int x, int y, int z, int state, int fluidType) {
         if ("true".equals(table.prop(state, "waterlogged")) || fluidType != org.domi.furnace.server.block.Fluids.T_WATER) return;
-        int saved = view.liveWriteFlags();
-        if (view.sinkMode()) view.setLiveWriteFlags(3);   // world.setBlock(pos, 침수, 3)
+        int saved = view.pluginLevelWriteFlags(3);   // 통로 모드: world.setBlock(pos, 침수, 3)
         try {
             view.setBlock(x, y, z, table.with(state, "waterlogged", true));
         } finally {

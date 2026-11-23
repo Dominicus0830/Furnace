@@ -201,7 +201,7 @@ public interface World {
 
     /**
      * 그 id 의 엔티티·플레이어 UUID(없으면 empty). 엔티티 상태는 읽지 않고 id 에서 UUID 만 보므로 어느 스레드에서나 기다림 없이 된다.
-     * 호환 계층이 이미 아는 Bukkit 객체를 소유 스레드가 아닌 곳에서도 곧바로 돌려줄 때 쓴다.
+     * 패킷의 엔티티 id 를 UUID 로 바꾸거나, 이미 가진 핸들을 소유 스레드가 아닌 곳에서 id 로 찾을 때 쓴다({@link #entityIdByUuid} 의 반대 방향).
      */
     default Optional<java.util.UUID> entityUuidById(int entityId) { throw new UnsupportedOperationException("entityUuidById"); }
 

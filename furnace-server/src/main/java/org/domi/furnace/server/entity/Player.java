@@ -862,7 +862,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
      */
     private void runOnLoop(Runnable task) {
         if (channel == null) return;   // 연결 없는 플레이어(월드에 없는 플레이어·시험용) — 보낼 곳이 없다
-        if (org.domi.furnace.server.net.io.SharedChunkFrames.deferInsideListener(channel, task)) return;   // 리스너 안에서 보냄 — 지금 패킷 앞에
+        if (org.domi.furnace.server.net.PacketTaps.deferInsideListener(channel, task)) return;   // 리스너 안에서 보냄 — 지금 패킷 앞에
         try {
             channel.eventLoop().execute(task);
         } catch (java.util.concurrent.RejectedExecutionException ignored) {

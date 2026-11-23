@@ -53,6 +53,15 @@ public interface Internals {
         if (!isMinecraft(versions)) throw new UnsupportedVersionException(minecraftVersion(), versions);
     }
 
+    // ------------------------------------------------------------------ 호환 어댑터 설정
+
+    /**
+     * <b>호환 어댑터 전용</b>(Bukkit·Paper 어댑터가 서버 설정을 받는 통로, 예전 {@code Furnace#compatOption}). 플러그인은 기대면 안 된다. 예고 없이 바뀐다.
+     * 서버가 어댑터에게 넘기기로 한 {@code plugins.compat.*} 키의 값만 준다(예: {@code plugins.compat.scheduler.async-threads}·{@code plugins.compat.config.paper-default-separator}, 소문자로 다듬은 값).
+     * 안 적었거나 기본값과 같게 적었거나 다른 키면 null(= 어댑터의 기본값).
+     */
+    default String compatOption(String key) { return null; }
+
     // ------------------------------------------------------------------ 엔티티
 
     /**
