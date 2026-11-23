@@ -1,5 +1,5 @@
-// Bukkit BukkitScheduler — H2 의 LegacyScheduler(CraftScheduler 의미) 위의 얇은 껍데기. Plugin ↔ FurnacePlugin, LegacyTask ↔ BukkitTask 를 옮긴다.
-package org.domi.furnace.compat.paper;
+// Bukkit BukkitScheduler(Paper 와 같은 이름 — T-264) — H2 의 LegacyScheduler(CraftScheduler 의미) 위의 얇은 껍데기. Plugin ↔ FurnacePlugin, LegacyTask ↔ BukkitTask 를 옮긴다.
+package org.bukkit.craftbukkit.scheduler;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,12 +18,13 @@ import org.domi.furnace.api.plugin.FurnacePlugin;
 import org.domi.furnace.compat.sched.LegacyScheduler;
 import org.domi.furnace.compat.sched.LegacyTask;
 import org.domi.furnace.compat.sched.PluginDisabledException;
+import org.domi.furnace.compat.paper.BukkitPluginAdapter;
+import org.domi.furnace.compat.paper.Compat;
+import org.domi.furnace.compat.paper.CompatPluginManager;
 
-public final class CompatScheduler implements BukkitScheduler {
+public class CraftScheduler implements BukkitScheduler {
 
-    public static final CompatScheduler INSTANCE = new CompatScheduler();
-
-    private CompatScheduler() {}
+    public CraftScheduler() {}
 
     private static LegacyScheduler core() { return Compat.scheduler(); }
 
@@ -42,7 +43,18 @@ public final class CompatScheduler implements BukkitScheduler {
         }
     }
 
-    private static BukkitTask wrap(LegacyTask t) { return new Handle(t); }
+    /** 작업 하나에 손잡이 하나(Paper 처럼 같은 객체): 주 스레드 작업은 CraftTask, 비동기 작업은 CraftAsyncTask, callSyncMethod 작업은 CraftFuture. */
+    private static BukkitTask wrap(LegacyTask t) { return t.view(CraftScheduler::handle); }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static BukkitTask handle(LegacyTask t) {
+        Future<?> call = t.syncCall();
+        if (call != null) return new CraftFuture(call, t);
+        return t.isSync() ? new CraftTask(t) : new CraftAsyncTask(t);
+    }
+
+    /** 작업 주인(Bukkit 플러그인이 아니면 null). */
+    static Plugin ownerOf(org.domi.furnace.api.plugin.FurnacePlugin p) { return p instanceof BukkitPluginAdapter a ? a.javaPlugin() : null; }
 
     // ---- 번호만 돌려주는 옛 이름들
 
@@ -80,7 +92,14 @@ public final class CompatScheduler implements BukkitScheduler {
     }
 
     @Override
-    public <T> Future<T> callSyncMethod(Plugin plugin, Callable<T> task) { return guard(() -> core().callSyncMethod(owner(plugin), task)); }
+    public <T> Future<T> callSyncMethod(Plugin plugin, Callable<T> task) {
+        return guard(() -> {
+            Future<T> f = core().callSyncMethod(owner(plugin), task);
+            @SuppressWarnings("unchecked")
+            Future<T> handle = (Future<T>) wrap(LegacyScheduler.taskOf(f));   // Paper: CraftFuture(CraftTask 하위) — 대기 목록의 것과 같은 객체
+            return handle;
+        });
+    }
 
     // ---- 조회·취소
 
@@ -113,7 +132,7 @@ public final class CompatScheduler implements BukkitScheduler {
     @Override
     public List<BukkitWorker> getActiveWorkers() {
         List<BukkitWorker> out = new ArrayList<>();
-        for (LegacyScheduler.Worker w : core().activeWorkers()) out.add(new Worker(w));
+        for (LegacyScheduler.Worker w : core().activeWorkers()) out.add(CraftTask.worker(w));
         return out;
     }
 
@@ -201,48 +220,5 @@ public final class CompatScheduler implements BukkitScheduler {
         CompletableFuture<BukkitTask> handle = new CompletableFuture<>();
         BukkitTask t = schedule.apply(() -> body.accept(handle.join()));
         handle.complete(t);
-    }
-
-    // ---- 핸들
-
-    private static final class Handle implements BukkitTask {
-        private final LegacyTask task;
-
-        Handle(LegacyTask task) { this.task = task; }
-
-        @Override
-        public int getTaskId() { return task.taskId(); }
-
-        @Override
-        public Plugin getOwner() { return task.owner() instanceof BukkitPluginAdapter a ? a.javaPlugin() : null; }
-
-        @Override
-        public boolean isSync() { return task.isSync(); }
-
-        @Override
-        public boolean isCancelled() { return task.isCancelled(); }
-
-        @Override
-        public void cancel() { task.cancel(); }
-
-        @Override
-        public boolean equals(Object o) { return o instanceof Handle h && h.task.taskId() == task.taskId(); }
-
-        @Override
-        public int hashCode() { return Integer.hashCode(task.taskId()); }
-
-        @Override
-        public String toString() { return "BukkitTask#" + task.taskId(); }
-    }
-
-    private record Worker(LegacyScheduler.Worker w) implements BukkitWorker {
-        @Override
-        public int getTaskId() { return w.taskId(); }
-
-        @Override
-        public Plugin getOwner() { return w.owner() instanceof BukkitPluginAdapter a ? a.javaPlugin() : null; }
-
-        @Override
-        public Thread getThread() { return w.thread(); }
     }
 }

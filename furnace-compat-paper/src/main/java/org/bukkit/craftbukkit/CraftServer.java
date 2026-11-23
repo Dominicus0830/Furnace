@@ -20,7 +20,6 @@ import net.minecraft.server.dedicated.DedicatedServer;
 import org.domi.furnace.api.Furnace;
 import org.domi.furnace.compat.paper.Compat;
 import org.domi.furnace.compat.paper.CompatBlockData;
-import org.domi.furnace.compat.paper.CompatScheduler;
 import org.domi.furnace.compat.paper.UnsupportedFeature;
 
 /**
@@ -528,8 +527,11 @@ public final class CraftServer implements Server {
         return true;
     }
 
+    /** Paper 처럼 서버마다 CraftScheduler 하나(상태는 스케줄러 core 에 있다 — T-264). */
+    private final org.bukkit.craftbukkit.scheduler.CraftScheduler scheduler = new org.bukkit.craftbukkit.scheduler.CraftScheduler();
+
     @Override
-    public BukkitScheduler getScheduler() { return CompatScheduler.INSTANCE; }
+    public BukkitScheduler getScheduler() { return scheduler; }
 
     @Override
     public io.papermc.paper.threadedregions.scheduler.AsyncScheduler getAsyncScheduler() { return org.domi.furnace.compat.paper.CompatPaperSchedulers.ASYNC; }

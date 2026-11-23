@@ -204,7 +204,7 @@ public final class Compat {
     public static Furnace furnace() { return state().furnace; }
 
     /** 지금 서버의 옛 스케줄러(BukkitScheduler 의 바닥). */
-    static LegacyScheduler scheduler() { return state().scheduler(); }
+    public static LegacyScheduler scheduler() { return state().scheduler(); }
 
     /** 지금 서버의 Paper 스케줄러 넷(getAsyncScheduler 등의 바닥). */
     static org.domi.furnace.compat.sched.PaperSchedulers paperSchedulers() { return state().paperSchedulers(); }

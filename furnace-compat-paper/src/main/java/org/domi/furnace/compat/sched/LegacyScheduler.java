@@ -207,8 +207,14 @@ public final class LegacyScheduler {
             } catch (Throwable t) {
                 future.completeExceptionally(t);
             }
-        }, true, 0, NO_REPEATING, () -> future.completeExceptionally(new CancellationException("task cancelled")));
+        }, true, 0, NO_REPEATING, () -> future.completeExceptionally(new CancellationException("task cancelled")), future);
         return future;
+    }
+
+    /** callSyncMethod 가 돌려준 future 의 작업(그 밖의 future 면 IllegalArgumentException). */
+    public static LegacyTask taskOf(Future<?> future) {
+        if (future instanceof SyncFuture<?> f) return f.task;
+        throw new IllegalArgumentException("not a callSyncMethod future");
     }
 
     /** CraftFuture 처럼: 아직 안 돈 callable 은 cancel 하면 돌지 않는다. 이미 돌기 시작했으면 false. */
@@ -380,13 +386,18 @@ public final class LegacyScheduler {
     // ---- 내부
 
     private LegacyTask schedule(FurnacePlugin plugin, Runnable runnable, boolean sync, long delay, long period, Runnable onCancel) {
+        return schedule(plugin, runnable, sync, delay, period, onCancel, null);
+    }
+
+    /** syncCall: callSyncMethod 의 future — 대기열·작업 표에 넣기 전에 작업에 붙여 둔다(그 틈에 getPendingTasks 가 보통 작업으로 보지 않게). */
+    private LegacyTask schedule(FurnacePlugin plugin, Runnable runnable, boolean sync, long delay, long period, Runnable onCancel, Future<?> syncCall) {
         if (plugin == null) throw new IllegalArgumentException("Plugin cannot be null");
         if (runnable == null) throw new IllegalArgumentException("Task cannot be null");
         if (!plugin.isEnabled()) throw new PluginDisabledException("Plugin attempted to register task while disabled");
         if (delay < 0L) delay = 0;
         if (period == 0L) period = 1L;
         else if (period < NO_REPEATING) period = NO_REPEATING;
-        Task t = new Task(ids.incrementAndGet(), plugin, runnable, sync, period, onCancel);
+        Task t = new Task(ids.incrementAndGet(), plugin, runnable, sync, period, onCancel, syncCall);
         tasks.put(t.id, t);
         book.add(plugin, t);
         PriorityQueue<Task> q = sync ? queue : asyncQueue;
@@ -478,9 +489,30 @@ public final class LegacyScheduler {
         final AtomicBoolean claimed = new AtomicBoolean();
         volatile long nextRun;
         volatile boolean cancelled;
+        /** callSyncMethod 의 future(그 밖의 작업은 null). 만들 때 정해져 바뀌지 않는다. */
+        final Future<?> future;
 
-        Task(int id, FurnacePlugin plugin, Runnable body, boolean sync, long period, Runnable onCancel) {
+        @Override
+        public Future<?> syncCall() { return future; }
+
+        private volatile Object view;
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <T> T view(java.util.function.Function<LegacyTask, T> make) {
+            Object v = view;
+            if (v == null) {
+                synchronized (this) {
+                    v = view;
+                    if (v == null) view = v = make.apply(this);
+                }
+            }
+            return (T) v;
+        }
+
+        Task(int id, FurnacePlugin plugin, Runnable body, boolean sync, long period, Runnable onCancel, Future<?> future) {
             this.id = id;
+            this.future = future;
             this.plugin = plugin;
             this.body = body;
             this.sync = sync;
@@ -578,6 +610,9 @@ public final class LegacyScheduler {
             book.remove(plugin, this);
             return true;
         }
+
+        @Override
+        public void runBody() { body.run(); }
 
         @Override
         public int taskId() { return id; }
