@@ -1220,27 +1220,33 @@ final class ChunkInternalsImpl implements ChunkInternals {
         private final String kind;
         private final org.domi.furnace.server.entity.Entity entity;
         private List<EntityDataSlot> slots;
-        private RuntimeException failed;
+        /** 실패한 조작의 예외. 뒤의 호출은 같은 객체를 다시 던진다(스택은 처음 실패한 자리 — 원인을 가리키도록 일부러 새로 만들지 않는다). */
+        private Throwable failed;
 
         Detached(String kind, org.domi.furnace.server.entity.Entity entity) {
             this.kind = kind;
             this.entity = entity;
         }
 
+        private void rethrowIfFailed() {
+            if (failed instanceof RuntimeException r) throw r;
+            if (failed instanceof Error e) throw e;
+        }
+
         @Override
         public synchronized List<EntityDataSlot> slots() {
-            if (failed != null) throw failed;
+            rethrowIfFailed();
             if (slots == null) slots = ChunkInternalsImpl.slots(entity);
             return slots;
         }
 
         @Override
         public synchronized List<EntityDataSlot> apply(EntityOp op) {
-            if (failed != null) throw failed;
+            rethrowIfFailed();
             try {
                 applyOp(entity, kind, op, false);
-            } catch (RuntimeException ex) {
-                failed = ex;   // 엔티티가 조작 도중 상태일 수 있다 — 처음부터 재생해도 여기서 늘 실패한다
+            } catch (RuntimeException | Error ex) {
+                failed = ex;   // 엔티티가 조작 도중 상태일 수 있다 — 처음부터 재생해도 여기서 늘 실패한다(Error 도 잠근다: 반쯤 바뀐 엔티티를 다시 쓰지 않는다)
                 throw ex;
             }
             slots = null;
