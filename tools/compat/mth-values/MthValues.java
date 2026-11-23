@@ -83,6 +83,7 @@ public final class MthValues {
         for (org.joml.Vector3f ax : axes) {
             for (org.joml.Quaternionf q : quats) p("e.rot " + ax + " " + q, Mth.rotationAroundAxis(ax, q, new org.joml.Quaternionf()));
         }
+        p("e.axes", Mth.X_AXIS + " " + Mth.Y_AXIS + " " + Mth.Z_AXIS);
         guard("e.gi", () -> Mth.getInt("2147483648", -9));
         guard("e.gi2", () -> Mth.getInt("", -9));
     }
