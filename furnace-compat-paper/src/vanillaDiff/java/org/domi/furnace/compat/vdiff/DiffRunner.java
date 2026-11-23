@@ -28,11 +28,32 @@ public final class DiffRunner {
 
     /**
      * Paper 와 같게 둔 차이 하나의 모양: 바닐라가 이 예외를 던지고 shim 이 저 예외를 던지는 입력만 허용한다(대상 파일 paper 줄).
+     * when 이 있으면 그 입력 조건(Paper 패치가 실제로 걸리는 입력인지 — {@link #holds})도 맞아야 한다.
      * 그 밖의 차이는 같은 멤버여도 다름이다.
      */
-    public record Allowance(String vanillaThrows, String shimThrows) {
+    public record Allowance(String vanillaThrows, String shimThrows, String when) {
+        public Allowance {
+            if (when != null && !CONDITIONS.contains(when)) throw new IllegalArgumentException("unknown when=" + when + " (known: " + CONDITIONS + ")");
+        }
+
         boolean matches(Object vanillaOutcome, Object shimOutcome) {
             return ("throws " + vanillaThrows).equals(vanillaOutcome) && ("throws " + shimThrows).equals(shimOutcome);
+        }
+    }
+
+    /** 입력 조건 이름들(대상 파일 when=). */
+    public static final java.util.Set<String> CONDITIONS = java.util.Set.of(NbtKit.ARRAY_LIMIT);
+
+    /** 입력 조건이 이 입력에서 성립하나. 판정 못 하면(올리기 실패 등) 성립하지 않는다 — 허용을 넓히지 않는 쪽. */
+    static boolean holds(String when, String key, Object[] argSeeds) {
+        if (when == null) return true;
+        try {
+            return switch (when) {
+                case NbtKit.ARRAY_LIMIT -> NbtKit.tripsArrayLimit(key, argSeeds);
+                default -> false;
+            };
+        } catch (Exception e) {
+            return false;
         }
     }
 
@@ -215,7 +236,7 @@ public final class DiffRunner {
             boolean harness = isHarness(va.get(0)) || isHarness(sa.get(0));
             if (harness || !Objects.equals(va, sa)) {
                 String ex = "input " + describe(recvSeed, argSeeds) + " -> vanilla=" + clip(va) + " shim=" + clip(sa);
-                if (!harness && allowed.stream().anyMatch(a -> a.matches(va.get(0), sa.get(0)))) {
+                if (!harness && allowed.stream().anyMatch(a -> a.matches(va.get(0), sa.get(0)) && holds(a.when(), key, argSeeds))) {
                     paper++;
                     if (paperExamples.size() < 3) paperExamples.add(ex);
                 } else {

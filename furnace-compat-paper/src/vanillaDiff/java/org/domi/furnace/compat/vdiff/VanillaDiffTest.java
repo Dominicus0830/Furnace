@@ -205,23 +205,36 @@ class VanillaDiffTest {
         }
     }
 
-    /** "paper <열쇠> vanilla=<예외> shim=<예외> [vanilla=… shim=…]…" 의 열쇠. */
+    /** "paper <열쇠> [when=<조건>] vanilla=<예외> shim=<예외> [vanilla=… shim=…]…" 의 열쇠. */
     private static String paperKey(String line, int no) {
         String[] parts = line.substring(6).strip().split("\\s+");
         return parts[0];
     }
 
     private static List<DiffRunner.Allowance> allowances(String line, int no) {
-        String[] parts = line.substring(6).strip().split("\\s+");
+        List<String> parts = new ArrayList<>(List.of(line.substring(6).strip().split("\\s+")));
+        parts.remove(0);
+        // when=<조건> 은 줄의 모든 쌍에 걸린다(어디에 적어도 된다)
+        String when = null;
+        for (var it = parts.iterator(); it.hasNext(); ) {
+            String p = it.next();
+            if (!p.startsWith("when=")) continue;
+            if (when != null) throw new IllegalStateException("vanilla-diff-targets.txt:" + no + ": only one when= per paper line");
+            when = p.substring(5);
+            if (!DiffRunner.CONDITIONS.contains(when)) {
+                throw new IllegalStateException("vanilla-diff-targets.txt:" + no + ": unknown when=" + when + " (known: " + DiffRunner.CONDITIONS + ")");
+            }
+            it.remove();
+        }
         List<DiffRunner.Allowance> out = new ArrayList<>();
-        if (parts.length < 3 || (parts.length - 1) % 2 != 0) {
+        if (parts.size() < 2 || parts.size() % 2 != 0) {
             throw new IllegalStateException("vanilla-diff-targets.txt:" + no + ": paper needs 'vanilla=<exception> shim=<exception>' pairs");
         }
-        for (int k = 1; k < parts.length; k += 2) {
-            if (!parts[k].startsWith("vanilla=") || !parts[k + 1].startsWith("shim=")) {
-                throw new IllegalStateException("vanilla-diff-targets.txt:" + no + ": expected vanilla=… shim=… at " + parts[k]);
+        for (int k = 0; k < parts.size(); k += 2) {
+            if (!parts.get(k).startsWith("vanilla=") || !parts.get(k + 1).startsWith("shim=")) {
+                throw new IllegalStateException("vanilla-diff-targets.txt:" + no + ": expected vanilla=… shim=… at " + parts.get(k));
             }
-            out.add(new DiffRunner.Allowance(parts[k].substring(8), parts[k + 1].substring(5)));
+            out.add(new DiffRunner.Allowance(parts.get(k).substring(8), parts.get(k + 1).substring(5), when));
         }
         return out;
     }

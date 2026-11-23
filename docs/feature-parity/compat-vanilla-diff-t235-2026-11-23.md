@@ -68,3 +68,12 @@ shim 연결마다 손으로 시험을 쓰지 않고, **이름 푼 바닐라 서�
 - **Paper 를 정답기로 같이 돌리기**: paperweight 개발 묶음의 Mojang 이름 Paper 서버 jar 가 CI(`sig-tables.sh`)에 이미 생긴다. Paper 쪽도 격리 로더에 올려 "바닐라와 다르면 Paper 와 같은가"를 기계가 보면 `paper` 줄의 근거를 사람이 바이트코드로 찾지 않아도 된다(가정 — Paper 부트스트랩이 Bukkit 없이 되는지 확인 필요).
 - 연결 명세의 받는 쪽이 엔티티·레벨인 줄(현재 9개)은 장면 차분기(T-253 후보)에서.
 - 버전업: 새 판 jar 로 같은 시험을 돌리면 "이름은 같고 동작이 바뀐 shim 멤버"가 자동으로 나온다(설계 5.1 마지막 줄) — 판 이름은 `gradle/minecraft.properties` 의 `mc.version` 에서 읽으므로 판을 올리면 이 시험도 새 jar 로 돈다.
+
+## 후속 1 (11-23): Paper 허용을 입력 조건으로 좁힘
+
+재검토가 남긴 점: paper 줄이 예외 쌍(바닐라 `ReportedNbtException` ↔ shim `IllegalArgumentException`)만 보면, 깨진 입력에서 보고 예외를 전부 IAE 로 바꾸는 틀린 구현도 통과한다.
+
+- paper 줄에 `when=<입력 조건>` 을 더했다. 조건 이름은 `DiffRunner.CONDITIONS` 에만 있고, 모르는 이름은 읽을 때 오류.
+- `nbt-array-limit`(`NbtKit.tripsArrayLimit`): 멤버가 실제로 읽을 바이트(readCompressed 는 gzip 을 푼 것)를 NBT 바이너리 사양대로 구조만 훑어, 끝·형식 오류·깊이 초과보다 먼저 바이트·정수 배열 길이 1<<24 이상을 만나는 입력일 때만 참. 할당량은 보지 않는다(할당량이 먼저 걸리면 shim 도 할당량 예외라 쌍이 맞지 않는다). 판정 못 하면 거짓(허용을 넓히지 않는 쪽).
+- NbtIo 의 paper 6줄 모두 `when=nbt-array-limit`. 카나리 `paperAllowanceIsLimitedToItsInputs`: 그 틀린 구현이 조건 없이는 "Paper 와 같게"로 통과하고(대조군), 조건을 걸면 다름(입력 500개 중 180개)으로 잡힌다.
+- 전체 실행 결과는 그대로: 같음 814, 다름 0, 증명 없음 0, Paper 와 같게 6.

@@ -271,6 +271,81 @@ final class NbtKit {
         return bo.toByteArray();
     }
 
+    // ---- 입력 조건(paper 줄 when=) ----
+
+    /** when=nbt-array-limit: 이 읽기 입력에서 Paper 의 배열 길이 막기(바이트·정수 배열 길이 1<<24 이상)가 다른 오류보다 먼저 걸리나. */
+    static final String ARRAY_LIMIT = "nbt-array-limit";
+    private static final int ARRAY_LIMIT_LEN = 1 << 24, MAX_DEPTH = 512;
+
+    /**
+     * 멤버가 실제로 읽을 바이트를 NBT 바이너리 형식(공개 사양)대로 구조만 훑어, 끝·형식 오류·깊이 초과보다 먼저
+     * 바이트·정수 배열 길이 1<<24 이상을 만나면 참. 할당량은 보지 않는다(할당량이 먼저 걸리면 shim 도 할당량 예외라 쌍이 안 맞는다).
+     * readCompressed* 는 gzip 을 풀고, readAnyTag 는 이름 없는 뿌리, 나머지 read* 는 이름 있는 뿌리.
+     */
+    static boolean tripsArrayLimit(String key, Object[] argSeeds) throws ReflectiveOperationException, IOException {
+        InSeed in = null;
+        for (Object a : argSeeds) {
+            if (a instanceof InSeed s) in = s;
+            else if (a instanceof PathSeed ps && ps.content != null) in = ps.content;
+        }
+        if (in == null) return false;
+        byte[] b = inputBytes(in);
+        if (key.startsWith("readCompressed")) {
+            try (java.util.zip.GZIPInputStream z = new java.util.zip.GZIPInputStream(new ByteArrayInputStream(b))) {
+                b = z.readAllBytes();
+            } catch (IOException e) {
+                return false;
+            }
+        }
+        DataInputStream d = new DataInputStream(new ByteArrayInputStream(b));
+        try {
+            byte id = d.readByte();
+            if (id == END) return false;
+            if (!key.startsWith("readAnyTag")) d.readUTF();
+            return scan(d, id, 0);
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    /** 몸통 하나를 훑는다. 배열 길이 막기에 걸리면 참, 정상으로 끝나면 거짓, 다른 오류는 IOException. */
+    private static boolean scan(DataInputStream d, byte id, int depth) throws IOException {
+        switch (id) {
+            case BYTE -> d.skipNBytes(1);
+            case SHORT -> d.skipNBytes(2);
+            case INT, FLOAT -> d.skipNBytes(4);
+            case LONG, DOUBLE -> d.skipNBytes(8);
+            case STRING -> d.readUTF();
+            case BYTE_ARRAY, INT_ARRAY -> {
+                int n = d.readInt();
+                if (n >= ARRAY_LIMIT_LEN) return true;
+                if (n < 0) throw new IOException("negative length");
+                d.skipNBytes((long) n * (id == BYTE_ARRAY ? 1 : 4));
+            }
+            case LONG_ARRAY -> {
+                int n = d.readInt();
+                if (n < 0) throw new IOException("negative length");
+                d.skipNBytes((long) n * 8);
+            }
+            case LIST -> {
+                if (depth + 1 > MAX_DEPTH) throw new IOException("depth");
+                byte t = d.readByte();
+                int n = d.readInt();
+                if (t == END && n > 0) throw new IOException("end list");
+                for (int i = 0; i < n; i++) if (scan(d, t, depth + 1)) return true;
+            }
+            case COMPOUND -> {
+                if (depth + 1 > MAX_DEPTH) throw new IOException("depth");
+                for (byte t; (t = d.readByte()) != END; ) {
+                    d.readUTF();
+                    if (scan(d, t, depth + 1)) return true;
+                }
+            }
+            default -> throw new IOException("invalid id " + id);
+        }
+        return false;
+    }
+
     // ---- 내리기 ----
 
     /** 시험 쪽 바이트 받기 — 양쪽 로더가 같은 이 클래스를 쓴다(JDK 형식 인자). */
