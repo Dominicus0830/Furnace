@@ -86,6 +86,26 @@ class CraftSchedulerTagIdentityTest {
             assertTrue(s.getPendingTasks().stream().anyMatch(x -> x == task), "같은 CraftTask");
             assertTrue(s.getPendingTasks().stream().anyMatch(x -> x == call), "같은 CraftFuture");
             s.cancelTasks(p);
+
+            // PR 584 검토: callSyncMethod 를 넣는 틈에 대기 목록을 보아도 손잡이는 처음부터 Future 다(보통 작업으로 굳으면 플러그인의 형 변환이 깨진다)
+            var stop = new java.util.concurrent.atomic.AtomicBoolean();
+            var wrong = new java.util.concurrent.ConcurrentLinkedQueue<String>();
+            Thread watcher = new Thread(() -> {
+                while (!stop.get()) {
+                    for (BukkitTask t : s.getPendingTasks()) {
+                        if (t.getOwner() == p && !(t instanceof Future<?>)) wrong.add(t.getClass().getName());
+                    }
+                }
+            });
+            watcher.start();
+            try {
+                for (int i = 0; i < 2000; i++) s.callSyncMethod(p, () -> "y");
+            } finally {
+                stop.set(true);
+                watcher.join();
+            }
+            s.cancelTasks(p);
+            assertTrue(wrong.isEmpty(), "callSyncMethod 손잡이가 보통 작업으로 보였다: " + wrong);
         }
     }
 
