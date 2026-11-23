@@ -35,13 +35,18 @@ M	net/minecraft/world/entity/AreaEffectCloud	<init>	(Lnet/minecraft/world/entity
 M	net/minecraft/world/entity/AreaEffectCloud	<init>	(Lnet/minecraft/world/level/Level;DDD)V	1	-
 C	net/minecraft/world/entity/Attackable	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/Display	1057	net/minecraft/world/entity/Entity	-	-	-	paper-server-1.21.1
+F	net/minecraft/world/entity/Display	DATA_POS_ROT_INTERPOLATION_DURATION_ID	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Integer;>;
 C	net/minecraft/world/entity/Display$BlockDisplay	33	net/minecraft/world/entity/Display	-	-	9	paper-server-1.21.1
 M	net/minecraft/world/entity/Display$BlockDisplay	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<*>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/Display$ItemDisplay	33	net/minecraft/world/entity/Display	-	-	9	paper-server-1.21.1
 M	net/minecraft/world/entity/Display$ItemDisplay	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<*>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/Display$TextDisplay	33	net/minecraft/world/entity/Display	-	-	9	paper-server-1.21.1
+F	net/minecraft/world/entity/Display$TextDisplay	DATA_BACKGROUND_COLOR_ID	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Integer;>;
+F	net/minecraft/world/entity/Display$TextDisplay	DATA_LINE_WIDTH_ID	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Integer;>;
 M	net/minecraft/world/entity/Display$TextDisplay	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<*>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/Entity	1057	java/lang/Object	net/minecraft/network/syncher/SyncedDataHolder,net/minecraft/world/Nameable,net/minecraft/world/level/entity/EntityAccess,net/minecraft/commands/CommandSource,net/minecraft/world/scores/ScoreHolder	-	-	paper-server-1.21.1
+F	net/minecraft/world/entity/Entity	DATA_POSE	Lnet/minecraft/network/syncher/EntityDataAccessor;	28	Lnet/minecraft/network/syncher/EntityDataAccessor<Lnet/minecraft/world/entity/Pose;>;
+F	net/minecraft/world/entity/Entity	DATA_SHARED_FLAGS_ID	Lnet/minecraft/network/syncher/EntityDataAccessor;	28	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Byte;>;
 M	net/minecraft/world/entity/Entity	absMoveTo	(DDDFF)V	1	-
 M	net/minecraft/world/entity/Entity	blockPosition	()Lnet/minecraft/core/BlockPos;	1	-
 M	net/minecraft/world/entity/Entity	chunkPosition	()Lnet/minecraft/world/level/ChunkPos;	1	-
@@ -138,6 +143,9 @@ C	net/minecraft/world/entity/LerpingModel	1537	java/lang/Object	-	-	-	paper-serv
 C	net/minecraft/world/entity/LightningBolt	33	net/minecraft/world/entity/Entity	-	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/LightningBolt	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/LightningBolt;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/LivingEntity	1057	net/minecraft/world/entity/Entity	net/minecraft/world/entity/Attackable	-	-	paper-server-1.21.1
+F	net/minecraft/world/entity/LivingEntity	DATA_ARROW_COUNT_ID	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Integer;>;
+F	net/minecraft/world/entity/LivingEntity	DATA_HEALTH_ID	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Float;>;
+F	net/minecraft/world/entity/LivingEntity	DATA_LIVING_ENTITY_FLAGS	Lnet/minecraft/network/syncher/EntityDataAccessor;	28	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Byte;>;
 M	net/minecraft/world/entity/LivingEntity	isAlive	()Z	1	-
 M	net/minecraft/world/entity/LivingEntity	isFallFlying	()Z	1	-
 C	net/minecraft/world/entity/Marker	33	net/minecraft/world/entity/Entity	-	-	-	paper-server-1.21.1
@@ -155,6 +163,8 @@ C	net/minecraft/world/entity/ReputationEventHandler	1537	java/lang/Object	-	-	-	
 C	net/minecraft/world/entity/Saddleable	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/Shearable	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/TamableAnimal	1057	net/minecraft/world/entity/animal/Animal	net/minecraft/world/entity/OwnableEntity	-	-	paper-server-1.21.1
+F	net/minecraft/world/entity/TamableAnimal	DATA_FLAGS_ID	Lnet/minecraft/network/syncher/EntityDataAccessor;	28	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Byte;>;
+F	net/minecraft/world/entity/TamableAnimal	DATA_OWNERUUID_ID	Lnet/minecraft/network/syncher/EntityDataAccessor;	28	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/util/Optional<Ljava/util/UUID;>;>;
 C	net/minecraft/world/entity/Targeting	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/TraceableEntity	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/VariantHolder	1537	java/lang/Object	-	<T:Ljava/lang/Object;>Ljava/lang/Object;	-	paper-server-1.21.1
@@ -180,8 +190,11 @@ C	net/minecraft/world/entity/animal/Dolphin	33	net/minecraft/world/entity/animal
 M	net/minecraft/world/entity/animal/Dolphin	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/Dolphin;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/FlyingAnimal	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/animal/Fox	33	net/minecraft/world/entity/animal/Animal	net/minecraft/world/entity/VariantHolder	-	-	paper-server-1.21.1
+F	net/minecraft/world/entity/animal/Fox	DATA_TRUSTED_ID_0	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/util/Optional<Ljava/util/UUID;>;>;
+F	net/minecraft/world/entity/animal/Fox	DATA_TRUSTED_ID_1	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/util/Optional<Ljava/util/UUID;>;>;
 M	net/minecraft/world/entity/animal/Fox	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/Fox;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/IronGolem	33	net/minecraft/world/entity/animal/AbstractGolem	net/minecraft/world/entity/NeutralMob	-	-	paper-server-1.21.1
+F	net/minecraft/world/entity/animal/IronGolem	DATA_FLAGS_ID	Lnet/minecraft/network/syncher/EntityDataAccessor;	28	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Byte;>;
 M	net/minecraft/world/entity/animal/IronGolem	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/IronGolem;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/MushroomCow	33	net/minecraft/world/entity/animal/Cow	net/minecraft/world/entity/Shearable,net/minecraft/world/entity/VariantHolder	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/animal/MushroomCow	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/MushroomCow;>;Lnet/minecraft/world/level/Level;)V
@@ -222,12 +235,16 @@ M	net/minecraft/world/entity/animal/armadillo/Armadillo	<init>	(Lnet/minecraft/w
 C	net/minecraft/world/entity/animal/axolotl/Axolotl	33	net/minecraft/world/entity/animal/Animal	net/minecraft/world/entity/LerpingModel,net/minecraft/world/entity/VariantHolder,net/minecraft/world/entity/animal/Bucketable	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/animal/axolotl/Axolotl	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/axolotl/Axolotl;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/camel/Camel	33	net/minecraft/world/entity/animal/horse/AbstractHorse	net/minecraft/world/entity/PlayerRideableJumping,net/minecraft/world/entity/Saddleable	-	-	paper-server-1.21.1
+F	net/minecraft/world/entity/animal/camel/Camel	DASH	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Boolean;>;
+F	net/minecraft/world/entity/animal/camel/Camel	LAST_POSE_CHANGE_TICK	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Long;>;
 M	net/minecraft/world/entity/animal/camel/Camel	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/camel/Camel;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/frog/Frog	33	net/minecraft/world/entity/animal/Animal	net/minecraft/world/entity/VariantHolder	Lnet/minecraft/world/entity/animal/Animal;Lnet/minecraft/world/entity/VariantHolder<Lnet/minecraft/core/Holder<Lnet/minecraft/world/entity/animal/FrogVariant;>;>;	-	paper-server-1.21.1
 M	net/minecraft/world/entity/animal/frog/Frog	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/Animal;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/frog/Tadpole	33	net/minecraft/world/entity/animal/AbstractFish	-	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/animal/frog/Tadpole	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/AbstractFish;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/goat/Goat	33	net/minecraft/world/entity/animal/Animal	-	-	-	paper-server-1.21.1
+F	net/minecraft/world/entity/animal/goat/Goat	DATA_HAS_LEFT_HORN	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Boolean;>;
+F	net/minecraft/world/entity/animal/goat/Goat	DATA_HAS_RIGHT_HORN	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Boolean;>;
 M	net/minecraft/world/entity/animal/goat/Goat	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/goat/Goat;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/horse/AbstractChestedHorse	1057	net/minecraft/world/entity/animal/horse/AbstractHorse	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/animal/horse/AbstractHorse	1057	net/minecraft/world/entity/animal/Animal	net/minecraft/world/ContainerListener,net/minecraft/world/entity/HasCustomInventoryScreen,net/minecraft/world/entity/OwnableEntity,net/minecraft/world/entity/PlayerRideableJumping,net/minecraft/world/entity/Saddleable	-	-	paper-server-1.21.1
@@ -250,10 +267,18 @@ M	net/minecraft/world/entity/animal/sniffer/Sniffer	<init>	(Lnet/minecraft/world
 C	net/minecraft/world/entity/boss/enderdragon/EndCrystal	33	net/minecraft/world/entity/Entity	-	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/boss/enderdragon/EndCrystal	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/boss/enderdragon/EndCrystal;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/boss/enderdragon/EnderDragon	33	net/minecraft/world/entity/Mob	net/minecraft/world/entity/monster/Enemy	-	-	paper-server-1.21.1
+F	net/minecraft/world/entity/boss/enderdragon/EnderDragon	DATA_PHASE	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Integer;>;
 M	net/minecraft/world/entity/boss/enderdragon/EnderDragon	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/boss/enderdragon/EnderDragon;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/boss/wither/WitherBoss	33	net/minecraft/world/entity/monster/Monster	net/minecraft/world/entity/PowerableMob,net/minecraft/world/entity/monster/RangedAttackMob	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/boss/wither/WitherBoss	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/boss/wither/WitherBoss;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/decoration/ArmorStand	33	net/minecraft/world/entity/LivingEntity	-	-	-	paper-server-1.21.1
+F	net/minecraft/world/entity/decoration/ArmorStand	DATA_BODY_POSE	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Lnet/minecraft/core/Rotations;>;
+F	net/minecraft/world/entity/decoration/ArmorStand	DATA_CLIENT_FLAGS	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Byte;>;
+F	net/minecraft/world/entity/decoration/ArmorStand	DATA_HEAD_POSE	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Lnet/minecraft/core/Rotations;>;
+F	net/minecraft/world/entity/decoration/ArmorStand	DATA_LEFT_ARM_POSE	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Lnet/minecraft/core/Rotations;>;
+F	net/minecraft/world/entity/decoration/ArmorStand	DATA_LEFT_LEG_POSE	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Lnet/minecraft/core/Rotations;>;
+F	net/minecraft/world/entity/decoration/ArmorStand	DATA_RIGHT_ARM_POSE	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Lnet/minecraft/core/Rotations;>;
+F	net/minecraft/world/entity/decoration/ArmorStand	DATA_RIGHT_LEG_POSE	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Lnet/minecraft/core/Rotations;>;
 M	net/minecraft/world/entity/decoration/ArmorStand	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/decoration/ArmorStand;>;Lnet/minecraft/world/level/Level;)V
 M	net/minecraft/world/entity/decoration/ArmorStand	<init>	(Lnet/minecraft/world/level/Level;DDD)V	1	-
 C	net/minecraft/world/entity/decoration/BlockAttachedEntity	1057	net/minecraft/world/entity/Entity	-	-	-	paper-server-1.21.1
@@ -263,6 +288,8 @@ C	net/minecraft/world/entity/decoration/HangingEntity	1057	net/minecraft/world/e
 M	net/minecraft/world/entity/decoration/HangingEntity	getDirection	()Lnet/minecraft/core/Direction;	1	-
 M	net/minecraft/world/entity/decoration/HangingEntity	rotate	(Lnet/minecraft/world/level/block/Rotation;)F	1	-
 C	net/minecraft/world/entity/decoration/ItemFrame	33	net/minecraft/world/entity/decoration/HangingEntity	-	-	-	paper-server-1.21.1
+F	net/minecraft/world/entity/decoration/ItemFrame	DATA_ITEM	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Lnet/minecraft/world/item/ItemStack;>;
+F	net/minecraft/world/entity/decoration/ItemFrame	DATA_ROTATION	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Integer;>;
 M	net/minecraft/world/entity/decoration/ItemFrame	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/decoration/ItemFrame;>;Lnet/minecraft/world/level/Level;)V
 M	net/minecraft/world/entity/decoration/ItemFrame	getRotation	()I	1	-
 M	net/minecraft/world/entity/decoration/ItemFrame	setRotation	(I)V	1	-
@@ -271,6 +298,7 @@ M	net/minecraft/world/entity/decoration/LeashFenceKnotEntity	<init>	(Lnet/minecr
 C	net/minecraft/world/entity/decoration/Painting	33	net/minecraft/world/entity/decoration/HangingEntity	net/minecraft/world/entity/VariantHolder	Lnet/minecraft/world/entity/decoration/HangingEntity;Lnet/minecraft/world/entity/VariantHolder<Lnet/minecraft/core/Holder<Lnet/minecraft/world/entity/decoration/PaintingVariant;>;>;	-	paper-server-1.21.1
 M	net/minecraft/world/entity/decoration/Painting	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/decoration/Painting;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/item/FallingBlockEntity	33	net/minecraft/world/entity/Entity	-	-	-	paper-server-1.21.1
+F	net/minecraft/world/entity/item/FallingBlockEntity	DATA_START_POS	Lnet/minecraft/network/syncher/EntityDataAccessor;	28	Lnet/minecraft/network/syncher/EntityDataAccessor<Lnet/minecraft/core/BlockPos;>;
 M	net/minecraft/world/entity/item/FallingBlockEntity	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/item/FallingBlockEntity;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/item/ItemEntity	33	net/minecraft/world/entity/Entity	net/minecraft/world/entity/TraceableEntity	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/item/ItemEntity	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/item/ItemEntity;>;Lnet/minecraft/world/level/Level;)V
@@ -321,10 +349,14 @@ C	net/minecraft/world/entity/monster/RangedAttackMob	1537	java/lang/Object	-	-	-
 C	net/minecraft/world/entity/monster/Ravager	33	net/minecraft/world/entity/raid/Raider	-	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/monster/Ravager	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Ravager;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/Shulker	33	net/minecraft/world/entity/animal/AbstractGolem	net/minecraft/world/entity/VariantHolder,net/minecraft/world/entity/monster/Enemy	Lnet/minecraft/world/entity/animal/AbstractGolem;Lnet/minecraft/world/entity/VariantHolder<Ljava/util/Optional<Lnet/minecraft/world/item/DyeColor;>;>;Lnet/minecraft/world/entity/monster/Enemy;	-	paper-server-1.21.1
+F	net/minecraft/world/entity/monster/Shulker	DATA_ATTACH_FACE_ID	Lnet/minecraft/network/syncher/EntityDataAccessor;	28	Lnet/minecraft/network/syncher/EntityDataAccessor<Lnet/minecraft/core/Direction;>;
+F	net/minecraft/world/entity/monster/Shulker	DATA_COLOR_ID	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Byte;>;
+F	net/minecraft/world/entity/monster/Shulker	DATA_PEEK_ID	Lnet/minecraft/network/syncher/EntityDataAccessor;	28	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Byte;>;
 M	net/minecraft/world/entity/monster/Shulker	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Shulker;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/Silverfish	33	net/minecraft/world/entity/monster/Monster	-	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/monster/Silverfish	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Silverfish;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/Skeleton	33	net/minecraft/world/entity/monster/AbstractSkeleton	-	-	-	paper-server-1.21.1
+F	net/minecraft/world/entity/monster/Skeleton	DATA_STRAY_CONVERSION_ID	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Boolean;>;
 M	net/minecraft/world/entity/monster/Skeleton	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Skeleton;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/Slime	33	net/minecraft/world/entity/Mob	net/minecraft/world/entity/monster/Enemy	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/monster/Slime	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Slime;>;Lnet/minecraft/world/level/Level;)V
@@ -336,6 +368,7 @@ M	net/minecraft/world/entity/monster/Stray	<init>	(Lnet/minecraft/world/entity/E
 C	net/minecraft/world/entity/monster/Strider	33	net/minecraft/world/entity/animal/Animal	net/minecraft/world/entity/ItemSteerable,net/minecraft/world/entity/Saddleable	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/monster/Strider	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Strider;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/Vex	33	net/minecraft/world/entity/monster/Monster	net/minecraft/world/entity/TraceableEntity	-	-	paper-server-1.21.1
+F	net/minecraft/world/entity/monster/Vex	DATA_FLAGS_ID	Lnet/minecraft/network/syncher/EntityDataAccessor;	28	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Byte;>;
 M	net/minecraft/world/entity/monster/Vex	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Vex;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/Vindicator	33	net/minecraft/world/entity/monster/AbstractIllager	-	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/monster/Vindicator	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Vindicator;>;Lnet/minecraft/world/level/Level;)V
@@ -346,8 +379,10 @@ M	net/minecraft/world/entity/monster/WitherSkeleton	<init>	(Lnet/minecraft/world
 C	net/minecraft/world/entity/monster/Zoglin	33	net/minecraft/world/entity/monster/Monster	net/minecraft/world/entity/monster/Enemy,net/minecraft/world/entity/monster/hoglin/HoglinBase	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/monster/Zoglin	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Zoglin;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/Zombie	33	net/minecraft/world/entity/monster/Monster	-	-	-	paper-server-1.21.1
+F	net/minecraft/world/entity/monster/Zombie	DATA_DROWNED_CONVERSION_ID	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Boolean;>;
 M	net/minecraft/world/entity/monster/Zombie	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Zombie;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/ZombieVillager	33	net/minecraft/world/entity/monster/Zombie	net/minecraft/world/entity/npc/VillagerDataHolder	-	-	paper-server-1.21.1
+F	net/minecraft/world/entity/monster/ZombieVillager	DATA_CONVERTING_ID	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Boolean;>;
 M	net/minecraft/world/entity/monster/ZombieVillager	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/ZombieVillager;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/ZombifiedPiglin	33	net/minecraft/world/entity/monster/Zombie	net/minecraft/world/entity/NeutralMob	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/monster/ZombifiedPiglin	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/ZombifiedPiglin;>;Lnet/minecraft/world/level/Level;)V
@@ -357,6 +392,7 @@ C	net/minecraft/world/entity/monster/hoglin/Hoglin	33	net/minecraft/world/entity
 M	net/minecraft/world/entity/monster/hoglin/Hoglin	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/hoglin/Hoglin;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/hoglin/HoglinBase	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/monster/piglin/AbstractPiglin	1057	net/minecraft/world/entity/monster/Monster	-	-	-	paper-server-1.21.1
+F	net/minecraft/world/entity/monster/piglin/AbstractPiglin	DATA_IMMUNE_TO_ZOMBIFICATION	Lnet/minecraft/network/syncher/EntityDataAccessor;	28	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Boolean;>;
 C	net/minecraft/world/entity/monster/piglin/Piglin	33	net/minecraft/world/entity/monster/piglin/AbstractPiglin	net/minecraft/world/entity/monster/CrossbowAttackMob,net/minecraft/world/entity/npc/InventoryCarrier	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/monster/piglin/Piglin	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/piglin/AbstractPiglin;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/piglin/PiglinBrute	33	net/minecraft/world/entity/monster/piglin/AbstractPiglin	-	-	-	paper-server-1.21.1
@@ -372,6 +408,10 @@ C	net/minecraft/world/entity/npc/VillagerDataHolder	1537	java/lang/Object	net/mi
 C	net/minecraft/world/entity/npc/WanderingTrader	33	net/minecraft/world/entity/npc/AbstractVillager	-	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/npc/WanderingTrader	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/npc/WanderingTrader;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/player/Player	1057	net/minecraft/world/entity/LivingEntity	-	-	-	paper-server-1.21.1
+F	net/minecraft/world/entity/player/Player	DATA_PLAYER_MAIN_HAND	Lnet/minecraft/network/syncher/EntityDataAccessor;	28	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Byte;>;
+F	net/minecraft/world/entity/player/Player	DATA_PLAYER_MODE_CUSTOMISATION	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Byte;>;
+F	net/minecraft/world/entity/player/Player	DATA_SHOULDER_LEFT	Lnet/minecraft/network/syncher/EntityDataAccessor;	28	Lnet/minecraft/network/syncher/EntityDataAccessor<Lnet/minecraft/nbt/CompoundTag;>;
+F	net/minecraft/world/entity/player/Player	DATA_SHOULDER_RIGHT	Lnet/minecraft/network/syncher/EntityDataAccessor;	28	Lnet/minecraft/network/syncher/EntityDataAccessor<Lnet/minecraft/nbt/CompoundTag;>;
 M	net/minecraft/world/entity/player/Player	isSwimming	()Z	1	-
 C	net/minecraft/world/entity/player/StackedContents	33	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/projectile/AbstractArrow	1057	net/minecraft/world/entity/projectile/Projectile	-	-	-	paper-server-1.21.1
@@ -386,8 +426,12 @@ C	net/minecraft/world/entity/projectile/EyeOfEnder	33	net/minecraft/world/entity
 M	net/minecraft/world/entity/projectile/EyeOfEnder	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/projectile/EyeOfEnder;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/projectile/Fireball	1057	net/minecraft/world/entity/projectile/AbstractHurtingProjectile	net/minecraft/world/entity/projectile/ItemSupplier	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/projectile/FireworkRocketEntity	33	net/minecraft/world/entity/projectile/Projectile	net/minecraft/world/entity/projectile/ItemSupplier	-	-	paper-server-1.21.1
+F	net/minecraft/world/entity/projectile/FireworkRocketEntity	DATA_ATTACHED_TO_TARGET	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/util/OptionalInt;>;
+F	net/minecraft/world/entity/projectile/FireworkRocketEntity	DATA_ID_FIREWORKS_ITEM	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Lnet/minecraft/world/item/ItemStack;>;
+F	net/minecraft/world/entity/projectile/FireworkRocketEntity	DATA_SHOT_AT_ANGLE	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Boolean;>;
 M	net/minecraft/world/entity/projectile/FireworkRocketEntity	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/projectile/FireworkRocketEntity;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/projectile/FishingHook	33	net/minecraft/world/entity/projectile/Projectile	-	-	-	paper-server-1.21.1
+F	net/minecraft/world/entity/projectile/FishingHook	DATA_HOOKED_ENTITY	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Integer;>;
 M	net/minecraft/world/entity/projectile/FishingHook	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/projectile/FishingHook;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/projectile/ItemSupplier	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/projectile/LargeFireball	33	net/minecraft/world/entity/projectile/Fireball	-	-	-	paper-server-1.21.1
@@ -423,6 +467,7 @@ M	net/minecraft/world/entity/projectile/windcharge/BreezeWindCharge	<init>	(Lnet
 C	net/minecraft/world/entity/projectile/windcharge/WindCharge	33	net/minecraft/world/entity/projectile/windcharge/AbstractWindCharge	-	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/projectile/windcharge/WindCharge	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/projectile/windcharge/AbstractWindCharge;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/raid/Raider	1057	net/minecraft/world/entity/monster/PatrollingMonster	-	-	-	paper-server-1.21.1
+F	net/minecraft/world/entity/raid/Raider	IS_CELEBRATING	Lnet/minecraft/network/syncher/EntityDataAccessor;	28	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Boolean;>;
 C	net/minecraft/world/entity/vehicle/AbstractMinecart	1057	net/minecraft/world/entity/vehicle/VehicleEntity	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/vehicle/AbstractMinecartContainer	1057	net/minecraft/world/entity/vehicle/AbstractMinecart	net/minecraft/world/entity/vehicle/ContainerEntity	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/vehicle/AbstractMinecartContainer	clearContent	()V	1	-
@@ -437,6 +482,7 @@ M	net/minecraft/world/entity/vehicle/Minecart	<init>	(Lnet/minecraft/world/entit
 C	net/minecraft/world/entity/vehicle/MinecartChest	33	net/minecraft/world/entity/vehicle/AbstractMinecartContainer	-	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/vehicle/MinecartChest	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/vehicle/MinecartChest;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/vehicle/MinecartCommandBlock	33	net/minecraft/world/entity/vehicle/AbstractMinecart	-	-	-	paper-server-1.21.1
+F	net/minecraft/world/entity/vehicle/MinecartCommandBlock	DATA_ID_COMMAND_NAME	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/String;>;
 M	net/minecraft/world/entity/vehicle/MinecartCommandBlock	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/vehicle/MinecartCommandBlock;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/vehicle/MinecartFurnace	33	net/minecraft/world/entity/vehicle/AbstractMinecart	-	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/vehicle/MinecartFurnace	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/vehicle/MinecartFurnace;>;Lnet/minecraft/world/level/Level;)V
@@ -447,6 +493,9 @@ M	net/minecraft/world/entity/vehicle/MinecartSpawner	<init>	(Lnet/minecraft/worl
 C	net/minecraft/world/entity/vehicle/MinecartTNT	33	net/minecraft/world/entity/vehicle/AbstractMinecart	-	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/vehicle/MinecartTNT	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/vehicle/MinecartTNT;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/vehicle/VehicleEntity	1057	net/minecraft/world/entity/Entity	-	-	-	paper-server-1.21.1
+F	net/minecraft/world/entity/vehicle/VehicleEntity	DATA_ID_DAMAGE	Lnet/minecraft/network/syncher/EntityDataAccessor;	28	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Float;>;
+F	net/minecraft/world/entity/vehicle/VehicleEntity	DATA_ID_HURT	Lnet/minecraft/network/syncher/EntityDataAccessor;	28	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Integer;>;
+F	net/minecraft/world/entity/vehicle/VehicleEntity	DATA_ID_HURTDIR	Lnet/minecraft/network/syncher/EntityDataAccessor;	28	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Integer;>;
 C	net/minecraft/world/flag/FeatureElement	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/inventory/AbstractContainerMenu	1057	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/inventory/MenuConstructor	1537	java/lang/Object	-	-	-	paper-server-1.21.1

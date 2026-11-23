@@ -31,3 +31,12 @@
   서버는 미리 보기·넣기 모두 그 씨앗으로 엔티티 난수를 만든다(`Entity.withRandomSeed`). UUID 도 그 난수에서 나온다.
 - 기록: 빈 레벨에서 만들어도 정적 공유 난수(몹 감지기 시작 틱, `Sensor` 의 스레드 안전 난수)는 한 번 소비된다. 바닐라도 엔티티를 만들 때마다
   같은 공유 난수를 쓰므로 결과 분포는 같고 월드 난수·엔티티 번호와는 무관하다.
+
+## 칸 상수 DATA_* (D2)
+- `tools/compat/entity-data-spec.py` 가 Paper 서버 서명표(클라우드에서도 `tools/compat/sig-tables.sh` 로 만든다 — Maven 429 면 다시 실행)에서
+  public/protected `EntityDataAccessor` 정적 필드 49개를 골라 명세 줄을 쓴다. 이미 다른 명세에 있는 클래스(Entity·LivingEntity·Player·ArmorStand·ItemFrame)는
+  `entity.spec` 의 표지 블록에, 나머지는 `entity-data.spec` 에. 값은 명세에 숫자를 적지 않고 실행 때 `NmsEntityData.accessor(클래스, 이름)` 가
+  #565 칸 번호표의 지문으로 찾는다.
+- Paper 1.21.1 칸 상수 210개: public 31·protected 18(생성), private 159·package 2(명세에 안 적음 — 필요하면 목록을 뽑아 따로 결정).
+  FancyNpcs 의 Goat 뿔 두 개·Shulker 색·Player 모드는 모두 public.
+- 시험 `NmsEntityDataConstantsTest`: 상수마다 그 클래스를 사슬에 가진 종류 전부의 배치에서 번호·값 종류가 맞는지.
