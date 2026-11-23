@@ -145,11 +145,29 @@ public abstract non-sealed class Entity implements Rider {
     private java.util.List<Rider> passengers = java.util.List.of();
     private int boardingCooldown;
 
+    private static final ThreadLocal<Long> RANDOM_SEED = new ThreadLocal<>();
+
+    /**
+     * 엔티티 난수를 그 씨앗으로 만든 엔티티(바닐라 생성자의 난수 선택 — 좀비 주민 직업·UUID 등 — 이 씨앗에 달린다). NMS 로 만든 엔티티의 칸을 빈 레벨에서
+     * 미리 볼 때와 월드에 넣을 때 같은 씨앗을 써서 두 엔티티가 같은 생성자 선택을 하게 한다(바닐라는 둘이 같은 객체다). make 가 처음 만드는 엔티티에만 쓴다.
+     */
+    public static <E extends Entity> E withRandomSeed(long seed, java.util.function.Supplier<E> make) {
+        RANDOM_SEED.set(seed);
+        try {
+            return make.get();
+        } finally {
+            RANDOM_SEED.remove();
+        }
+    }
+
     protected Entity(EntityType type, ChunkLevel level, int id) {
         this.type = type;
         this.level = level;
         this.id = id;
-        this.random = RandomSource.createFor(id, RandomSeeds.Purpose.ENTITY);   // 주인 열쇠 = 엔티티 id. UUID 도 이 난수에서 나온다
+        Long seed = RANDOM_SEED.get();
+        RANDOM_SEED.remove();   // 이 엔티티에만(생성자 안에서 만드는 다른 엔티티는 평소대로)
+        // 주인 열쇠 = 엔티티 id. UUID 도 이 난수에서 나온다. NMS 로 만든 엔티티는 씨앗을 받는다(withRandomSeed)
+        this.random = seed != null ? new org.domi.furnace.server.block.LegacyRandomSource(seed) : RandomSource.createFor(id, RandomSeeds.Purpose.ENTITY);
         this.uuid = randomUuid(random);
         entityData.define(DATA_SHARED_FLAGS, SetEntityData.SERIALIZER_BYTE, (byte) 0);
         entityData.define(DATA_AIR_SUPPLY, SetEntityData.SERIALIZER_INT, getMaxAirSupply());   // 바닐라 define(DATA_AIR_SUPPLY_ID, getMaxAirSupply()) — 아홀로틀 6000·돌고래 4800

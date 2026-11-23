@@ -1,0 +1,15 @@
+# 채우기 영역(T-262, docs/roadmap/full-shells-2026-11-23.md 8장). 탭 구분: 번호, 이름, 접두(쉼표, 내부 이름). 가장 긴 접두가 이긴다.
+# 기준선(fills-baseline-<판>.txt)이 영역별로 센다. 영역을 나눌 때는 이 파일을 고치고 기준선을 다시 쓴다.
+# 접두에 안 맞는 클래스는 영역 0(other).
+1	block	net/minecraft/world/level/block/
+2	entity-core	net/minecraft/world/entity/
+3	entity-ai	net/minecraft/world/entity/ai/
+4	item-inventory	net/minecraft/world/item/,net/minecraft/world/inventory/,net/minecraft/world/food/
+5	level-chunk-storage	net/minecraft/world/level/
+6	levelgen	net/minecraft/world/level/levelgen/
+7	network	net/minecraft/network/
+8	server-commands-stats	net/minecraft/server/,net/minecraft/commands/,net/minecraft/advancements/,net/minecraft/stats/
+9	nbt-resources-core-util	net/minecraft/nbt/,net/minecraft/resources/,net/minecraft/tags/,net/minecraft/core/,net/minecraft/util/
+10	craftbukkit	org/bukkit/craftbukkit/
+11	paper-internal-api	io/papermc/,com/destroystokyo/,org/bukkit/
+12	datafix-gametest	net/minecraft/util/datafix/,net/minecraft/gametest/,net/minecraft/data/

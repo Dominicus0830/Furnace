@@ -70,7 +70,7 @@ final class EntityDataBridge {
         return ClientboundSetEntityDataPacket.Value.of(type, v);
     }
 
-    private static Object toApi(String name, Object v, String at) {
+    static Object toApi(String name, Object v, String at) {
         SchemaPacketReverse.need(v, at);   // 바닐라 직렬화도 null 값은 쓰다 실패한다(Optional 종류는 Optional.empty())
         return switch (name) {
             case "byte", "int", "long", "float", "string", "boolean", "optional_uuid", "optional_unsigned_int" -> v;
@@ -90,6 +90,7 @@ final class EntityDataBridge {
             case "pose" -> org.domi.furnace.api.entity.Pose.byId(((net.minecraft.world.entity.Pose) v).id());
             case "sniffer_state" -> ((net.minecraft.world.entity.animal.sniffer.Sniffer.State) v).name().toLowerCase(Locale.ROOT);
             case "armadillo_state" -> ((net.minecraft.world.entity.animal.armadillo.Armadillo.ArmadilloState) v).name().toLowerCase(Locale.ROOT);
+            case "particles" -> emptyParticles(v, "set_entity_data(particles)");   // 살아 있는 엔티티의 효과 입자 칸: 빈 목록만(입자 shim 은 설계 D4)
             default -> throw new UnsupportedNmsCall("set_entity_data(" + name + ")", "this metadata value kind cannot be converted from the shim to Furnace yet");
         };
     }
@@ -115,7 +116,7 @@ final class EntityDataBridge {
         return new net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket(p.entityId(), items);
     }
 
-    private static Object toShim(String name, Object v, String at) {
+    static Object toShim(String name, Object v, String at) {
         return switch (name) {
             case "byte", "int", "long", "float", "string", "boolean", "optional_uuid", "optional_unsigned_int" -> v;
             case "component" -> net.minecraft.network.chat.Component.fromFurnace((org.domi.furnace.api.text.Text) v);
@@ -134,9 +135,22 @@ final class EntityDataBridge {
             case "pose" -> net.minecraft.world.entity.Pose.byId(((org.domi.furnace.api.entity.Pose) v).id());
             case "sniffer_state" -> net.minecraft.world.entity.animal.sniffer.Sniffer.State.valueOf(((String) v).toUpperCase(Locale.ROOT));
             case "armadillo_state" -> net.minecraft.world.entity.animal.armadillo.Armadillo.ArmadilloState.valueOf(((String) v).toUpperCase(Locale.ROOT));
+            case "particles" -> emptyParticles(v, "fromFurnace(set_entity_data.particles)");
             default -> throw new UnsupportedNmsCall("fromFurnace(set_entity_data." + name + ")", "this metadata value kind cannot be converted back to the shim yet");
         };
     }
+
+    /** 입자 목록은 빈 것만 바꾼다(빈 목록은 두 쪽 모두 같은 값). 입자가 든 목록은 입자 shim 이 생길 때까지 UnsupportedNmsCall(설계 D4). */
+    private static List<?> emptyParticles(Object v, String what) {
+        if (!((List<?>) v).isEmpty()) throw new UnsupportedNmsCall(what, "particle lists that are not empty cannot be converted yet");
+        return List.of();
+    }
+
+    /** 이름(소문자 상수 이름) → shim 직렬화 상수(없으면 null). */
+    static EntityDataSerializer<?> serializer(String name) { return BY_NAME.get(name); }
+
+    /** shim 직렬화 상수 → 이름(없으면 null). */
+    static String name(EntityDataSerializer<?> s) { return NAMES.get(s); }
 
     /** 두 방향 모두 되는 값 종류 이름. */
     private static final java.util.Set<String> BRIDGED = java.util.Set.of("byte", "int", "long", "float", "string", "boolean", "optional_uuid", "optional_unsigned_int", "component", "optional_component",

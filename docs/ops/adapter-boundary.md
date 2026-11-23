@@ -38,3 +38,8 @@
 - `TemplatePlacer`·`ShapeUpdater` 의 통로 분기는 Paper 가 감싸개를 벗긴 레벨로 쓰는 차례(방벽 flag 20·블록 엔티티·모양 갱신·`blockUpdated`)를 바닐라 코드 모양대로 따른 것이라 뜻 이름으로 감싸지 않았다 — 감싸면 바닐라와 줄 단위 대조가 어려워진다.
 - `sinkModeStaysInPlacementEngine` 은 파일 단위로 `.sinkMode()` 글자만 본다. 허용된 두 파일 안에서 늘어나는 것, 월드젠 코드가 `setLiveWriteFlags`·`setSinkDepth`·`edgeUpdater()` 같은 통로 훅을 직접 만지는 것은 못 막는다(다음 단계 후보).
 - **어댑터와 서버는 늘 같은 빌드로 나간다.** 호환 모듈은 서버 `fatJar`·배포판 안(`META-INF/furnace/compat`, `furnace-server/build.gradle.kts` 의 `compatBundle`)에 실려 서버와 한 묶음이다 — 그래서 다리(`api.internal`)·SPI 를 서버와 어댑터가 함께 바꿔도 다른 빌드끼리 짝지어 `NoSuchMethodError` 가 날 일이 없다. 호환 모듈을 따로 배포하게 되면 이 전제를 다시 본다.
+
+## 호환 모듈이 직접 읽는 서버 리소스 (2026-11-23, 엔티티 데이터 D2)
+- `NmsEntityData.accessor`(칸 상수 `DATA_*` 의 값)는 서버 리소스 `entity_data/ids-<판>.txt` 의 A 줄을 클래스 로더로 직접 읽는다 — 코드 의존(①~③)이 아니라 **파일 형식 의존**이라 바이트코드 검사가 못 본다.
+- 형식: `A <클래스 이진 이름> <지문> <칸 번호> <직렬화 상수 이름>`, 지문은 SHA-256(`클래스.상수`) 앞 5바이트(서버 `ExportEntityData` 와 같다). 형식을 바꾸면 이 메서드도 함께 바꾼다. 어긋나면 `NmsEntityDataConstantsTest` 가 잡는다.
+- 위 "같은 빌드로 나간다" 전제 덕에 판이 어긋날 일은 없다. 다리(`api.internal`)로 옮기면 이 의존이 검사에 보이게 되지만, 지금은 읽기 전용 표 하나라 그대로 두었다.

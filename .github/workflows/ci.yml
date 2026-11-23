@@ -378,6 +378,9 @@ jobs:
       # T-264: CraftBukkit 계층 잠금(src/shimspec/craft-hierarchy-<판>.lock)이 Paper 서명표와 같은지 본다
       - name: CraftBukkit 계층 잠금 (T-264)
         run: ./gradlew -PskipOracle=true :furnace-compat-paper:craftLockCheck
+      # 엔티티 데이터 D2: 칸 상수 DATA_* 명세가 서명표에서 다시 만든 것과 같은지(낡으면 tools/compat/entity-data-spec.py 를 돌려 커밋)
+      - name: 엔티티 데이터 칸 상수 명세
+        run: python3 -I tools/compat/entity-data-spec.py --check
       # T-260: 서명표에서 Paper 내부 클래스 전부의 껍데기를 만들고(지문 src/shimspec/full-shells-<판>.fp 와 표가 같아야 함) 전부 올려 초기화해 본다
       - name: 전체 껍데기 (T-260)
         run: ./gradlew -PskipOracle=true :furnace-compat-paper:fullShellsTest

@@ -340,6 +340,79 @@ public final class EntityData767 {
         }
     }
 
+    // ------------------------------------------------------------------ 서버 엔티티 칸 값 ↔ API 값 (엔티티 데이터 설계 3.1·3.2)
+
+    /** 서버 엔티티 칸 값(SynchedData 의 값, 직렬화 번호 ser) → API 값. 와이어로 한 번 써서 읽으므로 패킷과 같은 값이 된다. */
+    public Value toApi(int ser, Object serverValue) {
+        io.netty.buffer.ByteBuf b = io.netty.buffer.Unpooled.buffer();
+        try {
+            new org.domi.furnace.server.net.protocol.play.SetEntityData(0, List.of(new org.domi.furnace.server.net.protocol.play.SetEntityData.Item(0, ser, serverValue))).write(b);
+            b.skipBytes(2);   // 엔티티 번호 0, 칸 번호 0
+            if (Types.readVarInt(b) != ser) throw new IllegalStateException("serializer " + ser);
+            Value v = read(ser, b);
+            if (v == null || b.readableBytes() != 1) throw new IllegalStateException("value kind " + ser + " did not round-trip");   // 끝 0xFF 하나만 남는다
+            return v;
+        } finally {
+            b.release();
+        }
+    }
+
+    /**
+     * API 값 → 서버 엔티티 칸 값(SynchedData 가 그 직렬화 번호에 두는 자바 형: 정수 종류는 Integer, 위치는 int[3], 없음은 null …).
+     * 서버 칸이 갖지 않는 종류(optional_global_pos — 1.21.1 서버 엔티티에 그런 칸이 없다)는 IllegalArgumentException.
+     */
+    public Object toServer(Value value) {
+        EntityDataType<?> t = value.dataType();
+        Object v = value.asObject();
+        return switch (t.name()) {
+            case "byte", "int", "long", "float", "string", "boolean", "component" -> v;
+            case "optional_component", "optional_uuid" -> ((Optional<?>) v).orElse(null);
+            case "item_stack" -> ApiConvert.item((org.domi.furnace.api.item.ItemStack) v, items());
+            case "rotations" -> {
+                Rotations r = (Rotations) v;
+                yield new float[] {r.x(), r.y(), r.z()};
+            }
+            case "block_pos" -> intPos((BlockPos) v);
+            case "optional_block_pos" -> ((Optional<?>) v).map(p -> intPos((BlockPos) p)).orElse(null);
+            case "direction" -> ((Direction) v).ordinal();
+            case "block_state" -> ApiConvert.stateId((BlockData) v, blocks());
+            case "optional_block_state" -> ((Optional<?>) v).map(x -> ApiConvert.stateId((BlockData) x, blocks())).orElse(null);
+            case "compound_tag" -> ApiNbt.toServer((org.domi.furnace.api.nbt.NbtCompound) v);
+            case "particle" -> particle((Particle) v);
+            case "particles" -> {
+                List<ParticleOptions> l = new ArrayList<>();
+                for (Object p : (List<?>) v) l.add(particle((Particle) p));
+                yield List.copyOf(l);
+            }
+            case "villager_data" -> {
+                VillagerData d = (VillagerData) v;
+                yield new int[] {indexIn(Villager.TYPES, d.type(), "villager type"), indexIn(Villager.PROFESSIONS, d.profession(), "villager profession"), d.level()};
+            }
+            case "optional_unsigned_int" -> {
+                OptionalInt o = (OptionalInt) v;
+                yield o.isEmpty() ? null : o.getAsInt();
+            }
+            case "pose" -> ((Pose) v).id();
+            case "cat_variant" -> registryId("minecraft:cat_variant", (String) v);
+            case "wolf_variant" -> dataRegistryId("minecraft:wolf_variant", (String) v);
+            case "frog_variant" -> indexIn(List.of(Frog.VARIANTS), (String) v, "frog variant");
+            case "painting_variant" -> dataRegistryId("minecraft:painting_variant", (String) v);
+            case "sniffer_state" -> indexIn(SNIFFER_STATES, (String) v, "sniffer state");
+            case "armadillo_state" -> indexIn(ARMADILLO_STATES, (String) v, "armadillo state");
+            case "vector3" -> {
+                Vector3f x = (Vector3f) v;
+                yield new float[] {x.x(), x.y(), x.z()};
+            }
+            case "quaternion" -> {
+                Quaternionf q = (Quaternionf) v;
+                yield new float[] {q.x(), q.y(), q.z(), q.w()};
+            }
+            default -> throw new IllegalArgumentException("server entities have no data slot of value kind " + t.name());
+        };
+    }
+
+    private static int[] intPos(BlockPos p) { return new int[] {p.x(), p.y(), p.z()}; }
+
     // ------------------------------------------------------------------ 입자
 
     /** API 입자 → 서버 입자 옵션(없는 종류·블록·아이템이면 IllegalArgumentException). */

@@ -62,6 +62,9 @@ public final class SynchedData {
 
     public boolean isDirty() { return isDirty; }
 
+    /** 그 칸이 packDirty 로 나갈 것인가. */
+    public boolean dirty(int index) { return dirty[index]; }
+
     /** packDirty: dirty 값들(번호 순)을 꺼내고 지운다. 없으면 null. */
     public List<SetEntityData.Item> packDirty() {
         if (!isDirty) return null;
