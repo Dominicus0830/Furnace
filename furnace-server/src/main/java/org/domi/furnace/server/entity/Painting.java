@@ -35,7 +35,10 @@ public class Painting extends HangingEntity {
         }
     }
 
-    private String variant = "minecraft:kebab";
+    /** 바닐라 처음 값 registry.getAny(): 데이터 팩 레지스트리는 키 이름순으로 등록되므로 첫 항목(1.21.1 은 alban). */
+    private String variant = defaultVariant();
+
+    static String defaultVariant() { return RegistrySet.current().entries(REGISTRY).get(0); }
 
     public Painting(ChunkLevel level, int id) {
         super(EntityType.PAINTING, level, id);
@@ -50,13 +53,25 @@ public class Painting extends HangingEntity {
     @Override
     protected void defineSynchedData() {
         super.defineSynchedData();
-        entityData.define(DATA_VARIANT, SetEntityData.SERIALIZER_PAINTING_VARIANT, RegistrySet.current().indexOf(REGISTRY, "minecraft:kebab"));
+        entityData.define(DATA_VARIANT, SetEntityData.SERIALIZER_PAINTING_VARIANT, 0);   // defaultVariant()
     }
 
     public void setVariant(String name) {
         variant = name;
         entityData.set(DATA_VARIANT, RegistrySet.current().indexOf(REGISTRY, name));
-        if (blockPos != null) recalculate();
+        if (blockPos != null) recalculate();   // 값이 같아 훅이 안 불려도(생성자) 맞춘다 — 같은 위치로 두 번 맞춰도 결과는 같다
+    }
+
+    /** Painting.onSyncedDataUpdated: 변형 칸이 바뀌면 recalculateBoundingBox. 칸에 바로 쓴 번호(플러그인)도 이름을 따라가게 한다. */
+    @Override
+    protected void onSyncedDataUpdated(int index) {
+        if (index == DATA_VARIANT) {
+            List<String> names = RegistrySet.current().entries(REGISTRY);
+            int i = (Integer) entityData.get(DATA_VARIANT);
+            if (i >= 0 && i < names.size()) variant = names.get(i);
+            recalculate();
+        }
+        super.onSyncedDataUpdated(index);
     }
 
     public String variant() { return variant; }

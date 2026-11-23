@@ -19,12 +19,14 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /**
- * T-260: 실제 서명표로 만든 전체 껍데기(furnace-compat-shells.jar)를 실행 때와 같은 따로 된 로더(호환 jar → 껍데기 jar → 호환 실행 의존 →
+ * T-260: 실제 서명표로 만든 전체 껍데기(furnace-compat-shells.jar)를 실행 때와 같은 따로 된 로더(껍데기 jar → 호환 jar → 호환 실행 의존 →
  * 서버 제공 라이브러리 → 바닐라 라이브러리)에 전부 올리고, 초기화까지 해 본다. 크기·시간은 build/full-shells/load-report.md 에 쓴다.
  * 서명표 캐시가 있어야 해서 일반 시험에서는 빠지고 {@code :furnace-compat-paper:fullShellsTest}(CI vanilla-gates)가 돈다.
  *
  * <p>합격 기준: 올리기(정의·상위 해석·final 재정의 검사)에서 연결 오류 0. 초기화는 껍데기 자신의 정적 초기화(열거형 상수)가 오류 0 —
  * 손 shim 상위의 정적 초기화가 서버 없이 실패하는 것은 껍데기 탓이 아니므로 따로 세어 보고만 한다(그 상위를 가진 것 수).
+ * T-261 로 빠진 멤버를 합친 손 shim(같은 jar, 목록 {@code merged-classes.txt})도 올린다 — 검증·연결 오류는 늘 실패, 자기 정적 초기화가 서버 없이
+ * 실패하는 것은 껍데기 탓이 아니므로 따로 센다. 합친 클래스가 정말 호환 jar 의 원래 클래스를 이기는지(로더 순서)도 본다.
  */
 @Tag("full-shells")
 class FullShellsLoadTest {
@@ -43,11 +45,26 @@ class FullShellsLoadTest {
             }
         }
         assertTrue(names.size() > 5000, "expected thousands of shells, got " + names.size());
+        java.util.Set<String> merged = new java.util.HashSet<>();
+        try (JarFile jf = new JarFile(jar.toFile())) {
+            JarEntry me = jf.getJarEntry("META-INF/furnace/full-shells/merged-classes.txt");
+            assertTrue(me != null, "merged class list missing (T-261)");
+            for (String l : new String(jf.getInputStream(me).readAllBytes(), StandardCharsets.UTF_8).split("\n")) if (!l.isBlank()) merged.add(l.replace('/', '.'));
+        }
+        assertTrue(merged.size() > 1000, "expected the hand shims to get their missing members, got " + merged.size());
+        // 껍데기 jar 가 로더 맨 앞이다 — 합친 목록 밖의 클래스가 호환 jar 에도 있으면 손 shim 이 조용히 가려진다(T-261 검토)
+        List<String> shadowing = new ArrayList<>();
+        try (JarFile compat = new JarFile(System.getProperty("furnace.fullShells.compatJar"))) {
+            for (String n : names) if (!merged.contains(n) && compat.getJarEntry(n.replace('.', '/') + ".class") != null) shadowing.add(n);
+        }
+        assertEquals(List.of(), shadowing, "classes in both the shells jar and the compat jar must be merged hand shims");
         long jarBytes = Files.size(jar);
 
         Map<String, List<String>> loadErrors = new TreeMap<>();
         Map<String, List<String>> initErrors = new TreeMap<>();
         int initBlockedByHandSuper = 0;
+        int mergedInitNeedsServer = 0;
+        int mergedNotWinning = 0;
         int initTrapped = 0;
         long t0, loadNanos, initNanos;
         try (URLClassLoader cl = new URLClassLoader(urls.toArray(URL[]::new), ClassLoader.getPlatformClassLoader())) {
@@ -55,7 +72,10 @@ class FullShellsLoadTest {
             List<Class<?>> loaded = new ArrayList<>();
             for (String n : names) {
                 try {
-                    loaded.add(Class.forName(n, false, cl));
+                    Class<?> c = Class.forName(n, false, cl);
+                    loaded.add(c);
+                    // 합친 클래스는 껍데기 jar 에서 와야 한다(호환 jar 의 원래 클래스를 이긴다)
+                    if (merged.contains(n) && !c.getProtectionDomain().getCodeSource().getLocation().toString().endsWith(jar.getFileName().toString())) mergedNotWinning++;
                 } catch (Throwable t) {
                     loadErrors.computeIfAbsent(t.getClass().getSimpleName(), k -> new ArrayList<>()).add(n + " - " + t.getMessage());
                 }
@@ -70,9 +90,10 @@ class FullShellsLoadTest {
                     while (root.getCause() != null) root = root.getCause();
                     // 검증·형식·연결 오류는 상위 정적 초기화 탓일 수 없다 — 늘 오류로 센다
                     boolean linkage = t instanceof VerifyError || t instanceof ClassFormatError || t instanceof IncompatibleClassChangeError;
-                    if (!linkage && hasInitTrap(c, cl, new java.util.HashSet<>())) initTrapped++;   // NMS 밖 껍데기의 의도된 초기화 덫(값 없는 필드)
+                    if (!linkage && merged.contains(c.getName())) mergedInitNeedsServer++;   // 손 shim 자신의 정적 초기화(서버 필요) — 합친 멤버 탓이 아니다
+                    else if (!linkage && hasInitTrap(c, cl, new java.util.HashSet<>())) initTrapped++;   // NMS 밖 껍데기의 의도된 초기화 덫(값 없는 필드)
                     // 원인이 손 shim(껍데기 jar 밖) 상위의 정적 초기화면 따로 센다
-                    else if (!linkage && fromHandSuper(c, jar, cl)) initBlockedByHandSuper++;
+                    else if (!linkage && fromHandSuper(c, jar, cl, merged)) initBlockedByHandSuper++;
                     else initErrors.computeIfAbsent(t.getClass().getSimpleName() + "/" + root.getClass().getSimpleName(), k -> new ArrayList<>())
                             .add(c.getName() + " - " + root.getMessage());
                 }
@@ -86,6 +107,8 @@ class FullShellsLoadTest {
         sb.append("load all (define + resolve supertypes, no init): ").append(loadNanos / 1_000_000).append(" ms\n");
         sb.append("initialize all loaded: ").append(initNanos / 1_000_000).append(" ms\n");
         sb.append("init failures caused by a hand-shim superclass static init (needs a running server): ").append(initBlockedByHandSuper).append('\n');
+        sb.append("merged hand shims (T-261): ").append(merged.size()).append(", own static init needs a running server: ").append(mergedInitNeedsServer)
+                .append(", not served from the shells jar: ").append(mergedNotWinning).append('\n');
         sb.append("intended init traps (non-NMS shells with fields that have no value): ").append(initTrapped).append('\n');
         // 표준 출력(CI 로그)에는 숫자만 — 클래스 이름은 보고서 파일에만 둔다
         System.out.println("[full-shells] " + sb.substring(head0).replace('\n', ';') + " load errors=" + loadErrors.size() + " init errors=" + initErrors.size());
@@ -96,6 +119,7 @@ class FullShellsLoadTest {
 
         assertEquals(Map.of(), loadErrors, "every shell must load (define + resolve its supertypes)");
         assertEquals(Map.of(), initErrors, "shell static init (enum constants) must not fail");
+        assertEquals(0, mergedNotWinning, "merged hand shims must win over the originals in the compat jar (shells jar first)");
     }
 
     /**
@@ -114,10 +138,11 @@ class FullShellsLoadTest {
         return false;
     }
 
-    /** 이 클래스의 상위 사슬에 껍데기 jar 밖(손 shim) 클래스가 있나. */
-    private static boolean fromHandSuper(Class<?> c, Path shellJar, ClassLoader cl) {
+    /** 이 클래스의 상위 사슬에 껍데기 jar 밖(손 shim) 클래스나 합친 손 shim 이 있나. */
+    private static boolean fromHandSuper(Class<?> c, Path shellJar, ClassLoader cl, java.util.Set<String> merged) {
         for (Class<?> s = c.getSuperclass(); s != null && s != Object.class; s = s.getSuperclass()) {
             if (s.getName().startsWith("java.")) return false;
+            if (merged.contains(s.getName())) return true;
             URL u = cl.getResource(s.getName().replace('.', '/') + ".class");
             if (u != null && !u.toString().contains(shellJar.getFileName().toString())) return true;
         }

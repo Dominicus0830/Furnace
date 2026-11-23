@@ -108,9 +108,15 @@ public class Sniffer extends Animal {
     public State getState() { return State.byId((Integer) entityData.get(DATA_STATE)); }
 
     private Sniffer setState(State state) {
-        entityData.set(DATA_STATE, state.id());
-        refreshBabyDimensions();   // onSyncedDataUpdated(DATA_STATE) → refreshDimensions
+        entityData.set(DATA_STATE, state.id());   // 훅이 크기를 다시 잰다
         return this;
+    }
+
+    /** Sniffer.onSyncedDataUpdated: 상태 칸이 바뀌면 refreshDimensions(애니메이션 상태는 클라이언트 쪽이라 두지 않음). */
+    @Override
+    protected void onSyncedDataUpdated(int index) {
+        if (index == DATA_STATE) refreshDimensions();
+        super.onSyncedDataUpdated(index);
     }
 
     /** Sniffer.getDefaultDimensions: 파는 중이면 scalable(1.9, 1.75 - 0.4).withEyeHeight(0.81) × 나이 배율. */

@@ -67,7 +67,9 @@ final class SigGateCommand {
             Files.createDirectories(o.sigReport.toAbsolutePath().getParent());
             Files.writeString(o.sigReport, md, StandardCharsets.UTF_8);
         }
-        System.out.println("[서명 관문] shim 클래스 " + shim.classes().size() + "개, 차이 " + diffs.size() + "건(참고: shim 이 더 가진 것 " + info.size() + "건) — 새 차이 " + r.fresh().size()
+        long missing = info.stream().filter(d -> d.code().equals("missing-member")).count();
+        System.out.println("[서명 관문] shim 클래스 " + shim.classes().size() + "개, 차이 " + diffs.size() + "건(참고: shim 이 더 가진 것 " + (info.size() - missing) + "건, shim 에 빠진 멤버 "
+                + missing + "건 — 전체 껍데기 빌드가 껍데기 멤버로 합친다) — 새 차이 " + r.fresh().size()
                 + ", 낡은 기준선 " + r.stale().size() + ", 이유 없음 " + r.noReason().size());
         Map<String, String> readable = new java.util.HashMap<>();
         for (SigGate.Diff d : diffs) readable.put(d.key(), d.code() + "\t" + d.owner() + "\t" + d.member() + "\t" + d.readable());
@@ -128,7 +130,7 @@ final class SigGateCommand {
         byCode.forEach((c, n) -> b.append("| ").append(c).append(" | ").append(n).append(" |\n"));
         Map<String, Integer> byInfo = new TreeMap<>();
         for (SigGate.Diff d : info) byInfo.merge(d.code(), 1, Integer::sum);
-        b.append("\n참고(실패 아님 — shim 이 더 가진 것): ");
+        b.append("\n참고(실패 아님 — shim 이 더 가진 것, missing-member 는 shim 에 빠진 것으로 전체 껍데기 빌드가 합친다): ");
         byInfo.forEach((c, n) -> b.append(c).append(' ').append(n).append(" · "));
         b.append('\n');
         b.append("\n## 차이 전체(원문 — 이 보고서는 커밋하지 않는다)\n\n");

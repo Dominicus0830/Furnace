@@ -88,6 +88,13 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     public void setYBodyRot(float v) { if (Float.isFinite(v)) yBodyRot = v; }
 
+    /** 저장 읽기: 머리·몸 방향을 읽은 yRot 으로(Entity.load 가 readAdditionalSaveData 전에 부른다). */
+    @Override
+    protected void syncLoadedRotation() {
+        yHeadRot = yBodyRot = yRot();
+        yHeadRotO = yBodyRotO = yRot();
+    }
+
     public void setJumping(boolean j) { jumping = j; }
 
     public void setXxa(float v) { xxa = v; }
@@ -1876,8 +1883,6 @@ public abstract class LivingEntity extends Entity implements Targetable {
         hurtTime = tag.getShort("HurtTime");
         hurtByTimestamp = tag.getIntOr0("HurtByTimestamp");
         fallFlyingSaved = tag.getBoolean("FallFlying");
-        yHeadRot = yBodyRot = yRot();
-        yHeadRotO = yBodyRotO = yRot();
         deathTime = tag.getShort("DeathTime");
         if (tag.contains("Health")) setHealth(tag.getFloat("Health"));
         if (tag.contains("SleepingX") && tag.contains("SleepingY") && tag.contains("SleepingZ")) {

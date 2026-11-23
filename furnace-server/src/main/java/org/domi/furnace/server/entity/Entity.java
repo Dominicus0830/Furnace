@@ -94,7 +94,7 @@ public abstract non-sealed class Entity implements Rider {
     protected UUID uuid;
     protected ChunkLevel level;
     protected final RandomSource random;
-    protected final SynchedData entityData = new SynchedData();
+    protected final SynchedData entityData = new SynchedData(this::onSyncedDataUpdated);
 
     private double x, y, z;
     private int blockX, blockY, blockZ;
@@ -152,7 +152,7 @@ public abstract non-sealed class Entity implements Rider {
         this.random = RandomSource.createFor(id, RandomSeeds.Purpose.ENTITY);   // 주인 열쇠 = 엔티티 id. UUID 도 이 난수에서 나온다
         this.uuid = randomUuid(random);
         entityData.define(DATA_SHARED_FLAGS, SetEntityData.SERIALIZER_BYTE, (byte) 0);
-        entityData.define(DATA_AIR_SUPPLY, SetEntityData.SERIALIZER_INT, 300);
+        entityData.define(DATA_AIR_SUPPLY, SetEntityData.SERIALIZER_INT, getMaxAirSupply());   // 바닐라 define(DATA_AIR_SUPPLY_ID, getMaxAirSupply()) — 아홀로틀 6000·돌고래 4800
         entityData.define(DATA_CUSTOM_NAME, SetEntityData.SERIALIZER_OPTIONAL_COMPONENT, null);   // Optional<Component>, null = 없음
         entityData.define(DATA_CUSTOM_NAME_VISIBLE, SetEntityData.SERIALIZER_BOOLEAN, false);
         entityData.define(DATA_SILENT, SetEntityData.SERIALIZER_BOOLEAN, false);
@@ -175,6 +175,23 @@ public abstract non-sealed class Entity implements Rider {
     }
 
     protected void defineSynchedData() {}
+
+    /**
+     * 바닐라 onSyncedDataUpdated(accessor): 칸 값이 바뀔 때마다 {@link SynchedData#set} 이 부른다(서버·플러그인 쓰기 같은 길).
+     * 바닐라 재정의 33개 중 서버에서 보이는 것만 옮겼다. 클라이언트 쪽만 하는 것(isClientSide 갈래, 애니메이션 상태, 디스플레이 그리기 상태)은 두지 않는다.
+     */
+    protected void onSyncedDataUpdated(int index) {
+        if (index == DATA_POSE) refreshDimensions();
+    }
+
+    /**
+     * 바닐라 Entity.load 의 회전 읽기 직후 setYHeadRot(yRot)·setYBodyRot(yRot) 자리(readAdditionalSaveData 전).
+     * 살아 있는 엔티티만 머리·몸 방향이 있다. 저장 읽기 중 크기 칸 훅(Slime)이 머리 방향을 쓰므로 이 차례여야 한다.
+     */
+    protected void syncLoadedRotation() {}
+
+    /** 바닐라 refreshDimensions 자리. 기본은 아무것도 안 한다(크기가 상태에 따라 바뀌는 종류만 재정의). */
+    protected void refreshDimensions() {}
 
     // ------------------------------------------------------------------ 기본
 
@@ -2046,6 +2063,7 @@ public abstract non-sealed class Entity implements Rider {
         setXRot(xr);
         yRotO = yRot;
         xRotO = xRot;
+        syncLoadedRotation();
         fallDistance = tag.getFloat("FallDistance");
         remainingFireTicks = tag.getShort("Fire");
         if (tag.contains("Air")) entityData.set(DATA_AIR_SUPPLY, (int) tag.getShort("Air"));

@@ -61,8 +61,8 @@ public class Slime extends Mob implements Enemy {
     /** Slime.setSize(size, updateHealth). */
     public void setSize(int size, boolean updateHealth) {
         int s = Math.clamp(size, 1, 127);
-        entityData.set(DATA_SIZE, s);
-        applySize();
+        entityData.set(DATA_SIZE, s);   // 훅: 크기·방향·물보라
+        applySize();   // 바닐라 setSize 의 refreshDimensions(값이 같아 훅이 안 불려도 잰다)
         attributes().get(Attribute.MAX_HEALTH).setBaseValue((double) s * s);
         attributes().get(Attribute.MOVEMENT_SPEED).setBaseValue(0.2F + 0.1F * s);
         attributes().get(Attribute.ATTACK_DAMAGE).setBaseValue(s);
@@ -72,6 +72,21 @@ public class Slime extends Mob implements Enemy {
     }
 
     protected void onSizeSet(int size) {}
+
+    /**
+     * Slime.onSyncedDataUpdated: 크기 칸이 바뀌면 refreshDimensions, 몸·머리 방향을 머리 방향으로 맞추고,
+     * 물속이면 random.nextInt(20) == 0 일 때 물보라(난수 소비 순서 바닐라와 같음).
+     */
+    @Override
+    protected void onSyncedDataUpdated(int index) {
+        if (index == DATA_SIZE) {
+            applySize();
+            setYRot(yHeadRot);
+            yBodyRot = yHeadRot;
+            if (isInWater() && random.nextInt(20) == 0) doWaterSplashEffect();
+        }
+        super.onSyncedDataUpdated(index);
+    }
 
     public boolean isTiny() { return getSize() <= 1; }
 
