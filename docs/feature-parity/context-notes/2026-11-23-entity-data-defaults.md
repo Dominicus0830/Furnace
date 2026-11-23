@@ -58,3 +58,10 @@
 - shim `CatVariant`·`FrogVariant` 를 바닐라 record(그림 위치)로, `BuiltInRegistries.CAT_VARIANT`·`FROG_VARIANT`(바닐라 registerSimple, 기본값 없음). 그림 위치 꼴은 바닐라 bootstrap 바이트코드로 확인(고양이 `<이름>.png`, 개구리 `<이름>_frog.png`).
 - 칸 값은 레지스트리 손잡이. 다리에서 등록되지 않은 값(Direct 손잡이에 새 record)은 바닐라 holderRegistry 코덱처럼 실패한다. Direct 라도 값이 등록된 것이면 그 이름.
 - 남은 값 종류: 늑대·그림 무늬(데이터 팩 레지스트리 — RegistryAccess 쪽), 입자, optional_global_pos, vector3·quaternion.
+
+## D4-3 늑대·그림 무늬 (11-24)
+- 둘 다 데이터 팩 레지스트리라 shim 이 순서·값을 스스로 정하지 않는다. 순서는 서버가 클라에 보내는 `entries`, 값은 새 API `GameRegistries.wolfVariant/paintingVariant`(서버 `Wolf.definition`·`Painting.definition`)에서 받는다. 플러그인·데이터 팩 변종도 그대로 담긴다.
+- 바닐라 데이터를 읽지 못하고 돈 판(시험 등)은 바닐라 항목이 정의 없이 레지스트리에 있다. 이때 늑대는 바닐라 `wolf_variant/*.json` 과 같은 값(텍스처 `wolf_<이름>`, pale 만 `wolf`, 바이옴 표), 그림은 `entities/painting_variants-*.txt` 크기와 asset_id=항목 id 로 채운다. 1.21.1 생성 데이터와 하나씩 견줘 확인했다.
+- 바닐라 `WolfVariant` 접근자는 적힌 위치가 아니라 `textures/<경로>.png` 로 늘인 전체 위치를 돌려주고, equals·hashCode 는 적힌 위치 셋과 바이옴 묶음으로 본다(javap 확인). shim 도 같다.
+- 바이옴 묶음: 태그면 `NmsBiomes.registry().getOrCreateTag`, 목록이면 손잡이 목록. 바이옴 레지스트리에 없는 id 는 바닐라라면 정의를 읽을 때 거부되므로 오지 않는다고 보고(가정) 빼 둔다.
+- 서버마다 한 번 만든다(데이터 팩 레지스트리는 시작 때 고정). 남은 값 종류: 입자, optional_global_pos, vector3·quaternion.

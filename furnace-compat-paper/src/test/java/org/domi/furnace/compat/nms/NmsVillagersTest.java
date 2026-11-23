@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -154,5 +155,40 @@ class NmsVillagersTest {
                 "등록되지 않은 무늬는 바닐라 holderRegistry 코덱처럼 실패");
         assertEquals("minecraft:white", EntityDataBridge.toApi("cat_variant",
                 Holder.direct(BuiltInRegistries.CAT_VARIANT.getOrThrow(net.minecraft.world.entity.animal.CatVariant.WHITE)), "test"), "값이 등록된 것이면 그 이름");
+    }
+
+    /** 늑대·그림 무늬(D4-3, 데이터 팩 레지스트리): 순서는 서버가 클라에 보내는 순서, 값은 바닐라 정의와 같다. */
+    @Test
+    void wolfAndPaintingVariantRegistries() {
+        var regs = org.domi.furnace.api.Furnace.server().gameRegistries();
+        var wolves = NmsVariants.wolves();
+        List<String> ids = new ArrayList<>();
+        wolves.holders().forEach(h -> ids.add(h.key().location().toString()));
+        assertEquals(regs.entries("minecraft:wolf_variant"), ids);
+        var pale = wolves.get(ResourceLocation.parse("minecraft:pale"));
+        assertEquals(regs.entries("minecraft:wolf_variant").indexOf("minecraft:pale"), wolves.getId(pale));
+        assertEquals("minecraft:textures/entity/wolf/wolf.png", pale.wildTexture().toString());
+        assertEquals("minecraft:textures/entity/wolf/wolf_tame.png", pale.tameTexture().toString());
+        var spotted = wolves.get(ResourceLocation.parse("minecraft:spotted"));
+        assertEquals("minecraft:textures/entity/wolf/wolf_spotted_angry.png", spotted.angryTexture().toString());
+        assertEquals("minecraft:is_savanna", spotted.biomes().unwrapKey().orElseThrow().location().toString(), "태그 바이옴은 이름 묶음");
+        assertTrue(spotted.biomes().stream().anyMatch(h -> h.is(ResourceLocation.parse("minecraft:savanna"))));
+        var woods = wolves.get(ResourceLocation.parse("minecraft:woods"));
+        assertEquals(1, woods.biomes().size());
+        assertTrue(woods.biomes().get(0).is(ResourceLocation.parse("minecraft:forest")));
+        assertEquals(woods, new net.minecraft.world.entity.animal.WolfVariant(ResourceLocation.parse("minecraft:entity/wolf/wolf_woods"),
+                ResourceLocation.parse("minecraft:entity/wolf/wolf_woods_tame"), ResourceLocation.parse("minecraft:entity/wolf/wolf_woods_angry"), woods.biomes()),
+                "같음은 적힌 꼴 셋과 바이옴 묶음");
+
+        var paintings = NmsVariants.paintings();
+        List<String> pids = new ArrayList<>();
+        paintings.holders().forEach(h -> pids.add(h.key().location().toString()));
+        assertEquals(regs.entries("minecraft:painting_variant"), pids);
+        var kebab = paintings.get(ResourceLocation.parse("minecraft:kebab"));
+        assertEquals(new net.minecraft.world.entity.decoration.PaintingVariant(1, 1, ResourceLocation.parse("minecraft:kebab")), kebab);
+        var fighters = paintings.get(ResourceLocation.parse("minecraft:fighters"));
+        assertEquals(4 * 2, fighters.area());
+        assertEquals("minecraft:woods", EntityDataBridge.toApi("wolf_variant", wolves.wrapAsHolder(woods), "test"));
+        assertSame(paintings.getHolder(ResourceLocation.parse("minecraft:kebab")).orElseThrow(), EntityDataBridge.toShim("painting_variant", "minecraft:kebab", "test"));
     }
 }
