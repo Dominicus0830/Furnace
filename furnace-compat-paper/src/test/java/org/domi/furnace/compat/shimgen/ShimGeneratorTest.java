@@ -464,4 +464,27 @@ class ShimGeneratorTest {
         IllegalArgumentException bad = assertThrows(IllegalArgumentException.class, () -> ShimSpec.readDir(dir));
         assertTrue(bad.getMessage().contains("kind-classes-test.txt:1"), bad.getMessage());
     }
+
+    /** @each 몸통이 손 상위의 같은 이름 메서드를 말없이 가리면 안 된다 — 생성이 멈춘다. */
+    @Test
+    void eachRefusesToHideAHandSuperMethod() throws Exception {
+        Path hand = Files.createDirectories(tmp.resolve("hand2/net/minecraft/zz"));
+        Files.writeString(hand.resolve("Base.java"), """
+                package net.minecraft.zz;
+                public abstract class Base {
+                    protected Base(org.domi.furnace.compat.nms.ShimCtor tag) {}
+                    public String getName() { return "hand"; }
+                }
+                """, StandardCharsets.UTF_8);
+        ShimSpec spec = new ShimSpec();
+        spec.parse("t.spec", "import " + FIX + "\nclass net.minecraft.zz.Named\n  getName -> @each(ShimGenFixtures.name) read=any\nclass net.minecraft.zz.Tag\n");
+        String lock = String.join("\n", "#furnace-shim-lock\t1\ttest",
+                "C\tnet/minecraft/zz/Base\t1057\tjava/lang/Object\t-\t-\t-\tt",
+                "C\tnet/minecraft/zz/Named\t1537\tjava/lang/Object\t-\t-\t-\tt",
+                "M\tnet/minecraft/zz/Named\tgetName\t()Ljava/lang/String;\t1025\t-",
+                "C\tnet/minecraft/zz/Tag\t33\tnet/minecraft/zz/Base\tnet/minecraft/zz/Named\t-\t-\tt", "");
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> new ShimGenerator(spec, ShimLock.parse(lock), tmp, List.of(tmp.resolve("hand2")), List.of()).generate());
+        assertTrue(e.getMessage().contains("would hide a method of the same name in the hand shim net/minecraft/zz/Base"), e.getMessage());
+    }
 }

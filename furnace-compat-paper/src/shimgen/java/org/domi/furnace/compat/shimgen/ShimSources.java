@@ -35,6 +35,16 @@ final class ShimSources {
         return Pattern.compile("\\b(class|interface|enum|record)\\s+" + Pattern.quote(inner) + "\\b").matcher(text).find();
     }
 
+    /** 이 최상위 클래스를 선언한 소스 글(없으면 null). */
+    String text(String internalName) {
+        String top = topLevel(internalName);
+        for (Path r : roots) {
+            Path p = r.resolve(top + ".java");
+            if (Files.isRegularFile(p)) return cache.computeIfAbsent(p, ShimSources::read);
+        }
+        return null;
+    }
+
     /** 최상위 파일이 이 폴더에 있나. */
     boolean topIn(Path root, String internalName) {
         return Files.isRegularFile(root.resolve(topLevel(internalName) + ".java"));

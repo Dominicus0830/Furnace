@@ -302,13 +302,14 @@ public final class ShimGenerator {
             ShimLock.Cls c = lock.classes.get(n);
             if (!emitted(n) || c.isInterface() || c.isAbstract()) continue;
             // 상위 클래스 사슬에 손 shim(모르는 몸통)이 있으면 던지는 몸통은 판단하지 않는다 — 빠졌으면 컴파일 오류가 알려 준다.
-            // 상위 공통 연결(@each)은 그래도 만든다: 그 메서드는 생성 상위(클래스·인터페이스)의 추상 메서드라 손 상위가 이을 수 없는 이름이다
-            // (손 shim 이 같은 메서드를 가지면 생성 몸통이 가린다 — 시험 ShimGeneratorTest 가 아니라 컴파일된 클래스의 시험이 본다).
+            // 상위 공통 연결(@each)은 그래도 만든다. 단 손 상위가 같은 이름의 메서드를 가지면 생성 몸통이 그것을 말없이 가리므로 생성을 멈춘다
+            // (아래 handHides — 손 소스 글에서 그 이름의 메서드 선언을 찾는다).
             boolean unknown = false;
             List<String> chain = new ArrayList<>();
+            List<String> handSupers = new ArrayList<>();
             for (String s = n; s != null && ShimLock.isNms(s); s = lock.classes.containsKey(s) ? lock.classes.get(s).superName() : null) {
-                if (!emitted(s)) { unknown = true; break; }
-                chain.add(s);
+                if (!emitted(s)) { unknown = true; handSupers.add(s); continue; }
+                if (!unknown) chain.add(s);
             }
             Set<String> have = new HashSet<>();
             Map<String, ShimLock.Member> abstracts = new TreeMap<>();
@@ -341,6 +342,12 @@ public final class ShimGenerator {
                 if (have.contains(am.getKey())) continue;
                 Bound fill = each.get(am.getKey());
                 if (fill != null) {
+                    for (String h : handSupers) {
+                        if (handDeclares(h, m.name())) {
+                            problems.add(n + ": @each " + m.name() + " (from " + m.owner() + ") would hide a method of the same name in the hand shim " + h
+                                    + " - remove the hand method or link it in the spec instead of @each");
+                        }
+                    }
                     eachFor.computeIfAbsent(n, k -> new ArrayList<>()).add(fill);
                     continue;
                 }
@@ -357,6 +364,13 @@ public final class ShimGenerator {
     }
 
     final Map<String, List<ShimLock.Member>> stubsFor = new TreeMap<>();
+
+    /** 손 shim(src/main/java) 소스에 그 이름의 메서드 선언이 있나(정규식 — "형식 이름(" 꼴. 주석 속 글도 걸리지만 그때는 고쳐 쓰면 된다). */
+    boolean handDeclares(String handClass, String method) {
+        String text = hand.text(handClass);
+        if (text == null) return false;
+        return Pattern.compile("[\\w>\\]]\\s+" + Pattern.quote(method) + "\\s*\\(").matcher(text).find();
+    }
     /** 상위 공통 연결(@each)로 위임 몸통을 받는 구체 클래스 → 그 연결 줄들. */
     final Map<String, List<Bound>> eachFor = new TreeMap<>();
 

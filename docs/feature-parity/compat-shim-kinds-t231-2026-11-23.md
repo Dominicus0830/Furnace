@@ -41,6 +41,9 @@
 
 ## 4. 남은 것
 
+- 검토 후속(비차단): 종류 표가 지금 판(`mc.version`)과 맞는지 생성기가 보지 않는다(파일이 하나인지만 본다 — 판을 올리며 표를 잊으면 옛 표가 쓰인다).
+  `@each` 몸통이 이미 그 몸통을 받은 생성 상위 아래(`TrappedChestBlock` < `ChestBlock`)에서도 다시 생긴다(동작 같음, 무해).
+
 - **엔티티 종류**: 엔티티 shim 은 서버 엔티티의 보기 객체이고 `Entity` 가 손 shim(바닐라와 달리 구체 클래스)이다. 엔티티 사슬(T-232)을 명세로 옮긴 뒤 같은 표 방식
   (`E <엔티티 종류> <클래스>` — 바닐라에서 뽑으려면 엔티티를 만들어 봐야 해 도구가 따로 필요)으로 더한다. Axiom 의 `Marker`·`HangingEntity`·`ItemFrame` 이 여기 걸린다.
 - 생성된 블록·아이템 클래스에는 바닐라의 종류별 메서드(예: `CropBlock#getAge`, `SwordItem` 의 도구 성질)가 없다 — 부르면 지금처럼 링크 덫(`/furnace compat gaps` 에 잡힘).
@@ -49,10 +52,11 @@
 
 ## 5. 걸린 시간
 
-스레드 시작 08:28Z → 전체 시험 시작 약 08:57Z(약 30분: 표 도구 5분, 생성기 확장·객체 만들기 10분, 시험·관문 15분).
+스레드 시작 2026-11-23 08:28Z → 전체 시험 시작 약 08:57Z(작업 기록의 명령 시각 — 커밋은 하나라 git log 로는 검증되지 않는다)(약 30분: 표 도구 5분, 생성기 확장·객체 만들기 10분, 시험·관문 15분).
 
 ## 6. 금 파일 갱신
 
-`identity/1.21.1/scene-compat-asm-prefilter.txt` 3줄(IF-0.12.2 jar 두 옵션 줄과 TOTAL). IF 의 베틀 코드(`LoomInventoryImpl$1`·`$2`)가 `instanceof BannerItem` 을 쓰는데,
-전에는 shim 에 `BannerItem` 이 없어 변환기가 그 클래스를 바꿨고(바뀐 클래스 761), 이제 바닐라 클래스가 있어 그 하나는 바꾸지 않는다(760).
+`identity/1.21.1/scene-compat-asm-prefilter.txt` 3줄(IF-0.12.2 jar 두 옵션 줄과 TOTAL). IF 의 베틀 코드(`LoomInventoryImpl$1`·`$2`) 둘 다 `instanceof BannerItem` 을 쓰는데,
+전에는 shim 에 `BannerItem` 이 없어 변환기가 둘 다 바꿨다(바뀐 클래스 761). 이제 `$2` 는 shim 에 없는 것을 부르지 않아 바뀌지 않고(760),
+`$1` 은 shim 에 없는 `ResultContainer` 의 생성자·`setItem` 을 불러 여전히 바뀐다(두 클래스의 javap 참조 목록으로 확인 — `$2` 는 `ResultContainer` 를 필드 형식으로만 쓴다).
 결과가 달라진 이유는 "의도한 정확성 수정"(바닐라 1.21.1 의 깃발 아이템은 `BannerItem` — 종류 표)이다. 전체 시험에서 다른 금 파일은 그대로였다.

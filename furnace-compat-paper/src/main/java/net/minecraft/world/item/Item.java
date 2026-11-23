@@ -34,7 +34,10 @@ public class Item implements net.minecraft.world.flag.FeatureElement, ItemLike {
         return BY_KEY.computeIfAbsent(k, Item::create);
     }
 
-    /** 표에 있는 이름은 그 바닐라 클래스로, 없는 이름(바닐라에 없는 종류)은 Item 으로. */
+    /**
+     * 표에 있는 이름은 그 바닐라 클래스로, 없는 이름(바닐라에 없는 종류)은 Item 으로. BY_KEY.computeIfAbsent 안에서 불리므로 생성 Item 하위 클래스의
+     * 정적 초기화가 byKey 를 부르면(예: 명세로 {@code Items.X} 값을 가진 필드를 달면) "Recursive update" 가 난다 — 그런 필드는 다른 곳에 둔다.
+     */
     private static Item create(String key) {
         String cls = org.domi.furnace.compat.nms.NmsKinds.itemClass(key);
         if (cls == null) return new Item(org.domi.furnace.compat.nms.ShimCtor.carrying(key));
