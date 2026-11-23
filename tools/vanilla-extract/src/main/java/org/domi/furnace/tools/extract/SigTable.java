@@ -40,13 +40,19 @@ import org.objectweb.asm.Opcodes;
  * C 접근 클래스 상위 인터페이스(쉼표) 제네릭서명 안쪽접근     (없는 칸은 -)
  * F 접근 소유자 이름 서술자 제네릭서명
  * M 접근 소유자 이름 서술자 제네릭서명
+ * E 소유자 상수1,상수2,…                                  (형식 2 — 열거형 상수, 클래스 파일 선언 순서 = 서수)
+ * K 소유자 이름 서술자 값                                  (형식 2 — static final 상수 필드의 ConstantValue, 아래 부호화)
+ * R 소유자 이름:서술자,…                                   (형식 2 — 레코드 성분, 선언 순서)
  * </pre>
+ * 상수 값 부호화: 정수형(B·C·S·Z·I·J)은 10진수, F·D 는 비트 그대로 16진수({@code floatToRawIntBits}·{@code doubleToRawLongBits}),
+ * 문자열은 역슬래시·탭·줄바꿈·복귀 문자를 역슬래시 두 글자로, 나머지 제어 문자를 역슬래시+u+16진 4자리로만 바꾼 글. 셋 다 선언 속성이라 몸통을 읽지 않는다(T-260 전체 껍데기가 쓴다).
+ * 읽기는 형식 1(E·K·R 없음)도 받는다.
  * 접근은 10진수 ACC_* 플래그. 안쪽접근은 중첩 클래스의 InnerClasses 접근 플래그(static·private·protected 는 여기에만 있다), 최상위는 -.
  * 합성(synthetic) 멤버(람다·접근자·브리지)는 뺀다 — 소스에 선언된 서명만 본다.
  */
 public final class SigTable {
     public static final String MAGIC = "#furnace-sig-table";
-    public static final String FORMAT = "1";
+    public static final String FORMAT = "2";
 
     /** 클래스 한 줄. */
     public record Cls(int access, String name, String superName, List<String> interfaces, String signature, int innerAccess) {
@@ -61,6 +67,9 @@ public final class SigTable {
 
     private final Map<String, Cls> classes = new TreeMap<>();
     private final Map<String, List<Member>> members = new TreeMap<>();
+    private final Map<String, List<String>> enumConstants = new TreeMap<>();
+    private final Map<String, Map<String, Object>> constants = new TreeMap<>();
+    private final Map<String, List<String>> recordComponents = new TreeMap<>();
     private final String label;
 
     /** 시험·도구용: 빈 표. */
@@ -82,6 +91,22 @@ public final class SigTable {
 
     public List<Member> members(String owner) {
         return members.getOrDefault(owner, List.of());
+    }
+
+    /** 열거형 상수 이름(선언 순서 = 서수). 열거형이 아니거나 형식 1 표면 빈 목록. */
+    public List<String> enumConstants(String owner) {
+        return enumConstants.getOrDefault(owner, List.of());
+    }
+
+    /** static final 상수 필드의 ConstantValue(Integer·Long·Float·Double·String — 자바 상수 풀 형식 그대로). 없으면 null. */
+    public Object constantValue(String owner, String field) {
+        Map<String, Object> m = constants.get(owner);
+        return m == null ? null : m.get(field);
+    }
+
+    /** 레코드 성분 {@code 이름:서술자}(선언 순서). 레코드가 아니거나 형식 1 표면 빈 목록. */
+    public List<String> recordComponents(String owner) {
+        return recordComponents.getOrDefault(owner, List.of());
     }
 
     public int memberCount() {
@@ -140,6 +165,9 @@ public final class SigTable {
         Collector c = new Collector();
         r.accept(c, ClassReader.SKIP_CODE | ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
         classes.put(c.name, new Cls(c.access, c.name, c.superName, List.copyOf(c.interfaces), c.signature, c.innerAccess));
+        if (!c.enumOrder.isEmpty()) enumConstants.put(c.name, List.copyOf(c.enumOrder));
+        if (!c.constants.isEmpty()) constants.put(c.name, new TreeMap<>(c.constants));
+        if (!c.records.isEmpty()) recordComponents.put(c.name, List.copyOf(c.records));
         c.members.sort(Comparator.comparing((Member m) -> m.kind()).thenComparing(Member::name).thenComparing(Member::desc));
         members.put(c.name, List.copyOf(c.members));
     }
@@ -151,6 +179,9 @@ public final class SigTable {
         int innerAccess = -1;
         List<String> interfaces = new ArrayList<>();
         final List<Member> members = new ArrayList<>();
+        final List<String> enumOrder = new ArrayList<>();
+        final Map<String, Object> constants = new TreeMap<>();
+        final List<String> records = new ArrayList<>();
 
         Collector() {
             super(Opcodes.ASM9);
@@ -173,6 +204,15 @@ public final class SigTable {
         @Override
         public FieldVisitor visitField(int access, String name, String descriptor, String signature, Object value) {
             if ((access & Opcodes.ACC_SYNTHETIC) == 0) members.add(new Member('F', access, this.name, name, descriptor, signature));
+            if ((access & Opcodes.ACC_ENUM) != 0) enumOrder.add(name);   // 클래스 파일의 필드 순서 = 소스 선언 순서(javac)
+            if (value != null && (access & (Opcodes.ACC_STATIC | Opcodes.ACC_FINAL)) == (Opcodes.ACC_STATIC | Opcodes.ACC_FINAL)
+                    && (access & Opcodes.ACC_SYNTHETIC) == 0) constants.put(name, value);
+            return null;
+        }
+
+        @Override
+        public org.objectweb.asm.RecordComponentVisitor visitRecordComponent(String name, String descriptor, String signature) {
+            records.add(name + ":" + descriptor);
             return null;
         }
 
@@ -202,6 +242,18 @@ public final class SigTable {
                 for (Member m : members(c.name())) {
                     w.write(String.join("\t", Character.toString(m.kind()), Integer.toString(m.access()), m.owner(), m.name(), m.desc(), dash(m.signature())) + "\n");
                 }
+                List<String> en = enumConstants(c.name());
+                if (!en.isEmpty()) w.write("E\t" + c.name() + "\t" + String.join(",", en) + "\n");
+                Map<String, Object> k = constants.get(c.name());
+                if (k != null) {
+                    for (Member m : members(c.name())) {
+                        if (m.kind() == 'F' && k.containsKey(m.name())) {
+                            w.write("K\t" + c.name() + "\t" + m.name() + "\t" + m.desc() + "\t" + encodeConstant(m.desc(), k.get(m.name())) + "\n");
+                        }
+                    }
+                }
+                List<String> rc = recordComponents(c.name());
+                if (!rc.isEmpty()) w.write("R\t" + c.name() + "\t" + String.join(",", rc) + "\n");
             }
         }
         Files.move(tmp, out, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
@@ -218,7 +270,7 @@ public final class SigTable {
         String head = r.readLine();
         if (head == null || !head.startsWith(MAGIC + "\t")) throw new IOException("서명표가 아니다: 머리말이 " + MAGIC + " 으로 시작하지 않는다");
         String[] h = head.split("\t", -1);
-        if (h.length < 3 || !h[1].equals(FORMAT)) throw new IOException("지원하지 않는 서명표 형식: " + (h.length > 1 ? h[1] : "?") + " (이 도구는 " + FORMAT + ")");
+        if (h.length < 3 || !(h[1].equals(FORMAT) || h[1].equals("1"))) throw new IOException("지원하지 않는 서명표 형식: " + (h.length > 1 ? h[1] : "?") + " (이 도구는 " + FORMAT + ")");
         SigTable t = new SigTable(h[2]);
         Map<String, List<Member>> acc = new LinkedHashMap<>();
         String line;
@@ -232,11 +284,69 @@ public final class SigTable {
                 }
                 case "F", "M" -> acc.computeIfAbsent(f[2], k -> new ArrayList<>())
                         .add(new Member(f[0].charAt(0), Integer.parseInt(f[1]), f[2], f[3], f[4], undash(f[5])));
+                case "E" -> t.enumConstants.put(f[1], List.of(f[2].split(",")));
+                case "K" -> t.constants.computeIfAbsent(f[1], k -> new TreeMap<>()).put(f[2], decodeConstant(f[3], f[4]));
+                case "R" -> t.recordComponents.put(f[1], List.of(f[2].split(",")));
                 default -> throw new IOException("알 수 없는 줄: " + line);
             }
         }
         acc.forEach((k, v) -> t.members.put(k, List.copyOf(v)));
         return t;
+    }
+
+    /** ConstantValue 를 한 칸 글로(탭·줄바꿈 없이, 되읽으면 같은 값). */
+    static String encodeConstant(String desc, Object v) {
+        return switch (desc) {
+            case "F" -> "0x" + Integer.toHexString(Float.floatToRawIntBits((Float) v));
+            case "D" -> "0x" + Long.toHexString(Double.doubleToRawLongBits((Double) v));
+            case "Ljava/lang/String;" -> escape((String) v);
+            default -> v.toString();   // B·C·S·Z·I 는 Integer, J 는 Long
+        };
+    }
+
+    static Object decodeConstant(String desc, String s) {
+        return switch (desc) {
+            case "F" -> Float.intBitsToFloat(Integer.parseUnsignedInt(s.substring(2), 16));
+            case "D" -> Double.longBitsToDouble(Long.parseUnsignedLong(s.substring(2), 16));
+            case "J" -> Long.parseLong(s);
+            case "Ljava/lang/String;" -> unescape(s);
+            default -> Integer.parseInt(s);
+        };
+    }
+
+    private static String escape(String s) {
+        StringBuilder b = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char ch = s.charAt(i);
+            switch (ch) {
+                case '\\' -> b.append("\\\\");
+                case '\t' -> b.append("\\t");
+                case '\n' -> b.append("\\n");
+                case '\r' -> b.append("\\r");
+                default -> {
+                    if (ch < 0x20 || ch == 0x7f) b.append(String.format("\\u%04x", (int) ch));
+                    else b.append(ch);
+                }
+            }
+        }
+        return b.toString();
+    }
+
+    private static String unescape(String s) {
+        StringBuilder b = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char ch = s.charAt(i);
+            if (ch != '\\' || i + 1 >= s.length()) { b.append(ch); continue; }
+            char n = s.charAt(++i);
+            switch (n) {
+                case 't' -> b.append('\t');
+                case 'n' -> b.append('\n');
+                case 'r' -> b.append('\r');
+                case 'u' -> { b.append((char) Integer.parseInt(s.substring(i + 1, i + 5), 16)); i += 4; }
+                default -> b.append(n);
+            }
+        }
+        return b.toString();
     }
 
     private static String dash(String s) {

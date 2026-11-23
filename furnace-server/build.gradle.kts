@@ -319,12 +319,22 @@ val compatBundle by configurations.creating {
     isCanBeResolved = true
 }
 dependencies { compatBundle(project(":furnace-compat-paper")) }
-// 호환 모듈 jar 와 그 런타임 의존(ASM) — furnace-api 는 서버 로더에 이미 있으므로 빼고, 호환 모듈 자신은 넣는다.
-fun compatJars() = compatBundle.filter { it.name.endsWith(".jar") && (!it.name.startsWith("furnace-") || it.name.startsWith("furnace-compat")) }
+// T-260: 전체 껍데기 jar(furnace-compat-shells.jar) — 서명표 캐시(tools/compat/sig-tables.sh)가 있어야 만들어진다.
+// 서명표에 못 닿는 곳(샌드박스·CI light)은 -PnoFullShells=true 로 빼고 빌드한다. 배포용 빌드는 빼지 않는다(docs/roadmap/full-shells-2026-11-23.md).
+val compatShells by configurations.creating {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+}
+if (!providers.gradleProperty("noFullShells").isPresent) {
+    dependencies { compatShells(project(path = ":furnace-compat-paper", configuration = "fullShellsElements")) }
+}
+// 호환 모듈 jar 와 그 런타임 의존(ASM) — furnace-api 는 서버 로더에 이미 있으므로 빼고, 호환 모듈 자신은 넣는다. 껍데기 jar 는 이름순으로 호환 jar 뒤에 온다.
+fun compatJars() = compatBundle.filter { it.name.endsWith(".jar") && (!it.name.startsWith("furnace-") || it.name.startsWith("furnace-compat")) } + compatShells
 // 호환 jar 이름 색인(N-lib-1) — 서버는 이 자원이 있으면 jar 를 꺼내 서버 제공 라이브러리 로더의 첫 항목으로 붙인다(CompatJars).
 val compatIndex = tasks.register("compatIndex") {
     dependsOn(":furnace-compat-paper:jar")
     dependsOn(compatBundle)
+    dependsOn(compatShells)
     val out = layout.buildDirectory.file("compat-index/META-INF/furnace/compat/index.txt")
     outputs.file(out)
     outputs.upToDateWhen { false }
@@ -364,6 +374,7 @@ val bundledLibrariesJar = tasks.register<Jar>("bundledLibrariesJar") {
 val compatEmbeddedJar = tasks.register<Jar>("compatEmbeddedJar") {
     dependsOn(":furnace-compat-paper:jar")
     dependsOn(compatBundle)
+    dependsOn(compatShells)
     dependsOn(compatIndex)
     archiveFileName = "furnace-compat-embedded.jar"
     destinationDirectory = layout.buildDirectory.dir("compat-embedded")
@@ -380,6 +391,7 @@ val fatJar = tasks.register<Jar>("fatJar") {
     // 서버 모듈이 이 모듈에 의존하지는 않는다(순환 없음): 모듈 시험은 호환 모듈이 서버에 의존한다.
     dependsOn(":furnace-compat-paper:jar")
     dependsOn(compatBundle)
+    dependsOn(compatShells)
     dependsOn(compatIndex)
     description = "서버와 모든 런타임 의존성을 담은 단일 실행 jar"
     archiveFileName = "furnace-server.jar"

@@ -128,4 +128,33 @@ class SigTableTest {
         assertEquals("1.0-S-8", SigTableCommand.snapshotJarValue(xml).orElseThrow());
         assertTrue(SigTable.MAGIC.startsWith("#"));
     }
+
+    @Test
+    void format2CarriesEnumOrderConstantsAndRecordComponents(@TempDir Path dir) throws IOException {
+        // T-260: 열거형 상수는 클래스 파일 순서(이름순 아님), 상수 필드 값, 레코드 성분 순서가 표에 남고 되읽힌다
+        ClassWriter e = new ClassWriter(0);
+        e.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_ENUM | Opcodes.ACC_FINAL, "a/E", null, "java/lang/Enum", null);
+        for (String c : List.of("ZED", "ALPHA", "MID")) e.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL | Opcodes.ACC_ENUM, c, "La/E;", null, null).visitEnd();
+        e.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, "TAB", "Ljava/lang/String;", null, "x\ty").visitEnd();
+        e.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, "HALF", "D", null, 0.5d).visitEnd();
+        e.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "NOT_FINAL", "I", null, 3).visitEnd();
+        e.visitEnd();
+        ClassWriter r = new ClassWriter(0);
+        r.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_RECORD, "a/R", null, "java/lang/Record", null);
+        r.visitRecordComponent("b", "I", null).visitEnd();
+        r.visitRecordComponent("a", "J", null).visitEnd();
+        r.visitEnd();
+        SigTable t = SigTable.empty("x");
+        t.add(e.toByteArray());
+        t.add(r.toByteArray());
+        Path f = dir.resolve("t.tsv.gz");
+        t.write(f);
+        SigTable back = SigTable.read(f);
+        assertEquals(List.of("ZED", "ALPHA", "MID"), back.enumConstants("a/E"));
+        assertEquals("x\ty", back.constantValue("a/E", "TAB"));
+        assertEquals(0.5d, back.constantValue("a/E", "HALF"));
+        assertEquals(null, back.constantValue("a/E", "NOT_FINAL"));
+        assertEquals(List.of("b:I", "a:J"), back.recordComponents("a/R"));
+        assertEquals(List.of(), back.enumConstants("a/R"));
+    }
 }

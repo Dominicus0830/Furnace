@@ -293,7 +293,8 @@ jobs:
           python3 -I tools/ci/check-raw-state-ids.py
       # 단일 실행 jar 가 만들어지는지(실행 검사는 아님). 러너·캐시·브랜치 정책은 사용자 결정 전이라 바꾸지 않았다.
       - name: fatJar 빌드
-        run: ./gradlew -PskipOracle=true :furnace-server:fatJar
+        # T-260: 전체 껍데기 jar 는 서명표 캐시가 있어야 만들어져 vanilla-gates 가 만든다(fullShellsTest). 여기서는 빼고 묶음만 본다.
+        run: ./gradlew -PskipOracle=true -PnoFullShells=true :furnace-server:fatJar
       # 시험이 실패하면 모듈별 보고서(HTML·XML, 시험 표준 출력 포함)를 올린다 — 재시도는 없다(흔들리는 시험은 원인을 고친다, docs/ci.md).
       - name: light 시험 보고서 올리기
         if: always() && (failure() || cancelled() || steps.api-test.outcome == 'failure' || steps.test-module-test.outcome == 'failure' || steps.compat-test.outcome == 'failure')
@@ -362,6 +363,9 @@ jobs:
       # T-229: 연결 명세의 잠금 파일(src/shimspec/shim-<판>.lock)이 서명표·명세로 다시 푼 것과 같은지 본다(낡으면 실패 — 목록이 할 일)
       - name: shim 잠금 파일 (T-229)
         run: ./gradlew -PskipOracle=true :furnace-compat-paper:shimLockCheck
+      # T-260: 서명표에서 Paper 내부 클래스 전부의 껍데기를 만들고(지문 src/shimspec/full-shells-<판>.fp 와 표가 같아야 함) 전부 올려 초기화해 본다
+      - name: 전체 껍데기 (T-260)
+        run: ./gradlew -PskipOracle=true :furnace-compat-paper:fullShellsTest
       - name: 대조 시험 보고서 올리기
         if: failure()
         uses: actions/upload-artifact@v4
