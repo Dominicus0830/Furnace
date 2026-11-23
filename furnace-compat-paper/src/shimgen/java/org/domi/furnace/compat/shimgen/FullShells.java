@@ -232,7 +232,6 @@ public final class FullShells {
         if (!regress.isEmpty()) {
             throw new IllegalStateException("fewer members are filled than the committed fill baseline " + dir + " (a fill got lost):\n" + String.join("\n", regress.subList(0, Math.min(30, regress.size()))));
         }
-        }
     }
 
     private static void write(Path p, String text) throws IOException {

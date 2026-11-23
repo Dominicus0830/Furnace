@@ -58,6 +58,13 @@ class FillParityTest {
                 if (n.endsWith(".class") && n.startsWith("net/minecraft/")) names.add(n.substring(0, n.length() - 6));
             }
             names.sort(null);
+            // T-261: 손 shim 에 껍데기 멤버를 합친 클래스는 손 shim 의 코드이지 채움이 아니다 — 대조에서 뺀다
+            java.util.Set<String> merged = new java.util.HashSet<>();
+            JarEntry me = jf.getJarEntry("META-INF/furnace/full-shells/merged-classes.txt");
+            if (me != null) try (var in = jf.getInputStream(me)) {
+                for (String l : new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).split("\n")) if (!l.isBlank()) merged.add(l.trim());
+            }
+            names.removeIf(merged::contains);
             try (URLClassLoader shell = new URLClassLoader("shells", shellUrls.toArray(URL[]::new), ClassLoader.getPlatformClassLoader());
                  URLClassLoader van = new URLClassLoader("vanilla", vanUrls.toArray(URL[]::new), ClassLoader.getPlatformClassLoader())) {
                 bootstrap(van);
