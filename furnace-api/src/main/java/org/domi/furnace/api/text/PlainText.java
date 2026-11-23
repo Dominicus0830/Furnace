@@ -25,8 +25,9 @@ final class PlainText {
                 }
                 sb.append(Translators.format(tr.key(), tr.fallback(), args, locale));
             }
-            // 서버의 KeybindResolver 기본값은 키를 번역 키로 본다(en_us 의 key.jump → "Jump").
-            case Content.Keybind k -> sb.append(Translators.format(k.keybind(), null, List.of(), locale));
+            // 서버의 KeybindResolver 기본값은 키 글자 그대로다(바닐라 1.21.1 getString: key.jump → "key.jump" — en_us 에 "Jump" 가 있어도.
+            // 키를 실제 키로 바꾸는 건 클라이언트다). T-235 바닐라 대조로 확인(11-23).
+            case Content.Keybind k -> sb.append(k.keybind());
             case Content.Score s -> { }
             case Content.Selector s -> { }
             case Content.Nbt n -> { }

@@ -89,7 +89,8 @@ public final class Style {
             case UNDERLINE -> withUnderlined(true);
             case ITALIC -> withItalic(true);
             case RESET -> EMPTY;
-            default -> withColor(f);
+            // 바닐라 applyFormat 은 withColor 와 달리 값이 같아도 새 색(이름 있는 색)을 넣는다 — #FFFFFF 위 WHITE 는 "white"(T-235)
+            default -> fromFurnace(s.color(TextColor.fromLegacyFormat(f) == null ? null : TextColor.fromLegacyFormat(f).furnace()));
         };
     }
 
@@ -106,10 +107,15 @@ public final class Style {
         };
     }
 
+    /** 바닐라 applyFormats: 차례로 얹되 RESET 을 만나면 곧바로 EMPTY(뒤 서식은 버린다, T-235 대조). */
     public Style applyFormats(ChatFormatting... fs) {
         Style out = this;
-        for (ChatFormatting f : fs) out = out.applyFormat(f);
-        return out;
+        for (ChatFormatting f : fs) {
+            if (f == ChatFormatting.RESET) return EMPTY;
+            out = out.applyFormat(f);
+        }
+        // 바닐라는 RESET 이 없으면 늘 새 Style 을 만든다 — 서식이 없어 값이 다 비어도 EMPTY 와 다른 객체라 isEmpty 가 거짓(JSON 이 {"text":""} 꼴)
+        return out == EMPTY ? new Style(out.s) : out;
     }
 
     /** 이 스타일에서 정하지 않은 값은 parent 값으로(바닐라 applyTo). */
@@ -125,6 +131,39 @@ public final class Style {
     @Override
     public int hashCode() { return Objects.hash(s); }
 
+    /** 바닐라 꼴: {color=…,bold,!italic,…,clickEvent=…,hoverEvent=…,insertion=…,font=…} — 정해진 칸만, 불리언은 이름·!이름(T-235 대조). */
     @Override
-    public String toString() { return s.toString(); }
+    public String toString() {
+        StringBuilder sb = new StringBuilder("{");
+        boolean[] first = {true};
+        value(sb, first, "color", getColor());
+        flagString(sb, first, "bold", flag(TextDecoration.BOLD));
+        flagString(sb, first, "italic", flag(TextDecoration.ITALIC));
+        flagString(sb, first, "underlined", flag(TextDecoration.UNDERLINED));
+        flagString(sb, first, "strikethrough", flag(TextDecoration.STRIKETHROUGH));
+        flagString(sb, first, "obfuscated", flag(TextDecoration.OBFUSCATED));
+        value(sb, first, "clickEvent", getClickEvent());
+        value(sb, first, "hoverEvent", getHoverEvent());
+        value(sb, first, "insertion", getInsertion());
+        value(sb, first, "font", s.font() != null ? ResourceLocation.parse(s.font()) : null);
+        return sb.append('}').toString();
+    }
+
+    private static void separator(StringBuilder sb, boolean[] first) {
+        if (!first[0]) sb.append(',');
+        first[0] = false;
+    }
+
+    private static void flagString(StringBuilder sb, boolean[] first, String name, Boolean v) {
+        if (v == null) return;
+        separator(sb, first);
+        if (!v) sb.append('!');
+        sb.append(name);
+    }
+
+    private static void value(StringBuilder sb, boolean[] first, String name, Object v) {
+        if (v == null) return;
+        separator(sb, first);
+        sb.append(name).append('=').append(v);
+    }
 }

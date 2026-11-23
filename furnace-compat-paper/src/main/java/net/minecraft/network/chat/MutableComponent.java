@@ -66,7 +66,8 @@ public class MutableComponent implements Component {
         return this;
     }
 
-    public MutableComponent append(String text) { return append(Component.literal(text)); }
+    /** 바닐라: 빈 글은 자식을 더하지 않는다. */
+    public MutableComponent append(String text) { return text.isEmpty() ? this : append(Component.literal(text)); }
 
     public MutableComponent append(Component c) {
         siblings.add(c);
@@ -124,8 +125,10 @@ public class MutableComponent implements Component {
 
     private String contentsString() {
         return switch (contents) {
-            case Content.Literal l -> "literal{" + l.text() + "}";
-            case Content.Translatable t -> "translation{key='" + t.key() + "', args=" + t.args() + "}";
+            // 바닐라: 빈 글자 글은 PlainTextContents.EMPTY("empty"), 번역 인자는 글이면 글의 toString(T-235 대조)
+            case Content.Literal l -> l.text().isEmpty() ? "empty" : "literal{" + l.text() + "}";
+            case Content.Translatable t -> "translation{key='" + t.key() + "'" + (t.fallback() != null ? ", fallback='" + t.fallback() + "'" : "")
+                    + ", args=" + t.args().stream().map(a -> a instanceof org.domi.furnace.api.text.Text x ? fromFurnace(x).toString() : String.valueOf(a)).toList() + "}";
             case Content.Keybind k -> "keybind{" + k.keybind() + "}";
             default -> contents.toString();
         };

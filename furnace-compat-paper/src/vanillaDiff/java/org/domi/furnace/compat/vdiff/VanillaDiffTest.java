@@ -46,6 +46,8 @@ class VanillaDiffTest {
     private static final List<ClassReport> REPORTS = java.util.Collections.synchronizedList(new ArrayList<>());
     private static DiffRunner runner;
     private static long seed;
+    /** shim 의 레지스트리·블록·아이템은 Furnace 서버 위에서 산다(BuiltInRegistries 가 서버 데이터를 읽음) — 시험 서버 하나를 띄운다. */
+    private static org.domi.furnace.test.FurnaceTestServer server;
 
     /** 클래스마다 시험 하나 — 기본 제한시간(5분)은 공장 메서드에만 걸리므로 무거운 일은 각 동적 시험 안에서 한다(멤버마다 120초 감시는 DiffRunner). */
     @TestFactory
@@ -58,6 +60,7 @@ class VanillaDiffTest {
         for (String o : only) {
             if (targets.stream().noneMatch(t -> t.cls.equals(o))) fail("-PvdiffClasses names a class not in vanilla-diff-targets.txt: " + o);
         }
+        server = org.domi.furnace.test.FurnaceTestServer.builder().start();
         runner = new DiffRunner(rt.loader(), VanillaDiffTest.class.getClassLoader(), seed);
         List<DynamicTest> tests = new ArrayList<>();
         for (Target t : targets) {
@@ -93,6 +96,7 @@ class VanillaDiffTest {
     @org.junit.jupiter.api.AfterAll
     static void finish() throws IOException {
         if (runner != null) runner.close();
+        if (server != null) server.close();
         NbtKit.cleanTemp();
         writeReport(new ArrayList<>(REPORTS), VanillaRuntime.get().mc(), seed);
     }
@@ -314,7 +318,7 @@ class VanillaDiffTest {
         row(sb, "값 클래스(관문)", gateCounts);
         row(sb, "연결 명세 pure·read=any(다름은 실패, 증명 없음은 보고)", specCounts);
         sb.append("\n호출 수 합계(양쪽 한 쌍을 1로): ").append(calls).append("\n\n");
-        sb.append("증명 비율 = 같음 / (같음 + 다름 + 증명 없음). 뺌·Paper 와 같게·shim 에 없음은 분모에 넣지 않는다.\n\n");
+        sb.append("증명 비율 = 같음 / (같음 + 다름 + 증명 없음). 뺌·Paper 와 같게·shim 에 없음은 분모에 넣지 않는다 — 뺀 멤버는 증명되지 않았으니 비율 옆에 개수를 함께 적는다.\n\n");
         for (ClassReport r : reports) {
             sb.append("## ").append(r.gate ? "" : "[명세] ").append(r.cls).append(" (입력 ").append(r.iterations).append(", ").append(r.millis / 1000.0).append("초)\n\n");
             if (r.error != null) sb.append("**오류**: ").append(r.error).append("\n\n");
@@ -353,7 +357,10 @@ class VanillaDiffTest {
     private static void row(StringBuilder sb, String name, long[] c) {
         long same = c[Status.SAME.ordinal()], diff = c[Status.DIFF.ordinal()], unp = c[Status.UNPROVED.ordinal()];
         long denom = same + diff + unp;
+        long excluded = c[Status.EXCLUDED.ordinal()];
         String ratio = denom == 0 ? "-" : String.format(java.util.Locale.ROOT, "%.1f%%", 100.0 * same / denom);
+        // 뺀 멤버(태그·월드 필요 등)는 분모 밖이라 비율만 보면 다 증명된 것처럼 읽힌다 — 옆에 같이 적는다
+        if (denom != 0 && excluded > 0) ratio += " (뺀 " + excluded + "개는 증명 안 됨)";
         sb.append("| ").append(name).append(" | ").append(same).append(" | ").append(diff).append(" | ").append(unp).append(" | ")
                 .append(c[Status.EXCLUDED.ordinal()]).append(" | ").append(c[Status.PAPER.ordinal()]).append(" | ").append(c[Status.NOT_IN_SHIM.ordinal()]).append(" | ").append(ratio).append(" |\n");
     }
