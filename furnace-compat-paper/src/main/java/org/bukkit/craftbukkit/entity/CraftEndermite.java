@@ -1,8 +1,8 @@
 // 생성됨: tools/compat/gen-bukkit-entity-classes.py — 손으로 고치려면 이 줄을 지운다.
 package org.bukkit.craftbukkit.entity;
 
-/** ENDERMITE 의 감싸개(Paper CraftEndermite 이름). */
-public class CraftEndermite extends CraftCreature implements org.bukkit.entity.Endermite {
+/** ENDERMITE 의 감싸개(Paper CraftEndermite 이름·상위). */
+public class CraftEndermite extends org.bukkit.craftbukkit.entity.CraftMonster implements org.bukkit.entity.Endermite {
 
     public CraftEndermite(org.domi.furnace.api.entity.Mob handle) { super(handle); }
 }
