@@ -4,6 +4,7 @@
 # C class access super interfaces signature innerAccess source / F,M owner name descriptor access signature (- = none) / E enum constantCount
 C	net/minecraft/commands/CommandSource	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/network/syncher/SyncedDataHolder	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/util/StringRepresentable	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/Clearable	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/Container	1537	java/lang/Object	net/minecraft/world/Clearable	-	-	paper-server-1.21.1
 C	net/minecraft/world/ContainerListener	1537	java/lang/Object	-	-	-	paper-server-1.21.1
@@ -153,7 +154,11 @@ C	net/minecraft/world/entity/decoration/ArmorStand	33	net/minecraft/world/entity
 C	net/minecraft/world/entity/decoration/BlockAttachedEntity	1057	net/minecraft/world/entity/Entity	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/decoration/GlowItemFrame	33	net/minecraft/world/entity/decoration/ItemFrame	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/decoration/HangingEntity	1057	net/minecraft/world/entity/decoration/BlockAttachedEntity	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/decoration/HangingEntity	getDirection	()Lnet/minecraft/core/Direction;	1	-
+M	net/minecraft/world/entity/decoration/HangingEntity	rotate	(Lnet/minecraft/world/level/block/Rotation;)F	1	-
 C	net/minecraft/world/entity/decoration/ItemFrame	33	net/minecraft/world/entity/decoration/HangingEntity	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/decoration/ItemFrame	getRotation	()I	1	-
+M	net/minecraft/world/entity/decoration/ItemFrame	setRotation	(I)V	1	-
 C	net/minecraft/world/entity/decoration/LeashFenceKnotEntity	33	net/minecraft/world/entity/decoration/BlockAttachedEntity	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/decoration/Painting	33	net/minecraft/world/entity/decoration/HangingEntity	net/minecraft/world/entity/VariantHolder	Lnet/minecraft/world/entity/decoration/HangingEntity;Lnet/minecraft/world/entity/VariantHolder<Lnet/minecraft/core/Holder<Lnet/minecraft/world/entity/decoration/PaintingVariant;>;>;	-	paper-server-1.21.1
 C	net/minecraft/world/entity/item/FallingBlockEntity	33	net/minecraft/world/entity/Entity	-	-	-	paper-server-1.21.1
@@ -561,6 +566,12 @@ C	net/minecraft/world/level/block/RodBlock	1057	net/minecraft/world/level/block/
 C	net/minecraft/world/level/block/RootedDirtBlock	33	net/minecraft/world/level/block/Block	net/minecraft/world/level/block/BonemealableBlock	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/RootsBlock	33	net/minecraft/world/level/block/BushBlock	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/RotatedPillarBlock	33	net/minecraft/world/level/block/Block	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/Rotation	16433	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/block/Rotation;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
+E	net/minecraft/world/level/block/Rotation	4
+F	net/minecraft/world/level/block/Rotation	CLOCKWISE_180	Lnet/minecraft/world/level/block/Rotation;	16409	-
+F	net/minecraft/world/level/block/Rotation	CLOCKWISE_90	Lnet/minecraft/world/level/block/Rotation;	16409	-
+F	net/minecraft/world/level/block/Rotation	COUNTERCLOCKWISE_90	Lnet/minecraft/world/level/block/Rotation;	16409	-
+F	net/minecraft/world/level/block/Rotation	NONE	Lnet/minecraft/world/level/block/Rotation;	16409	-
 C	net/minecraft/world/level/block/SaplingBlock	33	net/minecraft/world/level/block/BushBlock	net/minecraft/world/level/block/BonemealableBlock	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/ScaffoldingBlock	33	net/minecraft/world/level/block/Block	net/minecraft/world/level/block/SimpleWaterloggedBlock	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/SculkBehaviour	1537	java/lang/Object	-	-	-	paper-server-1.21.1

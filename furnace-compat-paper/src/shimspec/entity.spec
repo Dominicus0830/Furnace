@@ -73,3 +73,16 @@ class net.minecraft.world.entity.vehicle.AbstractMinecartContainer  owner=org.do
   clearContent -> NmsEntityOps.clearContent write
 class net.minecraft.world.entity.vehicle.ChestBoat  owner=org.domi.furnace.compat.nms.NmsEntityOwner
   clearContent -> NmsEntityOps.clearContent write
+# 걸이 엔티티(Axiom 이 소환·조작 때 돌린다): 방향·돌림. 월드 밖 엔티티는 조각이 태그대로 들고 조작을 기록한다
+class net.minecraft.world.entity.decoration.HangingEntity  owner=org.domi.furnace.compat.nms.NmsEntityOwner
+  getDirection -> @hand read=owner
+  rotate -> @hand write
+class net.minecraft.world.entity.decoration.ItemFrame  owner=org.domi.furnace.compat.nms.NmsEntityOwner
+  getRotation -> @hand read=owner
+  setRotation(I)V -> @hand write
+# 돌림(걸이 엔티티 rotate 의 인자). 패킷 생성기가 빈 열거형으로 채우던 것을 명세로 옮겼다
+class net.minecraft.world.level.block.Rotation
+  NONE
+  CLOCKWISE_90
+  CLOCKWISE_180
+  COUNTERCLOCKWISE_90

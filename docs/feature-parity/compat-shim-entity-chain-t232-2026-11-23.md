@@ -74,3 +74,20 @@ shim 생성기(T-229)가 서명표에서 만든다. T-231(블록·아이템)과 
   확인한 FancyNpcs·FancyHolograms 는 그 이름을 엔티티 데이터 꾸러미의 키 글로 쓸 뿐 `Class.forName` 을 부르지 않는다. T-231(블록)과 같은 성격이라 그대로 둔다.
 - `ServerPlayer` 는 아직 손 shim(`src/main/java`) — 서버 레벨 패키지 이전(`ServerLevel` 과 함께) 때 조각으로 옮긴다.
 - 종류별 메서드 채우기, 몹 상속(T-237).
+
+## 8. 후속: 걸이 엔티티 방향·돌림 (Axiom 남은 4개)
+
+T-232 로 클래스가 생기며 새로 보인 Axiom 멤버 4개(`HangingEntity#getDirection`·`rotate(Rotation)`, `ItemFrame#getRotation`·`setRotation(int)`)를 이었다.
+Axiom 은 소환(`SpawnEntityPacketListener` — `create` → `load` → `setUUID` 뒤, 월드에 넣기 전)과 조작(`ManipulateEntityPacketListener` — 월드의 엔티티) 두 곳에서 부른다.
+
+| 부분 | 내용 |
+|---|---|
+| 정답 | Paper 1.21.1 jar javap. `rotate` 는 방향이 수평이면 **필드만** 돌리고(180 → 반대, 반시계 90 → 반시계, 시계 90 → 시계) 각도·상자는 그대로 두며, `wrapDegrees(yRot)` 에 180·90·270 을 더해 준다. `setRotation(int)` 은 `% 8` 로 두고, 붙은 블록이 있으면 비교기 갱신. 액자 불러오기는 아이템이 있을 때만 `ItemRotation`, 그다음 `Facing`(3D 값)으로 `setDirection`(수평 xRot 0·yRot 2D×90, 위·아래 xRot ∓90·yRot 0). 그림은 `facing`(2D 값) |
+| 서버 | `HangingEntity#rotate(int)` 새로(위 규칙). 다리 `EntityEdit.HangingDirection`·`HangingRotate`·`ItemFrameRotation`·`SetItemFrameRotation`, 넣을 때 재생하는 `EntityOp.HangingRotate`·`SetItemFrameRotation` |
+| shim | 명세 4줄(`@hand`, 읽기 `read=owner`·쓰기 `write`) + 조각 `HangingEntity`·`ItemFrame`. 월드 밖 엔티티는 조각이 불러온 태그대로 방향·돌림·각도를 들고 조작을 기록한다(`Entity` 조각의 `furnaceDetachedLoaded` 훅) |
+| `Rotation` | 패킷 생성기가 빈 열거형으로 채우던 것을 명세(상수 4개, 바닐라 순서 javap 확인) + 조각(`getSerializedName`)으로 옮겼다. 서명 관문 기준선의 `type-missing Rotation` 줄이 사라졌다 |
+
+- 가정: 월드 밖 액자의 "아이템이 비었는가" 는 태그 모양으로 본다(id 가 있고 공기가 아니며 count 1~99 또는 없음). 바닐라는 모르는 id 도 빈 스택으로 보지만 이 판정은 그 경우를 비지 않았다고 본다 — 넣은 뒤에는 서버 값이 정답이다.
+- 시험 `NmsHangingEntityTest`(4): 월드 밖 액자의 불러오기·돌리기·돌림 기록과 넣은 뒤 서버 값, 빈 액자·위를 보는 액자, 그림의 2D 방향, 월드 액자의 돌리기·돌림.
+- 표본 100개(같은 jar 폴더, 전 3d0046ca / 후): 단순 합 2718/3213(84.6%) → 2725/3213(84.8%), 인기 가중 15598/18327(85.1%) → 15636/18327(85.3%), **Axiom 6.0.1 501/505 → 505/505**.
+- 확인 필요(이번 범위 밖): 서버 구조물 템플릿 배치(`TemplatePlacer`)는 엔티티를 NBT 로 돌리며 걸이 엔티티의 `Facing` 을 돌리지 않는다. 바닐라 `StructureTemplate#placeEntities` 는 `entity.rotate(rotation)`(걸이 엔티티는 위 재정의)를 부른다 — 액자·그림이 든 템플릿을 돌려 놓으면 방향이 다를 수 있다. 바닐라 구조물 템플릿에 걸이 엔티티가 있는지부터 확인할 것.
