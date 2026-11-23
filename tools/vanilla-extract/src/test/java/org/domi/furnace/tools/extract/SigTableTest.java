@@ -157,4 +157,23 @@ class SigTableTest {
         assertEquals(List.of("b:I", "a:J"), back.recordComponents("a/R"));
         assertEquals(List.of(), back.enumConstants("a/R"));
     }
+
+    /** 형식 3: 클래스의 런타임 보이는 값 없는 애노테이션만 담긴다(값 있는 것·안 보이는 것은 뺀다). 쓰고 읽어도 같다. */
+    @Test
+    void classAnnotationsWithoutValuesRoundTrip(@TempDir Path dir) throws Exception {
+        ClassWriter w = new ClassWriter(0);
+        w.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_INTERFACE | Opcodes.ACC_ABSTRACT, "a/F", null, "java/lang/Object", null);
+        w.visitAnnotation("Ljava/lang/FunctionalInterface;", true).visitEnd();
+        org.objectweb.asm.AnnotationVisitor dep = w.visitAnnotation("Ljava/lang/Deprecated;", true);
+        dep.visit("since", "1");
+        dep.visitEnd();
+        w.visitAnnotation("Ljavax/annotation/Nonnull;", false).visitEnd();
+        w.visitEnd();
+        SigTable t = SigTable.empty("x");
+        t.add(w.toByteArray());
+        assertEquals(List.of("Ljava/lang/FunctionalInterface;"), t.classAnnotations("a/F"));
+        Path f = dir.resolve("a.tsv.gz");
+        t.write(f);
+        assertEquals(List.of("Ljava/lang/FunctionalInterface;"), SigTable.read(f).classAnnotations("a/F"));
+    }
 }

@@ -612,5 +612,17 @@ class ShimGeneratorTest {
         Files.writeString(dir.resolve("Dflt.java"), "package net.minecraft.zz;\npublic interface Dflt {\n    String getName();\n}\n", StandardCharsets.UTF_8);
         String tag2 = new ShimGenerator(spec, ShimLock.parse(lock), tmp, List.of(tmp.resolve("handC")), List.of()).generate().files().get("net/minecraft/zz/Tag");
         assertTrue(tag2.contains("getName"), tag2);
+    /** 잠금 A 줄의 애노테이션이 생성 머리에 붙고, 조각이 이미 쓰면 겹치지 않는다. */
+    @Test
+    void copiedClassAnnotationsLandOnTheHeader() throws Exception {
+        String lock = String.join("\n", "#furnace-shim-lock\t1\ttest",
+                "C\tnet/minecraft/zz/Fn\t1537\tjava/lang/Object\t-\t-\t-\tt",
+                "A\tnet/minecraft/zz/Fn\tLjava/lang/FunctionalInterface;",
+                "M\tnet/minecraft/zz/Fn\trun\t()V\t1025\t-", "");
+        Built b = build("class net.minecraft.zz.Fn\n  run\n", lock, Map.of());
+        assertTrue(b.loader().loadClass("net.minecraft.zz.Fn").isAnnotationPresent(FunctionalInterface.class));
+        Built c = build("class net.minecraft.zz.Fn\n  run\n", lock, Map.of("net/minecraft/zz/Fn",
+                "package net.minecraft.zz;\n\n@FunctionalInterface\ninterface Fn {\n}\n"));
+        assertTrue(c.loader().loadClass("net.minecraft.zz.Fn").isAnnotationPresent(FunctionalInterface.class));
     }
 }
