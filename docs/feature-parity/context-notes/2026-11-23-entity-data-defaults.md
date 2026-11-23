@@ -53,3 +53,8 @@
 - 번호 순서는 서버 `registries/builtin-1.21.1.txt` 에 villager_type·villager_profession·frog_variant 를 더해(바닐라 reports/registries.json, `extract_builtin_registries.py`) 처음 꺼낼 때 견준다.
 - 직업 성분(직업 블록 두 람다·요청 아이템 차례·보조 지점·일 소리)과 바이옴 대응은 바닐라 바이트코드로 확인했고, `NmsVillagersTest` 가 서버 `Villager` 정의(heldJobSite·acquirableJobSite·requestedItems·secondaryPoi·typeForBiome)와 견준다.
 - 다리: 등록되지 않은 직업 record 는 바닐라 DefaultedMappedRegistry 처럼 기본값(none)으로 나간다(바닐라 STREAM_CODEC 도 레지스트리 번호).
+
+## D4-2 고양이·개구리 무늬 (11-23)
+- shim `CatVariant`·`FrogVariant` 를 바닐라 record(그림 위치)로, `BuiltInRegistries.CAT_VARIANT`·`FROG_VARIANT`(바닐라 registerSimple, 기본값 없음). 그림 위치 꼴은 바닐라 bootstrap 바이트코드로 확인(고양이 `<이름>.png`, 개구리 `<이름>_frog.png`).
+- 칸 값은 레지스트리 손잡이. 다리에서 등록되지 않은 값(Direct 손잡이에 새 record)은 바닐라 holderRegistry 코덱처럼 실패한다. Direct 라도 값이 등록된 것이면 그 이름.
+- 남은 값 종류: 늑대·그림 무늬(데이터 팩 레지스트리 — RegistryAccess 쪽), 입자, optional_global_pos, vector3·quaternion.

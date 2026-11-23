@@ -134,4 +134,25 @@ class NmsVillagersTest {
         assertSame(VillagerProfession.LIBRARIAN, v.getEntityData().get(slot).getProfession(), "칸 쓰기가 서버 재생을 지나 돌아온다");
         assertEquals(Optional.of(2), Optional.of(v.getEntityData().get(slot).getLevel()));
     }
+
+    /** 고양이·개구리 무늬 레지스트리(D4): 서버 목록 순서, 바닐라 그림 위치 꼴, 키 상수가 레지스트리 손잡이를 찾는다. */
+    @Test
+    void catAndFrogVariantRegistries() {
+        List<String> cats = new ArrayList<>();
+        BuiltInRegistries.CAT_VARIANT.holders().forEach(h -> cats.add(h.key().location().toString()));
+        assertEquals(org.domi.furnace.api.Furnace.server().gameRegistries().builtIn("minecraft:cat_variant"), cats);
+        assertEquals("minecraft:textures/entity/cat/british_shorthair.png",
+                BuiltInRegistries.CAT_VARIANT.getOrThrow(net.minecraft.world.entity.animal.CatVariant.BRITISH_SHORTHAIR).texture().toString());
+        assertEquals(1, BuiltInRegistries.CAT_VARIANT.getId(BuiltInRegistries.CAT_VARIANT.getOrThrow(net.minecraft.world.entity.animal.CatVariant.BLACK)));
+        List<String> frogs = new ArrayList<>();
+        BuiltInRegistries.FROG_VARIANT.holders().forEach(h -> frogs.add(h.key().location().toString()));
+        assertEquals(List.of("minecraft:temperate", "minecraft:warm", "minecraft:cold"), frogs);
+        assertEquals("minecraft:textures/entity/frog/warm_frog.png",
+                BuiltInRegistries.FROG_VARIANT.getOrThrow(net.minecraft.world.entity.animal.FrogVariant.WARM).texture().toString());
+        var direct = Holder.direct(new net.minecraft.world.entity.animal.CatVariant(ResourceLocation.parse("x:y")));
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () -> EntityDataBridge.toApi("cat_variant", direct, "test"),
+                "등록되지 않은 무늬는 바닐라 holderRegistry 코덱처럼 실패");
+        assertEquals("minecraft:white", EntityDataBridge.toApi("cat_variant",
+                Holder.direct(BuiltInRegistries.CAT_VARIANT.getOrThrow(net.minecraft.world.entity.animal.CatVariant.WHITE)), "test"), "값이 등록된 것이면 그 이름");
+    }
 }
