@@ -63,7 +63,7 @@ tools/compat/sig-tables.sh 1.21.1                              기준 표를 캐
 ./gradlew -PskipOracle=true :vanilla-extract:signatureGate -PsigBaselineWrite=true   기준선 다시 쓰기(이미 적은 이유는 그대로, 새 줄은 코드별 기본 이유)
 ```
 
-- **실패 대상(링크를 깨는 차이):** `class-kind`·`class-access`(덜 열림·shim 만 final/abstract)·`super`(상위 클래스 다름)·`type-missing`(바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없음, 상위가 같을 때만·JDK 타입 제외)·`descriptor`(같은 이름 멤버인데 서술자가 다르고 기준의 같은 이름 서술자가 shim 에 없음)·`static`·`member-access`. 멤버는 JVM 처럼 상위 사슬을 따라 풀어 상위 멤버를 하위에 다시 선언한 것은 세지 않는다.
+- **실패 대상(링크를 깨는 차이):** `class-kind`·`class-access`(덜 열림·shim 만 final/abstract)·`super`(상위 클래스 다름)·`type-missing`(바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없음, 상위가 같을 때만·JDK 타입과 Paper 내부 패치 인터페이스 `ca/spottedleaf/`(moonrise — 잠금 파일도 뺀다, T-232) 제외)·`descriptor`(같은 이름 멤버인데 서술자가 다르고 기준의 같은 이름 서술자가 shim 에 없음)·`static`·`member-access`. 멤버는 JVM 처럼 상위 사슬을 따라 풀어 상위 멤버를 하위에 다시 선언한 것은 세지 않는다.
 - **참고만(실패 아님):** shim 이 더 가진 `extra-class`·`extra-member`·`extra-overload`(Furnace 내부 도우미) — 플러그인이 컴파일한 호출을 깨지 않는다. 보고서에 건수만 나온다.
 - **기준선** `furnace-compat-paper/src/test/resources/shim-signature-baseline.txt`: `코드<TAB>소유<TAB>멤버<TAB>자세히<TAB>이유`. **새 차이**(기준선에 없음)·**낡은 줄**(이제 같아졌는데 남음)·**이유 없는 줄** 은 실패다. 지금 값은 손 shim 의 알려진 구멍을 코드별 "미분류" 이유로 채운 것이고, 생성기(T-229~)가 바로잡을 때마다 줄을 지운다. 의도한 차이는 이유에 Furnace 가 그렇게 한 까닭을 적는다. 이 파일은 커밋되므로 shim 에 이미 있는 이름과 이유만 담는다 — **기준(바닐라·Paper) 쪽 이름·서술자는 `#<12자리 지문>`(SHA-256 앞부분)으로만** 적는다(Mojang 이름·바닐라 메서드 모양은 커밋하지 않는다). 지문의 원문은 보고서에만 나오고, 새 차이가 생기면 콘솔·보고서에 원문이 함께 찍힌다.
 - 보고서(커밋 안 함): `tools/vanilla-extract/build/reports/signature-gate.md` — 차이 전체의 원문(기준 쪽 이름·서술자 포함). CI 는 실패할 때 올린다.

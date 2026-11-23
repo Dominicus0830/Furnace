@@ -11,7 +11,7 @@ import org.domi.furnace.compat.nms.UnsupportedNmsCall;
  * Furnace 엔티티 핸들(만든 시점의 스냅샷)을 읽는다 — 위치는 그 스냅샷 값이다. 같은 엔티티는 같은 shim 이다(CraftEntity 마다 하나).
  * 바닐라처럼 equals 는 같은 엔티티인가(바닐라는 네트워크 id, 여기는 UUID)다.
  */
-public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, net.minecraft.world.level.entity.EntityAccess {
+class Entity {
 
     private static final System.Logger LOG = System.getLogger("FurnaceCompat");
 
@@ -25,11 +25,17 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
     /** Paper 필드: 스폰 이유. NMS 로 만든 엔티티를 넣을 때 엔티티에 붙는다. 월드의 엔티티 shim 에서는 읽어도 null 이다(채워 두지 않는다). */
     public org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason spawnReason;
 
-    /** 호환 모듈 전용(CraftEntity 가 만든다). 플러그인이 상속해 새 엔티티를 만드는 것은 지원하지 않는다(설계 등급 C). */
-    public Entity(CraftEntity bukkit) { this.bukkit = java.util.Objects.requireNonNull(bukkit, "bukkit"); }
-
-    /** {@link EntityType#create} 전용: 아직 월드에 없는 엔티티(바닐라 생성자처럼 자리 0,0,0·방향 0). */
-    Entity(EntityType<?> type, Level level) { this.detached = new Detached(type, level); }
+    /**
+     * 생성기 전용 생성자(T-232): 엔티티 객체는 그 종류의 바닐라 클래스로 만든다({@link org.domi.furnace.compat.nms.NmsEntityKinds}). 재료는 표지에 실려 온다 —
+     * 월드의 엔티티면 그 Bukkit 객체, {@link EntityType#create} 로 만든 아직 월드에 없는 엔티티면 종류와 레벨(바닐라 생성자처럼 자리 0,0,0·방향 0).
+     * 플러그인이 상속해 새 엔티티를 만드는 것은 지원하지 않는다(설계 등급 C, 몹 상속은 T-237 설계 뒤).
+     */
+    protected Entity(org.domi.furnace.compat.nms.ShimCtor tag) {
+        Object p = tag.payload();
+        if (p instanceof CraftEntity c) this.bukkit = c;
+        else if (p instanceof org.domi.furnace.compat.nms.NmsEntityKinds.Fresh f) this.detached = new Detached(f.type(), f.level());
+        else throw new IllegalArgumentException("entity shim made without a Bukkit entity or a fresh entity: " + p);
+    }
 
     /** CraftBukkit 이 더한 메서드: 이 엔티티의 Bukkit 객체. 아직 월드에 넣지 않은 엔티티는 UnsupportedNmsCall. */
     public CraftEntity getBukkitEntity() {
@@ -62,11 +68,11 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
     /** 바닐라 {@code level().getServer()} — Furnace 의 월드는 모두 이 서버의 것이다(월드에 아직 없는 엔티티도). */
     public net.minecraft.server.MinecraftServer getServer() { return net.minecraft.server.MinecraftServer.getServer(); }
 
-    public double getX() { Detached d = detached; return d != null ? d.x : f().location().x(); }
+    public final double getX() { Detached d = detached; return d != null ? d.x : f().location().x(); }
 
-    public double getY() { Detached d = detached; return d != null ? d.y : f().location().y(); }
+    public final double getY() { Detached d = detached; return d != null ? d.y : f().location().y(); }
 
-    public double getZ() { Detached d = detached; return d != null ? d.z : f().location().z(); }
+    public final double getZ() { Detached d = detached; return d != null ? d.z : f().location().z(); }
 
     public float getYRot() { Detached d = detached; return d != null ? d.yRot : f().location().yaw(); }
 
@@ -100,7 +106,9 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
     }
 
     /** 바닐라: 지워졌는가(스냅샷 시점, 이 shim 으로 {@link #discard} 했으면 참). */
-    public boolean isRemoved() {
+    public final boolean isRemoved() {
+        // 바닐라 생성자로 만든 월드에 없는 플레이어(FAWE 가짜 플레이어): 지워지지 않았다(Paper 는 final 이라 ServerPlayer 가 덮지 않는다)
+        if (this instanceof net.minecraft.server.level.ServerPlayer sp && sp.furnaceDetached()) return false;
         Detached d = detached;
         return d != null ? d.removed : discarded || !f().isValid();
     }
@@ -116,6 +124,7 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
      * 내용은 서버가 월드에 저장하는 꼴과 같다 — Paper 가 더하는 Bukkit·Spigot·Paper 키(WorldUUID·Spigot.ticksLived·Paper.Origin 등)는 없다.
      */
     public boolean save(net.minecraft.nbt.CompoundTag tag) {
+        org.domi.furnace.compat.nms.NmsEntityOwner.read(this, "Entity#save");
         if (detached != null) throw notInWorld("Entity#save");
         var h = f();
         if (h instanceof org.domi.furnace.api.entity.Player) return false;   // 플레이어는 저장하지 않는 종류(바닐라 getEncodeId null)
@@ -131,7 +140,8 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
      * 바닐라 {@code Entity#discard}(T-212): 지움 이유 DISCARDED 로 지운다 — Paper 도 원인 없는 discard 에는 EntityRemoveEvent 를 내지 않는다. 이미 사라졌으면
      * 아무 일 없다. 스레드 규칙은 {@link #save} 와 같다(FAWE 는 동기 작업 = 전역 스레드의 빌림 구간에서 부른다).
      */
-    public void discard() {
+    public final void discard() {
+        org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#discard");
         Detached d = detached;
         if (d != null) {   // 바닐라: 넣기 전에 지운 엔티티는 addFreshEntity 가 거짓
             d.removed = true;
@@ -154,6 +164,7 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
      * 플레이어·저장하지 않는 지움 이유·이미 사라진 엔티티는 거짓(tag 는 그대로). 스레드 규칙은 {@link #save} 와 같다.
      */
     public boolean saveAsPassenger(net.minecraft.nbt.CompoundTag tag) {
+        org.domi.furnace.compat.nms.NmsEntityOwner.read(this, "Entity#saveAsPassenger");
         if (detached != null) throw notInWorld("Entity#saveAsPassenger");
         var h = f();
         if (h instanceof org.domi.furnace.api.entity.Player) return false;
@@ -171,6 +182,7 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
      * 내지 않는다). 아직 월드에 없는 엔티티는 지운 것으로만 표시한다(넣으면 거짓). 플레이어는 지원하지 않는다({@link #discard} 와 같다).
      */
     public void remove(RemovalReason reason) {
+        org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#remove");
         Detached d = detached;
         if (d != null) {
             d.removed = true;
@@ -242,16 +254,16 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
     private boolean sharedFlag(int bit, String what) { return (furnaceLook(what).sharedFlags() & 1 << bit) != 0; }
 
     /** 바닐라 isCrouching: 자세가 웅크림. */
-    public boolean isCrouching() { return furnaceLook("Entity#isCrouching").pose() == Pose.CROUCHING.ordinal(); }
+    public boolean isCrouching() { org.domi.furnace.compat.nms.NmsEntityOwner.read(this, "Entity#isCrouching"); return furnaceLook("Entity#isCrouching").pose() == Pose.CROUCHING.ordinal(); }
 
     /** 바닐라 isSwimming: 공유 플래그 4. 플레이어는 날거나 관전 중이면 거짓(Player 가 덮는다). */
-    public boolean isSwimming() { return sharedFlag(4, "Entity#isSwimming"); }
+    public boolean isSwimming() { org.domi.furnace.compat.nms.NmsEntityOwner.read(this, "Entity#isSwimming"); return sharedFlag(4, "Entity#isSwimming"); }
 
     /** 바닐라 isInvisible: 공유 플래그 5. */
-    public boolean isInvisible() { return sharedFlag(5, "Entity#isInvisible"); }
+    public boolean isInvisible() { org.domi.furnace.compat.nms.NmsEntityOwner.read(this, "Entity#isInvisible"); return sharedFlag(5, "Entity#isInvisible"); }
 
     /** 바닐라 hasPermissions(단계): 권한 단계가 그 이상인가. 엔티티는 0, 플레이어는 op 단계. */
-    public boolean hasPermissions(int level) { return furnaceLook("Entity#hasPermissions").permissionLevel() >= level; }
+    public boolean hasPermissions(int level) { org.domi.furnace.compat.nms.NmsEntityOwner.read(this, "Entity#hasPermissions"); return furnaceLook("Entity#hasPermissions").permissionLevel() >= level; }
 
     /** 바닐라: 엔티티는 관전자가 아니다(ServerPlayer 가 덮는다). */
     public boolean isSpectator() { return false; }
@@ -262,12 +274,14 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
      * 있다(가정 — 바닐라 대조 시험 없음).
      */
     public net.minecraft.world.phys.Vec3 getKnownMovement() {
+        org.domi.furnace.compat.nms.NmsEntityOwner.read(this, "Entity#getKnownMovement");
         var l = furnaceLook("Entity#getKnownMovement");
         return new net.minecraft.world.phys.Vec3(l.knownX(), l.knownY(), l.knownZ());
     }
 
     /** 바닐라 getVehicle: 탄 탈것(없으면 null). 탈것은 같은 region 에 있다. */
     public Entity getVehicle() {
+        org.domi.furnace.compat.nms.NmsEntityOwner.read(this, "Entity#getVehicle");
         Detached d = detached;
         if (d != null) return d.vehicle;   // loadEntityRecursive 로 태운 묶음(넣을 때 서버가 태운다)
         java.util.UUID v = furnaceLook("Entity#getVehicle").vehicle();
@@ -276,18 +290,21 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
 
     /** 바닐라 isPassenger: 탈것이 있는가. */
     public boolean isPassenger() {
+        org.domi.furnace.compat.nms.NmsEntityOwner.read(this, "Entity#isPassenger");
         Detached d = detached;
         return d != null ? d.vehicle != null : furnaceLook("Entity#isPassenger").vehicle() != null;
     }
 
     /** 바닐라 hasPassenger(조건): 바로 탄 승객 중 조건에 맞는 것이 있는가. */
     public boolean hasPassenger(java.util.function.Predicate<Entity> predicate) {
+        org.domi.furnace.compat.nms.NmsEntityOwner.read(this, "Entity#hasPassenger");
         for (Entity p : passengersNow("Entity#hasPassenger")) if (predicate.test(p)) return true;
         return false;
     }
 
     /** 바닐라 getSelfAndPassengers: 자기 다음에 승객마다 그 승객과 그 위 승객(깊이 우선, 타는 순서). */
     public java.util.stream.Stream<Entity> getSelfAndPassengers() {
+        org.domi.furnace.compat.nms.NmsEntityOwner.read(this, "Entity#getSelfAndPassengers");
         Detached d = detached;
         if (d != null) return java.util.stream.Stream.concat(java.util.stream.Stream.of(this), d.passengers.stream().flatMap(Entity::getSelfAndPassengers));
         return java.util.stream.Stream.concat(java.util.stream.Stream.of(this),
@@ -296,6 +313,7 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
 
     /** 바닐라 getIndirectPassengers: 승객과 그 위 승객 모두(자기 빼고). 돌 때마다 지금 승객을 다시 본다(바닐라도 스트림을 새로 만든다). */
     public Iterable<Entity> getIndirectPassengers() {
+        org.domi.furnace.compat.nms.NmsEntityOwner.read(this, "Entity#getIndirectPassengers");
         Detached d = detached;
         if (d != null) return () -> d.passengers.stream().flatMap(Entity::getSelfAndPassengers).iterator();
         return () -> passengersNow("Entity#getIndirectPassengers").stream().flatMap(Entity::getSelfAndPassengers).iterator();
@@ -359,8 +377,18 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
         }
     }
 
+    /** 호환 모듈 전용(소유 규칙 {@link org.domi.furnace.compat.nms.NmsEntityOwner}): 월드에 있는 엔티티의 Furnace 핸들, 아직 월드에 없으면 null. */
+    public org.domi.furnace.api.entity.Entity furnaceHandleOrNull() { return detached != null ? null : f(); }
+
+    /**
+     * 호환 모듈 전용: 바닐라 {@code clearContent}(상자 배·상자/깔때기 수레 — 연결 명세가 {@code NmsEntityOps} 로 잇는다). 주인 스레드에서 서버가 전리품 표를 풀고
+     * 칸을 비운다. 아직 월드에 없는 엔티티는 UnsupportedNmsCall(칸은 넣을 때 서버가 만든다).
+     */
+    public void furnaceClearContent() { furnaceEdit("Clearable#clearContent", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.ClearContent()); }
+
     /** 바닐라 {@code saveWithoutId(tag)}: "id" 없는 저장 NBT 를 tag 에 넣고 tag 를 돌려준다(/data get entity 와 같은 내용). */
     public net.minecraft.nbt.CompoundTag saveWithoutId(net.minecraft.nbt.CompoundTag tag) {
+        org.domi.furnace.compat.nms.NmsEntityOwner.read(this, "Entity#saveWithoutId");
         var saved = (org.domi.furnace.api.nbt.NbtCompound) furnaceEdit("Entity#saveWithoutId", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.SaveWithoutId());
         net.minecraft.nbt.CompoundTag t = net.minecraft.nbt.CompoundTag.fromFurnace(saved);
         for (String k : t.getAllKeys()) tag.put(k, t.get(k));
@@ -368,7 +396,8 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
     }
 
     /** 바닐라 {@code setPosRaw}: 자리만 바꾼다(이전 자리·회전은 그대로). */
-    public void setPosRaw(double x, double y, double z) {
+    public final void setPosRaw(double x, double y, double z) {
+        org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#setPosRaw");
         furnaceEdit("Entity#setPosRaw", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.SetPosRaw(x, y, z));
     }
 
@@ -378,6 +407,7 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
      */
     public boolean teleportTo(net.minecraft.server.level.ServerLevel level, double x, double y, double z, java.util.Set<RelativeMovement> relative,
                               float yRot, float xRot) {
+        org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#teleportTo");
         if (detached == null && !java.util.Objects.equals(level.getWorld().furnaceHandle(), furnaceWorld())) {
             throw new UnsupportedNmsCall("Entity#teleportTo", "moving an entity to another level this way is not available yet - use the Bukkit teleport API");
         }
@@ -387,6 +417,7 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
 
     /** 바닐라 {@code setYHeadRot}: 살아 있는 엔티티의 머리 각도(다른 엔티티는 바닐라도 아무 일 없다). */
     public void setYHeadRot(float yHeadRot) {
+        org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#setYHeadRot");
         Detached d = detached;
         if (d != null) {   // 아직 월드에 없는 엔티티: 넣을 때 재생한다(Axiom 이 loadEntityRecursive 의 처리 함수에서 부른다)
             d.ops.add(new org.domi.furnace.api.internal.ChunkInternals.EntityOp.SetYHeadRot(yHeadRot));
@@ -396,19 +427,20 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
     }
 
     /** 바닐라 {@code startRiding(vehicle)}: 강제 없이. */
-    public boolean startRiding(Entity vehicle) { return startRiding(vehicle, false); }
+    public boolean startRiding(Entity vehicle) { org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#startRiding"); return startRiding(vehicle, false); }
 
     /** 바닐라 {@code startRiding(vehicle, force)}: 탔으면 참. 탈것은 같은 region 의 월드 엔티티(플레이어 탈것은 아직 없다). */
     public boolean startRiding(Entity vehicle, boolean force) {
+        org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#startRiding");
         if (vehicle.detached != null) throw notInWorld("Entity#startRiding");
         return (Boolean) furnaceEdit("Entity#startRiding", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.StartRiding(vehicle.f(), force));
     }
 
     /** 바닐라 {@code stopRiding}: 탈것에서 내린다. */
-    public void stopRiding() { furnaceEdit("Entity#stopRiding", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.StopRiding()); }
+    public void stopRiding() { org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#stopRiding"); furnaceEdit("Entity#stopRiding", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.StopRiding()); }
 
     /** 바닐라 {@code ejectPassengers}: 탄 것을 모두 내린다. */
-    public void ejectPassengers() { furnaceEdit("Entity#ejectPassengers", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.EjectPassengers()); }
+    public void ejectPassengers() { org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#ejectPassengers"); furnaceEdit("Entity#ejectPassengers", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.EjectPassengers()); }
 
     // ------------------------------------------------------------------ 아직 월드에 없는 엔티티 (T-212: FAWE //paste -e)
 
@@ -417,6 +449,7 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
      * 월드의 엔티티는 주인 스레드에서 바로 싣는다(/data 와 같은 길) — 단 tag 의 UUID 가 지금과 다르면 UnsupportedNmsCall(서버의 엔티티 색인이 깨진다).
      */
     public void load(net.minecraft.nbt.CompoundTag tag) {
+        org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#load");
         if (detached == null) {
             furnaceEdit("Entity#load", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.Load(tag.furnace()));
             return;
@@ -436,6 +469,7 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
 
     /** 바닐라 {@code Entity#absMoveTo(x, y, z, yRot, xRot)}. 아직 월드에 없는 엔티티에만 된다({@link #load} 와 같은 규칙). */
     public void absMoveTo(double x, double y, double z, float yRot, float xRot) {
+        org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#absMoveTo");
         Detached d = detachedFor("Entity#absMoveTo");
         d.ops.add(new org.domi.furnace.api.internal.ChunkInternals.EntityOp.AbsMoveTo(x, y, z, yRot, xRot));
         d.x = Math.clamp(x, -3.0E7, 3.0E7);
@@ -469,6 +503,7 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
 
     /** 바닐라 {@code Entity#setUUID}. 아직 월드에 없는 엔티티에만 된다({@link #load} 와 같은 규칙). */
     public void setUUID(UUID uuid) {
+        org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "Entity#setUUID");
         Detached d = detachedFor("Entity#setUUID");
         d.ops.add(new org.domi.furnace.api.internal.ChunkInternals.EntityOp.SetUuid(uuid));
         d.uuid = uuid;

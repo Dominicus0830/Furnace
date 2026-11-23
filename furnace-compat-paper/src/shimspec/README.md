@@ -9,7 +9,7 @@ NMS shim(`net.minecraft.*` Mojang 이름 클래스)을 손으로 다 쓰지 않�
 |---|---|---|---|
 | `src/shimspec/*.spec` | 사람 | 함 | 어떤 클래스·멤버를 무엇에 잇는지. 판과 무관(서술자·상속을 적지 않는다) |
 | `src/shimspec/shim-<판>.lock` | `:furnace-compat-paper:shimLock` | 함 | 명세의 클래스·멤버와 그 상위 사슬의 선언(접근·상위·인터페이스·서술자·제네릭 서명, 열거형 상수 개수)을 서명표에서 푼 것. 손으로 고치지 않는다(줄바꿈은 CRLF 여도 같은 파일로 본다) |
-| `src/shimspec/kind-classes-<판>.txt` | `:vanilla-extract:run -Pmode=install -Ptools=kind-classes` | 함 | 블록·아이템 종류 → 바닐라 클래스(T-231, 바닐라를 부트스트랩해 레지스트리 객체의 클래스를 읽음). 판마다 하나 |
+| `src/shimspec/kind-classes-<판>.txt` | `:vanilla-extract:run -Pmode=install -Ptools=kind-classes` | 함 | 블록·아이템·엔티티 종류 → 바닐라 클래스(T-231, 바닐라를 부트스트랩해 레지스트리 객체의 클래스를 읽음. 엔티티는 T-232 — `EntityType` 상수의 형식 인자). 판마다 하나 |
 | `src/shims/java/<패키지>/<클래스>.java` | 사람 | 함 | 손 몸통(`@hand`·`@fast`)이 필요한 클래스의 "조각". 머리는 생성기가 붙인다 |
 | `build/generated/sources/nms-shims/java` | `generateNmsShims`(컴파일 때 자동) | 안 함 | 완성된 shim 소스 |
 | `build/generated/resources/nms-shims/META-INF/furnace/shim-*.txt` | 같음 | 안 함 | 구현 없는 추상 메서드 색인(`NmsSymbols` 가 읽는다), 생성·합친 클래스 목록 |
@@ -75,7 +75,12 @@ class net.minecraft.world.level.block.CropBlock            # 멤버 없이 클�
 (명세에 이미 있으면 명세 줄이 이긴다), 표를 `META-INF/furnace/shim-kinds.txt` 로 옮긴다. 실행 때 `NmsKinds` 가 그 표로 블록 표·`Item.byKey` 의 객체를
 그 클래스로 만든다(생성기 전용 생성자 `C(ShimCtor)`, 재료는 `ShimCtor.carrying` 으로 실어 사슬 맨 위 손 shim `Block`·`Item` 이 받는다).
 그래서 `Blocks.WHEAT instanceof CropBlock`·`Items.TORCH instanceof StandingAndWallBlockItem` 이 바닐라와 같다. 표에 없는 이름(바닐라에 없는 종류)은 `Block`·`Item`.
-판을 올리면 표를 다시 뽑고 `shimLock` 을 다시 쓴다(엔티티 종류는 엔티티 사슬(T-232) 뒤에 같은 방식으로 더한다).
+판을 올리면 표를 다시 뽑고 `shimLock` 을 다시 쓴다.
+
+엔티티(T-232): 줄 `E <엔티티 종류> <클래스>` 는 바닐라 `EntityType` 상수 필드의 형식 인자다(`EntityType<Zombie> ZOMBIE`). 도구는 그 클래스가 구체이고
+`(EntityType, Level)` 생성자가 있는지, 레벨 없이 만들어지는 종류(1.21.1 은 46종)는 공장이 만든 객체의 클래스와 같은지 본다. 플레이어는 뺀다(늘 `ServerPlayer`).
+실행 때 `NmsEntityKinds` 가 `CraftEntity#getHandle()`·`EntityType#create` 의 객체를 그 클래스로 만든다(재료는 Bukkit 객체 또는 아직 월드에 없는 엔티티의
+종류·레벨 — 사슬 맨 위 조각 `Entity` 가 받는다). 그래서 `Entity`·`LivingEntity`·`Mob` 이 바닐라처럼 추상이고 `instanceof Mob`·`instanceof HangingEntity` 가 같다.
 
 ## 생성기가 만드는 것
 
@@ -83,6 +88,8 @@ class net.minecraft.world.level.block.CropBlock            # 멤버 없이 클�
   손 shim(`src/main/java`)·패킷 생성물이 이미 있는 클래스는 만들지 않는다(사슬에 있어도 손 shim 이 이긴다).
 - 생성 클래스(인터페이스·열거형 밖)는 `protected C(ShimCtor tag)` 만 갖는다 — 바닐라에 없는 기본 생성자 `public C()` 가 생기지 않게, 그리고 생성 하위 클래스가 부를 수 있게.
   **손 shim 이 생성 클래스의 상위이면 그 손 shim 도 `C(ShimCtor)` 생성자를 가져야 한다**(없으면 컴파일 오류가 알려 준다).
+  조각이 `C(ShimCtor 이름)` 생성자를 스스로 쓰면(재료를 받는 사슬 맨 위 — 엔티티의 `Entity`) 생성기는 그 생성자를 만들지 않는다. 종류 표의 클래스는 조각이어도 이 생성자를 받는다.
+- Paper 내부 패치 인터페이스(`ca/spottedleaf/` — moonrise 청크·추적 시스템, Paper `Entity` 가 구현)는 잠금 파일·선언에서 뺀다. 플러그인이 쓰는 형식이 아니고 shim 에 없다.
 - 구체 클래스가 생성 상위(클래스·인터페이스)의 추상 메서드를 명세에 안 적었으면: 던지는 몸통 + 색인 한 줄 → `NmsSymbols` 가 "없음"으로 보고 링크 때 덫을 건다.
   형식 변수를 쓰는 메서드는 형식 인자를 갈아 끼울 수 없어 생성을 거절한다(명세에 이으라는 오류).
 - 열거형은 명세가 상수를 **전부** 적어야 한다. 잠금 파일의 `E` 줄(상수 개수, 이름 아님)과 견줘 모자라면 빌드 실패(서수·`values()` 가 바닐라와 같아야 하므로).

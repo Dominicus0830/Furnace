@@ -91,7 +91,10 @@ final class ShimLock {
                 if (found != null) { src = t.label(); break; }
             }
             if (found == null) { problems.add("class not in the signature tables: " + n); continue; }
-            lock.classes.put(n, new Cls(n, found.access(), found.superName(), found.interfaces(), found.signature(), found.innerAccess(), src));
+            // Paper 내부 패치 인터페이스(moonrise 청크·추적 시스템 — T-232 Entity)는 플러그인이 쓰는 형식이 아니고 shim 에 없다: 선언에서 뺀다
+            List<String> itfs = found.interfaces().stream().filter(i -> !i.startsWith(PAPER_INTERNAL)).toList();
+            String sig = itfs.size() == found.interfaces().size() ? found.signature() : null;   // 서명이 뺀 인터페이스를 적고 있으면 서명도 뺀다(서술자 쪽이 같다)
+            lock.classes.put(n, new Cls(n, found.access(), found.superName(), itfs, sig, found.innerAccess(), src));
             if ((found.access() & 0x4000) != 0) {
                 int count = 0;
                 for (SigTable t : tables) {
@@ -161,6 +164,9 @@ final class ShimLock {
         for (String r : JavaTypes.referencedClasses(sig)) if (!inShim.test(r)) return null;
         return sig;
     }
+
+    /** Paper 서버 내부 구현 패키지(moonrise). 이 이름의 인터페이스는 shim 선언에 두지 않는다. */
+    static final String PAPER_INTERNAL = "ca/spottedleaf/";
 
     static boolean isNms(String internalName) {
         return internalName.startsWith("net/minecraft/") || internalName.startsWith("org/bukkit/craftbukkit/");

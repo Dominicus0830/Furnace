@@ -89,8 +89,8 @@ public class CraftEntity implements Entity {
         if (nms == null) nms = shim;
     }
 
-    /** 이 종류의 shim 을 만든다(하위 클래스가 더 좁은 shim 을 준다). */
-    protected net.minecraft.world.entity.Entity createHandle() { return new net.minecraft.world.entity.Entity(this); }
+    /** 이 엔티티 종류의 바닐라 클래스로 shim 을 만든다(T-232, 종류 표). 플레이어는 CraftPlayer 가 ServerPlayer 를 준다. */
+    protected net.minecraft.world.entity.Entity createHandle() { return org.domi.furnace.compat.nms.NmsEntityKinds.create(this); }
 
     @Override
     public UUID getUniqueId() { return handle.uniqueId(); }

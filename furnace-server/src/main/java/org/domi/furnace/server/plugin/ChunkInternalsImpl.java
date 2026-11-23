@@ -894,6 +894,12 @@ final class ChunkInternalsImpl implements ChunkInternals {
             }
             case EntityEdit.StopRiding s -> e.stopRiding();
             case EntityEdit.EjectPassengers s -> e.ejectPassengers();
+            case EntityEdit.ClearContent s -> {
+                // 바닐라 ContainerEntity#clearChestVehicleContent: unpackChestVehicleLootTable(null) 뒤 칸 비우기
+                if (!(e instanceof org.domi.furnace.server.entity.ContainerEntity ce)) throw new IllegalArgumentException("not a container entity: " + e);
+                ce.unpackLootTable();
+                java.util.Arrays.fill(ce.chestVehicleItems(), org.domi.furnace.server.entity.ItemStack.EMPTY);
+            }
         }
         return null;
     }
