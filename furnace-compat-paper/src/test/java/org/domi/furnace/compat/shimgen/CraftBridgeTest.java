@@ -48,11 +48,16 @@ class CraftBridgeTest {
     /** 던지는 getHandle() 을 스스로 선언한 Craft 클래스(뿌리 접근자 — 손 상위 접근자가 없어 다리가 없다). 줄어들기만 한다. */
     static final Set<String> THROWING_ROOTS = Set.of(
             "org/bukkit/craftbukkit/CraftRegionAccessor", "org/bukkit/craftbukkit/CraftServer", "org/bukkit/craftbukkit/block/CraftBlock",
-            "org/bukkit/craftbukkit/block/banner/CraftPatternType", "org/bukkit/craftbukkit/boss/CraftBossBar", "org/bukkit/craftbukkit/entity/CraftEnemy",
+            "org/bukkit/craftbukkit/block/banner/CraftPatternType", "org/bukkit/craftbukkit/boss/CraftBossBar",
             "org/bukkit/craftbukkit/generator/CraftChunkData", "org/bukkit/craftbukkit/generator/CraftLimitedRegion",
             "org/bukkit/craftbukkit/inventory/CraftInventoryView", "org/bukkit/craftbukkit/inventory/trim/CraftTrimMaterial",
             "org/bukkit/craftbukkit/inventory/trim/CraftTrimPattern",
             "org/bukkit/craftbukkit/tag/CraftTag");
+    /**
+     * 던지는 몸통이 남아도 되는 자리(줄어들 목록이 아님): Craft 인터페이스 {@code CraftEnemy} 자기 선언 — 합치기가 추상 메서드에 던지는 몸통을 주지만,
+     * 구현하는 손 클래스는 모두 P3 컴파일러 다리로 {@code getHandle()Enemy} 를 받아 이 몸통에 닿지 않는다(T-264 P4 검토).
+     */
+    static final Set<String> UNREACHABLE_THROWING = Set.of("org/bukkit/craftbukkit/entity/CraftEnemy");
 
     private final Map<String, Map<String, Set<String>>> annotations = new HashMap<>();
 
@@ -88,6 +93,13 @@ class CraftBridgeTest {
             }
             // c 칸(변환 가족)은 정적 레지스트리 값 변환이다 — 이름 꼴
             for (String[] f : cRows) assertTrue(f[1].matches("minecraftToBukkit|bukkitToMinecraft|minecraftHolderToBukkit|bukkitToMinecraftHolder"), String.join(" ", f));
+            // Paper 예외 길 표(바이트코드 대조로 적은 것)의 클래스가 모두 실제로 변환을 받는다 — 이름 오타면 표가 조용히 안 먹는다
+            Set<String> cOwners = new HashSet<>();
+            for (String[] f : cRows) cOwners.add(f[0]);
+            Set<String> tabled = new TreeSet<>(CraftConversions.DIRECT);
+            tabled.addAll(CraftConversions.HOLDER_TAIL.keySet());
+            tabled.removeAll(cOwners);
+            assertEquals(Set.of(), tabled, "DIRECT·HOLDER_TAIL 에 있지만 변환을 받지 않는 클래스");
 
             // 2) 엔티티 종류의 안전 조건
             Map<String, String> vanillaOf = new HashMap<>();
@@ -140,6 +152,7 @@ class CraftBridgeTest {
             }
             Set<String> grew = new TreeSet<>(throwing);
             grew.removeAll(THROWING_ROOTS);
+            grew.removeAll(UNREACHABLE_THROWING);
             assertEquals(Set.of(), grew, "던지는 getHandle 이 새로 생겼다(다리를 못 만든 자리)");
             Set<String> shrank = new TreeSet<>(THROWING_ROOTS);
             shrank.removeAll(throwing);

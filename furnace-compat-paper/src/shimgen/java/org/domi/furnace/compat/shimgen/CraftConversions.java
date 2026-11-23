@@ -3,6 +3,7 @@
 //   minecraftToBukkit(M)B · bukkitToMinecraft(B)M · minecraftHolderToBukkit(Holder<M>)B · bukkitToMinecraftHolder(B)Holder<M>
 // 꼴이고 B 가 Bukkit API 형(org/bukkit/, CraftBukkit 아님), M 이 NMS 형이며 Paper Registries 에 ResourceKey<Registry<M>> 필드가 하나뿐인 것.
 // 몸통은 그 Registries 필드와 B 를 실행 도우미 CraftConvert 에 넘긴다(같은 키의 값을 반대쪽 레지스트리에서 찾는다 — Paper CraftRegistry 길).
+// 예외 종류·문구는 Paper 가 클래스마다 다르게 쓴 것(제 몸통인지 CraftRegistry 로 넘기는지, 홀더 문구 꼬리)을 DIRECT·HOLDER_TAIL 표로 맞춘다.
 // 표지 @CraftBridge(진짜 동작). 레지스트리를 Furnace 가 아직 주지 않으면 실행 때 껍데기와 같은 UnsupportedNmsCall — 레지스트리 영역이 채우면 저절로 산다.
 // 이름 꼴은 맞으나 Paper 몸통이 레지스트리 길이 아닌 것은 내지 않는다(EXCLUDED — 손 몫, 이유는 보고서에).
 package org.domi.furnace.compat.shimgen;
@@ -33,6 +34,34 @@ final class CraftConversions {
     /** Bukkit 형이 이것이면 내지 않는다 → 이유. */
     static final Map<String, String> EXCLUDED_BUKKIT = Map.of(
             "org/bukkit/Material", "Material conversions go through CraftMagicNumbers (null for a material that is not a block/item)");
+
+    /**
+     * Paper 1.21.1 에서 minecraftToBukkit 을 CraftRegistry 로 넘기지 않고 제 몸통으로 바꾸는 클래스(등록 안 된 NMS 값이 IllegalStateException 이
+     * 아니라 NoSuchElementException). 11-23 Paper 1.21.1 서버(userdev) 바이트코드 대조. 여기에 없는 클래스는 CraftRegistry 길.
+     */
+    static final Set<String> DIRECT = Set.of(
+            "org/bukkit/craftbukkit/CraftArt", "org/bukkit/craftbukkit/CraftFluid", "org/bukkit/craftbukkit/CraftParticle",
+            "org/bukkit/craftbukkit/attribute/CraftAttribute", "org/bukkit/craftbukkit/entity/CraftEntityType", "org/bukkit/craftbukkit/potion/CraftPotionType");
+    /**
+     * bukkitToMinecraftHolder 를 제 몸통으로 쓰는 클래스의 예외 문구 꼬리("No Reference holder found for " + 값 뒤) — Paper 가 클래스마다 베껴 쓴 문구
+     * 그대로(오타·다른 종류 이름 포함). 같은 대조. 여기에 없는 클래스는 CraftRegistry 의 꼬리({@code CraftConvert.REGISTRY_HOLDER_TAIL}).
+     */
+    static final Map<String, String> HOLDER_TAIL = Map.of(
+            "org/bukkit/craftbukkit/CraftArt", tail("painting variant", true),
+            "org/bukkit/craftbukkit/CraftJukeboxSong", tail("trim pattern", false),
+            "org/bukkit/craftbukkit/CraftMusicInstrument", tail("instrument", false),
+            "org/bukkit/craftbukkit/attribute/CraftAttribute", tail("sound effect", true),
+            "org/bukkit/craftbukkit/block/banner/CraftPatternType", tail("banner pattern", false),
+            "org/bukkit/craftbukkit/damage/CraftDamageType", tail("damage type", true),
+            "org/bukkit/craftbukkit/entity/CraftWolf$CraftVariant", tail("wolf variant", true),
+            "org/bukkit/craftbukkit/inventory/trim/CraftTrimMaterial", tail("trim material", false),
+            "org/bukkit/craftbukkit/inventory/trim/CraftTrimPattern", tail("trim pattern", false),
+            "org/bukkit/craftbukkit/potion/CraftPotionType", tail("sound effect", true));
+    static final String REGISTRY_HOLDER_TAIL = tail("registry entry", true);
+
+    private static String tail(String what, boolean spaced) {
+        return ", this can happen if a plugin creates its own " + what + (spaced ? " with out" : " without") + " properly registering it.";
+    }
 
     enum Kind {
         MINECRAFT_TO_BUKKIT("minecraftToBukkit"), BUKKIT_TO_MINECRAFT("bukkitToMinecraft"),
@@ -116,20 +145,23 @@ final class CraftConversions {
         mv.visitVarInsn(Opcodes.ALOAD, 0);
         mv.visitFieldInsn(Opcodes.GETSTATIC, REGISTRIES, c.field(), RESOURCE_KEY_DESC);
         boolean toBukkit = c.kind() == Kind.MINECRAFT_TO_BUKKIT || c.kind() == Kind.MINECRAFT_HOLDER_TO_BUKKIT;
-        if (toBukkit) mv.visitLdcInsn(Type.getObjectType(c.bukkit()));
+        if (toBukkit) {
+            mv.visitLdcInsn(Type.getObjectType(c.bukkit()));
+            mv.visitInsn(DIRECT.contains(owner) ? Opcodes.ICONST_0 : Opcodes.ICONST_1);
+        }
+        if (c.kind() == Kind.BUKKIT_TO_MINECRAFT_HOLDER) mv.visitLdcInsn(HOLDER_TAIL.getOrDefault(owner, REGISTRY_HOLDER_TAIL));
         mv.visitLdcInsn(owner.replace('/', '.') + "#" + m.name() + m.desc());
-        String tail = toBukkit ? "Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/Object;" : "Ljava/lang/String;)";
         String desc = switch (c.kind()) {
-            case MINECRAFT_TO_BUKKIT -> "(Ljava/lang/Object;" + RESOURCE_KEY_DESC + tail;
-            case MINECRAFT_HOLDER_TO_BUKKIT -> "(L" + HOLDER + ";" + RESOURCE_KEY_DESC + tail;
-            case BUKKIT_TO_MINECRAFT -> "(Ljava/lang/Object;" + RESOURCE_KEY_DESC + tail + "Ljava/lang/Object;";
-            case BUKKIT_TO_MINECRAFT_HOLDER -> "(Ljava/lang/Object;" + RESOURCE_KEY_DESC + tail + "L" + HOLDER + ";";
+            case MINECRAFT_TO_BUKKIT -> "(Ljava/lang/Object;" + RESOURCE_KEY_DESC + "Ljava/lang/Class;ZLjava/lang/String;)Ljava/lang/Object;";
+            case MINECRAFT_HOLDER_TO_BUKKIT -> "(L" + HOLDER + ";" + RESOURCE_KEY_DESC + "Ljava/lang/Class;ZLjava/lang/String;)Ljava/lang/Object;";
+            case BUKKIT_TO_MINECRAFT -> "(Ljava/lang/Object;" + RESOURCE_KEY_DESC + "Ljava/lang/String;)Ljava/lang/Object;";
+            case BUKKIT_TO_MINECRAFT_HOLDER -> "(Ljava/lang/Object;" + RESOURCE_KEY_DESC + "Ljava/lang/String;Ljava/lang/String;)L" + HOLDER + ";";
         };
         mv.visitMethodInsn(Opcodes.INVOKESTATIC, HELPER, c.kind().method, desc, false);
         String ret = Type.getReturnType(m.desc()).getInternalName();
         if (!ret.equals(HOLDER)) mv.visitTypeInsn(Opcodes.CHECKCAST, ret);
         mv.visitInsn(Opcodes.ARETURN);
-        mv.visitMaxs(toBukkit ? 4 : 3, 1);
+        mv.visitMaxs(toBukkit ? 5 : c.kind() == Kind.BUKKIT_TO_MINECRAFT_HOLDER ? 4 : 3, 1);
         mv.visitEnd();
     }
 

@@ -34,6 +34,7 @@ import org.junit.jupiter.api.TestInstance;
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class CraftConvertTest {
+    static final String TAIL = ", this can happen if a plugin creates its own registry entry with out properly registering it.";
     FurnaceTestServer server;
 
     @BeforeAll
@@ -57,11 +58,11 @@ class CraftConvertTest {
         for (Keyed v : (Iterable<Keyed>) (Iterable) Bukkit.getRegistry((Class) type)) {
             try {
                 Object m = CraftConvert.bukkitToMinecraft(v, key, "test");
-                if (CraftConvert.minecraftToBukkit(m, key, type, "test") != v) bad.add(v + " -> " + m + " does not come back");
-                Holder<?> h = CraftConvert.bukkitToMinecraftHolder(v, key, "test");
+                if (CraftConvert.minecraftToBukkit(m, key, type, true, "test") != v) bad.add(v + " -> " + m + " does not come back");
+                Holder<?> h = CraftConvert.bukkitToMinecraftHolder(v, key, TAIL, "test");
                 assertInstanceOf(Holder.Reference.class, h, v.toString());
                 assertSame(m, h.value());
-                assertSame(v, CraftConvert.minecraftHolderToBukkit(h, key, type, "test"));
+                assertSame(v, CraftConvert.minecraftHolderToBukkit(h, key, type, true, "test"));
                 n++;
             } catch (RuntimeException e) {
                 bad.add(v + ": " + e);
@@ -72,7 +73,7 @@ class CraftConvertTest {
         for (Object m : nms) {
             nmsCount++;
             try {
-                CraftConvert.minecraftToBukkit(m, key, type, "test");
+                CraftConvert.minecraftToBukkit(m, key, type, true, "test");
             } catch (RuntimeException e) {
                 bad.add(nms.getKey(m) + " (Minecraft side): " + e);
             }
@@ -88,19 +89,28 @@ class CraftConvertTest {
         for (PotionEffectType t : PotionEffectType.values()) {
             Object h = ((org.bukkit.craftbukkit.potion.CraftPotionEffectType) t).getHandle();
             assertSame(CraftConvert.bukkitToMinecraft(t, Registries.MOB_EFFECT, "test"), h, t.toString());
-            assertSame(t, CraftConvert.minecraftToBukkit(h, Registries.MOB_EFFECT, PotionEffectType.class, "test"));
+            assertSame(t, CraftConvert.minecraftToBukkit(h, Registries.MOB_EFFECT, PotionEffectType.class, true, "test"));
         }
     }
 
     @Test
     void edgesMatchPaper() {
         Object speed = CraftConvert.bukkitToMinecraft(PotionEffectType.SPEED, Registries.MOB_EFFECT, "test");
-        assertThrows(IllegalArgumentException.class, () -> CraftConvert.minecraftToBukkit(null, Registries.MOB_EFFECT, PotionEffectType.class, "test"));
+        assertThrows(IllegalArgumentException.class, () -> CraftConvert.minecraftToBukkit(null, Registries.MOB_EFFECT, PotionEffectType.class, true, "test"));
         assertThrows(IllegalArgumentException.class, () -> CraftConvert.bukkitToMinecraft(null, Registries.MOB_EFFECT, "test"));
         // 아직 없는 NMS 레지스트리(물약)·Bukkit 레지스트리(유체 — Bukkit.getRegistry 에 없음)·생성기가 못 찾은 필드(null)는 껍데기와 같은 오류
-        var e = assertThrows(UnsupportedNmsCall.class, () -> CraftConvert.bukkitToMinecraftHolder(PotionType.WATER, Registries.POTION, "x.CraftPotionType#bukkitToMinecraftHolder"));
+        var e = assertThrows(UnsupportedNmsCall.class, () -> CraftConvert.bukkitToMinecraftHolder(PotionType.WATER, Registries.POTION, TAIL, "x.CraftPotionType#bukkitToMinecraftHolder"));
         assertTrue(e.getMessage().contains("CraftPotionType"), e.getMessage());
-        assertThrows(UnsupportedNmsCall.class, () -> CraftConvert.minecraftToBukkit(speed, Registries.MOB_EFFECT, Fluid.class, "test"));
+        assertThrows(UnsupportedNmsCall.class, () -> CraftConvert.minecraftToBukkit(speed, Registries.MOB_EFFECT, Fluid.class, true, "test"));
         assertThrows(UnsupportedNmsCall.class, () -> CraftConvert.bukkitToMinecraft(PotionEffectType.SPEED, null, "test"));
+        // Paper 처럼 null 은 레지스트리를 찾기 전에 본다(레지스트리가 없어도 IllegalArgumentException, 메시지 없음)
+        var n = assertThrows(IllegalArgumentException.class, () -> CraftConvert.bukkitToMinecraftHolder(null, Registries.POTION, TAIL, "test"));
+        assertEquals(null, n.getMessage());
+        assertThrows(IllegalArgumentException.class, () -> CraftConvert.bukkitToMinecraft(null, null, "test"));
+        // 등록 안 된 NMS 값: CraftRegistry 길은 IllegalStateException(Paper 문구), 제 몸통 길은 NoSuchElementException
+        Object stray = new Object();
+        var ise = assertThrows(IllegalStateException.class, () -> CraftConvert.minecraftToBukkit(stray, Registries.MOB_EFFECT, PotionEffectType.class, true, "test"));
+        assertEquals("Cannot convert '" + stray + "' to bukkit representation, since it is not registered.", ise.getMessage());
+        assertThrows(java.util.NoSuchElementException.class, () -> CraftConvert.minecraftToBukkit(stray, Registries.MOB_EFFECT, PotionEffectType.class, false, "test"));
     }
 }
