@@ -3,12 +3,9 @@ package net.minecraft.world.level.levelgen;
 import net.minecraft.util.RandomSource;
 
 /** 비트 단위 난수원(Mojang 이름 shim, N2b-6) — 바닐라 1.21.1 의 비트에서 값 만들기 그대로(java.util.Random 과 같은 식, nextDouble 의 float 상수 포함). */
-public interface BitRandomSource extends RandomSource {
+interface BitRandomSource {
 
-    float FLOAT_MULTIPLIER = 5.9604645E-8F;
-    double DOUBLE_MULTIPLIER = 1.110223E-16F;
 
-    int next(int bits);
 
     @Override
     default int nextInt() { return next(32); }
