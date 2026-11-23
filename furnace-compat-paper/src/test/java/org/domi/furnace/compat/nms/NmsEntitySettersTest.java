@@ -99,6 +99,32 @@ class NmsEntitySettersTest {
         }
     }
 
+    /** 월드 밖 기록은 섞어 불러도 부른 차례대로 재생된다: 나중 호출이 이긴다(바닐라와 같은 마지막 값). */
+    @Test
+    void detachedSettersAndMovesReplayInCallOrder() {
+        Entity a = EntityType.ARMOR_STAND.create(level);
+        a.setPos(at.x() + 0.5, at.y(), at.z() + 5.5);
+        a.moveTo(at.x() + 1.5, at.y(), at.z() + 6.5, 10.0F, 0.0F);
+        Entity b = EntityType.ARMOR_STAND.create(level);
+        b.moveTo(at.x() + 1.5, at.y(), at.z() + 7.5, 20.0F, 0.0F);
+        b.setPos(at.x() + 2.5, at.y(), at.z() + 7.5);
+        b.setYRot(30.0F);
+        assertEquals(at.x() + 2.5, b.getX());
+        assertEquals(30.0F, b.getYRot());
+        assertTrue(on(() -> level.addFreshEntity(a, SpawnReason.CUSTOM)));
+        assertTrue(on(() -> level.addFreshEntity(b, SpawnReason.CUSTOM)));
+        try {
+            var sa = serverEntity(a);
+            assertEquals(at.x() + 1.5, (double) on(sa::x), "setPos 뒤 moveTo: moveTo 자리");
+            assertEquals(10.0F, (float) on(sa::yRot));
+            var sb = serverEntity(b);
+            assertEquals(at.x() + 2.5, (double) on(sb::x), "moveTo 뒤 setPos: setPos 자리");
+            assertEquals(30.0F, (float) on(sb::yRot), "그 뒤 setYRot");
+        } finally {
+            on(() -> { a.getBukkitEntity().remove(); b.getBukkitEntity().remove(); return null; });
+        }
+    }
+
     @Test
     void liveSettersChangeTheServerEntityOnItsOwner() {
         Entity e = EntityType.ARMOR_STAND.create(level);

@@ -24,7 +24,7 @@ public class EntityType<T> {
     /** 바닐라 상수 PLAYER(종류 표에 없다 — 플레이어는 EntityType#create 로 만들지 않는다). */
     public static final EntityType<net.minecraft.world.entity.player.Player> PLAYER = (EntityType) of(ResourceLocation.withDefaultNamespace("player"));
 
-    // 나머지 바닐라 상수: 종류 표(src/shimspec/kind-classes-1.21.1.txt 의 E 줄) 그대로 — 형식 인자는 바닐라 상수의 것. EntityTypeConstantsTest 가 표와 견준다
+    // 나머지 바닐라 상수: 종류 표(src/shimspec/kind-classes-1.21.1.txt 의 E 줄) 그대로 — 형식 인자는 바닐라 상수의 것. NmsEntitySettersTest#entityTypeConstantsMatchTheKindTable 이 표와 견준다
     public static final EntityType<net.minecraft.world.entity.animal.allay.Allay> ALLAY = (EntityType) of(ResourceLocation.withDefaultNamespace("allay"));
     public static final EntityType<net.minecraft.world.entity.AreaEffectCloud> AREA_EFFECT_CLOUD = (EntityType) of(ResourceLocation.withDefaultNamespace("area_effect_cloud"));
     public static final EntityType<net.minecraft.world.entity.animal.armadillo.Armadillo> ARMADILLO = (EntityType) of(ResourceLocation.withDefaultNamespace("armadillo"));
