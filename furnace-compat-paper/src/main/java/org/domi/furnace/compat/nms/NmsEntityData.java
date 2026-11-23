@@ -57,6 +57,55 @@ public final class NmsEntityData {
         return new ChunkInternals.EntityOp.SetData(accessor.id(), ClientboundSetEntityDataPacket.Value.of(type, v), true);
     }
 
+    /**
+     * 바닐라 칸 상수({@code Goat.DATA_HAS_LEFT_HORN} 등, 엔티티 데이터 설계 D2)의 값: 그 클래스·상수 이름의 지문으로 칸 번호표(#565
+     * {@code entity_data/ids-<판>.txt} 의 A 줄)에서 칸 번호·값 종류를 찾는다. 명세(entity-data.spec)가 생성 필드 초기값으로 부른다.
+     * 표에 없거나 shim 에 그 값 종류가 없으면 IllegalStateException(그 클래스 초기화가 실패한다 — 조용히 틀린 번호를 주지 않는다).
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> EntityDataAccessor<T> accessor(Class<?> owner, String name) {
+        String[] row = ids().get(owner.getName() + " " + fingerprint(owner.getName(), name));
+        if (row == null) throw new IllegalStateException("no data slot in the entity data id table for " + owner.getName() + "." + name);
+        EntityDataSerializer<?> ser = EntityDataBridge.serializer(row[1].toLowerCase(java.util.Locale.ROOT));
+        if (ser == null) throw new IllegalStateException("the shim has no " + row[1] + " serializer for " + owner.getName() + "." + name);
+        return new EntityDataAccessor<>(Integer.parseInt(row[0]), (EntityDataSerializer<T>) ser);
+    }
+
+    private static volatile java.util.Map<String, String[]> ids;
+
+    /** "클래스 지문" → {칸 번호, 직렬화 상수 이름}. */
+    private static java.util.Map<String, String[]> ids() {
+        var m = ids;
+        if (m != null) return m;
+        synchronized (NmsEntityData.class) {
+            if (ids != null) return ids;
+            String res = "entity_data/ids-" + org.domi.furnace.api.GameVersion.RESOURCE_TAG + ".txt";
+            java.util.Map<String, String[]> out = new java.util.HashMap<>();
+            try (var in = NmsEntityData.class.getClassLoader().getResourceAsStream(res)) {
+                if (in == null) throw new IllegalStateException(res + " is missing");
+                for (String l : new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).split("\n")) {
+                    String[] p = l.trim().split(" ");
+                    if (p.length == 5 && p[0].equals("A")) out.put(p[1] + " " + p[2], new String[] {p[3], p[4]});
+                }
+            } catch (java.io.IOException e) {
+                throw new java.io.UncheckedIOException(e);
+            }
+            return ids = out;
+        }
+    }
+
+    /** 칸 번호표의 상수 지문: SHA-256(클래스 이진 이름 + "." + 상수 이름) 앞 5바이트(ExportEntityData 와 같다). */
+    static String fingerprint(String cls, String constant) {
+        try {
+            byte[] h = java.security.MessageDigest.getInstance("SHA-256").digest((cls + "." + constant).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder b = new StringBuilder();
+            for (int i = 0; i < 5; i++) b.append(String.format("%02x", h[i]));
+            return b.toString();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     private static final EntityDataAccessor<Byte> SHARED_FLAGS = new EntityDataAccessor<>(0, net.minecraft.network.syncher.EntityDataSerializers.BYTE);
     private static final EntityDataAccessor<net.minecraft.world.entity.Pose> POSE = new EntityDataAccessor<>(6, net.minecraft.network.syncher.EntityDataSerializers.POSE);
 

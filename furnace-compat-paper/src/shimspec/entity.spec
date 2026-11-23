@@ -7,6 +7,10 @@
 # Player 의 게임 모드·프로필 읽기)는 그 API 의 스레드 규칙(주인에게 넘기기)을 따르므로 여기 적지 않는다 — 소유 검사를 앞에 두면 동작이 바뀐다.
 import org.domi.furnace.compat.nms.NmsEntityOps
 class net.minecraft.world.entity.Entity  owner=org.domi.furnace.compat.nms.NmsEntityOwner
+  # >>> 엔티티 데이터 칸 상수(tools/compat/entity-data-spec.py 가 만든다 — 손으로 고치지 않는다)
+  DATA_POSE = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.Entity.class, "DATA_POSE")
+  DATA_SHARED_FLAGS_ID = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.Entity.class, "DATA_SHARED_FLAGS_ID")
+  # <<< 엔티티 데이터 칸 상수
   # 스냅샷 값(핸들을 만든 때·아직 월드에 없으면 기록한 값)
   getUUID -> @hand read=snapshot
   getStringUUID -> @hand read=snapshot
@@ -77,9 +81,20 @@ class net.minecraft.world.entity.Entity  owner=org.domi.furnace.compat.nms.NmsEn
   setTicksFrozen -> @hand write
   getTicksRequiredToFreeze -> @hand pure
 class net.minecraft.world.entity.LivingEntity  owner=org.domi.furnace.compat.nms.NmsEntityOwner
+  # >>> 엔티티 데이터 칸 상수(tools/compat/entity-data-spec.py 가 만든다 — 손으로 고치지 않는다)
+  DATA_ARROW_COUNT_ID = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.LivingEntity.class, "DATA_ARROW_COUNT_ID")
+  DATA_HEALTH_ID = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.LivingEntity.class, "DATA_HEALTH_ID")
+  DATA_LIVING_ENTITY_FLAGS = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.LivingEntity.class, "DATA_LIVING_ENTITY_FLAGS")
+  # <<< 엔티티 데이터 칸 상수
   isAlive -> @hand read=snapshot
   isFallFlying -> @hand read=owner
 class net.minecraft.world.entity.player.Player  owner=org.domi.furnace.compat.nms.NmsEntityOwner
+  # >>> 엔티티 데이터 칸 상수(tools/compat/entity-data-spec.py 가 만든다 — 손으로 고치지 않는다)
+  DATA_PLAYER_MAIN_HAND = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.player.Player.class, "DATA_PLAYER_MAIN_HAND")
+  DATA_PLAYER_MODE_CUSTOMISATION = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.player.Player.class, "DATA_PLAYER_MODE_CUSTOMISATION")
+  DATA_SHOULDER_LEFT = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.player.Player.class, "DATA_SHOULDER_LEFT")
+  DATA_SHOULDER_RIGHT = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.player.Player.class, "DATA_SHOULDER_RIGHT")
+  # <<< 엔티티 데이터 칸 상수
   isSwimming -> @hand read=owner
 class net.minecraft.world.entity.item.ItemEntity
   getItem -> @hand read=snapshot
@@ -94,6 +109,10 @@ class net.minecraft.world.entity.decoration.HangingEntity  owner=org.domi.furnac
   getDirection -> @hand read=owner
   rotate -> @hand write
 class net.minecraft.world.entity.decoration.ItemFrame  owner=org.domi.furnace.compat.nms.NmsEntityOwner
+  # >>> 엔티티 데이터 칸 상수(tools/compat/entity-data-spec.py 가 만든다 — 손으로 고치지 않는다)
+  DATA_ITEM = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.decoration.ItemFrame.class, "DATA_ITEM")
+  DATA_ROTATION = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.decoration.ItemFrame.class, "DATA_ROTATION")
+  # <<< 엔티티 데이터 칸 상수
   getRotation -> @hand read=owner
   setRotation(I)V -> @hand write
 # 돌림(걸이 엔티티 rotate 의 인자). 패킷 생성기가 빈 열거형으로 채우던 것을 명세로 옮겼다
@@ -121,6 +140,15 @@ class net.minecraft.world.entity.EquipmentSlot
   byName -> @hand pure
 # 자리를 받는 바닐라 생성자(GSit 이 앉는 자리로 만든다). (EntityType, Level) 생성자는 종류 표의 클래스마다 생성기가 붙인다(몸통 종류 FRESH, 명세에 쓰지 않음)
 class net.minecraft.world.entity.decoration.ArmorStand
+  # >>> 엔티티 데이터 칸 상수(tools/compat/entity-data-spec.py 가 만든다 — 손으로 고치지 않는다)
+  DATA_BODY_POSE = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.decoration.ArmorStand.class, "DATA_BODY_POSE")
+  DATA_CLIENT_FLAGS = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.decoration.ArmorStand.class, "DATA_CLIENT_FLAGS")
+  DATA_HEAD_POSE = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.decoration.ArmorStand.class, "DATA_HEAD_POSE")
+  DATA_LEFT_ARM_POSE = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.decoration.ArmorStand.class, "DATA_LEFT_ARM_POSE")
+  DATA_LEFT_LEG_POSE = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.decoration.ArmorStand.class, "DATA_LEFT_LEG_POSE")
+  DATA_RIGHT_ARM_POSE = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.decoration.ArmorStand.class, "DATA_RIGHT_ARM_POSE")
+  DATA_RIGHT_LEG_POSE = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.decoration.ArmorStand.class, "DATA_RIGHT_LEG_POSE")
+  # <<< 엔티티 데이터 칸 상수
   <init>(Lnet/minecraft/world/level/Level;DDD)V -> @hand
 class net.minecraft.world.entity.AreaEffectCloud
   <init>(Lnet/minecraft/world/level/Level;DDD)V -> @hand
