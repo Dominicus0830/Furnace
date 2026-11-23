@@ -19,7 +19,7 @@ org/bukkit/craftbukkit/CraftParticle$CraftParticleRegistry$7 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/CraftParticle$CraftParticleRegistry$8 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/CraftParticle$CraftParticleRegistry$9 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/CraftRaid 0 e3b0c44298fc1c14
-org/bukkit/craftbukkit/CraftRegionAccessor 6 a09e45919435392c
+org/bukkit/craftbukkit/CraftRegionAccessor 38 14d53f5c3e0dc376
 org/bukkit/craftbukkit/CraftRegistry 2 0721336fc3871554
 org/bukkit/craftbukkit/CraftServer 57 8184fae651ff300c
 org/bukkit/craftbukkit/CraftServer$5 0 e3b0c44298fc1c14
@@ -27,7 +27,7 @@ org/bukkit/craftbukkit/CraftServerLinks 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/CraftServerLinks$CraftServerLink 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/CraftServerTickManager 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/CraftSoundGroup 0 e3b0c44298fc1c14
-org/bukkit/craftbukkit/CraftWorld 171 a7fe150e2e27df0c
+org/bukkit/craftbukkit/CraftWorld 203 bc40bf7fae363efb
 org/bukkit/craftbukkit/CraftWorld$1 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/CraftWorld$4 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/CraftWorldBorder 0 e3b0c44298fc1c14
@@ -540,7 +540,7 @@ org/bukkit/craftbukkit/entity/CraftZombie 79 4834c1938f73771d
 org/bukkit/craftbukkit/entity/CraftZombieHorse 80 a745e85d792381c1
 org/bukkit/craftbukkit/generator/CraftBiomeParameterPoint 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/generator/CraftChunkData 0 e3b0c44298fc1c14
-org/bukkit/craftbukkit/generator/CraftLimitedRegion 14 1d5441920ee2e7a4
+org/bukkit/craftbukkit/generator/CraftLimitedRegion 63 9f721d85716a3d4d
 org/bukkit/craftbukkit/generator/CraftWorldInfo 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/generator/CraftWorldInfo$1 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/generator/CustomChunkGenerator$CustomBiomeGrid 0 e3b0c44298fc1c14
