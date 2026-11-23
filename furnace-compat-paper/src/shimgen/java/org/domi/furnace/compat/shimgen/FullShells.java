@@ -113,6 +113,9 @@ public final class FullShells {
         }
         // 채움은 바닐라 표와 Paper 표에서 줄이 같은 것만 — 한쪽만 있으면 채우지 않고 알린다(Paper 가 바꾼 클래스를 바닐라 값으로 채우면 안 된다)
         if ((fillPath == null) != (paperFillPath == null)) {
+            if (fillFp != null && Files.isRegularFile(fillFp)) {
+                throw new IllegalStateException("the committed fill fingerprint " + fillFp + " needs both fill tables (vanilla and Paper) in the cache - run tools/compat/sig-tables.sh with the Paper tables");
+            }
             System.out.println("[full-shells] only one of the vanilla/Paper fill tables is present - building without fills (run tools/compat/sig-tables.sh with the Paper tables)");
             fillPath = null;
             paperFillPath = null;

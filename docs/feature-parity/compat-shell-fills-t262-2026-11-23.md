@@ -23,7 +23,7 @@
 - 숫자는 대용 표 기준이다. **실제 Paper 표 기준 숫자·지문·기준선은 노트북에서 쓴다**(아래).
 
 ## 남은 일 / 다음
-- 실제 Paper 표로 `tools/compat/sig-tables.sh` → `./gradlew -PskipOracle=true -PfullShellsFpWrite=true -PfullShellsBaselineWrite=true :furnace-compat-paper:generateFullShells` 로 `full-shells-1.21.1.fp`(fill 줄)와 `fills-baseline-1.21.1.txt` 를 쓰고 커밋. 그 전에는 CI vanilla-gates 의 전체 껍데기 단계가 지문·기준선 불일치로 실패한다(의도 — 표가 바뀌면 알려 주는 관문).
+- 실제 Paper 표로 `tools/compat/sig-tables.sh` → `./gradlew -PskipOracle=true -PfullShellsFpWrite=true -PfullShellsBaselineWrite=true :furnace-compat-paper:generateFullShells` 로 `fill-tables-1.21.1.fp` 와 `fills-baseline-1.21.1/`(영역 파일)를 쓰고 커밋(2026-11-23 노트북에서 했다). 그 전에는 CI vanilla-gates 의 전체 껍데기 단계가 지문·기준선 불일치로 실패한다(의도 — 표가 바뀌면 알려 주는 관문).
 - 후속 종류 후보(각각 위 README 의 네 곳 규칙): 리터럴 배열, 다른 열거형 상수 참조 인자, 인터페이스 상수 표, Paper 가 바꾼 클래스(지금은 바닐라 jar 에서만 뽑음 — Paper 전용·CraftBukkit 은 안 채워짐).
 
 ## 검토 반영 (2026-11-23, 변경 요청 4건)
