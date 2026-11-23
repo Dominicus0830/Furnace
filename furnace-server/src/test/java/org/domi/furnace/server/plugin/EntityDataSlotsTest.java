@@ -135,4 +135,31 @@ class EntityDataSlotsTest {
         assertThrows(IllegalArgumentException.class, () -> BRIDGE.detachedEntityData("minecraft:zombie_villager",
                 List.of(new EntityOp.AbsMoveTo(0, 0, 0, 0, 0), new EntityOp.EntityRandom(1))), "맨 앞에만");
     }
+
+    /** 재생 비용 줄이기: 조작을 하나씩 이어 재생한 칸이 매번 처음부터 재생한 칸과 같고, 실패한 조작 뒤로는 늘 같은 예외. */
+    @Test
+    void incrementalReplayMatchesFullReplay() {
+        var tag = new org.domi.furnace.api.nbt.NbtCompound();
+        tag.putString("CustomName", "{\"text\":\"B\"}");
+        tag.putBoolean("Small", true);
+        List<EntityOp> all = List.of(new EntityOp.EntityRandom(7), new EntityEdit.SetCustomName(Text.text("A")),
+                new EntityOp.AbsMoveTo(3.5, 70, -2.5, 45.0F, 10.0F), new EntityEdit.SetFlag(org.domi.furnace.api.internal.ChunkInternals.EntityFlag.INVISIBLE, true),
+                new EntityOp.Load(tag), new EntityOp.SetData(3, Value.of(EntityDataType.BOOLEAN, true), true),
+                new EntityEdit.SetFlag(org.domi.furnace.api.internal.ChunkInternals.EntityFlag.INVISIBLE, false), new EntityEdit.SetTicksFrozen(5));
+        for (String kind : List.of("minecraft:armor_stand", "minecraft:zombie_villager", "minecraft:slime")) {
+            for (int start = 1; start <= 3; start++) {   // EntityRandom(0번)은 열 때만
+                var session = BRIDGE.openDetachedEntityData(kind, all.subList(0, start));
+                assertEquals(BRIDGE.detachedEntityData(kind, all.subList(0, start)).toString(), session.slots().toString(), kind + " 처음 " + start);
+                for (int n = start + 1; n <= all.size(); n++) {
+                    assertEquals(BRIDGE.detachedEntityData(kind, all.subList(0, n)).toString(), session.apply(all.get(n - 1)).toString(), kind + " 조작 " + n);
+                }
+            }
+        }
+        var session = BRIDGE.openDetachedEntityData("minecraft:slime", List.of());
+        var bad = assertThrows(IllegalArgumentException.class, () -> session.apply(new EntityOp.SetData(40, Value.of(EntityDataType.INT, 4), true)));
+        assertSame(bad, assertThrows(IllegalArgumentException.class, () -> session.apply(new EntityOp.SetData(16, Value.of(EntityDataType.INT, 4), true))));
+        assertSame(bad, assertThrows(IllegalArgumentException.class, session::slots));
+        assertThrows(IllegalArgumentException.class,
+                () -> BRIDGE.openDetachedEntityData("minecraft:slime", List.of()).apply(new EntityOp.EntityRandom(1)), "맨 앞에만");
+    }
 }

@@ -40,3 +40,9 @@
 - Paper 1.21.1 칸 상수 210개: public 31·protected 18(생성), private 159·package 2(명세에 안 적음 — 필요하면 목록을 뽑아 따로 결정).
   FancyNpcs 의 Goat 뿔 두 개·Shulker 색·Player 모드는 모두 public.
 - 시험 `NmsEntityDataConstantsTest`: 상수마다 그 클래스를 사슬에 가진 종류 전부의 배치에서 번호·값 종류가 맞는지.
+
+## 재생 비용 줄이기 (11-23, PR 573 검토의 후속)
+- 예전: 칸을 꺼낸 월드 밖 엔티티에 조작이 붙을 때마다 `detachedEntityData(kind, 전체 ops)` 로 빈 레벨에서 처음부터 다시 만들어 재생했다 — 조작 n 개면 n² 재생.
+- 지금: `ChunkInternals#openDetachedEntityData` 가 빈 레벨의 엔티티를 쥔 `DetachedEntityData` 를 돌려주고, shim `Entity.Detached` 가 그것을 들고 있다가 붙은 조작 하나만 `apply` 한다. 결과는 처음부터 재생한 것과 같다(`EntityDataSlotsTest.incrementalReplayMatchesFullReplay` 가 세 종류·조작 8개로 매 단계 견준다).
+- 실패한 조작 뒤로는 그 예외를 계속 던진다: 엔티티가 조작 도중 상태일 수 있고, 처음부터 재생해도 그 조작에서 늘 실패하므로 관측 결과가 같다.
+- 쥔 엔티티는 어느 region 에도 속하지 않아 `synchronized` 로 아무 스레드에서 부른다(월드 상태를 건드리지 않는다). 월드에 넣을 때는 지금처럼 기록한 ops 를 주인 스레드에서 새 엔티티로 재생한다.
