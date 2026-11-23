@@ -335,10 +335,10 @@ class FullShellsTest {
         ClassLoader cl = load(ex, g.generate());
         // 올리기(초기화 없이)와 instanceof 용 클래스 객체는 된다
         Class<?> holder = Class.forName("io.papermc.paper.zz.Holder", false, cl);
-        // 값 없는 정적 필드를 읽으면 null 대신 초기화 실패(예전 "클래스 없음"과 같은 꼴) + 계측
-        ExceptionInInitializerError e = assertThrows(ExceptionInInitializerError.class, () -> holder.getField("INSTANCE").get(null));
-        assertInstanceOf(UnsupportedNmsCall.class, e.getCause());
-        assertTrue(e.getCause().getMessage().contains("io.papermc.paper.zz.Holder"), e.getCause().getMessage());
+        // 값 없는 정적 필드를 읽으면 null 대신 첫 번부터 NoClassDefFoundError(예전 "클래스 없음"과 같은 종류) + 계측
+        NoClassDefFoundError e = assertThrows(NoClassDefFoundError.class, () -> holder.getField("INSTANCE").get(null));
+        assertInstanceOf(org.domi.furnace.compat.nms.UnsupportedNmsLink.class, e);
+        assertTrue(e.getMessage().contains("io.papermc.paper.zz.Holder"), e.getMessage());
         assertThrows(NoClassDefFoundError.class, () -> holder.getField("INSTANCE").get(null));
         // 값 없는 필드가 없는 NMS 밖 껍데기는 그대로 초기화된다
         Class.forName("io.papermc.paper.zz.Internal", true, cl);

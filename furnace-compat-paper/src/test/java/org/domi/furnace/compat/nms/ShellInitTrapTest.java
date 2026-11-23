@@ -27,6 +27,14 @@ class ShellInitTrapTest {
     }
 
     @Test
+    void directUseFailsWithNoClassDefFoundErrorFromTheFirstCall() {
+        // 흔한 관용구 catch (NoClassDefFoundError e) { 대체 길 } 가 첫 호출부터 잡아야 한다(ExceptionInInitializerError 로 싸이지 않음)
+        NoClassDefFoundError first = assertThrows(NoClassDefFoundError.class, () -> io.papermc.furnacetest.TrapDirect.VALUE.hashCode());
+        assertTrue(first instanceof UnsupportedNmsLink, first.toString());
+        assertThrows(NoClassDefFoundError.class, () -> io.papermc.furnacetest.TrapDirect.VALUE.hashCode());
+    }
+
+    @Test
     void otherInitFailuresAreNotHidden() {
         assertFalse(NmsSymbols.RUNTIME.initTrapped("org/domi/furnace/compat/nms/ShellInitTrapTest$Boom"));
         ExceptionInInitializerError e = assertThrows(ExceptionInInitializerError.class,

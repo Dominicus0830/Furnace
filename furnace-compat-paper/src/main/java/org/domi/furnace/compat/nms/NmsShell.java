@@ -28,8 +28,8 @@ public final class NmsShell {
     }
 
     /**
-     * 클래스 초기화가 껍데기 덫으로 실패한 것인가(첫 번째는 원인이 {@link UnsupportedNmsCall} 인 ExceptionInInitializerError, 그다음부터는
-     * NoClassDefFoundError). 이름의 클래스(또는 그 상위)에 덫 표지가 있어야 한다 — 다른 정적 초기화 실패는 그대로 둔다.
+     * 클래스 초기화가 껍데기 덫으로 실패한 것인가(첫 번째는 {@link UnsupportedNmsLink.Klass}, 그다음부터는 JVM 의 NoClassDefFoundError —
+     * 둘 다 NoClassDefFoundError). 이름의 클래스(또는 그 상위)에 덫 표지가 있어야 한다 — 다른 정적 초기화 실패는 그대로 둔다.
      */
     public static boolean isInitTrap(Throwable t, String className) {
         if (!(t instanceof ExceptionInInitializerError || t instanceof NoClassDefFoundError)) return false;
@@ -38,13 +38,14 @@ public final class NmsShell {
 
     /**
      * NMS 밖 범위(Bukkit API·Paper 내부·Mojang) 껍데기 가운데 값 없는 필드를 가진 것의 클래스 초기화가 부른다. 연결기 덫은 그 범위의 필드 참조를 보지
-     * 않으므로, 필드가 조용히 null/0 을 주는 대신 클래스 초기화를 실패시킨다(JVM 이 ExceptionInInitializerError, 그다음 NoClassDefFoundError — 예전 "클래스 없음"과 같은 꼴).
+     * 않으므로, 필드가 조용히 null/0 을 주는 대신 클래스 초기화를 실패시킨다. Error 를 돌려주므로 JVM 이 싸지 않고 그대로 낸다(JVMS 5.5) —
+     * 첫 번부터 {@link NoClassDefFoundError}(덫 계측 포함 {@link UnsupportedNmsLink.Klass})라 껍데기가 없던 때의 "클래스 없음"과 같은 종류다.
      */
-    public static RuntimeException unsupportedClass(String className) {
+    public static Error unsupportedClass(String className) {
         String plugin = NmsCaller.pluginName();
         String who = plugin == null ? "?" : plugin;
         NmsGaps.trapped(who, className, UnsupportedNmsLink.CLASS);
         if (WARNED.add(who + '\0' + className)) LOG.warn(CompatLang.t("compat.nms-unsupported-call", who, "class init", className, WHY));
-        return new UnsupportedNmsCall(className, WHY);
+        return UnsupportedNmsLink.of(UnsupportedNmsLink.CLASS, className, className + " - " + WHY);
     }
 }

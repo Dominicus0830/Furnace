@@ -100,8 +100,8 @@ class NmsShellMemberTest {
 
     @Test
     void classInitTrapCountsAsClass() {
-        RuntimeException e = NmsShell.unsupportedClass("io.papermc.u.Holder");
-        assertTrue(e instanceof UnsupportedNmsCall);
+        Error e = NmsShell.unsupportedClass("io.papermc.u.Holder");
+        assertTrue(e instanceof NoClassDefFoundError && e instanceof UnsupportedNmsLink, e.toString());
         List<CompatGap> g = NmsGaps.snapshot();
         assertEquals(1, g.size());
         assertEquals("class", g.get(0).kind());

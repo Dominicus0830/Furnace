@@ -11,7 +11,7 @@
 - 동작이 없는 멤버는 값을 지어내지 않고 던지며 (플러그인, 멤버)별 호출 횟수를 센다(`NmsGaps`, T-233 표). 오류 종류는 길마다 다르다(11-23 검토 정정):
   - 플러그인 바이트코드의 직접 참조 → 연결기 덫 `UnsupportedNmsLink.Method/Field` — `NoSuchMethodError`/`NoSuchFieldError` 하위라 **진짜 Paper 에 없는 멤버를 부를 때와 같은 종류**다.
   - 리플렉션·변환 안 된 코드로 몸통에 들어옴 → `UnsupportedNmsCall`(`UnsupportedFeature` → `UnsupportedOperationException` 하위). `Method.invoke` 로 부르면 `InvocationTargetException` 에 싸여 나온다. 진짜와 같은 종류는 아니다(진짜에는 그 멤버가 있어 동작한다).
-  - NMS 밖 범위(Bukkit API·Paper 내부·Mojang)에서 값 없는 필드를 가진 껍데기(자기 덫 892개, 상위가 덫이라 같이 실패하는 것까지 1,001개) → 클래스 초기화가 던진다: 첫 사용 `ExceptionInInitializerError`(원인 `UnsupportedNmsCall`), 그다음 `NoClassDefFoundError` — 예전 "클래스 없음"과 같은 꼴(2.2절).
+  - NMS 밖 범위(Bukkit API·Paper 내부·Mojang)에서 값 없는 필드를 가진 껍데기(자기 덫 892개, 상위가 덫이라 같이 실패하는 것까지 1,001개) → 클래스 초기화가 던진다: Error(`UnsupportedNmsLink.Klass`, `NoClassDefFoundError` 하위)라 JVM 이 싸지 않아 첫 사용부터 `NoClassDefFoundError` — 예전 "클래스 없음"과 같은 종류(2.2절).
 - 껍데기는 별도 jar(`furnace-compat-shells.jar`, 5.5 MiB, 7,198 클래스)로 호환 jar 뒤에 붙는다. **안 쓰면 비용 0**(클래스는 처음 쓸 때만 올라감), 다 올려도 0.8초.
 - 2단계는 85,218개 "동작 없음" 멤버를 열 갈래로 나눠 기계가 채우고 자동 대조가 통과하면 검토 없이 병합한다(11-23 도미니코 확정 흐름). 도구 약 1주 + 영역 채우기 3~6주(병렬 약 8스레드, 보수적).
 - **도미니코 결정(11-23 20:31 KST): A — 서버 파일에 넣기.** 기록 `docs/user-todo/entries/2026-11-23-full-shells.md`. 기능 감지(`Class.forName`)가 Paper 처럼 "있음"으로 바뀌는 대가도 거기 적었다.
@@ -44,6 +44,8 @@
 ### 2.2 NMS 밖 범위의 필드
 
 연결기 덫은 NMS 이름(`net/minecraft`·`craftbukkit`)이 든 플러그인 클래스만 변환한다 — `org/bukkit` 참조까지 보려면 모든 플러그인 클래스를 변환해야 해서 올리기 비용이 커진다. 그래서 NMS 밖 범위 껍데기가 값 없는 필드(정적이든 인스턴스든)를 가지면, 그 필드가 조용히 null/0 을 주지 않게 **클래스 초기화(`<clinit>`)가 `NmsShell.unsupportedClass` 로 던진다**. 클래스 객체·`instanceof`·`Class.forName(이름, false, …)` 은 되고, 정적 필드·정적 메서드·상수 아닌 무엇이든 처음 쓰는 순간 실패하며 "class" 종류로 센다. 1.21.1 에서 자기 덫 892개, 상위 클래스·인터페이스가 덫이라 같이 실패하는 것까지 1,001개(열거형이면 상수도 못 쓴다). 이 껍데기들은 PR 전에는 아예 없던 클래스라 플러그인이 보는 결과는 예전과 같은 "클래스 없음" 실패다. NMS 범위는 덫·리플렉션 다리가 필드마다 잡으므로 초기화를 막지 않는다.
+
+감지 관용구에 따라 답이 다르다(의도한 선택): 1인자 `Class.forName`·`forName(…, true, …)` 는 "없음"(아래 다리), `forName(…, false, …)`·`ClassLoader.loadClass` 는 초기화하지 않으므로 "있음" — 형식으로 쓰는 길(`instanceof`·인터페이스 구현 검사)을 살리려는 것이다. 그 뒤 정적 사용은 첫 번부터 `NoClassDefFoundError`. 덫 계측이 실제 영향을 보여 준다.
 
 초기화 덫 때문에 예외 종류가 바뀌는 두 길은 예전("클래스 없음")과 같게 되돌린다(11-23 재검토):
 - **`Class.forName` 감지**: 플러그인의 `Class.forName` 은 `CraftNames.forName` 다리로 바뀌는데, 초기화가 껍데기 덫으로 실패하면(클래스 표지 `@NmsShellMember(initTrap = true)` 가 자기나 상위에 있음 — `NmsSymbols.initTrapped`) `ClassNotFoundException` 으로 바꾼다. 흔한 `catch (ClassNotFoundException e) { 대체 길 }` 이 그대로 대체 길로 간다. 다른 초기화 실패는 그대로 던진다.

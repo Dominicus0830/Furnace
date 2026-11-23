@@ -439,12 +439,12 @@ public final class FullShells {
         mv.visitEnd();
     }
 
-    /** 클래스 초기화에서 던진다: {@code NmsShell.unsupportedClass("소유")} — JVM 이 ExceptionInInitializerError, 다음부터 NoClassDefFoundError 로 낸다. */
+    /** 클래스 초기화에서 던진다: {@code NmsShell.unsupportedClass("소유")} — Error 라 JVM 이 싸지 않고 첫 번부터 NoClassDefFoundError 로 낸다. */
     private void initTrap(ClassWriter cw, String n) {
         MethodVisitor ci = cw.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
         ci.visitCode();
         ci.visitLdcInsn(n.replace('/', '.'));
-        ci.visitMethodInsn(Opcodes.INVOKESTATIC, SHELL_HELPER, "unsupportedClass", "(Ljava/lang/String;)Ljava/lang/RuntimeException;", false);
+        ci.visitMethodInsn(Opcodes.INVOKESTATIC, SHELL_HELPER, "unsupportedClass", "(Ljava/lang/String;)Ljava/lang/Error;", false);
         ci.visitInsn(Opcodes.ATHROW);
         ci.visitMaxs(0, 0);
         ci.visitEnd();
