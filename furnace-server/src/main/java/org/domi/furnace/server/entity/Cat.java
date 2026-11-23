@@ -27,7 +27,7 @@ public class Cat extends TamableAnimal {
     @Override
     protected void defineSynchedData() {
         super.defineSynchedData();
-        entityData.define(DATA_VARIANT, SetEntityData.SERIALIZER_CAT_VARIANT, 0);
+        entityData.define(DATA_VARIANT, SetEntityData.SERIALIZER_CAT_VARIANT, 1);   // 바닐라 처음 값 CatVariant.BLACK(VARIANTS[1])
         entityData.define(DATA_IS_LYING, SetEntityData.SERIALIZER_BOOLEAN, false);
         entityData.define(DATA_RELAX_STATE_ONE, SetEntityData.SERIALIZER_BOOLEAN, false);
         entityData.define(DATA_COLLAR_COLOR, SetEntityData.SERIALIZER_INT, DyeColor.RED.id());
