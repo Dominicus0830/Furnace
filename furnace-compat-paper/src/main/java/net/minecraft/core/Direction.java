@@ -126,7 +126,28 @@ public enum Direction implements net.minecraft.util.StringRepresentable {
 
     /** 축(바닐라 Direction.Axis). toString 은 소문자 이름. */
     public enum Axis implements net.minecraft.util.StringRepresentable {
-        X("x"), Y("y"), Z("z");
+        // 상수마다 몸통(바닐라처럼 Direction$Axis$1~3 이 X·Y·Z 의 클래스, choose 는 Axis 에서 추상) — T-261
+        X("x") {
+            @Override
+            public int choose(int x, int y, int z) { return x; }
+
+            @Override
+            public double choose(double x, double y, double z) { return x; }
+        },
+        Y("y") {
+            @Override
+            public int choose(int x, int y, int z) { return y; }
+
+            @Override
+            public double choose(double x, double y, double z) { return y; }
+        },
+        Z("z") {
+            @Override
+            public int choose(int x, int y, int z) { return z; }
+
+            @Override
+            public double choose(double x, double y, double z) { return z; }
+        };
 
         private final String name;
 
@@ -146,9 +167,9 @@ public enum Direction implements net.minecraft.util.StringRepresentable {
 
         public boolean isHorizontal() { return this != Y; }
 
-        public int choose(int x, int y, int z) { return this == X ? x : this == Y ? y : z; }
+        public abstract int choose(int x, int y, int z);
 
-        public double choose(double x, double y, double z) { return this == X ? x : this == Y ? y : z; }
+        public abstract double choose(double x, double y, double z);
 
         @Override
         public String toString() { return name; }

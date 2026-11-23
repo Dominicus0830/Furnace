@@ -18,7 +18,9 @@ public final class Biome {
 
     /** 바닐라 Biome.TemperatureModifier(이름만). */
     public enum TemperatureModifier implements net.minecraft.util.StringRepresentable {
-        NONE("none"), FROZEN("frozen");
+        // 상수마다 몸통(바닐라처럼 $1·$2 가 상수의 클래스 — 바깥이 final 이 아니다). modifyTemperature 는 아직 동작 없음(껍데기 멤버로 합쳐진다) — T-261
+        NONE("none") {},
+        FROZEN("frozen") {};
 
         private final String name;
 

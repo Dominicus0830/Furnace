@@ -400,7 +400,7 @@ when {
         dependencies { compatShells(project(path = ":furnace-compat-paper", configuration = "fullShellsElements")) }
     else -> logger.warn("T-260: signature tables not in the cache - building without the full shells jar (run tools/compat/sig-tables.sh, or -PrequireFullShells to fail instead)")
 }
-// 호환 모듈 jar 와 그 런타임 의존(ASM) — furnace-api 는 서버 로더에 이미 있으므로 빼고, 호환 모듈 자신은 넣는다. 껍데기 jar 는 이름순으로 호환 jar 뒤에 온다.
+// 호환 모듈 jar 와 그 런타임 의존(ASM) — furnace-api 는 서버 로더에 이미 있으므로 빼고, 호환 모듈 자신은 넣는다. 껍데기 jar 순서는 색인(compatIndex)이 정한다.
 fun compatJars() = compatBundle.filter { it.name.endsWith(".jar") && (!it.name.startsWith("furnace-") || it.name.startsWith("furnace-compat")) } + compatShells
 // 호환 jar 이름 색인(N-lib-1) — 서버는 이 자원이 있으면 jar 를 꺼내 서버 제공 라이브러리 로더의 첫 항목으로 붙인다(CompatJars).
 val compatIndex = tasks.register("compatIndex") {
@@ -413,8 +413,9 @@ val compatIndex = tasks.register("compatIndex") {
     doLast {
         val f = out.get().asFile
         f.parentFile.mkdirs()
-        // 호환 모듈 jar 를 맨 앞에(공유 로더의 첫 항목 — 이름이 겹치면 호환 계층이 이긴다), 나머지는 이름순
-        val names = compatJars().files.map { it.name }.sortedWith(compareBy<String>({ !it.startsWith("furnace-compat") }, { it }))
+        // 껍데기 jar 를 맨 앞에(T-261: 빠진 멤버를 합친 손 shim 이 같은 이름의 원래 클래스를 이긴다 — 나머지 껍데기는 이름이 겹치지 않는다),
+        // 그다음 호환 모듈 jar(공유 로더 앞쪽 — 이름이 겹치면 호환 계층이 이긴다), 나머지는 이름순
+        val names = compatJars().files.map { it.name }.sortedWith(compareBy<String>({ it != "furnace-compat-shells.jar" }, { !it.startsWith("furnace-compat") }, { it }))
         f.writeText(names.joinToString("\n", postfix = "\n"))
     }
 }
