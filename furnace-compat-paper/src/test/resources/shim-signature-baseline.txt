@@ -1054,6 +1054,9 @@ type-missing	org/bukkit/craftbukkit/inventory/CraftMetaSkull	-	#f198974287b3	T-2
 type-missing	org/bukkit/craftbukkit/inventory/trim/CraftTrimMaterial	-	#9e324518c54a	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/inventory/trim/CraftTrimPattern	-	#9e324518c54a	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/map/CraftMapView	-	#5faf26569b3a	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	org/bukkit/craftbukkit/potion/CraftPotionEffectType	-	#6823ae52263a	T-264 P2d: Paper 의 내부 인터페이스(util/Handleable·world/flag/PaperFeatureDependent 와 그 상위)가 호환 계층에 없다 — NMS 손잡이·기능 플래그를 들여올 때 붙인다(docs/roadmap/craft-missing-api-types-t264-2026-11-24.md)
+type-missing	org/bukkit/craftbukkit/potion/CraftPotionEffectType	-	#9e324518c54a	T-264 P2d: Paper 의 내부 인터페이스(util/Handleable·world/flag/PaperFeatureDependent 와 그 상위)가 호환 계층에 없다 — NMS 손잡이·기능 플래그를 들여올 때 붙인다(docs/roadmap/craft-missing-api-types-t264-2026-11-24.md)
+type-missing	org/bukkit/craftbukkit/potion/CraftPotionEffectType	-	#bcf856522680	T-264 P2d: Paper 의 내부 인터페이스(util/Handleable·world/flag/PaperFeatureDependent 와 그 상위)가 호환 계층에 없다 — NMS 손잡이·기능 플래그를 들여올 때 붙인다(docs/roadmap/craft-missing-api-types-t264-2026-11-24.md)
 type-missing	org/bukkit/craftbukkit/profile/CraftPlayerProfile	-	#c43dbb96cfce	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/util/BlockStateListPopulator	-	#01bbaf257356	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	org/bukkit/craftbukkit/util/BlockStateListPopulator	-	#4bcd8cf57e47	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다

@@ -212,6 +212,22 @@ final class CraftAccess {
         }
     }
 
+    // ---- 상태 효과 종류(T-264 P2d)
+
+    private static final MethodHandle NEW_POTION_EFFECT_TYPE = constructor(org.bukkit.craftbukkit.potion.CraftPotionEffectType.class,
+            MethodType.methodType(void.class, int.class, org.bukkit.NamespacedKey.class, org.bukkit.potion.PotionEffectTypeCategory.class, boolean.class, String.class));
+
+    static org.bukkit.craftbukkit.potion.CraftPotionEffectType newPotionEffectType(int id, org.bukkit.NamespacedKey key,
+            org.bukkit.potion.PotionEffectTypeCategory category, boolean instant, String legacyName) {
+        try {
+            return (org.bukkit.craftbukkit.potion.CraftPotionEffectType) NEW_POTION_EFFECT_TYPE.invokeExact(id, key, category, instant, legacyName);
+        } catch (RuntimeException | Error e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException(t);
+        }
+    }
+
     private static MethodHandle virtualMethod(Class<?> target, String name, MethodType type) {
         try {
             return MethodHandles.privateLookupIn(target, MethodHandles.lookup()).findVirtual(target, name, type);
