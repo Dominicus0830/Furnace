@@ -125,4 +125,27 @@ class NbtTest {
         assertEquals(id, u.getUuid("UUID"));
         assertNull(u.getUuid("none"));
     }
+
+    /** 바닐라 TagParser 처럼 엄격하다: 배열 종류 글자는 대문자, 원소 종류가 배열과 정확히 같아야 하고, 끝 쉼표 뒤에는 원소가 있어야 한다. */
+    @Test
+    void arraysAndSeparatorsAreStrictLikeVanilla() {
+        var wrongElement = assertThrows(SnbtParseException.class, () -> NbtCompound.parse("{a:[B;1,2]}"));
+        assertTrue(wrongElement.reason().contains("TAG_Int"), wrongElement.reason());
+        assertThrows(SnbtParseException.class, () -> NbtCompound.parse("{a:[i;1]}"), "소문자 종류 글자");
+        var intInByte = assertThrows(SnbtParseException.class, () -> NbtCompound.parse("{a:[I;1b]}"));
+        assertTrue(intInByte.reason().contains("TAG_Byte"), intInByte.reason());
+        // 바닐라는 닫는 괄호 앞의 끝 쉼표를 받아들인다. 쉼표 뒤에 글이 끝나면 키·값이 없다는 오류
+        assertEquals(1, NbtCompound.parse("{a:1,}").getInt("a"));
+        assertEquals(1, NbtCompound.parse("{a:[1,]}").getList("a").size());
+        assertTrue(assertThrows(SnbtParseException.class, () -> NbtCompound.parse("{a:1,")).reason().startsWith("Expected key"));
+        assertTrue(assertThrows(SnbtParseException.class, () -> NbtCompound.parse("{a:[1,")).reason().startsWith("Expected value"));
+        assertEquals(1, NbtCompound.parse("{a:[B;1b]}").getByteArray("a").length);
+    }
+
+    @Test
+    void readCompoundReadsOnePrefixAndStops() {
+        var prefix = Snbt.readCompound("{a:1} tail", 0);
+        assertEquals(1, prefix.value().getInt("a"));
+        assertEquals(5, prefix.end());
+    }
 }

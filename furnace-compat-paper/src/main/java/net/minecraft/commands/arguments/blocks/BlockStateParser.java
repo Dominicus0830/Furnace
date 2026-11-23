@@ -53,7 +53,7 @@ public class BlockStateParser {
     private final boolean forTesting;
     private final boolean allowNbt;
     private final Map<Property<?>, Comparable<?>> properties = new LinkedHashMap<>();
-    private final Map<String, String> vagueProperties = new HashMap<>();
+    private final Map<String, String> looseProps = new HashMap<>();
     private ResourceLocation id = ResourceLocation.withDefaultNamespace("");
     private StateDefinition<Block, BlockState> definition;
     private BlockState state;
@@ -76,7 +76,7 @@ public class BlockStateParser {
         int start = reader.getCursor();
         try {
             BlockStateParser p = new BlockStateParser(blocks, reader, false, allowNbt);
-            p.parse();
+            p.run();
             return new BlockResult(p.state, p.properties, p.nbt);
         } catch (CommandSyntaxException e) {
             reader.setCursor(start);
@@ -93,26 +93,26 @@ public class BlockStateParser {
         int start = reader.getCursor();
         try {
             BlockStateParser p = new BlockStateParser(blocks, reader, true, allowNbt);
-            p.parse();
-            return p.tag != null ? Either.right(new TagResult(p.tag, p.vagueProperties, p.nbt)) : Either.left(new BlockResult(p.state, p.properties, p.nbt));
+            p.run();
+            return p.tag != null ? Either.right(new TagResult(p.tag, p.looseProps, p.nbt)) : Either.left(new BlockResult(p.state, p.properties, p.nbt));
         } catch (CommandSyntaxException e) {
             reader.setCursor(start);
             throw e;
         }
     }
 
-    private void parse() throws CommandSyntaxException {
+    private void run() throws CommandSyntaxException {
         if (reader.canRead() && reader.peek() == '#') {
-            readTag();
-            if (reader.canRead() && reader.peek() == '[') readVagueProperties();
+            parseTagPart();
+            if (reader.canRead() && reader.peek() == '[') parseLooseProps();
         } else {
-            readBlock();
-            if (reader.canRead() && reader.peek() == '[') readProperties();
+            parseBlockPart();
+            if (reader.canRead() && reader.peek() == '[') parseExactProps();
         }
-        if (allowNbt && reader.canRead() && reader.peek() == '{') readNbt();
+        if (allowNbt && reader.canRead() && reader.peek() == '{') parseNbtPart();
     }
 
-    private void readBlock() throws CommandSyntaxException {
+    private void parseBlockPart() throws CommandSyntaxException {
         int start = reader.getCursor();
         id = ResourceLocation.read(reader);
         Optional<? extends net.minecraft.core.Holder.Reference<Block>> found = blocks.get(ResourceKey.create(Registries.BLOCK, id));
@@ -125,7 +125,7 @@ public class BlockStateParser {
         state = block.defaultBlockState();
     }
 
-    private void readTag() throws CommandSyntaxException {
+    private void parseTagPart() throws CommandSyntaxException {
         if (!forTesting) throw ERROR_NO_TAGS_ALLOWED.createWithContext(reader);
         int start = reader.getCursor();
         reader.expect('#');
@@ -138,7 +138,7 @@ public class BlockStateParser {
         tag = found.get();
     }
 
-    private void readProperties() throws CommandSyntaxException {
+    private void parseExactProps() throws CommandSyntaxException {
         reader.skip();
         reader.skipWhitespace();
         while (reader.canRead() && reader.peek() != ']') {
@@ -159,7 +159,7 @@ public class BlockStateParser {
             reader.skip();
             reader.skipWhitespace();
             int valueStart = reader.getCursor();
-            setValue(property, reader.readString(), valueStart);
+            assignProp(property, reader.readString(), valueStart);
             reader.skipWhitespace();
             if (!reader.canRead()) continue;
             if (reader.peek() == ',') {
@@ -173,7 +173,7 @@ public class BlockStateParser {
         else throw ERROR_EXPECTED_END_OF_PROPERTIES.createWithContext(reader);
     }
 
-    private void readVagueProperties() throws CommandSyntaxException {
+    private void parseLooseProps() throws CommandSyntaxException {
         reader.skip();
         int lastValueStart = -1;
         reader.skipWhitespace();
@@ -181,7 +181,7 @@ public class BlockStateParser {
             reader.skipWhitespace();
             int start = reader.getCursor();
             String name = reader.readString();
-            if (vagueProperties.containsKey(name)) {
+            if (looseProps.containsKey(name)) {
                 reader.setCursor(start);
                 throw ERROR_DUPLICATE_PROPERTY.createWithContext(reader, id.toString(), name);
             }
@@ -194,7 +194,7 @@ public class BlockStateParser {
             reader.skipWhitespace();
             lastValueStart = reader.getCursor();
             String value = reader.readString();
-            vagueProperties.put(name, value);
+            looseProps.put(name, value);
             reader.skipWhitespace();
             if (!reader.canRead()) continue;
             lastValueStart = -1;
@@ -213,9 +213,9 @@ public class BlockStateParser {
         throw ERROR_EXPECTED_END_OF_PROPERTIES.createWithContext(reader);
     }
 
-    private void readNbt() throws CommandSyntaxException { nbt = new TagParser(reader).readStruct(); }
+    private void parseNbtPart() throws CommandSyntaxException { nbt = new TagParser(reader).readStruct(); }
 
-    private <T extends Comparable<T>> void setValue(Property<T> property, String value, int valueStart) throws CommandSyntaxException {
+    private <T extends Comparable<T>> void assignProp(Property<T> property, String value, int valueStart) throws CommandSyntaxException {
         Optional<T> v = property.getValue(value);
         if (v.isEmpty()) {
             reader.setCursor(valueStart);

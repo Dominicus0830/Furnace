@@ -98,7 +98,7 @@ class NmsAxiomTicksAndWireTest {
             {stack("minecraft:diamond", 3, Map.of(), Set.of()), "03a5060000"},
             {stack("minecraft:stick", 300, Map.of(), Set.of()), "ac02d0060000"},
             // Paper 는 컴포넌트를 넣은 순서(01 max_stack_size, 03 damage, 05 custom_name)로 쓴다: 01c60603010110030505080002486908.
-            // Furnace 는 이름 순서(custom_name, damage, max_stack_size)다 — 같은 아이템으로 읽힌다(아래에서 Paper 바이트를 읽어 확인, user-todo 5e-3c ⑤)
+            // Furnace 는 이름 순서(custom_name, damage, max_stack_size)다 — 같은 아이템으로 읽힌다(아래에서 Paper 바이트를 읽어 확인, user-todo 5e-3c-2 ①)
             {stack("minecraft:diamond_sword", 1, comps, Set.of("minecraft:rarity")), "01c60603010508000248690305011008"},
             {stack("minecraft:diamond", 0, Map.of(), Set.of()), "00"},
         };
