@@ -1,5 +1,5 @@
 // Bukkit BannerMeta — 무늬 겹은 minecraft:banner_patterns 컴포넌트에서 읽고 쓴다(바탕 색은 아이템 종류가 정한다).
-package org.domi.furnace.compat.paper;
+package org.bukkit.craftbukkit.inventory;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -7,24 +7,26 @@ import java.util.List;
 import java.util.Map;
 import org.bukkit.block.banner.Pattern;
 import org.bukkit.configuration.serialization.DelegateDeserialization;
-import org.bukkit.craftbukkit.inventory.SerializableMeta;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.meta.BannerMeta;
 import org.domi.furnace.api.item.ItemStack;
+import org.domi.furnace.compat.paper.ItemPdc;
+import org.domi.furnace.compat.paper.BannerLayers;
+import org.domi.furnace.compat.paper.MetaKind;
 import org.domi.furnace.api.nbt.NbtList;
 import org.domi.furnace.api.nbt.Snbt;
 
 @DelegateDeserialization(SerializableMeta.class)
-public final class CompatMetaBanner extends CompatItemMeta implements BannerMeta {
+public class CraftMetaBanner extends CraftMetaItem implements BannerMeta {
 
     static final String PATTERNS = "minecraft:banner_patterns";
 
-    CompatMetaBanner(ItemStack work, EnumSet<ItemFlag> flags, ItemPdc pdc) {
+    CraftMetaBanner(ItemStack work, EnumSet<ItemFlag> flags, ItemPdc pdc) {
         this(work, flags, pdc, true);
     }
 
     /** normalize=false 는 복제 — 이미 메타가 든 겹(20 겹이 넘어도)을 그대로 옮긴다. */
-    private CompatMetaBanner(ItemStack work, EnumSet<ItemFlag> flags, ItemPdc pdc, boolean normalize) {
+    private CraftMetaBanner(ItemStack work, EnumSet<ItemFlag> flags, ItemPdc pdc, boolean normalize) {
         super(work, flags, pdc);
         if (normalize) normalizePatterns();
     }
@@ -94,7 +96,7 @@ public final class CompatMetaBanner extends CompatItemMeta implements BannerMeta
     public int numberOfPatterns() { return load().size(); }
 
     @Override
-    public CompatMetaBanner clone() { return new CompatMetaBanner(work, EnumSet.copyOf(flags), pdc.copy(), false); }
+    public CraftMetaBanner clone() { return new CraftMetaBanner(work, EnumSet.copyOf(flags), pdc.copy(), false); }
 
     @Override
     void serializeKind(Map<String, Object> out) {

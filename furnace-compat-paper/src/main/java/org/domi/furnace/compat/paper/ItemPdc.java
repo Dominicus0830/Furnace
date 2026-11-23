@@ -21,7 +21,7 @@ import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import org.domi.furnace.api.persistence.PersistentDataView;
 
-final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterContext {
+public final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterContext {
 
     /** 바뀐 값: Furnace 종류와 기본 종류 값. 지운 키는 null. */
     private record Value(org.domi.furnace.api.persistence.PersistentDataType<?> type, Object value) {}
@@ -41,9 +41,9 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
     private final PersistentDataView view;
     private final Map<String, Value> changes = new LinkedHashMap<>();
 
-    ItemPdc(PersistentDataView view) { this.view = view; }
+    public ItemPdc(PersistentDataView view) { this.view = view; }
 
-    ItemPdc copy() {
+    public ItemPdc copy() {
         ItemPdc c = new ItemPdc(view);
         for (var e : changes.entrySet()) c.changes.put(e.getKey(), e.getValue() == null ? null : copyValue(e.getValue()));
         return c;
@@ -66,7 +66,7 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
         return o;
     }
 
-    boolean dirty() { return !changes.isEmpty(); }
+    public boolean dirty() { return !changes.isEmpty(); }
 
     // ------------------------------------------------------------------ 종류 대응
 
@@ -312,7 +312,7 @@ final class ItemPdc implements PersistentDataContainer, PersistentDataAdapterCon
 
     /** 바뀐 것을 Furnace 컨테이너에 적용한다(ItemStack#withPersistentData 콜백 안에서). */
     @SuppressWarnings({"unchecked", "rawtypes"})
-    void applyTo(org.domi.furnace.api.persistence.PersistentDataContainer target) {
+    public void applyTo(org.domi.furnace.api.persistence.PersistentDataContainer target) {
         for (var e : changes.entrySet()) {
             Value v = e.getValue();
             if (v == null) {

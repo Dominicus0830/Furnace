@@ -1,6 +1,6 @@
 // Bukkit SkullMeta — 소유자는 minecraft:profile(바닐라 ResolvableProfile), 음표 소리는 minecraft:note_block_sound 컴포넌트에서 읽고 쓴다.
 // 프로필 값은 블록 쪽(CraftSkull)과 같은 ProfileValue. 서버가 Mojang 에 물어 스킨을 채우지는 않는다(받은 값 그대로 둔다).
-package org.domi.furnace.compat.paper;
+package org.bukkit.craftbukkit.inventory;
 
 import com.destroystokyo.paper.profile.SharedPlayerProfile;
 import java.util.EnumSet;
@@ -11,34 +11,36 @@ import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.configuration.serialization.DelegateDeserialization;
-import org.bukkit.craftbukkit.inventory.SerializableMeta;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.profile.PlayerProfile;
 import org.domi.furnace.api.item.ItemStack;
+import org.domi.furnace.compat.paper.ItemPdc;
+import org.domi.furnace.compat.paper.MetaKind;
+import org.domi.furnace.compat.paper.ProfileValue;
+import org.domi.furnace.compat.paper.SkullProfileFill;
 import org.domi.furnace.api.nbt.Snbt;
 
 @DelegateDeserialization(SerializableMeta.class)
-public final class CompatMetaSkull extends CompatItemMeta implements SkullMeta {
+class CraftMetaSkull extends CraftMetaItem implements SkullMeta {
 
-    static final String PROFILE = "minecraft:profile";
     static final String NOTE_BLOCK_SOUND = "minecraft:note_block_sound";
     static final int MAX_OWNER_LENGTH = 16;
     private static final UUID NIL_UUID = new UUID(0L, 0L);
 
-    CompatMetaSkull(ItemStack work, EnumSet<ItemFlag> flags, ItemPdc pdc) { super(work, flags, pdc); }
+    CraftMetaSkull(ItemStack work, EnumSet<ItemFlag> flags, ItemPdc pdc) { super(work, flags, pdc); }
 
     @Override
     MetaKind kind() { return MetaKind.SKULL; }
 
     private ProfileValue profile() {
-        String raw = work.components().get(PROFILE);
+        String raw = work.components().get(SkullProfileFill.PROFILE);
         return raw == null ? null : ProfileValue.fromNbt(Snbt.parse(raw));
     }
 
     private void setProfile(ProfileValue value) {
-        if (value == null) clearComponent(PROFILE);
-        else setComponent(PROFILE, Snbt.write(value.toNbt()));
+        if (value == null) clearComponent(SkullProfileFill.PROFILE);
+        else setComponent(SkullProfileFill.PROFILE, Snbt.write(value.toNbt()));
     }
 
     // ------------------------------------------------------------------ 소유자
@@ -122,7 +124,7 @@ public final class CompatMetaSkull extends CompatItemMeta implements SkullMeta {
     }
 
     @Override
-    public CompatMetaSkull clone() { return (CompatMetaSkull) super.clone(); }
+    public CraftMetaSkull clone() { return (CraftMetaSkull) super.clone(); }
 
     // ------------------------------------------------------------------ 직렬화
 
@@ -136,7 +138,7 @@ public final class CompatMetaSkull extends CompatItemMeta implements SkullMeta {
 
     @Override
     void deserializeKind(Map<String, Object> map) {
-        if (!work.components().containsKey(PROFILE)) {
+        if (!work.components().containsKey(SkullProfileFill.PROFILE)) {
             Object owner = map.get("skull-owner");
             if (owner instanceof PlayerProfile profile) setOwnerProfile(profile);
             else if (owner == null || owner instanceof String) setOwner((String) owner);

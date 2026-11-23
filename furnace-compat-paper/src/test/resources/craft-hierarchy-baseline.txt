@@ -60,6 +60,7 @@ interfaces org/bukkit/craftbukkit/entity/CraftWitch paper-only=com/destroystokyo
 interfaces org/bukkit/craftbukkit/entity/CraftWither paper-only=com/destroystokyo/paper/entity/CraftRangedEntity furnace-only=
 interfaces org/bukkit/craftbukkit/inventory/CraftInventoryPlayer paper-only=org/bukkit/inventory/EntityEquipment furnace-only=
 interfaces org/bukkit/craftbukkit/inventory/CraftMerchant paper-only=org/bukkit/inventory/Merchant furnace-only=
+interfaces org/bukkit/craftbukkit/inventory/CraftMetaItem paper-only=org/bukkit/inventory/meta/BlockDataMeta furnace-only=
 interfaces org/bukkit/craftbukkit/inventory/trim/CraftTrimMaterial paper-only=org/bukkit/craftbukkit/util/Handleable furnace-only=
 interfaces org/bukkit/craftbukkit/inventory/trim/CraftTrimPattern paper-only=org/bukkit/craftbukkit/util/Handleable furnace-only=
 interfaces org/bukkit/craftbukkit/map/CraftMapView paper-only=org/bukkit/map/MapView furnace-only=
