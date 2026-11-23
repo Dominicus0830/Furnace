@@ -66,6 +66,19 @@ public class LevelChunk extends ChunkAccess {
         return s.getBlockState(pos.getX() & 15, y & 15, pos.getZ() & 15);
     }
 
+    /**
+     * Paper {@code LevelChunk#setBiome}: 바이옴 칸 좌표(블록 좌표 &gt;&gt; 2)의 바이옴을 바꾼다 — 높이는 끝 칸으로 죈다({@link #getNoiseBiome} 와 같다).
+     * 클라이언트에 다시 보내지도, 저장 표시를 하지도 않는다(부르는 쪽이 {@code setUnsaved}). 섹션의 바이옴 컨테이너 쓰기 길을 그대로 쓰므로 주인 스레드는
+     * 바로, 다른 스레드는 거울 칸 일지로 서버에 간다.
+     */
+    @SuppressWarnings("unchecked")
+    public void setBiome(int biomeX, int biomeY, int biomeZ, net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome> biome) {
+        int minQ = getMinBuildHeight() >> 2, maxQ = minQ + (getHeight() >> 2) - 1;
+        int y = Math.max(minQ, Math.min(maxQ, biomeY));
+        var container = (PalettedContainer<net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome>>) getSection(getSectionIndex(y << 2)).getBiomes();
+        container.set(biomeX & 3, y & 3, biomeZ & 3, biome);
+    }
+
     public FluidState getFluidState(int x, int y, int z) { return getBlockState(new BlockPos(x, y, z)).getFluidState(); }
 
     /**
