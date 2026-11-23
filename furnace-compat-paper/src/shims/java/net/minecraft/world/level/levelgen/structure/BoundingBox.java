@@ -15,7 +15,7 @@ import net.minecraft.world.level.ChunkPos;
  * 구조물 상자(Mojang 이름 shim, T-211 2단계) — 바닐라 1.21.1 그대로: 양 끝 칸을 포함하는 정수 상자. 직렬화 코덱은 없다.
  * 거꾸로 된 경계는 바닐라처럼 오류 로그를 남기고 두 끝을 맞바꾼다.
  */
-public class BoundingBox {
+class BoundingBox {
 
     private int minX;
     private int minY;

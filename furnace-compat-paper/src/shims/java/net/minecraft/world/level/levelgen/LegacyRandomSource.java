@@ -7,7 +7,7 @@ import net.minecraft.util.RandomSource;
  * 옛 LCG 난수원(Mojang 이름 shim, N2b-6) — 바닐라 1.21.1 그대로(48비트, 곱 25214903917, 더함 11). 바닐라처럼 두 스레드가 동시에 쓰면
  * 예외를 던진다(바닐라는 ThreadingDetector 의 예외 — 이 shim 에는 그 클래스가 없어 IllegalStateException).
  */
-public class LegacyRandomSource implements BitRandomSource {
+class LegacyRandomSource {
 
     private static final int MODULUS_BITS = 48;
     private static final long MODULUS_MASK = 281474976710655L;
