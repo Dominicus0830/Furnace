@@ -527,7 +527,7 @@ val fatJar = tasks.register<Jar>("fatJar") {
         if (missing.isNotEmpty()) throw GradleException("ServerLibraries 에 bundled 로 적혔는데 서버 jar 에 안 실렸다: $missing")
         // 풀린 클래스로 섞여 들어오면 서버 로더와 공유 로더에 같은 이름 클래스가 둘 생긴다
         val leaked = top.filter { it.startsWith("com/google/common/") || it.startsWith("org/yaml/snakeyaml/") || it.startsWith("org/joml/") }
-        if (leaked.isNotEmpty()) throw GradleException("fat jar 최상위에 Guava·SnakeYAML 클래스가 있다: ${leaked.take(5)}")
+        if (leaked.isNotEmpty()) throw GradleException("fat jar 최상위에 Guava·SnakeYAML·JOML 클래스가 있다: ${leaked.take(5)}")
     }
 }
 tasks.named("assemble") { dependsOn(fatJar) }
