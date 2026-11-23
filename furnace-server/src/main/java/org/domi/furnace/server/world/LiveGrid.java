@@ -154,6 +154,7 @@ public final class LiveGrid {
 
     private void spawn(NbtCompound nbt) {
         Entity e = Entities.load(level, nbt.copy());
+        if (e instanceof org.domi.furnace.server.entity.HangingEntity h) h.keepPlacedYaw(nbt);
         if (e != null) level.addFreshEntityWithPassengers(e);
     }
 }

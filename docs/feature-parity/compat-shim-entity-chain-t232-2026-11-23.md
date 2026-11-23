@@ -90,4 +90,26 @@ Axiom 은 소환(`SpawnEntityPacketListener` — `create` → `load` → `setUUI
 - 월드 밖 액자의 "아이템이 비었는가" 는 바닐라 `ItemStack.parse` 의 앞 규칙으로 본다(아이템 레지스트리에 있는 id, 공기 아님, count 1~99 또는 없음 — 모르는 id 는 빈 스택). 가정: components 가 잘못된 태그(바닐라는 파싱 실패 → 빈 스택)는 비지 않았다고 본다 — 넣은 뒤에는 서버 값이 정답이다.
 - 시험 `NmsHangingEntityTest`(5): 월드 밖 액자의 불러오기·돌리기·돌림 기록과 넣은 뒤 서버 값, 빈 액자·위를 보는 액자, 모르는 아이템 id, 그림의 2D 방향, 월드 액자의 돌리기·돌림.
 - 표본 100개(같은 jar 폴더, 전 3d0046ca / 후): 단순 합 2718/3213(84.6%) → 2725/3213(84.8%), 인기 가중 15598/18327(85.1%) → 15636/18327(85.3%), **Axiom 6.0.1 501/505 → 505/505**.
-- 확인 필요(이번 범위 밖): 서버 구조물 템플릿 배치(`TemplatePlacer`)는 엔티티를 NBT 로 돌리며 걸이 엔티티의 `Facing` 을 돌리지 않는다. 바닐라 `StructureTemplate#placeEntities` 는 `entity.rotate(rotation)`(걸이 엔티티는 위 재정의)를 부른다 — 액자·그림이 든 템플릿을 돌려 놓으면 방향이 다를 수 있다. 바닐라 구조물 템플릿에 걸이 엔티티가 있는지부터 확인할 것.
+- 구조물 템플릿 배치(아래 9장에서 고침): 걸이 엔티티의 방향이 템플릿 돌림·대칭을 따르지 않던 차이.
+
+## 9. 구조물 템플릿의 걸이 엔티티 방향 (8장에서 찾은 차이)
+
+바닐라 `StructureTemplate#placeEntities` 는 엔티티를 불러온 뒤 `f = entity.rotate(rotation) + entity.mirror(mirror) − getYRot()` 로 각도를 정해
+`moveTo(새 위치, f, getXRot())` 한다(Paper 1.21.1 javap). 걸이 엔티티는 `rotate`·`mirror` 를 재정의한다 — `rotate` 는 걸린 방향을 돌리고
+돌림 각을 Entity 와 다르게 더하며(시계 90 → +270, 반시계 90 → +90), `mirror` 는 `rotate(mirror.getRotation(돌린 뒤 방향))`(좌우 대칭이면 Z 축,
+앞뒤 대칭이면 X 축 방향일 때 180). 서버 `TemplatePlacer` 는 모든 엔티티를 Entity 규칙으로 NBT 각도만 돌려 액자·그림의 `Facing`/`facing` 이 그대로였다.
+
+- 고침: 액자·발광 액자·그림은 위 규칙으로 방향과 각도를 정한다. 각도의 기준은 바닐라처럼 불러온 뒤 `setDirection` 이 정한 값이다(저장 Rotation 아님).
+  붙은 칸(`TileX/Y/Z`)은 바닐라 `moveTo → setPos` 처럼 `BlockPos.containing(새 위치)`(끈 매듭도 같다).
+- 살아 있는 월드에 놓을 때(`/place`·구조 블록·플러그인 배치 API)는 바닐라가 엔티티를 레벨에 바로 넣어 `moveTo` 각도가 남는다. 서버는 NBT 를 불러
+  넣으므로 불러오기의 `setDirection` 이 각도를 덮는다 — 걸이 엔티티는 넣기 전에 저장 각도로 되돌린다(`LiveGrid`·`LiveFeatures`). 월드젠 청크는
+  바닐라도 NBT 로 저장했다 불러오므로 그대로(`setDirection` 각도). 두 길은 따로다: `LiveFeatures` 는 묘목·뼛가루·`/place feature` 처럼 런타임에
+  실제 월드 복사본에 지형 지물을 놓는 길(바닐라는 ServerLevel 에 바로 씀)이고, 월드젠 청크의 엔티티는 `ChunkLevel.addWorldGenChunkEntities` 가
+  저장 각도 복원 없이 넣는다.
+- 바닐라 내장 구조물 템플릿 1,180개(`worldgen/1.21.1/structure/**.nbt`)에는 걸이 엔티티(액자·발광 액자·그림·끈 매듭)가 없다. 압축을 풀어
+  `entities[].nbt.id` 를 모두 센 결과 주민·좀비 주민·고양이·말 등 몹 13종 62마리와 갑옷 거치대 2개뿐이다 — 월드젠 결과는 바뀌지 않는다. 사용자·데이터 팩 템플릿,
+  구조 블록으로 저장한 건물, 플러그인 배치가 대상이다. 플러그인 배치 API·구조 블록·`/place` 는 모두 같은 `TemplatePlacer` 를 지난다.
+- 시험: `StructuresApiTest.hangingEntitiesTurnWithTheTemplate` — 시계 90(서 → 북, 각도 360, 붙은 칸)과 앞뒤 대칭(서 → 동, 각도 270).
+  `hangingEntitiesFollowVanillaForOtherTurnsPaintingsAndFloorFrames` — 반시계 90(서 → 남, 180), 그림 시계 90 + 좌우 대칭(서 → 북 → 남, 540),
+  위를 보는 액자(방향 그대로, 270, xRot −90). `HangingRotationTableTest` — 돌림·각도·대칭 표 전부. 바닐라는 블록 위치를 대칭 먼저·돌림 나중으로
+  옮기지만 걸이 방향은 돌림 먼저·대칭 나중이라 둘이 어긋날 수 있다(바닐라 그대로 둔다).
