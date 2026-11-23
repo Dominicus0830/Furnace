@@ -103,7 +103,7 @@ final class NbtBinary {
 
     private static int arrayLength(DataInput in) throws IOException {
         int n = in.readInt();
-        if (n >= MAX_ARRAY) throw new IllegalArgumentException();   // 바닐라 Preconditions.checkArgument(n < 16777216) — 문구 없음
+        if (n >= MAX_ARRAY) throw new IllegalArgumentException();   // Paper 패치 Preconditions.checkArgument(n < 16777216) — 문구 없음. 바닐라 1.21.1 에는 없다(호환 원칙대로 Paper 와 같게, T-235)
         return n;
     }
 

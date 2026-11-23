@@ -98,7 +98,6 @@ descriptor	net/minecraft/advancements/AdvancementHolder	<init>()V	기준=#0f65f1
 descriptor	net/minecraft/core/GlobalPos	<init>()V	기준=#53334c18797f	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	net/minecraft/core/Holder$Reference	<init>(Lnet/minecraft/resources/ResourceKey;Ljava/lang/Object;)V	기준=#049116d561e2	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	net/minecraft/core/RegistrySynchronization$PackedRegistryEntry	<init>()V	기준=#1639896fa0cb	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-descriptor	net/minecraft/nbt/Tag	TAG_ANY_NUMERIC : I	기준=#d6591b89ec21	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	net/minecraft/network/Connection	<init>()V	기준=#919097418d2a	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	net/minecraft/network/Connection	<init>(Lnet/minecraft/network/PacketListener;)V	기준=#919097418d2a	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	net/minecraft/network/chat/ChatType	<init>()V	기준=#fd7c6f267f0d	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
