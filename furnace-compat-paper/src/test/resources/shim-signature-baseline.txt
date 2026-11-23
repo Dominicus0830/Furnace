@@ -62,7 +62,6 @@ class-access	net/minecraft/world/level/storage/DimensionDataStorage	-	shim 만 f
 class-access	org/bukkit/craftbukkit/CraftChunk	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	org/bukkit/craftbukkit/CraftEffect	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	org/bukkit/craftbukkit/CraftOfflinePlayer	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-class-access	org/bukkit/craftbukkit/CraftWorld	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	org/bukkit/craftbukkit/block/banner/CraftPatternType	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	org/bukkit/craftbukkit/block/data/CraftBlockData	-	shim 만 abstract	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	org/bukkit/craftbukkit/block/sign/CraftSignSide	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -456,7 +455,6 @@ super	net/minecraft/world/level/levelgen/feature/ConfiguredFeature	-	shim=java/l
 super	net/minecraft/world/level/levelgen/placement/PlacedFeature	-	shim=java/lang/Object ref=#e7f93413726d	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	net/minecraft/world/level/saveddata/maps/MapItemSavedData	-	shim=java/lang/Object ref=#3df556e437e9	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	net/minecraft/world/phys/shapes/VoxelShape$1	-	shim=net/minecraft/world/phys/shapes/VoxelShape ref=#c1307bf3492c	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	org/bukkit/craftbukkit/CraftWorld	-	shim=java/lang/Object ref=#eb3d18b56aed	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	org/bukkit/craftbukkit/CraftWorld$1	-	shim=java/lang/Object ref=#46f29ec627df	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	org/bukkit/craftbukkit/entity/CraftEntity$1	-	shim=org/bukkit/entity/Entity$Spigot ref=#c1307bf3492c	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	org/bukkit/craftbukkit/map/CraftMapRenderer	-	shim=java/lang/Object ref=#1a35e6a14920	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다

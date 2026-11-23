@@ -3,7 +3,6 @@
 access org/bukkit/craftbukkit/CraftChunk paper=1 furnace=11
 access org/bukkit/craftbukkit/CraftEffect paper=1 furnace=11
 access org/bukkit/craftbukkit/CraftOfflinePlayer paper=1 furnace=11
-access org/bukkit/craftbukkit/CraftWorld paper=1 furnace=11
 access org/bukkit/craftbukkit/block/banner/CraftPatternType paper=1 furnace=11
 access org/bukkit/craftbukkit/block/data/CraftBlockData paper=1 furnace=401
 access org/bukkit/craftbukkit/block/sign/CraftSignSide paper=1 furnace=11
@@ -65,6 +64,5 @@ interfaces org/bukkit/craftbukkit/inventory/trim/CraftTrimPattern paper-only=org
 interfaces org/bukkit/craftbukkit/map/CraftMapView paper-only=org/bukkit/map/MapView furnace-only=
 interfaces org/bukkit/craftbukkit/persistence/CraftPersistentDataContainer paper-only=org/bukkit/persistence/PersistentDataContainer furnace-only=
 interfaces org/bukkit/craftbukkit/profile/CraftPlayerProfile paper-only=com/destroystokyo/paper/profile/PlayerProfile furnace-only=
-super org/bukkit/craftbukkit/CraftWorld paper=org/bukkit/craftbukkit/CraftRegionAccessor furnace=java/lang/Object
 super org/bukkit/craftbukkit/map/CraftMapRenderer paper=org/bukkit/map/MapRenderer furnace=java/lang/Object
 super org/bukkit/craftbukkit/persistence/CraftPersistentDataContainer paper=io/papermc/paper/persistence/PaperPersistentDataContainerView furnace=org/domi/furnace/compat/paper/LivePdc

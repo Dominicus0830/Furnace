@@ -69,6 +69,28 @@ final class CraftAccess {
         }
     }
 
+    private static final MethodHandle NEW_LIMITED_REGION = constructor(org.bukkit.craftbukkit.generator.CraftLimitedRegion.class,
+            MethodType.methodType(void.class, org.bukkit.World.class, org.domi.furnace.api.worldgen.DecorationRegion.class));
+
+    /** Furnace 생성자(패키지 전용)로 CraftLimitedRegion — 장식 단계 populate 가 끝나면 breakLink 한다. */
+    static org.bukkit.craftbukkit.generator.CraftLimitedRegion newLimitedRegion(org.bukkit.World world, org.domi.furnace.api.worldgen.DecorationRegion region) {
+        try {
+            return (org.bukkit.craftbukkit.generator.CraftLimitedRegion) NEW_LIMITED_REGION.invokeExact(world, region);
+        } catch (RuntimeException | Error e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException(t);
+        }
+    }
+
+    private static MethodHandle constructor(Class<?> target, MethodType type) {
+        try {
+            return MethodHandles.privateLookupIn(target, MethodHandles.lookup()).findConstructor(target, type);
+        } catch (ReflectiveOperationException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
     private static Class<?> anyClass(String name) {
         try {
             return Class.forName(name, false, CraftAccess.class.getClassLoader());
