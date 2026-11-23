@@ -3,13 +3,7 @@ package net.minecraft.world.entity;
 import org.bukkit.craftbukkit.entity.CraftLivingEntity;
 
 /** 살아 있는 엔티티 shim(Mojang 이름, H6 최소 표면). 체력 읽기·쓰기는 Furnace 엔티티 API 로 간다. */
-public class LivingEntity extends Entity {
-
-    /** 호환 모듈 전용(CraftLivingEntity 가 만든다). */
-    public LivingEntity(CraftLivingEntity bukkit) { super(bukkit); }
-
-    /** {@link EntityType#create} 전용: 아직 월드에 없는 살아 있는 엔티티. */
-    LivingEntity(EntityType<?> type, net.minecraft.world.level.Level level) { super(type, level); }
+class LivingEntity {
 
     @Override
     public CraftLivingEntity getBukkitEntity() { return (CraftLivingEntity) super.getBukkitEntity(); }
@@ -79,5 +73,5 @@ public class LivingEntity extends Entity {
     public boolean isAlive() { return !isRemoved() && getHealth() > 0f; }
 
     /** 바닐라 isFallFlying: 공유 플래그 7(겉날개로 나는 중). */
-    public boolean isFallFlying() { return (furnaceLook("LivingEntity#isFallFlying").sharedFlags() & 1 << 7) != 0; }
+    public boolean isFallFlying() { org.domi.furnace.compat.nms.NmsEntityOwner.read(this, "LivingEntity#isFallFlying"); return (furnaceLook("LivingEntity#isFallFlying").sharedFlags() & 1 << 7) != 0; }
 }

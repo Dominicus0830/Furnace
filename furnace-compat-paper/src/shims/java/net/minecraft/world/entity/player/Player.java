@@ -4,7 +4,7 @@ import net.minecraft.world.entity.LivingEntity;
 import org.bukkit.craftbukkit.entity.CraftHumanEntity;
 
 /** 플레이어 shim(Mojang 이름, H6 최소 표면). Furnace 에서 사람 모양 엔티티는 접속한 플레이어뿐이라 실제 객체는 늘 ServerPlayer 다. */
-public abstract class Player extends LivingEntity {
+class Player {
 
     /**
      * 바닐라처럼 GameProfile 필드(ProtocolLib WrappedGameProfile.fromPlayer·WrappedServerPing 이 타입으로 찾는다). uuid·이름·속성(스킨)은
@@ -15,9 +15,10 @@ public abstract class Player extends LivingEntity {
     /** gameProfile 을 만든 때의 Furnace 프로필(setPlayerProfile 로 바뀌면 다시 만든다). */
     private volatile org.domi.furnace.api.entity.ProfileData gameProfileOf;
 
-    protected Player(CraftHumanEntity bukkit) {
-        super(bukkit);
-        if (bukkit instanceof org.bukkit.craftbukkit.entity.CraftPlayer cp) {
+    /** 생성기 전용 생성자(T-232). 재료는 이 플레이어의 Bukkit 객체다(ServerPlayer 가 싣는다). */
+    protected Player(org.domi.furnace.compat.nms.ShimCtor tag) {
+        super(tag);
+        if (tag.payload() instanceof org.bukkit.craftbukkit.entity.CraftPlayer cp) {
             this.gameProfileOf = cp.furnaceHandle().profile();
             this.gameProfile = org.domi.furnace.compat.nms.Profiles.of(cp.furnaceHandle());
         }
@@ -52,6 +53,7 @@ public abstract class Player extends LivingEntity {
     /** 바닐라 Player#isSwimming: 날거나 관전 중이 아닐 때만 공유 플래그 4. */
     @Override
     public boolean isSwimming() {
+        org.domi.furnace.compat.nms.NmsEntityOwner.read(this, "Player#isSwimming");
         var l = furnaceLook("Player#isSwimming");
         return !l.flying() && !l.spectator() && (l.sharedFlags() & 1 << 4) != 0;
     }

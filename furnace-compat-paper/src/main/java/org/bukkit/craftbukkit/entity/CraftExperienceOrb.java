@@ -5,6 +5,4 @@ public class CraftExperienceOrb extends CraftEntity implements org.bukkit.entity
 
     public CraftExperienceOrb(org.domi.furnace.api.entity.Entity handle) { super(handle); }
 
-    @Override
-    protected net.minecraft.world.entity.Entity createHandle() { return new net.minecraft.world.entity.ExperienceOrb(this); }
 }

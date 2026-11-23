@@ -810,6 +810,12 @@ public interface ChunkInternals {
 
         /** 바닐라 {@code ejectPassengers}. 돌려줌: null. */
         record EjectPassengers() implements EntityEdit {}
+
+        /**
+         * 바닐라 {@code Clearable#clearContent}(상자 배·상자/깔때기 수레 = {@code ContainerEntity#clearChestVehicleContent}): 열지 않은 전리품 표를 연 사람 없이
+         * 푼 뒤 칸을 모두 비운다. 담는 엔티티가 아니면 IllegalArgumentException. 돌려줌: null.
+         */
+        record ClearContent() implements EntityEdit {}
     }
 
     /** {@link #addNmsEntityNow} 가 재생할 엔티티 조작 하나. */

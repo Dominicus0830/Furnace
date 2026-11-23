@@ -13,8 +13,6 @@ public class CraftItem extends CraftEntity implements Item {
 
     public CraftItem(org.domi.furnace.api.entity.Entity handle) { super(handle); }
 
-    @Override
-    protected net.minecraft.world.entity.Entity createHandle() { return new net.minecraft.world.entity.item.ItemEntity(this); }
 
     @Override
     public ItemStack getItemStack() {

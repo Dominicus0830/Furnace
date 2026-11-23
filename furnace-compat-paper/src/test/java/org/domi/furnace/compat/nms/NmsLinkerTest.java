@@ -118,7 +118,7 @@ class NmsLinkerTest {
     /** shim 의 상위 클래스가 final 인 경우(바닐라는 상속 가능 — H1): 껍데기는 Object 위에 서야 정의가 깨지지 않는다. */
     private static final String SUB_FINAL = """
             package linky;
-            public class MyFinalParent extends net.minecraft.world.entity.animal.sniffer.Sniffer {
+            public class MyFinalParent extends net.minecraft.util.StringUtil {
                 public MyFinalParent() { super(); }
                 public static String marker() { return "static-ok"; }
             }
@@ -135,10 +135,10 @@ class NmsLinkerTest {
             }
             """;
 
-    /** 컴파일용 스텁: 바닐라의 Sniffer 는 상속할 수 있지만 shim 은 final 이다(플러그인은 바닐라 모양으로 컴파일한다). */
-    private static final String SNIFFER_STUB = """
-            package net.minecraft.world.entity.animal.sniffer;
-            public class Sniffer { public Sniffer() {} }
+    /** 컴파일용 스텁: 플러그인이 상속한 클래스의 shim 이 final 인 경우(손 shim StringUtil — 전에는 Sniffer 였으나 T-232 로 바닐라처럼 상속 가능). */
+    private static final String FINAL_PARENT_STUB = """
+            package net.minecraft.util;
+            public class StringUtil { public StringUtil() {} }
             """;
 
     @TempDir
@@ -156,7 +156,7 @@ class NmsLinkerTest {
         src.put("linky.MyChunk", SUB_MISSING);
         src.put("linky.MyFinalParent", SUB_FINAL);
         src.put("linky.MyLevel", SUB_INHERITABLE);
-        src.put("net.minecraft.world.entity.animal.sniffer.Sniffer", SNIFFER_STUB);
+        src.put("net.minecraft.util.StringUtil", FINAL_PARENT_STUB);
         Path jar = JarCompiler.jar(tmp.resolve("linky.jar"), "name: Linky\nversion: '1'\nmain: linky.User\n", src, Set.of("net.minecraft."));
         classes = read(jar);
     }
@@ -347,7 +347,7 @@ class NmsLinkerTest {
     @Test
     void huskOnAFinalShimParentIsDefinedOnObjectAndKeepsItsStaticMembers() throws Throwable {
         // H1: 상위 shim 이 final 이면 그 위에 정의하면 IncompatibleClassChangeError — Object 위에 세우고 정적 멤버는 그대로 쓴다
-        assertTrue(java.lang.reflect.Modifier.isFinal(net.minecraft.world.entity.animal.sniffer.Sniffer.class.getModifiers()), "premise: the shim parent is final");
+        assertTrue(java.lang.reflect.Modifier.isFinal(net.minecraft.util.StringUtil.class.getModifiers()), "premise: the shim parent is final");
         NmsClassTransformer t = new NmsClassTransformer("Linky", Set.of(), NmsClassTransformer.Options.DEFAULT, NmsSymbols.RUNTIME);
         Loader loader = new Loader(classes, t);
         Class<?> c = loader.loadClass("linky.MyFinalParent");
@@ -452,9 +452,11 @@ class NmsLinkerTest {
     /** 상속해도 되는 shim(과 그 상위 사슬)의 final 인스턴스 메서드는 바닐라도 final 인 것뿐이어야 한다 — 재정의가 정의를 깨지 않게(검토 #480). */
     @Test
     void inheritableShimsKeepVanillaFinality() {
-        // Paper 1.21.1 에서 final: Level#getChunkIfLoadedImmediately(T-211 3단계), Entity#getBlockX·Y·Z·Level#getChunkIfLoaded(BlockPos)(5번 묶음, jar 대조)
+        // Paper 1.21.1 에서 final: Level#getChunkIfLoadedImmediately(T-211 3단계), Entity#getBlockX·Y·Z·Level#getChunkIfLoaded(BlockPos)(5번 묶음, jar 대조),
+        // Entity#discard()·setPosRaw(DDD)·getX·Y·Z·isRemoved(T-232 — 잠금 파일 접근 17)
         Set<String> vanillaFinal = Set.of("UseOnContext#getHitResult", "Level#moonrise$getEntityLookup", "Level#getChunkIfLoadedImmediately",
-                "Entity#getBlockX", "Entity#getBlockY", "Entity#getBlockZ", "Level#getChunkIfLoaded");
+                "Entity#getBlockX", "Entity#getBlockY", "Entity#getBlockZ", "Level#getChunkIfLoaded", "Entity#discard", "Entity#setPosRaw",
+                "Entity#getX", "Entity#getY", "Entity#getZ", "Entity#isRemoved");
         for (Class<?> c : List.of(net.minecraft.world.item.context.UseOnContext.class, net.minecraft.world.item.context.BlockPlaceContext.class,
                 net.minecraft.server.level.ServerLevel.class, net.minecraft.server.level.ServerPlayer.class)) {
             assertTrue(NmsLinker.inheritable(NmsSymbols.RUNTIME, c.getName().replace('.', '/')), c.getName());

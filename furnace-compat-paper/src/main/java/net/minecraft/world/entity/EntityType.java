@@ -85,13 +85,13 @@ public class EntityType<T> {
     /**
      * 바닐라 {@code EntityType#create(Level)}(T-212): 아직 월드에 없는 새 엔티티. 플레이어·낚시찌처럼 따로 만들 수 없는 종류는 null(바닐라 공장이 null).
      * 돌려준 엔티티는 {@code load}·{@code absMoveTo}·{@code setUUID} 를 기록했다가 {@code ServerLevel#addFreshEntity} 때 서버 엔티티로 만든다
-     * (Furnace 엔티티는 넣을 region 의 레벨에 묶여 만들어지기 때문). 살아 있는 종류는 {@link LivingEntity} 다(그 Bukkit 객체의 getHandle 과 같은 종류).
+     * (Furnace 엔티티는 넣을 region 의 레벨에 묶여 만들어지기 때문). 객체는 그 종류의 바닐라 클래스다(좀비는 Zombie — 그 Bukkit 객체의 getHandle 과 같은 클래스, T-232).
      * 1.21.1 엔티티 종류는 모두 기본 기능 플래그라 {@code isEnabled} 로 거르는 종류는 없다.
      */
     public Entity create(net.minecraft.world.level.Level level) {
         org.bukkit.entity.EntityType bt = "minecraft".equals(key.getNamespace()) ? org.bukkit.entity.EntityType.fromKey(key.getPath()) : null;
         if (bt == null || !bt.isSpawnable()) return null;
-        return bt.isAlive() ? new LivingEntity(this, level) : new Entity(this, level);
+        return org.domi.furnace.compat.nms.NmsEntityKinds.createFresh(this, level);   // 그 종류의 바닐라 클래스(T-232)
     }
 
     @Override

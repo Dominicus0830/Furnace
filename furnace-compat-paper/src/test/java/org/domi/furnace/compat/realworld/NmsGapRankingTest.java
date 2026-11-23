@@ -62,8 +62,8 @@ class NmsGapRankingTest {
 
     @Test
     void weightsFollowDownloadsAndDetectionNamesAreCounted() throws IOException {
-        Path a = jar("a.jar", plugin("net/minecraft/NoSuchRankClassA", "net.minecraft.world.entity.animal.Pig"));
-        Path b = jar("b.jar", plugin("net/minecraft/NoSuchRankClassA", "net.minecraft.world.entity.animal.Pig"));
+        Path a = jar("a.jar", plugin("net/minecraft/NoSuchRankClassA", "net.minecraft.world.entity.ai.goal.FloatGoal"));
+        Path b = jar("b.jar", plugin("net/minecraft/NoSuchRankClassA", "net.minecraft.world.entity.ai.goal.FloatGoal"));
         Path c = jar("c.jar", plugin("net/minecraft/NoSuchRankClassB", "net.minecraft.world.entity.Entity"));
         Path manifest = tmp.resolve("sample-manifest.tsv");
         Files.writeString(manifest, "slug\ttitle\tdownloads\tjar\tsha1\tversion\n"
@@ -77,7 +77,7 @@ class NmsGapRankingTest {
 
         List<Path> jars = List.of(a, b, c);
         Map<String, Set<String>> targets = NmsGapRanking.stringTargets(jars);
-        assertEquals(Set.of("a.jar", "b.jar"), targets.get("net.minecraft.world.entity.animal.Pig"));
+        assertEquals(Set.of("a.jar", "b.jar"), targets.get("net.minecraft.world.entity.ai.goal.FloatGoal"));
         assertEquals(Set.of("c.jar"), targets.get("net.minecraft.world.entity.Entity"));
         assertTrue(targets.keySet().stream().noneMatch(k -> k.contains("v1_20_R3")), "다른 판 이름은 뺀다: " + targets.keySet());
 
@@ -86,7 +86,7 @@ class NmsGapRankingTest {
         int iA = md.indexOf("net.minecraft.NoSuchRankClassA"), iB = md.indexOf("net.minecraft.NoSuchRankClassB");
         assertTrue(iA > 0 && iB > iA, md);
         assertTrue(md.contains("| 1 | 5.0 | 2 |"), md);
-        assertTrue(md.contains("| 2 | `net.minecraft.world.entity.animal.Pig` | 아니오 |") || md.contains("`net.minecraft.world.entity.animal.Pig` | 아니오"), md);
+        assertTrue(md.contains("| 2 | `net.minecraft.world.entity.ai.goal.FloatGoal` | 아니오 |") || md.contains("`net.minecraft.world.entity.ai.goal.FloatGoal` | 아니오"), md);
         assertTrue(md.contains("`net.minecraft.world.entity.Entity` | 예"), "Entity 는 shim 에 있다: " + md);
     }
 }

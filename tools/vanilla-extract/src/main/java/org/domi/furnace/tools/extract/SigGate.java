@@ -124,7 +124,8 @@ public final class SigGate {
             Set<String> shimAll = allTypes(s.name(), true), refAll = allTypes(r.name(), false);
             // 상위가 다르면 super 한 건이 이미 말한다. JDK 타입은 양쪽 같은 JVM 이 준다.
             if (java.util.Objects.equals(s.superName(), r.superName())) {
-                for (String t : refAll) if (!shimAll.contains(t) && !t.startsWith("java/")) diffs.add(new Diff("type-missing", s.name(), "-", fp(t), t));
+                // Paper 내부 패치 인터페이스(moonrise, ca/spottedleaf/)는 플러그인 API 가 아니라 shim 이 일부러 갖지 않는다(잠금 파일과 같은 규칙, T-232)
+                for (String t : refAll) if (!shimAll.contains(t) && !t.startsWith("java/") && !t.startsWith("ca/spottedleaf/")) diffs.add(new Diff("type-missing", s.name(), "-", fp(t), t));
             }
             members(s, r, diffs);
         }

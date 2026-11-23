@@ -283,6 +283,11 @@ public final class ShimGenerator {
                 if (b.lock().name().equals("<init>") && b.spec().body() == ShimSpec.Body.EMPTY && isShim(c.superName())) work.add(c.superName());
             }
         }
+        // 종류 표의 클래스는 NmsKinds 가 C(ShimCtor) 로 만든다 — 조각이어도 생성자가 있어야 한다(T-232: ItemEntity 등)
+        for (String[] k : spec.kinds) {
+            String n = k[2].replace('.', '/');
+            if (origin.get(n) == Origin.FRAGMENT) work.add(n);
+        }
         while (!work.isEmpty()) {
             String n = work.remove(work.size() - 1);
             if (!emitted(n)) {
@@ -424,7 +429,7 @@ public final class ShimGenerator {
             }
         }
         // 생성기 전용 생성자
-        if (needsMarker.contains(n)) {
+        if (needsMarker.contains(n) && !fragmentDeclaresMarker(n)) {
             sb.append(in).append("/** Generator-only constructor (not in vanilla; plugin bytecode never calls this descriptor). */\n");
             sb.append(in).append("protected ").append(simple).append('(').append(SHIM_CTOR).append(" tag) { ");
             if (isShim(c.superName())) sb.append("super(tag); ");
@@ -490,6 +495,21 @@ public final class ShimGenerator {
             if (d > 0 && inner.substring(0, d).equals(n)) sb.append('\n').append(declaration(inner, in));
         }
         return sb.toString();
+    }
+
+    /**
+     * 최상위 조각이 생성기 전용 생성자 {@code C(ShimCtor …)} 를 스스로 쓰는가(T-232). 사슬 맨 위 조각(엔티티 사슬의 {@code Entity})은 표지에 실린 재료를
+     * 받아야 해서 몸통이 있는 생성자를 쓴다 — 그때 생성기는 같은 서술자의 생성자를 만들지 않는다(겹치면 컴파일 오류).
+     */
+    boolean fragmentDeclaresMarker(String n) {
+        if (origin.get(n) != Origin.FRAGMENT || n.indexOf('$') > 0) return false;
+        try {
+            String text = Files.readString(fragments.resolve(n + ".java"), StandardCharsets.UTF_8);
+            return Pattern.compile("(?m)^\\s*(protected|public|private)?\\s*" + Pattern.quote(JavaTypes.simple(n)) + "\\s*\\(\\s*(org\\.domi\\.furnace\\.compat\\.nms\\.)?ShimCtor\\s+\\w+\\s*\\)")
+                    .matcher(text).find();
+        } catch (IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
     }
 
     /** 명세 순서의 열거형 상수 이름. */
