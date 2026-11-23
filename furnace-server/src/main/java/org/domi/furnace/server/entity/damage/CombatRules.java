@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity.damage;
 import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.item.ItemTools;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.damagesource.CombatRules")
 public final class CombatRules {
 
     private CombatRules() {}

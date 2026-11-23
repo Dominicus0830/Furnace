@@ -5,6 +5,7 @@ import org.domi.furnace.server.block.Clip;
 import org.domi.furnace.server.entity.PathfinderMob;
 import org.domi.furnace.server.entity.ai.util.FlyingRandomPos;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.WaterAvoidingRandomFlyingGoal")
 public class WaterAvoidingRandomFlyingGoal extends WaterAvoidingRandomStrollGoal {
 
     public WaterAvoidingRandomFlyingGoal(PathfinderMob mob, double speed) { super(mob, speed); }

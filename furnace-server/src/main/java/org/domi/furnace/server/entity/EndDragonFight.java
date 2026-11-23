@@ -19,6 +19,7 @@ import org.domi.furnace.server.net.protocol.play.BossEvent;
 import org.domi.furnace.server.world.gen.carver.LegacyRandom;
 import org.domi.furnace.server.world.gen.feature.EndSpikeFeature;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.dimension.end.EndDragonFight")
 public final class EndDragonFight {
     /** DragonRespawnAnimation 단계. */
     public enum RespawnStage { START, PREPARING_TO_SUMMON_PILLARS, SUMMONING_PILLARS, SUMMONING_DRAGON, END }

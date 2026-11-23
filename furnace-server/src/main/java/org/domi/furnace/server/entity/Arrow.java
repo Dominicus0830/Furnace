@@ -5,8 +5,9 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.projectile.Arrow")
 public class Arrow extends AbstractArrow {
-    public static final int DATA_EFFECT_COLOR = 10;
+    public static final int DATA_EFFECT_COLOR = EntityDataIds.Arrow_ID_EFFECT_COLOR;
 
     public Arrow(ChunkLevel level, int id) { super(EntityType.ARROW, level, id); }
 

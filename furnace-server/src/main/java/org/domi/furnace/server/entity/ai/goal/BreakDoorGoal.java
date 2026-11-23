@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity.ai.goal;
 import java.util.function.IntPredicate;
 import org.domi.furnace.server.entity.Mob;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.BreakDoorGoal")
 public class BreakDoorGoal extends DoorInteractGoal {
     private static final int DEFAULT_DOOR_BREAK_TIME = 240;
     private final IntPredicate validDifficulty;

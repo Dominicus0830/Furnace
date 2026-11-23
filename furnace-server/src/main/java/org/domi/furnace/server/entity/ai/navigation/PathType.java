@@ -1,6 +1,7 @@
 // 바닐라 PathType: 길찾기가 칸에 붙이는 종류와 기본 이동 비용(음수는 못 감).
 package org.domi.furnace.server.entity.ai.navigation;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.pathfinder.PathType")
 public enum PathType {
     BLOCKED(-1.0F), OPEN(0.0F), WALKABLE(0.0F), WALKABLE_DOOR(0.0F), TRAPDOOR(0.0F), POWDER_SNOW(-1.0F), DANGER_POWDER_SNOW(0.0F), FENCE(-1.0F),
     LAVA(-1.0F), WATER(8.0F), WATER_BORDER(8.0F), RAIL(0.0F), UNPASSABLE_RAIL(-1.0F), DANGER_FIRE(8.0F), DAMAGE_FIRE(16.0F), DANGER_OTHER(8.0F),

@@ -9,8 +9,9 @@ import org.domi.furnace.server.entity.ai.navigation.PathType;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.piglin.AbstractPiglin")
 public abstract class AbstractPiglin extends Monster {
-    public static final int DATA_IMMUNE_TO_ZOMBIFICATION = 16;
+    public static final int DATA_IMMUNE_TO_ZOMBIFICATION = EntityDataIds.AbstractPiglin_DATA_IMMUNE_TO_ZOMBIFICATION;
     public static final int CONVERSION_TIME = 300;
     protected int timeInOverworld;
 

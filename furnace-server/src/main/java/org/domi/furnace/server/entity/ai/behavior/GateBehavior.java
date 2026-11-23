@@ -9,6 +9,7 @@ import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.GateBehavior")
 public class GateBehavior<E extends Mob> implements BehaviorControl<E> {
     public enum OrderPolicy { ORDERED, SHUFFLED }
 

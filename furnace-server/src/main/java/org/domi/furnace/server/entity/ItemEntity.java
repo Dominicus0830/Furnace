@@ -11,11 +11,12 @@ import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.item.ItemEntity")
 public final class ItemEntity extends Entity {
     @Override public boolean isAttackable() { return false; }
 
 
-    public static final int DATA_ITEM = 8;
+    public static final int DATA_ITEM = EntityDataIds.ItemEntity_DATA_ITEM;
 
     private static final int LIFETIME = 6000, INFINITE_PICKUP_DELAY = 32767, INFINITE_LIFETIME = -32768;
 

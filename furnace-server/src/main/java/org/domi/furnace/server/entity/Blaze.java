@@ -10,8 +10,9 @@ import org.domi.furnace.server.entity.ai.goal.*;
 import org.domi.furnace.server.entity.ai.navigation.PathType;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.Blaze")
 public class Blaze extends Monster {
-    public static final int DATA_FLAGS_ID = 16;
+    public static final int DATA_FLAGS_ID = EntityDataIds.Blaze_DATA_FLAGS_ID;
     private float allowedHeightOffset = 0.5F;
     private int nextHeightOffsetChangeTick;
 

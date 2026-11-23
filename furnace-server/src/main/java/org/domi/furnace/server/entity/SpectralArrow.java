@@ -6,6 +6,7 @@ import org.domi.furnace.server.effect.MobEffect;
 import org.domi.furnace.server.effect.MobEffectInstance;
 import org.domi.furnace.server.item.ItemContext;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.projectile.SpectralArrow")
 public class SpectralArrow extends AbstractArrow {
     private int duration = 200;
 

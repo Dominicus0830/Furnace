@@ -9,6 +9,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 import org.domi.furnace.server.entity.ai.control.Mth;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.RandomLookAround")
 public class RandomLookAround extends Behavior<Mob> {
     private final UniformInt interval;
     private final float maxYaw;

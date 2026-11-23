@@ -5,6 +5,7 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.ai.brain.Activity;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.WakeUp")
 public final class WakeUp {
     private WakeUp() {}
 

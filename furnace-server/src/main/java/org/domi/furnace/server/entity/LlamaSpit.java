@@ -7,6 +7,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.ai.control.Mth;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.projectile.LlamaSpit")
 public class LlamaSpit extends Projectile {
     public LlamaSpit(ChunkLevel level, int id) { super(EntityType.LLAMA_SPIT, level, id); }
 

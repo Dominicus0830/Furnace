@@ -11,6 +11,7 @@ import org.domi.furnace.server.block.types.InfestedBlock;
 import org.domi.furnace.server.entity.ai.Goal;
 import org.domi.furnace.server.entity.ai.goal.*;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.Silverfish")
 public class Silverfish extends Monster {
     private SilverfishWakeUpFriendsGoal friendsGoal;
 

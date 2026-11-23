@@ -8,6 +8,7 @@ import org.domi.furnace.server.entity.ai.Goal;
 import org.domi.furnace.server.entity.ai.targeting.TargetingConditions;
 import org.domi.furnace.server.item.ItemTools;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.BegGoal")
 public class BegGoal extends Goal {
     private final Wolf wolf;
     private Player player;

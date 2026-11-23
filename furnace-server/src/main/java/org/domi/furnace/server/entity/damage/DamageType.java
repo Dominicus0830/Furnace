@@ -16,6 +16,7 @@ import java.util.Locale;
 import java.util.Map;
 import org.domi.furnace.server.net.registry.RegistrySet;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.damagesource.DamageType")
 public final class DamageType {
 
     /** 바닐라 DamageScaling. */

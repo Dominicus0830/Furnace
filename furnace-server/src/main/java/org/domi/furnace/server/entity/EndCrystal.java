@@ -7,8 +7,9 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.boss.enderdragon.EndCrystal")
 public class EndCrystal extends Entity {
-    public static final int DATA_BEAM_TARGET = 8, DATA_SHOW_BOTTOM = 9;
+    public static final int DATA_BEAM_TARGET = EntityDataIds.EndCrystal_DATA_BEAM_TARGET, DATA_SHOW_BOTTOM = EntityDataIds.EndCrystal_DATA_SHOW_BOTTOM;
     public int time;
 
     public EndCrystal(ChunkLevel level, int id) {

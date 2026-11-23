@@ -17,13 +17,14 @@ import org.domi.furnace.server.entity.ai.brain.SensorType;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.Zoglin")
 public class Zoglin extends Monster implements HoglinBase {
     /** canBeLeashed(디컴파일 y): Zoglin(ckv)은 Enemy 여도 맬 수 있다. */
     @Override
     public boolean canBeLeashed() { return true; }
 
 
-    public static final int DATA_BABY = 16;
+    public static final int DATA_BABY = EntityDataIds.Zoglin_DATA_BABY_ID;
     private int attackAnimationRemainingTicks;
 
     public Zoglin(ChunkLevel level, int id) {

@@ -3,6 +3,7 @@ package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.ChunkLevel;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.projectile.ThrownExperienceBottle")
 public class ThrownExperienceBottle extends ThrowableProjectile {
     public ThrownExperienceBottle(ChunkLevel level, int id) { super(EntityType.EXPERIENCE_BOTTLE, level, id); }
 

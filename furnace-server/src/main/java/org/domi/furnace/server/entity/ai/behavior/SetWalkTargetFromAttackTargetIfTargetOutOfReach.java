@@ -9,6 +9,7 @@ import org.domi.furnace.server.entity.ai.brain.EntityTracker;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.WalkTarget;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.SetWalkTargetFromAttackTargetIfTargetOutOfReach")
 public final class SetWalkTargetFromAttackTargetIfTargetOutOfReach {
     private SetWalkTargetFromAttackTargetIfTargetOutOfReach() {}
 

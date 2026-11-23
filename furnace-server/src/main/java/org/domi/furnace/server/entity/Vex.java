@@ -13,8 +13,9 @@ import org.domi.furnace.server.entity.ai.targeting.TargetingConditions;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.Vex")
 public class Vex extends Monster {
-    public static final int DATA_FLAGS_ID = 16;
+    public static final int DATA_FLAGS_ID = EntityDataIds.Vex_DATA_FLAGS_ID;
     private static final int FLAG_IS_CHARGING = 1;
     private Mob owner;
     private Pos boundOrigin;

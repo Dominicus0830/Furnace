@@ -7,10 +7,11 @@ import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.projectile.EyeOfEnder")
 public class EyeOfEnder extends Entity {
     @Override public boolean isAttackable() { return false; }
 
-    public static final int DATA_ITEM_STACK = 8;
+    public static final int DATA_ITEM_STACK = EntityDataIds.EyeOfEnder_DATA_ITEM_STACK;
     private double tx, ty, tz;
     private int life;
     private boolean surviveAfterDeath;

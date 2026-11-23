@@ -6,6 +6,7 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.CopyMemoryWithExpiry")
 public final class CopyMemoryWithExpiry {
     private CopyMemoryWithExpiry() {}
 

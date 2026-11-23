@@ -20,8 +20,9 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 import org.domi.furnace.server.world.gen.BiomeTags;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.frog.Frog")
 public class Frog extends Animal {
-    public static final int DATA_VARIANT_ID = 17, DATA_TONGUE_TARGET_ID = 18;
+    public static final int DATA_VARIANT_ID = EntityDataIds.Frog_DATA_VARIANT_ID, DATA_TONGUE_TARGET_ID = EntityDataIds.Frog_DATA_TONGUE_TARGET_ID;
     public static final String[] VARIANTS = {"temperate", "warm", "cold"};
     private static final String TAG_VARIANT = "variant";
 

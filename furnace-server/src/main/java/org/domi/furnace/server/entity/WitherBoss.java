@@ -25,8 +25,9 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.BossEvent;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.boss.wither.WitherBoss")
 public class WitherBoss extends Monster implements RangedAttackMob {
-    public static final int DATA_TARGET_A = 16, DATA_TARGET_B = 17, DATA_TARGET_C = 18, DATA_ID_INV = 19;
+    public static final int DATA_TARGET_A = EntityDataIds.WitherBoss_DATA_TARGET_A, DATA_TARGET_B = EntityDataIds.WitherBoss_DATA_TARGET_B, DATA_TARGET_C = EntityDataIds.WitherBoss_DATA_TARGET_C, DATA_ID_INV = EntityDataIds.WitherBoss_DATA_ID_INV;
     private static final int[] TARGET_IDS = {DATA_TARGET_A, DATA_TARGET_B, DATA_TARGET_C};
     private static final int INVULNERABLE_TICKS = 220;
     private static final java.util.function.Predicate<Targetable> LIVING_SELECTOR =

@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.Marker")
 public class Marker extends Entity {
 
     /** getPistonPushReaction = IGNORE. */

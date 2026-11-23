@@ -3,6 +3,7 @@ package org.domi.furnace.server.entity;
 import org.domi.furnace.server.item.ComponentPatch;
 
 /** 아이템 스택: 아이템 레지스트리 id, 개수, 기본값 대비 컴포넌트 패치(바닐라 ItemStack). 불변. */
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.item.ItemStack")
 public record ItemStack(int itemId, int count, ComponentPatch patch) {
 
     public static final ItemStack EMPTY = new ItemStack(0, 0, ComponentPatch.EMPTY);

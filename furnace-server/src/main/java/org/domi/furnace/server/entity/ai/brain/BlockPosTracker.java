@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity.ai.brain;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.Mob;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.BlockPosTracker")
 public final class BlockPosTracker implements PositionTracker {
     private final Pos blockPos;
     private final double[] pos;

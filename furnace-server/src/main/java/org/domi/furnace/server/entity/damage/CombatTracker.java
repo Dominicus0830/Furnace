@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.domi.furnace.api.text.Text;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.damagesource.CombatTracker")
 public final class CombatTracker {
 
     public static final int RESET_DAMAGE_STATUS_TIME = 100;

@@ -15,6 +15,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.NearestVisibleLivingEntities;
 import org.domi.furnace.server.entity.ai.brain.Sensor;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.sensing.NearestLivingEntitySensor")
 public class NearestLivingEntitySensor<T extends Mob> extends Sensor<T> {
     @Override
     protected void doTick(ChunkLevel level, T entity) {

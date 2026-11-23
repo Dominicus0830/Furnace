@@ -14,6 +14,7 @@ import org.domi.furnace.server.effect.MobEffect;
 import org.domi.furnace.server.entity.ai.Goal;
 import org.domi.furnace.server.entity.ai.control.Mth;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.Squid")
 public class Squid extends WaterAnimal {
     /** canBeLeashed(디컴파일 y): 오징어(cgd)는 맬 수 있다. */
     @Override

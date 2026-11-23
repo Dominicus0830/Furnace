@@ -5,8 +5,9 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.AgeableMob")
 public abstract class AgeableMob extends PathfinderMob {
-    public static final int DATA_BABY_ID = 16;
+    public static final int DATA_BABY_ID = EntityDataIds.AgeableMob_DATA_BABY_ID;
     public static final int BABY_START_AGE = -24000;
 
     protected int age;

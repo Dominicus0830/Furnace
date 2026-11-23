@@ -8,6 +8,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.Prop;
 import org.domi.furnace.server.block.Shape;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.vehicle.DismountHelper")
 public final class DismountHelper {
 
     private DismountHelper() {}

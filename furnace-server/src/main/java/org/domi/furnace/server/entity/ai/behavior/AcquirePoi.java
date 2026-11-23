@@ -21,6 +21,7 @@ import org.domi.furnace.server.world.poi.PoiManager;
 import org.domi.furnace.server.world.poi.PoiRecord;
 import org.domi.furnace.server.world.poi.PoiType;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.AcquirePoi")
 public final class AcquirePoi {
     public static final int SCAN_RANGE = 48;
 

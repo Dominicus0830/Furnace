@@ -5,8 +5,9 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.Skeleton")
 public class Skeleton extends AbstractSkeleton {
-    public static final int DATA_STRAY_CONVERSION = 16;
+    public static final int DATA_STRAY_CONVERSION = EntityDataIds.Skeleton_DATA_STRAY_CONVERSION_ID;
     private int inPowderSnowTime;
     private int conversionTime;
 

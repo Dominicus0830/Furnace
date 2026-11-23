@@ -6,6 +6,7 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.effect.MobEffect;
 import org.domi.furnace.server.effect.MobEffectInstance;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.projectile.DragonFireball")
 public class DragonFireball extends AbstractHurtingProjectile {
     public DragonFireball(ChunkLevel level, int id) { super(EntityType.DRAGON_FIREBALL, level, id); }
 

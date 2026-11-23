@@ -5,6 +5,7 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.effect.MobEffect;
 import org.domi.furnace.server.effect.MobEffectInstance;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.Husk")
 public class Husk extends Zombie {
 
     public Husk(ChunkLevel level, int id) { super(EntityType.HUSK, level, id); }

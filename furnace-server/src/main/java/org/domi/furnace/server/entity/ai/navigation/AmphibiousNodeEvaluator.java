@@ -6,6 +6,7 @@ import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.Mob;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.pathfinder.AmphibiousNodeEvaluator")
 public class AmphibiousNodeEvaluator extends WalkNodeEvaluator {
     private final boolean prefersShallowSwimming;
     private float oldWalkableCost;

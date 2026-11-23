@@ -25,6 +25,7 @@ import org.domi.furnace.server.entity.EntityType;
 import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.Player;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.NaturalSpawner")
 public final class NaturalSpawner {
     private static final int MAGIC_NUMBER = 289;   // 17²
     private static final MobCategory[] SPAWNING_CATEGORIES = java.util.Arrays.stream(MobCategory.values()).filter(c -> c != MobCategory.MISC).toArray(MobCategory[]::new);

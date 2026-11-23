@@ -8,6 +8,7 @@ import org.domi.furnace.server.entity.PiglinAi;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.item.ItemTools;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.piglin.StopHoldingItemIfNoLongerAdmiring")
 public final class StopHoldingItemIfNoLongerAdmiring {
     private StopHoldingItemIfNoLongerAdmiring() {}
 

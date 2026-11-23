@@ -9,6 +9,7 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.warden.WardenSpawnTracker")
 public final class WardenSpawnTracker {
     public static final int MAX_WARNING_LEVEL = 4;
     private static final double PLAYER_SEARCH_RADIUS = 16.0;

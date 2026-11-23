@@ -9,6 +9,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.WalkTarget;
 import org.domi.furnace.server.entity.ai.util.LandRandomPos;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.StrollAroundPoi")
 public final class StrollAroundPoi {
     private StrollAroundPoi() {}
 

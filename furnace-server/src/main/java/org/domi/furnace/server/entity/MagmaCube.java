@@ -5,6 +5,7 @@ import org.domi.furnace.server.attribute.Attribute;
 import org.domi.furnace.server.attribute.AttributeMap;
 import org.domi.furnace.server.block.ChunkLevel;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.MagmaCube")
 public class MagmaCube extends Slime {
 
     public MagmaCube(ChunkLevel level, int id) { super(EntityType.MAGMA_CUBE, level, id); }

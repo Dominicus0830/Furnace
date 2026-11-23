@@ -36,8 +36,9 @@ import org.domi.furnace.server.net.protocol.play.SetEntityData;
 import org.domi.furnace.server.world.poi.PoiManager;
 import org.domi.furnace.server.world.poi.PoiTypes;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.Bee")
 public class Bee extends Animal implements NeutralMob {
-    public static final int DATA_FLAGS_ID = 17, DATA_REMAINING_ANGER_TIME = 18;
+    public static final int DATA_FLAGS_ID = EntityDataIds.Bee_DATA_FLAGS_ID, DATA_REMAINING_ANGER_TIME = EntityDataIds.Bee_DATA_REMAINING_ANGER_TIME;
     public static final int TICKS_PER_FLAP = 2;   // Mth.ceil(1.4959966F)
     private static final int FLAG_ROLL = 2, FLAG_HAS_STUNG = 4, FLAG_HAS_NECTAR = 8;
     private static final int STING_DEATH_COUNTDOWN = 1200;

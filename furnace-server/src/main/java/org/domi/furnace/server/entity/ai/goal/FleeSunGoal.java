@@ -7,6 +7,7 @@ import org.domi.furnace.server.entity.EquipmentSlot;
 import org.domi.furnace.server.entity.PathfinderMob;
 import org.domi.furnace.server.entity.ai.Goal;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.FleeSunGoal")
 public class FleeSunGoal extends Goal {
     protected final PathfinderMob mob;
     private double wantedX, wantedY, wantedZ;

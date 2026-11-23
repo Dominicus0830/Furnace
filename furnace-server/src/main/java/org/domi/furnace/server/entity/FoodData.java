@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.world.Difficulty;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.food.FoodData")
 public final class FoodData {
 
     /** tick 이 주인(플레이어)에게 묻고 시키는 것. */

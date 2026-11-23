@@ -1,6 +1,7 @@
 // 바닐라 DyeColor: 번호·이름. (양털 색 등에 쓴다)
 package org.domi.furnace.server.entity;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.item.DyeColor")
 public enum DyeColor {
     WHITE("white"), ORANGE("orange"), MAGENTA("magenta"), LIGHT_BLUE("light_blue"), YELLOW("yellow"), LIME("lime"), PINK("pink"), GRAY("gray"),
     LIGHT_GRAY("light_gray"), CYAN("cyan"), PURPLE("purple"), BLUE("blue"), BROWN("brown"), GREEN("green"), RED("red"), BLACK("black");

@@ -6,6 +6,7 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.effect.MobEffect;
 import org.domi.furnace.server.effect.MobEffectInstance;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.WitherSkeleton")
 public class WitherSkeleton extends AbstractSkeleton {
 
     public WitherSkeleton(ChunkLevel level, int id) {

@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity;
 import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.ChunkLevel;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.vehicle.MinecartChest")
 public class MinecartChest extends AbstractMinecartContainer {
 
     public MinecartChest(ChunkLevel level, int id) { super(EntityType.CHEST_MINECART, level, id, 27); }

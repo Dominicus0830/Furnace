@@ -5,6 +5,7 @@ import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.NeutralMob;
 import org.domi.furnace.server.entity.ai.Goal;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.target.ResetUniversalAngerTargetGoal")
 public class ResetUniversalAngerTargetGoal<T extends Mob & NeutralMob> extends Goal {
     private final T mob;
     private final boolean alertOthersOfSameType;

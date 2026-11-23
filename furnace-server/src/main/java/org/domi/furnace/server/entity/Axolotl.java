@@ -20,8 +20,9 @@ import org.domi.furnace.server.entity.ai.navigation.PathType;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.axolotl.Axolotl")
 public class Axolotl extends Animal implements Bucketable {
-    public static final int DATA_VARIANT = 17, DATA_PLAYING_DEAD = 18, FROM_BUCKET = 19;
+    public static final int DATA_VARIANT = EntityDataIds.Axolotl_DATA_VARIANT, DATA_PLAYING_DEAD = EntityDataIds.Axolotl_DATA_PLAYING_DEAD, FROM_BUCKET = EntityDataIds.Axolotl_FROM_BUCKET;
     public static final int PLAYDEAD_TICKS = 200;
     public static final int TOTAL_AIR_SUPPLY = 6000;
     public static final int REHYDRATE_AIR_SUPPLY = 1800;

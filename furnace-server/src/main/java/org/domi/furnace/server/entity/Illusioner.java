@@ -9,6 +9,7 @@ import org.domi.furnace.server.effect.MobEffect;
 import org.domi.furnace.server.effect.MobEffectInstance;
 import org.domi.furnace.server.entity.ai.goal.*;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.Illusioner")
 public class Illusioner extends SpellcasterIllager implements RangedAttackMob {
     public Illusioner(ChunkLevel level, int id) {
         super(EntityType.ILLUSIONER, level, id);

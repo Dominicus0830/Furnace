@@ -7,6 +7,7 @@ import org.domi.furnace.server.entity.PathfinderMob;
 import org.domi.furnace.server.entity.ai.Goal;
 import org.domi.furnace.server.entity.ai.util.DefaultRandomPos;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.MoveTowardsRestrictionGoal")
 public class MoveTowardsRestrictionGoal extends Goal {
     private final PathfinderMob mob;
     private double wantedX, wantedY, wantedZ;

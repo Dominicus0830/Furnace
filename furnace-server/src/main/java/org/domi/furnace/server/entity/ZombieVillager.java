@@ -15,8 +15,9 @@ import org.domi.furnace.server.net.protocol.play.SetEntityData;
 import org.domi.furnace.server.trade.MerchantOffer;
 import org.domi.furnace.server.trade.MerchantOffers;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.ZombieVillager")
 public class ZombieVillager extends Zombie {
-    public static final int DATA_CONVERTING_ID = 19, DATA_VILLAGER_DATA = 20;
+    public static final int DATA_CONVERTING_ID = EntityDataIds.ZombieVillager_DATA_CONVERTING_ID, DATA_VILLAGER_DATA = EntityDataIds.ZombieVillager_DATA_VILLAGER_DATA;
     private int villagerConversionTime;
     private UUID conversionStarter;
     private MerchantOffers tradeOffers;

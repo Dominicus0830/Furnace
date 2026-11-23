@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.item.ItemTools;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.entity.Visibility")
 public final class Visibility {
     private Visibility() {}
 

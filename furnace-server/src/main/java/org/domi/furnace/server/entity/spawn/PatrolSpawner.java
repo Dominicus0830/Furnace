@@ -14,6 +14,7 @@ import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.entity.Raider;
 import org.domi.furnace.server.world.GameMode;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.levelgen.PatrolSpawner")
 public final class PatrolSpawner {
     private static final String PILLAGER = "minecraft:pillager";
     private int nextTick;

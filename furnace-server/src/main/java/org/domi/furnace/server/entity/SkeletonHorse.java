@@ -7,6 +7,7 @@ import org.domi.furnace.server.attribute.AttributeMap;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.horse.SkeletonHorse")
 public class SkeletonHorse extends AbstractHorse {
     private boolean isTrap;
     private int trapTime;

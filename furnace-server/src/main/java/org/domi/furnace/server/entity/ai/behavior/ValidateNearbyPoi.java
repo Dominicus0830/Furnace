@@ -11,6 +11,7 @@ import org.domi.furnace.server.entity.ai.brain.GlobalPos;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.world.poi.PoiType;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.ValidateNearbyPoi")
 public final class ValidateNearbyPoi {
     private static final int MAX_DISTANCE = 16;
 

@@ -3,6 +3,7 @@ package org.domi.furnace.server.entity.ai;
 
 import java.util.EnumSet;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.Goal")
 public abstract class Goal {
     public enum Flag { MOVE, LOOK, JUMP, TARGET }
 

@@ -10,6 +10,7 @@ import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.PathfinderMob;
 import org.domi.furnace.server.entity.ai.targeting.TargetingConditions;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal")
 public class HurtByTargetGoal extends TargetGoal {
     private static final TargetingConditions HURT_BY_TARGETING = TargetingConditions.forCombat().ignoreLineOfSight().ignoreInvisibilityTesting();
     private boolean alertSameType;

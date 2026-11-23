@@ -17,6 +17,7 @@ import org.domi.furnace.server.net.protocol.play.SetEntityData;
 import org.domi.furnace.server.net.protocol.play.SetEntityMotion;
 import org.domi.furnace.server.net.protocol.play.TeleportEntity;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.EntityTracker")
 public final class EntityTracker {
 
     /** 보는 플레이어 쪽에서 필요한 것: 시야 거리(청크)·그 청크가 보내졌는지. */

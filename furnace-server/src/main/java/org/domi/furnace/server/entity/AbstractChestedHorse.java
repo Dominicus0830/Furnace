@@ -10,8 +10,9 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.horse.AbstractChestedHorse")
 public abstract class AbstractChestedHorse extends AbstractHorse {
-    public static final int DATA_ID_CHEST = 18;
+    public static final int DATA_ID_CHEST = EntityDataIds.AbstractChestedHorse_DATA_ID_CHEST;
 
     protected AbstractChestedHorse(EntityType type, ChunkLevel level, int id) { super(type, level, id); }
 

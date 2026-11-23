@@ -3,6 +3,7 @@ package org.domi.furnace.server.entity.ai.goal;
 
 import org.domi.furnace.server.entity.Zombie;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.ZombieAttackGoal")
 public class ZombieAttackGoal extends MeleeAttackGoal {
     private final Zombie zombie;
     private int raiseArmTicks;

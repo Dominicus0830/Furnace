@@ -7,6 +7,7 @@ import org.domi.furnace.server.entity.EquipmentSlot;
 import org.domi.furnace.server.entity.Piglin;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.piglin.StopAdmiringIfTiredOfTryingToReachItem")
 public final class StopAdmiringIfTiredOfTryingToReachItem {
     private StopAdmiringIfTiredOfTryingToReachItem() {}
 

@@ -9,6 +9,7 @@ import org.domi.furnace.server.entity.ai.Goal;
 import org.domi.furnace.server.entity.ai.navigation.Path;
 import org.domi.furnace.server.world.GameMode;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.MeleeAttackGoal")
 public class MeleeAttackGoal extends Goal {
     protected final PathfinderMob mob;
     private final double speedModifier;

@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.Explosion;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.projectile.windcharge.AbstractWindCharge")
 public abstract class AbstractWindCharge extends AbstractHurtingProjectile {
     public static final int GUST_EMITTER_LARGE = 25, GUST_EMITTER_SMALL = 26;
     public static final String BURST_SOUND = "minecraft:entity.wind_charge.wind_burst";

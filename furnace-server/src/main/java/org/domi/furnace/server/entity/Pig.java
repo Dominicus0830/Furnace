@@ -11,9 +11,10 @@ import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.Pig")
 public class Pig extends Animal {
     /** 17 안장, 18 가속 시간(Pig.DATA_SADDLE_ID, DATA_BOOST_TIME). */
-    public static final int DATA_SADDLE = 17, DATA_BOOST_TIME = 18;
+    public static final int DATA_SADDLE = EntityDataIds.Pig_DATA_SADDLE_ID, DATA_BOOST_TIME = EntityDataIds.Pig_DATA_BOOST_TIME;
 
     public Pig(ChunkLevel level, int id) { super(EntityType.PIG, level, id); }
 

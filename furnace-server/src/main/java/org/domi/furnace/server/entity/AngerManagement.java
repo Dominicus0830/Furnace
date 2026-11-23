@@ -16,6 +16,7 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.warden.AngerManagement")
 public final class AngerManagement {
     static final int CONVERSION_DELAY = 2;
     public static final int MAX_ANGER = 150;

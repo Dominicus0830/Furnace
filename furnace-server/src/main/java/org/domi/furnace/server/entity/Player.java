@@ -15,6 +15,7 @@ import org.domi.furnace.server.net.io.Types;
 import org.domi.furnace.server.net.protocol.Packet;
 import org.domi.furnace.server.world.ChunkPos;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.player.Player")
 public final class Player implements Targetable, Rider, org.domi.furnace.server.map.MapData.Viewer {
     private Targetable lastHurtByMob, lastHurtMob;
     private int combatTicks, lastHurtByMobTimestamp, lastHurtMobTimestamp;

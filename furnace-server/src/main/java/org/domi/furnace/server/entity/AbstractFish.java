@@ -14,8 +14,9 @@ import org.domi.furnace.server.entity.ai.navigation.WaterBoundPathNavigation;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.AbstractFish")
 public abstract class AbstractFish extends WaterAnimal implements Bucketable {
-    public static final int DATA_FROM_BUCKET = 16;
+    public static final int DATA_FROM_BUCKET = EntityDataIds.AbstractFish_FROM_BUCKET;
 
     protected AbstractFish(EntityType type, ChunkLevel level, int id) {
         super(type, level, id);

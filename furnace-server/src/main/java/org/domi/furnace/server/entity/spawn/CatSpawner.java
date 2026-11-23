@@ -15,6 +15,7 @@ import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.world.poi.PoiManager;
 import org.domi.furnace.server.world.poi.PoiTypes;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.npc.CatSpawner")
 public final class CatSpawner {
     private static final int TICK_DELAY = 1200;
     private static final String CAT = "minecraft:cat";

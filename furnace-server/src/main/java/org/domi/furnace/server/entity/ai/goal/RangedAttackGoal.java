@@ -7,6 +7,7 @@ import org.domi.furnace.server.entity.RangedAttackMob;
 import org.domi.furnace.server.entity.Targetable;
 import org.domi.furnace.server.entity.ai.Goal;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.RangedAttackGoal")
 public class RangedAttackGoal extends Goal {
     private final Mob mob;
     private final RangedAttackMob rangedAttackMob;

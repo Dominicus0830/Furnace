@@ -14,9 +14,10 @@ import org.domi.furnace.server.entity.ai.goal.ZombieAttackGoal;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.Zombie")
 public class Zombie extends Monster {
     /** Zombie 엔티티 데이터: 16 아기, 17 특수 종류(int), 18 드라운드 변환 중. */
-    public static final int DATA_BABY = 16, DATA_SPECIAL_TYPE = 17, DATA_DROWNED_CONVERSION = 18;
+    public static final int DATA_BABY = EntityDataIds.Zombie_DATA_BABY_ID, DATA_SPECIAL_TYPE = EntityDataIds.Zombie_DATA_SPECIAL_TYPE_ID, DATA_DROWNED_CONVERSION = EntityDataIds.Zombie_DATA_DROWNED_CONVERSION_ID;
     private static final String BABY_MODIFIER_ID = "minecraft:baby";
 
     private boolean canBreakDoors;

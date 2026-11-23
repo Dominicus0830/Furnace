@@ -6,13 +6,14 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.OminousItemSpawner")
 public class OminousItemSpawner extends Entity {
 
     /** getPistonPushReaction = IGNORE. */
     @Override
     public boolean ignoresPistonPush() { return true; }
 
-    public static final int DATA_ITEM = 8;
+    public static final int DATA_ITEM = EntityDataIds.OminousItemSpawner_DATA_ITEM;
     private long spawnItemAfterTicks;
 
     public OminousItemSpawner(ChunkLevel level, int id) {

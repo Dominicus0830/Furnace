@@ -8,6 +8,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.ai.Goal;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.ClimbOnTopOfPowderSnowGoal")
 public class ClimbOnTopOfPowderSnowGoal extends Goal {
     private final Mob mob;
 

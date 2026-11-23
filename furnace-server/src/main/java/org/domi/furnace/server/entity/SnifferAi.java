@@ -14,6 +14,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 import org.domi.furnace.server.entity.ai.brain.WalkTarget;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.sniffer.SnifferAi")
 public final class SnifferAi {
     static final int SNIFFING_COOLDOWN_TICKS = 9600;
     private static final float SPEED_MULTIPLIER_WHEN_IDLING = 1.0F;

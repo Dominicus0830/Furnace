@@ -16,6 +16,7 @@ import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.recipe.SpecialRecipes;
 import org.domi.furnace.server.world.raid.Raid;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.CelebrateVillagersSurvivedRaid")
 public class CelebrateVillagersSurvivedRaid extends Behavior<Villager> {
     private Raid currentRaid;
 

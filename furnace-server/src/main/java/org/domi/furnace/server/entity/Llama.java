@@ -11,8 +11,9 @@ import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.horse.Llama")
 public class Llama extends AbstractChestedHorse implements RangedAttackMob {
-    public static final int DATA_STRENGTH_ID = 19, DATA_VARIANT_ID = 20;
+    public static final int DATA_STRENGTH_ID = EntityDataIds.Llama_DATA_STRENGTH_ID, DATA_VARIANT_ID = EntityDataIds.Llama_DATA_VARIANT_ID;
     private boolean didSpit;
     private Llama caravanHead, caravanTail;
 

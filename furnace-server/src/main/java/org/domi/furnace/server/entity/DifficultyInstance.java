@@ -1,6 +1,7 @@
 // 바닐라 DifficultyInstance: 난이도·월드 시간·청크에서 보낸 시간·달 밝기로 정하는 실효 난이도(effectiveDifficulty)와 특수 배율.
 package org.domi.furnace.server.entity;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.DifficultyInstance")
 public final class DifficultyInstance {
     private final int difficulty;   // 0 평화 · 1 쉬움 · 2 보통 · 3 어려움
     private final float effectiveDifficulty;

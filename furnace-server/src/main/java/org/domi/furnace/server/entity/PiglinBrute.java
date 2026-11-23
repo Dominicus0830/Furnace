@@ -9,6 +9,7 @@ import org.domi.furnace.server.entity.ai.brain.Brain;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.SensorType;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.piglin.PiglinBrute")
 public class PiglinBrute extends AbstractPiglin {
     public PiglinBrute(ChunkLevel level, int id) {
         super(EntityType.PIGLIN_BRUTE, level, id);

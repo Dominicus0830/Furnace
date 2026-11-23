@@ -18,6 +18,7 @@ import org.domi.furnace.server.entity.ai.navigation.Path;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.memory.MemoryModuleType")
 public final class MemoryModuleType<U> {
     /** 값 ↔ NBT 변환. */
     public interface Codec<U> {

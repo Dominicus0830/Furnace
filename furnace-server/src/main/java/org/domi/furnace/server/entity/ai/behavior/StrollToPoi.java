@@ -7,6 +7,7 @@ import org.domi.furnace.server.entity.ai.brain.GlobalPos;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.WalkTarget;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.StrollToPoi")
 public final class StrollToPoi {
     private StrollToPoi() {}
 

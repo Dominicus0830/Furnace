@@ -11,6 +11,7 @@ import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.entity.Targetable;
 import org.domi.furnace.server.entity.ai.targeting.TargetingConditions;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal")
 public class NearestAttackableTargetGoal extends TargetGoal {
     protected final Class<?> targetType;
     protected final int randomInterval;

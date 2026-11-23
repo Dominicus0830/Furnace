@@ -19,6 +19,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 import org.domi.furnace.server.entity.ai.brain.Unit;
 import org.domi.furnace.server.entity.ai.sensing.NearestLivingEntitySensor;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.warden.WardenAi")
 public final class WardenAi {
     public static final int EMERGE_DURATION = (int) Math.ceil(133.59999F);
     public static final int ROAR_DURATION = (int) Math.ceil(84.0F);

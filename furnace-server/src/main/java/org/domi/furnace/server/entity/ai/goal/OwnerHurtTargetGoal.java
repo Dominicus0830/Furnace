@@ -7,6 +7,7 @@ import org.domi.furnace.server.entity.TamableAnimal;
 import org.domi.furnace.server.entity.Targetable;
 import org.domi.furnace.server.entity.ai.targeting.TargetingConditions;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.target.OwnerHurtTargetGoal")
 public class OwnerHurtTargetGoal extends TargetGoal {
     private final TamableAnimal tameAnimal;
     private Targetable ownerLastHurt;

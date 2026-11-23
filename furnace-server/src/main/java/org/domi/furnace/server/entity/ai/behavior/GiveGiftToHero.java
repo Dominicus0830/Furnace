@@ -15,6 +15,7 @@ import org.domi.furnace.server.entity.Villager;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.GiveGiftToHero")
 public class GiveGiftToHero extends Behavior<Villager> {
     private static final int THROW_GIFT_AT_DISTANCE = 5, MIN_TIME_BETWEEN_GIFTS = 600, MAX_TIME_BETWEEN_GIFTS = 6600, TIME_TO_DELAY_FOR_HEAD_TO_FINISH_TURNING = 20;
     private static final float SPEED_MODIFIER = 0.5F;

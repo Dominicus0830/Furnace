@@ -10,8 +10,9 @@ import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.Bogged")
 public class Bogged extends AbstractSkeleton {
-    public static final int DATA_SHEARED = 16;
+    public static final int DATA_SHEARED = EntityDataIds.Bogged_DATA_SHEARED;
 
     public Bogged(ChunkLevel level, int id) { super(EntityType.BOGGED, level, id); }
 

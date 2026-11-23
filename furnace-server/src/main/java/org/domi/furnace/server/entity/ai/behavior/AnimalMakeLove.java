@@ -10,6 +10,7 @@ import org.domi.furnace.server.entity.EntityType;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.AnimalMakeLove")
 public class AnimalMakeLove extends Behavior<Animal> {
     private static final int BREED_RANGE = 3;
     private static final int MIN_DURATION = 60;

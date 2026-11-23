@@ -13,8 +13,9 @@ import org.domi.furnace.server.entity.ai.goal.NearestAttackableTargetGoal;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.Slime")
 public class Slime extends Mob implements Enemy {
-    public static final int DATA_SIZE = 16;
+    public static final int DATA_SIZE = EntityDataIds.Slime_ID_SIZE;
     private boolean wasOnGround;
 
     public Slime(ChunkLevel level, int id) { this(EntityType.SLIME, level, id); }

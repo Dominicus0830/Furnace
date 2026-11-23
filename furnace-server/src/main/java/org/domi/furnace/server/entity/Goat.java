@@ -17,8 +17,9 @@ import org.domi.furnace.server.item.ComponentPatch;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.goat.Goat")
 public class Goat extends Animal {
-    public static final int DATA_IS_SCREAMING_GOAT = 17, DATA_HAS_LEFT_HORN = 18, DATA_HAS_RIGHT_HORN = 19;
+    public static final int DATA_IS_SCREAMING_GOAT = EntityDataIds.Goat_DATA_IS_SCREAMING_GOAT, DATA_HAS_LEFT_HORN = EntityDataIds.Goat_DATA_HAS_LEFT_HORN, DATA_HAS_RIGHT_HORN = EntityDataIds.Goat_DATA_HAS_RIGHT_HORN;
     public static final int ADULT_ATTACK_DAMAGE = 2;
     public static final int BABY_ATTACK_DAMAGE = 1;
 

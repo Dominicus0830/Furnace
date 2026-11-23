@@ -8,6 +8,7 @@ import org.domi.furnace.server.entity.ai.brain.EntityTracker;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.control.Mth;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.BackUpIfTooClose")
 public final class BackUpIfTooClose {
     private BackUpIfTooClose() {}
 

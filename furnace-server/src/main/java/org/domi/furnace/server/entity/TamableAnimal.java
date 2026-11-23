@@ -9,8 +9,9 @@ import org.domi.furnace.server.entity.ai.navigation.PathType;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.TamableAnimal")
 public abstract class TamableAnimal extends Animal {
-    public static final int DATA_FLAGS_ID = 17, DATA_OWNERUUID_ID = 18;
+    public static final int DATA_FLAGS_ID = EntityDataIds.TamableAnimal_DATA_FLAGS_ID, DATA_OWNERUUID_ID = EntityDataIds.TamableAnimal_DATA_OWNERUUID_ID;
     private boolean orderedToSit;
 
     protected TamableAnimal(EntityType type, ChunkLevel level, int id) { super(type, level, id); }

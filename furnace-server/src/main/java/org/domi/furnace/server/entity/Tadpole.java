@@ -12,6 +12,7 @@ import org.domi.furnace.server.entity.ai.control.SmoothSwimmingMoveControl;
 import org.domi.furnace.server.item.ItemTags;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.frog.Tadpole")
 public class Tadpole extends AbstractFish {
     public static int ticksToBeFrog = Math.abs(-24000);
     private int age;

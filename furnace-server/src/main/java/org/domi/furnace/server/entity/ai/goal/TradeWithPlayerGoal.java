@@ -6,6 +6,7 @@ import org.domi.furnace.server.entity.PathfinderMob;
 import org.domi.furnace.server.entity.ai.Goal;
 import org.domi.furnace.server.trade.Merchant;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.TradeWithPlayerGoal")
 public class TradeWithPlayerGoal<T extends PathfinderMob & Merchant> extends Goal {
     private final T mob;
 

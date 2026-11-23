@@ -14,8 +14,9 @@ import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.IronGolem")
 public class IronGolem extends AbstractGolem implements NeutralMob {
-    public static final int DATA_FLAGS_ID = 16;
+    public static final int DATA_FLAGS_ID = EntityDataIds.IronGolem_DATA_FLAGS_ID;
     private static final TargetingConditions OFFER_FLOWER_TARGETING = TargetingConditions.forNonCombat().range(6.0);
     private int attackAnimationTick;
     private int offerFlowerTick;

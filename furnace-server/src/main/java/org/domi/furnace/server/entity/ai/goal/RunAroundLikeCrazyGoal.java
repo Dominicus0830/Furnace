@@ -6,6 +6,7 @@ import org.domi.furnace.server.entity.AbstractHorse;
 import org.domi.furnace.server.entity.ai.Goal;
 import org.domi.furnace.server.entity.ai.util.LandRandomPos;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.RunAroundLikeCrazyGoal")
 public class RunAroundLikeCrazyGoal extends Goal {
     private final AbstractHorse horse;
     private final double speedModifier;

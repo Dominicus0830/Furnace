@@ -5,6 +5,7 @@ import java.util.List;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.Entity;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.pathfinder.Path")
 public class Path {
     private final List<Node> nodes;
     private int nextNodeIndex;

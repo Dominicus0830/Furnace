@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.EntityType")
 public record EntityType(String name, int id, float width, float height, float eyeHeight,
                          int clientTrackingRange, int updateInterval, boolean trackDeltas, boolean fireImmune) {
 

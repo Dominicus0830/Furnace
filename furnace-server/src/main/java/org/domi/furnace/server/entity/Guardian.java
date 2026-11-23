@@ -17,8 +17,9 @@ import org.domi.furnace.server.entity.ai.navigation.PathType;
 import org.domi.furnace.server.entity.ai.navigation.WaterBoundPathNavigation;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.Guardian")
 public class Guardian extends Monster {
-    public static final int DATA_MOVING = 16, DATA_ACTIVE_ATTACK_TARGET = 17;
+    public static final int DATA_MOVING = EntityDataIds.Guardian_DATA_ID_MOVING, DATA_ACTIVE_ATTACK_TARGET = EntityDataIds.Guardian_DATA_ID_ATTACK_TARGET;
     protected static final int ATTACK_TIME = 80;
     protected RandomStrollGoal randomStrollGoal;
 

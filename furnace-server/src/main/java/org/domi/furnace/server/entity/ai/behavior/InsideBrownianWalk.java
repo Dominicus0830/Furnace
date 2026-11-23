@@ -12,6 +12,7 @@ import org.domi.furnace.server.entity.PathfinderMob;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.WalkTarget;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.InsideBrownianWalk")
 public final class InsideBrownianWalk {
     private InsideBrownianWalk() {}
 

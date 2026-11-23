@@ -10,6 +10,7 @@ import org.domi.furnace.server.entity.ai.brain.Brain;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.frog.TadpoleAi")
 public final class TadpoleAi {
     private static final float SPEED_MULTIPLIER_WHEN_PANICKING = 2.0F;
     private static final float SPEED_MULTIPLIER_WHEN_IDLING_IN_WATER = 0.5F;

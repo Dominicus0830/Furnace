@@ -10,8 +10,9 @@ import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.decoration.ItemFrame")
 public class ItemFrame extends HangingEntity {
-    public static final int DATA_ITEM = 8, DATA_ROTATION = 9;
+    public static final int DATA_ITEM = EntityDataIds.ItemFrame_DATA_ITEM, DATA_ROTATION = EntityDataIds.ItemFrame_DATA_ROTATION;
     private float dropChance = 1.0F;
     private boolean fixed;
     private final boolean glow;

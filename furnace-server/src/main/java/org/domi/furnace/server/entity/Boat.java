@@ -14,11 +14,12 @@ import org.domi.furnace.server.entity.ai.control.Mth;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.vehicle.Boat")
 public class Boat extends Entity implements Leashable, HardCollider {
 
     /** VehicleEntity: 8 맞은 시간, 9 맞은 방향, 10 피해. Boat: 11 종류, 12·13 왼쪽·오른쪽 노, 14 거품 시간. */
-    public static final int DATA_ID_HURT = 8, DATA_ID_HURTDIR = 9, DATA_ID_DAMAGE = 10, DATA_ID_TYPE = 11, DATA_ID_PADDLE_LEFT = 12,
-            DATA_ID_PADDLE_RIGHT = 13, DATA_ID_BUBBLE_TIME = 14;
+    public static final int DATA_ID_HURT = EntityDataIds.VehicleEntity_DATA_ID_HURT, DATA_ID_HURTDIR = EntityDataIds.VehicleEntity_DATA_ID_HURTDIR, DATA_ID_DAMAGE = EntityDataIds.VehicleEntity_DATA_ID_DAMAGE, DATA_ID_TYPE = EntityDataIds.Boat_DATA_ID_TYPE, DATA_ID_PADDLE_LEFT = EntityDataIds.Boat_DATA_ID_PADDLE_LEFT,
+            DATA_ID_PADDLE_RIGHT = EntityDataIds.Boat_DATA_ID_PADDLE_RIGHT, DATA_ID_BUBBLE_TIME = EntityDataIds.Boat_DATA_ID_BUBBLE_TIME;
 
     /** Boat.Type: 순번이 데이터 값. 판자·아이템 이름. */
     public enum Type {

@@ -7,6 +7,7 @@ import org.domi.furnace.server.entity.Targetable;
 import org.domi.furnace.server.entity.ai.Goal;
 import org.domi.furnace.server.entity.ai.util.LandRandomPos;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.MoveTowardsTargetGoal")
 public class MoveTowardsTargetGoal extends Goal {
     private final PathfinderMob mob;
     private Targetable target;

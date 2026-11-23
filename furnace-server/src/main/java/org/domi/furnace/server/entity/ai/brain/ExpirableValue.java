@@ -1,6 +1,7 @@
 // 바닐라 ExpirableValue: 기억 값과 남은 유효 틱(Long.MAX_VALUE = 영구).
 package org.domi.furnace.server.entity.ai.brain;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.memory.ExpirableValue")
 public final class ExpirableValue<T> {
     private final T value;
     private long timeToLive;

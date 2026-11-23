@@ -6,6 +6,7 @@ import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.Targetable;
 import org.domi.furnace.server.entity.ai.Goal;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.OcelotAttackGoal")
 public class OcelotAttackGoal extends Goal {
     private final Mob mob;
     private Targetable target;

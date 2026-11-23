@@ -28,8 +28,9 @@ import org.domi.furnace.server.net.io.nbt.NbtList;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 import org.domi.furnace.server.world.gen.BiomeTags;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.Fox")
 public class Fox extends Animal {
-    public static final int DATA_TYPE_ID = 17, DATA_FLAGS_ID = 18, DATA_TRUSTED_0 = 19, DATA_TRUSTED_1 = 20;
+    public static final int DATA_TYPE_ID = EntityDataIds.Fox_DATA_TYPE_ID, DATA_FLAGS_ID = EntityDataIds.Fox_DATA_FLAGS_ID, DATA_TRUSTED_0 = EntityDataIds.Fox_DATA_TRUSTED_ID_0, DATA_TRUSTED_1 = EntityDataIds.Fox_DATA_TRUSTED_ID_1;
     private static final int FLAG_SITTING = 1, FLAG_CROUCHING = 4, FLAG_INTERESTED = 8, FLAG_POUNCING = 16, FLAG_SLEEPING = 32, FLAG_FACEPLANTED = 64, FLAG_DEFENDING = 128;
     private static final Prop BERRY_AGE = B.prop("age");
 

@@ -9,8 +9,9 @@ import org.domi.furnace.server.item.ItemTags;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.Ocelot")
 public class Ocelot extends Animal {
-    public static final int DATA_TRUSTING = 17;
+    public static final int DATA_TRUSTING = EntityDataIds.Ocelot_DATA_TRUSTING;
     private AvoidEntityGoal ocelotAvoidPlayersGoal;
     private TemptGoal temptGoal;
 

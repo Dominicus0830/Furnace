@@ -23,6 +23,7 @@ import org.domi.furnace.server.entity.ai.navigation.PathfindingContext;
 import org.domi.furnace.server.entity.ai.navigation.WalkNodeEvaluator;
 import org.domi.furnace.server.entity.ai.targeting.TargetingConditions;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.PrepareRamNearestTarget")
 public class PrepareRamNearestTarget<E extends PathfinderMob> extends Behavior<E> {
     public static final int TIME_OUT_DURATION = 160;
     private static final int[] HORIZONTAL = {Dir.NORTH, Dir.EAST, Dir.SOUTH, Dir.WEST};

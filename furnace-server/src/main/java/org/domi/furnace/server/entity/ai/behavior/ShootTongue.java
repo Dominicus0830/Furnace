@@ -15,6 +15,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 import org.domi.furnace.server.entity.ai.brain.WalkTarget;
 import org.domi.furnace.server.entity.ai.navigation.Path;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.frog.ShootTongue")
 public class ShootTongue extends Behavior<Frog> {
     public static final int TIME_OUT_DURATION = 100;
     public static final int CATCH_ANIMATION_DURATION = 6;

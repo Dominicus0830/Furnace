@@ -17,6 +17,7 @@ import org.domi.furnace.server.world.poi.PoiManager;
 import org.domi.furnace.server.world.poi.PoiRecord;
 import org.domi.furnace.server.world.poi.PoiTypes;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.sensing.NearestBedSensor")
 public class NearestBedSensor extends Sensor<PathfinderMob> {
     private static final int CACHE_TIMEOUT = 40, BATCH_SIZE = 5;
     private final Map<Pos, Long> batchCache = new HashMap<>();

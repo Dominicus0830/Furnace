@@ -18,6 +18,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 import org.domi.furnace.server.entity.ai.brain.PositionTracker;
 import org.domi.furnace.server.world.GameMode;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.allay.AllayAi")
 public final class AllayAi {
     private static final float SPEED_MULTIPLIER_WHEN_IDLING = 1.0F;
     private static final float SPEED_MULTIPLIER_WHEN_FOLLOWING_DEPOSIT_TARGET = 2.25F;

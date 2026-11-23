@@ -11,6 +11,7 @@ import org.domi.furnace.server.entity.ai.brain.Brain;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.axolotl.AxolotlAi")
 public final class AxolotlAi {
     private static final UniformInt ADULT_FOLLOW_RANGE = UniformInt.of(5, 16);
 

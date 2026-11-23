@@ -3,6 +3,7 @@ package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.ChunkLevel;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.vehicle.Minecart")
 public class Minecart extends AbstractMinecart {
 
     public Minecart(ChunkLevel level, int id) { super(EntityType.MINECART, level, id); }

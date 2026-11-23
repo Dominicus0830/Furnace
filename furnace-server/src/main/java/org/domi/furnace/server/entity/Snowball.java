@@ -3,6 +3,7 @@ package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.ChunkLevel;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.projectile.Snowball")
 public class Snowball extends ThrowableProjectile {
     public Snowball(ChunkLevel level, int id) { super(EntityType.SNOWBALL, level, id); }
 

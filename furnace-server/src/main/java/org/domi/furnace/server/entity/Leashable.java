@@ -1,6 +1,7 @@
 // 바닐라 Leashable(btk): 가죽끈에 매일 수 있는 엔티티(몹과 배). 울타리 매듭·끈 아이템 처리가 공통으로 쓰는 표면만 둔다.
 package org.domi.furnace.server.entity;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.Leashable")
 public interface Leashable {
     /** 붙잡은 쪽(플레이어·매듭 등). 없으면 null. */
     Rider getLeashHolder();

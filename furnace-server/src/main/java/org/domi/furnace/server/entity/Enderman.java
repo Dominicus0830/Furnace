@@ -18,8 +18,9 @@ import org.domi.furnace.server.entity.ai.targeting.TargetingConditions;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.EnderMan")
 public class Enderman extends Monster implements NeutralMob {
-    public static final int DATA_CARRY_STATE = 16, DATA_CREEPY = 17, DATA_STARED_AT = 18;
+    public static final int DATA_CARRY_STATE = EntityDataIds.EnderMan_DATA_CARRY_STATE, DATA_CREEPY = EntityDataIds.EnderMan_DATA_CREEPY, DATA_STARED_AT = EntityDataIds.EnderMan_DATA_STARED_AT;
     private static final String SPEED_MODIFIER_ATTACKING_ID = "minecraft:attacking";
     private static final AttributeModifier SPEED_MODIFIER_ATTACKING = new AttributeModifier(SPEED_MODIFIER_ATTACKING_ID, 0.15F, AttributeModifier.ADD_VALUE);
     private int lastStareSound = Integer.MIN_VALUE;

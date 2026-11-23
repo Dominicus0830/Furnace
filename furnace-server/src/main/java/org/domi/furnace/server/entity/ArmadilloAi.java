@@ -11,6 +11,7 @@ import org.domi.furnace.server.entity.ai.brain.Brain;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.armadillo.ArmadilloAi")
 public final class ArmadilloAi {
     private static final float SPEED_MULTIPLIER_WHEN_PANICKING = 2.0F;
     private static final float SPEED_MULTIPLIER_WHEN_IDLING = 1.0F;

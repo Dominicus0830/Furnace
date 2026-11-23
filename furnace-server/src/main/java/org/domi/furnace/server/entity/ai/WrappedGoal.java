@@ -3,6 +3,7 @@ package org.domi.furnace.server.entity.ai;
 
 import java.util.EnumSet;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.WrappedGoal")
 public class WrappedGoal extends Goal {
     private final Goal goal;
     private final int priority;

@@ -5,8 +5,9 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort({"net.minecraft.world.entity.projectile.ThrowableProjectile", "net.minecraft.world.entity.projectile.ThrowableItemProjectile"})
 public abstract class ThrowableProjectile extends Projectile {
-    public static final int DATA_ITEM_STACK = 8;
+    public static final int DATA_ITEM_STACK = EntityDataIds.ThrowableItemProjectile_DATA_ITEM_STACK;
 
     protected ThrowableProjectile(EntityType type, ChunkLevel level, int id) { super(type, level, id); }
 
