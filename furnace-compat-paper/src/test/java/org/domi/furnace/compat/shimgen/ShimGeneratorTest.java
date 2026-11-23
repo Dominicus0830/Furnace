@@ -591,4 +591,26 @@ class ShimGeneratorTest {
         String skipped = new ShimGenerator(spec, ShimLock.parse(lock), tmp, List.of(tmp.resolve("handB")), List.of()).generate().files().get("net/minecraft/zz/Tag");
         assertFalse(skipped.contains("getName"), skipped);
     }
+
+    /** 손 인터페이스의 default 메서드가 이미 구현한 추상 메서드는 던지는 몸통으로 가리지 않는다(리뷰 #601: LevelReader·BlockGetter·Packet 류). */
+    @Test
+    void handInterfaceDefaultMethodsAreNotHidden() throws Exception {
+        String lock = String.join("\n", "#furnace-shim-lock\t1\ttest",
+                "C\tnet/minecraft/zz/Base\t1057\tjava/lang/Object\t-\t-\t-\tt",
+                "C\tnet/minecraft/zz/Named\t1537\tjava/lang/Object\t-\t-\t-\tt",
+                "M\tnet/minecraft/zz/Named\tgetName\t()Ljava/lang/String;\t1025\t-",
+                "C\tnet/minecraft/zz/Dflt\t1537\tjava/lang/Object\t-\t-\t-\tt",
+                "C\tnet/minecraft/zz/Tag\t33\tnet/minecraft/zz/Base\tnet/minecraft/zz/Named,net/minecraft/zz/Dflt\t-\t-\t-\tt", "");
+        ShimSpec spec = new ShimSpec();
+        spec.parse("t.spec", "class net.minecraft.zz.Named\n  getName\nclass net.minecraft.zz.Tag\n");
+        Path dir = Files.createDirectories(tmp.resolve("handC/net/minecraft/zz"));
+        Files.writeString(dir.resolve("Base.java"), "package net.minecraft.zz;\npublic abstract class Base {\n    protected Base(org.domi.furnace.compat.nms.ShimCtor tag) {}\n}\n", StandardCharsets.UTF_8);
+        Files.writeString(dir.resolve("Dflt.java"), "package net.minecraft.zz;\npublic interface Dflt {\n    default String getName() { return \"d\"; }\n}\n", StandardCharsets.UTF_8);
+        String tag = new ShimGenerator(spec, ShimLock.parse(lock), tmp, List.of(tmp.resolve("handC")), List.of()).generate().files().get("net/minecraft/zz/Tag");
+        assertFalse(tag.contains("getName"), tag);
+        // 추상 선언만 있는 손 인터페이스는 구현이 아니다 — 던지는 몸통이 생긴다
+        Files.writeString(dir.resolve("Dflt.java"), "package net.minecraft.zz;\npublic interface Dflt {\n    String getName();\n}\n", StandardCharsets.UTF_8);
+        String tag2 = new ShimGenerator(spec, ShimLock.parse(lock), tmp, List.of(tmp.resolve("handC")), List.of()).generate().files().get("net/minecraft/zz/Tag");
+        assertTrue(tag2.contains("getName"), tag2);
+    }
 }

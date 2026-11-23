@@ -365,10 +365,11 @@ public final class ShimGenerator {
                 if (unknown) {
                     boolean handHas = false;
                     for (String h : handSupers) if (handDeclares(h, m.name())) { handHas = true; break; }
+                    if (!handHas) handHas = implementedByHandInterface(n, m);
                     if (handHas) continue;
                 }
                 // 손 조각이 이미 구현한 메서드(조각 소스에 선언이 있다)는 던지는 몸통으로 가리지 않는다 — 상위 클래스·인터페이스 기본 메서드 조각 모두(추상을 선언한 조각 자신은 뺀다)
-                if (implementedByFragment(n, m)) continue;
+                if (implementedByFragment(n, m) || implementedByHandInterface(n, m)) continue;
                 if (JavaTypes.usesTypeVariables(m.signature())) {
                     problems.add(n + " does not link " + m.name() + m.desc() + ", an abstract method of a generated supertype whose signature uses type variables;"
                             + " a throwing body cannot be generated - link it in the spec of " + n);
@@ -397,10 +398,31 @@ public final class ShimGenerator {
 
     /** 조각 소스에 그 이름의 메서드 몸통(여는 중괄호까지)이 있나 — 호출식(return name( …)·추상 선언은 안 센다. */
     private boolean fragmentMethodDeclared(String fragment, String method) {
-        String text = fragmentSrc.text(fragment);
+        return bodyDeclared(fragmentSrc.text(fragment), method);
+    }
+
+    private static boolean bodyDeclared(String text, String method) {
         if (text == null) return false;
         return Pattern.compile("(?m)^\\s*(?:@\\w+\\s+)*(?:public |protected |private |static |final |default |synchronized )*(?:<[^>]+>\\s+)?[\\w.<>\\[\\]?, ]+\\s+"
                 + Pattern.quote(method) + "\\s*\\([^;{]*\\)\\s*(?:throws [\\w., ]+)?\\{").matcher(text).find();
+    }
+
+    /**
+     * 손 인터페이스(src/main/java)의 기본(default) 메서드 몸통이 같은 이름을 이미 구현하나 — n 의 상위 사슬 전체의 인터페이스를 따라간다
+     * (손 LevelReader·BlockGetter·Packet 등. 손 상위 클래스가 구현한 인터페이스도 포함).
+     */
+    private boolean implementedByHandInterface(String n, ShimLock.Member m) {
+        Set<String> seen = new HashSet<>();
+        List<String> work = new ArrayList<>(List.of(n));
+        while (!work.isEmpty()) {
+            String s = work.remove(work.size() - 1);
+            if (s == null || !seen.add(s) || !lock.classes.containsKey(s)) continue;
+            ShimLock.Cls c = lock.classes.get(s);
+            if (c.isInterface() && !s.equals(m.owner()) && !emitted(s) && hand.has(s) && bodyDeclared(hand.text(s), m.name())) return true;
+            work.add(c.superName());
+            work.addAll(c.interfaces());
+        }
+        return false;
     }
 
     final Map<String, List<ShimLock.Member>> stubsFor = new TreeMap<>();
