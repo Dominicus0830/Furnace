@@ -198,6 +198,11 @@ public class Block extends BlockBehaviour implements ItemLike {
 
     public StateDefinition<Block, BlockState> getStateDefinition() { return stateDefinition; }
 
+    /** 바닐라 getCloneItemStack(level, pos, state): 이 블록의 아이템 하나(가운데 클릭). 블록마다 다르게 정한 종류(배너 무늬 등)는 이 shim 에 없다. */
+    public net.minecraft.world.item.ItemStack getCloneItemStack(net.minecraft.world.level.LevelReader level, net.minecraft.core.BlockPos pos, BlockState state) {
+        return new net.minecraft.world.item.ItemStack(this);
+    }
+
     @Override
     public Item asItem() { return Item.byKey(itemKey); }
 

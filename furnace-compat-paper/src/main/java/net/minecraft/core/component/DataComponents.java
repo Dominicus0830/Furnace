@@ -12,6 +12,8 @@ import net.minecraft.world.item.component.Unbreakable;
 import org.domi.furnace.api.item.ItemComponent;
 import org.domi.furnace.api.item.ItemComponents;
 import org.domi.furnace.api.text.Text;
+import org.domi.furnace.compat.nms.NmsComponentWire;
+import org.domi.furnace.compat.nms.RawComponentValue;
 
 /**
  * 데이터 컴포넌트 종류 상수(Mojang 이름 shim, 일부). 값은 Furnace 아이템 컴포넌트 API 를 거쳐 읽고 쓴다(서버가 1.21.1 저장 꼴로 바꾼다).
@@ -44,6 +46,48 @@ public final class DataComponents {
         return out;
     });
 
+    /** 값 클래스를 두지 않은 종류(값은 {@link RawComponentValue}): 번들 내용·컨테이너·컨테이너 loot. */
+    public static final DataComponentType<RawComponentValue> BUNDLE_CONTENTS = raw("minecraft:bundle_contents");
+    public static final DataComponentType<RawComponentValue> CONTAINER = raw("minecraft:container");
+    public static final DataComponentType<RawComponentValue> CONTAINER_LOOT = raw("minecraft:container_loot");
+
+    private static final java.util.concurrent.ConcurrentHashMap<String, DataComponentType<?>> BY_KEY = new java.util.concurrent.ConcurrentHashMap<>();
+
+    static {
+        for (DataComponentType<?> t : new DataComponentType<?>[] {CUSTOM_DATA, MAX_STACK_SIZE, MAX_DAMAGE, DAMAGE, REPAIR_COST, CUSTOM_NAME, ITEM_NAME,
+                CUSTOM_MODEL_DATA, UNBREAKABLE, LORE, BUNDLE_CONTENTS, CONTAINER, CONTAINER_LOOT}) {
+            BY_KEY.put(t.furnaceKey(), t);
+        }
+    }
+
+    private static DataComponentType<RawComponentValue> raw(String key) { return new Raw(key); }
+
+    /** 호환 모듈 전용: 그 키의 종류(값 변환이 있으면 {@link Type}, 아니면 늘 같은 {@link Raw} 객체). */
+    public static DataComponentType<?> furnaceType(String key) {
+        String k = key.indexOf(':') < 0 ? "minecraft:" + key : key;
+        return BY_KEY.computeIfAbsent(k, Raw::new);
+    }
+
+    /** 호환 모듈 전용: 값 클래스 없이 저장 꼴 SNBT 로 값을 주고받는 종류. */
+    public static final class Raw implements DataComponentType<RawComponentValue> {
+        private final String key;
+        private final net.minecraft.network.codec.StreamCodec<net.minecraft.network.RegistryFriendlyByteBuf, RawComponentValue> wire;
+
+        Raw(String key) {
+            this.key = key;
+            this.wire = NmsComponentWire.codec(key, RawComponentValue::snbt, RawComponentValue::new);
+        }
+
+        @Override
+        public String furnaceKey() { return key; }
+
+        @Override
+        public net.minecraft.network.codec.StreamCodec<net.minecraft.network.RegistryFriendlyByteBuf, RawComponentValue> streamCodec() { return wire; }
+
+        @Override
+        public String toString() { return key; }
+    }
+
     private static DataComponentType<Integer> same(String key, ItemComponent<Integer> c) { return new Type<>(key, c, Function.identity(), Function.identity()); }
 
     /**
@@ -67,6 +111,27 @@ public final class DataComponents {
 
         @Override
         public String furnaceKey() { return key; }
+
+        private volatile net.minecraft.network.codec.StreamCodec<net.minecraft.network.RegistryFriendlyByteBuf, T> wire;
+
+        @Override
+        public net.minecraft.network.codec.StreamCodec<net.minecraft.network.RegistryFriendlyByteBuf, T> streamCodec() {
+            var w = wire;
+            if (w == null) {
+                wire = w = NmsComponentWire.codec(key, this::toSnbt, this::fromSnbt);
+            }
+            return w;
+        }
+
+        /** NMS 값 → 저장 꼴 SNBT. */
+        public String toSnbt(T v) {
+            return new org.domi.furnace.api.item.ItemStack("minecraft:stone", 1).with(furnace, toFurnace(v)).components().get(key);
+        }
+
+        /** 저장 꼴 SNBT → NMS 값. */
+        public T fromSnbt(String snbt) {
+            return toNms(new org.domi.furnace.api.item.ItemStack("minecraft:stone", 1, java.util.Map.of(key, snbt), java.util.Set.of()).get(furnace));
+        }
 
         public ItemComponent<F> furnace() { return furnace; }
 

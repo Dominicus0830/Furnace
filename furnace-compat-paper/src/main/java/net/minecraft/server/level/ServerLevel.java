@@ -378,4 +378,10 @@ public class ServerLevel extends Level implements net.minecraft.world.level.Worl
         for (var p : getWorld().getPlayers()) out.add(((CraftPlayer) p).getHandle());
         return out;
     }
+
+    /** 바닐라 getPlayerByUUID(uuid): 이 월드에 있는 접속 플레이어, 없으면 null. */
+    public net.minecraft.world.entity.player.Player getPlayerByUUID(java.util.UUID uuid) {
+        for (ServerPlayer p : players()) if (p.getUUID().equals(uuid)) return p;
+        return null;
+    }
 }

@@ -65,6 +65,15 @@ public interface ItemSupport {
      */
     ItemStack applyComponentPatch(ItemStack stack, ItemComponentPatch patch);
 
+    /**
+     * 컴포넌트 값 하나를 네트워크 꼴 바이트로(바닐라 {@code DataComponentType.streamCodec().encode}): 종류 id 는 붙이지 않는다.
+     * 값은 SNBT(저장 꼴). 모르는 컴포넌트·규칙에 안 맞는 값이면 IllegalArgumentException.
+     */
+    byte[] encodeComponentValue(String component, String snbt);
+
+    /** {@link #encodeComponentValue} 의 반대: {@code bytes} 의 {@code offset} 부터 값 하나를 읽어 저장 꼴 SNBT 와 읽은 바이트 수를 준다. 잘못된 바이트면 IllegalArgumentException. */
+    ItemComponentWireValue decodeComponentValue(String component, byte[] bytes, int offset);
+
     // ------------------------------------------------------------------ 설치
 
     static ItemSupport get() {
