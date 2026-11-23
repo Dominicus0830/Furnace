@@ -87,6 +87,20 @@ tasks.register<JavaExec>("prepareVanillaReports") {
     args = a
 }
 
+// T-235: 차분 시험용 — Mojang 이름 서버 jar·라이브러리만 준비하고(데이터 생성기 없음) 경로를 <캐시>/<판>/vanilla-classpath.txt 에 적는다.
+// :furnace-compat-paper:vanillaDiffTest 가 먼저 부른다. 캐시 위치는 -Pcache 또는 FURNACE_VANILLA_CACHE.
+tasks.register<JavaExec>("prepareVanillaJars") {
+    group = "verification"
+    description = "바닐라 서버 jar 를 Mojang 이름으로 풀어 캐시에 두고 클래스패스 목록을 적는다(T-235)"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.domi.furnace.tools.extract.Main")
+    workingDir = rootProject.projectDir
+    val mc = (rootProject.extra["mc"] as java.util.Properties).getProperty("mc.version")
+    val a = mutableListOf("--mc", mc, "--mode", "jars")
+    (findProperty("cache") as String?)?.let { a += listOf("--cache", it) }
+    args = a
+}
+
 // T-228: 서명 관문 — 컴파일한 호환 계층 shim 의 선언을 기준 서명표(바닐라·Paper 서버·라이브러리)와 맞대 기준선과 견준다.
 // 서명표는 tools/compat/sig-tables.sh 가 캐시에 만든다(없으면 건너뛰지 않고 실패). 기준선을 다시 쓰려면 -PsigBaselineWrite=true.
 tasks.register<JavaExec>("signatureGate") {

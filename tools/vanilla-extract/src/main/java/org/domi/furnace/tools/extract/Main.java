@@ -52,6 +52,16 @@ public final class Main {
         }
         if (o.mode == Options.Mode.SIG_GATE) return SigGateCommand.run(o);
         if (o.mode == Options.Mode.BODY_TABLE) return BodyTableCommand.run(o);
+        if (o.mode == Options.Mode.JARS) {
+            Prepared p = new Preparer(o).prepare(false);
+            List<String> cp = new java.util.ArrayList<>();
+            cp.add(p.serverJar().toAbsolutePath().toString());
+            for (java.nio.file.Path l : p.libraries()) cp.add(l.toAbsolutePath().toString());
+            java.nio.file.Path f = o.cache.resolve(o.mc).resolve("vanilla-classpath.txt");
+            Files.write(f, cp, java.nio.charset.StandardCharsets.UTF_8);
+            System.out.println("[jars] " + f + " (" + cp.size() + ")");
+            return p.remapped() || p.mappings() == null;
+        }
         List<Tool> selected = select(o);
         Prepared p = new Preparer(o).prepare();
         if (o.protocol >= 0) p = new Prepared(p.mc(), p.serverJar(), p.innerJar(), p.mappings(), p.libraries(), p.generated(), o.protocol, p.remapped());

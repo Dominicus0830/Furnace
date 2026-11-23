@@ -53,6 +53,8 @@ public final class IntArrayTag extends CollectionTag<IntTag> {
 
     @Override
     public void add(int i, IntTag tag) {
+        // 바닐라(ArrayUtils.add)처럼 범위 밖은 IndexOutOfBoundsException(배열 판이 아니라) — T-235 차분 시험
+        if (i < 0 || i > data.length) throw new IndexOutOfBoundsException("Index: " + i + ", Length: " + data.length);
         int[] n = Arrays.copyOf(data, data.length + 1);
         System.arraycopy(data, i, n, i + 1, data.length - i);
         n[i] = tag.getAsInt();

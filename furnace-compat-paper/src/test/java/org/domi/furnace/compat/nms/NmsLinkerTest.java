@@ -453,11 +453,11 @@ class NmsLinkerTest {
     @Test
     void inheritableShimsKeepVanillaFinality() {
         // Paper 1.21.1 에서 final: Level#getChunkIfLoadedImmediately(T-211 3단계), Entity#getBlockX·Y·Z·Level#getChunkIfLoaded(BlockPos)(5번 묶음, jar 대조),
-        // Entity#discard()·setPosRaw(DDD)·getX·Y·Z·isRemoved(T-232 — 잠금 파일 접근 17),
-        // LivingEntity#addEffect(MobEffectInstance)(바닐라 jar javap 에서 final — Paper 는 바꾸지 않는다고 보지만 Paper 표는 이 환경에 없어 가정, user-todo 에 적음)
+        // Entity#discard()·setPosRaw(DDD)·getX·Y·Z·isRemoved(T-232 — 잠금 파일 접근 17), Entity#setPos(Vec3)·setGlowingTag(엔티티 공통 설정 — 잠금 17,
+        // setPos(DDD) 는 final 아님), LivingEntity#addEffect(MobEffectInstance)(바닐라 jar javap 에서 final — Paper 표는 이 환경에 없어 가정, user-todo 에 적음)
         Set<String> vanillaFinal = Set.of("UseOnContext#getHitResult", "Level#moonrise$getEntityLookup", "Level#getChunkIfLoadedImmediately",
                 "Entity#getBlockX", "Entity#getBlockY", "Entity#getBlockZ", "Level#getChunkIfLoaded", "Entity#discard", "Entity#setPosRaw",
-                "Entity#getX", "Entity#getY", "Entity#getZ", "Entity#isRemoved", "LivingEntity#addEffect");
+                "Entity#getX", "Entity#getY", "Entity#getZ", "Entity#isRemoved", "Entity#setPos", "Entity#setGlowingTag", "LivingEntity#addEffect");
         for (Class<?> c : List.of(net.minecraft.world.item.context.UseOnContext.class, net.minecraft.world.item.context.BlockPlaceContext.class,
                 net.minecraft.server.level.ServerLevel.class, net.minecraft.server.level.ServerPlayer.class)) {
             assertTrue(NmsLinker.inheritable(NmsSymbols.RUNTIME, c.getName().replace('.', '/')), c.getName());
