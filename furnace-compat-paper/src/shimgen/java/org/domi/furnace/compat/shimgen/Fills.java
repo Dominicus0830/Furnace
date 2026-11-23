@@ -159,6 +159,8 @@ final class Fills {
                             default -> "equals(Ljava/lang/Object;)Z";
                         };
                         if (!d.methods().containsKey(key)) continue;
+                        // 바깥이 손 shim 이면 그쪽 InnerClasses 에 안쪽이 없어 단순 이름이 달라진다 — toString 은 채우지 않는다(바닐라와 다른 글자를 만들지 않는다)
+                        if (om.equals("toString") && n.indexOf('$') > 0 && g.existing.has(n.substring(0, n.lastIndexOf('$')))) continue;
                         if (cf == null) cf = f.byClass.computeIfAbsent(n, k -> new ClassFill());
                         cf.objectMethods.add(om);
                     }
