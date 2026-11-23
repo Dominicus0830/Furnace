@@ -5,8 +5,8 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 
 /**
- * T-264: Paper 에서 패키지 전용인 Craft 클래스를 호환 계층 밖 꾸러미에서 만들 때 쓰는 유일한 길(설계 3.1 [검토 3]). Paper 에 공개 진입점이 없는 것만
- * 여기에 둔다. 생성자 핸들은 {@code static final} 이라 JIT 뒤 직접 호출과 같다. 다른 곳은 패키지 전용 Craft 클래스 이름을 들지 않는다
+ * T-264: Paper 에서 패키지 전용인 Craft 클래스(와 Craft 클래스의 Furnace 전용 패키지 전용 멤버)를 호환 계층 밖 꾸러미에서 쓸 때 거치는 유일한 길
+ * (설계 3.1 [검토 3]). Paper 에 공개 진입점이 없는 것만 여기에 둔다. 생성자 핸들은 {@code static final} 이라 JIT 뒤 직접 호출과 같다. 다른 곳은 패키지 전용 Craft 클래스 이름을 들지 않는다
  * ({@code CraftAccessStaticTest}).
  */
 final class CraftAccess {
@@ -48,6 +48,20 @@ final class CraftAccess {
     static org.domi.furnace.api.item.ItemStack metaPutInto(org.bukkit.inventory.meta.ItemMeta meta, org.domi.furnace.api.item.ItemStack cur) {
         try {
             return (org.domi.furnace.api.item.ItemStack) META_PUT_INTO.invokeExact(meta, cur);
+        } catch (RuntimeException | Error e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException(t);
+        }
+    }
+
+    private static final MethodHandle BLOCK_SHOWING = staticMethod(org.bukkit.craftbukkit.block.CraftBlock.class, "showing",
+            MethodType.methodType(org.bukkit.craftbukkit.block.CraftBlock.class, String.class, org.domi.furnace.api.world.BlockPos.class, org.domi.furnace.api.world.BlockData.class));
+
+    /** CraftBlock.showing: 놓기 직전 이벤트용 — 이 칸이 놓일 상태 shown 을 보이는 블록(Paper 는 놓은 뒤에 이벤트를 부른다). */
+    static org.bukkit.craftbukkit.block.CraftBlock blockShowing(String dimension, org.domi.furnace.api.world.BlockPos pos, org.domi.furnace.api.world.BlockData shown) {
+        try {
+            return (org.bukkit.craftbukkit.block.CraftBlock) BLOCK_SHOWING.invokeExact(dimension, pos, shown);
         } catch (RuntimeException | Error e) {
             throw e;
         } catch (Throwable t) {

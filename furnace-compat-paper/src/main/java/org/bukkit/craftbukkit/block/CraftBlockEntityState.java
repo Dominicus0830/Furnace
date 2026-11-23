@@ -11,7 +11,7 @@ import org.bukkit.craftbukkit.inventory.CraftInventory;
  * 놓이지 않은 상태와 블록 엔티티가 없는 칸은 id 만 든 사본(나머지는 바닐라 기본값으로 읽힌다)에서 시작한다 — Paper 는 새 블록 엔티티의
  * 전체 NBT 를 주므로 {@link #getSnapshotNBT} 에 기본값 칸이 빠지는 것만 다르다.
  */
-public abstract class CraftBlockEntityState extends org.domi.furnace.compat.paper.CompatBlockState implements org.bukkit.block.TileState {
+public abstract class CraftBlockEntityState extends CraftBlockState implements org.bukkit.block.TileState {
 
     private final NbtCompound snapshot;
 

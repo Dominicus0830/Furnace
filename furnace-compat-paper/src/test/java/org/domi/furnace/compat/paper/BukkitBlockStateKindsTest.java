@@ -48,6 +48,31 @@ class BukkitBlockStateKindsTest {
         });
     }
 
+    /** T-264 P2c: 재료마다 블록 상태 클래스가 Paper 관측표(blockstate.*)와 같다 — 블록 엔티티 없는 블록은 CraftBlockState 그대로. */
+    @Test
+    void stateClassesMatchPaperObservation() throws Exception {
+        java.util.List<String> wrong = new java.util.ArrayList<>();
+        int matched = 0;
+        try (var in = BukkitBlockStateKindsTest.class.getResourceAsStream("/craft-identity-paper-1.21.1.tsv")) {
+            for (String line : new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).split("\n")) {
+                if (!line.startsWith("blockstate.")) continue;
+                String[] t = line.split("\t");
+                String key = t[0].substring("blockstate.".length());
+                if (key.contains(".") || t[1].startsWith("!")) continue;
+                Material m = Material.matchMaterial(key);
+                if (m == null || !m.isBlock()) {
+                    wrong.add(key + ": no block material");
+                    continue;
+                }
+                String got = m.createBlockData().createBlockState().getClass().getName();
+                if (t[1].equals(got)) matched++;
+                else wrong.add(key + ": paper=" + t[1] + " furnace=" + got);
+            }
+        }
+        assertEquals(java.util.List.of(), wrong);
+        assertTrue(matched > 1000, "matched " + matched);
+    }
+
     @Test
     void placedStatesHavePaperTypes() {
         BlockState chest = placedState("minecraft:chest", Map.of());
@@ -76,7 +101,7 @@ class BukkitBlockStateKindsTest {
 
         BlockState stone = placedState("minecraft:stone", Map.of());
         assertFalse(stone instanceof org.bukkit.block.TileState, "블록 엔티티가 없으면 일반 상태");
-        assertEquals(CompatBlockState.class, stone.getClass());
+        assertEquals(org.bukkit.craftbukkit.block.CraftBlockState.class, stone.getClass());
         BlockState brewing = placedState("minecraft:brewing_stand", Map.of());
         assertInstanceOf(org.bukkit.block.BrewingStand.class, brewing);
         assertInstanceOf(org.bukkit.block.Container.class, brewing);
@@ -116,7 +141,7 @@ class BukkitBlockStateKindsTest {
         assertEquals(Material.CHEST, s.getType());
 
         BlockState plain = Material.STONE.createBlockData().createBlockState();
-        assertEquals(CompatBlockState.class, plain.getClass());
+        assertEquals(org.bukkit.craftbukkit.block.CraftBlockState.class, plain.getClass());
         assertNotEquals(plain, s);
         assertEquals(plain, Material.STONE.createBlockData().createBlockState(), "같은 클래스·자리·데이터면 같다");
         assertInstanceOf(io.papermc.paper.block.MovingPiston.class, Material.MOVING_PISTON.createBlockData().createBlockState());
@@ -146,7 +171,7 @@ class BukkitBlockStateKindsTest {
             w.block(pos).set(new BlockData("minecraft:chest", Map.of()));
             try {
                 BlockState typed = Compat.block(dim, pos).getState();
-                BlockState plain = CompatBlockState.of(dim, pos, w.block(pos).data());
+                BlockState plain = BlockStateSnapshots.of(dim, pos, w.block(pos).data());
                 assertEquals(((CompatBlockData) typed.getBlockData()).furnace(), ((CompatBlockData) plain.getBlockData()).furnace());
                 assertNotEquals(typed, plain);
                 assertNotEquals(plain, typed);

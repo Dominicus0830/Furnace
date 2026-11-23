@@ -14,7 +14,6 @@ import net.minecraft.server.level.ServerLevel;
 import org.domi.furnace.api.Furnace;
 import org.domi.furnace.api.world.BlockPos;
 import org.domi.furnace.compat.paper.Compat;
-import org.domi.furnace.compat.paper.CompatBlock;
 import org.domi.furnace.compat.paper.CompatEffects;
 import org.domi.furnace.compat.paper.UnsupportedFeature;
 
