@@ -457,6 +457,14 @@ class ShimGeneratorTest {
         assertEquals(List.of("net.minecraft.zz.Leaf", "net.minecraft.zz.Other"), List.copyOf(k.classes.keySet()));
         assertEquals(1, k.classes.get("net.minecraft.zz.Leaf").members().size(), "명세 줄이 이긴다");
         assertEquals(2, k.kinds.size());
+        // 엔티티 종류(E): 바닐라 생성자 (EntityType, Level) 가 @fresh 로 붙는다 — 명세 줄이 있어도 더한다
+        Files.writeString(dir.resolve("kind-classes-test.txt"), "E minecraft:m net.minecraft.zz.Leaf\n", StandardCharsets.UTF_8);
+        ShimSpec e2 = ShimSpec.readDir(dir);
+        var leaf = e2.classes.get("net.minecraft.zz.Leaf").members();
+        assertEquals(2, leaf.size(), "명세의 <init> 와 바닐라 (EntityType, Level) 생성자");
+        assertEquals(ShimSpec.Body.FRESH, leaf.get(1).body());
+        assertEquals(ShimSpec.FRESH_CTOR_DESC, leaf.get(1).desc());
+        Files.writeString(dir.resolve("kind-classes-test.txt"), "# c\nB minecraft:a net.minecraft.zz.Leaf\nI minecraft:b net.minecraft.zz.Other\n", StandardCharsets.UTF_8);
         Files.writeString(dir.resolve("kind-classes-old.txt"), "B minecraft:a net.minecraft.zz.Leaf\n", StandardCharsets.UTF_8);
         assertThrows(IllegalArgumentException.class, () -> ShimSpec.readDir(dir));
         Files.delete(dir.resolve("kind-classes-old.txt"));

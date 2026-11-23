@@ -284,9 +284,10 @@ public final class ShimGenerator {
             }
         }
         // 종류 표의 클래스는 NmsKinds 가 C(ShimCtor) 로 만든다 — 조각이어도 생성자가 있어야 한다(T-232: ItemEntity 등)
+        // 엔티티 종류 클래스는 바닐라 생성자(FRESH)가 이 생성자로 넘기므로 생성 클래스여도 필요하다
         for (String[] k : spec.kinds) {
             String n = k[2].replace('.', '/');
-            if (origin.get(n) == Origin.FRAGMENT) work.add(n);
+            if (origin.get(n) == Origin.FRAGMENT || origin.get(n) == Origin.GEN) work.add(n);
         }
         while (!work.isEmpty()) {
             String n = work.remove(work.size() - 1);
@@ -458,6 +459,8 @@ public final class ShimGenerator {
                         sb.append(in).append(head).append(" { }\n");
                     }
                 }
+                case FRESH -> sb.append(in).append(head).append(" { this(").append(SHIM_CTOR)
+                        .append(".carrying(new org.domi.furnace.compat.nms.NmsEntityKinds.Fresh(a0, a1))); }\n");
                 case DELEGATE, SELF -> {
                     if (m.name().equals("<init>")) { problems.add(b.spec().where() + ": constructors take @empty or @hand"); continue; }
                     if (m.isAbstract()) continue;   // classify 가 이미 알렸다

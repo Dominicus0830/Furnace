@@ -13,11 +13,16 @@ C	net/minecraft/world/Nameable	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/WorldlyContainerHolder	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/AgeableMob	1057	net/minecraft/world/entity/PathfinderMob	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/AreaEffectCloud	33	net/minecraft/world/entity/Entity	net/minecraft/world/entity/TraceableEntity	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/AreaEffectCloud	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/AreaEffectCloud;>;Lnet/minecraft/world/level/Level;)V
+M	net/minecraft/world/entity/AreaEffectCloud	<init>	(Lnet/minecraft/world/level/Level;DDD)V	1	-
 C	net/minecraft/world/entity/Attackable	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/Display	1057	net/minecraft/world/entity/Entity	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/Display$BlockDisplay	33	net/minecraft/world/entity/Display	-	-	9	paper-server-1.21.1
+M	net/minecraft/world/entity/Display$BlockDisplay	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<*>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/Display$ItemDisplay	33	net/minecraft/world/entity/Display	-	-	9	paper-server-1.21.1
+M	net/minecraft/world/entity/Display$ItemDisplay	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<*>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/Display$TextDisplay	33	net/minecraft/world/entity/Display	-	-	9	paper-server-1.21.1
+M	net/minecraft/world/entity/Display$TextDisplay	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<*>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/Entity	1057	java/lang/Object	net/minecraft/network/syncher/SyncedDataHolder,net/minecraft/world/Nameable,net/minecraft/world/level/entity/EntityAccess,net/minecraft/commands/CommandSource,net/minecraft/world/scores/ScoreHolder	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/Entity	absMoveTo	(DDDFF)V	1	-
 M	net/minecraft/world/entity/Entity	blockPosition	()Lnet/minecraft/core/BlockPos;	1	-
@@ -102,21 +107,27 @@ M	net/minecraft/world/entity/EquipmentSlot	getType	()Lnet/minecraft/world/entity
 M	net/minecraft/world/entity/EquipmentSlot	isArmor	()Z	1	-
 C	net/minecraft/world/entity/EquipmentUser	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/ExperienceOrb	33	net/minecraft/world/entity/Entity	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/ExperienceOrb	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/ExperienceOrb;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/FlyingMob	1057	net/minecraft/world/entity/Mob	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/GlowSquid	33	net/minecraft/world/entity/animal/Squid	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/GlowSquid	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/GlowSquid;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/HasCustomInventoryScreen	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/Interaction	33	net/minecraft/world/entity/Entity	net/minecraft/world/entity/Attackable,net/minecraft/world/entity/Targeting	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/Interaction	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<*>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/ItemSteerable	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/Leashable	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/LerpingModel	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/LightningBolt	33	net/minecraft/world/entity/Entity	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/LightningBolt	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/LightningBolt;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/LivingEntity	1057	net/minecraft/world/entity/Entity	net/minecraft/world/entity/Attackable	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/LivingEntity	isAlive	()Z	1	-
 M	net/minecraft/world/entity/LivingEntity	isFallFlying	()Z	1	-
 C	net/minecraft/world/entity/Marker	33	net/minecraft/world/entity/Entity	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/Marker	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<*>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/Mob	1057	net/minecraft/world/entity/LivingEntity	net/minecraft/world/entity/EquipmentUser,net/minecraft/world/entity/Leashable,net/minecraft/world/entity/Targeting	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/NeutralMob	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/OminousItemSpawner	33	net/minecraft/world/entity/Entity	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/OminousItemSpawner	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/OminousItemSpawner;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/OwnableEntity	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/PathfinderMob	1057	net/minecraft/world/entity/Mob	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/PlayerRideable	1537	java/lang/Object	-	-	-	paper-server-1.21.1
@@ -131,171 +142,291 @@ C	net/minecraft/world/entity/TraceableEntity	1537	java/lang/Object	-	-	-	paper-s
 C	net/minecraft/world/entity/VariantHolder	1537	java/lang/Object	-	<T:Ljava/lang/Object;>Ljava/lang/Object;	-	paper-server-1.21.1
 C	net/minecraft/world/entity/ambient/AmbientCreature	1057	net/minecraft/world/entity/Mob	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/ambient/Bat	33	net/minecraft/world/entity/ambient/AmbientCreature	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/ambient/Bat	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/ambient/Bat;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/AbstractFish	1057	net/minecraft/world/entity/animal/WaterAnimal	net/minecraft/world/entity/animal/Bucketable	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/animal/AbstractGolem	1057	net/minecraft/world/entity/PathfinderMob	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/animal/AbstractSchoolingFish	1057	net/minecraft/world/entity/animal/AbstractFish	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/animal/Animal	1057	net/minecraft/world/entity/AgeableMob	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/animal/Bee	33	net/minecraft/world/entity/animal/Animal	net/minecraft/world/entity/NeutralMob,net/minecraft/world/entity/animal/FlyingAnimal	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/Bee	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/Bee;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/Bucketable	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/animal/Cat	33	net/minecraft/world/entity/TamableAnimal	net/minecraft/world/entity/VariantHolder	Lnet/minecraft/world/entity/TamableAnimal;Lnet/minecraft/world/entity/VariantHolder<Lnet/minecraft/core/Holder<Lnet/minecraft/world/entity/animal/CatVariant;>;>;	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/Cat	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/Cat;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/Chicken	33	net/minecraft/world/entity/animal/Animal	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/Chicken	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/Chicken;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/Cod	33	net/minecraft/world/entity/animal/AbstractSchoolingFish	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/Cod	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/Cod;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/Cow	33	net/minecraft/world/entity/animal/Animal	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/Cow	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/Cow;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/Dolphin	33	net/minecraft/world/entity/animal/WaterAnimal	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/Dolphin	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/Dolphin;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/FlyingAnimal	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/animal/Fox	33	net/minecraft/world/entity/animal/Animal	net/minecraft/world/entity/VariantHolder	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/Fox	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/Fox;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/IronGolem	33	net/minecraft/world/entity/animal/AbstractGolem	net/minecraft/world/entity/NeutralMob	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/IronGolem	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/IronGolem;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/MushroomCow	33	net/minecraft/world/entity/animal/Cow	net/minecraft/world/entity/Shearable,net/minecraft/world/entity/VariantHolder	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/MushroomCow	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/MushroomCow;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/Ocelot	33	net/minecraft/world/entity/animal/Animal	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/Ocelot	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/Ocelot;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/Panda	33	net/minecraft/world/entity/animal/Animal	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/Panda	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/Panda;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/Parrot	33	net/minecraft/world/entity/animal/ShoulderRidingEntity	net/minecraft/world/entity/VariantHolder,net/minecraft/world/entity/animal/FlyingAnimal	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/Parrot	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/Parrot;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/Pig	33	net/minecraft/world/entity/animal/Animal	net/minecraft/world/entity/ItemSteerable,net/minecraft/world/entity/Saddleable	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/Pig	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/Pig;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/PolarBear	33	net/minecraft/world/entity/animal/Animal	net/minecraft/world/entity/NeutralMob	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/PolarBear	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/PolarBear;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/Pufferfish	33	net/minecraft/world/entity/animal/AbstractFish	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/Pufferfish	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/Pufferfish;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/Rabbit	33	net/minecraft/world/entity/animal/Animal	net/minecraft/world/entity/VariantHolder	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/Rabbit	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/Rabbit;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/Salmon	33	net/minecraft/world/entity/animal/AbstractSchoolingFish	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/Salmon	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/Salmon;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/Sheep	33	net/minecraft/world/entity/animal/Animal	net/minecraft/world/entity/Shearable	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/Sheep	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/Sheep;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/ShoulderRidingEntity	1057	net/minecraft/world/entity/TamableAnimal	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/animal/SnowGolem	33	net/minecraft/world/entity/animal/AbstractGolem	net/minecraft/world/entity/Shearable,net/minecraft/world/entity/monster/RangedAttackMob	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/SnowGolem	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/SnowGolem;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/Squid	33	net/minecraft/world/entity/animal/WaterAnimal	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/Squid	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/Squid;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/TropicalFish	33	net/minecraft/world/entity/animal/AbstractSchoolingFish	net/minecraft/world/entity/VariantHolder	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/TropicalFish	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/TropicalFish;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/Turtle	33	net/minecraft/world/entity/animal/Animal	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/Turtle	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/Turtle;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/WaterAnimal	1057	net/minecraft/world/entity/PathfinderMob	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/animal/Wolf	33	net/minecraft/world/entity/TamableAnimal	net/minecraft/world/entity/NeutralMob,net/minecraft/world/entity/VariantHolder	Lnet/minecraft/world/entity/TamableAnimal;Lnet/minecraft/world/entity/NeutralMob;Lnet/minecraft/world/entity/VariantHolder<Lnet/minecraft/core/Holder<Lnet/minecraft/world/entity/animal/WolfVariant;>;>;	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/Wolf	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/Wolf;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/allay/Allay	33	net/minecraft/world/entity/PathfinderMob	net/minecraft/world/entity/npc/InventoryCarrier,net/minecraft/world/level/gameevent/vibrations/VibrationSystem	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/allay/Allay	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/allay/Allay;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/armadillo/Armadillo	33	net/minecraft/world/entity/animal/Animal	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/armadillo/Armadillo	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/Animal;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/axolotl/Axolotl	33	net/minecraft/world/entity/animal/Animal	net/minecraft/world/entity/LerpingModel,net/minecraft/world/entity/VariantHolder,net/minecraft/world/entity/animal/Bucketable	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/axolotl/Axolotl	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/axolotl/Axolotl;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/camel/Camel	33	net/minecraft/world/entity/animal/horse/AbstractHorse	net/minecraft/world/entity/PlayerRideableJumping,net/minecraft/world/entity/Saddleable	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/camel/Camel	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/camel/Camel;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/frog/Frog	33	net/minecraft/world/entity/animal/Animal	net/minecraft/world/entity/VariantHolder	Lnet/minecraft/world/entity/animal/Animal;Lnet/minecraft/world/entity/VariantHolder<Lnet/minecraft/core/Holder<Lnet/minecraft/world/entity/animal/FrogVariant;>;>;	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/frog/Frog	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/Animal;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/frog/Tadpole	33	net/minecraft/world/entity/animal/AbstractFish	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/frog/Tadpole	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/AbstractFish;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/goat/Goat	33	net/minecraft/world/entity/animal/Animal	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/goat/Goat	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/goat/Goat;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/horse/AbstractChestedHorse	1057	net/minecraft/world/entity/animal/horse/AbstractHorse	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/animal/horse/AbstractHorse	1057	net/minecraft/world/entity/animal/Animal	net/minecraft/world/ContainerListener,net/minecraft/world/entity/HasCustomInventoryScreen,net/minecraft/world/entity/OwnableEntity,net/minecraft/world/entity/PlayerRideableJumping,net/minecraft/world/entity/Saddleable	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/animal/horse/Donkey	33	net/minecraft/world/entity/animal/horse/AbstractChestedHorse	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/horse/Donkey	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/horse/Donkey;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/horse/Horse	33	net/minecraft/world/entity/animal/horse/AbstractHorse	net/minecraft/world/entity/VariantHolder	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/horse/Horse	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/horse/Horse;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/horse/Llama	33	net/minecraft/world/entity/animal/horse/AbstractChestedHorse	net/minecraft/world/entity/VariantHolder,net/minecraft/world/entity/monster/RangedAttackMob	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/horse/Llama	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/horse/Llama;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/horse/Mule	33	net/minecraft/world/entity/animal/horse/AbstractChestedHorse	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/horse/Mule	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/horse/Mule;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/horse/SkeletonHorse	33	net/minecraft/world/entity/animal/horse/AbstractHorse	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/horse/SkeletonHorse	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/horse/SkeletonHorse;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/horse/TraderLlama	33	net/minecraft/world/entity/animal/horse/Llama	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/horse/TraderLlama	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/horse/TraderLlama;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/horse/ZombieHorse	33	net/minecraft/world/entity/animal/horse/AbstractHorse	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/horse/ZombieHorse	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/horse/ZombieHorse;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/sniffer/Sniffer	33	net/minecraft/world/entity/animal/Animal	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/sniffer/Sniffer	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/Animal;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/boss/enderdragon/EndCrystal	33	net/minecraft/world/entity/Entity	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/boss/enderdragon/EndCrystal	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/boss/enderdragon/EndCrystal;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/boss/enderdragon/EnderDragon	33	net/minecraft/world/entity/Mob	net/minecraft/world/entity/monster/Enemy	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/boss/enderdragon/EnderDragon	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/boss/enderdragon/EnderDragon;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/boss/wither/WitherBoss	33	net/minecraft/world/entity/monster/Monster	net/minecraft/world/entity/PowerableMob,net/minecraft/world/entity/monster/RangedAttackMob	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/boss/wither/WitherBoss	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/boss/wither/WitherBoss;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/decoration/ArmorStand	33	net/minecraft/world/entity/LivingEntity	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/decoration/ArmorStand	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/decoration/ArmorStand;>;Lnet/minecraft/world/level/Level;)V
+M	net/minecraft/world/entity/decoration/ArmorStand	<init>	(Lnet/minecraft/world/level/Level;DDD)V	1	-
 C	net/minecraft/world/entity/decoration/BlockAttachedEntity	1057	net/minecraft/world/entity/Entity	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/decoration/GlowItemFrame	33	net/minecraft/world/entity/decoration/ItemFrame	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/decoration/GlowItemFrame	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/decoration/ItemFrame;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/decoration/HangingEntity	1057	net/minecraft/world/entity/decoration/BlockAttachedEntity	-	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/decoration/HangingEntity	getDirection	()Lnet/minecraft/core/Direction;	1	-
 M	net/minecraft/world/entity/decoration/HangingEntity	rotate	(Lnet/minecraft/world/level/block/Rotation;)F	1	-
 C	net/minecraft/world/entity/decoration/ItemFrame	33	net/minecraft/world/entity/decoration/HangingEntity	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/decoration/ItemFrame	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/decoration/ItemFrame;>;Lnet/minecraft/world/level/Level;)V
 M	net/minecraft/world/entity/decoration/ItemFrame	getRotation	()I	1	-
 M	net/minecraft/world/entity/decoration/ItemFrame	setRotation	(I)V	1	-
 C	net/minecraft/world/entity/decoration/LeashFenceKnotEntity	33	net/minecraft/world/entity/decoration/BlockAttachedEntity	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/decoration/LeashFenceKnotEntity	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/decoration/LeashFenceKnotEntity;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/decoration/Painting	33	net/minecraft/world/entity/decoration/HangingEntity	net/minecraft/world/entity/VariantHolder	Lnet/minecraft/world/entity/decoration/HangingEntity;Lnet/minecraft/world/entity/VariantHolder<Lnet/minecraft/core/Holder<Lnet/minecraft/world/entity/decoration/PaintingVariant;>;>;	-	paper-server-1.21.1
+M	net/minecraft/world/entity/decoration/Painting	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/decoration/Painting;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/item/FallingBlockEntity	33	net/minecraft/world/entity/Entity	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/item/FallingBlockEntity	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/item/FallingBlockEntity;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/item/ItemEntity	33	net/minecraft/world/entity/Entity	net/minecraft/world/entity/TraceableEntity	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/item/ItemEntity	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/item/ItemEntity;>;Lnet/minecraft/world/level/Level;)V
 M	net/minecraft/world/entity/item/ItemEntity	getItem	()Lnet/minecraft/world/item/ItemStack;	1	-
 C	net/minecraft/world/entity/item/PrimedTnt	33	net/minecraft/world/entity/Entity	net/minecraft/world/entity/TraceableEntity	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/item/PrimedTnt	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/item/PrimedTnt;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/AbstractIllager	1057	net/minecraft/world/entity/raid/Raider	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/monster/AbstractSkeleton	1057	net/minecraft/world/entity/monster/Monster	net/minecraft/world/entity/monster/RangedAttackMob	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/monster/Blaze	33	net/minecraft/world/entity/monster/Monster	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/Blaze	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Blaze;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/Bogged	33	net/minecraft/world/entity/monster/AbstractSkeleton	net/minecraft/world/entity/Shearable	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/Bogged	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Bogged;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/CaveSpider	33	net/minecraft/world/entity/monster/Spider	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/CaveSpider	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/CaveSpider;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/Creeper	33	net/minecraft/world/entity/monster/Monster	net/minecraft/world/entity/PowerableMob	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/Creeper	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Creeper;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/CrossbowAttackMob	1537	java/lang/Object	net/minecraft/world/entity/monster/RangedAttackMob	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/monster/Drowned	33	net/minecraft/world/entity/monster/Zombie	net/minecraft/world/entity/monster/RangedAttackMob	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/Drowned	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Drowned;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/ElderGuardian	33	net/minecraft/world/entity/monster/Guardian	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/ElderGuardian	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/ElderGuardian;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/EnderMan	33	net/minecraft/world/entity/monster/Monster	net/minecraft/world/entity/NeutralMob	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/EnderMan	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/EnderMan;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/Endermite	33	net/minecraft/world/entity/monster/Monster	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/Endermite	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Endermite;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/Enemy	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/monster/Evoker	33	net/minecraft/world/entity/monster/SpellcasterIllager	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/Evoker	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Evoker;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/Ghast	33	net/minecraft/world/entity/FlyingMob	net/minecraft/world/entity/monster/Enemy	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/Ghast	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Ghast;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/Giant	33	net/minecraft/world/entity/monster/Monster	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/Giant	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Giant;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/Guardian	33	net/minecraft/world/entity/monster/Monster	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/Guardian	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Guardian;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/Husk	33	net/minecraft/world/entity/monster/Zombie	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/Husk	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Husk;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/Illusioner	33	net/minecraft/world/entity/monster/SpellcasterIllager	net/minecraft/world/entity/monster/RangedAttackMob	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/Illusioner	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Illusioner;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/MagmaCube	33	net/minecraft/world/entity/monster/Slime	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/MagmaCube	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/MagmaCube;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/Monster	1057	net/minecraft/world/entity/PathfinderMob	net/minecraft/world/entity/monster/Enemy	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/monster/PatrollingMonster	1057	net/minecraft/world/entity/monster/Monster	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/monster/Phantom	33	net/minecraft/world/entity/FlyingMob	net/minecraft/world/entity/monster/Enemy	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/Phantom	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Phantom;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/Pillager	33	net/minecraft/world/entity/monster/AbstractIllager	net/minecraft/world/entity/monster/CrossbowAttackMob,net/minecraft/world/entity/npc/InventoryCarrier	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/Pillager	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Pillager;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/RangedAttackMob	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/monster/Ravager	33	net/minecraft/world/entity/raid/Raider	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/Ravager	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Ravager;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/Shulker	33	net/minecraft/world/entity/animal/AbstractGolem	net/minecraft/world/entity/VariantHolder,net/minecraft/world/entity/monster/Enemy	Lnet/minecraft/world/entity/animal/AbstractGolem;Lnet/minecraft/world/entity/VariantHolder<Ljava/util/Optional<Lnet/minecraft/world/item/DyeColor;>;>;Lnet/minecraft/world/entity/monster/Enemy;	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/Shulker	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Shulker;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/Silverfish	33	net/minecraft/world/entity/monster/Monster	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/Silverfish	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Silverfish;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/Skeleton	33	net/minecraft/world/entity/monster/AbstractSkeleton	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/Skeleton	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Skeleton;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/Slime	33	net/minecraft/world/entity/Mob	net/minecraft/world/entity/monster/Enemy	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/Slime	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Slime;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/SpellcasterIllager	1057	net/minecraft/world/entity/monster/AbstractIllager	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/monster/Spider	33	net/minecraft/world/entity/monster/Monster	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/Spider	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Spider;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/Stray	33	net/minecraft/world/entity/monster/AbstractSkeleton	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/Stray	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Stray;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/Strider	33	net/minecraft/world/entity/animal/Animal	net/minecraft/world/entity/ItemSteerable,net/minecraft/world/entity/Saddleable	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/Strider	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Strider;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/Vex	33	net/minecraft/world/entity/monster/Monster	net/minecraft/world/entity/TraceableEntity	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/Vex	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Vex;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/Vindicator	33	net/minecraft/world/entity/monster/AbstractIllager	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/Vindicator	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Vindicator;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/Witch	33	net/minecraft/world/entity/raid/Raider	net/minecraft/world/entity/monster/RangedAttackMob	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/Witch	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Witch;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/WitherSkeleton	33	net/minecraft/world/entity/monster/AbstractSkeleton	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/WitherSkeleton	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/WitherSkeleton;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/Zoglin	33	net/minecraft/world/entity/monster/Monster	net/minecraft/world/entity/monster/Enemy,net/minecraft/world/entity/monster/hoglin/HoglinBase	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/Zoglin	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Zoglin;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/Zombie	33	net/minecraft/world/entity/monster/Monster	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/Zombie	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Zombie;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/ZombieVillager	33	net/minecraft/world/entity/monster/Zombie	net/minecraft/world/entity/npc/VillagerDataHolder	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/ZombieVillager	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/ZombieVillager;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/ZombifiedPiglin	33	net/minecraft/world/entity/monster/Zombie	net/minecraft/world/entity/NeutralMob	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/ZombifiedPiglin	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/ZombifiedPiglin;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/breeze/Breeze	33	net/minecraft/world/entity/monster/Monster	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/breeze/Breeze	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Monster;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/hoglin/Hoglin	33	net/minecraft/world/entity/animal/Animal	net/minecraft/world/entity/monster/Enemy,net/minecraft/world/entity/monster/hoglin/HoglinBase	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/hoglin/Hoglin	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/hoglin/Hoglin;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/hoglin/HoglinBase	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/monster/piglin/AbstractPiglin	1057	net/minecraft/world/entity/monster/Monster	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/monster/piglin/Piglin	33	net/minecraft/world/entity/monster/piglin/AbstractPiglin	net/minecraft/world/entity/monster/CrossbowAttackMob,net/minecraft/world/entity/npc/InventoryCarrier	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/piglin/Piglin	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/piglin/AbstractPiglin;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/piglin/PiglinBrute	33	net/minecraft/world/entity/monster/piglin/AbstractPiglin	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/piglin/PiglinBrute	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/piglin/PiglinBrute;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/monster/warden/Warden	33	net/minecraft/world/entity/monster/Monster	net/minecraft/world/level/gameevent/vibrations/VibrationSystem	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/monster/warden/Warden	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/monster/Monster;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/npc/AbstractVillager	1057	net/minecraft/world/entity/AgeableMob	net/minecraft/world/entity/npc/InventoryCarrier,net/minecraft/world/entity/npc/Npc,net/minecraft/world/item/trading/Merchant	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/npc/InventoryCarrier	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/npc/Npc	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/npc/Villager	33	net/minecraft/world/entity/npc/AbstractVillager	net/minecraft/world/entity/ReputationEventHandler,net/minecraft/world/entity/npc/VillagerDataHolder	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/npc/Villager	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/npc/Villager;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/npc/VillagerDataHolder	1537	java/lang/Object	net/minecraft/world/entity/VariantHolder	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/npc/WanderingTrader	33	net/minecraft/world/entity/npc/AbstractVillager	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/npc/WanderingTrader	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/npc/WanderingTrader;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/player/Player	1057	net/minecraft/world/entity/LivingEntity	-	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/player/Player	isSwimming	()Z	1	-
 C	net/minecraft/world/entity/projectile/AbstractArrow	1057	net/minecraft/world/entity/projectile/Projectile	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/projectile/AbstractHurtingProjectile	1057	net/minecraft/world/entity/projectile/Projectile	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/projectile/Arrow	33	net/minecraft/world/entity/projectile/AbstractArrow	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/projectile/Arrow	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/projectile/Arrow;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/projectile/DragonFireball	33	net/minecraft/world/entity/projectile/AbstractHurtingProjectile	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/projectile/DragonFireball	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/projectile/DragonFireball;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/projectile/EvokerFangs	33	net/minecraft/world/entity/Entity	net/minecraft/world/entity/TraceableEntity	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/projectile/EvokerFangs	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/projectile/EvokerFangs;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/projectile/EyeOfEnder	33	net/minecraft/world/entity/Entity	net/minecraft/world/entity/projectile/ItemSupplier	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/projectile/EyeOfEnder	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/projectile/EyeOfEnder;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/projectile/Fireball	1057	net/minecraft/world/entity/projectile/AbstractHurtingProjectile	net/minecraft/world/entity/projectile/ItemSupplier	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/projectile/FireworkRocketEntity	33	net/minecraft/world/entity/projectile/Projectile	net/minecraft/world/entity/projectile/ItemSupplier	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/projectile/FireworkRocketEntity	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/projectile/FireworkRocketEntity;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/projectile/FishingHook	33	net/minecraft/world/entity/projectile/Projectile	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/projectile/FishingHook	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/projectile/FishingHook;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/projectile/ItemSupplier	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/projectile/LargeFireball	33	net/minecraft/world/entity/projectile/Fireball	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/projectile/LargeFireball	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/projectile/LargeFireball;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/projectile/LlamaSpit	33	net/minecraft/world/entity/projectile/Projectile	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/projectile/LlamaSpit	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/projectile/LlamaSpit;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/projectile/Projectile	1057	net/minecraft/world/entity/Entity	net/minecraft/world/entity/TraceableEntity	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/projectile/ShulkerBullet	33	net/minecraft/world/entity/projectile/Projectile	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/projectile/ShulkerBullet	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/projectile/ShulkerBullet;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/projectile/SmallFireball	33	net/minecraft/world/entity/projectile/Fireball	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/projectile/SmallFireball	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/projectile/SmallFireball;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/projectile/Snowball	33	net/minecraft/world/entity/projectile/ThrowableItemProjectile	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/projectile/Snowball	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/projectile/Snowball;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/projectile/SpectralArrow	33	net/minecraft/world/entity/projectile/AbstractArrow	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/projectile/SpectralArrow	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/projectile/SpectralArrow;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/projectile/ThrowableItemProjectile	1057	net/minecraft/world/entity/projectile/ThrowableProjectile	net/minecraft/world/entity/projectile/ItemSupplier	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/projectile/ThrowableProjectile	1057	net/minecraft/world/entity/projectile/Projectile	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/projectile/ThrownEgg	33	net/minecraft/world/entity/projectile/ThrowableItemProjectile	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/projectile/ThrownEgg	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/projectile/ThrownEgg;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/projectile/ThrownEnderpearl	33	net/minecraft/world/entity/projectile/ThrowableItemProjectile	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/projectile/ThrownEnderpearl	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/projectile/ThrownEnderpearl;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/projectile/ThrownExperienceBottle	33	net/minecraft/world/entity/projectile/ThrowableItemProjectile	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/projectile/ThrownExperienceBottle	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/projectile/ThrownExperienceBottle;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/projectile/ThrownPotion	33	net/minecraft/world/entity/projectile/ThrowableItemProjectile	net/minecraft/world/entity/projectile/ItemSupplier	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/projectile/ThrownPotion	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/projectile/ThrownPotion;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/projectile/ThrownTrident	33	net/minecraft/world/entity/projectile/AbstractArrow	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/projectile/ThrownTrident	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/projectile/ThrownTrident;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/projectile/WitherSkull	33	net/minecraft/world/entity/projectile/AbstractHurtingProjectile	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/projectile/WitherSkull	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/projectile/WitherSkull;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/projectile/windcharge/AbstractWindCharge	1057	net/minecraft/world/entity/projectile/AbstractHurtingProjectile	net/minecraft/world/entity/projectile/ItemSupplier	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/projectile/windcharge/BreezeWindCharge	33	net/minecraft/world/entity/projectile/windcharge/AbstractWindCharge	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/projectile/windcharge/BreezeWindCharge	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/projectile/windcharge/AbstractWindCharge;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/projectile/windcharge/WindCharge	33	net/minecraft/world/entity/projectile/windcharge/AbstractWindCharge	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/projectile/windcharge/WindCharge	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/projectile/windcharge/AbstractWindCharge;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/raid/Raider	1057	net/minecraft/world/entity/monster/PatrollingMonster	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/vehicle/AbstractMinecart	1057	net/minecraft/world/entity/vehicle/VehicleEntity	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/vehicle/AbstractMinecartContainer	1057	net/minecraft/world/entity/vehicle/AbstractMinecart	net/minecraft/world/entity/vehicle/ContainerEntity	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/vehicle/AbstractMinecartContainer	clearContent	()V	1	-
 C	net/minecraft/world/entity/vehicle/Boat	33	net/minecraft/world/entity/vehicle/VehicleEntity	net/minecraft/world/entity/Leashable,net/minecraft/world/entity/VariantHolder	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/vehicle/Boat	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/vehicle/Boat;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/vehicle/ChestBoat	33	net/minecraft/world/entity/vehicle/Boat	net/minecraft/world/entity/HasCustomInventoryScreen,net/minecraft/world/entity/vehicle/ContainerEntity	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/vehicle/ChestBoat	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/vehicle/Boat;>;Lnet/minecraft/world/level/Level;)V
 M	net/minecraft/world/entity/vehicle/ChestBoat	clearContent	()V	1	-
 C	net/minecraft/world/entity/vehicle/ContainerEntity	1537	java/lang/Object	net/minecraft/world/Container,net/minecraft/world/MenuProvider	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/vehicle/Minecart	33	net/minecraft/world/entity/vehicle/AbstractMinecart	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/vehicle/Minecart	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<*>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/vehicle/MinecartChest	33	net/minecraft/world/entity/vehicle/AbstractMinecartContainer	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/vehicle/MinecartChest	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/vehicle/MinecartChest;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/vehicle/MinecartCommandBlock	33	net/minecraft/world/entity/vehicle/AbstractMinecart	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/vehicle/MinecartCommandBlock	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/vehicle/MinecartCommandBlock;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/vehicle/MinecartFurnace	33	net/minecraft/world/entity/vehicle/AbstractMinecart	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/vehicle/MinecartFurnace	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/vehicle/MinecartFurnace;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/vehicle/MinecartHopper	33	net/minecraft/world/entity/vehicle/AbstractMinecartContainer	net/minecraft/world/level/block/entity/Hopper	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/vehicle/MinecartHopper	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/vehicle/MinecartHopper;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/vehicle/MinecartSpawner	33	net/minecraft/world/entity/vehicle/AbstractMinecart	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/vehicle/MinecartSpawner	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/vehicle/MinecartSpawner;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/vehicle/MinecartTNT	33	net/minecraft/world/entity/vehicle/AbstractMinecart	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/vehicle/MinecartTNT	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/vehicle/MinecartTNT;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/vehicle/VehicleEntity	1057	net/minecraft/world/entity/Entity	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/flag/FeatureElement	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/inventory/MenuConstructor	1537	java/lang/Object	-	-	-	paper-server-1.21.1
