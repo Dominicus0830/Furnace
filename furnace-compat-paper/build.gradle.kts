@@ -134,6 +134,22 @@ fun shimLockTask(name: String, mode: String, what: String) = tasks.register<Java
 shimLockTask("shimLock", "write", "연결 명세를 서명표로 풀어 잠금 파일(src/shimspec/shim-<판>.lock)을 쓴다")
 shimLockTask("shimLockCheck", "check", "잠금 파일이 서명표·연결 명세와 같은지 본다(CI vanilla-gates)")
 
+// T-264: CraftBukkit 계층 잠금(src/shimspec/craft-hierarchy-<판>.lock — 이름만, Mojang 이름은 지문). 서명표 캐시가 있어야 한다.
+val craftLockFile = layout.projectDirectory.file("src/shimspec/craft-hierarchy-$mcVersion.lock")
+fun craftLockTask(name: String, mode: String, what: String) = tasks.register<JavaExec>(name) {
+    group = "verification"
+    description = what
+    classpath = shimgen.runtimeClasspath
+    mainClass.set("org.domi.furnace.compat.shimgen.CraftHierarchyLock")
+    jvmArgs("-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8")
+    val cache = (findProperty("cache") as String?) ?: System.getenv("FURNACE_VANILLA_CACHE")?.takeIf { it.isNotBlank() }
+        ?: (System.getProperty("user.home") + "/.cache/furnace-vanilla-extract")
+    argumentProviders.add(CommandLineArgumentProvider { listOf(mode, mcVersion, "$cache/$mcVersion", craftLockFile.asFile.absolutePath,
+        layout.projectDirectory.file("src/test/resources/craft-identity-paper-$mcVersion.tsv").asFile.absolutePath) })
+}
+craftLockTask("craftLock", "write", "Paper 서명표로 CraftBukkit 계층 잠금 파일을 쓴다(T-264)")
+craftLockTask("craftLockCheck", "check", "CraftBukkit 계층 잠금 파일이 서명표와 같은지 본다(CI vanilla-gates, T-264)")
+
 // T-181: authlib(GameProfile·Property·PropertyMap) 대역. Mojang 저장소에만 있어 컴파일 경로에 받지 않는다 — 호환 계층이 부르는 멤버만
 // 진짜 authlib 6.0.54 와 같은 서술자로 손으로 쓴 것을 컴파일·시험에만 쓰고 jar 에는 넣지 않는다(서버는 쓰는 플러그인이 있으면 진짜를 받는다).
 // CompatLinkTest 는 이 대역을 뺀 로더로 링크를 본다.
@@ -490,6 +506,8 @@ tasks.register<Test>("fullShellsTest") {
     inputs.files(fullShellsJar)
     systemProperty("furnace.fullShells.jar", layout.buildDirectory.file("full-shells/furnace-compat-shells.jar").get().asFile.absolutePath)
     systemProperty("furnace.fullShells.report", layout.buildDirectory.file("full-shells/load-report.md").get().asFile.absolutePath)
+    // T-264: -Dfurnace.craftLive.write=true 로 Craft 진짜 몸통 표(craft-live-api-methods-<판>.txt)를 다시 쓴다
+    System.getProperty("furnace.craftLive.write")?.let { systemProperty("furnace.craftLive.write", it) }
     // T-262: 채운 멤버 ↔ 바닐라 대조(FillParityTest)가 이름 푼 바닐라 jar 목록을 읽는다
     dependsOn(":vanilla-extract:prepareVanillaJars")
     systemProperty("furnace.vdiff.classpath", "$fullShellsCache/$mcVersion/vanilla-classpath.txt")
