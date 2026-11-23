@@ -450,6 +450,7 @@ val fullShellsFp = layout.projectDirectory.file("src/shimspec/full-shells-$mcVer
 val fullShellsBaseline = layout.projectDirectory.dir("src/shimspec/fills-baseline-$mcVersion")   // T-262: 이름 없는 기준선(영역 파일마다: 합계 + 클래스 해시별 남은·채운 멤버 수) — CI 는 채운 수가 줄 때만 실패
 val fullShellsAreas = layout.projectDirectory.file("src/shimspec/fill-areas.txt")
 val fullShellsLinks = layout.projectDirectory.dir("src/shimspec/links-$mcVersion")   // T-263: 연결 줄(영역 파일마다 <영역>.links) — 없으면 연결 없음
+val fullShellsDataSlots = rootProject.layout.projectDirectory.file("furnace-server/src/main/resources/entity_data/ids-$mcVersion.txt")   // 엔티티 데이터 D3: 칸 번호표(A 줄)
 val generateFullShells by tasks.registering(JavaExec::class) {
     group = "build"
     description = "서명표에서 호환 계층에 없는 Paper 내부 클래스 전부의 껍데기를 만든다(T-260)"
@@ -468,6 +469,7 @@ val generateFullShells by tasks.registering(JavaExec::class) {
     inputs.files(fullShellsFp, fullShellsAreas).optional()
     inputs.files(fileTree(fullShellsBaseline)).withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.files(fileTree(fullShellsLinks)).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file(fullShellsDataSlots).withPathSensitivity(PathSensitivity.NONE)
     outputs.dir(fullShellsDir)
     outputs.file(fullShellsReport)
     val writeFp = providers.gradleProperty("fullShellsFpWrite").isPresent
@@ -480,7 +482,9 @@ val generateFullShells by tasks.registering(JavaExec::class) {
             // T-261: 호환 jar 자신의 클래스 — 그 안의 범위 클래스에 빠진 멤버를 합쳐 껍데기 jar 에 같은 이름으로 넣는다(서버는 껍데기 jar 를 앞에 둔다)
             main.output.classesDirs.files.joinToString(File.pathSeparator) { it.absolutePath } +
             // T-263: 연결 줄 폴더 — 던지는 몸통 대신 연결 몸통을 쓴다(어긴 줄·낡은 줄은 멈춤)
-            fullShellsLinks.asFile.absolutePath
+            fullShellsLinks.asFile.absolutePath +
+            // 엔티티 데이터 D3: 칸 번호표 — 정적 EntityDataAccessor 필드를 NmsEntityData.accessor 로 초기화
+            fullShellsDataSlots.asFile.absolutePath
     })
 }
 val fullShellsJar by tasks.registering(Jar::class) {
@@ -497,6 +501,11 @@ val fullShellsElements by configurations.creating {
 artifacts.add(fullShellsElements.name, fullShellsJar)
 // 실제 서명표로 만든 껍데기 전부를 호환 계층·라이브러리와 한 로더에 올려 초기화까지 하고, 크기·시간을 build/full-shells/load-report.md 에 쓴다.
 // 라이브러리 jar 는 바닐라 서버 jar(캐시) 안의 META-INF/libraries 에서 꺼내 쓴다(Paper 처럼 실행 때 서버 라이브러리로 있는 것).
+// 엔티티 데이터 D3: 실행 때 서버 jar 에 있는 칸 번호표만 따로 된 로더에 얹는다(합친 칸 필드의 정적 초기화가 NmsEntityData.accessor 로 읽는다)
+val fullShellsServerRes by tasks.registering(Sync::class) {
+    from(fullShellsDataSlots) { into("entity_data") }
+    into(layout.buildDirectory.dir("full-shells/server-res"))
+}
 tasks.register<Test>("fullShellsTest") {
     group = "verification"
     description = "전체 껍데기를 전부 올리고 초기화하는 시험 + 크기·시간 보고(T-260, 서명표 캐시 필요)"
@@ -506,8 +515,9 @@ tasks.register<Test>("fullShellsTest") {
     useJUnitPlatform { includeTags("full-shells") }
     enableAssertions = true
     maxHeapSize = "2g"
-    dependsOn(fullShellsJar)
+    dependsOn(fullShellsJar, fullShellsServerRes)
     inputs.files(fullShellsJar)
+    inputs.files(fullShellsServerRes)
     systemProperty("furnace.fullShells.jar", layout.buildDirectory.file("full-shells/furnace-compat-shells.jar").get().asFile.absolutePath)
     systemProperty("furnace.fullShells.report", layout.buildDirectory.file("full-shells/load-report.md").get().asFile.absolutePath)
     // T-264: -Dfurnace.craftLive.write=true 로 Craft 진짜 몸통 표(craft-live-api-methods-<판>.txt)를 다시 쓴다
@@ -523,7 +533,8 @@ tasks.register<Test>("fullShellsTest") {
         // 바닐라의 log4j→slf4j 백엔드(log4j-slf4j2-impl)는 Furnace 가 싣지 않는다 — 서버 제공 log4j-to-slf4j 와 함께 있으면 로그 초기화가 실패한다
         val libs = fileTree(fullShellsLibs) { include("**/*.jar"); exclude("**/log4j-slf4j2-impl-*.jar") }.files.sorted()
         val cp = listOf(fullShellsJar.get().archiveFile.get().asFile, tasks.jar.get().archiveFile.get().asFile) +
-            fullShellsMain.runtimeClasspath.files.filter { it.isFile } + fullShellsServerLibs.files + libs
+            fullShellsMain.runtimeClasspath.files.filter { it.isFile } + fullShellsServerLibs.files + libs +
+            layout.buildDirectory.dir("full-shells/server-res").get().asFile
         listOf("-Dfurnace.fullShells.classpath=" + cp.joinToString(File.pathSeparator) { it.absolutePath })
     })
     testLogging { showStandardStreams = true }
