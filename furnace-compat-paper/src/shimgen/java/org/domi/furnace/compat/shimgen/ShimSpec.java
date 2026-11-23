@@ -79,7 +79,7 @@ final class ShimSpec {
 
     final Map<String, Cls> classes = new LinkedHashMap<>();
 
-    /** 종류 표(kind-classes-&lt;판&gt;.txt, T-231): 레지스트리 종류 → 바닐라 클래스. 줄: B|I 이름 클래스. 비어 있으면 표가 없다. */
+    /** 종류 표(kind-classes-&lt;판&gt;.txt, T-231): 레지스트리 종류 → 바닐라 클래스. 줄: B|I|E 이름 클래스(E 는 엔티티 종류, T-232). 비어 있으면 표가 없다. */
     final List<String[]> kinds = new ArrayList<>();
 
     /** 종류 표 파일 이름 앞부분. 판마다 하나만 둔다(판 이름은 잠금 파일과 같다). */
@@ -110,7 +110,7 @@ final class ShimSpec {
             String t = lines[n].strip();
             if (t.isEmpty() || t.startsWith("#")) continue;
             String[] w = t.split("\\s+");
-            if (w.length != 3 || !(w[0].equals("B") || w[0].equals("I"))) throw err(file, n + 1, "kind table lines are 'B|I <registry name> <class>': " + t);
+            if (w.length != 3 || !(w[0].equals("B") || w[0].equals("I") || w[0].equals("E"))) throw err(file, n + 1, "kind table lines are 'B|I|E <registry name> <class>': " + t);
             if (!w[2].startsWith("net.minecraft.")) throw err(file, n + 1, "kind classes are net.minecraft classes: " + w[2]);
             kinds.add(w);
             firstLine.putIfAbsent(w[2], n + 1);

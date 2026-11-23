@@ -70,6 +70,54 @@ public abstract class HangingEntity extends Entity {
         recalculate();
     }
 
+    /**
+     * 바닐라 HangingEntity#rotate(Rotation): 걸린 방향이 수평이면 방향만 돌린다(각도·상자는 그대로 — 바닐라도 필드만 바꾼다).
+     * 돌려줌은 wrapDegrees(yRot) 에 돌림을 더한 값. {@code rotation} 은 Rotation 서수(0 없음·1 시계 90·2 180·3 반시계 90).
+     */
+    public float rotate(int rotation) {
+        direction = rotatedDirection(direction, rotation);
+        return org.domi.furnace.server.entity.ai.control.Mth.wrapDegrees(yRot()) + rotateDegrees(rotation);
+    }
+
+    /** rotate 가 바꾸는 방향: 수평이면 180 → 반대, 시계 90 → 시계, 반시계 90 → 반시계(위·아래는 그대로). */
+    public static int rotatedDirection(int dir, int rotation) {
+        if (!Dir.horizontal(dir)) return dir;
+        return switch (rotation) {
+            case 2 -> Dir.opposite(dir);
+            case 3 -> Dir.counterClockWise(dir);
+            case 1 -> Dir.clockWise(dir);
+            default -> dir;
+        };
+    }
+
+    /** rotate 가 wrapDegrees(yRot) 에 더하는 값(Entity#rotate 와 90·270 이 바뀌어 있다 — 바닐라 그대로). */
+    public static float rotateDegrees(int rotation) {
+        return switch (rotation) {
+            case 2 -> 180.0F;
+            case 3 -> 90.0F;
+            case 1 -> 270.0F;
+            default -> 0.0F;
+        };
+    }
+
+    /** 바닐라 Mirror#getRotation(direction) — HangingEntity#mirror 가 rotate 에 넘기는 돌림. mirror 는 BlockStateTable 값(1 LEFT_RIGHT·2 FRONT_BACK). */
+    public static int mirrorRotation(int mirror, int dir) {
+        int axis = Dir.axis(dir);
+        return mirror == 1 && axis == Dir.AXIS_Z || mirror == 2 && axis == Dir.AXIS_X ? 2 : 0;
+    }
+
+    /**
+     * 살아 있는 월드에 템플릿으로 놓은 걸이 엔티티(바닐라 placeEntities 는 레벨에 바로 넣는다): 불러오기의 setDirection 이 덮은 yRot 을
+     * 저장 각도(바닐라 moveTo 의 각도)로 되돌린다. 다시 불러오면 setDirection 이 정한다 — 바닐라도 같다.
+     */
+    public void keepPlacedYaw(NbtCompound nbt) {
+        var r = nbt.getList("Rotation");
+        if (r.size() > 0 && r.get(0) instanceof Float y) {
+            setYRot(y);
+            yRotO = y;
+        }
+    }
+
     @Override public int spawnData() { return direction; }
 
     @Override public boolean isPickable() { return true; }

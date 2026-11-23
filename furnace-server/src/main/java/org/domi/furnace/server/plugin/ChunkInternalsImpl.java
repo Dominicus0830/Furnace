@@ -20,6 +20,27 @@ final class ChunkInternalsImpl implements ChunkInternals {
 
     ChunkInternalsImpl(PluginHost host) { this.host = host; }
 
+    // 거울(N2b-4)을 서버 청크가 부르는 훅 — 서버 핵심은 거울을 형 없이 들고 이것만 부른다(어댑터 분리 3단계). 거울은 이 다리로만 붙으므로 클래스가 올라올 때 꽂으면 늘 먼저다.
+    static {
+        installMirrorOps();
+    }
+
+    /** 거울 훅을 꽂는다(여러 번 불러도 된다). 다리를 거치지 않고 거울을 붙이는 시험·벤치가 부른다. */
+    static void installMirrorOps() { ChunkColumn.installMirrorOps(MirrorOps.INSTANCE); }
+
+    private enum MirrorOps implements org.domi.furnace.server.world.ChunkMirrorOps {
+        INSTANCE;
+
+        @Override
+        public boolean sync(Object mirror) { return ((ChunkMirror) mirror).sync(); }
+
+        @Override
+        public void published(Object mirror, org.domi.furnace.server.world.ChunkReadView view) { ((ChunkMirror) mirror).published(view); }
+
+        @Override
+        public void unloaded(Object mirror) { ((ChunkMirror) mirror).unloaded(); }
+    }
+
     private static WorldHandle handle(org.domi.furnace.api.world.World w) {
         if (w instanceof WorldHandle wh) return wh;
         throw new IllegalArgumentException("not a world handle created by the Furnace server: " + w);
@@ -894,8 +915,34 @@ final class ChunkInternalsImpl implements ChunkInternals {
             }
             case EntityEdit.StopRiding s -> e.stopRiding();
             case EntityEdit.EjectPassengers s -> e.ejectPassengers();
+            case EntityEdit.ClearContent s -> {
+                // 바닐라 ContainerEntity#clearChestVehicleContent: unpackChestVehicleLootTable(null) 뒤 칸 비우기
+                if (!(e instanceof org.domi.furnace.server.entity.ContainerEntity ce)) throw new IllegalArgumentException("not a container entity: " + e);
+                ce.unpackLootTable();
+                java.util.Arrays.fill(ce.chestVehicleItems(), org.domi.furnace.server.entity.ItemStack.EMPTY);
+            }
+            case EntityEdit.HangingDirection s -> {
+                return hanging(e).direction();
+            }
+            case EntityEdit.HangingRotate r -> {
+                return hanging(e).rotate(r.rotation());
+            }
+            case EntityEdit.ItemFrameRotation s -> {
+                return itemFrame(e).rotation();
+            }
+            case EntityEdit.SetItemFrameRotation r -> itemFrame(e).setRotation(r.rotation());
         }
         return null;
+    }
+
+    private static org.domi.furnace.server.entity.HangingEntity hanging(org.domi.furnace.server.entity.Entity e) {
+        if (!(e instanceof org.domi.furnace.server.entity.HangingEntity h)) throw new IllegalArgumentException("not a hanging entity: " + e);
+        return h;
+    }
+
+    private static org.domi.furnace.server.entity.ItemFrame itemFrame(org.domi.furnace.server.entity.Entity e) {
+        if (!(e instanceof org.domi.furnace.server.entity.ItemFrame f)) throw new IllegalArgumentException("not an item frame: " + e);
+        return f;
     }
 
     @Override
@@ -1052,6 +1099,8 @@ final class ChunkInternalsImpl implements ChunkInternals {
                 case EntityOp.SetYHeadRot h -> {
                     if (e instanceof org.domi.furnace.server.entity.LivingEntity le) le.setYHeadRot(h.yHeadRot());
                 }
+                case EntityOp.HangingRotate r -> hanging(e).rotate(r.rotation());
+                case EntityOp.SetItemFrameRotation r -> itemFrame(e).setRotation(r.rotation());
             }
         }
         return e;

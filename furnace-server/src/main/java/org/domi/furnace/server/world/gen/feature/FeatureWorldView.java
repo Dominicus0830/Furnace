@@ -723,8 +723,34 @@ public final class FeatureWorldView implements org.domi.furnace.server.world.blo
 
     public EdgeUpdater edgeUpdater() { return edgeUpdater; }
 
-    /** 통로 모드인가(플러그인 레벨을 통한 배치). */
+    /**
+     * 통로 모드인가(플러그인 레벨을 통한 배치). 통로 모드 분기는 이 클래스와 템플릿 배치 엔진({@code TemplatePlacer}·{@code ShapeUpdater})에만 둔다 —
+     * 그 밖의 월드젠 코드는 아래 뜻 이름 메서드를 부른다({@code AdapterBoundaryStaticTest.sinkModeStaysInPlacementEngine}).
+     */
     public boolean sinkMode() { return sink != null; }
+
+    /**
+     * 바닐라·Paper 가 {@code level.getBlockEntity(pos)} 를 보고 내용(전리품 표·시드)을 넣는 자리: 통로 모드면 그 레벨의 블록 엔티티를 따르고(없거나 다른 종류면
+     * 건너뛴다, 있으면 바꿀 수 없어 {@link UnsupportedOperationException} — {@link #blockEntityPresent}) 참을 돌려준다 — 부른 쪽은 사본에 쓰지 않는다.
+     * 통로가 아니면 거짓(부른 쪽이 사본에 블록 엔티티를 쓴다).
+     */
+    public boolean pluginLevelOwnsBlockEntity(int worldX, int worldY, int worldZ, java.util.Set<String> types) {
+        if (sink == null) return false;
+        blockEntityPresent(worldX, worldY, worldZ, types);
+        return true;
+    }
+
+    /** 통로 모드면 이제부터 쓰기 flag 를 flags 로 하고 옛 값을 돌려준다(통로가 아니면 바꾸지 않는다). 끝나면 {@link #setLiveWriteFlags}(돌려받은 값). */
+    public int pluginLevelWriteFlags(int flags) {
+        int saved = liveWriteFlags;
+        if (sink != null) liveWriteFlags = flags;
+        return saved;
+    }
+
+    /** 바닐라가 레벨의 setBlock 을 거치지 않고 섹션에 바로 쓰는 feature(what) 자리: 통로 모드면 흉내 내지 않고 {@link UnsupportedOperationException}. */
+    public void requireDirectSectionWrites(String what) {
+        if (sink != null) throw new UnsupportedOperationException(what);
+    }
 
     // ------------------------------------------------------------------ 구조물 통로(T-211 2단계)
 

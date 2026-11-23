@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 블록·아이템 종류 → 바닐라 클래스(T-231). 표는 shim 생성기가 빌드 때 {@code src/shimspec/kind-classes-<판>.txt}(바닐라에서 뽑은 것)를 옮겨 둔
+ * 블록·아이템·엔티티 종류 → 바닐라 클래스(T-231, 엔티티는 T-232). 표는 shim 생성기가 빌드 때 {@code src/shimspec/kind-classes-<판>.txt}(바닐라에서 뽑은 것)를 옮겨 둔
  * {@code META-INF/furnace/shim-kinds.txt} 다. 블록·아이템 객체를 그 클래스로 만들어 플러그인의 {@code instanceof CropBlock} 같은 판정이 바닐라와 같게 한다.
  * 클래스는 생성기 전용 생성자 {@code C(ShimCtor)} 로 만들고 재료(블록 종류·아이템 이름)는 표지에 실어 사슬 맨 위 손 shim 이 받는다.
  * 표에 없는 이름(데이터 팩·플러그인 종류)은 기본 클래스({@code Block}·{@code Item})다 — 바닐라에도 없는 종류라 정답이 없다.
@@ -24,7 +24,7 @@ public final class NmsKinds {
     /** 빌드가 넣는 표 위치(생성기 ShimGenerator.KIND_INDEX 와 같다). */
     static final String INDEX = "META-INF/furnace/shim-kinds.txt";
 
-    private record Table(Map<String, String> blocks, Map<String, String> items) {}
+    private record Table(Map<String, String> blocks, Map<String, String> items, Map<String, String> entities) {}
 
     private static volatile Table table;
     private static final ConcurrentHashMap<String, Constructor<?>> CTORS = new ConcurrentHashMap<>();
@@ -43,18 +43,19 @@ public final class NmsKinds {
     private static Table load() {
         Map<String, String> blocks = new HashMap<>();
         Map<String, String> items = new HashMap<>();
+        Map<String, String> entities = new HashMap<>();
         try (InputStream in = NmsKinds.class.getClassLoader().getResourceAsStream(INDEX)) {
             if (in == null) throw new IllegalStateException("missing " + INDEX + " (built by the shim generator)");
             BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             for (String l; (l = r.readLine()) != null; ) {
                 if (l.isBlank()) continue;
                 String[] w = l.split(" ");
-                (w[0].equals("B") ? blocks : items).put(w[1], w[2]);
+                (w[0].equals("B") ? blocks : w[0].equals("I") ? items : entities).put(w[1], w[2]);
             }
         } catch (IOException e) {
             throw new IllegalStateException("cannot read " + INDEX, e);
         }
-        return new Table(Map.copyOf(blocks), Map.copyOf(items));
+        return new Table(Map.copyOf(blocks), Map.copyOf(items), Map.copyOf(entities));
     }
 
     /** 블록 이름(minecraft:wheat)의 바닐라 클래스 이진 이름. 표에 없으면 null. */
@@ -62,6 +63,12 @@ public final class NmsKinds {
 
     /** 아이템 이름(minecraft:stone)의 바닐라 클래스 이진 이름. 표에 없으면 null. */
     public static String itemClass(String id) { return table().items().get(id); }
+
+    /** 엔티티 종류 이름(minecraft:zombie)의 바닐라 클래스 이진 이름(T-232). 표에 없으면 null(플레이어 — 늘 ServerPlayer). */
+    public static String entityClass(String id) { return table().entities().get(id); }
+
+    /** 표의 엔티티 종류 수(시험용). */
+    public static int entityCount() { return table().entities().size(); }
 
     /** 표의 블록 수(시험용). */
     public static int blockCount() { return table().blocks().size(); }

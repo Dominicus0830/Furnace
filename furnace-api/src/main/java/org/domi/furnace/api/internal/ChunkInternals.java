@@ -860,6 +860,24 @@ public interface ChunkInternals {
 
         /** 바닐라 {@code ejectPassengers}. 돌려줌: null. */
         record EjectPassengers() implements EntityEdit {}
+
+        /**
+         * 바닐라 {@code Clearable#clearContent}(상자 배·상자/깔때기 수레 = {@code ContainerEntity#clearChestVehicleContent}): 열지 않은 전리품 표를 연 사람 없이
+         * 푼 뒤 칸을 모두 비운다. 담는 엔티티가 아니면 IllegalArgumentException. 돌려줌: null.
+         */
+        record ClearContent() implements EntityEdit {}
+
+        /** 바닐라 {@code HangingEntity#getDirection}: 걸린 방향의 3D 데이터 값(아래 0·위 1·북 2·남 3·서 4·동 5). 돌려줌: Integer. */
+        record HangingDirection() implements EntityEdit {}
+
+        /** 바닐라 {@code HangingEntity#rotate(Rotation)}: rotation 은 {@code Rotation} 서수(0 없음·1 시계 90·2 180·3 반시계 90). 돌려줌: Float(새 yRot 후보). */
+        record HangingRotate(int rotation) implements EntityEdit {}
+
+        /** 바닐라 {@code ItemFrame#getRotation}: 액자 안 아이템의 돌림(0~7). 돌려줌: Integer. */
+        record ItemFrameRotation() implements EntityEdit {}
+
+        /** 바닐라 {@code ItemFrame#setRotation(int)}: 돌림을 8 로 나눈 나머지로 두고 액자가 붙은 블록 둘레에 비교기 갱신. 돌려줌: null. */
+        record SetItemFrameRotation(int rotation) implements EntityEdit {}
     }
 
     /** {@link #addNmsEntityNow} 가 재생할 엔티티 조작 하나. */
@@ -875,6 +893,12 @@ public interface ChunkInternals {
 
         /** 바닐라 {@code Entity#setYHeadRot(yHeadRot)}(살아 있는 엔티티만 바뀐다). */
         record SetYHeadRot(float yHeadRot) implements EntityOp {}
+
+        /** 바닐라 {@code HangingEntity#rotate(Rotation)}(걸이 엔티티만). rotation 은 {@code Rotation} 서수. */
+        record HangingRotate(int rotation) implements EntityOp {}
+
+        /** 바닐라 {@code ItemFrame#setRotation(int)}(액자만). */
+        record SetItemFrameRotation(int rotation) implements EntityOp {}
     }
 
     /**

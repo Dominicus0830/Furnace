@@ -581,7 +581,8 @@ public final class ServerCore {
      * 표 이름을 먼저 지우고, 위치는 상자 중심, 연 플레이어가 this_entity. {@code w} 는 상자가 있는 월드(탐험 지도·바이옴 조건이 그 월드를 본다).
      */
     public void unpackLoot(World w, org.domi.furnace.server.block.entity.ContainerBlockEntity chest, Player opener) {
-        if (chest.lootTable == null || dataPacks == null || dataPacks.loot() == null) return;
+        // 바닐라는 표를 찾지 못해도(LootTable.EMPTY) 표 이름을 지운다 — 데이터 팩이 없을 때도 같다(채우기만 건너뜀)
+        if (chest.lootTable == null) return;
         String table = chest.lootTable;
         chest.lootTable = null;
         generatedLoot(opener, table);
@@ -591,7 +592,7 @@ public final class ServerCore {
     /** 바닐라 ContainerEntity.unpackChestVehicleLootTable — 엔티티 용기의 전리품 표를 푼다(그 엔티티의 region 스레드에서). 위치는 엔티티 위치. */
     public void unpackLoot(World w, org.domi.furnace.server.entity.ContainerEntity entity, Player opener) {
         String table = entity.lootTable();
-        if (table == null || dataPacks == null || dataPacks.loot() == null) return;
+        if (table == null) return;   // 데이터 팩이 없어도 표 이름은 지운다(바닐라 EMPTY 표와 같음, 채우기만 건너뜀)
         entity.setLootTable(null);
         generatedLoot(opener, table);
         var e = entity.asEntity();

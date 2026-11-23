@@ -131,11 +131,8 @@ public abstract class TemplatePiece extends StructurePiece {
      * (아래 칸이 상자일 때만 난수를 소비한다: be instanceof ChestBlockEntity)
      */
     protected static void setChestLoot(PostCtx c, int x, int y, int z, String lootTable) {
-        if (c.view.sinkMode()) {
-            // Paper setCraftLootTable: 그 레벨의 getBlockEntity 가 RandomizableContainerBlockEntity 일 때만 뽑고 바꾼다 — 플러그인 레벨의 것은 바꿀 수 없어 있으면 오류
-            c.view.blockEntityPresent(x, y, z, RANDOMIZABLE_CONTAINER_BLOCK_ENTITIES);
-            return;
-        }
+        // Paper setCraftLootTable: 그 레벨의 getBlockEntity 가 RandomizableContainerBlockEntity 일 때만 뽑고 바꾼다 — 플러그인 레벨의 것은 바꿀 수 없어 있으면 오류
+        if (c.view.pluginLevelOwnsBlockEntity(x, y, z, RANDOMIZABLE_CONTAINER_BLOCK_ENTITIES)) return;
         int state = c.view.getBlock(x, y, z);
         String name = c.table().name(state);
         if (!name.equals("minecraft:chest") && !name.equals("minecraft:trapped_chest")) return;

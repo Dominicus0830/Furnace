@@ -119,7 +119,7 @@ public final class ChunkColumn {
     public Object attachViewHolder(Object shim) { return attachViewHolder(shim, null); }
 
     /** shim 과 그 거울(N2b-4, null 이면 없음)을 함께 붙인다 — 살아 있는 shim 이 이미 있으면 그것(먼저 붙은 쪽이 이긴다, 거울도 그쪽 것). 아무 스레드. */
-    public Object attachViewHolder(Object shim, org.domi.furnace.api.internal.ChunkInternals.ChunkMirror mirror) {
+    public Object attachViewHolder(Object shim, Object mirror) {
         java.util.Objects.requireNonNull(shim, "shim");
         while (true) {
             var cur = viewHolder;
@@ -134,12 +134,12 @@ public final class ChunkColumn {
 
     /**
      * 붙은 shim 의 약한 참조와 그 거울의 약한 참조(N2b-4). shim 과 거울은 서로를 강하게 쥐어 함께 사라진다 — 따로 두는 것은 서버가 shim 의 클래스(호환 계층)를
-     * 모르고 거울 인터페이스로만 부르기 위해서다.
+     * 모르고 거울을 형 없이 들어 훅({@link ChunkMirrorOps})으로만 부르기 위해서다.
      */
     private static final class ShimRef extends java.lang.ref.WeakReference<Object> {
-        final java.lang.ref.WeakReference<org.domi.furnace.api.internal.ChunkInternals.ChunkMirror> mirror;
+        final java.lang.ref.WeakReference<Object> mirror;
 
-        ShimRef(Object shim, org.domi.furnace.api.internal.ChunkInternals.ChunkMirror mirror) {
+        ShimRef(Object shim, Object mirror) {
             super(shim);
             this.mirror = mirror == null ? null : new java.lang.ref.WeakReference<>(mirror);
         }
@@ -149,10 +149,24 @@ public final class ChunkColumn {
     // 플러그인이 고친 NMS 청크 shim(거울)을 주인 region 스레드가 맞춤 지점마다 서버 청크로 들여온다. 대기 상태는 이 컬럼에 둔다(R8 — region 나누기·합치기·
     // 재생성 때 청크와 함께 간다). 들여오기는 표시를 보고 그때의 거울 상태로 서버를 맞추는 멱등 연산이다.
 
+    /** 거울을 부르는 훅(다리가 꽂는다 — {@link #installMirrorOps}). 거울은 다리로만 붙으므로 거울이 있으면 꽂혀 있다. */
+    private static volatile ChunkMirrorOps mirrorOps;
+
+    /** 다리가 거울 훅을 꽂는다(처음 것이 이긴다 — 구현은 하나뿐이다). */
+    public static void installMirrorOps(ChunkMirrorOps ops) {
+        if (mirrorOps == null) mirrorOps = java.util.Objects.requireNonNull(ops, "ops");
+    }
+
+    private static ChunkMirrorOps ops() {
+        ChunkMirrorOps o = mirrorOps;
+        if (o == null) throw new IllegalStateException("a chunk mirror is attached but no mirror hook is installed");
+        return o;
+    }
+
     /** 들여오지 않은 거울 쓰기가 있다(0/1). 아무 스레드가 CAS 로 세우고(세운 쪽이 주인을 깨운다) 주인이 맞출 때 내린다. */
     private volatile int mirrorPending;
     /** 대기 동안 거울을 강하게 쥔다(R14 — 플러그인이 참조를 모두 놓아도 들여올 쓰기를 잃지 않게). 아무 스레드가 세우고 주인이 맞춘 뒤 내린다. */
-    private volatile org.domi.furnace.api.internal.ChunkInternals.ChunkMirror mirrorHeld;
+    private volatile Object mirrorHeld;
     /** 주인 전용: 맞추는 중(거울이 다리로 서버에 쓰는 동안 다시 들어오지 않게). */
     private boolean mirrorSyncing;
     /** 주인 전용: 저장 표시 없이 들여왔거나 원시로 쓴 내용이 있고 그 뒤 저장되지 않았다(D3 — 이대로 내려가면 경고). */
@@ -168,7 +182,7 @@ public final class ChunkColumn {
     }
 
     /** 붙은 거울(없거나 shim 이 사라졌으면 null, 대기 중이면 쥐고 있는 것). 아무 스레드. */
-    public org.domi.furnace.api.internal.ChunkInternals.ChunkMirror mirror() {
+    public Object mirror() {
         var held = mirrorHeld;
         if (held != null) return held;
         return viewHolder instanceof ShimRef r && r.mirror != null ? r.mirror.get() : null;
@@ -178,7 +192,7 @@ public final class ChunkColumn {
      * 아무 스레드: 거울에 들여오지 않은 쓰기가 생겼다. 이 로드에 붙은 거울이 아니면 false(그 쓰기는 월드에 닿지 않는다). 대기 표시를 처음 세운 호출만
      * {@code woke[0]} 이 참 — 그 호출자가 주인을 깨운다(대기 청크 수도 센다).
      */
-    public boolean markMirrorPending(org.domi.furnace.api.internal.ChunkInternals.ChunkMirror m, boolean[] woke) {
+    public boolean markMirrorPending(Object m, boolean[] woke) {
         var r = viewHolder;
         if (!(r instanceof ShimRef ref) || ref.mirror == null || ref.mirror.get() != m) return false;
         mirrorHeld = m;   // 대기 표시보다 먼저 — 주인이 표시를 보고 내리는 순서와 맞물린다(syncMirror)
@@ -217,7 +231,7 @@ public final class ChunkColumn {
                 mirrorSyncing = true;
                 boolean left;
                 try {
-                    left = m.sync();
+                    left = ops().sync(m);
                 } finally {
                     mirrorSyncing = false;
                 }
@@ -234,7 +248,7 @@ public final class ChunkColumn {
     /** 주인 스레드: 틱 끝 공개 뒤 거울에 알린다(개수 필드·덧칠 새로 고침). */
     public void mirrorPublished() {
         var m = mirror();
-        if (m != null) m.published(readView);
+        if (m != null) ops().published(m, readView);
     }
 
     /** 주인 스레드, 내리기 직전(맞춘 뒤): 거울을 떼어 낸다(남은 대기는 버린다 — 바닐라: 죽은 LevelChunk 에 쓴 것). */
@@ -242,7 +256,7 @@ public final class ChunkColumn {
         var m = mirror();
         if (MIRROR_PENDING.compareAndSet(this, 1, 0)) pendingChunks.decrementAndGet();
         mirrorHeld = null;
-        if (m != null) m.unloaded();
+        if (m != null) ops().unloaded(m);
     }
 
     /**

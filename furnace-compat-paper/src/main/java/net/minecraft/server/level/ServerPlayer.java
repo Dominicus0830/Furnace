@@ -20,7 +20,7 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player {
 
     /** 호환 모듈 전용(CraftPlayer 가 만든다). */
     public ServerPlayer(CraftPlayer bukkit) {
-        super(bukkit);
+        super(org.domi.furnace.compat.nms.ShimCtor.carrying(bukkit));
         this.furnaceDetached = false;
         this.gameMode = new ServerPlayerGameMode(this);
         this.connection = new net.minecraft.server.network.ServerGamePacketListenerImpl(this);
@@ -34,7 +34,7 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player {
      * — 바닐라는 {@code updateOptions} 로 넣는데, 이 shim 에는 그 값을 읽는 멤버가 없다.
      */
     public ServerPlayer(net.minecraft.server.MinecraftServer server, ServerLevel level, com.mojang.authlib.GameProfile profile, ClientInformation clientInformation) {
-        super(detachedCraftPlayer(level, profile));
+        super(org.domi.furnace.compat.nms.ShimCtor.carrying(detachedCraftPlayer(level, profile)));
         this.furnaceDetached = true;
         this.gameMode = new ServerPlayerGameMode(this);
         getBukkitEntity().adoptHandle(this);
@@ -222,9 +222,7 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player {
     /** 이 플레이어가 있는 월드. */
     public ServerLevel serverLevel() { return (ServerLevel) level(); }
 
-    /** 바닐라: 지워졌는가. 월드에 없는 플레이어는 지운 적이 없어 거짓이다(Paper 와 같다 — 접속이 끊긴 것으로 보이는 것과 따로). */
-    @Override
-    public boolean isRemoved() { return !furnaceDetached && super.isRemoved(); }
+    // isRemoved: 월드에 없는 플레이어는 지운 적이 없어 거짓 — Paper 에서 final 이라 Entity 조각이 가린다(T-232)
 
     /**
      * 바닐라 {@code Entity#absMoveTo(x, y, z, yRot, xRot)}: x·z 는 ±3000만으로 자르고, 방향은 yRot % 360, xRot 는 ±90 으로 자른 뒤 % 360.

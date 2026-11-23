@@ -33,6 +33,8 @@
 | `InventoryMenu` 의 상위가 `RecipeBookMenu` 가 아님 | 제작 책 틀을 안 만듦. 제작칸 컨테이너(`getCraftSlots`)도 없음 |
 | `Player.inventoryMenu` 가 final 이 아님 | 새로 고칠 때 바꿔야 함 |
 | `Inventory.selected` 는 메서드 호출 때 맞춰짐 | 공개 필드 |
+| `Container` 의 바닐라 추상 메서드가 `default` 로 던짐 | 생성기가 만든 하위 클래스(상자 수레 등)가 이 인터페이스를 물려받는데 던지는 몸통은 Paper 서명표로 잠금 파일을 다시 만들어야 생긴다. 표가 있는 곳에서 명세로 옮겨 추상으로 되돌린다 |
+| `Nameable` 은 생성기가 만든 빈 인터페이스 그대로 | 그래서 `Inventory.getName()` 에는 `@Override` 가 없다(호출은 `Inventory`/`Container` 로) |
 | `Container` 에 CraftBukkit 풍 `getContents()` 가 있음 | Bukkit 쪽에서 흔히 쓰임 |
 
 ### 2.4 일부러 안 한 것(링커 함정이 그대로: 부르면 `UnsupportedNmsLink`)

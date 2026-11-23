@@ -590,7 +590,7 @@ public final class PluginHost implements Furnace {
         return s != null && s.get().onlineMode;   // server.properties 가 없는 시험 서버는 오프라인 접속만 받는다
     }
 
-    @Override
+    /** {@link org.domi.furnace.api.internal.Internals#compatOption} 의 값(다리 {@link InternalsImpl} 가 부른다). */
     public String compatOption(String key) {
         return key != null && key.startsWith("plugins.compat.") ? pluginsImpl().settings().compatOption(key) : null;
     }

@@ -1,5 +1,6 @@
 // 다른 서버 소프트웨어의 플러그인 형식(예: Bukkit·Paper 의 plugin.yml)을 읽어 주는 어댑터 SPI.
 // 호환 모듈(furnace-compat-paper)이 java.util.ServiceLoader 로 등록한다. 어댑터가 없으면 서버는 Furnace 설명 파일만 읽는다.
+// 서버가 어댑터를 부르는 훅은 이 SPI 하나다(설정 값은 다리 Internals#compatOption) — 플러그인이 구현하거나 부를 일은 없다(docs/ops/adapter-boundary.md).
 package org.domi.furnace.api.plugin;
 
 import java.util.List;

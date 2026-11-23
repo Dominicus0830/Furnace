@@ -43,13 +43,11 @@ class AdapterBoundaryStaticTest {
             Map.entry("org/domi/furnace/server/plugin/InternalsImpl", "api.internal.Internals 진입점 서버 쪽 구현(다리)"),
             Map.entry("org/domi/furnace/server/plugin/ScratchWorldsImpl", "api.internal.ScratchWorlds 서버 쪽 구현(다리)"),
             Map.entry("org/domi/furnace/server/plugin/PluginHost", "서버가 다리 진입점(InternalsImpl)을 하나 들고 호환 어댑터에게 internals() 로 내준다"),
-            Map.entry("org/domi/furnace/server/world/Region", "region 스레드에서 로드된 청크를 ChunkInternals 읽기 보기에 내주는 접근 — 권장 3단계에서 훅 뒤로"),
             Map.entry("org/domi/furnace/server/plugin/PlacementBridge", "NMS 놓기 어댑터 전용 다리 — 서버 놓기 규칙을 api.internal 로 보인다"),
-            // 아래 넷은 구현 클래스가 아니라 핵심 자료구조가 어댑터를 위한 "거울 동기화·읽기 보기" 모양을 직접 안다 — 점검 보고서(어댑터 분리 점검)의 권장 3단계(훅 뒤로)에서 줄인다.
-            Map.entry("org/domi/furnace/server/world/ChunkColumn", "어댑터 청크 거울(FurnaceChunkMirror) 동기화 훅 — 권장 3단계에서 훅 뒤로"),
-            Map.entry("org/domi/furnace/server/world/ChunkSection", "ChunkInternals 읽기 보기용 접근 — 권장 3단계에서 훅 뒤로"),
-            Map.entry("org/domi/furnace/server/world/ChunkReadView", "ChunkInternals 읽기 보기 자료형 — 권장 3단계에서 훅 뒤로"),
-            Map.entry("org/domi/furnace/server/world/PaletteStorage", "ChunkInternals 읽기 보기용 팔레트 접근 — 권장 3단계에서 훅 뒤로")));
+            // 아래 셋은 구현 클래스가 아니라 핵심 자료구조가 어댑터를 위한 "읽기 보기" 자료형을 복사 없이 내주려고 API 인터페이스를 직접 구현한다 — 감싸면 읽기가 6~14% 느려져(3b 측정) 그대로 둔다(docs/ops/adapter-boundary-step3-plan.md). 거울 동기화(Region·ChunkColumn)는 3단계에서 훅(ChunkMirrorOps) 뒤로 옮겨 빠졌다.
+            Map.entry("org/domi/furnace/server/world/ChunkSection", "ChunkInternals 읽기 보기용 접근(블록 묶음 복사본) — 감싸개 비용 때문에 남김(3b)"),
+            Map.entry("org/domi/furnace/server/world/ChunkReadView", "ChunkInternals 읽기 보기 자료형(ChunkView 직접 구현) — 감싸개 비용 때문에 남김(3b)"),
+            Map.entry("org/domi/furnace/server/world/PaletteStorage", "ChunkInternals 읽기 보기용 팔레트 접근(PackedStates 직접 구현, 복사 없음) — 감싸개 비용 때문에 남김(3b)")));
 
     /**
      * ② 의 예외: 상수 풀에 어댑터 이름이 "자료"로 들어 있는 API 클래스(클래스 파일 상대 경로 접두). 어댑터 클래스를 부르지 않는다.
@@ -109,6 +107,64 @@ class AdapterBoundaryStaticTest {
             assertTrue(Files.exists(f), e.getKey() + " 가 없다 — 목록에서 지운다");
             assertTrue(Files.readString(f).contains("pkg(\"org\", \"bukkit\")"), e.getKey() + " 가 더는 이어 붙이지 않는다 — 목록에서 지운다");
         }
+    }
+
+    // ---- 어댑터가 꽂는 훅이 한 곳에 모여 있는가(권장 2단계) ----
+    // 클래스 파일 상수 풀로는 "어느 메서드를 불렀나"를 파일 단위로만 볼 수 있어 원문을 훑는다. 줄은 줄어들기만 한다.
+
+    /** 통로 모드(플러그인 레벨을 통한 배치) 분기를 직접 묻는 곳 — 훅(WriteSink·EdgeUpdater)을 받는 FeatureWorldView 밖에서는 템플릿 배치 엔진뿐. 그 밖은 FeatureWorldView 의 뜻 이름 메서드를 부른다. */
+    private static final Map<String, String> SINK_MODE_CALLERS = Map.of(
+            "world/gen/structure/template/TemplatePlacer.java", "템플릿 배치 엔진 — Paper 가 감싸개를 벗긴 레벨로 쓰는 차례(방벽·블록 엔티티·모양 갱신)",
+            "world/block/ShapeUpdater.java", "템플릿 가장자리 모양 갱신 — 통로 모드면 가장자리 갱신기 훅으로");
+
+    @Test
+    void sinkModeStaysInPlacementEngine() throws IOException {
+        assertEquals(new TreeSet<>(SINK_MODE_CALLERS.keySet()), serverSourcesContaining(".sinkMode()", null),
+                "통로 모드 분기가 퍼졌다(또는 줄었다) — 월드젠 코드는 FeatureWorldView 의 pluginLevel* 메서드를 부른다(docs/ops/adapter-boundary.md)");
+    }
+
+    /** 연결의 패킷 가로채기 지점(PacketTap.KEY)을 만지는 곳 — 꽂는 쪽 PacketServiceImpl, 보내는 쪽 PacketTaps, 받는 쪽 ConnectionHandler 하나씩. */
+    private static final Map<String, String> PACKET_TAP_READERS = Map.of(
+            "plugin/packet/PacketServiceImpl.java", "플러그인 패킷 API 가 연결에 가로채기 지점을 꽂는 곳",
+            "net/PacketTaps.java", "보내는 패킷이 가로채기 지점을 거치는 한 곳(리스너 안에서 보낸 패킷 순서 포함)",
+            "net/ConnectionHandler.java", "받는 패킷이 가로채기 지점을 거치는 한 곳");
+
+    @Test
+    void packetTapIsCalledFromOnePlacePerDirection() throws IOException {
+        assertEquals(new TreeSet<>(PACKET_TAP_READERS.keySet()), serverSourcesContaining("PacketTap.KEY", null),
+                "패킷 가로채기 지점을 부르는 곳이 늘었다(또는 줄었다) — 보내기는 PacketTaps 를 거친다(docs/ops/adapter-boundary.md)");
+    }
+
+    @Test
+    void publicApiHasNoAdapterOnlyMember() throws IOException {
+        // 어댑터만 쓰는 통로는 api.internal(불안정 다리)에 둔다 — 공개 API(MIT 표면)에 "호환 어댑터 전용" 항목을 두지 않는다.
+        // 구조 검사가 아니라 문구 검사다: 그 표시를 단 항목만 잡는다(다른 말로 적은 항목은 사람이 검토에서 본다 — docs/ops/adapter-boundary.md)
+        Path api = repoRoot().resolve("furnace-api/src/main/java/org/domi/furnace/api");
+        List<String> found = new ArrayList<>();
+        try (Stream<Path> s = Files.walk(api)) {
+            for (Path f : (Iterable<Path>) s.filter(x -> x.toString().endsWith(".java"))::iterator) {
+                if (api.relativize(f).toString().replace('\\', '/').startsWith("internal/")) continue;
+                if (Files.readString(f).contains("호환 어댑터 전용")) found.add(api.relativize(f).toString());
+            }
+        }
+        assertEquals(List.of(), found, "공개 API 에 호환 어댑터 전용 항목이 있다 — api.internal 로 옮긴다");
+    }
+
+    /** 서버 주 소스(org/domi/furnace/server 아래 상대 경로) 가운데 needle 을 가진 파일. ignoreLine 을 가진 줄은 세지 않는다. */
+    private static TreeSet<String> serverSourcesContaining(String needle, String ignoreLine) throws IOException {
+        Path src = repoRoot().resolve("furnace-server/src/main/java/org/domi/furnace/server");
+        TreeSet<String> out = new TreeSet<>();
+        try (Stream<Path> s = Files.walk(src)) {
+            for (Path f : (Iterable<Path>) s.filter(x -> x.toString().endsWith(".java"))::iterator) {
+                for (String line : Files.readAllLines(f)) {
+                    if (line.contains(needle) && (ignoreLine == null || !line.contains(ignoreLine))) {
+                        out.add(src.relativize(f).toString().replace('\\', '/'));
+                        break;
+                    }
+                }
+            }
+        }
+        return out;
     }
 
     private static Path repoRoot() {

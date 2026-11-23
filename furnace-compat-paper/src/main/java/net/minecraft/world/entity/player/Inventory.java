@@ -245,7 +245,6 @@ public class Inventory implements Container, Nameable {
         for (int i = 0; i < SIZE; i++) store.set(i, ItemStack.EMPTY);
     }
 
-    @Override
     public Component getName() { return Component.translatable("container.inventory"); }
 
     // ------------------------------------------------------------------ 칸 저장소

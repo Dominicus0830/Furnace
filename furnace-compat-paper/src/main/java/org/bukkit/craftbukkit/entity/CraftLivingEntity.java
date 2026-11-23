@@ -27,8 +27,6 @@ public class CraftLivingEntity extends CraftEntity implements LivingEntity {
     @Override
     public net.minecraft.world.entity.LivingEntity getHandle() { return (net.minecraft.world.entity.LivingEntity) super.getHandle(); }
 
-    @Override
-    protected net.minecraft.world.entity.Entity createHandle() { return new net.minecraft.world.entity.LivingEntity(this); }
 
     /** 몹은 소유 스레드면 지금 체력(setHealth 직후 곧바로 바뀐 값), 아니면 핸들 시점 값. 플레이어 핸들은 그 자체가 지금 값이다. */
     @Override

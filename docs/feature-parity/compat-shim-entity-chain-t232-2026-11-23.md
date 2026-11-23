@@ -1,0 +1,115 @@
+# 엔티티 사슬을 연결 명세로 (T-232, 2026-11-23)
+
+플러그인은 엔티티를 **클래스로 가른다**: `entity instanceof Mob`, `handle instanceof ItemFrame`, `e instanceof HangingEntity`.
+지금까지 엔티티 shim 은 손으로 쓴 `Entity`·`LivingEntity`·`ItemEntity`·`ExperienceOrb`·`ServerPlayer` 넷뿐이었고, 바닐라와 달리 `Entity`·`LivingEntity` 가 구체 클래스였다
+(좀비의 `getHandle()` 이 그냥 `LivingEntity`). 이번에 **모든 엔티티 객체를 바닐라와 같은 클래스로** 만들고, 사슬(`Entity` → `LivingEntity` → `Mob` → …)의 선언은
+shim 생성기(T-229)가 서명표에서 만든다. T-231(블록·아이템)과 같은 방식이다.
+
+## 1. 한 일
+
+| 부분 | 내용 |
+|---|---|
+| 표 뽑기 | `kind-classes` 도구(`ExportKindClasses`)에 `E <엔티티 종류> <클래스>` 줄을 더했다. 정답은 바닐라 `EntityType` 상수 필드의 형식 인자(`EntityType<Zombie> ZOMBIE`). 도구가 그 클래스가 구체이고 `(EntityType, Level)` 생성자가 있는지 보고, 레벨 없이 만들어지는 **46종은 공장이 만든 객체의 클래스와 같은지** 대조한다(나머지 83종은 레벨이 있어야 생성자가 돌아 형식 인자를 그대로 믿는다 — **가정**: 공장이 형식 인자와 같은 클래스를 만든다. 월드 시험의 좀비·표지·상자 배는 실물로 맞음). 플레이어는 뺀다(공장이 없음, 늘 `ServerPlayer`). 129줄 |
+| 명세 | `src/shimspec/entity.spec`: `Entity`·`LivingEntity`·`Player`·`ItemEntity` 는 손 조각(`src/shims/java`, `git mv`), 바닐라 멤버 연결 55줄에 검사 종류. 표의 129클래스와 그 상위 사슬·인터페이스(새로 209클래스, 그중 인터페이스 41)는 생성 |
+| 객체 만들기 | `NmsEntityKinds`: `CraftEntity#getHandle()`(종류 이름 → 표 → `C(ShimCtor)`)과 `EntityType#create(level)`(아직 월드에 없는 엔티티). 재료는 표지에 실려 사슬 맨 위 조각 `Entity(ShimCtor)` 가 받는다(Bukkit 객체 또는 종류·레벨). `CraftLivingEntity`·`CraftItem`·`CraftExperienceOrb` 의 손 `createHandle` 은 지웠다 |
+| 생성기 | ① 조각이 `C(ShimCtor 이름)` 생성자를 스스로 쓰면 생성기는 만들지 않는다(재료를 받는 사슬 맨 위). ② 종류 표의 클래스는 조각이어도 그 생성자를 받는다(`ItemEntity`). ③ Paper 내부 패치 인터페이스 `ca/spottedleaf/`(moonrise 청크·추적 시스템 — Paper `Entity` 가 구현)는 잠금 파일·선언에서 뺀다. 서명 관문도 같은 규칙(`type-missing` 에서 제외) |
+| 소유 규칙 | `NmsEntityOwner`(명세 `owner=`): 엔티티를 가진 스레드·틱 스레드가 아닌 스레드는 통과(몸통이 주인 region 에 맡겨 기다린다), 다른 region·전역 스레드는 `ThreadOwnershipException`. 아직 월드에 없는 엔티티·플레이어는 통과. `NmsEntities.call` 과 같은 규칙을 몸통 앞에서 먼저 본다 |
+| 담는 탈것 | 손 shim `Clearable` 의 추상 메서드 `clearContent` 를 바닐라처럼 `AbstractMinecartContainer`·`ChestBoat` 가 갖는다 — 명세 위임 한 줄 → 다리 `EntityEdit.ClearContent` → 서버 `ContainerEntity`(전리품 표 풀기 뒤 칸 비우기, Paper jar javap: `unpackChestVehicleLootTable(null)` → `getItemStacks().clear()`) |
+
+## 2. 시운전 판정 — 명세가 Java 보다 짧고 안전한가 (설계 11장 3번, 이 PR 에서 끝낸다)
+
+- **선언(상속·인터페이스·추상·final)은 명세가 압도적으로 낫다.** 엔티티 클래스 129개와 상위 사슬 80개를 손으로 쓰면 수천 줄이고 판마다 손으로 맞춰야 한다. 명세는 0줄(표가 저절로 더함)이고,
+  잠금 파일이 바닐라 모양을 묶어 판이 바뀌면 `shimLockCheck` 가 알린다. 이번에 손 shim 이 바닐라와 달랐던 곳이 기계로 드러났다: `Entity#discard()`·`setPosRaw(DDD)`·
+  `getX/Y/Z`·`isRemoved` 가 Paper 에서 **final**(손 shim 은 아니었다), `Sniffer`·`Armadillo` 는 바닐라에서 `Animal` 하위인데 손 shim 은 final 빈 껍데기였다.
+- **위임 한 줄짜리 연결(`clearContent`)도 명세가 짧다**: 한 줄 + 핵심 층 함수. 생성 몸통이 소유 검사를 첫 줄에 넣는다.
+- **스레드 길을 고르는 몸통(기존 엔티티 멤버 대부분)은 Java 조각이 맞다.** 명세에는 `@hand` 와 검사 종류만 적는다 — 그 값어치는 ① 잠금 파일이 서술자·접근·final 을 바닐라에 묶고
+  ② `read=owner`·`write` 는 몸통 첫 호출이 소유 검사인지 빌드 시험(`ShimSpecBuildTest`)이 보는 것이다.
+- **명세에 적지 않은 손 멤버**: 몸통이 Bukkit API 를 거치는 것(체력·속성·손 아이템, 월드 엔티티 `moveTo`, `Player` 의 게임 모드·프로필 읽기). 그 API 가 주인에게 넘기는 규칙을
+  갖고 있어 소유 검사를 앞에 두면 동작(다른 region 에서 부르면 넘기기 → 던지기)이 바뀐다. 이 판정은 명세 머리 주석에도 적었다.
+- 결론: **형식은 그대로 쓴다**(Java 주석 방식으로 바꾸지 않는다). 다음 패키지(`ServerLevel`·`ItemStack`·`MinecraftServer`)도 같은 나눔 — 선언·위임은 명세, 길 고르기는 조각 + `@hand`.
+
+## 3. 바뀐 동작(바닐라·Paper 와 같아진 곳)
+
+- `getHandle()` 이 종류의 바닐라 클래스: 좀비 `Zombie`(→ `Monster` → `PathfinderMob` → `Mob` → `LivingEntity`, `Enemy`), 표지 `Marker`, 액자 `ItemFrame`(→ `HangingEntity`),
+  발광 액자 `GlowItemFrame`(→ `ItemFrame`), 상자 배 `ChestBoat`, 낚시찌 `FishingHook` …. Axiom 이 가르는 `Marker`·`HangingEntity`·`ItemFrame` 이 바닐라와 같은 길을 탄다.
+- 서버: 전리품 표 풀기(상자 블록·담는 탈것)가 데이터 팩이 없을 때도 표 이름을 지운다. 바닐라는 표를 못 찾아도(`LootTable.EMPTY`) 이름을 지우고 채우기만 하지 않는다. 검토에서 더한 `clearContent` 의 전리품 표 단언이 잡았다.
+- `EntityType#create(level)` 도 그 클래스. 낚시찌는 바닐라처럼 null(`createNothing`).
+- `Entity`·`LivingEntity`·`Mob` 등은 바닐라처럼 추상. 플러그인이 상속해 몹을 만드는 것(Citizens 류)은 여전히 지원하지 않는다(결정 D3 — T-237 설계 뒤). 생성 클래스에는 생성기 전용
+  생성자만 있어 바닐라 생성자를 부르는 하위 클래스는 지금처럼 링크 덫에 걸린다.
+- `ServerPlayer#isRemoved` 재정의는 Paper 에서 `Entity#isRemoved` 가 final 이라 지우고, 월드에 없는 플레이어 판정을 `Entity` 조각으로 옮겼다(결과 같음).
+- 생성된 엔티티 클래스에는 바닐라의 종류별 메서드(예: `Mob#getTarget`, `ItemFrame#getItem`)가 없다 — 부르면 지금처럼 링크 덫(`/furnace compat gaps` 에 잡힘). 표본이 부르는 순서대로 잇는다.
+
+## 4. 시험
+
+- `NmsEntityKindsTest`(새, 5): 129종 모두 `create` 가 표의 클래스(낚시찌만 null), 사슬 추상, 월드의 좀비·표지 클래스와 `instanceof Mob`·`Enemy`, 액자·발광 액자 `HangingEntity`,
+  상자 배 `clearContent` 가 칸을 비움, 다른 region 스레드의 쓰기 → `ThreadOwnershipException`.
+- `NmsLinkerTest`: 바닐라 final 목록에 위 6개, final 부모 시험의 예를 `Sniffer`(이제 바닐라처럼 상속 가능)에서 `StringUtil` 로.
+- `NmsGapRankingTest`: "shim 에 없는 감지 대상" 예를 `Pig`(이제 있음)에서 `FloatGoal` 로.
+- 서명 관문: 새 차이 0, 기준선 84줄 삭제(바로잡힌 엔티티 차이 + moonrise 제외로 사라진 줄).
+
+## 5. 표본 지원 비율 (전·후, 같은 표본 100개)
+
+표본은 `fetch-sample-plugins.py … 100 1.21.1`(2026-11-23 받음 — 11-20 표본과 판이 다른 jar 가 섞여 있어 숫자를 그때와 바로 견주지 않는다). 전은 기준 브랜치 0b6b6475, 후는 이 PR, 같은 jar 폴더로
+`nmsShimAudit -PauditJars=… -PrankingOut=… -Pmanifest=…`.
+
+| | 전 | 후 |
+|---|--:|--:|
+| 심볼 단순 합 | 2685 / 3181 (84.4%) | 2707 / 3213 (84.3%) |
+| 인기 가중 합 | 15412 / 18151 (84.9%) | 15533 / 18327 (84.8%) |
+| Axiom 6.0.1 | 495 / 498 | 501 / 505 |
+| vexbot(26.3 대상) | 742 / 1216 | 758 / 1241 |
+
+- 지원 심볼은 22개 늘었다. 비율이 0.1%p 내린 것은 **전에는 클래스가 없어 한 줄로 세던 곳이 이제 클래스가 생겨 그 안의 멤버가 따로 세어지기** 때문이다(분모 +32).
+- Axiom: 없던 클래스 3개(`Marker`·`HangingEntity`·`ItemFrame`)가 생겼고, 그 안의 멤버 4개(`ItemFrame#getDirection`·`getRotation`·`setRotation`, `HangingEntity#rotate`)가 새로 보인다 — 다음 PR 에서 잇는다.
+
+## 6. 금 파일 갱신
+
+`identity/1.21.1/scene-compat-asm-prefilter.txt` 5줄(IF-0.12.2 두 옵션 줄, commandapi-bukkit-plugin-10.1.2 두 옵션 줄, TOTAL). 바뀐 클래스 수는 같고 해시만 바뀌었다.
+두 jar 가 부르는 클래스 중 이번에 shim 에 생긴 것(IF: `Container`·`Merchant`, commandapi: `ScoreHolder`)과 모양이 바뀐 것(`Entity` 추상·인터페이스, `Player`)이 있어,
+변환기가 그 참조를 덫으로 바꾸지 않고 그대로 둔다 — 바닐라에 있는 클래스라 정확성 수정이다.
+
+## 7. 남은 것·주의
+
+- **문자열 감지**: 표본 순위의 "문자열로 가리키는 NMS 클래스" 표에 엔티티 클래스(`Mob`·`Pig`·`Display` 등, 각 2개 플러그인)가 있다. 이제 shim 에 있어 `Class.forName` 이 참이 된다.
+  확인한 FancyNpcs·FancyHolograms 는 그 이름을 엔티티 데이터 꾸러미의 키 글로 쓸 뿐 `Class.forName` 을 부르지 않는다. T-231(블록)과 같은 성격이라 그대로 둔다.
+- `ServerPlayer` 는 아직 손 shim(`src/main/java`) — 서버 레벨 패키지 이전(`ServerLevel` 과 함께) 때 조각으로 옮긴다.
+- 종류별 메서드 채우기, 몹 상속(T-237).
+
+## 8. 후속: 걸이 엔티티 방향·돌림 (Axiom 남은 4개)
+
+T-232 로 클래스가 생기며 새로 보인 Axiom 멤버 4개(`HangingEntity#getDirection`·`rotate(Rotation)`, `ItemFrame#getRotation`·`setRotation(int)`)를 이었다.
+Axiom 은 소환(`SpawnEntityPacketListener` — `create` → `load` → `setUUID` 뒤, 월드에 넣기 전)과 조작(`ManipulateEntityPacketListener` — 월드의 엔티티) 두 곳에서 부른다.
+
+| 부분 | 내용 |
+|---|---|
+| 정답 | Paper 1.21.1 jar javap. `rotate` 는 방향이 수평이면 **필드만** 돌리고(180 → 반대, 반시계 90 → 반시계, 시계 90 → 시계) 각도·상자는 그대로 두며, `wrapDegrees(yRot)` 에 180·90·270 을 더해 준다. `setRotation(int)` 은 `% 8` 로 두고, 붙은 블록이 있으면 비교기 갱신. 액자 불러오기는 아이템이 있을 때만 `ItemRotation`, 그다음 `Facing`(3D 값)으로 `setDirection`(수평 xRot 0·yRot 2D×90, 위·아래 xRot ∓90·yRot 0). 그림은 `facing`(2D 값) |
+| 서버 | `HangingEntity#rotate(int)` 새로(위 규칙). 다리 `EntityEdit.HangingDirection`·`HangingRotate`·`ItemFrameRotation`·`SetItemFrameRotation`, 넣을 때 재생하는 `EntityOp.HangingRotate`·`SetItemFrameRotation` |
+| shim | 명세 4줄(`@hand`, 읽기 `read=owner`·쓰기 `write`) + 조각 `HangingEntity`·`ItemFrame`. 월드 밖 엔티티는 조각이 불러온 태그대로 방향·돌림·각도를 들고 조작을 기록한다(`Entity` 조각의 `furnaceDetachedLoaded` 훅) |
+| `Rotation` | 패킷 생성기가 빈 열거형으로 채우던 것을 명세(상수 4개, 바닐라 순서 javap 확인) + 조각(`getSerializedName`)으로 옮겼다. 서명 관문 기준선의 `type-missing Rotation` 줄이 사라졌다 |
+
+- 월드 밖 액자의 "아이템이 비었는가" 는 바닐라 `ItemStack.parse` 의 앞 규칙으로 본다(아이템 레지스트리에 있는 id, 공기 아님, count 1~99 또는 없음 — 모르는 id 는 빈 스택). 가정: components 가 잘못된 태그(바닐라는 파싱 실패 → 빈 스택)는 비지 않았다고 본다 — 넣은 뒤에는 서버 값이 정답이다.
+- 시험 `NmsHangingEntityTest`(5): 월드 밖 액자의 불러오기·돌리기·돌림 기록과 넣은 뒤 서버 값, 빈 액자·위를 보는 액자, 모르는 아이템 id, 그림의 2D 방향, 월드 액자의 돌리기·돌림.
+- 표본 100개(같은 jar 폴더, 전 3d0046ca / 후): 단순 합 2718/3213(84.6%) → 2725/3213(84.8%), 인기 가중 15598/18327(85.1%) → 15636/18327(85.3%), **Axiom 6.0.1 501/505 → 505/505**.
+- 구조물 템플릿 배치(아래 9장에서 고침): 걸이 엔티티의 방향이 템플릿 돌림·대칭을 따르지 않던 차이.
+
+## 9. 구조물 템플릿의 걸이 엔티티 방향 (8장에서 찾은 차이)
+
+바닐라 `StructureTemplate#placeEntities` 는 엔티티를 불러온 뒤 `f = entity.rotate(rotation) + entity.mirror(mirror) − getYRot()` 로 각도를 정해
+`moveTo(새 위치, f, getXRot())` 한다(Paper 1.21.1 javap). 걸이 엔티티는 `rotate`·`mirror` 를 재정의한다 — `rotate` 는 걸린 방향을 돌리고
+돌림 각을 Entity 와 다르게 더하며(시계 90 → +270, 반시계 90 → +90), `mirror` 는 `rotate(mirror.getRotation(돌린 뒤 방향))`(좌우 대칭이면 Z 축,
+앞뒤 대칭이면 X 축 방향일 때 180). 서버 `TemplatePlacer` 는 모든 엔티티를 Entity 규칙으로 NBT 각도만 돌려 액자·그림의 `Facing`/`facing` 이 그대로였다.
+
+- 고침: 액자·발광 액자·그림은 위 규칙으로 방향과 각도를 정한다. 각도의 기준은 바닐라처럼 불러온 뒤 `setDirection` 이 정한 값이다(저장 Rotation 아님).
+  붙은 칸(`TileX/Y/Z`)은 바닐라 `moveTo → setPos` 처럼 `BlockPos.containing(새 위치)`(끈 매듭도 같다).
+- 살아 있는 월드에 놓을 때(`/place`·구조 블록·플러그인 배치 API)는 바닐라가 엔티티를 레벨에 바로 넣어 `moveTo` 각도가 남는다. 서버는 NBT 를 불러
+  넣으므로 불러오기의 `setDirection` 이 각도를 덮는다 — 걸이 엔티티는 넣기 전에 저장 각도로 되돌린다(`LiveGrid`·`LiveFeatures`). 월드젠 청크는
+  바닐라도 NBT 로 저장했다 불러오므로 그대로(`setDirection` 각도). 두 길은 따로다: `LiveFeatures` 는 묘목·뼛가루·`/place feature` 처럼 런타임에
+  실제 월드 복사본에 지형 지물을 놓는 길(바닐라는 ServerLevel 에 바로 씀)이고, 월드젠 청크의 엔티티는 `ChunkLevel.addWorldGenChunkEntities` 가
+  저장 각도 복원 없이 넣는다.
+- 바닐라 내장 구조물 템플릿 1,180개(`worldgen/1.21.1/structure/**.nbt`)에는 걸이 엔티티(액자·발광 액자·그림·끈 매듭)가 없다. 압축을 풀어
+  `entities[].nbt.id` 를 모두 센 결과 주민·좀비 주민·고양이·말 등 몹 13종 62마리와 갑옷 거치대 2개뿐이다 — 월드젠 결과는 바뀌지 않는다. 사용자·데이터 팩 템플릿,
+  구조 블록으로 저장한 건물, 플러그인 배치가 대상이다. 플러그인 배치 API·구조 블록·`/place` 는 모두 같은 `TemplatePlacer` 를 지난다.
+- 시험: `StructuresApiTest.hangingEntitiesTurnWithTheTemplate` — 시계 90(서 → 북, 각도 360, 붙은 칸)과 앞뒤 대칭(서 → 동, 각도 270).
+  `hangingEntitiesFollowVanillaForOtherTurnsPaintingsAndFloorFrames` — 반시계 90(서 → 남, 180), 그림 시계 90 + 좌우 대칭(서 → 북 → 남, 540),
+  위를 보는 액자(방향 그대로, 270, xRot −90). `HangingRotationTableTest` — 돌림·각도·대칭 표 전부. 바닐라는 블록 위치를 대칭 먼저·돌림 나중으로
+  옮기지만 걸이 방향은 돌림 먼저·대칭 나중이라 둘이 어긋날 수 있다(바닐라 그대로 둔다).
