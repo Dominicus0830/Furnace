@@ -226,4 +226,41 @@ class NmsEntitySettersTest {
         var e = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () -> net.minecraft.world.entity.EquipmentSlot.byName("Head"));
         assertEquals("Invalid slot 'Head'", e.getMessage());
     }
+
+    /** 바닐라 생성자로 만든 엔티티: (EntityType, Level) 은 모든 종류 클래스에(생성기), 자리를 받는 생성자는 갑옷 거치대·영역 효과 구름. */
+    @Test
+    void vanillaConstructorsMakeEntitiesNotInAWorldYet() throws Exception {
+        int made = 0;
+        try (var in = java.nio.file.Files.lines(java.nio.file.Path.of("src/shimspec/kind-classes-1.21.1.txt"))) {
+            for (String line : (Iterable<String>) in.filter(l -> l.startsWith("E "))::iterator) {
+                Class<?> c = Class.forName(line.split(" ")[2]);
+                var k = c.getConstructor(EntityType.class, net.minecraft.world.level.Level.class);
+                assertTrue(Modifier.isPublic(k.getModifiers()), c.getName());
+                // 129개 전부 실제로 만들어 본다: 종류가 그대로 실리는지
+                var type = (EntityType<?>) EntityType.class.getField(
+                        line.split(" ")[1].substring("minecraft:".length()).toUpperCase(java.util.Locale.ROOT)).get(null);
+                var e = (Entity) k.newInstance(type, level);
+                assertSame(type, e.getType(), c.getName());
+                made++;
+            }
+        }
+        assertEquals(129, made);
+        var shulker = new net.minecraft.world.entity.monster.Shulker(EntityType.SHULKER, level);
+        assertSame(EntityType.SHULKER, shulker.getType());
+        var text = new net.minecraft.world.entity.Display.TextDisplay(EntityType.TEXT_DISPLAY, level);
+        assertSame(EntityType.TEXT_DISPLAY, text.getType());
+        var stand = new net.minecraft.world.entity.decoration.ArmorStand(level, at.x() + 0.5, at.y(), at.z() + 9.5);
+        assertSame(EntityType.ARMOR_STAND, stand.getType());
+        assertEquals(at.z() + 9.5, stand.getZ());
+        var cloud = new net.minecraft.world.entity.AreaEffectCloud(level, at.x() + 0.5, at.y(), at.z() + 10.5);
+        assertEquals(at.z() + 10.5, cloud.getZ());
+        assertTrue(on(() -> level.addFreshEntity(stand, SpawnReason.CUSTOM)));
+        try {
+            var s = serverEntity(stand);
+            assertEquals(at.z() + 9.5, (double) on(s::z));
+            org.junit.jupiter.api.Assertions.assertInstanceOf(org.domi.furnace.server.entity.ArmorStand.class, s);
+        } finally {
+            on(() -> { stand.getBukkitEntity().remove(); return null; });
+        }
+    }
 }
