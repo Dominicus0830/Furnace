@@ -78,8 +78,14 @@ class net.minecraft.world.level.block.CropBlock            # 멤버 없이 클�
 `public record Name<T>(T value, int count) implements Iface {`. 표준 생성자·성분 접근자·`equals`/`hashCode`/`toString` 은 컴파일러가 만들므로 명세에 적지 않는다(적으면 오류 —
 다른 몸통이면 바닐라 레코드가 아니다). 생성기 전용 생성자 `C(ShimCtor)` 는 레코드에 만들지 않는다. 안쪽 레코드는 `static` 을 적지 않는다(암묵).
 손 몸통(정적 필드·보조 메서드·compact 생성자)이 있는 레코드는 `src/shims/java` 조각이고 머리는 `record 이름 {` 로 쓴다.
+바닐라가 `equals`·`hashCode`·`toString` 을 직접 쓴 레코드(서명표에서 final 이 아닌 것 — 잠금 파일 `X` 줄)는 그 메서드를 조각에 손으로 써야 한다(자동 생성은 `final` 이라 모양·동작이 다르다. 예: `RecipeHolder` 는 id 만으로 같음을 본다). 안 쓰면 생성기가 멈춘다.
 성분 표는 서명표 형식 2(`recordComponents`)에서 온다 — 서명표를 새로 만들고 `shimLock` 을 다시 돌린다. 애노테이션 형식은 아직 손 shim 이다.
 이전 증명: 손 레코드 27개를 명세로 옮기고 `tools/ci/javap-same.sh` 로 전후 호환 계층 클래스 폴더 전체(2851개)를 견줬다 — 다름은 `Unbreakable` 하나뿐이다(Paper 의 `TooltipProvider` 구현이 새로 붙음. 바닐라와 같아지는 방향).
+
+## 던지는 몸통과 손 상위 (T-229)
+
+생성 구체 클래스가 생성 인터페이스·상위의 추상 메서드를 안 갖추면 던지는 몸통을 만든다(`shim-unimplemented.txt` 색인). 상위 사슬에 손 shim 이 끼어 있어도(예: 손 `BlockEntity` 아래 생성 `Container` 가족)
+그 손 shim 들의 소스에 같은 이름의 메서드 선언이 **하나도 없을 때** 만든다. 손 상위나 손 조각(추상을 선언한 조각 자신은 제외)이 이미 구현했으면 가리지 않고 건너뛴다.
 
 ## 종류 표 (T-231)
 

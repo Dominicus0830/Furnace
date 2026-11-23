@@ -13,6 +13,18 @@ record MessageSignature {
         if (bytes.length != BYTES) throw new IllegalStateException("Invalid message signature size");   // 바닐라 Preconditions.checkState 와 같은 예외
     }
 
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) return true;
+        return other instanceof MessageSignature signature && java.util.Arrays.equals(this.bytes, signature.bytes);
+    }
+
+    @Override
+    public int hashCode() { return java.util.Arrays.hashCode(this.bytes); }
+
+    @Override
+    public String toString() { return java.util.Base64.getEncoder().encodeToString(this.bytes); }
+
     /** 바닐라: 기억한 서명이면 번호(id), 아니면 서명 그대로(id = -1). */
     public record Packed(int id, MessageSignature fullSignature) {
 

@@ -360,7 +360,15 @@ public final class ShimGenerator {
                     eachFor.computeIfAbsent(n, k -> new ArrayList<>()).add(fill);
                     continue;
                 }
-                if (unknown) continue;
+                // 상위 사슬에 손 shim 이 끼어 있어도(unknown) 그 손 shim 들이 같은 이름의 메서드를 하나도 안 가졌다면 던지는 몸통을 만든다
+                // (손 BlockEntity 아래 생성 Container 가족: 바닐라 Container·CommandSource 의 추상 메서드). 가졌다면 말없이 가리지 않게 건너뛴다.
+                if (unknown) {
+                    boolean handHas = false;
+                    for (String h : handSupers) if (handDeclares(h, m.name())) { handHas = true; break; }
+                    if (handHas) continue;
+                }
+                // 손 조각이 이미 구현한 메서드(조각 소스에 선언이 있다)는 던지는 몸통으로 가리지 않는다 — 상위 클래스·인터페이스 기본 메서드 조각 모두(추상을 선언한 조각 자신은 뺀다)
+                if (implementedByFragment(n, m)) continue;
                 if (JavaTypes.usesTypeVariables(m.signature())) {
                     problems.add(n + " does not link " + m.name() + m.desc() + ", an abstract method of a generated supertype whose signature uses type variables;"
                             + " a throwing body cannot be generated - link it in the spec of " + n);
@@ -370,6 +378,29 @@ public final class ShimGenerator {
                 unimplemented.add(n + " " + m.name() + " " + m.desc());
             }
         }
+    }
+
+    /** n 의 상위 사슬(클래스·인터페이스)에 있는 손 조각 중, 추상을 선언한 쪽이 아닌 조각이 m 과 같은 이름의 메서드를 직접 선언하나. */
+    private boolean implementedByFragment(String n, ShimLock.Member m) {
+        Set<String> seen = new HashSet<>();
+        List<String> work = new ArrayList<>(List.of(n));
+        while (!work.isEmpty()) {
+            String s = work.remove(work.size() - 1);
+            if (s == null || !seen.add(s) || !lock.classes.containsKey(s)) continue;
+            if (!s.equals(m.owner()) && origin.get(s) == Origin.FRAGMENT && fragmentMethodDeclared(s, m.name())) return true;
+            ShimLock.Cls c = lock.classes.get(s);
+            work.add(c.superName());
+            work.addAll(c.interfaces());
+        }
+        return false;
+    }
+
+    /** 조각 소스에 그 이름의 메서드 몸통(여는 중괄호까지)이 있나 — 호출식(return name( …)·추상 선언은 안 센다. */
+    private boolean fragmentMethodDeclared(String fragment, String method) {
+        String text = fragmentSrc.text(fragment);
+        if (text == null) return false;
+        return Pattern.compile("(?m)^\\s*(?:@\\w+\\s+)*(?:public |protected |private |static |final |default |synchronized )*(?:<[^>]+>\\s+)?[\\w.<>\\[\\]?, ]+\\s+"
+                + Pattern.quote(method) + "\\s*\\([^;{]*\\)\\s*(?:throws [\\w., ]+)?\\{").matcher(text).find();
     }
 
     final Map<String, List<ShimLock.Member>> stubsFor = new TreeMap<>();
@@ -419,6 +450,7 @@ public final class ShimGenerator {
         if (c.isEnum() && origin.get(n) == Origin.GEN) sb.append(in).append(String.join(", ", enumConstants(n))).append(";\n");
         boolean rec = c.isRecord();
         if (rec) recordAutoMembers(n, bs);
+        if (rec) explicitRecordMethods(n);
         // 필드
         for (Bound b : bs) {
             ShimLock.Member m = b.lock();
@@ -526,6 +558,17 @@ public final class ShimGenerator {
         if (m.kind() != 'F' || m.isStatic()) return false;
         for (ShimLock.Component k : lock.recordComponents.getOrDefault(n, List.of())) if (k.name().equals(m.name()) && k.desc().equals(m.desc())) return true;
         return false;
+    }
+
+    /** 바닐라가 직접 쓴 equals·hashCode·toString 이 있는 레코드는 그 메서드를 손 조각이 써야 한다(자동 생성은 final 이라 모양이 다르다). */
+    private void explicitRecordMethods(String n) {
+        List<String> want = lock.explicitObjectMethods.get(n);
+        if (want == null) return;
+        String text = origin.get(n) == Origin.FRAGMENT ? fragmentSrc.text(n) : null;
+        for (String m : want) {
+            boolean has = text != null && Pattern.compile("(?m)^\\s*(@Override\\s+)?public\\s+(boolean|int|String|java\\.lang\\.String)\\s+" + m + "\\s*\\(").matcher(text).find();
+            if (!has) problems.add("record " + n + " writes " + m + " itself in vanilla (not final, no generated body): write it in the fragment src/shims/java/" + n + ".java as a hand method");
+        }
     }
 
     /** 레코드에서 컴파일러가 만드는 멤버: 표준 생성자, 성분 접근자, equals·hashCode·toString. */
