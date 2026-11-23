@@ -219,4 +219,35 @@ class FullShellsFillTest {
         Map<String, byte[]> b = generator(fills()).generate();
         for (String k : a.keySet()) org.junit.jupiter.api.Assertions.assertArrayEquals(a.get(k), b.get(k), k);
     }
+
+    @Test
+    void baselineFailsOnlyWhenAFillIsLost() throws Exception {
+        FullShells g = generator(fills());
+        g.generate();
+        Map<String, String> now = g.baseline(List.of("1\tzz\tnet/minecraft/zz/"));
+        Path dir = tmp.resolve("baseline");
+        Files.createDirectories(dir);
+        for (var e : now.entrySet()) Files.writeString(dir.resolve(e.getKey()), e.getValue());
+        FullShells.checkBaseline(dir, now);   // 같으면 통과
+        // 커밋된 쪽이 덜 채웠으면(늘어난 것) 통과, 더 채웠으면(줄어든 것) 실패
+        String first = now.values().iterator().next();
+        String[] lines = first.split("\n");
+        StringBuilder less = new StringBuilder();
+        StringBuilder more = new StringBuilder();
+        for (String l : lines) {
+            if (l.startsWith("c\t")) {
+                String[] f = l.split("\t");
+                less.append("c\t").append(f[1]).append("\t").append(f[2]).append("\t0\n");
+                more.append("c\t").append(f[1]).append("\t").append(f[2]).append("\t").append(Integer.parseInt(f[3]) + 5).append("\n");
+            }
+        }
+        String file = now.keySet().iterator().next();
+        Files.writeString(dir.resolve(file), less.toString());
+        FullShells.checkBaseline(dir, now);
+        Files.writeString(dir.resolve(file), more.toString());
+        assertThrows(IllegalStateException.class, () -> FullShells.checkBaseline(dir, now));
+        // 껍데기에서 빠진 클래스(지금 표에 없음)는 괜찮다
+        Files.writeString(dir.resolve(file), "c\tdeadbeef\t1\t9\n");
+        FullShells.checkBaseline(dir, now);
+    }
 }

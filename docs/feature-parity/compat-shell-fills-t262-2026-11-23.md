@@ -25,3 +25,9 @@
 ## 남은 일 / 다음
 - 실제 Paper 표로 `tools/compat/sig-tables.sh` → `./gradlew -PskipOracle=true -PfullShellsFpWrite=true -PfullShellsBaselineWrite=true :furnace-compat-paper:generateFullShells` 로 `full-shells-1.21.1.fp`(fill 줄)와 `fills-baseline-1.21.1.txt` 를 쓰고 커밋. 그 전에는 CI vanilla-gates 의 전체 껍데기 단계가 지문·기준선 불일치로 실패한다(의도 — 표가 바뀌면 알려 주는 관문).
 - 후속 종류 후보(각각 위 README 의 네 곳 규칙): 리터럴 배열, 다른 열거형 상수 참조 인자, 인터페이스 상수 표, Paper 가 바꾼 클래스(지금은 바닐라 jar 에서만 뽑음 — Paper 전용·CraftBukkit 은 안 채워짐).
+
+## 검토 반영 (2026-11-23, 변경 요청 4건)
+1. 정적 리터럴은 정적 초기화의 첫 분기·switch·throw·try 앞 직선 구간에서만 받는다(삼항·if·try·반복 안 대입은 표에 없음 — `FillExtractorTest`).
+2. 채움 표를 Paper 서버 jar 에서도 뽑아(`fill-table-paper.tsv.gz`) 두 표에서 **줄이 같은 것만** 채운다. 한쪽만 있으면 채우지 않는다.
+3. 기준선을 영역별 파일(`fills-baseline-<판>/<영역>.txt`)로 나누고 CI 는 채운 수가 줄 때만 실패한다. 채움 표 지문은 서명표 지문과 따로(`fill-tables-<판>.fp`). 추출기를 바꿀 때만 노트북 재생성이 필요하다.
+4. `FillParityTest`: JDK 참조 인자에 자리마다 다른 객체를 넣어 동일성으로 견주고(읽기 1,817개·참조 390개 대조, 전엔 528), 레코드 `equals` 도 견주며, 종류별 최소 대조 수·`noVanillaClass` 상한을 단언한다. 죽은 식 정리, 초기화 덫 클래스는 기준선 채움 수에서 뺀다.

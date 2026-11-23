@@ -106,7 +106,17 @@ public final class FullShells {
         Path areasPath = args.length > 11 && !args[11].equals("-") ? Path.of(args[11]) : null;
         boolean writeBaseline = args.length > 12 && Boolean.parseBoolean(args[12]);
         Path fillPath = args.length > 9 && !args[9].isBlank() && !args[9].equals("-") ? Path.of(args[9]) : null;
-        if (fillPath != null && !Files.isRegularFile(fillPath)) throw new IllegalStateException("fill table missing: " + fillPath + " - run tools/compat/sig-tables.sh");
+        Path paperFillPath = args.length > 13 && !args[13].equals("-") ? Path.of(args[13]) : null;
+        Path fillFp = args.length > 14 && !args[14].equals("-") ? Path.of(args[14]) : null;
+        for (Path f : new Path[]{fillPath, paperFillPath}) {
+            if (f != null && !Files.isRegularFile(f)) throw new IllegalStateException("fill table missing: " + f + " - run tools/compat/sig-tables.sh");
+        }
+        // 채움은 바닐라 표와 Paper 표에서 줄이 같은 것만 — 한쪽만 있으면 채우지 않고 알린다(Paper 가 바꾼 클래스를 바닐라 값으로 채우면 안 된다)
+        if ((fillPath == null) != (paperFillPath == null)) {
+            System.out.println("[full-shells] only one of the vanilla/Paper fill tables is present - building without fills (run tools/compat/sig-tables.sh with the Paper tables)");
+            fillPath = null;
+            paperFillPath = null;
+        }
         if (!Files.isDirectory(libsDir)) throw new IllegalStateException("vanilla library folder missing: " + libsDir + " - run tools/compat/sig-tables.sh");
         existingRoots.add(libsDir);
         for (Path t : List.of(paperTable, vanillaTable, apiTable)) {
@@ -115,7 +125,7 @@ public final class FullShells {
                         + " or build without the full shells with -PnoFullShells=true");
             }
         }
-        String fingerprint = fingerprint(paperTable, vanillaTable, apiTable, fillPath);
+        String fingerprint = fingerprint(paperTable, vanillaTable, apiTable);
         if (writeFp) {
             Files.writeString(fp, fingerprint, StandardCharsets.UTF_8);
             System.out.println("[full-shells] wrote " + fp);
@@ -123,14 +133,16 @@ public final class FullShells {
             String want = Files.isRegularFile(fp) ? Files.readString(fp, StandardCharsets.UTF_8).replace("\r\n", "\n") : "";
             if (!want.equals(fingerprint)) {
                 throw new IllegalStateException("signature tables differ from the committed fingerprint " + fp + ":\n--- committed\n" + want + "--- now\n" + fingerprint
-                        + "If the tables were rebuilt on purpose (new format or version), rerun with -PfullShellsFpWrite=true and commit the file."
-                        + " If the cache has no fill-table.tsv.gz, run tools/compat/sig-tables.sh first.");
+                        + "If the tables were rebuilt on purpose (new format or version), rerun with -PfullShellsFpWrite=true and commit the file.");
             }
         }
         SigTable paper = SigTable.read(paperTable);
         SigTable vanilla = SigTable.read(vanillaTable);
         FullShells g = new FullShells(paper, vanilla, SigTable.read(apiTable), new Existing(existingRoots));
-        if (fillPath != null) g.fillTable = FillTable.read(fillPath);
+        if (fillPath != null) {
+            g.fillTable = FillTable.read(fillPath).intersect(FillTable.read(paperFillPath));
+            if (fillFp != null) checkFillFingerprint(fillPath, paperFillPath, fillFp, writeFp);
+        }
         Map<String, byte[]> classes = g.generate();
         deleteTree(out);
         for (Map.Entry<String, byte[]> e : classes.entrySet()) {
@@ -142,28 +154,72 @@ public final class FullShells {
         Files.writeString(report, g.report(), StandardCharsets.UTF_8);
         System.out.println("[full-shells] " + g.summary());
         if (baselinePath != null && areasPath != null && g.fillTable != null) {
-            String baseline = g.baseline(Files.readAllLines(areasPath, StandardCharsets.UTF_8));
+            Map<String, String> files = g.baseline(Files.readAllLines(areasPath, StandardCharsets.UTF_8));
             if (writeBaseline) {
-                Files.writeString(baselinePath, baseline, StandardCharsets.UTF_8);
+                deleteTree(baselinePath);
+                Files.createDirectories(baselinePath);
+                for (var e : files.entrySet()) Files.writeString(baselinePath.resolve(e.getKey()), e.getValue(), StandardCharsets.UTF_8);
                 System.out.println("[full-shells] wrote " + baselinePath);
             } else {
-                String want = Files.isRegularFile(baselinePath) ? Files.readString(baselinePath, StandardCharsets.UTF_8).replace("\r\n", "\n") : "";
-                if (!want.equals(baseline)) {
-                    Path cur = report.toAbsolutePath().getParent().resolve("fills-baseline.current.txt");
-                    Files.writeString(cur, baseline, StandardCharsets.UTF_8);
-                    throw new IllegalStateException("fill baseline differs from the committed " + baselinePath + " (current: " + cur + "). A fill got added or lost; if intended, rerun with -PfullShellsBaselineWrite=true and commit the file.");
-                }
+                checkBaseline(baselinePath, files);
             }
         }
     }
 
+    /** 채움 표 지문(바닐라 표·Paper 표). 서명표 지문과 따로 둬서 추출기만 바꾸는 PR 이 서명표 지문을 건드리지 않게 한다. */
+    static void checkFillFingerprint(Path vanillaFill, Path paperFill, Path fp, boolean write) throws IOException {
+        String now = "# T-262 fill tables: sha256 of the fill tables (vanilla jar and Paper server jar) - no names\nfill " + sha256(vanillaFill) + "\nfill-paper " + sha256(paperFill) + "\n";
+        if (write) {
+            Files.writeString(fp, now, StandardCharsets.UTF_8);
+            System.out.println("[full-shells] wrote " + fp);
+            return;
+        }
+        String want = Files.isRegularFile(fp) ? Files.readString(fp, StandardCharsets.UTF_8).replace("\r\n", "\n") : "";
+        if (!want.equals(now)) {
+            throw new IllegalStateException("fill tables differ from the committed fingerprint " + fp + ":\n--- committed\n" + want + "--- now\n" + now
+                    + "If the extractor changed on purpose, rerun with -PfullShellsFpWrite=true on a computer with the Paper tables and commit the file.");
+        }
+    }
+
+    /**
+     * 기준선 검사(되돌아감만 실패): 커밋된 영역 파일의 클래스(해시)마다 지금 채운 수가 줄었으면 실패한다. 늘었거나 손 shim 이 생겨
+     * 껍데기에서 빠진 클래스(지금 없음)는 괜찮다 — 정확한 다시 쓰기는 {@code -PfullShellsBaselineWrite=true}(Paper 표가 있는 곳)에서 몰아서 한다.
+     */
+    static void checkBaseline(Path dir, Map<String, String> current) throws IOException {
+        if (!Files.isDirectory(dir)) throw new IllegalStateException("fill baseline folder missing: " + dir + " - run once with -PfullShellsBaselineWrite=true and commit it");
+        Map<String, Integer> now = new HashMap<>();
+        for (String c : current.values()) for (String l : c.split("\n")) if (l.startsWith("c\t")) {
+            String[] f = l.split("\t");
+            now.put(f[1], Integer.parseInt(f[3]));
+        }
+        List<String> regress = new ArrayList<>();
+        int improved = 0;
+        int dropped = 0;
+        try (var s = Files.list(dir)) {
+            for (Path p : s.filter(x -> x.toString().endsWith(".txt")).sorted().toList()) {
+                for (String l : Files.readAllLines(p, StandardCharsets.UTF_8)) {
+                    if (!l.startsWith("c\t")) continue;
+                    String[] f = l.split("\t");
+                    Integer cur = now.get(f[1]);
+                    int was = Integer.parseInt(f[3]);
+                    if (cur == null) dropped++;
+                    else if (cur < was) regress.add(p.getFileName() + " " + f[1] + " filled " + was + " -> " + cur);
+                    else if (cur > was) improved++;
+                }
+            }
+        }
+        System.out.println("[full-shells] fill baseline: improved=" + improved + " droppedFromShells=" + dropped + " regressed=" + regress.size());
+        if (!regress.isEmpty()) {
+            throw new IllegalStateException("fewer members are filled than the committed fill baseline " + dir + " (a fill got lost):\n" + String.join("\n", regress.subList(0, Math.min(30, regress.size()))));
+        }
+    }
+
     /** 지문: 서명표 두 개의 sha256(이름 원문 없이 커밋한다). 표가 바뀌면 껍데기의 바탕이 바뀐 것이다. */
-    static String fingerprint(Path paperTable, Path vanillaTable, Path apiTable, Path fillTable) throws IOException {
-        String fill = fillTable == null ? "" : "fill " + sha256(fillTable) + "\n";
+    static String fingerprint(Path paperTable, Path vanillaTable, Path apiTable) throws IOException {
         return "# T-260 full shells: sha256 of the signature tables the shells are built from (no names - the tables are never committed)\n"
                 + "paper-server " + sha256(paperTable) + "\n"
                 + "vanilla " + sha256(vanillaTable) + "\n"
-                + "paper-api " + sha256(apiTable) + "\n" + fill;
+                + "paper-api " + sha256(apiTable) + "\n";
     }
 
     static String sha256(Path p) throws IOException {
@@ -319,7 +375,7 @@ public final class FullShells {
         else if (trapInit) initTrap(cw, n);
         else if (cf != null && !cf.statics.isEmpty()) staticClinit(cw, n, cf);
         cw.visitEnd();
-        int filledN = cf == null ? 0 : cf.ctors.size() + cf.getters.size() + cf.statics.size() + cf.objectMethods.size() + (cf.enumConsts == null ? 0 : cf.enumConsts.size());
+        int filledN = cf == null || trapInit ? 0 : cf.ctors.size() + cf.getters.size() + cf.statics.size() + cf.objectMethods.size() + (cf.enumConsts == null ? 0 : cf.enumConsts.size());
         classStats.put(n, new int[]{shellMembers - shellBefore, filledN});
         return cw.toByteArray();
     }
@@ -714,22 +770,18 @@ public final class FullShells {
     }
 
 
-    /** 기준선(T-262): 영역별 합계 + 클래스별(이름 해시 앞 8자리) 남은 껍데기 멤버 수·채운 멤버 수. Mojang 이름은 쓰지 않는다. */
-    String baseline(List<String> areaLines) {
+    /** 기준선(T-262): 영역 파일 이름 → 내용. 영역 합계 한 줄 + 클래스(이름 해시 앞 8자리)별 남은 껍데기 멤버 수·채운 멤버 수. Mojang 이름은 쓰지 않는다. */
+    Map<String, String> baseline(List<String> areaLines) {
         List<String[]> areas = new ArrayList<>();
         for (String l : areaLines) {
             if (l.isBlank() || l.startsWith("#")) continue;
             areas.add(l.split("\t", -1));
         }
-        Map<String, int[]> perArea = new TreeMap<>();
         Map<String, String> areaName = new TreeMap<>();
         areaName.put("0", "other");
         for (String[] a : areas) areaName.put(a[0], a[1]);
-        StringBuilder sb = new StringBuilder();
-        sb.append("#furnace-fills-baseline 1\n");
-        sb.append("# T-262: generated by FullShells (-PfullShellsBaselineWrite=true). Names are hashed (sha256 prefix) - the tables are never committed.\n");
-        sb.append("# A <area> <name> classes shellMembers filled  |  c <hash8> <area> shellMembers filled (only classes with at least one of either)\n");
-        List<String> lines = new ArrayList<>();
+        Map<String, List<String>> lines = new TreeMap<>();
+        Map<String, int[]> sums = new TreeMap<>();
         for (var e : classStats.entrySet()) {
             int[] st = e.getValue();
             if (st[0] == 0 && st[1] == 0) continue;
@@ -738,16 +790,24 @@ public final class FullShells {
             for (String[] a : areas) {
                 for (String p : a[2].split(",")) if (e.getKey().startsWith(p) && p.length() > best) { best = p.length(); area = a[0]; }
             }
-            int[] pa = perArea.computeIfAbsent(area, k -> new int[3]);
+            int[] pa = sums.computeIfAbsent(area, k -> new int[3]);
             pa[0]++;
             pa[1] += st[0];
             pa[2] += st[1];
-            lines.add("c\t" + hash8(e.getKey()) + "\t" + area + "\t" + st[0] + "\t" + st[1]);
+            lines.computeIfAbsent(area, k -> new ArrayList<>()).add("c\t" + hash8(e.getKey()) + "\t" + st[0] + "\t" + st[1]);
         }
-        perArea.forEach((k, v) -> sb.append("A\t").append(k).append('\t').append(areaName.get(k)).append('\t').append(v[0]).append('\t').append(v[1]).append('\t').append(v[2]).append('\n'));
-        lines.sort(null);
-        for (String l : lines) sb.append(l).append('\n');
-        return sb.toString();
+        Map<String, String> out = new TreeMap<>();
+        for (var e : lines.entrySet()) {
+            e.getValue().sort(null);
+            int[] v = sums.get(e.getKey());
+            StringBuilder sb = new StringBuilder("#furnace-fills-baseline 2\n");
+            sb.append("# T-262: area ").append(e.getKey()).append(' ').append(areaName.get(e.getKey())).append(". Generated by FullShells (-PfullShellsBaselineWrite=true); names are hashed (sha256 prefix).\n");
+            sb.append("# A classes shellMembers filled  |  c hash8 shellMembers filled. CI fails only when a class's filled count drops.\n");
+            sb.append("A\t").append(v[0]).append('\t').append(v[1]).append('\t').append(v[2]).append('\n');
+            for (String l : e.getValue()) sb.append(l).append('\n');
+            out.put(String.format("%02d-%s.txt", Integer.parseInt(e.getKey()), areaName.get(e.getKey())), sb.toString());
+        }
+        return out;
     }
 
     private static String hash8(String s) {

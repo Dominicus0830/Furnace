@@ -146,7 +146,7 @@ final class Fills {
             // 레코드 기본 메서드
             if (record) {
                 List<String> comps = g.recordComponents(n);
-                boolean fieldsOk = !comps.isEmpty() || true;
+                boolean fieldsOk = true;
                 for (String rc : comps) {
                     int k = rc.indexOf(':');
                     if (!rc.substring(k + 1).equals(d.fieldDescs().get(rc.substring(0, k)))) fieldsOk = false;

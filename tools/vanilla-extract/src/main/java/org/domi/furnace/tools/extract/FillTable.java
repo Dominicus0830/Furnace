@@ -107,6 +107,21 @@ public final class FillTable {
     public void add(EnumConst e) { enums.computeIfAbsent(e.owner(), k -> new ArrayList<>()).add(e); }
     public void addObjectMethods(String owner, List<String> names) { objectMethods.put(owner, List.copyOf(names)); }
 
+    /** 두 표(바닐라·Paper)에서 줄이 똑같은 것만 남긴 표. 한쪽에 없거나 다르면 채우지 않는다("모르면 채우지 않는다"). */
+    public FillTable intersect(FillTable other) {
+        FillTable r = new FillTable(label + "&" + other.label);
+        for (var e : ctors.entrySet()) for (Ctor c : e.getValue()) if (other.ctors(e.getKey()).contains(c)) r.add(c);
+        for (var e : getters.entrySet()) for (Getter c : e.getValue()) if (other.getters(e.getKey()).contains(c)) r.add(c);
+        for (var e : statics.entrySet()) for (Static c : e.getValue()) if (other.statics(e.getKey()).contains(c)) r.add(c);
+        for (var e : enums.entrySet()) for (EnumConst c : e.getValue()) if (other.enumConsts(e.getKey()).contains(c)) r.add(c);
+        for (var e : objectMethods.entrySet()) {
+            List<String> keep = new ArrayList<>();
+            for (String n : e.getValue()) if (other.objectMethods(e.getKey()).contains(n)) keep.add(n);
+            if (!keep.isEmpty()) r.addObjectMethods(e.getKey(), keep);
+        }
+        return r;
+    }
+
     public int size() {
         int n = 0;
         for (var m : List.of(ctors, getters, statics, enums)) for (List<?> l : m.values()) n += l.size();

@@ -76,9 +76,33 @@ class FillExtractorTest {
     }
 
     @Test
+    void staticsUnderControlFlowAreNotTaken(@TempDir Path d) throws IOException {
+        FillTable t = extract(d, "C", "public class C { static int TERN = Boolean.getBoolean(\"x\") ? 1 : 2; static int COND; static { if (Boolean.getBoolean(\"y\")) COND = 7; }"
+                + " static String S; static { try { Integer.parseInt(\"z\"); S = \"tried\"; } catch (Exception e) {} }"
+                + " static int LOOP; static { for (int i = 0; i < 0; i++) LOOP = 9; } static int AFTER; static { AFTER = 4; } }");
+        // 첫 분기 앞의 직선 구간이 없으므로(삼항이 첫 줄) 아무것도 표에 없다
+        assertTrue(t.statics("C").isEmpty(), t.statics("C").toString());
+        Files.createDirectories(d.resolve("u"));
+        FillTable u = extract(d.resolve("u"), "D", "public class D { static int A = 5; static int T = Boolean.getBoolean(\"x\") ? 1 : 2; static int B = 6; }");
+        assertEquals(List.of("A"), u.statics("D").stream().map(FillTable.Static::field).toList());   // B 는 분기 뒤라 받지 않는다
+    }
+
+    @Test
     void constructorWithLogicIsNotPlain(@TempDir Path d) throws IOException {
         FillTable t = extract(d, "C", "public class C { int x; C(int a) { this.x = a * 2; } C(int a, int b) { this(a); } }");
         assertTrue(t.ctors("C").isEmpty());
+    }
+
+    @Test
+    void intersectKeepsOnlyIdenticalLines(@TempDir Path d) throws IOException {
+        FillTable a = extract(d, "R", "public record R(int a, String b) {}");
+        Files.createDirectories(d.resolve("u"));
+        FillTable b = extract(d.resolve("u"), "R", "public record R(int a, String b) { public int a() { return a; } }");
+        FillTable both = a.intersect(b);
+        assertEquals(a.ctors("R"), both.ctors("R"));
+        assertEquals(2, both.getters("R").size());
+        FillTable c = extract(d.resolve("u"), "R", "public record R(int a, String b) { public R { if (a < 0) throw new IllegalArgumentException(); } }");
+        assertTrue(a.intersect(c).ctors("R").isEmpty());   // 한쪽이 다르거나 없으면 채우지 않는다
     }
 
     @Test

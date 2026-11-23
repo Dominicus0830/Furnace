@@ -10,6 +10,8 @@ G=(./gradlew -q)
 "${G[@]}" -PskipOracle=true :vanilla-extract:run -Pmc="$MC" -Pmode=sig-table -PsigPaperApi=true
 if line=$("${G[@]}" :worldgen-oracle:printPaperServerJar 2>/dev/null | grep '^PAPER_SERVER_JAR=') ; then
   "${G[@]}" -PskipOracle=true :vanilla-extract:run -Pmc="$MC" -Pmode=sig-table -PsigJar="${line#PAPER_SERVER_JAR=}" -PsigName=paper-server -PsigPrefix=net/minecraft/,com/mojang/,org/bukkit/,io/papermc/,com/destroystokyo/
+  # T-262: Paper 서버 jar 의 채움 표 — 껍데기는 바닐라·Paper 두 표에서 줄이 같은 것만 채운다(Paper 가 바꾼 클래스를 바닐라 값으로 채우지 않게)
+  "${G[@]}" -PskipOracle=true :vanilla-extract:run -Pmc="$MC" -Pmode=fill-table -PsigJar="${line#PAPER_SERVER_JAR=}" -PsigName=paper -PsigPrefix=net/minecraft/,com/mojang/
 else
   echo "[서명표] Paper 서버 jar 를 못 구함(Paper 저장소에 안 닿음) — Paper 표 없음, 바닐라·paper-api 표만 만들었다"
 fi

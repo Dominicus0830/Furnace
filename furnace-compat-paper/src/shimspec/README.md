@@ -134,13 +134,13 @@ class CoralFeature {                         // 머리는 "class|interface|enum 
 
 | 파일 | 누가 | 커밋 | 내용 |
 |---|---|---|---|
-| `<캐시>/<판>/fill-table.tsv.gz` | `tools/compat/sig-tables.sh`(`-Pmode=fill-table`) | 안 함(Mojang 이름) | 바닐라 jar 에서 값만 뽑은 채움 표. 줄 `P`(단순 생성자) `G`(단순 읽기) `S`(정적 리터럴) `V`(열거형 상수 인자) `T`(레코드 기본 메서드). 형식은 `FillTable` |
-| `full-shells-<판>.fp` | `-PfullShellsFpWrite=true` | 함 | 서명표 셋 + 채움 표의 sha256(`fill` 줄) |
+| `<캐시>/<판>/fill-table.tsv.gz`, `fill-table-paper.tsv.gz` | `tools/compat/sig-tables.sh`(`-Pmode=fill-table`) | 안 함(Mojang 이름) | 바닐라 jar·Paper 서버 jar 에서 값만 뽑은 채움 표. **두 표에서 줄이 같은 것만** 채운다(Paper 가 바꾼 클래스는 안 채움). 줄 `P`(단순 생성자) `G`(단순 읽기) `S`(정적 리터럴) `V`(열거형 상수 인자) `T`(레코드 기본 메서드). 형식은 `FillTable` |
+| `full-shells-<판>.fp`, `fill-tables-<판>.fp` | `-PfullShellsFpWrite=true` | 함 | 서명표 셋의 sha256 / 채움 표 둘의 sha256(추출기를 바꾸는 PR 만 건드린다 — Paper 표가 있는 노트북에서 다시 씀) |
 | `fill-areas.txt` | 사람 | 함 | 영역 번호·이름·접두(로드맵 8장 12개). 가장 긴 접두가 이긴다 |
-| `fills-baseline-<판>.txt` | `-PfullShellsBaselineWrite=true` | 함 | 영역별 합계 + 클래스(이름 해시 앞 8자리)별 남은 껍데기 멤버 수·채운 멤버 수. **이름 없음.** 달라지면 `generateFullShells` 가 실패 |
+| `fills-baseline-<판>/<영역>.txt` | `-PfullShellsBaselineWrite=true` | 함 | 영역 합계 + 클래스(이름 해시 앞 8자리)별 남은·채운 멤버 수. **이름 없음.** 영역마다 파일이 따로라 영역 PR 끼리 충돌하지 않는다. **채운 수가 줄 때만 CI 실패**(늘거나 손 shim 으로 빠진 클래스는 통과) — 다시 쓰기는 노트북 정리 때 몰아서 |
 
 규칙(어기면 `FillParityTest` 가 잡는다):
-- 모르면 채우지 않는다. 추출기는 정해진 몸통 모양(분기·호출·계산이 없는 것)에만 반응한다. 열거형은 상수 인자가 **전부** 리터럴이고 쓰는 생성자가 전부 채워질 때만 채운다(아니면 생성자·읽기도 껍데기).
+- 모르면 채우지 않는다. 정적 리터럴은 정적 초기화의 **첫 분기·try 앞 직선 구간**에서만 받는다. 추출기는 정해진 몸통 모양(분기·호출·계산이 없는 것)에만 반응한다. 열거형은 상수 인자가 **전부** 리터럴이고 쓰는 생성자가 전부 채워질 때만 채운다(아니면 생성자·읽기도 껍데기).
 - 상위 생성자가 채워져야(또는 `Object`·`Record`·`Enum`) 하위 생성자를 채운다. 읽기는 그 클래스의 채워진 생성자가 대입하는 필드만.
 - 채운 멤버에는 `@NmsShellMember` 표지가 없다 → `NmsSymbols` 가 "있음"으로 본다. 그래서 값이 바닐라와 같아야 한다.
 - 새 종류(예: 배열 리터럴, 상수 참조)를 더할 때는 (1) `FillExtractor` 에 모양 하나 + `FillExtractorTest`, (2) `FillTable` 줄 종류, (3) `Fills` 규칙·`FullShells` 몸통, (4) `FillParityTest.checkClass` 에 비교 하나, 이 네 곳을 한 PR 로.

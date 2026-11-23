@@ -40,7 +40,7 @@ class FillParityTest {
     static final String MARKER = "Lorg/domi/furnace/compat/nms/NmsShellMember;";
 
     final List<String> failures = new ArrayList<>();
-    int classes, enumConsts, statics, instances, getters, recordChecks, referenceUnusable, noVanilla;
+    int refGetters, classes, enumConsts, statics, instances, getters, recordChecks, referenceUnusable, noVanilla;
 
     @Test
     void filledMembersMatchVanilla() throws Exception {
@@ -92,8 +92,15 @@ class FillParityTest {
         }
         // CI 로그에는 숫자만 — 이름은 실패 메시지에만(실패해야 나온다)
         System.out.println("[fill-parity] classes=" + classes + " enumConstants=" + enumConsts + " statics=" + statics + " instances=" + instances + " getters=" + getters
-                + " recordChecks=" + recordChecks + " referenceUnusable=" + referenceUnusable + " noVanillaClass=" + noVanilla + " failures=" + failures.size());
-        assertTrue(classes > 500, "expected hundreds of filled classes, got " + classes);
+                + " refGetters=" + refGetters + " recordChecks=" + recordChecks + " referenceUnusable=" + referenceUnusable + " noVanillaClass=" + noVanilla + " failures=" + failures.size());
+        // 대조 수가 줄어도 초록이 되지 않게 종류별 하한(2026-11-23 측정의 절반 안팎)과 바닐라 클래스 없음 상한
+        assertTrue(classes > 900, "filled classes: " + classes);
+        assertTrue(enumConsts > 250, "enum constants compared: " + enumConsts);
+        assertTrue(instances > 800, "instances compared: " + instances);
+        assertTrue(getters > 800, "getters compared: " + getters);
+        assertTrue(refGetters > 100, "reference getters compared by identity: " + refGetters);
+        assertTrue(recordChecks > 250, "record checks: " + recordChecks);
+        assertTrue(noVanilla < 20, "classes without a vanilla counterpart: " + noVanilla);
         assertEquals(List.of(), failures.stream().limit(30).toList(), "filled members must match the vanilla values");
     }
 
@@ -181,15 +188,26 @@ class FillParityTest {
                 s.setAccessible(true);
                 v.setAccessible(true);
                 Object vr = v.invoke(vo);
-                if (!simple(v.getReturnType()) && vr != null) continue;   // 참조 값은 입력이 null 인 것만 견준다(같은 입력이면 null 이어야 한다)
+                Object sr = s.invoke(so);
                 getters++;
-                same(cn.name + "#" + gm.name, vr, s.invoke(so));
+                if (simple(v.getReturnType())) same(cn.name + "#" + gm.name, vr, sr);
+                else if (vr != sr && !(vr instanceof Enum)) failures.add(cn.name + "#" + gm.name + ": returned reference differs (vanilla=" + vr + " shell=" + sr + ")");
+                if (vr != null && !simple(v.getReturnType())) refGetters++;
             }
             if (sc.isRecord()) {
                 recordChecks++;
                 for (MethodNode om : cn.methods) {
                     if (om.name.equals("hashCode") && isFilledMethod(cn, om)) same(cn.name + "#hashCode", vo.hashCode(), so.hashCode());
                     if (om.name.equals("toString") && isFilledMethod(cn, om)) same(cn.name + "#toString", vo.toString(), so.toString());
+                    if (om.name.equals("equals") && isFilledMethod(cn, om)) {
+                        Object so2 = sk.newInstance(args);
+                        Object vo2 = vk.newInstance(args);
+                        same(cn.name + "#equals(same)", vo.equals(vo2), so.equals(so2));
+                        Object[] other = sample(sk.getParameterTypes());   // 마커 객체가 다르다(참조 인자가 있으면 equals 가 갈린다)
+                        Object so3 = sk.newInstance(other);
+                        Object vo3 = vk.newInstance(other);
+                        same(cn.name + "#equals(other)", vo.equals(vo3), so.equals(so3));
+                    }
                 }
             }
         }
@@ -208,9 +226,26 @@ class FillParityTest {
             Class<?> t = ps[i];
             a[i] = t == boolean.class ? Boolean.TRUE : t == int.class ? (Object) (3 + i) : t == long.class ? (Object) (4L + i) : t == float.class ? (Object) (1.5F + i)
                     : t == double.class ? (Object) (2.5D + i) : t == char.class ? (Object) 'c' : t == byte.class ? (Object) (byte) 1 : t == short.class ? (Object) (short) 2
-                    : t == String.class ? "s" + i : null;
+                    : t == String.class ? "s" + i : marker(t, i);
         }
         return a;
+    }
+
+    /** JDK 형식 인자에는 자리마다 다른 객체를 넣는다 — 읽기가 같은 객체를 돌려주는지 동일성으로 본다(필드를 뒤바꿔 채우면 걸린다). 그 밖의 형식은 null. */
+    static Object marker(Class<?> t, int i) {
+        if (t == Object.class) return new Object();
+        if (t == Integer.class) return Integer.valueOf(1000 + i);
+        if (t == Long.class) return Long.valueOf(2000L + i);
+        if (t == Double.class) return Double.valueOf(3000.5 + i);
+        if (t == Float.class) return Float.valueOf(4000.5F + i);
+        if (t == Boolean.class) return Boolean.TRUE;
+        if (t == java.util.UUID.class) return java.util.UUID.randomUUID();
+        if (t == CharSequence.class) return new StringBuilder("c" + i);
+        if (t == java.util.List.class || t == java.util.Collection.class) return new ArrayList<>(List.of("l" + i));
+        if (t == java.util.Map.class) return new java.util.HashMap<>(java.util.Map.of("k", "v" + i));
+        if (t == java.util.Set.class) return new java.util.HashSet<>(List.of("s" + i));
+        if (t == java.util.Optional.class) return java.util.Optional.of("o" + i);
+        return null;
     }
 
     void same(String what, Object vanilla, Object shell) {

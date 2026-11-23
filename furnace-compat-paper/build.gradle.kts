@@ -413,6 +413,8 @@ val fullShellsCache = (findProperty("cache") as String?) ?: System.getenv("FURNA
     ?: (System.getProperty("user.home") + "/.cache/furnace-vanilla-extract")
 val fullShellsTables = listOf("sig-table-paper-server.tsv.gz", "sig-table.tsv.gz", "sig-table-paper-api.tsv.gz")
     .map { "$fullShellsCache/$mcVersion/$it" }
+val fullShellsPaperFill = file("$fullShellsCache/$mcVersion/fill-table-paper.tsv.gz")   // T-262: Paper 서버 jar 의 채움 표(두 표에서 같은 줄만 채운다)
+val fullShellsFillFp = layout.projectDirectory.file("src/shimspec/fill-tables-$mcVersion.fp")
 val fullShellsFill = file("$fullShellsCache/$mcVersion/fill-table.tsv.gz")   // T-262: 채움 표(없으면 채우지 않고 껍데기만 — 지문에 fill 줄이 있으면 지문 검사가 실패해 알려 준다)
 val fullShellsLibs = "$fullShellsCache/$mcVersion/work/libs"   // 바닐라 서버 jar 가 싣는 라이브러리(vanilla-extract 가 풀어 둔 것)
 val fullShellsMain: SourceSet = the<SourceSetContainer>()["main"]
@@ -429,7 +431,7 @@ val fullShellsTestSources: SourceSet = the<SourceSetContainer>()["test"]
 val fullShellsDir = layout.buildDirectory.dir("full-shells/classes")
 val fullShellsReport = layout.buildDirectory.file("full-shells/report.md")
 val fullShellsFp = layout.projectDirectory.file("src/shimspec/full-shells-$mcVersion.fp")
-val fullShellsBaseline = layout.projectDirectory.file("src/shimspec/fills-baseline-$mcVersion.txt")   // T-262: 이름 없는 기준선(영역별 합계 + 클래스 해시별 남은·채운 멤버 수)
+val fullShellsBaseline = layout.projectDirectory.dir("src/shimspec/fills-baseline-$mcVersion")   // T-262: 이름 없는 기준선(영역 파일마다: 합계 + 클래스 해시별 남은·채운 멤버 수) — CI 는 채운 수가 줄 때만 실패
 val fullShellsAreas = layout.projectDirectory.file("src/shimspec/fill-areas.txt")
 val generateFullShells by tasks.registering(JavaExec::class) {
     group = "build"
@@ -442,10 +444,12 @@ val generateFullShells by tasks.registering(JavaExec::class) {
     maxHeapSize = "2g"
     inputs.files(shimgen.runtimeClasspath).withNormalizer(ClasspathNormalizer::class)
     inputs.files(fullShellsTables).withPathSensitivity(PathSensitivity.NONE)
-    inputs.files(fullShellsFill).optional().withPathSensitivity(PathSensitivity.NONE)
+    inputs.files(fullShellsFill, fullShellsPaperFill).optional().withPathSensitivity(PathSensitivity.NONE)
+    inputs.files(fullShellsFillFp).optional().withPathSensitivity(PathSensitivity.NONE)
     inputs.files(main.runtimeClasspath).withNormalizer(ClasspathNormalizer::class)
     inputs.files(fullShellsServerLibs).withNormalizer(ClasspathNormalizer::class)
-    inputs.files(fullShellsFp, fullShellsAreas, fullShellsBaseline).optional().withPathSensitivity(PathSensitivity.NONE)
+    inputs.files(fullShellsFp, fullShellsAreas).optional()
+    inputs.files(fileTree(fullShellsBaseline)).withPathSensitivity(PathSensitivity.RELATIVE)
     outputs.dir(fullShellsDir)
     outputs.file(fullShellsReport)
     val writeFp = providers.gradleProperty("fullShellsFpWrite").isPresent
@@ -453,7 +457,8 @@ val generateFullShells by tasks.registering(JavaExec::class) {
         listOf(fullShellsDir.get().asFile.absolutePath, fullShellsReport.get().asFile.absolutePath, fullShellsFp.asFile.absolutePath, writeFp.toString(),
             (main.runtimeClasspath.files + fullShellsServerLibs.files).joinToString(File.pathSeparator) { it.absolutePath }) + fullShellsTables + fullShellsLibs +
             (if (fullShellsFill.isFile) fullShellsFill.absolutePath else "-") +
-            listOf(fullShellsBaseline.asFile.absolutePath, fullShellsAreas.asFile.absolutePath, providers.gradleProperty("fullShellsBaselineWrite").isPresent.toString())
+            listOf(fullShellsBaseline.asFile.absolutePath, fullShellsAreas.asFile.absolutePath, providers.gradleProperty("fullShellsBaselineWrite").isPresent.toString(),
+                (if (fullShellsPaperFill.isFile) fullShellsPaperFill.absolutePath else "-"), fullShellsFillFp.asFile.absolutePath)
     })
 }
 val fullShellsJar by tasks.registering(Jar::class) {

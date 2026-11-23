@@ -77,8 +77,10 @@ public final class FillExtractor {
                 FillTable.Ctor c = ctor(cn, m, ins);
                 if (c != null) t.add(c);
             } else if (m.name.equals("<clinit>")) {
-                statics(cn, ins, t, fieldDescs);
-                if (isEnum) enumConsts(cn, ins, t);
+                // 첫 분기·switch·throw·try 범위 앞의 직선 구간만 — 조건·삼항·반복·예외 안의 대입은 값이 실행에 달렸다
+                List<AbstractInsnNode> line = straightPrefix(m);
+                statics(cn, line, t, fieldDescs);
+                if (isEnum) enumConsts(cn, line, t);
             } else if ((m.access & Opcodes.ACC_STATIC) == 0 && m.desc.startsWith("()") && !m.desc.equals("()V")) {
                 FillTable.Getter g = getter(cn, m, ins);
                 if (g != null) t.add(g);
@@ -97,6 +99,25 @@ public final class FillExtractor {
                 t.addObjectMethods(cn.name, plain);
             }
         }
+    }
+
+    /** 메서드 앞쪽의 직선 구간(실제 명령만): 첫 점프·switch·athrow, 또는 try 범위가 시작하는 자리 앞까지. */
+    static List<AbstractInsnNode> straightPrefix(MethodNode m) {
+        java.util.Set<org.objectweb.asm.tree.LabelNode> tryStarts = new java.util.HashSet<>();
+        for (var tc : m.tryCatchBlocks) tryStarts.add(tc.start);
+        List<AbstractInsnNode> r = new ArrayList<>();
+        for (AbstractInsnNode i : m.instructions) {
+            if (i instanceof org.objectweb.asm.tree.LabelNode l) {
+                if (tryStarts.contains(l)) break;
+                continue;
+            }
+            int op = i.getOpcode();
+            if (op < 0) continue;
+            if (i instanceof org.objectweb.asm.tree.JumpInsnNode || i instanceof org.objectweb.asm.tree.TableSwitchInsnNode
+                    || i instanceof org.objectweb.asm.tree.LookupSwitchInsnNode || op == Opcodes.ATHROW) break;
+            r.add(i);
+        }
+        return r;
     }
 
     private static List<AbstractInsnNode> real(MethodNode m) {
