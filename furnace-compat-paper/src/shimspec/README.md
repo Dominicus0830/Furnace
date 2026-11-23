@@ -151,3 +151,25 @@ tools/compat/sig-tables.sh                                          # 서명표 
 ./gradlew -PskipOracle=true :furnace-compat-paper:generateFullShells # 지문·기준선 검사 후 껍데기 생성
 ./gradlew -PskipOracle=true :furnace-compat-paper:fullShellsTest    # 전부 올리기 + 바닐라 대조(FillParityTest)
 ```
+
+## 연결 파일 — 동작 없는 껍데기 멤버를 있는 기능에 잇기 (T-263 S1, 2026-11-24)
+
+설계: `docs/roadmap/link-inferrer-t263-2026-11-23.md` 3.5. 파일은 `links-<판>/<영역 번호>-<이름>.links`(영역은 `fill-areas.txt`). 줄이 있는 멤버는 `generateFullShells`(껍데기 클래스)와 합치기(T-261, 손 shim 에 덧붙이는 멤버)가 던지는 몸통 대신 **연결 몸통**을 쓴다: [소유 검사] → [인자 변환] → 대상 → [반환 변환] → 반환. 리플렉션·invokedynamic 없음, `@NmsShellMember` 표지 없음(연결기가 "있음"으로 본다).
+
+```
+#furnace-links 1 1.21.1 area=9
+# "# " 로 시작하는 줄과 줄 끝 " # …" 는 주석. 지문(#ab12…)은 # 뒤에 빈칸이 없다.
+class net.minecraft.world.entity.monster.Zombie
+  isBaby()Z -> @idiom(entity-data-get, #16271d1c1b) read=owner via=G1 proof=O3
+  #0123456789()I -> org.domi.furnace.compat.nms.NmsEntityOps.size pure     # private 멤버는 지문
+  getLevel()I -> this.level pure                                           # 별칭: 같은 사슬의 살아 있는 멤버
+```
+
+- **이름**: 평문은 Paper 서버 서명표에서 공개·보호인 클래스·멤버·정적 필드뿐. private·패키지 멤버와 값은 `#<SHA-256("a.b.C.이름") 앞 10자리>`(`entity_data/ids-<판>.txt` 와 같은 꼴, `Links.fingerprint`). 어기면 멈춘다(공개 이름을 지문으로 써도 멈춘다).
+- **대상**: `a.b.C.m` = `@LinkTarget` 을 단 공개 정적 메서드(인스턴스 멤버면 첫 인자가 받는 쪽 — 그 형식이 받는 쪽 클래스를 정한다), `this.m` = 같은 사슬의 살아 있는 멤버(손 shim·JDK·T-262 채움; 껍데기·다른 연결 줄은 안 됨, 같은 인자·같은 정적 여부, 정적이면 같은 클래스), `@idiom(이름, 값…)` = `@LinkIdiom("이름")` 정적 메서드에 [받는 쪽] + 값 + 인자. 대상·변환·관용구는 `org.domi.furnace.compat`·`org.domi.furnace.api` 아래만(어댑터 경계).
+- **값**: 정수, `1.5F`, `2.0D`, `10L`, `true`, `"글"`, 공개 정적 필드 `a.b.C.F`, private·패키지 정적 필드 `#지문`. 필드는 값이 있어야 한다(상수·열거형 상수·T-262 채움·손 shim). 지문 필드는 줄의 클래스에서 읽을 수 있어야 하고(private 은 그 클래스 자신의 것만, 패키지 필드는 같은 패키지), 사슬에서 더 가까운 클래스가 같은 이름의 정적 필드를 가지면 멈춘다(이름은 같고 선언 클래스가 다른 지문).
+- **형식 변환**: 인자·반환이 대입되지 않으면 `@LinkConvert` 정적 `(A)B` 를 찾는다(형식 쌍마다 하나). 없으면 그 겹침은 안 맞는다.
+- **검사 종류**: `pure | read=any | read=snapshot | read=owner | write | api` — 줄과 대상 표지가 같아야 한다. `read=owner`·`write` 는 표지의 `owner=` 클래스의 `read/write(Object, String)` 를 첫 호출로(`"단순이름#멤버"`), 정적 멤버엔 쓸 수 없다. 별칭 줄은 소유 검사를 못 단다(이어 받는 멤버가 스스로 검사).
+- **멈추는 것**: 어긴 줄, 그리고 쓰이지 않은 줄(낡은 줄) — 멤버가 이미 T-262 로 채워졌거나, 손 shim(상위 사슬 포함)에 있거나, 클래스가 안 만들어졌거나, NMS 밖 껍데기라 클래스 초기화가 던질 때. 지우라는 뜻이다(손 shim 바이트를 덮어쓰지 않는다). 생성자·추상 멤버는 잇지 않는다.
+- 기준선: 이은 멤버는 `fills-baseline-<판>` 의 "채운 수"에 들어간다(줄이 사라지면 CI 가 잡는다).
+- 줄 속성 `via=`·`proof=`·`body=`·`target=` 는 지금 읽어 두기만 한다. 후보를 만들고 정답기로 증명해 줄을 쓰는 도구(`inferLinks`·`adoptLinks`)와 `body=`/`target=` 지문 검사는 다음 조각(S1 뒤쪽·S2)이다.
