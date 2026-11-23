@@ -213,7 +213,7 @@ final class ShellMerge {
                     } else if (a.conv() != null) {
                         CraftConversions.body(cv.visitMethod(a.access(), a.m().name(), a.m().desc(), a.m().signature(), null), n, a.m(), a.conv());
                     } else {
-                        body(cv, n, a.access(), a.m());
+                        if (!linkBody(cv, n, a.access(), a.m())) body(cv, n, a.access(), a.m());
                     }
                 }
                 super.visitEnd();
@@ -222,10 +222,28 @@ final class ShellMerge {
         return cw.toByteArray();
     }
 
+    /** T-263: 연결 줄이 있으면 연결 몸통(표지 없음 — 연결기가 "있음"으로 본다). */
+    private boolean linkBody(ClassVisitor cv, String owner, int acc, SigTable.Member m) {
+        if (!g.links.has(owner, m.name() + m.desc())) return false;
+        MethodVisitor mv = cv.visitMethod(acc, m.name(), m.desc(), m.signature(), null);
+        if (g.links.emit(mv, owner, acc, m.name(), m.desc())) {
+            count("linked (T-263)");
+            return true;
+        }
+        // 대상이 안 맞음 — 문제는 links.problems 에 있고 생성 끝에 멈춘다. 여기서는 던지는 몸통으로 메서드를 마저 쓴다.
+        mv.visitAnnotation(FullShells.SHELL_MEMBER, false).visitEnd();
+        throwing(mv, owner, acc, m);
+        return true;
+    }
+
     /** 던지는 몸통(FullShells.shellBody 와 같은 모양). 프레임이 필요 없는 곧은 코드라 크기를 직접 적는다. */
     private static void body(ClassVisitor cv, String owner, int acc, SigTable.Member m) {
         MethodVisitor mv = cv.visitMethod(acc, m.name(), m.desc(), m.signature(), null);
         mv.visitAnnotation(FullShells.SHELL_MEMBER, false).visitEnd();
+        throwing(mv, owner, acc, m);
+    }
+
+    private static void throwing(MethodVisitor mv, String owner, int acc, SigTable.Member m) {
         mv.visitCode();
         mv.visitLdcInsn(owner.replace('/', '.') + "#" + m.name() + m.desc());
         mv.visitMethodInsn(Opcodes.INVOKESTATIC, FullShells.SHELL_HELPER, "unsupported", "(Ljava/lang/String;)Ljava/lang/RuntimeException;", false);

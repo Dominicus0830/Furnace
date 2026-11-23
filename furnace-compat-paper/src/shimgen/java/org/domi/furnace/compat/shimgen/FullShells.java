@@ -62,6 +62,10 @@ public final class FullShells {
     FillTable fillTable;
     /** T-262: 채우기 계획. */
     Fills fills = new Fills();
+    /** T-263: 연결 줄(없으면 빈 것 — 껍데기는 그대로). */
+    Links links = new Links();
+    /** 지금 만드는 클래스의 초기화가 던지는가(그러면 연결하지 않는다 — 부를 수 없다). */
+    private boolean curTrap;
     /** T-264 P4: 변환 가족 W/U(CraftBukkit 레지스트리 값 변환 정적 메서드의 진짜 몸통). */
     final CraftConversions conversions;
 
@@ -150,6 +154,7 @@ public final class FullShells {
             g.fillTable = FillTable.read(fillPath).intersect(FillTable.read(paperFillPath));
             if (fillFp != null) checkFillFingerprint(fillPath, paperFillPath, fillFp, writeFp);
         }
+        if (args.length > 16 && !args[16].isBlank() && !args[16].equals("-")) g.links = Links.read(Path.of(args[16]));
         Map<String, byte[]> classes = g.generate();
         ShellMerge merge = null;
         if (args.length > 15 && !args[15].isBlank()) {
@@ -158,6 +163,7 @@ public final class FullShells {
             merge = new ShellMerge(g, overlay);
             classes.putAll(merge.merge());
         }
+        g.checkLinks(merge);
         deleteTree(out);
         for (Map.Entry<String, byte[]> e : classes.entrySet()) {
             Path p = out.resolve(e.getKey() + ".class");
@@ -337,6 +343,10 @@ public final class FullShells {
     Map<String, byte[]> generate() {
         select();
         if (fillTable != null) fills = Fills.plan(this, fillTable);
+        if (!links.lines.isEmpty() || !links.problems.isEmpty()) {
+            links.resolve(new LinkWorld(this));
+            links.indexStaticFields(links.lineClasses());
+        }
         Map<String, byte[]> out = new TreeMap<>();
         Map<String, List<String>> nested = new HashMap<>();
         for (String n : shells) {
@@ -390,6 +400,8 @@ public final class FullShells {
         // NMS 밖 범위(Bukkit API·Paper 내부·Mojang)는 연결기 덫이 필드 참조를 보지 않는다(플러그인 클래스를 다 바꾸지 않으려고 NMS 이름이 든 클래스만 변환).
         // 값 없는 필드가 있으면 클래스 초기화에서 던진다 — 필드가 조용히 null/0 을 주지 않게, 예전의 "클래스 없음"처럼 크게 실패하고 계측에 센다.
         if (trapInit) initTrapped++;
+        curTrap = trapInit;
+        int linkedBefore = links.linkedMembers;
         String enumCtor = null;
         Set<String> declared = new HashSet<>();
         for (SigTable.Member m : t.members(n)) {
@@ -411,6 +423,7 @@ public final class FullShells {
         else if (cf != null && !cf.statics.isEmpty()) staticClinit(cw, n, cf);
         cw.visitEnd();
         int filledN = cf == null || trapInit ? 0 : cf.ctors.size() + cf.getters.size() + cf.statics.size() + cf.objectMethods.size() + (cf.enumConsts == null ? 0 : cf.enumConsts.size());
+        filledN += links.linkedMembers - linkedBefore;
         classStats.put(n, new int[]{shellMembers - shellBefore, filledN});
         return cw.toByteArray();
     }
@@ -477,6 +490,10 @@ public final class FullShells {
             return;
         }
         if (cf != null && filledBody(cw, mv, owner, m, cf)) {
+            liveMembers++;
+            return;
+        }
+        if (!curTrap && links.emit(mv, owner, acc, m.name(), m.desc())) {
             liveMembers++;
             return;
         }
@@ -720,6 +737,35 @@ public final class FullShells {
     }
 
     /** 값 없는(표지가 붙을) 필드가 있나 — 상수 값 필드·열거형 상수는 진짜 값이 있다. */
+    /** 이 껍데기의 클래스 초기화가 던지는가(NMS 밖 범위 + 값 없는 필드). shell() 과 같은 판단. */
+    boolean initTraps(String n) {
+        if (!shells.contains(n) || scope.get(n) == Scope.NMS) return false;
+        SigTable.Cls c = decl(n);
+        boolean isEnum = (c.access() & Opcodes.ACC_ENUM) != 0 && !isInterface(c.access());
+        return hasShellField(n, table(n), isEnum, fills.of(n));
+    }
+
+    /** T-263: 연결 줄 검사 — 어긴 줄·쓰이지 않은 줄(낡은 줄)이 있으면 멈춘다. 생성·합치기가 끝난 뒤 부른다. */
+    void checkLinks(ShellMerge merge) {
+        if (links.lines.isEmpty() && links.problems.isEmpty()) return;
+        List<String> bad = new ArrayList<>(links.problems);
+        bad.addAll(links.unconsumed(ln -> {
+            String c = ln.cls();
+            if (shells.contains(c)) {
+                if (initTraps(c)) return "the class init throws (fields without a value outside the NMS scope)";
+                return "the member already has behaviour (T-262 fill) or is not a shell";
+            }
+            if (skipped.containsKey(c)) return "the class is not generated (" + skipped.get(c) + ")";
+            if (existing.has(c)) return merge == null ? "the class is a hand shim and merging is off"
+                    : "the hand shim (or its supertypes) already has the member, or merging left it out";
+            return "the class is not in scope";
+        }));
+        if (!bad.isEmpty()) {
+            throw new IllegalStateException("links: " + bad.size() + " problem(s) - fix or delete the lines:\n" + String.join("\n", bad.subList(0, Math.min(50, bad.size()))));
+        }
+        System.out.println("[full-shells] links: " + links.linkedMembers + " linked members from " + links.lines.size() + " lines");
+    }
+
     private boolean hasShellField(String n, SigTable t, boolean isEnum, Fills.ClassFill cf) {
         for (SigTable.Member m : t.members(n)) {
             if (m.kind() != 'F') continue;
@@ -938,6 +984,9 @@ public final class FullShells {
 
         /** 호환 계층에 이미 있는 클래스(껍데기를 만들지 않는다). 라이브러리는 넣지 않는다. */
         boolean has(String n) { return dirFiles.containsKey(n) || jarOf.containsKey(n) && !libraryClasses.contains(n); }
+
+        /** 클래스 폴더(호환 계층 자신)의 클래스 이름들 — jar·라이브러리는 빼고. */
+        Set<String> dirClasses() { return dirFiles.keySet(); }
 
         Info info(String n) {
             if (cache.containsKey(n)) return cache.get(n);

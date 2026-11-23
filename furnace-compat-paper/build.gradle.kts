@@ -449,6 +449,7 @@ val fullShellsReport = layout.buildDirectory.file("full-shells/report.md")
 val fullShellsFp = layout.projectDirectory.file("src/shimspec/full-shells-$mcVersion.fp")
 val fullShellsBaseline = layout.projectDirectory.dir("src/shimspec/fills-baseline-$mcVersion")   // T-262: 이름 없는 기준선(영역 파일마다: 합계 + 클래스 해시별 남은·채운 멤버 수) — CI 는 채운 수가 줄 때만 실패
 val fullShellsAreas = layout.projectDirectory.file("src/shimspec/fill-areas.txt")
+val fullShellsLinks = layout.projectDirectory.dir("src/shimspec/links-$mcVersion")   // T-263: 연결 줄(영역 파일마다 <영역>.links) — 없으면 연결 없음
 val generateFullShells by tasks.registering(JavaExec::class) {
     group = "build"
     description = "서명표에서 호환 계층에 없는 Paper 내부 클래스 전부의 껍데기를 만든다(T-260)"
@@ -466,6 +467,7 @@ val generateFullShells by tasks.registering(JavaExec::class) {
     inputs.files(fullShellsServerLibs).withNormalizer(ClasspathNormalizer::class)
     inputs.files(fullShellsFp, fullShellsAreas).optional()
     inputs.files(fileTree(fullShellsBaseline)).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.files(fileTree(fullShellsLinks)).withPathSensitivity(PathSensitivity.RELATIVE)
     outputs.dir(fullShellsDir)
     outputs.file(fullShellsReport)
     val writeFp = providers.gradleProperty("fullShellsFpWrite").isPresent
@@ -476,7 +478,9 @@ val generateFullShells by tasks.registering(JavaExec::class) {
             listOf(fullShellsBaseline.asFile.absolutePath, fullShellsAreas.asFile.absolutePath, providers.gradleProperty("fullShellsBaselineWrite").isPresent.toString(),
                 (if (fullShellsPaperFill.isFile) fullShellsPaperFill.absolutePath else "-"), fullShellsFillFp.asFile.absolutePath) +
             // T-261: 호환 jar 자신의 클래스 — 그 안의 범위 클래스에 빠진 멤버를 합쳐 껍데기 jar 에 같은 이름으로 넣는다(서버는 껍데기 jar 를 앞에 둔다)
-            main.output.classesDirs.files.joinToString(File.pathSeparator) { it.absolutePath }
+            main.output.classesDirs.files.joinToString(File.pathSeparator) { it.absolutePath } +
+            // T-263: 연결 줄 폴더 — 던지는 몸통 대신 연결 몸통을 쓴다(어긴 줄·낡은 줄은 멈춤)
+            fullShellsLinks.asFile.absolutePath
     })
 }
 val fullShellsJar by tasks.registering(Jar::class) {
