@@ -103,7 +103,13 @@ Axiom 은 소환(`SpawnEntityPacketListener` — `create` → `load` → `setUUI
   붙은 칸(`TileX/Y/Z`)은 바닐라 `moveTo → setPos` 처럼 `BlockPos.containing(새 위치)`(끈 매듭도 같다).
 - 살아 있는 월드에 놓을 때(`/place`·구조 블록·플러그인 배치 API)는 바닐라가 엔티티를 레벨에 바로 넣어 `moveTo` 각도가 남는다. 서버는 NBT 를 불러
   넣으므로 불러오기의 `setDirection` 이 각도를 덮는다 — 걸이 엔티티는 넣기 전에 저장 각도로 되돌린다(`LiveGrid`·`LiveFeatures`). 월드젠 청크는
-  바닐라도 NBT 로 저장했다 불러오므로 그대로(`setDirection` 각도).
-- 바닐라 내장 구조물 템플릿 1,180개에는 걸이 엔티티가 없다(압축을 풀어 id 를 찾음) — 월드젠 결과는 바뀌지 않는다. 사용자·데이터 팩 템플릿,
+  바닐라도 NBT 로 저장했다 불러오므로 그대로(`setDirection` 각도). 두 길은 따로다: `LiveFeatures` 는 묘목·뼛가루·`/place feature` 처럼 런타임에
+  실제 월드 복사본에 지형 지물을 놓는 길(바닐라는 ServerLevel 에 바로 씀)이고, 월드젠 청크의 엔티티는 `ChunkLevel.addWorldGenChunkEntities` 가
+  저장 각도 복원 없이 넣는다.
+- 바닐라 내장 구조물 템플릿 1,180개(`worldgen/1.21.1/structure/**.nbt`)에는 걸이 엔티티(액자·발광 액자·그림·끈 매듭)가 없다. 압축을 풀어
+  `entities[].nbt.id` 를 모두 센 결과 주민·좀비 주민·고양이·말 등 몹 13종 62마리와 갑옷 거치대 2개뿐이다 — 월드젠 결과는 바뀌지 않는다. 사용자·데이터 팩 템플릿,
   구조 블록으로 저장한 건물, 플러그인 배치가 대상이다. 플러그인 배치 API·구조 블록·`/place` 는 모두 같은 `TemplatePlacer` 를 지난다.
 - 시험: `StructuresApiTest.hangingEntitiesTurnWithTheTemplate` — 시계 90(서 → 북, 각도 360, 붙은 칸)과 앞뒤 대칭(서 → 동, 각도 270).
+  `hangingEntitiesFollowVanillaForOtherTurnsPaintingsAndFloorFrames` — 반시계 90(서 → 남, 180), 그림 시계 90 + 좌우 대칭(서 → 북 → 남, 540),
+  위를 보는 액자(방향 그대로, 270, xRot −90). `HangingRotationTableTest` — 돌림·각도·대칭 표 전부. 바닐라는 블록 위치를 대칭 먼저·돌림 나중으로
+  옮기지만 걸이 방향은 돌림 먼저·대칭 나중이라 둘이 어긋날 수 있다(바닐라 그대로 둔다).

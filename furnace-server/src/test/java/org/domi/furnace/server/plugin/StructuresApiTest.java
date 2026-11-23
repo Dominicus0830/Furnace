@@ -283,6 +283,22 @@ class StructuresApiTest {
 
     /** 1×1×2 템플릿: (0,0,0) 에 서쪽을 보는 액자(동쪽 돌에 붙음), (1,0,0) 돌. */
     private void importFrameTemplate() {
+        NbtCompound frame = new NbtCompound();
+        frame.putString("id", "minecraft:item_frame");
+        frame.putByte("Facing", (byte) 4);   // 서
+        NbtList rot = new NbtList();
+        rot.add(90.0F); rot.add(0.0F);
+        frame.put("Rotation", rot);
+        NbtCompound item = new NbtCompound();
+        item.putString("id", "minecraft:stone");
+        item.putInt("count", 1);
+        frame.put("Item", item);
+        frame.putByte("ItemRotation", (byte) 2);
+        importHangingTemplate("test:frame", frame, 0.96875, 0.5, 0.5);
+    }
+
+    /** 같은 모양(돌은 (1,0,0))에 걸이 엔티티 하나를 (0,0,0) 칸에 둔 템플릿. */
+    private void importHangingTemplate(String name, NbtCompound hanging, double ex, double ey, double ez) {
         NbtCompound root = new NbtCompound();
         NbtList size = new NbtList();
         size.add(2); size.add(1); size.add(1);
@@ -305,31 +321,20 @@ class StructuresApiTest {
             blocks.add(b);
         }
         root.put("blocks", blocks);
-        NbtCompound frame = new NbtCompound();
-        frame.putString("id", "minecraft:item_frame");
-        frame.putByte("Facing", (byte) 4);   // 서
-        frame.putInt("TileX", 100); frame.putInt("TileY", 100); frame.putInt("TileZ", 100);   // 저장 때 월드 좌표 — 놓을 때 바뀐다
-        NbtList rot = new NbtList();
-        rot.add(90.0F); rot.add(0.0F);
-        frame.put("Rotation", rot);
-        NbtCompound item = new NbtCompound();
-        item.putString("id", "minecraft:stone");
-        item.putInt("count", 1);
-        frame.put("Item", item);
-        frame.putByte("ItemRotation", (byte) 2);
+        hanging.putInt("TileX", 100); hanging.putInt("TileY", 100); hanging.putInt("TileZ", 100);   // 저장 때 월드 좌표 — 놓을 때 바뀐다
         NbtCompound ent = new NbtCompound();
         NbtList epos = new NbtList();
-        epos.add(0.96875); epos.add(0.5); epos.add(0.5);
+        epos.add(ex); epos.add(ey); epos.add(ez);
         ent.put("pos", epos);
         NbtList ebp = new NbtList();
         ebp.add(0); ebp.add(0); ebp.add(0);
         ent.put("blockPos", ebp);
-        ent.put("nbt", frame);
+        ent.put("nbt", hanging);
         NbtList ents = new NbtList();
         ents.add(ent);
         root.put("entities", ents);
         root.putInt("DataVersion", 3955);
-        assertTrue(host.structures().importTemplate(api(), "test:frame", root, false));
+        assertTrue(host.structures().importTemplate(api(), name, root, false));
     }
 
     /**
@@ -358,14 +363,66 @@ class StructuresApiTest {
         assertEquals(270.0F, m[1]);
     }
 
-    /** 그 칸의 서버 액자: {Facing, yRot, ItemRotation, TileX, TileZ} (주인 region 에서 읽는다). */
+    /**
+     * 반시계 90·좌우 대칭·그림(2D facing)·위를 보는 액자. 바닐라 placeEntities 는 rotate 다음 mirror 를 부르고 mirror 는 돌린 뒤 방향을 본다
+     * (블록 위치는 대칭 먼저·돌림 나중이라 둘이 어긋날 수 있다 — 바닐라 그대로).
+     */
+    @Test
+    void hangingEntitiesFollowVanillaForOtherTurnsPaintingsAndFloorFrames() throws Exception {
+        importFrameTemplate();
+        var st = host.structures();
+        // 반시계 90: 서 → 남. r = 90 + 90, m = 90 → f = 180. 돌은 (0,0,−1)
+        BlockPos at = new BlockPos(4, 60, 36);
+        assertTrue(st.place(api(), "test:frame", at, PlaceOptions.DEFAULT.withRotation(StructureRotation.COUNTERCLOCKWISE_90)).get(30, TimeUnit.SECONDS).placed());
+        assertEquals("minecraft:stone", typeAt(at.offset(0, 0, -1)));
+        float[] a = frameAt(at);
+        assertEquals(3, (int) a[0], "남");
+        assertEquals(180.0F, a[1]);
+        assertEquals(at.x(), (int) a[3]);
+        assertEquals(at.z(), (int) a[4]);
+
+        // 그림(facing 1 = 서) + 시계 90 + 좌우 대칭: 서 → 북(r = 90 + 270), 북은 Z 축이라 180 → 남(m = 90 + 180). f = 360 + 270 − 90 = 540
+        NbtCompound painting = new NbtCompound();
+        painting.putString("id", "minecraft:painting");
+        painting.putByte("facing", (byte) 1);
+        painting.putString("variant", "minecraft:kebab");
+        importHangingTemplate("test:painting", painting, 0.96875, 0.5, 0.5);
+        BlockPos at2 = new BlockPos(4, 60, 52);
+        assertTrue(st.place(api(), "test:painting", at2,
+                PlaceOptions.DEFAULT.withRotation(StructureRotation.CLOCKWISE_90).withMirror(StructureMirror.LEFT_RIGHT)).get(30, TimeUnit.SECONDS).placed());
+        float[] p = hangingAt(at2, org.domi.furnace.server.entity.Painting.class);
+        assertEquals(3, (int) p[0], "남");
+        assertEquals(540.0F, p[1]);
+        assertEquals(at2.x(), (int) p[3]);
+        assertEquals(at2.z(), (int) p[4]);
+
+        // 위를 보는 액자(Facing 1): 방향은 안 돌고 setDirection 의 yRot 0·xRot −90 에서 시계 90 → f = 0 + 270
+        NbtCompound up = new NbtCompound();
+        up.putString("id", "minecraft:item_frame");
+        up.putByte("Facing", (byte) 1);
+        importHangingTemplate("test:floor_frame", up, 0.5, 0.03125, 0.5);
+        BlockPos at3 = new BlockPos(4, 60, 68);
+        assertTrue(st.place(api(), "test:floor_frame", at3, PlaceOptions.DEFAULT.withRotation(StructureRotation.CLOCKWISE_90)).get(30, TimeUnit.SECONDS).placed());
+        float[] u = frameAt(at3);
+        assertEquals(1, (int) u[0], "위");
+        assertEquals(270.0F, u[1]);
+        assertEquals(-90.0F, u[5]);
+    }
+
+    /** 그 칸의 서버 액자: {Facing, yRot, ItemRotation, TileX, TileZ, xRot} (주인 region 에서 읽는다). */
     private float[] frameAt(BlockPos block) throws Exception {
+        return hangingAt(block, org.domi.furnace.server.entity.ItemFrame.class);
+    }
+
+    /** 그 칸의 걸이 엔티티: {방향, yRot, ItemRotation(액자가 아니면 −1), TileX, TileZ, xRot}. */
+    private float[] hangingAt(BlockPos block, Class<? extends org.domi.furnace.server.entity.HangingEntity> type) throws Exception {
         ChunkPos c = new ChunkPos(block.x() >> 4, block.z() >> 4);
         return core.world().submitAtChunk(c, r -> {
             for (var e : r.level().entities().all()) {
-                if (e instanceof org.domi.furnace.server.entity.ItemFrame f && f.pos() != null
+                if (type.isInstance(e) && e instanceof org.domi.furnace.server.entity.HangingEntity f && f.pos() != null
                         && Math.abs(f.x() - (block.x() + 0.5)) < 1.0 && Math.abs(f.z() - (block.z() + 0.5)) < 1.0) {
-                    return new float[] {f.direction(), f.yRot(), f.rotation(), f.pos().x(), f.pos().z()};
+                    int rot = f instanceof org.domi.furnace.server.entity.ItemFrame frame ? frame.rotation() : -1;
+                    return new float[] {f.direction(), f.yRot(), rot, f.pos().x(), f.pos().z(), f.xRot()};
                 }
             }
             throw new AssertionError("no frame near " + block);
