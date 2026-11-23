@@ -144,7 +144,8 @@ fun craftLockTask(name: String, mode: String, what: String) = tasks.register<Jav
     jvmArgs("-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8")
     val cache = (findProperty("cache") as String?) ?: System.getenv("FURNACE_VANILLA_CACHE")?.takeIf { it.isNotBlank() }
         ?: (System.getProperty("user.home") + "/.cache/furnace-vanilla-extract")
-    argumentProviders.add(CommandLineArgumentProvider { listOf(mode, mcVersion, "$cache/$mcVersion", craftLockFile.asFile.absolutePath) })
+    argumentProviders.add(CommandLineArgumentProvider { listOf(mode, mcVersion, "$cache/$mcVersion", craftLockFile.asFile.absolutePath,
+        layout.projectDirectory.file("src/test/resources/craft-identity-paper-$mcVersion.tsv").asFile.absolutePath) })
 }
 craftLockTask("craftLock", "write", "Paper 서명표로 CraftBukkit 계층 잠금 파일을 쓴다(T-264)")
 craftLockTask("craftLockCheck", "check", "CraftBukkit 계층 잠금 파일이 서명표와 같은지 본다(CI vanilla-gates, T-264)")

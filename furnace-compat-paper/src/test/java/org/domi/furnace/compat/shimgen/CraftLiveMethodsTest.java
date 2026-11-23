@@ -48,6 +48,7 @@ class CraftLiveMethodsTest {
         List<URL> urls = new ArrayList<>();
         for (String p : System.getProperty("furnace.fullShells.classpath").split(File.pathSeparator)) if (!p.isBlank()) urls.add(Path.of(p).toUri().toURL());
         Map<String, String> now = new TreeMap<>();
+        Map<String, Set<String>> liveSets = new TreeMap<>();
         try (URLClassLoader cl = new URLClassLoader(urls.toArray(URL[]::new), ClassLoader.getPlatformClassLoader())) {
             Map<String, Set<String>> shellMembers = new HashMap<>();
             for (CraftHierarchyLock.Entry e : CraftHierarchyLock.read(CraftHierarchyTest.LOCK).values()) {
@@ -74,6 +75,7 @@ class CraftLiveMethodsTest {
                     }
                 }
                 now.put(e.name(), live.size() + " " + fingerprint(String.join("\n", live)));
+                liveSets.put(e.name(), live);
             }
         }
         if (Boolean.getBoolean("furnace.craftLive.write")) {
@@ -100,7 +102,8 @@ class CraftLiveMethodsTest {
             }
             int before = Integer.parseInt(w.getValue().split(" ")[0]);
             int after = Integer.parseInt(n.split(" ")[0]);
-            if (after < before || (after == before && !n.equals(w.getValue()))) lost.add(w.getKey() + " " + w.getValue() + " -> " + n);
+            // 표에는 수·지문만 있어 무엇이 빠졌는지는 지금 목록으로 본다(API 서술자뿐 — Mojang 이름 없음)
+            if (after < before || (after == before && !n.equals(w.getValue()))) lost.add(w.getKey() + " " + w.getValue() + " -> " + n + "\n    live now: " + String.join(" ", liveSets.get(w.getKey())));
             else if (after > before) grown.add(w.getKey() + " " + w.getValue() + " -> " + n);
         }
         for (String k : now.keySet()) if (!was.containsKey(k)) grown.add(k + " new " + now.get(k));

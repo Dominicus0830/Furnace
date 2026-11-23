@@ -24,6 +24,10 @@ access org/bukkit/craftbukkit/metadata/EntityMetadataStore paper=1 furnace=11
 access org/bukkit/craftbukkit/metadata/PlayerMetadataStore paper=1 furnace=11
 access org/bukkit/craftbukkit/metadata/WorldMetadataStore paper=1 furnace=11
 access org/bukkit/craftbukkit/persistence/CraftPersistentDataContainer paper=1 furnace=401
+extra org/bukkit/craftbukkit/CraftServer$OnlineView
+extra org/bukkit/craftbukkit/CraftServer$OnlineView$Wrapped
+extra org/bukkit/craftbukkit/CraftServer$WorldsView
+extra org/bukkit/craftbukkit/inventory/CraftItemStack$Mirror
 interfaces org/bukkit/craftbukkit/CraftOfflinePlayer paper-only=org/bukkit/configuration/serialization/ConfigurationSerializable furnace-only=
 interfaces org/bukkit/craftbukkit/block/CraftBlock paper-only=org/bukkit/block/Block furnace-only=
 interfaces org/bukkit/craftbukkit/block/CraftCommandBlock paper-only=io/papermc/paper/commands/PaperCommandBlockHolder furnace-only=

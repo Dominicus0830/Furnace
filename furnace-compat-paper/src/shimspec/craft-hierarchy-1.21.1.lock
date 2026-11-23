@@ -1,6 +1,8 @@
 # T-264 CraftBukkit hierarchy lock - names only, Mojang names as nms:<sha256/16>. Rewrite: ./gradlew -PskipOracle=true :furnace-compat-paper:craftLock
-# K <class> <access hex (inner access if nested)> <super> <interfaces, or -> <role: impl|static|internal|paper-internal>
+# K <class> <access hex (inner access if nested)> <super> <interfaces, or -> <role: impl|static|internal|paper-impl|paper-internal>
+K com/destroystokyo/paper/console/TerminalConsoleCommandSender 21 org/bukkit/craftbukkit/command/CraftConsoleCommandSender - paper-impl
 K com/destroystokyo/paper/entity/CraftRangedEntity 601 java/lang/Object com/destroystokyo/paper/entity/RangedEntity paper-internal
+K com/destroystokyo/paper/entity/ai/PaperMobGoals 21 java/lang/Object com/destroystokyo/paper/entity/ai/MobGoals paper-impl
 K com/destroystokyo/paper/loottable/PaperLootable 601 java/lang/Object org/bukkit/loot/Lootable paper-internal
 K com/destroystokyo/paper/loottable/PaperLootableBlock 601 java/lang/Object com/destroystokyo/paper/loottable/PaperLootable paper-internal
 K com/destroystokyo/paper/loottable/PaperLootableBlockInventory 601 java/lang/Object com/destroystokyo/paper/loottable/LootableBlockInventory,com/destroystokyo/paper/loottable/PaperLootableInventory,com/destroystokyo/paper/loottable/PaperLootableBlock paper-internal
@@ -9,11 +11,17 @@ K com/destroystokyo/paper/loottable/PaperLootableEntityInventory 601 java/lang/O
 K com/destroystokyo/paper/loottable/PaperLootableInventory 601 java/lang/Object com/destroystokyo/paper/loottable/PaperLootable,com/destroystokyo/paper/loottable/LootableInventory paper-internal
 K com/destroystokyo/paper/profile/SharedPlayerProfile 601 java/lang/Object - paper-internal
 K io/papermc/paper/commands/PaperCommandBlockHolder 601 java/lang/Object io/papermc/paper/command/CommandBlockHolder paper-internal
+K io/papermc/paper/datapack/PaperDatapackManager 21 java/lang/Object io/papermc/paper/datapack/DatapackManager paper-impl
 K io/papermc/paper/entity/PaperBucketable 601 java/lang/Object io/papermc/paper/entity/Bucketable paper-internal
 K io/papermc/paper/entity/PaperLeashable 601 java/lang/Object io/papermc/paper/entity/Leashable paper-internal
 K io/papermc/paper/entity/PaperSchoolableFish 21 org/bukkit/craftbukkit/entity/CraftFish io/papermc/paper/entity/SchoolableFish paper-internal
 K io/papermc/paper/entity/PaperShearable 601 java/lang/Object io/papermc/paper/entity/Shearable paper-internal
 K io/papermc/paper/persistence/PaperPersistentDataContainerView 421 java/lang/Object io/papermc/paper/persistence/PersistentDataContainerView paper-internal
+K io/papermc/paper/potion/PaperPotionBrewer 21 java/lang/Object org/bukkit/potion/PotionBrewer paper-impl
+K io/papermc/paper/registry/WritableCraftRegistry 21 org/bukkit/craftbukkit/CraftRegistry - paper-impl
+K io/papermc/paper/threadedregions/scheduler/FallbackRegionScheduler 31 java/lang/Object io/papermc/paper/threadedregions/scheduler/RegionScheduler paper-impl
+K io/papermc/paper/threadedregions/scheduler/FoliaAsyncScheduler 31 java/lang/Object io/papermc/paper/threadedregions/scheduler/AsyncScheduler paper-impl
+K io/papermc/paper/threadedregions/scheduler/FoliaGlobalRegionScheduler 21 java/lang/Object io/papermc/paper/threadedregions/scheduler/GlobalRegionScheduler paper-impl
 K io/papermc/paper/world/flag/PaperFeatureDependent 601 java/lang/Object io/papermc/paper/world/flag/FeatureDependant paper-internal
 K org/bukkit/craftbukkit/CraftArt 21 java/lang/Object - static
 K org/bukkit/craftbukkit/CraftChunk 21 java/lang/Object org/bukkit/Chunk impl

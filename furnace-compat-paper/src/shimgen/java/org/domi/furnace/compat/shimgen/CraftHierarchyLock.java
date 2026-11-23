@@ -24,7 +24,7 @@ import org.objectweb.asm.Opcodes;
 public final class CraftHierarchyLock {
     public static final String PREFIX = "org/bukkit/craftbukkit/";
     static final String HEADER = "# T-264 CraftBukkit hierarchy lock - names only, Mojang names as nms:<sha256/16>. Rewrite: ./gradlew -PskipOracle=true :furnace-compat-paper:craftLock\n"
-            + "# K <class> <access hex (inner access if nested)> <super> <interfaces, or -> <role: impl|static|internal|paper-internal>\n";
+            + "# K <class> <access hex (inner access if nested)> <super> <interfaces, or -> <role: impl|static|internal|paper-impl|paper-internal>\n";
 
     /** 잠금 한 줄. */
     public record Entry(String name, int access, String superName, List<String> interfaces, String role) {
@@ -56,14 +56,20 @@ public final class CraftHierarchyLock {
         return internalName.startsWith("net/minecraft/") || internalName.startsWith("com/mojang/");
     }
 
-    /** 서명표 두 개(Paper 서버·paper-api)에서 잠금 항목을 만든다(이름 순). */
-    public static Map<String, Entry> resolve(SigTable paper, SigTable api) {
+    /**
+     * 서명표 두 개(Paper 서버·paper-api)에서 잠금 항목을 만든다(이름 순). observed 는 Paper 탐침 관측표에 나온 클래스(내부 이름) — 그중 CraftBukkit 밖
+     * Paper 내부 구현(콘솔 발신자·Folia 스케줄러·데이터팩 관리자 등, 플러그인이 실제로 받는 객체)은 구실 paper-impl 로 함께 적는다(검토 PR578-2).
+     */
+    public static Map<String, Entry> resolve(SigTable paper, SigTable api, Set<String> observed) {
         Map<String, SigTable.Cls> all = new LinkedHashMap<>(api.classes());
         all.putAll(paper.classes());
         Set<String> apiClasses = api.classes().keySet();
         Map<String, Entry> out = new TreeMap<>();
         List<String> todo = new ArrayList<>();
         for (SigTable.Cls c : paper.classes().values()) if (c.name().startsWith(PREFIX)) todo.add(c.name());
+        Set<String> paperImpl = new HashSet<>();
+        for (String n : observed) if (isPaperInternal(n, paper, apiClasses)) paperImpl.add(n);
+        todo.addAll(paperImpl);
         // Craft 계층이 기대는 Paper 내부 형식(com/destroystokyo/paper/entity/CraftRangedEntity·io/papermc/paper/entity/PaperShearable 등 —
         // paper-api 에 없는 Paper 서버 클래스)도 같은 줄로 적는다(구실 paper-internal). 그래야 생성기가 Paper 와 같은 사슬을 세운다.
         while (!todo.isEmpty()) {
@@ -73,11 +79,11 @@ public final class CraftHierarchyLock {
             if (c == null) continue;
             List<String> itf = new ArrayList<>();
             for (String i : c.interfaces()) itf.add(publicName(i));
-            String role = n.startsWith(PREFIX) ? role(c, paper, apiClasses, all) : "paper-internal";
+            String role = n.startsWith(PREFIX) ? role(c, paper, apiClasses, all) : paperImpl.contains(n) ? "paper-impl" : "paper-internal";
             out.put(n, new Entry(n, c.effectiveAccess(), publicName(c.superName()), itf, role));
             List<String> refs = new ArrayList<>(c.interfaces());
             if (c.superName() != null) refs.add(c.superName());
-            for (String r : refs) if (isPaperInternal(r, paper, apiClasses)) todo.add(r);
+            for (String r : refs) if (isPaperInternal(r, paper, apiClasses) || (r.startsWith(PREFIX) && !out.containsKey(r))) todo.add(r);
         }
         return out;
     }
@@ -124,7 +130,20 @@ public final class CraftHierarchyLock {
         return out;
     }
 
-    /** args: write|check, 판, 서명표 캐시 폴더(&lt;캐시&gt;/&lt;판&gt;), 잠금 파일. */
+    /** 관측표(craft-identity-*.tsv)의 값 열에 나온 클래스(내부 이름). 표가 없으면 빈 집합이 아니라 실패한다. */
+    public static Set<String> observedClasses(Path table) throws IOException {
+        Set<String> out = new java.util.TreeSet<>();
+        for (String raw : Files.readAllLines(table, StandardCharsets.UTF_8)) {
+            if (raw.isBlank() || raw.startsWith("#")) continue;
+            int tab = raw.indexOf('\t');
+            if (tab < 0) throw new IllegalArgumentException("bad observation line: " + raw);
+            String v = raw.substring(tab + 1).strip();
+            if (v.matches("[A-Za-z_$][\\w$]*(\\.[A-Za-z_$][\\w$]*)+")) out.add(v.replace('.', '/'));
+        }
+        return out;
+    }
+
+    /** args: write|check, 판, 서명표 캐시 폴더(&lt;캐시&gt;/&lt;판&gt;), 잠금 파일, Paper 관측표. */
     public static void main(String[] args) throws IOException {
         String mode = args[0];
         String mc = args[1];
@@ -139,7 +158,7 @@ public final class CraftHierarchyLock {
             }
             tables.add(SigTable.read(p));
         }
-        Map<String, Entry> entries = resolve(tables.get(0), tables.get(1));
+        Map<String, Entry> entries = resolve(tables.get(0), tables.get(1), observedClasses(Path.of(args[4])));
         String text = text(entries);
         if (mode.equals("write")) {
             Files.writeString(lockFile, text, StandardCharsets.UTF_8);

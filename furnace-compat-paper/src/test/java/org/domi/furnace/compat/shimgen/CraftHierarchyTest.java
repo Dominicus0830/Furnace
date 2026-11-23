@@ -53,10 +53,17 @@ class CraftHierarchyTest {
         }
     }
 
-    /** 지금 다른 줄 전부(정렬). 줄 꼴: {@code <종류> <클래스> paper=<…> furnace=<…>}. 호환 계층에 없는 클래스(껍데기 몫)는 세지 않는다. */
+    /**
+     * 지금 다른 줄 전부(정렬). 줄 꼴: {@code <종류> <클래스> paper=<…> furnace=<…>}. 호환 계층에 없는 클래스(껍데기 몫)는 세지 않는다.
+     * {@code extra <클래스>}: craftbukkit 꾸러미에 Paper 에 없는 클래스(설계 3.1 [검토 3] — 익명 클래스는 접는다).
+     */
     static Set<String> differences() throws IOException {
         Set<String> out = new TreeSet<>();
-        for (CraftHierarchyLock.Entry e : CraftHierarchyLock.read(LOCK).values()) {
+        Map<String, CraftHierarchyLock.Entry> lock = CraftHierarchyLock.read(LOCK);
+        for (String n : compiledCraftClasses()) {
+            if (!lock.containsKey(n) && !ANONYMOUS.matcher(n).find()) out.add("extra " + n);
+        }
+        for (CraftHierarchyLock.Entry e : lock.values()) {
             if (ANONYMOUS.matcher(e.name()).find()) continue;   // 익명 클래스 번호는 컴파일러가 정한다 — 이름을 맞추지 않는다(설계 4.4)
             Decl d = compiled(e.name());
             if (d == null) continue;
@@ -73,6 +80,26 @@ class CraftHierarchyTest {
             if ((e.access() & FLAGS) != (d.access() & FLAGS)) {
                 out.add("access " + e.name() + " paper=" + Integer.toHexString(e.access() & FLAGS) + " furnace=" + Integer.toHexString(d.access() & FLAGS));
             }
+        }
+        return out;
+    }
+
+    /** 호환 계층 컴파일 결과의 org/bukkit/craftbukkit/** 클래스(내부 이름). */
+    static Set<String> compiledCraftClasses() throws IOException {
+        java.net.URL anchor = CraftHierarchyTest.class.getClassLoader().getResource("org/bukkit/craftbukkit/CraftServer.class");
+        if (anchor == null || !anchor.getProtocol().equals("file")) throw new IllegalStateException("compiled CraftBukkit classes not found as files: " + anchor);
+        Path root;
+        try {
+            root = Path.of(anchor.toURI()).getParent().getParent().getParent().getParent();
+        } catch (java.net.URISyntaxException e) {
+            throw new IOException(e);
+        }
+        Set<String> out = new TreeSet<>();
+        try (java.util.stream.Stream<Path> files = Files.walk(root.resolve(CraftHierarchyLock.PREFIX))) {
+            files.filter(p -> p.toString().endsWith(".class")).forEach(p -> {
+                String rel = root.relativize(p).toString().replace('\\', '/');
+                out.add(rel.substring(0, rel.length() - ".class".length()));
+            });
         }
         return out;
     }
@@ -103,7 +130,7 @@ class CraftHierarchyTest {
         }
         StringBuilder msg = new StringBuilder();
         if (!fresh.isEmpty()) msg.append("new differences from Paper (fix the class, do not add them to the baseline):\n  ").append(String.join("\n  ", fresh)).append('\n');
-        if (!fixed.isEmpty()) msg.append("now equal to Paper - delete these lines from ").append(BASELINE).append(":\n  ").append(String.join("\n  ", fixed)).append('\n');
+        if (!fixed.isEmpty()) msg.append("baseline lines no longer match (now equal to Paper, or the difference changed) - delete them from ").append(BASELINE).append(":\n  ").append(String.join("\n  ", fixed)).append('\n');
         if (!msg.isEmpty()) fail(msg.toString());
     }
 
@@ -127,6 +154,6 @@ class CraftHierarchyTest {
         Map<String, CraftHierarchyLock.Entry> lock = CraftHierarchyLock.read(LOCK);
         Set<String> roles = new TreeSet<>();
         for (CraftHierarchyLock.Entry e : lock.values()) roles.add(e.role());
-        assertTrue(roles.equals(Set.of("impl", "static", "internal", "paper-internal")), "roles " + roles);
+        assertTrue(roles.equals(Set.of("impl", "static", "internal", "paper-impl", "paper-internal")), "roles " + roles);
     }
 }
