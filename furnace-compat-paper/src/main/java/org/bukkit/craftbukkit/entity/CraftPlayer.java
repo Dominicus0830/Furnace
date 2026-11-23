@@ -64,7 +64,11 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
     }
 
     @Override
-    public net.minecraft.server.level.ServerPlayer getHandle() { return (net.minecraft.server.level.ServerPlayer) super.getHandle(); }
+    public net.minecraft.server.level.ServerPlayer getHandle() {
+        var sp = (net.minecraft.server.level.ServerPlayer) super.getHandle();
+        sp.furnaceRefreshMenus();   // containerMenu·inventoryMenu 필드를 서버 창에 맞춘다(필드는 바닐라처럼 공개 필드라 읽는 쪽이 부를 곳이 없다)
+        return sp;
+    }
 
     @Override
     protected net.minecraft.world.entity.Entity createHandle() { return new net.minecraft.server.level.ServerPlayer(this); }

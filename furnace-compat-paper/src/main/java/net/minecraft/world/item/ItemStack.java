@@ -238,13 +238,13 @@ public final class ItemStack {
     // ------------------------------------------------------------------ 손에 묶인 보기(NMS shim 5번 묶음)
 
     private static final class LiveSlot {
-        final org.domi.furnace.api.entity.Player player;
-        final int windowSlot;
+        /** 칸이 아직 expect 이면 now 로 바꾼다(그새 바뀌었으면 false — 칸에서 떨어진다). 쓸 수 없는 칸은 던진다. */
+        final java.util.function.BiPredicate<org.domi.furnace.api.item.ItemStack, org.domi.furnace.api.item.ItemStack> writer;
         org.domi.furnace.api.item.ItemStack last;
 
-        LiveSlot(org.domi.furnace.api.entity.Player player, int windowSlot, org.domi.furnace.api.item.ItemStack last) {
-            this.player = player;
-            this.windowSlot = windowSlot;
+        LiveSlot(java.util.function.BiPredicate<org.domi.furnace.api.item.ItemStack, org.domi.furnace.api.item.ItemStack> writer,
+                 org.domi.furnace.api.item.ItemStack last) {
+            this.writer = writer;
             this.last = last;
         }
     }
@@ -280,7 +280,34 @@ public final class ItemStack {
     private static ItemStack live(org.domi.furnace.api.entity.Player player, int windowSlot, org.domi.furnace.api.item.ItemStack now) {
         if (now.isEmpty()) return EMPTY;
         ItemStack s = fromFurnace(now, now.amount());
-        s.live = new LiveSlot(player, windowSlot, now);
+        s.live = new LiveSlot((expect, next) -> org.domi.furnace.compat.nms.NmsChunks.bridge().replaceSlotNow(player, windowSlot, expect, next), now);
+        return s;
+    }
+
+    /**
+     * 호환 모듈 전용 — 열린 창(번호 containerId)의 slot 번 칸을 살아 있는 보기로 준다(바닐라 {@code Slot#getItem}). 플레이어 인벤토리 칸은 {@link #liveSlot} 과 같은
+     * 규칙으로 고치면 그 칸에 되쓰고, 창의 컨테이너 칸(상자·제작 결과 …)은 클라이언트에 마지막으로 알린 값의 사본이며 고치면 {@code UnsupportedNmsCall} 이다
+     * (그 컨테이너를 쥔 스레드에서만 바꿀 수 있다). 빈 칸은 EMPTY.
+     */
+    public static ItemStack liveMenuSlot(org.domi.furnace.api.entity.Player player, int containerId, int slot, boolean playerSlot,
+                                         int inventoryIndex, org.domi.furnace.api.item.ItemStack now) {
+        if (now.isEmpty()) return EMPTY;
+        ItemStack s = fromFurnace(now, now.amount());
+        s.live = new LiveSlot(playerSlot
+                ? (expect, next) -> {
+                    var bridge = org.domi.furnace.compat.nms.NmsChunks.bridge();
+                    try {
+                        return bridge.replaceMenuSlotNow(player, containerId, slot, expect, next);
+                    } catch (IllegalStateException closed) {
+                        // 창이 닫힌 뒤: 바닐라의 Slot 은 여전히 인벤토리 칸을 가리키므로 같은 인벤토리 칸에 되쓴다.
+                        if (inventoryIndex < 0) throw closed;
+                        return bridge.replaceSlotNow(player, net.minecraft.world.entity.player.Inventory.windowSlot(inventoryIndex), expect, next);
+                    }
+                }
+                : (expect, next) -> {
+                    throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("Slot#getItem", "slot " + slot + " of the open window belongs to the container of the window;"
+                            + " only the thread that owns that container may change it (use the Bukkit InventoryView of the window)");
+                }, now);
         return s;
     }
 
@@ -289,7 +316,7 @@ public final class ItemStack {
         LiveSlot l = live;
         if (l == null) return;
         var now = furnaceValue();
-        if (org.domi.furnace.compat.nms.NmsChunks.bridge().replaceSlotNow(l.player, l.windowSlot, l.last, now)) l.last = now;
+        if (l.writer.test(l.last, now)) l.last = now;
         else live = null;
     }
 

@@ -7,6 +7,24 @@ C	net/minecraft/network/syncher/SyncedDataHolder	1537	java/lang/Object	-	-	-	pap
 C	net/minecraft/util/StringRepresentable	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/Clearable	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/Container	1537	java/lang/Object	net/minecraft/world/Clearable	-	-	paper-server-1.21.1
+F	net/minecraft/world/Container	DEFAULT_DISTANCE_BUFFER	F	25	-
+F	net/minecraft/world/Container	MAX_STACK	I	25	-
+M	net/minecraft/world/Container	getContainerSize	()I	1025	-
+M	net/minecraft/world/Container	getContents	()Ljava/util/List;	1025	()Ljava/util/List<Lnet/minecraft/world/item/ItemStack;>;
+M	net/minecraft/world/Container	getItem	(I)Lnet/minecraft/world/item/ItemStack;	1025	-
+M	net/minecraft/world/Container	getLocation	()Lorg/bukkit/Location;	1025	-
+M	net/minecraft/world/Container	getMaxStackSize	()I	1025	-
+M	net/minecraft/world/Container	getOwner	()Lorg/bukkit/inventory/InventoryHolder;	1025	-
+M	net/minecraft/world/Container	getViewers	()Ljava/util/List;	1025	()Ljava/util/List<Lorg/bukkit/entity/HumanEntity;>;
+M	net/minecraft/world/Container	isEmpty	()Z	1025	-
+M	net/minecraft/world/Container	onClose	(Lorg/bukkit/craftbukkit/entity/CraftHumanEntity;)V	1025	-
+M	net/minecraft/world/Container	onOpen	(Lorg/bukkit/craftbukkit/entity/CraftHumanEntity;)V	1025	-
+M	net/minecraft/world/Container	removeItem	(II)Lnet/minecraft/world/item/ItemStack;	1025	-
+M	net/minecraft/world/Container	removeItemNoUpdate	(I)Lnet/minecraft/world/item/ItemStack;	1025	-
+M	net/minecraft/world/Container	setChanged	()V	1025	-
+M	net/minecraft/world/Container	setItem	(ILnet/minecraft/world/item/ItemStack;)V	1025	-
+M	net/minecraft/world/Container	setMaxStackSize	(I)V	1025	-
+M	net/minecraft/world/Container	stillValid	(Lnet/minecraft/world/entity/player/Player;)Z	1025	-
 C	net/minecraft/world/ContainerListener	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/MenuProvider	1537	java/lang/Object	net/minecraft/world/inventory/MenuConstructor	-	-	paper-server-1.21.1
 C	net/minecraft/world/Nameable	1537	java/lang/Object	-	-	-	paper-server-1.21.1
@@ -253,6 +271,7 @@ C	net/minecraft/world/entity/npc/VillagerDataHolder	1537	java/lang/Object	net/mi
 C	net/minecraft/world/entity/npc/WanderingTrader	33	net/minecraft/world/entity/npc/AbstractVillager	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/player/Player	1057	net/minecraft/world/entity/LivingEntity	-	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/player/Player	isSwimming	()Z	1	-
+C	net/minecraft/world/entity/player/StackedContents	33	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/projectile/AbstractArrow	1057	net/minecraft/world/entity/projectile/Projectile	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/projectile/AbstractHurtingProjectile	1057	net/minecraft/world/entity/projectile/Projectile	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/projectile/Arrow	33	net/minecraft/world/entity/projectile/AbstractArrow	-	-	-	paper-server-1.21.1
@@ -298,7 +317,24 @@ C	net/minecraft/world/entity/vehicle/MinecartSpawner	33	net/minecraft/world/enti
 C	net/minecraft/world/entity/vehicle/MinecartTNT	33	net/minecraft/world/entity/vehicle/AbstractMinecart	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/vehicle/VehicleEntity	1057	net/minecraft/world/entity/Entity	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/flag/FeatureElement	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/inventory/AbstractContainerMenu	1057	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/inventory/MenuConstructor	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/inventory/RecipeBookMenu	1057	net/minecraft/world/inventory/AbstractContainerMenu	-	<I::Lnet/minecraft/world/item/crafting/RecipeInput;R::Lnet/minecraft/world/item/crafting/Recipe<TI;>;>Lnet/minecraft/world/inventory/AbstractContainerMenu;	-	paper-server-1.21.1
+M	net/minecraft/world/inventory/RecipeBookMenu	clearCraftingContent	()V	1025	-
+M	net/minecraft/world/inventory/RecipeBookMenu	fillCraftSlotsStackedContents	(Lnet/minecraft/world/entity/player/StackedContents;)V	1025	-
+M	net/minecraft/world/inventory/RecipeBookMenu	getGridHeight	()I	1025	-
+M	net/minecraft/world/inventory/RecipeBookMenu	getGridWidth	()I	1025	-
+M	net/minecraft/world/inventory/RecipeBookMenu	getRecipeBookType	()Lnet/minecraft/world/inventory/RecipeBookType;	1025	-
+M	net/minecraft/world/inventory/RecipeBookMenu	getResultSlotIndex	()I	1025	-
+M	net/minecraft/world/inventory/RecipeBookMenu	getSize	()I	1025	-
+M	net/minecraft/world/inventory/RecipeBookMenu	recipeMatches	(Lnet/minecraft/world/item/crafting/RecipeHolder;)Z	1025	(Lnet/minecraft/world/item/crafting/RecipeHolder<TR;>;)Z
+M	net/minecraft/world/inventory/RecipeBookMenu	shouldMoveToInventory	(I)Z	1025	-
+C	net/minecraft/world/inventory/RecipeBookType	16433	java/lang/Enum	-	Ljava/lang/Enum<Lnet/minecraft/world/inventory/RecipeBookType;>;	-	paper-server-1.21.1
+E	net/minecraft/world/inventory/RecipeBookType	4
+F	net/minecraft/world/inventory/RecipeBookType	BLAST_FURNACE	Lnet/minecraft/world/inventory/RecipeBookType;	16409	-
+F	net/minecraft/world/inventory/RecipeBookType	CRAFTING	Lnet/minecraft/world/inventory/RecipeBookType;	16409	-
+F	net/minecraft/world/inventory/RecipeBookType	FURNACE	Lnet/minecraft/world/inventory/RecipeBookType;	16409	-
+F	net/minecraft/world/inventory/RecipeBookType	SMOKER	Lnet/minecraft/world/inventory/RecipeBookType;	16409	-
 C	net/minecraft/world/item/AirItem	33	net/minecraft/world/item/Item	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/item/AnimalArmorItem	33	net/minecraft/world/item/ArmorItem	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/item/ArmorItem	33	net/minecraft/world/item/Item	net/minecraft/world/item/Equipable	-	-	paper-server-1.21.1
@@ -396,6 +432,10 @@ C	net/minecraft/world/item/TridentItem	33	net/minecraft/world/item/Item	net/mine
 C	net/minecraft/world/item/WindChargeItem	33	net/minecraft/world/item/Item	net/minecraft/world/item/ProjectileItem	-	-	paper-server-1.21.1
 C	net/minecraft/world/item/WritableBookItem	33	net/minecraft/world/item/Item	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/item/WrittenBookItem	33	net/minecraft/world/item/Item	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/item/crafting/CraftingInput	33	java/lang/Object	net/minecraft/world/item/crafting/RecipeInput	-	-	paper-server-1.21.1
+C	net/minecraft/world/item/crafting/CraftingRecipe	1537	java/lang/Object	net/minecraft/world/item/crafting/Recipe	Ljava/lang/Object;Lnet/minecraft/world/item/crafting/Recipe<Lnet/minecraft/world/item/crafting/CraftingInput;>;	-	paper-server-1.21.1
+C	net/minecraft/world/item/crafting/Recipe	1537	java/lang/Object	-	<T::Lnet/minecraft/world/item/crafting/RecipeInput;>Ljava/lang/Object;	-	paper-server-1.21.1
+C	net/minecraft/world/item/crafting/RecipeInput	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/item/trading/Merchant	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/ItemLike	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/AbstractBannerBlock	1057	net/minecraft/world/level/block/BaseEntityBlock	-	-	-	paper-server-1.21.1
