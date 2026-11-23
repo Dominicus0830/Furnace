@@ -689,11 +689,14 @@ public final class Compat {
         return new CraftLivingEntity(living);
     }
 
+    /** 서버 콘솔 발신자 하나(Paper 처럼 TerminalConsoleCommandSender — T-264). */
+    public static final org.bukkit.craftbukkit.command.CraftConsoleCommandSender CONSOLE = new com.destroystokyo.paper.console.TerminalConsoleCommandSender();
+
     public static org.bukkit.command.CommandSender sender(org.domi.furnace.api.command.CommandSender s) {
         if (s == null) return null;
         if (s instanceof org.domi.furnace.api.entity.Player p) return player(p);
-        if (s == state().furnace.console()) return CompatConsole.INSTANCE;
-        if (s instanceof org.domi.furnace.api.command.RemoteConsoleSender r) return new CompatRemoteSender(r);
+        if (s == state().furnace.console()) return CONSOLE;
+        if (s instanceof org.domi.furnace.api.command.RemoteConsoleSender r) return new org.bukkit.craftbukkit.command.CraftRemoteConsoleCommandSender(r);
         return new CompatSender(s);
     }
 
@@ -701,7 +704,8 @@ public final class Compat {
     public static org.domi.furnace.api.command.CommandSender furnaceSender(org.bukkit.command.CommandSender s) {
         Objects.requireNonNull(s, "sender");
         if (s instanceof CraftPlayer p) return p.furnaceHandle();
-        if (s instanceof CompatConsole) return state().furnace.console();
+        if (s instanceof org.bukkit.craftbukkit.command.CraftConsoleCommandSender) return state().furnace.console();
+        if (s instanceof org.bukkit.craftbukkit.command.CraftRemoteConsoleCommandSender r) return r.furnaceHandle();
         if (s instanceof CompatSender c) return c.handle();
         if (s instanceof CraftEntity e && e.furnaceHandle() instanceof org.domi.furnace.api.command.CommandSender cs) return cs;
         throw new IllegalArgumentException("CommandSender implementation unknown to Furnace: " + s.getClass().getName());

@@ -17,8 +17,9 @@ import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.Inventory;
 import org.domi.furnace.api.inventory.InventorySnapshot;
 import org.domi.furnace.api.item.ItemStack;
+import org.bukkit.craftbukkit.inventory.CraftInventoryCustom;
 
-final class CompatInventories {
+public final class CompatInventories {
 
     private CompatInventories() {}
 
@@ -40,8 +41,8 @@ final class CompatInventories {
     static CompatInventoryView view(org.domi.furnace.api.entity.Player fp, InventorySnapshot snap, org.domi.furnace.api.menu.Menu menu, ItemStack cursor,
                                     Extras extras) {
         CraftPlayer p = (CraftPlayer) Compat.player(fp);
-        CompatMenuInventory own = CompatMenuInventory.of(menu);
-        if (own != null) return new CompatInventoryView(p, own, own.getType(), own.title(), cursor);
+        CraftInventoryCustom own = CraftInventoryCustom.of(menu);
+        if (own != null) return new CompatInventoryView(p, own, own.getType(), own.titleText(), cursor);
         InventoryType type = menu != null ? menuType(menu.type()) : type(snap.type(), snap.size());
         int top = topSize(snap.type(), snap.size());
         java.util.List<ItemStack> contents = new java.util.ArrayList<>(snap.contents().subList(0, Math.min(top, snap.size())));
@@ -77,11 +78,11 @@ final class CompatInventories {
     }
 
     /** 이벤트 밖(getOpenInventory): 지금 열린 화면. 플러그인 메뉴가 아니면 위쪽 칸 내용은 모른다. */
-    static CompatInventoryView openView(CraftPlayer p) {
+    public static CompatInventoryView openView(CraftPlayer p) {
         var fp = p.furnaceHandle();
         var menu = fp.currentMenu();
-        CompatMenuInventory own = CompatMenuInventory.of(menu);
-        if (own != null) return new CompatInventoryView(p, own, own.getType(), own.title(), null);
+        CraftInventoryCustom own = CraftInventoryCustom.of(menu);
+        if (own != null) return new CompatInventoryView(p, own, own.getType(), own.titleText(), null);
         if (menu != null) {
             InventoryType t = menuType(menu.type());
             return new CompatInventoryView(p, new SnapshotInventory(t, null, menu.size(), menu.type().key()), t, Compat.legacy(menu.title()), null);

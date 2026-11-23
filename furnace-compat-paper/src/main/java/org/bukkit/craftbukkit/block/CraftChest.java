@@ -1,6 +1,7 @@
 package org.bukkit.craftbukkit.block;
 
 import org.bukkit.inventory.Inventory;
+import org.bukkit.craftbukkit.inventory.CraftInventoryDoubleChest;
 
 /** Paper CraftChest: 상자·덫 상자. 큰 상자의 getInventory 는 두 칸을 합친 DoubleChestInventory(CraftInventoryDoubleChest). */
 public class CraftChest extends CraftLootable implements org.bukkit.block.Chest {
@@ -37,8 +38,8 @@ public class CraftChest extends CraftLootable implements org.bukkit.block.Chest 
         }
         if (other == null) return mine;   // 짝 칸에 상자 블록 엔티티가 없다 — Paper 도 그때는 반쪽(CompoundContainer 를 못 만든다)
         boolean selfFirst = "right".equals(((org.domi.furnace.compat.paper.CompatBlockData) getBlockData()).furnace().properties().get("type"));
-        return selfFirst ? org.domi.furnace.compat.paper.CompatDoubleChestInventory.of(mine, other)
-                : org.domi.furnace.compat.paper.CompatDoubleChestInventory.of(other, mine);
+        return selfFirst ? org.bukkit.craftbukkit.inventory.CraftInventoryDoubleChest.of(mine, other)
+                : org.bukkit.craftbukkit.inventory.CraftInventoryDoubleChest.of(other, mine);
     }
 
     /**

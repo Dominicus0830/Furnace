@@ -20,7 +20,6 @@ import net.minecraft.server.dedicated.DedicatedServer;
 import org.domi.furnace.api.Furnace;
 import org.domi.furnace.compat.paper.Compat;
 import org.domi.furnace.compat.paper.CompatBlockData;
-import org.domi.furnace.compat.paper.CompatConsole;
 import org.domi.furnace.compat.paper.CompatScheduler;
 import org.domi.furnace.compat.paper.UnsupportedFeature;
 
@@ -131,22 +130,22 @@ public final class CraftServer implements Server {
 
     @Override
     public org.bukkit.inventory.Inventory createInventory(org.bukkit.inventory.InventoryHolder owner, int size) {
-        return org.domi.furnace.compat.paper.CompatMenuInventory.chest(owner, size, null);
+        return org.bukkit.craftbukkit.inventory.CraftInventoryCustom.chest(owner, size, null);
     }
 
     @Override
     public org.bukkit.inventory.Inventory createInventory(org.bukkit.inventory.InventoryHolder owner, int size, String title) {
-        return org.domi.furnace.compat.paper.CompatMenuInventory.chest(owner, size, title);
+        return org.bukkit.craftbukkit.inventory.CraftInventoryCustom.chest(owner, size, title);
     }
 
     @Override
     public org.bukkit.inventory.Inventory createInventory(org.bukkit.inventory.InventoryHolder owner, org.bukkit.event.inventory.InventoryType type) {
-        return org.domi.furnace.compat.paper.CompatMenuInventory.ofType(owner, type, null);
+        return org.bukkit.craftbukkit.inventory.CraftInventoryCustom.ofType(owner, type, null);
     }
 
     @Override
     public org.bukkit.inventory.Inventory createInventory(org.bukkit.inventory.InventoryHolder owner, org.bukkit.event.inventory.InventoryType type, String title) {
-        return org.domi.furnace.compat.paper.CompatMenuInventory.ofType(owner, type, title);
+        return org.bukkit.craftbukkit.inventory.CraftInventoryCustom.ofType(owner, type, title);
     }
 
     @Override
@@ -504,7 +503,7 @@ public final class CraftServer implements Server {
     }
 
     @Override
-    public ConsoleCommandSender getConsoleSender() { return CompatConsole.INSTANCE; }
+    public ConsoleCommandSender getConsoleSender() { return org.domi.furnace.compat.paper.Compat.CONSOLE; }
 
     /**
      * 옛 방식 명령이면 Bukkit 처럼 지금 스레드가 주 스레드일 때 바로 실행해 알리고(예외는 CommandException), 아니면 Furnace 명령 큐에 넣는다.
@@ -547,7 +546,7 @@ public final class CraftServer implements Server {
     @Override
     public org.bukkit.plugin.messaging.Messenger getMessenger() { return Compat.messenger(); }
 
-    private final org.domi.furnace.compat.paper.CompatHelpMap helpMap = new org.domi.furnace.compat.paper.CompatHelpMap();
+    private final org.bukkit.craftbukkit.help.SimpleHelpMap helpMap = new org.bukkit.craftbukkit.help.SimpleHelpMap();
 
     @Override
     public org.bukkit.help.HelpMap getHelpMap() { return helpMap; }

@@ -12,7 +12,7 @@ import org.domi.furnace.api.inventory.Inventory;
 import org.domi.furnace.api.item.ItemStack;
 import org.domi.furnace.api.nbt.Snbt;
 
-final class SkullProfileFill {
+public final class SkullProfileFill {
 
     private static final System.Logger LOG = System.getLogger("FurnaceCompat");
 
@@ -22,7 +22,7 @@ final class SkullProfileFill {
      * 이 스택이 막 칸에 **쓰였다**(쓰기가 성공한 뒤에 부른다). 채울 것이 있으면 비동기로 채우기를 시작한다(기다리지 않는다).
      * 이 메서드는 예외를 던지지 않는다 — 이상한 프로필(이름 16자 초과·속성 과다 등)이나 조회 풀 문제가 칸 쓰기를 망치면 안 된다.
      */
-    static void afterWrite(Inventory handle, int index, ItemStack written) {
+    public static void afterWrite(Inventory handle, int index, ItemStack written) {
         try {
             ProfileValue original = incomplete(written);
             if (original == null) return;

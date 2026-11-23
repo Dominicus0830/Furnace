@@ -1,5 +1,5 @@
 // Furnace 플레이어 인벤토리 위의 Bukkit PlayerInventory: 0~8 단축 칸, 9~35 가방, 36 신발·37 바지·38 갑옷·39 투구, 40 왼손.
-package org.domi.furnace.compat.paper;
+package org.bukkit.craftbukkit.inventory;
 
 import java.util.Objects;
 import org.bukkit.entity.HumanEntity;
@@ -7,20 +7,22 @@ import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
+import org.domi.furnace.compat.paper.CompatItems;
+import org.domi.furnace.compat.paper.Owned;
 
-public final class CompatPlayerInventory extends CompatInventory implements PlayerInventory {
+public class CraftInventoryPlayer extends CraftInventory implements PlayerInventory {
 
     private static final int BOOTS = 36, LEGGINGS = 37, CHESTPLATE = 38, HELMET = 39, OFF_HAND = 40, STORAGE = 36;
 
     private final org.bukkit.craftbukkit.entity.CraftPlayer player;
 
-    public CompatPlayerInventory(org.bukkit.craftbukkit.entity.CraftPlayer player) {
+    public CraftInventoryPlayer(org.bukkit.craftbukkit.entity.CraftPlayer player) {
         super(player.furnaceHandle().inventory(), InventoryType.PLAYER, () -> player);
         this.player = player;
     }
 
     @Override
-    int storageSize() { return STORAGE; }
+    public int storageSize() { return STORAGE; }
 
     /** Paper: 그 플레이어의 위치. */
     @Override

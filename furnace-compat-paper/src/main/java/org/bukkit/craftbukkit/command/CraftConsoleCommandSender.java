@@ -1,17 +1,21 @@
-package org.domi.furnace.compat.paper;
+package org.bukkit.craftbukkit.command;
 
-import org.bukkit.Server;
 import org.bukkit.command.ConsoleCommandSender;
+import org.domi.furnace.compat.paper.Compat;
+import org.domi.furnace.compat.paper.ConversationTracker;
 
-/** 서버 콘솔. 모든 권한을 가진다(Bukkit 과 같다). */
-public final class CompatConsole implements ConsoleCommandSender {
+/** 서버 콘솔. 모든 권한을 가진다(Bukkit 과 같다). 플러그인이 받는 객체는 Paper 처럼 하위 {@link com.destroystokyo.paper.console.TerminalConsoleCommandSender}. */
+public class CraftConsoleCommandSender extends ServerCommandSender implements ConsoleCommandSender {
 
-    public static final CompatConsole INSTANCE = new CompatConsole();
-
-    private CompatConsole() {}
+    protected CraftConsoleCommandSender() {}
 
     @Override
     public void sendMessage(String message) { sendRawMessage(message); }
+
+    @Override
+    public void sendMessage(String... messages) {
+        for (String m : messages) sendMessage(m);
+    }
 
     @Override
     public void sendRawMessage(String message) {
@@ -60,14 +64,6 @@ public final class CompatConsole implements ConsoleCommandSender {
     public void abandonConversation(org.bukkit.conversations.Conversation conversation, org.bukkit.conversations.ConversationAbandonedEvent details) {
         conversations().abandonConversation(conversation, details);
     }
-
-    @Override
-    public void sendMessage(String... messages) {
-        for (String m : messages) sendMessage(m);
-    }
-
-    @Override
-    public Server getServer() { return org.bukkit.Bukkit.getServer(); }
 
     @Override
     public String getName() { return "CONSOLE"; }

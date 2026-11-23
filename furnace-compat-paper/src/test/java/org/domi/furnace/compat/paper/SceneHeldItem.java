@@ -1,4 +1,4 @@
-// 호환 기준 장면 compat-held-item — 플레이어 인벤토리의 칸 거울(CompatInventory.mirror)이 만드는 ItemStack 의 의미를 단계마다 기록한다.
+// 호환 기준 장면 compat-held-item — 플레이어 인벤토리의 칸 거울(CraftInventory.mirror)이 만드는 ItemStack 의 의미를 단계마다 기록한다.
 // T-070(거울 목록 폭주 정리)이 "거울을 되풀이해 꺼내도 의미가 같다"를 증명하는 바탕: 쓰기가 칸에 닿는다·칸을 거울 없이 바꾸면 옛 거울이 그 순간 값으로
 // 떨어져 나간다·거울이 GC 로 치워지는 시점과 무관하다. 벤치 한 걸음 = getItemInMainHand 를 한 묶음 부르고 스택을 쥐고 있기(약한 참조 목록이 자란다).
 package org.domi.furnace.compat.paper;
@@ -16,6 +16,7 @@ import org.domi.furnace.server.scene.Probe;
 import org.domi.furnace.server.scene.Size;
 import org.domi.furnace.test.FurnaceTestServer;
 import org.domi.furnace.test.TestPlayer;
+import org.bukkit.craftbukkit.inventory.CraftInventory;
 
 public final class SceneHeldItem extends CompatScene {
 
@@ -23,7 +24,7 @@ public final class SceneHeldItem extends CompatScene {
 
     @Override public String unit() { return "batch"; }
 
-    @Override public String covers() { return "T-070 CompatInventory.mirror 정리·getItemInMainHand 의미, T-075"; }
+    @Override public String covers() { return "T-070 CraftInventory.mirror 정리·getItemInMainHand 의미, T-075"; }
 
     /** 스택 하나를 "종류 x 개수 [이름]" 으로. */
     private static String show(ItemStack s) {

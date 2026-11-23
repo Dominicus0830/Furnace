@@ -3,14 +3,14 @@ package org.domi.furnace.compat.paper;
 import org.domi.furnace.api.item.ItemStack;
 
 /** 인벤토리에 붙지 않은 ItemStack 의 값. Bukkit 처럼 개수 0·음수와, 개수 0 인 채 남는 종류를 그대로 들고 있는다. */
-final class PlainSlot implements ItemSlot {
+public final class PlainSlot implements ItemSlot {
 
     private ItemStack stack;
     private int amount;
     /** 값을 바꿀 때마다 오르는 번호(T-076) — 모든 쓰기는 set·setAmount 를 거친다. */
     private long stamp;
 
-    PlainSlot(ItemStack stack, int amount) {
+    public PlainSlot(ItemStack stack, int amount) {
         this.stack = stack;
         this.amount = amount;
     }
