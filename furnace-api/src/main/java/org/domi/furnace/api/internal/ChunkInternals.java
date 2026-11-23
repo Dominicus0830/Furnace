@@ -828,6 +828,42 @@ public interface ChunkInternals {
 
         /** 바닐라 {@code ItemFrame#setRotation(int)}: 돌림을 8 로 나눈 나머지로 두고 액자가 붙은 블록 둘레에 비교기 갱신. 돌려줌: null. */
         record SetItemFrameRotation(int rotation) implements EntityEdit {}
+
+        /** 바닐라 {@code Entity#teleportTo(x, y, z)}(플레이어가 아닌 엔티티): 지금 각도로 moveTo 하고 승객을 따라 옮긴다. 돌려줌: null. */
+        record TeleportTo(double x, double y, double z) implements EntityEdit {}
+
+        // ---- 아래 설정은 월드의 엔티티(돌려줌: null)와 아직 월드에 없는 엔티티(넣을 때 차례로 재생) 둘 다에 쓴다
+
+        /** 바닐라 {@code Entity#setPos(x, y, z)}: 자리와 경계 상자. */
+        record SetPos(double x, double y, double z) implements EntityEdit, EntityOp {}
+
+        /** 바닐라 {@code Entity#setYRot}·{@code setXRot}(유한하지 않은 값은 버린다). null 이면 그 각은 그대로. */
+        record SetRot(Float yRot, Float xRot) implements EntityEdit, EntityOp {}
+
+        /** 바닐라 Entity 의 참·거짓 설정 하나({@link EntityFlag}). */
+        record SetFlag(EntityFlag flag, boolean value) implements EntityEdit, EntityOp {}
+
+        /** 바닐라 {@code Entity#setCustomName}(null = 지움). */
+        record SetCustomName(org.domi.furnace.api.text.Text name) implements EntityEdit, EntityOp {}
+
+        /** 바닐라 {@code Entity#setTicksFrozen}. */
+        record SetTicksFrozen(int ticks) implements EntityEdit, EntityOp {}
+    }
+
+    /** {@link EntityEdit.SetFlag} 의 설정: 바닐라 Entity 의 같은 이름 메서드. */
+    enum EntityFlag {
+        /** {@code setInvisible}(공유 플래그 5). */
+        INVISIBLE,
+        /** {@code setGlowingTag}(NBT "Glowing", 공유 플래그 6 = isCurrentlyGlowing). */
+        GLOWING_TAG,
+        /** {@code setSharedFlagOnFire}(공유 플래그 0 = 값 또는 HasVisualFire). */
+        ON_FIRE,
+        /** {@code setSilent}. */
+        SILENT,
+        /** {@code setOnGround}(딛고 선 블록도 다시 찾는다). */
+        ON_GROUND,
+        /** {@code setCustomNameVisible}. */
+        CUSTOM_NAME_VISIBLE
     }
 
     /** {@link #addNmsEntityNow} 가 재생할 엔티티 조작 하나. */

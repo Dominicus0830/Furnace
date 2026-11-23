@@ -931,8 +931,39 @@ final class ChunkInternalsImpl implements ChunkInternals {
                 return itemFrame(e).rotation();
             }
             case EntityEdit.SetItemFrameRotation r -> itemFrame(e).setRotation(r.rotation());
+            case EntityEdit.TeleportTo t -> e.teleportSameLevel(t.x(), t.y(), t.z(), e.yRot(), e.xRot());   // 바닐라 moveTo(지금 각도) + teleportPassengers
+            case EntityEdit.SetPos p -> applySetter(e, p);
+            case EntityEdit.SetRot r -> applySetter(e, r);
+            case EntityEdit.SetFlag f -> applySetter(e, f);
+            case EntityEdit.SetCustomName n -> applySetter(e, n);
+            case EntityEdit.SetTicksFrozen t -> applySetter(e, t);
         }
         return null;
+    }
+
+    /** 월드의 엔티티와 아직 월드에 없는 엔티티(재생)가 함께 쓰는 단순 설정({@link EntityEdit.SetPos} 등). */
+    private static void applySetter(org.domi.furnace.server.entity.Entity e, EntityOp op) {
+        switch (op) {
+            case EntityEdit.SetPos p -> e.setPos(p.x(), p.y(), p.z());
+            case EntityEdit.SetRot r -> {
+                if (r.yRot() != null) e.setYRot(r.yRot());
+                if (r.xRot() != null) e.setXRot(r.xRot());
+            }
+            case EntityEdit.SetFlag f -> {
+                boolean v = f.value();
+                switch (f.flag()) {
+                    case INVISIBLE -> e.setInvisible(v);
+                    case GLOWING_TAG -> e.setGlowingTag(v);
+                    case ON_FIRE -> e.setSharedFlagOnFire(v);
+                    case SILENT -> e.setSilent(v);
+                    case ON_GROUND -> e.setOnGround(v);
+                    case CUSTOM_NAME_VISIBLE -> e.setCustomNameVisible(v);
+                }
+            }
+            case EntityEdit.SetCustomName n -> e.setCustomName(n.name());
+            case EntityEdit.SetTicksFrozen t -> e.setTicksFrozen(t.ticks());
+            default -> throw new IllegalArgumentException("not a setter: " + op);
+        }
     }
 
     private static org.domi.furnace.server.entity.HangingEntity hanging(org.domi.furnace.server.entity.Entity e) {
@@ -1101,6 +1132,11 @@ final class ChunkInternalsImpl implements ChunkInternals {
                 }
                 case EntityOp.HangingRotate r -> hanging(e).rotate(r.rotation());
                 case EntityOp.SetItemFrameRotation r -> itemFrame(e).setRotation(r.rotation());
+                case EntityEdit.SetPos p -> applySetter(e, p);
+                case EntityEdit.SetRot r -> applySetter(e, r);
+                case EntityEdit.SetFlag f -> applySetter(e, f);
+                case EntityEdit.SetCustomName n -> applySetter(e, n);
+                case EntityEdit.SetTicksFrozen t -> applySetter(e, t);
             }
         }
         return e;
