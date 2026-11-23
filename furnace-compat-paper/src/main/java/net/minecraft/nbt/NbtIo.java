@@ -34,7 +34,7 @@ public class NbtIo {
         }
     }
 
-    private static final java.nio.file.OpenOption[] SYNC_OUTPUT_OPTIONS = {java.nio.file.StandardOpenOption.SYNC, java.nio.file.StandardOpenOption.WRITE,
+    private static final java.nio.file.OpenOption[] FILE_WRITE_OPTIONS = {java.nio.file.StandardOpenOption.SYNC, java.nio.file.StandardOpenOption.WRITE,
             java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.TRUNCATE_EXISTING};
 
     /** 바닐라 {@code readCompressed(Path, accounter)}: 파일을 열어 gzip 으로 읽는다(없으면 NoSuchFileException). */
@@ -46,14 +46,14 @@ public class NbtIo {
 
     /** 바닐라 {@code writeCompressed(nbt, Path)}: SYNC·WRITE·CREATE·TRUNCATE_EXISTING 으로 열어 gzip 으로 쓴다. */
     public static void writeCompressed(CompoundTag nbt, java.nio.file.Path path) throws IOException {
-        try (OutputStream file = java.nio.file.Files.newOutputStream(path, SYNC_OUTPUT_OPTIONS); OutputStream buffered = new BufferedOutputStream(file)) {
+        try (OutputStream file = java.nio.file.Files.newOutputStream(path, FILE_WRITE_OPTIONS); OutputStream buffered = new BufferedOutputStream(file)) {
             writeCompressed(nbt, buffered);
         }
     }
 
     /** 바닐라 {@code write(nbt, Path)}: 압축 없이 같은 방식으로 쓴다. */
     public static void write(CompoundTag nbt, java.nio.file.Path path) throws IOException {
-        try (OutputStream file = java.nio.file.Files.newOutputStream(path, SYNC_OUTPUT_OPTIONS); OutputStream buffered = new BufferedOutputStream(file);
+        try (OutputStream file = java.nio.file.Files.newOutputStream(path, FILE_WRITE_OPTIONS); OutputStream buffered = new BufferedOutputStream(file);
              DataOutputStream out = new DataOutputStream(buffered)) {
             write(nbt, out);
         }

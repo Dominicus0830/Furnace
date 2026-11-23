@@ -272,6 +272,24 @@ class NmsEntityPassengersTest {
     }
 
     @Test
+    void aSingleEntityWithATakenUuidIsReportedAsUuidTaken() {
+        // 사전 검사를 건너뛴 외톨이 엔티티 길: 서버가 UUID 겹침으로 거절했다고 알린다(지우지 않는다)
+        CraftEntity[] pz = pigWithZombie();
+        var ops = List.<org.domi.furnace.api.internal.ChunkInternals.EntityOp>of(
+                new org.domi.furnace.api.internal.ChunkInternals.EntityOp.AbsMoveTo(at.x() + 0.5, at.y(), at.z() + 0.5, 0.0F, 0.0F),
+                new org.domi.furnace.api.internal.ChunkInternals.EntityOp.SetUuid(pz[1].getUniqueId()));
+        var r = on(() -> org.domi.furnace.compat.nms.NmsChunks.bridge().addNmsEntityNow(world.furnaceHandle(), at.x(), at.z(), "minecraft:zombie", ops, null, true));
+        assertNull(r.added());
+        assertTrue(r.uuidTaken());
+        assertFalse(r.discarded(), "겹침은 지우지 않는다");
+        on(() -> {
+            pz[0].remove();
+            pz[1].remove();
+            return null;
+        });
+    }
+
+    @Test
     void aPassengerSavedFarAwayIsPlacedWithItsVehicle() {
         // 5e-3b 검토 권고 3: 승객의 Pos 가 먼 곳이어도 바닐라는 첫 틱에 탈것이 제자리에 놓는다 — 묶음은 뿌리 region 에 들고 승객은 탈것 곁
         CraftEntity[] pz = pigWithZombie();

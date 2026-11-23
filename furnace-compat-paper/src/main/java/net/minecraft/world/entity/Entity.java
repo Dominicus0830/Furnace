@@ -562,8 +562,11 @@ public class Entity implements net.minecraft.network.syncher.SyncedDataHolder, n
     public org.domi.furnace.api.internal.ChunkInternals.GroupResult furnaceAddToWorldWithPassengers(net.minecraft.server.level.ServerLevel level, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason reason) {
         Detached d = detached;
         if (d == null || d.removed) {
-            return furnaceAddResult(level, reason, true) == AddResult.UUID_TAKEN ? org.domi.furnace.api.internal.ChunkInternals.GroupResult.UUID_TAKEN
-                    : org.domi.furnace.api.internal.ChunkInternals.GroupResult.ADDED;
+            return switch (furnaceAddResult(level, reason, true)) {
+                case ADDED -> org.domi.furnace.api.internal.ChunkInternals.GroupResult.ADDED;
+                case UUID_TAKEN -> org.domi.furnace.api.internal.ChunkInternals.GroupResult.UUID_TAKEN;
+                case REFUSED -> org.domi.furnace.api.internal.ChunkInternals.GroupResult.CANCELLED;   // 지워진 엔티티 등 — 아무것도 안 넣었다
+            };
         }
         java.util.List<Entity> order = getSelfAndPassengers().toList();
         for (Entity e : order) {
