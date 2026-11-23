@@ -430,6 +430,8 @@ tasks.register<Test>("vanillaDiffTest") {
     (findProperty("vdiffClasses") as String?)?.let { systemProperty("furnace.vdiff.classes", it) }
     (findProperty("vdiffIterations") as String?)?.let { systemProperty("furnace.vdiff.iterations", it) }
     (findProperty("vdiffSeed") as String?)?.let { systemProperty("furnace.vdiff.seed", it) }
+    // 멤버마다 시간 예산(초, 기본 45) — 넘으면 남은 입력을 멈추고 몇 개 돌렸는지 보고서에 적는다(DiffRunner.MEMBER_BUDGET_SECONDS)
+    (findProperty("vdiffBudget") as String?)?.let { systemProperty("furnace.vdiff.memberBudgetSeconds", it) }
     testLogging { showStandardStreams = true; exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }
     outputs.upToDateWhen { false }
     // 시험이 하나도 안 돌면 Gradle 은 조용히 초록이다 — 비교하지 않은 초록을 막는다(규칙 5)

@@ -130,6 +130,15 @@ public final class DiffRunner {
         return member instanceof Field f ? f.getName() : key((Executable) member);
     }
 
+    /**
+     * 멤버 하나의 시간 예산: 넘으면(입력을 MIN_INPUTS 개 이상 돌린 뒤) 남은 입력을 멈추고 몇 개를 돌렸는지 결과에 적는다. 입력 순서는 고정이라
+     * 멈춰도 같은 앞부분(고정 훑기·경계값 포함)이다. CI 는 이 환경보다 수십 배 느린 경우가 있다 — 바닐라 NBT 읽기 실패마다 CrashReport 가 OSHI 로
+     * 하드웨어를 훑는다(11-23 PR 563). 예산 안에 MIN_INPUTS 개도 못 돌거나 HARD_WATCHDOG 를 넘으면 멈춘 것으로 보고 다름(실패).
+     */
+    static final long MEMBER_BUDGET_SECONDS = Long.getLong("furnace.vdiff.memberBudgetSeconds", 45L);
+    static final int MIN_INPUTS = 100;
+    static final long HARD_WATCHDOG_SECONDS = 300;
+
     /** iterations = 입력 수(경계값 쪽 400개까지 + 나머지 난수). */
     public MemberResult run(Class<?> vc, Class<?> sc, Object member, int iterations) {
         return run(vc, sc, member, iterations, List.of());
@@ -142,10 +151,10 @@ public final class DiffRunner {
             if (member instanceof Field f) return field(key, f, sc);
             Future<MemberResult> fut = exec.submit(() -> executable(key, vc, sc, (Executable) member, iterations, allowed));
             try {
-                return fut.get(120, TimeUnit.SECONDS);
+                return fut.get(HARD_WATCHDOG_SECONDS, TimeUnit.SECONDS);
             } catch (TimeoutException e) {
                 fut.cancel(true);
-                return new MemberResult(key, Status.DIFF, 0, 0, "timeout (120s)", List.of());
+                return new MemberResult(key, Status.DIFF, 0, 0, "timeout (" + HARD_WATCHDOG_SECONDS + "s)", List.of());
             } catch (ExecutionException e) {
                 return new MemberResult(key, Status.DIFF, 0, 0, "harness error: " + e.getCause(), List.of());
             }
@@ -211,7 +220,13 @@ public final class DiffRunner {
         List<String> examples = new ArrayList<>();
         List<String> paperExamples = new ArrayList<>();
         Object lastOutcome = null;
+        long start = System.nanoTime();
+        int stoppedAt = -1;
         for (int i = 0; i < iterations; i++) {
+            if (i >= MIN_INPUTS && System.nanoTime() - start > MEMBER_BUDGET_SECONDS * 1_000_000_000L) {
+                stoppedAt = i;
+                break;
+            }
             double edgeP = i < edgeTrials ? 0.8 : 0.1;
             // 처음 SWEEP 개는 모든 자리가 경계값 i 번 — 입력 수·씨앗 순서와 무관하게 늘 같은 입력(고정 근거 입력이 여기 있다)
             Object recvSeed = isStatic ? null : TypeKit.seed(vc, r, i < SWEEP ? i : pick(r, edgeP), self);
@@ -245,17 +260,19 @@ public final class DiffRunner {
                 }
             }
         }
+        String budget = stoppedAt < 0 ? "" : " [time budget " + MEMBER_BUDGET_SECONDS + "s: ran " + stoppedAt + " of " + iterations + " inputs]";
+        if (stoppedAt >= 0) System.out.println("[vanilla-diff] " + vc.getName() + " " + key + budget);
         if (diffs > 0) {
-            String d = diffs + " of " + lowered + (paper > 0 ? " (+" + paper + " allowed Paper-shaped)" : "");
+            String d = diffs + " of " + lowered + (paper > 0 ? " (+" + paper + " allowed Paper-shaped)" : "") + budget;
             return new MemberResult(key, Status.DIFF, calls, skipped, d, examples);
         }
-        if (paper > 0) return new MemberResult(key, Status.PAPER, calls, skipped, paper + " of " + lowered + " allowed Paper-shaped", paperExamples);
+        if (paper > 0) return new MemberResult(key, Status.PAPER, calls, skipped, paper + " of " + lowered + " allowed Paper-shaped" + budget, paperExamples);
         if (lowered == 0) {
             String why = unlowerable != null ? "result " + unlowerable : "no input accepted by both sides (" + skipped + " skipped)";
             return new MemberResult(key, Status.UNPROVED, calls, skipped, why, List.of());
         }
         // 모든 입력에서 양쪽이 같은 예외를 던졌다면 같음이지만 값은 본 적이 없다 — 보고서에 따로 드러낸다
-        String note = threw == lowered ? "all inputs threw on both sides (" + lastOutcome + ")" : null;
+        String note = threw == lowered ? "all inputs threw on both sides (" + lastOutcome + ")" + budget : budget.isEmpty() ? null : budget.strip();
         return new MemberResult(key, Status.SAME, calls, skipped, note, List.of());
     }
 
