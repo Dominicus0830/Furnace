@@ -92,6 +92,20 @@ public class Painting extends HangingEntity {
         return Variants.SIZES.getOrDefault(v, new int[] {1, 1});
     }
 
+    /** 변종 정의(API 꼴). 데이터 팩·플러그인 정의가 있으면 그것, 정의 없는 바닐라 항목은 바닐라 표(asset_id 는 항목 id 와 같다). 없는 id 면 null. */
+    public static org.domi.furnace.api.registry.PaintingVariant definition(String id) {
+        if (!known(id)) return null;
+        var dyn = org.domi.furnace.server.data.DynamicRegistries.current();
+        var def = dyn == null ? null : dyn.definition(REGISTRY, id);
+        if (def != null) {
+            String asset = def.get("asset_id").getAsString();
+            return new org.domi.furnace.api.registry.PaintingVariant(def.get("width").getAsInt(), def.get("height").getAsInt(),
+                    asset.indexOf(':') < 0 ? "minecraft:" + asset : asset);
+        }
+        int[] size = Variants.SIZES.get(id);
+        return size == null ? null : new org.domi.furnace.api.registry.PaintingVariant(size[0], size[1], id);
+    }
+
     /** 레지스트리에 있는 변종인가. */
     static boolean known(String v) { return RegistrySet.current().indexOf(REGISTRY, v) >= 0; }
 

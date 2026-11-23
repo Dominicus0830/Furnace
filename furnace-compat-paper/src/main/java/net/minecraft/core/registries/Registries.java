@@ -43,10 +43,10 @@ public final class Registries {
     public static final ResourceKey<Registry<Object>> DIMENSION_TYPE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("dimension_type"));
     public static final ResourceKey<Registry<Object>> ENCHANTMENT = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("enchantment"));
     public static final ResourceKey<Registry<Object>> JUKEBOX_SONG = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("jukebox_song"));
-    public static final ResourceKey<Registry<Object>> PAINTING_VARIANT = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("painting_variant"));
+    public static final ResourceKey<Registry<net.minecraft.world.entity.decoration.PaintingVariant>> PAINTING_VARIANT = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("painting_variant"));
     public static final ResourceKey<Registry<Object>> TRIM_MATERIAL = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("trim_material"));
     public static final ResourceKey<Registry<Object>> TRIM_PATTERN = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("trim_pattern"));
-    public static final ResourceKey<Registry<Object>> WOLF_VARIANT = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("wolf_variant"));
+    public static final ResourceKey<Registry<net.minecraft.world.entity.animal.WolfVariant>> WOLF_VARIANT = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("wolf_variant"));
     public static final ResourceKey<Registry<net.minecraft.world.level.biome.Biome>> BIOME = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("worldgen/biome"));
     public static final ResourceKey<Registry<net.minecraft.world.level.levelgen.feature.ConfiguredFeature<?, ?>>> CONFIGURED_FEATURE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("worldgen/configured_feature"));
     public static final ResourceKey<Registry<net.minecraft.world.level.levelgen.placement.PlacedFeature>> PLACED_FEATURE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("worldgen/placed_feature"));

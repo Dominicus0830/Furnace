@@ -121,6 +121,21 @@ class GameRegistryApiTest {
         assertEquals(wolves.indexOf("minecraft:woods"), org.domi.furnace.server.entity.Wolf.variantForBiome("minecraft:forest"));
         assertEquals(wolves.indexOf("minecraft:pale"), org.domi.furnace.server.entity.Wolf.paleIndex());
 
+        // 정의 보기(NMS 호환용): 플러그인 정의는 낸 값 그대로, 바닐라 항목은 바닐라 wolf_variant·painting_variant 와 같은 값
+        var api = new GameRegistriesImpl();
+        assertEquals(new org.domi.furnace.api.registry.WolfVariant("game:entity/wolf/moon", "game:entity/wolf/moon_tame",
+                "game:entity/wolf/moon_angry", List.of("minecraft:plains")), api.wolfVariant("game:moon").orElseThrow());
+        assertEquals(new org.domi.furnace.api.registry.WolfVariant("minecraft:entity/wolf/wolf", "minecraft:entity/wolf/wolf_tame",
+                "minecraft:entity/wolf/wolf_angry", List.of("minecraft:taiga")), api.wolfVariant("pale").orElseThrow());
+        assertEquals(List.of("#minecraft:is_savanna"), api.wolfVariant("minecraft:spotted").orElseThrow().biomes());
+        assertEquals("minecraft:entity/wolf/wolf_spotted_tame", api.wolfVariant("minecraft:spotted").orElseThrow().tameTexture());
+        assertTrue(api.wolfVariant("other:wolf").isEmpty());
+        assertEquals(new org.domi.furnace.api.registry.PaintingVariant(4, 3, "game:big"), api.paintingVariant("game:big").orElseThrow());
+        assertEquals(new org.domi.furnace.api.registry.PaintingVariant(4, 2, "minecraft:fighters"), api.paintingVariant("minecraft:fighters").orElseThrow());
+        assertTrue(api.paintingVariant("minecraft:nope").isEmpty());
+        for (String id : regs.entries("minecraft:wolf_variant")) assertTrue(api.wolfVariant(id).isPresent(), id);
+        for (String id : regs.entries("minecraft:painting_variant")) assertTrue(api.paintingVariant(id).isPresent(), id);
+
         packs.close();
         packs = null;
         assertEquals(List.of("minecraft:ashen", "minecraft:black", "minecraft:chestnut", "minecraft:pale", "minecraft:rusty",

@@ -25,6 +25,16 @@ final class GameRegistriesImpl implements GameRegistries {
     }
 
     @Override
+    public Optional<org.domi.furnace.api.registry.WolfVariant> wolfVariant(String key) {
+        return Optional.ofNullable(org.domi.furnace.server.entity.Wolf.definition(normalize(key)));
+    }
+
+    @Override
+    public Optional<org.domi.furnace.api.registry.PaintingVariant> paintingVariant(String key) {
+        return Optional.ofNullable(org.domi.furnace.server.entity.Painting.definition(normalize(key)));
+    }
+
+    @Override
     public Set<String> tags(String registry) {
         var byTag = TagView.current().names.get(normalize(registry));
         return byTag == null ? Set.of() : byTag.keySet();
