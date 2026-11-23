@@ -54,3 +54,50 @@ class net.minecraft.nbt.NbtIo  iterations=1000 budget=45
   paper readAnyTag(java.io.DataInput,net.minecraft.nbt.NbtAccounter) when=nbt-array-limit vanilla=net.minecraft.nbt.ReportedNbtException shim=java.lang.IllegalArgumentException vanilla=net.minecraft.nbt.NbtAccounterException shim=java.lang.IllegalArgumentException  # Paper 는 바이트·정수 배열 길이를 할당량 계산 전에 checkArgument(n < 1<<24) 로 막는다(바닐라 1.21.1 에는 없음). Paper Mojang 이름 jar 의 ByteArrayTag$1·IntArrayTag$1 바이트코드로 확인(11-23). 근거 입력: NbtKit 큰 배열 길이(고정 훑기 0·4·8·12)
   paper readCompressed(java.io.InputStream,net.minecraft.nbt.NbtAccounter) when=nbt-array-limit vanilla=net.minecraft.nbt.ReportedNbtException shim=java.lang.IllegalArgumentException vanilla=net.minecraft.nbt.NbtAccounterException shim=java.lang.IllegalArgumentException  # Paper 는 바이트·정수 배열 길이를 할당량 계산 전에 checkArgument(n < 1<<24) 로 막는다(바닐라 1.21.1 에는 없음). Paper Mojang 이름 jar 의 ByteArrayTag$1·IntArrayTag$1 바이트코드로 확인(11-23). 근거 입력: NbtKit 큰 배열 길이(고정 훑기 0·4·8·12)
   paper readCompressed(java.nio.file.Path,net.minecraft.nbt.NbtAccounter) when=nbt-array-limit vanilla=net.minecraft.nbt.ReportedNbtException shim=java.lang.IllegalArgumentException vanilla=net.minecraft.nbt.NbtAccounterException shim=java.lang.IllegalArgumentException  # Paper 는 바이트·정수 배열 길이를 할당량 계산 전에 checkArgument(n < 1<<24) 로 막는다(바닐라 1.21.1 에는 없음). Paper Mojang 이름 jar 의 ByteArrayTag$1·IntArrayTag$1 바이트코드로 확인(11-23). 근거 입력: NbtKit 큰 배열 길이(고정 훑기 0·4·8·12)
+
+# 게임 값(2단계, GameKit) — 레지스트리 키·채팅 글·블록 상태·아이템. 레지스트리 값은 shim 쪽에 Furnace 시험 서버가 있어야 해 시험이 하나 띄운다
+class net.minecraft.resources.ResourceKey  iterations=2000
+class net.minecraft.network.chat.TextColor  iterations=2000
+class net.minecraft.network.chat.Style  iterations=2000
+  exclude hashCode()  # 해시 값은 계약이 아니다(equals 와 맞기만 하면 된다 — equals 는 견준다). 바닐라 Style 해시는 ClickEvent$Action 같은 열거 상수의 정체성 해시를 섞어 실행마다 달라진다
+class net.minecraft.network.chat.Component  iterations=2000
+class net.minecraft.network.chat.MutableComponent  iterations=2000
+  exclude hashCode()  # 해시 값은 계약이 아니다(equals 와 맞기만 하면 된다 — equals 는 견준다). 바닐라 Style 해시는 ClickEvent$Action 같은 열거 상수의 정체성 해시를 섞어 실행마다 달라진다
+  exclude withStyle(net.minecraft.ChatFormatting[])  # 알려진 차이(user-todo 2026-11-23-t235-game-values): 서식 0개로 부르면 바닐라는 값이 빈 새 Style(EMPTY 와 다른 객체)을 넣어 JSON 이 {"text":""} 꼴인데, shim 글 직렬화는 Furnace 글을 거쳐 스타일 객체 정체성을 잃고 "" 꼴. 서식을 얹는 규칙 자체는 Style.applyFormats 로 견준다
+  exclude withStyle(java.util.function.UnaryOperator)  # 함수 인자는 씨앗으로 만들 수 없다(스타일 바꾸기 자체는 setStyle·withStyle(Style) 로 견준다)
+class net.minecraft.world.level.block.state.BlockState  iterations=2000
+  paper getPistonPushReaction() when=paper-indestructible-block vanilla=value:NORMAL shim=value:BLOCK vanilla=value:DESTROY shim=value:BLOCK vanilla=value:PUSH_ONLY shim=value:BLOCK  # Paper 는 부술 수 없는 블록(Block.isDestroyable 거짓 — 명령 블록·끝 차원문 틀 등 10개)을 늘 BLOCK 으로 돌려준다(바닐라는 블록 값 그대로). Paper Mojang 이름 jar 의 BlockStateBase.getPistonPushReaction·Block.isDestroyable 바이트코드로 확인(11-23). 근거 입력: 고정 훑기의 명령 블록
+  exclude CODEC  # 코덱 값 견주기는 코덱 퍼징 단계(설계 1d) 몫
+  exclude getTags()  # 바닐라 실행기는 Bootstrap 만 해서 데이터 팩 태그가 비어 있다(모든 태그 질문이 거짓). 태그를 실은 바닐라 실행기는 다음 단계 할 일
+  exclude is(net.minecraft.tags.TagKey)  # 바닐라 실행기는 Bootstrap 만 해서 데이터 팩 태그가 비어 있다(모든 태그 질문이 거짓). 태그를 실은 바닐라 실행기는 다음 단계 할 일
+  exclude is(net.minecraft.tags.TagKey,java.util.function.Predicate)  # 바닐라 실행기는 Bootstrap 만 해서 데이터 팩 태그가 비어 있다(모든 태그 질문이 거짓). 태그를 실은 바닐라 실행기는 다음 단계 할 일
+  exclude is(net.minecraft.core.HolderSet)  # 이름 있는 묶음은 태그라 바닐라 실행기는 Bootstrap 만 해서 데이터 팩 태그가 비어 있다(모든 태그 질문이 거짓). 태그를 실은 바닐라 실행기는 다음 단계 할 일
+  exclude canBeReplaced(net.minecraft.world.item.context.BlockPlaceContext)  # 월드(레벨·블록 읽기·플레이어)가 있어야 하는 멤버 — 값 견주기가 아니라 장면 차분기(T-253 후보) 몫
+  exclude canSurvive(net.minecraft.world.level.LevelReader,net.minecraft.core.BlockPos)  # 월드(레벨·블록 읽기·플레이어)가 있어야 하는 멤버 — 값 견주기가 아니라 장면 차분기(T-253 후보) 몫
+  exclude getLightBlock(net.minecraft.world.level.BlockGetter,net.minecraft.core.BlockPos)  # 월드(레벨·블록 읽기·플레이어)가 있어야 하는 멤버 — 값 견주기가 아니라 장면 차분기(T-253 후보) 몫
+  exclude getMapColor(net.minecraft.world.level.BlockGetter,net.minecraft.core.BlockPos)  # 월드(레벨·블록 읽기·플레이어)가 있어야 하는 멤버 — 값 견주기가 아니라 장면 차분기(T-253 후보) 몫
+  exclude getShape(net.minecraft.world.level.BlockGetter,net.minecraft.core.BlockPos)  # 월드(레벨·블록 읽기·플레이어)가 있어야 하는 멤버 — 값 견주기가 아니라 장면 차분기(T-253 후보) 몫
+  exclude hasPostProcess(net.minecraft.world.level.BlockGetter,net.minecraft.core.BlockPos)  # 월드(레벨·블록 읽기·플레이어)가 있어야 하는 멤버 — 값 견주기가 아니라 장면 차분기(T-253 후보) 몫
+  exclude isSolidRender(net.minecraft.world.level.BlockGetter,net.minecraft.core.BlockPos)  # 월드(레벨·블록 읽기·플레이어)가 있어야 하는 멤버 — 값 견주기가 아니라 장면 차분기(T-253 후보) 몫
+  exclude handleNeighborChanged(net.minecraft.world.level.Level,net.minecraft.core.BlockPos,net.minecraft.world.level.block.Block,net.minecraft.core.BlockPos,boolean)  # 월드(레벨·블록 읽기·플레이어)가 있어야 하는 멤버 — 값 견주기가 아니라 장면 차분기(T-253 후보) 몫
+  exclude onPlace(net.minecraft.world.level.Level,net.minecraft.core.BlockPos,net.minecraft.world.level.block.state.BlockState,boolean)  # 월드(레벨·블록 읽기·플레이어)가 있어야 하는 멤버 — 값 견주기가 아니라 장면 차분기(T-253 후보) 몫
+  exclude tick(net.minecraft.server.level.ServerLevel,net.minecraft.core.BlockPos,net.minecraft.util.RandomSource)  # 월드(레벨·블록 읽기·플레이어)가 있어야 하는 멤버 — 값 견주기가 아니라 장면 차분기(T-253 후보) 몫
+  exclude triggerEvent(net.minecraft.world.level.Level,net.minecraft.core.BlockPos,int,int)  # 월드(레벨·블록 읽기·플레이어)가 있어야 하는 멤버 — 값 견주기가 아니라 장면 차분기(T-253 후보) 몫
+  exclude updateIndirectNeighbourShapes(net.minecraft.world.level.LevelAccessor,net.minecraft.core.BlockPos,int)  # 월드(레벨·블록 읽기·플레이어)가 있어야 하는 멤버 — 값 견주기가 아니라 장면 차분기(T-253 후보) 몫
+  exclude updateIndirectNeighbourShapes(net.minecraft.world.level.LevelAccessor,net.minecraft.core.BlockPos,int,int)  # 월드(레벨·블록 읽기·플레이어)가 있어야 하는 멤버 — 값 견주기가 아니라 장면 차분기(T-253 후보) 몫
+  exclude updateNeighbourShapes(net.minecraft.world.level.LevelAccessor,net.minecraft.core.BlockPos,int)  # 월드(레벨·블록 읽기·플레이어)가 있어야 하는 멤버 — 값 견주기가 아니라 장면 차분기(T-253 후보) 몫
+  exclude updateNeighbourShapes(net.minecraft.world.level.LevelAccessor,net.minecraft.core.BlockPos,int,int)  # 월드(레벨·블록 읽기·플레이어)가 있어야 하는 멤버 — 값 견주기가 아니라 장면 차분기(T-253 후보) 몫
+  exclude useItemOn(net.minecraft.world.item.ItemStack,net.minecraft.world.level.Level,net.minecraft.world.entity.player.Player,net.minecraft.world.InteractionHand,net.minecraft.world.phys.BlockHitResult)  # 월드(레벨·블록 읽기·플레이어)가 있어야 하는 멤버 — 값 견주기가 아니라 장면 차분기(T-253 후보) 몫
+class net.minecraft.world.item.Item  iterations=2000
+  exclude use(net.minecraft.world.level.Level,net.minecraft.world.entity.player.Player,net.minecraft.world.InteractionHand)  # 월드(레벨·블록 읽기·플레이어)가 있어야 하는 멤버 — 값 견주기가 아니라 장면 차분기(T-253 후보) 몫
+class net.minecraft.world.item.ItemStack  iterations=2000
+  exclude getTags()  # 바닐라 실행기는 Bootstrap 만 해서 데이터 팩 태그가 비어 있다(모든 태그 질문이 거짓). 태그를 실은 바닐라 실행기는 다음 단계 할 일
+  exclude is(net.minecraft.tags.TagKey)  # 바닐라 실행기는 Bootstrap 만 해서 데이터 팩 태그가 비어 있다(모든 태그 질문이 거짓). 태그를 실은 바닐라 실행기는 다음 단계 할 일
+  exclude is(net.minecraft.core.HolderSet)  # 이름 있는 묶음은 태그라 바닐라 실행기는 Bootstrap 만 해서 데이터 팩 태그가 비어 있다(모든 태그 질문이 거짓). 태그를 실은 바닐라 실행기는 다음 단계 할 일
+  exclude isCorrectToolForDrops(net.minecraft.world.level.block.state.BlockState)  # 도구 규칙이 mineable/* 태그로 판정해 바닐라 실행기는 Bootstrap 만 해서 데이터 팩 태그가 비어 있다(모든 태그 질문이 거짓). 태그를 실은 바닐라 실행기는 다음 단계 할 일
+  exclude useOn(net.minecraft.world.item.context.UseOnContext)  # 월드(레벨·블록 읽기·플레이어)가 있어야 하는 멤버 — 값 견주기가 아니라 장면 차분기(T-253 후보) 몫
+  exclude set(net.minecraft.core.component.DataComponentType,java.lang.Object)  # 값 인자가 컴포넌트 종류와 짝이 맞아야 해 일반 씨앗으로 못 만든다 — 컴포넌트 값 씨앗은 다음 단계 할 일
+  exclude getOrDefault(net.minecraft.core.component.DataComponentType,java.lang.Object)  # set 과 같은 이유(기본값 인자의 형식 짝)
+  exclude applyComponents(net.minecraft.core.component.DataComponentPatch)  # 컴포넌트 묶음 값 씨앗은 다음 단계 할 일(set 과 같은 이유)
+  exclude getComponentsPatch()  # 컴포넌트 묶음 값 내리기는 다음 단계 할 일(set 과 같은 이유)
+  exclude getEnchantments()  # 마법 부여 묶음 내리기는 레지스트리(마법 부여는 데이터 팩)가 실린 바닐라 실행기가 필요 — 태그와 같은 다음 단계

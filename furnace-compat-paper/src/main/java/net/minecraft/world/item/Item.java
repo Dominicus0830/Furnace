@@ -116,10 +116,9 @@ public class Item implements net.minecraft.world.flag.FeatureElement, ItemLike {
     }
 
     /** 이 종류의 기본 최대 쌓기 개수(컴포넌트가 없을 때). Bukkit Material 표를 쓴다 — 표에 없는 종류는 UnsupportedNmsCall. */
+    /** 바닐라: 이 종류의 기본 컴포넌트 max_stack_size(없으면 1). 공기도 기본값 64(Bukkit Material.AIR 의 1 이 아니라, T-235). */
     public int getDefaultMaxStackSize() {
-        Material m = Material.matchMaterial(key);
-        if (m == null) throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("Item#getDefaultMaxStackSize(" + key + ")", "item is not in the Bukkit Material table (data pack or plugin item)");
-        return m.getMaxStackSize();
+        return new org.domi.furnace.api.item.ItemStack(key, 1).getOrDefault(org.domi.furnace.api.item.ItemComponents.MAX_STACK_SIZE, 1);
     }
 
     /** 바닐라와 같다: 등록 이름(minecraft:stone). */

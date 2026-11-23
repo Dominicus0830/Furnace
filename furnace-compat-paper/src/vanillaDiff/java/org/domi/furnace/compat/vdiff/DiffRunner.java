@@ -37,19 +37,28 @@ public final class DiffRunner {
         }
 
         boolean matches(Object vanillaOutcome, Object shimOutcome) {
-            return ("throws " + vanillaThrows).equals(vanillaOutcome) && ("throws " + shimThrows).equals(shimOutcome);
+            return token(vanillaThrows, vanillaOutcome) && token(shimThrows, shimOutcome);
+        }
+
+        /** "value:X" 는 결과 값 X(열거 상수 이름·숫자·불리언·글), 그 밖은 던진 예외 클래스 이름. */
+        private static boolean token(String t, Object outcome) {
+            if (!t.startsWith("value:")) return ("throws " + t).equals(outcome);
+            String v = t.substring(6);
+            if (outcome instanceof List<?> l && l.size() == 3 && "enum".equals(l.get(0))) return v.equals(l.get(2));
+            return (outcome instanceof Number || outcome instanceof Boolean || outcome instanceof String s && !s.startsWith("throws ")) && v.equals(String.valueOf(outcome));
         }
     }
 
     /** 입력 조건 이름들(대상 파일 when=). */
-    public static final java.util.Set<String> CONDITIONS = java.util.Set.of(NbtKit.ARRAY_LIMIT);
+    public static final java.util.Set<String> CONDITIONS = java.util.Set.of(NbtKit.ARRAY_LIMIT, GameKit.PAPER_INDESTRUCTIBLE);
 
     /** 입력 조건이 이 입력에서 성립하나. 판정 못 하면(올리기 실패 등) 성립하지 않는다 — 허용을 넓히지 않는 쪽. */
-    static boolean holds(String when, String key, Object[] argSeeds) {
+    static boolean holds(String when, String key, Object recvSeed, Object[] argSeeds) {
         if (when == null) return true;
         try {
             return switch (when) {
                 case NbtKit.ARRAY_LIMIT -> NbtKit.tripsArrayLimit(key, argSeeds);
+                case GameKit.PAPER_INDESTRUCTIBLE -> GameKit.paperIndestructible(recvSeed);
                 default -> false;
             };
         } catch (Exception e) {
@@ -241,14 +250,24 @@ public final class DiffRunner {
             Object recvSeed = isStatic ? null : TypeKit.seed(vc, r, i < SWEEP ? i : pick(r, edgeP), self);
             Object[] argSeeds = new Object[vps.length];
             for (int k = 0; k < vps.length; k++) argSeeds[k] = TypeKit.seed(gps[k], vps[k], r, i < SWEEP ? i : pick(r, edgeP), self);
-            List<Object> va, sa;
+            List<Object> va, sb;
             try {
                 va = call(ve, recvSeed, argSeeds, vanilla);
-                sa = call(se, recvSeed, argSeeds, shim);
             } catch (TypeKit.RaiseFailed f) {
-                skipped++;
+                skipped++; // 바닐라도 못 만드는 입력 — 시험 입력이 아니다
                 continue;
             }
+            try {
+                sb = call(se, recvSeed, argSeeds, shim);
+            } catch (TypeKit.RaiseFailed f) {
+                if (f.getCause() instanceof OutOfMemoryError) {
+                    skipped++;
+                    continue;
+                }
+                // 바닐라는 만든 입력을 shim 이 못 만든다(예: shim 레지스트리에 없는 블록) — 관측 가능한 차이
+                sb = List.of("shim cannot build input: " + f.getMessage() + " (" + f.getCause() + ")");
+            }
+            List<Object> sa = sb;
             calls++;
             if (va.get(0) instanceof Unlowerable u) {
                 unlowerable = u.what;
@@ -260,7 +279,7 @@ public final class DiffRunner {
             boolean harness = isHarness(va.get(0)) || isHarness(sa.get(0));
             if (harness || !Objects.equals(va, sa)) {
                 String ex = "input " + describe(recvSeed, argSeeds) + " -> vanilla=" + clip(va) + " shim=" + clip(sa);
-                if (!harness && allowed.stream().anyMatch(a -> a.matches(va.get(0), sa.get(0)) && holds(a.when(), key, argSeeds))) {
+                if (!harness && allowed.stream().anyMatch(a -> a.matches(va.get(0), sa.get(0)) && holds(a.when(), key, recvSeed, argSeeds))) {
                     paper++;
                     if (paperExamples.size() < 3) paperExamples.add(ex);
                 } else {

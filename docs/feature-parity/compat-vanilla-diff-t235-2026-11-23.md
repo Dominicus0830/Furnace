@@ -77,3 +77,15 @@ shim 연결마다 손으로 시험을 쓰지 않고, **이름 푼 바닐라 서�
 - `nbt-array-limit`(`NbtKit.tripsArrayLimit`): 멤버가 실제로 읽을 바이트(readCompressed 는 gzip 을 푼 것)를 NBT 바이너리 사양대로 구조만 훑어, 끝·형식 오류·깊이 초과보다 먼저 바이트·정수 배열 길이 1<<24 이상을 만나는 입력일 때만 참. 할당량은 보지 않는다(할당량이 먼저 걸리면 shim 도 할당량 예외라 쌍이 맞지 않는다). 판정 못 하면 거짓(허용을 넓히지 않는 쪽).
 - NbtIo 의 paper 6줄 모두 `when=nbt-array-limit`. 카나리 `paperAllowanceIsLimitedToItsInputs`: 그 틀린 구현이 조건 없이는 "Paper 와 같게"로 통과하고(대조군), 조건을 걸면 다름(입력 500개 중 180개)으로 잡힌다.
 - 전체 실행 결과는 그대로: 같음 814, 다름 0, 증명 없음 0, Paper 와 같게 6.
+
+## 2단계 (11-23): 게임 값 — 채팅 글·레지스트리 키·블록 상태·아이템
+
+- 새 형식 꾸러미 `GameKit`: 레지스트리 칸(블록·아이템·Holder), 레지스트리 키, 글 색·스타일·클릭·마우스 올림, 글(Component — 글자·번역·대체 글 번역·키 이름·빈 글, 스타일·자식·번역 인자 섞기, 깊이 2), 블록 상태(블록 + 속성 값 고르기), 아이템 더미(종류·개수), 블록 속성(BlockStateProperties 상수), 데이터 컴포넌트 종류, 블록 속성 값 자리(Comparable). 경계값은 고정 목록, 난수는 **바닐라 레지스트리 전체**에서 고른다 — shim 에 없는 블록·아이템이 나오면 "shim 이 입력을 못 만듦" 으로 다름(전에는 건너뜀)이다.
+- 내리기: 레지스트리 값은 열쇠, 블록 상태는 속성 이름=값, 글은 getString + `Component.Serializer.toJson` 의 JSON 나무(열쇠 순서 무시). 맵은 열쇠 글 순, Holder 는 값, 배열 인자(번역 인자·서식 목록)도 씨앗을 만든다.
+- shim 의 블록·아이템 레지스트리는 Furnace 서버 데이터를 읽으므로 시험이 Furnace 시험 서버를 하나 띄운다.
+- 새 관문 8클래스: ResourceKey, TextColor, Style, Component, MutableComponent, BlockState, Item, ItemStack.
+- 고친 shim 차이 11건: 키 이름 글의 평문(Furnace API 까지 — 바닐라는 키 글자 그대로), 빈 글 붙이기(append("") 는 자식 안 더함), applyFormat 의 이름 있는 색, applyFormats 의 RESET·새 Style, getString(n≤0), Style·글 toString 꼴(바닐라 꼴), 빈 아이템 더미의 컴포넌트 읽기(최대 개수 1·내구도 0), set·remove 의 이전 값, 공기의 기본 최대 개수 64.
+- Paper 와 같게 1건: 부술 수 없는 블록 10개의 피스톤 반응(when=paper-indestructible-block, 값 쌍 `value:` 꼴 허용 — Paper Mojang 이름 jar 바이트코드로 확인).
+- 뺀 것(이유는 대상 파일): 해시 값, 함수 인자, 코덱 상수, 태그 질문(바닐라 실행기에 태그 없음), 월드가 필요한 동작, 컴포넌트 값 넣기·마법 부여, 서식 없는 withStyle()(알려진 JSON 꼴 차이 — user-todo).
+- 결과(이 환경): 38클래스 같음 952, 다름 0, 증명 없음 0, Paper 와 같게 7. 연결 명세 줄은 새 형식 덕에 6개가 증명됨(전엔 0).
+- 내리기마다 Class.forName 을 부르면 값 클래스 시험이 3배 느려져 로더별로 기억한다.

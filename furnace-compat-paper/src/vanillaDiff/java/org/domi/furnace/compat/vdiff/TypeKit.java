@@ -119,6 +119,16 @@ public final class TypeKit {
         LOWERERS.put("net.minecraft.nbt.NbtAccounter", new String[]{"getUsage()", "getDepth()"});
         LOWERERS.put("com.mojang.brigadier.StringReader", new String[]{"getString()", "getCursor()"});
         LOWERERS.put("net.minecraft.resources.ResourceLocation", new String[]{"getNamespace()", "getPath()"});
+        // 게임 값(GameKit 이 씨앗·올리기, 여기는 접근자로 내리기)
+        LOWERERS.put("net.minecraft.resources.ResourceKey", new String[]{"registry()", "location()"});
+        LOWERERS.put("net.minecraft.network.chat.TextColor", new String[]{"getValue()", "serialize()"});
+        LOWERERS.put("net.minecraft.network.chat.ClickEvent", new String[]{"getAction()", "getValue()"});
+        LOWERERS.put("net.minecraft.network.chat.Style", new String[]{"getColor()", "isBold()", "isItalic()", "isUnderlined()",
+            "isStrikethrough()", "isObfuscated()", "getInsertion()", "getFont()", "getClickEvent()", "getHoverEvent()"});
+        LOWERERS.put("net.minecraft.world.level.block.state.properties.Property", new String[]{"getName()"});
+        LOWERERS.put("net.minecraft.tags.TagKey", new String[]{"registry()", "location()"});
+        LOWERERS.put("net.minecraft.core.Holder", new String[]{"value()"});
+        LOWERERS.put("net.minecraft.world.level.material.FluidState", new String[]{"getType()", "getAmount()", "isSource()"});
     }
 
     private TypeKit() {}
@@ -191,7 +201,19 @@ public final class TypeKit {
         }
         Object nbt = NbtKit.seed(name, r, boundaryIndex);
         if (nbt != null) return nbt;
-        if (vanillaType.isArray()) throw new Unsupported("array " + name);
+        Object game = GameKit.seed(name, r, boundaryIndex, self);
+        if (game != null) return game;
+        if (vanillaType.isArray()) {
+            // 배열: 원소 형식이 꾸러미에 있으면 0~3 개. Object[](번역 인자 등)는 글·정수·글 씨앗을 섞는다
+            Class<?> el = vanillaType.getComponentType();
+            int n = boundaryIndex >= 0 ? boundaryIndex % 4 : r.nextInt(4);
+            List<Object> items = new ArrayList<>(n);
+            for (int k = 0; k < n; k++) {
+                int b = boundaryIndex >= 0 ? boundaryIndex + k : -1;
+                items.add(el == Object.class ? GameKit.translationArg(r, b) : seed(el, r, b, self));
+            }
+            return new ArraySeed(el.getName(), items);
+        }
         Seeder p = PRIMS.get(name);
         if (p != null) return p.seed(r, boundaryIndex);
         if (vanillaType.isEnum() && STAND_INS.get(vanillaType.getName()) == null) {
@@ -259,6 +281,13 @@ public final class TypeKit {
 
     record EnumSeed(String type, String constant) {}
 
+    record ArraySeed(String component, List<Object> items) {
+        @Override
+        public String toString() {
+            return component.substring(component.lastIndexOf('.') + 1) + items;
+        }
+    }
+
     record ObjSeed(String type, Object[] parts) {
         @Override
         public String toString() {
@@ -283,6 +312,24 @@ public final class TypeKit {
             } catch (InvocationTargetException ex) {
                 throw new RaiseFailed(String.valueOf(seed), ex.getCause());
             } catch (ReflectiveOperationException | java.io.IOException | RuntimeException ex) {
+                throw new RaiseFailed(String.valueOf(seed), ex);
+            }
+        }
+        if (seed instanceof ArraySeed a) {
+            try {
+                Object arr = Array.newInstance(resolve(a.component, loader), a.items.size());
+                for (int k = 0; k < a.items.size(); k++) Array.set(arr, k, raise(a.items.get(k), loader));
+                return arr;
+            } catch (ReflectiveOperationException | RuntimeException ex) {
+                throw new RaiseFailed(a.toString(), ex);
+            }
+        }
+        if (GameKit.isSeed(seed)) {
+            try {
+                return GameKit.raise(seed, loader);
+            } catch (InvocationTargetException ex) {
+                throw new RaiseFailed(String.valueOf(seed), ex.getCause());
+            } catch (ReflectiveOperationException | RuntimeException ex) {
                 throw new RaiseFailed(String.valueOf(seed), ex);
             }
         }
@@ -345,6 +392,10 @@ public final class TypeKit {
         Object cap = NbtKit.lowerCapture(v);
         if (cap != null) return cap;
         if (NbtKit.isTag(c)) return NbtKit.lowerTag(v, depth);
+        if (isMinecraft(c)) {
+            Object game = GameKit.lower(v);
+            if (game != null) return game;
+        }
         if (c.isArray()) {
             List<Object> out = new ArrayList<>();
             out.add("array:" + c.getComponentType().getName());
@@ -352,6 +403,12 @@ public final class TypeKit {
             for (int k = 0; k < Math.min(n, 64); k++) out.add(lower(Array.get(v, k), depth + 1));
             out.add("len=" + n);
             return out;
+        }
+        if (v instanceof Map<?, ?> m) {
+            // 열쇠·값을 내려 열쇠 글 순으로(맵 종류·삽입 순서는 관측값이 아니다)
+            java.util.TreeMap<String, Object> out = new java.util.TreeMap<>();
+            for (Map.Entry<?, ?> e : m.entrySet()) out.put(String.valueOf(lower(e.getKey(), depth + 1)), lower(e.getValue(), depth + 1));
+            return List.of("map", out);
         }
         if (v instanceof Optional<?> o) return o.isPresent() ? List.of("Optional", lower(o.get(), depth + 1)) : List.of("Optional.empty");
         if (v instanceof BaseStream<?, ?> s) return iter("stream", s.iterator(), depth);

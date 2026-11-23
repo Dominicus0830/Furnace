@@ -167,8 +167,14 @@ public final class ItemStack {
     }
 
     /**
-     * 컴포넌트를 읽을 값 — 바닐라 컴포넌트 조회는 isEmpty 를 보지 않는다(개수 0 인 엔더 진주도 16). EMPTY 는 컴포넌트가 하나도 없어 null.
+     * 읽기용: 비었으면(공기·개수 0 이하 포함) null — 바닐라 getComponents 가 빈 스택에 DataComponentMap.EMPTY 를 주는 것과 같다
+     * (개수 0 인 엔더 진주의 getMaxStackSize 는 1 — T-235 바닐라 견주기로 확인).
      */
+    private org.domi.furnace.api.item.ItemStack readView() {
+        return isEmpty() ? null : componentView();
+    }
+
+    /** 컴포넌트 맵 자체(쓰기·set/remove 의 이전 값용) — 개수와 무관. EMPTY 는 컴포넌트가 하나도 없어 null. */
     private org.domi.furnace.api.item.ItemStack componentView() {
         if (this == EMPTY) return null;
         return new org.domi.furnace.api.item.ItemStack(item.furnaceKey(), Math.max(count, 0), components, removed);
@@ -198,19 +204,19 @@ public final class ItemStack {
 
     /** 바닐라 getOrDefault(MAX_STACK_SIZE, 1) — 종류 기본값 위에 패치를 얹은 값, 패치로 지웠거나 EMPTY 면 1. */
     public int getMaxStackSize() {
-        var v = componentView();
+        var v = readView();
         return v == null ? 1 : v.getOrDefault(ItemComponents.MAX_STACK_SIZE, 1);
     }
 
     /** 바닐라 getOrDefault(MAX_DAMAGE, 0) — 내구도가 없는 아이템·EMPTY 는 0. */
     public int getMaxDamage() {
-        var v = componentView();
+        var v = readView();
         return v == null ? 0 : v.getOrDefault(ItemComponents.MAX_DAMAGE, 0);
     }
 
     /** 바닐라 Mth.clamp(getOrDefault(DAMAGE, 0), 0, getMaxDamage()) — 내구도 없는 아이템의 damage 는 0 으로 잘린다. */
     public int getDamageValue() {
-        var v = componentView();
+        var v = readView();
         return v == null ? 0 : Math.min(Math.max(v.damage(), 0), getMaxDamage());
     }
 
@@ -222,7 +228,7 @@ public final class ItemStack {
 
     /** 바닐라 getEnchantments: enchantments 컴포넌트(없으면 EMPTY)의 사본. 읽기 전용 — 고쳐도 이 아이템은 안 바뀐다. */
     public net.minecraft.world.item.enchantment.ItemEnchantments getEnchantments() {
-        var v = componentView();
+        var v = readView();
         return v == null ? net.minecraft.world.item.enchantment.ItemEnchantments.EMPTY
                 : net.minecraft.world.item.enchantment.ItemEnchantments.fromFurnace(v.get(ItemComponents.ENCHANTMENTS));
     }
@@ -331,7 +337,7 @@ public final class ItemStack {
     @SuppressWarnings("unchecked")
     public <T> T get(net.minecraft.core.component.DataComponentType<? extends T> t) {
         var k = (net.minecraft.core.component.DataComponents.Type<Object, T>) type(t);
-        var v = componentView();
+        var v = readView();
         return v == null ? null : k.toNms(v.get(k.furnace()));
     }
 
@@ -347,8 +353,9 @@ public final class ItemStack {
     public <T> T set(net.minecraft.core.component.DataComponentType<? super T> t, T value) {
         if (this == EMPTY) throw new IllegalStateException("ItemStack.EMPTY cannot be modified");
         var k = (net.minecraft.core.component.DataComponents.Type<Object, Object>) type(t);
-        T old = (T) get((net.minecraft.core.component.DataComponentType<Object>) t);
         var v = componentView();
+        // 바닐라는 컴포넌트 맵의 이전 값을 그대로 돌려준다(빈 스택이어도 — get 과 달리, T-235)
+        T old = (T) k.toNms(v.get(k.furnace()));
         var next = value == null ? v.without(k.furnace()) : v.with(k.furnace(), k.toFurnace(value));
         this.components = next.components();
         this.removed = next.removedComponents();
@@ -360,8 +367,9 @@ public final class ItemStack {
     public <T> T remove(net.minecraft.core.component.DataComponentType<? extends T> t) {
         if (this == EMPTY) throw new IllegalStateException("ItemStack.EMPTY cannot be modified");
         @SuppressWarnings("unchecked") var k = (net.minecraft.core.component.DataComponents.Type<Object, T>) type(t);
-        T old = get(t);
-        var next = componentView().without(k.furnace());
+        var v = componentView();
+        T old = k.toNms(v.get(k.furnace()));   // set 과 같다: 빈 스택이어도 맵의 이전 값
+        var next = v.without(k.furnace());
         this.components = next.components();
         this.removed = next.removedComponents();
         changed();

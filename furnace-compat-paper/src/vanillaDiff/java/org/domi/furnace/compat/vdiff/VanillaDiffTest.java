@@ -46,6 +46,8 @@ class VanillaDiffTest {
     private static final List<ClassReport> REPORTS = java.util.Collections.synchronizedList(new ArrayList<>());
     private static DiffRunner runner;
     private static long seed;
+    /** shim 의 레지스트리·블록·아이템은 Furnace 서버 위에서 산다(BuiltInRegistries 가 서버 데이터를 읽음) — 시험 서버 하나를 띄운다. */
+    private static org.domi.furnace.test.FurnaceTestServer server;
 
     /** 클래스마다 시험 하나 — 기본 제한시간(5분)은 공장 메서드에만 걸리므로 무거운 일은 각 동적 시험 안에서 한다(멤버마다 120초 감시는 DiffRunner). */
     @TestFactory
@@ -58,6 +60,7 @@ class VanillaDiffTest {
         for (String o : only) {
             if (targets.stream().noneMatch(t -> t.cls.equals(o))) fail("-PvdiffClasses names a class not in vanilla-diff-targets.txt: " + o);
         }
+        server = org.domi.furnace.test.FurnaceTestServer.builder().start();
         runner = new DiffRunner(rt.loader(), VanillaDiffTest.class.getClassLoader(), seed);
         List<DynamicTest> tests = new ArrayList<>();
         for (Target t : targets) {
@@ -93,6 +96,7 @@ class VanillaDiffTest {
     @org.junit.jupiter.api.AfterAll
     static void finish() throws IOException {
         if (runner != null) runner.close();
+        if (server != null) server.close();
         NbtKit.cleanTemp();
         writeReport(new ArrayList<>(REPORTS), VanillaRuntime.get().mc(), seed);
     }

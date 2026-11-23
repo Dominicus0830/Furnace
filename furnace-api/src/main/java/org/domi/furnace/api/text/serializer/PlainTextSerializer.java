@@ -23,9 +23,9 @@ public final class PlainTextSerializer {
 
     /** 키 바인딩을 어떻게 쓸까. */
     public enum KeybindMode {
-        /** key.jump → "Jump" 처럼 번역(기본). */
+        /** key.jump → "Jump" 처럼 번역(클라이언트가 보는 꼴에 가깝게). */
         TRANSLATE,
-        /** key.jump 그대로. */
+        /** key.jump 그대로(기본 — 바닐라 서버 getString 과 같다). */
         KEY,
         /** [key.jump]. */
         BRACKETED
@@ -104,7 +104,7 @@ public final class PlainTextSerializer {
     public static final class Builder {
         private Locale locale = Translators.SERVER_LOCALE;
         private TranslatableMode translatables = TranslatableMode.TRANSLATE;
-        private KeybindMode keybinds = KeybindMode.TRANSLATE;
+        private KeybindMode keybinds = KeybindMode.KEY;
         private DynamicMode dynamic = DynamicMode.EMPTY;
 
         Builder() {}

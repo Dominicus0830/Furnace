@@ -126,7 +126,8 @@ class CraftAdapterReviewTest {
         var pearls = nms("minecraft:ender_pearl", 2, Map.of(), Set.of());
         pearls.shrink(2);
         assertTrue(pearls.isEmpty());
-        assertEquals(16, pearls.getMaxStackSize());
+        // 바닐라·Paper 1.21.1 getComponents 는 빈 스택(개수 0 포함)에 DataComponentMap.EMPTY 를 준다 → 기본값 1(두 jar 바이트코드로 확인, T-235)
+        assertEquals(1, pearls.getMaxStackSize());
         assertEquals(64, nms("minecraft:stone", 3, Map.of(), Set.of()).getMaxStackSize());
     }
 

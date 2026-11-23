@@ -24,8 +24,9 @@ public interface Component {
     /** 내용만(스타일·자식 없이) 사본. */
     MutableComponent plainCopy();
 
-    /** 처음 n 글자(바닐라 getString(int)). */
+    /** 처음 n 글자(바닐라 getString(int)). n 이 0 이하면 빈 글(바닐라는 방문을 바로 멈춘다, T-235). */
     default String getString(int n) {
+        if (n <= 0) return "";
         String s = getString();
         return s.length() <= n ? s : s.substring(0, n);
     }
