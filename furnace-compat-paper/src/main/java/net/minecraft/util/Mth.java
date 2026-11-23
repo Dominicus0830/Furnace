@@ -6,8 +6,8 @@ package net.minecraft.util;
  * 정수 {@code clamp} 의 {@code Math.min(Math.max(..))} 순서, {@code sin}/{@code cos} 의 65536 칸 표({@code (float)Math.sin(i·2π/65536)})와 10430.378 배율.
  *
  * <p>2026-11-24(영역 9): 난수 도우미·길이·보간·{@code atan2}·{@code fastInvSqrt} 계열·색·해시 등 순수 계산을 바닐라 {@code javap -c} 로 읽어 더했다.
- * 아직 없는 것: 광선-상자 교차(AABB)·쿼터니언(JOML 의존)·{@code X_AXIS}(JOML)·{@code RANDOM}·인자 없는 {@code createInsecureUUID}·{@code mulAndTruncate}(commons-lang3)·
- * {@code invSqrt}(JOML) 는 껍데기가 맡는다(없는 멤버를 부르면 던진다 — 값을 지어내지 않는다).
+ * 아직 없는 것: 광선-상자 교차(AABB)·{@code X_AXIS} 류(JOML 필드는 이 클래스 초기화에 넣으면 JOML 이 없는 서버에서 Mth 전체가 죽는다)·{@code RANDOM}·인자 없는 {@code createInsecureUUID}·
+ * {@code mulAndTruncate}(commons-lang3) 는 껍데기가 맡는다(없는 멤버를 부르면 던진다 — 값을 지어내지 않는다).
  */
 public final class Mth {
 
@@ -436,5 +436,11 @@ public final class Mth {
             }
             return origin + j + steps;
         });
+    }
+
+    /** 축 방향 회전 성분만 남긴 단위 쿼터니언(JOML 형식은 이 메서드가 불릴 때만 닿는다). */
+    public static org.joml.Quaternionf rotationAroundAxis(org.joml.Vector3f axis, org.joml.Quaternionf source, org.joml.Quaternionf result) {
+        float f = axis.dot(source.x, source.y, source.z);
+        return result.set(axis.x * f, axis.y * f, axis.z * f, source.w).normalize();
     }
 }
