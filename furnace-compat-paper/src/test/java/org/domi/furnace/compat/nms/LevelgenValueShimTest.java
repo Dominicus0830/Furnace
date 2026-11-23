@@ -72,5 +72,12 @@ class LevelgenValueShimTest {
         assertEquals("LegacyPositionalRandomFactory{-5400676711371204147}", sb.toString());
         assertEquals(126, g.at(-5, 3, 8).nextInt(1000));
         assertEquals(60552680979424L, net.minecraft.util.Mth.getSeed(10, 64, -33));
+        // 음수·큰 좌표(바닐라 jar 에서 뽑은 값)
+        var far = f.at(-30000000, -64, 29999999);
+        assertEquals(404, far.nextInt(1000));
+        assertEquals(4665108934479365513L, far.nextLong());
+        var edge = f.at(Integer.MAX_VALUE, 319, Integer.MIN_VALUE);
+        assertEquals(1712030472, edge.nextInt());
+        assertEquals(0.12612254894948727, edge.nextDouble());
     }
 }

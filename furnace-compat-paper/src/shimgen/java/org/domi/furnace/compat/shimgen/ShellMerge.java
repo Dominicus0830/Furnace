@@ -120,12 +120,16 @@ final class ShellMerge {
         Bridge(String owner, String desc) { this(owner, desc, false); }
     }
 
+    /** 손 shim 에 더해 채운 엔티티 데이터 칸 필드 수(D3). */
+    int dataSlots;
+
     private byte[] mergeOne(String n, FullShells.Scope scope) {
         Decl own = decl(n);
         if (own == null) return null;
         boolean nms = scope == FullShells.Scope.NMS;
         List<Add> adds = new ArrayList<>();
         boolean craftClass = n.startsWith(CRAFT_PREFIX) && !own.isInterface();
+        List<String> slotFields = new ArrayList<>();
         for (SigTable.Member m : g.table(n).members(n)) {
             String key = m.name() + m.desc();
             String what = n + "#" + m.name() + (m.kind() == 'F' ? ":" : "") + m.desc();
@@ -148,6 +152,13 @@ final class ShellMerge {
                 if (!nms) {
                     // 연결기 덫은 NMS 이름만 본다 — 밖 범위의 값 없는 정적 필드는 조용히 null 을 줄 것이라 넣지 않는다
                     skip("static field outside the NMS scope (the linker trap does not see it)", what);
+                    continue;
+                }
+                if (g.dataSlotField(n, m)) {
+                    // 엔티티 데이터 D3: 칸 필드 — 손 shim 의 정적 초기화 앞에서 NmsEntityData.accessor 로 채운다
+                    adds.add(new Add(m, m.access() & 0xFFFF, null, false));
+                    slotFields.add(m.name());
+                    count("entity data slot field (D3)");
                     continue;
                 }
                 Object value = (m.access() & Opcodes.ACC_FINAL) != 0 ? g.constant(n, m.name()) : null;
@@ -201,8 +212,37 @@ final class ShellMerge {
         ClassReader cr = new ClassReader(original);
         ClassWriter cw = new ClassWriter(cr, 0);   // 원래 메서드는 바이트 그대로 복사된다
         cr.accept(new ClassVisitor(Opcodes.ASM9, cw) {
+            private boolean sawClinit;
+
+            @Override
+            public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
+                MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions);
+                if (!name.equals("<clinit>") || slotFields.isEmpty()) return mv;
+                sawClinit = true;
+                // 손 shim 의 정적 초기화 맨 앞에 칸 필드 채우기를 끼운다(곧은 코드·지역 변수 없음 — 뒤의 프레임은 그대로 맞는다)
+                return new MethodVisitor(Opcodes.ASM9, mv) {
+                    @Override
+                    public void visitCode() {
+                        super.visitCode();
+                        for (String f : slotFields) FullShells.putDataSlot(this, n, f);
+                    }
+
+                    @Override
+                    public void visitMaxs(int maxStack, int maxLocals) { super.visitMaxs(Math.max(maxStack, 2), maxLocals); }
+                };
+            }
+
             @Override
             public void visitEnd() {
+                if (!slotFields.isEmpty() && !sawClinit) {
+                    MethodVisitor ci = cv.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
+                    ci.visitCode();
+                    for (String f : slotFields) FullShells.putDataSlot(ci, n, f);
+                    ci.visitInsn(Opcodes.RETURN);
+                    ci.visitMaxs(2, 0);
+                    ci.visitEnd();
+                }
+                dataSlots += slotFields.size();
                 for (Add a : adds) {
                     if (a.m().kind() == 'F') {
                         FieldVisitor fv = cv.visitField(a.access(), a.m().name(), a.m().desc(), a.m().signature(), a.value());

@@ -180,4 +180,27 @@ class NmsEntityDataTest {
         assertSame(jellie, d.get(slot));
         assertEquals("minecraft:textures/entity/cat/jellie.png", d.get(slot).value().texture().toString());
     }
+
+    /** T-263 관용구(D3): 칸 읽기·쓰기·깃발이 shim 칸 객체와 같은 값을 보고, 쓰기가 서버 재생을 지난다. */
+    @Test
+    void entityDataIdiomsReadAndWriteTheSlots() {
+        Entity cat = EntityType.CAT.create(level);
+        var slot = new EntityDataAccessor<net.minecraft.core.Holder<net.minecraft.world.entity.animal.CatVariant>>(org.domi.furnace.server.entity.Cat.DATA_VARIANT, EntityDataSerializers.CAT_VARIANT);
+        var reg = net.minecraft.core.registries.BuiltInRegistries.CAT_VARIANT;
+        assertSame(reg.getHolder(net.minecraft.world.entity.animal.CatVariant.BLACK).orElseThrow(), org.domi.furnace.compat.nms.NmsEntityData.get(cat, slot));
+        var jellie = reg.getHolderOrThrow(net.minecraft.world.entity.animal.CatVariant.JELLIE);
+        org.domi.furnace.compat.nms.NmsEntityData.set(cat, slot, jellie);
+        assertSame(jellie, cat.getEntityData().get(slot));
+
+        var flags = new EntityDataAccessor<Byte>(0, EntityDataSerializers.BYTE);
+        assertFalse(org.domi.furnace.compat.nms.NmsEntityData.flag(cat, flags, 0x20));
+        org.domi.furnace.compat.nms.NmsEntityData.setFlag(cat, flags, 0x20, true);
+        org.domi.furnace.compat.nms.NmsEntityData.setFlag(cat, flags, 0x02, true);
+        assertTrue(org.domi.furnace.compat.nms.NmsEntityData.flag(cat, flags, 0x20));
+        assertEquals((byte) 0x22, cat.getEntityData().get(flags));
+        assertTrue(cat.isInvisible(), "깃발 쓰기가 서버 재생을 지나 투명 깃발이 켜졌다");
+        org.domi.furnace.compat.nms.NmsEntityData.setFlag(cat, flags, 0x20, false);
+        assertEquals((byte) 0x02, cat.getEntityData().get(flags), "끄면 그 비트만 지운다");
+        assertThrows(IllegalArgumentException.class, () -> org.domi.furnace.compat.nms.NmsEntityData.get("not an entity", flags));
+    }
 }

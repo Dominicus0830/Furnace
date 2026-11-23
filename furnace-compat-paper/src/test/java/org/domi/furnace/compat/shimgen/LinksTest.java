@@ -72,6 +72,11 @@ class LinksTest {
             "M\t1\t" + Z + "Mob\tb2\t()Z\t-",
             "M\t1\t" + Z + "Mob\tb3\t()Z\t-",
             "K\t" + Z + "Mob\tDATA_BABY\tI\t12",
+            "C\t33\t" + Z + "Slots\tjava/lang/Object\t-\t-\t-",
+            "F\t26\t" + Z + "Slots\tDATA_A\tLnet/minecraft/network/syncher/EntityDataAccessor;\t-",
+            "F\t26\t" + Z + "Slots\tDATA_V\tLnet/minecraft/network/syncher/EntityDataAccessor;\t-",
+            "M\t1\t" + Z + "Slots\ta\t()Z\t-",
+            "M\t1\t" + Z + "Slots\tv\t()Z\t-",
             "");
 
     static final String EMPTY = "#furnace-sig-table\t2\tempty\n";
@@ -109,6 +114,10 @@ class LinksTest {
 
         @LinkIdiom(value = "test-set", check = "write", owner = Rule.class)
         public static void set(Object self, int slot, Object value) { lastSet = slot + ":" + value + ":" + value.getClass().getSimpleName(); }
+
+        /** 칸 필드를 값으로 받는 관용구(엔티티 데이터 칸처럼 객체 값). */
+        @LinkIdiom(value = "test-slot", check = "read=any")
+        public static Object slot(Object self, Object slot) { return slot != null; }
 
         @LinkTarget(check = "pure")
         public static StringBuilder label(Object self) { return new StringBuilder("mob"); }
@@ -287,6 +296,60 @@ class LinksTest {
         assertFalse(with.classes().isEmpty());
     }
 
+    /**
+     * 엔티티 데이터 D3: 칸 번호표에 줄이 있고 shim 에 값 종류 상수가 있는 정적 EntityDataAccessor 필드는 값이 있는 필드가 된다
+     * (정적 초기화가 NmsEntityData.accessor(클래스, "이름") 로 채운다) — 그래서 관용구 줄이 그 필드를 값으로 받을 수 있다.
+     * 값 종류 상수가 shim 에 없는 칸(VECTOR3)은 채우지 않아 껍데기 필드로 남고, 그 칸을 쓰는 줄은 멈춘다.
+     */
+    @Test
+    void entityDataSlotFieldsAreFilledAndLinkable() throws Exception {
+        String fa = Links.fingerprint(Z + "Slots", "DATA_A");
+        String fv = Links.fingerprint(Z + "Slots", "DATA_V");
+        Map<String, String> slots = Map.of("net.minecraft.zz.Slots " + fa.substring(1), "BYTE", "net.minecraft.zz.Slots " + fv.substring(1), "VECTOR3");
+        String ok = String.join("\n", "#furnace-links 1 1.21.1 area=9", "class net.minecraft.zz.Slots", "  a()Z -> @idiom(test-slot, " + fa + ") read=any", "");
+        Gen r = gen(ok, slots);
+        r.g().checkLinks(null);
+        assertEquals(1, r.g().links.linkedMembers);
+        assertEquals(1, r.g().dataSlotsFilled);
+        byte[] b = r.classes().get(Z + "Slots");
+        List<String> marked = new ArrayList<>();
+        List<String> clinit = new ArrayList<>();
+        new ClassReader(b).accept(new ClassVisitor(Opcodes.ASM9) {
+            @Override
+            public org.objectweb.asm.FieldVisitor visitField(int access, String name, String desc, String signature, Object value) {
+                return new org.objectweb.asm.FieldVisitor(Opcodes.ASM9) {
+                    @Override
+                    public org.objectweb.asm.AnnotationVisitor visitAnnotation(String d, boolean visible) {
+                        if (d.equals(FullShells.SHELL_MEMBER)) marked.add(name);
+                        return null;
+                    }
+                };
+            }
+
+            @Override
+            public MethodVisitor visitMethod(int access, String name, String desc, String signature, String[] exceptions) {
+                if (!name.equals("<clinit>")) return null;
+                return new MethodVisitor(Opcodes.ASM9) {
+                    @Override
+                    public void visitLdcInsn(Object v) { clinit.add(String.valueOf(v)); }
+
+                    @Override
+                    public void visitMethodInsn(int op, String owner, String n, String d, boolean itf) { clinit.add(owner + "." + n + d); }
+
+                    @Override
+                    public void visitFieldInsn(int op, String owner, String n, String d) { clinit.add(op == Opcodes.PUTSTATIC ? "put " + n : n); }
+                };
+            }
+        }, 0);
+        assertEquals(List.of("DATA_V"), marked, "값 종류가 shim 에 없는 칸만 껍데기 필드");
+        assertEquals(List.of("L" + Z + "Slots;", "DATA_A", "org/domi/furnace/compat/nms/NmsEntityData.accessor(Ljava/lang/Class;Ljava/lang/String;)Lnet/minecraft/network/syncher/EntityDataAccessor;",
+                "put DATA_A"), clinit);
+
+        String bad = String.join("\n", "#furnace-links 1 1.21.1 area=9", "class net.minecraft.zz.Slots", "  v()Z -> @idiom(test-slot, " + fv + ") read=any", "");
+        Gen rb = gen(bad, slots);
+        assertTrue(rb.g().links.problems.stream().anyMatch(p -> p.contains("static field has no value in the shim yet: " + fv)), String.valueOf(rb.g().links.problems));
+    }
+
     // ───────── 도움 ─────────
 
     private record Gen(FullShells g, Map<String, byte[]> classes, Path hand, Path out) {
@@ -295,7 +358,9 @@ class LinksTest {
         }
     }
 
-    private Gen gen(String links) throws Exception {
+    private Gen gen(String links) throws Exception { return gen(links, Map.of()); }
+
+    private Gen gen(String links, Map<String, String> dataSlots) throws Exception {
         Path hand = tmp.resolve("hand");
         writeHandBase(hand);
         Path bridges = tmp.resolve("bridges");
@@ -307,8 +372,17 @@ class LinksTest {
                 Files.write(p, in.readAllBytes());
             }
         }
+        // 칸 필드 시험은 shim 의 값 종류 상수(EntityDataSerializers)를 봐야 한다 — 그 클래스 하나만 얹는다
+        for (String n : dataSlots.isEmpty() ? List.<String>of() : List.of("net/minecraft/network/syncher/EntityDataSerializers")) {
+            try (InputStream in = LinksTest.class.getClassLoader().getResourceAsStream(n + ".class")) {
+                Path p = bridges.resolve(n + ".class");
+                Files.createDirectories(p.getParent());
+                Files.write(p, in.readAllBytes());
+            }
+        }
         FullShells g = new FullShells(ShellMergeTest.table(PAPER), ShellMergeTest.table(EMPTY), ShellMergeTest.table(EMPTY),
                 new FullShells.Existing(List.of(hand, bridges)));
+        g.dataSlots = dataSlots;
         if (links != null) {
             Path dir = tmp.resolve("links");
             Files.createDirectories(dir);

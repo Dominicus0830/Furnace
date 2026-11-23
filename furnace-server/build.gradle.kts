@@ -431,6 +431,7 @@ dependencies {
     bundledLibraries("com.google.guava:guava:32.1.2-jre")
     bundledLibraries("com.google.guava:failureaccess:1.0.1")
     bundledLibraries("org.yaml:snakeyaml:2.2")
+    bundledLibraries("org.joml:joml:1.10.5")
 }
 val serverLibrariesSource = file("src/main/java/org/domi/furnace/server/plugin/library/ServerLibraries.java")
 // start.sh/start.bat 은 installDist 의 lib/* 로 띄운다 — 같은 자원(META-INF/furnace/libraries/*.jar)을 담은 jar 하나를 lib/ 에 넣어 그 실행에서도 꺼내게 한다.
@@ -525,8 +526,8 @@ val fatJar = tasks.register<Jar>("fatJar") {
         val missing = pinned.keys - shipped.keys
         if (missing.isNotEmpty()) throw GradleException("ServerLibraries 에 bundled 로 적혔는데 서버 jar 에 안 실렸다: $missing")
         // 풀린 클래스로 섞여 들어오면 서버 로더와 공유 로더에 같은 이름 클래스가 둘 생긴다
-        val leaked = top.filter { it.startsWith("com/google/common/") || it.startsWith("org/yaml/snakeyaml/") }
-        if (leaked.isNotEmpty()) throw GradleException("fat jar 최상위에 Guava·SnakeYAML 클래스가 있다: ${leaked.take(5)}")
+        val leaked = top.filter { it.startsWith("com/google/common/") || it.startsWith("org/yaml/snakeyaml/") || it.startsWith("org/joml/") }
+        if (leaked.isNotEmpty()) throw GradleException("fat jar 최상위에 Guava·SnakeYAML·JOML 클래스가 있다: ${leaked.take(5)}")
     }
 }
 tasks.named("assemble") { dependsOn(fatJar) }

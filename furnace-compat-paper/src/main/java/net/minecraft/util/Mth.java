@@ -5,8 +5,9 @@ package net.minecraft.util;
  * 식은 바닐라 1.21.1 서버 jar 를 {@code javap -c} 로 읽어 맞췄다(난독화 {@code ayo}) — 특히 {@code floor}·{@code ceil} 의 음수 처리,
  * 정수 {@code clamp} 의 {@code Math.min(Math.max(..))} 순서, {@code sin}/{@code cos} 의 65536 칸 표({@code (float)Math.sin(i·2π/65536)})와 10430.378 배율.
  *
- * <p>일부만 있다: 난수·UUID·색·{@code atan2} 표·{@code fastInvSqrt} 계열·광선-상자 교차 등은 쓰는 플러그인이 보이기 전까지 두지 않았다
- * (없는 멤버를 부르면 링크 오류로 곧바로 드러난다 — 값을 지어내지 않는다).
+ * <p>2026-11-24(영역 9): 난수 도우미·길이·보간·{@code atan2}·{@code fastInvSqrt} 계열·색·해시 등 순수 계산을 바닐라 {@code javap -c} 로 읽어 더했다.
+ * 아직 없는 것: 광선-상자 교차(AABB)·{@code X_AXIS} 류(JOML 필드는 이 클래스 초기화에 넣으면 JOML 이 없는 서버에서 Mth 전체가 죽는다)·{@code RANDOM}·인자 없는 {@code createInsecureUUID}·
+ * {@code mulAndTruncate}(commons-lang3) 는 껍데기가 맡는다(없는 멤버를 부르면 던진다 — 값을 지어내지 않는다).
  */
 public final class Mth {
 
@@ -18,18 +19,27 @@ public final class Mth {
     public static final float EPSILON = 1.0E-5F;
     public static final float SQRT_OF_TWO = sqrt(2.0F);
 
-    private static final float SIN_SCALE = 10430.378F;
-    private static final float[] SIN = new float[65536];
+    private static final float TRIG_SCALE = 10430.378F;
+    private static final float[] TRIG_TABLE = new float[65536];
+
+    private static final double ATAN_BIAS = Double.longBitsToDouble(4805340802404319232L);
+    private static final double[] ATAN_ASIN = new double[257];
+    private static final double[] ATAN_COS = new double[257];
 
     static {
-        for (int i = 0; i < SIN.length; i++) SIN[i] = (float) Math.sin((double) i * Math.PI * 2.0 / 65536.0);
+        for (int i = 0; i < TRIG_TABLE.length; i++) TRIG_TABLE[i] = (float) Math.sin((double) i * Math.PI * 2.0 / 65536.0);
+        for (int i = 0; i < 257; i++) {
+            double asin = Math.asin((double) i / 256.0);
+            ATAN_COS[i] = Math.cos(asin);
+            ATAN_ASIN[i] = asin;
+        }
     }
 
     private Mth() {}
 
-    public static float sin(float v) { return SIN[(int) (v * SIN_SCALE) & 65535]; }
+    public static float sin(float v) { return TRIG_TABLE[(int) (v * TRIG_SCALE) & 65535]; }
 
-    public static float cos(float v) { return SIN[(int) (v * SIN_SCALE + 16384.0F) & 65535]; }
+    public static float cos(float v) { return TRIG_TABLE[(int) (v * TRIG_SCALE + 16384.0F) & 65535]; }
 
     public static float sqrt(float v) { return (float) Math.sqrt(v); }
 
@@ -121,7 +131,7 @@ public final class Mth {
 
     public static boolean isPowerOfTwo(int value) { return value != 0 && (value & value - 1) == 0; }
 
-    private static final int[] MULTIPLY_DE_BRUIJN_BIT_POSITION = {0, 1, 28, 2, 29, 14, 24, 3, 30, 22, 20, 15, 25, 17, 4, 8, 31, 27, 13, 23, 21, 19, 16, 7, 26, 12, 18, 6, 11, 5, 10, 9};
+    private static final int[] LOG2_DEBRUIJN = {0, 1, 28, 2, 29, 14, 24, 3, 30, 22, 20, 15, 25, 17, 4, 8, 31, 27, 13, 23, 21, 19, 16, 7, 26, 12, 18, 6, 11, 5, 10, 9};
 
     /** 바닐라 Mth#smallestEncompassingPowerOfTwo. */
     public static int smallestEncompassingPowerOfTwo(int value) {
@@ -137,7 +147,7 @@ public final class Mth {
     /** 바닐라 Mth#ceillog2(드브루인 표 — 0 은 0). */
     public static int ceillog2(int value) {
         value = isPowerOfTwo(value) ? value : smallestEncompassingPowerOfTwo(value);
-        return MULTIPLY_DE_BRUIJN_BIT_POSITION[(int) ((long) value * 125613361L >> 27) & 31];
+        return LOG2_DEBRUIJN[(int) ((long) value * 125613361L >> 27) & 31];
     }
 
     /** 바닐라 Mth#log2. */
@@ -186,10 +196,251 @@ public final class Mth {
         return lerp(inverseLerp(value, inMin, inMax), outMin, outMax);
     }
 
-    /** 바닐라 Mth#getSeed: 위치로 만든 씨앗(옛 LCG 위치 난수의 바탕). */
+    // ---- 2026-11-24 영역 9: 순수 계산(바닐라 javap -c 대로) ----
+
+    public static boolean isMultipleOf(int number, int multiple) { return number % multiple == 0; }
+
+    public static double lengthSquared(double x, double y) { return x * x + y * y; }
+
+    public static double lengthSquared(double x, double y, double z) { return x * x + y * y + z * z; }
+
+    public static float lengthSquared(float x, float y, float z) { return x * x + y * y + z * z; }
+
+    public static double length(double x, double y) { return Math.sqrt(lengthSquared(x, y)); }
+
+    public static double length(double x, double y, double z) { return Math.sqrt(lengthSquared(x, y, z)); }
+
+    public static int floorDiv(int dividend, int divisor) { return Math.floorDiv(dividend, divisor); }
+
+    public static int positiveCeilDiv(int input, int divisor) { return -Math.floorDiv(-input, divisor); }
+
+    public static int roundToward(int input, int multiple) { return positiveCeilDiv(input, multiple) * multiple; }
+
+    public static int lerpInt(float delta, int start, int end) { return start + floor(delta * (float) (end - start)); }
+
+    public static int lerpDiscrete(float delta, int start, int end) {
+        int span = end - start;
+        return start + floor(delta * (float) (span - 1)) + (delta > 0.0F ? 1 : 0);
+    }
+
+    public static float approach(float value, float limit, float stepSize) {
+        stepSize = abs(stepSize);
+        return value < limit ? clamp(value + stepSize, value, limit) : clamp(value - stepSize, limit, value);
+    }
+
+    public static float approachDegrees(float value, float limit, float stepSize) {
+        float diff = degreesDifference(value, limit);
+        return approach(value, value + diff, stepSize);
+    }
+
+    public static float degreesDifferenceAbs(float from, float to) { return abs(degreesDifference(from, to)); }
+
+    public static float rotLerp(float delta, float start, float end) { return start + delta * wrapDegrees(end - start); }
+
+    public static double rotLerp(double delta, double start, double end) { return start + delta * wrapDegrees(end - start); }
+
+    public static float rotateIfNecessary(float rotating, float target, float maxDifference) {
+        float diff = degreesDifference(rotating, target);
+        float limited = clamp(diff, -maxDifference, maxDifference);
+        return target - limited;
+    }
+
+    public static float triangleWave(float input, float period) {
+        return (Math.abs(input % period - period * 0.5F) - period * 0.25F) / (period * 0.25F);
+    }
+
+    public static int murmurHash3Mixer(int input) {
+        input ^= input >>> 16;
+        input *= -2048144789;
+        input ^= input >>> 13;
+        input *= -1028477387;
+        return input ^ input >>> 16;
+    }
+
     public static long getSeed(int x, int y, int z) {
-        long l = (long) (x * 3129871) ^ (long) z * 116129781L ^ (long) y;
-        l = l * l * 42317861L + l * 11L;
-        return l >> 16;
+        long mixed = (long) (x * 3129871) ^ (long) z * 116129781L ^ (long) y;
+        mixed = mixed * mixed * 42317861L + mixed * 11L;
+        return mixed >> 16;
+    }
+
+    public static long getSeed(net.minecraft.core.Vec3i pos) { return getSeed(pos.getX(), pos.getY(), pos.getZ()); }
+
+    public static int quantize(double value, int factor) { return floor(value / (double) factor) * factor; }
+
+    public static int binarySearch(int min, int max, java.util.function.IntPredicate isTargetBeforeOrAt) {
+        int span = max - min;
+        while (span > 0) {
+            int half = span / 2;
+            int mid = min + half;
+            if (isTargetBeforeOrAt.test(mid)) {
+                span = half;
+            } else {
+                min = mid + 1;
+                span -= half + 1;
+            }
+        }
+        return min;
+    }
+
+    /** JOML {@code Math.invsqrt} 와 같은 식. */
+    public static float invSqrt(float x) { return 1.0F / (float) Math.sqrt(x); }
+
+    /** JOML {@code Math.invsqrt} 와 같은 식. */
+    public static double invSqrt(double x) { return 1.0 / Math.sqrt(x); }
+
+    public static double smoothstepDerivative(double x) { return 30.0 * x * x * (x - 1.0) * (x - 1.0); }
+
+    public static double wobble(double x) {
+        return x + (2.0 * RandomSource.create((long) floor(x * 3000.0)).nextDouble() - 1.0) * 1.0E-7 / 2.0;
+    }
+
+    public static double lerp2(double delta1, double delta2, double start1, double end1, double start2, double end2) {
+        return lerp(delta2, lerp(delta1, start1, end1), lerp(delta1, start2, end2));
+    }
+
+    public static float catmullrom(float delta, float controlPoint1, float controlPoint2, float controlPoint3, float controlPoint4) {
+        return 0.5F * (2.0F * controlPoint2 + (controlPoint3 - controlPoint1) * delta
+            + (2.0F * controlPoint1 - 5.0F * controlPoint2 + 4.0F * controlPoint3 - controlPoint4) * delta * delta
+            + (3.0F * controlPoint2 - controlPoint1 - 3.0F * controlPoint3 + controlPoint4) * delta * delta * delta);
+    }
+
+    public static int nextInt(RandomSource random, int min, int max) {
+        return min >= max ? min : random.nextInt(max - min + 1) + min;
+    }
+
+    public static float nextFloat(RandomSource random, float min, float max) {
+        return min >= max ? min : random.nextFloat() * (max - min) + min;
+    }
+
+    public static double nextDouble(RandomSource random, double min, double max) {
+        return min >= max ? min : random.nextDouble() * (max - min) + min;
+    }
+
+    public static float randomBetween(RandomSource random, float min, float max) { return random.nextFloat() * (max - min) + min; }
+
+    public static int randomBetweenInclusive(RandomSource random, int min, int max) { return random.nextInt(max - min + 1) + min; }
+
+    public static float normal(RandomSource random, float mean, float deviation) { return mean + (float) random.nextGaussian() * deviation; }
+
+    public static double fastInvSqrt(double x) {
+        double half = 0.5 * x;
+        long bits = Double.doubleToRawLongBits(x);
+        bits = 6910469410427058090L - (bits >> 1);
+        x = Double.longBitsToDouble(bits);
+        return x * (1.5 - half * x * x);
+    }
+
+    public static float fastInvCubeRoot(float x) {
+        int bits = Float.floatToIntBits(x);
+        bits = 1419967116 - bits / 3;
+        float guess = Float.intBitsToFloat(bits);
+        guess = 0.6666667F * guess + 1.0F / (3.0F * guess * guess * x);
+        return 0.6666667F * guess + 1.0F / (3.0F * guess * guess * x);
+    }
+
+    public static int getInt(String value, int defaultValue) {
+        if (value == null) return defaultValue;
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
+
+    public static int color(float r, float g, float b) { return argb(0, floor(r * 255.0F), floor(g * 255.0F), floor(b * 255.0F)); }
+
+    public static int hsvToRgb(float hue, float saturation, float value) { return hsvToArgb(hue, saturation, value, 0); }
+
+    public static int hsvToArgb(float hue, float saturation, float value, int alpha) {
+        int sector = (int) (hue * 6.0F) % 6;
+        float fraction = hue * 6.0F - (float) sector;
+        float low = value * (1.0F - saturation);
+        float falling = value * (1.0F - fraction * saturation);
+        float rising = value * (1.0F - (1.0F - fraction) * saturation);
+        float red;
+        float green;
+        float blue;
+        switch (sector) {
+            case 0 -> { red = value; green = rising; blue = low; }
+            case 1 -> { red = falling; green = value; blue = low; }
+            case 2 -> { red = low; green = value; blue = rising; }
+            case 3 -> { red = low; green = falling; blue = value; }
+            case 4 -> { red = rising; green = low; blue = value; }
+            case 5 -> { red = value; green = low; blue = falling; }
+            default -> throw new RuntimeException("hsv sector out of range for " + hue + ", " + saturation + ", " + value);
+        }
+        return argb(alpha, clamp((int) (red * 255.0F), 0, 255), clamp((int) (green * 255.0F), 0, 255), clamp((int) (blue * 255.0F), 0, 255));
+    }
+
+    /** 바닐라 {@code FastColor.ARGB32.color(a, r, g, b)}. */
+    private static int argb(int a, int r, int g, int b) { return a << 24 | r << 16 | g << 8 | b; }
+
+    public static double atan2(double y, double x) {
+        double lengthSq = x * x + y * y;
+        if (Double.isNaN(lengthSq)) return Double.NaN;
+        boolean negY = y < 0.0;
+        if (negY) y = -y;
+        boolean negX = x < 0.0;
+        if (negX) x = -x;
+        boolean steep = y > x;
+        if (steep) {
+            double swap = x;
+            x = y;
+            y = swap;
+        }
+        double inv = fastInvSqrt(lengthSq);
+        x *= inv;
+        y *= inv;
+        double biased = ATAN_BIAS + y;
+        int index = (int) Double.doubleToRawLongBits(biased);
+        double asin = ATAN_ASIN[index];
+        double cos = ATAN_COS[index];
+        double offset = biased - ATAN_BIAS;
+        double diff = y * cos - x * offset;
+        double correction = (6.0 + diff * diff) * diff * 0.16666666666666666;
+        double angle = asin + correction;
+        if (steep) angle = 1.5707963267948966 - angle;
+        if (negX) angle = 3.141592653589793 - angle;
+        if (negY) angle = -angle;
+        return angle;
+    }
+
+    public static java.util.UUID createInsecureUUID(RandomSource random) {
+        long most = random.nextLong() & -61441L | 16384L;
+        long least = random.nextLong() & 4611686018427387903L | Long.MIN_VALUE;
+        return new java.util.UUID(most, least);
+    }
+
+    public static java.util.stream.IntStream outFromOrigin(int origin, int lowerBound, int upperBound) {
+        return outFromOrigin(origin, lowerBound, upperBound, 1);
+    }
+
+    public static java.util.stream.IntStream outFromOrigin(int origin, int lowerBound, int upperBound, int steps) {
+        if (lowerBound > upperBound) {
+            throw new IllegalArgumentException(String.format(java.util.Locale.ROOT, "upperbound %d expected to be > lowerBound %d", upperBound, lowerBound));
+        }
+        if (steps < 1) {
+            throw new IllegalArgumentException(String.format(java.util.Locale.ROOT, "steps expected to be >= 1, was %d", steps));
+        }
+        if (origin < lowerBound || origin > upperBound) return java.util.stream.IntStream.empty();
+        return java.util.stream.IntStream.iterate(origin, v -> {
+            int dist = Math.abs(origin - v);
+            return origin - dist >= lowerBound || origin + dist <= upperBound;
+        }, v -> {
+            boolean below = v <= origin;
+            int dist = Math.abs(origin - v);
+            boolean upperFits = origin + dist + steps <= upperBound;
+            if (!below || !upperFits) {
+                int candidate = origin - dist - (below ? steps : 0);
+                if (candidate >= lowerBound) return candidate;
+            }
+            return origin + dist + steps;
+        });
+    }
+
+    /** 축 방향 회전 성분만 남긴 단위 쿼터니언(JOML 형식은 이 메서드가 불릴 때만 닿는다). */
+    public static org.joml.Quaternionf rotationAroundAxis(org.joml.Vector3f axis, org.joml.Quaternionf source, org.joml.Quaternionf result) {
+        float f = axis.dot(source.x, source.y, source.z);
+        return result.set(axis.x * f, axis.y * f, axis.z * f, source.w).normalize();
     }
 }

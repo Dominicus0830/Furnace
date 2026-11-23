@@ -12,3 +12,6 @@
 ## 남은 것 (다음 조각)
 - 이전 안 한 손 shim 9개: `Heightmap`·`Structure`·`StructureStart`·`StructureTemplateManager`·`Feature`·`ConfiguredFeature`·`PlacedFeature`(영역 5 region 소유 규칙·Holder/Registry 설계 — 엔티티 스레드 몫과 맞춰야 함), Furnace 전용 `FurnaceStructure`·`FurnaceFeature`(바닐라 이름이 아니라 명세 대상 아님).
 - `forkPositional()` 는 구현했다(`PositionalRandomFactory`·`LegacyPositionalRandomFactory`·`Mth.getSeed`) — 값은 Paper 서버 jar 에서 뽑은 기대값과 `LevelgenValueShimTest` 로 견준다. 크로소로 난수원(`XoroshiroRandomSource`)과 그 공장은 아직 없다.
+
+## 다음 묶음으로 미룬 것 (검토 권고)
+`XoroshiroRandomSource`·`ThreadSafeLegacyRandomSource` 의 `forkPositional`(와 그 공장)은 아직 없다 — 해당 난수원 shim 자체가 없어서 함께 만든다. `Mth.getSeed` 는 영역 9(PR 596)의 것을 쓴다.
