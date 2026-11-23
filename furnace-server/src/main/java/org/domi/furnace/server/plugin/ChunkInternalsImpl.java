@@ -1120,10 +1120,17 @@ final class ChunkInternalsImpl implements ChunkInternals {
 
     /** NMS 로 만든 엔티티 하나: 서버 엔티티를 만들고 기록한 조작을 차례로 재생한다. */
     private static org.domi.furnace.server.entity.Entity createNmsEntity(org.domi.furnace.server.block.ChunkLevel lv, String id, List<EntityOp> ops) {
-        var e = org.domi.furnace.server.entity.Entities.create(lv, id);
+        // 맨 앞 EntityRandom: 그 씨앗의 엔티티 난수로 만든다(월드 밖에서 칸을 미리 본 엔티티 — 생성자 난수 선택을 미리 본 것과 같게)
+        var e = !ops.isEmpty() && ops.get(0) instanceof EntityOp.EntityRandom r
+                ? org.domi.furnace.server.entity.Entity.withRandomSeed(r.seed(), () -> org.domi.furnace.server.entity.Entities.create(lv, id))
+                : org.domi.furnace.server.entity.Entities.create(lv, id);
         if (e == null) throw new IllegalArgumentException("entity type that cannot be created: " + id);
-        for (EntityOp op : ops) {
+        for (int i = 0; i < ops.size(); i++) {
+            EntityOp op = ops.get(i);
             switch (op) {
+                case EntityOp.EntityRandom r -> {
+                    if (i != 0) throw new IllegalArgumentException("EntityRandom must be the first op");
+                }
                 case EntityOp.Load l -> e.load((org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.freeze(ApiNbt.toServer(l.tag())));
                 case EntityOp.AbsMoveTo m -> e.absMoveTo(m.x(), m.y(), m.z(), m.yRot(), m.xRot());
                 case EntityOp.SetUuid u -> e.setUuid(u.uuid());

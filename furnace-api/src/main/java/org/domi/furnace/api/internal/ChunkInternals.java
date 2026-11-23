@@ -959,6 +959,13 @@ public interface ChunkInternals {
         record SetItemFrameRotation(int rotation) implements EntityOp {}
 
         /**
+         * 엔티티 난수의 씨앗(조작 목록의 맨 앞에만): 서버가 그 엔티티를 이 씨앗의 난수로 만든다. 바닐라 생성자의 난수 선택(좀비 주민 직업·UUID 등)이
+         * 씨앗에 달려, 월드 밖에서 칸을 미리 본 엔티티({@link #detachedEntityData})와 넣은 엔티티가 같은 선택을 한다(바닐라는 둘이 같은 객체다).
+         * 맨 앞이 아니면 IllegalArgumentException.
+         */
+        record EntityRandom(long seed) implements EntityOp {}
+
+        /**
          * 바닐라 {@code SynchedEntityData#set(accessor, value, force)}: 칸 하나에 쓰기(값이 다르거나 force 면 종류별 훅 — 크기·상자 등). 칸 번호·값 종류가 그 종류의
          * 배치와 다르면 IllegalArgumentException.
          */

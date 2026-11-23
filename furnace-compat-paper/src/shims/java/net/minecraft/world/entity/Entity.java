@@ -615,7 +615,13 @@ class Entity {
         org.domi.furnace.compat.nms.NmsEntityOwner.read(this, "Entity#getEntityData");
         Detached d = detached;
         if (d == null) throw worldEntityData("Entity#getEntityData");
-        if (d.data == null) d.data = org.domi.furnace.compat.nms.NmsEntityData.build(this, d.kind(), d.ops);
+        if (d.data == null) {
+            // 생성자 난수 선택(좀비 주민 직업 등)을 미리 본 칸과 넣은 엔티티가 같게: 엔티티 난수 씨앗을 정해 맨 앞에 둔다(바닐라 RandomSource.create() 처럼 씨앗 없는 난수)
+            if (d.ops.isEmpty() || !(d.ops.get(0) instanceof org.domi.furnace.api.internal.ChunkInternals.EntityOp.EntityRandom)) {
+                d.ops.add(0, new org.domi.furnace.api.internal.ChunkInternals.EntityOp.EntityRandom(java.util.concurrent.ThreadLocalRandom.current().nextLong()));
+            }
+            d.data = org.domi.furnace.compat.nms.NmsEntityData.build(this, d.kind(), d.ops);
+        }
         return d.data;
     }
 

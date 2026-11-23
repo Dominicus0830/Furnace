@@ -119,4 +119,20 @@ class EntityDataSlotsTest {
         assertThrows(IllegalArgumentException.class,
                 () -> BRIDGE.detachedEntityData("minecraft:slime", List.of(new EntityOp.SetData(40, Value.of(EntityDataType.INT, 4), true))), "없는 칸");
     }
+
+    /** 검토 조건: 미리 본 칸과 넣은 엔티티의 생성자 난수 선택(좀비 주민 직업)이 같다 — 같은 EntityRandom 씨앗이면 같은 엔티티 난수로 만든다. */
+    @Test
+    void entityRandomSeedFixesConstructorChoices() {
+        java.util.Set<Object> professions = new java.util.HashSet<>();
+        for (long seed = 1; seed <= 20; seed++) {
+            var ops = List.<EntityOp>of(new EntityOp.EntityRandom(seed));
+            Object a = BRIDGE.detachedEntityData("minecraft:zombie_villager", ops).get(20).value().asObject();
+            Object b = BRIDGE.detachedEntityData("minecraft:zombie_villager", ops).get(20).value().asObject();
+            assertEquals(a, b, "씨앗 " + seed);
+            professions.add(((org.domi.furnace.api.entity.data.VillagerData) a).profession());
+        }
+        assertTrue(professions.size() > 1, "씨앗에 따라 직업이 달라진다(씨앗이 실제로 쓰였다)");
+        assertThrows(IllegalArgumentException.class, () -> BRIDGE.detachedEntityData("minecraft:zombie_villager",
+                List.of(new EntityOp.AbsMoveTo(0, 0, 0, 0, 0), new EntityOp.EntityRandom(1))), "맨 앞에만");
+    }
 }
