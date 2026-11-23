@@ -11,7 +11,7 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
  */
 public class AABB {
 
-    private static final double EPSILON = 1.0E-7;
+    private static final double SLACK = 1.0E-7;
     public final double minX;
     public final double minY;
     public final double minZ;
@@ -160,7 +160,7 @@ public class AABB {
         double dx = to.x - from.x;
         double dy = to.y - from.y;
         double dz = to.z - from.z;
-        Direction dir = getDirection(this, from, t, null, dx, dy, dz);
+        Direction dir = pickHitFace(this, from, t, null, dx, dy, dz);
         if (dir == null) return java.util.Optional.empty();
         double d = t[0];
         return java.util.Optional.of(from.add(d * dx, d * dy, d * dz));
@@ -172,41 +172,41 @@ public class AABB {
         double dx = to.x - from.x;
         double dy = to.y - from.y;
         double dz = to.z - from.z;
-        for (AABB box : boxes) dir = getDirection(box.move(pos), from, t, dir, dx, dy, dz);
+        for (AABB box : boxes) dir = pickHitFace(box.move(pos), from, t, dir, dx, dy, dz);
         if (dir == null) return null;
         double d = t[0];
         return new BlockHitResult(from.add(d * dx, d * dy, d * dz), dir, pos, false);
     }
 
-    private static Direction getDirection(AABB box, Vec3 from, double[] t, Direction dir, double dx, double dy, double dz) {
+    private static Direction pickHitFace(AABB box, Vec3 from, double[] t, Direction dir, double dx, double dy, double dz) {
         if (dx > 1.0E-7) {
-            dir = clipPoint(t, dir, dx, dy, dz, box.minX, box.minY, box.maxY, box.minZ, box.maxZ, Direction.WEST, from.x, from.y, from.z);
+            dir = tryPlane(t, dir, dx, dy, dz, box.minX, box.minY, box.maxY, box.minZ, box.maxZ, Direction.WEST, from.x, from.y, from.z);
         } else if (dx < -1.0E-7) {
-            dir = clipPoint(t, dir, dx, dy, dz, box.maxX, box.minY, box.maxY, box.minZ, box.maxZ, Direction.EAST, from.x, from.y, from.z);
+            dir = tryPlane(t, dir, dx, dy, dz, box.maxX, box.minY, box.maxY, box.minZ, box.maxZ, Direction.EAST, from.x, from.y, from.z);
         }
         if (dy > 1.0E-7) {
-            dir = clipPoint(t, dir, dy, dz, dx, box.minY, box.minZ, box.maxZ, box.minX, box.maxX, Direction.DOWN, from.y, from.z, from.x);
+            dir = tryPlane(t, dir, dy, dz, dx, box.minY, box.minZ, box.maxZ, box.minX, box.maxX, Direction.DOWN, from.y, from.z, from.x);
         } else if (dy < -1.0E-7) {
-            dir = clipPoint(t, dir, dy, dz, dx, box.maxY, box.minZ, box.maxZ, box.minX, box.maxX, Direction.UP, from.y, from.z, from.x);
+            dir = tryPlane(t, dir, dy, dz, dx, box.maxY, box.minZ, box.maxZ, box.minX, box.maxX, Direction.UP, from.y, from.z, from.x);
         }
         if (dz > 1.0E-7) {
-            dir = clipPoint(t, dir, dz, dx, dy, box.minZ, box.minX, box.maxX, box.minY, box.maxY, Direction.NORTH, from.z, from.x, from.y);
+            dir = tryPlane(t, dir, dz, dx, dy, box.minZ, box.minX, box.maxX, box.minY, box.maxY, Direction.NORTH, from.z, from.x, from.y);
         } else if (dz < -1.0E-7) {
-            dir = clipPoint(t, dir, dz, dx, dy, box.maxZ, box.minX, box.maxX, box.minY, box.maxY, Direction.SOUTH, from.z, from.x, from.y);
+            dir = tryPlane(t, dir, dz, dx, dy, box.maxZ, box.minX, box.maxX, box.minY, box.maxY, Direction.SOUTH, from.z, from.x, from.y);
         }
         return dir;
     }
 
-    private static Direction clipPoint(double[] t, Direction dir, double d, double e, double f, double g, double h, double i, double j, double k,
-            Direction hit, double l, double m, double n) {
-        double o = (g - l) / d;
-        double p = m + o * e;
-        double q = n + o * f;
-        if (0.0 < o && o < t[0] && h - 1.0E-7 < p && p < i + 1.0E-7 && j - 1.0E-7 < q && q < k + 1.0E-7) {
-            t[0] = o;
-            return hit;
+    private static Direction tryPlane(double[] best, Direction current, double along, double u, double v, double planePos, double uMin, double uMax,
+            double vMin, double vMax, Direction face, double fromAlong, double fromU, double fromV) {
+        double t = (planePos - fromAlong) / along;
+        double hitU = fromU + t * u;
+        double hitV = fromV + t * v;
+        if (0.0 < t && t < best[0] && uMin - SLACK < hitU && hitU < uMax + SLACK && vMin - SLACK < hitV && hitV < vMax + SLACK) {
+            best[0] = t;
+            return face;
         }
-        return dir;
+        return current;
     }
 
     public double distanceToSqr(Vec3 v) {
