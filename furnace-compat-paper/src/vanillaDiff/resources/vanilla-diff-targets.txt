@@ -17,6 +17,9 @@
 class net.minecraft.util.Mth
   exclude binarySearch(int,int,java.util.function.IntPredicate)  # IntPredicate 입력을 못 만든다 — MthVanillaValuesTest(tools/compat/mth-values)가 바닐라 값과 견준다
   exclude rotationAroundAxis(org.joml.Vector3f,org.joml.Quaternionf,org.joml.Quaternionf)  # JOML 입력을 못 만든다 — MthVanillaValuesTest 가 바닐라 값과 견준다
+  exclude X_AXIS  # JOML 형식 필드를 못 견준다 — MthVanillaValuesTest(e.axes 줄)가 바닐라 값과 견준다
+  exclude Y_AXIS  # JOML 형식 필드를 못 견준다 — MthVanillaValuesTest(e.axes 줄)가 바닐라 값과 견준다
+  exclude Z_AXIS  # JOML 형식 필드를 못 견준다 — MthVanillaValuesTest(e.axes 줄)가 바닐라 값과 견준다
 class net.minecraft.core.Vec3i
 class net.minecraft.core.BlockPos
 class net.minecraft.core.BlockPos$MutableBlockPos

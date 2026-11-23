@@ -6,7 +6,7 @@ package net.minecraft.util;
  * 정수 {@code clamp} 의 {@code Math.min(Math.max(..))} 순서, {@code sin}/{@code cos} 의 65536 칸 표({@code (float)Math.sin(i·2π/65536)})와 10430.378 배율.
  *
  * <p>2026-11-24(영역 9): 난수 도우미·길이·보간·{@code atan2}·{@code fastInvSqrt} 계열·색·해시 등 순수 계산을 바닐라 {@code javap -c} 로 읽어 더했다.
- * 아직 없는 것: 광선-상자 교차(AABB)·{@code X_AXIS} 류(JOML 필드는 이 클래스 초기화에 넣으면 JOML 이 없는 서버에서 Mth 전체가 죽는다)·{@code RANDOM}·인자 없는 {@code createInsecureUUID}·
+ * 아직 없는 것: 광선-상자 교차(AABB)·{@code RANDOM}·인자 없는 {@code createInsecureUUID}·
  * {@code mulAndTruncate}(commons-lang3) 는 껍데기가 맡는다(없는 멤버를 부르면 던진다 — 값을 지어내지 않는다).
  */
 public final class Mth {
@@ -18,6 +18,11 @@ public final class Mth {
     public static final float RAD_TO_DEG = 57.295776F;
     public static final float EPSILON = 1.0E-5F;
     public static final float SQRT_OF_TWO = sqrt(2.0F);
+
+    /** JOML 은 서버 jar 에 늘 실린다(PR 597) — 이 필드가 초기화에서 JOML 형식에 닿아도 Mth 가 죽지 않는다. */
+    public static final org.joml.Vector3f Y_AXIS = new org.joml.Vector3f(0.0F, 1.0F, 0.0F);
+    public static final org.joml.Vector3f X_AXIS = new org.joml.Vector3f(1.0F, 0.0F, 0.0F);
+    public static final org.joml.Vector3f Z_AXIS = new org.joml.Vector3f(0.0F, 0.0F, 1.0F);
 
     private static final float TRIG_SCALE = 10430.378F;
     private static final float[] TRIG_TABLE = new float[65536];
