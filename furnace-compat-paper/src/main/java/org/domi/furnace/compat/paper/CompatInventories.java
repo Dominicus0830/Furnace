@@ -4,6 +4,15 @@
 // 비었거나 같은 아이템이면 받는 것으로 본다.
 package org.domi.furnace.compat.paper;
 
+import org.bukkit.craftbukkit.inventory.CraftInventoryAnvil;
+import org.bukkit.craftbukkit.inventory.CraftInventoryBrewer;
+import org.bukkit.craftbukkit.inventory.CraftInventoryCrafting;
+import org.bukkit.craftbukkit.inventory.CraftInventoryEnchanting;
+import org.bukkit.craftbukkit.inventory.CraftInventoryFurnace;
+import org.bukkit.craftbukkit.inventory.CraftInventoryView;
+import org.bukkit.craftbukkit.inventory.view.CraftAnvilView;
+import org.bukkit.craftbukkit.inventory.view.CraftEnchantmentView;
+
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -28,7 +37,7 @@ public final class CompatInventories {
     // ------------------------------------------------------------------ 창
 
     /** 이벤트의 창. 플러그인 메뉴면 그 메뉴의 인벤토리를 위쪽에 둔다. */
-    static CompatInventoryView view(org.domi.furnace.api.entity.Player fp, InventorySnapshot snap, org.domi.furnace.api.menu.Menu menu, ItemStack cursor) {
+    static CraftInventoryView view(org.domi.furnace.api.entity.Player fp, InventorySnapshot snap, org.domi.furnace.api.menu.Menu menu, ItemStack cursor) {
         return view(fp, snap, menu, cursor, Extras.NONE);
     }
 
@@ -38,11 +47,11 @@ public final class CompatInventories {
         static final Extras NONE = new Extras(null, false, null, null, null);
     }
 
-    static CompatInventoryView view(org.domi.furnace.api.entity.Player fp, InventorySnapshot snap, org.domi.furnace.api.menu.Menu menu, ItemStack cursor,
+    static CraftInventoryView view(org.domi.furnace.api.entity.Player fp, InventorySnapshot snap, org.domi.furnace.api.menu.Menu menu, ItemStack cursor,
                                     Extras extras) {
         CraftPlayer p = (CraftPlayer) Compat.player(fp);
         CraftInventoryCustom own = CraftInventoryCustom.of(menu);
-        if (own != null) return new CompatInventoryView(p, own, own.getType(), own.titleText(), cursor);
+        if (own != null) return new CraftInventoryView(p, own, own.getType(), own.titleText(), cursor);
         InventoryType type = menu != null ? menuType(menu.type()) : type(snap.type(), snap.size());
         int top = topSize(snap.type(), snap.size());
         java.util.List<ItemStack> contents = new java.util.ArrayList<>(snap.contents().subList(0, Math.min(top, snap.size())));
@@ -52,40 +61,40 @@ public final class CompatInventories {
     }
 
     /** 종류에 맞는 위쪽 인벤토리(제작·모루·양조·마법 부여는 Bukkit 하위 인벤토리)와 창. contents 가 null 이면 내용을 모른다. */
-    private static CompatInventoryView typedView(CraftPlayer p, InventoryType type, java.util.List<ItemStack> contents, int top, String key, String title,
+    private static CraftInventoryView typedView(CraftPlayer p, InventoryType type, java.util.List<ItemStack> contents, int top, String key, String title,
                                                  ItemStack cursor, Extras extras) {
         switch (type) {
             case WORKBENCH, CRAFTING -> {
                 java.util.function.IntPredicate writable = extras.resultWritable() ? i -> i == 0 : i -> false;
-                return new CompatInventoryView(p, new EventInventories.Crafting(type, contents, top, key, writable, extras.recipe()), type, title, cursor);
+                return new CraftInventoryView(p, new CraftInventoryCrafting(SnapshotInventory.slots(key, contents, top, writable), type, extras.recipe()), type, title, cursor);
             }
             case ANVIL -> {
-                return new CompatInventoryView.Anvil(p, new EventInventories.Anvil(contents, top, key, extras.anvil()), title, cursor);
+                return new CraftAnvilView(p, new CraftInventoryAnvil(SnapshotInventory.slots(key, contents, top), extras.anvil()), title, cursor);
             }
             case ENCHANTING -> {
-                return new CompatInventoryView.Enchantment(p, new EventInventories.Enchanting(contents, top, key), title, cursor, extras.offers());
+                return new CraftEnchantmentView(p, new CraftInventoryEnchanting(SnapshotInventory.slots(key, contents, top)), title, cursor, extras.offers());
             }
             case BREWING -> {
-                return new CompatInventoryView(p, new EventInventories.Brewer(contents, top, key, null), type, title, cursor);
+                return new CraftInventoryView(p, new CraftInventoryBrewer(SnapshotInventory.slots(key, contents, top), () -> null), type, title, cursor);
             }
             case FURNACE, BLAST_FURNACE, SMOKER -> {
-                return new CompatInventoryView(p, new EventInventories.Furnace(type, contents, top, key, null), type, title, cursor);
+                return new CraftInventoryView(p, new CraftInventoryFurnace(SnapshotInventory.slots(key, contents, top), type, BlockInventories.cookingKind(type), () -> null), type, title, cursor);
             }
             default -> {
-                return new CompatInventoryView(p, new SnapshotInventory(type, contents, top, key), type, title, cursor);
+                return new CraftInventoryView(p, SnapshotInventory.of(type, contents, top, key), type, title, cursor);
             }
         }
     }
 
     /** 이벤트 밖(getOpenInventory): 지금 열린 화면. 플러그인 메뉴가 아니면 위쪽 칸 내용은 모른다. */
-    public static CompatInventoryView openView(CraftPlayer p) {
+    public static CraftInventoryView openView(CraftPlayer p) {
         var fp = p.furnaceHandle();
         var menu = fp.currentMenu();
         CraftInventoryCustom own = CraftInventoryCustom.of(menu);
-        if (own != null) return new CompatInventoryView(p, own, own.getType(), own.titleText(), null);
+        if (own != null) return new CraftInventoryView(p, own, own.getType(), own.titleText(), null);
         if (menu != null) {
             InventoryType t = menuType(menu.type());
-            return new CompatInventoryView(p, new SnapshotInventory(t, null, menu.size(), menu.type().key()), t, Compat.legacy(menu.title()), null);
+            return new CraftInventoryView(p, SnapshotInventory.of(t, null, menu.size(), menu.type().key()), t, Compat.legacy(menu.title()), null);
         }
         String key = fp.openContainerType();
         if (key == null) key = "minecraft:player";
