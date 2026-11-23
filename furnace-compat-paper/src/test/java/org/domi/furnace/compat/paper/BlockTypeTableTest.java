@@ -119,8 +119,8 @@ class BlockTypeTableTest {
         var dim = "minecraft:overworld";
         var stairs = new org.domi.furnace.api.world.BlockData("minecraft:oak_stairs", java.util.Map.of("facing", "east"));
         server.onRegion(pos, () -> {
-            assertEquals(Material.OAK_STAIRS, CompatBlockState.of(dim, pos, stairs).getType());
-            assertEquals(Material.OAK_STAIRS, CompatBlock.showing(dim, pos, stairs).getType());
+            assertEquals(Material.OAK_STAIRS, BlockStateSnapshots.of(dim, pos, stairs).getType());
+            assertEquals(Material.OAK_STAIRS, CraftAccess.blockShowing(dim, pos, stairs).getType());
             return null;
         });
         assertEquals(Material.STONE, new CompatBlockData(new org.domi.furnace.api.world.BlockData("minecraft:STONE", java.util.Map.of()), null).getMaterial());

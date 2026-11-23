@@ -26,7 +26,6 @@ extra org/bukkit/craftbukkit/CraftServer$OnlineView$Wrapped
 extra org/bukkit/craftbukkit/CraftServer$WorldsView
 extra org/bukkit/craftbukkit/inventory/CraftItemStack$Mirror
 interfaces org/bukkit/craftbukkit/CraftOfflinePlayer paper-only=org/bukkit/configuration/serialization/ConfigurationSerializable furnace-only=
-interfaces org/bukkit/craftbukkit/block/CraftBlock paper-only=org/bukkit/block/Block furnace-only=
 interfaces org/bukkit/craftbukkit/block/CraftCommandBlock paper-only=io/papermc/paper/commands/PaperCommandBlockHolder furnace-only=
 interfaces org/bukkit/craftbukkit/block/CraftCreatureSpawner paper-only=org/bukkit/craftbukkit/spawner/PaperSharedSpawnerLogic furnace-only=
 interfaces org/bukkit/craftbukkit/block/CraftEndPortal paper-only= furnace-only=org/bukkit/block/TileState
@@ -67,8 +66,5 @@ interfaces org/bukkit/craftbukkit/map/CraftMapView paper-only=org/bukkit/map/Map
 interfaces org/bukkit/craftbukkit/persistence/CraftPersistentDataContainer paper-only=org/bukkit/persistence/PersistentDataContainer furnace-only=
 interfaces org/bukkit/craftbukkit/profile/CraftPlayerProfile paper-only=com/destroystokyo/paper/profile/PlayerProfile furnace-only=
 super org/bukkit/craftbukkit/CraftWorld paper=org/bukkit/craftbukkit/CraftRegionAccessor furnace=java/lang/Object
-super org/bukkit/craftbukkit/block/CapturedBlockState paper=org/bukkit/craftbukkit/block/CraftBlockState furnace=org/domi/furnace/compat/paper/CompatBlockState
-super org/bukkit/craftbukkit/block/CraftBlock paper=java/lang/Object furnace=org/domi/furnace/compat/paper/CompatBlock
-super org/bukkit/craftbukkit/block/CraftBlockEntityState paper=org/bukkit/craftbukkit/block/CraftBlockState furnace=org/domi/furnace/compat/paper/CompatBlockState
 super org/bukkit/craftbukkit/map/CraftMapRenderer paper=org/bukkit/map/MapRenderer furnace=java/lang/Object
 super org/bukkit/craftbukkit/persistence/CraftPersistentDataContainer paper=io/papermc/paper/persistence/PaperPersistentDataContainerView furnace=org/domi/furnace/compat/paper/LivePdc
