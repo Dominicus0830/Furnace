@@ -1119,11 +1119,18 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     /** NMS 로 만든 엔티티 하나: 서버 엔티티를 만들고 기록한 조작을 차례로 재생한다. */
-    private static org.domi.furnace.server.entity.Entity createNmsEntity(RegionLevel lv, String id, List<EntityOp> ops) {
-        var e = org.domi.furnace.server.entity.Entities.create(lv, id);
+    private static org.domi.furnace.server.entity.Entity createNmsEntity(org.domi.furnace.server.block.ChunkLevel lv, String id, List<EntityOp> ops) {
+        // 맨 앞 EntityRandom: 그 씨앗의 엔티티 난수로 만든다(월드 밖에서 칸을 미리 본 엔티티 — 생성자 난수 선택을 미리 본 것과 같게)
+        var e = !ops.isEmpty() && ops.get(0) instanceof EntityOp.EntityRandom r
+                ? org.domi.furnace.server.entity.Entity.withRandomSeed(r.seed(), () -> org.domi.furnace.server.entity.Entities.create(lv, id))
+                : org.domi.furnace.server.entity.Entities.create(lv, id);
         if (e == null) throw new IllegalArgumentException("entity type that cannot be created: " + id);
-        for (EntityOp op : ops) {
+        for (int i = 0; i < ops.size(); i++) {
+            EntityOp op = ops.get(i);
             switch (op) {
+                case EntityOp.EntityRandom r -> {
+                    if (i != 0) throw new IllegalArgumentException("EntityRandom must be the first op");
+                }
                 case EntityOp.Load l -> e.load((org.domi.furnace.server.net.io.nbt.NbtCompound) org.domi.furnace.server.net.io.nbt.NbtTags.freeze(ApiNbt.toServer(l.tag())));
                 case EntityOp.AbsMoveTo m -> e.absMoveTo(m.x(), m.y(), m.z(), m.yRot(), m.xRot());
                 case EntityOp.SetUuid u -> e.setUuid(u.uuid());
@@ -1137,9 +1144,64 @@ final class ChunkInternalsImpl implements ChunkInternals {
                 case EntityEdit.SetFlag f -> applySetter(e, f);
                 case EntityEdit.SetCustomName n -> applySetter(e, n);
                 case EntityEdit.SetTicksFrozen t -> applySetter(e, t);
+                case EntityOp.SetData d -> setData(e, id, d);
             }
         }
         return e;
+    }
+
+    /** 바닐라 SynchedEntityData#set: 칸 번호·값 종류를 그 종류의 배치로 확인하고 서버 칸에 쓴다(값이 바뀌면 종류별 훅). */
+    private static void setData(org.domi.furnace.server.entity.Entity e, String kind, EntityOp.SetData d) {
+        var layout = org.domi.furnace.server.plugin.packet.EntityData767.layout(kind);
+        var type = d.value().dataType();
+        if (layout == null || d.index() < 0 || d.index() >= layout.length || layout[d.index()] != type) {
+            throw new IllegalArgumentException(kind + " has no data slot " + d.index() + " of value kind " + (type == null ? null : type.name()));
+        }
+        e.entityData().set(d.index(), entityData().toServer(d.value()), d.force());
+    }
+
+    /** 서버 칸 값 ↔ API 값 변환(블록·아이템 레지스트리는 리소스에서 읽은 1.21.1 표). */
+    private static org.domi.furnace.server.plugin.packet.EntityData767 entityData() {
+        return ENTITY_DATA.get();
+    }
+
+    private static final java.util.function.Supplier<org.domi.furnace.server.plugin.packet.EntityData767> ENTITY_DATA = new java.util.function.Supplier<>() {
+        private volatile org.domi.furnace.server.plugin.packet.EntityData767 v;
+
+        @Override
+        public org.domi.furnace.server.plugin.packet.EntityData767 get() {
+            var x = v;
+            if (x == null) v = x = new org.domi.furnace.server.plugin.packet.ProtocolTable(() -> null, () -> null).entityData();
+            return x;
+        }
+    };
+
+    @Override
+    public List<EntityDataSlot> entityDataDefaults(String kind) {
+        String k = kind.indexOf(':') < 0 ? "minecraft:" + kind : kind;
+        List<EntityDataSlot> l = DEFAULTS.get(k);
+        if (l == null) {
+            l = detachedEntityData(k, List.of());
+            List<EntityDataSlot> prev = DEFAULTS.putIfAbsent(k, l);
+            if (prev != null) l = prev;
+        }
+        return l;
+    }
+
+    private static final java.util.Map<String, List<EntityDataSlot>> DEFAULTS = new java.util.concurrent.ConcurrentHashMap<>();
+
+    @Override
+    public List<EntityDataSlot> detachedEntityData(String kind, List<EntityOp> ops) {
+        String k = kind.indexOf(':') < 0 ? "minecraft:" + kind : kind;
+        // 빈 레벨: 청크·저장·방송 없음, 엔티티 번호는 그 안에서만 센다(전역 번호 발급기·월드 난수를 건드리지 않는다)
+        var e = createNmsEntity(new org.domi.furnace.server.entity.SandboxLevel(), k, ops);
+        var d = e.entityData();
+        var conv = entityData();
+        List<EntityDataSlot> out = new java.util.ArrayList<>(d.size());
+        for (int i = 0; i < d.size(); i++) {
+            out.add(new EntityDataSlot(i, conv.toApi(d.serializer(i), d.defaultValue(i)), conv.toApi(d.serializer(i), d.get(i)), d.dirty(i)));
+        }
+        return List.copyOf(out);
     }
 
     @Override

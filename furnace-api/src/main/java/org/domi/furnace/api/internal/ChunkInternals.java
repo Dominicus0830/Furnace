@@ -562,6 +562,28 @@ public interface ChunkInternals {
     default void entityRemoveNow(org.domi.furnace.api.entity.Entity entity, String reason) { throw new UnsupportedOperationException("entityRemoveNow"); }
 
     /**
+     * 그 종류(바닐라 이름, 예: minecraft:cat)의 바닐라 처음 칸 값, 칸 번호 순(엔티티 데이터 설계 3.1) — {@link #detachedEntityData}(kind, 빈 목록)와 같고
+     * 종류마다 한 번 만들어 둔다. 아무 스레드. 서버가 만들 수 없는 종류(플레이어·낚시찌 외 공장 없는 종류)는 IllegalArgumentException.
+     */
+    default java.util.List<EntityDataSlot> entityDataDefaults(String kind) { throw new UnsupportedOperationException("entityDataDefaults"); }
+
+    /**
+     * 아직 월드에 없는 NMS 엔티티의 칸(엔티티 데이터 설계 3.2): 서버가 어느 월드에도 속하지 않은 빈 레벨에서 그 종류를 만들어 ops 를
+     * {@link #addNmsEntityNow} 와 같은 길로 차례로 재생한 뒤 칸을 읽고 버린다. 서버 엔티티 정의 한 곳만 정답이다(로드한 태그·setter 의 칸 효과 포함).
+     * 전역 엔티티 번호·월드 난수를 쓰지 않는다. 아무 스레드. 만들 수 없는 종류는 IllegalArgumentException.
+     */
+    default java.util.List<EntityDataSlot> detachedEntityData(String kind, java.util.List<EntityOp> ops) {
+        throw new UnsupportedOperationException("detachedEntityData");
+    }
+
+    /**
+     * 칸 하나: 바닐라 {@code DataItem} 의 initialValue(defineSynchedData 값 — getNonDefaultValues 의 기준), value(지금 값), dirty(packDirty 가 보낼 것).
+     * 생성자가 엔티티 난수로 고르는 칸(좀비 주민 직업)은 서버가 그 엔티티 하나에서 고른 값이다(바닐라도 생성마다 다르다).
+     */
+    record EntityDataSlot(int index, org.domi.furnace.api.packet.clientbound.ClientboundSetEntityDataPacket.Value definedValue,
+                          org.domi.furnace.api.packet.clientbound.ClientboundSetEntityDataPacket.Value value, boolean dirty) {}
+
+    /**
      * 칸 (x, z) 의 주인 스레드(전역 빌림 포함). NMS 로 만든 엔티티(바닐라 {@code EntityType#create} 뒤 아직 월드에 없는 것)를 서버 엔티티로 만들어
      * ops 를 차례로 재생(바닐라 {@code Entity#load}·{@code absMoveTo}·{@code setUUID})하고, spawnReason(Bukkit 이름, null 이면 서버 기본)을 붙여 월드에 넣는다.
      * fireEvents 면 Paper {@code ServerLevel#addFreshEntity(entity, reason)} — 스폰 이벤트를 내고, 빈 아이템 엔티티는 넣지 않는다. 아니면 Paper
@@ -935,6 +957,19 @@ public interface ChunkInternals {
 
         /** 바닐라 {@code ItemFrame#setRotation(int)}(액자만). */
         record SetItemFrameRotation(int rotation) implements EntityOp {}
+
+        /**
+         * 엔티티 난수의 씨앗(조작 목록의 맨 앞에만): 서버가 그 엔티티를 이 씨앗의 난수로 만든다. 바닐라 생성자의 난수 선택(좀비 주민 직업·UUID 등)이
+         * 씨앗에 달려, 월드 밖에서 칸을 미리 본 엔티티({@link #detachedEntityData})와 넣은 엔티티가 같은 선택을 한다(바닐라는 둘이 같은 객체다).
+         * 맨 앞이 아니면 IllegalArgumentException.
+         */
+        record EntityRandom(long seed) implements EntityOp {}
+
+        /**
+         * 바닐라 {@code SynchedEntityData#set(accessor, value, force)}: 칸 하나에 쓰기(값이 다르거나 force 면 종류별 훅 — 크기·상자 등). 칸 번호·값 종류가 그 종류의
+         * 배치와 다르면 IllegalArgumentException.
+         */
+        record SetData(int index, org.domi.furnace.api.packet.clientbound.ClientboundSetEntityDataPacket.Value value, boolean force) implements EntityOp {}
     }
 
     /**
