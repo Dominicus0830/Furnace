@@ -447,12 +447,14 @@ val generateFullShells by tasks.registering(JavaExec::class) {
     val writeFp = providers.gradleProperty("fullShellsFpWrite").isPresent
     argumentProviders.add(CommandLineArgumentProvider {
         listOf(fullShellsDir.get().asFile.absolutePath, fullShellsReport.get().asFile.absolutePath, fullShellsFp.asFile.absolutePath, writeFp.toString(),
-            (main.runtimeClasspath.files + fullShellsServerLibs.files).joinToString(File.pathSeparator) { it.absolutePath }) + fullShellsTables + fullShellsLibs
+            (main.runtimeClasspath.files + fullShellsServerLibs.files).joinToString(File.pathSeparator) { it.absolutePath }) + fullShellsTables + fullShellsLibs +
+            // T-261: 호환 jar 자신의 클래스 — 그 안의 범위 클래스에 빠진 멤버를 합쳐 껍데기 jar 에 같은 이름으로 넣는다(서버는 껍데기 jar 를 앞에 둔다)
+            main.output.classesDirs.files.joinToString(File.pathSeparator) { it.absolutePath }
     })
 }
 val fullShellsJar by tasks.registering(Jar::class) {
     group = "build"
-    description = "전체 껍데기 jar(furnace-compat-shells.jar) — 서버 fatJar 가 호환 jar 뒤에 싣는다(T-260)"
+    description = "전체 껍데기 jar(furnace-compat-shells.jar) — 서버가 호환 jar 앞에 싣는다(T-260 껍데기 + T-261 빠진 멤버를 합친 손 shim)"
     from(generateFullShells.map { fullShellsDir.get() })
     archiveFileName = "furnace-compat-shells.jar"
     destinationDirectory = layout.buildDirectory.dir("full-shells")
@@ -478,11 +480,13 @@ tasks.register<Test>("fullShellsTest") {
     systemProperty("furnace.fullShells.jar", layout.buildDirectory.file("full-shells/furnace-compat-shells.jar").get().asFile.absolutePath)
     systemProperty("furnace.fullShells.report", layout.buildDirectory.file("full-shells/load-report.md").get().asFile.absolutePath)
     dependsOn(tasks.jar)
-    // 실제 실행과 같은 모양의 따로 된 로더: 호환 jar → 껍데기 jar → 호환 실행 의존 → 서버 제공 라이브러리 → 바닐라 라이브러리(부모는 플랫폼 로더)
+    // T-261: 껍데기 jar 가 앞이므로 합친 목록 밖 이름이 호환 jar 에도 있으면 손 shim 이 조용히 가려진다 — 시험이 막는다
+    jvmArgumentProviders.add(CommandLineArgumentProvider { listOf("-Dfurnace.fullShells.compatJar=" + tasks.jar.get().archiveFile.get().asFile.absolutePath) })
+    // 실제 실행과 같은 모양의 따로 된 로더: 껍데기 jar(합친 손 shim 이 이긴다, T-261) → 호환 jar → 호환 실행 의존 → 서버 제공 라이브러리 → 바닐라 라이브러리(부모는 플랫폼 로더)
     jvmArgumentProviders.add(CommandLineArgumentProvider {
         // 바닐라의 log4j→slf4j 백엔드(log4j-slf4j2-impl)는 Furnace 가 싣지 않는다 — 서버 제공 log4j-to-slf4j 와 함께 있으면 로그 초기화가 실패한다
         val libs = fileTree(fullShellsLibs) { include("**/*.jar"); exclude("**/log4j-slf4j2-impl-*.jar") }.files.sorted()
-        val cp = listOf(tasks.jar.get().archiveFile.get().asFile, fullShellsJar.get().archiveFile.get().asFile) +
+        val cp = listOf(fullShellsJar.get().archiveFile.get().asFile, tasks.jar.get().archiveFile.get().asFile) +
             fullShellsMain.runtimeClasspath.files.filter { it.isFile } + fullShellsServerLibs.files + libs
         listOf("-Dfurnace.fullShells.classpath=" + cp.joinToString(File.pathSeparator) { it.absolutePath })
     })

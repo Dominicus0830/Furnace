@@ -82,7 +82,8 @@ public final class FullShells {
     /**
      * args: 출력 클래스 폴더, 보고서 파일, 지문 파일(커밋된 것), 지문 쓰기(true/false), 이미 있는 클래스 경로(경로 구분자로 여럿 — 폴더·jar),
      * Paper 서버 서명표, 바닐라 서명표, paper-api 서명표, 바닐라 라이브러리 jar 폴더(vanilla-extract 캐시의 work/libs — DFU·brigadier·Guava·netty 등,
-     * Paper 처럼 서버 라이브러리로 실행 때 있다).
+     * Paper 처럼 서버 라이브러리로 실행 때 있다), [선택] 합칠 클래스 폴더(호환 jar 자신의 클래스 폴더, 경로 구분자로 여럿 — T-261: 그 안의 범위 클래스에
+     * 빠진 멤버를 껍데기 멤버로 덧붙여 같은 이름으로 함께 낸다).
      */
     public static void main(String[] args) throws IOException {
         Path out = Path.of(args[0]);
@@ -118,15 +119,36 @@ public final class FullShells {
         SigTable vanilla = SigTable.read(vanillaTable);
         FullShells g = new FullShells(paper, vanilla, SigTable.read(apiTable), new Existing(existingRoots));
         Map<String, byte[]> classes = g.generate();
+        ShellMerge merge = null;
+        if (args.length > 9 && !args[9].isBlank()) {
+            Set<String> overlay = new HashSet<>();
+            for (String p : args[9].split(java.io.File.pathSeparator)) if (!p.isBlank()) overlay.addAll(Existing.classesIn(Path.of(p)));
+            merge = new ShellMerge(g, overlay);
+            classes.putAll(merge.merge());
+        }
         deleteTree(out);
         for (Map.Entry<String, byte[]> e : classes.entrySet()) {
             Path p = out.resolve(e.getKey() + ".class");
             Files.createDirectories(p.getParent());
             Files.write(p, e.getValue());
         }
+        if (merge != null) {
+            write(out.resolve(ShellMerge.INSTANCE_FIELDS), String.join("\n", merge.instanceFields) + "\n");
+            List<String> merged = new ArrayList<>();
+            for (String n : classes.keySet()) if (!g.shells.contains(n)) merged.add(n);
+            write(out.resolve(ShellMerge.MERGED), String.join("\n", merged) + "\n");
+        }
         Files.createDirectories(report.toAbsolutePath().getParent());
-        Files.writeString(report, g.report(), StandardCharsets.UTF_8);
+        StringBuilder rep = new StringBuilder(g.report());
+        if (merge != null) merge.report(rep);
+        Files.writeString(report, rep.toString(), StandardCharsets.UTF_8);
         System.out.println("[full-shells] " + g.summary());
+        if (merge != null) System.out.println("[full-shells] " + merge.summary());
+    }
+
+    private static void write(Path p, String text) throws IOException {
+        Files.createDirectories(p.getParent());
+        Files.writeString(p, text, StandardCharsets.UTF_8);
     }
 
     /** 지문: 서명표 두 개의 sha256(이름 원문 없이 커밋한다). 표가 바뀌면 껍데기의 바탕이 바뀐 것이다. */
@@ -521,6 +543,8 @@ public final class FullShells {
         return v != null ? v : vanilla.constantValue(owner, name);
     }
 
+    void deviationPublic(String why, String what) { deviation(why, what); }
+
     private void deviation(String why, String what) {
         deviations.computeIfAbsent(why, k -> new ArrayList<>()).add(what);
     }
@@ -627,6 +651,27 @@ public final class FullShells {
             }
             cache.put(n, i);
             return i;
+        }
+
+        /** 폴더 안 클래스 이름 전부(합칠 대상 고르기). */
+        static Set<String> classesIn(Path root) throws IOException {
+            Set<String> out = new HashSet<>();
+            if (!Files.isDirectory(root)) return out;
+            try (var s = Files.walk(root)) {
+                for (Path p : s.filter(Files::isRegularFile).toList()) {
+                    String n = root.relativize(p).toString().replace('\\', '/');
+                    if (n.endsWith(".class") && !n.startsWith("META-INF/")) out.add(n.substring(0, n.length() - 6));
+                }
+            }
+            return out;
+        }
+
+        byte[] bytesOf(String n) {
+            try {
+                return bytes(n);
+            } catch (IOException e) {
+                throw new java.io.UncheckedIOException(e);
+            }
         }
 
         private byte[] bytes(String n) throws IOException {

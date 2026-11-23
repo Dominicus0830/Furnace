@@ -97,7 +97,7 @@ public final class SigGate {
         return "class";
     }
 
-    /** 마지막 {@link #compare()} 가 모은 참고 건수 대상(실패 아님): extra-class·extra-member·extra-overload. */
+    /** 마지막 {@link #compare()} 가 모은 참고 건수 대상(실패 아님): extra-class·extra-member·extra-overload·missing-member(T-261). */
     public List<Diff> info() {
         return info;
     }
@@ -178,6 +178,22 @@ public final class SigGate {
             if ((m.access() & Opcodes.ACC_FINAL) != 0 && (hit.access() & Opcodes.ACC_FINAL) == 0 && m.kind() == 'M')
                 diffs.add(new Diff("member-access", s.name(), id, "shim 만 final"));
             if (vis(m.access()) < vis(hit.access())) diffs.add(new Diff("member-access", s.name(), id, "shim 이 덜 열려 있다"));
+        }
+        // T-261: 기준 클래스가 선언했는데 shim(과 그 상위 사슬)에 없는 공개·보호 멤버 — 실패가 아니라 셈만 한다. 전체 껍데기 빌드(FullShells)가 이것을
+        // 던지는 껍데기 멤버로 합쳐 넣으므로 실행 서버에서는 모양이 있다. 동작이 없을 뿐이라 기준선(한 줄씩)에 두지 않고 건수로 본다.
+        Set<String> have = new java.util.HashSet<>();
+        for (String c : allTypes(s.name(), true)) for (SigTable.Member x : shim.members(c)) have.add(x.kind() + x.name() + x.desc());
+        Set<String> counted = new java.util.HashSet<>();
+        for (SigTable.Member x : refMembers(r.name())) {
+            if (vis(x.access()) < 2 || (x.access() & Opcodes.ACC_SYNTHETIC) != 0 || x.name().equals("<clinit>")) continue;
+            String k = x.kind() + x.name() + x.desc();
+            if (!counted.add(k)) continue;
+            boolean ownOnly = x.name().equals("<init>");
+            boolean present = ownOnly ? shim.members(s.name()).stream().anyMatch(y -> (y.kind() + y.name() + y.desc()).equals(k)) : have.contains(k);
+            if (!present) {
+                String id = x.name() + (x.kind() == 'F' ? " : " : "") + x.desc();
+                info.add(new Diff("missing-member", s.name(), fp(id), "shim 에 없음(실행 서버에는 껍데기 멤버로 합쳐진다)", id));
+            }
         }
     }
 }

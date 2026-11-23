@@ -233,6 +233,14 @@ public final class NmsReflect {
     /** member=플러그인이 쓴 이름(경고에 보임), looked=Spigot 대응표를 거쳐 실제로 찾은 이름(Paper 표 판정에 씀). */
     private static void memberMissing(String plugin, Class<?> owner, String member, String looked) {
         if (owner == null || !NmsSymbols.isNms(owner.getName().replace('.', '/'))) return;
+        String indexed = member.indexOf('(') < 0 && !member.startsWith("<") ? NmsShellFields.find(owner, looked) : null;
+        if (indexed != null) {
+            // Paper 에 있는 인스턴스 필드인데 Furnace 가 아직 들고 있지 않다(T-261 색인) — 껍데기 멤버처럼 구멍 표에 세고 한 번 알린다. 예외는 원래 그대로
+            String who = plugin == null ? "?" : plugin;
+            NmsGaps.trapped(who, indexed, UnsupportedNmsLink.FIELD);
+            if (WARNED.add(who + "\0" + indexed)) LOG.warn(CompatLang.t("compat.nms-unsupported-call", who, "reflection", indexed, NmsShellFields.WHY));
+            return;
+        }
         String target = owner.getName() + "#" + member;
         if (absentInPaper(owner, looked)) {
             // 진짜 Paper 1.21.1 에도 없는 이름(옛 판 이름·기능 감지용 후보)이라 같은 예외가 나는 것이다 — 구멍이 아니므로 경고하지 않는다
