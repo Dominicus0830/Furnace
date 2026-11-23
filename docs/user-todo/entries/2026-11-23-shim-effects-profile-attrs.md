@@ -4,7 +4,7 @@
 
 | # | 무엇이 | 예시 | 안 하면 어떻게 되나 | 추천 |
 |---|---|---|---|---|
-| ① | 이 묶음은 Paper 서버 서명표가 없는 클라우드에서 만들어서 서명 관문(`shimLock`·`signatureGate`)을 못 돌렸다. 손으로 쓴 shim 이라 명세·잠금 파일은 그대로다. | 서명표가 있는 PC 에서 `shimLockCheck` 를 돌려 어긋난 곳이 나오면 그만큼 고친다. 특히 `LevelChunk#setBiome` 의 선언 위치와 `LivingEntity#addEffect` 의 final 여부는 가정이다. | CI 의 서명 관문이 있는 단계에서 실패로 드러난다(그때 고치면 됨). | PC 에서 한 번 돌린다 |
+| ① | 이 묶음은 Paper 서버 서명표가 없는 클라우드에서 만들어서 서명 관문(`shimLock`·`signatureGate`)을 못 돌렸다. 손으로 쓴 shim 이라 명세·잠금 파일은 그대로다. | 서명표가 있는 PC 에서 `shimLockCheck` 를 돌려 어긋난 곳이 나오면 그만큼 고친다. 노트북 관문에서 `setBiome` 선언 위치(`ChunkAccess`)와 인터페이스 9건은 고쳤다. `LivingEntity#addEffect` 의 final 여부는 서명표로 확인이 남았다. | CI 의 서명 관문이 있는 단계에서 실패로 드러난다(그때 고치면 됨). | PC 에서 한 번 돌린다 |
 | ② | 몹에게 효과를 걸거나 지우는 일을 소유 스레드 밖에서 하면 예약만 하고 무조건 true 를 돌려준다(지우기도 실제로 있었는지와 상관없이 true). | 플러그인이 다른 스레드에서 `mob.addEffect(독)` 하면 true 지만 이미 더 센 독이 있었다면 실제로는 바뀐 게 없다. | Bukkit `addPotionEffect` 와 같은 동작이라 호환상 문제는 거의 없다. | 그대로 |
 | ③ | `MobEffectInstance` 의 "숨은 효과"는 엔티티에서 읽은 사본에 없다. | 더 센 효과로 덮이면 원래 효과가 숨은 효과로 남는데, 읽은 사본에는 안 보인다. | 숨은 효과를 읽는 플러그인만 영향. | 그대로, 필요가 생기면 엔티티 API 에 칸 추가 |
 | ④ | 공개 API `Player` 에 효과 메서드 4개를 더했다(`effects`·`addEffect`·`removeEffect`·`clearEffects`). 플레이어는 그동안 효과 상태를 읽고 쓰는 API 가 없었다. | NMS `ServerPlayer.addEffect` 가 이 API 를 쓴다. | 안 두면 플레이어에게 효과를 거는 NMS 호출이 막힌다. | 둠(적용됨) |

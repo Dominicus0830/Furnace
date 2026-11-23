@@ -469,6 +469,25 @@ class NmsEffectProfileAttributeTest {
     }
 
     @Test
+    void serverImplementsTheVanillaInterfaces() {
+        MinecraftServer ms = MinecraftServer.getServer();
+        assertTrue(ms instanceof net.minecraft.server.ServerInfo && ms instanceof net.minecraft.commands.CommandSource
+                && ms instanceof net.minecraft.world.level.chunk.storage.ChunkIOErrorReporter
+                && ms instanceof net.minecraft.util.profiling.metrics.ProfilerMeasured && ms instanceof net.minecraft.util.thread.ProcessorHandle<?>);
+        assertTrue(ms.acceptsSuccess() && ms.acceptsFailure() && ms.shouldInformAdmins());
+        assertFalse(ms.alwaysAccepts());
+        assertEquals(bukkit.getServer().getMaxPlayers(), ms.getMaxPlayers());
+        // ProcessorHandle#tell 은 전역 스레드로 보낸다 — 한 틱 돌리면 도착한다
+        java.util.concurrent.atomic.AtomicBoolean ran = new java.util.concurrent.atomic.AtomicBoolean();
+        ms.tell(new net.minecraft.server.TickTask(0, () -> ran.set(true)));
+        server.tick(2);
+        assertTrue(ran.get());
+        // ask 는 메시지 공급자에 응답 창구를 주고 그 응답을 미래로 돌려준다
+        var f = net.minecraft.util.thread.ProcessorHandle.<String>of("t", x -> {}).<String>ask(reply -> { reply.tell("pong"); return "ping"; });
+        assertEquals("pong", f.getNow(null), "응답 창구에 답을 주면 ask 의 미래가 그 값으로 끝난다");
+    }
+
+    @Test
     void levelChunkSetBiomeWritesTheQuartCell() {
         BlockPos bp = new BlockPos(at.x(), at.y(), at.z());
         LevelChunk chunk = level.getChunkAt(bp);

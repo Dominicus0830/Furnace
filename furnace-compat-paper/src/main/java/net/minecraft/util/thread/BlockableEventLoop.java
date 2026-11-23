@@ -13,13 +13,18 @@ import java.util.function.Supplier;
  * 용도(FAWE 의 되살리기 대기)면 바닐라와 같다. 틱 스레드(전역·region)에서는 다른 region 을 기다리는 교착을 피해 {@code ThreadOwnershipException}.
  * 대기열 쪽 멤버({@code pollTask}·{@code runAllTasks}·{@code pendingRunnables}·{@code submit}…)는 두지 않았다(부르면 없는 멤버).
  */
-public abstract class BlockableEventLoop<R extends Runnable> implements Executor {
+public abstract class BlockableEventLoop<R extends Runnable> implements net.minecraft.util.profiling.metrics.ProfilerMeasured, ProcessorHandle<R>, Executor {
 
     private final String name;
 
     protected BlockableEventLoop(String name) { this.name = name; }
 
+    @Override
     public String name() { return name; }
+
+    /** 바닐라: 대기열에 넣고 루프 스레드를 깨운다 — Furnace: 전역 스레드에 맡긴다. */
+    @Override
+    public void tell(R task) { execute(task); }
 
     /** 바닐라: 이 스레드가 루프를 돌리는 스레드인가. Furnace: 틱을 도는 스레드(전역·region)나 Bukkit 주 스레드로 표시한 구간이면 참. */
     public boolean isSameThread() {

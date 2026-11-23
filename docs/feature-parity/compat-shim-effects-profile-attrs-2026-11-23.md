@@ -12,13 +12,14 @@
 | `Util` | 시간·이름·오류 설명·컬렉션 도우미·`shuffle` 류(바닐라 난수 호출 순서 그대로, javap 로 확인). |
 | `WorldData`·`ServerLevelData`·`LevelData`·`WritableLevelData` | 인터페이스(타입이 없는 메서드는 뺌). `PrimaryLevelData` 가 구현, 서버 월드는 살아 있는 값을 읽는다. `MinecraftServer.getWorldData()`. |
 | `BlockableEventLoop`·`ReentrantBlockableEventLoop`·`TickTask` | `MinecraftServer` 의 상위. `managedBlock` 은 조건이 될 때까지 1ms 씩 쉬며 기다린다(틱 스레드에서 부르면 ThreadOwnershipException — 데드락 방지). |
-| `LevelChunk.setBiome(int,int,int,Holder)` | 4칸 단위 바이옴 칸 쓰기(FAWE 재생성 경로). |
+| `ChunkAccess.setBiome(int,int,int,Holder)` | 4칸 단위 바이옴 칸 쓰기(FAWE 재생성 경로). Paper 서명표 확인 결과 선언 위치가 `ChunkAccess` 라 거기에 둔다. |
+| `CommandSource`·`ServerInfo`·`ChunkIOErrorReporter`·`ProcessorHandle`·`ProfilerMeasured` | `MinecraftServer`·`BlockableEventLoop` 의 인터페이스(서명 관문 새 차이 9건을 없앰). `Entity` 조각이 `CommandSource` 네 메서드를 구현한다. `ProfilerMeasured.profiledMetrics`·`ProcessorHandle.askEither` 는 타입이 없어 뺐다. |
 
 ## 알려진 차이·남은 일
 - 엔티티가 가진 "숨은 효과"는 엔티티 API 가 안 줘서 엔티티에서 읽은 사본에는 없다.
 - 몹 효과 쓰기는 소유 스레드가 아니면 예약하고 true 를 돌려준다(Bukkit `addPotionEffect` 와 같다). 제거(`removeEffect`·`removeAllEffects`)도 마찬가지로 실제로 있었는지와 상관없이 무조건 true 다. `addEffect(효과, 출처)` 의 출처는 무시한다.
 - 두지 않은 것: `CODEC`·`STREAM_CODEC`, 효과 틱·시작·제거 알림, 색 섞기, `AttributeMap` 의 저장·불러오기·`AttributeSupplier` 생성자.
-- 서명 관문(`shimLock`·`signatureGate`)은 Paper 서버 서명표가 있는 PC 에서 돌려야 한다. `LevelChunk#setBiome` 이 Paper 에서 `LevelChunk` 에 선언됐는지 `ChunkAccess` 인지, `LivingEntity#addEffect(MobEffectInstance)` 가 final 인지는 가정이다(바닐라 jar 에서는 final·`LivingEntity` 선언 — 확인함). 시험 `NmsLinkerTest` 의 final 목록에 넣어 두었다.
+- 서명 관문(`shimLock`·`signatureGate`)은 Paper 서버 서명표가 있는 PC 에서 돌려야 한다. `LivingEntity#addEffect(MobEffectInstance)` 가 final 인지는 가정이다(바닐라 jar 에서는 final·`LivingEntity` 선언 — 확인함). 시험 `NmsLinkerTest` 의 final 목록에 넣어 두었다.
 - Bukkit `Player#addPotionEffect` 가 플레이어에게 되는지는 이 묶음 범위 밖이다(`CraftLivingEntity` 의 물약 메서드는 `EntityStates` 를 쓰고 플레이어 핸들을 거부한다 — 필요하면 새 `Player` API 로 돌리면 된다).
 
 ## 시험
