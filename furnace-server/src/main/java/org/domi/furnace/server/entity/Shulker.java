@@ -107,8 +107,14 @@ public class Shulker extends AbstractGolem implements Enemy, HardCollider {
     public int getAttachFace() { return (Integer) entityData.get(DATA_ATTACH_FACE_ID); }
 
     private void setAttachFace(int face) {
-        entityData.set(DATA_ATTACH_FACE_ID, face);
-        refreshBoundingBox();
+        entityData.set(DATA_ATTACH_FACE_ID, face);   // 훅이 상자를 다시 만든다
+    }
+
+    /** Shulker.onSyncedDataUpdated: 붙은 면 칸이 바뀌면 setBoundingBox(makeBoundingBox()). */
+    @Override
+    protected void onSyncedDataUpdated(int index) {
+        if (index == DATA_ATTACH_FACE_ID) refreshBoundingBox();
+        super.onSyncedDataUpdated(index);
     }
 
     private int getRawPeekAmount() { return (Byte) entityData.get(DATA_PEEK_ID); }

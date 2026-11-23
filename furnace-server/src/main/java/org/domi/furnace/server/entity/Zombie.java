@@ -376,7 +376,18 @@ public class Zombie extends Monster {
         var speed = attributes().get(Attribute.MOVEMENT_SPEED);
         speed.removeModifier(BABY_MODIFIER_ID);
         if (baby) speed.addOrReplaceTransientModifier(new AttributeModifier(BABY_MODIFIER_ID, 0.5, AttributeModifier.ADD_MULTIPLIED_BASE));
-        if (baby) setDimensions(0.3F, 0.975F, 0.93F);   // 크기 0.5 배, 눈높이 0.93
+    }
+
+    /** Zombie.onSyncedDataUpdated: 아기 칸이 바뀌면 refreshDimensions. */
+    @Override
+    protected void onSyncedDataUpdated(int index) {
+        if (index == DATA_BABY) refreshDimensions();
+        super.onSyncedDataUpdated(index);
+    }
+
+    @Override
+    protected void refreshDimensions() {
+        if (isBaby()) setDimensions(0.3F, 0.975F, 0.93F);   // 크기 0.5 배, 눈높이 0.93
         else setDimensions(0.6F, 1.95F, 1.74F);
     }
 

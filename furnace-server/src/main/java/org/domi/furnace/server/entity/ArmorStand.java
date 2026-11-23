@@ -117,7 +117,7 @@ public class ArmorStand extends LivingEntity {
 
     public boolean isSmall() { return flag(FLAG_SMALL); }
 
-    public void setSmall(boolean v) { setFlag(FLAG_SMALL, v); refreshDims(); }
+    public void setSmall(boolean v) { setFlag(FLAG_SMALL, v); }
 
     public boolean showArms() { return flag(FLAG_SHOW_ARMS); }
 
@@ -136,7 +136,13 @@ public class ArmorStand extends LivingEntity {
     public void setMarker(boolean v) {
         setFlag(FLAG_MARKER, v);
         noPhysics = isMarker() || isNoGravity();
-        refreshDims();
+    }
+
+    /** ArmorStand.onSyncedDataUpdated: 깃발 칸이 바뀌면 refreshDimensions(blocksBuilding 은 서버에 아직 없음). */
+    @Override
+    protected void onSyncedDataUpdated(int index) {
+        if (index == DATA_CLIENT_FLAGS) refreshDims();
+        super.onSyncedDataUpdated(index);
     }
 
     private void refreshDims() {

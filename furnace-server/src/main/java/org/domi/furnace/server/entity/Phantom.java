@@ -61,8 +61,14 @@ public class Phantom extends FlyingMob implements Enemy {
     }
 
     public void setPhantomSize(int size) {
-        entityData.set(DATA_ID_SIZE, Math.clamp(size, 0, 64));
-        updateAttributes();
+        entityData.set(DATA_ID_SIZE, Math.clamp(size, 0, 64));   // 훅이 크기·공격력을 맞춘다
+    }
+
+    /** Phantom.onSyncedDataUpdated: 크기 칸이 바뀌면 updatePhantomSizeInfo(크기 다시 재기 + 공격력). */
+    @Override
+    protected void onSyncedDataUpdated(int index) {
+        if (index == DATA_ID_SIZE) updateAttributes();
+        super.onSyncedDataUpdated(index);
     }
 
     private void updateAttributes() {

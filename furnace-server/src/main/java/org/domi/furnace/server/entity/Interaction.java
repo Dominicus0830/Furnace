@@ -31,9 +31,16 @@ public class Interaction extends Entity {
 
     private void updateSize() { setDimensions((Float) entityData.get(DATA_WIDTH), (Float) entityData.get(DATA_HEIGHT), dimEye); }
 
-    public void setWidth(float w) { entityData.set(DATA_WIDTH, w); updateSize(); }
+    public void setWidth(float w) { entityData.set(DATA_WIDTH, w); }
 
-    public void setHeight(float h) { entityData.set(DATA_HEIGHT, h); updateSize(); }
+    public void setHeight(float h) { entityData.set(DATA_HEIGHT, h); }
+
+    /** Interaction.onSyncedDataUpdated: 너비·높이 칸이 바뀌면 상자를 다시 만든다(Entity 다음). */
+    @Override
+    protected void onSyncedDataUpdated(int index) {
+        super.onSyncedDataUpdated(index);
+        if (index == DATA_HEIGHT || index == DATA_WIDTH) updateSize();
+    }
 
     public void setResponse(boolean r) { entityData.set(DATA_RESPONSE, r); }
 

@@ -9,6 +9,11 @@ import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 public final class SynchedData {
 
+    /** 값이 바뀔 때 부르는 엔티티 훅(바닐라 SynchedEntityData.set → entity.onSyncedDataUpdated). define·setQuiet 는 부르지 않는다. */
+    private final java.util.function.IntConsumer onUpdate;
+
+    public SynchedData(java.util.function.IntConsumer onUpdate) { this.onUpdate = onUpdate; }
+
     private Object[] values = new Object[0], defaults = new Object[0];
     private int[] serializers = new int[0];
     private boolean[] dirty = new boolean[0];
@@ -35,10 +40,11 @@ public final class SynchedData {
 
     public void set(int index, Object value) { set(index, value, false); }
 
-    /** 같지 않거나(force) 면 바꾸고 dirty. */
+    /** 같지 않거나(force) 면 바꾸고 훅을 부른 뒤 dirty(바닐라 순서: 값 → onSyncedDataUpdated → dirty). */
     public void set(int index, Object value, boolean force) {
         if (force || !same(serializers[index], values[index], value)) {
             values[index] = value;
+            onUpdate.accept(index);
             dirty[index] = true;
             isDirty = true;
         }
