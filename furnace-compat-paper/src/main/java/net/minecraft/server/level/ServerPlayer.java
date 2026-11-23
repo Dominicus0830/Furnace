@@ -38,6 +38,7 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player {
         this.furnaceDetached = true;
         this.gameMode = new ServerPlayerGameMode(this);
         getBukkitEntity().adoptHandle(this);
+        furnaceRefreshMenus();   // 바닐라처럼 inventoryMenu·containerMenu 가 처음부터 있다(제 칸의 인벤토리 창)
     }
 
     private static CraftPlayer detachedCraftPlayer(ServerLevel level, com.mojang.authlib.GameProfile profile) {
@@ -48,11 +49,53 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player {
         return org.domi.furnace.compat.paper.Compat.detachedPlayer(h);
     }
 
+    @Override
+    protected net.minecraft.world.entity.player.Inventory furnaceCreateInventory() {
+        return furnaceDetached ? super.furnaceCreateInventory()
+                : net.minecraft.world.entity.player.Inventory.furnaceLive(this, getBukkitEntity().furnaceHandle());
+    }
+
+    /** 맞춘 마지막 서버 창(같은 객체면 다시 만들지 않는다). */
+    private Object menuToken;
+
+    /**
+     * 호환 모듈 전용 — {@code containerMenu}·{@code inventoryMenu} 필드를 서버의 창에 맞춘다({@code CraftPlayer#getHandle()} 이 부른다). 서버 창이 같으면 아무것도
+     * 안 하고(잠금 없는 한 번 읽기), 바뀌었으면 새 보기를 만든다. 서버에 창 보기 다리가 없으면(시험용 서버) 건드리지 않는다.
+     */
+    public synchronized void furnaceRefreshMenus() {
+        if (furnaceDetached) {
+            if (inventoryMenu == null) {
+                inventoryMenu = new net.minecraft.world.inventory.InventoryMenu(getInventory(), true, this);
+                containerMenu = inventoryMenu;
+            }
+            return;
+        }
+        var handle = getBukkitEntity().furnaceHandle();
+        Object token;
+        try {
+            token = org.domi.furnace.compat.nms.NmsChunks.bridge().menuTokenNow(handle);
+        } catch (UnsupportedOperationException noBridge) {
+            return;
+        }
+        if (inventoryMenu == null) inventoryMenu = net.minecraft.world.inventory.InventoryMenu.furnaceLive(getInventory(), this, handle);
+        if (token == null) {   // 서버가 아직 창을 만들지 않았다
+            if (containerMenu == null) containerMenu = inventoryMenu;
+            return;
+        }
+        if (token == menuToken && containerMenu != null) return;
+        org.domi.furnace.api.internal.ChunkInternals.MenuLook look;
+        try {
+            look = org.domi.furnace.compat.nms.NmsChunks.bridge().menuLookNow(handle, -1);
+        } catch (IllegalArgumentException | IllegalStateException gone) {
+            return;   // 그새 접속이 끊겼다 — 마지막 보기를 둔다
+        }
+        menuToken = token;
+        containerMenu = look.type() == null ? inventoryMenu
+                : org.domi.furnace.compat.nms.NmsMenus.view(org.domi.furnace.compat.nms.NmsMenus.open(handle, look.containerId()), getInventory(), look);
+    }
+
     /** 호환 모듈 전용 — 바닐라 생성자로 만든, 월드에 없는 플레이어인가. */
     public boolean furnaceDetached() { return furnaceDetached; }
-
-    /** 월드에 없는 플레이어의 두 손(바닐라: 인벤토리의 고른 칸·보조 손 칸 — 처음엔 빈 스택). 그 객체를 그대로 든다. */
-    private net.minecraft.world.item.ItemStack mainHand = net.minecraft.world.item.ItemStack.EMPTY, offHand = net.minecraft.world.item.ItemStack.EMPTY;
 
     /**
      * 바닐라 {@code LivingEntity#getItemInHand}. 월드에 없는 플레이어는 든 객체 그대로, 접속한 플레이어는 손 칸의 살아 있는 보기({@code ItemStack.liveHand}
@@ -61,7 +104,8 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player {
     @Override
     public net.minecraft.world.item.ItemStack getItemInHand(net.minecraft.world.InteractionHand hand) {
         if (!furnaceDetached) return net.minecraft.world.item.ItemStack.liveHand(getBukkitEntity().furnaceHandle(), hand == net.minecraft.world.InteractionHand.MAIN_HAND);
-        return hand == net.minecraft.world.InteractionHand.MAIN_HAND ? mainHand : offHand;
+        var inv = getInventory();   // 월드에 없는 플레이어의 두 손은 제 인벤토리의 고른 칸·왼손 칸(바닐라와 같다) — 처음엔 빈 스택, 스택 객체를 그대로 든다
+        return hand == net.minecraft.world.InteractionHand.MAIN_HAND ? inv.getItem(inv.selected) : inv.getItem(net.minecraft.world.entity.player.Inventory.SLOT_OFFHAND);
     }
 
     /**
@@ -74,7 +118,13 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player {
         // enum switch 는 합성 클래스 ServerPlayer$1 을 만들어 바닐라의 익명 클래스 이름과 겹친다(서명 관문) — 비교로 고른다
         java.util.Objects.requireNonNull(slot, "slot");
         boolean main = slot == net.minecraft.world.entity.EquipmentSlot.MAINHAND, off = slot == net.minecraft.world.entity.EquipmentSlot.OFFHAND;
-        if (furnaceDetached) return main ? mainHand : off ? offHand : net.minecraft.world.item.ItemStack.EMPTY;
+        if (furnaceDetached) {
+            var inv = getInventory();
+            return main ? inv.getItem(inv.selected) : off ? inv.getItem(net.minecraft.world.entity.player.Inventory.SLOT_OFFHAND)
+                    : slot == net.minecraft.world.entity.EquipmentSlot.HEAD ? inv.getItem(39) : slot == net.minecraft.world.entity.EquipmentSlot.CHEST ? inv.getItem(38)
+                    : slot == net.minecraft.world.entity.EquipmentSlot.LEGS ? inv.getItem(37) : slot == net.minecraft.world.entity.EquipmentSlot.FEET ? inv.getItem(36)
+                    : net.minecraft.world.item.ItemStack.EMPTY;
+        }
         if (main || off) return getItemInHand(main ? net.minecraft.world.InteractionHand.MAIN_HAND : net.minecraft.world.InteractionHand.OFF_HAND);
         int window = slot == net.minecraft.world.entity.EquipmentSlot.HEAD ? 5 : slot == net.minecraft.world.entity.EquipmentSlot.CHEST ? 6
                 : slot == net.minecraft.world.entity.EquipmentSlot.LEGS ? 7 : slot == net.minecraft.world.entity.EquipmentSlot.FEET ? 8 : -1;   // 플레이어 창 번호
@@ -89,8 +139,9 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player {
             super.setItemInHand(hand, stack);
             return;
         }
-        if (hand == net.minecraft.world.InteractionHand.MAIN_HAND) mainHand = java.util.Objects.requireNonNull(stack, "stack");
-        else offHand = java.util.Objects.requireNonNull(stack, "stack");
+        java.util.Objects.requireNonNull(stack, "stack");
+        var inv = getInventory();
+        inv.setItem(hand == net.minecraft.world.InteractionHand.MAIN_HAND ? inv.selected : net.minecraft.world.entity.player.Inventory.SLOT_OFFHAND, stack);
     }
 
     // ------------------------------------------------------------------ 게임 모드·능력 (NMS shim 5c)

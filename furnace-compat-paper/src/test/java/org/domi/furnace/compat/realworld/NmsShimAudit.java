@@ -99,6 +99,7 @@ public final class NmsShimAudit {
         Map<String, Miss> misses = new LinkedHashMap<>();
         Map<String, Set<String>> who = new LinkedHashMap<>();
         List<JarLine> lines = new ArrayList<>();
+        org.domi.furnace.compat.nms.SpigotMappings spigot = loadSpigot(System.getProperty("furnace.audit.spigotDir", ""));
         for (Path jar : jars) {
             String name = jar.getFileName().toString();
             NmsCompatReport.Read read = NmsCompatReport.read(jar);
@@ -106,12 +107,12 @@ public final class NmsShimAudit {
                 lines.add(new JarLine(name, read.namespace(), 0, 0, 0, false));
                 continue;
             }
-            if (read.needsSpigotMappings()) {
+            if (read.needsSpigotMappings() && spigot == null) {
                 lines.add(new JarLine(name, read.namespace(), 0, 0, 0, true));
                 continue;
             }
             Set<String> mine = new TreeSet<>();
-            NmsCompatReport rep = NmsCompatReport.analyze(name, read, NmsSymbols.RUNTIME, null, a -> {
+            NmsCompatReport rep = NmsCompatReport.analyze(name, read, NmsSymbols.RUNTIME, spigot, a -> {
                 Miss m = new Miss(a[0], a[1], a[2], a[3]);
                 misses.putIfAbsent(m.key(), m);
                 who.computeIfAbsent(m.key(), k -> new TreeSet<>()).add(name);
@@ -124,6 +125,32 @@ public final class NmsShimAudit {
         rows.sort(Comparator.<Row>comparingInt(x -> -x.jars().size())
                 .thenComparing(x -> x.category().ordinal()).thenComparing(x -> x.miss().key()));
         return new Result(lines, rows);
+    }
+
+    /**
+     * {@code -Dfurnace.audit.spigotDir=<폴더>}: Spigot 이름 jar 를 잴 대응표를 읽는다(비면 null — 그 jar 는 건너뛴다). 폴더에는 Mojang 공식 매핑
+     * {@code server.txt} 와 Spigot 클래스 csrg({@code bukkit-1.21.1-cl.csrg} 또는 서버 캐시 이름 {@code bukkit-cl.csrg})가 있어야 하고, 멤버 csrg
+     * ({@code bukkit-members.csrg}, {@code bukkit-1.21.1-members.csrg})는 없으면 빈 것으로 읽는다. 파일은 읽기만 하고 폴더에는 아무것도 쓰지 않는다.
+     */
+    static org.domi.furnace.compat.nms.SpigotMappings loadSpigot(String dir) throws IOException {
+        if (dir == null || dir.isBlank()) return null;
+        Path d = Paths.get(dir);
+        Path mojang = d.resolve("server.txt");
+        Path classes = firstExisting(d, "bukkit-1.21.1-cl.csrg", "bukkit-cl.csrg");
+        if (!Files.isRegularFile(mojang) || classes == null) {
+            throw new IOException("spigotDir " + d + " needs server.txt and bukkit-1.21.1-cl.csrg (or bukkit-cl.csrg)");
+        }
+        Path members = firstExisting(d, "bukkit-1.21.1-members.csrg", "bukkit-members.csrg");
+        if (members != null) return org.domi.furnace.compat.nms.SpigotMappings.load(mojang, classes, members);
+        try (java.io.Reader a = Files.newBufferedReader(mojang, StandardCharsets.UTF_8);
+             java.io.Reader b = Files.newBufferedReader(classes, StandardCharsets.UTF_8)) {
+            return org.domi.furnace.compat.nms.SpigotMappings.parse(a, b, new java.io.StringReader(""));
+        }
+    }
+
+    private static Path firstExisting(Path dir, String... names) {
+        for (String n : names) if (Files.isRegularFile(dir.resolve(n))) return dir.resolve(n);
+        return null;
     }
 
     static Row classify(Miss m, Set<String> jars) {
