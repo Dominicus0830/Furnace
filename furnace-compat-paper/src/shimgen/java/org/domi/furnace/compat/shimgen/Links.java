@@ -139,7 +139,7 @@ final class Links {
             // 주석은 "# " 로 시작하는 줄이나 줄 끝의 " # …" — 지문(#ab12…)은 # 뒤에 빈칸이 없어 주석이 아니다
             String s = raw.strip();
             if (s.equals("#") || s.startsWith("# ")) s = "";
-            int hash = s.indexOf(" # ");
+            int hash = outsideQuotes(s, " # ");
             if (hash >= 0) s = s.substring(0, hash).strip();
             if (s.isEmpty()) continue;
             if (s.startsWith("class ")) {
@@ -179,7 +179,7 @@ final class Links {
         Target target;
         String rest;
         if (right.startsWith("@idiom(")) {
-            int close = right.indexOf(')');
+            int close = outsideQuotes(right, ")");
             if (close < 0) {
                 problems.add(where + ": unclosed @idiom(");
                 return null;
@@ -225,6 +225,17 @@ final class Links {
             attrs.put(words[k].substring(0, eq), words[k].substring(eq + 1));
         }
         return new Line(where, cls, member, desc, target, check, attrs);
+    }
+
+    /** "글" 밖에서 처음 나오는 what 의 자리(없으면 -1). */
+    static int outsideQuotes(String s, String what) {
+        boolean q = false;
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '"' && (i == 0 || s.charAt(i - 1) != '\\')) q = !q;
+            else if (!q && s.startsWith(what, i)) return i;
+        }
+        return -1;
     }
 
     /** 쉼표로 나누되 "글" 안의 쉼표는 두고, 앞뒤 공백은 뗀다. */
@@ -385,9 +396,12 @@ final class Links {
                     problems.add(ln.where() + ": an alias line cannot take " + ln.check().text + " (the aliased member does its own checks)");
                     return null;
                 }
+                // 이름 규칙(검토 R1): 대상 이름도 공개·보호만 평문, private·패키지는 선언 클래스로 만든 #지문
+                String tname = aliasName(ln, owner, a.name());
+                if (tname == null) return null;
                 // 같은 사슬의 살아 있는 멤버: 같은 인자, 반환은 같은 형식(또는 대입 가능)
                 String found = null;
-                for (String cand : methodDescsInChain(owner, a.name())) {
+                for (String cand : methodDescsInChain(owner, tname)) {
                     if (!Type.getArgumentTypes(cand).equals(args) && !java.util.Arrays.equals(Type.getArgumentTypes(cand), args)) continue;
                     if (!assignable(Type.getReturnType(cand), ret)) continue;
                     if (found != null && !found.equals(cand)) {
@@ -396,7 +410,7 @@ final class Links {
                     }
                     found = cand;
                 }
-                Live live = found == null ? null : world.liveMethod(owner, a.name(), found);
+                Live live = found == null ? null : world.liveMethod(owner, tname, found);
                 if (live == null) {
                     problems.add(ln.where() + ": alias target has no behaviour or does not match: this." + a.name() + " (same arguments needed)");
                     return null;
@@ -414,7 +428,7 @@ final class Links {
                     problems.add(ln.where() + ": alias target is not accessible from " + owner.replace('/', '.') + ": this." + a.name());
                     return null;
                 }
-                if (a.name().equals(name) && found.equals(desc)) {
+                if (tname.equals(name) && found.equals(desc)) {
                     problems.add(ln.where() + ": alias to itself");
                     return null;
                 }
@@ -423,7 +437,7 @@ final class Links {
                 boolean itf = isInterface(owner);
                 p.opcode = isStatic ? Opcodes.INVOKESTATIC : itf ? Opcodes.INVOKEINTERFACE : Opcodes.INVOKEVIRTUAL;
                 p.callOwner = owner;
-                p.callName = a.name();
+                p.callName = tname;
                 p.callDesc = found;
                 p.callItf = itf;
                 return p;
@@ -481,6 +495,33 @@ final class Links {
         }
     }
 
+    /** 별칭 대상 이름을 푼다: #지문이면 사슬에서 선언 클래스 지문이 같은 메서드 이름, 평문이면 사슬의 같은 이름이 전부 공개·보호여야 한다. 어기면 null + 문제. */
+    private String aliasName(Line ln, String owner, String written) {
+        if (written.startsWith("#")) {
+            for (String c : chainOrder(owner)) {
+                for (SigTable.Member m : world.paperMembers(c)) {
+                    if (m.kind() != 'M' || !fingerprint(c, m.name()).equals(written)) continue;
+                    if (visible(m.access())) {
+                        problems.add(ln.where() + ": public/protected alias target written as a fingerprint - write this." + m.name());
+                        return null;
+                    }
+                    return m.name();
+                }
+            }
+            problems.add(ln.where() + ": no method with fingerprint " + written + " in " + owner.replace('/', '.') + " or its supertypes");
+            return null;
+        }
+        for (String c : chainOrder(owner)) {
+            for (SigTable.Member m : world.paperMembers(c)) {
+                if (m.kind() == 'M' && m.name().equals(written) && !visible(m.access())) {
+                    problems.add(ln.where() + ": private or package alias target written in plain text - use this." + fingerprint(c, written));
+                    return null;
+                }
+            }
+        }
+        return written;
+    }
+
     private boolean checkMatches(Line ln, AnnInfo ai) {
         Check want = Check.of(ai.check);
         if (want == null) {
@@ -494,6 +535,10 @@ final class Links {
         if (want.owned()) {
             if (ai.owner == null || ai.owner.equals("java/lang/Void")) {
                 problems.add(ln.where() + ": target with " + want.text + " must name its owner rule class");
+                return false;
+            }
+            if (!targetAllowed(ai.owner)) {
+                problems.add(ln.where() + ": owner rule class must be compat or furnace-api code (adapter boundary): " + ai.owner.replace('/', '.'));
                 return false;
             }
             byte[] b = world.classBytes(ai.owner);

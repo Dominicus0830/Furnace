@@ -67,6 +67,8 @@ class LinksTest {
             "M\t1\t" + Z + "Mob\tgName\t()Ljava/lang/String;\t-",
             "M\t1\t" + Z + "Mob\tgSet\t(F)V\t-",
             "M\t1\t" + Z + "Mob\tb1\t()Z\t-",
+            "M\t1\t" + Z + "Mob\tb4\t()I\t-",
+            "M\t1\t" + Z + "Mob\tb5\t()I\t-",
             "M\t1\t" + Z + "Mob\tb2\t()Z\t-",
             "M\t1\t" + Z + "Mob\tb3\t()Z\t-",
             "K\t" + Z + "Mob\tDATA_BABY\tI\t12",
@@ -188,6 +190,8 @@ class LinksTest {
                 "  health()F -> " + BRIDGE + ".health read=any",
                 "  nothing()V -> " + BRIDGE + ".health read=any",
                 "  isBaby()Z -> this.plain pure",
+                "  b4()I -> this.secret pure",
+                "  b5()I -> this." + Links.fingerprint(Z + "HandBase", "base") + " pure",
                 "class net.minecraft.zz.HandBase",
                 "  base()I -> " + BRIDGE + ".secret pure",
                 "class net.minecraft.zz.Nope",
@@ -206,6 +210,8 @@ class LinksTest {
                 "duplicate line for net.minecraft.zz.Mob#health()F",
                 "member not in the Paper signature table: net.minecraft.zz.Mob#nothing()V",
                 "alias target has no behaviour or does not match: this.plain",
+                "private or package alias target written in plain text - use this." + Links.fingerprint(Z + "Mob", "secret"),
+                "public/protected alias target written as a fingerprint - write this.base",
                 "line not used - the class is a hand shim and merging is off: net.minecraft.zz.HandBase#base()I",
                 "class not in the Paper signature table: net.minecraft.zz.Nope")) {
             assertTrue(msg.contains(want), "문제 목록에 없다: " + want + "\n" + msg);
@@ -249,9 +255,11 @@ class LinksTest {
                 "class a.b.C",
                 "  #0123456789()V -> this.x pure  # 끝 주석",
                 "  m(I)I -> @idiom(f, \"a, b\", 3, #abcdef0123) read=owner via=G1",
-                "  n()V -> a.b.D.t api"));
+                "  n()V -> a.b.D.t api",
+                "  o()V -> @idiom(g, \"x ) # y\") pure # 끝"));
         assertEquals(List.of(), l.problems);
-        assertEquals(3, l.lines.size());
+        assertEquals(4, l.lines.size());
+        assertEquals(new Links.Idiom("g", List.of("\"x ) # y\"")), l.lines.get(3).target(), "글 안의 ) 와 # 는 자르지 않는다");
         assertEquals("#0123456789", l.lines.get(0).member());
         assertEquals(new Links.Alias("x"), l.lines.get(0).target());
         assertEquals(new Links.Idiom("f", List.of("\"a, b\"", "3", "#abcdef0123")), l.lines.get(1).target());
