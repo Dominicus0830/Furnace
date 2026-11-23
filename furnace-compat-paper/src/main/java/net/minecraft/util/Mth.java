@@ -19,15 +19,15 @@ public final class Mth {
     public static final float EPSILON = 1.0E-5F;
     public static final float SQRT_OF_TWO = sqrt(2.0F);
 
-    private static final float SIN_SCALE = 10430.378F;
-    private static final float[] SIN = new float[65536];
+    private static final float TRIG_SCALE = 10430.378F;
+    private static final float[] TRIG_TABLE = new float[65536];
 
     private static final double ATAN_BIAS = Double.longBitsToDouble(4805340802404319232L);
     private static final double[] ATAN_ASIN = new double[257];
     private static final double[] ATAN_COS = new double[257];
 
     static {
-        for (int i = 0; i < SIN.length; i++) SIN[i] = (float) Math.sin((double) i * Math.PI * 2.0 / 65536.0);
+        for (int i = 0; i < TRIG_TABLE.length; i++) TRIG_TABLE[i] = (float) Math.sin((double) i * Math.PI * 2.0 / 65536.0);
         for (int i = 0; i < 257; i++) {
             double asin = Math.asin((double) i / 256.0);
             ATAN_COS[i] = Math.cos(asin);
@@ -37,9 +37,9 @@ public final class Mth {
 
     private Mth() {}
 
-    public static float sin(float v) { return SIN[(int) (v * SIN_SCALE) & 65535]; }
+    public static float sin(float v) { return TRIG_TABLE[(int) (v * TRIG_SCALE) & 65535]; }
 
-    public static float cos(float v) { return SIN[(int) (v * SIN_SCALE + 16384.0F) & 65535]; }
+    public static float cos(float v) { return TRIG_TABLE[(int) (v * TRIG_SCALE + 16384.0F) & 65535]; }
 
     public static float sqrt(float v) { return (float) Math.sqrt(v); }
 
@@ -131,7 +131,7 @@ public final class Mth {
 
     public static boolean isPowerOfTwo(int value) { return value != 0 && (value & value - 1) == 0; }
 
-    private static final int[] MULTIPLY_DE_BRUIJN_BIT_POSITION = {0, 1, 28, 2, 29, 14, 24, 3, 30, 22, 20, 15, 25, 17, 4, 8, 31, 27, 13, 23, 21, 19, 16, 7, 26, 12, 18, 6, 11, 5, 10, 9};
+    private static final int[] LOG2_DEBRUIJN = {0, 1, 28, 2, 29, 14, 24, 3, 30, 22, 20, 15, 25, 17, 4, 8, 31, 27, 13, 23, 21, 19, 16, 7, 26, 12, 18, 6, 11, 5, 10, 9};
 
     /** 바닐라 Mth#smallestEncompassingPowerOfTwo. */
     public static int smallestEncompassingPowerOfTwo(int value) {
@@ -147,7 +147,7 @@ public final class Mth {
     /** 바닐라 Mth#ceillog2(드브루인 표 — 0 은 0). */
     public static int ceillog2(int value) {
         value = isPowerOfTwo(value) ? value : smallestEncompassingPowerOfTwo(value);
-        return MULTIPLY_DE_BRUIJN_BIT_POSITION[(int) ((long) value * 125613361L >> 27) & 31];
+        return LOG2_DEBRUIJN[(int) ((long) value * 125613361L >> 27) & 31];
     }
 
     /** 바닐라 Mth#log2. */
@@ -219,8 +219,8 @@ public final class Mth {
     public static int lerpInt(float delta, int start, int end) { return start + floor(delta * (float) (end - start)); }
 
     public static int lerpDiscrete(float delta, int start, int end) {
-        int i = end - start;
-        return start + floor(delta * (float) (i - 1)) + (delta > 0.0F ? 1 : 0);
+        int span = end - start;
+        return start + floor(delta * (float) (span - 1)) + (delta > 0.0F ? 1 : 0);
     }
 
     public static float approach(float value, float limit, float stepSize) {
@@ -229,8 +229,8 @@ public final class Mth {
     }
 
     public static float approachDegrees(float value, float limit, float stepSize) {
-        float f = degreesDifference(value, limit);
-        return approach(value, value + f, stepSize);
+        float diff = degreesDifference(value, limit);
+        return approach(value, value + diff, stepSize);
     }
 
     public static float degreesDifferenceAbs(float from, float to) { return abs(degreesDifference(from, to)); }
@@ -240,9 +240,9 @@ public final class Mth {
     public static double rotLerp(double delta, double start, double end) { return start + delta * wrapDegrees(end - start); }
 
     public static float rotateIfNecessary(float rotating, float target, float maxDifference) {
-        float f = degreesDifference(rotating, target);
-        float g = clamp(f, -maxDifference, maxDifference);
-        return target - g;
+        float diff = degreesDifference(rotating, target);
+        float limited = clamp(diff, -maxDifference, maxDifference);
+        return target - limited;
     }
 
     public static float triangleWave(float input, float period) {
@@ -258,9 +258,9 @@ public final class Mth {
     }
 
     public static long getSeed(int x, int y, int z) {
-        long l = (long) (x * 3129871) ^ (long) z * 116129781L ^ (long) y;
-        l = l * l * 42317861L + l * 11L;
-        return l >> 16;
+        long mixed = (long) (x * 3129871) ^ (long) z * 116129781L ^ (long) y;
+        mixed = mixed * mixed * 42317861L + mixed * 11L;
+        return mixed >> 16;
     }
 
     public static long getSeed(net.minecraft.core.Vec3i pos) { return getSeed(pos.getX(), pos.getY(), pos.getZ()); }
@@ -268,15 +268,15 @@ public final class Mth {
     public static int quantize(double value, int factor) { return floor(value / (double) factor) * factor; }
 
     public static int binarySearch(int min, int max, java.util.function.IntPredicate isTargetBeforeOrAt) {
-        int i = max - min;
-        while (i > 0) {
-            int j = i / 2;
-            int k = min + j;
-            if (isTargetBeforeOrAt.test(k)) {
-                i = j;
+        int span = max - min;
+        while (span > 0) {
+            int half = span / 2;
+            int mid = min + half;
+            if (isTargetBeforeOrAt.test(mid)) {
+                span = half;
             } else {
-                min = k + 1;
-                i -= j + 1;
+                min = mid + 1;
+                span -= half + 1;
             }
         }
         return min;
@@ -323,19 +323,19 @@ public final class Mth {
     public static float normal(RandomSource random, float mean, float deviation) { return mean + (float) random.nextGaussian() * deviation; }
 
     public static double fastInvSqrt(double x) {
-        double d = 0.5 * x;
-        long l = Double.doubleToRawLongBits(x);
-        l = 6910469410427058090L - (l >> 1);
-        x = Double.longBitsToDouble(l);
-        return x * (1.5 - d * x * x);
+        double half = 0.5 * x;
+        long bits = Double.doubleToRawLongBits(x);
+        bits = 6910469410427058090L - (bits >> 1);
+        x = Double.longBitsToDouble(bits);
+        return x * (1.5 - half * x * x);
     }
 
     public static float fastInvCubeRoot(float x) {
-        int i = Float.floatToIntBits(x);
-        i = 1419967116 - i / 3;
-        float f = Float.intBitsToFloat(i);
-        f = 0.6666667F * f + 1.0F / (3.0F * f * f * x);
-        return 0.6666667F * f + 1.0F / (3.0F * f * f * x);
+        int bits = Float.floatToIntBits(x);
+        bits = 1419967116 - bits / 3;
+        float guess = Float.intBitsToFloat(bits);
+        guess = 0.6666667F * guess + 1.0F / (3.0F * guess * guess * x);
+        return 0.6666667F * guess + 1.0F / (3.0F * guess * guess * x);
     }
 
     public static int getInt(String value, int defaultValue) {
@@ -352,63 +352,63 @@ public final class Mth {
     public static int hsvToRgb(float hue, float saturation, float value) { return hsvToArgb(hue, saturation, value, 0); }
 
     public static int hsvToArgb(float hue, float saturation, float value, int alpha) {
-        int i = (int) (hue * 6.0F) % 6;
-        float f = hue * 6.0F - (float) i;
-        float g = value * (1.0F - saturation);
-        float h = value * (1.0F - f * saturation);
-        float j = value * (1.0F - (1.0F - f) * saturation);
-        float k;
-        float l;
-        float m;
-        switch (i) {
-            case 0 -> { k = value; l = j; m = g; }
-            case 1 -> { k = h; l = value; m = g; }
-            case 2 -> { k = g; l = value; m = j; }
-            case 3 -> { k = g; l = h; m = value; }
-            case 4 -> { k = j; l = g; m = value; }
-            case 5 -> { k = value; l = g; m = h; }
-            default -> throw new RuntimeException("Something went wrong when converting from HSV to RGB. Input was " + hue + ", " + saturation + ", " + value);
+        int sector = (int) (hue * 6.0F) % 6;
+        float fraction = hue * 6.0F - (float) sector;
+        float low = value * (1.0F - saturation);
+        float falling = value * (1.0F - fraction * saturation);
+        float rising = value * (1.0F - (1.0F - fraction) * saturation);
+        float red;
+        float green;
+        float blue;
+        switch (sector) {
+            case 0 -> { red = value; green = rising; blue = low; }
+            case 1 -> { red = falling; green = value; blue = low; }
+            case 2 -> { red = low; green = value; blue = rising; }
+            case 3 -> { red = low; green = falling; blue = value; }
+            case 4 -> { red = rising; green = low; blue = value; }
+            case 5 -> { red = value; green = low; blue = falling; }
+            default -> throw new RuntimeException("hsv sector out of range for " + hue + ", " + saturation + ", " + value);
         }
-        return argb(alpha, clamp((int) (k * 255.0F), 0, 255), clamp((int) (l * 255.0F), 0, 255), clamp((int) (m * 255.0F), 0, 255));
+        return argb(alpha, clamp((int) (red * 255.0F), 0, 255), clamp((int) (green * 255.0F), 0, 255), clamp((int) (blue * 255.0F), 0, 255));
     }
 
     /** 바닐라 {@code FastColor.ARGB32.color(a, r, g, b)}. */
     private static int argb(int a, int r, int g, int b) { return a << 24 | r << 16 | g << 8 | b; }
 
     public static double atan2(double y, double x) {
-        double d = x * x + y * y;
-        if (Double.isNaN(d)) return Double.NaN;
-        boolean bl = y < 0.0;
-        if (bl) y = -y;
-        boolean bl2 = x < 0.0;
-        if (bl2) x = -x;
-        boolean bl3 = y > x;
-        if (bl3) {
-            double e = x;
+        double lengthSq = x * x + y * y;
+        if (Double.isNaN(lengthSq)) return Double.NaN;
+        boolean negY = y < 0.0;
+        if (negY) y = -y;
+        boolean negX = x < 0.0;
+        if (negX) x = -x;
+        boolean steep = y > x;
+        if (steep) {
+            double swap = x;
             x = y;
-            y = e;
+            y = swap;
         }
-        double e = fastInvSqrt(d);
-        x *= e;
-        y *= e;
-        double f = ATAN_BIAS + y;
-        int i = (int) Double.doubleToRawLongBits(f);
-        double g = ATAN_ASIN[i];
-        double h = ATAN_COS[i];
-        double j = f - ATAN_BIAS;
-        double k = y * h - x * j;
-        double l = (6.0 + k * k) * k * 0.16666666666666666;
-        double m = g + l;
-        if (bl3) m = 1.5707963267948966 - m;
-        if (bl2) m = 3.141592653589793 - m;
-        if (bl) m = -m;
-        return m;
+        double inv = fastInvSqrt(lengthSq);
+        x *= inv;
+        y *= inv;
+        double biased = ATAN_BIAS + y;
+        int index = (int) Double.doubleToRawLongBits(biased);
+        double asin = ATAN_ASIN[index];
+        double cos = ATAN_COS[index];
+        double offset = biased - ATAN_BIAS;
+        double diff = y * cos - x * offset;
+        double correction = (6.0 + diff * diff) * diff * 0.16666666666666666;
+        double angle = asin + correction;
+        if (steep) angle = 1.5707963267948966 - angle;
+        if (negX) angle = 3.141592653589793 - angle;
+        if (negY) angle = -angle;
+        return angle;
     }
 
     public static java.util.UUID createInsecureUUID(RandomSource random) {
-        long l = random.nextLong() & -61441L | 16384L;
-        long m = random.nextLong() & 4611686018427387903L | Long.MIN_VALUE;
-        return new java.util.UUID(l, m);
+        long most = random.nextLong() & -61441L | 16384L;
+        long least = random.nextLong() & 4611686018427387903L | Long.MIN_VALUE;
+        return new java.util.UUID(most, least);
     }
 
     public static java.util.stream.IntStream outFromOrigin(int origin, int lowerBound, int upperBound) {
@@ -423,18 +423,18 @@ public final class Mth {
             throw new IllegalArgumentException(String.format(java.util.Locale.ROOT, "steps expected to be >= 1, was %d", steps));
         }
         if (origin < lowerBound || origin > upperBound) return java.util.stream.IntStream.empty();
-        return java.util.stream.IntStream.iterate(origin, i -> {
-            int j = Math.abs(origin - i);
-            return origin - j >= lowerBound || origin + j <= upperBound;
-        }, i -> {
-            boolean bl = i <= origin;
-            int j = Math.abs(origin - i);
-            boolean bl2 = origin + j + steps <= upperBound;
-            if (!bl || !bl2) {
-                int k = origin - j - (bl ? steps : 0);
-                if (k >= lowerBound) return k;
+        return java.util.stream.IntStream.iterate(origin, v -> {
+            int dist = Math.abs(origin - v);
+            return origin - dist >= lowerBound || origin + dist <= upperBound;
+        }, v -> {
+            boolean below = v <= origin;
+            int dist = Math.abs(origin - v);
+            boolean upperFits = origin + dist + steps <= upperBound;
+            if (!below || !upperFits) {
+                int candidate = origin - dist - (below ? steps : 0);
+                if (candidate >= lowerBound) return candidate;
             }
-            return origin + j + steps;
+            return origin + dist + steps;
         });
     }
 
