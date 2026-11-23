@@ -8,49 +8,62 @@ public class Cursor3D {
     public static final int TYPE_EDGE = 2;
     public static final int TYPE_CORNER = 3;
 
-    private final int originX;
-    private final int originY;
-    private final int originZ;
-    private final int width;
-    private final int height;
-    private final int depth;
-    private final int end;
-    private int index;
-    private int x;
-    private int y;
-    private int z;
+    private final int baseX;
+    private final int baseY;
+    private final int baseZ;
+    private final int sizeX;
+    private final int sizeY;
+    private final int sizeZ;
+    private final int total;
+    private final boolean positive;
+    private int taken;
+    private int cx;
+    private int cy;
+    private int cz;
 
     public Cursor3D(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
-        this.originX = minX;
-        this.originY = minY;
-        this.originZ = minZ;
-        this.width = maxX - minX + 1;
-        this.height = maxY - minY + 1;
-        this.depth = maxZ - minZ + 1;
-        this.end = this.width * this.height * this.depth;
+        this.baseX = minX;
+        this.baseY = minY;
+        this.baseZ = minZ;
+        this.sizeX = maxX - minX + 1;
+        this.sizeY = maxY - minY + 1;
+        this.sizeZ = maxZ - minZ + 1;
+        this.total = this.sizeX * this.sizeY * this.sizeZ;
+        this.positive = this.sizeX > 0 && this.sizeY > 0 && this.sizeZ > 0;
     }
 
     public boolean advance() {
-        if (this.index == this.end) return false;
-        this.x = this.index % this.width;
-        int i = this.index / this.width;
-        this.y = i % this.height;
-        this.z = i / this.height;
-        this.index++;
+        if (this.taken == this.total) return false;
+        if (this.positive) {
+            // 나눗셈 없이 증분(크기가 0 이하인 뒤집힌 상자만 나눗셈 길로 바닐라와 같은 값을 낸다)
+            if (this.taken > 0 && ++this.cx == this.sizeX) {
+                this.cx = 0;
+                if (++this.cy == this.sizeY) {
+                    this.cy = 0;
+                    this.cz++;
+                }
+            }
+        } else {
+            this.cx = this.taken % this.sizeX;
+            int rest = this.taken / this.sizeX;
+            this.cy = rest % this.sizeY;
+            this.cz = rest / this.sizeY;
+        }
+        this.taken++;
         return true;
     }
 
-    public int nextX() { return this.originX + this.x; }
+    public int nextX() { return this.baseX + this.cx; }
 
-    public int nextY() { return this.originY + this.y; }
+    public int nextY() { return this.baseY + this.cy; }
 
-    public int nextZ() { return this.originZ + this.z; }
+    public int nextZ() { return this.baseZ + this.cz; }
 
     public int getNextType() {
         int i = 0;
-        if (this.x == 0 || this.x == this.width - 1) i++;
-        if (this.y == 0 || this.y == this.height - 1) i++;
-        if (this.z == 0 || this.z == this.depth - 1) i++;
+        if (this.cx == 0 || this.cx == this.sizeX - 1) i++;
+        if (this.cy == 0 || this.cy == this.sizeY - 1) i++;
+        if (this.cz == 0 || this.cz == this.sizeZ - 1) i++;
         return i;
     }
 }

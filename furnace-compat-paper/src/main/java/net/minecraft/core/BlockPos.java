@@ -186,14 +186,14 @@ public class BlockPos extends Vec3i {
         int height = maxY - minY + 1;
         int depth = maxZ - minZ + 1;
         return () -> new com.google.common.collect.AbstractIterator<BlockPos>() {
-            final MutableBlockPos nextPos = new MutableBlockPos();
-            int counter = limit;
+            final MutableBlockPos cursor = new MutableBlockPos();
+            int remaining = limit;
 
             @Override
             protected BlockPos computeNext() {
-                if (this.counter <= 0) return this.endOfData();
-                BlockPos pos = this.nextPos.set(minX + random.nextInt(width), minY + random.nextInt(height), minZ + random.nextInt(depth));
-                this.counter--;
+                if (this.remaining <= 0) return this.endOfData();
+                BlockPos pos = this.cursor.set(minX + random.nextInt(width), minY + random.nextInt(height), minZ + random.nextInt(depth));
+                this.remaining--;
                 return pos;
             }
         };
@@ -207,41 +207,41 @@ public class BlockPos extends Vec3i {
         int originZ = origin.getZ();
         return () -> new com.google.common.collect.AbstractIterator<BlockPos>() {
             private final MutableBlockPos cursor = new MutableBlockPos();
-            private int currentDepth;
-            private int maxX;
-            private int maxY;
-            private int x;
-            private int y;
-            private boolean zMirror;
+            private int depth;
+            private int limX;
+            private int limY;
+            private int offX;
+            private int offY;
+            private boolean flipZ;
 
             @Override
             protected BlockPos computeNext() {
-                if (this.zMirror) {
-                    this.zMirror = false;
+                if (this.flipZ) {
+                    this.flipZ = false;
                     this.cursor.setZ(originZ - (this.cursor.getZ() - originZ));
                     return this.cursor;
                 }
                 BlockPos found = null;
                 while (found == null) {
-                    if (this.y > this.maxY) {
-                        this.x++;
-                        if (this.x > this.maxX) {
-                            this.currentDepth++;
-                            if (this.currentDepth > maxDepth) return this.endOfData();
-                            this.maxX = Math.min(reachX, this.currentDepth);
-                            this.x = -this.maxX;
+                    if (this.offY > this.limY) {
+                        this.offX++;
+                        if (this.offX > this.limX) {
+                            this.depth++;
+                            if (this.depth > maxDepth) return this.endOfData();
+                            this.limX = Math.min(reachX, this.depth);
+                            this.offX = -this.limX;
                         }
-                        this.maxY = Math.min(reachY, this.currentDepth - Math.abs(this.x));
-                        this.y = -this.maxY;
+                        this.limY = Math.min(reachY, this.depth - Math.abs(this.offX));
+                        this.offY = -this.limY;
                     }
-                    int dx = this.x;
-                    int dy = this.y;
-                    int dz = this.currentDepth - Math.abs(dx) - Math.abs(dy);
+                    int dx = this.offX;
+                    int dy = this.offY;
+                    int dz = this.depth - Math.abs(dx) - Math.abs(dy);
                     if (dz <= reachZ) {
-                        this.zMirror = dz != 0;
+                        this.flipZ = dz != 0;
                         found = this.cursor.set(originX + dx, originY + dy, originZ + dz);
                     }
-                    this.y++;
+                    this.offY++;
                 }
                 return found;
             }
@@ -288,19 +288,34 @@ public class BlockPos extends Vec3i {
         int height = maxY - minY + 1;
         int depth = maxZ - minZ + 1;
         int total = width * height * depth;
+        boolean positive = width > 0 && height > 0 && depth > 0;
         return () -> new com.google.common.collect.AbstractIterator<BlockPos>() {
             private final MutableBlockPos cursor = new MutableBlockPos();
             private int index;
+            private int x;
+            private int y;
+            private int z;
 
             @Override
             protected BlockPos computeNext() {
                 if (this.index == total) return this.endOfData();
-                int x = this.index % width;
-                int rest = this.index / width;
-                int y = rest % height;
-                int z = rest / height;
+                if (positive) {
+                    // 나눗셈 없이 x → y → z 로 올린다(상자가 클 때 원소마다 나눗셈을 피한다)
+                    if (this.index > 0 && ++this.x == width) {
+                        this.x = 0;
+                        if (++this.y == height) {
+                            this.y = 0;
+                            this.z++;
+                        }
+                    }
+                } else {
+                    this.x = this.index % width;
+                    int rest = this.index / width;
+                    this.y = rest % height;
+                    this.z = rest / height;
+                }
                 this.index++;
-                return this.cursor.set(minX + x, minY + y, minZ + z);
+                return this.cursor.set(minX + this.x, minY + this.y, minZ + this.z);
             }
         };
     }
@@ -311,27 +326,27 @@ public class BlockPos extends Vec3i {
         return () -> new com.google.common.collect.AbstractIterator<MutableBlockPos>() {
             private final Direction[] directions = new Direction[] {first, second, first.getOpposite(), second.getOpposite()};
             private final MutableBlockPos cursor = center.mutable().move(second);
-            private final int legs = 4 * radius;
-            private int leg = -1;
-            private int legSize;
-            private int legIndex;
-            private int lastX = this.cursor.getX();
-            private int lastY = this.cursor.getY();
-            private int lastZ = this.cursor.getZ();
+            private final int legTotal = 4 * radius;
+            private int legNo = -1;
+            private int legLength;
+            private int stepInLeg;
+            private int prevX = this.cursor.getX();
+            private int prevY = this.cursor.getY();
+            private int prevZ = this.cursor.getZ();
 
             @Override
             protected MutableBlockPos computeNext() {
-                this.cursor.set(this.lastX, this.lastY, this.lastZ).move(this.directions[(this.leg + 4) % 4]);
-                this.lastX = this.cursor.getX();
-                this.lastY = this.cursor.getY();
-                this.lastZ = this.cursor.getZ();
-                if (this.legIndex >= this.legSize) {
-                    if (this.leg >= this.legs) return this.endOfData();
-                    this.leg++;
-                    this.legIndex = 0;
-                    this.legSize = this.leg / 2 + 1;
+                this.cursor.set(this.prevX, this.prevY, this.prevZ).move(this.directions[(this.legNo + 4) % 4]);
+                this.prevX = this.cursor.getX();
+                this.prevY = this.cursor.getY();
+                this.prevZ = this.cursor.getZ();
+                if (this.stepInLeg >= this.legLength) {
+                    if (this.legNo >= this.legTotal) return this.endOfData();
+                    this.legNo++;
+                    this.stepInLeg = 0;
+                    this.legLength = this.legNo / 2 + 1;
                 }
-                this.legIndex++;
+                this.stepInLeg++;
                 return this.cursor;
             }
         };
