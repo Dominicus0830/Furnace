@@ -49,8 +49,13 @@ public final class NmsVariants {
         return r;
     }
 
-    /** 데이터 팩 레지스트리 하나를 만든 서버와 함께 둔다(서버 시작 때 고정되므로 서버마다 한 번). */
-    private record Synced<T>(Furnace server, Registry<T> registry) {}
+    /**
+     * 데이터 팩 레지스트리 하나를 만든 서버·항목 목록과 함께 둔다. 서버 시작 때 고정되므로 보통 서버마다 한 번이지만,
+     * 정의 설치(부트스트랩 훅·데이터 팩) 전에 불렸다면 항목 목록이 달라지므로 그때 다시 만든다(검토 권장 1).
+     */
+    private record Synced<T>(Furnace server, java.util.List<String> ids, Registry<T> registry) {
+        boolean current(Furnace s, java.util.List<String> now) { return server == s && ids.equals(now); }
+    }
 
     private static volatile Synced<WolfVariant> wolves;
     private static volatile Synced<PaintingVariant> paintings;
@@ -62,19 +67,20 @@ public final class NmsVariants {
      */
     public static Registry<WolfVariant> wolves() {
         Furnace server = Furnace.server();
+        var regs = server.gameRegistries();
+        var ids = regs.entries("minecraft:wolf_variant");
         var c = wolves;
-        if (c != null && c.server() == server) return c.registry();
+        if (c != null && c.current(server, ids)) return c.registry();
         synchronized (NmsVariants.class) {
             c = wolves;
-            if (c != null && c.server() == server) return c.registry();
-            var regs = server.gameRegistries();
+            if (c != null && c.current(server, ids)) return c.registry();
             NmsMappedRegistry<WolfVariant> r = new NmsMappedRegistry<>(Registries.WOLF_VARIANT);
-            for (String id : regs.entries("minecraft:wolf_variant")) {
+            for (String id : ids) {
                 var d = regs.wolfVariant(id).orElseThrow(() -> new IllegalStateException("the server has no definition for wolf variant " + id));
                 r.add(ResourceLocation.parse(id), new WolfVariant(ResourceLocation.parse(d.wildTexture()), ResourceLocation.parse(d.tameTexture()),
                         ResourceLocation.parse(d.angryTexture()), biomes(d.biomes())));
             }
-            wolves = new Synced<>(server, r);
+            wolves = new Synced<>(server, ids, r);
             return r;
         }
     }
@@ -82,18 +88,19 @@ public final class NmsVariants {
     /** 그림 무늬 레지스트리(데이터 팩 레지스트리 {@code minecraft:painting_variant}). 순서·값은 {@link #wolves()} 와 같은 방식. */
     public static Registry<PaintingVariant> paintings() {
         Furnace server = Furnace.server();
+        var regs = server.gameRegistries();
+        var ids = regs.entries("minecraft:painting_variant");
         var c = paintings;
-        if (c != null && c.server() == server) return c.registry();
+        if (c != null && c.current(server, ids)) return c.registry();
         synchronized (NmsVariants.class) {
             c = paintings;
-            if (c != null && c.server() == server) return c.registry();
-            var regs = server.gameRegistries();
+            if (c != null && c.current(server, ids)) return c.registry();
             NmsMappedRegistry<PaintingVariant> r = new NmsMappedRegistry<>(Registries.PAINTING_VARIANT);
-            for (String id : regs.entries("minecraft:painting_variant")) {
+            for (String id : ids) {
                 var d = regs.paintingVariant(id).orElseThrow(() -> new IllegalStateException("the server has no definition for painting variant " + id));
                 r.add(ResourceLocation.parse(id), new PaintingVariant(d.width(), d.height(), ResourceLocation.parse(d.assetId())));
             }
-            paintings = new Synced<>(server, r);
+            paintings = new Synced<>(server, ids, r);
             return r;
         }
     }
