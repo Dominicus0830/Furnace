@@ -21,7 +21,7 @@
 
 ## 현재 기록된 예외 (2026-11-23 기준)
 - ② `PacketSchema`: 중립 패킷 스키마가 바닐라 패킷 패키지 이름을 자료 글자로 가진다(클래스 참조 아님). 스키마 이름 표를 호환 쪽으로 옮기면 지운다.
-- ③ 서버 클래스 12개: `*InternalsImpl`·`ScratchWorldsImpl`·`PlacementBridge`(다리 자체), `PluginHost`(진입점 보유), `Region`·`ChunkColumn`·`ChunkSection`·`ChunkReadView`·`PaletteStorage`(어댑터 읽기 보기 접근 — 줄이는 대상).
+- ③ 서버 클래스 10개(3단계 T-251 뒤, 처음 12개): `*InternalsImpl`·`ScratchWorldsImpl`·`PlacementBridge`(다리 자체), `PluginHost`(진입점 보유), `ChunkSection`·`ChunkReadView`·`PaletteStorage`(읽기 보기 자료형을 복사 없이 내주려고 API 인터페이스를 직접 구현 — 감싸면 읽기가 6~14% 느려져 그대로 둔다, 3b). `Region`·`ChunkColumn` 은 3단계에서 거울 훅(`world.ChunkMirrorOps`) 뒤로 옮겨 빠졌다 — `docs/ops/adapter-boundary-step3-plan.md`.
 
 ## 훅 한 곳으로 모으기 (T-250, 2026-11-23, 권장 2단계)
 핵심이 어댑터를 "호출만" 하게, 어댑터가 꽂는 지점과 그 지점을 부르는 곳을 한 곳씩으로 줄였다. 동작은 그대로다(기존 시험·금 파일 무변경).
