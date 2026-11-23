@@ -59,6 +59,17 @@ public final class NmsBlockEntityClasses {
 
     private NmsBlockEntityClasses() {}
 
+    /**
+     * 바닐라 {@code EntityBlock#newBlockEntity(pos, state)} — 블록 엔티티 있는 블록 클래스 전부의 공통 연결(명세 {@code @each}, T-231). 그 상태의 블록 엔티티
+     * 종류로 만든 떨어진 블록 엔티티. 움직이는 피스톤처럼 기본 내용이 없는 종류는 바닐라처럼 null.
+     */
+    public static BlockEntity newBlockEntity(net.minecraft.world.level.block.Block self, BlockPos pos, BlockState state) {
+        var bridge = NmsBlockStates.bridge();
+        String type = bridge.blockEntityType(state.furnaceStateId());
+        if (type == null || bridge.defaultBlockEntityNbt(state.furnaceStateId()) == null) return null;   // 움직이는 피스톤: 바닐라도 null
+        return create(type, pos, state);
+    }
+
     /** 그 종류의 블록 엔티티(클래스는 바닐라와 같다). */
     public static BlockEntity create(String typeId, BlockPos pos, BlockState state) {
         return switch (typeId) {

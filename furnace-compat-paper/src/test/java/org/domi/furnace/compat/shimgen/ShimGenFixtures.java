@@ -20,6 +20,9 @@ public final class ShimGenFixtures {
 
     public static int twice(int v) { return v * 2; }
 
+    /** 상위 공통 연결(@each) 대상: 받는 객체의 클래스 이름. */
+    public static String name(Object self) { calls.add("name"); return "named:" + self.getClass().getSimpleName(); }
+
     /** 소유 규칙 대역: 읽기·쓰기 검사. 주인이 아닌 스레드면 던진다(다른 region 스레드에서 쓰기는 던진다). */
     public static final class Owner {
         private Owner() {}

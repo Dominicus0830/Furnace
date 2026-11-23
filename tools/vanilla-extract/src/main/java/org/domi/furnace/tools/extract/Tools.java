@@ -11,6 +11,7 @@ public final class Tools {
     private static final String S = "furnace-server/src/main/resources/";
     private static final String T = "furnace-server/src/test/resources/";
     private static final String C = "furnace-compat-paper/src/test/resources/";
+    private static final String SPEC = "furnace-compat-paper/src/shimspec/";
     private static final String API = "furnace-api/src/main/resources/org/domi/furnace/api/packet/schema/";
 
     private static final Map<String, Tool> ALL = new LinkedHashMap<>();
@@ -42,6 +43,8 @@ public final class Tools {
         java("item-default-attributes", "ExportItemDefaultAttributes", "아이템 기본 속성 수정자", Output.of(S + "items/default_attributes_{mc}.txt"));
         java("craft-remainders", "ExportCraftRemainders", "제작 후 남는 아이템", Output.of(S + "items/craft_remainders_{mc}.txt"));
         java("stew-effects", "ExportStewEffects", "수상한 스튜 효과", Output.of(S + "items/stew_effects_{mc}.txt"));
+        // 호환(shim 생성기 T-231)
+        java("kind-classes", "ExportKindClasses", "블록·아이템 종류 → 바닐라 클래스", Output.of(SPEC + "kind-classes-{mc}.txt"));
         // 프로토콜
         java("protocol-ids", "ExportProtocolIds", "프로토콜 패킷 종류·번호 표", Output.of(API + "protocol-{protocol}-ids.txt"));
         // 시험 정답표

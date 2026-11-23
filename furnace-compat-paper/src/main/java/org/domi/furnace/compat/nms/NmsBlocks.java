@@ -22,18 +22,22 @@ public final class NmsBlocks {
 
     private NmsBlocks() {}
 
-    /** 바닐라가 전용 클래스를 쓰는 블록은 그 클래스로(플러그인의 instanceof 용): 색유리·작물·줄기. 나머지는 Block. */
+    /** 블록 객체의 재료(생성기 전용 생성자 표지에 실린다 — {@link NmsKinds}). */
+    public record Kind(org.domi.furnace.api.world.BlockType type, BlockTypes types) {}
+
+    /** 호환 모듈 전용 — 표지에서 블록 재료를 꺼낸다(블록 표가 만들 때만 실려 있다). */
+    public static Kind kindOf(ShimCtor tag) {
+        if (tag == null || !(tag.payload() instanceof Kind k)) throw new IllegalStateException("blocks are created by the block shim table only");
+        return k;
+    }
+
+    /**
+     * 블록 객체를 바닐라 클래스(T-231 종류 표 — {@code Blocks.WHEAT instanceof CropBlock}, 상자는 {@code ChestBlock} …)로 만든다.
+     * 표에 없는 블록(데이터 팩 등 — 1.21.1 서버에는 없다)은 {@link Block}.
+     */
     private static Block create(org.domi.furnace.api.world.BlockType type, BlockTypes types) {
-        String id = type.id();
-        if (id.startsWith("minecraft:") && id.endsWith("_stained_glass")) return new net.minecraft.world.level.block.StainedGlassBlock(type, types);
-        // 바닐라 FireBlock·SoulFireBlock 은 BaseFireBlock 이다(플러그인이 instanceof 로 불 블록을 가린다)
-        if (id.equals("minecraft:fire") || id.equals("minecraft:soul_fire")) return new net.minecraft.world.level.block.BaseFireBlock(type, types);
-        return switch (id) {
-            case "minecraft:wheat", "minecraft:carrots", "minecraft:potatoes", "minecraft:beetroots", "minecraft:torchflower_crop" ->
-                    new net.minecraft.world.level.block.CropBlock(type, types);
-            case "minecraft:melon_stem", "minecraft:pumpkin_stem" -> new net.minecraft.world.level.block.StemBlock(type, types);
-            default -> new Block(type, types);
-        };
+        String cls = NmsKinds.blockClass(type.id());
+        return NmsKinds.create(cls != null ? cls : Block.class.getName(), Block.class, new Kind(type, types));
     }
 
     private static final class Table {
@@ -45,14 +49,8 @@ public final class NmsBlocks {
 
         Table(BlockTypes types) {
             List<Block> blocks = new ArrayList<>();
-            var flags = NmsBlockStates.table().flags();
             for (String id : types.ids()) {
-                var type = types.get(id).orElseThrow();
-                java.util.Map<String, String> first = new java.util.LinkedHashMap<>();
-                for (var info : type.properties()) first.put(info.name(), info.values().get(0));
-                int base = types.stateId(new org.domi.furnace.api.world.BlockData(type.id(), first));
-                boolean entity = (flags[base] & org.domi.furnace.api.internal.BlockStateInternals.HAS_BLOCK_ENTITY) != 0;   // 바닐라 EntityBlock 구현 블록
-                blocks.add(entity ? new net.minecraft.world.level.block.FurnaceEntityBlock(type, types) : create(type, types));
+                blocks.add(create(types.get(id).orElseThrow(), types));
             }
             blocks.sort(Comparator.comparingInt(Block::furnaceBaseStateId));
             byBase = blocks.toArray(Block[]::new);
@@ -110,6 +108,27 @@ public final class NmsBlocks {
 
     /** 이름의 블록. 모르면 공기(바닐라 DefaultedRegistry.get 과 같다). */
     public static Block get(String key) { return table().registry.get(ResourceLocation.parse(key)); }
+
+    private static final java.util.concurrent.ConcurrentHashMap<Block, net.minecraft.world.item.DyeColor> BEAM_COLORS = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * 바닐라 {@code BeaconBeamBlock#getColor()} — 색유리·색유리판·신호기 클래스의 공통 연결(명세 {@code @each}, T-231). 색유리·색유리판은 블록 이름 앞의 색
+     * (바닐라 생성자에 넘기는 색과 같다, {@code Blocks} 등록 대조: {@code <색>_stained_glass}·{@code <색>_stained_glass_pane}), 신호기는 바닐라
+     * {@code BeaconBlock#getColor} 처럼 흰색.
+     */
+    public static net.minecraft.world.item.DyeColor beaconColor(Block self) {
+        return BEAM_COLORS.computeIfAbsent(self, b -> {
+            String path = b.furnaceKey().getPath();
+            if (b.furnaceKey().getNamespace().equals("minecraft") && path.equals("beacon")) return net.minecraft.world.item.DyeColor.WHITE;
+            int cut = path.indexOf("_stained_glass");
+            String name = cut < 0 ? "" : path.substring(0, cut);
+            for (net.minecraft.world.item.DyeColor c : net.minecraft.world.item.DyeColor.values()) if (c.getName().equals(name)) return c;
+            throw new IllegalStateException("no dye color in the block name: " + b);
+        });
+    }
+
+    /** 바닐라 {@code BlockItem#getBlock()} — 그 아이템을 놓는 블록(벽 변형이 있으면 서 있는 쪽, 씨앗은 작물). 명세 줄의 대상(T-231). */
+    public static Block blockOfItem(Item self) { return byItem(self); }
 
     /** 바닐라 Block.byItem: 블록 아이템이 아니면 공기. */
     public static Block byItem(Item item) {
