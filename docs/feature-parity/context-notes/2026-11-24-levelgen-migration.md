@@ -15,3 +15,7 @@
 
 ## 다음 묶음으로 미룬 것 (검토 권고)
 `XoroshiroRandomSource`·`ThreadSafeLegacyRandomSource` 의 `forkPositional`(와 그 공장)은 아직 없다 — 해당 난수원 shim 자체가 없어서 함께 만든다. `Mth.getSeed` 는 영역 9(PR 596)의 것을 쓴다.
+
+## 2차: 크로소로·스레드 안전 난수원 (2026-11-24)
+`Xoroshiro128PlusPlus`·`XoroshiroRandomSource`(와 `XoroshiroPositionalRandomFactory`)·`ThreadSafeLegacyRandomSource` 와 `RandomSupport.Seed128bit`·`upgradeSeedTo128bit(Unmixed)`·`seedFromHashOf`(MD5) 를 구현했다. 위의 "Xoroshiro 는 아직 없다"는 이제 해당 없음.
+난수 호출 순서(한 번 = `nextLong` 한 번, `nextInt(bound)` 곱셈 거절 표집, 포크·위치 공장이 `nextLong` 두 번)를 Paper 서버 jar 에서 같은 호출로 뽑은 기대값으로 `LevelgenValueShimTest` 가 견준다. 코덱·`MD5_128` 필드는 껍데기.

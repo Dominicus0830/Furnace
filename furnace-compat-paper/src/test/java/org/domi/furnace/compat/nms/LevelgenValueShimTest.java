@@ -80,4 +80,62 @@ class LevelgenValueShimTest {
         assertEquals(1712030472, edge.nextInt());
         assertEquals(0.12612254894948727, edge.nextDouble());
     }
+
+    /** 기대값은 Paper 1.21.1 서버 jar 에서 같은 호출 순서로 뽑았다. */
+    @Test
+    void xoroshiroMatchesVanillaValues() {
+        var x = new net.minecraft.world.level.levelgen.XoroshiroRandomSource(4242L);
+        assertEquals(-432114983, x.nextInt());
+        assertEquals(-6283982576133760119L, x.nextLong());
+        assertFalse(x.nextBoolean());
+        assertEquals(0.90182537F, x.nextFloat());
+        assertEquals(0.7480286890924016, x.nextDouble());
+        assertEquals(1.1248003528371084, x.nextGaussian());
+        assertEquals(-2.470761187631881, x.nextGaussian());
+
+        var y = new net.minecraft.world.level.levelgen.XoroshiroRandomSource(-99L);
+        int[] expected = {1184397722, 2, 1326755291, 4, 1201722659, 4, 1392881024, 6, 1081608965, 2, 448309291, 0, 1035999086, 6, 485275790, 3};
+        for (int i = 0; i < expected.length; i += 2) {   // 큰 범위(거절 표집이 일어날 수 있는 bound)와 작은 범위를 번갈아
+            assertEquals(expected[i], y.nextInt(2000000011));
+            assertEquals(expected[i + 1], y.nextInt(7));
+        }
+        var z = new net.minecraft.world.level.levelgen.XoroshiroRandomSource(-99L);
+        for (int i = 0; i < 80; i++) z.nextInt(i % 2 == 0 ? 2000000011 : 7);   // 같은 40쌍을 소비한 뒤
+        z.consumeCount(5);
+        assertEquals(2016221783619074093L, z.nextLong());
+        z.setSeed(1L);
+        assertEquals(-1033667707219518978L, z.nextLong());
+        var f = new net.minecraft.world.level.levelgen.XoroshiroRandomSource(5L);
+        var fk = f.fork();
+        assertEquals(2176809087315743652L, fk.nextLong());
+        assertEquals(-3440957986124107217L, f.nextLong());
+        var pf = new net.minecraft.world.level.levelgen.XoroshiroRandomSource(7L).forkPositional();
+        StringBuilder sb = new StringBuilder();
+        pf.parityConfigString(sb);
+        assertEquals("seedLo: -427546222996335712, seedHi: -6591573495626427012", sb.toString());
+        assertEquals(611195606777952842L, pf.at(-3, 70, 12).nextLong());
+        assertEquals(-6051231260954320192L, pf.fromHashOf("minecraft:ore").nextLong());
+        assertEquals(2426626644426068205L, pf.fromSeed(31L).nextLong());
+        assertEquals(6807859099481836695L, new net.minecraft.world.level.levelgen.XoroshiroRandomSource(0L, 0L).nextLong());   // 전부 0 은 상수로 바뀐다
+        var u = net.minecraft.world.level.levelgen.RandomSupport.upgradeSeedTo128bit(123L);
+        assertEquals(1592121443578202627L, u.seedLo());
+        assertEquals(3495113926647197287L, u.seedHi());
+        var h = net.minecraft.world.level.levelgen.RandomSupport.seedFromHashOf("minecraft:test");
+        assertEquals(1885711875966874721L, h.seedLo());
+        assertEquals(3357099975631595687L, h.seedHi());
+    }
+
+    @Test
+    void threadSafeLegacyMatchesVanillaValues() {
+        var t = new net.minecraft.world.level.levelgen.ThreadSafeLegacyRandomSource(2024L);
+        assertEquals(-1638729195, t.nextInt());
+        assertEquals(26, t.nextInt(100));
+        assertEquals(3473487682246065932L, t.nextLong());
+        assertEquals(0.9309788145598492, t.nextDouble());
+        assertEquals(-0.8513514528383382, t.nextGaussian());
+        StringBuilder sb = new StringBuilder();
+        t.forkPositional().parityConfigString(sb);
+        assertEquals("LegacyPositionalRandomFactory{9114417708509829518}", sb.toString());
+        assertEquals(-1258329677, t.fork().nextInt());
+    }
 }

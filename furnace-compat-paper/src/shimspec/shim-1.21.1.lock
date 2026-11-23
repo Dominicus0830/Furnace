@@ -1046,6 +1046,9 @@ C	net/minecraft/world/level/levelgen/RandomSupport	49	java/lang/Object	-	-	-	pap
 F	net/minecraft/world/level/levelgen/RandomSupport	GOLDEN_RATIO_64	J	25	-
 F	net/minecraft/world/level/levelgen/RandomSupport	SILVER_RATIO_64	J	25	-
 M	net/minecraft/world/level/levelgen/RandomSupport	mixStafford13	(J)J	9	-
+M	net/minecraft/world/level/levelgen/RandomSupport	seedFromHashOf	(Ljava/lang/String;)Lnet/minecraft/world/level/levelgen/RandomSupport$Seed128bit;	9	-
+M	net/minecraft/world/level/levelgen/RandomSupport	upgradeSeedTo128bit	(J)Lnet/minecraft/world/level/levelgen/RandomSupport$Seed128bit;	9	-
+M	net/minecraft/world/level/levelgen/RandomSupport	upgradeSeedTo128bitUnmixed	(J)Lnet/minecraft/world/level/levelgen/RandomSupport$Seed128bit;	9	-
 C	net/minecraft/world/level/levelgen/SingleThreadedRandomSource	33	java/lang/Object	net/minecraft/world/level/levelgen/BitRandomSource	-	-	paper-server-1.21.1
 M	net/minecraft/world/level/levelgen/SingleThreadedRandomSource	<init>	(J)V	1	-
 M	net/minecraft/world/level/levelgen/SingleThreadedRandomSource	fork	()Lnet/minecraft/util/RandomSource;	1	-
@@ -1053,6 +1056,13 @@ M	net/minecraft/world/level/levelgen/SingleThreadedRandomSource	forkPositional	(
 M	net/minecraft/world/level/levelgen/SingleThreadedRandomSource	next	(I)I	1	-
 M	net/minecraft/world/level/levelgen/SingleThreadedRandomSource	nextGaussian	()D	1	-
 M	net/minecraft/world/level/levelgen/SingleThreadedRandomSource	setSeed	(J)V	1	-
+C	net/minecraft/world/level/levelgen/ThreadSafeLegacyRandomSource	131105	java/lang/Object	net/minecraft/world/level/levelgen/BitRandomSource	-	-	paper-server-1.21.1
+M	net/minecraft/world/level/levelgen/ThreadSafeLegacyRandomSource	<init>	(J)V	1	-
+M	net/minecraft/world/level/levelgen/ThreadSafeLegacyRandomSource	fork	()Lnet/minecraft/util/RandomSource;	1	-
+M	net/minecraft/world/level/levelgen/ThreadSafeLegacyRandomSource	forkPositional	()Lnet/minecraft/world/level/levelgen/PositionalRandomFactory;	1	-
+M	net/minecraft/world/level/levelgen/ThreadSafeLegacyRandomSource	next	(I)I	1	-
+M	net/minecraft/world/level/levelgen/ThreadSafeLegacyRandomSource	nextGaussian	()D	1	-
+M	net/minecraft/world/level/levelgen/ThreadSafeLegacyRandomSource	setSeed	(J)V	1	-
 C	net/minecraft/world/level/levelgen/WorldOptions	33	java/lang/Object	-	-	-	paper-server-1.21.1
 F	net/minecraft/world/level/levelgen/WorldOptions	DEMO_OPTIONS	Lnet/minecraft/world/level/levelgen/WorldOptions;	25	-
 M	net/minecraft/world/level/levelgen/WorldOptions	<init>	(JZZ)V	1	-
@@ -1065,6 +1075,25 @@ M	net/minecraft/world/level/levelgen/WorldOptions	seed	()J	1	-
 M	net/minecraft/world/level/levelgen/WorldOptions	withBonusChest	(Z)Lnet/minecraft/world/level/levelgen/WorldOptions;	1	-
 M	net/minecraft/world/level/levelgen/WorldOptions	withSeed	(Ljava/util/OptionalLong;)Lnet/minecraft/world/level/levelgen/WorldOptions;	1	-
 M	net/minecraft/world/level/levelgen/WorldOptions	withStructures	(Z)Lnet/minecraft/world/level/levelgen/WorldOptions;	1	-
+C	net/minecraft/world/level/levelgen/Xoroshiro128PlusPlus	33	java/lang/Object	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/level/levelgen/Xoroshiro128PlusPlus	<init>	(JJ)V	1	-
+M	net/minecraft/world/level/levelgen/Xoroshiro128PlusPlus	<init>	(Lnet/minecraft/world/level/levelgen/RandomSupport$Seed128bit;)V	1	-
+M	net/minecraft/world/level/levelgen/Xoroshiro128PlusPlus	nextLong	()J	1	-
+C	net/minecraft/world/level/levelgen/XoroshiroRandomSource	33	java/lang/Object	net/minecraft/util/RandomSource	-	-	paper-server-1.21.1
+M	net/minecraft/world/level/levelgen/XoroshiroRandomSource	<init>	(J)V	1	-
+M	net/minecraft/world/level/levelgen/XoroshiroRandomSource	<init>	(JJ)V	1	-
+M	net/minecraft/world/level/levelgen/XoroshiroRandomSource	<init>	(Lnet/minecraft/world/level/levelgen/RandomSupport$Seed128bit;)V	1	-
+M	net/minecraft/world/level/levelgen/XoroshiroRandomSource	consumeCount	(I)V	1	-
+M	net/minecraft/world/level/levelgen/XoroshiroRandomSource	fork	()Lnet/minecraft/util/RandomSource;	1	-
+M	net/minecraft/world/level/levelgen/XoroshiroRandomSource	forkPositional	()Lnet/minecraft/world/level/levelgen/PositionalRandomFactory;	1	-
+M	net/minecraft/world/level/levelgen/XoroshiroRandomSource	nextBoolean	()Z	1	-
+M	net/minecraft/world/level/levelgen/XoroshiroRandomSource	nextDouble	()D	1	-
+M	net/minecraft/world/level/levelgen/XoroshiroRandomSource	nextFloat	()F	1	-
+M	net/minecraft/world/level/levelgen/XoroshiroRandomSource	nextGaussian	()D	1	-
+M	net/minecraft/world/level/levelgen/XoroshiroRandomSource	nextInt	()I	1	-
+M	net/minecraft/world/level/levelgen/XoroshiroRandomSource	nextInt	(I)I	1	-
+M	net/minecraft/world/level/levelgen/XoroshiroRandomSource	nextLong	()J	1	-
+M	net/minecraft/world/level/levelgen/XoroshiroRandomSource	setSeed	(J)V	1	-
 C	net/minecraft/world/level/levelgen/feature/CoralClawFeature	33	net/minecraft/world/level/levelgen/feature/CoralFeature	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/levelgen/feature/CoralFeature	1057	net/minecraft/world/level/levelgen/feature/Feature	-	Lnet/minecraft/world/level/levelgen/feature/Feature<Lnet/minecraft/world/level/levelgen/feature/configurations/NoneFeatureConfiguration;>;	-	paper-server-1.21.1
 C	net/minecraft/world/level/levelgen/feature/CoralMushroomFeature	33	net/minecraft/world/level/levelgen/feature/CoralFeature	-	-	-	paper-server-1.21.1
