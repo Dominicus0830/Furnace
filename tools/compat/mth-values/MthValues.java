@@ -78,6 +78,11 @@ public final class MthValues {
         p("e.q", Mth.quantize(-7.5, 4));
         p("e.col", Mth.color(1.5F, -0.5F, Float.NaN));
         p("e.uuid", Mth.createInsecureUUID(RandomSource.create(1L)));
+        org.joml.Vector3f[] axes = {new org.joml.Vector3f(1, 0, 0), new org.joml.Vector3f(0, 1, 0), new org.joml.Vector3f(0, 0, 1), new org.joml.Vector3f(0.6F, 0.0F, 0.8F)};
+        org.joml.Quaternionf[] quats = {new org.joml.Quaternionf(0.1F, 0.2F, 0.3F, 0.9F), new org.joml.Quaternionf(0F, 0F, 0F, 1F), new org.joml.Quaternionf(0.5F, -0.5F, 0.5F, 0.5F)};
+        for (org.joml.Vector3f ax : axes) {
+            for (org.joml.Quaternionf q : quats) p("e.rot " + ax + " " + q, Mth.rotationAroundAxis(ax, q, new org.joml.Quaternionf()));
+        }
         guard("e.gi", () -> Mth.getInt("2147483648", -9));
         guard("e.gi2", () -> Mth.getInt("", -9));
     }
