@@ -22,6 +22,10 @@ under META-INF/furnace/libraries/. Each is licensed under its own terms.
   Apache License 2.0 — licenses/LICENSE-APACHE-2.0.txt
   https://bitbucket.org/snakeyaml/snakeyaml
 
+- JOML 1.10.5 (org.joml:joml)
+  Copyright (c) 2015-2024 JOML (Kai Burjack and contributors)
+  MIT License — https://github.com/JOML-CI/JOML/blob/main/LICENSE
+
 그 밖에 서버 jar 에 풀어 넣은 런타임 의존(Netty, Gson, SLF4J, Logback, JLine, aircompressor,
 ASM 등)은 각 프로젝트의 라이선스를 따른다(이 파일은 그 목록을 아직 담지 않는다).
 Bukkit·Paper 가 싣는 나머지 라이브러리(Adventure, Brigadier, authlib 등)는 서버 jar 에 싣지 않고

@@ -1,6 +1,6 @@
 // Paper 가 서버 jar 에 싣고 있어 Paper/Bukkit 플러그인이 libraries 선언 없이 기대는 라이브러리 목록(H4 묶음 B, 사용자 결정 4·5).
 // plugins/bukkit-plugins/ 에 그 라이브러리를 쓰는 플러그인이 있을 때만 준비해 공유 로더(SharedLibraryLoader)에 붙인다.
-//  - Guava(+failureaccess)·SnakeYAML 은 서버 jar 에 jar 그대로 싣는다(bundled, 사용자 결정 5 정정 2026-11-12). 내려받지 않고 서버 jar 에서 캐시로 꺼낸다.
+//  - Guava(+failureaccess)·SnakeYAML·JOML(2026-11-24, 호환 계층이 늘 기대고 Mth 정적 필드가 닿는다) 은 서버 jar 에 jar 그대로 싣는다(bundled, 사용자 결정 5 정정 2026-11-12). 내려받지 않고 서버 jar 에서 캐시로 꺼낸다.
 //    패키지 이름은 바꾸지 않는다(재배치 없음 — 플러그인이 com.google.common·org.yaml.snakeyaml 을 그대로 쓴다). 서버 로더에는 풀지 않는다.
 //    서버 jar 에 없으면(gradle 개발 실행·시험) 예전처럼 Maven Central 에서 받는다. 나머지(Adventure 포함)는 필요할 때 받는다.
 //  - 버전·sha256 은 코드에 고정한다. 바닐라 1.21.1 서버 jar 의 META-INF/libraries.list 에 있는 것(Guava·fastutil·JOML·commons-*·log4j-api,
@@ -112,7 +112,7 @@ public final class ServerLibraries {
                     new Artifact("com.googlecode.json-simple:json-simple:1.1.1", "4e69696892b88b41c55d49ab2fdcc21eead92bf54acc588c0050596c3b75199c", C)),
                     List.of("org/json/simple/"), List.of()),
             new Group("joml", "JOML", List.of(
-                    new Artifact("org.joml:joml:1.10.5", "cac9f22f83a7aa33eebda73c16ff5261e3cb4911b6bafcf4c79ea486099d0c9a", C)),
+                    new Artifact("org.joml:joml:1.10.5", "cac9f22f83a7aa33eebda73c16ff5261e3cb4911b6bafcf4c79ea486099d0c9a", C, B)),
                     List.of("org/joml/"), List.of()),
             new Group("fastutil", "fastutil", List.of(
                     new Artifact("it.unimi.dsi:fastutil:8.5.12", "b5543ee08d062d551cf0a5c9bc0fb70588b0382079029ba48941fa9c9be8a5d4", C)),
