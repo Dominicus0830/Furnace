@@ -30,7 +30,7 @@ import org.domi.furnace.compat.nms.UnsupportedNmsCall;
 /**
  * 엔티티 메타데이터 값 종류 표(Mojang 이름 shim): 바닐라 1.21.1 {@code EntityDataSerializers} 의 상수 이름과 제네릭 인자.
  * 패킷 라이브러리(ProtocolLib)가 이 필드들의 제네릭 인자로 "Java 형식 → 값 종류" 표를 만든다. 번호는 바닐라 등록 순서(0 부터)다 —
- * 아래 상수 선언 순서가 곧 번호 순서다. JOML 값(VECTOR3·QUATERNION)은 아직 없다(JOML 이 이 로더에 없다).
+ * 아래 상수 선언 순서가 곧 번호 순서다. JOML 값(VECTOR3·QUATERNION)은 서버 라이브러리 묶음의 JOML 형식이다.
  */
 public final class EntityDataSerializers {
 
@@ -61,7 +61,7 @@ public final class EntityDataSerializers {
 
     private static <T> EntityDataSerializer<T> same(String name) { return of(name, UnaryOperator.identity()); }
 
-    // 순서가 바닐라 번호다(0 BYTE … 28 ARMADILLO_STATE). 29 VECTOR3·30 QUATERNION 은 건너뛴다.
+    // 순서가 바닐라 번호다(0 BYTE … 30 QUATERNION).
     public static final EntityDataSerializer<Byte> BYTE = same("byte");
     public static final EntityDataSerializer<Integer> INT = same("int");
     public static final EntityDataSerializer<Long> LONG = same("long");
@@ -91,6 +91,9 @@ public final class EntityDataSerializers {
     public static final EntityDataSerializer<Holder<PaintingVariant>> PAINTING_VARIANT = same("painting_variant");
     public static final EntityDataSerializer<Sniffer.State> SNIFFER_STATE = same("sniffer_state");
     public static final EntityDataSerializer<Armadillo.ArmadilloState> ARMADILLO_STATE = same("armadillo_state");
+    // 바닐라도 값을 복사하지 않는다(forValueType 기본 copy).
+    public static final EntityDataSerializer<org.joml.Vector3f> VECTOR3 = same("vector3");
+    public static final EntityDataSerializer<org.joml.Quaternionf> QUATERNION = same("quaternion");
 
     /** 바닐라 {@code getSerializedId}: 값 종류의 번호, 모르면 -1. */
     public static int getSerializedId(EntityDataSerializer<?> serializer) {
