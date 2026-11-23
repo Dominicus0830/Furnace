@@ -41,6 +41,8 @@ import org.objectweb.asm.tree.TypeInsnNode;
  *
  * <p>클래스 정의를 막는 경우(설계 5.4): 상위 클래스가 {@code net.minecraft.*} 이거나(shim 은 상속을 지원하지 않는다 — 등급 C),
  * 없는 CraftBukkit 클래스·없는 NMS 인터페이스를 상속하면 정의할 때 {@link UnsupportedNmsCall} 을 던진다.
+ * CraftBukkit 상위 클래스는 있는데 생성자가 부르는 그 상위 생성자가 없으면(껍데기 멤버도 "없음" — T-264) 클래스가 없을 때처럼 껍데기로 만든다:
+ * Craft 클래스가 Paper 이름으로 하나씩 생겨도 그 클래스를 상속한 플러그인 클래스는 같은 덫·계측으로 실패한다.
  */
 final class NmsLinker extends ClassVisitor {
 
@@ -50,13 +52,20 @@ final class NmsLinker extends ClassVisitor {
     private final boolean[] changed;
     private final int changedIndex;
     private String self;
+    private final String missingCraftConstructor;
 
     /**
      * @param own     이 플러그인 jar 에 들어 있는 클래스(내부 이름) — NMS 이름이어도 플러그인 것이므로 판정하지 않는다
      * @param changed 바꾼 것이 있으면 {@code changed[changedIndex] = true}
      */
     NmsLinker(ClassVisitor next, NmsSymbols symbols, String plugin, Set<String> own, boolean[] changed, int changedIndex) {
+        this(next, symbols, plugin, own, changed, changedIndex, null);
+    }
+
+    /** @param missingCraftConstructor 상위 CraftBukkit 클래스에 없는, 이 클래스 생성자가 부르는 상위 생성자({@link #missingCraftSuperConstructor}) — 있으면 껍데기 */
+    NmsLinker(ClassVisitor next, NmsSymbols symbols, String plugin, Set<String> own, boolean[] changed, int changedIndex, String missingCraftConstructor) {
         super(Opcodes.ASM9, next);
+        this.missingCraftConstructor = missingCraftConstructor;
         this.symbols = symbols;
         this.plugin = plugin;
         this.own = own;
@@ -68,7 +77,15 @@ final class NmsLinker extends ClassVisitor {
     public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
         self = name;
         boolean isInterface = (access & Opcodes.ACC_INTERFACE) != 0;
-        if (superName != null && !own.contains(superName) && inheritable(symbols, superName)) {
+        if (missingCraftConstructor != null && superName != null && !own.contains(superName)) {
+            String why = CompatLang.t("nms.no-craftbukkit-constructor", missingCraftConstructor);
+            if (isInterface) throw refusal(name, superName, why);
+            husk = refusal(name, superName, why, true);
+            huskClass = dots(name);
+            huskParent = dots(superName);
+            huskWhy = why;
+            if (symbols.isFinal(superName)) superName = "java/lang/Object";
+        } else if (superName != null && !own.contains(superName) && inheritable(symbols, superName)) {
             inherit = superName;   // 상속해도 되는 shim(T-204 V5) — 그대로 정의하고 shim 에 없는 상위 생성자를 부르는 생성자만 덫
         } else if (superName != null && !own.contains(superName) && NmsSymbols.isNms(superName)
                 && (superName.startsWith("net/minecraft/") || !symbols.hasClass(superName))) {
@@ -199,6 +216,32 @@ final class NmsLinker extends ClassVisitor {
                 accept(next);
             }
         };
+    }
+
+    /**
+     * 상위가 있는 CraftBukkit 클래스({@code craftSuper})일 때, 이 클래스의 생성자가 부르는 상위 생성자({@code invokespecial} — 앞선 {@code new} 없는 것) 중
+     * 호환 계층에 없는 것(껍데기 멤버 포함 — {@link NmsSymbols#hasMethod})의 이름, 다 있으면 null. 이름을 다시 붙인 뒤의 클래스를 본다.
+     */
+    static String missingCraftSuperConstructor(org.objectweb.asm.tree.ClassNode cls, String craftSuper, NmsSymbols symbols) {
+        for (MethodNode mn : cls.methods) {
+            if (!mn.name.equals("<init>")) continue;
+            int pendingNews = 0;
+            for (AbstractInsnNode insn = mn.instructions.getFirst(); insn != null; insn = insn.getNext()) {
+                if (insn.getOpcode() == Opcodes.NEW) pendingNews++;
+                if (!(insn instanceof MethodInsnNode m) || m.getOpcode() != Opcodes.INVOKESPECIAL || !m.name.equals("<init>")) continue;
+                if (pendingNews > 0) {
+                    pendingNews--;
+                    continue;
+                }
+                if (m.owner.equals(craftSuper) && !symbols.hasMethod(craftSuper, "<init>", m.desc)) {
+                    StringJoiner args = new StringJoiner(", ", "(", ")");
+                    for (Type t : Type.getArgumentTypes(m.desc)) args.add(simple(t.getClassName()));
+                    return dots(craftSuper) + "#<init>" + args;
+                }
+                break;   // 이 생성자의 상위·this(...) 호출은 하나다
+            }
+        }
+        return null;
     }
 
     /** 생성자가 부르는 상속한 shim 의 상위 생성자({@code invokespecial} — 앞선 {@code new} 없는 것)가 shim 에 없으면 그 이름, 아니면 null. */

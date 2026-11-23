@@ -173,14 +173,32 @@ public final class NmsClassTransformer implements ClassTransformer {
                 return n;
             }
         };
+        // 상위가 있는 CraftBukkit 클래스면 생성자가 부르는 상위 생성자가 있는지 먼저 본다(T-264 — 없으면 NmsLinker 가 껍데기로). 이름을 다시 붙인 결과를 한 번만 읽는다
+        String craftSuper = craftSuper(reader.getSuperName(), sp);
+        org.objectweb.asm.tree.ClassNode pre = null;
+        String missingCtor = null;
+        if (craftSuper != null) {
+            pre = new org.objectweb.asm.tree.ClassNode();
+            reader.accept(new ClassRemapper(pre, remapper), 0);
+            missingCtor = NmsLinker.missingCraftSuperConstructor(pre, craftSuper, symbols);
+        }
         ClassVisitor chain = new ReflectionRewriter(writer, changed, plugin, members, names);
-        chain = new NmsLinker(chain, symbols, plugin, own, changed, 2);
-        reader.accept(new ClassRemapper(chain, remapper), 0);
+        chain = new NmsLinker(chain, symbols, plugin, own, changed, 2, missingCtor);
+        if (pre != null) pre.accept(chain);
+        else reader.accept(new ClassRemapper(chain, remapper), 0);
         if (!changed[0] && !changed[1] && !changed[2] && !changed[3]) return null;
         if (changed[0] && announced.compareAndSet(false, true)) {
             LOG.info(CompatLang.t("compat.nms-version-suffix", plugin, CraftNames.VERSION));
         }
         return writer.toByteArray();
+    }
+
+    /** 상위 클래스(Spigot·접미사 이름을 바꾼 뒤)가 플러그인 것이 아닌, 호환 계층에 있는 CraftBukkit 클래스면 그 내부 이름, 아니면 null. */
+    private String craftSuper(String superName, SpigotRemapper sp) {
+        if (superName == null) return null;
+        String s = sp != null ? sp.map(superName) : superName;
+        s = CraftNames.canonicalInternal(s);
+        return s.startsWith("org/bukkit/craftbukkit/") && !own.contains(s) && symbols.hasClass(s) ? s : null;
     }
 
     static boolean mayNeed(byte[] bytes) { return contains(bytes, NEEDLES); }
