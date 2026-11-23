@@ -1,7 +1,7 @@
 // T-264 P3 역할 표(설계 7장): Paper CraftBukkit 클래스의 메서드마다 누가 채우는지 a|b|c|d 로 나눈 기계가 읽는 표. T-263(연결 추론기)은 d 만 후보로 본다.
 //  a = API 상속: Paper 계층에서 이 클래스가 가진 Bukkit/Paper API 형식(api 서명표)에 같은 이름·서술자의 인스턴스 메서드가 있다 — 정체성이 맞으면 상속으로 동작
 //  b = 핸들 다리: ShellMerge 가 낸 좁힘 다리(@CraftBridge)
-//  c = 변환 가족 W/U(P4 — 아직 내지 않는다, 그때까지 d 에 있다)
+//  c = 변환 가족 W/U: CraftConversions 가 낸 레지스트리 값 변환 몸통(@CraftBridge)
 //  d = 나머지(Paper 내부 동작 — 영역 10)
 // 이름이 들어가므로 껍데기 jar 안에만 둔다(커밋 안 함). 열: 클래스 \t 멤버 \t 서술자 \t 역할.
 package org.domi.furnace.compat.shimgen;
@@ -27,8 +27,8 @@ final class CraftRoles {
 
     CraftRoles(FullShells g) { this.g = g; }
 
-    /** bridges: ShellMerge 가 낸 다리(소유#이름서술자). */
-    String build(Set<String> bridges) {
+    /** bridges: ShellMerge 가 낸 다리, conversions: CraftConversions 가 낸 변환(모두 소유#이름서술자). */
+    String build(Set<String> bridges, Set<String> conversions) {
         StringBuilder sb = new StringBuilder();
         for (String n : new java.util.TreeSet<>(g.paper.classes().keySet())) {
             if (!n.startsWith(PREFIX)) continue;
@@ -39,6 +39,7 @@ final class CraftRoles {
                 String key = m.name() + m.desc();
                 String role;
                 if (bridges.contains(n + "#" + key)) role = "b";
+                else if (conversions.contains(n + "#" + key)) role = "c";
                 else {
                     boolean instance = (m.access() & Opcodes.ACC_STATIC) == 0 && !m.name().equals("<init>");
                     if (instance && api == null) api = apiKeysOf(n);
@@ -76,5 +77,5 @@ final class CraftRoles {
         return out;
     }
 
-    String summary() { return "craft roles " + counts + " (c: P4)"; }
+    String summary() { return "craft roles " + counts; }
 }

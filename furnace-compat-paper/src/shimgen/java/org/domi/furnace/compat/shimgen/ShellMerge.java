@@ -110,8 +110,9 @@ final class ShellMerge {
         return out;
     }
 
-    private record Add(SigTable.Member m, int access, Object value, boolean shell, Bridge bridge) {
-        Add(SigTable.Member m, int access, Object value, boolean shell) { this(m, access, value, shell, null); }
+    private record Add(SigTable.Member m, int access, Object value, boolean shell, Bridge bridge, CraftConversions.Conv conv) {
+        Add(SigTable.Member m, int access, Object value, boolean shell) { this(m, access, value, shell, null, null); }
+        Add(SigTable.Member m, int access, Object value, boolean shell, Bridge bridge) { this(m, access, value, shell, bridge, null); }
     }
 
     /** 다리 몸통이 부를 접근자(owner 의 name+desc). widen 이면 같은 클래스의 더 좁은 메서드를 그대로 돌려주고(컴파일러 다리), 아니면 Paper 반환형으로 좁힌다. */
@@ -185,6 +186,12 @@ final class ShellMerge {
                 count("bridge (narrowing accessor, T-264 P3)");
                 continue;
             }
+            CraftConversions.Conv conv = isStatic && !own.isInterface() ? g.conversions.match(n, m) : null;
+            if (conv != null) {
+                adds.add(new Add(m, acc, null, false, null, conv));
+                count("conversion (registry value, T-264 P4)");
+                continue;
+            }
             adds.add(new Add(m, acc, null, true));
             count(isCtor ? "constructor" : isStatic ? "static method" : "method");
         }
@@ -203,6 +210,8 @@ final class ShellMerge {
                         fv.visitEnd();
                     } else if (a.bridge() != null) {
                         bridgeBody(cv, n, a.access(), a.m(), a.bridge());
+                    } else if (a.conv() != null) {
+                        CraftConversions.body(cv.visitMethod(a.access(), a.m().name(), a.m().desc(), a.m().signature(), null), n, a.m(), a.conv());
                     } else {
                         body(cv, n, a.access(), a.m());
                     }

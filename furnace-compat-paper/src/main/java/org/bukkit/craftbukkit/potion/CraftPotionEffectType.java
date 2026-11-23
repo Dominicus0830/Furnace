@@ -45,4 +45,16 @@ public class CraftPotionEffectType extends PotionEffectType {
 
     @Override
     public String getName() { return legacyName != null ? legacyName : key.toString(); }
+
+    /** Paper getHandle — 같은 키의 NMS 상태 효과(변환 가족 U, T-264 P4). 서버 레지스트리가 서야 찾을 수 있어 처음 부를 때 찾아 둔다. */
+    public net.minecraft.world.effect.MobEffect getHandle() {
+        net.minecraft.world.effect.MobEffect h = handle;
+        if (h == null) {
+            handle = h = (net.minecraft.world.effect.MobEffect) org.domi.furnace.compat.nms.CraftConvert.bukkitToMinecraft(this,
+                    net.minecraft.core.registries.Registries.MOB_EFFECT, "org.bukkit.craftbukkit.potion.CraftPotionEffectType#getHandle()Lnet/minecraft/world/effect/MobEffect;");
+        }
+        return h;
+    }
+
+    private volatile net.minecraft.world.effect.MobEffect handle;
 }

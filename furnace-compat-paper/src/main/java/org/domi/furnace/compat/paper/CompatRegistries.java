@@ -51,6 +51,8 @@ public final class CompatRegistries {
         else if (type == Particle.class) r = Registry.PARTICLE_TYPE;
         else if (type == PotionType.class) r = Registry.POTION;
         else if (type == Sound.class) r = Registry.SOUNDS;
+        else if (type == org.bukkit.inventory.meta.trim.TrimMaterial.class) r = Registry.TRIM_MATERIAL;
+        else if (type == org.bukkit.inventory.meta.trim.TrimPattern.class) r = Registry.TRIM_PATTERN;
         else r = null;
         return (Registry<T>) r;
     }

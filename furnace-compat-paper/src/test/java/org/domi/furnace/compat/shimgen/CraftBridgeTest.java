@@ -32,7 +32,8 @@ import org.objectweb.asm.Type;
 /**
  * T-264 P3 핸들 다리(설계 3.4·7장). 실행 때와 같은 로더(껍데기 jar → 호환 jar → …)에서:
  * <ul>
- *   <li>역할 표 {@code craft-roles.tsv}(껍데기 jar 안 — 이름 들어감, 커밋 안 함)의 모양과, b 칸 멤버가 모두 실제로 {@code @CraftBridge} 다리인지.</li>
+ *   <li>역할 표 {@code craft-roles.tsv}(껍데기 jar 안 — 이름 들어감, 커밋 안 함)의 모양과, b 칸(핸들 다리)·c 칸(변환 가족, P4) 멤버가 모두 실제로
+ *       {@code @CraftBridge} 진짜 몸통인지.</li>
  *   <li>안전 조건: 엔티티 종류마다(관측표 {@code entity.<종류>} 128개) 종류 표가 만드는 바닐라 클래스 shim 이 그 Craft 클래스의 Paper
  *       {@code getHandle()} 반환형에 대입 가능하고, 그 메서드가 던지는 껍데기가 아닌지.</li>
  *   <li>던지는 {@code getHandle()} 이 남은 손 Craft 클래스(상위에 손 접근자가 없는 뿌리 — 영역 10·P4 몫)가 아래 목록에서 늘지 않는지(줄면 목록을 줄인다).</li>
@@ -50,7 +51,7 @@ class CraftBridgeTest {
             "org/bukkit/craftbukkit/block/banner/CraftPatternType", "org/bukkit/craftbukkit/boss/CraftBossBar", "org/bukkit/craftbukkit/entity/CraftEnemy",
             "org/bukkit/craftbukkit/generator/CraftChunkData", "org/bukkit/craftbukkit/generator/CraftLimitedRegion",
             "org/bukkit/craftbukkit/inventory/CraftInventoryView", "org/bukkit/craftbukkit/inventory/trim/CraftTrimMaterial",
-            "org/bukkit/craftbukkit/inventory/trim/CraftTrimPattern", "org/bukkit/craftbukkit/potion/CraftPotionEffectType",
+            "org/bukkit/craftbukkit/inventory/trim/CraftTrimPattern",
             "org/bukkit/craftbukkit/tag/CraftTag");
 
     private final Map<String, Map<String, Set<String>>> annotations = new HashMap<>();
@@ -64,6 +65,7 @@ class CraftBridgeTest {
             Map<String, String> handleDesc = new HashMap<>();
             Map<String, Integer> roles = new TreeMap<>();
             List<String[]> bRows = new ArrayList<>();
+            List<String[]> cRows = new ArrayList<>();
             try (InputStream in = cl.getResourceAsStream(ROLES)) {
                 assertNotNull(in, "역할 표가 껍데기 jar 에 없다: " + ROLES);
                 for (String line : new String(in.readAllBytes(), StandardCharsets.UTF_8).split("\n")) {
@@ -73,14 +75,19 @@ class CraftBridgeTest {
                     assertTrue(Set.of("a", "b", "c", "d").contains(f[3]), line);
                     roles.merge(f[3], 1, Integer::sum);
                     if (f[3].equals("b")) bRows.add(f);
+                    if (f[3].equals("c")) cRows.add(f);
                     if (f[1].equals("getHandle") && f[2].startsWith("()")) handleDesc.put(f[0], f[2]);
                 }
             }
-            assertTrue(roles.getOrDefault("a", 0) > 1000 && roles.getOrDefault("d", 0) > 1000 && bRows.size() > 100, "역할 수 " + roles);
-            for (String[] f : bRows) {
-                Set<String> marks = marks(cl, f[0], f[1] + f[2]);
-                assertTrue(marks.contains(BRIDGE) && !marks.contains(SHELL), "b 칸인데 다리가 아니다: " + String.join(" ", f) + " " + marks);
+            assertTrue(roles.getOrDefault("a", 0) > 1000 && roles.getOrDefault("d", 0) > 1000 && bRows.size() > 100 && cRows.size() > 50, "역할 수 " + roles);
+            for (List<String[]> rows : List.of(bRows, cRows)) {
+                for (String[] f : rows) {
+                    Set<String> marks = marks(cl, f[0], f[1] + f[2]);
+                    assertTrue(marks.contains(BRIDGE) && !marks.contains(SHELL), f[3] + " 칸인데 진짜 몸통(@CraftBridge)이 아니다: " + String.join(" ", f) + " " + marks);
+                }
             }
+            // c 칸(변환 가족)은 정적 레지스트리 값 변환이다 — 이름 꼴
+            for (String[] f : cRows) assertTrue(f[1].matches("minecraftToBukkit|bukkitToMinecraft|minecraftHolderToBukkit|bukkitToMinecraftHolder"), String.join(" ", f));
 
             // 2) 엔티티 종류의 안전 조건
             Map<String, String> vanillaOf = new HashMap<>();
