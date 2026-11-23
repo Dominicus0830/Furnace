@@ -7,7 +7,7 @@ public final class CompatOptions {
 
     private CompatOptions() {}
 
-    /** 그 키의 값(안 적었거나 기본값이면 null). 다리를 주지 않는 서버 구현이면 null(= 어댑터의 기본값). */
+    /** 그 키의 값(안 적었거나 기본값이면 null). 다리를 주지 않거나(던짐·null) 하는 서버 구현이면 null(= 어댑터의 기본값). */
     public static String get(Furnace server, String key) {
         org.domi.furnace.api.internal.Internals in;
         try {
@@ -15,6 +15,6 @@ public final class CompatOptions {
         } catch (UnsupportedOperationException e) {
             return null;
         }
-        return in.compatOption(key);
+        return in == null ? null : in.compatOption(key);   // 다리를 null 로 주는 가짜 서버(시험용 프록시 등)도 기본값으로
     }
 }

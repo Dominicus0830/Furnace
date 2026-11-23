@@ -125,20 +125,22 @@ class AdapterBoundaryStaticTest {
                 "통로 모드 분기가 퍼졌다(또는 줄었다) — 월드젠 코드는 FeatureWorldView 의 pluginLevel* 메서드를 부른다(docs/ops/adapter-boundary.md)");
     }
 
-    /** 연결의 패킷 가로채기 지점(PacketTap)을 꺼내는 곳 — 보내는 쪽은 PacketTaps, 받는 쪽은 ConnectionHandler 하나. */
+    /** 연결의 패킷 가로채기 지점(PacketTap.KEY)을 만지는 곳 — 꽂는 쪽 PacketServiceImpl, 보내는 쪽 PacketTaps, 받는 쪽 ConnectionHandler 하나씩. */
     private static final Map<String, String> PACKET_TAP_READERS = Map.of(
+            "plugin/packet/PacketServiceImpl.java", "플러그인 패킷 API 가 연결에 가로채기 지점을 꽂는 곳",
             "net/PacketTaps.java", "보내는 패킷이 가로채기 지점을 거치는 한 곳(리스너 안에서 보낸 패킷 순서 포함)",
             "net/ConnectionHandler.java", "받는 패킷이 가로채기 지점을 거치는 한 곳");
 
     @Test
     void packetTapIsCalledFromOnePlacePerDirection() throws IOException {
-        assertEquals(new TreeSet<>(PACKET_TAP_READERS.keySet()), serverSourcesContaining("PacketTap.KEY).get()", null),
+        assertEquals(new TreeSet<>(PACKET_TAP_READERS.keySet()), serverSourcesContaining("PacketTap.KEY", null),
                 "패킷 가로채기 지점을 부르는 곳이 늘었다(또는 줄었다) — 보내기는 PacketTaps 를 거친다(docs/ops/adapter-boundary.md)");
     }
 
     @Test
     void publicApiHasNoAdapterOnlyMember() throws IOException {
-        // 어댑터만 쓰는 통로는 api.internal(불안정 다리)에 둔다 — 공개 API(MIT 표면)에 "호환 어댑터 전용" 항목을 두지 않는다
+        // 어댑터만 쓰는 통로는 api.internal(불안정 다리)에 둔다 — 공개 API(MIT 표면)에 "호환 어댑터 전용" 항목을 두지 않는다.
+        // 구조 검사가 아니라 문구 검사다: 그 표시를 단 항목만 잡는다(다른 말로 적은 항목은 사람이 검토에서 본다 — docs/ops/adapter-boundary.md)
         Path api = repoRoot().resolve("furnace-api/src/main/java/org/domi/furnace/api");
         List<String> found = new ArrayList<>();
         try (Stream<Path> s = Files.walk(api)) {
