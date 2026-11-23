@@ -11,9 +11,10 @@ T-232(엔티티 사슬)·#556(Axiom 액자)·#558(구조물 액자 방향) 뒤�
 | 기준 | 지원/전체 | 비율 |
 |---|--:|--:|
 | 기준 브랜치 c2bc631c(#558 병합본) | 3428/4067 | 84.3% |
-| 이 묶음(1묶음) 뒤 | 3469/4070 | 85.2% |
+| 1묶음 뒤(#561) | 3469/4070 | 85.2% |
+| 2묶음 뒤 | 3481/4070 | 85.5% |
 
-엔티티 영역(`net/minecraft/world/entity/**` 소유) 구멍은 196 → 163 으로 줄었다. 플러그인별 내역은 다음과 같다.
+엔티티 영역(`net/minecraft/world/entity/**` 소유) 구멍은 196 → 163(1묶음) → 151(2묶음)로 줄었다. 아래 표는 1묶음 기준이다. 플러그인별 내역은 다음과 같다.
 
 | 플러그인 | 전 | 뒤 | 성격 |
 |---|--:|--:|---|
@@ -35,10 +36,20 @@ T-232(엔티티 사슬)·#556(Axiom 액자)·#558(구조물 액자 방향) 뒤�
 - **EquipmentSlot:** 패킷 생성기의 빈 열거형을 명세로 옮겼다(Rotation 과 같은 절차: 명세 → `shimLock` → 컴파일). 칸마다 종류·번호·필터 번호·이름은 Paper 1.21.1 정적 초기화(javap -c)와 같고, `byName` 의 오류 문구도 같다. 서명 관문 기준선의 `type-missing EquipmentSlot` 줄을 지웠다.
 - **LivingEntity#getOffhandItem:** `getMainHandItem` 과 같은 범위(손 칸).
 
-## 3. 남은 것 (다음 묶음 후보)
+## 3. 2묶음 — 바닐라 생성자로 월드 밖 엔티티 만들기
+
+- 플러그인이 `new Shulker(EntityType.SHULKER, level)`·`new MinecartChest(…)`·`new Display.TextDisplay(…)` 처럼 바닐라 생성자로 엔티티를 만든다(LagFixer·GSit·FancyNpcs).
+- **생성기 변경:** 종류 표의 E 줄 클래스(129개)마다 바닐라 생성자 `(EntityType, Level)` 를 붙인다(몸통 종류 `FRESH`, 명세에 쓰지 않는다).
+  - 몸통은 재료(종류·레벨)를 표지에 실어 생성기 전용 생성자로 넘긴다. 그래서 `EntityType#create` 와 같은 "아직 월드에 없는 엔티티"가 되고, 1묶음의 설정 기록·넣기가 그대로 된다.
+  - 접근·제네릭 서명(`EntityType<? extends Shulker>`·`EntityType<?>`)은 잠금 파일이 서명표에서 푼다. 129개 모두 바닐라에서 public 이다.
+  - 생성 클래스여도 종류 클래스는 생성기 전용 생성자를 받는다(`markers`).
+- **손 몸통:** 자리를 받는 생성자 `ArmorStand(Level, x, y, z)`·`AreaEffectCloud(Level, x, y, z)`. 바닐라처럼 종류 생성자 뒤 `setPos`.
+- 시험: 생성기 단위 시험(E 줄 → FRESH 멤버), `NmsEntitySettersTest#vanillaConstructorsMakeEntitiesNotInAWorldYet`(129개 public 생성자, 종류, 자리, 넣은 뒤 서버 엔티티).
+
+## 4. 남은 것 (다음 묶음 후보)
 
 - FancyNpcs: `getEntityData`(SynchedEntityData)와 몹별 setter. NPC 를 월드에 넣지 않고 패킷으로만 보내는 길이라 엔티티 데이터 값을 패킷 모양으로 내주는 설계가 먼저다(설계 묶음).
 - LagFixer: `GoalSelector`·`Goal`·`PathNavigation`·`TargetingConditions`·번식 목표. 몹 AI 상속·조작이라 가짜 플레이어 다음 설계(결정 확정 "몹 상속은 가짜 플레이어 다음 설계만")를 따른다.
-- 생성자 `(EntityType, Level)`·`(Level, x, y, z)`(수레·배·셜커·갑옷 거치대·영역 효과 구름): 생성기 전용 생성자 말고 바닐라 생성자로 월드 밖 엔티티를 만드는 길.
+- 수레·배의 `(Level, x, y, z)` 생성자(쓰는 표본 플러그인이 없어 미룸).
 - 필드 직접 읽기·쓰기(`xo`·`yo`·`zo`·`yRotO`, LivingEntity `hurtTime` 등)는 shim 이 값을 들고 있지 않아 못 맞춘다(호출 가로채기가 안 된다).
 - `getEyeHeight`: 월드 밖 엔티티의 종류별 눈높이 표가 호환 계층에 없다.
