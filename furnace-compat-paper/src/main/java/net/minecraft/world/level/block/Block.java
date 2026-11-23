@@ -34,10 +34,20 @@ public class Block extends BlockBehaviour implements ItemLike {
     private final boolean air;
 
     /**
-     * 호환 모듈 전용 — 블록 shim 표가 만든다. 상태는 바닐라 StateDefinition 순서(속성 이름순, 뒤 속성이 빨리 바뀜)로 만들고
+     * 생성기 전용 생성자(T-231): 블록 shim 표({@link org.domi.furnace.compat.nms.NmsBlocks})가 바닐라 클래스(종류 표)로 만든다 — 표지에 블록 종류가 실려 온다.
+     * 바닐라 하위 클래스(생성 shim)는 이 생성자로 올라온다.
+     */
+    protected Block(org.domi.furnace.compat.nms.ShimCtor tag) {
+        this(org.domi.furnace.compat.nms.NmsBlocks.kindOf(tag));
+    }
+
+    private Block(org.domi.furnace.compat.nms.NmsBlocks.Kind kind) { this(kind.type(), kind.types()); }
+
+    /**
+     * 상태는 바닐라 StateDefinition 순서(속성 이름순, 뒤 속성이 빨리 바뀜)로 만들고
      * {@code baseStateId + 순번} 이 서버의 상태 번호와 같은지 확인한다(어긋나면 IllegalStateException).
      */
-    public Block(BlockType type, org.domi.furnace.api.world.BlockTypes types) {
+    private Block(BlockType type, org.domi.furnace.api.world.BlockTypes types) {
         this.key = ResourceLocation.parse(type.id());
         this.itemKey = type.item();
         this.air = type.id().equals("minecraft:air") || type.id().equals("minecraft:cave_air") || type.id().equals("minecraft:void_air");

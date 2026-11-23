@@ -9,6 +9,7 @@ NMS shim(`net.minecraft.*` Mojang 이름 클래스)을 손으로 다 쓰지 않�
 |---|---|---|---|
 | `src/shimspec/*.spec` | 사람 | 함 | 어떤 클래스·멤버를 무엇에 잇는지. 판과 무관(서술자·상속을 적지 않는다) |
 | `src/shimspec/shim-<판>.lock` | `:furnace-compat-paper:shimLock` | 함 | 명세의 클래스·멤버와 그 상위 사슬의 선언(접근·상위·인터페이스·서술자·제네릭 서명, 열거형 상수 개수)을 서명표에서 푼 것. 손으로 고치지 않는다(줄바꿈은 CRLF 여도 같은 파일로 본다) |
+| `src/shimspec/kind-classes-<판>.txt` | `:vanilla-extract:run -Pmode=install -Ptools=kind-classes` | 함 | 블록·아이템 종류 → 바닐라 클래스(T-231, 바닐라를 부트스트랩해 레지스트리 객체의 클래스를 읽음). 판마다 하나 |
 | `src/shims/java/<패키지>/<클래스>.java` | 사람 | 함 | 손 몸통(`@hand`·`@fast`)이 필요한 클래스의 "조각". 머리는 생성기가 붙인다 |
 | `build/generated/sources/nms-shims/java` | `generateNmsShims`(컴파일 때 자동) | 안 함 | 완성된 shim 소스 |
 | `build/generated/resources/nms-shims/META-INF/furnace/shim-*.txt` | 같음 | 안 함 | 구현 없는 추상 메서드 색인(`NmsSymbols` 가 읽는다), 생성·합친 클래스 목록 |
@@ -40,6 +41,7 @@ class net.minecraft.world.entity.Entity  owner=org.domi.furnace.compat.bind.Enti
   getBlockState   -> @fast(docs/…/hot-path-block-read.md) read=snapshot  # 핫 경로 맞춤 설계(설계 4.6) — 손 조각 + 근거 문서
   tick            -> @empty write                          # 빈 몸통(void·생성자만). write 면 소유 검사만 있는 몸통
   <init>          -> @empty                                # 생성자는 검사 종류를 적지 않는다(아직 주인이 없다)
+  getType -> @each(EntityOps.type) read=any                # 상위 공통 연결(T-231): 바닐라가 추상인 메서드를 추상 그대로 두고, 물려받는 생성 구체 클래스마다 위임 몸통
   getType                                                  # 이름만: 바닐라가 추상인 메서드 = 추상 선언
   MAX_UP_STEP     = 0.6F                                   # 필드 값(자바 식, 완전 이름으로)
   CODEC           = @hand                                  # 필드를 손 조각이 선언
@@ -61,6 +63,18 @@ class net.minecraft.world.level.block.CropBlock            # 멤버 없이 클�
   주인이 아니면 무엇을 할지(던지기·주인에게 넘기기)는 그 클래스가 정한다 — 생성기는 "검사가 위임보다 먼저"만 보장한다.
 - 위임 대상 `C.m` 은 정적 메서드다. 인스턴스 멤버면 `this` 가 첫 인자로 간다. 생성 몸통에는 리플렉션·`invokedynamic` 이 없다(시험이 본다).
 - **명세에 없는 멤버는 만들지 않는다.** 클래스 파일에 없으니 플러그인 호출은 지금처럼 `NmsLinker` 덫이 잡는다(던지는 빈 껍데기를 만들지 않는다 — 기능 감지 보존).
+
+- `@each(C.m)`(상위 공통 연결, T-231)은 바닐라가 추상인 인스턴스 메서드에만 쓴다. 그 클래스·인터페이스에는 추상 선언이 남고, 그것을 물려받는 **생성** 구체 클래스마다
+  (스스로 잇지 않았으면) `C.m(this, …)` 위임 몸통이 생긴다 — 상위 사슬에 손 shim 이 있어도 만든다(손 shim 은 생성 상위의 추상 메서드를 이을 수 없는 자리라서).
+  예: `EntityBlock#newBlockEntity` 하나로 블록 엔티티 있는 블록 클래스 전부, `BeaconBeamBlock#getColor` 하나로 색유리·색유리판·신호기.
+
+## 종류 표 (T-231)
+
+`kind-classes-<판>.txt` 의 줄 `B|I <레지스트리 이름> <클래스>` 는 바닐라에서 그 블록·아이템 객체의 클래스다. 생성기는 표의 클래스를 **멤버 없는 `class` 줄**로 더하고
+(명세에 이미 있으면 명세 줄이 이긴다), 표를 `META-INF/furnace/shim-kinds.txt` 로 옮긴다. 실행 때 `NmsKinds` 가 그 표로 블록 표·`Item.byKey` 의 객체를
+그 클래스로 만든다(생성기 전용 생성자 `C(ShimCtor)`, 재료는 `ShimCtor.carrying` 으로 실어 사슬 맨 위 손 shim `Block`·`Item` 이 받는다).
+그래서 `Blocks.WHEAT instanceof CropBlock`·`Items.TORCH instanceof StandingAndWallBlockItem` 이 바닐라와 같다. 표에 없는 이름(바닐라에 없는 종류)은 `Block`·`Item`.
+판을 올리면 표를 다시 뽑고 `shimLock` 을 다시 쓴다(엔티티 종류는 엔티티 사슬(T-232) 뒤에 같은 방식으로 더한다).
 
 ## 생성기가 만드는 것
 

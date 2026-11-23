@@ -9,7 +9,7 @@ import org.bukkit.Material;
  * 아이템 종류 shim(Mojang 이름, H6 최소 표면). 같은 레지스트리 키는 같은 객체라 바닐라처럼 {@code ==} 로 비교할 수 있다.
  * 레지스트리({@code BuiltInRegistries.ITEM}·{@code Items.*}, N0)의 값도 이 객체다.
  */
-public class Item implements ItemLike {
+public class Item implements net.minecraft.world.flag.FeatureElement, ItemLike {
 
     private static final ConcurrentHashMap<String, Item> BY_KEY = new ConcurrentHashMap<>();
 
@@ -18,13 +18,27 @@ public class Item implements ItemLike {
 
     private final String key;
 
-    Item(String key) { this.key = key; }   // 같은 패키지 하위 클래스(BlockItem)만
+    /**
+     * 생성기 전용 생성자(T-231): {@link #byKey} 가 바닐라 클래스(종류 표 — 블록 아이템은 {@code BlockItem}, 칼은 {@code SwordItem} …)로 만든다.
+     * 표지에 레지스트리 키가 실려 온다. 바닐라 하위 클래스(생성 shim)는 이 생성자로 올라온다.
+     */
+    protected Item(org.domi.furnace.compat.nms.ShimCtor tag) {
+        if (tag == null || !(tag.payload() instanceof String k)) throw new IllegalStateException("items are created by Item.byKey only");
+        this.key = k;
+    }
 
     /** 호환 모듈 전용 — 레지스트리 키(minecraft:stone)의 종류. */
     public static Item byKey(String key) {
         Objects.requireNonNull(key, "key");
         String k = key.indexOf(':') < 0 ? "minecraft:" + key : key;
-        return BY_KEY.computeIfAbsent(k, Item::new);
+        return BY_KEY.computeIfAbsent(k, Item::create);
+    }
+
+    /** 표에 있는 이름은 그 바닐라 클래스로, 없는 이름(바닐라에 없는 종류)은 Item 으로. */
+    private static Item create(String key) {
+        String cls = org.domi.furnace.compat.nms.NmsKinds.itemClass(key);
+        if (cls == null) return new Item(org.domi.furnace.compat.nms.ShimCtor.carrying(key));
+        return org.domi.furnace.compat.nms.NmsKinds.create(cls, Item.class, key);
     }
 
     /** 호환 모듈 전용 — 레지스트리 키. */

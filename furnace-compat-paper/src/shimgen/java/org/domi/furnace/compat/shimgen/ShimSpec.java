@@ -56,7 +56,12 @@ final class ShimSpec {
         /** 빈 몸통(void 메서드·생성자). read=owner·write 면 소유 검사만 있는 몸통. */
         EMPTY,
         /** 필드 초기값(자바 식). */
-        VALUE
+        VALUE,
+        /**
+         * 상위 공통 연결(T-231): 바닐라가 추상인 메서드는 추상 그대로 두고, 이를 물려받는 생성 구체 클래스마다(스스로 잇지 않았으면)
+         * 대상 정적 메서드로 위임하는 몸통을 만든다. 쓰기: {@code newBlockEntity -> @each(NmsBlockEntityClasses.newBlockEntity) read=any}.
+         */
+        EACH
     }
 
     /** 멤버 줄. desc 는 적힌 만큼(없으면 null, 메서드는 "(…)" 만 적어도 된다). */
@@ -74,7 +79,13 @@ final class ShimSpec {
 
     final Map<String, Cls> classes = new LinkedHashMap<>();
 
-    /** 폴더의 *.spec 전부(이름 순). */
+    /** 종류 표(kind-classes-&lt;판&gt;.txt, T-231): 레지스트리 종류 → 바닐라 클래스. 줄: B|I 이름 클래스. 비어 있으면 표가 없다. */
+    final List<String[]> kinds = new ArrayList<>();
+
+    /** 종류 표 파일 이름 앞부분. 판마다 하나만 둔다(판 이름은 잠금 파일과 같다). */
+    static final String KIND_TABLE_PREFIX = "kind-classes-";
+
+    /** 폴더의 *.spec 전부(이름 순) + 종류 표. 종류 표의 클래스는 명세에 없으면 멤버 없는 class 줄로 더한다(instanceof·상속 사슬용 선언). */
     static ShimSpec readDir(Path dir) throws IOException {
         ShimSpec s = new ShimSpec();
         if (!Files.isDirectory(dir)) return s;
@@ -83,7 +94,30 @@ final class ShimSpec {
                 s.parse(dir.relativize(p).toString(), Files.readString(p, StandardCharsets.UTF_8));
             }
         }
+        List<Path> kindFiles;
+        try (Stream<Path> st = Files.list(dir)) {
+            kindFiles = st.filter(x -> { String f = x.getFileName().toString(); return f.startsWith(KIND_TABLE_PREFIX) && f.endsWith(".txt"); }).sorted().toList();
+        }
+        if (kindFiles.size() > 1) throw new IllegalArgumentException("more than one kind table (keep only the current version's): " + kindFiles);
+        for (Path p : kindFiles) s.parseKinds(dir.relativize(p).toString(), Files.readString(p, StandardCharsets.UTF_8));
         return s;
+    }
+
+    void parseKinds(String file, String text) {
+        String[] lines = text.split("\r?\n", -1);
+        Map<String, Integer> firstLine = new LinkedHashMap<>();
+        for (int n = 0; n < lines.length; n++) {
+            String t = lines[n].strip();
+            if (t.isEmpty() || t.startsWith("#")) continue;
+            String[] w = t.split("\\s+");
+            if (w.length != 3 || !(w[0].equals("B") || w[0].equals("I"))) throw err(file, n + 1, "kind table lines are 'B|I <registry name> <class>': " + t);
+            if (!w[2].startsWith("net.minecraft.")) throw err(file, n + 1, "kind classes are net.minecraft classes: " + w[2]);
+            kinds.add(w);
+            firstLine.putIfAbsent(w[2], n + 1);
+        }
+        for (Map.Entry<String, Integer> e : firstLine.entrySet()) {
+            if (!classes.containsKey(e.getKey())) classes.put(e.getKey(), new Cls(e.getKey(), null, List.of(), file, e.getValue()));
+        }
     }
 
     private static final Pattern NAME = Pattern.compile("[A-Za-z_$<][A-Za-z0-9_$<>]*");
@@ -187,6 +221,17 @@ final class ShimSpec {
         String tgt = null;
         if (target.equals("@hand")) body = Body.HAND;
         else if (target.equals("@empty")) body = Body.EMPTY;
+        else if (target.startsWith("@each(") && target.endsWith(")")) {
+            body = Body.EACH;
+            String inner = target.substring(6, target.length() - 1);
+            int dot = inner.lastIndexOf('.');
+            if (dot <= 0) throw err(file, no, "write the @each target as Class.method: " + target);
+            try {
+                tgt = resolve(imports, inner.substring(0, dot)) + "." + inner.substring(dot + 1);
+            } catch (IllegalArgumentException e) {
+                throw err(file, no, e.getMessage());
+            }
+        }
         else if (target.startsWith("@fast(") && target.endsWith(")")) {
             body = Body.FAST;
             tgt = target.substring(6, target.length() - 1);

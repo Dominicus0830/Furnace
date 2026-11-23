@@ -10,7 +10,7 @@ import net.minecraft.world.level.block.state.properties.Property;
  * 대부분 두지 않았다 — 부르면 H7 덫. 쪼갠 setBlock 조각(onPlace·handleNeighborChanged·updateNeighbourShapes·updateIndirectNeighbourShapes·triggerEvent,
  * T-204)은 서버 블록 동작을 그 칸의 주인 region 에서 부른다. 블록 속성 묶음({@code Properties}) 도 플러그인이 블록을 만들 수 없어 두지 않았다.
  */
-public abstract class BlockBehaviour {
+public abstract class BlockBehaviour implements net.minecraft.world.flag.FeatureElement {
 
     /** 블록 상태의 바탕. 값은 같은 블록의 상태 표에서 찾는다. */
     public abstract static class BlockStateBase extends StateHolder<Block, BlockState> {

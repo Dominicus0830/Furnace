@@ -36,7 +36,7 @@
 | `scripts/compare-without-column.py` | 열 하나만 빼고 두 결과를 견준다(`block-attrs` destroy 열 차이 확인용, user-todo 참고) |
 | `src/main/resources/python/` | 데이터 생성기 JSON 을 읽는 파이썬 도구(`<판>` 을 마지막 인자로 받음) |
 
-도구 목록(27개, `--list`): Java 21개 — 블록 10(`block-attrs`·`block-hardness`·`block-light`·`block-props`·`block-shapes`·`block-transforms`·`block-sound-types`·`map-colors`·`note-instruments`·`pathfindable`), 아이템 5(`item-props`·`item-blocks`·`item-default-attributes`·`craft-remainders`·`stew-effects`), 프로토콜 1(`protocol-ids`), 시험 정답표 4(`context-collision-shapes`·`section-oracle`·`raw-write-oracle`·`palette-oracle`), 시험 벡터 1(`shape-vectors`, 재료를 따로 받아 전체 실행에 안 들어감) / 파이썬 6개 — `tags`·`builtin-registries`·`block-tags`·`item-components`·`block-definitions`·`damage-types`.
+도구 목록(28개, `--list`): Java 22개 — 블록 10(`block-attrs`·`block-hardness`·`block-light`·`block-props`·`block-shapes`·`block-transforms`·`block-sound-types`·`map-colors`·`note-instruments`·`pathfindable`), 아이템 5(`item-props`·`item-blocks`·`item-default-attributes`·`craft-remainders`·`stew-effects`), 프로토콜 1(`protocol-ids`), 호환 1(`kind-classes` — 블록·아이템 종류 → 바닐라 클래스, shim 생성기 T-231 이 읽는다), 시험 정답표 4(`context-collision-shapes`·`section-oracle`·`raw-write-oracle`·`palette-oracle`), 시험 벡터 1(`shape-vectors`, 재료를 따로 받아 전체 실행에 안 들어감) / 파이썬 6개 — `tags`·`builtin-registries`·`block-tags`·`item-components`·`block-definitions`·`damage-types`.
 
 ## 서명표 (T-227)
 

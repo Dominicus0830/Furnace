@@ -412,4 +412,56 @@ class ShimGeneratorTest {
         assertTrue(box.contains("public abstract T get();"), box);
         assertTrue(box.contains("protected Box(org.domi.furnace.compat.nms.ShimCtor tag) { }"), box);
     }
+
+    /** T-231: @each — 인터페이스의 추상 메서드는 추상 그대로, 그것을 물려받는 구체 생성 클래스마다(손 상위 아래여도) 위임 몸통. 추상 중간 클래스는 몸통 없음. */
+    @Test
+    void eachLinksAnAbstractMethodIntoEveryConcreteSubclass() throws Exception {
+        String spec = "import " + FIX + "\n"
+                + "class net.minecraft.zz.Named\n  getName -> @each(ShimGenFixtures.name) read=any\n"
+                + "class net.minecraft.zz.Low\nclass net.minecraft.zz.Tag\n";
+        String lock = String.join("\n", "#furnace-shim-lock\t1\ttest",
+                "C\tnet/minecraft/zz/Base\t1057\tjava/lang/Object\t-\t-\t-\tt",
+                "C\tnet/minecraft/zz/Named\t1537\tjava/lang/Object\t-\t-\t-\tt",
+                "M\tnet/minecraft/zz/Named\tgetName\t()Ljava/lang/String;\t1025\t-",
+                "C\tnet/minecraft/zz/Mid\t1057\tnet/minecraft/zz/Base\tnet/minecraft/zz/Named\t-\t-\tt",
+                "C\tnet/minecraft/zz/Low\t33\tnet/minecraft/zz/Mid\t-\t-\t-\tt",
+                "C\tnet/minecraft/zz/Tag\t33\tnet/minecraft/zz/Base\tnet/minecraft/zz/Named\t-\t-\tt", "");
+        Built b = build(spec, lock, Map.of());
+        assertEquals(List.of(), b.result().unimplemented(), "@each 로 이은 메서드는 '없음' 색인에 들지 않는다");
+        String mid = b.result().files().get("net/minecraft/zz/Mid");
+        assertFalse(mid.contains("getName"), "추상 중간 클래스는 몸통을 받지 않는다:\n" + mid);
+        Class<?> named = b.loader().loadClass("net.minecraft.zz.Named");
+        assertTrue(Modifier.isAbstract(named.getMethod("getName").getModifiers()), "인터페이스 메서드는 추상 그대로");
+        for (String c : List.of("Low", "Tag")) {
+            Class<?> k = b.loader().loadClass("net.minecraft.zz." + c);
+            Constructor<?> ctor = k.getDeclaredConstructor(ShimCtor.class);
+            ctor.setAccessible(true);
+            Object o = ctor.newInstance(ShimCtor.TAG);
+            assertEquals("named:" + c, named.getMethod("getName").invoke(o));
+            assertEquals(k, k.getDeclaredMethod("getName").getDeclaringClass(), c + " 가 몸통을 가진다");
+        }
+    }
+
+    @Test
+    void eachIsOnlyForAbstractMethodsAndKindTablesAddDeclarations() throws Exception {
+        ShimSpec s = new ShimSpec();
+        s.parse("t.spec", SPEC.replace("twice -> ShimGenFixtures.twice pure", "twice -> @each(ShimGenFixtures.twice) pure"));
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> new ShimGenerator(s, ShimLock.parse(LOCK), tmp, List.of(), List.of()).generate());
+        assertTrue(e.getMessage().contains("@each is for methods that are abstract in vanilla"), e.getMessage());
+        // 종류 표: 명세에 없는 클래스는 멤버 없는 class 줄이 되고, 이미 있는 클래스는 명세 줄을 그대로 둔다. 표는 판마다 하나.
+        Path dir = Files.createDirectories(tmp.resolve("kinds"));
+        Files.writeString(dir.resolve("a.spec"), "class net.minecraft.zz.Leaf\n  <init> -> @empty\n", StandardCharsets.UTF_8);
+        Files.writeString(dir.resolve("kind-classes-test.txt"), "# c\nB minecraft:a net.minecraft.zz.Leaf\nI minecraft:b net.minecraft.zz.Other\n", StandardCharsets.UTF_8);
+        ShimSpec k = ShimSpec.readDir(dir);
+        assertEquals(List.of("net.minecraft.zz.Leaf", "net.minecraft.zz.Other"), List.copyOf(k.classes.keySet()));
+        assertEquals(1, k.classes.get("net.minecraft.zz.Leaf").members().size(), "명세 줄이 이긴다");
+        assertEquals(2, k.kinds.size());
+        Files.writeString(dir.resolve("kind-classes-old.txt"), "B minecraft:a net.minecraft.zz.Leaf\n", StandardCharsets.UTF_8);
+        assertThrows(IllegalArgumentException.class, () -> ShimSpec.readDir(dir));
+        Files.delete(dir.resolve("kind-classes-old.txt"));
+        Files.writeString(dir.resolve("kind-classes-test.txt"), "X minecraft:a net.minecraft.zz.Leaf\n", StandardCharsets.UTF_8);
+        IllegalArgumentException bad = assertThrows(IllegalArgumentException.class, () -> ShimSpec.readDir(dir));
+        assertTrue(bad.getMessage().contains("kind-classes-test.txt:1"), bad.getMessage());
+    }
 }

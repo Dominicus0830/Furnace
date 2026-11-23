@@ -37,6 +37,8 @@ public final class ShimGenerator {
     public static final String UNIMPLEMENTED_INDEX = "META-INF/furnace/shim-unimplemented.txt";
     /** 생성·합친 클래스 목록(시험·보고용). 줄: G|F 내부이름 (G 생성, F 손 조각과 합침). */
     public static final String GENERATED_INDEX = "META-INF/furnace/shim-generated.txt";
+    /** 실행 때 NmsKinds 가 읽는 종류 표(T-231). 줄: B|I 레지스트리이름 클래스(이진 이름). */
+    public static final String KIND_INDEX = "META-INF/furnace/shim-kinds.txt";
 
     /** 클래스가 어디서 오나. */
     enum Origin { GEN, FRAGMENT, HAND, PACKET }
@@ -94,6 +96,7 @@ public final class ShimGenerator {
         Files.createDirectories(ui.getParent());
         Files.writeString(ui, String.join("\n", r.unimplemented()) + (r.unimplemented().isEmpty() ? "" : "\n"), StandardCharsets.UTF_8);
         Files.writeString(outRes.resolve(GENERATED_INDEX), String.join("\n", r.generated()) + (r.generated().isEmpty() ? "" : "\n"), StandardCharsets.UTF_8);
+        Files.writeString(outRes.resolve(KIND_INDEX), String.join("\n", r.kinds()) + (r.kinds().isEmpty() ? "" : "\n"), StandardCharsets.UTF_8);
         System.out.println("[shimgen] shim spec: " + spec.classes.size() + " classes -> " + r.files().size() + " files ("
                 + r.generated().size() + " generated or merged classes, " + r.unimplemented().size() + " unimplemented abstract methods)");
     }
@@ -105,7 +108,7 @@ public final class ShimGenerator {
     }
 
     /** 결과: 최상위 내부 이름 → 소스 글, 색인 줄들. */
-    record Result(Map<String, String> files, List<String> unimplemented, List<String> generated) {}
+    record Result(Map<String, String> files, List<String> unimplemented, List<String> generated, List<String> kinds) {}
 
     Result generate() throws IOException {
         bind();
@@ -133,7 +136,9 @@ public final class ShimGenerator {
         List<String> gen = new ArrayList<>();
         origin.forEach((k, v) -> { if (v == Origin.GEN) gen.add("G " + k); else if (v == Origin.FRAGMENT) gen.add("F " + k); });
         Set<String> un = new TreeSet<>(unimplemented);
-        return new Result(files, List.copyOf(un), gen);
+        List<String> kinds = new ArrayList<>();
+        for (String[] k : spec.kinds) kinds.add(k[0] + " " + k[1] + " " + k[2]);
+        return new Result(files, List.copyOf(un), gen, kinds);
     }
 
     private IllegalStateException fail() {
@@ -221,6 +226,11 @@ public final class ShimGenerator {
                         + " list every constant in vanilla order (ordinals and values() must match vanilla)");
             }
         }
+        // 종류 표의 클래스는 레지스트리 객체가 되는 구체 클래스다(바닐라에서 이미 그렇다 — 서명표가 바뀌면 알린다)
+        for (String[] k : spec.kinds) {
+            ShimLock.Cls c = lock.classes.get(k[2].replace('.', '/'));
+            if (c != null && (c.isAbstract() || c.isInterface())) problems.add("kind class " + k[2] + " of " + k[1] + " is abstract or an interface in the shim lock");
+        }
         for (ShimSpec.Cls c : spec.classes.values()) {
             String n = c.name().replace('.', '/');
             Origin o = origin.get(n);
@@ -232,7 +242,10 @@ public final class ShimGenerator {
             }
             for (Bound b : bs) {
                 ShimSpec.Member m = b.spec();
-                if (b.lock().kind() == 'M' && b.lock().isAbstract() && m.body() != ShimSpec.Body.DECLARE) {
+                if (m.body() == ShimSpec.Body.EACH && !(b.lock().kind() == 'M' && b.lock().isAbstract() && !b.lock().isStatic())) {
+                    problems.add(m.where() + ": @each is for methods that are abstract in vanilla (each generated concrete subclass gets the delegate): " + n + "#" + m.name());
+                }
+                if (b.lock().kind() == 'M' && b.lock().isAbstract() && m.body() != ShimSpec.Body.DECLARE && m.body() != ShimSpec.Body.EACH) {
                     problems.add(m.where() + ": " + n + "#" + m.name() + " is abstract in vanilla"
                             + (lock.classes.get(n).isInterface() ? " (an interface method without a default body)" : "")
                             + "; write the name only (an abstract declaration) - a body would change the class shape");
@@ -288,20 +301,23 @@ public final class ShimGenerator {
             String n = e.getKey();
             ShimLock.Cls c = lock.classes.get(n);
             if (!emitted(n) || c.isInterface() || c.isAbstract()) continue;
-            // 상위 클래스 사슬에 손 shim(모르는 몸통)이 있으면 판단하지 않는다 — 빠졌으면 컴파일 오류가 알려 준다
+            // 상위 클래스 사슬에 손 shim(모르는 몸통)이 있으면 던지는 몸통은 판단하지 않는다 — 빠졌으면 컴파일 오류가 알려 준다.
+            // 상위 공통 연결(@each)은 그래도 만든다: 그 메서드는 생성 상위(클래스·인터페이스)의 추상 메서드라 손 상위가 이을 수 없는 이름이다
+            // (손 shim 이 같은 메서드를 가지면 생성 몸통이 가린다 — 시험 ShimGeneratorTest 가 아니라 컴파일된 클래스의 시험이 본다).
             boolean unknown = false;
             List<String> chain = new ArrayList<>();
             for (String s = n; s != null && ShimLock.isNms(s); s = lock.classes.containsKey(s) ? lock.classes.get(s).superName() : null) {
                 if (!emitted(s)) { unknown = true; break; }
                 chain.add(s);
             }
-            if (unknown) continue;
             Set<String> have = new HashSet<>();
             Map<String, ShimLock.Member> abstracts = new TreeMap<>();
+            Map<String, Bound> each = new TreeMap<>();
             for (String s : chain) {
                 for (Bound b : bound.getOrDefault(s, List.of())) {
                     if (b.lock().kind() != 'M') continue;
-                    if (b.spec().body() == ShimSpec.Body.DECLARE && b.lock().isAbstract()) abstracts.putIfAbsent(overrideKey(b.lock()), b.lock());
+                    if (b.spec().body() == ShimSpec.Body.EACH) { abstracts.putIfAbsent(overrideKey(b.lock()), b.lock()); each.putIfAbsent(overrideKey(b.lock()), b); }
+                    else if (b.spec().body() == ShimSpec.Body.DECLARE && b.lock().isAbstract()) abstracts.putIfAbsent(overrideKey(b.lock()), b.lock());
                     else if (!b.lock().isStatic()) have.add(overrideKey(b.lock()));
                 }
             }
@@ -315,13 +331,20 @@ public final class ShimGenerator {
                 itfs.addAll(lock.classes.get(i).interfaces());
                 for (Bound b : bound.getOrDefault(i, List.of())) {
                     if (b.lock().kind() != 'M' || b.lock().isStatic()) continue;
-                    if (b.spec().body() == ShimSpec.Body.DECLARE) abstracts.putIfAbsent(overrideKey(b.lock()), b.lock());
+                    if (b.spec().body() == ShimSpec.Body.EACH) { abstracts.putIfAbsent(overrideKey(b.lock()), b.lock()); each.putIfAbsent(overrideKey(b.lock()), b); }
+                    else if (b.spec().body() == ShimSpec.Body.DECLARE) abstracts.putIfAbsent(overrideKey(b.lock()), b.lock());
                     else have.add(overrideKey(b.lock()));
                 }
             }
             for (Map.Entry<String, ShimLock.Member> am : abstracts.entrySet()) {
                 ShimLock.Member m = am.getValue();
                 if (have.contains(am.getKey())) continue;
+                Bound fill = each.get(am.getKey());
+                if (fill != null) {
+                    eachFor.computeIfAbsent(n, k -> new ArrayList<>()).add(fill);
+                    continue;
+                }
+                if (unknown) continue;
                 if (JavaTypes.usesTypeVariables(m.signature())) {
                     problems.add(n + " does not link " + m.name() + m.desc() + ", an abstract method of a generated supertype whose signature uses type variables;"
                             + " a throwing body cannot be generated - link it in the spec of " + n);
@@ -334,6 +357,8 @@ public final class ShimGenerator {
     }
 
     final Map<String, List<ShimLock.Member>> stubsFor = new TreeMap<>();
+    /** 상위 공통 연결(@each)로 위임 몸통을 받는 구체 클래스 → 그 연결 줄들. */
+    final Map<String, List<Bound>> eachFor = new TreeMap<>();
 
     /** 재정의 판정 열쇠: 이름 + 인자 서술자(반환형은 공변 재정의가 있어 뺀다 — javac 가 다리 메서드를 만든다). */
     static String overrideKey(ShimLock.Member m) { return m.name() + m.desc().substring(0, m.desc().indexOf(')') + 1); }
@@ -398,6 +423,7 @@ public final class ShimGenerator {
             String head = methodHead(c, m, simple);
             switch (b.spec().body()) {
                 case HAND, FAST -> { }
+                case EACH -> sb.append(in).append(head).append(";\n");   // 추상 그대로(구체 하위 클래스가 위임 몸통을 받는다)
                 case DECLARE -> {
                     if (!m.isAbstract()) problems.add(b.spec().where() + ": a method that is not abstract in vanilla needs -> target, -> @hand or -> @empty: " + m.name());
                     else sb.append(in).append(head).append(";\n");
@@ -422,6 +448,16 @@ public final class ShimGenerator {
                 }
                 default -> problems.add(b.spec().where() + ": methods cannot take = value: " + m.name());
             }
+        }
+        // 상위 공통 연결(@each): 물려받은 추상 메서드의 위임 몸통
+        for (Bound b : eachFor.getOrDefault(n, List.of())) {
+            ShimLock.Member m = b.lock();
+            ShimLock.Member concrete = new ShimLock.Member('M', n, m.name(), m.desc(), m.access() & ~0x0400 & ~0x0200, m.signature());
+            sb.append(in).append("/** Linked once for every subclass (@each in the shim spec of ").append(JavaTypes.simple(m.owner())).append("). */\n");
+            sb.append(in).append("@Override\n");
+            sb.append(in).append(methodHead(c, concrete, simple)).append(" {\n");
+            sb.append(delegateBody(m.owner(), b, in + "    ", n));
+            sb.append(in).append("}\n");
         }
         // 구현 없는 추상 메서드
         for (ShimLock.Member m : stubsFor.getOrDefault(n, List.of())) {
@@ -450,19 +486,24 @@ public final class ShimGenerator {
     }
 
     /** read=owner·write 의 소유 검사 줄(몸통 첫 줄). 다른 종류는 빈 글. */
-    private String ownerCheck(String owner, Bound b, String in) {
+    private String ownerCheck(String owner, Bound b, String in) { return ownerCheck(owner, b, in, owner); }
+
+    /** owner 는 명세 줄이 있는 클래스(소유 규칙을 정한다), named 는 검사 문구의 클래스 이름(@each 는 받는 하위 클래스). */
+    private String ownerCheck(String owner, Bound b, String in, String named) {
         ShimSpec.Member s = b.spec();
         if (s.kind() == null || !s.kind().checked()) return "";
         ShimSpec.Cls sc = spec.classes.get(owner.replace('/', '.'));
         String method = s.kind() == ShimSpec.Kind.WRITE ? "write" : "read";
-        return in + sc.owner().replace('$', '.') + '.' + method + "(this, \"" + JavaTypes.simple(owner) + '#' + b.lock().name() + "\");\n";
+        return in + sc.owner().replace('$', '.') + '.' + method + "(this, \"" + JavaTypes.simple(named) + '#' + b.lock().name() + "\");\n";
     }
 
-    private String delegateBody(String owner, Bound b, String in) {
+    private String delegateBody(String owner, Bound b, String in) { return delegateBody(owner, b, in, owner); }
+
+    private String delegateBody(String owner, Bound b, String in, String named) {
         ShimLock.Member m = b.lock();
         ShimSpec.Member s = b.spec();
         StringBuilder sb = new StringBuilder();
-        sb.append(ownerCheck(owner, b, in));
+        sb.append(ownerCheck(owner, b, in, named));
         List<String> args = new ArrayList<>();
         int n = JavaTypes.descParams(m.desc()).size();
         for (int i = 0; i < n; i++) args.add("a" + i);
@@ -471,7 +512,7 @@ public final class ShimGenerator {
         if (!isVoid) sb.append("return ");
         if (s.body() == ShimSpec.Body.SELF) {
             sb.append(m.isStatic() ? JavaTypes.source(owner) : "this").append('.').append(s.target());
-        } else {
+        } else {   // DELEGATE·EACH
             sb.append(s.target().replace('$', '.'));   // 소스 이름(안쪽 클래스는 '.')
             if (!m.isStatic()) args.add(0, "this");
         }
