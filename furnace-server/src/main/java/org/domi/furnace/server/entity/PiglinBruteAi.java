@@ -12,6 +12,7 @@ import org.domi.furnace.server.entity.ai.brain.GlobalPos;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.Sensor;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.piglin.PiglinBruteAi")
 public final class PiglinBruteAi {
     private static final int ANGER_DURATION = 600;
     private static final int MELEE_ATTACK_COOLDOWN = 20;

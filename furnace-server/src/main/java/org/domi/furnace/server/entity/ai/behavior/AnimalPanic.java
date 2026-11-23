@@ -15,6 +15,7 @@ import org.domi.furnace.server.entity.ai.util.DefaultRandomPos;
 import org.domi.furnace.server.entity.damage.DamageType;
 import org.domi.furnace.server.world.gen.feature.BlockPosIter;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.AnimalPanic")
 public class AnimalPanic extends Behavior<PathfinderMob> {
     private static final int PANIC_MIN_DURATION = 100;
     private static final int PANIC_MAX_DURATION = 120;

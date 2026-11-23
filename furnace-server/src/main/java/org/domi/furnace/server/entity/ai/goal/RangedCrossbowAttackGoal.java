@@ -9,6 +9,7 @@ import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.Targetable;
 import org.domi.furnace.server.entity.ai.Goal;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.RangedCrossbowAttackGoal")
 public class RangedCrossbowAttackGoal<T extends Mob & CrossbowAttackMob> extends Goal {
     private enum State { UNCHARGED, CHARGING, CHARGED, READY_TO_ATTACK }
 

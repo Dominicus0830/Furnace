@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.Pos;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.PortalProcessor")
 public final class PortalProcessor {
     private final Portal portal;
     private Pos entryPosition;

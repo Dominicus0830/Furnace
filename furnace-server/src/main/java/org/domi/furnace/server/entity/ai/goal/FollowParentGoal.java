@@ -5,6 +5,7 @@ import java.util.EnumSet;
 import org.domi.furnace.server.entity.Animal;
 import org.domi.furnace.server.entity.ai.Goal;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.FollowParentGoal")
 public class FollowParentGoal extends Goal {
     private final Animal animal;
     private Animal parent;

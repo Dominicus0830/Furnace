@@ -7,6 +7,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.ai.Goal;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.EatBlockGoal")
 public class EatBlockGoal extends Goal {
     private static final int EAT_ANIMATION_TICKS = 40;
     private final Mob mob;

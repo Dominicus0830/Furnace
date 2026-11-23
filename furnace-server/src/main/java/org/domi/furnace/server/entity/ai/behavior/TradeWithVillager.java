@@ -17,6 +17,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.item.ItemStackCodecs;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.TradeWithVillager")
 public class TradeWithVillager extends Behavior<Villager> {
     private Set<String> trades = Set.of();
 

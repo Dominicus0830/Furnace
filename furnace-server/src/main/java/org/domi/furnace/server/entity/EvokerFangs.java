@@ -5,6 +5,7 @@ import java.util.UUID;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.projectile.EvokerFangs")
 public class EvokerFangs extends Entity {
     private int warmupDelayTicks;
     private boolean sentSpikeEvent;

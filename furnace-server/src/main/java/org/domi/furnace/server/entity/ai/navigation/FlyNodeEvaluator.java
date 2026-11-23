@@ -9,6 +9,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.AABB;
 import org.domi.furnace.server.entity.Mob;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.pathfinder.FlyNodeEvaluator")
 public class FlyNodeEvaluator extends WalkNodeEvaluator {
 
     @Override

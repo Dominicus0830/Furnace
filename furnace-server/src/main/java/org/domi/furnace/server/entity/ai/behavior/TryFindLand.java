@@ -11,6 +11,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.WalkTarget;
 import org.domi.furnace.server.world.gen.feature.BlockPosIter;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.TryFindLand")
 public final class TryFindLand {
     private TryFindLand() {}
 

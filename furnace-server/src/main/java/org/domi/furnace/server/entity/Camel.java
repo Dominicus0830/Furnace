@@ -17,8 +17,9 @@ import org.domi.furnace.server.item.ItemTags;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.camel.Camel")
 public class Camel extends AbstractHorse {
-    public static final int DATA_DASH = 18, DATA_LAST_POSE_CHANGE_TICK = 19;
+    public static final int DATA_DASH = EntityDataIds.Camel_DASH, DATA_LAST_POSE_CHANGE_TICK = EntityDataIds.Camel_LAST_POSE_CHANGE_TICK;
     public static final float BABY_SCALE = 0.45F;
     public static final int DASH_COOLDOWN_TICKS = 55;
     public static final int MAX_HEAD_Y_ROT = 30;

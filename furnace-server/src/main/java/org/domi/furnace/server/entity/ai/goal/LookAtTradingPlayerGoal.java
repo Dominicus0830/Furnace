@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity.ai.goal;
 import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.trade.Merchant;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.LookAtTradingPlayerGoal")
 public class LookAtTradingPlayerGoal<T extends Mob & Merchant> extends LookAtPlayerGoal {
     private final T merchant;
 

@@ -12,8 +12,9 @@ import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.Cat")
 public class Cat extends TamableAnimal {
-    public static final int DATA_VARIANT = 19, DATA_IS_LYING = 20, DATA_RELAX_STATE_ONE = 21, DATA_COLLAR_COLOR = 22;
+    public static final int DATA_VARIANT = EntityDataIds.Cat_DATA_VARIANT_ID, DATA_IS_LYING = EntityDataIds.Cat_IS_LYING, DATA_RELAX_STATE_ONE = EntityDataIds.Cat_RELAX_STATE_ONE, DATA_COLLAR_COLOR = EntityDataIds.Cat_DATA_COLLAR_COLOR;
     private static final String[] VARIANTS = {"tabby", "black", "red", "siamese", "british_shorthair", "calico", "persian", "ragdoll", "white", "jellie", "all_black"};
     private AvoidEntityGoal avoidPlayersGoal;
     private TemptGoal temptGoal;

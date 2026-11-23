@@ -11,6 +11,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 import org.domi.furnace.server.entity.ai.brain.WalkTarget;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.JumpOnBed")
 public class JumpOnBed extends Behavior<Mob> {
     private static final int MAX_TIME_TO_REACH_BED = 100, MIN_JUMPS = 3, MAX_JUMPS = 6, COOLDOWN_BETWEEN_JUMPS = 5;
     private final float speedModifier;

@@ -9,6 +9,7 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.entity.ai.goal.*;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.ZombifiedPiglin")
 public class ZombifiedPiglin extends Zombie implements NeutralMob {
     private static final String SPEED_MODIFIER_ATTACKING_ID = "minecraft:attacking";
     private static final AttributeModifier SPEED_MODIFIER_ATTACKING = new AttributeModifier(SPEED_MODIFIER_ATTACKING_ID, 0.05, AttributeModifier.ADD_VALUE);

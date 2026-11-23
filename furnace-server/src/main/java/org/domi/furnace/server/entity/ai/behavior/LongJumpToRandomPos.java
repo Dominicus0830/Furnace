@@ -18,6 +18,7 @@ import org.domi.furnace.server.entity.ai.brain.BlockPosTracker;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.LongJumpToRandomPos")
 public class LongJumpToRandomPos<E extends PathfinderMob> extends Behavior<E> {
     protected static final int FIND_JUMP_TRIES = 20;
     private static final int PREPARE_JUMP_DURATION = 40;

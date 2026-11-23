@@ -7,8 +7,9 @@ import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.projectile.ThrownTrident")
 public class ThrownTrident extends AbstractArrow {
-    public static final int DATA_LOYALTY = 10, DATA_FOIL = 11;
+    public static final int DATA_LOYALTY = EntityDataIds.ThrownTrident_ID_LOYALTY, DATA_FOIL = EntityDataIds.ThrownTrident_ID_FOIL;
     private boolean dealtDamage;
     public int clientSideReturnTridentTickCount;
 

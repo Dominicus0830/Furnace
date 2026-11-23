@@ -8,6 +8,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.Sensor;
 import org.domi.furnace.server.entity.ai.brain.Unit;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.sensing.IsInWaterSensor")
 public class IsInWaterSensor extends Sensor<Mob> {
     @Override public Set<MemoryModuleType<?>> requires() { return Set.of(MemoryModuleType.IS_IN_WATER); }
 

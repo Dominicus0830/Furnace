@@ -9,6 +9,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.Targetable;
 import org.domi.furnace.server.entity.Mob;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.navigation.PathNavigation")
 public abstract class PathNavigation {
     private static final int MAX_TIME_RECOMPUTE = 20;
     private static final int STUCK_CHECK_INTERVAL = 100;

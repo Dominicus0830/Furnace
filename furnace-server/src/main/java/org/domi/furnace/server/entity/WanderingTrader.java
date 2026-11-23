@@ -31,6 +31,7 @@ import org.domi.furnace.server.trade.MerchantOffer;
 import org.domi.furnace.server.trade.MerchantOffers;
 import org.domi.furnace.server.trade.VillagerTrades;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.npc.WanderingTrader")
 public final class WanderingTrader extends PathfinderMob implements Merchant, InventoryCarrier {
     /** canBeLeashed(디컴파일 y): AbstractVillager(cmf)는 못 맨다. */
     @Override
@@ -39,7 +40,7 @@ public final class WanderingTrader extends PathfinderMob implements Merchant, In
 
 
     /** AgeableMob 16 아기 여부, AbstractVillager 17 불만 카운터. */
-    public static final int DATA_BABY = 16, DATA_UNHAPPY = 17;
+    public static final int DATA_BABY = EntityDataIds.AgeableMob_DATA_BABY_ID, DATA_UNHAPPY = EntityDataIds.AbstractVillager_DATA_UNHAPPY_COUNTER;
     private static final int NUMBER_OF_TRADE_OFFERS = 5;
 
     private MenuPlayer tradingPlayer;

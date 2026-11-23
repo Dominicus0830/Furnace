@@ -10,6 +10,7 @@ import org.domi.furnace.server.block.types.AbstractCandleBlock;
 import org.domi.furnace.server.block.types.CampfireBlock;
 import org.domi.furnace.server.effect.MobEffectInstance;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.projectile.ThrownPotion")
 public class ThrownPotion extends ThrowableProjectile {
 
     public ThrownPotion(ChunkLevel level, int id) { super(EntityType.POTION, level, id); }

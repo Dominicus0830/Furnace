@@ -10,6 +10,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.PathfinderMob;
 import org.domi.furnace.server.entity.ai.Goal;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.BreathAirGoal")
 public class BreathAirGoal extends Goal {
     private final PathfinderMob mob;
 

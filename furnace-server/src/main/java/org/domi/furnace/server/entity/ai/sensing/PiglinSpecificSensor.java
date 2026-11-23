@@ -24,6 +24,7 @@ import org.domi.furnace.server.entity.ai.brain.Sensor;
 import org.domi.furnace.server.world.GameMode;
 import org.domi.furnace.server.world.gen.feature.BlockPosIter;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.sensing.PiglinSpecificSensor")
 public class PiglinSpecificSensor extends Sensor<Mob> {
     @Override
     public Set<MemoryModuleType<?>> requires() {

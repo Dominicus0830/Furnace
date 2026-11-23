@@ -136,6 +136,65 @@ val generatePacketIds by tasks.registering {
 }
 sourceSets.main { java.srcDir(generatePacketIds.map { packetIdsDir.get() }) }
 
+// V-04: entity_data/ids-<tag>.txt(바닐라에서 뽑은 직렬화기·메타데이터 칸 번호표) → EntityDataIds(컴파일 시간 상수). build/generated 에만 생기고 커밋하지 않는다.
+// 엔티티 클래스의 DATA_* 번호와 SetEntityData.SERIALIZER_* 가 숫자를 직접 쓰지 않고 이 상수를 쓴다. 이름은 <바닐라 클래스>_<바닐라 상수>(안쪽 클래스는 $ 를 _ 로),
+// 직렬화기는 SERIALIZER_<바닐라 상수>. 안쪽 클래스를 쓰지 않는다 — javap 동일 증명에 InnerClasses 노이즈가 생긴다.
+val entityDataIdsDir = layout.buildDirectory.dir("generated/entityDataIds")
+val generateEntityDataIds by tasks.registering {
+    group = "build"
+    description = "메타데이터 번호표로 EntityDataIds 상수 클래스를 만든다"
+    @Suppress("UNCHECKED_CAST") val mc = rootProject.extra["mc"] as java.util.Properties
+    val tag = mc.getProperty("mc.resourceTag") ?: error("gradle/minecraft.properties 에 mc.resourceTag 가 없다")
+    val idsFile = file("src/main/resources/entity_data/ids-$tag.txt")
+    val specFile = file("src/main/resources/entity_data/ids.spec")
+    val outDir = entityDataIdsDir
+    inputs.file(idsFile)
+    inputs.file(specFile)
+    outputs.dir(outDir)
+    doLast {
+        // 칸 이름은 ids.spec(우리 쪽 이름 ↔ 지문)에서, 번호는 바닐라에서 뽑은 ids-<판>.txt 에서 가져온다. 표에 바닐라 상수 이름을 적지 않는다.
+        val byFingerprint = HashMap<String, Int>()
+        val body = StringBuilder()
+        val seen = HashSet<String>()
+        idsFile.readLines(Charsets.UTF_8).forEachIndexed { i, raw ->
+            if (raw.isBlank() || raw.startsWith("#")) return@forEachIndexed
+            val t = raw.trim().split(Regex("\\s+"))
+            fun bad(msg: String): Nothing = error("${idsFile.name}:${i + 1}: $msg — $raw")
+            when (t[0]) {
+                "S" -> {
+                    if (t.size != 3) bad("S <번호> <상수> 꼴이어야 한다")
+                    val name = "SERIALIZER_" + t[2]
+                    if (!seen.add(name)) bad("상수 이름이 겹친다")
+                    body.append("    public static final int ").append(name).append(" = ").append(t[1].toInt()).append(";\n")
+                }
+                "A" -> {
+                    if (t.size != 5) bad("A <클래스> <지문> <번호> <직렬화기> 꼴이어야 한다")
+                    if (byFingerprint.put(t[2], t[3].toInt()) != null) bad("지문이 겹친다")
+                }
+                else -> bad("모르는 줄 종류")
+            }
+        }
+        specFile.readLines(Charsets.UTF_8).forEachIndexed { i, raw ->
+            val line = raw.substringBefore('#').trim()
+            if (line.isEmpty()) return@forEachIndexed
+            val t = line.split(Regex("\\s+"))
+            fun bad(msg: String): Nothing = error("${specFile.name}:${i + 1}: $msg — $raw")
+            if (t.size != 2) bad("<이름> <지문> 꼴이어야 한다")
+            val value = byFingerprint[t[1]] ?: bad("새 표에 없는 칸(바닐라가 지웠거나 이름을 바꿨다 — 쓰는 곳을 고쳐야 한다)")
+            if (!seen.add(t[0])) bad("상수 이름이 겹친다")
+            body.append("    public static final int ").append(t[0]).append(" = ").append(value).append(";\n")
+        }
+        val src = "// 자동 생성 — entity_data/ids-$tag.txt 에서 만든다(generateEntityDataIds). 손으로 고치지 않는다.\n" +
+            "package org.domi.furnace.server.entity;\n\n" +
+            "/** 바닐라 메타데이터 칸 번호와 직렬화기 번호. 모든 칸이 컴파일 시간 상수라 쓰는 자리에 값이 그대로 들어간다. */\n" +
+            "public final class EntityDataIds {\n    private EntityDataIds() {}\n\n" + body + "}\n"
+        val f = outDir.get().file("org/domi/furnace/server/entity/EntityDataIds.java").asFile
+        f.parentFile.mkdirs()
+        f.writeText(src)
+    }
+}
+sourceSets.main { java.srcDir(generateEntityDataIds.map { entityDataIdsDir.get() }) }
+
 application {
     mainClass = "org.domi.furnace.server.FurnaceMain"
     applicationDefaultJvmArgs = listOf("-Xmx6G")

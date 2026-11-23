@@ -5,6 +5,7 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.entity.ai.control.Mth;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.projectile.AbstractHurtingProjectile")
 public abstract class AbstractHurtingProjectile extends Projectile {
     public static final double INITIAL_ACCELERATION_POWER = 0.1;
     public double accelerationPower = INITIAL_ACCELERATION_POWER;

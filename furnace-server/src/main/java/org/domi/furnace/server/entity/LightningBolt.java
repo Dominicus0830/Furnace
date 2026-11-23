@@ -16,6 +16,7 @@ import org.domi.furnace.server.block.types.WeatheringCopper;
 import org.domi.furnace.server.entity.damage.DamageType;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.LightningBolt")
 public class LightningBolt extends Entity {
     private int life = 2;
     public long seed;

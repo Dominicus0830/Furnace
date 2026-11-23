@@ -8,6 +8,7 @@ import org.domi.furnace.server.entity.ai.goal.*;
 import org.domi.furnace.server.item.ItemTags;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.Chicken")
 public class Chicken extends Animal {
     private boolean chickenJockey;
     private int eggTime = random.nextInt(6000) + 6000;

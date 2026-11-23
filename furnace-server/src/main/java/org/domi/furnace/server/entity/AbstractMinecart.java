@@ -16,11 +16,12 @@ import org.domi.furnace.server.entity.ai.control.Mth;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.vehicle.AbstractMinecart")
 public abstract class AbstractMinecart extends Entity {
 
     /** VehicleEntity: 8 맞은 시간, 9 맞은 방향, 10 피해. AbstractMinecart: 11 표시 블록(상태 번호), 12 표시 높이, 13 사용자 표시 블록 여부. */
-    public static final int DATA_ID_HURT = 8, DATA_ID_HURTDIR = 9, DATA_ID_DAMAGE = 10, DATA_ID_DISPLAY_BLOCK = 11, DATA_ID_DISPLAY_OFFSET = 12,
-            DATA_ID_CUSTOM_DISPLAY = 13;
+    public static final int DATA_ID_HURT = EntityDataIds.VehicleEntity_DATA_ID_HURT, DATA_ID_HURTDIR = EntityDataIds.VehicleEntity_DATA_ID_HURTDIR, DATA_ID_DAMAGE = EntityDataIds.VehicleEntity_DATA_ID_DAMAGE, DATA_ID_DISPLAY_BLOCK = EntityDataIds.AbstractMinecart_DATA_ID_DISPLAY_BLOCK, DATA_ID_DISPLAY_OFFSET = EntityDataIds.AbstractMinecart_DATA_ID_DISPLAY_OFFSET,
+            DATA_ID_CUSTOM_DISPLAY = EntityDataIds.AbstractMinecart_DATA_ID_CUSTOM_DISPLAY;
 
     /** AbstractMinecart.Type: 순번 그대로. */
     public enum Type { RIDEABLE, CHEST, FURNACE, TNT, SPAWNER, HOPPER, COMMAND_BLOCK }

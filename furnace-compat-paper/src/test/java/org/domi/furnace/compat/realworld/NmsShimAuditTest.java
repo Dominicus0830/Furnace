@@ -140,4 +140,18 @@ class NmsShimAuditTest {
         NmsShimAudit.renderPaper(b, new NmsShimAudit.Result(base.jars(), base.rows(), pc));
         assertTrue(b.toString().contains("서명 다름 1건"), b.toString());
     }
+
+    @Test
+    void spigotDirLoadsClassesAndRejectsIncomplete() throws IOException {
+        // 빈 입력이면 대응표 없음(Spigot 이름 jar 는 건너뜀)
+        org.junit.jupiter.api.Assertions.assertNull(NmsShimAudit.loadSpigot(""));
+        org.junit.jupiter.api.Assertions.assertNull(NmsShimAudit.loadSpigot(null));
+        // server.txt 만 있고 클래스 csrg 가 없으면 오류
+        Path dir = Files.createDirectory(tmp.resolve("sp"));
+        Files.writeString(dir.resolve("server.txt"), "net.minecraft.core.BlockPos -> a:\n");
+        org.junit.jupiter.api.Assertions.assertThrows(IOException.class, () -> NmsShimAudit.loadSpigot(dir.toString()));
+        // 클래스 csrg 가 생기면 멤버 csrg 없이도 읽힌다
+        Files.writeString(dir.resolve("bukkit-1.21.1-cl.csrg"), "a net/minecraft/core/BlockPosSpigot\n");
+        assertNotNull(NmsShimAudit.loadSpigot(dir.toString()));
+    }
 }

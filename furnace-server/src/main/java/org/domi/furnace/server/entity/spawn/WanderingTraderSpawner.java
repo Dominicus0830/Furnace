@@ -16,6 +16,7 @@ import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.entity.TraderLlama;
 import org.domi.furnace.server.entity.WanderingTrader;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.npc.WanderingTraderSpawner")
 public final class WanderingTraderSpawner {
     public static final int DEFAULT_TICK_DELAY = 1200;
     public static final int DEFAULT_SPAWN_DELAY = 24000;

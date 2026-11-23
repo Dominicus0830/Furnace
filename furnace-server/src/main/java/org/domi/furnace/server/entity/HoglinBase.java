@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity;
 import org.domi.furnace.server.attribute.Attribute;
 import org.domi.furnace.server.entity.ai.control.Mth;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.hoglin.HoglinBase")
 public interface HoglinBase {
     int ATTACK_ANIMATION_DURATION = 10;
 

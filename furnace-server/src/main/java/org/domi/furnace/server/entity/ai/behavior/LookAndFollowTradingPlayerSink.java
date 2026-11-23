@@ -10,6 +10,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 import org.domi.furnace.server.entity.ai.brain.WalkTarget;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.LookAndFollowTradingPlayerSink")
 public class LookAndFollowTradingPlayerSink extends Behavior<Villager> {
     private final float speedModifier;
 

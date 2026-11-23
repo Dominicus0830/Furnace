@@ -7,6 +7,7 @@ import org.domi.furnace.server.entity.ai.brain.GlobalPos;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.world.poi.PoiType;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.AssignProfessionFromJobSite")
 public final class AssignProfessionFromJobSite {
     private AssignProfessionFromJobSite() {}
 

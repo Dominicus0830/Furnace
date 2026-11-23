@@ -8,6 +8,7 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.vehicle.MinecartTNT")
 public class MinecartTNT extends AbstractMinecart {
 
     private int fuse = -1;

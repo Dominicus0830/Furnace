@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity.ai.control;
 import org.domi.furnace.server.attribute.Attribute;
 import org.domi.furnace.server.entity.Mob;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.control.FlyingMoveControl")
 public class FlyingMoveControl extends MoveControl {
     private final int maxTurn;
     private final boolean hoversInPlace;

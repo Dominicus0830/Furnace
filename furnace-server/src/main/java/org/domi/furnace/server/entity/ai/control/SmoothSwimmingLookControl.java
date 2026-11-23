@@ -3,6 +3,7 @@ package org.domi.furnace.server.entity.ai.control;
 
 import org.domi.furnace.server.entity.Mob;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.control.SmoothSwimmingLookControl")
 public class SmoothSwimmingLookControl extends LookControl {
     private final int maxYRotFromCenter;
 

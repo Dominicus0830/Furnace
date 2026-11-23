@@ -6,6 +6,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.PathfinderMob;
 import org.domi.furnace.server.entity.ai.Goal;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.TryFindWaterGoal")
 public class TryFindWaterGoal extends Goal {
     private final PathfinderMob mob;
 

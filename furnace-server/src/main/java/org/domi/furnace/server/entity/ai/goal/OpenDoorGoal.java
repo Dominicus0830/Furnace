@@ -3,6 +3,7 @@ package org.domi.furnace.server.entity.ai.goal;
 
 import org.domi.furnace.server.entity.Mob;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.OpenDoorGoal")
 public class OpenDoorGoal extends DoorInteractGoal {
     private final boolean closeDoor;
     private int forgetTime;

@@ -15,6 +15,7 @@ import org.domi.furnace.server.world.poi.PoiManager;
 import org.domi.furnace.server.world.poi.PoiRecord;
 import org.domi.furnace.server.world.poi.PoiTypes;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.SetClosestHomeAsWalkTarget")
 public final class SetClosestHomeAsWalkTarget {
     private static final int CACHE_TIMEOUT = 40, BATCH_SIZE = 5, RATE = 20, OK_DISTANCE_SQR = 4;
 

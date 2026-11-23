@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity;
 import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.Explosion;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.projectile.windcharge.WindCharge")
 public class WindCharge extends AbstractWindCharge {
     private static final Explosion.Calculator CALC = new Explosion.WindCalculator(1.22F);
     private int noDeflectTicks = 5;

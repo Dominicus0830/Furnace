@@ -9,6 +9,7 @@ import org.domi.furnace.server.entity.ai.navigation.FlyingPathNavigation;
 import org.domi.furnace.server.entity.ai.navigation.PathNavigation;
 import org.domi.furnace.server.entity.ai.navigation.PathType;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.FollowMobGoal")
 public class FollowMobGoal extends Goal {
     private final Mob mob;
     private Mob followingMob;

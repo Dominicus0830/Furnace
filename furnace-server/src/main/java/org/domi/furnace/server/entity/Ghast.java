@@ -13,12 +13,13 @@ import org.domi.furnace.server.entity.ai.goal.NearestAttackableTargetGoal;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.Ghast")
 public class Ghast extends FlyingMob implements Enemy {
 
     @Override
     protected boolean shouldDespawnInPeaceful() { return true; }
 
-    public static final int DATA_IS_CHARGING = 16;
+    public static final int DATA_IS_CHARGING = EntityDataIds.Ghast_DATA_IS_CHARGING;
     private boolean takingPlayerFireball;
 
     /** cjx.g: 직접 원인이 큰 불덩이이고 때린 쪽이 플레이어다(되친 불덩이). */

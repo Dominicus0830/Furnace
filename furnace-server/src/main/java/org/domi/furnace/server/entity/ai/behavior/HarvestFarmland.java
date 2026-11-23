@@ -20,6 +20,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 import org.domi.furnace.server.entity.ai.brain.WalkTarget;
 import org.domi.furnace.server.item.ItemTools;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.HarvestFarmland")
 public class HarvestFarmland extends Behavior<Villager> {
     private static final int HARVEST_DURATION = 200;
     public static final float SPEED_MODIFIER = 0.5F;

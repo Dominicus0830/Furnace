@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity.ai.goal;
 import java.util.EnumSet;
 import org.domi.furnace.server.entity.Mob;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.InteractGoal")
 public class InteractGoal extends LookAtPlayerGoal {
     public InteractGoal(Mob mob, float lookDistance) {
         super(mob, lookDistance);

@@ -7,8 +7,9 @@ import org.domi.furnace.server.entity.ai.Goal;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.SpellcasterIllager")
 public abstract class SpellcasterIllager extends AbstractIllager {
-    public static final int DATA_SPELL_CASTING_ID = 17;
+    public static final int DATA_SPELL_CASTING_ID = EntityDataIds.SpellcasterIllager_DATA_SPELL_CASTING_ID;
     protected int spellCastingTickCount;
     private IllagerSpell currentSpell = IllagerSpell.NONE;
 

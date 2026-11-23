@@ -9,6 +9,7 @@ import org.domi.furnace.server.entity.LivingEntity;
 import org.domi.furnace.server.entity.PiglinAi;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.piglin.RememberIfHoglinWasKilled")
 public final class RememberIfHoglinWasKilled {
     private RememberIfHoglinWasKilled() {}
 

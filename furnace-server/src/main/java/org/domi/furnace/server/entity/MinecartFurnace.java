@@ -8,10 +8,11 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.vehicle.MinecartFurnace")
 public class MinecartFurnace extends AbstractMinecart {
 
     /** 14: 연료 있음(불 켜진 화로 표시). */
-    public static final int DATA_ID_FUEL = 14;
+    public static final int DATA_ID_FUEL = EntityDataIds.MinecartFurnace_DATA_ID_FUEL;
 
     private int fuel;
     public double xPush, zPush;

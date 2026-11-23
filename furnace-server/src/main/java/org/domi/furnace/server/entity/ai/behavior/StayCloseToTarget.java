@@ -10,6 +10,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.PositionTracker;
 import org.domi.furnace.server.entity.ai.brain.WalkTarget;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.StayCloseToTarget")
 public final class StayCloseToTarget {
     private StayCloseToTarget() {}
 

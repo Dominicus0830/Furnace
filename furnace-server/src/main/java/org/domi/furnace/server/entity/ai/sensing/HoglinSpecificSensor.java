@@ -17,6 +17,7 @@ import org.domi.furnace.server.entity.ai.brain.NearestVisibleLivingEntities;
 import org.domi.furnace.server.entity.ai.brain.Sensor;
 import org.domi.furnace.server.world.gen.feature.BlockPosIter;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.sensing.HoglinSpecificSensor")
 public class HoglinSpecificSensor extends Sensor<Hoglin> {
     @Override
     public Set<MemoryModuleType<?>> requires() {

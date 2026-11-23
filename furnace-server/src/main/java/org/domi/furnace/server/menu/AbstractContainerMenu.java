@@ -206,6 +206,9 @@ public abstract class AbstractContainerMenu {
     }
 
     /** 클라이언트가 이미 아는 값(클릭 보고·크리에이티브 칸)을 remote 로 받아들인다 — 되돌려 보내지 않는다. */
+    /** 클라이언트에 마지막으로 알린 칸 값(컨테이너 주인 스레드를 건너가지 않고 읽는다 — 호환 계층 menuSlotNow). 호출은 menuLock 안에서. */
+    public ItemStack remoteSlot(int index) { return remoteSlots.get(index); }
+
     public void setRemoteSlot(int index, ItemStack stack) { remoteSlots.set(index, stack); }
 
     /** setRemoteSlotNoCopy 의 범위 검사판(handleContainerClick 의 changedSlots 처리). */

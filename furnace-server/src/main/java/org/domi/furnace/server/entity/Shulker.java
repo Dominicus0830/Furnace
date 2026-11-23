@@ -19,12 +19,13 @@ import org.domi.furnace.server.entity.ai.goal.*;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.Shulker")
 public class Shulker extends AbstractGolem implements Enemy, HardCollider {
 
     @Override
     protected MovementEmission getMovementEmission() { return MovementEmission.NONE; }
 
-    public static final int DATA_ATTACH_FACE_ID = 16, DATA_PEEK_ID = 17, DATA_COLOR_ID = 18;
+    public static final int DATA_ATTACH_FACE_ID = EntityDataIds.Shulker_DATA_ATTACH_FACE_ID, DATA_PEEK_ID = EntityDataIds.Shulker_DATA_PEEK_ID, DATA_COLOR_ID = EntityDataIds.Shulker_DATA_COLOR_ID;
     private static final String COVERED_ARMOR_MODIFIER_ID = "minecraft:covered";
     private static final AttributeModifier COVERED_ARMOR_MODIFIER = new AttributeModifier(COVERED_ARMOR_MODIFIER_ID, 20.0, AttributeModifier.ADD_VALUE);
     private float currentPeekAmount, currentPeekAmountO;

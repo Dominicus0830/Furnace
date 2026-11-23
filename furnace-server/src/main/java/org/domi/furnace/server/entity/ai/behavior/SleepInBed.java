@@ -13,6 +13,7 @@ import org.domi.furnace.server.entity.ai.brain.GlobalPos;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.SleepInBed")
 public class SleepInBed extends Behavior<Mob> {
     public static final int COOLDOWN_AFTER_BEING_WOKEN = 100;
     private long nextOkStartTime;

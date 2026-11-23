@@ -7,6 +7,7 @@ import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.LookAtTargetSink")
 public class LookAtTargetSink extends Behavior<Mob> {
     public LookAtTargetSink(int minDuration, int maxDuration) {
         super(Map.of(MemoryModuleType.LOOK_TARGET, MemoryStatus.VALUE_PRESENT), minDuration, maxDuration);

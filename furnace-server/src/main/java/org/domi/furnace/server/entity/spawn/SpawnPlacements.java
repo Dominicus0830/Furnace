@@ -18,6 +18,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.RandomSource;
 import org.domi.furnace.server.entity.ai.navigation.WalkNodeEvaluator;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.SpawnPlacements")
 public final class SpawnPlacements {
     public enum Type { NO_RESTRICTIONS, IN_WATER, IN_LAVA, ON_GROUND }
 

@@ -61,8 +61,16 @@ final class ShimSpec {
          * 상위 공통 연결(T-231): 바닐라가 추상인 메서드는 추상 그대로 두고, 이를 물려받는 생성 구체 클래스마다(스스로 잇지 않았으면)
          * 대상 정적 메서드로 위임하는 몸통을 만든다. 쓰기: {@code newBlockEntity -> @each(NmsBlockEntityClasses.newBlockEntity) read=any}.
          */
-        EACH
+        EACH,
+        /**
+         * 엔티티 종류 표(E 줄)의 클래스마다 명세 없이 붙는 바닐라 생성자 {@code (EntityType, Level)}: 아직 월드에 없는 엔티티를 만든다
+         * ({@code EntityType#create} 와 같은 객체 — 재료를 표지에 실어 생성기 전용 생성자로 넘긴다). 명세에 직접 쓰지 않는다.
+         */
+        FRESH
     }
+
+    /** 엔티티 종류 클래스의 바닐라 생성자 서술자({@link Body#FRESH}). */
+    static final String FRESH_CTOR_DESC = "(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V";
 
     /** 멤버 줄. desc 는 적힌 만큼(없으면 null, 메서드는 "(…)" 만 적어도 된다). */
     record Member(String name, String desc, Body body, String target, Kind kind, String file, int line) {
@@ -117,6 +125,17 @@ final class ShimSpec {
         }
         for (Map.Entry<String, Integer> e : firstLine.entrySet()) {
             if (!classes.containsKey(e.getKey())) classes.put(e.getKey(), new Cls(e.getKey(), null, List.of(), file, e.getValue()));
+        }
+        // 엔티티 종류 클래스: 바닐라 생성자 (EntityType, Level) — 플러그인이 new Shulker(EntityType.SHULKER, level) 처럼 직접 만든다
+        for (String[] k : kinds) {
+            if (!k[0].equals("E")) continue;
+            Cls c = classes.get(k[2]);
+            boolean has = false;
+            for (Member m : c.members()) if (m.name().equals("<init>") && FRESH_CTOR_DESC.equals(m.desc())) has = true;
+            if (has) continue;
+            List<Member> ms = new ArrayList<>(c.members());
+            ms.add(new Member("<init>", FRESH_CTOR_DESC, Body.FRESH, null, null, file, firstLine.get(k[2])));
+            classes.put(k[2], new Cls(c.name(), c.owner(), List.copyOf(ms), c.file(), c.line()));
         }
     }
 

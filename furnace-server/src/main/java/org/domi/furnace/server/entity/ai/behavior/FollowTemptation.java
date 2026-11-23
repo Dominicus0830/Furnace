@@ -12,6 +12,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 import org.domi.furnace.server.entity.ai.brain.WalkTarget;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.FollowTemptation")
 public class FollowTemptation extends Behavior<PathfinderMob> {
     public static final int TEMPTATION_COOLDOWN = 100;
     public static final double DEFAULT_CLOSE_ENOUGH_DIST = 2.5;

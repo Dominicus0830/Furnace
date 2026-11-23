@@ -7,6 +7,7 @@ import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.Behavior")
 public abstract class Behavior<E extends Mob> implements BehaviorControl<E> {
     public static final int DEFAULT_DURATION = 60;
     protected final Map<MemoryModuleType<?>, MemoryStatus> entryCondition;

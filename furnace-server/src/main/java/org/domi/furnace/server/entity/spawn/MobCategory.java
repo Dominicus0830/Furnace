@@ -1,6 +1,7 @@
 // 바닐라 MobCategory: 몹 종류 묶음 — 자연 스폰 상한(max)·친화(friendly)·유지(persistent)·떠나는 거리. 즉시 사라지지 않는 거리는 모두 32.
 package org.domi.furnace.server.entity.spawn;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.MobCategory")
 public enum MobCategory {
     MONSTER("monster", 70, false, false, 128),
     CREATURE("creature", 10, true, true, 128),

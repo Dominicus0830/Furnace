@@ -6,6 +6,7 @@ import org.domi.furnace.server.entity.AABB;
 import org.domi.furnace.server.entity.PathfinderMob;
 import org.domi.furnace.server.attribute.Attribute;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.LongJumpUtil")
 public final class LongJumpUtil {
     private LongJumpUtil() {}
 

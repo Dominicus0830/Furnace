@@ -1299,6 +1299,83 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     @Override
+    public void setWindowSlotNow(org.domi.furnace.api.entity.Player player, int windowSlot, org.domi.furnace.api.item.ItemStack now) {
+        var p = serverPlayer(player, "Inventory#setItem");
+        p.inventory().set(windowSlot, ApiConvert.item(now));
+        p.inventoryHost().inventoryChanged(windowSlot);
+    }
+
+    @Override
+    public org.domi.furnace.api.item.ItemStack addToInventoryNow(org.domi.furnace.api.entity.Player player, org.domi.furnace.api.item.ItemStack stack) {
+        var p = serverPlayer(player, "Inventory#add");
+        var in = ApiConvert.item(stack);
+        if (in == null || in.isEmpty()) return org.domi.furnace.api.item.ItemStack.EMPTY;
+        var inv = p.inventory();
+        org.domi.furnace.server.entity.ItemStack left;
+        org.domi.furnace.server.entity.ItemStack[] before, after;
+        synchronized (inv) {   // 넣기 전후 사본이 같은 순간의 것이어야 바뀐 칸만 알릴 수 있다
+            before = inv.snapshot();
+            left = inv.add(in, p.hasInfiniteMaterials(), org.domi.furnace.server.item.ItemStackCodecs.maxStackSize(in),
+                    org.domi.furnace.server.item.ItemTools.damage(in) > 0);
+            after = inv.snapshot();
+        }
+        for (int ws = 0; ws < after.length; ws++) if (before[ws] != after[ws]) p.inventoryHost().inventoryChanged(ws);
+        return apiItem(left);
+    }
+
+    @Override
+    public Object menuTokenNow(org.domi.furnace.api.entity.Player player) { return serverPlayer0(player).containerMenu(); }
+
+    @Override
+    public MenuLook menuLookNow(org.domi.furnace.api.entity.Player player, int containerId) {
+        var p = serverPlayer(player, "containerMenu");
+        synchronized (p.menuLock()) {
+            var m = containerId == -1 ? p.containerMenu() : openMenu(p, containerId);
+            if (m == null) throw new IllegalArgumentException("containerMenu: the player has no menu yet: " + p.name());
+            int[] idx = new int[m.slots.size()];
+            for (int i = 0; i < idx.length; i++) idx[i] = playerInventoryIndex(m.slots.get(i));
+            String type = m instanceof org.domi.furnace.server.menu.InventoryMenu ? null : m.menuType();
+            return new MenuLook(m.containerId, type, m.getStateId(), apiItem(m.getCarried()), idx);
+        }
+    }
+
+    /** 그 창 칸이 플레이어 인벤토리 칸이면 Inventory 번호(0..40), 아니면 -1. */
+    private static int playerInventoryIndex(org.domi.furnace.server.menu.Slot s) {
+        return s.container instanceof org.domi.furnace.server.menu.PlayerInventoryContainer ? s.containerIndex() : -1;
+    }
+
+    private static org.domi.furnace.server.menu.AbstractContainerMenu openMenu(org.domi.furnace.server.entity.Player p, int containerId) {
+        var m = containerId == 0 ? p.inventoryMenu() : p.containerMenu();   // 인벤토리 창은 다른 창이 열려 있어도 있다
+        if (m == null || m.containerId != containerId) throw new IllegalStateException("the window " + containerId + " is no longer open");
+        return m;
+    }
+
+    @Override
+    public org.domi.furnace.api.item.ItemStack menuSlotNow(org.domi.furnace.api.entity.Player player, int containerId, int slot) {
+        var p = serverPlayer(player, "AbstractContainerMenu#getSlot");
+        synchronized (p.menuLock()) {
+            var m = openMenu(p, containerId);
+            var s = m.slots.get(slot);   // 범위 밖이면 IndexOutOfBoundsException
+            return apiItem(playerInventoryIndex(s) >= 0 ? s.getItem() : m.remoteSlot(slot));
+        }
+    }
+
+    @Override
+    public boolean replaceMenuSlotNow(org.domi.furnace.api.entity.Player player, int containerId, int slot, org.domi.furnace.api.item.ItemStack expect,
+                                      org.domi.furnace.api.item.ItemStack now) {
+        var p = serverPlayer(player, "Slot#set");
+        int ws;
+        synchronized (p.menuLock()) {
+            var s = openMenu(p, containerId).slots.get(slot);
+            int idx = playerInventoryIndex(s);
+            if (idx < 0) throw new UnsupportedOperationException("slot " + slot + " of window " + containerId
+                    + " belongs to the container of the window, which only the thread that owns it may change");
+            ws = org.domi.furnace.server.entity.PlayerInventory.windowSlot(idx);
+        }
+        return replaceSlotNow(player, ws, expect, now);
+    }
+
+    @Override
     public FoodState foodNow(org.domi.furnace.api.entity.Player player) {
         var v = serverPlayer0(player).vitals();
         return new FoodState(v.foodLevel(), v.saturation(), v.exhaustion());

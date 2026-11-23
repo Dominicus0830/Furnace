@@ -16,6 +16,7 @@ import org.domi.furnace.server.entity.ai.navigation.WaterBoundPathNavigation;
 import org.domi.furnace.server.entity.ai.util.LandRandomPos;
 import org.domi.furnace.server.item.ItemTools;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.Drowned")
 public class Drowned extends Zombie implements RangedAttackMob {
     private boolean searchingForLand;
     protected final WaterBoundPathNavigation waterNavigation;

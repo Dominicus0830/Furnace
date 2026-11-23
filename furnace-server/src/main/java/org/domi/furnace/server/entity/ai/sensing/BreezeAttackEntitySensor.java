@@ -9,6 +9,7 @@ import org.domi.furnace.server.entity.Targetable;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.Sensor;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.sensing.BreezeAttackEntitySensor")
 public class BreezeAttackEntitySensor extends NearestLivingEntitySensor<Breeze> {
     @Override
     protected void doTick(ChunkLevel level, Breeze breeze) {

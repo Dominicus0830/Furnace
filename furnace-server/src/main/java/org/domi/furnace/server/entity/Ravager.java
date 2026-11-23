@@ -11,6 +11,7 @@ import org.domi.furnace.server.entity.ai.goal.*;
 import org.domi.furnace.server.entity.ai.navigation.PathType;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.Ravager")
 public class Ravager extends Raider {
     private static final double BASE_MOVEMENT_SPEED = 0.3, ATTACK_MOVEMENT_SPEED = 0.35;
     private int attackTick, stunnedTick, roarTick;

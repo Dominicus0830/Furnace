@@ -14,6 +14,7 @@ import org.domi.furnace.server.entity.ai.targeting.TargetingConditions;
 import org.domi.furnace.server.entity.ai.util.LandRandomPos;
 import org.domi.furnace.server.world.GameMode;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.AvoidEntityGoal")
 public class AvoidEntityGoal extends Goal {
     protected final PathfinderMob mob;
     private final double walkSpeedModifier, sprintSpeedModifier;

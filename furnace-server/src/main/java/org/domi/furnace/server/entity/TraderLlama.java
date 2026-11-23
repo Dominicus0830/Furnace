@@ -9,6 +9,7 @@ import org.domi.furnace.server.entity.ai.goal.TargetGoal;
 import org.domi.furnace.server.entity.ai.targeting.TargetingConditions;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.horse.TraderLlama")
 public class TraderLlama extends Llama {
     private int despawnDelay = 47999;
 

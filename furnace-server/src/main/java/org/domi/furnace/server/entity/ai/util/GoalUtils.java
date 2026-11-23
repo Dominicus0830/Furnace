@@ -10,6 +10,7 @@ import org.domi.furnace.server.entity.ai.navigation.GroundPathNavigation;
 import org.domi.furnace.server.entity.ai.navigation.PathNavigation;
 import org.domi.furnace.server.entity.ai.navigation.WalkNodeEvaluator;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.util.GoalUtils")
 public final class GoalUtils {
     private GoalUtils() { }
 

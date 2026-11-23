@@ -11,6 +11,7 @@ import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.Sensor;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.sensing.NearestItemSensor")
 public class NearestItemSensor extends Sensor<Mob> {
     public static final int MAX_DISTANCE_TO_WANTED_ITEM = 32;
 

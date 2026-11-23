@@ -11,6 +11,7 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.Mob;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.pathfinder.PathFinder")
 public class PathFinder {
     private static final float FUDGING = 1.5F;
     private final Node[] neighbors = new Node[32];

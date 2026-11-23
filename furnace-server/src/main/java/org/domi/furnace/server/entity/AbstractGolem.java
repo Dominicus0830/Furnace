@@ -3,6 +3,7 @@ package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.ChunkLevel;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.AbstractGolem")
 public abstract class AbstractGolem extends PathfinderMob {
 
     protected AbstractGolem(EntityType type, ChunkLevel level, int id) { super(type, level, id); }

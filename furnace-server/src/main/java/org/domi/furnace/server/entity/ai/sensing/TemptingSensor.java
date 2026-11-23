@@ -15,6 +15,7 @@ import org.domi.furnace.server.entity.ai.brain.Sensor;
 import org.domi.furnace.server.entity.ai.targeting.TargetingConditions;
 import org.domi.furnace.server.world.GameMode;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.sensing.TemptingSensor")
 public class TemptingSensor extends Sensor<PathfinderMob> {
     public static final int TEMPTATION_RANGE = 10;
     private static final TargetingConditions TEMPT_TARGETING = TargetingConditions.forNonCombat().range(10.0).ignoreLineOfSight();

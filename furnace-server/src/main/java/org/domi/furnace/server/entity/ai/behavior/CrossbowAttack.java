@@ -12,6 +12,7 @@ import org.domi.furnace.server.entity.ai.brain.EntityTracker;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.CrossbowAttack")
 public class CrossbowAttack<E extends Mob & CrossbowAttackMob> extends Behavior<E> {
     private static final int TIMEOUT = 1200;
     private int attackDelay;

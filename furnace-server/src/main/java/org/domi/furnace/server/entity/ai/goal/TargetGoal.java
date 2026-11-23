@@ -7,6 +7,7 @@ import org.domi.furnace.server.entity.ai.Goal;
 import org.domi.furnace.server.entity.ai.targeting.TargetingConditions;
 import org.domi.furnace.server.attribute.Attribute;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.target.TargetGoal")
 public abstract class TargetGoal extends Goal {
     private static final int EMPTY_REACH_CACHE = 0, CAN_REACH_CACHE = 1, CANT_REACH_CACHE = 2;
     protected final Mob mob;

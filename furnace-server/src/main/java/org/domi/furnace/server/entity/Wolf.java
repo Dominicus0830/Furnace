@@ -14,13 +14,14 @@ import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.Wolf")
 public class Wolf extends TamableAnimal implements NeutralMob {
     /** canBeLeashed(디컴파일 y): 늑대(cgh)는 분노 중이면 못 맨다. */
     @Override
     public boolean canBeLeashed() { return !isAngry(); }
 
 
-    public static final int DATA_INTERESTED_ID = 19, DATA_COLLAR_COLOR = 20, DATA_REMAINING_ANGER_TIME = 21, DATA_VARIANT_ID = 22;
+    public static final int DATA_INTERESTED_ID = EntityDataIds.Wolf_DATA_INTERESTED_ID, DATA_COLLAR_COLOR = EntityDataIds.Wolf_DATA_COLLAR_COLOR, DATA_REMAINING_ANGER_TIME = EntityDataIds.Wolf_DATA_REMAINING_ANGER_TIME, DATA_VARIANT_ID = EntityDataIds.Wolf_DATA_VARIANT_ID;
 
     /** 바닐라 wolf_variant 레지스트리 순서(알파벳 = 데이터 팩·플러그인 변종이 없을 때의 네트워크 번호). 기본값 pale. */
     public static final String[] VARIANTS = {"ashen", "black", "chestnut", "pale", "rusty", "snowy", "spotted", "striped", "woods"};

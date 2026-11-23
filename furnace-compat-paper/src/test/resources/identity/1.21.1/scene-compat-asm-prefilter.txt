@@ -1,8 +1,8 @@
 # 결과 동일 금 파일 — scene-compat-asm-prefilter. 최적화 PR 은 이 파일을 바꾸지 않는다. 갱신 절차: docs/testing/identitykit.md
 edge needles 14 cases 210 hits 103
 edge-decisions b2441fc3a595a699
-jar IF-0.12.2.jar default classes=1042 prefilter-hit=936 changed=760 refused=0 a56c04d833b6f477
-jar IF-0.12.2.jar versioned classes=1042 prefilter-hit=936 changed=760 refused=0 a56c04d833b6f477
+jar IF-0.12.2.jar default classes=1042 prefilter-hit=936 changed=759 refused=0 c23468f5a98b4867
+jar IF-0.12.2.jar versioned classes=1042 prefilter-hit=936 changed=759 refused=0 c23468f5a98b4867
 jar XSeries-14.0.0.jar default classes=332 prefilter-hit=35 changed=20 refused=0 f222809dc714e678
 jar XSeries-14.0.0.jar versioned classes=332 prefilter-hit=35 changed=28 refused=0 2fc8276be9805e7c
 jar adventure-platform-bukkit-4.4.1.jar default classes=65 prefilter-hit=19 changed=4 refused=0 b31c7963c10dd8e9
@@ -27,4 +27,4 @@ jar fastboard-2.2.2.jar default classes=8 prefilter-hit=2 changed=2 refused=0 ea
 jar fastboard-2.2.2.jar versioned classes=8 prefilter-hit=2 changed=2 refused=0 6b4c7f3754d7da98
 jar helper-5.6.14.jar default classes=1197 prefilter-hit=19 changed=16 refused=0 b428ae5c32aa0145
 jar helper-5.6.14.jar versioned classes=1197 prefilter-hit=19 changed=30 refused=0 fd90c513c085b5ff
-TOTAL 0d68a0d6d8d8ff89 lines=28
+TOTAL 7032dd65e9724e45 lines=28

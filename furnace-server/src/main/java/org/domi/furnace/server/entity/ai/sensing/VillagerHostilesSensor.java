@@ -8,6 +8,7 @@ import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.Targetable;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.sensing.VillagerHostilesSensor")
 public class VillagerHostilesSensor extends NearestVisibleLivingEntitySensor {
     private static final Map<EntityType, Float> ACCEPTABLE_DISTANCE_FROM_HOSTILES = Map.ofEntries(Map.entry(EntityType.DROWNED, 8.0F),
             Map.entry(EntityType.EVOKER, 12.0F), Map.entry(EntityType.HUSK, 8.0F), Map.entry(EntityType.ILLUSIONER, 12.0F), Map.entry(EntityType.PILLAGER, 15.0F),

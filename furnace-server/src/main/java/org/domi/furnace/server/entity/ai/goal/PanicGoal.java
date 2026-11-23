@@ -10,6 +10,7 @@ import org.domi.furnace.server.entity.ai.util.LandRandomPos;
 import org.domi.furnace.server.entity.damage.DamageType;
 import org.domi.furnace.server.world.gen.feature.BlockPosIter;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.PanicGoal")
 public class PanicGoal extends Goal {
     protected final PathfinderMob mob;
     protected final double speedModifier;

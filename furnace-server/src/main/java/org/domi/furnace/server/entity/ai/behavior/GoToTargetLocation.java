@@ -6,6 +6,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.GoToTargetLocation")
 public final class GoToTargetLocation {
     private GoToTargetLocation() {}
 

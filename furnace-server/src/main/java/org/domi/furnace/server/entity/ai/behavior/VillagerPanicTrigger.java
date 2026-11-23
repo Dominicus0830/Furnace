@@ -9,6 +9,7 @@ import org.domi.furnace.server.entity.Villager;
 import org.domi.furnace.server.entity.ai.brain.Activity;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.VillagerPanicTrigger")
 public class VillagerPanicTrigger extends Behavior<Villager> {
     public VillagerPanicTrigger() { super(Map.of()); }
 

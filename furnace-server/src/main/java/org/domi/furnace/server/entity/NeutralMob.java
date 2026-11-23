@@ -5,6 +5,7 @@ import java.util.Objects;
 import java.util.UUID;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.NeutralMob")
 public interface NeutralMob {
     int getRemainingPersistentAngerTime();
 

@@ -13,6 +13,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.Sensor;
 import org.domi.furnace.server.world.GameMode;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.sensing.PlayerSensor")
 public class PlayerSensor extends Sensor<Mob> {
     @Override
     public Set<MemoryModuleType<?>> requires() {

@@ -5,6 +5,7 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.block.types.BaseFireBlock;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.projectile.SmallFireball")
 public class SmallFireball extends Fireball {
     public SmallFireball(ChunkLevel level, int id) { super(EntityType.SMALL_FIREBALL, level, id); }
 

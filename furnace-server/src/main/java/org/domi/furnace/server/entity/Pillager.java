@@ -12,8 +12,9 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.Pillager")
 public class Pillager extends AbstractIllager implements CrossbowAttackMob {
-    public static final int DATA_CHARGING_STATE = 17;
+    public static final int DATA_CHARGING_STATE = EntityDataIds.Pillager_IS_CHARGING_CROSSBOW;
     private final ItemStack[] inventory = new ItemStack[5];
 
     public int inventorySize() { return inventory.length; }

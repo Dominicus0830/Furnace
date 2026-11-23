@@ -9,6 +9,7 @@ import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.Sensor;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.sensing.GolemSensor")
 public class GolemSensor extends Sensor<Mob> {
     public static final int GOLEM_SCAN_RATE = 200, MEMORY_TIME_TO_LIVE = 599;
 

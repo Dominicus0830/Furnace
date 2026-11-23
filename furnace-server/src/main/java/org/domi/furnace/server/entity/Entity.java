@@ -22,11 +22,12 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.io.nbt.NbtList;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.Entity")
 public abstract non-sealed class Entity implements Rider {
 
     /** 엔티티 데이터 번호(Entity.DATA_*): 0 공유 플래그, 1 공기, 2 이름, 3 이름 보임, 4 조용함, 5 중력 없음, 6 자세, 7 얼음 틱. */
-    public static final int DATA_SHARED_FLAGS = 0, DATA_AIR_SUPPLY = 1, DATA_CUSTOM_NAME = 2, DATA_CUSTOM_NAME_VISIBLE = 3, DATA_SILENT = 4,
-            DATA_NO_GRAVITY = 5, DATA_POSE = 6, DATA_TICKS_FROZEN = 7;
+    public static final int DATA_SHARED_FLAGS = EntityDataIds.Entity_DATA_SHARED_FLAGS_ID, DATA_AIR_SUPPLY = EntityDataIds.Entity_DATA_AIR_SUPPLY_ID, DATA_CUSTOM_NAME = EntityDataIds.Entity_DATA_CUSTOM_NAME, DATA_CUSTOM_NAME_VISIBLE = EntityDataIds.Entity_DATA_CUSTOM_NAME_VISIBLE, DATA_SILENT = EntityDataIds.Entity_DATA_SILENT,
+            DATA_NO_GRAVITY = EntityDataIds.Entity_DATA_NO_GRAVITY, DATA_POSE = EntityDataIds.Entity_DATA_POSE, DATA_TICKS_FROZEN = EntityDataIds.Entity_DATA_TICKS_FROZEN;
     private static final int FLAG_ONFIRE = 0;
     private static final int FIRE_IMMUNE_TICKS = 1;   // getFireImmuneTicks
 

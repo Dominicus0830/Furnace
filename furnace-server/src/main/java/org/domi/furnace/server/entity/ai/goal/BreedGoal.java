@@ -6,6 +6,7 @@ import org.domi.furnace.server.entity.Animal;
 import org.domi.furnace.server.entity.ai.Goal;
 import org.domi.furnace.server.entity.ai.targeting.TargetingConditions;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.BreedGoal")
 public class BreedGoal extends Goal {
     private static final TargetingConditions PARTNER_TARGETING = TargetingConditions.forNonCombat().range(8.0).ignoreLineOfSight();
     protected final Animal animal;

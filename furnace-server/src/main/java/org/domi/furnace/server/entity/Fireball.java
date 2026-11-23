@@ -5,8 +5,9 @@ import org.domi.furnace.server.block.ChunkLevel;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.projectile.Fireball")
 public abstract class Fireball extends AbstractHurtingProjectile {
-    public static final int DATA_ITEM_STACK = 8;
+    public static final int DATA_ITEM_STACK = EntityDataIds.Fireball_DATA_ITEM_STACK;
 
     protected Fireball(EntityType type, ChunkLevel level, int id) { super(type, level, id); }
 

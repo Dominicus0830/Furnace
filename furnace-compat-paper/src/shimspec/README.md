@@ -80,6 +80,8 @@ class net.minecraft.world.level.block.CropBlock            # 멤버 없이 클�
 그래서 `Blocks.WHEAT instanceof CropBlock`·`Items.TORCH instanceof StandingAndWallBlockItem` 이 바닐라와 같다. 표에 없는 이름(바닐라에 없는 종류)은 `Block`·`Item`.
 판을 올리면 표를 다시 뽑고 `shimLock` 을 다시 쓴다.
 
+엔티티 종류 클래스는 바닐라 생성자 `(EntityType, Level)` 도 받는다(명세에 쓰지 않는다 — 몸통 종류 `FRESH`, 2026-11-23). 몸통은 재료를 표지에 실어 생성기 전용 생성자로 넘기므로 `new Shulker(EntityType.SHULKER, level)` 이 `EntityType#create` 와 같은 "아직 월드에 없는 엔티티" 가 된다.
+
 엔티티(T-232): 줄 `E <엔티티 종류> <클래스>` 는 바닐라 `EntityType` 상수 필드의 형식 인자다(`EntityType<Zombie> ZOMBIE`). 도구는 그 클래스가 구체이고
 `(EntityType, Level)` 생성자가 있는지, 레벨 없이 만들어지는 종류(1.21.1 은 46종)는 공장이 만든 객체의 클래스와 같은지 본다. 플레이어는 뺀다(늘 `ServerPlayer`).
 실행 때 `NmsEntityKinds` 가 `CraftEntity#getHandle()`·`EntityType#create` 의 객체를 그 클래스로 만든다(재료는 Bukkit 객체 또는 아직 월드에 없는 엔티티의

@@ -17,6 +17,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.trade.MerchantOffer;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.ShowTradesToPlayer")
 public class ShowTradesToPlayer extends Behavior<Villager> {
     private static final int MAX_LOOK_TIME = 900, STARTING_LOOK_TIME = 40, TIME_BETWEEN_ITEMS = 40;
     private ItemStack playerItemStack;

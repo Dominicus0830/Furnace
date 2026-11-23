@@ -8,6 +8,7 @@ import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.PathfinderMob;
 import org.domi.furnace.server.world.gen.noise.NoiseRandom;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.util.RandomPos")
 public final class RandomPos {
     private static final int RANDOM_POS_ATTEMPTS = 10;
 

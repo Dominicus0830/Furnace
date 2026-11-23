@@ -21,8 +21,9 @@ import org.domi.furnace.server.item.ItemTags;
 import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.Strider")
 public class Strider extends Animal {
-    public static final int DATA_BOOST_TIME = 17, DATA_SUFFOCATING = 18, DATA_SADDLE_ID = 19;
+    public static final int DATA_BOOST_TIME = EntityDataIds.Strider_DATA_BOOST_TIME, DATA_SUFFOCATING = EntityDataIds.Strider_DATA_SUFFOCATING, DATA_SADDLE_ID = EntityDataIds.Strider_DATA_SADDLE_ID;
     private static final String SUFFOCATING_MODIFIER_ID = "minecraft:suffocating";
     private static final AttributeModifier SUFFOCATING_MODIFIER = new AttributeModifier(SUFFOCATING_MODIFIER_ID, -0.34F, AttributeModifier.ADD_MULTIPLIED_BASE);
 

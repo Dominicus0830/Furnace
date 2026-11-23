@@ -19,6 +19,7 @@ import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.ai.behavior.BehaviorControl;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.Brain")
 public final class Brain<E extends Mob> {
     private static final int SCHEDULE_UPDATE_DELAY = 20;
     private final Map<MemoryModuleType<?>, Optional<ExpirableValue<?>>> memories = new LinkedHashMap<>();

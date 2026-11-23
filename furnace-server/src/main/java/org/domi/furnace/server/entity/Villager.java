@@ -29,6 +29,7 @@ import org.domi.furnace.server.entity.ai.brain.SensorType;
 import org.domi.furnace.server.world.poi.PoiType;
 import org.domi.furnace.server.world.poi.PoiTypes;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.npc.Villager")
 public final class Villager extends AgeableMob implements Merchant, InventoryCarrier {
     /** canBeLeashed(디컴파일 y): AbstractVillager(cmf)는 못 맨다. */
     @Override
@@ -39,7 +40,7 @@ public final class Villager extends AgeableMob implements Merchant, InventoryCar
     public static boolean isAbstractVillager(Targetable t) { return t instanceof Villager || t instanceof WanderingTrader; }
 
     /** AgeableMob 16 아기 여부, AbstractVillager 17 불만 카운터, Villager 18 마을 사람 데이터. */
-    public static final int DATA_BABY = 16, DATA_UNHAPPY = 17, DATA_VILLAGER_DATA = 18;
+    public static final int DATA_BABY = EntityDataIds.AgeableMob_DATA_BABY_ID, DATA_UNHAPPY = EntityDataIds.AbstractVillager_DATA_UNHAPPY_COUNTER, DATA_VILLAGER_DATA = EntityDataIds.Villager_DATA_VILLAGER_DATA;
     public static final List<String> TYPES = List.of("desert", "jungle", "plains", "savanna", "snow", "swamp", "taiga");
     public static final List<String> PROFESSIONS = List.of("none", "armorer", "butcher", "cartographer", "cleric", "farmer", "fisherman", "fletcher",
             "leatherworker", "librarian", "mason", "nitwit", "shepherd", "toolsmith", "weaponsmith");

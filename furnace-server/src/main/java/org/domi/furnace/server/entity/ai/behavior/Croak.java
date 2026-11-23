@@ -8,6 +8,7 @@ import org.domi.furnace.server.entity.Frog;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.Croak")
 public class Croak extends Behavior<Frog> {
     private static final int CROAK_TICKS = 60;
     private static final int TIME_OUT_DURATION = 100;

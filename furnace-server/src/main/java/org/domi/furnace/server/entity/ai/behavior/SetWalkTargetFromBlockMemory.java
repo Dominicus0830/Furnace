@@ -11,6 +11,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.WalkTarget;
 import org.domi.furnace.server.entity.ai.util.DefaultRandomPos;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.SetWalkTargetFromBlockMemory")
 public final class SetWalkTargetFromBlockMemory {
     private SetWalkTargetFromBlockMemory() {}
 

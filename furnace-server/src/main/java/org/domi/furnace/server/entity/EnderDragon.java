@@ -20,13 +20,14 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 import org.domi.furnace.server.world.GameMode;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.boss.enderdragon.EnderDragon")
 public class EnderDragon extends Mob implements Enemy {
 
     /** EnderDragon.checkDespawn: 비어 있다(평화로움·거리로 사라지지 않음). */
     @Override
     public void checkDespawn() {}
 
-    public static final int DATA_PHASE = 16;
+    public static final int DATA_PHASE = EntityDataIds.EnderDragon_DATA_PHASE;
     private static final TargetingConditions CRYSTAL_DESTROY_TARGETING = TargetingConditions.forCombat().range(64.0);
     private static final int[] NODE_ADJACENCY = {6146, 8197, 8202, 16404, 32808, 32848, 65696, 131392, 131712, 263424, 526848, 525313,
             1581057, 3166214, 2138120, 6373424, 4358208, 12910976, 9044480, 9706496, 15216640, 13688832, 11763712, 8257536};

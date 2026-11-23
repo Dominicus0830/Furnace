@@ -8,6 +8,7 @@ import org.domi.furnace.server.entity.ai.brain.Activity;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.GoToPotentialJobSite")
 public class GoToPotentialJobSite extends Behavior<Villager> {
     private static final int TICKS_UNTIL_TIMEOUT = 1200;
     final float speedModifier;

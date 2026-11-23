@@ -7,6 +7,7 @@ import org.domi.furnace.server.entity.EntityType;
 import org.domi.furnace.server.entity.Llama;
 import org.domi.furnace.server.entity.ai.Goal;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.LlamaFollowCaravanGoal")
 public class LlamaFollowCaravanGoal extends Goal {
     public final Llama llama;
     private double speedModifier;

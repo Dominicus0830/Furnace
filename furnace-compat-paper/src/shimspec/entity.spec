@@ -119,3 +119,8 @@ class net.minecraft.world.entity.EquipmentSlot
   getSerializedName -> @hand pure
   isArmor -> @hand pure
   byName -> @hand pure
+# 자리를 받는 바닐라 생성자(GSit 이 앉는 자리로 만든다). (EntityType, Level) 생성자는 종류 표의 클래스마다 생성기가 붙인다(몸통 종류 FRESH, 명세에 쓰지 않음)
+class net.minecraft.world.entity.decoration.ArmorStand
+  <init>(Lnet/minecraft/world/level/Level;DDD)V -> @hand
+class net.minecraft.world.entity.AreaEffectCloud
+  <init>(Lnet/minecraft/world/level/Level;DDD)V -> @hand

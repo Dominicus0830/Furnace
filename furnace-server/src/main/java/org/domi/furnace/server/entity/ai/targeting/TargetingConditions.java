@@ -5,6 +5,7 @@ import java.util.function.Predicate;
 import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.Targetable;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.targeting.TargetingConditions")
 public final class TargetingConditions {
     private final boolean isCombat;
     private double range = -1.0;

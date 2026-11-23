@@ -24,6 +24,33 @@ class Player {
         }
     }
 
+    /**
+     * 바닐라처럼 공개 필드: 지금 열린 창(없으면 {@link #inventoryMenu}). 접속한 플레이어에서는 서버 창을 비춘 보기이고, {@code CraftPlayer#getHandle()} 이
+     * 불릴 때마다 서버의 창과 맞춘다 — 그 사이에 열리고 닫힌 창은 다음 {@code getHandle()} 때 보인다. 플러그인이 직접 만든 창을 넣어도 서버는 모른다.
+     */
+    public net.minecraft.world.inventory.AbstractContainerMenu containerMenu;
+
+    /** 바닐라 공개 필드: 인벤토리 창(번호 0). 호환 모듈이 처음 맞출 때 채운다(바닐라는 final 이지만 생성 때 서버 창이 아직 없다). */
+    public net.minecraft.world.inventory.InventoryMenu inventoryMenu;
+
+    private volatile Inventory furnaceInventory;
+
+    /** 바닐라 getInventory: 접속한 플레이어는 서버 인벤토리를 비춘 {@link Inventory}, 월드에 없는 플레이어는 제 칸의 인벤토리. 플레이어마다 같은 객체. */
+    public Inventory getInventory() {
+        Inventory i = furnaceInventory;
+        if (i == null) {
+            synchronized (this) {
+                if (furnaceInventory == null) furnaceInventory = furnaceCreateInventory();
+                i = furnaceInventory;
+            }
+        }
+        i.furnaceSync();   // selected 필드를 서버의 고른 칸에 맞춘다
+        return i;
+    }
+
+    /** 호환 모듈 전용 — 이 플레이어의 인벤토리를 만든다(서버 하위 클래스가 고른다). */
+    protected Inventory furnaceCreateInventory() { return new Inventory(this); }
+
     @Override
     public CraftHumanEntity getBukkitEntity() { return (CraftHumanEntity) super.getBukkitEntity(); }
 

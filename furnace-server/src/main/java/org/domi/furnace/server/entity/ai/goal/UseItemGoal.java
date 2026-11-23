@@ -7,6 +7,7 @@ import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.ai.Goal;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.UseItemGoal")
 public class UseItemGoal<T extends Mob> extends Goal {
     private final T mob;
     private final ItemStack item;

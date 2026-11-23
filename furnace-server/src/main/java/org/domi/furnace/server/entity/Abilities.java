@@ -5,6 +5,7 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.PlayerAbilities;
 import org.domi.furnace.server.world.GameMode;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.player.Abilities")
 public final class Abilities {
 
     public boolean invulnerable;

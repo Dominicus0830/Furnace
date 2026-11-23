@@ -362,6 +362,9 @@ tasks.register<JavaExec>("nmsShimAudit") {
     // T-234: -PrankingOut=<.md>(인기 가중치 순위 + Class.forName 감지 대상) -Pmanifest=<sample-manifest.tsv>(tools/compat/fetch-sample-plugins.py 가 만든다)
     providers.gradleProperty("rankingOut").orNull?.let { systemProperty("furnace.audit.ranking", it) }
     providers.gradleProperty("manifest").orNull?.let { systemProperty("furnace.audit.manifest", it) }
+    // -PspigotDir=<폴더>: Spigot 이름 jar 도 잰다. 폴더에 server.txt(Mojang 공식 매핑)·bukkit-1.21.1-cl.csrg(또는 bukkit-cl.csrg)가 있어야 한다(멤버 csrg 는 없어도 된다).
+    // 표 파일은 저장소에 넣지 않는다(Mojang·Spigot 저작물) — 경로만 받는다(서버가 받는 길은 SpigotMappingFiles)
+    providers.gradleProperty("spigotDir").orNull?.let { systemProperty("furnace.audit.spigotDir", it) }
     doFirst { layout.buildDirectory.get().asFile.mkdirs() }
 }
 

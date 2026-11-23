@@ -13,6 +13,7 @@ import org.domi.furnace.server.entity.ai.control.Mth;
 import org.domi.furnace.server.entity.ai.goal.*;
 import org.domi.furnace.server.entity.ai.targeting.TargetingConditions;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.Evoker")
 public class Evoker extends SpellcasterIllager {
     private Sheep wololoTarget;
 

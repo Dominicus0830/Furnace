@@ -12,8 +12,9 @@ import org.domi.furnace.server.item.ItemContext;
 import org.domi.furnace.server.item.ItemTools;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.Witch")
 public class Witch extends Raider implements RangedAttackMob {
-    public static final int DATA_USING_ITEM = 17;
+    public static final int DATA_USING_ITEM = EntityDataIds.Witch_DATA_USING_ITEM;
     private static final String SPEED_MODIFIER_DRINKING_ID = "minecraft:drinking";
     private static final AttributeModifier SPEED_MODIFIER_DRINKING = new AttributeModifier(SPEED_MODIFIER_DRINKING_ID, -0.25, AttributeModifier.ADD_VALUE);
     private int usingTime;

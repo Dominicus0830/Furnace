@@ -5,6 +5,7 @@ import org.domi.furnace.server.attribute.Attribute;
 import org.domi.furnace.server.attribute.AttributeMap;
 import org.domi.furnace.server.block.ChunkLevel;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.horse.ZombieHorse")
 public class ZombieHorse extends AbstractHorse {
     public ZombieHorse(ChunkLevel level, int id) { super(EntityType.ZOMBIE_HORSE, level, id); }
 

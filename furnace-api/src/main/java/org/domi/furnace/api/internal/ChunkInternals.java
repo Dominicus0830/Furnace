@@ -669,6 +669,56 @@ public interface ChunkInternals {
         throw new UnsupportedOperationException("replaceSlotNow");
     }
 
+    /** 그 창 칸을 now 로 바꾼다(비교 없이 — 바닐라 {@code Inventory#setItem}). 접속하지 않은 플레이어는 IllegalArgumentException. 아무 스레드. */
+    default void setWindowSlotNow(org.domi.furnace.api.entity.Player player, int windowSlot, org.domi.furnace.api.item.ItemStack now) {
+        throw new UnsupportedOperationException("setWindowSlotNow");
+    }
+
+    /**
+     * 바닐라 {@code Inventory#add(ItemStack)}: 손상 없는 스택은 같은 아이템 칸(든 칸 → 왼손 → 0..35)에 먼저 합치고 남은 것은 빈 칸에 넣는다. 못 넣은 나머지
+     * (다 넣었으면 EMPTY — 크리에이티브처럼 무한 재료이고 하나도 못 넣었으면 EMPTY)를 돌려준다. 접속하지 않은 플레이어는 IllegalArgumentException. 아무 스레드.
+     */
+    default org.domi.furnace.api.item.ItemStack addToInventoryNow(org.domi.furnace.api.entity.Player player, org.domi.furnace.api.item.ItemStack stack) {
+        throw new UnsupportedOperationException("addToInventoryNow");
+    }
+
+    /**
+     * 열린 창이 바뀌었는지 보는 값(바닐라 {@code ServerPlayer.containerMenu} 객체 자체 — 같은 창이면 같은 객체). 서버 안의 창 형식을 밖으로 내지 않으려
+     * Object 로 준다(비교만 하라). 아직 창이 만들어지지 않은 플레이어는 null. 아무 스레드(잠금 없이).
+     */
+    default Object menuTokenNow(org.domi.furnace.api.entity.Player player) { throw new UnsupportedOperationException("menuTokenNow"); }
+
+    /**
+     * 창의 모습(바닐라 {@code containerMenu}·{@code inventoryMenu} — NMS shim). {@code containerId} 가 -1 이면 지금 열린 창(없으면 인벤토리 창), 0 이면 인벤토리 창,
+     * 그 밖이면 지금 열린 창이 그 번호일 때만(아니면 IllegalStateException). {@code type} 은 minecraft:menu 이름(인벤토리 창은 null),
+     * {@code playerIndex[i]} 는 i 번 칸이 플레이어 인벤토리 칸이면 그 Inventory 번호(0..40), 창이 가진 컨테이너 칸이면 -1.
+     * 접속하지 않은 플레이어는 IllegalArgumentException. 아무 스레드(창 잠금 안에서 읽는다).
+     */
+    default MenuLook menuLookNow(org.domi.furnace.api.entity.Player player, int containerId) { throw new UnsupportedOperationException("menuLookNow"); }
+
+    /** {@link #menuLookNow} 의 결과. */
+    record MenuLook(int containerId, String type, int stateId, org.domi.furnace.api.item.ItemStack carried, int[] playerIndex) {
+        public int slotCount() { return playerIndex.length; }
+    }
+
+    /**
+     * 창 번호가 containerId 인 지금 열린 창의 slot 번 칸 값. 플레이어 인벤토리 칸은 지금 값(인벤토리 잠금 안), 창의 컨테이너 칸(상자·제작 결과 등 — 그 블록·플러그인이
+     * 주인 스레드를 가진다)은 클라이언트에 마지막으로 알린 값 — 그 칸을 읽으려고 주인 스레드에 건너가지 않는다. 창이 닫혔거나 다른 창이면 IllegalStateException,
+     * 범위 밖이면 IndexOutOfBoundsException. 아무 스레드.
+     */
+    default org.domi.furnace.api.item.ItemStack menuSlotNow(org.domi.furnace.api.entity.Player player, int containerId, int slot) {
+        throw new UnsupportedOperationException("menuSlotNow");
+    }
+
+    /**
+     * 창의 slot 번 칸이 플레이어 인벤토리 칸일 때만 {@link #replaceSlotNow} 처럼 비교 교체한다. 창의 컨테이너 칸은 UnsupportedOperationException(그 컨테이너의 주인
+     * 스레드에서만 바꿀 수 있다). 창이 닫혔거나 다른 창이면 IllegalStateException. 아무 스레드.
+     */
+    default boolean replaceMenuSlotNow(org.domi.furnace.api.entity.Player player, int containerId, int slot, org.domi.furnace.api.item.ItemStack expect,
+                                       org.domi.furnace.api.item.ItemStack now) {
+        throw new UnsupportedOperationException("replaceMenuSlotNow");
+    }
+
     /** 플레이어의 허기·포화·소모(바닐라 FoodData). 아무 스레드(바닐라 잠금 안에서 읽는다). */
     default FoodState foodNow(org.domi.furnace.api.entity.Player player) { throw new UnsupportedOperationException("foodNow"); }
 

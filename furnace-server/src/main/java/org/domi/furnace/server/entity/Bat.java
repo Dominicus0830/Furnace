@@ -11,6 +11,7 @@ import org.domi.furnace.server.entity.ai.targeting.TargetingConditions;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ambient.Bat")
 public class Bat extends PathfinderMob {
 
     /** 바닐라는 낙하 처리를 비운다(날아다니는 몹은 착지 입자·낙하 거리·HIT_GROUND 가 없다). */
@@ -26,7 +27,7 @@ public class Bat extends PathfinderMob {
 
     @Override protected void pushEntities() {}
 
-    public static final int DATA_ID_FLAGS = 16;
+    public static final int DATA_ID_FLAGS = EntityDataIds.Bat_DATA_ID_FLAGS;
     private static final TargetingConditions BAT_RESTING_TARGETING = TargetingConditions.forNonCombat().range(4.0);
     private Pos targetPosition;
 

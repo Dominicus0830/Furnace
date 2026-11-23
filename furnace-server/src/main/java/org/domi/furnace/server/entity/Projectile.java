@@ -8,6 +8,7 @@ import org.domi.furnace.server.block.Dir;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.projectile.Projectile")
 public abstract class Projectile extends Entity {
     private UUID ownerUUID;
     private Targetable owner;

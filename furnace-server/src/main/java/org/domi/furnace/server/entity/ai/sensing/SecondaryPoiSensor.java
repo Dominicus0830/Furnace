@@ -12,6 +12,7 @@ import org.domi.furnace.server.entity.ai.brain.GlobalPos;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.Sensor;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.sensing.SecondaryPoiSensor")
 public class SecondaryPoiSensor extends Sensor<Villager> {
     public SecondaryPoiSensor() { super(40); }
 

@@ -6,6 +6,7 @@ import org.domi.furnace.server.block.B;
 import org.domi.furnace.server.block.Pos;
 import org.domi.furnace.server.entity.Mob;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.control.MoveControl")
 public class MoveControl {
     public static final float MIN_SPEED = 5.0E-4F, MIN_SPEED_SQR = 2.5000003E-7F;
     protected static final int MAX_TURN = 90;

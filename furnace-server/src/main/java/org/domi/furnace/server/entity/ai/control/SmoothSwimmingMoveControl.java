@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity.ai.control;
 import org.domi.furnace.server.attribute.Attribute;
 import org.domi.furnace.server.entity.Mob;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.control.SmoothSwimmingMoveControl")
 public class SmoothSwimmingMoveControl extends MoveControl {
     private static final float FULL_SPEED_TURN_THRESHOLD = 10.0F;
     private static final float STOP_TURN_THRESHOLD = 60.0F;

@@ -8,6 +8,7 @@ import org.domi.furnace.server.entity.RangedAttackMob;
 import org.domi.furnace.server.entity.Targetable;
 import org.domi.furnace.server.entity.ai.Goal;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.RangedBowAttackGoal")
 public class RangedBowAttackGoal<T extends Monster & RangedAttackMob> extends Goal {
     private final T mob;
     private final double speedModifier;

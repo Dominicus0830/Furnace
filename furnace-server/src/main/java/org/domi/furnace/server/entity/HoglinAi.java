@@ -12,6 +12,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.MemoryStatus;
 import org.domi.furnace.server.entity.ai.brain.Sensor;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.monster.hoglin.HoglinAi")
 public final class HoglinAi {
     public static final int REPELLENT_DETECTION_RANGE_HORIZONTAL = 8;
     public static final int REPELLENT_DETECTION_RANGE_VERTICAL = 4;

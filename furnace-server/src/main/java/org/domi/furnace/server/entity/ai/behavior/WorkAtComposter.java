@@ -14,6 +14,7 @@ import org.domi.furnace.server.entity.ai.brain.GlobalPos;
 import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.item.ItemTools;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.behavior.WorkAtComposter")
 public class WorkAtComposter extends WorkAtPoi {
     private static final List<String> COMPOSTABLE_ITEMS = List.of("minecraft:wheat_seeds", "minecraft:beetroot_seeds");
 

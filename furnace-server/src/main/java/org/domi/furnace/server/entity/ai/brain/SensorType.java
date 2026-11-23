@@ -5,6 +5,7 @@ import java.util.function.Supplier;
 import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.ai.sensing.*;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.sensing.SensorType")
 public final class SensorType<U extends Sensor<?>> {
     private final String name;
     private final Supplier<U> factory;

@@ -9,6 +9,7 @@ import org.domi.furnace.server.block.Pos;
  * @param ticketPos           도착 뒤 포털 티켓을 둘 칸(없으면 null) — PLACE_PORTAL_TICKET 은 도착 위치, 찾은 지옥문이면 그 칸
  * @param missingRespawnBlock 리스폰 블록이 없어 월드 스폰으로 간다(no_respawn_block_available)
  */
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.portal.DimensionTransition")
 public record DimensionTransition(ChunkLevel newLevel, double x, double y, double z, double vx, double vy, double vz,
                                   float yRot, float xRot, boolean portalSound, Pos ticketPos, boolean missingRespawnBlock, boolean ticketAtArrival) {
 

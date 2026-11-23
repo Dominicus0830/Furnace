@@ -4,6 +4,7 @@ package org.domi.furnace.server.entity.ai.goal;
 import org.domi.furnace.server.entity.PathfinderMob;
 import org.domi.furnace.server.entity.ai.util.DefaultRandomPos;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.WaterAvoidingRandomStrollGoal")
 public class WaterAvoidingRandomStrollGoal extends RandomStrollGoal {
     public static final float PROBABILITY = 0.001F;
     protected final float probability;

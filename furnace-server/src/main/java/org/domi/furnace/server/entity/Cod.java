@@ -3,6 +3,7 @@ package org.domi.furnace.server.entity;
 
 import org.domi.furnace.server.block.ChunkLevel;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.animal.Cod")
 public class Cod extends AbstractSchoolingFish {
     public Cod(ChunkLevel level, int id) { super(EntityType.COD, level, id); }
 

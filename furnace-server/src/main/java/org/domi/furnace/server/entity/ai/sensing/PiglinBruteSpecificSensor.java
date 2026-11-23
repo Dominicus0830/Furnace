@@ -15,6 +15,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.NearestVisibleLivingEntities;
 import org.domi.furnace.server.entity.ai.brain.Sensor;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.sensing.PiglinBruteSpecificSensor")
 public class PiglinBruteSpecificSensor extends Sensor<Mob> {
     @Override public Set<MemoryModuleType<?>> requires() { return Set.of(MemoryModuleType.NEAREST_VISIBLE_LIVING_ENTITIES, MemoryModuleType.NEAREST_VISIBLE_NEMESIS, MemoryModuleType.NEARBY_ADULT_PIGLINS); }
 

@@ -1,6 +1,7 @@
 // 바닐라 Node(길찾기 노드): 칸 좌표와 A* 값(g=cost, h=heuristic, f), 부모, 닫힘 여부, 걸어온 거리, 칸 비용(malus)과 종류.
 package org.domi.furnace.server.entity.ai.navigation;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.level.pathfinder.Node")
 public class Node {
     public final int x, y, z;
     private final int hash;

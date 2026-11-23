@@ -9,6 +9,7 @@ import org.domi.furnace.server.entity.Mob;
 import org.domi.furnace.server.entity.Targetable;
 import org.domi.furnace.server.world.BlockAttrs;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.navigation.FlyingPathNavigation")
 public class FlyingPathNavigation extends PathNavigation {
 
     public FlyingPathNavigation(Mob mob, ChunkLevel level) { super(mob, level); }

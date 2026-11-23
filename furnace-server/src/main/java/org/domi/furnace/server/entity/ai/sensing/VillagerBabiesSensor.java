@@ -11,6 +11,7 @@ import org.domi.furnace.server.entity.ai.brain.MemoryModuleType;
 import org.domi.furnace.server.entity.ai.brain.NearestVisibleLivingEntities;
 import org.domi.furnace.server.entity.ai.brain.Sensor;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.sensing.VillagerBabiesSensor")
 public class VillagerBabiesSensor extends Sensor<Mob> {
     @Override public Set<MemoryModuleType<?>> requires() { return Set.of(MemoryModuleType.VISIBLE_VILLAGER_BABIES); }
 

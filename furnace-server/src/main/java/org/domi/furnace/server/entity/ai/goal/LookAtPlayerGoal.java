@@ -9,6 +9,7 @@ import org.domi.furnace.server.entity.Targetable;
 import org.domi.furnace.server.entity.ai.Goal;
 import org.domi.furnace.server.entity.ai.targeting.TargetingConditions;
 
+@org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.ai.goal.LookAtPlayerGoal")
 public class LookAtPlayerGoal extends Goal {
     protected final Mob mob;
     protected Player lookAt;
