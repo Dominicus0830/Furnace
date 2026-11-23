@@ -33,7 +33,7 @@
 | `InventoryMenu` 의 상위가 `RecipeBookMenu` 가 아님 | 제작 책 틀을 안 만듦. 제작칸 컨테이너(`getCraftSlots`)도 없음 |
 | `Player.inventoryMenu` 가 final 이 아님 | 새로 고칠 때 바꿔야 함 |
 | `Inventory.selected` 는 메서드 호출 때 맞춰짐 | 공개 필드 |
-| `Container` 의 바닐라 추상 메서드가 `default` 로 던짐 | 생성기가 만든 하위 클래스(상자 수레 등)가 이 인터페이스를 물려받는데 던지는 몸통은 Paper 서명표로 잠금 파일을 다시 만들어야 생긴다. 표가 있는 곳에서 명세로 옮겨 추상으로 되돌린다 |
+| (해결, 2026-11-23) `Container` 는 `shimspec/containers.spec` + 조각으로 옮겨 추상으로 되돌렸다 | Paper 서명표로 잠금을 다시 만들었다. `InventoryMenu` 는 `RecipeBookMenu`(껍데기 조각) 를 상속한다 |
 | `Nameable` 은 생성기가 만든 빈 인터페이스 그대로 | 그래서 `Inventory.getName()` 에는 `@Override` 가 없다(호출은 `Inventory`/`Container` 로) |
 | `Container` 에 CraftBukkit 풍 `getContents()` 가 있음 | Bukkit 쪽에서 흔히 쓰임 |
 
@@ -42,7 +42,7 @@
 
 ## 3. 시험
 - `NmsInventoryMenuTest`(5개): 칸 번호·라이브 보기, 빼기·넣기·`contains` 규칙, `selected` 동기, 열린 창 보기(generic_9x3, 칸 읽기, 다른 스레드 읽기, 닫기), 접속 안 한 플레이어 인벤토리. `NmsEquipmentReadTest`(8개 묶음 전체 통과).
-- 서명 관문(`signatureGate`)은 이 클라우드에 Paper 서버 서명표가 없어 못 돌렸다. 대신 바닐라 서명표(`sig.tsv`)와 `javap` 를 대조해 서술자 차이 0을 확인했고, 남는 건 위 표의 상위 클래스 차이와 shim 이 더한 멤버(info 수준)뿐이다. **Paper 표가 있는 PC 에서 `signatureGate` 를 한 번 돌려 기준선에 의도한 차이를 적어야 한다**(user-todo 기록 참고).
+- 서명 관문(`signatureGate`)은 이 클라우드에 Paper 서버 서명표가 없어 못 돌렸다. 대신 바닐라 서명표(`sig.tsv`)와 `javap` 를 대조해 서술자 차이 0을 확인했고, 남는 건 위 표의 상위 클래스 차이와 shim 이 더한 멤버(info 수준)뿐이다. → 2026-11-23 Paper 표가 있는 PC 에서 돌려 새 차이 0 을 확인했다(`InventoryMenu` 상위는 예외 없이 `RecipeBookMenu` 로 고침).
 
 ## 4. 측정(표본 jar 100개, Spigot 이름 jar 포함: `-PspigotDir`)
 | 시점 | 지원 | 전체 | 비율 |

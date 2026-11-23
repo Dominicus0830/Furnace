@@ -53,4 +53,36 @@ public final class NmsLocalContainer implements Container {
 
     @Override
     public synchronized void clearContent() { java.util.Arrays.fill(slots, ItemStack.EMPTY); }
+
+    @Override
+    public java.util.List<ItemStack> getContents() {
+        java.util.List<ItemStack> out = new java.util.ArrayList<>(getContainerSize());
+        for (int k = 0; k < getContainerSize(); k++) out.add(getItem(k));
+        return out;
+    }
+
+    @Override
+    public int getMaxStackSize() { return 99; }
+
+    @Override
+    public void setMaxStackSize(int size) { throw bukkitSide("setMaxStackSize"); }
+
+    @Override
+    public org.bukkit.Location getLocation() { throw bukkitSide("getLocation"); }
+
+    @Override
+    public org.bukkit.inventory.InventoryHolder getOwner() { throw bukkitSide("getOwner"); }
+
+    @Override
+    public java.util.List<org.bukkit.entity.HumanEntity> getViewers() { throw bukkitSide("getViewers"); }
+
+    @Override
+    public void onOpen(org.bukkit.craftbukkit.entity.CraftHumanEntity who) { throw bukkitSide("onOpen"); }
+
+    @Override
+    public void onClose(org.bukkit.craftbukkit.entity.CraftHumanEntity who) { throw bukkitSide("onClose"); }
+
+    private static org.domi.furnace.compat.nms.UnsupportedNmsCall bukkitSide(String what) {
+        return new org.domi.furnace.compat.nms.UnsupportedNmsCall("Container#" + what, "the Bukkit-side view of this container is not part of the shim (use the Bukkit Inventory)");
+    }
 }

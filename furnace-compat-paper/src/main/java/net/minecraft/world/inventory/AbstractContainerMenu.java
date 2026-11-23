@@ -36,6 +36,12 @@ public abstract class AbstractContainerMenu {
         this.containerId = containerId;
     }
 
+    /** 생성기 전용 생성자: 생성 하위 클래스(RecipeBookMenu 등)가 부른다. 창 상태는 쓰지 않는다. */
+    protected AbstractContainerMenu(org.domi.furnace.compat.nms.ShimCtor tag) {
+        this.menuType = null;
+        this.containerId = 0;
+    }
+
     protected Slot addSlot(Slot slot) {
         slot.index = slots.size();
         slots.add(slot);

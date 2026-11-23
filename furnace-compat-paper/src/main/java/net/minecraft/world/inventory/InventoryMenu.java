@@ -11,7 +11,7 @@ import org.domi.furnace.compat.nms.UnsupportedNmsCall;
  * 접속한 플레이어의 것({@code player.inventoryMenu})은 서버의 인벤토리 창을 비춘다 — 제작 결과·격자 5칸은 창의 컨테이너 칸(읽기만), 나머지는 그 플레이어의
  * {@link Inventory} 의 칸이다. 바닐라 생성자로 만든 것은 서버와 이어지지 않은 제 제작 칸을 든다. 클릭·옮기기(quickMoveStack)·제작 레시피는 없다.
  */
-public class InventoryMenu extends AbstractContainerMenu {
+public class InventoryMenu extends RecipeBookMenu<net.minecraft.world.item.crafting.CraftingInput, net.minecraft.world.item.crafting.CraftingRecipe> {
 
     public static final int CONTAINER_ID = 0;
     public static final int RESULT_SLOT = 0;
@@ -93,15 +93,38 @@ public class InventoryMenu extends AbstractContainerMenu {
         throw new UnsupportedNmsCall("AbstractContainerMenu#quickMoveStack", "shift-clicking is handled by the server's own window");
     }
 
+    @Override
+    public void fillCraftSlotsStackedContents(net.minecraft.world.entity.player.StackedContents contents) {
+        throw new UnsupportedNmsCall("InventoryMenu#fillCraftSlotsStackedContents", "recipe-book placement is handled by the server's own window");
+    }
+
+    @Override
+    public void clearCraftingContent() {
+        throw new UnsupportedNmsCall("InventoryMenu#clearCraftingContent", "the crafting grid of the server's inventory window belongs to the player's connection");
+    }
+
+    @Override
+    public boolean recipeMatches(net.minecraft.world.item.crafting.RecipeHolder<net.minecraft.world.item.crafting.CraftingRecipe> recipe) {
+        throw new UnsupportedNmsCall("InventoryMenu#recipeMatches", "crafting recipes are not part of this shim");
+    }
+
+    @Override
+    public net.minecraft.world.inventory.RecipeBookType getRecipeBookType() { return net.minecraft.world.inventory.RecipeBookType.CRAFTING; }
+
+    @Override
     public int getResultSlotIndex() { return 0; }
 
+    @Override
     public int getGridWidth() { return 2; }
 
+    @Override
     public int getGridHeight() { return 2; }
 
+    @Override
     public int getSize() { return 5; }
 
     public static boolean isHotbarSlot(int slot) { return slot >= 36 && slot < 45 || slot == 45; }
 
+    @Override
     public boolean shouldMoveToInventory(int slot) { return slot != getResultSlotIndex(); }
 }
