@@ -93,6 +93,43 @@ public class Wolf extends TamableAnimal implements NeutralMob {
         return paleIndex();
     }
 
+    /**
+     * 변종 정의(API 꼴). 데이터 팩·플러그인 정의가 있으면 그것, 정의 없는 바닐라 항목(바닐라 데이터를 읽지 못하고 돈 때)은
+     * 바닐라 wolf_variant/*.json 과 같은 값. 레지스트리에 없는 id 면 null.
+     */
+    public static org.domi.furnace.api.registry.WolfVariant definition(String id) {
+        if (org.domi.furnace.server.net.registry.RegistrySet.current().indexOf(REGISTRY, id) < 0) return null;
+        var dyn = org.domi.furnace.server.data.DynamicRegistries.current();
+        var def = dyn == null ? null : dyn.definition(REGISTRY, id);
+        if (def != null) {
+            var set = def.get("biomes");
+            java.util.List<String> biomes = new java.util.ArrayList<>();
+            if (set.isJsonArray()) for (var e : set.getAsJsonArray()) biomes.add(normalize(e.getAsString()));
+            else if (set.getAsString().startsWith("#")) biomes.add("#" + normalize(set.getAsString().substring(1)));
+            else biomes.add(normalize(set.getAsString()));
+            return new org.domi.furnace.api.registry.WolfVariant(normalize(def.get("wild_texture").getAsString()),
+                    normalize(def.get("tame_texture").getAsString()), normalize(def.get("angry_texture").getAsString()), biomes);
+        }
+        if (!id.startsWith("minecraft:")) return null;
+        String name = id.substring("minecraft:".length());
+        String biomes = switch (name) {
+            case "ashen" -> "minecraft:snowy_taiga";
+            case "black" -> "minecraft:old_growth_pine_taiga";
+            case "chestnut" -> "minecraft:old_growth_spruce_taiga";
+            case "pale" -> "minecraft:taiga";
+            case "rusty" -> "#minecraft:is_jungle";
+            case "snowy" -> "minecraft:grove";
+            case "spotted" -> "#minecraft:is_savanna";
+            case "striped" -> "#minecraft:is_badlands";
+            case "woods" -> "minecraft:forest";
+            default -> null;
+        };
+        if (biomes == null) return null;
+        // WolfVariants.register: 텍스처 이름은 "wolf_<이름>", pale 만 "wolf"
+        String tex = "minecraft:entity/wolf/" + (name.equals("pale") ? "wolf" : "wolf_" + name);
+        return new org.domi.furnace.api.registry.WolfVariant(tex, tex + "_tame", tex + "_angry", java.util.List.of(biomes));
+    }
+
     /** HolderSet<Biome> 꼴(태그 "#id", id 하나, id 목록)이 바이옴을 담는가. 태그는 지금 데이터 팩 태그로 본다. */
     static boolean biomesContain(com.google.gson.JsonElement set, String biome) {
         if (set == null || biome == null) return false;

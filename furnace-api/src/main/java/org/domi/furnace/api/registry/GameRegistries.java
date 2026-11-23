@@ -60,6 +60,15 @@ public interface GameRegistries {
      */
     default java.util.Map<String, String> worldgen(String registry) { throw new UnsupportedOperationException("worldgen"); }
 
+    /**
+     * 늑대 변종(minecraft:wolf_variant) 항목의 정의. 데이터 팩·플러그인이 낸 정의, 바닐라 항목은 바닐라 값. 레지스트리에 없는 키면 empty.
+     * biomes 는 정의에 적힌 꼴 그대로다(태그면 "#…" 하나). NMS 호환용.
+     */
+    default java.util.Optional<WolfVariant> wolfVariant(String key) { throw new UnsupportedOperationException("wolfVariant"); }
+
+    /** 그림 변종(minecraft:painting_variant) 항목의 정의. 레지스트리에 없는 키면 empty. NMS 호환용. */
+    default java.util.Optional<PaintingVariant> paintingVariant(String key) { throw new UnsupportedOperationException("paintingVariant"); }
+
     /** 항목을 낸 곳: "vanilla", 데이터 팩 id(예: "file/mypack"), "plugin:<이름>". 없거나 내장 목록이면 empty. */
     java.util.Optional<String> source(String registry, String key);
 
