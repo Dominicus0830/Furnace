@@ -6,7 +6,6 @@ import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
 import org.domi.furnace.compat.paper.Compat;
 import org.bukkit.craftbukkit.inventory.CraftInventoryPlayer;
-import org.bukkit.craftbukkit.inventory.CraftInventoryPlayer;
 
 /** Furnace 플레이어 위의 Bukkit Player. 접속이 끊긴 뒤에도 객체는 남지만 isOnline() 이 false 다. */
 @org.bukkit.configuration.serialization.DelegateDeserialization(org.bukkit.craftbukkit.CraftOfflinePlayer.class)

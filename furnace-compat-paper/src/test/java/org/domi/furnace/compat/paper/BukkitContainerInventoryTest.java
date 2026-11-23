@@ -396,7 +396,8 @@ class BukkitContainerInventoryTest {
     void eventFurnaceInventoryIsTyped() {
         var contents = java.util.List.of(org.domi.furnace.api.item.ItemStack.of("minecraft:raw_iron"), org.domi.furnace.api.item.ItemStack.of("minecraft:coal"),
                 org.domi.furnace.api.item.ItemStack.EMPTY);
-        org.bukkit.inventory.Inventory top = new EventInventories.Furnace(org.bukkit.event.inventory.InventoryType.BLAST_FURNACE, contents, 3, "minecraft:blast_furnace", null);
+        org.bukkit.inventory.Inventory top = new org.bukkit.craftbukkit.inventory.CraftInventoryFurnace(SnapshotInventory.slots("minecraft:blast_furnace", contents, 3),
+                org.bukkit.event.inventory.InventoryType.BLAST_FURNACE, org.domi.furnace.api.recipe.Recipe.CookingKind.BLASTING, () -> null);
         var f = assertInstanceOf(org.bukkit.inventory.FurnaceInventory.class, top);
         assertEquals(Material.RAW_IRON, f.getSmelting().getType());
         assertEquals(Material.COAL, f.getFuel().getType());

@@ -297,7 +297,7 @@ final class Mappings {
                     if (CompatInventories.isDrag(f.clickType())) return null;
                     EventInventories.CompatRecipe recipe = f instanceof org.domi.furnace.api.event.inventory.CraftItemEvent ce
                             ? EventInventories.CompatRecipe.of(ce.recipe(), ce.result()) : null;
-                    CompatInventoryView view = CompatInventories.view(f.player(), f.inventory(), f.menu(), f.cursor(),
+                    org.bukkit.craftbukkit.inventory.CraftInventoryView view = CompatInventories.view(f.player(), f.inventory(), f.menu(), f.cursor(),
                             recipe == null ? CompatInventories.Extras.NONE : new CompatInventories.Extras(recipe, false, null, null, null));
                     int raw = f.slot();
                     var ct = CompatInventories.click(f.clickType(), raw, f.button());
@@ -327,7 +327,7 @@ final class Mappings {
                     boolean creative = f.player().gameMode() == org.domi.furnace.api.entity.GameMode.CREATIVE;
                     var r = CompatInventories.dragStep(f.player().uniqueId(), f.slot(), f.button(), f.inventory(), f.cursor(), creative);
                     if (r == null) return null;
-                    CompatInventoryView view = CompatInventories.view(f.player(), f.inventory(), f.menu(), r.oldCursor());
+                    org.bukkit.craftbukkit.inventory.CraftInventoryView view = CompatInventories.view(f.player(), f.inventory(), f.menu(), r.oldCursor());
                     java.util.Map<Integer, org.bukkit.inventory.ItemStack> placed = new java.util.LinkedHashMap<>();
                     for (var e : r.placed().entrySet()) placed.put(e.getKey(), CompatItems.copyOf(e.getValue()));
                     return new org.bukkit.event.inventory.InventoryDragEvent(view, r.newCursor().isEmpty() ? null : CompatItems.copyOf(r.newCursor()),

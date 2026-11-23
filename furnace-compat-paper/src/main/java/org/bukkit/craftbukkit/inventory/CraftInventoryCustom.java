@@ -16,7 +16,6 @@ import org.domi.furnace.api.menu.MenuType;
 import org.domi.furnace.compat.paper.Compat;
 import org.domi.furnace.compat.paper.UnsupportedFeature;
 import org.domi.furnace.compat.paper.CompatInventories;
-import org.domi.furnace.compat.paper.CompatInventoryView;
 import org.domi.furnace.compat.paper.InventoryParts;
 
 public class CraftInventoryCustom extends CraftInventory {
@@ -84,7 +83,7 @@ public class CraftInventoryCustom extends CraftInventory {
                     "Furnace can only open inventories made by a plugin (Bukkit.createInventory) as a window - opening block or entity storage windows is not available yet");
         }
         p.furnaceHandle().openMenu(own.menu);
-        return new CompatInventoryView(p, own, own.getType(), own.title, null);
+        return new CraftInventoryView(p, own, own.getType(), own.title, null);
     }
 
     /** HumanEntity#getOpenInventory. */
