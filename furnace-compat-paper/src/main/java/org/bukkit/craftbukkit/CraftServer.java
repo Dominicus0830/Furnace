@@ -389,7 +389,7 @@ public final class CraftServer implements Server {
         // Paper: 폴더에 level.dat 이 있으면 저장된 생성기·구조물·시드를 쓴다(설명서의 type·generatorSettings·generateStructures·seed 는 새 월드만)
         var stored = f().storedWorldCreator(name);
         // 공급자·생성기의 WorldInfo: 서버가 생성기를 만들기 직전에 채우고(prepare — 시드는 level.dat 의 것), 월드가 생기면 그 CraftWorld 를 따른다
-        var info = provider == null && generator == null ? null : new org.domi.furnace.compat.paper.BukkitBiomeProviders.LateWorldInfo(name,
+        var info = provider == null && generator == null ? null : org.domi.furnace.compat.paper.BukkitBiomeProviders.worldInfo(name,
                 creator.environment(), stored != null && stored.seed().isPresent() ? stored.seed().getAsLong() : creator.seed(),
                 env == org.domi.furnace.api.world.WorldEnvironment.NORMAL ? -64 : 0, env == org.domi.furnace.api.world.WorldEnvironment.NORMAL ? 320 : 256);
         if (provider == null && generator != null) provider = generator.getDefaultBiomeProvider(info);   // CraftServer: 생성기의 기본 공급자
@@ -441,8 +441,8 @@ public final class CraftServer implements Server {
     }
 
     /** 공급자의 WorldInfo 를 생긴 월드에 묶는다(CraftBukkit 은 CustomWorldChunkManager 에 그 CraftWorld 를 넘긴다). */
-    private static World bound(World w, org.domi.furnace.compat.paper.BukkitBiomeProviders.LateWorldInfo info) {
-        if (info != null && w != null) info.bind(w);
+    private static World bound(World w, org.bukkit.craftbukkit.generator.CraftWorldInfo info) {
+        if (info != null && w != null) org.domi.furnace.compat.paper.BukkitBiomeProviders.bind(info, w);
         return w;
     }
 

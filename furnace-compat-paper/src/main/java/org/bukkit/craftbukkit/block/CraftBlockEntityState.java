@@ -118,7 +118,7 @@ public abstract class CraftBlockEntityState extends CraftBlockState implements o
     @Override
     public org.bukkit.persistence.PersistentDataContainer getPersistentDataContainer() {
         if (pdc == null) {
-            pdc = live ? new org.domi.furnace.compat.paper.BlockEntityPdc(dimension(), position(), liveType)
+            pdc = live ? org.domi.furnace.compat.paper.PdcViews.craft(new org.domi.furnace.compat.paper.BlockEntityPdc(dimension(), position(), liveType))
                     : org.domi.furnace.compat.paper.TileStatePdc.of(snapshot.getCompound(PUBLIC_BUKKIT_VALUES));
         }
         return pdc;

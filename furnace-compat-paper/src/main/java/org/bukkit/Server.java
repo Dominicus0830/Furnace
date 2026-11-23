@@ -102,7 +102,7 @@ public interface Server extends org.bukkit.plugin.messaging.PluginMessageRecipie
     @Deprecated
     default org.bukkit.generator.ChunkGenerator.ChunkData createChunkData(World world) {
         if (world == null) throw new IllegalArgumentException("World cannot be null");
-        return new org.domi.furnace.compat.paper.BukkitChunkGenerators.OldChunkData(world.getMinHeight(), world.getMaxHeight());
+        return org.domi.furnace.compat.paper.BukkitChunkGenerators.createOldChunkData(world.getMinHeight(), world.getMaxHeight());
     }
 
     int broadcastMessage(String message);

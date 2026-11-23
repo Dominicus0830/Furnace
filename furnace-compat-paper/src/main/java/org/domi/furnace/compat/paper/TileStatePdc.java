@@ -10,8 +10,8 @@ public final class TileStatePdc {
     private TileStatePdc() {}
 
     /** PublicBukkitValues 사본 → 고칠 수 있는 메모리 컨테이너. */
-    public static PersistentDataContainer of(NbtCompound publicBukkitValues) { return ItemPdc.fromNbt(publicBukkitValues); }
+    public static PersistentDataContainer of(NbtCompound publicBukkitValues) { return PdcViews.craft(ItemPdc.fromNbt(publicBukkitValues)); }
 
     /** 컨테이너 내용 → NBT compound({@link #of} 로 만든 것만). */
-    public static NbtCompound toNbt(PersistentDataContainer c) { return ((ItemPdc) c).toNbt(); }
+    public static NbtCompound toNbt(PersistentDataContainer c) { return ((ItemPdc) PdcViews.body((org.bukkit.craftbukkit.persistence.CraftPersistentDataContainer) c)).toNbt(); }
 }

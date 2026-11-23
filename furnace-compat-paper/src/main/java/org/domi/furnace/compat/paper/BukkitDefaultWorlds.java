@@ -29,7 +29,7 @@ public final class BukkitDefaultWorlds {
             case THE_END -> World.Environment.THE_END;
         };
         // 생성기·공급자의 WorldInfo(CraftWorldInfo 자리): 서버가 붙이기 직전 prepare 로 채우고, 붙인 뒤에는 그 CraftWorld 를 따른다
-        var info = new BukkitBiomeProviders.LateWorldInfo(r.worldName(), env, r.seed(), r.minY(), r.maxY());
+        var info = BukkitBiomeProviders.worldInfo(r.worldName(), env, r.seed(), r.minY(), r.maxY());
         ChunkGenerator generator = genMine ? generator(r.worldName(), r.generator()) : null;
         BiomeProvider provider = providerMine ? biomeProvider(r.worldName(), r.biomeProvider()) : null;
         if (provider == null && generator != null) provider = generator.getDefaultBiomeProvider(info);   // loadWorld0: 생성기의 기본 공급자

@@ -83,6 +83,143 @@ final class CraftAccess {
         }
     }
 
+    // ---- 생성기 다리(T-264 P2c-3): Paper 의 생성자는 NMS 손잡이를 받으므로 Furnace 생성자·멤버는 패키지 전용으로 둔다
+
+    private static final MethodHandle NEW_CHUNK_DATA = constructor(org.bukkit.craftbukkit.generator.CraftChunkData.class,
+            MethodType.methodType(void.class, org.domi.furnace.api.worldgen.GenerationChunk.class));
+    private static final MethodHandle NEW_OLD_CHUNK_DATA = constructor(org.bukkit.craftbukkit.generator.OldCraftChunkData.class, MethodType.methodType(void.class, int.class, int.class));
+    private static final MethodHandle OLD_CHUNK_DATA_APPLY = virtualMethod(org.bukkit.craftbukkit.generator.OldCraftChunkData.class, "applyTo",
+            MethodType.methodType(void.class, org.domi.furnace.api.worldgen.GenerationChunk.class));
+    private static final MethodHandle NEW_WORLD_INFO = constructor(org.bukkit.craftbukkit.generator.CraftWorldInfo.class,
+            MethodType.methodType(void.class, String.class, org.bukkit.World.Environment.class, long.class, int.class, int.class));
+    private static final MethodHandle WORLD_INFO_BIND = virtualMethod(org.bukkit.craftbukkit.generator.CraftWorldInfo.class, "bind",
+            MethodType.methodType(void.class, org.bukkit.generator.WorldInfo.class));
+    private static final MethodHandle WORLD_INFO_PREPARE = virtualMethod(org.bukkit.craftbukkit.generator.CraftWorldInfo.class, "prepare",
+            MethodType.methodType(void.class, org.domi.furnace.api.worldgen.BiomeProvider.Context.class));
+    private static final MethodHandle NEW_BIOME_PARAMETER_POINT = constructor(org.bukkit.craftbukkit.generator.CraftBiomeParameterPoint.class,
+            MethodType.methodType(void.class, org.domi.furnace.api.worldgen.Climate.class));
+
+    /** 새 생성기 API 단계 하나의 CraftChunkData — 단계가 끝나면 breakLink 한다. */
+    static org.bukkit.craftbukkit.generator.CraftChunkData newChunkData(org.domi.furnace.api.worldgen.GenerationChunk chunk) {
+        try {
+            return (org.bukkit.craftbukkit.generator.CraftChunkData) NEW_CHUNK_DATA.invokeExact(chunk);
+        } catch (RuntimeException | Error e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException(t);
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    static org.bukkit.craftbukkit.generator.OldCraftChunkData newOldChunkData(int minHeight, int maxHeight) {
+        try {
+            return (org.bukkit.craftbukkit.generator.OldCraftChunkData) NEW_OLD_CHUNK_DATA.invokeExact(minHeight, maxHeight);
+        } catch (RuntimeException | Error e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException(t);
+        }
+    }
+
+    /** 옛 generateChunkData 결과의 섹션을 청크에 갈아 끼운다. */
+    @SuppressWarnings("deprecation")
+    static void oldChunkDataApply(org.bukkit.craftbukkit.generator.OldCraftChunkData data, org.domi.furnace.api.worldgen.GenerationChunk chunk) {
+        try {
+            OLD_CHUNK_DATA_APPLY.invokeExact(data, chunk);
+        } catch (RuntimeException | Error e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException(t);
+        }
+    }
+
+    static org.bukkit.craftbukkit.generator.CraftWorldInfo newWorldInfo(String name, org.bukkit.World.Environment environment, long seed, int minHeight, int maxHeight) {
+        try {
+            return (org.bukkit.craftbukkit.generator.CraftWorldInfo) NEW_WORLD_INFO.invokeExact(name, environment, seed, minHeight, maxHeight);
+        } catch (RuntimeException | Error e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException(t);
+        }
+    }
+
+    static void worldInfoBind(org.bukkit.craftbukkit.generator.CraftWorldInfo info, org.bukkit.generator.WorldInfo world) {
+        try {
+            WORLD_INFO_BIND.invokeExact(info, world);
+        } catch (RuntimeException | Error e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException(t);
+        }
+    }
+
+    static void worldInfoPrepare(org.bukkit.craftbukkit.generator.CraftWorldInfo info, org.domi.furnace.api.worldgen.BiomeProvider.Context context) {
+        try {
+            WORLD_INFO_PREPARE.invokeExact(info, context);
+        } catch (RuntimeException | Error e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException(t);
+        }
+    }
+
+    /** BiomeProvider#getBiome 에 넘길 그 칸의 기후(Paper 처럼 생성자는 private). */
+    static org.bukkit.generator.BiomeParameterPoint newBiomeParameterPoint(org.domi.furnace.api.worldgen.Climate climate) {
+        try {
+            return (org.bukkit.craftbukkit.generator.CraftBiomeParameterPoint) NEW_BIOME_PARAMETER_POINT.invokeExact(climate);
+        } catch (RuntimeException | Error e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException(t);
+        }
+    }
+
+    // ---- 영속 데이터 묶음(T-264 P2c-4): Furnace 몸을 감싸는 생성자·몸 꺼내기는 패키지 전용
+
+    private static final MethodHandle NEW_PDC = constructor(org.bukkit.craftbukkit.persistence.CraftPersistentDataContainer.class,
+            MethodType.methodType(void.class, org.bukkit.persistence.PersistentDataContainer.class));
+    private static final MethodHandle PDC_BODY = virtualMethod(org.bukkit.craftbukkit.persistence.CraftPersistentDataContainer.class, "furnaceBody",
+            MethodType.methodType(org.bukkit.persistence.PersistentDataContainer.class));
+    private static final MethodHandle NEW_PDC_CONTEXT = constructor(org.bukkit.craftbukkit.persistence.CraftPersistentDataAdapterContext.class, MethodType.methodType(void.class));
+
+    static org.bukkit.craftbukkit.persistence.CraftPersistentDataContainer newPdc(org.bukkit.persistence.PersistentDataContainer body) {
+        try {
+            return (org.bukkit.craftbukkit.persistence.CraftPersistentDataContainer) NEW_PDC.invokeExact(body);
+        } catch (RuntimeException | Error e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException(t);
+        }
+    }
+
+    static org.bukkit.persistence.PersistentDataContainer pdcBody(org.bukkit.craftbukkit.persistence.CraftPersistentDataContainer c) {
+        try {
+            return (org.bukkit.persistence.PersistentDataContainer) PDC_BODY.invokeExact(c);
+        } catch (RuntimeException | Error e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException(t);
+        }
+    }
+
+    static org.bukkit.craftbukkit.persistence.CraftPersistentDataAdapterContext newPdcContext() {
+        try {
+            return (org.bukkit.craftbukkit.persistence.CraftPersistentDataAdapterContext) NEW_PDC_CONTEXT.invokeExact();
+        } catch (RuntimeException | Error e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException(t);
+        }
+    }
+
+    private static MethodHandle virtualMethod(Class<?> target, String name, MethodType type) {
+        try {
+            return MethodHandles.privateLookupIn(target, MethodHandles.lookup()).findVirtual(target, name, type);
+        } catch (ReflectiveOperationException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
     private static MethodHandle constructor(Class<?> target, MethodType type) {
         try {
             return MethodHandles.privateLookupIn(target, MethodHandles.lookup()).findConstructor(target, type);
