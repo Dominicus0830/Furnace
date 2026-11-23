@@ -13,3 +13,5 @@ if line=$("${G[@]}" :worldgen-oracle:printPaperServerJar 2>/dev/null | grep '^PA
 else
   echo "[서명표] Paper 서버 jar 를 못 구함(Paper 저장소에 안 닿음) — Paper 표 없음, 바닐라·paper-api 표만 만들었다"
 fi
+# T-262: 채움 표 — 바닐라 jar 의 값만으로 정해지는 껍데기 멤버(단순 생성자·읽기·정적 리터럴·열거형 상수 인자·레코드 기본 메서드). 캐시에만 둔다.
+"${G[@]}" -PskipOracle=true :vanilla-extract:run -Pmc="$MC" -Pmode=fill-table

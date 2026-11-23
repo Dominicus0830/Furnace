@@ -126,3 +126,28 @@ class CoralFeature {                         // 머리는 "class|interface|enum 
 2. 손 shim 을 `src/shims/java` 로 옮겨 머리를 `class 이름 {` 로 줄이고, 줄로 옮긴 멤버는 지운다. 몸통이 필요 없으면 조각도 지운다.
 3. `shimLock` → `compileJava` → 옮기기 전·후 클래스 폴더를 `tools/ci/javap-same.sh` 로 견준다. 달라진 곳은 바닐라와 맞춘 곳(상속 구멍·바닐라에 없던 멤버)뿐이어야 하고 목록으로 남긴다.
 4. `:vanilla-extract:signatureGate` — 바로잡힌 기준선 줄은 지운다.
+
+## 전체 껍데기 채우기 — 공통 형식 (T-262, 2026-11-23)
+
+전체 껍데기(T-260)의 던지는 멤버 가운데 **값만으로 정해지는 것**은 기계가 진짜로 채운다. 영역 스레드가 채우기를 늘릴 때 따르는 틀이다.
+설명·측정: `docs/feature-parity/compat-shell-fills-t262-2026-11-23.md`.
+
+| 파일 | 누가 | 커밋 | 내용 |
+|---|---|---|---|
+| `<캐시>/<판>/fill-table.tsv.gz` | `tools/compat/sig-tables.sh`(`-Pmode=fill-table`) | 안 함(Mojang 이름) | 바닐라 jar 에서 값만 뽑은 채움 표. 줄 `P`(단순 생성자) `G`(단순 읽기) `S`(정적 리터럴) `V`(열거형 상수 인자) `T`(레코드 기본 메서드). 형식은 `FillTable` |
+| `full-shells-<판>.fp` | `-PfullShellsFpWrite=true` | 함 | 서명표 셋 + 채움 표의 sha256(`fill` 줄) |
+| `fill-areas.txt` | 사람 | 함 | 영역 번호·이름·접두(로드맵 8장 12개). 가장 긴 접두가 이긴다 |
+| `fills-baseline-<판>.txt` | `-PfullShellsBaselineWrite=true` | 함 | 영역별 합계 + 클래스(이름 해시 앞 8자리)별 남은 껍데기 멤버 수·채운 멤버 수. **이름 없음.** 달라지면 `generateFullShells` 가 실패 |
+
+규칙(어기면 `FillParityTest` 가 잡는다):
+- 모르면 채우지 않는다. 추출기는 정해진 몸통 모양(분기·호출·계산이 없는 것)에만 반응한다. 열거형은 상수 인자가 **전부** 리터럴이고 쓰는 생성자가 전부 채워질 때만 채운다(아니면 생성자·읽기도 껍데기).
+- 상위 생성자가 채워져야(또는 `Object`·`Record`·`Enum`) 하위 생성자를 채운다. 읽기는 그 클래스의 채워진 생성자가 대입하는 필드만.
+- 채운 멤버에는 `@NmsShellMember` 표지가 없다 → `NmsSymbols` 가 "있음"으로 본다. 그래서 값이 바닐라와 같아야 한다.
+- 새 종류(예: 배열 리터럴, 상수 참조)를 더할 때는 (1) `FillExtractor` 에 모양 하나 + `FillExtractorTest`, (2) `FillTable` 줄 종류, (3) `Fills` 규칙·`FullShells` 몸통, (4) `FillParityTest.checkClass` 에 비교 하나, 이 네 곳을 한 PR 로.
+- 영역 스레드의 손·추론 채우기(명세 줄 `->`)는 이 틀과 별개 길이다(손 shim 이 이긴다). 영역을 옮길 때는 `fills-baseline` 숫자가 줄어드는지로 진척을 본다.
+
+```
+tools/compat/sig-tables.sh                                          # 서명표 셋 + 채움 표
+./gradlew -PskipOracle=true :furnace-compat-paper:generateFullShells # 지문·기준선 검사 후 껍데기 생성
+./gradlew -PskipOracle=true :furnace-compat-paper:fullShellsTest    # 전부 올리기 + 바닐라 대조(FillParityTest)
+```

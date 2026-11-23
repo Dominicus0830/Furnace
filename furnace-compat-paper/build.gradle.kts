@@ -413,6 +413,7 @@ val fullShellsCache = (findProperty("cache") as String?) ?: System.getenv("FURNA
     ?: (System.getProperty("user.home") + "/.cache/furnace-vanilla-extract")
 val fullShellsTables = listOf("sig-table-paper-server.tsv.gz", "sig-table.tsv.gz", "sig-table-paper-api.tsv.gz")
     .map { "$fullShellsCache/$mcVersion/$it" }
+val fullShellsFill = file("$fullShellsCache/$mcVersion/fill-table.tsv.gz")   // T-262: 채움 표(없으면 채우지 않고 껍데기만 — 지문에 fill 줄이 있으면 지문 검사가 실패해 알려 준다)
 val fullShellsLibs = "$fullShellsCache/$mcVersion/work/libs"   // 바닐라 서버 jar 가 싣는 라이브러리(vanilla-extract 가 풀어 둔 것)
 val fullShellsMain: SourceSet = the<SourceSetContainer>()["main"]
 // 서버가 플러그인에게 주는 라이브러리(ServerLibraries 의 목록 그대로 — Adventure·SnakeYAML 등). 껍데기의 상위 형식이 이것이면 실행 때 있다.
@@ -428,6 +429,8 @@ val fullShellsTestSources: SourceSet = the<SourceSetContainer>()["test"]
 val fullShellsDir = layout.buildDirectory.dir("full-shells/classes")
 val fullShellsReport = layout.buildDirectory.file("full-shells/report.md")
 val fullShellsFp = layout.projectDirectory.file("src/shimspec/full-shells-$mcVersion.fp")
+val fullShellsBaseline = layout.projectDirectory.file("src/shimspec/fills-baseline-$mcVersion.txt")   // T-262: 이름 없는 기준선(영역별 합계 + 클래스 해시별 남은·채운 멤버 수)
+val fullShellsAreas = layout.projectDirectory.file("src/shimspec/fill-areas.txt")
 val generateFullShells by tasks.registering(JavaExec::class) {
     group = "build"
     description = "서명표에서 호환 계층에 없는 Paper 내부 클래스 전부의 껍데기를 만든다(T-260)"
@@ -439,15 +442,18 @@ val generateFullShells by tasks.registering(JavaExec::class) {
     maxHeapSize = "2g"
     inputs.files(shimgen.runtimeClasspath).withNormalizer(ClasspathNormalizer::class)
     inputs.files(fullShellsTables).withPathSensitivity(PathSensitivity.NONE)
+    inputs.files(fullShellsFill).optional().withPathSensitivity(PathSensitivity.NONE)
     inputs.files(main.runtimeClasspath).withNormalizer(ClasspathNormalizer::class)
     inputs.files(fullShellsServerLibs).withNormalizer(ClasspathNormalizer::class)
-    inputs.files(fullShellsFp).withPathSensitivity(PathSensitivity.NONE)
+    inputs.files(fullShellsFp, fullShellsAreas, fullShellsBaseline).optional().withPathSensitivity(PathSensitivity.NONE)
     outputs.dir(fullShellsDir)
     outputs.file(fullShellsReport)
     val writeFp = providers.gradleProperty("fullShellsFpWrite").isPresent
     argumentProviders.add(CommandLineArgumentProvider {
         listOf(fullShellsDir.get().asFile.absolutePath, fullShellsReport.get().asFile.absolutePath, fullShellsFp.asFile.absolutePath, writeFp.toString(),
-            (main.runtimeClasspath.files + fullShellsServerLibs.files).joinToString(File.pathSeparator) { it.absolutePath }) + fullShellsTables + fullShellsLibs
+            (main.runtimeClasspath.files + fullShellsServerLibs.files).joinToString(File.pathSeparator) { it.absolutePath }) + fullShellsTables + fullShellsLibs +
+            (if (fullShellsFill.isFile) fullShellsFill.absolutePath else "-") +
+            listOf(fullShellsBaseline.asFile.absolutePath, fullShellsAreas.asFile.absolutePath, providers.gradleProperty("fullShellsBaselineWrite").isPresent.toString())
     })
 }
 val fullShellsJar by tasks.registering(Jar::class) {
@@ -477,6 +483,9 @@ tasks.register<Test>("fullShellsTest") {
     inputs.files(fullShellsJar)
     systemProperty("furnace.fullShells.jar", layout.buildDirectory.file("full-shells/furnace-compat-shells.jar").get().asFile.absolutePath)
     systemProperty("furnace.fullShells.report", layout.buildDirectory.file("full-shells/load-report.md").get().asFile.absolutePath)
+    // T-262: 채운 멤버 ↔ 바닐라 대조(FillParityTest)가 이름 푼 바닐라 jar 목록을 읽는다
+    dependsOn(":vanilla-extract:prepareVanillaJars")
+    systemProperty("furnace.vdiff.classpath", "$fullShellsCache/$mcVersion/vanilla-classpath.txt")
     dependsOn(tasks.jar)
     // 실제 실행과 같은 모양의 따로 된 로더: 호환 jar → 껍데기 jar → 호환 실행 의존 → 서버 제공 라이브러리 → 바닐라 라이브러리(부모는 플랫폼 로더)
     jvmArgumentProviders.add(CommandLineArgumentProvider {
