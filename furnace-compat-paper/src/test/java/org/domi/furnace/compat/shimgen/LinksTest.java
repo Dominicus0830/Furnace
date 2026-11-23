@@ -299,13 +299,13 @@ class LinksTest {
     /**
      * 엔티티 데이터 D3: 칸 번호표에 줄이 있고 shim 에 값 종류 상수가 있는 정적 EntityDataAccessor 필드는 값이 있는 필드가 된다
      * (정적 초기화가 NmsEntityData.accessor(클래스, "이름") 로 채운다) — 그래서 관용구 줄이 그 필드를 값으로 받을 수 있다.
-     * 값 종류 상수가 shim 에 없는 칸(VECTOR3)은 채우지 않아 껍데기 필드로 남고, 그 칸을 쓰는 줄은 멈춘다.
+     * 값 종류 상수가 shim 에 없는 칸(시험용 가짜 종류 NO_SUCH_KIND — 바닐라 종류는 이제 다 있다)은 채우지 않아 껍데기 필드로 남고, 그 칸을 쓰는 줄은 멈춘다.
      */
     @Test
     void entityDataSlotFieldsAreFilledAndLinkable() throws Exception {
         String fa = Links.fingerprint(Z + "Slots", "DATA_A");
         String fv = Links.fingerprint(Z + "Slots", "DATA_V");
-        Map<String, String> slots = Map.of("net.minecraft.zz.Slots " + fa.substring(1), "BYTE", "net.minecraft.zz.Slots " + fv.substring(1), "VECTOR3");
+        Map<String, String> slots = Map.of("net.minecraft.zz.Slots " + fa.substring(1), "BYTE", "net.minecraft.zz.Slots " + fv.substring(1), "NO_SUCH_KIND");
         String ok = String.join("\n", "#furnace-links 1 1.21.1 area=9", "class net.minecraft.zz.Slots", "  a()Z -> @idiom(test-slot, " + fa + ") read=any", "");
         Gen r = gen(ok, slots);
         r.g().checkLinks(null);
