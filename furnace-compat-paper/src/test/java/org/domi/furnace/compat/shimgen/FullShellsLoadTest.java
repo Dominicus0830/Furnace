@@ -157,6 +157,8 @@ class FullShellsLoadTest {
                 else unsupported++;
             }
             System.out.println("[full-shells] entity data slots with a value kind the shim lacks (left empty): " + unsupported);
+            // 지금 비는 칸은 JOML 값(VECTOR3·QUATERNION) 4칸뿐 — 값 종류를 더하거나 빼면 이 숫자를 함께 고친다(검토 권장)
+            assertEquals(4, unsupported, "entity data slots left empty because the shim lacks their value kind");
             Class<?> accessor = Class.forName("net.minecraft.network.syncher.EntityDataAccessor", false, cl);
             java.lang.reflect.Method id = accessor.getMethod("id");
             for (String n : merged) {
@@ -185,6 +187,7 @@ class FullShellsLoadTest {
         System.out.println("[full-shells] entity data slot fields checked: " + checked + ", classes whose init needs a server: " + notInitialized);
         assertEquals(List.of(), wrong, "slot fields must carry the id table's slot number");
         assertTrue(checked >= 100, "expected the merged entity hand shims to get their slot fields, checked " + checked);
+        assertEquals(0, notInitialized, "every class with slot fields must initialize here (the id table is on the loader)");
     }
 
     /**

@@ -135,6 +135,7 @@ public final class NmsEntityData {
     /** 바이트 칸의 깃발 하나 켜고 끄기: 켜면 {@code (byte)(b | 마스크)}, 끄면 {@code (byte)(b & ~마스크)} 를 칸에 쓴다(나머지 비트는 그대로). */
     @org.domi.furnace.compat.nms.link.LinkIdiom(value = "entity-data-flag-set", check = "write", owner = NmsEntityOwner.class)
     public static void setFlag(Object self, EntityDataAccessor<Byte> slot, int mask, boolean value) {
+        // 읽고-고치고-쓰기를 두 호출로 한다. 월드 밖 엔티티(한 스레드)에선 안전하지만, 월드 엔티티를 여는 D5 에서는 주인 스레드의 한 번의 조작(비트 쓰기)으로 바꿀 것
         SynchedEntityData d = data(self);
         byte b = d.get(slot);
         d.set(slot, value ? (byte) (b | mask) : (byte) (b & ~mask));

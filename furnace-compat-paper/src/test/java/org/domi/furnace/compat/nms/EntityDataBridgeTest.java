@@ -177,4 +177,20 @@ class EntityDataBridgeTest {
                     got.entries());
         }
     }
+
+    /**
+     * 엔티티 데이터 D3(PR 595 검토): 전체 껍데기 생성기는 shim {@link EntityDataSerializers} 의 정적 직렬화 상수 이름으로 칸 필드를 채울지 정하고,
+     * 실행 때 {@code NmsEntityData.accessor} 는 다리 표({@code EntityDataBridge.serializer(소문자 이름)})로 찾는다. 상수가 있는데 다리 표에 없으면
+     * 그 칸이 든 손 shim 의 초기화가 실패하므로, 상수 전부가 다리 표에 있어야 한다.
+     */
+    @Test
+    void everySerializerConstantIsInTheBridgeTable() throws Exception {
+        int n = 0;
+        for (java.lang.reflect.Field f : EntityDataSerializers.class.getDeclaredFields()) {
+            if (!java.lang.reflect.Modifier.isStatic(f.getModifiers()) || f.getType() != net.minecraft.network.syncher.EntityDataSerializer.class) continue;
+            assertTrue(EntityDataBridge.serializer(f.getName().toLowerCase(java.util.Locale.ROOT)) == f.get(null), f.getName());
+            n++;
+        }
+        assertTrue(n >= 29, "expected the vanilla serializer constants, got " + n);
+    }
 }
