@@ -8,17 +8,20 @@ import java.util.function.Function;
 
 public final class EntityPdc extends LivePdc {
 
-    private final org.domi.furnace.api.entity.Entity entity;
+    private final java.util.function.Supplier<org.domi.furnace.api.entity.Entity> entity;
 
-    public EntityPdc(org.domi.furnace.api.entity.Entity entity) { this.entity = entity; }
+    public EntityPdc(org.domi.furnace.api.entity.Entity entity) { this(() -> entity); }
+
+    /** 래퍼가 핸들을 새 스냅샷으로 바꿔도 따라가도록 지금 핸들을 그때그때 묻는다(CraftEntity 가 엔티티당 하나 캐시). */
+    public EntityPdc(java.util.function.Supplier<org.domi.furnace.api.entity.Entity> entity) { this.entity = entity; }
 
     @Override
-    protected boolean editNow(Consumer<org.domi.furnace.api.persistence.PersistentDataContainer> edit) { return entity.editPersistentDataNow(edit); }
+    protected boolean editNow(Consumer<org.domi.furnace.api.persistence.PersistentDataContainer> edit) { return entity.get().editPersistentDataNow(edit); }
 
     @Override
-    protected CompletableFuture<Boolean> editLater(Consumer<org.domi.furnace.api.persistence.PersistentDataContainer> edit) { return entity.editPersistentData(edit); }
+    protected CompletableFuture<Boolean> editLater(Consumer<org.domi.furnace.api.persistence.PersistentDataContainer> edit) { return entity.get().editPersistentData(edit); }
 
     /** 엔티티가 사라졌으면 IllegalStateException. */
     @Override
-    protected <T> T whenGone(Function<ItemPdc, T> op, boolean write) { throw new IllegalStateException("the entity is gone: " + entity.uniqueId()); }
+    protected <T> T whenGone(Function<ItemPdc, T> op, boolean write) { throw new IllegalStateException("the entity is gone: " + entity.get().uniqueId()); }
 }

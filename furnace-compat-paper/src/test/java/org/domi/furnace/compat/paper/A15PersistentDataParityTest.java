@@ -281,6 +281,7 @@ class A15PersistentDataParityTest {
         assertEquals(craft, m.getClass().getName());
         assertTrue(m == meta.getPersistentDataContainer(), "Paper 처럼 메타마다 같은 객체");
         assertEquals(craft, player.getPersistentDataContainer().getClass().getName());
+        assertTrue(player.getPersistentDataContainer() == player.getPersistentDataContainer(), "Paper 처럼 엔티티마다 같은 객체");
         assertEquals("org.bukkit.craftbukkit.persistence.CraftPersistentDataAdapterContext", m.getAdapterContext().getClass().getName());
 
         // 중첩 묶음: 문맥이 만든 것도, 꺼낸 것도 같은 클래스 — 사용자 데이터 종류는 그 묶음의 문맥을 받는다
