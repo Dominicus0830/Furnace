@@ -230,13 +230,21 @@ class NmsEntitySettersTest {
     /** 바닐라 생성자로 만든 엔티티: (EntityType, Level) 은 모든 종류 클래스에(생성기), 자리를 받는 생성자는 갑옷 거치대·영역 효과 구름. */
     @Test
     void vanillaConstructorsMakeEntitiesNotInAWorldYet() throws Exception {
+        int made = 0;
         try (var in = java.nio.file.Files.lines(java.nio.file.Path.of("src/shimspec/kind-classes-1.21.1.txt"))) {
             for (String line : (Iterable<String>) in.filter(l -> l.startsWith("E "))::iterator) {
                 Class<?> c = Class.forName(line.split(" ")[2]);
                 var k = c.getConstructor(EntityType.class, net.minecraft.world.level.Level.class);
                 assertTrue(Modifier.isPublic(k.getModifiers()), c.getName());
+                // 129개 전부 실제로 만들어 본다: 종류가 그대로 실리는지
+                var type = (EntityType<?>) EntityType.class.getField(
+                        line.split(" ")[1].substring("minecraft:".length()).toUpperCase(java.util.Locale.ROOT)).get(null);
+                var e = (Entity) k.newInstance(type, level);
+                assertSame(type, e.getType(), c.getName());
+                made++;
             }
         }
+        assertEquals(129, made);
         var shulker = new net.minecraft.world.entity.monster.Shulker(EntityType.SHULKER, level);
         assertSame(EntityType.SHULKER, shulker.getType());
         var text = new net.minecraft.world.entity.Display.TextDisplay(EntityType.TEXT_DISPLAY, level);
