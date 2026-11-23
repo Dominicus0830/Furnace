@@ -22,16 +22,16 @@ public final class Mth {
     private static final float SIN_SCALE = 10430.378F;
     private static final float[] SIN = new float[65536];
 
-    private static final double FRAC_BIAS = Double.longBitsToDouble(4805340802404319232L);
-    private static final double[] ASIN_TAB = new double[257];
-    private static final double[] COS_TAB = new double[257];
+    private static final double ATAN_BIAS = Double.longBitsToDouble(4805340802404319232L);
+    private static final double[] ATAN_ASIN = new double[257];
+    private static final double[] ATAN_COS = new double[257];
 
     static {
         for (int i = 0; i < SIN.length; i++) SIN[i] = (float) Math.sin((double) i * Math.PI * 2.0 / 65536.0);
         for (int i = 0; i < 257; i++) {
             double asin = Math.asin((double) i / 256.0);
-            COS_TAB[i] = Math.cos(asin);
-            ASIN_TAB[i] = asin;
+            ATAN_COS[i] = Math.cos(asin);
+            ATAN_ASIN[i] = asin;
         }
     }
 
@@ -391,11 +391,11 @@ public final class Mth {
         double e = fastInvSqrt(d);
         x *= e;
         y *= e;
-        double f = FRAC_BIAS + y;
+        double f = ATAN_BIAS + y;
         int i = (int) Double.doubleToRawLongBits(f);
-        double g = ASIN_TAB[i];
-        double h = COS_TAB[i];
-        double j = f - FRAC_BIAS;
+        double g = ATAN_ASIN[i];
+        double h = ATAN_COS[i];
+        double j = f - ATAN_BIAS;
         double k = y * h - x * j;
         double l = (6.0 + k * k) * k * 0.16666666666666666;
         double m = g + l;
