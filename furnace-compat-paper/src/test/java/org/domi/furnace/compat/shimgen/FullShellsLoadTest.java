@@ -52,6 +52,12 @@ class FullShellsLoadTest {
             for (String l : new String(jf.getInputStream(me).readAllBytes(), StandardCharsets.UTF_8).split("\n")) if (!l.isBlank()) merged.add(l.replace('/', '.'));
         }
         assertTrue(merged.size() > 1000, "expected the hand shims to get their missing members, got " + merged.size());
+        // 껍데기 jar 가 로더 맨 앞이다 — 합친 목록 밖의 클래스가 호환 jar 에도 있으면 손 shim 이 조용히 가려진다(T-261 검토)
+        List<String> shadowing = new ArrayList<>();
+        try (JarFile compat = new JarFile(System.getProperty("furnace.fullShells.compatJar"))) {
+            for (String n : names) if (!merged.contains(n) && compat.getJarEntry(n.replace('.', '/') + ".class") != null) shadowing.add(n);
+        }
+        assertEquals(List.of(), shadowing, "classes in both the shells jar and the compat jar must be merged hand shims");
         long jarBytes = Files.size(jar);
 
         Map<String, List<String>> loadErrors = new TreeMap<>();
