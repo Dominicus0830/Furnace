@@ -46,3 +46,10 @@
 - 지금: `ChunkInternals#openDetachedEntityData` 가 빈 레벨의 엔티티를 쥔 `DetachedEntityData` 를 돌려주고, shim `Entity.Detached` 가 그것을 들고 있다가 붙은 조작 하나만 `apply` 한다. 결과는 처음부터 재생한 것과 같다(`EntityDataSlotsTest.incrementalReplayMatchesFullReplay` 가 세 종류·조작 8개로 매 단계 견준다).
 - 실패한 조작 뒤로는 그 예외를 계속 던진다: 엔티티가 조작 도중 상태일 수 있고, 처음부터 재생해도 그 조작에서 늘 실패하므로 관측 결과가 같다.
 - 쥔 엔티티는 어느 region 에도 속하지 않아 `synchronized` 로 아무 스레드에서 부른다(월드 상태를 건드리지 않는다). 월드에 넣을 때는 지금처럼 기록한 ops 를 주인 스레드에서 새 엔티티로 재생한다.
+
+## D4-1 주민 종류·직업·데이터 (11-23)
+- shim `VillagerType`·`VillagerProfession`(record)·`VillagerData` 와 `BuiltInRegistries.VILLAGER_TYPE`·`VILLAGER_PROFESSION`(기본값 plains·none), `PoiTypeTags`.
+- 바닐라처럼 두 클래스의 초기화가 상수를 차례로 등록한다. 처음에는 레지스트리 shim 이 서버 목록을 돌며 값을 만들게 했는데, 값을 만들면 그 클래스 초기화가 돌고 그 초기화가 다시 레지스트리를 불러 **레지스트리가 둘 생겼다**(상수와 레지스트리 값이 다른 객체). 함정: 레지스트리를 값 클래스의 `<clinit>` 바깥에서 값 생성으로 채우지 말 것.
+- 번호 순서는 서버 `registries/builtin-1.21.1.txt` 에 villager_type·villager_profession·frog_variant 를 더해(바닐라 reports/registries.json, `extract_builtin_registries.py`) 처음 꺼낼 때 견준다.
+- 직업 성분(직업 블록 두 람다·요청 아이템 차례·보조 지점·일 소리)과 바이옴 대응은 바닐라 바이트코드로 확인했고, `NmsVillagersTest` 가 서버 `Villager` 정의(heldJobSite·acquirableJobSite·requestedItems·secondaryPoi·typeForBiome)와 견준다.
+- 다리: 등록되지 않은 직업 record 는 바닐라 DefaultedMappedRegistry 처럼 기본값(none)으로 나간다(바닐라 STREAM_CODEC 도 레지스트리 번호).

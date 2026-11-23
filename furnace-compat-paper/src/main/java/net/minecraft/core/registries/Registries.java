@@ -22,6 +22,8 @@ public final class Registries {
     public static final ResourceKey<Registry<Object>> GAME_EVENT = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("game_event"));
     public static final ResourceKey<Registry<Object>> INSTRUMENT = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("instrument"));
     public static final ResourceKey<Registry<Object>> CAT_VARIANT = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("cat_variant"));
+    public static final ResourceKey<Registry<net.minecraft.world.entity.npc.VillagerType>> VILLAGER_TYPE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("villager_type"));
+    public static final ResourceKey<Registry<net.minecraft.world.entity.npc.VillagerProfession>> VILLAGER_PROFESSION = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("villager_profession"));
     public static final ResourceKey<Registry<net.minecraft.world.entity.ai.village.poi.PoiType>> POINT_OF_INTEREST_TYPE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("point_of_interest_type"));
     public static final ResourceKey<Registry<net.minecraft.core.component.DataComponentType<?>>> DATA_COMPONENT_TYPE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("data_component_type"));
     public static final ResourceKey<Registry<Object>> POTION = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("potion"));

@@ -85,6 +85,7 @@ class EntityDataBridgeTest {
         e.add(new Entry(i++, Value.of(EntityDataType.POSE, Pose.SLEEPING)));
         e.add(new Entry(i++, Value.of(EntityDataType.SNIFFER_STATE, "feeling_happy")));
         e.add(new Entry(i++, Value.of(EntityDataType.ARMADILLO_STATE, "unrolling")));
+        e.add(new Entry(i++, Value.of(EntityDataType.VILLAGER_DATA, new org.domi.furnace.api.entity.data.VillagerData("minecraft:snow", "minecraft:fletcher", 3))));
         return e;
     }
 
@@ -109,12 +110,12 @@ class EntityDataBridgeTest {
     @Test
     void unbridgedTypesAreRefusedWholeNotDropped() throws Exception {
         try (FurnaceTestServer server = start()) {
-            // 서버가 읽은 값 중 shim 이 아직 없는 종류(주민 데이터)가 섞이면 패킷 전체를 되돌리지 않는다(일부 칸만 보이면 Paper 와 다르다)
+            // 서버가 읽은 값 중 shim 이 아직 없는 종류(고양이 변형)가 섞이면 패킷 전체를 되돌리지 않는다(일부 칸만 보이면 Paper 와 다르다)
             var p = new ClientboundSetEntityDataPacket(5, List.of(new Entry(0, Value.of(EntityDataType.BYTE, (byte) 0)),
-                    new Entry(18, Value.of(EntityDataType.VILLAGER_DATA, new org.domi.furnace.api.entity.data.VillagerData("minecraft:plains", "minecraft:farmer", 2)))));
+                    new Entry(19, Value.of(EntityDataType.CAT_VARIANT, "minecraft:black"))));
             assertThrows(UnsupportedNmsCall.class, () -> PacketDelivery.fromFurnace(p));
             // 리스너 다리는 예외를 만들기 전에 미리 알아본다(검토 R2) — 다 되는 패킷은 null
-            assertEquals("villager_data", PacketDelivery.quickRefusal(p));
+            assertEquals("cat_variant", PacketDelivery.quickRefusal(p));
             assertEquals(null, PacketDelivery.quickRefusal(new ClientboundSetEntityDataPacket(5, everyBridgedType())));
         }
     }
