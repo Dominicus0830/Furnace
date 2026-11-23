@@ -27,7 +27,9 @@ public final class Options {
         /** 바닐라 데이터 생성기 보고서(`generated/reports`)까지 준비하고 그 폴더를 알린다(T-238 대조 시험이 읽는다). */
         REPORTS,
         /** 서명 관문(T-228): shim 클래스 선언을 기준 서명표와 맞대고 기준선 파일과 견준다. */
-        SIG_GATE
+        SIG_GATE,
+        /** 본문 지문표(버전 사이 동작 변경 후보 찾기). 서명표와 달리 메서드 몸통의 해시만 남긴다. */
+        BODY_TABLE
     }
 
     public String mc;
