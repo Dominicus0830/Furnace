@@ -525,15 +525,22 @@ class Entity {
      * 그 자리의 주인 region 에서 서버 엔티티를 만들어 기록한 조작을 재생해 넣고, 넣었으면 이 shim 을 그 엔티티의 {@code getHandle()} 로 묶는다.
      */
     public boolean furnaceAddToWorld(net.minecraft.server.level.ServerLevel level, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason reason, boolean events) {
+        return furnaceAddResult(level, reason, events) == AddResult.ADDED;
+    }
+
+    /** 넣기 결과: 넣음, 같은 UUID 가 이미 있음(서버가 거절), 그 밖의 거절(이벤트 취소·지워짐·청크 없음). */
+    enum AddResult { ADDED, UUID_TAKEN, REFUSED }
+
+    private AddResult furnaceAddResult(net.minecraft.server.level.ServerLevel level, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason reason, boolean events) {
         if (events) generation = false;
         Detached d = detached;
         if (d == null) {
-            if (!events) return false;   // Paper: 이미 있는 UUID 라 거절
+            if (!events) return AddResult.UUID_TAKEN;   // Paper: 이미 있는 UUID 라 거절
             LOG.log(System.Logger.Level.ERROR, "Attempted Double World add on " + this, new Throwable());
-            return true;
+            return AddResult.ADDED;
         }
         if (events && spawnReason == null) spawnReason = reason;
-        if (d.removed) return false;
+        if (d.removed) return AddResult.REFUSED;
         String id = EntityType.getKey(d.type).toString();
         int x = (int) Math.floor(d.x), y = (int) Math.floor(d.y), z = (int) Math.floor(d.z);
         var world = level.getWorld().furnaceHandle();
@@ -544,13 +551,22 @@ class Entity {
                 () -> b.addNmsEntityNow(world, x, z, id, ops, why, events));
         if (r.added() == null) {
             if (r.discarded()) d.removed = true;   // Paper doEntityAddEventCalling: 이벤트 취소·처리기가 지움이면 그 엔티티를 discard
-            return false;
+            return r.uuidTaken() ? AddResult.UUID_TAKEN : AddResult.REFUSED;
         }
         CraftEntity c = (CraftEntity) org.domi.furnace.compat.paper.Compat.entity(r.added());
         c.adoptHandle(this);
         bukkit = c;
         detached = null;
-        return true;
+        return AddResult.ADDED;
+    }
+
+    /**
+     * Paper {@code tryAddFreshEntityWithPassengers} 의 넣기 부분: 서버가 UUID 겹침으로 거절했으면 거짓(사전 검사와 넣기 사이에 다른 region 이 같은 UUID 를 쥔 경우도 —
+     * Paper 의 한 스레드 순서로는 검사가 먼저 거짓이 된 것과 같다), 스폰 이벤트 취소는 Paper 처럼 참.
+     */
+    public boolean furnaceTryAddWithPassengers(net.minecraft.server.level.ServerLevel level, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason reason) {
+        if (furnaceHasDetachedPassengers()) return furnaceAddToWorldWithPassengers(level, reason) != org.domi.furnace.api.internal.ChunkInternals.GroupResult.UUID_TAKEN;
+        return furnaceAddResult(level, reason, true) != AddResult.UUID_TAKEN;
     }
 
     /** 호환 모듈 전용: 이 엔티티가 고른 UUID(아직 월드에 없고 정하지 않았으면 null — 넣을 때 무작위로 정해진다). */
@@ -578,11 +594,14 @@ class Entity {
      * 뿌리 자리의 주인 region 에서 서버가 묶음을 만들어 태운 뒤 함께 넣는다(이벤트 냄). 넣은 엔티티마다 이 shim 들을 그 엔티티의 getHandle 로 묶는다.
      * 스폰 이벤트를 하나라도 취소하면 묶음 전체를 넣지 않는다(Paper 는 하나씩 넣는다 — user-todo 5e-3 ②).
      */
-    public void furnaceAddToWorldWithPassengers(net.minecraft.server.level.ServerLevel level, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason reason) {
+    public org.domi.furnace.api.internal.ChunkInternals.GroupResult furnaceAddToWorldWithPassengers(net.minecraft.server.level.ServerLevel level, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason reason) {
         Detached d = detached;
         if (d == null || d.removed) {
-            furnaceAddToWorld(level, reason, true);
-            return;
+            return switch (furnaceAddResult(level, reason, true)) {
+                case ADDED -> org.domi.furnace.api.internal.ChunkInternals.GroupResult.ADDED;
+                case UUID_TAKEN -> org.domi.furnace.api.internal.ChunkInternals.GroupResult.UUID_TAKEN;
+                case REFUSED -> org.domi.furnace.api.internal.ChunkInternals.GroupResult.CANCELLED;   // 지워진 엔티티 등 — 아무것도 안 넣었다
+            };
         }
         java.util.List<Entity> order = getSelfAndPassengers().toList();
         for (Entity e : order) {
@@ -594,8 +613,9 @@ class Entity {
         var world = level.getWorld().furnaceHandle();
         String why = spawnReason == null ? null : spawnReason.name();
         var b = org.domi.furnace.compat.nms.NmsChunks.bridge();
-        var added = org.domi.furnace.compat.nms.NmsOwner.call(world, x, y, z, "ServerLevel#addFreshEntityWithPassengers",
+        var group = org.domi.furnace.compat.nms.NmsOwner.call(world, x, y, z, "ServerLevel#addFreshEntityWithPassengers",
                 () -> b.addNmsEntityWithPassengersNow(world, x, z, spec, why));
+        var added = group.added();
         for (int i = 0; i < order.size(); i++) {
             var h = added.get(i);
             if (h == null) continue;
@@ -605,6 +625,7 @@ class Entity {
             e.bukkit = c;
             e.detached = null;
         }
+        return group.result();
     }
 
     private org.domi.furnace.api.internal.ChunkInternals.NmsEntitySpec furnaceSpec() {

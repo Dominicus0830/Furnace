@@ -169,4 +169,24 @@ class NmsNbtIoTest {
         assertEquals("0a00000800016800000" + "0", HexFormat.of().formatHex(write(h)), "UTF 65535 바이트를 넘는 문자열은 빈 문자열로(바닐라 StringFallbackDataOutput)");
         assertSame(StringTag.class, read(write(h), NbtAccounter.unlimitedHeap()).get("h").getClass());
     }
+
+    /** 파일 경로판(바닐라 read(Path)·write(nbt, Path)·readCompressed(Path, acc)·writeCompressed(nbt, Path)): 스트림판과 같은 바이트, 없는 파일은 read 만 null. */
+    @Test
+    void pathVersionsMatchTheStreamVersions(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) throws IOException {
+        java.nio.file.Path plain = dir.resolve("plain.nbt"), gz = dir.resolve("gz.nbt");
+        NbtIo.write(sample(), plain);
+        assertEquals(HexFormat.of().formatHex(write(sample())), HexFormat.of().formatHex(java.nio.file.Files.readAllBytes(plain)));
+        assertEquals(sample(), NbtIo.read(plain));
+        NbtIo.writeCompressed(sample(), gz);
+        assertEquals(sample(), NbtIo.readCompressed(gz, NbtAccounter.unlimitedHeap()));
+        ByteArrayOutputStream bo = new ByteArrayOutputStream();
+        NbtIo.writeCompressed(sample(), bo);
+        assertEquals(sample(), NbtIo.readCompressed(new ByteArrayInputStream(bo.toByteArray()), NbtAccounter.unlimitedHeap()));
+        // 덮어쓰면 TRUNCATE_EXISTING: 짧은 내용이 남은 꼬리 없이 읽힌다
+        NbtIo.write(new CompoundTag(), plain);
+        assertEquals(new CompoundTag(), NbtIo.read(plain));
+        assertNull(NbtIo.read(dir.resolve("missing.nbt")), "바닐라 read(Path) 는 없는 파일이면 null");
+        assertThrows(java.nio.file.NoSuchFileException.class, () -> NbtIo.readCompressed(dir.resolve("missing.nbt"), NbtAccounter.unlimitedHeap()));
+        assertThrows(java.util.zip.ZipException.class, () -> NbtIo.readCompressed(plain, NbtAccounter.unlimitedHeap()), "압축 안 된 파일은 gzip 오류");
+    }
 }

@@ -357,16 +357,16 @@ public class ServerLevel extends Level implements net.minecraft.world.level.Worl
     }
 
     /**
-     * Paper {@code tryAddFreshEntityWithPassengers(entity, reason)}(NMS shim 5e-3 — Axiom 엔티티 놓기): 자신이나 승객의 UUID 가 이 월드에 이미 있으면 거짓,
+     * Paper {@code tryAddFreshEntityWithPassengers(entity, reason)}(NMS shim 5e-3 — Axiom 엔티티 놓기): 자신이나 승객의 UUID 가 이 월드에 이미 있으면 거짓
+     * (어느 region 이 쥐고 있든 같다 — 월드 전체 색인으로 본다. 검사 뒤 넣기 사이에 생긴 겹침도 서버가 알려 줘서 거짓),
      * 아니면 {@link #addFreshEntityWithPassengers(Entity, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason)} 하고 참(스폰 이벤트가 취소돼도 참 — Paper 와 같다).
      */
     public boolean tryAddFreshEntityWithPassengers(Entity entity, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason reason) {
         for (Entity e : (Iterable<Entity>) entity.getSelfAndPassengers()::iterator) {
             java.util.UUID id = e.furnaceKnownUuid();   // 정하지 않은 UUID 는 넣을 때 무작위로 정해진다 — 겹칠 일이 없다
-            if (id != null && getEntity(id) != null) return false;
+            if (id != null && getWorld().furnaceHandle().entityIdByUuid(id).isPresent()) return false;
         }
-        addFreshEntityWithPassengers(entity, reason);
-        return true;
+        return entity.furnaceTryAddWithPassengers(this, reason);
     }
 
     /** Paper {@code addFreshEntityWithPassengers(entity)} = 스폰 이유 DEFAULT. */

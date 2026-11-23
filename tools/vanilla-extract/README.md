@@ -53,6 +53,23 @@ tools/compat/sig-tables.sh 1.21.1                                               
 - **법적 경계:** 클래스 파일을 `SKIP_CODE|SKIP_DEBUG|SKIP_FRAMES` 로만 읽고 방문자가 몸통·애노테이션을 받지 않는다(시험 `methodBodiesAreNeverRead` — 몸통이 깨진 클래스도 통과해야 한다). 표는 Mojang 대응표에서 나온 것이므로 **저장소·서버 jar·공유 폴더 어디에도 두지 않는다**(대응표 머리말: 완전·미수정 재배포 금지).
 - Mojang 이름 Paper 서버 jar(`ServerLevel#captureBlockStates`·`CraftPlayer` 등 Paper·CraftBukkit 이 더한 멤버)는 `:worldgen-oracle:printPaperServerJar` 가 경로를 낸다. 이 클라우드 환경에서도 paperweight 가 dev-bundle 을 받아 동작했다(2026-11-20). 단 CI 는 모든 gradle 에 `-PskipOracle=true` 라서 CI 에서 이 칸을 만들려면 그 단계만 오라클을 켜야 한다(T-228 이 정한다).
 
+## 본문 지문표와 판 사이 차이 (2026-11-23)
+
+`-Pmode=body-table` 은 메서드마다 **명령 흐름의 해시 두 개(모양·참조, SHA-256 앞 12자리)** 와 `static final` 상수 값만 모은 표를 캐시(`<캐시>/<판>/body-table.tsv.gz`)에 만든다. 서명표(T-227)는 몸통을 읽지 않는다는 약속을 그대로 두고, 이 표는 `BodyTable` 이 따로 만든다. 몸통의 명령·상수 글자는 어디에도 저장하지 않고 해시만 남긴다. 서명표처럼 커밋·공유하지 않는다.
+
+- 모양 해시: 명령 코드·정수·문자열 상수·분기 구조·지역 변수 번호(호출·필드·형식이 가리키는 이름은 뺌). 참조 해시: 가리키는 (소유자, 이름, 서술자).
+- 두 판에서 모양이 다르면 "흐름이 바뀐" 동작 변경 후보, 모양은 같고 참조만 다르면 "다른 이름을 부르게 된"(이름 바뀜·옮김) 약한 후보다. 람다 몸통은 번호가 판마다 흔들리므로 클래스마다 정렬해 묶은 한 줄로 견준다.
+
+```
+./gradlew -PskipOracle=true :vanilla-extract:run -Pmc=<판> -Pmode=body-table      본문 지문표
+./gradlew -PskipOracle=true :vanilla-extract:run -Pmc=<판> -Pmode=reports         데이터 생성기 보고서(패킷·레지스트리·블록·아이템·명령)
+python3 tools/compat/version-diff.py <옛 판> <새 판> [--shim-table <shim 서명표>] [--port-map build/vanilla-port-map.tsv] [--safe <개수 요약.md>]
+python3 tools/compat/version-diff.py <옛 판> <새 판> --table paper-api            paper-api 서명표끼리(선언만)
+python3 tools/compat/paper-patch-diff.py <Paper 옛 체크아웃> <Paper 새 체크아웃>   Paper 패치 묶음 차이
+```
+
+`version-diff.py` 는 서명표·본문표·생성기 보고서·jar 자원(구조물 NBT 는 DataVersion 을 가리고 견줌)을 읽어 클래스·멤버·본문·상수·패킷·레지스트리·블록·아이템·명령·데이터 파일 차이를 영역별로 센다. `--port-map` 을 주면 `@VanillaPort` 대응표(V-06)로 "고칠 Furnace 파일" 후보를 등급(A 선언 삭제·서술자 / C 멤버 추가만 / B 흐름만 / D 참조만)으로 낸다. 전체 보고서·목록(`<캐시>/diffs/`)에는 Mojang 이름이 들어 있으므로 커밋하지 않고, `--safe` 요약(개수만)만 문서에 옮긴다. 1.21.1→1.21.2 결과와 버전업 시간 추정: `docs/roadmap/version-diff-1.21.2-2026-11-23.md`.
+
 ## 서명 관문 (T-228)
 
 컴파일한 `furnace-compat-paper` 의 shim 클래스 선언(`net/minecraft/`·`com/mojang/`·`org/bukkit/craftbukkit/`)을 기준 서명표(Paper 서버 → 바닐라 → 라이브러리 순)와 맞댄다. 플러그인이 Paper 에 대고 컴파일한 호출이 **링크되는 모양**인지 본다.

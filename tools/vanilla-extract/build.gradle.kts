@@ -10,6 +10,8 @@
 //   -Pmode=verify -Ptools=tags,builtin-registries,block-tags,item-components,block-definitions,damage-types   옛 Java 도구가 없던 파이썬 6개만 커밋 파일과 견줌
 //   -PtoolArgs="shape-vectors=<블록들>;shape-vectors=<이웃 블록들>;shape-vectors=<시도 수>;shape-vectors=<시드>"   shape-vectors 처럼 재료를 받는 도구의 인자
 //   -Pmode=sig-table   서명표(T-227): 클래스·멤버 선언만 모은 표를 캐시에 만든다(-PsigPaperApi=true 는 paper-api, -PsigJar -PsigName 은 임의 jar)
+//   -Pmode=body-table  본문 지문표: 메서드마다 모양·참조 해시만(판 사이 동작 변경 후보 — tools/compat/version-diff.py 가 읽는다)
+//   -Pmode=reports     데이터 생성기 보고서까지 준비(packets.json·registries.json 등)
 //   -Ptools=block-attrs,block-light   일부 도구만   -Plist=true   도구 목록   -Pcache=<폴더>   내려받기 캐시   -PjavaHome=<JAVA_HOME>   실행 JDK
 // 바닐라 jar·대응표·내려받은 결과는 캐시 폴더에만 둔다(EULA — 커밋하지 않는다).
 plugins {
