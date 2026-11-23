@@ -835,19 +835,27 @@ public class CraftWorld extends CraftRegionAccessor implements World {
     // ---- 높이 지도(RegionAccessor, P2c-2)
 
     /**
-     * Paper CraftWorld#getHighestBlockYAt: 그 청크 높이 지도의 첫 빈 칸 - 1. Paper 는 로드 안 된 청크를 그 자리에서 올리지만 Furnace 는
-     * 동기 로드를 하지 않는다(getBiome 과 같은 원칙). 생성 중 전용 *_WG 지도는 다 만든 청크에 남지 않아 아직 읽지 못한다.
+     * Paper CraftWorld#getHighestBlockYAt: 그 청크 높이 지도의 첫 빈 칸 - 1(바닐라 ChunkAccess#getHeight). 다 만든 청크에 없는 생성 단계
+     * 지도(*_WG)는 바닐라가 그 자리에서 지금 블록으로 만들어 답한다 — 술어가 같은 살아 있는 지도(WORLD_SURFACE_WG↔WORLD_SURFACE 는 NOT_AIR,
+     * OCEAN_FLOOR_WG↔OCEAN_FLOOR 는 MATERIAL_MOTION_BLOCKING, 바닐라 1.21.1 Heightmap$Types 로 확인)와 그 순간 값이 같다. 남는 차이: 바닐라는 한 번
+     * 만든 *_WG 지도를 청크가 내려갈 때까지 갱신하지 않아 그 뒤 블록 변화에 낡은 값을 주고, Furnace 는 늘 지금 값을 준다. Paper 는 로드 안 된
+     * 청크를 그 자리에서 올리지만 Furnace 는 동기 로드를 하지 않는다(getBiome 과 같은 원칙, user-todo 2026-11-23-t264-unloaded-chunk-reads).
      */
     @Override
     public int getHighestBlockYAt(int x, int z, org.bukkit.HeightMap heightMap) {
-        if (heightMap == org.bukkit.HeightMap.OCEAN_FLOOR_WG || heightMap == org.bukkit.HeightMap.WORLD_SURFACE_WG) {
-            throw new UnsupportedFeature("World#getHighestBlockYAt(" + heightMap + ")", "a finished chunk keeps only the four live heightmaps - the worldgen ones are not exposed yet");
-        }
-        int first = org.domi.furnace.compat.nms.NmsChunks.bridge().firstAvailableNow(handle, heightMap.name(), x, z);
+        org.bukkit.HeightMap live = switchWorldgen(heightMap);
+        int first = org.domi.furnace.compat.nms.NmsChunks.bridge().firstAvailableNow(handle, live.name(), x, z);
         if (first == Integer.MIN_VALUE) {
             throw new UnsupportedFeature("World#getHighestBlockYAt(unloaded chunk)", "Furnace does not load a chunk synchronously to read a heightmap - call it on a loaded chunk");
         }
         return first - 1;
+    }
+
+    /** 생성 단계 지도 → 술어가 같은 살아 있는 지도(if 사슬: enum switch 의 합성 클래스가 Paper 의 CraftWorld$N 이름과 부딪힌다). */
+    private static org.bukkit.HeightMap switchWorldgen(org.bukkit.HeightMap heightMap) {
+        if (heightMap == org.bukkit.HeightMap.WORLD_SURFACE_WG) return org.bukkit.HeightMap.WORLD_SURFACE;
+        if (heightMap == org.bukkit.HeightMap.OCEAN_FLOOR_WG) return org.bukkit.HeightMap.OCEAN_FLOOR;
+        return heightMap;
     }
 
     @Override

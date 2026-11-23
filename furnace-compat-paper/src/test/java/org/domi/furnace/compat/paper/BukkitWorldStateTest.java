@@ -257,7 +257,11 @@ class BukkitWorldStateTest {
             // 하늘이 트인 칸 위에 놓은 돌: 동작 막는 높이 지도의 맨 위 블록이다(Paper: 첫 빈 칸 - 1)
             assertEquals(y, owner(() -> ra.getHighestBlockYAt(x, z)));
             assertEquals(y, owner(() -> ra.getHighestBlockYAt(x, z, org.bukkit.HeightMap.WORLD_SURFACE)));
-            assertThrows(UnsupportedFeature.class, () -> owner(() -> ra.getHighestBlockYAt(x, z, org.bukkit.HeightMap.OCEAN_FLOOR_WG)));
+            // 생성 단계 지도: 바닐라는 그 자리에서 지금 블록으로 만들어 답한다 — 술어가 같은 살아 있는 지도와 같은 값(바닐라는 그 뒤 갱신하지 않아 낡을 수 있다)
+            assertEquals(y, owner(() -> ra.getHighestBlockYAt(x, z, org.bukkit.HeightMap.WORLD_SURFACE_WG)));
+            assertEquals(owner(() -> ra.getHighestBlockYAt(x, z, org.bukkit.HeightMap.OCEAN_FLOOR)),
+                    owner(() -> ra.getHighestBlockYAt(x, z, org.bukkit.HeightMap.OCEAN_FLOOR_WG)));
+            assertEquals(y, owner(() -> ra.getHighestBlockYAt(x, z, org.bukkit.HeightMap.OCEAN_FLOOR_WG)), "돌은 움직임을 막는 재질");
             int ux = origin.x() + 16 * 400;
             assertThrows(UnsupportedFeature.class, () -> owner(() -> ra.getHighestBlockYAt(ux, z)), "로드 안 된 청크는 동기 로드하지 않는다");
         } finally {
