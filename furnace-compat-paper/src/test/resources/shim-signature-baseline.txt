@@ -145,6 +145,7 @@ descriptor	net/minecraft/world/level/storage/DimensionDataStorage	<init>()V	기�
 descriptor	net/minecraft/world/level/storage/LevelStorageSource$LevelStorageAccess	getLevelDirectory()Ljava/nio/file/Path;	기준=#10177be8a966	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/CraftChunk	<init>(Ljava/lang/String;II)V	기준=#cce1bd5b11c6	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/CraftChunk	<init>(Lorg/bukkit/craftbukkit/CraftWorld;II)V	기준=#cce1bd5b11c6	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	org/bukkit/craftbukkit/CraftRegistry	<init>(Lorg/bukkit/Registry;)V	기준=#0c6905bfb000	T-264 P2d: Furnace 레지스트리 본체를 감싸는 얇은 Craft 래퍼 — Furnace 생성자(본체, WritableCraftRegistry 가 다른 패키지라 protected)는 그대로 둔다(설계 3.1, P3 에서 함께 정리), Paper 생성자는 T-261 껍데기 멤버가 합친다
 descriptor	org/bukkit/craftbukkit/CraftServer	getCommandMap()Lorg/bukkit/command/CommandMap;	기준=#3506ac6e48e2	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/CraftServer	getGlobalRegionScheduler()Lio/papermc/paper/threadedregions/scheduler/GlobalRegionScheduler;	기준=#9230d4d483c6	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	org/bukkit/craftbukkit/CraftServer	getItemFactory()Lorg/bukkit/inventory/ItemFactory;	기준=#af72ebecf777	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다

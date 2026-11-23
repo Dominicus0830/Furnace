@@ -228,6 +228,35 @@ final class CraftAccess {
         }
     }
 
+    // ---- 레지스트리(T-264 P2d): Paper 생성자는 NMS 레지스트리를 받는다
+
+    private static final MethodHandle NEW_REGISTRY = constructor(org.bukkit.craftbukkit.CraftRegistry.class,
+            MethodType.methodType(void.class, org.bukkit.Registry.class));
+    private static final MethodHandle NEW_WRITABLE_REGISTRY = constructor(io.papermc.paper.registry.WritableCraftRegistry.class,
+            MethodType.methodType(void.class, org.bukkit.Registry.class));
+
+    @SuppressWarnings("unchecked")
+    static <T extends org.bukkit.Keyed> org.bukkit.Registry<T> newRegistry(org.bukkit.Registry<T> body) {
+        try {
+            return (org.bukkit.Registry<T>) (org.bukkit.craftbukkit.CraftRegistry<?, ?>) NEW_REGISTRY.invokeExact(body);
+        } catch (RuntimeException | Error e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException(t);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    static <T extends org.bukkit.Keyed> org.bukkit.Registry<T> newWritableRegistry(org.bukkit.Registry<T> body) {
+        try {
+            return (org.bukkit.Registry<T>) (io.papermc.paper.registry.WritableCraftRegistry<?, ?, ?>) NEW_WRITABLE_REGISTRY.invokeExact(body);
+        } catch (RuntimeException | Error e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException(t);
+        }
+    }
+
     private static MethodHandle virtualMethod(Class<?> target, String name, MethodType type) {
         try {
             return MethodHandles.privateLookupIn(target, MethodHandles.lookup()).findVirtual(target, name, type);

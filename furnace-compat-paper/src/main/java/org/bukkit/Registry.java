@@ -28,11 +28,11 @@ public interface Registry<T extends Keyed> extends Iterable<T> {
     /** 엔티티 속성. */
     Registry<Attribute> ATTRIBUTE = new SimpleRegistry<>(Attribute.class);
     /** 현수막 무늬 종류(데이터 팩이 더한 것까지). */
-    Registry<org.bukkit.block.banner.PatternType> BANNER_PATTERN = new org.domi.furnace.compat.paper.BannerPatternRegistry();
+    Registry<org.bukkit.block.banner.PatternType> BANNER_PATTERN = org.domi.furnace.compat.paper.CompatRegistries.craft(new org.domi.furnace.compat.paper.BannerPatternRegistry());
     /** 바닐라 바이옴(CUSTOM 은 없다). */
     Registry<Biome> BIOME = new SimpleRegistry<>(Biome.class, b -> b != Biome.CUSTOM);
     /** 마법부여. */
-    Registry<Enchantment> ENCHANTMENT = org.domi.furnace.compat.paper.CompatRegistries.fixed(Enchantment.class, Enchantment.all());
+    Registry<Enchantment> ENCHANTMENT = org.domi.furnace.compat.paper.CompatRegistries.fixedWritable(Enchantment.class, Enchantment.all());
     /** 엔티티 종류(UNKNOWN 은 없다). */
     Registry<EntityType> ENTITY_TYPE = new SimpleRegistry<>(EntityType.class, t -> t != EntityType.UNKNOWN);
     /** 재료(블록·아이템). */
@@ -46,9 +46,9 @@ public interface Registry<T extends Keyed> extends Iterable<T> {
     /** 소리. */
     Registry<Sound> SOUNDS = new SimpleRegistry<>(Sound.class);
     /** 방어구 장식 재료(데이터 팩이 더한 것까지). */
-    Registry<org.bukkit.inventory.meta.trim.TrimMaterial> TRIM_MATERIAL = org.domi.furnace.compat.paper.TrimRegistry.materials();
+    Registry<org.bukkit.inventory.meta.trim.TrimMaterial> TRIM_MATERIAL = org.domi.furnace.compat.paper.CompatRegistries.craft(org.domi.furnace.compat.paper.TrimRegistry.materials());
     /** 방어구 장식 무늬(데이터 팩이 더한 것까지). */
-    Registry<org.bukkit.inventory.meta.trim.TrimPattern> TRIM_PATTERN = org.domi.furnace.compat.paper.TrimRegistry.patterns();
+    Registry<org.bukkit.inventory.meta.trim.TrimPattern> TRIM_PATTERN = org.domi.furnace.compat.paper.CompatRegistries.craft(org.domi.furnace.compat.paper.TrimRegistry.patterns());
 
     /** 키의 값(없으면 null). */
     T get(NamespacedKey key);
