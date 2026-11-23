@@ -130,6 +130,30 @@ public interface ChunkInternals {
     boolean setBlockNow(World world, int x, int y, int z, int stateId, int flags, int maxUpdateDepth);
 
     /**
+     * 바닐라 {@code FluidState#tick(level, pos)}: 그 칸에서 그 유체 값으로 서버의 흐르는 유체 예약 틱(FlowingFluid.tick)을 한 번 돈다 — 칸의 지금 유체가 아니라
+     * 받은 값을 쓴다(바닐라와 같다). 빈 유체는 아무것도 하지 않는다. 그 칸의 주인 region 스레드에서만. 로드돼 있지 않으면 false.
+     */
+    boolean fluidTickNow(World world, int x, int y, int z, org.domi.furnace.api.world.FluidData fluid);
+
+    /**
+     * 바닐라 {@code BlockState#tick(level, pos, random)}: 그 상태 번호의 블록 예약 틱 동작(Block#tick)을 그 칸에서 한 번 돈다 — 칸의 지금 상태가 아니라 받은 상태를
+     * 쓴다(바닐라와 같다). 난수는 부른 쪽의 것. 그 칸의 주인 region 스레드에서만. 로드돼 있지 않으면 false.
+     */
+    boolean blockTickNow(World world, int x, int y, int z, int stateId, java.util.random.RandomGenerator random);
+
+    /** 바닐라 {@code ItemStack.OPTIONAL_STREAM_CODEC} 의 바이트(빈 스택은 VarInt 0 하나). 아무 스레드. 알 수 없는 아이템·컴포넌트면 IllegalArgumentException. */
+    byte[] itemStackWireBytes(org.domi.furnace.api.item.ItemStack stack);
+
+    /**
+     * 바닐라 {@code ItemStack.OPTIONAL_STREAM_CODEC} 읽기: src 의 지금 위치부터 스택 하나를 읽는다(src 의 위치는 바꾸지 않는다 — 쓴 바이트 수를 돌려준다).
+     * 아무 스레드. 바이트가 모자라거나 알 수 없는 아이템이면 서버 코덱의 예외.
+     */
+    ItemWire readItemStackWire(java.nio.ByteBuffer src);
+
+    /** {@link #readItemStackWire} 의 결과: 읽은 스택(빈 것은 EMPTY)과 그것이 차지한 바이트 수. */
+    record ItemWire(org.domi.furnace.api.item.ItemStack stack, int length) {}
+
+    /**
      * 바닐라 LevelChunk.setBlockState 그대로 동작한다. 그 칸만 바꾸고 놓기·치우기 반응, 블록 엔티티, 빛, 하이트맵, 저장 표시까지 처리한다.
      * 이웃·모양 갱신, 클라이언트 알림, POI 는 하지 않는다.
      * 옛 상태 번호를 돌려준다. 바뀌지 않았거나(같은 상태, 공기뿐인 섹션에 공기), 치우기 반응이 칸을 갈아 치웠거나, 높이 밖이거나, 로드돼 있지 않으면 -1.

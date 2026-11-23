@@ -17,6 +17,42 @@ public final class ItemStack {
     /** 빈 스택(바닐라처럼 공유 객체 — 바꾸지 말 것). */
     public static final ItemStack EMPTY = new ItemStack();
 
+    /**
+     * Paper 1.21.1 {@code OPTIONAL_STREAM_CODEC}: VarInt 개수(0 이하면 빈 스택, 뒤는 없다) → 아이템 번호 → 컴포넌트 패치. 바이트는 서버의 같은 코덱이 만든다
+     * (서버가 클라이언트에 보내는 아이템과 같은 바이트). 아무 스레드.
+     */
+    public static final net.minecraft.network.codec.StreamCodec<net.minecraft.network.RegistryFriendlyByteBuf, ItemStack> OPTIONAL_STREAM_CODEC =
+            new net.minecraft.network.codec.StreamCodec<>() {
+                @Override
+                public ItemStack decode(net.minecraft.network.RegistryFriendlyByteBuf buf) {
+                    var w = org.domi.furnace.compat.nms.NmsChunks.bridge().readItemStackWire(buf.nioBuffer(buf.readerIndex(), buf.readableBytes()));
+                    buf.skipBytes(w.length());
+                    return w.stack().isEmpty() ? EMPTY : fromFurnace(w.stack(), w.stack().amount());
+                }
+
+                @Override
+                public void encode(net.minecraft.network.RegistryFriendlyByteBuf buf, ItemStack stack) {
+                    buf.writeBytes(org.domi.furnace.compat.nms.NmsChunks.bridge().itemStackWireBytes(stack.furnaceValue()));
+                }
+            };
+
+    /** Paper 1.21.1 {@code STREAM_CODEC}: {@link #OPTIONAL_STREAM_CODEC} 와 같되 빈 스택은 읽기·쓰기 모두 "Empty ItemStack not allowed". */
+    public static final net.minecraft.network.codec.StreamCodec<net.minecraft.network.RegistryFriendlyByteBuf, ItemStack> STREAM_CODEC =
+            new net.minecraft.network.codec.StreamCodec<>() {
+                @Override
+                public ItemStack decode(net.minecraft.network.RegistryFriendlyByteBuf buf) {
+                    ItemStack s = OPTIONAL_STREAM_CODEC.decode(buf);
+                    if (s.isEmpty()) throw new io.netty.handler.codec.DecoderException("Empty ItemStack not allowed");
+                    return s;
+                }
+
+                @Override
+                public void encode(net.minecraft.network.RegistryFriendlyByteBuf buf, ItemStack stack) {
+                    if (stack.isEmpty()) throw new io.netty.handler.codec.EncoderException("Empty ItemStack not allowed");
+                    OPTIONAL_STREAM_CODEC.encode(buf, stack);
+                }
+            };
+
     private Item item;
     private int count;
     private Map<String, String> components;

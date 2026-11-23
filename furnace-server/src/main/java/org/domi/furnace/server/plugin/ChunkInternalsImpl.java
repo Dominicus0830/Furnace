@@ -179,6 +179,79 @@ final class ChunkInternalsImpl implements ChunkInternals {
         return lv != null && lv.setBlock(new Pos(x, y, z), stateId, flags, maxUpdateDepth);
     }
 
+    @Override
+    public boolean fluidTickNow(org.domi.furnace.api.world.World world, int x, int y, int z, org.domi.furnace.api.world.FluidData fluid) {
+        int f = packedFluid(fluid);
+        Region r = ownedLoaded(world, x >> 4, z >> 4, "FluidState#tick");
+        RegionLevel lv = r == null || !r.chunkLoaded(new ChunkPos(x >> 4, z >> 4)) ? null : r.level();
+        if (lv == null) return false;
+        org.domi.furnace.server.block.FluidTicker.tick(lv, new Pos(x, y, z), f);
+        return true;
+    }
+
+    /** API 유체 값 → 서버 유체 값(종류 | 양 << 3 | 떨어짐 << 7, Fluids 와 같은 꼴). */
+    static int packedFluid(org.domi.furnace.api.world.FluidData fluid) {
+        int t = switch (fluid.type()) {
+            case "minecraft:empty" -> org.domi.furnace.server.block.Fluids.EMPTY;
+            case "minecraft:flowing_water" -> org.domi.furnace.server.block.Fluids.T_FLOWING_WATER;
+            case "minecraft:water" -> org.domi.furnace.server.block.Fluids.T_WATER;
+            case "minecraft:flowing_lava" -> org.domi.furnace.server.block.Fluids.T_FLOWING_LAVA;
+            case "minecraft:lava" -> org.domi.furnace.server.block.Fluids.T_LAVA;
+            default -> throw new IllegalArgumentException("unknown fluid: " + fluid.type());
+        };
+        if (t == org.domi.furnace.server.block.Fluids.EMPTY) return org.domi.furnace.server.block.Fluids.EMPTY;
+        if (fluid.amount() < 1 || fluid.amount() > 8) throw new IllegalArgumentException("fluid amount out of range: " + fluid.amount());
+        return t | fluid.amount() << 3 | (fluid.falling() ? 1 << 7 : 0);
+    }
+
+    @Override
+    public boolean blockTickNow(org.domi.furnace.api.world.World world, int x, int y, int z, int stateId, java.util.random.RandomGenerator random) {
+        checkState(stateId);
+        java.util.Objects.requireNonNull(random, "random");
+        Region r = ownedLoaded(world, x >> 4, z >> 4, "BlockState#tick");
+        RegionLevel lv = r == null || !r.chunkLoaded(new ChunkPos(x >> 4, z >> 4)) ? null : r.level();
+        if (lv == null) return false;
+        org.domi.furnace.server.block.BlockBehaviors.of(stateId).tick(stateId, lv, new Pos(x, y, z), new CallerRandom(random));
+        return true;
+    }
+
+    /** 부른 쪽 난수를 서버 블록 동작의 난수로(값은 부른 쪽 난수열 그대로). */
+    private record CallerRandom(java.util.random.RandomGenerator r) implements org.domi.furnace.server.block.RandomSource {
+        public int nextInt() { return r.nextInt(); }
+
+        public int nextInt(int bound) { return r.nextInt(bound); }
+
+        public long nextLong() { return r.nextLong(); }
+
+        public float nextFloat() { return r.nextFloat(); }
+
+        public double nextDouble() { return r.nextDouble(); }
+
+        public boolean nextBoolean() { return r.nextBoolean(); }
+
+        public double nextGaussian() { return r.nextGaussian(); }
+    }
+
+    @Override
+    public byte[] itemStackWireBytes(org.domi.furnace.api.item.ItemStack stack) {
+        io.netty.buffer.ByteBuf b = io.netty.buffer.Unpooled.buffer();
+        try {
+            org.domi.furnace.server.item.ItemStackCodecs.writeStack(b, ApiConvert.item(stack));
+            byte[] out = new byte[b.readableBytes()];
+            b.readBytes(out);
+            return out;
+        } finally {
+            b.release();
+        }
+    }
+
+    @Override
+    public ItemWire readItemStackWire(java.nio.ByteBuffer src) {
+        io.netty.buffer.ByteBuf b = io.netty.buffer.Unpooled.wrappedBuffer(src.duplicate());
+        org.domi.furnace.server.entity.ItemStack s = org.domi.furnace.server.item.ItemStackCodecs.readStack(b);
+        return new ItemWire(apiItem(s), b.readerIndex());
+    }
+
     private static HeightmapType heightmapType(String key) {
         HeightmapType type = HeightmapType.byKey(key.toLowerCase(java.util.Locale.ROOT));
         if (type == null) throw new IllegalArgumentException("unknown heightmap: " + key);

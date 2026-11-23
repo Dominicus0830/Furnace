@@ -317,6 +317,15 @@ public class ServerLevel extends Level implements net.minecraft.world.level.Worl
 
             @Override
             public Entity get(java.util.UUID uuid) { return getEntity(uuid); }
+
+            @Override
+            public Iterable<Entity> getAll() {
+                List<Entity> out = new java.util.ArrayList<>();
+                for (var e : getWorld().furnaceHandle().entitiesSnapshot()) {
+                    out.add(((org.bukkit.craftbukkit.entity.CraftEntity) org.domi.furnace.compat.paper.Compat.entity(e)).getHandle());
+                }
+                return out;
+            }
         };
     }
 

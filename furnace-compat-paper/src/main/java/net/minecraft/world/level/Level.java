@@ -392,6 +392,34 @@ public abstract class Level implements LevelAccessor {
     @Override
     public boolean setBlock(BlockPos pos, BlockState state, int flags) { return setBlock(pos, state, flags, 512); }
 
+    /**
+     * 호환 모듈 전용 — {@code FluidState#tick}·{@code BlockState#tick}(fluid 가 null 이면 블록): 그 칸에서 받은 값으로 서버의 예약 틱 동작(FlowingFluid.tick·
+     * Block#tick 이식)을 한 번 돈다. 스레드 규칙은 {@link #setBlock} 과 같다(그 칸의 주인 region). 쓰기 기록 중이면 기록에 싣지 못하므로 거절한다.
+     */
+    public void furnaceScheduledTick(BlockPos pos, org.domi.furnace.api.world.FluidData fluid, BlockState block, net.minecraft.util.RandomSource random) {
+        String what = fluid != null ? "FluidState#tick" : "BlockState#tick";
+        if (treeCapture() || (captureBlockStates && org.domi.furnace.compat.nms.NmsFeatures.captureAppliesHere())) {
+            throw new UnsupportedNmsCall(what + "(capture)", "running a scheduled tick while the world records block writes does not exist on the server yet");
+        }
+        if (!hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) throw NmsChunks.notLoaded(furnace(), pos.getX() >> 4, pos.getZ() >> 4, what);
+        if (fluid != null) {
+            NmsChunks.bridge().fluidTickNow(furnace(), pos.getX(), pos.getY(), pos.getZ(), fluid);
+            return;
+        }
+        NmsChunks.bridge().blockTickNow(furnace(), pos.getX(), pos.getY(), pos.getZ(), block.furnaceStateId(), new FurnaceCallerRandom(random));
+    }
+
+    /** 부른 쪽 난수를 다리의 난수로(값은 그 난수열 그대로). 이름 있는 클래스 — 익명이면 바닐라 Level$1(WorldBorder)과 이름이 겹친다. */
+    private record FurnaceCallerRandom(net.minecraft.util.RandomSource random) implements java.util.random.RandomGenerator {
+        @Override public long nextLong() { return random.nextLong(); }
+        @Override public int nextInt() { return random.nextInt(); }
+        @Override public int nextInt(int bound) { return random.nextInt(bound); }
+        @Override public float nextFloat() { return random.nextFloat(); }
+        @Override public double nextDouble() { return random.nextDouble(); }
+        @Override public boolean nextBoolean() { return random.nextBoolean(); }
+        @Override public double nextGaussian() { return random.nextGaussian(); }
+    }
+
     public boolean setBlockAndUpdate(BlockPos pos, BlockState state) { return setBlock(pos, state, 3); }
 
     /** 바닐라: 그 칸의 유체만 남긴다(물에 잠긴 블록이면 물). */

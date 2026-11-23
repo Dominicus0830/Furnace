@@ -48,6 +48,30 @@ public ClientboundBlockEventPacket(net.minecraft.core.BlockPos pos, net.minecraf
     this(pos, b0, b1, block);
 }
 
+@@ net.minecraft.network.protocol.game.ClientboundChunksBiomesPacket
+// 바닐라 forChunks: 청크마다 지금 섹션 바이옴 컨테이너를 바이트로 떠 둔다(만드는 때의 값 — 보낼 때 다시 읽지 않는다).
+public static ClientboundChunksBiomesPacket forChunks(java.util.List<net.minecraft.world.level.chunk.LevelChunk> chunks) {
+    return new ClientboundChunksBiomesPacket(chunks.stream().map(ChunkBiomeData::new).toList());
+}
+
+@@ net.minecraft.network.protocol.game.ClientboundChunksBiomesPacket$ChunkBiomeData
+// 바닐라: 섹션 바이옴 컨테이너 크기의 합만큼 버퍼를 잡고 섹션마다 컨테이너를 쓴다(아래에서 위로).
+public ChunkBiomeData(net.minecraft.world.level.chunk.LevelChunk chunk) { this(chunk.getPos(), biomeBytes(chunk)); }
+
+private static byte[] biomeBytes(net.minecraft.world.level.chunk.LevelChunk chunk) {
+    int size = 0;
+    for (net.minecraft.world.level.chunk.LevelChunkSection s : chunk.getSections()) size += s.getBiomes().getSerializedSize();
+    byte[] out = new byte[size];
+    extractChunkData(new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.wrappedBuffer(out).writerIndex(0)), chunk);
+    return out;
+}
+
+public net.minecraft.network.FriendlyByteBuf getReadBuffer() { return new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.wrappedBuffer(buffer)); }
+
+public static void extractChunkData(net.minecraft.network.FriendlyByteBuf buf, net.minecraft.world.level.chunk.LevelChunk chunk) {
+    for (net.minecraft.world.level.chunk.LevelChunkSection s : chunk.getSections()) s.getBiomes().write(buf);
+}
+
 @@ net.minecraft.network.protocol.game.ClientboundContainerSetContentPacket
 public ClientboundContainerSetContentPacket(int containerId, int stateId, net.minecraft.core.NonNullList<net.minecraft.world.item.ItemStack> items,
         net.minecraft.world.item.ItemStack carriedItem) {

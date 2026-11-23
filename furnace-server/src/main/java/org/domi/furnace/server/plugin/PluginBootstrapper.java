@@ -519,6 +519,7 @@ public final class PluginBootstrapper {
             Path jar = settings.devMode() ? HotReload.shadowCopy(dir, c.file()) : c.file();
             org.domi.furnace.api.plugin.ClassTransformer transformer = c.format() != null && settings.compatNms() ? c.format().transformer(d, jar, compatOptionsFor(c), () -> spigotMappingFilesFor(c)) : null;
             ClassLoader parent = c.format() != null ? sharedLibrariesFor(c) : null;
+            if (c.format() != null) c.format().sharedLibrariesReady(sharedLibraryGroups());
             loader = new PluginManagerImpl.PluginClassLoader(jar, this, settings.devMode(), libraries, transformer, parent,
                     c.format() == null && !settings.exposeCompatToNative(), c.format() != null);
         } catch (IOException | RuntimeException e) {

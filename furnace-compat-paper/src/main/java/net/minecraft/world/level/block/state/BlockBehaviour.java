@@ -58,6 +58,14 @@ public abstract class BlockBehaviour {
 
         public java.util.stream.Stream<net.minecraft.tags.TagKey<Block>> getTags() { return owner.builtInRegistryHolder().tags(); }
 
+        /**
+         * 바닐라 {@code BlockStateBase#tick(level, pos, random)}: 이 상태의 블록 예약 틱 동작(Block#tick — 서버 이식)을 그 칸에서 한 번 돈다. 칸의 지금 상태가 아니라
+         * 이 상태를 쓴다. 그 칸의 주인 region 스레드에서만(Level#setBlock 과 같다).
+         */
+        public void tick(net.minecraft.server.level.ServerLevel level, net.minecraft.core.BlockPos pos, net.minecraft.util.RandomSource random) {
+            level.furnaceScheduledTick(pos, null, asState(), random);
+        }
+
         /** 바닐라: 물·용암 블록은 level 에 맞는 유체, 잠긴 블록·켈프·해초·거품 기둥은 물 원천, 그 밖은 빈 유체. */
         public net.minecraft.world.level.material.FluidState getFluidState() {
             var f = fluidState;

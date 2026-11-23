@@ -56,6 +56,15 @@ public final class CompatFormat implements PluginFormat {
 
     private volatile boolean createdPlugin;
 
+    /**
+     * Brigadier 묶음이 붙으면 바닐라 SharedConstants 처럼 기본 오류를 게임 번역 문구로 바꾸고 스택 추적을 끈다(NMS shim 5e-3c,
+     * {@link net.minecraft.commands.BrigadierExceptions}). 묶음이 없으면 그 클래스를 건드리지 않는다.
+     */
+    @Override
+    public void sharedLibrariesReady(java.util.Set<String> groups) {
+        if (groups.contains("brigadier")) net.minecraft.commands.BrigadierExceptions.furnaceInstall();
+    }
+
     /** Bukkit {@code load: STARTUP} — Paper 는 월드를 만들기 전에 켠다(paper-plugin.yml 의 {@code load} 도 같은 값). */
     @Override
     public boolean enablesBeforeWorlds(PluginDescription description) {
