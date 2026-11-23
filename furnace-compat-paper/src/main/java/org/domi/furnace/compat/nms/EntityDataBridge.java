@@ -21,7 +21,7 @@ import net.minecraft.network.syncher.SynchedEntityData;
  * (byte, optional_component, item_stack …). 두 방향 모두 값마다 바꾸고, 바꾸지 못하는 종류가 하나라도 있으면 패킷 전체를
  * {@link UnsupportedNmsCall} 로 거절한다(일부 칸만 버리면 클라이언트가 보는 엔티티 모양이 Paper 와 달라진다).
  *
- * <p>아직 못 하는 종류: particle·particles(입자 shim 이 빈 껍데기), villager_data·고양이/늑대/개구리/그림 변형(값 shim 이 빈 껍데기),
+ * <p>아직 못 하는 종류: particle·particles(입자 shim 이 빈 껍데기), 늑대·그림 변형(데이터 팩 레지스트리 — 설계 D4),
  * optional_global_pos, vector3·quaternion(shim 직렬화 상수가 없다 — JOML 이 이 로더에 없다).
  */
 final class EntityDataBridge {
@@ -91,6 +91,9 @@ final class EntityDataBridge {
             case "sniffer_state" -> ((net.minecraft.world.entity.animal.sniffer.Sniffer.State) v).name().toLowerCase(Locale.ROOT);
             case "armadillo_state" -> ((net.minecraft.world.entity.animal.armadillo.Armadillo.ArmadilloState) v).name().toLowerCase(Locale.ROOT);
             case "particles" -> emptyParticles(v, "set_entity_data(particles)");   // 살아 있는 엔티티의 효과 입자 칸: 빈 목록만(입자 shim 은 설계 D4)
+            case "villager_data" -> villagerData((net.minecraft.world.entity.npc.VillagerData) v);
+            case "cat_variant" -> NmsVariants.name(NmsVariants.cats(), cast(v), at);
+            case "frog_variant" -> NmsVariants.name(NmsVariants.frogs(), cast(v), at);
             default -> throw new UnsupportedNmsCall("set_entity_data(" + name + ")", "this metadata value kind cannot be converted from the shim to Furnace yet");
         };
     }
@@ -136,9 +139,31 @@ final class EntityDataBridge {
             case "sniffer_state" -> net.minecraft.world.entity.animal.sniffer.Sniffer.State.valueOf(((String) v).toUpperCase(Locale.ROOT));
             case "armadillo_state" -> net.minecraft.world.entity.animal.armadillo.Armadillo.ArmadilloState.valueOf(((String) v).toUpperCase(Locale.ROOT));
             case "particles" -> emptyParticles(v, "fromFurnace(set_entity_data.particles)");
+            case "villager_data" -> villagerData((org.domi.furnace.api.entity.data.VillagerData) v);
+            case "cat_variant" -> NmsVariants.holder(NmsVariants.cats(), (String) v, at);
+            case "frog_variant" -> NmsVariants.holder(NmsVariants.frogs(), (String) v, at);
             default -> throw new UnsupportedNmsCall("fromFurnace(set_entity_data." + name + ")", "this metadata value kind cannot be converted back to the shim yet");
         };
     }
+
+    /**
+     * 주민 데이터: 종류·직업은 레지스트리 이름으로 잇는다. 등록되지 않은 값(플러그인이 만든 직업 record)은 바닐라 DefaultedMappedRegistry 처럼
+     * 기본값(plains·none)으로 — 바닐라 STREAM_CODEC 도 레지스트리 번호로 써서 같은 값이 클라이언트에 간다.
+     */
+    private static org.domi.furnace.api.entity.data.VillagerData villagerData(net.minecraft.world.entity.npc.VillagerData d) {
+        return new org.domi.furnace.api.entity.data.VillagerData(
+                net.minecraft.core.registries.BuiltInRegistries.VILLAGER_TYPE.getKey(d.getType()).toString(),
+                net.minecraft.core.registries.BuiltInRegistries.VILLAGER_PROFESSION.getKey(d.getProfession()).toString(), d.getLevel());
+    }
+
+    private static net.minecraft.world.entity.npc.VillagerData villagerData(org.domi.furnace.api.entity.data.VillagerData d) {
+        return new net.minecraft.world.entity.npc.VillagerData(
+                net.minecraft.core.registries.BuiltInRegistries.VILLAGER_TYPE.get(net.minecraft.resources.ResourceLocation.parse(d.type())),
+                net.minecraft.core.registries.BuiltInRegistries.VILLAGER_PROFESSION.get(net.minecraft.resources.ResourceLocation.parse(d.profession())), d.level());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> net.minecraft.core.Holder<T> cast(Object v) { return (net.minecraft.core.Holder<T>) v; }
 
     /** 입자 목록은 빈 것만 바꾼다(빈 목록은 두 쪽 모두 같은 값). 입자가 든 목록은 입자 shim 이 생길 때까지 UnsupportedNmsCall(설계 D4). */
     private static List<?> emptyParticles(Object v, String what) {
@@ -155,7 +180,7 @@ final class EntityDataBridge {
     /** 두 방향 모두 되는 값 종류 이름. */
     private static final java.util.Set<String> BRIDGED = java.util.Set.of("byte", "int", "long", "float", "string", "boolean", "optional_uuid", "optional_unsigned_int", "component", "optional_component",
                 "item_stack", "rotations", "block_pos", "optional_block_pos", "direction", "block_state", "optional_block_state", "compound_tag", "pose",
-                "sniffer_state", "armadillo_state");
+                "sniffer_state", "armadillo_state", "villager_data", "cat_variant", "frog_variant");
 
     /** 시험용: 두 방향 모두 되는 값 종류 이름. */
     static List<String> bridgedTypes() { return List.copyOf(new java.util.TreeSet<>(BRIDGED)); }

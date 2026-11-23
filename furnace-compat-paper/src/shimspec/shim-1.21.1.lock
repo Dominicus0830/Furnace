@@ -404,7 +404,7 @@ C	net/minecraft/world/entity/npc/InventoryCarrier	1537	java/lang/Object	-	-	-	pa
 C	net/minecraft/world/entity/npc/Npc	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/npc/Villager	33	net/minecraft/world/entity/npc/AbstractVillager	net/minecraft/world/entity/ReputationEventHandler,net/minecraft/world/entity/npc/VillagerDataHolder	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/npc/Villager	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/npc/Villager;>;Lnet/minecraft/world/level/Level;)V
-C	net/minecraft/world/entity/npc/VillagerDataHolder	1537	java/lang/Object	net/minecraft/world/entity/VariantHolder	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/npc/VillagerDataHolder	1537	java/lang/Object	net/minecraft/world/entity/VariantHolder	Ljava/lang/Object;Lnet/minecraft/world/entity/VariantHolder<Lnet/minecraft/world/entity/npc/VillagerType;>;	-	paper-server-1.21.1
 C	net/minecraft/world/entity/npc/WanderingTrader	33	net/minecraft/world/entity/npc/AbstractVillager	-	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/npc/WanderingTrader	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/npc/WanderingTrader;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/player/Player	1057	net/minecraft/world/entity/LivingEntity	-	-	-	paper-server-1.21.1

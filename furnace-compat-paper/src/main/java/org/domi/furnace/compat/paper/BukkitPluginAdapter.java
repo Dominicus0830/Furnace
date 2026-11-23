@@ -33,6 +33,7 @@ public final class BukkitPluginAdapter extends FurnacePlugin {
 
     @Override
     public void onLoad() {
+        org.domi.furnace.compat.nms.NmsBootstrap.registries();   // 내장 레지스트리 shim 을 한 스레드에서 먼저(초기화 잠금 엇물림 방지)
         if (bukkitDescription.getAPIVersion() == null) {
             logger().warning(CompatLang.t("compat.no-api-version"));
         }

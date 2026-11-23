@@ -145,6 +145,7 @@ class CoralFeature {                         // 머리는 "class|interface|enum 
 - 채운 멤버에는 `@NmsShellMember` 표지가 없다 → `NmsSymbols` 가 "있음"으로 본다. 그래서 값이 바닐라와 같아야 한다.
 - 새 종류(예: 배열 리터럴, 상수 참조)를 더할 때는 (1) `FillExtractor` 에 모양 하나 + `FillExtractorTest`, (2) `FillTable` 줄 종류, (3) `Fills` 규칙·`FullShells` 몸통, (4) `FillParityTest.checkClass` 에 비교 하나, 이 네 곳을 한 PR 로.
 - 영역 스레드의 손·추론 채우기(명세 줄 `->`)는 이 틀과 별개 길이다(손 shim 이 이긴다). 영역을 옮길 때는 `fills-baseline` 숫자가 줄어드는지로 진척을 본다.
+- **정적 필드 하나가 터지면 클래스 전체가 죽는다**(PR 579 검토). `BuiltInRegistries`·`Registries`·`SoundEvents` 처럼 많은 영역이 기대는 상수 클래스에 레지스트리·값을 필드 초기화로 더할 때, 그 초기화가 던지면(서버 목록과 순서가 다름, 이름 누락) 그 클래스의 다른 필드(블록·아이템 레지스트리)까지 `NoClassDefFoundError` 로 모두 못 쓴다. 바닐라와 같은지는 **시험으로** 견주고, 실행 때는 서버 목록을 믿고 만든다. 실행 때 꼭 견줘야 하면 그 레지스트리를 처음 꺼낼 때(필드 초기화 밖) 본다(`NmsVillagers.check` 처럼).
 
 ```
 tools/compat/sig-tables.sh                                          # 서명표 셋 + 채움 표

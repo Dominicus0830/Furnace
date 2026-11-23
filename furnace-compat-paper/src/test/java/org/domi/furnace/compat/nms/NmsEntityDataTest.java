@@ -145,12 +145,25 @@ class NmsEntityDataTest {
         }
     }
 
-    /** 아직 바꾸지 못하는 값 종류(고양이 변형 — 설계 D4)가 있는 종류는 getEntityData 만 알리고, setter 는 그대로 된다. */
+    /** 아직 바꾸지 못하는 값 종류(늑대 변형 — 데이터 팩 레지스트리, 설계 D4)가 있는 종류는 getEntityData 만 알리고, setter 는 그대로 된다. */
     @Test
     void kindsWithUnbridgedValueKindsSayUnsupported() {
+        Entity wolf = EntityType.WOLF.create(level);
+        assertThrows(UnsupportedNmsCall.class, wolf::getEntityData);
+        wolf.setInvisible(true);
+        assertTrue(wolf.isInvisible());
+    }
+
+    /** 고양이 무늬 칸(D4): 바닐라 생성자의 처음 값(검정 — 고양이 정의 값)이 레지스트리 손잡이로 보이고, 칸 쓰기가 서버 재생을 지난다. */
+    @Test
+    void catVariantSlotIsARegistryHolder() {
         Entity cat = EntityType.CAT.create(level);
-        assertThrows(UnsupportedNmsCall.class, cat::getEntityData);
-        cat.setInvisible(true);
-        assertTrue(cat.isInvisible());
+        SynchedEntityData d = cat.getEntityData();
+        var slot = new EntityDataAccessor<net.minecraft.core.Holder<net.minecraft.world.entity.animal.CatVariant>>(org.domi.furnace.server.entity.Cat.DATA_VARIANT, EntityDataSerializers.CAT_VARIANT);
+        assertSame(net.minecraft.core.registries.BuiltInRegistries.CAT_VARIANT.getHolder(net.minecraft.world.entity.animal.CatVariant.BLACK).orElseThrow(), d.get(slot));
+        var jellie = net.minecraft.core.registries.BuiltInRegistries.CAT_VARIANT.getHolderOrThrow(net.minecraft.world.entity.animal.CatVariant.JELLIE);
+        d.set(slot, jellie);
+        assertSame(jellie, d.get(slot));
+        assertEquals("minecraft:textures/entity/cat/jellie.png", d.get(slot).value().texture().toString());
     }
 }
