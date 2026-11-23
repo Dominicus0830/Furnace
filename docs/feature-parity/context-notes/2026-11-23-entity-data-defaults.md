@@ -65,3 +65,10 @@
 - 바닐라 `WolfVariant` 접근자는 적힌 위치가 아니라 `textures/<경로>.png` 로 늘인 전체 위치를 돌려주고, equals·hashCode 는 적힌 위치 셋과 바이옴 묶음으로 본다(javap 확인). shim 도 같다.
 - 바이옴 묶음: 태그면 `NmsBiomes.registry().getOrCreateTag`, 목록이면 손잡이 목록. 바이옴 레지스트리에 없는 id 는 바닐라라면 정의를 읽을 때 거부되므로 오지 않는다고 보고(가정) 빼 둔다.
 - 서버마다 한 번 만든다(데이터 팩 레지스트리는 시작 때 고정). 남은 값 종류: 입자, optional_global_pos, vector3·quaternion.
+
+## D3 칸 필드 채우기·관용구 (11-24)
+- 엔티티 클래스는 거의 전부 손 shim(entity.spec 생성 포함)이라 숨은 칸 필드는 껍데기 생성기(FullShells)가 아니라 합치기(ShellMerge)가 더한다. 실측: 껍데기 0, 손 shim 에 합친 칸 154. 공개 칸 49(PR 575 명세)와 합쳐 207칸 가운데 203칸이 값을 갖고, JOML 값(VECTOR3·QUATERNION) 4칸만 비어 있다.
+- 손 shim 에 정적 초기화가 있으면 그 맨 앞에 곧은 코드(스택 2, 지역 없음)를 끼운다. 프레임은 그대로 맞고 최대 스택만 2 이상으로 올린다. 없으면 새로 만든다.
+- 함정: shim 값 종류 상수가 없는 칸까지 채우면 `accessor` 가 던져 그 클래스 전체가 죽는다(필드 하나가 클래스를 죽인다 — README T-262 규칙). 생성기는 원래 호환 jar 의 `EntityDataSerializers` 필드로 판단한다. 껍데기 jar 의 `EntityDataSerializers` 에는 합친 빈 필드(VECTOR3 등)가 있어 이름만 보면 속는다 — 시험은 값이 null 아닌 상수만 센다.
+- 덤: `fullShellsTest` 로더에 칸 번호표를 얹자 "손 shim 자기 정적 초기화가 서버 필요" 가 183 → 15 로 줄었다. 앞의 168개는 서버가 아니라 칸 번호표가 없어 공개 칸 필드(PR 575) 초기화가 실패하던 것이었다.
+- 관용구 4개(`entity-data-get/set/flag-get/flag-set`)는 `getEntityData()` 를 지난다. 그래서 월드 엔티티는 D5 전까지 UnsupportedNmsCall 이다(조용히 틀린 값을 주지 않음). 깃발 끄기는 `b & ~마스크` 로, 바닐라의 `b & -2`(마스크 1) 꼴과 같다.

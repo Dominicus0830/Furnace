@@ -114,6 +114,37 @@ public final class NmsEntityData {
     private static final EntityDataAccessor<Byte> SHARED_FLAGS = new EntityDataAccessor<>(0, net.minecraft.network.syncher.EntityDataSerializers.BYTE);
     private static final EntityDataAccessor<net.minecraft.world.entity.Pose> POSE = new EntityDataAccessor<>(6, net.minecraft.network.syncher.EntityDataSerializers.POSE);
 
+    // ------------------------------------------------------------------ T-263 관용구(엔티티 데이터 설계 D3)
+    // 바닐라에서 같은 모양으로 되풀이되는 칸 접근 몸통을 여기 한 번 구현한다. 연결 줄 {@code @idiom(entity-data-…, <칸 필드>[, <마스크>])} 이
+    // 껍데기 멤버를 이리로 잇는다. 인자 순서: 받는 쪽(엔티티 shim), 줄의 값(칸 필드·마스크), 멤버 인자. 소유 검사는 연결 몸통이 먼저 부른다(NmsEntityOwner).
+    // 칸 값은 getEntityData() 를 지난다 — 월드 밖 엔티티는 서버 재생 값, 월드 엔티티는 설계 D5 전까지 UnsupportedNmsCall(조용히 틀린 값을 주지 않는다).
+
+    /** {@code return this.entityData.get(<칸>)}. 반환은 칸의 값 그대로(연결 몸통이 멤버 반환형으로 바꾼다). */
+    @org.domi.furnace.compat.nms.link.LinkIdiom(value = "entity-data-get", check = "read=owner", owner = NmsEntityOwner.class)
+    public static Object get(Object self, EntityDataAccessor<?> slot) { return data(self).get(slot); }
+
+    /** {@code this.entityData.set(<칸>, 값)}. 값 형식은 칸의 값 종류여야 한다(바닐라와 같이 형식 검사는 직렬화 쪽이 한다). */
+    @SuppressWarnings("unchecked")
+    @org.domi.furnace.compat.nms.link.LinkIdiom(value = "entity-data-set", check = "write", owner = NmsEntityOwner.class)
+    public static void set(Object self, EntityDataAccessor<?> slot, Object value) { data(self).set((EntityDataAccessor<Object>) slot, value); }
+
+    /** {@code return (this.entityData.get(<바이트 칸>) & <마스크>) != 0}. */
+    @org.domi.furnace.compat.nms.link.LinkIdiom(value = "entity-data-flag-get", check = "read=owner", owner = NmsEntityOwner.class)
+    public static boolean flag(Object self, EntityDataAccessor<Byte> slot, int mask) { return (data(self).get(slot) & mask) != 0; }
+
+    /** 바이트 칸의 깃발 하나 켜고 끄기: 켜면 {@code (byte)(b | 마스크)}, 끄면 {@code (byte)(b & ~마스크)} 를 칸에 쓴다(나머지 비트는 그대로). */
+    @org.domi.furnace.compat.nms.link.LinkIdiom(value = "entity-data-flag-set", check = "write", owner = NmsEntityOwner.class)
+    public static void setFlag(Object self, EntityDataAccessor<Byte> slot, int mask, boolean value) {
+        SynchedEntityData d = data(self);
+        byte b = d.get(slot);
+        d.set(slot, value ? (byte) (b | mask) : (byte) (b & ~mask));
+    }
+
+    private static SynchedEntityData data(Object self) {
+        if (!(self instanceof net.minecraft.world.entity.Entity e)) throw new IllegalArgumentException("entity data idiom: not an entity shim: " + self);
+        return e.getEntityData();
+    }
+
     /** 공유 깃발 칸(Entity 0번). */
     public static byte sharedFlags(SynchedEntityData data) { return data.get(SHARED_FLAGS); }
 
