@@ -6,7 +6,7 @@ package net.minecraft.util;
  * 정수 {@code clamp} 의 {@code Math.min(Math.max(..))} 순서, {@code sin}/{@code cos} 의 65536 칸 표({@code (float)Math.sin(i·2π/65536)})와 10430.378 배율.
  *
  * <p>2026-11-24(영역 9): 난수 도우미·길이·보간·{@code atan2}·{@code fastInvSqrt} 계열·색·해시 등 순수 계산을 바닐라 {@code javap -c} 로 읽어 더했다.
- * 아직 없는 것: 광선-상자 교차({@code rayIntersectsAABB} — AABB shim 이 먼저), 인자 없는 {@code createInsecureUUID}·{@code RANDOM}
+ * 아직 없는 것: 인자 없는 {@code createInsecureUUID}·{@code RANDOM}
  * ({@code ThreadSafeLegacyRandomSource} 가 먼저 — 영역 6), {@code mulAndTruncate}(commons-lang3 분수가 컴파일 경로에 없다)는 껍데기가 맡는다
  * (없는 멤버를 부르면 던진다 — 값을 지어내지 않는다). {@code lerp3} 는 채웠다.
  */
@@ -409,6 +409,31 @@ public final class Mth {
         if (negX) angle = 3.141592653589793 - angle;
         if (negY) angle = -angle;
         return angle;
+    }
+
+    /** 광선(시작점 {@code origin}, 방향 {@code dir})이 상자와 만나는지(미끄럼 시험, 슬랩 분리 축 3 + 외적 축 3). */
+    public static boolean rayIntersectsAABB(net.minecraft.world.phys.Vec3 origin, net.minecraft.world.phys.Vec3 dir, net.minecraft.world.phys.AABB box) {
+        double cx = (box.minX + box.maxX) * 0.5;
+        double hx = (box.maxX - box.minX) * 0.5;
+        double ox = origin.x - cx;
+        if (Math.abs(ox) > hx && ox * dir.x >= 0.0) return false;
+        double cy = (box.minY + box.maxY) * 0.5;
+        double hy = (box.maxY - box.minY) * 0.5;
+        double oy = origin.y - cy;
+        if (Math.abs(oy) > hy && oy * dir.y >= 0.0) return false;
+        double cz = (box.minZ + box.maxZ) * 0.5;
+        double hz = (box.maxZ - box.minZ) * 0.5;
+        double oz = origin.z - cz;
+        if (Math.abs(oz) > hz && oz * dir.z >= 0.0) return false;
+        double ax = Math.abs(dir.x);
+        double ay = Math.abs(dir.y);
+        double az = Math.abs(dir.z);
+        double c = dir.y * oz - dir.z * oy;
+        if (Math.abs(c) > hy * az + hz * ay) return false;
+        c = dir.z * ox - dir.x * oz;
+        if (Math.abs(c) > hx * az + hz * ax) return false;
+        c = dir.x * oy - dir.y * ox;
+        return Math.abs(c) < hx * ay + hy * ax;
     }
 
     public static double lerp3(double delta1, double delta2, double delta3, double start1, double end1, double start2, double end2,

@@ -273,6 +273,11 @@ public class BlockPos extends Vec3i {
                 Math.max(box.minX(), box.maxX()), Math.max(box.minY(), box.maxY()), Math.max(box.minZ(), box.maxZ()));
     }
 
+    public static java.util.stream.Stream<BlockPos> betweenClosedStream(net.minecraft.world.phys.AABB box) {
+        return betweenClosedStream(net.minecraft.util.Mth.floor(box.minX), net.minecraft.util.Mth.floor(box.minY), net.minecraft.util.Mth.floor(box.minZ),
+                net.minecraft.util.Mth.floor(box.maxX), net.minecraft.util.Mth.floor(box.maxY), net.minecraft.util.Mth.floor(box.maxZ));
+    }
+
     public static java.util.stream.Stream<BlockPos> betweenClosedStream(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
         return java.util.stream.StreamSupport.stream(betweenClosed(minX, minY, minZ, maxX, maxY, maxZ).spliterator(), false);
     }

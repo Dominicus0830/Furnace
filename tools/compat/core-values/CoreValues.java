@@ -17,6 +17,8 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -63,6 +65,7 @@ public final class CoreValues {
         direction();
         sectionPos();
         resource();
+        aabb();
         p("lerp3", Mth.lerp3(0.25, 0.5, 0.75, 1.0, 3.0, -2.0, 8.0, 10.0, 11.0, -5.0, 5.0));
         p("lerp3.nan", Mth.lerp3(Double.NaN, 0.5, 0.5, 1.0, 3.0, -2.0, 8.0, 10.0, 11.0, -5.0, 5.0));
         return out;
@@ -332,5 +335,56 @@ public final class CoreValues {
         guard("rl.wp3", () -> base.withPath(s -> ""));
         guard("rl.wp4", () -> base.withPath(s -> "a b"));
         guard("rl.wp5", () -> base.withPath(java.util.function.UnaryOperator.identity()));
+    }
+
+    private static String v(Vec3 a) { return a == null ? "null" : a.x + "," + a.y + "," + a.z; }
+
+    private static String bx(AABB a) { return a.minX + "," + a.minY + "," + a.minZ + "|" + a.maxX + "," + a.maxY + "," + a.maxZ; }
+
+    private static void aabb() {
+        double[] ds = {0.0, -0.0, 1.0, -1.5, 0.5, 2.0, 1.0E-8, 1.0E-7, -1.0E-7, 1.0E9, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY};
+        AABB[] boxes = {new AABB(0, 0, 0, 1, 1, 1), new AABB(2, 3, 4, -1, -2, -3), new AABB(-0.5, 64, 10, 0.5, 66, 11.25),
+            new AABB(Double.NaN, 0, 0, 1, 1, 1), new AABB(0, 0, 0, 0, 0, 0), new AABB(-1.0E9, 0, 0, 1.0E9, 1, 1)};
+        for (int i = 0; i < boxes.length; i++) {
+            AABB a = boxes[i];
+            String k = "ab" + i;
+            p(k + ".str", a + " " + bx(a) + " " + a.hashCode() + " " + a.hasNaN() + " " + a.getSize() + " " + a.getXsize() + "," + a.getYsize() + "," + a.getZsize());
+            p(k + ".pos", v(a.getCenter()) + " " + v(a.getBottomCenter()) + " " + v(a.getMinPosition()) + " " + v(a.getMaxPosition()));
+            for (Direction.Axis ax : Direction.Axis.values()) p(k + ".mm " + ax, a.min(ax) + " " + a.max(ax));
+            p(k + ".set", bx(a.setMinX(0.5)) + " " + bx(a.setMinY(0.5)) + " " + bx(a.setMinZ(0.5)) + " " + bx(a.setMaxX(0.5)) + " " + bx(a.setMaxY(0.5)) + " " + bx(a.setMaxZ(0.5)));
+            for (double x : ds) {
+                p(k + ".inf " + x, bx(a.inflate(x)) + " " + bx(a.deflate(x)) + " " + bx(a.inflate(x, -x, 1)) + " " + bx(a.deflate(x, 1, x)));
+                p(k + ".mv " + x, bx(a.move(x, 1, -x)) + " " + bx(a.move(new Vec3(x, 0, 1))) + " " + bx(a.move(new BlockPos(3, -4, 5))));
+                p(k + ".ct " + x, bx(a.contract(x, -x, 0.5)) + " " + bx(a.expandTowards(x, 0, -x)) + " " + bx(a.expandTowards(new Vec3(-x, x, 0))));
+                p(k + ".has " + x, a.contains(x, 0.5, 0.5) + " " + a.contains(new Vec3(0, x, 1)) + " " + a.intersects(x, 0, 0, 1, 1, 1) + " " + a.intersects(new Vec3(x, 0, 0), new Vec3(1, 1, x)) + " " + a.distanceToSqr(new Vec3(x, 2, -x)));
+            }
+            for (int j = 0; j < boxes.length; j++) {
+                AABB o = boxes[j];
+                p(k + ".pair" + j, a.intersects(o) + " " + bx(a.intersect(o)) + " " + bx(a.minmax(o)) + " " + a.equals(o) + " " + (a.hashCode() == o.hashCode()));
+            }
+        }
+        p("ab.ctor", bx(new AABB(new BlockPos(-3, 4, 5))) + " " + bx(new AABB(new Vec3(1, 2, 3), new Vec3(-1, 5, 0))) + " " + bx(AABB.of(new BoundingBox(-2, 3, 4, 5, 6, 7)))
+            + " " + bx(AABB.unitCubeFromLowerCorner(new Vec3(0.5, -1, 2))) + " " + bx(AABB.encapsulatingFullBlocks(new BlockPos(3, -1, 2), new BlockPos(-4, 8, 2)))
+            + " " + bx(AABB.ofSize(new Vec3(1, 2, 3), 4, 5, 6)));
+        // 광선 자름(clip)
+        Vec3[] pts = {new Vec3(-2, 0.5, 0.5), new Vec3(0.5, 0.5, 0.5), new Vec3(3, 0.5, 0.5), new Vec3(0.5, -3, 0.5), new Vec3(0.5, 4, 0.5),
+            new Vec3(0.5, 0.5, -2), new Vec3(0.5, 0.5, 5), new Vec3(-1, -1, -1), new Vec3(2, 2, 2), new Vec3(0.5, 0.5, 0.5000001), new Vec3(1.0, 1.0, 1.0), new Vec3(0.0, 0.0, 0.0), new Vec3(Double.NaN, 0, 0)};
+        AABB unit = new AABB(0, 0, 0, 1, 1, 1);
+        for (Vec3 a : pts) {
+            for (Vec3 b : pts) {
+                String k = v(a) + ">" + v(b);
+                p("clip " + k, unit.clip(a, b).map(CoreValues::v).orElse("-"));
+                BlockHitResult r = AABB.clip(java.util.List.of(unit, new AABB(1, 0, 0, 2, 0.5, 1)), a, b, new BlockPos(0, 0, 0));
+                p("clipI " + k, r == null ? "null" : v(r.getLocation()) + " " + r.getDirection() + " " + f(r.getBlockPos()));
+                p("clipN " + k, AABB.clip(java.util.List.of(), a, b, new BlockPos(1, 1, 1)));
+                p("ray " + k, Mth.rayIntersectsAABB(a, b.subtract(a), unit) + " " + Mth.rayIntersectsAABB(a, b, new AABB(-1, -1, -1, 0, 0, 0)));
+            }
+        }
+        for (AABB a : boxes) {
+            List<String> s = new ArrayList<>();
+            if (!a.hasNaN() && Math.abs(a.maxX - a.minX) < 100) BlockPos.betweenClosedStream(a).limit(50).forEach(b -> s.add(f(b)));
+            p("bcsAabb " + bx(a), s);
+        }
+        p("bcsAabb.frac", BlockPos.betweenClosedStream(new AABB(-0.5, 0.5, -1.5, 1.5, 2.5, 0.0)).map(CoreValues::f).toList());
     }
 }
