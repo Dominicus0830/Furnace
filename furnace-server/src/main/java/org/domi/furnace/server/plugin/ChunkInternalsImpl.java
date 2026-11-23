@@ -20,6 +20,27 @@ final class ChunkInternalsImpl implements ChunkInternals {
 
     ChunkInternalsImpl(PluginHost host) { this.host = host; }
 
+    // 거울(N2b-4)을 서버 청크가 부르는 훅 — 서버 핵심은 거울을 형 없이 들고 이것만 부른다(어댑터 분리 3단계). 거울은 이 다리로만 붙으므로 클래스가 올라올 때 꽂으면 늘 먼저다.
+    static {
+        installMirrorOps();
+    }
+
+    /** 거울 훅을 꽂는다(여러 번 불러도 된다). 다리를 거치지 않고 거울을 붙이는 시험·벤치가 부른다. */
+    static void installMirrorOps() { ChunkColumn.installMirrorOps(MirrorOps.INSTANCE); }
+
+    private enum MirrorOps implements org.domi.furnace.server.world.ChunkMirrorOps {
+        INSTANCE;
+
+        @Override
+        public boolean sync(Object mirror) { return ((ChunkMirror) mirror).sync(); }
+
+        @Override
+        public void published(Object mirror, org.domi.furnace.server.world.ChunkReadView view) { ((ChunkMirror) mirror).published(view); }
+
+        @Override
+        public void unloaded(Object mirror) { ((ChunkMirror) mirror).unloaded(); }
+    }
+
     private static WorldHandle handle(org.domi.furnace.api.world.World w) {
         if (w instanceof WorldHandle wh) return wh;
         throw new IllegalArgumentException("not a world handle created by the Furnace server: " + w);

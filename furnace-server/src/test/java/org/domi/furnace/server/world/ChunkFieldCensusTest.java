@@ -61,7 +61,7 @@ class ChunkFieldCensusTest {
         e("viewIdle", Kind.UNRELATED), e("viewVersion", Kind.UNRELATED), e("VIEW_HOLDER", Kind.FIXED), e("VIEW_REQUESTED", Kind.FIXED),
         // 거울 대기 상태(N2b-4) — 블록에서 파생되지 않는다. importedUnsaved 는 D3 경고 표시(저장하면 내린다)
         e("mirrorPending", Kind.UNRELATED), e("mirrorHeld", Kind.UNRELATED), e("mirrorSyncing", Kind.UNRELATED),
-        e("importedUnsaved", Kind.UNRELATED), e("MIRROR_PENDING", Kind.FIXED),
+        e("importedUnsaved", Kind.UNRELATED), e("MIRROR_PENDING", Kind.FIXED), e("mirrorOps", Kind.FIXED),   // mirrorOps: 다리가 꽂는 거울 훅(3단계)
         // 바닐라에도 있는 파생 상태
         e("blockEntities", Kind.VANILLA_DERIVED), e("light", Kind.VANILLA_DERIVED),
         // 블록과 무관

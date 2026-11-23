@@ -37,6 +37,9 @@ public final class InternalsImpl implements Internals {
         this.chunks = new ChunkInternalsImpl(host);
     }
 
+    /** 청크 거울 훅을 꽂는다 — 다리를 거치지 않고 청크에 거울을 붙이는 시험·벤치용(서버는 다리가 올라올 때 스스로 꽂는다). */
+    public static void installChunkMirrorOps() { ChunkInternalsImpl.installMirrorOps(); }
+
     /** 내부 접근을 쓴 플러그인 이름들(진단용). */
     public Set<String> users() { return Set.copyOf(users); }
 
