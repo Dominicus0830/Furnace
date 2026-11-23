@@ -8,6 +8,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.component.CustomModelData;
 import net.minecraft.world.item.component.ItemLore;
+import net.minecraft.world.item.component.ResolvableProfile;
 import net.minecraft.world.item.component.Unbreakable;
 import org.domi.furnace.api.item.ItemComponent;
 import org.domi.furnace.api.item.ItemComponents;
@@ -46,6 +47,10 @@ public final class DataComponents {
         return out;
     });
 
+    /** 머리 아이템의 프로필(저장 꼴: 이름 문자열 하나, 또는 {@code {name, id, properties}}). */
+    public static final DataComponentType<ResolvableProfile> PROFILE = new Type<String, ResolvableProfile>("minecraft:profile", ItemComponent.raw("profile"),
+            snbt -> profileFromNbt(org.domi.furnace.api.nbt.Snbt.parse(snbt)), p -> org.domi.furnace.api.nbt.Snbt.write(profileToNbt(p)));
+
     /** 값 클래스를 두지 않은 종류(값은 {@link RawComponentValue}): 번들 내용·컨테이너·컨테이너 loot. */
     public static final DataComponentType<RawComponentValue> BUNDLE_CONTENTS = raw("minecraft:bundle_contents");
     public static final DataComponentType<RawComponentValue> CONTAINER = raw("minecraft:container");
@@ -55,9 +60,23 @@ public final class DataComponents {
 
     static {
         for (DataComponentType<?> t : new DataComponentType<?>[] {CUSTOM_DATA, MAX_STACK_SIZE, MAX_DAMAGE, DAMAGE, REPAIR_COST, CUSTOM_NAME, ITEM_NAME,
-                CUSTOM_MODEL_DATA, UNBREAKABLE, LORE, BUNDLE_CONTENTS, CONTAINER, CONTAINER_LOOT}) {
+                CUSTOM_MODEL_DATA, UNBREAKABLE, LORE, PROFILE, BUNDLE_CONTENTS, CONTAINER, CONTAINER_LOOT}) {
             BY_KEY.put(t.furnaceKey(), t);
         }
+    }
+
+    private static ResolvableProfile profileFromNbt(Object tag) {
+        var v = org.domi.furnace.compat.paper.ProfileValue.fromNbt(tag);
+        if (v == null) throw new IllegalArgumentException("not a profile: " + tag);
+        var props = new com.mojang.authlib.properties.PropertyMap();
+        for (var p : v.properties()) props.put(p.getName(), new com.mojang.authlib.properties.Property(p.getName(), p.getValue(), p.getSignature()));
+        return new ResolvableProfile(java.util.Optional.ofNullable(v.name()), java.util.Optional.ofNullable(v.id()), props);
+    }
+
+    private static Object profileToNbt(ResolvableProfile p) {
+        var props = new ArrayList<com.destroystokyo.paper.profile.ProfileProperty>();
+        for (var x : p.properties().values()) props.add(new com.destroystokyo.paper.profile.ProfileProperty(x.name(), x.value(), x.signature()));
+        return new org.domi.furnace.compat.paper.ProfileValue(p.id().orElse(null), p.name().orElse(null), props).toNbt();
     }
 
     private static DataComponentType<RawComponentValue> raw(String key) { return new Raw(key); }

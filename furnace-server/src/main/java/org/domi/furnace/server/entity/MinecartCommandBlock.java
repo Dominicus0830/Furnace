@@ -77,16 +77,16 @@ public class MinecartCommandBlock extends AbstractMinecart {
      * 엔티티를 가진 region 스레드에서만.
      */
     private void syncData() {
-        String cmd = logic.command();
-        if (!cmd.equals(entityData.get(DATA_ID_COMMAND_NAME))) {
-            entityData.set(DATA_ID_COMMAND_NAME, cmd);
-            logic.setCommand(cmd);
-        }
-        Text out = logic.lastOutput();
-        if (!out.equals(entityData.get(DATA_ID_LAST_OUTPUT))) {
-            entityData.set(DATA_ID_LAST_OUTPUT, out);
-            logic.setLastOutput(out);
-        }
+        entityData.set(DATA_ID_COMMAND_NAME, logic.command());
+        entityData.set(DATA_ID_LAST_OUTPUT, logic.lastOutput());
+    }
+
+    /** MinecartCommandBlock.onSyncedDataUpdated: 명령 칸 → setCommand(성공 횟수 0), 출력 칸 → setLastOutput(AbstractMinecart 다음). */
+    @Override
+    protected void onSyncedDataUpdated(int index) {
+        super.onSyncedDataUpdated(index);
+        if (index == DATA_ID_LAST_OUTPUT) logic.setLastOutput((Text) entityData.get(DATA_ID_LAST_OUTPUT));
+        else if (index == DATA_ID_COMMAND_NAME) logic.setCommand((String) entityData.get(DATA_ID_COMMAND_NAME));
     }
 
     /** set_command_minecart 적용(소유 region 스레드): 명령·출력 기록을 바꾸고 데이터를 동기화. */

@@ -84,13 +84,20 @@ public class FishingHook extends Projectile {
         entityData.define(DATA_BITING, SetEntityData.SERIALIZER_BOOLEAN, false);
     }
 
-    /** DATA_BITING 설정 + onSyncedDataUpdated: 물면 아래로 잡아당긴다(동기 난수). */
-    private void setBiting(boolean v) {
-        boolean changed = !Boolean.valueOf(v).equals(entityData.get(DATA_BITING));
-        entityData.set(DATA_BITING, v);
-        if (!changed) return;
-        biting = v;
-        if (biting) setDeltaMovement(vx(), -0.4F * nextFloat(syncronizedRandom, 0.6F, 1.0F), vz());
+    private void setBiting(boolean v) { entityData.set(DATA_BITING, v); }
+
+    /**
+     * FishingHook.onSyncedDataUpdated: 무는 칸이 바뀌면 biting 을 맞추고, 물면 아래로 잡아당긴다(동기 난수).
+     * 걸린 엔티티 칸은 0 일 때만 비운다 — 번호로 엔티티를 바로 찾는 길이 region 안에 없어, 0 이 아닌 값은 setHookedEntity 가 이미 넣은 대상을 쓴다.
+     */
+    @Override
+    protected void onSyncedDataUpdated(int index) {
+        if (index == DATA_HOOKED_ENTITY && (Integer) entityData.get(DATA_HOOKED_ENTITY) <= 0) hookedIn = null;
+        if (index == DATA_BITING) {
+            biting = (Boolean) entityData.get(DATA_BITING);
+            if (biting) setDeltaMovement(vx(), -0.4F * nextFloat(syncronizedRandom, 0.6F, 1.0F), vz());
+        }
+        super.onSyncedDataUpdated(index);
     }
 
     public boolean isBiting() { return biting; }

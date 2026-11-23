@@ -2,6 +2,7 @@
 package org.domi.furnace.api.entity;
 
 import java.net.InetSocketAddress;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
@@ -286,6 +287,23 @@ public interface Player extends CommandSender, LivingEntity {
         setHealth(health);
         return CompletableFuture.completedFuture(null);
     }
+
+    // ------------------------------------------------------------------ 상태 효과 (플레이어는 상태 손잡이가 없어 핸들이 직접 준다)
+
+    /** 지금 걸린 상태 효과(잠금 안에서 뜬 사본). 어느 스레드에서나 읽는다. */
+    default List<MobEffect> effects() { throw new UnsupportedOperationException("effects"); }
+
+    /**
+     * 바닐라 addEffect 를 소유 스레드에서 한다. 새로 걸렸거나 더 센 쪽으로 바뀌었으면 true 로 완료(이미 같거나 약하면 false, 죽은 플레이어도 false).
+     * 지금 이 스레드가 소유 스레드면 부르는 자리에서 끝난 채로 돌아온다.
+     */
+    default CompletableFuture<Boolean> addEffect(MobEffect effect) { return CompletableFuture.failedFuture(new UnsupportedOperationException("addEffect")); }
+
+    /** 그 종류를 걷는다(소유 스레드). 있었으면 true. 종류 키는 {@code minecraft:speed} 꼴(네임스페이스를 빼도 된다). */
+    default CompletableFuture<Boolean> removeEffect(String type) { return CompletableFuture.failedFuture(new UnsupportedOperationException("removeEffect")); }
+
+    /** 모든 효과를 걷는다(소유 스레드). 걷은 개수. */
+    default CompletableFuture<Integer> clearEffects() { return CompletableFuture.failedFuture(new UnsupportedOperationException("clearEffects")); }
 
     /** 플레이어 인벤토리. */
     @Override

@@ -161,7 +161,18 @@ public class Piglin extends AbstractPiglin implements CrossbowAttackMob, Invento
         var speed = attributes().get(Attribute.MOVEMENT_SPEED);
         speed.removeModifier(BABY_MODIFIER_ID);
         if (baby) speed.addOrReplaceTransientModifier(new AttributeModifier(BABY_MODIFIER_ID, 0.2F, AttributeModifier.ADD_MULTIPLIED_BASE));
-        if (baby) setDimensions(0.3F, 0.975F, 0.97F);
+    }
+
+    /** Piglin.onSyncedDataUpdated: 아기 칸이 바뀌면 refreshDimensions(AbstractPiglin 다음). */
+    @Override
+    protected void onSyncedDataUpdated(int index) {
+        super.onSyncedDataUpdated(index);
+        if (index == DATA_BABY) refreshDimensions();
+    }
+
+    @Override
+    protected void refreshDimensions() {
+        if (isBaby()) setDimensions(0.3F, 0.975F, 0.97F);
         else setDimensions(0.6F, 1.95F, 1.79F);
     }
 
