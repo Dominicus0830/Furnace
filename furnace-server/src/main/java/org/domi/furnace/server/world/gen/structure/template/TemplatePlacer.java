@@ -184,24 +184,49 @@ public final class TemplatePlacer {
                 yRot = (Float) r.get(0);
                 xRot = (Float) r.get(1);
             }
-            float f = wrapDegrees(yRot);
-            float rotated = switch (st.rotation) {
-                case BlockStateTable.ROT_CW180 -> f + 180.0F;
-                case BlockStateTable.ROT_CCW90 -> f + 270.0F;
-                case BlockStateTable.ROT_CW90 -> f + 90.0F;
-                default -> f;
-            };
-            float mirrored = switch (st.mirror) {
-                case BlockStateTable.FRONT_BACK -> -f;
-                case BlockStateTable.LEFT_RIGHT -> 180.0F - f;
-                default -> f;
-            };
-            float newYaw = rotated + mirrored - yRot;
+            String hid = nbt.tags().get("id") instanceof String sid0 ? sid0 : "";
+            float newYaw;
+            if (HANGING.contains(hid)) {
+                // 걸이 엔티티(바닐라 HangingEntity#rotate·mirror 재정의): 걸린 방향을 돌리고, 각도는 불러온 뒤 setDirection 이 정한 값에서 잰다
+                boolean frame = !hid.equals("minecraft:painting");
+                int dir = frame ? facing3d(nbt.tags().get("Facing")) : org.domi.furnace.server.block.Dir.from2D(numberOr0(nbt.tags().get("facing")));
+                if (frame) {   // ItemFrame#setDirection: 수평 xRot 0·yRot 2D×90, 위·아래 xRot ∓90·yRot 0
+                    boolean h = org.domi.furnace.server.block.Dir.horizontal(dir);
+                    yRot = h ? org.domi.furnace.server.block.Dir.to2D(dir) * 90 : 0.0F;
+                    xRot = h ? 0.0F : -90 * (org.domi.furnace.server.block.Dir.positive(dir) ? 1 : -1);
+                } else {       // HangingEntity#setDirection: yRot 만
+                    yRot = org.domi.furnace.server.block.Dir.to2D(dir) * 90;
+                }
+                float f = wrapDegrees(yRot);
+                int d1 = org.domi.furnace.server.entity.HangingEntity.rotatedDirection(dir, st.rotation);
+                float rotated = f + org.domi.furnace.server.entity.HangingEntity.rotateDegrees(st.rotation);
+                int mr = org.domi.furnace.server.entity.HangingEntity.mirrorRotation(st.mirror, d1);   // mirror 는 돌린 뒤 방향으로
+                int d2 = org.domi.furnace.server.entity.HangingEntity.rotatedDirection(d1, mr);
+                float mirrored = f + org.domi.furnace.server.entity.HangingEntity.rotateDegrees(mr);
+                newYaw = rotated + mirrored - yRot;
+                if (frame) nbt.putByte("Facing", (byte) d2);
+                else nbt.putByte("facing", (byte) org.domi.furnace.server.block.Dir.to2D(d2));
+            } else {
+                float f = wrapDegrees(yRot);
+                float rotated = switch (st.rotation) {
+                    case BlockStateTable.ROT_CW180 -> f + 180.0F;
+                    case BlockStateTable.ROT_CCW90 -> f + 270.0F;
+                    case BlockStateTable.ROT_CW90 -> f + 90.0F;
+                    default -> f;
+                };
+                float mirrored = switch (st.mirror) {
+                    case BlockStateTable.FRONT_BACK -> -f;
+                    case BlockStateTable.LEFT_RIGHT -> 180.0F - f;
+                    default -> f;
+                };
+                newYaw = rotated + mirrored - yRot;
+            }
             org.domi.furnace.server.net.io.nbt.NbtList rot = new org.domi.furnace.server.net.io.nbt.NbtList((byte) 5);
             rot.add(newYaw); rot.add(xRot);
             nbt.put("Rotation", rot);
-            if (nbt.contains("TileX")) {   // 걸이 엔티티(액자·그림)의 블록 좌표
-                nbt.putInt("TileX", bx); nbt.putInt("TileY", by); nbt.putInt("TileZ", bz);
+            if (nbt.contains("TileX")) {
+                // 블록에 붙는 엔티티(액자·그림·끈 매듭): 바닐라 moveTo → setPos 가 붙은 칸을 BlockPos.containing(새 위치)로 다시 정한다
+                nbt.putInt("TileX", (int) Math.floor(wx)); nbt.putInt("TileY", (int) Math.floor(wy)); nbt.putInt("TileZ", (int) Math.floor(wz));
             }
             String eid = nbt.tags().get("id") instanceof String sid ? sid : "";
             // finalizeEntities 이고 몹이면: 만들어 moveTo → finalizeSpawn(world, …, STRUCTURE) → addFreshEntityWithPassengers(T-221)
@@ -221,6 +246,15 @@ public final class TemplatePlacer {
         "minecraft:hopper_minecart", "minecraft:tnt_minecart", "minecraft:spawner_minecart", "minecraft:command_block_minecart",
         "minecraft:boat", "minecraft:chest_boat", "minecraft:item", "minecraft:experience_orb", "minecraft:end_crystal",
         "minecraft:falling_block", "minecraft:tnt", "minecraft:area_effect_cloud");
+
+    /** 바닐라 HangingEntity 하위(rotate·mirror 를 재정의) — 끈 매듭은 BlockAttachedEntity 라 Entity 규칙. */
+    private static final Set<String> HANGING = Set.of("minecraft:item_frame", "minecraft:glow_item_frame", "minecraft:painting");
+
+    /** Direction.from3DDataValue(abs(i % 6)) — 서버 Dir 번호가 바닐라 3D 값과 같다. */
+    private static int facing3d(Object v) { return Math.abs(numberOr0(v) % 6); }
+
+    /** CompoundTag.getByte 처럼: 숫자 태그면 그 값, 아니면 0. */
+    private static int numberOr0(Object v) { return v instanceof Number n ? n.byteValue() : 0; }
 
     private static float wrapDegrees(float v) {
         float f = v % 360.0F;

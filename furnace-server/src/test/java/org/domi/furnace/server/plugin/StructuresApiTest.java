@@ -281,6 +281,97 @@ class StructuresApiTest {
         assertEquals(PlaceResult.Status.INVALID_PALETTE, st.place(api(), "test:two", at, PlaceOptions.DEFAULT.withPalette(2)).get(30, TimeUnit.SECONDS).status());
     }
 
+    /** 1×1×2 템플릿: (0,0,0) 에 서쪽을 보는 액자(동쪽 돌에 붙음), (1,0,0) 돌. */
+    private void importFrameTemplate() {
+        NbtCompound root = new NbtCompound();
+        NbtList size = new NbtList();
+        size.add(2); size.add(1); size.add(1);
+        root.put("size", size);
+        NbtList palette = new NbtList();
+        NbtCompound stone = new NbtCompound();
+        stone.putString("Name", "minecraft:stone");
+        palette.add(stone);
+        NbtCompound air = new NbtCompound();
+        air.putString("Name", "minecraft:air");
+        palette.add(air);
+        root.put("palette", palette);
+        NbtList blocks = new NbtList();
+        for (int x = 0; x < 2; x++) {
+            NbtCompound b = new NbtCompound();
+            NbtList pos = new NbtList();
+            pos.add(x); pos.add(0); pos.add(0);
+            b.put("pos", pos);
+            b.putInt("state", x == 1 ? 0 : 1);
+            blocks.add(b);
+        }
+        root.put("blocks", blocks);
+        NbtCompound frame = new NbtCompound();
+        frame.putString("id", "minecraft:item_frame");
+        frame.putByte("Facing", (byte) 4);   // 서
+        frame.putInt("TileX", 100); frame.putInt("TileY", 100); frame.putInt("TileZ", 100);   // 저장 때 월드 좌표 — 놓을 때 바뀐다
+        NbtList rot = new NbtList();
+        rot.add(90.0F); rot.add(0.0F);
+        frame.put("Rotation", rot);
+        NbtCompound item = new NbtCompound();
+        item.putString("id", "minecraft:stone");
+        item.putInt("count", 1);
+        frame.put("Item", item);
+        frame.putByte("ItemRotation", (byte) 2);
+        NbtCompound ent = new NbtCompound();
+        NbtList epos = new NbtList();
+        epos.add(0.96875); epos.add(0.5); epos.add(0.5);
+        ent.put("pos", epos);
+        NbtList ebp = new NbtList();
+        ebp.add(0); ebp.add(0); ebp.add(0);
+        ent.put("blockPos", ebp);
+        ent.put("nbt", frame);
+        NbtList ents = new NbtList();
+        ents.add(ent);
+        root.put("entities", ents);
+        root.putInt("DataVersion", 3955);
+        assertTrue(host.structures().importTemplate(api(), "test:frame", root, false));
+    }
+
+    /**
+     * 걸이 엔티티는 바닐라 HangingEntity#rotate·mirror(재정의)를 따른다(Paper 1.21.1 javap): 걸린 방향이 같이 돌고, 각도는 wrapDegrees(yRot)+돌림 —
+     * 시계 90 은 Entity 의 +90 이 아니라 +270. 살아 있는 월드에 놓으면(바닐라 placeEntities 가 바로 넣음) 그 각도가 남는다.
+     */
+    @Test
+    void hangingEntitiesTurnWithTheTemplate() throws Exception {
+        importFrameTemplate();
+        var st = host.structures();
+        // 시계 90: 서 → 북. yRot 90 → r = 90 + 270, 대칭 없음 m = 90 → f = 360. 돌은 (0,0,1) 로 간다
+        BlockPos at = new BlockPos(4, 60, 4);
+        assertTrue(st.place(api(), "test:frame", at, PlaceOptions.DEFAULT.withRotation(StructureRotation.CLOCKWISE_90)).get(30, TimeUnit.SECONDS).placed());
+        assertEquals("minecraft:stone", typeAt(at.offset(0, 0, 1)));
+        float[] n = frameAt(at);
+        assertEquals(2, (int) n[0], "북");
+        assertEquals(360.0F, n[1]);
+        assertEquals(2, (int) n[2]);
+        assertEquals(at.x(), (int) n[3]);
+        assertEquals(at.z(), (int) n[4]);
+        // 앞뒤 대칭(X 축 방향): 서 → 동(mirror 가 돌린 뒤 방향으로 CLOCKWISE_180). f = 90 + (90 + 180) − 90 = 270
+        BlockPos at2 = new BlockPos(4, 60, 20);
+        assertTrue(st.place(api(), "test:frame", at2, PlaceOptions.DEFAULT.withMirror(StructureMirror.FRONT_BACK)).get(30, TimeUnit.SECONDS).placed());
+        float[] m = frameAt(at2);   // 앞뒤 대칭은 x → −x: 돌은 x−1, 액자는 제자리
+        assertEquals(5, (int) m[0], "동");
+        assertEquals(270.0F, m[1]);
+    }
+
+    /** 그 칸의 서버 액자: {Facing, yRot, ItemRotation, TileX, TileZ} (주인 region 에서 읽는다). */
+    private float[] frameAt(BlockPos block) throws Exception {
+        ChunkPos c = new ChunkPos(block.x() >> 4, block.z() >> 4);
+        return core.world().submitAtChunk(c, r -> {
+            for (var e : r.level().entities().all()) {
+                if (e instanceof org.domi.furnace.server.entity.ItemFrame f && f.pos() != null
+                        && Math.abs(f.x() - (block.x() + 0.5)) < 1.0 && Math.abs(f.z() - (block.z() + 0.5)) < 1.0) {
+                    return new float[] {f.direction(), f.yRot(), f.rotation(), f.pos().x(), f.pos().z()};
+                }
+            }
+            throw new AssertionError("no frame near " + block);
+        }).get(10, TimeUnit.SECONDS);
+    }
+
     @Test
     void deleteDoesNotPretendToRemoveBuiltinsAndNamesCannotEscapeTheirFolder() throws Exception {
         var st = host.structures();
