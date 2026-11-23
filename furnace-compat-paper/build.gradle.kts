@@ -518,6 +518,8 @@ tasks.register<Test>("vanillaDiffTest") {
     (findProperty("vdiffClasses") as String?)?.let { systemProperty("furnace.vdiff.classes", it) }
     (findProperty("vdiffIterations") as String?)?.let { systemProperty("furnace.vdiff.iterations", it) }
     (findProperty("vdiffSeed") as String?)?.let { systemProperty("furnace.vdiff.seed", it) }
+    // 대상 파일에서 budget= 으로 시간 예산을 켠 클래스의 예산(초)을 바꾼다(DiffRunner.HARD_WATCHDOG_SECONDS 설명)
+    (findProperty("vdiffBudget") as String?)?.let { systemProperty("furnace.vdiff.memberBudgetSeconds", it) }
     testLogging { showStandardStreams = true; exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }
     outputs.upToDateWhen { false }
     // 시험이 하나도 안 돌면 Gradle 은 조용히 초록이다 — 비교하지 않은 초록을 막는다(규칙 5)
