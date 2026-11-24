@@ -7,7 +7,9 @@ import net.minecraft.network.chat.Style;
 public class StringDecomposer {
     private static final char REPLACEMENT_CHAR = '\uFFFD';
 
-    private StringDecomposer() {}
+    public static final java.util.Optional<net.minecraft.util.Unit> STOP_ITERATION = net.minecraft.network.chat.FormattedText.STOP_ITERATION;
+
+    public StringDecomposer() {}
 
     private static boolean feedChar(Style style, FormattedCharSink sink, int pos, char c) {
         return Character.isSurrogate(c) ? sink.accept(pos, style, REPLACEMENT_CHAR) : sink.accept(pos, style, c);
@@ -56,6 +58,22 @@ public class StringDecomposer {
             }
         }
         return true;
+    }
+
+    public static String filterBrokenSurrogates(String text) {
+        StringBuilder sb = new StringBuilder();
+        iterate(text, Style.EMPTY, (pos, st, cp) -> { sb.appendCodePoint(cp); return true; });
+        return sb.toString();
+    }
+
+    public static String getPlainText(net.minecraft.network.chat.FormattedText text) {
+        StringBuilder sb = new StringBuilder();
+        iterateFormatted(text, Style.EMPTY, (pos, st, cp) -> { sb.appendCodePoint(cp); return true; });
+        return sb.toString();
+    }
+
+    public static boolean iterateFormatted(String text, int start, Style style, FormattedCharSink sink) {
+        return iterateFormatted(text, start, style, style, sink);
     }
 
     public static boolean iterateFormatted(String text, Style style, FormattedCharSink sink) {
