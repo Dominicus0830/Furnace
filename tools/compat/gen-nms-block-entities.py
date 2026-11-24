@@ -3,12 +3,13 @@
 # 플러그인이 `instanceof ChestBlockEntity`·`SignBlockEntity`·`AbstractFurnaceBlockEntity` 처럼 종류별 클래스로 가르는 코드가 돌게 하려는 것이다.
 # 종류별 필드·메서드(컨테이너·틱 등)는 두지 않는다 — 저장·읽기는 BlockEntity 가 서버의 NBT 로 한다.
 # 계층은 바닐라 1.21.1 BlockEntityType 등록 표와 각 클래스의 extends 를 따른다(타입 id → 클래스).
-# 사용: python3 tools/compat/gen-nms-block-entities.py   (저장소 루트에서)
+# 2026-11-24(T-229 이전): 손 shim 이 아니라 조각(src/shims/java)과 명세(src/shimspec/block-entity.spec)를 낸다 — 머리(접근·상위·인터페이스)는 생성기가 잠금 파일로 붙인다.
+# 사용: python3 tools/compat/gen-nms-block-entities.py   (저장소 루트에서) 뒤에 :furnace-compat-paper:shimLock
 import os
 
 PKG = "net.minecraft.world.level.block.entity"
-BASE = "furnace-compat-paper/src/main/java/net/minecraft/world/level/block/entity"
-TABLE = "furnace-compat-paper/src/main/java/org/domi/furnace/compat/nms/NmsBlockEntityClasses.java"
+BASE = "furnace-compat-paper/src/shims/java/net/minecraft/world/level/block/entity"
+SPEC = "furnace-compat-paper/src/shimspec/block-entity.spec"
 
 # 추상 중간 클래스(바닐라: abstract) — 생성자는 (BlockEntityType, BlockPos, BlockState)
 ABSTRACT = [
@@ -84,7 +85,8 @@ def clear_body(name):
     return CLEAR_BODY if name in CLEARABLE else ""
 
 
-GEN = "// 생성 파일 — tools/compat/gen-nms-block-entities.py 로 만든다(손으로 고치지 않는다).\n"
+GEN = "// 생성 조각 — tools/compat/gen-nms-block-entities.py 로 만든다(손으로 고치지 않는다).\n"
+spec_lines = ["# 블록 엔티티 종류 계층(영역 1 손 shim 이전). 생성 파일 — tools/compat/gen-nms-block-entities.py. 머리는 잠금 파일, 몸통은 src/shims/java 조각"]
 
 
 # 안에 든 열거형(패킷 shim 이 이 클래스의 중첩 타입을 쓴다 — 손으로 쓴 클래스가 있으면 shimgen 은 그 바깥 클래스를 만들지 않는다)
@@ -93,12 +95,6 @@ NESTED = {
     /** 바닐라 JigsawBlockEntity.JointType(직소 블록 이음 종류). */
     public enum JointType {
         ROLLABLE, ALIGNED
-    }
-""",
-    "StructureBlockEntity": """
-    /** 바닐라 StructureBlockEntity.UpdateType(구조 블록 갱신 종류). */
-    public enum UpdateType {
-        UPDATE_DATA, SAVE_AREA, LOAD_AREA, SCAN_AREA
     }
 """,
     "BeaconBlockEntity": """
@@ -110,12 +106,12 @@ NESTED = {
         level.playSound(null, pos, sound, net.minecraft.sounds.SoundSource.BLOCKS, 1.0F, 1.0F);
     }
 """,
-    "CommandBlockEntity": """
-    /** 바닐라 CommandBlockEntity.Mode(명령 블록 종류). */
-    public enum Mode {
-        SEQUENCE, AUTO, REDSTONE
-    }
-""",
+}
+
+# 중첩 열거형은 명세에 `Outer$Name` 으로 상수 전부를 적는다(조각 안에 손으로 쓰면 손 shim 이 돼 명세를 못 붙인다)
+NESTED_ENUMS = {
+    "StructureBlockEntity": [("UpdateType", ["UPDATE_DATA", "SAVE_AREA", "LOAD_AREA", "SCAN_AREA"])],
+    "CommandBlockEntity": [("Mode", ["SEQUENCE", "AUTO", "REDSTONE"])],
 }
 
 # 바닐라에서 block.entity 밖 패키지에 있는 클래스(움직이는 피스톤은 block.piston — 검토 N1)
@@ -127,7 +123,15 @@ def pkg_of(name):
 
 
 def path_of(name):
-    return "furnace-compat-paper/src/main/java/" + pkg_of(name).replace(".", "/") + "/" + name + ".java"
+    return "furnace-compat-paper/src/shims/java/" + pkg_of(name).replace(".", "/") + "/" + name + ".java"
+
+
+# 2026-11-24: 블록 엔티티는 모두 조각으로 옮겼다. 옛 손 방식(main/java 로 냄)은 HAND 에 이름을 넣으면 쓴다(지금은 비었다).
+HAND = set()
+# 생성기 스레드가 손으로 옮긴 것(조각 + enums.spec) — 이 스크립트는 건드리지 않는다
+SKIP = {"JigsawBlockEntity"}
+HAND_GEN = "// 생성 파일 — tools/compat/gen-nms-block-entities.py 로 만든다(손으로 고치지 않는다).\n"
+MAIN = "furnace-compat-paper/src/main/java/"
 
 
 def write(path, text):
@@ -137,7 +141,8 @@ def write(path, text):
 
 
 for name, parent in ABSTRACT:
-    write(f"{BASE}/{name}.java", f"""{GEN}package {PKG};
+    if name in HAND:
+        write(MAIN + PKG.replace(".", "/") + "/" + name + ".java", f"""{HAND_GEN}package {PKG};
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.state.BlockState;
@@ -151,13 +156,30 @@ public abstract class {name} extends {parent}{implements(name)} {{
     protected {name}(BlockEntityType<?> type, BlockPos pos, BlockState state) {{ super(type, pos, state); }}
 {clear_body(name)}}}
 """)
+        continue
+    spec_lines.append(f"class {PKG}.{name}")
+    write(f"{BASE}/{name}.java", f"""{GEN}package {PKG};
+
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.state.BlockState;
+
+/**
+ * 바닐라 {name}(Mojang 이름 shim, N2b-6). 플러그인이 종류별 클래스로 가르는 {{@code instanceof}} 와 형변환이 돌게 하는 계층 자리다 —
+ * 종류별 필드·메서드(컨테이너·틱 등)는 두지 않았고 저장은 {{@link BlockEntity}} 가 서버의 NBT 로 한다.
+ */
+class {name} {{
+
+    protected {name}(BlockEntityType<?> type, BlockPos pos, BlockState state) {{ super(type, pos, state); }}
+{clear_body(name)}}}
+""")
 
 CONCRETE_NAMES = {c[1] for c in CONCRETE}
 for tid, name, parent in CONCRETE:
+    if name in SKIP: continue
     other = pkg_of(name) != PKG
-    extra = f"import {PKG}.BlockEntity;\nimport {PKG}.BlockEntityType;\n" if other else ""
-    nested = NESTED.get(name, "")
-    write(path_of(name), f"""{GEN}package {pkg_of(name)};
+    if name in HAND:
+        extra = f"import {PKG}.BlockEntity;\nimport {PKG}.BlockEntityType;\n" if other else ""
+        write(MAIN + pkg_of(name).replace(".", "/") + "/" + name + ".java", f"""{HAND_GEN}package {pkg_of(name)};
 
 import net.minecraft.core.BlockPos;
 {extra}import net.minecraft.world.level.block.state.BlockState;
@@ -172,36 +194,33 @@ public class {name} extends {parent}{implements(name)} {{
 
     /** 하위 종류가 쓴다(바닐라는 {name} 이 종류를 받는 생성자를 둔다). */
     protected {name}(BlockEntityType<?> type, BlockPos pos, BlockState state) {{ super(type, pos, state); }}
+{NESTED.get(name, "")}{clear_body(name)}}}
+""")
+        continue
+    spec_lines.append(f"class {pkg_of(name)}.{name}")
+    for en, consts in NESTED_ENUMS.get(name, []):
+        spec_lines.append(f"class {pkg_of(name)}.{name}${en}")
+        spec_lines += ["  " + c for c in consts]
+    extra = f"import {PKG}.BlockEntity;\nimport {PKG}.BlockEntityType;\n" if other else ""
+    nested = NESTED.get(name, "")
+    write(path_of(name), f"""{GEN}package {pkg_of(name)};
+
+import net.minecraft.core.BlockPos;
+{extra}import net.minecraft.world.level.block.state.BlockState;
+
+/**
+ * 바닐라 {name}(Mojang 이름 shim, N2b-6) — 블록 엔티티 종류 {{@code minecraft:{tid}}}. 종류별 필드·메서드는 두지 않았고
+ * 플러그인이 종류별 클래스로 가르는 {{@code instanceof}} 와 형변환이 돌게 하는 계층 자리다(저장은 {{@link BlockEntity}} 가 서버의 NBT 로 한다).
+ */
+class {name} {{
+
+    public {name}(BlockPos pos, BlockState state) {{ this({'BlockEntityType.furnaceOf("minecraft:%s")' % tid}, pos, state); }}
+
+    /** 하위 종류가 쓴다(바닐라는 {name} 이 종류를 받는 생성자를 둔다). */
+    protected {name}(BlockEntityType<?> type, BlockPos pos, BlockState state) {{ super(type, pos, state); }}
 {nested}{clear_body(name)}}}
 """)
 
-# 종류 → 인스턴스 표
-cases = "\n".join(f'            case "minecraft:{tid}" -> new {name}(pos, state);' for tid, name, _ in CONCRETE)
-imports = "\n".join(f"import {pkg_of(name)}.{name};" for _, name, _ in sorted(CONCRETE, key=lambda c: c[1]))
-write(TABLE, f"""{GEN}package org.domi.furnace.compat.nms;
-
-import net.minecraft.core.BlockPos;
-import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.level.block.entity.BlockEntityType;
-import net.minecraft.world.level.block.state.BlockState;
-{imports}
-
-/**
- * 블록 엔티티 종류 id → 바닐라 1.21.1 클래스 표(N2b-6). {{@code EntityBlock.newBlockEntity}} 가 종류에 맞는 클래스를 만들어 주어,
- * 플러그인의 {{@code instanceof ChestBlockEntity}}·{{@code SignBlockEntity}}·{{@code AbstractFurnaceBlockEntity}} 같은 종류별 판별이 Paper 와 같게 돈다.
- * 표에 없는 종류(바닐라 1.21.1 에 없는 id)는 종류만 아는 일반 {{@link BlockEntity}} 로 만든다.
- */
-public final class NmsBlockEntityClasses {{
-
-    private NmsBlockEntityClasses() {{}}
-
-    /** 그 종류의 블록 엔티티(클래스는 바닐라와 같다). */
-    public static BlockEntity create(String typeId, BlockPos pos, BlockState state) {{
-        return switch (typeId) {{
-{cases}
-            default -> new BlockEntity(BlockEntityType.furnaceOf(typeId), pos, state) {{}};
-        }};
-    }}
-}}
-""")
+# 종류 → 인스턴스 표(NmsBlockEntityClasses)는 2026-11-24 부터 손으로 고친다 — newBlockEntity 가 더해져 이 생성기가 더는 쓰지 않는다.
+write(SPEC, "\n".join(spec_lines) + "\n")
 print("abstract", len(ABSTRACT), "concrete", len(CONCRETE))
