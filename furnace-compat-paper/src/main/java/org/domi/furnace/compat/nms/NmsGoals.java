@@ -496,6 +496,33 @@ public final class NmsGoals {
         });
     }
 
+    /**
+     * 바닐라 목표 생성자의 아이템 판정 매개변수(M2b-2, 예 TemptGoal). 정확하지 않은 {@code Ingredient} 는 아이템 종류 집합으로 바꿔 서버가 바로 판정한다
+     * (바닐라 Ingredient#test 와 같다 — 종류만 본다, 비었으면 빈 스택만). 그 밖의 판정(람다·정확한 Ingredient·Ingredient 하위 클래스)은 서버가 몹의 주인 스레드에서
+     * 그 판정을 스택 사본으로 부른다 — 판정 하나를 여러 몹이 나눠 쓰면 서로 다른 region 스레드가 동시에 부를 수 있다(스레드 안전하게 쓸 것). 판정을 올린 플러그인이
+     * 꺼지면 그 목표는 판정을 부르지 않고 몹에서 빠진다. 넣기 전 몹(샌드박스)에는 플레이어가 없어 판정이 불리지 않는다.
+     */
+    public static ChunkInternals.GoalItems items(java.util.function.Predicate<net.minecraft.world.item.ItemStack> test) {
+        java.util.Objects.requireNonNull(test, "items");
+        // Ingredient 를 상속해 test 를 바꾼 클래스는 판정 그대로(종류 집합으로 바꾸면 재정의가 무시된다)
+        if (test.getClass() == net.minecraft.world.item.crafting.Ingredient.class && !((net.minecraft.world.item.crafting.Ingredient) test).exact) {
+            var ing = (net.minecraft.world.item.crafting.Ingredient) test;
+            java.util.Set<String> ids = new java.util.TreeSet<>();
+            for (net.minecraft.world.item.ItemStack s : ing.getItems()) ids.add(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(s.getItem()).toString());
+            return new ChunkInternals.GoalItems(java.util.Set.copyOf(ids), null, null, null);
+        }
+        org.bukkit.plugin.java.JavaPlugin plugin;
+        try {
+            plugin = org.bukkit.plugin.java.JavaPlugin.getProvidingPlugin(test.getClass());
+        } catch (IllegalArgumentException | IllegalStateException | ClassCastException notAPlugin) {
+            plugin = null;
+        }
+        var from = plugin;
+        return new ChunkInternals.GoalItems(java.util.Set.of(), api -> test.test(api.isEmpty() ? net.minecraft.world.item.ItemStack.EMPTY
+                : net.minecraft.world.item.ItemStack.fromFurnace(api, api.amount())), from != null ? from.getName() : test.getClass().getName(),
+                from != null ? from::isEnabled : null);
+    }
+
     private static final String PLAYER_CLASS = "net.minecraft.server.level.ServerPlayer";
 
     /** 클래스 → 서버 대상(플레이어만, 또는 플레이어 없는 종류 집합). 플레이어와 다른 종류가 함께 맞으면(사실상 LivingEntity) 거부. */

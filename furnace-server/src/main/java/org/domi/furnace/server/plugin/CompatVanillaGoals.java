@@ -32,6 +32,8 @@ import org.domi.furnace.server.entity.ai.goal.RandomLookAroundGoal;
 import org.domi.furnace.server.entity.ai.goal.RandomStrollGoal;
 import org.domi.furnace.server.entity.ai.goal.RandomSwimmingGoal;
 import org.domi.furnace.server.entity.ai.goal.RestrictSunGoal;
+import org.domi.furnace.server.entity.ai.goal.TemptGoal;
+import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.entity.ai.goal.WaterAvoidingRandomFlyingGoal;
 import org.domi.furnace.server.entity.ai.goal.WaterAvoidingRandomStrollGoal;
 import org.domi.furnace.server.entity.ai.util.GoalUtils;
@@ -44,6 +46,9 @@ final class CompatVanillaGoals {
     record Targets(boolean playersOnly, Set<String> types) {
         boolean has(Object e) { return e instanceof Entity x && types.contains(x.type().name()); }
     }
+
+    /** 아이템 판정 매개변수(API GoalItems 와 같은 뜻). */
+    record Items(Set<String> items, Predicate<org.domi.furnace.api.item.ItemStack> test, String owner, java.util.function.BooleanSupplier alive) {}
 
     static Goal create(Mob mob, String name, Object[] a) {
         String sig = signature(a);
@@ -79,6 +84,10 @@ final class CompatVanillaGoals {
             case "NearestAttackableTargetGoal(TZ)" -> nearest(mob, t(a, 0), z(a, 1), false);
             case "NearestAttackableTargetGoal(TZZ)" -> nearest(mob, t(a, 0), z(a, 1), z(a, 2));
             case "HurtByTargetGoal" -> new HurtByTargetGoal(pathfinder(mob));
+            case "TemptGoal(DPZ)" -> {
+                Goal[] self = {null};
+                yield self[0] = new TemptGoal(pathfinder(mob), d(a, 0), items(mob, self, p(a, 1)), z(a, 2));
+            }
             default -> null;
         };
     }
@@ -112,6 +121,7 @@ final class CompatVanillaGoals {
                 case Integer x -> 'I';
                 case Boolean x -> 'Z';
                 case Targets x -> 'T';
+                case Items x -> 'P';
                 default -> '?';
             });
         }
@@ -137,4 +147,42 @@ final class CompatVanillaGoals {
     private static boolean z(Object[] a, int i) { return (Boolean) a[i]; }
 
     private static Targets t(Object[] a, int i) { return (Targets) a[i]; }
+
+    private static Items p(Object[] a, int i) { return (Items) a[i]; }
+
+    /**
+     * 아이템 판정: 종류 집합이면 서버에서 바로, 플러그인 판정이면 API 스택으로(예외면 로그 한 번 뒤 늘 거짓 — 그 목표만 멈춘다). 플러그인이 꺼졌으면 판정을 부르지 않고
+     * 거짓이며, 그 목표({@code self})를 몹의 두 선택기에서 뺀다(M2a 어댑터와 같다 — 닫힌 클래스 로더의 코드를 부르지 않는다).
+     */
+    static Predicate<ItemStack> items(Mob mob, Goal[] self, Items g) {
+        if (g.test() == null) {
+            Set<String> ids = Set.copyOf(g.items());
+            if (ids.isEmpty()) return ItemStack::isEmpty;
+            return s -> !s.isEmpty() && ids.contains(org.domi.furnace.server.item.ItemTools.itemName(s));
+        }
+        var test = g.test();
+        var alive = g.alive();
+        boolean[] broken = {false};
+        return s -> {
+            if (broken[0]) return false;
+            if (alive != null && !alive.getAsBoolean()) {
+                broken[0] = true;
+                Goal goal = self[0];
+                if (goal != null) {
+                    mob.goalSelector().removeGoalsMatching(x -> x == goal);
+                    mob.targetSelector().removeGoalsMatching(x -> x == goal);
+                }
+                return false;
+            }
+            try {
+                return test.test(ChunkInternalsImpl.apiItem(s));
+            } catch (RuntimeException | LinkageError ex) {
+                broken[0] = true;
+                LOG.warn(org.domi.furnace.server.i18n.Lang.t("goal.item-test-threw", g.owner(), test.getClass().getName()), ex);
+                return false;
+            }
+        };
+    }
+
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger("Furnace");
 }

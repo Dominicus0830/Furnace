@@ -353,4 +353,73 @@ class NmsMobGoalsTest {
             remove(squid);
         }
     }
+
+    /** M2b-2: TemptGoal 의 아이템 판정 — Ingredient 는 서버가 종류로, 람다는 주인 스레드에서 스택 사본으로. 판정 예외는 그 목표만 멈춘다. */
+    @Test
+    void temptGoalItemTests() {
+        Mob m = spawnChicken(-2.5);   // 플레이어 곁(유혹 10칸 안)
+        try {
+            m.goalSelector.removeAllGoals(g -> true);
+            var pm = (net.minecraft.world.entity.PathfinderMob) m;
+            List<String> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
+            var byIngredient = new TemptGoal(pm, 1.0, net.minecraft.world.item.crafting.Ingredient.of(net.minecraft.world.item.Items.DIAMOND), false);
+            var byLambda = new TemptGoal(pm, 1.0, st -> {
+                seen.add(Thread.currentThread().getName());
+                return st.is(net.minecraft.world.item.Items.EMERALD);
+            }, false);
+            var throwing = new TemptGoal(pm, 1.0, st -> { throw new IllegalStateException("boom"); }, false);
+            assertTrue(byIngredient.getFlags().hasElement(Goal.Flag.MOVE));
+            assertEquals(java.util.Set.of("minecraft:diamond"), NmsGoals.items(net.minecraft.world.item.crafting.Ingredient.of(net.minecraft.world.item.Items.DIAMOND)).items());
+            var bukkit = org.domi.furnace.compat.paper.Compat.player(tp.player());
+            on(() -> {
+                bukkit.getInventory().setItemInMainHand(new org.bukkit.inventory.ItemStack(org.bukkit.Material.DIAMOND));
+                return null;
+            });
+            server.tick(1);
+            assertTrue(byIngredient.canUse(), "다이아몬드를 든 플레이어");
+            assertFalse(byLambda.canUse());
+            assertFalse(throwing.canUse(), "예외는 거짓");
+            on(() -> {
+                bukkit.getInventory().setItemInMainHand(new org.bukkit.inventory.ItemStack(org.bukkit.Material.EMERALD));
+                return null;
+            });
+            server.tick(1);
+            assertFalse(byIngredient.canUse());
+            assertTrue(byLambda.canUse(), "람다 판정");
+            assertFalse(seen.isEmpty());
+            assertFalse(throwing.canUse());
+        } finally {
+            remove(m);
+        }
+    }
+
+    /** PR 623 검토: 판정을 올린 플러그인이 꺼지면 판정을 부르지 않고 그 목표가 몹에서 빠진다(틱이 깨지지 않는다). */
+    @Test
+    void temptItemTestOfADisabledPluginIsDropped() {
+        Mob m = spawnChicken(-1.5);
+        try {
+            m.goalSelector.removeAllGoals(g -> true);
+            var alive = new java.util.concurrent.atomic.AtomicBoolean(true);
+            var calls = new java.util.concurrent.atomic.AtomicInteger();
+            var items = new org.domi.furnace.api.internal.ChunkInternals.GoalItems(java.util.Set.of(), st -> {
+                calls.incrementAndGet();
+                return false;
+            }, "test", alive::get);
+            var s = serverMob(m);
+            on(() -> {
+                var g = NmsChunks.bridge().mobGoals(((CraftEntity) m.getBukkitEntity()).furnaceHandle());
+                g.addGoal(false, 3, g.vanillaGoal("TemptGoal", 1.0, items, false));
+                return null;
+            });
+            server.tick(3);
+            assertTrue(calls.get() > 0, "켜져 있으면 판정을 부른다");
+            alive.set(false);
+            int before = calls.get();
+            server.tick(5);
+            assertEquals(before, calls.get(), "꺼지면 부르지 않는다");
+            assertEquals(0, (int) on(() -> s.goalSelector().getAvailableGoals().size()), "그 목표는 빠진다");
+        } finally {
+            remove(m);
+        }
+    }
 }
