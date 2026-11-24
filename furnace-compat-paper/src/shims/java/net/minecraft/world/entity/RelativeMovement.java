@@ -5,11 +5,10 @@ import java.util.Set;
 
 /**
  * 텔레포트 상대 좌표 표시(NMS shim 5e-3 — Axiom 이 {@code unpack} 으로 패킷의 상대 표시 비트를 푼다).
- * 패킷 생성기가 빈 enum 을 만들던 자리를 손으로 쓴다. 비트 번호·{@code ALL}·{@code ROTATION}·풀기·묶기는 Paper 1.21.1 jar(javap)와 같다:
+ * 상수(인자 포함)와 순서는 명세가 정한다. 비트 번호·{@code ALL}·{@code ROTATION}·풀기·묶기는 Paper 1.21.1 jar(javap)와 같다:
  * 비트는 순서 번호와 같고, {@code ALL}·{@code ROTATION} 은 바꿀 수 없는 집합, {@code unpack} 은 새 {@link EnumSet}.
  */
-public enum RelativeMovement {
-    X(0), Y(1), Z(2), Y_ROT(3), X_ROT(4);
+enum RelativeMovement {
 
     public static final Set<RelativeMovement> ALL = Set.of(values());
     public static final Set<RelativeMovement> ROTATION = Set.of(X_ROT, Y_ROT);

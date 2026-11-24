@@ -116,6 +116,7 @@ C	net/minecraft/tags/TagKey	65585	java/lang/Record	-	<T:Ljava/lang/Object;>Ljava
 R	net/minecraft/tags/TagKey	registry	Lnet/minecraft/resources/ResourceKey;	Lnet/minecraft/resources/ResourceKey<+Lnet/minecraft/core/Registry<TT;>;>;
 R	net/minecraft/tags/TagKey	location	Lnet/minecraft/resources/ResourceLocation;	-
 X	net/minecraft/tags/TagKey	toString
+C	net/minecraft/util/OptionEnum	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/util/RandomSource	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/util/StringRepresentable	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/Clearable	1537	java/lang/Object	-	-	-	paper-server-1.21.1
@@ -250,6 +251,14 @@ C	net/minecraft/world/entity/FlyingMob	1057	net/minecraft/world/entity/Mob	-	-	-
 C	net/minecraft/world/entity/GlowSquid	33	net/minecraft/world/entity/animal/Squid	-	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/GlowSquid	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/GlowSquid;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/HasCustomInventoryScreen	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/HumanoidArm	16433	java/lang/Enum	net/minecraft/util/OptionEnum,net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/entity/HumanoidArm;>;Lnet/minecraft/util/OptionEnum;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
+E	net/minecraft/world/entity/HumanoidArm	2
+F	net/minecraft/world/entity/HumanoidArm	LEFT	Lnet/minecraft/world/entity/HumanoidArm;	16409	-
+F	net/minecraft/world/entity/HumanoidArm	RIGHT	Lnet/minecraft/world/entity/HumanoidArm;	16409	-
+M	net/minecraft/world/entity/HumanoidArm	getId	()I	1	-
+M	net/minecraft/world/entity/HumanoidArm	getKey	()Ljava/lang/String;	1	-
+M	net/minecraft/world/entity/HumanoidArm	getOpposite	()Lnet/minecraft/world/entity/HumanoidArm;	1	-
+M	net/minecraft/world/entity/HumanoidArm	getSerializedName	()Ljava/lang/String;	1	-
 C	net/minecraft/world/entity/Interaction	33	net/minecraft/world/entity/Entity	net/minecraft/world/entity/Attackable,net/minecraft/world/entity/Targeting	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/Interaction	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<*>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/ItemSteerable	1537	java/lang/Object	-	-	-	paper-server-1.21.1
@@ -277,7 +286,40 @@ C	net/minecraft/world/entity/OwnableEntity	1537	java/lang/Object	-	-	-	paper-ser
 C	net/minecraft/world/entity/PathfinderMob	1057	net/minecraft/world/entity/Mob	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/PlayerRideable	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/PlayerRideableJumping	1537	java/lang/Object	net/minecraft/world/entity/PlayerRideable	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/Pose	16433	java/lang/Enum	-	Ljava/lang/Enum<Lnet/minecraft/world/entity/Pose;>;	-	paper-server-1.21.1
+E	net/minecraft/world/entity/Pose	18
+F	net/minecraft/world/entity/Pose	BY_ID	Ljava/util/function/IntFunction;	25	Ljava/util/function/IntFunction<Lnet/minecraft/world/entity/Pose;>;
+F	net/minecraft/world/entity/Pose	CROAKING	Lnet/minecraft/world/entity/Pose;	16409	-
+F	net/minecraft/world/entity/Pose	CROUCHING	Lnet/minecraft/world/entity/Pose;	16409	-
+F	net/minecraft/world/entity/Pose	DIGGING	Lnet/minecraft/world/entity/Pose;	16409	-
+F	net/minecraft/world/entity/Pose	DYING	Lnet/minecraft/world/entity/Pose;	16409	-
+F	net/minecraft/world/entity/Pose	EMERGING	Lnet/minecraft/world/entity/Pose;	16409	-
+F	net/minecraft/world/entity/Pose	FALL_FLYING	Lnet/minecraft/world/entity/Pose;	16409	-
+F	net/minecraft/world/entity/Pose	INHALING	Lnet/minecraft/world/entity/Pose;	16409	-
+F	net/minecraft/world/entity/Pose	LONG_JUMPING	Lnet/minecraft/world/entity/Pose;	16409	-
+F	net/minecraft/world/entity/Pose	ROARING	Lnet/minecraft/world/entity/Pose;	16409	-
+F	net/minecraft/world/entity/Pose	SHOOTING	Lnet/minecraft/world/entity/Pose;	16409	-
+F	net/minecraft/world/entity/Pose	SITTING	Lnet/minecraft/world/entity/Pose;	16409	-
+F	net/minecraft/world/entity/Pose	SLEEPING	Lnet/minecraft/world/entity/Pose;	16409	-
+F	net/minecraft/world/entity/Pose	SLIDING	Lnet/minecraft/world/entity/Pose;	16409	-
+F	net/minecraft/world/entity/Pose	SNIFFING	Lnet/minecraft/world/entity/Pose;	16409	-
+F	net/minecraft/world/entity/Pose	SPIN_ATTACK	Lnet/minecraft/world/entity/Pose;	16409	-
+F	net/minecraft/world/entity/Pose	STANDING	Lnet/minecraft/world/entity/Pose;	16409	-
+F	net/minecraft/world/entity/Pose	SWIMMING	Lnet/minecraft/world/entity/Pose;	16409	-
+F	net/minecraft/world/entity/Pose	USING_TONGUE	Lnet/minecraft/world/entity/Pose;	16409	-
+M	net/minecraft/world/entity/Pose	id	()I	1	-
 C	net/minecraft/world/entity/PowerableMob	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/RelativeMovement	16433	java/lang/Enum	-	Ljava/lang/Enum<Lnet/minecraft/world/entity/RelativeMovement;>;	-	paper-server-1.21.1
+E	net/minecraft/world/entity/RelativeMovement	5
+F	net/minecraft/world/entity/RelativeMovement	ALL	Ljava/util/Set;	25	Ljava/util/Set<Lnet/minecraft/world/entity/RelativeMovement;>;
+F	net/minecraft/world/entity/RelativeMovement	ROTATION	Ljava/util/Set;	25	Ljava/util/Set<Lnet/minecraft/world/entity/RelativeMovement;>;
+F	net/minecraft/world/entity/RelativeMovement	X	Lnet/minecraft/world/entity/RelativeMovement;	16409	-
+F	net/minecraft/world/entity/RelativeMovement	X_ROT	Lnet/minecraft/world/entity/RelativeMovement;	16409	-
+F	net/minecraft/world/entity/RelativeMovement	Y	Lnet/minecraft/world/entity/RelativeMovement;	16409	-
+F	net/minecraft/world/entity/RelativeMovement	Y_ROT	Lnet/minecraft/world/entity/RelativeMovement;	16409	-
+F	net/minecraft/world/entity/RelativeMovement	Z	Lnet/minecraft/world/entity/RelativeMovement;	16409	-
+M	net/minecraft/world/entity/RelativeMovement	pack	(Ljava/util/Set;)I	9	(Ljava/util/Set<Lnet/minecraft/world/entity/RelativeMovement;>;)I
+M	net/minecraft/world/entity/RelativeMovement	unpack	(I)Ljava/util/Set;	9	(I)Ljava/util/Set<Lnet/minecraft/world/entity/RelativeMovement;>;
 C	net/minecraft/world/entity/ReputationEventHandler	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/Saddleable	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/Shearable	1537	java/lang/Object	-	-	-	paper-server-1.21.1
@@ -512,6 +554,12 @@ M	net/minecraft/world/entity/animal/Turtle	<init>	(Lnet/minecraft/world/entity/E
 C	net/minecraft/world/entity/animal/WaterAnimal	1057	net/minecraft/world/entity/PathfinderMob	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/animal/Wolf	33	net/minecraft/world/entity/TamableAnimal	net/minecraft/world/entity/NeutralMob,net/minecraft/world/entity/VariantHolder	Lnet/minecraft/world/entity/TamableAnimal;Lnet/minecraft/world/entity/NeutralMob;Lnet/minecraft/world/entity/VariantHolder<Lnet/minecraft/core/Holder<Lnet/minecraft/world/entity/animal/WolfVariant;>;>;	-	paper-server-1.21.1
 M	net/minecraft/world/entity/animal/Wolf	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/Wolf;>;Lnet/minecraft/world/level/Level;)V
+C	net/minecraft/world/entity/animal/WolfVariant	49	java/lang/Object	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/animal/WolfVariant	<init>	(Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/core/HolderSet;)V	1	(Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/core/HolderSet<Lnet/minecraft/world/level/biome/Biome;>;)V
+M	net/minecraft/world/entity/animal/WolfVariant	angryTexture	()Lnet/minecraft/resources/ResourceLocation;	1	-
+M	net/minecraft/world/entity/animal/WolfVariant	biomes	()Lnet/minecraft/core/HolderSet;	1	()Lnet/minecraft/core/HolderSet<Lnet/minecraft/world/level/biome/Biome;>;
+M	net/minecraft/world/entity/animal/WolfVariant	tameTexture	()Lnet/minecraft/resources/ResourceLocation;	1	-
+M	net/minecraft/world/entity/animal/WolfVariant	wildTexture	()Lnet/minecraft/resources/ResourceLocation;	1	-
 C	net/minecraft/world/entity/animal/allay/Allay	33	net/minecraft/world/entity/PathfinderMob	net/minecraft/world/entity/npc/InventoryCarrier,net/minecraft/world/level/gameevent/vibrations/VibrationSystem	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/animal/allay/Allay	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/allay/Allay;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/armadillo/Armadillo	33	net/minecraft/world/entity/animal/Animal	-	-	-	paper-server-1.21.1
@@ -692,6 +740,19 @@ C	net/minecraft/world/entity/npc/InventoryCarrier	1537	java/lang/Object	-	-	-	pa
 C	net/minecraft/world/entity/npc/Npc	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/npc/Villager	33	net/minecraft/world/entity/npc/AbstractVillager	net/minecraft/world/entity/ReputationEventHandler,net/minecraft/world/entity/npc/VillagerDataHolder	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/npc/Villager	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/npc/Villager;>;Lnet/minecraft/world/level/Level;)V
+C	net/minecraft/world/entity/npc/VillagerData	33	java/lang/Object	-	-	-	paper-server-1.21.1
+F	net/minecraft/world/entity/npc/VillagerData	MAX_VILLAGER_LEVEL	I	25	-
+F	net/minecraft/world/entity/npc/VillagerData	MIN_VILLAGER_LEVEL	I	25	-
+M	net/minecraft/world/entity/npc/VillagerData	<init>	(Lnet/minecraft/world/entity/npc/VillagerType;Lnet/minecraft/world/entity/npc/VillagerProfession;I)V	1	-
+M	net/minecraft/world/entity/npc/VillagerData	canLevelUp	(I)Z	9	-
+M	net/minecraft/world/entity/npc/VillagerData	getLevel	()I	1	-
+M	net/minecraft/world/entity/npc/VillagerData	getMaxXpPerLevel	(I)I	9	-
+M	net/minecraft/world/entity/npc/VillagerData	getMinXpPerLevel	(I)I	9	-
+M	net/minecraft/world/entity/npc/VillagerData	getProfession	()Lnet/minecraft/world/entity/npc/VillagerProfession;	1	-
+M	net/minecraft/world/entity/npc/VillagerData	getType	()Lnet/minecraft/world/entity/npc/VillagerType;	1	-
+M	net/minecraft/world/entity/npc/VillagerData	setLevel	(I)Lnet/minecraft/world/entity/npc/VillagerData;	1	-
+M	net/minecraft/world/entity/npc/VillagerData	setProfession	(Lnet/minecraft/world/entity/npc/VillagerProfession;)Lnet/minecraft/world/entity/npc/VillagerData;	1	-
+M	net/minecraft/world/entity/npc/VillagerData	setType	(Lnet/minecraft/world/entity/npc/VillagerType;)Lnet/minecraft/world/entity/npc/VillagerData;	1	-
 C	net/minecraft/world/entity/npc/VillagerDataHolder	1537	java/lang/Object	net/minecraft/world/entity/VariantHolder	Ljava/lang/Object;Lnet/minecraft/world/entity/VariantHolder<Lnet/minecraft/world/entity/npc/VillagerType;>;	-	paper-server-1.21.1
 C	net/minecraft/world/entity/npc/VillagerProfession	65585	java/lang/Record	-	-	-	paper-server-1.21.1
 R	net/minecraft/world/entity/npc/VillagerProfession	name	Ljava/lang/String;	-
@@ -701,8 +762,36 @@ R	net/minecraft/world/entity/npc/VillagerProfession	requestedItems	Lcom/google/c
 R	net/minecraft/world/entity/npc/VillagerProfession	secondaryPoi	Lcom/google/common/collect/ImmutableSet;	Lcom/google/common/collect/ImmutableSet<Lnet/minecraft/world/level/block/Block;>;
 R	net/minecraft/world/entity/npc/VillagerProfession	workSound	Lnet/minecraft/sounds/SoundEvent;	-
 X	net/minecraft/world/entity/npc/VillagerProfession	toString
+C	net/minecraft/world/entity/npc/VillagerType	49	java/lang/Object	-	-	-	paper-server-1.21.1
+F	net/minecraft/world/entity/npc/VillagerType	DESERT	Lnet/minecraft/world/entity/npc/VillagerType;	25	-
+F	net/minecraft/world/entity/npc/VillagerType	JUNGLE	Lnet/minecraft/world/entity/npc/VillagerType;	25	-
+F	net/minecraft/world/entity/npc/VillagerType	PLAINS	Lnet/minecraft/world/entity/npc/VillagerType;	25	-
+F	net/minecraft/world/entity/npc/VillagerType	SAVANNA	Lnet/minecraft/world/entity/npc/VillagerType;	25	-
+F	net/minecraft/world/entity/npc/VillagerType	SNOW	Lnet/minecraft/world/entity/npc/VillagerType;	25	-
+F	net/minecraft/world/entity/npc/VillagerType	SWAMP	Lnet/minecraft/world/entity/npc/VillagerType;	25	-
+F	net/minecraft/world/entity/npc/VillagerType	TAIGA	Lnet/minecraft/world/entity/npc/VillagerType;	25	-
+M	net/minecraft/world/entity/npc/VillagerType	byBiome	(Lnet/minecraft/core/Holder;)Lnet/minecraft/world/entity/npc/VillagerType;	9	(Lnet/minecraft/core/Holder<Lnet/minecraft/world/level/biome/Biome;>;)Lnet/minecraft/world/entity/npc/VillagerType;
 C	net/minecraft/world/entity/npc/WanderingTrader	33	net/minecraft/world/entity/npc/AbstractVillager	-	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/npc/WanderingTrader	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/npc/WanderingTrader;>;Lnet/minecraft/world/level/Level;)V
+C	net/minecraft/world/entity/player/Abilities	33	java/lang/Object	-	-	-	paper-server-1.21.1
+F	net/minecraft/world/entity/player/Abilities	flying	Z	1	-
+F	net/minecraft/world/entity/player/Abilities	flyingSpeed	F	1	-
+F	net/minecraft/world/entity/player/Abilities	instabuild	Z	1	-
+F	net/minecraft/world/entity/player/Abilities	invulnerable	Z	1	-
+F	net/minecraft/world/entity/player/Abilities	mayBuild	Z	1	-
+F	net/minecraft/world/entity/player/Abilities	mayfly	Z	1	-
+F	net/minecraft/world/entity/player/Abilities	walkingSpeed	F	1	-
+M	net/minecraft/world/entity/player/Abilities	<init>	()V	1	-
+M	net/minecraft/world/entity/player/Abilities	getFlyingSpeed	()F	1	-
+M	net/minecraft/world/entity/player/Abilities	getWalkingSpeed	()F	1	-
+C	net/minecraft/world/entity/player/ChatVisiblity	16433	java/lang/Enum	net/minecraft/util/OptionEnum	Ljava/lang/Enum<Lnet/minecraft/world/entity/player/ChatVisiblity;>;Lnet/minecraft/util/OptionEnum;	-	paper-server-1.21.1
+E	net/minecraft/world/entity/player/ChatVisiblity	3
+F	net/minecraft/world/entity/player/ChatVisiblity	FULL	Lnet/minecraft/world/entity/player/ChatVisiblity;	16409	-
+F	net/minecraft/world/entity/player/ChatVisiblity	HIDDEN	Lnet/minecraft/world/entity/player/ChatVisiblity;	16409	-
+F	net/minecraft/world/entity/player/ChatVisiblity	SYSTEM	Lnet/minecraft/world/entity/player/ChatVisiblity;	16409	-
+M	net/minecraft/world/entity/player/ChatVisiblity	byId	(I)Lnet/minecraft/world/entity/player/ChatVisiblity;	9	-
+M	net/minecraft/world/entity/player/ChatVisiblity	getId	()I	1	-
+M	net/minecraft/world/entity/player/ChatVisiblity	getKey	()Ljava/lang/String;	1	-
 C	net/minecraft/world/entity/player/Player	1057	net/minecraft/world/entity/LivingEntity	-	-	-	paper-server-1.21.1
 F	net/minecraft/world/entity/player/Player	DATA_PLAYER_MAIN_HAND	Lnet/minecraft/network/syncher/EntityDataAccessor;	28	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Byte;>;
 F	net/minecraft/world/entity/player/Player	DATA_PLAYER_MODE_CUSTOMISATION	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Byte;>;
@@ -1642,6 +1731,8 @@ H	net/minecraft/commands/CommandSource	sendSystemMessage	(Lnet/minecraft/network
 H	net/minecraft/commands/CommandSource	shouldInformAdmins	()Z	1025	-
 H	net/minecraft/network/protocol/Packet	handle	(Lnet/minecraft/network/PacketListener;)V	1025	(TT;)V
 H	net/minecraft/network/protocol/Packet	type	()Lnet/minecraft/network/protocol/PacketType;	1025	()Lnet/minecraft/network/protocol/PacketType<+Lnet/minecraft/network/protocol/Packet<TT;>;>;
+H	net/minecraft/util/OptionEnum	getId	()I	1025	-
+H	net/minecraft/util/OptionEnum	getKey	()Ljava/lang/String;	1025	-
 H	net/minecraft/util/RandomSource	fork	()Lnet/minecraft/util/RandomSource;	1025	-
 H	net/minecraft/util/RandomSource	forkPositional	()Lnet/minecraft/world/level/levelgen/PositionalRandomFactory;	1025	-
 H	net/minecraft/util/RandomSource	nextBoolean	()Z	1025	-

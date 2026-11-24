@@ -11,7 +11,7 @@ import net.minecraft.world.level.biome.Biome;
  * 값은 데이터 팩 레지스트리 {@code minecraft:wolf_variant}({@link org.domi.furnace.compat.nms.NmsVariants#wolves()}) 의 것이다.
  * 코덱은 두지 않았다(레지스트리는 서버 시작 때 얼어 있다).
  */
-public final class WolfVariant {
+class WolfVariant {
 
     private final ResourceLocation wild;
     private final ResourceLocation tame;
