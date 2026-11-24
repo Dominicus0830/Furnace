@@ -1177,6 +1177,7 @@ public abstract non-sealed class Entity implements Rider {
         if (removalReason.shouldDestroy()) stopRidingForced(this);
         if (!passengers.isEmpty()) for (Rider r : passengers) stopRidingForced(r);
         if (level != null) level.entityRemoved(this);
+        entityData().unwatch();   // 플러그인 칸 보기(D5): 빠진 엔티티의 사본 갱신을 멈춘다
     }
 
     // ------------------------------------------------------------------ 이동(바닐라 Entity.move)
