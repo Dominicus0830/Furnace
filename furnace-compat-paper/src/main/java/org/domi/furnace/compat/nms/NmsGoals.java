@@ -27,23 +27,45 @@ public final class NmsGoals {
     /** 생성기 전용 생성자로 실어 보내는 재료(감싼 목표면 우선순위·안의 목표 shim 도). */
     public record Made(Backing backing, int priority, Goal inner) {}
 
+    /** 바닐라 목표 생성자가 만든 서버 목표(M2b) — 그 shim 을 만들며 서버 목표의 보기로 붙인다. */
+    public record Fresh(Backing backing) {}
+
     /** 선택기 shim 의 재료. */
     public record SelectorOf(Mob mob, boolean targets) {}
 
-    public static final String M2_HINT = "goals made with a vanilla goal constructor and plugin-made wrapped goals are not supported yet - mob goals step M2b";
+    public static final String M2_HINT = "plugin-made wrapped goals are not supported yet - mob goals step M2b-2";
 
-    /** 선택기에 넣을 서버 목표(주인 스레드에서만): 서버 목표를 보는 shim 이면 그 서버 목표, 플러그인이 상속한 목표면 서버 어댑터(M2a). */
-    public static Object serverGoal(ChunkInternals.MobGoals g, Goal goal) {
-        Backing b = goal.furnaceBacking();
-        if (b != null) return b.server();
-        Class<?> vanilla = vanillaAncestor(goal.getClass());
-        if (vanilla != Goal.class) {
-            // 바닐라 목표 클래스(생성자로 만든 것)나 그것을 상속한 플러그인 클래스 — Goal 을 바로 상속한 것만 서버 어댑터로 넣는다
-            String why = vanilla == goal.getClass() ? M2_HINT
-                    : "goal " + goal.getClass().getName() + " extends the vanilla goal " + vanilla.getName() + " - plugin classes that extend vanilla goals are task T-237";
-            throw new UnsupportedNmsCall("GoalSelector#addGoal", why);
+    /** M2b-2 로 미룬 바닐라 목표 생성자. */
+    public static final String M2B2_HINT = "this vanilla goal constructor is not supported yet - mob goals step M2b-2";
+
+    /**
+     * 선택기 {@code mob} 에 넣을 서버 목표(주인 스레드에서만). 서버 목표를 보는 shim 이면 그 서버 목표, {@code Goal} 을 바로 상속한 플러그인 목표면 서버 어댑터(M2a).
+     * 바닐라 목표 클래스를 상속한 플러그인 클래스는 서버 목표를 가졌어도 재정의가 무시되므로 거부한다(T-237). 다른 몹의 목표도 거부한다(넣은 뒤 두 몹이 다른
+     * region 으로 갈라지면 스레드 규칙이 깨진다 — 보충 설계 2).
+     */
+    public static Object serverGoal(Mob mob, ChunkInternals.MobGoals g, Goal goal) {
+        Class<?> c = goal.getClass();
+        boolean shim = c == ServerGoal.class || c.getName().startsWith("net.minecraft.");
+        if (!shim) {
+            Class<?> vanilla = vanillaAncestor(c);
+            if (vanilla != Goal.class) {
+                throw new UnsupportedNmsCall("GoalSelector#addGoal",
+                        "goal " + c.getName() + " extends the vanilla goal " + vanilla.getName() + " - plugin classes that extend vanilla goals are task T-237");
+            }
+            return g.adopt(new NmsPluginGoal(goal));
         }
-        return g.adopt(new NmsPluginGoal(goal));
+        Backing b = goal.furnaceBacking();
+        if (b == null) throw new UnsupportedNmsCall("GoalSelector#addGoal", M2_HINT);
+        if (b.mob() != mob && !sameEntity(b.mob(), mob)) {
+            throw new UnsupportedNmsCall("GoalSelector#addGoal", "the goal " + c.getName() + " was made for another mob - a goal can only be added to the mob it was made for");
+        }
+        return b.server();
+    }
+
+    private static boolean sameEntity(Mob a, Mob b) {
+        var ha = a.furnaceHandleOrNull();
+        var hb = b.furnaceHandleOrNull();
+        return ha != null && hb != null && ha.uniqueId().equals(hb.uniqueId());
     }
 
     /** 가장 가까운 바닐라(shim) 조상 클래스 — 플러그인 클래스를 건너뛴다. */
@@ -60,6 +82,7 @@ public final class NmsGoals {
     /** 생성기 전용 생성자의 재료에서 서버 재료(목표 shim 사슬 맨 위 {@code Goal} 이 부른다). */
     public static Backing backing(ShimCtor tag) {
         if (tag.payload() instanceof Made m) return m.backing();
+        if (tag.payload() instanceof Fresh f) return f.backing();
         throw new IllegalArgumentException("goal shim made without a server goal: " + tag.payload());
     }
 
@@ -201,5 +224,68 @@ public final class NmsGoals {
 
     public static boolean canBeReplacedBy(Backing b, Backing other) {
         return on(b.mob(), "WrappedGoal#canBeReplacedBy", g -> g.canBeReplacedBy(b.server(), other.server()));
+    }
+
+    // ------------------------------------------------------------------ 바닐라 목표 생성자(M2b)
+
+    /**
+     * 바닐라 목표 생성자의 몸통: 생성자 몹의 주인 스레드에서 서버 목표를 바로 만든다(바닐라 생성자의 즉시 부작용·검사 예외가 그 시점에 난다).
+     * {@code args} 는 몹 다음 매개변수 — 엔티티 클래스는 {@link #targets} 로 옮긴다.
+     */
+    public static ShimCtor vanilla(Mob mob, String vanillaClass, Object... args) {
+        String what = vanillaClass + "#<init>";
+        Object[] a = args.clone();
+        for (int i = 0; i < a.length; i++) if (a[i] instanceof Class<?> c) a[i] = targets(what, c);
+        Object server;
+        try {
+            server = on(mob, what, g -> g.vanillaGoal(vanillaClass, a));
+        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException e) {
+            throw new org.domi.furnace.api.concurrent.ThreadOwnershipException(e.getMessage() + " - make vanilla goals in the region of their mob");
+        }
+        if (server == null) throw new UnsupportedNmsCall(what, M2B2_HINT);
+        return ShimCtor.carrying(new Fresh(new Backing(mob, server)));
+    }
+
+    /** M2b-2 로 미룬 바닐라 목표 생성자의 몸통(늘 던진다 — super 인자 자리에서 부른다). */
+    public static ShimCtor unsupported(String what) { throw new UnsupportedNmsCall(what, M2B2_HINT); }
+
+    /** 생성자로 만든 목표 shim 을 그 서버 목표의 보기로 붙인다(목표 shim 사슬 맨 위 {@code Goal} 생성자가 부른다 — 아직 어느 선택기에도 없다). */
+    public static void bindFresh(Goal self, ShimCtor tag) {
+        if (!(tag.payload() instanceof Fresh f)) return;
+        on(f.backing().mob(), "Goal#<init>", g -> {
+            g.setView(f.backing().server(), self);
+            return null;
+        });
+    }
+
+    private static final String PLAYER_CLASS = "net.minecraft.server.level.ServerPlayer";
+
+    /** 클래스 → 서버 대상(플레이어만, 또는 플레이어 없는 종류 집합). 플레이어와 다른 종류가 함께 맞으면(사실상 LivingEntity) 거부. */
+    private static final ClassValue<Object> TARGETS = new ClassValue<>() {
+        @Override
+        protected Object computeValue(Class<?> c) {
+            boolean players = isAncestorOf(c, PLAYER_CLASS);
+            java.util.Set<String> types = new java.util.TreeSet<>();
+            for (var e : NmsKinds.entityClasses().entrySet()) if (isAncestorOf(c, e.getValue())) types.add(e.getKey());
+            if (players && !types.isEmpty()) {
+                return "the entity class " + c.getName() + " matches players and other entities together - not supported (players are searched separately on this server)";
+            }
+            return new ChunkInternals.GoalTargets(players, java.util.Set.copyOf(types));
+        }
+    };
+
+    private static boolean isAncestorOf(Class<?> c, String name) {
+        try {
+            return c.isAssignableFrom(Class.forName(name, false, NmsGoals.class.getClassLoader()));
+        } catch (ClassNotFoundException e) {
+            return false;
+        }
+    }
+
+    /** 바닐라 목표 생성자의 엔티티 클래스 매개변수(보충 설계 3). */
+    public static ChunkInternals.GoalTargets targets(String what, Class<?> c) {
+        Object t = TARGETS.get(c);
+        if (t instanceof ChunkInternals.GoalTargets g) return g;
+        throw new UnsupportedNmsCall(what, (String) t);
     }
 }

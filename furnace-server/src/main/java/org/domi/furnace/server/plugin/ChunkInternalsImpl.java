@@ -1026,6 +1026,16 @@ final class ChunkInternalsImpl implements ChunkInternals {
         }
 
         @Override
+        public Object vanillaGoal(String vanillaClass, Object... args) {
+            check();
+            Object[] a = args.clone();
+            for (int i = 0; i < a.length; i++) {
+                if (a[i] instanceof GoalTargets t) a[i] = new CompatVanillaGoals.Targets(t.playersOnly(), t.types());
+            }
+            return CompatVanillaGoals.create(mob, vanillaClass, a);
+        }
+
+        @Override
         public Object adopt(GoalCallbacks callbacks) {
             check();
             return new CompatGoal(mob, callbacks);
