@@ -1012,9 +1012,11 @@ public interface ChunkInternals {
     /**
      * 바닐라 목표 생성자의 아이템 판정 매개변수(예 TemptGoal, 몹 목표 설계 M2b-2). {@code test} 가 null 이면 아이템 종류 이름이 {@code items} 안인 스택
      * ({@code items} 가 비었으면 빈 스택만 — 바닐라 빈 Ingredient). 아니면 그 판정을 주인 스레드에서 API 스택으로 부른다(플러그인 코드 — 예외면 로그 한 번 뒤
-     * 늘 거짓). {@code owner} 는 로그에 쓸 플러그인 이름.
+     * 늘 거짓). {@code owner} 는 로그에 쓸 플러그인 이름, {@code alive} 는 그 플러그인이 켜져 있는가(null 이면 늘 참) — 꺼지면 판정을 부르지 않고 그 목표가
+     * 몹의 선택기에서 빠진다. 판정을 여러 몹이 나눠 쓰면 서로 다른 region 스레드가 동시에 부를 수 있다.
      */
-    record GoalItems(java.util.Set<String> items, java.util.function.Predicate<org.domi.furnace.api.item.ItemStack> test, String owner) {}
+    record GoalItems(java.util.Set<String> items, java.util.function.Predicate<org.domi.furnace.api.item.ItemStack> test, String owner,
+                     java.util.function.BooleanSupplier alive) {}
 
     /** 플러그인 목표 하나의 콜백(몹 목표 설계 M2a). 모두 그 몹의 주인 스레드에서 불린다. */
     interface GoalCallbacks {

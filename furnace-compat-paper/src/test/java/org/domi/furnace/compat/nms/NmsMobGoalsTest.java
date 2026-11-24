@@ -392,4 +392,34 @@ class NmsMobGoalsTest {
             remove(m);
         }
     }
+
+    /** PR 623 검토: 판정을 올린 플러그인이 꺼지면 판정을 부르지 않고 그 목표가 몹에서 빠진다(틱이 깨지지 않는다). */
+    @Test
+    void temptItemTestOfADisabledPluginIsDropped() {
+        Mob m = spawnChicken(-1.5);
+        try {
+            m.goalSelector.removeAllGoals(g -> true);
+            var alive = new java.util.concurrent.atomic.AtomicBoolean(true);
+            var calls = new java.util.concurrent.atomic.AtomicInteger();
+            var items = new org.domi.furnace.api.internal.ChunkInternals.GoalItems(java.util.Set.of(), st -> {
+                calls.incrementAndGet();
+                return false;
+            }, "test", alive::get);
+            var s = serverMob(m);
+            on(() -> {
+                var g = NmsChunks.bridge().mobGoals(((CraftEntity) m.getBukkitEntity()).furnaceHandle());
+                g.addGoal(false, 3, g.vanillaGoal("TemptGoal", 1.0, items, false));
+                return null;
+            });
+            server.tick(3);
+            assertTrue(calls.get() > 0, "켜져 있으면 판정을 부른다");
+            alive.set(false);
+            int before = calls.get();
+            server.tick(5);
+            assertEquals(before, calls.get(), "꺼지면 부르지 않는다");
+            assertEquals(0, (int) on(() -> s.goalSelector().getAvailableGoals().size()), "그 목표는 빠진다");
+        } finally {
+            remove(m);
+        }
+    }
 }

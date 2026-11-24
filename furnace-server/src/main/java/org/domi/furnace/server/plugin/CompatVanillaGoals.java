@@ -81,7 +81,10 @@ final class CompatVanillaGoals {
             case "NearestAttackableTargetGoal(TZ)" -> nearest(mob, t(a, 0), z(a, 1), false);
             case "NearestAttackableTargetGoal(TZZ)" -> nearest(mob, t(a, 0), z(a, 1), z(a, 2));
             case "HurtByTargetGoal" -> new HurtByTargetGoal(pathfinder(mob));
-            case "TemptGoal(DPZ)" -> new TemptGoal(pathfinder(mob), d(a, 0), items(p(a, 1)), z(a, 2));
+            case "TemptGoal(DPZ)" -> {
+                Goal[] self = {null};
+                yield self[0] = new TemptGoal(pathfinder(mob), d(a, 0), items(mob, self, p(a, 1)), z(a, 2));
+            }
             default -> null;
         };
     }
@@ -144,20 +147,33 @@ final class CompatVanillaGoals {
 
     private static org.domi.furnace.api.internal.ChunkInternals.GoalItems p(Object[] a, int i) { return (org.domi.furnace.api.internal.ChunkInternals.GoalItems) a[i]; }
 
-    /** 아이템 판정: 종류 집합이면 서버에서 바로, 플러그인 판정이면 API 스택으로(예외면 로그 한 번 뒤 늘 거짓 — 그 목표만 멈춘다). */
-    static Predicate<ItemStack> items(org.domi.furnace.api.internal.ChunkInternals.GoalItems g) {
+    /**
+     * 아이템 판정: 종류 집합이면 서버에서 바로, 플러그인 판정이면 API 스택으로(예외면 로그 한 번 뒤 늘 거짓 — 그 목표만 멈춘다). 플러그인이 꺼졌으면 판정을 부르지 않고
+     * 거짓이며, 그 목표({@code self})를 몹의 두 선택기에서 뺀다(M2a 어댑터와 같다 — 닫힌 클래스 로더의 코드를 부르지 않는다).
+     */
+    static Predicate<ItemStack> items(Mob mob, Goal[] self, org.domi.furnace.api.internal.ChunkInternals.GoalItems g) {
         if (g.test() == null) {
             Set<String> ids = Set.copyOf(g.items());
             if (ids.isEmpty()) return ItemStack::isEmpty;
             return s -> !s.isEmpty() && ids.contains(org.domi.furnace.server.item.ItemTools.itemName(s));
         }
         var test = g.test();
+        var alive = g.alive();
         boolean[] broken = {false};
         return s -> {
             if (broken[0]) return false;
+            if (alive != null && !alive.getAsBoolean()) {
+                broken[0] = true;
+                Goal goal = self[0];
+                if (goal != null) {
+                    mob.goalSelector().removeGoalsMatching(x -> x == goal);
+                    mob.targetSelector().removeGoalsMatching(x -> x == goal);
+                }
+                return false;
+            }
             try {
                 return test.test(ChunkInternalsImpl.apiItem(s));
-            } catch (RuntimeException ex) {
+            } catch (RuntimeException | LinkageError ex) {
                 broken[0] = true;
                 LOG.warn(org.domi.furnace.server.i18n.Lang.t("goal.item-test-threw", g.owner(), test.getClass().getName()), ex);
                 return false;
