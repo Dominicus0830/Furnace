@@ -13,12 +13,12 @@ import org.domi.furnace.api.nbt.NbtCompound;
 import org.domi.furnace.api.nbt.NbtList;
 import org.domi.furnace.api.nbt.Snbt;
 
-final class ItemNbtCodec {
+public final class ItemNbtCodec {
 
     private ItemNbtCodec() {}
 
     /** Items 목록 → 칸 size 개(없는 칸·이상한 항목은 EMPTY — 바닐라 loadAllItems 처럼 그 칸만 건너뛴다). */
-    static List<ItemStack> readItems(NbtCompound blockEntity, int size) {
+    public static List<ItemStack> readItems(NbtCompound blockEntity, int size) {
         List<ItemStack> out = new ArrayList<>(size);
         for (int i = 0; i < size; i++) out.add(ItemStack.EMPTY);
         for (Object o : blockEntity.getList("Items").values()) {
@@ -36,7 +36,7 @@ final class ItemNbtCodec {
     }
 
     /** 칸 → Items 목록(비지 않은 칸만, 칸 번호 순 — ContainerHelper.saveAllItems). */
-    static NbtList writeItems(List<ItemStack> slots) {
+    public static NbtList writeItems(List<ItemStack> slots) {
         NbtList list = new NbtList();
         for (int i = 0; i < slots.size(); i++) {
             ItemStack s = slots.get(i);
