@@ -84,7 +84,6 @@ class-kind	net/minecraft/world/level/dimension/DimensionType	-	shim=class ref=re
 class-kind	net/minecraft/world/level/levelgen/feature/ConfiguredFeature	-	shim=class ref=record	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-kind	net/minecraft/world/level/levelgen/placement/PlacedFeature	-	shim=class ref=record	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	net/minecraft/advancements/AdvancementHolder	<init>()V	기준=#0f65f18519d5	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-descriptor	net/minecraft/core/GlobalPos	<init>()V	기준=#53334c18797f	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	net/minecraft/core/Holder$Reference	<init>(Lnet/minecraft/resources/ResourceKey;Ljava/lang/Object;)V	기준=#049116d561e2	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	net/minecraft/core/RegistrySynchronization$PackedRegistryEntry	<init>()V	기준=#1639896fa0cb	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	net/minecraft/network/Connection	<init>()V	기준=#919097418d2a	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -405,7 +404,6 @@ descriptor	org/bukkit/craftbukkit/tag/CraftTag	<init>(Lorg/domi/furnace/compat/p
 member-access	net/minecraft/advancements/AdvancementHolder	equals(Ljava/lang/Object;)Z	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 member-access	net/minecraft/advancements/AdvancementHolder	hashCode()I	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 member-access	net/minecraft/advancements/AdvancementHolder	toString()Ljava/lang/String;	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-member-access	net/minecraft/core/GlobalPos	toString()Ljava/lang/String;	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 member-access	net/minecraft/nbt/CollectionTag	<init>()V	shim 이 덜 열려 있다	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 member-access	net/minecraft/network/protocol/game/ServerboundMovePlayerPacket	hasPos : Z	shim 이 덜 열려 있다	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 member-access	net/minecraft/network/protocol/game/ServerboundMovePlayerPacket	hasRot : Z	shim 이 덜 열려 있다	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다

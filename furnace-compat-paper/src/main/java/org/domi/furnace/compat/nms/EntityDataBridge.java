@@ -21,8 +21,8 @@ import net.minecraft.network.syncher.SynchedEntityData;
  * (byte, optional_component, item_stack …). 두 방향 모두 값마다 바꾸고, 바꾸지 못하는 종류가 하나라도 있으면 패킷 전체를
  * {@link UnsupportedNmsCall} 로 거절한다(일부 칸만 버리면 클라이언트가 보는 엔티티 모양이 Paper 와 달라진다).
  *
- * <p>아직 못 하는 종류: particle·particles(입자 shim 이 빈 껍데기),
- * optional_global_pos. vector3·quaternion 은 JOML 값(서버 라이브러리 묶음)과 Furnace 불변 레코드 사이를 성분 그대로 옮긴다.
+ * <p>바닐라 1.21.1 의 값 종류 31개를 모두 바꾼다. vector3·quaternion 은 JOML 값(서버 라이브러리 묶음)과 Furnace 불변 레코드 사이를 성분 그대로 옮기고,
+ * particle·particles 는 {@link NmsParticles} 를 지난다(진동 입자만 아직 UnsupportedNmsCall).
  */
 final class EntityDataBridge {
 
@@ -90,19 +90,21 @@ final class EntityDataBridge {
             case "pose" -> org.domi.furnace.api.entity.Pose.byId(((net.minecraft.world.entity.Pose) v).id());
             case "sniffer_state" -> ((net.minecraft.world.entity.animal.sniffer.Sniffer.State) v).name().toLowerCase(Locale.ROOT);
             case "armadillo_state" -> ((net.minecraft.world.entity.animal.armadillo.Armadillo.ArmadilloState) v).name().toLowerCase(Locale.ROOT);
-            case "particles" -> emptyParticles(v, "set_entity_data(particles)");   // 살아 있는 엔티티의 효과 입자 칸: 빈 목록만(입자 shim 은 설계 D4)
+            case "particle" -> NmsParticles.toApi((net.minecraft.core.particles.ParticleOptions) v, at);
+            case "particles" -> ((List<?>) v).stream().map(o -> NmsParticles.toApi((net.minecraft.core.particles.ParticleOptions) o, at)).toList();
             case "villager_data" -> villagerData((net.minecraft.world.entity.npc.VillagerData) v);
             case "cat_variant" -> NmsVariants.name(NmsVariants.cats(), cast(v), at);
             case "frog_variant" -> NmsVariants.name(NmsVariants.frogs(), cast(v), at);
             case "wolf_variant" -> NmsVariants.name(NmsVariants.wolves(), cast(v), at);
             case "painting_variant" -> NmsVariants.name(NmsVariants.paintings(), cast(v), at);
+            case "optional_global_pos" -> ((Optional<?>) v).map(g -> ((net.minecraft.core.GlobalPos) g).furnace());
             case "vector3" -> { org.joml.Vector3f f = (org.joml.Vector3f) v; yield new org.domi.furnace.api.math.Vector3f(f.x, f.y, f.z); }
             case "quaternion" -> { org.joml.Quaternionf q = (org.joml.Quaternionf) v; yield new org.domi.furnace.api.math.Quaternionf(q.x, q.y, q.z, q.w); }
             default -> throw new UnsupportedNmsCall("set_entity_data(" + name + ")", "this metadata value kind cannot be converted from the shim to Furnace yet");
         };
     }
 
-    private static org.domi.furnace.api.world.BlockData blockData(Object s, String at) {
+    static org.domi.furnace.api.world.BlockData blockData(Object s, String at) {
         int id = ((net.minecraft.world.level.block.state.BlockState) s).furnaceStateId();
         return org.domi.furnace.api.Furnace.server().blockTypes().byStateId(id)
                 .orElseThrow(() -> new IllegalArgumentException(at + ": unknown block state id " + id));
@@ -142,12 +144,14 @@ final class EntityDataBridge {
             case "pose" -> net.minecraft.world.entity.Pose.byId(((org.domi.furnace.api.entity.Pose) v).id());
             case "sniffer_state" -> net.minecraft.world.entity.animal.sniffer.Sniffer.State.valueOf(((String) v).toUpperCase(Locale.ROOT));
             case "armadillo_state" -> net.minecraft.world.entity.animal.armadillo.Armadillo.ArmadilloState.valueOf(((String) v).toUpperCase(Locale.ROOT));
-            case "particles" -> emptyParticles(v, "fromFurnace(set_entity_data.particles)");
+            case "particle" -> NmsParticles.fromApi((org.domi.furnace.api.particle.Particle) v, at);
+            case "particles" -> ((List<?>) v).stream().map(o -> NmsParticles.fromApi((org.domi.furnace.api.particle.Particle) o, at)).toList();
             case "villager_data" -> villagerData((org.domi.furnace.api.entity.data.VillagerData) v);
             case "cat_variant" -> NmsVariants.holder(NmsVariants.cats(), (String) v, at);
             case "frog_variant" -> NmsVariants.holder(NmsVariants.frogs(), (String) v, at);
             case "wolf_variant" -> NmsVariants.holder(NmsVariants.wolves(), (String) v, at);
             case "painting_variant" -> NmsVariants.holder(NmsVariants.paintings(), (String) v, at);
+            case "optional_global_pos" -> ((Optional<?>) v).map(g -> net.minecraft.core.GlobalPos.fromFurnace((org.domi.furnace.api.world.GlobalPos) g));
             case "vector3" -> { org.domi.furnace.api.math.Vector3f f = (org.domi.furnace.api.math.Vector3f) v; yield new org.joml.Vector3f(f.x(), f.y(), f.z()); }
             case "quaternion" -> { org.domi.furnace.api.math.Quaternionf q = (org.domi.furnace.api.math.Quaternionf) v; yield new org.joml.Quaternionf(q.x(), q.y(), q.z(), q.w()); }
             default -> throw new UnsupportedNmsCall("fromFurnace(set_entity_data." + name + ")", "this metadata value kind cannot be converted back to the shim yet");
@@ -174,10 +178,6 @@ final class EntityDataBridge {
     private static <T> net.minecraft.core.Holder<T> cast(Object v) { return (net.minecraft.core.Holder<T>) v; }
 
     /** 입자 목록은 빈 것만 바꾼다(빈 목록은 두 쪽 모두 같은 값). 입자가 든 목록은 입자 shim 이 생길 때까지 UnsupportedNmsCall(설계 D4). */
-    private static List<?> emptyParticles(Object v, String what) {
-        if (!((List<?>) v).isEmpty()) throw new UnsupportedNmsCall(what, "particle lists that are not empty cannot be converted yet");
-        return List.of();
-    }
 
     /** 이름(소문자 상수 이름) → shim 직렬화 상수(없으면 null). */
     static EntityDataSerializer<?> serializer(String name) { return BY_NAME.get(name); }
@@ -189,18 +189,25 @@ final class EntityDataBridge {
     private static final java.util.Set<String> BRIDGED = java.util.Set.of("byte", "int", "long", "float", "string", "boolean", "optional_uuid", "optional_unsigned_int", "component", "optional_component",
                 "item_stack", "rotations", "block_pos", "optional_block_pos", "direction", "block_state", "optional_block_state", "compound_tag", "pose",
                 "sniffer_state", "armadillo_state", "villager_data", "cat_variant", "frog_variant", "wolf_variant", "painting_variant",
-                "vector3", "quaternion");
+                "vector3", "quaternion", "optional_global_pos", "particle", "particles");
 
     /** 시험용: 두 방향 모두 되는 값 종류 이름. */
     static List<String> bridgedTypes() { return List.copyOf(new java.util.TreeSet<>(BRIDGED)); }
 
-    /** Furnace → shim 으로 못 바꾸는 첫 값 종류 이름(모두 되면 null, 서버가 읽지 못한 값은 "unknown"). 값은 건드리지 않는다. */
+    /** Furnace → shim 으로 못 바꾸는 첫 값 종류 이름(모두 되면 null, 서버가 읽지 못한 값은 "unknown", 진동 입자 값은 "particle(vibration)" 꼴). 값은 건드리지 않는다. */
     static String unbridgedKind(ClientboundSetEntityDataPacket p) {
         for (ClientboundSetEntityDataPacket.Entry e : p.entries()) {
             EntityDataType<?> type = e.value().dataType();
             if (type == null) return "unknown";
             if (!BRIDGED.contains(type.name()) || !BY_NAME.containsKey(type.name())) return type.name();
+            if (vibration(e.value().asObject())) return type.name() + "(vibration)";   // 종류는 되지만 진동 입자 값만 아직 못 바꾼다
         }
         return null;
+    }
+
+    private static boolean vibration(Object v) {
+        if (v instanceof org.domi.furnace.api.particle.Particle.Vibration) return true;
+        if (v instanceof List<?> l) for (Object o : l) if (o instanceof org.domi.furnace.api.particle.Particle.Vibration) return true;
+        return false;
     }
 }
