@@ -88,6 +88,36 @@ class NmsCompatReportReadTest {
                 + java.io.File.pathSeparator + "/no/c");
     }
 
+    private Path jar2(String name, String... contents) throws IOException {
+        Path p = tmp.resolve(name);
+        Manifest man = new Manifest();
+        man.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
+        try (JarOutputStream out = new JarOutputStream(Files.newOutputStream(p), man)) {
+            for (int i = 0; i < contents.length; i++) {
+                out.putNextEntry(new JarEntry("x/C" + i + ".class"));
+                out.write(("Êþ" + contents[i]).getBytes(StandardCharsets.UTF_8));
+                out.closeEntry();
+            }
+        }
+        return p;
+    }
+
+    @Test
+    void fabricSideClassesAreLeftOut() throws Exception {
+        // Fabric 모드 + Bukkit 플러그인 한 jar(TPS HUD): Fabric 쪽 클래스는 Paper 에서 안 올라가므로 대응표 판정·보고 후보에서 뺀다
+        var r = NmsCompatReport.read(jar2("f.jar", "org/bukkit/plugin/java/JavaPlugin",
+                "net/minecraft/server/MinecraftServer net/minecraft/class_3324 method_3760",
+                "net/minecraft/server/MinecraftServer net/fabricmc/api/ModInitializer"));
+        assertFalse(r.needsSpigotMappings(), "Fabric 쪽만 NMS 를 가리키면 대응표가 필요 없다");
+        assertTrue(r.candidates().isEmpty(), "Fabric 쪽 클래스는 보고 후보가 아니다");
+        assertEquals(3, r.own().size(), "자기 클래스 목록에는 남는다");
+        assertEquals(0, NmsCompatReport.analyze("F", r, NmsSymbols.RUNTIME, null).symbols());
+        // 숫자가 아닌 class_ 이름은 Fabric 중간 이름이 아니다
+        assertTrue(NmsCompatReport.read(jar2("g.jar", "net/minecraft/class_Foo")).needsSpigotMappings());
+        assertTrue(NmsCompatReport.fabricSide("net/minecraft/class_310".getBytes(StandardCharsets.UTF_8)));
+        assertFalse(NmsCompatReport.fabricSide("net/minecraft/server/level/ServerPlayer".getBytes(StandardCharsets.UTF_8)));
+    }
+
     @Test
     void scanStillEqualsReadPlusAnalyze() throws Exception {
         Path j = jar("s.jar", null, "net/minecraft/server/level/EntityPlayer");
