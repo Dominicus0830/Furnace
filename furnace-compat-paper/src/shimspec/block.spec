@@ -135,3 +135,11 @@ class net.minecraft.world.level.block.state.properties.WallSide
   TALL = ("tall")
   getSerializedName -> @hand pure
   toString -> @hand pure
+class net.minecraft.world.level.block.entity.trialspawner.TrialSpawnerState
+  INACTIVE = ("inactive")
+  WAITING_FOR_PLAYERS = ("waiting_for_players")
+  ACTIVE = ("active")
+  WAITING_FOR_REWARD_EJECTION = ("waiting_for_reward_ejection")
+  EJECTING_REWARD = ("ejecting_reward")
+  COOLDOWN = ("cooldown")
+  getSerializedName -> @hand pure

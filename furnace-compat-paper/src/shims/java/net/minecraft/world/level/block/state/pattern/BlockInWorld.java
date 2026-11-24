@@ -8,7 +8,7 @@ import net.minecraft.world.level.block.state.BlockState;
  * 월드의 한 칸을 가리키는 값(Mojang 이름 shim) — 명령의 블록 조건이 시험하는 대상이다. 상태는 처음 읽을 때 월드에서 가져와 붙들고, 블록 엔티티·
  * 청크 불러오기 옵션은 두지 않았다(호출 위치에서 실패).
  */
-public class BlockInWorld {
+class BlockInWorld {
 
     private final LevelReader level;
     private final BlockPos pos;

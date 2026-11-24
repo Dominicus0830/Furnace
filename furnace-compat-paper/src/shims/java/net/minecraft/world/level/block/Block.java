@@ -21,7 +21,7 @@ import org.domi.furnace.compat.nms.NmsBlockProperties;
  * 만들고 바닐라 상태 번호와 맞는지 만들 때 확인한다. {@code getId}·{@code stateById}(모르는 번호면 공기)·toString {@code Block{minecraft:stone}}·
  * {@code getDescriptionId} 는 바닐라 {@code dfy} 와 같다. 블록 동작(설치·틱·상호작용)은 서버 안에 있어 두지 않았다.
  */
-public class Block extends BlockBehaviour implements ItemLike {
+class Block {
 
     private final ResourceLocation key;
     private final int baseStateId;
