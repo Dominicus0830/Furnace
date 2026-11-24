@@ -62,6 +62,96 @@ public enum Direction implements net.minecraft.util.StringRepresentable {
         };
     }
 
+    /** 주어진 축을 도는 시계 방향. 축 위의 방향이면 자기 자신. */
+    public Direction getClockWise(Axis axis) {
+        return switch (axis) {
+            case X -> this != WEST && this != EAST ? this.getClockWiseX() : this;
+            case Y -> this != UP && this != DOWN ? this.getClockWise() : this;
+            case Z -> this != NORTH && this != SOUTH ? this.getClockWiseZ() : this;
+        };
+    }
+
+    public Direction getCounterClockWise(Axis axis) {
+        return switch (axis) {
+            case X -> this != WEST && this != EAST ? this.getCounterClockWiseX() : this;
+            case Y -> this != UP && this != DOWN ? this.getCounterClockWise() : this;
+            case Z -> this != NORTH && this != SOUTH ? this.getCounterClockWiseZ() : this;
+        };
+    }
+
+    private Direction getClockWiseX() {
+        return switch (this) {
+            case DOWN -> SOUTH;
+            case UP -> NORTH;
+            case NORTH -> DOWN;
+            case SOUTH -> UP;
+            default -> throw new IllegalStateException("Unable to get X-rotated facing of " + this);
+        };
+    }
+
+    private Direction getCounterClockWiseX() {
+        return switch (this) {
+            case DOWN -> NORTH;
+            case UP -> SOUTH;
+            case NORTH -> UP;
+            case SOUTH -> DOWN;
+            default -> throw new IllegalStateException("Unable to get X-rotated facing of " + this);
+        };
+    }
+
+    private Direction getClockWiseZ() {
+        return switch (this) {
+            case DOWN -> WEST;
+            case UP -> EAST;
+            case WEST -> UP;
+            case EAST -> DOWN;
+            default -> throw new IllegalStateException("Unable to get Z-rotated facing of " + this);
+        };
+    }
+
+    private Direction getCounterClockWiseZ() {
+        return switch (this) {
+            case DOWN -> EAST;
+            case UP -> WEST;
+            case WEST -> DOWN;
+            case EAST -> UP;
+            default -> throw new IllegalStateException("Unable to get Z-rotated facing of " + this);
+        };
+    }
+
+    /** 법선이 (x, y, z) 변화량과 같은 방향(한 축만 0 이 아닐 때), 아니면 null. */
+    public static Direction fromDelta(int x, int y, int z) {
+        if (x == 0) {
+            if (y == 0) {
+                if (z > 0) return SOUTH;
+                if (z < 0) return NORTH;
+            } else if (z == 0) {
+                return y > 0 ? UP : DOWN;
+            }
+        } else if (y == 0 && z == 0) {
+            return x > 0 ? EAST : WEST;
+        }
+        return null;
+    }
+
+    public static Direction getNearest(net.minecraft.world.phys.Vec3 v) { return getNearest(v.x, v.y, v.z); }
+
+    /** 난수 하나로 여섯 방향 중 하나(상수 순서 기준). */
+    public static Direction getRandom(net.minecraft.util.RandomSource random) { return net.minecraft.Util.getRandom(BY_3D, random); }
+
+    /** 여섯 방향을 섞어 복사본으로(난수 호출 순서는 Util.shuffle 과 같다). */
+    public static java.util.Collection<Direction> allShuffled(net.minecraft.util.RandomSource random) { return net.minecraft.Util.shuffledCopy(values(), random); }
+
+    public static java.util.stream.Stream<Direction> stream() { return java.util.stream.Stream.of(values()); }
+
+    /** 바라보는 각도(도)가 이 방향의 앞쪽 반평면 안이면 참. */
+    public boolean isFacingAngle(float yRot) {
+        float f = yRot * 0.017453292F;
+        float g = -net.minecraft.util.Mth.sin(f);
+        float h = net.minecraft.util.Mth.cos(f);
+        return (float) this.normal.getX() * g + (float) this.normal.getZ() * h > 0.0F;
+    }
+
     public int getStepX() { return normal.getX(); }
 
     public int getStepY() { return normal.getY(); }

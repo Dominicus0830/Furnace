@@ -11,6 +11,10 @@ public interface RandomSource {
 
     static RandomSource create(long seed) { return new net.minecraft.world.level.levelgen.LegacyRandomSource(seed); }
 
+    /** 여러 스레드가 함께 쓰는 난수원(바닐라는 쓰지 말라고 표시했다). */
+    @Deprecated
+    static RandomSource createThreadSafe() { return new net.minecraft.world.level.levelgen.ThreadSafeLegacyRandomSource(net.minecraft.world.level.levelgen.RandomSupport.generateUniqueSeed()); }
+
     static RandomSource createNewThreadLocalInstance() {
         return new net.minecraft.world.level.levelgen.SingleThreadedRandomSource(java.util.concurrent.ThreadLocalRandom.current().nextLong());
     }
