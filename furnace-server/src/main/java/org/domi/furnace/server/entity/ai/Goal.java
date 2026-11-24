@@ -9,6 +9,9 @@ public abstract class Goal {
 
     private final EnumSet<Flag> flags = EnumSet.noneOf(Flag.class);
 
+    /** 호환 계층의 NMS 모양 객체(몹 목표 설계 M1 — 서버 목표 하나에 하나). 주인 스레드에서만 읽고 쓴다. */
+    public Object compatView;
+
     public abstract boolean canUse();
 
     public boolean canContinueToUse() { return canUse(); }

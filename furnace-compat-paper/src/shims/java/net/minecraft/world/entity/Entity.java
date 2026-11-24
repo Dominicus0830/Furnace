@@ -659,6 +659,16 @@ class Entity {
         }
     }
 
+    /**
+     * 호환 모듈 전용(몹 목표 설계 M1): 월드에 있는 이 엔티티의 주인 스레드에서 {@code task} 를 돌린다. 규칙은 다른 월드 엔티티 조작과 같다
+     * (주인이면 바로, 틱이 아닌 스레드는 주인을 기다림, 다른 region·전역 스레드는 ThreadOwnershipException). 아직 월드에 없으면 UnsupportedNmsCall.
+     */
+    public <T> T furnaceOnOwner(String what, java.util.function.Function<org.domi.furnace.api.entity.Entity, T> task) {
+        if (detached != null) throw notInWorld(what);
+        var h = f();
+        return org.domi.furnace.compat.nms.NmsEntities.call(furnaceWorld(), h, what, () -> task.apply(h));
+    }
+
     /** 호환 모듈 전용(월드 엔티티 칸 쓰기, D5): 주인 스레드에서 서버 칸 조작 하나. 규칙은 다른 월드 엔티티 조작과 같다. 서버 칸이 바뀌었으면 참. */
     public boolean furnaceDataEdit(String what, org.domi.furnace.api.internal.ChunkInternals.EntityEdit op) { return Boolean.TRUE.equals(furnaceEdit(what, op)); }
 

@@ -8,6 +8,10 @@ public class WrappedGoal extends Goal {
     private final Goal goal;
     private final int priority;
     private boolean isRunning;
+    /** 호환 계층의 NMS 모양 객체(몹 목표 설계 M1). 주인 스레드에서만 읽고 쓴다. */
+    public Object compatView;
+    /** 돌기 도중 빼기로 미뤄진 목표(그 패스의 시작·틱에서 건너뛴다 — 바닐라 집합은 바로 빠진다). */
+    boolean leaving;
 
     public WrappedGoal(int priority, Goal goal) {
         this.priority = priority;

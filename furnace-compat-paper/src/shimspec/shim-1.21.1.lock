@@ -251,6 +251,10 @@ M	net/minecraft/world/entity/LivingEntity	isFallFlying	()Z	1	-
 C	net/minecraft/world/entity/Marker	33	net/minecraft/world/entity/Entity	-	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/Marker	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<*>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/Mob	1057	net/minecraft/world/entity/LivingEntity	net/minecraft/world/entity/EquipmentUser,net/minecraft/world/entity/Leashable,net/minecraft/world/entity/Targeting	-	-	paper-server-1.21.1
+F	net/minecraft/world/entity/Mob	goalSelector	Lnet/minecraft/world/entity/ai/goal/GoalSelector;	1	-
+F	net/minecraft/world/entity/Mob	targetSelector	Lnet/minecraft/world/entity/ai/goal/GoalSelector;	1	-
+M	net/minecraft/world/entity/Mob	isNoAi	()Z	1	-
+M	net/minecraft/world/entity/Mob	setNoAi	(Z)V	1	-
 C	net/minecraft/world/entity/NeutralMob	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/OminousItemSpawner	33	net/minecraft/world/entity/Entity	-	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/OminousItemSpawner	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/OminousItemSpawner;>;Lnet/minecraft/world/level/Level;)V
@@ -272,6 +276,124 @@ C	net/minecraft/world/entity/ai/attributes/AttributeModifier	65585	java/lang/Rec
 R	net/minecraft/world/entity/ai/attributes/AttributeModifier	id	Lnet/minecraft/resources/ResourceLocation;	-
 R	net/minecraft/world/entity/ai/attributes/AttributeModifier	amount	D	-
 R	net/minecraft/world/entity/ai/attributes/AttributeModifier	operation	Lnet/minecraft/world/entity/ai/attributes/AttributeModifier$Operation;	-
+C	net/minecraft/world/entity/ai/goal/AvoidEntityGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	<T:Lnet/minecraft/world/entity/LivingEntity;>Lnet/minecraft/world/entity/ai/goal/Goal;	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/BegGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/BreakDoorGoal	33	net/minecraft/world/entity/ai/goal/DoorInteractGoal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/BreathAirGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/BreedGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/CatLieOnBedGoal	33	net/minecraft/world/entity/ai/goal/MoveToBlockGoal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/CatSitOnBlockGoal	33	net/minecraft/world/entity/ai/goal/MoveToBlockGoal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/ClimbOnTopOfPowderSnowGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/DolphinJumpGoal	33	net/minecraft/world/entity/ai/goal/JumpGoal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/DoorInteractGoal	1057	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/EatBlockGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/FleeSunGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/FloatGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/FollowBoatGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/FollowFlockLeaderGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/FollowMobGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/FollowOwnerGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/FollowParentGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/Goal	1057	java/lang/Object	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/ai/goal/Goal	<init>	()V	1	-
+M	net/minecraft/world/entity/ai/goal/Goal	adjustedTickDelay	(I)I	4	-
+M	net/minecraft/world/entity/ai/goal/Goal	canContinueToUse	()Z	1	-
+M	net/minecraft/world/entity/ai/goal/Goal	canUse	()Z	1025	-
+M	net/minecraft/world/entity/ai/goal/Goal	getFlags	()Lca/spottedleaf/moonrise/common/set/OptimizedSmallEnumSet;	1	()Lca/spottedleaf/moonrise/common/set/OptimizedSmallEnumSet<Lnet/minecraft/world/entity/ai/goal/Goal$Flag;>;
+M	net/minecraft/world/entity/ai/goal/Goal	isInterruptable	()Z	1	-
+M	net/minecraft/world/entity/ai/goal/Goal	reducedTickDelay	(I)I	12	-
+M	net/minecraft/world/entity/ai/goal/Goal	requiresUpdateEveryTick	()Z	1	-
+M	net/minecraft/world/entity/ai/goal/Goal	setFlags	(Ljava/util/EnumSet;)V	1	(Ljava/util/EnumSet<Lnet/minecraft/world/entity/ai/goal/Goal$Flag;>;)V
+M	net/minecraft/world/entity/ai/goal/Goal	start	()V	1	-
+M	net/minecraft/world/entity/ai/goal/Goal	stop	()V	1	-
+M	net/minecraft/world/entity/ai/goal/Goal	tick	()V	1	-
+M	net/minecraft/world/entity/ai/goal/Goal	toString	()Ljava/lang/String;	1	-
+C	net/minecraft/world/entity/ai/goal/Goal$Flag	16433	java/lang/Enum	-	Ljava/lang/Enum<Lnet/minecraft/world/entity/ai/goal/Goal$Flag;>;	16409	paper-server-1.21.1
+E	net/minecraft/world/entity/ai/goal/Goal$Flag	5
+F	net/minecraft/world/entity/ai/goal/Goal$Flag	JUMP	Lnet/minecraft/world/entity/ai/goal/Goal$Flag;	16409	-
+F	net/minecraft/world/entity/ai/goal/Goal$Flag	LOOK	Lnet/minecraft/world/entity/ai/goal/Goal$Flag;	16409	-
+F	net/minecraft/world/entity/ai/goal/Goal$Flag	MOVE	Lnet/minecraft/world/entity/ai/goal/Goal$Flag;	16409	-
+F	net/minecraft/world/entity/ai/goal/Goal$Flag	TARGET	Lnet/minecraft/world/entity/ai/goal/Goal$Flag;	16409	-
+F	net/minecraft/world/entity/ai/goal/Goal$Flag	UNKNOWN_BEHAVIOR	Lnet/minecraft/world/entity/ai/goal/Goal$Flag;	16409	-
+C	net/minecraft/world/entity/ai/goal/GoalSelector	33	java/lang/Object	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/ai/goal/GoalSelector	addGoal	(ILnet/minecraft/world/entity/ai/goal/Goal;)V	1	-
+M	net/minecraft/world/entity/ai/goal/GoalSelector	disableControlFlag	(Lnet/minecraft/world/entity/ai/goal/Goal$Flag;)V	1	-
+M	net/minecraft/world/entity/ai/goal/GoalSelector	enableControlFlag	(Lnet/minecraft/world/entity/ai/goal/Goal$Flag;)V	1	-
+M	net/minecraft/world/entity/ai/goal/GoalSelector	getAvailableGoals	()Ljava/util/Set;	1	()Ljava/util/Set<Lnet/minecraft/world/entity/ai/goal/WrappedGoal;>;
+M	net/minecraft/world/entity/ai/goal/GoalSelector	hasTasks	()Z	1	-
+M	net/minecraft/world/entity/ai/goal/GoalSelector	inactiveTick	()Z	1	-
+M	net/minecraft/world/entity/ai/goal/GoalSelector	removeAllGoals	(Ljava/util/function/Predicate;)V	1	(Ljava/util/function/Predicate<Lnet/minecraft/world/entity/ai/goal/Goal;>;)V
+M	net/minecraft/world/entity/ai/goal/GoalSelector	removeGoal	(Lnet/minecraft/world/entity/ai/goal/Goal;)V	1	-
+M	net/minecraft/world/entity/ai/goal/GoalSelector	setControlFlag	(Lnet/minecraft/world/entity/ai/goal/Goal$Flag;Z)V	1	-
+M	net/minecraft/world/entity/ai/goal/GoalSelector	tick	()V	1	-
+M	net/minecraft/world/entity/ai/goal/GoalSelector	tickRunningGoals	(Z)V	1	-
+C	net/minecraft/world/entity/ai/goal/GolemRandomStrollInVillageGoal	33	net/minecraft/world/entity/ai/goal/RandomStrollGoal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/InteractGoal	33	net/minecraft/world/entity/ai/goal/LookAtPlayerGoal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/JumpGoal	1057	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/LandOnOwnersShoulderGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/LeapAtTargetGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/LlamaFollowCaravanGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/LookAtPlayerGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/LookAtTradingPlayerGoal	33	net/minecraft/world/entity/ai/goal/LookAtPlayerGoal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/MeleeAttackGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/MoveBackToVillageGoal	33	net/minecraft/world/entity/ai/goal/RandomStrollGoal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/MoveThroughVillageGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/MoveToBlockGoal	1057	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/MoveTowardsRestrictionGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/MoveTowardsTargetGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/OcelotAttackGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/OfferFlowerGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/OpenDoorGoal	33	net/minecraft/world/entity/ai/goal/DoorInteractGoal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/PanicGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/PathfindToRaidGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	<T:Lnet/minecraft/world/entity/raid/Raider;>Lnet/minecraft/world/entity/ai/goal/Goal;	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/RandomLookAroundGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/RandomStandGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/RandomStrollGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/RandomSwimmingGoal	33	net/minecraft/world/entity/ai/goal/RandomStrollGoal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/RangedAttackGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/RangedBowAttackGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	<T:Lnet/minecraft/world/entity/monster/Monster;:Lnet/minecraft/world/entity/monster/RangedAttackMob;>Lnet/minecraft/world/entity/ai/goal/Goal;	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/RangedCrossbowAttackGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	<T:Lnet/minecraft/world/entity/monster/Monster;:Lnet/minecraft/world/entity/monster/RangedAttackMob;:Lnet/minecraft/world/entity/monster/CrossbowAttackMob;>Lnet/minecraft/world/entity/ai/goal/Goal;	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/RemoveBlockGoal	33	net/minecraft/world/entity/ai/goal/MoveToBlockGoal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/RestrictSunGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/RunAroundLikeCrazyGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/SitWhenOrderedToGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/StrollThroughVillageGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/SwellGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/TemptGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/TradeWithPlayerGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/TryFindWaterGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/UseItemGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	<T:Lnet/minecraft/world/entity/Mob;>Lnet/minecraft/world/entity/ai/goal/Goal;	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/WaterAvoidingRandomFlyingGoal	33	net/minecraft/world/entity/ai/goal/WaterAvoidingRandomStrollGoal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/WaterAvoidingRandomStrollGoal	33	net/minecraft/world/entity/ai/goal/RandomStrollGoal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/WrappedGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
+M	net/minecraft/world/entity/ai/goal/WrappedGoal	<init>	(ILnet/minecraft/world/entity/ai/goal/Goal;)V	1	-
+M	net/minecraft/world/entity/ai/goal/WrappedGoal	adjustedTickDelay	(I)I	4	-
+M	net/minecraft/world/entity/ai/goal/WrappedGoal	canBeReplacedBy	(Lnet/minecraft/world/entity/ai/goal/WrappedGoal;)Z	1	-
+M	net/minecraft/world/entity/ai/goal/WrappedGoal	canContinueToUse	()Z	1	-
+M	net/minecraft/world/entity/ai/goal/WrappedGoal	canUse	()Z	1	-
+M	net/minecraft/world/entity/ai/goal/WrappedGoal	equals	(Ljava/lang/Object;)Z	1	-
+M	net/minecraft/world/entity/ai/goal/WrappedGoal	getFlags	()Lca/spottedleaf/moonrise/common/set/OptimizedSmallEnumSet;	1	()Lca/spottedleaf/moonrise/common/set/OptimizedSmallEnumSet<Lnet/minecraft/world/entity/ai/goal/Goal$Flag;>;
+M	net/minecraft/world/entity/ai/goal/WrappedGoal	getGoal	()Lnet/minecraft/world/entity/ai/goal/Goal;	1	-
+M	net/minecraft/world/entity/ai/goal/WrappedGoal	getPriority	()I	1	-
+M	net/minecraft/world/entity/ai/goal/WrappedGoal	hashCode	()I	1	-
+M	net/minecraft/world/entity/ai/goal/WrappedGoal	isInterruptable	()Z	1	-
+M	net/minecraft/world/entity/ai/goal/WrappedGoal	isRunning	()Z	1	-
+M	net/minecraft/world/entity/ai/goal/WrappedGoal	requiresUpdateEveryTick	()Z	1	-
+M	net/minecraft/world/entity/ai/goal/WrappedGoal	setFlags	(Ljava/util/EnumSet;)V	1	(Ljava/util/EnumSet<Lnet/minecraft/world/entity/ai/goal/Goal$Flag;>;)V
+M	net/minecraft/world/entity/ai/goal/WrappedGoal	start	()V	1	-
+M	net/minecraft/world/entity/ai/goal/WrappedGoal	stop	()V	1	-
+M	net/minecraft/world/entity/ai/goal/WrappedGoal	tick	()V	1	-
+C	net/minecraft/world/entity/ai/goal/ZombieAttackGoal	33	net/minecraft/world/entity/ai/goal/MeleeAttackGoal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/target/DefendVillageTargetGoal	33	net/minecraft/world/entity/ai/goal/target/TargetGoal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/target/HurtByTargetGoal	33	net/minecraft/world/entity/ai/goal/target/TargetGoal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/target/NearestAttackableTargetGoal	33	net/minecraft/world/entity/ai/goal/target/TargetGoal	-	<T:Lnet/minecraft/world/entity/LivingEntity;>Lnet/minecraft/world/entity/ai/goal/target/TargetGoal;	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/target/NearestAttackableWitchTargetGoal	33	net/minecraft/world/entity/ai/goal/target/NearestAttackableTargetGoal	-	<T:Lnet/minecraft/world/entity/LivingEntity;>Lnet/minecraft/world/entity/ai/goal/target/NearestAttackableTargetGoal<TT;>;	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/target/NearestHealableRaiderTargetGoal	33	net/minecraft/world/entity/ai/goal/target/NearestAttackableTargetGoal	-	<T:Lnet/minecraft/world/entity/LivingEntity;>Lnet/minecraft/world/entity/ai/goal/target/NearestAttackableTargetGoal<TT;>;	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/target/NonTameRandomTargetGoal	33	net/minecraft/world/entity/ai/goal/target/NearestAttackableTargetGoal	-	<T:Lnet/minecraft/world/entity/LivingEntity;>Lnet/minecraft/world/entity/ai/goal/target/NearestAttackableTargetGoal<TT;>;	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/target/OwnerHurtByTargetGoal	33	net/minecraft/world/entity/ai/goal/target/TargetGoal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/target/OwnerHurtTargetGoal	33	net/minecraft/world/entity/ai/goal/target/TargetGoal	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/target/ResetUniversalAngerTargetGoal	33	net/minecraft/world/entity/ai/goal/Goal	-	<T:Lnet/minecraft/world/entity/Mob;:Lnet/minecraft/world/entity/NeutralMob;>Lnet/minecraft/world/entity/ai/goal/Goal;	-	paper-server-1.21.1
+C	net/minecraft/world/entity/ai/goal/target/TargetGoal	1057	net/minecraft/world/entity/ai/goal/Goal	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/ai/village/poi/PoiType	65585	java/lang/Record	-	-	-	paper-server-1.21.1
 R	net/minecraft/world/entity/ai/village/poi/PoiType	matchingStates	Ljava/util/Set;	Ljava/util/Set<Lnet/minecraft/world/level/block/state/BlockState;>;
 R	net/minecraft/world/entity/ai/village/poi/PoiType	maxTickets	I	-
