@@ -337,8 +337,17 @@ public final class ShimGenerator {
             for (String s : chain) itfs.addAll(lock.classes.get(s).interfaces());
             while (!itfs.isEmpty()) {
                 String i = itfs.remove(itfs.size() - 1);
-                if (!seen.add(i) || !emitted(i)) continue;
+                if (!seen.add(i) || !lock.classes.containsKey(i)) continue;
                 itfs.addAll(lock.classes.get(i).interfaces());
+                if (!emitted(i)) {
+                    // 손 인터페이스(src/main/java)가 몸통 없이 선언한 추상 메서드 — 생성 클래스가 그것을 구현하는 곳(손 BlockEntity 아래 Sign 의 CommandSource 등)
+                    if (hand.has(i)) {
+                        for (ShimLock.Member lm : lock.handAbstracts.getOrDefault(i, List.of())) {
+                            if (abstractDeclared(hand.text(i), lm.name(), descParams(lm.desc()))) abstracts.putIfAbsent(overrideKey(lm), lm);
+                        }
+                    }
+                    continue;
+                }
                 for (Bound b : bound.getOrDefault(i, List.of())) {
                     if (b.lock().kind() != 'M' || b.lock().isStatic()) continue;
                     if (b.spec().body() == ShimSpec.Body.EACH) { abstracts.putIfAbsent(overrideKey(b.lock()), b.lock()); each.putIfAbsent(overrideKey(b.lock()), b); }
@@ -401,6 +410,47 @@ public final class ShimGenerator {
         return bodyDeclared(fragmentSrc.text(fragment), method);
     }
 
+    /** 그 이름·인자 수의 메서드 몸통(여는 중괄호까지)이 있나 — 같은 이름의 오버로드를 헷갈리지 않게 인자 수까지 본다. */
+    private static boolean bodyDeclaredWith(String text, String method, int params) {
+        if (text == null) return false;
+        java.util.regex.Matcher m = Pattern.compile("(?m)^\\s*(?:@\\w+\\s+)*(?:public |protected |private |static |final |default |synchronized )*(?:<[^>]+>\\s+)?[\\w.<>\\[\\]?, ]+\\s+"
+                + Pattern.quote(method) + "\\s*\\(([^;{)]*)\\)\\s*(?:throws [\\w., ]+)?\\{").matcher(text);
+        while (m.find()) if (paramCount(m.group(1)) == params) return true;
+        return false;
+    }
+
+    /** 손 인터페이스 소스에 그 이름·인자 수의 추상 선언(몸통 없이 세미콜론으로 끝남)이 있나 — 같은 이름의 오버로드를 헷갈리지 않게 인자 수까지 본다. */
+    private static boolean abstractDeclared(String text, String method, int params) {
+        if (text == null) return false;
+        java.util.regex.Matcher m = Pattern.compile("(?m)^\\s*(?:@\\w+\\s+)*(?:public |abstract )*(?:<[^>]+>\\s+)?[\\w.<>\\[\\]?, ]+\\s+"
+                + Pattern.quote(method) + "\\s*\\(([^;{)]*)\\)\\s*(?:throws [\\w., ]+)?;").matcher(text);
+        while (m.find()) if (paramCount(m.group(1)) == params) return true;
+        return false;
+    }
+
+    /** 메서드 서술자의 인자 수. */
+    static int descParams(String desc) {
+        int n = 0;
+        for (int i = 1; desc.charAt(i) != ')'; i++) {
+            while (desc.charAt(i) == '[') i++;
+            if (desc.charAt(i) == 'L') i = desc.indexOf(';', i);
+            n++;
+        }
+        return n;
+    }
+
+    /** 인자 목록 글의 인자 수(제네릭 꺾쇠 안의 쉼표는 세지 않는다). */
+    static int paramCount(String list) {
+        if (list.isBlank()) return 0;
+        int n = 1, depth = 0;
+        for (char ch : list.toCharArray()) {
+            if (ch == '<') depth++;
+            else if (ch == '>') depth--;
+            else if (ch == ',' && depth == 0) n++;
+        }
+        return n;
+    }
+
     private static boolean bodyDeclared(String text, String method) {
         if (text == null) return false;
         return Pattern.compile("(?m)^\\s*(?:@\\w+\\s+)*(?:public |protected |private |static |final |default |synchronized )*(?:<[^>]+>\\s+)?[\\w.<>\\[\\]?, ]+\\s+"
@@ -418,7 +468,7 @@ public final class ShimGenerator {
             String s = work.remove(work.size() - 1);
             if (s == null || !seen.add(s) || !lock.classes.containsKey(s)) continue;
             ShimLock.Cls c = lock.classes.get(s);
-            if (c.isInterface() && !s.equals(m.owner()) && !emitted(s) && hand.has(s) && bodyDeclared(hand.text(s), m.name())) return true;
+            if (c.isInterface() && !s.equals(m.owner()) && !emitted(s) && hand.has(s) && bodyDeclaredWith(hand.text(s), m.name(), descParams(m.desc()))) return true;
             work.add(c.superName());
             work.addAll(c.interfaces());
         }

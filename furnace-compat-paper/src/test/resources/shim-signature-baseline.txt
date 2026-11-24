@@ -629,7 +629,6 @@ type-missing	net/minecraft/world/level/block/entity/HopperBlockEntity	-	#1266ca6
 type-missing	net/minecraft/world/level/block/entity/HopperBlockEntity	-	#1586a422ea91	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/block/entity/HopperBlockEntity	-	#e9198708cf50	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/block/entity/HopperBlockEntity	-	#ee027d4560f0	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	net/minecraft/world/level/block/entity/JigsawBlockEntity$JointType	-	#683140e2fc3f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/block/entity/JukeboxBlockEntity	-	#09a520e7a856	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/block/entity/JukeboxBlockEntity	-	#59e492df0486	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/block/entity/JukeboxBlockEntity	-	#b41034805e86	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
