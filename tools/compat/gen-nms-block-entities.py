@@ -126,11 +126,7 @@ def path_of(name):
     return "furnace-compat-paper/src/shims/java/" + pkg_of(name).replace(".", "/") + "/" + name + ".java"
 
 
-# 아직 손 shim 으로 두는 클래스 — 바닐라 상위(Container·CommandSource)가 추상 메서드를 들고 와서(상위 사슬에 손 shim BlockEntity 가 있어 던지는 몸통을 안 만든다)
-# 조각으로 옮기면 컴파일이 안 된다. 컨테이너 몸통을 채우는 일(영역 4 메뉴·컨테이너)과 함께 옮긴다. 낸 곳은 main/java(옛 방식)다.
-# 2026-11-24: 생성기 PR 601 뒤 Container 가족은 조각으로 옮겼다. 아직 손으로 두는 것(이름을 넣으면 옛 손 방식으로 낸다):
-#  - Jigsaw·Structure: 중첩 열거형(JointType·UpdateType)을 패킷 생성기가 바깥 손 shim 안에 둔다(명세로 못 붙임)
-#  - Sign·HangingSign·Lectern: CommandSource 의 추상 shouldInformAdmins 가 던지는 몸통 없이 남아 컴파일이 안 된다(인터페이스가 손 shim 일 때)
+# 2026-11-24: 블록 엔티티는 모두 조각으로 옮겼다. 옛 손 방식(main/java 로 냄)은 HAND 에 이름을 넣으면 쓴다(지금은 비었다).
 HAND = set()
 # 생성기 스레드가 손으로 옮긴 것(조각 + enums.spec) — 이 스크립트는 건드리지 않는다
 SKIP = {"JigsawBlockEntity"}
