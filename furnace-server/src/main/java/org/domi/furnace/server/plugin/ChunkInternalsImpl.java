@@ -1184,7 +1184,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
             this.compatView = target;
         }
 
-        /** 계속 불러도 되는가. 플러그인이 꺼졌으면 두 선택기에서 뺀다(돌기 도중이면 끝난 뒤 빠진다). */
+        /** 계속 불러도 되는가(모든 콜백 앞에서). 플러그인이 꺼졌으면 두 선택기에서 뺀다(돌기 도중이면 끝난 뒤 빠진다 — 빼며 부르는 stop 은 여기서 걸러진다). */
         private boolean alive() {
             if (broken) return false;
             boolean on;
@@ -1230,7 +1230,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
 
         @Override
         public boolean isInterruptable() {
-            if (broken) return true;
+            if (!alive()) return true;
             try {
                 return cb.isInterruptable();
             } catch (RuntimeException | LinkageError t) {
@@ -1241,7 +1241,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
 
         @Override
         public void start() {
-            if (broken) return;
+            if (!alive()) return;
             try {
                 cb.start();
             } catch (RuntimeException | LinkageError t) {
@@ -1251,7 +1251,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
 
         @Override
         public void stop() {
-            if (broken) return;
+            if (!alive()) return;
             try {
                 cb.stop();
             } catch (RuntimeException | LinkageError t) {
@@ -1261,7 +1261,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
 
         @Override
         public boolean requiresUpdateEveryTick() {
-            if (broken) return false;
+            if (!alive()) return false;
             try {
                 return cb.requiresUpdateEveryTick();
             } catch (RuntimeException | LinkageError t) {
@@ -1272,7 +1272,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
 
         @Override
         public void tick() {
-            if (broken) return;
+            if (!alive()) return;
             try {
                 cb.tick();
             } catch (RuntimeException | LinkageError t) {
@@ -1283,7 +1283,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
         /** 플러그인 목표의 지금 깃발(바뀌었을 때만 집합을 고친다 — 확인마다 새 집합을 만들지 않는다). 고장 난 목표는 마지막 깃발. */
         @Override
         public java.util.EnumSet<Flag> getFlags() {
-            if (!broken) {
+            if (alive()) {
                 int m;
                 try {
                     m = cb.flags();

@@ -118,4 +118,18 @@ class CompatGoalAdapterTest {
         assertTrue(m.goalSelector().getAvailableGoals().isEmpty());
         assertTrue(m.targetSelector().getAvailableGoals().isEmpty());
     }
+
+    @Test
+    void noCallbackRunsAfterThePluginIsDisabled() {
+        List<String> log = new ArrayList<>();
+        Mob m = mob();
+        var s = new Script(log, "s", MOVE);
+        m.goalSelector().addGoal(1, new ChunkInternalsImpl.CompatGoal(m, s));
+        m.goalSelector().tick();
+        log.clear();
+        s.enabled = false;
+        m.goalSelector().tickRunningGoals(true);   // 꺼진 직후 틱만 도는 패스(홀수 틱) — tick 을 부르지 않고 스스로 빠진다
+        assertEquals(List.of(), log);
+        assertTrue(m.goalSelector().getAvailableGoals().isEmpty());
+    }
 }

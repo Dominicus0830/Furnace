@@ -35,7 +35,21 @@ public final class NmsGoals {
     /** 선택기에 넣을 서버 목표(주인 스레드에서만): 서버 목표를 보는 shim 이면 그 서버 목표, 플러그인이 상속한 목표면 서버 어댑터(M2a). */
     public static Object serverGoal(ChunkInternals.MobGoals g, Goal goal) {
         Backing b = goal.furnaceBacking();
-        return b != null ? b.server() : g.adopt(new NmsPluginGoal(goal));
+        if (b != null) return b.server();
+        Class<?> vanilla = vanillaAncestor(goal.getClass());
+        if (vanilla != Goal.class) {
+            // 바닐라 목표 클래스(생성자로 만든 것)나 그것을 상속한 플러그인 클래스 — Goal 을 바로 상속한 것만 서버 어댑터로 넣는다
+            String why = vanilla == goal.getClass() ? M2_HINT
+                    : "goal " + goal.getClass().getName() + " extends the vanilla goal " + vanilla.getName() + " - plugin classes that extend vanilla goals are task T-237";
+            throw new UnsupportedNmsCall("GoalSelector#addGoal", why);
+        }
+        return g.adopt(new NmsPluginGoal(goal));
+    }
+
+    /** 가장 가까운 바닐라(shim) 조상 클래스 — 플러그인 클래스를 건너뛴다. */
+    private static Class<?> vanillaAncestor(Class<?> c) {
+        while (!c.getName().startsWith("net.minecraft.")) c = c.getSuperclass();
+        return c;
     }
 
     /** 몹의 행동·대상 선택기 shim(몹 shim 생성자에서). */
