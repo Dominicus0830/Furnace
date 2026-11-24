@@ -2,3 +2,9 @@
 class net.minecraft.network.protocol.PacketFlow
   SERVERBOUND = ("serverbound")
   CLIENTBOUND = ("clientbound")
+class net.minecraft.network.ConnectionProtocol
+  HANDSHAKING = ("handshake")
+  PLAY = ("play")
+  STATUS = ("status")
+  LOGIN = ("login")
+  CONFIGURATION = ("configuration")
