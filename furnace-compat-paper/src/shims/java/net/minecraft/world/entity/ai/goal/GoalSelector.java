@@ -3,7 +3,6 @@ package net.minecraft.world.entity.ai.goal;
 import java.util.Set;
 import java.util.function.Predicate;
 import org.domi.furnace.compat.nms.NmsGoals;
-import org.domi.furnace.compat.nms.UnsupportedNmsCall;
 
 /**
  * 몹 목표 선택기 shim(몹 목표 설계 M1). 서버 몹의 행동·대상 선택기를 본다 — 모든 조작은 그 몹의 주인 스레드에서(규칙은 {@link NmsGoals}).
@@ -23,20 +22,20 @@ class GoalSelector {
         this.furnaceSet = new org.domi.furnace.compat.nms.NmsGoalSet(furnaceMob, furnaceTargets);
     }
 
+    /** 서버 목표를 보는 shim 은 그 서버 목표를, 플러그인이 상속한 목표는 서버 어댑터(몹 목표 M2a)를 넣는다. */
     public void addGoal(int priority, Goal goal) {
-        NmsGoals.Backing b = goal.furnaceBacking();
-        if (b == null) throw new UnsupportedNmsCall("GoalSelector#addGoal", "goal " + goal.getClass().getName() + ": " + NmsGoals.M2_HINT);
         NmsGoals.on(furnaceMob, "GoalSelector#addGoal", g -> {
-            g.addGoal(furnaceTargets, priority, b.server());
+            g.addGoal(furnaceTargets, priority, NmsGoals.serverGoal(g, goal));
             return null;
         });
     }
 
+    /** 바닐라처럼 같은 목표 객체를 찾는다(플러그인 목표는 그것을 감싼 서버 어댑터). 없으면 아무것도 안 한다. */
     public void removeGoal(Goal goal) {
         NmsGoals.Backing b = goal.furnaceBacking();
-        if (b == null) return;   // 서버에 없는 목표 — 바닐라도 맞는 것이 없으면 아무것도 안 한다
+        Object key = b != null ? b.server() : goal;
         NmsGoals.on(furnaceMob, "GoalSelector#removeGoal", g -> {
-            g.removeGoal(furnaceTargets, b.server());
+            g.removeGoal(furnaceTargets, key);
             return null;
         });
     }

@@ -14,7 +14,7 @@ import org.domi.furnace.api.internal.ChunkInternals;
  *       (주인이면 바로, 틱이 아닌 스레드는 주인을 기다림, 다른 region·전역 스레드는 ThreadOwnershipException).
  *   <li>서버 목표 하나에 shim 하나: 처음 볼 때 가장 가까운 바닐라 목표 클래스(예 {@code TemptGoal})의 객체를 만들어 서버 객체에 붙인다 —
  *       {@code instanceof}·{@code removeGoal(w.getGoal())} 가 바닐라처럼 맞는다. 이식한 부모가 없는 몹 안쪽 목표는 {@link ServerGoal}.
- *   <li>플러그인이 만든 목표(Goal 상속·바닐라 목표 생성자)는 M2 — 지금은 UnsupportedNmsCall.
+ *   <li>플러그인이 상속한 목표는 서버 어댑터로 넣는다(M2a, {@link NmsPluginGoal}). 바닐라 목표 생성자·플러그인이 만든 감싼 목표는 M2b — 지금은 UnsupportedNmsCall.
  * </ul>
  */
 public final class NmsGoals {
@@ -30,7 +30,13 @@ public final class NmsGoals {
     /** 선택기 shim 의 재료. */
     public record SelectorOf(Mob mob, boolean targets) {}
 
-    public static final String M2_HINT = "goals made by a plugin (a Goal subclass or a vanilla goal constructor) are not supported yet - mob goals step M2";
+    public static final String M2_HINT = "goals made with a vanilla goal constructor and plugin-made wrapped goals are not supported yet - mob goals step M2b";
+
+    /** 선택기에 넣을 서버 목표(주인 스레드에서만): 서버 목표를 보는 shim 이면 그 서버 목표, 플러그인이 상속한 목표면 서버 어댑터(M2a). */
+    public static Object serverGoal(ChunkInternals.MobGoals g, Goal goal) {
+        Backing b = goal.furnaceBacking();
+        return b != null ? b.server() : g.adopt(new NmsPluginGoal(goal));
+    }
 
     /** 몹의 행동·대상 선택기 shim(몹 shim 생성자에서). */
     public static GoalSelector selector(Mob mob, boolean targets) {

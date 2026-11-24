@@ -204,12 +204,72 @@ class NmsMobGoalsTest {
             // 주인 스레드 안에서는 바로(기다리지 않는다)
             assertEquals(1, (int) on(() -> m.goalSelector.getAvailableGoals().size()));
 
-            // 플러그인이 만든 목표는 M2
+            // 플러그인이 만든 감싼 목표를 집합에 바로 넣는 것은 M2b
             Goal plugin = new Goal() {
                 @Override public boolean canUse() { return false; }
             };
-            assertThrows(UnsupportedNmsCall.class, () -> m.goalSelector.addGoal(1, plugin));
+            assertThrows(UnsupportedNmsCall.class, () -> m.goalSelector.getAvailableGoals().add(new WrappedGoal(1, plugin)));
             m.goalSelector.removeGoal(plugin);   // 서버에 없는 목표 — 바닐라처럼 아무 일 없음
+        } finally {
+            remove(m);
+        }
+    }
+
+    /** 시험용 플러그인 목표(Goal 상속): 몹 위치를 읽고(주인 스레드에서 바로) 시작·틱·멈춤을 적는다. */
+    static final class Watch extends Goal {
+        final Mob mob;
+        final List<String> log;
+        boolean usable = true;
+        Watch(Mob mob, List<String> log, EnumSet<Flag> flags) {
+            this.mob = mob;
+            this.log = log;
+            setFlags(flags);
+        }
+        @Override public boolean canUse() { return usable; }
+        @Override public void start() { log.add("start"); }
+        @Override public void stop() { log.add("stop"); }
+        @Override public void tick() { log.add("tick " + (mob.getX() == mob.getX())); }
+    }
+
+    /** M2a: 플러그인이 상속한 목표를 넣으면 서버 선택기가 그 메서드를 부르고, 집합 보기에는 그 객체가 그대로 보이며, 깃발은 Paper 처럼 살아 있다. */
+    @Test
+    void pluginGoalSubclassesRunOnTheServer() {
+        Mob m = spawnChicken(4.5);
+        try {
+            var s = serverMob(m);
+            List<String> log = new ArrayList<>();
+            List<String> probe = new ArrayList<>();
+            var mover = new Probe(probe, "mover", org.domi.furnace.server.entity.ai.Goal.Flag.MOVE);
+            on(() -> {
+                s.goalSelector().removeAllGoals(g -> true);
+                s.goalSelector().addGoal(0, mover);
+                return null;
+            });
+            Watch w = new Watch(m, log, EnumSet.noneOf(Goal.Flag.class));
+            assertTrue(w.getFlags().hasElement(Goal.Flag.UNKNOWN_BEHAVIOR), "Paper: 깃발이 없으면 UNKNOWN_BEHAVIOR");
+            m.goalSelector.addGoal(1, w);
+            m.goalSelector.addGoal(3, w);   // 같은 목표 — 바닐라 집합처럼 한 번만
+            assertEquals(2, m.goalSelector.getAvailableGoals().size());
+            assertSame(w, m.goalSelector.getAvailableGoals().stream().map(WrappedGoal::getGoal).filter(g -> g instanceof Watch).findFirst().orElseThrow(),
+                    "집합 보기에는 플러그인 목표 객체가 그대로");
+            m.goalSelector.tick();
+            assertEquals(List.of("start", "tick true"), log, "서버 선택기가 플러그인 목표를 돌린다(몹 읽기는 주인 스레드에서 바로)");
+            assertEquals(List.of("start mover"), probe);
+
+            // removeGoal(플러그인 목표 객체): 멈추고 뺀다
+            log.clear();
+            m.goalSelector.removeGoal(w);
+            assertEquals(List.of("stop"), log);
+            assertEquals(1, (int) on(() -> s.goalSelector().getAvailableGoals().size()));
+            assertFalse(m.goalSelector.getAvailableGoals().stream().anyMatch(x -> x.getGoal() == w));
+
+            // 넣은 뒤 받은 깃발 집합을 고쳐도(Paper 의 살아 있는 집합) 서버가 확인할 때 읽는다 — MOVE 를 쥔 앞 목표 때문에 시작하지 못한다
+            List<String> log2 = new ArrayList<>();
+            Watch w2 = new Watch(m, log2, EnumSet.noneOf(Goal.Flag.class));
+            m.goalSelector.addGoal(1, w2);
+            w2.getFlags().addUnchecked(Goal.Flag.MOVE);
+            m.goalSelector.tick();
+            assertEquals(List.of(), log2);
         } finally {
             remove(m);
         }
