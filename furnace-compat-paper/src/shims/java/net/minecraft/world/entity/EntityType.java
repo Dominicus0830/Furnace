@@ -10,7 +10,7 @@ import net.minecraft.resources.ResourceLocation;
  * {@code byString}·{@code getKey} 로 Bukkit {@link org.bukkit.entity.EntityType} 과 잇는다. 상수는 바닐라 130개 전부(종류 표에서).
  */
 @SuppressWarnings({"unchecked", "rawtypes"})   // 상수: of 가 EntityType<?> 를 준다
-public class EntityType<T> {
+class EntityType {
 
     private static final Map<ResourceLocation, EntityType<?>> BY_KEY = new ConcurrentHashMap<>();
 
