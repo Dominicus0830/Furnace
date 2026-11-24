@@ -17,13 +17,41 @@
 class net.minecraft.util.Mth
   exclude binarySearch(int,int,java.util.function.IntPredicate)  # IntPredicate 입력을 못 만든다 — MthVanillaValuesTest(tools/compat/mth-values)가 바닐라 값과 견준다
   exclude rotationAroundAxis(org.joml.Vector3f,org.joml.Quaternionf,org.joml.Quaternionf)  # JOML 입력을 못 만든다 — MthVanillaValuesTest 가 바닐라 값과 견준다
+  exclude createInsecureUUID()  # 난수라 두 실행이 같을 수 없다 — CoreVanillaValuesTest 가 버전·변형 비트(uuid.shape)를 견준다
   exclude X_AXIS  # JOML 형식 필드를 못 견준다 — MthVanillaValuesTest(e.axes 줄)가 바닐라 값과 견준다
   exclude Y_AXIS  # JOML 형식 필드를 못 견준다 — MthVanillaValuesTest(e.axes 줄)가 바닐라 값과 견준다
   exclude Z_AXIS  # JOML 형식 필드를 못 견준다 — MthVanillaValuesTest(e.axes 줄)가 바닐라 값과 견준다
 class net.minecraft.core.Vec3i
 class net.minecraft.core.BlockPos
+  exclude breadthFirstTraversal(net.minecraft.core.BlockPos,int,int,java.util.function.BiConsumer,java.util.function.Predicate)  # BiConsumer·Predicate 입력을 못 만든다 — CoreVanillaValuesTest(tools/compat/core-values)가 바닐라 값과 견준다
+  exclude findClosestMatch(net.minecraft.core.BlockPos,int,int,java.util.function.Predicate)  # Predicate 입력을 못 만든다 — CoreVanillaValuesTest(tools/compat/core-values)가 바닐라 값과 견준다
+  exclude randomBetweenClosed(net.minecraft.util.RandomSource,int,int,int,int,int,int,int)  # 돌려주는 람다 반복자를 값으로 못 낮춘다(난수원 상태 의존) — CoreVanillaValuesTest(tools/compat/core-values)가 바닐라 값과 견준다(시드·호출 순서까지)
+  exclude randomInCube(net.minecraft.util.RandomSource,int,net.minecraft.core.BlockPos,int)  # 돌려주는 람다 반복자를 값으로 못 낮춘다(난수원 상태 의존) — CoreVanillaValuesTest(tools/compat/core-values)가 바닐라 값과 견준다(시드·호출 순서까지)
+  exclude betweenClosed(int,int,int,int,int,int)  # 입력(뒤집힌·거대한 상자·음수 범위)이 끝없이 돌거나 첫 원소까지 수십억 번 돈다 — CoreVanillaValuesTest(tools/compat/core-values)가 경계 입력을 골라 바닐라 값과 견준다
+  exclude betweenClosed(net.minecraft.core.BlockPos,net.minecraft.core.BlockPos)  # 입력(뒤집힌·거대한 상자·음수 범위)이 끝없이 돌거나 첫 원소까지 수십억 번 돈다 — CoreVanillaValuesTest(tools/compat/core-values)가 경계 입력을 골라 바닐라 값과 견준다
+  exclude betweenClosedStream(int,int,int,int,int,int)  # 입력(뒤집힌·거대한 상자·음수 범위)이 끝없이 돌거나 첫 원소까지 수십억 번 돈다 — CoreVanillaValuesTest(tools/compat/core-values)가 경계 입력을 골라 바닐라 값과 견준다
+  exclude betweenClosedStream(net.minecraft.core.BlockPos,net.minecraft.core.BlockPos)  # 입력(뒤집힌·거대한 상자·음수 범위)이 끝없이 돌거나 첫 원소까지 수십억 번 돈다 — CoreVanillaValuesTest(tools/compat/core-values)가 경계 입력을 골라 바닐라 값과 견준다
+  exclude betweenClosedStream(net.minecraft.world.level.levelgen.structure.BoundingBox)  # 입력(뒤집힌·거대한 상자·음수 범위)이 끝없이 돌거나 첫 원소까지 수십억 번 돈다 — CoreVanillaValuesTest(tools/compat/core-values)가 경계 입력을 골라 바닐라 값과 견준다
+  exclude betweenClosedStream(net.minecraft.world.phys.AABB)  # 입력(뒤집힌·거대한 상자·음수 범위)이 끝없이 돌거나 첫 원소까지 수십억 번 돈다 — CoreVanillaValuesTest(tools/compat/core-values)가 경계 입력을 골라 바닐라 값과 견준다
+  exclude withinManhattan(net.minecraft.core.BlockPos,int,int,int)  # 입력(뒤집힌·거대한 상자·음수 범위)이 끝없이 돌거나 첫 원소까지 수십억 번 돈다 — CoreVanillaValuesTest(tools/compat/core-values)가 경계 입력을 골라 바닐라 값과 견준다
+  exclude withinManhattanStream(net.minecraft.core.BlockPos,int,int,int)  # 입력(뒤집힌·거대한 상자·음수 범위)이 끝없이 돌거나 첫 원소까지 수십억 번 돈다 — CoreVanillaValuesTest(tools/compat/core-values)가 경계 입력을 골라 바닐라 값과 견준다
 class net.minecraft.core.BlockPos$MutableBlockPos
+  exclude breadthFirstTraversal(net.minecraft.core.BlockPos,int,int,java.util.function.BiConsumer,java.util.function.Predicate)  # BiConsumer·Predicate 입력을 못 만든다 — CoreVanillaValuesTest(tools/compat/core-values)가 바닐라 값과 견준다
+  exclude findClosestMatch(net.minecraft.core.BlockPos,int,int,java.util.function.Predicate)  # Predicate 입력을 못 만든다 — CoreVanillaValuesTest(tools/compat/core-values)가 바닐라 값과 견준다
+  exclude randomBetweenClosed(net.minecraft.util.RandomSource,int,int,int,int,int,int,int)  # 돌려주는 람다 반복자를 값으로 못 낮춘다(난수원 상태 의존) — CoreVanillaValuesTest(tools/compat/core-values)가 바닐라 값과 견준다(시드·호출 순서까지)
+  exclude randomInCube(net.minecraft.util.RandomSource,int,net.minecraft.core.BlockPos,int)  # 돌려주는 람다 반복자를 값으로 못 낮춘다(난수원 상태 의존) — CoreVanillaValuesTest(tools/compat/core-values)가 바닐라 값과 견준다(시드·호출 순서까지)
+  exclude betweenClosed(int,int,int,int,int,int)  # 입력(뒤집힌·거대한 상자·음수 범위)이 끝없이 돌거나 첫 원소까지 수십억 번 돈다 — CoreVanillaValuesTest(tools/compat/core-values)가 경계 입력을 골라 바닐라 값과 견준다
+  exclude betweenClosed(net.minecraft.core.BlockPos,net.minecraft.core.BlockPos)  # 입력(뒤집힌·거대한 상자·음수 범위)이 끝없이 돌거나 첫 원소까지 수십억 번 돈다 — CoreVanillaValuesTest(tools/compat/core-values)가 경계 입력을 골라 바닐라 값과 견준다
+  exclude betweenClosedStream(int,int,int,int,int,int)  # 입력(뒤집힌·거대한 상자·음수 범위)이 끝없이 돌거나 첫 원소까지 수십억 번 돈다 — CoreVanillaValuesTest(tools/compat/core-values)가 경계 입력을 골라 바닐라 값과 견준다
+  exclude betweenClosedStream(net.minecraft.core.BlockPos,net.minecraft.core.BlockPos)  # 입력(뒤집힌·거대한 상자·음수 범위)이 끝없이 돌거나 첫 원소까지 수십억 번 돈다 — CoreVanillaValuesTest(tools/compat/core-values)가 경계 입력을 골라 바닐라 값과 견준다
+  exclude betweenClosedStream(net.minecraft.world.level.levelgen.structure.BoundingBox)  # 입력(뒤집힌·거대한 상자·음수 범위)이 끝없이 돌거나 첫 원소까지 수십억 번 돈다 — CoreVanillaValuesTest(tools/compat/core-values)가 경계 입력을 골라 바닐라 값과 견준다
+  exclude betweenClosedStream(net.minecraft.world.phys.AABB)  # 입력(뒤집힌·거대한 상자·음수 범위)이 끝없이 돌거나 첫 원소까지 수십억 번 돈다 — CoreVanillaValuesTest(tools/compat/core-values)가 경계 입력을 골라 바닐라 값과 견준다
+  exclude withinManhattan(net.minecraft.core.BlockPos,int,int,int)  # 입력(뒤집힌·거대한 상자·음수 범위)이 끝없이 돌거나 첫 원소까지 수십억 번 돈다 — CoreVanillaValuesTest(tools/compat/core-values)가 경계 입력을 골라 바닐라 값과 견준다
+  exclude withinManhattanStream(net.minecraft.core.BlockPos,int,int,int)  # 입력(뒤집힌·거대한 상자·음수 범위)이 끝없이 돌거나 첫 원소까지 수십억 번 돈다 — CoreVanillaValuesTest(tools/compat/core-values)가 경계 입력을 골라 바닐라 값과 견준다
 class net.minecraft.core.SectionPos
+  exclude aroundAndAtBlockPos(int,int,int,it.unimi.dsi.fastutil.longs.LongConsumer)  # LongConsumer 입력을 못 만든다 — CoreVanillaValuesTest(tools/compat/core-values)가 바닐라 값과 견준다
+  exclude aroundAndAtBlockPos(long,it.unimi.dsi.fastutil.longs.LongConsumer)  # LongConsumer 입력을 못 만든다 — CoreVanillaValuesTest(tools/compat/core-values)가 바닐라 값과 견준다
+  exclude aroundAndAtBlockPos(net.minecraft.core.BlockPos,it.unimi.dsi.fastutil.longs.LongConsumer)  # LongConsumer 입력을 못 만든다 — CoreVanillaValuesTest(tools/compat/core-values)가 바닐라 값과 견준다
 class net.minecraft.core.QuartPos
 class net.minecraft.core.Direction
 class net.minecraft.core.Direction$Axis
@@ -31,6 +59,8 @@ class net.minecraft.core.Direction$AxisDirection
 class net.minecraft.world.level.ChunkPos
 class net.minecraft.world.phys.Vec3
 class net.minecraft.resources.ResourceLocation
+  exclude read(java.lang.String)  # DataResult.Error 를 값으로 못 낮춘다 — CoreVanillaValuesTest(tools/compat/core-values)가 바닐라 값과 견준다(rl.read 줄, 오류 문구까지)
+  exclude withPath(java.util.function.UnaryOperator)  # UnaryOperator 입력을 못 만든다 — CoreVanillaValuesTest(tools/compat/core-values)가 바닐라 값과 견준다(rl.wp 줄)
 
 # NBT(설계 5.5 의 2순위 직렬화 — 태그 나무 씨앗·바이트 비교, NbtKit). 입력 하나가 나무·바이트라 값 클래스보다 무거워 입력 수를 줄인다
 class net.minecraft.nbt.Tag  iterations=3000
