@@ -1035,10 +1035,13 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     private boolean isCrouchPose() { return sneaking || forcedCrouch; }
 
-    @Override public float bbWidth() { return fallFlying ? 0.6F : sleepingPos != null ? 0.2F : 0.6F; }
+    /** 바닐라 getEyeHeight(Player.POSES 의 눈높이, float): 죽는 중(DYING) 1.62, 겉날개·수영·회전 공격 0.4, 잠 0.2, 웅크림 1.27, 서기 1.62. */
+    public float eyeHeight() { return vitals.isDeadOrDying() ? 1.62F : fallFlying ? 0.4F : sleepingPos != null ? 0.2F : isSwimPose() || autoSpinAttackTicks > 0 ? 0.4F : isCrouchPose() ? 1.27F : 1.62F; }
 
-    /** 자세 크기(Player.POSES): 겉날개 0.6×0.6(눈 0.4), 잠 0.2, 웅크림 1.5, 서기 1.8. */
-    @Override public float bbHeight() { return fallFlying ? 0.6F : sleepingPos != null ? 0.2F : isSwimPose() || autoSpinAttackTicks > 0 ? 0.6F : isCrouchPose() ? 1.5F : 1.8F; }
+    @Override public float bbWidth() { return vitals.isDeadOrDying() ? 0.2F : fallFlying ? 0.6F : sleepingPos != null ? 0.2F : 0.6F; }
+
+    /** 자세 크기(Player.POSES): 죽는 중(DYING, 바닐라 die 가 자세를 바꿈) 0.2×0.2, 겉날개 0.6×0.6(눈 0.4), 잠 0.2, 웅크림 1.5, 서기 1.8. */
+    @Override public float bbHeight() { return vitals.isDeadOrDying() ? 0.2F : fallFlying ? 0.6F : sleepingPos != null ? 0.2F : isSwimPose() || autoSpinAttackTicks > 0 ? 0.6F : isCrouchPose() ? 1.5F : 1.8F; }
 
     @Override
     public AABB boundingBox() {

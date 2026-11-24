@@ -604,6 +604,12 @@ public interface ChunkInternals {
 
         /** 목표 조작의 ref 에 묶인 샌드박스 서버 객체(없으면 null). */
         default Object goalRef(Object ref) { return null; }
+
+        /**
+         * 샌드박스 엔티티의 지금 몸 크기 {너비, 키, 눈높이}(바닐라 getBbWidth·getBbHeight·getEyeHeight). 재생한 칸(자세·아기·크기)에 따라 서버 엔티티의
+         * refreshDimensions 가 정한 값이다 — 월드에 넣은 뒤와 같은 규칙. 이 객체의 잠금 안에서 읽는다(아무 스레드).
+         */
+        default float[] dimensions() { throw new UnsupportedOperationException("dimensions"); }
     }
 
     /**
@@ -1377,7 +1383,8 @@ public interface ChunkInternals {
 
     /**
      * 엔티티의 지금 모습: 공유 플래그(바닐라 DATA_SHARED_FLAGS 비트 — 웅크림 1·질주 3·수영 4·투명 5·발광 6·겉날개 7), 자세 번호, 바닐라 getKnownMovement,
-     * 날고 있는가(플레이어 능력), 관전 모드인가, 권한 단계(플레이어는 바닐라 getProfilePermissions — op 단계, 아니면 0. 엔티티는 0), 탈것·승객의 UUID(타는 순서).
+     * 날고 있는가(플레이어 능력), 관전 모드인가, 권한 단계(플레이어는 바닐라 getProfilePermissions — op 단계, 아니면 0. 엔티티는 0), 탈것·승객의 UUID(타는 순서),
+     * 지금 몸 크기(바닐라 getBbWidth·getBbHeight·getEyeHeight — 자세·아기·크기 칸에 따른 refreshDimensions 결과).
      * <p>플레이어는 아무 스레드에서 최근 값을 읽는다(Paper 처럼 경쟁 읽기 — PlayerHandle 의 다른 읽기와 같다). 다른 엔티티는 그 엔티티의 주인 스레드에서만
      * (아니면 ThreadOwnershipException), 사라졌으면 IllegalStateException.
      */
@@ -1385,5 +1392,6 @@ public interface ChunkInternals {
 
     /** {@link #entityLook} 의 값. */
     record EntityLook(byte sharedFlags, int pose, double knownX, double knownY, double knownZ, boolean flying, boolean spectator,
-                      int permissionLevel, java.util.UUID vehicle, java.util.List<java.util.UUID> passengers) {}
+                      int permissionLevel, java.util.UUID vehicle, java.util.List<java.util.UUID> passengers,
+                      float bbWidth, float bbHeight, float eyeHeight) {}
 }
