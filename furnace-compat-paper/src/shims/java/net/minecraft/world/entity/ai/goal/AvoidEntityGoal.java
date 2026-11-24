@@ -7,7 +7,7 @@ class AvoidEntityGoal {
 
     public AvoidEntityGoal(net.minecraft.world.entity.PathfinderMob mob, Class<T> type, float distance, double walkSpeed, double sprintSpeed) { super(org.domi.furnace.compat.nms.NmsGoals.vanilla(mob, "AvoidEntityGoal", type, distance, walkSpeed, sprintSpeed)); }
 
-    public AvoidEntityGoal(net.minecraft.world.entity.PathfinderMob mob, Class<T> type, java.util.function.Predicate<net.minecraft.world.entity.LivingEntity> avoidFilter, float distance, double walkSpeed, double sprintSpeed, java.util.function.Predicate<net.minecraft.world.entity.LivingEntity> pathFilter) { super(org.domi.furnace.compat.nms.NmsGoals.unsupported("AvoidEntityGoal#<init>")); }
+    public AvoidEntityGoal(net.minecraft.world.entity.PathfinderMob mob, Class<T> type, java.util.function.Predicate<net.minecraft.world.entity.LivingEntity> avoidFilter, float distance, double walkSpeed, double sprintSpeed, java.util.function.Predicate<net.minecraft.world.entity.LivingEntity> pathFilter) { super(org.domi.furnace.compat.nms.NmsGoals.vanilla(mob, "AvoidEntityGoal", type, org.domi.furnace.compat.nms.NmsGoals.entities(avoidFilter), distance, walkSpeed, sprintSpeed, org.domi.furnace.compat.nms.NmsGoals.entities(pathFilter))); }
 
-    public AvoidEntityGoal(net.minecraft.world.entity.PathfinderMob mob, Class<T> type, float distance, double walkSpeed, double sprintSpeed, java.util.function.Predicate<net.minecraft.world.entity.LivingEntity> pathFilter) { super(org.domi.furnace.compat.nms.NmsGoals.unsupported("AvoidEntityGoal#<init>")); }
+    public AvoidEntityGoal(net.minecraft.world.entity.PathfinderMob mob, Class<T> type, float distance, double walkSpeed, double sprintSpeed, java.util.function.Predicate<net.minecraft.world.entity.LivingEntity> pathFilter) { super(org.domi.furnace.compat.nms.NmsGoals.vanilla(mob, "AvoidEntityGoal", type, distance, walkSpeed, sprintSpeed, org.domi.furnace.compat.nms.NmsGoals.entities(pathFilter))); }
 }

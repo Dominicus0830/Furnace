@@ -11,15 +11,20 @@ public class BreedGoal extends Goal {
     private static final TargetingConditions PARTNER_TARGETING = TargetingConditions.forNonCombat().range(8.0).ignoreLineOfSight();
     protected final Animal animal;
     private final Class<? extends Animal> partnerClass;
+    private final java.util.function.Predicate<Animal> partnerFilter;
     protected Animal partner;
     private int loveTime;
     private final double speedModifier;
 
     public BreedGoal(Animal animal, double speed) { this(animal, speed, animal.getClass()); }
 
-    public BreedGoal(Animal animal, double speed, Class<? extends Animal> partnerClass) {
+    public BreedGoal(Animal animal, double speed, Class<? extends Animal> partnerClass) { this(animal, speed, partnerClass, a -> true); }
+
+    /** 짝 후보 클래스에 더해 종류 거르기(호환 계층의 바닐라 짝 클래스 — 클래스로 모으는 단계와 같은 자리, 판정 조건보다 먼저). */
+    public BreedGoal(Animal animal, double speed, Class<? extends Animal> partnerClass, java.util.function.Predicate<Animal> partnerFilter) {
         this.animal = animal;
         this.partnerClass = partnerClass;
+        this.partnerFilter = partnerFilter;
         this.speedModifier = speed;
         setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK));
     }
@@ -56,7 +61,7 @@ public class BreedGoal extends Goal {
     }
 
     private Animal getFreePartner() {
-        var list = animal.level().getEntitiesOfClass(partnerClass, animal.boundingBox().inflate(8.0), e -> PARTNER_TARGETING.test(animal, e));
+        var list = animal.level().getEntitiesOfClass(partnerClass, animal.boundingBox().inflate(8.0), e -> partnerFilter.test(e) && PARTNER_TARGETING.test(animal, e));
         double best = Double.MAX_VALUE;
         Animal found = null;
         for (Animal a : list) {

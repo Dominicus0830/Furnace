@@ -329,13 +329,11 @@ class NmsMobGoalsTest {
             var door = assertThrows(IllegalArgumentException.class, () -> new net.minecraft.world.entity.ai.goal.OpenDoorGoal(squid, false));
             assertEquals("Unsupported mob type for DoorInteractGoal", door.getMessage());
 
-            // 바닐라 목표를 상속한 플러그인 클래스(T-237), 다른 몹의 목표, M2b-2 생성자는 거부
+            // 바닐라 목표를 상속한 플러그인 클래스(T-237), 다른 몹의 목표는 거부
             var sub = assertThrows(UnsupportedNmsCall.class, () -> m.goalSelector.addGoal(1, new MyFloat(m)));
             assertTrue(sub.getMessage().contains("T-237"), sub.getMessage());
             var foreign = assertThrows(UnsupportedNmsCall.class, () -> other.goalSelector.addGoal(1, floatGoal));
             assertTrue(foreign.getMessage().contains("another mob"), foreign.getMessage());
-            assertThrows(UnsupportedNmsCall.class, () -> new net.minecraft.world.entity.ai.goal.BreedGoal(
-                    (net.minecraft.world.entity.animal.Animal) m, 1.0, net.minecraft.world.entity.animal.Animal.class));
 
             // 다른 region·전역 스레드에서 만들면 거부(그 몹의 region 에서 만들 것)
             Object r = server.onGlobal(() -> {
@@ -421,5 +419,208 @@ class NmsMobGoalsTest {
         } finally {
             remove(m);
         }
+    }
+    // ------------------------------------------------------------------ M2b-2 나머지(판정 함수·피해 태그·클래스 목록)
+
+    Mob spawn(EntityType<?> type, double dx, double dz) {
+        Mob m = (Mob) type.create(level);
+        m.moveTo(at.x() + dx, at.y(), at.z() + dz, 0.0F, 0.0F);
+        assertTrue(on(() -> level.addFreshEntity(m, SpawnReason.CUSTOM)));
+        return m;
+    }
+
+    /** 플러그인 엔티티 판정은 바닐라처럼 클래스에 맞는 후보에게만, 그 엔티티의 shim 객체로 불린다(종류 거르기가 판정 앞). */
+    @Test
+    void entityPredicatesSeeOnlyCandidatesOfTheClass() {
+        Mob m = spawnChicken(-4.5);
+        Mob chick = spawnChicken(-5.5);
+        Mob parrot = spawn(EntityType.PARROT, -6.5, 0.5);
+        try {
+            m.goalSelector.removeAllGoals(g -> true);
+            m.targetSelector.removeAllGoals(g -> true);
+            var pm = (net.minecraft.world.entity.PathfinderMob) m;
+            List<Object> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
+            var nat = new net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal<>(m, net.minecraft.world.entity.animal.Chicken.class, 0, false, false,
+                    e -> seen.add(e) && false);
+            assertFalse(nat.canUse());
+            assertTrue(seen.contains(chick), "같은 엔티티는 같은 shim 객체: " + seen);
+            assertFalse(seen.contains(parrot), "다른 종류에는 판정을 부르지 않는다");
+            assertFalse(seen.contains(m), "자기 자신은 조건이 먼저 뺀다");
+
+            // 7인자 AvoidEntityGoal: 길찾기 조건 다음 피할 조건(바닐라 path.and(avoid)), 둘 다 클래스 후보에만
+            List<String> order = new java.util.concurrent.CopyOnWriteArrayList<>();
+            var avoid = new net.minecraft.world.entity.ai.goal.AvoidEntityGoal<>(pm, net.minecraft.world.entity.animal.Chicken.class,
+                    e -> order.add("avoid") && false, 8.0F, 1.0, 1.2, e -> order.add("path"));
+            assertFalse(avoid.canUse());
+            assertEquals(List.of("path", "avoid"), order);
+            // 6인자: 피할 조건 늘 참, 판정은 길찾기 조건
+            List<Object> paths = new java.util.concurrent.CopyOnWriteArrayList<>();
+            new net.minecraft.world.entity.ai.goal.AvoidEntityGoal<>(pm, net.minecraft.world.entity.animal.Parrot.class, 8.0F, 1.0, 1.2, e -> paths.add(e) && false).canUse();
+            assertEquals(List.of(parrot), paths);
+
+            // 판정 안의 다른 region 읽기(ThreadOwnershipException)는 그 후보만 거짓 — 목표는 계속 판정을 부른다
+            var calls = new java.util.concurrent.atomic.AtomicInteger();
+            var crossing = new net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal<>(m, net.minecraft.world.entity.animal.Chicken.class, 0, false, false, e -> {
+                calls.incrementAndGet();
+                throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("elsewhere");
+            });
+            assertFalse(crossing.canUse());
+            assertFalse(crossing.canUse());
+            assertEquals(2, calls.get(), "한 번의 경계 예외로 멈추지 않는다");
+            // 그 밖의 예외는 그 목표를 멈춘다(로그 한 번)
+            var thrown = new java.util.concurrent.atomic.AtomicInteger();
+            var broken = new net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal<>(m, net.minecraft.world.entity.animal.Chicken.class, 0, false, false, e -> {
+                thrown.incrementAndGet();
+                throw new IllegalStateException("boom");
+            });
+            assertFalse(broken.canUse());
+            assertFalse(broken.canUse());
+            assertEquals(1, thrown.get());
+        } finally {
+            remove(m);
+            remove(chick);
+            remove(parrot);
+        }
+    }
+
+    /** 검토 1: 플러그인 판정이 있으면 사거리 밖 플레이어에게도 판정을 부른다(바닐라는 거리보다 먼저 selector — X1 건너뛰기 끔). */
+    @Test
+    void pluginPlayerPredicateIsCalledForFarPlayersToo() {
+        Mob m = spawnChicken(40.5);   // 닭의 추적 거리 16 밖
+        try {
+            m.targetSelector.removeAllGoals(g -> true);
+            List<Object> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
+            var nat = new net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal<>(m, net.minecraft.world.entity.player.Player.class, 0, false, false,
+                    e -> seen.add(e));
+            assertFalse(nat.canUse(), "사거리 밖이라 대상은 없다");
+            assertEquals(1, seen.size(), "그래도 판정은 불렸다: " + seen);
+            assertInstanceOf(net.minecraft.server.level.ServerPlayer.class, seen.get(0));
+            assertSame(((CraftEntity) org.domi.furnace.compat.paper.Compat.player(tp.player())).getHandle(), seen.get(0));
+        } finally {
+            remove(m);
+        }
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    static net.minecraft.tags.TagKey<net.minecraft.world.damagesource.DamageType> damageTag(String path) {
+        return (net.minecraft.tags.TagKey) net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.DAMAGE_TYPE,
+                net.minecraft.resources.ResourceLocation.withDefaultNamespace(path));
+    }
+
+    void hitByPlayer(Mob m) {
+        var sm = serverMob(m);
+        on(() -> {
+            var sp = org.domi.furnace.api.internal.Internals.get().entityNow(tp.player(), org.domi.furnace.server.entity.Player.class);
+            return sm.hurtBy(org.domi.furnace.server.entity.Entity.Damage.playerAttack(sp), 0.5F, sp);
+        });
+    }
+
+    /** PanicGoal 의 태그·태그 함수: 함수는 마지막 피해가 있을 때만, 생성자에 넘긴 그 몹으로 불린다. 실패하면 태그 판정만 거짓(1.21.1 shouldPanic 은 태그뿐). */
+    @Test
+    void panicGoalDamageTags() {
+        Mob m = spawnChicken(-3.5);
+        try {
+            m.goalSelector.removeAllGoals(g -> true);
+            var pm = (net.minecraft.world.entity.PathfinderMob) m;
+            List<Object> args = new java.util.concurrent.CopyOnWriteArrayList<>();
+            var byFunction = new PanicGoal(pm, 1.0, mob -> {
+                args.add(mob);
+                return damageTag("panic_causes");
+            });
+            var fixed = new PanicGoal(pm, 1.0, damageTag("panic_causes"));
+            var environmental = new PanicGoal(pm, 1.0, damageTag("panic_environmental_causes"));
+            var throwing = new PanicGoal(pm, 1.0, mob -> null);
+            assertFalse(byFunction.canUse());
+            assertTrue(args.isEmpty(), "맞기 전에는 부르지 않는다");
+            hitByPlayer(m);
+            assertTrue(fixed.canUse(), "플레이어 공격은 panic_causes");
+            assertFalse(environmental.canUse(), "환경 원인 태그에는 없다");
+            assertTrue(byFunction.canUse());
+            assertSame(pm, args.get(0), "바닐라처럼 그 몹");
+            assertFalse(throwing.canUse(), "null 태그는 예외 — 거짓");
+            assertFalse(throwing.canUse());
+            // 다른 레지스트리의 태그는 바닐라 is 처럼 늘 거짓
+            @SuppressWarnings({"unchecked", "rawtypes"})
+            net.minecraft.tags.TagKey<net.minecraft.world.damagesource.DamageType> blockTag = (net.minecraft.tags.TagKey) net.minecraft.tags.TagKey.create(
+                    net.minecraft.core.registries.Registries.BLOCK, net.minecraft.resources.ResourceLocation.withDefaultNamespace("panic_causes"));
+            assertFalse(new PanicGoal(pm, 1.0, blockTag).canUse());
+        } finally {
+            remove(m);
+        }
+    }
+
+    /** HurtByTargetGoal 무시 클래스(isAssignableFrom — 인터페이스·Object 도)와 setAlertOthers(정확히 같은 클래스), 번식 짝 클래스. */
+    @Test
+    void hurtByIgnoredClassesAlertOthersAndBreedPartner() throws Exception {
+        Mob m = spawnChicken(-7.5);
+        Mob zombie = spawn(EntityType.ZOMBIE, -8.5, 2.5);
+        Mob piglin = spawn(EntityType.ZOMBIFIED_PIGLIN, -9.5, 2.5);
+        try {
+            m.targetSelector.removeAllGoals(g -> true);
+            var pm = (net.minecraft.world.entity.PathfinderMob) m;
+            var plain = new net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal(pm);
+            var ignorePlayers = new net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal(pm, net.minecraft.world.entity.player.Player.class);
+            var ignoreEverything = new net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal(pm, Object.class);
+            var ignoreEnemies = new net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal(pm, net.minecraft.world.entity.monster.Enemy.class);
+            var ignoreAnimals = new net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal(pm, net.minecraft.world.entity.animal.Animal.class);
+            var sm = serverMob(m);
+            var szAttacker = serverMob(zombie);
+            server.tick(2);   // 맞은 시각(틱 수)이 0 이면 바닐라도 새 피해로 보지 않는다
+            assertTrue(on(() -> sm.hurtBy(org.domi.furnace.server.entity.Entity.Damage.of(org.domi.furnace.server.entity.damage.DamageType.byKey("minecraft:mob_attack")), 0.5F, szAttacker)));
+            assertSame(szAttacker, on(() -> sm.getLastHurtByMob()));
+            assertTrue(plain.canUse(), "때린 좀비를 대상으로");
+            assertTrue(ignorePlayers.canUse(), "좀비는 플레이어가 아니다");
+            assertFalse(ignoreEverything.canUse(), "Object 는 모두");
+            assertFalse(ignoreEnemies.canUse(), "인터페이스 Enemy — 좀비가 맞는다");
+            assertTrue(ignoreAnimals.canUse());
+            assertTrue(NmsGoals.classes("t", new Class<?>[] {net.minecraft.world.entity.player.Player.class}).any().get(0).playersOnly());
+            var all = NmsGoals.classes("t", new Class<?>[] {Object.class}).any().get(0);
+            assertTrue(all.playersOnly() && all.types().contains("minecraft:chicken"), "Object 는 플레이어 포함 모두");
+
+            // 클래스 목록: 인터페이스는 shim 계층으로, 엔티티와 무관한 클래스는 맞는 것 없음, 플러그인 엔티티 클래스는 이름 있는 거부
+            var enemies = NmsGoals.classes("t", new Class<?>[] {net.minecraft.world.entity.monster.Enemy.class}).any().get(0);
+            assertTrue(enemies.types().contains("minecraft:zombie") && !enemies.types().contains("minecraft:chicken") && !enemies.playersOnly());
+            var none = NmsGoals.classes("t", new Class<?>[] {String.class}).any().get(0);
+            assertTrue(none.types().isEmpty() && !none.playersOnly());
+            var plugin = assertThrows(UnsupportedNmsCall.class, () -> NmsGoals.classes("t", new Class<?>[] {MyZombie.class}));
+            assertTrue(plugin.getMessage().contains("plugin class"), plugin.getMessage());
+            assertTrue(NmsGoals.exactClasses("t", new Class<?>[] {net.minecraft.world.entity.monster.Zombie.class}).any().get(0).types()
+                    .equals(java.util.Set.of("minecraft:zombie")), "정확히 같은 클래스 — 하위 클래스(허스크 등)는 아니다");
+
+            // setAlertOthers: 등록 목표(좀비: 좀비화 피글린 빼기)를 덮어쓴다 — 빈 목록이면 아무도 빼지 않는다
+            var hurtBy = (net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal) zombie.targetSelector.getAvailableGoals().stream().map(WrappedGoal::getGoal)
+                    .filter(g -> g instanceof net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal).findFirst().orElseThrow();
+            var sz = serverMob(zombie);
+            var sp = serverMob(piglin);
+            var server = on(() -> sz.targetSelector().getAvailableGoals().stream().map(w -> w.getGoal())
+                    .filter(g -> g instanceof org.domi.furnace.server.entity.ai.goal.HurtByTargetGoal).findFirst().orElseThrow());
+            assertTrue(ignoresAlert(server, sp), "바닐라 좀비는 좀비화 피글린에게 알리지 않는다");
+            assertSame(hurtBy, hurtBy.setAlertOthers());
+            assertFalse(ignoresAlert(server, sp), "빈 목록 — 아무도 빼지 않는다");
+            hurtBy.setAlertOthers(net.minecraft.world.entity.monster.ZombifiedPiglin.class);
+            assertTrue(ignoresAlert(server, sp));
+
+            // 번식 짝 클래스: 후보만 넓힌다(만들기·넣기)
+            var breed = new net.minecraft.world.entity.ai.goal.BreedGoal((net.minecraft.world.entity.animal.Animal) m, 1.0, net.minecraft.world.entity.animal.Animal.class);
+            m.goalSelector.addGoal(2, breed);
+            assertFalse(breed.canUse(), "사랑 모드가 아니다");
+        } finally {
+            remove(m);
+            remove(zombie);
+            remove(piglin);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    boolean ignoresAlert(Object serverGoal, org.domi.furnace.server.entity.Mob other) throws Exception {
+        var f = org.domi.furnace.server.entity.ai.goal.HurtByTargetGoal.class.getDeclaredField("toIgnoreAlert");
+        f.setAccessible(true);
+        var p = (java.util.function.Predicate<org.domi.furnace.server.entity.Mob>) f.get(serverGoal);
+        return p != null && on(() -> p.test(other));
+    }
+
+    /** 플러그인 엔티티 클래스(만들지 않는다 — 클래스 목록 거부 시험용). */
+    abstract static class MyZombie extends net.minecraft.world.entity.monster.Zombie {
+        MyZombie() { super(null, null); }
     }
 }

@@ -50,6 +50,7 @@ public class AvoidEntityGoal extends Goal {
         this.pathNav = mob.getNavigation();
         setFlags(EnumSet.of(Flag.MOVE));
         this.avoidEntityTargeting = TargetingConditions.forCombat().range(maxDist).selector(pathableTargetPredicate.and(avoidPredicate));
+        if (TargetingConditions.isPlugin(pathableTargetPredicate) || TargetingConditions.isPlugin(avoidPredicate)) avoidEntityTargeting.everyCandidate();
     }
 
     @Override

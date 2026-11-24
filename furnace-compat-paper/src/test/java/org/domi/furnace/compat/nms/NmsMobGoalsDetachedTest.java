@@ -410,4 +410,38 @@ class NmsMobGoalsDetachedTest {
         assertFalse(session.slots().isEmpty());
         assertEquals(8, session.mobGoals().availableSize(false));
     }
+    /** M2b-2: setAlertOthers 는 넣기 전 몹에서도 샌드박스에 하고 기록해 넣을 때 재생한다(기본 목표 덮어쓰기·새 목표에 사슬로). */
+    @Test
+    @SuppressWarnings("unchecked")
+    void setAlertOthersBeforeAddIsReplayed() throws Exception {
+        Mob zombie = detached(EntityType.ZOMBIE, -3.5);
+        var own = (net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal) zombie.targetSelector.getAvailableGoals().stream().map(WrappedGoal::getGoal)
+                .filter(g -> g instanceof net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal).findFirst().orElseThrow();
+        assertSame(own, own.setAlertOthers());
+        var made = new net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal((net.minecraft.world.entity.PathfinderMob) zombie)
+                .setAlertOthers(net.minecraft.world.entity.monster.Zombie.class);
+        zombie.targetSelector.addGoal(5, made);
+        add(zombie);
+        Mob other = detached(EntityType.ZOMBIE, -4.5);
+        add(other);
+        try {
+            var s = serverMob(zombie);
+            var so = serverMob(other);
+            var f = org.domi.furnace.server.entity.ai.goal.HurtByTargetGoal.class.getDeclaredField("toIgnoreAlert");
+            f.setAccessible(true);
+            List<Boolean> ignores = on(() -> s.targetSelector().getAvailableGoals().stream().map(w -> w.getGoal())
+                    .filter(g -> g instanceof org.domi.furnace.server.entity.ai.goal.HurtByTargetGoal).map(g -> {
+                        try {
+                            var p = (java.util.function.Predicate<org.domi.furnace.server.entity.Mob>) f.get(g);
+                            return p != null && p.test(so);
+                        } catch (IllegalAccessException e) {
+                            throw new AssertionError(e);
+                        }
+                    }).toList());
+            assertEquals(List.of(false, true), ignores, "기본 목표는 빈 목록으로 덮어쓰고, 새 목표는 좀비를 뺀다");
+        } finally {
+            remove(zombie);
+            remove(other);
+        }
+    }
 }

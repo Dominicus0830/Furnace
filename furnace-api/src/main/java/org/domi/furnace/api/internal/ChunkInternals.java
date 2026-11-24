@@ -1018,6 +1018,21 @@ public interface ChunkInternals {
     record GoalItems(java.util.Set<String> items, java.util.function.Predicate<org.domi.furnace.api.item.ItemStack> test, String owner,
                      java.util.function.BooleanSupplier alive) {}
 
+    /**
+     * 바닐라 목표 생성자의 엔티티 판정 매개변수({@code Predicate<LivingEntity>}, 몹 목표 M2b-2). 서버가 후보 엔티티의 핸들로 주인 스레드에서 부른다
+     * (플러그인 코드 — {@link GoalItems} 와 같은 예외·꺼짐 처리).
+     */
+    record GoalEntities(java.util.function.Predicate<org.domi.furnace.api.entity.Entity> test, String owner, java.util.function.BooleanSupplier alive) {}
+
+    /**
+     * 바닐라 PanicGoal 의 피해 종류 태그 매개변수(몹 목표 M2b-2). {@code dynamic} 이 null 이면 고정 태그 {@code tag}(null 이면 어느 피해도 맞지 않음 —
+     * 다른 레지스트리의 태그), 아니면 판정 때마다 부르는 함수(플러그인 코드 — null 을 돌려주면 안 된다, 같은 예외·꺼짐 처리).
+     */
+    record GoalDamageTag(String tag, java.util.function.Supplier<String> dynamic, String owner, java.util.function.BooleanSupplier alive) {}
+
+    /** 바닐라 목표의 클래스 목록 매개변수(예 HurtByTargetGoal 무시 클래스). 하나라도 맞으면 맞다 — 여기서는 플레이어와 종류가 함께여도 된다. */
+    record GoalClassList(java.util.List<GoalTargets> any) {}
+
     /** 플러그인 목표 하나의 콜백(몹 목표 설계 M2a). 모두 그 몹의 주인 스레드에서 불린다. */
     interface GoalCallbacks {
         /** 플러그인 목표 객체(호환 보기·같음·{@code removeGoal} 판정에 쓴다). */
@@ -1075,6 +1090,12 @@ public interface ChunkInternals {
          * {@code args} 는 몹 다음의 매개변수(수·참거짓·{@link GoalTargets}). 맞는 생성자가 없으면 null. 바닐라 생성자의 검사 예외는 그대로 던진다.
          */
         Object vanillaGoal(String vanillaClass, Object... args);
+
+        /**
+         * 바닐라 목표를 만든 뒤 설정하는 메서드(몹 목표 M2b-2, 예 {@code HurtByTargetGoal#setAlertOthers} — {@code call} 은 "클래스#메서드").
+         * {@code args} 는 {@link #vanillaGoal} 과 같은 종류. 그 목표·메서드 조합이 아니면 UnsupportedOperationException.
+         */
+        void configureGoal(Object goal, String call, Object... args);
 
         /** 집합에서만 뺀다(바닐라 {@code removeAllGoals}·{@code getAvailableGoals().remove…} — 돌던 목표도 멈추지 않는다). */
         void removeFromSet(boolean targets, java.util.function.Predicate<Object> wrapped);
@@ -1200,6 +1221,9 @@ public interface ChunkInternals {
 
         /** 집합에서만 빼기 — 판정 함수는 호환 계층이 한 번 돌리고 빠진 감싼 목표만 적는다. */
         record GoalRemoveFromSet(boolean targets, java.util.List<Object> wrappedRefs) implements EntityOp {}
+
+        /** 만든 뒤 설정({@link MobGoals#configureGoal}) — 샌드박스와 넣을 때 같은 차례로. */
+        record GoalConfigure(Object goalRef, String call, java.util.List<Object> args) implements EntityOp {}
 
         /** 바닐라 {@code setControlFlag}(GoalControl 순서 번호). */
         record GoalControlFlag(boolean targets, int control, boolean enabled) implements EntityOp {}

@@ -7,9 +7,9 @@ class NearestAttackableTargetGoal {
 
     public NearestAttackableTargetGoal(net.minecraft.world.entity.Mob mob, Class<T> type, boolean mustSee) { super(org.domi.furnace.compat.nms.NmsGoals.vanilla(mob, "NearestAttackableTargetGoal", type, mustSee)); }
 
-    public NearestAttackableTargetGoal(net.minecraft.world.entity.Mob mob, Class<T> type, boolean mustSee, java.util.function.Predicate<net.minecraft.world.entity.LivingEntity> filter) { super(org.domi.furnace.compat.nms.NmsGoals.unsupported("NearestAttackableTargetGoal#<init>")); }
+    public NearestAttackableTargetGoal(net.minecraft.world.entity.Mob mob, Class<T> type, boolean mustSee, java.util.function.Predicate<net.minecraft.world.entity.LivingEntity> filter) { super(org.domi.furnace.compat.nms.NmsGoals.vanilla(mob, "NearestAttackableTargetGoal", type, mustSee, org.domi.furnace.compat.nms.NmsGoals.entities(filter))); }
 
     public NearestAttackableTargetGoal(net.minecraft.world.entity.Mob mob, Class<T> type, boolean mustSee, boolean mustReach) { super(org.domi.furnace.compat.nms.NmsGoals.vanilla(mob, "NearestAttackableTargetGoal", type, mustSee, mustReach)); }
 
-    public NearestAttackableTargetGoal(net.minecraft.world.entity.Mob mob, Class<T> type, int interval, boolean mustSee, boolean mustReach, java.util.function.Predicate<net.minecraft.world.entity.LivingEntity> filter) { super(org.domi.furnace.compat.nms.NmsGoals.unsupported("NearestAttackableTargetGoal#<init>")); }
+    public NearestAttackableTargetGoal(net.minecraft.world.entity.Mob mob, Class<T> type, int interval, boolean mustSee, boolean mustReach, java.util.function.Predicate<net.minecraft.world.entity.LivingEntity> filter) { super(org.domi.furnace.compat.nms.NmsGoals.vanilla(mob, "NearestAttackableTargetGoal", type, interval, mustSee, mustReach, org.domi.furnace.compat.nms.NmsGoals.entities(filter))); }
 }
