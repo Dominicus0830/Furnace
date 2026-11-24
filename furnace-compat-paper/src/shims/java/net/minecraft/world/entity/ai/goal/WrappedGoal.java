@@ -29,7 +29,10 @@ class WrappedGoal {
     }
 
     public boolean canBeReplacedBy(WrappedGoal other) {
-        if (furnaceBacking() != null && other.furnaceBacking() != null) return NmsGoals.canBeReplacedBy(furnaceBacking(), other.furnaceBacking());
+        if (furnaceBacking() != null && other.furnaceBacking() != null) {
+            Boolean r = NmsGoals.canBeReplacedBy(furnaceBacking(), other.furnaceBacking());
+            if (r != null) return r;
+        }
         return isInterruptable() && other.getPriority() < getPriority();
     }
 

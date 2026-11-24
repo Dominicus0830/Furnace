@@ -616,17 +616,13 @@ class Entity {
         org.domi.furnace.compat.nms.NmsEntityOwner.read(this, "Entity#getEntityData");
         Detached d = detached;
         if (d == null) return worldEntityData();
-        if (d.data == null) {
-            // 생성자 난수 선택(좀비 주민 직업 등)을 미리 본 칸과 넣은 엔티티가 같게: 엔티티 난수 씨앗을 정해 맨 앞에 둔다(바닐라 RandomSource.create() 처럼 씨앗 없는 난수)
-            if (d.ops.isEmpty() || !(d.ops.get(0) instanceof org.domi.furnace.api.internal.ChunkInternals.EntityOp.EntityRandom)) {
-                d.ops.add(0, new org.domi.furnace.api.internal.ChunkInternals.EntityOp.EntityRandom(java.util.concurrent.ThreadLocalRandom.current().nextLong()));
+        synchronized (d) {
+            if (d.data == null) {
+                var session = d.session();
+                d.data = org.domi.furnace.compat.nms.NmsEntityData.build(this, d.kind(), session);
             }
-            var session = org.domi.furnace.compat.nms.NmsEntityData.open(d.kind(), d.ops);
-            var data = org.domi.furnace.compat.nms.NmsEntityData.build(this, d.kind(), session);
-            d.session = session;
-            d.data = data;
+            return d.data;
         }
-        return d.data;
     }
 
     private static UnsupportedNmsCall worldEntityData(String what) {
@@ -667,6 +663,26 @@ class Entity {
         if (detached != null) throw notInWorld(what);
         var h = f();
         return org.domi.furnace.compat.nms.NmsEntities.call(furnaceWorld(), h, what, () -> task.apply(h));
+    }
+
+    /**
+     * 호환 모듈 전용(몹 목표 설계 M3): 선택기 조작 하나의 경로. 월드의 엔티티면 {@link #furnaceOnOwner} 로 {@code world}. 아직 월드에 없으면 {@code sandbox}
+     * (아무 스레드 — 잠금은 {@link org.domi.furnace.compat.nms.NmsGoals.Sandbox#locked}). 넣는 도중 스폰 이벤트 전에 넣을 엔티티가 정해지면 그 엔티티로
+     * {@code world}(이벤트 처리기가 넣기 전 객체를 써도 넣을 엔티티를 본다 — 설계 검토 3).
+     */
+    public <T> T furnaceGoals(String what, java.util.function.Function<org.domi.furnace.api.entity.Entity, T> world,
+                              java.util.function.Function<org.domi.furnace.compat.nms.NmsGoals.Sandbox, T> sandbox) {
+        for (;;) {
+            Detached d = detached;
+            if (d == null) return furnaceOnOwner(what, world);
+            var pending = d.pending;
+            if (pending != null) return org.domi.furnace.compat.nms.NmsEntities.call(d.addWorld, pending, what, () -> world.apply(pending));
+            try {
+                return sandbox.apply(d.goals());
+            } catch (org.domi.furnace.compat.nms.NmsGoals.Moved moved) {
+                // 넣을 엔티티가 막 정해졌다 — 다시 고른다
+            }
+        }
     }
 
     /** 호환 모듈 전용(월드 엔티티 칸 쓰기, D5): 주인 스레드에서 서버 칸 조작 하나. 규칙은 다른 월드 엔티티 조작과 같다. 서버 칸이 바뀌었으면 참. */
@@ -816,19 +832,26 @@ class Entity {
         String id = EntityType.getKey(d.type).toString();
         int x = (int) Math.floor(d.x), y = (int) Math.floor(d.y), z = (int) Math.floor(d.z);
         var world = level.getWorld().furnaceHandle();
-        var ops = java.util.List.copyOf(d.ops);
+        var ops = d.beginAdd(world);
         String why = spawnReason == null ? null : spawnReason.name();
         var b = org.domi.furnace.compat.nms.NmsChunks.bridge();
-        var r = org.domi.furnace.compat.nms.NmsOwner.call(world, x, y, z, "ServerLevel#addFreshEntity",
-                () -> b.addNmsEntityNow(world, x, z, id, ops, why, events));
+        org.domi.furnace.api.internal.ChunkInternals.NmsEntityAdd r;
+        try {
+            r = org.domi.furnace.compat.nms.NmsOwner.call(world, x, y, z, "ServerLevel#addFreshEntity", () -> b.addNmsEntityNow(world, x, z, id, ops, why, events));
+        } catch (RuntimeException | Error ex) {
+            d.endAdd(false);
+            throw ex;
+        }
         if (r.added() == null) {
             if (r.discarded()) d.removed = true;   // Paper doEntityAddEventCalling: 이벤트 취소·처리기가 지움이면 그 엔티티를 discard
+            d.endAdd(false);
             return r.uuidTaken() ? AddResult.UUID_TAKEN : AddResult.REFUSED;
         }
         CraftEntity c = (CraftEntity) org.domi.furnace.compat.paper.Compat.entity(r.added());
         c.adoptHandle(this);
         bukkit = c;
         detached = null;
+        d.endAdd(true);
         return AddResult.ADDED;
     }
 
@@ -880,31 +903,43 @@ class Entity {
             e.generation = false;
             if (e.spawnReason == null) e.spawnReason = reason;
         }
-        var spec = furnaceSpec();
         int x = (int) Math.floor(d.x), y = (int) Math.floor(d.y), z = (int) Math.floor(d.z);
         var world = level.getWorld().furnaceHandle();
+        var spec = furnaceSpec(world);
         String why = spawnReason == null ? null : spawnReason.name();
         var b = org.domi.furnace.compat.nms.NmsChunks.bridge();
-        var group = org.domi.furnace.compat.nms.NmsOwner.call(world, x, y, z, "ServerLevel#addFreshEntityWithPassengers",
-                () -> b.addNmsEntityWithPassengersNow(world, x, z, spec, why));
+        org.domi.furnace.api.internal.ChunkInternals.NmsGroupAdd group;
+        try {
+            group = org.domi.furnace.compat.nms.NmsOwner.call(world, x, y, z, "ServerLevel#addFreshEntityWithPassengers",
+                    () -> b.addNmsEntityWithPassengersNow(world, x, z, spec, why));
+        } catch (RuntimeException | Error ex) {
+            for (Entity e : order) e.detached.endAdd(false);
+            throw ex;
+        }
         var added = group.added();
         for (int i = 0; i < order.size(); i++) {
             var h = added.get(i);
-            if (h == null) continue;
             Entity e = order.get(i);
+            Detached ed = e.detached;
+            if (h == null) {
+                ed.endAdd(false);
+                continue;
+            }
             CraftEntity c = (CraftEntity) org.domi.furnace.compat.paper.Compat.entity(h);
             c.adoptHandle(e);
             e.bukkit = c;
             e.detached = null;
+            ed.endAdd(true);
         }
         return group.result();
     }
 
-    private org.domi.furnace.api.internal.ChunkInternals.NmsEntitySpec furnaceSpec() {
+    /** 넣을 묶음(넣기를 시작한다 — 끝은 {@link Detached#endAdd}). */
+    private org.domi.furnace.api.internal.ChunkInternals.NmsEntitySpec furnaceSpec(org.domi.furnace.api.world.World world) {
         Detached d = detached;
         java.util.List<org.domi.furnace.api.internal.ChunkInternals.NmsEntitySpec> ps = new java.util.ArrayList<>(d.passengers.size());
-        for (Entity p : d.passengers) ps.add(p.furnaceSpec());
-        return new org.domi.furnace.api.internal.ChunkInternals.NmsEntitySpec(EntityType.getKey(d.type).toString(), java.util.List.copyOf(d.ops), ps);
+        for (Entity p : d.passengers) ps.add(p.furnaceSpec(world));
+        return new org.domi.furnace.api.internal.ChunkInternals.NmsEntitySpec(EntityType.getKey(d.type).toString(), d.beginAdd(world), ps);
     }
 
     /** 바닐라 지움 이유(이름·순서·두 판정이 1.21.1 과 같다). */
@@ -948,10 +983,92 @@ class Entity {
 
         String kind() { return EntityType.getKey(type).toString(); }
 
-        /** 조작 하나를 기록한다. 칸을 이미 꺼내 줬으면 그 조작을 서버에서 재생해 그 자리에서 다시 채운다(setter·load 의 칸 효과가 바닐라처럼 바로 보이게). */
-        void add(org.domi.furnace.api.internal.ChunkInternals.EntityOp op) {
+        /**
+         * 조작 하나를 기록한다. 재생 상태가 있으면(칸을 꺼내 줬거나 선택기를 봤으면) 그 조작을 서버에서 재생하고, 칸을 꺼내 줬으면 그 자리에서 다시 채운다
+         * (setter·load 의 칸 효과가 바닐라처럼 바로 보이게).
+         */
+        synchronized void add(org.domi.furnace.api.internal.ChunkInternals.EntityOp op) {
             ops.add(op);
+            replay(op);
+        }
+
+        private void replay(org.domi.furnace.api.internal.ChunkInternals.EntityOp op) {
             if (data != null) org.domi.furnace.compat.nms.NmsEntityData.refresh(data, kind(), session, op);
+            else if (session != null) session.apply(op);
+        }
+
+        /** 서버 재생 상태(처음이면 연다). 잠금 안에서. */
+        org.domi.furnace.api.internal.ChunkInternals.DetachedEntityData session() {
+            if (session == null) {
+                // 생성자 난수 선택(좀비 주민 직업 등)을 미리 본 칸과 넣은 엔티티가 같게: 엔티티 난수 씨앗을 정해 맨 앞에 둔다(바닐라 RandomSource.create() 처럼 씨앗 없는 난수)
+                if (ops.isEmpty() || !(ops.get(0) instanceof org.domi.furnace.api.internal.ChunkInternals.EntityOp.EntityRandom)) {
+                    ops.add(0, new org.domi.furnace.api.internal.ChunkInternals.EntityOp.EntityRandom(java.util.concurrent.ThreadLocalRandom.current().nextLong()));
+                }
+                session = org.domi.furnace.compat.nms.NmsEntityData.open(kind(), ops);
+            }
+            return session;
+        }
+
+        // ---- 몹 목표(M3): 선택기는 재생 상태의 샌드박스 몹을 본다. 넣는 동안(adding) 다른 스레드의 조작은 거절하고, 스폰 이벤트 전 넣을 엔티티가 정해지면(pending) 그쪽으로.
+
+        /** 넣는 중(주인 스레드가 ops 를 가져간 뒤 결과까지). 잠금 안에서 바꾼다. */
+        boolean adding;
+        /** 넣는 중 재생을 마친 넣을 엔티티(스폰 이벤트 전에 서버가 알린다). */
+        volatile org.domi.furnace.api.entity.Entity pending;
+        volatile org.domi.furnace.api.world.World addWorld;
+        /** 넣기 결과를 알려 줄 목표 재료. */
+        final java.util.List<org.domi.furnace.compat.nms.NmsGoals.Backing> goalBackings = new java.util.ArrayList<>();
+        private GoalBox goals;
+
+        synchronized GoalBox goals() {
+            if (goals == null) goals = new GoalBox();
+            return goals;
+        }
+
+        /** 넣기 시작: 기록을 가져가고 넣을 엔티티를 받을 훅을 붙인다. */
+        synchronized java.util.List<org.domi.furnace.api.internal.ChunkInternals.EntityOp> beginAdd(org.domi.furnace.api.world.World world) {
+            adding = true;
+            addWorld = world;
+            var out = new java.util.ArrayList<>(ops);
+            out.add(new org.domi.furnace.api.internal.ChunkInternals.EntityOp.AddHook(h -> pending = h));
+            return java.util.List.copyOf(out);
+        }
+
+        /** 넣기 끝: 목표 재료의 경로를 정리한다(실패면 샌드박스로). */
+        synchronized void endAdd(boolean added) {
+            for (var b : goalBackings) org.domi.furnace.compat.nms.NmsGoals.addFinished(b, added);
+            if (added) goalBackings.clear();
+            pending = null;
+            adding = false;
+        }
+
+        final class GoalBox implements org.domi.furnace.compat.nms.NmsGoals.Sandbox {
+            @Override
+            public <T> T locked(String what, java.util.function.Function<org.domi.furnace.api.internal.ChunkInternals.MobGoals, T> task) {
+                synchronized (Detached.this) {
+                    if (adding) {
+                        if (pending != null) throw new org.domi.furnace.compat.nms.NmsGoals.Moved();
+                        throw new org.domi.furnace.compat.nms.UnsupportedNmsCall(what, "the mob is being added to a world on another thread - call it after the add");
+                    }
+                    var g = session().mobGoals();
+                    if (g == null) throw new org.domi.furnace.compat.nms.UnsupportedNmsCall(what, "entity " + kind() + " is not a mob on the server");
+                    return task.apply(g);
+                }
+            }
+
+            @Override
+            public void record(org.domi.furnace.api.internal.ChunkInternals.EntityOp op) {
+                if (!Thread.holdsLock(Detached.this)) throw new IllegalStateException("goal edit outside the lock");
+                session();
+                Detached.this.replay(op);   // 순서: 샌드박스에 먼저(실패하면 기록하지 않는다)
+                ops.add(op);
+            }
+
+            @Override
+            public Object ref(Object ref) { return session().goalRef(ref); }
+
+            @Override
+            public void track(org.domi.furnace.compat.nms.NmsGoals.Backing b) { goalBackings.add(b); }
         }
     }
 

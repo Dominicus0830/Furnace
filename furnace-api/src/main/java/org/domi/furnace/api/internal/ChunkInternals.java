@@ -595,6 +595,15 @@ public interface ChunkInternals {
 
         /** 조작 하나를 더 재생하고 지금 칸을 돌려준다. {@link EntityOp.EntityRandom} 은 맨 앞에만 올 수 있어 여기서는 IllegalArgumentException. */
         java.util.List<EntityDataSlot> apply(EntityOp op);
+
+        /**
+         * 샌드박스 몹의 목표 보기(몹 목표 설계 M3): 몹이 아니면 null. 읽기만 쓴다 — 바꾸는 것은 {@link EntityOp} 의 목표 조작을 {@link #apply} 로. 이 객체의 잠금
+         * 안에서 돈다(아무 스레드). 플러그인 코드를 이 안에서 부르지 않는다.
+         */
+        default MobGoals mobGoals() { return null; }
+
+        /** 목표 조작의 ref 에 묶인 샌드박스 서버 객체(없으면 null). */
+        default Object goalRef(Object ref) { return null; }
     }
 
     /**
@@ -629,6 +638,15 @@ public interface ChunkInternals {
 
     /** {@link #addNmsEntityWithPassengersNow} 의 엔티티 하나: 종류 이름, 재생할 조작, 태울 승객. */
     record NmsEntitySpec(String id, java.util.List<EntityOp> ops, java.util.List<NmsEntitySpec> passengers) {}
+
+    /**
+     * 호환 계층의 몹 목표 정체성 객체(몹 목표 설계 M3) — 목표 조작 기록의 ref 로 쓰면, 넣을 몹의 재생을 마친 뒤(스폰 이벤트 전, 주인 스레드) 서버가
+     * 짝지은 진짜 서버 목표·감싼 목표로 {@link #bindWorld} 를 부른다. 짝이 없는 ref 는 부르지 않는다.
+     */
+    interface GoalRef {
+        /** 진짜 서버 객체로 옮긴다. 돌려준 보기 shim(없으면 null)을 서버가 그 객체의 보기로 붙인다. */
+        Object bindWorld(Object server);
+    }
 
     /** {@link #addNmsEntityNow} 의 결과: 넣은 엔티티(못 넣었으면 null)와, 못 넣은 엔티티를 Paper 처럼 지운 것으로 볼지. */
     record NmsEntityAdd(org.domi.furnace.api.entity.Entity added, boolean discarded, boolean uuidTaken) {
@@ -1146,6 +1164,42 @@ public interface ChunkInternals {
          * 배치와 다르면 IllegalArgumentException.
          */
         record SetData(int index, org.domi.furnace.api.packet.clientbound.ClientboundSetEntityDataPacket.Value value, boolean force) implements EntityOp, EntityEdit {}
+
+        // ---- 몹 목표(몹 목표 설계 M3, furnace/designs/mob-goals-m3-detached-design-2026-11-24.md): 월드에 넣기 전 선택기 조작. ref 는 호환 계층의
+        // 정체성 객체(같은 JVM — 서버는 열쇠로만 쓴다). 서버는 몹마다 ref → 서버 목표 표를 재생하며 만든다. 몹이 아니거나 모르는 ref 는 IllegalArgumentException.
+
+        /**
+         * 선택기의 index 번째 감싼 목표와 그 안의 목표를 ref 에 묶는다(보기 shim 을 처음 만들 때). 진짜 몹의 그 자리 목표가 기록한 바닐라 클래스·우선순위·깃발과
+         * 다르면 묶지 않는다(그 ref 를 쓰는 뒤 조작은 IllegalArgumentException).
+         */
+        record GoalPin(boolean targets, int index, Object wrappedRef, Object goalRef, String vanillaClass, int priority, int flags) implements EntityOp {}
+
+        /** 바닐라 목표 생성자({@link MobGoals#vanillaGoal}) — 만든 시점의 차례에 재생해 생성자 부작용 순서가 같다. 지원하지 않는 생성자는 UnsupportedOperationException. */
+        record GoalCreate(Object ref, String vanillaClass, java.util.List<Object> args) implements EntityOp {}
+
+        /** 플러그인 목표 어댑터({@link MobGoals#adopt}). */
+        record GoalAdopt(Object ref, GoalCallbacks callbacks) implements EntityOp {}
+
+        /** 바닐라 {@code addGoal(priority, goal)}. */
+        record GoalAdd(boolean targets, int priority, Object goalRef) implements EntityOp {}
+
+        /** 바닐라 {@code getAvailableGoals().add(wrapped)}. */
+        record GoalAddWrapped(boolean targets, Object wrappedRef) implements EntityOp {}
+
+        /** 바닐라 {@code removeGoal(goal)}(돌고 있으면 멈추고 뺀다). */
+        record GoalRemove(boolean targets, Object goalRef) implements EntityOp {}
+
+        /** 집합에서만 빼기 — 판정 함수는 호환 계층이 한 번 돌리고 빠진 감싼 목표만 적는다. */
+        record GoalRemoveFromSet(boolean targets, java.util.List<Object> wrappedRefs) implements EntityOp {}
+
+        /** 바닐라 {@code setControlFlag}(GoalControl 순서 번호). */
+        record GoalControlFlag(boolean targets, int control, boolean enabled) implements EntityOp {}
+
+        /**
+         * 넣을 엔티티의 재생을 마친 뒤, 스폰 이벤트 전에 주인 스레드에서 그 엔티티의 핸들로 부른다(넣기 전 객체가 이벤트 처리기 안에서 넣을 엔티티를 보게 —
+         * 몹 목표 설계 M3 검토 3). 샌드박스 재생에서는 아무것도 안 한다.
+         */
+        record AddHook(java.util.function.Consumer<org.domi.furnace.api.entity.Entity> beforeEvents) implements EntityOp {}
     }
 
     /**
