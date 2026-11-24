@@ -614,6 +614,27 @@ class ShimGeneratorTest {
         assertTrue(tag2.contains("getName"), tag2);
     }
 
+    /** 명세에 없는 손 인터페이스의 추상 메서드(잠금 H 줄)도, 손 상위가 구현하지 않으면 던지는 몸통이 생긴다(Sign·Lectern 의 CommandSource 류). */
+    @Test
+    void handInterfaceAbstractMethodsGetThrowingBodies() throws Exception {
+        String lock = String.join("\n", "#furnace-shim-lock\t1\ttest",
+                "C\tnet/minecraft/zz/Base\t1057\tjava/lang/Object\t-\t-\t-\tt",
+                "C\tnet/minecraft/zz/Src\t1537\tjava/lang/Object\t-\t-\t-\tt",
+                "C\tnet/minecraft/zz/Tag\t33\tnet/minecraft/zz/Base\tnet/minecraft/zz/Src\t-\t-\t-\tt",
+                "H\tnet/minecraft/zz/Src\tinform\t()Z\t1025\t-", "");
+        ShimSpec spec = new ShimSpec();
+        spec.parse("t.spec", "class net.minecraft.zz.Tag\n");
+        Path dir = Files.createDirectories(tmp.resolve("handH/net/minecraft/zz"));
+        Files.writeString(dir.resolve("Base.java"), "package net.minecraft.zz;\npublic abstract class Base {\n    protected Base(org.domi.furnace.compat.nms.ShimCtor tag) {}\n}\n", StandardCharsets.UTF_8);
+        Files.writeString(dir.resolve("Src.java"), "package net.minecraft.zz;\npublic interface Src {\n    boolean inform();\n}\n", StandardCharsets.UTF_8);
+        String tag = new ShimGenerator(spec, ShimLock.parse(lock), tmp, List.of(tmp.resolve("handH")), List.of()).generate().files().get("net/minecraft/zz/Tag");
+        assertTrue(tag.contains("boolean inform()") && tag.contains("not linked in the Furnace shim spec yet"), tag);
+        // 손 상위가 이미 구현하면 가리지 않는다
+        Files.writeString(dir.resolve("Base.java"), "package net.minecraft.zz;\npublic abstract class Base {\n    protected Base(org.domi.furnace.compat.nms.ShimCtor tag) {}\n    public boolean inform() { return true; }\n}\n", StandardCharsets.UTF_8);
+        String tag2 = new ShimGenerator(spec, ShimLock.parse(lock), tmp, List.of(tmp.resolve("handH")), List.of()).generate().files().get("net/minecraft/zz/Tag");
+        assertFalse(tag2.contains("inform"), tag2);
+    }
+
     /** 잠금 A 줄의 애노테이션이 생성 머리에 붙고, 조각이 이미 쓰면 겹치지 않는다. */
     @Test
     void copiedClassAnnotationsLandOnTheHeader() throws Exception {

@@ -337,8 +337,17 @@ public final class ShimGenerator {
             for (String s : chain) itfs.addAll(lock.classes.get(s).interfaces());
             while (!itfs.isEmpty()) {
                 String i = itfs.remove(itfs.size() - 1);
-                if (!seen.add(i) || !emitted(i)) continue;
+                if (!seen.add(i) || !lock.classes.containsKey(i)) continue;
                 itfs.addAll(lock.classes.get(i).interfaces());
+                if (!emitted(i)) {
+                    // 손 인터페이스(src/main/java)가 몸통 없이 선언한 추상 메서드 — 생성 클래스가 그것을 구현하는 곳(손 BlockEntity 아래 Sign 의 CommandSource 등)
+                    if (hand.has(i)) {
+                        for (ShimLock.Member lm : lock.handAbstracts.getOrDefault(i, List.of())) {
+                            if (abstractDeclared(hand.text(i), lm.name())) abstracts.putIfAbsent(overrideKey(lm), lm);
+                        }
+                    }
+                    continue;
+                }
                 for (Bound b : bound.getOrDefault(i, List.of())) {
                     if (b.lock().kind() != 'M' || b.lock().isStatic()) continue;
                     if (b.spec().body() == ShimSpec.Body.EACH) { abstracts.putIfAbsent(overrideKey(b.lock()), b.lock()); each.putIfAbsent(overrideKey(b.lock()), b); }
@@ -399,6 +408,13 @@ public final class ShimGenerator {
     /** 조각 소스에 그 이름의 메서드 몸통(여는 중괄호까지)이 있나 — 호출식(return name( …)·추상 선언은 안 센다. */
     private boolean fragmentMethodDeclared(String fragment, String method) {
         return bodyDeclared(fragmentSrc.text(fragment), method);
+    }
+
+    /** 손 인터페이스 소스에 그 이름의 추상 선언(몸통 없이 세미콜론으로 끝남)이 있나. */
+    private static boolean abstractDeclared(String text, String method) {
+        if (text == null) return false;
+        return Pattern.compile("(?m)^\\s*(?:@\\w+\\s+)*(?:public |abstract )*(?:<[^>]+>\\s+)?[\\w.<>\\[\\]?, ]+\\s+"
+                + Pattern.quote(method) + "\\s*\\([^;{)]*\\)\\s*(?:throws [\\w., ]+)?;").matcher(text).find();
     }
 
     private static boolean bodyDeclared(String text, String method) {

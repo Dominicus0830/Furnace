@@ -2,3 +2,8 @@
 class net.minecraft.network.protocol.PacketFlow
   SERVERBOUND = ("serverbound")
   CLIENTBOUND = ("clientbound")
+
+# 직소 블록 이음 종류(중첩 열거형 — 바깥 JigsawBlockEntity 는 src/shims/java 조각)
+class net.minecraft.world.level.block.entity.JigsawBlockEntity$JointType
+  ROLLABLE
+  ALIGNED
