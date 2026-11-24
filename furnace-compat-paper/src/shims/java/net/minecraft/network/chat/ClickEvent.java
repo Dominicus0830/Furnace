@@ -6,7 +6,7 @@ import java.util.Objects;
  * 글을 눌렀을 때 하는 일(Mojang 이름 shim, 불변). 값은 Furnace 클릭 이벤트({@link org.domi.furnace.api.text.ClickEvent})로 옮겨 가며,
  * {@link Style#withClickEvent} 가 그 길이다. 바닐라의 CODEC 상수는 없다(호출 위치에서 실패).
  */
-public class ClickEvent {
+class ClickEvent {
 
     private final Action action;
     private final String value;

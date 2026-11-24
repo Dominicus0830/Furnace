@@ -3,7 +3,7 @@ package net.minecraft.network.chat;
 /**
  * 채팅 글 도우미(Mojang 이름 shim) — 지금은 {@code fromMessage} 만 있다. 나머지 멤버는 없다(없는 멤버 — 호출 위치에서 실패).
  */
-public final class ComponentUtils {
+class ComponentUtils {
 
     private ComponentUtils() {}
 

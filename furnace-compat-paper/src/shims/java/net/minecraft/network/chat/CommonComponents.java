@@ -1,7 +1,7 @@
 package net.minecraft.network.chat;
 
 /** 자주 쓰는 글(Mojang 이름 shim, 일부). */
-public final class CommonComponents {
+class CommonComponents {
 
     public static final Component EMPTY = Component.empty();
     public static final Component SPACE = Component.literal(" ");

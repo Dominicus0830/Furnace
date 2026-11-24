@@ -21,7 +21,7 @@ import java.util.stream.Stream;
  * interpret·italic 등)의 0/1 을 불리언으로 돌려 읽는다(바닐라는 코덱 자리가 불리언이라 같은 결과). 글자 그대로의 글만 되는 읽기(바닐라
  * 문자열 하나 = 글자 글)와 목록(첫 항목이 본문, 나머지가 자식)도 바닐라처럼 받는다. 글 스트림 코덱 등 나머지 상수는 없다.
  */
-public final class ComponentSerialization {
+class ComponentSerialization {
 
     private ComponentSerialization() {}
 

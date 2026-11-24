@@ -9,7 +9,7 @@ import net.minecraft.ChatFormatting;
  * 이름 있는 색이다. equals 는 값만, hashCode 는 (값, 이름) — 바닐라 바이트코드와 같다. parseColor(DataResult)는 serialization 라이브러리가
  * 없어 두지 않았다.
  */
-public final class TextColor {
+class TextColor {
 
     private final int value;
     private final String name;
