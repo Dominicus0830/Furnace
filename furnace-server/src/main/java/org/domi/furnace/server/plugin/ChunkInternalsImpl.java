@@ -1602,7 +1602,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
                 var w = list.get(g.index());
                 var inner = w.getGoal();
                 // 구조가 같을 때만 묶는다(바닐라 클래스·우선순위·깃발) — 다르면 그 ref 를 쓰는 뒤 조작이 실패한다
-                if (!GoalClasses.vanillaName(inner.getClass()).equals(g.vanillaClass()) || w.getPriority() != g.priority() || flagMask(inner) != g.flags()) return;
+                if (!GoalClasses.vanillaName(inner.getClass()).equals(g.vanillaClass()) || w.getPriority() != g.priority() || (g.flags() >= 0 && flagMask(inner) != g.flags())) return;
                 Object had = refs.get(g.goalRef());
                 if (had != null && had != inner) return;
                 refs.putIfAbsent(g.wrappedRef(), w);
@@ -1640,6 +1640,11 @@ final class ChunkInternalsImpl implements ChunkInternals {
             case EntityOp.GoalControlFlag g -> sel(mob, g.targets()).setControlFlag(org.domi.furnace.server.entity.ai.Goal.Flag.values()[g.control()], g.enabled());
             default -> throw new IllegalArgumentException("not a goal edit: " + op);
         }
+    }
+
+    private static boolean goalEdit(EntityOp op) {
+        return op instanceof EntityOp.GoalPin || op instanceof EntityOp.GoalCreate || op instanceof EntityOp.GoalAdopt || op instanceof EntityOp.GoalAdd
+                || op instanceof EntityOp.GoalAddWrapped || op instanceof EntityOp.GoalRemove || op instanceof EntityOp.GoalRemoveFromSet || op instanceof EntityOp.GoalControlFlag;
     }
 
     private static org.domi.furnace.server.entity.ai.GoalSelector sel(org.domi.furnace.server.entity.Mob mob, boolean targets) {
@@ -1772,8 +1777,8 @@ final class ChunkInternalsImpl implements ChunkInternals {
             try {
                 applyOp(entity, kind, op, false);
             } catch (RuntimeException ex) {
-                // 바닐라 목표 생성자의 거절(지원 안 하는 생성자·검사 예외)은 몹을 바꾸기 전에 난다 — 그 조작만 실패하고 재생 상태는 그대로 쓴다(몹 목표 설계 M3)
-                if (!(op instanceof EntityOp.GoalCreate)) failed = ex;
+                // 몹 목표 조작의 거절은 몹을 바꾸기 전에 난다(생성자 검사·지원 안 하는 생성자·모르는 ref·몹이 아님) — 그 조작만 실패하고 재생 상태는 그대로 쓴다(몹 목표 설계 M3)
+                if (!(goalEdit(op) && (op instanceof EntityOp.GoalCreate || ex instanceof IllegalArgumentException || ex instanceof UnsupportedOperationException))) failed = ex;
                 throw ex;
             } catch (Error ex) {
                 failed = ex;   // 엔티티가 조작 도중 상태일 수 있다 — 처음부터 재생해도 여기서 늘 실패한다(Error 도 잠근다: 반쯤 바뀐 엔티티를 다시 쓰지 않는다)

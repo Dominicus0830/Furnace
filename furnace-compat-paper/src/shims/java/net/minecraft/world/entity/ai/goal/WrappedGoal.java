@@ -37,13 +37,16 @@ class WrappedGoal {
     }
 
     @Override
-    public boolean canUse() { return furnaceBacking() != null ? NmsGoals.canUse(this) : furnaceGoal.canUse(); }
+    public boolean canUse() { return server() ? NmsGoals.canUse(this) : furnaceGoal.canUse(); }
 
     @Override
-    public boolean canContinueToUse() { return furnaceBacking() != null ? super.canContinueToUse() : furnaceGoal.canContinueToUse(); }
+    public boolean canContinueToUse() { return server() ? super.canContinueToUse() : furnaceGoal.canContinueToUse(); }
 
     @Override
-    public boolean isInterruptable() { return furnaceBacking() != null ? super.isInterruptable() : furnaceGoal.isInterruptable(); }
+    public boolean isInterruptable() { return server() ? super.isInterruptable() : furnaceGoal.isInterruptable(); }
+
+    /** 서버에 묻는가 — 넣기 전 몹의 감싼 플러그인 목표는 플러그인 목표를 바로 부른다(바닐라도 감싼 목표가 안의 목표에 넘긴다 — 샌드박스 잠금 밖에서). */
+    private boolean server() { return furnaceBacking() != null && !NmsGoals.sandboxPluginWrapped(furnaceBacking(), furnaceGoal); }
 
     @Override
     public void start() {
@@ -66,7 +69,7 @@ class WrappedGoal {
     }
 
     @Override
-    public boolean requiresUpdateEveryTick() { return furnaceBacking() != null ? super.requiresUpdateEveryTick() : furnaceGoal.requiresUpdateEveryTick(); }
+    public boolean requiresUpdateEveryTick() { return server() ? super.requiresUpdateEveryTick() : furnaceGoal.requiresUpdateEveryTick(); }
 
     @Override
     protected int adjustedTickDelay(int ticks) { return furnaceGoal.adjustedTickDelay(ticks); }

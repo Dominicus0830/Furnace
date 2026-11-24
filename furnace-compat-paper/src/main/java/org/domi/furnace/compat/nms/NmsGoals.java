@@ -98,6 +98,11 @@ public final class NmsGoals {
         void track(Backing b);
     }
 
+    /** 넣기 전 몹의 감싼 플러그인 목표인가 — 그 읽기는 샌드박스 잠금 밖에서 플러그인 목표를 바로 부른다(검토 권장 1). */
+    public static boolean sandboxPluginWrapped(Backing wrapped, Goal inner) {
+        return wrapped != null && inner != null && inner.furnaceBacking() == null && wrapped.route() instanceof InSandbox;
+    }
+
     /** 엔티티 shim 전용: 넣기가 끝났다({@link Backing} 참고). */
     public static void addFinished(Backing b, boolean added) { b.addFinished(added); }
 
@@ -271,7 +276,9 @@ public final class NmsGoals {
         Object innerServer = g.goal(server);
         Goal inner;
         Object goalRef;
+        boolean plugin = false;
         if (g.view(innerServer) instanceof Goal v) {
+            plugin = v.furnaceBacking() == null;
             inner = v;
             // 플러그인 목표의 어댑터는 그 플러그인 객체가 ref(바닐라처럼 같은 객체로 찾는다)
             goalRef = v.furnaceBacking() != null ? v.furnaceBacking() : v;
@@ -286,7 +293,8 @@ public final class NmsGoals {
         WrappedGoal made = NmsKinds.create("net.minecraft.world.entity.ai.goal.WrappedGoal", WrappedGoal.class, new Made(bw, g.priority(server), inner));
         bw.view = made;
         g.setView(server, made);
-        box.record(new ChunkInternals.EntityOp.GoalPin(targets, index, bw, goalRef, g.vanillaClass(innerServer), g.priority(server), g.flags(innerServer)));
+        box.record(new ChunkInternals.EntityOp.GoalPin(targets, index, bw, goalRef, g.vanillaClass(innerServer), g.priority(server),
+                plugin ? -1 : g.flags(innerServer)));   // 플러그인 목표의 깃발은 플러그인 코드 — 잠금 안에서 부르지 않는다
         return made;
     }
 
@@ -341,8 +349,8 @@ public final class NmsGoals {
                     try {
                         return s.box().locked(what, g -> task.apply(g, s.server()));
                     } catch (Moved moved) {
-                        // 스폰 이벤트 중: 짝지은 재료는 이미 월드 경로다. 그대로면 짝이 없다
-                        if (b.route() == r || tries > 0) throw unpaired(b, what);
+                        // 스폰 이벤트 중: 짝지은 재료는 이미 월드 경로다. 그대로면 짝이 없다(경로가 바뀌었으면 다시 읽는다 — 실패한 넣기 뒤 곧 다시 넣는 경우)
+                        if (b.route() == r || tries > 100) throw unpaired(b, what);
                     }
                 }
             }
