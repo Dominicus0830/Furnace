@@ -976,9 +976,18 @@ final class ChunkInternalsImpl implements ChunkInternals {
 
         private final org.domi.furnace.server.entity.Mob mob;
 
-        MobGoalsImpl(org.domi.furnace.server.entity.Mob mob) { this.mob = mob; }
+        /** 샌드박스 몹(월드 밖 — 주인이 없다): 부르는 쪽이 샌드박스 잠금을 쥔다. */
+        private final boolean sandbox;
+
+        MobGoalsImpl(org.domi.furnace.server.entity.Mob mob) { this(mob, false); }
+
+        MobGoalsImpl(org.domi.furnace.server.entity.Mob mob, boolean sandbox) {
+            this.mob = mob;
+            this.sandbox = sandbox;
+        }
 
         private void check() {
+            if (sandbox) return;
             if (!org.domi.furnace.server.world.RegionBorrow.claimEntity(mob) && !mob.level().isOwnerThread()) {
                 throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("mob goals of " + mob.uuid() + " can only be used from the region thread that owns the mob (current thread: "
                         + Thread.currentThread().getName() + ")");
@@ -1529,8 +1538,11 @@ final class ChunkInternalsImpl implements ChunkInternals {
         if (spawnReason != null) e.spawnReason(spawnReason);
         // Paper ServerLevel#addEntity: 빈 아이템 엔티티는 넣지 않는다(이벤트 전에 거짓, 지우지 않음)
         if (fireEvents && e instanceof org.domi.furnace.server.entity.ItemEntity ie && ie.getItem().isEmpty()) return NmsEntityAdd.REFUSED;
+        // 몹 목표 설계 M3: 넣기 전 객체를 진짜 엔티티로 옮긴다(스폰 이벤트 전 — 처리기가 넣기 전 객체를 써도 넣을 엔티티를 본다)
+        var handle = EntityHandle.of(host, e);
+        bindBeforeEvents(e, handle, ops);
         int r = lv.addFreshEntityResult(e, fireEvents);
-        if (r == org.domi.furnace.server.block.ChunkLevel.ADDED) return new NmsEntityAdd(EntityHandle.of(host, e), false, false);
+        if (r == org.domi.furnace.server.block.ChunkLevel.ADDED) return new NmsEntityAdd(handle, false, false);
         // Paper doEntityAddEventCalling: 이벤트를 취소했거나 처리기가 지웠으면 그 엔티티를 지운다. UUID 겹침은 지우지 않는다
         return new NmsEntityAdd(null, r == org.domi.furnace.server.block.ChunkLevel.ADD_CANCELLED, r == org.domi.furnace.server.block.ChunkLevel.ADD_DUPLICATE);
     }
@@ -1566,7 +1578,104 @@ final class ChunkInternalsImpl implements ChunkInternals {
             case EntityEdit.SetCustomName n -> applySetter(e, n);
             case EntityEdit.SetTicksFrozen t -> applySetter(e, t);
             case EntityOp.SetData d -> setData(e, id, d);
+            case EntityOp.GoalPin g -> goalOp(e, g);
+            case EntityOp.GoalCreate g -> goalOp(e, g);
+            case EntityOp.GoalAdopt g -> goalOp(e, g);
+            case EntityOp.GoalAdd g -> goalOp(e, g);
+            case EntityOp.GoalAddWrapped g -> goalOp(e, g);
+            case EntityOp.GoalRemove g -> goalOp(e, g);
+            case EntityOp.GoalRemoveFromSet g -> goalOp(e, g);
+            case EntityOp.GoalControlFlag g -> goalOp(e, g);
+            case EntityOp.AddHook h -> { }   // 넣을 때만 — bindBeforeEvents
         }
+    }
+
+    /** 몹 목표 조작 하나(몹 목표 설계 M3) — 샌드박스와 넣을 때의 재생이 같은 길이다. ref 표는 그 몹에 붙는다. */
+    private static void goalOp(org.domi.furnace.server.entity.Entity e, EntityOp op) {
+        if (!(e instanceof org.domi.furnace.server.entity.Mob mob)) throw new IllegalArgumentException("goal edits on an entity that is not a mob: " + e.type().name());
+        if (mob.compatGoalRefs == null) mob.compatGoalRefs = new java.util.IdentityHashMap<>();
+        var refs = mob.compatGoalRefs;
+        switch (op) {
+            case EntityOp.GoalPin g -> {
+                var list = sel(mob, g.targets()).visibleGoals();
+                if (g.index() < 0 || g.index() >= list.size()) return;
+                var w = list.get(g.index());
+                var inner = w.getGoal();
+                // 구조가 같을 때만 묶는다(바닐라 클래스·우선순위·깃발) — 다르면 그 ref 를 쓰는 뒤 조작이 실패한다
+                if (!GoalClasses.vanillaName(inner.getClass()).equals(g.vanillaClass()) || w.getPriority() != g.priority() || flagMask(inner) != g.flags()) return;
+                Object had = refs.get(g.goalRef());
+                if (had != null && had != inner) return;
+                refs.putIfAbsent(g.wrappedRef(), w);
+                refs.put(g.goalRef(), inner);
+            }
+            case EntityOp.GoalCreate g -> {
+                Object[] a = g.args().toArray();
+                for (int i = 0; i < a.length; i++) if (a[i] instanceof GoalTargets t) a[i] = new CompatVanillaGoals.Targets(t.playersOnly(), t.types());
+                var made = CompatVanillaGoals.create(mob, g.vanillaClass(), a);
+                if (made == null) throw new UnsupportedOperationException("no vanilla goal constructor " + g.vanillaClass() + " for " + g.args());   // 호환 계층이 M2b-2 안내로 바꾼다
+                refs.put(g.ref(), made);
+            }
+            case EntityOp.GoalAdopt g -> refs.put(g.ref(), new CompatGoal(mob, g.callbacks()));
+            case EntityOp.GoalAdd g -> sel(mob, g.targets()).addGoal(g.priority(), ref(refs, g.goalRef(), org.domi.furnace.server.entity.ai.Goal.class));
+            case EntityOp.GoalAddWrapped g -> sel(mob, g.targets()).addToSet(ref(refs, g.wrappedRef(), org.domi.furnace.server.entity.ai.WrappedGoal.class));
+            case EntityOp.GoalRemove g -> {
+                var s = sel(mob, g.targets());
+                if (g.goalRef() instanceof GoalRef) {
+                    s.removeGoal(ref(refs, g.goalRef(), org.domi.furnace.server.entity.ai.Goal.class));
+                    return;
+                }
+                // 플러그인 목표 객체: 그것을 감싼 어댑터(바닐라는 같은 객체인지로 찾는다 — 없으면 아무것도 안 한다)
+                for (org.domi.furnace.server.entity.ai.WrappedGoal w : s.visibleGoals()) {
+                    if (w.getGoal() instanceof CompatGoal c && c.target == g.goalRef()) {
+                        s.removeGoal(c);
+                        return;
+                    }
+                }
+            }
+            case EntityOp.GoalRemoveFromSet g -> {
+                java.util.Set<Object> hit = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+                for (Object r : g.wrappedRefs()) hit.add(ref(refs, r, org.domi.furnace.server.entity.ai.WrappedGoal.class));
+                sel(mob, g.targets()).removeFromSet(hit::contains);
+            }
+            case EntityOp.GoalControlFlag g -> sel(mob, g.targets()).setControlFlag(org.domi.furnace.server.entity.ai.Goal.Flag.values()[g.control()], g.enabled());
+            default -> throw new IllegalArgumentException("not a goal edit: " + op);
+        }
+    }
+
+    private static org.domi.furnace.server.entity.ai.GoalSelector sel(org.domi.furnace.server.entity.Mob mob, boolean targets) {
+        return targets ? mob.targetSelector() : mob.goalSelector();
+    }
+
+    private static <T> T ref(java.util.Map<Object, Object> refs, Object ref, Class<T> type) {
+        Object o = refs.get(ref);
+        if (!type.isInstance(o)) throw new IllegalArgumentException("a goal made before the mob was added does not match the added mob (its goal list differs)");
+        return type.cast(o);
+    }
+
+    /** 서버 깃발 비트(GoalControl 순서). */
+    static int flagMask(org.domi.furnace.server.entity.ai.Goal goal) {
+        int m = 0;
+        for (org.domi.furnace.server.entity.ai.Goal.Flag f : goal.getFlags()) m |= 1 << f.ordinal();
+        return m;
+    }
+
+    /**
+     * 재생을 마친 엔티티를 넣기 전(스폰 이벤트 전, 주인 스레드): 목표 ref 를 진짜 서버 객체로 옮기고 보기 shim 을 붙인 뒤 ref 표를 뗀다(호환 객체를 서버 몹이
+     * 붙잡지 않게), 그리고 {@link EntityOp.AddHook} 을 부른다.
+     */
+    private static void bindBeforeEvents(org.domi.furnace.server.entity.Entity e, org.domi.furnace.api.entity.Entity handle, List<EntityOp> ops) {
+        if (e instanceof org.domi.furnace.server.entity.Mob m && m.compatGoalRefs != null) {
+            var refs = m.compatGoalRefs;
+            m.compatGoalRefs = null;
+            for (var en : refs.entrySet()) {
+                if (!(en.getKey() instanceof GoalRef r)) continue;
+                Object view = r.bindWorld(en.getValue());
+                if (view == null) continue;
+                if (en.getValue() instanceof org.domi.furnace.server.entity.ai.WrappedGoal w) w.compatView = view;
+                else if (en.getValue() instanceof org.domi.furnace.server.entity.ai.Goal g) g.compatView = view;
+            }
+        }
+        for (EntityOp op : ops) if (op instanceof EntityOp.AddHook h) h.beforeEvents().accept(handle);
     }
 
     /** 바닐라 SynchedEntityData#set: 칸 번호·값 종류를 그 종류의 배치로 확인하고 서버 칸에 쓴다(값이 바뀌면 종류별 훅). */
@@ -1662,12 +1771,45 @@ final class ChunkInternalsImpl implements ChunkInternals {
             rethrowIfFailed();
             try {
                 applyOp(entity, kind, op, false);
-            } catch (RuntimeException | Error ex) {
+            } catch (RuntimeException ex) {
+                // 바닐라 목표 생성자의 거절(지원 안 하는 생성자·검사 예외)은 몹을 바꾸기 전에 난다 — 그 조작만 실패하고 재생 상태는 그대로 쓴다(몹 목표 설계 M3)
+                if (!(op instanceof EntityOp.GoalCreate)) failed = ex;
+                throw ex;
+            } catch (Error ex) {
                 failed = ex;   // 엔티티가 조작 도중 상태일 수 있다 — 처음부터 재생해도 여기서 늘 실패한다(Error 도 잠근다: 반쯤 바뀐 엔티티를 다시 쓰지 않는다)
                 throw ex;
             }
             slots = null;
             return slots();
+        }
+
+        private MobGoals goals;
+
+        @Override
+        public synchronized MobGoals mobGoals() {
+            rethrowIfFailed();
+            if (!(entity instanceof org.domi.furnace.server.entity.Mob m)) return null;
+            if (goals == null) {
+                // 읽기만 — 모든 호출을 이 객체의 잠금 안에서(플러그인 코드는 부르는 쪽이 잠금 밖에서 돌린다)
+                MobGoals impl = new MobGoalsImpl(m, true);
+                goals = (MobGoals) java.lang.reflect.Proxy.newProxyInstance(MobGoals.class.getClassLoader(), new Class<?>[] {MobGoals.class}, (proxy, method, args) -> {
+                    if (method.getDeclaringClass() == Object.class) return method.invoke(impl, args);
+                    synchronized (Detached.this) {
+                        rethrowIfFailed();
+                        try {
+                            return method.invoke(impl, args);
+                        } catch (java.lang.reflect.InvocationTargetException ex) {
+                            throw ex.getCause();
+                        }
+                    }
+                });
+            }
+            return goals;
+        }
+
+        @Override
+        public synchronized Object goalRef(Object ref) {
+            return entity instanceof org.domi.furnace.server.entity.Mob m && m.compatGoalRefs != null ? m.compatGoalRefs.get(ref) : null;
         }
     }
 
@@ -1686,6 +1828,16 @@ final class ChunkInternalsImpl implements ChunkInternals {
                     + e.z() + " but was routed to the region of " + x + ", " + z);
         }
         if (spawnReason != null) for (var m : made) if (m != null) m.spawnReason(spawnReason);
+        // 몹 목표 설계 M3: 스폰 이벤트 전에 넣기 전 객체를 진짜 엔티티로 옮긴다(태우지 못한 승객도 — 넣지 못하면 호환 계층이 되돌린다)
+        List<NmsEntitySpec> specs = new java.util.ArrayList<>(count);
+        flatten(root, specs);
+        List<org.domi.furnace.api.entity.Entity> handles = new java.util.ArrayList<>(java.util.Collections.nCopies(count, null));
+        for (int i = 0; i < count; i++) {
+            var m = made.get(i);
+            if (m == null) continue;
+            handles.set(i, EntityHandle.of(host, m));
+            bindBeforeEvents(m, handles.get(i), specs.get(i).ops());
+        }
         int added = lv.addFreshEntityGroupResult(e);
         if (added != org.domi.furnace.server.block.ChunkLevel.ADDED) {
             return new NmsGroupAdd(out, added == org.domi.furnace.server.block.ChunkLevel.ADD_DUPLICATE ? GroupResult.UUID_TAKEN : GroupResult.CANCELLED);
@@ -1693,9 +1845,15 @@ final class ChunkInternalsImpl implements ChunkInternals {
         for (int i = 0; i < count; i++) {
             var m = made.get(i);
             // 태우지 못한 승객은 넣지 않았다(바닐라도 그 승객은 월드에 들지 않는다)
-            if (lv.entities().contains(m)) out.set(i, EntityHandle.of(host, m));
+            if (m != null && lv.entities().contains(m)) out.set(i, handles.get(i));
         }
         return new NmsGroupAdd(out, GroupResult.ADDED);
+    }
+
+    /** spec 을 깊이 우선 차례로({@link #buildNms} 의 made 와 같은 차례). */
+    private static void flatten(NmsEntitySpec s, List<NmsEntitySpec> out) {
+        out.add(s);
+        for (var p : s.passengers()) flatten(p, out);
     }
 
     private static int countSpecs(NmsEntitySpec s) {
