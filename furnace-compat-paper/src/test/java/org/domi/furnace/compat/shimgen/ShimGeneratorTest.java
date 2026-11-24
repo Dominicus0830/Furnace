@@ -613,4 +613,39 @@ class ShimGeneratorTest {
         String tag2 = new ShimGenerator(spec, ShimLock.parse(lock), tmp, List.of(tmp.resolve("handC")), List.of()).generate().files().get("net/minecraft/zz/Tag");
         assertTrue(tag2.contains("getName"), tag2);
     }
+
+    /** 잠금 A 줄의 애노테이션이 생성 머리에 붙고, 조각이 이미 쓰면 겹치지 않는다. */
+    @Test
+    void copiedClassAnnotationsLandOnTheHeader() throws Exception {
+        String lock = String.join("\n", "#furnace-shim-lock\t1\ttest",
+                "C\tnet/minecraft/zz/Fn\t1537\tjava/lang/Object\t-\t-\t-\tt",
+                "A\tnet/minecraft/zz/Fn\tLjava/lang/FunctionalInterface;",
+                "M\tnet/minecraft/zz/Fn\trun\t()V\t1025\t-", "");
+        Built b = build("class net.minecraft.zz.Fn\n  run\n", lock, Map.of());
+        assertTrue(b.loader().loadClass("net.minecraft.zz.Fn").isAnnotationPresent(FunctionalInterface.class));
+        Built c = build("class net.minecraft.zz.Fn\n  run\n", lock, Map.of("net/minecraft/zz/Fn",
+                "package net.minecraft.zz;\n\n@FunctionalInterface\ninterface Fn {\n}\n"));
+        assertTrue(c.loader().loadClass("net.minecraft.zz.Fn").isAnnotationPresent(FunctionalInterface.class));
+    }
+
+    /** 열거형 상수 줄 `NAME = (인자)` — 생성자 인자가 붙은 상수(생성자·필드는 손 조각). 조각 없이는 막는다. */
+    @Test
+    void enumConstantsCanCarryConstructorArguments() throws Exception {
+        String spec = "class net.minecraft.zz.Flow\n  UP = (\"up\")\n  DOWN = (\"down\")\n";
+        String lock = String.join("\n", "#furnace-shim-lock\t1\ttest",
+                "C\tnet/minecraft/zz/Flow\t16433\tjava/lang/Enum\t-\tLjava/lang/Enum<Lnet/minecraft/zz/Flow;>;\t-\tt",
+                "E\tnet/minecraft/zz/Flow\t2",
+                "F\tnet/minecraft/zz/Flow\tDOWN\tLnet/minecraft/zz/Flow;\t16409\t-",
+                "F\tnet/minecraft/zz/Flow\tUP\tLnet/minecraft/zz/Flow;\t16409\t-", "");
+        ShimSpec sp = new ShimSpec();
+        sp.parse("t.spec", spec);
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> new ShimGenerator(sp, ShimLock.parse(lock), tmp.resolve("nofrag4"), List.of(), List.of()).generate());
+        assertTrue(e.getMessage().contains("needs a fragment"), e.getMessage());
+        Built b = build(spec, lock, Map.of("net/minecraft/zz/Flow",
+                "package net.minecraft.zz;\n\nenum Flow {\n    private final String id;\n    Flow(String id) { this.id = id; }\n    public String id() { return id; }\n}\n"));
+        Class<?> flow = b.loader().loadClass("net.minecraft.zz.Flow");
+        assertEquals("[UP, DOWN]", Arrays.toString(flow.getEnumConstants()));
+        assertEquals("down", flow.getMethod("id").invoke(flow.getEnumConstants()[1]));
+    }
 }

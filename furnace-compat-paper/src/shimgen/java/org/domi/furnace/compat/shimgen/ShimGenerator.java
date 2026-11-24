@@ -469,7 +469,11 @@ public final class ShimGenerator {
         String simple = JavaTypes.simple(n);
         List<Bound> bs = bound.getOrDefault(n, List.of());
         // 열거형 상수(명세 순서). 조각은 mergeFragment 가 머리 바로 뒤에 쓴다.
-        if (c.isEnum() && origin.get(n) == Origin.GEN) sb.append(in).append(String.join(", ", enumConstants(n))).append(";\n");
+        if (c.isEnum() && origin.get(n) == Origin.GEN) {
+            List<String> consts = enumConstants(n);
+            if (consts.stream().anyMatch(k -> k.contains("("))) problems.add("enum " + n + " has constants with constructor arguments: it needs a fragment (src/shims/java) with the constructor and fields");
+            sb.append(in).append(String.join(", ", consts)).append(";\n");
+        }
         boolean rec = c.isRecord();
         if (rec) recordAutoMembers(n, bs);
         if (rec) explicitRecordMethods(n);
@@ -622,10 +626,20 @@ public final class ShimGenerator {
         }
     }
 
-    /** 명세 순서의 열거형 상수 이름. */
+    /**
+     * 명세 순서의 열거형 상수. 명세 줄이 {@code NAME = (인자…)} 이면 생성자 인자가 붙은 {@code NAME(인자…)} 로 쓴다
+     * (인자는 자바 식 그대로 — 생성자·필드는 손 조각이 쓴다).
+     */
     List<String> enumConstants(String n) {
         List<String> consts = new ArrayList<>();
-        for (Bound b : bound.getOrDefault(n, List.of())) if (b.lock().kind() == 'F' && (b.lock().access() & 0x4000) != 0) consts.add(b.lock().name());
+        for (Bound b : bound.getOrDefault(n, List.of())) {
+            if (b.lock().kind() != 'F' || (b.lock().access() & 0x4000) == 0) continue;
+            if (b.spec().body() == ShimSpec.Body.VALUE) {
+                String a = b.spec().target().trim();
+                if (!a.startsWith("(") || !a.endsWith(")")) problems.add(b.spec().where() + ": enum constant " + b.lock().name() + " takes constructor arguments as = (args)");
+                else consts.add(b.lock().name() + a);
+            } else consts.add(b.lock().name());
+        }
         return consts;
     }
 
@@ -670,6 +684,9 @@ public final class ShimGenerator {
         ShimLock.Cls c = lock.classes.get(n);
         int a = c.effectiveAccess();
         StringBuilder sb = new StringBuilder();
+        for (String an : lock.classAnnotations.getOrDefault(n, List.of())) {
+            if (annotationApplies(n, an) && !annotationInFragment(n, an)) sb.append('@').append(JavaTypes.descType(an)).append(' ');
+        }
         sb.append(visibility(a));
         boolean nested = n.indexOf('$') > 0;
         boolean rec = c.isRecord();
@@ -712,6 +729,26 @@ public final class ShimGenerator {
             if (!itfs.isEmpty()) sb.append(" implements ").append(String.join(", ", itfs));
         }
         return sb.toString();
+    }
+
+    /**
+     * @FunctionalInterface 는 추상 메서드가 정확히 하나일 때만 컴파일된다 — 명세가 그 추상 메서드를 이은 인터페이스에만 붙인다
+     * (안 이은 껍데기 인터페이스에 붙이면 javac 오류. 그때는 추상 메서드를 명세에 적으면 붙는다).
+     */
+    private boolean annotationApplies(String n, String desc) {
+        if (!desc.equals("Ljava/lang/FunctionalInterface;")) return true;
+        int abstracts = 0;
+        for (Bound b : bound.getOrDefault(n, List.of())) if (b.lock().kind() == 'M' && b.lock().isAbstract()) abstracts++;
+        return abstracts == 1;
+    }
+
+    /** 손 조각이 머리 앞에 이미 같은 애노테이션을 쓰면 또 붙이지 않는다(겹치면 컴파일 오류). */
+    private boolean annotationInFragment(String n, String desc) {
+        if (origin.get(n) != Origin.FRAGMENT || n.indexOf('$') > 0) return false;
+        String text = fragmentSrc.text(n);
+        if (text == null) return false;
+        String simple = JavaTypes.simple(desc.substring(1, desc.length() - 1));
+        return Pattern.compile("(?m)^\\s*@(?:java\\.lang\\.)?" + Pattern.quote(simple) + "\\b").matcher(text).find();
     }
 
     private static String visibility(int a) {

@@ -1,4 +1,4 @@
 # T-260 full shells: sha256 of the signature tables the shells are built from (no names - the tables are never committed)
-paper-server 7773bc5c84549c5c3ff535ac3765ba2a24ecaae8bff283e83fbb4adbd042f047
-vanilla 83066cbb1196a8cf3ed19526d3c07fc539b0845d2eedae7fdbd1972a031224d6
-paper-api 60bd69fbad22e6434346e59f8f991fd0eedcf65a754816a5d5d98a96cc9ee8bb
+paper-server 8a6ecd569c9d650d05359e33f5bee56e37b75299b6837c9ece71b0a5f176a431
+vanilla 652dca7610a42ff34f625e2f4fd940dc01817ec4025c3ef464d6db946f73b75a
+paper-api e02245f25663fe3ae6ca865fe76fd4fb509e6851ab31ae096b64e344f0caca10
