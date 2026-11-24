@@ -1,34 +1,107 @@
 package net.minecraft.network.chat;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
+import java.util.stream.Stream;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.core.HolderLookup;
 
 /**
  * 채팅 글(Mojang 이름 shim, H7b, 등급 B). 값은 Furnace {@link org.domi.furnace.api.text.Text} 와 같은 모양(내용·스타일·자식)이고,
  * 만들기({@code literal}·{@code translatable}·{@code empty}·{@code keybind})·{@code getString}(서버 언어 en_us 로 번역한 평문)·JSON
- * 직렬화({@link Serializer})를 바닐라 이름으로 준다. 바닐라는 brigadier {@code Message} 도 구현하지만 이 서버에는 brigadier 가 없다.
- * 내용 객체({@code getContents()}·{@code ComponentContents})·{@code FormattedText} 방문은 아직 없다(없는 멤버 — 호출 위치에서 실패).
+ * 직렬화({@link Serializer})를 바닐라 이름으로 준다. 바닐라처럼 {@link FormattedText}·{@code Iterable<Component>} 를 구현한다. brigadier {@code Message} 는 구현하지 않는다 —
+ * brigadier 는 쓰는 플러그인이 있을 때만 서버가 붙이는 선택 라이브러리라, 상위로 두면 그것이 없을 때 Component 가 못 올라간다(결정 대기: user-todo).
+ * 내용({@link #getContents})·방문(visit)·평탄화(toFlatList·stream·iterator)는 바닐라(Paper 1.21.1) 바이트코드의 규칙을 따른다.
  */
-public interface Component {
+public interface Component extends FormattedText, Iterable<Component> {
 
     Style getStyle();
 
+    ComponentContents getContents();
+
     List<Component> getSiblings();
 
+    FormattedCharSequence getVisualOrderText();
+
     /** 서버 언어(en_us)로 번역한 평문(바닐라 getString). */
-    String getString();
-
-    /** 같은 내용·스타일·자식 사본(자식은 같은 객체를 공유 — 바닐라와 같다). */
-    MutableComponent copy();
-
-    /** 내용만(스타일·자식 없이) 사본. */
-    MutableComponent plainCopy();
+    @Override
+    default String getString() { return FormattedText.super.getString(); }
 
     /** 처음 n 글자(바닐라 getString(int)). */
-    default String getString(int n) {
-        String s = getString();
-        return s.length() <= n ? s : s.substring(0, n);
+    default String getString(int maxLength) {
+        StringBuilder sb = new StringBuilder();
+        visit(s -> {
+            int remaining = maxLength - sb.length();
+            if (remaining <= 0) return STOP_ITERATION;
+            sb.append(s.length() <= remaining ? s : s.substring(0, remaining));
+            return Optional.empty();
+        });
+        return sb.toString();
     }
+
+    /** 내용이 글자 그대로이고 자식·스타일이 없으면 그 글자, 아니면 null. */
+    default String tryCollapseToString() {
+        if (getContents() instanceof net.minecraft.network.chat.contents.PlainTextContents p && getSiblings().isEmpty() && getStyle().isEmpty()) return p.text();
+        return null;
+    }
+
+    /** 내용만(스타일·자식 없이) 사본. */
+    default MutableComponent plainCopy() { return MutableComponent.create(getContents()); }
+
+    /** 같은 내용·스타일·자식 사본(자식은 같은 객체를 공유 — 바닐라와 같다). */
+    default MutableComponent copy() { return new MutableComponent(getContents(), new ArrayList<>(getSiblings()), getStyle()); }
+
+    @Override
+    default <T> Optional<T> visit(FormattedText.StyledContentConsumer<T> consumer, Style parent) {
+        Style style = getStyle().applyTo(parent);
+        Optional<T> r = getContents().visit(consumer, style);
+        if (r.isPresent()) return r;
+        for (Component sibling : getSiblings()) {
+            r = sibling.visit(consumer, style);
+            if (r.isPresent()) return r;
+        }
+        return Optional.empty();
+    }
+
+    @Override
+    default <T> Optional<T> visit(FormattedText.ContentConsumer<T> consumer) {
+        Optional<T> r = getContents().visit(consumer);
+        if (r.isPresent()) return r;
+        for (Component sibling : getSiblings()) {
+            r = sibling.visit(consumer);
+            if (r.isPresent()) return r;
+        }
+        return Optional.empty();
+    }
+
+    default List<Component> toFlatList() { return toFlatList(Style.EMPTY); }
+
+    default List<Component> toFlatList(Style rootStyle) {
+        List<Component> out = new ArrayList<>();
+        visit((style, text) -> {
+            if (!text.isEmpty()) out.add(literal(text).withStyle(style));
+            return Optional.empty();
+        }, rootStyle);
+        return out;
+    }
+
+    /** 이 글이 other 를 (스타일까지 같게) 품고 있는가. */
+    default boolean contains(Component other) {
+        if (equals(other)) return true;
+        List<Component> mine = toFlatList();
+        List<Component> theirs = other.toFlatList(getStyle());
+        return Collections.indexOfSubList(mine, theirs) != -1;
+    }
+
+    default Stream<Component> stream() {
+        return Stream.concat(Stream.of(this), getSiblings().stream().flatMap(Component::stream));
+    }
+
+    @Override
+    default Iterator<Component> iterator() { return stream().iterator(); }
 
     static MutableComponent literal(String text) { return MutableComponent.create(new org.domi.furnace.api.text.Content.Literal(text)); }
 
