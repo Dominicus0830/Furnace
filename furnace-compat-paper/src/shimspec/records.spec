@@ -1,0 +1,29 @@
+# 레코드 클래스(T-230): 머리(성분·상위 인터페이스)는 잠금 파일(R 줄)에서 만든다. 표준 생성자·접근자·equals/hashCode/toString 은 컴파일러가 만든다.
+# 손으로 쓴 몸통이 있는 레코드는 src/shims/java 조각(머리 "record 이름 {")이다.
+class net.minecraft.world.item.component.Unbreakable
+class net.minecraft.world.item.component.CustomModelData
+class net.minecraft.world.level.saveddata.maps.MapId
+class net.minecraft.server.packs.repository.KnownPack
+class net.minecraft.server.packs.PackSelectionConfig
+class net.minecraft.server.packs.PackLocationInfo
+class net.minecraft.world.level.saveddata.maps.MapDecorationType
+class net.minecraft.world.level.saveddata.maps.MapDecoration
+class net.minecraft.world.level.dimension.LevelStem
+class net.minecraft.world.level.chunk.storage.RegionStorageInfo
+class net.minecraft.world.entity.decoration.PaintingVariant
+class net.minecraft.world.entity.animal.FrogVariant
+class net.minecraft.world.entity.animal.CatVariant
+class net.minecraft.server.level.ClientInformation
+class net.minecraft.world.item.component.ResolvableProfile
+class net.minecraft.world.item.crafting.RecipeHolder
+class net.minecraft.world.entity.ai.village.poi.PoiType
+class net.minecraft.world.entity.ai.attributes.AttributeModifier
+class net.minecraft.world.entity.npc.VillagerProfession
+class net.minecraft.world.entity.player.ProfilePublicKey
+class net.minecraft.tags.TagKey
+class net.minecraft.network.syncher.EntityDataAccessor
+class net.minecraft.network.chat.RemoteChatSession
+class net.minecraft.commands.arguments.ArgumentSignatures
+class net.minecraft.network.protocol.PacketType
+class net.minecraft.network.chat.LastSeenMessages
+class net.minecraft.network.chat.MessageSignature

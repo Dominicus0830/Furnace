@@ -1,6 +1,7 @@
 package org.domi.furnace.compat.nms;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -139,17 +140,133 @@ class NmsEntityDataTest {
             assertTrue(on(s::isCustomNameVisible));
             assertEquals(0.5F, (float) on(s::bbWidth), "작은 갑옷 거치대 — 서버 칸 훅이 크기를 바꿨다");
             assertThrows(UnsupportedNmsCall.class, () -> d.set(CUSTOM_NAME_VISIBLE, false), "넣은 뒤 남은 칸 객체에 쓰면 서버에 닿지 않으므로 막는다");
-            assertThrows(UnsupportedNmsCall.class, e::getEntityData, "월드의 엔티티는 아직(설계 D5)");
+            assertTrue(e.getEntityData() instanceof org.domi.furnace.compat.nms.NmsWorldEntityData, "넣은 뒤 getEntityData 는 월드 엔티티 보기(설계 D5)");
         } finally {
             on(() -> { e.getBukkitEntity().remove(); return null; });
         }
     }
 
-    /** 아직 바꾸지 못하는 값 종류(입자 — 입자 shim 이 빈 껍데기)가 있는 종류는 getEntityData 만 알리고, setter 는 그대로 된다. */
+    /**
+     * 설계 D5 시험 4·7: 월드 엔티티의 칸 보기. 주인이 아닌 스레드의 set 이 주인에게 넘어가 서버 칸(훅 포함)에 쓰이고 추적기가 플레이어에게 보낸다.
+     * 서버가 바꾼 칸은 틱 스레드가 아닌 스레드에서 막히지 않고 최근 값으로 읽힌다. 깃발 쓰기는 주인의 한 번의 조작이다.
+     */
     @Test
-    void kindsWithUnbridgedValueKindsSayUnsupported() {
+    void worldEntitySlotsFollowTheServer() throws Exception {
+        Entity e = EntityType.ARMOR_STAND.create(level);
+        e.moveTo(at.x() + 1.5, at.y(), at.z() + 1.5, 0.0F, 0.0F);
+        assertTrue(on(() -> level.addFreshEntity(e, SpawnReason.CUSTOM)));
+        try {
+            var s = serverEntity(e);
+            SynchedEntityData d = e.getEntityData();   // 시험 스레드(틱 스레드 아님): 처음 한 번 주인을 기다린다
+            assertSame(d, e.getEntityData(), "같은 엔티티는 같은 보기");
+            assertFalse(d.get(CUSTOM_NAME_VISIBLE));
+            assertFalse(d.isDirty());
+
+            server.tick(2);
+            tp.clearReceived();
+            d.set(CUSTOM_NAME_VISIBLE, true);   // 주인이 아닌 스레드 — 주인 region 에서 서버 칸에 쓴다
+            assertTrue(on(s::isCustomNameVisible));
+            assertTrue(d.get(CUSTOM_NAME_VISIBLE));
+            d.set(STAND_FLAGS, (byte) 0x01);
+            assertEquals(0.5F, (float) on(s::bbWidth), "서버 칸 훅(작은 갑옷 거치대 크기)을 지났다");
+            server.tick(2);
+            int id = e.getId();
+            tp.awaitPacket(org.domi.furnace.api.packet.PacketTypes.Clientbound.SET_ENTITY_DATA, p -> p.entityId() == id
+                    && p.entries().stream().anyMatch(en -> en.index() == 3 && Boolean.TRUE.equals(en.value().asObject())));
+
+            // 이 보기로 쓴 칸만 더럽다(서버 추적기의 표시는 건드리지 않는다)
+            assertTrue(d.isDirty());
+            var packed = d.packDirty();
+            assertEquals(java.util.List.of(3, 15), packed.stream().map(SynchedEntityData.DataValue::id).toList());
+            assertEquals(null, d.packDirty());
+
+            // 서버가 바꾼 칸: 틱 스레드가 아닌 새 스레드에서 막히지 않고 최근 값
+            on(() -> { s.setInvisible(true); return null; });
+            var read = new java.util.concurrent.atomic.AtomicReference<Byte>();
+            Thread t = new Thread(() -> read.set(d.get(SHARED_FLAGS)), "netty-like-reader");
+            t.start();
+            t.join(5_000);
+            assertEquals((byte) 0x20, read.get());
+
+            // 깃발 관용구: 주인에서 한 번에 읽고 비트를 쓴다 — 다른 비트(투명)는 그대로
+            org.domi.furnace.compat.nms.NmsEntityData.setFlag(e, SHARED_FLAGS, 0x40, true);
+            assertEquals((byte) 0x60, d.get(SHARED_FLAGS));
+            assertEquals((byte) 0x60, (byte) on(() -> (Byte) s.entityData().get(0)), "서버 칸에 비트가 쓰였다");
+            org.domi.furnace.compat.nms.NmsEntityData.setFlag(e, SHARED_FLAGS, 0x20, false);
+            assertEquals((byte) 0x40, d.get(SHARED_FLAGS));
+            assertFalse(on(s::isInvisible));
+
+            // 같은 값 거르기는 서버가 한다(검토 PR 607): 서버가 그 사이 바꾼 값을 되돌리는 쓰기는 사라지지 않고, 정말 같은 값이면 더러움도 없다
+            d.packDirty();
+            on(() -> { s.setCustomNameVisible(false); return null; });
+            d.set(CUSTOM_NAME_VISIBLE, true);
+            assertTrue(on(s::isCustomNameVisible), "서버가 바꾼 뒤의 되돌리기 쓰기가 서버에 닿는다");
+            assertEquals(java.util.List.of(3), d.packDirty().stream().map(SynchedEntityData.DataValue::id).toList());
+            d.set(CUSTOM_NAME_VISIBLE, true);
+            assertFalse(d.isDirty(), "같은 값 쓰기는 바닐라처럼 더럽히지 않는다");
+            org.domi.furnace.compat.nms.NmsEntityData.setFlag(e, SHARED_FLAGS, 0x40, true);
+            assertFalse(d.isDirty(), "이미 켜진 깃발도 마찬가지");
+
+            // 여러 스레드가 같은 바이트 칸의 다른 비트를 엇갈려 써도 비트를 잃지 않는다
+            org.domi.furnace.compat.nms.NmsEntityData.setFlag(e, SHARED_FLAGS, 0x40, false);
+            int[] masks = {0x02, 0x04, 0x08};   // 불(0x01)·겉날개(0x80)는 서버 틱이 스스로 고치는 비트라 피한다
+            var pool = java.util.concurrent.Executors.newFixedThreadPool(masks.length);
+            try {
+                var jobs = new java.util.ArrayList<java.util.concurrent.Future<?>>();
+                for (int mask : masks) {
+                    jobs.add(pool.submit(() -> {
+                        for (int i = 0; i < 20; i++) org.domi.furnace.compat.nms.NmsEntityData.setFlag(e, SHARED_FLAGS, mask, i % 2 == 0);
+                        org.domi.furnace.compat.nms.NmsEntityData.setFlag(e, SHARED_FLAGS, mask, true);
+                    }));
+                }
+                for (var j : jobs) j.get(30, java.util.concurrent.TimeUnit.SECONDS);
+            } finally {
+                pool.shutdownNow();
+            }
+            assertEquals((byte) 0x0E, (byte) on(() -> (Byte) s.entityData().get(0)), "세 스레드의 비트가 모두 남았다");
+            assertEquals((byte) 0x0E, d.get(SHARED_FLAGS));
+        } finally {
+            on(() -> { e.getBukkitEntity().remove(); return null; });
+        }
+    }
+
+    /** 월드 엔티티 칸 보기의 주인 규칙: 다른 region 의 틱 스레드(여기서는 전역 스레드)에서는 기다리지 않고 ThreadOwnershipException. */
+    @Test
+    void worldEntitySlotsRefuseOtherTickThreads() {
+        Entity e = EntityType.ARMOR_STAND.create(level);
+        e.moveTo(at.x() + 2.5, at.y(), at.z() + 2.5, 0.0F, 0.0F);
+        assertTrue(on(() -> level.addFreshEntity(e, SpawnReason.CUSTOM)));
+        try {
+            Object r = server.onGlobal(() -> {
+                try {
+                    e.getEntityData();
+                    return null;
+                } catch (RuntimeException ex) {
+                    return ex;
+                }
+            });
+            assertTrue(r instanceof org.domi.furnace.api.concurrent.ThreadOwnershipException, String.valueOf(r));
+        } finally {
+            on(() -> { e.getBukkitEntity().remove(); return null; });
+        }
+    }
+
+    /** 입자 칸(구름): 처음 값이 바닐라처럼 흰 entity_effect 색 입자이고, 칸 쓰기가 서버 재생을 지나 같은 입자로 돌아온다. */
+    @Test
+    void particleSlotRoundTripsThroughTheServer() {
         Entity cloud = EntityType.AREA_EFFECT_CLOUD.create(level);
-        assertThrows(UnsupportedNmsCall.class, cloud::getEntityData);
+        SynchedEntityData d = cloud.getEntityData();
+        var slot = new EntityDataAccessor<net.minecraft.core.particles.ParticleOptions>(org.domi.furnace.server.entity.AreaEffectCloud.DATA_PARTICLE, EntityDataSerializers.PARTICLE);
+        var first = assertInstanceOf(net.minecraft.core.particles.ColorParticleOption.class, d.get(slot));
+        assertSame(net.minecraft.core.particles.ParticleTypes.ENTITY_EFFECT, first.getType());
+        assertEquals(1.0f, first.getAlpha());
+        assertEquals(1.0f, first.getRed());
+        d.set(slot, new net.minecraft.core.particles.DustParticleOptions(new org.joml.Vector3f(0.25f, 0.5f, 1f), 2f));
+        var dust = assertInstanceOf(net.minecraft.core.particles.DustParticleOptions.class, d.get(slot));
+        assertEquals(new org.joml.Vector3f(0.25f, 0.5f, 1f), dust.getColor());
+        assertEquals(2f, dust.getScale());
+        d.set(slot, net.minecraft.core.particles.ParticleTypes.FLAME);
+        assertSame(net.minecraft.core.particles.ParticleTypes.FLAME, d.get(slot), "옵션 없는 종류는 종류 상수 그 자체");
         cloud.setInvisible(true);
         assertTrue(cloud.isInvisible());
     }
@@ -179,5 +296,47 @@ class NmsEntityDataTest {
         d.set(slot, jellie);
         assertSame(jellie, d.get(slot));
         assertEquals("minecraft:textures/entity/cat/jellie.png", d.get(slot).value().texture().toString());
+    }
+
+    /** T-263 관용구(D3): 칸 읽기·쓰기·깃발이 shim 칸 객체와 같은 값을 보고, 쓰기가 서버 재생을 지난다. */
+    @Test
+    void entityDataIdiomsReadAndWriteTheSlots() {
+        Entity cat = EntityType.CAT.create(level);
+        var slot = new EntityDataAccessor<net.minecraft.core.Holder<net.minecraft.world.entity.animal.CatVariant>>(org.domi.furnace.server.entity.Cat.DATA_VARIANT, EntityDataSerializers.CAT_VARIANT);
+        var reg = net.minecraft.core.registries.BuiltInRegistries.CAT_VARIANT;
+        assertSame(reg.getHolder(net.minecraft.world.entity.animal.CatVariant.BLACK).orElseThrow(), org.domi.furnace.compat.nms.NmsEntityData.get(cat, slot));
+        var jellie = reg.getHolderOrThrow(net.minecraft.world.entity.animal.CatVariant.JELLIE);
+        org.domi.furnace.compat.nms.NmsEntityData.set(cat, slot, jellie);
+        assertSame(jellie, cat.getEntityData().get(slot));
+
+        var flags = new EntityDataAccessor<Byte>(0, EntityDataSerializers.BYTE);
+        assertFalse(org.domi.furnace.compat.nms.NmsEntityData.flag(cat, flags, 0x20));
+        org.domi.furnace.compat.nms.NmsEntityData.setFlag(cat, flags, 0x20, true);
+        org.domi.furnace.compat.nms.NmsEntityData.setFlag(cat, flags, 0x02, true);
+        assertTrue(org.domi.furnace.compat.nms.NmsEntityData.flag(cat, flags, 0x20));
+        assertEquals((byte) 0x22, cat.getEntityData().get(flags));
+        assertTrue(cat.isInvisible(), "깃발 쓰기가 서버 재생을 지나 투명 깃발이 켜졌다");
+        org.domi.furnace.compat.nms.NmsEntityData.setFlag(cat, flags, 0x20, false);
+        assertEquals((byte) 0x02, cat.getEntityData().get(flags), "끄면 그 비트만 지운다");
+        assertThrows(IllegalArgumentException.class, () -> org.domi.furnace.compat.nms.NmsEntityData.get("not an entity", flags));
+    }
+
+    @Test
+    void jomlSlotValuesAreNotCopied() {
+        // 바닐라는 VECTOR3·QUATERNION 값을 복사하지 않는다 — get 은 늘 같은 객체, set 한 객체가 그대로 나오고, 값이 안 바뀐 칸은 다른 조작 뒤에도 같은 객체다
+        Entity display = EntityType.BLOCK_DISPLAY.create(level);
+        var translation = new EntityDataAccessor<org.joml.Vector3f>(org.domi.furnace.server.entity.Display.DATA_TRANSLATION, EntityDataSerializers.VECTOR3);
+        var leftRot = new EntityDataAccessor<org.joml.Quaternionf>(org.domi.furnace.server.entity.Display.DATA_LEFT_ROT, EntityDataSerializers.QUATERNION);
+        var data = display.getEntityData();
+        assertEquals(new org.joml.Vector3f(), data.get(translation));
+        assertEquals(new org.joml.Quaternionf(), data.get(leftRot));
+        org.joml.Quaternionf rot = data.get(leftRot);
+        assertSame(rot, data.get(leftRot));
+        var v = new org.joml.Vector3f(0.5f, 1f, -2f);
+        data.set(translation, v);
+        assertSame(v, data.get(translation));
+        org.domi.furnace.compat.nms.NmsEntityData.setFlag(display, new EntityDataAccessor<Byte>(0, EntityDataSerializers.BYTE), 0x20, true);
+        assertSame(v, data.get(translation), "다른 칸 조작 뒤에도 값이 같으면 같은 객체");
+        assertSame(rot, data.get(leftRot), "다른 칸 조작 뒤에도 값이 같으면 같은 객체");
     }
 }

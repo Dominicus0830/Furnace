@@ -214,8 +214,8 @@ public final class ShimGenerator {
             else o = Origin.GEN;
             origin.put(n, o);
             ShimLock.Cls c = lock.classes.get(n);
-            if ((o == Origin.GEN || o == Origin.FRAGMENT) && (c.isRecord() || c.isAnnotation())) {
-                problems.add("records and annotation types are not generated yet (T-230): " + n + " - keep it as a hand shim");
+            if ((o == Origin.GEN || o == Origin.FRAGMENT) && c.isAnnotation()) {
+                problems.add("annotation types are not generated yet (T-230): " + n + " - keep it as a hand shim");
             }
             if ((o == Origin.GEN || o == Origin.FRAGMENT) && c.isEnum()) {
                 // 상수를 일부만 적으면 서수·values() 가 바닐라와 달라진다 — 전부(바닐라 순서로) 적어야 한다
@@ -265,6 +265,8 @@ public final class ShimGenerator {
 
     boolean isShim(String n) { return n != null && origin.containsKey(n) || n != null && ShimLock.isNms(n) && hand.has(n); }
 
+    boolean isRecord(String n) { return lock.classes.get(n) != null && lock.classes.get(n).isRecord(); }
+
     boolean emitted(String n) { Origin o = origin.get(n); return o == Origin.GEN || o == Origin.FRAGMENT; }
 
     private boolean hasCtorSpec(String n) {
@@ -277,7 +279,7 @@ public final class ShimGenerator {
         List<String> work = new ArrayList<>();
         for (Map.Entry<String, Origin> e : origin.entrySet()) {
             ShimLock.Cls c = lock.classes.get(e.getKey());
-            if (e.getValue() != Origin.GEN || c.isInterface() || c.isEnum()) continue;
+            if (e.getValue() != Origin.GEN || c.isInterface() || c.isEnum() || isRecord(e.getKey())) continue;
             if (!hasCtorSpec(e.getKey())) work.add(e.getKey());
             for (Bound b : bound.getOrDefault(e.getKey(), List.of())) {
                 if (b.lock().name().equals("<init>") && b.spec().body() == ShimSpec.Body.EMPTY && isShim(c.superName())) work.add(c.superName());
@@ -295,6 +297,7 @@ public final class ShimGenerator {
                 if (origin.get(n) == Origin.PACKET) problems.add("a generated class extends a packet-generated class (cannot call the generator constructor): " + n);
                 continue;   // 손 shim 은 스스로 C(ShimCtor) 를 가져야 한다(없으면 컴파일 오류가 알려 준다)
             }
+            if (isRecord(n)) { problems.add("a record cannot take the generator constructor (it is also a kind class or a generated superclass): " + n); continue; }
             if (!needsMarker.add(n)) continue;
             ShimLock.Cls c = lock.classes.get(n);
             if (isShim(c.superName())) work.add(c.superName());
@@ -357,7 +360,16 @@ public final class ShimGenerator {
                     eachFor.computeIfAbsent(n, k -> new ArrayList<>()).add(fill);
                     continue;
                 }
-                if (unknown) continue;
+                // 상위 사슬에 손 shim 이 끼어 있어도(unknown) 그 손 shim 들이 같은 이름의 메서드를 하나도 안 가졌다면 던지는 몸통을 만든다
+                // (손 BlockEntity 아래 생성 Container 가족: 바닐라 Container·CommandSource 의 추상 메서드). 가졌다면 말없이 가리지 않게 건너뛴다.
+                if (unknown) {
+                    boolean handHas = false;
+                    for (String h : handSupers) if (handDeclares(h, m.name())) { handHas = true; break; }
+                    if (!handHas) handHas = implementedByHandInterface(n, m);
+                    if (handHas) continue;
+                }
+                // 손 조각이 이미 구현한 메서드(조각 소스에 선언이 있다)는 던지는 몸통으로 가리지 않는다 — 상위 클래스·인터페이스 기본 메서드 조각 모두(추상을 선언한 조각 자신은 뺀다)
+                if (implementedByFragment(n, m) || implementedByHandInterface(n, m)) continue;
                 if (JavaTypes.usesTypeVariables(m.signature())) {
                     problems.add(n + " does not link " + m.name() + m.desc() + ", an abstract method of a generated supertype whose signature uses type variables;"
                             + " a throwing body cannot be generated - link it in the spec of " + n);
@@ -367,6 +379,50 @@ public final class ShimGenerator {
                 unimplemented.add(n + " " + m.name() + " " + m.desc());
             }
         }
+    }
+
+    /** n 의 상위 사슬(클래스·인터페이스)에 있는 손 조각 중, 추상을 선언한 쪽이 아닌 조각이 m 과 같은 이름의 메서드를 직접 선언하나. */
+    private boolean implementedByFragment(String n, ShimLock.Member m) {
+        Set<String> seen = new HashSet<>();
+        List<String> work = new ArrayList<>(List.of(n));
+        while (!work.isEmpty()) {
+            String s = work.remove(work.size() - 1);
+            if (s == null || !seen.add(s) || !lock.classes.containsKey(s)) continue;
+            if (!s.equals(m.owner()) && origin.get(s) == Origin.FRAGMENT && fragmentMethodDeclared(s, m.name())) return true;
+            ShimLock.Cls c = lock.classes.get(s);
+            work.add(c.superName());
+            work.addAll(c.interfaces());
+        }
+        return false;
+    }
+
+    /** 조각 소스에 그 이름의 메서드 몸통(여는 중괄호까지)이 있나 — 호출식(return name( …)·추상 선언은 안 센다. */
+    private boolean fragmentMethodDeclared(String fragment, String method) {
+        return bodyDeclared(fragmentSrc.text(fragment), method);
+    }
+
+    private static boolean bodyDeclared(String text, String method) {
+        if (text == null) return false;
+        return Pattern.compile("(?m)^\\s*(?:@\\w+\\s+)*(?:public |protected |private |static |final |default |synchronized )*(?:<[^>]+>\\s+)?[\\w.<>\\[\\]?, ]+\\s+"
+                + Pattern.quote(method) + "\\s*\\([^;{]*\\)\\s*(?:throws [\\w., ]+)?\\{").matcher(text).find();
+    }
+
+    /**
+     * 손 인터페이스(src/main/java)의 기본(default) 메서드 몸통이 같은 이름을 이미 구현하나 — n 의 상위 사슬 전체의 인터페이스를 따라간다
+     * (손 LevelReader·BlockGetter·Packet 등. 손 상위 클래스가 구현한 인터페이스도 포함).
+     */
+    private boolean implementedByHandInterface(String n, ShimLock.Member m) {
+        Set<String> seen = new HashSet<>();
+        List<String> work = new ArrayList<>(List.of(n));
+        while (!work.isEmpty()) {
+            String s = work.remove(work.size() - 1);
+            if (s == null || !seen.add(s) || !lock.classes.containsKey(s)) continue;
+            ShimLock.Cls c = lock.classes.get(s);
+            if (c.isInterface() && !s.equals(m.owner()) && !emitted(s) && hand.has(s) && bodyDeclared(hand.text(s), m.name())) return true;
+            work.add(c.superName());
+            work.addAll(c.interfaces());
+        }
+        return false;
     }
 
     final Map<String, List<ShimLock.Member>> stubsFor = new TreeMap<>();
@@ -413,11 +469,19 @@ public final class ShimGenerator {
         String simple = JavaTypes.simple(n);
         List<Bound> bs = bound.getOrDefault(n, List.of());
         // 열거형 상수(명세 순서). 조각은 mergeFragment 가 머리 바로 뒤에 쓴다.
-        if (c.isEnum() && origin.get(n) == Origin.GEN) sb.append(in).append(String.join(", ", enumConstants(n))).append(";\n");
+        if (c.isEnum() && origin.get(n) == Origin.GEN) {
+            List<String> consts = enumConstants(n);
+            if (consts.stream().anyMatch(k -> k.contains("("))) problems.add("enum " + n + " has constants with constructor arguments: it needs a fragment (src/shims/java) with the constructor and fields");
+            sb.append(in).append(String.join(", ", consts)).append(";\n");
+        }
+        boolean rec = c.isRecord();
+        if (rec) recordAutoMembers(n, bs);
+        if (rec) explicitRecordMethods(n);
         // 필드
         for (Bound b : bs) {
             ShimLock.Member m = b.lock();
             if (m.kind() != 'F' || (m.access() & 0x4000) != 0) continue;
+            if (rec && isComponentField(n, m)) continue;
             switch (b.spec().body()) {
                 case HAND, FAST -> { }
                 case VALUE -> sb.append(in).append(fieldMods(c, m)).append(fieldType(m)).append(' ').append(m.name()).append(" = ").append(b.spec().target()).append(";\n");
@@ -440,6 +504,7 @@ public final class ShimGenerator {
         for (Bound b : bs) {
             ShimLock.Member m = b.lock();
             if (m.kind() != 'M') continue;
+            if (rec && isRecordAuto(n, m)) continue;
             String head = methodHead(c, m, simple);
             switch (b.spec().body()) {
                 case HAND, FAST -> { }
@@ -515,10 +580,66 @@ public final class ShimGenerator {
         }
     }
 
-    /** 명세 순서의 열거형 상수 이름. */
+    boolean isComponentField(String n, ShimLock.Member m) {
+        if (m.kind() != 'F' || m.isStatic()) return false;
+        for (ShimLock.Component k : lock.recordComponents.getOrDefault(n, List.of())) if (k.name().equals(m.name()) && k.desc().equals(m.desc())) return true;
+        return false;
+    }
+
+    /** 바닐라가 직접 쓴 equals·hashCode·toString 이 있는 레코드는 그 메서드를 손 조각이 써야 한다(자동 생성은 final 이라 모양이 다르다). */
+    private void explicitRecordMethods(String n) {
+        List<String> want = lock.explicitObjectMethods.get(n);
+        if (want == null) return;
+        String text = origin.get(n) == Origin.FRAGMENT ? fragmentSrc.text(n) : null;
+        for (String m : want) {
+            boolean has = text != null && Pattern.compile("(?m)^\\s*(@Override\\s+)?public\\s+(boolean|int|String|java\\.lang\\.String)\\s+" + m + "\\s*\\(").matcher(text).find();
+            if (!has) problems.add("record " + n + " writes " + m + " itself in vanilla (not final, no generated body): write it in the fragment src/shims/java/" + n + ".java as a hand method");
+        }
+    }
+
+    /** 레코드에서 컴파일러가 만드는 멤버: 표준 생성자, 성분 접근자, equals·hashCode·toString. */
+    boolean isRecordAuto(String n, ShimLock.Member m) {
+        if (m.kind() != 'M' || m.isStatic()) return false;
+        List<ShimLock.Component> cs = lock.recordComponents.getOrDefault(n, List.of());
+        switch (m.name() + m.desc()) {
+            case "equals(Ljava/lang/Object;)Z", "hashCode()I", "toString()Ljava/lang/String;" -> { return true; }
+            default -> { }
+        }
+        if (m.name().equals("<init>")) {
+            StringBuilder d = new StringBuilder("(");
+            for (ShimLock.Component k : cs) d.append(k.desc());
+            return m.desc().equals(d.append(")V").toString());
+        }
+        for (ShimLock.Component k : cs) if (k.name().equals(m.name()) && m.desc().equals("()" + k.desc())) return true;
+        return false;
+    }
+
+    /** 레코드 명세 줄이 컴파일러가 만드는 멤버를 잇거나(몸통이 있으면 위임·@hand 를 뜻하므로) 적으면 알린다 — 이름만 적은 줄은 필드·표준 생성자·접근자에 한해 무시한다. */
+    private void recordAutoMembers(String n, List<Bound> bs) {
+        for (Bound b : bs) {
+            ShimLock.Member m = b.lock();
+            boolean auto = isComponentField(n, m) || isRecordAuto(n, m);
+            if (auto && b.spec().body() != ShimSpec.Body.DECLARE) {
+                problems.add(b.spec().where() + ": " + n + "#" + m.name() + " is generated by the compiler in a record (components, canonical constructor, accessors, equals, hashCode, toString);"
+                        + " remove the spec line - a different body would not be the vanilla record");
+            }
+        }
+    }
+
+    /**
+     * 명세 순서의 열거형 상수. 명세 줄이 {@code NAME = (인자…)} 이면 생성자 인자가 붙은 {@code NAME(인자…)} 로 쓴다
+     * (인자는 자바 식 그대로 — 생성자·필드는 손 조각이 쓴다).
+     */
     List<String> enumConstants(String n) {
         List<String> consts = new ArrayList<>();
-        for (Bound b : bound.getOrDefault(n, List.of())) if (b.lock().kind() == 'F' && (b.lock().access() & 0x4000) != 0) consts.add(b.lock().name());
+        for (Bound b : bound.getOrDefault(n, List.of())) {
+            if (b.lock().kind() != 'F' || (b.lock().access() & 0x4000) == 0) continue;
+            if (b.spec().body() == ShimSpec.Body.VALUE) {
+                String a = b.spec().target().trim();
+                if (!a.startsWith("(") || !a.endsWith(")")) problems.add(b.spec().where() + ": enum constant " + b.lock().name() + " takes constructor arguments as = (args)");
+                else consts.add(b.lock().name() + a);
+            } else consts.add(b.lock().name());
+        }
         return consts;
     }
 
@@ -563,14 +684,18 @@ public final class ShimGenerator {
         ShimLock.Cls c = lock.classes.get(n);
         int a = c.effectiveAccess();
         StringBuilder sb = new StringBuilder();
+        for (String an : lock.classAnnotations.getOrDefault(n, List.of())) {
+            if (annotationApplies(n, an) && !annotationInFragment(n, an)) sb.append('@').append(JavaTypes.descType(an)).append(' ');
+        }
         sb.append(visibility(a));
         boolean nested = n.indexOf('$') > 0;
-        if (nested && (a & 0x0008) != 0 && !c.isInterface() && !c.isEnum()) sb.append("static ");
-        if (!c.isInterface() && !c.isEnum()) {
+        boolean rec = c.isRecord();
+        if (nested && (a & 0x0008) != 0 && !c.isInterface() && !c.isEnum() && !rec) sb.append("static ");
+        if (!c.isInterface() && !c.isEnum() && !rec) {
             if ((a & 0x0400) != 0) sb.append("abstract ");
             if ((a & 0x0010) != 0) sb.append("final ");
         }
-        sb.append(c.isInterface() ? "interface " : c.isEnum() ? "enum " : "class ");
+        sb.append(c.isInterface() ? "interface " : c.isEnum() ? "enum " : rec ? "record " : "class ");
         sb.append(JavaTypes.simple(n));
         String sup;
         List<String> itfs;
@@ -585,6 +710,18 @@ public final class ShimGenerator {
             itfs = c.interfaces().stream().map(JavaTypes::source).toList();
         }
         sb.append(tp);
+        if (rec) {
+            sb.append('(');
+            List<ShimLock.Component> cs = lock.recordComponents.get(n);
+            for (int i = 0; i < cs.size(); i++) {
+                ShimLock.Component k = cs.get(i);
+                if (i > 0) sb.append(", ");
+                sb.append(k.signature() != null ? JavaTypes.fieldSignature(k.signature()) : JavaTypes.descType(k.desc())).append(' ').append(k.name());
+            }
+            sb.append(')');
+            if (!itfs.isEmpty()) sb.append(" implements ").append(String.join(", ", itfs));
+            return sb.toString();
+        }
         if (c.isInterface()) {
             if (!itfs.isEmpty()) sb.append(" extends ").append(String.join(", ", itfs));
         } else {
@@ -592,6 +729,26 @@ public final class ShimGenerator {
             if (!itfs.isEmpty()) sb.append(" implements ").append(String.join(", ", itfs));
         }
         return sb.toString();
+    }
+
+    /**
+     * @FunctionalInterface 는 추상 메서드가 정확히 하나일 때만 컴파일된다 — 명세가 그 추상 메서드를 이은 인터페이스에만 붙인다
+     * (안 이은 껍데기 인터페이스에 붙이면 javac 오류. 그때는 추상 메서드를 명세에 적으면 붙는다).
+     */
+    private boolean annotationApplies(String n, String desc) {
+        if (!desc.equals("Ljava/lang/FunctionalInterface;")) return true;
+        int abstracts = 0;
+        for (Bound b : bound.getOrDefault(n, List.of())) if (b.lock().kind() == 'M' && b.lock().isAbstract()) abstracts++;
+        return abstracts == 1;
+    }
+
+    /** 손 조각이 머리 앞에 이미 같은 애노테이션을 쓰면 또 붙이지 않는다(겹치면 컴파일 오류). */
+    private boolean annotationInFragment(String n, String desc) {
+        if (origin.get(n) != Origin.FRAGMENT || n.indexOf('$') > 0) return false;
+        String text = fragmentSrc.text(n);
+        if (text == null) return false;
+        String simple = JavaTypes.simple(desc.substring(1, desc.length() - 1));
+        return Pattern.compile("(?m)^\\s*@(?:java\\.lang\\.)?" + Pattern.quote(simple) + "\\b").matcher(text).find();
     }
 
     private static String visibility(int a) {
@@ -669,13 +826,13 @@ public final class ShimGenerator {
             problems.add(p + ": the package line is not " + pkg + "");
             return "";
         }
-        Matcher h = Pattern.compile("(?m)^(class|interface|enum)\\s+" + Pattern.quote(simple) + "\\s*\\{").matcher(text);
+        Matcher h = Pattern.compile("(?m)^(class|interface|enum|record)\\s+" + Pattern.quote(simple) + "\\s*\\{").matcher(text);
         if (!h.find()) {
-            problems.add(p + ": fragment header not found - write '" + (c.isInterface() ? "interface" : c.isEnum() ? "enum" : "class") + " " + simple
+            problems.add(p + ": fragment header not found - write '" + (c.isInterface() ? "interface" : c.isEnum() ? "enum" : c.isRecord() ? "record" : "class") + " " + simple
                     + " {' at the start of a line (access, extends and implements come from the shim lock)");
             return "";
         }
-        String kw = c.isInterface() ? "interface" : c.isEnum() ? "enum" : "class";
+        String kw = c.isInterface() ? "interface" : c.isEnum() ? "enum" : c.isRecord() ? "record" : "class";
         if (!h.group(1).equals(kw)) problems.add(p + ": fragment header kind " + h.group(1) + " differs from vanilla (" + kw + ")");
         if (h.find()) problems.add(p + ": more than one fragment header");
         int close = text.lastIndexOf('}');

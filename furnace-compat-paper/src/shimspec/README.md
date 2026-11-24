@@ -72,6 +72,31 @@ class net.minecraft.world.level.block.CropBlock            # 멤버 없이 클�
   생성 몸통이 그것을 말없이 가리므로 생성기 오류로 멈춘다(손 메서드를 지우거나 `@each` 대신 명세로 잇는다).
   예: `EntityBlock#newBlockEntity` 하나로 블록 엔티티 있는 블록 클래스 전부, `BeaconBeamBlock#getColor` 하나로 색유리·색유리판·신호기.
 
+## 레코드 (T-230)
+
+`class` 줄이 가리키는 클래스가 바닐라에서 `record` 면 생성기는 머리를 **잠금 파일의 `R` 줄(성분 이름·서술자·제네릭 서명, 바닐라 선언 순서)** 에서 만든다:
+`public record Name<T>(T value, int count) implements Iface {`. 표준 생성자·성분 접근자·`equals`/`hashCode`/`toString` 은 컴파일러가 만들므로 명세에 적지 않는다(적으면 오류 —
+다른 몸통이면 바닐라 레코드가 아니다). 생성기 전용 생성자 `C(ShimCtor)` 는 레코드에 만들지 않는다. 안쪽 레코드는 `static` 을 적지 않는다(암묵).
+손 몸통(정적 필드·보조 메서드·compact 생성자)이 있는 레코드는 `src/shims/java` 조각이고 머리는 `record 이름 {` 로 쓴다.
+바닐라가 `equals`·`hashCode`·`toString` 을 직접 쓴 레코드(서명표에서 final 이 아닌 것 — 잠금 파일 `X` 줄)는 그 메서드를 조각에 손으로 써야 한다(자동 생성은 `final` 이라 모양·동작이 다르다. 예: `RecipeHolder` 는 id 만으로 같음을 본다). 안 쓰면 생성기가 멈춘다.
+성분 표는 서명표 형식 2(`recordComponents`)에서 온다 — 서명표를 새로 만들고 `shimLock` 을 다시 돌린다. 애노테이션 형식은 아직 손 shim 이다.
+이전 증명: 손 레코드 27개를 명세로 옮기고 `tools/ci/javap-same.sh` 로 전후 호환 계층 클래스 폴더 전체(2851개)를 견줬다 — 다름은 `Unbreakable` 하나뿐이다(Paper 의 `TooltipProvider` 구현이 새로 붙음. 바닐라와 같아지는 방향).
+
+## 던지는 몸통과 손 상위 (T-229)
+
+생성 구체 클래스가 생성 인터페이스·상위의 추상 메서드를 안 갖추면 던지는 몸통을 만든다(`shim-unimplemented.txt` 색인). 상위 사슬에 손 shim 이 끼어 있어도(예: 손 `BlockEntity` 아래 생성 `Container` 가족)
+그 손 shim 들의 소스에 같은 이름의 메서드 선언이 **하나도 없을 때** 만든다. 손 상위나 손 조각(추상을 선언한 조각 자신은 제외)이 이미 구현했으면 가리지 않고 건너뛴다.
+
+## 애노테이션·중첩 열거형
+
+- 바닐라 클래스의 런타임 보이는 **값 없는** 애노테이션 중 `java.lang` 의 `@FunctionalInterface`·`@Deprecated` 는 잠금 파일 `A` 줄로 옮겨 생성 머리에 붙는다(반사 결과가 바닐라와 같게). 손 조각이 머리 앞에 이미 쓰면 겹치지 않는다. 값 있는 애노테이션과 라이브러리 애노테이션은 복사하지 않는다(서명표 형식 3 — `tools/compat/sig-tables.sh` 다시).
+- 중첩 열거형을 가진 클래스(`CommandBlockEntity$Mode` 등): 바깥 클래스를 손 조각으로 옮기고 명세에 `class 바깥$Mode` 와 상수 전부를 함께 적는다(패킷 생성물이 아닌 명세가 안쪽 클래스를 만든다).
+
+## 생성자 인자가 있는 열거형
+
+상수 줄을 `이름 = (자바 인자 식)` 로 적으면 `이름(인자)` 로 생성된다(상수는 전부 바닐라 순서로 — 개수는 잠금이 견준다). 생성자·필드·메서드는 `src/shims/java` 조각이 쓴다(조각 없이 인자 상수만 있으면 생성기 오류).
+예: `src/shimspec/enums.spec` 의 `PacketFlow`.
+
 ## 종류 표 (T-231)
 
 `kind-classes-<판>.txt` 의 줄 `B|I <레지스트리 이름> <클래스>` 는 바닐라에서 그 블록·아이템 객체의 클래스다. 생성기는 표의 클래스를 **멤버 없는 `class` 줄**로 더하고
@@ -174,4 +199,5 @@ class net.minecraft.world.entity.monster.Zombie
 - **검사 종류**: `pure | read=any | read=snapshot | read=owner | write | api` — 줄과 대상 표지가 같아야 한다. `read=owner`·`write` 는 표지의 `owner=` 클래스의 `read/write(Object, String)` 를 첫 호출로(`"단순이름#멤버"`), 정적 멤버엔 쓸 수 없다. 별칭 줄은 소유 검사를 못 단다(이어 받는 멤버가 스스로 검사).
 - **멈추는 것**: 어긴 줄, 그리고 쓰이지 않은 줄(낡은 줄) — 멤버가 이미 T-262 로 채워졌거나, 손 shim(상위 사슬 포함)에 있거나, 클래스가 안 만들어졌거나, NMS 밖 껍데기라 클래스 초기화가 던질 때. 지우라는 뜻이다(손 shim 바이트를 덮어쓰지 않는다). 생성자·추상 멤버는 잇지 않는다.
 - 기준선: 이은 멤버는 `fills-baseline-<판>` 의 "채운 수"에 들어간다(줄이 사라지면 CI 가 잡는다).
+- **엔티티 데이터 칸 필드·관용구(엔티티 데이터 설계 D3, 2026-11-24)**: 바닐라 정적 `EntityDataAccessor` 칸 필드(대부분 private `DATA_*`)는 생성기가 값을 채운다 — 껍데기 클래스는 정적 초기화에서, 손 shim 은 합치기가 정적 초기화 맨 앞에 `NmsEntityData.accessor(클래스, "이름")` 를 끼운다. 이름은 생성 때 서명표에서 오고 커밋하지 않는다. 칸 번호표(`furnace-server/.../entity_data/ids-<판>.txt` A 줄)에 줄이 있고 shim `EntityDataSerializers` 에 그 값 종류 상수가 있는 칸만 채운다(없는 것은 껍데기 필드로 남아 초기화가 실패하지 않는다 — JOML 값이 들어온 뒤 지금은 없다). 그래서 연결 줄이 칸 필드를 `#지문` 값으로 받을 수 있다. 관용구는 `NmsEntityData` 의 `entity-data-get(칸)`·`entity-data-set(칸, 값)`·`entity-data-flag-get(바이트 칸, 마스크)`·`entity-data-flag-set(바이트 칸, 마스크, 불)`(읽기 `read=owner`, 쓰기 `write`, 소유 규칙 `NmsEntityOwner`). `fullShellsTest` 가 채운 칸 필드 전부를 번호표와 지문으로 견준다.
 - 줄 속성 `via=`·`proof=`·`body=`·`target=` 는 지금 읽어 두기만 한다. 후보를 만들고 정답기로 증명해 줄을 쓰는 도구(`inferLinks`·`adoptLinks`)와 `body=`/`target=` 지문 검사는 다음 조각(S1 뒤쪽·S2)이다.

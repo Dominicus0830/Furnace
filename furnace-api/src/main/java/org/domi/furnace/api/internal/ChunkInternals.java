@@ -941,6 +941,12 @@ public interface ChunkInternals {
 
         /** 바닐라 {@code Entity#setTicksFrozen}. */
         record SetTicksFrozen(int ticks) implements EntityEdit, EntityOp {}
+
+        /**
+         * 바이트 칸의 깃발 하나 켜고 끄기(엔티티 데이터 설계 D5): 주인 스레드에서 한 번에 읽고 {@code b | mask} 또는 {@code b & ~mask} 를 쓴다
+         * (바닐라 {@code set(accessor, value)} 와 같은 훅). 칸이 바이트가 아니면 IllegalArgumentException. 돌려줌: null.
+         */
+        record SetDataFlag(int index, int mask, boolean value) implements EntityEdit {}
     }
 
     /** {@link EntityEdit.SetFlag} 의 설정: 바닐라 Entity 의 같은 이름 메서드. */
@@ -957,6 +963,19 @@ public interface ChunkInternals {
         ON_GROUND,
         /** {@code setCustomNameVisible}. */
         CUSTOM_NAME_VISIBLE
+    }
+
+    /**
+     * 월드에 있는 엔티티(플레이어 제외)의 칸 보기(엔티티 데이터 설계 D5). 주인 스레드에서 부른다. 처음 부르면 서버가 그 엔티티의 칸 사본을 만들고, 그 뒤 칸이
+     * 바뀔 때마다 주인 스레드에서 사본을 갈아 끼운다 — {@link WatchedEntityData#slots()} 는 어느 스레드에서도 막히지 않고 최근 사본을 읽는다.
+     * 같은 엔티티는 같은 객체를 돌려준다. 칸 쓰기는 {@link #entityEditNow} 의 {@link EntityEdit.SetData}·{@link EntityEdit.SetDataFlag}.
+     */
+    default WatchedEntityData watchEntityData(org.domi.furnace.api.entity.Entity entity) { throw new UnsupportedOperationException("watchEntityData"); }
+
+    /** {@link #watchEntityData} 의 값. */
+    interface WatchedEntityData {
+        /** 칸마다 (번호, 정의 값, 지금 값, 더러움=false) — 주인 스레드가 마지막으로 갈아 끼운 사본. 엔티티가 사라진 뒤에는 마지막 값. */
+        java.util.List<EntityDataSlot> slots();
     }
 
     /** {@link #addNmsEntityNow} 가 재생할 엔티티 조작 하나. */
@@ -990,7 +1009,7 @@ public interface ChunkInternals {
          * 바닐라 {@code SynchedEntityData#set(accessor, value, force)}: 칸 하나에 쓰기(값이 다르거나 force 면 종류별 훅 — 크기·상자 등). 칸 번호·값 종류가 그 종류의
          * 배치와 다르면 IllegalArgumentException.
          */
-        record SetData(int index, org.domi.furnace.api.packet.clientbound.ClientboundSetEntityDataPacket.Value value, boolean force) implements EntityOp {}
+        record SetData(int index, org.domi.furnace.api.packet.clientbound.ClientboundSetEntityDataPacket.Value value, boolean force) implements EntityOp, EntityEdit {}
     }
 
     /**

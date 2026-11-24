@@ -609,12 +609,13 @@ class Entity {
      * 바닐라 {@code getEntityData}. 아직 월드에 없는 엔티티: 서버가 그 종류를 빈 레벨에서 만들어 지금까지의 조작을 재생한 칸으로 채운 바닐라 모양
      * {@link net.minecraft.network.syncher.SynchedEntityData}(itemsById·DataItem 반사 그대로). 같은 엔티티는 같은 객체이고, 조작이 붙으면 그 자리에서
      * 다시 채운다. {@code set} 은 차례대로 기록돼 월드에 넣을 때 서버 칸에 그대로 쓰인다(종류별 훅을 지난다). 반사로 DataItem 값을 바로 고친 것은
-     * 기록되지 않는다. 월드의 엔티티는 아직 UnsupportedNmsCall(설계 D5).
+     * 기록되지 않는다. 월드의 엔티티(플레이어 제외)는 서버가 주인 스레드에서 갱신하는 최근 사본을 보는 {@link org.domi.furnace.compat.nms.NmsWorldEntityData}
+     * (설계 D5 — 처음 한 번만 주인 region 을 기다리고, 그 뒤 읽기는 막히지 않는다). 접속한 플레이어는 아직 UnsupportedNmsCall.
      */
     public net.minecraft.network.syncher.SynchedEntityData getEntityData() {
         org.domi.furnace.compat.nms.NmsEntityOwner.read(this, "Entity#getEntityData");
         Detached d = detached;
-        if (d == null) throw worldEntityData("Entity#getEntityData");
+        if (d == null) return worldEntityData();
         if (d.data == null) {
             // 생성자 난수 선택(좀비 주민 직업 등)을 미리 본 칸과 넣은 엔티티가 같게: 엔티티 난수 씨앗을 정해 맨 앞에 둔다(바닐라 RandomSource.create() 처럼 씨앗 없는 난수)
             if (d.ops.isEmpty() || !(d.ops.get(0) instanceof org.domi.furnace.api.internal.ChunkInternals.EntityOp.EntityRandom)) {
@@ -629,9 +630,37 @@ class Entity {
     }
 
     private static UnsupportedNmsCall worldEntityData(String what) {
-        return new UnsupportedNmsCall(what, "the data slots of an entity that is already in a world are not reachable yet - only entities made with"
-                + " EntityType#create before they are added");
+        return new UnsupportedNmsCall(what, "this data slot object belonged to the entity before it was added to a world and no longer reaches it -"
+                + " call getEntityData() again for the slots of the entity in the world");
     }
+
+    /** 월드 엔티티의 칸 보기(D5). 처음 한 번 주인 스레드에서 서버 보기를 받는다(같은 엔티티는 서버도 같은 보기를 준다). */
+    private volatile org.domi.furnace.compat.nms.NmsWorldEntityData worldData;
+
+    private net.minecraft.network.syncher.SynchedEntityData worldEntityData() {
+        var w = worldData;
+        if (w != null) return w;
+        var h = f();
+        if (h instanceof org.domi.furnace.api.entity.Player) {
+            throw new UnsupportedNmsCall("Entity#getEntityData", "the data slots of a connected player are not reachable yet");
+        }
+        var b = org.domi.furnace.compat.nms.NmsChunks.bridge();
+        org.domi.furnace.api.internal.ChunkInternals.WatchedEntityData watched;
+        try {
+            watched = org.domi.furnace.compat.nms.NmsEntities.call(furnaceWorld(), h, "Entity#getEntityData", () -> b.watchEntityData(h));
+        } catch (org.domi.furnace.api.concurrent.ThreadOwnershipException wrongThread) {
+            throw wrongThread;
+        } catch (IllegalArgumentException | IllegalStateException refused) {
+            throw new UnsupportedNmsCall("Entity#getEntityData", String.valueOf(refused.getMessage()));
+        }
+        synchronized (this) {
+            if (worldData == null) worldData = org.domi.furnace.compat.nms.NmsWorldEntityData.of(this, EntityType.getKey(getType()).toString(), watched);
+            return worldData;
+        }
+    }
+
+    /** 호환 모듈 전용(월드 엔티티 칸 쓰기, D5): 주인 스레드에서 서버 칸 조작 하나. 규칙은 다른 월드 엔티티 조작과 같다. 서버 칸이 바뀌었으면 참. */
+    public boolean furnaceDataEdit(String what, org.domi.furnace.api.internal.ChunkInternals.EntityEdit op) { return Boolean.TRUE.equals(furnaceEdit(what, op)); }
 
     /** 호환 모듈 전용: {@code SynchedEntityData#set} 이 값을 바꾸기 전에 부른다. 월드에 넣은 뒤 남은 칸 객체에 쓰면 UnsupportedNmsCall(서버에 닿지 않는 쓰기를 막는다). */
     public void furnaceBeforeDataSet() {

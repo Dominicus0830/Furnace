@@ -52,7 +52,7 @@ import org.objectweb.asm.Opcodes;
  */
 public final class SigTable {
     public static final String MAGIC = "#furnace-sig-table";
-    public static final String FORMAT = "2";
+    public static final String FORMAT = "3";
 
     /** 클래스 한 줄. */
     public record Cls(int access, String name, String superName, List<String> interfaces, String signature, int innerAccess) {
@@ -70,6 +70,8 @@ public final class SigTable {
     private final Map<String, List<String>> enumConstants = new TreeMap<>();
     private final Map<String, Map<String, Object>> constants = new TreeMap<>();
     private final Map<String, List<String>> recordComponents = new TreeMap<>();
+    /** 클래스에 붙은 런타임 보이는 애노테이션 중 값이 없는 것(서술자, 예 {@code Ljava/lang/FunctionalInterface;}). 값이 있는 것은 담지 않는다. */
+    private final Map<String, List<String>> classAnnotations = new TreeMap<>();
     private final String label;
 
     /** 시험·도구용: 빈 표. */
@@ -107,6 +109,11 @@ public final class SigTable {
     /** 레코드 성분 {@code 이름:서술자}(선언 순서). 레코드가 아니거나 형식 1 표면 빈 목록. */
     public List<String> recordComponents(String owner) {
         return recordComponents.getOrDefault(owner, List.of());
+    }
+
+    /** 클래스의 값 없는 런타임 애노테이션 서술자(선언 순서). 형식 1·2 표면 빈 목록. */
+    public List<String> classAnnotations(String owner) {
+        return classAnnotations.getOrDefault(owner, List.of());
     }
 
     public int memberCount() {
@@ -168,6 +175,7 @@ public final class SigTable {
         if (!c.enumOrder.isEmpty()) enumConstants.put(c.name, List.copyOf(c.enumOrder));
         if (!c.constants.isEmpty()) constants.put(c.name, new TreeMap<>(c.constants));
         if (!c.records.isEmpty()) recordComponents.put(c.name, List.copyOf(c.records));
+        if (!c.annotations.isEmpty()) classAnnotations.put(c.name, List.copyOf(c.annotations));
         c.members.sort(Comparator.comparing((Member m) -> m.kind()).thenComparing(Member::name).thenComparing(Member::desc));
         members.put(c.name, List.copyOf(c.members));
     }
@@ -182,6 +190,7 @@ public final class SigTable {
         final List<String> enumOrder = new ArrayList<>();
         final Map<String, Object> constants = new TreeMap<>();
         final List<String> records = new ArrayList<>();
+        final List<String> annotations = new ArrayList<>();
 
         Collector() {
             super(Opcodes.ASM9);
@@ -195,6 +204,24 @@ public final class SigTable {
             this.superName = superName;
             if (interfaces != null) this.interfaces.addAll(List.of(interfaces));
         }
+
+        /** 런타임에 보이는 클래스 애노테이션 — 값이 하나도 없는 것만 담는다(값 있는 것은 생성기가 같게 못 써서 모른 척한다). */
+        @Override
+        public org.objectweb.asm.AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
+            if (!visible) return null;
+            int slot = annotations.size();
+            annotations.add(descriptor);
+            return new org.objectweb.asm.AnnotationVisitor(Opcodes.ASM9) {
+                void hasValue() { annotations.set(slot, null); }
+                @Override public void visit(String n, Object v) { hasValue(); }
+                @Override public void visitEnum(String n, String d, String v) { hasValue(); }
+                @Override public org.objectweb.asm.AnnotationVisitor visitAnnotation(String n, String d) { hasValue(); return null; }
+                @Override public org.objectweb.asm.AnnotationVisitor visitArray(String n) { hasValue(); return null; }
+            };
+        }
+
+        @Override
+        public void visitEnd() { annotations.removeIf(java.util.Objects::isNull); }
 
         @Override
         public void visitInnerClass(String name, String outerName, String innerName, int access) {
@@ -254,6 +281,8 @@ public final class SigTable {
                 }
                 List<String> rc = recordComponents(c.name());
                 if (!rc.isEmpty()) w.write("R\t" + c.name() + "\t" + String.join(",", rc) + "\n");
+                List<String> an = classAnnotations(c.name());
+                if (!an.isEmpty()) w.write("A\t" + c.name() + "\t" + String.join(",", an) + "\n");
             }
         }
         Files.move(tmp, out, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
@@ -270,7 +299,7 @@ public final class SigTable {
         String head = r.readLine();
         if (head == null || !head.startsWith(MAGIC + "\t")) throw new IOException("서명표가 아니다: 머리말이 " + MAGIC + " 으로 시작하지 않는다");
         String[] h = head.split("\t", -1);
-        if (h.length < 3 || !(h[1].equals(FORMAT) || h[1].equals("1"))) throw new IOException("지원하지 않는 서명표 형식: " + (h.length > 1 ? h[1] : "?") + " (이 도구는 " + FORMAT + ")");
+        if (h.length < 3 || !(h[1].equals(FORMAT) || h[1].equals("1") || h[1].equals("2"))) throw new IOException("지원하지 않는 서명표 형식: " + (h.length > 1 ? h[1] : "?") + " (이 도구는 " + FORMAT + ")");
         SigTable t = new SigTable(h[2]);
         Map<String, List<Member>> acc = new LinkedHashMap<>();
         String line;
@@ -287,6 +316,7 @@ public final class SigTable {
                 case "E" -> t.enumConstants.put(f[1], List.of(f[2].split(",")));
                 case "K" -> t.constants.computeIfAbsent(f[1], k -> new TreeMap<>()).put(f[2], decodeConstant(f[3], f[4]));
                 case "R" -> t.recordComponents.put(f[1], List.of(f[2].split(",")));
+                case "A" -> t.classAnnotations.put(f[1], List.of(f[2].split(",")));
                 default -> throw new IOException("알 수 없는 줄: " + line);
             }
         }

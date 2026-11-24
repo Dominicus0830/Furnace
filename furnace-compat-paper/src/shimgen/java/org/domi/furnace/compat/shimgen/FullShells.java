@@ -64,6 +64,14 @@ public final class FullShells {
     Fills fills = new Fills();
     /** T-263: 연결 줄(없으면 빈 것 — 껍데기는 그대로). */
     Links links = new Links();
+    /**
+     * 엔티티 데이터 설계 D3: 칸 번호표({@code entity_data/ids-<판>.txt} 의 A 줄) "클래스 이진 이름 지문" → 값 종류(BYTE 등). 비어 있으면 칸 필드를 채우지 않는다.
+     * 정적 {@code EntityDataAccessor} 필드는 표에 줄이 있고 shim {@code EntityDataSerializers} 에 그 값 종류 상수가 있을 때만
+     * {@code NmsEntityData.accessor(소유 클래스, "이름")} 으로 초기화한다 — 클래스 초기화가 실패할 일이 없는 것만(필드 하나가 터지면 클래스 전체가 죽는다).
+     * 이름은 생성 때 서명표에서 오고 커밋하지 않는다.
+     */
+    Map<String, String> dataSlots = Map.of();
+    private Set<String> shimSerializers;
     /** 지금 만드는 클래스의 초기화가 던지는가(그러면 연결하지 않는다 — 부를 수 없다). */
     private boolean curTrap;
     /** T-264 P4: 변환 가족 W/U(CraftBukkit 레지스트리 값 변환 정적 메서드의 진짜 몸통). */
@@ -155,6 +163,8 @@ public final class FullShells {
             if (fillFp != null) checkFillFingerprint(fillPath, paperFillPath, fillFp, writeFp);
         }
         if (args.length > 16 && !args[16].isBlank() && !args[16].equals("-")) g.links = Links.read(Path.of(args[16]));
+        // 엔티티 데이터 D3: 칸 번호표(서버 리소스) — 정적 EntityDataAccessor 필드 초기화
+        if (args.length > 17 && !args[17].isBlank() && !args[17].equals("-")) g.dataSlots = readDataSlots(Path.of(args[17]));
         Map<String, byte[]> classes = g.generate();
         ShellMerge merge = null;
         if (args.length > 15 && !args[15].isBlank()) {
@@ -164,6 +174,7 @@ public final class FullShells {
             classes.putAll(merge.merge());
         }
         g.checkLinks(merge);
+        System.out.println("[full-shells] entity data slot fields: " + g.dataSlotsFilled + " in shells, " + (merge == null ? 0 : merge.dataSlots) + " merged into hand shims");
         deleteTree(out);
         for (Map.Entry<String, byte[]> e : classes.entrySet()) {
             Path p = out.resolve(e.getKey() + ".class");
@@ -420,10 +431,11 @@ public final class FullShells {
         if (madeConcrete) for (String[] im : abstractInterfaceMethods(c, declared)) shellBody(cw, n, Opcodes.ACC_PUBLIC, im[0], im[1], null);
         if (isEnum) enumSupport(cw, n, enumConstants, enumCtor, trapInit, cf);
         else if (trapInit) initTrap(cw, n);
-        else if (cf != null && !cf.statics.isEmpty()) staticClinit(cw, n, cf);
+        else if (cf != null && !cf.statics.isEmpty() || !dataSlotFields(n).isEmpty()) staticClinit(cw, n, cf);
         cw.visitEnd();
         int filledN = cf == null || trapInit ? 0 : cf.ctors.size() + cf.getters.size() + cf.statics.size() + cf.objectMethods.size() + (cf.enumConsts == null ? 0 : cf.enumConsts.size());
         filledN += links.linkedMembers - linkedBefore;
+        if (!trapInit) filledN += dataSlotFields(n).size();
         classStats.put(n, new int[]{shellMembers - shellBefore, filledN});
         return cw.toByteArray();
     }
@@ -455,7 +467,7 @@ public final class FullShells {
         if ((m.access() & (Opcodes.ACC_STATIC | Opcodes.ACC_FINAL)) == (Opcodes.ACC_STATIC | Opcodes.ACC_FINAL)) value = constant(owner, m.name());
         boolean enumConstant = isEnum && (m.access() & Opcodes.ACC_ENUM) != 0;
         FieldVisitor fv = cw.visitField(m.access() & 0xFFFF, m.name(), m.desc(), m.signature(), value);
-        boolean filled = cf != null && cf.liveFields.contains(m.name());
+        boolean filled = cf != null && cf.liveFields.contains(m.name()) || dataSlotField(owner, m);
         if (value == null && !enumConstant && !filled) {
             fv.visitAnnotation(SHELL_MEMBER, false).visitEnd();
             shellMembers++;
@@ -562,6 +574,7 @@ public final class FullShells {
         }
         ci.visitFieldInsn(Opcodes.PUTSTATIC, n, "$VALUES", arr);
         if (cf != null) putStatics(ci, n, cf);
+        putDataSlots(ci, n);
         ci.visitInsn(Opcodes.RETURN);
         ci.visitMaxs(0, 0);
         ci.visitEnd();
@@ -699,11 +712,76 @@ public final class FullShells {
     private void staticClinit(ClassWriter cw, String n, Fills.ClassFill cf) {
         MethodVisitor ci = cw.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
         ci.visitCode();
-        putStatics(ci, n, cf);
+        if (cf != null) putStatics(ci, n, cf);
+        putDataSlots(ci, n);
         ci.visitInsn(Opcodes.RETURN);
         ci.visitMaxs(0, 0);
         ci.visitEnd();
     }
+
+    static final String DATA_ACCESSOR_DESC = "Lnet/minecraft/network/syncher/EntityDataAccessor;";
+
+    /** 엔티티 데이터 칸 필드인가(D3): 껍데기 클래스의 정적 EntityDataAccessor 필드 + 칸 번호표에 줄 + shim 에 값 종류 상수. */
+    boolean dataSlotField(String owner, SigTable.Member m) {
+        if (m.kind() != 'F' || (m.access() & Opcodes.ACC_STATIC) == 0 || !m.desc().equals(DATA_ACCESSOR_DESC)) return false;
+        // 껍데기 클래스, 또는 합치기(ShellMerge)가 빠진 정적 필드를 더하는 NMS 범위의 손 shim
+        if (!shells.contains(owner) && !(existing.has(owner) && scope.get(owner) == Scope.NMS)) return false;
+        String kind = dataSlots.get(owner.replace('/', '.') + " " + Links.fingerprint(owner, m.name()).substring(1));
+        return kind != null && shimSerializers().contains(kind);
+    }
+
+    /** 그 클래스의 칸 필드 이름(서명표 순). */
+    List<String> dataSlotFields(String n) {
+        if (dataSlots.isEmpty() || !shells.contains(n)) return List.of();
+        List<String> out = new ArrayList<>();
+        for (SigTable.Member m : table(n).members(n)) if (dataSlotField(n, m)) out.add(m.name());
+        return out;
+    }
+
+    /** shim EntityDataSerializers 의 정적 필드 이름(값 종류 상수) — 이미 있는 호환 계층 클래스에서 읽는다. */
+    private Set<String> shimSerializers() {
+        if (shimSerializers != null) return shimSerializers;
+        Set<String> out = new HashSet<>();
+        byte[] b = existing.bytesOf("net/minecraft/network/syncher/EntityDataSerializers");
+        if (b != null) {
+            new org.objectweb.asm.ClassReader(b).accept(new org.objectweb.asm.ClassVisitor(Opcodes.ASM9) {
+                @Override
+                public FieldVisitor visitField(int access, String name, String desc, String sig, Object v) {
+                    if ((access & Opcodes.ACC_STATIC) != 0 && desc.equals("Lnet/minecraft/network/syncher/EntityDataSerializer;")) out.add(name);
+                    return null;
+                }
+            }, org.objectweb.asm.ClassReader.SKIP_CODE);
+        }
+        return shimSerializers = out;
+    }
+
+    /** 칸 필드 = NmsEntityData.accessor(이 클래스, "이름"). */
+    private void putDataSlots(MethodVisitor ci, String n) {
+        for (String f : dataSlotFields(n)) {
+            putDataSlot(ci, n, f);
+            dataSlotsFilled++;
+        }
+    }
+
+    /** 칸 필드 하나: 스택 2칸, 지역 변수 없음(합치기가 손 shim 의 정적 초기화 앞에 끼울 때도 같은 코드). */
+    static void putDataSlot(MethodVisitor ci, String n, String f) {
+        ci.visitLdcInsn(Type.getObjectType(n));
+        ci.visitLdcInsn(f);
+        ci.visitMethodInsn(Opcodes.INVOKESTATIC, "org/domi/furnace/compat/nms/NmsEntityData", "accessor", "(Ljava/lang/Class;Ljava/lang/String;)" + DATA_ACCESSOR_DESC, false);
+        ci.visitFieldInsn(Opcodes.PUTSTATIC, n, f, DATA_ACCESSOR_DESC);
+    }
+
+    /** 칸 번호표 A 줄 읽기: "A 클래스 지문 번호 종류" → "클래스 지문" → 종류. */
+    static Map<String, String> readDataSlots(Path p) throws IOException {
+        Map<String, String> out = new HashMap<>();
+        for (String l : Files.readAllLines(p, java.nio.charset.StandardCharsets.UTF_8)) {
+            String[] f = l.trim().split(" ");
+            if (f.length == 5 && f[0].equals("A")) out.put(f[1] + " " + f[2], f[4]);
+        }
+        return out;
+    }
+
+    int dataSlotsFilled;
 
     private static void putStatics(MethodVisitor ci, String n, Fills.ClassFill cf) {
         for (FillTable.Static s : cf.statics.values()) {
@@ -770,6 +848,7 @@ public final class FullShells {
         for (SigTable.Member m : t.members(n)) {
             if (m.kind() != 'F') continue;
             if (cf != null && cf.liveFields.contains(m.name())) continue;
+            if (dataSlotField(n, m)) continue;
             if (isEnum && (m.access() & Opcodes.ACC_ENUM) != 0) continue;
             boolean sf = (m.access() & (Opcodes.ACC_STATIC | Opcodes.ACC_FINAL)) == (Opcodes.ACC_STATIC | Opcodes.ACC_FINAL);
             if (sf && constant(n, m.name()) != null) continue;

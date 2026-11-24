@@ -90,6 +90,18 @@ class EntityDataBridgeTest {
         e.add(new Entry(i++, Value.of(EntityDataType.WOLF_VARIANT, "minecraft:woods")));
         e.add(new Entry(i++, Value.of(EntityDataType.PAINTING_VARIANT, "minecraft:kebab")));
         e.add(new Entry(i++, Value.of(EntityDataType.VILLAGER_DATA, new org.domi.furnace.api.entity.data.VillagerData("minecraft:snow", "minecraft:fletcher", 3))));
+        e.add(new Entry(i++, Value.of(EntityDataType.VECTOR3, new org.domi.furnace.api.math.Vector3f(0.5f, -1.25f, 3f))));
+        e.add(new Entry(i++, Value.of(EntityDataType.QUATERNION, new org.domi.furnace.api.math.Quaternionf(0f, 0.38268343f, 0f, 0.9238795f))));
+        e.add(new Entry(i++, Value.of(EntityDataType.OPTIONAL_GLOBAL_POS, Optional.of(new org.domi.furnace.api.world.GlobalPos("minecraft:the_nether", new BlockPos(4, 60, -8))))));
+        e.add(new Entry(i++, Value.of(EntityDataType.OPTIONAL_GLOBAL_POS, Optional.<org.domi.furnace.api.world.GlobalPos>empty())));
+        e.add(new Entry(i++, Value.of(EntityDataType.PARTICLE, org.domi.furnace.api.particle.Particle.of("minecraft:flame"))));
+        e.add(new Entry(i++, Value.of(EntityDataType.PARTICLE, org.domi.furnace.api.particle.Particle.dust(0x3366FF, 1.5f))));
+        e.add(new Entry(i++, Value.of(EntityDataType.PARTICLES, List.of(org.domi.furnace.api.particle.Particle.entityEffect(0xFF22AA44),
+                org.domi.furnace.api.particle.Particle.block("minecraft:falling_dust", block("minecraft:sand")),
+                org.domi.furnace.api.particle.Particle.dustTransition(0xFF0000, 0x00FF00, 9f),
+                org.domi.furnace.api.particle.Particle.item(new ItemStack("minecraft:apple", 1)),
+                new org.domi.furnace.api.particle.Particle.SculkCharge(0.5f), new org.domi.furnace.api.particle.Particle.Shriek(7)))));
+        e.add(new Entry(i++, Value.of(EntityDataType.PARTICLES, List.<org.domi.furnace.api.particle.Particle>of())));
         return e;
     }
 
@@ -114,12 +126,15 @@ class EntityDataBridgeTest {
     @Test
     void unbridgedTypesAreRefusedWholeNotDropped() throws Exception {
         try (FurnaceTestServer server = start()) {
-            // 서버가 읽은 값 중 shim 이 아직 없는 종류(위치 손잡이)가 섞이면 패킷 전체를 되돌리지 않는다(일부 칸만 보이면 Paper 와 다르다)
+            // 서버가 읽은 값 중 shim 이 아직 못 바꾸는 값(진동 입자 — 위치 원천 shim 이 없다)이 섞이면 패킷 전체를 되돌리지 않는다(일부 칸만 보이면 Paper 와 다르다)
+            var vib = org.domi.furnace.api.particle.Particle.Vibration.toBlock(new BlockPos(1, 2, 3), 20);
             var p = new ClientboundSetEntityDataPacket(5, List.of(new Entry(0, Value.of(EntityDataType.BYTE, (byte) 0)),
-                    new Entry(22, Value.of(EntityDataType.OPTIONAL_GLOBAL_POS, java.util.Optional.empty()))));
+                    new Entry(10, Value.of(EntityDataType.PARTICLE, vib))));
             assertThrows(UnsupportedNmsCall.class, () -> PacketDelivery.fromFurnace(p));
             // 리스너 다리는 예외를 만들기 전에 미리 알아본다(검토 R2) — 다 되는 패킷은 null
-            assertEquals("optional_global_pos", PacketDelivery.quickRefusal(p));
+            assertEquals("particle(vibration)", PacketDelivery.quickRefusal(p));
+            assertEquals("particles(vibration)", PacketDelivery.quickRefusal(new ClientboundSetEntityDataPacket(5,
+                    List.of(new Entry(10, Value.of(EntityDataType.PARTICLES, List.of(org.domi.furnace.api.particle.Particle.of("minecraft:flame"), vib)))))));
             assertEquals(null, PacketDelivery.quickRefusal(new ClientboundSetEntityDataPacket(5, everyBridgedType())));
         }
     }
@@ -133,7 +148,10 @@ class EntityDataBridgeTest {
             server.tick(3);
             var bad = new ArrayList<SynchedEntityData.DataValue<?>>();
             bad.add(new SynchedEntityData.DataValue<>(0, EntityDataSerializers.BYTE, (byte) 0x20));
-            bad.add(new SynchedEntityData.DataValue(10, EntityDataSerializers.PARTICLE, new Object()));   // 입자 shim 은 아직 빈 껍데기 — 값 모양과 무관하게 종류에서 거절
+            bad.add(new SynchedEntityData.DataValue(10, EntityDataSerializers.PARTICLE, new net.minecraft.core.particles.ParticleOptions() {
+                @Override
+                public net.minecraft.core.particles.ParticleType<?> getType() { return net.minecraft.core.particles.ParticleTypes.VIBRATION; }
+            }));   // 진동 입자 — 위치 원천 shim 이 없어 아직 못 바꾼다
             var good = new ArrayList<SynchedEntityData.DataValue<?>>();
             good.add(new SynchedEntityData.DataValue<>(0, EntityDataSerializers.BYTE, (byte) 0x40));
             tp.clearReceived();
@@ -176,5 +194,21 @@ class EntityDataBridgeTest {
             assertEquals(List.of(new Entry(0, Value.ofByte(0x60)), new Entry(2, Value.ofOptionalText(Text.text("홀로그램"))), new Entry(3, Value.ofBoolean(true))),
                     got.entries());
         }
+    }
+
+    /**
+     * 엔티티 데이터 D3(PR 595 검토): 전체 껍데기 생성기는 shim {@link EntityDataSerializers} 의 정적 직렬화 상수 이름으로 칸 필드를 채울지 정하고,
+     * 실행 때 {@code NmsEntityData.accessor} 는 다리 표({@code EntityDataBridge.serializer(소문자 이름)})로 찾는다. 상수가 있는데 다리 표에 없으면
+     * 그 칸이 든 손 shim 의 초기화가 실패하므로, 상수 전부가 다리 표에 있어야 한다.
+     */
+    @Test
+    void everySerializerConstantIsInTheBridgeTable() throws Exception {
+        int n = 0;
+        for (java.lang.reflect.Field f : EntityDataSerializers.class.getDeclaredFields()) {
+            if (!java.lang.reflect.Modifier.isStatic(f.getModifiers()) || f.getType() != net.minecraft.network.syncher.EntityDataSerializer.class) continue;
+            assertTrue(EntityDataBridge.serializer(f.getName().toLowerCase(java.util.Locale.ROOT)) == f.get(null), f.getName());
+            n++;
+        }
+        assertTrue(n >= 29, "expected the vanilla serializer constants, got " + n);
     }
 }

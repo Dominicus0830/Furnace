@@ -97,6 +97,7 @@ final class LinkWorld implements Links.World {
             SigTable.Member m = member(owner, 'F', name, desc);
             if (m == null || (m.access() & Opcodes.ACC_STATIC) == 0 || g.initTraps(owner)) return false;
             if ((m.access() & Opcodes.ACC_FINAL) != 0 && g.constant(owner, name) != null) return true;
+            if (g.dataSlotField(owner, m)) return true;   // 엔티티 데이터 칸 필드(D3) — NmsEntityData.accessor 로 초기화
             if (Fills.isEnumClass(g, owner) && (m.access() & Opcodes.ACC_ENUM) != 0) return true;
             Fills.ClassFill cf = g.fills.of(owner);
             return cf != null && cf.statics.containsKey(name);
@@ -104,7 +105,12 @@ final class LinkWorld implements Links.World {
         Head h = head(owner);
         if (h == null) return false;
         Integer acc = h.fields().get(name + ":" + desc);
-        return acc != null && (acc & Opcodes.ACC_STATIC) != 0;
+        if (acc == null) {
+            // 손 shim 에 없는 칸 필드는 합치기(ShellMerge)가 NmsEntityData.accessor 로 채워 더한다(D3)
+            SigTable.Member m = g.scope.containsKey(owner) ? member(owner, 'F', name, desc) : null;
+            return m != null && g.dataSlotField(owner, m);
+        }
+        return (acc & Opcodes.ACC_STATIC) != 0;
     }
 
     @Override

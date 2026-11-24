@@ -182,10 +182,10 @@ class NmsSquaremapPathTest {
         assertNotNull(holder);
         ChunkAccess latest = holder.getLatestChunk();
         assertSame(chunk.getPos().x, latest.getPos().x);
-        var retro = new BelowZeroRetrogen(ChunkStatus.SPAWN, Optional.of(new java.util.BitSet()));
+        var retro = BelowZeroRetrogen.furnaceCreate(ChunkStatus.SPAWN, Optional.of(java.util.BitSet.valueOf(new long[] {1L})));   // 바닐라: 칸 표가 비어 있지 않아야 구멍이 있다
         assertSame(ChunkStatus.SPAWN, retro.targetStatus());
         assertTrue(retro.hasBedrockHoles());
-        assertFalse(retro.isBedrockHole(3, 4));
+        assertFalse(retro.hasBedrockHole(3, 4));
     }
 
     @Test

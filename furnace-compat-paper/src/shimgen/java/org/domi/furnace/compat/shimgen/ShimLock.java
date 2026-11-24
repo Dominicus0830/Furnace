@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.LinkedHashMap;
@@ -54,6 +55,21 @@ final class ShimLock {
     final Map<String, List<Member>> members = new TreeMap<>();
     /** 열거형 클래스 → 바닐라 상수 개수(이름은 담지 않는다 — 명세가 모자라게 적으면 생성기가 막는다. 서수·values() 가 바닐라와 같아야 하니까). */
     final Map<String, Integer> enumConstants = new TreeMap<>();
+    /** 레코드 클래스 → 성분(바닐라 선언 순서). 이름·서술자·제네릭 서명(shim 에 없는 형식을 가리키면 지운다). */
+    final Map<String, List<Component>> recordComponents = new TreeMap<>();
+
+    record Component(String name, String desc, String signature) { }
+
+    /**
+     * 바닐라가 equals·hashCode·toString 을 레코드 자동 생성이 아니라 직접 쓴 레코드 → 그 메서드 이름들. 서명표에서 final 이 아닌 것(자동 생성은 public final)으로 가린다.
+     * 생성기는 이런 레코드를 손 조각으로만 허용한다(자동 생성 몸통은 바닐라와 접근 수정자·동작이 다르다).
+     */
+    final Map<String, List<String>> explicitObjectMethods = new TreeMap<>();
+    /** 클래스 → 런타임에 보이는 값 없는 애노테이션 서술자(허용 목록 안의 것만: {@link #COPIED_ANNOTATIONS}). 반사 결과(@FunctionalInterface 등)가 바닐라와 같아지게 복사한다. */
+    final Map<String, List<String>> classAnnotations = new TreeMap<>();
+
+    /** 복사하는 애노테이션(java.lang 의 것만 — 어느 shim 에서나 닿는다). 다른 애노테이션은 라이브러리 형식이라 복사하지 않는다. */
+    static final Set<String> COPIED_ANNOTATIONS = Set.of("Ljava/lang/FunctionalInterface;", "Ljava/lang/Deprecated;");
 
     ShimLock(String mc) { this.mc = mc; }
 
@@ -108,12 +124,52 @@ final class ShimLock {
                 }
                 lock.enumConstants.put(n, count);
             }
+            for (SigTable t : tables) {
+                if (!t.classes().containsKey(n)) continue;
+                List<String> an = t.classAnnotations(n).stream().filter(COPIED_ANNOTATIONS::contains).toList();
+                if (!an.isEmpty()) lock.classAnnotations.put(n, an);
+                break;
+            }
+            if ("java/lang/Record".equals(found.superName())) {
+                for (SigTable t : tables) {
+                    if (!t.classes().containsKey(n)) continue;
+                    List<Component> comps = new ArrayList<>();
+                    for (String rc : t.recordComponents(n)) {
+                        int k = rc.indexOf(':');
+                        String cn = rc.substring(0, k), cd = rc.substring(k + 1), csig = null;
+                        for (SigTable.Member sm : t.members(n)) if (sm.kind() == 'F' && sm.name().equals(cn) && sm.desc().equals(cd)) csig = sm.signature();
+                        comps.add(new Component(cn, cd, csig));
+                    }
+                    if (comps.isEmpty()) problems.add("record without components in the signature table (rebuild it, format 2): " + n);
+                    lock.recordComponents.put(n, comps);
+                    List<String> explicit = new ArrayList<>();
+                    for (SigTable.Member sm : t.members(n)) {
+                        if (sm.kind() != 'M' || (sm.access() & 0x0018) != 0) continue;
+                        boolean obj = sm.name().equals("equals") && sm.desc().equals("(Ljava/lang/Object;)Z")
+                                || sm.name().equals("hashCode") && sm.desc().equals("()I")
+                                || sm.name().equals("toString") && sm.desc().equals("()Ljava/lang/String;");
+                        if (obj && (sm.access() & 0x0010) == 0) explicit.add(sm.name());
+                    }
+                    if (!explicit.isEmpty()) { Collections.sort(explicit); lock.explicitObjectMethods.put(n, List.copyOf(explicit)); }
+                    break;
+                }
+            }
             int d = n.lastIndexOf('$');
             if (d > 0) work.add(n.substring(0, d));
             if (found.superName() != null && isNms(found.superName())) work.add(found.superName());
             for (String i : found.interfaces()) if (isNms(i)) work.add(i);
         }
         Predicate<String> inShim = n -> !isNms(n) || lock.classes.containsKey(n) || existing.test(n);
+        for (Map.Entry<String, List<Component>> e : lock.recordComponents.entrySet()) {
+            List<Component> fixed = new ArrayList<>();
+            for (Component k : e.getValue()) {
+                for (String r : JavaTypes.referencedClasses(k.desc())) {
+                    if (!inShim.test(r)) problems.add(e.getKey() + ": record component " + k.name() + " uses a type that is not in the shim: " + r + " (add it to the spec as a class line)");
+                }
+                fixed.add(new Component(k.name(), k.desc(), keepSignature(k.signature(), inShim)));
+            }
+            e.setValue(List.copyOf(fixed));
+        }
         // 2) 멤버
         for (ShimSpec.Cls c : spec.classes.values()) {
             String owner = c.name().replace('.', '/');
@@ -183,13 +239,20 @@ final class ShimLock {
         sb.append(MAGIC).append('\t').append(FORMAT).append('\t').append(mc).append('\n');
         sb.append("# Generated by ./gradlew -PskipOracle=true :furnace-compat-paper:shimLock - do not edit. Declarations of the spec (src/shimspec/*.spec)\n");
         sb.append("# classes, members and their supertype chain, resolved from the signature tables (Paper server, then vanilla, then libraries). Only names the shim has.\n");
-        sb.append("# C class access super interfaces signature innerAccess source / F,M owner name descriptor access signature (- = none) / E enum constantCount\n");
+        sb.append("# C class access super interfaces signature innerAccess source / R record component (owner name descriptor signature, declaration order) / A class annotations copied (descriptors) / X record owner names of equals,hashCode,toString the vanilla source writes itself / F,M owner name descriptor access signature (- = none) / E enum constantCount\n");
         for (Cls c : classes.values()) {
             sb.append(String.join("\t", "C", c.name(), Integer.toString(c.access()), dash(c.superName()),
                     c.interfaces().isEmpty() ? "-" : String.join(",", c.interfaces()), dash(c.signature()),
                     c.innerAccess() < 0 ? "-" : Integer.toString(c.innerAccess()), c.source())).append('\n');
             Integer ec = enumConstants.get(c.name());
             if (ec != null) sb.append("E\t").append(c.name()).append('\t').append(ec).append('\n');
+            for (Component k : recordComponents.getOrDefault(c.name(), List.of())) {
+                sb.append(String.join("\t", "R", c.name(), k.name(), k.desc(), dash(k.signature()))).append('\n');
+            }
+            List<String> an = classAnnotations.get(c.name());
+            if (an != null) sb.append("A\t").append(c.name()).append('\t').append(String.join(",", an)).append('\n');
+            List<String> eo = explicitObjectMethods.get(c.name());
+            if (eo != null) sb.append("X\t").append(c.name()).append('\t').append(String.join(",", eo)).append('\n');
             for (Member m : members(c.name())) {
                 sb.append(String.join("\t", Character.toString(m.kind()), m.owner(), m.name(), m.desc(), Integer.toString(m.access()), dash(m.signature()))).append('\n');
             }
@@ -221,6 +284,9 @@ final class ShimLock {
             switch (f[0]) {
                 case "C" -> lock.classes.put(f[1], new Cls(f[1], Integer.parseInt(f[2]), undash(f[3]),
                         f[4].equals("-") ? List.of() : List.of(f[4].split(",")), undash(f[5]), f[6].equals("-") ? -1 : Integer.parseInt(f[6]), f[7]));
+                case "R" -> lock.recordComponents.computeIfAbsent(f[1], k -> new ArrayList<>()).add(new Component(f[2], f[3], undash(f[4])));
+                case "A" -> lock.classAnnotations.put(f[1], List.of(f[2].split(",")));
+                case "X" -> lock.explicitObjectMethods.put(f[1], List.of(f[2].split(",")));
                 case "E" -> lock.enumConstants.put(f[1], Integer.parseInt(f[2]));
                 case "F", "M" -> acc.computeIfAbsent(f[1], k -> new ArrayList<>())
                         .add(new Member(f[0].charAt(0), f[1], f[2], f[3], Integer.parseInt(f[4]), undash(f[5])));

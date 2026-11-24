@@ -937,8 +937,59 @@ final class ChunkInternalsImpl implements ChunkInternals {
             case EntityEdit.SetFlag f -> applySetter(e, f);
             case EntityEdit.SetCustomName n -> applySetter(e, n);
             case EntityEdit.SetTicksFrozen t -> applySetter(e, t);
+            case EntityOp.SetData d -> {
+                return setData(e, e.type().name(), d);   // 바뀌었는가(같은 값이면 바닐라처럼 아무것도 안 하고 거짓)
+            }
+            case EntityEdit.SetDataFlag f -> {
+                var d = e.entityData();
+                if (f.index() < 0 || f.index() >= d.size() || d.serializer(f.index()) != org.domi.furnace.server.net.protocol.play.SetEntityData.SERIALIZER_BYTE) {
+                    throw new IllegalArgumentException(e.type().name() + " has no byte data slot " + f.index());
+                }
+                byte b = (Byte) d.get(f.index());
+                return d.set(f.index(), (byte) (f.value() ? b | f.mask() : b & ~f.mask()), false);
+            }
         }
         return null;
+    }
+
+    @Override
+    public WatchedEntityData watchEntityData(org.domi.furnace.api.entity.Entity entity) {
+        if (entity instanceof PlayerHandle) throw new IllegalArgumentException("the data slots of a player are not reachable this way");
+        var e = org.domi.furnace.api.Furnace.server().internals().entityNow(entity, org.domi.furnace.server.entity.Entity.class);
+        return e.entityData().watch(() -> new Watched(e.entityData()));
+    }
+
+    /**
+     * 월드 엔티티 칸의 사본(D5). 주인 스레드만 {@link #accept} 로 칸 하나를 바꿔 새 목록을 volatile 로 내건다 — 읽는 쪽은 어느 스레드든 그 목록을 그대로 본다
+     * (값은 API 값으로 바꾼 불변 사본이라 서버가 아이템 스택을 제자리에서 줄여도 읽는 쪽과 겹치지 않는다).
+     */
+    private static final class Watched implements WatchedEntityData, org.domi.furnace.server.entity.SynchedData.Watcher {
+        /** 엔티티가 빠지면 null(주인 스레드만 읽고 쓴다) — 남은 보기가 서버 엔티티의 칸을 붙잡지 않게. */
+        private org.domi.furnace.server.entity.SynchedData data;
+        private final EntityDataSlot[] slots;
+        private volatile List<EntityDataSlot> published;
+
+        Watched(org.domi.furnace.server.entity.SynchedData data) {
+            this.data = data;
+            var conv = entityData();
+            slots = new EntityDataSlot[data.size()];
+            for (int i = 0; i < slots.length; i++) {
+                slots[i] = new EntityDataSlot(i, conv.toApi(data.serializer(i), data.defaultValue(i)), conv.toApi(data.serializer(i), data.get(i)), false);
+            }
+            published = List.of(slots);
+        }
+
+        @Override
+        public void accept(int i) {
+            slots[i] = new EntityDataSlot(i, slots[i].definedValue(), entityData().toApi(data.serializer(i), data.get(i)), false);
+            published = List.of(slots);
+        }
+
+        @Override
+        public void release() { data = null; }
+
+        @Override
+        public List<EntityDataSlot> slots() { return published; }
     }
 
     /** 월드의 엔티티와 아직 월드에 없는 엔티티(재생)가 함께 쓰는 단순 설정({@link EntityEdit.SetPos} 등). */
@@ -1153,13 +1204,13 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     /** 바닐라 SynchedEntityData#set: 칸 번호·값 종류를 그 종류의 배치로 확인하고 서버 칸에 쓴다(값이 바뀌면 종류별 훅). */
-    private static void setData(org.domi.furnace.server.entity.Entity e, String kind, EntityOp.SetData d) {
+    private static boolean setData(org.domi.furnace.server.entity.Entity e, String kind, EntityOp.SetData d) {
         var layout = org.domi.furnace.server.plugin.packet.EntityData767.layout(kind);
         var type = d.value().dataType();
         if (layout == null || d.index() < 0 || d.index() >= layout.length || layout[d.index()] != type) {
             throw new IllegalArgumentException(kind + " has no data slot " + d.index() + " of value kind " + (type == null ? null : type.name()));
         }
-        e.entityData().set(d.index(), entityData().toServer(d.value()), d.force());
+        return e.entityData().set(d.index(), entityData().toServer(d.value()), d.force());
     }
 
     /** 서버 칸 값 ↔ API 값 변환(블록·아이템 레지스트리는 리소스에서 읽은 1.21.1 표). */
