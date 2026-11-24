@@ -423,6 +423,27 @@ public abstract class ChunkAccess implements BlockGetter {
         });
     }
 
+    /**
+     * 호환 모듈 전용 — 보기의 살아 있는 칸 인벤토리(서버 용기 블록 엔티티의 칸)에서 op 를 그 칸의 주인 스레드에서 돌린 값. 다른 스레드는 {@link org.domi.furnace.compat.nms.NmsOwner} 규칙
+     * (주인 region 에 부탁해 기다림, 다른 region·전역 스레드는 ThreadOwnershipException). 지워졌거나 청크가 내려갔거나 용기가 아니면 UnsupportedNmsCall.
+     * op 안에서 인벤토리 future 는 주인 스레드에서 이미 끝나 있다.
+     */
+    public <T> T furnaceBlockInventory(net.minecraft.world.level.block.entity.BlockEntity view, String what,
+                                       java.util.function.Function<org.domi.furnace.api.inventory.Inventory, T> op) {
+        var p = view.getBlockPos();
+        if (view.furnaceSnapshot() != null || furnaceMirror.dead()) {
+            throw new org.domi.furnace.compat.nms.UnsupportedNmsCall(what, "the block entity at " + p + " was removed or its chunk was unloaded");
+        }
+        return org.domi.furnace.compat.nms.NmsOwner.call(furnaceWorld, p.getX(), p.getY(), p.getZ(), what, () -> {
+            if (furnaceMirror.dead()) throw new org.domi.furnace.compat.nms.UnsupportedNmsCall(what, "the chunk of the block entity at " + p + " was unloaded");
+            furnaceMirror.ownerSyncIfDirty();
+            if (furnaceBindNow(furnaceWorld, view) == null) throw new IllegalStateException("no block entity at that position (removed, or its chunk was unloaded): " + p);
+            var inv = furnaceWorld.inventoryAtNow(new org.domi.furnace.api.world.BlockPos(p.getX(), p.getY(), p.getZ())).orElse(null);
+            if (inv == null) throw new org.domi.furnace.compat.nms.UnsupportedNmsCall(what, "the block entity at " + p + " has no item slots in the server");
+            return op.apply(inv);
+        });
+    }
+
     /** 호환 모듈 전용 — 바닐라 정적 BlockEntity.setChanged(level, pos, state) 의 이 청크 부분. 주인은 바로, 다른 스레드는 거울 일지. */
     public void furnaceBlockEntityChanged(BlockPos at) {
         if (furnaceMirror.dead()) return;
