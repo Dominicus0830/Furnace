@@ -29,6 +29,7 @@ public class TemptGoal extends Goal {
         this.canScare = canScare;
         setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK));
         this.targetingConditions = TEMP_TARGETING.copy().selector(t -> t instanceof Player p && shouldFollow(p));
+        if (TargetingConditions.isPlugin(items)) targetingConditions.everyCandidate();   // 플러그인 아이템 판정 — 먼 플레이어에게도 부른다
     }
 
     private boolean shouldFollow(Player p) {

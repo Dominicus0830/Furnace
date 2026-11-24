@@ -7,7 +7,7 @@ class PanicGoal {
 
     public PanicGoal(net.minecraft.world.entity.PathfinderMob mob, double speed) { super(org.domi.furnace.compat.nms.NmsGoals.vanilla(mob, "PanicGoal", speed)); }
 
-    public PanicGoal(net.minecraft.world.entity.PathfinderMob mob, double speed, net.minecraft.tags.TagKey<net.minecraft.world.damagesource.DamageType> causes) { super(org.domi.furnace.compat.nms.NmsGoals.unsupported("PanicGoal#<init>")); }
+    public PanicGoal(net.minecraft.world.entity.PathfinderMob mob, double speed, net.minecraft.tags.TagKey<net.minecraft.world.damagesource.DamageType> causes) { super(org.domi.furnace.compat.nms.NmsGoals.vanilla(mob, "PanicGoal", speed, org.domi.furnace.compat.nms.NmsGoals.damageTag(causes))); }
 
-    public PanicGoal(net.minecraft.world.entity.PathfinderMob mob, double speed, java.util.function.Function<net.minecraft.world.entity.PathfinderMob, net.minecraft.tags.TagKey<net.minecraft.world.damagesource.DamageType>> causes) { super(org.domi.furnace.compat.nms.NmsGoals.unsupported("PanicGoal#<init>")); }
+    public PanicGoal(net.minecraft.world.entity.PathfinderMob mob, double speed, java.util.function.Function<net.minecraft.world.entity.PathfinderMob, net.minecraft.tags.TagKey<net.minecraft.world.damagesource.DamageType>> causes) { super(org.domi.furnace.compat.nms.NmsGoals.vanilla(mob, "PanicGoal", speed, org.domi.furnace.compat.nms.NmsGoals.damageTag(mob, causes))); }
 }

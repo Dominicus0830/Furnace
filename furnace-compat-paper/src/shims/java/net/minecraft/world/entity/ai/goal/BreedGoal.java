@@ -7,5 +7,5 @@ class BreedGoal {
 
     public BreedGoal(net.minecraft.world.entity.animal.Animal animal, double speed) { super(org.domi.furnace.compat.nms.NmsGoals.vanilla(animal, "BreedGoal", speed)); }
 
-    public BreedGoal(net.minecraft.world.entity.animal.Animal animal, double speed, Class<? extends net.minecraft.world.entity.animal.Animal> partner) { super(org.domi.furnace.compat.nms.NmsGoals.unsupported("BreedGoal#<init>")); }
+    public BreedGoal(net.minecraft.world.entity.animal.Animal animal, double speed, Class<? extends net.minecraft.world.entity.animal.Animal> partner) { super(org.domi.furnace.compat.nms.NmsGoals.vanilla(animal, "BreedGoal", speed, partner)); }
 }

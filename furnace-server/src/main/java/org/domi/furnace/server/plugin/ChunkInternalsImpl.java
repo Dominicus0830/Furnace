@@ -1045,6 +1045,14 @@ final class ChunkInternalsImpl implements ChunkInternals {
         }
 
         @Override
+        public void configureGoal(Object goal, String call, Object... args) {
+            check();
+            Object[] a = args.clone();
+            for (int i = 0; i < a.length; i++) a[i] = goalArg(a[i]);
+            CompatVanillaGoals.configure((org.domi.furnace.server.entity.ai.Goal) goal, call, a);
+        }
+
+        @Override
         public Object adopt(GoalCallbacks callbacks) {
             check();
             return new CompatGoal(mob, callbacks);
@@ -1586,6 +1594,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
             case EntityOp.GoalRemove g -> goalOp(e, g);
             case EntityOp.GoalRemoveFromSet g -> goalOp(e, g);
             case EntityOp.GoalControlFlag g -> goalOp(e, g);
+            case EntityOp.GoalConfigure g -> goalOp(e, g);
             case EntityOp.AddHook h -> { }   // 넣을 때만 — bindBeforeEvents
         }
     }
@@ -1638,6 +1647,11 @@ final class ChunkInternalsImpl implements ChunkInternals {
                 sel(mob, g.targets()).removeFromSet(hit::contains);
             }
             case EntityOp.GoalControlFlag g -> sel(mob, g.targets()).setControlFlag(org.domi.furnace.server.entity.ai.Goal.Flag.values()[g.control()], g.enabled());
+            case EntityOp.GoalConfigure g -> {
+                Object[] a = g.args().toArray();
+                for (int i = 0; i < a.length; i++) a[i] = goalArg(a[i]);
+                CompatVanillaGoals.configure(ref(refs, g.goalRef(), org.domi.furnace.server.entity.ai.Goal.class), g.call(), a);
+            }
             default -> throw new IllegalArgumentException("not a goal edit: " + op);
         }
     }
@@ -1646,12 +1660,26 @@ final class ChunkInternalsImpl implements ChunkInternals {
     static Object goalArg(Object o) {
         if (o instanceof GoalTargets t) return new CompatVanillaGoals.Targets(t.playersOnly(), t.types());
         if (o instanceof GoalItems g) return new CompatVanillaGoals.Items(g.items(), g.test(), g.owner(), g.alive());
+        if (o instanceof ChunkInternals.GoalEntities g) {
+            var test = g.test();
+            // 후보 → API 핸들(주인 스레드가 쥔 엔티티만 — 아니면 wrapEntity 가 ThreadOwnershipException, 그 후보만 거짓)
+            java.util.function.Predicate<org.domi.furnace.server.entity.Targetable> server =
+                    t -> test.test(org.domi.furnace.api.Furnace.server().internals().wrapEntity(t));
+            return new CompatVanillaGoals.Entities(server, test, g.owner(), g.alive());
+        }
+        if (o instanceof ChunkInternals.GoalDamageTag g) return new CompatVanillaGoals.DamageTag(g.tag(), g.dynamic(), g.owner(), g.alive());
+        if (o instanceof ChunkInternals.GoalClassList g) {
+            java.util.List<CompatVanillaGoals.Targets> any = new java.util.ArrayList<>(g.any().size());
+            for (GoalTargets t : g.any()) any.add(new CompatVanillaGoals.Targets(t.playersOnly(), t.types()));
+            return new CompatVanillaGoals.Classes(java.util.List.copyOf(any));
+        }
         return o;
     }
 
     private static boolean goalEdit(EntityOp op) {
         return op instanceof EntityOp.GoalPin || op instanceof EntityOp.GoalCreate || op instanceof EntityOp.GoalAdopt || op instanceof EntityOp.GoalAdd
-                || op instanceof EntityOp.GoalAddWrapped || op instanceof EntityOp.GoalRemove || op instanceof EntityOp.GoalRemoveFromSet || op instanceof EntityOp.GoalControlFlag;
+                || op instanceof EntityOp.GoalAddWrapped || op instanceof EntityOp.GoalRemove || op instanceof EntityOp.GoalRemoveFromSet || op instanceof EntityOp.GoalControlFlag
+                || op instanceof EntityOp.GoalConfigure;
     }
 
     private static org.domi.furnace.server.entity.ai.GoalSelector sel(org.domi.furnace.server.entity.Mob mob, boolean targets) {

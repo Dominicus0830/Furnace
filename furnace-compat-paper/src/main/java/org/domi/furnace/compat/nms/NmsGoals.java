@@ -482,9 +482,6 @@ public final class NmsGoals {
         return ShimCtor.carrying(new Fresh(made));
     }
 
-    /** M2b-2 로 미룬 바닐라 목표 생성자의 몸통(늘 던진다 — super 인자 자리에서 부른다). */
-    public static ShimCtor unsupported(String what) { throw new UnsupportedNmsCall(what, M2B2_HINT); }
-
     /** 생성자로 만든 목표 shim 을 그 서버 목표의 보기로 붙인다(목표 shim 사슬 맨 위 {@code Goal} 생성자가 부른다 — 아직 어느 선택기에도 없다). */
     public static void bindFresh(Goal self, ShimCtor tag) {
         if (!(tag.payload() instanceof Fresh f)) return;
@@ -511,13 +508,7 @@ public final class NmsGoals {
             for (net.minecraft.world.item.ItemStack s : ing.getItems()) ids.add(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(s.getItem()).toString());
             return new ChunkInternals.GoalItems(java.util.Set.copyOf(ids), null, null, null);
         }
-        org.bukkit.plugin.java.JavaPlugin plugin;
-        try {
-            plugin = org.bukkit.plugin.java.JavaPlugin.getProvidingPlugin(test.getClass());
-        } catch (IllegalArgumentException | IllegalStateException | ClassCastException notAPlugin) {
-            plugin = null;
-        }
-        var from = plugin;
+        var from = providing(test);
         return new ChunkInternals.GoalItems(java.util.Set.of(), api -> test.test(api.isEmpty() ? net.minecraft.world.item.ItemStack.EMPTY
                 : net.minecraft.world.item.ItemStack.fromFurnace(api, api.amount())), from != null ? from.getName() : test.getClass().getName(),
                 from != null ? from::isEnabled : null);
@@ -525,16 +516,17 @@ public final class NmsGoals {
 
     private static final String PLAYER_CLASS = "net.minecraft.server.level.ServerPlayer";
 
-    /** 클래스 → 서버 대상(플레이어만, 또는 플레이어 없는 종류 집합). 플레이어와 다른 종류가 함께 맞으면(사실상 LivingEntity) 거부. */
-    private static final ClassValue<Object> TARGETS = new ClassValue<>() {
+    /** 클래스 → (플레이어가 맞는가, 맞는 종류 집합) — 바닐라 {@code isAssignableFrom} 을 shim 계층으로(인터페이스·추상 클래스·Object 도). 문자열이면 거부 사유. */
+    private static final ClassValue<Object> KINDS = new ClassValue<>() {
         @Override
         protected Object computeValue(Class<?> c) {
+            if (net.minecraft.world.entity.Entity.class.isAssignableFrom(c) && !c.getName().startsWith("net.minecraft.")) {
+                return "the entity class " + c.getName() + " is a plugin class - vanilla goals see only vanilla entity classes on this server"
+                        + " (plugin entity classes: T-237)";
+            }
             boolean players = isAncestorOf(c, PLAYER_CLASS);
             java.util.Set<String> types = new java.util.TreeSet<>();
             for (var e : NmsKinds.entityClasses().entrySet()) if (isAncestorOf(c, e.getValue())) types.add(e.getKey());
-            if (players && !types.isEmpty()) {
-                return "the entity class " + c.getName() + " matches players and other entities together - not supported (players are searched separately on this server)";
-            }
             return new ChunkInternals.GoalTargets(players, java.util.Set.copyOf(types));
         }
     };
@@ -547,10 +539,118 @@ public final class NmsGoals {
         }
     }
 
-    /** 바닐라 목표 생성자의 엔티티 클래스 매개변수(보충 설계 3). */
-    public static ChunkInternals.GoalTargets targets(String what, Class<?> c) {
-        Object t = TARGETS.get(c);
+    private static ChunkInternals.GoalTargets kinds(String what, Class<?> c) {
+        Object t = KINDS.get(java.util.Objects.requireNonNull(c, "class"));
         if (t instanceof ChunkInternals.GoalTargets g) return g;
         throw new UnsupportedNmsCall(what, (String) t);
+    }
+
+    /**
+     * 바닐라 목표 생성자의 엔티티 클래스 매개변수(보충 설계 3): 플레이어만, 또는 플레이어 없는 종류 집합. 플레이어와 다른 종류가 함께 맞으면(LivingEntity·Object 등)
+     * 거부 — 이 서버는 플레이어를 따로 찾아 후보 순서가 달라진다(user-todo G1). 엔티티와 무관한 클래스는 맞는 것 없음.
+     */
+    public static ChunkInternals.GoalTargets targets(String what, Class<?> c) {
+        ChunkInternals.GoalTargets k = kinds(what, c);
+        if (k.playersOnly() && !k.types().isEmpty()) {
+            throw new UnsupportedNmsCall(what, "the entity class " + c.getName()
+                    + " matches players and other entities together - not supported (players are searched separately on this server)");
+        }
+        return k;
+    }
+
+    /** 클래스 목록 매개변수(예 HurtByTargetGoal 무시 클래스 — {@code isAssignableFrom}): 플레이어와 종류가 함께여도 된다(후보를 모으지 않고 하나만 견준다). */
+    public static ChunkInternals.GoalClassList classes(String what, Class<?>[] cs) {
+        java.util.List<ChunkInternals.GoalTargets> out = new java.util.ArrayList<>(cs.length);
+        for (Class<?> c : cs) out.add(kinds(what, c));
+        return new ChunkInternals.GoalClassList(java.util.List.copyOf(out));
+    }
+
+    /** 정확히 같은 클래스 목록(바닐라 {@code setAlertOthers} — {@code getClass() == c}): 바닐라 클래스가 바로 그 클래스인 종류들. 플레이어는 알림 대상이 아니다. */
+    public static ChunkInternals.GoalClassList exactClasses(String what, Class<?>[] cs) {
+        java.util.List<ChunkInternals.GoalTargets> out = new java.util.ArrayList<>(cs.length);
+        for (Class<?> c : cs) {
+            kinds(what, c);   // 플러그인 클래스 거부
+            java.util.Set<String> types = new java.util.TreeSet<>();
+            for (var e : NmsKinds.entityClasses().entrySet()) if (e.getValue().equals(c.getName())) types.add(e.getKey());
+            out.add(new ChunkInternals.GoalTargets(false, java.util.Set.copyOf(types)));
+        }
+        return new ChunkInternals.GoalClassList(java.util.List.copyOf(out));
+    }
+
+    /** 판정을 올린 플러그인(없으면 null — 서버 코드나 시험의 판정). */
+    private static org.bukkit.plugin.java.JavaPlugin providing(Object code) {
+        try {
+            return org.bukkit.plugin.java.JavaPlugin.getProvidingPlugin(code.getClass());
+        } catch (IllegalArgumentException | IllegalStateException | ClassCastException notAPlugin) {
+            return null;
+        }
+    }
+
+    /**
+     * 바닐라 목표 생성자의 엔티티 판정 매개변수({@code Predicate<LivingEntity>}, M2b-2). 서버가 후보마다 몹의 주인 스레드에서 그 엔티티의 shim 으로 부른다
+     * (같은 엔티티는 같은 shim 객체). 주인 스레드가 쥐지 않은 후보·판정 안의 다른 region 읽기는 그 후보만 거짓. 예외·꺼짐은 {@link #items} 와 같다.
+     */
+    public static ChunkInternals.GoalEntities entities(java.util.function.Predicate<? super net.minecraft.world.entity.LivingEntity> test) {
+        java.util.Objects.requireNonNull(test, "predicate");
+        var plugin = providing(test);
+        return new ChunkInternals.GoalEntities(h -> {
+            var handle = ((org.bukkit.craftbukkit.entity.CraftEntity) org.domi.furnace.compat.paper.Compat.entity(h)).getHandle();
+            return handle instanceof net.minecraft.world.entity.LivingEntity le && test.test(le);
+        }, plugin != null ? plugin.getName() : test.getClass().getName(), plugin != null ? plugin::isEnabled : null);
+    }
+
+    private static final String DAMAGE_TYPE_REGISTRY = "minecraft:damage_type";
+
+    /** PanicGoal 의 고정 피해 종류 태그. 다른 레지스트리의 태그면 바닐라 {@code is} 처럼 늘 맞지 않음(null). */
+    public static ChunkInternals.GoalDamageTag damageTag(net.minecraft.tags.TagKey<?> tag) {
+        java.util.Objects.requireNonNull(tag, "tag");
+        return new ChunkInternals.GoalDamageTag(damageTagName(tag), null, null, null);
+    }
+
+    /**
+     * PanicGoal 의 피해 종류 태그 함수: 바닐라처럼 마지막 피해가 있을 때마다 생성자에 넘긴 바로 그 몹으로 부른다. null 을 돌려주면 바닐라는 NPE — 예외로 다룬다
+     * (로그 한 번 뒤 그 목표의 태그 판정만 늘 거짓 — 1.21.1 shouldPanic 은 태그 판정뿐이다).
+     */
+    public static <M extends net.minecraft.world.entity.PathfinderMob> ChunkInternals.GoalDamageTag damageTag(M mob,
+            java.util.function.Function<? super M, ? extends net.minecraft.tags.TagKey<?>> f) {
+        java.util.Objects.requireNonNull(f, "function");
+        var plugin = providing(f);
+        return new ChunkInternals.GoalDamageTag(null, () -> damageTagName(java.util.Objects.requireNonNull(f.apply(mob), "panic damage type tag")),
+                plugin != null ? plugin.getName() : f.getClass().getName(), plugin != null ? plugin::isEnabled : null);
+    }
+
+    private static String damageTagName(net.minecraft.tags.TagKey<?> tag) {
+        return DAMAGE_TYPE_REGISTRY.equals(tag.registry().location().toString()) ? tag.location().toString() : null;
+    }
+
+    /** {@code HurtByTargetGoal#setAlertOthers} — 월드 몹이면 바로, 넣기 전 몹이면 샌드박스에 하고 기록한다(넣을 때 재생). */
+    public static void configure(Goal self, String call, Object... args) {
+        Backing b = need(self, call);
+        for (int tries = 0; ; tries++) {
+            Route r = b.route();
+            switch (r) {
+                case World w -> {
+                    onMob(b.mob(), call, g -> {
+                        g.configureGoal(w.server(), call, args);
+                        return null;
+                    }, box -> {
+                        throw new UnsupportedNmsCall(call, "adding the mob of this goal to a world failed meanwhile - call it again");
+                    });
+                    return;
+                }
+                case Dead d -> throw unpaired(b, call);
+                case InSandbox s -> {
+                    try {
+                        s.box().locked(call, g -> {
+                            s.box().record(new ChunkInternals.EntityOp.GoalConfigure(b, call, java.util.List.of(args)));
+                            return null;
+                        });
+                        return;
+                    } catch (Moved moved) {
+                        if (b.route() == r || tries > 100) throw unpaired(b, call);
+                    }
+                }
+            }
+        }
     }
 }
