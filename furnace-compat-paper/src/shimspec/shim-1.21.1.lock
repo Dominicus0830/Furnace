@@ -117,6 +117,8 @@ M	net/minecraft/world/Container	stillValid	(Lnet/minecraft/world/entity/player/P
 C	net/minecraft/world/ContainerListener	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/MenuProvider	1537	java/lang/Object	net/minecraft/world/inventory/MenuConstructor	-	-	paper-server-1.21.1
 C	net/minecraft/world/Nameable	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/RandomizableContainer	1537	java/lang/Object	net/minecraft/world/Container	-	-	paper-server-1.21.1
+C	net/minecraft/world/WorldlyContainer	1537	java/lang/Object	net/minecraft/world/Container	-	-	paper-server-1.21.1
 C	net/minecraft/world/WorldlyContainerHolder	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/AgeableMob	1057	net/minecraft/world/entity/PathfinderMob	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/entity/AreaEffectCloud	33	net/minecraft/world/entity/Entity	net/minecraft/world/entity/TraceableEntity	-	-	paper-server-1.21.1
@@ -614,6 +616,7 @@ F	net/minecraft/world/entity/vehicle/VehicleEntity	DATA_ID_HURTDIR	Lnet/minecraf
 C	net/minecraft/world/flag/FeatureElement	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/food/FoodData	33	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/inventory/AbstractContainerMenu	1057	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/inventory/CraftingContainer	1537	java/lang/Object	net/minecraft/world/Container,net/minecraft/world/inventory/StackedContentsCompatible	-	-	paper-server-1.21.1
 C	net/minecraft/world/inventory/MenuConstructor	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 A	net/minecraft/world/inventory/MenuConstructor	Ljava/lang/FunctionalInterface;
 C	net/minecraft/world/inventory/MenuType	33	java/lang/Object	net/minecraft/world/flag/FeatureElement	<T:Lnet/minecraft/world/inventory/AbstractContainerMenu;>Ljava/lang/Object;Lnet/minecraft/world/flag/FeatureElement;	-	paper-server-1.21.1
@@ -633,7 +636,9 @@ F	net/minecraft/world/inventory/RecipeBookType	BLAST_FURNACE	Lnet/minecraft/worl
 F	net/minecraft/world/inventory/RecipeBookType	CRAFTING	Lnet/minecraft/world/inventory/RecipeBookType;	16409	-
 F	net/minecraft/world/inventory/RecipeBookType	FURNACE	Lnet/minecraft/world/inventory/RecipeBookType;	16409	-
 F	net/minecraft/world/inventory/RecipeBookType	SMOKER	Lnet/minecraft/world/inventory/RecipeBookType;	16409	-
+C	net/minecraft/world/inventory/RecipeCraftingHolder	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/inventory/Slot	33	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/inventory/StackedContentsCompatible	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/item/AirItem	33	net/minecraft/world/item/Item	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/item/AnimalArmorItem	33	net/minecraft/world/item/ArmorItem	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/item/ArmorItem	33	net/minecraft/world/item/Item	net/minecraft/world/item/Equipable	-	-	paper-server-1.21.1
@@ -751,6 +756,7 @@ X	net/minecraft/world/item/crafting/RecipeHolder	equals,hashCode,toString
 C	net/minecraft/world/item/crafting/RecipeInput	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/item/trading/Merchant	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/ItemLike	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/Spawner	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/AbstractBannerBlock	1057	net/minecraft/world/level/block/BaseEntityBlock	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/AbstractCandleBlock	1057	net/minecraft/world/level/block/Block	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/AbstractCauldronBlock	1057	net/minecraft/world/level/block/Block	-	-	-	paper-server-1.21.1
@@ -1042,13 +1048,228 @@ C	net/minecraft/world/level/block/WitherRoseBlock	33	net/minecraft/world/level/b
 C	net/minecraft/world/level/block/WitherSkullBlock	33	net/minecraft/world/level/block/SkullBlock	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/WitherWallSkullBlock	33	net/minecraft/world/level/block/WallSkullBlock	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/WoolCarpetBlock	33	net/minecraft/world/level/block/CarpetBlock	net/minecraft/world/item/Equipable	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity	1057	net/minecraft/world/level/block/entity/BaseContainerBlockEntity	net/minecraft/world/WorldlyContainer,net/minecraft/world/inventory/RecipeCraftingHolder,net/minecraft/world/inventory/StackedContentsCompatible	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/BannerBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	net/minecraft/world/Nameable	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/BarrelBlockEntity	33	net/minecraft/world/level/block/entity/RandomizableContainerBlockEntity	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/BaseContainerBlockEntity	1057	net/minecraft/world/level/block/entity/BlockEntity	net/minecraft/world/Container,net/minecraft/world/MenuProvider,net/minecraft/world/Nameable	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/BeaconBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	net/minecraft/world/MenuProvider,net/minecraft/world/Nameable	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/BedBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/BeehiveBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/BellBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/BlastFurnaceBlockEntity	33	net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/entity/BlockEntity	1057	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/BrewingStandBlockEntity	33	net/minecraft/world/level/block/entity/BaseContainerBlockEntity	net/minecraft/world/WorldlyContainer	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/BrushableBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/CalibratedSculkSensorBlockEntity	33	net/minecraft/world/level/block/entity/SculkSensorBlockEntity	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/CampfireBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	net/minecraft/world/Clearable	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/ChestBlockEntity	33	net/minecraft/world/level/block/entity/RandomizableContainerBlockEntity	net/minecraft/world/level/block/entity/LidBlockEntity	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/ChiseledBookShelfBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	net/minecraft/world/Container	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/CommandBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/CommandBlockEntity$Mode	16433	java/lang/Enum	-	Ljava/lang/Enum<Lnet/minecraft/world/level/block/entity/CommandBlockEntity$Mode;>;	16409	paper-server-1.21.1
+E	net/minecraft/world/level/block/entity/CommandBlockEntity$Mode	3
+F	net/minecraft/world/level/block/entity/CommandBlockEntity$Mode	AUTO	Lnet/minecraft/world/level/block/entity/CommandBlockEntity$Mode;	16409	-
+F	net/minecraft/world/level/block/entity/CommandBlockEntity$Mode	REDSTONE	Lnet/minecraft/world/level/block/entity/CommandBlockEntity$Mode;	16409	-
+F	net/minecraft/world/level/block/entity/CommandBlockEntity$Mode	SEQUENCE	Lnet/minecraft/world/level/block/entity/CommandBlockEntity$Mode;	16409	-
+C	net/minecraft/world/level/block/entity/ComparatorBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/ConduitBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/CrafterBlockEntity	33	net/minecraft/world/level/block/entity/RandomizableContainerBlockEntity	net/minecraft/world/inventory/CraftingContainer	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/DaylightDetectorBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/DecoratedPotBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	net/minecraft/world/RandomizableContainer,net/minecraft/world/ticks/ContainerSingleItem$BlockContainerSingleItem	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/DispenserBlockEntity	33	net/minecraft/world/level/block/entity/RandomizableContainerBlockEntity	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/DropperBlockEntity	33	net/minecraft/world/level/block/entity/DispenserBlockEntity	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/EnchantingTableBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	net/minecraft/world/Nameable	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/EnderChestBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	net/minecraft/world/level/block/entity/LidBlockEntity	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/FurnaceBlockEntity	33	net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/HangingSignBlockEntity	33	net/minecraft/world/level/block/entity/SignBlockEntity	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/entity/Hopper	1537	java/lang/Object	net/minecraft/world/Container	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/HopperBlockEntity	33	net/minecraft/world/level/block/entity/RandomizableContainerBlockEntity	net/minecraft/world/level/block/entity/Hopper	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/entity/JigsawBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/JukeboxBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	net/minecraft/world/Clearable,net/minecraft/world/ticks/ContainerSingleItem$BlockContainerSingleItem	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/LecternBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	net/minecraft/world/Clearable,net/minecraft/world/MenuProvider,net/minecraft/commands/CommandSource	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/LidBlockEntity	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/RandomizableContainerBlockEntity	1057	net/minecraft/world/level/block/entity/BaseContainerBlockEntity	net/minecraft/world/RandomizableContainer	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/SculkCatalystBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	net/minecraft/world/level/gameevent/GameEventListener$Provider	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/SculkSensorBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	net/minecraft/world/level/gameevent/GameEventListener$Provider,net/minecraft/world/level/gameevent/vibrations/VibrationSystem	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/SculkShriekerBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	net/minecraft/world/level/gameevent/GameEventListener$Provider,net/minecraft/world/level/gameevent/vibrations/VibrationSystem	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/ShulkerBoxBlockEntity	33	net/minecraft/world/level/block/entity/RandomizableContainerBlockEntity	net/minecraft/world/WorldlyContainer	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/SignBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	net/minecraft/commands/CommandSource	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/SkullBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/SmokerBlockEntity	33	net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/SpawnerBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	net/minecraft/world/level/Spawner	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/StructureBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/StructureBlockEntity$UpdateType	16433	java/lang/Enum	-	Ljava/lang/Enum<Lnet/minecraft/world/level/block/entity/StructureBlockEntity$UpdateType;>;	16409	paper-server-1.21.1
+E	net/minecraft/world/level/block/entity/StructureBlockEntity$UpdateType	4
+F	net/minecraft/world/level/block/entity/StructureBlockEntity$UpdateType	LOAD_AREA	Lnet/minecraft/world/level/block/entity/StructureBlockEntity$UpdateType;	16409	-
+F	net/minecraft/world/level/block/entity/StructureBlockEntity$UpdateType	SAVE_AREA	Lnet/minecraft/world/level/block/entity/StructureBlockEntity$UpdateType;	16409	-
+F	net/minecraft/world/level/block/entity/StructureBlockEntity$UpdateType	SCAN_AREA	Lnet/minecraft/world/level/block/entity/StructureBlockEntity$UpdateType;	16409	-
+F	net/minecraft/world/level/block/entity/StructureBlockEntity$UpdateType	UPDATE_DATA	Lnet/minecraft/world/level/block/entity/StructureBlockEntity$UpdateType;	16409	-
+C	net/minecraft/world/level/block/entity/TheEndGatewayBlockEntity	33	net/minecraft/world/level/block/entity/TheEndPortalBlockEntity	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/TheEndPortalBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/TrappedChestBlockEntity	33	net/minecraft/world/level/block/entity/ChestBlockEntity	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/TrialSpawnerBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	net/minecraft/world/level/Spawner,net/minecraft/world/level/block/entity/trialspawner/TrialSpawner$StateAccessor	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/trialspawner/TrialSpawner	49	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/trialspawner/TrialSpawner$StateAccessor	1537	java/lang/Object	-	-	1545	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/vault/VaultBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/piston/MovingPistonBlock	33	net/minecraft/world/level/block/BaseEntityBlock	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/piston/PistonBaseBlock	33	net/minecraft/world/level/block/DirectionalBlock	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/piston/PistonHeadBlock	33	net/minecraft/world/level/block/DirectionalBlock	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/piston/PistonMovingBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/state/BlockBehaviour	1057	java/lang/Object	net/minecraft/world/flag/FeatureElement	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/state/properties/AttachFace	16433	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/block/state/properties/AttachFace;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
+E	net/minecraft/world/level/block/state/properties/AttachFace	3
+F	net/minecraft/world/level/block/state/properties/AttachFace	CEILING	Lnet/minecraft/world/level/block/state/properties/AttachFace;	16409	-
+F	net/minecraft/world/level/block/state/properties/AttachFace	FLOOR	Lnet/minecraft/world/level/block/state/properties/AttachFace;	16409	-
+F	net/minecraft/world/level/block/state/properties/AttachFace	WALL	Lnet/minecraft/world/level/block/state/properties/AttachFace;	16409	-
+M	net/minecraft/world/level/block/state/properties/AttachFace	getSerializedName	()Ljava/lang/String;	1	-
+C	net/minecraft/world/level/block/state/properties/BambooLeaves	16433	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/block/state/properties/BambooLeaves;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
+E	net/minecraft/world/level/block/state/properties/BambooLeaves	3
+F	net/minecraft/world/level/block/state/properties/BambooLeaves	LARGE	Lnet/minecraft/world/level/block/state/properties/BambooLeaves;	16409	-
+F	net/minecraft/world/level/block/state/properties/BambooLeaves	NONE	Lnet/minecraft/world/level/block/state/properties/BambooLeaves;	16409	-
+F	net/minecraft/world/level/block/state/properties/BambooLeaves	SMALL	Lnet/minecraft/world/level/block/state/properties/BambooLeaves;	16409	-
+M	net/minecraft/world/level/block/state/properties/BambooLeaves	getSerializedName	()Ljava/lang/String;	1	-
+M	net/minecraft/world/level/block/state/properties/BambooLeaves	toString	()Ljava/lang/String;	1	-
+C	net/minecraft/world/level/block/state/properties/BedPart	16433	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/block/state/properties/BedPart;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
+E	net/minecraft/world/level/block/state/properties/BedPart	2
+F	net/minecraft/world/level/block/state/properties/BedPart	FOOT	Lnet/minecraft/world/level/block/state/properties/BedPart;	16409	-
+F	net/minecraft/world/level/block/state/properties/BedPart	HEAD	Lnet/minecraft/world/level/block/state/properties/BedPart;	16409	-
+M	net/minecraft/world/level/block/state/properties/BedPart	getSerializedName	()Ljava/lang/String;	1	-
+M	net/minecraft/world/level/block/state/properties/BedPart	toString	()Ljava/lang/String;	1	-
+C	net/minecraft/world/level/block/state/properties/BellAttachType	16433	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/block/state/properties/BellAttachType;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
+E	net/minecraft/world/level/block/state/properties/BellAttachType	4
+F	net/minecraft/world/level/block/state/properties/BellAttachType	CEILING	Lnet/minecraft/world/level/block/state/properties/BellAttachType;	16409	-
+F	net/minecraft/world/level/block/state/properties/BellAttachType	DOUBLE_WALL	Lnet/minecraft/world/level/block/state/properties/BellAttachType;	16409	-
+F	net/minecraft/world/level/block/state/properties/BellAttachType	FLOOR	Lnet/minecraft/world/level/block/state/properties/BellAttachType;	16409	-
+F	net/minecraft/world/level/block/state/properties/BellAttachType	SINGLE_WALL	Lnet/minecraft/world/level/block/state/properties/BellAttachType;	16409	-
+M	net/minecraft/world/level/block/state/properties/BellAttachType	getSerializedName	()Ljava/lang/String;	1	-
+C	net/minecraft/world/level/block/state/properties/ChestType	16433	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/block/state/properties/ChestType;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
+E	net/minecraft/world/level/block/state/properties/ChestType	3
+F	net/minecraft/world/level/block/state/properties/ChestType	LEFT	Lnet/minecraft/world/level/block/state/properties/ChestType;	16409	-
+F	net/minecraft/world/level/block/state/properties/ChestType	RIGHT	Lnet/minecraft/world/level/block/state/properties/ChestType;	16409	-
+F	net/minecraft/world/level/block/state/properties/ChestType	SINGLE	Lnet/minecraft/world/level/block/state/properties/ChestType;	16409	-
+M	net/minecraft/world/level/block/state/properties/ChestType	getSerializedName	()Ljava/lang/String;	1	-
+C	net/minecraft/world/level/block/state/properties/ComparatorMode	16433	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/block/state/properties/ComparatorMode;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
+E	net/minecraft/world/level/block/state/properties/ComparatorMode	2
+F	net/minecraft/world/level/block/state/properties/ComparatorMode	COMPARE	Lnet/minecraft/world/level/block/state/properties/ComparatorMode;	16409	-
+F	net/minecraft/world/level/block/state/properties/ComparatorMode	SUBTRACT	Lnet/minecraft/world/level/block/state/properties/ComparatorMode;	16409	-
+M	net/minecraft/world/level/block/state/properties/ComparatorMode	getSerializedName	()Ljava/lang/String;	1	-
+M	net/minecraft/world/level/block/state/properties/ComparatorMode	toString	()Ljava/lang/String;	1	-
+C	net/minecraft/world/level/block/state/properties/DoorHingeSide	16433	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/block/state/properties/DoorHingeSide;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
+E	net/minecraft/world/level/block/state/properties/DoorHingeSide	2
+F	net/minecraft/world/level/block/state/properties/DoorHingeSide	LEFT	Lnet/minecraft/world/level/block/state/properties/DoorHingeSide;	16409	-
+F	net/minecraft/world/level/block/state/properties/DoorHingeSide	RIGHT	Lnet/minecraft/world/level/block/state/properties/DoorHingeSide;	16409	-
+M	net/minecraft/world/level/block/state/properties/DoorHingeSide	getSerializedName	()Ljava/lang/String;	1	-
+M	net/minecraft/world/level/block/state/properties/DoorHingeSide	toString	()Ljava/lang/String;	1	-
+C	net/minecraft/world/level/block/state/properties/DoubleBlockHalf	16433	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/block/state/properties/DoubleBlockHalf;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
+E	net/minecraft/world/level/block/state/properties/DoubleBlockHalf	2
+F	net/minecraft/world/level/block/state/properties/DoubleBlockHalf	LOWER	Lnet/minecraft/world/level/block/state/properties/DoubleBlockHalf;	16409	-
+F	net/minecraft/world/level/block/state/properties/DoubleBlockHalf	UPPER	Lnet/minecraft/world/level/block/state/properties/DoubleBlockHalf;	16409	-
+M	net/minecraft/world/level/block/state/properties/DoubleBlockHalf	getSerializedName	()Ljava/lang/String;	1	-
+M	net/minecraft/world/level/block/state/properties/DoubleBlockHalf	toString	()Ljava/lang/String;	1	-
+C	net/minecraft/world/level/block/state/properties/DripstoneThickness	16433	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/block/state/properties/DripstoneThickness;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
+E	net/minecraft/world/level/block/state/properties/DripstoneThickness	5
+F	net/minecraft/world/level/block/state/properties/DripstoneThickness	BASE	Lnet/minecraft/world/level/block/state/properties/DripstoneThickness;	16409	-
+F	net/minecraft/world/level/block/state/properties/DripstoneThickness	FRUSTUM	Lnet/minecraft/world/level/block/state/properties/DripstoneThickness;	16409	-
+F	net/minecraft/world/level/block/state/properties/DripstoneThickness	MIDDLE	Lnet/minecraft/world/level/block/state/properties/DripstoneThickness;	16409	-
+F	net/minecraft/world/level/block/state/properties/DripstoneThickness	TIP	Lnet/minecraft/world/level/block/state/properties/DripstoneThickness;	16409	-
+F	net/minecraft/world/level/block/state/properties/DripstoneThickness	TIP_MERGE	Lnet/minecraft/world/level/block/state/properties/DripstoneThickness;	16409	-
+M	net/minecraft/world/level/block/state/properties/DripstoneThickness	getSerializedName	()Ljava/lang/String;	1	-
+M	net/minecraft/world/level/block/state/properties/DripstoneThickness	toString	()Ljava/lang/String;	1	-
+C	net/minecraft/world/level/block/state/properties/Half	16433	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/block/state/properties/Half;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
+E	net/minecraft/world/level/block/state/properties/Half	2
+F	net/minecraft/world/level/block/state/properties/Half	BOTTOM	Lnet/minecraft/world/level/block/state/properties/Half;	16409	-
+F	net/minecraft/world/level/block/state/properties/Half	TOP	Lnet/minecraft/world/level/block/state/properties/Half;	16409	-
+M	net/minecraft/world/level/block/state/properties/Half	getSerializedName	()Ljava/lang/String;	1	-
+M	net/minecraft/world/level/block/state/properties/Half	toString	()Ljava/lang/String;	1	-
+C	net/minecraft/world/level/block/state/properties/NoteBlockInstrument	16433	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/block/state/properties/NoteBlockInstrument;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
+E	net/minecraft/world/level/block/state/properties/NoteBlockInstrument	23
+F	net/minecraft/world/level/block/state/properties/NoteBlockInstrument	BANJO	Lnet/minecraft/world/level/block/state/properties/NoteBlockInstrument;	16409	-
+F	net/minecraft/world/level/block/state/properties/NoteBlockInstrument	BASEDRUM	Lnet/minecraft/world/level/block/state/properties/NoteBlockInstrument;	16409	-
+F	net/minecraft/world/level/block/state/properties/NoteBlockInstrument	BASS	Lnet/minecraft/world/level/block/state/properties/NoteBlockInstrument;	16409	-
+F	net/minecraft/world/level/block/state/properties/NoteBlockInstrument	BELL	Lnet/minecraft/world/level/block/state/properties/NoteBlockInstrument;	16409	-
+F	net/minecraft/world/level/block/state/properties/NoteBlockInstrument	BIT	Lnet/minecraft/world/level/block/state/properties/NoteBlockInstrument;	16409	-
+F	net/minecraft/world/level/block/state/properties/NoteBlockInstrument	CHIME	Lnet/minecraft/world/level/block/state/properties/NoteBlockInstrument;	16409	-
+F	net/minecraft/world/level/block/state/properties/NoteBlockInstrument	COW_BELL	Lnet/minecraft/world/level/block/state/properties/NoteBlockInstrument;	16409	-
+F	net/minecraft/world/level/block/state/properties/NoteBlockInstrument	CREEPER	Lnet/minecraft/world/level/block/state/properties/NoteBlockInstrument;	16409	-
+F	net/minecraft/world/level/block/state/properties/NoteBlockInstrument	CUSTOM_HEAD	Lnet/minecraft/world/level/block/state/properties/NoteBlockInstrument;	16409	-
+F	net/minecraft/world/level/block/state/properties/NoteBlockInstrument	DIDGERIDOO	Lnet/minecraft/world/level/block/state/properties/NoteBlockInstrument;	16409	-
+F	net/minecraft/world/level/block/state/properties/NoteBlockInstrument	DRAGON	Lnet/minecraft/world/level/block/state/properties/NoteBlockInstrument;	16409	-
+F	net/minecraft/world/level/block/state/properties/NoteBlockInstrument	FLUTE	Lnet/minecraft/world/level/block/state/properties/NoteBlockInstrument;	16409	-
+F	net/minecraft/world/level/block/state/properties/NoteBlockInstrument	GUITAR	Lnet/minecraft/world/level/block/state/properties/NoteBlockInstrument;	16409	-
+F	net/minecraft/world/level/block/state/properties/NoteBlockInstrument	HARP	Lnet/minecraft/world/level/block/state/properties/NoteBlockInstrument;	16409	-
+F	net/minecraft/world/level/block/state/properties/NoteBlockInstrument	HAT	Lnet/minecraft/world/level/block/state/properties/NoteBlockInstrument;	16409	-
+F	net/minecraft/world/level/block/state/properties/NoteBlockInstrument	IRON_XYLOPHONE	Lnet/minecraft/world/level/block/state/properties/NoteBlockInstrument;	16409	-
+F	net/minecraft/world/level/block/state/properties/NoteBlockInstrument	PIGLIN	Lnet/minecraft/world/level/block/state/properties/NoteBlockInstrument;	16409	-
+F	net/minecraft/world/level/block/state/properties/NoteBlockInstrument	PLING	Lnet/minecraft/world/level/block/state/properties/NoteBlockInstrument;	16409	-
+F	net/minecraft/world/level/block/state/properties/NoteBlockInstrument	SKELETON	Lnet/minecraft/world/level/block/state/properties/NoteBlockInstrument;	16409	-
+F	net/minecraft/world/level/block/state/properties/NoteBlockInstrument	SNARE	Lnet/minecraft/world/level/block/state/properties/NoteBlockInstrument;	16409	-
+F	net/minecraft/world/level/block/state/properties/NoteBlockInstrument	WITHER_SKELETON	Lnet/minecraft/world/level/block/state/properties/NoteBlockInstrument;	16409	-
+F	net/minecraft/world/level/block/state/properties/NoteBlockInstrument	XYLOPHONE	Lnet/minecraft/world/level/block/state/properties/NoteBlockInstrument;	16409	-
+F	net/minecraft/world/level/block/state/properties/NoteBlockInstrument	ZOMBIE	Lnet/minecraft/world/level/block/state/properties/NoteBlockInstrument;	16409	-
+M	net/minecraft/world/level/block/state/properties/NoteBlockInstrument	getSerializedName	()Ljava/lang/String;	1	-
+C	net/minecraft/world/level/block/state/properties/PistonType	16433	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/block/state/properties/PistonType;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
+E	net/minecraft/world/level/block/state/properties/PistonType	2
+F	net/minecraft/world/level/block/state/properties/PistonType	DEFAULT	Lnet/minecraft/world/level/block/state/properties/PistonType;	16409	-
+F	net/minecraft/world/level/block/state/properties/PistonType	STICKY	Lnet/minecraft/world/level/block/state/properties/PistonType;	16409	-
+M	net/minecraft/world/level/block/state/properties/PistonType	getSerializedName	()Ljava/lang/String;	1	-
+M	net/minecraft/world/level/block/state/properties/PistonType	toString	()Ljava/lang/String;	1	-
+C	net/minecraft/world/level/block/state/properties/RailShape	16433	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/block/state/properties/RailShape;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
+E	net/minecraft/world/level/block/state/properties/RailShape	10
+F	net/minecraft/world/level/block/state/properties/RailShape	ASCENDING_EAST	Lnet/minecraft/world/level/block/state/properties/RailShape;	16409	-
+F	net/minecraft/world/level/block/state/properties/RailShape	ASCENDING_NORTH	Lnet/minecraft/world/level/block/state/properties/RailShape;	16409	-
+F	net/minecraft/world/level/block/state/properties/RailShape	ASCENDING_SOUTH	Lnet/minecraft/world/level/block/state/properties/RailShape;	16409	-
+F	net/minecraft/world/level/block/state/properties/RailShape	ASCENDING_WEST	Lnet/minecraft/world/level/block/state/properties/RailShape;	16409	-
+F	net/minecraft/world/level/block/state/properties/RailShape	EAST_WEST	Lnet/minecraft/world/level/block/state/properties/RailShape;	16409	-
+F	net/minecraft/world/level/block/state/properties/RailShape	NORTH_EAST	Lnet/minecraft/world/level/block/state/properties/RailShape;	16409	-
+F	net/minecraft/world/level/block/state/properties/RailShape	NORTH_SOUTH	Lnet/minecraft/world/level/block/state/properties/RailShape;	16409	-
+F	net/minecraft/world/level/block/state/properties/RailShape	NORTH_WEST	Lnet/minecraft/world/level/block/state/properties/RailShape;	16409	-
+F	net/minecraft/world/level/block/state/properties/RailShape	SOUTH_EAST	Lnet/minecraft/world/level/block/state/properties/RailShape;	16409	-
+F	net/minecraft/world/level/block/state/properties/RailShape	SOUTH_WEST	Lnet/minecraft/world/level/block/state/properties/RailShape;	16409	-
+M	net/minecraft/world/level/block/state/properties/RailShape	getSerializedName	()Ljava/lang/String;	1	-
+M	net/minecraft/world/level/block/state/properties/RailShape	toString	()Ljava/lang/String;	1	-
+C	net/minecraft/world/level/block/state/properties/RedstoneSide	16433	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/block/state/properties/RedstoneSide;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
+E	net/minecraft/world/level/block/state/properties/RedstoneSide	3
+F	net/minecraft/world/level/block/state/properties/RedstoneSide	NONE	Lnet/minecraft/world/level/block/state/properties/RedstoneSide;	16409	-
+F	net/minecraft/world/level/block/state/properties/RedstoneSide	SIDE	Lnet/minecraft/world/level/block/state/properties/RedstoneSide;	16409	-
+F	net/minecraft/world/level/block/state/properties/RedstoneSide	UP	Lnet/minecraft/world/level/block/state/properties/RedstoneSide;	16409	-
+M	net/minecraft/world/level/block/state/properties/RedstoneSide	getSerializedName	()Ljava/lang/String;	1	-
+M	net/minecraft/world/level/block/state/properties/RedstoneSide	toString	()Ljava/lang/String;	1	-
+C	net/minecraft/world/level/block/state/properties/SculkSensorPhase	16433	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/block/state/properties/SculkSensorPhase;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
+E	net/minecraft/world/level/block/state/properties/SculkSensorPhase	3
+F	net/minecraft/world/level/block/state/properties/SculkSensorPhase	ACTIVE	Lnet/minecraft/world/level/block/state/properties/SculkSensorPhase;	16409	-
+F	net/minecraft/world/level/block/state/properties/SculkSensorPhase	COOLDOWN	Lnet/minecraft/world/level/block/state/properties/SculkSensorPhase;	16409	-
+F	net/minecraft/world/level/block/state/properties/SculkSensorPhase	INACTIVE	Lnet/minecraft/world/level/block/state/properties/SculkSensorPhase;	16409	-
+M	net/minecraft/world/level/block/state/properties/SculkSensorPhase	getSerializedName	()Ljava/lang/String;	1	-
+M	net/minecraft/world/level/block/state/properties/SculkSensorPhase	toString	()Ljava/lang/String;	1	-
+C	net/minecraft/world/level/block/state/properties/SlabType	16433	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/block/state/properties/SlabType;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
+E	net/minecraft/world/level/block/state/properties/SlabType	3
+F	net/minecraft/world/level/block/state/properties/SlabType	BOTTOM	Lnet/minecraft/world/level/block/state/properties/SlabType;	16409	-
+F	net/minecraft/world/level/block/state/properties/SlabType	DOUBLE	Lnet/minecraft/world/level/block/state/properties/SlabType;	16409	-
+F	net/minecraft/world/level/block/state/properties/SlabType	TOP	Lnet/minecraft/world/level/block/state/properties/SlabType;	16409	-
+M	net/minecraft/world/level/block/state/properties/SlabType	getSerializedName	()Ljava/lang/String;	1	-
+M	net/minecraft/world/level/block/state/properties/SlabType	toString	()Ljava/lang/String;	1	-
+C	net/minecraft/world/level/block/state/properties/StairsShape	16433	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/block/state/properties/StairsShape;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
+E	net/minecraft/world/level/block/state/properties/StairsShape	5
+F	net/minecraft/world/level/block/state/properties/StairsShape	INNER_LEFT	Lnet/minecraft/world/level/block/state/properties/StairsShape;	16409	-
+F	net/minecraft/world/level/block/state/properties/StairsShape	INNER_RIGHT	Lnet/minecraft/world/level/block/state/properties/StairsShape;	16409	-
+F	net/minecraft/world/level/block/state/properties/StairsShape	OUTER_LEFT	Lnet/minecraft/world/level/block/state/properties/StairsShape;	16409	-
+F	net/minecraft/world/level/block/state/properties/StairsShape	OUTER_RIGHT	Lnet/minecraft/world/level/block/state/properties/StairsShape;	16409	-
+F	net/minecraft/world/level/block/state/properties/StairsShape	STRAIGHT	Lnet/minecraft/world/level/block/state/properties/StairsShape;	16409	-
+M	net/minecraft/world/level/block/state/properties/StairsShape	getSerializedName	()Ljava/lang/String;	1	-
+M	net/minecraft/world/level/block/state/properties/StairsShape	toString	()Ljava/lang/String;	1	-
+C	net/minecraft/world/level/block/state/properties/Tilt	16433	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/block/state/properties/Tilt;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
+E	net/minecraft/world/level/block/state/properties/Tilt	4
+F	net/minecraft/world/level/block/state/properties/Tilt	FULL	Lnet/minecraft/world/level/block/state/properties/Tilt;	16409	-
+F	net/minecraft/world/level/block/state/properties/Tilt	NONE	Lnet/minecraft/world/level/block/state/properties/Tilt;	16409	-
+F	net/minecraft/world/level/block/state/properties/Tilt	PARTIAL	Lnet/minecraft/world/level/block/state/properties/Tilt;	16409	-
+F	net/minecraft/world/level/block/state/properties/Tilt	UNSTABLE	Lnet/minecraft/world/level/block/state/properties/Tilt;	16409	-
+M	net/minecraft/world/level/block/state/properties/Tilt	getSerializedName	()Ljava/lang/String;	1	-
+C	net/minecraft/world/level/block/state/properties/WallSide	16433	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/block/state/properties/WallSide;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
+E	net/minecraft/world/level/block/state/properties/WallSide	3
+F	net/minecraft/world/level/block/state/properties/WallSide	LOW	Lnet/minecraft/world/level/block/state/properties/WallSide;	16409	-
+F	net/minecraft/world/level/block/state/properties/WallSide	NONE	Lnet/minecraft/world/level/block/state/properties/WallSide;	16409	-
+F	net/minecraft/world/level/block/state/properties/WallSide	TALL	Lnet/minecraft/world/level/block/state/properties/WallSide;	16409	-
+M	net/minecraft/world/level/block/state/properties/WallSide	getSerializedName	()Ljava/lang/String;	1	-
+M	net/minecraft/world/level/block/state/properties/WallSide	toString	()Ljava/lang/String;	1	-
 C	net/minecraft/world/level/chunk/ChunkGenerator	1057	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/chunk/storage/RegionStorageInfo	65585	java/lang/Record	-	-	-	paper-server-1.21.1
 R	net/minecraft/world/level/chunk/storage/RegionStorageInfo	level	Ljava/lang/String;	-
@@ -1058,6 +1279,8 @@ C	net/minecraft/world/level/dimension/LevelStem	65585	java/lang/Record	-	-	-	pap
 R	net/minecraft/world/level/dimension/LevelStem	type	Lnet/minecraft/core/Holder;	Lnet/minecraft/core/Holder<Lnet/minecraft/world/level/dimension/DimensionType;>;
 R	net/minecraft/world/level/dimension/LevelStem	generator	Lnet/minecraft/world/level/chunk/ChunkGenerator;	-
 C	net/minecraft/world/level/entity/EntityAccess	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/gameevent/GameEventListener	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/gameevent/GameEventListener$Provider	1537	java/lang/Object	-	<T::Lnet/minecraft/world/level/gameevent/GameEventListener;>Ljava/lang/Object;	1545	paper-server-1.21.1
 C	net/minecraft/world/level/gameevent/vibrations/VibrationSystem	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/levelgen/BelowZeroRetrogen	49	java/lang/Object	-	-	-	paper-server-1.21.1
 M	net/minecraft/world/level/levelgen/BelowZeroRetrogen	hasBedrockHole	(II)Z	1	-
@@ -1209,6 +1432,8 @@ R	net/minecraft/world/level/saveddata/maps/MapDecorationType	trackCount	Z	-
 C	net/minecraft/world/level/saveddata/maps/MapId	65585	java/lang/Record	-	-	-	paper-server-1.21.1
 R	net/minecraft/world/level/saveddata/maps/MapId	id	I	-
 C	net/minecraft/world/scores/ScoreHolder	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/ticks/ContainerSingleItem	1537	java/lang/Object	net/minecraft/world/Container	-	-	paper-server-1.21.1
+C	net/minecraft/world/ticks/ContainerSingleItem$BlockContainerSingleItem	1537	java/lang/Object	net/minecraft/world/ticks/ContainerSingleItem	-	1545	paper-server-1.21.1
 H	net/minecraft/commands/CommandSource	acceptsFailure	()Z	1025	-
 H	net/minecraft/commands/CommandSource	acceptsSuccess	()Z	1025	-
 H	net/minecraft/commands/CommandSource	getBukkitSender	(Lnet/minecraft/commands/CommandSourceStack;)Lorg/bukkit/command/CommandSender;	1025	-
@@ -1229,6 +1454,16 @@ H	net/minecraft/world/Clearable	clearContent	()V	1025	-
 H	net/minecraft/world/ContainerListener	containerChanged	(Lnet/minecraft/world/Container;)V	1025	-
 H	net/minecraft/world/MenuProvider	getDisplayName	()Lnet/minecraft/network/chat/Component;	1025	-
 H	net/minecraft/world/Nameable	getName	()Lnet/minecraft/network/chat/Component;	1025	-
+H	net/minecraft/world/RandomizableContainer	getBlockPos	()Lnet/minecraft/core/BlockPos;	1025	-
+H	net/minecraft/world/RandomizableContainer	getLevel	()Lnet/minecraft/world/level/Level;	1025	-
+H	net/minecraft/world/RandomizableContainer	getLootTable	()Lnet/minecraft/resources/ResourceKey;	1025	-
+H	net/minecraft/world/RandomizableContainer	getLootTableSeed	()J	1025	-
+H	net/minecraft/world/RandomizableContainer	setLootTable	(Lnet/minecraft/resources/ResourceKey;)V	1025	-
+H	net/minecraft/world/RandomizableContainer	setLootTableSeed	(J)V	1025	-
+H	net/minecraft/world/WorldlyContainer	canPlaceItemThroughFace	(ILnet/minecraft/world/item/ItemStack;Lnet/minecraft/core/Direction;)Z	1025	-
+H	net/minecraft/world/WorldlyContainer	canTakeItemThroughFace	(ILnet/minecraft/world/item/ItemStack;Lnet/minecraft/core/Direction;)Z	1025	-
+H	net/minecraft/world/WorldlyContainer	getSlotsForFace	(Lnet/minecraft/core/Direction;)[I	1025	-
+H	net/minecraft/world/WorldlyContainerHolder	getContainer	(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/LevelAccessor;Lnet/minecraft/core/BlockPos;)Lnet/minecraft/world/WorldlyContainer;	1025	-
 H	net/minecraft/world/entity/Attackable	getLastAttacker	()Lnet/minecraft/world/entity/LivingEntity;	1025	-
 H	net/minecraft/world/entity/EquipmentUser	getItemBySlot	(Lnet/minecraft/world/entity/EquipmentSlot;)Lnet/minecraft/world/item/ItemStack;	1025	-
 H	net/minecraft/world/entity/EquipmentUser	setDropChance	(Lnet/minecraft/world/entity/EquipmentSlot;F)V	1025	-
@@ -1288,7 +1523,13 @@ H	net/minecraft/world/entity/vehicle/ContainerEntity	position	()Lnet/minecraft/w
 H	net/minecraft/world/entity/vehicle/ContainerEntity	setLootTable	(Lnet/minecraft/resources/ResourceKey;)V	1025	-
 H	net/minecraft/world/entity/vehicle/ContainerEntity	setLootTableSeed	(J)V	1025	-
 H	net/minecraft/world/flag/FeatureElement	requiredFeatures	()Lnet/minecraft/world/flag/FeatureFlagSet;	1025	-
+H	net/minecraft/world/inventory/CraftingContainer	getHeight	()I	1025	-
+H	net/minecraft/world/inventory/CraftingContainer	getItems	()Ljava/util/List;	1025	()Ljava/util/List<Lnet/minecraft/world/item/ItemStack;>;
+H	net/minecraft/world/inventory/CraftingContainer	getWidth	()I	1025	-
 H	net/minecraft/world/inventory/MenuConstructor	createMenu	(ILnet/minecraft/world/entity/player/Inventory;Lnet/minecraft/world/entity/player/Player;)Lnet/minecraft/world/inventory/AbstractContainerMenu;	1025	-
+H	net/minecraft/world/inventory/RecipeCraftingHolder	getRecipeUsed	()Lnet/minecraft/world/item/crafting/RecipeHolder;	1025	()Lnet/minecraft/world/item/crafting/RecipeHolder<*>;
+H	net/minecraft/world/inventory/RecipeCraftingHolder	setRecipeUsed	(Lnet/minecraft/world/item/crafting/RecipeHolder;)V	1025	(Lnet/minecraft/world/item/crafting/RecipeHolder<*>;)V
+H	net/minecraft/world/inventory/StackedContentsCompatible	fillStackedContents	(Lnet/minecraft/world/entity/player/StackedContents;)V	1025	-
 H	net/minecraft/world/item/DispensibleContainerItem	emptyContents	(Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/phys/BlockHitResult;)Z	1025	-
 H	net/minecraft/world/item/Equipable	getEquipmentSlot	()Lnet/minecraft/world/entity/EquipmentSlot;	1025	-
 H	net/minecraft/world/item/ProjectileItem	asProjectile	(Lnet/minecraft/world/level/Level;Lnet/minecraft/core/Position;Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/core/Direction;)Lnet/minecraft/world/entity/projectile/Projectile;	1025	-
@@ -1305,6 +1546,7 @@ H	net/minecraft/world/item/trading/Merchant	overrideXp	(I)V	1025	-
 H	net/minecraft/world/item/trading/Merchant	setTradingPlayer	(Lnet/minecraft/world/entity/player/Player;)V	1025	-
 H	net/minecraft/world/item/trading/Merchant	showProgressBar	()Z	1025	-
 H	net/minecraft/world/level/ItemLike	asItem	()Lnet/minecraft/world/item/Item;	1025	-
+H	net/minecraft/world/level/Spawner	setEntityId	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/util/RandomSource;)V	1025	(Lnet/minecraft/world/entity/EntityType<*>;Lnet/minecraft/util/RandomSource;)V
 H	net/minecraft/world/level/block/BonemealableBlock	isBonemealSuccess	(Lnet/minecraft/world/level/Level;Lnet/minecraft/util/RandomSource;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;)Z	1025	-
 H	net/minecraft/world/level/block/BonemealableBlock	isValidBonemealTarget	(Lnet/minecraft/world/level/LevelReader;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;)Z	1025	-
 H	net/minecraft/world/level/block/BonemealableBlock	performBonemeal	(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/util/RandomSource;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;)V	1025	-
@@ -1319,6 +1561,10 @@ H	net/minecraft/world/level/block/entity/Hopper	getLevelX	()D	1025	-
 H	net/minecraft/world/level/block/entity/Hopper	getLevelY	()D	1025	-
 H	net/minecraft/world/level/block/entity/Hopper	getLevelZ	()D	1025	-
 H	net/minecraft/world/level/block/entity/Hopper	isGridAligned	()Z	1025	-
+H	net/minecraft/world/level/block/entity/LidBlockEntity	getOpenNess	(F)F	1025	-
+H	net/minecraft/world/level/block/entity/trialspawner/TrialSpawner$StateAccessor	getState	()Lnet/minecraft/world/level/block/entity/trialspawner/TrialSpawnerState;	1025	-
+H	net/minecraft/world/level/block/entity/trialspawner/TrialSpawner$StateAccessor	markUpdated	()V	1025	-
+H	net/minecraft/world/level/block/entity/trialspawner/TrialSpawner$StateAccessor	setState	(Lnet/minecraft/world/level/Level;Lnet/minecraft/world/level/block/entity/trialspawner/TrialSpawnerState;)V	1025	-
 H	net/minecraft/world/level/entity/EntityAccess	blockPosition	()Lnet/minecraft/core/BlockPos;	1025	-
 H	net/minecraft/world/level/entity/EntityAccess	getId	()I	1025	-
 H	net/minecraft/world/level/entity/EntityAccess	getPassengersAndSelf	()Ljava/util/stream/Stream;	1025	()Ljava/util/stream/Stream<+Lnet/minecraft/world/level/entity/EntityAccess;>;
@@ -1327,4 +1573,9 @@ H	net/minecraft/world/level/entity/EntityAccess	getUUID	()Ljava/util/UUID;	1025	
 H	net/minecraft/world/level/entity/EntityAccess	isAlwaysTicking	()Z	1025	-
 H	net/minecraft/world/level/entity/EntityAccess	setRemoved	(Lnet/minecraft/world/entity/Entity$RemovalReason;)V	1025	-
 H	net/minecraft/world/level/entity/EntityAccess	shouldBeSaved	()Z	1025	-
+H	net/minecraft/world/level/gameevent/GameEventListener	getListenerRadius	()I	1025	-
+H	net/minecraft/world/level/gameevent/GameEventListener$Provider	getListener	()Lnet/minecraft/world/level/gameevent/GameEventListener;	1025	()TT;
 H	net/minecraft/world/scores/ScoreHolder	getScoreboardName	()Ljava/lang/String;	1025	-
+H	net/minecraft/world/ticks/ContainerSingleItem	getTheItem	()Lnet/minecraft/world/item/ItemStack;	1025	-
+H	net/minecraft/world/ticks/ContainerSingleItem	setTheItem	(Lnet/minecraft/world/item/ItemStack;)V	1025	-
+H	net/minecraft/world/ticks/ContainerSingleItem$BlockContainerSingleItem	getContainerBlockEntity	()Lnet/minecraft/world/level/block/entity/BlockEntity;	1025	-
