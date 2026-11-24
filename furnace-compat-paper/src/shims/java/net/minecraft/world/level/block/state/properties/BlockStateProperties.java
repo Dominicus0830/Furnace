@@ -10,7 +10,7 @@ import org.domi.furnace.compat.nms.NmsBlockProperties;
  * FAWE 는 이 클래스의 필드를 훑어 속성 이름 → 속성 목록 표를 만든다.
  */
 @SuppressWarnings("unchecked")
-public class BlockStateProperties {
+class BlockStateProperties {
 
     public BlockStateProperties() {}
 

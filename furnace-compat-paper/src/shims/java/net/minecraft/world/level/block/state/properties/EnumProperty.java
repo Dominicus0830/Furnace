@@ -10,7 +10,7 @@ import java.util.function.Predicate;
 import net.minecraft.util.StringRepresentable;
 
 /** 열거 속성(Mojang 이름 shim, N0). 값 순서는 만든 순서, 같은 직렬화 이름 거부 문구·equals·hashCode 는 바닐라 {@code dua} 와 같다. */
-public class EnumProperty<T extends Enum<T> & StringRepresentable> extends Property<T> {
+class EnumProperty {
 
     private final Collection<T> values;
     private final Map<String, T> names = new HashMap<>();

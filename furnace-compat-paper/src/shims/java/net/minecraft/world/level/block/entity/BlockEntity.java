@@ -23,7 +23,7 @@ import org.domi.furnace.compat.nms.NmsChunks;
  * </ul>
  * 종류별 필드·메서드(컨테이너·틱·컴포넌트 등)는 두지 않았다.
  */
-public abstract class BlockEntity {
+class BlockEntity {
 
     private final BlockEntityType<?> type;
     protected Level level;

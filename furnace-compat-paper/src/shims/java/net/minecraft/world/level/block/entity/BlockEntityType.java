@@ -6,7 +6,7 @@ import net.minecraft.resources.ResourceLocation;
  * 블록 엔티티 종류 shim(Mojang 이름, T-182). 지금은 레지스트리 값으로만 쓴다 — 청크 패킷의 블록 엔티티 항목(ClientboundLevelChunkPacketData.BlockEntityInfo)과
  * {@code BuiltInRegistries.BLOCK_ENTITY_TYPE}. 종류 상수(CHEST 등)·블록 엔티티 만들기는 아직 없다.
  */
-public final class BlockEntityType<T> {
+class BlockEntityType {
 
     private final ResourceLocation id;
 
