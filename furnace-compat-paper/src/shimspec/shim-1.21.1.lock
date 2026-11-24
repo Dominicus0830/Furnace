@@ -1069,6 +1069,7 @@ M	net/minecraft/world/level/levelgen/SingleThreadedRandomSource	next	(I)I	1	-
 M	net/minecraft/world/level/levelgen/SingleThreadedRandomSource	nextGaussian	()D	1	-
 M	net/minecraft/world/level/levelgen/SingleThreadedRandomSource	setSeed	(J)V	1	-
 C	net/minecraft/world/level/levelgen/ThreadSafeLegacyRandomSource	131105	java/lang/Object	net/minecraft/world/level/levelgen/BitRandomSource	-	-	paper-server-1.21.1
+A	net/minecraft/world/level/levelgen/ThreadSafeLegacyRandomSource	Ljava/lang/Deprecated;
 M	net/minecraft/world/level/levelgen/ThreadSafeLegacyRandomSource	<init>	(J)V	1	-
 M	net/minecraft/world/level/levelgen/ThreadSafeLegacyRandomSource	fork	()Lnet/minecraft/util/RandomSource;	1	-
 M	net/minecraft/world/level/levelgen/ThreadSafeLegacyRandomSource	forkPositional	()Lnet/minecraft/world/level/levelgen/PositionalRandomFactory;	1	-
