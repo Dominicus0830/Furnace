@@ -515,6 +515,15 @@ class NmsMobGoalsTest {
         });
     }
 
+    /**
+     * 공황 목표가 쓰일 수 있는가. 바닐라 canUse 는 태그 판정 뒤 무작위 도망 자리(LandRandomPos)를 찾는데, 그 찾기가 무작위로 실패할 수 있어
+     * 여러 번 묻는다(태그 판정이 거짓이면 몇 번을 물어도 거짓이다).
+     */
+    static boolean panicsWithin(PanicGoal goal) {
+        for (int i = 0; i < 32; i++) if (goal.canUse()) return true;
+        return false;
+    }
+
     /** PanicGoal 의 태그·태그 함수: 함수는 마지막 피해가 있을 때만, 생성자에 넘긴 그 몹으로 불린다. 실패하면 태그 판정만 거짓(1.21.1 shouldPanic 은 태그뿐). */
     @Test
     void panicGoalDamageTags() {
@@ -533,9 +542,9 @@ class NmsMobGoalsTest {
             assertFalse(byFunction.canUse());
             assertTrue(args.isEmpty(), "맞기 전에는 부르지 않는다");
             hitByPlayer(m);
-            assertTrue(fixed.canUse(), "플레이어 공격은 panic_causes");
+            assertTrue(panicsWithin(fixed), "플레이어 공격은 panic_causes");
             assertFalse(environmental.canUse(), "환경 원인 태그에는 없다");
-            assertTrue(byFunction.canUse());
+            assertTrue(panicsWithin(byFunction));
             assertSame(pm, args.get(0), "바닐라처럼 그 몹");
             assertFalse(throwing.canUse(), "null 태그는 예외 — 거짓");
             assertFalse(throwing.canUse());

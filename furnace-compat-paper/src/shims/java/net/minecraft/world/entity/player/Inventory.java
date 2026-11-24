@@ -18,7 +18,7 @@ import net.minecraft.world.item.ItemStack;
  * <p>{@code selected} 는 고른 핫바 칸을 비춘 공개 필드다. 이 인벤토리의 메서드가 불릴 때마다 서버 값으로 맞추고, 플레이어 코드가 필드에 직접 쓴 값은 다음 메서드 호출 때
  * 서버에 알린다(바닐라는 필드를 바로 읽는다 — 서버에서 바뀐 값은 다음 호출·{@code getInventory()} 때 보인다).
  */
-public class Inventory implements Container, Nameable {
+class Inventory {
 
     public static final int POP_TIME_DURATION = 5;
     public static final int INVENTORY_SIZE = 36;

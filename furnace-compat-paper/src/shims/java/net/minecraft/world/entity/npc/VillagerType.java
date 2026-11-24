@@ -10,7 +10,7 @@ import org.domi.furnace.compat.nms.NmsVillagers;
  * 주민 종류(Mojang 이름 shim, 엔티티 데이터 설계 D4). 값은 내장 레지스트리 {@code minecraft:villager_type} 의 것이고(번호 순서는 서버 내장 레지스트리 목록),
  * toString 은 바닐라처럼 이름 경로("plains")다. 바이옴 대응은 서버 주민과 같은 바닐라 표({@link NmsVillagers#typeForBiome}).
  */
-public final class VillagerType {
+class VillagerType {
 
     public static final VillagerType DESERT = register("desert");
     public static final VillagerType JUNGLE = register("jungle");
