@@ -55,7 +55,6 @@ class-access	net/minecraft/world/level/block/Blocks	-	shim 만 final	미분류 �
 class-access	net/minecraft/world/level/block/entity/BlockEntityType	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	net/minecraft/world/level/chunk/status/ChunkPyramid$Builder	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	net/minecraft/world/level/chunk/status/ChunkStep$Builder	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-class-access	net/minecraft/world/level/levelgen/WorldOptions	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	net/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplateManager	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	net/minecraft/world/level/saveddata/maps/MapDecorationTypes	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	net/minecraft/world/level/storage/DimensionDataStorage	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -408,9 +407,6 @@ member-access	net/minecraft/advancements/AdvancementHolder	hashCode()I	shim 만 
 member-access	net/minecraft/advancements/AdvancementHolder	toString()Ljava/lang/String;	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 member-access	net/minecraft/core/GlobalPos	toString()Ljava/lang/String;	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 member-access	net/minecraft/nbt/CollectionTag	<init>()V	shim 이 덜 열려 있다	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-member-access	net/minecraft/network/chat/MessageSignature	equals(Ljava/lang/Object;)Z	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-member-access	net/minecraft/network/chat/MessageSignature	hashCode()I	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-member-access	net/minecraft/network/chat/MessageSignature	toString()Ljava/lang/String;	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 member-access	net/minecraft/network/protocol/game/ServerboundMovePlayerPacket	hasPos : Z	shim 이 덜 열려 있다	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 member-access	net/minecraft/network/protocol/game/ServerboundMovePlayerPacket	hasRot : Z	shim 이 덜 열려 있다	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 member-access	net/minecraft/network/protocol/game/ServerboundMovePlayerPacket	x : D	shim 이 덜 열려 있다	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -422,9 +418,6 @@ member-access	net/minecraft/server/network/ServerCommonPacketListenerImpl	connec
 member-access	net/minecraft/world/entity/player/ProfilePublicKey$Data	equals(Ljava/lang/Object;)Z	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 member-access	net/minecraft/world/item/context/BlockPlaceContext	<init>(Lnet/minecraft/world/level/Level;Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/InteractionHand;Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/phys/BlockHitResult;)V	shim 이 덜 열려 있다	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 member-access	net/minecraft/world/item/context/UseOnContext	<init>(Lnet/minecraft/world/level/Level;Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/InteractionHand;Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/phys/BlockHitResult;)V	shim 이 덜 열려 있다	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-member-access	net/minecraft/world/item/crafting/RecipeHolder	equals(Ljava/lang/Object;)Z	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-member-access	net/minecraft/world/item/crafting/RecipeHolder	hashCode()I	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-member-access	net/minecraft/world/item/crafting/RecipeHolder	toString()Ljava/lang/String;	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 member-access	net/minecraft/world/level/block/entity/SignBlockEntity	<init>(Lnet/minecraft/world/level/block/entity/BlockEntityType;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;)V	shim 이 덜 열려 있다	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 member-access	net/minecraft/world/level/chunk/ChunkSource	<init>()V	shim 이 덜 열려 있다	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	net/minecraft/core/RegistrationInfo	-	shim=java/lang/Object ref=#e7f93413726d	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다

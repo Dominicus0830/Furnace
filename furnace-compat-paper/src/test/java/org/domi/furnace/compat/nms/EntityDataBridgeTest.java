@@ -90,6 +90,8 @@ class EntityDataBridgeTest {
         e.add(new Entry(i++, Value.of(EntityDataType.WOLF_VARIANT, "minecraft:woods")));
         e.add(new Entry(i++, Value.of(EntityDataType.PAINTING_VARIANT, "minecraft:kebab")));
         e.add(new Entry(i++, Value.of(EntityDataType.VILLAGER_DATA, new org.domi.furnace.api.entity.data.VillagerData("minecraft:snow", "minecraft:fletcher", 3))));
+        e.add(new Entry(i++, Value.of(EntityDataType.VECTOR3, new org.domi.furnace.api.math.Vector3f(0.5f, -1.25f, 3f))));
+        e.add(new Entry(i++, Value.of(EntityDataType.QUATERNION, new org.domi.furnace.api.math.Quaternionf(0f, 0.38268343f, 0f, 0.9238795f))));
         return e;
     }
 

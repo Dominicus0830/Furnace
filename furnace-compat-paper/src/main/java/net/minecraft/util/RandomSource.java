@@ -2,7 +2,6 @@ package net.minecraft.util;
 
 /**
  * 난수원(Mojang 이름 shim, N2b-6) — 바닐라 1.21.1 그대로({@link #create()} 는 바닐라처럼 겹치지 않는 씨앗의 옛 LCG 난수원).
- * 위치별 난수 공장({@code forkPositional})은 PositionalRandomFactory shim 이 없어 두지 않았다.
  */
 public interface RandomSource {
 
@@ -17,6 +16,7 @@ public interface RandomSource {
     }
 
     RandomSource fork();
+    net.minecraft.world.level.levelgen.PositionalRandomFactory forkPositional();
 
     void setSeed(long seed);
 

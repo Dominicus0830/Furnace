@@ -203,4 +203,23 @@ class NmsEntityDataTest {
         assertEquals((byte) 0x02, cat.getEntityData().get(flags), "끄면 그 비트만 지운다");
         assertThrows(IllegalArgumentException.class, () -> org.domi.furnace.compat.nms.NmsEntityData.get("not an entity", flags));
     }
+
+    @Test
+    void jomlSlotValuesAreNotCopied() {
+        // 바닐라는 VECTOR3·QUATERNION 값을 복사하지 않는다 — get 은 늘 같은 객체, set 한 객체가 그대로 나오고, 값이 안 바뀐 칸은 다른 조작 뒤에도 같은 객체다
+        Entity display = EntityType.BLOCK_DISPLAY.create(level);
+        var translation = new EntityDataAccessor<org.joml.Vector3f>(org.domi.furnace.server.entity.Display.DATA_TRANSLATION, EntityDataSerializers.VECTOR3);
+        var leftRot = new EntityDataAccessor<org.joml.Quaternionf>(org.domi.furnace.server.entity.Display.DATA_LEFT_ROT, EntityDataSerializers.QUATERNION);
+        var data = display.getEntityData();
+        assertEquals(new org.joml.Vector3f(), data.get(translation));
+        assertEquals(new org.joml.Quaternionf(), data.get(leftRot));
+        org.joml.Quaternionf rot = data.get(leftRot);
+        assertSame(rot, data.get(leftRot));
+        var v = new org.joml.Vector3f(0.5f, 1f, -2f);
+        data.set(translation, v);
+        assertSame(v, data.get(translation));
+        org.domi.furnace.compat.nms.NmsEntityData.setFlag(display, new EntityDataAccessor<Byte>(0, EntityDataSerializers.BYTE), 0x20, true);
+        assertSame(v, data.get(translation), "다른 칸 조작 뒤에도 값이 같으면 같은 객체");
+        assertSame(rot, data.get(leftRot), "다른 칸 조작 뒤에도 값이 같으면 같은 객체");
+    }
 }
