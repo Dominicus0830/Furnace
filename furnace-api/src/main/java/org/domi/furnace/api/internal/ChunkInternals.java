@@ -985,6 +985,35 @@ public interface ChunkInternals {
      */
     default MobGoals mobGoals(org.domi.furnace.api.entity.Entity entity) { throw new UnsupportedOperationException("mobGoals"); }
 
+    /** 플러그인 목표 하나의 콜백(몹 목표 설계 M2a). 모두 그 몹의 주인 스레드에서 불린다. */
+    interface GoalCallbacks {
+        /** 플러그인 목표 객체(호환 보기·같음·{@code removeGoal} 판정에 쓴다). */
+        Object target();
+
+        /** 그 목표를 만든 플러그인 이름(로그용). */
+        String owner();
+
+        /** 그 플러그인이 켜져 있는가. */
+        boolean alive();
+
+        boolean canUse();
+
+        boolean canContinueToUse();
+
+        boolean isInterruptable();
+
+        void start();
+
+        void stop();
+
+        boolean requiresUpdateEveryTick();
+
+        void tick();
+
+        /** 지금 깃발({@code GoalControl} 순서 비트: MOVE·LOOK·JUMP·TARGET). 확인할 때마다 읽는다. */
+        int flags();
+    }
+
     /** {@link #mobGoals} 의 값. {@code targets} 가 참이면 대상 선택기({@code targetSelector}), 아니면 행동 선택기({@code goalSelector}). */
     interface MobGoals {
         /** 선택기의 감싼 목표들(넣은 순서). */
@@ -996,8 +1025,17 @@ public interface ChunkInternals {
         /** 같은 목표(안의 목표가 같은)를 감싼 것이 집합에 있는가(복사 없이). */
         boolean inSet(boolean targets, Object wrapped);
 
-        /** 바닐라 {@code removeGoal}: 그 목표를 돌고 있으면 멈추고 집합에서 뺀다. */
+        /**
+         * 바닐라 {@code removeGoal}: 그 목표를 돌고 있으면 멈추고 집합에서 뺀다. {@code goal} 은 서버 목표 또는 {@link #adopt} 에 넘긴
+         * 플러그인 목표 객체({@link GoalCallbacks#target}, 같은 객체인지로 찾는다).
+         */
         void removeGoal(boolean targets, Object goal);
+
+        /**
+         * 플러그인이 만든 목표(몹 목표 설계 M2a)를 서버 목표로 감싼다. 서버가 그 몹의 주인 스레드에서 콜백을 부른다. 콜백이 예외를 던지면 로그 한 번 남기고
+         * 그 목표만 멈추며, 플러그인이 꺼지면 스스로 두 선택기에서 빠진다. 같은 {@code target} 을 감싼 서버 목표끼리는 같다(equals — 집합에 한 번만).
+         */
+        Object adopt(GoalCallbacks callbacks);
 
         /** 집합에서만 뺀다(바닐라 {@code removeAllGoals}·{@code getAvailableGoals().remove…} — 돌던 목표도 멈추지 않는다). */
         void removeFromSet(boolean targets, java.util.function.Predicate<Object> wrapped);

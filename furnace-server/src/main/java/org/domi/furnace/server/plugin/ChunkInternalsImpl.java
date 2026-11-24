@@ -1010,7 +1010,26 @@ final class ChunkInternalsImpl implements ChunkInternals {
         public boolean inSet(boolean targets, Object wrapped) { return selector(targets).visibleContains(wrapped0(wrapped)); }
 
         @Override
-        public void removeGoal(boolean targets, Object goal) { selector(targets).removeGoal(goal0(goal)); }
+        public void removeGoal(boolean targets, Object goal) {
+            org.domi.furnace.server.entity.ai.GoalSelector s = selector(targets);
+            if (goal instanceof org.domi.furnace.server.entity.ai.Goal g) {
+                s.removeGoal(g);
+                return;
+            }
+            // 플러그인 목표 객체: 그것을 감싼 서버 목표(바닐라는 같은 객체인지로 찾는다)
+            for (org.domi.furnace.server.entity.ai.WrappedGoal w : s.visibleGoals()) {
+                if (w.getGoal() instanceof CompatGoal c && c.target == goal) {
+                    s.removeGoal(c);
+                    return;
+                }
+            }
+        }
+
+        @Override
+        public Object adopt(GoalCallbacks callbacks) {
+            check();
+            return new CompatGoal(mob, callbacks);
+        }
 
         @Override
         public void removeFromSet(boolean targets, java.util.function.Predicate<Object> wrapped) { selector(targets).removeFromSet(wrapped::test); }
@@ -1141,6 +1160,159 @@ final class ChunkInternalsImpl implements ChunkInternals {
             for (org.domi.furnace.server.entity.ai.Goal.Flag f : FLAGS) if ((controls & 1 << f.ordinal()) != 0) set.add(f);
             goal0(goal).setFlags(set);
         }
+    }
+
+    /**
+     * 플러그인이 만든 몹 목표를 서버 목표 자리에 끼우는 어댑터(몹 목표 설계 M2a). 몹 틱(주인 스레드)에서 불린다. 콜백이 예외를 던지면 로그 한 번 남기고
+     * 다시 부르지 않으며(시작 조건이 거짓이 되어 선택기가 멈춘다), 플러그인이 꺼지면 두 선택기에서 스스로 빠진다. 깃발은 확인할 때마다 읽는다.
+     */
+    static final class CompatGoal extends org.domi.furnace.server.entity.ai.Goal {
+        private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(CompatGoal.class);
+        private static final Flag[] FLAGS = Flag.values();
+
+        private final org.domi.furnace.server.entity.Mob mob;
+        private final GoalCallbacks cb;
+        final Object target;
+        private final java.util.EnumSet<Flag> flags = java.util.EnumSet.noneOf(Flag.class);
+        private int mask;
+        private boolean broken;
+
+        CompatGoal(org.domi.furnace.server.entity.Mob mob, GoalCallbacks cb) {
+            this.mob = mob;
+            this.cb = cb;
+            this.target = java.util.Objects.requireNonNull(cb.target(), "target");
+            this.compatView = target;
+        }
+
+        /** 계속 불러도 되는가(모든 콜백 앞에서). 플러그인이 꺼졌으면 두 선택기에서 뺀다(돌기 도중이면 끝난 뒤 빠진다 — 빼며 부르는 stop 은 여기서 걸러진다). */
+        private boolean alive() {
+            if (broken) return false;
+            boolean on;
+            try {
+                on = cb.alive();
+            } catch (RuntimeException | LinkageError t) {
+                on = false;
+            }
+            if (on) return true;
+            broken = true;   // 꺼진 플러그인의 코드는 다시 부르지 않는다(빼며 멈출 때의 stop 도)
+            java.util.function.Predicate<org.domi.furnace.server.entity.ai.Goal> mine = g -> g instanceof CompatGoal c && c.target == target;
+            mob.goalSelector().removeGoalsMatching(mine);
+            mob.targetSelector().removeGoalsMatching(mine);
+            return false;
+        }
+
+        private void fail(String where, Throwable t) {
+            broken = true;
+            LOG.warn(org.domi.furnace.server.i18n.Lang.t("goal.threw", cb.owner(), target.getClass().getName(), where), t);
+        }
+
+        @Override
+        public boolean canUse() {
+            if (!alive()) return false;
+            try {
+                return cb.canUse();
+            } catch (RuntimeException | LinkageError t) {
+                fail("canUse", t);
+                return false;
+            }
+        }
+
+        @Override
+        public boolean canContinueToUse() {
+            if (!alive()) return false;
+            try {
+                return cb.canContinueToUse();
+            } catch (RuntimeException | LinkageError t) {
+                fail("canContinueToUse", t);
+                return false;
+            }
+        }
+
+        @Override
+        public boolean isInterruptable() {
+            if (!alive()) return true;
+            try {
+                return cb.isInterruptable();
+            } catch (RuntimeException | LinkageError t) {
+                fail("isInterruptable", t);
+                return true;
+            }
+        }
+
+        @Override
+        public void start() {
+            if (!alive()) return;
+            try {
+                cb.start();
+            } catch (RuntimeException | LinkageError t) {
+                fail("start", t);
+            }
+        }
+
+        @Override
+        public void stop() {
+            if (!alive()) return;
+            try {
+                cb.stop();
+            } catch (RuntimeException | LinkageError t) {
+                fail("stop", t);
+            }
+        }
+
+        @Override
+        public boolean requiresUpdateEveryTick() {
+            if (!alive()) return false;
+            try {
+                return cb.requiresUpdateEveryTick();
+            } catch (RuntimeException | LinkageError t) {
+                fail("requiresUpdateEveryTick", t);
+                return false;
+            }
+        }
+
+        @Override
+        public void tick() {
+            if (!alive()) return;
+            try {
+                cb.tick();
+            } catch (RuntimeException | LinkageError t) {
+                fail("tick", t);
+            }
+        }
+
+        /** 플러그인 목표의 지금 깃발(바뀌었을 때만 집합을 고친다 — 확인마다 새 집합을 만들지 않는다). 고장 난 목표는 마지막 깃발. */
+        @Override
+        public java.util.EnumSet<Flag> getFlags() {
+            if (alive()) {
+                int m;
+                try {
+                    m = cb.flags();
+                } catch (RuntimeException | LinkageError t) {
+                    fail("getFlags", t);
+                    return flags;
+                }
+                if (m != mask) {
+                    mask = m;
+                    flags.clear();
+                    for (Flag f : FLAGS) if ((m & 1 << f.ordinal()) != 0) flags.add(f);
+                }
+            }
+            return flags;
+        }
+
+        /** 플러그인 목표는 자기 깃발을 스스로 갖는다(서버 쪽에서 바꾸지 않는다). */
+        @Override
+        public void setFlags(java.util.EnumSet<Flag> f) {}
+
+        /** 바닐라 감싼 목표의 같음은 안의 목표의 equals — 플러그인 목표 객체의 equals 를 따른다. */
+        @Override
+        public boolean equals(Object o) { return o instanceof CompatGoal c && target.equals(c.target); }
+
+        @Override
+        public int hashCode() { return target.hashCode(); }
+
+        @Override
+        public String toString() { return target.toString(); }
     }
 
     /**
