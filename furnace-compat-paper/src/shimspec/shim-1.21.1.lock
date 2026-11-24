@@ -33,6 +33,11 @@ M	net/minecraft/network/VarInt	hasContinuationBit	(B)Z	9	-
 M	net/minecraft/network/VarInt	read	(Lio/netty/buffer/ByteBuf;)I	9	-
 M	net/minecraft/network/VarInt	write	(Lio/netty/buffer/ByteBuf;I)Lio/netty/buffer/ByteBuf;	9	-
 M	net/minecraft/network/VarInt	writeOld	(Lio/netty/buffer/ByteBuf;I)Lio/netty/buffer/ByteBuf;	9	-
+C	net/minecraft/network/chat/ClickEvent	33	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/network/chat/CommonComponents	33	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/network/chat/ComponentSerialization	33	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/network/chat/ComponentUtils	33	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/network/chat/HoverEvent	33	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/network/chat/LastSeenMessages	65585	java/lang/Record	-	-	-	paper-server-1.21.1
 R	net/minecraft/network/chat/LastSeenMessages	entries	Ljava/util/List;	Ljava/util/List<Lnet/minecraft/network/chat/MessageSignature;>;
 C	net/minecraft/network/chat/MessageSignature	65585	java/lang/Record	-	-	-	paper-server-1.21.1
@@ -41,6 +46,12 @@ X	net/minecraft/network/chat/MessageSignature	equals,hashCode,toString
 C	net/minecraft/network/chat/RemoteChatSession	65585	java/lang/Record	-	-	-	paper-server-1.21.1
 R	net/minecraft/network/chat/RemoteChatSession	sessionId	Ljava/util/UUID;	-
 R	net/minecraft/network/chat/RemoteChatSession	profilePublicKey	Lnet/minecraft/world/entity/player/ProfilePublicKey;	-
+C	net/minecraft/network/chat/Style	33	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/network/chat/TextColor	49	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/network/chat/numbers/BlankFormat	33	java/lang/Object	net/minecraft/network/chat/numbers/NumberFormat	-	-	paper-server-1.21.1
+C	net/minecraft/network/chat/numbers/FixedFormat	33	java/lang/Object	net/minecraft/network/chat/numbers/NumberFormat	-	-	paper-server-1.21.1
+C	net/minecraft/network/chat/numbers/NumberFormat	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/network/chat/numbers/StyledFormat	33	java/lang/Object	net/minecraft/network/chat/numbers/NumberFormat	-	-	paper-server-1.21.1
 C	net/minecraft/network/codec/StreamDecoder	1537	java/lang/Object	-	<I:Ljava/lang/Object;T:Ljava/lang/Object;>Ljava/lang/Object;	-	paper-server-1.21.1
 A	net/minecraft/network/codec/StreamDecoder	Ljava/lang/FunctionalInterface;
 M	net/minecraft/network/codec/StreamDecoder	decode	(Ljava/lang/Object;)Ljava/lang/Object;	1025	(TI;)TT;

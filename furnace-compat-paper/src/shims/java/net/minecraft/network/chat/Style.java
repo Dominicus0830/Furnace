@@ -10,7 +10,7 @@ import org.domi.furnace.api.text.TriState;
  * 글자 모양(Mojang 이름 shim, H7b, 불변). 값은 Furnace {@link org.domi.furnace.api.text.Style} 이고 바닐라 이름의 읽기·withXxx·applyFormat·
  * applyTo(부모 위에 얹기) 규칙을 입힌다. 클릭·마우스 올림 이벤트는 {@link ClickEvent}·{@link HoverEvent} 로 Furnace 이벤트에 오간다(NMS shim 5번 묶음).
  */
-public final class Style {
+class Style {
 
     public static final Style EMPTY = new Style(org.domi.furnace.api.text.Style.empty());
     public static final ResourceLocation DEFAULT_FONT = ResourceLocation.withDefaultNamespace("default");

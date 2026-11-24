@@ -8,7 +8,7 @@ import java.util.UUID;
  * 글에 마우스를 올렸을 때 보여 주는 것(Mojang 이름 shim, 불변). 글(SHOW_TEXT)·아이템(SHOW_ITEM)·엔티티(SHOW_ENTITY)를 Furnace 호버 이벤트로 옮긴다.
  * 바닐라의 CODEC·legacy 변환 멤버는 없다(호출 위치에서 실패).
  */
-public class HoverEvent {
+class HoverEvent {
 
     private final Action<?> action;
     private final Object value;

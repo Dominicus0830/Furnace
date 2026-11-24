@@ -28,3 +28,14 @@ class net.minecraft.network.VarInt
   read -> @hand pure
   write -> @hand pure
   writeOld -> @hand pure
+class net.minecraft.network.chat.ClickEvent
+class net.minecraft.network.chat.HoverEvent
+class net.minecraft.network.chat.Style
+class net.minecraft.network.chat.TextColor
+class net.minecraft.network.chat.CommonComponents
+class net.minecraft.network.chat.ComponentUtils
+class net.minecraft.network.chat.ComponentSerialization
+class net.minecraft.network.chat.numbers.NumberFormat
+class net.minecraft.network.chat.numbers.BlankFormat
+class net.minecraft.network.chat.numbers.FixedFormat
+class net.minecraft.network.chat.numbers.StyledFormat
