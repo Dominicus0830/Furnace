@@ -206,4 +206,4 @@ class net.minecraft.world.entity.monster.Zombie
 
 ## 조각 머리의 추가 인터페이스
 
-조각 머리에 `class 이름 implements Furnace전용인터페이스 {` 처럼 인터페이스를 더 적으면(인터페이스 조각은 `interface 이름 extends ... {`) 생성 머리가 잠금의 인터페이스 뒤에 그것을 이어 쓴다(바닐라에 없는 Furnace 전용 인터페이스, 예: 패킷 shim 의 `NmsPacket`). 이미 잠금에 있는 것은 겹치지 않는다. 상위 클래스(`extends`)와 접근은 계속 잠금이 정하며, 조각 머리에서 바꾸려 하면 막는다.
+조각 머리에 `class 이름 implements Furnace전용인터페이스 {` 처럼 인터페이스를 더 적으면(인터페이스 조각은 `interface 이름 extends ... {`) 생성 머리가 잠금의 인터페이스 뒤에 그것을 이어 쓴다(바닐라에 없는 Furnace 전용 인터페이스, 예: 패킷 shim 의 `NmsPacket`). 이미 잠금에 있는 것은 겹치지 않는다. 상위 클래스(`extends`)와 접근은 계속 잠금이 정하며, 조각 머리에서 바꾸려 하면 막는다. 짧은 이름은 조각의 import(없으면 같은 패키지)로 완전한 이름을 찾아 잠금의 인터페이스와 견준다. `net.minecraft`·`com.mojang` 아래 인터페이스는 잠금에 없으면 오류다(바닐라가 구현하지 않는 것을 붙이면 `instanceof` 결과가 Paper 와 달라진다) — Furnace 전용 인터페이스만 더할 수 있다.

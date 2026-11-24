@@ -669,6 +669,18 @@ class ShimGeneratorTest {
         Built d = build(spec, lock, Map.of("net/minecraft/zz/Tag",
                 "package net.minecraft.zz;\n\nclass Tag implements net.minecraft.zz.Named {\n}\n"));
         assertEquals(1, d.loader().loadClass("net.minecraft.zz.Tag").getInterfaces().length);
+        // 짧은 이름(import 로 쓴 것)도 잠금의 인터페이스와 같으면 겹치지 않는다
+        Built f = build(spec, lock, Map.of("net/minecraft/zz/Tag",
+                "package net.minecraft.zz;\n\nimport net.minecraft.zz.Named;\n\nclass Tag implements Named, Runnable {\n    public void run() {}\n}\n"));
+        assertEquals(2, f.loader().loadClass("net.minecraft.zz.Tag").getInterfaces().length);
+        // 바닐라가 여기서 구현하지 않는 net.minecraft 인터페이스를 붙이면 막는다
+        Path odd = Files.createDirectories(tmp.resolve("fragY/net/minecraft/zz"));
+        Files.writeString(odd.resolve("Tag.java"), "package net.minecraft.zz;\n\nclass Tag implements net.minecraft.other.Extra {\n}\n", StandardCharsets.UTF_8);
+        ShimSpec sp2 = new ShimSpec();
+        sp2.parse("t.spec", spec);
+        IllegalStateException e2 = assertThrows(IllegalStateException.class,
+                () -> new ShimGenerator(sp2, ShimLock.parse(lock), tmp.resolve("fragY"), List.of(), List.of()).generate());
+        assertTrue(e2.getMessage().contains("only Furnace-own interfaces"), e2.getMessage());
         // 상위 클래스를 조각 머리에서 바꾸려 하면 막는다
         ShimSpec sp = new ShimSpec();
         sp.parse("t.spec", spec);
