@@ -91,7 +91,7 @@ class net.minecraft.world.level.block.CropBlock            # 멤버 없이 클�
 
 - 바닐라 클래스의 런타임 보이는 **값 없는** 애노테이션 중 `java.lang` 의 `@FunctionalInterface`·`@Deprecated` 는 잠금 파일 `A` 줄로 옮겨 생성 머리에 붙는다(반사 결과가 바닐라와 같게). 손 조각이 머리 앞에 이미 쓰면 겹치지 않는다. 값 있는 애노테이션과 라이브러리 애노테이션은 복사하지 않는다(서명표 형식 3 — `tools/compat/sig-tables.sh` 다시).
 - 중첩 열거형을 가진 클래스(`CommandBlockEntity$Mode` 등): 바깥 클래스를 손 조각으로 옮기고 명세에 `class 바깥$Mode` 와 상수 전부를 함께 적는다(패킷 생성물이 아닌 명세가 안쪽 클래스를 만든다).
-  - **순서**: 명세에 `class 바깥$Mode` 를 더한 뒤 먼저 `shimLock` 을 돌려 잠금에 올린 다음 컴파일한다. 패킷 생성기는 잠금을 보고 "명세가 만든다" 를 판단하므로, 잠금이 낡았으면 패킷이 쓰는 안쪽 열거형(직소 `JointType` 류)을 라이브러리 타입처럼 지워 버린다(`shimLockCheck` 가 낡음을 잡는다). 바깥 조각 머리는 `class 바깥 {` 로 쓴다. 증명 예: `JigsawBlockEntity`·`JointType`.
+  - **순서**: 명세에 `class 바깥$Mode` 를 더한 뒤 먼저 `shimLock` 을 돌려 잠금에 올린 다음 컴파일한다. 패킷 생성기는 잠금을 보고 "명세가 만든다" 를 판단하므로, 잠금이 낡았으면 패킷이 쓰는 안쪽 열거형(직소 `JointType` 류)을 라이브러리 타입처럼 지워 버린다(`shimLockCheck` 가 낡음을 잡는다). 바깥 조각 머리는 `class 바깥 {` 로 쓴다. 인자(이름 값 등)가 있는 안쪽 열거형은 바깥 조각 안의 손 열거형으로 둔다(증명 예: `JigsawBlockEntity` 조각 안의 `JointType` — 바닐라처럼 `StringRepresentable` 구현·`getSerializedName` 값 보유). 인자 없는 상수만 있는 안쪽 열거형은 명세 `class 바깥$Mode` 로 만들 수 있다.
 - **명세에 없는 손 인터페이스의 추상 메서드**(예: 손 `CommandSource` 의 `shouldInformAdmins`)는 잠금 `H` 줄로 담긴다. 손 상위·조각이 구현하지 않은 생성 구체 클래스(Sign·Lectern 류)가 그 인터페이스를 구현하면 던지는 몸통을 붙인다.
 
 ## 생성자 인자가 있는 열거형

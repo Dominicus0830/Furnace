@@ -1006,10 +1006,6 @@ C	net/minecraft/world/level/block/WoolCarpetBlock	33	net/minecraft/world/level/b
 C	net/minecraft/world/level/block/entity/BlockEntity	1057	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/entity/Hopper	1537	java/lang/Object	net/minecraft/world/Container	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/entity/JigsawBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	-	-	-	paper-server-1.21.1
-C	net/minecraft/world/level/block/entity/JigsawBlockEntity$JointType	16433	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/block/entity/JigsawBlockEntity$JointType;>;Lnet/minecraft/util/StringRepresentable;	16409	paper-server-1.21.1
-E	net/minecraft/world/level/block/entity/JigsawBlockEntity$JointType	2
-F	net/minecraft/world/level/block/entity/JigsawBlockEntity$JointType	ALIGNED	Lnet/minecraft/world/level/block/entity/JigsawBlockEntity$JointType;	16409	-
-F	net/minecraft/world/level/block/entity/JigsawBlockEntity$JointType	ROLLABLE	Lnet/minecraft/world/level/block/entity/JigsawBlockEntity$JointType;	16409	-
 C	net/minecraft/world/level/block/piston/MovingPistonBlock	33	net/minecraft/world/level/block/BaseEntityBlock	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/piston/PistonBaseBlock	33	net/minecraft/world/level/block/DirectionalBlock	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/piston/PistonHeadBlock	33	net/minecraft/world/level/block/DirectionalBlock	-	-	-	paper-server-1.21.1

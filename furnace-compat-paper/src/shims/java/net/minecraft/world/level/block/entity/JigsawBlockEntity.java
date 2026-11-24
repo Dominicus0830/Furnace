@@ -14,4 +14,16 @@ class JigsawBlockEntity {
 
     /** 하위 종류가 쓴다(바닐라는 JigsawBlockEntity 이 종류를 받는 생성자를 둔다). */
     protected JigsawBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) { super(type, pos, state); }
+
+    /** 바닐라 JigsawBlockEntity.JointType(직소 블록 이음 종류) — 바닐라처럼 StringRepresentable 을 구현하고 이름 값("rollable"·"aligned")을 돌려준다. */
+    public enum JointType implements net.minecraft.util.StringRepresentable {
+        ROLLABLE("rollable"), ALIGNED("aligned");
+
+        private final String name;
+
+        JointType(String name) { this.name = name; }
+
+        @Override
+        public String getSerializedName() { return name; }
+    }
 }
