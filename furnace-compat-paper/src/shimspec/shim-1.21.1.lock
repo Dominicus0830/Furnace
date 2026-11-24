@@ -5,6 +5,34 @@
 C	net/minecraft/commands/CommandSource	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/commands/arguments/ArgumentSignatures	65585	java/lang/Record	-	-	-	paper-server-1.21.1
 R	net/minecraft/commands/arguments/ArgumentSignatures	entries	Ljava/util/List;	Ljava/util/List<Lnet/minecraft/commands/arguments/ArgumentSignatures$Entry;>;
+C	net/minecraft/network/ConnectionProtocol	16433	java/lang/Enum	-	Ljava/lang/Enum<Lnet/minecraft/network/ConnectionProtocol;>;	-	paper-server-1.21.1
+E	net/minecraft/network/ConnectionProtocol	5
+F	net/minecraft/network/ConnectionProtocol	CONFIGURATION	Lnet/minecraft/network/ConnectionProtocol;	16409	-
+F	net/minecraft/network/ConnectionProtocol	HANDSHAKING	Lnet/minecraft/network/ConnectionProtocol;	16409	-
+F	net/minecraft/network/ConnectionProtocol	LOGIN	Lnet/minecraft/network/ConnectionProtocol;	16409	-
+F	net/minecraft/network/ConnectionProtocol	PLAY	Lnet/minecraft/network/ConnectionProtocol;	16409	-
+F	net/minecraft/network/ConnectionProtocol	STATUS	Lnet/minecraft/network/ConnectionProtocol;	16409	-
+C	net/minecraft/network/ProtocolInfo	1537	java/lang/Object	-	<T::Lnet/minecraft/network/PacketListener;>Ljava/lang/Object;	-	paper-server-1.21.1
+M	net/minecraft/network/ProtocolInfo	bundlerInfo	()Lnet/minecraft/network/protocol/BundlerInfo;	1025	-
+M	net/minecraft/network/ProtocolInfo	codec	()Lnet/minecraft/network/codec/StreamCodec;	1025	()Lnet/minecraft/network/codec/StreamCodec<Lio/netty/buffer/ByteBuf;Lnet/minecraft/network/protocol/Packet<-TT;>;>;
+M	net/minecraft/network/ProtocolInfo	flow	()Lnet/minecraft/network/protocol/PacketFlow;	1025	-
+M	net/minecraft/network/ProtocolInfo	id	()Lnet/minecraft/network/ConnectionProtocol;	1025	-
+C	net/minecraft/network/ProtocolInfo$Unbound	1537	java/lang/Object	-	<T::Lnet/minecraft/network/PacketListener;B:Lio/netty/buffer/ByteBuf;>Ljava/lang/Object;	1545	paper-server-1.21.1
+M	net/minecraft/network/ProtocolInfo$Unbound	bind	(Ljava/util/function/Function;)Lnet/minecraft/network/ProtocolInfo;	1025	(Ljava/util/function/Function<Lio/netty/buffer/ByteBuf;TB;>;)Lnet/minecraft/network/ProtocolInfo<TT;>;
+M	net/minecraft/network/ProtocolInfo$Unbound	flow	()Lnet/minecraft/network/protocol/PacketFlow;	1025	-
+M	net/minecraft/network/ProtocolInfo$Unbound	id	()Lnet/minecraft/network/ConnectionProtocol;	1025	-
+M	net/minecraft/network/ProtocolInfo$Unbound	listPackets	(Lnet/minecraft/network/ProtocolInfo$Unbound$PacketVisitor;)V	1025	-
+C	net/minecraft/network/ProtocolInfo$Unbound$PacketVisitor	1537	java/lang/Object	-	-	1545	paper-server-1.21.1
+A	net/minecraft/network/ProtocolInfo$Unbound$PacketVisitor	Ljava/lang/FunctionalInterface;
+M	net/minecraft/network/ProtocolInfo$Unbound$PacketVisitor	accept	(Lnet/minecraft/network/protocol/PacketType;I)V	1025	(Lnet/minecraft/network/protocol/PacketType<*>;I)V
+C	net/minecraft/network/VarInt	33	java/lang/Object	-	-	-	paper-server-1.21.1
+M	net/minecraft/network/VarInt	<init>	()V	1	-
+M	net/minecraft/network/VarInt	getByteSize	(I)I	9	-
+M	net/minecraft/network/VarInt	getByteSizeOld	(I)I	9	-
+M	net/minecraft/network/VarInt	hasContinuationBit	(B)Z	9	-
+M	net/minecraft/network/VarInt	read	(Lio/netty/buffer/ByteBuf;)I	9	-
+M	net/minecraft/network/VarInt	write	(Lio/netty/buffer/ByteBuf;I)Lio/netty/buffer/ByteBuf;	9	-
+M	net/minecraft/network/VarInt	writeOld	(Lio/netty/buffer/ByteBuf;I)Lio/netty/buffer/ByteBuf;	9	-
 C	net/minecraft/network/chat/LastSeenMessages	65585	java/lang/Record	-	-	-	paper-server-1.21.1
 R	net/minecraft/network/chat/LastSeenMessages	entries	Ljava/util/List;	Ljava/util/List<Lnet/minecraft/network/chat/MessageSignature;>;
 C	net/minecraft/network/chat/MessageSignature	65585	java/lang/Record	-	-	-	paper-server-1.21.1
@@ -13,6 +41,15 @@ X	net/minecraft/network/chat/MessageSignature	equals,hashCode,toString
 C	net/minecraft/network/chat/RemoteChatSession	65585	java/lang/Record	-	-	-	paper-server-1.21.1
 R	net/minecraft/network/chat/RemoteChatSession	sessionId	Ljava/util/UUID;	-
 R	net/minecraft/network/chat/RemoteChatSession	profilePublicKey	Lnet/minecraft/world/entity/player/ProfilePublicKey;	-
+C	net/minecraft/network/codec/StreamDecoder	1537	java/lang/Object	-	<I:Ljava/lang/Object;T:Ljava/lang/Object;>Ljava/lang/Object;	-	paper-server-1.21.1
+A	net/minecraft/network/codec/StreamDecoder	Ljava/lang/FunctionalInterface;
+M	net/minecraft/network/codec/StreamDecoder	decode	(Ljava/lang/Object;)Ljava/lang/Object;	1025	(TI;)TT;
+C	net/minecraft/network/codec/StreamEncoder	1537	java/lang/Object	-	<O:Ljava/lang/Object;T:Ljava/lang/Object;>Ljava/lang/Object;	-	paper-server-1.21.1
+A	net/minecraft/network/codec/StreamEncoder	Ljava/lang/FunctionalInterface;
+M	net/minecraft/network/codec/StreamEncoder	encode	(Ljava/lang/Object;Ljava/lang/Object;)V	1025	(TO;TT;)V
+C	net/minecraft/network/codec/StreamMemberEncoder	1537	java/lang/Object	-	<O:Ljava/lang/Object;T:Ljava/lang/Object;>Ljava/lang/Object;	-	paper-server-1.21.1
+A	net/minecraft/network/codec/StreamMemberEncoder	Ljava/lang/FunctionalInterface;
+M	net/minecraft/network/codec/StreamMemberEncoder	encode	(Ljava/lang/Object;Ljava/lang/Object;)V	1025	(TT;TO;)V
 C	net/minecraft/network/protocol/PacketFlow	16433	java/lang/Enum	-	Ljava/lang/Enum<Lnet/minecraft/network/protocol/PacketFlow;>;	-	paper-server-1.21.1
 E	net/minecraft/network/protocol/PacketFlow	2
 F	net/minecraft/network/protocol/PacketFlow	CLIENTBOUND	Lnet/minecraft/network/protocol/PacketFlow;	16409	-
@@ -26,6 +63,8 @@ R	net/minecraft/network/syncher/EntityDataAccessor	id	I	-
 R	net/minecraft/network/syncher/EntityDataAccessor	serializer	Lnet/minecraft/network/syncher/EntityDataSerializer;	Lnet/minecraft/network/syncher/EntityDataSerializer<TT;>;
 X	net/minecraft/network/syncher/EntityDataAccessor	equals,hashCode,toString
 C	net/minecraft/network/syncher/SyncedDataHolder	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+M	net/minecraft/network/syncher/SyncedDataHolder	onSyncedDataUpdated	(Ljava/util/List;)V	1025	(Ljava/util/List<Lnet/minecraft/network/syncher/SynchedEntityData$DataValue<*>;>;)V
+M	net/minecraft/network/syncher/SyncedDataHolder	onSyncedDataUpdated	(Lnet/minecraft/network/syncher/EntityDataAccessor;)V	1025	(Lnet/minecraft/network/syncher/EntityDataAccessor<*>;)V
 C	net/minecraft/server/level/ClientInformation	65585	java/lang/Record	-	-	-	paper-server-1.21.1
 R	net/minecraft/server/level/ClientInformation	language	Ljava/lang/String;	-
 R	net/minecraft/server/level/ClientInformation	viewDistance	I	-
@@ -1175,8 +1214,6 @@ H	net/minecraft/commands/CommandSource	acceptsSuccess	()Z	1025	-
 H	net/minecraft/commands/CommandSource	getBukkitSender	(Lnet/minecraft/commands/CommandSourceStack;)Lorg/bukkit/command/CommandSender;	1025	-
 H	net/minecraft/commands/CommandSource	sendSystemMessage	(Lnet/minecraft/network/chat/Component;)V	1025	-
 H	net/minecraft/commands/CommandSource	shouldInformAdmins	()Z	1025	-
-H	net/minecraft/network/syncher/SyncedDataHolder	onSyncedDataUpdated	(Ljava/util/List;)V	1025	(Ljava/util/List<Lnet/minecraft/network/syncher/SynchedEntityData$DataValue<*>;>;)V
-H	net/minecraft/network/syncher/SyncedDataHolder	onSyncedDataUpdated	(Lnet/minecraft/network/syncher/EntityDataAccessor;)V	1025	(Lnet/minecraft/network/syncher/EntityDataAccessor<*>;)V
 H	net/minecraft/util/RandomSource	fork	()Lnet/minecraft/util/RandomSource;	1025	-
 H	net/minecraft/util/RandomSource	forkPositional	()Lnet/minecraft/world/level/levelgen/PositionalRandomFactory;	1025	-
 H	net/minecraft/util/RandomSource	nextBoolean	()Z	1025	-
