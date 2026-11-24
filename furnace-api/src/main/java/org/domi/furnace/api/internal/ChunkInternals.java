@@ -990,6 +990,12 @@ public interface ChunkInternals {
         /** 선택기의 감싼 목표들(넣은 순서). */
         java.util.List<Object> available(boolean targets);
 
+        /** {@link #available} 의 개수(복사 없이). */
+        int availableSize(boolean targets);
+
+        /** 같은 목표(안의 목표가 같은)를 감싼 것이 집합에 있는가(복사 없이). */
+        boolean inSet(boolean targets, Object wrapped);
+
         /** 바닐라 {@code removeGoal}: 그 목표를 돌고 있으면 멈추고 집합에서 뺀다. */
         void removeGoal(boolean targets, Object goal);
 

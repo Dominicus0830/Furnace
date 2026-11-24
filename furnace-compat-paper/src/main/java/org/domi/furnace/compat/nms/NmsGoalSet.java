@@ -59,7 +59,7 @@ public final class NmsGoalSet extends AbstractSet<WrappedGoal> {
     }
 
     @Override
-    public int size() { return NmsGoals.on(mob, "GoalSelector#getAvailableGoals", g -> g.available(targets).size()); }
+    public int size() { return NmsGoals.on(mob, "GoalSelector#getAvailableGoals", g -> g.availableSize(targets)); }
 
     @Override
     public boolean isEmpty() { return size() == 0; }
@@ -67,6 +67,8 @@ public final class NmsGoalSet extends AbstractSet<WrappedGoal> {
     @Override
     public boolean contains(Object o) {
         if (!(o instanceof WrappedGoal w)) return false;
+        NmsGoals.Backing b = w.furnaceBacking();
+        if (b != null) return NmsGoals.on(mob, "GoalSelector#getAvailableGoals().contains", g -> g.inSet(targets, b.server()));
         for (WrappedGoal x : snapshot()) if (x.equals(w)) return true;
         return false;
     }

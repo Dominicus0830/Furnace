@@ -1001,7 +1001,13 @@ final class ChunkInternalsImpl implements ChunkInternals {
         }
 
         @Override
-        public java.util.List<Object> available(boolean targets) { return new java.util.ArrayList<>(selector(targets).getAvailableGoals()); }
+        public java.util.List<Object> available(boolean targets) { return new java.util.ArrayList<>(selector(targets).visibleGoals()); }
+
+        @Override
+        public int availableSize(boolean targets) { return selector(targets).visibleSize(); }
+
+        @Override
+        public boolean inSet(boolean targets, Object wrapped) { return selector(targets).visibleContains(wrapped0(wrapped)); }
 
         @Override
         public void removeGoal(boolean targets, Object goal) { selector(targets).removeGoal(goal0(goal)); }
@@ -1011,11 +1017,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
 
         @Override
         public boolean addToSet(boolean targets, Object wrapped) {
-            org.domi.furnace.server.entity.ai.GoalSelector s = selector(targets);
-            org.domi.furnace.server.entity.ai.WrappedGoal w = wrapped0(wrapped);
-            if (s.getAvailableGoals().contains(w)) return false;
-            s.addToSet(w);
-            return true;
+            return selector(targets).addToSet(wrapped0(wrapped));
         }
 
         @Override

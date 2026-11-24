@@ -178,4 +178,105 @@ class GoalSelectorTest {
         sel2.tick();
         assertEquals(List.of("tick cutter"), log);
     }
+
+    @Test
+    void aGoalRemovedDuringThePassCanBeAddedBackLater() {
+        List<String> log = new ArrayList<>();
+        var sel = new GoalSelector();
+        var victim = new Script(log, "victim", EnumSet.of(Goal.Flag.LOOK));
+        var remover = new Script(log, "remover", EnumSet.of(Goal.Flag.MOVE)) {
+            @Override public void start() {
+                super.start();
+                sel.removeFromSet(w -> w.getGoal() == victim);
+            }
+        };
+        sel.addGoal(1, remover);
+        sel.addGoal(2, victim);
+        WrappedGoal held = sel.visibleGoals().get(1);
+        sel.tick();
+        assertEquals(1, sel.getAvailableGoals().size());
+        // 빠진 감싼 목표를 다음 틱에 그대로 다시 넣으면 빠질 예정 표시가 꺼져 있어 바로 시작한다
+        assertTrue(sel.addToSet(held));
+        log.clear();
+        sel.tick();
+        assertEquals(List.of("start victim", "tick remover", "tick victim"), log);
+    }
+
+    @Test
+    void aThrowingFilterStillRemovesWhatItMatchedAndClearsTheMark() {
+        List<String> log = new ArrayList<>();
+        var sel = new GoalSelector();
+        var a = new Script(log, "a", EnumSet.of(Goal.Flag.LOOK));
+        var b = new Script(log, "b", EnumSet.of(Goal.Flag.JUMP));
+        var thrower = new Script(log, "thrower", EnumSet.of(Goal.Flag.MOVE)) {
+            @Override public void start() {
+                super.start();
+                try {
+                    sel.removeFromSet(w -> {
+                        if (w.getGoal() == b) throw new IllegalStateException("판정 오류");
+                        return w.getGoal() == a;
+                    });
+                } catch (IllegalStateException expected) {
+                    log.add("threw");
+                }
+            }
+        };
+        sel.addGoal(1, thrower);
+        sel.addGoal(2, a);
+        sel.addGoal(3, b);
+        WrappedGoal heldA = sel.visibleGoals().get(1);
+        sel.tick();
+        assertEquals(List.of("start thrower", "threw", "start b", "tick thrower", "tick b"), log, "예외 전에 맞은 a 만 빠진다");
+        assertEquals(2, sel.getAvailableGoals().size());
+        assertTrue(sel.addToSet(heldA));
+        log.clear();
+        sel.tick();
+        assertEquals(List.of("start a", "tick thrower", "tick b", "tick a"), log, "다시 넣은 a 는 표시가 꺼져 시작한다");
+    }
+
+    @Test
+    void removingAndAddingBackInTheSamePassKeepsTheGoalAtTheEnd() {
+        List<String> log = new ArrayList<>();
+        var sel = new GoalSelector();
+        var a = new Script(log, "a", EnumSet.of(Goal.Flag.LOOK));
+        var b = new Script(log, "b", EnumSet.of(Goal.Flag.JUMP));
+        boolean[] added = {false};
+        var juggler = new Script(log, "juggler", EnumSet.of(Goal.Flag.MOVE)) {
+            @Override public void start() {
+                super.start();
+                WrappedGoal wa = sel.visibleGoals().get(1);
+                sel.removeFromSet(w -> w.getGoal() == a);
+                assertEquals(2, sel.visibleSize(), "뺀 목표는 바로 안 보인다");
+                added[0] = sel.addToSet(wa);
+                assertTrue(sel.visibleContains(wa));
+                assertFalse(sel.addToSet(new WrappedGoal(9, a)), "같은 목표는 두 번 들어가지 않는다");
+            }
+        };
+        sel.addGoal(1, juggler);
+        sel.addGoal(2, a);
+        sel.addGoal(3, b);
+        sel.tick();
+        assertTrue(added[0], "빠질 예정 목표를 다시 넣으면 참(바닐라 집합에서 빠진 뒤 넣기)");
+        assertEquals(List.of("start juggler", "start a", "start b", "tick juggler", "tick a", "tick b"), log, "다시 넣으면 그 패스에서 다시 보인다");
+        assertEquals(3, sel.getAvailableGoals().size(), "사라지지 않는다");
+        assertSame(a, new ArrayList<>(sel.getAvailableGoals()).get(2).getGoal(), "바닐라처럼 맨 뒤로 간다");
+    }
+
+    @Test
+    void addingThenRemovingInTheSamePassLeavesNothing() {
+        List<String> log = new ArrayList<>();
+        var sel = new GoalSelector();
+        var late = new Script(log, "late", EnumSet.of(Goal.Flag.LOOK));
+        var host = new Script(log, "host", EnumSet.of(Goal.Flag.MOVE)) {
+            @Override public void start() {
+                super.start();
+                sel.addGoal(2, late);
+                assertEquals(2, sel.visibleSize());
+                sel.removeFromSet(w -> w.getGoal() == late);
+            }
+        };
+        sel.addGoal(1, host);
+        sel.tick();
+        assertEquals(1, sel.getAvailableGoals().size(), "넣고 뺀 목표는 남지 않는다(바닐라 순서대로)");
+    }
 }
