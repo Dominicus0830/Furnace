@@ -1020,13 +1020,14 @@ public interface ChunkInternals {
 
     /**
      * 바닐라 목표 생성자의 엔티티 판정 매개변수({@code Predicate<LivingEntity>}, 몹 목표 M2b-2). 서버가 후보 엔티티의 핸들로 주인 스레드에서 부른다
-     * (플러그인 코드 — {@link GoalItems} 와 같은 예외·꺼짐 처리).
+     * (플러그인 코드 — {@link GoalItems} 와 같은 예외·꺼짐 처리). 판정을 여러 몹이 나눠 쓰면 서로 다른 region 스레드가 동시에 부를 수 있다.
      */
     record GoalEntities(java.util.function.Predicate<org.domi.furnace.api.entity.Entity> test, String owner, java.util.function.BooleanSupplier alive) {}
 
     /**
      * 바닐라 PanicGoal 의 피해 종류 태그 매개변수(몹 목표 M2b-2). {@code dynamic} 이 null 이면 고정 태그 {@code tag}(null 이면 어느 피해도 맞지 않음 —
-     * 다른 레지스트리의 태그), 아니면 판정 때마다 부르는 함수(플러그인 코드 — null 을 돌려주면 안 된다, 같은 예외·꺼짐 처리).
+     * 다른 레지스트리의 태그), 아니면 판정 때마다 부르는 함수(플러그인 코드 — null 을 돌려주면 안 된다, 같은 예외·꺼짐 처리). 함수는 그 몹의 주인
+     * 스레드에서 불리지만, 같은 함수 객체를 여러 몹에 쓰면 서로 다른 region 스레드가 동시에 부를 수 있다.
      */
     record GoalDamageTag(String tag, java.util.function.Supplier<String> dynamic, String owner, java.util.function.BooleanSupplier alive) {}
 

@@ -623,4 +623,60 @@ class NmsMobGoalsTest {
     abstract static class MyZombie extends net.minecraft.world.entity.monster.Zombie {
         MyZombie() { super(null, null); }
     }
+    /** 검토 후속: TemptGoal 의 플러그인 아이템 판정도 유혹 거리(10) 밖 플레이어에게 불린다(바닐라는 거리보다 먼저 selector). */
+    @Test
+    void temptItemTestIsCalledForFarPlayersToo() {
+        Mob m = spawnChicken(40.5);
+        try {
+            m.goalSelector.removeAllGoals(g -> true);
+            var calls = new java.util.concurrent.atomic.AtomicInteger();
+            var tempt = new TemptGoal((net.minecraft.world.entity.PathfinderMob) m, 1.0, st -> calls.incrementAndGet() < 0, false);
+            assertFalse(tempt.canUse());
+            assertEquals(2, calls.get(), "주 손·보조 손 한 번씩(바닐라 shouldFollow)");
+        } finally {
+            remove(m);
+        }
+    }
+
+    /** 검토 후속: Panic 태그 함수의 예외는 로그 한 번 뒤 다시 부르지 않고, 플러그인이 꺼지면 부르지 않고 목표가 빠진다. */
+    @Test
+    void panicTagFunctionFailureAndDisabledPlugin() {
+        Mob m = spawnChicken(-10.5);
+        try {
+            m.goalSelector.removeAllGoals(g -> true);
+            server.tick(2);
+            hitByPlayer(m);
+            var thrown = new java.util.concurrent.atomic.AtomicInteger();
+            var throwing = new PanicGoal((net.minecraft.world.entity.PathfinderMob) m, 1.0, mob -> {
+                thrown.incrementAndGet();
+                throw new IllegalStateException("boom");
+            });
+            assertFalse(throwing.canUse());
+            assertFalse(throwing.canUse());
+            assertEquals(1, thrown.get(), "멈춘 뒤로는 부르지 않는다");
+
+            var alive = new java.util.concurrent.atomic.AtomicBoolean(true);
+            var calls = new java.util.concurrent.atomic.AtomicInteger();
+            var tag = new org.domi.furnace.api.internal.ChunkInternals.GoalDamageTag(null, () -> {
+                calls.incrementAndGet();
+                return "minecraft:panic_causes";
+            }, "test", alive::get);
+            var s = serverMob(m);
+            Object goal = on(() -> {
+                var g = NmsChunks.bridge().mobGoals(((CraftEntity) m.getBukkitEntity()).furnaceHandle());
+                Object made = g.vanillaGoal("PanicGoal", 1.0, tag);
+                g.addGoal(false, 1, made);
+                return made;
+            });
+            on(() -> ((org.domi.furnace.server.entity.ai.Goal) goal).canUse());
+            assertTrue(calls.get() > 0, "켜져 있으면 맞은 뒤 함수를 부른다");
+            alive.set(false);
+            int before = calls.get();
+            assertFalse(on(() -> ((org.domi.furnace.server.entity.ai.Goal) goal).canUse()));
+            assertEquals(before, calls.get(), "꺼지면 부르지 않는다");
+            assertEquals(0, (int) on(() -> s.goalSelector().getAvailableGoals().size()), "그 목표는 빠진다");
+        } finally {
+            remove(m);
+        }
+    }
 }

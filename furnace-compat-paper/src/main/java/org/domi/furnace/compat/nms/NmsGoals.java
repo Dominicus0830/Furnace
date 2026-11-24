@@ -589,6 +589,7 @@ public final class NmsGoals {
     /**
      * 바닐라 목표 생성자의 엔티티 판정 매개변수({@code Predicate<LivingEntity>}, M2b-2). 서버가 후보마다 몹의 주인 스레드에서 그 엔티티의 shim 으로 부른다
      * (같은 엔티티는 같은 shim 객체). 주인 스레드가 쥐지 않은 후보·판정 안의 다른 region 읽기는 그 후보만 거짓. 예외·꺼짐은 {@link #items} 와 같다.
+     * 판정 하나를 여러 몹이 나눠 쓰면 서로 다른 region 스레드가 동시에 부를 수 있다(스레드 안전하게 쓸 것).
      */
     public static ChunkInternals.GoalEntities entities(java.util.function.Predicate<? super net.minecraft.world.entity.LivingEntity> test) {
         java.util.Objects.requireNonNull(test, "predicate");
