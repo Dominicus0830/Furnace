@@ -84,6 +84,7 @@ class-kind	net/minecraft/world/level/dimension/DimensionType	-	shim=class ref=re
 class-kind	net/minecraft/world/level/levelgen/feature/ConfiguredFeature	-	shim=class ref=record	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-kind	net/minecraft/world/level/levelgen/placement/PlacedFeature	-	shim=class ref=record	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	net/minecraft/advancements/AdvancementHolder	<init>()V	기준=#0f65f18519d5	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+descriptor	net/minecraft/core/BlockPos$4	computeNext()Lnet/minecraft/core/BlockPos$MutableBlockPos;	기준=#38d4e70468fd	익명 반복자 클래스의 번호 매김이 바닐라와 다를 뿐 동작은 같다(값 대조 시험이 보장) — 번호를 맞추려고 구조를 꼬지 않는다
 descriptor	net/minecraft/core/GlobalPos	<init>()V	기준=#53334c18797f	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	net/minecraft/core/Holder$Reference	<init>(Lnet/minecraft/resources/ResourceKey;Ljava/lang/Object;)V	기준=#049116d561e2	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 descriptor	net/minecraft/core/RegistrySynchronization$PackedRegistryEntry	<init>()V	기준=#1639896fa0cb	미분류 — 같은 이름 멤버의 서술자(인자·반환형)가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -420,6 +421,8 @@ member-access	net/minecraft/world/item/context/BlockPlaceContext	<init>(Lnet/min
 member-access	net/minecraft/world/item/context/UseOnContext	<init>(Lnet/minecraft/world/level/Level;Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/InteractionHand;Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/phys/BlockHitResult;)V	shim 이 덜 열려 있다	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 member-access	net/minecraft/world/level/block/entity/SignBlockEntity	<init>(Lnet/minecraft/world/level/block/entity/BlockEntityType;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;)V	shim 이 덜 열려 있다	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 member-access	net/minecraft/world/level/chunk/ChunkSource	<init>()V	shim 이 덜 열려 있다	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+super	net/minecraft/core/BlockPos$1	-	shim=com/google/common/collect/AbstractIterator ref=#c1307bf3492c	익명 반복자 클래스의 번호 매김이 바닐라와 다를 뿐 동작은 같다(값 대조 시험이 보장) — 번호를 맞추려고 구조를 꼬지 않는다
+super	net/minecraft/core/BlockPos$5	-	shim=java/lang/Object ref=#7176e6f45c3b	익명 반복자 클래스의 번호 매김이 바닐라와 다를 뿐 동작은 같다(값 대조 시험이 보장) — 번호를 맞추려고 구조를 꼬지 않는다
 super	net/minecraft/core/RegistrationInfo	-	shim=java/lang/Object ref=#e7f93413726d	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	net/minecraft/network/Connection	-	shim=io/netty/channel/ChannelInboundHandlerAdapter ref=#d8f9929231fd	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	net/minecraft/network/PacketDecoder	-	shim=io/netty/channel/ChannelInboundHandlerAdapter ref=#84e698bdccfe	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
