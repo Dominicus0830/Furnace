@@ -39,3 +39,14 @@ class net.minecraft.network.chat.numbers.NumberFormat
 class net.minecraft.network.chat.numbers.BlankFormat
 class net.minecraft.network.chat.numbers.FixedFormat
 class net.minecraft.network.chat.numbers.StyledFormat
+class net.minecraft.network.Utf8String
+class net.minecraft.network.codec.StreamCodec
+class net.minecraft.network.codec.IdDispatchCodec
+class net.minecraft.network.protocol.BundlerInfo
+class net.minecraft.network.protocol.BundlePacket
+class net.minecraft.network.PacketListener
+class net.minecraft.network.protocol.common.custom.CustomPacketPayload
+class net.minecraft.network.RegistryFriendlyByteBuf
+class net.minecraft.network.syncher.EntityDataSerializer
+class net.minecraft.network.syncher.EntityDataSerializers
+class net.minecraft.network.syncher.SynchedEntityData

@@ -4,7 +4,7 @@ import io.netty.buffer.ByteBuf;
 import net.minecraft.core.RegistryAccess;
 
 /** 레지스트리를 아는 패킷 버퍼 shim(Mojang 이름, N3 1단계). 게임 단계 패킷의 버퍼 형식. */
-public class RegistryFriendlyByteBuf extends FriendlyByteBuf {
+class RegistryFriendlyByteBuf {
 
     private final RegistryAccess registryAccess;
 

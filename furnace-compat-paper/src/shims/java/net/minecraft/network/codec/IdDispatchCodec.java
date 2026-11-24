@@ -11,7 +11,7 @@ import java.util.function.Function;
  * {@link Entry} 의 {@code type()}·{@code serializer()} 로 "번호 ↔ 패킷 종류"를 얻는다. 목록의 인덱스가 와이어 번호다.
  * 바닐라는 번호 조회에 fastutil 지도를 쓰지만 컴파일 경로에 없어 일반 지도로 대신한다.
  */
-public class IdDispatchCodec<B extends io.netty.buffer.ByteBuf, V, T> implements StreamCodec<B, V> {
+class IdDispatchCodec {
 
     private static final int UNKNOWN_TYPE = -1;
 

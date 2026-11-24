@@ -34,7 +34,6 @@ class-access	net/minecraft/network/protocol/game/ServerboundInteractPacket$Actio
 class-access	net/minecraft/network/protocol/game/ServerboundInteractPacket$ActionType	-	shim 이 덜 열려 있다(0 < 1)	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	net/minecraft/network/protocol/game/ServerboundInteractPacket$InteractionAction	-	shim 이 덜 열려 있다(0 < 1)	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	net/minecraft/network/protocol/game/ServerboundInteractPacket$InteractionAtLocationAction	-	shim 이 덜 열려 있다(0 < 1)	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-class-access	net/minecraft/network/syncher/EntityDataSerializers	-	shim 만 final	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	net/minecraft/resources/RegistryOps$HolderLookupAdapter	-	shim 이 덜 열려 있다(1 < 3)	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	net/minecraft/resources/ResourceKey$InternKey	-	shim 이 덜 열려 있다(0 < 1)	미분류 — 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 class-access	net/minecraft/server/packs/PathPackResources	-	shim 만 final	미분류 — 클래스 접근·final·abstract 가 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다

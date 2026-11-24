@@ -8,7 +8,7 @@ import java.util.List;
  * ProtocolLib 은 생성자 {@code (SyncedDataHolder, DataItem[])}, 배열 필드, {@link DataItem} 의 필드 순서
  * (accessor, value, initialValue, dirty)를 반사로 쓴다. 서버 엔티티의 칸 표는 Furnace API 의 {@code EntityDataKeys} 가 가진다.
  */
-public class SynchedEntityData {
+class SynchedEntityData {
 
     private final SyncedDataHolder entity;
     private final DataItem<?>[] itemsById;
