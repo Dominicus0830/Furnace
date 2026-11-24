@@ -146,6 +146,33 @@ class NmsEntityLookTest {
         assertEquals(0.5F, stand.getBbWidth());
         assertEquals(0.9875F, stand.getBbHeight());
         assertEquals(0.88875F, stand.getEyeHeight());
+        // 자세 칸: 워든이 땅에서 나오는 자세면 키 1.0·눈 0.85(Warden.getDefaultDimensions)
+        Entity warden = EntityType.WARDEN.create(level);
+        assertEquals(2.9F, warden.getBbHeight());
+        // 플러그인처럼 보호된 칸 상수를 리플렉션으로 꺼내 쓴다(바닐라 setPose 는 shim 에 아직 없다)
+        @SuppressWarnings("unchecked")
+        var pose = (net.minecraft.network.syncher.EntityDataAccessor<net.minecraft.world.entity.Pose>) poseAccessor();
+        warden.getEntityData().set(pose, net.minecraft.world.entity.Pose.EMERGING);
+        assertEquals(1.0F, warden.getBbHeight());
+        assertEquals(0.85F, warden.getEyeHeight());
+        // 크기 칸: 저장의 Size 2 는 크기 3 — 0.52·3 너비·키, 눈 0.325·3
+        Entity slime = EntityType.SLIME.create(level);
+        var size = new net.minecraft.nbt.CompoundTag();
+        size.putInt("Size", 2);
+        slime.load(size);
+        assertEquals(0.52F * 3, slime.getBbWidth());
+        assertEquals(0.52F * 3, slime.getBbHeight());
+        assertEquals(0.325F * 3, slime.getEyeHeight());
+    }
+
+    static Object poseAccessor() {
+        try {
+            var f = Entity.class.getDeclaredField("DATA_POSE");
+            f.setAccessible(true);
+            return f.get(null);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError(e);
+        }
     }
 
     @Test
