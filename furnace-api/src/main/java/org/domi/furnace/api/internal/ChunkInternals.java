@@ -1009,6 +1009,13 @@ public interface ChunkInternals {
      */
     record GoalTargets(boolean playersOnly, java.util.Set<String> types) {}
 
+    /**
+     * 바닐라 목표 생성자의 아이템 판정 매개변수(예 TemptGoal, 몹 목표 설계 M2b-2). {@code test} 가 null 이면 아이템 종류 이름이 {@code items} 안인 스택
+     * ({@code items} 가 비었으면 빈 스택만 — 바닐라 빈 Ingredient). 아니면 그 판정을 주인 스레드에서 API 스택으로 부른다(플러그인 코드 — 예외면 로그 한 번 뒤
+     * 늘 거짓). {@code owner} 는 로그에 쓸 플러그인 이름.
+     */
+    record GoalItems(java.util.Set<String> items, java.util.function.Predicate<org.domi.furnace.api.item.ItemStack> test, String owner) {}
+
     /** 플러그인 목표 하나의 콜백(몹 목표 설계 M2a). 모두 그 몹의 주인 스레드에서 불린다. */
     interface GoalCallbacks {
         /** 플러그인 목표 객체(호환 보기·같음·{@code removeGoal} 판정에 쓴다). */

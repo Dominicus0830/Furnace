@@ -1957,7 +1957,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     /** 서버 스택 → API 값(세계·레지스트리 없이, 깔린 아이템 문맥의 이름으로). */
-    private static org.domi.furnace.api.item.ItemStack apiItem(org.domi.furnace.server.entity.ItemStack s) {
+    static org.domi.furnace.api.item.ItemStack apiItem(org.domi.furnace.server.entity.ItemStack s) {
         if (s == null || s.isEmpty()) return org.domi.furnace.api.item.ItemStack.EMPTY;
         var form = s.patch().apiForm();
         return new org.domi.furnace.api.item.ItemStack(org.domi.furnace.server.item.ItemTools.itemName(s), s.count(), form.components(), form.removed());

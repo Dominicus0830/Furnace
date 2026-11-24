@@ -353,4 +353,43 @@ class NmsMobGoalsTest {
             remove(squid);
         }
     }
+
+    /** M2b-2: TemptGoal 의 아이템 판정 — Ingredient 는 서버가 종류로, 람다는 주인 스레드에서 스택 사본으로. 판정 예외는 그 목표만 멈춘다. */
+    @Test
+    void temptGoalItemTests() {
+        Mob m = spawnChicken(-2.5);   // 플레이어 곁(유혹 10칸 안)
+        try {
+            m.goalSelector.removeAllGoals(g -> true);
+            var pm = (net.minecraft.world.entity.PathfinderMob) m;
+            List<String> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
+            var byIngredient = new TemptGoal(pm, 1.0, net.minecraft.world.item.crafting.Ingredient.of(net.minecraft.world.item.Items.DIAMOND), false);
+            var byLambda = new TemptGoal(pm, 1.0, st -> {
+                seen.add(Thread.currentThread().getName());
+                return st.is(net.minecraft.world.item.Items.EMERALD);
+            }, false);
+            var throwing = new TemptGoal(pm, 1.0, st -> { throw new IllegalStateException("boom"); }, false);
+            assertTrue(byIngredient.getFlags().hasElement(Goal.Flag.MOVE));
+            assertEquals(java.util.Set.of("minecraft:diamond"), NmsGoals.items(net.minecraft.world.item.crafting.Ingredient.of(net.minecraft.world.item.Items.DIAMOND)).items());
+            var bukkit = org.domi.furnace.compat.paper.Compat.player(tp.player());
+            on(() -> {
+                bukkit.getInventory().setItemInMainHand(new org.bukkit.inventory.ItemStack(org.bukkit.Material.DIAMOND));
+                return null;
+            });
+            server.tick(1);
+            assertTrue(byIngredient.canUse(), "다이아몬드를 든 플레이어");
+            assertFalse(byLambda.canUse());
+            assertFalse(throwing.canUse(), "예외는 거짓");
+            on(() -> {
+                bukkit.getInventory().setItemInMainHand(new org.bukkit.inventory.ItemStack(org.bukkit.Material.EMERALD));
+                return null;
+            });
+            server.tick(1);
+            assertFalse(byIngredient.canUse());
+            assertTrue(byLambda.canUse(), "람다 판정");
+            assertFalse(seen.isEmpty());
+            assertFalse(throwing.canUse());
+        } finally {
+            remove(m);
+        }
+    }
 }

@@ -32,6 +32,8 @@ import org.domi.furnace.server.entity.ai.goal.RandomLookAroundGoal;
 import org.domi.furnace.server.entity.ai.goal.RandomStrollGoal;
 import org.domi.furnace.server.entity.ai.goal.RandomSwimmingGoal;
 import org.domi.furnace.server.entity.ai.goal.RestrictSunGoal;
+import org.domi.furnace.server.entity.ai.goal.TemptGoal;
+import org.domi.furnace.server.entity.ItemStack;
 import org.domi.furnace.server.entity.ai.goal.WaterAvoidingRandomFlyingGoal;
 import org.domi.furnace.server.entity.ai.goal.WaterAvoidingRandomStrollGoal;
 import org.domi.furnace.server.entity.ai.util.GoalUtils;
@@ -79,6 +81,7 @@ final class CompatVanillaGoals {
             case "NearestAttackableTargetGoal(TZ)" -> nearest(mob, t(a, 0), z(a, 1), false);
             case "NearestAttackableTargetGoal(TZZ)" -> nearest(mob, t(a, 0), z(a, 1), z(a, 2));
             case "HurtByTargetGoal" -> new HurtByTargetGoal(pathfinder(mob));
+            case "TemptGoal(DPZ)" -> new TemptGoal(pathfinder(mob), d(a, 0), items(p(a, 1)), z(a, 2));
             default -> null;
         };
     }
@@ -112,6 +115,7 @@ final class CompatVanillaGoals {
                 case Integer x -> 'I';
                 case Boolean x -> 'Z';
                 case Targets x -> 'T';
+                case org.domi.furnace.api.internal.ChunkInternals.GoalItems x -> 'P';
                 default -> '?';
             });
         }
@@ -137,4 +141,29 @@ final class CompatVanillaGoals {
     private static boolean z(Object[] a, int i) { return (Boolean) a[i]; }
 
     private static Targets t(Object[] a, int i) { return (Targets) a[i]; }
+
+    private static org.domi.furnace.api.internal.ChunkInternals.GoalItems p(Object[] a, int i) { return (org.domi.furnace.api.internal.ChunkInternals.GoalItems) a[i]; }
+
+    /** 아이템 판정: 종류 집합이면 서버에서 바로, 플러그인 판정이면 API 스택으로(예외면 로그 한 번 뒤 늘 거짓 — 그 목표만 멈춘다). */
+    static Predicate<ItemStack> items(org.domi.furnace.api.internal.ChunkInternals.GoalItems g) {
+        if (g.test() == null) {
+            Set<String> ids = Set.copyOf(g.items());
+            if (ids.isEmpty()) return ItemStack::isEmpty;
+            return s -> !s.isEmpty() && ids.contains(org.domi.furnace.server.item.ItemTools.itemName(s));
+        }
+        var test = g.test();
+        boolean[] broken = {false};
+        return s -> {
+            if (broken[0]) return false;
+            try {
+                return test.test(ChunkInternalsImpl.apiItem(s));
+            } catch (RuntimeException ex) {
+                broken[0] = true;
+                LOG.warn(org.domi.furnace.server.i18n.Lang.t("goal.item-test-threw", g.owner(), test.getClass().getName()), ex);
+                return false;
+            }
+        };
+    }
+
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger("Furnace");
 }

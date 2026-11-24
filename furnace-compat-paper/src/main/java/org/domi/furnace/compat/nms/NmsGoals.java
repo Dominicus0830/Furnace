@@ -496,6 +496,27 @@ public final class NmsGoals {
         });
     }
 
+    /**
+     * 바닐라 목표 생성자의 아이템 판정 매개변수(M2b-2, 예 TemptGoal). 정확하지 않은 {@code Ingredient} 는 아이템 종류 집합으로 바꿔 서버가 바로 판정한다
+     * (바닐라 Ingredient#test 와 같다 — 종류만 본다, 비었으면 빈 스택만). 그 밖의 판정(람다·정확한 Ingredient)은 서버가 주인 스레드에서 그 판정을 스택 사본으로 부른다.
+     */
+    public static ChunkInternals.GoalItems items(java.util.function.Predicate<net.minecraft.world.item.ItemStack> test) {
+        java.util.Objects.requireNonNull(test, "items");
+        if (test instanceof net.minecraft.world.item.crafting.Ingredient ing && !ing.exact) {
+            java.util.Set<String> ids = new java.util.TreeSet<>();
+            for (net.minecraft.world.item.ItemStack s : ing.getItems()) ids.add(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(s.getItem()).toString());
+            return new ChunkInternals.GoalItems(java.util.Set.copyOf(ids), null, null);
+        }
+        String owner;
+        try {
+            owner = org.bukkit.plugin.java.JavaPlugin.getProvidingPlugin(test.getClass()).getName();
+        } catch (IllegalArgumentException | IllegalStateException | ClassCastException notAPlugin) {
+            owner = "?";
+        }
+        return new ChunkInternals.GoalItems(java.util.Set.of(), api -> test.test(api.isEmpty() ? net.minecraft.world.item.ItemStack.EMPTY
+                : net.minecraft.world.item.ItemStack.fromFurnace(api, api.amount())), owner);
+    }
+
     private static final String PLAYER_CLASS = "net.minecraft.server.level.ServerPlayer";
 
     /** 클래스 → 서버 대상(플레이어만, 또는 플레이어 없는 종류 집합). 플레이어와 다른 종류가 함께 맞으면(사실상 LivingEntity) 거부. */
