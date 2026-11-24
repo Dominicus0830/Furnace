@@ -7,9 +7,7 @@ import io.netty.buffer.ByteBuf;
  * 7비트씩 낮은 쪽부터, 이어짐 비트 0x80, 최대 5바이트, 6번째 바이트를 읽으면 "VarInt too big". 공개 메서드 이름·모양은 Paper 1.21.1(javap)과 같다
  * ({@code getByteSizeOld}·{@code writeOld} 는 Paper 가 남긴 옛 이름이라 같은 결과를 낸다).
  */
-public class VarInt {
-
-    public VarInt() {}
+class VarInt {
 
     /** 쓸 때 바이트 수(1~5): 남는 유효 비트를 7로 나눈 칸 수. */
     public static int getByteSize(int value) { return (31 - Integer.numberOfLeadingZeros(value | 1)) / 7 + 1; }
