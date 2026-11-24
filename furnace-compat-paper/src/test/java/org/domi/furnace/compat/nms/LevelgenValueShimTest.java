@@ -138,4 +138,37 @@ class LevelgenValueShimTest {
         assertEquals("LegacyPositionalRandomFactory{9114417708509829518}", sb.toString());
         assertEquals(-1258329677, t.fork().nextInt());
     }
+
+    /** 여러 스레드가 동시에 불러도 갱신이 사라지지 않는다: 값 모음이 한 스레드로 같은 횟수 부른 것과 같고, 끝 상태도 같다. */
+    @Test
+    void threadSafeLegacyLosesNoUpdatesUnderContention() throws Exception {
+        int threads = 8;
+        int perThread = 20_000;
+        var shared = new net.minecraft.world.level.levelgen.ThreadSafeLegacyRandomSource(31337L);
+        var seen = new java.util.concurrent.ConcurrentLinkedQueue<Integer>();
+        var start = new java.util.concurrent.CountDownLatch(1);
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(threads);
+        try {
+            var futures = new java.util.ArrayList<java.util.concurrent.Future<?>>();
+            for (int t = 0; t < threads; t++) {
+                futures.add(pool.submit(() -> {
+                    start.await();
+                    for (int i = 0; i < perThread; i++) seen.add(shared.nextInt());
+                    return null;
+                }));
+            }
+            start.countDown();
+            for (var f : futures) f.get();
+        } finally {
+            pool.shutdownNow();
+        }
+        var single = new net.minecraft.world.level.levelgen.ThreadSafeLegacyRandomSource(31337L);
+        var expected = new java.util.ArrayList<Integer>();
+        for (int i = 0; i < threads * perThread; i++) expected.add(single.nextInt());
+        var actual = new java.util.ArrayList<>(seen);
+        java.util.Collections.sort(expected);
+        java.util.Collections.sort(actual);
+        assertEquals(expected, actual);
+        assertEquals(single.nextLong(), shared.nextLong());
+    }
 }

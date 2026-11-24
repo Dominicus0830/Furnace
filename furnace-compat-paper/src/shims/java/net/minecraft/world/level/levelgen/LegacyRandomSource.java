@@ -43,28 +43,28 @@ class LegacyRandomSource {
 
     /** 바닐라 LegacyRandomSource.LegacyPositionalRandomFactory: 위치 씨앗(Mth.getSeed)·이름 해시를 이 공장의 씨앗과 섞는다. */
     public static class LegacyPositionalRandomFactory implements PositionalRandomFactory {
-        private final long seed;
+        private final long base;
 
-        public LegacyPositionalRandomFactory(long seed) { this.seed = seed; }
+        public LegacyPositionalRandomFactory(long seed) { this.base = seed; }
 
         @Override
         public RandomSource at(int x, int y, int z) {
             long l = net.minecraft.util.Mth.getSeed(x, y, z);
-            long m = l ^ this.seed;
+            long m = l ^ this.base;
             return new LegacyRandomSource(m);
         }
 
         @Override
         public RandomSource fromHashOf(String name) {
             int i = name.hashCode();
-            return new LegacyRandomSource((long) i ^ this.seed);
+            return new LegacyRandomSource((long) i ^ this.base);
         }
 
         @Override
         public RandomSource fromSeed(long seed) { return new LegacyRandomSource(seed); }
 
         @Override
-        public void parityConfigString(StringBuilder sb) { sb.append("LegacyPositionalRandomFactory{").append(this.seed).append("}"); }
+        public void parityConfigString(StringBuilder sb) { sb.append("LegacyPositionalRandomFactory{").append(this.base).append("}"); }
     }
 
     private static RuntimeException threading() { return new IllegalStateException("Accessing LegacyRandomSource from multiple threads"); }
