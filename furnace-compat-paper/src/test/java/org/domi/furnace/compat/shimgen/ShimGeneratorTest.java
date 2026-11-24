@@ -653,6 +653,32 @@ class ShimGeneratorTest {
         assertTrue(tag.contains("boolean inform(int"), tag);
     }
 
+    /** 조각 머리가 더 선언한 인터페이스(Furnace 전용)는 생성 머리의 잠금 인터페이스 뒤에 유지된다. */
+    @Test
+    void fragmentHeaderExtraInterfacesSurvive() throws Exception {
+        String lock = String.join("\n", "#furnace-shim-lock\t1\ttest",
+                "C\tnet/minecraft/zz/Named\t1537\tjava/lang/Object\t-\t-\t-\tt",
+                "C\tnet/minecraft/zz/Tag\t33\tjava/lang/Object\tnet/minecraft/zz/Named\t-\t-\tt", "");
+        String spec = "class net.minecraft.zz.Named\nclass net.minecraft.zz.Tag\n";
+        Built b = build(spec, lock, Map.of("net/minecraft/zz/Tag",
+                "package net.minecraft.zz;\n\nclass Tag implements java.lang.Runnable, java.util.function.Supplier<String> {\n    public void run() {}\n    public String get() { return \"x\"; }\n}\n"));
+        Class<?> tag = b.loader().loadClass("net.minecraft.zz.Tag");
+        List<String> names = Arrays.stream(tag.getInterfaces()).map(Class::getName).toList();
+        assertEquals(List.of("net.minecraft.zz.Named", "java.lang.Runnable", "java.util.function.Supplier"), names);
+        // 이미 잠금에 있는 인터페이스를 또 적어도 겹치지 않는다
+        Built d = build(spec, lock, Map.of("net/minecraft/zz/Tag",
+                "package net.minecraft.zz;\n\nclass Tag implements net.minecraft.zz.Named {\n}\n"));
+        assertEquals(1, d.loader().loadClass("net.minecraft.zz.Tag").getInterfaces().length);
+        // 상위 클래스를 조각 머리에서 바꾸려 하면 막는다
+        ShimSpec sp = new ShimSpec();
+        sp.parse("t.spec", spec);
+        Path fdir = Files.createDirectories(tmp.resolve("fragX/net/minecraft/zz"));
+        Files.writeString(fdir.resolve("Tag.java"), "package net.minecraft.zz;\n\nclass Tag extends Object implements Runnable {\n    public void run() {}\n}\n", StandardCharsets.UTF_8);
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> new ShimGenerator(sp, ShimLock.parse(lock), tmp.resolve("fragX"), List.of(), List.of()).generate());
+        assertTrue(e.getMessage().contains("fragment header"), e.getMessage());
+    }
+
     /** 잠금 A 줄의 애노테이션이 생성 머리에 붙고, 조각이 이미 쓰면 겹치지 않는다. */
     @Test
     void copiedClassAnnotationsLandOnTheHeader() throws Exception {

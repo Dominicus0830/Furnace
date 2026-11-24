@@ -730,7 +730,10 @@ public final class ShimGenerator {
 
     // ───────────────────────── 머리 ─────────────────────────
 
-    String header(String n) {
+    String header(String n) { return header(n, List.of()); }
+
+    /** 머리 글. extras = 조각 머리가 더 선언한 인터페이스(바닐라에 없는 Furnace 전용 인터페이스 등) — 잠금의 인터페이스 뒤에 붙인다. */
+    String header(String n, List<String> extras) {
         ShimLock.Cls c = lock.classes.get(n);
         int a = c.effectiveAccess();
         StringBuilder sb = new StringBuilder();
@@ -758,6 +761,11 @@ public final class ShimGenerator {
         } else {
             sup = c.superName() == null ? null : JavaTypes.source(c.superName());
             itfs = c.interfaces().stream().map(JavaTypes::source).toList();
+        }
+        if (!extras.isEmpty()) {
+            List<String> all = new ArrayList<>(itfs);
+            for (String x : extras) if (!all.contains(x)) all.add(x);
+            itfs = all;
         }
         sb.append(tp);
         if (rec) {
@@ -876,14 +884,23 @@ public final class ShimGenerator {
             problems.add(p + ": the package line is not " + pkg + "");
             return "";
         }
-        Matcher h = Pattern.compile("(?m)^(class|interface|enum|record)\\s+" + Pattern.quote(simple) + "\\s*\\{").matcher(text);
+        Matcher h = Pattern.compile("(?m)^(class|interface|enum|record)\\s+" + Pattern.quote(simple) + "(?:\\s+(implements|extends)\\s+([^{]*?))?\\s*\\{").matcher(text);
         if (!h.find()) {
             problems.add(p + ": fragment header not found - write '" + (c.isInterface() ? "interface" : c.isEnum() ? "enum" : c.isRecord() ? "record" : "class") + " " + simple
-                    + " {' at the start of a line (access, extends and implements come from the shim lock)");
+                    + " {' at the start of a line (access, extends and implements come from the shim lock; extra interfaces may follow: '" + simple + " implements MyInterface {')");
             return "";
         }
         String kw = c.isInterface() ? "interface" : c.isEnum() ? "enum" : c.isRecord() ? "record" : "class";
         if (!h.group(1).equals(kw)) problems.add(p + ": fragment header kind " + h.group(1) + " differs from vanilla (" + kw + ")");
+        List<String> extras = new ArrayList<>();
+        if (h.group(2) != null) {
+            // 조각 머리가 더 선언한 인터페이스만 유지한다(상위 클래스·접근은 잠금이 정한다). 클래스·열거형·레코드는 implements, 인터페이스는 extends.
+            if (!h.group(2).equals(c.isInterface() ? "extends" : "implements")) {
+                problems.add(p + ": a fragment header may only add interfaces (" + (c.isInterface() ? "'interface X extends ...'" : "'class X implements ...'") + "); the superclass comes from the shim lock");
+            } else {
+                extras.addAll(JavaTypes.splitTypeList(h.group(3)));
+            }
+        }
         if (h.find()) problems.add(p + ": more than one fragment header");
         int close = text.lastIndexOf('}');
         h.reset();
@@ -891,7 +908,7 @@ public final class ShimGenerator {
         StringBuilder sb = new StringBuilder();
         sb.append(GEN_NOTE).append(" - edit the hand bodies in src/shims/java/").append(top).append(".java.\n");
         sb.append(text, 0, h.start());
-        sb.append(header(top)).append(" {");
+        sb.append(header(top, extras)).append(" {");
         if (c.isEnum()) sb.append("\n    // -- enum constants (shim spec, vanilla order) --\n    ").append(String.join(", ", enumConstants(top))).append(';');
         sb.append(text, h.end(), close);
         String gen = body(top, "    ");
