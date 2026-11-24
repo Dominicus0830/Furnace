@@ -17,16 +17,16 @@ import net.minecraft.world.level.ItemLike;
  * 재료(바닐라 1.21.1 Ingredient — 값 목록 {@link Value}: 아이템 하나 또는 태그). {@link #test} 는 바닐라와 같다: 비었으면 빈 스택만, 아니면 아이템 종류가 같으면
  * 맞다(Paper 의 {@link #exact} 면 컴포넌트까지). 코덱·쌓기 번호·스트림 코덱은 바닐라 서버 안에 있어 껍데기로 남는다(부르면 {@code UnsupportedNmsCall}).
  */
-public class Ingredient implements Predicate<ItemStack> {
+public final class Ingredient implements Predicate<ItemStack> {
 
     public static final Ingredient EMPTY = new Ingredient(Stream.empty());
 
     private final Value[] values;
-    private ItemStack[] itemStacks;
+    public ItemStack[] itemStacks;
     /** Paper: 참이면 {@link #test} 가 컴포넌트까지 본다(CraftBukkit 의 정확한 재료). */
     public boolean exact;
 
-    private Ingredient(Stream<? extends Value> values) { this.values = values.toArray(Value[]::new); }
+    public Ingredient(Stream<? extends Value> values) { this.values = values.toArray(Value[]::new); }
 
     private Ingredient(Value[] values) { this.values = values; }
 
@@ -57,9 +57,6 @@ public class Ingredient implements Predicate<ItemStack> {
 
     @Override
     public boolean equals(Object o) { return o instanceof Ingredient other && Arrays.equals(values, other.values); }
-
-    @Override
-    public int hashCode() { return Arrays.hashCode(values); }
 
     private static Ingredient fromValues(Stream<? extends Value> values) {
         Ingredient ingredient = new Ingredient(values);
