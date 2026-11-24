@@ -66,6 +66,8 @@ public final class CoreValues {
         sectionPos();
         resource();
         aabb();
+        java.util.UUID u = Mth.createInsecureUUID();
+        p("uuid.shape", u.version() + " " + u.variant());   // 난수라 값 대신 버전·변형 비트만 견준다
         p("lerp3", Mth.lerp3(0.25, 0.5, 0.75, 1.0, 3.0, -2.0, 8.0, 10.0, 11.0, -5.0, 5.0));
         p("lerp3.nan", Mth.lerp3(Double.NaN, 0.5, 0.5, 1.0, 3.0, -2.0, 8.0, 10.0, 11.0, -5.0, 5.0));
         return out;

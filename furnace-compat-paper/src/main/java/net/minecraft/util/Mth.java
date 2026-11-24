@@ -6,8 +6,7 @@ package net.minecraft.util;
  * 정수 {@code clamp} 의 {@code Math.min(Math.max(..))} 순서, {@code sin}/{@code cos} 의 65536 칸 표({@code (float)Math.sin(i·2π/65536)})와 10430.378 배율.
  *
  * <p>2026-11-24(영역 9): 난수 도우미·길이·보간·{@code atan2}·{@code fastInvSqrt} 계열·색·해시 등 순수 계산을 바닐라 {@code javap -c} 로 읽어 더했다.
- * 아직 없는 것: 인자 없는 {@code createInsecureUUID}·{@code RANDOM}
- * ({@code ThreadSafeLegacyRandomSource} 가 먼저 — 영역 6), {@code mulAndTruncate}(commons-lang3 분수가 컴파일 경로에 없다)는 껍데기가 맡는다
+ * 아직 없는 것: {@code mulAndTruncate}(commons-lang3 분수가 컴파일 경로에 없다)는 껍데기가 맡는다
  * (없는 멤버를 부르면 던진다 — 값을 지어내지 않는다). {@code lerp3} 는 채웠다.
  */
 public final class Mth {
@@ -440,6 +439,10 @@ public final class Mth {
             double start3, double end3, double start4, double end4) {
         return lerp(delta3, lerp2(delta1, delta2, start1, end1, start2, end2), lerp2(delta1, delta2, start3, end3, start4, end4));
     }
+
+    private static final RandomSource RANDOM = RandomSource.createThreadSafe();
+
+    public static java.util.UUID createInsecureUUID() { return createInsecureUUID(RANDOM); }
 
     public static java.util.UUID createInsecureUUID(RandomSource random) {
         long most = random.nextLong() & -61441L | 16384L;
