@@ -18,6 +18,9 @@ public final class SynchedData {
     private int[] serializers = new int[0];
     private boolean[] dirty = new boolean[0];
     private boolean isDirty;
+    /** 칸이 바뀔 때 부르는 사본 갱신(엔티티 데이터 설계 D5, 주인 스레드). 플러그인이 이 엔티티의 칸을 보기 전에는 null — 값싼 null 검사뿐이다. */
+    private java.util.function.IntConsumer published;
+    private Object watcher;
 
     /** define(id, 기본값) — 번호는 0 부터 빈틈없이. */
     public void define(int index, int serializer, Object initial) {
@@ -50,6 +53,7 @@ public final class SynchedData {
             onUpdate.accept(index);
             dirty[index] = true;
             isDirty = true;
+            if (published != null) published.accept(index);
         }
     }
 
@@ -58,7 +62,21 @@ public final class SynchedData {
     }
 
     /** 바닐라에서 값 객체를 제자리에서 바꾸는 경우(스택 줄이기): 값만 바꾸고 dirty 로 두지 않는다. */
-    public void setQuiet(int index, Object value) { values[index] = value; }
+    public void setQuiet(int index, Object value) {
+        values[index] = value;
+        if (published != null) published.accept(index);
+    }
+
+    /** 칸 보기(D5): 처음이면 make 로 만들어 두고(그 갱신기가 칸이 바뀔 때마다 불린다), 이미 있으면 그것. 주인 스레드에서만. */
+    @SuppressWarnings("unchecked")
+    public <T extends java.util.function.IntConsumer> T watch(java.util.function.Supplier<T> make) {
+        if (watcher == null) {
+            T w = make.get();
+            watcher = w;
+            published = w;
+        }
+        return (T) watcher;
+    }
 
     public boolean isDirty() { return isDirty; }
 

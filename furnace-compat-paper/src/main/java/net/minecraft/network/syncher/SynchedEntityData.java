@@ -54,6 +54,9 @@ public class SynchedEntityData {
         isDirty = any;
     }
 
+    /** 호환 모듈 전용: 칸 하나. */
+    public DataItem<?> furnaceItem(int id) { return itemsById[id]; }
+
     @SuppressWarnings("unchecked")
     private <T> DataItem<T> item(EntityDataAccessor<T> accessor) {
         return (DataItem<T>) itemsById[accessor.id()];

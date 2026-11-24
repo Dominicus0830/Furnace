@@ -937,8 +937,53 @@ final class ChunkInternalsImpl implements ChunkInternals {
             case EntityEdit.SetFlag f -> applySetter(e, f);
             case EntityEdit.SetCustomName n -> applySetter(e, n);
             case EntityEdit.SetTicksFrozen t -> applySetter(e, t);
+            case EntityOp.SetData d -> setData(e, e.type().name(), d);
+            case EntityEdit.SetDataFlag f -> {
+                var d = e.entityData();
+                if (f.index() < 0 || f.index() >= d.size() || d.serializer(f.index()) != org.domi.furnace.server.net.protocol.play.SetEntityData.SERIALIZER_BYTE) {
+                    throw new IllegalArgumentException(e.type().name() + " has no byte data slot " + f.index());
+                }
+                byte b = (Byte) d.get(f.index());
+                d.set(f.index(), (byte) (f.value() ? b | f.mask() : b & ~f.mask()));
+            }
         }
         return null;
+    }
+
+    @Override
+    public WatchedEntityData watchEntityData(org.domi.furnace.api.entity.Entity entity) {
+        if (entity instanceof PlayerHandle) throw new IllegalArgumentException("the data slots of a player are not reachable this way");
+        var e = org.domi.furnace.api.Furnace.server().internals().entityNow(entity, org.domi.furnace.server.entity.Entity.class);
+        return e.entityData().watch(() -> new Watched(e.entityData()));
+    }
+
+    /**
+     * 월드 엔티티 칸의 사본(D5). 주인 스레드만 {@link #accept} 로 칸 하나를 바꿔 새 목록을 volatile 로 내건다 — 읽는 쪽은 어느 스레드든 그 목록을 그대로 본다
+     * (값은 API 값으로 바꾼 불변 사본이라 서버가 아이템 스택을 제자리에서 줄여도 읽는 쪽과 겹치지 않는다).
+     */
+    private static final class Watched implements WatchedEntityData, java.util.function.IntConsumer {
+        private final org.domi.furnace.server.entity.SynchedData data;
+        private final EntityDataSlot[] slots;
+        private volatile List<EntityDataSlot> published;
+
+        Watched(org.domi.furnace.server.entity.SynchedData data) {
+            this.data = data;
+            var conv = entityData();
+            slots = new EntityDataSlot[data.size()];
+            for (int i = 0; i < slots.length; i++) {
+                slots[i] = new EntityDataSlot(i, conv.toApi(data.serializer(i), data.defaultValue(i)), conv.toApi(data.serializer(i), data.get(i)), false);
+            }
+            published = List.of(slots);
+        }
+
+        @Override
+        public void accept(int i) {
+            slots[i] = new EntityDataSlot(i, slots[i].definedValue(), entityData().toApi(data.serializer(i), data.get(i)), false);
+            published = List.of(slots);
+        }
+
+        @Override
+        public List<EntityDataSlot> slots() { return published; }
     }
 
     /** 월드의 엔티티와 아직 월드에 없는 엔티티(재생)가 함께 쓰는 단순 설정({@link EntityEdit.SetPos} 등). */

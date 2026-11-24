@@ -27,6 +27,14 @@ public final class NmsEntityData {
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static SynchedEntityData build(SyncedDataHolder holder, String kind, ChunkInternals.DetachedEntityData session) {
         List<ChunkInternals.EntityDataSlot> slots = session.slots();
+        SynchedEntityData data = new SynchedEntityData(holder, items(kind, slots));
+        assign(data, kind, slots);
+        return data;
+    }
+
+    /** 칸마다 DataItem(처음 값 = 정의 값). 값은 뒤의 assign 이 채운다. */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    static SynchedEntityData.DataItem<?>[] items(String kind, List<ChunkInternals.EntityDataSlot> slots) {
         SynchedEntityData.DataItem<?>[] items = new SynchedEntityData.DataItem<?>[slots.size()];
         for (ChunkInternals.EntityDataSlot s : slots) {
             String name = s.definedValue().dataType().name();
@@ -35,9 +43,7 @@ public final class NmsEntityData {
             String at = "Entity#getEntityData(" + kind + ")[" + s.index() + "]";
             items[s.index()] = new SynchedEntityData.DataItem(new EntityDataAccessor(s.index(), ser), EntityDataBridge.toShim(name, s.definedValue().asObject(), at));
         }
-        SynchedEntityData data = new SynchedEntityData(holder, items);
-        assign(data, kind, slots);
-        return data;
+        return items;
     }
 
     /** 조작이 하나 붙은 뒤: 그 조작만 서버에서 재생하고 같은 객체의 값·더러움을 다시 채운다. */
@@ -45,7 +51,7 @@ public final class NmsEntityData {
         assign(data, kind, session.apply(op));
     }
 
-    private static void assign(SynchedEntityData data, String kind, List<ChunkInternals.EntityDataSlot> slots) {
+    static void assign(SynchedEntityData data, String kind, List<ChunkInternals.EntityDataSlot> slots) {
         for (ChunkInternals.EntityDataSlot s : slots) {
             String at = "Entity#getEntityData(" + kind + ")[" + s.index() + "]";
             data.furnaceAssign(s.index(), EntityDataBridge.toShim(s.value().dataType().name(), s.value().asObject(), at), s.dirty());
@@ -117,7 +123,7 @@ public final class NmsEntityData {
     // ------------------------------------------------------------------ T-263 관용구(엔티티 데이터 설계 D3)
     // 바닐라에서 같은 모양으로 되풀이되는 칸 접근 몸통을 여기 한 번 구현한다. 연결 줄 {@code @idiom(entity-data-…, <칸 필드>[, <마스크>])} 이
     // 껍데기 멤버를 이리로 잇는다. 인자 순서: 받는 쪽(엔티티 shim), 줄의 값(칸 필드·마스크), 멤버 인자. 소유 검사는 연결 몸통이 먼저 부른다(NmsEntityOwner).
-    // 칸 값은 getEntityData() 를 지난다 — 월드 밖 엔티티는 서버 재생 값, 월드 엔티티는 설계 D5 전까지 UnsupportedNmsCall(조용히 틀린 값을 주지 않는다).
+    // 칸 값은 getEntityData() 를 지난다 — 월드 밖 엔티티는 서버 재생 값, 월드 엔티티는 서버가 갱신하는 최근 사본({@link NmsWorldEntityData}, 설계 D5).
 
     /** {@code return this.entityData.get(<칸>)}. 반환은 칸의 값 그대로(연결 몸통이 멤버 반환형으로 바꾼다). */
     @org.domi.furnace.compat.nms.link.LinkIdiom(value = "entity-data-get", check = "read=owner", owner = NmsEntityOwner.class)
@@ -135,8 +141,13 @@ public final class NmsEntityData {
     /** 바이트 칸의 깃발 하나 켜고 끄기: 켜면 {@code (byte)(b | 마스크)}, 끄면 {@code (byte)(b & ~마스크)} 를 칸에 쓴다(나머지 비트는 그대로). */
     @org.domi.furnace.compat.nms.link.LinkIdiom(value = "entity-data-flag-set", check = "write", owner = NmsEntityOwner.class)
     public static void setFlag(Object self, EntityDataAccessor<Byte> slot, int mask, boolean value) {
-        // 읽고-고치고-쓰기를 두 호출로 한다. 월드 밖 엔티티(한 스레드)에선 안전하지만, 월드 엔티티를 여는 D5 에서는 주인 스레드의 한 번의 조작(비트 쓰기)으로 바꿀 것
         SynchedEntityData d = data(self);
+        // 월드 엔티티: 주인 스레드의 한 번의 조작(읽고 비트 쓰기)이라 다른 스레드의 쓰기와 엇갈려도 비트를 잃지 않는다(D5)
+        if (d instanceof NmsWorldEntityData w) {
+            w.setFlag(slot, mask, value);
+            return;
+        }
+        // 월드 밖 엔티티는 한 스레드(만든 쪽)라 읽고-고치고-쓰기 두 호출로 충분하다
         byte b = d.get(slot);
         d.set(slot, value ? (byte) (b | mask) : (byte) (b & ~mask));
     }

@@ -140,7 +140,82 @@ class NmsEntityDataTest {
             assertTrue(on(s::isCustomNameVisible));
             assertEquals(0.5F, (float) on(s::bbWidth), "작은 갑옷 거치대 — 서버 칸 훅이 크기를 바꿨다");
             assertThrows(UnsupportedNmsCall.class, () -> d.set(CUSTOM_NAME_VISIBLE, false), "넣은 뒤 남은 칸 객체에 쓰면 서버에 닿지 않으므로 막는다");
-            assertThrows(UnsupportedNmsCall.class, e::getEntityData, "월드의 엔티티는 아직(설계 D5)");
+            assertTrue(e.getEntityData() instanceof org.domi.furnace.compat.nms.NmsWorldEntityData, "넣은 뒤 getEntityData 는 월드 엔티티 보기(설계 D5)");
+        } finally {
+            on(() -> { e.getBukkitEntity().remove(); return null; });
+        }
+    }
+
+    /**
+     * 설계 D5 시험 4·7: 월드 엔티티의 칸 보기. 주인이 아닌 스레드의 set 이 주인에게 넘어가 서버 칸(훅 포함)에 쓰이고 추적기가 플레이어에게 보낸다.
+     * 서버가 바꾼 칸은 틱 스레드가 아닌 스레드에서 막히지 않고 최근 값으로 읽힌다. 깃발 쓰기는 주인의 한 번의 조작이다.
+     */
+    @Test
+    void worldEntitySlotsFollowTheServer() throws Exception {
+        Entity e = EntityType.ARMOR_STAND.create(level);
+        e.moveTo(at.x() + 1.5, at.y(), at.z() + 1.5, 0.0F, 0.0F);
+        assertTrue(on(() -> level.addFreshEntity(e, SpawnReason.CUSTOM)));
+        try {
+            var s = serverEntity(e);
+            SynchedEntityData d = e.getEntityData();   // 시험 스레드(틱 스레드 아님): 처음 한 번 주인을 기다린다
+            assertSame(d, e.getEntityData(), "같은 엔티티는 같은 보기");
+            assertFalse(d.get(CUSTOM_NAME_VISIBLE));
+            assertFalse(d.isDirty());
+
+            server.tick(2);
+            tp.clearReceived();
+            d.set(CUSTOM_NAME_VISIBLE, true);   // 주인이 아닌 스레드 — 주인 region 에서 서버 칸에 쓴다
+            assertTrue(on(s::isCustomNameVisible));
+            assertTrue(d.get(CUSTOM_NAME_VISIBLE));
+            d.set(STAND_FLAGS, (byte) 0x01);
+            assertEquals(0.5F, (float) on(s::bbWidth), "서버 칸 훅(작은 갑옷 거치대 크기)을 지났다");
+            server.tick(2);
+            int id = e.getId();
+            tp.awaitPacket(org.domi.furnace.api.packet.PacketTypes.Clientbound.SET_ENTITY_DATA, p -> p.entityId() == id
+                    && p.entries().stream().anyMatch(en -> en.index() == 3 && Boolean.TRUE.equals(en.value().asObject())));
+
+            // 이 보기로 쓴 칸만 더럽다(서버 추적기의 표시는 건드리지 않는다)
+            assertTrue(d.isDirty());
+            var packed = d.packDirty();
+            assertEquals(java.util.List.of(3, 15), packed.stream().map(SynchedEntityData.DataValue::id).toList());
+            assertEquals(null, d.packDirty());
+
+            // 서버가 바꾼 칸: 틱 스레드가 아닌 새 스레드에서 막히지 않고 최근 값
+            on(() -> { s.setInvisible(true); return null; });
+            var read = new java.util.concurrent.atomic.AtomicReference<Byte>();
+            Thread t = new Thread(() -> read.set(d.get(SHARED_FLAGS)), "netty-like-reader");
+            t.start();
+            t.join(5_000);
+            assertEquals((byte) 0x20, read.get());
+
+            // 깃발 관용구: 주인에서 한 번에 읽고 비트를 쓴다 — 다른 비트(투명)는 그대로
+            org.domi.furnace.compat.nms.NmsEntityData.setFlag(e, SHARED_FLAGS, 0x40, true);
+            assertEquals((byte) 0x60, d.get(SHARED_FLAGS));
+            assertEquals((byte) 0x60, (byte) on(() -> (Byte) s.entityData().get(0)), "서버 칸에 비트가 쓰였다");
+            org.domi.furnace.compat.nms.NmsEntityData.setFlag(e, SHARED_FLAGS, 0x20, false);
+            assertEquals((byte) 0x40, d.get(SHARED_FLAGS));
+            assertFalse(on(s::isInvisible));
+        } finally {
+            on(() -> { e.getBukkitEntity().remove(); return null; });
+        }
+    }
+
+    /** 월드 엔티티 칸 보기의 주인 규칙: 다른 region 의 틱 스레드(여기서는 전역 스레드)에서는 기다리지 않고 ThreadOwnershipException. */
+    @Test
+    void worldEntitySlotsRefuseOtherTickThreads() {
+        Entity e = EntityType.ARMOR_STAND.create(level);
+        e.moveTo(at.x() + 2.5, at.y(), at.z() + 2.5, 0.0F, 0.0F);
+        assertTrue(on(() -> level.addFreshEntity(e, SpawnReason.CUSTOM)));
+        try {
+            Object r = server.onGlobal(() -> {
+                try {
+                    e.getEntityData();
+                    return null;
+                } catch (RuntimeException ex) {
+                    return ex;
+                }
+            });
+            assertTrue(r instanceof org.domi.furnace.api.concurrent.ThreadOwnershipException, String.valueOf(r));
         } finally {
             on(() -> { e.getBukkitEntity().remove(); return null; });
         }
