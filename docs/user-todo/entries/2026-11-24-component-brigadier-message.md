@@ -20,4 +20,10 @@
 코디네이터 확정(도미니코 위임) 전: A 로 진행.
 
 ## 실측(2026-11-24)
-인기 플러그인 100개에서 Component 를 brigadier Message 자리에 넘기는 곳의 수: 이 환경에는 플러그인 jar 가 없어 못 셌다(러너에서 jar 훑기 필요). 0 이면 추천 A 확정.
+러너에서 인기 플러그인 100개를 훑은 결과, NMS Component 를 brigadier Message 자리로 직접 넘기는 곳은 0건이다.
+다만 9개(Axiom, FancyNpcs, Geyser, grimac 2개, PlasmoVoice, SkinsRestorer, TabTPS, Terra)가 품은 라이브러리가 MessageComponentSerializer 나 PaperBrigadier.componentFromMessage 를 리플렉션으로 불러 간접 변환한다(Paper 에선 adventure Component 와 NMS Component(=Message) 사이를 변환).
+
+**결정: A(지금 유지, Component 가 Message 를 구현하지 않음) — 코디네이터 확정(도미니코 위임, 직접 0건).**
+
+## 별도 확인 항목
+PaperBrigadier.componentFromMessage 등 Paper API 쪽 간접 경로가 Furnace 에서 제대로 되는지 확인이 남아 있다.
