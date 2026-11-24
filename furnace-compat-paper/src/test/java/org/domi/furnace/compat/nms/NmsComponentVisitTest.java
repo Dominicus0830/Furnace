@@ -113,6 +113,11 @@ class NmsComponentVisitTest {
         });
         assertEquals(List.of("a-", "bB", "c-"), seen);
         assertTrue(FormattedCharSequence.EMPTY.accept((p, s, c) -> false));
+        StringBuilder raw = new StringBuilder();
+        FormattedCharSequence.forward("§ab", net.minecraft.network.chat.Style.EMPTY).accept((p, st, cp) -> { raw.appendCodePoint(cp); return true; });
+        assertEquals("§ab", raw.toString());
+        assertEquals(null, Component.translatable("k").tryCollapseToString());
+        assertEquals("x", Component.literal("x").tryCollapseToString());
     }
 
     @Test

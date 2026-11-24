@@ -147,7 +147,8 @@ public class MutableComponent implements Component {
 
     @Override
     public FormattedCharSequence getVisualOrderText() {
-        return sink -> visit((st, text) -> FormattedCharSequence.forward(text, st).accept(sink) ? Optional.empty() : FormattedText.STOP_ITERATION, Style.EMPTY).isEmpty();
+        // 바닐라 Language.getVisualOrder 의 겉보기 동작을 그대로: 방문 결과 isPresent() 를 돌려준다
+        return sink -> visit((st, text) -> net.minecraft.util.StringDecomposer.iterateFormatted(text, 0, st, st, sink) ? Optional.empty() : FormattedText.STOP_ITERATION, Style.EMPTY).isPresent();
     }
 
     public MutableComponent append(String text) { return append(Component.literal(text)); }
@@ -169,6 +170,12 @@ public class MutableComponent implements Component {
 
     @Override
     public Style getStyle() { return style; }
+
+    /** 바닐라: 글자 그대로(자식·스타일 없음)이면 그 글자, 아니면 null(던지지 않음). */
+    @Override
+    public String tryCollapseToString() {
+        return contents instanceof Content.Literal l && siblings.isEmpty() && style.isEmpty() ? l.text() : null;
+    }
 
     @Override
     public List<Component> getSiblings() { return siblings; }
