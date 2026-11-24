@@ -237,12 +237,12 @@ class Entity {
     private volatile org.domi.furnace.api.internal.ChunkInternals.EntityLook lastLook;
 
     private static final org.domi.furnace.api.internal.ChunkInternals.EntityLook FRESH =
-            new org.domi.furnace.api.internal.ChunkInternals.EntityLook((byte) 0, 0, 0, 0, 0, false, false, 0, null, java.util.List.of());
+            new org.domi.furnace.api.internal.ChunkInternals.EntityLook((byte) 0, 0, 0, 0, 0, false, false, 0, null, java.util.List.of(), 0, 0, 0);
 
     /**
      * 지금 모습. 플레이어는 아무 스레드에서 최근 값(Paper 처럼 경쟁 읽기). 다른 엔티티는 주인 스레드에서 읽고, 다른 스레드 규칙은
      * {@link org.domi.furnace.compat.nms.NmsEntities}(틱 스레드가 아니면 기다리고, 다른 region·전역 스레드는 ThreadOwnershipException).
-     * 아직 월드에 없는 엔티티는 바닐라 생성자의 모습(플래그 0·서 있음·속도 0·탑승 없음).
+     * 아직 월드에 없는 엔티티는 바닐라 생성자의 모습(플래그 0·서 있음·속도 0·탑승 없음). 그때 몸 크기 칸은 0 이다 — 크기는 {@link #furnaceDims} 가 따로 답한다.
      */
     protected org.domi.furnace.api.internal.ChunkInternals.EntityLook furnaceLook(String what) {
         Detached dl = detached;
@@ -250,10 +250,10 @@ class Entity {
             if (dl.data != null) {   // 칸을 꺼내 줬으면 칸이 한 곳의 정답이다(플러그인이 칸에 바로 쓴 깃발·자세도)
                 byte flags = org.domi.furnace.compat.nms.NmsEntityData.sharedFlags(dl.data);
                 int pose = org.domi.furnace.compat.nms.NmsEntityData.pose(dl.data);
-                return flags == 0 && pose == 0 ? FRESH : new org.domi.furnace.api.internal.ChunkInternals.EntityLook(flags, pose, 0, 0, 0, false, false, 0, null, java.util.List.of());
+                return flags == 0 && pose == 0 ? FRESH : new org.domi.furnace.api.internal.ChunkInternals.EntityLook(flags, pose, 0, 0, 0, false, false, 0, null, java.util.List.of(), 0, 0, 0);
             }
             return dl.flags == 0 ? FRESH
-                    : new org.domi.furnace.api.internal.ChunkInternals.EntityLook(dl.flags, 0, 0, 0, 0, false, false, 0, null, java.util.List.of());
+                    : new org.domi.furnace.api.internal.ChunkInternals.EntityLook(dl.flags, 0, 0, 0, 0, false, false, 0, null, java.util.List.of(), 0, 0, 0);
         }
         var h = f();
         var b = org.domi.furnace.compat.nms.NmsChunks.bridge();
@@ -271,6 +271,28 @@ class Entity {
         lastLook = l;
         return l;
     }
+
+    /**
+     * 지금 몸 크기 {너비, 키, 눈높이}. 월드의 엔티티는 {@link #furnaceLook} 의 서버 값. 아직 월드에 없는 엔티티는 서버가 빈 레벨에서 기록을 재생한 엔티티의 값이다
+     * (자세·아기·크기 칸에 따른 서버 refreshDimensions 규칙 그대로 — 엔티티 번호·월드 난수는 건드리지 않는다).
+     */
+    private float[] furnaceDims(String what) {
+        Detached dl = detached;
+        if (dl != null) {
+            synchronized (dl) { return dl.session().dimensions(); }
+        }
+        var l = furnaceLook(what);
+        return new float[] {l.bbWidth(), l.bbHeight(), l.eyeHeight()};
+    }
+
+    /** 바닐라 getBbWidth: 지금 몸 너비. */
+    public final float getBbWidth() { org.domi.furnace.compat.nms.NmsEntityOwner.read(this, "Entity#getBbWidth"); return furnaceDims("Entity#getBbWidth")[0]; }
+
+    /** 바닐라 getBbHeight: 지금 몸 키. */
+    public final float getBbHeight() { org.domi.furnace.compat.nms.NmsEntityOwner.read(this, "Entity#getBbHeight"); return furnaceDims("Entity#getBbHeight")[1]; }
+
+    /** 바닐라 getEyeHeight(): 지금 눈높이(자세에 따라 — 웅크린 플레이어 1.27). */
+    public final float getEyeHeight() { org.domi.furnace.compat.nms.NmsEntityOwner.read(this, "Entity#getEyeHeight"); return furnaceDims("Entity#getEyeHeight")[2]; }
 
     private boolean sharedFlag(int bit, String what) { return (furnaceLook(what).sharedFlags() & 1 << bit) != 0; }
 

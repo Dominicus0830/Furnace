@@ -168,11 +168,14 @@ M	net/minecraft/world/entity/Entity	blockPosition	()Lnet/minecraft/core/BlockPos
 M	net/minecraft/world/entity/Entity	chunkPosition	()Lnet/minecraft/world/level/ChunkPos;	1	-
 M	net/minecraft/world/entity/Entity	discard	()V	17	-
 M	net/minecraft/world/entity/Entity	ejectPassengers	()V	1	-
+M	net/minecraft/world/entity/Entity	getBbHeight	()F	17	-
+M	net/minecraft/world/entity/Entity	getBbWidth	()F	17	-
 M	net/minecraft/world/entity/Entity	getBlockX	()I	17	-
 M	net/minecraft/world/entity/Entity	getBlockY	()I	17	-
 M	net/minecraft/world/entity/Entity	getBlockZ	()I	17	-
 M	net/minecraft/world/entity/Entity	getBukkitEntity	()Lorg/bukkit/craftbukkit/entity/CraftEntity;	1	-
 M	net/minecraft/world/entity/Entity	getBukkitYaw	()F	1	-
+M	net/minecraft/world/entity/Entity	getEyeHeight	()F	17	-
 M	net/minecraft/world/entity/Entity	getId	()I	1	-
 M	net/minecraft/world/entity/Entity	getIndirectPassengers	()Ljava/lang/Iterable;	1	()Ljava/lang/Iterable<Lnet/minecraft/world/entity/Entity;>;
 M	net/minecraft/world/entity/Entity	getKnownMovement	()Lnet/minecraft/world/phys/Vec3;	1	-

@@ -1848,6 +1848,12 @@ final class ChunkInternalsImpl implements ChunkInternals {
         }
 
         @Override
+        public synchronized float[] dimensions() {
+            rethrowIfFailed();
+            return new float[] {entity.bbWidth(), entity.bbHeight(), entity.eyeHeight()};
+        }
+
+        @Override
         public synchronized Object goalRef(Object ref) {
             return entity instanceof org.domi.furnace.server.entity.Mob m && m.compatGoalRefs != null ? m.compatGoalRefs.get(ref) : null;
         }
@@ -2367,14 +2373,16 @@ final class ChunkInternalsImpl implements ChunkInternals {
             double[] k = knownMovement(p);
             var v = p.vehicle();
             return new EntityLook(p.sharedFlags(), p.pose(), k[0], k[1], k[2], p.vitals().isFlying(),
-                    p.isSpectator(), host.core().profilePermissions(org.domi.furnace.server.ServerCore.profileOf(p)), v == null ? null : v.uuid(), List.of());
+                    p.isSpectator(), host.core().profilePermissions(org.domi.furnace.server.ServerCore.profileOf(p)), v == null ? null : v.uuid(), List.of(),
+                    p.bbWidth(), p.bbHeight(), p.eyeHeight());
         }
         var e = org.domi.furnace.api.Furnace.server().internals().entityNow(entity, org.domi.furnace.server.entity.Entity.class);
         double[] k = knownMovement(e);
         var v = e.vehicle();
         List<java.util.UUID> passengers = new java.util.ArrayList<>(e.passengers().size());
         for (var r : e.passengers()) passengers.add(uuidOf(r));
-        return new EntityLook(e.sharedFlagsByte(), e.getPose(), k[0], k[1], k[2], false, false, 0, v == null ? null : v.uuid(), List.copyOf(passengers));
+        return new EntityLook(e.sharedFlagsByte(), e.getPose(), k[0], k[1], k[2], false, false, 0, v == null ? null : v.uuid(), List.copyOf(passengers),
+                e.bbWidth(), e.bbHeight(), e.eyeHeight());
     }
 
     private static java.util.UUID uuidOf(org.domi.furnace.server.entity.Rider r) {

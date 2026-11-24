@@ -103,6 +103,51 @@ class NmsEntityLookTest {
         assertFalse(p.isSpectator());
     }
 
+    /** 몸 크기(바닐라 getBbWidth·getBbHeight·getEyeHeight): 플레이어 자세, 월드의 좀비(아기 칸), 아직 월드에 없는 엔티티(기록 재생 — 아기·작은 갑옷 거치대). */
+    @Test
+    void dimensionsFollowPoseAndData() {
+        ServerPlayer p = bukkit.getHandle();
+        assertEquals(0.6F, p.getBbWidth());
+        assertEquals(1.8F, p.getBbHeight());
+        assertEquals(1.62F, p.getEyeHeight(), "서기 — 시험 스레드에서도 플레이어는 최근 값");
+        command(0);   // 웅크림
+        assertEquals(1.5F, p.getBbHeight());
+        assertEquals(1.27F, p.getEyeHeight());
+        command(1);
+        assertEquals(1.62F, p.getEyeHeight());
+
+        CraftEntity zombie = on(() -> (CraftEntity) world.spawnEntity(new Location(world, at.x() + 0.5, at.y(), at.z() + 0.5), org.bukkit.entity.EntityType.ZOMBIE));
+        Entity z = zombie.getHandle();
+        on(() -> {
+            assertEquals(0.6F, z.getBbWidth());
+            assertEquals(1.95F, z.getBbHeight());
+            assertEquals(1.74F, z.getEyeHeight());
+            org.domi.furnace.api.internal.Internals.get().entityNow(zombie.furnaceHandle(), org.domi.furnace.server.entity.Zombie.class).setBaby(true);   // 서버 좀비의 아기 칸(onSyncedDataUpdated → refreshDimensions)
+            assertEquals(0.3F, z.getBbWidth());
+            assertEquals(0.975F, z.getBbHeight());
+            assertEquals(0.93F, z.getEyeHeight(), "아기 좀비(Zombie.BABY_DIMENSIONS)");
+            zombie.remove();
+            return null;
+        });
+
+        Level level = world.getHandle();
+        Entity fresh = EntityType.ZOMBIE.create(level);
+        assertEquals(1.74F, fresh.getEyeHeight(), "월드에 없는 엔티티는 바닐라 생성자의 크기");
+        var baby = new net.minecraft.nbt.CompoundTag();
+        baby.putBoolean("IsBaby", true);
+        fresh.load(baby);
+        assertEquals(0.93F, fresh.getEyeHeight(), "load 가 아기로 바꾸면 크기도 따라 바뀐다(서버 규칙 재생)");
+        assertEquals(0.975F, fresh.getBbHeight());
+        Entity stand = EntityType.ARMOR_STAND.create(level);
+        assertEquals(1.975F, stand.getBbHeight());
+        var small = new net.minecraft.nbt.CompoundTag();
+        small.putBoolean("Small", true);
+        stand.load(small);
+        assertEquals(0.5F, stand.getBbWidth());
+        assertEquals(0.9875F, stand.getBbHeight());
+        assertEquals(0.88875F, stand.getEyeHeight());
+    }
+
     @Test
     void ridingOnTheOwnerAndFromAnotherThread() throws Exception {
         CraftEntity boat = on(() -> (CraftEntity) world.spawnEntity(new Location(world, at.x() + 0.5, at.y(), at.z() + 0.5), org.bukkit.entity.EntityType.BOAT));

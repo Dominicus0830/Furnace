@@ -1035,6 +1035,9 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     private boolean isCrouchPose() { return sneaking || forcedCrouch; }
 
+    /** 바닐라 getEyeHeight(Player.POSES 의 눈높이, float): 겉날개·수영·회전 공격 0.4, 잠 0.2, 웅크림 1.27, 서기 1.62. */
+    public float eyeHeight() { return fallFlying ? 0.4F : sleepingPos != null ? 0.2F : isSwimPose() || autoSpinAttackTicks > 0 ? 0.4F : isCrouchPose() ? 1.27F : 1.62F; }
+
     @Override public float bbWidth() { return fallFlying ? 0.6F : sleepingPos != null ? 0.2F : 0.6F; }
 
     /** 자세 크기(Player.POSES): 겉날개 0.6×0.6(눈 0.4), 잠 0.2, 웅크림 1.5, 서기 1.8. */
