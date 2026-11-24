@@ -6,3 +6,8 @@
 - `ItemStack#limitSize` 를 더했다(바닐라 setItem 이 쓴다).
 - 함정: `shimLockCheck` 가 이 클라우드 서명표에서는 `@FunctionalInterface`·`@Deprecated` 애노테이션 줄 6개가 "낡음"으로 나온다(기준 브랜치 그대로도 같음 — 노트북 표와 다름). 잠금은 건드리지 않았다.
 - 시험: `NmsBlockContainerTest`(크기·주인 스레드 읽기쓰기·살아 있는 스택·다른 스레드·떨어진 상자).
+
+## Ingredient (같은 날, 엔티티 스레드 TemptGoal 요청)
+- `net.minecraft.world.item.crafting.Ingredient` 손 shim: `of(ItemLike…/ItemStack…/Stream/TagKey)`·`EMPTY`·`test`(종류만, Paper `exact` 면 컴포넌트까지)·`getItems`·`isEmpty`·`equals`. 중첩 레코드 `ItemValue`·`TagValue`(equals 는 바닐라처럼 종류+개수 / 태그 이름만). 코덱·`getStackingIds` 는 껍데기로 남음. 근거: Paper 1.21.1 바이트코드 대조(읽기만).
+- 안쪽 레코드를 가진 바깥 클래스라 생성기가 아직 못 만들어 손 shim 이다.
+- 시험 `NmsIngredientTest`. 이 클라우드에서는 `generateFullShells` 의 서명표 지문이 달라 못 돌렸다 — CI 에서 확인.
