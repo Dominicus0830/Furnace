@@ -11,7 +11,7 @@ import net.minecraft.resources.ResourceLocation;
  * (채널 이름 + 날 바이트)뿐이다 — Paper 도 플러그인 메시지를 이것으로 보낸다. 바닐라 디버그·브랜드 페이로드 목록으로 고르는
  * {@code codec(FallbackProvider, List<TypeAndCodec>)} 는 아직 없다(플러그인이 쓰는 것이 확인되면 더한다).
  */
-public interface CustomPacketPayload {
+interface CustomPacketPayload {
 
     Type<? extends CustomPacketPayload> type();
 

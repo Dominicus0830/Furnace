@@ -1,7 +1,7 @@
 package net.minecraft.network.protocol;
 
 /** 묶음 패킷 처리 정보 shim(Mojang 이름, N3 1단계). 묶음을 안 쓰는 프로토콜은 {@link #NO_BUNDLER}. */
-public interface BundlerInfo {
+interface BundlerInfo {
 
     int BUNDLE_SIZE_LIMIT = 4096;
 

@@ -32,7 +32,7 @@ import org.domi.furnace.compat.nms.UnsupportedNmsCall;
  * 패킷 라이브러리(ProtocolLib)가 이 필드들의 제네릭 인자로 "Java 형식 → 값 종류" 표를 만든다. 번호는 바닐라 등록 순서(0 부터)다 —
  * 아래 상수 선언 순서가 곧 번호 순서다. JOML 값(VECTOR3·QUATERNION)은 서버 라이브러리 묶음의 JOML 형식이다.
  */
-public final class EntityDataSerializers {
+class EntityDataSerializers {
 
     private EntityDataSerializers() {}
 

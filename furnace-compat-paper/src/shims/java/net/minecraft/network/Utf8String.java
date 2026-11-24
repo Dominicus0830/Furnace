@@ -9,7 +9,7 @@ import java.nio.charset.StandardCharsets;
  * 프로토콜 문자열(가변 정수 바이트 길이 + UTF-8) 읽기·쓰기(Mojang 이름, 바닐라 1.21.1 모양). {@link FriendlyByteBuf#readUtf(int)}·
  * {@code writeUtf} 가 이것을 부르는 것도 바닐라와 같다. 길이 상한은 문자 수(UTF-16 코드 유닛), 바이트 상한은 그 3배.
  */
-public class Utf8String {
+class Utf8String {
 
     public Utf8String() {}
 

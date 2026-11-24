@@ -12,6 +12,8 @@ F	net/minecraft/network/ConnectionProtocol	HANDSHAKING	Lnet/minecraft/network/Co
 F	net/minecraft/network/ConnectionProtocol	LOGIN	Lnet/minecraft/network/ConnectionProtocol;	16409	-
 F	net/minecraft/network/ConnectionProtocol	PLAY	Lnet/minecraft/network/ConnectionProtocol;	16409	-
 F	net/minecraft/network/ConnectionProtocol	STATUS	Lnet/minecraft/network/ConnectionProtocol;	16409	-
+C	net/minecraft/network/FriendlyByteBuf	33	io/netty/buffer/ByteBuf	-	-	-	paper-server-1.21.1
+C	net/minecraft/network/PacketListener	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/network/ProtocolInfo	1537	java/lang/Object	-	<T::Lnet/minecraft/network/PacketListener;>Ljava/lang/Object;	-	paper-server-1.21.1
 M	net/minecraft/network/ProtocolInfo	bundlerInfo	()Lnet/minecraft/network/protocol/BundlerInfo;	1025	-
 M	net/minecraft/network/ProtocolInfo	codec	()Lnet/minecraft/network/codec/StreamCodec;	1025	()Lnet/minecraft/network/codec/StreamCodec<Lio/netty/buffer/ByteBuf;Lnet/minecraft/network/protocol/Packet<-TT;>;>;
@@ -25,6 +27,8 @@ M	net/minecraft/network/ProtocolInfo$Unbound	listPackets	(Lnet/minecraft/network
 C	net/minecraft/network/ProtocolInfo$Unbound$PacketVisitor	1537	java/lang/Object	-	-	1545	paper-server-1.21.1
 A	net/minecraft/network/ProtocolInfo$Unbound$PacketVisitor	Ljava/lang/FunctionalInterface;
 M	net/minecraft/network/ProtocolInfo$Unbound$PacketVisitor	accept	(Lnet/minecraft/network/protocol/PacketType;I)V	1025	(Lnet/minecraft/network/protocol/PacketType<*>;I)V
+C	net/minecraft/network/RegistryFriendlyByteBuf	33	net/minecraft/network/FriendlyByteBuf	-	-	-	paper-server-1.21.1
+C	net/minecraft/network/Utf8String	33	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/network/VarInt	33	java/lang/Object	-	-	-	paper-server-1.21.1
 M	net/minecraft/network/VarInt	<init>	()V	1	-
 M	net/minecraft/network/VarInt	getByteSize	(I)I	9	-
@@ -52,6 +56,8 @@ C	net/minecraft/network/chat/numbers/BlankFormat	33	java/lang/Object	net/minecra
 C	net/minecraft/network/chat/numbers/FixedFormat	33	java/lang/Object	net/minecraft/network/chat/numbers/NumberFormat	-	-	paper-server-1.21.1
 C	net/minecraft/network/chat/numbers/NumberFormat	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/network/chat/numbers/StyledFormat	33	java/lang/Object	net/minecraft/network/chat/numbers/NumberFormat	-	-	paper-server-1.21.1
+C	net/minecraft/network/codec/IdDispatchCodec	33	java/lang/Object	net/minecraft/network/codec/StreamCodec	<B:Lio/netty/buffer/ByteBuf;V:Ljava/lang/Object;T:Ljava/lang/Object;>Ljava/lang/Object;Lnet/minecraft/network/codec/StreamCodec<TB;TV;>;	-	paper-server-1.21.1
+C	net/minecraft/network/codec/StreamCodec	1537	java/lang/Object	net/minecraft/network/codec/StreamDecoder,net/minecraft/network/codec/StreamEncoder	<B:Ljava/lang/Object;V:Ljava/lang/Object;>Ljava/lang/Object;Lnet/minecraft/network/codec/StreamDecoder<TB;TV;>;Lnet/minecraft/network/codec/StreamEncoder<TB;TV;>;	-	paper-server-1.21.1
 C	net/minecraft/network/codec/StreamDecoder	1537	java/lang/Object	-	<I:Ljava/lang/Object;T:Ljava/lang/Object;>Ljava/lang/Object;	-	paper-server-1.21.1
 A	net/minecraft/network/codec/StreamDecoder	Ljava/lang/FunctionalInterface;
 M	net/minecraft/network/codec/StreamDecoder	decode	(Ljava/lang/Object;)Ljava/lang/Object;	1025	(TI;)TT;
@@ -61,6 +67,9 @@ M	net/minecraft/network/codec/StreamEncoder	encode	(Ljava/lang/Object;Ljava/lang
 C	net/minecraft/network/codec/StreamMemberEncoder	1537	java/lang/Object	-	<O:Ljava/lang/Object;T:Ljava/lang/Object;>Ljava/lang/Object;	-	paper-server-1.21.1
 A	net/minecraft/network/codec/StreamMemberEncoder	Ljava/lang/FunctionalInterface;
 M	net/minecraft/network/codec/StreamMemberEncoder	encode	(Ljava/lang/Object;Ljava/lang/Object;)V	1025	(TT;TO;)V
+C	net/minecraft/network/protocol/BundlePacket	1057	java/lang/Object	net/minecraft/network/protocol/Packet	<T::Lnet/minecraft/network/PacketListener;>Ljava/lang/Object;Lnet/minecraft/network/protocol/Packet<TT;>;	-	paper-server-1.21.1
+C	net/minecraft/network/protocol/BundlerInfo	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/network/protocol/Packet	1537	java/lang/Object	-	<T::Lnet/minecraft/network/PacketListener;>Ljava/lang/Object;	-	paper-server-1.21.1
 C	net/minecraft/network/protocol/PacketFlow	16433	java/lang/Enum	-	Ljava/lang/Enum<Lnet/minecraft/network/protocol/PacketFlow;>;	-	paper-server-1.21.1
 E	net/minecraft/network/protocol/PacketFlow	2
 F	net/minecraft/network/protocol/PacketFlow	CLIENTBOUND	Lnet/minecraft/network/protocol/PacketFlow;	16409	-
@@ -69,13 +78,17 @@ C	net/minecraft/network/protocol/PacketType	65585	java/lang/Record	-	<T::Lnet/mi
 R	net/minecraft/network/protocol/PacketType	flow	Lnet/minecraft/network/protocol/PacketFlow;	-
 R	net/minecraft/network/protocol/PacketType	id	Lnet/minecraft/resources/ResourceLocation;	-
 X	net/minecraft/network/protocol/PacketType	toString
+C	net/minecraft/network/protocol/common/custom/CustomPacketPayload	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/network/syncher/EntityDataAccessor	65585	java/lang/Record	-	<T:Ljava/lang/Object;>Ljava/lang/Record;	-	paper-server-1.21.1
 R	net/minecraft/network/syncher/EntityDataAccessor	id	I	-
 R	net/minecraft/network/syncher/EntityDataAccessor	serializer	Lnet/minecraft/network/syncher/EntityDataSerializer;	Lnet/minecraft/network/syncher/EntityDataSerializer<TT;>;
 X	net/minecraft/network/syncher/EntityDataAccessor	equals,hashCode,toString
+C	net/minecraft/network/syncher/EntityDataSerializer	1537	java/lang/Object	-	<T:Ljava/lang/Object;>Ljava/lang/Object;	-	paper-server-1.21.1
+C	net/minecraft/network/syncher/EntityDataSerializers	33	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/network/syncher/SyncedDataHolder	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 M	net/minecraft/network/syncher/SyncedDataHolder	onSyncedDataUpdated	(Ljava/util/List;)V	1025	(Ljava/util/List<Lnet/minecraft/network/syncher/SynchedEntityData$DataValue<*>;>;)V
 M	net/minecraft/network/syncher/SyncedDataHolder	onSyncedDataUpdated	(Lnet/minecraft/network/syncher/EntityDataAccessor;)V	1025	(Lnet/minecraft/network/syncher/EntityDataAccessor<*>;)V
+C	net/minecraft/network/syncher/SynchedEntityData	33	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/server/level/ClientInformation	65585	java/lang/Record	-	-	-	paper-server-1.21.1
 R	net/minecraft/server/level/ClientInformation	language	Ljava/lang/String;	-
 R	net/minecraft/server/level/ClientInformation	viewDistance	I	-
@@ -1347,6 +1360,8 @@ H	net/minecraft/commands/CommandSource	acceptsSuccess	()Z	1025	-
 H	net/minecraft/commands/CommandSource	getBukkitSender	(Lnet/minecraft/commands/CommandSourceStack;)Lorg/bukkit/command/CommandSender;	1025	-
 H	net/minecraft/commands/CommandSource	sendSystemMessage	(Lnet/minecraft/network/chat/Component;)V	1025	-
 H	net/minecraft/commands/CommandSource	shouldInformAdmins	()Z	1025	-
+H	net/minecraft/network/protocol/Packet	handle	(Lnet/minecraft/network/PacketListener;)V	1025	(TT;)V
+H	net/minecraft/network/protocol/Packet	type	()Lnet/minecraft/network/protocol/PacketType;	1025	()Lnet/minecraft/network/protocol/PacketType<+Lnet/minecraft/network/protocol/Packet<TT;>;>;
 H	net/minecraft/util/RandomSource	fork	()Lnet/minecraft/util/RandomSource;	1025	-
 H	net/minecraft/util/RandomSource	forkPositional	()Lnet/minecraft/world/level/levelgen/PositionalRandomFactory;	1025	-
 H	net/minecraft/util/RandomSource	nextBoolean	()Z	1025	-
