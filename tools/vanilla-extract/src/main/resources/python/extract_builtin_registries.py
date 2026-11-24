@@ -17,7 +17,9 @@ REGS = ['minecraft:block', 'minecraft:item', 'minecraft:entity_type', 'minecraft
         # 통계(award_stats 패킷의 종류·값 번호)
         'minecraft:stat_type', 'minecraft:custom_stat',
         # 엔티티 데이터 값 종류(호환 계층 레지스트리 번호 — 엔티티 데이터 설계 D4)
-        'minecraft:villager_type', 'minecraft:villager_profession', 'minecraft:frog_variant']
+        'minecraft:villager_type', 'minecraft:villager_profession', 'minecraft:frog_variant',
+        # 입자 종류(엔티티 데이터 칸 particle·particles)
+        'minecraft:particle_type']
 reports = json.load(open(sys.argv[1]))
 with open(sys.argv[2], 'w', encoding='utf-8') as out:
     out.write('# 자동 생성: tools/vanilla-data/extract_builtin_registries.py (바닐라 %s reports/registries.json). 직접 수정하지 말 것.\n' % sys.argv[3])

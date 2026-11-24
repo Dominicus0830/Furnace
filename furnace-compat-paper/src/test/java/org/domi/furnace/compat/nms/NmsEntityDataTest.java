@@ -1,6 +1,7 @@
 package org.domi.furnace.compat.nms;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -145,11 +146,22 @@ class NmsEntityDataTest {
         }
     }
 
-    /** 아직 바꾸지 못하는 값 종류(입자 — 입자 shim 이 빈 껍데기)가 있는 종류는 getEntityData 만 알리고, setter 는 그대로 된다. */
+    /** 입자 칸(구름): 처음 값이 바닐라처럼 흰 entity_effect 색 입자이고, 칸 쓰기가 서버 재생을 지나 같은 입자로 돌아온다. */
     @Test
-    void kindsWithUnbridgedValueKindsSayUnsupported() {
+    void particleSlotRoundTripsThroughTheServer() {
         Entity cloud = EntityType.AREA_EFFECT_CLOUD.create(level);
-        assertThrows(UnsupportedNmsCall.class, cloud::getEntityData);
+        SynchedEntityData d = cloud.getEntityData();
+        var slot = new EntityDataAccessor<net.minecraft.core.particles.ParticleOptions>(org.domi.furnace.server.entity.AreaEffectCloud.DATA_PARTICLE, EntityDataSerializers.PARTICLE);
+        var first = assertInstanceOf(net.minecraft.core.particles.ColorParticleOption.class, d.get(slot));
+        assertSame(net.minecraft.core.particles.ParticleTypes.ENTITY_EFFECT, first.getType());
+        assertEquals(1.0f, first.getAlpha());
+        assertEquals(1.0f, first.getRed());
+        d.set(slot, new net.minecraft.core.particles.DustParticleOptions(new org.joml.Vector3f(0.25f, 0.5f, 1f), 2f));
+        var dust = assertInstanceOf(net.minecraft.core.particles.DustParticleOptions.class, d.get(slot));
+        assertEquals(new org.joml.Vector3f(0.25f, 0.5f, 1f), dust.getColor());
+        assertEquals(2f, dust.getScale());
+        d.set(slot, net.minecraft.core.particles.ParticleTypes.FLAME);
+        assertSame(net.minecraft.core.particles.ParticleTypes.FLAME, d.get(slot), "옵션 없는 종류는 종류 상수 그 자체");
         cloud.setInvisible(true);
         assertTrue(cloud.isInvisible());
     }
