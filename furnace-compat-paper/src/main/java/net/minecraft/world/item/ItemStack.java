@@ -311,6 +311,29 @@ public final class ItemStack {
         return s;
     }
 
+    /**
+     * 호환 모듈 전용 — 컨테이너 칸(블록 엔티티 칸 등)을 살아 있는 보기로 준다: 이 객체를 고치면 writer 가 그 칸에 되쓴다(칸이 expect 가 아니면 false — 칸에서 떨어진다).
+     * 바닐라는 칸이 스택 객체를 그대로 들어서 {@code container.getItem(i).shrink(1)} 이 칸을 바꾼다. 빈 칸은 EMPTY.
+     */
+    public static ItemStack liveContainerSlot(java.util.function.BiPredicate<org.domi.furnace.api.item.ItemStack, org.domi.furnace.api.item.ItemStack> writer,
+                                              org.domi.furnace.api.item.ItemStack now) {
+        if (now.isEmpty()) return EMPTY;
+        ItemStack s = fromFurnace(now, now.amount());
+        s.live = new LiveSlot(writer, now);
+        return s;
+    }
+
+    /** 호환 모듈 전용 — 이미 있는 스택 객체를 컨테이너 칸에 묶는다(바닐라 {@code setItem} 은 넘긴 객체를 그대로 든다). EMPTY·빈 스택은 묶지 않는다. */
+    public void furnaceBindLive(java.util.function.BiPredicate<org.domi.furnace.api.item.ItemStack, org.domi.furnace.api.item.ItemStack> writer) {
+        if (this == EMPTY || isEmpty()) return;
+        live = new LiveSlot(writer, furnaceValue());
+    }
+
+    /** 바닐라 limitSize: 개수가 max 를 넘으면 max 로 줄인다. */
+    public void limitSize(int max) {
+        if (!isEmpty() && getCount() > max) setCount(max);
+    }
+
     /** 바뀐 값을 묶인 칸에 되쓴다. 칸이 그새 바뀌었으면 칸에서 떨어진다. */
     private void changed() {
         LiveSlot l = live;

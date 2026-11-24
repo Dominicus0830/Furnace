@@ -160,6 +160,23 @@ public abstract class BlockEntity {
         furnaceData = out;
     }
 
+    /** 호환 모듈 전용 — 떨어진 블록 엔티티의 저장 꼴 사본(id 없음, 안 실었으면 그 상태의 갓 만든 모습). 월드의 보기는 쓰지 않는다. */
+    public final NbtCompound furnaceDetachedSave() {
+        if (furnaceChunk != null) throw new IllegalStateException("not a detached block entity");
+        return base();
+    }
+
+    /** 호환 모듈 전용 — 떨어진 블록 엔티티의 내용을 saveWithoutMetadata 꼴 n 으로 바꾼다(loadWithComponents 와 같은 정규화). */
+    public final void furnaceDetachedLoad(NbtCompound n) {
+        if (furnaceChunk != null) throw new IllegalStateException("not a detached block entity");
+        NbtCompound out = NmsChunks.bridge().normalizeBlockEntityNbt(blockState.furnaceStateId(), n);
+        if (out == null) throw new IllegalStateException("block state that has no block entity: " + blockState);
+        furnaceData = out;
+    }
+
+    /** 호환 모듈 전용 — 월드의 보기를 준 청크(떨어진 것은 null). */
+    public final ChunkAccess furnaceViewChunk() { return furnaceChunk; }
+
     /**
      * 호환 모듈 전용 — 바닐라 clearContent(T-211 3단계, {@link net.minecraft.world.Clearable} 인 종류가 부른다). 월드의 보기는 서버 블록 엔티티를 바닐라처럼
      * 비운다(주크박스는 재생을 멈추고 장식 단지는 전리품을 먼저 푼다). 떨어진 블록 엔티티는 내용을 NBT 로만 들고 있어 레벨 동작을 같게 낼 수 없다 — UnsupportedNmsCall.
