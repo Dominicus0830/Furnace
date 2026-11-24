@@ -1170,7 +1170,7 @@ public interface ChunkInternals {
 
         /**
          * 선택기의 index 번째 감싼 목표와 그 안의 목표를 ref 에 묶는다(보기 shim 을 처음 만들 때). 진짜 몹의 그 자리 목표가 기록한 바닐라 클래스·우선순위·깃발과
-         * 다르면 묶지 않는다(그 ref 를 쓰는 뒤 조작은 IllegalArgumentException).
+         * 다르면 묶지 않는다(그 ref 를 쓰는 뒤 조작은 IllegalArgumentException). flags 가 음수면 깃발은 견주지 않는다(플러그인 목표 — 그 코드를 부르지 않게).
          */
         record GoalPin(boolean targets, int index, Object wrappedRef, Object goalRef, String vanillaClass, int priority, int flags) implements EntityOp {}
 

@@ -360,4 +360,54 @@ class NmsMobGoalsDetachedTest {
         assertEquals(8, session.mobGoals().availableSize(false), "재생 상태는 그대로 쓴다");
         assertThrows(IllegalArgumentException.class, () -> session.apply(new org.domi.furnace.api.internal.ChunkInternals.EntityOp.GoalAddWrapped(false, w2)));
     }
+
+    /** 검토 권장 3: 기본 목록의 목표를 뺐다 다시 넣으면 같은 진짜 목표가 뒤에 붙는다. 스폰 이벤트를 취소하면 넣기 전 shim 은 샌드박스로 돌아간다. */
+    @Test
+    void defaultGoalReAddedAndCancelledSpawn() {
+        Mob m = detached(EntityType.CHICKEN, 11.5);
+        WrappedGoal panic = m.goalSelector.getAvailableGoals().stream().toList().get(1);
+        Goal inner = panic.getGoal();
+        m.goalSelector.removeGoal(inner);
+        m.goalSelector.addGoal(9, inner);
+        List<String> want = new ArrayList<>(CHICKEN);
+        want.remove(1);
+        want.add("9 PanicGoal");
+        assertEquals(want, names(m.goalSelector.getAvailableGoals()));
+        add(m);
+        try {
+            var s = serverMob(m);
+            assertEquals(want, serverNames(s, false));
+            assertSame(inner, m.goalSelector.getAvailableGoals().stream().toList().get(7).getGoal(), "다시 넣은 기본 목표도 같은 shim");
+        } finally {
+            remove(m);
+        }
+
+        Mob c = detached(EntityType.CHICKEN, 12.5);
+        WrappedGoal first = c.goalSelector.getAvailableGoals().iterator().next();
+        org.domi.furnace.api.event.entity.CreatureSpawnEvent[] cancel = {null};
+        onSpawn = () -> {
+            onSpawn = null;
+            assertEquals(8, c.goalSelector.getAvailableGoals().size(), "이벤트 안: 넣을 몹");
+        };
+        var sub = server.api().events().subscribe(server.plugin(CompatTestPlugin.class), org.domi.furnace.api.event.entity.CreatureSpawnEvent.class,
+                EventPriority.HIGH, false, e -> { if (cancel[0] == null) { cancel[0] = e; e.setCancelled(true); } });
+        try {
+            assertFalse(on(() -> level.addFreshEntity(c, SpawnReason.CUSTOM)));
+        } finally {
+            sub.unsubscribe();
+        }
+        assertFalse(first.isRunning(), "취소 뒤에는 샌드박스");
+        assertEquals(8, c.goalSelector.getAvailableGoals().size());
+    }
+
+    /** 검토 권장 4: 샌드박스에서 목표 조작이 거절돼도 그 몹의 재생 상태(칸 보기)는 잠기지 않는다. */
+    @Test
+    void rejectedGoalEditDoesNotLockTheSession() {
+        var session = NmsChunks.bridge().openDetachedEntityData("minecraft:chicken", List.of());
+        assertThrows(IllegalArgumentException.class, () -> session.apply(new org.domi.furnace.api.internal.ChunkInternals.EntityOp.GoalAdd(false, 0, new Object())));
+        assertThrows(IllegalArgumentException.class, () -> session.apply(new org.domi.furnace.api.internal.ChunkInternals.EntityOp.GoalRemove(false,
+                (org.domi.furnace.api.internal.ChunkInternals.GoalRef) srv -> null)));
+        assertFalse(session.slots().isEmpty());
+        assertEquals(8, session.mobGoals().availableSize(false));
+    }
 }
