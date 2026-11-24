@@ -22,7 +22,7 @@ class GoalSelectorTest {
                 org.domi.furnace.server.net.registry.RegistrySet.load("registries/" + GameVersion.RESOURCE_TAG + ".txt")));
     }
 
-    static final class Script extends Goal {
+    static class Script extends Goal {
         final List<String> log;
         final String name;
         boolean usable = true;
@@ -112,5 +112,70 @@ class GoalSelectorTest {
             turned = Math.abs(m.yHeadRot() - h0) > 1.0F;
         }
         assertTrue(turned);
+    }
+
+    /** 몹 목표 설계 M1 검토 1: 집합에서만 빼면(바닐라 getAvailableGoals().removeIf·removeAllGoals) 돌던 목표는 멈추지 않고 잠근 칸도 남는다. */
+    @Test
+    void removingFromTheSetOnlyKeepsTheRunningGoalAndItsLock() {
+        List<String> log = new ArrayList<>();
+        var sel = new GoalSelector();
+        var held = new Script(log, "held", EnumSet.of(Goal.Flag.MOVE));
+        sel.addGoal(0, held);
+        sel.tick();
+        assertEquals(List.of("start held", "tick held"), log);
+        log.clear();
+        sel.removeAllGoals(g -> g == held);
+        assertTrue(sel.getAvailableGoals().isEmpty());
+        assertEquals(List.of(), log, "멈추지 않는다");
+        var later = new Script(log, "later", EnumSet.of(Goal.Flag.MOVE));
+        sel.addGoal(5, later);
+        sel.tick();
+        assertEquals(List.of(), log, "빠진 목표가 MOVE 칸을 쥔 채라 더 낮은 우선순위는 시작하지 못한다(바닐라와 같음)");
+        // removeGoal 은 멈추고 뺀다
+        var sel2 = new GoalSelector();
+        var g2 = new Script(log, "g2", EnumSet.of(Goal.Flag.LOOK));
+        sel2.addGoal(1, g2);
+        sel2.tick();
+        log.clear();
+        sel2.removeGoal(g2);
+        assertEquals(List.of("stop g2"), log);
+    }
+
+    /** 몹 목표 설계 M1 검토 2: 돌기 도중 집합에서 뺀 목표는 빠질 예정 표시로 같은 패스에서 시작·틱하지 않는다(바닐라 집합은 바로 빠진다). */
+    @Test
+    void goalsRemovedDuringThePassAreSkippedInThatPass() {
+        List<String> log = new ArrayList<>();
+        var sel = new GoalSelector();
+        var victim = new Script(log, "victim", EnumSet.of(Goal.Flag.LOOK));
+        var remover = new Script(log, "remover", EnumSet.of(Goal.Flag.MOVE)) {
+            @Override public void start() {
+                super.start();
+                sel.removeFromSet(w -> w.getGoal() == victim);
+            }
+        };
+        sel.addGoal(1, remover);
+        sel.addGoal(2, victim);
+        sel.tick();
+        assertEquals(List.of("start remover", "tick remover"), log, "뒤쪽 목표는 그 패스에서 시작하지 않는다");
+        assertEquals(1, sel.getAvailableGoals().size(), "돌기가 끝난 뒤 빠졌다");
+
+        // 돌던 목표를 도는 중 집합에서만 빼면 멈추지 않고 그 패스의 틱도 건너뛴다(바닐라: 집합에서 빠져 훑기에 없다)
+        log.clear();
+        var sel2 = new GoalSelector();
+        var running = new Script(log, "running", EnumSet.of(Goal.Flag.LOOK));
+        var cutter = new Script(log, "cutter", EnumSet.of(Goal.Flag.MOVE)) {
+            @Override public void tick() {
+                super.tick();
+                sel2.removeFromSet(w -> w.getGoal() == running);
+            }
+        };
+        sel2.addGoal(1, cutter);
+        sel2.addGoal(2, running);
+        sel2.tick();
+        assertEquals(List.of("start cutter", "start running", "tick cutter"), log, "앞 목표의 틱이 뺀 뒤쪽 목표는 같은 패스에서 틱하지 않고 멈추지도 않는다");
+        assertEquals(1, sel2.getAvailableGoals().size());
+        log.clear();
+        sel2.tick();
+        assertEquals(List.of("tick cutter"), log);
     }
 }

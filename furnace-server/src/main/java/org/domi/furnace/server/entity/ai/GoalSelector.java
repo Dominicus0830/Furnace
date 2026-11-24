@@ -26,9 +26,28 @@ public class GoalSelector {
         else availableGoals.add(w);
     }
 
+    /** 바닐라 removeAllGoals: 집합에서만 뺀다(돌던 목표도 멈추지 않는다 — Paper 1.21.1 과 같음). */
     public void removeAllGoals(Predicate<Goal> filter) {
-        if (ticking) defer(() -> availableGoals.removeIf(w -> filter.test(w.getGoal())));
-        else availableGoals.removeIf(w -> filter.test(w.getGoal()));
+        removeFromSet(w -> filter.test(w.getGoal()));
+    }
+
+    /**
+     * 집합에서만 뺀다(바닐라에서 {@code getAvailableGoals()} 를 바로 고친 것과 같다): 돌던 목표는 멈추지 않고 잠근 칸도 그대로 남는다.
+     * 돌기 도중이면 빠질 예정 표시를 해 그 패스에서 건너뛰고, 집합 변경은 돌기가 끝난 뒤에.
+     */
+    public void removeFromSet(Predicate<WrappedGoal> filter) {
+        if (ticking) {
+            for (WrappedGoal w : availableGoals) if (filter.test(w)) w.leaving = true;
+            defer(() -> availableGoals.removeIf(w -> w.leaving));
+        } else {
+            availableGoals.removeIf(filter);
+        }
+    }
+
+    /** 집합에 바로 넣는다(바닐라 {@code getAvailableGoals().add}). 돌기 도중이면 끝난 뒤에. */
+    public void addToSet(WrappedGoal w) {
+        if (ticking) defer(() -> availableGoals.add(w));
+        else availableGoals.add(w);
     }
 
     /**
@@ -52,8 +71,7 @@ public class GoalSelector {
 
     public void removeGoal(Goal goal) {
         for (WrappedGoal w : availableGoals) if (w.getGoal() == goal && w.isRunning()) w.stop();
-        if (ticking) defer(() -> availableGoals.removeIf(w -> w.getGoal() == goal));
-        else availableGoals.removeIf(w -> w.getGoal() == goal);
+        removeFromSet(w -> w.getGoal() == goal);
     }
 
     /** 조건에 맞는 목표를 모두 멈추고 뺀다(플러그인 API). 뺀 개수(돌기 도중이면 곧 빠질 개수). */
@@ -67,8 +85,7 @@ public class GoalSelector {
         if (hit.isEmpty()) return 0;
         java.util.Set<Goal> set = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
         set.addAll(hit);
-        if (ticking) defer(() -> availableGoals.removeIf(w -> set.contains(w.getGoal())));
-        else availableGoals.removeIf(w -> set.contains(w.getGoal()));
+        removeFromSet(w -> set.contains(w.getGoal()));
         return hit.size();
     }
 
@@ -112,11 +129,11 @@ public class GoalSelector {
 
     private void selectGoals() {
         for (WrappedGoal w : availableGoals) {
-            if (w.isRunning() && (goalContainsAnyFlags(w, disabledFlags) || !w.canContinueToUse())) w.stop();
+            if (!w.leaving && w.isRunning() && (goalContainsAnyFlags(w, disabledFlags) || !w.canContinueToUse())) w.stop();
         }
         lockedFlags.entrySet().removeIf(e -> !e.getValue().isRunning());
         for (WrappedGoal w : availableGoals) {
-            if (!w.isRunning() && !goalContainsAnyFlags(w, disabledFlags) && goalCanBeReplacedForAllFlags(w, lockedFlags) && w.canUse()) {
+            if (!w.leaving && !w.isRunning() && !goalContainsAnyFlags(w, disabledFlags) && goalCanBeReplacedForAllFlags(w, lockedFlags) && w.canUse()) {
                 for (Goal.Flag f : w.getFlags()) {
                     lockedFlags.getOrDefault(f, NO_GOAL).stop();
                     lockedFlags.put(f, w);
@@ -139,7 +156,7 @@ public class GoalSelector {
 
     private void tickGoals(boolean forceTickAllRunning) {
         for (WrappedGoal w : availableGoals) {
-            if (w.isRunning() && (forceTickAllRunning || w.requiresUpdateEveryTick())) w.tick();
+            if (!w.leaving && w.isRunning() && (forceTickAllRunning || w.requiresUpdateEveryTick())) w.tick();
         }
     }
 

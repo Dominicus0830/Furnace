@@ -953,10 +953,192 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     @Override
+    public MobGoals mobGoals(org.domi.furnace.api.entity.Entity entity) {
+        if (entity instanceof PlayerHandle) return null;
+        var e = org.domi.furnace.api.Furnace.server().internals().entityNow(entity, org.domi.furnace.server.entity.Entity.class);
+        return e instanceof org.domi.furnace.server.entity.Mob m ? new MobGoalsImpl(m) : null;
+    }
+
+    @Override
     public WatchedEntityData watchEntityData(org.domi.furnace.api.entity.Entity entity) {
         if (entity instanceof PlayerHandle) throw new IllegalArgumentException("the data slots of a player are not reachable this way");
         var e = org.domi.furnace.api.Furnace.server().internals().entityNow(entity, org.domi.furnace.server.entity.Entity.class);
         return e.entityData().watch(() -> new Watched(e.entityData()));
+    }
+
+    /**
+     * 호환 계층 몹 목표(몹 목표 설계 M1): 서버 몹의 두 선택기를 불투명 객체로 다룬다. 몹 하나에 하나(MobAi 처럼 얇아 필요할 때마다 만든다).
+     * 모든 호출은 그 몹의 주인 스레드에서만 — 호출마다 확인한다.
+     */
+    private static final class MobGoalsImpl implements MobGoals {
+
+        private static final org.domi.furnace.server.entity.ai.Goal.Flag[] FLAGS = org.domi.furnace.server.entity.ai.Goal.Flag.values();   // GoalControl 과 같은 순서(MOVE·LOOK·JUMP·TARGET — 이름으로 확인은 시험)
+
+        private final org.domi.furnace.server.entity.Mob mob;
+
+        MobGoalsImpl(org.domi.furnace.server.entity.Mob mob) { this.mob = mob; }
+
+        private void check() {
+            if (!org.domi.furnace.server.world.RegionBorrow.claimEntity(mob) && !mob.level().isOwnerThread()) {
+                throw new org.domi.furnace.api.concurrent.ThreadOwnershipException("mob goals of " + mob.uuid() + " can only be used from the region thread that owns the mob (current thread: "
+                        + Thread.currentThread().getName() + ")");
+            }
+        }
+
+        private org.domi.furnace.server.entity.ai.GoalSelector selector(boolean targets) {
+            check();
+            return targets ? mob.targetSelector() : mob.goalSelector();
+        }
+
+        private static org.domi.furnace.server.entity.ai.Goal goal0(Object o) {
+            if (o instanceof org.domi.furnace.server.entity.ai.Goal g) return g;
+            throw new IllegalArgumentException("not a server goal: " + o);
+        }
+
+        private static org.domi.furnace.server.entity.ai.WrappedGoal wrapped0(Object o) {
+            if (o instanceof org.domi.furnace.server.entity.ai.WrappedGoal w) return w;
+            throw new IllegalArgumentException("not a server wrapped goal: " + o);
+        }
+
+        @Override
+        public java.util.List<Object> available(boolean targets) { return new java.util.ArrayList<>(selector(targets).getAvailableGoals()); }
+
+        @Override
+        public void removeGoal(boolean targets, Object goal) { selector(targets).removeGoal(goal0(goal)); }
+
+        @Override
+        public void removeFromSet(boolean targets, java.util.function.Predicate<Object> wrapped) { selector(targets).removeFromSet(wrapped::test); }
+
+        @Override
+        public boolean addToSet(boolean targets, Object wrapped) {
+            org.domi.furnace.server.entity.ai.GoalSelector s = selector(targets);
+            org.domi.furnace.server.entity.ai.WrappedGoal w = wrapped0(wrapped);
+            if (s.getAvailableGoals().contains(w)) return false;
+            s.addToSet(w);
+            return true;
+        }
+
+        @Override
+        public void addGoal(boolean targets, int priority, Object goal) { selector(targets).addGoal(priority, goal0(goal)); }
+
+        @Override
+        public boolean isNoAi() {
+            check();
+            return mob.isNoAi();
+        }
+
+        @Override
+        public void setNoAi(boolean noAi) {
+            check();
+            mob.setNoAi(noAi);
+        }
+
+        @Override
+        public void tick(boolean targets) { selector(targets).tick(); }
+
+        @Override
+        public void tickRunningGoals(boolean targets, boolean force) { selector(targets).tickRunningGoals(force); }
+
+        @Override
+        public void setControlFlag(boolean targets, int control, boolean enabled) { selector(targets).setControlFlag(FLAGS[control], enabled); }
+
+        @Override
+        public boolean inactiveTick(boolean targets) { return selector(targets).inactiveTick(); }
+
+        @Override
+        public boolean hasTasks(boolean targets) { return selector(targets).hasTasks(); }
+
+        @Override
+        public int priority(Object wrapped) { return wrapped0(wrapped).getPriority(); }
+
+        @Override
+        public Object goal(Object wrapped) { return wrapped0(wrapped).getGoal(); }
+
+        @Override
+        public boolean isRunning(Object wrapped) {
+            check();
+            return wrapped0(wrapped).isRunning();
+        }
+
+        @Override
+        public boolean canBeReplacedBy(Object wrapped, Object other) {
+            check();
+            return wrapped0(wrapped).canBeReplacedBy(wrapped0(other));
+        }
+
+        @Override
+        public String vanillaClass(Object goal) { return GoalClasses.vanillaName(goal0(goal).getClass()); }
+
+        @Override
+        public Object view(Object serverObject) {
+            check();
+            return serverObject instanceof org.domi.furnace.server.entity.ai.WrappedGoal w ? w.compatView : goal0(serverObject).compatView;
+        }
+
+        @Override
+        public void setView(Object serverObject, Object view) {
+            check();
+            if (serverObject instanceof org.domi.furnace.server.entity.ai.WrappedGoal w) w.compatView = view;
+            else goal0(serverObject).compatView = view;
+        }
+
+        @Override
+        public boolean canUse(Object goal) {
+            check();
+            return goal0(goal).canUse();
+        }
+
+        @Override
+        public boolean canContinueToUse(Object goal) {
+            check();
+            return goal0(goal).canContinueToUse();
+        }
+
+        @Override
+        public boolean isInterruptable(Object goal) {
+            check();
+            return goal0(goal).isInterruptable();
+        }
+
+        @Override
+        public void start(Object goal) {
+            check();
+            goal0(goal).start();
+        }
+
+        @Override
+        public void stop(Object goal) {
+            check();
+            goal0(goal).stop();
+        }
+
+        @Override
+        public boolean requiresUpdateEveryTick(Object goal) {
+            check();
+            return goal0(goal).requiresUpdateEveryTick();
+        }
+
+        @Override
+        public void tickGoal(Object goal) {
+            check();
+            goal0(goal).tick();
+        }
+
+        @Override
+        public int flags(Object goal) {
+            check();
+            int m = 0;
+            for (org.domi.furnace.server.entity.ai.Goal.Flag f : goal0(goal).getFlags()) m |= 1 << f.ordinal();
+            return m;
+        }
+
+        @Override
+        public void setFlags(Object goal, int controls) {
+            check();
+            java.util.EnumSet<org.domi.furnace.server.entity.ai.Goal.Flag> set = java.util.EnumSet.noneOf(org.domi.furnace.server.entity.ai.Goal.Flag.class);
+            for (org.domi.furnace.server.entity.ai.Goal.Flag f : FLAGS) if ((controls & 1 << f.ordinal()) != 0) set.add(f);
+            goal0(goal).setFlags(set);
+        }
     }
 
     /**

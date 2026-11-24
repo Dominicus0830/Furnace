@@ -978,6 +978,86 @@ public interface ChunkInternals {
         java.util.List<EntityDataSlot> slots();
     }
 
+    /**
+     * 월드에 있는 몹의 목표 선택기(몹 목표 설계 M1 — 호환 계층의 {@code GoalSelector}·{@code WrappedGoal}·{@code Goal} 모양). 몹이 아니면 null.
+     * 돌려준 객체와 그 메서드는 그 몹의 주인 스레드에서만 쓴다(다른 스레드면 ThreadOwnershipException). 서버 목표·감싼 목표는 불투명 객체로 오가고
+     * 같은 서버 객체는 같은 객체다. 깃발은 {@link org.domi.furnace.api.entity.ai.GoalControl} 순서의 비트.
+     */
+    default MobGoals mobGoals(org.domi.furnace.api.entity.Entity entity) { throw new UnsupportedOperationException("mobGoals"); }
+
+    /** {@link #mobGoals} 의 값. {@code targets} 가 참이면 대상 선택기({@code targetSelector}), 아니면 행동 선택기({@code goalSelector}). */
+    interface MobGoals {
+        /** 선택기의 감싼 목표들(넣은 순서). */
+        java.util.List<Object> available(boolean targets);
+
+        /** 바닐라 {@code removeGoal}: 그 목표를 돌고 있으면 멈추고 집합에서 뺀다. */
+        void removeGoal(boolean targets, Object goal);
+
+        /** 집합에서만 뺀다(바닐라 {@code removeAllGoals}·{@code getAvailableGoals().remove…} — 돌던 목표도 멈추지 않는다). */
+        void removeFromSet(boolean targets, java.util.function.Predicate<Object> wrapped);
+
+        /** 감싼 목표를 집합에 넣는다(바닐라 {@code getAvailableGoals().add}). 같은 목표가 이미 있으면 거짓. */
+        boolean addToSet(boolean targets, Object wrapped);
+
+        /** 바닐라 {@code addGoal}: 서버 목표를 우선순위와 함께 감싸 넣는다. */
+        void addGoal(boolean targets, int priority, Object goal);
+
+        /** 바닐라 {@code Mob#isNoAi}·{@code setNoAi}. */
+        boolean isNoAi();
+
+        void setNoAi(boolean noAi);
+
+        void tick(boolean targets);
+
+        void tickRunningGoals(boolean targets, boolean force);
+
+        /** 바닐라 {@code setControlFlag}(깃발 하나 — {@code GoalControl} 순서 번호). */
+        void setControlFlag(boolean targets, int control, boolean enabled);
+
+        /** Paper {@code inactiveTick}. */
+        boolean inactiveTick(boolean targets);
+
+        /** Paper {@code hasTasks}. */
+        boolean hasTasks(boolean targets);
+
+        // ---- 감싼 목표·목표 하나(서버 객체)
+
+        int priority(Object wrapped);
+
+        Object goal(Object wrapped);
+
+        boolean isRunning(Object wrapped);
+
+        boolean canBeReplacedBy(Object wrapped, Object other);
+
+        /** 이 서버 목표에 가장 가까운 바닐라 목표 클래스 이름({@code net.minecraft.world.entity.ai.goal.…}). 감싼 목표면 {@code …WrappedGoal}. */
+        String vanillaClass(Object goal);
+
+        /** 이 서버 객체에 붙인 호환 객체(없으면 null)와 붙이기. */
+        Object view(Object serverObject);
+
+        void setView(Object serverObject, Object view);
+
+        boolean canUse(Object goal);
+
+        boolean canContinueToUse(Object goal);
+
+        boolean isInterruptable(Object goal);
+
+        void start(Object goal);
+
+        void stop(Object goal);
+
+        boolean requiresUpdateEveryTick(Object goal);
+
+        void tickGoal(Object goal);
+
+        /** 쥐는 깃발({@code GoalControl} 순서의 비트). */
+        int flags(Object goal);
+
+        void setFlags(Object goal, int controls);
+    }
+
     /** {@link #addNmsEntityNow} 가 재생할 엔티티 조작 하나. */
     sealed interface EntityOp {
         /** 바닐라 {@code Entity#load(tag)}. */
