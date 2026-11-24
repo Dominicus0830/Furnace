@@ -25,7 +25,7 @@ class GoalSelector {
     /** 서버 목표를 보는 shim 은 그 서버 목표를, 플러그인이 상속한 목표는 서버 어댑터(몹 목표 M2a)를 넣는다. */
     public void addGoal(int priority, Goal goal) {
         NmsGoals.on(furnaceMob, "GoalSelector#addGoal", g -> {
-            g.addGoal(furnaceTargets, priority, NmsGoals.serverGoal(g, goal));
+            g.addGoal(furnaceTargets, priority, NmsGoals.serverGoal(furnaceMob, g, goal));
             return null;
         });
     }

@@ -274,4 +274,83 @@ class NmsMobGoalsTest {
             remove(m);
         }
     }
+
+    /** 바닐라 목표를 상속한 플러그인 클래스(T-237 몫 — 넣을 때 거부). */
+    static final class MyFloat extends net.minecraft.world.entity.ai.goal.FloatGoal {
+        MyFloat(Mob mob) { super(mob); }
+        @Override public boolean canUse() { return true; }
+    }
+
+    /** M2b: 바닐라 목표 생성자는 그 자리에서 서버 목표를 만들고(즉시 부작용·검사 예외), 넣으면 그 객체가 그대로 보인다. */
+    @Test
+    void vanillaGoalConstructorsMakeServerGoals() {
+        Mob m = spawnChicken(6.5);
+        Mob other = spawnChicken(7.5);
+        Mob squid = (Mob) EntityType.PARROT.create(level);
+        squid.moveTo(at.x() + 8.5, at.y(), at.z() + 0.5, 0.0F, 0.0F);
+        assertTrue(on(() -> level.addFreshEntity(squid, SpawnReason.CUSTOM)));
+        try {
+            var s = serverMob(m);
+            on(() -> {
+                s.goalSelector().removeAllGoals(g -> true);
+                s.targetSelector().removeAllGoals(g -> true);
+                s.getNavigation().setCanFloat(false);
+                return null;
+            });
+            var floatGoal = new net.minecraft.world.entity.ai.goal.FloatGoal(m);
+            assertTrue(on(() -> s.getNavigation().canFloat()), "바닐라 FloatGoal 생성자의 즉시 부작용(물에 뜨기 켜기)");
+            assertTrue(floatGoal.getFlags().hasElement(Goal.Flag.JUMP));
+            var melee = new net.minecraft.world.entity.ai.goal.MeleeAttackGoal((net.minecraft.world.entity.PathfinderMob) m, 1.0, false);
+            assertTrue(melee.getFlags().hasElement(Goal.Flag.MOVE) && melee.getFlags().hasElement(Goal.Flag.LOOK));
+            m.goalSelector.addGoal(0, floatGoal);
+            m.goalSelector.addGoal(2, melee);
+            var target = new net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal<>(m, net.minecraft.world.entity.player.Player.class, true);
+            m.targetSelector.addGoal(1, target);
+            assertEquals(List.of("FloatGoal", "MeleeAttackGoal"), on(() -> s.goalSelector().getAvailableGoals().stream()
+                    .map(w -> w.getGoal().getClass().getSimpleName()).toList()), "서버에 진짜 바닐라 목표");
+            assertSame(melee, m.goalSelector.getAvailableGoals().stream().map(WrappedGoal::getGoal).filter(g -> g instanceof net.minecraft.world.entity.ai.goal.MeleeAttackGoal)
+                    .findFirst().orElseThrow(), "집합 보기에는 만든 그 객체");
+            assertSame(target, m.targetSelector.getAvailableGoals().iterator().next().getGoal());
+            m.goalSelector.removeGoal(melee);
+            assertEquals(1, (int) on(() -> s.goalSelector().getAvailableGoals().size()));
+
+            // 엔티티 클래스: 몹·동물은 플레이어가 아니라 받는다, 살아 있는 것 전부(플레이어와 섞임)는 거부
+            var look = new net.minecraft.world.entity.ai.goal.LookAtPlayerGoal(m, Mob.class, 8.0F);
+            assertTrue(look instanceof net.minecraft.world.entity.ai.goal.LookAtPlayerGoal);
+            new net.minecraft.world.entity.ai.goal.AvoidEntityGoal<>((net.minecraft.world.entity.PathfinderMob) m, net.minecraft.world.entity.animal.Animal.class, 6.0F, 1.0, 1.2);
+            var mixed = assertThrows(UnsupportedNmsCall.class,
+                    () -> new net.minecraft.world.entity.ai.goal.LookAtPlayerGoal(m, net.minecraft.world.entity.LivingEntity.class, 8.0F));
+            assertTrue(mixed.getMessage().contains("players"), mixed.getMessage());
+            assertTrue(NmsGoals.targets("t", net.minecraft.world.entity.player.Player.class).playersOnly());
+            assertTrue(NmsGoals.targets("t", Mob.class).types().contains("minecraft:zombie"));
+            assertFalse(NmsGoals.targets("t", Mob.class).types().contains("minecraft:player"));
+
+            // 바닐라 생성자 검사 예외는 원형 그대로(문 목표는 땅 길찾기만)
+            var door = assertThrows(IllegalArgumentException.class, () -> new net.minecraft.world.entity.ai.goal.OpenDoorGoal(squid, false));
+            assertEquals("Unsupported mob type for DoorInteractGoal", door.getMessage());
+
+            // 바닐라 목표를 상속한 플러그인 클래스(T-237), 다른 몹의 목표, M2b-2 생성자는 거부
+            var sub = assertThrows(UnsupportedNmsCall.class, () -> m.goalSelector.addGoal(1, new MyFloat(m)));
+            assertTrue(sub.getMessage().contains("T-237"), sub.getMessage());
+            var foreign = assertThrows(UnsupportedNmsCall.class, () -> other.goalSelector.addGoal(1, floatGoal));
+            assertTrue(foreign.getMessage().contains("another mob"), foreign.getMessage());
+            assertThrows(UnsupportedNmsCall.class, () -> new net.minecraft.world.entity.ai.goal.BreedGoal(
+                    (net.minecraft.world.entity.animal.Animal) m, 1.0, net.minecraft.world.entity.animal.Animal.class));
+
+            // 다른 region·전역 스레드에서 만들면 거부(그 몹의 region 에서 만들 것)
+            Object r = server.onGlobal(() -> {
+                try {
+                    return new net.minecraft.world.entity.ai.goal.RandomLookAroundGoal(m);
+                } catch (RuntimeException ex) {
+                    return ex;
+                }
+            });
+            assertInstanceOf(org.domi.furnace.api.concurrent.ThreadOwnershipException.class, r);
+            assertTrue(((Exception) r).getMessage().contains("region of their mob"));
+        } finally {
+            remove(m);
+            remove(other);
+            remove(squid);
+        }
+    }
 }

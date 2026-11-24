@@ -279,4 +279,17 @@ class GoalSelectorTest {
         sel.tick();
         assertEquals(1, sel.getAvailableGoals().size(), "넣고 뺀 목표는 남지 않는다(바닐라 순서대로)");
     }
+
+    /** 바닐라 LookAtPlayerGoal(몹 대상): 공격 대상이 있어도 가장 가까운 그 종류 엔티티를 찾아 덮어쓴다(Paper 1.21.1 jar javap) — 근처에 없으면 시작하지 않는다. */
+    @Test
+    void lookAtMobSearchesEvenWithATarget() {
+        var level = new BlockPlacementTest.TestLevel();
+        var m = new Walker(level, level.nextEntityId());
+        m.moveTo(0.5, -60, 0.5, 0, 0);
+        var other = new Walker(level, level.nextEntityId());
+        other.moveTo(0.5, -60, 100.5, 0, 0);
+        assertTrue(m.setTarget(other));
+        var goal = new org.domi.furnace.server.entity.ai.goal.LookAtMobGoal(m, Mob.class, 8.0F, 1.0F);
+        assertFalse(goal.canUse(), "대상은 8칸 밖이라 찾지 못한다 — 대상을 그대로 보지 않는다");
+    }
 }

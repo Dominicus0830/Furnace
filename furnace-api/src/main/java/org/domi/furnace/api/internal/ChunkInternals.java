@@ -985,6 +985,12 @@ public interface ChunkInternals {
      */
     default MobGoals mobGoals(org.domi.furnace.api.entity.Entity entity) { throw new UnsupportedOperationException("mobGoals"); }
 
+    /**
+     * 바닐라 목표 생성자의 엔티티 클래스 매개변수(몹 목표 설계 M2b). {@code playersOnly} 면 플레이어만(바닐라 플레이어 검색 길), 아니면 종류 이름이
+     * {@code types} 안인 엔티티(플레이어 없음).
+     */
+    record GoalTargets(boolean playersOnly, java.util.Set<String> types) {}
+
     /** 플러그인 목표 하나의 콜백(몹 목표 설계 M2a). 모두 그 몹의 주인 스레드에서 불린다. */
     interface GoalCallbacks {
         /** 플러그인 목표 객체(호환 보기·같음·{@code removeGoal} 판정에 쓴다). */
@@ -1036,6 +1042,12 @@ public interface ChunkInternals {
          * 그 목표만 멈추며, 플러그인이 꺼지면 스스로 두 선택기에서 빠진다. 같은 {@code target} 을 감싼 서버 목표끼리는 같다(equals — 집합에 한 번만).
          */
         Object adopt(GoalCallbacks callbacks);
+
+        /**
+         * 바닐라 목표 생성자(몹 목표 설계 M2b): 이 몹으로 서버 목표를 만든다. {@code vanillaClass} 는 바닐라 목표 클래스의 짧은 이름(예 {@code MeleeAttackGoal}),
+         * {@code args} 는 몹 다음의 매개변수(수·참거짓·{@link GoalTargets}). 맞는 생성자가 없으면 null. 바닐라 생성자의 검사 예외는 그대로 던진다.
+         */
+        Object vanillaGoal(String vanillaClass, Object... args);
 
         /** 집합에서만 뺀다(바닐라 {@code removeAllGoals}·{@code getAvailableGoals().remove…} — 돌던 목표도 멈추지 않는다). */
         void removeFromSet(boolean targets, java.util.function.Predicate<Object> wrapped);

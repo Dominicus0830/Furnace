@@ -16,35 +16,42 @@ public class LookAtMobGoal extends Goal {
     private int lookTime;
     protected final float probability;
     private final TargetingConditions lookAtContext;
+    /** 바닐라 대상 클래스를 서버 클래스 + 종류 조건으로 옮긴 것(몹 목표 M2b — 서버 몹은 늘 참). */
+    private final java.util.function.Predicate<? super LivingEntity> typeFilter;
+    private final boolean onlyHorizontal;
 
     public LookAtMobGoal(Mob mob, Class<? extends LivingEntity> type, float lookDistance, float probability) {
+        this(mob, type, e -> true, lookDistance, probability, false);
+    }
+
+    public LookAtMobGoal(Mob mob, Class<? extends LivingEntity> type, java.util.function.Predicate<? super LivingEntity> typeFilter, float lookDistance,
+            float probability, boolean onlyHorizontal) {
         this.mob = mob;
         this.lookAtType = type;
+        this.typeFilter = typeFilter;
         this.lookDistance = lookDistance;
         this.probability = probability;
+        this.onlyHorizontal = onlyHorizontal;
         setFlags(EnumSet.of(Flag.LOOK));
         this.lookAtContext = TargetingConditions.forNonCombat().range(lookDistance).selector(t -> true);
     }
 
+    /** 바닐라: 공격 대상이 있으면 lookAt 에 넣지만 곧바로 가장 가까운 그 종류 엔티티로 덮어쓴다(Paper 1.21.1 jar javap) — 늘 찾는다. */
     @Override
     public boolean canUse() {
         if (mob.random().nextFloat() >= probability) return false;
-        if (mob.getTarget() != null) {
-            lookAt = mob.getTarget();
-        } else {
-            double best = -1.0;
-            Targetable result = null;
-            for (LivingEntity e : mob.level().getEntitiesOfClass(lookAtType, mob.boundingBox().inflate(lookDistance, 3.0, lookDistance), x -> true)) {
-                if (!lookAtContext.test(mob, e)) continue;
-                double dx = e.x() - mob.x(), dy = e.y() - mob.eyeY(), dz = e.z() - mob.z();
-                double d = dx * dx + dy * dy + dz * dz;
-                if (best == -1.0 || d < best) {
-                    best = d;
-                    result = e;
-                }
+        double best = -1.0;
+        Targetable result = null;
+        for (LivingEntity e : mob.level().getEntitiesOfClass(lookAtType, mob.boundingBox().inflate(lookDistance, 3.0, lookDistance), x -> true)) {
+            if (!typeFilter.test(e) || !lookAtContext.test(mob, e)) continue;
+            double dx = e.x() - mob.x(), dy = e.y() - mob.eyeY(), dz = e.z() - mob.z();
+            double d = dx * dx + dy * dy + dz * dz;
+            if (best == -1.0 || d < best) {
+                best = d;
+                result = e;
             }
-            lookAt = result;
         }
+        lookAt = result;
         return lookAt != null;
     }
 
@@ -62,7 +69,8 @@ public class LookAtMobGoal extends Goal {
     @Override
     public void tick() {
         if (lookAt != null && lookAt.isAlive()) {
-            mob.getLookControl().setLookAt(lookAt.x(), lookAt.eyeY(), lookAt.z());
+            double y = onlyHorizontal ? mob.eyeY() : lookAt.eyeY();
+            mob.getLookControl().setLookAt(lookAt.x(), y, lookAt.z());
             lookTime--;
         }
     }
