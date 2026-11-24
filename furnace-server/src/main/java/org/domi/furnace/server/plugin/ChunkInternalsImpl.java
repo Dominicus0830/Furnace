@@ -1039,7 +1039,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
             check();
             Object[] a = args.clone();
             for (int i = 0; i < a.length; i++) {
-                if (a[i] instanceof GoalTargets t) a[i] = new CompatVanillaGoals.Targets(t.playersOnly(), t.types());
+                a[i] = goalArg(a[i]);
             }
             return CompatVanillaGoals.create(mob, vanillaClass, a);
         }
@@ -1610,7 +1610,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
             }
             case EntityOp.GoalCreate g -> {
                 Object[] a = g.args().toArray();
-                for (int i = 0; i < a.length; i++) if (a[i] instanceof GoalTargets t) a[i] = new CompatVanillaGoals.Targets(t.playersOnly(), t.types());
+                for (int i = 0; i < a.length; i++) a[i] = goalArg(a[i]);
                 var made = CompatVanillaGoals.create(mob, g.vanillaClass(), a);
                 if (made == null) throw new UnsupportedOperationException("no vanilla goal constructor " + g.vanillaClass() + " for " + g.args());   // 호환 계층이 M2b-2 안내로 바꾼다
                 refs.put(g.ref(), made);
@@ -1640,6 +1640,13 @@ final class ChunkInternalsImpl implements ChunkInternals {
             case EntityOp.GoalControlFlag g -> sel(mob, g.targets()).setControlFlag(org.domi.furnace.server.entity.ai.Goal.Flag.values()[g.control()], g.enabled());
             default -> throw new IllegalArgumentException("not a goal edit: " + op);
         }
+    }
+
+    /** 바닐라 목표 생성자 매개변수: API 기록 → CompatVanillaGoals 의 서버 값(CompatVanillaGoals 는 api.internal 을 쓰지 않는다 — 어댑터 경계). */
+    static Object goalArg(Object o) {
+        if (o instanceof GoalTargets t) return new CompatVanillaGoals.Targets(t.playersOnly(), t.types());
+        if (o instanceof GoalItems g) return new CompatVanillaGoals.Items(g.items(), g.test(), g.owner(), g.alive());
+        return o;
     }
 
     private static boolean goalEdit(EntityOp op) {
