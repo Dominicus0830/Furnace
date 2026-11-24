@@ -97,6 +97,8 @@ class NmsBlockContainerTest {
             assertThrows(IndexOutOfBoundsException.class, () -> c.getItem(27));
             assertEquals(27, c.getContents().size());
             assertEquals(3, c.getContents().get(4).getCount());
+            c.getContents().set(6, new ItemStack(Items.COAL, 2));   // Paper: 목록이 칸 그 자체
+            assertEquals(2, c.getItem(6).getCount());
             // 한 번에 99 를 넘기면 칸 한도로 줄어든다(limitSize)
             c.setItem(5, new ItemStack(Items.STONE, 64));
             assertEquals(64, c.getItem(5).getCount());
@@ -135,5 +137,40 @@ class NmsBlockContainerTest {
         assertEquals(2, chest.removeItem(2, 2).getCount());
         assertEquals(3, chest.getItem(2).getCount());
         assertTrue(!chest.isEmpty());
+    }
+
+    @Test
+    void decoratedPotHasOneSlot() {
+        BlockPos pos = new BlockPos(at.x(), at.y(), at.z());
+        server.onRegion(at, () -> {
+            level.setBlock(pos, Blocks.DECORATED_POT.defaultBlockState(), 3);
+            Container c = (Container) level.getBlockEntity(pos);
+            assertEquals(1, c.getContainerSize());
+            assertTrue(c.isEmpty());
+            assertTrue(c.getItem(1).isEmpty());   // 바닐라: 다른 번호는 빈 스택
+            c.setItem(0, new ItemStack(Items.BRICK, 3));
+            c.setItem(1, new ItemStack(Items.STONE));   // 무시
+            assertEquals(3, c.getItem(0).getCount());
+            assertEquals(1, c.removeItem(0, 1).getCount());
+            assertEquals(2, c.removeItemNoUpdate(0).getCount());
+            assertTrue(c.isEmpty());
+            return null;
+        });
+    }
+
+    @Test
+    void unopenedLootTableIsUnpackedBeforeTheFirstRead() {
+        BlockPos pos = new BlockPos(at.x(), at.y(), at.z());
+        server.onRegion(at, () -> {
+            level.setBlock(pos, Blocks.CHEST.defaultBlockState(), 3);
+            BlockEntity be = level.getBlockEntity(pos);
+            var tag = be.saveWithId(net.minecraft.server.MinecraftServer.getServer().registryAccess());
+            tag.putString("LootTable", "minecraft:chests/simple_dungeon");
+            be.loadWithComponents(tag, net.minecraft.server.MinecraftServer.getServer().registryAccess());
+            assertTrue(be.saveWithoutMetadata(null).contains("LootTable"));
+            ((Container) be).getItem(0);   // 바닐라 getItem 이 먼저 표를 푼다
+            assertTrue(!be.saveWithoutMetadata(null).contains("LootTable"));
+            return null;
+        });
     }
 }

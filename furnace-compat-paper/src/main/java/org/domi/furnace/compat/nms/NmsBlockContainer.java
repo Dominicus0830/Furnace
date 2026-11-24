@@ -10,10 +10,10 @@ import org.domi.furnace.api.nbt.NbtCompound;
 import org.domi.furnace.compat.paper.ItemNbtCodec;
 
 /**
- * 용기 블록 엔티티(상자·통·셜커·깔때기·발사기·화로류·양조대·제작기·장식 단지·주크박스·장식 책장)의 {@code Container} 몸통.
+ * 용기 블록 엔티티(상자·통·셜커·깔때기·발사기·화로류·양조대·제작기·장식 단지)의 {@code Container} 몸통.
  * 월드의 보기는 서버 용기 블록 엔티티의 칸을 그 칸의 주인 스레드에서 읽고 쓴다({@code ChunkAccess#furnaceBlockInventory} — 다른 스레드는 주인에게 부탁해 기다림).
  * 떨어진 블록 엔티티는 자기 NBT 의 {@code Items} 를 읽고 쓴다. 돌려주는 스택은 바닐라처럼 칸에 묶여 있어 고치면 칸이 바뀐다
- * ({@link ItemStack#liveContainerSlot}). 칸 쓰기는 서버의 칸 쓰기(바닐라 setItem 의 부수 효과 + 저장 표시·비교기 알림)로 이어진다.
+ * ({@link ItemStack#liveContainerSlot}). 열지 않은 전리품 표는 서버가 칸을 읽거나 쓰기 전에 푼다(바닐라 unpackLootTable(null); 떨어진 블록 엔티티는 레벨이 없어 풀지 않는다). 칸 쓰기는 서버의 칸 쓰기(바닐라 setItem 의 부수 효과 + 저장 표시·비교기 알림)로 이어진다.
  */
 public final class NmsBlockContainer {
 
@@ -25,11 +25,7 @@ public final class NmsBlockContainer {
             Map.entry("minecraft:shulker_box", 27), Map.entry("minecraft:hopper", 5), Map.entry("minecraft:dispenser", 9),
             Map.entry("minecraft:dropper", 9), Map.entry("minecraft:furnace", 3), Map.entry("minecraft:blast_furnace", 3),
             Map.entry("minecraft:smoker", 3), Map.entry("minecraft:brewing_stand", 5), Map.entry("minecraft:crafter", 9),
-            Map.entry("minecraft:chiseled_bookshelf", 6), Map.entry("minecraft:decorated_pot", 1), Map.entry("minecraft:jukebox", 1));
-
-    /** 전리품 표를 가질 수 있는 종류(바닐라 RandomizableContainerBlockEntity 하위). 읽기·쓰기 전에 표가 풀린다. */
-    private static final java.util.Set<String> LOOTABLE = java.util.Set.of("minecraft:chest", "minecraft:trapped_chest", "minecraft:barrel",
-            "minecraft:shulker_box", "minecraft:hopper", "minecraft:dispenser", "minecraft:dropper", "minecraft:crafter");
+            Map.entry("minecraft:decorated_pot", 1));
 
     private static String key(BlockEntity be) { return net.minecraft.world.level.block.entity.BlockEntityType.getKey(be.getType()).toString(); }
 
@@ -45,17 +41,6 @@ public final class NmsBlockContainer {
         } catch (CompletionException e) {
             if (e.getCause() instanceof RuntimeException r) throw r;
             throw e;
-        }
-    }
-
-    /** 아직 풀리지 않은 전리품 표가 있으면 바닐라는 읽기·쓰기 때 표를 풀어 채운다 — 서버의 푸는 길이 이 다리에 없어 정직하게 던진다. */
-    private static void checkLoot(BlockEntity be, String what) {
-        if (!LOOTABLE.contains(key(be))) return;
-        boolean pending = be.furnaceViewChunk() != null
-                ? be.saveWithoutMetadata(null).contains("LootTable")
-                : be.furnaceDetachedSave().contains("LootTable");
-        if (pending) {
-            throw new UnsupportedNmsCall(what, "the container at " + be.getBlockPos() + " still has an unopened loot table; vanilla fills it on first access, the shim cannot yet");
         }
     }
 
@@ -102,15 +87,18 @@ public final class NmsBlockContainer {
     public static ItemStack getItem(BlockEntity be, int slot) {
         String what = "Container#getItem";
         checkSlot(be, slot);
-        checkLoot(be, what);
         return live(be, slot, readRaw(be, slot, what), what);
     }
 
     public static void setItem(BlockEntity be, int slot, ItemStack stack, int maxStack) {
         String what = "Container#setItem";
         checkSlot(be, slot);
-        checkLoot(be, what);
         stack.limitSize(Math.min(maxStack, stack.getMaxStackSize()));
+        put(be, slot, stack, what);
+    }
+
+    /** 한도 없이 그 객체를 칸에 둔다(바닐라 NonNullList.set — 목록 보기의 set). */
+    private static void put(BlockEntity be, int slot, ItemStack stack, String what) {
         writeRaw(be, slot, stack.furnaceValue(), what);
         stack.furnaceBindLive((expect, next) -> swapRaw(be, slot, expect, next, what));
     }
@@ -118,7 +106,6 @@ public final class NmsBlockContainer {
     public static ItemStack removeItem(BlockEntity be, int slot, int amount) {
         String what = "Container#removeItem";
         if (slot < 0 || slot >= size(be) || amount <= 0) return ItemStack.EMPTY;
-        checkLoot(be, what);
         var cur = readRaw(be, slot, what);
         if (cur.isEmpty()) return ItemStack.EMPTY;
         int n = Math.min(amount, cur.amount());
@@ -131,7 +118,6 @@ public final class NmsBlockContainer {
     public static ItemStack removeItemNoUpdate(BlockEntity be, int slot) {
         String what = "Container#removeItemNoUpdate";
         if (slot < 0 || slot >= size(be)) return ItemStack.EMPTY;
-        checkLoot(be, what);
         var cur = readRaw(be, slot, what);
         if (cur.isEmpty()) return ItemStack.EMPTY;
         if (!swapRaw(be, slot, cur, org.domi.furnace.api.item.ItemStack.EMPTY, what)) return removeItemNoUpdate(be, slot);
@@ -143,15 +129,22 @@ public final class NmsBlockContainer {
         return true;
     }
 
-    /** 칸마다 묶인 스택의 새 목록(바닐라는 칸 목록 그 자체 — 목록을 고쳐도 칸은 안 바뀐다). */
+    /**
+     * 칸 목록의 보기(Paper 는 칸 목록 그 자체 — NonNullList): 읽기는 칸마다 묶인 스택, {@code set} 은 그 칸에 쓴다(한도는 칸의 최대 쌓기). 크기는 못 바꾼다.
+     */
     public static List<ItemStack> getContents(BlockEntity be) {
-        String what = "Container#getContents";
-        checkLoot(be, what);
-        List<org.domi.furnace.api.item.ItemStack> raw = be.furnaceViewChunk() != null
-                ? be.furnaceViewChunk().furnaceBlockInventory(be, what, inv -> await(inv.contents()))
-                : ItemNbtCodec.readItems(be.furnaceDetachedSave(), size(be));
-        List<ItemStack> out = new ArrayList<>(raw.size());
-        for (int i = 0; i < raw.size(); i++) out.add(live(be, i, raw.get(i), what));
-        return out;
+        int n = size(be);
+        return new java.util.AbstractList<>() {
+            @Override public ItemStack get(int i) { return getItem(be, i); }
+
+            @Override public int size() { return n; }
+
+            @Override public ItemStack set(int i, ItemStack stack) {
+                ItemStack old = getItem(be, i);
+                checkSlot(be, i);
+                put(be, i, stack == null ? ItemStack.EMPTY : stack, "Container#getContents");
+                return old;
+            }
+        };
     }
 }

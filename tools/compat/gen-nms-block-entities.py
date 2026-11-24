@@ -134,7 +134,13 @@ HAND_GEN = "// 생성 파일 — tools/compat/gen-nms-block-entities.py 로 만�
 MAIN = "furnace-compat-paper/src/main/java/"
 
 
+# 몸통을 손으로 쓴 조각(Container 몸통 — NmsBlockContainer 로 잇는다) — 이 스크립트는 명세 줄만 내고 조각 파일은 덮어쓰지 않는다
+HAND_FRAGMENT = {"BaseContainerBlockEntity", "DecoratedPotBlockEntity"}
+
+
 def write(path, text):
+    if "/shims/" in path and os.path.basename(path)[:-5] in HAND_FRAGMENT:
+        return
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8", newline="\n") as f:
         f.write(text)
