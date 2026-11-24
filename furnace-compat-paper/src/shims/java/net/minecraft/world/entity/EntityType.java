@@ -169,8 +169,12 @@ class EntityType {
         return t == null ? Optional.empty() : Optional.of(of(k));
     }
 
-    /** 바닐라 {@code EntityType.by(nbt)}: "id" 의 종류(모르면 빈 값). */
-    public static Optional<EntityType<?>> by(net.minecraft.nbt.CompoundTag nbt) { return byString(nbt.getString("id")); }
+    /** 바닐라 {@code EntityType.by(nbt)}: "id" 의 종류(모르면 빈 값). 바닐라처럼 id 를 {@code ResourceLocation.parse} 로 읽어 잘못된 id 는 ResourceLocationException. */
+    public static Optional<EntityType<?>> by(net.minecraft.nbt.CompoundTag nbt) {
+        ResourceLocation k = ResourceLocation.parse(nbt.getString("id"));
+        if (!"minecraft".equals(k.getNamespace()) || org.bukkit.entity.EntityType.fromKey(k.getPath()) == null) return Optional.empty();
+        return Optional.of(of(k));
+    }
 
     /** 바닐라 {@code EntityType.create(nbt, level)}: 종류를 만들어 nbt 를 싣는다. 모르는 종류·만들 수 없는 종류는 경고를 남기고 빈 값. */
     public static Optional<Entity> create(net.minecraft.nbt.CompoundTag nbt, net.minecraft.world.level.Level level) {
