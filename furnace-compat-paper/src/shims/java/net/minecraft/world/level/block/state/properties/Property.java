@@ -10,7 +10,7 @@ import net.minecraft.world.level.block.state.StateHolder;
  * toStringHelper 꼴 {@code BooleanProperty{name=lit, clazz=class java.lang.Boolean, values=[true, false]}})은 바닐라 1.21.1
  * {@code duf} 바이트코드와 같다. 코덱({@code codec()}·{@code valueCodec()}·{@code parseValue})은 DataFixerUpper 가 서버에 없어 두지 않았다.
  */
-public abstract class Property<T extends Comparable<T>> {
+class Property {
 
     private final Class<T> clazz;
     private final String name;

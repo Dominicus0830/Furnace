@@ -7,7 +7,7 @@ import org.domi.furnace.compat.nms.NmsBlocks;
  * 필드 이름은 등록 이름 경로의 대문자다(가정: 필드 이름은 난독화 jar 에 없어 매핑 파일로 확인하지 못했다).
  * 값은 {@link NmsBlocks} 표의 같은 객체라 {@code ==} 로 비교된다. 생성: tools/compat/gen-nms-constants.py — 직접 고치지 말 것.
  */
-public final class Blocks {
+class Blocks {
 
     private Blocks() {}
 

@@ -13,7 +13,7 @@ import org.domi.furnace.compat.nms.NmsStateCodec;
  * 속성 값 묶음을 가진 상태(Mojang 이름 shim, N0). 예외 문구·toString({@code Block{minecraft:oak_stairs}[facing=north,half=bottom,…]})·
  * {@code cycle} 의 다음 값 고르기는 바닐라 1.21.1 {@code dte} 와 같다. 값 바꾸기는 바닐라처럼 미리 만든 상태 표에서 찾아 같은 객체를 돌려준다.
  */
-public abstract class StateHolder<O, S> {
+class StateHolder {
 
     public static final String NAME_TAG = "Name";
     public static final String PROPERTIES_TAG = "Properties";

@@ -4,7 +4,7 @@ import java.util.Collection;
 import java.util.Optional;
 
 /** 참/거짓 속성(Mojang 이름 shim, N0). 값 순서 [true, false]·equals·hashCode 는 바닐라 {@code dtt} 와 같다. */
-public class BooleanProperty extends Property<Boolean> {
+class BooleanProperty {
 
     private final Collection<Boolean> values = org.domi.furnace.compat.nms.NmsCollections.orderedSet(java.util.List.of(true, false));
 

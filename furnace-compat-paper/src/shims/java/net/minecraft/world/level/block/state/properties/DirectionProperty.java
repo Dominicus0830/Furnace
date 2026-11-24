@@ -7,7 +7,7 @@ import java.util.function.Predicate;
 import net.minecraft.core.Direction;
 
 /** 방향 속성(Mojang 이름 shim, N0, 1.21.1 에는 아직 따로 있다). */
-public class DirectionProperty extends EnumProperty<Direction> {
+class DirectionProperty {
 
     protected DirectionProperty(String name, Collection<Direction> values) { super(name, Direction.class, values); }
 

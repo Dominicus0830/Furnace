@@ -11,7 +11,7 @@ import net.minecraft.world.level.block.state.properties.Property;
  * 한 주인(블록)의 속성 목록과 가능한 상태 전부(Mojang 이름 shim, N0). 속성은 이름순, 상태는 바닐라 상태 번호 순서다.
  * 속성을 더해 새 정의를 만드는 {@code Builder} 는 플러그인이 블록을 등록할 수 없어 두지 않았다.
  */
-public class StateDefinition<O, S extends StateHolder<O, S>> {
+class StateDefinition {
 
     private final O owner;
     private final Map<String, Property<?>> propertiesByName;

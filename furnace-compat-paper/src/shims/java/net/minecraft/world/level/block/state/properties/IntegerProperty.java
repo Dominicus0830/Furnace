@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Optional;
 
 /** 정수 속성(Mojang 이름 shim, N0). 범위 검사 문구·getValue 규칙·equals·hashCode 는 바닐라 {@code duc} 와 같다. */
-public class IntegerProperty extends Property<Integer> {
+class IntegerProperty {
 
     private final Collection<Integer> values;
     /** Paper: 공개 필드(바닐라는 private — Paper 접근 변환). */

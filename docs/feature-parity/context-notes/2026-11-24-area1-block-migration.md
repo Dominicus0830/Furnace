@@ -6,3 +6,9 @@
 - 서명 관문 기준선의 낡은 줄 117개(블록 엔티티 type-missing 등 — 바닐라 `implements` 가 붙어 같아짐)를 지웠다.
 - `NmsBlockEntityClasses` 는 `newBlockEntity` 가 손으로 더해진 뒤로 생성기와 어긋나 있었다 — 생성기가 더는 이 파일을 쓰지 않는다.
 - 아직 손으로 남은 블록 영역: Block·Blocks·BlockBehaviour·BlockState·StateHolder·StateDefinition·Property 계열·BlockStateProperties·BlockEntity·BlockEntityType·BlockInWorld·StructureMode·VaultState(상수 몸통)·TrialSpawnerState. 다음 묶음 대상.
+
+## 2묶음 (핵심 클래스)
+- Blocks·Block·BlockInWorld·StateDefinition·StateHolder·Property·IntegerProperty·EnumProperty·BooleanProperty·DirectionProperty·BlockStateProperties·BlockEntity·BlockEntityType 을 몸통 그대로 조각으로(`block-core.spec` 은 class 줄만, 멤버 줄은 아직 없다). 머리가 잠금 파일에서 와서 `Blocks`·`BlockEntityType` 이 바닐라처럼 final 이 아니게 됐고 `BlockEntityType<T extends BlockEntity>` 가 됐다(javap 대조에서 달라진 유일한 곳, 기준선 낡은 줄 2개 삭제). 나머지는 `javap -p` 같음.
+- TrialSpawnerState 는 속성 열거형과 같은 방식(생성자 인자 명세)으로 옮겼다.
+- **못 옮긴 것**: BlockState·BlockBehaviour — `BlockBehaviour$BlockStateBase` 가 Paper 내부 `ca/spottedleaf` 인터페이스를 구현하는 제네릭 클래스라 생성기가 "signature filtering is not supported" 로 멈춘다(생성기 쪽 후속). VaultState(상수 몸통 `{}`)·StructureMode(패킷 생성물)도 그대로.
+- 멤버 줄(`@hand`/`@fast` 와 검사 종류)을 핵심 클래스에 적는 일은 값 채우기·연결 단계에서 한다.
