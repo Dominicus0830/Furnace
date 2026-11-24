@@ -195,6 +195,36 @@ class NmsEntityDataTest {
             org.domi.furnace.compat.nms.NmsEntityData.setFlag(e, SHARED_FLAGS, 0x20, false);
             assertEquals((byte) 0x40, d.get(SHARED_FLAGS));
             assertFalse(on(s::isInvisible));
+
+            // 같은 값 거르기는 서버가 한다(검토 PR 607): 서버가 그 사이 바꾼 값을 되돌리는 쓰기는 사라지지 않고, 정말 같은 값이면 더러움도 없다
+            d.packDirty();
+            on(() -> { s.setCustomNameVisible(false); return null; });
+            d.set(CUSTOM_NAME_VISIBLE, true);
+            assertTrue(on(s::isCustomNameVisible), "서버가 바꾼 뒤의 되돌리기 쓰기가 서버에 닿는다");
+            assertEquals(java.util.List.of(3), d.packDirty().stream().map(SynchedEntityData.DataValue::id).toList());
+            d.set(CUSTOM_NAME_VISIBLE, true);
+            assertFalse(d.isDirty(), "같은 값 쓰기는 바닐라처럼 더럽히지 않는다");
+            org.domi.furnace.compat.nms.NmsEntityData.setFlag(e, SHARED_FLAGS, 0x40, true);
+            assertFalse(d.isDirty(), "이미 켜진 깃발도 마찬가지");
+
+            // 여러 스레드가 같은 바이트 칸의 다른 비트를 엇갈려 써도 비트를 잃지 않는다
+            org.domi.furnace.compat.nms.NmsEntityData.setFlag(e, SHARED_FLAGS, 0x40, false);
+            int[] masks = {0x02, 0x04, 0x08};   // 불(0x01)·겉날개(0x80)는 서버 틱이 스스로 고치는 비트라 피한다
+            var pool = java.util.concurrent.Executors.newFixedThreadPool(masks.length);
+            try {
+                var jobs = new java.util.ArrayList<java.util.concurrent.Future<?>>();
+                for (int mask : masks) {
+                    jobs.add(pool.submit(() -> {
+                        for (int i = 0; i < 20; i++) org.domi.furnace.compat.nms.NmsEntityData.setFlag(e, SHARED_FLAGS, mask, i % 2 == 0);
+                        org.domi.furnace.compat.nms.NmsEntityData.setFlag(e, SHARED_FLAGS, mask, true);
+                    }));
+                }
+                for (var j : jobs) j.get(30, java.util.concurrent.TimeUnit.SECONDS);
+            } finally {
+                pool.shutdownNow();
+            }
+            assertEquals((byte) 0x0E, (byte) on(() -> (Byte) s.entityData().get(0)), "세 스레드의 비트가 모두 남았다");
+            assertEquals((byte) 0x0E, d.get(SHARED_FLAGS));
         } finally {
             on(() -> { e.getBukkitEntity().remove(); return null; });
         }

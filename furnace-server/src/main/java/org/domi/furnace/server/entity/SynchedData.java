@@ -20,7 +20,12 @@ public final class SynchedData {
     private boolean isDirty;
     /** 칸이 바뀔 때 부르는 사본 갱신(엔티티 데이터 설계 D5, 주인 스레드). 플러그인이 이 엔티티의 칸을 보기 전에는 null — 값싼 null 검사뿐이다. */
     private java.util.function.IntConsumer published;
-    private Object watcher;
+    private Watcher watcher;
+
+    /** 칸 보기의 갱신기: 칸이 바뀔 때 {@code accept(칸)}, 엔티티가 월드에서 빠지면 {@code release()}(주인 스레드). */
+    public interface Watcher extends java.util.function.IntConsumer {
+        void release();
+    }
 
     /** define(id, 기본값) — 번호는 0 부터 빈틈없이. */
     public void define(int index, int serializer, Object initial) {
@@ -46,15 +51,17 @@ public final class SynchedData {
 
     public void set(int index, Object value) { set(index, value, false); }
 
-    /** 같지 않거나(force) 면 바꾸고 훅을 부른 뒤 dirty(바닐라 순서: 값 → onSyncedDataUpdated → dirty). */
-    public void set(int index, Object value, boolean force) {
+    /** 같지 않거나(force) 면 바꾸고 훅을 부른 뒤 dirty(바닐라 순서: 값 → onSyncedDataUpdated → dirty). 바꿨으면 참. */
+    public boolean set(int index, Object value, boolean force) {
         if (force || !same(serializers[index], values[index], value)) {
             values[index] = value;
             onUpdate.accept(index);
             dirty[index] = true;
             isDirty = true;
             if (published != null) published.accept(index);
+            return true;
         }
+        return false;
     }
 
     private static boolean same(int serializer, Object a, Object b) {
@@ -69,13 +76,19 @@ public final class SynchedData {
 
     /** 칸 보기(D5): 처음이면 make 로 만들어 두고(그 갱신기가 칸이 바뀔 때마다 불린다), 이미 있으면 그것. 주인 스레드에서만. */
     @SuppressWarnings("unchecked")
-    public <T extends java.util.function.IntConsumer> T watch(java.util.function.Supplier<T> make) {
+    public <T extends Watcher> T watch(java.util.function.Supplier<T> make) {
         if (watcher == null) {
             T w = make.get();
             watcher = w;
             published = w;
         }
         return (T) watcher;
+    }
+
+    /** 엔티티가 월드에서 빠졌다: 사본 갱신을 멈추고 갱신기가 쥔 것을 놓게 한다(보기는 마지막 값으로 남는다). 주인 스레드에서만. */
+    public void unwatch() {
+        published = null;
+        if (watcher != null) watcher.release();
     }
 
     public boolean isDirty() { return isDirty; }

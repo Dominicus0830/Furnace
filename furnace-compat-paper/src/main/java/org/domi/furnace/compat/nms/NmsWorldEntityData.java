@@ -3,7 +3,6 @@ package org.domi.furnace.compat.nms;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.List;
-import java.util.Objects;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.SynchedEntityData;
 import org.domi.furnace.api.internal.ChunkInternals;
@@ -15,6 +14,7 @@ import org.domi.furnace.api.internal.ChunkInternals;
  *   <li>{@code get} 은 어느 스레드에서도 막히지 않는다 — 사본이 바뀌었으면 그 자리에서 DataItem 값을 다시 채운다(값이 같은 칸은 같은 객체 그대로).
  *   <li>{@code set} 은 주인 스레드에서 서버 칸에 쓴다({@link ChunkInternals.EntityEdit.SetData} — 종류별 훅·추적기 보내기는 서버가 한다). 주인이 아닌 스레드는
  *       주인 region 을 기다리고, 다른 region·전역 스레드는 ThreadOwnershipException(다른 NMS 엔티티 조작과 같은 규칙).
+ *   <li>엔티티가 월드에서 빠지면 서버가 사본 갱신을 멈춘다 — 보기는 마지막 값으로 남는다.
  *   <li>{@code itemsById} 반사는 마지막으로 읽은 때의 사본이다. 반사로 DataItem 을 고쳐도 서버에 가지 않는다.
  *   <li>{@code packDirty}·{@code isDirty} 는 이 보기로 쓴 칸만 본다(그 칸의 지금 서버 값). 서버 추적기의 더러움 표시는 건드리지 않는다 —
  *       바닐라·Paper 는 표시를 가져가지만 여기서는 추적기가 같은 값을 한 번 더 보낼 수 있다(결정 항목 2026-11-23-entity-data-packdirty).
@@ -62,15 +62,12 @@ public final class NmsWorldEntityData extends SynchedEntityData {
     @Override
     public <T> void set(EntityDataAccessor<T> accessor, T value, boolean force) {
         NmsEntityOwner.write(entity, "SynchedEntityData#set");
-        synchronized (this) {
-            refresh();
-            if (!force && Objects.equals(value, super.get(accessor))) return;   // 바닐라: 같은 값이면 아무것도 안 한다(훅·더러움 없음)
-        }
-        // 기다릴 수 있으므로 잠금 밖에서(주인 스레드가 이 객체를 읽는 일은 없지만 다른 읽는 스레드를 막지 않게)
+        // 같은 값 거르기는 서버 칸이 주인 스레드에서 한다(바닐라: 같은 값이면 훅·더러움 없음). 여기서 사본과 견주면 그 사이 서버가 바꾼 값을
+        // 되돌리는 쓰기가 사라질 수 있다(검토 PR 607). 기다릴 수 있으므로 잠금 밖에서 — 다른 읽는 스레드를 막지 않게.
         var op = (ChunkInternals.EntityOp.SetData) NmsEntityData.setOp(accessor, value);
-        entity.furnaceDataEdit("SynchedEntityData#set", new ChunkInternals.EntityOp.SetData(op.index(), op.value(), force));
+        boolean changed = entity.furnaceDataEdit("SynchedEntityData#set", new ChunkInternals.EntityOp.SetData(op.index(), op.value(), force));
         synchronized (this) {
-            written.set(accessor.id());
+            if (changed) written.set(accessor.id());
             refresh();
         }
     }
@@ -78,9 +75,9 @@ public final class NmsWorldEntityData extends SynchedEntityData {
     /** 바이트 칸 깃발 하나: 주인 스레드의 한 번의 조작(D5 — 다른 스레드의 깃발 쓰기와 엇갈려도 비트를 잃지 않는다). */
     void setFlag(EntityDataAccessor<Byte> slot, int mask, boolean value) {
         NmsEntityOwner.write(entity, "SynchedEntityData#set");
-        entity.furnaceDataEdit("SynchedEntityData#set", new ChunkInternals.EntityEdit.SetDataFlag(slot.id(), mask, value));
+        boolean changed = entity.furnaceDataEdit("SynchedEntityData#set", new ChunkInternals.EntityEdit.SetDataFlag(slot.id(), mask, value));
         synchronized (this) {
-            written.set(slot.id());
+            if (changed) written.set(slot.id());
             refresh();
         }
     }
