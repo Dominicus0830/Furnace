@@ -5,11 +5,11 @@ public abstract class ScalableParticleOptionsBase implements ParticleOptions {
 
     public static final float MIN_SCALE = 0.01F;
     public static final float MAX_SCALE = 4.0F;
-    private final float scale;
+    private final float size;
 
-    public ScalableParticleOptionsBase(float scale) { this.scale = net.minecraft.util.Mth.clamp(scale, MIN_SCALE, MAX_SCALE); }
+    public ScalableParticleOptionsBase(float scale) { this.size = net.minecraft.util.Mth.clamp(scale, MIN_SCALE, MAX_SCALE); }
 
-    public float getScale() { return scale; }
+    public float getScale() { return size; }
 
     /** 바닐라 Vec3.fromRGB24(rgb).toVector3f(): 채널마다 double 로 255 로 나눈 뒤 float. */
     static org.joml.Vector3f rgb(int rgb) {

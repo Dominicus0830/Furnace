@@ -12,3 +12,4 @@
 - `GlobalPos` 는 바닐라처럼 레코드(`toString` = "차원키 좌표"). optional_global_pos 칸이 이제 다리를 지난다 — 바닐라 값 종류 31개가 모두 다리에 있다.
 - 함정: 서명 관문은 손 shim 의 암묵 기본 생성자도 새 차이로 본다. 바닐라 생성자를 쓸 수 없는 클래스(진동 입자)는 `private` 기본 생성자를 두면
   관문이 보지 않고, 바닐라 생성자는 껍데기 합치기가 더한다.
+- 손 shim 의 private 필드는 바닐라 private 이름을 쓰지 않는다(중립 이름: alwaysShown·size·rgb·start·end·kind·block·stack·argb·ticks·arrival). 입자 옵션 private 필드를 반사로 읽는 플러그인은 확인되지 않았다 — 공개 접근자만 바닐라 이름이다(PR 605 검토 권장).

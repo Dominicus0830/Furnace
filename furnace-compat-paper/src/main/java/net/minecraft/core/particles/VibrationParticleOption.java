@@ -6,12 +6,12 @@ package net.minecraft.core.particles;
  */
 public class VibrationParticleOption implements ParticleOptions {
 
-    private int arrivalInTicks;
+    private int arrival;
 
     private VibrationParticleOption() {}
 
     @Override
     public ParticleType<VibrationParticleOption> getType() { return ParticleTypes.VIBRATION; }
 
-    public int getArrivalInTicks() { return arrivalInTicks; }
+    public int getArrivalInTicks() { return arrival; }
 }

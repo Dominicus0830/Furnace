@@ -6,11 +6,11 @@ package net.minecraft.core.particles;
  */
 public abstract class ParticleType<T extends ParticleOptions> {
 
-    private final boolean overrideLimiter;
+    private final boolean alwaysShown;
 
-    protected ParticleType(boolean overrideLimiter) { this.overrideLimiter = overrideLimiter; }
+    protected ParticleType(boolean overrideLimiter) { this.alwaysShown = overrideLimiter; }
 
-    public boolean getOverrideLimiter() { return overrideLimiter; }
+    public boolean getOverrideLimiter() { return alwaysShown; }
 
     public abstract com.mojang.serialization.MapCodec<T> codec();
 

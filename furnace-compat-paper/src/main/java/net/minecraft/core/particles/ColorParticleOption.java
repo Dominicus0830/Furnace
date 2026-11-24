@@ -3,24 +3,24 @@ package net.minecraft.core.particles;
 /** 색 하나(0xAARRGGBB)를 갖는 입자(Mojang 이름 shim, 1.21.1 은 entity_effect). */
 public class ColorParticleOption implements ParticleOptions {
 
-    private final ParticleType<ColorParticleOption> type;
-    private final int color;
+    private final ParticleType<ColorParticleOption> kind;
+    private final int argb;
 
     private ColorParticleOption(ParticleType<ColorParticleOption> type, int color) {
-        this.type = type;
-        this.color = color;
+        this.kind = type;
+        this.argb = color;
     }
 
     @Override
-    public ParticleType<ColorParticleOption> getType() { return type; }
+    public ParticleType<ColorParticleOption> getType() { return kind; }
 
-    public float getRed() { return (color >> 16 & 255) / 255.0F; }
+    public float getRed() { return (argb >> 16 & 255) / 255.0F; }
 
-    public float getGreen() { return (color >> 8 & 255) / 255.0F; }
+    public float getGreen() { return (argb >> 8 & 255) / 255.0F; }
 
-    public float getBlue() { return (color & 255) / 255.0F; }
+    public float getBlue() { return (argb & 255) / 255.0F; }
 
-    public float getAlpha() { return (color >>> 24) / 255.0F; }
+    public float getAlpha() { return (argb >>> 24) / 255.0F; }
 
     public static ColorParticleOption create(ParticleType<ColorParticleOption> type, int color) { return new ColorParticleOption(type, color); }
 
@@ -32,5 +32,5 @@ public class ColorParticleOption implements ParticleOptions {
     private static int channel(float f) { return net.minecraft.util.Mth.floor(f * 255.0F); }
 
     /** 호환 모듈 전용: 0xAARRGGBB. */
-    public int furnaceColor() { return color; }
+    public int furnaceColor() { return argb; }
 }
