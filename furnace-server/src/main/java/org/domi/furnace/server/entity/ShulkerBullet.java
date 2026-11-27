@@ -180,8 +180,9 @@ public class ShulkerBullet extends Projectile {
         }
     }
 
+    /** 바닐라 ShulkerBullet.canHitEntity: 대상이 noPhysics 면 못 맞힌다. */
     @Override
-    protected boolean shouldHit(Targetable t) { return !(t instanceof Entity e && e.noPhysics); }
+    protected boolean canHit(Object t) { return super.canHit(t) && !targetNoPhysics(t); }
 
     @Override
     protected void onHitEntity(Hit hit) {

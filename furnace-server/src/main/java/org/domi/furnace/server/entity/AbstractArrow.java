@@ -13,6 +13,25 @@ import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 @org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.projectile.AbstractArrow")
 public abstract class AbstractArrow extends Projectile {
+
+    /**
+     * Paper AbstractArrow.preHitTargetOrDeflectSelf: 지난 적중을 플러그인이 취소했고 관통 화살이면 이번 대상 엔티티를 관통 제외에 넣고 묻는다
+     * (취소된 엔티티를 한 번 더 묻고 다음 엔티티로 넘어간다 — 같은 엔티티를 끝없이 다시 찾지 않는다).
+     */
+    @Override
+    protected boolean hitTargetOrDeflectSelf(Hit hit) {
+        if (hit.isEntity() && hitCancelled && getPierceLevel() > 0) {
+            if (piercedEntities == null) piercedEntities = new java.util.HashSet<>(5);
+            piercedEntities.add(hit.target().id());
+        }
+        return super.hitTargetOrDeflectSelf(hit);
+    }
+
+    /** 바닐라 AbstractArrow.canHitEntity: 이번에 이미 꿰뚫은 엔티티(piercingIgnoreEntityIds)는 다시 맞히지 않는다. */
+    @Override
+    protected boolean canHit(Object t) {
+        return super.canHit(t) && (piercedEntities == null || !piercedEntities.contains(t instanceof Targetable tt ? tt.id() : ((Rider) t).id()));
+    }
     public static final int DATA_ID_FLAGS = EntityDataIds.AbstractArrow_ID_FLAGS, DATA_PIERCE_LEVEL = EntityDataIds.AbstractArrow_PIERCE_LEVEL;
     public enum Pickup { DISALLOWED, ALLOWED, CREATIVE_ONLY }
 
@@ -184,9 +203,9 @@ public abstract class AbstractArrow extends Projectile {
                 }
             }
             if (hit != null && !noPhysics) {
-                hitTargetOrDeflectSelf(hit);
+                boolean deflected = hitTargetOrDeflectSelf(hit);
                 hasImpulse = true;
-                break;
+                if (deflected) break;   // 바닐라: 튕겨 나갈 때만 멈추고, 관통 화살은 꿰뚫은 엔티티를 빼고 다음 엔티티를 찾는다
             }
             if (eh == null || getPierceLevel() <= 0) break;
             hit = null;

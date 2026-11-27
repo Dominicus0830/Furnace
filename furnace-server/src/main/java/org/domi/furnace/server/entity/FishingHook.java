@@ -20,6 +20,10 @@ import org.domi.furnace.server.net.protocol.play.SetEntityData;
 
 @org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.projectile.FishingHook")
 public class FishingHook extends Projectile {
+
+    /** 바닐라 FishingHook.canHitEntity: 보통 규칙이거나, 살아 있는 아이템 엔티티(소유자 규칙 없이). */
+    @Override
+    protected boolean canHit(Object t) { return super.canHit(t) || t instanceof ItemEntity ie && ie.isAlive(); }
     public static final int DATA_HOOKED_ENTITY = EntityDataIds.FishingHook_DATA_HOOKED_ENTITY, DATA_BITING = EntityDataIds.FishingHook_DATA_BITING;
 
     enum FishHookState { FLYING, HOOKED_IN_ENTITY, BOBBING }

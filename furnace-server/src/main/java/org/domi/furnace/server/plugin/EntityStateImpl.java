@@ -34,6 +34,7 @@ class EntityStateImpl implements org.domi.furnace.api.entity.EntityState {
     static EntityStateImpl of(PluginHost host, Entity e) {
         if (e instanceof ArmorStand a) return new Stand(host, a);
         if (e instanceof LivingEntity le) return new Living(host, le);
+        if (e instanceof org.domi.furnace.server.entity.Projectile p) return new Proj(host, p);
         return new EntityStateImpl(host, e);
     }
 
@@ -190,7 +191,7 @@ class EntityStateImpl implements org.domi.furnace.api.entity.EntityState {
     }
 
     /** API 핸들 → 지금 살아 있는 서버 승객(사라졌으면 null). 이 엔티티와 같은 region 에 있어야 한다. */
-    private Rider rider(org.domi.furnace.api.entity.Entity h) {
+    final Rider rider(org.domi.furnace.api.entity.Entity h) {
         java.util.Objects.requireNonNull(h, "passenger");
         if (h instanceof PlayerHandle ph) {
             Player p = ph.handle();
@@ -359,6 +360,23 @@ class EntityStateImpl implements org.domi.furnace.api.entity.EntityState {
     }
 
     /** 갑옷 거치대. */
+    static final class Proj extends EntityStateImpl implements org.domi.furnace.api.entity.ProjectileState {
+
+        private final org.domi.furnace.server.entity.Projectile p;
+
+        Proj(PluginHost host, org.domi.furnace.server.entity.Projectile p) {
+            super(host, p);
+            this.p = p;
+        }
+
+        @Override
+        public boolean canHitEntity(org.domi.furnace.api.entity.Entity target) {
+            check();
+            Rider r = rider(target);
+            return r != null && p.canHitEntity(r);
+        }
+    }
+
     static final class Stand extends Living implements org.domi.furnace.api.entity.ArmorStandState {
 
         private final ArmorStand a;

@@ -52,7 +52,12 @@ public abstract class AbstractProjectile extends CraftEntity implements Projecti
     public void setHasBeenShot(boolean beenShot) { throw new UnsupportedFeature("Projectile#setHasBeenShot", "the Furnace handle has no way to write this yet"); }
 
     @Override
-    public boolean canHitEntity(org.bukkit.entity.Entity entity) { throw new UnsupportedFeature("Projectile#canHitEntity", "the Furnace handle has no way yet to ask whether it can hit"); }
+    public boolean canHitEntity(org.bukkit.entity.Entity entity) {
+        // Paper: getHandle().canHitEntity(((CraftEntity) entity).getHandle()) — 투사체 종류마다의 바닐라 재정의를 서버 투사체가 따른다. 사라진 투사체는 거짓
+        org.domi.furnace.api.entity.Entity target = ((CraftEntity) entity).furnaceHandle();
+        return org.domi.furnace.compat.paper.EntityStates.read(furnaceHandle(), org.domi.furnace.api.entity.ProjectileState.class,
+                s -> s.canHitEntity(target), false, "Projectile#canHitEntity");
+    }
 
     @Override
     public void hitEntity(org.bukkit.entity.Entity entity) { throw new UnsupportedFeature("Projectile#hitEntity", "the Furnace handle has no way yet to make a projectile hit"); }
