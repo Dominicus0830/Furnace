@@ -181,7 +181,7 @@ class LinkInferTest {
             inf.readBodies(zf, inf.paperBodies);
             LinkInfer.readPropertyAliases(zf, paperAliases);
         }
-        assertEquals(Map.of(CROP + " AGE", PROPS + " AGE_5"), vanillaAliases, "LIT 은 다른 필드를 그대로 넣지 않는다(만든다)");
+        assertEquals(Map.of(CROP + " AGE", PROPS + " AGE_5"), vanillaAliases, "LIT 은 다른 필드를 그대로 넣지 않는다(만든다), TERN 은 분기 합류");
         inf.propertyAliases.putAll(vanillaAliases);
         inf.classify();
         Map<String, String> got = new TreeMap<>();
@@ -207,10 +207,21 @@ class LinkInferTest {
         cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC, CROP, null, "java/lang/Object", null);
         cw.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, "AGE", INT_P, null, null).visitEnd();
         cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, "LIT", BOOL_P, null, null).visitEnd();
+        cw.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, "TERN", INT_P, null, null).visitEnd();
         MethodVisitor ci = cw.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
         ci.visitCode();
         ci.visitFieldInsn(Opcodes.GETSTATIC, PROPS, "AGE_5", INT_P);
         ci.visitFieldInsn(Opcodes.PUTSTATIC, CROP, "AGE", INT_P);
+        // TERN = 참 ? Props.OTHER : Props.AGE_5 — 분기 합류 뒤 putstatic 은 별칭이 아니다
+        Label other = new Label(), join = new Label();
+        ci.visitInsn(Opcodes.ICONST_1);
+        ci.visitJumpInsn(Opcodes.IFEQ, other);
+        ci.visitFieldInsn(Opcodes.GETSTATIC, PROPS, "OTHER", INT_P);
+        ci.visitJumpInsn(Opcodes.GOTO, join);
+        ci.visitLabel(other);
+        ci.visitFieldInsn(Opcodes.GETSTATIC, PROPS, "AGE_5", INT_P);
+        ci.visitLabel(join);
+        ci.visitFieldInsn(Opcodes.PUTSTATIC, CROP, "TERN", INT_P);
         ci.visitLdcInsn("lit");
         ci.visitMethodInsn(Opcodes.INVOKESTATIC, "net/minecraft/world/level/block/state/properties/BooleanProperty", "create", "(Ljava/lang/String;)" + BOOL_P, false);
         ci.visitFieldInsn(Opcodes.PUTSTATIC, CROP, "LIT", BOOL_P);

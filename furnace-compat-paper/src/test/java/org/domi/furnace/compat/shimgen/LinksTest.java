@@ -76,6 +76,7 @@ class LinksTest {
             "M\t1\t" + Z + "Mob\toPair\t(Ljava/lang/String;I)I\t-",
             "M\t1\t" + Z + "Mob\toAmb\t(Ljava/lang/String;)I\t-",
             "M\t1\t" + Z + "Mob\toNone\t()I\t-",
+            "M\t1\t" + Z + "Mob\toBadValue\t(Ljava/lang/String;)I\t-",
             "K\t" + Z + "Mob\tDATA_BABY\tI\t12",
             "C\t33\t" + Z + "Slots\tjava/lang/Object\t-\t-\t-",
             "F\t26\t" + Z + "Slots\tDATA_A\tLnet/minecraft/network/syncher/EntityDataAccessor;\t-",
@@ -232,6 +233,7 @@ class LinksTest {
                 "  b5()I -> this." + Links.fingerprint(Z + "HandBase", "base") + " pure",
                 "  oAmb(Ljava/lang/String;)I -> @idiom(test-amb) pure",
                 "  oNone()I -> @idiom(test-over, 1) pure",
+                "  oBadValue(Ljava/lang/String;)I -> @idiom(test-over, #0123456789) pure",
                 "class net.minecraft.zz.HandBase",
                 "  base()I -> " + BRIDGE + ".secret pure",
                 "class net.minecraft.zz.Nope",
@@ -255,7 +257,8 @@ class LinksTest {
                 "line not used - the class is a hand shim and merging is off: net.minecraft.zz.HandBase#base()I",
                 "class not in the Paper signature table: net.minecraft.zz.Nope",
                 "several @LinkIdiom(\"test-amb\") overloads fit this member",
-                "no @LinkIdiom(\"test-over\") overload takes this member's receiver, values and arguments")) {
+                "no @LinkIdiom(\"test-over\") overload takes this member's receiver, values and arguments",
+                "no static field with fingerprint #0123456789 in the class or its supertypes")) {   // 꼴이 맞는 겹침의 값 문제는 구체적으로 남는다
             assertTrue(msg.contains(want), "문제 목록에 없다: " + want + "\n" + msg);
         }
     }

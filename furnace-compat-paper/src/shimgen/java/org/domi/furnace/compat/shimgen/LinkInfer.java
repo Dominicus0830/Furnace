@@ -244,6 +244,7 @@ public final class LinkInfer {
                             last = op == Opcodes.GETSTATIC && d.startsWith(PROPERTY_PKG) && !o.equals(cls) ? new String[] {o, n} : null;
                         }
 
+                        @Override public void visitLabel(Label l) { last = null; }   // 분기 합류(X = c ? A : B)는 별칭이 아니다
                         @Override public void visitInsn(int op) { last = null; }
                         @Override public void visitIntInsn(int op, int v) { last = null; }
                         @Override public void visitVarInsn(int op, int v) { last = null; }

@@ -173,8 +173,9 @@ class BlockStateOracleTest {
                 + " noReceiver=" + noReceiver + " shimUnsupported=" + unsupported + " privateUnresolved=" + privateUnresolved + " inputs=" + inputs
                 + " mutation canary caught=" + canaryCaught + " missed=" + canaryMissed);
         assertEquals(List.of(), failures, "linked block state members must match vanilla on every state");
-        assertTrue(members.size() >= 40, "block state idiom lines: " + members.size());
-        assertTrue(proved >= 40, "members proved by the oracle: " + proved);
+        // 채택된 줄은 모두 증명되어야 한다(2026-11-27 측정: 42줄 모두 증명) — 하나라도 증명에서 빠지면 실패
+        assertTrue(members.size() >= 42, "block state idiom lines: " + members.size());
+        assertEquals(members.size(), proved, "every adopted block state line must be proved by the oracle");
         assertEquals(0, canaryMissed, "mutation canary: a wrongly linked member must not compare equal");
         assertTrue(canaryCaught >= 5, "mutation canaries that could be told apart: " + canaryCaught);
     }

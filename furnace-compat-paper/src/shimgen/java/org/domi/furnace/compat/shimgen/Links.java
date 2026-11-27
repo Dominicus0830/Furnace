@@ -485,12 +485,15 @@ final class Links {
                 AnnInfo ai = new AnnInfo(overloads.get(0)[3], overloads.get(0)[4], false);
                 if (!checkMatches(ln, ai)) return null;
                 Plan best = null;
+                List<List<String>> failed = new ArrayList<>();   // 맞지 않은 겹침마다 그 시도가 남긴 값 문제
                 for (String[] info : overloads) {
                     int mark = problems.size();
                     Plan q = callPlan(ln, owner, isStatic, args, slots, ret, id.values(), info[2], ln.where(), true);
                     if (q == null) {
-                        // 맞지 않는 겹침을 해 보며 생긴 값 문제는 버린다(겹침이 하나뿐이면 아래에서 다시 해 그 문제를 남긴다)
-                        problems.subList(mark, problems.size()).clear();
+                        // 맞지 않는 겹침을 해 보며 생긴 값 문제는 일단 뺀다(아래에서 모든 시도가 같은 문제면 그 문제를 남긴다)
+                        List<String> got = problems.subList(mark, problems.size());
+                        failed.add(new ArrayList<>(got));
+                        got.clear();
                         continue;
                     }
                     if (best != null) {
@@ -504,10 +507,14 @@ final class Links {
                     q.callDesc = info[2];
                     best = q;
                 }
-                if (best == null && overloads.size() == 1) {
-                    int mark = problems.size();
-                    callPlan(ln, owner, isStatic, args, slots, ret, id.values(), overloads.get(0)[2], ln.where(), true);
-                    if (problems.size() > mark) return null;
+                // 맞는 겹침이 없고 어떤 시도가 값 문제를 남겼으면(꼴은 맞는데 값이 틀림) 그 구체적인 원인들을 겹침 없이 남긴다
+                if (best == null) {
+                    java.util.LinkedHashSet<String> why = new java.util.LinkedHashSet<>();
+                    for (List<String> f : failed) why.addAll(f);
+                    if (!why.isEmpty()) {
+                        problems.addAll(why);
+                        return null;
+                    }
                 }
                 if (best == null) problems.add(ln.where() + ": no @LinkIdiom(\"" + id.name() + "\") overload takes this member's receiver, values and arguments");
                 return best;
