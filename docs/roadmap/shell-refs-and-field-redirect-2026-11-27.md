@@ -5,7 +5,7 @@
 > (2) `hurtTime`·`hurtDuration`·`hurtMarked` 같은 인스턴스 필드를 플러그인이 직접 읽고 쓴다 — 연결기가 `GETFIELD`/`PUTFIELD` 를 다시 이어야 한다.
 > 원칙: 결과는 바닐라·Paper 와 같다, 바닐라 통째 이식 금지, 커밋 기준선에 Mojang 이름 금지(지문만), "임시로 하고 나중에 고치기" 금지.
 
-## 검토 반영 (11-27 독립 검토 "고쳐서 승인" — 보고서 `furnace/reviews/shell-refs-field-redirect-design-review-2026-11-27.md`)
+## 검토 반영 (11-27 독립 검토 "고쳐서 승인" → 재검토 **승인**(96a4aaaf) — 보고서 `furnace/reviews/shell-refs-field-redirect-design-review-2026-11-27.md`)
 
 재검토는 아래 절만 보면 된다. 표시 **[검토 n]** 이 붙은 문단이 바뀐 곳이다.
 
@@ -232,6 +232,7 @@ PUTFIELD  O.f : D   →  INVOKESTATIC FieldRedirects.set$n (LDecl;D)V     (읽�
   - `hurtMarked = true` 쓰기 → 표시만 세운다. 다음 보내기 때 표시가 섰으면 **그 속도로** 한 번 보내고 표시를 내린다(누적값 유무와 상관없이 — 바닐라 `if (hurtMarked)` 와 같게). 지금 `sendPendingKnockback` 의 "쌓인 것이 있을 때만"은 이 규칙으로 바뀐다(기존 밀침 시험이 그대로 통과해야 함).
   - **`Entity.setDeltaMovement` 연결이 아직 없다.** 엔티티·플레이어 둘 다의 `setDeltaMovement`/`getDeltaMovement` 연결을 PR E 범위에 넣는다(그래야 위 꼴이 끝까지 같다).
 - 스레드: 위 4.5 대로 접근자가 스스로 안전(잠금 또는 접속 처리기 넘김).
+- **(재검토 메모, PR E)** `PlayerVitals.hurtTime` 은 private·비 volatile int 다 — 접근자가 잠금을 쓰거나 접속 처리기로 넘긴다. `sendPendingKnockback` 규칙을 바꾼 뒤에도 "방패로 완전히 막으면 속도 패킷 0건" 시험이 그대로 통과해야 한다.
 
 ### 4.8 시험
 
