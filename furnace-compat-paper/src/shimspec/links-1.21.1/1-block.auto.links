@@ -1,5 +1,80 @@
 #furnace-links 1 1.21.1 area=1
 # T-263 machine-adopted links (adoptLinks): exact vanilla and Paper body shape (reviewed idiom + slot value type, or a plain forward to a live member). Do not edit -
 # rerun adoptLinks. Hand lines go in 1-block.links; a member with a hand line is never adopted here.
+class net.minecraft.world.level.block.AbstractCandleBlock
+  canBeLit(Lnet/minecraft/world/level/block/state/BlockState;)Z -> @idiom(block-state-not, net.minecraft.world.level.block.state.properties.BlockStateProperties.LIT) pure via=G1 proof=shape
+class net.minecraft.world.level.block.BambooStalkBlock
+  isRandomlyTicking(Lnet/minecraft/world/level/block/state/BlockState;)Z -> @idiom(block-state-int-eq, net.minecraft.world.level.block.state.properties.BlockStateProperties.STAGE, 0) pure via=G1 proof=shape
+class net.minecraft.world.level.block.BeehiveBlock
+  getAnalogOutputSignal(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;)I -> @idiom(block-state-get, net.minecraft.world.level.block.state.properties.BlockStateProperties.LEVEL_HONEY) pure via=G1 proof=shape
+class net.minecraft.world.level.block.ButtonBlock
+  getSignal(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/Direction;)I -> @idiom(block-state-pick-int, net.minecraft.world.level.block.state.properties.BlockStateProperties.POWERED, 15, 0) pure via=G1 proof=shape
+class net.minecraft.world.level.block.ChorusFlowerBlock
+  isRandomlyTicking(Lnet/minecraft/world/level/block/state/BlockState;)Z -> @idiom(block-state-int-lt, net.minecraft.world.level.block.state.properties.BlockStateProperties.AGE_5, 5) pure via=G1 proof=shape
+class net.minecraft.world.level.block.CocoaBlock
+  isRandomlyTicking(Lnet/minecraft/world/level/block/state/BlockState;)Z -> @idiom(block-state-int-lt, net.minecraft.world.level.block.state.properties.BlockStateProperties.AGE_2, 2) pure via=G1 proof=shape
+  isValidBonemealTarget(Lnet/minecraft/world/level/LevelReader;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;)Z -> @idiom(block-state-int-lt, net.minecraft.world.level.block.state.properties.BlockStateProperties.AGE_2, 2) pure via=G1 proof=shape
+class net.minecraft.world.level.block.ComposterBlock
+  getAnalogOutputSignal(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;)I -> @idiom(block-state-get, net.minecraft.world.level.block.state.properties.BlockStateProperties.LEVEL_COMPOSTER) pure via=G1 proof=shape
+class net.minecraft.world.level.block.CrossCollisionBlock
+  propagatesSkylightDown(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;)Z -> @idiom(block-state-not, net.minecraft.world.level.block.state.properties.BlockStateProperties.WATERLOGGED) pure via=G1 proof=shape
+class net.minecraft.world.level.block.DaylightDetectorBlock
+  getSignal(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/Direction;)I -> @idiom(block-state-get, net.minecraft.world.level.block.state.properties.BlockStateProperties.POWER) pure via=G1 proof=shape
+class net.minecraft.world.level.block.DetectorRailBlock
+  getSignal(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/Direction;)I -> @idiom(block-state-pick-int, net.minecraft.world.level.block.state.properties.BlockStateProperties.POWERED, 15, 0) pure via=G1 proof=shape
+class net.minecraft.world.level.block.DoorBlock
+  isOpen(Lnet/minecraft/world/level/block/state/BlockState;)Z -> @idiom(block-state-get, net.minecraft.world.level.block.state.properties.BlockStateProperties.OPEN) pure via=G1 proof=shape
+class net.minecraft.world.level.block.EndPortalFrameBlock
+  getAnalogOutputSignal(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;)I -> @idiom(block-state-pick-int, net.minecraft.world.level.block.state.properties.BlockStateProperties.EYE, 15, 0) pure via=G1 proof=shape
+class net.minecraft.world.level.block.GrowingPlantHeadBlock
+  getGrowIntoState(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/util/RandomSource;)Lnet/minecraft/world/level/block/state/BlockState; -> @idiom(block-state-cycle, net.minecraft.world.level.block.state.properties.BlockStateProperties.AGE_25) pure via=G1 proof=shape
+  getMaxAgeState(Lnet/minecraft/world/level/block/state/BlockState;)Lnet/minecraft/world/level/block/state/BlockState; -> @idiom(block-state-set-int, net.minecraft.world.level.block.state.properties.BlockStateProperties.AGE_25, 25) pure via=G1 proof=shape
+  isMaxAge(Lnet/minecraft/world/level/block/state/BlockState;)Z -> @idiom(block-state-int-eq, net.minecraft.world.level.block.state.properties.BlockStateProperties.AGE_25, 25) pure via=G1 proof=shape
+  isRandomlyTicking(Lnet/minecraft/world/level/block/state/BlockState;)Z -> @idiom(block-state-int-lt, net.minecraft.world.level.block.state.properties.BlockStateProperties.AGE_25, 25) pure via=G1 proof=shape
+class net.minecraft.world.level.block.LayeredCauldronBlock
+  getAnalogOutputSignal(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;)I -> @idiom(block-state-get, net.minecraft.world.level.block.state.properties.BlockStateProperties.LEVEL_CAULDRON) pure via=G1 proof=shape
+  isFull(Lnet/minecraft/world/level/block/state/BlockState;)Z -> @idiom(block-state-int-eq, net.minecraft.world.level.block.state.properties.BlockStateProperties.LEVEL_CAULDRON, 3) pure via=G1 proof=shape
+class net.minecraft.world.level.block.LecternBlock
+  getSignal(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/Direction;)I -> @idiom(block-state-pick-int, net.minecraft.world.level.block.state.properties.BlockStateProperties.POWERED, 15, 0) pure via=G1 proof=shape
+class net.minecraft.world.level.block.LeverBlock
+  getSignal(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/Direction;)I -> @idiom(block-state-pick-int, net.minecraft.world.level.block.state.properties.BlockStateProperties.POWERED, 15, 0) pure via=G1 proof=shape
+class net.minecraft.world.level.block.LightningRodBlock
+  getSignal(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/Direction;)I -> @idiom(block-state-pick-int, net.minecraft.world.level.block.state.properties.BlockStateProperties.POWERED, 15, 0) pure via=G1 proof=shape
+class net.minecraft.world.level.block.MangrovePropaguleBlock
+  #3c2fbdb8cd(Lnet/minecraft/world/level/block/state/BlockState;)Z -> @idiom(block-state-int-eq, net.minecraft.world.level.block.state.properties.BlockStateProperties.AGE_4, 4) pure via=G1 proof=shape
+  #dd065ca9df(Lnet/minecraft/world/level/block/state/BlockState;)Z -> @idiom(block-state-get, net.minecraft.world.level.block.state.properties.BlockStateProperties.HANGING) pure via=G1 proof=shape
+class net.minecraft.world.level.block.NetherWartBlock
+  isRandomlyTicking(Lnet/minecraft/world/level/block/state/BlockState;)Z -> @idiom(block-state-int-lt, net.minecraft.world.level.block.state.properties.BlockStateProperties.AGE_3, 3) pure via=G1 proof=shape
+class net.minecraft.world.level.block.PressurePlateBlock
+  getSignalForState(Lnet/minecraft/world/level/block/state/BlockState;)I -> @idiom(block-state-pick-int, net.minecraft.world.level.block.state.properties.BlockStateProperties.POWERED, 15, 0) pure via=G1 proof=shape
+class net.minecraft.world.level.block.RedStoneOreBlock
+  isRandomlyTicking(Lnet/minecraft/world/level/block/state/BlockState;)Z -> @idiom(block-state-get, net.minecraft.world.level.block.state.properties.BlockStateProperties.LIT) pure via=G1 proof=shape
+class net.minecraft.world.level.block.RespawnAnchorBlock
+  #4f5f0a6b56(Lnet/minecraft/world/level/block/state/BlockState;)Z -> @idiom(block-state-int-lt, net.minecraft.world.level.block.state.properties.BlockStateProperties.RESPAWN_ANCHOR_CHARGES, 4) pure via=G1 proof=shape
+class net.minecraft.world.level.block.SculkSensorBlock
+  getPhase(Lnet/minecraft/world/level/block/state/BlockState;)Lnet/minecraft/world/level/block/state/properties/SculkSensorPhase; -> @idiom(block-state-get, net.minecraft.world.level.block.state.properties.BlockStateProperties.SCULK_SENSOR_PHASE) pure via=G1 proof=shape
+  getSignal(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/Direction;)I -> @idiom(block-state-get, net.minecraft.world.level.block.state.properties.BlockStateProperties.POWER) pure via=G1 proof=shape
+class net.minecraft.world.level.block.SeaPickleBlock
+  isDead(Lnet/minecraft/world/level/block/state/BlockState;)Z -> @idiom(block-state-not, net.minecraft.world.level.block.state.properties.BlockStateProperties.WATERLOGGED) pure via=G1 proof=shape
+class net.minecraft.world.level.block.SnifferEggBlock
+  getHatchLevel(Lnet/minecraft/world/level/block/state/BlockState;)I -> @idiom(block-state-get, net.minecraft.world.level.block.state.properties.BlockStateProperties.HATCH) pure via=G1 proof=shape
+class net.minecraft.world.level.block.StemBlock
+  isValidBonemealTarget(Lnet/minecraft/world/level/LevelReader;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;)Z -> @idiom(block-state-int-ne, net.minecraft.world.level.block.state.properties.BlockStateProperties.AGE_7, 7) pure via=G1 proof=shape
+class net.minecraft.world.level.block.SweetBerryBushBlock
+  isRandomlyTicking(Lnet/minecraft/world/level/block/state/BlockState;)Z -> @idiom(block-state-int-lt, net.minecraft.world.level.block.state.properties.BlockStateProperties.AGE_3, 3) pure via=G1 proof=shape
+  isValidBonemealTarget(Lnet/minecraft/world/level/LevelReader;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;)Z -> @idiom(block-state-int-lt, net.minecraft.world.level.block.state.properties.BlockStateProperties.AGE_3, 3) pure via=G1 proof=shape
+class net.minecraft.world.level.block.TargetBlock
+  getSignal(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/Direction;)I -> @idiom(block-state-get, net.minecraft.world.level.block.state.properties.BlockStateProperties.POWER) pure via=G1 proof=shape
+class net.minecraft.world.level.block.TripWireHookBlock
+  getSignal(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/Direction;)I -> @idiom(block-state-pick-int, net.minecraft.world.level.block.state.properties.BlockStateProperties.POWERED, 15, 0) pure via=G1 proof=shape
+class net.minecraft.world.level.block.WallBlock
+  propagatesSkylightDown(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;)Z -> @idiom(block-state-not, net.minecraft.world.level.block.state.properties.BlockStateProperties.WATERLOGGED) pure via=G1 proof=shape
+class net.minecraft.world.level.block.WeightedPressurePlateBlock
+  getSignalForState(Lnet/minecraft/world/level/block/state/BlockState;)I -> @idiom(block-state-get, net.minecraft.world.level.block.state.properties.BlockStateProperties.POWER) pure via=G1 proof=shape
+  setSignalForState(Lnet/minecraft/world/level/block/state/BlockState;I)Lnet/minecraft/world/level/block/state/BlockState; -> @idiom(block-state-set, net.minecraft.world.level.block.state.properties.BlockStateProperties.POWER) pure via=G1 proof=shape
+class net.minecraft.world.level.block.entity.BeehiveBlockEntity
+  getHoneyLevel(Lnet/minecraft/world/level/block/state/BlockState;)I -> @idiom(block-state-get, net.minecraft.world.level.block.state.properties.BlockStateProperties.LEVEL_HONEY) pure via=G1 proof=shape
 class net.minecraft.world.level.block.entity.DecoratedPotBlockEntity
   setFromItem(Lnet/minecraft/world/item/ItemStack;)V -> this.applyComponentsFromItemStack pure via=G3 proof=shape
+class net.minecraft.world.level.block.piston.PistonBaseBlock
+  useShapeForLightOcclusion(Lnet/minecraft/world/level/block/state/BlockState;)Z -> @idiom(block-state-get, net.minecraft.world.level.block.state.properties.BlockStateProperties.EXTENDED) pure via=G1 proof=shape

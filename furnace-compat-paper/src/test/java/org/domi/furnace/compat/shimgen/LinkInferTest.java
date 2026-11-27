@@ -136,6 +136,185 @@ class LinkInferTest {
         assertEquals("private or package member written in plain text - use", LinkInfer.reasonKind("private or package member written in plain text - use #0123456789: net.minecraft.zz.Mob#x()V"));
     }
 
+    // ── S4 블록 상태 관용구 ──
+
+    static final String CROP = Z + "Crop", PROPS = Z + "Props";
+    static final String STATE = "net/minecraft/world/level/block/state/BlockState";
+    static final String SD = "L" + STATE + ";";
+    static final String INT_P = "Lnet/minecraft/world/level/block/state/properties/IntegerProperty;";
+    static final String BOOL_P = "Lnet/minecraft/world/level/block/state/properties/BooleanProperty;";
+    static final String PROP = "net/minecraft/world/level/block/state/properties/Property";
+
+    static final String BLOCK_PAPER = String.join("\n",
+            "#furnace-sig-table\t2\tpaper-server-test",
+            "C\t33\t" + PROPS + "\tjava/lang/Object\t-\t-\t-",
+            "F\t25\t" + PROPS + "\tAGE_5\t" + INT_P + "\t-",
+            "C\t33\t" + CROP + "\tjava/lang/Object\t-\t-\t-",
+            "F\t26\t" + CROP + "\tAGE\t" + INT_P + "\t-",
+            "F\t25\t" + CROP + "\tLIT\t" + BOOL_P + "\t-",
+            "");
+
+    @Test
+    void recognisesBlockStateIdioms() throws Exception {
+        Path jar = tmp.resolve("vanilla.jar"), paperJar = tmp.resolve("paper.jar");
+        for (boolean paper : new boolean[] {false, true}) {
+            try (OutputStream os = Files.newOutputStream(paper ? paperJar : jar); ZipOutputStream z = new ZipOutputStream(os)) {
+                z.putNextEntry(new ZipEntry(CROP + ".class"));
+                z.write(vanillaCrop(paper));
+                z.closeEntry();
+            }
+        }
+        FullShells g = new FullShells(ShellMergeTest.table(BLOCK_PAPER), ShellMergeTest.table(ShellMergeTest.EMPTY), ShellMergeTest.table(ShellMergeTest.EMPTY),
+                new FullShells.Existing(List.of()));
+        LinkInfer inf = new LinkInfer(g);
+        String[][] members = {{"isRandomlyTicking", "(" + SD + ")Z"}, {"getAge", "(" + SD + ")I"}, {"signal", "(" + SD + "Ljava/lang/Object;Ljava/lang/Object;)I"},
+                {"notLit", "(Ljava/lang/Object;" + SD + ")Z"}, {"grow", "(" + SD + "I)" + SD}, {"maxAge", "(" + SD + ")" + SD}, {"isYoung", "(" + SD + ")Z"},
+                {"twoStates", "(" + SD + SD + ")Z"}, {"isLit", "(" + SD + ")Z"}};
+        for (String[] m : members) inf.shells.add(new LinkInfer.Shell(CROP, m[0], m[1], Opcodes.ACC_PUBLIC));
+        Map<String, String> vanillaAliases = new java.util.HashMap<>(), paperAliases = new java.util.HashMap<>();
+        try (ZipFile zf = new ZipFile(jar.toFile())) {
+            inf.readBodies(zf, inf.bodies);
+            LinkInfer.readPropertyAliases(zf, vanillaAliases);
+        }
+        inf.paperBodies = new java.util.HashMap<>();
+        try (ZipFile zf = new ZipFile(paperJar.toFile())) {
+            inf.readBodies(zf, inf.paperBodies);
+            LinkInfer.readPropertyAliases(zf, paperAliases);
+        }
+        assertEquals(Map.of(CROP + " AGE", PROPS + " AGE_5"), vanillaAliases, "LIT 은 다른 필드를 그대로 넣지 않는다(만든다), TERN 은 분기 합류");
+        inf.propertyAliases.putAll(vanillaAliases);
+        inf.classify();
+        Map<String, String> got = new TreeMap<>();
+        for (LinkInfer.Candidate c : inf.candidates) got.put(c.m().name(), c.target() + " " + c.check());
+        String age = "net.minecraft.zz.Props.AGE_5", lit = "net.minecraft.zz.Crop.LIT";
+        assertEquals(new TreeMap<>(Map.of(
+                "isRandomlyTicking", "@idiom(block-state-int-lt, " + age + ", 5) pure",
+                "getAge", "@idiom(block-state-get, " + age + ") pure",
+                "signal", "@idiom(block-state-pick-int, " + lit + ", 15, 0) pure",
+                "notLit", "@idiom(block-state-not, " + lit + ") pure",
+                "grow", "@idiom(block-state-set, " + age + ") pure",
+                "maxAge", "@idiom(block-state-set-int, " + age + ", 5) pure",
+                "isYoung", "@idiom(block-state-int-eq, " + age + ", 0) pure",
+                "isLit", "@idiom(block-state-get, " + lit + ") pure")), got, "twoStates(상태 인자 둘)는 후보가 아니다 — 겹침의 상태 자리가 갈리지 않게");
+        Map<String, String> bad = new TreeMap<>();
+        for (Map.Entry<LinkInfer.Candidate, String> e : inf.typeRejected.entrySet()) bad.put(e.getKey().m().name(), e.getValue());
+        assertEquals(Map.of("isLit", "Paper body differs from the vanilla body"), bad);
+    }
+
+    /** 바닐라 블록 흉내(javac 가 내는 꼴). paper 면 isLit 만 다르다(뒤집음). */
+    private static byte[] vanillaCrop(boolean paper) {
+        ClassWriter cw = new ClassWriter(0);
+        cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC, CROP, null, "java/lang/Object", null);
+        cw.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, "AGE", INT_P, null, null).visitEnd();
+        cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, "LIT", BOOL_P, null, null).visitEnd();
+        cw.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, "TERN", INT_P, null, null).visitEnd();
+        MethodVisitor ci = cw.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
+        ci.visitCode();
+        ci.visitFieldInsn(Opcodes.GETSTATIC, PROPS, "AGE_5", INT_P);
+        ci.visitFieldInsn(Opcodes.PUTSTATIC, CROP, "AGE", INT_P);
+        // TERN = 참 ? Props.OTHER : Props.AGE_5 — 분기 합류 뒤 putstatic 은 별칭이 아니다
+        Label other = new Label(), join = new Label();
+        ci.visitInsn(Opcodes.ICONST_1);
+        ci.visitJumpInsn(Opcodes.IFEQ, other);
+        ci.visitFieldInsn(Opcodes.GETSTATIC, PROPS, "OTHER", INT_P);
+        ci.visitJumpInsn(Opcodes.GOTO, join);
+        ci.visitLabel(other);
+        ci.visitFieldInsn(Opcodes.GETSTATIC, PROPS, "AGE_5", INT_P);
+        ci.visitLabel(join);
+        ci.visitFieldInsn(Opcodes.PUTSTATIC, CROP, "TERN", INT_P);
+        ci.visitLdcInsn("lit");
+        ci.visitMethodInsn(Opcodes.INVOKESTATIC, "net/minecraft/world/level/block/state/properties/BooleanProperty", "create", "(Ljava/lang/String;)" + BOOL_P, false);
+        ci.visitFieldInsn(Opcodes.PUTSTATIC, CROP, "LIT", BOOL_P);
+        ci.visitInsn(Opcodes.RETURN);
+        ci.visitMaxs(0, 0);
+        ci.visitEnd();
+        method(cw, "isRandomlyTicking", "(" + SD + ")Z", mv -> {
+            getValue(mv, 1, "AGE", INT_P);
+            unbox(mv, "java/lang/Integer", "intValue", "()I");
+            mv.visitInsn(Opcodes.ICONST_5);
+            branch(mv, Opcodes.IF_ICMPGE, 1, 0, Opcodes.IRETURN);
+        });
+        method(cw, "getAge", "(" + SD + ")I", mv -> {
+            getValue(mv, 1, "AGE", INT_P);
+            unbox(mv, "java/lang/Integer", "intValue", "()I");
+            mv.visitInsn(Opcodes.IRETURN);
+        });
+        method(cw, "signal", "(" + SD + "Ljava/lang/Object;Ljava/lang/Object;)I", mv -> {
+            getValue(mv, 1, "LIT", BOOL_P);
+            unbox(mv, "java/lang/Boolean", "booleanValue", "()Z");
+            branch(mv, Opcodes.IFEQ, 15, 0, Opcodes.IRETURN);
+        });
+        method(cw, "notLit", "(Ljava/lang/Object;" + SD + ")Z", mv -> {
+            getValue(mv, 2, "LIT", BOOL_P);
+            unbox(mv, "java/lang/Boolean", "booleanValue", "()Z");
+            branch(mv, Opcodes.IFNE, 1, 0, Opcodes.IRETURN);
+        });
+        method(cw, "grow", "(" + SD + "I)" + SD, mv -> {
+            mv.visitVarInsn(Opcodes.ALOAD, 1);
+            mv.visitFieldInsn(Opcodes.GETSTATIC, CROP, "AGE", INT_P);
+            mv.visitVarInsn(Opcodes.ILOAD, 2);
+            mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Integer", "valueOf", "(I)Ljava/lang/Integer;", false);
+            setValue(mv);
+        });
+        method(cw, "maxAge", "(" + SD + ")" + SD, mv -> {
+            mv.visitVarInsn(Opcodes.ALOAD, 1);
+            mv.visitFieldInsn(Opcodes.GETSTATIC, CROP, "AGE", INT_P);
+            mv.visitInsn(Opcodes.ICONST_5);
+            mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Integer", "valueOf", "(I)Ljava/lang/Integer;", false);
+            setValue(mv);
+        });
+        method(cw, "isYoung", "(" + SD + ")Z", mv -> {
+            getValue(mv, 1, "AGE", INT_P);
+            unbox(mv, "java/lang/Integer", "intValue", "()I");
+            branch(mv, Opcodes.IFNE, 1, 0, Opcodes.IRETURN);
+        });
+        method(cw, "twoStates", "(" + SD + SD + ")Z", mv -> {
+            getValue(mv, 1, "LIT", BOOL_P);
+            unbox(mv, "java/lang/Boolean", "booleanValue", "()Z");
+            mv.visitInsn(Opcodes.IRETURN);
+        });
+        method(cw, "isLit", "(" + SD + ")Z", mv -> {
+            getValue(mv, 1, "LIT", BOOL_P);
+            unbox(mv, "java/lang/Boolean", "booleanValue", "()Z");
+            if (paper) {
+                branch(mv, Opcodes.IFNE, 1, 0, Opcodes.IRETURN);   // Paper 가 바꾼 꼴(뒤집음)
+            } else {
+                mv.visitInsn(Opcodes.IRETURN);
+            }
+        });
+        cw.visitEnd();
+        return cw.toByteArray();
+    }
+
+    private static void getValue(MethodVisitor mv, int slot, String field, String desc) {
+        mv.visitVarInsn(Opcodes.ALOAD, slot);
+        mv.visitFieldInsn(Opcodes.GETSTATIC, CROP, field, desc);
+        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, STATE, "getValue", "(L" + PROP + ";)Ljava/lang/Comparable;", false);
+    }
+
+    private static void unbox(MethodVisitor mv, String box, String name, String desc) {
+        mv.visitTypeInsn(Opcodes.CHECKCAST, box);
+        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, box, name, desc, false);
+    }
+
+    private static void setValue(MethodVisitor mv) {
+        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, STATE, "setValue", "(L" + PROP + ";Ljava/lang/Comparable;)Ljava/lang/Object;", false);
+        mv.visitTypeInsn(Opcodes.CHECKCAST, STATE);
+        mv.visitInsn(Opcodes.ARETURN);
+    }
+
+    /** jump L → a → goto E → L: b → E: ret (javac 의 참거짓·삼항 꼴). */
+    private static void branch(MethodVisitor mv, int jump, int a, int b, int ret) {
+        Label l = new Label(), e = new Label();
+        mv.visitJumpInsn(jump, l);
+        mv.visitIntInsn(Opcodes.BIPUSH, a);
+        mv.visitJumpInsn(Opcodes.GOTO, e);
+        mv.visitLabel(l);
+        mv.visitIntInsn(Opcodes.BIPUSH, b);
+        mv.visitLabel(e);
+        mv.visitInsn(ret);
+    }
+
     @Test
     void adoptRewritesOnlyMachineFilesWithShapeProof() throws Exception {
         Path dir = Files.createDirectories(tmp.resolve("links-1.21.1"));
