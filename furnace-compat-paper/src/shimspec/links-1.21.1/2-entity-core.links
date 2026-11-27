@@ -39,4 +39,4 @@ class net.minecraft.world.entity.animal.Panda
 class net.minecraft.world.entity.animal.horse.AbstractHorse
   setEating(Z)V -> @idiom(entity-data-flag-set, #2d924aac3c, 16) write via=G1 proof=review   # AbstractHorse.setFlag(16, v)
 class net.minecraft.world.entity.monster.Vex
-  setIsCharging(Z)V -> @idiom(entity-data-flag-set, #9630c828c9, 1) write via=G1 proof=review   # Vex.setVexFlag(1, v)
+  setIsCharging(Z)V -> @idiom(entity-data-flag-set, net.minecraft.world.entity.monster.Vex.DATA_FLAGS_ID, 1) write via=G1 proof=review   # Vex.setVexFlag(1, v)
