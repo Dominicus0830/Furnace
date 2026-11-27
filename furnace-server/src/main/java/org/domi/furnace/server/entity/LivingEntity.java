@@ -384,6 +384,15 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     public boolean isUsingItem() { return ((Byte) entityData.get(DATA_LIVING_FLAGS) & 1) != 0; }
 
+    /** DATA_LIVING_ENTITY_FLAGS 지금 값(사용 중 1·다른 손 2·회전 공격 4). */
+    public byte livingFlags() { return (Byte) entityData.get(DATA_LIVING_FLAGS); }
+
+    /** LivingEntity.animateHurt: hurtDuration = 10, hurtTime = hurtDuration. */
+    public void animateHurt() {
+        hurtDuration = 10;
+        hurtTime = hurtDuration;
+    }
+
     public int getUsedItemHand() { return ((Byte) entityData.get(DATA_LIVING_FLAGS) & 2) != 0 ? 1 : 0; }
 
     private void setLivingEntityFlag(int flag, boolean on) {
@@ -391,39 +400,124 @@ public abstract class LivingEntity extends Entity implements Targetable {
         entityData.set(DATA_LIVING_FLAGS, (byte) (on ? b | flag : b & ~flag));
     }
 
-    /** LivingEntity.startUsingItem(hand): 쓰는 아이템 지속시간을 72000 으로 두고(활) item_interact_start. */
-    public void startUsingItem(int hand) {
-        ItemStack s = getItemBySlot(hand == 0 ? EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND);
-        if (s.isEmpty() || isUsingItem()) return;
-        usingHandIndex = hand;
+    /** LivingEntity.startUsingItem(hand) = Paper startUsingItem(hand, false). */
+    public void startUsingItem(int hand) { startUsingItem(hand, false); }
+
+    /** 쓰는 아이템(바닐라 useItem): 틱마다 손의 같은 아이템으로 갱신한다. */
+    private ItemStack useItem = ItemStack.EMPTY;
+
+    private ItemStack handItem(int hand) { return getItemBySlot(hand == 0 ? EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND); }
+
+    /**
+     * Paper LivingEntity.startUsingItem(hand, forceUpdate): 손이 비었거나 이미 쓰는 중이면 force 일 때만. 쓰는 아이템과 남은 틱(그 아이템의 사용 시간)을 두고
+     * 깃발 사용·손, item_interact_start.
+     */
+    public void startUsingItem(int hand, boolean force) {
+        ItemStack s = handItem(hand);
+        if ((s.isEmpty() || isUsingItem()) && !force) return;
+        useItem = s;
         useItemRemaining = getUseDuration(s);
+        usingHandIndex = hand;
         setLivingEntityFlag(1, true);
         setLivingEntityFlag(2, hand == 1);
         gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ITEM_INTERACT_START);
     }
 
-    /** LivingEntity.stopUsingItem: 쓰던 중이었으면 item_interact_finish. */
+    /** LivingEntity.stopUsingItem: 사용 깃발을 끄고(쓰던 중이었으면 item_interact_finish) 쓰는 아이템·남은 틱을 비운다. */
     public void stopUsingItem() {
         boolean was = isUsingItem();
         setLivingEntityFlag(1, false);
         if (was) gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ITEM_INTERACT_FINISH);
+        useItem = ItemStack.EMPTY;
         useItemRemaining = 0;
     }
 
-    /** LivingEntity.getTicksUsingItem: 72000 - 남은 틱. */
-    public int getTicksUsingItem() { return isUsingItem() ? 72000 - useItemRemaining : 0; }
+    /** LivingEntity.getTicksUsingItem: 쓰는 아이템의 사용 시간 − 남은 틱(쇠뇌처럼 놓을 때 쓰는 것은 0 아래로 내려가 계속 는다). */
+    public int getTicksUsingItem() { return isUsingItem() ? getUseDuration(useItem) - useItemRemaining : 0; }
 
-    /** 아이템 사용 시간. 기본 72000(활); 마시는 몹이 재정의해 32 등을 준다. */
-    protected int getUseDuration(ItemStack s) { return 72000; }
+    /** ItemStack.getUseDuration(entity) — 아이템마다({@link MobItemUse#duration}). */
+    protected int getUseDuration(ItemStack s) { return MobItemUse.duration(s); }
 
-    /** 사용 시간이 다 찼다(바닐라 completeUsingItem). 기본은 아무것도 안 한다. */
-    protected void completeUsingItem() {}
+    /**
+     * LivingEntity.completeUsingItem(플레이어가 아닌 생물): 쓰는 아이템이 손의 것이 아니면 releaseUsingItem. 아니면 효과(16) → finishUsingItem →
+     * 돌려준 스택이 다르면 손에 둔다 → 사용 끝.
+     * 차이: Paper 는 여기서 startUsingItem(hand, true) 를 한 번 더 불러 item_interact_start 를 다시 낸다 — 바닐라와 플레이어 경로(Consuming)처럼 부르지 않는다.
+     */
+    protected void completeUsingItem() {
+        int hand = getUsedItemHand();
+        if (!useItem.equals(handItem(hand))) {
+            releaseUsingItem();
+            return;
+        }
+        if (!useItem.isEmpty() && isUsingItem()) {
+            triggerItemUseEffects(useItem, 16);
+            ItemStack r = MobItemUse.finish(this, useItem);
+            if (r != useItem) setItemSlot(hand == 0 ? EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND, r);
+            stopUsingItem();
+        }
+    }
 
+    /** LivingEntity.releaseUsingItem(플레이어가 아닌 생물): 놓을 때 쓰는 아이템(쇠뇌)이면 한 번 더 사용 틱, 그리고 사용 끝. 몹의 releaseUsing 효과는 목표가 맡는다. */
+    public void releaseUsingItem() {
+        if (!useItem.isEmpty() && MobItemUse.useOnRelease(useItem)) updateUsingItem();
+        stopUsingItem();
+    }
+
+    /** LivingEntity.updatingUsingItem: 손의 아이템이 쓰는 아이템과 같은 종류면 그것으로 갱신해 사용 틱, 아니면 사용 끝. */
     private void updateUsingItem() {
-        if (isUsingItem()) {
-            ItemStack s = getItemBySlot(getUsedItemHand() == 0 ? EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND);
-            if (s.isEmpty()) stopUsingItem();
-            else if (useItemRemaining > 0 && --useItemRemaining == 0) completeUsingItem();
+        if (!isUsingItem()) return;
+        ItemStack h = handItem(getUsedItemHand());
+        if (sameItem(h, useItem)) {
+            useItem = h;
+            tickUsingItem(h);
+        } else {
+            stopUsingItem();
+        }
+    }
+
+    /** ItemStack.isSameItem: 종류만 본다. 빈 스택은 공기(빈 것끼리 같다). */
+    private static boolean sameItem(ItemStack a, ItemStack b) {
+        if (a.isEmpty() || b.isEmpty()) return a.isEmpty() && b.isEmpty();
+        return a.itemId() == b.itemId();
+    }
+
+    /**
+     * LivingEntity.updateUsingItem(stack): (onUseTick 은 몹 목표가 맡는다) 효과 시점이면 효과(5), 남은 틱을 하나 줄여 0 이 되고 놓을 때 쓰는 것이 아니면
+     * completeUsingItem. Paper 의 실시간 먹기 보정(nanoTime)은 하지 않는다 — 틱 기준이 바닐라다.
+     */
+    private void tickUsingItem(ItemStack s) {
+        if (shouldTriggerItemUseEffects()) triggerItemUseEffects(s, 5);
+        if (--useItemRemaining == 0 && !MobItemUse.useOnRelease(s)) {
+            useItemRemaining = 0;
+            completeUsingItem();
+        }
+    }
+
+    /** LivingEntity.shouldTriggerItemUseEffects: 사용 시간의 7/32 를 지났고 남은 틱이 4 의 배수. */
+    private boolean shouldTriggerItemUseEffects() {
+        int d = getUseDuration(useItem);
+        int elapsed = d - useItemRemaining;
+        int threshold = (int) ((float) d * 0.21875F);
+        return elapsed > threshold && useItemRemaining % 4 == 0;
+    }
+
+    /**
+     * LivingEntity.triggerItemUseEffects(stack, count): 마시기면 소리(레벨 난수, 0.5, 0.9 + 0.1x), 먹기면 입자(서버에서는 보이지 않지만 엔티티 난수를 입자마다
+     * 셋 쓴다) 뒤 소리(엔티티 난수: 0.5 + 0.5 × nextInt(2), 1 + (a − b) × 0.2).
+     */
+    protected void triggerItemUseEffects(ItemStack s, int count) {
+        if (s.isEmpty() || !isUsingItem()) return;
+        MobItemUse.Anim anim = MobItemUse.anim(s);
+        if (anim == MobItemUse.Anim.DRINK) playSound(MobItemUse.drinkingSound(s), 0.5F, level.random().nextFloat() * 0.1F + 0.9F);
+        if (anim == MobItemUse.Anim.EAT) {
+            for (int i = 0; i < count; i++) {   // spawnItemParticles: ServerLevel.addParticle 는 아무것도 하지 않는다 — 난수만 같게
+                random.nextFloat();
+                random.nextFloat();
+                random.nextFloat();
+            }
+            float vol = 0.5F + 0.5F * (float) random.nextInt(2);
+            float a = random.nextFloat(), b = random.nextFloat();
+            playSound(MobItemUse.eatingSound(s), vol, (a - b) * 0.2F + 1.0F);
         }
     }
 

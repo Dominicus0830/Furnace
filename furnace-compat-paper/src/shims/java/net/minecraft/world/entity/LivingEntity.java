@@ -112,4 +112,55 @@ class LivingEntity {
 
     /** 바닐라 isFallFlying: 공유 플래그 7(겉날개로 나는 중). */
     public boolean isFallFlying() { org.domi.furnace.compat.nms.NmsEntityOwner.read(this, "LivingEntity#isFallFlying"); return (furnaceLook("LivingEntity#isFallFlying").sharedFlags() & 1 << 7) != 0; }
+
+    // ------------------------------------------------------------------ 아이템 사용·맞은 흔들림(FancyNpcs)
+
+    /** 생물 깃발(DATA_LIVING_ENTITY_FLAGS): 월드 밖 엔티티는 재생한 칸, 월드의 엔티티는 서버 값. */
+    private byte furnaceLivingFlags(String what) {
+        if (furnaceNotInWorld()) return (Byte) getEntityData().get(DATA_LIVING_ENTITY_FLAGS);
+        return furnaceLook(what).livingFlags();
+    }
+
+    /** 바닐라 isUsingItem: 생물 깃발 1. */
+    public boolean isUsingItem() {
+        org.domi.furnace.compat.nms.NmsEntityOwner.read(this, "LivingEntity#isUsingItem");
+        return (furnaceLivingFlags("LivingEntity#isUsingItem") & 1) != 0;
+    }
+
+    /** 바닐라 getUsedItemHand: 생물 깃발 2 면 다른 손(쓰기를 멈춰도 바닐라처럼 남는다). */
+    public net.minecraft.world.InteractionHand getUsedItemHand() {
+        org.domi.furnace.compat.nms.NmsEntityOwner.read(this, "LivingEntity#getUsedItemHand");
+        return (furnaceLivingFlags("LivingEntity#getUsedItemHand") & 2) != 0 ? net.minecraft.world.InteractionHand.OFF_HAND : net.minecraft.world.InteractionHand.MAIN_HAND;
+    }
+
+    /** 바닐라 startUsingItem(hand) = Paper startUsingItem(hand, false). */
+    public void startUsingItem(net.minecraft.world.InteractionHand hand) {
+        org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "LivingEntity#startUsingItem");
+        startUsingItem(hand, false);
+    }
+
+    /** Paper startUsingItem(hand, forceUpdate): 서버 엔티티가 같은 규칙으로 쓰기 시작한다(월드 밖이면 넣을 때 차례대로 재생). */
+    public void startUsingItem(net.minecraft.world.InteractionHand hand, boolean forceUpdate) {
+        org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "LivingEntity#startUsingItem");
+        furnaceLivingEdit("LivingEntity#startUsingItem", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.StartUsingItem(
+                hand == net.minecraft.world.InteractionHand.OFF_HAND ? 1 : 0, forceUpdate));
+    }
+
+    /** 바닐라 stopUsingItem. */
+    public void stopUsingItem() {
+        org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "LivingEntity#stopUsingItem");
+        furnaceLivingEdit("LivingEntity#stopUsingItem", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.StopUsingItem());
+    }
+
+    /** 바닐라 animateHurt(yaw): 서버 엔티티의 hurtDuration·hurtTime 을 10 으로(yaw 는 바닐라도 쓰지 않는다). */
+    public void animateHurt(float yaw) {
+        org.domi.furnace.compat.nms.NmsEntityOwner.write(this, "LivingEntity#animateHurt");
+        furnaceLivingEdit("LivingEntity#animateHurt", new org.domi.furnace.api.internal.ChunkInternals.EntityEdit.AnimateHurt());
+    }
+
+    /** 월드 밖이면 조작으로 기록하고(칸을 다시 채운다), 월드의 엔티티면 주인 스레드에서 서버 엔티티에 한다. */
+    private <T extends org.domi.furnace.api.internal.ChunkInternals.EntityEdit & org.domi.furnace.api.internal.ChunkInternals.EntityOp> void furnaceLivingEdit(String what, T op) {
+        if (furnaceNotInWorld()) furnaceDetachedOp(what, op);
+        else furnaceEditOf(what, op);
+    }
 }

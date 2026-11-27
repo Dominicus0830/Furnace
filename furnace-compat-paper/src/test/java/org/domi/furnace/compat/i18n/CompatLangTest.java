@@ -24,7 +24,8 @@ class CompatLangTest {
 
     private static final Pattern SLOT = Pattern.compile("\\{(\\d*)}");
     private static final Pattern KEY = Pattern.compile("CompatLang\\.t\\(\\s*\"([^\"]+)\"");
-    private static final Path SOURCES = Path.of("src/main/java");
+    /** 손 shim 을 명세 조각으로 옮겨도(src/shims/java) 키 사용을 같이 본다. */
+    private static final List<Path> SOURCES = List.of(Path.of("src/main/java"), Path.of("src/shims/java"));
 
     @AfterEach
     void restore() {
@@ -71,12 +72,14 @@ class CompatLangTest {
         Properties en = bundle("en");
         StringBuilder all = new StringBuilder();
         List<String> missing = new ArrayList<>();
-        try (Stream<Path> files = Files.walk(SOURCES)) {
-            for (Path f : (Iterable<Path>) files.filter(p -> p.toString().endsWith(".java"))::iterator) {
-                String src = Files.readString(f, StandardCharsets.UTF_8);
-                all.append(src);
-                Matcher m = KEY.matcher(src);
-                while (m.find()) if (en.getProperty(m.group(1)) == null) missing.add(f.getFileName() + ": " + m.group(1));
+        for (Path root : SOURCES) {
+            try (Stream<Path> files = Files.walk(root)) {
+                for (Path f : (Iterable<Path>) files.filter(p -> p.toString().endsWith(".java"))::iterator) {
+                    String src = Files.readString(f, StandardCharsets.UTF_8);
+                    all.append(src);
+                    Matcher m = KEY.matcher(src);
+                    while (m.find()) if (en.getProperty(m.group(1)) == null) missing.add(f.getFileName() + ": " + m.group(1));
+                }
             }
         }
         assertTrue(missing.isEmpty(), "CompatLang.t keys missing from en.properties: " + missing);

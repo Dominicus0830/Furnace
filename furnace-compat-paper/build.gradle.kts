@@ -506,7 +506,26 @@ tasks.register<JavaExec>("inferLinks") {
     maxHeapSize = "3g"
     argumentProviders.addAll(gen.argumentProviders)
     argumentProviders.add(CommandLineArgumentProvider {
-        listOf("$fullShellsCache/$mcVersion/work/server-mojmap.jar", layout.buildDirectory.dir("reports/link-infer").get().asFile.absolutePath)
+        listOf("$fullShellsCache/$mcVersion/work/server-mojmap.jar", "$fullShellsCache/$mcVersion/work/paper-server-mojmap.jar",
+            layout.buildDirectory.dir("reports/link-infer").get().asFile.absolutePath)
+    })
+    outputs.upToDateWhen { false }
+}
+// T-263 S2: 모양 증명 줄 채택 — inferLinks 와 같은 일 + 엔티티 데이터 관용구 줄을 src/shimspec/links-<판>/<영역>.auto.links 로 다시 쓴다(손 줄 파일은 그대로).
+//   ./gradlew -PskipOracle=true :furnace-compat-paper:adoptLinks
+tasks.register<JavaExec>("adoptLinks") {
+    group = "verification"
+    description = "연결 줄 채택(T-263 S2) — 모양 증명 엔티티 데이터 줄을 <영역>.auto.links 로"
+    val gen = generateFullShells.get()
+    dependsOn(fullShellsMain.classesTaskName)
+    classpath = shimgen.runtimeClasspath
+    mainClass.set("org.domi.furnace.compat.shimgen.LinkInfer")
+    jvmArgs("-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8")
+    maxHeapSize = "3g"
+    argumentProviders.addAll(gen.argumentProviders)
+    argumentProviders.add(CommandLineArgumentProvider {
+        listOf("$fullShellsCache/$mcVersion/work/server-mojmap.jar", "$fullShellsCache/$mcVersion/work/paper-server-mojmap.jar",
+            layout.buildDirectory.dir("reports/link-infer").get().asFile.absolutePath, fullShellsLinks.asFile.absolutePath)
     })
     outputs.upToDateWhen { false }
 }

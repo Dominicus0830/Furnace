@@ -237,7 +237,7 @@ class Entity {
     private volatile org.domi.furnace.api.internal.ChunkInternals.EntityLook lastLook;
 
     private static final org.domi.furnace.api.internal.ChunkInternals.EntityLook FRESH =
-            new org.domi.furnace.api.internal.ChunkInternals.EntityLook((byte) 0, 0, 0, 0, 0, false, false, 0, null, java.util.List.of(), 0, 0, 0);
+            new org.domi.furnace.api.internal.ChunkInternals.EntityLook((byte) 0, 0, 0, 0, 0, false, false, 0, null, java.util.List.of(), 0, 0, 0, (byte) 0);
 
     /**
      * 지금 모습. 플레이어는 아무 스레드에서 최근 값(Paper 처럼 경쟁 읽기). 다른 엔티티는 주인 스레드에서 읽고, 다른 스레드 규칙은
@@ -250,10 +250,10 @@ class Entity {
             if (dl.data != null) {   // 칸을 꺼내 줬으면 칸이 한 곳의 정답이다(플러그인이 칸에 바로 쓴 깃발·자세도)
                 byte flags = org.domi.furnace.compat.nms.NmsEntityData.sharedFlags(dl.data);
                 int pose = org.domi.furnace.compat.nms.NmsEntityData.pose(dl.data);
-                return flags == 0 && pose == 0 ? FRESH : new org.domi.furnace.api.internal.ChunkInternals.EntityLook(flags, pose, 0, 0, 0, false, false, 0, null, java.util.List.of(), 0, 0, 0);
+                return flags == 0 && pose == 0 ? FRESH : new org.domi.furnace.api.internal.ChunkInternals.EntityLook(flags, pose, 0, 0, 0, false, false, 0, null, java.util.List.of(), 0, 0, 0, (byte) 0);
             }
             return dl.flags == 0 ? FRESH
-                    : new org.domi.furnace.api.internal.ChunkInternals.EntityLook(dl.flags, 0, 0, 0, 0, false, false, 0, null, java.util.List.of(), 0, 0, 0);
+                    : new org.domi.furnace.api.internal.ChunkInternals.EntityLook(dl.flags, 0, 0, 0, 0, false, false, 0, null, java.util.List.of(), 0, 0, 0, (byte) 0);
         }
         var h = f();
         var b = org.domi.furnace.compat.nms.NmsChunks.bridge();

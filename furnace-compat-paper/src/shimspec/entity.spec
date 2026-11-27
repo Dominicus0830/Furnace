@@ -91,6 +91,12 @@ class net.minecraft.world.entity.LivingEntity  owner=org.domi.furnace.compat.nms
   # <<< 엔티티 데이터 칸 상수
   isAlive -> @hand read=snapshot
   isFallFlying -> @hand read=owner
+  isUsingItem -> @hand read=owner
+  getUsedItemHand -> @hand read=owner
+  startUsingItem(Lnet/minecraft/world/InteractionHand;)V -> @hand write
+  startUsingItem(Lnet/minecraft/world/InteractionHand;Z)V -> @hand write
+  stopUsingItem -> @hand write
+  animateHurt -> @hand write
 class net.minecraft.world.entity.player.Player  owner=org.domi.furnace.compat.nms.NmsEntityOwner
   # >>> 엔티티 데이터 칸 상수(tools/compat/entity-data-spec.py 가 만든다 — 손으로 고치지 않는다)
   DATA_PLAYER_MAIN_HAND = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.player.Player.class, "DATA_PLAYER_MAIN_HAND")
