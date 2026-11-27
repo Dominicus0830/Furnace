@@ -8,7 +8,8 @@ class TamableAnimal {
 
     /** Paper setInSittingPose(sit): EntityToggleSitEvent 를 낸다. */
     public void setInSittingPose(boolean sit) {
-        setInSittingPose(sit, true);
+        NmsEntityOwner.write(this, "TamableAnimal#setInSittingPose");
+        furnaceSitPose("TamableAnimal#setInSittingPose", sit, true);
     }
 
     /** Paper setInSittingPose(sit, fireEvent): 이벤트를 내면 플러그인이 취소할 수 있다(취소면 그대로), 아니면 깃발 1 을 켜고 끈다. */

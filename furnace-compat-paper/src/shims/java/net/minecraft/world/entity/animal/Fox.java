@@ -8,12 +8,17 @@ class Fox {
 
     /** Paper setSitting(sit): EntityToggleSitEvent 를 낸다. */
     public void setSitting(boolean sit) {
-        setSitting(sit, true);
+        NmsEntityOwner.write(this, "Fox#setSitting");
+        furnaceSitPose(sit, true);
     }
 
     /** Paper setSitting(sit, fireEvent): 이벤트를 내면 플러그인이 취소할 수 있다(취소면 그대로), 아니면 깃발 1 을 켜고 끈다. */
     public void setSitting(boolean sit, boolean fireEvent) {
         NmsEntityOwner.write(this, "Fox#setSitting");
+        furnaceSitPose(sit, fireEvent);
+    }
+
+    private void furnaceSitPose(boolean sit, boolean fireEvent) {
         var op = new EntityEdit.SitPose(sit, fireEvent);
         if (furnaceNotInWorld()) {
             // Paper 는 이벤트에 getBukkitEntity() 를 싣는다 — 월드 밖 엔티티는 Bukkit 엔티티가 없어 getBukkitEntity 처럼 멈춘다
