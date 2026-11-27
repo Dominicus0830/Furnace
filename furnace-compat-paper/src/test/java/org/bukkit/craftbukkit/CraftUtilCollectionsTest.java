@@ -3,10 +3,10 @@ package org.bukkit.craftbukkit;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
-import java.util.ConcurrentModificationException;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import org.bukkit.craftbukkit.util.ApiVersion;
@@ -43,27 +43,38 @@ class CraftUtilCollectionsTest {
     }
 
     @Test
-    void unsafeListIteratorChecksModification() {
+    void unsafeListDoesNotTrackModCountLikePaper() {
         UnsafeList<Integer> l = new UnsafeList<>(4);
         for (int i = 0; i < 6; i++) {
             l.add(i);
         }
         Iterator<Integer> it = l.iterator();
         assertEquals(0, it.next());
-        l.add(9);
-        assertThrows(ConcurrentModificationException.class, it::next);
+        l.add(9); // Paper 는 modCount 를 올리지 않아 반복 중 추가해도 던지지 않는다
+        assertEquals(1, it.next());
         Iterator<Integer> it2 = l.iterator();
+        assertNotSame(it, it2);
         while (it2.hasNext()) {
             if (it2.next() % 2 == 0) {
                 it2.remove();
             }
         }
         assertEquals(List.of(1, 3, 5, 9), new ArrayList<>(l));
+        l.clear();
+        assertTrue(l.isEmpty());
+        assertThrows(NoSuchElementException.class, l.iterator()::next);
+    }
+
+    @Test
+    void unsafeListCloneIsIndependent() throws Exception {
+        UnsafeList<Integer> l = new UnsafeList<>();
+        l.add(1);
         @SuppressWarnings("unchecked")
         UnsafeList<Integer> copy = (UnsafeList<Integer>) l.clone();
         copy.add(7);
-        assertEquals(4, l.size());
-        assertEquals(5, copy.size());
+        assertEquals(1, l.size());
+        assertEquals(2, copy.size());
+        assertThrows(NullPointerException.class, () -> l.indexOf(null));
     }
 
     @Test
@@ -119,14 +130,20 @@ class CraftUtilCollectionsTest {
     }
 
     @Test
-    void apiVersionOrdering() {
-        ApiVersion a = ApiVersion.getOrCreateVersion("1.13");
-        assertSame(a, ApiVersion.FLATTENING);
+    void apiVersionMatchesPaperParsing() {
+        assertSame(ApiVersion.getOrCreateVersion("1.13"), ApiVersion.getOrCreateVersion("1.13.0"));
+        assertSame(ApiVersion.FLATTENING, ApiVersion.getOrCreateVersion("1.13"));
+        assertEquals("1.13.0", ApiVersion.FLATTENING.getVersionString());
+        assertEquals("1.20.5", ApiVersion.FIELD_NAME_PARITY.getVersionString());
+        assertEquals("none", ApiVersion.NONE.getVersionString());
+        assertSame(ApiVersion.NONE, ApiVersion.getOrCreateVersion(null));
+        assertSame(ApiVersion.NONE, ApiVersion.getOrCreateVersion("  "));
+        assertSame(ApiVersion.NONE, ApiVersion.getOrCreateVersion("None"));
         assertTrue(ApiVersion.CURRENT.isNewerThan(ApiVersion.FLATTENING));
         assertTrue(ApiVersion.NONE.isOlderThan(ApiVersion.FLATTENING));
         assertTrue(ApiVersion.FIELD_NAME_PARITY.isNewerThanOrSameAs(ApiVersion.FLATTENING));
-        assertEquals("1.20.5", ApiVersion.FIELD_NAME_PARITY.getVersionString());
-        assertEquals("1.13", ApiVersion.FLATTENING.getVersionString());
-        assertEquals(ApiVersion.NONE, ApiVersion.getOrCreateVersion(null));
+        assertThrows(IllegalArgumentException.class, () -> ApiVersion.getOrCreateVersion("1"));
+        assertThrows(IllegalArgumentException.class, () -> ApiVersion.getOrCreateVersion("1.2.3.4"));
+        assertThrows(NumberFormatException.class, () -> ApiVersion.getOrCreateVersion("1.x"));
     }
 }

@@ -33,12 +33,9 @@ public class UnsafeList<E> extends AbstractList<E> implements List<E>, RandomAcc
     public UnsafeList(int capacity, int maxIterPool) {
         super();
         if (capacity < 0) {
-            capacity = 128;
+            capacity = 32;
         }
         int rounded = Integer.highestOneBit(capacity - 1) << 1;
-        if (rounded < 16) {
-            rounded = 16;
-        }
         data = new Object[rounded];
         initialCapacity = rounded;
         this.maxPool = maxIterPool;
@@ -71,18 +68,13 @@ public class UnsafeList<E> extends AbstractList<E> implements List<E>, RandomAcc
     @Override
     public boolean add(E element) {
         growIfNeeded();
-        modCount++;
         data[size++] = element;
         return true;
     }
 
     @Override
     public void add(int index, E element) {
-        if (index > size || index < 0) {
-            throw new IndexOutOfBoundsException("Index: " + index + ", Size: " + size);
-        }
         growIfNeeded();
-        modCount++;
         System.arraycopy(data, index, data, index + 1, size - index);
         data[index] = element;
         size++;
@@ -92,7 +84,6 @@ public class UnsafeList<E> extends AbstractList<E> implements List<E>, RandomAcc
     public E remove(int index) {
         rangeCheck(index);
         E old = unsafeGet(index);
-        modCount++;
         int moved = size - index - 1;
         if (moved > 0) {
             System.arraycopy(data, index + 1, data, index, moved);
@@ -114,7 +105,7 @@ public class UnsafeList<E> extends AbstractList<E> implements List<E>, RandomAcc
     @Override
     public int indexOf(Object o) {
         for (int i = 0; i < size; i++) {
-            if (o == data[i] || (o != null && o.equals(data[i]))) {
+            if (o == data[i] || o.equals(data[i])) {
                 return i;
             }
         }
@@ -138,41 +129,36 @@ public class UnsafeList<E> extends AbstractList<E> implements List<E>, RandomAcc
 
     @Override
     public void clear() {
-        // 반복자 풀은 크기가 줄었을 때 다시 쓰도록 비운다
-        modCount++;
-        for (int i = 0; i < size; i++) {
-            data[i] = null;
-        }
         size = 0;
         if (data.length > initialCapacity << 3) {
             data = new Object[initialCapacity];
-        }
-        for (int i = 0; i < iterPool.length; i++) {
-            if (iterPool[i] != null) {
-                ((Itr) iterPool[i]).valid = false;
+        } else {
+            for (int i = 0; i < data.length; i++) {
+                data[i] = null;
             }
         }
-        poolCounter = 0;
     }
 
     public void trimToSize() {
-        if (size < data.length) {
-            data = java.util.Arrays.copyOf(data, size);
+        int old = data.length;
+        int rounded = Integer.highestOneBit(size - 1) << 1;
+        if (rounded < old) {
+            data = java.util.Arrays.copyOf(data, rounded);
         }
     }
 
     @Override
-    public Object clone() {
-        try {
-            UnsafeList<E> copy = (UnsafeList<E>) super.clone();
-            copy.data = java.util.Arrays.copyOf(data, size);
-            copy.iterPool = new Iterator[1];
-            copy.iterPool[0] = copy.new Itr();
-            copy.poolCounter = 0;
-            return copy;
-        } catch (CloneNotSupportedException e) {
-            throw new InternalError(e);
-        }
+    @SuppressWarnings("unchecked")
+    public Object clone() throws CloneNotSupportedException {
+        UnsafeList<E> copy = (UnsafeList<E>) super.clone();
+        copy.data = java.util.Arrays.copyOf(data, size);
+        copy.size = size;
+        copy.initialCapacity = initialCapacity;
+        copy.iterPool = new Iterator[1];
+        copy.iterPool[0] = new Itr();
+        copy.maxPool = maxPool;
+        copy.poolCounter = 0;
+        return copy;
     }
 
     private void rangeCheck(int index) {
@@ -189,42 +175,46 @@ public class UnsafeList<E> extends AbstractList<E> implements List<E>, RandomAcc
 
     @Override
     public Iterator<E> iterator() {
-        // 풀에서 쓸 수 있는 반복자를 꺼내거나 새로 만든다
-        for (int i = 0; i < iterPool.length; i++) {
-            Iterator<?> it = iterPool[i];
-            if (it != null) {
-                Itr itr = (Itr) it;
-                if (!itr.valid) {
-                    itr.reset();
-                    return itr;
-                }
+        Iterator[] pool = iterPool;
+        int length = pool.length;
+        for (int i = 0; i < length; i++) {
+            Itr itr = (Itr) pool[i];
+            if (!itr.valid) {
+                itr.reset();
+                return itr;
             }
         }
-        Itr fresh = new Itr();
-        if (poolCounter < maxPool) {
-            if (poolCounter >= iterPool.length) {
-                iterPool = java.util.Arrays.copyOf(iterPool, iterPool.length + 1);
-            }
-            iterPool[poolCounter++] = fresh;
+        if (iterPool.length < maxPool) {
+            Iterator[] bigger = new Iterator[iterPool.length + 1];
+            System.arraycopy(iterPool, 0, bigger, 0, iterPool.length);
+            iterPool = bigger;
+            iterPool[iterPool.length - 1] = new Itr();
+            return iterPool[iterPool.length - 1];
         }
-        return fresh;
+        poolCounter = ++poolCounter % iterPool.length;
+        iterPool[poolCounter] = new Itr();
+        return iterPool[poolCounter];
     }
 
     private void writeObject(ObjectOutputStream out) throws IOException {
         out.defaultWriteObject();
         out.writeInt(size);
+        out.writeInt(initialCapacity);
         for (int i = 0; i < size; i++) {
             out.writeObject(data[i]);
         }
+        out.writeInt(maxPool);
     }
 
     private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
         in.defaultReadObject();
-        int n = in.readInt();
-        data = new Object[Math.max(n, 16)];
-        for (int i = 0; i < n; i++) {
+        size = in.readInt();
+        initialCapacity = in.readInt();
+        data = new Object[Integer.highestOneBit(size - 1) << 1];
+        for (int i = 0; i < size; i++) {
             data[i] = in.readObject();
         }
+        maxPool = in.readInt();
         iterPool = new Iterator[1];
         iterPool[0] = new Itr();
     }
@@ -250,30 +240,36 @@ public class UnsafeList<E> extends AbstractList<E> implements List<E>, RandomAcc
 
         @Override
         public E next() {
-            if (expectedModCount != modCount) {
+            if (modCount != expectedModCount) {
                 throw new ConcurrentModificationException();
             }
             int i = index;
             if (i >= size) {
                 throw new NoSuchElementException();
             }
+            if (i >= data.length) {
+                throw new ConcurrentModificationException();
+            }
             index = i + 1;
-            lastRet = i;
-            return unsafeGet(i);
+            return (E) data[lastRet = i];
         }
 
         @Override
         public void remove() {
             if (lastRet < 0) {
-                throw new IllegalStateException();
+                throw new IllegalStateException("");
             }
-            if (expectedModCount != modCount) {
+            if (modCount != expectedModCount) {
                 throw new ConcurrentModificationException();
             }
-            UnsafeList.this.remove(lastRet);
-            index = lastRet;
-            lastRet = -1;
-            expectedModCount = modCount;
+            try {
+                UnsafeList.this.remove(lastRet);
+                index = lastRet;
+                lastRet = -1;
+                expectedModCount = modCount;
+            } catch (IndexOutOfBoundsException e) {
+                throw new ConcurrentModificationException();
+            }
         }
     }
 }
