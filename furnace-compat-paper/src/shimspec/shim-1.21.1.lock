@@ -1582,6 +1582,12 @@ F	net/minecraft/world/level/block/entity/trialspawner/TrialSpawnerState	WAITING_
 F	net/minecraft/world/level/block/entity/trialspawner/TrialSpawnerState	WAITING_FOR_REWARD_EJECTION	Lnet/minecraft/world/level/block/entity/trialspawner/TrialSpawnerState;	16409	-
 M	net/minecraft/world/level/block/entity/trialspawner/TrialSpawnerState	getSerializedName	()Ljava/lang/String;	1	-
 C	net/minecraft/world/level/block/entity/vault/VaultBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/vault/VaultState	16417	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/block/entity/vault/VaultState;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
+E	net/minecraft/world/level/block/entity/vault/VaultState	4
+F	net/minecraft/world/level/block/entity/vault/VaultState	ACTIVE	Lnet/minecraft/world/level/block/entity/vault/VaultState;	16409	-
+F	net/minecraft/world/level/block/entity/vault/VaultState	EJECTING	Lnet/minecraft/world/level/block/entity/vault/VaultState;	16409	-
+F	net/minecraft/world/level/block/entity/vault/VaultState	INACTIVE	Lnet/minecraft/world/level/block/entity/vault/VaultState;	16409	-
+F	net/minecraft/world/level/block/entity/vault/VaultState	UNLOCKING	Lnet/minecraft/world/level/block/entity/vault/VaultState;	16409	-
 C	net/minecraft/world/level/block/piston/MovingPistonBlock	33	net/minecraft/world/level/block/BaseEntityBlock	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/piston/PistonBaseBlock	33	net/minecraft/world/level/block/DirectionalBlock	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/piston/PistonHeadBlock	33	net/minecraft/world/level/block/DirectionalBlock	-	-	-	paper-server-1.21.1
@@ -1739,6 +1745,12 @@ F	net/minecraft/world/level/block/state/properties/StairsShape	OUTER_RIGHT	Lnet/
 F	net/minecraft/world/level/block/state/properties/StairsShape	STRAIGHT	Lnet/minecraft/world/level/block/state/properties/StairsShape;	16409	-
 M	net/minecraft/world/level/block/state/properties/StairsShape	getSerializedName	()Ljava/lang/String;	1	-
 M	net/minecraft/world/level/block/state/properties/StairsShape	toString	()Ljava/lang/String;	1	-
+C	net/minecraft/world/level/block/state/properties/StructureMode	16433	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/block/state/properties/StructureMode;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
+E	net/minecraft/world/level/block/state/properties/StructureMode	4
+F	net/minecraft/world/level/block/state/properties/StructureMode	CORNER	Lnet/minecraft/world/level/block/state/properties/StructureMode;	16409	-
+F	net/minecraft/world/level/block/state/properties/StructureMode	DATA	Lnet/minecraft/world/level/block/state/properties/StructureMode;	16409	-
+F	net/minecraft/world/level/block/state/properties/StructureMode	LOAD	Lnet/minecraft/world/level/block/state/properties/StructureMode;	16409	-
+F	net/minecraft/world/level/block/state/properties/StructureMode	SAVE	Lnet/minecraft/world/level/block/state/properties/StructureMode;	16409	-
 C	net/minecraft/world/level/block/state/properties/Tilt	16433	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/block/state/properties/Tilt;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
 E	net/minecraft/world/level/block/state/properties/Tilt	4
 F	net/minecraft/world/level/block/state/properties/Tilt	FULL	Lnet/minecraft/world/level/block/state/properties/Tilt;	16409	-

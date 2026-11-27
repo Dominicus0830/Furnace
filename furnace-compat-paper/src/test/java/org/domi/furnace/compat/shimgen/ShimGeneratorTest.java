@@ -2,6 +2,7 @@ package org.domi.furnace.compat.shimgen;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -724,5 +725,22 @@ class ShimGeneratorTest {
         Class<?> flow = b.loader().loadClass("net.minecraft.zz.Flow");
         assertEquals("[UP, DOWN]", Arrays.toString(flow.getEnumConstants()));
         assertEquals("down", flow.getMethod("id").invoke(flow.getEnumConstants()[1]));
+    }
+
+    /** 상수 줄 `NAME = (인자) {}` — 상수마다 몸통(익명 하위 클래스)이 붙는 열거형. */
+    @Test
+    void enumConstantsCanHaveBodies() throws Exception {
+        String spec = "class net.minecraft.zz.Flow\n  UP = (\"up\") {}\n  DOWN = (\"down\") {}\n";
+        String lock = String.join("\n", "#furnace-shim-lock\t1\ttest",
+                "C\tnet/minecraft/zz/Flow\t16433\tjava/lang/Enum\t-\tLjava/lang/Enum<Lnet/minecraft/zz/Flow;>;\t-\tt",
+                "E\tnet/minecraft/zz/Flow\t2",
+                "F\tnet/minecraft/zz/Flow\tDOWN\tLnet/minecraft/zz/Flow;\t16409\t-",
+                "F\tnet/minecraft/zz/Flow\tUP\tLnet/minecraft/zz/Flow;\t16409\t-", "");
+        Built b = build(spec, lock, Map.of("net/minecraft/zz/Flow",
+                "package net.minecraft.zz;\n\nenum Flow {\n    private final String id;\n    Flow(String id) { this.id = id; }\n    public String id() { return id; }\n}\n"));
+        Class<?> flow = b.loader().loadClass("net.minecraft.zz.Flow");
+        assertEquals("[UP, DOWN]", Arrays.toString(flow.getEnumConstants()));
+        assertEquals("down", flow.getMethod("id").invoke(flow.getEnumConstants()[1]));
+        assertNotSame(flow, flow.getEnumConstants()[0].getClass());
     }
 }
