@@ -138,4 +138,17 @@ class ShimLockTest {
         assertEquals(List.of("net/minecraft/a/Named"), c.interfaces());
         assertEquals("<O:Ljava/lang/Object;S:Lnet/minecraft/a/Holder<TO;TS;>;>Ljava/lang/Object;Lnet/minecraft/a/Named;", c.signature());
     }
+
+    /** 걸러 낸 뒤에도 형식 경계에 Paper 내부 형식이 남으면 클래스 이름과 함께 분명한 오류를 낸다. */
+    @Test
+    void paperInternalTypeLeftInATypeBoundIsReported() {
+        SigTable t = SigTable.empty("paper-test");
+        t.add(cls(Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER, "net/minecraft/a/Holder",
+                "<O:Lca/spottedleaf/a/Patched;>Ljava/lang/Object;Lnet/minecraft/a/Named;",
+                "java/lang/Object", new String[] {"net/minecraft/a/Named"}));
+        t.add(cls(Opcodes.ACC_PUBLIC | Opcodes.ACC_INTERFACE | Opcodes.ACC_ABSTRACT, "net/minecraft/a/Named", null, "java/lang/Object", null));
+        ShimLock.ResolveException e = assertThrows(ShimLock.ResolveException.class,
+                () -> ShimLock.resolve("test", spec("class net.minecraft.a.Holder\n"), List.of(t), n -> false));
+        assertTrue(e.getMessage().contains("net/minecraft/a/Holder") && e.getMessage().contains("ca/spottedleaf/a/Patched"), e.getMessage());
+    }
 }

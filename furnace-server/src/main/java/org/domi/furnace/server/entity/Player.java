@@ -1254,6 +1254,13 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         return (byte) ((usingHand >= 0 ? 1 : 0) | (usedOffhand ? 2 : 0) | (autoSpinAttackTicks > 0 ? 4 : 0));
     }
 
+    /** {@link #livingFlags} 와 같은 값이되 손 비트를 기억하지 않는다 — 다른 스레드의 경쟁 읽기용(엔티티 모습). */
+    public byte livingFlagsNow() {
+        int using = usingHand;
+        boolean off = using >= 0 ? using == 1 : usedOffhand;
+        return (byte) ((using >= 0 ? 1 : 0) | (off ? 2 : 0) | (autoSpinAttackTicks > 0 ? 4 : 0));
+    }
+
     // ------------------------------------------------------------------ 근접 공격 상태(Player.attackStrengthTicker·autoSpinAttack*) — region 스레드 전용
 
     /** Player.attackStrengthTicker: 틱마다 1, 공격·주 손 아이템이 바뀌면 0. */
