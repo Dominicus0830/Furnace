@@ -120,6 +120,11 @@ public final class LinkInfer {
         }
         List<String[]> areas = readAreas(shellArgs.length > 11 && !shellArgs[11].equals("-") ? Path.of(shellArgs[11]) : null);
         write(out, inf, ok, rejected, areas);
+        try (ZipFile jar = new ZipFile(paperJar.toFile())) {   // 보고서만(채택 없음) — 정답기 순서를 정하려고 센다
+            LinkG2Census g2 = new LinkG2Census(inf, jar);
+            g2.run();
+            g2.write(out);
+        }
         if (adoptDir != null) {
             int n = adopt(adoptDir, ok, areas);
             // 손 줄 + 새 기계 줄 전부로 생성기 검사를 한 번 더(빌드와 같은 길)
