@@ -790,6 +790,9 @@ C	net/minecraft/world/entity/animal/camel/Camel	33	net/minecraft/world/entity/an
 F	net/minecraft/world/entity/animal/camel/Camel	DASH	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Boolean;>;
 F	net/minecraft/world/entity/animal/camel/Camel	LAST_POSE_CHANGE_TICK	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Long;>;
 M	net/minecraft/world/entity/animal/camel/Camel	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/camel/Camel;>;Lnet/minecraft/world/level/Level;)V
+M	net/minecraft/world/entity/animal/camel/Camel	sitDown	()V	1	-
+M	net/minecraft/world/entity/animal/camel/Camel	standUp	()V	1	-
+M	net/minecraft/world/entity/animal/camel/Camel	standUpInstantly	()V	1	-
 C	net/minecraft/world/entity/animal/frog/Frog	33	net/minecraft/world/entity/animal/Animal	net/minecraft/world/entity/VariantHolder	Lnet/minecraft/world/entity/animal/Animal;Lnet/minecraft/world/entity/VariantHolder<Lnet/minecraft/core/Holder<Lnet/minecraft/world/entity/animal/FrogVariant;>;>;	-	paper-server-1.21.1
 M	net/minecraft/world/entity/animal/frog/Frog	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/Animal;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/frog/Tadpole	33	net/minecraft/world/entity/animal/AbstractFish	-	-	-	paper-server-1.21.1

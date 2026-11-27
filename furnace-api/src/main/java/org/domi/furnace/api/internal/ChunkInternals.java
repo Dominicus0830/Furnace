@@ -978,6 +978,9 @@ public interface ChunkInternals {
         /** 바닐라 {@code LivingEntity#animateHurt(yaw)}: hurtDuration = 10, hurtTime = hurtDuration(yaw 는 쓰지 않는다). 생물이 아니면 IllegalArgumentException. */
         record AnimateHurt() implements EntityEdit, EntityOp {}
 
+        /** 바닐라 낙타 자세: 0 {@code Camel#sitDown}, 1 {@code standUp}, 2 {@code standUpInstantly}. 낙타가 아니면 IllegalArgumentException. */
+        record CamelPose(int action) implements EntityEdit, EntityOp {}
+
         /**
          * 바이트 칸의 깃발 하나 켜고 끄기(엔티티 데이터 설계 D5): 주인 스레드에서 한 번에 읽고 {@code b | mask} 또는 {@code b & ~mask} 를 쓴다
          * (바닐라 {@code set(accessor, value)} 와 같은 훅). 칸이 바이트가 아니면 IllegalArgumentException. 돌려줌: null.
