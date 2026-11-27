@@ -12,3 +12,8 @@
 - TrialSpawnerState 는 속성 열거형과 같은 방식(생성자 인자 명세)으로 옮겼다.
 - **못 옮긴 것**: BlockState·BlockBehaviour — `BlockBehaviour$BlockStateBase` 가 Paper 내부 `ca/spottedleaf` 인터페이스를 구현하는 제네릭 클래스라 생성기가 "signature filtering is not supported" 로 멈춘다(생성기 쪽 후속). VaultState(상수 몸통 `{}`)·StructureMode(패킷 생성물)도 그대로.
 - 멤버 줄(`@hand`/`@fast` 와 검사 종류)을 핵심 클래스에 적는 일은 값 채우기·연결 단계에서 한다.
+
+## 3묶음 (BlockBehaviour·BlockState, 2026-11-27)
+- 생성기 PR 629(ca/spottedleaf 인터페이스를 제네릭 서명에서도 거름) 뒤 `BlockBehaviour`(안쪽 `BlockStateBase` 는 조각 안 손 클래스)·`BlockState` 를 조각으로 옮겼다(`block-core2.spec`, class 줄만). `javap -p` 대조: 달라진 곳은 생성기가 더하는 `protected BlockBehaviour(ShimCtor)` 하나. 생성기가 ShimCtor 생성자를 더하면 손 클래스의 암묵 기본 생성자가 사라지므로 조각에 `public BlockBehaviour() {}` 를 명시했다(옛 모양 유지).
+- 전체 시험에서 `NmsEntityLookTest` 2건이 한 번 실패했으나 단독 재실행은 통과(부하 간헐 실패로 보이나 원인은 확인하지 않았다 — 가정).
+- 블록 영역 손 shim 은 이제 VaultState(상수 몸통)·StructureMode(패킷 생성물)만 남았다.
