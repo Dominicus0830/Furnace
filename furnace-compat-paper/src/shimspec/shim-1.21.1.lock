@@ -796,6 +796,9 @@ C	net/minecraft/world/entity/animal/camel/Camel	33	net/minecraft/world/entity/an
 F	net/minecraft/world/entity/animal/camel/Camel	DASH	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Boolean;>;
 F	net/minecraft/world/entity/animal/camel/Camel	LAST_POSE_CHANGE_TICK	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Long;>;
 M	net/minecraft/world/entity/animal/camel/Camel	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/camel/Camel;>;Lnet/minecraft/world/level/Level;)V
+M	net/minecraft/world/entity/animal/camel/Camel	sitDown	()V	1	-
+M	net/minecraft/world/entity/animal/camel/Camel	standUp	()V	1	-
+M	net/minecraft/world/entity/animal/camel/Camel	standUpInstantly	()V	1	-
 C	net/minecraft/world/entity/animal/frog/Frog	33	net/minecraft/world/entity/animal/Animal	net/minecraft/world/entity/VariantHolder	Lnet/minecraft/world/entity/animal/Animal;Lnet/minecraft/world/entity/VariantHolder<Lnet/minecraft/core/Holder<Lnet/minecraft/world/entity/animal/FrogVariant;>;>;	-	paper-server-1.21.1
 M	net/minecraft/world/entity/animal/frog/Frog	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<+Lnet/minecraft/world/entity/animal/Animal;>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/animal/frog/Tadpole	33	net/minecraft/world/entity/animal/AbstractFish	-	-	-	paper-server-1.21.1
@@ -1282,24 +1285,46 @@ C	net/minecraft/world/item/crafting/RecipeInput	1537	java/lang/Object	-	-	-	pape
 C	net/minecraft/world/item/trading/Merchant	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/BlockAndTintGetter	1537	java/lang/Object	net/minecraft/world/level/BlockGetter	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/BlockGetter	1537	java/lang/Object	net/minecraft/world/level/LevelHeightAccessor	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/ChunkPos	33	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/CollisionGetter	1537	java/lang/Object	net/minecraft/world/level/BlockGetter	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/CommonLevelAccessor	1537	java/lang/Object	net/minecraft/world/level/EntityGetter,net/minecraft/world/level/LevelReader,net/minecraft/world/level/LevelSimulatedRW	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/EmptyBlockGetter	16433	java/lang/Enum	net/minecraft/world/level/BlockGetter	Ljava/lang/Enum<Lnet/minecraft/world/level/EmptyBlockGetter;>;Lnet/minecraft/world/level/BlockGetter;	-	paper-server-1.21.1
+E	net/minecraft/world/level/EmptyBlockGetter	1
+F	net/minecraft/world/level/EmptyBlockGetter	INSTANCE	Lnet/minecraft/world/level/EmptyBlockGetter;	16409	-
 C	net/minecraft/world/level/EntityGetter	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/GameRules	33	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/GameType	16433	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/GameType;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
+E	net/minecraft/world/level/GameType	4
+F	net/minecraft/world/level/GameType	ADVENTURE	Lnet/minecraft/world/level/GameType;	16409	-
+F	net/minecraft/world/level/GameType	CREATIVE	Lnet/minecraft/world/level/GameType;	16409	-
+F	net/minecraft/world/level/GameType	SPECTATOR	Lnet/minecraft/world/level/GameType;	16409	-
+F	net/minecraft/world/level/GameType	SURVIVAL	Lnet/minecraft/world/level/GameType;	16409	-
 C	net/minecraft/world/level/ItemLike	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/Level	1057	java/lang/Object	net/minecraft/world/level/LevelAccessor,java/lang/AutoCloseable	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/LevelAccessor	1537	java/lang/Object	net/minecraft/world/level/CommonLevelAccessor,net/minecraft/world/level/LevelTimeAccess	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/LevelHeightAccessor	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/LevelReader	1537	java/lang/Object	net/minecraft/world/level/BlockAndTintGetter,net/minecraft/world/level/CollisionGetter,net/minecraft/world/level/SignalGetter,net/minecraft/world/level/biome/BiomeManager$NoiseBiomeSource	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/LevelSettings	49	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/LevelSimulatedRW	1537	java/lang/Object	net/minecraft/world/level/LevelSimulatedReader,net/minecraft/world/level/LevelWriter	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/LevelSimulatedReader	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/LevelTimeAccess	1537	java/lang/Object	net/minecraft/world/level/LevelReader	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/LevelWriter	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/LightLayer	16433	java/lang/Enum	-	Ljava/lang/Enum<Lnet/minecraft/world/level/LightLayer;>;	-	paper-server-1.21.1
+E	net/minecraft/world/level/LightLayer	2
+F	net/minecraft/world/level/LightLayer	BLOCK	Lnet/minecraft/world/level/LightLayer;	16409	-
+F	net/minecraft/world/level/LightLayer	SKY	Lnet/minecraft/world/level/LightLayer;	16409	-
 C	net/minecraft/world/level/ServerLevelAccessor	1537	java/lang/Object	net/minecraft/world/level/LevelAccessor	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/SignalGetter	1537	java/lang/Object	net/minecraft/world/level/BlockGetter	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/Spawner	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/StructureManager	33	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/WorldGenLevel	1537	java/lang/Object	net/minecraft/world/level/ServerLevelAccessor	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/biome/Biome	49	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/biome/BiomeManager	33	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/biome/BiomeManager$NoiseBiomeSource	1537	java/lang/Object	-	-	1545	paper-server-1.21.1
+C	net/minecraft/world/level/biome/BiomeResolver	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/biome/BiomeSource	1057	java/lang/Object	net/minecraft/world/level/biome/BiomeResolver	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/biome/BiomeSpecialEffects	33	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/biome/Biomes	1057	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/AbstractBannerBlock	1057	net/minecraft/world/level/block/BaseEntityBlock	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/AbstractCandleBlock	1057	net/minecraft/world/level/block/Block	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/AbstractCauldronBlock	1057	net/minecraft/world/level/block/Block	-	-	-	paper-server-1.21.1
@@ -1664,6 +1689,12 @@ F	net/minecraft/world/level/block/entity/trialspawner/TrialSpawnerState	WAITING_
 F	net/minecraft/world/level/block/entity/trialspawner/TrialSpawnerState	WAITING_FOR_REWARD_EJECTION	Lnet/minecraft/world/level/block/entity/trialspawner/TrialSpawnerState;	16409	-
 M	net/minecraft/world/level/block/entity/trialspawner/TrialSpawnerState	getSerializedName	()Ljava/lang/String;	1	-
 C	net/minecraft/world/level/block/entity/vault/VaultBlockEntity	33	net/minecraft/world/level/block/entity/BlockEntity	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/block/entity/vault/VaultState	16417	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/block/entity/vault/VaultState;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
+E	net/minecraft/world/level/block/entity/vault/VaultState	4
+F	net/minecraft/world/level/block/entity/vault/VaultState	ACTIVE	Lnet/minecraft/world/level/block/entity/vault/VaultState;	16409	-
+F	net/minecraft/world/level/block/entity/vault/VaultState	EJECTING	Lnet/minecraft/world/level/block/entity/vault/VaultState;	16409	-
+F	net/minecraft/world/level/block/entity/vault/VaultState	INACTIVE	Lnet/minecraft/world/level/block/entity/vault/VaultState;	16409	-
+F	net/minecraft/world/level/block/entity/vault/VaultState	UNLOCKING	Lnet/minecraft/world/level/block/entity/vault/VaultState;	16409	-
 C	net/minecraft/world/level/block/piston/MovingPistonBlock	33	net/minecraft/world/level/block/BaseEntityBlock	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/piston/PistonBaseBlock	33	net/minecraft/world/level/block/DirectionalBlock	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/block/piston/PistonHeadBlock	33	net/minecraft/world/level/block/DirectionalBlock	-	-	-	paper-server-1.21.1
@@ -1821,6 +1852,12 @@ F	net/minecraft/world/level/block/state/properties/StairsShape	OUTER_RIGHT	Lnet/
 F	net/minecraft/world/level/block/state/properties/StairsShape	STRAIGHT	Lnet/minecraft/world/level/block/state/properties/StairsShape;	16409	-
 M	net/minecraft/world/level/block/state/properties/StairsShape	getSerializedName	()Ljava/lang/String;	1	-
 M	net/minecraft/world/level/block/state/properties/StairsShape	toString	()Ljava/lang/String;	1	-
+C	net/minecraft/world/level/block/state/properties/StructureMode	16433	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/block/state/properties/StructureMode;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
+E	net/minecraft/world/level/block/state/properties/StructureMode	4
+F	net/minecraft/world/level/block/state/properties/StructureMode	CORNER	Lnet/minecraft/world/level/block/state/properties/StructureMode;	16409	-
+F	net/minecraft/world/level/block/state/properties/StructureMode	DATA	Lnet/minecraft/world/level/block/state/properties/StructureMode;	16409	-
+F	net/minecraft/world/level/block/state/properties/StructureMode	LOAD	Lnet/minecraft/world/level/block/state/properties/StructureMode;	16409	-
+F	net/minecraft/world/level/block/state/properties/StructureMode	SAVE	Lnet/minecraft/world/level/block/state/properties/StructureMode;	16409	-
 C	net/minecraft/world/level/block/state/properties/Tilt	16433	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/block/state/properties/Tilt;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
 E	net/minecraft/world/level/block/state/properties/Tilt	4
 F	net/minecraft/world/level/block/state/properties/Tilt	FULL	Lnet/minecraft/world/level/block/state/properties/Tilt;	16409	-
@@ -1835,12 +1872,33 @@ F	net/minecraft/world/level/block/state/properties/WallSide	NONE	Lnet/minecraft/
 F	net/minecraft/world/level/block/state/properties/WallSide	TALL	Lnet/minecraft/world/level/block/state/properties/WallSide;	16409	-
 M	net/minecraft/world/level/block/state/properties/WallSide	getSerializedName	()Ljava/lang/String;	1	-
 M	net/minecraft/world/level/block/state/properties/WallSide	toString	()Ljava/lang/String;	1	-
+C	net/minecraft/world/level/border/WorldBorder	33	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/chunk/ChunkAccess	1057	java/lang/Object	net/minecraft/world/level/BlockGetter,net/minecraft/world/level/biome/BiomeManager$NoiseBiomeSource,net/minecraft/world/level/chunk/LightChunk,net/minecraft/world/level/chunk/StructureAccess	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/chunk/ChunkGenerator	1057	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/chunk/ChunkSource	1057	java/lang/Object	net/minecraft/world/level/chunk/LightChunkGetter,java/lang/AutoCloseable	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/chunk/DataLayer	33	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/chunk/GlobalPalette	33	java/lang/Object	net/minecraft/world/level/chunk/Palette	<T:Ljava/lang/Object;>Ljava/lang/Object;Lnet/minecraft/world/level/chunk/Palette<TT;>;	-	paper-server-1.21.1
+C	net/minecraft/world/level/chunk/HashMapPalette	33	java/lang/Object	net/minecraft/world/level/chunk/Palette	<T:Ljava/lang/Object;>Ljava/lang/Object;Lnet/minecraft/world/level/chunk/Palette<TT;>;	-	paper-server-1.21.1
+C	net/minecraft/world/level/chunk/LevelChunk	33	net/minecraft/world/level/chunk/ChunkAccess	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/chunk/LevelChunkSection	33	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/chunk/LightChunk	1537	java/lang/Object	net/minecraft/world/level/BlockGetter	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/chunk/LightChunkGetter	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/chunk/LinearPalette	33	java/lang/Object	net/minecraft/world/level/chunk/Palette	<T:Ljava/lang/Object;>Ljava/lang/Object;Lnet/minecraft/world/level/chunk/Palette<TT;>;	-	paper-server-1.21.1
+C	net/minecraft/world/level/chunk/MissingPaletteEntryException	33	java/lang/RuntimeException	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/chunk/Palette	1537	java/lang/Object	-	<T:Ljava/lang/Object;>Ljava/lang/Object;	-	paper-server-1.21.1
+C	net/minecraft/world/level/chunk/PaletteResize	1536	java/lang/Object	-	<T:Ljava/lang/Object;>Ljava/lang/Object;	-	paper-server-1.21.1
+C	net/minecraft/world/level/chunk/PalettedContainer	33	java/lang/Object	net/minecraft/world/level/chunk/PaletteResize,net/minecraft/world/level/chunk/PalettedContainerRO	<T:Ljava/lang/Object;>Ljava/lang/Object;Lnet/minecraft/world/level/chunk/PaletteResize<TT;>;Lnet/minecraft/world/level/chunk/PalettedContainerRO<TT;>;	-	paper-server-1.21.1
+C	net/minecraft/world/level/chunk/PalettedContainerRO	1537	java/lang/Object	-	<T:Ljava/lang/Object;>Ljava/lang/Object;	-	paper-server-1.21.1
+C	net/minecraft/world/level/chunk/SingleValuePalette	33	java/lang/Object	net/minecraft/world/level/chunk/Palette	<T:Ljava/lang/Object;>Ljava/lang/Object;Lnet/minecraft/world/level/chunk/Palette<TT;>;	-	paper-server-1.21.1
+C	net/minecraft/world/level/chunk/StructureAccess	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/chunk/status/ChunkDependencies	49	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/chunk/status/ChunkStatus	33	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/chunk/status/ChunkStep	49	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/chunk/storage/ChunkIOErrorReporter	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/chunk/storage/ChunkStorage	33	java/lang/Object	java/lang/AutoCloseable	-	-	paper-server-1.21.1
 M	net/minecraft/world/level/chunk/storage/ChunkStorage	close	()V	1	-
+C	net/minecraft/world/level/chunk/storage/RegionFile	33	java/lang/Object	java/lang/AutoCloseable	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/chunk/storage/RegionFileVersion	33	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/chunk/storage/RegionStorageInfo	65585	java/lang/Record	-	-	-	paper-server-1.21.1
 R	net/minecraft/world/level/chunk/storage/RegionStorageInfo	level	Ljava/lang/String;	-
 R	net/minecraft/world/level/chunk/storage/RegionStorageInfo	dimension	Lnet/minecraft/resources/ResourceKey;	Lnet/minecraft/resources/ResourceKey<Lnet/minecraft/world/level/Level;>;
@@ -1850,6 +1908,7 @@ R	net/minecraft/world/level/dimension/LevelStem	type	Lnet/minecraft/core/Holder;
 R	net/minecraft/world/level/dimension/LevelStem	generator	Lnet/minecraft/world/level/chunk/ChunkGenerator;	-
 C	net/minecraft/world/level/entity/EntityAccess	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/entity/EntityTypeTest	1537	java/lang/Object	-	<B:Ljava/lang/Object;T:TB;>Ljava/lang/Object;	-	paper-server-1.21.1
+C	net/minecraft/world/level/entity/LevelEntityGetter	1537	java/lang/Object	-	<T::Lnet/minecraft/world/level/entity/EntityAccess;>Ljava/lang/Object;	-	paper-server-1.21.1
 C	net/minecraft/world/level/gameevent/GameEventListener	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/gameevent/GameEventListener$Provider	1537	java/lang/Object	-	<T::Lnet/minecraft/world/level/gameevent/GameEventListener;>Ljava/lang/Object;	1545	paper-server-1.21.1
 C	net/minecraft/world/level/gameevent/vibrations/VibrationSystem	1537	java/lang/Object	-	-	-	paper-server-1.21.1
@@ -1988,8 +2047,24 @@ M	net/minecraft/world/level/levelgen/structure/BoundingBox	move	(Lnet/minecraft/
 M	net/minecraft/world/level/levelgen/structure/BoundingBox	moved	(III)Lnet/minecraft/world/level/levelgen/structure/BoundingBox;	1	-
 M	net/minecraft/world/level/levelgen/structure/BoundingBox	orientBox	(IIIIIIIIILnet/minecraft/core/Direction;)Lnet/minecraft/world/level/levelgen/structure/BoundingBox;	9	-
 M	net/minecraft/world/level/levelgen/structure/BoundingBox	toString	()Ljava/lang/String;	1	-
+C	net/minecraft/world/level/lighting/LayerLightEventListener	1537	java/lang/Object	net/minecraft/world/level/lighting/LightEventListener	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/lighting/LevelLightEngine	33	java/lang/Object	net/minecraft/world/level/lighting/LightEventListener	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/lighting/LightEventListener	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/material/EmptyFluid	33	net/minecraft/world/level/material/Fluid	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/material/FlowingFluid	1057	net/minecraft/world/level/material/Fluid	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/material/Fluid	1057	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/material/FluidState	49	net/minecraft/world/level/block/state/StateHolder	-	Lnet/minecraft/world/level/block/state/StateHolder<Lnet/minecraft/world/level/material/Fluid;Lnet/minecraft/world/level/material/FluidState;>;	-	paper-server-1.21.1
+C	net/minecraft/world/level/material/Fluids	33	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/material/LavaFluid	1057	net/minecraft/world/level/material/FlowingFluid	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/material/MapColor	33	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/material/PushReaction	16433	java/lang/Enum	-	Ljava/lang/Enum<Lnet/minecraft/world/level/material/PushReaction;>;	-	paper-server-1.21.1
+E	net/minecraft/world/level/material/PushReaction	5
+F	net/minecraft/world/level/material/PushReaction	BLOCK	Lnet/minecraft/world/level/material/PushReaction;	16409	-
+F	net/minecraft/world/level/material/PushReaction	DESTROY	Lnet/minecraft/world/level/material/PushReaction;	16409	-
+F	net/minecraft/world/level/material/PushReaction	IGNORE	Lnet/minecraft/world/level/material/PushReaction;	16409	-
+F	net/minecraft/world/level/material/PushReaction	NORMAL	Lnet/minecraft/world/level/material/PushReaction;	16409	-
+F	net/minecraft/world/level/material/PushReaction	PUSH_ONLY	Lnet/minecraft/world/level/material/PushReaction;	16409	-
+C	net/minecraft/world/level/material/WaterFluid	1057	net/minecraft/world/level/material/FlowingFluid	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/saveddata/maps/MapDecoration	65585	java/lang/Record	-	-	-	paper-server-1.21.1
 R	net/minecraft/world/level/saveddata/maps/MapDecoration	type	Lnet/minecraft/core/Holder;	Lnet/minecraft/core/Holder<Lnet/minecraft/world/level/saveddata/maps/MapDecorationType;>;
 R	net/minecraft/world/level/saveddata/maps/MapDecoration	x	B	-
@@ -2002,8 +2077,17 @@ R	net/minecraft/world/level/saveddata/maps/MapDecorationType	showOnItemFrame	Z	-
 R	net/minecraft/world/level/saveddata/maps/MapDecorationType	mapColor	I	-
 R	net/minecraft/world/level/saveddata/maps/MapDecorationType	explorationMapElement	Z	-
 R	net/minecraft/world/level/saveddata/maps/MapDecorationType	trackCount	Z	-
+C	net/minecraft/world/level/saveddata/maps/MapDecorationTypes	33	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/saveddata/maps/MapId	65585	java/lang/Record	-	-	-	paper-server-1.21.1
 R	net/minecraft/world/level/saveddata/maps/MapId	id	I	-
+C	net/minecraft/world/level/storage/DataVersion	33	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/storage/LevelData	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/storage/LevelResource	33	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/storage/LevelStorageSource	33	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/storage/PrimaryLevelData	33	java/lang/Object	net/minecraft/world/level/storage/ServerLevelData,net/minecraft/world/level/storage/WorldData	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/storage/ServerLevelData	1537	java/lang/Object	net/minecraft/world/level/storage/WritableLevelData	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/storage/WorldData	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/storage/WritableLevelData	1537	java/lang/Object	net/minecraft/world/level/storage/LevelData	-	-	paper-server-1.21.1
 C	net/minecraft/world/scores/ScoreHolder	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/ticks/ContainerSingleItem	1537	java/lang/Object	net/minecraft/world/Container	-	-	paper-server-1.21.1
 C	net/minecraft/world/ticks/ContainerSingleItem$BlockContainerSingleItem	1537	java/lang/Object	net/minecraft/world/ticks/ContainerSingleItem	-	1545	paper-server-1.21.1
@@ -2140,15 +2224,9 @@ H	net/minecraft/world/item/trading/Merchant	setTradingPlayer	(Lnet/minecraft/wor
 H	net/minecraft/world/item/trading/Merchant	showProgressBar	()Z	1025	-
 H	net/minecraft/world/level/BlockAndTintGetter	getLightEngine	()Lnet/minecraft/world/level/lighting/LevelLightEngine;	1025	-
 H	net/minecraft/world/level/BlockAndTintGetter	getShade	(Lnet/minecraft/core/Direction;Z)F	1025	-
-H	net/minecraft/world/level/BlockGetter	getBlockEntity	(Lnet/minecraft/core/BlockPos;)Lnet/minecraft/world/level/block/entity/BlockEntity;	1025	-
-H	net/minecraft/world/level/BlockGetter	getBlockState	(Lnet/minecraft/core/BlockPos;)Lnet/minecraft/world/level/block/state/BlockState;	1025	-
-H	net/minecraft/world/level/BlockGetter	getBlockStateIfLoaded	(Lnet/minecraft/core/BlockPos;)Lnet/minecraft/world/level/block/state/BlockState;	1025	-
-H	net/minecraft/world/level/BlockGetter	getFluidIfLoaded	(Lnet/minecraft/core/BlockPos;)Lnet/minecraft/world/level/material/FluidState;	1025	-
-H	net/minecraft/world/level/BlockGetter	getFluidState	(Lnet/minecraft/core/BlockPos;)Lnet/minecraft/world/level/material/FluidState;	1025	-
 H	net/minecraft/world/level/CollisionGetter	getChunkForCollisions	(II)Lnet/minecraft/world/level/BlockGetter;	1025	-
 H	net/minecraft/world/level/CollisionGetter	getWorldBorder	()Lnet/minecraft/world/level/border/WorldBorder;	1025	-
 H	net/minecraft/world/level/EntityGetter	players	()Ljava/util/List;	1025	()Ljava/util/List<+Lnet/minecraft/world/entity/player/Player;>;
-H	net/minecraft/world/level/ItemLike	asItem	()Lnet/minecraft/world/item/Item;	1025	-
 H	net/minecraft/world/level/LevelAccessor	addParticle	(Lnet/minecraft/core/particles/ParticleOptions;DDDDDD)V	1025	-
 H	net/minecraft/world/level/LevelAccessor	getChunkSource	()Lnet/minecraft/world/level/chunk/ChunkSource;	1025	-
 H	net/minecraft/world/level/LevelAccessor	getCurrentDifficultyAt	(Lnet/minecraft/core/BlockPos;)Lnet/minecraft/world/DifficultyInstance;	1025	-
@@ -2159,8 +2237,6 @@ H	net/minecraft/world/level/LevelAccessor	getServer	()Lnet/minecraft/server/Mine
 H	net/minecraft/world/level/LevelAccessor	levelEvent	(Lnet/minecraft/world/entity/player/Player;ILnet/minecraft/core/BlockPos;I)V	1025	-
 H	net/minecraft/world/level/LevelAccessor	nextSubTickCount	()J	1025	-
 H	net/minecraft/world/level/LevelAccessor	playSound	(Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/core/BlockPos;Lnet/minecraft/sounds/SoundEvent;Lnet/minecraft/sounds/SoundSource;FF)V	1025	-
-H	net/minecraft/world/level/LevelHeightAccessor	getHeight	()I	1025	-
-H	net/minecraft/world/level/LevelHeightAccessor	getMinBuildHeight	()I	1025	-
 H	net/minecraft/world/level/LevelReader	dimensionType	()Lnet/minecraft/world/level/dimension/DimensionType;	1025	-
 H	net/minecraft/world/level/LevelReader	enabledFeatures	()Lnet/minecraft/world/flag/FeatureFlagSet;	1025	-
 H	net/minecraft/world/level/LevelReader	getBiomeManager	()Lnet/minecraft/world/level/biome/BiomeManager;	1025	-
@@ -2203,27 +2279,19 @@ H	net/minecraft/world/level/block/entity/LidBlockEntity	getOpenNess	(F)F	1025	-
 H	net/minecraft/world/level/block/entity/trialspawner/TrialSpawner$StateAccessor	getState	()Lnet/minecraft/world/level/block/entity/trialspawner/TrialSpawnerState;	1025	-
 H	net/minecraft/world/level/block/entity/trialspawner/TrialSpawner$StateAccessor	markUpdated	()V	1025	-
 H	net/minecraft/world/level/block/entity/trialspawner/TrialSpawner$StateAccessor	setState	(Lnet/minecraft/world/level/Level;Lnet/minecraft/world/level/block/entity/trialspawner/TrialSpawnerState;)V	1025	-
+H	net/minecraft/world/level/chunk/LightChunk	findBlockLightSources	(Ljava/util/function/BiConsumer;)V	1025	(Ljava/util/function/BiConsumer<Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;>;)V
+H	net/minecraft/world/level/chunk/LightChunkGetter	getChunkForLighting	(II)Lnet/minecraft/world/level/chunk/LightChunk;	1025	-
 H	net/minecraft/world/level/chunk/LightChunkGetter	getLevel	()Lnet/minecraft/world/level/BlockGetter;	1025	-
-H	net/minecraft/world/level/chunk/storage/ChunkIOErrorReporter	reportChunkLoadFailure	(Ljava/lang/Throwable;Lnet/minecraft/world/level/chunk/storage/RegionStorageInfo;Lnet/minecraft/world/level/ChunkPos;)V	1025	-
-H	net/minecraft/world/level/chunk/storage/ChunkIOErrorReporter	reportChunkSaveFailure	(Ljava/lang/Throwable;Lnet/minecraft/world/level/chunk/storage/RegionStorageInfo;Lnet/minecraft/world/level/ChunkPos;)V	1025	-
-H	net/minecraft/world/level/entity/EntityAccess	blockPosition	()Lnet/minecraft/core/BlockPos;	1025	-
-H	net/minecraft/world/level/entity/EntityAccess	getId	()I	1025	-
-H	net/minecraft/world/level/entity/EntityAccess	getPassengersAndSelf	()Ljava/util/stream/Stream;	1025	()Ljava/util/stream/Stream<+Lnet/minecraft/world/level/entity/EntityAccess;>;
-H	net/minecraft/world/level/entity/EntityAccess	getSelfAndPassengers	()Ljava/util/stream/Stream;	1025	()Ljava/util/stream/Stream<+Lnet/minecraft/world/level/entity/EntityAccess;>;
-H	net/minecraft/world/level/entity/EntityAccess	getUUID	()Ljava/util/UUID;	1025	-
-H	net/minecraft/world/level/entity/EntityAccess	isAlwaysTicking	()Z	1025	-
-H	net/minecraft/world/level/entity/EntityAccess	setRemoved	(Lnet/minecraft/world/entity/Entity$RemovalReason;)V	1025	-
-H	net/minecraft/world/level/entity/EntityAccess	shouldBeSaved	()Z	1025	-
+H	net/minecraft/world/level/chunk/StructureAccess	addReferenceForStructure	(Lnet/minecraft/world/level/levelgen/structure/Structure;J)V	1025	-
+H	net/minecraft/world/level/chunk/StructureAccess	getAllReferences	()Ljava/util/Map;	1025	()Ljava/util/Map<Lnet/minecraft/world/level/levelgen/structure/Structure;Lit/unimi/dsi/fastutil/longs/LongSet;>;
+H	net/minecraft/world/level/chunk/StructureAccess	getReferencesForStructure	(Lnet/minecraft/world/level/levelgen/structure/Structure;)Lit/unimi/dsi/fastutil/longs/LongSet;	1025	-
+H	net/minecraft/world/level/chunk/StructureAccess	getStartForStructure	(Lnet/minecraft/world/level/levelgen/structure/Structure;)Lnet/minecraft/world/level/levelgen/structure/StructureStart;	1025	-
+H	net/minecraft/world/level/chunk/StructureAccess	setAllReferences	(Ljava/util/Map;)V	1025	(Ljava/util/Map<Lnet/minecraft/world/level/levelgen/structure/Structure;Lit/unimi/dsi/fastutil/longs/LongSet;>;)V
+H	net/minecraft/world/level/chunk/StructureAccess	setStartForStructure	(Lnet/minecraft/world/level/levelgen/structure/Structure;Lnet/minecraft/world/level/levelgen/structure/StructureStart;)V	1025	-
 H	net/minecraft/world/level/entity/EntityTypeTest	getBaseClass	()Ljava/lang/Class;	1025	()Ljava/lang/Class<+TB;>;
 H	net/minecraft/world/level/entity/EntityTypeTest	tryCast	(Ljava/lang/Object;)Ljava/lang/Object;	1025	(TB;)TT;
 H	net/minecraft/world/level/gameevent/GameEventListener	getListenerRadius	()I	1025	-
 H	net/minecraft/world/level/gameevent/GameEventListener$Provider	getListener	()Lnet/minecraft/world/level/gameevent/GameEventListener;	1025	()TT;
-H	net/minecraft/world/level/lighting/LightEventListener	checkBlock	(Lnet/minecraft/core/BlockPos;)V	1025	-
-H	net/minecraft/world/level/lighting/LightEventListener	hasLightWork	()Z	1025	-
-H	net/minecraft/world/level/lighting/LightEventListener	propagateLightSources	(Lnet/minecraft/world/level/ChunkPos;)V	1025	-
-H	net/minecraft/world/level/lighting/LightEventListener	runLightUpdates	()I	1025	-
-H	net/minecraft/world/level/lighting/LightEventListener	setLightEnabled	(Lnet/minecraft/world/level/ChunkPos;Z)V	1025	-
-H	net/minecraft/world/level/lighting/LightEventListener	updateSectionStatus	(Lnet/minecraft/core/SectionPos;Z)V	1025	-
 H	net/minecraft/world/scores/ScoreHolder	getScoreboardName	()Ljava/lang/String;	1025	-
 H	net/minecraft/world/ticks/ContainerSingleItem	getTheItem	()Lnet/minecraft/world/item/ItemStack;	1025	-
 H	net/minecraft/world/ticks/ContainerSingleItem	setTheItem	(Lnet/minecraft/world/item/ItemStack;)V	1025	-

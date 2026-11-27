@@ -74,6 +74,18 @@ class FullShellsFillTest {
             "M\t1\tnet/minecraft/zz/Sub\tq\t()I\t-",
             "C\t33\tnet/minecraft/zz/Hard\tjava/lang/Object\t-\t-\t-",
             "M\t1\tnet/minecraft/zz/Hard\t<init>\t()V\t-",
+            // 짧은 값 몸통(T-263 G0)
+            "C\t33\tnet/minecraft/zz/Knobs\tjava/lang/Object\t-\t-\t-",
+            "F\t9\tnet/minecraft/zz/Knobs\tMISSING\tLjava/lang/Object;\t-",
+            "M\t1\tnet/minecraft/zz/Knobs\t<init>\t()V\t-",
+            "M\t1\tnet/minecraft/zz/Knobs\thook\t()V\t-",
+            "M\t1\tnet/minecraft/zz/Knobs\ton\t()Z\t-",
+            "M\t1\tnet/minecraft/zz/Knobs\thalf\t()F\t-",
+            "M\t1\tnet/minecraft/zz/Knobs\tself\t()Lnet/minecraft/zz/Knobs;\t-",
+            "M\t9\tnet/minecraft/zz/Knobs\tpick\t(JI)I\t-",
+            "M\t9\tnet/minecraft/zz/Knobs\tlimit\t()I\t-",
+            "M\t9\tnet/minecraft/zz/Knobs\tmissing\t()Ljava/lang/Object;\t-",
+            "M\t1\tnet/minecraft/zz/Knobs\twasStatic\t()I\t-",
             "");
 
     static FullShells generator(FillTable ft) throws Exception {
@@ -107,6 +119,16 @@ class FullShellsFillTest {
         t.add(new FillTable.Getter("net/minecraft/zz/Box", "w", "()J", "w", "J"));
         t.add(new FillTable.Ctor("net/minecraft/zz/Sub", "(I)V", "net/minecraft/zz/Hard", "()V", List.of(), List.of(new FillTable.Step("q", "I", Val.param(1)))));
         t.add(new FillTable.Getter("net/minecraft/zz/Sub", "q", "()I", "q", "I"));
+        String k = "net/minecraft/zz/Knobs";
+        t.add(new FillTable.Ctor(k, "()V", "java/lang/Object", "()V", List.of(), List.of()));
+        t.add(new FillTable.Method(k, "hook", "()V", false, 'E', "-"));
+        t.add(new FillTable.Method(k, "on", "()Z", false, 'K', "i:1"));
+        t.add(new FillTable.Method(k, "half", "()F", false, 'K', Val.lit('f', 0.5F).encode()));
+        t.add(new FillTable.Method(k, "self", "()Lnet/minecraft/zz/Knobs;", false, 'A', "p:0"));
+        t.add(new FillTable.Method(k, "pick", "(JI)I", true, 'A', "p:2"));
+        t.add(new FillTable.Method(k, "limit", "()I", true, 'R', "net/minecraft/zz/Box.LIMIT:I"));       // 정적 리터럴로 살아 있음
+        t.add(new FillTable.Method(k, "missing", "()Ljava/lang/Object;", true, 'R', k + ".MISSING:Ljava/lang/Object;"));   // 값 없는 필드 → 채우지 않음
+        t.add(new FillTable.Method(k, "wasStatic", "()I", true, 'K', "i:3"));                            // 정적 여부가 Paper 와 다름 → 채우지 않음
         return t;
     }
 
@@ -204,6 +226,23 @@ class FullShellsFillTest {
         assertTrue(marked(out.get("net/minecraft/zz/Box")).contains("compute"));
         // 상위(Hard) 생성자가 던지는 껍데기이므로 하위 생성자도 던진다
         assertTrue(marked(out.get("net/minecraft/zz/Sub")).containsAll(List.of("<init>", "q")));
+    }
+
+    @Test
+    void shortValueBodies() throws Exception {
+        FullShells g = generator(fills());
+        Map<String, byte[]> out = g.generate();
+        ClassLoader cl = load(out);
+        Class<?> k = Class.forName("net.minecraft.zz.Knobs", true, cl);
+        Object o = k.getConstructor().newInstance();
+        k.getMethod("hook").invoke(o);
+        assertEquals(true, k.getMethod("on").invoke(o));
+        assertEquals(0.5F, k.getMethod("half").invoke(o));
+        assertTrue(o == k.getMethod("self").invoke(o));
+        assertEquals(7, k.getMethod("pick", long.class, int.class).invoke(null, 1L << 40, 7));
+        assertEquals(12, k.getMethod("limit").invoke(null));
+        assertEquals(java.util.Set.of("missing", "wasStatic"), marked(out.get("net/minecraft/zz/Knobs")));
+        assertEquals(java.util.Map.of('A', 2, 'E', 1, 'K', 2, 'R', 1), g.fills.valueCounts);
     }
 
     @Test

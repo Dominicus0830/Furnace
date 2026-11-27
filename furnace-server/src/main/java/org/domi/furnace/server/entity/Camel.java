@@ -297,28 +297,35 @@ public class Camel extends AbstractHorse {
         return level.noBlockCollision(this, new AABB(x() - hw, y(), z() - hw, x() + hw, y() + h, z() + hw));
     }
 
-    public void sitDown() {
+    public void sitDown() { sitDown(level.gameTime()); }
+
+    public void standUp() { standUp(level.gameTime()); }
+
+    public void standUpInstantly() { standUpInstantly(level.gameTime()); }
+
+    /** 게임 시간을 받는 판: 월드 밖 낙타(플러그인 NPC)를 샌드박스에서 재생할 때 호출한 월드의 시간을 쓴다(바닐라는 엔티티의 level 시간). */
+    public void sitDown(long gameTime) {
         if (!isCamelSitting()) {
             makeSound("entity.camel.sit");
             setPose(POSE_SITTING);
             gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_ACTION);
-            resetLastPoseChangeTick(-level.gameTime());
+            resetLastPoseChangeTick(-gameTime);
         }
     }
 
-    public void standUp() {
+    public void standUp(long gameTime) {
         if (isCamelSitting()) {
             makeSound("entity.camel.stand");
             setPose(POSE_STANDING);
             gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_ACTION);
-            resetLastPoseChangeTick(level.gameTime());
+            resetLastPoseChangeTick(gameTime);
         }
     }
 
-    public void standUpInstantly() {
+    public void standUpInstantly(long gameTime) {
         setPose(POSE_STANDING);
         gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.ENTITY_ACTION);
-        resetLastPoseChangeTickToFullStand(level.gameTime());
+        resetLastPoseChangeTickToFullStand(gameTime);
     }
 
     private void resetLastPoseChangeTick(long t) { entityData.set(DATA_LAST_POSE_CHANGE_TICK, t); }

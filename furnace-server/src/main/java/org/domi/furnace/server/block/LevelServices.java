@@ -240,7 +240,7 @@ public interface LevelServices {
 
     /** 바닐라 기본값이 false 인 참/거짓 게임룰(DEFAULT 가 참으로 답하지 않을 것들). */
     java.util.Set<String> DEFAULT_FALSE_RULES = java.util.Set.of("lavaSourceConversion", "doImmediateRespawn", "doLimitedCrafting",
-            "universalAnger", "reducedDebugInfo", "disableElytraMovementCheck", "disableRaids");
+            "universalAnger", "reducedDebugInfo", "disableElytraMovementCheck", "disableRaids", "keepInventory", "tntExplosionDropDecay");
 
     /** 표지판 클릭 명령(BlockLevel.runSignCommand). player 는 Player(없으면 null). */
     default void runSignCommand(Player player, int x, int y, int z, String command) {}

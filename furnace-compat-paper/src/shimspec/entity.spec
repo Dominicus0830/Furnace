@@ -161,3 +161,12 @@ class net.minecraft.world.entity.decoration.ArmorStand
   <init>(Lnet/minecraft/world/level/Level;DDD)V -> @hand
 class net.minecraft.world.entity.AreaEffectCloud
   <init>(Lnet/minecraft/world/level/Level;DDD)V -> @hand
+# 낙타 앉기·서기(FancyNpcs): 서버 낙타가 바닐라 규칙으로, 월드 밖 낙타는 기록·재생
+class net.minecraft.world.entity.animal.camel.Camel  owner=org.domi.furnace.compat.nms.NmsEntityOwner
+  # >>> 엔티티 데이터 칸 상수(tools/compat/entity-data-spec.py 가 만든다 — 손으로 고치지 않는다)
+  DASH = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.animal.camel.Camel.class, "DASH")
+  LAST_POSE_CHANGE_TICK = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.animal.camel.Camel.class, "LAST_POSE_CHANGE_TICK")
+  # <<< 엔티티 데이터 칸 상수
+  sitDown -> @hand write
+  standUp -> @hand write
+  standUpInstantly -> @hand write

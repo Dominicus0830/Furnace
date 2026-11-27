@@ -29,17 +29,33 @@ public class Interaction extends Entity {
         entityData.define(DATA_RESPONSE, SetEntityData.SERIALIZER_BOOLEAN, false);
     }
 
-    private void updateSize() { setDimensions((Float) entityData.get(DATA_WIDTH), (Float) entityData.get(DATA_HEIGHT), dimEye); }
+    /**
+     * 바닐라 makeBoundingBox: 상자는 늘 칸의 너비·높이로 만든다(getDimensions() = scalable(width, height)). 몸 크기(dimW·dimH·눈 높이)는
+     * 종류 기본값(0×0) 그대로이고 자세가 바뀔 때({@link #refreshDimensions})만 칸을 따라간다 — 칸 쓰기는 상자만 바꾼다.
+     */
+    @Override
+    protected AABB makeBb(double px, double py, double pz) {
+        double hw = (Float) entityData.get(DATA_WIDTH) / 2.0F;
+        float h = (Float) entityData.get(DATA_HEIGHT);
+        return new AABB(px - hw, py, pz - hw, px + hw, py + h, pz + hw);
+    }
+
+    /** 바닐라 refreshDimensions(getDimensions(pose) = scalable(width, height), 눈 높이 0.85 배). noPhysics 라 자리 옮기기는 없다. */
+    @Override
+    protected void refreshDimensions() {
+        float h = (Float) entityData.get(DATA_HEIGHT);
+        setDimensions((Float) entityData.get(DATA_WIDTH), h, h * 0.85F);
+    }
 
     public void setWidth(float w) { entityData.set(DATA_WIDTH, w); }
 
     public void setHeight(float h) { entityData.set(DATA_HEIGHT, h); }
 
-    /** Interaction.onSyncedDataUpdated: 너비·높이 칸이 바뀌면 상자를 다시 만든다(Entity 다음). */
+    /** Interaction.onSyncedDataUpdated: 너비·높이 칸이 바뀌면 상자만 다시 만든다(Entity 다음, setBoundingBox(makeBoundingBox())). */
     @Override
     protected void onSyncedDataUpdated(int index) {
         super.onSyncedDataUpdated(index);
-        if (index == DATA_HEIGHT || index == DATA_WIDTH) updateSize();
+        if (index == DATA_HEIGHT || index == DATA_WIDTH) refreshBoundingBox();
     }
 
     public void setResponse(boolean r) { entityData.set(DATA_RESPONSE, r); }
@@ -123,6 +139,6 @@ public class Interaction extends Entity {
             interactionTime = c.getLong("timestamp");
         }
         entityData.set(DATA_RESPONSE, tag.getBoolean("response"));
-        updateSize();
+        refreshBoundingBox();
     }
 }
