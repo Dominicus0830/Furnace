@@ -89,6 +89,15 @@ public final class LootTable {
      * 바닐라 fill — 컨테이너 칸(빈 칸은 null 또는 빈 스택)을 채운다. 난수 순서: 전리품 → 빈 칸 섞기 → 나누기 → 아이템 섞기.
      */
     public void fill(LootStack[] container, LootData data, LootWorld world, LootParams params, long seed) {
+        fill(container, data, world, params, seed, null);
+    }
+
+    /**
+     * {@link #fill(LootStack[], LootData, LootWorld, LootParams, long)} + Paper 의 LootGenerateEvent 자리: 빈 칸 섞기와 쪼개기·섞기를 마친 뒤 review 가
+     * 전리품 목록을 받아 고친 목록을 돌려준다(그대로 칸에 들어간다). null 을 돌려주면 취소(컨테이너는 그대로).
+     */
+    public void fill(LootStack[] container, LootData data, LootWorld world, LootParams params, long seed,
+                     java.util.function.UnaryOperator<List<LootStack>> review) {
         LootContext ctx = context(data, world, params, seed);
         List<LootStack> items = getRandomItems(ctx);
         NoiseRandom r = ctx.random();
@@ -96,6 +105,10 @@ public final class LootTable {
         for (int i = 0; i < container.length; i++) if (container[i] == null || container[i].isEmpty()) slots.add(i);
         Mth.shuffle(slots, r);
         shuffleAndSplit(items, slots.size(), r);
+        if (review != null) {   // Paper 순서: 굴리기 → 빈 칸 섞기 → 쪼개기·섞기 → 이벤트 → 받은 목록을 다시 쪼개지 않고 그대로 넣는다
+            items = review.apply(items);
+            if (items == null) return;
+        }
         for (LootStack s : items) {
             if (slots.isEmpty()) {
                 log.warn("Tried to over-fill a container");

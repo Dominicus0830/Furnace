@@ -118,6 +118,8 @@ class CancelContractTest {
         TABLE.put("PlayerFishEvent", new Entry(Kind.SERVER_DRIVEN, E2E + "fishCastCancelThrowsNoHookAndLeavesRodAlone"));
         // --- 접속 단계(핸드셰이크): 취소하면 로그인 끊기 패킷만 나가고 서버 상태는 만들어지지 않는다
         TABLE.put("PlayerHandshakeEvent", new Entry(Kind.SERVER_DRIVEN, "net.LoginPhaseEventsTest#cancelledHandshakeDisconnectsBeforeLogin"));
+        // --- 전리품: 쪼개기·섞기 뒤에 불리고 취소하면 컨테이너를 건드리지 않는다(호환 계층 LootGenerateEventTest 가 Bukkit 쪽을 증명)
+        TABLE.put("LootGenerateEvent", new Entry(Kind.SERVER_DRIVEN, "loot.LootGenerateReviewTest#cancelLeavesTheContainerUntouched"));
         // --- 서버
         TABLE.put("FunctionExecuteEvent", new Entry(Kind.SERVER_DRIVEN, "command.exec.FunctionHookTest#cancellingExecuteSkipsWholeFunctionBodyOnly"));
         TABLE.put("GameRuleChangeEvent", new Entry(Kind.SERVER_DRIVEN, "command.builtin.GameRuleEventTest#cancelledGameruleKeepsValueAndStillSucceeds"));

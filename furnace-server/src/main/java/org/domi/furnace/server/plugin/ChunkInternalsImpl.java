@@ -2308,6 +2308,14 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     @Override
+    public String lootParamSet(String tableId) {
+        var dp = host.core().dataPacks();
+        if (dp == null || dp.loot() == null) return "minecraft:empty";
+        var ps = dp.loot().table(tableId).paramSet();
+        return ps == null ? "minecraft:empty" : ps;
+    }
+
+    @Override
     public List<org.domi.furnace.api.item.ItemStack> lootRollRaw(org.domi.furnace.api.world.World world, String tableId, LootRollParams p, long seed) {
         return lootRolled(world, tableId, p, seed, true);
     }
@@ -2326,7 +2334,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
 
     @Override
     public List<org.domi.furnace.api.item.ItemStack> lootFill(org.domi.furnace.api.world.World world, String tableId, LootRollParams p, long seed,
-                                                              List<org.domi.furnace.api.item.ItemStack> contents) {
+                                                              List<org.domi.furnace.api.item.ItemStack> contents, boolean plugin, Object holderToken) {
         var core = host.core();
         var w = handle(world).handle();
         var dp = core.dataPacks();
@@ -2339,7 +2347,9 @@ final class ChunkInternalsImpl implements ChunkInternals {
             cells[i] = c == null || c.isEmpty() ? null : org.domi.furnace.server.ServerCore.toLootStack(org.domi.furnace.server.plugin.ApiConvert.item(c));
         }
         var before = cells.clone();
-        core.fillLoot(w, table, lp, seed, cells);
+        core.fillLoot(w, table, lp, seed, cells, review -> host.core().gameEvents().lootGenerate(w.dimension(), tableId.indexOf(':') < 0 ? "minecraft:" + tableId : tableId,
+                p.thisEntity(), p.attackingEntity() instanceof org.domi.furnace.api.entity.Player ? p.attackingEntity() : null, null, null, holderToken,
+                p.origin(), p.luck(), review, plugin));
         List<org.domi.furnace.api.item.ItemStack> out = new java.util.ArrayList<>(cells.length);
         for (int i = 0; i < cells.length; i++) {
             if (cells[i] == before[i]) { out.add(contents.get(i)); continue; }   // 건드리지 않은 칸은 받은 그대로

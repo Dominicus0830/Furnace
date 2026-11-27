@@ -7,6 +7,13 @@ import net.minecraft.resources.ResourceLocation;
 /** 바닐라 1.21.1 의 전리품 매개변수 묶음 23개 — 필수·허용 키와 등록 이름은 바닐라 클래스를 실행해 읽은 값이다(2026-11-27). */
 class LootContextParamSets {
 
+    /** 호환 모듈 전용: 서버가 알려 준 매개변수 집합 이름(minecraft:chest …)의 집합. 모르는 이름이면 바닐라처럼 generic 이 아니라 오류. */
+    public static LootContextParamSet furnaceByName(String name) {
+        LootContextParamSet set = REGISTRY.get(ResourceLocation.parse(name));
+        if (set == null) throw new IllegalArgumentException("Unknown loot parameter set: " + name);
+        return set;
+    }
+
     private static final Map<ResourceLocation, LootContextParamSet> REGISTRY = new LinkedHashMap<>();
 
     public static final LootContextParamSet EMPTY = register("empty", LootContextParamSet.builder().build());

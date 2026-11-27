@@ -128,6 +128,8 @@ class EventBridgeTest {
             fire.put(org.bukkit.event.world.WorldLoadEvent.class, () -> new org.domi.furnace.api.event.world.WorldLoadEvent(w, "world"));
             fire.put(org.bukkit.event.world.WorldInitEvent.class, () -> new org.domi.furnace.api.event.world.WorldInitEvent(w, "world"));
             fire.put(org.bukkit.event.world.WorldUnloadEvent.class, () -> new org.domi.furnace.api.event.world.WorldUnloadEvent(w, "world", false));
+            fire.put(org.bukkit.event.world.LootGenerateEvent.class, () -> new org.domi.furnace.api.event.world.LootGenerateEvent(w, "minecraft:chests/simple_dungeon",
+                    null, null, null, null, new double[] {1, 64, 2}, 0f, null, null, java.util.List.of(), false));
             fire.put(org.bukkit.event.world.ChunkLoadEvent.class, () -> new org.domi.furnace.api.event.world.ChunkLoadEvent(w, 3, 4, true));
             fire.put(org.bukkit.event.world.ChunkUnloadEvent.class, () -> new org.domi.furnace.api.event.world.ChunkUnloadEvent(w, 3, 4));
             fire.put(io.papermc.paper.event.world.WorldGameRuleChangeEvent.class, () -> new org.domi.furnace.api.event.world.GameRuleChangeEvent(w, server.api().console(), "doFireTick", "false"));

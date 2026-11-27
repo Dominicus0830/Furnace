@@ -3,7 +3,7 @@
 org/bukkit/craftbukkit/CraftChunk 8 2b23515275915b0d
 org/bukkit/craftbukkit/CraftChunkSnapshot 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/CraftJukeboxSong 0 e3b0c44298fc1c14
-org/bukkit/craftbukkit/CraftLootTable 0 e3b0c44298fc1c14
+org/bukkit/craftbukkit/CraftLootTable 3 f194764577ad1c53
 org/bukkit/craftbukkit/CraftMusicInstrument 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/CraftOfflinePlayer 9 1b70b45ab5f90c9c
 org/bukkit/craftbukkit/CraftOfflinePlayer$1 0 e3b0c44298fc1c14
