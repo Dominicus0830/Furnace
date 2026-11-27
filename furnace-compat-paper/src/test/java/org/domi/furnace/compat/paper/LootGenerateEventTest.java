@@ -51,7 +51,7 @@ class LootGenerateEventTest {
                         LootProbe.LOG.add("plugin=" + e.isPlugin() + " table=" + e.getLootTable().getKey() + " n=" + e.getLoot().size()
                                 + " world=" + e.getWorld().getName() + " luck=" + e.getLootContext().getLuck());
                         if ("cancel".equals(LootProbe.mode)) e.setCancelled(true);
-                        if ("replace".equals(LootProbe.mode)) e.setLoot(List.of(new ItemStack(Material.DIAMOND, 3)));
+                        if ("replace".equals(LootProbe.mode)) e.setLoot(List.of(new ItemStack(Material.DIAMOND, 64)));
                     } catch (Throwable t) { LootProbe.failure = t; }
                 }
             }
@@ -131,8 +131,9 @@ class LootGenerateEventTest {
             var chest = new ChestBlockEntity(at.x(), at.y(), at.z(), new ItemStack[27]);
             chest.lootTable = "minecraft:chests/simple_dungeon";
             var items = unpack(server, at, chest);
-            assertEquals(3, count(items, "minecraft:diamond"));
-            assertEquals(3, java.util.Arrays.stream(items).filter(s -> s != null && !s.isEmpty()).mapToInt(ItemStack::count).sum(), "바꾼 전리품만");
+            assertEquals(64, count(items, "minecraft:diamond"));
+            assertEquals(64, java.util.Arrays.stream(items).filter(s -> s != null && !s.isEmpty()).mapToInt(ItemStack::count).sum(), "바꾼 전리품만");
+            assertEquals(1, java.util.Arrays.stream(items).filter(s -> s != null && !s.isEmpty()).count(), "플러그인이 준 묶음은 다시 쪼개지지 않는다");
         }
     }
 
@@ -152,7 +153,7 @@ class LootGenerateEventTest {
             assertTrue(LootProbe.LOG.get(0).endsWith("luck=0.0"), LootProbe.LOG.get(0));
             int diamonds = 0;
             for (var s : inv.getContents()) if (s != null && s.getType() == org.bukkit.Material.DIAMOND) diamonds += s.getAmount();
-            assertEquals(3, diamonds);
+            assertEquals(64, diamonds);
         }
     }
 }
