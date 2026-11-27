@@ -43,7 +43,6 @@ import org.joml.Vector3f;
 public class FriendlyByteBuf extends ByteBuf {
 
     private static final int MAX_VARINT_BYTES = 5;
-    private static final int MAX_VARLONG_BYTES = 10;
     /** 바닐라 문자열 상한(UTF-16 코드 유닛 수). */
     private static final int MAX_STRING = 32767;
     /** 바닐라: 패킷 NBT 바이트 한도 2 MiB. */
@@ -60,10 +59,7 @@ public class FriendlyByteBuf extends ByteBuf {
         return MAX_VARINT_BYTES;
     }
 
-    public static int getVarLongSize(long value) {
-        for (int i = 1; i < MAX_VARLONG_BYTES; i++) if ((value & -1L << i * 7) == 0L) return i;
-        return MAX_VARLONG_BYTES;
-    }
+    public static int getVarLongSize(long value) { return VarLong.getByteSize(value); }
 
     public int readVarInt() {
         int result = 0;
@@ -84,22 +80,10 @@ public class FriendlyByteBuf extends ByteBuf {
         return this;
     }
 
-    public long readVarLong() {
-        long result = 0L;
-        for (int shift = 0; shift < MAX_VARLONG_BYTES * 7; shift += 7) {
-            byte b = readByte();
-            result |= (long) (b & 0x7F) << shift;
-            if ((b & 0x80) != 128) return result;
-        }
-        throw new RuntimeException("VarLong too big");
-    }
+    public long readVarLong() { return VarLong.read(this); }
 
     public FriendlyByteBuf writeVarLong(long value) {
-        while ((value & -128L) != 0L) {
-            writeByte((int) (value & 0x7FL) | 0x80);
-            value >>>= 7;
-        }
-        writeByte((int) value);
+        VarLong.write(this, value);
         return this;
     }
 
@@ -114,28 +98,42 @@ public class FriendlyByteBuf extends ByteBuf {
         return this;
     }
 
-    public UUID readUUID() { return new UUID(readLong(), readLong()); }
+    public UUID readUUID() { return readUUID(this); }
+
+    public static UUID readUUID(ByteBuf buf) { return new UUID(buf.readLong(), buf.readLong()); }
 
     public FriendlyByteBuf writeUUID(UUID value) {
-        writeLong(value.getMostSignificantBits());
-        writeLong(value.getLeastSignificantBits());
+        writeUUID(this, value);
         return this;
     }
 
-    public byte[] readByteArray() { return readByteArray(readableBytes()); }
+    public static void writeUUID(ByteBuf buf, UUID value) {
+        buf.writeLong(value.getMostSignificantBits());
+        buf.writeLong(value.getLeastSignificantBits());
+    }
 
-    public byte[] readByteArray(int maxLength) {
-        int n = readVarInt();
+    public byte[] readByteArray() { return readByteArray(this); }
+
+    public static byte[] readByteArray(ByteBuf buf) { return readByteArray(buf, buf.readableBytes()); }
+
+    public byte[] readByteArray(int maxLength) { return readByteArray(this, maxLength); }
+
+    public static byte[] readByteArray(ByteBuf buf, int maxLength) {
+        int n = VarInt.read(buf);
         if (n > maxLength) throw new io.netty.handler.codec.DecoderException("ByteArray with size " + n + " is bigger than allowed " + maxLength);
         byte[] out = new byte[n];
-        readBytes(out);
+        buf.readBytes(out);
         return out;
     }
 
     public FriendlyByteBuf writeByteArray(byte[] value) {
-        writeVarInt(value.length);
-        writeBytes(value);
+        writeByteArray(this, value);
         return this;
+    }
+
+    public static void writeByteArray(ByteBuf buf, byte[] value) {
+        VarInt.write(buf, value.length);
+        buf.writeBytes(value);
     }
 
     public int[] readVarIntArray() {
@@ -166,12 +164,16 @@ public class FriendlyByteBuf extends ByteBuf {
         return this;
     }
 
-    public BlockPos readBlockPos() { return BlockPos.of(readLong()); }
+    public BlockPos readBlockPos() { return readBlockPos(this); }
+
+    public static BlockPos readBlockPos(ByteBuf buf) { return BlockPos.of(buf.readLong()); }
 
     public FriendlyByteBuf writeBlockPos(BlockPos pos) {
-        writeLong(pos.asLong());
+        writeBlockPos(this, pos);
         return this;
     }
+
+    public static void writeBlockPos(ByteBuf buf, BlockPos pos) { buf.writeLong(pos.asLong()); }
 
     public ResourceLocation readResourceLocation() { return ResourceLocation.parse(readUtf(MAX_STRING)); }
 
