@@ -195,9 +195,24 @@ class NmsDetachedBukkitEntityTest {
         assertSame(b, pig.getBukkitEntity());
         assertTrue(b.furnaceHandle() instanceof DetachedEntityHandle, "핸들이 다시 월드 밖 핸들");
         assertNull_(Bukkit.getEntity(b.getUniqueId()), "월드에 없다");
+        assertNull_(Compat.cachedEntity(b.getUniqueId()), "취소된 엔티티가 UUID 표에 남지 않는다");
         assertEquals("Kept", b.getCustomName());
         b.setCustomName("Still writable");
         assertEquals("Still writable", b.getCustomName(), "취소 뒤에도 읽고 쓸 수 있다");
+    }
+
+    @Test
+    void aDuplicateUuidAddKeepsTheExistingEntitiesSlot() {
+        CraftEntity existing = on(() -> (CraftEntity) world.spawnEntity(new Location(world, at.x() + 0.5, at.y(), at.z() + 30.5), org.bukkit.entity.EntityType.COW));
+        UUID id = existing.getUniqueId();
+        Entity dup = create("minecraft:cow", 1.5, 30.5);
+        CraftEntity d = dup.getBukkitEntity();
+        dup.setUUID(id);
+        assertFalse(on(() -> level.addFreshEntity(dup, SpawnReason.CUSTOM)), "같은 UUID 라 넣기 실패");
+        assertSame(existing, Compat.cachedEntity(id), "이미 월드에 있던 엔티티의 표 칸을 잃지 않는다");
+        assertSame(existing, Bukkit.getEntity(id));
+        assertTrue(d.furnaceHandle() instanceof DetachedEntityHandle);
+        on(() -> { existing.remove(); return null; });
     }
 
     private static void assertNull_(Object o, String msg) { org.junit.jupiter.api.Assertions.assertNull(o, msg); }

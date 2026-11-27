@@ -1071,8 +1071,18 @@ class Entity {
             synchronized (this) {
                 c = craft;
             }
-            if (c != null) org.domi.furnace.compat.paper.Compat.bindEntity(c, fresh);
+            if (c != null) {
+                Object prev = org.domi.furnace.compat.paper.Compat.bindEntity(c, fresh);
+                synchronized (this) {
+                    boundPrevious = prev;
+                    boundUuid = fresh.uniqueId();
+                }
+            }
         }
+
+        /** 묶기 전 UUID 표 칸(넣기가 실패하면 되돌린다)과 그 UUID. */
+        private Object boundPrevious;
+        private UUID boundUuid;
 
         /** {@link #getEntityData()} 를 부른 뒤의 칸(엔티티 데이터 설계 3.2). 서버가 빈 레벨에서 ops 를 재생해 채운다 — 조작이 붙을 때마다 다시 채운다. */
         net.minecraft.network.syncher.SynchedEntityData data;
@@ -1151,7 +1161,13 @@ class Entity {
                 if (added) goalBackings.clear();
                 was = pending;
                 if (added) sealedTarget = was;
-                else if (craft != null) revert = craft;
+                else if (craft != null) {
+                    revert = craft;
+                    // 확인과 되돌림을 한 잠금 안에서: 취소·UUID 겹침으로 넣지 못했으면 UUID 표를 묶기 전으로
+                    if (boundUuid != null) org.domi.furnace.compat.paper.Compat.unbindEntity(craft, boundUuid, boundPrevious);
+                }
+                boundUuid = null;
+                boundPrevious = null;
                 pending = null;
                 adding = false;
             }
