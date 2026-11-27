@@ -1368,11 +1368,32 @@ public interface ChunkInternals {
     /** 그 월드 경계의 {중심 x, 중심 z, 크기}(바닐라 WorldBorder.getCenterX·getCenterZ·getSize, 지금 값). 아무 스레드. */
     double[] borderCenterAndSize(World world);
 
-    /** 지도 데이터의 겉모양(바닐라 MapItemSavedData 의 centerX·centerZ·dimension·scale). */
-    record MapInfo(int centerX, int centerZ, String dimension, byte scale) {}
+    /** 지도 데이터의 겉모양(바닐라 MapItemSavedData 의 centerX·centerZ·dimension·scale·trackingPosition·unlimitedTracking·locked). */
+    record MapInfo(int centerX, int centerZ, String dimension, byte scale, boolean trackingPosition, boolean unlimitedTracking, boolean locked) {}
 
     /** 그 번호의 지도(서버 전체 — 바닐라 Level#getMapData 는 오버월드 저장소에서 읽는다). 없으면 null. 아무 스레드. */
     MapInfo mapInfo(int mapId);
+
+    /**
+     * 그 번호 지도의 색 배열 **그 자체**(128*128 바이트, 바닐라 MapItemSavedData.colors 와 같은 공개 배열 — 쓰면 서버 지도가 바뀐다). 없으면 null.
+     * 직접 고친 칸은 {@link #mapMarkColorsDirty}로 알린다. 아무 스레드(배열 칸 쓰기는 따로 동기화되지 않는다 — 바닐라와 같다).
+     */
+    default byte[] mapColors(int mapId) { return null; }
+
+    /** 색 배열을 직접 고친 칸 (x, y)(0~127)을 알린다 — 저장 대상으로 올리고 그 지도를 든 플레이어에게 조각을 보낸다. 없는 지도면 무시. 아무 스레드. */
+    default void mapMarkColorsDirty(int mapId, int x, int y) {}
+
+    /** 바닐라 SavedData#setDirty: 그 지도를 저장 대상으로만 올린다(들고 있는 플레이어에게 다시 보내지 않는다). 없는 지도면 무시. 아무 스레드. */
+    default void mapMarkDirty(int mapId) {}
+
+    /**
+     * 바닐라 Level#setMapData: 그 번호에 지도를 둔다(있던 것은 바뀐다). 색 배열은 복사하지 않고 그 배열을 서버 지도의 배열로 쓴다 — 길이 16384.
+     * 서버 전체에 하나뿐인 저장소(바닐라는 오버월드 저장소)다. 아무 스레드.
+     */
+    default void mapPut(int mapId, MapInfo info, byte[] colors) { throw new UnsupportedOperationException("mapPut"); }
+
+    /** 바닐라 Level#getFreeMapId: 새 지도 번호를 하나 올려 준다(첫 번호 0). 아무 스레드. */
+    default int mapFreeId() { throw new UnsupportedOperationException("mapFreeId"); }
 
     /** 바이옴 기후·색(바닐라 Biome.ClimateSettings·BiomeSpecialEffects 의 값). 색 고정값이 없으면 -1. */
     record BiomeInfo(boolean hasPrecipitation, float temperature, boolean frozen, float downfall, int fogColor, int waterColor, int waterFogColor,
