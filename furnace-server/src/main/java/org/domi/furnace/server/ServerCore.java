@@ -366,6 +366,26 @@ public final class ServerCore {
         return out;
     }
 
+    /** 바닐라 {@code LootTable#getRandomItemsRaw}: 표 함수까지 적용하고 스택을 나누지 않는다(빈 스택은 그대로 둔다). */
+    public java.util.List<ItemStack> rollLootRaw(World w, org.domi.furnace.server.loot.LootTable table, org.domi.furnace.server.loot.LootParams params, long seed) {
+        var dp = dataPacks;
+        if (dp == null || dp.loot() == null) return java.util.List.of();
+        java.util.List<ItemStack> out = new java.util.ArrayList<>();
+        table.getRandomItemsRaw(table.context(dp.loot(), lootWorldOf(w), params, seed), st -> {
+            ItemStack is = dp.network().toItemStack(st);
+            out.add(is == null ? ItemStack.EMPTY : is);
+        });
+        return out;
+    }
+
+    /** 바닐라 {@code LootTable#fill(Container, LootParams, long)}: 칸 배열(빈 칸은 null)을 채운다. */
+    public void fillLoot(World w, org.domi.furnace.server.loot.LootTable table, org.domi.furnace.server.loot.LootParams params, long seed,
+                         org.domi.furnace.server.loot.LootStack[] cells) {
+        var dp = dataPacks;
+        if (dp == null || dp.loot() == null) return;
+        table.fill(cells, dp.loot(), lootWorldOf(w), params, seed);
+    }
+
     /**
      * 이 스레드가 읽을 수 없는(다른 region·미로드) 청크의 바이옴 대체값: 그 청크를 새로 생성했을 때 저장될 바이옴(quart y 를 죔).
      * 바닐라가 이 조회를 하는 자리(청크 생성 스폰의 WorldGenRegion, 틱 도는 청크 옆)에서는 이웃 청크가 거의 늘 있어 그 저장 바이옴을 읽으므로,
