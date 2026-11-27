@@ -190,6 +190,9 @@ public final class FullShells {
     private static void main2(FullShells g, Map<String, byte[]> classes, ShellMerge merge, Path out, Path report, Path baselinePath, Path areasPath,
             boolean writeBaseline) throws IOException {
         System.out.println("[full-shells] entity data slot fields: " + g.dataSlotsFilled + " in shells, " + (merge == null ? 0 : merge.dataSlots) + " merged into hand shims");
+        if (g.fills != null) {
+            System.out.println("[full-shells] shape table fields (T-263 S5): planned " + g.fills.shapeCount + ", merged into hand shims " + (merge == null ? 0 : merge.shapeTableFields) + ", not filled " + g.fills.shapeSkips);
+        }
         deleteTree(out);
         for (Map.Entry<String, byte[]> e : classes.entrySet()) {
             Path p = out.resolve(e.getKey() + ".class");
@@ -450,9 +453,9 @@ public final class FullShells {
         if (madeConcrete) for (String[] im : abstractInterfaceMethods(c, declared)) shellBody(cw, n, Opcodes.ACC_PUBLIC, im[0], im[1], null);
         if (isEnum) enumSupport(cw, n, enumConstants, enumCtor, trapInit, cf);
         else if (trapInit) initTrap(cw, n);
-        else if (cf != null && !cf.statics.isEmpty() || !dataSlotFields(n).isEmpty()) staticClinit(cw, n, cf);
+        else if (cf != null && (!cf.statics.isEmpty() || !cf.shapes.isEmpty()) || !dataSlotFields(n).isEmpty()) staticClinit(cw, n, cf);
         cw.visitEnd();
-        int filledN = cf == null || trapInit ? 0 : cf.ctors.size() + cf.getters.size() + cf.statics.size() + cf.objectMethods.size() + cf.values.size() + (cf.enumConsts == null ? 0 : cf.enumConsts.size());
+        int filledN = cf == null || trapInit ? 0 : cf.ctors.size() + cf.getters.size() + cf.statics.size() + cf.shapes.size() + cf.objectMethods.size() + cf.values.size() + (cf.enumConsts == null ? 0 : cf.enumConsts.size());
         filledN += links.linkedMembers - linkedBefore;
         if (!trapInit) filledN += dataSlotFields(n).size();
         classStats.put(n, new int[]{shellMembers - shellBefore, filledN});
@@ -847,6 +850,7 @@ public final class FullShells {
             push(ci, s.value());
             ci.visitFieldInsn(Opcodes.PUTSTATIC, n, s.field(), s.desc());
         }
+        for (FillTable.Shape x : cf.shapes.values()) ShapeValue.parse(x.value()).emitPut(ci, n, x.field(), x.desc());   // T-263 S5
     }
 
     /** 표지 달린 던지는 몸통 하나. */

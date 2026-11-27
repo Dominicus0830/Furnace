@@ -103,7 +103,7 @@ final class LinkWorld implements Links.World {
             if (g.dataSlotField(owner, m)) return true;   // 엔티티 데이터 칸 필드(D3) — NmsEntityData.accessor 로 초기화
             if (Fills.isEnumClass(g, owner) && (m.access() & Opcodes.ACC_ENUM) != 0) return true;
             Fills.ClassFill cf = g.fills.of(owner);
-            return cf != null && cf.statics.containsKey(name);
+            return cf != null && (cf.statics.containsKey(name) || cf.shapes.containsKey(name));
         }
         Head h = head(owner);
         if (h == null) return false;
@@ -111,6 +111,10 @@ final class LinkWorld implements Links.World {
         if (acc == null) {
             // 손 shim 에 없는 칸 필드는 합치기(ShellMerge)가 NmsEntityData.accessor 로 채워 더한다(D3)
             SigTable.Member m = g.scope.containsKey(owner) ? member(owner, 'F', name, desc) : null;
+            if (m != null && g.fills != null && (m.access() & Opcodes.ACC_STATIC) != 0) {
+                org.domi.furnace.tools.extract.FillTable.Shape x = g.fills.shape(owner, name);   // T-263 S5: 합치기가 모양 정적 필드를 채워 더한다
+                if (x != null && x.desc().equals(desc)) return true;
+            }
             return m != null && g.dataSlotField(owner, m);
         }
         return (acc & Opcodes.ACC_STATIC) != 0;
