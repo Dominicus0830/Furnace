@@ -1,9 +1,7 @@
 package net.minecraft.world.entity;
 
-/** 주 팔 shim(Mojang 이름, ProtocolLib 다리 2b-3). 바닐라 1.21.1 과 같은 상수·번호(왼쪽 0, 오른쪽 1). */
-public enum HumanoidArm implements net.minecraft.util.StringRepresentable {
-    LEFT(0, "left", "options.mainHand.left"),
-    RIGHT(1, "right", "options.mainHand.right");
+/** 주 팔 shim(Mojang 이름, ProtocolLib 다리 2b-3). 상수(인자 포함)와 순서는 명세가 정한다(왼쪽 0, 오른쪽 1 — 바닐라 1.21.1). */
+enum HumanoidArm {
 
     private final int id;
     private final String name;

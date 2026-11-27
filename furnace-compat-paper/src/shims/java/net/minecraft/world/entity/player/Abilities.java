@@ -13,7 +13,7 @@ import org.domi.furnace.api.internal.ChunkInternals;
  * </ul>
  * {@code new Abilities()} 로 만든 플레이어 없는 객체는 바닐라처럼 값만 든다.
  */
-public class Abilities {
+class Abilities {
 
     public boolean invulnerable;
     public boolean flying;

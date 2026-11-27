@@ -21,7 +21,10 @@ class Goal {
         goalTypes.addUnchecked(Flag.UNKNOWN_BEHAVIOR);
     }
 
-    protected Goal(org.domi.furnace.compat.nms.ShimCtor tag) { this.furnaceBacking = NmsGoals.backing(tag); }
+    protected Goal(org.domi.furnace.compat.nms.ShimCtor tag) {
+        this.furnaceBacking = NmsGoals.backing(tag);
+        NmsGoals.bindFresh(this, tag);
+    }
 
     /** 호환 모듈 전용: 서버 목표를 보는 shim 이면 그 재료(아니면 null). */
     public final NmsGoals.Backing furnaceBacking() { return furnaceBacking; }

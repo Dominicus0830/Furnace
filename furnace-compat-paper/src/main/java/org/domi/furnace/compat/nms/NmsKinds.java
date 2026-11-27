@@ -67,6 +67,9 @@ public final class NmsKinds {
     /** 엔티티 종류 이름(minecraft:zombie)의 바닐라 클래스 이진 이름(T-232). 표에 없으면 null(플레이어 — 늘 ServerPlayer). */
     public static String entityClass(String id) { return table().entities().get(id); }
 
+    /** 종류 표의 엔티티 종류 이름 → 바닐라 클래스 이름 전부(플레이어 빼고 — 읽기 전용). */
+    public static Map<String, String> entityClasses() { return java.util.Collections.unmodifiableMap(table().entities()); }
+
     /** 표의 엔티티 종류 수(시험용). */
     public static int entityCount() { return table().entities().size(); }
 

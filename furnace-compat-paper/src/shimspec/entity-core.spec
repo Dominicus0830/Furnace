@@ -1,0 +1,171 @@
+# 엔티티 핵심 영역(영역 2) 손 shim 이전 2묶음(2026-11-24): EntityType·Inventory. 몸통은 손 조각(원래 손 shim 그대로), 머리는 잠금 파일.
+# of·furnaceKey 류는 Furnace 전용이라 줄이 없다.
+class net.minecraft.world.entity.EntityType
+  PLAYER = @hand
+  ALLAY = @hand
+  AREA_EFFECT_CLOUD = @hand
+  ARMADILLO = @hand
+  ARMOR_STAND = @hand
+  ARROW = @hand
+  AXOLOTL = @hand
+  BAT = @hand
+  BEE = @hand
+  BLAZE = @hand
+  BLOCK_DISPLAY = @hand
+  BOAT = @hand
+  BOGGED = @hand
+  BREEZE = @hand
+  BREEZE_WIND_CHARGE = @hand
+  CAMEL = @hand
+  CAT = @hand
+  CAVE_SPIDER = @hand
+  CHEST_BOAT = @hand
+  CHEST_MINECART = @hand
+  CHICKEN = @hand
+  COD = @hand
+  COMMAND_BLOCK_MINECART = @hand
+  COW = @hand
+  CREEPER = @hand
+  DOLPHIN = @hand
+  DONKEY = @hand
+  DRAGON_FIREBALL = @hand
+  DROWNED = @hand
+  EGG = @hand
+  ELDER_GUARDIAN = @hand
+  END_CRYSTAL = @hand
+  ENDER_DRAGON = @hand
+  ENDER_PEARL = @hand
+  ENDERMAN = @hand
+  ENDERMITE = @hand
+  EVOKER = @hand
+  EVOKER_FANGS = @hand
+  EXPERIENCE_BOTTLE = @hand
+  EXPERIENCE_ORB = @hand
+  EYE_OF_ENDER = @hand
+  FALLING_BLOCK = @hand
+  FIREWORK_ROCKET = @hand
+  FOX = @hand
+  FROG = @hand
+  FURNACE_MINECART = @hand
+  GHAST = @hand
+  GIANT = @hand
+  GLOW_ITEM_FRAME = @hand
+  GLOW_SQUID = @hand
+  GOAT = @hand
+  GUARDIAN = @hand
+  HOGLIN = @hand
+  HOPPER_MINECART = @hand
+  HORSE = @hand
+  HUSK = @hand
+  ILLUSIONER = @hand
+  INTERACTION = @hand
+  IRON_GOLEM = @hand
+  ITEM = @hand
+  ITEM_DISPLAY = @hand
+  ITEM_FRAME = @hand
+  OMINOUS_ITEM_SPAWNER = @hand
+  FIREBALL = @hand
+  LEASH_KNOT = @hand
+  LIGHTNING_BOLT = @hand
+  LLAMA = @hand
+  LLAMA_SPIT = @hand
+  MAGMA_CUBE = @hand
+  MARKER = @hand
+  MINECART = @hand
+  MOOSHROOM = @hand
+  MULE = @hand
+  OCELOT = @hand
+  PAINTING = @hand
+  PANDA = @hand
+  PARROT = @hand
+  PHANTOM = @hand
+  PIG = @hand
+  PIGLIN = @hand
+  PIGLIN_BRUTE = @hand
+  PILLAGER = @hand
+  POLAR_BEAR = @hand
+  POTION = @hand
+  PUFFERFISH = @hand
+  RABBIT = @hand
+  RAVAGER = @hand
+  SALMON = @hand
+  SHEEP = @hand
+  SHULKER = @hand
+  SHULKER_BULLET = @hand
+  SILVERFISH = @hand
+  SKELETON = @hand
+  SKELETON_HORSE = @hand
+  SLIME = @hand
+  SMALL_FIREBALL = @hand
+  SNIFFER = @hand
+  SNOW_GOLEM = @hand
+  SNOWBALL = @hand
+  SPAWNER_MINECART = @hand
+  SPECTRAL_ARROW = @hand
+  SPIDER = @hand
+  SQUID = @hand
+  STRAY = @hand
+  STRIDER = @hand
+  TADPOLE = @hand
+  TEXT_DISPLAY = @hand
+  TNT = @hand
+  TNT_MINECART = @hand
+  TRADER_LLAMA = @hand
+  TRIDENT = @hand
+  TROPICAL_FISH = @hand
+  TURTLE = @hand
+  VEX = @hand
+  VILLAGER = @hand
+  VINDICATOR = @hand
+  WANDERING_TRADER = @hand
+  WARDEN = @hand
+  WIND_CHARGE = @hand
+  WITCH = @hand
+  WITHER = @hand
+  WITHER_SKELETON = @hand
+  WITHER_SKULL = @hand
+  WOLF = @hand
+  ZOGLIN = @hand
+  ZOMBIE = @hand
+  ZOMBIE_HORSE = @hand
+  ZOMBIE_VILLAGER = @hand
+  ZOMBIFIED_PIGLIN = @hand
+  FISHING_BOBBER = @hand
+  canSerialize -> @hand pure
+  byString -> @hand pure
+  by -> @hand pure
+  create(Lnet/minecraft/nbt/CompoundTag;Lnet/minecraft/world/level/Level;) -> @hand read=any
+  loadEntityRecursive -> @hand read=any
+  getKey -> @hand pure
+  create(Lnet/minecraft/world/level/Level;) -> @hand read=any
+# 쓰기 메서드(setItem·removeItem·add·clearContent 등)는 서버 인벤토리의 잠금 안에서 아무 스레드에서나 되므로(조각 머리 주석) 검사 종류가 맞지 않아 적지 않는다.
+# Bukkit 쪽 메서드(getLocation·getOwner·getViewers·onOpen·onClose·setMaxStackSize)는 CraftInventory 가 맡아 줄이 없다.
+class net.minecraft.world.entity.player.Inventory
+  POP_TIME_DURATION = @hand
+  INVENTORY_SIZE = @hand
+  SLOT_OFFHAND = @hand
+  NOT_FOUND_INDEX = @hand
+  ALL_ARMOR_SLOTS = @hand
+  HELMET_SLOT_ONLY = @hand
+  items = @hand
+  armor = @hand
+  offhand = @hand
+  selected = @hand
+  player = @hand
+  <init> -> @hand
+  isHotbarSlot -> @hand pure
+  getSelectionSize -> @hand pure
+  getContainerSize -> @hand pure
+  getItem -> @hand read=any
+  isEmpty -> @hand read=any
+  getSelected -> @hand read=any
+  getArmor -> @hand read=any
+  stillValid -> @hand read=any
+  contains(Lnet/minecraft/world/item/ItemStack;) -> @hand read=any
+  contains(Ljava/util/function/Predicate;) -> @hand read=any
+  contains(Lnet/minecraft/tags/TagKey;) -> @hand read=any
+  findSlotMatchingItem -> @hand read=any
+  getFreeSlot -> @hand read=any
+  getName -> @hand pure
+  getContents -> @hand read=any
+  getMaxStackSize -> @hand pure

@@ -4,7 +4,7 @@ package net.minecraft.world.entity.npc;
  * 주민 데이터(Mojang 이름 shim, 엔티티 데이터 설계 D4): 종류·직업·레벨. 바닐라처럼 바꾸지 않는 값이고 setter 는 새 객체를 돌려준다.
  * 레벨은 1 아래면 1(바닐라 생성자 {@code Math.max(1, level)}). 코덱({@code CODEC}·{@code STREAM_CODEC})은 두지 않았다(부르면 없는 멤버).
  */
-public class VillagerData {
+class VillagerData {
 
     public static final int MIN_VILLAGER_LEVEL = 1;
     public static final int MAX_VILLAGER_LEVEL = 5;
