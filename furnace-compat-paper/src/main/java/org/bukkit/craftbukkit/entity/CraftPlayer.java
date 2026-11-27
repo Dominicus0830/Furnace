@@ -498,4 +498,15 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
 
     @Override
     public String toString() { return "CraftPlayer{name=" + handle.name() + "}"; }
+
+    /** 쿠키·전송 접속 계약(Paper 의 {@code ServerCommonPacketListenerImpl} 이 구현하는 안쪽 인터페이스). */
+    public interface TransferCookieConnection {
+        boolean isTransferred();
+
+        net.minecraft.network.ConnectionProtocol getProtocol();
+
+        void sendPacket(net.minecraft.network.protocol.Packet<?> packet);
+
+        void kickPlayer(net.minecraft.network.chat.Component reason, org.bukkit.event.player.PlayerKickEvent.Cause cause);
+    }
 }
