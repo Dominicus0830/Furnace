@@ -40,3 +40,9 @@ class net.minecraft.server.packs.repository.PackCompatibility
 class net.minecraft.server.packs.repository.PackSource
 class net.minecraft.server.packs.repository.RepositorySource
 class net.minecraft.server.players.PlayerList
+class net.minecraft.server.level.ChunkMap
+class net.minecraft.server.level.ChunkHolder
+class net.minecraft.server.level.ThreadedLevelLightEngine
+# 바닐라 ChunkStorage#close 는 IO 일꾼을 닫는다 — Furnace 는 청크 IO 를 서버 IO 풀이 가지므로 이 껍데기에는 닫을 것이 없다(빈 몸통).
+class net.minecraft.world.level.chunk.storage.ChunkStorage
+  close -> @empty pure

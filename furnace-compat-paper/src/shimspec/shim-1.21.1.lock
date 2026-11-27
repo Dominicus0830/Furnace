@@ -129,6 +129,9 @@ C	net/minecraft/server/ServerInterface	1537	java/lang/Object	net/minecraft/serve
 C	net/minecraft/server/TickTask	33	java/lang/Object	java/lang/Runnable	-	-	paper-server-1.21.1
 C	net/minecraft/server/dedicated/DedicatedPlayerList	33	net/minecraft/server/players/PlayerList	-	-	-	paper-server-1.21.1
 C	net/minecraft/server/dedicated/DedicatedServer	33	net/minecraft/server/MinecraftServer	net/minecraft/server/ServerInterface	-	-	paper-server-1.21.1
+C	net/minecraft/server/level/ChunkHolder	33	net/minecraft/server/level/GenerationChunkHolder	-	-	-	paper-server-1.21.1
+C	net/minecraft/server/level/ChunkHolder$PlayerProvider	1537	java/lang/Object	-	-	1545	paper-server-1.21.1
+C	net/minecraft/server/level/ChunkMap	33	net/minecraft/world/level/chunk/storage/ChunkStorage	net/minecraft/server/level/ChunkHolder$PlayerProvider,net/minecraft/server/level/GeneratingChunkMap	-	-	paper-server-1.21.1
 C	net/minecraft/server/level/ChunkResult	1537	java/lang/Object	-	<T:Ljava/lang/Object;>Ljava/lang/Object;	-	paper-server-1.21.1
 C	net/minecraft/server/level/ClientInformation	65585	java/lang/Record	-	-	-	paper-server-1.21.1
 R	net/minecraft/server/level/ClientInformation	language	Ljava/lang/String;	-
@@ -145,10 +148,13 @@ F	net/minecraft/server/level/FullChunkStatus	BLOCK_TICKING	Lnet/minecraft/server
 F	net/minecraft/server/level/FullChunkStatus	ENTITY_TICKING	Lnet/minecraft/server/level/FullChunkStatus;	16409	-
 F	net/minecraft/server/level/FullChunkStatus	FULL	Lnet/minecraft/server/level/FullChunkStatus;	16409	-
 F	net/minecraft/server/level/FullChunkStatus	INACCESSIBLE	Lnet/minecraft/server/level/FullChunkStatus;	16409	-
+C	net/minecraft/server/level/GeneratingChunkMap	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/server/level/GenerationChunkHolder	1057	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/server/level/ServerChunkCache	33	net/minecraft/world/level/chunk/ChunkSource	-	-	-	paper-server-1.21.1
 C	net/minecraft/server/level/ServerLevel	33	net/minecraft/world/level/Level	net/minecraft/world/level/WorldGenLevel	-	-	paper-server-1.21.1
 C	net/minecraft/server/level/ServerPlayer	33	net/minecraft/world/entity/player/Player	-	-	-	paper-server-1.21.1
 C	net/minecraft/server/level/ServerPlayerGameMode	33	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/server/level/ThreadedLevelLightEngine	33	net/minecraft/world/level/lighting/LevelLightEngine	java/lang/AutoCloseable	-	-	paper-server-1.21.1
 C	net/minecraft/server/level/TicketType	33	java/lang/Object	-	<T:Ljava/lang/Object;>Ljava/lang/Object;	-	paper-server-1.21.1
 C	net/minecraft/server/level/progress/ChunkProgressListener	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/server/network/ServerConnectionListener	33	java/lang/Object	-	-	-	paper-server-1.21.1
@@ -1833,6 +1839,8 @@ C	net/minecraft/world/level/chunk/ChunkGenerator	1057	java/lang/Object	-	-	-	pap
 C	net/minecraft/world/level/chunk/ChunkSource	1057	java/lang/Object	net/minecraft/world/level/chunk/LightChunkGetter,java/lang/AutoCloseable	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/chunk/LightChunkGetter	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/chunk/storage/ChunkIOErrorReporter	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/chunk/storage/ChunkStorage	33	java/lang/Object	java/lang/AutoCloseable	-	-	paper-server-1.21.1
+M	net/minecraft/world/level/chunk/storage/ChunkStorage	close	()V	1	-
 C	net/minecraft/world/level/chunk/storage/RegionStorageInfo	65585	java/lang/Record	-	-	-	paper-server-1.21.1
 R	net/minecraft/world/level/chunk/storage/RegionStorageInfo	level	Ljava/lang/String;	-
 R	net/minecraft/world/level/chunk/storage/RegionStorageInfo	dimension	Lnet/minecraft/resources/ResourceKey;	Lnet/minecraft/resources/ResourceKey<Lnet/minecraft/world/level/Level;>;
@@ -1980,6 +1988,8 @@ M	net/minecraft/world/level/levelgen/structure/BoundingBox	move	(Lnet/minecraft/
 M	net/minecraft/world/level/levelgen/structure/BoundingBox	moved	(III)Lnet/minecraft/world/level/levelgen/structure/BoundingBox;	1	-
 M	net/minecraft/world/level/levelgen/structure/BoundingBox	orientBox	(IIIIIIIIILnet/minecraft/core/Direction;)Lnet/minecraft/world/level/levelgen/structure/BoundingBox;	9	-
 M	net/minecraft/world/level/levelgen/structure/BoundingBox	toString	()Ljava/lang/String;	1	-
+C	net/minecraft/world/level/lighting/LevelLightEngine	33	java/lang/Object	net/minecraft/world/level/lighting/LightEventListener	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/lighting/LightEventListener	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/saveddata/maps/MapDecoration	65585	java/lang/Record	-	-	-	paper-server-1.21.1
 R	net/minecraft/world/level/saveddata/maps/MapDecoration	type	Lnet/minecraft/core/Holder;	Lnet/minecraft/core/Holder<Lnet/minecraft/world/level/saveddata/maps/MapDecorationType;>;
 R	net/minecraft/world/level/saveddata/maps/MapDecoration	x	B	-
@@ -2012,6 +2022,10 @@ H	net/minecraft/server/ServerInterface	getServerIp	()Ljava/lang/String;	1025	-
 H	net/minecraft/server/ServerInterface	getServerName	()Ljava/lang/String;	1025	-
 H	net/minecraft/server/ServerInterface	getServerPort	()I	1025	-
 H	net/minecraft/server/ServerInterface	runCommand	(Ljava/lang/String;)Ljava/lang/String;	1025	-
+H	net/minecraft/server/level/ChunkHolder$PlayerProvider	getPlayers	(Lnet/minecraft/world/level/ChunkPos;Z)Ljava/util/List;	1025	(Lnet/minecraft/world/level/ChunkPos;Z)Ljava/util/List<Lnet/minecraft/server/level/ServerPlayer;>;
+H	net/minecraft/server/level/GeneratingChunkMap	acquireGeneration	(J)Lnet/minecraft/server/level/GenerationChunkHolder;	1025	-
+H	net/minecraft/server/level/GeneratingChunkMap	releaseGeneration	(Lnet/minecraft/server/level/GenerationChunkHolder;)V	1025	-
+H	net/minecraft/server/level/GeneratingChunkMap	runGenerationTasks	()V	1025	-
 H	net/minecraft/util/OptionEnum	getId	()I	1025	-
 H	net/minecraft/util/OptionEnum	getKey	()Ljava/lang/String;	1025	-
 H	net/minecraft/util/RandomSource	fork	()Lnet/minecraft/util/RandomSource;	1025	-
@@ -2204,6 +2218,12 @@ H	net/minecraft/world/level/entity/EntityTypeTest	getBaseClass	()Ljava/lang/Clas
 H	net/minecraft/world/level/entity/EntityTypeTest	tryCast	(Ljava/lang/Object;)Ljava/lang/Object;	1025	(TB;)TT;
 H	net/minecraft/world/level/gameevent/GameEventListener	getListenerRadius	()I	1025	-
 H	net/minecraft/world/level/gameevent/GameEventListener$Provider	getListener	()Lnet/minecraft/world/level/gameevent/GameEventListener;	1025	()TT;
+H	net/minecraft/world/level/lighting/LightEventListener	checkBlock	(Lnet/minecraft/core/BlockPos;)V	1025	-
+H	net/minecraft/world/level/lighting/LightEventListener	hasLightWork	()Z	1025	-
+H	net/minecraft/world/level/lighting/LightEventListener	propagateLightSources	(Lnet/minecraft/world/level/ChunkPos;)V	1025	-
+H	net/minecraft/world/level/lighting/LightEventListener	runLightUpdates	()I	1025	-
+H	net/minecraft/world/level/lighting/LightEventListener	setLightEnabled	(Lnet/minecraft/world/level/ChunkPos;Z)V	1025	-
+H	net/minecraft/world/level/lighting/LightEventListener	updateSectionStatus	(Lnet/minecraft/core/SectionPos;Z)V	1025	-
 H	net/minecraft/world/scores/ScoreHolder	getScoreboardName	()Ljava/lang/String;	1025	-
 H	net/minecraft/world/ticks/ContainerSingleItem	getTheItem	()Lnet/minecraft/world/item/ItemStack;	1025	-
 H	net/minecraft/world/ticks/ContainerSingleItem	setTheItem	(Lnet/minecraft/world/item/ItemStack;)V	1025	-

@@ -415,8 +415,6 @@ super	net/minecraft/network/Connection	-	shim=io/netty/channel/ChannelInboundHan
 super	net/minecraft/network/PacketDecoder	-	shim=io/netty/channel/ChannelInboundHandlerAdapter ref=#84e698bdccfe	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	net/minecraft/network/PacketEncoder	-	shim=io/netty/channel/ChannelOutboundHandlerAdapter ref=#4d2ad88b9290	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	net/minecraft/server/ServerLinks	-	shim=java/lang/Object ref=#e7f93413726d	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	net/minecraft/server/level/ChunkHolder	-	shim=java/lang/Object ref=#3513862b269b	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-super	net/minecraft/server/level/ChunkMap	-	shim=java/lang/Object ref=#f52d4a6f8c54	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	net/minecraft/server/level/ServerChunkCache$MainThreadExecutor	-	shim=java/lang/Object ref=#6311fde52300	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	net/minecraft/server/packs/PathPackResources	-	shim=java/lang/Object ref=#04d911169251	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 super	net/minecraft/stats/Stat	-	shim=java/lang/Object ref=#18a7b5b96f4f	미분류 — 상위 클래스 사슬이 바닐라와 다르다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
