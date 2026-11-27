@@ -279,10 +279,10 @@ class NmsEntityLookTest {
         var fresh = (net.minecraft.world.entity.animal.Wolf) EntityType.WOLF.create(world.getHandle());
         fresh.setInSittingPose(true, false);
         assertEquals(1, ((Byte) tamableFlags(fresh)) & 1, "월드 밖 늑대 앉음 깃발");
-        assertThrows(RuntimeException.class, () -> fresh.setInSittingPose(false));
+        assertThrows(UnsupportedNmsCall.class, () -> fresh.setInSittingPose(false));
         var freshFox = (net.minecraft.world.entity.animal.Fox) EntityType.FOX.create(world.getHandle());
         freshFox.setSitting(true, false);   // 기록·재생(예외 없음)
-        assertThrows(RuntimeException.class, () -> freshFox.setSitting(false));
+        assertThrows(UnsupportedNmsCall.class, () -> freshFox.setSitting(false));
 
         List<String> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
         // 서버 이벤트를 취소하는 구독(Bukkit EntityToggleSitEvent 로 잇는 다리는 EventBridgeTest 가 본다)
