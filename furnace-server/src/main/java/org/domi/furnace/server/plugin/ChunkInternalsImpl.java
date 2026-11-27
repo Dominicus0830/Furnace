@@ -2295,11 +2295,53 @@ final class ChunkInternalsImpl implements ChunkInternals {
 
     @Override
     public List<org.domi.furnace.api.item.ItemStack> lootRoll(org.domi.furnace.api.world.World world, String tableId, LootRollParams p, long seed) {
+        return lootRolled(world, tableId, p, seed, false);
+    }
+
+    @Override
+    public List<org.domi.furnace.api.item.ItemStack> lootRollRaw(org.domi.furnace.api.world.World world, String tableId, LootRollParams p, long seed) {
+        return lootRolled(world, tableId, p, seed, true);
+    }
+
+    private List<org.domi.furnace.api.item.ItemStack> lootRolled(org.domi.furnace.api.world.World world, String tableId, LootRollParams p, long seed, boolean raw) {
         var core = host.core();
         var w = handle(world).handle();
         var dp = core.dataPacks();
         if (dp == null || dp.loot() == null) return List.of();
         var table = dp.loot().table(tableId);
+        var lp = lootParamsOf(p);
+        List<org.domi.furnace.api.item.ItemStack> out = new java.util.ArrayList<>();
+        for (var st : raw ? core.rollLootRaw(w, table, lp, seed) : core.rollLoot(w, table, lp, seed)) out.add(apiItem(st));
+        return out;
+    }
+
+    @Override
+    public List<org.domi.furnace.api.item.ItemStack> lootFill(org.domi.furnace.api.world.World world, String tableId, LootRollParams p, long seed,
+                                                              List<org.domi.furnace.api.item.ItemStack> contents) {
+        var core = host.core();
+        var w = handle(world).handle();
+        var dp = core.dataPacks();
+        if (dp == null || dp.loot() == null) return contents;
+        var table = dp.loot().table(tableId);
+        var lp = lootParamsOf(p);
+        var cells = new org.domi.furnace.server.loot.LootStack[contents.size()];
+        for (int i = 0; i < cells.length; i++) {
+            var c = contents.get(i);
+            cells[i] = c == null || c.isEmpty() ? null : org.domi.furnace.server.ServerCore.toLootStack(org.domi.furnace.server.plugin.ApiConvert.item(c));
+        }
+        var before = cells.clone();
+        core.fillLoot(w, table, lp, seed, cells);
+        List<org.domi.furnace.api.item.ItemStack> out = new java.util.ArrayList<>(cells.length);
+        for (int i = 0; i < cells.length; i++) {
+            if (cells[i] == before[i]) { out.add(contents.get(i)); continue; }   // 건드리지 않은 칸은 받은 그대로
+            var st = dp.network().toItemStack(cells[i]);
+            out.add(st == null || st.isEmpty() ? org.domi.furnace.api.item.ItemStack.EMPTY : apiItem(st));
+        }
+        return out;
+    }
+
+    /** API 매개변수 → 서버 LootParams(엔티티는 호출 스레드가 주인이어야 한다). */
+    private static org.domi.furnace.server.loot.LootParams lootParamsOf(LootRollParams p) {
         var lp = new org.domi.furnace.server.loot.LootParams();
         if (p.origin() != null) lp.with(org.domi.furnace.server.loot.LootParams.ORIGIN, p.origin().clone());
         if (p.tool() != null) {
@@ -2340,9 +2382,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
                         org.domi.furnace.server.ServerCore.toLootStack(org.domi.furnace.server.plugin.ApiConvert.item(api)))));
             }
         }
-        List<org.domi.furnace.api.item.ItemStack> out = new java.util.ArrayList<>();
-        for (var st : core.rollLoot(w, table, lp, seed)) out.add(apiItem(st));
-        return out;
+        return lp;
     }
 
     /** API 엔티티 → 전리품 엔티티 보기(주인 스레드만 — 아니면 ThreadOwnershipException). null 이면 null. */
