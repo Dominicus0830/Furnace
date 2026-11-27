@@ -124,4 +124,18 @@ class ShimLockTest {
         assertEquals("paper-test", lock.classes.get("net/minecraft/a/Level").source());
         assertEquals(List.of("org/bukkit/World"), lock.classes.get("net/minecraft/a/Level").interfaces());
     }
+
+    /** Paper 내부(ca/spottedleaf) 인터페이스를 구현하는 제네릭 클래스: 인터페이스만 글자 그대로 걸러 내고 형식 매개변수·상위·남는 인터페이스는 그대로 둔다. */
+    @Test
+    void genericClassKeepsItsSignatureWhenPaperInternalInterfacesAreDropped() {
+        SigTable t = SigTable.empty("paper-test");
+        t.add(cls(Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER, "net/minecraft/a/Holder",
+                "<O:Ljava/lang/Object;S:Lnet/minecraft/a/Holder<TO;TS;>;>Ljava/lang/Object;Lca/spottedleaf/a/Patched<TO;>;Lnet/minecraft/a/Named;Lca/spottedleaf/a/Other;",
+                "java/lang/Object", new String[] {"ca/spottedleaf/a/Patched", "net/minecraft/a/Named", "ca/spottedleaf/a/Other"}));
+        t.add(cls(Opcodes.ACC_PUBLIC | Opcodes.ACC_INTERFACE | Opcodes.ACC_ABSTRACT, "net/minecraft/a/Named", null, "java/lang/Object", null));
+        ShimLock lock = ShimLock.resolve("test", spec("class net.minecraft.a.Holder\n"), List.of(t), n -> false);
+        ShimLock.Cls c = lock.classes.get("net/minecraft/a/Holder");
+        assertEquals(List.of("net/minecraft/a/Named"), c.interfaces());
+        assertEquals("<O:Ljava/lang/Object;S:Lnet/minecraft/a/Holder<TO;TS;>;>Ljava/lang/Object;Lnet/minecraft/a/Named;", c.signature());
+    }
 }
