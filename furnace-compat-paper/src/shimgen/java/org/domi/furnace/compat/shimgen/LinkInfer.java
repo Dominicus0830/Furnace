@@ -53,12 +53,21 @@ public final class LinkInfer {
     record Candidate(Shell m, String target, String check, String via, String kind) {
         String member() { return (Links.visible(m.access()) ? m.name() : Links.fingerprint(m.owner(), m.name())) + m.desc(); }
 
-        String line() { return "  " + member() + " -> " + target + " " + check + " via=" + via + " proof=none"; }
+        String line() { return line("none"); }
+
+        String line(String proof) { return "  " + member() + " -> " + target + " " + check + " via=" + via + " proof=" + proof; }
     }
 
     final FullShells g;
     final List<Shell> shells = new ArrayList<>();
     final Map<String, Body> bodies = new HashMap<>();
+    /**
+     * 값이 바뀔 때 엔티티가 반응하는 칸(선언 클래스 + " " + 이름): 바닐라·Paper 의 onSyncedDataUpdated(EntityDataAccessor) 몸통이 읽는 칸 필드 전부.
+     * 그 칸에 쓰는 줄은 모양만으로는 같다고 할 수 없다(반응이 Furnace 쪽에도 있어야 한다) — 모양 증명에서 뺀다.
+     */
+    final Set<String> reactingSlots = new HashSet<>();
+    /** Mojang 이름 Paper 서버 jar 의 몸통(T-262 와 같은 원칙: 바닐라와 Paper 가 같은 꼴일 때만 후보). null 이면 대조 안 함(시험용). */
+    Map<String, Body> paperBodies;
     /** 분류 → {전체, 공개·보호}. */
     final Map<String, int[]> classes = new TreeMap<>();
     final List<Candidate> candidates = new ArrayList<>();
@@ -68,33 +77,57 @@ public final class LinkInfer {
     LinkInfer(FullShells g) { this.g = g; }
 
     /**
-     * args: FullShells 와 같은 18개(0~17) + [18] 바닐라 Mojang 이름 서버 jar(캐시 work/server-mojmap.jar) + [19] 보고서 폴더.
+     * args: FullShells 와 같은 18개(0~17) + [18] 바닐라 Mojang 이름 서버 jar(캐시 work/server-mojmap.jar)
+     * + [19] Mojang 이름 Paper 서버 jar(캐시 work/paper-server-mojmap.jar, tools/compat/sig-tables.sh 가 둔다) + [20] 보고서 폴더
+     * + [21](선택) 채택 모드: 연결 파일 폴더 — 모양 증명 줄을 &lt;영역&gt;.auto.links 로 다시 쓴다(adoptLinks).
      */
     public static void main(String[] args) throws IOException {
-        String[] shellArgs = java.util.Arrays.copyOf(args, 18);
+        String[] fullArgs = java.util.Arrays.copyOf(args, 18);
         Path vanillaJar = Path.of(args[18]);
-        Path out = Path.of(args[19]);
-        if (!Files.isRegularFile(vanillaJar)) throw new IllegalStateException("vanilla jar missing: " + vanillaJar + " - run tools/compat/sig-tables.sh");
+        Path paperJar = Path.of(args[19]);
+        Path out = Path.of(args[20]);
+        Path adoptDir = args.length > 21 && !args[21].isBlank() ? Path.of(args[21]) : null;
+        for (Path j : List.of(vanillaJar, paperJar)) {
+            if (!Files.isRegularFile(j)) throw new IllegalStateException("server jar missing: " + j + " - run tools/compat/sig-tables.sh where the Paper repository is reachable");
+        }
+        // 채택 모드: 기계가 쓴 줄(*.auto.links)은 빼고 손 줄만으로 찾는다 — 그래야 지난번 채택 줄이 다시 후보로 나와 파일을 통째로 다시 쓸 수 있다
+        String[] shellArgs = adoptDir == null ? fullArgs : withoutAutoLinks(fullArgs, out);
         FullShells g = FullShells.prepare(shellArgs);
         Map<String, byte[]> built = g.generate();
         g.mergeFromArgs(shellArgs, built);
         LinkInfer inf = new LinkInfer(g);
         inf.collectShells(built);
         try (ZipFile jar = new ZipFile(vanillaJar.toFile())) {
-            inf.readBodies(jar);
+            inf.readBodies(jar, inf.bodies);
+            inf.readReactions(jar);
+        }
+        inf.paperBodies = new HashMap<>();
+        try (ZipFile jar = new ZipFile(paperJar.toFile())) {
+            inf.readBodies(jar, inf.paperBodies);
+            inf.readReactions(jar);
         }
         inf.classify();
         // 생성기로 검사: 어긴 줄은 빼고 다시(빠진 줄 때문에 다른 줄이 달라지지 않으므로 보통 한 번이면 된다)
         List<Candidate> ok = new ArrayList<>(inf.candidates);
         Map<Candidate, String> rejected = new LinkedHashMap<>(inf.typeRejected);
         ok.removeAll(inf.typeRejected.keySet());
-        for (int round = 0; round < 3 && !ok.isEmpty(); round++) {
+        // 빈 결과가 나올 때까지(매번 하나 이상 빠지므로 끝난다) — 검사하지 않은 줄이 통과로 남지 않게
+        while (!ok.isEmpty()) {
             Map<Candidate, String> bad = verify(shellArgs, ok);
             if (bad.isEmpty()) break;
             rejected.putAll(bad);
             ok.removeAll(bad.keySet());
         }
-        write(out, inf, ok, rejected, shellArgs.length > 11 && !shellArgs[11].equals("-") ? Path.of(shellArgs[11]) : null);
+        List<String[]> areas = readAreas(shellArgs.length > 11 && !shellArgs[11].equals("-") ? Path.of(shellArgs[11]) : null);
+        write(out, inf, ok, rejected, areas);
+        if (adoptDir != null) {
+            int n = adopt(adoptDir, ok, areas);
+            // 손 줄 + 새 기계 줄 전부로 생성기 검사를 한 번 더(빌드와 같은 길)
+            FullShells check = FullShells.prepare(fullArgs);
+            Map<String, byte[]> all = check.generate();
+            check.checkLinks(check.mergeFromArgs(fullArgs, all));
+            System.out.println("[link-infer] adopted " + n + " lines (proof=shape) -> " + adoptDir);
+        }
         System.out.println("[link-infer] " + inf.shells.size() + " shell methods, " + inf.bodies.size() + " with a vanilla body; "
                 + inf.candidates.size() + " candidates, " + ok.size() + " pass the build checks, " + rejected.size() + " rejected -> " + out);
     }
@@ -127,7 +160,7 @@ public final class LinkInfer {
 
     // ───────────────────────── 2) 바닐라 몸통 ─────────────────────────
 
-    void readBodies(ZipFile jar) throws IOException {
+    void readBodies(ZipFile jar, Map<String, Body> into) throws IOException {
         Map<String, Set<String>> want = new TreeMap<>();
         for (Shell s : shells) want.computeIfAbsent(s.owner(), k -> new HashSet<>()).add(s.name() + s.desc());
         for (Map.Entry<String, Set<String>> e : want.entrySet()) {
@@ -143,13 +176,45 @@ public final class LinkInfer {
                 @Override
                 public MethodVisitor visitMethod(int access, String name, String desc, String signature, String[] exceptions) {
                     if (!keys.contains(name + desc) || (access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) != 0) return null;
-                    return recorder(owner + "#" + name + desc);
+                    return recorder(owner + "#" + name + desc, into);
                 }
             }, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
         }
     }
 
-    private MethodVisitor recorder(String key) {
+    static final String ON_SYNCED = "onSyncedDataUpdated";
+
+    /** jar 전체의 onSyncedDataUpdated(EntityDataAccessor) 가 읽는 칸 필드를 reactingSlots 에 더한다(선언 클래스로 푼다). */
+    void readReactions(ZipFile jar) throws IOException {
+        for (ZipEntry ze : java.util.Collections.list(jar.entries())) {
+            if (!ze.getName().startsWith("net/minecraft/") || !ze.getName().endsWith(".class")) continue;
+            byte[] b;
+            try (InputStream in = jar.getInputStream(ze)) {
+                b = in.readAllBytes();
+            }
+            new ClassReader(b).accept(new ClassVisitor(Opcodes.ASM9) {
+                @Override
+                public MethodVisitor visitMethod(int access, String name, String desc, String signature, String[] exceptions) {
+                    if (!name.equals(ON_SYNCED) || !desc.equals("(" + ACCESSOR_DESC + ")V")) return null;
+                    return new MethodVisitor(Opcodes.ASM9) {
+                        @Override
+                        public void visitFieldInsn(int op, String o, String n, String d) {
+                            if (op != Opcodes.GETSTATIC || !d.equals(ACCESSOR_DESC)) return;
+                            String[] decl = slotDecl(new Insn(op, o, n, d, null, -1));
+                            reactingSlots.add(decl == null ? o + " " + n : decl[0] + " " + decl[1]);
+                        }
+                    };
+                }
+            }, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
+        }
+    }
+
+    boolean reacts(Insn slotGetstatic) {
+        String[] d = slotDecl(slotGetstatic);
+        return reactingSlots.contains(d == null ? slotGetstatic.owner() + " " + slotGetstatic.name() : d[0] + " " + d[1]);
+    }
+
+    private MethodVisitor recorder(String key, Map<String, Body> into) {
         List<Insn> insns = new ArrayList<>();
         Map<Label, Integer> ids = new HashMap<>();
         Map<Integer, Integer> at = new HashMap<>();
@@ -172,7 +237,7 @@ public final class LinkInfer {
             @Override public void visitMultiANewArrayInsn(String d, int n) { insns.add(new Insn(Opcodes.MULTIANEWARRAY, null, null, d, n, -1)); }
             @Override public void visitTryCatchBlock(Label s, Label e, Label h, String t) { insns.add(Insn.of(-2)); }   // try 가 있으면 어느 틀에도 안 맞게
 
-            @Override public void visitEnd() { bodies.put(key, new Body(List.copyOf(insns), Map.copyOf(at))); }
+            @Override public void visitEnd() { into.put(key, new Body(List.copyOf(insns), Map.copyOf(at))); }
         };
     }
 
@@ -209,17 +274,42 @@ public final class LinkInfer {
         if (ed != null) {
             Candidate c = new Candidate(s, ed[0], ed[1], "G1", ed[2]);
             candidates.add(c);
-            String bad = slotTypeProblem(s, ed[2], in.get(dataRef(in, 0)));
+            String bad = paperDiffers(s, ed, this::entityDataOrNull);
+            if (bad == null) bad = slotTypeProblem(s, ed[2], in.get(dataRef(in, 0)));
+            if (bad == null && ed[2].endsWith("-set") && reacts(in.get(dataRef(in, 0)))) bad = "entity data slot has a reaction (onSyncedDataUpdated) - a write needs a separate check";
             if (bad != null) typeRejected.put(c, bad);
             return "G1 " + ed[2];
         }
         String alias = alias(s, b);
         if (alias != null) {
-            candidates.add(new Candidate(s, alias, "pure", "G3", "alias"));
+            Candidate c = new Candidate(s, alias, "pure", "G3", "alias");
+            candidates.add(c);
+            String bad = paperDiffers(s, new String[] {alias}, (m, pb) -> {
+                String a = alias(m, pb);
+                return a == null ? null : new String[] {a};
+            });
+            if (bad != null) typeRejected.put(c, bad);
             return "G3 forward to a member of the same chain";
         }
         int n = in.size();
         return n <= 12 ? "other: short body (<=12)" : n <= 40 ? "other: middle body (13-40)" : "other: long body (>40)";
+    }
+
+    /** Paper 몸통이 바닐라 몸통과 같은 후보를 내는가 — 다르면 이유(Paper 가 바꾼 멤버는 Paper 쪽이 호환 면이다). */
+    private String paperDiffers(Shell s, String[] vanilla, java.util.function.BiFunction<Shell, Body, String[]> classify) {
+        if (paperBodies == null) return null;
+        Body pb = paperBodies.get(s.key());
+        if (pb == null) return "Paper server jar has no body for the member";
+        String[] p = classify.apply(s, pb);
+        return p != null && java.util.Arrays.equals(vanilla, p) ? null : "Paper body differs from the vanilla body";
+    }
+
+    private String[] entityDataOrNull(Shell s, Body b) {
+        try {
+            return entityData(s, b);
+        } catch (IndexOutOfBoundsException e) {
+            return null;
+        }
     }
 
     // ── G1 엔티티 데이터 관용구 ──
@@ -375,7 +465,67 @@ public final class LinkInfer {
         Type t = kind.equals("entity-data-set") ? Type.getArgumentTypes(s.desc())[0] : Type.getReturnType(s.desc());
         if (kind.equals("entity-data-get") && t.getDescriptor().equals("Ljava/lang/Object;")) return null;
         String member = t.getSort() == Type.OBJECT ? t.getInternalName() : t.getSort() == Type.ARRAY ? t.getDescriptor() : Links.box(t);
-        return member.equals(value) ? null : "entity data slot value type differs from the member type";
+        if (!member.equals(value)) return "entity data slot value type differs from the member type";
+        // 제네릭 값(Optional<글> 과 Optional<UUID> 처럼 지운 꼴이 같은 것): 멤버 서명의 제네릭 형식까지 같아야 한다
+        String full = serializerValueSignature(serializer);
+        if (full != null && full.indexOf('<') >= 0) {
+            String mine = memberTypeSignature(s, kind.equals("entity-data-set"));
+            if (!full.equals(mine)) return "entity data slot generic value type differs from the member type";
+        }
+        return null;
+    }
+
+    /** 값 종류의 제네릭 값 형식 서명 전체(예: Ljava/util/Optional&lt;Ljava/util/UUID;&gt;;). */
+    String serializerValueSignature(String serializer) {
+        for (SigTable.Member m : g.table(SERIALIZERS).members(SERIALIZERS)) {
+            if (m.kind() != 'F' || !m.name().equals(serializer) || m.signature() == null) continue;
+            int lt = m.signature().indexOf('<');
+            if (lt < 0) return null;
+            int end = typeEnd(m.signature(), lt + 1);
+            return end < 0 ? null : m.signature().substring(lt + 1, end);
+        }
+        return null;
+    }
+
+    /** Paper 서명표의 멤버 제네릭 서명에서 반환(읽기) 또는 첫 인자(쓰기) 형식. 서명이 없으면 서술자 형식. */
+    String memberTypeSignature(Shell s, boolean firstArg) {
+        String sig = null;
+        for (SigTable.Member m : g.table(s.owner()).members(s.owner())) {
+            if (m.kind() == 'M' && m.name().equals(s.name()) && m.desc().equals(s.desc())) sig = m.signature();
+        }
+        if (sig == null) sig = s.desc();
+        int open = sig.indexOf('(');
+        if (open < 0) return null;
+        if (firstArg) {
+            int end = typeEnd(sig, open + 1);
+            return end < 0 ? null : sig.substring(open + 1, end);
+        }
+        int close = sig.indexOf(')', open);
+        int end = close < 0 ? -1 : typeEnd(sig, close + 1);
+        return end < 0 ? null : sig.substring(close + 1, end);
+    }
+
+    /** 서명 sig 의 i 에서 시작하는 형식 하나의 끝(다음 글자 번호). 기본형·배열·L…&lt;…&gt;;·T…; 를 안다. 모르면 -1. */
+    static int typeEnd(String sig, int i) {
+        if (i >= sig.length()) return -1;
+        char c = sig.charAt(i);
+        if ("ZBCSIJFDV".indexOf(c) >= 0) return i + 1;
+        if (c == '[') return typeEnd(sig, i + 1);
+        if (c == 'T') {
+            int semi = sig.indexOf(';', i);
+            return semi < 0 ? -1 : semi + 1;
+        }
+        if (c == '*') return i + 1;
+        if (c == '+' || c == '-') return typeEnd(sig, i + 1);
+        if (c != 'L') return -1;
+        int depth = 0;
+        for (int j = i + 1; j < sig.length(); j++) {
+            char d = sig.charAt(j);
+            if (d == '<') depth++;
+            else if (d == '>') depth--;
+            else if (d == ';' && depth == 0) return j + 1;
+        }
+        return -1;
     }
 
     /** 값 종류 이름 → 값 형식(지운 내부 이름). EntityDataSerializers 필드 서명 EntityDataSerializer<값> 에서. */
@@ -496,20 +646,70 @@ public final class LinkInfer {
     // ───────────────────────── 4) 생성기로 검사 ─────────────────────────
 
     /** 후보 줄을 연결 파일 하나로 만들어 생성기를 돌리고, 문제가 난 후보와 그 이유. */
+    // ───────────────────────── 채택(S2) ─────────────────────────
+
+    static final String AUTO = ".auto.links";
+
+    /** 모양 증명으로 채택하는 후보: G1 엔티티 데이터 관용구(모양이 바닐라와 정확히 같고 칸 값 종류가 맞고 빌드 검사를 통과한 것). */
+    static boolean adoptable(Candidate c) {
+        return c.via().equals("G1") && c.kind().startsWith("entity-data-");
+    }
+
+    /** 영역마다 &lt;영역&gt;.auto.links 를 통째로 다시 쓰고(줄이 없으면 지운다) 채택 줄 수를 돌려준다. 손 줄 파일은 건드리지 않는다. */
+    static int adopt(Path dir, List<Candidate> ok, List<String[]> areas) throws IOException {
+        Files.createDirectories(dir);
+        Map<String, List<Candidate>> byArea = byArea(ok.stream().filter(LinkInfer::adoptable).toList(), areas);
+        try (var old = Files.list(dir)) {
+            for (Path p : old.filter(x -> x.getFileName().toString().endsWith(AUTO)).toList()) {
+                String area = p.getFileName().toString();
+                if (!byArea.containsKey(area.substring(0, area.length() - AUTO.length()))) Files.delete(p);
+            }
+        }
+        int n = 0;
+        for (Map.Entry<String, List<Candidate>> e : byArea.entrySet()) {
+            String head = "# T-263 machine-adopted links (adoptLinks): exact vanilla body shape of a reviewed idiom + slot value type check. Do not edit -\n"
+                    + "# rerun adoptLinks. Hand lines go in " + e.getKey() + ".links; a member with a hand line is never adopted here.\n";
+            Files.writeString(dir.resolve(e.getKey() + AUTO), areaFile(e.getKey(), e.getValue(), head, "shape"), StandardCharsets.UTF_8);
+            n += e.getValue().size();
+        }
+        return n;
+    }
+
+    /** 인자 16(연결 폴더)을 손 줄 파일만 복사한 임시 폴더로 바꾼 인자. */
+    static String[] withoutAutoLinks(String[] args, Path work) throws IOException {
+        String[] a = args.clone();
+        if (args[16].isBlank() || args[16].equals("-") || !Files.isDirectory(Path.of(args[16]))) return a;
+        Path tmp = work.resolveSibling(work.getFileName() + "-hand-links");   // 보고서 폴더는 write 가 지우므로 옆에
+        if (Files.isDirectory(tmp)) {
+            try (var old = Files.list(tmp)) {
+                for (Path p : old.toList()) Files.delete(p);
+            }
+        }
+        Files.createDirectories(tmp);
+        try (var s = Files.list(Path.of(args[16]))) {
+            for (Path p : s.filter(x -> x.toString().endsWith(".links") && !x.toString().endsWith(AUTO)).toList()) Files.copy(p, tmp.resolve(p.getFileName()));
+        }
+        a[16] = tmp.toString();
+        return a;
+    }
+
     static Map<Candidate, String> verify(String[] shellArgs, List<Candidate> cands) throws IOException {
         List<String> text = new ArrayList<>();
-        List<Candidate> byLine = new ArrayList<>();   // 줄 번호(1부터) - 1 → 후보(클래스 줄이면 null)
+        List<List<Candidate>> byLine = new ArrayList<>();   // 줄 번호(1부터) - 1 → 그 줄이 맡은 후보(클래스 줄은 그 클래스의 후보 전부, 머리는 빈 목록)
         text.add(Links.MAGIC + " " + Links.FORMAT + " candidates area=0");
-        byLine.add(null);
+        byLine.add(List.of());
         String cls = null;
+        List<Candidate> ofClass = null;
         for (Candidate c : sorted(cands)) {
             if (!c.m().owner().equals(cls)) {
                 cls = c.m().owner();
                 text.add("class " + cls.replace('/', '.'));
-                byLine.add(null);
+                ofClass = new ArrayList<>();
+                byLine.add(ofClass);
             }
             text.add(c.line());
-            byLine.add(c);
+            byLine.add(List.of(c));
+            ofClass.add(c);
         }
         FullShells g = FullShells.prepare(shellArgs);
         g.links.parse(CANDIDATES, text);
@@ -526,8 +726,10 @@ public final class LinkInfer {
             }
             int a = CANDIDATES.length() + 1, z = p.indexOf(':', a);
             int line = Integer.parseInt(p.substring(a, z));
-            Candidate c = line - 1 < byLine.size() ? byLine.get(line - 1) : null;
-            if (c != null) bad.putIfAbsent(c, p.substring(z + 1).trim());
+            List<Candidate> cs = line - 1 < byLine.size() ? byLine.get(line - 1) : List.of();
+            // 어느 후보에도 대응하지 않는 문제(머리 등)는 도구 잘못 — 통과로 두지 않고 멈춘다
+            if (cs.isEmpty()) throw new IllegalStateException("a candidates-file problem matches no candidate: " + p);
+            for (Candidate c : cs) bad.putIfAbsent(c, p.substring(z + 1).trim());
         }
         if (!other.isEmpty()) throw new IllegalStateException("the committed links have problems - fix them first:\n" + String.join("\n", other));
         if (merge == null) System.out.println("[link-infer] note: merging is off - members of hand shims are not checked");
@@ -542,9 +744,7 @@ public final class LinkInfer {
 
     // ───────────────────────── 출력 ─────────────────────────
 
-    static void write(Path out, LinkInfer inf, List<Candidate> ok, Map<Candidate, String> rejected, Path areasPath) throws IOException {
-        FullShells.deleteTree(out);
-        Files.createDirectories(out.resolve("candidates"));
+    static List<String[]> readAreas(Path areasPath) throws IOException {
         List<String[]> areas = new ArrayList<>();
         if (areasPath != null) {
             for (String l : Files.readAllLines(areasPath, StandardCharsets.UTF_8)) {
@@ -552,21 +752,36 @@ public final class LinkInfer {
                 areas.add(l.split("\t", -1));
             }
         }
-        Map<String, List<Candidate>> byArea = new TreeMap<>();
-        for (Candidate c : sorted(ok)) byArea.computeIfAbsent(area(areas, c.m().owner()), k -> new ArrayList<>()).add(c);
-        for (Map.Entry<String, List<Candidate>> e : byArea.entrySet()) {
-            String area = e.getKey();
-            StringBuilder sb = new StringBuilder(Links.MAGIC + " " + Links.FORMAT + " 1.21.1 area=" + area.substring(0, area.indexOf('-')) + "\n");
-            sb.append("# T-263 inferLinks candidates (not adopted - S2 proves and adopts). Names inside: build/ only, never commit this file as is.\n");
-            String cls = null;
-            for (Candidate c : e.getValue()) {
-                if (!c.m().owner().equals(cls)) {
-                    cls = c.m().owner();
-                    sb.append("class ").append(cls.replace('/', '.')).append('\n');
-                }
-                sb.append(c.line()).append('\n');
+        return areas;
+    }
+
+    static Map<String, List<Candidate>> byArea(List<Candidate> cs, List<String[]> areas) {
+        Map<String, List<Candidate>> out = new TreeMap<>();
+        for (Candidate c : sorted(cs)) out.computeIfAbsent(area(areas, c.m().owner()), k -> new ArrayList<>()).add(c);
+        return out;
+    }
+
+    /** 영역 연결 파일 글: 머리 + 주석 + 클래스별 줄(정렬된 후보). */
+    static String areaFile(String area, List<Candidate> cs, String comment, String proof) {
+        StringBuilder sb = new StringBuilder(Links.MAGIC + " " + Links.FORMAT + " 1.21.1 area=" + area.substring(0, area.indexOf('-')) + "\n");
+        sb.append(comment);
+        String cls = null;
+        for (Candidate c : cs) {
+            if (!c.m().owner().equals(cls)) {
+                cls = c.m().owner();
+                sb.append("class ").append(cls.replace('/', '.')).append('\n');
             }
-            Files.writeString(out.resolve("candidates/" + area + ".links"), sb.toString(), StandardCharsets.UTF_8);
+            sb.append(c.line(proof)).append('\n');
+        }
+        return sb.toString();
+    }
+
+    static void write(Path out, LinkInfer inf, List<Candidate> ok, Map<Candidate, String> rejected, List<String[]> areas) throws IOException {
+        FullShells.deleteTree(out);
+        Files.createDirectories(out.resolve("candidates"));
+        for (Map.Entry<String, List<Candidate>> e : byArea(ok, areas).entrySet()) {
+            String comment = "# T-263 inferLinks candidates (not adopted - S2 proves and adopts). Names inside: build/ only, never commit this file as is.\n";
+            Files.writeString(out.resolve("candidates/" + e.getKey() + ".links"), areaFile(e.getKey(), e.getValue(), comment, "none"), StandardCharsets.UTF_8);
         }
         StringBuilder rj = new StringBuilder("member\ttarget\treason\n");
         for (Map.Entry<Candidate, String> e : rejected.entrySet()) {
