@@ -662,6 +662,46 @@ public final class Compat {
         return out[0];
     }
 
+    /**
+     * 아직 월드에 없는 엔티티(EntityType#create)의 Bukkit 엔티티(NMS 엔티티 shim 의 getBukkitEntity). Paper 와 같은 종류별 Craft 클래스를 고르되 UUID 표에는
+     * 넣지 않는다 — 월드 밖 엔티티는 월드에서 찾아지지 않는다. 넣을 때 {@link #bindEntity} 가 표에 올린다.
+     */
+    public static CraftEntity detachedEntity(org.domi.furnace.api.entity.Entity handle) {
+        return newCraft(craftClass(handle), handle);
+    }
+
+    /**
+     * 월드 밖에서 만든 Bukkit 엔티티를 넣을 서버 엔티티에 묶는다(스폰 이벤트 전 — Paper 는 같은 객체라 이벤트의 getEntity() 가 플러그인이 쥔 그 객체다).
+     * 같은 UUID 의 표 칸을 이 객체로 예약하고 핸들을 서버 핸들로 바꾼다. 핸들의 UUID 가 다르면 IllegalStateException(세션과 넣은 엔티티가 어긋남).
+     */
+    public static Object bindEntity(CraftEntity c, org.domi.furnace.api.entity.Entity fresh) {
+        State s = state();
+        s.drainEntityQueue();
+        if (!c.furnaceHandle().uniqueId().equals(fresh.uniqueId())) {
+            throw new IllegalStateException("the entity added to the world has another UUID than the one made before: " + fresh.uniqueId() + " != " + c.furnaceHandle().uniqueId());
+        }
+        c.furnaceHandle(fresh);
+        Object[] previous = new Object[1];
+        s.entities.compute(fresh.uniqueId(), (k, r) -> {
+            previous[0] = r;
+            return new EntityRef(k, c, s.entityQueue);
+        });
+        return previous[0];
+    }
+
+    /**
+     * {@link #bindEntity} 를 되돌린다(넣기가 취소·실패했을 때): 표 칸이 아직 이 객체의 것이면 묶기 전 칸으로 돌린다(없었으면 비운다) — 월드에 없는 엔티티가
+     * 표에 남아 {@code Bukkit.getEntity(uuid)} 가 찾아 주거나, 같은 UUID 로 이미 월드에 있던 엔티티의 칸을 잃지 않게. 그 사이 다른 객체가 차지했으면 건드리지 않는다.
+     */
+    public static void unbindEntity(CraftEntity c, UUID id, Object previous) {
+        State s = state();
+        s.entities.compute(id, (k, r) -> {
+            CraftEntity cur = r == null ? null : r.get();
+            if (cur != c) return r;
+            return (EntityRef) previous;
+        });
+    }
+
     /** 이 핸들을 감쌀 CraftEntity 종류 — Bukkit 이 따로 형을 두는 종류(갑옷 거치대·돼지)는 그 형, 나머지는 살아 있는지로. */
     private static Class<? extends CraftEntity> craftClass(org.domi.furnace.api.entity.Entity e) {
         Class<? extends CraftEntity> generated = CompatEntityKinds.kindOf(e);   // Paper 와 같은 종류별 형(instanceof Villager·Minecart 등)

@@ -37,14 +37,29 @@ class Entity {
         else throw new IllegalArgumentException("entity shim made without a Bukkit entity or a fresh entity: " + p);
     }
 
-    /** CraftBukkit 이 더한 메서드: 이 엔티티의 Bukkit 객체. 아직 월드에 넣지 않은 엔티티는 UnsupportedNmsCall. */
+    /**
+     * CraftBukkit 이 더한 메서드: 이 엔티티의 Bukkit 객체. 아직 월드에 넣지 않은 엔티티도 Paper 처럼 그 종류의 CraftEntity 를 준다 —
+     * 월드 밖 엔티티의 상태 손잡이({@link org.domi.furnace.compat.nms.DetachedEntityHandle})를 감싸고, 쓰기는 기록해 두었다가 넣을 때 서버가 재생한다.
+     * 넣은 뒤에도 같은 객체다(넣기 전에 UUID 로 예약해 스폰 이벤트의 getEntity() 도 이 객체).
+     */
     public CraftEntity getBukkitEntity() {
         CraftEntity b = bukkit;
-        if (b == null) throw notInWorld("Entity#getBukkitEntity");
-        return b;
+        if (b != null) return b;
+        Detached d = detached;
+        if (d == null) {   // 방금 넣어졌다
+            b = bukkit;
+            if (b != null) return b;
+            throw notInWorld("Entity#getBukkitEntity");
+        }
+        return d.craft(this);
     }
 
-    private org.domi.furnace.api.entity.Entity f() { return getBukkitEntity().furnaceHandle(); }
+    /** 월드에 있는 엔티티의 Furnace 핸들(월드 밖 엔티티는 이 shim 의 월드 밖 분기가 따로 답한다 — 여기 오면 UnsupportedNmsCall). */
+    private org.domi.furnace.api.entity.Entity f() {
+        CraftEntity b = bukkit;
+        if (b == null) throw notInWorld("Entity");
+        return b.furnaceHandle();
+    }
 
     private static UnsupportedNmsCall notInWorld(String what) {
         return new UnsupportedNmsCall(what, "the entity was made with EntityType#create and is not in a world yet - Furnace makes the server entity when"
@@ -869,7 +884,7 @@ class Entity {
             d.endAdd(false);
             return r.uuidTaken() ? AddResult.UUID_TAKEN : AddResult.REFUSED;
         }
-        CraftEntity c = (CraftEntity) org.domi.furnace.compat.paper.Compat.entity(r.added());
+        CraftEntity c = d.addedCraft(r.added());
         c.adoptHandle(this);
         bukkit = c;
         detached = null;
@@ -947,7 +962,7 @@ class Entity {
                 ed.endAdd(false);
                 continue;
             }
-            CraftEntity c = (CraftEntity) org.domi.furnace.compat.paper.Compat.entity(h);
+            CraftEntity c = ed.addedCraft(h);
             c.adoptHandle(e);
             e.bukkit = c;
             e.detached = null;
@@ -981,7 +996,7 @@ class Entity {
     }
 
     /** 아직 월드에 없는 엔티티의 상태. 바닐라 생성자처럼 자리 0,0,0·방향 0 에서 시작한다. 한 스레드가 만들고 넣는다(FAWE 동기 작업). */
-    private static final class Detached {
+    private static final class Detached implements org.domi.furnace.compat.nms.DetachedEntityHandle.Backing {
         final EntityType<?> type;
         final Level level;
         final java.util.List<org.domi.furnace.api.internal.ChunkInternals.EntityOp> ops = new java.util.ArrayList<>();
@@ -993,6 +1008,82 @@ class Entity {
         byte flags;
         final java.util.List<Entity> passengers = new java.util.ArrayList<>();
         Entity vehicle;
+        /** 월드 밖 상태 손잡이(처음 {@code getBukkitEntity()} 때 만든다)와 그것을 감싼 Bukkit 엔티티. 잠금 안에서 만든다. */
+        private org.domi.furnace.compat.nms.DetachedEntityHandle handle;
+        private CraftEntity craft;
+        /** 넣기가 끝난 뒤의 서버 엔티티(넣은 뒤 옛 핸들·속성 객체의 쓰기를 거기로 넘긴다). */
+        private volatile org.domi.furnace.api.entity.Entity sealedTarget;
+
+        /** 이 엔티티의 Bukkit 엔티티(처음이면 만든다). shim 을 그 getHandle() 로 삼는다. */
+        synchronized CraftEntity craft(Entity shim) {
+            if (craft == null) {
+                handle = org.domi.furnace.compat.nms.DetachedEntityHandle.create(this);
+                craft = org.domi.furnace.compat.paper.Compat.detachedEntity(handle);
+                craft.adoptHandle(shim);
+            }
+            return craft;
+        }
+
+        // ---- DetachedEntityHandle.Backing
+
+        @Override public Object lock() { return this; }
+
+        @Override
+        public UUID uuid() {
+            UUID u = uuid;
+            return u != null ? u : session().entityUuid();
+        }
+
+        @Override public String kind() { return EntityType.getKey(type).toString(); }
+
+        @Override
+        public org.domi.furnace.api.world.Location location() {
+            return new org.domi.furnace.api.world.Location(level.getWorld().furnaceHandle().dimension(), x, y, z, yRot, xRot);
+        }
+
+        @Override
+        public synchronized Object recordForResult(org.domi.furnace.api.internal.ChunkInternals.EntityOp.StateCall op) {
+            session();
+            replay(op);   // 순서: 세션에 먼저(실패하면 기록하지 않는다)
+            Object r = session.lastResult();
+            ops.add(op);
+            return r;
+        }
+
+        @Override
+        public org.domi.furnace.api.entity.Entity target() {
+            org.domi.furnace.api.entity.Entity p = pending;
+            return p != null ? p : sealedTarget;
+        }
+
+        @Override public synchronized boolean adding() { return adding; }
+
+        @Override public boolean removed() { return removed; }
+
+        @Override public synchronized void markRemoved() { removed = true; }
+
+        @Override public boolean hasLinks() { return vehicle != null || !passengers.isEmpty(); }
+
+        /** 스폰 이벤트 전 서버가 넣을 엔티티를 알릴 때: 그 엔티티를 이미 만든 Bukkit 엔티티에 묶고(UUID 예약) 쓰기를 넘기기 시작한다. */
+        private void bind(org.domi.furnace.api.entity.Entity fresh) {
+            pending = fresh;
+            CraftEntity c;
+            synchronized (this) {
+                c = craft;
+            }
+            if (c != null) {
+                Object prev = org.domi.furnace.compat.paper.Compat.bindEntity(c, fresh);
+                synchronized (this) {
+                    boundPrevious = prev;
+                    boundUuid = fresh.uniqueId();
+                }
+            }
+        }
+
+        /** 묶기 전 UUID 표 칸(넣기가 실패하면 되돌린다)과 그 UUID. */
+        private Object boundPrevious;
+        private UUID boundUuid;
+
         /** {@link #getEntityData()} 를 부른 뒤의 칸(엔티티 데이터 설계 3.2). 서버가 빈 레벨에서 ops 를 재생해 채운다 — 조작이 붙을 때마다 다시 채운다. */
         net.minecraft.network.syncher.SynchedEntityData data;
         /** data 를 채우는 서버 재생 상태 — 조작이 붙으면 그 조작만 재생한다(처음부터 다시 재생하지 않는다). */
@@ -1002,8 +1093,6 @@ class Entity {
             this.type = type;
             this.level = level;
         }
-
-        String kind() { return EntityType.getKey(type).toString(); }
 
         /**
          * 조작 하나를 기록한다. 재생 상태가 있으면(칸을 꺼내 줬거나 선택기를 봤으면) 그 조작을 서버에서 재생하고, 칸을 꺼내 줬으면 그 자리에서 다시 채운다
@@ -1020,7 +1109,8 @@ class Entity {
         }
 
         /** 서버 재생 상태(처음이면 연다). 잠금 안에서. */
-        org.domi.furnace.api.internal.ChunkInternals.DetachedEntityData session() {
+        @Override
+        public org.domi.furnace.api.internal.ChunkInternals.DetachedEntityData session() {
             if (session == null) {
                 // 생성자 난수 선택(좀비 주민 직업 등)을 미리 본 칸과 넣은 엔티티가 같게: 엔티티 난수 씨앗을 정해 맨 앞에 둔다(바닐라 RandomSource.create() 처럼 씨앗 없는 난수)
                 if (ops.isEmpty() || !(ops.get(0) instanceof org.domi.furnace.api.internal.ChunkInternals.EntityOp.EntityRandom)) {
@@ -1052,16 +1142,37 @@ class Entity {
             adding = true;
             addWorld = world;
             var out = new java.util.ArrayList<>(ops);
-            out.add(new org.domi.furnace.api.internal.ChunkInternals.EntityOp.AddHook(h -> pending = h));
+            out.add(new org.domi.furnace.api.internal.ChunkInternals.EntityOp.AddHook(this::bind));
             return java.util.List.copyOf(out);
         }
 
+        /** 넣은 엔티티의 Bukkit 엔티티: 넣기 전에 만든 것이 있으면 그것(예약), 없으면 보통 길. */
+        synchronized CraftEntity addedCraft(org.domi.furnace.api.entity.Entity fresh) {
+            if (craft != null) return craft;
+            return (CraftEntity) org.domi.furnace.compat.paper.Compat.entity(fresh);
+        }
+
         /** 넣기 끝: 목표 재료의 경로를 정리한다(실패면 샌드박스로). */
-        synchronized void endAdd(boolean added) {
-            for (var b : goalBackings) org.domi.furnace.compat.nms.NmsGoals.addFinished(b, added);
-            if (added) goalBackings.clear();
-            pending = null;
-            adding = false;
+        void endAdd(boolean added) {
+            CraftEntity revert = null;
+            org.domi.furnace.api.entity.Entity was;
+            synchronized (this) {
+                for (var b : goalBackings) org.domi.furnace.compat.nms.NmsGoals.addFinished(b, added);
+                if (added) goalBackings.clear();
+                was = pending;
+                if (added) sealedTarget = was;
+                else if (craft != null) {
+                    revert = craft;
+                    // 확인과 되돌림을 한 잠금 안에서: 취소·UUID 겹침으로 넣지 못했으면 UUID 표를 묶기 전으로
+                    if (boundUuid != null) org.domi.furnace.compat.paper.Compat.unbindEntity(craft, boundUuid, boundPrevious);
+                }
+                boundUuid = null;
+                boundPrevious = null;
+                pending = null;
+                adding = false;
+            }
+            // 넣지 못했으면(취소·실패) Paper 처럼 월드 밖 그대로 — Bukkit 엔티티가 다시 월드 밖 핸들을 가리킨다
+            if (revert != null && was != null) revert.furnaceHandle(handle);
         }
 
         final class GoalBox implements org.domi.furnace.compat.nms.NmsGoals.Sandbox {

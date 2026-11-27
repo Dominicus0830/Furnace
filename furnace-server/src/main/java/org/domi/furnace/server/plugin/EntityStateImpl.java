@@ -207,7 +207,7 @@ class EntityStateImpl implements org.domi.furnace.api.entity.EntityState {
             }
             return pe;
         }
-        throw new IllegalArgumentException("not an entity handle created by Furnace: " + h.getClass().getName());
+        throw ChunkInternalsImpl.ForeignEntity.reject(h, "not an entity handle created by Furnace");
     }
 
     @Override

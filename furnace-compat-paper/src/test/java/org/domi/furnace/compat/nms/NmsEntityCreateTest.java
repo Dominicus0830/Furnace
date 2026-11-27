@@ -111,7 +111,7 @@ class NmsEntityCreateTest {
         assertEquals(0.0, pig.getX());
         assertSame(level, pig.level());
         assertFalse(pig.isRemoved());
-        assertThrows(UnsupportedNmsCall.class, pig::getBukkitEntity);
+        assertFalse(pig.getBukkitEntity().isValid(), "월드 밖 엔티티도 Paper 처럼 Bukkit 엔티티가 있고 월드에 없다(isValid 거짓)");
         assertThrows(UnsupportedNmsCall.class, pig::getUUID, "UUID 는 넣을 때 정해진다");
         assertThrows(UnsupportedNmsCall.class, () -> pig.save(new CompoundTag()));
     }
@@ -170,7 +170,7 @@ class NmsEntityCreateTest {
         Entity c = EntityType.byString("minecraft:pig").orElseThrow().create(level);
         c.absMoveTo(at.x() + 0.5, at.y(), at.z() + 5.5, 0, 0);
         assertFalse(on(() -> level.addFreshEntity(c, SpawnReason.CUSTOM)), "이벤트 취소");
-        assertThrows(UnsupportedNmsCall.class, c::getBukkitEntity, "넣지 못했으니 아직 월드에 없다");
+        assertFalse(c.getBukkitEntity().isValid(), "넣지 못했으니 아직 월드에 없다");
         assertTrue(c.isRemoved(), "Paper doEntityAddEventCalling: 취소된 엔티티는 discard");
         cancelSpawns = false;
         assertFalse(on(() -> level.addFreshEntity(c, SpawnReason.CUSTOM)), "지운 엔티티는 다시 넣지 못한다");

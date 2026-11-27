@@ -36,7 +36,7 @@ public final class EntityViewsImpl implements EntityViews {
         Objects.requireNonNull(e, "target");
         if (e instanceof PlayerHandle ph) return new Target(ph.handle().uuid(), null, ph.handle());
         if (e instanceof EntityHandle eh) return new Target(eh.uniqueId(), eh.tasks(), null);
-        throw new IllegalArgumentException("not an entity of this server: " + e);
+        throw ChunkInternalsImpl.ForeignEntity.reject(e, "not an entity of this server");
     }
 
     private static org.domi.furnace.server.entity.Player viewer(Player p) {
