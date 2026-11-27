@@ -22,7 +22,7 @@ public final class CraftChatMessage {
 
     /** {@code plain} 이 true 면 글 속 주소를 링크로 만들지 않는다(CraftBukkit 과 같다). */
     public static Component[] fromString(String message, boolean keepNewlines, boolean plain) {
-        if (message == null) return new Component[] {CommonComponents.EMPTY};   // CraftBukkit: null 도 빈 글 하나
+        if (message == null) return new Component[] {Component.empty()};   // CraftBukkit: null 도 빈 글 하나
         List<Component> out = new ArrayList<>();
         if (keepNewlines) {
             out.add(line(message, plain));
@@ -87,7 +87,7 @@ public final class CraftChatMessage {
 
     public static Component fromStringOrEmpty(String message, boolean keepNewlines) {
         Component c = fromStringOrNull(message, keepNewlines);
-        return c == null ? CommonComponents.EMPTY : c;
+        return c == null ? Component.empty() : c;
     }
 
     /** JSON 글(바닐라 직렬화) 을 NMS 글로. null·빈 JSON 은 null. 틀린 JSON 은 예외. */
