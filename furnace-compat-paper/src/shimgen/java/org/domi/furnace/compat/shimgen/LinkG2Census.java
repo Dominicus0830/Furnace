@@ -161,15 +161,21 @@ final class LinkG2Census {
         if (!inf.g.existing.has(craft)) return false;
         byte[] b = inf.g.existing.bytesOf(craft);
         if (b == null) return false;
-        boolean[] found = {false};
+        boolean[] found = {false, false};   // 0 몸통 있음, 1 "아직 지원 안 함"을 던짐(손 Craft 의 던지는 자리 — 살아 있지 않다)
         new ClassReader(b).accept(new ClassVisitor(Opcodes.ASM9) {
             @Override
             public MethodVisitor visitMethod(int access, String n, String d, String sig, String[] ex) {
-                if (n.equals(name) && d.equals(desc) && (access & Opcodes.ACC_ABSTRACT) == 0) found[0] = true;
-                return null;
+                if (!n.equals(name) || !d.equals(desc) || (access & Opcodes.ACC_ABSTRACT) != 0) return null;
+                found[0] = true;
+                return new MethodVisitor(Opcodes.ASM9) {
+                    @Override
+                    public void visitTypeInsn(int op, String type) {
+                        if (op == Opcodes.NEW && type.startsWith("org/domi/furnace/") && type.contains("Unsupported")) found[1] = true;
+                    }
+                };
             }
-        }, ClassReader.SKIP_CODE);
-        return found[0];
+        }, ClassReader.SKIP_DEBUG);
+        return found[0] && !found[1];
     }
 
     private boolean convertible(Type nms, Type bukkit, List<String> conv) {
