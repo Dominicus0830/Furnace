@@ -2303,6 +2303,70 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     @Override
+    public List<org.domi.furnace.api.item.ItemStack> lootRoll(org.domi.furnace.api.world.World world, String tableId, LootRollParams p, long seed) {
+        var core = host.core();
+        var w = handle(world).handle();
+        var dp = core.dataPacks();
+        if (dp == null || dp.loot() == null) return List.of();
+        var table = dp.loot().table(tableId);
+        var lp = new org.domi.furnace.server.loot.LootParams();
+        if (p.origin() != null) lp.with(org.domi.furnace.server.loot.LootParams.ORIGIN, p.origin().clone());
+        if (p.tool() != null) {
+            lp.with(org.domi.furnace.server.loot.LootParams.TOOL, org.domi.furnace.server.ServerCore.toLootStack(org.domi.furnace.server.plugin.ApiConvert.item(p.tool())));
+        }
+        lp.with(org.domi.furnace.server.loot.LootParams.THIS_ENTITY, lootEntity(p.thisEntity()));
+        lp.with(org.domi.furnace.server.loot.LootParams.LAST_DAMAGE_PLAYER, lootEntity(p.lastDamagePlayer()));
+        lp.with(org.domi.furnace.server.loot.LootParams.ATTACKING_ENTITY, lootEntity(p.attackingEntity()));
+        lp.with(org.domi.furnace.server.loot.LootParams.DIRECT_ATTACKING_ENTITY, lootEntity(p.directAttackingEntity()));
+        if (p.blockState() != null) lp.with(org.domi.furnace.server.loot.LootParams.BLOCK_STATE, org.domi.furnace.server.ServerCore.lootBlockState(p.blockState()));
+        lp.with(org.domi.furnace.server.loot.LootParams.EXPLOSION_RADIUS, p.explosionRadius());
+        lp.with(org.domi.furnace.server.loot.LootParams.ENCHANTMENT_LEVEL, p.enchantmentLevel());
+        lp.with(org.domi.furnace.server.loot.LootParams.ENCHANTMENT_ACTIVE, p.enchantmentActive());
+        lp.luck(p.luck());
+        if (p.damageType() != null) {
+            String key = p.damageType().indexOf(':') < 0 ? "minecraft:" + p.damageType() : p.damageType();
+            var causing = lootEntity(p.damageEntity());
+            // is_direct 판정이 같은 객체 비교이므로, 원인과 직접 가해자가 같은 엔티티(UUID 가 같음)면 같은 LootEntity 를 준다
+            boolean same = p.damageEntity() != null && p.damageDirectEntity() != null && p.damageEntity().uniqueId().equals(p.damageDirectEntity().uniqueId());
+            var direct = same ? causing : lootEntity(p.damageDirectEntity());
+            lp.with(org.domi.furnace.server.loot.LootParams.DAMAGE_SOURCE, new org.domi.furnace.server.loot.LootDamageSource() {
+                public String type() { return key; }
+                public boolean is(String tag) { return org.domi.furnace.server.entity.damage.DamageType.keyHasTag(key, tag); }
+                public org.domi.furnace.server.loot.LootEntity entity() { return causing; }
+                public org.domi.furnace.server.loot.LootEntity directEntity() { return direct; }
+            });
+        }
+        if (p.blockEntity() != null && p.blockEntityStateId() != null) {
+            checkState(p.blockEntityStateId());
+            // 떨어진 블록 엔티티에 저장 꼴을 실어 컴포넌트를 모은다(BlockEntity.collectComponents) — 월드의 블록 엔티티를 건드리지 않아 스레드 제약이 없다
+            var be = detachedBlockEntity(p.blockEntityStateId(), new Pos(0, 0, 0), p.blockEntity());
+            if (be != null) lp.with(org.domi.furnace.server.loot.LootParams.BLOCK_ENTITY, be.collectComponents());
+        }
+        if (p.dynamicDrops() != null) {
+            for (var e : p.dynamicDrops().entrySet()) {
+                var cb = e.getValue();
+                lp.dynamicDrop(e.getKey(), outStack -> cb.accept(api -> outStack.accept(
+                        org.domi.furnace.server.ServerCore.toLootStack(org.domi.furnace.server.plugin.ApiConvert.item(api)))));
+            }
+        }
+        List<org.domi.furnace.api.item.ItemStack> out = new java.util.ArrayList<>();
+        for (var st : core.rollLoot(w, table, lp, seed)) out.add(apiItem(st));
+        return out;
+    }
+
+    /** API 엔티티 → 전리품 엔티티 보기(주인 스레드만 — 아니면 ThreadOwnershipException). null 이면 null. */
+    private static org.domi.furnace.server.loot.LootEntity lootEntity(org.domi.furnace.api.entity.Entity e) {
+        if (e == null) return null;
+        Object internal;
+        try {
+            internal = org.domi.furnace.api.Furnace.server().internals().entityNow(e, Object.class);
+        } catch (IllegalStateException gone) {
+            throw new IllegalArgumentException(gone.getMessage(), gone);   // 사라진 엔티티
+        }
+        return org.domi.furnace.server.entity.LootEntities.of((org.domi.furnace.server.entity.Rider) internal);
+    }
+
+    @Override
     public byte[] mapColors(int mapId) {
         var d = org.domi.furnace.server.map.MapStore.get(mapId);
         return d == null ? null : d.colors();

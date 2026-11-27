@@ -351,10 +351,15 @@ public final class ServerCore {
 
     /** 명령이 전리품 표를 평가한다(/loot): random_sequence 또는 월드 난수, 최대 스택으로 나눈 결과. 데이터 팩이 없으면 빈 목록. */
     public java.util.List<ItemStack> commandLoot(World w, org.domi.furnace.server.loot.LootTable table, org.domi.furnace.server.loot.LootParams params) {
+        return rollLoot(w, table, params, 0L);
+    }
+
+    /** 바닐라 {@code LootTable#getRandomItems(LootParams, long)}(플러그인 호환 계층): 시드가 0 이 아니면 그 시드의 난수. 데이터 팩이 없으면 빈 목록. */
+    public java.util.List<ItemStack> rollLoot(World w, org.domi.furnace.server.loot.LootTable table, org.domi.furnace.server.loot.LootParams params, long seed) {
         var dp = dataPacks;
         if (dp == null || dp.loot() == null) return java.util.List.of();
         java.util.List<ItemStack> out = new java.util.ArrayList<>();
-        for (var st : table.getRandomItems(table.context(dp.loot(), lootWorldOf(w), params, 0L))) {
+        for (var st : table.getRandomItems(table.context(dp.loot(), lootWorldOf(w), params, seed))) {
             ItemStack is = dp.network().toItemStack(st);
             if (is != null && !is.isEmpty()) out.add(is);
         }
