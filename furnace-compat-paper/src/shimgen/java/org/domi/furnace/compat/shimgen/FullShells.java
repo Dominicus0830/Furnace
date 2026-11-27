@@ -117,6 +117,8 @@ public final class FullShells {
         Map<String, byte[]> classes = g.generate();
         ShellMerge merge = g.mergeFromArgs(args, classes);
         g.checkLinks(merge);
+        List<String> refProblems = ShellRefChecks.check(g, classes);
+        if (!refProblems.isEmpty()) throw new IllegalStateException("shell ref checks failed (docs/roadmap/shell-refs-and-field-redirect-2026-11-27.md 2.4):\n" + String.join("\n", refProblems));
         main2(g, classes, merge, out, report, baselinePath, areasPath, writeBaseline);
     }
 
@@ -182,7 +184,14 @@ public final class FullShells {
         if (args.length <= 15 || args[15].isBlank()) return null;
         Set<String> overlay = new HashSet<>();
         for (String p : args[15].split(java.io.File.pathSeparator)) if (!p.isBlank()) overlay.addAll(Existing.classesIn(Path.of(p)));
-        ShellMerge merge = new ShellMerge(this, overlay);
+        return mergeWith(overlay, classes);
+    }
+
+    /** 합칠 대상 클래스들(호환 클래스 폴더의 것)로 합치고 결과를 classes 에 더한다. 껍데기 참조 틀은 합치지 않는다 — 껍데기를 그대로 만든다. */
+    ShellMerge mergeWith(Set<String> overlay, Map<String, byte[]> classes) {
+        Set<String> o = new HashSet<>(overlay);
+        o.removeAll(existing.refs());
+        ShellMerge merge = new ShellMerge(this, o);
         classes.putAll(merge.merge());
         return merge;
     }
@@ -411,7 +420,10 @@ public final class FullShells {
         // 안쪽 클래스 관계: 자기 자신(안쪽이면)과 만들어지는 안쪽 클래스들
         // 바깥 클래스가 손으로 쓴 shim 이면 그쪽 InnerClasses 에 이 클래스가 없다 — 한쪽만 적으면 리플렉션이 IncompatibleClassChangeError 를 던지므로 적지 않는다
         boolean outerHand = n.indexOf('$') > 0 && existing.has(n.substring(0, n.lastIndexOf('$')));
-        if (!outerHand && (c.innerAccess() >= 0 || n.indexOf('$') > 0)) innerClass(cw, n);
+        // 단 바깥이 생성 shim 이고 그 소스 안에 껍데기 참조 틀로 이 클래스가 있었으면 바깥이 InnerClasses·NestMembers 에 적었다 — 같이 적는다(검사 1 이 맞춰 본다)
+        boolean[] listed = outerHand && existing.refs().contains(n) ? ShellRefChecks.outerLists(existing, n) : new boolean[]{false, false};
+        if ((!outerHand || listed[0]) && (c.innerAccess() >= 0 || n.indexOf('$') > 0)) innerClass(cw, n);
+        if (listed[1]) cw.visitNestHost(n.substring(0, n.lastIndexOf('$')));
         for (String inner : nestedShells) innerClass(cw, inner);
         if (n.indexOf('$') > 0 && isAnonymousOrLocal(n)) cw.visitOuterClass(n.substring(0, n.lastIndexOf('$')), null, null);
         // 클래스 표지: 껍데기임(없는 이벤트 처리기 건너뛰기 등), NMS 밖 범위에 값 없는 필드가 있으면 초기화 덫 표시(Class.forName 다리가 "없음"으로 바꿈)
@@ -1086,6 +1098,11 @@ public final class FullShells {
         private final Map<String, Info> cache = new HashMap<>();
         /** 라이브러리(바닐라 서버가 싣는 jar)의 클래스 — 상위 형식으로는 있지만 "이미 있는 클래스"(껍데기 안 만듦)는 아니다. */
         private final Set<String> libraryClasses = new HashSet<>();
+        /**
+         * 껍데기 참조 틀(명세 ref 줄, 호환 클래스 폴더의 {@code META-INF/furnace/shell-refs.txt}) — 컴파일용 틀일 뿐이라 "이미 있음"이 아니다:
+         * 껍데기를 만들고, 합치지 않고, 상위 형식 정보로도 쓰지 않는다(바이트는 {@link #refBytes} 로만).
+         */
+        private final Set<String> refs = new TreeSet<>();
 
         /** roots: 호환 계층 클래스 폴더·jar. 폴더 안의 jar 는 라이브러리로 본다(work/libs). */
         Existing(List<Path> roots) throws IOException {
@@ -1105,6 +1122,34 @@ public final class FullShells {
                 } else if (Files.isRegularFile(r) && r.toString().endsWith(".jar")) {
                     addJar(r, false);
                 }
+                readRefs(r);
+            }
+        }
+
+        private void readRefs(Path root) throws IOException {
+            String text = null;
+            if (Files.isDirectory(root)) {
+                Path p = root.resolve(ShimGenerator.SHELL_REFS_INDEX);
+                if (Files.isRegularFile(p)) text = Files.readString(p, StandardCharsets.UTF_8);
+            } else if (Files.isRegularFile(root) && root.toString().endsWith(".jar")) {
+                try (ZipFile z = new ZipFile(root.toFile())) {
+                    ZipEntry e = z.getEntry(ShimGenerator.SHELL_REFS_INDEX);
+                    if (e != null) try (InputStream in = z.getInputStream(e)) { text = new String(in.readAllBytes(), StandardCharsets.UTF_8); }
+                }
+            }
+            if (text == null) return;
+            for (String l : text.split("\n")) if (!l.isBlank()) refs.add(l.strip());
+        }
+
+        /** 껍데기 참조 틀 클래스(내부 이름). */
+        Set<String> refs() { return java.util.Collections.unmodifiableSet(refs); }
+
+        /** 틀 클래스의 바이트(검사 1용). */
+        byte[] refBytes(String n) {
+            try {
+                return rawBytes(n);
+            } catch (IOException e) {
+                throw new java.io.UncheckedIOException(e);
             }
         }
 
@@ -1121,10 +1166,15 @@ public final class FullShells {
         }
 
         /** 호환 계층에 이미 있는 클래스(껍데기를 만들지 않는다). 라이브러리는 넣지 않는다. */
-        boolean has(String n) { return dirFiles.containsKey(n) || jarOf.containsKey(n) && !libraryClasses.contains(n); }
+        boolean has(String n) { return !refs.contains(n) && (dirFiles.containsKey(n) || jarOf.containsKey(n) && !libraryClasses.contains(n)); }
 
-        /** 클래스 폴더(호환 계층 자신)의 클래스 이름들 — jar·라이브러리는 빼고. */
-        Set<String> dirClasses() { return dirFiles.keySet(); }
+        /** 클래스 폴더(호환 계층 자신)의 클래스 이름들 — jar·라이브러리·틀은 빼고. */
+        Set<String> dirClasses() {
+            if (refs.isEmpty()) return dirFiles.keySet();
+            Set<String> out = new HashSet<>(dirFiles.keySet());
+            out.removeAll(refs);
+            return out;
+        }
 
         Info info(String n) {
             if (cache.containsKey(n)) return cache.get(n);
@@ -1161,6 +1211,10 @@ public final class FullShells {
         }
 
         private byte[] bytes(String n) throws IOException {
+            return refs.contains(n) ? null : rawBytes(n);
+        }
+
+        private byte[] rawBytes(String n) throws IOException {
             Path p = dirFiles.get(n);
             if (p != null) return Files.readAllBytes(p);
             ZipFile z = jarOf.get(n);

@@ -95,6 +95,8 @@ public final class CompatFormat implements PluginFormat {
 
     @Override
     public PluginDescription readDescriptor(String fileName, String text) {
+        // 껍데기 참조 틀이 진짜 껍데기를 가리면(로더 순서 깨짐) 손 멤버가 전부 던진다 — Bukkit 플러그인을 하나도 받지 않는다(설계 shell-refs 2.3)
+        org.domi.furnace.compat.nms.NmsShellRefCheck.verify();
         Map<String, Object> map;
         try {
             map = ConfigFormat.YAML.parse(text).toMap();

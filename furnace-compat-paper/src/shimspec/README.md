@@ -29,7 +29,7 @@ tools/compat/sig-tables.sh                                         # 서명표 �
 ## 명세 문법
 
 ```
-# '#' 뒤는 주석. 줄 맨 앞에는 import 또는 class 만.
+# '#' 뒤는 주석. 줄 맨 앞에는 import, class 또는 ref(껍데기 참조 틀 — 아래 절) 만.
 import org.domi.furnace.compat.bind.EntityOps          # 아래에서 단순 이름으로 쓴다(완전 이름도 된다)
 
 class net.minecraft.world.entity.Entity  owner=org.domi.furnace.compat.bind.EntityOwner
@@ -114,6 +114,29 @@ class net.minecraft.world.level.block.CropBlock            # 멤버 없이 클�
 `(EntityType, Level)` 생성자가 있는지, 레벨 없이 만들어지는 종류(1.21.1 은 46종)는 공장이 만든 객체의 클래스와 같은지 본다. 플레이어는 뺀다(늘 `ServerPlayer`).
 실행 때 `NmsEntityKinds` 가 `CraftEntity#getHandle()`·`EntityType#create` 의 객체를 그 클래스로 만든다(재료는 Bukkit 객체 또는 아직 월드에 없는 엔티티의
 종류·레벨 — 사슬 맨 위 조각 `Entity` 가 받는다). 그래서 `Entity`·`LivingEntity`·`Mob` 이 바닐라처럼 추상이고 `instanceof Mob`·`instanceof HangingEntity` 가 같다.
+
+## 껍데기 참조 틀 — `ref` 줄 (2026-11-27)
+
+손 코드(조각·`@LinkTarget` 대상)가 **전체 껍데기(T-260)에만 있는 형식**을 이름으로 써야 할 때(예: `Parrot$Variant`) `class` 줄 대신 `ref` 줄을 쓴다.
+설계: `docs/roadmap/shell-refs-and-field-redirect-2026-11-27.md` 2장.
+
+```
+ref net.minecraft.world.entity.animal.Parrot$Variant
+  getId          # 손 코드가 쓰는 멤버 이름만(같은 이름이 여럿이면 서술자). 몸통(->, =)·생성자·owner= 는 오류
+  RED_BLUE
+```
+
+- 잠금: ref 클래스와 그 사슬 중 `class` 줄 사슬(만드는 클래스)에 없는 것은 `C` 줄 다음에 `Q <이름>` 줄이 붙는다. 인스턴스 필드는 적을 수 없다(getter 를 부른다).
+  이미 손·패킷 shim 이거나 `class` 줄·종류 표 사슬로 만들어지는 클래스를 `ref` 로 적으면 오류(필요 없는 줄).
+- 생성기: 컴파일용 **틀**만 낸다 — 클래스·멤버에 `@NmsShellRef @NmsShellMember`, 몸통은 전부 던지고, 정적 필드는 `final`·상수값 없이(손 코드에 값이 박히지 않게),
+  열거형은 적은 상수만. 목록은 `META-INF/furnace/shell-refs.txt`. 안쪽 `ref` 는 바깥이 생성 shim·조각일 때만(바깥 소스 안에 들어간다).
+- 틀은 호환 jar 에 들어가지만 실행 때는 앞에 실린 껍데기 jar 의 **진짜 껍데기가 이긴다**. 호환 계층 시작 때 `NmsShellRefCheck` 가 틀이 이긴 클래스를 찾으면 시작을 거부한다
+  (껍데기 jar 없는 축소 빌드는 틀이 대체물이라 보지 않는다).
+- 전체 껍데기 생성기(`FullShells`)는 틀을 "이미 있음"으로 보지 않고 껍데기를 만들며 합치지 않는다. 그리고 멈추는 검사 셋(`ShellRefChecks`):
+  1. 틀 멤버가 껍데기(상위 포함)에 같은 이름·서술자·정적 여부·공개 범위로 있고 상위·종류가 같다. 안쪽이면 바깥과 `InnerClasses`·`NestHost`/`NestMembers` 가 서로 맞다.
+  2. 호환 클래스 바이트코드가 ref 클래스를 소유로 부르는 멤버(명령·핸들·부트스트랩 인자)는 껍데기에서 던지지 않는다 — 던지면 그 멤버부터 채움·연결 줄로 살린다.
+  3. ref 클래스의 껍데기가 만들어지고 클래스 초기화 덫이 아니다.
+- 껍데기 멤버에 손 몸통이 필요하면 지금 연결 파일(`links-<판>/`)의 줄로 잇는다 — 대상 `@LinkTarget` 이 틀 덕분에 그 형식을 이름으로 받는다.
 
 ## 생성기가 만드는 것
 

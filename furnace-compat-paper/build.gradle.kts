@@ -580,6 +580,12 @@ tasks.register<Test>("fullShellsTest") {
         listOf("-Dfurnace.fullShells.classpath=" + cp.joinToString(File.pathSeparator) { it.absolutePath })
     })
     testLogging { showStandardStreams = true }
+    // full-shells 태그 시험은 서명표 없이는 만들 수 없는 값(껍데기 참조 틀 형식 등)을 다룬다 — 하나도 안 돌았거나 건너뛰었으면 초록이 아니다(설계 shell-refs 2.6)
+    afterSuite(KotlinClosure2<TestDescriptor, TestResult, Unit>({ d, r ->
+        if (d.parent == null && (r.testCount == 0L || r.skippedTestCount > 0L)) {
+            throw GradleException("fullShellsTest ran ${r.testCount} tests and skipped ${r.skippedTestCount} - the full-shells tagged tests must all run")
+        }
+    }))
 }
 
 // ===== 바닐라 차분 시험(T-235) =====

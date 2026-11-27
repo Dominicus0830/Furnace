@@ -37,11 +37,15 @@ public final class ShimGenerator {
     public static final String UNIMPLEMENTED_INDEX = "META-INF/furnace/shim-unimplemented.txt";
     /** 생성·합친 클래스 목록(시험·보고용). 줄: G|F 내부이름 (G 생성, F 손 조각과 합침). */
     public static final String GENERATED_INDEX = "META-INF/furnace/shim-generated.txt";
+    /** 껍데기 참조 틀 목록(한 줄에 내부 이름 하나). 전체 껍데기 생성기는 이 클래스를 "이미 있음"으로 보지 않고, 기동 점검은 이 클래스가 껍데기로 올라왔는지 본다. */
+    public static final String SHELL_REFS_INDEX = "META-INF/furnace/shell-refs.txt";
+    static final String SHELL_REF_ANN = "org.domi.furnace.compat.nms.NmsShellRef";
+    static final String SHELL_MEMBER_ANN = "org.domi.furnace.compat.nms.NmsShellMember";
     /** 실행 때 NmsKinds 가 읽는 종류 표(T-231). 줄: B|I 레지스트리이름 클래스(이진 이름). */
     public static final String KIND_INDEX = "META-INF/furnace/shim-kinds.txt";
 
     /** 클래스가 어디서 오나. */
-    enum Origin { GEN, FRAGMENT, HAND, PACKET }
+    enum Origin { GEN, FRAGMENT, HAND, PACKET, /** 껍데기 참조 틀(명세 ref 줄) — 컴파일용 모양만, 실행 때는 껍데기가 이긴다. */ REF }
 
     final ShimSpec spec;
     final ShimLock lock;
@@ -97,6 +101,7 @@ public final class ShimGenerator {
         Files.writeString(ui, String.join("\n", r.unimplemented()) + (r.unimplemented().isEmpty() ? "" : "\n"), StandardCharsets.UTF_8);
         Files.writeString(outRes.resolve(GENERATED_INDEX), String.join("\n", r.generated()) + (r.generated().isEmpty() ? "" : "\n"), StandardCharsets.UTF_8);
         Files.writeString(outRes.resolve(KIND_INDEX), String.join("\n", r.kinds()) + (r.kinds().isEmpty() ? "" : "\n"), StandardCharsets.UTF_8);
+        Files.writeString(outRes.resolve(SHELL_REFS_INDEX), String.join("\n", r.refs()) + (r.refs().isEmpty() ? "" : "\n"), StandardCharsets.UTF_8);
         System.out.println("[shimgen] shim spec: " + spec.classes.size() + " classes -> " + r.files().size() + " files ("
                 + r.generated().size() + " generated or merged classes, " + r.unimplemented().size() + " unimplemented abstract methods)");
     }
@@ -108,7 +113,7 @@ public final class ShimGenerator {
     }
 
     /** 결과: 최상위 내부 이름 → 소스 글, 색인 줄들. */
-    record Result(Map<String, String> files, List<String> unimplemented, List<String> generated, List<String> kinds) {}
+    record Result(Map<String, String> files, List<String> unimplemented, List<String> generated, List<String> kinds, List<String> refs) {}
 
     Result generate() throws IOException {
         bind();
@@ -120,7 +125,7 @@ public final class ShimGenerator {
         // 최상위 단위로 모은다
         Map<String, List<String>> units = new TreeMap<>();
         for (Map.Entry<String, Origin> e : origin.entrySet()) {
-            if (e.getValue() == Origin.GEN || e.getValue() == Origin.FRAGMENT) {
+            if (emitted(e.getKey())) {
                 units.computeIfAbsent(ShimSources.topLevel(e.getKey()), k -> new ArrayList<>()).add(e.getKey());
             }
         }
@@ -129,7 +134,7 @@ public final class ShimGenerator {
             String top = u.getKey();
             Origin o = origin.get(top);
             if (o == Origin.FRAGMENT) files.put(top, mergeFragment(top));
-            else if (o == Origin.GEN) files.put(top, generatedFile(top));
+            else if (o == Origin.GEN || o == Origin.REF) files.put(top, generatedFile(top));
             else problems.add("nested classes to generate live in a hand-written or packet-generated outer class (move the outer class to a fragment, or write them by hand): " + u.getValue());
         }
         if (!problems.isEmpty()) throw fail();
@@ -138,7 +143,9 @@ public final class ShimGenerator {
         Set<String> un = new TreeSet<>(unimplemented);
         List<String> kinds = new ArrayList<>();
         for (String[] k : spec.kinds) kinds.add(k[0] + " " + k[1] + " " + k[2]);
-        return new Result(files, List.copyOf(un), gen, kinds);
+        List<String> refs = new ArrayList<>();
+        origin.forEach((k, v) -> { if (v == Origin.REF) refs.add(k); });
+        return new Result(files, List.copyOf(un), gen, kinds, refs);
     }
 
     private IllegalStateException fail() {
@@ -207,13 +214,17 @@ public final class ShimGenerator {
                 problems.add("the same class is both a fragment (src/shims/java) and a hand shim (src/main/java): " + n);
             }
             Origin o;
-            if (inHand) o = Origin.HAND;
+            if (lock.refs.contains(n)) {
+                if (inHand || inPacket || fragTop && !nested) problems.add("ref " + n + " is already a shim (hand, packet-generated or fragment) - stale shim lock, rerun :furnace-compat-paper:shimLock");
+                o = Origin.REF;
+            } else if (inHand) o = Origin.HAND;
             else if (inPacket) o = Origin.PACKET;
             else if (!nested && fragTop) o = Origin.FRAGMENT;
             else if (nested && inFragmentText) o = Origin.HAND;   // 손 조각 안에 손으로 쓴 안쪽 클래스
             else o = Origin.GEN;
             origin.put(n, o);
             ShimLock.Cls c = lock.classes.get(n);
+            if (o == Origin.REF && (c.isAnnotation() || c.isRecord())) problems.add("annotation and record types cannot be ref lines yet: " + n);
             if ((o == Origin.GEN || o == Origin.FRAGMENT) && c.isAnnotation()) {
                 problems.add("annotation types are not generated yet (T-230): " + n + " - keep it as a hand shim");
             }
@@ -267,7 +278,10 @@ public final class ShimGenerator {
 
     boolean isRecord(String n) { return lock.classes.get(n) != null && lock.classes.get(n).isRecord(); }
 
-    boolean emitted(String n) { Origin o = origin.get(n); return o == Origin.GEN || o == Origin.FRAGMENT; }
+    /** 생성기가 소스를 쓰는 클래스(생성·조각·참조 틀). */
+    boolean emitted(String n) { Origin o = origin.get(n); return o == Origin.GEN || o == Origin.FRAGMENT || o == Origin.REF; }
+
+    boolean isRef(String n) { return origin.get(n) == Origin.REF; }
 
     private boolean hasCtorSpec(String n) {
         for (Bound b : bound.getOrDefault(n, List.of())) if (b.lock().name().equals("<init>")) return true;
@@ -279,7 +293,7 @@ public final class ShimGenerator {
         List<String> work = new ArrayList<>();
         for (Map.Entry<String, Origin> e : origin.entrySet()) {
             ShimLock.Cls c = lock.classes.get(e.getKey());
-            if (e.getValue() != Origin.GEN || c.isInterface() || c.isEnum() || isRecord(e.getKey())) continue;
+            if ((e.getValue() != Origin.GEN && e.getValue() != Origin.REF) || c.isInterface() || c.isEnum() || isRecord(e.getKey())) continue;
             if (!hasCtorSpec(e.getKey())) work.add(e.getKey());
             for (Bound b : bound.getOrDefault(e.getKey(), List.of())) {
                 if (b.lock().name().equals("<init>") && b.spec().body() == ShimSpec.Body.EMPTY && isShim(c.superName())) work.add(c.superName());
@@ -385,7 +399,8 @@ public final class ShimGenerator {
                     continue;
                 }
                 stubsFor.computeIfAbsent(n, k -> new ArrayList<>()).add(m);
-                unimplemented.add(n + " " + m.name() + " " + m.desc());
+                // 틀은 실행 때 껍데기가 가린다 — 색인에 적으면 껍데기의 살아 있는 멤버까지 "없음"이 된다
+                if (!isRef(n)) unimplemented.add(n + " " + m.name() + " " + m.desc());
             }
         }
     }
@@ -505,7 +520,13 @@ public final class ShimGenerator {
     /** 클래스 하나의 선언(머리 + 생성 멤버 + 생성 안쪽 클래스). */
     String declaration(String n, String indent) {
         StringBuilder sb = new StringBuilder();
-        sb.append(indent).append("/** Generated from the shim spec. Declaration source: ").append(lock.classes.get(n).source()).append(". */\n");
+        if (isRef(n)) {
+            sb.append(indent).append("/** Shell ref (compile-only template from a ref line of the shim spec). The full shell jar is loaded first and replaces it at run time. Declaration source: ")
+                    .append(lock.classes.get(n).source()).append(". */\n");
+            sb.append(indent).append('@').append(SHELL_REF_ANN).append(" @").append(SHELL_MEMBER_ANN).append('\n');
+        } else {
+            sb.append(indent).append("/** Generated from the shim spec. Declaration source: ").append(lock.classes.get(n).source()).append(". */\n");
+        }
         sb.append(indent).append(header(n)).append(" {\n");
         sb.append(body(n, indent + "    "));
         sb.append(indent).append("}\n");
@@ -518,6 +539,7 @@ public final class ShimGenerator {
         StringBuilder sb = new StringBuilder();
         String simple = JavaTypes.simple(n);
         List<Bound> bs = bound.getOrDefault(n, List.of());
+        if (isRef(n)) return refBody(n, in);
         // 열거형 상수(명세 순서). 조각은 mergeFragment 가 머리 바로 뒤에 쓴다.
         if (c.isEnum() && origin.get(n) == Origin.GEN) {
             List<String> consts = enumConstants(n);
@@ -607,6 +629,62 @@ public final class ShimGenerator {
             sb.append(in).append("}\n");
         }
         // 생성 안쪽 클래스
+        for (String inner : origin.keySet()) {
+            if (!emitted(inner) || inner.equals(n)) continue;
+            int d = inner.lastIndexOf('$');
+            if (d > 0 && inner.substring(0, d).equals(n)) sb.append('\n').append(declaration(inner, in));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 껍데기 참조 틀의 몸통: 명세에 적은 멤버만, 전부 던지는 몸통 + 껍데기 표지. 정적 필드는 final·값 없이(javac 가 상수를 손 코드에 박지 못하게 —
+     * 실행 때 GETSTATIC 이 진짜 껍데기 값을 읽는다). 열거형은 적은 상수만(서수·values() 는 실행 때 껍데기 것). 생성자는 생성기 전용뿐.
+     */
+    String refBody(String n, String in) {
+        ShimLock.Cls c = lock.classes.get(n);
+        StringBuilder sb = new StringBuilder();
+        String simple = JavaTypes.simple(n);
+        String mark = "@" + SHELL_MEMBER_ANN + " ";
+        List<Bound> bs = bound.getOrDefault(n, List.of());
+        if (c.isEnum()) {
+            List<String> consts = new ArrayList<>();
+            for (String k : enumConstants(n)) consts.add(mark + k);
+            sb.append(in).append(String.join(", ", consts)).append(";\n");
+        }
+        for (Bound b : bs) {
+            ShimLock.Member m = b.lock();
+            if (m.kind() != 'F' || (m.access() & 0x4000) != 0) continue;
+            if (c.isInterface()) { problems.add(b.spec().where() + ": ref interface fields are not supported (an interface field needs a value): " + n + "#" + m.name()); continue; }
+            ShimLock.Member open = new ShimLock.Member('F', m.owner(), m.name(), m.desc(), m.access() & ~0x0010, m.signature());
+            sb.append(in).append(mark).append(fieldMods(c, open)).append(fieldType(m)).append(' ').append(m.name()).append(";\n");
+        }
+        if (needsMarker.contains(n)) {
+            sb.append(in).append("/** Generator-only constructor (not in vanilla; plugin bytecode never calls this descriptor). */\n");
+            sb.append(in).append("protected ").append(simple).append('(').append(SHIM_CTOR).append(" tag) { ");
+            if (isShim(c.superName())) sb.append("super(tag); ");
+            sb.append("}\n");
+        }
+        for (Bound b : bs) {
+            ShimLock.Member m = b.lock();
+            if (m.kind() != 'M') continue;
+            // 열거형의 values()·valueOf(String) 은 javac 가 만든다(적으면 겹침) — 실행 때는 껍데기의 진짜 몸통
+            if (c.isEnum() && (m.name().equals("values") && m.desc().equals("()[L" + n + ";") || m.name().equals("valueOf") && m.desc().equals("(Ljava/lang/String;)L" + n + ";"))) continue;
+            if (m.isAbstract()) {
+                sb.append(in).append(methodHead(c, m, simple)).append(";\n");
+                continue;
+            }
+            sb.append(in).append(mark).append(methodHead(c, m, simple)).append(" {\n");
+            sb.append(in).append("    throw org.domi.furnace.compat.nms.NmsShell.unsupported(\"").append(n.replace('/', '.')).append('#').append(m.name()).append(m.desc()).append("\");\n");
+            sb.append(in).append("}\n");
+        }
+        for (ShimLock.Member m : stubsFor.getOrDefault(n, List.of())) {
+            ShimLock.Member concrete = new ShimLock.Member('M', n, m.name(), m.desc(), m.access() & ~0x0400 & ~0x0200, m.signature());
+            sb.append(in).append(mark).append("@Override\n");
+            sb.append(in).append(methodHead(c, concrete, simple)).append(" {\n");
+            sb.append(in).append("    throw org.domi.furnace.compat.nms.NmsShell.unsupported(\"").append(n.replace('/', '.')).append('#').append(m.name()).append(m.desc()).append("\");\n");
+            sb.append(in).append("}\n");
+        }
         for (String inner : origin.keySet()) {
             if (!emitted(inner) || inner.equals(n)) continue;
             int d = inner.lastIndexOf('$');

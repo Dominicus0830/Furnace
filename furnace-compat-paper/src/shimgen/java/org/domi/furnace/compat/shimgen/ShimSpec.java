@@ -80,8 +80,13 @@ final class ShimSpec {
         boolean fieldDesc() { return desc != null && !desc.startsWith("("); }
     }
 
-    /** class 줄과 그 아래 멤버들. */
-    record Cls(String name, String owner, List<Member> members, String file, int line) {
+    /**
+     * class 줄과 그 아래 멤버들. ref 면 {@code ref} 줄(껍데기 참조 틀 — 설계 docs/roadmap/shell-refs-and-field-redirect-2026-11-27.md 2장):
+     * 전체 껍데기에만 있는 형식을 손 코드가 이름으로 쓰게 컴파일용 모양만 만든다(실행 때는 껍데기 jar 의 진짜 껍데기가 이긴다).
+     */
+    record Cls(String name, String owner, List<Member> members, String file, int line, boolean ref) {
+        Cls(String name, String owner, List<Member> members, String file, int line) { this(name, owner, members, file, line, false); }
+
         String where() { return file + ":" + line; }
     }
 
@@ -124,7 +129,9 @@ final class ShimSpec {
             firstLine.putIfAbsent(w[2], n + 1);
         }
         for (Map.Entry<String, Integer> e : firstLine.entrySet()) {
-            if (!classes.containsKey(e.getKey())) classes.put(e.getKey(), new Cls(e.getKey(), null, List.of(), file, e.getValue()));
+            Cls prev = classes.get(e.getKey());
+            if (prev != null && prev.ref()) throw err(file, e.getValue(), "a kind class is generated, it cannot be a ref line (" + prev.where() + "): " + e.getKey());
+            if (prev == null) classes.put(e.getKey(), new Cls(e.getKey(), null, List.of(), file, e.getValue()));
         }
         // 엔티티 종류 클래스: 바닐라 생성자 (EntityType, Level) — 플러그인이 new Shulker(EntityType.SHULKER, level) 처럼 직접 만든다
         for (String[] k : kinds) {
@@ -146,6 +153,7 @@ final class ShimSpec {
         String[] lines = text.split("\r?\n", -1);
         String curName = null;
         String curOwner = null;
+        boolean curRef = false;
         List<Member> cur = null;
         int curLine = 0;
         for (int n = 0; n < lines.length; n++) {
@@ -156,14 +164,15 @@ final class ShimSpec {
             boolean indented = Character.isWhitespace(raw.charAt(0));
             String t = line.strip();
             if (!indented) {
-                if (cur != null) { put(new Cls(curName, curOwner, List.copyOf(cur), file, curLine)); cur = null; }
+                if (cur != null) { put(new Cls(curName, curOwner, List.copyOf(cur), file, curLine, curRef)); cur = null; }
                 if (t.startsWith("import ")) {
                     String fq = t.substring(7).strip();
                     imports.put(fq.substring(fq.lastIndexOf('.') + 1), fq);
                     continue;
                 }
-                if (!t.startsWith("class ")) throw err(file, no, "only import or class lines start at column 0: " + t);
-                String[] w = t.substring(6).strip().split("\\s+");
+                curRef = t.startsWith("ref ");
+                if (!t.startsWith("class ") && !curRef) throw err(file, no, "only import, class or ref lines start at column 0: " + t);
+                String[] w = t.substring(curRef ? 4 : 6).strip().split("\\s+");
                 curName = w[0];
                 if (!curName.startsWith("net.minecraft.")) throw err(file, no, "the spec covers net.minecraft classes only: " + curName);
                 curOwner = null;
@@ -177,14 +186,18 @@ final class ShimSpec {
                     }
                     else throw err(file, no, "unknown class attribute: " + w[i]);
                 }
+                if (curRef && curOwner != null) throw err(file, no, "a ref line takes no owner= (it generates no bodies): " + t);
                 cur = new ArrayList<>();
                 curLine = no;
                 continue;
             }
             if (cur == null) throw err(file, no, "member line before any class line: " + t);
-            cur.add(member(imports, t, file, no));
+            Member m = member(imports, t, file, no);
+            if (curRef && m.body() != Body.DECLARE) throw err(file, no, "ref members are names only (the full shell, fills and links decide the bodies): " + t);
+            if (curRef && m.name().equals("<init>")) throw err(file, no, "ref lines do not list constructors (hand code cannot build a full-shell object): " + t);
+            cur.add(m);
         }
-        if (cur != null) put(new Cls(curName, curOwner, List.copyOf(cur), file, curLine));
+        if (cur != null) put(new Cls(curName, curOwner, List.copyOf(cur), file, curLine, curRef));
     }
 
     private void put(Cls c) {

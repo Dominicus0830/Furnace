@@ -37,7 +37,8 @@ class ShimLockTest {
                 new String[] {"M", "1", "move", "(DDD)V"},
                 new String[] {"M", "1", "level", "()Lnet/minecraft/a/Level;"},
                 new String[] {"M", "1", "list", "()Ljava/util/List;", "()Ljava/util/List<Lnet/minecraft/a/Gone;>;"},
-                new String[] {"F", "25", "MAX", "I"}));
+                new String[] {"F", "25", "MAX", "I"},
+                new String[] {"F", "1", "hp", "I"}));
         t.add(cls(Opcodes.ACC_PUBLIC | Opcodes.ACC_ABSTRACT | Opcodes.ACC_SUPER, "net/minecraft/a/Base", "<T:Ljava/lang/Object;>Ljava/lang/Object;", "java/lang/Object", null,
                 new String[] {"M", "1", "getX", "()D"}));
         t.add(cls(Opcodes.ACC_PUBLIC | Opcodes.ACC_INTERFACE | Opcodes.ACC_ABSTRACT, "net/minecraft/a/Named", null, "java/lang/Object", new String[] {"net/minecraft/a/Root"}));
@@ -95,6 +96,43 @@ class ShimLockTest {
         assertTrue(p.stream().anyMatch(x -> x.contains("overloaded name - write the descriptor: move")), String.join("\n", p));
         assertTrue(p.stream().anyMatch(x -> x.contains("uses a type that is not in the shim: net/minecraft/a/Level")), String.join("\n", p));
         assertTrue(p.stream().anyMatch(x -> x.contains("does not declare member nope")), String.join("\n", p));
+    }
+
+    /** 껍데기 참조 틀(설계 shell-refs-and-field-redirect-2026-11-27 2.2): ref 사슬 중 만드는 클래스가 아닌 것은 Q 줄, 손 멤버 서술자에 ref 형식을 써도 된다. */
+    @Test
+    void refLinesBecomeQLinesAndCountAsInTheShim() {
+        ShimLock lock = ShimLock.resolve("t", spec("""
+                class net.minecraft.a.Level
+                ref net.minecraft.a.Thing
+                  getX
+                  level
+                """), List.of(table()), n -> false);
+        assertEquals(Set.of("net/minecraft/a/Thing", "net/minecraft/a/Base", "net/minecraft/a/Named", "net/minecraft/a/Root"), lock.refs,
+                "ref 클래스와 그 사슬(만드는 클래스 Level 은 빼고)");
+        assertTrue(lock.text().contains("Q\tnet/minecraft/a/Thing\n"), lock.text());
+        assertFalse(lock.text().contains("Q\tnet/minecraft/a/Level"), lock.text());
+        assertEquals(lock.text(), ShimLock.parse(lock.text()).text());
+        assertEquals(lock.refs, ShimLock.parse(lock.text()).refs);
+        // 만드는 클래스의 멤버가 ref 형식을 써도 "shim 에 없는 형식"이 아니다
+        ShimLock uses = ShimLock.resolve("t", spec("class net.minecraft.a.Thing\n  level -> org.example.X.l read=any\nref net.minecraft.a.Level\n"), List.of(table()), n -> false);
+        assertEquals(Set.of("net/minecraft/a/Level"), uses.refs);
+    }
+
+    @Test
+    void refLinesThatAreGeneratedAnywayOrNameInstanceFieldsAreRefused() {
+        ShimLock.ResolveException e = assertThrows(ShimLock.ResolveException.class, () -> ShimLock.resolve("t", spec("""
+                class net.minecraft.a.Thing
+                ref net.minecraft.a.Base
+                ref net.minecraft.a.Level
+                  hp
+                ref net.minecraft.a.Gone
+                """), List.of(table()), n -> n.equals("net/minecraft/a/Gone")));
+        List<String> p = e.problems;
+        assertTrue(p.stream().anyMatch(x -> x.contains("ref net/minecraft/a/Base is generated anyway")), String.join("\n", p));
+        assertTrue(p.stream().anyMatch(x -> x.contains("ref net/minecraft/a/Gone is already a shim")), String.join("\n", p));
+        assertTrue(p.stream().anyMatch(x -> x.contains("does not declare member hp") || x.contains("ref members cannot be instance fields")), String.join("\n", p));
+        ShimLock.ResolveException f = assertThrows(ShimLock.ResolveException.class, () -> ShimLock.resolve("t", spec("ref net.minecraft.a.Thing\n  hp\n"), List.of(table()), n -> false));
+        assertTrue(f.problems.stream().anyMatch(x -> x.contains("ref members cannot be instance fields")), String.join("\n", f.problems));
     }
 
     @Test

@@ -55,7 +55,11 @@ class FullShellsLoadTest {
         // 껍데기 jar 가 로더 맨 앞이다 — 합친 목록 밖의 클래스가 호환 jar 에도 있으면 손 shim 이 조용히 가려진다(T-261 검토)
         List<String> shadowing = new ArrayList<>();
         try (JarFile compat = new JarFile(System.getProperty("furnace.fullShells.compatJar"))) {
-            for (String n : names) if (!merged.contains(n) && compat.getJarEntry(n.replace('.', '/') + ".class") != null) shadowing.add(n);
+            // 껍데기 참조 틀(명세 ref 줄)은 일부러 가려진다 — 껍데기가 진짜 클래스다
+            java.util.Set<String> refs = new java.util.HashSet<>();
+            JarEntry re = compat.getJarEntry(ShimGenerator.SHELL_REFS_INDEX);
+            if (re != null) for (String l : new String(compat.getInputStream(re).readAllBytes(), StandardCharsets.UTF_8).split("\n")) if (!l.isBlank()) refs.add(l.strip().replace('/', '.'));
+            for (String n : names) if (!merged.contains(n) && !refs.contains(n) && compat.getJarEntry(n.replace('.', '/') + ".class") != null) shadowing.add(n);
         }
         assertEquals(List.of(), shadowing, "classes in both the shells jar and the compat jar must be merged hand shims");
         long jarBytes = Files.size(jar);
@@ -120,6 +124,24 @@ class FullShellsLoadTest {
         assertEquals(Map.of(), loadErrors, "every shell must load (define + resolve its supertypes)");
         assertEquals(Map.of(), initErrors, "shell static init (enum constants) must not fail");
         assertEquals(0, mergedNotWinning, "merged hand shims must win over the originals in the compat jar (shells jar first)");
+    }
+
+    /**
+     * 껍데기 참조 틀(설계 shell-refs-and-field-redirect-2026-11-27 2.6): 실행 때와 같은 로더에서 틀 클래스마다 진짜 껍데기가 나온다(틀 표지 없음) —
+     * 기동 자기 점검과 같은 길(NmsShellRefCheck)로 본다. 틀이 없으면(아직 ref 줄 없음) 목록만 비어 있다.
+     */
+    @Test
+    void shellRefsResolveToTheRealShells() throws Exception {
+        List<URL> urls = new ArrayList<>();
+        for (String p : System.getProperty("furnace.fullShells.classpath").split(File.pathSeparator)) if (!p.isBlank()) urls.add(Path.of(p).toUri().toURL());
+        try (URLClassLoader cl = new URLClassLoader(urls.toArray(URL[]::new), ClassLoader.getPlatformClassLoader())) {
+            assertTrue(cl.getResource("META-INF/furnace/full-shells/merged-classes.txt") != null, "the shells jar must be on the loader");
+            assertTrue(cl.getResource(ShimGenerator.SHELL_REFS_INDEX) != null, "the ref list must be in the compat jar");
+            Class<?> check = Class.forName("org.domi.furnace.compat.nms.NmsShellRefCheck", false, cl);
+            var m = check.getDeclaredMethod("templatesWinning", ClassLoader.class);
+            m.setAccessible(true);
+            assertEquals(List.of(), m.invoke(null, cl), "every ref class must load as the real full shell (shells jar first)");
+        }
     }
 
     /**

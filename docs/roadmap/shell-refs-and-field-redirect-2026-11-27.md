@@ -138,6 +138,7 @@ class net.minecraft.world.entity.animal.Parrot
 | Llama | `entityData.set(칸, variant.id)` (필드 읽기) | 같은 값을 주는 살아 있는 읽기(`getId()` 채움)를 부른다 — 값은 같다(T-262 G 채움이 `id` 필드를 그대로 돌려줌) |
 | MushroomCow | `entityData.set(DATA_TYPE, variant.type)` (문자열) | 같은 값을 주는 `getSerializedName()`. 단 `MushroomType` 상수 인자에 블록 상태가 있어(가정 — 구현 PR 에서 javap) T-262 채움이 안 됐을 수 있다. 그러면 2.4 검사 2 가 빌드를 멈추므로 `getSerializedName` 을 먼저 연결 줄로 살린다 |
 | Rabbit | 살인 토끼(`EVIL`)면 방어 8·목표 4개 추가·이름 없으면 "killer_bunny" 이름, 그다음 `entityData.set(칸, variant.id)` | 대상이 서버 `Rabbit.setVariant(int)`(이미 같은 목표·이름 처리)를 주인 스레드에서 부른다. 구현 PR 에서 바닐라·Paper javap 로 서버 쪽을 한 번 더 대조(서버의 `else` 갈래 공격 수정자 제거가 바닐라 판정과 같은지 포함) |
+| Bee `setRolling` (11-27 추가) | 엔티티 데이터 깃발 칸의 구르기 비트 쓰기(서버 `Bee.setRolling` 이 같은 `setFlag(FLAG_ROLL, v)` — 바닐라 몸통은 구현 PR 에서 javap 로 재확인, 가정) | `Bee` 는 전체 껍데기에만 있다 → 대상이 `Bee` 를 이름으로 받도록 `ref net.minecraft.world.entity.animal.Bee` 줄 + 연결 줄 → 대상이 서버 `Bee` 의 깃발 쓰기를 주인 스레드에서(월드 밖이면 기록·재생). 칸 반응 여부는 구현 PR 에서 확인 |
 | getter 들 | `Variant.byId(entityData.get(칸))` | `byId` 를 연결 줄로 먼저 살리고(2.4 검사 2), getter 는 그 `byId` 를 부르는 대상 |
 
 열거형마다 쓰는 채움 멤버(`getId()`·`id()`·`getSerializedName()`)가 정말 채워졌는지는 2.4 검사 2 가 빌드에서 확인한다. 안 채워진 것은 그 멤버부터 연결 줄로 살린다(값을 추측해 쓰지 않는다).
@@ -263,7 +264,7 @@ PUTFIELD  O.f : D   →  INVOKESTATIC FieldRedirects.set$n (LDecl;D)V     (읽�
 | PR | 내용 | 검토 | 담당 제안 |
 |---|---|---|---|
 | A | 껍데기 참조 틀: 명세 `ref`(안쪽 클래스 자리 규칙), 잠금 `Q/QM`, 틀 생성, `shell-refs.txt`, `FullShells`·`ShellMerge` 제외와 검사 1~3(중첩 속성·바이트코드로 모은 쓰는 멤버), 기동 자기 점검, `full-shells` 시험 개수 확인 | 생성기 변경 → 독립 검토 | 이 스레드 |
-| B | 영역 2: Parrot·Axolotl·Fox·Llama·MushroomCow·Rabbit `setVariant`/`getVariant`/`byId` 연결 줄 + 대상, 반응 확인 | 손 구현 → 독립 검토(엔티티 검토 스레드) | 영역 2 스레드 |
+| B | 영역 2: Parrot·Axolotl·Fox·Llama·MushroomCow·Rabbit `setVariant`/`getVariant`/`byId`, Bee `setRolling`(11-27 추가) 연결 줄 + 대상, 반응 확인 | 손 구현 → 독립 검토(엔티티 검토 스레드) | 영역 2 스레드 |
 | C | 필드 리다이렉트 1단계: 명세 `=>`, 접근자·색인(접근 플래그) 생성, `NmsLinker` 바꾸기(색인에 있으면 소유 무관하게 풀기·못 풀면 덫, 핸들 상수·부트스트랩 인자), 빌드 시험, JMH. **거울 필드 없음** — 리플렉션은 지금처럼 없음 | 연결기 변경 → 독립 검토 | 이 스레드 |
 | D | 리플렉션 길 전부 + 거울 필드 선언(한 PR): `Field.get*/set*` 걸개(문턱 없이, 원래 값·인자로), `find*`·`unreflect*` 다리, VarHandle 거절, 껍데기 jar 의 거울 읽기 검사(검토 9), 100 jar 훑기 | 독립 검토 | 이 스레드 |
 | E | 영역 2: `hurtTime`·`hurtDuration`·`hurtMarked` 줄 + `NmsEntityFields`(월드·월드 밖·플레이어), 플레이어 `hurtDuration`·`hurtMarked` 보내기 규칙·서버 속도 값 정리, `setDeltaMovement`/`getDeltaMovement` 연결, 시험 | 독립 검토(엔티티) | 영역 2 스레드(플레이어 서버 쪽은 Sonnet medium 이상 — 동시성) |
