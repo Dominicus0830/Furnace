@@ -48,10 +48,16 @@ class SyncedDataHookTest {
         var level = new BlockPlacementTest.TestLevel();
 
         var interaction = (Interaction) Entities.create(level, "minecraft:interaction");
+        var box = interaction.boundingBox();
+        assertEquals(1.0, box.maxX() - box.minX(), "새 상호작용 상자는 칸 기본값 1×1(바닐라 makeBoundingBox)");
         interaction.entityData().set(Interaction.DATA_WIDTH, 2.5F);
         interaction.entityData().set(Interaction.DATA_HEIGHT, 0.75F);
-        assertEquals(2.5F, interaction.bbWidth());
-        assertEquals(0.75F, interaction.bbHeight());
+        box = interaction.boundingBox();
+        assertEquals(2.5, box.maxX() - box.minX(), 1e-9);
+        assertEquals(0.75, box.maxY() - box.minY(), 1e-6);
+        // 바닐라 훅은 상자만 바꾼다: 몸 크기(getBbWidth)는 종류 기본 0×0 이고 자세가 바뀔 때만 칸을 따른다
+        assertEquals(0.0F, interaction.bbWidth());
+        assertEquals(0.0F, interaction.bbHeight());
 
         var zombie = (Zombie) Entities.create(level, "minecraft:zombie");
         zombie.entityData().set(Zombie.DATA_BABY, true);
@@ -86,6 +92,23 @@ class SyncedDataHookTest {
         assertEquals(0.52F * 4, slime.bbWidth());
         assertEquals(37.0F, slime.yRot(), "바닐라 Slime 훅: setYRot(yHeadRot)");
         assertEquals(37.0F, slime.yBodyRot());
+    }
+
+    /** 아르마딜로 상태 칸에 바로 써도(플러그인 길) 바닐라 훅처럼 상태 틱이 0 으로 돌아간다(전에는 switchToState 안에서만). */
+    @Test
+    void armadilloStateSlotResetsTheStateTicks() throws ReflectiveOperationException {
+        var level = new BlockPlacementTest.TestLevel();
+        var a = (Armadillo) Entities.create(level, "minecraft:armadillo");
+        var ticks = Armadillo.class.getDeclaredField("inStateTicks");
+        ticks.setAccessible(true);
+        ticks.setLong(a, 100L);
+        a.entityData().set(Armadillo.DATA_STATE, Armadillo.ArmadilloState.IDLE.id());
+        assertEquals(100L, ticks.getLong(a), "같은 값은 훅이 없다");
+        a.entityData().set(Armadillo.DATA_STATE, Armadillo.ArmadilloState.ROLLING.id());
+        assertEquals(0L, ticks.getLong(a));
+        ticks.setLong(a, 100L);
+        a.switchToState(Armadillo.ArmadilloState.SCARED);
+        assertEquals(0L, ticks.getLong(a), "setter 도 같은 훅");
     }
 
     @Test

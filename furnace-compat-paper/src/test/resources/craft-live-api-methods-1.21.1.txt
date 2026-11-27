@@ -674,7 +674,7 @@ org/bukkit/craftbukkit/persistence/CraftPersistentDataContainer 14 f65d09bb2b7a8
 org/bukkit/craftbukkit/persistence/DirtyCraftPersistentDataContainer 12 ba6f3194f2d4518b
 org/bukkit/craftbukkit/potion/CraftPotionEffectType 1 057209589aa0aaed
 org/bukkit/craftbukkit/potion/CraftPotionType 0 e3b0c44298fc1c14
-org/bukkit/craftbukkit/profile/CraftPlayerProfile 13 01a76c88bc2002aa
+org/bukkit/craftbukkit/profile/CraftPlayerProfile 12 ff968fc95583e500
 org/bukkit/craftbukkit/profile/CraftPlayerTextures 10 bef03ac5dde63688
 org/bukkit/craftbukkit/projectiles/CraftBlockProjectileSource 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/scheduler/CraftAsyncScheduler 33 d3e05539d539361b

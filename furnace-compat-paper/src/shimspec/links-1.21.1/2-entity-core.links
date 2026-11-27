@@ -1,0 +1,26 @@
+#furnace-links 1 1.21.1 area=2
+# 손 줄(T-263 S2, 2026-11-27): 반응 있는 칸(바닐라 onSyncedDataUpdated 가 읽는 칸)에 쓰는 엔티티 데이터 setter.
+# adoptLinks 의 모양 증명은 이 칸을 뺀다 — 반응을 따로 확인해 넣었다(proof=review). 근거·줄마다 확인 내용:
+# docs/feature-parity/context-notes/2026-11-27-t263-reacting-slots.md
+# 복어 부풀기(setPuffState)는 아직 없다: Furnace 의 몸 크기 다시 재기에 바닐라의 자리 밀기(fudgePositionAfterSizeChange)가 없다.
+class net.minecraft.world.entity.Display
+  setHeight(F)V -> @idiom(entity-data-set, #7b918f43ae) write via=G1 proof=review                       # 반응: 클라이언트 그리기 범위만
+  setTransformationInterpolationDuration(I)V -> @idiom(entity-data-set, #97c9080e65) write via=G1 proof=review   # 반응: 클라이언트 보간만
+  setWidth(F)V -> @idiom(entity-data-set, #78ce96e305) write via=G1 proof=review                        # 반응: 클라이언트 그리기 범위만
+class net.minecraft.world.entity.Display$BlockDisplay
+  setBlockState(Lnet/minecraft/world/level/block/state/BlockState;)V -> @idiom(entity-data-set, #013850c715) write via=G1 proof=review   # 반응: 클라이언트 그리기 상태만
+class net.minecraft.world.entity.Display$ItemDisplay
+  setItemStack(Lnet/minecraft/world/item/ItemStack;)V -> @idiom(entity-data-set, #793d58511c) write via=G1 proof=review   # 반응: 클라이언트 그리기 상태만
+class net.minecraft.world.entity.Interaction
+  setHeight(F)V -> @idiom(entity-data-set, #13068f3388) write via=G1 proof=review                       # 반응: 상자 다시 만들기(Interaction 훅)
+  setWidth(F)V -> @idiom(entity-data-set, #ebe32cdfc5) write via=G1 proof=review                        # 반응: 상자 다시 만들기(Interaction 훅)
+class net.minecraft.world.entity.animal.armadillo.Armadillo
+  switchToState(Lnet/minecraft/world/entity/animal/armadillo/Armadillo$ArmadilloState;)V -> @idiom(entity-data-set, #4a381951f2) write via=G1 proof=review   # 반응: 상태 틱 0(Armadillo 훅)
+class net.minecraft.world.entity.animal.camel.Camel
+  setDashing(Z)V -> @idiom(entity-data-set, net.minecraft.world.entity.animal.camel.Camel.DASH) write via=G1 proof=review   # 반응: 돌진 대기 55(Camel 훅)
+class net.minecraft.world.entity.decoration.Painting
+  setVariant(Lnet/minecraft/core/Holder;)V -> @idiom(entity-data-set, #53f7d3051a) write via=G1 proof=review   # 반응: 상자 다시 재기(Painting 훅)
+class net.minecraft.world.entity.monster.Guardian
+  setActiveAttackTarget(I)V -> @idiom(entity-data-set, #7a65b67eae) write via=G1 proof=review          # 반응: 클라이언트 공격 애니메이션만
+class net.minecraft.world.entity.monster.Shulker
+  setAttachFace(Lnet/minecraft/core/Direction;)V -> @idiom(entity-data-set, net.minecraft.world.entity.monster.Shulker.DATA_ATTACH_FACE_ID) write via=G1 proof=review   # 반응: 상자 다시 만들기(Shulker 훅)

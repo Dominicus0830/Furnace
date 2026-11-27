@@ -118,4 +118,30 @@ class FillExtractorTest {
         assertEquals(java.util.Arrays.hashCode(Files.readAllBytes(out)), java.util.Arrays.hashCode(Files.readAllBytes(out2)));   // 같은 표는 같은 바이트
         assertEquals("\u00e9\t,", r.enumConsts("E").get(0).args().get(1).value());
     }
+
+    @Test
+    void shortValueBodies(@TempDir Path d) throws IOException {
+        FillTable t = extract(d, "V", "public class V { public static final Object O = new Object(); static int n;"
+                + " public void hook() {} public boolean flag() { return true; } public float half() { return 0.5F; } public String s() { return \"x\"; }"
+                + " public Object none() { return null; } public V self() { return this; } public long id(long a, int b) { return a; } public static int second(long a, int b) { return b; }"
+                + " public static Object obj() { return O; } public int calc() { return n + 1; } public void work() { n++; } public int field() { return n; }"
+                + " public String sorry() { try { return s(); } catch (RuntimeException e) { return null; } } }");
+        java.util.Map<String, String> got = new java.util.TreeMap<>();
+        for (FillTable.Method m : t.methods("V")) got.put(m.name(), (m.isStatic() ? "s " : "i ") + m.kind() + " " + m.value());
+        assertEquals(java.util.Map.of(
+                "hook", "i E -", "flag", "i K i:1", "half", "i K f:0x3f000000", "s", "i K s:x", "none", "i K n:",
+                "self", "i A p:0", "id", "i A p:1", "second", "s A p:2", "obj", "s R V.O:Ljava/lang/Object;", "field", "i R V.n:I"), got);
+    }
+
+    @Test
+    void interfaceDefaultsAndRoundTripOfValueBodies(@TempDir Path d) throws IOException {
+        FillTable t = extract(d, "I", "public interface I { default boolean on() { return false; } default void tick() {} boolean abs(); static int k() { return 7; } }");
+        assertEquals(List.of("on", "tick", "k"), t.methods("I").stream().map(FillTable.Method::name).toList());
+        Path f = d.resolve("t.tsv.gz");
+        t.write(f);
+        assertEquals(t.methods("I"), FillTable.read(f).methods("I"));
+        FillTable other = new FillTable("o");
+        other.add(t.methods("I").get(0));
+        assertEquals(1, t.intersect(other).methods("I").size());
+    }
 }
