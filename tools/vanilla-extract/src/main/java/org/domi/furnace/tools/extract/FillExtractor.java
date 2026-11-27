@@ -130,7 +130,7 @@ public final class FillExtractor {
 
     /**
      * 모양 정적 필드가 있는 클래스의 정적 초기화 해시(T-263 S5): 정적 초기화와, 거기서 (람다로도) 부르는 같은 클래스의 정적 메서드를 차례로
-     * 명령 단위로 적어(줄 번호·프레임 없이, 분기 대상은 순번) sha256 앞 16자리. 값은 바닐라를 띄워 읽고, 이 해시가 바닐라·Paper 에서
+     * 명령 단위로 적어(줄 번호·프레임 없이, 분기 대상은 순번, 합성 람다 이름은 처음 나온 순번) sha256 앞 16자리. 값은 바닐라를 띄워 읽고, 이 해시가 바닐라·Paper 에서
      * 같은 클래스만 채운다. 다른 클래스의 도우미(Block.box·Shapes)는 보지 않는다 — 가정: Paper 의 모양 패치는 성능 몫이고 값을 바꾸지 않는다
      * (모양 표 오라클은 바닐라와 견준다).
      */
@@ -151,11 +151,23 @@ public final class FillExtractor {
             normalize(cn.name, m, b, todo);
         }
         try {
-            byte[] d = java.security.MessageDigest.getInstance("SHA-256").digest(b.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            byte[] d = java.security.MessageDigest.getInstance("SHA-256").digest(renumberLambdas(b.toString()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
             return java.util.HexFormat.of().formatHex(d).substring(0, 16);
         } catch (java.security.NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    private static final java.util.regex.Pattern LAMBDA = java.util.regex.Pattern.compile("lambda\\$[^$;(\\s.]*\\$\\d+");
+
+    /** 합성 람다 이름(lambda$static$N 등)을 처음 나온 순서로 다시 매긴다 — 다시 컴파일한 Paper 는 번호만 다를 수 있다. */
+    static String renumberLambdas(String text) {
+        Map<String, String> names = new HashMap<>();
+        java.util.regex.Matcher m = LAMBDA.matcher(text);
+        StringBuilder out = new StringBuilder();
+        while (m.find()) m.appendReplacement(out, java.util.regex.Matcher.quoteReplacement(names.computeIfAbsent(m.group(), k -> "lambda#" + names.size())));
+        m.appendTail(out);
+        return out.toString();
     }
 
     private static void normalize(String owner, MethodNode m, StringBuilder b, java.util.ArrayDeque<String> calls) {

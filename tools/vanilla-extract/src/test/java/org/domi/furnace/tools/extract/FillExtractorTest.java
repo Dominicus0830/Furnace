@@ -199,4 +199,10 @@ class FillExtractorTest {
         assertEquals("1", ShapeValues.num(1.0));
         assertEquals("0.5", ShapeValues.num(0.5));
     }
+
+    @Test
+    void lambdaNamesAreRenumberedByFirstUse() {
+        assertEquals("x S.lambda#0()V; y lambda#1(I)V; S.lambda#0()V",
+                FillExtractor.renumberLambdas("x S.lambda$static$3()V; y lambda$new$1(I)V; S.lambda$static$3()V"));
+    }
 }
