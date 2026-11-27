@@ -32,9 +32,12 @@ final class Fills {
         final Set<String> objectMethods = new HashSet<>();
         /** 짧은 값 몸통(이름+서술자 → 표 줄, T-263 G0). */
         final Map<String, FillTable.Method> values = new LinkedHashMap<>();
+        /** 모양 정적 필드(필드 이름 → 표 줄, T-263 S5). */
+        final Map<String, FillTable.Shape> shapes = new LinkedHashMap<>();
 
         boolean any() {
-            return !ctors.isEmpty() || !getters.isEmpty() || !statics.isEmpty() || enumConsts != null || !objectMethods.isEmpty() || !values.isEmpty();
+            return !ctors.isEmpty() || !getters.isEmpty() || !statics.isEmpty() || enumConsts != null || !objectMethods.isEmpty() || !values.isEmpty()
+                    || !shapes.isEmpty();
         }
     }
 
@@ -55,6 +58,90 @@ final class Fills {
     }
 
     ClassFill of(String n) { return byClass.get(n); }
+
+    /** T-263 S5: 손 shim 에 합치기가 더할 모양 정적 필드(소유자 → 필드 이름 → 표 줄). */
+    final Map<String, Map<String, FillTable.Shape>> mergeShapes = new HashMap<>();
+    int shapeCount;
+    /** 채우지 않은 모양 정적 필드 수(이유별, 보고용). */
+    final Map<String, Integer> shapeSkips = new java.util.TreeMap<>();
+
+    private void shapeSkip(String why, int n) { if (n > 0) shapeSkips.merge(why, n, Integer::sum); }
+
+    /** 모양 정적 필드 값(껍데기·손 shim 모두). 없으면 null. */
+    FillTable.Shape shape(String owner, String field) {
+        ClassFill cf = byClass.get(owner);
+        if (cf != null && cf.shapes.containsKey(field)) return cf.shapes.get(field);
+        Map<String, FillTable.Shape> m = mergeShapes.get(owner);
+        return m == null ? null : m.get(field);
+    }
+
+    /**
+     * T-263 S5: 모양 정적 필드. 정적 초기화 해시가 바닐라·Paper 에서 같은 클래스(교집합 표에 X 줄이 남은 것)의 NMS 범위 정적 필드 가운데
+     * Paper 서명표에 같은 서술자로 있는 것. 지도 열쇠가 열거형이면 그 열거형이 이미 있는 클래스(손·명세 shim)이고 상수가 모두 있어야 한다
+     * (껍데기 열거형 상수를 읽다 초기화가 터지면 그 블록 클래스 전체가 죽는다). 값이 읽히지 않으면 멈춘다(추출기·생성기 불일치).
+     */
+    void planShapes(FullShells g, FillTable ft) {
+        Map<String, Set<String>> enumFields = new HashMap<>();
+        for (String n : ft.clinitHashOwners()) {
+            int all = ft.shapes(n).size();
+            if (g.scope.get(n) != FullShells.Scope.NMS || all == 0) {
+                shapeSkip("class outside the NMS scope", all);
+                continue;
+            }
+            boolean shell = g.shells.contains(n);
+            if (shell ? g.initTraps(n) : !g.existing.has(n)) {
+                shapeSkip("class init throws or class missing", all);
+                continue;
+            }
+            if (chainTraps(g, n)) {
+                shapeSkip("a supertype's class init throws", all);
+                continue;
+            }
+            Set<String> declared = shell ? Set.of() : existingStaticFields(g, n);   // 손이 이미 가진 필드는 손이 이긴다
+            for (FillTable.Shape x : ft.shapes(n)) {
+                if (declared.contains(x.field())) {
+                    shapeSkip("the hand shim declares the field", 1);
+                    continue;
+                }
+                SigTable.Member m = null;
+                for (SigTable.Member c : g.table(n).members(n)) if (c.kind() == 'F' && c.name().equals(x.field())) m = c;
+                if (m == null || (m.access() & Opcodes.ACC_STATIC) == 0 || !m.desc().equals(x.desc())) {
+                    shapeSkip("no such static field in the Paper signature table", 1);
+                    continue;
+                }
+                ShapeValue v = ShapeValue.parse(x.value());
+                if (v.keyEnum() != null) {
+                    Set<String> have = enumFields.computeIfAbsent(v.keyEnum(), k -> existingStaticFields(g, k));
+                    if (!have.containsAll(v.keys())) {
+                        shapeSkip("map key enum is not a live class", 1);
+                        continue;
+                    }
+                }
+                if (shell) {
+                    ClassFill cf = byClass.computeIfAbsent(n, k -> new ClassFill());
+                    cf.shapes.put(x.field(), x);
+                    cf.liveFields.add(x.field());
+                } else {
+                    mergeShapes.computeIfAbsent(n, k -> new LinkedHashMap<>()).put(x.field(), x);
+                }
+            }
+        }
+    }
+
+    /** 이미 있는 클래스(손·명세 shim)의 정적 필드 이름. 없는 클래스면 빈 집합. */
+    private static Set<String> existingStaticFields(FullShells g, String n) {
+        Set<String> out = new HashSet<>();
+        byte[] b = g.existing.has(n) ? g.existing.bytesOf(n) : null;
+        if (b == null) return out;
+        new org.objectweb.asm.ClassReader(b).accept(new org.objectweb.asm.ClassVisitor(Opcodes.ASM9) {
+            @Override
+            public org.objectweb.asm.FieldVisitor visitField(int access, String name, String desc, String sig, Object v) {
+                if ((access & Opcodes.ACC_STATIC) != 0) out.add(name);
+                return null;
+            }
+        }, org.objectweb.asm.ClassReader.SKIP_CODE);
+        return out;
+    }
 
     /** 이 클래스의 멤버(이름+서술자 → 접근 값)와 필드(이름 → 서술자, 접근 값). */
     private record Decl(Map<String, Integer> methods, Map<String, String> fieldDescs, Map<String, Integer> fieldAccess) {}
@@ -193,6 +280,7 @@ final class Fills {
                 f.byClass.computeIfAbsent(n, k -> new ClassFill()).values.put(vm.name() + vm.desc(), vm);
             }
         }
+        f.planShapes(g, ft);
         f.byClass.values().removeIf(c -> !c.any());
         f.recount();
         return f;
@@ -269,7 +357,10 @@ final class Fills {
         Fills f = this;
         f.valueCounts.clear();
         f.ctorCount = f.getterCount = f.staticCount = f.enumCount = f.enumConstCount = f.objectMethodCount = 0;
+        f.shapeCount = 0;
+        for (Map<String, FillTable.Shape> m : f.mergeShapes.values()) f.shapeCount += m.size();
         for (ClassFill c : f.byClass.values()) {
+            f.shapeCount += c.shapes.size();
             f.ctorCount += c.ctors.size();
             f.getterCount += c.getters.size();
             f.staticCount += c.statics.size();

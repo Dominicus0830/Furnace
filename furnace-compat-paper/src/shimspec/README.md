@@ -185,7 +185,7 @@ class CoralFeature {                         // 머리는 "class|interface|enum 
 
 | 파일 | 누가 | 커밋 | 내용 |
 |---|---|---|---|
-| `<캐시>/<판>/fill-table.tsv.gz`, `fill-table-paper.tsv.gz` | `tools/compat/sig-tables.sh`(`-Pmode=fill-table`) | 안 함(Mojang 이름) | 바닐라 jar·Paper 서버 jar 에서 값만 뽑은 채움 표. **두 표에서 줄이 같은 것만** 채운다(Paper 가 바꾼 클래스는 안 채움). 줄 `P`(단순 생성자) `G`(단순 읽기) `S`(정적 리터럴) `V`(열거형 상수 인자) `T`(레코드 기본 메서드). 형식은 `FillTable` |
+| `<캐시>/<판>/fill-table.tsv.gz`, `fill-table-paper.tsv.gz` | `tools/compat/sig-tables.sh`(`-Pmode=fill-table`) | 안 함(Mojang 이름) | 바닐라 jar·Paper 서버 jar 에서 값만 뽑은 채움 표. **두 표에서 줄이 같은 것만** 채운다(Paper 가 바꾼 클래스는 안 채움). 줄 `P`(단순 생성자) `G`(단순 읽기) `S`(정적 리터럴) `V`(열거형 상수 인자) `T`(레코드 기본 메서드) `M`(짧은 값 몸통) `H`·`X`(모양 정적 표, 아래). 형식은 `FillTable` |
 | `full-shells-<판>.fp`, `fill-tables-<판>.fp` | `-PfullShellsFpWrite=true` | 함 | 서명표 셋의 sha256 / 채움 표 둘의 sha256(추출기를 바꾸는 PR 만 건드린다 — Paper 표가 있는 노트북에서 다시 씀) |
 | `fill-areas.txt` | 사람 | 함 | 영역 번호·이름·접두(로드맵 8장 12개). 가장 긴 접두가 이긴다 |
 | `fills-baseline-<판>/<영역>.txt` | `-PfullShellsBaselineWrite=true` | 함 | 영역 합계 + 클래스(이름 해시 앞 8자리)별 남은·채운 멤버 수. **이름 없음.** 영역마다 파일이 따로라 영역 PR 끼리 충돌하지 않는다. **채운 수가 줄 때만 CI 실패**(늘거나 손 shim 으로 빠진 클래스는 통과) — 다시 쓰기는 노트북 정리 때 몰아서 |
@@ -197,6 +197,14 @@ class CoralFeature {                         // 머리는 "class|interface|enum 
 - 새 종류(예: 배열 리터럴, 상수 참조)를 더할 때는 (1) `FillExtractor` 에 모양 하나 + `FillExtractorTest`, (2) `FillTable` 줄 종류, (3) `Fills` 규칙·`FullShells` 몸통, (4) `FillParityTest.checkClass` 에 비교 하나, 이 네 곳을 한 PR 로.
 - 영역 스레드의 손·추론 채우기(명세 줄 `->`)는 이 틀과 별개 길이다(손 shim 이 이긴다). 영역을 옮길 때는 `fills-baseline` 숫자가 줄어드는지로 진척을 본다.
 - **정적 필드 하나가 터지면 클래스 전체가 죽는다**(PR 579 검토). `BuiltInRegistries`·`Registries`·`SoundEvents` 처럼 많은 영역이 기대는 상수 클래스에 레지스트리·값을 필드 초기화로 더할 때, 그 초기화가 던지면(서버 목록과 순서가 다름, 이름 누락) 그 클래스의 다른 필드(블록·아이템 레지스트리)까지 `NoClassDefFoundError` 로 모두 못 쓴다. 바닐라와 같은지는 **시험으로** 견주고, 실행 때는 서버 목록을 믿고 만든다. 실행 때 꼭 견줘야 하면 그 레지스트리를 처음 꺼낼 때(필드 초기화 밖) 본다(`NmsVillagers.check` 처럼).
+
+- **모양 정적 표(T-263 S5, 2026-11-27)**: 블록 클래스의 모양 정적 필드(`VoxelShape`·`VoxelShape[]`·열거형·정수 열쇠 모양 지도)는 바닐라 jar 를
+  따로 된 로더에 올려 부트스트랩한 뒤 **값을 읽어** 바닐라 채움 표에 `X` 줄로 싣는다(`ShapeValues` — 몸통은 옮기지 않고 상자 좌표·지도 열쇠·객체 번호만).
+  Paper 는 띄우지 않고, 두 표의 `H` 줄(그 클래스 정적 초기화 + 거기서 부르는 같은 클래스 정적 메서드의 명령 해시)이 같은 클래스만 채운다.
+  생성기는 손 shim 의 정적 초기화 맨 앞(껍데기면 정적 초기화)에 `NmsShapeTables.shape/array/map(번호, …)` 를 낸다 — 같은 번호는 같은 객체라
+  바닐라의 별칭(`SHAPE = OTHER.SHAPE`, 배열 칸 공유)이 그대로다. 지도 열쇠 열거형이 손·명세 shim 이고 상수가 다 있을 때만 채운다(초기화 덫 방지).
+  채운 필드는 연결기 세계에서 살아 있는 필드라 연결 줄 값(`#지문`)·값 몸통(G0 `R`)이 쓸 수 있다. 정답기 `ShapeTableOracleTest`(fullShellsTest)가
+  바닐라 jar 의 모양 정적 필드 **전부**를 바닐라·shim 에서 초기화해 상자·지도 종류·돌기 순서·객체 같음까지 견준다.
 
 ```
 tools/compat/sig-tables.sh                                          # 서명표 셋 + 채움 표

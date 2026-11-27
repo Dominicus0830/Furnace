@@ -68,6 +68,8 @@ public final class FillExtractor {
         ClassNode cn = new ClassNode();
         new ClassReader(bytes).accept(cn, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
         if ((cn.access & Opcodes.ACC_SYNTHETIC) != 0) return;
+        String h = shapeClinitHash(cn);
+        if (h != null) t.addClinitHash(cn.name, h);
         if ((cn.access & Opcodes.ACC_INTERFACE) != 0) {
             // 인터페이스는 짧은 값 몸통(default·정적 메서드)만
             for (MethodNode m : cn.methods) {
@@ -114,6 +116,104 @@ public final class FillExtractor {
                 t.addObjectMethods(cn.name, plain);
             }
         }
+    }
+
+    static final String VOXEL_SHAPE = "net/minecraft/world/phys/shapes/VoxelShape";
+
+    /** 모양 정적 필드(서술자·제네릭 서명에 VoxelShape)가 있는 클래스인가(T-263 S5). */
+    public static boolean hasShapeStatics(ClassNode cn) {
+        for (var f : cn.fields) {
+            if ((f.access & Opcodes.ACC_STATIC) != 0 && (f.signature != null ? f.signature : f.desc).contains(VOXEL_SHAPE)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * 모양 정적 필드가 있는 클래스의 정적 초기화 해시(T-263 S5): 정적 초기화와, 거기서 (람다로도) 부르는 같은 클래스의 정적 메서드를 차례로
+     * 명령 단위로 적어(줄 번호·프레임 없이, 분기 대상은 순번, 합성 람다 이름은 처음 나온 순번) sha256 앞 16자리. 값은 바닐라를 띄워 읽고, 이 해시가 바닐라·Paper 에서
+     * 같은 클래스만 채운다. 다른 클래스의 도우미(Block.box·Shapes)는 보지 않는다 — 가정: Paper 의 모양 패치는 성능 몫이고 값을 바꾸지 않는다
+     * (모양 표 오라클은 바닐라와 견준다).
+     */
+    static String shapeClinitHash(ClassNode cn) {
+        if (!hasShapeStatics(cn)) return null;
+        Map<String, MethodNode> own = new HashMap<>();
+        for (MethodNode m : cn.methods) own.put(m.name + m.desc, m);
+        StringBuilder b = new StringBuilder();
+        java.util.ArrayDeque<String> todo = new java.util.ArrayDeque<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        todo.add("<clinit>()V");
+        while (!todo.isEmpty()) {
+            String k = todo.poll();
+            MethodNode m = own.get(k);
+            // 같은 클래스의 정적 메서드(람다 몸통·도우미)만 따라간다 — 생성자 참조(코덱의 X::new)는 모양 값과 상관없고 Paper 가 자주 바꾼다
+            if (m == null || (m.access & Opcodes.ACC_STATIC) == 0 || !seen.add(k)) continue;
+            b.append('#').append(k).append('\n');
+            normalize(cn.name, m, b, todo);
+        }
+        try {
+            byte[] d = java.security.MessageDigest.getInstance("SHA-256").digest(renumberLambdas(b.toString()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(d).substring(0, 16);
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static final java.util.regex.Pattern LAMBDA = java.util.regex.Pattern.compile("lambda\\$[^$;(\\s.]*\\$\\d+");
+
+    /** 합성 람다 이름(lambda$static$N 등)을 처음 나온 순서로 다시 매긴다 — 다시 컴파일한 Paper 는 번호만 다를 수 있다. */
+    static String renumberLambdas(String text) {
+        Map<String, String> names = new HashMap<>();
+        java.util.regex.Matcher m = LAMBDA.matcher(text);
+        StringBuilder out = new StringBuilder();
+        while (m.find()) m.appendReplacement(out, java.util.regex.Matcher.quoteReplacement(names.computeIfAbsent(m.group(), k -> "lambda#" + names.size())));
+        m.appendTail(out);
+        return out.toString();
+    }
+
+    private static void normalize(String owner, MethodNode m, StringBuilder b, java.util.ArrayDeque<String> calls) {
+        Map<org.objectweb.asm.tree.LabelNode, Integer> lab = new HashMap<>();
+        for (AbstractInsnNode in : m.instructions) if (in instanceof org.objectweb.asm.tree.LabelNode l) lab.put(l, lab.size());
+        for (AbstractInsnNode in : m.instructions) {
+            if (in instanceof org.objectweb.asm.tree.LabelNode l) {
+                b.append('L').append(lab.get(l)).append(';');
+                continue;
+            }
+            if (in.getOpcode() < 0) continue;
+            b.append(in.getOpcode());
+            switch (in) {
+                case MethodInsnNode x -> {
+                    b.append(' ').append(x.owner).append('.').append(x.name).append(x.desc);
+                    if (x.owner.equals(owner)) calls.add(x.name + x.desc);
+                }
+                case FieldInsnNode x -> b.append(' ').append(x.owner).append('.').append(x.name).append(':').append(x.desc);
+                case LdcInsnNode x -> b.append(' ').append(x.cst.getClass().getSimpleName()).append(':').append(x.cst);
+                case IntInsnNode x -> b.append(' ').append(x.operand);
+                case VarInsnNode x -> b.append(' ').append(x.var);
+                case TypeInsnNode x -> b.append(' ').append(x.desc);
+                case org.objectweb.asm.tree.IincInsnNode x -> b.append(' ').append(x.var).append(',').append(x.incr);
+                case org.objectweb.asm.tree.JumpInsnNode x -> b.append(" L").append(lab.get(x.label));
+                case org.objectweb.asm.tree.TableSwitchInsnNode x -> {
+                    b.append(' ').append(x.min).append('-').append(x.max).append(" L").append(lab.get(x.dflt));
+                    for (var l : x.labels) b.append(" L").append(lab.get(l));
+                }
+                case org.objectweb.asm.tree.LookupSwitchInsnNode x -> {
+                    b.append(' ').append(x.keys).append(" L").append(lab.get(x.dflt));
+                    for (var l : x.labels) b.append(" L").append(lab.get(l));
+                }
+                case org.objectweb.asm.tree.MultiANewArrayInsnNode x -> b.append(' ').append(x.desc).append(',').append(x.dims);
+                case InvokeDynamicInsnNode x -> {
+                    b.append(' ').append(x.name).append(x.desc).append(' ').append(x.bsm);
+                    for (Object a : x.bsmArgs) {
+                        b.append(' ').append(a);
+                        if (a instanceof org.objectweb.asm.Handle h && h.getOwner().equals(owner)) calls.add(h.getName() + h.getDesc());
+                    }
+                }
+                default -> { }
+            }
+            b.append(';');
+        }
+        for (var tc : m.tryCatchBlocks) b.append(" T").append(lab.get(tc.start)).append(',').append(lab.get(tc.end)).append(',').append(lab.get(tc.handler)).append(',').append(tc.type);
+        b.append('\n');
     }
 
     /** 메서드 앞쪽의 직선 구간(실제 명령만): 첫 점프·switch·athrow, 또는 try 범위가 시작하는 자리 앞까지. */

@@ -32,13 +32,20 @@ import java.util.zip.GZIPOutputStream;
  * T 소유자 toString,hashCode,equals                         레코드 기본 메서드(ObjectMethods) 가운데 기본인 것
  * M 소유자 이름 서술자 s|i 종류 값                           짧은 값 몸통(T-263 G0): 종류 K 리터럴 반환(값), E 빈 void(값 -),
  *                                                           A 인자·this 반환(값 p:지역변수번호), R 정적 필드 반환(값 소유자.필드:서술자). s|i 는 정적·인스턴스
+ * H 소유자 해시                                             모양 정적 필드가 있는 클래스의 정적 초기화(와 거기서 부르는 같은 클래스 메서드) 명령의 해시(T-263 S5).
+ *                                                           두 표에서 같을 때만 그 클래스의 X 줄을 쓴다(Paper 가 바꾼 클래스는 안 채움)
+ * X 소유자 필드 필드서술자 모양값                           모양 정적 필드(VoxelShape·배열·지도)의 값(T-263 S5) — 바닐라를 띄워 읽은 상자 목록. 바닐라 표에만 있다
  * </pre>
+ * 모양값(공백 구분 낱말): {@code v 모양} | {@code a 번호 개수 모양…} | {@code m 번호 종류 열쇠형 개수 열쇠=모양…}. 모양은 {@code E}(빈 모양 객체 그대로)·
+ * {@code B}(꽉 찬 블록 객체 그대로)·{@code 번호:수,수,…}(상자마다 minX,minY,minZ,maxX,maxY,maxZ). 번호는 바닐라의 객체 하나마다 하나라
+ * 같은 번호는 같은 객체다(필드 사이·배열 칸 사이 별칭을 그대로 옮긴다). 지도 종류 {@code enum}(EnumMap)·{@code ienum}(Guava 불변 열거형 지도)·
+ * {@code imm}(Guava 불변 지도, 순서 그대로)·{@code hash}(HashMap), 열쇠형 {@code e:내부이름}(열거형 상수 이름) 또는 {@code i}(정수).
  * 값 부호화: {@code i:10진}(B·C·S·Z·I), {@code j:10진}, {@code f:0x비트}, {@code d:0x비트}, {@code s:퍼센트부호화},
  * {@code n:}(null), 인자 자리는 {@code p:지역변수번호}. 단계는 {@code 필드:서술자=값}.
  */
 public final class FillTable {
     public static final String MAGIC = "#furnace-fill-table";
-    public static final String FORMAT = "2";   // 2: M 줄(T-263 G0)
+    public static final String FORMAT = "3";   // 2: M 줄(T-263 G0), 3: H·X 줄(T-263 S5)
 
     /** 값. kind 는 i·j·f·d·s·n(리터럴) 또는 p(생성자 인자 자리, 값은 지역변수 번호). */
     public record Val(char kind, Object value) {
@@ -92,6 +99,9 @@ public final class FillTable {
      */
     public record Method(String owner, String name, String desc, boolean isStatic, char kind, String value) {}
 
+    /** 모양 정적 필드의 값(T-263 S5). value 는 위 머리말의 모양값. */
+    public record Shape(String owner, String field, String desc, String value) {}
+
     private final String label;
     private final Map<String, List<Ctor>> ctors = new TreeMap<>();
     private final Map<String, List<Getter>> getters = new TreeMap<>();
@@ -99,6 +109,8 @@ public final class FillTable {
     private final Map<String, List<EnumConst>> enums = new TreeMap<>();
     private final Map<String, List<String>> objectMethods = new TreeMap<>();
     private final Map<String, List<Method>> methods = new TreeMap<>();
+    private final Map<String, String> clinitHashes = new TreeMap<>();
+    private final Map<String, List<Shape>> shapes = new TreeMap<>();
 
     public FillTable(String label) { this.label = label; }
 
@@ -111,6 +123,12 @@ public final class FillTable {
     public List<String> objectMethods(String owner) { return objectMethods.getOrDefault(owner, List.of()); }
     /** 짧은 값 몸통(G0). */
     public List<Method> methods(String owner) { return methods.getOrDefault(owner, List.of()); }
+    /** 모양 필드가 있는 클래스의 정적 초기화 해시(S5). 없으면 null. */
+    public String clinitHash(String owner) { return clinitHashes.get(owner); }
+    /** 모양 정적 필드 값(S5). */
+    public List<Shape> shapes(String owner) { return shapes.getOrDefault(owner, List.of()); }
+    /** H 줄이 있는 클래스(S5 — 바닐라를 띄워 값을 읽을 후보). */
+    public java.util.Set<String> clinitHashOwners() { return java.util.Collections.unmodifiableSet(clinitHashes.keySet()); }
 
     public void add(Ctor c) { ctors.computeIfAbsent(c.owner(), k -> new ArrayList<>()).add(c); }
     public void add(Getter g) { getters.computeIfAbsent(g.owner(), k -> new ArrayList<>()).add(g); }
@@ -118,6 +136,8 @@ public final class FillTable {
     public void add(EnumConst e) { enums.computeIfAbsent(e.owner(), k -> new ArrayList<>()).add(e); }
     public void addObjectMethods(String owner, List<String> names) { objectMethods.put(owner, List.copyOf(names)); }
     public void add(Method m) { methods.computeIfAbsent(m.owner(), k -> new ArrayList<>()).add(m); }
+    public void addClinitHash(String owner, String hash) { clinitHashes.put(owner, hash); }
+    public void add(Shape x) { shapes.computeIfAbsent(x.owner(), k -> new ArrayList<>()).add(x); }
 
     /** 두 표(바닐라·Paper)에서 줄이 똑같은 것만 남긴 표. 한쪽에 없거나 다르면 채우지 않는다("모르면 채우지 않는다"). */
     public FillTable intersect(FillTable other) {
@@ -127,6 +147,14 @@ public final class FillTable {
         for (var e : statics.entrySet()) for (Static c : e.getValue()) if (other.statics(e.getKey()).contains(c)) r.add(c);
         for (var e : enums.entrySet()) for (EnumConst c : e.getValue()) if (other.enumConsts(e.getKey()).contains(c)) r.add(c);
         for (var e : methods.entrySet()) for (Method c : e.getValue()) if (other.methods(e.getKey()).contains(c)) r.add(c);
+        // S5: 정적 초기화 해시가 두 표에서 같은 클래스만. X 줄은 바닐라 표에만 있다(Paper 는 띄우지 않는다) — 양쪽에 있으면 같아야 한다.
+        for (var e : clinitHashes.entrySet()) {
+            if (!e.getValue().equals(other.clinitHash(e.getKey()))) continue;
+            r.addClinitHash(e.getKey(), e.getValue());
+            List<Shape> mine = shapes(e.getKey()), theirs = other.shapes(e.getKey());
+            if (!mine.isEmpty() && !theirs.isEmpty() && !mine.equals(theirs)) continue;
+            for (Shape x : mine.isEmpty() ? theirs : mine) r.add(x);
+        }
         for (var e : objectMethods.entrySet()) {
             List<String> keep = new ArrayList<>();
             for (String n : e.getValue()) if (other.objectMethods(e.getKey()).contains(n)) keep.add(n);
@@ -137,8 +165,8 @@ public final class FillTable {
 
     public int size() {
         int n = 0;
-        for (var m : List.of(ctors, getters, statics, enums, methods)) for (List<?> l : m.values()) n += l.size();
-        return n + objectMethods.size();
+        for (var m : List.of(ctors, getters, statics, enums, methods, shapes)) for (List<?> l : m.values()) n += l.size();
+        return n + objectMethods.size() + clinitHashes.size();
     }
 
     // ───────────────────────── 쓰기·읽기 ─────────────────────────
@@ -174,6 +202,8 @@ public final class FillTable {
                 for (Method x : methods(c)) {
                     w.write(String.join("\t", "M", c, x.name(), x.desc(), x.isStatic() ? "s" : "i", String.valueOf(x.kind()), x.value()) + "\n");
                 }
+                if (clinitHashes.containsKey(c)) w.write("H\t" + c + "\t" + clinitHashes.get(c) + "\n");
+                for (Shape x : shapes(c)) w.write(String.join("\t", "X", c, x.field(), x.desc(), x.value()) + "\n");
             }
         }
         Files.move(tmp, out, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
@@ -187,6 +217,8 @@ public final class FillTable {
         s.addAll(enums.keySet());
         s.addAll(objectMethods.keySet());
         s.addAll(methods.keySet());
+        s.addAll(clinitHashes.keySet());
+        s.addAll(shapes.keySet());
         return new ArrayList<>(s);
     }
 
@@ -234,6 +266,8 @@ public final class FillTable {
                 }
                 case "T" -> t.addObjectMethods(f[1], List.of(f[2].split(",")));
                 case "M" -> t.add(new Method(f[1], f[2], f[3], f[4].equals("s"), f[5].charAt(0), f[6]));
+                case "H" -> t.addClinitHash(f[1], f[2]);
+                case "X" -> t.add(new Shape(f[1], f[2], f[3], f[4]));
                 default -> throw new IOException("알 수 없는 줄: " + line);
             }
         }

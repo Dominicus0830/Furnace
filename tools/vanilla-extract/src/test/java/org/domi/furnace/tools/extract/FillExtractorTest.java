@@ -144,4 +144,65 @@ class FillExtractorTest {
         other.add(t.methods("I").get(0));
         assertEquals(1, t.intersect(other).methods("I").size());
     }
+
+    /** S5: 가짜 VoxelShape 와 함께 컴파일한 클래스 S 의 표. */
+    static FillTable shapeClass(Path dir, String body) throws IOException {
+        Path pkg = dir.resolve("net/minecraft/world/phys/shapes");
+        Files.createDirectories(pkg);
+        Files.writeString(pkg.resolve("VoxelShape.java"), "package net.minecraft.world.phys.shapes; public class VoxelShape { public static VoxelShape box(double a) { return new VoxelShape(); } }");
+        Files.writeString(dir.resolve("S.java"), "import net.minecraft.world.phys.shapes.VoxelShape; public class S { " + body + " }");
+        JavaCompiler c = ToolProvider.getSystemJavaCompiler();
+        assertEquals(0, c.run(null, null, null, "-d", dir.toString(), "-sourcepath", dir.toString(), dir.resolve("S.java").toString()));
+        FillTable t = new FillTable("t");
+        FillExtractor.extract(Files.readAllBytes(dir.resolve("S.class")), t);
+        return t;
+    }
+
+    @Test
+    void shapeClinitHashFollowsStaticInitOnly(@TempDir Path d) throws IOException {
+        String shapes = "static final VoxelShape A = VoxelShape.box(1); static final VoxelShape[] B = make(); static VoxelShape[] make() { return new VoxelShape[] {A}; }";
+        FillTable t1 = shapeClass(d.resolve("1"), shapes + " S() { }");
+        FillTable t2 = shapeClass(d.resolve("2"), shapes + " S() { System.out.println(); } int other() { return 3; }");
+        FillTable t3 = shapeClass(d.resolve("3"), shapes.replace("{A}", "{A, A}") + " S() { }");
+        FillTable t4 = shapeClass(d.resolve("4"), "static final int N = 3;");
+        assertNotNull(t1.clinitHash("S"));
+        assertEquals(t1.clinitHash("S"), t2.clinitHash("S"));   // 생성자·다른 메서드는 해시에 안 든다
+        assertTrue(!t1.clinitHash("S").equals(t3.clinitHash("S")));   // 정적 초기화가 부르는 같은 클래스 정적 메서드는 든다
+        assertNull(t4.clinitHash("S"));   // 모양 정적 필드가 없으면 H 줄 없음
+    }
+
+    @Test
+    void shapeLinesSurviveOnlyWhenBothClinitHashesAgree(@TempDir Path d) throws IOException {
+        FillTable van = new FillTable("v"), same = new FillTable("p"), other = new FillTable("q");
+        van.addClinitHash("S", "aaaa");
+        van.add(new FillTable.Shape("S", "A", "Lnet/minecraft/world/phys/shapes/VoxelShape;", "v 0:0,0,0,1,0.5,1"));
+        van.add(new FillTable.Shape("S", "B", "Ljava/util/Map;", "m 1 enum e:a/Dir 2 N=E S=B"));
+        same.addClinitHash("S", "aaaa");
+        other.addClinitHash("S", "bbbb");
+        FillTable both = van.intersect(same);
+        assertEquals(van.shapes("S"), both.shapes("S"));   // X 줄은 바닐라 표에만 있어도 해시가 같으면 남는다
+        assertEquals("aaaa", both.clinitHash("S"));
+        assertTrue(van.intersect(other).shapes("S").isEmpty());   // Paper 가 정적 초기화를 바꾼 클래스는 안 채운다
+        assertNull(van.intersect(other).clinitHash("S"));
+        Path out = d.resolve("fill.tsv.gz");
+        van.write(out);
+        FillTable r = FillTable.read(out);
+        assertEquals(van.shapes("S"), r.shapes("S"));
+        assertEquals("aaaa", r.clinitHash("S"));
+    }
+
+    @Test
+    void shapeNumbersRoundTrip() {
+        for (double x : new double[] {0, 1, 0.5, 0.0625, 1.0 / 3, -0.0, -2, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 1e-7}) {
+            assertEquals(Double.doubleToRawLongBits(x), Double.doubleToRawLongBits(Double.parseDouble(ShapeValues.num(x))), "x=" + x);
+        }
+        assertEquals("1", ShapeValues.num(1.0));
+        assertEquals("0.5", ShapeValues.num(0.5));
+    }
+
+    @Test
+    void lambdaNamesAreRenumberedByFirstUse() {
+        assertEquals("x S.lambda#0()V; y lambda#1(I)V; S.lambda#0()V",
+                FillExtractor.renumberLambdas("x S.lambda$static$3()V; y lambda$new$1(I)V; S.lambda$static$3()V"));
+    }
 }

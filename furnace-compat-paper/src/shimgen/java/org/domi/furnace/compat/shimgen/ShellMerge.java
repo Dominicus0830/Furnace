@@ -122,6 +122,8 @@ final class ShellMerge {
 
     /** 손 shim 에 더해 채운 엔티티 데이터 칸 필드 수(D3). */
     int dataSlots;
+    /** 손 shim 에 더해 채운 모양 정적 필드 수(T-263 S5). */
+    int shapeTableFields;
 
     private byte[] mergeOne(String n, FullShells.Scope scope) {
         Decl own = decl(n);
@@ -130,6 +132,7 @@ final class ShellMerge {
         List<Add> adds = new ArrayList<>();
         boolean craftClass = n.startsWith(CRAFT_PREFIX) && !own.isInterface();
         List<String> slotFields = new ArrayList<>();
+        List<org.domi.furnace.tools.extract.FillTable.Shape> shapeFields = new ArrayList<>();
         for (SigTable.Member m : g.table(n).members(n)) {
             String key = m.name() + m.desc();
             String what = n + "#" + m.name() + (m.kind() == 'F' ? ":" : "") + m.desc();
@@ -159,6 +162,14 @@ final class ShellMerge {
                     adds.add(new Add(m, m.access() & 0xFFFF, null, false));
                     slotFields.add(m.name());
                     count("entity data slot field (D3)");
+                    continue;
+                }
+                org.domi.furnace.tools.extract.FillTable.Shape sx = g.fills == null ? null : g.fills.shape(n, m.name());
+                if (sx != null && sx.desc().equals(m.desc())) {
+                    // T-263 S5: 모양 정적 필드 — 손 shim 의 정적 초기화 앞에서 NmsShapeTables 로 채운다(바닐라 값, 객체 별칭 그대로)
+                    adds.add(new Add(m, m.access() & 0xFFFF, null, false));
+                    shapeFields.add(sx);
+                    count("shape table field (T-263 S5)");
                     continue;
                 }
                 Object value = (m.access() & Opcodes.ACC_FINAL) != 0 ? g.constant(n, m.name()) : null;
@@ -217,7 +228,7 @@ final class ShellMerge {
             @Override
             public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
                 MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions);
-                if (!name.equals("<clinit>") || slotFields.isEmpty()) return mv;
+                if (!name.equals("<clinit>") || slotFields.isEmpty() && shapeFields.isEmpty()) return mv;
                 sawClinit = true;
                 // 손 shim 의 정적 초기화 맨 앞에 칸 필드 채우기를 끼운다(곧은 코드·지역 변수 없음 — 뒤의 프레임은 그대로 맞는다)
                 return new MethodVisitor(Opcodes.ASM9, mv) {
@@ -225,24 +236,29 @@ final class ShellMerge {
                     public void visitCode() {
                         super.visitCode();
                         for (String f : slotFields) FullShells.putDataSlot(this, n, f);
+                        for (var x : shapeFields) ShapeValue.parse(x.value()).emitPut(this, n, x.field(), x.desc());
                     }
 
                     @Override
-                    public void visitMaxs(int maxStack, int maxLocals) { super.visitMaxs(Math.max(maxStack, 2), maxLocals); }
+                    public void visitMaxs(int maxStack, int maxLocals) {
+                        super.visitMaxs(Math.max(maxStack, shapeFields.isEmpty() ? 2 : ShapeValue.MAX_STACK), maxLocals);
+                    }
                 };
             }
 
             @Override
             public void visitEnd() {
-                if (!slotFields.isEmpty() && !sawClinit) {
+                if ((!slotFields.isEmpty() || !shapeFields.isEmpty()) && !sawClinit) {
                     MethodVisitor ci = cv.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
                     ci.visitCode();
                     for (String f : slotFields) FullShells.putDataSlot(ci, n, f);
+                    for (var x : shapeFields) ShapeValue.parse(x.value()).emitPut(ci, n, x.field(), x.desc());
                     ci.visitInsn(Opcodes.RETURN);
-                    ci.visitMaxs(2, 0);
+                    ci.visitMaxs(shapeFields.isEmpty() ? 2 : ShapeValue.MAX_STACK, 0);
                     ci.visitEnd();
                 }
                 dataSlots += slotFields.size();
+                shapeTableFields += shapeFields.size();
                 for (Add a : adds) {
                     if (a.m().kind() == 'F') {
                         FieldVisitor fv = cv.visitField(a.access(), a.m().name(), a.m().desc(), a.m().signature(), a.value());
