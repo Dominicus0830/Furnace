@@ -11,6 +11,10 @@ class net.minecraft.world.level.biome.BiomeManager
 class net.minecraft.world.level.biome.BiomeSource
 class net.minecraft.world.level.biome.BiomeSpecialEffects
 class net.minecraft.world.level.biome.Biomes
+class net.minecraft.world.level.border.BorderStatus
+  GROWING
+  SHRINKING
+  STATIONARY
 class net.minecraft.world.level.border.WorldBorder
 class net.minecraft.world.level.chunk.ChunkAccess
 class net.minecraft.world.level.chunk.ChunkGenerator
