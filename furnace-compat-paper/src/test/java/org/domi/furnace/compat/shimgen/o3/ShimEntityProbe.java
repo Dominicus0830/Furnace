@@ -166,7 +166,7 @@ public final class ShimEntityProbe {
         throw new NoSuchMethodException(c.getName() + "." + name + desc);
     }
 
-    /** 값 표기 — 바닐라 쪽 canon 과 같아야 한다. 비교할 수 없는 값은 "?". */
+    /** 값 표기 — 바닐라 쪽 canon 과 같아야 한다. 비교할 수 없는 값은 OPAQUE. */
     static String canon(Object v) {
         if (v == null) return "null";
         if (v instanceof java.util.Optional<?> o) return o.isPresent() ? "opt(" + canon(o.get()) + ")" : "empty";
@@ -188,8 +188,11 @@ public final class ShimEntityProbe {
         if (v instanceof net.minecraft.world.phys.Vec3 p) return "vec:" + Double.doubleToLongBits(p.x) + "," + Double.doubleToLongBits(p.y) + "," + Double.doubleToLongBits(p.z);
         if (v instanceof net.minecraft.core.BlockPos p) return "pos:" + p.getX() + "," + p.getY() + "," + p.getZ();
         if (v instanceof net.minecraft.core.Rotations r) return "rot:" + Float.floatToIntBits(r.getX()) + "," + Float.floatToIntBits(r.getY()) + "," + Float.floatToIntBits(r.getZ());
-        return "?";
+        return OPAQUE;
     }
+
+    /** 비교할 수 없는 값의 표기 — 시험이 이것이 든 결과를 증명에서 뺀다. */
+    static final String OPAQUE = "<?>";
 
     static Object[] itemsById(SynchedEntityData d) throws Exception {
         Field f = SynchedEntityData.class.getDeclaredField("itemsById");

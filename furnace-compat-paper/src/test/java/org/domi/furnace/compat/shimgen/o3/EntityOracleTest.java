@@ -32,7 +32,8 @@ import org.junit.jupiter.api.Test;
  * <p>상태는 바이트·정수·실수·참거짓·열거형 칸만 무작위로 채운다(그 밖 칸은 처음 값 그대로 — 바뀐 칸만 견주므로 처음 값 차이는 섞이지 않는다).
  * 바닐라가 상태 넣기·부르기에서 던지면 그 경우는 "견줄 수 없음"으로 센다. 멤버마다 바닐라 결과가 상태에 따라 갈리지 않으면(늘 같은 답)
  * "구분력 없음"으로 센다(설계 3.4-2) — 그 멤버는 이 정답기로 증명된 것이 아니다.
- * 돌연변이 카나리: shim 결과 대신 다른 상태의 shim 결과를 견주면 구분력 있는 멤버가 모두 달라져야 한다(정답기가 무엇이든 같다고 하지 않는지).
+ * 결과에 비교할 수 없는 값(OPAQUE)이 있으면 증명으로 세지 않는다.
+ * 돌연변이 카나리: 같은 종류·서술자의 증명된 멤버 둘을 엇갈려 부르는 "틀린 연결"을 정답기가 늘 잡아야 한다.
  * CI 로그에는 숫자만, 이름은 실패 메시지에만.
  */
 @Tag("full-shells")
@@ -47,6 +48,12 @@ class EntityOracleTest {
     static String pos(Random rnd) { return (rnd.nextInt(33) - 16) + "," + (rnd.nextInt(33) - 64) + "," + (rnd.nextInt(33) - 16); }
 
     record Member(String owner, String name, String desc, boolean write) {}
+
+    /** 증명된 멤버(카나리 짝 고르기용) — 이름은 실행 중에 푼 실제 이름. */
+    record Proved(String owner, String name, String desc, String type, String slots) {}
+
+    /** 탐침의 비교할 수 없는 값 표기(두 탐침의 OPAQUE 와 같다). */
+    static final String OPAQUE = "<?>";
 
     @Test
     void linkedEntityMembersMatchVanilla() throws Exception {
@@ -66,6 +73,7 @@ class EntityOracleTest {
         for (String p : System.getProperty("java.class.path").split(File.pathSeparator)) if (!p.isBlank()) shimUrls.add(Path.of(p).toUri().toURL());
 
         Map<String, Member> members = members(Path.of("src/shimspec/links-" + System.getProperty("furnace.vdiff.mc", "1.21.1")));
+        int opaque = 0;
         int same = 0, differ = 0, vanillaThrew = 0, shimThrew = 0, shimUnsupported = 0, unsupportedMembers = 0, noType = 0, privateUnresolved = 0, undiscriminating = 0, canaryCaught = 0, canaryMissed = 0, provedMembers = 0;
         List<String> failures = new ArrayList<>();
         // 이름 들어간 표는 build/ 에만(멤버마다 결과)
@@ -91,6 +99,7 @@ class EntityOracleTest {
                 Method vProbe = vp.getMethod("probe", String.class, String.class, String.class, String.class, String.class, String.class);
                 Method sProbe = sp.getMethod("probe", String.class, String.class, String.class, String.class, String.class, String.class);
                 Map<String, String> typeOf = new HashMap<>(), slotsOf = new HashMap<>();
+                List<Proved> proved = new ArrayList<>();
                 for (Member m0 : members.values()) {
                     Class<?> vc;
                     try {
@@ -163,6 +172,12 @@ class EntityOracleTest {
                         table.append("| ").append(label).append(" | ").append(type).append(" | shim unsupported off-world").append(why.replace('|', '/').replace('\n', ' ')).append(" |\n");
                         continue;
                     }
+                    if (vanillaResults.stream().anyMatch(r -> r.contains(OPAQUE))) {
+                        // 결과에 비교할 수 없는 값이 있으면 같아도 증명이 아니다(검토 권고)
+                        opaque++;
+                        table.append("| ").append(label).append(" | ").append(type).append(" | same, but holds a value the oracle cannot compare |\n");
+                        continue;
+                    }
                     if (vanillaResults.size() < 2) {
                         undiscriminating++;
                         table.append("| ").append(label).append(" | ").append(type).append(" | ").append(pairs.isEmpty() ? "vanilla not comparable" : "same, undiscriminating").append(" |\n");
@@ -170,14 +185,35 @@ class EntityOracleTest {
                     }
                     table.append("| ").append(label).append(" | ").append(type).append(" | proved (").append(vanillaResults.size()).append(" distinct) |\n");
                     provedMembers++;
-                    // 카나리: 한 칸씩 밀어 다른 상태의 shim 결과와 견준다 — 바닐라 결과가 갈리는 자리에서 하나라도 다르다고 해야 한다
-                    boolean caught = false;
-                    for (int i = 0; i < pairs.size() && !caught; i++) {
-                        String[] a = pairs.get(i), b = pairs.get((i + 1) % pairs.size());
-                        if (!a[0].equals(b[0]) && !a[0].equals(b[1])) caught = true;
+                    proved.add(new Proved(m0.owner(), name, m0.desc(), type, slots));
+                }
+                // 돌연변이 카나리(검토 권고): 일부러 틀린 연결 — 같은 엔티티 종류·같은 서술자의 증명된 멤버 A 자리에 shim 은 다른 멤버 B 의 연결 몸통을
+                // 부른다(엉뚱한 칸에 이은 줄과 같다). 바닐라 A·B 결과가 어느 상태에서든 갈리면, 정답기는 바닐라 A 와 shim B 가 다르다고 해야 한다.
+                Map<String, List<Proved>> groups = new TreeMap<>();
+                for (Proved p : proved) groups.computeIfAbsent(p.type() + " " + p.desc(), k -> new ArrayList<>()).add(p);
+                for (List<Proved> g : groups.values()) {
+                    for (int i = 0; i + 1 < g.size(); i++) {
+                        Proved a = g.get(i), b = g.get(i + 1);
+                        Random rnd = new Random((a.owner() + a.name() + "/" + b.owner() + b.name()).hashCode());
+                        boolean distinguishable = false, caught = false;
+                        for (int v = 0; v < VARIANTS; v++) {
+                            String state = state(a.slots(), rnd), args = args(a.desc(), rnd);
+                            Thread.currentThread().setContextClassLoader(van);
+                            String va = (String) vProbe.invoke(null, a.type(), a.owner(), a.name(), a.desc(), state, args);
+                            String vb = (String) vProbe.invoke(null, b.type(), b.owner(), b.name(), b.desc(), state, args);
+                            if (va.startsWith("SKIP") || va.startsWith("THREW") || vb.startsWith("SKIP") || vb.startsWith("THREW") || va.equals(vb)) continue;
+                            distinguishable = true;
+                            Thread.currentThread().setContextClassLoader(shim);
+                            String sb = (String) sProbe.invoke(null, b.type(), b.owner(), b.name(), b.desc(), state, args);
+                            if (!sb.equals(va)) caught = true;
+                        }
+                        if (!distinguishable) continue;
+                        if (caught) canaryCaught++;
+                        else {
+                            canaryMissed++;
+                            failures.add("mutation canary missed: " + a.owner() + "." + a.name() + a.desc() + " linked to " + b.owner() + "." + b.name());
+                        }
                     }
-                    if (caught) canaryCaught++;
-                    else canaryMissed++;
                 }
             } finally {
                 Thread.currentThread().setContextClassLoader(shim);
@@ -192,11 +228,12 @@ class EntityOracleTest {
         System.out.println("[entity-oracle] members=" + members.size() + " proved=" + provedMembers + " undiscriminating=" + undiscriminating + " noType=" + noType
                 + " shimUnsupportedMembers=" + unsupportedMembers + " (cases " + shimUnsupported + ")"
                 + " privateUnresolved=" + privateUnresolved + " cases: same=" + same + " differ=" + differ + " shimThrew=" + shimThrew + " vanillaNotComparable=" + vanillaThrew
-                + " canary caught=" + canaryCaught + " missed=" + canaryMissed);
+                + " opaque=" + opaque + " mutation canary caught=" + canaryCaught + " missed=" + canaryMissed);
         assertEquals(List.of(), failures, "linked entity members must match vanilla on off-world entities");
         // 증명 수가 조용히 줄면 잡는다(2026-11-27 측정: 249 멤버 중 증명 211)
         assertTrue(provedMembers >= 200, "members proved by the oracle: " + provedMembers);
-        assertEquals(0, canaryMissed, "mutation canary: a shifted shim result must not compare equal");
+        assertEquals(0, canaryMissed, "mutation canary: a wrongly linked member must not compare equal");
+        assertTrue(canaryCaught >= 30, "mutation canaries that could be told apart: " + canaryCaught);
     }
 
     static String call(Method m, String a) {
