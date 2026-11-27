@@ -16,7 +16,7 @@
 - 목록의 클래스가 더는 `api.internal` 을 쓰지 않으면 시험이 "목록에서 지우라"며 실패한다 — 줄인 만큼 목록도 줄어야 통과한다.
 - 줄이는 순서(어댑터 분리 점검 권장): 호환 항목 내부 이동·훅 통합 → `ChunkColumn`·`ChunkSection`·`ChunkReadView`·`PaletteStorage` 거울 동기화를 훅 뒤로 → 손 shim 이전.
 
-- **생성물 접두(2026-11-27, 이식 다리 — 결정 `docs/user-todo/entries/2026-11-27-port-bridge-allowlist.md` 안 "가", 도미니코 결정 전까지 이 안으로 진행)**: 이식 생성기가 만든 서버 구현 패키지 `org/domi/furnace/server/port/gen/` 하나만 접두(`INTERNAL_ALLOWED_GENERATED`)로 허용한다. 그 패키지에 손 소스가 없고 모든 클래스가 `@PortGenerated` 를 다는지 `generatedPortPackageHoldsOnlyGeneratedClasses` 가 본다. 생성기(`furnace-api/src/portgen`)와 명세 문법은 독립 검토, 손으로 쓰는 다리 클래스(`server.port.PortGuards`·`PortKinds`)는 지금처럼 이름으로 하나씩 올린다. 설계 `docs/roadmap/port-bridge-2026-11-27.md` 12장.
+- **생성물 접두(2026-11-27, 이식 다리 — 결정 `docs/user-todo/entries/2026-11-27-port-bridge-allowlist.md` 안 "가", 2026-11-28 도미니코 결정)**: 이식 생성기가 만든 서버 구현 패키지 `org/domi/furnace/server/port/gen/` 하나만 접두(`INTERNAL_ALLOWED_GENERATED`)로 허용한다. 그 패키지에 손 소스가 없고 모든 클래스가 `@PortGenerated` 를 다는지 `generatedPortPackageHoldsOnlyGeneratedClasses` 가 본다. 생성기(`furnace-api/src/portgen`)와 명세 문법은 독립 검토, 손으로 쓰는 다리 클래스(`server.port.PortGuards`·`PortKinds`)는 지금처럼 이름으로 하나씩 올린다. 설계 `docs/roadmap/port-bridge-2026-11-27.md` 12장.
 
 ## 글자 이어 붙이기 구멍
 상수 풀 검사는 이름을 이어 붙여 피한 곳을 못 본다. 그런 곳은 `knownStringSplitHolesStillExistWithTheirReason` 에 파일과 이유를 적는다(지금은 `ConsolePrefixConverter` — 로거 이름 접두 판단일 뿐 클래스를 부르지 않는다). 없어지면 시험이 줄을 지우라고 한다.

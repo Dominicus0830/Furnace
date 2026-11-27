@@ -44,7 +44,7 @@ class AdapterBoundaryStaticTest {
             Map.entry("org/domi/furnace/server/plugin/ScratchWorldsImpl", "api.internal.ScratchWorlds 서버 쪽 구현(다리)"),
             Map.entry("org/domi/furnace/server/plugin/PluginHost", "서버가 다리 진입점(InternalsImpl)을 하나 들고 호환 어댑터에게 internals() 로 내준다"),
             Map.entry("org/domi/furnace/server/plugin/PlacementBridge", "NMS 놓기 어댑터 전용 다리 — 서버 놓기 규칙을 api.internal 로 보인다"),
-            // 이식 다리(docs/roadmap/port-bridge-2026-11-27.md 12장, 결정 docs/user-todo/entries/2026-11-27-port-bridge-allowlist.md 안 "가"):
+            // 이식 다리(docs/roadmap/port-bridge-2026-11-27.md 12장, 도미니코 결정 11-28 안 "가" — docs/user-todo/entries/2026-11-27-port-bridge-allowlist.md):
             // 손으로 쓰는 다리 클래스는 이름으로, 생성 구현은 아래 INTERNAL_ALLOWED_GENERATED 접두로
             Map.entry("org/domi/furnace/server/port/PortGuards", "이식 다리 소유 검사 — 생성 구현의 첫 호출(NmsOwner 규칙을 서버 쪽으로 옮김)"),
             Map.entry("org/domi/furnace/server/port/PortKinds", "이식 다리 kind 바꾸기(block·level·random) — 중립 형식 → 서버 형식"),
