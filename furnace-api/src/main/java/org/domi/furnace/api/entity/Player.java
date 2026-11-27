@@ -60,7 +60,7 @@ public interface Player extends CommandSender, LivingEntity {
 
     /**
      * {@link #listName()} 을 정한다(null 이면 기본 이름으로 되돌린다). 이 플레이어를 볼 수 있는 모든 접속자의 탭에 이름 갱신 패킷
-     * (PlayerInfoUpdate UPDATE_DISPLAY_NAME)이 나간다. 접속 중이 아니어도 값은 남는다.
+     * (PlayerInfoUpdate UPDATE_DISPLAY_NAME)이 나간다(같은 값이어도 부를 때마다, Paper 와 같다). 접속 중이 아니어도 값은 남는다.
      * <p>아무 스레드에서 부를 수 있다. 패킷은 각 관찰자의 다음 틱에 나간다(Paper 는 부른 자리에서 바로 보낸다).
      */
     default void listName(Text name) { throw new UnsupportedOperationException("listName"); }

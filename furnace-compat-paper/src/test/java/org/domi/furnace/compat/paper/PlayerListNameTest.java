@@ -39,6 +39,9 @@ class PlayerListNameTest {
             assertEquals("§aDana§r!", p.getPlayerListName());
             assertEquals("Dana!", org.domi.furnace.api.text.serializer.JsonTextSerializer.json().deserialize(net.kyori.adventure.text.serializer.gson.GsonComponentSerializer.gson().serialize(p.playerListName())).plainText());
             assertEquals("Dana!", ((CraftPlayer) p).getHandle().getTabListDisplayName().getString());
+            p.setPlayerListName("");
+            assertNull(((CraftPlayer) p).getHandle().getTabListDisplayName(), "빈 문자열도 기본으로(Paper)");
+            p.setPlayerListName("x");
             p.setPlayerListName("Dana");   // 이름과 같으면 기본으로 돌아간다(Paper)
             assertNull(((CraftPlayer) p).getHandle().getTabListDisplayName());
             p.playerListName(net.kyori.adventure.text.serializer.gson.GsonComponentSerializer.gson().deserialize("\"Boss\""));

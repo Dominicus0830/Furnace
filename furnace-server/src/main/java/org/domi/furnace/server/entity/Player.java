@@ -278,11 +278,10 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
 
     /**
      * 탭 표시 이름을 바꾼다(Paper CraftPlayer.setPlayerListName: null 이면 기본 이름). 세대를 올리고 접속자 번호를 올려, 이 플레이어를 보는
-     * 모든 관찰자 region 이 다음 틱에 PlayerInfoUpdate(update_display_name)를 보낸다. 같은 값이면 아무 일도 하지 않는다(세대도 그대로).
+     * 모든 관찰자 region 이 다음 틱에 PlayerInfoUpdate(update_display_name)를 보낸다. 같은 값이어도 세대를 올린다(Paper 는 부를 때마다 보낸다).
      */
     public synchronized void setListName(org.domi.furnace.api.text.Text text) {
         ListName cur = listName;
-        if (java.util.Objects.equals(cur.text(), text)) return;
         listName = new ListName(text, cur.generation() + 1);
         bumpRoster();
     }

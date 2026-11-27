@@ -101,8 +101,8 @@ class ListNameTest {
                 assertEquals(alex.uuid, got.get(0).uuid());
                 assertArrayEquals(name.networkNbt(), got.get(0).nbt());
             }
-            core.plugins().player(alexP).listName(name);   // 같은 값: 보내지 않는다
-            assertTrue(readUpdates(bob, u -> !u.isEmpty(), 600).isEmpty());
+            core.plugins().player(alexP).listName(name);   // 같은 값도 다시 보낸다(Paper 는 부를 때마다 브로드캐스트)
+            assertEquals(1, readUpdates(bob, u -> !u.isEmpty(), 5_000).size());
             core.plugins().player(alexP).listName(null);   // 되돌림: "없음" 칸
             List<NameUpdate> back = readUpdates(bob, u -> !u.isEmpty(), 5_000);
             assertEquals(1, back.size());

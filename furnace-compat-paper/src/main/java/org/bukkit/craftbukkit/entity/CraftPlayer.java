@@ -141,10 +141,10 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
         return t == null ? getName() : Compat.legacy(t);
     }
 
-    /** Paper setPlayerListName: null 이거나 플레이어 이름과 같으면 기본 이름으로 되돌린다. */
+    /** Paper setPlayerListName: null·빈 문자열이거나 플레이어 이름과 같으면 기본 이름으로 되돌린다. */
     @Override
     public void setPlayerListName(String name) {
-        if (name == null || name.equals(getName())) handle.listName(null);
+        if (name == null || name.isEmpty() || name.equals(getName())) handle.listName(null);   // Paper: fromStringOrNull("") 도 null
         else handle.listName(Compat.text(name));
     }
 
