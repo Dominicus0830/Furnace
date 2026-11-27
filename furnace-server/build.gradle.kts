@@ -195,6 +195,35 @@ val generateEntityDataIds by tasks.registering {
 }
 sourceSets.main { java.srcDir(generateEntityDataIds.map { entityDataIdsDir.get() }) }
 
+// 이식 다리(docs/roadmap/port-bridge-2026-11-27.md 5장): 호환 모듈 폴더의 이식 명세(src/shimspec/ports-<판>/*.ports — 파일 형식 의존, docs/ops/adapter-boundary.md)에서
+// server.port.gen.<Area>PortImpl 과 META-INF/services 줄을 만든다. 생성기는 furnace-api 의 portgen 소스셋. build/generated 에만 생기고 커밋하지 않는다.
+val portgenTool by configurations.creating {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+}
+dependencies { portgenTool(project(path = ":furnace-api", configuration = "portgenElements")) }
+val portSpecDir = rootProject.file("furnace-compat-paper/src/shimspec/ports-" + (rootProject.extra["mc"] as java.util.Properties).getProperty("mc.version"))
+val portsSrcDir = layout.buildDirectory.dir("generated/ports/java")
+val portsResDir = layout.buildDirectory.dir("generated/ports/resources")
+val generatePorts by tasks.registering(JavaExec::class) {
+    group = "build"
+    description = "이식 명세에서 서버 쪽 다리 구현(server.port.gen)을 만든다"
+    classpath = portgenTool
+    mainClass.set("org.domi.furnace.portgen.PortGen")
+    jvmArgs("-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8")
+    inputs.files(portgenTool).withNormalizer(ClasspathNormalizer::class)
+    inputs.dir(portSpecDir).withPathSensitivity(PathSensitivity.RELATIVE).optional()
+    outputs.dir(portsSrcDir)
+    outputs.dir(portsResDir)
+    argumentProviders.add(CommandLineArgumentProvider {
+        listOf("server", portSpecDir.absolutePath, portsSrcDir.get().asFile.absolutePath, portsResDir.get().asFile.absolutePath)
+    })
+}
+sourceSets.main {
+    java.srcDir(generatePorts.map { portsSrcDir.get() })
+    resources.srcDir(generatePorts.map { portsResDir.get() })
+}
+
 application {
     mainClass = "org.domi.furnace.server.FurnaceMain"
     applicationDefaultJvmArgs = listOf("-Xmx6G")

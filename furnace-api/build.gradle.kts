@@ -55,7 +55,36 @@ val generateGameVersion by tasks.registering {
 }
 sourceSets.main { java.srcDir(generateGameVersion.map { gameVersionDir.get() }) }
 
+// 이식 다리(docs/roadmap/port-bridge-2026-11-27.md): 생성기 소스셋 portgen — api jar 에 싣지 않는다(명세를 읽는 코드라 net.minecraft 글자를 가진다).
+// 서버·호환 모듈은 portgenElements 로 이 생성기를 받아 같은 명세(furnace-compat-paper/src/shimspec/ports-<판>/*.ports)에서 자기 몫을 만든다.
+val portgen: SourceSet = sourceSets.create("portgen")
+val portSpecDir = rootProject.file("furnace-compat-paper/src/shimspec/ports-" + mcProps.getProperty("mc.version"))
+val portsApiDir = layout.buildDirectory.dir("generated/ports/java")
+val generatePorts by tasks.registering(JavaExec::class) {
+    group = "build"
+    description = "이식 명세에서 api.internal.port.<Area>Port 인터페이스를 만든다"
+    classpath = portgen.runtimeClasspath
+    mainClass.set("org.domi.furnace.portgen.PortGen")
+    jvmArgs("-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8")
+    inputs.files(portgen.runtimeClasspath).withNormalizer(ClasspathNormalizer::class)
+    inputs.dir(portSpecDir).withPathSensitivity(PathSensitivity.RELATIVE).optional()
+    outputs.dir(portsApiDir)
+    argumentProviders.add(CommandLineArgumentProvider { listOf("api", portSpecDir.absolutePath, portsApiDir.get().asFile.absolutePath) })
+}
+sourceSets.main { java.srcDir(generatePorts.map { portsApiDir.get() }) }
+val portgenJar by tasks.registering(Jar::class) {
+    from(portgen.output)
+    archiveFileName = "furnace-portgen.jar"
+    destinationDirectory = layout.buildDirectory.dir("portgen")
+}
+val portgenElements by configurations.creating {
+    isCanBeConsumed = true
+    isCanBeResolved = false
+}
+artifacts { add(portgenElements.name, portgenJar) }
+
 dependencies {
+    testImplementation(portgen.output)
     testImplementation(platform("org.junit:junit-bom:6.0.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

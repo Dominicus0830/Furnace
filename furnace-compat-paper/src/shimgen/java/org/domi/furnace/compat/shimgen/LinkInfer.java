@@ -684,10 +684,12 @@ public final class LinkInfer {
         return n;
     }
 
-    /** 인자 16(연결 폴더)을 손 줄 파일만 복사한 임시 폴더로 바꾼 인자. */
+    /** 인자 16(연결 폴더 — 경로 구분자 뒤는 생성한 이식 연결 폴더)의 첫 폴더를 손 줄 파일만 복사한 임시 폴더로 바꾼 인자. */
     static String[] withoutAutoLinks(String[] args, Path work) throws IOException {
         String[] a = args.clone();
-        if (args[16].isBlank() || args[16].equals("-") || !Files.isDirectory(Path.of(args[16]))) return a;
+        int sep = args[16].indexOf(java.io.File.pathSeparatorChar);
+        String first = sep < 0 ? args[16] : args[16].substring(0, sep), rest = sep < 0 ? "" : args[16].substring(sep);
+        if (first.isBlank() || first.equals("-") || !Files.isDirectory(Path.of(first))) return a;
         Path tmp = work.resolveSibling(work.getFileName() + "-hand-links");   // 보고서 폴더는 write 가 지우므로 옆에
         if (Files.isDirectory(tmp)) {
             try (var old = Files.list(tmp)) {
@@ -695,10 +697,10 @@ public final class LinkInfer {
             }
         }
         Files.createDirectories(tmp);
-        try (var s = Files.list(Path.of(args[16]))) {
+        try (var s = Files.list(Path.of(first))) {
             for (Path p : s.filter(x -> x.toString().endsWith(".links") && !x.toString().endsWith(AUTO)).toList()) Files.copy(p, tmp.resolve(p.getFileName()));
         }
-        a[16] = tmp.toString();
+        a[16] = tmp + rest;
         return a;
     }
 

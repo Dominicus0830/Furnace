@@ -44,6 +44,10 @@ class AdapterBoundaryStaticTest {
             Map.entry("org/domi/furnace/server/plugin/ScratchWorldsImpl", "api.internal.ScratchWorlds 서버 쪽 구현(다리)"),
             Map.entry("org/domi/furnace/server/plugin/PluginHost", "서버가 다리 진입점(InternalsImpl)을 하나 들고 호환 어댑터에게 internals() 로 내준다"),
             Map.entry("org/domi/furnace/server/plugin/PlacementBridge", "NMS 놓기 어댑터 전용 다리 — 서버 놓기 규칙을 api.internal 로 보인다"),
+            // 이식 다리(docs/roadmap/port-bridge-2026-11-27.md 12장, 결정 docs/user-todo/entries/2026-11-27-port-bridge-allowlist.md 안 "가"):
+            // 손으로 쓰는 다리 클래스는 이름으로, 생성 구현은 아래 INTERNAL_ALLOWED_GENERATED 접두로
+            Map.entry("org/domi/furnace/server/port/PortGuards", "이식 다리 소유 검사 — 생성 구현의 첫 호출(NmsOwner 규칙을 서버 쪽으로 옮김)"),
+            Map.entry("org/domi/furnace/server/port/PortKinds", "이식 다리 kind 바꾸기(block·level·random) — 중립 형식 → 서버 형식"),
             // 아래 셋은 구현 클래스가 아니라 핵심 자료구조가 어댑터를 위한 "읽기 보기" 자료형을 복사 없이 내주려고 API 인터페이스를 직접 구현한다 — 감싸면 읽기가 6~14% 느려져(3b 측정) 그대로 둔다(docs/ops/adapter-boundary-step3-plan.md). 거울 동기화(Region·ChunkColumn)는 3단계에서 훅(ChunkMirrorOps) 뒤로 옮겨 빠졌다.
             Map.entry("org/domi/furnace/server/world/ChunkSection", "ChunkInternals 읽기 보기용 접근(블록 묶음 복사본) — 감싸개 비용 때문에 남김(3b)"),
             Map.entry("org/domi/furnace/server/world/ChunkReadView", "ChunkInternals 읽기 보기 자료형(ChunkView 직접 구현) — 감싸개 비용 때문에 남김(3b)"),
@@ -55,6 +59,13 @@ class AdapterBoundaryStaticTest {
      */
     private static final Map<String, String> API_NAME_AS_DATA = Map.of(
             "org/domi/furnace/api/packet/schema/PacketSchema", "패킷 스키마의 바닐라 패킷 패키지 이름(자료) — 클래스 참조가 아니다");
+
+    /**
+     * ③ 의 생성물 접두(안 "가"): 이식 생성기(portgen)가 만든 구현만 있는 패키지. 손 코드가 섞이지 않았는지
+     * {@link #generatedPortPackageHoldsOnlyGeneratedClasses} 가 본다(생성기·명세는 따로 독립 검토).
+     */
+    private static final Map<String, String> INTERNAL_ALLOWED_GENERATED = Map.of(
+            "org/domi/furnace/server/port/gen/", "이식 다리 생성 구현(.ports → <Area>PortImpl) — 생성기 출력만, 손 코드 금지");
 
     private static final String INTERNAL = "org/domi/furnace/api/internal/";
 
@@ -84,15 +95,38 @@ class AdapterBoundaryStaticTest {
             String outer = name.replace('\\', '/').replaceAll("\\.class$", "");
             int dollar = outer.indexOf('$');
             if (dollar >= 0) outer = outer.substring(0, dollar);
+            String gen = INTERNAL_ALLOWED_GENERATED.keySet().stream().filter(outer::startsWith).findFirst().orElse(null);
             if (INTERNAL_ALLOWED.containsKey(outer)) seen.add(outer);
+            else if (gen != null) seen.add(gen);
             else offenders.add(name);
         });
         assertTrue(scanned > 1000, "스캔한 서버 클래스가 너무 적다(" + scanned + ")");
         assertEquals(List.of(), offenders, "허용 목록 밖의 서버 클래스가 api.internal 을 쓴다 — 어댑터 전용 핵심 코드를 늘리지 않는다(docs/ops/adapter-boundary.md)");
         // 목록이 줄어들기만 하게: 더는 쓰지 않는 항목은 지워야 한다
         TreeSet<String> stale = new TreeSet<>(INTERNAL_ALLOWED.keySet());
+        stale.addAll(INTERNAL_ALLOWED_GENERATED.keySet());
         stale.removeAll(seen);
         assertEquals(new TreeSet<String>(), stale, "허용 목록에 있지만 이제 api.internal 을 쓰지 않는 클래스 — 목록에서 지운다");
+    }
+
+    /** 생성물 접두 패키지에는 생성기 출력만: 손 소스가 없고, 모든 클래스(안쪽 클래스는 바깥)가 @PortGenerated 를 단다. */
+    @Test
+    void generatedPortPackageHoldsOnlyGeneratedClasses() throws Exception {
+        for (String prefix : INTERNAL_ALLOWED_GENERATED.keySet()) {
+            Path hand = repoRoot().resolve("furnace-server/src/main/java").resolve(prefix);
+            assertTrue(!Files.exists(hand), "손 소스가 생성물 패키지에 있다 — " + hand + " (생성 구현만 둔다: docs/roadmap/port-bridge-2026-11-27.md 12장)");
+        }
+        List<String> offenders = new ArrayList<>();
+        int[] gen = {0};
+        scan(PluginBootstrapper.class, (name, bytes) -> {
+            String n = name.replace('\\', '/');
+            if (INTERNAL_ALLOWED_GENERATED.keySet().stream().noneMatch(n::startsWith)) return;
+            gen[0]++;
+            if (n.contains("$")) return;   // 람다·안쪽 클래스는 바깥 클래스를 따른다
+            if (!new String(bytes, StandardCharsets.ISO_8859_1).contains("Lorg/domi/furnace/api/internal/port/PortGenerated;")) offenders.add(n);
+        });
+        assertTrue(gen[0] > 0, "생성 구현이 하나도 없다 — 이식 명세(furnace-compat-paper/src/shimspec/ports-<판>)가 비었으면 접두 줄을 지운다");
+        assertEquals(List.of(), offenders, "생성물 패키지에 @PortGenerated 없는 클래스");
     }
 
     @Test

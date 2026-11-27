@@ -171,7 +171,7 @@ public final class FullShells {
             g.fillTable = FillTable.read(fillPath).intersect(FillTable.read(paperFillPath));
             if (fillFp != null) checkFillFingerprint(fillPath, paperFillPath, fillFp, writeFp);
         }
-        if (args.length > 16 && !args[16].isBlank() && !args[16].equals("-")) g.links = Links.read(Path.of(args[16]));
+        if (args.length > 16 && !args[16].isBlank() && !args[16].equals("-")) g.links = Links.read(args[16]);   // 연결 폴더(들) — 경로 구분자로 이식 연결 폴더가 뒤에 붙는다
         // 엔티티 데이터 D3: 칸 번호표(서버 리소스) — 정적 EntityDataAccessor 필드 초기화
         if (args.length > 17 && !args[17].isBlank() && !args[17].equals("-")) g.dataSlots = readDataSlots(Path.of(args[17]));
         return g;

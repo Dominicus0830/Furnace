@@ -51,7 +51,9 @@ final class Links {
     }
 
     enum Check {
-        PURE("pure"), READ_ANY("read=any"), READ_SNAPSHOT("read=snapshot"), READ_OWNER("read=owner"), WRITE("write"), API("api");
+        PURE("pure"), READ_ANY("read=any"), READ_SNAPSHOT("read=snapshot"), READ_OWNER("read=owner"), WRITE("write"), API("api"),
+        /** 이식 다리 스텁(docs/roadmap/port-bridge-2026-11-27.md): 대상이 서버 쪽에서 스스로 소유 검사를 한다(api 와 같은 종류). */
+        PORT("port");
 
         final String text;
 
@@ -109,16 +111,27 @@ final class Links {
 
     // ───────────────────────── 읽기 ─────────────────────────
 
+    /** 경로 구분자(File.pathSeparator)로 이은 폴더들을 차례로 읽는다 — 커밋한 연결 폴더 + 생성한 이식 연결 폴더(ports.links). */
+    static Links read(String dirs) throws IOException {
+        Links l = new Links();
+        for (String d : dirs.split(java.io.File.pathSeparator)) if (!d.isBlank() && !d.equals("-")) readInto(l, Path.of(d));
+        return l;
+    }
+
     /** 폴더의 *.links 를 이름 순으로 읽는다. 폴더가 없으면 빈 연결. */
     static Links read(Path dir) throws IOException {
         Links l = new Links();
-        if (dir == null || !Files.isDirectory(dir)) return l;
+        readInto(l, dir);
+        return l;
+    }
+
+    private static void readInto(Links l, Path dir) throws IOException {
+        if (dir == null || !Files.isDirectory(dir)) return;
         try (var s = Files.list(dir)) {
             for (Path p : s.filter(x -> x.toString().endsWith(".links")).sorted().toList()) {
                 l.parse(p.getFileName().toString(), Files.readAllLines(p, StandardCharsets.UTF_8));
             }
         }
-        return l;
     }
 
     void parse(String file, List<String> text) {
@@ -207,7 +220,7 @@ final class Links {
         }
         String[] words = rest.isEmpty() ? new String[0] : rest.split("\\s+");
         if (words.length == 0) {
-            problems.add(where + ": missing check kind (pure, read=any, read=snapshot, read=owner, write, api)");
+            problems.add(where + ": missing check kind (pure, read=any, read=snapshot, read=owner, write, api, port)");
             return null;
         }
         Check check = Check.of(words[0]);

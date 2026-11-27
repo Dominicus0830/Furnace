@@ -24,6 +24,18 @@
 | 9 허용 목록 접두 | 12 | **도미니코 결정**으로 올림(`docs/user-todo/entries/2026-11-27-port-bridge-allowlist.md`). 결정 전에는 추천안(손 클래스는 이름으로, 생성 패키지 `server.port.gen` 만 접두 + 생성물만 있는지 빌드 시험)으로 진행 |
 | 권장 | 6.1·7.2·9.1·12 | JMH 에 region 나뉨 직후, 재정의 훑기는 shim 아래 모든 플러그인 클래스, `.ports` 를 서버 빌드가 읽는 파일 의존을 `adapter-boundary.md` 에 기록 |
 
+## 재검토 승인 조건 (11-27) 과 P1 구현 기록
+
+재검토는 승인, 조건 셋: (1) P2 — 메뉴 잠금은 쥔 잠금을 기록하는 **도우미 하나**로만 잡고, 서버 코드가 `menuLock` 을 직접 잡지 않는지 시험으로 본다. (2) P2 — 플러그인 창은 불확실하면 실제 모루 자리에 매고, `checkReachable` 이 거짓으로 **확인된** 때만 풀며, 다시 판정은 창이 열리기 전까지만. (3) P1 — `ServiceLoader` 에 명시 클래스 로더(`PortBridges` 는 인터페이스를 실은 로더만 쓴다 — 스레드 문맥 로더를 쓰지 않음, `PortBridgesTest`).
+
+P1 에서 설계와 달라진 것(이유와 함께):
+- **kind 범위**: P1 은 state·block(받는 쪽)·pos·level(월드 자신의 `ServerLevel` 만)·random(V4) 과 원시형·`String` 반환까지. `dir`·`item` 은 그 kind 를 처음 쓰는 PR 로 미뤘다(쓰는 줄 없이 넣으면 시험 못 받은 변환이 남는다 — 3.2 "kind 를 처음 쓰는 PR"). `item` 은 P2(메뉴)에서 `live`/`copy` 와 함께. `live`/`copy` 필수 규칙 자체는 P1 생성기에 있다.
+- **`PortConvert`**: P1 줄은 반환 바꾸기가 필요 없어(원시형) 만들지 않았다. 처음 필요한 PR 이 만들고 허용 목록에 이름으로 올린다.
+- **스텁의 다리 칸**: `static final B` 대신 처음 쓸 때 채우는 칸(`b()`). 서버 없이 호환 계층만 올린 경우 클래스 초기화 오류(`ExceptionInInitializerError` → 이후 `NoClassDefFoundError`)로 굳지 않고 부를 때마다 같은 `IllegalStateException` 을 낸다. 구현은 상태 없는 싱글턴이라 두 스레드가 함께 채워도 같은 객체다.
+- **`pos` 검사 몸통**: 생성 구현의 첫 호출은 `PortGuards.ownsPos`(주인이면 할당 없이 바로), 아니면 `PortGuards.atPos` 가 `NmsOwner` 규칙(틱 스레드 거절, 10초 기다림, 주인 바뀌면 한 번 더)으로 넘긴다. 서버 쪽 틱 스레드 판정은 전역·region·region 작업 스레드다(호환 `PrimaryThread` 표시만 된 틱 아닌 스레드는 기다린다 — 교착 없음).
+- **연결 줄 전달**: 생성한 `ports.links` 폴더는 `generateFullShells` 인자 16(연결 폴더)에 경로 구분자로 이어 붙인다 — 인자 자리를 늘리면 `LinkInfer` 의 18~ 자리가 밀린다. `LinkInfer` 는 첫 폴더만 손 줄로 거른다.
+- **속도(P1 측정, `PortBridgeBench`, 클라우드 컨테이너)**: 직접 pure 0.61 ns / 이식 pure 0.91 ns, 직접 pos 6.05 ns / 이식 pos 20.57 ns(주인 스레드), 모두 할당 0 바이트. pos 줄의 차이는 월드 손잡이 꺼내기 + region 찾기 두 번(`ownsPos` 와 `level`)이다 — 핫 경로로 잡히면 region 을 한 번 찾아 넘기게 kind 안에서 줄인다(줄은 그대로). region 나뉨 직후 경우는 P1 측정에 없다(시험 서버에서 나뉨을 일으키는 도구가 없음 — P3 에 남김).
+
 ## 0. 결론
 
 | | 무엇 | 어떻게 |
@@ -336,7 +348,7 @@ class net.minecraft.network.chat.MessageSignature = chat.MessageSignature  kind=
 
 | PR | 내용 | 검토 | 담당 제안 |
 |---|---|---|---|
-| P1 틀 | `portgen`(세 생성물 + `ports.links` + 서비스 줄), `.ports` 문법·이름·`live`/`copy` 검사, `PortBridges`(`ServiceLoader`), `PortGuards`(pure·pos — `NmsOwner` 규칙 이전), kind: state·block·pos·dir·level(서버 월드 — 플러그인 레벨은 정직한 `UnsupportedNmsCall`, P3 에서 `PlacementBridge` 를 옮겨 채움)·random(V4)·item, 허용 목록(결정 전 (가)), 빌드 시험(첫 호출·중립 형식·이름), JMH. **실제 줄**: `AnvilMenu#calculateIncreasedRepairCost`(pure), `CropBlock#randomTick`·`isValidBonemealTarget`·`performBonemeal`(pos)와 서버 값 대조 시험 | 독립 검토(생성기·손 kind) | 이 스레드 (Opus high — 동시성·생성기) |
+| P1 틀 | `portgen`(세 생성물 + `ports.links` + 서비스 줄), `.ports` 문법·이름·`live`/`copy` 검사, `PortBridges`(`ServiceLoader`), `PortGuards`(pure·pos — `NmsOwner` 규칙 이전), kind: state·block·pos·level(서버 월드 — 플러그인 레벨은 정직한 `UnsupportedNmsCall`, P3 에서 `PlacementBridge` 를 옮겨 채움)·random(V4) (dir·item 은 처음 쓰는 PR — 위 "P1 구현 기록"), 허용 목록(결정 전 (가)), 빌드 시험(첫 호출·중립 형식·이름), JMH. **실제 줄**: `AnvilMenu#calculateIncreasedRepairCost`(pure), `CropBlock#randomTick`·`isValidBonemealTarget`·`performBonemeal`(pos)와 서버 값 대조 시험 | 독립 검토(생성기·손 kind) | 이 스레드 (Opus high — 동시성·생성기) |
 | P2 메뉴 | kind: player·menu·slot·container·data, `PortGuards.menu`·`any`·`detached`(6.1 R1~R3, `MenuLockScope`), 거울(`portMirror`)·짝 만들기, 갈고리 하위 클래스(기본 전부·`nohook`)·`PortHooks`, `NmsMenus.View`·`ChunkInternals` 메뉴 메서드 삭제, `initMenu`·`nextContainerCounter`·`doCloseContainer` 줄, AnvilGUI 꼴 시험 플러그인(접근 자리 규칙 8.2), Paper 관측표 대조. `containerMenu`·`checkReachable` 필드 줄은 PR C 병합 뒤(그 전엔 덫), 필드 줄 `port` 낱말을 PR C 문법에 더함 | 독립 검토 | 이 스레드 → 이후 줄 채우기는 아이템 영역 |
 | P3 블록 엔티티·플러그인 레벨 | kind: blockentity(월드·월드 밖), `PortLevel` 콜백 넓히기(`PlacementBridge` 이전·삭제), 레벨 난수 거울(4.4 규칙) | 독립 검토 | 블록 영역(틀 PR 뒤) |
 | P4 값 객체 | `value` 자동 레코드 변환, V2 값 객체 거울, netty 가정 확인 | 독립 검토 | 네트워크 영역 |

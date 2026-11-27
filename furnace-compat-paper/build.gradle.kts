@@ -115,6 +115,32 @@ dependencies {
     testImplementation(project(":vanilla-extract"))
 }
 the<SourceSetContainer>()["main"].java.srcDir(files(nmsShimOut).builtBy(generateNmsShims))
+
+// 이식 다리(docs/roadmap/port-bridge-2026-11-27.md 5장): 이식 명세(src/shimspec/ports-<판>/*.ports)에서 compat.nms.port.gen.<Area>Ports 스텁과
+// 연결 줄(build/generated/ports/links/<영역>.ports.links)을 만든다. 연결 줄은 generateFullShells 가 커밋한 연결 폴더와 함께 읽는다. 생성기는 furnace-api 의 portgen.
+val portgenTool by configurations.creating {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+}
+dependencies { portgenTool(project(path = ":furnace-api", configuration = "portgenElements")) }
+val portSpecDir = layout.projectDirectory.dir("src/shimspec/ports-$mcVersion")
+val portsSrcDir = layout.buildDirectory.dir("generated/ports/java")
+val portsLinksDir = layout.buildDirectory.dir("generated/ports/links")
+val generatePorts by tasks.registering(JavaExec::class) {
+    group = "build"
+    description = "이식 명세에서 호환 쪽 다리 스텁(compat.nms.port.gen)과 연결 줄을 만든다"
+    classpath = portgenTool
+    mainClass.set("org.domi.furnace.portgen.PortGen")
+    jvmArgs("-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8")
+    inputs.files(portgenTool).withNormalizer(ClasspathNormalizer::class)
+    inputs.dir(portSpecDir).withPathSensitivity(PathSensitivity.RELATIVE).optional()
+    outputs.dir(portsSrcDir)
+    outputs.dir(portsLinksDir)
+    argumentProviders.add(CommandLineArgumentProvider {
+        listOf("compat", portSpecDir.asFile.absolutePath, portsSrcDir.get().asFile.absolutePath, portsLinksDir.get().asFile.absolutePath)
+    })
+}
+the<SourceSetContainer>()["main"].java.srcDir(generatePorts.map { portsSrcDir.get() })
 the<SourceSetContainer>()["main"].resources.srcDir(files(nmsShimRes).builtBy(generateNmsShims))
 
 // 잠금 파일 쓰기·검사: 서명표 캐시(tools/compat/sig-tables.sh)가 있어야 한다. 검사는 CI vanilla-gates 가 돈다. 캐시 위치는 -Pcache=<폴더> 또는 FURNACE_VANILLA_CACHE(기본 ~/.cache/furnace-vanilla-extract).
@@ -474,6 +500,8 @@ val generateFullShells by tasks.registering(JavaExec::class) {
     inputs.files(fullShellsFp, fullShellsAreas).optional()
     inputs.files(fileTree(fullShellsBaseline)).withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.files(fileTree(fullShellsLinks)).withPathSensitivity(PathSensitivity.RELATIVE)
+    dependsOn(generatePorts)
+    inputs.files(fileTree(portsLinksDir)).withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file(fullShellsDataSlots).withPathSensitivity(PathSensitivity.NONE)
     outputs.dir(fullShellsDir)
     outputs.file(fullShellsReport)
@@ -487,7 +515,8 @@ val generateFullShells by tasks.registering(JavaExec::class) {
             // T-261: 호환 jar 자신의 클래스 — 그 안의 범위 클래스에 빠진 멤버를 합쳐 껍데기 jar 에 같은 이름으로 넣는다(서버는 껍데기 jar 를 앞에 둔다)
             main.output.classesDirs.files.joinToString(File.pathSeparator) { it.absolutePath } +
             // T-263: 연결 줄 폴더 — 던지는 몸통 대신 연결 몸통을 쓴다(어긴 줄·낡은 줄은 멈춤)
-            fullShellsLinks.asFile.absolutePath +
+            // 이식 다리: 생성한 연결 줄 폴더를 경로 구분자로 이어 붙인다(인자 자리를 늘리지 않는다 — LinkInfer 가 18~ 을 쓴다)
+            (fullShellsLinks.asFile.absolutePath + File.pathSeparator + portsLinksDir.get().asFile.absolutePath) +
             // 엔티티 데이터 D3: 칸 번호표 — 정적 EntityDataAccessor 필드를 NmsEntityData.accessor 로 초기화
             fullShellsDataSlots.asFile.absolutePath
     })
