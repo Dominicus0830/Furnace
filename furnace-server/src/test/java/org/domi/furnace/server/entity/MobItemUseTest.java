@@ -86,4 +86,48 @@ class MobItemUseTest {
         assertFalse(z.isUsingItem());
         assertEquals(potion, z.getItemBySlot(EquipmentSlot.MAINHAND), "몹이 마신 물약은 소모되지 않는다(PotionItem — 플레이어만 consume)");
     }
+    private static Pig pig(BlockPlacementTest.TestLevel level) {
+        var p = new Pig(level, level.nextEntityId());
+        p.setPos(0.5, -60, 0.5);
+        p.setNoAi(true);
+        level.addFreshEntity(p);
+        return p;
+    }
+
+    private static void drink(LivingEntity e, ItemStack potion) {
+        e.setItemSlot(EquipmentSlot.MAINHAND, potion);
+        e.startUsingItem(0);
+        for (int i = 0; i < 32; i++) e.tick();
+    }
+
+    /**
+     * PotionItem.finishUsingItem(1.21.1 javap): 지속 효과는 forEach 안에서 바로 addEffect, 즉시 효과는 목록에 모았다가 그 뒤에 applyInstantenousEffect.
+     * 목록 순서가 [즉시 회복, 생명력 강화] 여도 최대 체력이 먼저 오른 뒤 회복된다.
+     */
+    @Test
+    void potionAppliesLastingEffectsBeforeInstant() {
+        var level = new BlockPlacementTest.TestLevel();
+        var p = pig(level);
+        p.setHealth(5.0F);
+        var potion = org.domi.furnace.server.item.ItemTools.with(stack("potion", 1), "minecraft:potion_contents", java.util.Map.of("custom_effects", java.util.List.of(
+                java.util.Map.of("id", "minecraft:instant_health", "amplifier", 1, "duration", 1),
+                java.util.Map.of("id", "minecraft:health_boost", "amplifier", 1, "duration", 600))));
+        drink(p, potion);
+        assertEquals(18.0F, p.maxHealth(), "생명력 강화 II: 10 + 8");
+        assertEquals(13.0F, p.health(), "최대 체력이 먼저 18 로 오른 뒤 8 회복(순서대로면 10 에서 막힌다)");
+    }
+
+    /** Paper 전용 분기(PotionItem.finishUsingItem): 마신 쪽이 죽었고 keepInventory 가 아니면 유리병을 떨어뜨리고 손을 비운다. */
+    @Test
+    void potionKillingDrinkerDropsBottle() {
+        var level = new BlockPlacementTest.TestLevel();
+        var p = pig(level);
+        p.setHealth(1.0F);
+        drink(p, org.domi.furnace.server.item.ItemTools.with(stack("potion", 1), "minecraft:potion_contents", java.util.Map.of("potion", "minecraft:harming")));
+        assertTrue(p.health() <= 0.0F);
+        assertTrue(p.getItemBySlot(EquipmentSlot.MAINHAND).isEmpty(), "손은 빈다");
+        int bottle = ItemContext.id("minecraft:item", "glass_bottle"), bottles = 0;
+        for (Entity x : level.entities().all()) if (x instanceof ItemEntity ie && ie.getItem().itemId() == bottle) bottles += ie.getItem().count();
+        assertEquals(1, bottles, "유리병 하나를 떨어뜨린다");
+    }
 }
