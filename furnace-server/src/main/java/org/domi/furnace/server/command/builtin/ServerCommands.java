@@ -69,7 +69,7 @@ public final class ServerCommands {
         int i = 0;
         for (Player p : players) {
             Text name = p.displayName();   // 바닐라 getDisplayName
-            p.kick(new Disconnect(reason));
+            p.kick(new Disconnect(reason), org.domi.furnace.api.event.player.PlayerKickEvent.Cause.KICK_COMMAND);
             source.sendSuccess(() -> Text.translatable("commands.kick.success", name, reason), true);
             i++;
         }

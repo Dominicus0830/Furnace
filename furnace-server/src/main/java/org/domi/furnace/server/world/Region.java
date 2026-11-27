@@ -1656,7 +1656,7 @@ public final class Region {
             // 바닐라 ServerGamePacketListenerImpl.tick: 마지막 행동 뒤 player-idle-timeout 분이 지나면 쫓아낸다
             int idleMinutes = world.levelServices().playerIdleTimeoutMinutes();
             if (p.kickReason() == null && org.domi.furnace.server.entity.PlayerIdle.timedOut(System.currentTimeMillis(), p.lastActionTime(), idleMinutes)) {
-                p.kick(new org.domi.furnace.server.net.protocol.play.Disconnect(org.domi.furnace.api.text.Text.translatable("multiplayer.disconnect.idling")));
+                p.kick(new org.domi.furnace.server.net.protocol.play.Disconnect(org.domi.furnace.api.text.Text.translatable("multiplayer.disconnect.idling")), org.domi.furnace.api.event.player.PlayerKickEvent.Cause.IDLING);
             }
             p.tickCooldowns();
             p.tickAttackStrength();

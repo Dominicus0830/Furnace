@@ -1,0 +1,5 @@
+#furnace-links 1 1.21.1 area=9
+# T-263 machine-adopted links (adoptLinks): exact vanilla and Paper body shape (reviewed idiom + slot value type, or a plain forward to a live member). Do not edit -
+# rerun adoptLinks. Hand lines go in 9-nbt-resources-core-util.links; a member with a hand line is never adopted here.
+class net.minecraft.util.thread.BlockableEventLoop
+  executeIfPossible(Ljava/lang/Runnable;)V -> this.execute pure via=G3 proof=shape

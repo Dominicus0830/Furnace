@@ -148,16 +148,17 @@ class LinkInferTest {
         List<LinkInfer.Candidate> ok = List.of(
                 new LinkInfer.Candidate(isBaby, "@idiom(entity-data-get, #0123456789)", "read=owner", "G1", "entity-data-get"),
                 new LinkInfer.Candidate(hidden, "@idiom(entity-data-get, #0123456789)", "read=owner", "G1", "entity-data-get"),
-                new LinkInfer.Candidate(level, "this.base", "pure", "G3", "alias"));   // 별칭은 모양 증명 채택 대상이 아니다
+                new LinkInfer.Candidate(level, "this.base", "pure", "G3", "alias"));   // 별칭도 모양 증명(바닐라·Paper 꼴 + 대상이 살아 있음 — 빌드 검사)
         List<String[]> areas = List.<String[]>of(new String[] {"2", "entity", "net/minecraft/zz/"}, new String[] {"9", "util", "net/minecraft/util/"});
-        assertEquals(2, LinkInfer.adopt(dir, ok, areas));
+        assertEquals(3, LinkInfer.adopt(dir, ok, areas));
         assertEquals("#furnace-links 1 1.21.1 area=2\n", Files.readString(dir.resolve("2-entity.links")));
         assertTrue(!Files.exists(dir.resolve("9-util.auto.links")));
         String auto = Files.readString(dir.resolve("2-entity.auto.links"));
         assertTrue(auto.startsWith("#furnace-links 1 1.21.1 area=2\n# T-263 machine-adopted"), auto);
         assertTrue(auto.endsWith("class net.minecraft.zz.Mob\n"
                 + "  " + Links.fingerprint(MOB, "hidden") + "()I -> @idiom(entity-data-get, #0123456789) read=owner via=G1 proof=shape\n"
-                + "  isBaby()Z -> @idiom(entity-data-get, #0123456789) read=owner via=G1 proof=shape\n"), auto);
+                + "  isBaby()Z -> @idiom(entity-data-get, #0123456789) read=owner via=G1 proof=shape\n"
+                + "  level()I -> this.base pure via=G3 proof=shape\n"), auto);
         // 채택 모드의 찾기는 손 줄 파일만 본다
         String[] args = new String[18];
         java.util.Arrays.fill(args, "-");

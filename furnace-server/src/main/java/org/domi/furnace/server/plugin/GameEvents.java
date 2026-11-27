@@ -153,7 +153,7 @@ public interface GameEvents {
     default void playerChangedWorld(Player p, String from) {}
 
     /** 내보내기 직전: 보낼 사유, null 이면 취소. 요청한 스레드에서. */
-    default org.domi.furnace.api.text.Text playerKick(Player p, org.domi.furnace.api.text.Text reason) { return reason; }
+    default org.domi.furnace.api.text.Text playerKick(Player p, org.domi.furnace.api.text.Text reason, org.domi.furnace.api.event.player.PlayerKickEvent.Cause cause) { return reason; }
 
     /** 구슬 경험치를 받기 직전: 받을 양. */
     default int playerExpChange(Player p, int amount) { return amount; }

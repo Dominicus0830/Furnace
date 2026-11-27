@@ -2299,8 +2299,35 @@ final class ChunkInternalsImpl implements ChunkInternals {
     @Override
     public MapInfo mapInfo(int mapId) {
         var d = org.domi.furnace.server.map.MapStore.get(mapId);
-        return d == null ? null : new MapInfo(d.centerX(), d.centerZ(), d.dimension(), d.scale());
+        return d == null ? null : new MapInfo(d.centerX(), d.centerZ(), d.dimension(), d.scale(), d.trackingPosition(), d.unlimitedTracking(), d.locked());
     }
+
+    @Override
+    public byte[] mapColors(int mapId) {
+        var d = org.domi.furnace.server.map.MapStore.get(mapId);
+        return d == null ? null : d.colors();
+    }
+
+    @Override
+    public void mapMarkColorsDirty(int mapId, int x, int y) {
+        var d = org.domi.furnace.server.map.MapStore.get(mapId);
+        if (d != null && x >= 0 && x < 128 && y >= 0 && y < 128) d.markColorsDirty(x, y);
+    }
+
+    @Override
+    public void mapMarkDirty(int mapId) {
+        var d = org.domi.furnace.server.map.MapStore.get(mapId);
+        if (d != null) d.setDirty();
+    }
+
+    @Override
+    public void mapPut(int mapId, MapInfo info, byte[] colors) {
+        org.domi.furnace.server.map.MapStore.put(mapId, org.domi.furnace.server.map.MapData.adopt(info.centerX(), info.centerZ(), info.scale(),
+                info.trackingPosition(), info.unlimitedTracking(), info.locked(), info.dimension(), colors));
+    }
+
+    @Override
+    public int mapFreeId() { return org.domi.furnace.server.map.MapStore.nextId(); }
 
     @Override
     public BiomeInfo biomeInfo(String biomeKey) {

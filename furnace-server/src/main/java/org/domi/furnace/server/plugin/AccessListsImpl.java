@@ -87,7 +87,7 @@ final class AccessListsImpl implements AccessLists {
         if (!PlayerListCommands.IP_ADDRESS_PATTERN.matcher(ip).matches()) throw new IllegalArgumentException("not an IP address: " + ip);
         lists().getIpBans().add(new IpBanListEntry(ip, null, source, expires == null ? null : java.util.Date.from(expires), reason));
         for (Player p : core().players()) {
-            if (p.ipAddress().equals(ip)) p.kick(new Disconnect(Text.translatable("multiplayer.disconnect.ip_banned")));
+            if (p.ipAddress().equals(ip)) p.kick(new Disconnect(Text.translatable("multiplayer.disconnect.ip_banned")), org.domi.furnace.api.event.player.PlayerKickEvent.Cause.IP_BANNED);
         }
     }
 
