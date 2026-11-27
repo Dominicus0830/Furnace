@@ -4,15 +4,12 @@ package org.domi.furnace.server.port;
 
 import org.domi.furnace.api.internal.port.PortRandom;
 import org.domi.furnace.api.internal.port.PortRefused;
-import org.domi.furnace.api.world.BlockPos;
-import org.domi.furnace.api.world.World;
 import org.domi.furnace.server.block.BlockBehavior;
 import org.domi.furnace.server.block.BlockBehaviors;
-import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.block.Blocks;
 import org.domi.furnace.server.block.RandomSource;
 
-/** kind 별 서버 쪽 바꾸기. 모두 상태 없음. */
+/** kind 별 서버 쪽 바꾸기. 모두 상태 없음. level kind 는 소유 검사와 한 번에 찾으므로 PortGuards.ownedLevel 에 있다. */
 public final class PortKinds {
 
     private PortKinds() {}
@@ -28,16 +25,6 @@ public final class PortKinds {
             throw new PortRefused(what, Blocks.get().nameOfState(state) + " is a " + b.getClass().getSimpleName() + " on this server, not a " + type.getSimpleName());
         }
         return type.cast(b);
-    }
-
-    /**
-     * level kind(P1: 서버 월드만): 칸 (x, y, z) 의 주인 region 레벨 — 바닐라 무작위 틱이 블록에 넘기는 것과 같은 객체다.
-     * 주인 스레드에서만 부른다(PortGuards 가 먼저 확인). 플러그인이 만든 레벨은 호환 쪽에서 이미 거절한다(P3 에서 PortLevel 콜백).
-     */
-    public static BlockLevel level(World world, int x, int y, int z, String what) {
-        org.domi.furnace.server.world.Region r = PortGuards.handle(world, what).ownedRegion(new BlockPos(x, y, z), what);
-        if (r == null) throw new PortRefused(what, "the block at " + x + ", " + y + ", " + z + " is not loaded");
-        return r.level();
     }
 
     /** random kind(V4, 설계 4.4): 플러그인 난수 콜백을 서버 난수로. 부를 때마다 그 객체로 간다(복사하지 않는다 — 수열·호출 순서가 바닐라와 같다). */

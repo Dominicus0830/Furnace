@@ -6,15 +6,18 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import org.domi.furnace.api.concurrent.ThreadOwnershipException;
 import org.domi.furnace.api.internal.port.PortRefused;
 import org.domi.furnace.api.world.BlockPos;
 import org.domi.furnace.api.world.World;
+import org.domi.furnace.server.block.BlockLevel;
 import org.domi.furnace.server.plugin.WorldHandle;
 import org.domi.furnace.server.sched.GlobalThread;
 import org.domi.furnace.server.sched.RegionThread;
 import org.domi.furnace.server.world.CommandDrainGate;
+import org.domi.furnace.server.world.Region;
 import org.domi.furnace.server.world.RegionBorrow;
 import org.domi.furnace.server.world.Regionizer;
 
@@ -40,20 +43,40 @@ public final class PortGuards {
     /** check=pure: 검사 없음. */
     public static void pure() {}
 
-    /** 지금 스레드가 칸 (x, z) 의 주인 region 스레드인가(빌림 구간이면 빌려서라도). 로드 안 된 곳이면 false. */
-    public static boolean ownsPos(World world, int x, int z) {
-        return RegionBorrow.claimChunk(handle(world, "port").handle(), x >> 4, z >> 4);
+    /**
+     * check=pos 빠른 길: 지금 스레드가 칸 (x, z) 의 주인 region 스레드면(전역 빌림 구간이면 빌려서라도) 그 region 레벨 — 바닐라 무작위 틱이 블록에 넘기는
+     * 것과 같은 객체. 아니면(다른 region·로드 안 된 곳) null. 주인이면 region 을 한 번만 찾는다.
+     */
+    public static BlockLevel ownedLevel(World world, int x, int z) {
+        org.domi.furnace.server.world.World w = handle(world, "port").handle();
+        int cx = x >> 4, cz = z >> 4;
+        Region r = w.regionizer().ownerOf(cx, cz);
+        if (r == null) return null;
+        if (!r.isOwnerThread()) {
+            if (!RegionBorrow.claimChunk(w, cx, cz)) return null;
+            r = w.regionizer().ownerOf(cx, cz);   // 빌리는 사이 나뉘었을 수 있다(드문 길) — claimChunk 가 지금 주인을 빌렸다
+            if (r == null) return null;
+        }
+        w.syncMirrorIfPending(r, cx, cz);   // WorldHandle.ownedRegion 과 같다: 플러그인이 NMS 거울에 쓴 것이 기다리면 먼저 맞춘다
+        return r.level();
     }
 
-    /** check=pos 의 느린 길: 주인이 아닌 스레드에서 task 를 주인 region 에서 돌린 값. task 는 주인 스레드에서만 불린다. */
-    public static <T> T atPos(World world, int x, int y, int z, String what, Supplier<T> task) {
+    /** check=pos 의 느린 길: 주인이 아닌 스레드에서 task 를 주인 region 에서 그 레벨로 돌린 값. task 는 주인 스레드에서만 불린다. */
+    public static <T> T atPos(World world, int x, int y, int z, String what, Function<BlockLevel, T> task) {
         WorldHandle h = handle(world, what);
         if (isTickThread()) {
+            if (h.handle().regionizer().ownerOf(x >> 4, z >> 4) == null) {
+                throw new ThreadOwnershipException(what + ": the block at " + x + ", " + y + ", " + z + " is not loaded (no region owns it) - a region or global"
+                        + " thread cannot load it and wait; load the chunk first (current thread: " + Thread.currentThread().getName() + ")");
+            }
             throw new ThreadOwnershipException(what + ": the block at " + x + ", " + y + ", " + z + " belongs to another region - a region or global"
                     + " thread cannot wait for another region (deadlock); call it on its owning region (current thread: " + Thread.currentThread().getName() + ")");
         }
         for (int attempt = 0; attempt < 2; attempt++) {
-            Supplier<Object> wrapped = () -> ownsPos(h, x, z) ? task.get() : MOVED;
+            Supplier<Object> wrapped = () -> {
+                BlockLevel lv = ownedLevel(h, x, z);
+                return lv != null ? task.apply(lv) : MOVED;
+            };
             Object r = await(submit(h, x, y, z, wrapped), what, x, y, z);
             if (r != MOVED) {
                 @SuppressWarnings("unchecked") T t = (T) r;

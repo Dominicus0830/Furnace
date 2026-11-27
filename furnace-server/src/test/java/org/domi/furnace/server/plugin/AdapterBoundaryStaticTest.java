@@ -46,8 +46,8 @@ class AdapterBoundaryStaticTest {
             Map.entry("org/domi/furnace/server/plugin/PlacementBridge", "NMS 놓기 어댑터 전용 다리 — 서버 놓기 규칙을 api.internal 로 보인다"),
             // 이식 다리(docs/roadmap/port-bridge-2026-11-27.md 12장, 도미니코 결정 11-28 안 "가" — docs/user-todo/entries/2026-11-27-port-bridge-allowlist.md):
             // 손으로 쓰는 다리 클래스는 이름으로, 생성 구현은 아래 INTERNAL_ALLOWED_GENERATED 접두로
-            Map.entry("org/domi/furnace/server/port/PortGuards", "이식 다리 소유 검사 — 생성 구현의 첫 호출(NmsOwner 규칙을 서버 쪽으로 옮김)"),
-            Map.entry("org/domi/furnace/server/port/PortKinds", "이식 다리 kind 바꾸기(block·level·random) — 중립 형식 → 서버 형식"),
+            Map.entry("org/domi/furnace/server/port/PortGuards", "이식 다리 소유 검사 — 생성 구현의 첫 호출(NmsOwner 규칙을 서버 쪽으로 옮김) + level kind(주인 region 레벨)"),
+            Map.entry("org/domi/furnace/server/port/PortKinds", "이식 다리 kind 바꾸기(block·random) — 중립 형식 → 서버 형식"),
             // 아래 셋은 구현 클래스가 아니라 핵심 자료구조가 어댑터를 위한 "읽기 보기" 자료형을 복사 없이 내주려고 API 인터페이스를 직접 구현한다 — 감싸면 읽기가 6~14% 느려져(3b 측정) 그대로 둔다(docs/ops/adapter-boundary-step3-plan.md). 거울 동기화(Region·ChunkColumn)는 3단계에서 훅(ChunkMirrorOps) 뒤로 옮겨 빠졌다.
             Map.entry("org/domi/furnace/server/world/ChunkSection", "ChunkInternals 읽기 보기용 접근(블록 묶음 복사본) — 감싸개 비용 때문에 남김(3b)"),
             Map.entry("org/domi/furnace/server/world/ChunkReadView", "ChunkInternals 읽기 보기 자료형(ChunkView 직접 구현) — 감싸개 비용 때문에 남김(3b)"),
@@ -109,24 +109,51 @@ class AdapterBoundaryStaticTest {
         assertEquals(new TreeSet<String>(), stale, "허용 목록에 있지만 이제 api.internal 을 쓰지 않는 클래스 — 목록에서 지운다");
     }
 
-    /** 생성물 접두 패키지에는 생성기 출력만: 손 소스가 없고, 모든 클래스(안쪽 클래스는 바깥)가 @PortGenerated 를 단다. */
+    /**
+     * 생성물 접두 패키지에는 생성기 출력만: (1) 서버 소스 어디에도 그 패키지를 선언한 손 소스가 없고, (2) 그 패키지의 바깥 클래스는 이식 명세 파일마다
+     * 하나씩 생기는 {@code <Area>PortImpl} 과 정확히 같으며, (3) 모두 @PortGenerated 를 단다.
+     */
     @Test
     void generatedPortPackageHoldsOnlyGeneratedClasses() throws Exception {
+        Path root = repoRoot();
         for (String prefix : INTERNAL_ALLOWED_GENERATED.keySet()) {
-            Path hand = repoRoot().resolve("furnace-server/src/main/java").resolve(prefix);
-            assertTrue(!Files.exists(hand), "손 소스가 생성물 패키지에 있다 — " + hand + " (생성 구현만 둔다: docs/roadmap/port-bridge-2026-11-27.md 12장)");
+            String pkg = "package " + prefix.substring(0, prefix.length() - 1).replace('/', '.') + ";";
+            List<String> hand = new ArrayList<>();
+            try (Stream<Path> s = Files.walk(root.resolve("furnace-server/src"))) {
+                for (Path f : (Iterable<Path>) s.filter(x -> x.toString().endsWith(".java"))::iterator) {
+                    if (Files.readString(f, StandardCharsets.UTF_8).contains(pkg)) hand.add(root.relativize(f).toString());
+                }
+            }
+            assertEquals(List.of(), hand, "손 소스가 생성물 패키지를 선언한다 — 생성 구현만 둔다(docs/roadmap/port-bridge-2026-11-27.md 12장)");
         }
-        List<String> offenders = new ArrayList<>();
-        int[] gen = {0};
+        // 명세 파일 이름 → 생성 클래스 이름(PortSpec.camel 과 같은 규칙: 번호 뒤 이름을 - 로 나눠 첫 글자 대문자)
+        TreeSet<String> expected = new TreeSet<>();
+        String mc = org.domi.furnace.api.GameVersion.MINECRAFT;
+        Path specs = root.resolve("furnace-compat-paper/src/shimspec/ports-" + mc);
+        if (Files.isDirectory(specs)) {
+            try (Stream<Path> s = Files.list(specs)) {
+                for (Path f : (Iterable<Path>) s.filter(x -> x.toString().endsWith(".ports"))::iterator) {
+                    boolean hasMember = Files.readAllLines(f, StandardCharsets.UTF_8).stream().anyMatch(l -> l.startsWith("  ") && l.contains("->"));
+                    if (!hasMember) continue;
+                    String name = f.getFileName().toString().replaceAll("^\\d+-|\\.ports$", "");
+                    StringBuilder camel = new StringBuilder();
+                    for (String part : name.split("-")) if (!part.isEmpty()) camel.append(Character.toUpperCase(part.charAt(0))).append(part.substring(1));
+                    expected.add("org/domi/furnace/server/port/gen/" + camel + "PortImpl");
+                }
+            }
+        }
+        TreeSet<String> found = new TreeSet<>();
+        List<String> unmarked = new ArrayList<>();
         scan(PluginBootstrapper.class, (name, bytes) -> {
             String n = name.replace('\\', '/');
             if (INTERNAL_ALLOWED_GENERATED.keySet().stream().noneMatch(n::startsWith)) return;
-            gen[0]++;
             if (n.contains("$")) return;   // 람다·안쪽 클래스는 바깥 클래스를 따른다
-            if (!new String(bytes, StandardCharsets.ISO_8859_1).contains("Lorg/domi/furnace/api/internal/port/PortGenerated;")) offenders.add(n);
+            found.add(n.replaceAll("\\.class$", ""));
+            if (!new String(bytes, StandardCharsets.ISO_8859_1).contains("Lorg/domi/furnace/api/internal/port/PortGenerated;")) unmarked.add(n);
         });
-        assertTrue(gen[0] > 0, "생성 구현이 하나도 없다 — 이식 명세(furnace-compat-paper/src/shimspec/ports-<판>)가 비었으면 접두 줄을 지운다");
-        assertEquals(List.of(), offenders, "생성물 패키지에 @PortGenerated 없는 클래스");
+        assertTrue(!found.isEmpty(), "생성 구현이 하나도 없다 — 이식 명세(furnace-compat-paper/src/shimspec/ports-<판>)가 비었으면 접두 줄을 지운다");
+        assertEquals(expected, found, "생성물 패키지의 클래스가 이식 명세 파일마다 하나씩 생기는 <Area>PortImpl 과 다르다");
+        assertEquals(List.of(), unmarked, "생성물 패키지에 @PortGenerated 없는 클래스");
     }
 
     @Test

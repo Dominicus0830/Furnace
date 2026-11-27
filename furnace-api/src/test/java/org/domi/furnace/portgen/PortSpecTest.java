@@ -87,7 +87,7 @@ class PortSpecTest {
         assertTrue(iface.contains("int cropBlock$cost(int a0);"), iface);
         Map<String, String> server = PortGen.generate("server", List.of(s));
         String impl = server.get("org/domi/furnace/server/port/gen/BlockPortImpl.java");
-        assertTrue(impl.contains("if (PortGuards.ownsPos(a1, a2x, a2z))"), impl);
+        assertTrue(impl.contains("org.domi.furnace.server.block.BlockLevel lv = PortGuards.ownedLevel(a1, a2x, a2z);"), impl);
         assertTrue(impl.contains("PortGuards.pure();"), impl);
         assertTrue(impl.contains("@org.domi.furnace.api.internal.port.PortGenerated(\"1-block.ports\")"), impl);
         assertEquals("org.domi.furnace.server.port.gen.BlockPortImpl\n", server.get("res:META-INF/services/org.domi.furnace.api.internal.port.BlockPort"));

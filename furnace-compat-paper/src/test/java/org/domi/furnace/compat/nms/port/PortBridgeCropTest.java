@@ -160,6 +160,22 @@ class PortBridgeCropTest {
         assertTrue(e instanceof ThreadOwnershipException, "expected ThreadOwnershipException, got " + e);
     }
 
+    /** 로드 안 된 칸이면 문구가 "다른 region" 이 아니라 "로드 안 됨"을 말한다(PR #671 검토). */
+    @Test
+    void tickThreadOnAnUnloadedBlockSaysNotLoaded() {
+        BlockPos far = new BlockPos(baseX + 160_000, Y, baseZ + 160_000);
+        BlockState s = named("minecraft:wheat", "age", "1");
+        RuntimeException e = server.onGlobal(() -> {
+            try {
+                BlockPorts.CropBlock$isValidBonemealTarget(Blocks.WHEAT, level, far, s);
+                return null;
+            } catch (RuntimeException x) {
+                return x;
+            }
+        });
+        assertTrue(e instanceof ThreadOwnershipException && e.getMessage().contains("is not loaded"), "got " + e);
+    }
+
     /** 짝이 그 서버 클래스가 아니면(돌 블록을 작물로) 조용히 다른 동작을 돌리지 않고 UnsupportedNmsCall. */
     @Test
     void wrongReceiverIsALoudError() {

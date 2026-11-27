@@ -34,7 +34,8 @@ P1 에서 설계와 달라진 것(이유와 함께):
 - **스텁의 다리 칸**: `static final B` 대신 처음 쓸 때 채우는 칸(`b()`). 서버 없이 호환 계층만 올린 경우 클래스 초기화 오류(`ExceptionInInitializerError` → 이후 `NoClassDefFoundError`)로 굳지 않고 부를 때마다 같은 `IllegalStateException` 을 낸다. 구현은 상태 없는 싱글턴이라 두 스레드가 함께 채워도 같은 객체다.
 - **`pos` 검사 몸통**: 생성 구현의 첫 호출은 `PortGuards.ownsPos`(주인이면 할당 없이 바로), 아니면 `PortGuards.atPos` 가 `NmsOwner` 규칙(틱 스레드 거절, 10초 기다림, 주인 바뀌면 한 번 더)으로 넘긴다. 서버 쪽 틱 스레드 판정은 전역·region·region 작업 스레드다(호환 `PrimaryThread` 표시만 된 틱 아닌 스레드는 기다린다 — 교착 없음).
 - **연결 줄 전달**: 생성한 `ports.links` 폴더는 `generateFullShells` 인자 16(연결 폴더)에 경로 구분자로 이어 붙인다 — 인자 자리를 늘리면 `LinkInfer` 의 18~ 자리가 밀린다. `LinkInfer` 는 첫 폴더만 손 줄로 거른다.
-- **속도(P1 측정, `PortBridgeBench`, 클라우드 컨테이너)**: 직접 pure 0.61 ns / 이식 pure 0.91 ns, 직접 pos 6.05 ns / 이식 pos 20.57 ns(주인 스레드), 모두 할당 0 바이트. pos 줄의 차이는 월드 손잡이 꺼내기 + region 찾기 두 번(`ownsPos` 와 `level`)이다 — 핫 경로로 잡히면 region 을 한 번 찾아 넘기게 kind 안에서 줄인다(줄은 그대로). region 나뉨 직후 경우는 P1 측정에 없다(시험 서버에서 나뉨을 일으키는 도구가 없음 — P3 에 남김).
+- **`pos` 줄 region 찾기 한 번(PR #671 검토 반영)**: 생성 구현의 첫 호출 `PortGuards.ownedLevel` 이 주인인지 보면서 그 region 레벨을 함께 돌려준다(주인이 아니면 null → `atPos`, 넘긴 쪽에서 다시 찾음). level kind 는 그래서 `PortKinds` 가 아니라 `PortGuards` 에 있다. 틱 스레드가 로드 안 된 칸을 부르면 "로드 안 됨" 문구.
+- **속도(P1 측정, `PortBridgeBench`, 클라우드 컨테이너)**: 직접 pure 0.6 ns / 이식 pure 0.9~1.7 ns, 직접 pos 6.1 ns / 이식 pos 13~18 ns(주인 스레드, region 한 번 찾기 뒤 — 처음 두 번 찾을 때 20.6 ns). 할당은 pure 0, pos 는 0 또는 24 바이트(서버 `Pos` 하나 — JIT 인라인에 따라 탈출 분석이 지우거나 못 지움, 세 번 재서 한 번은 0). 남은 차이는 월드 손잡이 꺼내기와 블록 동작 찾기다. region 나뉨 직후 경우는 P1 측정에 없다(시험 서버에서 나뉨을 일으키는 도구가 없음 — P3 에 남김).
 
 ## 0. 결론
 

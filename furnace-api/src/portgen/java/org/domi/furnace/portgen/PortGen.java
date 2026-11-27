@@ -24,6 +24,7 @@ public final class PortGen {
     static final String COMPAT_PKG = "org.domi.furnace.compat.nms.port.gen";
     static final String WORLD = "org.domi.furnace.api.world.World";
     static final String RANDOM = API_PKG + ".PortRandom";
+    static final String LEVEL_TYPE = "org.domi.furnace.server.block.BlockLevel";
 
     private PortGen() {}
 
@@ -184,6 +185,7 @@ public final class PortGen {
         String bn = PortSpec.bridgeName(c, m);
         String ret = retType(m);
         boolean isVoid = ret.equals("void");
+        boolean pos = m.check() == PortSpec.Check.POS;
         String run = "run$" + bn;
         b.append("\n    @Override\n    public ").append(ret).append(' ').append(bn).append('(').append(params(args)).append(") {\n");
         switch (m.check()) {
@@ -194,30 +196,30 @@ public final class PortGen {
             case POS -> {
                 int lv = indexOf(m, Kind.LEVEL), ps = indexOf(m, Kind.POS);
                 String level = "a" + lv, x = "a" + ps + "x", y = "a" + ps + "y", z = "a" + ps + "z";
-                String call = run + "(" + names(args) + ")";
-                // 주인 스레드면 바로(할당 없음), 아니면 PortGuards.atPos 가 넘겨 기다리거나 거절한다 — 넘긴 쪽에서 다시 주인인지 본다
-                b.append("        if (PortGuards.ownsPos(").append(level).append(", ").append(x).append(", ").append(z).append(")) ")
-                        .append(isVoid ? "{\n            " + call + ";\n            return;\n        }\n" : "return " + call + ";\n");
+                // 주인 스레드면 region 을 한 번 찾아 그 레벨로 바로(할당 없음), 아니면 PortGuards.atPos 가 넘겨 기다리거나 거절한다 — 넘긴 쪽에서 레벨을 다시 찾는다
+                b.append("        " + LEVEL_TYPE + " lv = PortGuards.ownedLevel(").append(level).append(", ").append(x).append(", ").append(z).append(");\n");
+                String call = run + "(lv, " + names(args) + ")";
+                b.append("        if (lv != null) ").append(isVoid ? "{\n            " + call + ";\n            return;\n        }\n" : "return " + call + ";\n");
+                String late = run + "(l, " + names(args) + ")";
                 b.append("        ").append(isVoid ? "" : "return ").append("PortGuards.atPos(").append(level).append(", ").append(x).append(", ").append(y).append(", ").append(z)
-                        .append(", ").append(w).append(", () -> ").append(isVoid ? "{ " + call + "; return null; }" : call).append(");\n");
+                        .append(", ").append(w).append(", l -> ").append(isVoid ? "{ " + late + "; return null; }" : late).append(");\n");
             }
             default -> throw new IllegalStateException(m.where() + ": check not handled " + m.check());
         }
         b.append("    }\n");
         // 몸통: kind 바꾸기 → 서버 메서드
-        b.append("\n    private static ").append(ret).append(' ').append(run).append('(').append(params(args)).append(") {\n        ");
+        b.append("\n    private static ").append(ret).append(' ').append(run).append('(').append(pos ? LEVEL_TYPE + " lv, " : "").append(params(args)).append(") {\n        ");
         if (!isVoid) b.append("return ");
         if (m.isStatic()) b.append(c.serverFqcn());
         else b.append("PortKinds.behavior(self, ").append(c.serverFqcn()).append(".class, ").append(w).append(')');
         b.append('.').append(m.serverName()).append('(');
-        int ps = indexOf(m, Kind.POS);
         for (int i = 0; i < m.params().size(); i++) {
             if (i > 0) b.append(", ");
             String a = "a" + i;
             b.append(switch (PortSpec.kindOf(m.params().get(i))) {
                 case PRIM, STRING, STATE -> a;
                 case POS -> "new org.domi.furnace.server.block.Pos(" + a + "x, " + a + "y, " + a + "z)";
-                case LEVEL -> "PortKinds.level(" + a + ", a" + ps + "x, a" + ps + "y, a" + ps + "z, " + w + ")";
+                case LEVEL -> "lv";   // check=pos 가 찾은 첫 자리 칸의 주인 region 레벨
                 case RANDOM -> "PortKinds.random(" + a + ")";
                 default -> throw new IllegalStateException(m.where());
             });

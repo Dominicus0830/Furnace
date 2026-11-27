@@ -240,7 +240,7 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
     }
 
     /** 이 스레드가 그 칸을 가진 region 스레드여야 한다(아니면 ThreadOwnershipException). 그 region 을 돌려준다(없으면 null). */
-    public Region ownedRegion(BlockPos pos, String what) {
+    Region ownedRegion(BlockPos pos, String what) {
         ThreadOwner owner = (ThreadOwner) world.chunkScheduler(pos.chunkX(), pos.chunkZ());
         if (!owner.isOwnerThread()) {
             throw new ThreadOwnershipException(what + " can only be called on the region thread that owns that cell (current thread: " + Thread.currentThread().getName() + ") - use the Async variant");
