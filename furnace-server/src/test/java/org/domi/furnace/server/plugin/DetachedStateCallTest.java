@@ -117,12 +117,12 @@ class DetachedStateCallTest {
         var worldless = (org.domi.furnace.api.entity.Entity) java.lang.reflect.Proxy.newProxyInstance(getClass().getClassLoader(),
                 new Class<?>[] {org.domi.furnace.api.entity.Entity.class, org.domi.furnace.api.internal.ChunkInternals.WorldlessEntity.class},
                 (p, m, a) -> m.getName().equals("type") ? "minecraft:pig" : null);
-        var e = ForeignEntity.reject(worldless, "not an entity of this server");
+        var e = ChunkInternalsImpl.ForeignEntity.reject(worldless, "not an entity of this server");
         assertInstanceOf(UnsupportedOperationException.class, e);
         assertTrue(e.getMessage().contains("not in a world yet"), e.getMessage());
         var other = (org.domi.furnace.api.entity.Entity) java.lang.reflect.Proxy.newProxyInstance(getClass().getClassLoader(),
                 new Class<?>[] {org.domi.furnace.api.entity.Entity.class}, (p, m, a) -> m.getName().equals("toString") ? "other" : null);
-        assertInstanceOf(IllegalArgumentException.class, ForeignEntity.reject(other, "x"));
+        assertInstanceOf(IllegalArgumentException.class, ChunkInternalsImpl.ForeignEntity.reject(other, "x"));
         assertFalse(Optional.empty().isPresent());
     }
 }

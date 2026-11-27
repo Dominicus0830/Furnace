@@ -345,7 +345,7 @@ public final class PlayerViewsImpl implements PlayerViews {
             }
             return new Target(le.id(), eh.tasks(), null);
         }
-        throw ForeignEntity.reject(e, "not an entity of this server");
+        throw ChunkInternalsImpl.ForeignEntity.reject(e, "not an entity of this server");
     }
 
     @Override

@@ -114,7 +114,7 @@ public final class InternalsImpl implements Internals {
         if (entity instanceof EntityHandle eh) {
             return eh.onEntity(e -> action.apply(cast(e, type, "entity " + eh.type())), null, true);
         }
-        return failed(ForeignEntity.reject(entity, "not an entity handle created by the Furnace server"));
+        return failed(ChunkInternalsImpl.ForeignEntity.reject(entity, "not an entity handle created by the Furnace server"));
     }
 
     @Override
@@ -133,7 +133,7 @@ public final class InternalsImpl implements Internals {
             if (!ownsOnCurrentThread(e)) throw notOwner("entity " + eh.type());
             return cast(e, type, "entity " + eh.type());
         }
-        throw ForeignEntity.reject(entity, "not an entity handle created by the Furnace server");
+        throw ChunkInternalsImpl.ForeignEntity.reject(entity, "not an entity handle created by the Furnace server");
     }
 
     private static ThreadOwnershipException notOwner(String what) {

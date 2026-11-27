@@ -2566,4 +2566,57 @@ final class ChunkInternalsImpl implements ChunkInternals {
         if (e.getControllingPassenger() instanceof org.domi.furnace.server.entity.Player cp && e.isAlive()) return knownMovement(cp);
         return new double[] {e.vx(), e.vy(), e.vz()};
     }
+
+    // ---- 월드 밖 엔티티 상태 호출 재생·서버 입구 오류(어댑터 경계: api.internal 을 쓰는 서버 클래스는 이 다리 하나)
+
+    static final class StateCalls {
+    
+        private StateCalls() {}
+    
+        /** 이 메서드를 경로에 쓸 수 있는가 — org.domi.furnace.api.entity(와 하위) 인터페이스 또는 java.util.Optional 의 메서드. */
+        static void check(java.lang.reflect.Method m) {
+            Class<?> c = m.getDeclaringClass();
+            boolean ok = c == java.util.Optional.class || (c.isInterface() && c.getName().startsWith("org.domi.furnace.api.entity."));
+            if (!ok) throw new IllegalArgumentException("a state call must be a method of an interface in org.domi.furnace.api.entity: " + m);
+        }
+    
+        /** 손잡이에서 시작해 경로를 차례로 부르고 마지막 결과를 돌려준다. */
+        static Object invoke(Object root, List<ChunkInternals.Call> path) {
+            Object cur = root;
+            for (ChunkInternals.Call c : path) {
+                java.lang.reflect.Method m = c.method();
+                check(m);
+                if (cur instanceof java.util.Optional<?> o && m.getDeclaringClass() != java.util.Optional.class) {
+                    cur = o.orElseThrow(() -> new java.util.NoSuchElementException("state call on an empty " + m));
+                }
+                if (!m.getDeclaringClass().isInstance(cur)) {
+                    throw new IllegalArgumentException("a state call " + m + " does not fit the entity state of this entity type: " + (cur == null ? null : cur.getClass().getName()));
+                }
+                try {
+                    cur = m.invoke(cur, c.args().toArray());
+                } catch (java.lang.reflect.InvocationTargetException ex) {
+                    Throwable t = ex.getCause();
+                    if (t instanceof RuntimeException r) throw r;
+                    if (t instanceof Error e) throw e;
+                    throw new IllegalStateException(t);
+                } catch (IllegalAccessException ex) {
+                    throw new IllegalStateException(ex);
+                }
+            }
+            return cur;
+        }
+    }
+
+    static final class ForeignEntity {
+    
+        private ForeignEntity() {}
+    
+        /** 던질 오류: 월드 밖 엔티티면 UnsupportedOperationException(분명한 이유), 그 밖은 IllegalArgumentException(서버가 만든 핸들이 아니다). */
+        static RuntimeException reject(org.domi.furnace.api.entity.Entity e, String prefix) {
+            if (e instanceof ChunkInternals.WorldlessEntity) {
+                return new UnsupportedOperationException(prefix + ": the entity is not in a world yet (it was made with EntityType#create and not added) - add it to a world first: " + e.type());
+            }
+            return new IllegalArgumentException(prefix + ": " + e);
+        }
+    }
 }
