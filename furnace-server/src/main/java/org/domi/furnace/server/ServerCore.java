@@ -2183,9 +2183,14 @@ public final class ServerCore {
      * 멈춘 채 전역에 넘긴다 — 그사이 들어온 패킷이 킥 이벤트를 또 부르지 않게. 플러그인이 취소하면 다시 읽는다.
      */
     public void kickOnGlobal(Player p, Text reason, org.domi.furnace.api.event.player.PlayerKickEvent.Cause cause) {
+        kickOnGlobal(p, reason, cause, null);
+    }
+
+    /** {@link #kickOnGlobal(Player, Text, org.domi.furnace.api.event.player.PlayerKickEvent.Cause)} + 플러그인이 취소했을 때 부를 처리(null 가능). */
+    public void kickOnGlobal(Player p, Text reason, org.domi.furnace.api.event.player.PlayerKickEvent.Cause cause, Runnable onCancelled) {
         var global = scheduler().global();
         if (global instanceof org.domi.furnace.api.concurrent.ThreadOwner o && o.isOwnerThread()) {
-            p.kick(new org.domi.furnace.server.net.protocol.play.Disconnect(reason), cause);
+            if (!p.kick(new org.domi.furnace.server.net.protocol.play.Disconnect(reason), cause) && onCancelled != null) onCancelled.run();
             return;
         }
         io.netty.channel.Channel ch = p.channel();
@@ -2195,6 +2200,7 @@ public final class ServerCore {
                 if (!p.kick(new org.domi.furnace.server.net.protocol.play.Disconnect(reason), cause) && ch != null && !p.isDisconnected()) {
                     ch.config().setAutoRead(true);   // 취소됐다 — Paper 처럼 다시 읽는다
                 }
+                if (onCancelled != null && !p.isDisconnected() && p.kickReason() == null) onCancelled.run();
             });
         } catch (java.util.concurrent.RejectedExecutionException closing) {   // 서버가 닫히는 중 — 이벤트 없이 끊는다
             p.kickForced(new org.domi.furnace.server.net.protocol.play.Disconnect(reason));
