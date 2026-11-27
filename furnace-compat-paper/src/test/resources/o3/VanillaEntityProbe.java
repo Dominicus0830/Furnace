@@ -67,14 +67,21 @@ public final class VanillaEntityProbe {
         return sub;
     }
 
-    /** 칸 표: "번호:종류" 를 쉼표로. 종류는 무작위 상태를 만들 수 있는 것만 이름(byte·int·float·boolean·enum:<클래스>), 나머지 "-". */
+    /** 칸 표: "번호:종류" 를 쉼표로. 종류는 무작위 상태를 만들 수 있는 것만 이름(byte·int·float·boolean·enum:<클래스>:<개수>·item·block·pos·opos·text·otext), 나머지 "-". */
     public static String slots(String type) throws Exception {
         Entity e = create(TYPES.get(type));
         StringBuilder sb = new StringBuilder();
         for (Object item : itemsById(e.getEntityData())) {
             var acc = (EntityDataAccessor<?>) field(item, "accessor");
             Object v = field(item, "value");
-            String k = v instanceof Byte ? "byte" : v instanceof Integer ? "int" : v instanceof Float ? "float" : v instanceof Boolean ? "boolean"
+            var ser = acc.serializer();
+            String k = ser == net.minecraft.network.syncher.EntityDataSerializers.ITEM_STACK ? "item"
+                    : ser == net.minecraft.network.syncher.EntityDataSerializers.BLOCK_STATE ? "block"
+                    : ser == net.minecraft.network.syncher.EntityDataSerializers.BLOCK_POS ? "pos"
+                    : ser == net.minecraft.network.syncher.EntityDataSerializers.OPTIONAL_BLOCK_POS ? "opos"
+                    : ser == net.minecraft.network.syncher.EntityDataSerializers.COMPONENT ? "text"
+                    : ser == net.minecraft.network.syncher.EntityDataSerializers.OPTIONAL_COMPONENT ? "otext"
+                    : v instanceof Byte ? "byte" : v instanceof Integer ? "int" : v instanceof Float ? "float" : v instanceof Boolean ? "boolean"
                     : v instanceof Enum<?> en ? "enum:" + en.getDeclaringClass().getName() + ":" + en.getDeclaringClass().getEnumConstants().length : "-";
             if (sb.length() > 0) sb.append(',');
             sb.append(acc.id()).append(':').append(k);
@@ -136,6 +143,8 @@ public final class VanillaEntityProbe {
     }
 
     static Object parse(Class<?> t, Object like, String s) {
+        Object o = token(s);
+        if (o != NONE) return o;
         if (t == Byte.class || t == byte.class) return (byte) Integer.parseInt(s);
         if (t == Integer.class || t == int.class) return Integer.parseInt(s);
         if (t == Float.class || t == float.class) return Float.parseFloat(s);
@@ -146,6 +155,36 @@ public final class VanillaEntityProbe {
         Class<?> en = like instanceof Enum<?> x ? x.getDeclaringClass() : t.isEnum() ? t : null;
         if (en != null) return en.getEnumConstants()[Math.floorMod(Integer.parseInt(s), en.getEnumConstants().length)];
         return null;
+    }
+
+    static final Object NONE = new Object();
+
+    /** 객체 값 표기(시험이 만든 것): item:&lt;키&gt;*&lt;수&gt;, block:&lt;키&gt;(기본 상태), pos:x,y,z, text:&lt;글&gt;, opos:…/otext:…(- 는 빈 값). 아니면 NONE. */
+    static Object token(String s) {
+        int c = s.indexOf(':');
+        if (c < 0) return NONE;
+        String k = s.substring(0, c), v = s.substring(c + 1);
+        switch (k) {
+            case "item": {
+                int star = v.lastIndexOf('*');
+                return new net.minecraft.world.item.ItemStack(net.minecraft.core.registries.BuiltInRegistries.ITEM.get(net.minecraft.resources.ResourceLocation.parse(v.substring(0, star))),
+                        Integer.parseInt(v.substring(star + 1)));
+            }
+            case "block":
+                return net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(net.minecraft.resources.ResourceLocation.parse(v)).defaultBlockState();
+            case "pos": {
+                String[] p = v.split(",");
+                return new net.minecraft.core.BlockPos(Integer.parseInt(p[0]), Integer.parseInt(p[1]), Integer.parseInt(p[2]));
+            }
+            case "text":
+                return net.minecraft.network.chat.Component.literal(v);
+            case "opos":
+                return v.equals("-") ? java.util.Optional.empty() : java.util.Optional.of(token("pos:" + v));
+            case "otext":
+                return v.equals("-") ? java.util.Optional.empty() : java.util.Optional.of(token("text:" + v));
+            default:
+                return NONE;
+        }
     }
 
     static Object[] parseArgs(Class<?>[] ps, String args) {
@@ -198,6 +237,13 @@ public final class VanillaEntityProbe {
         }
         if (v instanceof Enum<?> e) return "enum:" + e.getDeclaringClass().getSimpleName() + "." + e.name();
         if (v instanceof net.minecraft.network.chat.Component c) return "text:" + c.getString();
+        if (v instanceof net.minecraft.world.item.ItemStack st) {
+            return st.isEmpty() ? "item:empty" : "item:" + net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(st.getItem()) + "*" + st.getCount();
+        }
+        if (v instanceof net.minecraft.world.level.block.state.BlockState st) {
+            return "block:" + net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(st.getBlock()) + (st == st.getBlock().defaultBlockState() ? "" : "+");
+        }
+        if (v instanceof net.minecraft.core.Holder<?> h) return "holder:" + h.unwrapKey().map(x -> x.location().toString()).orElse("direct");
         if (v instanceof net.minecraft.world.phys.Vec3 p) return "vec:" + Double.doubleToLongBits(p.x) + "," + Double.doubleToLongBits(p.y) + "," + Double.doubleToLongBits(p.z);
         if (v instanceof net.minecraft.core.BlockPos p) return "pos:" + p.getX() + "," + p.getY() + "," + p.getZ();
         if (v instanceof net.minecraft.core.Rotations r) return "rot:" + Float.floatToIntBits(r.getX()) + "," + Float.floatToIntBits(r.getY()) + "," + Float.floatToIntBits(r.getZ());

@@ -104,6 +104,8 @@ public final class ShimEntityProbe {
     }
 
     static Object parse(Class<?> t, Object like, String s) {
+        Object o = token(s);
+        if (o != NONE) return o;
         if (t == Byte.class || t == byte.class) return (byte) Integer.parseInt(s);
         if (t == Integer.class || t == int.class) return Integer.parseInt(s);
         if (t == Float.class || t == float.class) return Float.parseFloat(s);
@@ -114,6 +116,36 @@ public final class ShimEntityProbe {
         Class<?> en = like instanceof Enum<?> x ? x.getDeclaringClass() : t.isEnum() ? t : null;
         if (en != null) return en.getEnumConstants()[Math.floorMod(Integer.parseInt(s), en.getEnumConstants().length)];
         return null;
+    }
+
+    static final Object NONE = new Object();
+
+    /** 객체 값 표기(시험이 만든 것): item:&lt;키&gt;*&lt;수&gt;, block:&lt;키&gt;(기본 상태), pos:x,y,z, text:&lt;글&gt;, opos:…/otext:…(- 는 빈 값). 아니면 NONE. */
+    static Object token(String s) {
+        int c = s.indexOf(':');
+        if (c < 0) return NONE;
+        String k = s.substring(0, c), v = s.substring(c + 1);
+        switch (k) {
+            case "item": {
+                int star = v.lastIndexOf('*');
+                return new net.minecraft.world.item.ItemStack(net.minecraft.core.registries.BuiltInRegistries.ITEM.get(net.minecraft.resources.ResourceLocation.parse(v.substring(0, star))),
+                        Integer.parseInt(v.substring(star + 1)));
+            }
+            case "block":
+                return net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(net.minecraft.resources.ResourceLocation.parse(v)).defaultBlockState();
+            case "pos": {
+                String[] p = v.split(",");
+                return new net.minecraft.core.BlockPos(Integer.parseInt(p[0]), Integer.parseInt(p[1]), Integer.parseInt(p[2]));
+            }
+            case "text":
+                return net.minecraft.network.chat.Component.literal(v);
+            case "opos":
+                return v.equals("-") ? java.util.Optional.empty() : java.util.Optional.of(token("pos:" + v));
+            case "otext":
+                return v.equals("-") ? java.util.Optional.empty() : java.util.Optional.of(token("text:" + v));
+            default:
+                return NONE;
+        }
     }
 
     static Object[] parseArgs(Class<?>[] ps, String args) {
@@ -146,6 +178,13 @@ public final class ShimEntityProbe {
         }
         if (v instanceof Enum<?> e) return "enum:" + e.getDeclaringClass().getSimpleName() + "." + e.name();
         if (v instanceof net.minecraft.network.chat.Component c) return "text:" + c.getString();
+        if (v instanceof net.minecraft.world.item.ItemStack st) {
+            return st.isEmpty() ? "item:empty" : "item:" + net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(st.getItem()) + "*" + st.getCount();
+        }
+        if (v instanceof net.minecraft.world.level.block.state.BlockState st) {
+            return "block:" + net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(st.getBlock()) + (st == st.getBlock().defaultBlockState() ? "" : "+");
+        }
+        if (v instanceof net.minecraft.core.Holder<?> h) return "holder:" + h.unwrapKey().map(x -> x.location().toString()).orElse("direct");
         if (v instanceof net.minecraft.world.phys.Vec3 p) return "vec:" + Double.doubleToLongBits(p.x) + "," + Double.doubleToLongBits(p.y) + "," + Double.doubleToLongBits(p.z);
         if (v instanceof net.minecraft.core.BlockPos p) return "pos:" + p.getX() + "," + p.getY() + "," + p.getZ();
         if (v instanceof net.minecraft.core.Rotations r) return "rot:" + Float.floatToIntBits(r.getX()) + "," + Float.floatToIntBits(r.getY()) + "," + Float.floatToIntBits(r.getZ());

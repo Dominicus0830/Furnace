@@ -40,6 +40,11 @@ class EntityOracleTest {
     static final int VARIANTS = 12;
     static final String UNSUPPORTED = "THREW:org.domi.furnace.compat.nms.UnsupportedNmsCall";
     static final float[] FLOATS = {0.0F, 0.5F, 1.0F, 2.5F, 20.0F, -1.0F};
+    static final String[] ITEMS = {"minecraft:stone", "minecraft:diamond", "minecraft:egg", "minecraft:fire_charge"};
+    static final String[] BLOCKS = {"minecraft:stone", "minecraft:sand", "minecraft:tnt", "minecraft:air"};
+    static final String[] TEXTS = {"a", "Hello", "x y"};
+
+    static String pos(Random rnd) { return (rnd.nextInt(33) - 16) + "," + (rnd.nextInt(33) - 64) + "," + (rnd.nextInt(33) - 16); }
 
     record Member(String owner, String name, String desc, boolean write) {}
 
@@ -189,8 +194,8 @@ class EntityOracleTest {
                 + " privateUnresolved=" + privateUnresolved + " cases: same=" + same + " differ=" + differ + " shimThrew=" + shimThrew + " vanillaNotComparable=" + vanillaThrew
                 + " canary caught=" + canaryCaught + " missed=" + canaryMissed);
         assertEquals(List.of(), failures, "linked entity members must match vanilla on off-world entities");
-        // 증명 수가 조용히 줄면 잡는다(2026-11-27 첫 측정: 249 멤버 중 증명 180)
-        assertTrue(provedMembers >= 170, "members proved by the oracle: " + provedMembers);
+        // 증명 수가 조용히 줄면 잡는다(2026-11-27 측정: 249 멤버 중 증명 211)
+        assertTrue(provedMembers >= 200, "members proved by the oracle: " + provedMembers);
         assertEquals(0, canaryMissed, "mutation canary: a shifted shim result must not compare equal");
     }
 
@@ -226,11 +231,17 @@ class EntityOracleTest {
             case "float" -> String.valueOf(FLOATS[rnd.nextInt(FLOATS.length)]);
             case "boolean" -> String.valueOf(rnd.nextBoolean());
             case "enum" -> String.valueOf(rnd.nextInt(Integer.parseInt(kind.substring(kind.lastIndexOf(':') + 1))));
+            case "item" -> "item:" + ITEMS[rnd.nextInt(ITEMS.length)] + "*" + (1 + rnd.nextInt(3));
+            case "block" -> "block:" + BLOCKS[rnd.nextInt(BLOCKS.length)];
+            case "pos" -> "pos:" + pos(rnd);
+            case "opos" -> "opos:" + (rnd.nextInt(3) == 0 ? "-" : pos(rnd));
+            case "text" -> "text:" + TEXTS[rnd.nextInt(TEXTS.length)];
+            case "otext" -> "otext:" + (rnd.nextInt(3) == 0 ? "-" : TEXTS[rnd.nextInt(TEXTS.length)]);
             default -> null;
         };
     }
 
-    /** 인자: 원시형과 열거형(서수, 받는 쪽이 개수로 나머지)만. 그 밖이 있으면 "!" — 부르는 쪽이 건너뛴다. */
+    /** 인자: 원시형·열거형(서수, 받는 쪽이 개수로 나머지)·아이템 더미·블록 상태·블록 자리·글. 그 밖은 받는 쪽이 못 풀어 SKIP. */
     static String args(String desc, Random rnd) {
         org.objectweb.asm.Type[] ts = org.objectweb.asm.Type.getArgumentTypes(desc);
         StringBuilder sb = new StringBuilder();
@@ -240,7 +251,14 @@ class EntityOracleTest {
                 case org.objectweb.asm.Type.BYTE -> value("byte", rnd);
                 case org.objectweb.asm.Type.INT, org.objectweb.asm.Type.SHORT, org.objectweb.asm.Type.LONG -> value("int", rnd);
                 case org.objectweb.asm.Type.FLOAT, org.objectweb.asm.Type.DOUBLE -> value("float", rnd);
-                default -> String.valueOf(rnd.nextInt(64));   // 열거형이면 서수, 아니면 받는 쪽이 못 풀어 SKIP
+                case org.objectweb.asm.Type.OBJECT -> switch (ts[i].getInternalName()) {
+                    case "net/minecraft/world/item/ItemStack" -> value("item", rnd);
+                    case "net/minecraft/world/level/block/state/BlockState" -> value("block", rnd);
+                    case "net/minecraft/core/BlockPos" -> value("pos", rnd);
+                    case "net/minecraft/network/chat/Component" -> value("text", rnd);
+                    default -> String.valueOf(rnd.nextInt(64));   // 열거형이면 서수, 아니면 받는 쪽이 못 풀어 SKIP
+                };
+                default -> String.valueOf(rnd.nextInt(64));
             };
             if (i > 0) sb.append(';');
             sb.append(v);
