@@ -217,7 +217,8 @@ final class LinkG4Ports {
 
     /**
      * 짝 점수: 이름(get/is/has/set 뗀 것이 같음 5, 아니면 낱말 겹침 × 3) + 상수 겹침 × 4(둘 다 상수가 있을 때) + 난수 호출 수 같음 2(0 보다 클 때)
-     * + 부르는 메서드 이름 겹침 × 2 + 인자 수 같음 1 + 반환 종류 같음 1 + 인자 종류 같음 1. 몸통 길이가 네 배 넘게 다르면 2 를 뺀다.
+     * + 부르는 메서드 이름 겹침 × 2 + 인자 수 같음 1 + 반환 종류 같음 1 + 인자 종류 같음 1. 몸통 길이가 네 배 넘게 다르면 2 를 빼고,
+     * 이름이 같은데 인자 수가 다르면 2 를 더 뺀다(근거에 ARITY DIFFERS).
      */
     static double score(Features v, Features s) {
         double sc = 0;
@@ -236,6 +237,8 @@ final class LinkG4Ports {
         if (sort(Type.getReturnType(v.desc)) == sort(Type.getReturnType(s.desc))) sc += 1;
         int lo = Math.max(1, Math.min(v.insns, s.insns)), hi = Math.max(v.insns, s.insns);
         if (hi > 4 * lo) sc -= 2;
+        // 이름이 같아도 인자 수가 다르면 다른 겹치기(오버로드)일 수 있다 — 깎고 표에 적는다(검토 권고)
+        if (va.length != sa.length && LinkG2Census.norm(v.name).equals(LinkG2Census.norm(s.name))) sc -= 2;
         return sc;
     }
 
@@ -270,6 +273,7 @@ final class LinkG4Ports {
         if (!c.isEmpty()) w.add("constants " + c.size() + "/" + v.consts.size());
         if (v.random > 0 && v.random == s.random) w.add("random calls " + v.random);
         if (jaccard(tokensOf(v.calls), tokensOf(s.calls)) > 0) w.add("callee words");
+        if (Type.getArgumentTypes(v.desc).length != Type.getArgumentTypes(s.desc).length) w.add("ARITY DIFFERS");
         return String.join(", ", w);
     }
 
