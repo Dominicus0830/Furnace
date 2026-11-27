@@ -5355,7 +5355,10 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         }
     }
 
-    /** 옛 세션이 나가길 기다리는 한도(바닐라 로그인 시간 초과 600틱 = 30초). */
+    /**
+     * 옛 세션이 나가길 기다리는 한도(바닐라 로그인 시간 초과 600틱 = 30초). 연결 단계 시한(stateDeadline, 로그인 단계 30초)과 같은 값이라
+     * 그쪽이 먼저 끊으면 slow_login 사유는 같고, 이 한도는 시한이 풀린 뒤에도 무한정 기다리지 않게 하는 안전장치다.
+     */
     private static final long DUPLICATE_WAIT_NANOS = 30_000_000_000L;
 
     /**
