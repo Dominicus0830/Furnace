@@ -967,6 +967,18 @@ public interface ChunkInternals {
         record SetTicksFrozen(int ticks) implements EntityEdit, EntityOp {}
 
         /**
+         * Paper {@code LivingEntity#startUsingItem(hand, forceUpdate)}(hand 0 주 손·1 다른 손): 손 아이템이 있고 쓰는 중이 아니거나 force 면 쓰기 시작
+         * (생물 깃발 사용 1·손 2, item_interact_start). 생물이 아니면 IllegalArgumentException.
+         */
+        record StartUsingItem(int hand, boolean force) implements EntityEdit, EntityOp {}
+
+        /** 바닐라 {@code LivingEntity#stopUsingItem}: 사용 깃발을 끄고 쓰던 중이었으면 item_interact_finish. 생물이 아니면 IllegalArgumentException. */
+        record StopUsingItem() implements EntityEdit, EntityOp {}
+
+        /** 바닐라 {@code LivingEntity#animateHurt(yaw)}: hurtDuration = 10, hurtTime = hurtDuration(yaw 는 쓰지 않는다). 생물이 아니면 IllegalArgumentException. */
+        record AnimateHurt() implements EntityEdit, EntityOp {}
+
+        /**
          * 바이트 칸의 깃발 하나 켜고 끄기(엔티티 데이터 설계 D5): 주인 스레드에서 한 번에 읽고 {@code b | mask} 또는 {@code b & ~mask} 를 쓴다
          * (바닐라 {@code set(accessor, value)} 와 같은 훅). 칸이 바이트가 아니면 IllegalArgumentException. 돌려줌: null.
          */
@@ -1384,7 +1396,8 @@ public interface ChunkInternals {
     /**
      * 엔티티의 지금 모습: 공유 플래그(바닐라 DATA_SHARED_FLAGS 비트 — 웅크림 1·질주 3·수영 4·투명 5·발광 6·겉날개 7), 자세 번호, 바닐라 getKnownMovement,
      * 날고 있는가(플레이어 능력), 관전 모드인가, 권한 단계(플레이어는 바닐라 getProfilePermissions — op 단계, 아니면 0. 엔티티는 0), 탈것·승객의 UUID(타는 순서),
-     * 지금 몸 크기(바닐라 getBbWidth·getBbHeight·getEyeHeight — 자세·아기·크기 칸에 따른 refreshDimensions 결과).
+     * 지금 몸 크기(바닐라 getBbWidth·getBbHeight·getEyeHeight — 자세·아기·크기 칸에 따른 refreshDimensions 결과),
+     * 생물 깃발(바닐라 DATA_LIVING_ENTITY_FLAGS — 사용 중 1·다른 손 2·회전 공격 4, 생물이 아니면 0).
      * <p>플레이어는 아무 스레드에서 최근 값을 읽는다(Paper 처럼 경쟁 읽기 — PlayerHandle 의 다른 읽기와 같다). 다른 엔티티는 그 엔티티의 주인 스레드에서만
      * (아니면 ThreadOwnershipException), 사라졌으면 IllegalStateException.
      */
@@ -1393,5 +1406,5 @@ public interface ChunkInternals {
     /** {@link #entityLook} 의 값. */
     record EntityLook(byte sharedFlags, int pose, double knownX, double knownY, double knownZ, boolean flying, boolean spectator,
                       int permissionLevel, java.util.UUID vehicle, java.util.List<java.util.UUID> passengers,
-                      float bbWidth, float bbHeight, float eyeHeight) {}
+                      float bbWidth, float bbHeight, float eyeHeight, byte livingFlags) {}
 }

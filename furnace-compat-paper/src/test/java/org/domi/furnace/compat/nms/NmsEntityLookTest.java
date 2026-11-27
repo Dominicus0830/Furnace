@@ -119,6 +119,8 @@ class NmsEntityLookTest {
         CraftEntity zombie = on(() -> (CraftEntity) world.spawnEntity(new Location(world, at.x() + 0.5, at.y(), at.z() + 0.5), org.bukkit.entity.EntityType.ZOMBIE));
         Entity z = zombie.getHandle();
         on(() -> {
+            // 스폰한 좀비는 바닐라처럼 확률로 아기다 — 어른으로 맞춰 두고 시작한다
+            org.domi.furnace.api.internal.Internals.get().entityNow(zombie.furnaceHandle(), org.domi.furnace.server.entity.Zombie.class).setBaby(false);
             assertEquals(0.6F, z.getBbWidth());
             assertEquals(1.95F, z.getBbHeight());
             assertEquals(1.74F, z.getEyeHeight());
@@ -165,6 +167,65 @@ class NmsEntityLookTest {
         assertEquals(0.325F * 3, slime.getEyeHeight());
     }
 
+    /** 아이템 사용(바닐라 isUsingItem·getUsedItemHand·Paper startUsingItem(hand, force)·stopUsingItem)과 맞은 흔들림(animateHurt): 플레이어·월드 좀비·월드 밖 좀비. */
+    @Test
+    void useItemAndHurtAnimation() {
+        ServerPlayer p = bukkit.getHandle();
+        assertFalse(p.isUsingItem());
+        assertSame(net.minecraft.world.InteractionHand.MAIN_HAND, p.getUsedItemHand());
+        assertThrows(UnsupportedNmsCall.class, () -> p.stopUsingItem(), "접속한 플레이어는 이 길로 바꾸지 않는다");
+
+        CraftEntity zombie = on(() -> (CraftEntity) world.spawnEntity(new Location(world, at.x() + 0.5, at.y(), at.z() + 0.5), org.bukkit.entity.EntityType.ZOMBIE));
+        var z = (net.minecraft.world.entity.LivingEntity) zombie.getHandle();
+        on(() -> {
+            var server = org.domi.furnace.api.internal.Internals.get().entityNow(zombie.furnaceHandle(), org.domi.furnace.server.entity.Zombie.class);
+            server.setItemSlot(org.domi.furnace.server.entity.EquipmentSlot.MAINHAND,
+                    new org.domi.furnace.server.entity.ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", "bow"), 1));
+            assertFalse(z.isUsingItem());
+            z.startUsingItem(net.minecraft.world.InteractionHand.MAIN_HAND);
+            assertTrue(z.isUsingItem(), "활을 든 손");
+            assertSame(net.minecraft.world.InteractionHand.MAIN_HAND, z.getUsedItemHand());
+            z.stopUsingItem();
+            assertFalse(z.isUsingItem());
+            z.startUsingItem(net.minecraft.world.InteractionHand.OFF_HAND);
+            assertFalse(z.isUsingItem(), "빈 손은 force 없이 시작하지 않는다");
+            z.startUsingItem(net.minecraft.world.InteractionHand.OFF_HAND, true);
+            assertTrue(z.isUsingItem(), "Paper forceUpdate");
+            assertSame(net.minecraft.world.InteractionHand.OFF_HAND, z.getUsedItemHand());
+            assertEquals(0, server.hurtTime);
+            z.animateHurt(90.0F);
+            assertEquals(10, server.hurtTime);
+            assertEquals(10, server.hurtDuration);
+            zombie.remove();
+            return null;
+        });
+
+        var fresh = (net.minecraft.world.entity.LivingEntity) EntityType.ZOMBIE.create(world.getHandle());
+        assertFalse(fresh.isUsingItem());
+        fresh.startUsingItem(net.minecraft.world.InteractionHand.MAIN_HAND);
+        assertFalse(fresh.isUsingItem(), "월드 밖 좀비도 빈 손이면 시작하지 않는다");
+        fresh.startUsingItem(net.minecraft.world.InteractionHand.OFF_HAND, true);
+        assertTrue(fresh.isUsingItem());
+        assertSame(net.minecraft.world.InteractionHand.OFF_HAND, fresh.getUsedItemHand());
+        assertEquals((byte) 3, livingFlags(fresh), "칸(FancyNpcs 가 패킷으로 보낸다): 사용 1·다른 손 2");
+        fresh.stopUsingItem();
+        assertFalse(fresh.isUsingItem());
+        assertEquals((byte) 2, livingFlags(fresh), "손 비트는 바닐라처럼 남는다");
+        fresh.animateHurt(0.0F);
+    }
+
+    static byte livingFlags(net.minecraft.world.entity.LivingEntity e) {
+        try {
+            var f = net.minecraft.world.entity.LivingEntity.class.getDeclaredField("DATA_LIVING_ENTITY_FLAGS");
+            f.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            var a = (net.minecraft.network.syncher.EntityDataAccessor<Byte>) f.get(null);
+            return e.getEntityData().get(a);
+        } catch (ReflectiveOperationException ex) {
+            throw new AssertionError(ex);
+        }
+    }
+
     static Object poseAccessor() {
         try {
             var f = Entity.class.getDeclaredField("DATA_POSE");
@@ -200,7 +261,9 @@ class NmsEntityLookTest {
         });
         // 탄 엔티티의 움직임은 첫 틱 뒤 매 틱 같다(바닐라 rideTick 이 0 으로 되돌린 뒤 중력 한 번) — 그 뒤 값을 기준으로
         server.tick(3);
-        String owner = on(() -> p.getKnownMovement().toString());
+        // 다른 스레드의 물음은 틱 사이 어느 때 답한다 — 그동안 지나간 모든 상태의 값 중 하나여야 한다(엔티티가 아직 자리 잡는 중이면 틱마다 바뀐다)
+        var owner = new java.util.LinkedHashSet<String>();
+        owner.add(on(() -> p.getKnownMovement().toString()));
         // 다른 스레드(틱 스레드 아님): 주인 region 에 물어 같은 답
         var seen = new AtomicReference<Object>();
         var t = new Thread(() -> {
@@ -213,9 +276,11 @@ class NmsEntityLookTest {
         t.start();
         for (int i = 0; i < 200 && t.isAlive(); i++) {
             server.tick(1);
+            owner.add(on(() -> p.getKnownMovement().toString()));
             t.join(50);
         }
-        assertEquals(List.of(true, 3L, owner), seen.get());
+        assertTrue(seen.get() instanceof List<?> l && l.size() == 3 && Boolean.TRUE.equals(l.get(0)) && Long.valueOf(3).equals(l.get(1)) && owner.contains(l.get(2)),
+                () -> seen.get() + " / 주인 값 " + owner);
         on(() -> {
             chick.remove();
             pig.remove();
@@ -306,7 +371,11 @@ class NmsEntityLookTest {
         var set = net.minecraft.core.HolderSet.direct(Blocks.STONE.builtInRegistryHolder());
         assertTrue(Blocks.STONE.defaultBlockState().is(set));
         assertFalse(Blocks.DIRT.defaultBlockState().is(set));
-        assertSame(world.getHandle().getChunkIfLoaded(at.x() >> 4, at.z() >> 4),
-                world.getHandle().getChunkIfLoaded(new BlockPos(at.x(), at.y(), at.z())));
+        // 두 조회 사이에 청크가 로드·언로드되지 않게 그 칸의 주인 스레드에서 함께 본다(시험 스레드에서는 사이에 비동기 로드가 끝날 수 있다)
+        on(() -> {
+            assertSame(world.getHandle().getChunkIfLoaded(at.x() >> 4, at.z() >> 4),
+                    world.getHandle().getChunkIfLoaded(new BlockPos(at.x(), at.y(), at.z())));
+            return null;
+        });
     }
 }

@@ -384,6 +384,15 @@ public abstract class LivingEntity extends Entity implements Targetable {
 
     public boolean isUsingItem() { return ((Byte) entityData.get(DATA_LIVING_FLAGS) & 1) != 0; }
 
+    /** DATA_LIVING_ENTITY_FLAGS 지금 값(사용 중 1·다른 손 2·회전 공격 4). */
+    public byte livingFlags() { return (Byte) entityData.get(DATA_LIVING_FLAGS); }
+
+    /** LivingEntity.animateHurt: hurtDuration = 10, hurtTime = hurtDuration. */
+    public void animateHurt() {
+        hurtDuration = 10;
+        hurtTime = hurtDuration;
+    }
+
     public int getUsedItemHand() { return ((Byte) entityData.get(DATA_LIVING_FLAGS) & 2) != 0 ? 1 : 0; }
 
     private void setLivingEntityFlag(int flag, boolean on) {
@@ -392,9 +401,12 @@ public abstract class LivingEntity extends Entity implements Targetable {
     }
 
     /** LivingEntity.startUsingItem(hand): 쓰는 아이템 지속시간을 72000 으로 두고(활) item_interact_start. */
-    public void startUsingItem(int hand) {
+    public void startUsingItem(int hand) { startUsingItem(hand, false); }
+
+    /** Paper LivingEntity.startUsingItem(hand, forceUpdate): 손이 비었거나 이미 쓰는 중이면 force 일 때만 다시 시작한다. */
+    public void startUsingItem(int hand, boolean force) {
         ItemStack s = getItemBySlot(hand == 0 ? EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND);
-        if (s.isEmpty() || isUsingItem()) return;
+        if ((s.isEmpty() || isUsingItem()) && !force) return;
         usingHandIndex = hand;
         useItemRemaining = getUseDuration(s);
         setLivingEntityFlag(1, true);
