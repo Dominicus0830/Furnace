@@ -45,4 +45,27 @@ class NmsByteBufStaticsTest {
         for (int i = 0; i < 11; i++) bad.writeByte(0x80);
         assertThrows(RuntimeException.class, () -> VarLong.read(bad));
     }
+
+    @Test
+    void positionTimeAndBitSetHelpersRoundTrip() {
+        FriendlyByteBuf b = new FriendlyByteBuf(Unpooled.buffer());
+        b.writeChunkPos(new net.minecraft.world.level.ChunkPos(-3, 9));
+        b.writeSectionPos(net.minecraft.core.SectionPos.of(4, -2, 7));
+        b.writeVec3(new net.minecraft.world.phys.Vec3(1.5, -2.5, 3.5));
+        b.writeDate(new java.util.Date(123456789L));
+        b.writeInstant(java.time.Instant.ofEpochMilli(987654321L));
+        java.util.BitSet bits = new java.util.BitSet();
+        bits.set(1);
+        bits.set(9);
+        b.writeBitSet(bits);
+        b.writeFixedBitSet(bits, 16);
+        assertEquals(new net.minecraft.world.level.ChunkPos(-3, 9), b.readChunkPos());
+        assertEquals(net.minecraft.core.SectionPos.of(4, -2, 7), b.readSectionPos());
+        assertEquals(new net.minecraft.world.phys.Vec3(1.5, -2.5, 3.5).x(), b.readVec3().x());
+        assertEquals(new java.util.Date(123456789L), b.readDate());
+        assertEquals(java.time.Instant.ofEpochMilli(987654321L), b.readInstant());
+        assertEquals(bits, b.readBitSet());
+        assertEquals(bits, b.readFixedBitSet(16));
+        assertThrows(io.netty.handler.codec.EncoderException.class, () -> b.writeFixedBitSet(bits, 5));
+    }
 }

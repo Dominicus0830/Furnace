@@ -175,6 +175,58 @@ public class FriendlyByteBuf extends ByteBuf {
 
     public static void writeBlockPos(ByteBuf buf, BlockPos pos) { buf.writeLong(pos.asLong()); }
 
+    public net.minecraft.world.level.ChunkPos readChunkPos() { return new net.minecraft.world.level.ChunkPos(readLong()); }
+
+    public FriendlyByteBuf writeChunkPos(net.minecraft.world.level.ChunkPos pos) {
+        writeLong(pos.toLong());
+        return this;
+    }
+
+    public net.minecraft.core.SectionPos readSectionPos() { return net.minecraft.core.SectionPos.of(readLong()); }
+
+    public FriendlyByteBuf writeSectionPos(net.minecraft.core.SectionPos pos) {
+        writeLong(pos.asLong());
+        return this;
+    }
+
+    public net.minecraft.world.phys.Vec3 readVec3() { return new net.minecraft.world.phys.Vec3(readDouble(), readDouble(), readDouble()); }
+
+    public void writeVec3(net.minecraft.world.phys.Vec3 vec) {
+        writeDouble(vec.x());
+        writeDouble(vec.y());
+        writeDouble(vec.z());
+    }
+
+    public java.util.Date readDate() { return new java.util.Date(readLong()); }
+
+    public FriendlyByteBuf writeDate(java.util.Date date) {
+        writeLong(date.getTime());
+        return this;
+    }
+
+    public java.time.Instant readInstant() { return java.time.Instant.ofEpochMilli(readLong()); }
+
+    public void writeInstant(java.time.Instant instant) { writeLong(instant.toEpochMilli()); }
+
+    public java.util.BitSet readBitSet() { return java.util.BitSet.valueOf(readLongArray()); }
+
+    public void writeBitSet(java.util.BitSet bits) { writeLongArray(bits.toLongArray()); }
+
+    public java.util.BitSet readFixedBitSet(int size) {
+        byte[] bytes = new byte[net.minecraft.util.Mth.positiveCeilDiv(size, 8)];
+        readBytes(bytes);
+        return java.util.BitSet.valueOf(bytes);
+    }
+
+    public void writeFixedBitSet(java.util.BitSet bits, int size) {
+        if (bits.length() > size) {
+            int length = bits.length();
+            throw new io.netty.handler.codec.EncoderException("BitSet is larger than expected size (" + length + ">" + size + ")");
+        }
+        byte[] bytes = bits.toByteArray();
+        writeBytes(java.util.Arrays.copyOf(bytes, net.minecraft.util.Mth.positiveCeilDiv(size, 8)));
+    }
+
     public ResourceLocation readResourceLocation() { return ResourceLocation.parse(readUtf(MAX_STRING)); }
 
     public FriendlyByteBuf writeResourceLocation(ResourceLocation id) {
