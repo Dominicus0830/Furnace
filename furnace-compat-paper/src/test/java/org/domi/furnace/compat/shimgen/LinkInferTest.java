@@ -104,6 +104,10 @@ class LinkInferTest {
         try (ZipFile zf = new ZipFile(paperJar.toFile())) {
             inf.readBodies(zf, inf.paperBodies);
         }
+        try (ZipFile zf = new ZipFile(jar.toFile())) {
+            inf.readReactions(zf);
+        }
+        assertEquals(java.util.Set.of(MOB + " DATA_FLAGS"), inf.reactingSlots);
         inf.classify();
         Map<String, String> got = new TreeMap<>();
         for (LinkInfer.Candidate c : inf.candidates) got.put(c.m().name(), c.target() + " " + c.check());
@@ -126,7 +130,8 @@ class LinkInferTest {
         // Paper 가 몸통을 바꾼 setBaby(이벤트를 더한 꼴)·level 은 Paper 대조에서 걸러진다(호환 면은 Paper)
         assertEquals(Map.of("sharedAsFlag", "entity data slot value type differs from the member type",
                 "setBaby", "Paper body differs from the vanilla body", "level", "Paper body differs from the vanilla body",
-                "getOwner2", "entity data slot generic value type differs from the member type"), typeBad);   // Optional<UUID> 멤버가 Optional<글> 칸을 읽음
+                "getOwner2", "entity data slot generic value type differs from the member type",
+                "setAggro", "entity data slot has a reaction (onSyncedDataUpdated) - a write needs a separate check"), typeBad);   // 읽기 isAggro 는 그대로   // Optional<UUID> 멤버가 Optional<글> 칸을 읽음
         assertTrue(LinkInfer.summary(inf, inf.candidates, Map.of(), List.of()).contains("| G1 entity-data-flag-set | 1 | 1 |"));
         assertEquals("private or package member written in plain text - use", LinkInfer.reasonKind("private or package member written in plain text - use #0123456789: net.minecraft.zz.Mob#x()V"));
     }
@@ -213,6 +218,11 @@ class LinkInferTest {
             mv.visitInsn(Opcodes.ICONST_0);
             mv.visitLabel(e);
             mv.visitInsn(Opcodes.IRETURN);
+        });
+        method(cw, "onSyncedDataUpdated", "(" + ACC + ")V", mv -> {   // 깃발 칸이 바뀌면 반응한다
+            mv.visitFieldInsn(Opcodes.GETSTATIC, MOB, "DATA_FLAGS", ACC);
+            mv.visitInsn(Opcodes.POP);
+            mv.visitInsn(Opcodes.RETURN);
         });
         method(cw, "getOwner2", "()Ljava/util/Optional;", mv -> {
             get(mv, MOB, "DATA_NAME");

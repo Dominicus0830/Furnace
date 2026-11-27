@@ -61,6 +61,11 @@ public final class LinkInfer {
     final FullShells g;
     final List<Shell> shells = new ArrayList<>();
     final Map<String, Body> bodies = new HashMap<>();
+    /**
+     * 값이 바뀔 때 엔티티가 반응하는 칸(선언 클래스 + " " + 이름): 바닐라·Paper 의 onSyncedDataUpdated(EntityDataAccessor) 몸통이 읽는 칸 필드 전부.
+     * 그 칸에 쓰는 줄은 모양만으로는 같다고 할 수 없다(반응이 Furnace 쪽에도 있어야 한다) — 모양 증명에서 뺀다.
+     */
+    final Set<String> reactingSlots = new HashSet<>();
     /** Mojang 이름 Paper 서버 jar 의 몸통(T-262 와 같은 원칙: 바닐라와 Paper 가 같은 꼴일 때만 후보). null 이면 대조 안 함(시험용). */
     Map<String, Body> paperBodies;
     /** 분류 → {전체, 공개·보호}. */
@@ -94,10 +99,12 @@ public final class LinkInfer {
         inf.collectShells(built);
         try (ZipFile jar = new ZipFile(vanillaJar.toFile())) {
             inf.readBodies(jar, inf.bodies);
+            inf.readReactions(jar);
         }
         inf.paperBodies = new HashMap<>();
         try (ZipFile jar = new ZipFile(paperJar.toFile())) {
             inf.readBodies(jar, inf.paperBodies);
+            inf.readReactions(jar);
         }
         inf.classify();
         // 생성기로 검사: 어긴 줄은 빼고 다시(빠진 줄 때문에 다른 줄이 달라지지 않으므로 보통 한 번이면 된다)
@@ -175,6 +182,38 @@ public final class LinkInfer {
         }
     }
 
+    static final String ON_SYNCED = "onSyncedDataUpdated";
+
+    /** jar 전체의 onSyncedDataUpdated(EntityDataAccessor) 가 읽는 칸 필드를 reactingSlots 에 더한다(선언 클래스로 푼다). */
+    void readReactions(ZipFile jar) throws IOException {
+        for (ZipEntry ze : java.util.Collections.list(jar.entries())) {
+            if (!ze.getName().startsWith("net/minecraft/") || !ze.getName().endsWith(".class")) continue;
+            byte[] b;
+            try (InputStream in = jar.getInputStream(ze)) {
+                b = in.readAllBytes();
+            }
+            new ClassReader(b).accept(new ClassVisitor(Opcodes.ASM9) {
+                @Override
+                public MethodVisitor visitMethod(int access, String name, String desc, String signature, String[] exceptions) {
+                    if (!name.equals(ON_SYNCED) || !desc.equals("(" + ACCESSOR_DESC + ")V")) return null;
+                    return new MethodVisitor(Opcodes.ASM9) {
+                        @Override
+                        public void visitFieldInsn(int op, String o, String n, String d) {
+                            if (op != Opcodes.GETSTATIC || !d.equals(ACCESSOR_DESC)) return;
+                            String[] decl = slotDecl(new Insn(op, o, n, d, null, -1));
+                            reactingSlots.add(decl == null ? o + " " + n : decl[0] + " " + decl[1]);
+                        }
+                    };
+                }
+            }, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
+        }
+    }
+
+    boolean reacts(Insn slotGetstatic) {
+        String[] d = slotDecl(slotGetstatic);
+        return reactingSlots.contains(d == null ? slotGetstatic.owner() + " " + slotGetstatic.name() : d[0] + " " + d[1]);
+    }
+
     private MethodVisitor recorder(String key, Map<String, Body> into) {
         List<Insn> insns = new ArrayList<>();
         Map<Label, Integer> ids = new HashMap<>();
@@ -237,6 +276,7 @@ public final class LinkInfer {
             candidates.add(c);
             String bad = paperDiffers(s, ed, this::entityDataOrNull);
             if (bad == null) bad = slotTypeProblem(s, ed[2], in.get(dataRef(in, 0)));
+            if (bad == null && ed[2].endsWith("-set") && reacts(in.get(dataRef(in, 0)))) bad = "entity data slot has a reaction (onSyncedDataUpdated) - a write needs a separate check";
             if (bad != null) typeRejected.put(c, bad);
             return "G1 " + ed[2];
         }
