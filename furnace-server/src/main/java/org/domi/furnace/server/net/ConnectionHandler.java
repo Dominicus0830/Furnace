@@ -5342,7 +5342,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
             final boolean ok = allKicked;
             ctx.executor().execute(() -> {
                 if (closing || !ctx.channel().isActive()) return;
-                if (ok) completeLogin(ctx, profile);
+                if (ok) awaitDuplicatesGone(ctx, profile, dupes, System.nanoTime() + DUPLICATE_WAIT_NANOS);
                 else disconnect(ctx, Text.translatable("multiplayer.disconnect.slow_login"));
             });
         };
@@ -5353,6 +5353,27 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         } catch (java.util.concurrent.RejectedExecutionException closing) {
             disconnect(ctx, Text.translatable("multiplayer.disconnect.server_shutdown"));
         }
+    }
+
+    /**
+     * 옛 세션이 나가길 기다리는 한도(바닐라 로그인 시간 초과 600틱 = 30초). 연결 단계 시한(stateDeadline, 로그인 단계 30초)과 같은 값이라
+     * 그쪽이 먼저 끊으면 slow_login 사유는 같고, 이 한도는 시한이 풀린 뒤에도 무한정 기다리지 않게 하는 안전장치다.
+     */
+    private static final long DUPLICATE_WAIT_NANOS = 30_000_000_000L;
+
+    /**
+     * 바닐라 WAITING_FOR_DUPE_DISCONNECT: 쫓아낸 옛 플레이어가 월드에서 완전히 빠질 때까지(퇴장 이벤트·접속자 목록 정리·저장 예약이 끝날 때까지)
+     * 새 접속의 로그인을 마치지 않고 기다린다. 한도 안에 안 나가면 로그인 시간 초과로 끊는다.
+     */
+    private void awaitDuplicatesGone(ChannelHandlerContext ctx, org.domi.furnace.server.players.GameProfile profile, java.util.List<Player> dupes, long deadline) {
+        if (closing || !ctx.channel().isActive()) return;
+        boolean gone = true;
+        for (Player other : dupes) {
+            if (!other.isDisconnected() || world.onlinePlayers().contains(other)) { gone = false; break; }
+        }
+        if (gone) { completeLogin(ctx, profile); return; }
+        if (System.nanoTime() - deadline >= 0) { disconnect(ctx, Text.translatable("multiplayer.disconnect.slow_login")); return; }
+        ctx.executor().schedule(() -> awaitDuplicatesGone(ctx, profile, dupes, deadline), 10, java.util.concurrent.TimeUnit.MILLISECONDS);
     }
 
     void state(ConnectionState newState) {
