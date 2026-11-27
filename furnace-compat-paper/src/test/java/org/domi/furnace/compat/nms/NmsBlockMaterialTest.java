@@ -43,6 +43,8 @@ class NmsBlockMaterialTest {
         assertFalse(s(Blocks.AIR).isSolid());
         assertFalse(s(Blocks.WATER).isSolid());
         assertFalse(s(Blocks.TORCH).isSolid());
+        assertTrue(s(Blocks.OAK_SLAB).isSolid());          // 아래 반 블록: 크기 평균 0.833 ≥ 0.729
+        assertFalse(s(Blocks.WHITE_CARPET).isSolid());     // 양탄자: 높이 1/16 이라 평균 0.69 < 0.729
     }
 
     @Test
