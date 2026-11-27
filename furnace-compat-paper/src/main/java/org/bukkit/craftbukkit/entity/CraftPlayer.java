@@ -134,6 +134,35 @@ public class CraftPlayer extends CraftHumanEntity implements Player, org.domi.fu
     @Override
     public void setDisplayName(String name) { handle.customDisplayName(name == null ? null : Compat.text(name)); }
 
+    /** Paper getPlayerListName: 정하지 않았으면 플레이어 이름, 있으면 그 글의 레거시 문자열. */
+    @Override
+    public String getPlayerListName() {
+        org.domi.furnace.api.text.Text t = handle.listName();
+        return t == null ? getName() : Compat.legacy(t);
+    }
+
+    /** Paper setPlayerListName: null 이거나 플레이어 이름과 같으면 기본 이름으로 되돌린다. */
+    @Override
+    public void setPlayerListName(String name) {
+        if (name == null || name.equals(getName())) handle.listName(null);
+        else handle.listName(Compat.text(name));
+    }
+
+    /** Paper playerListName(): 정하지 않았으면 이름 글. */
+    @Override
+    public net.kyori.adventure.text.Component playerListName() {
+        org.domi.furnace.api.text.Text t = handle.listName();
+        if (t == null) t = org.domi.furnace.api.text.Text.text(getName());
+        return net.kyori.adventure.text.serializer.gson.GsonComponentSerializer.gson().deserialize(t.toJson());
+    }
+
+    /** Paper playerListName(Component): null 이면 기본 이름으로 되돌린다. */
+    @Override
+    public void playerListName(net.kyori.adventure.text.Component name) {
+        handle.listName(name == null ? null
+                : org.domi.furnace.api.text.serializer.JsonTextSerializer.json().deserialize(net.kyori.adventure.text.serializer.gson.GsonComponentSerializer.gson().serialize(name)));
+    }
+
     @Override
     public boolean isOnline() { return handle.isOnline(); }
 
