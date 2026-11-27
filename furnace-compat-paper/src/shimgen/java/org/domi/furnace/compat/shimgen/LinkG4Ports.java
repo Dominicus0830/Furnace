@@ -284,11 +284,11 @@ final class LinkG4Ports {
         Map<String, List<Pair>> per = new TreeMap<>();
         for (Pair p : pairs) per.computeIfAbsent(LinkInfer.area(areas, p.m().owner()), k -> new ArrayList<>()).add(p);
         for (Map.Entry<String, List<Pair>> e : per.entrySet()) {
-            StringBuilder sb = new StringBuilder("# T-263 G4 서버 이식 짝 — 영역 " + e.getKey() + "\n\n")
-                    .append("동작 없는 NMS 멤버(바닐라 몸통 있음, 공개·보호)마다 그 바닐라 클래스를 이식한 Furnace 서버 클래스(@VanillaPort)에서 바이트코드 특징이 가장 비슷한 메서드.\n")
-                    .append("**짐작이다** — 다리(@LinkTarget 정적 메서드, 어댑터 경계 docs/ops/adapter-boundary.md)를 쓰기 전에 서버 메서드가 정말 같은 일을 하는지 확인한다.\n")
-                    .append("다리를 쓰고 `inferLinks` 를 다시 돌리면 G2·G3 가 잇는다. 점수 높은 순. 둘째와 차이가 작으면(애매) 표에 넣지 않았다.\n")
-                    .append("같은 이름 짝이 먼저(대부분 맞다), 이름이 다른 짝은 뒤 절에 — 상수·부르는 메서드만 비슷한 것이라 틀린 짝이 섞여 있다.\n");
+            StringBuilder sb = new StringBuilder("# T-263 G4 server port pairs - area " + e.getKey() + "\n\n")
+                    .append("For each throwing NMS member (public/protected, with a vanilla body): the method of the Furnace server class that ports its vanilla class (@VanillaPort) with the closest bytecode features.\n")
+                    .append("**A guess** - before writing a bridge (@LinkTarget static method, adapter boundary docs/ops/adapter-boundary.md), read the server method and check it really does the same thing.\n")
+                    .append("Write the bridge and rerun `inferLinks`; G2/G3 then link. Highest score first. Ambiguous pairs (small margin over the second best) are left out.\n")
+                    .append("Same-name pairs first (mostly right); pairs with a different name follow - only constants/callees are alike, so wrong pairs are mixed in. ARITY DIFFERS: same name, different argument count (maybe an overload).\n");
             e.getValue().sort((a, b) -> {
                 boolean an = a.why().startsWith("name,") || a.why().equals("name"), bn = b.why().startsWith("name,") || b.why().equals("name");
                 return an != bn ? (an ? -1 : 1) : Double.compare(b.score(), a.score());
@@ -299,8 +299,8 @@ final class LinkG4Ports {
                 if (!header || (!named && !weak)) {
                     weak = !named;
                     header = true;
-                    sb.append(weak ? "\n## 이름이 다른 짝(약함 — 꼭 확인)\n\n" : "\n## 같은 이름 짝\n\n")
-                            .append("| 동작 없는 NMS 멤버 | Furnace 서버 메서드 | 점수(둘째) | 근거 |\n|---|---|---:|---|\n");
+                    sb.append(weak ? "\n## Different name (weak - always check)\n\n" : "\n## Same name\n\n")
+                            .append("| throwing NMS member | Furnace server method | score (second) | evidence |\n|---|---|---:|---|\n");
                 }
                 sb.append("| `").append(p.m().owner().replace('/', '.')).append('#').append(p.m().name()).append(p.m().desc()).append("` | `")
                         .append(p.server().replace('/', '.')).append('#').append(p.target().name).append(p.target().desc).append("` | ")
