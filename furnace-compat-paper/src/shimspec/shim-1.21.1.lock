@@ -44,6 +44,8 @@ C	net/minecraft/network/ProtocolInfo$Unbound$PacketVisitor	1537	java/lang/Object
 A	net/minecraft/network/ProtocolInfo$Unbound$PacketVisitor	Ljava/lang/FunctionalInterface;
 M	net/minecraft/network/ProtocolInfo$Unbound$PacketVisitor	accept	(Lnet/minecraft/network/protocol/PacketType;I)V	1025	(Lnet/minecraft/network/protocol/PacketType<*>;I)V
 C	net/minecraft/network/RegistryFriendlyByteBuf	33	net/minecraft/network/FriendlyByteBuf	-	-	-	paper-server-1.21.1
+C	net/minecraft/network/ServerboundPacketListener	1537	java/lang/Object	net/minecraft/network/PacketListener	-	-	paper-server-1.21.1
+C	net/minecraft/network/TickablePacketListener	1537	java/lang/Object	net/minecraft/network/PacketListener	-	-	paper-server-1.21.1
 C	net/minecraft/network/Utf8String	33	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/network/VarInt	33	java/lang/Object	-	-	-	paper-server-1.21.1
 M	net/minecraft/network/VarInt	<init>	()V	1	-
@@ -96,7 +98,9 @@ R	net/minecraft/network/protocol/PacketType	id	Lnet/minecraft/resources/Resource
 X	net/minecraft/network/protocol/PacketType	toString
 C	net/minecraft/network/protocol/common/ClientboundDisconnectPacket	65585	java/lang/Record	net/minecraft/network/protocol/Packet	Ljava/lang/Record;Lnet/minecraft/network/protocol/Packet<Lnet/minecraft/network/protocol/common/ClientCommonPacketListener;>;	-	paper-server-1.21.1
 R	net/minecraft/network/protocol/common/ClientboundDisconnectPacket	reason	Lnet/minecraft/network/chat/Component;	-
+C	net/minecraft/network/protocol/common/ServerCommonPacketListener	1537	java/lang/Object	net/minecraft/network/protocol/cookie/ServerCookiePacketListener,net/minecraft/network/protocol/game/ServerPacketListener	-	-	paper-server-1.21.1
 C	net/minecraft/network/protocol/common/custom/CustomPacketPayload	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/network/protocol/cookie/ServerCookiePacketListener	1537	java/lang/Object	net/minecraft/network/protocol/game/ServerPacketListener	-	-	paper-server-1.21.1
 C	net/minecraft/network/protocol/game/ClientboundClearTitlesPacket	33	java/lang/Object	net/minecraft/network/protocol/Packet	Ljava/lang/Object;Lnet/minecraft/network/protocol/Packet<Lnet/minecraft/network/protocol/game/ClientGamePacketListener;>;	-	paper-server-1.21.1
 C	net/minecraft/network/protocol/game/ClientboundLevelChunkWithLightPacket	33	java/lang/Object	net/minecraft/network/protocol/Packet	Ljava/lang/Object;Lnet/minecraft/network/protocol/Packet<Lnet/minecraft/network/protocol/game/ClientGamePacketListener;>;	-	paper-server-1.21.1
 C	net/minecraft/network/protocol/game/ClientboundLightUpdatePacket	33	java/lang/Object	net/minecraft/network/protocol/Packet	Ljava/lang/Object;Lnet/minecraft/network/protocol/Packet<Lnet/minecraft/network/protocol/game/ClientGamePacketListener;>;	-	paper-server-1.21.1
@@ -116,6 +120,9 @@ C	net/minecraft/network/protocol/game/ClientboundSetTitlesAnimationPacket	33	jav
 C	net/minecraft/network/protocol/game/ClientboundSystemChatPacket	65585	java/lang/Record	net/minecraft/network/protocol/Packet	Ljava/lang/Record;Lnet/minecraft/network/protocol/Packet<Lnet/minecraft/network/protocol/game/ClientGamePacketListener;>;	-	paper-server-1.21.1
 R	net/minecraft/network/protocol/game/ClientboundSystemChatPacket	content	Lnet/minecraft/network/chat/Component;	-
 R	net/minecraft/network/protocol/game/ClientboundSystemChatPacket	overlay	Z	-
+C	net/minecraft/network/protocol/game/ServerGamePacketListener	1537	java/lang/Object	net/minecraft/network/protocol/ping/ServerPingPacketListener,net/minecraft/network/protocol/common/ServerCommonPacketListener	-	-	paper-server-1.21.1
+C	net/minecraft/network/protocol/game/ServerPacketListener	1537	java/lang/Object	net/minecraft/network/ServerboundPacketListener	-	-	paper-server-1.21.1
+C	net/minecraft/network/protocol/ping/ServerPingPacketListener	1537	java/lang/Object	net/minecraft/network/PacketListener	-	-	paper-server-1.21.1
 C	net/minecraft/network/syncher/EntityDataAccessor	65585	java/lang/Record	-	<T:Ljava/lang/Object;>Ljava/lang/Record;	-	paper-server-1.21.1
 R	net/minecraft/network/syncher/EntityDataAccessor	id	I	-
 R	net/minecraft/network/syncher/EntityDataAccessor	serializer	Lnet/minecraft/network/syncher/EntityDataSerializer;	Lnet/minecraft/network/syncher/EntityDataSerializer<TT;>;
@@ -160,7 +167,10 @@ C	net/minecraft/server/level/ServerPlayerGameMode	33	java/lang/Object	-	-	-	pape
 C	net/minecraft/server/level/ThreadedLevelLightEngine	33	net/minecraft/world/level/lighting/LevelLightEngine	java/lang/AutoCloseable	-	-	paper-server-1.21.1
 C	net/minecraft/server/level/TicketType	33	java/lang/Object	-	<T:Ljava/lang/Object;>Ljava/lang/Object;	-	paper-server-1.21.1
 C	net/minecraft/server/level/progress/ChunkProgressListener	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/server/network/ServerCommonPacketListenerImpl	1057	java/lang/Object	net/minecraft/network/protocol/common/ServerCommonPacketListener,org/bukkit/craftbukkit/entity/CraftPlayer$TransferCookieConnection	-	-	paper-server-1.21.1
 C	net/minecraft/server/network/ServerConnectionListener	33	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/server/network/ServerGamePacketListenerImpl	33	net/minecraft/server/network/ServerCommonPacketListenerImpl	net/minecraft/network/protocol/game/ServerGamePacketListener,net/minecraft/server/network/ServerPlayerConnection,net/minecraft/network/TickablePacketListener	-	-	paper-server-1.21.1
+C	net/minecraft/server/network/ServerPlayerConnection	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/server/packs/PackLocationInfo	65585	java/lang/Record	-	-	-	paper-server-1.21.1
 R	net/minecraft/server/packs/PackLocationInfo	id	Ljava/lang/String;	-
 R	net/minecraft/server/packs/PackLocationInfo	title	Lnet/minecraft/network/chat/Component;	-
@@ -2106,6 +2116,11 @@ C	net/minecraft/world/level/storage/loot/parameters/LootContextParams	33	java/la
 C	net/minecraft/world/scores/ScoreHolder	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/ticks/ContainerSingleItem	1537	java/lang/Object	net/minecraft/world/Container	-	-	paper-server-1.21.1
 C	net/minecraft/world/ticks/ContainerSingleItem$BlockContainerSingleItem	1537	java/lang/Object	net/minecraft/world/ticks/ContainerSingleItem	-	1545	paper-server-1.21.1
+C	org/bukkit/craftbukkit/entity/CraftEntity	1057	java/lang/Object	org/bukkit/entity/Entity	-	-	paper-server-1.21.1
+C	org/bukkit/craftbukkit/entity/CraftHumanEntity	33	org/bukkit/craftbukkit/entity/CraftLivingEntity	org/bukkit/entity/HumanEntity	-	-	paper-server-1.21.1
+C	org/bukkit/craftbukkit/entity/CraftLivingEntity	33	org/bukkit/craftbukkit/entity/CraftEntity	org/bukkit/entity/LivingEntity	-	-	paper-server-1.21.1
+C	org/bukkit/craftbukkit/entity/CraftPlayer	33	org/bukkit/craftbukkit/entity/CraftHumanEntity	org/bukkit/entity/Player	-	-	paper-server-1.21.1
+C	org/bukkit/craftbukkit/entity/CraftPlayer$TransferCookieConnection	1537	java/lang/Object	-	-	1545	paper-server-1.21.1
 H	net/minecraft/commands/ExecutionCommandSource	dispatcher	()Lcom/mojang/brigadier/CommandDispatcher;	1025	()Lcom/mojang/brigadier/CommandDispatcher<TT;>;
 H	net/minecraft/commands/ExecutionCommandSource	hasPermission	(I)Z	1025	-
 H	net/minecraft/commands/ExecutionCommandSource	isSilent	()Z	1025	-
@@ -2124,8 +2139,64 @@ H	net/minecraft/core/HolderLookup	listElements	()Ljava/util/stream/Stream;	1025	
 H	net/minecraft/core/HolderLookup	listTags	()Ljava/util/stream/Stream;	1025	()Ljava/util/stream/Stream<Lnet/minecraft/core/HolderSet$Named<TT;>;>;
 H	net/minecraft/core/HolderLookup$Provider	listRegistries	()Ljava/util/stream/Stream;	1025	()Ljava/util/stream/Stream<Lnet/minecraft/resources/ResourceKey<+Lnet/minecraft/core/Registry<*>;>;>;
 H	net/minecraft/core/HolderLookup$Provider	lookup	(Lnet/minecraft/resources/ResourceKey;)Ljava/util/Optional;	1025	<T:Ljava/lang/Object;>(Lnet/minecraft/resources/ResourceKey<+Lnet/minecraft/core/Registry<+TT;>;>;)Ljava/util/Optional<Lnet/minecraft/core/HolderLookup$RegistryLookup<TT;>;>;
+H	net/minecraft/network/TickablePacketListener	tick	()V	1025	-
 H	net/minecraft/network/protocol/Packet	handle	(Lnet/minecraft/network/PacketListener;)V	1025	(TT;)V
 H	net/minecraft/network/protocol/Packet	type	()Lnet/minecraft/network/protocol/PacketType;	1025	()Lnet/minecraft/network/protocol/PacketType<+Lnet/minecraft/network/protocol/Packet<TT;>;>;
+H	net/minecraft/network/protocol/common/ServerCommonPacketListener	handleClientInformation	(Lnet/minecraft/network/protocol/common/ServerboundClientInformationPacket;)V	1025	-
+H	net/minecraft/network/protocol/common/ServerCommonPacketListener	handleCustomPayload	(Lnet/minecraft/network/protocol/common/ServerboundCustomPayloadPacket;)V	1025	-
+H	net/minecraft/network/protocol/common/ServerCommonPacketListener	handleKeepAlive	(Lnet/minecraft/network/protocol/common/ServerboundKeepAlivePacket;)V	1025	-
+H	net/minecraft/network/protocol/common/ServerCommonPacketListener	handlePong	(Lnet/minecraft/network/protocol/common/ServerboundPongPacket;)V	1025	-
+H	net/minecraft/network/protocol/common/ServerCommonPacketListener	handleResourcePackResponse	(Lnet/minecraft/network/protocol/common/ServerboundResourcePackPacket;)V	1025	-
+H	net/minecraft/network/protocol/cookie/ServerCookiePacketListener	handleCookieResponse	(Lnet/minecraft/network/protocol/cookie/ServerboundCookieResponsePacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleAcceptTeleportPacket	(Lnet/minecraft/network/protocol/game/ServerboundAcceptTeleportationPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleAnimate	(Lnet/minecraft/network/protocol/game/ServerboundSwingPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleBlockEntityTagQuery	(Lnet/minecraft/network/protocol/game/ServerboundBlockEntityTagQueryPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleChangeDifficulty	(Lnet/minecraft/network/protocol/game/ServerboundChangeDifficultyPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleChat	(Lnet/minecraft/network/protocol/game/ServerboundChatPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleChatAck	(Lnet/minecraft/network/protocol/game/ServerboundChatAckPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleChatCommand	(Lnet/minecraft/network/protocol/game/ServerboundChatCommandPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleChatSessionUpdate	(Lnet/minecraft/network/protocol/game/ServerboundChatSessionUpdatePacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleChunkBatchReceived	(Lnet/minecraft/network/protocol/game/ServerboundChunkBatchReceivedPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleClientCommand	(Lnet/minecraft/network/protocol/game/ServerboundClientCommandPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleConfigurationAcknowledged	(Lnet/minecraft/network/protocol/game/ServerboundConfigurationAcknowledgedPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleContainerButtonClick	(Lnet/minecraft/network/protocol/game/ServerboundContainerButtonClickPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleContainerClick	(Lnet/minecraft/network/protocol/game/ServerboundContainerClickPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleContainerClose	(Lnet/minecraft/network/protocol/game/ServerboundContainerClosePacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleContainerSlotStateChanged	(Lnet/minecraft/network/protocol/game/ServerboundContainerSlotStateChangedPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleCustomCommandSuggestions	(Lnet/minecraft/network/protocol/game/ServerboundCommandSuggestionPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleDebugSampleSubscription	(Lnet/minecraft/network/protocol/game/ServerboundDebugSampleSubscriptionPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleEditBook	(Lnet/minecraft/network/protocol/game/ServerboundEditBookPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleEntityTagQuery	(Lnet/minecraft/network/protocol/game/ServerboundEntityTagQueryPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleInteract	(Lnet/minecraft/network/protocol/game/ServerboundInteractPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleJigsawGenerate	(Lnet/minecraft/network/protocol/game/ServerboundJigsawGeneratePacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleLockDifficulty	(Lnet/minecraft/network/protocol/game/ServerboundLockDifficultyPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleMovePlayer	(Lnet/minecraft/network/protocol/game/ServerboundMovePlayerPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleMoveVehicle	(Lnet/minecraft/network/protocol/game/ServerboundMoveVehiclePacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handlePaddleBoat	(Lnet/minecraft/network/protocol/game/ServerboundPaddleBoatPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handlePickItem	(Lnet/minecraft/network/protocol/game/ServerboundPickItemPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handlePlaceRecipe	(Lnet/minecraft/network/protocol/game/ServerboundPlaceRecipePacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handlePlayerAbilities	(Lnet/minecraft/network/protocol/game/ServerboundPlayerAbilitiesPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handlePlayerAction	(Lnet/minecraft/network/protocol/game/ServerboundPlayerActionPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handlePlayerCommand	(Lnet/minecraft/network/protocol/game/ServerboundPlayerCommandPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handlePlayerInput	(Lnet/minecraft/network/protocol/game/ServerboundPlayerInputPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleRecipeBookChangeSettingsPacket	(Lnet/minecraft/network/protocol/game/ServerboundRecipeBookChangeSettingsPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleRecipeBookSeenRecipePacket	(Lnet/minecraft/network/protocol/game/ServerboundRecipeBookSeenRecipePacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleRenameItem	(Lnet/minecraft/network/protocol/game/ServerboundRenameItemPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleSeenAdvancements	(Lnet/minecraft/network/protocol/game/ServerboundSeenAdvancementsPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleSelectTrade	(Lnet/minecraft/network/protocol/game/ServerboundSelectTradePacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleSetBeaconPacket	(Lnet/minecraft/network/protocol/game/ServerboundSetBeaconPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleSetCarriedItem	(Lnet/minecraft/network/protocol/game/ServerboundSetCarriedItemPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleSetCommandBlock	(Lnet/minecraft/network/protocol/game/ServerboundSetCommandBlockPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleSetCommandMinecart	(Lnet/minecraft/network/protocol/game/ServerboundSetCommandMinecartPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleSetCreativeModeSlot	(Lnet/minecraft/network/protocol/game/ServerboundSetCreativeModeSlotPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleSetJigsawBlock	(Lnet/minecraft/network/protocol/game/ServerboundSetJigsawBlockPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleSetStructureBlock	(Lnet/minecraft/network/protocol/game/ServerboundSetStructureBlockPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleSignUpdate	(Lnet/minecraft/network/protocol/game/ServerboundSignUpdatePacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleSignedChatCommand	(Lnet/minecraft/network/protocol/game/ServerboundChatCommandSignedPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleTeleportToEntityPacket	(Lnet/minecraft/network/protocol/game/ServerboundTeleportToEntityPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleUseItem	(Lnet/minecraft/network/protocol/game/ServerboundUseItemPacket;)V	1025	-
+H	net/minecraft/network/protocol/game/ServerGamePacketListener	handleUseItemOn	(Lnet/minecraft/network/protocol/game/ServerboundUseItemOnPacket;)V	1025	-
+H	net/minecraft/network/protocol/ping/ServerPingPacketListener	handlePingRequest	(Lnet/minecraft/network/protocol/ping/ServerboundPingRequestPacket;)V	1025	-
 H	net/minecraft/server/ServerInterface	getLevelIdName	()Ljava/lang/String;	1025	-
 H	net/minecraft/server/ServerInterface	getPlayerNames	()[Ljava/lang/String;	1025	-
 H	net/minecraft/server/ServerInterface	getPluginNames	()Ljava/lang/String;	1025	-
@@ -2137,6 +2208,8 @@ H	net/minecraft/server/level/ChunkHolder$PlayerProvider	getPlayers	(Lnet/minecra
 H	net/minecraft/server/level/GeneratingChunkMap	acquireGeneration	(J)Lnet/minecraft/server/level/GenerationChunkHolder;	1025	-
 H	net/minecraft/server/level/GeneratingChunkMap	releaseGeneration	(Lnet/minecraft/server/level/GenerationChunkHolder;)V	1025	-
 H	net/minecraft/server/level/GeneratingChunkMap	runGenerationTasks	()V	1025	-
+H	net/minecraft/server/network/ServerPlayerConnection	getPlayer	()Lnet/minecraft/server/level/ServerPlayer;	1025	-
+H	net/minecraft/server/network/ServerPlayerConnection	send	(Lnet/minecraft/network/protocol/Packet;)V	1025	(Lnet/minecraft/network/protocol/Packet<*>;)V
 H	net/minecraft/util/OptionEnum	getId	()I	1025	-
 H	net/minecraft/util/OptionEnum	getKey	()Ljava/lang/String;	1025	-
 H	net/minecraft/util/RandomSource	fork	()Lnet/minecraft/util/RandomSource;	1025	-
@@ -2296,3 +2369,7 @@ H	net/minecraft/world/scores/ScoreHolder	getScoreboardName	()Ljava/lang/String;	
 H	net/minecraft/world/ticks/ContainerSingleItem	getTheItem	()Lnet/minecraft/world/item/ItemStack;	1025	-
 H	net/minecraft/world/ticks/ContainerSingleItem	setTheItem	(Lnet/minecraft/world/item/ItemStack;)V	1025	-
 H	net/minecraft/world/ticks/ContainerSingleItem$BlockContainerSingleItem	getContainerBlockEntity	()Lnet/minecraft/world/level/block/entity/BlockEntity;	1025	-
+H	org/bukkit/craftbukkit/entity/CraftPlayer$TransferCookieConnection	getProtocol	()Lnet/minecraft/network/ConnectionProtocol;	1025	-
+H	org/bukkit/craftbukkit/entity/CraftPlayer$TransferCookieConnection	isTransferred	()Z	1025	-
+H	org/bukkit/craftbukkit/entity/CraftPlayer$TransferCookieConnection	kickPlayer	(Lnet/minecraft/network/chat/Component;Lorg/bukkit/event/player/PlayerKickEvent$Cause;)V	1025	-
+H	org/bukkit/craftbukkit/entity/CraftPlayer$TransferCookieConnection	sendPacket	(Lnet/minecraft/network/protocol/Packet;)V	1025	(Lnet/minecraft/network/protocol/Packet<*>;)V
