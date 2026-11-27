@@ -967,6 +967,24 @@ public interface ChunkInternals {
         record SetTicksFrozen(int ticks) implements EntityEdit, EntityOp {}
 
         /**
+         * Paper {@code LivingEntity#startUsingItem(hand, forceUpdate)}(hand 0 주 손·1 다른 손): 손 아이템이 있고 쓰는 중이 아니거나 force 면 쓰기 시작
+         * (생물 깃발 사용 1·손 2, item_interact_start). 생물이 아니면 IllegalArgumentException.
+         */
+        record StartUsingItem(int hand, boolean force) implements EntityEdit, EntityOp {}
+
+        /** 바닐라 {@code LivingEntity#stopUsingItem}: 사용 깃발을 끄고 쓰던 중이었으면 item_interact_finish. 생물이 아니면 IllegalArgumentException. */
+        record StopUsingItem() implements EntityEdit, EntityOp {}
+
+        /** 바닐라 {@code LivingEntity#animateHurt(yaw)}: hurtDuration = 10, hurtTime = hurtDuration(yaw 는 쓰지 않는다). 생물이 아니면 IllegalArgumentException. */
+        record AnimateHurt() implements EntityEdit, EntityOp {}
+
+        /**
+         * 바닐라 낙타 자세: 0 {@code Camel#sitDown}, 1 {@code standUp}, 2 {@code standUpInstantly}. 낙타가 아니면 IllegalArgumentException.
+         * gameTime 은 부른 때 엔티티 월드의 게임 시간 — 기록한 조작을 재생할 때(월드 밖 엔티티) 쓰고, 월드 안 엔티티는 그 월드의 지금 시간을 쓴다.
+         */
+        record CamelPose(int action, long gameTime) implements EntityEdit, EntityOp {}
+
+        /**
          * 바이트 칸의 깃발 하나 켜고 끄기(엔티티 데이터 설계 D5): 주인 스레드에서 한 번에 읽고 {@code b | mask} 또는 {@code b & ~mask} 를 쓴다
          * (바닐라 {@code set(accessor, value)} 와 같은 훅). 칸이 바이트가 아니면 IllegalArgumentException. 돌려줌: null.
          */
@@ -1350,11 +1368,32 @@ public interface ChunkInternals {
     /** 그 월드 경계의 {중심 x, 중심 z, 크기}(바닐라 WorldBorder.getCenterX·getCenterZ·getSize, 지금 값). 아무 스레드. */
     double[] borderCenterAndSize(World world);
 
-    /** 지도 데이터의 겉모양(바닐라 MapItemSavedData 의 centerX·centerZ·dimension·scale). */
-    record MapInfo(int centerX, int centerZ, String dimension, byte scale) {}
+    /** 지도 데이터의 겉모양(바닐라 MapItemSavedData 의 centerX·centerZ·dimension·scale·trackingPosition·unlimitedTracking·locked). */
+    record MapInfo(int centerX, int centerZ, String dimension, byte scale, boolean trackingPosition, boolean unlimitedTracking, boolean locked) {}
 
     /** 그 번호의 지도(서버 전체 — 바닐라 Level#getMapData 는 오버월드 저장소에서 읽는다). 없으면 null. 아무 스레드. */
     MapInfo mapInfo(int mapId);
+
+    /**
+     * 그 번호 지도의 색 배열 **그 자체**(128*128 바이트, 바닐라 MapItemSavedData.colors 와 같은 공개 배열 — 쓰면 서버 지도가 바뀐다). 없으면 null.
+     * 직접 고친 칸은 {@link #mapMarkColorsDirty}로 알린다. 아무 스레드(배열 칸 쓰기는 따로 동기화되지 않는다 — 바닐라와 같다).
+     */
+    default byte[] mapColors(int mapId) { return null; }
+
+    /** 색 배열을 직접 고친 칸 (x, y)(0~127)을 알린다 — 저장 대상으로 올리고 그 지도를 든 플레이어에게 조각을 보낸다. 없는 지도면 무시. 아무 스레드. */
+    default void mapMarkColorsDirty(int mapId, int x, int y) {}
+
+    /** 바닐라 SavedData#setDirty: 그 지도를 저장 대상으로만 올린다(들고 있는 플레이어에게 다시 보내지 않는다). 없는 지도면 무시. 아무 스레드. */
+    default void mapMarkDirty(int mapId) {}
+
+    /**
+     * 바닐라 Level#setMapData: 그 번호에 지도를 둔다(있던 것은 바뀐다). 색 배열은 복사하지 않고 그 배열을 서버 지도의 배열로 쓴다 — 길이 16384.
+     * 서버 전체에 하나뿐인 저장소(바닐라는 오버월드 저장소)다. 아무 스레드.
+     */
+    default void mapPut(int mapId, MapInfo info, byte[] colors) { throw new UnsupportedOperationException("mapPut"); }
+
+    /** 바닐라 Level#getFreeMapId: 새 지도 번호를 하나 올려 준다(첫 번호 0). 아무 스레드. */
+    default int mapFreeId() { throw new UnsupportedOperationException("mapFreeId"); }
 
     /** 바이옴 기후·색(바닐라 Biome.ClimateSettings·BiomeSpecialEffects 의 값). 색 고정값이 없으면 -1. */
     record BiomeInfo(boolean hasPrecipitation, float temperature, boolean frozen, float downfall, int fogColor, int waterColor, int waterFogColor,
@@ -1384,7 +1423,8 @@ public interface ChunkInternals {
     /**
      * 엔티티의 지금 모습: 공유 플래그(바닐라 DATA_SHARED_FLAGS 비트 — 웅크림 1·질주 3·수영 4·투명 5·발광 6·겉날개 7), 자세 번호, 바닐라 getKnownMovement,
      * 날고 있는가(플레이어 능력), 관전 모드인가, 권한 단계(플레이어는 바닐라 getProfilePermissions — op 단계, 아니면 0. 엔티티는 0), 탈것·승객의 UUID(타는 순서),
-     * 지금 몸 크기(바닐라 getBbWidth·getBbHeight·getEyeHeight — 자세·아기·크기 칸에 따른 refreshDimensions 결과).
+     * 지금 몸 크기(바닐라 getBbWidth·getBbHeight·getEyeHeight — 자세·아기·크기 칸에 따른 refreshDimensions 결과),
+     * 생물 깃발(바닐라 DATA_LIVING_ENTITY_FLAGS — 사용 중 1·다른 손 2·회전 공격 4, 생물이 아니면 0).
      * <p>플레이어는 아무 스레드에서 최근 값을 읽는다(Paper 처럼 경쟁 읽기 — PlayerHandle 의 다른 읽기와 같다). 다른 엔티티는 그 엔티티의 주인 스레드에서만
      * (아니면 ThreadOwnershipException), 사라졌으면 IllegalStateException.
      */
@@ -1393,5 +1433,5 @@ public interface ChunkInternals {
     /** {@link #entityLook} 의 값. */
     record EntityLook(byte sharedFlags, int pose, double knownX, double knownY, double knownZ, boolean flying, boolean spectator,
                       int permissionLevel, java.util.UUID vehicle, java.util.List<java.util.UUID> passengers,
-                      float bbWidth, float bbHeight, float eyeHeight) {}
+                      float bbWidth, float bbHeight, float eyeHeight, byte livingFlags) {}
 }

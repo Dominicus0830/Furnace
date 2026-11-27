@@ -83,7 +83,7 @@ public final class PlayerMoveValidator {
         if (s.clientIsFloating && !p.isSleeping() && p.vehicle() == null && !p.vitals().isDeadOrDying()) {
             if (++s.aboveGroundTickCount > maximumFlyingTicks(p)) {
                 log.warn("{} was kicked for floating too long!", p.name());
-                p.kick(new org.domi.furnace.server.net.protocol.play.Disconnect(Text.translatable("multiplayer.disconnect.flying")));
+                p.kick(new org.domi.furnace.server.net.protocol.play.Disconnect(Text.translatable("multiplayer.disconnect.flying")), org.domi.furnace.api.event.player.PlayerKickEvent.Cause.FLYING_PLAYER);
             }
         } else {
             s.clientIsFloating = false;

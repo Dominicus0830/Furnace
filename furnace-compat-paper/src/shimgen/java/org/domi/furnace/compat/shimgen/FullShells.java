@@ -110,6 +110,18 @@ public final class FullShells {
     public static void main(String[] args) throws IOException {
         Path out = Path.of(args[0]);
         Path report = Path.of(args[1]);
+        Path baselinePath = args.length > 10 && !args[10].equals("-") ? Path.of(args[10]) : null;
+        Path areasPath = args.length > 11 && !args[11].equals("-") ? Path.of(args[11]) : null;
+        boolean writeBaseline = args.length > 12 && Boolean.parseBoolean(args[12]);
+        FullShells g = prepare(args);
+        Map<String, byte[]> classes = g.generate();
+        ShellMerge merge = g.mergeFromArgs(args, classes);
+        g.checkLinks(merge);
+        main2(g, classes, merge, out, report, baselinePath, areasPath, writeBaseline);
+    }
+
+    /** main 의 인자로 서명표·채움·연결·칸 번호표를 읽고 지문을 검사한 생성기(아직 generate 전). T-263 추론 도구(LinkInfer)도 같은 인자로 쓴다. */
+    static FullShells prepare(String[] args) throws IOException {
         Path fp = Path.of(args[2]);
         boolean writeFp = Boolean.parseBoolean(args[3]);
         List<Path> existingRoots = new ArrayList<>();
@@ -118,9 +130,6 @@ public final class FullShells {
         Path vanillaTable = Path.of(args[6]);
         Path apiTable = Path.of(args[7]);
         Path libsDir = Path.of(args[8]);
-        Path baselinePath = args.length > 10 && !args[10].equals("-") ? Path.of(args[10]) : null;
-        Path areasPath = args.length > 11 && !args[11].equals("-") ? Path.of(args[11]) : null;
-        boolean writeBaseline = args.length > 12 && Boolean.parseBoolean(args[12]);
         Path fillPath = args.length > 9 && !args[9].isBlank() && !args[9].equals("-") ? Path.of(args[9]) : null;
         Path paperFillPath = args.length > 13 && !args[13].equals("-") ? Path.of(args[13]) : null;
         Path fillFp = args.length > 14 && !args[14].equals("-") ? Path.of(args[14]) : null;
@@ -165,15 +174,21 @@ public final class FullShells {
         if (args.length > 16 && !args[16].isBlank() && !args[16].equals("-")) g.links = Links.read(Path.of(args[16]));
         // 엔티티 데이터 D3: 칸 번호표(서버 리소스) — 정적 EntityDataAccessor 필드 초기화
         if (args.length > 17 && !args[17].isBlank() && !args[17].equals("-")) g.dataSlots = readDataSlots(Path.of(args[17]));
-        Map<String, byte[]> classes = g.generate();
-        ShellMerge merge = null;
-        if (args.length > 15 && !args[15].isBlank()) {
-            Set<String> overlay = new HashSet<>();
-            for (String p : args[15].split(java.io.File.pathSeparator)) if (!p.isBlank()) overlay.addAll(Existing.classesIn(Path.of(p)));
-            merge = new ShellMerge(g, overlay);
-            classes.putAll(merge.merge());
-        }
-        g.checkLinks(merge);
+        return g;
+    }
+
+    /** T-261 합치기(인자 15 가 있으면): 합친 클래스를 classes 에 더하고 합치기를 돌려준다. 없으면 null. */
+    ShellMerge mergeFromArgs(String[] args, Map<String, byte[]> classes) throws IOException {
+        if (args.length <= 15 || args[15].isBlank()) return null;
+        Set<String> overlay = new HashSet<>();
+        for (String p : args[15].split(java.io.File.pathSeparator)) if (!p.isBlank()) overlay.addAll(Existing.classesIn(Path.of(p)));
+        ShellMerge merge = new ShellMerge(this, overlay);
+        classes.putAll(merge.merge());
+        return merge;
+    }
+
+    private static void main2(FullShells g, Map<String, byte[]> classes, ShellMerge merge, Path out, Path report, Path baselinePath, Path areasPath,
+            boolean writeBaseline) throws IOException {
         System.out.println("[full-shells] entity data slot fields: " + g.dataSlotsFilled + " in shells, " + (merge == null ? 0 : merge.dataSlots) + " merged into hand shims");
         deleteTree(out);
         for (Map.Entry<String, byte[]> e : classes.entrySet()) {
@@ -186,6 +201,7 @@ public final class FullShells {
             List<String> merged = new ArrayList<>();
             for (String n : classes.keySet()) if (!g.shells.contains(n)) merged.add(n);
             write(out.resolve(ShellMerge.MERGED), String.join("\n", merged) + "\n");
+            write(out.resolve(VALUE_BODIES), String.join("\n", g.valueFilled) + "\n");
         }
         CraftRoles roles = new CraftRoles(g);
         write(out.resolve(CraftRoles.PATH), roles.build(merge == null ? Set.of() : merge.bridges, g.conversions.converted));
@@ -353,7 +369,10 @@ public final class FullShells {
 
     Map<String, byte[]> generate() {
         select();
-        if (fillTable != null) fills = Fills.plan(this, fillTable);
+        if (fillTable != null) {
+            fills = Fills.plan(this, fillTable);
+            fills.planStaticReads(this, fillTable);   // 정적 필드 반환(G0 R)은 계획이 선 뒤 살아 있는 필드만
+        }
         if (!links.lines.isEmpty() || !links.problems.isEmpty()) {
             links.resolve(new LinkWorld(this));
             links.indexStaticFields(links.lineClasses());
@@ -433,7 +452,7 @@ public final class FullShells {
         else if (trapInit) initTrap(cw, n);
         else if (cf != null && !cf.statics.isEmpty() || !dataSlotFields(n).isEmpty()) staticClinit(cw, n, cf);
         cw.visitEnd();
-        int filledN = cf == null || trapInit ? 0 : cf.ctors.size() + cf.getters.size() + cf.statics.size() + cf.objectMethods.size() + (cf.enumConsts == null ? 0 : cf.enumConsts.size());
+        int filledN = cf == null || trapInit ? 0 : cf.ctors.size() + cf.getters.size() + cf.statics.size() + cf.objectMethods.size() + cf.values.size() + (cf.enumConsts == null ? 0 : cf.enumConsts.size());
         filledN += links.linkedMembers - linkedBefore;
         if (!trapInit) filledN += dataSlotFields(n).size();
         classStats.put(n, new int[]{shellMembers - shellBefore, filledN});
@@ -641,6 +660,12 @@ public final class FullShells {
             mv.visitEnd();
             return true;
         }
+        FillTable.Method vm = cf.values.get(key);
+        if (vm != null) {
+            valueBody(mv, m, vm);
+            valueFilled.add(owner + "#" + key);
+            return true;
+        }
         String om = switch (key) {
             case "toString()Ljava/lang/String;" -> "toString";
             case "hashCode()I" -> "hashCode";
@@ -655,6 +680,40 @@ public final class FullShells {
             return true;
         }
         return false;
+    }
+
+    /** 짧은 값 몸통을 쓴 멤버(소유자#이름+서술자) — 껍데기 jar 에 목록으로 넣어 FillParityTest 가 손 shim 에 더한 것까지 대조한다. */
+    final Set<String> valueFilled = new java.util.TreeSet<>();
+    static final String VALUE_BODIES = "META-INF/furnace/full-shells/value-bodies.txt";
+
+    /** 짧은 값 몸통(T-263 G0): 빈 void · 리터럴 · 인자(this) · 정적 필드를 돌려준다. */
+    static void valueBody(MethodVisitor mv, SigTable.Member m, FillTable.Method vm) {
+        Type rt = Type.getReturnType(m.desc());
+        mv.visitCode();
+        switch (vm.kind()) {
+            case 'E' -> { }
+            case 'K' -> pushOrLoad(mv, FillTable.Val.decode(vm.value()), rt, Map.of());
+            case 'A' -> {
+                int slot = Integer.parseInt(vm.value().substring(2));
+                Type at = Type.getObjectType("java/lang/Object");   // this
+                int s = vm.isStatic() ? 0 : 1;
+                for (Type t : Type.getArgumentTypes(m.desc())) {
+                    if (s == slot) at = t;
+                    s += t.getSize();
+                }
+                mv.visitVarInsn(at.getOpcode(Opcodes.ILOAD), slot);
+            }
+            case 'R' -> {
+                int dot = vm.value().indexOf('.'), colon = vm.value().indexOf(':', dot);
+                mv.visitFieldInsn(Opcodes.GETSTATIC, vm.value().substring(0, dot), vm.value().substring(dot + 1, colon), vm.value().substring(colon + 1));
+            }
+            default -> throw new IllegalStateException("value body kind " + vm.kind());
+        }
+        mv.visitInsn(rt.getOpcode(Opcodes.IRETURN));
+        // 크기를 직접 적는다 — 합치기(ShellMerge)의 ClassWriter 는 크기를 계산하지 않는다
+        int locals = (vm.isStatic() ? 0 : 1) + (Type.getArgumentsAndReturnSizes(m.desc()) >> 2) - 1;
+        mv.visitMaxs(rt.getSize(), locals);
+        mv.visitEnd();
     }
 
     /** javac 가 레코드에 쓰는 것과 같은 ObjectMethods 부트스트랩(성분 이름 목록 + 필드 읽기 핸들). */

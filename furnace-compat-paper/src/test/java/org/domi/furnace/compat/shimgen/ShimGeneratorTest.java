@@ -2,6 +2,7 @@ package org.domi.furnace.compat.shimgen;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -653,6 +654,44 @@ class ShimGeneratorTest {
         assertTrue(tag.contains("boolean inform(int"), tag);
     }
 
+    /** 조각 머리가 더 선언한 인터페이스(Furnace 전용)는 생성 머리의 잠금 인터페이스 뒤에 유지된다. */
+    @Test
+    void fragmentHeaderExtraInterfacesSurvive() throws Exception {
+        String lock = String.join("\n", "#furnace-shim-lock\t1\ttest",
+                "C\tnet/minecraft/zz/Named\t1537\tjava/lang/Object\t-\t-\t-\tt",
+                "C\tnet/minecraft/zz/Tag\t33\tjava/lang/Object\tnet/minecraft/zz/Named\t-\t-\tt", "");
+        String spec = "class net.minecraft.zz.Named\nclass net.minecraft.zz.Tag\n";
+        Built b = build(spec, lock, Map.of("net/minecraft/zz/Tag",
+                "package net.minecraft.zz;\n\nclass Tag implements java.lang.Runnable, java.util.function.Supplier<String> {\n    public void run() {}\n    public String get() { return \"x\"; }\n}\n"));
+        Class<?> tag = b.loader().loadClass("net.minecraft.zz.Tag");
+        List<String> names = Arrays.stream(tag.getInterfaces()).map(Class::getName).toList();
+        assertEquals(List.of("net.minecraft.zz.Named", "java.lang.Runnable", "java.util.function.Supplier"), names);
+        // 이미 잠금에 있는 인터페이스를 또 적어도 겹치지 않는다
+        Built d = build(spec, lock, Map.of("net/minecraft/zz/Tag",
+                "package net.minecraft.zz;\n\nclass Tag implements net.minecraft.zz.Named {\n}\n"));
+        assertEquals(1, d.loader().loadClass("net.minecraft.zz.Tag").getInterfaces().length);
+        // 짧은 이름(import 로 쓴 것)도 잠금의 인터페이스와 같으면 겹치지 않는다
+        Built f = build(spec, lock, Map.of("net/minecraft/zz/Tag",
+                "package net.minecraft.zz;\n\nimport net.minecraft.zz.Named;\n\nclass Tag implements Named, Runnable {\n    public void run() {}\n}\n"));
+        assertEquals(2, f.loader().loadClass("net.minecraft.zz.Tag").getInterfaces().length);
+        // 바닐라가 여기서 구현하지 않는 net.minecraft 인터페이스를 붙이면 막는다
+        Path odd = Files.createDirectories(tmp.resolve("fragY/net/minecraft/zz"));
+        Files.writeString(odd.resolve("Tag.java"), "package net.minecraft.zz;\n\nclass Tag implements net.minecraft.other.Extra {\n}\n", StandardCharsets.UTF_8);
+        ShimSpec sp2 = new ShimSpec();
+        sp2.parse("t.spec", spec);
+        IllegalStateException e2 = assertThrows(IllegalStateException.class,
+                () -> new ShimGenerator(sp2, ShimLock.parse(lock), tmp.resolve("fragY"), List.of(), List.of()).generate());
+        assertTrue(e2.getMessage().contains("only Furnace-own interfaces"), e2.getMessage());
+        // 상위 클래스를 조각 머리에서 바꾸려 하면 막는다
+        ShimSpec sp = new ShimSpec();
+        sp.parse("t.spec", spec);
+        Path fdir = Files.createDirectories(tmp.resolve("fragX/net/minecraft/zz"));
+        Files.writeString(fdir.resolve("Tag.java"), "package net.minecraft.zz;\n\nclass Tag extends Object implements Runnable {\n    public void run() {}\n}\n", StandardCharsets.UTF_8);
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> new ShimGenerator(sp, ShimLock.parse(lock), tmp.resolve("fragX"), List.of(), List.of()).generate());
+        assertTrue(e.getMessage().contains("fragment header"), e.getMessage());
+    }
+
     /** 잠금 A 줄의 애노테이션이 생성 머리에 붙고, 조각이 이미 쓰면 겹치지 않는다. */
     @Test
     void copiedClassAnnotationsLandOnTheHeader() throws Exception {
@@ -686,5 +725,37 @@ class ShimGeneratorTest {
         Class<?> flow = b.loader().loadClass("net.minecraft.zz.Flow");
         assertEquals("[UP, DOWN]", Arrays.toString(flow.getEnumConstants()));
         assertEquals("down", flow.getMethod("id").invoke(flow.getEnumConstants()[1]));
+    }
+
+    /** 상수 줄 `NAME = (인자) {}` — 상수마다 몸통(익명 하위 클래스)이 붙는 열거형. */
+    @Test
+    void enumConstantsCanHaveBodies() throws Exception {
+        String spec = "class net.minecraft.zz.Flow\n  UP = (\"up\") {}\n  DOWN = (\"down\") {}\n";
+        String lock = String.join("\n", "#furnace-shim-lock\t1\ttest",
+                "C\tnet/minecraft/zz/Flow\t16433\tjava/lang/Enum\t-\tLjava/lang/Enum<Lnet/minecraft/zz/Flow;>;\t-\tt",
+                "E\tnet/minecraft/zz/Flow\t2",
+                "F\tnet/minecraft/zz/Flow\tDOWN\tLnet/minecraft/zz/Flow;\t16409\t-",
+                "F\tnet/minecraft/zz/Flow\tUP\tLnet/minecraft/zz/Flow;\t16409\t-", "");
+        Built b = build(spec, lock, Map.of("net/minecraft/zz/Flow",
+                "package net.minecraft.zz;\n\nenum Flow {\n    private final String id;\n    Flow(String id) { this.id = id; }\n    public String id() { return id; }\n}\n"));
+        Class<?> flow = b.loader().loadClass("net.minecraft.zz.Flow");
+        assertEquals("[UP, DOWN]", Arrays.toString(flow.getEnumConstants()));
+        assertEquals("down", flow.getMethod("id").invoke(flow.getEnumConstants()[1]));
+        assertNotSame(flow, flow.getEnumConstants()[0].getClass());
+    }
+
+    /** 상수 몸통은 정확히 {} 만 — 코드가 든 몸통은 생성기 오류. */
+    @Test
+    void enumConstantBodyMustBeEmpty() throws Exception {
+        String spec = "class net.minecraft.zz.Flow\n  UP = (\"up\") { int x; }\n";
+        String lock = String.join("\n", "#furnace-shim-lock\t1\ttest",
+                "C\tnet/minecraft/zz/Flow\t16433\tjava/lang/Enum\t-\tLjava/lang/Enum<Lnet/minecraft/zz/Flow;>;\t-\tt",
+                "E\tnet/minecraft/zz/Flow\t1",
+                "F\tnet/minecraft/zz/Flow\tUP\tLnet/minecraft/zz/Flow;\t16409\t-", "");
+        ShimSpec sp = new ShimSpec();
+        sp.parse("t.spec", spec);
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> new ShimGenerator(sp, ShimLock.parse(lock), tmp.resolve("nofrag5"), List.of(), List.of()).generate());
+        assertTrue(e.getMessage().contains("exactly {}"), e.getMessage());
     }
 }

@@ -91,6 +91,12 @@ class net.minecraft.world.entity.LivingEntity  owner=org.domi.furnace.compat.nms
   # <<< 엔티티 데이터 칸 상수
   isAlive -> @hand read=snapshot
   isFallFlying -> @hand read=owner
+  isUsingItem -> @hand read=owner
+  getUsedItemHand -> @hand read=owner
+  startUsingItem(Lnet/minecraft/world/InteractionHand;)V -> @hand write
+  startUsingItem(Lnet/minecraft/world/InteractionHand;Z)V -> @hand write
+  stopUsingItem -> @hand write
+  animateHurt -> @hand write
 class net.minecraft.world.entity.player.Player  owner=org.domi.furnace.compat.nms.NmsEntityOwner
   # >>> 엔티티 데이터 칸 상수(tools/compat/entity-data-spec.py 가 만든다 — 손으로 고치지 않는다)
   DATA_PLAYER_MAIN_HAND = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.player.Player.class, "DATA_PLAYER_MAIN_HAND")
@@ -155,3 +161,20 @@ class net.minecraft.world.entity.decoration.ArmorStand
   <init>(Lnet/minecraft/world/level/Level;DDD)V -> @hand
 class net.minecraft.world.entity.AreaEffectCloud
   <init>(Lnet/minecraft/world/level/Level;DDD)V -> @hand
+# 낙타 앉기·서기(FancyNpcs): 서버 낙타가 바닐라 규칙으로, 월드 밖 낙타는 기록·재생
+class net.minecraft.world.entity.animal.camel.Camel  owner=org.domi.furnace.compat.nms.NmsEntityOwner
+  # >>> 엔티티 데이터 칸 상수(tools/compat/entity-data-spec.py 가 만든다 — 손으로 고치지 않는다)
+  DASH = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.animal.camel.Camel.class, "DASH")
+  LAST_POSE_CHANGE_TICK = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.animal.camel.Camel.class, "LAST_POSE_CHANGE_TICK")
+  # <<< 엔티티 데이터 칸 상수
+  sitDown -> @hand write
+  standUp -> @hand write
+  standUpInstantly -> @hand write
+# 염소 뿔 달기·떼기(FancyNpcs): 반응 없는 칸 두 번 쓰기
+class net.minecraft.world.entity.animal.goat.Goat  owner=org.domi.furnace.compat.nms.NmsEntityOwner
+  # >>> 엔티티 데이터 칸 상수(tools/compat/entity-data-spec.py 가 만든다 — 손으로 고치지 않는다)
+  DATA_HAS_LEFT_HORN = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.animal.goat.Goat.class, "DATA_HAS_LEFT_HORN")
+  DATA_HAS_RIGHT_HORN = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.animal.goat.Goat.class, "DATA_HAS_RIGHT_HORN")
+  # <<< 엔티티 데이터 칸 상수
+  addHorns -> @hand write
+  removeHorns -> @hand write

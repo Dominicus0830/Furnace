@@ -33,7 +33,7 @@ import org.objectweb.asm.tree.MethodNode;
  * 다르면 실패 — 기준선에 예외로 적어 초록을 만들지 않는다(AGENTS.md 규칙 5). 비교할 바닐라가 만들어지지 않는 입력은 "기준 불가"로 세어 숫자만 보고한다.
  *
  * <p>종류: 열거형 상수(이름·서수·원시/문자열 필드 값), 정적 리터럴 필드, 단순 생성자 + 단순 읽기(같은 입력으로 만든 두 객체의 읽기 결과),
- * 레코드 기본 메서드(hashCode·toString·equals). 바닐라 jar 는 캐시에서 읽기만 한다(T-235 {@code furnace.vdiff.classpath} 와 같은 목록).
+ * 레코드 기본 메서드(hashCode·toString·equals), 짧은 값 몸통(T-263 G0 — 생성기가 jar 에 넣은 목록대로, 손 shim 에 더한 것 포함). 바닐라 jar 는 캐시에서 읽기만 한다(T-235 {@code furnace.vdiff.classpath} 와 같은 목록).
  */
 @Tag("full-shells")
 class FillParityTest {
@@ -41,6 +41,10 @@ class FillParityTest {
 
     final List<String> failures = new ArrayList<>();
     int refGetters, classes, enumConsts, statics, instances, getters, recordChecks, referenceUnusable, noVanilla;
+    /** 짧은 값 몸통(T-263 G0): 대조한 수, 참조 반환 가운데 동일성(인자·this)으로 본 수, 대조 못 한 수(추상·인터페이스·초기화에 서버 필요). */
+    int valueBodies, valueIdentity, valueRefStatic, valueNotComparable, valueNeedsServer;
+    /** 짧은 값 몸통 목록(생성기가 jar 에 넣은 것) — 읽기 대조에서는 빼고 checkValueBody 가 본다. */
+    final java.util.Set<String> valueEntries = new java.util.HashSet<>();
 
     @Test
     void filledMembersMatchVanilla() throws Exception {
@@ -65,6 +69,12 @@ class FillParityTest {
                 for (String l : new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).split("\n")) if (!l.isBlank()) merged.add(l.trim());
             }
             names.removeIf(merged::contains);
+            List<String> valueList = new ArrayList<>();
+            JarEntry ve = jf.getJarEntry(FullShells.VALUE_BODIES);
+            if (ve != null) try (var in = jf.getInputStream(ve)) {
+                for (String l : new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).split("\n")) if (!l.isBlank()) valueList.add(l.trim());
+            }
+            valueEntries.addAll(valueList);
             try (URLClassLoader shell = new URLClassLoader("shells", shellUrls.toArray(URL[]::new), ClassLoader.getPlatformClassLoader());
                  URLClassLoader van = new URLClassLoader("vanilla", vanUrls.toArray(URL[]::new), ClassLoader.getPlatformClassLoader())) {
                 bootstrap(van);
@@ -95,11 +105,13 @@ class FillParityTest {
                         failures.add(n + ": " + t);
                     }
                 }
+                for (String v : valueList) checkValueBody(v, shell, van);
             }
         }
         // CI 로그에는 숫자만 — 이름은 실패 메시지에만(실패해야 나온다)
         System.out.println("[fill-parity] classes=" + classes + " enumConstants=" + enumConsts + " statics=" + statics + " instances=" + instances + " getters=" + getters
-                + " refGetters=" + refGetters + " recordChecks=" + recordChecks + " referenceUnusable=" + referenceUnusable + " noVanillaClass=" + noVanilla + " failures=" + failures.size());
+                + " refGetters=" + refGetters + " recordChecks=" + recordChecks + " referenceUnusable=" + referenceUnusable + " noVanillaClass=" + noVanilla
+                + " valueBodies=" + valueBodies + "(identity " + valueIdentity + ", static refs " + valueRefStatic + ", not comparable " + valueNotComparable + ", hand shim init needs a server " + valueNeedsServer + ")" + " failures=" + failures.size());
         // 대조 수가 줄어도 초록이 되지 않게 종류별 하한(2026-11-23 측정의 절반 안팎)과 바닐라 클래스 없음 상한
         assertTrue(classes > 900, "filled classes: " + classes);
         assertTrue(enumConsts > 250, "enum constants compared: " + enumConsts);
@@ -108,7 +120,144 @@ class FillParityTest {
         assertTrue(refGetters > 100, "reference getters compared by identity: " + refGetters);
         assertTrue(recordChecks > 250, "record checks: " + recordChecks);
         assertTrue(noVanilla < 20, "classes without a vanilla counterpart: " + noVanilla);
+        // 짧은 값 몸통(T-263 G0, 2026-11-27 측정 1,395·동일성 37 의 절반 안팎)
+        // 하한은 실제 수(2026-11-27: 1,395 · 같음 확인 37)의 약 95% — 대조가 조용히 줄면 잡는다
+        assertTrue(valueBodies >= 1320, "value bodies compared: " + valueBodies);
+        assertTrue(valueIdentity >= 35, "value bodies compared by identity (argument or this): " + valueIdentity);
         assertEquals(List.of(), failures.stream().limit(30).toList(), "filled members must match the vanilla values");
+    }
+
+    /**
+     * 짧은 값 몸통 하나(소유자#이름+서술자): 같은 인자로 바닐라와 껍데기를 불러 견준다. 인스턴스 메서드는 생성자 없이 만든 객체에 부른다
+     * (값 몸통은 필드를 보지 않는다). 원시·문자열 반환은 값이 같아야 하고, 참조 반환은 바닐라가 인자·this 를 돌려주면 껍데기도 같은 자리의 것을,
+     * null 이면 null 을, 열거형이면 같은 이름을, 그 밖(정적 필드 객체)은 둘 다 null 이 아님을 본다.
+     */
+    /** 바이트코드 검증·형식 오류(원인 사슬 포함): 생성기 잘못이라 "대조 못 함"으로 넘기지 않는다. */
+    static boolean badBytes(Throwable t) {
+        for (Throwable c = t; c != null; c = c.getCause()) if (c instanceof VerifyError || c instanceof ClassFormatError) return true;
+        return false;
+    }
+
+    void checkValueBody(String entry, ClassLoader shell, ClassLoader van) {
+        int hash = entry.indexOf('#'), paren = entry.indexOf('(', hash);
+        String owner = entry.substring(0, hash).replace('/', '.'), name = entry.substring(hash + 1, paren), desc = entry.substring(paren);
+        Class<?> sc, vc;
+        try {
+            sc = Class.forName(owner, true, shell);
+        } catch (Throwable t) {
+            if (badBytes(t)) {
+                failures.add(entry + ": shell class does not verify " + t);   // 생성기가 낸 바이트가 틀렸다 — 대조 못 함이 아니라 실패
+                return;
+            }
+            valueNotComparable++;   // 손 shim 의 정적 초기화가 서버를 요구 등 — 껍데기 클래스 초기화 실패는 위 클래스 대조가 실패로 잡는다
+            return;
+        }
+        try {
+            vc = Class.forName(owner, true, van);
+        } catch (Throwable t) {
+            valueNotComparable++;
+            return;
+        }
+        Method sm, vm;
+        try {
+            sm = findMethod(sc, name, desc);
+            vm = findMethod(vc, name, desc);
+        } catch (LinkageError e) {
+            if (badBytes(e)) {
+                failures.add(entry + ": shell class does not verify " + e);
+                return;
+            }
+            valueNotComparable++;   // 메서드 목록을 푸는 데 없는 형식(Paper 내부 등)이 필요하다
+            return;
+        }
+        if (sm == null || vm == null) {
+            failures.add(entry + ": method missing (shell " + (sm != null) + ", vanilla " + (vm != null) + ")");
+            return;
+        }
+        boolean isStatic = Modifier.isStatic(vm.getModifiers());
+        Object so = null, vo = null;
+        if (!isStatic) {
+            if (sc.isInterface() || Modifier.isAbstract(sc.getModifiers()) || Modifier.isAbstract(vc.getModifiers())) {
+                valueNotComparable++;
+                return;
+            }
+            try {
+                so = unsafe().allocateInstance(sc);
+                vo = unsafe().allocateInstance(vc);
+            } catch (Throwable t) {
+                valueNotComparable++;
+                return;
+            }
+        }
+        Object[] args = sample(vm.getParameterTypes());
+        Object vr, sr;
+        try {
+            vm.setAccessible(true);
+            vr = vm.invoke(vo, args);
+        } catch (Throwable t) {
+            valueNotComparable++;
+            return;
+        }
+        try {
+            sm.setAccessible(true);
+            sr = sm.invoke(so, args);
+        } catch (Throwable t) {
+            Throwable c = t instanceof java.lang.reflect.InvocationTargetException ite ? ite.getCause() : t;
+            if (badBytes(c)) {
+                failures.add(entry + ": shell value body does not verify " + c);
+                return;
+            }
+            if (c instanceof ExceptionInInitializerError || c instanceof NoClassDefFoundError) {
+                valueNeedsServer++;   // 정적 필드 반환(R)이 읽는 손 shim(소리·레지스트리 등)의 정적 초기화가 서버를 요구 — 시험 로더 밖 몫
+                return;
+            }
+            failures.add(entry + ": shell value body threw " + c);
+            return;
+        }
+        valueBodies++;
+        Class<?> rt = vm.getReturnType();
+        if (rt == void.class) return;
+        if (simple(rt) || rt.isPrimitive()) {
+            same(entry, vr, sr);
+            return;
+        }
+        if (vr == null) {
+            if (sr != null) failures.add(entry + ": vanilla returned null, shell " + sr);
+            return;
+        }
+        if (vr == vo) {
+            valueIdentity++;
+            if (sr != so) failures.add(entry + ": vanilla returned this, shell did not");
+            return;
+        }
+        for (int i = 0; i < args.length; i++) {
+            if (args[i] != null && vr == args[i]) {
+                valueIdentity++;
+                if (sr != args[i]) failures.add(entry + ": vanilla returned argument " + i + ", shell did not");
+                return;
+            }
+        }
+        if (vr instanceof Enum<?> ve) {
+            if (!(sr instanceof Enum<?> se) || !se.name().equals(ve.name())) failures.add(entry + ": enum differs (vanilla=" + ve + " shell=" + sr + ")");
+            return;
+        }
+        if (vr instanceof String || vr instanceof Number || vr instanceof Boolean) {
+            same(entry, vr, sr);
+            return;
+        }
+        valueRefStatic++;
+        if (sr == null) failures.add(entry + ": vanilla returned an object, shell null");
+    }
+
+    static Method findMethod(Class<?> c, String name, String desc) {
+        for (Method m : c.getDeclaredMethods()) if (m.getName().equals(name) && org.objectweb.asm.Type.getMethodDescriptor(m).equals(desc)) return m;
+        return null;
+    }
+
+    static sun.misc.Unsafe unsafe() throws ReflectiveOperationException {
+        Field f = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+        f.setAccessible(true);
+        return (sun.misc.Unsafe) f.get(null);
     }
 
     /** 표지 없는 멤버가 하나라도 있나(채운 클래스). */
@@ -189,7 +338,7 @@ class FillParityTest {
             instances++;
             for (MethodNode gm : cn.methods) {
                 if (gm.name.equals("<init>") || (gm.access & Opcodes.ACC_STATIC) != 0 || !isFilledMethod(cn, gm) || !gm.desc.startsWith("()")) continue;
-                if (gm.name.equals("hashCode") || gm.name.equals("toString")) continue;
+                if (gm.name.equals("hashCode") || gm.name.equals("toString") || valueEntries.contains(cn.name + "#" + gm.name + gm.desc)) continue;
                 Method s = sc.getDeclaredMethod(gm.name);
                 Method v = vc.getDeclaredMethod(gm.name);
                 s.setAccessible(true);

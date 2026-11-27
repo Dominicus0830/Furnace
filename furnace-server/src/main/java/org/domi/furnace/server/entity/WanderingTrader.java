@@ -204,34 +204,6 @@ public final class WanderingTrader extends PathfinderMob implements Merchant, In
         if (despawnDelay > 0 && !isTrading() && --despawnDelay == 0) discard();
     }
 
-    @Override
-    protected int getUseDuration(ItemStack s) {
-        String n = ItemTools.itemName(s);
-        return n.equals("minecraft:potion") || n.equals("minecraft:milk_bucket") ? 32 : super.getUseDuration(s);
-    }
-
-    /** 마시기 끝(바닐라 completeUsingItem): 물약은 효과를 받고 빈 병, 우유는 효과를 모두 지우고 양동이가 손에 남는다. */
-    @Override
-    protected void completeUsingItem() {
-        EquipmentSlot slot = getUsedItemHand() == 0 ? EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND;
-        ItemStack held = getItemBySlot(slot);
-        String leftover = null;
-        switch (ItemTools.itemName(held)) {
-            case "minecraft:potion" -> {
-                for (MobEffectInstance e : Consuming.potionEffects(held)) addEffect(e);
-                leftover = "glass_bottle";
-                gameEvent(org.domi.furnace.server.world.gameevent.GameEvent.DRINK);   // PotionItem.finishUsingItem
-            }
-            case "minecraft:milk_bucket" -> {
-                removeAllEffects();
-                leftover = "bucket";
-            }
-            default -> { }
-        }
-        if (leftover != null) setItemSlot(slot, new ItemStack(ItemContext.id("minecraft:item", leftover), 1));
-        stopUsingItem();
-    }
-
     // ------------------------------------------------------------------ 저장
 
     @Override

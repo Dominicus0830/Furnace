@@ -616,7 +616,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
             if (clientVehicleIsFloating) {
                 if (++aboveGroundVehicleTickCount > PlayerMoveValidator.maximumFlyingTicks(VehicleMoves.gravityOf(root))) {
                     org.slf4j.LoggerFactory.getLogger(Player.class).warn("{} was kicked for floating a vehicle too long!", name());
-                    kick(new org.domi.furnace.server.net.protocol.play.Disconnect(org.domi.furnace.api.text.Text.translatable("multiplayer.disconnect.flying")));
+                    kick(new org.domi.furnace.server.net.protocol.play.Disconnect(org.domi.furnace.api.text.Text.translatable("multiplayer.disconnect.flying")), org.domi.furnace.api.event.player.PlayerKickEvent.Cause.FLYING_VEHICLE);
                 }
             } else {
                 clientVehicleIsFloating = false;
@@ -906,9 +906,9 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
      * 사유 패킷을 보낸 뒤 연결을 닫는다(중복 로그인 킥 등). 어느 스레드에서든 안전 — 다만 PlayerKickEvent 는 부른 스레드에서 나니
      * 채팅 스레드 같은 비동기 문맥에서는 {@code ServerCore.kickOnGlobal} 을 쓴다. 플러그인이 취소했으면 false.
      */
-    public boolean kick(Packet packet) {
+    public boolean kick(Packet packet, org.domi.furnace.api.event.player.PlayerKickEvent.Cause cause) {
         if (packet instanceof org.domi.furnace.server.net.protocol.play.Disconnect d && !isDisconnected()) {   // 플러그인 PlayerKickEvent: 사유 바꾸기·취소
-            org.domi.furnace.api.text.Text reason = vitals().env().gameEvents().playerKick(this, d.reason());
+            org.domi.furnace.api.text.Text reason = vitals().env().gameEvents().playerKick(this, d.reason(), cause);
             if (reason == null) return false;
             if (reason != d.reason()) packet = new org.domi.furnace.server.net.protocol.play.Disconnect(reason);
         }
@@ -916,7 +916,10 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
         return true;
     }
 
-    /** 취소할 수 없는 내보내기(같은 계정 중복 접속) — 플러그인 이벤트 없이. */
+    /** 원인을 모르는 내보내기(UNKNOWN) — 가능하면 원인을 싣는 {@link #kick(Packet, org.domi.furnace.api.event.player.PlayerKickEvent.Cause)} 를 쓴다. */
+    public boolean kick(Packet packet) { return kick(packet, org.domi.furnace.api.event.player.PlayerKickEvent.Cause.UNKNOWN); }
+
+    /** 취소할 수 없는 내보내기(서버 종료 등) — 플러그인 이벤트 없이. */
     public void kickForced(Packet packet) {
         if (packet instanceof org.domi.furnace.server.net.protocol.play.Disconnect d) {
             kickReason = d.reason();
@@ -1252,6 +1255,13 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public byte livingFlags() {
         if (usingHand >= 0) usedOffhand = usingHand == 1;
         return (byte) ((usingHand >= 0 ? 1 : 0) | (usedOffhand ? 2 : 0) | (autoSpinAttackTicks > 0 ? 4 : 0));
+    }
+
+    /** {@link #livingFlags} 와 같은 값이되 손 비트를 기억하지 않는다 — 다른 스레드의 경쟁 읽기용(엔티티 모습). */
+    public byte livingFlagsNow() {
+        int using = usingHand;
+        boolean off = using >= 0 ? using == 1 : usedOffhand;
+        return (byte) ((using >= 0 ? 1 : 0) | (off ? 2 : 0) | (autoSpinAttackTicks > 0 ? 4 : 0));
     }
 
     // ------------------------------------------------------------------ 근접 공격 상태(Player.attackStrengthTicker·autoSpinAttack*) — region 스레드 전용

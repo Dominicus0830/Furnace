@@ -130,7 +130,7 @@ public final class PlayerListCommands {
         if (!server.settings().get().enforceWhitelist || !server.lists().isUsingWhitelist()) return;
         for (Player p : server.players()) {
             if (!server.lists().isWhiteListed(ServerCore.profileOf(p))) {
-                p.kick(new Disconnect(Text.translatable("multiplayer.disconnect.not_whitelisted")));
+                p.kick(new Disconnect(Text.translatable("multiplayer.disconnect.not_whitelisted")), org.domi.furnace.api.event.player.PlayerKickEvent.Cause.WHITELIST);
             }
         }
     }
@@ -242,7 +242,7 @@ public final class PlayerListCommands {
                 i++;
                 source.sendSuccess(() -> Text.translatable("commands.ban.success", name(p), Text.text(entry.getReason())), true);
                 Player online = source.getServer().playerByUuid(p.id());
-                if (online != null) online.kick(new Disconnect(Text.translatable("multiplayer.disconnect.banned")));
+                if (online != null) online.kick(new Disconnect(Text.translatable("multiplayer.disconnect.banned")), org.domi.furnace.api.event.player.PlayerKickEvent.Cause.BANNED);
             }
         }
         if (i == 0) throw ERROR_ALREADY_BANNED.create();
@@ -276,7 +276,7 @@ public final class PlayerListCommands {
         if (!affected.isEmpty()) {
             source.sendSuccess(() -> Text.translatable("commands.banip.info", affected.size(), EntitySelector.joinNames(affected)), true);
         }
-        for (Player p : affected) p.kick(new Disconnect(Text.translatable("multiplayer.disconnect.ip_banned")));
+        for (Player p : affected) p.kick(new Disconnect(Text.translatable("multiplayer.disconnect.ip_banned")), org.domi.furnace.api.event.player.PlayerKickEvent.Cause.IP_BANNED);
         return affected.size();
     }
 

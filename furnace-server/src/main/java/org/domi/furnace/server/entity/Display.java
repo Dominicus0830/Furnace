@@ -55,10 +55,10 @@ public abstract class Display extends Entity {
         entityData.set(DATA_RIGHT_ROT, rightRot);
     }
 
+    /** 너비·높이 칸(클라이언트 그리기 범위). 바닐라 Display 는 몸 크기·상자를 바꾸지 않는다(종류 기본 0×0). */
     public void setSize(float w, float h) {
         entityData.set(DATA_WIDTH, w);
         entityData.set(DATA_HEIGHT, h);
-        setDimensions(w, h, dimEye);
     }
 
     private static NbtList floats(float[] v) {

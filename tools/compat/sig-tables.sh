@@ -12,6 +12,9 @@ if line=$("${G[@]}" :worldgen-oracle:printPaperServerJar 2>/dev/null | grep '^PA
   "${G[@]}" -PskipOracle=true :vanilla-extract:run -Pmc="$MC" -Pmode=sig-table -PsigJar="${line#PAPER_SERVER_JAR=}" -PsigName=paper-server -PsigPrefix=net/minecraft/,com/mojang/,org/bukkit/,io/papermc/,com/destroystokyo/
   # T-262: Paper 서버 jar 의 채움 표 — 껍데기는 바닐라·Paper 두 표에서 줄이 같은 것만 채운다(Paper 가 바꾼 클래스를 바닐라 값으로 채우지 않게)
   "${G[@]}" -PskipOracle=true :vanilla-extract:run -Pmc="$MC" -Pmode=fill-table -PsigJar="${line#PAPER_SERVER_JAR=}" -PsigName=paper -PsigPrefix=net/minecraft/,com/mojang/
+  # T-263: 연결 추론(inferLinks·adoptLinks)이 바닐라와 Paper 몸통을 견주도록 캐시에 한 벌(커밋·배포 안 함)
+  mkdir -p "${FURNACE_VANILLA_CACHE:-$HOME/.cache/furnace-vanilla-extract}/$MC/work"
+  cp "${line#PAPER_SERVER_JAR=}" "${FURNACE_VANILLA_CACHE:-$HOME/.cache/furnace-vanilla-extract}/$MC/work/paper-server-mojmap.jar"
 else
   echo "[서명표] Paper 서버 jar 를 못 구함(Paper 저장소에 안 닿음) — Paper 표 없음, 바닐라·paper-api 표만 만들었다"
 fi

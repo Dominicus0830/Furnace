@@ -14,6 +14,21 @@ final class JavaTypes {
     private JavaTypes() {}
 
     /** 내부 이름(net/minecraft/core/Direction$Axis) → 소스 이름(net.minecraft.core.Direction.Axis). */
+    /** "A, B<C, D>, E" 처럼 쉼표로 이은 형식 목록을 꺾쇠 밖 쉼표로 가른다(공백은 다듬는다). */
+    static List<String> splitTypeList(String list) {
+        List<String> out = new java.util.ArrayList<>();
+        int depth = 0, start = 0;
+        for (int i = 0; i < list.length(); i++) {
+            char ch = list.charAt(i);
+            if (ch == '<') depth++;
+            else if (ch == '>') depth--;
+            else if (ch == ',' && depth == 0) { out.add(list.substring(start, i).trim()); start = i + 1; }
+        }
+        String last = list.substring(start).trim();
+        if (!last.isEmpty()) out.add(last);
+        return out;
+    }
+
     static String source(String internalName) {
         return internalName.replace('/', '.').replace('$', '.');
     }
@@ -106,6 +121,27 @@ final class JavaTypes {
         List<String> itf = new ArrayList<>();
         while (!p.end()) itf.add(p.fieldType());
         return new ClassSig(tp, sup, itf);
+    }
+
+    /**
+     * 클래스 제네릭 서명에서 drop 이 참인 인터페이스(내부 이름 기준)를 글자 그대로 지운다 — 형식 매개변수·상위 형식·남는 인터페이스는 원문 그대로 둔다.
+     * Paper 내부 인터페이스(ca/spottedleaf)를 구현하는 제네릭 클래스의 서명을 조용히 잃지 않고 걸러 내려고 쓴다.
+     */
+    static String dropInterfaces(String sig, java.util.function.Predicate<String> drop) {
+        Parser p = new Parser(sig);
+        if (p.peek() == '<') p.typeParams();
+        p.fieldType();
+        StringBuilder out = new StringBuilder(sig.substring(0, p.i));
+        while (!p.end()) {
+            int st = p.i;
+            p.fieldType();
+            String raw = sig.substring(st, p.i);
+            int e = 1;
+            while (e < raw.length() && ";<.".indexOf(raw.charAt(e)) < 0) e++;
+            String internal = raw.charAt(0) == 'L' ? raw.substring(1, e) : "";
+            if (!drop.test(internal)) out.append(raw);
+        }
+        return out.toString();
     }
 
     /** 메서드 서명을 쪼갠 결과. */
