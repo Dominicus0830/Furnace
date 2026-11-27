@@ -2175,24 +2175,24 @@ public final class ServerCore {
             receiver.send(new org.domi.furnace.server.net.protocol.play.PlayerChatPacket(message, cache, bound));
             return null;
         });
-        if (!ok) kickOnGlobal(receiver, Text.translatable("multiplayer.disconnect.too_many_pending_chats"));
+        if (!ok) kickOnGlobal(receiver, Text.translatable("multiplayer.disconnect.too_many_pending_chats"), org.domi.furnace.api.event.player.PlayerKickEvent.Cause.TOO_MANY_PENDING_CHATS);
     }
 
     /**
      * Paper disconnectAsync: PlayerKickEvent 는 주(전역) 스레드에서 낸다. 전역이면 곧바로 킥하고, 아니면(채팅 스레드 등) 그 연결의 읽기를
      * 멈춘 채 전역에 넘긴다 — 그사이 들어온 패킷이 킥 이벤트를 또 부르지 않게. 플러그인이 취소하면 다시 읽는다.
      */
-    public void kickOnGlobal(Player p, Text reason) {
+    public void kickOnGlobal(Player p, Text reason, org.domi.furnace.api.event.player.PlayerKickEvent.Cause cause) {
         var global = scheduler().global();
         if (global instanceof org.domi.furnace.api.concurrent.ThreadOwner o && o.isOwnerThread()) {
-            p.kick(new org.domi.furnace.server.net.protocol.play.Disconnect(reason));
+            p.kick(new org.domi.furnace.server.net.protocol.play.Disconnect(reason), cause);
             return;
         }
         io.netty.channel.Channel ch = p.channel();
         if (ch != null) ch.config().setAutoRead(false);
         try {
             global.execute(() -> {
-                if (!p.kick(new org.domi.furnace.server.net.protocol.play.Disconnect(reason)) && ch != null && !p.isDisconnected()) {
+                if (!p.kick(new org.domi.furnace.server.net.protocol.play.Disconnect(reason), cause) && ch != null && !p.isDisconnected()) {
                     ch.config().setAutoRead(true);   // 취소됐다 — Paper 처럼 다시 읽는다
                 }
             });

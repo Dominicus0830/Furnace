@@ -517,7 +517,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (chatChainOverflowKicked) return;
         chatChainOverflowKicked = true;
         log.warn(Lang.t("net.chat-backlog", p.name(), org.domi.furnace.server.chat.ChatChain.MAX_PENDING));
-        login.core.kickOnGlobal(p, Text.translatable("disconnect.spam"));
+        login.core.kickOnGlobal(p, Text.translatable("disconnect.spam"), org.domi.furnace.api.event.player.PlayerKickEvent.Cause.SPAM);
     }
 
     /** 바닐라 detectRateSpam. */
@@ -525,7 +525,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         Player p = player;
         org.domi.furnace.server.ServerCore core = login.core;
         if (p.chat().incrementSpamAndCheck() && !core.lists().isOp(org.domi.furnace.server.ServerCore.profileOf(p))) {
-            core.kickOnGlobal(p, Text.translatable("disconnect.spam"));   // 채팅 스레드에서 불릴 수 있다 — 킥 이벤트는 전역에서(Paper disconnectAsync)
+            core.kickOnGlobal(p, Text.translatable("disconnect.spam"), org.domi.furnace.api.event.player.PlayerKickEvent.Cause.SPAM);   // 채팅 스레드에서 불릴 수 있다 — 킥 이벤트는 전역에서(Paper disconnectAsync)
         }
     }
 
@@ -5230,13 +5230,13 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         if (c == null || !c.channel().isActive()) return;
         Player p = player;
         if (p != null) {
-            p.kick(new Disconnect(reason));
+            p.kick(new Disconnect(reason), org.domi.furnace.api.event.player.PlayerKickEvent.Cause.PLUGIN);
             return;
         }
         try {
             c.channel().eventLoop().execute(() -> {
                 if (!c.channel().isActive()) return;
-                if (player != null) { player.kick(new Disconnect(reason)); return; }
+                if (player != null) { player.kick(new Disconnect(reason), org.domi.furnace.api.event.player.PlayerKickEvent.Cause.PLUGIN); return; }
                 disconnect(c, reason);
             });
         } catch (java.util.concurrent.RejectedExecutionException closed) {
@@ -5287,7 +5287,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private void kickDuplicateSession(java.util.UUID uuid) {
         for (Player other : world.onlinePlayers()) {
             if (other != player && !other.isDisconnected() && uuid.equals(other.uuid())) {
-                other.kickForced(new Disconnect(Text.translatable("multiplayer.disconnect.duplicate_login")));
+                other.kick(new Disconnect(Text.translatable("multiplayer.disconnect.duplicate_login")), org.domi.furnace.api.event.player.PlayerKickEvent.Cause.DUPLICATE_LOGIN);   // Paper 처럼 PlayerKickEvent(DUPLICATE_LOGIN)를 낸다 — 취소되면 기존 세션이 남는다
             }
         }
     }

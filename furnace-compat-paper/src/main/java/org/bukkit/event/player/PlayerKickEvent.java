@@ -9,15 +9,21 @@ public class PlayerKickEvent extends PlayerEvent implements Cancellable {
     private String kickReason;
     private String leaveMessage;
     private boolean cancelled;
-    private final Cause cause = Cause.UNKNOWN;
+    private final Cause cause;
 
     public PlayerKickEvent(Player playerKicked, String kickReason, String leaveMessage) {
+        this(playerKicked, kickReason, leaveMessage, Cause.UNKNOWN);
+    }
+
+    /** Furnace 가 원인을 싣는 생성자(Paper 는 같은 모양을 Component 사문으로 가진다). */
+    public PlayerKickEvent(Player playerKicked, String kickReason, String leaveMessage, Cause cause) {
         super(playerKicked);
+        this.cause = cause;
         this.kickReason = kickReason;
         this.leaveMessage = leaveMessage;
     }
 
-    /** 킥 원인. 발생 지점이 원인을 싣기 전까지는 {@link Cause#UNKNOWN}. */
+    /** 킥 원인. */
     public Cause getCause() { return cause; }
 
     public String getReason() { return kickReason; }
