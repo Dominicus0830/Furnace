@@ -66,6 +66,7 @@ class CancelContractTest {
         TABLE.put("EntityDeathEvent", new Entry(Kind.SERVER_DRIVEN, WORLD + "entityDeathEventCarriesDropsAndCancelKeepsMobAliveWithGear"));
         TABLE.put("EntityExplodeEvent", new Entry(Kind.SERVER_DRIVEN, STAGE3 + "entityExplodeCanEditListAndCancel"));
         TABLE.put("EntityTameEvent", new Entry(Kind.SERVER_DRIVEN, STAGE3 + "tameCancelKeepsWolfWild"));
+        TABLE.put("EntityToggleSitEvent", new Entry(Kind.SERVER_DRIVEN, STAGE3 + "toggleSitCancelKeepsPoseAndLoadDoesNotFire"));
         TABLE.put("EntityTargetEvent", new Entry(Kind.SERVER_DRIVEN, STAGE3 + "targetEventFiresOnChangeOnlyAndCancelKeepsOldTarget"));
         TABLE.put("ProjectileHitEvent", new Entry(Kind.SERVER_DRIVEN, STAGE3 + "projectileHitCancelLetsSnowballFlyOn"));
         // --- 인벤토리

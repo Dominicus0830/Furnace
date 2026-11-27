@@ -16,6 +16,7 @@ import org.domi.furnace.api.event.entity.EntityBreedEvent;
 import org.domi.furnace.api.event.entity.EntityExplodeEvent;
 import org.domi.furnace.api.event.entity.EntitySpawnEvent;
 import org.domi.furnace.api.event.entity.EntityTameEvent;
+import org.domi.furnace.api.event.entity.EntityToggleSitEvent;
 import org.domi.furnace.api.event.entity.EntityTargetEvent;
 import org.domi.furnace.api.event.entity.ItemSpawnEvent;
 import org.domi.furnace.api.event.entity.ProjectileHitEvent;
@@ -125,6 +126,7 @@ public final class PluginGameEvents implements GameEvents {
     private final EventBusImpl.Flag wPlayerBedLeave;
     private final EventBusImpl.Flag wProjectileHit;
     private final EventBusImpl.Flag wEntityTame;
+    private final EventBusImpl.Flag wEntityToggleSit;
     private final EventBusImpl.Flag wEntityBreed;
     private final EventBusImpl.Flag wEntityTarget;
     private final EventBusImpl.Flag wFunctionExecute;
@@ -201,6 +203,7 @@ public final class PluginGameEvents implements GameEvents {
         wPlayerBedLeave = b.flag(PlayerBedLeaveEvent.class);
         wProjectileHit = b.flag(ProjectileHitEvent.class);
         wEntityTame = b.flag(EntityTameEvent.class);
+        wEntityToggleSit = b.flag(EntityToggleSitEvent.class);
         wEntityBreed = b.flag(EntityBreedEvent.class);
         wEntityTarget = b.flag(EntityTargetEvent.class);
         wFunctionExecute = b.flag(FunctionExecuteEvent.class);
@@ -670,6 +673,12 @@ public final class PluginGameEvents implements GameEvents {
     public boolean entityTame(Entity e, Player owner) {
         if (!wEntityTame.on()) return true;
         return !bus().call(new EntityTameEvent(EntityHandle.of(host, e), host.player(owner))).isCancelled();
+    }
+
+    @Override
+    public boolean entityToggleSit(Entity e, boolean sitting) {
+        if (!wEntityToggleSit.on()) return true;
+        return !bus().call(new EntityToggleSitEvent(EntityHandle.of(host, e), sitting)).isCancelled();
     }
 
     @Override

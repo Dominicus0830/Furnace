@@ -178,3 +178,18 @@ class net.minecraft.world.entity.animal.goat.Goat  owner=org.domi.furnace.compat
   # <<< 엔티티 데이터 칸 상수
   addHorns -> @hand write
   removeHorns -> @hand write
+# 앉은 자세(FancyNpcs 는 이벤트 없는 꼴로 부른다): Paper 처럼 한 인자 꼴은 EntityToggleSitEvent 를 내고, 두 인자 꼴은 고른다. 서버 엔티티가 하고 월드 밖은 기록·재생
+class net.minecraft.world.entity.TamableAnimal  owner=org.domi.furnace.compat.nms.NmsEntityOwner
+  # >>> 엔티티 데이터 칸 상수(tools/compat/entity-data-spec.py 가 만든다 — 손으로 고치지 않는다)
+  DATA_FLAGS_ID = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.TamableAnimal.class, "DATA_FLAGS_ID")
+  DATA_OWNERUUID_ID = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.TamableAnimal.class, "DATA_OWNERUUID_ID")
+  # <<< 엔티티 데이터 칸 상수
+  setInSittingPose(Z)V -> @hand write
+  setInSittingPose(ZZ)V -> @hand write
+class net.minecraft.world.entity.animal.Fox  owner=org.domi.furnace.compat.nms.NmsEntityOwner
+  # >>> 엔티티 데이터 칸 상수(tools/compat/entity-data-spec.py 가 만든다 — 손으로 고치지 않는다)
+  DATA_TRUSTED_ID_0 = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.animal.Fox.class, "DATA_TRUSTED_ID_0")
+  DATA_TRUSTED_ID_1 = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.animal.Fox.class, "DATA_TRUSTED_ID_1")
+  # <<< 엔티티 데이터 칸 상수
+  setSitting(Z)V -> @hand write
+  setSitting(ZZ)V -> @hand write

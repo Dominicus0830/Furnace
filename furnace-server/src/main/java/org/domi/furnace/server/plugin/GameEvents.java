@@ -218,6 +218,9 @@ public interface GameEvents {
     /** 길들이기 직전. false 면 실패. */
     default boolean entityTame(Entity e, Player owner) { return true; }
 
+    /** 길들인 동물·여우가 앉거나 일어서기 직전(Paper EntityToggleSitEvent). false 면 취소(자세 그대로). */
+    default boolean entityToggleSit(Entity e, boolean sitting) { return true; }
+
     /** 번식 직전(child 는 아직 월드 밖). false 면 취소. */
     default boolean entityBreed(Entity child, LivingEntity mother, LivingEntity father, Player breeder) { return true; }
 

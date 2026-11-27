@@ -42,7 +42,7 @@ public abstract class TamableAnimal extends Animal {
             setTame(true, false);
         }
         orderedToSit = tag.getBoolean("Sitting");
-        setInSittingPose(orderedToSit);
+        setInSittingPose(orderedToSit, false);   // Paper: 불러올 때는 EntityToggleSitEvent 를 내지 않는다
     }
 
     public boolean isTame() { return ((Byte) entityData.get(DATA_FLAGS_ID) & 4) != 0; }
@@ -67,7 +67,11 @@ public abstract class TamableAnimal extends Animal {
 
     public boolean isInSittingPose() { return ((Byte) entityData.get(DATA_FLAGS_ID) & 1) != 0; }
 
-    public void setInSittingPose(boolean sit) {
+    public void setInSittingPose(boolean sit) { setInSittingPose(sit, true); }
+
+    /** Paper setInSittingPose(sit, fireEvent): 이벤트를 내면 플러그인 EntityToggleSitEvent 가 취소할 수 있다(취소면 그대로). */
+    public void setInSittingPose(boolean sit, boolean fireEvent) {
+        if (fireEvent && !level.gameEvents().entityToggleSit(this, sit)) return;
         byte b = (Byte) entityData.get(DATA_FLAGS_ID);
         entityData.set(DATA_FLAGS_ID, (byte) (sit ? b | 1 : b & -2));
     }

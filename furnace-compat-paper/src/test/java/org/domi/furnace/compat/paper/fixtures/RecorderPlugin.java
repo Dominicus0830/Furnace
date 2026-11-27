@@ -169,6 +169,7 @@ public final class RecorderPlugin extends JavaPlugin implements Listener {
     @EventHandler public void on(PlayerTeleportEvent e) { rec(e); }
     @EventHandler public void on(org.bukkit.event.entity.EntityTeleportEvent e) { rec(e); }
     @EventHandler public void on(org.bukkit.event.entity.EntityPortalExitEvent e) { rec(e); }
+    @EventHandler public void on(io.papermc.paper.event.entity.EntityToggleSitEvent e) { rec(e); }
 
     @EventHandler public void on(PlayerRespawnEvent e) { rec(e); }
 

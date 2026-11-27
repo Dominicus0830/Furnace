@@ -270,6 +270,63 @@ class NmsEntityLookTest {
         });
     }
 
+    /**
+     * 앉은 자세(Paper setInSittingPose·setSitting): 두 인자 꼴(false)은 이벤트 없이, 한 인자 꼴은 EntityToggleSitEvent 를 내고 취소면 그대로.
+     * 월드 밖 엔티티는 Bukkit 엔티티가 없어 이벤트를 내는 꼴이 getBukkitEntity 처럼 멈춘다.
+     */
+    @Test
+    void tamableAndFoxSitLikePaper() {
+        var fresh = (net.minecraft.world.entity.animal.Wolf) EntityType.WOLF.create(world.getHandle());
+        fresh.setInSittingPose(true, false);
+        assertEquals(1, ((Byte) tamableFlags(fresh)) & 1, "월드 밖 늑대 앉음 깃발");
+        assertThrows(RuntimeException.class, () -> fresh.setInSittingPose(false));
+        var freshFox = (net.minecraft.world.entity.animal.Fox) EntityType.FOX.create(world.getHandle());
+        freshFox.setSitting(true, false);   // 기록·재생(예외 없음)
+        assertThrows(RuntimeException.class, () -> freshFox.setSitting(false));
+
+        List<String> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
+        // 서버 이벤트를 취소하는 구독(Bukkit EntityToggleSitEvent 로 잇는 다리는 EventBridgeTest 가 본다)
+        var sub = server.api().events().subscribe(server.plugin(org.domi.furnace.compat.CompatTestPlugin.class),
+                org.domi.furnace.api.event.entity.EntityToggleSitEvent.class, org.domi.furnace.api.event.EventPriority.NORMAL, false, e -> {
+                    seen.add(e.entity().type() + ":" + e.sitting());
+                    e.setCancelled(true);
+                });
+        try {
+            CraftEntity wolf = on(() -> (CraftEntity) world.spawnEntity(new Location(world, at.x() + 0.5, at.y(), at.z() + 0.5), org.bukkit.entity.EntityType.WOLF));
+            CraftEntity fox = on(() -> (CraftEntity) world.spawnEntity(new Location(world, at.x() + 0.5, at.y(), at.z() + 0.5), org.bukkit.entity.EntityType.FOX));
+            var w = (net.minecraft.world.entity.animal.Wolf) wolf.getHandle();
+            var f = (net.minecraft.world.entity.animal.Fox) fox.getHandle();
+            on(() -> {
+                var sw = org.domi.furnace.api.internal.Internals.get().entityNow(wolf.furnaceHandle(), org.domi.furnace.server.entity.Wolf.class);
+                var sf = org.domi.furnace.api.internal.Internals.get().entityNow(fox.furnaceHandle(), org.domi.furnace.server.entity.Fox.class);
+                w.setInSittingPose(true);
+                assertFalse(sw.isInSittingPose(), "취소하면 앉지 않는다");
+                w.setInSittingPose(true, false);
+                assertTrue(sw.isInSittingPose(), "이벤트 없는 꼴은 앉는다");
+                f.setSitting(true);
+                assertFalse(sf.isSitting(), "취소하면 여우도 앉지 않는다");
+                f.setSitting(true, false);
+                assertTrue(sf.isSitting());
+                wolf.remove();
+                fox.remove();
+                return null;
+            });
+            assertEquals(List.of("minecraft:wolf:true", "minecraft:fox:true"), seen, "한 인자 꼴만 이벤트를 낸다");
+        } finally {
+            sub.unsubscribe();
+        }
+    }
+
+    static Object tamableFlags(net.minecraft.world.entity.TamableAnimal e) {
+        try {
+            var f = net.minecraft.world.entity.TamableAnimal.class.getDeclaredField("DATA_FLAGS_ID");
+            f.setAccessible(true);
+            return e.getEntityData().get((net.minecraft.network.syncher.EntityDataAccessor<?>) f.get(null));
+        } catch (ReflectiveOperationException ex) {
+            throw new AssertionError(ex);
+        }
+    }
+
     static Object goatSlot(net.minecraft.world.entity.animal.goat.Goat e, String field) {
         try {
             var f = net.minecraft.world.entity.animal.goat.Goat.class.getDeclaredField(field);
