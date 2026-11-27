@@ -39,7 +39,7 @@ class net.minecraft.world.entity.animal.Panda
 class net.minecraft.world.entity.animal.horse.AbstractHorse
   setEating(Z)V -> @idiom(entity-data-flag-set, #2d924aac3c, 16) write via=G1 proof=review   # AbstractHorse.setFlag(16, v)
 class net.minecraft.world.entity.monster.Vex
-  setIsCharging(Z)V -> @idiom(entity-data-flag-set, #9630c828c9, 1) write via=G1 proof=review   # Vex.setVexFlag(1, v)
+  setIsCharging(Z)V -> @idiom(entity-data-flag-set, net.minecraft.world.entity.monster.Vex.DATA_FLAGS_ID, 1) write via=G1 proof=review   # Vex.setVexFlag(1, v)
 # 반응 칸 깃발 setter(2026-11-27, 엔티티 스레드): 바닐라·Paper 1.21.1 javap 같음(setBit(b, 4, v) 를 DATA_CLIENT_FLAGS 에 한 번 쓴다).
 # 반응: ArmorStand.onSyncedDataUpdated → refreshDimensions + blocksBuilding = !isMarker(). 팔 비트는 크기·marker 를 바꾸지 않아 둘 다 값이 그대로다.
 # Furnace 서버 ArmorStand 훅도 이 칸에서 refreshDims() 를 부른다(같은 결과). blocksBuilding 은 서버에 아직 없다 — setMarker 를 넣을 때 따로 메운다.
