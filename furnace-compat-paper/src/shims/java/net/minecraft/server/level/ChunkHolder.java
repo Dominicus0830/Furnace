@@ -10,7 +10,7 @@ import net.minecraft.world.level.chunk.LevelChunk;
  * Furnace 의 로드된 청크는 늘 다 만든 청크이고 서버가 틱 등급을 알려 주지 않으므로, 틱·엔티티 틱 미래도 로드된 청크를 준다 —
  * <b>Paper 와 다른 점</b>: Paper 는 청크가 그 틱 등급에 못 미치면 아직 안 끝난 미래를 준다(문서 compat-nms-n2b6 "Paper 와 다른 점"). 블록 변경 알림(blockChanged)은 아직 없다.
  */
-public class ChunkHolder {
+class ChunkHolder {
 
     public static final ChunkResult<LevelChunk> UNLOADED_LEVEL_CHUNK = ChunkResult.error("Unloaded level chunk");
     private static final CompletableFuture<ChunkResult<LevelChunk>> UNLOADED_LEVEL_CHUNK_FUTURE = CompletableFuture.completedFuture(UNLOADED_LEVEL_CHUNK);
@@ -19,6 +19,7 @@ public class ChunkHolder {
     private final ChunkPos pos;
 
     ChunkHolder(ServerLevel level, ChunkPos pos) {
+        super(org.domi.furnace.compat.nms.ShimCtor.TAG);
         this.level = level;
         this.pos = pos;
     }

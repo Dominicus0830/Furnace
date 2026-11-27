@@ -129,6 +129,9 @@ C	net/minecraft/server/ServerInterface	1537	java/lang/Object	net/minecraft/serve
 C	net/minecraft/server/TickTask	33	java/lang/Object	java/lang/Runnable	-	-	paper-server-1.21.1
 C	net/minecraft/server/dedicated/DedicatedPlayerList	33	net/minecraft/server/players/PlayerList	-	-	-	paper-server-1.21.1
 C	net/minecraft/server/dedicated/DedicatedServer	33	net/minecraft/server/MinecraftServer	net/minecraft/server/ServerInterface	-	-	paper-server-1.21.1
+C	net/minecraft/server/level/ChunkHolder	33	net/minecraft/server/level/GenerationChunkHolder	-	-	-	paper-server-1.21.1
+C	net/minecraft/server/level/ChunkHolder$PlayerProvider	1537	java/lang/Object	-	-	1545	paper-server-1.21.1
+C	net/minecraft/server/level/ChunkMap	33	net/minecraft/world/level/chunk/storage/ChunkStorage	net/minecraft/server/level/ChunkHolder$PlayerProvider,net/minecraft/server/level/GeneratingChunkMap	-	-	paper-server-1.21.1
 C	net/minecraft/server/level/ChunkResult	1537	java/lang/Object	-	<T:Ljava/lang/Object;>Ljava/lang/Object;	-	paper-server-1.21.1
 C	net/minecraft/server/level/ClientInformation	65585	java/lang/Record	-	-	-	paper-server-1.21.1
 R	net/minecraft/server/level/ClientInformation	language	Ljava/lang/String;	-
@@ -145,10 +148,13 @@ F	net/minecraft/server/level/FullChunkStatus	BLOCK_TICKING	Lnet/minecraft/server
 F	net/minecraft/server/level/FullChunkStatus	ENTITY_TICKING	Lnet/minecraft/server/level/FullChunkStatus;	16409	-
 F	net/minecraft/server/level/FullChunkStatus	FULL	Lnet/minecraft/server/level/FullChunkStatus;	16409	-
 F	net/minecraft/server/level/FullChunkStatus	INACCESSIBLE	Lnet/minecraft/server/level/FullChunkStatus;	16409	-
+C	net/minecraft/server/level/GeneratingChunkMap	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/server/level/GenerationChunkHolder	1057	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/server/level/ServerChunkCache	33	net/minecraft/world/level/chunk/ChunkSource	-	-	-	paper-server-1.21.1
 C	net/minecraft/server/level/ServerLevel	33	net/minecraft/world/level/Level	net/minecraft/world/level/WorldGenLevel	-	-	paper-server-1.21.1
 C	net/minecraft/server/level/ServerPlayer	33	net/minecraft/world/entity/player/Player	-	-	-	paper-server-1.21.1
 C	net/minecraft/server/level/ServerPlayerGameMode	33	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/server/level/ThreadedLevelLightEngine	33	net/minecraft/world/level/lighting/LevelLightEngine	java/lang/AutoCloseable	-	-	paper-server-1.21.1
 C	net/minecraft/server/level/TicketType	33	java/lang/Object	-	<T:Ljava/lang/Object;>Ljava/lang/Object;	-	paper-server-1.21.1
 C	net/minecraft/server/level/progress/ChunkProgressListener	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/server/network/ServerConnectionListener	33	java/lang/Object	-	-	-	paper-server-1.21.1
@@ -1889,6 +1895,8 @@ C	net/minecraft/world/level/chunk/status/ChunkDependencies	49	java/lang/Object	-
 C	net/minecraft/world/level/chunk/status/ChunkStatus	33	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/chunk/status/ChunkStep	49	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/chunk/storage/ChunkIOErrorReporter	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/chunk/storage/ChunkStorage	33	java/lang/Object	java/lang/AutoCloseable	-	-	paper-server-1.21.1
+M	net/minecraft/world/level/chunk/storage/ChunkStorage	close	()V	1	-
 C	net/minecraft/world/level/chunk/storage/RegionFile	33	java/lang/Object	java/lang/AutoCloseable	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/chunk/storage/RegionFileVersion	33	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/chunk/storage/RegionStorageInfo	65585	java/lang/Record	-	-	-	paper-server-1.21.1
@@ -2098,6 +2106,10 @@ H	net/minecraft/server/ServerInterface	getServerIp	()Ljava/lang/String;	1025	-
 H	net/minecraft/server/ServerInterface	getServerName	()Ljava/lang/String;	1025	-
 H	net/minecraft/server/ServerInterface	getServerPort	()I	1025	-
 H	net/minecraft/server/ServerInterface	runCommand	(Ljava/lang/String;)Ljava/lang/String;	1025	-
+H	net/minecraft/server/level/ChunkHolder$PlayerProvider	getPlayers	(Lnet/minecraft/world/level/ChunkPos;Z)Ljava/util/List;	1025	(Lnet/minecraft/world/level/ChunkPos;Z)Ljava/util/List<Lnet/minecraft/server/level/ServerPlayer;>;
+H	net/minecraft/server/level/GeneratingChunkMap	acquireGeneration	(J)Lnet/minecraft/server/level/GenerationChunkHolder;	1025	-
+H	net/minecraft/server/level/GeneratingChunkMap	releaseGeneration	(Lnet/minecraft/server/level/GenerationChunkHolder;)V	1025	-
+H	net/minecraft/server/level/GeneratingChunkMap	runGenerationTasks	()V	1025	-
 H	net/minecraft/util/OptionEnum	getId	()I	1025	-
 H	net/minecraft/util/OptionEnum	getKey	()Ljava/lang/String;	1025	-
 H	net/minecraft/util/RandomSource	fork	()Lnet/minecraft/util/RandomSource;	1025	-
