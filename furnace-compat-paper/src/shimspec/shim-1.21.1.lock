@@ -1218,10 +1218,23 @@ C	net/minecraft/world/item/crafting/RecipeInput	1537	java/lang/Object	-	-	-	pape
 C	net/minecraft/world/item/trading/Merchant	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/BlockGetter	1537	java/lang/Object	net/minecraft/world/level/LevelHeightAccessor	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/ChunkPos	33	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/EmptyBlockGetter	16433	java/lang/Enum	net/minecraft/world/level/BlockGetter	Ljava/lang/Enum<Lnet/minecraft/world/level/EmptyBlockGetter;>;Lnet/minecraft/world/level/BlockGetter;	-	paper-server-1.21.1
+E	net/minecraft/world/level/EmptyBlockGetter	1
+F	net/minecraft/world/level/EmptyBlockGetter	INSTANCE	Lnet/minecraft/world/level/EmptyBlockGetter;	16409	-
 C	net/minecraft/world/level/GameRules	33	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/GameType	16433	java/lang/Enum	net/minecraft/util/StringRepresentable	Ljava/lang/Enum<Lnet/minecraft/world/level/GameType;>;Lnet/minecraft/util/StringRepresentable;	-	paper-server-1.21.1
+E	net/minecraft/world/level/GameType	4
+F	net/minecraft/world/level/GameType	ADVENTURE	Lnet/minecraft/world/level/GameType;	16409	-
+F	net/minecraft/world/level/GameType	CREATIVE	Lnet/minecraft/world/level/GameType;	16409	-
+F	net/minecraft/world/level/GameType	SPECTATOR	Lnet/minecraft/world/level/GameType;	16409	-
+F	net/minecraft/world/level/GameType	SURVIVAL	Lnet/minecraft/world/level/GameType;	16409	-
 C	net/minecraft/world/level/ItemLike	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/LevelHeightAccessor	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/LevelSettings	49	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/LightLayer	16433	java/lang/Enum	-	Ljava/lang/Enum<Lnet/minecraft/world/level/LightLayer;>;	-	paper-server-1.21.1
+E	net/minecraft/world/level/LightLayer	2
+F	net/minecraft/world/level/LightLayer	BLOCK	Lnet/minecraft/world/level/LightLayer;	16409	-
+F	net/minecraft/world/level/LightLayer	SKY	Lnet/minecraft/world/level/LightLayer;	16409	-
 C	net/minecraft/world/level/Spawner	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/StructureManager	33	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/biome/Biome	49	java/lang/Object	-	-	-	paper-server-1.21.1
@@ -1945,6 +1958,13 @@ C	net/minecraft/world/level/material/FluidState	49	net/minecraft/world/level/blo
 C	net/minecraft/world/level/material/Fluids	33	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/material/LavaFluid	1057	net/minecraft/world/level/material/FlowingFluid	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/material/MapColor	33	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/material/PushReaction	16433	java/lang/Enum	-	Ljava/lang/Enum<Lnet/minecraft/world/level/material/PushReaction;>;	-	paper-server-1.21.1
+E	net/minecraft/world/level/material/PushReaction	5
+F	net/minecraft/world/level/material/PushReaction	BLOCK	Lnet/minecraft/world/level/material/PushReaction;	16409	-
+F	net/minecraft/world/level/material/PushReaction	DESTROY	Lnet/minecraft/world/level/material/PushReaction;	16409	-
+F	net/minecraft/world/level/material/PushReaction	IGNORE	Lnet/minecraft/world/level/material/PushReaction;	16409	-
+F	net/minecraft/world/level/material/PushReaction	NORMAL	Lnet/minecraft/world/level/material/PushReaction;	16409	-
+F	net/minecraft/world/level/material/PushReaction	PUSH_ONLY	Lnet/minecraft/world/level/material/PushReaction;	16409	-
 C	net/minecraft/world/level/material/WaterFluid	1057	net/minecraft/world/level/material/FlowingFluid	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/saveddata/maps/MapDecoration	65585	java/lang/Record	-	-	-	paper-server-1.21.1
 R	net/minecraft/world/level/saveddata/maps/MapDecoration	type	Lnet/minecraft/core/Holder;	Lnet/minecraft/core/Holder<Lnet/minecraft/world/level/saveddata/maps/MapDecorationType;>;

@@ -1,9 +1,7 @@
 package net.minecraft.world.level;
 
 /** 바닐라 게임 모드(Mojang 이름, T-203 — 레벨 설정이 들고 다닌다). */
-public enum GameType {
-    SURVIVAL(0, "survival"), CREATIVE(1, "creative"), ADVENTURE(2, "adventure"), SPECTATOR(3, "spectator");
-
+enum GameType {
     public static final GameType DEFAULT_MODE = SURVIVAL;
 
     private final int id;
@@ -17,6 +15,9 @@ public enum GameType {
     public int getId() { return id; }
 
     public String getName() { return name; }
+
+    /** 바닐라 StringRepresentable: 이름 그대로. */
+    public String getSerializedName() { return name; }
 
     public boolean isCreative() { return this == CREATIVE; }
 

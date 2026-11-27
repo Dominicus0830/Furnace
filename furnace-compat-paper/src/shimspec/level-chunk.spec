@@ -54,3 +54,19 @@ class net.minecraft.world.level.storage.PrimaryLevelData
 class net.minecraft.world.level.storage.ServerLevelData
 class net.minecraft.world.level.storage.WorldData
 class net.minecraft.world.level.storage.WritableLevelData
+class net.minecraft.world.level.LightLayer
+  SKY
+  BLOCK
+class net.minecraft.world.level.material.PushReaction
+  NORMAL
+  DESTROY
+  BLOCK
+  IGNORE
+  PUSH_ONLY
+class net.minecraft.world.level.GameType
+  SURVIVAL = (0, "survival")
+  CREATIVE = (1, "creative")
+  ADVENTURE = (2, "adventure")
+  SPECTATOR = (3, "spectator")
+class net.minecraft.world.level.EmptyBlockGetter
+  INSTANCE

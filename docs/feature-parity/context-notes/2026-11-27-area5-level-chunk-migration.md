@@ -5,4 +5,6 @@
   - 인터페이스 사슬 LevelAccessor·LevelWriter·LevelReader·ServerLevelAccessor·WorldGenLevel(·CommonLevelAccessor): 손 구조는 LevelAccessor 가 LevelWriter 를 잇지만 바닐라는 CommonLevelAccessor→LevelSimulatedRW 로 setBlock 을 받는다. 옮기면 Level·NmsFeatures·DummyGeneratorAccess 의 setBlock/destroyBlock 이 깨진다. 바닐라 사슬(LevelSimulatedRW·EntityGetter 등)을 먼저 만들어야 한다.
   - Level: 위 인터페이스에 기댐. ChunkSource·DimensionDataStorage: 바닐라가 AutoCloseable 을 구현해 close() 를 안 갖춤. MapItemSavedData: 상위 SavedData 의 생성자 모양. ImposterProtoChunk: 바닐라 상위 ProtoChunk 가 손에 없음. ChunkPyramid: 바닐라 필드 형식 ImmutableList. LightEngine: 제네릭 `<M, S>` 가 잠금 머리에서 빠짐(생성기 한계).
   - WorldDataConfiguration·DimensionType: 바닐라 record 인데 손은 일반 클래스(성분 형식 DataPackConfig·MonsterSettings 가 shim 에 없음).
-  - 열거형 LightLayer·GameType·PushReaction·EmptyBlockGetter: 다음 묶음.
+
+## 열거형 4개 (같은 날 2묶음)
+- LightLayer·PushReaction(상수만 — 조각 삭제)·GameType(생성자 인자 상수, 조각은 생성자·필드·메서드)·EmptyBlockGetter(상수 INSTANCE)를 `level-chunk.spec` 으로 옮겼다. javap 대조: GameType 만 달라졌다 — 바닐라처럼 `StringRepresentable` 을 구현하므로 조각에 `getSerializedName`(이름 반환)을 손으로 더했다. 기준선 낡은 줄 1개 삭제.

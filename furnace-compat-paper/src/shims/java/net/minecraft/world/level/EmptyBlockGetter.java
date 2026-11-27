@@ -7,9 +7,7 @@ import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.material.Fluids;
 
 /** 아무것도 없는 세계(Mojang 이름 shim, N2b-6): 어디든 공기·빈 유체, 높이 0. 바닐라와 같이 상수가 하나뿐인 enum. */
-public enum EmptyBlockGetter implements BlockGetter {
-    INSTANCE;
-
+enum EmptyBlockGetter {
     @Override
     public BlockState getBlockState(BlockPos pos) { return Blocks.AIR.defaultBlockState(); }
 
