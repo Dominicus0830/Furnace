@@ -33,7 +33,8 @@ final class LinkG4Ports {
     /** 받아들일 가장 낮은 점수와, 둘째와의 가장 작은 차이(애매함). */
     static final double MIN_SCORE = 4.0, MIN_MARGIN = 1.5;
     static final Set<String> RANDOM = Set.of("nextInt", "nextFloat", "nextDouble", "nextBoolean", "nextGaussian", "nextLong", "triangle");
-    static final Pattern PORT = Pattern.compile("@VanillaPort\\s*\\(\\s*(\\{[^}]*}|\"[^\"]*\")\\s*\\)");
+    // 서버 소스는 짧은 이름(@VanillaPort)과 전체 이름(@org.domi.furnace.server.VanillaPort) 둘 다 쓴다(엔티티 패키지는 대부분 전체 이름)
+    static final Pattern PORT = Pattern.compile("@(?:org\\.domi\\.furnace\\.server\\.)?VanillaPort\\s*\\(\\s*(\\{[^}]*}|\"[^\"]*\")\\s*\\)");
     static final Pattern DECL = Pattern.compile("\\b(class|interface|enum|record)\\s+(\\w+)");
     static final Pattern STR = Pattern.compile("\"([^\"]+)\"");
 
@@ -118,7 +119,7 @@ final class LinkG4Ports {
         }
         for (Path f : files) {
             String text = Files.readString(f, StandardCharsets.UTF_8);
-            if (!text.contains("@VanillaPort")) continue;
+            if (!text.contains("VanillaPort")) continue;
             String rel = serverSrc.relativize(f).toString().replace('\\', '/');
             String pkgPath = rel.contains("/") ? rel.substring(0, rel.lastIndexOf('/') + 1) : "";
             String outer = f.getFileName().toString().replace(".java", "");

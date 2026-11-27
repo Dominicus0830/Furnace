@@ -75,16 +75,20 @@ class LinkG4PortsTest {
                     static final class Nested {}
                     @VanillaPort("net.minecraft.world.Gone")
                     static final class Missing {}
+                    @org.domi.furnace.server.VanillaPort("net.minecraft.world.Full")
+                    static final class FullName {}
                 }
                 """);
         Files.write(cls.resolve("Outer.class"), new byte[0]);
         Files.write(cls.resolve("Outer$Nested.class"), new byte[0]);
+        Files.write(cls.resolve("Outer$FullName.class"), new byte[0]);
         LinkG4Ports g4 = new LinkG4Ports(null, null, dir.resolve("src"), dir.resolve("classes"), List.of());
         g4.readPorts();
         assertEquals(List.of("a/b/Outer"), g4.ports.get("net/minecraft/world/Foo"));
         assertEquals(List.of("a/b/Outer$Nested"), g4.ports.get("net/minecraft/world/Bar"));
         assertEquals(List.of("a/b/Outer$Nested"), g4.ports.get("net/minecraft/world/Bar$Inner"));
+        assertEquals(List.of("a/b/Outer$FullName"), g4.ports.get("net/minecraft/world/Full"), "전체 이름으로 쓴 표지도 읽는다");
         assertEquals(1, g4.unresolvedPorts, "클래스 파일이 없는 표지는 센다");
-        assertEquals(3, g4.portLines);
+        assertEquals(4, g4.portLines);
     }
 }
