@@ -1897,6 +1897,11 @@ F	net/minecraft/world/level/block/state/properties/WallSide	NONE	Lnet/minecraft/
 F	net/minecraft/world/level/block/state/properties/WallSide	TALL	Lnet/minecraft/world/level/block/state/properties/WallSide;	16409	-
 M	net/minecraft/world/level/block/state/properties/WallSide	getSerializedName	()Ljava/lang/String;	1	-
 M	net/minecraft/world/level/block/state/properties/WallSide	toString	()Ljava/lang/String;	1	-
+C	net/minecraft/world/level/border/BorderStatus	16433	java/lang/Enum	-	Ljava/lang/Enum<Lnet/minecraft/world/level/border/BorderStatus;>;	-	paper-server-1.21.1
+E	net/minecraft/world/level/border/BorderStatus	3
+F	net/minecraft/world/level/border/BorderStatus	GROWING	Lnet/minecraft/world/level/border/BorderStatus;	16409	-
+F	net/minecraft/world/level/border/BorderStatus	SHRINKING	Lnet/minecraft/world/level/border/BorderStatus;	16409	-
+F	net/minecraft/world/level/border/BorderStatus	STATIONARY	Lnet/minecraft/world/level/border/BorderStatus;	16409	-
 C	net/minecraft/world/level/border/WorldBorder	33	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/chunk/ChunkAccess	1057	java/lang/Object	net/minecraft/world/level/BlockGetter,net/minecraft/world/level/biome/BiomeManager$NoiseBiomeSource,net/minecraft/world/level/chunk/LightChunk,net/minecraft/world/level/chunk/StructureAccess	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/chunk/ChunkGenerator	1057	java/lang/Object	-	-	-	paper-server-1.21.1

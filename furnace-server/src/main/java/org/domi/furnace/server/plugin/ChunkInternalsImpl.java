@@ -2297,6 +2297,35 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     @Override
+    public double[] borderSnapshot(org.domi.furnace.api.world.World world) {
+        var b = handle(world).handle().border();
+        synchronized (b) {
+            return new double[] {b.getCenterX(), b.getCenterZ(), b.getSize(), b.getMinX(), b.getMinZ(), b.getMaxX(), b.getMaxZ(),
+                    b.getLerpTarget(), b.getLerpSpeed(), b.getDamagePerBlock(), b.getDamageSafeZone(), b.getWarningBlocks(), b.getWarningTime(),
+                    b.getStatus().ordinal(), b.getAbsoluteMaxSize(), b.getLerpRemainingTime()};
+        }
+    }
+
+    @Override
+    public double borderDistance(org.domi.furnace.api.world.World world, double x, double z) { return handle(world).handle().border().getDistanceToBorder(x, z); }
+
+    @Override
+    public void borderSet(org.domi.furnace.api.world.World world, int op, double a, double b, long c) {
+        var border = handle(world).handle().border();
+        switch (op) {
+            case 0 -> border.setCenter(a, b);
+            case 1 -> border.setSize(a);
+            case 2 -> border.lerpSizeBetween(a, b, c);
+            case 3 -> border.setDamagePerBlock(a);
+            case 4 -> border.setDamageSafeZone(a);
+            case 5 -> border.setWarningBlocks((int) a);
+            case 6 -> border.setWarningTime((int) a);
+            case 7 -> border.setAbsoluteMaxSize((int) a);
+            default -> throw new IllegalArgumentException("border op " + op);
+        }
+    }
+
+    @Override
     public MapInfo mapInfo(int mapId) {
         var d = org.domi.furnace.server.map.MapStore.get(mapId);
         return d == null ? null : new MapInfo(d.centerX(), d.centerZ(), d.dimension(), d.scale(), d.trackingPosition(), d.unlimitedTracking(), d.locked());

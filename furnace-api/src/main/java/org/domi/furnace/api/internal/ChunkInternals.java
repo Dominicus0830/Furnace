@@ -1374,6 +1374,22 @@ public interface ChunkInternals {
     /** 그 월드 경계의 {중심 x, 중심 z, 크기}(바닐라 WorldBorder.getCenterX·getCenterZ·getSize, 지금 값). 아무 스레드. */
     double[] borderCenterAndSize(World world);
 
+    /**
+     * 그 월드 경계의 지금 값 한 묶음(스냅샷): {0 중심 x, 1 중심 z, 2 크기, 3 minX, 4 minZ, 5 maxX, 6 maxZ, 7 보간 목표, 8 보간 속도,
+     * 9 블록당 피해, 10 안전 거리, 11 경고 블록, 12 경고 시간, 13 상태 번호(0 GROWING, 1 SHRINKING, 2 STATIONARY), 14 절대 최대 크기, 15 남은 보간 시간(ms)}.
+     * 바닐라 WorldBorder 값. 아무 스레드(서버 경계는 동기화돼 있다).
+     */
+    double[] borderSnapshot(World world);
+
+    /** 바닐라 WorldBorder.getDistanceToBorder(x, z). 아무 스레드. */
+    double borderDistance(World world, double x, double z);
+
+    /**
+     * 경계 바꾸기(바닐라 WorldBorder 설정자 — 듣는 이에게 알림이 간다): op 0 setCenter(a, b), 1 setSize(a), 2 lerpSizeBetween(a, b, 시간 c ms),
+     * 3 setDamagePerBlock(a), 4 setDamageSafeZone(a), 5 setWarningBlocks((int) a), 6 setWarningTime((int) a), 7 setAbsoluteMaxSize((int) a).
+     */
+    void borderSet(World world, int op, double a, double b, long c);
+
     /** 지도 데이터의 겉모양(바닐라 MapItemSavedData 의 centerX·centerZ·dimension·scale·trackingPosition·unlimitedTracking·locked). */
     record MapInfo(int centerX, int centerZ, String dimension, byte scale, boolean trackingPosition, boolean unlimitedTracking, boolean locked) {}
 
