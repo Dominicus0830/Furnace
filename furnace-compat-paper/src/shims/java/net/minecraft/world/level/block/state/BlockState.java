@@ -8,7 +8,7 @@ import net.minecraft.world.level.block.state.properties.Property;
  * 블록 상태 하나(Mojang 이름 shim, N0). 상태 번호마다 객체가 하나라 바닐라처럼 {@code ==} 로 비교된다
  * ({@code Block.stateById}·{@code setValue}·{@code defaultBlockState} 모두 같은 표에서 꺼낸다).
  */
-public class BlockState extends BlockBehaviour.BlockStateBase {
+class BlockState {
 
     /**
      * 바닐라: {@code {Name: "minecraft:…", Properties: {…}}} 꼴 코덱({@link org.domi.furnace.compat.nms.NmsCodecs#blockState}). 서버 제공 라이브러리 묶음
