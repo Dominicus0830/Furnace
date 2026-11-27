@@ -9,7 +9,7 @@ import net.minecraft.server.level.ServerPlayer;
  * 서버 쪽 연결 공통 처리자 shim(Mojang 이름, H7c): {@code player.connection.send(packet)}.
  * {@code connection} 필드는 바닐라처럼 있고 그 채널은 가상 채널이다({@link net.minecraft.network.Connection}) — 보내는 쪽 가로채기는 되고 들어오는 쪽은 아직이다.
  */
-public abstract class ServerCommonPacketListenerImpl implements PacketListener {
+class ServerCommonPacketListenerImpl {
 
     private final ServerPlayer owner;
 
@@ -42,6 +42,29 @@ public abstract class ServerCommonPacketListenerImpl implements PacketListener {
 
     /** 바닐라: 이유를 보여 주며 연결을 끊는다. */
     public void disconnect(Component reason) { f().kick(Component.furnace(reason)); }
+
+    /** Paper TransferCookieConnection: 다른 서버에서 전송(transfer)으로 들어온 연결인가. */
+    public boolean isTransferred() {
+        var c = f().connection();
+        return c != null && c.isTransferred();
+    }
+
+    /** Paper TransferCookieConnection: 이 shim 은 접속 후(게임) 단계 하나뿐이라 늘 PLAY 다. */
+    public net.minecraft.network.ConnectionProtocol getProtocol() { return net.minecraft.network.ConnectionProtocol.PLAY; }
+
+    /** Paper TransferCookieConnection: {@link #send} 와 같다. */
+    public void sendPacket(Packet<?> packet) { send(packet); }
+
+    /** Paper TransferCookieConnection: 원인과 함께 내보낸다(내보내기 이벤트의 원인 칸). 이름이 없는 원인은 UNKNOWN. */
+    public void kickPlayer(Component reason, org.bukkit.event.player.PlayerKickEvent.Cause cause) {
+        org.domi.furnace.api.event.player.PlayerKickEvent.Cause mapped;
+        try {
+            mapped = org.domi.furnace.api.event.player.PlayerKickEvent.Cause.valueOf(cause.name());
+        } catch (IllegalArgumentException e) {
+            mapped = org.domi.furnace.api.event.player.PlayerKickEvent.Cause.UNKNOWN;
+        }
+        f().kick(Component.furnace(reason), mapped);
+    }
 
     /** 바닐라: 지연(ms). */
     public int latency() { return f().ping(); }

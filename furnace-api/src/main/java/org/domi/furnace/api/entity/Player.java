@@ -170,6 +170,11 @@ public interface Player extends CommandSender, LivingEntity {
     void kick(Text reason);
 
     /**
+     * 원인을 정해 내보낸다(Paper {@code PlayerKickEvent.Cause}). 내보내기 이벤트의 {@code cause()} 가 이 값이다. 기본은 {@link #kick(Text)} 와 같다.
+     */
+    default void kick(Text reason, org.domi.furnace.api.event.player.PlayerKickEvent.Cause cause) { kick(reason); }
+
+    /**
      * 이 플레이어의 채팅 입력을 가로챈다(Bukkit Conversation 처럼 플러그인이 다음 채팅 줄을 대답으로 받을 때).
      *
      * <p>handler 가 있으면 그 채팅 줄은 채팅으로 처리되지 않는다. {@code AsyncChatEvent}, 방송, 콘솔 로그 없이 handler 가 원문을 받는다.

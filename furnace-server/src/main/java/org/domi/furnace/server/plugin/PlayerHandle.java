@@ -239,6 +239,11 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     public void kick(Text reason) { p.kick(new Disconnect(reason), org.domi.furnace.api.event.player.PlayerKickEvent.Cause.PLUGIN); }
 
     @Override
+    public void kick(Text reason, org.domi.furnace.api.event.player.PlayerKickEvent.Cause cause) {
+        p.kick(new Disconnect(reason), java.util.Objects.requireNonNull(cause, "cause"));
+    }
+
+    @Override
     public void chatInputHandler(java.util.function.Consumer<String> handler) { p.chatInputHandler(handler); }
 
     @Override
