@@ -111,6 +111,43 @@ class SyncedDataHookTest {
         assertEquals(0L, ticks.getLong(a), "setter 도 같은 훅");
     }
 
+    /**
+     * 바닐라 fudgePositionAfterSizeChange: 첫 틱 뒤 몸이 커지면(복어 부풀기 — 칸에 바로 써도) 빈 곳으로 자리를 민다. 허공에서는 옛 몸 가운데에 새 몸
+     * 가운데를 맞추느라 (새 높이 - 옛 높이)/2 만큼 내려가고, 땅 위에서는 땅이 막아 그대로다. 첫 틱 전(갓 만든·읽은 엔티티)과 물리 없는 엔티티는 밀지 않는다.
+     */
+    @Test
+    void growingAfterTheFirstTickFudgesThePosition() {
+        var level = new BlockPlacementTest.TestLevel();
+        var air = (Pufferfish) Entities.create(level, "minecraft:pufferfish");
+        air.moveTo(0.5, -50.0, 0.5, 0, 0);
+        air.firstTick = false;
+        float oh = air.bbHeight();
+        air.entityData().set(Pufferfish.DATA_PUFF_STATE, 2);
+        float nh = air.bbHeight();
+        assertEquals(true, nh > oh);
+        assertEquals(-50.0 + (double) oh / 2.0 + (double) (-nh) / 2.0, air.y(), 1e-9);
+        assertEquals(0.5, air.x(), 1e-9);
+        assertEquals(0.5, air.z(), 1e-9);
+
+        var onGround = (Pufferfish) Entities.create(level, "minecraft:pufferfish");
+        onGround.moveTo(0.5, -60.0, 0.5, 0, 0);   // 잔디 윗면
+        onGround.firstTick = false;
+        onGround.setPuffState(2);
+        assertEquals(-60.0, onGround.y(), 1e-5, "땅이 막아 빈 곳은 땅 위");
+
+        var fresh = (Pufferfish) Entities.create(level, "minecraft:pufferfish");
+        fresh.moveTo(0.5, -50.0, 0.5, 0, 0);
+        fresh.setPuffState(2);
+        assertEquals(-50.0, fresh.y(), "첫 틱 전에는 밀지 않는다");
+
+        var shrinking = (Pufferfish) Entities.create(level, "minecraft:pufferfish");
+        shrinking.setPuffState(2);
+        shrinking.moveTo(0.5, -50.0, 0.5, 0, 0);
+        shrinking.firstTick = false;
+        shrinking.setPuffState(0);
+        assertEquals(-50.0, shrinking.y(), "작아지면 밀지 않는다");
+    }
+
     @Test
     void paintingVariantSlotFollowsTheName() {
         var level = new BlockPlacementTest.TestLevel();
