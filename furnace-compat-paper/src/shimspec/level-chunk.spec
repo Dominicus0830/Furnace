@@ -70,3 +70,11 @@ class net.minecraft.world.level.GameType
   SPECTATOR = (3, "spectator")
 class net.minecraft.world.level.EmptyBlockGetter
   INSTANCE
+class net.minecraft.world.level.LevelAccessor
+class net.minecraft.world.level.LevelWriter
+class net.minecraft.world.level.CommonLevelAccessor
+class net.minecraft.world.level.LevelReader
+class net.minecraft.world.level.ServerLevelAccessor
+class net.minecraft.world.level.WorldGenLevel
+class net.minecraft.world.level.Level
+class net.minecraft.world.level.chunk.ChunkSource
