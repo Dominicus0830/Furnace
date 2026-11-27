@@ -7,10 +7,31 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
 import org.bukkit.command.CommandSender;
+import org.bukkit.Bukkit;
+import org.bukkit.craftbukkit.CraftServer;
+import org.bukkit.craftbukkit.CraftWorld;
+import org.domi.furnace.compat.paper.Compat;
+import org.domi.furnace.test.FurnaceTestServer;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 
 /** Paper API CommandSourceStack 다리: NMS 출처가 API 인터페이스를 구현하고 엔티티 없는 보낸이의 값이 바닐라(콘솔)와 같다. */
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class PaperCommandSourceStackTest {
+
+    FurnaceTestServer server;
+
+    @BeforeAll
+    void start() {
+        server = FurnaceTestServer.builder().failFast(false).seed(0L).spawnChunkRadius(0).start();
+        Bukkit.setServer(CraftServer.INSTANCE);
+    }
+
+    @AfterAll
+    void stop() { server.close(); }
+
 
     private static CommandSender console() {
         return (CommandSender) Proxy.newProxyInstance(CommandSender.class.getClassLoader(), new Class<?>[] {CommandSender.class},
@@ -28,7 +49,10 @@ class PaperCommandSourceStackTest {
         assertSame(stack, stack.getHandle());
         assertNull(stack.getExecutor());
         assertNull(stack.getBukkitEntity());
-        assertEquals(Vec3.ZERO, stack.getPosition());
+        // 콘솔 출처: 오버월드 월드 스폰 칸의 아래 모서리·오버월드(Paper 서버 jar 의 콘솔 출처 생성과 같다)
+        var overworld = ((CraftWorld) Compat.world(server.overworld())).getHandle();
+        assertSame(overworld, stack.getLevel());
+        assertEquals(Vec3.atLowerCornerOf(overworld.getSharedSpawnPos()), stack.getPosition());
         assertSame(Vec2.ZERO, stack.getRotation());
     }
 
