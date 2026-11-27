@@ -1403,6 +1403,9 @@ public interface ChunkInternals {
         throw new UnsupportedOperationException("lootRoll");
     }
 
+    /** 데이터 팩 전리품 표 {@code tableId} 의 매개변수 집합 이름(minecraft:chest …). 표가 없거나 데이터 팩이 없으면 minecraft:empty. */
+    default String lootParamSet(String tableId) { throw new UnsupportedOperationException("lootParamSet"); }
+
     /** 바닐라 {@code LootTable#getRandomItemsRaw}: {@link #lootRoll} 과 같되 스택을 나누지 않고 빈 스택도 그대로 돌려준다. 스레드 규칙은 같다. */
     default java.util.List<org.domi.furnace.api.item.ItemStack> lootRollRaw(World world, String tableId, LootRollParams params, long seed) {
         throw new UnsupportedOperationException("lootRollRaw");
@@ -1410,10 +1413,11 @@ public interface ChunkInternals {
 
     /**
      * 바닐라 {@code LootTable#fill(Container, LootParams, long)}: 칸 내용({@code contents}, 빈 칸은 빈 스택)에 표 결과를 바닐라 난수 순서
-     * (전리품 → 빈 칸 섞기 → 나누기 → 아이템 섞기)대로 채운 새 내용을 같은 길이로 돌려준다. 가득 차면 바닐라처럼 경고하고 멈춘다. 스레드 규칙은 {@link #lootRoll} 과 같다.
+     * (전리품 → 빈 칸 섞기 → 나누기 → 아이템 섞기)대로 채운 새 내용을 같은 길이로 돌려준다. 가득 차면 바닐라처럼 경고하고 멈춘다. 표를 굴린 뒤 LootGenerateEvent 를 부르고(취소면 내용 그대로 돌려줌) 바뀐 전리품이 칸에 나뉜다. {@code plugin} 은 플러그인이 직접 채우라고 한 것(Paper fillInventory 의 plugin), {@code holderToken} 은 이벤트에 실을 컨테이너 손잡이(호환 계층만 쓴다). 스레드 규칙은 {@link #lootRoll} 과 같다.
      */
     default java.util.List<org.domi.furnace.api.item.ItemStack> lootFill(World world, String tableId, LootRollParams params, long seed,
-                                                                         java.util.List<org.domi.furnace.api.item.ItemStack> contents) {
+                                                                         java.util.List<org.domi.furnace.api.item.ItemStack> contents,
+                                                                         boolean plugin, Object holderToken) {
         throw new UnsupportedOperationException("lootFill");
     }
 

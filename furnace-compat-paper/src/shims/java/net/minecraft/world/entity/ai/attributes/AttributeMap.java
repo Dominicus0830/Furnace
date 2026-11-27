@@ -14,7 +14,7 @@ import org.domi.furnace.compat.nms.NmsAttributes;
  * 다른 스레드의 쓰기는 주인에게 넘김). 엔티티에 붙지 않은 모음({@code new AttributeMap(AttributeSupplier)})·저장({@code save}·{@code load})·
  * 값 복사({@code assignAllValues})·동기 대기 목록({@code getAttributesToSync}·{@code getAttributesToUpdate})은 두지 않았다(부르면 없는 멤버).
  */
-public class AttributeMap {
+class AttributeMap {
 
     private final org.domi.furnace.api.entity.LivingEntity entity;
 

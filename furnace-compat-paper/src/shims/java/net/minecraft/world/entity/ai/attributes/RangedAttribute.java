@@ -1,7 +1,7 @@
 package net.minecraft.world.entity.ai.attributes;
 
 /** 범위가 있는 속성(Mojang 이름 shim, NMS shim 3번 묶음). 바닐라 1.21.1 의 모든 속성이 이 종류다. */
-public class RangedAttribute extends Attribute {
+class RangedAttribute {
 
     private final double minValue;
     public double maxValue;

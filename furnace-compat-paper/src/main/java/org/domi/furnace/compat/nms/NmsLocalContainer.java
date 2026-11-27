@@ -9,9 +9,19 @@ public final class NmsLocalContainer implements Container {
 
     private final ItemStack[] slots;
 
-    public NmsLocalContainer(int size) {
+    private final org.bukkit.inventory.InventoryHolder owner;
+    private final boolean hasOwner;
+
+    public NmsLocalContainer(int size) { this(size, null, false); }
+
+    /** 호환 모듈 전용: Bukkit 인벤토리의 복사본으로 쓰는 컨테이너(getOwner 는 그 인벤토리의 주인, 없으면 null). */
+    public NmsLocalContainer(int size, org.bukkit.inventory.InventoryHolder owner) { this(size, owner, true); }
+
+    private NmsLocalContainer(int size, org.bukkit.inventory.InventoryHolder owner, boolean hasOwner) {
         slots = new ItemStack[size];
         java.util.Arrays.fill(slots, ItemStack.EMPTY);
+        this.owner = owner;
+        this.hasOwner = hasOwner;
     }
 
     @Override
@@ -71,7 +81,10 @@ public final class NmsLocalContainer implements Container {
     public org.bukkit.Location getLocation() { throw bukkitSide("getLocation"); }
 
     @Override
-    public org.bukkit.inventory.InventoryHolder getOwner() { throw bukkitSide("getOwner"); }
+    public org.bukkit.inventory.InventoryHolder getOwner() {
+        if (!hasOwner) throw bukkitSide("getOwner");
+        return owner;
+    }
 
     @Override
     public java.util.List<org.bukkit.entity.HumanEntity> getViewers() { throw bukkitSide("getViewers"); }

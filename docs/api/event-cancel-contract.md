@@ -102,6 +102,7 @@
 | `WorldUnloadEvent` | `SERVER_DRIVEN` | - | 월드가 그대로 올라와 있고 `unloadWorld` 는 false |
 | `PlayerEditBookEvent` | `SERVER_DRIVEN` | - | 책 내용·서명 |
 | `PlayerFishEvent` | `SERVER_DRIVEN` | - | 낚시찌 연결·낚싯대 내구도 |
+| `LootGenerateEvent` | `SERVER_DRIVEN` | - | 전리품 컨테이너 채우기(쪼개기·섞기 뒤 발사, 취소하면 칸 그대로) |
 | `PlayerHandshakeEvent` | `SERVER_DRIVEN` | - | 로그인(끊기 패킷만 나가고 Player 도 만들어지지 않는다) |
 | `FunctionExecuteEvent` | `SERVER_DRIVEN` | - | 데이터 팩 함수 본문 실행(통째로 건너뜀) |
 | `GameRuleChangeEvent` | `SERVER_DRIVEN` | - | /gamerule 규칙 값(명령은 성공하고 지금 값을 알린다, 값 바뀜 처리는 지금 값으로 한 번 돈다) |

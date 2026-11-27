@@ -163,6 +163,7 @@ public final class PluginGameEvents implements GameEvents {
     private final EventBusImpl.Flag wEntityTeleport;
     private final EventBusImpl.Flag wEntityPortalExit;
     private final EventBusImpl.Flag wPortalCreate;
+    private final EventBusImpl.Flag wLootGenerate;
     private final EventBusImpl.Flag wPlayerEditBook;
     private final EventBusImpl.Flag wEntityChangeBlock;
     private final EventBusImpl.Flag wEntityBreakDoor;
@@ -240,6 +241,7 @@ public final class PluginGameEvents implements GameEvents {
         wEntityTeleport = b.flag(org.domi.furnace.api.event.entity.EntityTeleportEvent.class);
         wEntityPortalExit = b.flag(org.domi.furnace.api.event.entity.EntityPortalExitEvent.class);
         wPortalCreate = b.flag(PortalCreateEvent.class);
+        wLootGenerate = b.flag(org.domi.furnace.api.event.world.LootGenerateEvent.class);
         wPlayerEditBook = b.flag(PlayerEditBookEvent.class);
         wEntityChangeBlock = b.flag(org.domi.furnace.api.event.entity.EntityChangeBlockEvent.class);
         wEntityBreakDoor = b.flag(org.domi.furnace.api.event.entity.EntityBreakDoorEvent.class);
@@ -1064,6 +1066,28 @@ public final class PluginGameEvents implements GameEvents {
         java.util.List<BlockPos> list = new java.util.ArrayList<>(blocks.size());
         for (var b : blocks) list.add(bp(b));
         return !bus().call(new PortalCreateEvent(dimension, list, PortalCreateEvent.Reason.FIRE)).isCancelled();
+    }
+
+    @Override
+    public java.util.List<org.domi.furnace.server.loot.LootStack> lootGenerate(String dimension, String lootTable, org.domi.furnace.api.entity.Entity thisEntity,
+            org.domi.furnace.api.entity.Entity killer, org.domi.furnace.server.block.Pos containerBlock, org.domi.furnace.api.entity.Entity containerEntity, Object holderToken, double[] origin,
+            float luck, java.util.List<org.domi.furnace.server.loot.LootStack> loot, boolean plugin) {
+        if (!wLootGenerate.on()) return loot;
+        var dp = host.core().dataPacks();
+        java.util.List<org.domi.furnace.api.item.ItemStack> api = new java.util.ArrayList<>(loot.size());
+        for (var st : loot) {
+            var is = st == null || st.isEmpty() ? null : dp.network().toItemStack(st);
+            api.add(is == null || is.isEmpty() ? org.domi.furnace.api.item.ItemStack.EMPTY : ChunkInternalsImpl.apiItem(is));
+        }
+        var ev = new org.domi.furnace.api.event.world.LootGenerateEvent(dimension, lootTable, thisEntity, containerBlock == null ? null : bp(containerBlock),
+                containerEntity, holderToken, origin, luck, thisEntity, killer, api, plugin);
+        if (bus().call(ev).isCancelled()) return null;
+        java.util.List<org.domi.furnace.server.loot.LootStack> out = new java.util.ArrayList<>(ev.loot().size());
+        for (var a : ev.loot()) {
+            out.add(a == null || a.isEmpty() ? org.domi.furnace.server.loot.LootStack.empty()
+                    : org.domi.furnace.server.ServerCore.toLootStack(ApiConvert.item(a)));
+        }
+        return out;
     }
 
     @Override

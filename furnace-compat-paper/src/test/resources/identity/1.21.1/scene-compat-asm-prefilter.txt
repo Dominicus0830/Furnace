@@ -19,12 +19,12 @@ jar cloud-paper-2.0.1.jar default classes=38 prefilter-hit=3 changed=0 refused=0
 jar cloud-paper-2.0.1.jar versioned classes=38 prefilter-hit=3 changed=0 refused=0 d7dadcf78f3c0fc9
 jar commandapi-bukkit-core-12.1.0.jar default classes=155 prefilter-hit=7 changed=1 refused=0 87107c1247cb1a36
 jar commandapi-bukkit-core-12.1.0.jar versioned classes=155 prefilter-hit=7 changed=1 refused=0 7a5a2d1fce5e51d5
-jar commandapi-bukkit-plugin-10.1.2.jar default classes=308 prefilter-hit=37 changed=30 refused=0 757708f1a26a7010
-jar commandapi-bukkit-plugin-10.1.2.jar versioned classes=308 prefilter-hit=37 changed=33 refused=0 f1ec99eefe17c835
+jar commandapi-bukkit-plugin-10.1.2.jar default classes=308 prefilter-hit=37 changed=30 refused=0 b8ab78b7ed027f2d
+jar commandapi-bukkit-plugin-10.1.2.jar versioned classes=308 prefilter-hit=37 changed=33 refused=0 686c1c0e4e9ab724
 jar commodore-2.2.jar default classes=12 prefilter-hit=3 changed=3 refused=0 78e094eb1378e5ec
 jar commodore-2.2.jar versioned classes=12 prefilter-hit=3 changed=4 refused=0 cd278be968b827e4
 jar fastboard-2.2.2.jar default classes=8 prefilter-hit=2 changed=2 refused=0 ea19d4600f511d8c
 jar fastboard-2.2.2.jar versioned classes=8 prefilter-hit=2 changed=2 refused=0 6b4c7f3754d7da98
 jar helper-5.6.14.jar default classes=1197 prefilter-hit=19 changed=16 refused=0 b428ae5c32aa0145
 jar helper-5.6.14.jar versioned classes=1197 prefilter-hit=19 changed=30 refused=0 fd90c513c085b5ff
-TOTAL ff7dd2013858c491 lines=28
+TOTAL 974d2f8a666956b2 lines=28
