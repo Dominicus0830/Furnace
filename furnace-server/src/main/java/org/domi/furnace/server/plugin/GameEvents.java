@@ -401,6 +401,15 @@ public interface GameEvents {
     /** 불로 지옥문을 만들기 직전(blocks 는 채울 칸). false 면 취소. */
     default boolean portalCreate(String dimension, java.util.List<Pos> blocks) { return true; }
 
+    /**
+     * 전리품 표가 컨테이너를 채우기 직전(Paper LootGenerateEvent): 표를 굴린 {@code loot}(빈 스택 포함)를 플러그인이 보고 고친다. 컨테이너를 가진 스레드에서.
+     * 돌려주는 목록이 칸에 나뉘고, 취소했으면 null. 처리기가 없으면 받은 그대로.
+     */
+    default java.util.List<org.domi.furnace.server.loot.LootStack> lootGenerate(String dimension, String lootTable,
+            org.domi.furnace.api.entity.Entity thisEntity, org.domi.furnace.api.entity.Entity killer, Pos containerBlock,
+            org.domi.furnace.api.entity.Entity containerEntity, Object holderToken, double[] origin, float luck,
+            java.util.List<org.domi.furnace.server.loot.LootStack> loot, boolean plugin) { return loot; }
+
     /** 책 편집 결과(제목이 null 이 아니면 서명). */
     record BookEdit(java.util.List<String> pages, String title) {}
 

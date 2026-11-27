@@ -230,8 +230,8 @@ class EntityOracleTest {
                 + " privateUnresolved=" + privateUnresolved + " cases: same=" + same + " differ=" + differ + " shimThrew=" + shimThrew + " vanillaNotComparable=" + vanillaThrew
                 + " opaque=" + opaque + " mutation canary caught=" + canaryCaught + " missed=" + canaryMissed);
         assertEquals(List.of(), failures, "linked entity members must match vanilla on off-world entities");
-        // 증명 수가 조용히 줄면 잡는다(2026-11-27 측정: 249 멤버 중 증명 211)
-        assertTrue(provedMembers >= 200, "members proved by the oracle: " + provedMembers);
+        // 증명 수가 조용히 줄면 잡는다(2026-11-27 측정: 249 멤버 중 증명 211 → 지문 멤버 줄을 주석으로 자르던 것을 고친 뒤 231)
+        assertTrue(provedMembers >= 220, "members proved by the oracle: " + provedMembers);
         assertEquals(0, canaryMissed, "mutation canary: a wrongly linked member must not compare equal");
         assertTrue(canaryCaught >= 30, "mutation canaries that could be told apart: " + canaryCaught);
     }
@@ -324,8 +324,9 @@ class EntityOracleTest {
         for (Path f : files) {
             String owner = null;
             for (String raw : Files.readAllLines(f, StandardCharsets.UTF_8)) {
-                String line = raw.contains(" #") ? raw.substring(0, raw.indexOf(" #")) : raw;
-                if (line.startsWith("#") || line.isBlank()) continue;
+                // 주석: "# " 로 시작하는 줄·줄 끝 " # …"(연결 파일 규칙). 지문(#ab12…)은 # 뒤에 빈칸이 없어 주석이 아니다
+                String line = raw.contains(" # ") ? raw.substring(0, raw.indexOf(" # ")) : raw;
+                if (line.trim().equals("#") || line.trim().startsWith("# ") || line.startsWith("#furnace-links") || line.isBlank()) continue;
                 if (line.startsWith("class ")) {
                     owner = line.substring(6).trim();
                     continue;
@@ -343,8 +344,13 @@ class EntityOracleTest {
     }
 
     static void compileVanillaProbe(Path outDir, List<String> classpath) throws Exception {
-        Path src = Files.createDirectories(outDir.resolve("src/furnaceo3")).resolve("VanillaEntityProbe.java");
-        try (var in = EntityOracleTest.class.getResourceAsStream("/o3/VanillaEntityProbe.java")) {
+        compileVanillaProbe(outDir, classpath, "VanillaEntityProbe");
+    }
+
+    /** 시험 자원 o3/&lt;이름&gt;.java(package furnaceo3)를 바닐라 jar 에 대고 outDir 로 컴파일한다. */
+    static void compileVanillaProbe(Path outDir, List<String> classpath, String name) throws Exception {
+        Path src = Files.createDirectories(outDir.resolve("src/furnaceo3")).resolve(name + ".java");
+        try (var in = EntityOracleTest.class.getResourceAsStream("/o3/" + name + ".java")) {
             Files.write(src, in.readAllBytes());
         }
         JavaCompiler javac = ToolProvider.getSystemJavaCompiler();

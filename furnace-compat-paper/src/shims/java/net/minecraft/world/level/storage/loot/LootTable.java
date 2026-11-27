@@ -44,23 +44,26 @@ class LootTable {
     public void getRandomItems(LootParams params, Consumer<ItemStack> output) { getRandomItems(params, RANDOMIZE_SEED, output); }
 
     public void getRandomItems(LootParams params, long seed, Consumer<ItemStack> output) {
-        for (var r : bridgeCall(params, seed, "LootTable#getRandomItems", 0, null)) output.accept(ItemStack.fromFurnace(r, r.amount()));
+        for (var r : bridgeCall(params, seed, "LootTable#getRandomItems", 0, null, false, null)) output.accept(ItemStack.fromFurnace(r, r.amount()));
     }
 
     /** 바닐라 getRandomItemsRaw(LootParams, Consumer): 표 함수까지 적용하고 스택을 나누지 않는다. */
     public void getRandomItemsRaw(LootParams params, Consumer<ItemStack> output) {
-        for (var r : bridgeCall(params, RANDOMIZE_SEED, "LootTable#getRandomItemsRaw", 1, null)) output.accept(r.isEmpty() ? ItemStack.EMPTY : ItemStack.fromFurnace(r, r.amount()));
+        for (var r : bridgeCall(params, RANDOMIZE_SEED, "LootTable#getRandomItemsRaw", 1, null, false, null)) output.accept(r.isEmpty() ? ItemStack.EMPTY : ItemStack.fromFurnace(r, r.amount()));
     }
 
     /** 바닐라 fill(Container, LootParams, long): 빈 칸에 표 결과를 바닐라 난수 순서대로 채운다(가득 차면 경고하고 멈춤). */
-    public void fill(net.minecraft.world.Container container, LootParams params, long seed) {
+    public void fill(net.minecraft.world.Container container, LootParams params, long seed) { fillInventory(container, params, seed, false); }
+
+    /** Paper fillInventory: fill 과 같되 LootGenerateEvent 의 plugin 값을 받는다(CraftLootTable.fillInventory 는 true). */
+    public void fillInventory(net.minecraft.world.Container container, LootParams params, long seed, boolean plugin) {
         int n = container.getContainerSize();
         List<org.domi.furnace.api.item.ItemStack> contents = new java.util.ArrayList<>(n);
         for (int i = 0; i < n; i++) {
             ItemStack s = container.getItem(i);
             contents.add(s.isEmpty() ? org.domi.furnace.api.item.ItemStack.EMPTY : s.furnaceValue());
         }
-        List<org.domi.furnace.api.item.ItemStack> after = bridgeCall(params, seed, "LootTable#fill", 2, contents);
+        List<org.domi.furnace.api.item.ItemStack> after = bridgeCall(params, seed, "LootTable#fill", 2, contents, plugin, container);
         for (int i = 0; i < n; i++) {
             if (after.get(i) == contents.get(i)) continue;   // 건드리지 않은 칸
             container.setItem(i, after.get(i).isEmpty() ? ItemStack.EMPTY : ItemStack.fromFurnace(after.get(i), after.get(i).amount()));
@@ -68,7 +71,7 @@ class LootTable {
     }
 
     /** kind 0 = getRandomItems(스택 나눔), 1 = getRandomItemsRaw, 2 = fill(contents 가 칸 내용). */
-    private List<org.domi.furnace.api.item.ItemStack> bridgeCall(LootParams params, long seed, String what, int kind, List<org.domi.furnace.api.item.ItemStack> contents) {
+    private List<org.domi.furnace.api.item.ItemStack> bridgeCall(LootParams params, long seed, String what, int kind, List<org.domi.furnace.api.item.ItemStack> contents, boolean plugin, net.minecraft.world.Container container) {
         var values = params.furnaceValues();
         var tool = (ItemStack) values.get(LootContextParams.TOOL);
         var origin = (net.minecraft.world.phys.Vec3) values.get(LootContextParams.ORIGIN);
@@ -98,7 +101,7 @@ class LootTable {
         org.domi.furnace.api.entity.Entity owner = firstNonNull(api.thisEntity(), api.lastDamagePlayer(), api.attackingEntity(), api.directAttackingEntity(), api.damageEntity(), api.damageDirectEntity());
         java.util.function.Supplier<List<org.domi.furnace.api.item.ItemStack>> roll = () -> kind == 0 ? org.domi.furnace.compat.nms.NmsChunks.bridge().lootRoll(world, furnaceId, api, seed)
                 : kind == 1 ? org.domi.furnace.compat.nms.NmsChunks.bridge().lootRollRaw(world, furnaceId, api, seed)
-                : org.domi.furnace.compat.nms.NmsChunks.bridge().lootFill(world, furnaceId, api, seed, contents);
+                : org.domi.furnace.compat.nms.NmsChunks.bridge().lootFill(world, furnaceId, api, seed, contents, plugin, container == null ? null : (java.util.function.Supplier<Object>) container::getOwner);
         // 개체가 있으면 그 주인 스레드, 없고 위치가 있으면 그 칸의 청크를 가진 스레드(위치·바이옴 조건이 거짓으로 답하지 않게), 둘 다 없으면 그대로
         List<org.domi.furnace.api.item.ItemStack> rolled = owner != null
                 ? org.domi.furnace.compat.nms.NmsEntities.call(world, owner, what, roll)

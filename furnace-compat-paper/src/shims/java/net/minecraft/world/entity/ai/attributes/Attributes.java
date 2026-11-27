@@ -7,7 +7,7 @@ import org.domi.furnace.compat.nms.NmsAttributes;
  * 바닐라 속성 상수(Mojang 이름 shim, NMS shim 3번 묶음). 31개, 바닐라 1.21.1 선언 순서·타입(Holder&lt;Attribute&gt;) 그대로다.
  * 값은 {@code BuiltInRegistries.ATTRIBUTE} 의 등록된 손잡이(Holder.Reference)다.
  */
-public class Attributes {
+class Attributes {
 
     public static final Holder<Attribute> ARMOR = NmsAttributes.holder("minecraft:generic.armor");
     public static final Holder<Attribute> ARMOR_TOUGHNESS = NmsAttributes.holder("minecraft:generic.armor_toughness");

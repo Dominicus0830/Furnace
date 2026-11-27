@@ -189,6 +189,37 @@ final class Mappings {
     private static void registerWorld() {
         EventBridge.reg(org.domi.furnace.api.event.block.BlockBreakEvent.class, org.bukkit.event.block.BlockBreakEvent.class,
                 f -> f.player() == null ? null : new org.bukkit.event.block.BlockBreakEvent(Compat.block(f.world(), f.pos()), p(f.player())), (f, b) -> {});
+        // Paper LootTable.fillInventory 의 LootGenerateEvent: 표를 굴린 뒤 칸에 나누기 전. 취소하면 채우지 않고, setLoot 로 바꾼 목록이 칸에 나뉜다.
+        EventBridge.reg(org.domi.furnace.api.event.world.LootGenerateEvent.class, org.bukkit.event.world.LootGenerateEvent.class,
+                f -> {
+                    var world = Compat.world(f.world());
+                    if (world == null) return null;
+                    var entity = f.entity() == null ? null : Compat.entity(f.entity());
+                    org.bukkit.inventory.InventoryHolder holder = null;
+                    if (f.holderToken() instanceof java.util.function.Supplier<?> sup) {
+                        holder = (org.bukkit.inventory.InventoryHolder) sup.get();
+                    } else if (f.containerBlock() != null) {
+                        holder = Compat.block(f.world(), f.containerBlock()).getState() instanceof org.bukkit.inventory.InventoryHolder ih ? ih : null;
+                    } else if (f.containerEntity() != null) {
+                        holder = Compat.entity(f.containerEntity()) instanceof org.bukkit.inventory.InventoryHolder ih ? ih : null;
+                    }
+                    // 바닐라 CraftLootTable.convertContext(NMS): 위치는 origin, 없으면 this_entity 위치
+                    org.bukkit.Location where = f.origin() != null ? new org.bukkit.Location(world, f.origin()[0], f.origin()[1], f.origin()[2])
+                            : entity != null ? entity.getLocation() : null;
+                    if (where == null) return null;
+                    var ctx = new org.bukkit.loot.LootContext.Builder(where);
+                    if (f.killer() != null && Compat.entity(f.killer()) instanceof org.bukkit.entity.HumanEntity he) ctx.killer(he);
+                    if (f.lootedEntity() != null) ctx.lootedEntity(Compat.entity(f.lootedEntity()));
+                    ctx.luck(f.luck());
+                    var table = org.bukkit.craftbukkit.CraftLootTable.ofKey(org.bukkit.craftbukkit.util.CraftNamespacedKey.fromString(f.lootTable()));
+                    var items = new java.util.ArrayList<org.bukkit.inventory.ItemStack>(f.loot().size());
+                    for (var it : f.loot()) items.add(it.isEmpty() ? new org.bukkit.inventory.ItemStack(org.bukkit.Material.AIR) : CompatItems.copyOf(it));
+                    return new org.bukkit.event.world.LootGenerateEvent(world, entity, holder, table, ctx.build(), items, f.plugin());
+                },
+                (f, b) -> {   // Bukkit 처리기가 바꾼 전리품을 Furnace 이벤트로(Paper 는 빈 칸·null 도 빈 스택으로 둔다)
+                    f.loot().clear();
+                    for (var it : b.getLoot()) f.loot().add(it == null ? org.domi.furnace.api.item.ItemStack.EMPTY : CompatItems.toFurnace(it));
+                });
         EventBridge.reg(org.domi.furnace.api.event.world.WorldLoadEvent.class, org.bukkit.event.world.WorldLoadEvent.class,
                 f -> {
                     // 플러그인 onLoad·STARTUP 단계에 올라온 추가 월드는 Bukkit 에 아직 안 보인다 — 드러낼 때 한 번 보낸다(Compat.revealWorldsAfterStartup)

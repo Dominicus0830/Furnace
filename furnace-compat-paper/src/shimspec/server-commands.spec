@@ -27,7 +27,9 @@ class net.minecraft.server.level.ServerPlayer
 class net.minecraft.server.level.ServerPlayerGameMode
 class net.minecraft.server.level.TicketType
 class net.minecraft.server.level.progress.ChunkProgressListener
+class net.minecraft.server.network.ServerCommonPacketListenerImpl
 class net.minecraft.server.network.ServerConnectionListener
+class net.minecraft.server.network.ServerGamePacketListenerImpl
 class net.minecraft.server.packs.PackResources
 class net.minecraft.server.packs.PackType
   CLIENT_RESOURCES = ("assets")
