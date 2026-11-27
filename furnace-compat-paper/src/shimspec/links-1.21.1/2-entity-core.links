@@ -25,3 +25,18 @@ class net.minecraft.world.entity.monster.Guardian
   setActiveAttackTarget(I)V -> @idiom(entity-data-set, #7a65b67eae) write via=G1 proof=review          # 반응: 클라이언트 공격 애니메이션만
 class net.minecraft.world.entity.monster.Shulker
   setAttachFace(Lnet/minecraft/core/Direction;)V -> @idiom(entity-data-set, net.minecraft.world.entity.monster.Shulker.DATA_ATTACH_FACE_ID) write via=G1 proof=review   # 반응: 상자 다시 만들기(Shulker 훅)
+# 손 줄(2026-11-27, 엔티티 스레드): 바이트 깃발 칸을 클래스 안 도우미(setFlag·setVexFlag)로 켜고 끄는 setter — 추론기는 도우미를 따라가지 않아 못 잡았다.
+# 도우미 몸통이 관용구 entity-data-flag-set 과 같다(켜면 b|마스크, 끄면 b&~마스크). 바닐라·Paper 1.21.1 javap 같음, 이 클래스·상위에 onSyncedDataUpdated 없음(반응 없는 칸).
+# Paper 가 바닐라와 다른 setter(Fox·TamableAnimal setSitting/setInSittingPose 의 EntityToggleSitEvent, Bee setRolling 의 rollingOverride, Bee setHasNectar 의 꿀 타이머)는 넣지 않았다.
+class net.minecraft.world.entity.animal.Bee
+  setHasStung(Z)V -> @idiom(entity-data-flag-set, #79959678c6, 4) write via=G1 proof=review   # Bee.setFlag(4, v)
+class net.minecraft.world.entity.animal.Fox
+  setIsCrouching(Z)V -> @idiom(entity-data-flag-set, #987381bcc9, 4) write via=G1 proof=review   # Fox.setFlag(4, v)
+  setSleeping(Z)V -> @idiom(entity-data-flag-set, #987381bcc9, 32) write via=G1 proof=review   # Fox.setFlag(32, v)
+class net.minecraft.world.entity.animal.Panda
+  roll(Z)V -> @idiom(entity-data-flag-set, #9481042fe5, 4) write via=G1 proof=review   # Panda.setFlag(4, v)
+  setOnBack(Z)V -> @idiom(entity-data-flag-set, #9481042fe5, 16) write via=G1 proof=review   # Panda.setFlag(16, v)
+class net.minecraft.world.entity.animal.horse.AbstractHorse
+  setEating(Z)V -> @idiom(entity-data-flag-set, #2d924aac3c, 16) write via=G1 proof=review   # AbstractHorse.setFlag(16, v)
+class net.minecraft.world.entity.monster.Vex
+  setIsCharging(Z)V -> @idiom(entity-data-flag-set, #9630c828c9, 1) write via=G1 proof=review   # Vex.setVexFlag(1, v)
