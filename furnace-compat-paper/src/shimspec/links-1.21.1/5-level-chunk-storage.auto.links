@@ -1,0 +1,7 @@
+#furnace-links 1 1.21.1 area=5
+# T-263 machine-adopted links (adoptLinks): exact vanilla and Paper body shape (reviewed idiom + slot value type, or a plain forward to a live member). Do not edit -
+# rerun adoptLinks. Hand lines go in 5-level-chunk-storage.links; a member with a hand line is never adopted here.
+class net.minecraft.world.level.storage.LevelSummary$CorruptedLevelSummary
+  getLevelName()Ljava/lang/String; -> this.getLevelId pure via=G3 proof=shape
+class net.minecraft.world.level.storage.LevelSummary$SymlinkLevelSummary
+  getLevelName()Ljava/lang/String; -> this.getLevelId pure via=G3 proof=shape
