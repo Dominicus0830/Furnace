@@ -93,7 +93,8 @@ public abstract class Projectile extends Entity {
      * 그 밖에는 redirectable_projectile 을 맞췄을 때 그쪽을 시선 방향으로 튕긴 뒤 onHit(엔티티 적중: 이 투사체는 Targetable 이 아닌 투사체를 아직 못 맞춘다).
      */
     protected boolean hitTargetOrDeflectSelf(Hit hit) {
-        if (!pluginAllowsHit(hit)) return false;   // 플러그인 ProjectileHitEvent 취소(Paper preHitTargetOrDeflectSelf): 이번 적중을 무시
+        hitCancelled = !pluginAllowsHit(hit);
+        if (hitCancelled) return false;   // 플러그인 ProjectileHitEvent 취소(Paper preHitTargetOrDeflectSelf): 이번 적중을 무시
         if (hit.isEntity() && !(hit.target() instanceof EnderDragonPart)) {
             Targetable t = hit.target();
             Deflection d = t.projectileDeflection(this);
@@ -105,6 +106,9 @@ public abstract class Projectile extends Entity {
         onHit(hit);
         return false;
     }
+
+    /** Paper Projectile.hitCancelled: 마지막 적중을 플러그인이 취소했는가(관통 화살이 다음 적중 때 본다). */
+    protected boolean hitCancelled;
 
     private boolean pluginAllowsHit(Hit hit) {
         var ge = level.gameEvents();
@@ -200,11 +204,32 @@ public abstract class Projectile extends Entity {
     }
 
     /** Projectile.canHitEntity: 맞출 수 있고, 소유자는 한 번 벗어나기 전에는 안 맞는다. */
-    protected boolean canHitTarget(Targetable t) {
-        if (!t.isPickable()) return false;
+    protected final boolean canHitTarget(Targetable t) { return canHit(t); }
+
+    /**
+     * Paper {@code Projectile.canHitEntity(Entity)}(공개): 이 투사체가 그 엔티티(Entity 또는 Player)를 맞출 수 있는가. 하위 클래스 재정의까지 따른다
+     * (화살 관통 제외·불덩이류/셜커 탄환 noPhysics·낚시찌 아이템·바람 돌격). 소유 스레드에서 부른다.
+     */
+    public final boolean canHitEntity(Rider r) { return canHit(r); }
+
+    /**
+     * 바닐라 canHitEntity 의 몸통. t 는 찾기가 넘기는 Targetable(생물·플레이어·광산 수레 표지) 또는 그 밖의 Entity 다.
+     * canBeHitByProjectile(살아 있고 맞출 수 있음) → Paper: 소유자·대상이 둘 다 플레이어이고 소유자가 대상을 못 보면(플러그인 숨김) 거짓 →
+     * 소유자와 같은 탈것(뿌리 탈것이 같음)인 대상은 소유자를 한 번 벗어나기 전에는 못 맞힌다.
+     */
+    protected boolean canHit(Object t) {
+        if (!(t instanceof Targetable tt ? tt.isPickable() : t instanceof Entity e && e.isAlive() && e.isPickable())) return false;
         Targetable o = getOwner();
-        // 바닐라 canHitEntity: 소유자와 같은 탈것(뿌리 탈것이 같음)인 대상은 소유자를 한 번 벗어나기 전에는 못 맞힌다.
+        if (o instanceof Player op && t instanceof Player tp && op != tp
+                && !org.domi.furnace.server.entity.view.EntityViewRules.canSee(op, tp.uuid())) return false;
         return o == null || leftOwner || rootOf(o) != rootOf(t);
+    }
+
+    /** 대상 엔티티의 noPhysics(플레이어는 관전자일 때 — 그때는 이미 맞출 수 없다). */
+    static boolean targetNoPhysics(Object t) {
+        if (t instanceof Entity e) return e.noPhysics;
+        if (t instanceof AbstractArrow.CartTarget c) return c.cart.noPhysics;
+        return false;
     }
 
     /** Projectile.shoot(x, y, z, speed, inaccuracy): 방향에 무작위 흩어짐(엔티티 난수 3번)을 더해 속도로. */

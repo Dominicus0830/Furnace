@@ -39,7 +39,7 @@ public final class Registries {
     public static final ResourceKey<Registry<Object>> CUSTOM_STAT = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("custom_stat"));
     public static final ResourceKey<Registry<Object>> BANNER_PATTERN = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("banner_pattern"));
     public static final ResourceKey<Registry<Object>> CHAT_TYPE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("chat_type"));
-    public static final ResourceKey<Registry<Object>> DAMAGE_TYPE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("damage_type"));
+    public static final ResourceKey<Registry<net.minecraft.world.damagesource.DamageType>> DAMAGE_TYPE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("damage_type"));
     public static final ResourceKey<Registry<Object>> DIMENSION_TYPE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("dimension_type"));
     public static final ResourceKey<Registry<Object>> ENCHANTMENT = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("enchantment"));
     public static final ResourceKey<Registry<Object>> JUKEBOX_SONG = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("jukebox_song"));

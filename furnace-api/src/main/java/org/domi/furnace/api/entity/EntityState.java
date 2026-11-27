@@ -3,7 +3,7 @@
 // 얻는 곳은 Entity.stateNow()(지금 소유 스레드일 때)와 Entity.editState(다음 틱 소유 스레드에서)다.
 // 쓰기는 바닐라 setter 와 같은 경로라, 보는 플레이어 화면에는 다음 엔티티 갱신(데이터 동기화·탑승 패킷)으로 반영된다.
 // 엔티티가 사라진 뒤(isValid false)의 쓰기는 아무 일도 하지 않고, 읽기는 마지막 값을 준다.
-// 살아 있는 엔티티는 LivingEntityState, 갑옷 거치대는 ArmorStandState 다.
+// 살아 있는 엔티티는 LivingEntityState, 갑옷 거치대는 ArmorStandState, 투사체는 ProjectileState 다.
 package org.domi.furnace.api.entity;
 
 import java.util.List;

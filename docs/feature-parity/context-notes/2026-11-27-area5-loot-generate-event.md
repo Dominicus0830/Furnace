@@ -14,7 +14,7 @@
 
 ## 남은 틈
 - `convertContext` 의 TOOL 은 `ItemStack.EMPTY`(바닐라는 `player.getUseItem()`; 호환 Player 에 아직 없음).
-- 피해 출처는 `NmsLootDamage`(임시 아님, 이름 기반 읽기와 병존). 엔티티 스레드 PR 665 의 진짜 DamageSource shim 이 병합되면 `DamageSources.generic()/playerAttack()` 으로 바꾼다.
+- 피해 출처는 처음에 `NmsLootDamage` 로 두었다가, 엔티티 스레드 PR 665 의 DamageSource shim 병합 때 Paper 와 같은 `handle.damageSources().generic()/playerAttack()` 으로 바꿨다.
 - `LootContext`/`RandomSource` 받는 굴리기, `Bukkit.getLootTable`, `LootTables` enum 은 아직 없다.
 
 ## 검토 필요 파일

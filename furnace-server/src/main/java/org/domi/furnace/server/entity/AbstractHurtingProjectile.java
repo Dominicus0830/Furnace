@@ -7,6 +7,10 @@ import org.domi.furnace.server.net.io.nbt.NbtCompound;
 
 @org.domi.furnace.server.VanillaPort("net.minecraft.world.entity.projectile.AbstractHurtingProjectile")
 public abstract class AbstractHurtingProjectile extends Projectile {
+
+    /** 바닐라 AbstractHurtingProjectile.canHitEntity: 대상이 noPhysics 면 못 맞힌다. */
+    @Override
+    protected boolean canHit(Object t) { return super.canHit(t) && !targetNoPhysics(t); }
     public static final double INITIAL_ACCELERATION_POWER = 0.1;
     public double accelerationPower = INITIAL_ACCELERATION_POWER;
 

@@ -80,28 +80,10 @@ class LootTable {
         var attacker = (net.minecraft.world.entity.Entity) values.get(LootContextParams.ATTACKING_ENTITY);
         var direct = (net.minecraft.world.entity.Entity) values.get(LootContextParams.DIRECT_ATTACKING_ENTITY);
         var state = (net.minecraft.world.level.block.state.BlockState) values.get(LootContextParams.BLOCK_STATE);
-        // DamageSource 는 호환 계층에 아직 컴파일되는 형이 없어 이름으로 읽는다(typeHolder·getEntity·getDirectEntity — 바닐라 DamageSource 메서드)
-        Object damage = values.get(LootContextParams.DAMAGE_SOURCE);
-        String damageType = null;
-        org.domi.furnace.api.entity.Entity damageEntity = null, damageDirect = null;
-        if (damage instanceof org.domi.furnace.compat.nms.NmsLootDamage d) {
-            damageType = d.type();
-            damageEntity = apiEntity(d.causing());
-            damageDirect = d.direct() == d.causing() ? damageEntity : apiEntity(d.direct());
-        } else if (damage != null) {
-            try {
-                Object holder = damage.getClass().getMethod("typeHolder").invoke(damage);
-                damageType = ((net.minecraft.core.Holder<?>) holder).getRegisteredName();
-                damageEntity = apiEntity((net.minecraft.world.entity.Entity) damage.getClass().getMethod("getEntity").invoke(damage));
-                damageDirect = apiEntity((net.minecraft.world.entity.Entity) damage.getClass().getMethod("getDirectEntity").invoke(damage));
-            } catch (java.lang.reflect.InvocationTargetException e) {   // 껍데기·구현이 던진 원래 오류를 그대로
-                if (e.getCause() instanceof RuntimeException re) throw re;
-                if (e.getCause() instanceof Error err) throw err;
-                throw new IllegalStateException(e.getCause());
-            } catch (ReflectiveOperationException e) {   // 메서드 자체가 없는 값만 여기 온다
-                throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LootTable#getRandomItems", "damage_source value has no typeHolder/getEntity/getDirectEntity: " + damage.getClass().getName());
-            }
-        }
+        var damage = (net.minecraft.world.damagesource.DamageSource) values.get(LootContextParams.DAMAGE_SOURCE);
+        String damageType = damage == null ? null : damage.typeHolder().getRegisteredName();
+        org.domi.furnace.api.entity.Entity damageEntity = damage == null ? null : apiEntity(damage.getEntity());
+        org.domi.furnace.api.entity.Entity damageDirect = damage == null ? null : apiEntity(damage.getDirectEntity());
         var blockEntity = (net.minecraft.world.level.block.entity.BlockEntity) values.get(LootContextParams.BLOCK_ENTITY);
         var api = new ChunkInternals.LootRollParams(
                 origin == null ? null : new double[] {origin.x, origin.y, origin.z},

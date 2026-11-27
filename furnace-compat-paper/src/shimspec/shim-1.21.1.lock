@@ -258,6 +258,7 @@ F	net/minecraft/world/entity/Entity	DATA_SHARED_FLAGS_ID	Lnet/minecraft/network/
 M	net/minecraft/world/entity/Entity	absMoveTo	(DDDFF)V	1	-
 M	net/minecraft/world/entity/Entity	blockPosition	()Lnet/minecraft/core/BlockPos;	1	-
 M	net/minecraft/world/entity/Entity	chunkPosition	()Lnet/minecraft/world/level/ChunkPos;	1	-
+M	net/minecraft/world/entity/Entity	damageSources	()Lnet/minecraft/world/damagesource/DamageSources;	1	-
 M	net/minecraft/world/entity/Entity	discard	()V	17	-
 M	net/minecraft/world/entity/Entity	ejectPassengers	()V	1	-
 M	net/minecraft/world/entity/Entity	getBbHeight	()F	17	-

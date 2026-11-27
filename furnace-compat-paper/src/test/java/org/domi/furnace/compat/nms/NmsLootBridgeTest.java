@@ -2,7 +2,6 @@ package org.domi.furnace.compat.nms;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -33,13 +32,6 @@ class NmsLootBridgeTest {
     FurnaceTestServer server;
     ServerLevel level;
     Vec3 origin;
-
-    /** damage_source 값의 모양(typeHolder·getEntity·getDirectEntity) — DamageSource 형이 호환 계층에 생기기 전의 읽기 경로를 부른다. */
-    public static class FakeDamageSource {
-        public net.minecraft.core.Holder<?> typeHolder() { return net.minecraft.core.Holder.direct("minecraft:player_attack"); }
-        public net.minecraft.world.entity.Entity getEntity() { return null; }
-        public net.minecraft.world.entity.Entity getDirectEntity() { return null; }
-    }
 
     @BeforeAll
     void start() throws Exception {
@@ -108,15 +100,8 @@ class NmsLootBridgeTest {
     @Test
     void damageSourceAndBlockEntityParametersPassThrough() {
         LootTable t = LootTable.furnaceOf("minecraft:chests/simple_dungeon", LootContextParamSets.CHEST);
-        var params = chest().withParameter(LootContextParams.DAMAGE_SOURCE, new FakeDamageSource()).create(WITH_DAMAGE);
+        var params = chest().withParameter(LootContextParams.DAMAGE_SOURCE, level.damageSources().fall()).create(WITH_DAMAGE);
         assertFalse(t.getRandomItems(params, 7L).isEmpty());
-    }
-
-    @Test
-    void damageSourceWithoutTheMethodsIsUnsupportedNotSilent() {
-        LootTable t = LootTable.furnaceOf("minecraft:chests/simple_dungeon", LootContextParamSets.CHEST);
-        var params = chest().withParameter(LootContextParams.DAMAGE_SOURCE, new Object()).create(WITH_DAMAGE);
-        assertThrows(UnsupportedNmsCall.class, () -> t.getRandomItems(params, 7L));
     }
 
     @Test

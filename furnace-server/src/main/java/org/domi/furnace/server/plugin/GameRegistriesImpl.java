@@ -35,6 +35,15 @@ final class GameRegistriesImpl implements GameRegistries {
     }
 
     @Override
+    public Optional<org.domi.furnace.api.registry.DamageType> damageType(String key) {
+        var t = org.domi.furnace.server.entity.damage.DamageType.find(normalize(key));
+        if (t == null) return Optional.empty();
+        java.util.Locale r = java.util.Locale.ROOT;
+        return Optional.of(new org.domi.furnace.api.registry.DamageType(t.msgId(), t.scaling().name().toLowerCase(r), t.exhaustion(),
+                t.effects().name().toLowerCase(r), t.deathMessageType().name().toLowerCase(r)));
+    }
+
+    @Override
     public Set<String> tags(String registry) {
         var byTag = TagView.current().names.get(normalize(registry));
         return byTag == null ? Set.of() : byTag.keySet();

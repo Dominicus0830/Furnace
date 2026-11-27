@@ -31,8 +31,8 @@ public abstract class AbstractWindCharge extends AbstractHurtingProjectile {
     public void explodeAt(double x, double y, double z) { explode(x, y, z); }
 
     @Override
-    protected boolean canHitTarget(Targetable t) {
-        return !(t instanceof AbstractWindCharge) && !(t instanceof EndCrystal) && super.canHitTarget(t);
+    protected boolean canHit(Object t) {
+        return !(t instanceof AbstractWindCharge) && !(t instanceof EndCrystal) && super.canHit(t);
     }
 
     @Override

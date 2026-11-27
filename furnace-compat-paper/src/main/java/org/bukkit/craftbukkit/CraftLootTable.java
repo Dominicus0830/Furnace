@@ -22,7 +22,6 @@ import net.minecraft.world.level.storage.loot.parameters.LootContextParam;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import org.domi.furnace.compat.nms.NmsChunks;
-import org.domi.furnace.compat.nms.NmsLootDamage;
 
 /** Paper CraftLootTable — 서버 데이터 팩의 표를 키로 가리킨다. 굴리기는 NMS {@code LootTable} 다리를 지난다. */
 public class CraftLootTable implements LootTable {
@@ -92,13 +91,13 @@ public class CraftLootTable implements LootTable {
             if (context.getLootedEntity() != null) {
                 net.minecraft.world.entity.Entity nmsLootedEntity = ((CraftEntity) context.getLootedEntity()).getHandle();
                 setMaybe(builder, LootContextParams.THIS_ENTITY, nmsLootedEntity);
-                setMaybe(builder, LootContextParams.DAMAGE_SOURCE, NmsLootDamage.generic());
+                setMaybe(builder, LootContextParams.DAMAGE_SOURCE, handle.damageSources().generic());
                 setMaybe(builder, LootContextParams.ORIGIN, nmsLootedEntity.position());
             }
             if (context.getKiller() != null) {
                 net.minecraft.world.entity.player.Player nmsKiller = ((CraftHumanEntity) context.getKiller()).getHandle();
                 setMaybe(builder, LootContextParams.ATTACKING_ENTITY, nmsKiller);
-                setMaybe(builder, LootContextParams.DAMAGE_SOURCE, NmsLootDamage.playerAttack(nmsKiller));
+                setMaybe(builder, LootContextParams.DAMAGE_SOURCE, handle.damageSources().playerAttack(nmsKiller));
                 setMaybe(builder, LootContextParams.LAST_DAMAGE_PLAYER, nmsKiller);
                 // 바닐라는 player.getUseItem()(쓰는 중인 아이템) — 호환 계층 Player 에 그 읽기가 아직 없어 빈 스택(쓰는 중이 아니면 같다)
                 setMaybe(builder, LootContextParams.TOOL, net.minecraft.world.item.ItemStack.EMPTY);

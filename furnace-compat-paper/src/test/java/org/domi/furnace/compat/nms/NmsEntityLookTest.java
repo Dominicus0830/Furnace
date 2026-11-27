@@ -317,6 +317,25 @@ class NmsEntityLookTest {
         }
     }
 
+    /** Bukkit Projectile#canHitEntity(Paper: getHandle().canHitEntity) — 서버 투사체의 종류별 재정의를 따른다. */
+    @Test
+    void projectileCanHitEntityFollowsTheServerProjectile() {
+        var loc = new Location(world, at.x() + 0.5, at.y(), at.z() + 0.5);
+        on(() -> {
+            var zombie = world.spawnEntity(loc, org.bukkit.entity.EntityType.ZOMBIE);
+            var item = world.dropItem(loc, new org.bukkit.inventory.ItemStack(org.bukkit.Material.STONE));
+            var snowball = (org.bukkit.entity.Projectile) world.spawnEntity(loc.clone().add(0, 3, 0), org.bukkit.entity.EntityType.SNOWBALL);
+            var crystal = world.spawnEntity(loc.clone().add(2, 0, 0), org.bukkit.entity.EntityType.END_CRYSTAL);
+            var wind = (org.bukkit.entity.Projectile) world.spawnEntity(loc.clone().add(0, 3, 0), org.bukkit.entity.EntityType.WIND_CHARGE);
+            assertTrue(snowball.canHitEntity(zombie));
+            assertFalse(snowball.canHitEntity(item), "아이템은 맞출 수 없다");
+            assertTrue(snowball.canHitEntity(crystal));
+            assertFalse(wind.canHitEntity(crystal), "바람 돌격은 엔드 수정 제외");
+            for (var e : List.of(zombie, item, snowball, crystal, wind)) e.remove();
+            return null;
+        });
+    }
+
     static Object tamableFlags(net.minecraft.world.entity.TamableAnimal e) {
         try {
             var f = net.minecraft.world.entity.TamableAnimal.class.getDeclaredField("DATA_FLAGS_ID");
