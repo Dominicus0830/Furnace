@@ -509,6 +509,13 @@ tasks.register<JavaExec>("inferLinks") {
         listOf("$fullShellsCache/$mcVersion/work/server-mojmap.jar", "$fullShellsCache/$mcVersion/work/paper-server-mojmap.jar",
             layout.buildDirectory.dir("reports/link-infer").get().asFile.absolutePath)
     })
+    // T-263 S6: G4 서버 이식 짝 작업 목록(build/reports/link-infer/g4/) — 서버 소스의 @VanillaPort 와 서버 클래스 바이트코드
+    dependsOn(":furnace-server:classes")
+    jvmArgumentProviders.add(CommandLineArgumentProvider {
+        val server = project(":furnace-server")
+        listOf("-Dfurnace.g4.serverSrc=" + server.file("src/main/java").absolutePath,
+            "-Dfurnace.g4.serverClasses=" + server.layout.buildDirectory.dir("classes/java/main").get().asFile.absolutePath)
+    })
     outputs.upToDateWhen { false }
 }
 // T-263 S2: 모양 증명 줄 채택 — inferLinks 와 같은 일 + 엔티티 데이터 관용구 줄을 src/shimspec/links-<판>/<영역>.auto.links 로 다시 쓴다(손 줄 파일은 그대로).

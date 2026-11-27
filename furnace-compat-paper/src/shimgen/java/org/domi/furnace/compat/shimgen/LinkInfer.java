@@ -125,6 +125,15 @@ public final class LinkInfer {
             g2.run();
             g2.write(out);
         }
+        // G4 서버 이식 짝(작업 목록, 연결 없음) — 서버 소스·클래스 폴더가 주어졌을 때만
+        String g4Src = System.getProperty("furnace.g4.serverSrc"), g4Classes = System.getProperty("furnace.g4.serverClasses");
+        if (g4Src != null && g4Classes != null) {
+            try (ZipFile jar = new ZipFile(vanillaJar.toFile())) {
+                LinkG4Ports g4 = new LinkG4Ports(inf, jar, Path.of(g4Src), Path.of(g4Classes), areas);
+                g4.run();
+                g4.write(out);
+            }
+        }
         if (adoptDir != null) {
             int n = adopt(adoptDir, ok, areas);
             // 손 줄 + 새 기계 줄 전부로 생성기 검사를 한 번 더(빌드와 같은 길)
