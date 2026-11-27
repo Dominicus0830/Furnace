@@ -9,7 +9,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import org.domi.furnace.compat.nms.NmsPoiTypes;
 
 /** 바닐라 관심 지점 종류 열쇠와 상태별 종류 찾기(NMS shim 5d). 상태 대응은 서버의 바닐라 표다. */
-public class PoiTypes {
+class PoiTypes {
 
     public static final ResourceKey<PoiType> ARMORER = createKey("armorer");
     public static final ResourceKey<PoiType> BUTCHER = createKey("butcher");

@@ -21,7 +21,7 @@ import org.domi.furnace.compat.paper.EntityStates;
  * </ul>
  * 바닐라 생성자·{@code replaceFrom}·{@code save}·{@code load} 는 두지 않았다(엔티티에 붙지 않은 속성은 서버에 없다).
  */
-public class AttributeInstance {
+class AttributeInstance {
 
     private static final String WHAT = "AttributeInstance";
 
