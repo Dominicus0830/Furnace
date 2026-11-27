@@ -1,0 +1,4 @@
+#furnace-ports 1 1.21.1 area=4
+# 이식 줄 — 아이템·인벤토리 영역. 형식: src/shimspec/ports-<판>/README.md
+class net.minecraft.world.inventory.AnvilMenu = menu.AnvilMenu kind=menu
+  static calculateIncreasedRepairCost(I)I -> calculateIncreasedRepairCost check=pure

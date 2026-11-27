@@ -1,0 +1,8 @@
+#furnace-ports 1 1.21.1 area=1
+# 이식 줄(설계 docs/roadmap/port-bridge-2026-11-27.md 5장) — 블록 영역. 형식: src/shimspec/ports-<판>/README.md
+# 머리줄: class <NMS 클래스> = <서버 클래스(org.domi.furnace.server. 뒤)> kind=<kind>
+# 멤버줄: [static ]<NMS 이름><서술자> -> <서버 메서드> check=<pure|pos|…> [live|copy]
+class net.minecraft.world.level.block.CropBlock = block.types.CropBlock kind=block
+  randomTick(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/core/BlockPos;Lnet/minecraft/util/RandomSource;)V -> randomTick check=pos
+  isValidBonemealTarget(Lnet/minecraft/world/level/LevelReader;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;)Z -> isValidBonemealTarget check=pos
+  performBonemeal(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/util/RandomSource;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;)V -> performBonemeal check=pos
