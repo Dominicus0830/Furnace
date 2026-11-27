@@ -135,7 +135,7 @@ MAIN = "furnace-compat-paper/src/main/java/"
 
 
 # 몸통을 손으로 쓴 조각(Container 몸통 — NmsBlockContainer 로 잇는다) — 이 스크립트는 명세 줄만 내고 조각 파일은 덮어쓰지 않는다
-HAND_FRAGMENT = {"BaseContainerBlockEntity", "DecoratedPotBlockEntity"}
+HAND_FRAGMENT = {"BaseContainerBlockEntity", "DecoratedPotBlockEntity", "JukeboxBlockEntity", "ChiseledBookShelfBlockEntity"}
 
 
 def write(path, text):

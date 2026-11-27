@@ -173,4 +173,44 @@ class NmsBlockContainerTest {
             return null;
         });
     }
+
+    @Test
+    void jukeboxHoldsOneRecordAndGivesItBackWhole() {
+        BlockPos pos = new BlockPos(at.x(), at.y(), at.z());
+        server.onRegion(at, () -> {
+            level.setBlock(pos, Blocks.JUKEBOX.defaultBlockState(), 3);
+            Container c = (Container) level.getBlockEntity(pos);
+            assertEquals(1, c.getContainerSize());
+            assertEquals(1, c.getMaxStackSize());
+            assertTrue(c.isEmpty());
+            assertTrue(c.canPlaceItem(0, new ItemStack(Items.MUSIC_DISC_CAT)));
+            assertTrue(!c.canPlaceItem(0, new ItemStack(Items.DIAMOND)));
+            c.setItem(0, new ItemStack(Items.MUSIC_DISC_CAT));
+            assertTrue(!c.canPlaceItem(0, new ItemStack(Items.MUSIC_DISC_CAT)));
+            assertEquals(Items.MUSIC_DISC_CAT, c.getItem(0).getItem());
+            // 바닐라 splitTheItem: 수와 관계없이 통째로, 칸은 빈다
+            ItemStack out = c.removeItem(0, 1);
+            assertEquals(Items.MUSIC_DISC_CAT, out.getItem());
+            assertTrue(c.isEmpty());
+            assertTrue(c.getItem(1).isEmpty());
+            return null;
+        });
+    }
+
+    @Test
+    void chiseledBookshelfHasSixSingleBookSlots() {
+        BlockPos pos = new BlockPos(at.x(), at.y(), at.z());
+        server.onRegion(at, () -> {
+            level.setBlock(pos, Blocks.CHISELED_BOOKSHELF.defaultBlockState(), 3);
+            Container c = (Container) level.getBlockEntity(pos);
+            assertEquals(6, c.getContainerSize());
+            assertEquals(1, c.getMaxStackSize());
+            assertTrue(c.canPlaceItem(2, new ItemStack(Items.BOOK)));
+            assertTrue(!c.canPlaceItem(2, new ItemStack(Items.DIAMOND)));
+            c.setItem(2, new ItemStack(Items.BOOK));
+            assertTrue(!c.canPlaceItem(2, new ItemStack(Items.BOOK)));
+            assertEquals(1, ((net.minecraft.world.level.block.entity.ChiseledBookShelfBlockEntity) c).count());
+            return null;
+        });
+    }
 }

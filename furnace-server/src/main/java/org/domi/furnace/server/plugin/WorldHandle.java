@@ -790,7 +790,11 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
     private Optional<Inventory> inventoryOn(Region r, BlockPos pos) {
         if (!inHeight(pos.y())) return Optional.empty();
         var col = r.ownedColumn(new ChunkPos(pos.chunkX(), pos.chunkZ()));
-        if (col == null || !(col.blockEntityAt(pos.x(), pos.y(), pos.z()) instanceof org.domi.furnace.server.block.entity.ContainerBlockEntity be)
+        var any = col == null ? null : col.blockEntityAt(pos.x(), pos.y(), pos.z());
+        if (any instanceof org.domi.furnace.server.block.entity.JukeboxBlockEntity jb) {   // 바닐라 ContainerSingleItem: 칸 1개(Bukkit JukeboxInventory)
+            return Optional.<Inventory>of(new OwnedInventory(host, jb.type(), 1, blockRunner(pos, jb)));
+        }
+        if (!(any instanceof org.domi.furnace.server.block.entity.ContainerBlockEntity be)
                 || be instanceof org.domi.furnace.server.block.entity.CampfireBlockEntity) {   // 모닥불은 Bukkit 에서도 Inventory 가 아니다
             return Optional.empty();
         }
@@ -798,7 +802,7 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
     }
 
     /** 그 칸의 region 에서 처음 찾은 그 블록 엔티티가 아직 있으면 메뉴 문맥(MenuBlockContext) 안에서 op 를 돌린다 — 바뀐 칸은 저장 표시·비교기 갱신까지 메뉴 클릭과 같다. */
-    private OwnedInventory.Runner blockRunner(BlockPos pos, org.domi.furnace.server.block.entity.ContainerBlockEntity original) {
+    private OwnedInventory.Runner blockRunner(BlockPos pos, org.domi.furnace.server.block.entity.BlockEntity original) {
         ChunkPos cp = new ChunkPos(pos.chunkX(), pos.chunkZ());
         return new OwnedInventory.Runner() {
             @Override
@@ -822,11 +826,25 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
                     var col = r.ownedColumn(cp);
                     if (col == null || col.blockEntityAt(pos.x(), pos.y(), pos.z()) != original) throw new IllegalStateException("the container at that cell is gone: " + pos);
                     // 바닐라 RandomizableContainerBlockEntity: 칸을 읽거나 쓰기 전에 열지 않은 전리품 표를 먼저 푼다(unpackLootTable(null))
-                    if (original.lootTable != null) {
-                        core().unpackLoot(world, original, null);
-                        r.markBlockEntityChanged(original);
+                    if (original instanceof org.domi.furnace.server.block.entity.JukeboxBlockEntity jb) {
+                        // 한 칸 음반 — 넣고 빼면 재생 시작·정지와 has_record 상태까지 바닐라 setTheItem 대로
+                        Object[] o = new Object[1];
+                        o[0] = op.apply(new OwnedInventory.Slots() {
+                            public int size() { return 1; }
+
+                            public org.domi.furnace.server.entity.ItemStack get(int slot) { return jb.theItem(); }
+
+                            public void set(int slot, org.domi.furnace.server.entity.ItemStack s) { jb.setTheItem(s == null ? org.domi.furnace.server.entity.ItemStack.EMPTY : s, r.level()); }
+                        });
+                        @SuppressWarnings("unchecked") T t = (T) o[0];
+                        return t;
                     }
-                    var c = new org.domi.furnace.server.world.BlockEntityContainer(original);
+                    var cbe = (org.domi.furnace.server.block.entity.ContainerBlockEntity) original;
+                    if (cbe.lootTable != null) {
+                        core().unpackLoot(world, cbe, null);
+                        r.markBlockEntityChanged(cbe);
+                    }
+                    var c = new org.domi.furnace.server.world.BlockEntityContainer(cbe);
                     Object[] out = new Object[1];
                     org.domi.furnace.server.world.MenuBlockContext.runIn(r, () -> out[0] = op.apply(new OwnedInventory.Slots() {
                         public int size() { return c.size(); }
