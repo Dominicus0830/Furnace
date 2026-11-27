@@ -23,8 +23,7 @@ import org.domi.furnace.compat.nms.UnsupportedNmsCall;
  * 아니면 ThreadOwnershipException 이다(Paper 는 주 스레드 하나). Paper 와 다른 점: 로드돼 있지 않은 청크를 동기로 불러오지 않는다 —
  * 그런 칸을 읽거나 쓰면 IllegalStateException(로드 여부는 {@link #hasChunk}·{@link #getBlockStateIfLoaded} 로 본다).
  */
-public abstract class Level implements LevelAccessor {
-
+class Level {
     public static final ResourceKey<Level> OVERWORLD = ResourceKey.create(Registries.DIMENSION, ResourceLocation.withDefaultNamespace("overworld"));
     public static final ResourceKey<Level> NETHER = ResourceKey.create(Registries.DIMENSION, ResourceLocation.withDefaultNamespace("the_nether"));
     public static final ResourceKey<Level> END = ResourceKey.create(Registries.DIMENSION, ResourceLocation.withDefaultNamespace("the_end"));
@@ -206,6 +205,9 @@ public abstract class Level implements LevelAccessor {
 
     @Override
     public abstract ChunkSource getChunkSource();
+
+    /** 바닐라 Level#close: 청크 공급원을 닫는다. */
+    public void close() throws java.io.IOException { getChunkSource().close(); }
 
     /** 바닐라 Level#getLightEngine: 청크 공급원의 빛 엔진(T-205). */
     public net.minecraft.world.level.lighting.LevelLightEngine getLightEngine() { return getChunkSource().getLightEngine(); }

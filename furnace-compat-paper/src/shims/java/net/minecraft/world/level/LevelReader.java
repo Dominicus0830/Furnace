@@ -6,8 +6,7 @@ import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.levelgen.Heightmap;
 
 /** 월드 읽기(Mojang 이름, N2a). 바닐라 기본 메서드 중 청크·높이·바이옴(T-211 3단계)·기능 플래그 쪽만. */
-public interface LevelReader extends BlockGetter, net.minecraft.world.level.biome.BiomeManager.NoiseBiomeSource {
-
+interface LevelReader {
     ChunkAccess getChunk(int x, int z, ChunkStatus status, boolean create);
 
     boolean hasChunk(int x, int z);
