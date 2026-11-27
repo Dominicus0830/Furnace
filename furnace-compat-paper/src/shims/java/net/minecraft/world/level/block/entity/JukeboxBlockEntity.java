@@ -1,21 +1,83 @@
-// 생성 조각 — tools/compat/gen-nms-block-entities.py 로 만든다(손으로 고치지 않는다).
 package net.minecraft.world.level.block.entity;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
+import org.domi.furnace.compat.nms.NmsBlockContainer;
 
 /**
- * 바닐라 JukeboxBlockEntity(Mojang 이름 shim, N2b-6) — 블록 엔티티 종류 {@code minecraft:jukebox}. 종류별 필드·메서드는 두지 않았고
- * 플러그인이 종류별 클래스로 가르는 {@code instanceof} 와 형변환이 돌게 하는 계층 자리다(저장은 {@link BlockEntity} 가 서버의 NBT 로 한다).
+ * 바닐라 JukeboxBlockEntity(Mojang 이름 shim, 손 조각). 칸 1개짜리 Container(ContainerSingleItem): 칸 쓰기는 서버의 setTheItem(has_record 상태·재생 시작·정지)으로 이어지고,
+ * 빼기는 수와 관계없이 음반 통째로 나온다(splitTheItem).
  */
 class JukeboxBlockEntity {
 
     public JukeboxBlockEntity(BlockPos pos, BlockState state) { this(BlockEntityType.furnaceOf("minecraft:jukebox"), pos, state); }
 
-    /** 하위 종류가 쓴다(바닐라는 JukeboxBlockEntity 이 종류를 받는 생성자를 둔다). */
     protected JukeboxBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) { super(type, pos, state); }
 
-    /** 바닐라 clearContent(Clearable) — 월드의 블록 엔티티면 서버 블록 엔티티를 바닐라처럼 비운다(T-211 3단계). */
+    /** Paper: 이 용기를 연 사람들. */
+    public java.util.List<org.bukkit.entity.HumanEntity> transaction = new java.util.ArrayList<>();
+    private int maxStack = 1;
+
     @Override
     public void clearContent() { furnaceClearContent(); }
+
+    @Override
+    public int getContainerSize() { return NmsBlockContainer.size(this); }
+
+    @Override
+    public boolean isEmpty() { return NmsBlockContainer.isEmpty(this); }
+
+    /** 바닐라 ContainerSingleItem: 칸 0 만 있고 다른 칸은 던지지 않고 빈 칸으로 본다. */
+    @Override
+    public ItemStack getItem(int slot) { return slot == 0 ? NmsBlockContainer.getItem(this, 0) : ItemStack.EMPTY; }
+
+    @Override
+    public void setItem(int slot, ItemStack stack) { if (slot == 0) NmsBlockContainer.setItem(this, 0, stack, getMaxStackSize()); }
+
+    @Override
+    public ItemStack removeItemNoUpdate(int slot) { return NmsBlockContainer.removeItemNoUpdate(this, slot); }
+
+    @Override
+    public java.util.List<ItemStack> getContents() { return NmsBlockContainer.getContents(this); }
+
+    @Override
+    public int getMaxStackSize() { return maxStack; }
+
+    @Override
+    public void setMaxStackSize(int size) { this.maxStack = size; }
+
+    @Override
+    public java.util.List<org.bukkit.entity.HumanEntity> getViewers() { return transaction; }
+
+    @Override
+    public void onOpen(org.bukkit.craftbukkit.entity.CraftHumanEntity who) { transaction.add(who); }
+
+    @Override
+    public void onClose(org.bukkit.craftbukkit.entity.CraftHumanEntity who) { transaction.remove(who); }
+
+    @Override
+    public org.bukkit.Location getLocation() {
+        if (level == null) return null;
+        return new org.bukkit.Location(level.getWorld(), worldPosition.getX(), worldPosition.getY(), worldPosition.getZ());
+    }
+
+    @Override
+    public ItemStack removeItem(int slot, int amount) { return slot != 0 ? ItemStack.EMPTY : NmsBlockContainer.removeItem(this, slot, Integer.MAX_VALUE); }
+
+    public ItemStack getTheItem() { return getItem(0); }
+
+    public void setTheItem(ItemStack stack) { setItem(0, stack); }
+
+    public ItemStack splitTheItem(int amount) { return removeItem(0, amount); }
+
+    /** 바닐라 canPlaceItem: jukebox_playable 컴포넌트가 있고 칸이 비었다. */
+    @Override
+    public boolean canPlaceItem(int slot, ItemStack stack) { 
+        if (stack.isEmpty() || !getItem(slot).isEmpty()) return false;
+        var v = stack.furnaceValue();
+        if (v.removedComponents().contains("minecraft:jukebox_playable")) return false;
+        // 1.21.1 바닐라에서 기본으로 그 구성 요소를 가진 아이템은 음반(music_disc_*)뿐이고, 그 밖의 아이템은 스택에 직접 달았을 때만
+        return v.components().containsKey("minecraft:jukebox_playable") || v.type().startsWith("minecraft:music_disc_");
+    }
 }

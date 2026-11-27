@@ -11,3 +11,9 @@
 - `net.minecraft.world.item.crafting.Ingredient` 손 shim: `of(ItemLike…/ItemStack…/Stream/TagKey)`·`EMPTY`·`test`(종류만, Paper `exact` 면 컴포넌트까지)·`getItems`·`isEmpty`·`equals`. 중첩 레코드 `ItemValue`·`TagValue`(equals 는 바닐라처럼 종류+개수 / 태그 이름만). 코덱·`getStackingIds` 는 껍데기로 남음. 근거: Paper 1.21.1 바이트코드 대조(읽기만).
 - 안쪽 레코드를 가진 바깥 클래스라 생성기가 아직 못 만들어 손 shim 이다.
 - 시험 `NmsIngredientTest`. 이 클라우드에서는 `generateFullShells` 의 서명표 지문이 달라 못 돌렸다 — CI 에서 확인.
+
+## 주크박스·장식 책장 (2026-11-27)
+- 주크박스는 서버에서 `ContainerBlockEntity` 가 아니라서 `WorldHandle.inventoryAtNow` 가 비어 있었다. 이제 칸 1개짜리 `OwnedInventory`(칸 쓰기 = 바닐라 `setTheItem`: has_record 상태·재생 시작/정지)로 이어진다.
+- 주크박스 shim 은 ContainerSingleItem 규칙: 칸 0 만 있고 다른 칸은 던지지 않고 빈 칸, 빼기는 수와 관계없이 음반 통째로, 최대 1개. `canPlaceItem` 은 music_disc_* 이거나 스택에 직접 단 jukebox_playable(컴포넌트 기본값 표가 shim 쪽에 없어 이름 접두로 판정 — 1.21.1 에서 기본 보유는 음반뿐).
+- 장식 책장 shim: 6칸·칸당 1권, `canPlaceItem` = bookshelf_books 태그·빈 칸·수 1, `count()`. `canTakeItem`·`getLastInteractedSlot`·`stillValid` 는 아직(껍데기/기본값).
+- `gen-nms-block-entities.py` 의 손 조각 목록에 두 클래스를 더했다.

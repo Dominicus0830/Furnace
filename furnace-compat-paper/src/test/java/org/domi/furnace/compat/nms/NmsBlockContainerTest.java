@@ -33,8 +33,15 @@ class NmsBlockContainerTest {
     ServerLevel level;
     org.domi.furnace.api.world.BlockPos at;
 
+    private org.domi.furnace.server.net.registry.TagSet savedTags;
+
     @BeforeAll
     void start() {
+        savedTags = org.domi.furnace.server.item.ItemContext.tagSet();
+        if (savedTags == null) {   // 시험 서버는 태그 표를 안 건다 — 책장이 #bookshelf_books 로 책을 가리려면 필요
+            org.domi.furnace.server.item.ItemContext.installTags(org.domi.furnace.server.net.registry.TagSet.load(
+                    "registries/tags-" + org.domi.furnace.api.GameVersion.RESOURCE_TAG + ".txt"));
+        }
         server = FurnaceTestServer.builder().failFast(false).start();
         Bukkit.setServer(CraftServer.INSTANCE);
         TestPlayer tp = server.join("Chesty");
@@ -45,7 +52,10 @@ class NmsBlockContainerTest {
     }
 
     @AfterAll
-    void stop() { server.close(); }
+    void stop() {
+        server.close();
+        org.domi.furnace.server.item.ItemContext.installTags(savedTags);
+    }
 
     private Container place(Block block) {
         BlockPos pos = new BlockPos(at.x(), at.y(), at.z());
@@ -170,6 +180,54 @@ class NmsBlockContainerTest {
             assertTrue(be.saveWithoutMetadata(null).contains("LootTable"));
             ((Container) be).getItem(0);   // 바닐라 getItem 이 먼저 표를 푼다
             assertTrue(!be.saveWithoutMetadata(null).contains("LootTable"));
+            return null;
+        });
+    }
+
+    @Test
+    void jukeboxHoldsOneRecordAndGivesItBackWhole() {
+        BlockPos pos = new BlockPos(at.x(), at.y(), at.z());
+        server.onRegion(at, () -> {
+            level.setBlock(pos, Blocks.JUKEBOX.defaultBlockState(), 3);
+            Container c = (Container) level.getBlockEntity(pos);
+            assertEquals(1, c.getContainerSize());
+            assertEquals(1, c.getMaxStackSize());
+            assertTrue(c.isEmpty());
+            assertTrue(c.canPlaceItem(0, new ItemStack(Items.MUSIC_DISC_CAT)));
+            assertTrue(!c.canPlaceItem(0, new ItemStack(Items.DIAMOND)));
+            c.setItem(0, new ItemStack(Items.MUSIC_DISC_CAT));
+            assertTrue(!c.canPlaceItem(0, new ItemStack(Items.MUSIC_DISC_CAT)));
+            assertEquals(Items.MUSIC_DISC_CAT, c.getItem(0).getItem());
+            // 바닐라 splitTheItem: 수와 관계없이 통째로, 칸은 빈다
+            ItemStack out = c.removeItem(0, 1);
+            assertEquals(Items.MUSIC_DISC_CAT, out.getItem());
+            assertTrue(c.isEmpty());
+            assertTrue(c.getItem(1).isEmpty());
+            return null;
+        });
+    }
+
+    @Test
+    void chiseledBookshelfHasSixSingleBookSlots() {
+        BlockPos pos = new BlockPos(at.x(), at.y(), at.z());
+        server.onRegion(at, () -> {
+            level.setBlock(pos, Blocks.CHISELED_BOOKSHELF.defaultBlockState(), 3);
+            Container c = (Container) level.getBlockEntity(pos);
+            assertEquals(6, c.getContainerSize());
+            assertEquals(1, c.getMaxStackSize());
+            assertTrue(c.canPlaceItem(2, new ItemStack(Items.BOOK)));
+            assertTrue(!c.canPlaceItem(2, new ItemStack(Items.DIAMOND)));
+            c.setItem(2, new ItemStack(Items.BOOK));
+            assertTrue(!c.canPlaceItem(2, new ItemStack(Items.BOOK)));
+            assertEquals(1, ((net.minecraft.world.level.block.entity.ChiseledBookShelfBlockEntity) c).count());
+            // 서버 책장 규칙을 거친다: 블록 상태에 책이 보이고, 책 아닌 아이템은 안 들어가고, 빼면 상태가 돌아온다
+            assertTrue(level.getBlockState(pos).toString().contains("slot_2_occupied=true"));
+            c.setItem(3, new ItemStack(Items.DIAMOND));
+            assertTrue(c.getItem(3).isEmpty());
+            assertTrue(!level.getBlockState(pos).toString().contains("slot_3_occupied=true"));
+            ItemStack out = c.removeItem(2, 1);
+            assertEquals(Items.BOOK, out.getItem());
+            assertTrue(!level.getBlockState(pos).toString().contains("slot_2_occupied=true"));
             return null;
         });
     }

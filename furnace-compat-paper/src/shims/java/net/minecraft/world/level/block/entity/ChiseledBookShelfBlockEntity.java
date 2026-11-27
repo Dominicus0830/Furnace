@@ -1,21 +1,78 @@
-// 생성 조각 — tools/compat/gen-nms-block-entities.py 로 만든다(손으로 고치지 않는다).
 package net.minecraft.world.level.block.entity;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
+import org.domi.furnace.compat.nms.NmsBlockContainer;
 
 /**
- * 바닐라 ChiseledBookShelfBlockEntity(Mojang 이름 shim, N2b-6) — 블록 엔티티 종류 {@code minecraft:chiseled_bookshelf}. 종류별 필드·메서드는 두지 않았고
- * 플러그인이 종류별 클래스로 가르는 {@code instanceof} 와 형변환이 돌게 하는 계층 자리다(저장은 {@link BlockEntity} 가 서버의 NBT 로 한다).
+ * 바닐라 ChiseledBookShelfBlockEntity(Mojang 이름 shim, 손 조각). 책 6칸·칸당 1권. 칸 쓰기는 서버의 칸 쓰기(마지막 바뀐 칸·블록 상태 갱신)로 이어진다.
  */
 class ChiseledBookShelfBlockEntity {
 
     public ChiseledBookShelfBlockEntity(BlockPos pos, BlockState state) { this(BlockEntityType.furnaceOf("minecraft:chiseled_bookshelf"), pos, state); }
 
-    /** 하위 종류가 쓴다(바닐라는 ChiseledBookShelfBlockEntity 이 종류를 받는 생성자를 둔다). */
     protected ChiseledBookShelfBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) { super(type, pos, state); }
 
-    /** 바닐라 clearContent(Clearable) — 월드의 블록 엔티티면 서버 블록 엔티티를 바닐라처럼 비운다(T-211 3단계). */
+    /** Paper: 이 용기를 연 사람들. */
+    public java.util.List<org.bukkit.entity.HumanEntity> transaction = new java.util.ArrayList<>();
+    private int maxStack = 1;
+
     @Override
     public void clearContent() { furnaceClearContent(); }
+
+    @Override
+    public int getContainerSize() { return NmsBlockContainer.size(this); }
+
+    @Override
+    public boolean isEmpty() { return NmsBlockContainer.isEmpty(this); }
+
+    @Override
+    public ItemStack getItem(int slot) { return NmsBlockContainer.getItem(this, slot); }
+
+    @Override
+    public void setItem(int slot, ItemStack stack) { NmsBlockContainer.setItem(this, slot, stack, getMaxStackSize()); }
+
+    @Override
+    public ItemStack removeItemNoUpdate(int slot) { return NmsBlockContainer.removeItemNoUpdate(this, slot); }
+
+    @Override
+    public java.util.List<ItemStack> getContents() { return NmsBlockContainer.getContents(this); }
+
+    @Override
+    public int getMaxStackSize() { return maxStack; }
+
+    @Override
+    public void setMaxStackSize(int size) { this.maxStack = size; }
+
+    @Override
+    public java.util.List<org.bukkit.entity.HumanEntity> getViewers() { return transaction; }
+
+    @Override
+    public void onOpen(org.bukkit.craftbukkit.entity.CraftHumanEntity who) { transaction.add(who); }
+
+    @Override
+    public void onClose(org.bukkit.craftbukkit.entity.CraftHumanEntity who) { transaction.remove(who); }
+
+    @Override
+    public org.bukkit.Location getLocation() {
+        if (level == null) return null;
+        return new org.bukkit.Location(level.getWorld(), worldPosition.getX(), worldPosition.getY(), worldPosition.getZ());
+    }
+
+    @Override
+    public ItemStack removeItem(int slot, int amount) { return NmsBlockContainer.removeItem(this, slot, amount); }
+
+    /** 바닐라 count: 책이 든 칸 수. */
+    public int count() {
+        int n = 0;
+        for (int i = 0; i < getContainerSize(); i++) if (!getItem(i).isEmpty()) n++;
+        return n;
+    }
+
+    /** 바닐라 canPlaceItem: bookshelf_books 태그, 빈 칸, 수는 최대 쌓기(1). */
+    @Override
+    public boolean canPlaceItem(int slot, ItemStack stack) {
+        return stack.is(net.minecraft.tags.ItemTags.BOOKSHELF_BOOKS) && getItem(slot).isEmpty() && stack.getCount() == getMaxStackSize();
+    }
 }
