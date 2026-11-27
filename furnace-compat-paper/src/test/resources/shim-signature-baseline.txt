@@ -467,7 +467,6 @@ type-missing	net/minecraft/network/chat/ComponentSerialization$1	-	#baf0353db021
 type-missing	net/minecraft/network/chat/ComponentSerialization$1	-	#cf0e2c1e6038	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/network/chat/HoverEvent$Action	-	#683140e2fc3f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/network/chat/MutableComponent	-	#c1fafd024500	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
-type-missing	net/minecraft/server/dedicated/DedicatedServer	-	#71fe1f891ff1	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/server/level/ServerChunkCache	-	#2b94b8c1a83f	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/server/level/ServerLevel	-	#01bbaf257356	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/server/level/ServerLevel	-	#4bcd8cf57e47	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
@@ -521,6 +520,9 @@ type-missing	net/minecraft/world/level/LevelAccessor	-	#8a38e2a36000	미분류 �
 type-missing	net/minecraft/world/level/LevelReader	-	#01bbaf257356	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/LevelReader	-	#766040133931	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/LevelReader	-	#8a38e2a36000	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	net/minecraft/world/level/LevelTimeAccess	-	#01bbaf257356	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	net/minecraft/world/level/LevelTimeAccess	-	#766040133931	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
+type-missing	net/minecraft/world/level/LevelTimeAccess	-	#8a38e2a36000	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/ServerLevelAccessor	-	#01bbaf257356	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/ServerLevelAccessor	-	#4bcd8cf57e47	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
 type-missing	net/minecraft/world/level/ServerLevelAccessor	-	#514904355a09	미분류 — 바닐라·Paper 가 구현하는 인터페이스·상위가 shim 에 없다. 손 shim 의 알려진 차이, 생성기(T-229~)가 바로잡으면 이 줄은 지운다
