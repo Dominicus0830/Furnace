@@ -247,6 +247,9 @@ class BlockEntity {
         return tag;
     }
 
+    /** 호환 모듈 전용: 저장 꼴(saveWithFullMetadata 와 같은 내용)을 API 값으로. 스레드 규칙은 save* 와 같다. */
+    public final NbtCompound furnaceSaveForLoot() { return base(); }
+
     /** 저장 꼴(복사본). 월드의 보기는 묶인 서버 블록 엔티티(지워졌으면 그 마지막 내용), 떨어진 것은 자기 내용. */
     private NbtCompound base() {
         if (furnaceChunk != null) return furnaceChunk.furnaceBlockEntitySave(this);

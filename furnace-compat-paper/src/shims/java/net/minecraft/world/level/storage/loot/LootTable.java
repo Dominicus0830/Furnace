@@ -45,11 +45,6 @@ class LootTable {
 
     public void getRandomItems(LootParams params, long seed, Consumer<ItemStack> output) {
         var values = params.furnaceValues();
-        for (LootContextParam<?> p : new LootContextParam<?>[] {LootContextParams.DAMAGE_SOURCE, LootContextParams.BLOCK_ENTITY}) {
-            if (values.containsKey(p)) {
-                throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LootTable#getRandomItems", "parameter " + p.getName() + " is not supported yet");
-            }
-        }
         var tool = (ItemStack) values.get(LootContextParams.TOOL);
         var origin = (net.minecraft.world.phys.Vec3) values.get(LootContextParams.ORIGIN);
         var thisEntity = (net.minecraft.world.entity.Entity) values.get(LootContextParams.THIS_ENTITY);
@@ -57,19 +52,42 @@ class LootTable {
         var attacker = (net.minecraft.world.entity.Entity) values.get(LootContextParams.ATTACKING_ENTITY);
         var direct = (net.minecraft.world.entity.Entity) values.get(LootContextParams.DIRECT_ATTACKING_ENTITY);
         var state = (net.minecraft.world.level.block.state.BlockState) values.get(LootContextParams.BLOCK_STATE);
+        // DamageSource 는 호환 계층에 아직 컴파일되는 형이 없어 이름으로 읽는다(typeHolder·getEntity·getDirectEntity — 바닐라 DamageSource 메서드)
+        Object damage = values.get(LootContextParams.DAMAGE_SOURCE);
+        String damageType = null;
+        org.domi.furnace.api.entity.Entity damageEntity = null, damageDirect = null;
+        if (damage != null) {
+            try {
+                Object holder = damage.getClass().getMethod("typeHolder").invoke(damage);
+                damageType = ((net.minecraft.core.Holder<?>) holder).getRegisteredName();
+                damageEntity = apiEntity((net.minecraft.world.entity.Entity) damage.getClass().getMethod("getEntity").invoke(damage));
+                damageDirect = apiEntity((net.minecraft.world.entity.Entity) damage.getClass().getMethod("getDirectEntity").invoke(damage));
+            } catch (ReflectiveOperationException e) {
+                throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LootTable#getRandomItems", "damage_source value has no typeHolder/getEntity/getDirectEntity: " + damage.getClass().getName());
+            }
+        }
+        var blockEntity = (net.minecraft.world.level.block.entity.BlockEntity) values.get(LootContextParams.BLOCK_ENTITY);
         var api = new ChunkInternals.LootRollParams(
                 origin == null ? null : new double[] {origin.x, origin.y, origin.z},
                 tool == null ? null : tool.furnaceValue(),
                 apiEntity(thisEntity), apiEntity(lastPlayer), apiEntity(attacker), apiEntity(direct),
                 state == null ? null : state.furnaceStateId(),
                 (Float) values.get(LootContextParams.EXPLOSION_RADIUS), (Integer) values.get(LootContextParams.ENCHANTMENT_LEVEL),
-                (Boolean) values.get(LootContextParams.ENCHANTMENT_ACTIVE), params.getLuck());
+                (Boolean) values.get(LootContextParams.ENCHANTMENT_ACTIVE), params.getLuck(),
+                damageType, damageEntity, damageDirect,
+                blockEntity == null ? null : blockEntity.getBlockState().furnaceStateId(),
+                blockEntity == null ? null : blockEntity.furnaceSaveForLoot(),
+                params.furnaceDynamicDrops());
         var world = params.getLevel().getWorld().furnaceHandle();
         // 엔티티는 주인 스레드에서만 읽는다 — 첫 엔티티의 주인 스레드에서 굴린다(다른 엔티티가 다른 구역이면 서버가 ThreadOwnershipException)
-        org.domi.furnace.api.entity.Entity owner = firstNonNull(api.thisEntity(), api.lastDamagePlayer(), api.attackingEntity(), api.directAttackingEntity());
+        org.domi.furnace.api.entity.Entity owner = firstNonNull(api.thisEntity(), api.lastDamagePlayer(), api.attackingEntity(), api.directAttackingEntity(), api.damageEntity(), api.damageDirectEntity());
         java.util.function.Supplier<List<org.domi.furnace.api.item.ItemStack>> roll = () -> org.domi.furnace.compat.nms.NmsChunks.bridge().lootRoll(world, furnaceId, api, seed);
-        List<org.domi.furnace.api.item.ItemStack> rolled = owner == null ? roll.get()
-                : org.domi.furnace.compat.nms.NmsEntities.call(world, owner, "LootTable#getRandomItems", roll);
+        // 개체가 있으면 그 주인 스레드, 없고 위치가 있으면 그 칸의 청크를 가진 스레드(위치·바이옴 조건이 거짓으로 답하지 않게), 둘 다 없으면 그대로
+        List<org.domi.furnace.api.item.ItemStack> rolled = owner != null
+                ? org.domi.furnace.compat.nms.NmsEntities.call(world, owner, "LootTable#getRandomItems", roll)
+                : origin != null
+                        ? org.domi.furnace.compat.nms.NmsOwner.call(world, (int) Math.floor(origin.x), (int) Math.floor(origin.y), (int) Math.floor(origin.z), "LootTable#getRandomItems", roll)
+                        : roll.get();
         for (var r : rolled) output.accept(ItemStack.fromFurnace(r, r.amount()));
     }
 

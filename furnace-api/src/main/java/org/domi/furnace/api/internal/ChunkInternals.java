@@ -1382,7 +1382,10 @@ public interface ChunkInternals {
     record LootRollParams(double[] origin, org.domi.furnace.api.item.ItemStack tool, org.domi.furnace.api.entity.Entity thisEntity,
                           org.domi.furnace.api.entity.Entity lastDamagePlayer, org.domi.furnace.api.entity.Entity attackingEntity,
                           org.domi.furnace.api.entity.Entity directAttackingEntity, Integer blockState, Float explosionRadius,
-                          Integer enchantmentLevel, Boolean enchantmentActive, float luck) {}
+                          Integer enchantmentLevel, Boolean enchantmentActive, float luck,
+                          String damageType, org.domi.furnace.api.entity.Entity damageEntity, org.domi.furnace.api.entity.Entity damageDirectEntity,
+                          Integer blockEntityStateId, org.domi.furnace.api.nbt.NbtCompound blockEntity,
+                          java.util.Map<String, java.util.function.Consumer<java.util.function.Consumer<org.domi.furnace.api.item.ItemStack>>> dynamicDrops) {}
 
     /**
      * 바닐라 {@code LootTable#getRandomItems(LootParams, long)}: 그 월드의 데이터 팩 전리품 표 {@code tableId}(minecraft:chests/… )를 굴려 나온

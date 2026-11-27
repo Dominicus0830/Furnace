@@ -2314,6 +2314,30 @@ final class ChunkInternalsImpl implements ChunkInternals {
         lp.with(org.domi.furnace.server.loot.LootParams.ENCHANTMENT_LEVEL, p.enchantmentLevel());
         lp.with(org.domi.furnace.server.loot.LootParams.ENCHANTMENT_ACTIVE, p.enchantmentActive());
         lp.luck(p.luck());
+        if (p.damageType() != null) {
+            String key = p.damageType().indexOf(':') < 0 ? "minecraft:" + p.damageType() : p.damageType();
+            var causing = lootEntity(p.damageEntity());
+            var direct = p.damageDirectEntity() == p.damageEntity() ? causing : lootEntity(p.damageDirectEntity());
+            lp.with(org.domi.furnace.server.loot.LootParams.DAMAGE_SOURCE, new org.domi.furnace.server.loot.LootDamageSource() {
+                public String type() { return key; }
+                public boolean is(String tag) { return org.domi.furnace.server.entity.damage.DamageType.keyHasTag(key, tag); }
+                public org.domi.furnace.server.loot.LootEntity entity() { return causing; }
+                public org.domi.furnace.server.loot.LootEntity directEntity() { return direct; }
+            });
+        }
+        if (p.blockEntity() != null && p.blockEntityStateId() != null) {
+            checkState(p.blockEntityStateId());
+            // 떨어진 블록 엔티티에 저장 꼴을 실어 컴포넌트를 모은다(BlockEntity.collectComponents) — 월드의 블록 엔티티를 건드리지 않아 스레드 제약이 없다
+            var be = detachedBlockEntity(p.blockEntityStateId(), new Pos(0, 0, 0), p.blockEntity());
+            if (be != null) lp.with(org.domi.furnace.server.loot.LootParams.BLOCK_ENTITY, be.collectComponents());
+        }
+        if (p.dynamicDrops() != null) {
+            for (var e : p.dynamicDrops().entrySet()) {
+                var cb = e.getValue();
+                lp.dynamicDrop(e.getKey(), outStack -> cb.accept(api -> outStack.accept(
+                        org.domi.furnace.server.ServerCore.toLootStack(org.domi.furnace.server.plugin.ApiConvert.item(api)))));
+            }
+        }
         List<org.domi.furnace.api.item.ItemStack> out = new java.util.ArrayList<>();
         for (var st : core.rollLoot(w, table, lp, seed)) out.add(apiItem(st));
         return out;

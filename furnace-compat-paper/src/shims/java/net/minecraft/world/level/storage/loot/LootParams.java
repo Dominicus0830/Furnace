@@ -54,6 +54,16 @@ class LootParams {
     /** 호환 모듈 전용: 매개변수 값(굴리기가 서버로 넘길 때 읽는다). */
     Map<LootContextParam<?>, Object> furnaceValues() { return params; }
 
+    /** 호환 모듈 전용: 동적 드롭을 API 값 소비자 꼴로(서버가 표의 dynamic 항목에서 부른다). */
+    Map<String, Consumer<Consumer<org.domi.furnace.api.item.ItemStack>>> furnaceDynamicDrops() {
+        Map<String, Consumer<Consumer<org.domi.furnace.api.item.ItemStack>>> out = new java.util.LinkedHashMap<>();
+        for (var e : dynamicDrops.entrySet()) {
+            DynamicDrop d = e.getValue();
+            out.put(e.getKey().toString(), apiOut -> d.add(nms -> apiOut.accept(nms.furnaceValue())));
+        }
+        return out;
+    }
+
     @FunctionalInterface
     public interface DynamicDrop {
         void add(Consumer<ItemStack> output);
