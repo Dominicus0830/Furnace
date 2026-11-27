@@ -170,3 +170,11 @@ class net.minecraft.world.entity.animal.camel.Camel  owner=org.domi.furnace.comp
   sitDown -> @hand write
   standUp -> @hand write
   standUpInstantly -> @hand write
+# 염소 뿔 달기·떼기(FancyNpcs): 반응 없는 칸 두 번 쓰기
+class net.minecraft.world.entity.animal.goat.Goat  owner=org.domi.furnace.compat.nms.NmsEntityOwner
+  # >>> 엔티티 데이터 칸 상수(tools/compat/entity-data-spec.py 가 만든다 — 손으로 고치지 않는다)
+  DATA_HAS_LEFT_HORN = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.animal.goat.Goat.class, "DATA_HAS_LEFT_HORN")
+  DATA_HAS_RIGHT_HORN = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.animal.goat.Goat.class, "DATA_HAS_RIGHT_HORN")
+  # <<< 엔티티 데이터 칸 상수
+  addHorns -> @hand write
+  removeHorns -> @hand write

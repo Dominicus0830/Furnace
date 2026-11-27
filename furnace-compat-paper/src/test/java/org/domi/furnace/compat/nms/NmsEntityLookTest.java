@@ -244,6 +244,42 @@ class NmsEntityLookTest {
         });
     }
 
+    /** 염소 뿔 달기·떼기(바닐라 addHorns·removeHorns — 두 칸 차례로 쓰기): 월드 밖 염소는 칸으로, 월드의 염소는 서버 염소 칸으로. */
+    @Test
+    void goatAddsAndRemovesHorns() {
+        var fresh = (net.minecraft.world.entity.animal.goat.Goat) EntityType.GOAT.create(world.getHandle());
+        fresh.removeHorns();
+        assertEquals(Boolean.FALSE, goatSlot(fresh, "DATA_HAS_LEFT_HORN"));
+        assertEquals(Boolean.FALSE, goatSlot(fresh, "DATA_HAS_RIGHT_HORN"));
+        fresh.addHorns();
+        assertEquals(Boolean.TRUE, goatSlot(fresh, "DATA_HAS_LEFT_HORN"));
+        assertEquals(Boolean.TRUE, goatSlot(fresh, "DATA_HAS_RIGHT_HORN"));
+
+        CraftEntity goat = on(() -> (CraftEntity) world.spawnEntity(new Location(world, at.x() + 0.5, at.y(), at.z() + 0.5), org.bukkit.entity.EntityType.GOAT));
+        var g = (net.minecraft.world.entity.animal.goat.Goat) goat.getHandle();
+        on(() -> {
+            var server = org.domi.furnace.api.internal.Internals.get().entityNow(goat.furnaceHandle(), org.domi.furnace.server.entity.Goat.class);
+            g.removeHorns();
+            assertEquals(Boolean.FALSE, server.entityData().get(org.domi.furnace.server.entity.Goat.DATA_HAS_LEFT_HORN));
+            assertEquals(Boolean.FALSE, server.entityData().get(org.domi.furnace.server.entity.Goat.DATA_HAS_RIGHT_HORN));
+            g.addHorns();
+            assertEquals(Boolean.TRUE, server.entityData().get(org.domi.furnace.server.entity.Goat.DATA_HAS_LEFT_HORN));
+            assertEquals(Boolean.TRUE, server.entityData().get(org.domi.furnace.server.entity.Goat.DATA_HAS_RIGHT_HORN));
+            goat.remove();
+            return null;
+        });
+    }
+
+    static Object goatSlot(net.minecraft.world.entity.animal.goat.Goat e, String field) {
+        try {
+            var f = net.minecraft.world.entity.animal.goat.Goat.class.getDeclaredField(field);
+            f.setAccessible(true);
+            return e.getEntityData().get((net.minecraft.network.syncher.EntityDataAccessor<?>) f.get(null));
+        } catch (ReflectiveOperationException ex) {
+            throw new AssertionError(ex);
+        }
+    }
+
     static long lastPoseTick(net.minecraft.world.entity.animal.camel.Camel e) {
         try {
             var f = net.minecraft.world.entity.animal.camel.Camel.class.getDeclaredField("LAST_POSE_CHANGE_TICK");
