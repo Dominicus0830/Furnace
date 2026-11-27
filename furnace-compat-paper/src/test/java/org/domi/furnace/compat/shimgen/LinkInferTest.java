@@ -48,7 +48,8 @@ class LinkInferTest {
             "F\t26\t" + MOB + "\tDATA_NAME\t" + ACC + "\t-",
             "M\t1\t" + MOB + "\tisBaby\t()Z\t-",
             "M\t1\t" + MOB + "\tsetBaby\t(Z)V\t-",
-            "M\t1\t" + MOB + "\tgetName2\t()Ljava/util/Optional;\t-",
+            "M\t1\t" + MOB + "\tgetName2\t()Ljava/util/Optional;\t()Ljava/util/Optional<Lnet/minecraft/zz/Text;>;",
+            "M\t1\t" + MOB + "\tgetOwner2\t()Ljava/util/Optional;\t()Ljava/util/Optional<Ljava/util/UUID;>;",
             "M\t1\t" + MOB + "\tshared\t()I\t-",
             "M\t1\t" + MOB + "\tisAggro\t()Z\t-",
             "M\t1\t" + MOB + "\tsetAggro\t(Z)V\t-",
@@ -74,7 +75,13 @@ class LinkInferTest {
         Path jar = tmp.resolve("vanilla.jar");
         try (OutputStream os = Files.newOutputStream(jar); ZipOutputStream z = new ZipOutputStream(os)) {
             z.putNextEntry(new ZipEntry(MOB + ".class"));
-            z.write(vanillaMob());
+            z.write(vanillaMob(false));
+            z.closeEntry();
+        }
+        Path paperJar = tmp.resolve("paper.jar");
+        try (OutputStream os = Files.newOutputStream(paperJar); ZipOutputStream z = new ZipOutputStream(os)) {
+            z.putNextEntry(new ZipEntry(MOB + ".class"));
+            z.write(vanillaMob(true));
             z.closeEntry();
         }
         FullShells g = new FullShells(ShellMergeTest.table(PAPER), ShellMergeTest.table(ShellMergeTest.EMPTY), ShellMergeTest.table(ShellMergeTest.EMPTY),
@@ -86,12 +93,16 @@ class LinkInferTest {
                 "net.minecraft.zz.Mob " + Links.fingerprint(MOB, "DATA_NAME").substring(1), "OPTIONAL_COMPONENT",
                 "net.minecraft.zz.Base " + Links.fingerprint(Z + "Base", "DATA_SHARED").substring(1), "INT");
         LinkInfer inf = new LinkInfer(g);
-        for (String[] m : new String[][] {{"sharedAsFlag", "()Z"}, {"isBaby", "()Z"}, {"setBaby", "(Z)V"}, {"getName2", "()Ljava/util/Optional;"}, {"shared", "()I"}, {"isAggro", "()Z"},
+        for (String[] m : new String[][] {{"sharedAsFlag", "()Z"}, {"isBaby", "()Z"}, {"setBaby", "(Z)V"}, {"getName2", "()Ljava/util/Optional;"}, {"getOwner2", "()Ljava/util/Optional;"}, {"shared", "()I"}, {"isAggro", "()Z"},
                 {"setAggro", "(Z)V"}, {"setAggroWrong", "(Z)V"}, {"level", "()I"}, {"viaHidden", "()I"}, {"doubled", "()I"}}) {
             inf.shells.add(new LinkInfer.Shell(MOB, m[0], m[1], Opcodes.ACC_PUBLIC));
         }
         try (ZipFile zf = new ZipFile(jar.toFile())) {
-            inf.readBodies(zf);
+            inf.readBodies(zf, inf.bodies);
+        }
+        inf.paperBodies = new java.util.HashMap<>();
+        try (ZipFile zf = new ZipFile(paperJar.toFile())) {
+            inf.readBodies(zf, inf.paperBodies);
         }
         inf.classify();
         Map<String, String> got = new TreeMap<>();
@@ -107,18 +118,55 @@ class LinkInferTest {
                 "level", "this.base pure",
                 "viaHidden", "this." + Links.fingerprint(MOB, "hidden") + " pure"));
         want.put("sharedAsFlag", "@idiom(entity-data-get, net.minecraft.zz.Base.DATA_SHARED) read=owner");
+        want.put("getOwner2", "@idiom(entity-data-get, " + name + ") read=owner");
         assertEquals(want, got, "setAggroWrong(마스크가 짝이 아님)·doubled(값을 바꿈)는 후보가 아니다");
         // 모양은 맞지만 INT 칸을 Boolean 으로 읽는 몸통은 칸 값 종류 검사에서 걸러진다
         Map<String, String> typeBad = new TreeMap<>();
         for (Map.Entry<LinkInfer.Candidate, String> e : inf.typeRejected.entrySet()) typeBad.put(e.getKey().m().name(), e.getValue());
-        assertEquals(Map.of("sharedAsFlag", "entity data slot value type differs from the member type"), typeBad);
+        // Paper 가 몸통을 바꾼 setBaby(이벤트를 더한 꼴)·level 은 Paper 대조에서 걸러진다(호환 면은 Paper)
+        assertEquals(Map.of("sharedAsFlag", "entity data slot value type differs from the member type",
+                "setBaby", "Paper body differs from the vanilla body", "level", "Paper body differs from the vanilla body",
+                "getOwner2", "entity data slot generic value type differs from the member type"), typeBad);   // Optional<UUID> 멤버가 Optional<글> 칸을 읽음
         assertTrue(LinkInfer.summary(inf, inf.candidates, Map.of(), List.of()).contains("| G1 entity-data-flag-set | 1 | 1 |"));
         assertEquals("private or package member written in plain text - use", LinkInfer.reasonKind("private or package member written in plain text - use #0123456789: net.minecraft.zz.Mob#x()V"));
     }
 
+    @Test
+    void adoptRewritesOnlyMachineFilesWithShapeProof() throws Exception {
+        Path dir = Files.createDirectories(tmp.resolve("links-1.21.1"));
+        Files.writeString(dir.resolve("2-entity.links"), "#furnace-links 1 1.21.1 area=2\n");          // 손 줄 파일: 그대로
+        Files.writeString(dir.resolve("2-entity.auto.links"), "old\n");                               // 다시 씀
+        Files.writeString(dir.resolve("9-util.auto.links"), "old\n");                                 // 줄이 없어졌으니 지움
+        LinkInfer.Shell isBaby = new LinkInfer.Shell(MOB, "isBaby", "()Z", Opcodes.ACC_PUBLIC);
+        LinkInfer.Shell hidden = new LinkInfer.Shell(MOB, "hidden", "()I", Opcodes.ACC_PRIVATE);
+        LinkInfer.Shell level = new LinkInfer.Shell(MOB, "level", "()I", Opcodes.ACC_PUBLIC);
+        List<LinkInfer.Candidate> ok = List.of(
+                new LinkInfer.Candidate(isBaby, "@idiom(entity-data-get, #0123456789)", "read=owner", "G1", "entity-data-get"),
+                new LinkInfer.Candidate(hidden, "@idiom(entity-data-get, #0123456789)", "read=owner", "G1", "entity-data-get"),
+                new LinkInfer.Candidate(level, "this.base", "pure", "G3", "alias"));   // 별칭은 모양 증명 채택 대상이 아니다
+        List<String[]> areas = List.<String[]>of(new String[] {"2", "entity", "net/minecraft/zz/"}, new String[] {"9", "util", "net/minecraft/util/"});
+        assertEquals(2, LinkInfer.adopt(dir, ok, areas));
+        assertEquals("#furnace-links 1 1.21.1 area=2\n", Files.readString(dir.resolve("2-entity.links")));
+        assertTrue(!Files.exists(dir.resolve("9-util.auto.links")));
+        String auto = Files.readString(dir.resolve("2-entity.auto.links"));
+        assertTrue(auto.startsWith("#furnace-links 1 1.21.1 area=2\n# T-263 machine-adopted"), auto);
+        assertTrue(auto.endsWith("class net.minecraft.zz.Mob\n"
+                + "  " + Links.fingerprint(MOB, "hidden") + "()I -> @idiom(entity-data-get, #0123456789) read=owner via=G1 proof=shape\n"
+                + "  isBaby()Z -> @idiom(entity-data-get, #0123456789) read=owner via=G1 proof=shape\n"), auto);
+        // 채택 모드의 찾기는 손 줄 파일만 본다
+        String[] args = new String[18];
+        java.util.Arrays.fill(args, "-");
+        args[16] = dir.toString();
+        Path hand = Path.of(LinkInfer.withoutAutoLinks(args, tmp.resolve("report"))[16]);
+        try (var l = Files.list(hand)) {
+            assertEquals(List.of("2-entity.links"), l.map(x -> x.getFileName().toString()).sorted().toList());
+        }
+    }
+
     // ───────── javac 가 내는 꼴의 "바닐라" 몸통 ─────────
 
-    private static byte[] vanillaMob() {
+    /** paper=true 면 Paper 가 바꾼 꼴: setBaby 앞에 다른 호출, level 은 다른 멤버로. 나머지는 바닐라와 같다. */
+    private static byte[] vanillaMob(boolean paper) {
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
         cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER, MOB, null, Z + "Base", null);
         method(cw, "isBaby", "()Z", mv -> {
@@ -128,6 +176,11 @@ class LinkInferTest {
             mv.visitInsn(Opcodes.IRETURN);
         });
         method(cw, "setBaby", "(Z)V", mv -> {
+            if (paper) {
+                mv.visitVarInsn(Opcodes.ALOAD, 0);
+                mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, MOB, "base", "()I", false);
+                mv.visitInsn(Opcodes.POP);
+            }
             data(mv);
             mv.visitFieldInsn(Opcodes.GETSTATIC, MOB, "DATA_BABY", ACC);
             mv.visitVarInsn(Opcodes.ILOAD, 1);
@@ -161,6 +214,11 @@ class LinkInferTest {
             mv.visitLabel(e);
             mv.visitInsn(Opcodes.IRETURN);
         });
+        method(cw, "getOwner2", "()Ljava/util/Optional;", mv -> {
+            get(mv, MOB, "DATA_NAME");
+            mv.visitTypeInsn(Opcodes.CHECKCAST, "java/util/Optional");
+            mv.visitInsn(Opcodes.ARETURN);
+        });
         method(cw, "sharedAsFlag", "()Z", mv -> {
             get(mv, MOB, "DATA_SHARED");
             mv.visitTypeInsn(Opcodes.CHECKCAST, "java/lang/Boolean");
@@ -171,7 +229,7 @@ class LinkInferTest {
         method(cw, "setAggroWrong", "(Z)V", mv -> flagSet(mv, 4, -9));
         method(cw, "level", "()I", mv -> {
             mv.visitVarInsn(Opcodes.ALOAD, 0);
-            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, MOB, "base", "()I", false);
+            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, MOB, paper ? "hidden" : "base", "()I", false);
             mv.visitInsn(Opcodes.IRETURN);
         });
         method(cw, "viaHidden", "()I", mv -> {

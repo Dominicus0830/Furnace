@@ -1,0 +1,318 @@
+#furnace-links 1 1.21.1 area=2
+# T-263 machine-adopted links (adoptLinks): exact vanilla body shape of a reviewed idiom + slot value type check. Do not edit -
+# rerun adoptLinks. Hand lines go in 2-entity-core.links; a member with a hand line is never adopted here.
+class net.minecraft.world.entity.AreaEffectCloud
+  getParticle()Lnet/minecraft/core/particles/ParticleOptions; -> @idiom(entity-data-get, #39bb1b9bf7) read=owner via=G1 proof=shape
+  getRadius()F -> @idiom(entity-data-get, #efafd264ba) read=owner via=G1 proof=shape
+  isWaiting()Z -> @idiom(entity-data-get, #fe5edfccb2) read=owner via=G1 proof=shape
+  setParticle(Lnet/minecraft/core/particles/ParticleOptions;)V -> @idiom(entity-data-set, #39bb1b9bf7) write via=G1 proof=shape
+  setWaiting(Z)V -> @idiom(entity-data-set, #fe5edfccb2) write via=G1 proof=shape
+class net.minecraft.world.entity.Display
+  getGlowColorOverride()I -> @idiom(entity-data-get, #8be9d621ce) read=owner via=G1 proof=shape
+  getHeight()F -> @idiom(entity-data-get, #7b918f43ae) read=owner via=G1 proof=shape
+  #72d9dfc94f()I -> @idiom(entity-data-get, #aede0a25f9) read=owner via=G1 proof=shape
+  #f4c3a36d05()I -> @idiom(entity-data-get, net.minecraft.world.entity.Display.DATA_POS_ROT_INTERPOLATION_DURATION_ID) read=owner via=G1 proof=shape
+  getShadowRadius()F -> @idiom(entity-data-get, #4d2f5d1013) read=owner via=G1 proof=shape
+  getShadowStrength()F -> @idiom(entity-data-get, #b8119e4a93) read=owner via=G1 proof=shape
+  getTransformationInterpolationDelay()I -> @idiom(entity-data-get, #ab99732c14) read=owner via=G1 proof=shape
+  getTransformationInterpolationDuration()I -> @idiom(entity-data-get, #97c9080e65) read=owner via=G1 proof=shape
+  getViewRange()F -> @idiom(entity-data-get, #f97032b434) read=owner via=G1 proof=shape
+  getWidth()F -> @idiom(entity-data-get, #78ce96e305) read=owner via=G1 proof=shape
+  setGlowColorOverride(I)V -> @idiom(entity-data-set, #8be9d621ce) write via=G1 proof=shape
+  setHeight(F)V -> @idiom(entity-data-set, #7b918f43ae) write via=G1 proof=shape
+  #be98531b1c(I)V -> @idiom(entity-data-set, net.minecraft.world.entity.Display.DATA_POS_ROT_INTERPOLATION_DURATION_ID) write via=G1 proof=shape
+  setShadowRadius(F)V -> @idiom(entity-data-set, #4d2f5d1013) write via=G1 proof=shape
+  setShadowStrength(F)V -> @idiom(entity-data-set, #b8119e4a93) write via=G1 proof=shape
+  setTransformationInterpolationDuration(I)V -> @idiom(entity-data-set, #97c9080e65) write via=G1 proof=shape
+  setViewRange(F)V -> @idiom(entity-data-set, #f97032b434) write via=G1 proof=shape
+  setWidth(F)V -> @idiom(entity-data-set, #78ce96e305) write via=G1 proof=shape
+class net.minecraft.world.entity.Display$BlockDisplay
+  getBlockState()Lnet/minecraft/world/level/block/state/BlockState; -> @idiom(entity-data-get, #013850c715) read=owner via=G1 proof=shape
+  setBlockState(Lnet/minecraft/world/level/block/state/BlockState;)V -> @idiom(entity-data-set, #013850c715) write via=G1 proof=shape
+class net.minecraft.world.entity.Display$ItemDisplay
+  getItemStack()Lnet/minecraft/world/item/ItemStack; -> @idiom(entity-data-get, #793d58511c) read=owner via=G1 proof=shape
+  setItemStack(Lnet/minecraft/world/item/ItemStack;)V -> @idiom(entity-data-set, #793d58511c) write via=G1 proof=shape
+class net.minecraft.world.entity.Display$TextDisplay
+  getBackgroundColor()I -> @idiom(entity-data-get, net.minecraft.world.entity.Display$TextDisplay.DATA_BACKGROUND_COLOR_ID) read=owner via=G1 proof=shape
+  getFlags()B -> @idiom(entity-data-get, #28d018579b) read=owner via=G1 proof=shape
+  getLineWidth()I -> @idiom(entity-data-get, net.minecraft.world.entity.Display$TextDisplay.DATA_LINE_WIDTH_ID) read=owner via=G1 proof=shape
+  getText()Lnet/minecraft/network/chat/Component; -> @idiom(entity-data-get, #59d5d62a2c) read=owner via=G1 proof=shape
+  getTextOpacity()B -> @idiom(entity-data-get, #215c27d666) read=owner via=G1 proof=shape
+  #dcacdcf1c8(I)V -> @idiom(entity-data-set, net.minecraft.world.entity.Display$TextDisplay.DATA_BACKGROUND_COLOR_ID) write via=G1 proof=shape
+  setFlags(B)V -> @idiom(entity-data-set, #28d018579b) write via=G1 proof=shape
+  #7258e37623(I)V -> @idiom(entity-data-set, net.minecraft.world.entity.Display$TextDisplay.DATA_LINE_WIDTH_ID) write via=G1 proof=shape
+  setText(Lnet/minecraft/network/chat/Component;)V -> @idiom(entity-data-set, #59d5d62a2c) write via=G1 proof=shape
+  setTextOpacity(B)V -> @idiom(entity-data-set, #215c27d666) write via=G1 proof=shape
+class net.minecraft.world.entity.Entity
+  getAirSupply()I -> @idiom(entity-data-get, #168107ddf2) read=owner via=G1 proof=shape
+  getPose()Lnet/minecraft/world/entity/Pose; -> @idiom(entity-data-get, net.minecraft.world.entity.Entity.DATA_POSE) read=owner via=G1 proof=shape
+  getTicksFrozen()I -> @idiom(entity-data-get, #8b13794eff) read=owner via=G1 proof=shape
+  isCustomNameVisible()Z -> @idiom(entity-data-get, #27d0d36daf) read=owner via=G1 proof=shape
+  isNoGravity()Z -> @idiom(entity-data-get, #f260864c48) read=owner via=G1 proof=shape
+  isSilent()Z -> @idiom(entity-data-get, #b7fead5fc4) read=owner via=G1 proof=shape
+  setNoGravity(Z)V -> @idiom(entity-data-set, #f260864c48) write via=G1 proof=shape
+class net.minecraft.world.entity.GlowSquid
+  getDarkTicksRemaining()I -> @idiom(entity-data-get, #6fe5e9b472) read=owner via=G1 proof=shape
+  setDarkTicks(I)V -> @idiom(entity-data-set, #6fe5e9b472) write via=G1 proof=shape
+class net.minecraft.world.entity.Interaction
+  getHeight()F -> @idiom(entity-data-get, #13068f3388) read=owner via=G1 proof=shape
+  getResponse()Z -> @idiom(entity-data-get, #65cc1bb5fa) read=owner via=G1 proof=shape
+  getWidth()F -> @idiom(entity-data-get, #ebe32cdfc5) read=owner via=G1 proof=shape
+  setHeight(F)V -> @idiom(entity-data-set, #13068f3388) write via=G1 proof=shape
+  setResponse(Z)V -> @idiom(entity-data-set, #65cc1bb5fa) write via=G1 proof=shape
+  setWidth(F)V -> @idiom(entity-data-set, #ebe32cdfc5) write via=G1 proof=shape
+class net.minecraft.world.entity.LivingEntity
+  getArrowCount()I -> @idiom(entity-data-get, net.minecraft.world.entity.LivingEntity.DATA_ARROW_COUNT_ID) read=owner via=G1 proof=shape
+  getSleepingPos()Ljava/util/Optional; -> @idiom(entity-data-get, #8d68808835) read=owner via=G1 proof=shape
+  getStingerCount()I -> @idiom(entity-data-get, #907967fe4d) read=owner via=G1 proof=shape
+  isAutoSpinAttack()Z -> @idiom(entity-data-flag-get, net.minecraft.world.entity.LivingEntity.DATA_LIVING_ENTITY_FLAGS, 4) read=owner via=G1 proof=shape
+  setStingerCount(I)V -> @idiom(entity-data-set, #907967fe4d) write via=G1 proof=shape
+class net.minecraft.world.entity.Mob
+  isAggressive()Z -> @idiom(entity-data-flag-get, #02b37f21b8, 4) read=owner via=G1 proof=shape
+  isLeftHanded()Z -> @idiom(entity-data-flag-get, #02b37f21b8, 2) read=owner via=G1 proof=shape
+class net.minecraft.world.entity.OminousItemSpawner
+  getItem()Lnet/minecraft/world/item/ItemStack; -> @idiom(entity-data-get, #b9243a43f3) read=owner via=G1 proof=shape
+  setItem(Lnet/minecraft/world/item/ItemStack;)V -> @idiom(entity-data-set, #b9243a43f3) write via=G1 proof=shape
+class net.minecraft.world.entity.TamableAnimal
+  isInSittingPose()Z -> @idiom(entity-data-flag-get, net.minecraft.world.entity.TamableAnimal.DATA_FLAGS_ID, 1) read=owner via=G1 proof=shape
+  isTame()Z -> @idiom(entity-data-flag-get, net.minecraft.world.entity.TamableAnimal.DATA_FLAGS_ID, 4) read=owner via=G1 proof=shape
+class net.minecraft.world.entity.ambient.Bat
+  isResting()Z -> @idiom(entity-data-flag-get, #a71d5718ea, 1) read=owner via=G1 proof=shape
+  setResting(Z)V -> @idiom(entity-data-flag-set, #a71d5718ea, 1) write via=G1 proof=shape
+class net.minecraft.world.entity.animal.AbstractFish
+  fromBucket()Z -> @idiom(entity-data-get, #1cf8eb4a9d) read=owner via=G1 proof=shape
+  setFromBucket(Z)V -> @idiom(entity-data-set, #1cf8eb4a9d) write via=G1 proof=shape
+class net.minecraft.world.entity.animal.Bee
+  getRemainingPersistentAngerTime()I -> @idiom(entity-data-get, #820d3ada98) read=owner via=G1 proof=shape
+  setRemainingPersistentAngerTime(I)V -> @idiom(entity-data-set, #820d3ada98) write via=G1 proof=shape
+class net.minecraft.world.entity.animal.Cat
+  getVariant()Lnet/minecraft/core/Holder; -> @idiom(entity-data-get, #789298a67a) read=owner via=G1 proof=shape
+  isLying()Z -> @idiom(entity-data-get, #c38dc2f974) read=owner via=G1 proof=shape
+  isRelaxStateOne()Z -> @idiom(entity-data-get, #705ac67e68) read=owner via=G1 proof=shape
+  setLying(Z)V -> @idiom(entity-data-set, #c38dc2f974) write via=G1 proof=shape
+  setRelaxStateOne(Z)V -> @idiom(entity-data-set, #705ac67e68) write via=G1 proof=shape
+  setVariant(Lnet/minecraft/core/Holder;)V -> @idiom(entity-data-set, #789298a67a) write via=G1 proof=shape
+class net.minecraft.world.entity.animal.Dolphin
+  getMoistnessLevel()I -> @idiom(entity-data-get, #9226e74bbe) read=owner via=G1 proof=shape
+  getTreasurePos()Lnet/minecraft/core/BlockPos; -> @idiom(entity-data-get, #a90322d573) read=owner via=G1 proof=shape
+  gotFish()Z -> @idiom(entity-data-get, #126f60188d) read=owner via=G1 proof=shape
+  setGotFish(Z)V -> @idiom(entity-data-set, #126f60188d) write via=G1 proof=shape
+  setMoisntessLevel(I)V -> @idiom(entity-data-set, #9226e74bbe) write via=G1 proof=shape
+  setTreasurePos(Lnet/minecraft/core/BlockPos;)V -> @idiom(entity-data-set, #a90322d573) write via=G1 proof=shape
+class net.minecraft.world.entity.animal.IronGolem
+  isPlayerCreated()Z -> @idiom(entity-data-flag-get, net.minecraft.world.entity.animal.IronGolem.DATA_FLAGS_ID, 1) read=owner via=G1 proof=shape
+  setPlayerCreated(Z)V -> @idiom(entity-data-flag-set, net.minecraft.world.entity.animal.IronGolem.DATA_FLAGS_ID, 1) write via=G1 proof=shape
+class net.minecraft.world.entity.animal.Ocelot
+  isTrusting()Z -> @idiom(entity-data-get, #2e7b82873d) read=owner via=G1 proof=shape
+class net.minecraft.world.entity.animal.Panda
+  getEatCounter()I -> @idiom(entity-data-get, #9a2d76567c) read=owner via=G1 proof=shape
+  getSneezeCounter()I -> @idiom(entity-data-get, #f1c4a6700e) read=owner via=G1 proof=shape
+  getUnhappyCounter()I -> @idiom(entity-data-get, #455edad36a) read=owner via=G1 proof=shape
+  setEatCounter(I)V -> @idiom(entity-data-set, #9a2d76567c) write via=G1 proof=shape
+  setSneezeCounter(I)V -> @idiom(entity-data-set, #f1c4a6700e) write via=G1 proof=shape
+  setUnhappyCounter(I)V -> @idiom(entity-data-set, #455edad36a) write via=G1 proof=shape
+class net.minecraft.world.entity.animal.PolarBear
+  isStanding()Z -> @idiom(entity-data-get, #7cb5b0dd24) read=owner via=G1 proof=shape
+  setStanding(Z)V -> @idiom(entity-data-set, #7cb5b0dd24) write via=G1 proof=shape
+class net.minecraft.world.entity.animal.Pufferfish
+  getPuffState()I -> @idiom(entity-data-get, #a2424dd73d) read=owner via=G1 proof=shape
+  setPuffState(I)V -> @idiom(entity-data-set, #a2424dd73d) write via=G1 proof=shape
+class net.minecraft.world.entity.animal.Sheep
+  isSheared()Z -> @idiom(entity-data-flag-get, #c37504ee4b, 16) read=owner via=G1 proof=shape
+  setSheared(Z)V -> @idiom(entity-data-flag-set, #c37504ee4b, 16) write via=G1 proof=shape
+class net.minecraft.world.entity.animal.SnowGolem
+  hasPumpkin()Z -> @idiom(entity-data-flag-get, #7e7b7a2b79, 16) read=owner via=G1 proof=shape
+  setPumpkin(Z)V -> @idiom(entity-data-flag-set, #7e7b7a2b79, 16) write via=G1 proof=shape
+class net.minecraft.world.entity.animal.TropicalFish
+  getPackedVariant()I -> @idiom(entity-data-get, #9756555a4d) read=owner via=G1 proof=shape
+  setPackedVariant(I)V -> @idiom(entity-data-set, #9756555a4d) write via=G1 proof=shape
+class net.minecraft.world.entity.animal.Turtle
+  getHomePos()Lnet/minecraft/core/BlockPos; -> @idiom(entity-data-get, #07578c5ef0) read=owner via=G1 proof=shape
+  #1c4d83dc38()Lnet/minecraft/core/BlockPos; -> @idiom(entity-data-get, #9ded163d30) read=owner via=G1 proof=shape
+  hasEgg()Z -> @idiom(entity-data-get, #f4e3363125) read=owner via=G1 proof=shape
+  isGoingHome()Z -> @idiom(entity-data-get, #d488aff2fa) read=owner via=G1 proof=shape
+  isLayingEgg()Z -> @idiom(entity-data-get, #a641822080) read=owner via=G1 proof=shape
+  isTravelling()Z -> @idiom(entity-data-get, #d60437d41d) read=owner via=G1 proof=shape
+  setGoingHome(Z)V -> @idiom(entity-data-set, #d488aff2fa) write via=G1 proof=shape
+  setHasEgg(Z)V -> @idiom(entity-data-set, #f4e3363125) write via=G1 proof=shape
+  setHomePos(Lnet/minecraft/core/BlockPos;)V -> @idiom(entity-data-set, #07578c5ef0) write via=G1 proof=shape
+  #9c648757a5(Lnet/minecraft/core/BlockPos;)V -> @idiom(entity-data-set, #9ded163d30) write via=G1 proof=shape
+  setTravelling(Z)V -> @idiom(entity-data-set, #d60437d41d) write via=G1 proof=shape
+class net.minecraft.world.entity.animal.Wolf
+  getRemainingPersistentAngerTime()I -> @idiom(entity-data-get, #3aae147eaf) read=owner via=G1 proof=shape
+  getVariant()Lnet/minecraft/core/Holder; -> @idiom(entity-data-get, #ada55990ac) read=owner via=G1 proof=shape
+  isInterested()Z -> @idiom(entity-data-get, #47721713b0) read=owner via=G1 proof=shape
+  setIsInterested(Z)V -> @idiom(entity-data-set, #47721713b0) write via=G1 proof=shape
+  setRemainingPersistentAngerTime(I)V -> @idiom(entity-data-set, #3aae147eaf) write via=G1 proof=shape
+  setVariant(Lnet/minecraft/core/Holder;)V -> @idiom(entity-data-set, #ada55990ac) write via=G1 proof=shape
+class net.minecraft.world.entity.animal.allay.Allay
+  canDuplicate()Z -> @idiom(entity-data-get, #7f02e334fd) read=owner via=G1 proof=shape
+  isDancing()Z -> @idiom(entity-data-get, #fe29e86b9d) read=owner via=G1 proof=shape
+class net.minecraft.world.entity.animal.armadillo.Armadillo
+  getState()Lnet/minecraft/world/entity/animal/armadillo/Armadillo$ArmadilloState; -> @idiom(entity-data-get, #4a381951f2) read=owner via=G1 proof=shape
+  switchToState(Lnet/minecraft/world/entity/animal/armadillo/Armadillo$ArmadilloState;)V -> @idiom(entity-data-set, #4a381951f2) write via=G1 proof=shape
+class net.minecraft.world.entity.animal.axolotl.Axolotl
+  fromBucket()Z -> @idiom(entity-data-get, #11f162fbc2) read=owner via=G1 proof=shape
+  isPlayingDead()Z -> @idiom(entity-data-get, #82a61fb189) read=owner via=G1 proof=shape
+  setFromBucket(Z)V -> @idiom(entity-data-set, #11f162fbc2) write via=G1 proof=shape
+  setPlayingDead(Z)V -> @idiom(entity-data-set, #82a61fb189) write via=G1 proof=shape
+class net.minecraft.world.entity.animal.camel.Camel
+  isDashing()Z -> @idiom(entity-data-get, net.minecraft.world.entity.animal.camel.Camel.DASH) read=owner via=G1 proof=shape
+  resetLastPoseChangeTick(J)V -> @idiom(entity-data-set, net.minecraft.world.entity.animal.camel.Camel.LAST_POSE_CHANGE_TICK) write via=G1 proof=shape
+  setDashing(Z)V -> @idiom(entity-data-set, net.minecraft.world.entity.animal.camel.Camel.DASH) write via=G1 proof=shape
+class net.minecraft.world.entity.animal.frog.Frog
+  getVariant()Lnet/minecraft/core/Holder; -> @idiom(entity-data-get, #1e9642e05b) read=owner via=G1 proof=shape
+  setVariant(Lnet/minecraft/core/Holder;)V -> @idiom(entity-data-set, #1e9642e05b) write via=G1 proof=shape
+class net.minecraft.world.entity.animal.goat.Goat
+  hasLeftHorn()Z -> @idiom(entity-data-get, net.minecraft.world.entity.animal.goat.Goat.DATA_HAS_LEFT_HORN) read=owner via=G1 proof=shape
+  hasRightHorn()Z -> @idiom(entity-data-get, net.minecraft.world.entity.animal.goat.Goat.DATA_HAS_RIGHT_HORN) read=owner via=G1 proof=shape
+  isScreamingGoat()Z -> @idiom(entity-data-get, #ef2050d8af) read=owner via=G1 proof=shape
+  setScreamingGoat(Z)V -> @idiom(entity-data-set, #ef2050d8af) write via=G1 proof=shape
+class net.minecraft.world.entity.animal.horse.AbstractChestedHorse
+  hasChest()Z -> @idiom(entity-data-get, #57172d17b3) read=owner via=G1 proof=shape
+  setChest(Z)V -> @idiom(entity-data-set, #57172d17b3) write via=G1 proof=shape
+class net.minecraft.world.entity.animal.horse.Horse
+  #008b9d52f2()I -> @idiom(entity-data-get, #f97a11bce1) read=owner via=G1 proof=shape
+  #65066338bb(I)V -> @idiom(entity-data-set, #f97a11bce1) write via=G1 proof=shape
+class net.minecraft.world.entity.animal.horse.Llama
+  getStrength()I -> @idiom(entity-data-get, #22cfdfb112) read=owner via=G1 proof=shape
+class net.minecraft.world.entity.animal.sniffer.Sniffer
+  getState()Lnet/minecraft/world/entity/animal/sniffer/Sniffer$State; -> @idiom(entity-data-get, #7117272176) read=owner via=G1 proof=shape
+class net.minecraft.world.entity.boss.enderdragon.EndCrystal
+  setShowBottom(Z)V -> @idiom(entity-data-set, #7aa9a7d06e) write via=G1 proof=shape
+  showsBottom()Z -> @idiom(entity-data-get, #7aa9a7d06e) read=owner via=G1 proof=shape
+class net.minecraft.world.entity.boss.wither.WitherBoss
+  getInvulnerableTicks()I -> @idiom(entity-data-get, #3e06b1e812) read=owner via=G1 proof=shape
+  setInvulnerableTicks(I)V -> @idiom(entity-data-set, #3e06b1e812) write via=G1 proof=shape
+class net.minecraft.world.entity.decoration.ArmorStand
+  isMarker()Z -> @idiom(entity-data-flag-get, net.minecraft.world.entity.decoration.ArmorStand.DATA_CLIENT_FLAGS, 16) read=owner via=G1 proof=shape
+  isNoBasePlate()Z -> @idiom(entity-data-flag-get, net.minecraft.world.entity.decoration.ArmorStand.DATA_CLIENT_FLAGS, 8) read=owner via=G1 proof=shape
+  isShowArms()Z -> @idiom(entity-data-flag-get, net.minecraft.world.entity.decoration.ArmorStand.DATA_CLIENT_FLAGS, 4) read=owner via=G1 proof=shape
+  isSmall()Z -> @idiom(entity-data-flag-get, net.minecraft.world.entity.decoration.ArmorStand.DATA_CLIENT_FLAGS, 1) read=owner via=G1 proof=shape
+class net.minecraft.world.entity.decoration.ItemFrame
+  getItem()Lnet/minecraft/world/item/ItemStack; -> @idiom(entity-data-get, net.minecraft.world.entity.decoration.ItemFrame.DATA_ITEM) read=owner via=G1 proof=shape
+class net.minecraft.world.entity.decoration.Painting
+  getVariant()Lnet/minecraft/core/Holder; -> @idiom(entity-data-get, #53f7d3051a) read=owner via=G1 proof=shape
+  setVariant(Lnet/minecraft/core/Holder;)V -> @idiom(entity-data-set, #53f7d3051a) write via=G1 proof=shape
+class net.minecraft.world.entity.item.FallingBlockEntity
+  getStartPos()Lnet/minecraft/core/BlockPos; -> @idiom(entity-data-get, net.minecraft.world.entity.item.FallingBlockEntity.DATA_START_POS) read=owner via=G1 proof=shape
+  setStartPos(Lnet/minecraft/core/BlockPos;)V -> @idiom(entity-data-set, net.minecraft.world.entity.item.FallingBlockEntity.DATA_START_POS) write via=G1 proof=shape
+class net.minecraft.world.entity.item.PrimedTnt
+  getBlockState()Lnet/minecraft/world/level/block/state/BlockState; -> @idiom(entity-data-get, #16bb72a547) read=owner via=G1 proof=shape
+  getFuse()I -> @idiom(entity-data-get, #2c4f767cb9) read=owner via=G1 proof=shape
+  setBlockState(Lnet/minecraft/world/level/block/state/BlockState;)V -> @idiom(entity-data-set, #16bb72a547) write via=G1 proof=shape
+  setFuse(I)V -> @idiom(entity-data-set, #2c4f767cb9) write via=G1 proof=shape
+class net.minecraft.world.entity.monster.Blaze
+  #224c1d6d4a()Z -> @idiom(entity-data-flag-get, #38fb2fb44b, 1) read=owner via=G1 proof=shape
+class net.minecraft.world.entity.monster.Bogged
+  isSheared()Z -> @idiom(entity-data-get, #d3c6707ec5) read=owner via=G1 proof=shape
+  setSheared(Z)V -> @idiom(entity-data-set, #d3c6707ec5) write via=G1 proof=shape
+class net.minecraft.world.entity.monster.Creeper
+  getSwellDir()I -> @idiom(entity-data-get, #d15013715b) read=owner via=G1 proof=shape
+  isIgnited()Z -> @idiom(entity-data-get, #8d77d506b6) read=owner via=G1 proof=shape
+  isPowered()Z -> @idiom(entity-data-get, #1e2880bbfd) read=owner via=G1 proof=shape
+  setSwellDir(I)V -> @idiom(entity-data-set, #d15013715b) write via=G1 proof=shape
+class net.minecraft.world.entity.monster.EnderMan
+  hasBeenStaredAt()Z -> @idiom(entity-data-get, #eb22a85c78) read=owner via=G1 proof=shape
+  isCreepy()Z -> @idiom(entity-data-get, #c859e4252c) read=owner via=G1 proof=shape
+class net.minecraft.world.entity.monster.Ghast
+  isCharging()Z -> @idiom(entity-data-get, #833f02b482) read=owner via=G1 proof=shape
+  setCharging(Z)V -> @idiom(entity-data-set, #833f02b482) write via=G1 proof=shape
+class net.minecraft.world.entity.monster.Guardian
+  isMoving()Z -> @idiom(entity-data-get, #1ae66bba7c) read=owner via=G1 proof=shape
+  setActiveAttackTarget(I)V -> @idiom(entity-data-set, #7a65b67eae) write via=G1 proof=shape
+  #307d43e697(Z)V -> @idiom(entity-data-set, #1ae66bba7c) write via=G1 proof=shape
+class net.minecraft.world.entity.monster.Phantom
+  getPhantomSize()I -> @idiom(entity-data-get, #9e8e0de4fd) read=owner via=G1 proof=shape
+class net.minecraft.world.entity.monster.Pillager
+  isChargingCrossbow()Z -> @idiom(entity-data-get, #cc033b3373) read=owner via=G1 proof=shape
+  setChargingCrossbow(Z)V -> @idiom(entity-data-set, #cc033b3373) write via=G1 proof=shape
+class net.minecraft.world.entity.monster.Shulker
+  getAttachFace()Lnet/minecraft/core/Direction; -> @idiom(entity-data-get, net.minecraft.world.entity.monster.Shulker.DATA_ATTACH_FACE_ID) read=owner via=G1 proof=shape
+  setAttachFace(Lnet/minecraft/core/Direction;)V -> @idiom(entity-data-set, net.minecraft.world.entity.monster.Shulker.DATA_ATTACH_FACE_ID) write via=G1 proof=shape
+class net.minecraft.world.entity.monster.Skeleton
+  isFreezeConverting()Z -> @idiom(entity-data-get, net.minecraft.world.entity.monster.Skeleton.DATA_STRAY_CONVERSION_ID) read=owner via=G1 proof=shape
+  setFreezeConverting(Z)V -> @idiom(entity-data-set, net.minecraft.world.entity.monster.Skeleton.DATA_STRAY_CONVERSION_ID) write via=G1 proof=shape
+class net.minecraft.world.entity.monster.Slime
+  getSize()I -> @idiom(entity-data-get, #f031c1b5dd) read=owner via=G1 proof=shape
+class net.minecraft.world.entity.monster.Spider
+  isClimbing()Z -> @idiom(entity-data-flag-get, #a2af370561, 1) read=owner via=G1 proof=shape
+class net.minecraft.world.entity.monster.Strider
+  isSuffocating()Z -> @idiom(entity-data-get, #094ea43019) read=owner via=G1 proof=shape
+class net.minecraft.world.entity.monster.Witch
+  isDrinkingPotion()Z -> @idiom(entity-data-get, #7e2f8a9b68) read=owner via=G1 proof=shape
+  setUsingItem(Z)V -> @idiom(entity-data-set, #7e2f8a9b68) write via=G1 proof=shape
+class net.minecraft.world.entity.monster.Zoglin
+  isBaby()Z -> @idiom(entity-data-get, #4b139b30ba) read=owner via=G1 proof=shape
+class net.minecraft.world.entity.monster.Zombie
+  isBaby()Z -> @idiom(entity-data-get, #16271d1c1b) read=owner via=G1 proof=shape
+  isUnderWaterConverting()Z -> @idiom(entity-data-get, net.minecraft.world.entity.monster.Zombie.DATA_DROWNED_CONVERSION_ID) read=owner via=G1 proof=shape
+class net.minecraft.world.entity.monster.ZombieVillager
+  getVillagerData()Lnet/minecraft/world/entity/npc/VillagerData; -> @idiom(entity-data-get, #34e352cd29) read=owner via=G1 proof=shape
+  isConverting()Z -> @idiom(entity-data-get, net.minecraft.world.entity.monster.ZombieVillager.DATA_CONVERTING_ID) read=owner via=G1 proof=shape
+class net.minecraft.world.entity.monster.hoglin.Hoglin
+  isImmuneToZombification()Z -> @idiom(entity-data-get, #72ed7af175) read=owner via=G1 proof=shape
+  setImmuneToZombification(Z)V -> @idiom(entity-data-set, #72ed7af175) write via=G1 proof=shape
+class net.minecraft.world.entity.monster.piglin.AbstractPiglin
+  isImmuneToZombification()Z -> @idiom(entity-data-get, net.minecraft.world.entity.monster.piglin.AbstractPiglin.DATA_IMMUNE_TO_ZOMBIFICATION) read=owner via=G1 proof=shape
+  setImmuneToZombification(Z)V -> @idiom(entity-data-set, net.minecraft.world.entity.monster.piglin.AbstractPiglin.DATA_IMMUNE_TO_ZOMBIFICATION) write via=G1 proof=shape
+class net.minecraft.world.entity.monster.piglin.Piglin
+  isBaby()Z -> @idiom(entity-data-get, #31c27844e2) read=owner via=G1 proof=shape
+  isChargingCrossbow()Z -> @idiom(entity-data-get, #8d66607bbc) read=owner via=G1 proof=shape
+  isDancing()Z -> @idiom(entity-data-get, #6255fba024) read=owner via=G1 proof=shape
+  setChargingCrossbow(Z)V -> @idiom(entity-data-set, #8d66607bbc) write via=G1 proof=shape
+  setDancing(Z)V -> @idiom(entity-data-set, #6255fba024) write via=G1 proof=shape
+class net.minecraft.world.entity.monster.warden.Warden
+  getClientAngerLevel()I -> @idiom(entity-data-get, #5d2c5840b3) read=owner via=G1 proof=shape
+class net.minecraft.world.entity.npc.AbstractVillager
+  getUnhappyCounter()I -> @idiom(entity-data-get, #9ed8193683) read=owner via=G1 proof=shape
+  setUnhappyCounter(I)V -> @idiom(entity-data-set, #9ed8193683) write via=G1 proof=shape
+class net.minecraft.world.entity.npc.Villager
+  getVillagerData()Lnet/minecraft/world/entity/npc/VillagerData; -> @idiom(entity-data-get, #b8acb12189) read=owner via=G1 proof=shape
+class net.minecraft.world.entity.player.Player
+  getAbsorptionAmount()F -> @idiom(entity-data-get, #41482c4777) read=owner via=G1 proof=shape
+  getScore()I -> @idiom(entity-data-get, #741f80993c) read=owner via=G1 proof=shape
+  getShoulderEntityLeft()Lnet/minecraft/nbt/CompoundTag; -> @idiom(entity-data-get, net.minecraft.world.entity.player.Player.DATA_SHOULDER_LEFT) read=owner via=G1 proof=shape
+  getShoulderEntityRight()Lnet/minecraft/nbt/CompoundTag; -> @idiom(entity-data-get, net.minecraft.world.entity.player.Player.DATA_SHOULDER_RIGHT) read=owner via=G1 proof=shape
+  internalSetAbsorptionAmount(F)V -> @idiom(entity-data-set, #41482c4777) write via=G1 proof=shape
+  setScore(I)V -> @idiom(entity-data-set, #741f80993c) write via=G1 proof=shape
+  setShoulderEntityLeft(Lnet/minecraft/nbt/CompoundTag;)V -> @idiom(entity-data-set, net.minecraft.world.entity.player.Player.DATA_SHOULDER_LEFT) write via=G1 proof=shape
+  setShoulderEntityRight(Lnet/minecraft/nbt/CompoundTag;)V -> @idiom(entity-data-set, net.minecraft.world.entity.player.Player.DATA_SHOULDER_RIGHT) write via=G1 proof=shape
+class net.minecraft.world.entity.projectile.AbstractArrow
+  getPierceLevel()B -> @idiom(entity-data-get, #758b4c7f0d) read=owner via=G1 proof=shape
+  setPierceLevel(B)V -> @idiom(entity-data-set, #758b4c7f0d) write via=G1 proof=shape
+class net.minecraft.world.entity.projectile.Arrow
+  getColor()I -> @idiom(entity-data-get, #385308a973) read=owner via=G1 proof=shape
+class net.minecraft.world.entity.projectile.EyeOfEnder
+  getItem()Lnet/minecraft/world/item/ItemStack; -> @idiom(entity-data-get, #450adde24a) read=owner via=G1 proof=shape
+class net.minecraft.world.entity.projectile.Fireball
+  getItem()Lnet/minecraft/world/item/ItemStack; -> @idiom(entity-data-get, #b9f7b6f8b5) read=owner via=G1 proof=shape
+class net.minecraft.world.entity.projectile.FireworkRocketEntity
+  getItem()Lnet/minecraft/world/item/ItemStack; -> @idiom(entity-data-get, net.minecraft.world.entity.projectile.FireworkRocketEntity.DATA_ID_FIREWORKS_ITEM) read=owner via=G1 proof=shape
+  isShotAtAngle()Z -> @idiom(entity-data-get, net.minecraft.world.entity.projectile.FireworkRocketEntity.DATA_SHOT_AT_ANGLE) read=owner via=G1 proof=shape
+class net.minecraft.world.entity.projectile.ThrowableItemProjectile
+  getItem()Lnet/minecraft/world/item/ItemStack; -> @idiom(entity-data-get, #feb2f2c103) read=owner via=G1 proof=shape
+class net.minecraft.world.entity.projectile.ThrownTrident
+  isFoil()Z -> @idiom(entity-data-get, #b485f9a9e5) read=owner via=G1 proof=shape
+class net.minecraft.world.entity.projectile.WitherSkull
+  isDangerous()Z -> @idiom(entity-data-get, #9c618d619e) read=owner via=G1 proof=shape
+  setDangerous(Z)V -> @idiom(entity-data-set, #9c618d619e) write via=G1 proof=shape
+class net.minecraft.world.entity.raid.Raider
+  isCelebrating()Z -> @idiom(entity-data-get, net.minecraft.world.entity.raid.Raider.IS_CELEBRATING) read=owner via=G1 proof=shape
+  setCelebrating(Z)V -> @idiom(entity-data-set, net.minecraft.world.entity.raid.Raider.IS_CELEBRATING) write via=G1 proof=shape
+class net.minecraft.world.entity.vehicle.AbstractMinecart
+  hasCustomDisplay()Z -> @idiom(entity-data-get, #79b486dd2b) read=owner via=G1 proof=shape
+  setCustomDisplay(Z)V -> @idiom(entity-data-set, #79b486dd2b) write via=G1 proof=shape
+class net.minecraft.world.entity.vehicle.Boat
+  #da440e40d4()I -> @idiom(entity-data-get, #2043856da5) read=owner via=G1 proof=shape
+  #225e616413(I)V -> @idiom(entity-data-set, #2043856da5) write via=G1 proof=shape
+class net.minecraft.world.entity.vehicle.MinecartFurnace
+  hasFuel()Z -> @idiom(entity-data-get, #75bff018c7) read=owner via=G1 proof=shape
+  setHasFuel(Z)V -> @idiom(entity-data-set, #75bff018c7) write via=G1 proof=shape
+class net.minecraft.world.entity.vehicle.VehicleEntity
+  getDamage()F -> @idiom(entity-data-get, net.minecraft.world.entity.vehicle.VehicleEntity.DATA_ID_DAMAGE) read=owner via=G1 proof=shape
+  getHurtDir()I -> @idiom(entity-data-get, net.minecraft.world.entity.vehicle.VehicleEntity.DATA_ID_HURTDIR) read=owner via=G1 proof=shape
+  getHurtTime()I -> @idiom(entity-data-get, net.minecraft.world.entity.vehicle.VehicleEntity.DATA_ID_HURT) read=owner via=G1 proof=shape
+  setDamage(F)V -> @idiom(entity-data-set, net.minecraft.world.entity.vehicle.VehicleEntity.DATA_ID_DAMAGE) write via=G1 proof=shape
+  setHurtDir(I)V -> @idiom(entity-data-set, net.minecraft.world.entity.vehicle.VehicleEntity.DATA_ID_HURTDIR) write via=G1 proof=shape
+  setHurtTime(I)V -> @idiom(entity-data-set, net.minecraft.world.entity.vehicle.VehicleEntity.DATA_ID_HURT) write via=G1 proof=shape
