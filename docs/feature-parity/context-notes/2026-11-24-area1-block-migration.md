@@ -17,3 +17,7 @@
 - 생성기 PR 629(ca/spottedleaf 인터페이스를 제네릭 서명에서도 거름) 뒤 `BlockBehaviour`(안쪽 `BlockStateBase` 는 조각 안 손 클래스)·`BlockState` 를 조각으로 옮겼다(`block-core2.spec`, class 줄만). `javap -p` 대조: 달라진 곳은 생성기가 더하는 `protected BlockBehaviour(ShimCtor)` 하나. 생성기가 ShimCtor 생성자를 더하면 손 클래스의 암묵 기본 생성자가 사라지므로 조각에 `public BlockBehaviour() {}` 를 명시했다(옛 모양 유지).
 - 전체 시험에서 `NmsEntityLookTest` 2건이 한 번 실패했으나 단독 재실행은 통과(부하 간헐 실패로 보이나 원인은 확인하지 않았다 — 가정).
 - 블록 영역 손 shim 은 이제 VaultState(상수 몸통)·StructureMode(패킷 생성물)만 남았다.
+
+## 4묶음 값 채움 (2026-11-27)
+- 근거: 표본 순위(ranking-with-spigot, 23개 jar)에서 블록 영역(`net.minecraft.world.level.block.*`)의 실제 구멍은 `BlockState.isSolid()`(Dynmap·vexbot) 하나뿐이다. T-264 계측 표는 블록 줄 36개 모두 Spigot 이름·호출 0이라 순위에 못 쓴다(Spigot 매핑 재계측 대기).
+- 구현: 바닐라 1.21.1 `BlockStateBase.isSolid()` 는 상태 생성 때 `calculateSolid()`(바이트코드로 확인: 힘줌 켬 → 참, 힘줌 끔 → 거짓, 충돌 모양이 비면 거짓, 모양 `getSize()` ≥ 0.7291666666666666 또는 `getYsize()` ≥ 1 이면 참)로 정한 `legacySolid` 를 돌려준다. 서버 `BlockInfo.legacySolid(state)` 가 이미 바닐라에서 뽑은 같은 값을 가지고 있어, 상태 속성 다리 비트 `LEGACY_SOLID`(512)로 내보내 shim 이 읽는다(읽기 전용 고정 표라 어느 스레드든 안전, 핫 경로 영향 없음 — 기존 `flagBits()` 읽기).

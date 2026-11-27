@@ -127,6 +127,9 @@ class BlockBehaviour {
             return s;
         }
 
+        /** 바닐라 isSolid(): 상태가 만들어질 때 정해진 legacySolid(힘줌 속성이나 충돌 모양 크기) — 서버 상태 표의 같은 값. 플러그인(Dynmap 등)이 부른다. */
+        public boolean isSolid() { return (flagBits() & org.domi.furnace.api.internal.BlockStateInternals.LEGACY_SOLID) != 0; }
+
         public boolean canOcclude() { return (flagBits() & org.domi.furnace.api.internal.BlockStateInternals.CAN_OCCLUDE) != 0; }
 
         /** 바닐라 캐시 solidRender: 가리는 블록이고 가림 모양이 꽉 참. */

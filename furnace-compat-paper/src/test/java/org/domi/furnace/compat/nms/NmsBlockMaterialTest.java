@@ -36,6 +36,16 @@ class NmsBlockMaterialTest {
     private static BlockState s(Block b) { return b.defaultBlockState(); }
 
     @Test
+    void isSolidFollowsVanillaLegacySolid() {
+        // 바닐라 legacySolid: 힘줌 속성 또는 충돌 모양 크기(평균 ≥ 0.729 또는 높이 ≥ 1). 공기·액체·횃불·풀은 아니다.
+        assertTrue(s(Blocks.STONE).isSolid());
+        assertTrue(s(Blocks.GLASS).isSolid());
+        assertFalse(s(Blocks.AIR).isSolid());
+        assertFalse(s(Blocks.WATER).isSolid());
+        assertFalse(s(Blocks.TORCH).isSolid());
+    }
+
+    @Test
     void everyStateComputes() {
         int n = 0, full = 0;
         for (int id = 0; Block.stateById(id) != null; id++) {
