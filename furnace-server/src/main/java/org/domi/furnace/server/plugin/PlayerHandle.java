@@ -94,6 +94,12 @@ public final class PlayerHandle implements org.domi.furnace.api.entity.Player {
     public void customDisplayName(Text name) { p.customDisplayName(name); }
 
     @Override
+    public Text listName() { return p.listName().text(); }
+
+    @Override
+    public void listName(Text name) { p.setListName(name); }
+
+    @Override
     public boolean isOnline() { return !p.isDisconnected(); }
 
     @Override

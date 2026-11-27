@@ -200,6 +200,12 @@ class ServerPlayer {
         org.domi.furnace.compat.nms.NmsChunks.bridge().causeFoodExhaustionNow(getBukkitEntity().furnaceHandle(), amount);
     }
 
+    /** CraftBukkit/Paper {@code getTabListDisplayName}: 탭 목록 표시 이름(setPlayerListName 으로 정한 것). 정하지 않았으면 null. */
+    public net.minecraft.network.chat.Component getTabListDisplayName() {
+        org.domi.furnace.api.text.Text t = getBukkitEntity().furnaceHandle().listName();
+        return t == null ? null : net.minecraft.network.chat.Component.fromFurnace(t);
+    }
+
     /** 바닐라: overlay 거짓으로. */
     public void sendSystemMessage(net.minecraft.network.chat.Component message) { sendSystemMessage(message, false); }
 

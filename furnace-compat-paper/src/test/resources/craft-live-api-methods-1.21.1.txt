@@ -480,7 +480,7 @@ org/bukkit/craftbukkit/entity/CraftPiglin 81 6969da068cdaffa1
 org/bukkit/craftbukkit/entity/CraftPiglinAbstract 81 6969da068cdaffa1
 org/bukkit/craftbukkit/entity/CraftPiglinBrute 81 6969da068cdaffa1
 org/bukkit/craftbukkit/entity/CraftPillager 81 6969da068cdaffa1
-org/bukkit/craftbukkit/entity/CraftPlayer 175 001702f8535b2e55
+org/bukkit/craftbukkit/entity/CraftPlayer 179 9d1b55f233d4e27d
 org/bukkit/craftbukkit/entity/CraftPlayer$2 0 e3b0c44298fc1c14
 org/bukkit/craftbukkit/entity/CraftPolarBear 81 6969da068cdaffa1
 org/bukkit/craftbukkit/entity/CraftProjectile 75 86dfa7aaf8e8c60c

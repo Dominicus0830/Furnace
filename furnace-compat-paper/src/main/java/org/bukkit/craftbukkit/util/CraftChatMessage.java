@@ -15,14 +15,14 @@ public final class CraftChatMessage {
 
     private CraftChatMessage() {}
 
-    /** 레거시 문자열(§ 서식)을 줄마다 한 글로. 줄바꿈은 새 글로 나누되 색·서식은 이어진다. 글 속 주소는 클릭 링크가 된다. null 은 빈 배열. */
+    /** 레거시 문자열(§ 서식)을 줄마다 한 글로. 줄바꿈은 새 글로 나누되 색·서식은 이어진다. 글 속 주소는 클릭 링크가 된다. null 은 빈 글 하나짜리 배열. */
     public static Component[] fromString(String message) { return fromString(message, false); }
 
     public static Component[] fromString(String message, boolean keepNewlines) { return fromString(message, keepNewlines, false); }
 
     /** {@code plain} 이 true 면 글 속 주소를 링크로 만들지 않는다(CraftBukkit 과 같다). */
     public static Component[] fromString(String message, boolean keepNewlines, boolean plain) {
-        if (message == null) return new Component[0];
+        if (message == null) return new Component[] {Component.empty()};   // CraftBukkit: null 도 빈 글 하나
         List<Component> out = new ArrayList<>();
         if (keepNewlines) {
             out.add(line(message, plain));
@@ -87,7 +87,7 @@ public final class CraftChatMessage {
 
     public static Component fromStringOrEmpty(String message, boolean keepNewlines) {
         Component c = fromStringOrNull(message, keepNewlines);
-        return c == null ? CommonComponents.EMPTY : c;
+        return c == null ? Component.empty() : c;
     }
 
     /** JSON 글(바닐라 직렬화) 을 NMS 글로. null·빈 JSON 은 null. 틀린 JSON 은 예외. */
@@ -104,11 +104,62 @@ public final class CraftChatMessage {
         }
     }
 
-    /** CraftBukkit 처럼 관대 JSON 을 먼저 시도하고(따옴표 없는 한 낱말 포함), 안 되면 레거시 문자열로. */
-    public static Component fromJSONOrString(String message) {
-        if (message == null) return CommonComponents.EMPTY;
-        Component c = fromJSONOrNull(message);
-        return c != null ? c : fromStringOrEmpty(message);
+    public static Component fromJSONOrString(String message) { return fromJSONOrString(message, false); }
+
+    public static Component fromJSONOrString(String message, boolean keepNewlines) { return fromJSONOrString(message, false, keepNewlines); }
+
+    public static Component fromJSONOrString(String message, boolean nullable, boolean keepNewlines) {
+        return fromJSONOrString(message, nullable, keepNewlines, Integer.MAX_VALUE, false);
+    }
+
+    /**
+     * JSON 글을 먼저 시도하고 안 되면 레거시 문자열로(CraftBukkit 과 같은 순서). {@code nullable} 이고 빈 문자열이면 null,
+     * {@code maxLength} 로 문자열을 자르며, {@code checkJsonContentLength} 이면 JSON 글의 내용 길이도 보고 넘으면 서식을 뗀 글로 바꾼다.
+     */
+    public static Component fromJSONOrString(String message, boolean nullable, boolean keepNewlines, int maxLength, boolean checkJsonContentLength) {
+        if (message == null) message = "";
+        if (nullable && message.isEmpty()) return null;
+        Component component = fromJSONOrNull(message);
+        if (component != null) {
+            if (checkJsonContentLength) {
+                String content = fromComponent(component);
+                String trimmed = trimMessage(content, maxLength);
+                if (content != trimmed) {   // 같은 객체면 안 잘린 것
+                    return fromString(trimmed, keepNewlines)[0];
+                }
+            }
+            return component;
+        }
+        message = trimMessage(message, maxLength);
+        return fromString(message, keepNewlines)[0];
+    }
+
+    public static String trimMessage(String message, int maxLength) {
+        if (message != null && message.length() > maxLength) {
+            return message.substring(0, maxLength);
+        }
+        return message;
+    }
+
+    public static java.util.Optional<Component> fromStringOrOptional(String message) {
+        return java.util.Optional.ofNullable(fromStringOrNull(message));
+    }
+
+    public static java.util.Optional<Component> fromStringOrOptional(String message, boolean keepNewlines) {
+        return java.util.Optional.ofNullable(fromStringOrNull(message, keepNewlines));
+    }
+
+    public static String toJSONOrNull(Component component) {
+        if (component == null) return null;
+        return toJSON(component);
+    }
+
+    public static net.minecraft.ChatFormatting getColor(org.bukkit.ChatColor color) {
+        return net.minecraft.ChatFormatting.getByCode(color.getChar());
+    }
+
+    public static org.bukkit.ChatColor getColor(net.minecraft.ChatFormatting format) {
+        return org.bukkit.ChatColor.getByChar(format.getChar());
     }
 
     /** NMS 글을 JSON 으로. */

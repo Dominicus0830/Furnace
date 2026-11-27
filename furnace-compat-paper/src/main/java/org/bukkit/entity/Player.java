@@ -22,6 +22,18 @@ public interface Player extends HumanEntity, org.bukkit.conversations.Conversabl
     /** 표시 이름을 정한다(§ 서식 가능). null 이면 이름 그대로로 되돌린다. 접속을 끊으면 사라진다. */
     void setDisplayName(String name);
 
+    /** 탭 목록에 보이는 이름 — 정하지 않았으면 플레이어 이름(Bukkit getPlayerListName). */
+    String getPlayerListName();
+
+    /** 탭 목록 이름을 정한다(§ 서식 가능). null 이거나 플레이어 이름과 같으면 기본으로 되돌린다. 보고 있는 모두의 탭이 갱신된다. */
+    void setPlayerListName(String name);
+
+    /** Paper playerListName(): 탭 목록 이름을 Adventure 글로. 정하지 않았으면 플레이어 이름 글. */
+    net.kyori.adventure.text.Component playerListName();
+
+    /** Paper playerListName(Component): null 이면 기본 이름으로 되돌린다. */
+    void playerListName(net.kyori.adventure.text.Component name);
+
     /** 접속 상태 안에서만 쓸 수 있다. */
     InetSocketAddress getAddress();
 

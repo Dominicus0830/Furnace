@@ -247,7 +247,7 @@ class PacketApiTest {
 
         ByteBuf info = Unpooled.buffer();
         new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate(List.of(new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.Entry(u, "Bob",
-                List.of(new org.domi.furnace.server.players.GameProfile.Property("textures", "v", "sg")), null, 1, 33))).write(info);
+                List.of(new org.domi.furnace.server.players.GameProfile.Property("textures", "v", "sg")), null, 1, 33, null))).write(info);
         // 서버 쪽 add 는 채팅 세션 초기화 비트를 늘 켠다(없으면 빈 옵션) — 래퍼는 세션 없음(null)으로 읽는다
         var read = (ClientboundPlayerInfoUpdatePacket) codec.decode(PacketTypes.Clientbound.PLAYER_INFO_UPDATE,
                 org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.ID, info);
