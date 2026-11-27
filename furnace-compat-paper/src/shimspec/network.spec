@@ -63,3 +63,4 @@ class net.minecraft.network.protocol.game.ClientboundSetTitlesAnimationPacket
 class net.minecraft.network.protocol.game.ClientboundSystemChatPacket
 class net.minecraft.network.protocol.game.ClientboundSetTimePacket
 class net.minecraft.network.protocol.common.ClientboundDisconnectPacket
+class net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket
