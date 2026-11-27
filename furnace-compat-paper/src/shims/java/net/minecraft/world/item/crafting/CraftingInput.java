@@ -83,11 +83,13 @@ class CraftingInput {
         return true;
     }
 
+    /** 바닐라 식: hashStackList(칸마다 31 * (31 + 아이템 해시) + 구성 요소 해시)에 너비·높이를 31 배로 얹는다(구성 요소 해시는 이 shim 의 구성 요소 표 기준). */
     @Override
     public int hashCode() {
         int h = 0;
-        for (ItemStack s : items) h = h * 31 + (s.isEmpty() ? 0 : s.getItem().hashCode() * 31 + s.getCount());
-        return 31 * (31 * (31 * h + width) + height) + ingredientCount;
+        for (ItemStack s : items) h = h * 31 + (31 * (31 + s.getItem().hashCode()) + s.furnaceValue().components().hashCode());
+        h = 31 * h + width;
+        return 31 * h + height;
     }
 
     /** 바닐라 CraftingInput.Positioned: 잘린 입력과 잘려 나간 왼쪽·위 칸 수. */
