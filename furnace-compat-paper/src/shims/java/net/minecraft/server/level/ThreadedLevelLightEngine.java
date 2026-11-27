@@ -16,7 +16,7 @@ import org.domi.furnace.compat.nms.NmsChunks;
  * 끝에 {@code onComplete}(받은 수)를 부른다. 콜백 스레드는 Paper 는 빛 일꾼 한 스레드, Furnace 는 요청마다 콜백 전용 스레드 한 줄이다(차례대로).
  * 층 듣기·checkBlock·getRawBrightness·queueSectionData(T-205)는 {@link LevelLightEngine} 에 있다.
  */
-public class ThreadedLevelLightEngine extends LevelLightEngine {
+class ThreadedLevelLightEngine {
 
     private final ServerLevel level;
 
@@ -24,6 +24,9 @@ public class ThreadedLevelLightEngine extends LevelLightEngine {
         super(level);
         this.level = level;
     }
+
+    /** 바닐라 close 는 빛 일꾼 실행기를 닫는다 — Furnace 는 요청마다 콜백 스레드를 따로 쓰므로 닫을 것이 없다. */
+    public void close() {}
 
     /** Paper: 그 청크들의 빛을 처음부터 다시 계산한다. 아무 스레드, 기다리지 않는다. 돌려주는 값은 받은(로드된) 청크 수. */
     public final int starlight$serverRelightChunks(Collection<ChunkPos> chunks, Consumer<ChunkPos> chunkCallback, IntConsumer onComplete) {

@@ -7,14 +7,14 @@ import net.minecraft.world.level.ChunkPos;
 /**
  * 청크 지도(Mojang 이름 shim, N2b-6): {@code ServerChunkCache.chunkMap}. 청크 자리 찾기와 그 청크를 받는 플레이어 목록만 있다(엔티티 추적기 등은 N3a).
  */
-public class ChunkMap {
+class ChunkMap {
 
     public static final int MIN_VIEW_DISTANCE = 2;
     public static final int MAX_VIEW_DISTANCE = 32;
 
     private final ServerLevel level;
 
-    ChunkMap(ServerLevel level) { this.level = level; }
+    ChunkMap(ServerLevel level) { super(org.domi.furnace.compat.nms.ShimCtor.TAG); this.level = level; }
 
     /** 로드된 청크의 자리(바닐라: 보이는 청크 자리 표). 아니면 null. 아무 스레드. */
     public ChunkHolder getVisibleChunkIfPresent(long pos) {

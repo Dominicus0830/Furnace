@@ -8,3 +8,9 @@
 
 ## 열거형 4개 (같은 날 2묶음)
 - LightLayer·PushReaction(상수만 — 조각 삭제)·GameType(생성자 인자 상수, 조각은 생성자·필드·메서드)·EmptyBlockGetter(상수 INSTANCE)를 `level-chunk.spec` 으로 옮겼다. javap 대조: GameType 만 달라졌다 — 바닐라처럼 `StringRepresentable` 을 구현하므로 조각에 `getSerializedName`(이름 반환)을 손으로 더했다. 기준선 낡은 줄 1개 삭제.
+
+## 3묶음 — 레벨 인터페이스 사슬 (같은 날)
+- CommonLevelAccessor·LevelAccessor·LevelWriter·LevelReader·ServerLevelAccessor·WorldGenLevel·Level·ChunkSource 를 조각으로 옮겼다(앞 묶음에서 막힌 것). 막힌 이유는 한 클래스씩 옮겨서였다 — 사슬 전체를 한꺼번에 옮기면 잠금 머리가 바닐라 사슬(CommonLevelAccessor→EntityGetter·LevelReader·LevelSimulatedRW, LevelReader→BlockAndTintGetter·CollisionGetter·SignalGetter)을 만들어 setBlock 이 LevelSimulatedRW→LevelWriter 로 이어진다.
+- 조각 머리는 `abstract class` 가 아니라 `class Level {` 로 써야 한다(생성기가 접근·abstract 를 잠금에서 붙인다). 컴파일 로그에서 "fragment header not found" 를 `error:` 로 grep 하면 놓친다.
+- Level·ChunkSource 가 바닐라처럼 AutoCloseable 이라 `close()` 가 필요했다: ChunkSource.close() 는 빈 몸통, Level.close() 는 `getChunkSource().close()`(바닐라 같음 — javap 확인). ServerChunkCache 는 바닐라가 close 를 덮어 스레드를 멈추지만 Furnace 의 청크 공급원은 서버가 따로 닫아 지금처럼 빈 몸통을 받는다.
+- 서명 관문 기준선 낡은 줄 64개 삭제(Level 계열·ServerLevel·BlockStateListPopulator·DummyGeneratorAccess 의 type-missing). javap 전후 대조: 달라진 클래스 5개 모두 바닐라와 맞춘 방향(상위 인터페이스 추가, close 추가).

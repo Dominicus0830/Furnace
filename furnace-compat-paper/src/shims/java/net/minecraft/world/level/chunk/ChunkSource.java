@@ -3,7 +3,7 @@ package net.minecraft.world.level.chunk;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
 
 /** 청크 공급원(Mojang 이름, N2a). 청크를 동기로 불러오지 않는다 — {@link net.minecraft.server.level.ServerChunkCache} 참고. */
-public abstract class ChunkSource {
+class ChunkSource {
 
     protected ChunkSource() {}
 
@@ -21,4 +21,7 @@ public abstract class ChunkSource {
 
     /** 바닐라 ChunkSource#getLightEngine — 서버 빛 엔진({@link net.minecraft.server.level.ServerChunkCache} 가 {@code ThreadedLevelLightEngine} 으로 좁힌다). */
     public abstract net.minecraft.world.level.lighting.LevelLightEngine getLightEngine();
+
+    /** 바닐라 ChunkSource#close: 기본은 아무것도 하지 않는다. */
+    public void close() throws java.io.IOException {}
 }

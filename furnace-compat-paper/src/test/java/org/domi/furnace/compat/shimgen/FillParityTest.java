@@ -121,8 +121,9 @@ class FillParityTest {
         assertTrue(recordChecks > 250, "record checks: " + recordChecks);
         assertTrue(noVanilla < 20, "classes without a vanilla counterpart: " + noVanilla);
         // 짧은 값 몸통(T-263 G0, 2026-11-27 측정 1,395·동일성 37 의 절반 안팎)
-        assertTrue(valueBodies > 700, "value bodies compared: " + valueBodies);
-        assertTrue(valueIdentity > 15, "value bodies compared by identity (argument or this): " + valueIdentity);
+        // 하한은 실제 수(2026-11-27: 1,395 · 같음 확인 37)의 약 95% — 대조가 조용히 줄면 잡는다
+        assertTrue(valueBodies >= 1320, "value bodies compared: " + valueBodies);
+        assertTrue(valueIdentity >= 35, "value bodies compared by identity (argument or this): " + valueIdentity);
         assertEquals(List.of(), failures.stream().limit(30).toList(), "filled members must match the vanilla values");
     }
 
@@ -131,6 +132,12 @@ class FillParityTest {
      * (값 몸통은 필드를 보지 않는다). 원시·문자열 반환은 값이 같아야 하고, 참조 반환은 바닐라가 인자·this 를 돌려주면 껍데기도 같은 자리의 것을,
      * null 이면 null 을, 열거형이면 같은 이름을, 그 밖(정적 필드 객체)은 둘 다 null 이 아님을 본다.
      */
+    /** 바이트코드 검증·형식 오류(원인 사슬 포함): 생성기 잘못이라 "대조 못 함"으로 넘기지 않는다. */
+    static boolean badBytes(Throwable t) {
+        for (Throwable c = t; c != null; c = c.getCause()) if (c instanceof VerifyError || c instanceof ClassFormatError) return true;
+        return false;
+    }
+
     void checkValueBody(String entry, ClassLoader shell, ClassLoader van) {
         int hash = entry.indexOf('#'), paren = entry.indexOf('(', hash);
         String owner = entry.substring(0, hash).replace('/', '.'), name = entry.substring(hash + 1, paren), desc = entry.substring(paren);
@@ -138,6 +145,10 @@ class FillParityTest {
         try {
             sc = Class.forName(owner, true, shell);
         } catch (Throwable t) {
+            if (badBytes(t)) {
+                failures.add(entry + ": shell class does not verify " + t);   // 생성기가 낸 바이트가 틀렸다 — 대조 못 함이 아니라 실패
+                return;
+            }
             valueNotComparable++;   // 손 shim 의 정적 초기화가 서버를 요구 등 — 껍데기 클래스 초기화 실패는 위 클래스 대조가 실패로 잡는다
             return;
         }
@@ -152,6 +163,10 @@ class FillParityTest {
             sm = findMethod(sc, name, desc);
             vm = findMethod(vc, name, desc);
         } catch (LinkageError e) {
+            if (badBytes(e)) {
+                failures.add(entry + ": shell class does not verify " + e);
+                return;
+            }
             valueNotComparable++;   // 메서드 목록을 푸는 데 없는 형식(Paper 내부 등)이 필요하다
             return;
         }
@@ -188,6 +203,10 @@ class FillParityTest {
             sr = sm.invoke(so, args);
         } catch (Throwable t) {
             Throwable c = t instanceof java.lang.reflect.InvocationTargetException ite ? ite.getCause() : t;
+            if (badBytes(c)) {
+                failures.add(entry + ": shell value body does not verify " + c);
+                return;
+            }
             if (c instanceof ExceptionInInitializerError || c instanceof NoClassDefFoundError) {
                 valueNeedsServer++;   // 정적 필드 반환(R)이 읽는 손 shim(소리·레지스트리 등)의 정적 초기화가 서버를 요구 — 시험 로더 밖 몫
                 return;

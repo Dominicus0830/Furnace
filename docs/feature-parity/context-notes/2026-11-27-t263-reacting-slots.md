@@ -24,7 +24,13 @@ Furnace 서버가 칸이 바뀔 때 바닐라와 같은 반응을 하는지 코�
 | Shulker 붙은 면 | `setBoundingBox(makeBoundingBox())` | 있음 | 같은 훅(`refreshBoundingBox` — Shulker `makeBb`) | 넣음 |
 | Interaction 높이·너비 | `setBoundingBox(makeBoundingBox())` — 상자는 칸 너비·높이(`getDimensions()`)로, 몸 크기(`getBbWidth`)는 그대로 | 있음 | **고침**: 전에는 몸 크기(`dimW`·`dimH`)까지 바꿨고 새 엔티티 상자가 0×0 이었다. 이제 `makeBb` 가 칸으로 상자를 만들고 훅·저장 읽기는 상자만 다시 만든다. 몸 크기는 자세가 바뀔 때(`refreshDimensions`)만 칸을 따른다(눈 높이 0.85 배, noPhysics 라 자리 밀기 없음) | 넣음 |
 | Armadillo 상태 | `inStateTicks = 0` | 있음(껍질 숨기·겁먹기 판정) | **고침**: 전에는 `switchToState` 안에서만 0 으로 돌렸다(칸에 바로 쓰면 빠짐). 이제 훅에서 | 넣음 |
-| Pufferfish 부풀기 | `refreshDimensions()` | 있음 — 크기와 **자리 밀기**(`fudgePositionAfterSizeChange`: 커지면 빈 곳을 찾아 위치를 옮김, 첫 틱·noPhysics·4 넘는 몸·플레이어 제외) | 크기는 같지만 **자리 밀기가 없다** — Furnace `refreshDimensions` 전부(아기 자람·슬라임 등)에 빠져 있다 | **뺌**(자리 밀기 이식 뒤) |
+| Pufferfish 부풀기 | `refreshDimensions()` | 있음 — 크기와 **자리 밀기**(`fudgePositionAfterSizeChange`: 커지면 빈 곳을 찾아 위치를 옮김, 첫 틱·noPhysics·4 넘는 몸·플레이어 제외) | 크기는 같았지만 자리 밀기가 Furnace 몸 크기 다시 재기 전부(아기 자람·슬라임 등)에 빠져 있었다. **이식**(후속 PR): `Entity.setDimensions` 가 바닐라 `refreshDimensions` 끝처럼 첫 틱 뒤·물리 있음·새 몸 4 이하·커짐이면 밀고, 빈 곳 찾기는 포털 출구와 같은 `FreePosition`(CollisionGetter.findFreePosition) | 넣음(후속 PR) |
 
-시험: `SyncedDataHookTest`(상호작용 상자·몸 크기, 아르마딜로 칸 쓰기 → 상태 틱 0).
-줄 파일: `furnace-compat-paper/src/shimspec/links-1.21.1/2-entity-core.links`(손 줄 12, `proof=review`).
+시험: `SyncedDataHookTest`(상호작용 상자·몸 크기, 아르마딜로 칸 쓰기 → 상태 틱 0, 복어 부풀기 자리 밀기 — 허공은 (새-옛 높이)/2 내려감·땅 위는 그대로·첫 틱 전·작아질 때는 안 밂·벽 옆은 벽에서 멀어짐·틈이 낮으면 옛 높이로 두 번째 시도). 플레이어 제외는 바닐라 `refreshDimensions` 의 `instanceof Player` 분기(javap 확인)라 Furnace Player 에는 넣지 않는다.
+
+## 같이 고친 것(후속 PR)
+
+- 디스플레이 `setSize`: 바닐라 Display 는 몸 크기·상자를 바꾸지 않는다(종류 기본 0×0, 너비·높이 칸은 클라이언트 그리기 범위). 전에는 Furnace 가 몸 크기를 바꿨다.
+- 가정: `FreePosition` 의 빼기는 상자 조각 목록이라, 같은 거리의 점이 둘 이상이면 바닐라(복셀 모양 상자 순서)와 고르는 점이 다를 수 있다(포털 출구 찾기와 같은 가정).
+
+줄 파일: `furnace-compat-paper/src/shimspec/links-1.21.1/2-entity-core.links`(손 줄 12 + 후속 PR 복어 1, `proof=review`).
