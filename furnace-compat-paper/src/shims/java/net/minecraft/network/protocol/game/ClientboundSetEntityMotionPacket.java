@@ -9,7 +9,7 @@ import net.minecraft.world.phys.Vec3;
  * 엔티티 속도(Mojang 이름, H7c). 바닐라처럼 축마다 ±3.9 로 자르고 1/8000 단위 정수로 담는다 — 읽기 메서드도 그 값을 돌려준다.
  * 바닐라의 {@code (Entity)} 생성자는 네트워크 엔티티 id 를 내보내지 않아 두지 않았다.
  */
-public class ClientboundSetEntityMotionPacket implements Packet<ClientGamePacketListener>, NmsPacket {
+class ClientboundSetEntityMotionPacket implements NmsPacket {
 
     private final int id;
     private final int xa;

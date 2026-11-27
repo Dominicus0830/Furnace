@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.UUID;
 
 /** 탭 목록에서 빼기(Mojang 이름, H7c). */
-public record ClientboundPlayerInfoRemovePacket(List<UUID> profileIds) implements Packet<ClientGamePacketListener>, NmsPacket {
+record ClientboundPlayerInfoRemovePacket implements NmsPacket {
 
     public ClientboundPlayerInfoRemovePacket { profileIds = List.copyOf(profileIds); }
 

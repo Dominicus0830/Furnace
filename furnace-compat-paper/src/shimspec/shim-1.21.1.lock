@@ -78,7 +78,27 @@ C	net/minecraft/network/protocol/PacketType	65585	java/lang/Record	-	<T::Lnet/mi
 R	net/minecraft/network/protocol/PacketType	flow	Lnet/minecraft/network/protocol/PacketFlow;	-
 R	net/minecraft/network/protocol/PacketType	id	Lnet/minecraft/resources/ResourceLocation;	-
 X	net/minecraft/network/protocol/PacketType	toString
+C	net/minecraft/network/protocol/common/ClientboundDisconnectPacket	65585	java/lang/Record	net/minecraft/network/protocol/Packet	Ljava/lang/Record;Lnet/minecraft/network/protocol/Packet<Lnet/minecraft/network/protocol/common/ClientCommonPacketListener;>;	-	paper-server-1.21.1
+R	net/minecraft/network/protocol/common/ClientboundDisconnectPacket	reason	Lnet/minecraft/network/chat/Component;	-
 C	net/minecraft/network/protocol/common/custom/CustomPacketPayload	1537	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/network/protocol/game/ClientboundClearTitlesPacket	33	java/lang/Object	net/minecraft/network/protocol/Packet	Ljava/lang/Object;Lnet/minecraft/network/protocol/Packet<Lnet/minecraft/network/protocol/game/ClientGamePacketListener;>;	-	paper-server-1.21.1
+C	net/minecraft/network/protocol/game/ClientboundLevelChunkWithLightPacket	33	java/lang/Object	net/minecraft/network/protocol/Packet	Ljava/lang/Object;Lnet/minecraft/network/protocol/Packet<Lnet/minecraft/network/protocol/game/ClientGamePacketListener;>;	-	paper-server-1.21.1
+C	net/minecraft/network/protocol/game/ClientboundLightUpdatePacket	33	java/lang/Object	net/minecraft/network/protocol/Packet	Ljava/lang/Object;Lnet/minecraft/network/protocol/Packet<Lnet/minecraft/network/protocol/game/ClientGamePacketListener;>;	-	paper-server-1.21.1
+C	net/minecraft/network/protocol/game/ClientboundPlayerInfoRemovePacket	65585	java/lang/Record	net/minecraft/network/protocol/Packet	Ljava/lang/Record;Lnet/minecraft/network/protocol/Packet<Lnet/minecraft/network/protocol/game/ClientGamePacketListener;>;	-	paper-server-1.21.1
+R	net/minecraft/network/protocol/game/ClientboundPlayerInfoRemovePacket	profileIds	Ljava/util/List;	Ljava/util/List<Ljava/util/UUID;>;
+C	net/minecraft/network/protocol/game/ClientboundRemoveEntitiesPacket	33	java/lang/Object	net/minecraft/network/protocol/Packet	Ljava/lang/Object;Lnet/minecraft/network/protocol/Packet<Lnet/minecraft/network/protocol/game/ClientGamePacketListener;>;	-	paper-server-1.21.1
+C	net/minecraft/network/protocol/game/ClientboundSetActionBarTextPacket	65585	java/lang/Record	net/minecraft/network/protocol/Packet	Ljava/lang/Record;Lnet/minecraft/network/protocol/Packet<Lnet/minecraft/network/protocol/game/ClientGamePacketListener;>;	-	paper-server-1.21.1
+R	net/minecraft/network/protocol/game/ClientboundSetActionBarTextPacket	text	Lnet/minecraft/network/chat/Component;	-
+C	net/minecraft/network/protocol/game/ClientboundSetEntityMotionPacket	33	java/lang/Object	net/minecraft/network/protocol/Packet	Ljava/lang/Object;Lnet/minecraft/network/protocol/Packet<Lnet/minecraft/network/protocol/game/ClientGamePacketListener;>;	-	paper-server-1.21.1
+C	net/minecraft/network/protocol/game/ClientboundSetSubtitleTextPacket	65585	java/lang/Record	net/minecraft/network/protocol/Packet	Ljava/lang/Record;Lnet/minecraft/network/protocol/Packet<Lnet/minecraft/network/protocol/game/ClientGamePacketListener;>;	-	paper-server-1.21.1
+R	net/minecraft/network/protocol/game/ClientboundSetSubtitleTextPacket	text	Lnet/minecraft/network/chat/Component;	-
+C	net/minecraft/network/protocol/game/ClientboundSetTimePacket	33	java/lang/Object	net/minecraft/network/protocol/Packet	Ljava/lang/Object;Lnet/minecraft/network/protocol/Packet<Lnet/minecraft/network/protocol/game/ClientGamePacketListener;>;	-	paper-server-1.21.1
+C	net/minecraft/network/protocol/game/ClientboundSetTitleTextPacket	65585	java/lang/Record	net/minecraft/network/protocol/Packet	Ljava/lang/Record;Lnet/minecraft/network/protocol/Packet<Lnet/minecraft/network/protocol/game/ClientGamePacketListener;>;	-	paper-server-1.21.1
+R	net/minecraft/network/protocol/game/ClientboundSetTitleTextPacket	text	Lnet/minecraft/network/chat/Component;	-
+C	net/minecraft/network/protocol/game/ClientboundSetTitlesAnimationPacket	33	java/lang/Object	net/minecraft/network/protocol/Packet	Ljava/lang/Object;Lnet/minecraft/network/protocol/Packet<Lnet/minecraft/network/protocol/game/ClientGamePacketListener;>;	-	paper-server-1.21.1
+C	net/minecraft/network/protocol/game/ClientboundSystemChatPacket	65585	java/lang/Record	net/minecraft/network/protocol/Packet	Ljava/lang/Record;Lnet/minecraft/network/protocol/Packet<Lnet/minecraft/network/protocol/game/ClientGamePacketListener;>;	-	paper-server-1.21.1
+R	net/minecraft/network/protocol/game/ClientboundSystemChatPacket	content	Lnet/minecraft/network/chat/Component;	-
+R	net/minecraft/network/protocol/game/ClientboundSystemChatPacket	overlay	Z	-
 C	net/minecraft/network/syncher/EntityDataAccessor	65585	java/lang/Record	-	<T:Ljava/lang/Object;>Ljava/lang/Record;	-	paper-server-1.21.1
 R	net/minecraft/network/syncher/EntityDataAccessor	id	I	-
 R	net/minecraft/network/syncher/EntityDataAccessor	serializer	Lnet/minecraft/network/syncher/EntityDataSerializer;	Lnet/minecraft/network/syncher/EntityDataSerializer<TT;>;

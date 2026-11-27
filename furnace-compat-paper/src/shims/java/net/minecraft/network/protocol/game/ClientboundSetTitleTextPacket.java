@@ -6,7 +6,7 @@ import org.domi.furnace.compat.nms.NmsPacket;
 import net.minecraft.network.chat.Component;
 
 /** 제목(Mojang 이름, H7c). */
-public record ClientboundSetTitleTextPacket(Component text) implements Packet<ClientGamePacketListener>, NmsPacket {
+record ClientboundSetTitleTextPacket implements NmsPacket {
 
     @Override
     public ClientboundPacket toFurnace() { return new org.domi.furnace.api.packet.clientbound.ClientboundSetTitleTextPacket(Component.furnace(text)); }

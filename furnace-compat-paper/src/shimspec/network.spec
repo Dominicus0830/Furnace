@@ -50,3 +50,16 @@ class net.minecraft.network.RegistryFriendlyByteBuf
 class net.minecraft.network.syncher.EntityDataSerializer
 class net.minecraft.network.syncher.EntityDataSerializers
 class net.minecraft.network.syncher.SynchedEntityData
+class net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket
+class net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket
+class net.minecraft.network.protocol.game.ClientboundPlayerInfoRemovePacket
+class net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket
+class net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket
+class net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket
+class net.minecraft.network.protocol.game.ClientboundClearTitlesPacket
+class net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket
+class net.minecraft.network.protocol.game.ClientboundLightUpdatePacket
+class net.minecraft.network.protocol.game.ClientboundSetTitlesAnimationPacket
+class net.minecraft.network.protocol.game.ClientboundSystemChatPacket
+class net.minecraft.network.protocol.game.ClientboundSetTimePacket
+class net.minecraft.network.protocol.common.ClientboundDisconnectPacket

@@ -5,7 +5,7 @@ import org.domi.furnace.api.packet.ClientboundPacket;
 import org.domi.furnace.compat.nms.NmsPacket;
 
 /** 빛 갱신 패킷 shim(Mojang 이름, T-182, ProtocolLib LIGHT_UPDATE). 바닐라 1.21.1 과 같은 모양 — 청크 좌표와 빛 자료. */
-public class ClientboundLightUpdatePacket implements Packet<ClientGamePacketListener>, NmsPacket {
+class ClientboundLightUpdatePacket implements NmsPacket {
 
     private final int x;
     private final int z;
