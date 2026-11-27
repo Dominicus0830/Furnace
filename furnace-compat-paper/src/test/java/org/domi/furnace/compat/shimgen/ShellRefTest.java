@@ -49,6 +49,8 @@ class ShellRefTest {
             ref net.minecraft.zz.Lone
               ZERO
               make
+            ref net.minecraft.zz.Shaper
+              shape
             """;
 
     static final String LOCK = String.join("\n",
@@ -64,6 +66,9 @@ class ShellRefTest {
             "Q\tnet/minecraft/zz/Lone",
             "F\tnet/minecraft/zz/Lone\tZERO\tLnet/minecraft/zz/Lone;\t25\t-",
             "M\tnet/minecraft/zz/Lone\tmake\t()Lnet/minecraft/zz/Lone;\t9\t-",
+            "C\tnet/minecraft/zz/Shaper\t1537\tjava/lang/Object\t-\t-\t-\tt",
+            "Q\tnet/minecraft/zz/Shaper",
+            "M\tnet/minecraft/zz/Shaper\tshape\t()I\t1025\t-",
             "");
 
     /** Paper 서명표: 진짜 클래스(열거형 상수 둘, 바닐라 순서 RED, BLUE). */
@@ -83,6 +88,8 @@ class ShellRefTest {
             "F\t25\tnet/minecraft/zz/Lone\tZERO\tLnet/minecraft/zz/Lone;\t-",
             "M\t1\tnet/minecraft/zz/Lone\t<init>\t()V\t-",
             "M\t9\tnet/minecraft/zz/Lone\tmake\t()Lnet/minecraft/zz/Lone;\t-",
+            "C\t1537\tnet/minecraft/zz/Shaper\tjava/lang/Object\t-\t-\t-",
+            "M\t1025\tnet/minecraft/zz/Shaper\tshape\t()I\t-",
             "");
 
     static final String EMPTY = "#furnace-sig-table\t2\tempty\n";
@@ -155,7 +162,7 @@ class ShellRefTest {
     @Test
     void templatesCompileAsThrowingShapesWithMarksAndNoConstants() throws Exception {
         Built b = build(USER_LIVE);
-        assertEquals(List.of("net/minecraft/zz/Host$Color", "net/minecraft/zz/Lone"), b.result().refs().stream().sorted().toList());
+        assertEquals(List.of("net/minecraft/zz/Host$Color", "net/minecraft/zz/Lone", "net/minecraft/zz/Shaper"), b.result().refs().stream().sorted().toList());
         assertTrue(b.result().files().containsKey("net/minecraft/zz/Lone"), "최상위 틀은 자기 소스");
         assertFalse(b.result().files().containsKey("net/minecraft/zz/Host$Color"), "안쪽 틀은 바깥(생성 shim) 소스 안");
         assertTrue(b.result().unimplemented().isEmpty(), "틀 멤버는 구현 없음 색인에 적지 않는다(껍데기가 가린다): " + b.result().unimplemented());
@@ -197,7 +204,7 @@ class ShellRefTest {
         Built b = build(USER_LIVE);
         Shells s = shells(b.compat(), PAPER);
         assertEquals(List.of(), s.problems());
-        assertEquals(Set.of("net/minecraft/zz/Host$Color", "net/minecraft/zz/Lone"), s.g().existing.refs());
+        assertEquals(Set.of("net/minecraft/zz/Host$Color", "net/minecraft/zz/Lone", "net/minecraft/zz/Shaper"), s.g().existing.refs());
         assertFalse(s.g().existing.has("net/minecraft/zz/Lone"), "틀은 이미 있는 클래스가 아니다");
         assertTrue(s.g().shells.contains("net/minecraft/zz/Host$Color") && s.g().shells.contains("net/minecraft/zz/Lone"), "틀 클래스는 껍데기로 만든다");
         for (String n : s.g().existing.refs()) assertFalse(NmsShellRefCheck.isTemplate(s.classes().get(n)), "틀은 합치지 않는다(합쳤으면 틀 표지가 남는다): " + n);
@@ -228,7 +235,15 @@ class ShellRefTest {
         }
         // 틀이 앞인 로더(순서가 깨진 실행): 기동 자기 점검이 틀을 잡는다
         try (URLClassLoader bad = new URLClassLoader(new URL[]{b.compat().toUri().toURL(), shells.toUri().toURL()}, getClass().getClassLoader())) {
-            assertEquals(List.of("net.minecraft.zz.Host$Color", "net.minecraft.zz.Lone"), NmsShellRefCheck.templatesWinning(bad).stream().sorted().toList());
+            assertEquals(List.of("net.minecraft.zz.Host$Color", "net.minecraft.zz.Lone", "net.minecraft.zz.Shaper"), NmsShellRefCheck.templatesWinning(bad).stream().sorted().toList());
+        }
+        // 안쪽 껍데기와 바깥 클래스를 다른 로더가 정의하면(바깥만 부모 로더에 보임) nestmate·안쪽 관계가 깨진다 — 기동 점검이 잡는다
+        Path outerOnly = tmp.resolve("outer-only");
+        write(outerOnly.resolve("net/minecraft/zz/Host.class"), "");
+        Files.write(outerOnly.resolve("net/minecraft/zz/Host.class"), Files.readAllBytes(b.compat().resolve("net/minecraft/zz/Host.class")));
+        try (URLClassLoader parent = new URLClassLoader(new URL[]{outerOnly.toUri().toURL()}, getClass().getClassLoader());
+             URLClassLoader split = new URLClassLoader(new URL[]{shells.toUri().toURL(), b.compat().toUri().toURL()}, parent)) {
+            assertEquals(List.of("net.minecraft.zz.Host$Color (outer class from another class loader)"), NmsShellRefCheck.templatesWinning(split));
         }
         // 껍데기 jar 가 없는 축소 빌드: 틀이 대체물로 쓰이는 것이 정상 — 점검하지 않는다
         try (URLClassLoader small = new URLClassLoader(new URL[]{b.compat().toUri().toURL()}, getClass().getClassLoader())) {
@@ -253,6 +268,10 @@ class ShellRefTest {
         String changed = PAPER.replace("M\t1\tnet/minecraft/zz/Host$Color\tid\t()I\t-", "M\t9\tnet/minecraft/zz/Host$Color\tid\t()I\t-");
         List<String> p = shells(b.compat(), changed).problems();
         assertTrue(p.stream().anyMatch(x -> x.contains("Host$Color#id()I: template access")), String.join("\n", p));
+        // 검사 1(추상 멤버도 표지가 있어 견준다): 서명표에서 추상 메서드가 정적으로 바뀌었다
+        String abs = PAPER.replace("M\t1025\tnet/minecraft/zz/Shaper\tshape\t()I\t-", "M\t9\tnet/minecraft/zz/Shaper\tshape\t()I\t-");
+        List<String> a = shells(b.compat(), abs).problems();
+        assertTrue(a.stream().anyMatch(x -> x.contains("Shaper#shape()I: template access")), String.join("\n", a));
         // 검사 3: 껍데기를 만들 수 없다(상위 형식이 없다)
         String broken = PAPER.replace("C\t33\tnet/minecraft/zz/Lone\tjava/lang/Object", "C\t33\tnet/minecraft/zz/Lone\tcom/example/zz/Missing");
         List<String> q = shells(b.compat(), broken).problems();

@@ -671,7 +671,7 @@ public final class ShimGenerator {
             // 열거형의 values()·valueOf(String) 은 javac 가 만든다(적으면 겹침) — 실행 때는 껍데기의 진짜 몸통
             if (c.isEnum() && (m.name().equals("values") && m.desc().equals("()[L" + n + ";") || m.name().equals("valueOf") && m.desc().equals("(Ljava/lang/String;)L" + n + ";"))) continue;
             if (m.isAbstract()) {
-                sb.append(in).append(methodHead(c, m, simple)).append(";\n");
+                sb.append(in).append(mark).append(methodHead(c, m, simple)).append(";\n");   // 표지: 검사 1 이 추상 멤버도 껍데기와 견준다
                 continue;
             }
             sb.append(in).append(mark).append(methodHead(c, m, simple)).append(" {\n");

@@ -39,18 +39,37 @@ public final class NmsShellRefCheck {
         if (!r.isEmpty()) throw new IllegalStateException(CompatLang.t("nms.shell-ref-wins", r.size(), String.join(", ", r)));
     }
 
-    /** 껍데기 jar 가 실렸는데 틀이 로더에서 나오는 클래스(이진 이름). 껍데기 jar 가 없거나 틀이 없으면 빈 목록. */
+    /**
+     * 껍데기 jar 가 실렸는데 틀이 로더에서 나오는 클래스(이진 이름). 안쪽 틀은 바깥 클래스와 같은 로더가 정의하는지도 본다 — 다르면 둘은 nestmate·
+     * 안쪽 클래스 관계가 깨진다(이름 뒤에 표시). 껍데기 jar 가 없거나 틀이 없으면 빈 목록.
+     */
     public static List<String> templatesWinning(ClassLoader cl) {
         List<String> out = new ArrayList<>();
         if (cl.getResource(SHELLS_MARK) == null) return out;
         for (String n : refs(cl)) {
+            String name = n.replace('/', '.');
             try (InputStream in = cl.getResourceAsStream(n + ".class")) {
-                if (in == null || isTemplate(in.readAllBytes())) out.add(n.replace('/', '.'));
+                if (in == null || isTemplate(in.readAllBytes())) {
+                    out.add(name);
+                    continue;
+                }
             } catch (IOException e) {
-                out.add(n.replace('/', '.'));
+                out.add(name);
+                continue;
             }
+            int d = name.lastIndexOf('$');
+            if (d > 0 && !sameLoader(cl, name, name.substring(0, d))) out.add(name + " (outer class from another class loader)");
         }
         return out;
+    }
+
+    /** 두 클래스를 초기화 없이 올려 같은 로더가 정의했는지. 올리지 못하면 false. */
+    private static boolean sameLoader(ClassLoader cl, String inner, String outer) {
+        try {
+            return Class.forName(inner, false, cl).getClassLoader() == Class.forName(outer, false, cl).getClassLoader();
+        } catch (ClassNotFoundException | LinkageError e) {
+            return false;
+        }
     }
 
     /** 로더에 보이는 틀 목록 전부(같은 이름의 자원이 여럿이면 합친다 — 부모 로더의 빈 목록이 호환 jar 의 목록을 가리지 않게). */
