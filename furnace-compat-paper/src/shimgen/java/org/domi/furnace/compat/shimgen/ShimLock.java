@@ -117,6 +117,12 @@ final class ShimLock {
             // 제네릭 서명에서도 같은 인터페이스를 글자 그대로 걸러 낸다(형식 매개변수·상위·남는 인터페이스는 원문 그대로)
             String sig = found.signature() == null || itfs.size() == found.interfaces().size() ? found.signature()
                     : JavaTypes.dropInterfaces(found.signature(), x -> x.startsWith(PAPER_INTERNAL));
+            if (sig != null) {
+                // 걸러 낸 뒤에도 형식 매개변수 경계·상위·남은 인터페이스의 인자에 Paper 내부 형식이 남으면 조용히 서명을 잃지 않고 클래스 이름과 함께 알린다
+                for (String r : JavaTypes.referencedClasses(sig)) {
+                    if (r.startsWith(PAPER_INTERNAL)) problems.add(n + ": the generic class signature still refers to the Paper-internal type " + r + " (in a type bound or argument); the lock cannot filter it out");
+                }
+            }
             lock.classes.put(n, new Cls(n, found.access(), found.superName(), itfs, sig, found.innerAccess(), src));
             if ((found.access() & 0x4000) != 0) {
                 int count = 0;
