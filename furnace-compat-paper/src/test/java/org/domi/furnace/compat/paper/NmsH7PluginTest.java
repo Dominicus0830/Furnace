@@ -153,7 +153,12 @@ class NmsH7PluginTest {
         return b.failFast(false).pluginJar(jar).start();
     }
 
-    private List<String> messages() { return logs.list.stream().map(ILoggingEvent::getFormattedMessage).toList(); }
+    /** 서버 스레드가 기록하는 동안 읽는다 — AppenderBase.doAppend 가 appender 에 동기화하므로 같은 자물쇠로 복사한다(아니면 ConcurrentModificationException). */
+    private List<String> messages() {
+        List<ILoggingEvent> copy;
+        synchronized (logs) { copy = List.copyOf(logs.list); }
+        return copy.stream().map(ILoggingEvent::getFormattedMessage).toList();
+    }
 
     @Test
     void unsupportedCallsFailOnlyWhereTheyRunAndTheReportIsLogged() throws Exception {
