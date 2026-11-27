@@ -65,7 +65,8 @@ final class Mappings {
                 (f, b) -> pushText(b.getQuitMessage(), f.quitMessage(), t -> f.quitMessage(t)),
                 (f, b) -> pullText(f.quitMessage(), b.getQuitMessage(), b::setQuitMessage));
         EventBridge.reg(org.domi.furnace.api.event.player.PlayerKickEvent.class, org.bukkit.event.player.PlayerKickEvent.class,
-                f -> new org.bukkit.event.player.PlayerKickEvent(p(f.player()), Compat.legacy(f.reason()), defaultLeaveMessage(f.player())),
+                f -> new org.bukkit.event.player.PlayerKickEvent(p(f.player()), Compat.legacy(f.reason()), defaultLeaveMessage(f.player()),
+                        org.bukkit.event.player.PlayerKickEvent.Cause.valueOf(f.cause().name())),
                 (f, b) -> {
                     pushText(b.getReason(), f.reason(), t -> f.setReason(t == null ? Text.empty() : t));
                     // Paper 1.21.1: Fix-kick-event-leave-message-not-being-sent — 바뀐 퇴장 문구는 이어지는 PlayerQuitEvent 의 처음 메시지가 된다(null·빈 문자열 = 알림 없음)

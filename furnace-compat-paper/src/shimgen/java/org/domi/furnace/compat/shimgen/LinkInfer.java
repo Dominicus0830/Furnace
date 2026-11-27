@@ -120,6 +120,11 @@ public final class LinkInfer {
         }
         List<String[]> areas = readAreas(shellArgs.length > 11 && !shellArgs[11].equals("-") ? Path.of(shellArgs[11]) : null);
         write(out, inf, ok, rejected, areas);
+        try (ZipFile jar = new ZipFile(paperJar.toFile())) {   // 보고서만(채택 없음) — 정답기 순서를 정하려고 센다
+            LinkG2Census g2 = new LinkG2Census(inf, jar);
+            g2.run();
+            g2.write(out);
+        }
         if (adoptDir != null) {
             int n = adopt(adoptDir, ok, areas);
             // 손 줄 + 새 기계 줄 전부로 생성기 검사를 한 번 더(빌드와 같은 길)
@@ -651,8 +656,12 @@ public final class LinkInfer {
     static final String AUTO = ".auto.links";
 
     /** 모양 증명으로 채택하는 후보: G1 엔티티 데이터 관용구(모양이 바닐라와 정확히 같고 칸 값 종류가 맞고 빌드 검사를 통과한 것). */
+    /**
+     * 모양 증명으로 채택하는 갈래: G1 엔티티 데이터 관용구, G3 별칭(바닐라·Paper 몸통이 정확히 "인자 그대로 → 같은 사슬 멤버 가상 호출 → 그대로 반환",
+     * 대상은 빌드 검사가 손 shim·JDK·T-262 채움으로 확인 — 결정 2026-11-27-t263-s3-alias-proof).
+     */
     static boolean adoptable(Candidate c) {
-        return c.via().equals("G1") && c.kind().startsWith("entity-data-");
+        return c.via().equals("G1") && c.kind().startsWith("entity-data-") || c.via().equals("G3") && c.kind().equals("alias");
     }
 
     /** 영역마다 &lt;영역&gt;.auto.links 를 통째로 다시 쓰고(줄이 없으면 지운다) 채택 줄 수를 돌려준다. 손 줄 파일은 건드리지 않는다. */
@@ -667,7 +676,7 @@ public final class LinkInfer {
         }
         int n = 0;
         for (Map.Entry<String, List<Candidate>> e : byArea.entrySet()) {
-            String head = "# T-263 machine-adopted links (adoptLinks): exact vanilla body shape of a reviewed idiom + slot value type check. Do not edit -\n"
+            String head = "# T-263 machine-adopted links (adoptLinks): exact vanilla and Paper body shape (reviewed idiom + slot value type, or a plain forward to a live member). Do not edit -\n"
                     + "# rerun adoptLinks. Hand lines go in " + e.getKey() + ".links; a member with a hand line is never adopted here.\n";
             Files.writeString(dir.resolve(e.getKey() + AUTO), areaFile(e.getKey(), e.getValue(), head, "shape"), StandardCharsets.UTF_8);
             n += e.getValue().size();

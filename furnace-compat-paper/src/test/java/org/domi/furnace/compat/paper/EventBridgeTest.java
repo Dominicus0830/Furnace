@@ -309,6 +309,12 @@ class EventBridgeTest {
             RecorderPlugin.ACTIONS.put("PlayerKickEvent", e -> ((org.bukkit.event.player.PlayerKickEvent) e).setReason("§cBye"));
             assertEquals("Bye", bus.call(new org.domi.furnace.api.event.player.PlayerKickEvent(p, Text.text("no"))).reason().plainText());
 
+            // 원인이 Bukkit 이벤트까지 그대로 간다(Paper PlayerKickEvent#getCause)
+            var seenCause = new java.util.concurrent.atomic.AtomicReference<org.bukkit.event.player.PlayerKickEvent.Cause>();
+            RecorderPlugin.ACTIONS.put("PlayerKickEvent", e -> seenCause.set(((org.bukkit.event.player.PlayerKickEvent) e).getCause()));
+            bus.call(new org.domi.furnace.api.event.player.PlayerKickEvent(p, Text.text("no"), org.domi.furnace.api.event.player.PlayerKickEvent.Cause.IDLING));
+            assertEquals(org.bukkit.event.player.PlayerKickEvent.Cause.IDLING, seenCause.get());
+
             RecorderPlugin.ACTIONS.put("PlayerRespawnEvent", e -> {
                 var r = (org.bukkit.event.player.PlayerRespawnEvent) e;
                 var l = r.getRespawnLocation();
