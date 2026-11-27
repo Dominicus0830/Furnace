@@ -71,6 +71,11 @@ class LinksTest {
             "M\t1\t" + Z + "Mob\tb5\t()I\t-",
             "M\t1\t" + Z + "Mob\tb2\t()Z\t-",
             "M\t1\t" + Z + "Mob\tb3\t()Z\t-",
+            "M\t1\t" + Z + "Mob\toInst\t(Ljava/lang/String;)I\t-",
+            "M\t9\t" + Z + "Mob\toStat\t(Ljava/lang/String;)I\t-",
+            "M\t1\t" + Z + "Mob\toPair\t(Ljava/lang/String;I)I\t-",
+            "M\t1\t" + Z + "Mob\toAmb\t(Ljava/lang/String;)I\t-",
+            "M\t1\t" + Z + "Mob\toNone\t()I\t-",
             "K\t" + Z + "Mob\tDATA_BABY\tI\t12",
             "C\t33\t" + Z + "Slots\tjava/lang/Object\t-\t-\t-",
             "F\t26\t" + Z + "Slots\tDATA_A\tLnet/minecraft/network/syncher/EntityDataAccessor;\t-",
@@ -127,6 +132,23 @@ class LinksTest {
 
         @LinkTarget(check = "pure")
         public static int secret(Object self) { return 99; }
+
+        /** 겹친 관용구(S4 블록 상태처럼 멤버 인자 꼴마다 하나): 인스턴스 (글) · 정적 (글) · 인스턴스 (글, 정수). */
+        @LinkIdiom(value = "test-over", check = "pure")
+        public static int over(Object self, int base, String s) { return base + s.length(); }
+
+        @LinkIdiom(value = "test-over", check = "pure")
+        public static int over(int base, String s) { return -(base + s.length()); }
+
+        @LinkIdiom(value = "test-over", check = "pure")
+        public static int over(Object self, int base, String s, int k) { return base * k; }
+
+        /** 둘 다 맞는 겹침 — 줄은 문제로 멈춰야 한다. */
+        @LinkIdiom(value = "test-amb", check = "pure")
+        public static int amb(Object self, Object a) { return 1; }
+
+        @LinkIdiom(value = "test-amb", check = "pure")
+        public static int amb(Object self, String a) { return 2; }
     }
 
     // ───────── 시험 ─────────
@@ -148,10 +170,13 @@ class LinksTest {
                 "  gInt()I -> @idiom(test-get, 5) read=any",
                 "  gName()Ljava/lang/String; -> @idiom(test-get, 7) read=any",
                 "  gSet(F)V -> @idiom(test-set, 3) write",
+                "  oInst(Ljava/lang/String;)I -> @idiom(test-over, 10) pure",
+                "  oStat(Ljava/lang/String;)I -> @idiom(test-over, 10) pure",
+                "  oPair(Ljava/lang/String;I)I -> @idiom(test-over, 10) pure",
                 "");
         Gen r = gen(links);
         r.g().checkLinks(null);
-        assertEquals(11, r.g().links.linkedMembers);
+        assertEquals(14, r.g().links.linkedMembers);
         assertEquals(List.of(), shellMarked(r.classes().get(Z + "Mob"), "health()F", "setHealth(F)V", "isBaby()Z", "level()I", "size(Ljava/lang/String;)I",
                 "label()Ljava/lang/String;", "secret()I"), "이은 멤버엔 껍데기 표지가 없다");
         assertEquals(List.of("plain()I"), shellMarked(r.classes().get(Z + "Mob"), "plain()I"), "줄 없는 멤버는 그대로 껍데기");
@@ -179,6 +204,10 @@ class LinksTest {
             mob.getMethod("gSet", float.class).invoke(m, 2.5f);
             assertEquals("3:2.5:Float", Bridge.lastSet);
             assertEquals(List.of("write Mob#gSet"), Rule.CALLS);
+            // 겹친 관용구: 멤버 꼴에 맞는 하나를 부른다
+            assertEquals(13, mob.getMethod("oInst", String.class).invoke(m, "abc"));
+            assertEquals(-13, mob.getMethod("oStat", String.class).invoke(null, "abc"));
+            assertEquals(40, mob.getMethod("oPair", String.class, int.class).invoke(m, "abc", 4));
             InvocationTargetException e = assertThrows(InvocationTargetException.class, () -> mob.getMethod("plain").invoke(m));
             assertInstanceOf(UnsupportedNmsCall.class, e.getCause());
         }
@@ -201,6 +230,8 @@ class LinksTest {
                 "  isBaby()Z -> this.plain pure",
                 "  b4()I -> this.secret pure",
                 "  b5()I -> this." + Links.fingerprint(Z + "HandBase", "base") + " pure",
+                "  oAmb(Ljava/lang/String;)I -> @idiom(test-amb) pure",
+                "  oNone()I -> @idiom(test-over, 1) pure",
                 "class net.minecraft.zz.HandBase",
                 "  base()I -> " + BRIDGE + ".secret pure",
                 "class net.minecraft.zz.Nope",
@@ -222,7 +253,9 @@ class LinksTest {
                 "private or package alias target written in plain text - use this." + Links.fingerprint(Z + "Mob", "secret"),
                 "public/protected alias target written as a fingerprint - write this.base",
                 "line not used - the class is a hand shim and merging is off: net.minecraft.zz.HandBase#base()I",
-                "class not in the Paper signature table: net.minecraft.zz.Nope")) {
+                "class not in the Paper signature table: net.minecraft.zz.Nope",
+                "several @LinkIdiom(\"test-amb\") overloads fit this member",
+                "no @LinkIdiom(\"test-over\") overload takes this member's receiver, values and arguments")) {
             assertTrue(msg.contains(want), "문제 목록에 없다: " + want + "\n" + msg);
         }
     }

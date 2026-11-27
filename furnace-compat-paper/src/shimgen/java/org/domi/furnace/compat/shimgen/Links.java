@@ -102,7 +102,7 @@ final class Links {
     private final Set<Line> failed = new HashSet<>();
     final List<String> problems = new ArrayList<>();
     private World world;
-    private Map<String, String[]> idioms;      // 이름 → {소유, 이름, 서술자, 검사, 소유 규칙}
+    private Map<String, List<String[]>> idioms;      // 이름 → 겹침 {소유, 이름, 서술자, 검사, 소유 규칙}
     private Map<String, String[]> converters;  // "A>B" → {소유, 이름, 서술자}
     private Map<String, String[]> staticFieldFps;   // 지문 → {소유, 이름, 서술자}
     int linkedMembers;
@@ -476,21 +476,41 @@ final class Links {
                 return best;
             }
             case Idiom id -> {
-                String[] info = idioms().get(id.name());
-                if (info == null) {
+                List<String[]> overloads = idioms().get(id.name());
+                if (overloads == null) {
                     problems.add(ln.where() + ": no @LinkIdiom(\"" + id.name() + "\")");
                     return null;
                 }
-                AnnInfo ai = new AnnInfo(info[3], info[4], false);
+                // 같은 이름의 겹침(같은 클래스·같은 검사): 멤버 꼴([받는 쪽] + 값 + 인자)에 맞는 것이 꼭 하나여야 한다
+                AnnInfo ai = new AnnInfo(overloads.get(0)[3], overloads.get(0)[4], false);
                 if (!checkMatches(ln, ai)) return null;
-                Plan q = callPlan(ln, owner, isStatic, args, slots, ret, id.values(), info[2], ln.where(), true);
-                if (q == null) return null;
-                q.ownerRule = ai.owner;
-                q.opcode = Opcodes.INVOKESTATIC;
-                q.callOwner = info[0];
-                q.callName = info[1];
-                q.callDesc = info[2];
-                return q;
+                Plan best = null;
+                for (String[] info : overloads) {
+                    int mark = problems.size();
+                    Plan q = callPlan(ln, owner, isStatic, args, slots, ret, id.values(), info[2], ln.where(), true);
+                    if (q == null) {
+                        // 맞지 않는 겹침을 해 보며 생긴 값 문제는 버린다(겹침이 하나뿐이면 아래에서 다시 해 그 문제를 남긴다)
+                        problems.subList(mark, problems.size()).clear();
+                        continue;
+                    }
+                    if (best != null) {
+                        problems.add(ln.where() + ": several @LinkIdiom(\"" + id.name() + "\") overloads fit this member");
+                        return null;
+                    }
+                    q.ownerRule = ai.owner;
+                    q.opcode = Opcodes.INVOKESTATIC;
+                    q.callOwner = info[0];
+                    q.callName = info[1];
+                    q.callDesc = info[2];
+                    best = q;
+                }
+                if (best == null && overloads.size() == 1) {
+                    int mark = problems.size();
+                    callPlan(ln, owner, isStatic, args, slots, ret, id.values(), overloads.get(0)[2], ln.where(), true);
+                    if (problems.size() > mark) return null;
+                }
+                if (best == null) problems.add(ln.where() + ": no @LinkIdiom(\"" + id.name() + "\") overload takes this member's receiver, values and arguments");
+                return best;
             }
         }
     }
@@ -867,15 +887,22 @@ final class Links {
 
     private final Map<String, String> idiomNames = new HashMap<>();
 
-    private Map<String, String[]> idioms() {
+    /** 관용구 이름 → 겹침들. 한 이름의 겹침은 한 클래스 안에서 같은 검사·소유 규칙이어야 한다(이름 하나에 뜻 하나). */
+    private Map<String, List<String[]>> idioms() {
         if (idioms != null) return idioms;
         idioms = new HashMap<>();
         for (String c : world.compatClasses()) {
             for (Map.Entry<String, AnnInfo> e : annotatedStatics(c, IDIOM_ANN).entrySet()) {
                 String nm = idiomNames.get(c + "#" + e.getKey());
                 int p = e.getKey().indexOf('(');
-                String[] prev = idioms.put(nm, new String[] {c, e.getKey().substring(0, p), e.getKey().substring(p), e.getValue().check(), e.getValue().owner()});
-                if (prev != null) problems.add("two @LinkIdiom(\"" + nm + "\"): " + prev[0] + " and " + c);
+                String[] info = {c, e.getKey().substring(0, p), e.getKey().substring(p), e.getValue().check(), e.getValue().owner()};
+                List<String[]> list = idioms.computeIfAbsent(nm, k -> new ArrayList<>());
+                if (!list.isEmpty()) {
+                    String[] first = list.get(0);
+                    if (!first[0].equals(c)) problems.add("two @LinkIdiom(\"" + nm + "\"): " + first[0] + " and " + c);
+                    else if (!first[3].equals(info[3]) || !java.util.Objects.equals(first[4], info[4])) problems.add("@LinkIdiom(\"" + nm + "\") overloads differ in check or owner rule: " + c);
+                }
+                list.add(info);
             }
         }
         return idioms;

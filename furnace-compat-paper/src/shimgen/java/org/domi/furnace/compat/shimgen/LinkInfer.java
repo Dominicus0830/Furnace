@@ -1,7 +1,7 @@
 // T-263 S1b: 연결 추론 도구(설계 docs/roadmap/link-inferrer-t263-2026-11-23.md 3.1·3.2). 결정적이다 — 같은 입력이면 같은 후보·같은 파일. LLM 을 쓰지 않는다.
 //  1) 전체 껍데기를 만들어(FullShells 와 같은 인자) 아직 던지는 몸통인 멤버(@NmsShellMember)를 모은다.
 //  2) 그 멤버의 바닐라 몸통(Mojang 이름 jar, 캐시)을 읽어 모양으로 나눈다 — 명령을 복사하지 않고 분류와 값 뽑기(칸 필드·마스크·대상 이름)에만 쓴다(이식 금지, 3.6).
-//  3) 후보: G1 관용구(엔티티 데이터 읽기·쓰기·깃발), G3 별칭(같은 사슬 멤버로 인자 그대로 넘김).
+//  3) 후보: G1 관용구(엔티티 데이터 읽기·쓰기·깃발, 블록 상태 속성 읽기·바꾸기 — S4), G3 별칭(같은 사슬 멤버로 인자 그대로 넘김).
 //  4) 후보 줄을 연결 파일로 만들어 생성기를 한 번 더 돌려 빌드 검사(이름 규칙·지문·대상 살아 있음·검사 종류)를 통과한 줄만 남긴다.
 // 출력은 이름이 들어가므로 build/ 에만 둔다(커밋 안 함): candidates/<영역>.links, rejected.tsv, summary.md(숫자만 — 이것은 문서에 옮겨도 된다).
 // 이 도구는 줄을 채택하지 않는다. 채택(정답기·증명)은 S2.
@@ -97,15 +97,22 @@ public final class LinkInfer {
         g.mergeFromArgs(shellArgs, built);
         LinkInfer inf = new LinkInfer(g);
         inf.collectShells(built);
+        Map<String, String> vanillaAliases = new HashMap<>(), paperAliases = new HashMap<>();
         try (ZipFile jar = new ZipFile(vanillaJar.toFile())) {
             inf.readBodies(jar, inf.bodies);
             inf.readReactions(jar);
+            readPropertyAliases(jar, vanillaAliases);
         }
         inf.paperBodies = new HashMap<>();
         try (ZipFile jar = new ZipFile(paperJar.toFile())) {
             inf.readBodies(jar, inf.paperBodies);
             inf.readReactions(jar);
+            readPropertyAliases(jar, paperAliases);
         }
+        // 두 jar 가 같은 값으로 정한 별칭만
+        vanillaAliases.forEach((k, v) -> {
+            if (v.equals(paperAliases.get(k))) inf.propertyAliases.put(k, v);
+        });
         inf.classify();
         // 생성기로 검사: 어긴 줄은 빼고 다시(빠진 줄 때문에 다른 줄이 달라지지 않으므로 보통 한 번이면 된다)
         List<Candidate> ok = new ArrayList<>(inf.candidates);
@@ -193,6 +200,68 @@ public final class LinkInfer {
                     return recorder(owner + "#" + name + desc, into);
                 }
             }, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
+        }
+    }
+
+    /** 블록 속성 정적 필드 별칭: "선언 클래스 이름" → "다른 클래스 이름"(둘 다 jar 안 이름). */
+    final Map<String, String> propertyAliases = new HashMap<>();
+
+    /**
+     * 클래스 초기화가 정적 final 속성 필드에 다른 클래스의 정적 속성 필드를 그대로 넣는 것(바로 앞 명령이 getstatic, 그 필드에 넣는 곳은 한 번)을 모은다.
+     * 껍데기에서 블록 클래스의 속성 필드는 아직 값이 없는 것이 많아, 연결 줄은 같은 객체인 원래 필드(BlockStateProperties 등, 손 shim)를 가리킨다.
+     */
+    static void readPropertyAliases(ZipFile jar, Map<String, String> into) throws IOException {
+        for (ZipEntry ze : java.util.Collections.list(jar.entries())) {
+            if (!ze.getName().startsWith("net/minecraft/") || !ze.getName().endsWith(".class")) continue;
+            byte[] b;
+            try (InputStream in = jar.getInputStream(ze)) {
+                b = in.readAllBytes();
+            }
+            String cls = ze.getName().substring(0, ze.getName().length() - 6);
+            Set<String> finals = new HashSet<>();
+            Map<String, String> found = new HashMap<>();
+            Map<String, Integer> puts = new HashMap<>();
+            new ClassReader(b).accept(new ClassVisitor(Opcodes.ASM9) {
+                @Override
+                public org.objectweb.asm.FieldVisitor visitField(int access, String name, String desc, String signature, Object value) {
+                    int want = Opcodes.ACC_STATIC | Opcodes.ACC_FINAL;
+                    if ((access & want) == want && desc.startsWith(PROPERTY_PKG)) finals.add(name);
+                    return null;
+                }
+
+                @Override
+                public MethodVisitor visitMethod(int access, String name, String desc, String signature, String[] exceptions) {
+                    if (!name.equals("<clinit>")) return null;
+                    return new MethodVisitor(Opcodes.ASM9) {
+                        String[] last;   // 바로 앞 명령이 속성 getstatic 이면 {소유, 이름}
+
+                        @Override
+                        public void visitFieldInsn(int op, String o, String n, String d) {
+                            if (op == Opcodes.PUTSTATIC && o.equals(cls)) {
+                                puts.merge(n, 1, Integer::sum);
+                                if (last != null && d.startsWith(PROPERTY_PKG)) found.put(n, last[0] + " " + last[1]);
+                            }
+                            last = op == Opcodes.GETSTATIC && d.startsWith(PROPERTY_PKG) && !o.equals(cls) ? new String[] {o, n} : null;
+                        }
+
+                        @Override public void visitInsn(int op) { last = null; }
+                        @Override public void visitIntInsn(int op, int v) { last = null; }
+                        @Override public void visitVarInsn(int op, int v) { last = null; }
+                        @Override public void visitTypeInsn(int op, String t) { last = null; }
+                        @Override public void visitMethodInsn(int op, String o, String n, String d, boolean itf) { last = null; }
+                        @Override public void visitInvokeDynamicInsn(String n, String d, org.objectweb.asm.Handle h, Object... a) { last = null; }
+                        @Override public void visitJumpInsn(int op, Label l) { last = null; }
+                        @Override public void visitLdcInsn(Object v) { last = null; }
+                        @Override public void visitIincInsn(int v, int inc) { last = null; }
+                        @Override public void visitTableSwitchInsn(int a, int bb, Label d, Label... ls) { last = null; }
+                        @Override public void visitLookupSwitchInsn(Label d, int[] k, Label[] ls) { last = null; }
+                        @Override public void visitMultiANewArrayInsn(String d, int n) { last = null; }
+                    };
+                }
+            }, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
+            found.forEach((f, src) -> {
+                if (finals.contains(f) && puts.get(f) == 1) into.put(cls + " " + f, src);
+            });
         }
     }
 
@@ -293,6 +362,25 @@ public final class LinkInfer {
             if (bad == null && ed[2].endsWith("-set") && reacts(in.get(dataRef(in, 0)))) bad = "entity data slot has a reaction (onSyncedDataUpdated) - a write needs a separate check";
             if (bad != null) typeRejected.put(c, bad);
             return "G1 " + ed[2];
+        }
+        String[] bs;
+        try {
+            bs = blockState(s, b);
+        } catch (IndexOutOfBoundsException e) {
+            bs = null;
+        }
+        if (bs != null) {
+            Candidate c = new Candidate(s, bs[0], bs[1], "G1", bs[2]);
+            candidates.add(c);
+            String bad = paperDiffers(s, bs, (m, pb) -> {
+                try {
+                    return blockState(m, pb);
+                } catch (IndexOutOfBoundsException e) {
+                    return null;
+                }
+            });
+            if (bad != null) typeRejected.put(c, bad);
+            return "G1 " + bs[2];
         }
         String alias = alias(s, b);
         if (alias != null) {
@@ -438,6 +526,170 @@ public final class LinkInfer {
         if (r.op() == Opcodes.GETFIELD && r.name().equals("entityData") && sd.equals(r.desc())) return i + 2;
         if (r.op() == Opcodes.INVOKEVIRTUAL && r.name().equals("getEntityData") && ("()" + sd).equals(r.desc())) return i + 2;
         return -1;
+    }
+
+    // ── G1 블록 상태 관용구(S4) ──
+
+    static final String STATE = "net/minecraft/world/level/block/state/BlockState";
+    static final Set<String> STATE_OWNERS = Set.of(STATE, "net/minecraft/world/level/block/state/StateHolder",
+            "net/minecraft/world/level/block/state/BlockBehaviour$BlockStateBase");
+    static final String PROPERTY_PKG = "Lnet/minecraft/world/level/block/state/properties/";
+    static final String GET_VALUE = "(Lnet/minecraft/world/level/block/state/properties/Property;)Ljava/lang/Comparable;";
+    static final String SET_VALUE = "(Lnet/minecraft/world/level/block/state/properties/Property;Ljava/lang/Comparable;)Ljava/lang/Object;";
+    static final String CYCLE = "(Lnet/minecraft/world/level/block/state/properties/Property;)Ljava/lang/Object;";
+
+    /**
+     * {대상, 검사, 종류} 또는 null. 받은 상태 하나의 속성만 읽거나 바꾸고 다른 인자·받는 쪽은 쓰지 않는 몸통(명령 모양이 정확히 이 꼴):
+     * get(속성 읽기 → 반환형 변환), pick-int(참거짓 ? a : b), not(!참거짓), int-lt/eq/ne(정수 속성 비교), set(인자로 바꾸기), set-int(상수로 바꾸기), cycle.
+     * 상태 인자는 멤버의 유일한 BlockState 인자여야 한다 — 그래야 연결 엔진이 고르는 관용구 겹침의 상태 자리가 그 인자다.
+     */
+    String[] blockState(Shell s, Body b) {
+        List<Insn> in = b.insns();
+        boolean isStatic = (s.access() & Opcodes.ACC_STATIC) != 0;
+        Type[] args = Type.getArgumentTypes(s.desc());
+        Type ret = Type.getReturnType(s.desc());
+        int stateArg = -1;
+        for (int k = 0; k < args.length; k++) {
+            if (!args[k].getDescriptor().equals("L" + STATE + ";")) continue;
+            if (stateArg >= 0) return null;
+            stateArg = k;
+        }
+        if (stateArg < 0 || in.size() < 4) return null;
+        int stateSlot = slotOf(isStatic, args, stateArg);
+        if (!isLoadOf(in.get(0), args[stateArg], stateSlot) || in.get(1).op() != Opcodes.GETSTATIC) return null;
+        Insn field = in.get(1);
+        if (field.desc() == null || !field.desc().startsWith(PROPERTY_PKG)) return null;
+        String prop = propertyValue(field);
+        if (prop == null) return null;
+        // 속성을 바꾸는 꼴: set(인자) · set-int(상수) · cycle — 모두 checkcast BlockState → areturn 으로 끝난다
+        if (ret.getDescriptor().equals("L" + STATE + ";")) {
+            int n = in.size();
+            if (!isCast(in, n - 2, STATE) || in.get(n - 1).op() != Opcodes.ARETURN) return null;
+            if (n == 5 && isStateCall(in, 2, "cycle", CYCLE)) return new String[] {"@idiom(block-state-cycle, " + prop + ")", "pure", "block-state-cycle"};
+            if (n == 7 && intConst(in.get(2)) != null && isInvoke(in, 3, "java/lang/Integer", "valueOf", "(I)Ljava/lang/Integer;") && isStateCall(in, 4, "setValue", SET_VALUE)) {
+                return new String[] {"@idiom(block-state-set-int, " + prop + ", " + intConst(in.get(2)) + ")", "pure", "block-state-set-int"};
+            }
+            if (args.length == 2) {
+                int other = 1 - stateArg;
+                if (!isLoadOf(in.get(2), args[other], slotOf(isStatic, args, other))) return null;
+                int i = 3;
+                if (args[other].getSort() != Type.OBJECT && args[other].getSort() != Type.ARRAY) {
+                    String box = Links.box(args[other]);
+                    if (!isInvoke(in, i, box, "valueOf", "(" + args[other].getDescriptor() + ")L" + box + ";")) return null;
+                    i++;
+                }
+                if (n == i + 3 && isStateCall(in, i, "setValue", SET_VALUE)) return new String[] {"@idiom(block-state-set, " + prop + ")", "pure", "block-state-set"};
+            }
+            return null;
+        }
+        if (!isStateCall(in, 2, "getValue", GET_VALUE)) return null;
+        int i = 3;
+        // get: [checkcast 박스형 → xxxValue] → 반환 | checkcast 반환형 → areturn
+        if (ret.getSort() == Type.OBJECT || ret.getSort() == Type.ARRAY) {
+            String cast = ret.getSort() == Type.ARRAY ? ret.getDescriptor() : ret.getInternalName();
+            if (in.size() == i + 2 && isCast(in, i, cast) && in.get(i + 1).op() == Opcodes.ARETURN) return new String[] {"@idiom(block-state-get, " + prop + ")", "pure", "block-state-get"};
+            return null;
+        }
+        if (ret.getSort() == Type.VOID) return null;
+        String box = Links.box(ret);
+        if (in.size() == i + 3 && isCast(in, i, box) && isInvoke(in, i + 1, box, ret.getClassName() + "Value", "()" + ret.getDescriptor())
+                && in.get(i + 2).op() == ret.getOpcode(Opcodes.IRETURN)) {
+            return new String[] {"@idiom(block-state-get, " + prop + ")", "pure", "block-state-get"};
+        }
+        // 참거짓 속성: pick-int(? a : b), not
+        if (isCast(in, i, "java/lang/Boolean") && isInvoke(in, i + 1, "java/lang/Boolean", "booleanValue", "()Z")) {
+            int j = i + 2;
+            if (ret.getSort() == Type.INT) {
+                Integer[] ab = choice(b, j, Opcodes.IFEQ);
+                if (ab != null) return new String[] {"@idiom(block-state-pick-int, " + prop + ", " + ab[0] + ", " + ab[1] + ")", "pure", "block-state-pick-int"};
+            }
+            if (ret.getSort() == Type.BOOLEAN) {
+                Integer[] ab = choice(b, j, Opcodes.IFNE);
+                if (ab != null && ab[0] == 1 && ab[1] == 0) return new String[] {"@idiom(block-state-not, " + prop + ")", "pure", "block-state-not"};
+            }
+            return null;
+        }
+        // 정수 속성 비교: intValue → [상수 n → if_icmpXX 거짓으로] | [ifXX 거짓으로(n = 0)] → 1 / 0
+        if (ret.getSort() == Type.BOOLEAN && isCast(in, i, "java/lang/Integer") && isInvoke(in, i + 1, "java/lang/Integer", "intValue", "()I")) {
+            int j = i + 2;
+            Integer n = intConst(in.get(j));
+            int jump;
+            if (n != null) {
+                jump = in.get(j + 1).op();
+                j++;
+            } else {
+                n = 0;
+                jump = switch (in.get(j).op()) {
+                    case Opcodes.IFNE -> Opcodes.IF_ICMPNE;
+                    case Opcodes.IFEQ -> Opcodes.IF_ICMPEQ;
+                    case Opcodes.IFGE -> Opcodes.IF_ICMPGE;
+                    default -> -1;
+                };
+            }
+            String rel = switch (jump) {
+                case Opcodes.IF_ICMPGE -> "lt";
+                case Opcodes.IF_ICMPNE -> "eq";
+                case Opcodes.IF_ICMPEQ -> "ne";
+                default -> null;
+            };
+            if (rel == null) return null;
+            Integer[] ab = choice(b, j, in.get(j).op());
+            if (ab != null && ab[0] == 1 && ab[1] == 0) return new String[] {"@idiom(block-state-int-" + rel + ", " + prop + ", " + n + ")", "pure", "block-state-int-" + rel};
+        }
+        return null;
+    }
+
+    /**
+     * j 에서 "jumpOp L → 상수 a → (goto E → L: 상수 b → E: 반환 | 반환 → L: 상수 b → 반환)"으로 몸통이 끝나면 {a, b}(분기하지 않을 때 a, 분기하면 b).
+     * jumpOp 은 j 의 명령과 같아야 한다.
+     */
+    private static Integer[] choice(Body b, int j, int jumpOp) {
+        List<Insn> in = b.insns();
+        if (j + 1 >= in.size() || in.get(j).op() != jumpOp) return null;
+        int l = in.get(j).label();
+        Integer a = intConst(in.get(j + 1));
+        if (a == null) return null;
+        if (in.size() == j + 5 && in.get(j + 2).op() == Opcodes.GOTO) {
+            Integer c = intConst(in.get(j + 3));
+            if (c == null || !Integer.valueOf(j + 3).equals(b.labels().get(l)) || !Integer.valueOf(j + 4).equals(b.labels().get(in.get(j + 2).label()))) return null;
+            return in.get(j + 4).op() == Opcodes.IRETURN ? new Integer[] {a, c} : null;
+        }
+        if (in.size() == j + 5 && in.get(j + 2).op() == Opcodes.IRETURN) {
+            Integer c = intConst(in.get(j + 3));
+            if (c == null || !Integer.valueOf(j + 3).equals(b.labels().get(l)) || in.get(j + 4).op() != Opcodes.IRETURN) return null;
+            return new Integer[] {a, c};
+        }
+        return null;
+    }
+
+    /**
+     * 속성 필드를 연결 줄의 값으로. 선언 클래스의 클래스 초기화가 다른 클래스의 공개 정적 필드를 그대로 넣은 별칭이면(두 jar 가 같게) 그 원래 필드를
+     * a.b.C.F 로 — 같은 객체이고, 껍데기의 블록 클래스 필드는 아직 값이 없는 것이 많다. 아니면 칸 필드와 같은 규칙.
+     */
+    String propertyValue(Insn getstatic) {
+        String[] d = slotDecl(getstatic);
+        if (d == null) return null;
+        String key = d[0] + " " + d[1];
+        for (int hop = 0; hop < 4 && propertyAliases.containsKey(key); hop++) key = propertyAliases.get(key);
+        if (key.equals(d[0] + " " + d[1])) return slotValue(getstatic);
+        int sp = key.indexOf(' ');
+        String[] a = slotDecl(new Insn(Opcodes.GETSTATIC, key.substring(0, sp), key.substring(sp + 1), getstatic.desc(), null, -1));
+        if (a == null || !a[2].equals("v")) return slotValue(getstatic);
+        return a[0].replace('/', '.') + "." + a[1];
+    }
+
+    /** 상태 메서드 호출(소유자는 BlockState·StateHolder·BlockStateBase 중 하나 — 바닐라 컴파일러가 고른 참조 클래스). */
+    private static boolean isStateCall(List<Insn> in, int i, String name, String desc) {
+        if (i < 0 || i >= in.size()) return false;
+        Insn x = in.get(i);
+        return x.op() == Opcodes.INVOKEVIRTUAL && STATE_OWNERS.contains(x.owner()) && name.equals(x.name()) && desc.equals(x.desc());
+    }
+
+    /** 멤버 인자 k 의 지역 변수 자리. */
+    private static int slotOf(boolean isStatic, Type[] args, int k) {
+        int slot = isStatic ? 0 : 1;
+        for (int i = 0; i < k; i++) slot += args[i].getSize();
+        return slot;
     }
 
     /** 칸 정적 필드를 연결 줄의 값으로: 공개·보호면 a.b.C.F, 아니면 #지문(선언 클래스로). 서명표에 없으면 null. */
@@ -666,11 +918,11 @@ public final class LinkInfer {
 
     /** 모양 증명으로 채택하는 후보: G1 엔티티 데이터 관용구(모양이 바닐라와 정확히 같고 칸 값 종류가 맞고 빌드 검사를 통과한 것). */
     /**
-     * 모양 증명으로 채택하는 갈래: G1 엔티티 데이터 관용구, G3 별칭(바닐라·Paper 몸통이 정확히 "인자 그대로 → 같은 사슬 멤버 가상 호출 → 그대로 반환",
+     * 모양 증명으로 채택하는 갈래: G1 엔티티 데이터·블록 상태 관용구(블록 상태 줄은 fullShellsTest 의 O2 가 모든 상태로 견준다), G3 별칭(바닐라·Paper 몸통이 정확히 "인자 그대로 → 같은 사슬 멤버 가상 호출 → 그대로 반환",
      * 대상은 빌드 검사가 손 shim·JDK·T-262 채움으로 확인 — 결정 2026-11-27-t263-s3-alias-proof).
      */
     static boolean adoptable(Candidate c) {
-        return c.via().equals("G1") && c.kind().startsWith("entity-data-") || c.via().equals("G3") && c.kind().equals("alias");
+        return c.via().equals("G1") && (c.kind().startsWith("entity-data-") || c.kind().startsWith("block-state-")) || c.via().equals("G3") && c.kind().equals("alias");
     }
 
     /** 영역마다 &lt;영역&gt;.auto.links 를 통째로 다시 쓰고(줄이 없으면 지운다) 채택 줄 수를 돌려준다. 손 줄 파일은 건드리지 않는다. */
