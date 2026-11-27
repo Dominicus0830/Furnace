@@ -151,56 +151,8 @@ public final class PortalShape {
         // AABB.ofSize(center, w, 0, w).expandTowards(0, 1, 0).inflate(1.0E-6) — 바닐라 1.21.1 은 늘린다(줄이지 않는다)
         double[] start = {cx - width / 2.0 - 1.0E-6, cy - 1.0E-6, cz - width / 2.0 - 1.0E-6,
                 cx + width / 2.0 + 1.0E-6, cy + 1.0 + 1.0E-6, cz + width / 2.0 + 1.0E-6};
-        var search = new org.domi.furnace.server.entity.AABB(start[0], start[1], start[2], start[3], start[4], start[5]).inflate(width, height, width);
-        java.util.List<double[]> free = new java.util.ArrayList<>();
-        free.add(start);
-        for (org.domi.furnace.server.block.Shape s : level.blockCollisionsWith(ctx, search)) {
-            double[] b = s.bounds();
-            if (b == null || !withinBorder(level, b)) continue;
-            for (int i = 0; i < s.boxCount(); i++) {
-                double[] o = s.box(i);
-                double[] inf = {o[0] - width / 2.0, o[1] - half, o[2] - width / 2.0, o[3] + width / 2.0, o[4] + half, o[5] + width / 2.0};
-                java.util.List<double[]> next = new java.util.ArrayList<>(free.size() + 4);
-                for (double[] f : free) subtract(f, inf, next);
-                free = next;
-            }
-        }
-        double[] best = null;
-        double bestD = 0;
-        for (double[] f : free) {
-            double px = Math.clamp(cx, f[0], f[3]), py = Math.clamp(cy, f[1], f[4]), pz = Math.clamp(cz, f[2], f[5]);
-            double d = (px - cx) * (px - cx) + (py - cy) * (py - cy) + (pz - cz) * (pz - cz);
-            if (best == null || d < bestD) {
-                best = new double[] {px, py, pz};
-                bestD = d;
-            }
-        }
+        double[] best = org.domi.furnace.server.block.FreePosition.find(level, ctx, start, cx, cy, cz, width, height, width);
         return best == null ? new double[] {x, y, z} : new double[] {best[0], best[1] - half, best[2]};
-    }
-
-    /** WorldBorder.isWithinBounds(AABB): 두 모서리(최대는 1e-5 안쪽)가 보더 안. */
-    private static boolean withinBorder(org.domi.furnace.server.block.ChunkLevel level, double[] b) {
-        double[] w = level.borderBounds();
-        return inside(w, b[0], b[2]) && inside(w, b[3] - 1.0E-5F, b[5] - 1.0E-5F);
-    }
-
-    private static boolean inside(double[] w, double x, double z) { return x >= w[0] && x < w[2] && z >= w[1] && z < w[3]; }
-
-    /** 상자 a 에서 b 를 뺀 나머지(부피가 있는 조각만)를 out 에(Shapes.join ONLY_FIRST 의 기하). */
-    private static void subtract(double[] a, double[] b, java.util.List<double[]> out) {
-        if (b[0] >= a[3] || b[3] <= a[0] || b[1] >= a[4] || b[4] <= a[1] || b[2] >= a[5] || b[5] <= a[2]) {
-            out.add(a);
-            return;
-        }
-        double x0 = a[0], x1 = a[3], y0 = a[1], y1 = a[4];
-        if (b[0] > x0) out.add(new double[] {x0, a[1], a[2], b[0], a[4], a[5]});
-        if (b[3] < x1) out.add(new double[] {b[3], a[1], a[2], x1, a[4], a[5]});
-        double ix0 = Math.max(x0, b[0]), ix1 = Math.min(x1, b[3]);
-        if (b[1] > y0) out.add(new double[] {ix0, y0, a[2], ix1, b[1], a[5]});
-        if (b[4] < y1) out.add(new double[] {ix0, b[4], a[2], ix1, y1, a[5]});
-        double iy0 = Math.max(y0, b[1]), iy1 = Math.min(y1, b[4]);
-        if (b[2] > a[2]) out.add(new double[] {ix0, iy0, a[2], ix1, iy1, b[2]});
-        if (b[5] < a[5]) out.add(new double[] {ix0, iy0, b[5], ix1, iy1, a[5]});
     }
 
     /** isComplete: 올바른 틀이고 안이 모두 지옥문. */

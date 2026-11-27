@@ -299,12 +299,43 @@ public abstract non-sealed class Entity implements Rider {
         return new AABB(px - hw, py, pz - hw, px + hw, py + dimH, pz + hw);
     }
 
-    /** refreshDimensions: 몸 크기를 바꾸고(아기 등) 지금 위치 기준으로 상자를 다시 만든다. */
+    /**
+     * 바닐라 refreshDimensions: 몸 크기를 바꾸고(아기 등) 지금 위치 기준으로 상자를 다시 만든 뒤(reapplyPosition), 첫 틱 뒤·물리 있음·새 몸 4 이하이고
+     * 너비나 높이가 커졌으면 빈 곳으로 자리를 민다(fudgePositionAfterSizeChange — 플레이어는 이 클래스가 아니라 빠진다). 크기를 다시 재는 자리에서만 부른다.
+     */
     protected void setDimensions(float w, float h, float eye) {
+        float ow = dimW, oh = dimH;
         dimW = w;
         dimH = h;
         dimEye = eye;
         bb = makeBb(x, y, z);
+        if (!firstTick && !noPhysics && w <= 4.0F && h <= 4.0F && (w > ow || h > oh)) fudgePositionAfterSizeChange(ow, oh);
+    }
+
+    /**
+     * 바닐라 fudgePositionAfterSizeChange(옛 크기): 옛 몸 가운데에서 커진 만큼(+1e-6)의 상자로 새 몸이 들어갈 빈 곳을 찾아 옮긴다. 못 찾고 너비·높이가
+     * 둘 다 커졌으면 높이는 옛 높이로 한 번 더(높이 1e-6 상자, 발은 1e-6 위로). 빈 곳 찾기는 이 엔티티의 블록 충돌 문맥.
+     */
+    private boolean fudgePositionAfterSizeChange(float ow, float oh) {
+        float nw = dimW, nh = dimH;
+        double cx = x, cy = y + (double) oh / 2.0, cz = z;
+        double dw = (double) Math.max(0.0F, nw - ow) + 1.0E-6, dh = (double) Math.max(0.0F, nh - oh) + 1.0E-6;
+        var ctx = org.domi.furnace.server.block.CollisionContext.of(this);
+        double[] p = org.domi.furnace.server.block.FreePosition.find(level, ctx,
+                org.domi.furnace.server.block.FreePosition.ofSize(cx, cy, cz, dw, dh, dw), cx, cy, cz, nw, nh, nw);
+        if (p != null) {
+            setPos(p[0], p[1] + (double) (-nh) / 2.0, p[2]);
+            return true;
+        }
+        if (nw > ow && nh > oh) {
+            p = org.domi.furnace.server.block.FreePosition.find(level, ctx,
+                    org.domi.furnace.server.block.FreePosition.ofSize(cx, cy, cz, dw, 1.0E-6, dw), cx, cy, cz, nw, oh, nw);
+            if (p != null) {
+                setPos(p[0], p[1] + (double) (-oh) / 2.0 + 1.0E-6, p[2]);
+                return true;
+            }
+        }
+        return false;
     }
 
     public float bbWidth() { return dimW; }
