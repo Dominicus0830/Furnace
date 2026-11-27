@@ -9,12 +9,16 @@ public class PlayerKickEvent extends PlayerEvent implements Cancellable {
     private String kickReason;
     private String leaveMessage;
     private boolean cancelled;
+    private final Cause cause = Cause.UNKNOWN;
 
     public PlayerKickEvent(Player playerKicked, String kickReason, String leaveMessage) {
         super(playerKicked);
         this.kickReason = kickReason;
         this.leaveMessage = leaveMessage;
     }
+
+    /** 킥 원인. 발생 지점이 원인을 싣기 전까지는 {@link Cause#UNKNOWN}. */
+    public Cause getCause() { return cause; }
 
     public String getReason() { return kickReason; }
 
@@ -37,4 +41,35 @@ public class PlayerKickEvent extends PlayerEvent implements Cancellable {
     public HandlerList getHandlers() { return handlers; }
 
     public static HandlerList getHandlerList() { return handlers; }
+
+    public enum Cause {
+        PLUGIN,
+        WHITELIST,
+        BANNED,
+        IP_BANNED,
+        KICK_COMMAND,
+        FLYING_PLAYER,
+        FLYING_VEHICLE,
+        TIMEOUT,
+        IDLING,
+        INVALID_VEHICLE_MOVEMENT,
+        INVALID_PLAYER_MOVEMENT,
+        INVALID_ENTITY_ATTACKED,
+        INVALID_PAYLOAD,
+        INVALID_COOKIE,
+        SPAM,
+        ILLEGAL_ACTION,
+        ILLEGAL_CHARACTERS,
+        OUT_OF_ORDER_CHAT,
+        UNSIGNED_CHAT,
+        CHAT_VALIDATION_FAILED,
+        EXPIRED_PROFILE_PUBLIC_KEY,
+        INVALID_PUBLIC_KEY_SIGNATURE,
+        TOO_MANY_PENDING_CHATS,
+        SELF_INTERACTION,
+        DUPLICATE_LOGIN,
+        RESOURCE_PACK_REJECTION,
+        RESTART_COMMAND,
+        UNKNOWN;
+    }
 }
