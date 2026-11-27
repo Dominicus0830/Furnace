@@ -1,0 +1,68 @@
+package net.minecraft.server.level;
+
+import java.util.concurrent.CompletableFuture;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.chunk.LevelChunk;
+
+/**
+ * 청크 자리 하나(Mojang 이름 shim, N2b-6): {@code ChunkMap#getVisibleChunkIfPresent} 가 준다. Furnace 는 청크 자리 객체를 따로 두지 않으므로
+ * 부를 때마다 서버 청크를 본다 — 로드돼 있으면 그 청크 보기({@link LevelChunk}), 아니면 {@link #UNLOADED_LEVEL_CHUNK}.
+ * Furnace 의 로드된 청크는 늘 다 만든 청크이고 서버가 틱 등급을 알려 주지 않으므로, 틱·엔티티 틱 미래도 로드된 청크를 준다 —
+ * <b>Paper 와 다른 점</b>: Paper 는 청크가 그 틱 등급에 못 미치면 아직 안 끝난 미래를 준다(문서 compat-nms-n2b6 "Paper 와 다른 점"). 블록 변경 알림(blockChanged)은 아직 없다.
+ */
+class ChunkHolder {
+
+    public static final ChunkResult<LevelChunk> UNLOADED_LEVEL_CHUNK = ChunkResult.error("Unloaded level chunk");
+    private static final CompletableFuture<ChunkResult<LevelChunk>> UNLOADED_LEVEL_CHUNK_FUTURE = CompletableFuture.completedFuture(UNLOADED_LEVEL_CHUNK);
+
+    private final ServerLevel level;
+    private final ChunkPos pos;
+
+    ChunkHolder(ServerLevel level, ChunkPos pos) {
+        super(org.domi.furnace.compat.nms.ShimCtor.TAG);
+        this.level = level;
+        this.pos = pos;
+    }
+
+    public ChunkPos getPos() { return pos; }
+
+    /** 바닐라 ChunkHolder#getLatestChunk: 지금 가장 최근 단계의 청크. Furnace 는 로드된 청크가 늘 다 만든 청크라 {@link #getFullChunkNow()} 와 같다(없으면 null). */
+    public net.minecraft.world.level.chunk.ChunkAccess getLatestChunk() { return getFullChunkNow(); }
+
+    public LevelChunk getFullChunkNow() { return level.getChunkSource().getChunkNow(pos.x, pos.z); }
+
+    public LevelChunk getFullChunkNowUnchecked() { return getFullChunkNow(); }
+
+    /**
+     * 바닐라 ChunkHolder.getFullStatus: 로드된 청크면 그 단계({@link LevelChunk#getFullStatus} 와 같은 규칙), 아니면 INACCESSIBLE(아무 스레드 — 주인을 찾기 전에 본다).
+     * 바닐라는 홀더의 레벨이라 다 불러오기 전에도 FULL 일 수 있다 — Furnace 는 로드가 끝난 청크만 단계를 준다(T-204 설계 9장 가정).
+     */
+    public FullChunkStatus getFullStatus() {
+        var w = level.getWorld().furnaceHandle();
+        if (!org.domi.furnace.compat.nms.NmsChunks.bridge().isLoaded(w, pos.x, pos.z)) return FullChunkStatus.INACCESSIBLE;
+        int s = org.domi.furnace.compat.nms.NmsOwner.call(w, pos.getMinBlockX(), org.domi.furnace.compat.nms.NmsOwner.CHUNK_LEVEL, pos.getMinBlockZ(), "ChunkHolder#getFullStatus",
+                () -> org.domi.furnace.compat.nms.NmsChunks.bridge().fullChunkStatusNow(w, pos.x, pos.z));
+        return FullChunkStatus.furnaceOf(s);
+    }
+
+    private CompletableFuture<ChunkResult<LevelChunk>> loadedFuture() {
+        LevelChunk c = getFullChunkNow();
+        return c == null ? UNLOADED_LEVEL_CHUNK_FUTURE : CompletableFuture.completedFuture(ChunkResult.of(c));
+    }
+
+    public CompletableFuture<ChunkResult<LevelChunk>> getTickingChunkFuture() { return loadedFuture(); }
+
+    public CompletableFuture<ChunkResult<LevelChunk>> getEntityTickingChunkFuture() { return loadedFuture(); }
+
+    public CompletableFuture<ChunkResult<LevelChunk>> getFullChunkFuture() { return loadedFuture(); }
+
+    public final LevelChunk getTickingChunk() { return getFullChunkNow(); }
+
+    public LevelChunk getChunkToSend() { return getFullChunkNow(); }
+
+    /** Paper(Moonrise) 청크 시스템에는 이 필드의 대응이 없어 어댑터들이 늘 참으로 본다 — 여기서도 로드돼 있으면 참. */
+    public boolean wasAccessibleSinceLastSave() { return getFullChunkNow() != null; }
+
+    @Override
+    public String toString() { return "ChunkHolder[" + level.getWorld().getName() + " " + pos + "]"; }
+}

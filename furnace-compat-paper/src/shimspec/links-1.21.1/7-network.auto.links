@@ -1,0 +1,7 @@
+#furnace-links 1 1.21.1 area=7
+# T-263 machine-adopted links (adoptLinks): exact vanilla and Paper body shape (reviewed idiom + slot value type, or a plain forward to a live member). Do not edit -
+# rerun adoptLinks. Hand lines go in 7-network.links; a member with a hand line is never adopted here.
+class net.minecraft.network.protocol.game.DebugPackets
+  sendPoiAddedPacket(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/core/BlockPos;)V -> this.#613ac21af2 pure via=G3 proof=shape
+  sendPoiRemovedPacket(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/core/BlockPos;)V -> this.#613ac21af2 pure via=G3 proof=shape
+  sendPoiTicketCountPacket(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/core/BlockPos;)V -> this.#613ac21af2 pure via=G3 proof=shape

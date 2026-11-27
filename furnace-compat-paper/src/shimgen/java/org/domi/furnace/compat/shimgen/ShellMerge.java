@@ -253,13 +253,24 @@ final class ShellMerge {
                     } else if (a.conv() != null) {
                         CraftConversions.body(cv.visitMethod(a.access(), a.m().name(), a.m().desc(), a.m().signature(), null), n, a.m(), a.conv());
                     } else {
-                        if (!linkBody(cv, n, a.access(), a.m())) body(cv, n, a.access(), a.m());
+                        if (!valueBody(cv, n, a.access(), a.m()) && !linkBody(cv, n, a.access(), a.m())) body(cv, n, a.access(), a.m());
                     }
                 }
                 super.visitEnd();
             }
         }, 0);
         return cw.toByteArray();
+    }
+
+    /** T-263 G0: 바닐라·Paper 가 같은 짧은 값 몸통(빈 void·리터럴·인자·살아 있는 정적 필드 반환)이면 그 몸통(표지 없음). */
+    private boolean valueBody(ClassVisitor cv, String owner, int acc, SigTable.Member m) {
+        if (g.fills == null || (acc & Opcodes.ACC_ABSTRACT) != 0) return false;
+        org.domi.furnace.tools.extract.FillTable.Method vm = g.fills.mergeValue(owner, m.name() + m.desc());
+        if (vm == null) return false;
+        FullShells.valueBody(cv.visitMethod(acc, m.name(), m.desc(), m.signature(), null), m, vm);
+        g.valueFilled.add(owner + "#" + m.name() + m.desc());
+        count("value body (T-263 G0)");
+        return true;
     }
 
     /** T-263: 연결 줄이 있으면 연결 몸통(표지 없음 — 연결기가 "있음"으로 본다). */

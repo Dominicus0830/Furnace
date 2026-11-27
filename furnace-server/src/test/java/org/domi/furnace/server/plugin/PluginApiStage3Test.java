@@ -338,6 +338,25 @@ class PluginApiStage3Test {
     }
 
     @Test
+    void kickEventCarriesCauseAndCancelReturnsFalse() throws Exception {
+        var seen = new java.util.ArrayList<PlayerKickEvent.Cause>();
+        on(PlayerKickEvent.class, e -> {
+            seen.add(e.cause());
+            if (e.cause() == PlayerKickEvent.Cause.DUPLICATE_LOGIN) e.setCancelled(true);
+        });
+        var ch = new EmbeddedChannel();
+        Player p = new Player(core.world().entityIds().next(), UUID.randomUUID(), "A", ch);
+        p.inventory(new PlayerInventory());
+        p.vitals().env(core.vitalsEnv());
+        assertFalse(p.kick(new org.domi.furnace.server.net.protocol.play.Disconnect(Text.text("dup")), PlayerKickEvent.Cause.DUPLICATE_LOGIN),
+                "중복 로그인 킥을 플러그인이 취소하면 false(호출 쪽이 새 접속을 막는다)");
+        ch.runPendingTasks();
+        assertTrue(ch.isOpen());
+        assertTrue(p.kick(new org.domi.furnace.server.net.protocol.play.Disconnect(Text.text("t")), PlayerKickEvent.Cause.TIMEOUT));
+        assertEquals(java.util.List.of(PlayerKickEvent.Cause.DUPLICATE_LOGIN, PlayerKickEvent.Cause.TIMEOUT), seen);
+    }
+
+    @Test
     void expOrbAmountCanBeChanged() throws Exception {
         on(PlayerExpChangeEvent.class, e -> e.setAmount(e.amount() * 10));
         Player p = player(8.5, -60, 8.5);

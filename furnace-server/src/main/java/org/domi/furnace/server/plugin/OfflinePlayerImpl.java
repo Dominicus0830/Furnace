@@ -200,7 +200,7 @@ final class OfflinePlayerImpl implements OfflinePlayer {
         UserBanListEntry entry = new UserBanListEntry(writeProfile(), null, source, expires == null ? null : Date.from(expires), reason);
         lists().getBans().add(entry);
         Player p = online();
-        if (p != null) p.kick(new Disconnect(Text.translatable("multiplayer.disconnect.banned")));
+        if (p != null) p.kick(new Disconnect(Text.translatable("multiplayer.disconnect.banned")), org.domi.furnace.api.event.player.PlayerKickEvent.Cause.BANNED);
     }
 
     @Override

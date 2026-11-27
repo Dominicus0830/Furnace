@@ -25,7 +25,7 @@ public final class NmsBlockContainer {
             Map.entry("minecraft:shulker_box", 27), Map.entry("minecraft:hopper", 5), Map.entry("minecraft:dispenser", 9),
             Map.entry("minecraft:dropper", 9), Map.entry("minecraft:furnace", 3), Map.entry("minecraft:blast_furnace", 3),
             Map.entry("minecraft:smoker", 3), Map.entry("minecraft:brewing_stand", 5), Map.entry("minecraft:crafter", 9),
-            Map.entry("minecraft:decorated_pot", 1));
+            Map.entry("minecraft:decorated_pot", 1), Map.entry("minecraft:jukebox", 1), Map.entry("minecraft:chiseled_bookshelf", 6));
 
     private static String key(BlockEntity be) { return net.minecraft.world.level.block.entity.BlockEntityType.getKey(be.getType()).toString(); }
 

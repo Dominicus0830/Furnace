@@ -13,12 +13,6 @@ class net.minecraft.world.entity.animal.Fox
   DATA_TRUSTED_ID_1 = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.animal.Fox.class, "DATA_TRUSTED_ID_1")
 class net.minecraft.world.entity.animal.IronGolem
   DATA_FLAGS_ID = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.animal.IronGolem.class, "DATA_FLAGS_ID")
-class net.minecraft.world.entity.animal.camel.Camel
-  DASH = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.animal.camel.Camel.class, "DASH")
-  LAST_POSE_CHANGE_TICK = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.animal.camel.Camel.class, "LAST_POSE_CHANGE_TICK")
-class net.minecraft.world.entity.animal.goat.Goat
-  DATA_HAS_LEFT_HORN = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.animal.goat.Goat.class, "DATA_HAS_LEFT_HORN")
-  DATA_HAS_RIGHT_HORN = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.animal.goat.Goat.class, "DATA_HAS_RIGHT_HORN")
 class net.minecraft.world.entity.boss.enderdragon.EnderDragon
   DATA_PHASE = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.boss.enderdragon.EnderDragon.class, "DATA_PHASE")
 class net.minecraft.world.entity.item.FallingBlockEntity

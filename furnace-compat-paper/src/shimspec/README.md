@@ -98,6 +98,7 @@ class net.minecraft.world.level.block.CropBlock            # 멤버 없이 클�
 
 상수 줄을 `이름 = (자바 인자 식)` 로 적으면 `이름(인자)` 로 생성된다(상수는 전부 바닐라 순서로 — 개수는 잠금이 견준다). 생성자·필드·메서드는 `src/shims/java` 조각이 쓴다(조각 없이 인자 상수만 있으면 생성기 오류).
 예: `src/shimspec/enums.spec` 의 `PacketFlow`.
+상수 줄 끝에 ` {}` 를 붙이면(`이름 = (인자) {}`) 그 상수는 몸통이 있는 익명 하위 클래스가 된다(바닐라 `VaultState` 처럼 상수마다 몸통이 있는 열거형 — 바이트코드에 `X$1…` 이 생긴다). 몸통은 정확히 `{}` 만 허용한다(코드가 든 몸통은 생성기 오류).
 
 ## 종류 표 (T-231)
 
@@ -202,7 +203,9 @@ class net.minecraft.world.entity.monster.Zombie
 - **멈추는 것**: 어긴 줄, 그리고 쓰이지 않은 줄(낡은 줄) — 멤버가 이미 T-262 로 채워졌거나, 손 shim(상위 사슬 포함)에 있거나, 클래스가 안 만들어졌거나, NMS 밖 껍데기라 클래스 초기화가 던질 때. 지우라는 뜻이다(손 shim 바이트를 덮어쓰지 않는다). 생성자·추상 멤버는 잇지 않는다.
 - 기준선: 이은 멤버는 `fills-baseline-<판>` 의 "채운 수"에 들어간다(줄이 사라지면 CI 가 잡는다).
 - **엔티티 데이터 칸 필드·관용구(엔티티 데이터 설계 D3, 2026-11-24)**: 바닐라 정적 `EntityDataAccessor` 칸 필드(대부분 private `DATA_*`)는 생성기가 값을 채운다 — 껍데기 클래스는 정적 초기화에서, 손 shim 은 합치기가 정적 초기화 맨 앞에 `NmsEntityData.accessor(클래스, "이름")` 를 끼운다. 이름은 생성 때 서명표에서 오고 커밋하지 않는다. 칸 번호표(`furnace-server/.../entity_data/ids-<판>.txt` A 줄)에 줄이 있고 shim `EntityDataSerializers` 에 그 값 종류 상수가 있는 칸만 채운다(없는 것은 껍데기 필드로 남아 초기화가 실패하지 않는다 — JOML 값이 들어온 뒤 지금은 없다). 그래서 연결 줄이 칸 필드를 `#지문` 값으로 받을 수 있다. 관용구는 `NmsEntityData` 의 `entity-data-get(칸)`·`entity-data-set(칸, 값)`·`entity-data-flag-get(바이트 칸, 마스크)`·`entity-data-flag-set(바이트 칸, 마스크, 불)`(읽기 `read=owner`, 쓰기 `write`, 소유 규칙 `NmsEntityOwner`). `fullShellsTest` 가 채운 칸 필드 전부를 번호표와 지문으로 견준다.
-- 줄 속성 `via=`·`proof=`·`body=`·`target=` 는 지금 읽어 두기만 한다. 후보를 만들고 정답기로 증명해 줄을 쓰는 도구(`inferLinks`·`adoptLinks`)와 `body=`/`target=` 지문 검사는 다음 조각(S1 뒤쪽·S2)이다.
+- 줄 속성 `via=`·`proof=`·`body=`·`target=` 는 지금 읽어 두기만 한다. 정답기로 증명해 줄을 채택하는 도구(`adoptLinks`)와 `body=`/`target=` 지문 검사는 다음 조각(S2)이다.
+- **후보 만들기 `inferLinks`(S1b, 2026-11-27)**: `ORG_GRADLE_PROJECT_skipOracle=true ./gradlew --offline :furnace-compat-paper:inferLinks`(서명표 캐시와 `work/server-mojmap.jar` 필요 — `tools/compat/sig-tables.sh`). 전체 껍데기를 만들어 아직 던지는 멤버를 모으고, 바닐라 몸통 **모양**으로 나눠(명령은 복사하지 않음) G1 엔티티 데이터 관용구(읽기·쓰기·깃발 읽기·깃발 쓰기 — javac 가 내는 꼴과 정확히 같을 때만)와 G3 별칭 후보를 낸다. 엔티티 데이터 후보는 칸 번호표의 값 종류(A 줄) → Paper 서명표 `EntityDataSerializers` 필드의 제네릭 값 형식이 멤버 반환·인자 형식과 같아야 한다(깃발은 BYTE 칸만). 그다음 후보 줄을 연결 파일로 만들어 생성기를 한 번 더 돌려 빌드 검사를 통과한 줄만 남긴다. 출력 `build/reports/link-infer/`: `candidates/<영역>.links`(이름이 있으므로 커밋하지 않는다 — 채택은 S2), `rejected.tsv`, `summary.md`(숫자만, 문서에 옮겨도 된다). 결정적이다(LLM 없음).
+- **채택 `adoptLinks`(S2, 2026-11-27)**: `inferLinks` 와 같은 일을 한 뒤 **모양 증명** 줄을 `links-<판>/<영역>.auto.links` 로 통째로 다시 쓴다(줄이 없어진 영역 파일은 지운다, 손 줄 파일 `<영역>.links` 는 건드리지 않는다, 찾을 때 `*.auto.links` 는 빼고 손 줄만 본다 — 그래서 두 번 돌려도 같다). 모양 증명 = (1) 검토 받은 관용구(지금은 엔티티 데이터 네 개)의 javac 꼴과 바닐라 몸통이 정확히 같고 (2) **Mojang 이름 Paper 서버 jar 몸통도 같은 후보를 낸다**(Paper 가 고친 멤버는 빠진다 — T-262 채움과 같은 원칙) (3) 칸 값 종류가 멤버 형식과 같다(제네릭 값은 멤버 서명의 제네릭까지) (4) **쓰기는 반응 없는 칸만** — 바닐라·Paper 의 `onSyncedDataUpdated` 가 읽는 칸(값이 바뀌면 엔티티가 크기를 다시 재는 등)에 쓰는 줄은 빼서 따로 확인한다 (5) 생성기 빌드 검사 통과. Paper jar 는 `tools/compat/sig-tables.sh` 가 캐시 `work/paper-server-mojmap.jar` 에 둔다(없으면 두 도구 모두 멈춘다). 별칭(G3)은 아직 채택하지 않는다(정답기 필요). 반응 있는 칸의 쓰기는 반응을 따로 확인해 손 줄 `<영역>.links` 에 `proof=review` 로 넣는다(2026-11-27, `docs/feature-parity/context-notes/2026-11-27-t263-reacting-slots.md`).
 
 ## 조각 머리의 추가 인터페이스
 

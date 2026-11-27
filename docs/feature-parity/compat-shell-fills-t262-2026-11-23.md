@@ -22,6 +22,13 @@
 - `FillParityTest`(바닐라 jar 를 격리 로더에 올려 같은 입력으로 견줌): 채운 클래스 1,862, 열거형 상수 504, 객체 1,682, 읽기 528, 레코드 검사 589, **불일치 0**. 이 시험이 처음 돌 때 상수 몸통이 있는 열거형(`CopyCustomDataFunction$MergeStrategy`)에서 생성자만 채우고 상수는 0 인자로 만들어 읽기가 null 을 돌려주는 틀린 채움을 잡았고, 그 뒤 "열거형은 전부 채우거나 전혀 안 채운다" 규칙(고정점)으로 고쳤다.
 - 숫자는 대용 표 기준이다. **실제 Paper 표 기준 숫자·지문·기준선은 노트북에서 쓴다**(아래).
 
+## 짧은 값 몸통 (T-263 S0, 2026-11-27)
+
+- 표 형식 2: `M 소유자 이름 서술자 s|i 종류 값` 줄 — K 리터럴 반환, E 빈 void, A 인자·`this` 반환, R 정적 필드 반환(명령 두 개, 빈 몸통은 하나가 전부일 때만; try 없음). 인터페이스의 default·정적 메서드도 뽑는다.
+- 네 곳: 추출기 `FillExtractor.valueBody`, 표 `FillTable.Method`, 계획 `Fills`(정적 여부가 Paper 와 같을 때, R 은 그 필드가 살아 있을 때 — 연결기 세계 `LinkWorld.liveStaticField`, 상위 사슬에 초기화 덫이 있으면 채우지 않음), 대조 `FillParityTest.checkValueBody`.
+- 껍데기만이 아니라 **손 shim 에 합치기(T-261)가 더하는 멤버**에도 쓴다(`ShellMerge.valueBody`). 생성기가 쓴 멤버 목록을 jar 의 `META-INF/furnace/full-shells/value-bodies.txt` 에 넣고 대조가 그 목록을 본다.
+- 첫 측정(Paper 서버 서명표, 바닐라∩Paper 표): 껍데기 662(K 338·E 178·R 94·A 52) + 손 shim 1,561. 대조 1,395개 일치(인자·this 동일성 37, 정적 필드 객체 225), 대조 못 함 551(추상·인터페이스), 손 shim 정적 초기화가 서버 필요 277(소리 등 R), 실패 0.
+
 ## 남은 일 / 다음
 - 실제 Paper 표로 `tools/compat/sig-tables.sh` → `./gradlew -PskipOracle=true -PfullShellsFpWrite=true -PfullShellsBaselineWrite=true :furnace-compat-paper:generateFullShells` 로 `fill-tables-1.21.1.fp` 와 `fills-baseline-1.21.1/`(영역 파일)를 쓰고 커밋(2026-11-23 노트북에서 했다). 그 전에는 CI vanilla-gates 의 전체 껍데기 단계가 지문·기준선 불일치로 실패한다(의도 — 표가 바뀌면 알려 주는 관문).
 - 후속 종류 후보(각각 위 README 의 네 곳 규칙): 리터럴 배열, 다른 열거형 상수 참조 인자, 인터페이스 상수 표, Paper 가 바꾼 클래스(지금은 바닐라 jar 에서만 뽑음 — Paper 전용·CraftBukkit 은 안 채워짐).

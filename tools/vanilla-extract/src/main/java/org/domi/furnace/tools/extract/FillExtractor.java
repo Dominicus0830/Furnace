@@ -34,6 +34,8 @@ import org.objectweb.asm.tree.VarInsnNode;
  *   <li>정적 리터럴: 정적 초기화의 {@code 리터럴; putstatic 자기.필드}, 그 필드에 대한 putstatic 이 클래스 전체에 이것 하나뿐</li>
  *   <li>열거형 상수: {@code new E; dup; ldc 이름; 서수; 리터럴*; invokespecial E.<init>; putstatic E.이름}</li>
  *   <li>레코드 기본 메서드: {@code aload0; (aload1;) invokedynamic ObjectMethods; xreturn}</li>
+ *   <li>짧은 값 몸통(T-263 G0, 인터페이스의 default·정적 메서드 포함): {@code return}(빈 void), {@code 리터럴; xreturn},
+ *       {@code xload 인자|aload0; xreturn}, {@code getstatic 필드; xreturn} — 명령 두 개(빈 몸통은 하나)가 전부일 때만</li>
  * </ul>
  */
 public final class FillExtractor {
@@ -65,7 +67,16 @@ public final class FillExtractor {
     public static void extract(byte[] bytes, FillTable t) {
         ClassNode cn = new ClassNode();
         new ClassReader(bytes).accept(cn, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
-        if ((cn.access & Opcodes.ACC_INTERFACE) != 0 || (cn.access & Opcodes.ACC_SYNTHETIC) != 0) return;
+        if ((cn.access & Opcodes.ACC_SYNTHETIC) != 0) return;
+        if ((cn.access & Opcodes.ACC_INTERFACE) != 0) {
+            // 인터페이스는 짧은 값 몸통(default·정적 메서드)만
+            for (MethodNode m : cn.methods) {
+                if ((m.access & (Opcodes.ACC_SYNTHETIC | Opcodes.ACC_BRIDGE | Opcodes.ACC_ABSTRACT)) != 0 || m.name.startsWith("<")) continue;
+                FillTable.Method v = valueBody(cn, m, real(m));
+                if (v != null) t.add(v);
+            }
+            return;
+        }
         boolean isEnum = (cn.access & Opcodes.ACC_ENUM) != 0;
         boolean isRecord = (cn.access & 0x10000) != 0 || "java/lang/Record".equals(cn.superName);
         Map<String, String> fieldDescs = new HashMap<>();
@@ -81,9 +92,13 @@ public final class FillExtractor {
                 List<AbstractInsnNode> line = straightPrefix(m);
                 statics(cn, line, t, fieldDescs);
                 if (isEnum) enumConsts(cn, line, t);
-            } else if ((m.access & Opcodes.ACC_STATIC) == 0 && m.desc.startsWith("()") && !m.desc.equals("()V")) {
-                FillTable.Getter g = getter(cn, m, ins);
+            } else {
+                FillTable.Getter g = (m.access & Opcodes.ACC_STATIC) == 0 && m.desc.startsWith("()") && !m.desc.equals("()V") ? getter(cn, m, ins) : null;
                 if (g != null) t.add(g);
+                else if ((m.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) == 0) {
+                    FillTable.Method v = valueBody(cn, m, ins);
+                    if (v != null) t.add(v);
+                }
             }
         }
         if (isRecord) {
@@ -272,6 +287,44 @@ public final class FillExtractor {
         // 반환형과 필드형이 다르면(상위형으로 돌려주기 등) 그대로 둔다 — 참조끼리만 허용
         if (!(ft.equals(rt) || isRef(ft) && isRef(rt))) return null;
         return new FillTable.Getter(cn.name, m.name, m.desc, f.name, f.desc);
+    }
+
+    // ───────────────────────── 짧은 값 몸통(T-263 G0) ─────────────────────────
+
+    /** 빈 void · 리터럴 반환 · 인자(this) 반환 · 정적 필드 반환. 다른 모양이면 null. */
+    static FillTable.Method valueBody(ClassNode cn, MethodNode m, List<AbstractInsnNode> ins) {
+        boolean isStatic = (m.access & Opcodes.ACC_STATIC) != 0;
+        Type rt = Type.getReturnType(m.desc);
+        if (m.tryCatchBlocks != null && !m.tryCatchBlocks.isEmpty()) return null;
+        if (ins.size() == 1) {
+            return ins.get(0).getOpcode() == Opcodes.RETURN && rt.getSort() == Type.VOID ? new FillTable.Method(cn.name, m.name, m.desc, isStatic, 'E', "-") : null;
+        }
+        if (ins.size() != 2 || rt.getSort() == Type.VOID || ins.get(1).getOpcode() != rt.getOpcode(Opcodes.IRETURN)) return null;
+        AbstractInsnNode a = ins.get(0);
+        FillTable.Val lit = literal(a);
+        if (lit != null) return fits(lit, a, rt) ? new FillTable.Method(cn.name, m.name, m.desc, isStatic, 'K', lit.encode()) : null;
+        if (a instanceof VarInsnNode v && a.getOpcode() >= Opcodes.ILOAD && a.getOpcode() <= Opcodes.ALOAD) {
+            Type have;
+            if (!isStatic && v.var == 0) have = Type.getObjectType(cn.name);   // return this
+            else {
+                Map<Integer, Type> sl = new HashMap<>();
+                int s = isStatic ? 0 : 1;
+                for (Type t : Type.getArgumentTypes(m.desc)) {
+                    sl.put(s, t);
+                    s += t.getSize();
+                }
+                have = sl.get(v.var);
+            }
+            if (have == null || a.getOpcode() != have.getOpcode(Opcodes.ILOAD)) return null;
+            boolean ok = have.equals(rt) || isRef(have) && isRef(rt) || isIntLike(have) && isIntLike(rt);   // 명령 두 개면 javac 가 변환 없이 대입 가능한 꼴
+            return ok ? new FillTable.Method(cn.name, m.name, m.desc, isStatic, 'A', "p:" + v.var) : null;
+        }
+        if (a instanceof FieldInsnNode f && a.getOpcode() == Opcodes.GETSTATIC) {
+            Type ft = Type.getType(f.desc);
+            if (!(ft.equals(rt) || isRef(ft) && isRef(rt))) return null;
+            return new FillTable.Method(cn.name, m.name, m.desc, isStatic, 'R', f.owner + "." + f.name + ":" + f.desc);
+        }
+        return null;
     }
 
     // ───────────────────────── 정적 리터럴 ─────────────────────────

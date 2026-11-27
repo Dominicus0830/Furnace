@@ -492,6 +492,43 @@ val generateFullShells by tasks.registering(JavaExec::class) {
             fullShellsDataSlots.asFile.absolutePath
     })
 }
+// T-263 S1b: 연결 추론 — 아직 던지는 껍데기 멤버를 바닐라 몸통 모양으로 나누고 관용구(엔티티 데이터)·별칭 후보를 내어 생성기 검사를 통과한 것만 남긴다.
+// 결과(이름 들어감)는 build/reports/link-infer/ 에만: candidates/<영역>.links, rejected.tsv, summary.md(숫자만). 채택은 하지 않는다(S2).
+//   ./gradlew -PskipOracle=true :furnace-compat-paper:inferLinks
+tasks.register<JavaExec>("inferLinks") {
+    group = "verification"
+    description = "연결 후보 찾기(T-263) — 껍데기 멤버 × 바닐라 몸통, 결과는 build/reports/link-infer"
+    val gen = generateFullShells.get()
+    dependsOn(fullShellsMain.classesTaskName)
+    classpath = shimgen.runtimeClasspath
+    mainClass.set("org.domi.furnace.compat.shimgen.LinkInfer")
+    jvmArgs("-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8")
+    maxHeapSize = "3g"
+    argumentProviders.addAll(gen.argumentProviders)
+    argumentProviders.add(CommandLineArgumentProvider {
+        listOf("$fullShellsCache/$mcVersion/work/server-mojmap.jar", "$fullShellsCache/$mcVersion/work/paper-server-mojmap.jar",
+            layout.buildDirectory.dir("reports/link-infer").get().asFile.absolutePath)
+    })
+    outputs.upToDateWhen { false }
+}
+// T-263 S2: 모양 증명 줄 채택 — inferLinks 와 같은 일 + 엔티티 데이터 관용구 줄을 src/shimspec/links-<판>/<영역>.auto.links 로 다시 쓴다(손 줄 파일은 그대로).
+//   ./gradlew -PskipOracle=true :furnace-compat-paper:adoptLinks
+tasks.register<JavaExec>("adoptLinks") {
+    group = "verification"
+    description = "연결 줄 채택(T-263 S2) — 모양 증명 엔티티 데이터 줄을 <영역>.auto.links 로"
+    val gen = generateFullShells.get()
+    dependsOn(fullShellsMain.classesTaskName)
+    classpath = shimgen.runtimeClasspath
+    mainClass.set("org.domi.furnace.compat.shimgen.LinkInfer")
+    jvmArgs("-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8")
+    maxHeapSize = "3g"
+    argumentProviders.addAll(gen.argumentProviders)
+    argumentProviders.add(CommandLineArgumentProvider {
+        listOf("$fullShellsCache/$mcVersion/work/server-mojmap.jar", "$fullShellsCache/$mcVersion/work/paper-server-mojmap.jar",
+            layout.buildDirectory.dir("reports/link-infer").get().asFile.absolutePath, fullShellsLinks.asFile.absolutePath)
+    })
+    outputs.upToDateWhen { false }
+}
 val fullShellsJar by tasks.registering(Jar::class) {
     group = "build"
     description = "전체 껍데기 jar(furnace-compat-shells.jar) — 서버가 호환 jar 앞에 싣는다(T-260 껍데기 + T-261 빠진 멤버를 합친 손 shim)"
