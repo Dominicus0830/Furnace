@@ -40,7 +40,7 @@ class PacketValueShimsTest {
         assertEquals("§c§lb", CraftChatMessage.fromComponent(CraftChatMessage.fromString("§c§la\nb")[1]));
         assertEquals("b", CraftChatMessage.fromComponent(CraftChatMessage.fromString("§ca§r\nb")[1]), "§r 로 비우면 이어지지 않는다");
         assertEquals(1, CraftChatMessage.fromString("a\nb", true).length);
-        assertEquals(0, CraftChatMessage.fromString(null).length);
+        assertEquals(1, CraftChatMessage.fromString(null).length, "CraftBukkit: null 도 빈 글 하나짜리 배열");
         assertNull(CraftChatMessage.fromStringOrNull(null));
         assertEquals("", CraftChatMessage.fromStringOrEmpty(null).getString());
         // CraftBukkit: 빈 문자열은 null, 여러 줄이면 첫 줄만
