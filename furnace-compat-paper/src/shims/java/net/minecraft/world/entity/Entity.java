@@ -233,6 +233,9 @@ class Entity {
     /** 바닐라: 그 레벨의 레지스트리 묶음. */
     public net.minecraft.core.RegistryAccess registryAccess() { return level().registryAccess(); }
 
+    /** 바닐라: 그 레벨의 피해 출처 만들기. */
+    public net.minecraft.world.damagesource.DamageSources damageSources() { return level().damageSources(); }
+
     /** 마지막으로 읽은 모습 — 그 뒤 엔티티가 사라지면 이 값으로 답한다(바닐라도 지운 엔티티의 필드는 그대로 읽힌다). 틀린 스레드에는 쓰지 않는다. */
     private volatile org.domi.furnace.api.internal.ChunkInternals.EntityLook lastLook;
 

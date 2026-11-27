@@ -1,0 +1,57 @@
+package net.minecraft.world.damagesource;
+
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+
+/** 바닐라 피해 형식 키 47개(바닐라 DamageTypes, 이름·순서 그대로). 값은 서버 레지스트리({@code minecraft:damage_type})에 있다. */
+public interface DamageTypes {
+
+    ResourceKey<DamageType> IN_FIRE = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("in_fire"));
+    ResourceKey<DamageType> CAMPFIRE = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("campfire"));
+    ResourceKey<DamageType> LIGHTNING_BOLT = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("lightning_bolt"));
+    ResourceKey<DamageType> ON_FIRE = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("on_fire"));
+    ResourceKey<DamageType> LAVA = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("lava"));
+    ResourceKey<DamageType> HOT_FLOOR = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("hot_floor"));
+    ResourceKey<DamageType> IN_WALL = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("in_wall"));
+    ResourceKey<DamageType> CRAMMING = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("cramming"));
+    ResourceKey<DamageType> DROWN = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("drown"));
+    ResourceKey<DamageType> STARVE = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("starve"));
+    ResourceKey<DamageType> CACTUS = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("cactus"));
+    ResourceKey<DamageType> FALL = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("fall"));
+    ResourceKey<DamageType> FLY_INTO_WALL = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("fly_into_wall"));
+    ResourceKey<DamageType> FELL_OUT_OF_WORLD = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("out_of_world"));
+    ResourceKey<DamageType> GENERIC = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("generic"));
+    ResourceKey<DamageType> MAGIC = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("magic"));
+    ResourceKey<DamageType> WITHER = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("wither"));
+    ResourceKey<DamageType> DRAGON_BREATH = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("dragon_breath"));
+    ResourceKey<DamageType> DRY_OUT = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("dry_out"));
+    ResourceKey<DamageType> SWEET_BERRY_BUSH = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("sweet_berry_bush"));
+    ResourceKey<DamageType> FREEZE = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("freeze"));
+    ResourceKey<DamageType> STALAGMITE = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("stalagmite"));
+    ResourceKey<DamageType> FALLING_BLOCK = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("falling_block"));
+    ResourceKey<DamageType> FALLING_ANVIL = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("falling_anvil"));
+    ResourceKey<DamageType> FALLING_STALACTITE = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("falling_stalactite"));
+    ResourceKey<DamageType> STING = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("sting"));
+    ResourceKey<DamageType> MOB_ATTACK = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("mob_attack"));
+    ResourceKey<DamageType> MOB_ATTACK_NO_AGGRO = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("mob_attack_no_aggro"));
+    ResourceKey<DamageType> PLAYER_ATTACK = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("player_attack"));
+    ResourceKey<DamageType> ARROW = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("arrow"));
+    ResourceKey<DamageType> TRIDENT = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("trident"));
+    ResourceKey<DamageType> MOB_PROJECTILE = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("mob_projectile"));
+    ResourceKey<DamageType> SPIT = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("spit"));
+    ResourceKey<DamageType> WIND_CHARGE = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("wind_charge"));
+    ResourceKey<DamageType> FIREWORKS = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("fireworks"));
+    ResourceKey<DamageType> FIREBALL = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("fireball"));
+    ResourceKey<DamageType> UNATTRIBUTED_FIREBALL = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("unattributed_fireball"));
+    ResourceKey<DamageType> WITHER_SKULL = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("wither_skull"));
+    ResourceKey<DamageType> THROWN = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("thrown"));
+    ResourceKey<DamageType> INDIRECT_MAGIC = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("indirect_magic"));
+    ResourceKey<DamageType> THORNS = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("thorns"));
+    ResourceKey<DamageType> EXPLOSION = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("explosion"));
+    ResourceKey<DamageType> PLAYER_EXPLOSION = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("player_explosion"));
+    ResourceKey<DamageType> SONIC_BOOM = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("sonic_boom"));
+    ResourceKey<DamageType> BAD_RESPAWN_POINT = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("bad_respawn_point"));
+    ResourceKey<DamageType> OUTSIDE_BORDER = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("outside_border"));
+    ResourceKey<DamageType> GENERIC_KILL = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.withDefaultNamespace("generic_kill"));
+}

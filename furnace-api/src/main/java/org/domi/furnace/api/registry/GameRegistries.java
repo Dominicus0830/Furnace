@@ -69,6 +69,9 @@ public interface GameRegistries {
     /** 그림 변종(minecraft:painting_variant) 항목의 정의. 레지스트리에 없는 키면 empty. NMS 호환용. */
     default java.util.Optional<PaintingVariant> paintingVariant(String key) { throw new UnsupportedOperationException("paintingVariant"); }
 
+    /** 피해 형식(minecraft:damage_type) 항목의 정의. 레지스트리에 없는 키면 empty. NMS 호환용. */
+    default java.util.Optional<DamageType> damageType(String key) { throw new UnsupportedOperationException("damageType"); }
+
     /** 항목을 낸 곳: "vanilla", 데이터 팩 id(예: "file/mypack"), "plugin:<이름>". 없거나 내장 목록이면 empty. */
     java.util.Optional<String> source(String registry, String key);
 

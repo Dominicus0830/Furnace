@@ -181,6 +181,19 @@ class Level {
     /** 서버 레지스트리 묶음(H7b, {@link net.minecraft.server.MinecraftServer#registryAccess()} 와 같다). */
     public net.minecraft.core.RegistryAccess registryAccess() { return net.minecraft.core.RegistryAccess.SERVER; }
 
+    private volatile net.minecraft.world.damagesource.DamageSources damageSources;
+
+    /** 바닐라: 그 레벨의 피해 출처 만들기(레벨마다 하나 — 바닐라는 생성자에서, 여기서는 처음 부를 때 만든다). */
+    public net.minecraft.world.damagesource.DamageSources damageSources() {
+        var d = damageSources;
+        if (d == null) {
+            synchronized (this) {
+                if ((d = damageSources) == null) damageSources = d = new net.minecraft.world.damagesource.DamageSources(registryAccess());
+            }
+        }
+        return d;
+    }
+
     public boolean isClientSide() { return isClientSide; }
 
     /** 이 월드의 차원 키(minecraft:overworld 등). */

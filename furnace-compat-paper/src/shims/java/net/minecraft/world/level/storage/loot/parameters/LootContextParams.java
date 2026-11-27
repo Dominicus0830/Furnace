@@ -7,7 +7,7 @@ class LootContextParams {
 
     public static final LootContextParam<net.minecraft.world.entity.Entity> THIS_ENTITY = create("this_entity");
     public static final LootContextParam<net.minecraft.world.entity.player.Player> LAST_DAMAGE_PLAYER = create("last_damage_player");
-    public static final LootContextParam DAMAGE_SOURCE = create("damage_source");
+    public static final LootContextParam<net.minecraft.world.damagesource.DamageSource> DAMAGE_SOURCE = create("damage_source");
     public static final LootContextParam<net.minecraft.world.entity.Entity> ATTACKING_ENTITY = create("attacking_entity");
     public static final LootContextParam<net.minecraft.world.entity.Entity> DIRECT_ATTACKING_ENTITY = create("direct_attacking_entity");
     public static final LootContextParam<net.minecraft.world.phys.Vec3> ORIGIN = create("origin");

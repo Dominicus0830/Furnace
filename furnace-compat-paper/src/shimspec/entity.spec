@@ -35,6 +35,7 @@ class net.minecraft.world.entity.Entity  owner=org.domi.furnace.compat.nms.NmsEn
   level() -> @hand read=any
   getServer -> @hand read=any
   registryAccess -> @hand read=any
+  damageSources -> @hand read=any
   getBukkitEntity -> @hand read=any
   isSpectator -> @hand pure
   # 주인 스레드에서 지금 모습을 읽는다(틱 스레드가 아니면 주인 region 에 맡겨 기다린다)
