@@ -71,7 +71,6 @@ public class Armadillo extends Animal {
 
     private long inStateTicks;
     private int scuteTime;
-    private ArmadilloState lastSyncedState = ArmadilloState.IDLE;
     private Targetable currentAttacker;
 
     public Armadillo(ChunkLevel level, int id) {
@@ -115,12 +114,13 @@ public class Armadillo extends Animal {
 
     public ArmadilloState getState() { return ArmadilloState.byId((Integer) entityData.get(DATA_STATE)); }
 
-    public void switchToState(ArmadilloState state) {
-        entityData.set(DATA_STATE, state.id());
-        if (state != lastSyncedState) {   // onSyncedDataUpdated: 상태가 바뀌면 상태 틱을 0 으로
-            lastSyncedState = state;
-            inStateTicks = 0L;
-        }
+    public void switchToState(ArmadilloState state) { entityData.set(DATA_STATE, state.id()); }
+
+    /** 바닐라 onSyncedDataUpdated: 상태 칸이 바뀌면 상태 틱을 0 으로(칸에 바로 쓴 값도 같다), 그 뒤 Animal. */
+    @Override
+    protected void onSyncedDataUpdated(int index) {
+        if (index == DATA_STATE) inStateTicks = 0L;
+        super.onSyncedDataUpdated(index);
     }
 
     @Override protected float babyScale() { return BABY_SCALE; }

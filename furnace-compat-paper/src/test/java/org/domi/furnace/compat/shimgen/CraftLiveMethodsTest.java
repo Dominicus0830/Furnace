@@ -65,10 +65,11 @@ class CraftLiveMethodsTest {
                         if (Modifier.isStatic(m.getModifiers()) || m.getDeclaringClass() != api) continue;
                         Method impl;
                         try {
-                            impl = c.getMethod(m.getName(), m.getParameterTypes());
+                            impl = resolve(c, m);
                         } catch (Throwable t) {
                             continue;
                         }
+                        if (impl == null) continue;
                         if (Modifier.isAbstract(impl.getModifiers())) continue;
                         if (isShell(cl, impl, shellMembers)) continue;
                         live.add(m.getName() + Type.getMethodDescriptor(m));
@@ -112,6 +113,21 @@ class CraftLiveMethodsTest {
         if (!grown.isEmpty()) msg.append("live API methods grew - record them with -Dfurnace.craftLive.write=true:\n  ").append(String.join("\n  ", grown)).append('\n');
         if (!msg.isEmpty()) fail(msg.toString());
         assertTrue(now.size() > 300, "expected hundreds of Craft API classes, got " + now.size());
+    }
+
+    /**
+     * API 메서드 m 을 c 에서 푼 구현. 이름·인자가 같고 반환형만 다른 메서드가 여럿이면(다른 인터페이스의 같은 이름) Class.getMethod 는
+     * 그중 아무것이나 돌려줄 수 있어 시험이 간헐로 갈린다 — m 의 반환형으로 돌려줄 수 있는 것 가운데 다리 아닌 것을, 없으면 getMethod 를 쓴다.
+     */
+    static Method resolve(Class<?> c, Method m) throws NoSuchMethodException {
+        Method best = null;
+        for (Method k : c.getMethods()) {
+            if (!k.getName().equals(m.getName()) || !java.util.Arrays.equals(k.getParameterTypes(), m.getParameterTypes())) continue;
+            if (!m.getReturnType().isAssignableFrom(k.getReturnType())) continue;
+            if (best == null || best.isBridge() && !k.isBridge()
+                    || best.isBridge() == k.isBridge() && best.getReturnType().isAssignableFrom(k.getReturnType()) && best.getReturnType() != k.getReturnType()) best = k;
+        }
+        return best != null ? best : c.getMethod(m.getName(), m.getParameterTypes());
     }
 
     /** 클래스가 (상위 사슬로) 구현하는 Bukkit/Paper API 인터페이스(org.bukkit·io.papermc·com.destroystokyo, CraftBukkit 밖). */

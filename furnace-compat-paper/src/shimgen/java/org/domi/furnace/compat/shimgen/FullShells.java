@@ -201,6 +201,7 @@ public final class FullShells {
             List<String> merged = new ArrayList<>();
             for (String n : classes.keySet()) if (!g.shells.contains(n)) merged.add(n);
             write(out.resolve(ShellMerge.MERGED), String.join("\n", merged) + "\n");
+            write(out.resolve(VALUE_BODIES), String.join("\n", g.valueFilled) + "\n");
         }
         CraftRoles roles = new CraftRoles(g);
         write(out.resolve(CraftRoles.PATH), roles.build(merge == null ? Set.of() : merge.bridges, g.conversions.converted));
@@ -368,7 +369,10 @@ public final class FullShells {
 
     Map<String, byte[]> generate() {
         select();
-        if (fillTable != null) fills = Fills.plan(this, fillTable);
+        if (fillTable != null) {
+            fills = Fills.plan(this, fillTable);
+            fills.planStaticReads(this, fillTable);   // 정적 필드 반환(G0 R)은 계획이 선 뒤 살아 있는 필드만
+        }
         if (!links.lines.isEmpty() || !links.problems.isEmpty()) {
             links.resolve(new LinkWorld(this));
             links.indexStaticFields(links.lineClasses());
@@ -448,7 +452,7 @@ public final class FullShells {
         else if (trapInit) initTrap(cw, n);
         else if (cf != null && !cf.statics.isEmpty() || !dataSlotFields(n).isEmpty()) staticClinit(cw, n, cf);
         cw.visitEnd();
-        int filledN = cf == null || trapInit ? 0 : cf.ctors.size() + cf.getters.size() + cf.statics.size() + cf.objectMethods.size() + (cf.enumConsts == null ? 0 : cf.enumConsts.size());
+        int filledN = cf == null || trapInit ? 0 : cf.ctors.size() + cf.getters.size() + cf.statics.size() + cf.objectMethods.size() + cf.values.size() + (cf.enumConsts == null ? 0 : cf.enumConsts.size());
         filledN += links.linkedMembers - linkedBefore;
         if (!trapInit) filledN += dataSlotFields(n).size();
         classStats.put(n, new int[]{shellMembers - shellBefore, filledN});
@@ -656,6 +660,12 @@ public final class FullShells {
             mv.visitEnd();
             return true;
         }
+        FillTable.Method vm = cf.values.get(key);
+        if (vm != null) {
+            valueBody(mv, m, vm);
+            valueFilled.add(owner + "#" + key);
+            return true;
+        }
         String om = switch (key) {
             case "toString()Ljava/lang/String;" -> "toString";
             case "hashCode()I" -> "hashCode";
@@ -670,6 +680,40 @@ public final class FullShells {
             return true;
         }
         return false;
+    }
+
+    /** 짧은 값 몸통을 쓴 멤버(소유자#이름+서술자) — 껍데기 jar 에 목록으로 넣어 FillParityTest 가 손 shim 에 더한 것까지 대조한다. */
+    final Set<String> valueFilled = new java.util.TreeSet<>();
+    static final String VALUE_BODIES = "META-INF/furnace/full-shells/value-bodies.txt";
+
+    /** 짧은 값 몸통(T-263 G0): 빈 void · 리터럴 · 인자(this) · 정적 필드를 돌려준다. */
+    static void valueBody(MethodVisitor mv, SigTable.Member m, FillTable.Method vm) {
+        Type rt = Type.getReturnType(m.desc());
+        mv.visitCode();
+        switch (vm.kind()) {
+            case 'E' -> { }
+            case 'K' -> pushOrLoad(mv, FillTable.Val.decode(vm.value()), rt, Map.of());
+            case 'A' -> {
+                int slot = Integer.parseInt(vm.value().substring(2));
+                Type at = Type.getObjectType("java/lang/Object");   // this
+                int s = vm.isStatic() ? 0 : 1;
+                for (Type t : Type.getArgumentTypes(m.desc())) {
+                    if (s == slot) at = t;
+                    s += t.getSize();
+                }
+                mv.visitVarInsn(at.getOpcode(Opcodes.ILOAD), slot);
+            }
+            case 'R' -> {
+                int dot = vm.value().indexOf('.'), colon = vm.value().indexOf(':', dot);
+                mv.visitFieldInsn(Opcodes.GETSTATIC, vm.value().substring(0, dot), vm.value().substring(dot + 1, colon), vm.value().substring(colon + 1));
+            }
+            default -> throw new IllegalStateException("value body kind " + vm.kind());
+        }
+        mv.visitInsn(rt.getOpcode(Opcodes.IRETURN));
+        // 크기를 직접 적는다 — 합치기(ShellMerge)의 ClassWriter 는 크기를 계산하지 않는다
+        int locals = (vm.isStatic() ? 0 : 1) + (Type.getArgumentsAndReturnSizes(m.desc()) >> 2) - 1;
+        mv.visitMaxs(rt.getSize(), locals);
+        mv.visitEnd();
     }
 
     /** javac 가 레코드에 쓰는 것과 같은 ObjectMethods 부트스트랩(성분 이름 목록 + 필드 읽기 핸들). */

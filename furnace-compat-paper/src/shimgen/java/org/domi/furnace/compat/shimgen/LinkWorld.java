@@ -65,8 +65,11 @@ final class LinkWorld implements Links.World {
                 if (h != null) {
                     Integer acc = h.methods().get(key);
                     if (acc != null) return (acc & Opcodes.ACC_ABSTRACT) != 0 ? null : new Links.Live(s, acc);
-                    // 손 shim 에 없고 표에 있는 멤버는 합치기(ShellMerge)가 던지는 몸통으로 덧붙인다 — 살아 있지 않다
-                    if (g.scope.containsKey(s) && member(s, 'M', name, desc) != null && g.existing.has(s)) return null;
+                    // 손 shim 에 없고 표에 있는 멤버는 합치기(ShellMerge)가 덧붙인다 — 짧은 값 몸통(G0)이면 살아 있고, 아니면 던지는 몸통
+                    if (g.scope.containsKey(s) && member(s, 'M', name, desc) != null && g.existing.has(s)) {
+                        SigTable.Member m = member(s, 'M', name, desc);
+                        return g.fills != null && g.fills.mergeValue(s, key) != null ? new Links.Live(s, m.access()) : null;
+                    }
                 }
             }
             todo.addAll(supertypes(s));
@@ -82,7 +85,7 @@ final class LinkWorld implements Links.World {
         if (g.conversions.match(s, m) != null) return true;   // T-264 P4 변환 몸통
         Fills.ClassFill cf = g.fills.of(s);
         if (cf == null || g.initTraps(s)) return false;
-        if (cf.getters.containsKey(m.name() + m.desc())) return true;
+        if (cf.getters.containsKey(m.name() + m.desc()) || cf.values.containsKey(m.name() + m.desc())) return true;
         return switch (m.name() + m.desc()) {
             case "toString()Ljava/lang/String;" -> cf.objectMethods.contains("toString");
             case "hashCode()I" -> cf.objectMethods.contains("hashCode");

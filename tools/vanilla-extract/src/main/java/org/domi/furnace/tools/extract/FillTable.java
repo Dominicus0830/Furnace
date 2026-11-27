@@ -30,13 +30,15 @@ import java.util.zip.GZIPOutputStream;
  * S 소유자 필드 필드서술자 값                                정적 초기화가 리터럴 하나를 한 번 대입하는 정적 필드
  * V 소유자 서수 이름 생성자서술자 값,…|!                     열거형 상수의 생성자 인자(전부 리터럴이면 값들, 아니면 !)
  * T 소유자 toString,hashCode,equals                         레코드 기본 메서드(ObjectMethods) 가운데 기본인 것
+ * M 소유자 이름 서술자 s|i 종류 값                           짧은 값 몸통(T-263 G0): 종류 K 리터럴 반환(값), E 빈 void(값 -),
+ *                                                           A 인자·this 반환(값 p:지역변수번호), R 정적 필드 반환(값 소유자.필드:서술자). s|i 는 정적·인스턴스
  * </pre>
  * 값 부호화: {@code i:10진}(B·C·S·Z·I), {@code j:10진}, {@code f:0x비트}, {@code d:0x비트}, {@code s:퍼센트부호화},
  * {@code n:}(null), 인자 자리는 {@code p:지역변수번호}. 단계는 {@code 필드:서술자=값}.
  */
 public final class FillTable {
     public static final String MAGIC = "#furnace-fill-table";
-    public static final String FORMAT = "1";
+    public static final String FORMAT = "2";   // 2: M 줄(T-263 G0)
 
     /** 값. kind 는 i·j·f·d·s·n(리터럴) 또는 p(생성자 인자 자리, 값은 지역변수 번호). */
     public record Val(char kind, Object value) {
@@ -84,12 +86,19 @@ public final class FillTable {
     /** args 가 null 이면 리터럴이 아닌 인자가 있다(채우지 않음). */
     public record EnumConst(String owner, int ordinal, String name, String ctorDesc, List<Val> args) {}
 
+    /**
+     * 짧은 값 몸통(T-263 G0). kind: K(리터럴 반환, value=Val 부호), E(빈 void, value="-"), A(인자·this 반환, value="p:번호"),
+     * R(정적 필드 반환, value="소유자.필드:서술자"). 몸통의 명령은 남기지 않는다 — 값만.
+     */
+    public record Method(String owner, String name, String desc, boolean isStatic, char kind, String value) {}
+
     private final String label;
     private final Map<String, List<Ctor>> ctors = new TreeMap<>();
     private final Map<String, List<Getter>> getters = new TreeMap<>();
     private final Map<String, List<Static>> statics = new TreeMap<>();
     private final Map<String, List<EnumConst>> enums = new TreeMap<>();
     private final Map<String, List<String>> objectMethods = new TreeMap<>();
+    private final Map<String, List<Method>> methods = new TreeMap<>();
 
     public FillTable(String label) { this.label = label; }
 
@@ -100,12 +109,15 @@ public final class FillTable {
     public List<EnumConst> enumConsts(String owner) { return enums.getOrDefault(owner, List.of()); }
     /** 레코드 기본 메서드 이름(toString·hashCode·equals 가운데 기본인 것). */
     public List<String> objectMethods(String owner) { return objectMethods.getOrDefault(owner, List.of()); }
+    /** 짧은 값 몸통(G0). */
+    public List<Method> methods(String owner) { return methods.getOrDefault(owner, List.of()); }
 
     public void add(Ctor c) { ctors.computeIfAbsent(c.owner(), k -> new ArrayList<>()).add(c); }
     public void add(Getter g) { getters.computeIfAbsent(g.owner(), k -> new ArrayList<>()).add(g); }
     public void add(Static s) { statics.computeIfAbsent(s.owner(), k -> new ArrayList<>()).add(s); }
     public void add(EnumConst e) { enums.computeIfAbsent(e.owner(), k -> new ArrayList<>()).add(e); }
     public void addObjectMethods(String owner, List<String> names) { objectMethods.put(owner, List.copyOf(names)); }
+    public void add(Method m) { methods.computeIfAbsent(m.owner(), k -> new ArrayList<>()).add(m); }
 
     /** 두 표(바닐라·Paper)에서 줄이 똑같은 것만 남긴 표. 한쪽에 없거나 다르면 채우지 않는다("모르면 채우지 않는다"). */
     public FillTable intersect(FillTable other) {
@@ -114,6 +126,7 @@ public final class FillTable {
         for (var e : getters.entrySet()) for (Getter c : e.getValue()) if (other.getters(e.getKey()).contains(c)) r.add(c);
         for (var e : statics.entrySet()) for (Static c : e.getValue()) if (other.statics(e.getKey()).contains(c)) r.add(c);
         for (var e : enums.entrySet()) for (EnumConst c : e.getValue()) if (other.enumConsts(e.getKey()).contains(c)) r.add(c);
+        for (var e : methods.entrySet()) for (Method c : e.getValue()) if (other.methods(e.getKey()).contains(c)) r.add(c);
         for (var e : objectMethods.entrySet()) {
             List<String> keep = new ArrayList<>();
             for (String n : e.getValue()) if (other.objectMethods(e.getKey()).contains(n)) keep.add(n);
@@ -124,7 +137,7 @@ public final class FillTable {
 
     public int size() {
         int n = 0;
-        for (var m : List.of(ctors, getters, statics, enums)) for (List<?> l : m.values()) n += l.size();
+        for (var m : List.of(ctors, getters, statics, enums, methods)) for (List<?> l : m.values()) n += l.size();
         return n + objectMethods.size();
     }
 
@@ -158,6 +171,9 @@ public final class FillTable {
                     w.write(String.join("\t", "V", c, Integer.toString(e.ordinal()), e.name(), e.ctorDesc(), a) + "\n");
                 }
                 if (objectMethods.containsKey(c)) w.write("T\t" + c + "\t" + String.join(",", objectMethods.get(c)) + "\n");
+                for (Method x : methods(c)) {
+                    w.write(String.join("\t", "M", c, x.name(), x.desc(), x.isStatic() ? "s" : "i", String.valueOf(x.kind()), x.value()) + "\n");
+                }
             }
         }
         Files.move(tmp, out, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
@@ -170,6 +186,7 @@ public final class FillTable {
         s.addAll(statics.keySet());
         s.addAll(enums.keySet());
         s.addAll(objectMethods.keySet());
+        s.addAll(methods.keySet());
         return new ArrayList<>(s);
     }
 
@@ -216,6 +233,7 @@ public final class FillTable {
                     t.add(new EnumConst(f[1], Integer.parseInt(f[2]), f[3], f[4], a));
                 }
                 case "T" -> t.addObjectMethods(f[1], List.of(f[2].split(",")));
+                case "M" -> t.add(new Method(f[1], f[2], f[3], f[4].equals("s"), f[5].charAt(0), f[6]));
                 default -> throw new IOException("알 수 없는 줄: " + line);
             }
         }

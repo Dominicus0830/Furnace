@@ -1,6 +1,7 @@
 // T-262: 전체 껍데기의 채우기 계획. 채움 표(바닐라 jar 에서 값만 뽑은 것)와 서명표를 맞대어, 껍데기 클래스마다
 // "무엇을 진짜로 채울지"를 정한다. 몸통은 여기서 만들지 않는다(FullShells 가 ASM 으로 쓴다). 채우는 것은 값만으로 정해지는 멤버뿐이다:
-// 단순 생성자(상위 호출 + 필드 대입), 단순 읽기, 정적 리터럴, 열거형 상수 인자, 레코드 기본 메서드. 나머지는 던지는 껍데기로 남는다.
+// 단순 생성자(상위 호출 + 필드 대입), 단순 읽기, 정적 리터럴, 열거형 상수 인자, 레코드 기본 메서드,
+// 짧은 값 몸통(T-263 G0: 빈 void·리터럴·인자(this)·살아 있는 정적 필드 반환). 나머지는 던지는 껍데기로 남는다.
 package org.domi.furnace.compat.shimgen;
 
 import java.util.ArrayList;
@@ -29,9 +30,11 @@ final class Fills {
         List<FillTable.EnumConst> enumConsts;
         /** 레코드 기본 메서드 이름. */
         final Set<String> objectMethods = new HashSet<>();
+        /** 짧은 값 몸통(이름+서술자 → 표 줄, T-263 G0). */
+        final Map<String, FillTable.Method> values = new LinkedHashMap<>();
 
         boolean any() {
-            return !ctors.isEmpty() || !getters.isEmpty() || !statics.isEmpty() || enumConsts != null || !objectMethods.isEmpty();
+            return !ctors.isEmpty() || !getters.isEmpty() || !statics.isEmpty() || enumConsts != null || !objectMethods.isEmpty() || !values.isEmpty();
         }
     }
 
@@ -42,6 +45,14 @@ final class Fills {
     int enumCount;
     int enumConstCount;
     int objectMethodCount;
+    final Map<Character, Integer> valueCounts = new java.util.TreeMap<>();
+    /** 손 shim 에 합치기(T-261)가 더하는 멤버의 짧은 값 몸통(소유자 → 이름+서술자 → 표 줄). 합치기가 실제로 더할 때만 쓰인다. */
+    final Map<String, Map<String, FillTable.Method>> mergeValues = new HashMap<>();
+
+    FillTable.Method mergeValue(String owner, String key) {
+        Map<String, FillTable.Method> m = mergeValues.get(owner);
+        return m == null ? null : m.get(key);
+    }
 
     ClassFill of(String n) { return byClass.get(n); }
 
@@ -173,7 +184,90 @@ final class Fills {
                 cf.enumConsts = enumConsts(g, ft, n, have);
             }
         }
+        // 짧은 값 몸통(G0): K·E·A 는 여기서, R 은 정적 필드가 살아 있는지 알아야 하므로 planStaticReads(채우기 계획이 선 뒤)
+        for (String n : g.shells) {
+            Decl d = decls.get(n);
+            if (d == null) continue;
+            for (FillTable.Method vm : ft.methods(n)) {
+                if (vm.kind() == 'R' || !methodFits(vm, d)) continue;
+                f.byClass.computeIfAbsent(n, k -> new ClassFill()).values.put(vm.name() + vm.desc(), vm);
+            }
+        }
         f.byClass.values().removeIf(c -> !c.any());
+        f.recount();
+        return f;
+    }
+
+    /** 표 줄의 멤버가 이 클래스에 같은 정적 여부로, 추상이 아니게 있나. */
+    private static boolean methodFits(FillTable.Method vm, Decl d) {
+        Integer acc = d.methods().get(vm.name() + vm.desc());
+        return acc != null && (acc & Opcodes.ACC_ABSTRACT) == 0 && ((acc & Opcodes.ACC_STATIC) != 0) == vm.isStatic();
+    }
+
+    /**
+     * 정적 필드 반환(R): 그 필드가 살아 있을 때만(손 shim·상수·T-262 정적 리터럴·열거형 상수·칸 필드 — 연결기 세계의 판정).
+     * 아니면 null 을 돌려주게 되므로 채우지 않는다. g.fills 가 이미 이 계획이어야 한다.
+     */
+    void planStaticReads(FullShells g, FillTable ft) {
+        LinkWorld w = new LinkWorld(g);
+        // 손 shim(NMS 범위): 합치기가 더할 멤버 몫 — K·E·A·R 모두 여기서(손 shim 의 정적 필드는 연결기 세계가 바이트에서 본다)
+        for (Map.Entry<String, FullShells.Scope> e : g.scope.entrySet()) {
+            String n = e.getKey();
+            if (e.getValue() != FullShells.Scope.NMS || g.shells.contains(n) || !g.existing.has(n) || ft.methods(n).isEmpty()) continue;
+            Map<String, Integer> ms = new HashMap<>();
+            for (SigTable.Member m : g.table(n).members(n)) if (m.kind() == 'M') ms.put(m.name() + m.desc(), m.access());
+            Decl d = new Decl(ms, Map.of(), Map.of());
+            for (FillTable.Method vm : ft.methods(n)) {
+                if (!methodFits(vm, d) || vm.kind() == 'R' && !liveField(w, vm)) continue;
+                mergeValues.computeIfAbsent(n, k -> new HashMap<>()).put(vm.name() + vm.desc(), vm);
+            }
+        }
+        for (String n : g.shells) {
+            SigTable.Cls c = g.decl(n);
+            if (c == null) continue;
+            Map<String, Integer> ms = new HashMap<>();
+            for (SigTable.Member m : g.table(n).members(n)) if (m.kind() == 'M') ms.put(m.name() + m.desc(), m.access());
+            for (FillTable.Method vm : ft.methods(n)) {
+                if (vm.kind() != 'R' || !methodFits(vm, new Decl(ms, Map.of(), Map.of()))) continue;
+                if (!liveField(w, vm)) continue;
+                byClass.computeIfAbsent(n, k -> new ClassFill()).values.put(vm.name() + vm.desc(), vm);
+            }
+        }
+        // 상위 사슬에 초기화 덫(값 없는 필드가 있는 NMS 밖 껍데기)이 있으면 그 클래스는 초기화되지 않는다 — 닿지 않는 몸통은 채우지 않는다
+        for (Map.Entry<String, ClassFill> e : byClass.entrySet()) if (!e.getValue().values.isEmpty() && chainTraps(g, e.getKey())) e.getValue().values.clear();
+        mergeValues.keySet().removeIf(n -> chainTraps(g, n));
+        byClass.values().removeIf(c -> !c.any());
+        recount();
+    }
+
+    /** 상위 형식(자신 제외) 가운데 초기화 덫인 껍데기가 있나. */
+    static boolean chainTraps(FullShells g, String n) {
+        java.util.ArrayDeque<String> todo = new java.util.ArrayDeque<>();
+        Set<String> seen = new HashSet<>();
+        SigTable.Cls c0 = g.decl(n);
+        if (c0 == null) return false;
+        if (c0.superName() != null) todo.add(c0.superName());
+        todo.addAll(c0.interfaces());
+        while (!todo.isEmpty()) {
+            String s = todo.poll();
+            if (!seen.add(s)) continue;
+            if (g.shells.contains(s) && g.initTraps(s)) return true;
+            SigTable.Cls c = g.decl(s);
+            if (c == null) continue;
+            if (c.superName() != null) todo.add(c.superName());
+            todo.addAll(c.interfaces());
+        }
+        return false;
+    }
+
+    private static boolean liveField(LinkWorld w, FillTable.Method vm) {
+        int dot = vm.value().indexOf('.'), colon = vm.value().indexOf(':', dot);
+        return w.liveStaticField(vm.value().substring(0, dot), vm.value().substring(dot + 1, colon), vm.value().substring(colon + 1));
+    }
+
+    private void recount() {
+        Fills f = this;
+        f.valueCounts.clear();
         f.ctorCount = f.getterCount = f.staticCount = f.enumCount = f.enumConstCount = f.objectMethodCount = 0;
         for (ClassFill c : f.byClass.values()) {
             f.ctorCount += c.ctors.size();
@@ -184,8 +278,8 @@ final class Fills {
                 f.enumCount++;
                 f.enumConstCount += c.enumConsts.size();
             }
+            for (FillTable.Method vm : c.values.values()) f.valueCounts.merge(vm.kind(), 1, Integer::sum);
         }
-        return f;
     }
 
 
@@ -223,6 +317,7 @@ final class Fills {
         r.add("statics=" + f.staticCount);
         r.add("enums=" + f.enumCount + "(" + f.enumConstCount + " constants)");
         r.add("objectMethods=" + f.objectMethodCount);
+        r.add("values=" + f.valueCounts);
         return r;
     }
 }
