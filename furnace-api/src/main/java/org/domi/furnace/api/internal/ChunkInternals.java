@@ -1374,6 +1374,26 @@ public interface ChunkInternals {
     /** 그 번호의 지도(서버 전체 — 바닐라 Level#getMapData 는 오버월드 저장소에서 읽는다). 없으면 null. 아무 스레드. */
     MapInfo mapInfo(int mapId);
 
+    /**
+     * 전리품 표 굴리기 매개변수(바닐라 {@code LootParams} 의 값 — 이름은 바닐라 {@code LootContextParams} 키). 없는 값은 null.
+     * {@code origin} 은 {x, y, z}. {@code blockState} 는 블록 상태 번호. 엔티티는 {@link #lootRoll} 을 부르는 스레드가 주인이어야 한다.
+     * 피해 원인(damage_source)·블록 엔티티(block_entity)는 아직 못 받는다.
+     */
+    record LootRollParams(double[] origin, org.domi.furnace.api.item.ItemStack tool, org.domi.furnace.api.entity.Entity thisEntity,
+                          org.domi.furnace.api.entity.Entity lastDamagePlayer, org.domi.furnace.api.entity.Entity attackingEntity,
+                          org.domi.furnace.api.entity.Entity directAttackingEntity, Integer blockState, Float explosionRadius,
+                          Integer enchantmentLevel, Boolean enchantmentActive, float luck) {}
+
+    /**
+     * 바닐라 {@code LootTable#getRandomItems(LootParams, long)}: 그 월드의 데이터 팩 전리품 표 {@code tableId}(minecraft:chests/… )를 굴려 나온
+     * 아이템(최대 스택 크기로 나눈 것)을 돌려준다. 표가 없으면 빈 목록. {@code seed} 가 0 이면 표의 random_sequence 또는 월드 난수(바닐라와 같다).
+     * 위치·바이옴을 읽는 조건은 그 칸 청크를 이 스레드가 가진 경우에만 답한다(아니면 거짓). 엔티티 매개변수가 이 스레드 소유가 아니면
+     * {@link org.domi.furnace.api.concurrent.ThreadOwnershipException}.
+     */
+    default java.util.List<org.domi.furnace.api.item.ItemStack> lootRoll(World world, String tableId, LootRollParams params, long seed) {
+        throw new UnsupportedOperationException("lootRoll");
+    }
+
     /** 바이옴 기후·색(바닐라 Biome.ClimateSettings·BiomeSpecialEffects 의 값). 색 고정값이 없으면 -1. */
     record BiomeInfo(boolean hasPrecipitation, float temperature, boolean frozen, float downfall, int fogColor, int waterColor, int waterFogColor,
                      int skyColor, int foliageColor, int grassColor, String grassColorModifier) {}

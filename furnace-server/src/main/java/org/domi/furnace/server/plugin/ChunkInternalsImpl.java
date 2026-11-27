@@ -2294,6 +2294,44 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     @Override
+    public List<org.domi.furnace.api.item.ItemStack> lootRoll(org.domi.furnace.api.world.World world, String tableId, LootRollParams p, long seed) {
+        var core = host.core();
+        var w = handle(world).handle();
+        var dp = core.dataPacks();
+        if (dp == null || dp.loot() == null) return List.of();
+        var table = dp.loot().table(tableId);
+        var lp = new org.domi.furnace.server.loot.LootParams();
+        if (p.origin() != null) lp.with(org.domi.furnace.server.loot.LootParams.ORIGIN, p.origin().clone());
+        if (p.tool() != null) {
+            lp.with(org.domi.furnace.server.loot.LootParams.TOOL, org.domi.furnace.server.ServerCore.toLootStack(org.domi.furnace.server.plugin.ApiConvert.item(p.tool())));
+        }
+        lp.with(org.domi.furnace.server.loot.LootParams.THIS_ENTITY, lootEntity(p.thisEntity()));
+        lp.with(org.domi.furnace.server.loot.LootParams.LAST_DAMAGE_PLAYER, lootEntity(p.lastDamagePlayer()));
+        lp.with(org.domi.furnace.server.loot.LootParams.ATTACKING_ENTITY, lootEntity(p.attackingEntity()));
+        lp.with(org.domi.furnace.server.loot.LootParams.DIRECT_ATTACKING_ENTITY, lootEntity(p.directAttackingEntity()));
+        if (p.blockState() != null) lp.with(org.domi.furnace.server.loot.LootParams.BLOCK_STATE, org.domi.furnace.server.ServerCore.lootBlockState(p.blockState()));
+        lp.with(org.domi.furnace.server.loot.LootParams.EXPLOSION_RADIUS, p.explosionRadius());
+        lp.with(org.domi.furnace.server.loot.LootParams.ENCHANTMENT_LEVEL, p.enchantmentLevel());
+        lp.with(org.domi.furnace.server.loot.LootParams.ENCHANTMENT_ACTIVE, p.enchantmentActive());
+        lp.luck(p.luck());
+        List<org.domi.furnace.api.item.ItemStack> out = new java.util.ArrayList<>();
+        for (var st : core.rollLoot(w, table, lp, seed)) out.add(apiItem(st));
+        return out;
+    }
+
+    /** API 엔티티 → 전리품 엔티티 보기(주인 스레드만 — 아니면 ThreadOwnershipException). null 이면 null. */
+    private static org.domi.furnace.server.loot.LootEntity lootEntity(org.domi.furnace.api.entity.Entity e) {
+        if (e == null) return null;
+        Object internal;
+        try {
+            internal = org.domi.furnace.api.Furnace.server().internals().entityNow(e, Object.class);
+        } catch (IllegalStateException gone) {
+            throw new IllegalArgumentException(gone.getMessage(), gone);   // 사라진 엔티티
+        }
+        return org.domi.furnace.server.entity.LootEntities.of((org.domi.furnace.server.entity.Rider) internal);
+    }
+
+    @Override
     public BiomeInfo biomeInfo(String biomeKey) {
         if (biomeKey == null) return null;
         var store = host.pluginsImpl().gameRegistries();
