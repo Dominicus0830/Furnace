@@ -130,7 +130,8 @@ class BukkitBiomeProviderWorldTest {
             World def = Bukkit.createWorld(new WorldCreator("deflat").seed(1L).type(WorldType.FLAT));
             assertEquals(List.of(org.bukkit.Material.GRASS_BLOCK, org.bukkit.Material.AIR, Biome.PLAINS), onRegion(def, 3, 3, () -> List.<Object>of(
                     def.getBlockAt(3, -61, 3).getType(), def.getBlockAt(3, -60, 3).getType(), def.getBiome(3, -61, 3))));
-            World desert = Bukkit.createWorld(new WorldCreator("dflat").type(WorldType.FLAT)
+            // 사막도 시드를 정한다 — 무작위 시드면 사막 마을(매끄러운 사암)이 (3, 3)에 놓일 때가 있다
+            World desert = Bukkit.createWorld(new WorldCreator("dflat").seed(1L).type(WorldType.FLAT)
                     .generatorSettings("{\"layers\":[{\"block\":\"minecraft:sand\",\"height\":3}],\"biome\":\"minecraft:desert\",\"features\":true}"));
             assertEquals(List.of(org.bukkit.Material.SAND, Biome.DESERT), onRegion(desert, 3, 3, () -> List.<Object>of(
                     desert.getBlockAt(3, -62, 3).getType(), desert.getBiome(3, -62, 3))));

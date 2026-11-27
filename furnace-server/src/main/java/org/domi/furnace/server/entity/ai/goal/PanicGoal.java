@@ -16,11 +16,14 @@ public class PanicGoal extends Goal {
     protected final double speedModifier;
     protected double posX, posY, posZ;
     protected boolean isRunning;
-    private final String panicTag;
+    /** 바닐라 panicCausingDamageTypes(Function — 몹마다 같은 몹을 넘기므로 Supplier). null 을 주면 어느 피해도 맞지 않는다(다른 레지스트리의 태그). */
+    private final java.util.function.Supplier<String> panicTag;
 
     public PanicGoal(PathfinderMob mob, double speed) { this(mob, speed, "minecraft:panic_causes"); }
 
-    public PanicGoal(PathfinderMob mob, double speed, String panicTag) {
+    public PanicGoal(PathfinderMob mob, double speed, String panicTag) { this(mob, speed, () -> panicTag); }
+
+    public PanicGoal(PathfinderMob mob, double speed, java.util.function.Supplier<String> panicTag) {
         this.mob = mob;
         this.panicTag = panicTag;
         this.speedModifier = speed;
@@ -44,7 +47,9 @@ public class PanicGoal extends Goal {
 
     protected boolean shouldPanic() {
         String t = mob.getLastDamageType();
-        return t != null && DamageType.byKey(t).isInTag(panicTag);
+        if (t == null) return false;
+        String tag = panicTag.get();   // 바닐라처럼 마지막 피해가 있을 때만 부른다
+        return tag != null && DamageType.byKey(t).isInTag(tag);
     }
 
     protected boolean findRandomPosition() {

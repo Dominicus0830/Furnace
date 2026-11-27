@@ -2,6 +2,7 @@
 package org.domi.furnace.server.entity.ai.goal;
 
 import java.util.EnumSet;
+import java.util.function.Predicate;
 import org.domi.furnace.server.attribute.Attribute;
 import org.domi.furnace.server.entity.AABB;
 import org.domi.furnace.server.entity.TamableAnimal;
@@ -15,13 +16,25 @@ public class HurtByTargetGoal extends TargetGoal {
     private static final TargetingConditions HURT_BY_TARGETING = TargetingConditions.forCombat().ignoreLineOfSight().ignoreInvisibilityTesting();
     private boolean alertSameType;
     private int timestamp;
-    private final Class<?>[] toIgnoreDamage;
-    private Class<?>[] toIgnoreAlert;
+    /** 바닐라 toIgnoreDamage(클래스 isAssignableFrom) — 호환 계층은 종류 판정으로 준다. */
+    private final Predicate<Targetable> toIgnoreDamage;
+    /** 바닐라 toIgnoreAlert(정확히 같은 클래스) — null 이면 없음. */
+    private Predicate<Mob> toIgnoreAlert;
 
-    public HurtByTargetGoal(PathfinderMob mob, Class<?>... ignoreDamage) {
+    public HurtByTargetGoal(PathfinderMob mob, Class<?>... ignoreDamage) { this(mob, anyAssignable(ignoreDamage)); }
+
+    public HurtByTargetGoal(PathfinderMob mob, Predicate<Targetable> ignoreDamage) {
         super(mob, true);
         this.toIgnoreDamage = ignoreDamage;
         setFlags(EnumSet.of(Flag.TARGET));
+    }
+
+    private static Predicate<Targetable> anyAssignable(Class<?>[] cs) {
+        Class<?>[] copy = cs.clone();
+        return t -> {
+            for (Class<?> c : copy) if (c.isAssignableFrom(t.getClass())) return true;
+            return false;
+        };
     }
 
     @Override
@@ -30,13 +43,21 @@ public class HurtByTargetGoal extends TargetGoal {
         Targetable last = mob.getLastHurtByMob();
         if (ts != timestamp && last != null) {
             if (last.isPlayer() && mob.level().gameRule("universalAnger")) return false;
-            for (Class<?> c : toIgnoreDamage) if (c.isAssignableFrom(last.getClass())) return false;
+            if (toIgnoreDamage.test(last)) return false;
             return canAttack(last, HURT_BY_TARGETING);
         }
         return false;
     }
 
     public HurtByTargetGoal setAlertOthers(Class<?>... ignoreAlert) {
+        Class<?>[] copy = ignoreAlert.clone();
+        return setAlertOthers(m -> {
+            for (Class<?> c : copy) if (m.getClass() == c) return true;
+            return false;
+        });
+    }
+
+    public HurtByTargetGoal setAlertOthers(Predicate<Mob> ignoreAlert) {
         alertSameType = true;
         toIgnoreAlert = ignoreAlert;
         return this;
@@ -59,9 +80,7 @@ public class HurtByTargetGoal extends TargetGoal {
             if (mob != other && other.getTarget() == null
                     && !(mob instanceof TamableAnimal t && other instanceof TamableAnimal o && t.getOwner() != o.getOwner())   // 주인이 다른 길들인 동물은 돕지 않는다
                     && !other.isAlliedTo(mob.getLastHurtByMob())) {
-                boolean ignored = false;
-                if (toIgnoreAlert != null) for (Class<?> c : toIgnoreAlert) if (other.getClass() == c) ignored = true;
-                if (!ignored) alertOther(other, mob.getLastHurtByMob());
+                if (toIgnoreAlert == null || !toIgnoreAlert.test(other)) alertOther(other, mob.getLastHurtByMob());
             }
         }
     }

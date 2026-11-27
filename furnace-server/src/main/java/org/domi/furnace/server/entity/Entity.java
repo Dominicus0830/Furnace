@@ -313,6 +313,9 @@ public abstract non-sealed class Entity implements Rider {
 
     public double eyeY() { return y + dimEye; }
 
+    /** 바닐라 getEyeHeight: 지금 몸 크기의 눈높이. */
+    public float eyeHeight() { return dimEye; }
+
     public boolean isRemoved() { return removalReason != null; }
 
     public RemovalReason removalReason() { return removalReason; }

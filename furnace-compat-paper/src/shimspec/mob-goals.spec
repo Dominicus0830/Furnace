@@ -55,10 +55,16 @@ class net.minecraft.world.entity.ai.goal.GoalSelector
   hasTasks -> @hand read=any
 # 바닐라 목표 클래스(서명표에서 — ai/goal·ai/goal/target 의 바깥 클래스 전부, 열거형 BoatGoals 빼고)
 class net.minecraft.world.entity.ai.goal.AvoidEntityGoal
+  <init>(Lnet/minecraft/world/entity/PathfinderMob;Ljava/lang/Class;FDD)V -> @hand
+  <init>(Lnet/minecraft/world/entity/PathfinderMob;Ljava/lang/Class;FDDLjava/util/function/Predicate;)V -> @hand
+  <init>(Lnet/minecraft/world/entity/PathfinderMob;Ljava/lang/Class;Ljava/util/function/Predicate;FDDLjava/util/function/Predicate;)V -> @hand
 class net.minecraft.world.entity.ai.goal.BegGoal
 class net.minecraft.world.entity.ai.goal.BreakDoorGoal
 class net.minecraft.world.entity.ai.goal.BreathAirGoal
+  <init> -> @hand
 class net.minecraft.world.entity.ai.goal.BreedGoal
+  <init>(Lnet/minecraft/world/entity/animal/Animal;D)V -> @hand
+  <init>(Lnet/minecraft/world/entity/animal/Animal;DLjava/lang/Class;)V -> @hand
 class net.minecraft.world.entity.ai.goal.CatLieOnBedGoal
 class net.minecraft.world.entity.ai.goal.CatSitOnBlockGoal
 class net.minecraft.world.entity.ai.goal.ClimbOnTopOfPowderSnowGoal
@@ -66,54 +72,83 @@ class net.minecraft.world.entity.ai.goal.DolphinJumpGoal
 class net.minecraft.world.entity.ai.goal.DoorInteractGoal
 class net.minecraft.world.entity.ai.goal.EatBlockGoal
 class net.minecraft.world.entity.ai.goal.FleeSunGoal
+  <init> -> @hand
 class net.minecraft.world.entity.ai.goal.FloatGoal
+  <init> -> @hand
 class net.minecraft.world.entity.ai.goal.FollowBoatGoal
 class net.minecraft.world.entity.ai.goal.FollowFlockLeaderGoal
 class net.minecraft.world.entity.ai.goal.FollowMobGoal
 class net.minecraft.world.entity.ai.goal.FollowOwnerGoal
 class net.minecraft.world.entity.ai.goal.FollowParentGoal
+  <init> -> @hand
 class net.minecraft.world.entity.ai.goal.GolemRandomStrollInVillageGoal
 class net.minecraft.world.entity.ai.goal.InteractGoal
 class net.minecraft.world.entity.ai.goal.JumpGoal
 class net.minecraft.world.entity.ai.goal.LandOnOwnersShoulderGoal
 class net.minecraft.world.entity.ai.goal.LeapAtTargetGoal
+  <init> -> @hand
 class net.minecraft.world.entity.ai.goal.LlamaFollowCaravanGoal
 class net.minecraft.world.entity.ai.goal.LookAtPlayerGoal
+  <init>(Lnet/minecraft/world/entity/Mob;Ljava/lang/Class;F)V -> @hand
+  <init>(Lnet/minecraft/world/entity/Mob;Ljava/lang/Class;FF)V -> @hand
+  <init>(Lnet/minecraft/world/entity/Mob;Ljava/lang/Class;FFZ)V -> @hand
 class net.minecraft.world.entity.ai.goal.LookAtTradingPlayerGoal
 class net.minecraft.world.entity.ai.goal.MeleeAttackGoal
+  <init> -> @hand
 class net.minecraft.world.entity.ai.goal.MoveBackToVillageGoal
 class net.minecraft.world.entity.ai.goal.MoveThroughVillageGoal
 class net.minecraft.world.entity.ai.goal.MoveToBlockGoal
 class net.minecraft.world.entity.ai.goal.MoveTowardsRestrictionGoal
+  <init> -> @hand
 class net.minecraft.world.entity.ai.goal.MoveTowardsTargetGoal
+  <init> -> @hand
 class net.minecraft.world.entity.ai.goal.OcelotAttackGoal
 class net.minecraft.world.entity.ai.goal.OfferFlowerGoal
 class net.minecraft.world.entity.ai.goal.OpenDoorGoal
+  <init> -> @hand
 class net.minecraft.world.entity.ai.goal.PanicGoal
+  <init>(Lnet/minecraft/world/entity/PathfinderMob;D)V -> @hand
+  <init>(Lnet/minecraft/world/entity/PathfinderMob;DLjava/util/function/Function;)V -> @hand
+  <init>(Lnet/minecraft/world/entity/PathfinderMob;DLnet/minecraft/tags/TagKey;)V -> @hand
 class net.minecraft.world.entity.ai.goal.PathfindToRaidGoal
 class net.minecraft.world.entity.ai.goal.RandomLookAroundGoal
+  <init> -> @hand
 class net.minecraft.world.entity.ai.goal.RandomStandGoal
 class net.minecraft.world.entity.ai.goal.RandomStrollGoal
+  <init>(Lnet/minecraft/world/entity/PathfinderMob;D)V -> @hand
+  <init>(Lnet/minecraft/world/entity/PathfinderMob;DI)V -> @hand
+  <init>(Lnet/minecraft/world/entity/PathfinderMob;DIZ)V -> @hand
 class net.minecraft.world.entity.ai.goal.RandomSwimmingGoal
+  <init> -> @hand
 class net.minecraft.world.entity.ai.goal.RangedAttackGoal
 class net.minecraft.world.entity.ai.goal.RangedBowAttackGoal
 class net.minecraft.world.entity.ai.goal.RangedCrossbowAttackGoal
 class net.minecraft.world.entity.ai.goal.RemoveBlockGoal
 class net.minecraft.world.entity.ai.goal.RestrictSunGoal
+  <init> -> @hand
 class net.minecraft.world.entity.ai.goal.RunAroundLikeCrazyGoal
 class net.minecraft.world.entity.ai.goal.SitWhenOrderedToGoal
 class net.minecraft.world.entity.ai.goal.StrollThroughVillageGoal
 class net.minecraft.world.entity.ai.goal.SwellGoal
 class net.minecraft.world.entity.ai.goal.TemptGoal
+  <init> -> @hand
 class net.minecraft.world.entity.ai.goal.TradeWithPlayerGoal
 class net.minecraft.world.entity.ai.goal.TryFindWaterGoal
 class net.minecraft.world.entity.ai.goal.UseItemGoal
 class net.minecraft.world.entity.ai.goal.WaterAvoidingRandomFlyingGoal
+  <init> -> @hand
 class net.minecraft.world.entity.ai.goal.WaterAvoidingRandomStrollGoal
+  <init>(Lnet/minecraft/world/entity/PathfinderMob;D)V -> @hand
+  <init>(Lnet/minecraft/world/entity/PathfinderMob;DF)V -> @hand
 class net.minecraft.world.entity.ai.goal.ZombieAttackGoal
 class net.minecraft.world.entity.ai.goal.target.DefendVillageTargetGoal
 class net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal
+  <init> -> @hand
 class net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal
+  <init>(Lnet/minecraft/world/entity/Mob;Ljava/lang/Class;IZZLjava/util/function/Predicate;)V -> @hand
+  <init>(Lnet/minecraft/world/entity/Mob;Ljava/lang/Class;Z)V -> @hand
+  <init>(Lnet/minecraft/world/entity/Mob;Ljava/lang/Class;ZLjava/util/function/Predicate;)V -> @hand
+  <init>(Lnet/minecraft/world/entity/Mob;Ljava/lang/Class;ZZ)V -> @hand
 class net.minecraft.world.entity.ai.goal.target.NearestAttackableWitchTargetGoal
 class net.minecraft.world.entity.ai.goal.target.NearestHealableRaiderTargetGoal
 class net.minecraft.world.entity.ai.goal.target.NonTameRandomTargetGoal

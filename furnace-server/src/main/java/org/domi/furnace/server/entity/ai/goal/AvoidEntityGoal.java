@@ -26,8 +26,12 @@ public class AvoidEntityGoal extends Goal {
     protected final Predicate<Targetable> avoidPredicate;
     private final TargetingConditions avoidEntityTargeting;
 
+    /** 바닐라 EntitySelector.NO_CREATIVE_OR_SPECTATOR(5인자 생성자의 기본 조건). */
+    public static final Predicate<Targetable> NO_CREATIVE_OR_SPECTATOR =
+            t -> !(t instanceof Player p) || p.gameMode() != GameMode.CREATIVE && p.gameMode() != GameMode.SPECTATOR;
+
     public AvoidEntityGoal(PathfinderMob mob, Class<? extends Targetable> cls, float maxDist, double walk, double sprint) {
-        this(mob, cls, t -> true, maxDist, walk, sprint, t -> !(t instanceof Player p) || p.gameMode() != GameMode.CREATIVE && p.gameMode() != GameMode.SPECTATOR);
+        this(mob, cls, t -> true, maxDist, walk, sprint, NO_CREATIVE_OR_SPECTATOR);
     }
 
     /** 피할 대상 조건(predicateOnAvoidEntity)이 기본 '크리에이티브·관전자 제외'를 대신한다. */
@@ -46,6 +50,7 @@ public class AvoidEntityGoal extends Goal {
         this.pathNav = mob.getNavigation();
         setFlags(EnumSet.of(Flag.MOVE));
         this.avoidEntityTargeting = TargetingConditions.forCombat().range(maxDist).selector(pathableTargetPredicate.and(avoidPredicate));
+        if (TargetingConditions.isPlugin(pathableTargetPredicate) || TargetingConditions.isPlugin(avoidPredicate)) avoidEntityTargeting.everyCandidate();
     }
 
     @Override

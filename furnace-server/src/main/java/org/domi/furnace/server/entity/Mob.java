@@ -26,6 +26,8 @@ public abstract class Mob extends LivingEntity implements Leashable {
     /** xpReward: 종류별 기본 경험치(적대 몹 5, 동물은 별도 규칙, 주민 0). */
     protected int xpReward;
     protected final GoalSelector goalSelector = new GoalSelector();
+    /** 호환 계층 몹 목표 조작 기록의 ref → 서버 목표·감싼 목표(몹 목표 설계 M3). 월드에 넣기 전 재생에만 쓰고, 넣은 뒤 비운다. 주인 스레드(또는 샌드박스 잠금)만. */
+    public java.util.Map<Object, Object> compatGoalRefs;
     protected final GoalSelector targetSelector = new GoalSelector();
     protected LookControl lookControl;
     protected MoveControl moveControl;

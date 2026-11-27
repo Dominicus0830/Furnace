@@ -224,6 +224,24 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
         return hits;
     }
 
+    private static final byte[] FABRIC_INTERMEDIARY = "net/minecraft/class_".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] FABRIC_API = "net/fabricmc/".getBytes(StandardCharsets.UTF_8);
+
+    /**
+     * Fabric 모드 쪽 클래스인가: Fabric 중간 이름({@code net/minecraft/class_<숫자>})이나 Fabric 로더·API({@code net/fabricmc/})를 담았다.
+     * Fabric 모드와 Bukkit 플러그인을 한 jar 에 담은 것(예: TPS HUD)은 Paper 에서 {@code plugin.yml} 쪽 클래스만 올리므로, Fabric 쪽은 보고·Spigot 대응표 판정에서 뺀다.
+     * {@code method_<숫자>}·{@code field_<숫자>} 멤버는 이런 클래스 안에서만 나오므로 클래스째 빼면 함께 빠진다.
+     */
+    static boolean fabricSide(byte[] b) {
+        for (int i = 0, n = b.length; i < n; i++) {
+            if (b[i] != 'n') continue;
+            if (at(b, i, FABRIC_API)) return true;
+            int k = i + FABRIC_INTERMEDIARY.length;
+            if (k < n && b[k] >= '0' && b[k] <= '9' && at(b, i, FABRIC_INTERMEDIARY)) return true;
+        }
+        return false;
+    }
+
     private static boolean at(byte[] hay, int i, byte[] needle) {
         if (i + needle.length > hay.length) return false;
         for (int j = 1; j < needle.length; j++) if (hay[i + j] != needle[j]) return false;
@@ -256,6 +274,7 @@ public record NmsCompatReport(String plugin, String namespace, int symbols, int 
                 try (InputStream in = jf.getInputStream(e)) {
                     byte[] b = in.readAllBytes();
                     int hits = scanNames(b);
+                    if ((hits & SLASHED) != 0 && fabricSide(b)) continue;   // Fabric 쪽 코드 — Paper 에서는 올라가지 않는다
                     if ((hits & (SLASHED | CRAFT)) != 0) candidates.add(b);
                     if ((hits & (SLASHED | DOTTED)) != 0) nmsReference = true;
                 }

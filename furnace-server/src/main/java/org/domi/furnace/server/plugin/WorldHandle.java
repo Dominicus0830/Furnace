@@ -821,6 +821,11 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
                 {
                     var col = r.ownedColumn(cp);
                     if (col == null || col.blockEntityAt(pos.x(), pos.y(), pos.z()) != original) throw new IllegalStateException("the container at that cell is gone: " + pos);
+                    // 바닐라 RandomizableContainerBlockEntity: 칸을 읽거나 쓰기 전에 열지 않은 전리품 표를 먼저 푼다(unpackLootTable(null))
+                    if (original.lootTable != null) {
+                        core().unpackLoot(world, original, null);
+                        r.markBlockEntityChanged(original);
+                    }
                     var c = new org.domi.furnace.server.world.BlockEntityContainer(original);
                     Object[] out = new Object[1];
                     org.domi.furnace.server.world.MenuBlockContext.runIn(r, () -> out[0] = op.apply(new OwnedInventory.Slots() {
