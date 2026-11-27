@@ -5,7 +5,7 @@ import org.domi.furnace.api.packet.ClientboundPacket;
 import org.domi.furnace.compat.nms.NmsPacket;
 
 /** 제목 시간(틱, Mojang 이름, H7c). */
-public class ClientboundSetTitlesAnimationPacket implements Packet<ClientGamePacketListener>, NmsPacket {
+class ClientboundSetTitlesAnimationPacket implements NmsPacket {
 
     private final int fadeIn;
     private final int stay;

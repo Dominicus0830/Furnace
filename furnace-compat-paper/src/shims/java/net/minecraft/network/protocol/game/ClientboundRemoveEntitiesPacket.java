@@ -8,7 +8,7 @@ import org.domi.furnace.compat.nms.NmsPacket;
  * 엔티티 지우기(Mojang 이름, H7c). 바닐라의 {@code IntList} 생성자·{@code getEntityIds()} 는 fastutil 이 이 모듈에 없어 두지 않았다
  * (부르면 그 호출 위치에서 UnsupportedNmsCall).
  */
-public class ClientboundRemoveEntitiesPacket implements Packet<ClientGamePacketListener>, NmsPacket {
+class ClientboundRemoveEntitiesPacket implements NmsPacket {
 
     private final int[] entityIds;
 

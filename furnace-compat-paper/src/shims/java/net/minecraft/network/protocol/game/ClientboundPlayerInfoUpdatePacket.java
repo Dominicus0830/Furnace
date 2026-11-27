@@ -19,7 +19,7 @@ import org.domi.furnace.compat.nms.NmsPacket;
  * 참조되지 않은 멤버만 선언의 거꾸로 붙인다. 이 파일에서는 첫 생성자의 {@code Entry::new} 가 {@code Action} 보다 먼저 참조돼 {@code [Entry, Action]} 이 된다
  * — 선언 순서만으로 정해지지 않으니 참조 순서를 바꾸는 수정 뒤에는 시험 PlayerInfoShimTest 로 확인한다(PR #390 검토 R3).
  */
-public class ClientboundPlayerInfoUpdatePacket implements Packet<ClientGamePacketListener>, NmsPacket {
+class ClientboundPlayerInfoUpdatePacket implements NmsPacket {
 
     private final EnumSet<Action> actions;
     private final List<Entry> entries;

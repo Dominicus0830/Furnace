@@ -140,8 +140,11 @@ class ShimSpecBuildTest {
             if ((got.access() & CLASS_MASK) != (want.access() & CLASS_MASK)) problems.add(n + ": 클래스 접근 " + got.access() + " != " + want.access());
             if (want.innerAccess() >= 0 && (got.innerAccess() & INNER_MASK) != (want.innerAccess() & INNER_MASK)) problems.add(n + ": 안쪽 접근 " + got.innerAccess() + " != " + want.innerAccess());
             if (!java.util.Objects.equals(got.superName(), want.superName())) problems.add(n + ": 상위 " + got.superName() + " != " + want.superName());
-            if (!got.interfaces().equals(want.interfaces())) problems.add(n + ": 인터페이스 " + got.interfaces() + " != " + want.interfaces());
-            if (!java.util.Objects.equals(got.signature(), want.signature())) problems.add(n + ": 제네릭 서명 " + got.signature() + " != " + want.signature());
+            // 조각 머리가 더한 Furnace 전용 인터페이스(org/domi/furnace/…, 예: NmsPacket)는 잠금에 없는 것이 맞다 — 견줄 때 뺀다
+            List<String> gotIfaces = got.interfaces().stream().filter(i -> !i.startsWith("org/domi/furnace/")).toList();
+            if (!gotIfaces.equals(want.interfaces())) problems.add(n + ": 인터페이스 " + got.interfaces() + " != " + want.interfaces());
+            String gotSig = got.signature() == null ? null : got.signature().replaceAll("Lorg/domi/furnace/[A-Za-z0-9_/$]+;", "");
+            if (!java.util.Objects.equals(gotSig, want.signature())) problems.add(n + ": 제네릭 서명 " + got.signature() + " != " + want.signature());
             ShimSpec.Cls sc = spec.classes.get(n.replace('/', '.'));
             for (ShimLock.Member m : lock.members(n)) {
                 String key = m.kind() + " " + m.name() + " " + m.desc();

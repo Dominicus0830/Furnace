@@ -8,7 +8,7 @@ import org.domi.furnace.compat.nms.NmsPacket;
  * 청크와 빛 패킷 shim(Mojang 이름, T-182, ProtocolLib MAP_CHUNK). 바닐라 1.21.1 과 같은 모양 — 청크 좌표, 청크 자료, 빛 자료.
  * 서버가 보내는 청크를 패킷 라이브러리 리스너가 보고 고칠 수 있다(블록 숨기기 등). 청크 자료는 {@link ClientboundLevelChunkPacketData}.
  */
-public class ClientboundLevelChunkWithLightPacket implements Packet<ClientGamePacketListener>, NmsPacket {
+class ClientboundLevelChunkWithLightPacket implements NmsPacket {
 
     private final int x;
     private final int z;
