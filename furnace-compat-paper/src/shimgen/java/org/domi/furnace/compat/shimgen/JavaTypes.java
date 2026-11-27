@@ -14,6 +14,21 @@ final class JavaTypes {
     private JavaTypes() {}
 
     /** 내부 이름(net/minecraft/core/Direction$Axis) → 소스 이름(net.minecraft.core.Direction.Axis). */
+    /** "A, B<C, D>, E" 처럼 쉼표로 이은 형식 목록을 꺾쇠 밖 쉼표로 가른다(공백은 다듬는다). */
+    static List<String> splitTypeList(String list) {
+        List<String> out = new java.util.ArrayList<>();
+        int depth = 0, start = 0;
+        for (int i = 0; i < list.length(); i++) {
+            char ch = list.charAt(i);
+            if (ch == '<') depth++;
+            else if (ch == '>') depth--;
+            else if (ch == ',' && depth == 0) { out.add(list.substring(start, i).trim()); start = i + 1; }
+        }
+        String last = list.substring(start).trim();
+        if (!last.isEmpty()) out.add(last);
+        return out;
+    }
+
     static String source(String internalName) {
         return internalName.replace('/', '.').replace('$', '.');
     }
