@@ -686,8 +686,10 @@ public final class ShimGenerator {
             if (b.lock().kind() != 'F' || (b.lock().access() & 0x4000) == 0) continue;
             if (b.spec().body() == ShimSpec.Body.VALUE) {
                 String a = b.spec().target().trim();
-                // = (인자) 또는 상수마다 몸통이 있는 열거형은 = (인자) { 몸통 } (바닐라의 VaultState 류 — 상수 클래스 VaultState$1~4)
-                if (!a.startsWith("(") || !(a.endsWith(")") || a.endsWith("}"))) problems.add(b.spec().where() + ": enum constant " + b.lock().name() + " takes constructor arguments as = (args), or = (args) { body } for a constant class");
+                // = (인자) 또는 상수마다 몸통이 있는 열거형은 = (인자) {} (바닐라의 VaultState 류 — 상수 클래스 VaultState$1~4).
+                // 몸통은 정확히 {} 만 허용한다 — 명세에 코드가 들어갈 길을 막는다.
+                String args = a.endsWith("{}") ? a.substring(0, a.length() - 2).trim() : a;
+                if (!args.startsWith("(") || !args.endsWith(")") || (a.endsWith("}") && !a.endsWith("{}"))) problems.add(b.spec().where() + ": enum constant " + b.lock().name() + " takes constructor arguments as = (args), or = (args) {} for a constant class (the body must be exactly {})");
                 else consts.add(b.lock().name() + a);
             } else consts.add(b.lock().name());
         }

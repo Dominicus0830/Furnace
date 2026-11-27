@@ -743,4 +743,19 @@ class ShimGeneratorTest {
         assertEquals("down", flow.getMethod("id").invoke(flow.getEnumConstants()[1]));
         assertNotSame(flow, flow.getEnumConstants()[0].getClass());
     }
+
+    /** 상수 몸통은 정확히 {} 만 — 코드가 든 몸통은 생성기 오류. */
+    @Test
+    void enumConstantBodyMustBeEmpty() throws Exception {
+        String spec = "class net.minecraft.zz.Flow\n  UP = (\"up\") { int x; }\n";
+        String lock = String.join("\n", "#furnace-shim-lock\t1\ttest",
+                "C\tnet/minecraft/zz/Flow\t16433\tjava/lang/Enum\t-\tLjava/lang/Enum<Lnet/minecraft/zz/Flow;>;\t-\tt",
+                "E\tnet/minecraft/zz/Flow\t1",
+                "F\tnet/minecraft/zz/Flow\tUP\tLnet/minecraft/zz/Flow;\t16409\t-", "");
+        ShimSpec sp = new ShimSpec();
+        sp.parse("t.spec", spec);
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> new ShimGenerator(sp, ShimLock.parse(lock), tmp.resolve("nofrag5"), List.of(), List.of()).generate());
+        assertTrue(e.getMessage().contains("exactly {}"), e.getMessage());
+    }
 }
