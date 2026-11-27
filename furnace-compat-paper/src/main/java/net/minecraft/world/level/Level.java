@@ -504,6 +504,22 @@ public abstract class Level implements LevelAccessor {
         return info == null ? null : net.minecraft.world.level.saveddata.maps.MapItemSavedData.furnaceOf(id.id(), info);
     }
 
+    /**
+     * 바닐라 Level#setMapData: 그 번호에 지도를 둔다(서버 전체 저장소 — 바닐라는 오버월드 저장소). 받은 객체의 색 배열이 서버 지도의 배열이 되고 그 객체는 그 번호에 붙는다.
+     * 색 배열 길이가 16384 가 아니면 IllegalArgumentException.
+     */
+    public void setMapData(net.minecraft.world.level.saveddata.maps.MapId id, net.minecraft.world.level.saveddata.maps.MapItemSavedData data) {
+        java.util.Objects.requireNonNull(id, "id");
+        java.util.Objects.requireNonNull(data, "data");
+        NmsChunks.bridge().mapPut(id.id(), data.furnaceInfo(), data.colors);
+        data.furnaceAttach(id.id());
+    }
+
+    /** 바닐라 Level#getFreeMapId: 새 지도 번호(첫 번호 0). */
+    public net.minecraft.world.level.saveddata.maps.MapId getFreeMapId() {
+        return new net.minecraft.world.level.saveddata.maps.MapId(NmsChunks.bridge().mapFreeId());
+    }
+
     private volatile net.minecraft.world.level.border.WorldBorder furnaceBorder;
 
     /** 바닐라 Level#getWorldBorder: 이 월드의 경계(서버 경계를 비춘다 — 판정만). */

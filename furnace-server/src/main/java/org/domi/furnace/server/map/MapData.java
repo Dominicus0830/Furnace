@@ -72,7 +72,7 @@ public final class MapData {
     private final String dimension;
     private final byte scale;
     private final boolean trackingPosition, unlimitedTracking, locked;
-    private final byte[] colors = new byte[WIDTH * HEIGHT];
+    private final byte[] colors;
     private final List<Holding> carriedBy = new ArrayList<>();
     private final Map<Viewer, Holding> carriedByPlayers = new java.util.HashMap<>();
     private final Map<String, Banner> bannerMarkers = new java.util.HashMap<>();
@@ -82,6 +82,11 @@ public final class MapData {
     private volatile boolean dirty;
 
     private MapData(int x, int z, byte scale, boolean tracking, boolean unlimited, boolean locked, String dimension) {
+        this(x, z, scale, tracking, unlimited, locked, dimension, new byte[WIDTH * HEIGHT]);
+    }
+
+    private MapData(int x, int z, byte scale, boolean tracking, boolean unlimited, boolean locked, String dimension, byte[] colors) {
+        this.colors = colors;
         this.scale = scale;
         this.centerX = x;
         this.centerZ = z;
@@ -101,6 +106,18 @@ public final class MapData {
         int cz = iz * size + size / 2 - 64;
         return new MapData(cx, cz, scale, tracking, unlimited, false, dimension);
     }
+
+    /**
+     * Level.setMapData 로 들어오는 지도: 중심·배율을 그대로 받고(격자에 맞추지 않는다), 색 배열은 **복사하지 않고** 받은 배열 그대로 쓴다 —
+     * 플러그인이 쥔 배열과 서버 지도가 같은 배열이어야 이후 직접 쓰기가 보인다(바닐라는 같은 객체를 저장소에 둔다). 길이는 128*128 이어야 한다.
+     */
+    public static MapData adopt(int centerX, int centerZ, byte scale, boolean tracking, boolean unlimited, boolean locked, String dimension, byte[] colors) {
+        if (colors.length != WIDTH * HEIGHT) throw new IllegalArgumentException("map colors must be " + WIDTH * HEIGHT + " bytes, got " + colors.length);
+        return new MapData(centerX, centerZ, scale, tracking, unlimited, locked, dimension, colors);
+    }
+
+    /** 바닐라 setColorsDirty(x, y): 배열을 직접 고친 뒤 그 칸이 바뀌었음을 알린다(저장 대상으로 올리고 들고 있는 플레이어에게 조각을 보낸다). */
+    public synchronized void markColorsDirty(int x, int y) { setColorsDirty(x, y); }
 
     public int centerX() { return centerX; }
 

@@ -213,6 +213,39 @@ class NmsSquaremapPathTest {
     }
 
     @Test
+    void setMapDataSharesTheColorArrayWithTheServerMap() {
+        int first = level.getFreeMapId().id();
+        assertEquals(first + 1, level.getFreeMapId().id(), "번호는 하나씩 올라간다");
+        var id = new MapId(first + 1000);   // 시험 서버의 다른 지도와 겹치지 않는 번호
+        var fresh = net.minecraft.world.level.saveddata.maps.MapItemSavedData.createFresh(300.0, -500.0, (byte) 2, true, false, Level.NETHER);
+        assertEquals(192, fresh.centerX, "바닐라 createFresh 와 같은 격자");
+        assertEquals(-320, fresh.centerZ);
+        assertEquals(16384, fresh.colors.length);
+        fresh.colors[5 + 7 * 128] = 42;
+        level.setMapData(id, fresh);
+        var stored = org.domi.furnace.server.map.MapStore.get(id.id());
+        assertNotNull(stored);
+        assertSame(fresh.colors, stored.colors(), "색 배열은 복사하지 않고 서버 지도의 배열이 된다");
+        assertEquals(42, stored.color(5, 7));
+        assertTrue(stored.trackingPosition());
+        assertEquals("minecraft:the_nether", stored.dimension());
+        var view = level.getMapData(id);
+        assertNotNull(view);
+        assertSame(stored.colors(), view.colors, "getMapData 는 서버 지도의 살아 있는 보기");
+        view.setColor(1, 2, (byte) 9);
+        assertEquals(9, stored.color(1, 2), "보기에서 쓰면 서버 지도가 바뀐다");
+        assertEquals(9, fresh.colors[1 + 2 * 128], "같은 배열이라 처음 객체에도 보인다");
+        stored.setDirty(false);
+        fresh.setColor(3, 3, (byte) 4);   // 붙은 뒤에는 처음 객체의 setColor 도 서버에 알린다
+        assertTrue(stored.isDirty());
+        assertThrows(IllegalArgumentException.class, () -> {
+            var bad = net.minecraft.world.level.saveddata.maps.MapItemSavedData.createFresh(0, 0, (byte) 0, false, false, Level.OVERWORLD);
+            bad.colors = new byte[10];
+            level.setMapData(new MapId(first + 2000), bad);
+        });
+    }
+
+    @Test
     void componentCodecRoundTripsThroughNbt() {
         var text = net.minecraft.network.chat.Component.literal("hello").withStyle(net.minecraft.ChatFormatting.BOLD);
         var encoded = net.minecraft.network.chat.ComponentSerialization.CODEC.encodeStart(net.minecraft.nbt.NbtOps.INSTANCE, text).getOrThrow();
