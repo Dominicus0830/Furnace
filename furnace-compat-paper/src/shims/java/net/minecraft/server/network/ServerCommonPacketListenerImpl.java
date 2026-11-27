@@ -40,8 +40,30 @@ class ServerCommonPacketListenerImpl {
     /** 호환 모듈 전용: 이 접속의 Furnace 플레이어(패킷을 실제로 내보낼 곳). */
     public org.domi.furnace.api.entity.Player furnacePlayer() { return f(); }
 
-    /** 바닐라: 이유를 보여 주며 연결을 끊는다. */
-    public void disconnect(Component reason) { f().kick(Component.furnace(reason)); }
+    /** Paper(더는 쓰지 않음 표시): 원인 없이 부르면 UNKNOWN. */
+    public void disconnect(Component reason) { disconnect(reason, org.bukkit.event.player.PlayerKickEvent.Cause.UNKNOWN); }
+
+    /** Paper: 원인과 함께 연결을 끊는다 — 내보내기 이벤트의 원인 칸. 이름이 없는 원인은 UNKNOWN. */
+    public void disconnect(Component reason, org.bukkit.event.player.PlayerKickEvent.Cause cause) {
+        f().kick(Component.furnace(reason), furnaceCause(cause));
+    }
+
+    /** Paper adventure: 원인 없이 부르면 UNKNOWN. */
+    public void disconnect(net.kyori.adventure.text.Component reason) { disconnect(reason, org.bukkit.event.player.PlayerKickEvent.Cause.UNKNOWN); }
+
+    /** Paper adventure: 글을 JSON 으로 옮겨 그대로 이유로 쓴다. */
+    public void disconnect(net.kyori.adventure.text.Component reason, org.bukkit.event.player.PlayerKickEvent.Cause cause) {
+        f().kick(org.domi.furnace.api.text.serializer.JsonTextSerializer.json().deserialize(
+                net.kyori.adventure.text.serializer.gson.GsonComponentSerializer.gson().serialize(reason)), furnaceCause(cause));
+    }
+
+    private static org.domi.furnace.api.event.player.PlayerKickEvent.Cause furnaceCause(org.bukkit.event.player.PlayerKickEvent.Cause cause) {
+        try {
+            return org.domi.furnace.api.event.player.PlayerKickEvent.Cause.valueOf(cause.name());
+        } catch (IllegalArgumentException e) {
+            return org.domi.furnace.api.event.player.PlayerKickEvent.Cause.UNKNOWN;
+        }
+    }
 
     /** Paper TransferCookieConnection: 다른 서버에서 전송(transfer)으로 들어온 연결인가. */
     public boolean isTransferred() {
@@ -56,15 +78,7 @@ class ServerCommonPacketListenerImpl {
     public void sendPacket(Packet<?> packet) { send(packet); }
 
     /** Paper TransferCookieConnection: 원인과 함께 내보낸다(내보내기 이벤트의 원인 칸). 이름이 없는 원인은 UNKNOWN. */
-    public void kickPlayer(Component reason, org.bukkit.event.player.PlayerKickEvent.Cause cause) {
-        org.domi.furnace.api.event.player.PlayerKickEvent.Cause mapped;
-        try {
-            mapped = org.domi.furnace.api.event.player.PlayerKickEvent.Cause.valueOf(cause.name());
-        } catch (IllegalArgumentException e) {
-            mapped = org.domi.furnace.api.event.player.PlayerKickEvent.Cause.UNKNOWN;
-        }
-        f().kick(Component.furnace(reason), mapped);
-    }
+    public void kickPlayer(Component reason, org.bukkit.event.player.PlayerKickEvent.Cause cause) { disconnect(reason, cause); }
 
     /** 바닐라: 지연(ms). */
     public int latency() { return f().ping(); }

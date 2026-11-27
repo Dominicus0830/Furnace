@@ -48,4 +48,19 @@ class NmsConnectionCookieTest {
         for (int i = 0; i < 200 && causes.isEmpty(); i++) { server.tick(); Thread.sleep(10); }
         assertEquals(java.util.List.of(PlayerKickEvent.Cause.SPAM), causes);
     }
+
+    @Test
+    void disconnectWithoutCauseIsUnknownAndTheCauseOverloadsWork() throws Exception {
+        var causes = new CopyOnWriteArrayList<PlayerKickEvent.Cause>();
+        server.api().events().subscribe(server.plugin(CompatTestPlugin.class), PlayerKickEvent.class, e -> causes.add(e.cause()));
+        TestPlayer a = server.join("Una");
+        ((CraftPlayer) Compat.player(a.player())).getHandle().connection.disconnect(Component.literal("x"));
+        for (int i = 0; i < 200 && causes.isEmpty(); i++) { server.tick(); Thread.sleep(10); }
+        assertEquals(java.util.List.of(PlayerKickEvent.Cause.UNKNOWN), causes, "Paper: disconnect(Component) = UNKNOWN");
+        causes.clear();
+        TestPlayer b = server.join("Dua");
+        ((CraftPlayer) Compat.player(b.player())).getHandle().connection.disconnect(Component.literal("x"), Cause.TIMEOUT);
+        for (int i = 0; i < 200 && causes.isEmpty(); i++) { server.tick(); Thread.sleep(10); }
+        assertEquals(java.util.List.of(PlayerKickEvent.Cause.TIMEOUT), causes);
+    }
 }
