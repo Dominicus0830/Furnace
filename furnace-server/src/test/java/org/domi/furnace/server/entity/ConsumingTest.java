@@ -16,10 +16,11 @@ import org.junit.jupiter.api.Test;
 class ConsumingTest {
     private final Player player = new Player(7, UUID.randomUUID(), "Steve", new ConcurrentEmbeddedChannel());
     private final PlayerVitals v = player.vitals();
+    private final PlayerVitalsTest.TestEnv env = new PlayerVitalsTest.TestEnv();
 
     ConsumingTest() throws Exception {
         assumeTrue(TestRecipes.manager() != null);
-        v.env(new PlayerVitalsTest.TestEnv());
+        v.env(env);
         v.loadGameTypes(null, GameMode.SURVIVAL, false);
         player.inventory().setSelected(0);
     }
@@ -56,6 +57,83 @@ class ConsumingTest {
         assertEquals(28.0F, v.maxHealth());
         assertEquals(26.0F, v.health());
         assertEquals("minecraft:glass_bottle", org.domi.furnace.server.item.ItemTools.itemName(player.inventory().get(player.inventory().heldWindowSlot())));
+    }
+
+    private static ItemStack potion(String id, int n) {
+        return org.domi.furnace.server.item.ItemTools.with(TestRecipes.item("potion", n), "minecraft:potion_contents", java.util.Map.of("potion", id));
+    }
+
+    private static String name(ItemStack s) { return s.isEmpty() ? "minecraft:air" : org.domi.furnace.server.item.ItemTools.itemName(s); }
+
+    /** 마신 뒤 처리만(Consuming.finishPotion) — 레벨이 필요한 경우(죽음·유리병 떨굼). keep 은 레벨과 사망 처리의 keepInventory. */
+    private org.domi.furnace.server.block.BlockPlacementTest.TestLevel drinkAt(ItemStack s, boolean keep, java.util.List<java.util.List<ItemStack>> deaths) {
+        env.rules.put("keepInventory", keep);
+        var level = new org.domi.furnace.server.block.BlockPlacementTest.TestLevel() {
+            @Override protected org.domi.furnace.server.block.LevelServices services() {
+                return new org.domi.furnace.server.block.LevelServices.Delegating(org.domi.furnace.server.block.LevelServices.DEFAULT) {
+                    @Override public boolean gameRule(String n) { return n.equals("keepInventory") ? keep : super.gameRule(n); }
+                };
+            }
+        };
+        v.deathListener((k, drops, originals, toKeep) -> deaths.add(java.util.List.copyOf(originals)));
+        hold(s);
+        Consuming.finishPotion(player, level, player.inventory(), player.inventory().heldWindowSlot(), s);
+        return level;
+    }
+
+    private static int bottlesOnGround(org.domi.furnace.server.block.BlockPlacementTest.TestLevel level) {
+        int n = 0;
+        for (Entity e : level.entities().all()) if (e instanceof ItemEntity ie && name(ie.getItem()).equals("minecraft:glass_bottle")) n += ie.getItem().count();
+        return n;
+    }
+
+    /** Paper: 소모가 즉시 효과 앞 — 마시다 죽으면 사망 드롭에 물약이 없고, 유리병 하나는 발밑에 따로 떨어진다. 칸은 비고 drink 이벤트는 없다. */
+    @Test
+    void dyingFromPotionDropsBottleSeparatelyAndNoPotion() {
+        for (int i = 0; i < 61; i++) v.tick(PlayerVitals.Surroundings.NONE);   // 접속 직후 무적(60틱)이 지나게
+        v.setHealth(1.0F);
+        var deaths = new java.util.ArrayList<java.util.List<ItemStack>>();
+        var level = drinkAt(potion("minecraft:harming", 1), false, deaths);
+        assertTrue(v.health() <= 0.0F);
+        assertEquals(1, deaths.size(), "한 번 죽었다");
+        assertTrue(deaths.get(0).stream().noneMatch(x -> name(x).equals("minecraft:potion")), "사망 드롭에 물약이 없다: " + deaths.get(0));
+        assertTrue(deaths.get(0).stream().noneMatch(x -> name(x).equals("minecraft:glass_bottle")), "유리병은 사망 드롭이 아니다");
+        assertEquals(1, bottlesOnGround(level), "유리병 하나는 발밑에 따로");
+        assertTrue(player.inventory().get(player.inventory().heldWindowSlot()).isEmpty());
+    }
+
+    /** keepInventory 면 죽어도 떨어뜨리지 않고 보통처럼 칸에 유리병. */
+    @Test
+    void dyingFromPotionWithKeepInventoryPutsBottleInSlot() {
+        for (int i = 0; i < 61; i++) v.tick(PlayerVitals.Surroundings.NONE);   // 접속 직후 무적(60틱)이 지나게
+        v.setHealth(1.0F);
+        var level = drinkAt(potion("minecraft:harming", 1), true, new java.util.ArrayList<>());
+        assertTrue(v.health() <= 0.0F);
+        assertEquals(0, bottlesOnGround(level));
+        assertEquals("minecraft:glass_bottle", name(player.inventory().get(player.inventory().heldWindowSlot())));
+    }
+
+    /** 물약이 남고 인벤토리가 가득이면 Paper 처럼 유리병이 사라진다(Inventory.add 반환값을 버린다 — 떨어뜨리지 않는다). */
+    @Test
+    void fullInventoryLosesBottle() {
+        for (int i = 9; i < 45; i++) player.inventory().set(i, TestRecipes.item("stone", 64));
+        var level = drinkAt(potion("minecraft:water", 2), false, new java.util.ArrayList<>());
+        ItemStack held = player.inventory().get(player.inventory().heldWindowSlot());
+        assertEquals("minecraft:potion", name(held));
+        assertEquals(1, held.count(), "하나 소모");
+        assertEquals(0, bottlesOnGround(level), "떨어뜨리지 않는다");
+        for (int i = 0; i < 46; i++) assertFalse(name(player.inventory().get(i)).equals("minecraft:glass_bottle"), "칸 " + i);
+    }
+
+    /** 크리에이티브: 소모도 유리병도 없다. */
+    @Test
+    void creativeKeepsPotionAndGetsNoBottle() {
+        v.setGameMode(GameMode.CREATIVE);
+        var level = drinkAt(potion("minecraft:water", 1), false, new java.util.ArrayList<>());
+        ItemStack held = player.inventory().get(player.inventory().heldWindowSlot());
+        assertEquals("minecraft:potion", name(held));
+        assertEquals(1, held.count());
+        assertEquals(0, bottlesOnGround(level));
     }
 
     /** 포화는 즉시 효과: 마시면 효과 목록에 남지 않고 음식만 (단계+1) 차오른다. */

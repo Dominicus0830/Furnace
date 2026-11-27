@@ -126,7 +126,7 @@ public final class Consuming {
             return;
         }
         if (n.equals("minecraft:potion")) {
-            finishPotion(p, region, inv, ws, s);
+            finishPotion(p, region == null ? null : region.level(), inv, ws, s);
             return;
         }
         if (n.equals("minecraft:suspicious_stew") && ItemTools.component(s, "minecraft:suspicious_stew_effects") instanceof List<?> stew) {
@@ -224,7 +224,7 @@ public final class Consuming {
      * 아니면 발밑에 떨어뜨리고 칸을 비운 채 끝(drink 게임 이벤트 없음), 물약이 다 떨어졌으면 그 칸에, 아니면 인벤토리에 넣는다(가득이면 사라진다 —
      * Inventory.add 의 반환값을 버린다) → drink 게임 이벤트. 바닐라는 즉시 효과를 목록 순서대로 그 자리에서 적용한다.
      */
-    private static void finishPotion(Player p, org.domi.furnace.server.world.Region region, PlayerInventory inv, int ws, ItemStack s) {
+    static void finishPotion(Player p, org.domi.furnace.server.block.ChunkLevel level, PlayerInventory inv, int ws, ItemStack s) {
         PlayerVitals v = p.vitals();
         consumeTrigger(p, s);
         List<MobEffectInstance> instant = new java.util.ArrayList<>();
@@ -238,7 +238,6 @@ public final class Consuming {
         for (MobEffectInstance i : instant) v.applyInstantaneousEffect(i.effect(), i.amplifier(), 1.0);
         if (!creative) {
             ItemStack bottle = new ItemStack(ItemContext.id("minecraft:item", "glass_bottle"), 1);
-            var level = region == null ? null : region.level();
             if (v.health() <= 0.0F && level != null && !level.gameRule("keepInventory")) {
                 var ie = new ItemEntity(level, level.nextEntityId(), p.x(), p.y(), p.z(), bottle);   // spawnAtLocation(stack, 0)
                 ie.setDefaultPickUpDelay();
