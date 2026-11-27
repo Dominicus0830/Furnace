@@ -78,3 +78,9 @@ class net.minecraft.world.level.ServerLevelAccessor
 class net.minecraft.world.level.WorldGenLevel
 class net.minecraft.world.level.Level
 class net.minecraft.world.level.chunk.ChunkSource
+class net.minecraft.world.level.storage.loot.parameters.LootContextParam
+class net.minecraft.world.level.storage.loot.parameters.LootContextParams
+class net.minecraft.world.level.storage.loot.parameters.LootContextParamSet
+class net.minecraft.world.level.storage.loot.parameters.LootContextParamSets
+class net.minecraft.world.level.storage.loot.LootParams
+class net.minecraft.world.level.storage.loot.LootTable

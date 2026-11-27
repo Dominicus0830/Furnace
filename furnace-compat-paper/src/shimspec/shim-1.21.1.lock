@@ -2090,6 +2090,12 @@ C	net/minecraft/world/level/storage/PrimaryLevelData	33	java/lang/Object	net/min
 C	net/minecraft/world/level/storage/ServerLevelData	1537	java/lang/Object	net/minecraft/world/level/storage/WritableLevelData	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/storage/WorldData	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/level/storage/WritableLevelData	1537	java/lang/Object	net/minecraft/world/level/storage/LevelData	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/storage/loot/LootParams	33	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/storage/loot/LootTable	33	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/storage/loot/parameters/LootContextParam	33	java/lang/Object	-	<T:Ljava/lang/Object;>Ljava/lang/Object;	-	paper-server-1.21.1
+C	net/minecraft/world/level/storage/loot/parameters/LootContextParamSet	33	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/storage/loot/parameters/LootContextParamSets	33	java/lang/Object	-	-	-	paper-server-1.21.1
+C	net/minecraft/world/level/storage/loot/parameters/LootContextParams	33	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/scores/ScoreHolder	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/ticks/ContainerSingleItem	1537	java/lang/Object	net/minecraft/world/Container	-	-	paper-server-1.21.1
 C	net/minecraft/world/ticks/ContainerSingleItem$BlockContainerSingleItem	1537	java/lang/Object	net/minecraft/world/ticks/ContainerSingleItem	-	1545	paper-server-1.21.1
@@ -2134,9 +2140,9 @@ H	net/minecraft/world/MenuProvider	getDisplayName	()Lnet/minecraft/network/chat/
 H	net/minecraft/world/Nameable	getName	()Lnet/minecraft/network/chat/Component;	1025	-
 H	net/minecraft/world/RandomizableContainer	getBlockPos	()Lnet/minecraft/core/BlockPos;	1025	-
 H	net/minecraft/world/RandomizableContainer	getLevel	()Lnet/minecraft/world/level/Level;	1025	-
-H	net/minecraft/world/RandomizableContainer	getLootTable	()Lnet/minecraft/resources/ResourceKey;	1025	-
+H	net/minecraft/world/RandomizableContainer	getLootTable	()Lnet/minecraft/resources/ResourceKey;	1025	()Lnet/minecraft/resources/ResourceKey<Lnet/minecraft/world/level/storage/loot/LootTable;>;
 H	net/minecraft/world/RandomizableContainer	getLootTableSeed	()J	1025	-
-H	net/minecraft/world/RandomizableContainer	setLootTable	(Lnet/minecraft/resources/ResourceKey;)V	1025	-
+H	net/minecraft/world/RandomizableContainer	setLootTable	(Lnet/minecraft/resources/ResourceKey;)V	1025	(Lnet/minecraft/resources/ResourceKey<Lnet/minecraft/world/level/storage/loot/LootTable;>;)V
 H	net/minecraft/world/RandomizableContainer	setLootTableSeed	(J)V	1025	-
 H	net/minecraft/world/WorldlyContainer	canPlaceItemThroughFace	(ILnet/minecraft/world/item/ItemStack;Lnet/minecraft/core/Direction;)Z	1025	-
 H	net/minecraft/world/WorldlyContainer	canTakeItemThroughFace	(ILnet/minecraft/world/item/ItemStack;Lnet/minecraft/core/Direction;)Z	1025	-
@@ -2194,12 +2200,12 @@ H	net/minecraft/world/entity/npc/VillagerDataHolder	setVillagerData	(Lnet/minecr
 H	net/minecraft/world/entity/projectile/ItemSupplier	getItem	()Lnet/minecraft/world/item/ItemStack;	1025	-
 H	net/minecraft/world/entity/vehicle/ContainerEntity	clearItemStacks	()V	1025	-
 H	net/minecraft/world/entity/vehicle/ContainerEntity	getItemStacks	()Lnet/minecraft/core/NonNullList;	1025	()Lnet/minecraft/core/NonNullList<Lnet/minecraft/world/item/ItemStack;>;
-H	net/minecraft/world/entity/vehicle/ContainerEntity	getLootTable	()Lnet/minecraft/resources/ResourceKey;	1025	-
+H	net/minecraft/world/entity/vehicle/ContainerEntity	getLootTable	()Lnet/minecraft/resources/ResourceKey;	1025	()Lnet/minecraft/resources/ResourceKey<Lnet/minecraft/world/level/storage/loot/LootTable;>;
 H	net/minecraft/world/entity/vehicle/ContainerEntity	getLootTableSeed	()J	1025	-
 H	net/minecraft/world/entity/vehicle/ContainerEntity	isRemoved	()Z	1025	-
 H	net/minecraft/world/entity/vehicle/ContainerEntity	level	()Lnet/minecraft/world/level/Level;	1025	-
 H	net/minecraft/world/entity/vehicle/ContainerEntity	position	()Lnet/minecraft/world/phys/Vec3;	1025	-
-H	net/minecraft/world/entity/vehicle/ContainerEntity	setLootTable	(Lnet/minecraft/resources/ResourceKey;)V	1025	-
+H	net/minecraft/world/entity/vehicle/ContainerEntity	setLootTable	(Lnet/minecraft/resources/ResourceKey;)V	1025	(Lnet/minecraft/resources/ResourceKey<Lnet/minecraft/world/level/storage/loot/LootTable;>;)V
 H	net/minecraft/world/entity/vehicle/ContainerEntity	setLootTableSeed	(J)V	1025	-
 H	net/minecraft/world/flag/FeatureElement	requiredFeatures	()Lnet/minecraft/world/flag/FeatureFlagSet;	1025	-
 H	net/minecraft/world/inventory/CraftingContainer	getHeight	()I	1025	-
