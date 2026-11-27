@@ -326,7 +326,7 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
                     disconnect(ctx, Text.translatable("multiplayer.disconnect.slow_login"));
                 } else {
                     log.debug("{} 단계 시간 초과({}초), 연결 종료: {}", armed, sl.timeoutSeconds(), loggableAddress(ctx));
-                    kickWithCause(ctx, Text.translatable("disconnect.timeout"), org.domi.furnace.api.event.player.PlayerKickEvent.Cause.TIMEOUT, org.domi.furnace.api.net.QuitReason.TIMED_OUT);
+                    kick(ctx, Text.translatable("disconnect.timeout"), org.domi.furnace.api.net.QuitReason.TIMED_OUT);   // 구성·로그인 단계 시한 — Paper 도 이벤트 없이
                 }
             }, sl.timeoutSeconds(), java.util.concurrent.TimeUnit.SECONDS);
         }
@@ -4928,7 +4928,9 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
     private void sendKeepAlive() {
         if (awaitingKeepAlive.get()) {
             log.info(Lang.t("net.keepalive-timeout", playerName));
-            kick(ctx, Text.translatable("disconnect.timeout"), org.domi.furnace.api.net.QuitReason.TIMED_OUT);
+            // 15초 무응답 — Paper 는 PlayerKickEvent(TIMEOUT)를 내고, 플러그인이 취소하면 다음 주기에 다시 검사한다
+            kickWithCause(ctx, Text.translatable("disconnect.timeout"), org.domi.furnace.api.event.player.PlayerKickEvent.Cause.TIMEOUT,
+                    org.domi.furnace.api.net.QuitReason.TIMED_OUT, this::scheduleKeepAlive);
             return;
         }
         lastKeepAliveId = System.nanoTime();
@@ -5295,13 +5297,21 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
      */
     private void kickWithCause(ChannelHandlerContext ctx, Text reason, org.domi.furnace.api.event.player.PlayerKickEvent.Cause cause,
                                org.domi.furnace.api.net.QuitReason why) {
+        kickWithCause(ctx, reason, cause, why, null);
+    }
+
+    private void kickWithCause(ChannelHandlerContext ctx, Text reason, org.domi.furnace.api.event.player.PlayerKickEvent.Cause cause,
+                               org.domi.furnace.api.net.QuitReason why, Runnable onCancelled) {
         Player p = player;
         if (state != ConnectionState.PLAY || p == null || p.isDisconnected() || login == null || login.core == null) {
             kick(ctx, reason, why);
             return;
         }
         if (why != org.domi.furnace.api.net.QuitReason.KICKED) markQuit(why);
-        login.core.kickOnGlobal(p, reason, cause, () -> quitReason.compareAndSet(why, null));   // 취소되면 남겨 둔 이유도 되돌린다
+        login.core.kickOnGlobal(p, reason, cause, () -> {
+            quitReason.compareAndSet(why, null);
+            if (onCancelled != null) onCancelled.run();
+        });   // 취소되면 남겨 둔 이유도 되돌린다
     }
 
     private void kickWithCause(ChannelHandlerContext ctx, Text reason, org.domi.furnace.api.event.player.PlayerKickEvent.Cause cause) {
