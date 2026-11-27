@@ -148,6 +148,38 @@ class SyncedDataHookTest {
         assertEquals(-50.0, shrinking.y(), "작아지면 밀지 않는다");
     }
 
+    /** 자리 밀기 방향: 벽 옆에서 몸이 넓어지면 벽에서 멀어지는 쪽으로 새 몸이 들어갈 만큼 밀린다(높이는 허공과 같다). */
+    @Test
+    void growingNextToAWallMovesAwayFromIt() {
+        var level = new BlockPlacementTest.TestLevel();
+        int stone = org.domi.furnace.server.block.B.defaultState("minecraft:stone");
+        for (int y = -56; y <= -54; y++) level.setBlock(new org.domi.furnace.server.block.Pos(1, y, 0), stone, 2);   // 벽 x = 1..2
+        var p = (Pufferfish) Entities.create(level, "minecraft:pufferfish");
+        p.moveTo(0.8, -55.0, 0.5, 0, 0);
+        p.firstTick = false;
+        float oh = p.bbHeight();
+        p.setPuffState(2);
+        assertEquals(1.0 - (double) p.bbWidth() / 2.0, p.x(), 1e-9, "벽 면에서 새 몸 반 너비만큼");
+        assertEquals(0.5, p.z(), 1e-9);
+        assertEquals(-55.0 + (double) oh / 2.0 + (double) (-p.bbHeight()) / 2.0, p.y(), 1e-9);
+    }
+
+    /** 너비·높이 둘 다 커졌는데 새 몸이 들어갈 곳이 없으면(틈이 새 높이보다 낮다) 옛 높이로 한 번 더 찾고 발을 1e-6 위에 둔다. */
+    @Test
+    void growingInALowGapUsesTheOldHeightRetry() {
+        var level = new BlockPlacementTest.TestLevel();
+        level.setBlock(new org.domi.furnace.server.block.Pos(0, -60, 0), org.domi.furnace.server.block.B.defaultState("minecraft:stone_slab"), 2);   // 바닥 -59.5
+        level.setBlock(new org.domi.furnace.server.block.Pos(0, -59, 0), org.domi.furnace.server.block.B.defaultState("minecraft:stone"), 2);       // 천장 -59.0
+        var p = (Pufferfish) Entities.create(level, "minecraft:pufferfish");
+        p.moveTo(0.5, -59.5, 0.5, 0, 0);
+        p.firstTick = false;
+        p.setPuffState(2);
+        assertEquals(true, p.bbHeight() > 0.5F, "새 몸은 틈(0.5)보다 높다 — 첫 시도는 빈 곳이 없다");
+        assertEquals(-59.5 + 1.0E-6, p.y(), 1e-9);
+        assertEquals(0.5, p.x(), 1e-9);
+        assertEquals(0.5, p.z(), 1e-9);
+    }
+
     @Test
     void paintingVariantSlotFollowsTheName() {
         var level = new BlockPlacementTest.TestLevel();

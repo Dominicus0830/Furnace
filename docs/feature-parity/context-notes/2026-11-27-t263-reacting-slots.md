@@ -26,7 +26,7 @@ Furnace 서버가 칸이 바뀔 때 바닐라와 같은 반응을 하는지 코�
 | Armadillo 상태 | `inStateTicks = 0` | 있음(껍질 숨기·겁먹기 판정) | **고침**: 전에는 `switchToState` 안에서만 0 으로 돌렸다(칸에 바로 쓰면 빠짐). 이제 훅에서 | 넣음 |
 | Pufferfish 부풀기 | `refreshDimensions()` | 있음 — 크기와 **자리 밀기**(`fudgePositionAfterSizeChange`: 커지면 빈 곳을 찾아 위치를 옮김, 첫 틱·noPhysics·4 넘는 몸·플레이어 제외) | 크기는 같았지만 자리 밀기가 Furnace 몸 크기 다시 재기 전부(아기 자람·슬라임 등)에 빠져 있었다. **이식**(후속 PR): `Entity.setDimensions` 가 바닐라 `refreshDimensions` 끝처럼 첫 틱 뒤·물리 있음·새 몸 4 이하·커짐이면 밀고, 빈 곳 찾기는 포털 출구와 같은 `FreePosition`(CollisionGetter.findFreePosition) | 넣음(후속 PR) |
 
-시험: `SyncedDataHookTest`(상호작용 상자·몸 크기, 아르마딜로 칸 쓰기 → 상태 틱 0, 복어 부풀기 자리 밀기 — 허공은 (새-옛 높이)/2 내려감·땅 위는 그대로·첫 틱 전·작아질 때는 안 밂).
+시험: `SyncedDataHookTest`(상호작용 상자·몸 크기, 아르마딜로 칸 쓰기 → 상태 틱 0, 복어 부풀기 자리 밀기 — 허공은 (새-옛 높이)/2 내려감·땅 위는 그대로·첫 틱 전·작아질 때는 안 밂·벽 옆은 벽에서 멀어짐·틈이 낮으면 옛 높이로 두 번째 시도). 플레이어 제외는 바닐라 `refreshDimensions` 의 `instanceof Player` 분기(javap 확인)라 Furnace Player 에는 넣지 않는다.
 
 ## 같이 고친 것(후속 PR)
 
