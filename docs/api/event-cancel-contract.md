@@ -58,6 +58,7 @@
 | `EntityDeathEvent` | `SERVER_DRIVEN` | - | 죽음(체력은 reviveHealth), 드롭·경험치·사망 소리 없음, 장비 그대로 |
 | `EntityExplodeEvent` | `SERVER_DRIVEN` | - | 블록, 불, 폭발 패킷 |
 | `EntityTameEvent` | `SERVER_DRIVEN` | - | 길들임 |
+| `EntityToggleSitEvent` | `SERVER_DRIVEN` | - | 앉은 자세(길들인 동물·여우) |
 | `EntityTargetEvent` | `SERVER_DRIVEN` | - | 공격 대상 |
 | `ProjectileHitEvent` | `SERVER_DRIVEN` | - | 적중(계속 난다) |
 | `InventoryClickEvent` | `CLIENT_PREDICTED` | 열린 창 전체 + 커서(`CraftItemEvent` 포함) | 모든 칸, 커서 |

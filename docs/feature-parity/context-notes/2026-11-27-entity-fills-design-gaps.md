@@ -26,3 +26,10 @@ FancyNpcs 등이 부르는 엔티티 멤버를 채우다가 생성기 구조 때
 - Bee `setRolling`: Paper 는 `rollingOverride` 를 거친다.
 - Bee `setHasNectar`: 꿀 타이머를 함께 초기화한다.
 - ArmorStand `setShowArms`: 반응 있는 칸이다.
+
+## ArmorStand `setShowArms` (반응 칸, 연결 줄 proof=review)
+
+- 바닐라·Paper 1.21.1 javap 같음: `entityData.set(DATA_CLIENT_FLAGS, setBit(b, 4, v))`.
+- 반응(`ArmorStand.onSyncedDataUpdated`): `refreshDimensions()` + `blocksBuilding = !isMarker()`. 팔 비트(4)는 크기(small·marker)도 marker 도 바꾸지 않아 두 결과 모두 값이 그대로다.
+- Furnace 서버 `ArmorStand.onSyncedDataUpdated` 도 이 칸에서 `refreshDims()` 를 부른다 → 같은 결과.
+- 남은 구멍: 서버에 `blocksBuilding` 이 없다. 표본 플러그인은 `setMarker` 를 NMS 로 부르지 않아 지금은 영향 없음. `setMarker` 를 넣을 때 함께 메운다.

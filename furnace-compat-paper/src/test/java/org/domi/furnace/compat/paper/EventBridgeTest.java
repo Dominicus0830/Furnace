@@ -219,6 +219,9 @@ class EventBridgeTest {
             fire.put(org.bukkit.event.entity.EntityChangeBlockEvent.class, () -> new org.domi.furnace.api.event.entity.EntityChangeBlockEvent(pig, w, bp,
                     org.domi.furnace.api.world.BlockData.of("minecraft:grass_block"), org.domi.furnace.api.world.BlockData.of("minecraft:dirt")));
 
+            // 앉은 자세(Paper EntityToggleSitEvent)
+            fire.put(io.papermc.paper.event.entity.EntityToggleSitEvent.class, () -> new org.domi.furnace.api.event.entity.EntityToggleSitEvent(pig, true));
+
             // 시험이 빠뜨린 짝이 없는지: 다리가 아는 이벤트 = 이 시험이 발행한 이벤트
             assertEquals(EventBridge.bridgedEvents(), new HashSet<Class<?>>(fire.keySet()));
 

@@ -108,7 +108,13 @@ public class Fox extends Animal {
 
     public boolean isSitting() { return flag(FLAG_SITTING); }
 
-    public void setSitting(boolean v) { setFlag(FLAG_SITTING, v); }
+    public void setSitting(boolean v) { setSitting(v, true); }
+
+    /** Paper setSitting(sit, fireEvent): 이벤트를 내면 플러그인 EntityToggleSitEvent 가 취소할 수 있다(취소면 그대로). */
+    public void setSitting(boolean v, boolean fireEvent) {
+        if (fireEvent && !level.gameEvents().entityToggleSit(this, v)) return;
+        setFlag(FLAG_SITTING, v);
+    }
 
     public boolean isFaceplanted() { return flag(FLAG_FACEPLANTED); }
 
@@ -191,7 +197,7 @@ public class Fox extends Animal {
         }
         setSleeping(tag.getBoolean("Sleeping"));
         setFoxType("snow".equals(tag.tags().get("Type")) ? 1 : 0);
-        setSitting(tag.getBoolean("Sitting"));
+        setSitting(tag.getBoolean("Sitting"), false);   // Paper: 불러올 때는 EntityToggleSitEvent 를 내지 않는다
         setIsCrouching(tag.getBoolean("Crouching"));
         setTargetGoals();
     }

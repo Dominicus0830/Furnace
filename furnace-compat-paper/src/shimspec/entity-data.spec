@@ -5,12 +5,6 @@ class net.minecraft.world.entity.Display
 class net.minecraft.world.entity.Display$TextDisplay
   DATA_BACKGROUND_COLOR_ID = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.Display.TextDisplay.class, "DATA_BACKGROUND_COLOR_ID")
   DATA_LINE_WIDTH_ID = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.Display.TextDisplay.class, "DATA_LINE_WIDTH_ID")
-class net.minecraft.world.entity.TamableAnimal
-  DATA_FLAGS_ID = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.TamableAnimal.class, "DATA_FLAGS_ID")
-  DATA_OWNERUUID_ID = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.TamableAnimal.class, "DATA_OWNERUUID_ID")
-class net.minecraft.world.entity.animal.Fox
-  DATA_TRUSTED_ID_0 = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.animal.Fox.class, "DATA_TRUSTED_ID_0")
-  DATA_TRUSTED_ID_1 = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.animal.Fox.class, "DATA_TRUSTED_ID_1")
 class net.minecraft.world.entity.animal.IronGolem
   DATA_FLAGS_ID = org.domi.furnace.compat.nms.NmsEntityData.accessor(net.minecraft.world.entity.animal.IronGolem.class, "DATA_FLAGS_ID")
 class net.minecraft.world.entity.boss.enderdragon.EnderDragon

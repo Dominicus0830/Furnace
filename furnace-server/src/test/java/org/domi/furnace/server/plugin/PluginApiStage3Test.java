@@ -16,6 +16,7 @@ import org.domi.furnace.api.event.entity.EntityBreedEvent;
 import org.domi.furnace.api.event.entity.EntityExplodeEvent;
 import org.domi.furnace.api.event.entity.EntitySpawnEvent;
 import org.domi.furnace.api.event.entity.EntityTameEvent;
+import org.domi.furnace.api.event.entity.EntityToggleSitEvent;
 import org.domi.furnace.api.event.entity.EntityTargetEvent;
 import org.domi.furnace.api.event.entity.ItemSpawnEvent;
 import org.domi.furnace.api.event.entity.ProjectileHitEvent;
@@ -38,6 +39,7 @@ import org.domi.furnace.server.entity.ItemEntity;
 import org.domi.furnace.server.entity.Player;
 import org.domi.furnace.server.entity.PlayerInventory;
 import org.domi.furnace.server.entity.Snowball;
+import org.domi.furnace.server.entity.Fox;
 import org.domi.furnace.server.entity.Wolf;
 import org.domi.furnace.server.entity.Zombie;
 import org.domi.furnace.server.item.ItemContext;
@@ -259,6 +261,41 @@ class PluginApiStage3Test {
         assertFalse(log.isEmpty(), "40번 중 한 번은 확률에 성공한다");
         assertEquals("minecraft:wolf:A", log.get(0));
         assertFalse(tamed, "취소하면 길들지 않는다");
+    }
+
+    @Test
+    void toggleSitCancelKeepsPoseAndLoadDoesNotFire() throws Exception {
+        List<String> log = new CopyOnWriteArrayList<>();
+        on(EntityToggleSitEvent.class, e -> {
+            log.add(e.entity().type() + ":" + e.sitting());
+            e.setCancelled(true);
+        });
+        boolean[] res = at(r -> {
+            Wolf w = new Wolf(r.level(), r.level().nextEntityId());
+            w.moveTo(9, -60, 9, 0, 0);
+            r.level().addFreshEntity(w);
+            w.setInSittingPose(true);                 // Paper: 이벤트 → 취소 → 그대로
+            boolean wolfCancelled = w.isInSittingPose();
+            w.setInSittingPose(true, false);          // 이벤트 없이 앉는다
+            boolean wolfQuiet = w.isInSittingPose();
+            var tag = w.saveWithoutId(new org.domi.furnace.server.net.io.nbt.NbtCompound());
+            tag.putBoolean("Sitting", true);         // 저장된 앉으라는 명령(orderedToSit)
+            Wolf loaded = new Wolf(r.level(), r.level().nextEntityId());
+            loaded.load(tag);                         // 불러오기는 이벤트를 내지 않는다
+            Fox f = new Fox(r.level(), r.level().nextEntityId());
+            f.moveTo(10, -60, 10, 0, 0);
+            r.level().addFreshEntity(f);
+            f.setSitting(true);
+            boolean foxCancelled = f.isSitting();
+            f.setSitting(true, false);
+            return new boolean[] {wolfCancelled, wolfQuiet, loaded.isInSittingPose(), foxCancelled, f.isSitting()};
+        });
+        assertEquals(List.of("minecraft:wolf:true", "minecraft:fox:true"), log, "한 인자 꼴만 이벤트를 낸다");
+        assertFalse(res[0], "취소하면 늑대가 앉지 않는다");
+        assertTrue(res[1], "이벤트 없는 꼴은 앉는다");
+        assertTrue(res[2], "불러온 늑대는 저장된 앉음 그대로");
+        assertFalse(res[3], "취소하면 여우가 앉지 않는다");
+        assertTrue(res[4], "이벤트 없는 꼴은 여우도 앉는다");
     }
 
     @Test

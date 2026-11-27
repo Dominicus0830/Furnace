@@ -109,6 +109,12 @@ final class Mappings {
                     var cur = Compat.location(f.to());
                     if (!java.util.Objects.equals(cur, b.getTo() == null ? null : Compat.location(b.getTo()))) b.setTo(cur);
                 });
+        // Paper TamableAnimal#setInSittingPose·Fox#setSitting 의 EntityToggleSitEvent: 취소만 돌려준다
+        EventBridge.reg(org.domi.furnace.api.event.entity.EntityToggleSitEvent.class, io.papermc.paper.event.entity.EntityToggleSitEvent.class,
+                f -> {
+                    var e = Compat.entity(f.entity());
+                    return e == null ? null : new io.papermc.paper.event.entity.EntityToggleSitEvent(e, f.sitting());
+                }, (f, b) -> {});
         // Paper Entity#changeDimension 의 EntityPortalExitEvent: 도착 위치·도착 속도(after)를 되돌려 쓴다
         EventBridge.reg(org.domi.furnace.api.event.entity.EntityPortalExitEvent.class, org.bukkit.event.entity.EntityPortalExitEvent.class,
                 f -> {

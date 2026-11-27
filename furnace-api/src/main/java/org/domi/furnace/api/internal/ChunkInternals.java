@@ -985,6 +985,12 @@ public interface ChunkInternals {
         record CamelPose(int action, long gameTime) implements EntityEdit, EntityOp {}
 
         /**
+         * Paper 앉은 자세(길들인 동물 {@code setInSittingPose(sit, fireEvent)}, 여우 {@code setSitting(sit, fireEvent)}). fireEvent 면 플러그인
+         * EntityToggleSitEvent 가 취소할 수 있다. 길들인 동물·여우가 아니면 IllegalArgumentException. 돌려줌: null.
+         */
+        record SitPose(boolean sit, boolean fireEvent) implements EntityEdit, EntityOp {}
+
+        /**
          * 바이트 칸의 깃발 하나 켜고 끄기(엔티티 데이터 설계 D5): 주인 스레드에서 한 번에 읽고 {@code b | mask} 또는 {@code b & ~mask} 를 쓴다
          * (바닐라 {@code set(accessor, value)} 와 같은 훅). 칸이 바이트가 아니면 IllegalArgumentException. 돌려줌: null.
          */
