@@ -2317,7 +2317,9 @@ final class ChunkInternalsImpl implements ChunkInternals {
         if (p.damageType() != null) {
             String key = p.damageType().indexOf(':') < 0 ? "minecraft:" + p.damageType() : p.damageType();
             var causing = lootEntity(p.damageEntity());
-            var direct = p.damageDirectEntity() == p.damageEntity() ? causing : lootEntity(p.damageDirectEntity());
+            // is_direct 판정이 같은 객체 비교이므로, 원인과 직접 가해자가 같은 엔티티(UUID 가 같음)면 같은 LootEntity 를 준다
+            boolean same = p.damageEntity() != null && p.damageDirectEntity() != null && p.damageEntity().uniqueId().equals(p.damageDirectEntity().uniqueId());
+            var direct = same ? causing : lootEntity(p.damageDirectEntity());
             lp.with(org.domi.furnace.server.loot.LootParams.DAMAGE_SOURCE, new org.domi.furnace.server.loot.LootDamageSource() {
                 public String type() { return key; }
                 public boolean is(String tag) { return org.domi.furnace.server.entity.damage.DamageType.keyHasTag(key, tag); }

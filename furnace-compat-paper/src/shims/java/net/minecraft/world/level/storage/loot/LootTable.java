@@ -62,7 +62,11 @@ class LootTable {
                 damageType = ((net.minecraft.core.Holder<?>) holder).getRegisteredName();
                 damageEntity = apiEntity((net.minecraft.world.entity.Entity) damage.getClass().getMethod("getEntity").invoke(damage));
                 damageDirect = apiEntity((net.minecraft.world.entity.Entity) damage.getClass().getMethod("getDirectEntity").invoke(damage));
-            } catch (ReflectiveOperationException e) {
+            } catch (java.lang.reflect.InvocationTargetException e) {   // 껍데기·구현이 던진 원래 오류를 그대로
+                if (e.getCause() instanceof RuntimeException re) throw re;
+                if (e.getCause() instanceof Error err) throw err;
+                throw new IllegalStateException(e.getCause());
+            } catch (ReflectiveOperationException e) {   // 메서드 자체가 없는 값만 여기 온다
                 throw new org.domi.furnace.compat.nms.UnsupportedNmsCall("LootTable#getRandomItems", "damage_source value has no typeHolder/getEntity/getDirectEntity: " + damage.getClass().getName());
             }
         }
