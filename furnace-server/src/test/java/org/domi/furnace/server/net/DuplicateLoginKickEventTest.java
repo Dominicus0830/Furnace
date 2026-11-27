@@ -71,6 +71,23 @@ class DuplicateLoginKickEventTest {
         }
     }
 
+    /** 바닐라 WAITING_FOR_DUPE_DISCONNECT: 옛 플레이어의 퇴장 처리(PlayerQuitEvent)가 끝난 뒤에야 새 접속이 Login Success 를 받는다. */
+    @Test
+    void newLoginWaitsForTheOldPlayerToFinishLeaving() throws Exception {
+        java.util.concurrent.atomic.AtomicLong quitFinished = new java.util.concurrent.atomic.AtomicLong();
+        core.plugins().eventsImpl().subscribe(plugin, org.domi.furnace.api.event.player.PlayerQuitEvent.class, e -> {
+            try { Thread.sleep(400); } catch (InterruptedException ex) { Thread.currentThread().interrupt(); }
+            quitFinished.set(System.nanoTime());
+        });
+        try (TestClient first = TestClient.join(port, "Twin"); TestClient second = TestClient.open(port)) {
+            startLogin(second, "Twin");
+            second.await(0x02);
+            long gotSuccess = System.nanoTime();
+            assertNotEquals(0L, quitFinished.get(), "옛 플레이어 퇴장 처리가 끝나기 전에 새 접속이 로그인을 마쳤다");
+            assertTrue(gotSuccess >= quitFinished.get());
+        }
+    }
+
     @Test
     void cancelledDuplicateKickKeepsOldSessionAndRejectsTheNewLogin() throws Exception {
         core.plugins().eventsImpl().subscribe(plugin, PlayerKickEvent.class, e -> {
