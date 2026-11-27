@@ -3,6 +3,7 @@ package org.domi.furnace.compat.nms;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -231,6 +232,8 @@ class NmsSquaremapPathTest {
         assertEquals("minecraft:the_nether", stored.dimension());
         var view = level.getMapData(id);
         assertNotNull(view);
+        assertSame(fresh, view, "setMapData 로 넣은 객체를 그대로 돌려준다");
+        assertSame(view, level.getMapData(id), "같은 번호는 늘 같은 객체");
         assertSame(stored.colors(), view.colors, "getMapData 는 서버 지도의 살아 있는 보기");
         view.setColor(1, 2, (byte) 9);
         assertEquals(9, stored.color(1, 2), "보기에서 쓰면 서버 지도가 바뀐다");
@@ -238,6 +241,13 @@ class NmsSquaremapPathTest {
         stored.setDirty(false);
         fresh.setColor(3, 3, (byte) 4);   // 붙은 뒤에는 처음 객체의 setColor 도 서버에 알린다
         assertTrue(stored.isDirty());
+        stored.setDirty(false);
+        fresh.setDirty();
+        assertTrue(stored.isDirty(), "setDirty 는 저장 표시만 한다");
+        var replacement = net.minecraft.world.level.saveddata.maps.MapItemSavedData.createFresh(0, 0, (byte) 0, false, false, Level.OVERWORLD);
+        level.setMapData(id, replacement);   // 같은 번호에 새 지도를 두면 새 객체가 돌아온다
+        assertSame(replacement, level.getMapData(id));
+        assertNotSame(fresh.colors, org.domi.furnace.server.map.MapStore.get(id.id()).colors());
         assertThrows(IllegalArgumentException.class, () -> {
             var bad = net.minecraft.world.level.saveddata.maps.MapItemSavedData.createFresh(0, 0, (byte) 0, false, false, Level.OVERWORLD);
             bad.colors = new byte[10];

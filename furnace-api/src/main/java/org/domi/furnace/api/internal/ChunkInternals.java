@@ -1383,6 +1383,9 @@ public interface ChunkInternals {
     /** 색 배열을 직접 고친 칸 (x, y)(0~127)을 알린다 — 저장 대상으로 올리고 그 지도를 든 플레이어에게 조각을 보낸다. 없는 지도면 무시. 아무 스레드. */
     default void mapMarkColorsDirty(int mapId, int x, int y) {}
 
+    /** 바닐라 SavedData#setDirty: 그 지도를 저장 대상으로만 올린다(들고 있는 플레이어에게 다시 보내지 않는다). 없는 지도면 무시. 아무 스레드. */
+    default void mapMarkDirty(int mapId) {}
+
     /**
      * 바닐라 Level#setMapData: 그 번호에 지도를 둔다(있던 것은 바뀐다). 색 배열은 복사하지 않고 그 배열을 서버 지도의 배열로 쓴다 — 길이 16384.
      * 서버 전체에 하나뿐인 저장소(바닐라는 오버월드 저장소)다. 아무 스레드.

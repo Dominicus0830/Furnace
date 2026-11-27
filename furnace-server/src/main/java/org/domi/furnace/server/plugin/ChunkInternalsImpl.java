@@ -2306,6 +2306,12 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     @Override
+    public void mapMarkDirty(int mapId) {
+        var d = org.domi.furnace.server.map.MapStore.get(mapId);
+        if (d != null) d.setDirty();
+    }
+
+    @Override
     public void mapPut(int mapId, MapInfo info, byte[] colors) {
         org.domi.furnace.server.map.MapStore.put(mapId, org.domi.furnace.server.map.MapData.adopt(info.centerX(), info.centerZ(), info.scale(),
                 info.trackingPosition(), info.unlimitedTracking(), info.locked(), info.dimension(), colors));

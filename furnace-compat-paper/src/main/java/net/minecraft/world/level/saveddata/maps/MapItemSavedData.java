@@ -47,12 +47,25 @@ public class MapItemSavedData {
         return ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION, ResourceLocation.parse(name));
     }
 
-    /** 호환 모듈 전용 — 서버 지도의 살아 있는 보기(없는 번호면 null). */
+    /** 번호마다 보기 하나(같은 번호는 늘 같은 객체 — 플러그인이 객체를 열쇠로 기억해도 되고, 옛 객체 쓰기가 새 지도로 가지 않는다). */
+    private static final java.util.concurrent.ConcurrentHashMap<Integer, MapItemSavedData> VIEWS = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * 호환 모듈 전용 — 그 번호의 보기(없는 번호면 null). 서버 지도의 색 배열이 바뀌었으면(지도가 새로 놓임) 새 보기를 만들어 바꾼다.
+     * {@code Level#setMapData} 로 넣은 객체는 그대로 돌려준다.
+     */
     public static MapItemSavedData furnaceOf(int id, ChunkInternals.MapInfo info) {
         byte[] colors = org.domi.furnace.compat.nms.NmsChunks.bridge().mapColors(id);
-        if (colors == null) return null;
-        return new MapItemSavedData(id, info.centerX(), info.centerZ(), dimensionOf(info.dimension()), info.scale(), info.trackingPosition(),
+        if (colors == null) {
+            VIEWS.remove(id);
+            return null;
+        }
+        MapItemSavedData cached = VIEWS.get(id);
+        if (cached != null && cached.colors == colors) return cached;
+        MapItemSavedData made = new MapItemSavedData(id, info.centerX(), info.centerZ(), dimensionOf(info.dimension()), info.scale(), info.trackingPosition(),
                 info.unlimitedTracking(), info.locked(), colors);
+        VIEWS.put(id, made);
+        return made;
     }
 
     /**
@@ -73,7 +86,10 @@ public class MapItemSavedData {
     }
 
     /** 호환 모듈 전용 — 서버에 둔 뒤 그 번호에 붙는다(이후 직접 고친 칸을 서버에 알린다). */
-    public void furnaceAttach(int id) { this.furnaceId = id; }
+    public void furnaceAttach(int id) {
+        this.furnaceId = id;
+        VIEWS.put(id, this);
+    }
 
     /** 바닐라 setColor: 칸 하나를 쓰고 바뀐 칸으로 알린다(0 <= x, y < 128). */
     public void setColor(int x, int y, byte color) {
@@ -94,8 +110,11 @@ public class MapItemSavedData {
         if (id >= 0) org.domi.furnace.compat.nms.NmsChunks.bridge().mapMarkColorsDirty(id, x, y);
     }
 
-    /** 바닐라 SavedData#setDirty: 저장 대상으로 올린다(색 전체를 바뀐 것으로 본다). */
-    public void setDirty() { setColorsDirty(0, 0); }
+    /** 바닐라 SavedData#setDirty: 저장 표시만 한다(플레이어에게 다시 보내지 않는다). 번호가 없는 지도는 둘 때 통째로 올라가므로 할 일이 없다. */
+    public void setDirty() {
+        int id = furnaceId;
+        if (id >= 0) org.domi.furnace.compat.nms.NmsChunks.bridge().mapMarkDirty(id);
+    }
 
     /**
      * 지도 색 조각(바닐라 1.21.1 과 같은 record — 시작 x·y, 너비, 높이, 색 바이트). 패킷에 쓸 때 바닐라는 네 수를 바이트 하나씩(아래 8비트)만 쓴다.
