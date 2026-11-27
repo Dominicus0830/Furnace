@@ -25,7 +25,8 @@ class Camel {
     }
 
     private void furnaceCamelPose(String what, int action) {
-        var op = new EntityEdit.CamelPose(action);
+        // 월드 밖 낙타는 샌드박스(게임 시간 0)에서 재생된다 — 바닐라처럼 엔티티 월드의 시간을 실어 보낸다
+        var op = new EntityEdit.CamelPose(action, level().getWorld().getGameTime());
         if (furnaceNotInWorld()) furnaceDetachedOp(what, op);
         else furnaceEditOf(what, op);
     }

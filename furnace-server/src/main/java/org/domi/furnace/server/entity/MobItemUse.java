@@ -136,7 +136,9 @@ public final class MobItemUse {
     }
 
     /**
-     * PotionItem.finishUsingItem — 플레이어가 아니면 소모하지 않는다. 지속 효과는 바로 걸고 즉시 효과는 모아서 근접도 1.0 으로.
+     * PotionItem.finishUsingItem — 플레이어가 아니면 소모하지 않는다. Paper 1.21.1 을 따른다(javap 대조, user-todo U3c):
+     * Paper 는 forEachEffect 람다에서 지속 효과만 바로 걸고(원인 POTION_DRINK) 즉시 효과는 ArrayList 에 모았다가 그 뒤에 근접도 1.0 으로 적용한다.
+     * 바닐라는 같은 람다에서 즉시 효과도 그 자리에서 적용한다(목록 순서대로).
      * Paper: 마신 쪽이 죽었고 keepInventory 가 아니면 유리병을 떨어뜨리고 빈 손(drink 게임 이벤트 없음).
      */
     private static ItemStack potion(LivingEntity e, ItemStack s) {

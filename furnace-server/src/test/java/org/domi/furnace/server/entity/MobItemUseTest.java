@@ -101,8 +101,8 @@ class MobItemUseTest {
     }
 
     /**
-     * PotionItem.finishUsingItem(1.21.1 javap): 지속 효과는 forEach 안에서 바로 addEffect, 즉시 효과는 목록에 모았다가 그 뒤에 applyInstantenousEffect.
-     * 목록 순서가 [즉시 회복, 생명력 강화] 여도 최대 체력이 먼저 오른 뒤 회복된다.
+     * PotionItem.finishUsingItem — Paper 1.21.1 패치(javap: lambda$finishUsingItem$0 이 즉시 효과를 List.add, 지속 효과만 addEffect, 그 뒤 반복문에서
+     * applyInstantenousEffect). 목록 순서가 [즉시 회복, 생명력 강화] 여도 최대 체력이 먼저 오른 뒤 회복된다. 바닐라는 람다에서 바로 적용해 10 에서 막힌다(user-todo U3c).
      */
     @Test
     void potionAppliesLastingEffectsBeforeInstant() {
@@ -114,7 +114,7 @@ class MobItemUseTest {
                 java.util.Map.of("id", "minecraft:health_boost", "amplifier", 1, "duration", 600))));
         drink(p, potion);
         assertEquals(18.0F, p.maxHealth(), "생명력 강화 II: 10 + 8");
-        assertEquals(13.0F, p.health(), "최대 체력이 먼저 18 로 오른 뒤 8 회복(순서대로면 10 에서 막힌다)");
+        assertEquals(13.0F, p.health(), "Paper: 최대 체력이 먼저 18 로 오른 뒤 8 회복(바닐라 순서면 10 에서 막힌다)");
     }
 
     /** Paper 전용 분기(PotionItem.finishUsingItem): 마신 쪽이 죽었고 keepInventory 가 아니면 유리병을 떨어뜨리고 손을 비운다. */

@@ -940,7 +940,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
             case EntityEdit.StartUsingItem u -> applySetter(e, u);
             case EntityEdit.StopUsingItem u -> applySetter(e, u);
             case EntityEdit.AnimateHurt h -> applySetter(e, h);
-            case EntityEdit.CamelPose c -> applySetter(e, c);
+            case EntityEdit.CamelPose c -> camelPose(e, c.action(), e.level().gameTime());   // 월드 안: 그 월드의 지금 시간
             case EntityOp.SetData d -> {
                 return setData(e, e.type().name(), d);   // 바뀌었는가(같은 값이면 바닐라처럼 아무것도 안 하고 거짓)
             }
@@ -1403,15 +1403,6 @@ final class ChunkInternalsImpl implements ChunkInternals {
             case EntityEdit.StartUsingItem u -> living(e, "startUsingItem").startUsingItem(u.hand(), u.force());
             case EntityEdit.StopUsingItem u -> living(e, "stopUsingItem").stopUsingItem();
             case EntityEdit.AnimateHurt h -> living(e, "animateHurt").animateHurt();
-            case EntityEdit.CamelPose c -> {
-                if (!(e instanceof org.domi.furnace.server.entity.Camel camel)) throw new IllegalArgumentException("camel pose on an entity that is not a camel: " + e.type().name());
-                switch (c.action()) {
-                    case 0 -> camel.sitDown();
-                    case 1 -> camel.standUp();
-                    case 2 -> camel.standUpInstantly();
-                    default -> throw new IllegalArgumentException("camel pose action " + c.action());
-                }
-            }
             default -> throw new IllegalArgumentException("not a setter: " + op);
         }
     }
@@ -1582,6 +1573,17 @@ final class ChunkInternalsImpl implements ChunkInternals {
         return e;
     }
 
+    /** 낙타 자세 조작(EntityEdit.CamelPose). */
+    private static void camelPose(org.domi.furnace.server.entity.Entity e, int action, long gameTime) {
+        if (!(e instanceof org.domi.furnace.server.entity.Camel camel)) throw new IllegalArgumentException("camel pose on an entity that is not a camel: " + e.type().name());
+        switch (action) {
+            case 0 -> camel.sitDown(gameTime);
+            case 1 -> camel.standUp(gameTime);
+            case 2 -> camel.standUpInstantly(gameTime);
+            default -> throw new IllegalArgumentException("camel pose action " + action);
+        }
+    }
+
     /** 기록한 조작 하나를 재생한다(first = 맨 앞 조작 — EntityRandom 은 거기서만, 생성 때 이미 썼다). */
     private static void applyOp(org.domi.furnace.server.entity.Entity e, String id, EntityOp op, boolean first) {
         switch (op) {
@@ -1604,7 +1606,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
             case EntityEdit.StartUsingItem u -> applySetter(e, u);
             case EntityEdit.StopUsingItem u -> applySetter(e, u);
             case EntityEdit.AnimateHurt h -> applySetter(e, h);
-            case EntityEdit.CamelPose c -> applySetter(e, c);
+            case EntityEdit.CamelPose c -> camelPose(e, c.action(), c.gameTime());   // 재생: 부른 때 월드의 시간(샌드박스 시간은 0)
             case EntityOp.SetData d -> setData(e, id, d);
             case EntityOp.GoalPin g -> goalOp(e, g);
             case EntityOp.GoalCreate g -> goalOp(e, g);

@@ -217,12 +217,16 @@ class NmsEntityLookTest {
     /** 낙타 앉기·서기(바닐라 sitDown·standUp·standUpInstantly): 월드 밖 낙타는 칸(자세·자세 바꾼 틱)으로, 월드의 낙타는 서버 낙타로. */
     @Test
     void camelSitsAndStands() {
+        server.tick(3);   // 게임 시간이 0 이면 −0 = 0 이라 앉음(틱 < 0)을 가릴 수 없다
+        long time = world.getGameTime();
+        assertTrue(time > 0L);
         var fresh = (net.minecraft.world.entity.animal.camel.Camel) EntityType.CAMEL.create(world.getHandle());
         @SuppressWarnings("unchecked")
         var pose = (net.minecraft.network.syncher.EntityDataAccessor<net.minecraft.world.entity.Pose>) poseAccessor();
         fresh.sitDown();
         assertSame(net.minecraft.world.entity.Pose.SITTING, fresh.getEntityData().get(pose));
-        assertTrue(lastPoseTick(fresh) <= 0L, "앉으면 자세 바꾼 틱이 −게임 시간");
+        assertEquals(-time, lastPoseTick(fresh), "앉으면 자세 바꾼 틱이 −(월드 게임 시간) — 샌드박스 시간이 아니다");
+        assertTrue(lastPoseTick(fresh) < 0L, "isCamelSitting");
         fresh.standUpInstantly();
         assertSame(net.minecraft.world.entity.Pose.STANDING, fresh.getEntityData().get(pose));
 
