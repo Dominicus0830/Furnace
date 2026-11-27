@@ -42,6 +42,22 @@ class ConsumingTest {
         assertTrue(v.hasEffect(MobEffect.ABSORPTION));
     }
 
+    /** Paper PotionItem(U3c): 지속 효과를 먼저 다 걸고 즉시 효과는 뒤에 — 최대 체력이 28 로 먼저 서서 18 + 8 = 26(바닐라 순서면 20 에서 막힌다). 빈 칸엔 유리병. */
+    @Test
+    void potionAppliesInstantEffectsAfterLastingLikePaper() {
+        v.setHealth(18.0F);
+        ItemStack potion = org.domi.furnace.server.item.ItemTools.with(TestRecipes.item("potion", 1), "minecraft:potion_contents",
+                java.util.Map.of("custom_effects", java.util.List.of(
+                        java.util.Map.of("id", "minecraft:instant_health", "amplifier", 1, "duration", 1),
+                        java.util.Map.of("id", "minecraft:health_boost", "amplifier", 1, "duration", 600))));
+        hold(potion);
+        assertTrue(Consuming.tryStart(player, 0, player.inventory().get(player.inventory().heldWindowSlot())));
+        run(32);
+        assertEquals(28.0F, v.maxHealth());
+        assertEquals(26.0F, v.health());
+        assertEquals("minecraft:glass_bottle", org.domi.furnace.server.item.ItemTools.itemName(player.inventory().get(player.inventory().heldWindowSlot())));
+    }
+
     /** 포화는 즉시 효과: 마시면 효과 목록에 남지 않고 음식만 (단계+1) 차오른다. */
     @Test
     void drinkingSaturationIsInstantAndLeavesNoEffect() {

@@ -125,6 +125,10 @@ public final class Consuming {
             if (!v.isCreative()) inv.set(ws, s.withCount(s.count() - 1));
             return;
         }
+        if (n.equals("minecraft:potion")) {
+            finishPotion(p, region, inv, ws, s);
+            return;
+        }
         if (n.equals("minecraft:suspicious_stew") && ItemTools.component(s, "minecraft:suspicious_stew_effects") instanceof List<?> stew) {
             for (Object o : stew) {   // SuspiciousStewItem.finishUsingItem: 음식 먹기 전에 효과부터(증폭 0, 아이콘·입자 보임)
                 if (!(o instanceof Map<?, ?> m)) continue;
@@ -147,15 +151,13 @@ public final class Consuming {
             if (f.get("using_converts_to") instanceof Map<?, ?> c && c.get("id") instanceof String id) leftover = id;
             gameEventAt(p, org.domi.furnace.server.world.gameevent.GameEvent.EAT);   // LivingEntity.eat 끝
         }
-        // 바닐라 HoneyBottle·MilkBucket·PotionItem.finishUsingItem: 고유 효과 전에 consume_item(꿀은 음식 경로와 합쳐 두 번)
-        if (n.equals("minecraft:honey_bottle") || n.equals("minecraft:milk_bucket") || n.equals("minecraft:potion")) consumeTrigger(p, s);
+        // 바닐라 HoneyBottle·MilkBucketItem.finishUsingItem: 고유 효과 전에 consume_item(꿀은 음식 경로와 합쳐 두 번)
+        if (n.equals("minecraft:honey_bottle") || n.equals("minecraft:milk_bucket")) consumeTrigger(p, s);
         switch (n) {
             case "minecraft:honey_bottle" -> { v.removeEffect(MobEffect.byName("poison")); leftover = "minecraft:glass_bottle"; }
             case "minecraft:milk_bucket" -> { v.removeAllEffects(); leftover = "minecraft:bucket"; }
-            case "minecraft:potion" -> { applyPotion(v, s); leftover = "minecraft:glass_bottle"; }
             default -> { }
         }
-        if (n.equals("minecraft:potion")) gameEventAt(p, org.domi.furnace.server.world.gameevent.GameEvent.DRINK);   // PotionItem.finishUsingItem 끝(우유는 없음)
         boolean creative = v.isCreative();
         if (!creative) {
             ItemStack rest = s.withCount(s.count() - 1);
@@ -216,12 +218,38 @@ public final class Consuming {
         return (int) (r / total * 255.0F) << 16 | (int) (g / total * 255.0F) << 8 | (int) (b / total * 255.0F);
     }
 
-    private static void applyPotion(PlayerVitals v, ItemStack s) {
-        List<MobEffectInstance> list = potionEffects(s);
-        for (MobEffectInstance i : list) {
-            if (i.effect().isInstantaneous()) v.applyInstantaneousEffect(i.effect(), i.amplifier(), 1.0);
+    /**
+     * Paper 1.21.1 PotionItem.finishUsingItem(플레이어, javap 대조 — user-todo U3c 코디네이터 확정): consume_item·사용 통계 → 지속 효과는 바로 걸고
+     * 즉시 효과는 모아 둔다 → 크리에이티브가 아니면 하나 소모 → 모은 즉시 효과(근접도 1.0) → 크리에이티브가 아니면 유리병: 죽었고 keepInventory 가
+     * 아니면 발밑에 떨어뜨리고 칸을 비운 채 끝(drink 게임 이벤트 없음), 물약이 다 떨어졌으면 그 칸에, 아니면 인벤토리에 넣는다(가득이면 사라진다 —
+     * Inventory.add 의 반환값을 버린다) → drink 게임 이벤트. 바닐라는 즉시 효과를 목록 순서대로 그 자리에서 적용한다.
+     */
+    private static void finishPotion(Player p, org.domi.furnace.server.world.Region region, PlayerInventory inv, int ws, ItemStack s) {
+        PlayerVitals v = p.vitals();
+        consumeTrigger(p, s);
+        List<MobEffectInstance> instant = new java.util.ArrayList<>();
+        for (MobEffectInstance i : potionEffects(s)) {
+            if (i.effect().isInstantaneous()) instant.add(i);
             else v.addEffect(i);
         }
+        boolean creative = v.isCreative();
+        ItemStack rest = creative ? s : s.withCount(s.count() - 1);
+        if (!creative) inv.set(ws, rest);
+        for (MobEffectInstance i : instant) v.applyInstantaneousEffect(i.effect(), i.amplifier(), 1.0);
+        if (!creative) {
+            ItemStack bottle = new ItemStack(ItemContext.id("minecraft:item", "glass_bottle"), 1);
+            var level = region == null ? null : region.level();
+            if (v.health() <= 0.0F && level != null && !level.gameRule("keepInventory")) {
+                var ie = new ItemEntity(level, level.nextEntityId(), p.x(), p.y(), p.z(), bottle);   // spawnAtLocation(stack, 0)
+                ie.setDefaultPickUpDelay();
+                level.addFreshEntity(ie);
+                inv.set(ws, ItemStack.EMPTY);
+                return;
+            }
+            if (rest.isEmpty()) inv.set(ws, bottle);
+            else inv.add(bottle, false, 64, false);
+        }
+        gameEventAt(p, org.domi.furnace.server.world.gameevent.GameEvent.DRINK);
     }
 
     static MobEffectInstance fromMap(Map<?, ?> e) {
