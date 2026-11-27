@@ -9,6 +9,9 @@ M	net/minecraft/commands/CommandSource	acceptsFailure	()Z	1025	-
 M	net/minecraft/commands/CommandSource	acceptsSuccess	()Z	1025	-
 M	net/minecraft/commands/CommandSource	sendSystemMessage	(Lnet/minecraft/network/chat/Component;)V	1025	-
 M	net/minecraft/commands/CommandSource	shouldInformAdmins	()Z	1025	-
+C	net/minecraft/commands/CommandSourceStack	33	java/lang/Object	net/minecraft/commands/ExecutionCommandSource,net/minecraft/commands/SharedSuggestionProvider,io/papermc/paper/command/brigadier/PaperCommandSourceStack	Ljava/lang/Object;Lnet/minecraft/commands/ExecutionCommandSource<Lnet/minecraft/commands/CommandSourceStack;>;Lnet/minecraft/commands/SharedSuggestionProvider;Lio/papermc/paper/command/brigadier/PaperCommandSourceStack;	-	paper-server-1.21.1
+C	net/minecraft/commands/ExecutionCommandSource	1537	java/lang/Object	-	<T::Lnet/minecraft/commands/ExecutionCommandSource<TT;>;>Ljava/lang/Object;	-	paper-server-1.21.1
+C	net/minecraft/commands/SharedSuggestionProvider	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/commands/arguments/ArgumentSignatures	65585	java/lang/Record	-	-	-	paper-server-1.21.1
 R	net/minecraft/commands/arguments/ArgumentSignatures	entries	Ljava/util/List;	Ljava/util/List<Lnet/minecraft/commands/arguments/ArgumentSignatures$Entry;>;
 C	net/minecraft/commands/arguments/DimensionArgument	33	java/lang/Object	com/mojang/brigadier/arguments/ArgumentType	Ljava/lang/Object;Lcom/mojang/brigadier/arguments/ArgumentType<Lnet/minecraft/resources/ResourceLocation;>;	-	paper-server-1.21.1
@@ -2099,6 +2102,18 @@ C	net/minecraft/world/level/storage/loot/parameters/LootContextParams	33	java/la
 C	net/minecraft/world/scores/ScoreHolder	1537	java/lang/Object	-	-	-	paper-server-1.21.1
 C	net/minecraft/world/ticks/ContainerSingleItem	1537	java/lang/Object	net/minecraft/world/Container	-	-	paper-server-1.21.1
 C	net/minecraft/world/ticks/ContainerSingleItem$BlockContainerSingleItem	1537	java/lang/Object	net/minecraft/world/ticks/ContainerSingleItem	-	1545	paper-server-1.21.1
+H	net/minecraft/commands/ExecutionCommandSource	dispatcher	()Lcom/mojang/brigadier/CommandDispatcher;	1025	()Lcom/mojang/brigadier/CommandDispatcher<TT;>;
+H	net/minecraft/commands/ExecutionCommandSource	hasPermission	(I)Z	1025	-
+H	net/minecraft/commands/ExecutionCommandSource	isSilent	()Z	1025	-
+H	net/minecraft/commands/SharedSuggestionProvider	customSuggestion	(Lcom/mojang/brigadier/context/CommandContext;)Ljava/util/concurrent/CompletableFuture;	1025	(Lcom/mojang/brigadier/context/CommandContext<*>;)Ljava/util/concurrent/CompletableFuture<Lcom/mojang/brigadier/suggestion/Suggestions;>;
+H	net/minecraft/commands/SharedSuggestionProvider	enabledFeatures	()Lnet/minecraft/world/flag/FeatureFlagSet;	1025	-
+H	net/minecraft/commands/SharedSuggestionProvider	getAllTeams	()Ljava/util/Collection;	1025	()Ljava/util/Collection<Ljava/lang/String;>;
+H	net/minecraft/commands/SharedSuggestionProvider	getAvailableSounds	()Ljava/util/stream/Stream;	1025	()Ljava/util/stream/Stream<Lnet/minecraft/resources/ResourceLocation;>;
+H	net/minecraft/commands/SharedSuggestionProvider	getOnlinePlayerNames	()Ljava/util/Collection;	1025	()Ljava/util/Collection<Ljava/lang/String;>;
+H	net/minecraft/commands/SharedSuggestionProvider	getRecipeNames	()Ljava/util/stream/Stream;	1025	()Ljava/util/stream/Stream<Lnet/minecraft/resources/ResourceLocation;>;
+H	net/minecraft/commands/SharedSuggestionProvider	hasPermission	(I)Z	1025	-
+H	net/minecraft/commands/SharedSuggestionProvider	levels	()Ljava/util/Set;	1025	()Ljava/util/Set<Lnet/minecraft/resources/ResourceKey<Lnet/minecraft/world/level/Level;>;>;
+H	net/minecraft/commands/SharedSuggestionProvider	registryAccess	()Lnet/minecraft/core/RegistryAccess;	1025	-
 H	net/minecraft/core/HolderGetter	get	(Lnet/minecraft/resources/ResourceKey;)Ljava/util/Optional;	1025	(Lnet/minecraft/resources/ResourceKey<TT;>;)Ljava/util/Optional<Lnet/minecraft/core/Holder$Reference<TT;>;>;
 H	net/minecraft/core/HolderGetter	get	(Lnet/minecraft/tags/TagKey;)Ljava/util/Optional;	1025	(Lnet/minecraft/tags/TagKey<TT;>;)Ljava/util/Optional<Lnet/minecraft/core/HolderSet$Named<TT;>;>;
 H	net/minecraft/core/HolderLookup	listElements	()Ljava/util/stream/Stream;	1025	()Ljava/util/stream/Stream<Lnet/minecraft/core/Holder$Reference<TT;>;>;

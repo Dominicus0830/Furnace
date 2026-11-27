@@ -21,9 +21,10 @@ public record PlayerInfoUpdate(List<Entry> entries) implements Packet {
     public static final int DEFAULT_GAME_MODE = 1;
 
     public record Entry(UUID uuid, String name, List<org.domi.furnace.server.players.GameProfile.Property> properties,
-                        org.domi.furnace.server.chat.RemoteChatSession.Data chatSession, int gameMode, int latencyMs) {
+                        org.domi.furnace.server.chat.RemoteChatSession.Data chatSession, int gameMode, int latencyMs,
+                        org.domi.furnace.api.text.Text listName) {
         public Entry(UUID uuid, String name, int gameMode, int latencyMs) {
-            this(uuid, name, List.of(), null, gameMode, latencyMs);
+            this(uuid, name, List.of(), null, gameMode, latencyMs, null);
         }
     }
 
@@ -60,6 +61,23 @@ public record PlayerInfoUpdate(List<Entry> entries) implements Packet {
         };
     }
 
+    /** 탭 표시 이름만 갱신(바닐라 ClientboundPlayerInfoUpdatePacket UPDATE_DISPLAY_NAME; null = 기본 이름으로 되돌림). */
+    public static Packet updateDisplayName(UUID uuid, org.domi.furnace.api.text.Text listName) {
+        return new Packet() {
+            @Override
+            public int id() { return ID; }
+
+            @Override
+            public void write(ByteBuf buf) {
+                buf.writeByte(0x20);
+                Types.writeVarInt(buf, 1);
+                Types.writeUuid(buf, uuid);
+                buf.writeBoolean(listName != null);
+                if (listName != null) buf.writeBytes(listName.networkNbt());
+            }
+        };
+    }
+
     public PlayerInfoUpdate(UUID uuid, String name) {
         this(List.of(new Entry(uuid, name, DEFAULT_GAME_MODE, 0)));
     }
@@ -88,7 +106,8 @@ public record PlayerInfoUpdate(List<Entry> entries) implements Packet {
             Types.writeVarInt(buf, e.gameMode());
             buf.writeBoolean(true);             // update_listed
             Types.writeVarInt(buf, e.latencyMs());
-            buf.writeBoolean(false);            // update_display_name: 없음
+            buf.writeBoolean(e.listName() != null);   // update_display_name: 탭 표시 이름(없으면 기본 이름)
+            if (e.listName() != null) buf.writeBytes(e.listName().networkNbt());
         }
     }
 }

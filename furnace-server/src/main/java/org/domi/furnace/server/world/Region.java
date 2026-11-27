@@ -3665,19 +3665,24 @@ public final class Region {
             if (b.isDisconnected() || b.tabListingHeld()   // 조인 이벤트가 끝나기 전 — 보류를 풀 때 번호가 올라 다음 틱에 올린다
                     || b != a && !org.domi.furnace.server.entity.view.EntityViewRules.canSee(a, b.uuid())) continue;
             Player.ProfileState st = b.profileState();   // 한 번 읽어 이름·속성·세대를 같은 묶음에서
+            Player.ListName ln = b.listName();            // 탭 표시 이름도 묶음째 한 번
             Player.Listed was = a.listed().get(b.entityId());
             if (was == null) {
-                a.listed().put(b.entityId(), new Player.Listed(b.uuid(), st.generation()));
+                a.listed().put(b.entityId(), new Player.Listed(b.uuid(), st.generation(), ln.generation()));
                 if (add == null) add = new ArrayList<>();
-                add.add(tabEntry(b, st, b.uuid()));
+                add.add(tabEntry(b, st, ln, b.uuid()));
             } else if (was.generation() != st.generation()) {
                 // 다른 region·월드에서 프로필이 바뀌었다(Paper setPlayerProfile 은 canSee 인 모두에게): 엔티티·탭을 엔티티 UUID 로 빼고
                 // 새 프로필 id 로 다시 올린다(trackAndShowEntity 의 uuid 덮어쓰기). 보고 있었다면 이어지는 가시성 갱신이 다시 스폰한다.
                 if (stopTracking(a, b.entityId())) a.send(new RemoveEntities(java.util.List.of(b.entityId())));
                 a.send(new PlayerInfoRemove(java.util.List.of(was.uuid())));
-                a.listed().put(b.entityId(), new Player.Listed(b.uuid(), st.generation()));
-                a.send(new PlayerInfoUpdate(java.util.List.of(tabEntry(b, st, st.profile().id()))));
+                a.listed().put(b.entityId(), new Player.Listed(b.uuid(), st.generation(), ln.generation()));
+                a.send(new PlayerInfoUpdate(java.util.List.of(tabEntry(b, st, ln, st.profile().id()))));
                 world.levelServices().gameEvents().playerShowPlayer(a, b);   // Paper trackAndShowEntity → PlayerShowEntityEvent
+            } else if (was.nameGeneration() != ln.generation()) {
+                // 탭 표시 이름만 바뀌었다(Paper setPlayerListName 은 canSee 인 모두에게 UPDATE_DISPLAY_NAME): 이름만 갱신
+                a.listed().put(b.entityId(), new Player.Listed(was.uuid(), was.generation(), ln.generation()));
+                a.send(PlayerInfoUpdate.updateDisplayName(was.uuid(), ln.text()));
             }
         }
         if (add != null) a.send(new PlayerInfoUpdate(add));
@@ -3685,10 +3690,10 @@ public final class Region {
     }
 
     /** 탭 항목(createPlayerInitializing): UUID 칸은 보통 엔티티 UUID, 프로필을 바꿔 다시 올릴 때만 새 프로필 id(Paper uuid 덮어쓰기). */
-    public static PlayerInfoUpdate.Entry tabEntry(Player b, Player.ProfileState st, UUID uuid) {
+    public static PlayerInfoUpdate.Entry tabEntry(Player b, Player.ProfileState st, Player.ListName ln, UUID uuid) {
         var session = b.chat().session();
         return new PlayerInfoUpdate.Entry(uuid, st.profile().name(), st.profile().properties(), session == null ? null : session.asData(),
-                b.gameMode().id(), b.latencyMs());
+                b.gameMode().id(), b.latencyMs(), ln.text());
     }
 
     /**
@@ -3713,11 +3718,12 @@ public final class Region {
             v.send(new PlayerInfoRemove(java.util.List.of(t.uuid())));
         }
         Player.ProfileState st = t.swapProfile(profile);
+        Player.ListName ln = t.listName();
         EntityView tv = EntityView.of(t);
         double range = playerTrackRange();
         for (Player v : viewers) {   // 새 프로필로 다시 등록
-            v.listed().put(eid, new Player.Listed(t.uuid(), st.generation()));
-            v.send(new PlayerInfoUpdate(java.util.List.of(tabEntry(t, st, st.profile().id()))));
+            v.listed().put(eid, new Player.Listed(t.uuid(), st.generation(), ln.generation()));
+            v.send(new PlayerInfoUpdate(java.util.List.of(tabEntry(t, st, ln, st.profile().id()))));
             if (v != t && seesPlayerEntity(v, tv, range)) spawnPlayerFor(v, tv);
             world.levelServices().gameEvents().playerShowPlayer(v, t);
         }

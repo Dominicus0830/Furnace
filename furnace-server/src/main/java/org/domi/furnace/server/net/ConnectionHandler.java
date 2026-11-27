@@ -1641,15 +1641,17 @@ public final class ConnectionHandler extends SimpleChannelInboundHandler<ByteBuf
         // 접속 탭: 본인 항목 먼저, 그다음 이 플레이어가 볼 수 있는 기존 접속자를 한 패킷으로(없으면 보내지 않는다 — Paper
         // Use-single-player-info-update-packet-on-join). 조인 이벤트에서 숨긴 접속자는 처음부터 빠진다. 아직 adopt 전이라 p.listed()는 이 스레드 전용.
         Player.ProfileState ps = p.profileState();   // 조인 이벤트에서 바꿨으면 새 프로필(Paper: 탭을 보내기 전엔 gameProfile 만 바꾼다)
-        send(ctx, new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate(java.util.List.of(org.domi.furnace.server.world.Region.tabEntry(p, ps, p.uuid()))));
-        p.listed().put(p.entityId(), new Player.Listed(p.uuid(), ps.generation()));
+        Player.ListName pn = p.listName();
+        send(ctx, new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate(java.util.List.of(org.domi.furnace.server.world.Region.tabEntry(p, ps, pn, p.uuid()))));
+        p.listed().put(p.entityId(), new Player.Listed(p.uuid(), ps.generation(), pn.generation()));
         java.util.List<org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate.Entry> existing = new java.util.ArrayList<>();
         for (Player b : world.onlinePlayers()) {
             // 아직 조인 이벤트 중인 다른 접속자는 그쪽이 보류를 풀 때 이 플레이어의 region 이 올린다
             if (b == p || b.isDisconnected() || b.tabListingHeld() || !org.domi.furnace.server.entity.view.EntityViewRules.canSee(p, b.uuid())) continue;
             Player.ProfileState bs = b.profileState();
-            existing.add(org.domi.furnace.server.world.Region.tabEntry(b, bs, b.uuid()));
-            p.listed().put(b.entityId(), new Player.Listed(b.uuid(), bs.generation()));
+            Player.ListName bn = b.listName();
+            existing.add(org.domi.furnace.server.world.Region.tabEntry(b, bs, bn, b.uuid()));
+            p.listed().put(b.entityId(), new Player.Listed(b.uuid(), bs.generation(), bn.generation()));
         }
         if (!existing.isEmpty()) send(ctx, new org.domi.furnace.server.net.protocol.play.PlayerInfoUpdate(existing));
         p.releaseTabListing();   // 이제 다른 접속자의 region 이 다음 틱에 이 플레이어를 탭·엔티티에 올린다(Paper sentListPacket = true)

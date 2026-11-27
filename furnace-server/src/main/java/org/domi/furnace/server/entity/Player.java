@@ -95,7 +95,7 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     private final Map<Integer, Listed> listed = new HashMap<>();
 
     /** 탭 목록 기록 한 칸: 그 항목을 뺄 때 쓰는 엔티티 UUID 와 올릴 때의 프로필 세대(T-141 E11c-2 설계 §3). */
-    public record Listed(UUID uuid, int generation) {}
+    public record Listed(UUID uuid, int generation, int nameGeneration) {}
 
     private volatile double[] pending;            // {x,y,z,yaw,pitch,onGround} IO→region 발행
     private volatile boolean disconnected;
@@ -267,6 +267,24 @@ public final class Player implements Targetable, Rider, org.domi.furnace.server.
     public record ProfileState(org.domi.furnace.server.players.GameProfile profile, int generation) {}
 
     private volatile ProfileState profileState;
+
+    /** 탭 목록 표시 이름(바닐라 ServerPlayer.listName; null = 기본 이름)과 그 세대. 한 묶음으로 읽어야 이름·세대가 어긋나지 않는다. */
+    public record ListName(org.domi.furnace.api.text.Text text, int generation) {}
+
+    private volatile ListName listName = new ListName(null, 0);
+
+    /** 지금의 탭 표시 이름 묶음(아무 스레드). */
+    public ListName listName() { return listName; }
+
+    /**
+     * 탭 표시 이름을 바꾼다(Paper CraftPlayer.setPlayerListName: null 이면 기본 이름). 세대를 올리고 접속자 번호를 올려, 이 플레이어를 보는
+     * 모든 관찰자 region 이 다음 틱에 PlayerInfoUpdate(update_display_name)를 보낸다. 같은 값이어도 세대를 올린다(Paper 는 부를 때마다 보낸다).
+     */
+    public synchronized void setListName(org.domi.furnace.api.text.Text text) {
+        ListName cur = listName;
+        listName = new ListName(text, cur.generation() + 1);
+        bumpRoster();
+    }
 
     /** 지금의 프로필 묶음(한 번 읽어 프로필·세대를 함께 쓴다). 아무 스레드. */
     public ProfileState profileState() { return profileState; }

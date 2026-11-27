@@ -8,7 +8,7 @@ import org.bukkit.command.CommandSender;
  * 콘솔·명령 블록 같은 보낸이. 바닐라의 권한 단계·자리·시선·결과 콜백 같은 멤버는 아직 없다(호출 위치에서 실패).
  * Paper 의 Brigadier 명령 API(Commands.register)가 아직 없어 플러그인이 이것을 받는 길은 {@link #furnaceOf} 로 만든 것뿐이다.
  */
-public class CommandSourceStack implements io.papermc.paper.command.brigadier.PaperCommandSourceStack {
+class CommandSourceStack {
 
     private final CommandSender sender;
 
