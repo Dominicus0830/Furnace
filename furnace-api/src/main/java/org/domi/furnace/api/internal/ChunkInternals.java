@@ -1403,6 +1403,20 @@ public interface ChunkInternals {
         throw new UnsupportedOperationException("lootRoll");
     }
 
+    /** 바닐라 {@code LootTable#getRandomItemsRaw}: {@link #lootRoll} 과 같되 스택을 나누지 않고 빈 스택도 그대로 돌려준다. 스레드 규칙은 같다. */
+    default java.util.List<org.domi.furnace.api.item.ItemStack> lootRollRaw(World world, String tableId, LootRollParams params, long seed) {
+        throw new UnsupportedOperationException("lootRollRaw");
+    }
+
+    /**
+     * 바닐라 {@code LootTable#fill(Container, LootParams, long)}: 칸 내용({@code contents}, 빈 칸은 빈 스택)에 표 결과를 바닐라 난수 순서
+     * (전리품 → 빈 칸 섞기 → 나누기 → 아이템 섞기)대로 채운 새 내용을 같은 길이로 돌려준다. 가득 차면 바닐라처럼 경고하고 멈춘다. 스레드 규칙은 {@link #lootRoll} 과 같다.
+     */
+    default java.util.List<org.domi.furnace.api.item.ItemStack> lootFill(World world, String tableId, LootRollParams params, long seed,
+                                                                         java.util.List<org.domi.furnace.api.item.ItemStack> contents) {
+        throw new UnsupportedOperationException("lootFill");
+    }
+
     /**
      * 그 번호 지도의 색 배열 **그 자체**(128*128 바이트, 바닐라 MapItemSavedData.colors 와 같은 공개 배열 — 쓰면 서버 지도가 바뀐다). 없으면 null.
      * 직접 고친 칸은 {@link #mapMarkColorsDirty}로 알린다. 아무 스레드(배열 칸 쓰기는 따로 동기화되지 않는다 — 바닐라와 같다).

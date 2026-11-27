@@ -103,4 +103,31 @@ class NmsLootBridgeTest {
         var params = chest().withParameter(LootContextParams.DAMAGE_SOURCE, level.damageSources().fall()).create(WITH_DAMAGE);
         assertFalse(t.getRandomItems(params, 7L).isEmpty());
     }
+
+    @Test
+    void fillIsDeterministicForTheSameSeedAndKeepsOccupiedSlots() {
+        LootTable t = LootTable.furnaceOf("minecraft:chests/simple_dungeon", LootContextParamSets.CHEST);
+        var a = new NmsLocalContainer(27);
+        var b = new NmsLocalContainer(27);
+        a.setItem(5, new ItemStack(net.minecraft.world.item.Items.STICK, 9));
+        b.setItem(5, new ItemStack(net.minecraft.world.item.Items.STICK, 9));
+        t.fill(a, chest().create(LootContextParamSets.CHEST), 99L);
+        t.fill(b, chest().create(LootContextParamSets.CHEST), 99L);
+        int filled = 0;
+        for (int i = 0; i < 27; i++) {
+            assertTrue(ItemStack.matches(a.getItem(i), b.getItem(i)), "slot " + i);
+            if (!a.getItem(i).isEmpty()) filled++;
+        }
+        assertTrue(filled > 1, "표 결과가 칸에 들어가야 한다");
+        assertEquals(net.minecraft.world.item.Items.STICK, a.getItem(5).getItem());
+        assertEquals(9, a.getItem(5).getCount());
+    }
+
+    @Test
+    void rawRollDoesNotSplitStacks() {
+        LootTable t = LootTable.furnaceOf("minecraft:chests/simple_dungeon", LootContextParamSets.CHEST);
+        List<ItemStack> raw = new java.util.ArrayList<>();
+        t.getRandomItemsRaw(chest().create(LootContextParamSets.CHEST), raw::add);
+        assertFalse(raw.stream().allMatch(ItemStack::isEmpty));
+    }
 }
