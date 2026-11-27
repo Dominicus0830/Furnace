@@ -839,6 +839,19 @@ public final class WorldHandle implements org.domi.furnace.api.world.World {
                         @SuppressWarnings("unchecked") T t = (T) o[0];
                         return t;
                     }
+                    if (original instanceof org.domi.furnace.server.block.entity.ChiseledBookShelfBlockEntity bs) {
+                        // 바닐라 setItem: 책만 들어가고(그 밖은 무시), 빈 스택은 removeItem — 블록 상태(책 보임)·비교기 알림은 updateState 가
+                        Object[] o = new Object[1];
+                        o[0] = op.apply(new OwnedInventory.Slots() {
+                            public int size() { return 6; }
+
+                            public org.domi.furnace.server.entity.ItemStack get(int slot) { return bs.getItem(slot); }
+
+                            public void set(int slot, org.domi.furnace.server.entity.ItemStack s) { bs.setItem(slot, s == null ? org.domi.furnace.server.entity.ItemStack.EMPTY : s, r.level()); }
+                        });
+                        @SuppressWarnings("unchecked") T t = (T) o[0];
+                        return t;
+                    }
                     var cbe = (org.domi.furnace.server.block.entity.ContainerBlockEntity) original;
                     if (cbe.lootTable != null) {
                         core().unpackLoot(world, cbe, null);
