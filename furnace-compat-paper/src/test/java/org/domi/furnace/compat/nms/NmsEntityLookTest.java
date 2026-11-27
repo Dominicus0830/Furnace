@@ -272,17 +272,38 @@ class NmsEntityLookTest {
 
     /**
      * 앉은 자세(Paper setInSittingPose·setSitting): 두 인자 꼴(false)은 이벤트 없이, 한 인자 꼴은 EntityToggleSitEvent 를 내고 취소면 그대로.
-     * 월드 밖 엔티티는 Bukkit 엔티티가 없어 이벤트를 내는 꼴이 getBukkitEntity 처럼 멈춘다.
+     * 월드 밖 엔티티도 Bukkit 엔티티로 이벤트를 낸다(취소면 그대로).
      */
     @Test
     void tamableAndFoxSitLikePaper() {
         var fresh = (net.minecraft.world.entity.animal.Wolf) EntityType.WOLF.create(world.getHandle());
         fresh.setInSittingPose(true, false);
         assertEquals(1, ((Byte) tamableFlags(fresh)) & 1, "월드 밖 늑대 앉음 깃발");
-        assertThrows(UnsupportedNmsCall.class, () -> fresh.setInSittingPose(false));
         var freshFox = (net.minecraft.world.entity.animal.Fox) EntityType.FOX.create(world.getHandle());
         freshFox.setSitting(true, false);   // 기록·재생(예외 없음)
-        assertThrows(UnsupportedNmsCall.class, () -> freshFox.setSitting(false));
+        // 월드 밖 엔티티도 Bukkit 엔티티가 있다: 한 인자 꼴은 그 객체로 Bukkit EntityToggleSitEvent 를 내고, 취소면 그대로, 아니면 이벤트 없이 기록한다
+        List<Object> bukkitSeen = new java.util.concurrent.CopyOnWriteArrayList<>();
+        boolean[] cancel = {true};
+        var rl = new org.bukkit.plugin.RegisteredListener(new org.bukkit.event.Listener() {}, (l, e) -> {
+            var ev = (io.papermc.paper.event.entity.EntityToggleSitEvent) e;
+            bukkitSeen.add(ev.getEntity());
+            if (cancel[0]) ev.setCancelled(true);
+        }, org.bukkit.event.EventPriority.NORMAL, NmsBlockPlaceTest.fakePlugin(), false);
+        io.papermc.paper.event.entity.EntityToggleSitEvent.getHandlerList().register(rl);
+        try {
+            fresh.setInSittingPose(false);
+            assertEquals(1, ((Byte) tamableFlags(fresh)) & 1, "취소하면 월드 밖 늑대는 그대로 앉아 있다");
+            cancel[0] = false;
+            fresh.setInSittingPose(false);
+            assertEquals(0, ((Byte) tamableFlags(fresh)) & 1, "취소하지 않으면 일어선다(이벤트를 한 번만 낸다)");
+            freshFox.setSitting(false);
+            assertEquals(3, bukkitSeen.size());
+            assertSame(fresh.getBukkitEntity(), bukkitSeen.get(0), "이벤트의 엔티티가 그 NMS 엔티티의 Bukkit 엔티티");
+            assertSame(fresh.getBukkitEntity(), bukkitSeen.get(1));
+            assertSame(freshFox.getBukkitEntity(), bukkitSeen.get(2));
+        } finally {
+            io.papermc.paper.event.entity.EntityToggleSitEvent.getHandlerList().unregister(rl);
+        }
 
         List<String> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
         // 서버 이벤트를 취소하는 구독(Bukkit EntityToggleSitEvent 로 잇는 다리는 EventBridgeTest 가 본다)

@@ -610,6 +610,23 @@ public interface ChunkInternals {
          * refreshDimensions 가 정한 값이다 — 월드에 넣은 뒤와 같은 규칙. 이 객체의 잠금 안에서 읽는다(아무 스레드).
          */
         default float[] dimensions() { throw new UnsupportedOperationException("dimensions"); }
+
+        /** 이 엔티티의 UUID(바닐라 생성자의 난수 선택 또는 {@link EntityOp.SetUuid}) — 넣은 엔티티와 같다(같은 씨앗). 이 객체의 잠금 안에서 읽는다. */
+        default java.util.UUID entityUuid() { throw new UnsupportedOperationException("entityUuid"); }
+
+        /**
+         * 이 엔티티의 상태 손잡이가 구현하는 API 인터페이스(EntityState 와 그 하위: LivingEntityState·ArmorStandState). 호환 계층이 그 형의 기록 프록시를 만든다.
+         */
+        default java.util.List<Class<?>> stateTypes() { throw new UnsupportedOperationException("stateTypes"); }
+
+        /**
+         * 읽기 호출 {@link EntityOp.StateCall#path}(기록하지 않는다)를 샌드박스 엔티티의 상태 손잡이에 부른 결과. 이 객체의 잠금 안에서(아무 스레드). 상태를 바꾸는
+         * 호출은 여기서 부르지 않는다 — {@link #apply} 로(그래야 기록과 한 번만 재생된다).
+         */
+        default Object read(java.util.List<Call> path) { throw new UnsupportedOperationException("read"); }
+
+        /** 가장 최근 {@link #apply} 한 {@link EntityOp.StateCall} 의 결과(바로 그 apply 를 부른 같은 잠금 구간 안에서 읽는다). 아니었으면 null. */
+        default Object lastResult() { throw new UnsupportedOperationException("lastResult"); }
     }
 
     /**
@@ -1264,7 +1281,76 @@ public interface ChunkInternals {
          * 몹 목표 설계 M3 검토 3). 샌드박스 재생에서는 아무것도 안 한다.
          */
         record AddHook(java.util.function.Consumer<org.domi.furnace.api.entity.Entity> beforeEvents) implements EntityOp {}
+
+        /**
+         * 월드 밖 엔티티의 Bukkit 보기(설계 furnace/designs/detached-bukkit-entity-design-2026-11-27.md): 상태 손잡이({@code EntityState}·{@code LivingEntityState}·
+         * {@code ArmorStandState})에 건 쓰기 호출 하나. 서버는 넣을 때(와 샌드박스에서) 새 서버 엔티티의 상태 손잡이에 {@link StateCall#path} 를 차례로 부른다 —
+         * 첫 호출은 손잡이에, 다음 호출은 앞 호출의 결과에(속성 객체를 거친 쓰기). 앞 결과가 {@link java.util.Optional} 이고 다음 호출의 메서드가 Optional 의 것이
+         * 아니면 그 안의 값에 부른다(비었으면 NoSuchElementException). 호출의 메서드는 {@code org.domi.furnace.api.entity} 의 인터페이스 메서드(또는 Optional)만 쓸 수 있다 —
+         * 아니면 IllegalArgumentException(서버 구현 클래스의 메서드가 섞여 엉뚱한 곳을 부르지 않게).
+         */
+        record StateCall(java.util.List<Call> path) implements EntityOp {
+            public StateCall {
+                path = java.util.List.copyOf(path);
+            }
+        }
     }
+
+    /**
+     * {@link EntityOp.StateCall} 의 호출 하나. 인자는 만들 때 복사·고정한다(목록·집합·지도·배열은 불변 복사 — 기록한 뒤 플러그인이 원본을 고쳐도 재생 값이 바뀌지 않는다).
+     * 복사할 수 없는 가변 인자(알 수 없는 컬렉션 구현 등)는 IllegalArgumentException.
+     */
+    record Call(java.lang.reflect.Method method, java.util.List<Object> args) {
+        public Call {
+            java.util.Objects.requireNonNull(method, "method");
+            Object[] copy = new Object[args.size()];
+            for (int i = 0; i < copy.length; i++) copy[i] = freeze(args.get(i));
+            args = java.util.Collections.unmodifiableList(java.util.Arrays.asList(copy));
+        }
+
+        private static Object freeze(Object o) {
+            if (o == null || o instanceof String || o instanceof Number || o instanceof Boolean || o instanceof Character || o instanceof Enum<?> || o instanceof Record) return o;
+            if (o instanceof java.util.List<?> l) {
+                Object[] c = new Object[l.size()];
+                int i = 0;
+                for (Object x : l) c[i++] = freeze(x);
+                return java.util.Collections.unmodifiableList(java.util.Arrays.asList(c));
+            }
+            if (o instanceof java.util.Set<?> s) {
+                java.util.Set<Object> c = new java.util.LinkedHashSet<>();
+                for (Object x : s) c.add(freeze(x));
+                return java.util.Collections.unmodifiableSet(c);
+            }
+            if (o instanceof java.util.Map<?, ?> m) {
+                java.util.Map<Object, Object> c = new java.util.LinkedHashMap<>();
+                for (var e : m.entrySet()) c.put(freeze(e.getKey()), freeze(e.getValue()));
+                return java.util.Collections.unmodifiableMap(c);
+            }
+            if (o instanceof Object[] a) {
+                Object[] c = a.clone();
+                for (int i = 0; i < c.length; i++) c[i] = freeze(c[i]);
+                return c;
+            }
+            if (o.getClass().isArray()) return cloneArray(o);
+            if (o instanceof org.domi.furnace.api.text.Text || o instanceof org.domi.furnace.api.entity.Entity || o instanceof java.util.Optional<?>) return o;
+            // API 값 객체(불변인 인터페이스 구현)는 그대로 — 그 밖의 알 수 없는 객체는 복사할 방법이 없다
+            if (o.getClass().getName().startsWith("org.domi.furnace.api.")) return o;
+            throw new IllegalArgumentException("cannot freeze a call argument of " + o.getClass().getName());
+        }
+
+        private static Object cloneArray(Object a) {
+            int n = java.lang.reflect.Array.getLength(a);
+            Object c = java.lang.reflect.Array.newInstance(a.getClass().getComponentType(), n);
+            System.arraycopy(a, 0, c, 0, n);
+            return c;
+        }
+    }
+
+    /**
+     * 호환 계층이 만든, 아직 월드에 없는 엔티티의 {@code api.entity.Entity} 구현의 표지. 서버가 엔티티 인자를 받는 입구에서 이것을 보면 서버 엔티티가 아니라는
+     * 분명한 오류(UnsupportedOperationException)를 낸다 — ClassCastException 이나 영문 모를 "핸들이 아니다" 대신.
+     */
+    interface WorldlessEntity {}
 
     /**
      * 청크 shim 의 거울이다(호환 계층이 만들며, 플러그인이 볼 수 없는 내부 객체). 서버는 그 청크의 주인 region 스레드에서만 부르고, 이 객체의 모니터를 쓰지 않는다.

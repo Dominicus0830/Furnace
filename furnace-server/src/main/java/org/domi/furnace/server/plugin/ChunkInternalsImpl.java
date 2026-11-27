@@ -1564,7 +1564,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     /** NMS 로 만든 엔티티 하나: 서버 엔티티를 만들고 기록한 조작을 차례로 재생한다. */
-    private static org.domi.furnace.server.entity.Entity createNmsEntity(org.domi.furnace.server.block.ChunkLevel lv, String id, List<EntityOp> ops) {
+    private org.domi.furnace.server.entity.Entity createNmsEntity(org.domi.furnace.server.block.ChunkLevel lv, String id, List<EntityOp> ops) {
         // 맨 앞 EntityRandom: 그 씨앗의 엔티티 난수로 만든다(월드 밖에서 칸을 미리 본 엔티티 — 생성자 난수 선택을 미리 본 것과 같게)
         var e = !ops.isEmpty() && ops.get(0) instanceof EntityOp.EntityRandom r
                 ? org.domi.furnace.server.entity.Entity.withRandomSeed(r.seed(), () -> org.domi.furnace.server.entity.Entities.create(lv, id))
@@ -1593,7 +1593,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     /** 기록한 조작 하나를 재생한다(first = 맨 앞 조작 — EntityRandom 은 거기서만, 생성 때 이미 썼다). */
-    private static void applyOp(org.domi.furnace.server.entity.Entity e, String id, EntityOp op, boolean first) {
+    private void applyOp(org.domi.furnace.server.entity.Entity e, String id, EntityOp op, boolean first) {
         switch (op) {
             case EntityOp.EntityRandom r -> {
                 if (!first) throw new IllegalArgumentException("EntityRandom must be the first op");
@@ -1627,6 +1627,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
             case EntityOp.GoalControlFlag g -> goalOp(e, g);
             case EntityOp.GoalConfigure g -> goalOp(e, g);
             case EntityOp.AddHook h -> { }   // 넣을 때만 — bindBeforeEvents
+            case EntityOp.StateCall c -> StateCalls.invoke(EntityStateImpl.of(host, e), c.path());
         }
     }
 
@@ -1813,7 +1814,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     /** 빈 레벨의 엔티티 하나를 쥐고 조작을 하나씩 재생한다. 그 엔티티는 이 객체 밖으로 나가지 않는다(어느 region 소유도 아니다). */
-    private static final class Detached implements DetachedEntityData {
+    private final class Detached implements DetachedEntityData {
         private final String kind;
         private final org.domi.furnace.server.entity.Entity entity;
         private List<EntityDataSlot> slots;
@@ -1840,11 +1841,16 @@ final class ChunkInternalsImpl implements ChunkInternals {
         @Override
         public synchronized List<EntityDataSlot> apply(EntityOp op) {
             rethrowIfFailed();
+            result = null;
             try {
-                applyOp(entity, kind, op, false);
+                if (op instanceof EntityOp.StateCall sc) result = StateCalls.invoke(EntityStateImpl.of(host, entity), sc.path());
+                else applyOp(entity, kind, op, false);
             } catch (RuntimeException ex) {
                 // 몹 목표 조작의 거절은 몹을 바꾸기 전에 난다(생성자 검사·지원 안 하는 생성자·모르는 ref·몹이 아님) — 그 조작만 실패하고 재생 상태는 그대로 쓴다(몹 목표 설계 M3)
-                if (!(goalEdit(op) && (op instanceof EntityOp.GoalCreate || ex instanceof IllegalArgumentException || ex instanceof UnsupportedOperationException))) failed = ex;
+                // 상태 호출(StateCall)의 거절도 같다 — 인자 검사가 바꾸기 전에 난다(모르는 효과 이름·없는 속성·종류에 맞지 않는 호출)
+                boolean rejected = (goalEdit(op) && (op instanceof EntityOp.GoalCreate || ex instanceof IllegalArgumentException || ex instanceof UnsupportedOperationException))
+                        || op instanceof EntityOp.StateCall;
+                if (!rejected) failed = ex;
                 throw ex;
             } catch (Error ex) {
                 failed = ex;   // 엔티티가 조작 도중 상태일 수 있다 — 처음부터 재생해도 여기서 늘 실패한다(Error 도 잠근다: 반쯤 바뀐 엔티티를 다시 쓰지 않는다)
@@ -1852,6 +1858,37 @@ final class ChunkInternalsImpl implements ChunkInternals {
             }
             slots = null;
             return slots();
+        }
+
+        /** 가장 최근 StateCall 의 결과({@link #lastResult}). */
+        private Object result;
+
+        @Override
+        public synchronized Object lastResult() {
+            rethrowIfFailed();
+            return result;
+        }
+
+        @Override
+        public synchronized java.util.UUID entityUuid() {
+            rethrowIfFailed();
+            return entity.uuid();
+        }
+
+        @Override
+        public synchronized List<Class<?>> stateTypes() {
+            rethrowIfFailed();
+            List<Class<?>> out = new java.util.ArrayList<>();
+            for (Class<?> c = EntityStateImpl.of(host, entity).getClass(); c != null; c = c.getSuperclass()) {
+                for (Class<?> i : c.getInterfaces()) if (org.domi.furnace.api.entity.EntityState.class.isAssignableFrom(i) && !out.contains(i)) out.add(i);
+            }
+            return List.copyOf(out);
+        }
+
+        @Override
+        public synchronized Object read(List<ChunkInternals.Call> path) {
+            rethrowIfFailed();
+            return StateCalls.invoke(EntityStateImpl.of(host, entity), path);
         }
 
         private MobGoals goals;
@@ -1940,7 +1977,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
     }
 
     /** 바닐라 loadEntityRecursive 의 뒷부분: 승객을 깊이 우선으로 만들어 강제로 태운다. made 의 자리는 spec 의 깊이 우선 차례. */
-    private static org.domi.furnace.server.entity.Entity buildNms(RegionLevel lv, NmsEntitySpec spec, List<org.domi.furnace.server.entity.Entity> made, int[] next) {
+    private org.domi.furnace.server.entity.Entity buildNms(RegionLevel lv, NmsEntitySpec spec, List<org.domi.furnace.server.entity.Entity> made, int[] next) {
         int at = next[0]++;
         var e = createNmsEntity(lv, spec.id(), spec.ops());
         made.set(at, e);

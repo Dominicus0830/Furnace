@@ -21,8 +21,14 @@ class Fox {
     private void furnaceSitPose(boolean sit, boolean fireEvent) {
         var op = new EntityEdit.SitPose(sit, fireEvent);
         if (furnaceNotInWorld()) {
-            // Paper 는 이벤트에 getBukkitEntity() 를 싣는다 — 월드 밖 엔티티는 Bukkit 엔티티가 없어 getBukkitEntity 처럼 멈춘다
-            if (fireEvent) getBukkitEntity();
+            // Paper: 이벤트에 getBukkitEntity() 를 싣는다 — 월드 밖 엔티티도 Bukkit 엔티티가 있다. 지금 이벤트를 내고, 취소면 그대로,
+            // 아니면 "이벤트 없이" 기록한다(넣을 때 재생이 이벤트를 다시 내지 않게)
+            if (fireEvent) {
+                var event = new io.papermc.paper.event.entity.EntityToggleSitEvent(getBukkitEntity(), sit);
+                org.bukkit.Bukkit.getPluginManager().callEvent(event);
+                if (event.isCancelled()) return;
+                op = new EntityEdit.SitPose(sit, false);
+            }
             furnaceDetachedOp("Fox#setSitting", op);
         } else furnaceEditOf("Fox#setSitting", op);
     }

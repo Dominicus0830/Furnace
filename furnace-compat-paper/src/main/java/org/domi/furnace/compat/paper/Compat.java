@@ -662,6 +662,28 @@ public final class Compat {
         return out[0];
     }
 
+    /**
+     * 아직 월드에 없는 엔티티(EntityType#create)의 Bukkit 엔티티(NMS 엔티티 shim 의 getBukkitEntity). Paper 와 같은 종류별 Craft 클래스를 고르되 UUID 표에는
+     * 넣지 않는다 — 월드 밖 엔티티는 월드에서 찾아지지 않는다. 넣을 때 {@link #bindEntity} 가 표에 올린다.
+     */
+    public static CraftEntity detachedEntity(org.domi.furnace.api.entity.Entity handle) {
+        return newCraft(craftClass(handle), handle);
+    }
+
+    /**
+     * 월드 밖에서 만든 Bukkit 엔티티를 넣을 서버 엔티티에 묶는다(스폰 이벤트 전 — Paper 는 같은 객체라 이벤트의 getEntity() 가 플러그인이 쥔 그 객체다).
+     * 같은 UUID 의 표 칸을 이 객체로 예약하고 핸들을 서버 핸들로 바꾼다. 핸들의 UUID 가 다르면 IllegalStateException(세션과 넣은 엔티티가 어긋남).
+     */
+    public static void bindEntity(CraftEntity c, org.domi.furnace.api.entity.Entity fresh) {
+        State s = state();
+        s.drainEntityQueue();
+        if (!c.furnaceHandle().uniqueId().equals(fresh.uniqueId())) {
+            throw new IllegalStateException("the entity added to the world has another UUID than the one made before: " + fresh.uniqueId() + " != " + c.furnaceHandle().uniqueId());
+        }
+        c.furnaceHandle(fresh);
+        s.entities.compute(fresh.uniqueId(), (k, r) -> new EntityRef(k, c, s.entityQueue));
+    }
+
     /** 이 핸들을 감쌀 CraftEntity 종류 — Bukkit 이 따로 형을 두는 종류(갑옷 거치대·돼지)는 그 형, 나머지는 살아 있는지로. */
     private static Class<? extends CraftEntity> craftClass(org.domi.furnace.api.entity.Entity e) {
         Class<? extends CraftEntity> generated = CompatEntityKinds.kindOf(e);   // Paper 와 같은 종류별 형(instanceof Villager·Minecart 등)
