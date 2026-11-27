@@ -214,6 +214,48 @@ class NmsEntityLookTest {
         fresh.animateHurt(0.0F);
     }
 
+    /** 낙타 앉기·서기(바닐라 sitDown·standUp·standUpInstantly): 월드 밖 낙타는 칸(자세·자세 바꾼 틱)으로, 월드의 낙타는 서버 낙타로. */
+    @Test
+    void camelSitsAndStands() {
+        server.tick(3);   // 게임 시간이 0 이면 −0 = 0 이라 앉음(틱 < 0)을 가릴 수 없다
+        long time = world.getGameTime();
+        assertTrue(time > 0L);
+        var fresh = (net.minecraft.world.entity.animal.camel.Camel) EntityType.CAMEL.create(world.getHandle());
+        @SuppressWarnings("unchecked")
+        var pose = (net.minecraft.network.syncher.EntityDataAccessor<net.minecraft.world.entity.Pose>) poseAccessor();
+        fresh.sitDown();
+        assertSame(net.minecraft.world.entity.Pose.SITTING, fresh.getEntityData().get(pose));
+        assertEquals(-time, lastPoseTick(fresh), "앉으면 자세 바꾼 틱이 −(월드 게임 시간) — 샌드박스 시간이 아니다");
+        assertTrue(lastPoseTick(fresh) < 0L, "isCamelSitting");
+        fresh.standUpInstantly();
+        assertSame(net.minecraft.world.entity.Pose.STANDING, fresh.getEntityData().get(pose));
+
+        CraftEntity camel = on(() -> (CraftEntity) world.spawnEntity(new Location(world, at.x() + 0.5, at.y(), at.z() + 0.5), org.bukkit.entity.EntityType.CAMEL));
+        var c = (net.minecraft.world.entity.animal.camel.Camel) camel.getHandle();
+        on(() -> {
+            var server = org.domi.furnace.api.internal.Internals.get().entityNow(camel.furnaceHandle(), org.domi.furnace.server.entity.Camel.class);
+            assertFalse(server.isCamelSitting());
+            c.sitDown();
+            assertTrue(server.isCamelSitting());
+            c.standUp();
+            assertFalse(server.isCamelSitting());
+            camel.remove();
+            return null;
+        });
+    }
+
+    static long lastPoseTick(net.minecraft.world.entity.animal.camel.Camel e) {
+        try {
+            var f = net.minecraft.world.entity.animal.camel.Camel.class.getDeclaredField("LAST_POSE_CHANGE_TICK");
+            f.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            var a = (net.minecraft.network.syncher.EntityDataAccessor<Long>) f.get(null);
+            return e.getEntityData().get(a);
+        } catch (ReflectiveOperationException ex) {
+            throw new AssertionError(ex);
+        }
+    }
+
     static byte livingFlags(net.minecraft.world.entity.LivingEntity e) {
         try {
             var f = net.minecraft.world.entity.LivingEntity.class.getDeclaredField("DATA_LIVING_ENTITY_FLAGS");
