@@ -89,9 +89,22 @@ public final class LootTable {
      * 바닐라 fill — 컨테이너 칸(빈 칸은 null 또는 빈 스택)을 채운다. 난수 순서: 전리품 → 빈 칸 섞기 → 나누기 → 아이템 섞기.
      */
     public void fill(LootStack[] container, LootData data, LootWorld world, LootParams params, long seed) {
+        fill(container, data, world, params, seed, null);
+    }
+
+    /**
+     * {@link #fill(LootStack[], LootData, LootWorld, LootParams, long)} + Paper 의 LootGenerateEvent 자리: 표를 굴린 뒤(난수 하나 쓰기 전) review 가
+     * 전리품 목록을 받아 고친 목록을 돌려준다. null 을 돌려주면 취소(컨테이너는 그대로, 뒤 난수도 쓰지 않는다).
+     */
+    public void fill(LootStack[] container, LootData data, LootWorld world, LootParams params, long seed,
+                     java.util.function.UnaryOperator<List<LootStack>> review) {
         LootContext ctx = context(data, world, params, seed);
         List<LootStack> items = getRandomItems(ctx);
         NoiseRandom r = ctx.random();
+        if (review != null) {
+            items = review.apply(items);
+            if (items == null) return;
+        }
         List<Integer> slots = new ArrayList<>();
         for (int i = 0; i < container.length; i++) if (container[i] == null || container[i].isEmpty()) slots.add(i);
         Mth.shuffle(slots, r);

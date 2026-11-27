@@ -380,10 +380,11 @@ public final class ServerCore {
 
     /** 바닐라 {@code LootTable#fill(Container, LootParams, long)}: 칸 배열(빈 칸은 null)을 채운다. */
     public void fillLoot(World w, org.domi.furnace.server.loot.LootTable table, org.domi.furnace.server.loot.LootParams params, long seed,
-                         org.domi.furnace.server.loot.LootStack[] cells) {
+                         org.domi.furnace.server.loot.LootStack[] cells,
+                         java.util.function.UnaryOperator<java.util.List<org.domi.furnace.server.loot.LootStack>> review) {
         var dp = dataPacks;
         if (dp == null || dp.loot() == null) return;
-        table.fill(cells, dp.loot(), lootWorldOf(w), params, seed);
+        table.fill(cells, dp.loot(), lootWorldOf(w), params, seed, review);
     }
 
     /**
@@ -611,7 +612,8 @@ public final class ServerCore {
         String table = chest.lootTable;
         chest.lootTable = null;
         generatedLoot(opener, table);
-        fillLoot(w, chest.items, table, chest.lootSeed, new double[]{chest.pos().x() + 0.5, chest.pos().y() + 0.5, chest.pos().z() + 0.5}, opener);
+        fillLoot(w, chest.items, table, chest.lootSeed, new double[]{chest.pos().x() + 0.5, chest.pos().y() + 0.5, chest.pos().z() + 0.5}, opener,
+                new org.domi.furnace.server.block.Pos(chest.pos().x(), chest.pos().y(), chest.pos().z()), null);
     }
 
     /** 바닐라 ContainerEntity.unpackChestVehicleLootTable — 엔티티 용기의 전리품 표를 푼다(그 엔티티의 region 스레드에서). 위치는 엔티티 위치. */
@@ -621,7 +623,7 @@ public final class ServerCore {
         entity.setLootTable(null);
         generatedLoot(opener, table);
         var e = entity.asEntity();
-        fillLoot(w, entity.chestVehicleItems(), table, entity.lootTableSeed(), new double[]{e.x(), e.y(), e.z()}, opener);
+        fillLoot(w, entity.chestVehicleItems(), table, entity.lootTableSeed(), new double[]{e.x(), e.y(), e.z()}, opener, null, e);
     }
 
     /** 바닐라 unpackLootTable: 플레이어가 열어 전리품이 풀리면 전리품을 만들기 전에 player_generates_container_loot. */
@@ -632,7 +634,8 @@ public final class ServerCore {
     }
 
     /** LootTable.fill(container, params, seed): 빈 칸에 전리품을 흩어 넣는다. 데이터 팩이 없으면 아무것도. */
-    private void fillLoot(World w, ItemStack[] items, String tableName, long seed, double[] origin, Player opener) {
+    private void fillLoot(World w, ItemStack[] items, String tableName, long seed, double[] origin, Player opener,
+                          org.domi.furnace.server.block.Pos containerBlock, org.domi.furnace.server.entity.Entity containerEntity) {
         var dp = dataPacks;
         if (dp == null || dp.loot() == null) return;
         var loot = dp.loot();
@@ -645,7 +648,11 @@ public final class ServerCore {
             params.with(org.domi.furnace.server.loot.LootParams.THIS_ENTITY, () -> "minecraft:player");
             params.luck(lootEntity(opener).luck());   // 바닐라 unpackLootTable: withLuck(player.getLuck())
         }
-        table.fill(slots, loot, lootWorldOf(w), params, seed);
+        float luck = opener == null ? 0f : lootEntity(opener).luck();
+        // Paper LootTable.fill → LootGenerateEvent(plugin=false): 표를 굴린 뒤, 칸에 나누기 전
+        table.fill(slots, loot, lootWorldOf(w), params, seed, rolled -> gameEvents().lootGenerate(w.dimension(), tableName.indexOf(':') < 0 ? "minecraft:" + tableName : tableName,
+                opener == null ? null : pluginHost.player(opener), null, containerBlock,
+                containerEntity == null ? null : org.domi.furnace.server.plugin.EntityHandle.of(pluginHost, containerEntity), null, origin, luck, rolled, false));
         for (int i = 0; i < slots.length; i++) {
             if (slots[i] != null && slots[i] != occupied) items[i] = dp.network().toItemStack(slots[i]);
         }

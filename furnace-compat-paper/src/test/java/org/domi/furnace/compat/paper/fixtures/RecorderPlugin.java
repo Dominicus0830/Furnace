@@ -32,6 +32,7 @@ import org.bukkit.event.server.ServerCommandEvent;
 import org.bukkit.event.server.ServerLoadEvent;
 import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.event.world.ChunkUnloadEvent;
+import org.bukkit.event.world.LootGenerateEvent;
 import org.bukkit.event.world.WorldLoadEvent;
 import org.bukkit.event.world.WorldUnloadEvent;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -218,6 +219,7 @@ public final class RecorderPlugin extends JavaPlugin implements Listener {
     @EventHandler public void on(ChunkLoadEvent e) { rec(e); }
 
     @EventHandler public void on(ChunkUnloadEvent e) { rec(e); }
+    @EventHandler public void on(LootGenerateEvent e) { rec(e); }
 
     @EventHandler public void on(org.bukkit.event.player.PlayerInteractEntityEvent e) { rec(e); }
 }
