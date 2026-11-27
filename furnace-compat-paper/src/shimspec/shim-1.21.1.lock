@@ -411,8 +411,14 @@ C	net/minecraft/world/entity/LivingEntity	1057	net/minecraft/world/entity/Entity
 F	net/minecraft/world/entity/LivingEntity	DATA_ARROW_COUNT_ID	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Integer;>;
 F	net/minecraft/world/entity/LivingEntity	DATA_HEALTH_ID	Lnet/minecraft/network/syncher/EntityDataAccessor;	25	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Float;>;
 F	net/minecraft/world/entity/LivingEntity	DATA_LIVING_ENTITY_FLAGS	Lnet/minecraft/network/syncher/EntityDataAccessor;	28	Lnet/minecraft/network/syncher/EntityDataAccessor<Ljava/lang/Byte;>;
+M	net/minecraft/world/entity/LivingEntity	animateHurt	(F)V	1	-
+M	net/minecraft/world/entity/LivingEntity	getUsedItemHand	()Lnet/minecraft/world/InteractionHand;	1	-
 M	net/minecraft/world/entity/LivingEntity	isAlive	()Z	1	-
 M	net/minecraft/world/entity/LivingEntity	isFallFlying	()Z	1	-
+M	net/minecraft/world/entity/LivingEntity	isUsingItem	()Z	1	-
+M	net/minecraft/world/entity/LivingEntity	startUsingItem	(Lnet/minecraft/world/InteractionHand;)V	1	-
+M	net/minecraft/world/entity/LivingEntity	startUsingItem	(Lnet/minecraft/world/InteractionHand;Z)V	1	-
+M	net/minecraft/world/entity/LivingEntity	stopUsingItem	()V	1	-
 C	net/minecraft/world/entity/Marker	33	net/minecraft/world/entity/Entity	-	-	-	paper-server-1.21.1
 M	net/minecraft/world/entity/Marker	<init>	(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V	1	(Lnet/minecraft/world/entity/EntityType<*>;Lnet/minecraft/world/level/Level;)V
 C	net/minecraft/world/entity/Mob	1057	net/minecraft/world/entity/LivingEntity	net/minecraft/world/entity/EquipmentUser,net/minecraft/world/entity/Leashable,net/minecraft/world/entity/Targeting	-	-	paper-server-1.21.1

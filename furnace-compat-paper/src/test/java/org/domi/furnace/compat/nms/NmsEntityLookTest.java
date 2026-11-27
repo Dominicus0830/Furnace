@@ -165,6 +165,65 @@ class NmsEntityLookTest {
         assertEquals(0.325F * 3, slime.getEyeHeight());
     }
 
+    /** 아이템 사용(바닐라 isUsingItem·getUsedItemHand·Paper startUsingItem(hand, force)·stopUsingItem)과 맞은 흔들림(animateHurt): 플레이어·월드 좀비·월드 밖 좀비. */
+    @Test
+    void useItemAndHurtAnimation() {
+        ServerPlayer p = bukkit.getHandle();
+        assertFalse(p.isUsingItem());
+        assertSame(net.minecraft.world.InteractionHand.MAIN_HAND, p.getUsedItemHand());
+        assertThrows(UnsupportedNmsCall.class, () -> p.stopUsingItem(), "접속한 플레이어는 이 길로 바꾸지 않는다");
+
+        CraftEntity zombie = on(() -> (CraftEntity) world.spawnEntity(new Location(world, at.x() + 0.5, at.y(), at.z() + 0.5), org.bukkit.entity.EntityType.ZOMBIE));
+        var z = (net.minecraft.world.entity.LivingEntity) zombie.getHandle();
+        on(() -> {
+            var server = org.domi.furnace.api.internal.Internals.get().entityNow(zombie.furnaceHandle(), org.domi.furnace.server.entity.Zombie.class);
+            server.setItemSlot(org.domi.furnace.server.entity.EquipmentSlot.MAINHAND,
+                    new org.domi.furnace.server.entity.ItemStack(org.domi.furnace.server.item.ItemContext.id("minecraft:item", "bow"), 1));
+            assertFalse(z.isUsingItem());
+            z.startUsingItem(net.minecraft.world.InteractionHand.MAIN_HAND);
+            assertTrue(z.isUsingItem(), "활을 든 손");
+            assertSame(net.minecraft.world.InteractionHand.MAIN_HAND, z.getUsedItemHand());
+            z.stopUsingItem();
+            assertFalse(z.isUsingItem());
+            z.startUsingItem(net.minecraft.world.InteractionHand.OFF_HAND);
+            assertFalse(z.isUsingItem(), "빈 손은 force 없이 시작하지 않는다");
+            z.startUsingItem(net.minecraft.world.InteractionHand.OFF_HAND, true);
+            assertTrue(z.isUsingItem(), "Paper forceUpdate");
+            assertSame(net.minecraft.world.InteractionHand.OFF_HAND, z.getUsedItemHand());
+            assertEquals(0, server.hurtTime);
+            z.animateHurt(90.0F);
+            assertEquals(10, server.hurtTime);
+            assertEquals(10, server.hurtDuration);
+            zombie.remove();
+            return null;
+        });
+
+        var fresh = (net.minecraft.world.entity.LivingEntity) EntityType.ZOMBIE.create(world.getHandle());
+        assertFalse(fresh.isUsingItem());
+        fresh.startUsingItem(net.minecraft.world.InteractionHand.MAIN_HAND);
+        assertFalse(fresh.isUsingItem(), "월드 밖 좀비도 빈 손이면 시작하지 않는다");
+        fresh.startUsingItem(net.minecraft.world.InteractionHand.OFF_HAND, true);
+        assertTrue(fresh.isUsingItem());
+        assertSame(net.minecraft.world.InteractionHand.OFF_HAND, fresh.getUsedItemHand());
+        assertEquals((byte) 3, livingFlags(fresh), "칸(FancyNpcs 가 패킷으로 보낸다): 사용 1·다른 손 2");
+        fresh.stopUsingItem();
+        assertFalse(fresh.isUsingItem());
+        assertEquals((byte) 2, livingFlags(fresh), "손 비트는 바닐라처럼 남는다");
+        fresh.animateHurt(0.0F);
+    }
+
+    static byte livingFlags(net.minecraft.world.entity.LivingEntity e) {
+        try {
+            var f = net.minecraft.world.entity.LivingEntity.class.getDeclaredField("DATA_LIVING_ENTITY_FLAGS");
+            f.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            var a = (net.minecraft.network.syncher.EntityDataAccessor<Byte>) f.get(null);
+            return e.getEntityData().get(a);
+        } catch (ReflectiveOperationException ex) {
+            throw new AssertionError(ex);
+        }
+    }
+
     static Object poseAccessor() {
         try {
             var f = Entity.class.getDeclaredField("DATA_POSE");

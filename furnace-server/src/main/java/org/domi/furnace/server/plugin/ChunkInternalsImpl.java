@@ -937,6 +937,9 @@ final class ChunkInternalsImpl implements ChunkInternals {
             case EntityEdit.SetFlag f -> applySetter(e, f);
             case EntityEdit.SetCustomName n -> applySetter(e, n);
             case EntityEdit.SetTicksFrozen t -> applySetter(e, t);
+            case EntityEdit.StartUsingItem u -> applySetter(e, u);
+            case EntityEdit.StopUsingItem u -> applySetter(e, u);
+            case EntityEdit.AnimateHurt h -> applySetter(e, h);
             case EntityOp.SetData d -> {
                 return setData(e, e.type().name(), d);   // 바뀌었는가(같은 값이면 바닐라처럼 아무것도 안 하고 거짓)
             }
@@ -1396,6 +1399,9 @@ final class ChunkInternalsImpl implements ChunkInternals {
             }
             case EntityEdit.SetCustomName n -> e.setCustomName(n.name());
             case EntityEdit.SetTicksFrozen t -> e.setTicksFrozen(t.ticks());
+            case EntityEdit.StartUsingItem u -> living(e, "startUsingItem").startUsingItem(u.hand(), u.force());
+            case EntityEdit.StopUsingItem u -> living(e, "stopUsingItem").stopUsingItem();
+            case EntityEdit.AnimateHurt h -> living(e, "animateHurt").animateHurt();
             default -> throw new IllegalArgumentException("not a setter: " + op);
         }
     }
@@ -1585,6 +1591,9 @@ final class ChunkInternalsImpl implements ChunkInternals {
             case EntityEdit.SetFlag f -> applySetter(e, f);
             case EntityEdit.SetCustomName n -> applySetter(e, n);
             case EntityEdit.SetTicksFrozen t -> applySetter(e, t);
+            case EntityEdit.StartUsingItem u -> applySetter(e, u);
+            case EntityEdit.StopUsingItem u -> applySetter(e, u);
+            case EntityEdit.AnimateHurt h -> applySetter(e, h);
             case EntityOp.SetData d -> setData(e, id, d);
             case EntityOp.GoalPin g -> goalOp(e, g);
             case EntityOp.GoalCreate g -> goalOp(e, g);
@@ -2364,6 +2373,11 @@ final class ChunkInternalsImpl implements ChunkInternals {
         return s != null && s.get().syncChunkWrites;   // server.properties 가 없는 시험 서버는 기본값(거짓)
     }
 
+    private static org.domi.furnace.server.entity.LivingEntity living(org.domi.furnace.server.entity.Entity e, String what) {
+        if (e instanceof org.domi.furnace.server.entity.LivingEntity le) return le;
+        throw new IllegalArgumentException(what + " on an entity that is not living: " + e.type().name());
+    }
+
     // ------------------------------------------------------------------ 엔티티 모습 읽기(NMS shim 5번 묶음)
 
     @Override
@@ -2374,7 +2388,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
             var v = p.vehicle();
             return new EntityLook(p.sharedFlags(), p.pose(), k[0], k[1], k[2], p.vitals().isFlying(),
                     p.isSpectator(), host.core().profilePermissions(org.domi.furnace.server.ServerCore.profileOf(p)), v == null ? null : v.uuid(), List.of(),
-                    p.bbWidth(), p.bbHeight(), p.eyeHeight());
+                    p.bbWidth(), p.bbHeight(), p.eyeHeight(), p.livingFlagsNow());
         }
         var e = org.domi.furnace.api.Furnace.server().internals().entityNow(entity, org.domi.furnace.server.entity.Entity.class);
         double[] k = knownMovement(e);
@@ -2382,7 +2396,7 @@ final class ChunkInternalsImpl implements ChunkInternals {
         List<java.util.UUID> passengers = new java.util.ArrayList<>(e.passengers().size());
         for (var r : e.passengers()) passengers.add(uuidOf(r));
         return new EntityLook(e.sharedFlagsByte(), e.getPose(), k[0], k[1], k[2], false, false, 0, v == null ? null : v.uuid(), List.copyOf(passengers),
-                e.bbWidth(), e.bbHeight(), e.eyeHeight());
+                e.bbWidth(), e.bbHeight(), e.eyeHeight(), e instanceof org.domi.furnace.server.entity.LivingEntity le ? le.livingFlags() : (byte) 0);
     }
 
     private static java.util.UUID uuidOf(org.domi.furnace.server.entity.Rider r) {
